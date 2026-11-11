@@ -87,17 +87,24 @@ export function masters(seed = 1) {
     const x = rock[0] + (r.gx / gl) * sg * dist * 0.94 + (-r.gz / gl) * dist * 0.34, z = rock[2] + (r.gz / gl) * sg * dist * 0.94 + (r.gx / gl) * dist * 0.34;
     return [x, W.heightAt(x, z) + h, z];
   };
-  return [
+  // aim so the subject sits a sixth of the frame over its middle: land under it, less empty sky over it
+  const aim = (pos, target, mm) => { const d = Math.hypot(target[0] - pos[0], target[2] - pos[2]); return [target[0], target[1] - d * Math.tan(Math.atan(8.91 / mm) / 3), target[2]]; };
+  const p75 = from(6 + rs * 4, 2.0), p135 = from(20 + rs * 12, 2.2), p180 = from(70 + rs * 30, 2.6);
+  const list = [
     { lens: 'A28', name: 'The land', what: 'from 26 m up, down the river: everything at once, to the horizon', pos: surf(pts[8], 0, -60, 26), look: surf(pts[14], 0, 0, 0) },
     { lens: 'A35', name: 'Down the river', what: 'standing on the bank: water, both banks, the meadow behind', pos: at(M, M.w + 3, -10, 1.7), look: surf(pts[17], 0, 0, 0) },
     { lens: 'A40', name: 'The meadow', what: 'eye height over the grass to the horizon: the rings of blades, one after the other', pos: at(G, G.w + 30, 0, 1.7), look: at(G, G.w + 70, 70, 1) },
     { lens: 'A50', name: 'The bank', what: 'grass in front, sand and water beyond: where three grounds meet', pos: at(M, M.w + 9, -6, 1.7), look: surf(M, 0, 14, 0) },
-    { lens: 'A60', name: 'In the grass', what: 'half a metre up, along the blades: a blade is a thing here', pos: at(G, G.w + 22, 0, 0.45), look: at(G, G.w + 22, 14, 0.5) },
-    { lens: 'A75', name: 'A boulder', what: `the largest rock near by, from ${Math.round(6 + rs * 4)} m`, pos: from(6 + rs * 4, 1.6), look: rock },
-    { lens: 'A100', name: 'The waterline', what: 'from the bank, low: foam, wet sand, ripples', pos: at(M, M.w * 0.95 + 2.2, -4, 0.6), look: surf(M, M.w * 0.96, 6, 0) },
-    { lens: 'A135', name: 'The boulder, far', what: `the same rock from ${Math.round(20 + rs * 12)} m: grass between, compressed`, pos: from(20 + rs * 12, 1.6), look: rock },
-    { lens: 'A180', name: 'Across the land', what: `the same rock from ${Math.round(70 + rs * 30)} m: the far rings of detail, magnified`, pos: from(70 + rs * 30, 1.7), look: rock },
+    { lens: 'A60', name: 'In the grass', what: 'half a metre up, through the blades to the water: a blade is a thing here', pos: at(G, G.w + 12, 0, 0.5), look: surf(G, 0, 8, 0.3) },
+    { lens: 'A75', name: 'A boulder', what: `the largest rock near by, from ${Math.round(6 + rs * 4)} m`, pos: p75, look: aim(p75, rock, 75) },
+    { lens: 'A100', name: 'The waterline', what: 'a hand over the sand, along the edge of the water: foam, wet sand, ripples', pos: at(M, M.w * 0.95 + 3.2, -3, 0.9), look: surf(M, M.w * 0.93, 2.5, 0) },
+    { lens: 'A135', name: 'The boulder, far', what: `the same rock from ${Math.round(20 + rs * 12)} m: grass between, compressed`, pos: p135, look: aim(p135, rock, 135) },
+    { lens: 'A180', name: 'Across the land', what: `the same rock from ${Math.round(70 + rs * 30)} m: the far rings of detail, magnified`, pos: p180, look: aim(p180, rock, 180) },
   ];
+  const fd = (p, t) => Math.hypot(t[0] - p[0], t[1] - p[1], t[2] - p[2]);
+  list[4].focus = 2.6;   // in the grass the near blades are the subject
+  list[5].focus = fd(p75, rock); list[7].focus = fd(p135, rock); list[8].focus = fd(p180, rock);
+  return list;
 }
 
 export function trailer(seed = 1) {

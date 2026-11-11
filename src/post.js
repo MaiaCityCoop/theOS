@@ -7,12 +7,19 @@ const TAPS = 28;
 const FRAG = /* glsl */ `
 uniform sampler2D tC, tD;
 uniform vec2 uTexel;
-uniform float uNear, uFar, uFocus, uK, uF, uMaxR;
-in vec2 vUv;
+uniform float uNear, uFar, uFocus, uK, uF, uMaxR, uBarrel, uPicH;
+in vec2 vUv0;
 float distAt(vec2 uv){ float z = texture(tD, uv).x * 2.0 - 1.0; return 2.0 * uNear * uFar / (uFar + uNear - z * (uFar - uNear)); }
 // the blur's radius in pixels (upright) for a thing d metres away: the thin lens's circle of confusion
 float coc(float d){ return min(uK * abs(d - uFocus) / (d * max(uFocus - uF, 1e-3)), uMaxR); }
+// the glass: straight lines near the frame's edge bow outward a little (barrel), more on the wide lenses
+vec2 glass(vec2 uv){
+  vec2 q = (uv - 0.5) * vec2(2.0, 2.0 / uPicH);            // -1..1 across the picture, both ways
+  float r2 = q.x * q.x + 0.35 * q.y * q.y;                 // anamorphic: it bows mostly across
+  return 0.5 + (uv - 0.5) * (1.0 + uBarrel * r2) / (1.0 + uBarrel * 1.35);
+}
 void main(){
+  vec2 vUv = glass(vUv0);
   float d0 = distAt(vUv), c0 = coc(d0);
   vec3 sum = texture(tC, vUv).rgb; float w = 1.0;
   if (c0 > 0.5) {
@@ -25,7 +32,9 @@ void main(){
       sum += texture(tC, uv).rgb * k; w += k;
     }
   }
-  gl_FragColor = vec4(sum / w, 1.0);
+  // and a little light is lost toward the corners
+  vec2 e = (vUv - 0.5) * vec2(2.0, 2.0 / uPicH);
+  gl_FragColor = vec4(sum / w * (1.0 - 0.16 * smoothstep(0.55, 1.45, dot(e, e))), 1.0);
 }`;
 
 export function createPost(renderer, skyHex) {
@@ -35,9 +44,9 @@ export function createPost(renderer, skyHex) {
   const size = new THREE.Vector2();
   const mat = new THREE.ShaderMaterial({
     depthTest: false, depthWrite: false,
-    vertexShader: `out vec2 vUv; void main(){ vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+    vertexShader: `out vec2 vUv0; void main(){ vUv0 = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
     fragmentShader: FRAG,
-    uniforms: { tC: { value: null }, tD: { value: null }, uTexel: { value: new THREE.Vector2() }, uNear: { value: 0.15 }, uFar: { value: 30000 }, uFocus: { value: 10 }, uK: { value: 0 }, uF: { value: 0.05 }, uMaxR: { value: 24 } },
+    uniforms: { tC: { value: null }, tD: { value: null }, uTexel: { value: new THREE.Vector2() }, uNear: { value: 0.15 }, uFar: { value: 30000 }, uFocus: { value: 10 }, uK: { value: 0 }, uF: { value: 0.05 }, uMaxR: { value: 24 }, uBarrel: { value: 0 }, uPicH: { value: 1 } },
   });
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   quad.frustumCulled = false;
@@ -58,6 +67,8 @@ export function createPost(renderer, skyHex) {
       u.uFocus.value = Math.max(dof.focus, f * 2); u.uF.value = f;
       u.uK.value = ((f * f) / dof.N / 0.01782) * picH * 0.5;   // 17.82 mm: the gate's height
       u.uMaxR.value = picH * 0.03;
+      u.uPicH.value = picH / size.y;
+      u.uBarrel.value = dof.barrel ?? 0;
       renderer.render(quad, cam);
     },
   };

@@ -16,6 +16,7 @@ function go(i) {
   cur = i; const m = list[i];
   cine.floor = floor;
   cine.take({ pos: m.pos, look: m.look, lens: m.lens, roll: 0 });
+  if (m.focus) cine.take({ focus: m.focus });
   requestAnimationFrame(() => { const w = cine.view; v.pos = w.pos.slice(); v.yaw = w.yaw; v.pitch = w.pitch; });
   bar.querySelectorAll('button').forEach((b, k) => b.classList.toggle('now', k === i));
   history.replaceState(null, '', `?lens=${m.lens}`);
