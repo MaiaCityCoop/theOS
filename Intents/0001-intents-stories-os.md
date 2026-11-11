@@ -345,3 +345,4 @@ _Samuel's decision._
 | 2026-11-11 | `1424393` | Four standalone brand sheets and their overview; the film bar's grid fixed |
 | 2026-11-11 | `997b522` | The four sheets removed; eight brand drafts as whole landing pages and their overview |
 | 2026-11-11 | `7ff3909` | Brand draft 09, Line: the reduced one (banner, the line of days, the devlog) |
+| 2026-11-11 | `dd196b9` | Draft 09: the new title, the line scrubbed into the years, the wall of days in light |
