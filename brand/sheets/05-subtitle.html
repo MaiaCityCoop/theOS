@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maia City · brand draft 05 · Subtitle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Maia City, draft 05: SUBTITLE. The brand never speaks above the picture: what it says, it says
+   at the bottom of a letterboxed frame, in yellow, with a name over it. */
+:root{--k:#0a0a09;--c:#f1e9d8;--y:#ffe14a;--r:#d6402b;--c6:rgba(241,233,216,.62);--c3:rgba(241,233,216,.28);--c1:rgba(241,233,216,.13);
+  --tc:'Bodoni Moda','Bodoni 72',Didot,'Times New Roman',serif;--cr:'Barlow Condensed','Avenir Next Condensed','Arial Narrow',sans-serif;--st:Inter,-apple-system,'Helvetica Neue',Helvetica,Arial,sans-serif}
+*{box-sizing:border-box}
+html{scroll-snap-type:y proximity;background:var(--k)}
+body{margin:0;background:var(--k);color:var(--c);font:400 17px/1.6 var(--st);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+img{display:block}button{font:inherit}
+h1,h2,h3,p{margin:0}
+em{font-style:italic}
+.cr{font:500 13px/1.2 var(--cr);letter-spacing:.34em;text-transform:uppercase;color:var(--c6)}
+.bd{color:rgba(241,233,216,.78);max-width:54ch}
+.cue{font:500 14px/1.45 var(--st);color:var(--y)}
+.wrap{max-width:1320px;margin:0 auto;padding:0 clamp(18px,4.5vw,64px)}
+h1,h2{font-family:var(--tc);font-weight:500;letter-spacing:-.015em;line-height:.98;text-wrap:balance}
+h2{font-size:clamp(34px,5.4vw,82px)}
+h2 em,h1 em{font-weight:400}
+.n{font-variation-settings:'opsz' 30}
+.board b,.tix b,.cd b,.tally b,.board .prod em,.roll .big{font-variation-settings:'opsz' 18}
+
+.back{position:fixed;top:14px;right:16px;z-index:50;font:500 12px/1 var(--cr);letter-spacing:.3em;text-transform:uppercase;color:var(--c6);text-decoration:none;padding:9px 11px 9px 13px;border:1px solid var(--c3);background:rgba(10,10,9,.66);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.back:hover{color:var(--y);border-color:var(--y)}
+.cta{display:inline-flex;align-items:center;gap:13px;font:600 15px/1 var(--st);color:var(--k);background:var(--y);border:0;border-radius:2px;padding:16px 22px 16px 18px;cursor:pointer;text-decoration:none;transition:background .15s}
+.cta::before{content:'';border:7px solid transparent;border-left:11px solid var(--k);border-right:0}
+.cta span{font-weight:500;opacity:.6;font-variant-numeric:tabular-nums}
+.cta:hover{background:var(--c)}
+
+/* the subtitle: the device */
+.sub{position:absolute;left:50%;bottom:clamp(14px,3.1vw,46px);transform:translateX(-50%);width:min(92%,35em);margin:0;text-align:center;font:500 clamp(15px,1.85vw,27px)/1.3 var(--st);color:var(--y);text-shadow:0 1px 2px #000,0 0 16px rgba(0,0,0,.65);text-wrap:balance;z-index:4}
+.sub small{display:block;font:600 .47em/1 var(--cr);letter-spacing:.36em;text-transform:uppercase;color:var(--c);margin:0 0 .75em;text-indent:.36em}
+.sub .rest{visibility:hidden}
+.sub.static{position:static;transform:none}
+
+/* the film: one sticky letterboxed stage; the page scrolls through it shot by shot */
+#film{position:relative;height:1200vh;height:calc(12*100svh)}
+.snap{position:absolute;left:0;width:1px;height:100vh;height:100svh;scroll-snap-align:start;pointer-events:none}
+.stage{position:sticky;top:0;height:100vh;height:100svh;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(64px,1fr) minmax(0,auto) minmax(108px,1fr);overflow:hidden;--fh:clamp(230px,41.84vw,calc(100vh - 230px))}
+.lead{grid-area:1/1;position:relative;z-index:5;align-self:stretch;background:var(--k);display:flex;align-items:center;justify-content:space-between;gap:20px;padding:0 240px 0 clamp(16px,4vw,56px)}
+.wm{display:inline-flex;align-items:center;gap:14px;font:600 15px/1 var(--cr);letter-spacing:.42em;text-transform:uppercase;color:var(--c);text-decoration:none;white-space:nowrap}
+.wm img{width:30px;height:30px;border-radius:50%;filter:saturate(.85)}
+.slug{font:500 12px/1 var(--cr);letter-spacing:.3em;text-transform:uppercase;color:var(--c6);white-space:nowrap}
+.slug i{display:inline-block;width:5px;height:5px;background:var(--y);margin:0 14px 1px;vertical-align:middle}
+.frame{grid-area:2/1;align-self:center;position:relative;height:var(--fh);overflow:hidden;background:#000}
+.scenes{position:absolute;inset:0;transition:opacity .5s,filter .5s}
+.scene{position:absolute;inset:0;opacity:0;transition:opacity .16s}
+.scene.on{opacity:1}
+.scene svg,.loop svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.stage[data-mode=hero] .scenes{opacity:.6}
+.stage[data-mode=card] .scenes{opacity:.11;filter:saturate(.3)}
+.stage:not([data-mode=shot]) #sub,.stage:not([data-mode=shot]) .ttl{opacity:0}
+.frame::before{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(120% 130% at 50% 45%,transparent 52%,rgba(0,0,0,.6))}
+.stage[data-mode=hero] .frame::before{background:linear-gradient(90deg,rgba(0,0,0,.72),rgba(0,0,0,.2) 55%,transparent),radial-gradient(120% 130% at 50% 45%,transparent 52%,rgba(0,0,0,.6))}
+.fade{position:absolute;inset:0;z-index:1;background:linear-gradient(#8fa9bd,#d6d9cc);opacity:0;pointer-events:none}
+.grain{position:absolute;inset:-60px;z-index:2;pointer-events:none;opacity:.2;mix-blend-mode:overlay;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");animation:grain .64s steps(1) infinite}
+@keyframes grain{0%{transform:translate(0,0)}17%{transform:translate(-31px,22px)}34%{transform:translate(24px,-38px)}51%{transform:translate(-12px,-17px)}68%{transform:translate(37px,31px)}85%{transform:translate(-44px,-6px)}}
+.flick{position:absolute;inset:0;z-index:2;background:#000;opacity:0;pointer-events:none;animation:flick 3.7s steps(1) infinite}
+@keyframes flick{0%,100%{opacity:0}7%{opacity:.05}9%{opacity:0}41%{opacity:.035}43%{opacity:0}44%{opacity:.07}46%{opacity:0}78%{opacity:.04}80%{opacity:0}}
+.ttl{position:absolute;inset:0;z-index:3;display:grid;place-content:center;justify-items:center;gap:18px;text-align:center;opacity:0;transition:opacity .5s;pointer-events:none;padding:0 6vw}
+.ttl.on{opacity:1}
+.ttl b{font:500 clamp(28px,5.6vw,84px)/1 var(--tc);letter-spacing:-.015em;color:var(--c);text-shadow:0 2px 30px rgba(0,0,0,.4)}
+#sub{transition:opacity .2s}
+
+/* title cards: the page's argument, between the shots */
+.cards{grid-area:2/1;position:relative;z-index:3;display:grid;grid-template-columns:minmax(0,1fr);min-height:var(--fh);pointer-events:none}
+.card{grid-area:1/1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:clamp(14px,2vw,26px);padding:0 clamp(20px,7.5vw,120px);opacity:0;visibility:hidden;transition:opacity .45s,visibility .45s;position:relative}
+.card.on{opacity:1;visibility:visible;pointer-events:auto}
+.card.mid{align-items:center;text-align:center}
+h1{font-size:clamp(38px,min(6.6vw,11.5vh),104px);max-width:11ch}
+.card h2{font-size:clamp(30px,min(5.4vw,9vh),82px)}
+.hero .cue{opacity:.9}
+.hero .sub{width:min(92%,37em)}
+.tally{display:grid;grid-template-columns:repeat(2,minmax(0,17em));gap:0 clamp(24px,5vw,80px);font:500 15px/1 var(--cr);letter-spacing:.24em;text-transform:uppercase;text-align:left}
+.tally p{display:flex;align-items:baseline;gap:10px;padding:9px 0;color:var(--c6)}
+.tally p::after{content:'';flex:1;order:1;border-bottom:1px dotted var(--c3);transform:translateY(-3px)}
+.tally b{order:2;font:500 21px/1 var(--tc);letter-spacing:0;color:var(--c);text-transform:none;font-variant-numeric:lining-nums}
+
+/* the player */
+.player{grid-area:3/1;position:relative;z-index:5;align-self:stretch;align-content:center;background:var(--k);display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:clamp(14px,2vw,26px);row-gap:10px;align-items:center;padding:0 clamp(16px,4vw,56px)}
+.pl{grid-row:1/3;width:50px;height:50px;border-radius:50%;border:1px solid var(--c6);background:none;cursor:pointer;display:grid;place-items:center;transition:border-color .15s,background .15s}
+.pl::before{content:'';width:14px;height:16px;background:var(--c);clip-path:polygon(0 0,100% 50%,0 100%);margin-left:3px}
+.playing .pl{border-color:var(--y)}
+.playing .pl::before{clip-path:polygon(0 0,36% 0,36% 100%,0 100%,0 0,64% 0,100% 0,100% 100%,64% 100%,64% 0);margin:0;background:var(--y)}
+.pl:hover{background:var(--c1)}
+.now{display:flex;align-items:baseline;gap:16px;min-width:0;white-space:nowrap;overflow:hidden}
+.now b{font:italic 400 21px/1.1 var(--tc);overflow:hidden;text-overflow:ellipsis}
+.now span{font:500 12px/1 var(--cr);letter-spacing:.28em;text-transform:uppercase;color:var(--c6)}
+.tm{grid-row:1/3;grid-column:3;font:500 13px/1 var(--st);font-variant-numeric:tabular-nums;color:var(--c6)}
+.trk{grid-column:2;display:flex;gap:4px;height:20px;align-items:center;position:relative;cursor:pointer;touch-action:none}
+.trk i{height:2px;background:var(--c3);position:relative}
+.trk i b{position:absolute;left:0;top:0;bottom:0;background:var(--c);width:0}
+.trk i::after{content:attr(data-n);position:absolute;left:0;top:9px;font:500 10px/1 var(--cr);letter-spacing:.2em;color:rgba(241,233,216,.38)}
+.trk .head{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--y);left:0;box-shadow:0 0 10px rgba(255,225,74,.7)}
+
+/* camera moves, only while a frame is on */
+@keyframes tilt{from{transform:translateY(120px)}to{transform:translateY(-44px)}}
+@keyframes rip{from{transform:scale(.03);opacity:0}12%{opacity:.75}to{transform:scale(1.3);opacity:.5}}
+@keyframes flow{to{stroke-dashoffset:-300}}
+@keyframes sway{from{transform:skewX(-2deg)}to{transform:skewX(2.6deg)}}
+@keyframes lift{from{transform:scale(1.5) rotate(-4deg)}to{transform:scale(1) rotate(5deg)}}
+@keyframes glide{from{transform:translateX(36px)}to{transform:translateX(-36px)}}
+@keyframes crane{from{transform:scale(1.3) translateY(28px)}to{transform:scale(1) translateY(0)}}
+.on .tilt{animation:tilt 7.5s cubic-bezier(.4,0,.2,1) both}
+.rip{transform-origin:654px 210px;transform:scale(.03);opacity:0}
+.on .rip{animation:rip 1.5s cubic-bezier(.55,0,1,.45) infinite}
+.on .flow line{animation:flow 6s linear infinite}
+.on .sway{animation:sway 2.7s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:50% 100%}
+.on .lift{animation:lift 7.5s ease-out both;transform-origin:470px 250px}
+.on .glide{animation:glide 5.8s linear both}
+.on .crane{animation:crane 9.3s ease-in-out both;transform-origin:600px 150px}
+.loop.on .tilt,.loop.on .lift,.loop.on .glide,.loop.on .crane{animation-iteration-count:infinite;animation-direction:alternate}
+
+/* now showing: the wall of days */
+section{position:relative}
+.hd{display:grid;gap:22px;margin-bottom:clamp(34px,5vw,72px)}
+.wall{padding:clamp(90px,13vw,190px) 0 clamp(70px,9vw,130px)}
+.wall .hd{grid-template-columns:minmax(0,7fr) minmax(0,4fr);align-items:end;column-gap:clamp(24px,6vw,100px)}
+.wall .hd .cr{grid-column:1/-1}
+.posters{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
+.b{aspect-ratio:2/3;border:1px solid var(--c1);position:relative;display:block;font-style:normal;transition:border-color .15s}
+.b span{position:absolute;left:8px;bottom:8px;font:500 12px/1 var(--cr);letter-spacing:.22em;color:rgba(241,233,216,.34)}
+.b::after{content:'[ not yet shot ]';position:absolute;left:0;right:0;top:44%;text-align:center;font:500 10px/1.2 var(--st);color:var(--y);opacity:0;transition:opacity .15s}
+.b:hover{border-color:var(--y)}.b:hover::after{opacity:1}
+.b.dots{border:0}.b.dots::after{content:none}.b.dots span{left:0;right:0;top:46%;bottom:auto;text-align:center;font-size:20px;letter-spacing:.3em}
+.b.last{border:1px dashed var(--c6)}.b.last span{color:var(--c)}.b.last::after{content:'[ the city stands ]'}
+.p1{grid-column:span 3;grid-row:span 3;position:relative;overflow:hidden;display:block;color:var(--c);text-decoration:none;background:#000;outline:1px solid var(--c3)}
+.p1::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.45),transparent 22%,transparent 40%,rgba(0,0,0,.6) 54%,rgba(0,0,0,.93) 80%);pointer-events:none}
+.p1 .pt,.p1 .pb{position:absolute;left:0;right:0;z-index:2;padding:0 7%;text-align:center}
+.p1 .pt{top:6%;display:flex;justify-content:space-between;font:600 13px/1 var(--cr);letter-spacing:.34em;text-transform:uppercase}
+.p1 .pb{bottom:5%}
+.p1 h3{font:500 clamp(20px,1.95vw,29px)/1.04 var(--tc);letter-spacing:-.01em;margin-bottom:14px;text-wrap:balance}
+.p1 .bill{font:500 10.5px/1.5 var(--cr);letter-spacing:.26em;text-transform:uppercase;color:var(--c6)}
+.p1 .sub{bottom:auto;top:52%;font-size:clamp(13px,1.15vw,17px);opacity:0;transition:opacity .25s;width:86%}
+.p1.on .sub{opacity:1}
+.sheet{margin-top:clamp(40px,6vw,84px);display:grid;gap:14px}
+#sheet{width:100%;display:block;cursor:crosshair}
+
+/* the sixteen-year cut */
+.years{padding:clamp(60px,8vw,120px) 0;border-top:1px solid var(--c1)}
+.years .hd{grid-template-columns:minmax(0,1fr)}
+.yframe{position:relative;aspect-ratio:2.39/1;background:#11110f;overflow:hidden;min-height:200px;width:100%}
+.ytag{position:absolute;left:clamp(12px,2vw,26px);top:clamp(12px,2vw,24px);z-index:3;font:500 12px/1 var(--cr);letter-spacing:.3em;text-transform:uppercase;color:var(--c);background:rgba(10,10,9,.62);padding:7px 8px 7px 11px}
+.strip{position:relative;display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:clamp(3px,.5vw,7px);padding:26px 12px;margin-top:14px;background:#161614;cursor:ew-resize;touch-action:none;user-select:none;-webkit-user-select:none}
+.strip::before,.strip::after{content:'';position:absolute;left:8px;right:8px;height:8px;background:repeating-linear-gradient(90deg,rgba(241,233,216,.3) 0 10px,transparent 10px 25px);border-radius:2px}
+.strip::before{top:9px}.strip::after{bottom:9px}
+.strip i{aspect-ratio:1.5/1;border:1px solid var(--c3);display:grid;place-items:center;font:500 12px/1 var(--cr);letter-spacing:.14em;font-style:normal;color:var(--c6);pointer-events:none;min-width:0}
+.strip i:first-of-type{background:linear-gradient(#a9bcc6 46%,#4f7a45 46%);color:var(--k);border-color:var(--c)}
+.strip i.at{border-color:var(--y);color:var(--y)}
+.strip i:first-of-type.at{color:var(--k)}
+.strip .head{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--y);left:0;box-shadow:0 0 12px rgba(255,225,74,.7);pointer-events:none;transition:left .12s}
+.years .bd{margin-top:28px}
+
+/* front of house: the pieces */
+.kit{padding:clamp(70px,10vw,150px) 0;border-top:1px solid var(--c1)}
+.kit .g{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:clamp(40px,5vw,72px) clamp(20px,3vw,44px);align-items:start}
+.piece>.cr{display:flex;justify-content:space-between;gap:12px;margin-bottom:14px}
+.piece>.cr span{color:var(--y);letter-spacing:.1em;font:500 12px/1.2 var(--st);text-transform:none;white-space:nowrap}
+.piece>.bd{margin-top:16px;font-size:15px}
+.vfw{grid-column:1/9}
+.vf{position:relative;aspect-ratio:16/9;overflow:hidden;background:#000;font:500 12px/1 var(--cr);letter-spacing:.24em;text-transform:uppercase;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+.vf>span{position:absolute;z-index:3}
+.vf .tl{left:4%;top:6%}.vf .tr{right:4%;top:6%}.vf .bl{left:4%;bottom:6%;font:500 14px/1 var(--st);letter-spacing:.06em;font-variant-numeric:tabular-nums}.vf .br{right:4%;bottom:6%}
+.vf .rec{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--r);margin-right:10px;animation:rec 1.2s steps(1) infinite}
+@keyframes rec{50%{opacity:.15}}
+.vf .mk{inset:3.2% 2.4%;border:solid rgba(255,255,255,.85);border-width:0;background:
+  linear-gradient(#fff,#fff) 0 0/26px 1.5px,linear-gradient(#fff,#fff) 0 0/1.5px 26px,linear-gradient(#fff,#fff) 100% 0/26px 1.5px,linear-gradient(#fff,#fff) 100% 0/1.5px 26px,
+  linear-gradient(#fff,#fff) 0 100%/26px 1.5px,linear-gradient(#fff,#fff) 0 100%/1.5px 26px,linear-gradient(#fff,#fff) 100% 100%/26px 1.5px,linear-gradient(#fff,#fff) 100% 100%/1.5px 26px;background-repeat:no-repeat;opacity:.85}
+.vf .lb{left:0;right:0;top:14.6%;bottom:14.6%;border-top:1px dashed rgba(255,255,255,.35);border-bottom:1px dashed rgba(255,255,255,.35)}
+.vf .fx{left:63%;top:38%;width:17%;height:27%;border:1.5px solid var(--y);box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+.vf .fx::after{content:'tent · nobody in it yet';position:absolute;left:-1.5px;top:calc(100% + 8px);white-space:nowrap;color:var(--y);font:500 11px/1 var(--st);letter-spacing:.02em;text-transform:none}
+.vf .pr{left:50%;bottom:19%;transform:translateX(-50%);font:500 13px/1 var(--st);letter-spacing:.02em;text-transform:none;white-space:nowrap}
+.vf kbd{font:600 12px/1 var(--st);border:1.5px solid #fff;border-radius:3px;padding:3px 7px;margin-right:9px}
+.side{grid-column:9/13;display:grid;gap:clamp(40px,5vw,64px)}
+.tix{display:grid;grid-template-columns:minmax(0,1fr) 74px;background:var(--c);color:var(--k);position:relative;transform:rotate(-1.6deg);
+  -webkit-mask:radial-gradient(circle 9px at calc(100% - 74px) 0,transparent 98%,#000) top/100% 51% no-repeat,radial-gradient(circle 9px at calc(100% - 74px) 100%,transparent 98%,#000) bottom/100% 51% no-repeat;
+  mask:radial-gradient(circle 9px at calc(100% - 74px) 0,transparent 98%,#000) top/100% 51% no-repeat,radial-gradient(circle 9px at calc(100% - 74px) 100%,transparent 98%,#000) bottom/100% 51% no-repeat}
+.tix .ta{padding:20px 20px 18px}
+.tix .cr{color:rgba(10,10,9,.6);font-size:11px}
+.tix b{display:block;font:500 clamp(30px,3vw,44px)/1 var(--tc);letter-spacing:-.01em;margin:12px 0 10px;font-variant-numeric:lining-nums}
+.tix p:last-child{font:400 13px/1.45 var(--st);color:rgba(10,10,9,.72)}
+.tix .tb{border-left:2px dashed rgba(10,10,9,.4);display:grid;place-items:center}
+.tix .tb span{writing-mode:vertical-rl;transform:rotate(180deg);font:600 13px/1 var(--cr);letter-spacing:.34em;text-transform:uppercase}
+.cd b{display:block;font:400 clamp(44px,5vw,76px)/1 var(--tc);font-variant-numeric:lining-nums tabular-nums;letter-spacing:-.01em}
+.chap{grid-column:1/7}
+.chap ol{list-style:none;margin:0;padding:0;border-top:1px solid var(--c3)}
+.chap li{display:grid;grid-template-columns:2.2em minmax(0,1fr) auto 3.2em;gap:14px;align-items:baseline;padding:13px 2px;border-bottom:1px solid var(--c1);cursor:pointer;transition:color .12s,padding .12s}
+.chap li>*{font:500 12px/1 var(--cr);letter-spacing:.24em;text-transform:uppercase;color:var(--c6)}
+.chap li b{font:italic 400 20px/1.1 var(--tc);letter-spacing:0;text-transform:none;color:var(--c);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chap li time{text-align:right;font:500 13px/1 var(--st);letter-spacing:0;font-variant-numeric:tabular-nums}
+.chap li:hover{padding-left:12px}.chap li:hover b,.chap li.at b{color:var(--y)}
+.cast{grid-column:7/13;margin-top:clamp(0px,5vw,70px)}
+.cast h3{font:500 clamp(30px,3.6vw,54px)/1 var(--tc);letter-spacing:-.015em;margin-bottom:22px}
+.cast dl{margin:0 0 22px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 22px;border-top:1px solid var(--c3)}
+.cast dt,.cast dd{margin:0;padding:11px 0;border-bottom:1px solid var(--c1)}
+.cast dt{font:500 12px/1.5 var(--cr);letter-spacing:.28em;text-transform:uppercase;color:var(--c6)}
+.cast dd{font-size:15px;line-height:1.45}
+.cast label{display:grid;gap:10px}
+.cast input{font:italic 400 24px/1.2 var(--tc);color:var(--y);background:none;border:0;border-bottom:1px solid var(--c6);padding:6px 0;outline:0;width:100%;border-radius:0}
+.cast input::placeholder{color:rgba(241,233,216,.3)}
+.cast input:focus{border-color:var(--y)}
+.cast .cue{margin-top:14px;font-size:13px}
+
+/* the credits */
+.credits{border-top:1px solid var(--c1);height:min(86vh,780px);overflow:hidden;-webkit-mask:linear-gradient(transparent,#000 16%,#000 82%,transparent);mask:linear-gradient(transparent,#000 16%,#000 82%,transparent)}
+.roll{display:grid;justify-items:center;gap:13px;padding:0 18px;text-align:center;transform:translateY(86vh)}
+.credits.run .roll{animation:roll 52s linear infinite}
+.credits:hover .roll,.credits.hold .roll{animation-play-state:paused}
+@keyframes roll{from{transform:translateY(min(86vh,780px))}to{transform:translateY(-100%)}}
+.roll h3{font:500 clamp(30px,4.6vw,66px)/1 var(--tc);letter-spacing:-.015em;margin:8px 0 6px;max-width:15ch;text-wrap:balance}
+.roll .gap{height:clamp(30px,5vw,64px)}
+.roll .row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(14px,2vw,28px);width:min(100%,760px);align-items:baseline}
+.roll .row span{text-align:right;font:500 13px/1.3 var(--cr);letter-spacing:.3em;text-transform:uppercase;color:var(--c6)}
+.roll .row b{text-align:left;font:500 18px/1.3 var(--cr);letter-spacing:.2em;text-transform:uppercase}
+.roll .big{font:italic 400 clamp(24px,3.2vw,44px)/1.1 var(--tc)}
+.roll .fine{font:400 14px/1.5 var(--st);color:var(--c6)}
+#you{color:var(--y)}
+
+/* the slate: the system */
+.system{padding:clamp(80px,11vw,160px) 0;border-top:1px solid var(--c1)}
+.system .g{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(36px,6vw,100px);align-items:start}
+.slate{cursor:pointer;max-width:500px}
+.stick{height:46px;background:repeating-linear-gradient(-58deg,var(--c) 0 34px,var(--k) 34px 68px);border:2px solid var(--c);transform-origin:0 100%;transition:transform .09s ease-in}
+.slate.up .stick{transform:rotate(-15deg);transition:transform .22s ease-out}
+.board{border:2px solid var(--c);border-top:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.board div{padding:13px 15px 15px;border-top:1px solid var(--c3)}
+.board div+div{border-left:1px solid var(--c3)}
+.board .prod{grid-column:1/-1;display:flex;align-items:center;gap:18px;border-left:0;padding:20px 15px}
+.board .prod img{width:74px;height:74px;border-radius:18px}
+.board .prod .wm{font-size:22px;letter-spacing:.4em;display:block;margin-bottom:8px}
+.board .prod em{font:italic 400 18px/1 var(--tc);color:var(--c6)}
+.board .w3{grid-column:1/-1;border-left:0}
+.board small{display:block;font:500 11px/1 var(--cr);letter-spacing:.3em;text-transform:uppercase;color:var(--c6);margin-bottom:9px}
+.board b{font:500 clamp(20px,2.2vw,30px)/1 var(--tc);font-variant-numeric:lining-nums}
+.bars{display:grid;grid-template-columns:20fr 9fr 4fr 1fr;height:clamp(150px,17vw,230px);border:1px solid var(--c3)}
+.inks{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 28px}
+.inks li{display:flex;gap:12px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--c1);font-size:14px;color:var(--c6)}
+.inks i{width:11px;height:11px;flex:none;outline:1px solid var(--c3);transform:translateY(1px)}
+.inks b{font:500 13px/1 var(--cr);letter-spacing:.24em;text-transform:uppercase;color:var(--c);white-space:nowrap}
+.inks code{font:500 12px/1 ui-monospace,Menlo,monospace;color:var(--c6);margin-left:auto}
+.faces{margin-top:clamp(34px,4vw,56px);display:grid;gap:0}
+.faces div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:baseline;padding:18px 0;border-bottom:1px solid var(--c1)}
+.faces div>span{font:500 12px/1.4 var(--cr);letter-spacing:.26em;text-transform:uppercase;color:var(--c6);text-align:right}
+.f1{font:500 clamp(40px,5.4vw,78px)/1 var(--tc);letter-spacing:-.015em}
+.f2{font:600 clamp(20px,2.4vw,32px)/1 var(--cr);letter-spacing:.38em;text-transform:uppercase}
+.f3{font:500 clamp(18px,2vw,26px)/1.3 var(--st);color:var(--y)}
+
+.fin{border-top:1px solid var(--c1);padding:clamp(70px,10vw,150px) 0 60px;text-align:center}
+.fin .ff{aspect-ratio:2.39/1;max-height:60vh;min-height:230px;width:100%;position:relative;background:#000;overflow:hidden;margin-bottom:clamp(30px,4vw,54px)}
+.fin .ff .loop{position:absolute;inset:0;opacity:.34}
+.fin .cr{margin-top:44px;font-size:12px;line-height:2}
+
+@media (max-width:900px){
+  .slug{display:none}.lead{padding-right:170px}
+  .wall .hd,.system .g{grid-template-columns:minmax(0,1fr)}
+  .vfw,.side,.chap,.cast{grid-column:1/-1}
+  .side{grid-template-columns:repeat(2,minmax(0,1fr));align-items:center}
+}
+@media (max-width:700px){
+  body{font-size:16px}
+  .wm{font-size:13px;letter-spacing:.34em;gap:10px}.wm img{width:26px;height:26px}
+  .back{font-size:11px;letter-spacing:.22em;padding:8px 9px 8px 11px;top:10px;right:10px}
+  .lead{align-items:flex-start;padding-top:12px}
+  .frame,.cards{align-self:start}
+  .card{align-items:flex-start;justify-content:flex-start;text-align:left;padding:22px 20px 0}
+  .card.mid{align-items:flex-start;text-align:left}
+  .stage[data-mode=hero] .scenes{opacity:.3}
+  .hero .sub{position:static;transform:none;width:100%;text-align:left;font-size:15px;margin-top:6px}
+  .hero .sub small{text-indent:0}
+  .tally{grid-template-columns:minmax(0,1fr);width:100%}.tally p{padding:6px 0}.tally b{font-size:18px}
+  .player{grid-template-columns:auto minmax(0,1fr) auto;row-gap:8px}
+  .pl{grid-row:1;width:42px;height:42px}.tm{grid-row:1}.trk{grid-column:1/-1}
+  .now{flex-direction:column;gap:6px}.now b{font-size:18px}.now span{font-size:10.5px;letter-spacing:.2em}
+  .posters{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .p1{grid-column:1/-1;grid-row:auto;aspect-ratio:2/3}.p1 h3{font-size:31px}.p1 .sub{font-size:15px}
+  .b:nth-of-type(n+11):not(.dots):not(.last){display:none}
+  .strip{padding:20px 6px}.strip i{font-size:9px;letter-spacing:0;border-color:var(--c1)}
+  .side{grid-template-columns:minmax(0,1fr)}
+  .vf{font-size:9.5px;letter-spacing:.14em}.vf .bl{font-size:11px}.vf .pr{font-size:10.5px;bottom:21%}.vf .fx::after{font-size:9.5px}.vf kbd{font-size:9.5px;padding:2px 5px}
+  .chap li{grid-template-columns:1.8em minmax(0,1fr) 2.8em;gap:10px}.chap li span:nth-of-type(2){display:none}.chap li b{font-size:17px}
+  .roll .row b{font-size:14px;letter-spacing:.14em}.roll .row span{font-size:11px;letter-spacing:.2em}
+  .inks{grid-template-columns:minmax(0,1fr)}
+  .faces div{grid-template-columns:minmax(0,1fr)}.faces div>span{text-align:left}
+  .board .prod .wm{font-size:17px}
+}
+@media (min-width:701px){
+  .hero .sub{position:absolute;left:50%;bottom:clamp(14px,3.1vw,46px);transform:translateX(-50%)}
+  .hero{padding-bottom:clamp(70px,9vw,130px)}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  html{scroll-snap-type:none}
+  .credits{height:auto;-webkit-mask:none;mask:none;padding:70px 0}.roll{transform:none}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="gSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8aa5ba"/><stop offset=".62" stop-color="#bfcdcc"/><stop offset="1" stop-color="#e0decd"/></linearGradient>
+  <linearGradient id="gLand" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8aa26f"/><stop offset=".3" stop-color="#5a8349"/><stop offset="1" stop-color="#2c5230"/></linearGradient>
+  <linearGradient id="gRiv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cbdada"/><stop offset=".4" stop-color="#7d9eac"/><stop offset="1" stop-color="#3c5f72"/></linearGradient>
+  <filter id="fBlur" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="7"/></filter>
+</defs></svg>
+
+<a class="back" href="index.html">05 / 08 · All drafts</a>
+
+<section id="film" aria-label="Maia City, day 1: the film">
+  <div class="stage" data-mode="hero">
+    <header class="lead">
+      <a class="wm" href="#film"><img src="../MaiaCity.svg" alt="">Maia City</a>
+      <p class="slug">Day 0001 of 5423<i></i>1 of 1,000,000 cast</p>
+    </header>
+
+    <div class="frame">
+      <div class="scenes" id="scenes"></div>
+      <div class="fade" id="fade"></div>
+      <div class="grain"></div><div class="flick"></div>
+      <div class="ttl" id="ttl"><span class="cr">Maia City · Day 1</span><b>A green meadow and one tent</b></div>
+      <p class="sub" id="sub" aria-live="polite"><small></small><span class="shown"></span><span class="rest"></span></p>
+    </div>
+
+    <div class="cards">
+      <div class="card hero on" data-card="hero">
+        <p class="cr">A film in 5423 parts</p>
+        <h1>A city, shot <em>one day</em> at a time.</h1>
+        <button class="cta" data-watch>Watch day 1 <span>0:59</span></button>
+        <p class="cue">[ or scroll: the reel advances one shot at a time ]</p>
+        <p class="sub" id="series"><small>The series</small><span class="shown"></span><span class="rest">This is the story of how one million humans build their own solarpunk city, from the ground up. In just 16 years.</span></p>
+      </div>
+      <div class="card mid" data-card="c1">
+        <p class="cr">Intertitle · The premise</p>
+        <h2>First in game. <em>Then in real.</em></h2>
+        <p class="bd">A city for one million people is too large to get right on the first take. So it is shot in a game first, where a wrong street costs a day and not a decade. What holds up there gets built on real ground.</p>
+        <p class="cue">[ rehearsal first. Real ground after. ]</p>
+      </div>
+      <div class="card mid" data-card="c2">
+        <p class="cr">Intertitle · What stands today</p>
+        <h2>One meadow. One river. <em>One tent.</em></h2>
+        <div class="tally">
+          <p>Meadows<b>1</b></p><p>Streets<b>0</b></p><p>Rivers<b>1</b></p><p>Houses<b>0</b></p>
+          <p>Tents<b>1</b></p><p>Trees<b>0</b></p><p>People in the tent<b>0</b></p><p>Humans<b>1 of 1,000,000</b></p>
+        </div>
+        <p class="cue">[ no city appears in this film. Not yet. ]</p>
+      </div>
+      <div class="card mid" data-card="end">
+        <p class="cr">End of part one</p>
+        <h2>To be continued, <span class="n">5422</span> <em>times.</em></h2>
+        <p class="bd">One story a day, for sixteen years, until one million humans live in the city they built. Part one is 59 seconds. Start there.</p>
+        <button class="cta" data-watch>Watch day 1 <span>0:59</span></button>
+        <p class="cue">[ tomorrow: day 2 ]</p>
+      </div>
+    </div>
+
+    <div class="player" id="player">
+      <button class="pl" id="pl" aria-label="Play or pause the film"></button>
+      <div class="now"><b id="nm">Opening title</b><span id="mt">Story 01 · 8 shots · 59 seconds</span></div>
+      <span class="tm" id="tm">0:00 / 0:59</span>
+      <div class="trk" id="trk" role="slider" aria-label="The film, shot by shot"><span class="head" id="head"></span></div>
+    </div>
+  </div>
+</section>
+
+<main>
+<section class="wall" id="wall"><div class="wrap">
+  <header class="hd">
+    <p class="cr">Now showing</p>
+    <h2>One day is out. <span class="n">5422</span> <em>are not yet shot.</em></h2>
+    <p class="bd">Maia City is told the way it is built: one day, one film, two voices. Samuel says what he wants. Maia says what she made, and what she got wrong first. Every day gets a frame on this wall.</p>
+  </header>
+  <div class="posters" id="posters"></div>
+  <div class="sheet"><canvas id="sheet" height="260"></canvas><p class="cue" id="sheetcue">[ contact sheet: 5423 frames, 1 exposed. Point at one. ]</p></div>
+</div></section>
+
+<section class="years" id="years"><div class="wrap">
+  <header class="hd">
+    <p class="cr">The sixteen-year cut</p>
+    <h2>Scrub ahead. <em>Only the first frame is exposed.</em></h2>
+  </header>
+  <div class="yframe"><div class="loop on" id="ysc"></div><span class="ytag" id="ytag"></span>
+    <p class="sub" id="ysub"><small></small><span></span></p></div>
+  <div class="strip" id="strip" role="slider" aria-label="Sixteen years" aria-valuemin="1" aria-valuemax="16" aria-valuenow="1" tabindex="0"><span class="head"></span></div>
+  <p class="bd">Year one is filmed: a meadow, a river and a tent. The other fifteen are storyboard, drawn in pencil, and they will be wrong in the details. The ending is fixed: one million humans, and the city stands.</p>
+</div></section>
+
+<section class="kit" id="kit"><div class="wrap">
+  <header class="hd">
+    <p class="cr">Front of house</p>
+    <h2>A player, a camera, <em>and a seat with your number on it.</em></h2>
+  </header>
+  <div class="g">
+    <div class="piece vfw">
+      <p class="cr">The game · the HUD is a viewfinder</p>
+      <div class="vf loop on" id="vf">
+        <span class="mk"></span><span class="lb"></span><span class="fx"></span>
+        <span class="tl"><i class="rec"></i>Rec · Day 0001</span><span class="tr">28 mm · low angle</span>
+        <span class="bl" id="tc">00:00:30:10</span><span class="br">In frame 1 / 1,000,000</span>
+        <span class="pr"><kbd>E</kbd>Look inside the tent</span>
+      </div>
+      <p class="bd">In the game you hold the camera. Walk the meadow, find your frame, and the HUD tells you what a camera would: the lens, the timecode, and how many of the million are in the shot.</p>
+    </div>
+    <div class="side">
+      <div class="piece">
+        <p class="cr">The seat<span>[ soon ]</span></p>
+        <div class="tix"><div class="ta"><p class="cr">Maia City · Admit one</p><b>Seat 000,002</b><p>Row A. Seat 000,001 is taken. This one is next to it.</p></div><div class="tb"><span>Day 0002</span></div></div>
+      </div>
+      <div class="piece cd">
+        <p class="cr">Day 0002 arrives in<span>[ soon: one story a day ]</span></p>
+        <b id="cd">00:00:00</b>
+      </div>
+    </div>
+    <div class="piece chap">
+      <p class="cr">TheOS · Story 01 · the shots<span>[ plays above ]</span></p>
+      <ol id="chap"></ol>
+    </div>
+    <div class="piece cast">
+      <p class="cr">Casting call<span>[ not yet open ]</span></p>
+      <h3><span class="n">999,999</span> parts <em>not yet cast.</em></h3>
+      <dl>
+        <dt>Part</dt><dd>Citizen 000,002. Then every number up to 1,000,000.</dd>
+        <dt>Lines</dt><dd>Your own. Nobody writes them for you.</dd>
+        <dt>Experience</dt><dd>None needed. None of us has built a city before.</dd>
+        <dt>Shoot</dt><dd>16 years. First in game, then in real.</dd>
+      </dl>
+      <label><span class="cr">Your name, in pencil</span><input id="name" maxlength="28" placeholder="Citizen 000,002" autocomplete="off" spellcheck="false"></label>
+      <p class="cue">[ this only pencils you into the credits below ]</p>
+    </div>
+  </div>
+</div></section>
+
+<section class="credits" id="credits" aria-label="Credits"><div class="roll">
+  <p class="cr">Maia City presents</p><h3>A green meadow and one tent</h3><p class="cr">Day 0001 of 5423</p>
+  <div class="gap"></div><p class="cr">Cast</p>
+  <p class="row"><span>Samuel</span><b>Himself</b></p><p class="row"><span>Maia</span><b>Herself</b></p>
+  <p class="row"><span>The meadow</span><b>Itself</b></p><p class="row"><span>The river</span><b>Itself</b></p>
+  <p class="row"><span>The tent</span><b>Nobody in it yet</b></p>
+  <p class="row"><span>Citizen 000,002</span><b id="you">Not yet cast</b></p>
+  <p class="row"><span>Citizens 000,003 to 1,000,000</span><b>Not yet cast</b></p>
+  <div class="gap"></div><p class="big">999,999 parts not yet cast.</p>
+  <div class="gap"></div><p class="cr">Made by</p>
+  <p class="row"><span>The vision</span><b>Samuel</b></p><p class="row"><span>Land that never ends</span><b>Maia</b></p>
+  <p class="row"><span>Grass, first attempt (too slow)</span><b>Maia</b></p><p class="row"><span>Grass, second attempt (blocky)</span><b>Maia</b></p>
+  <p class="row"><span>The one who noticed</span><b>Samuel</b></p><p class="row"><span>The wrong fix</span><b>Maia</b></p>
+  <p class="row"><span>The right fix</span><b>Maia</b></p><p class="row"><span>One tent</span><b>Maia</b></p>
+  <div class="gap"></div>
+  <p class="fine">No trees appear in this film. There are none yet.<br>No sun, no shadows. Not yet.<br>Running time 59 seconds. Nothing is spoken. It is read.</p>
+  <div class="gap"></div><p class="big">To be continued, 5422 times.</p>
+</div></section>
+
+<section class="system" id="system"><div class="wrap">
+  <header class="hd">
+    <p class="cr">The slate · the system</p>
+    <h2>The brand never speaks <em>above the picture.</em></h2>
+    <p class="bd">Everything Maia City says, it says at the bottom of the frame, in yellow, with a name over it. The rest is a dark room, a cream title card and a picture 2.39 wide.</p>
+  </header>
+  <div class="g">
+    <div class="slate" id="slate" title="Clap">
+      <div class="stick"></div>
+      <div class="board">
+        <div class="prod"><img src="../MaiaCity.svg" alt="The Maia City mark"><p><span class="wm">Maia City</span><em>a film in 5423 parts</em></p></div>
+        <div><small>Roll</small><b>0001</b></div><div><small>Scene</small><b>1</b></div><div><small>Take</small><b>1</b></div>
+        <div class="w3"><small>Day</small><b>0001 of 5423</b></div>
+        <div class="w3"><small>Cast</small><b>1 of 1,000,000</b></div>
+      </div>
+    </div>
+    <div>
+      <div class="bars" aria-hidden="true"><i style="background:#0a0a09"></i><i style="background:#f1e9d8"></i><i style="background:#ffe14a"></i><i style="background:#d6402b"></i></div>
+      <ul class="inks">
+        <li><i style="background:#0a0a09"></i><b>Black</b>the room<code>#0a0a09</code></li>
+        <li><i style="background:#f1e9d8"></i><b>Projector cream</b>titles, credits<code>#f1e9d8</code></li>
+        <li><i style="background:#ffe14a"></i><b>Subtitle yellow</b>every word said<code>#ffe14a</code></li>
+        <li><i style="background:#d6402b"></i><b>Film red</b>recording, once<code>#d6402b</code></li>
+      </ul>
+      <div class="faces">
+        <div><p class="f1">One tent.</p><span>Bodoni Moda<br>title cards</span></div>
+        <div><p class="f2">Nobody in it yet</p><span>Barlow Condensed<br>credits, labels</span></div>
+        <div><p class="f3">Tomorrow we will see.</p><span>Inter Medium<br>subtitles</span></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<footer class="fin"><div class="wrap">
+  <div class="ff"><div class="loop" id="finsc"></div><div class="grain"></div>
+    <p class="sub"><small>Samuel</small>When we unite in Vision, the impossible becomes possible. First in game, then in real.</p></div>
+  <button class="cta" data-watch>Watch day 1 <span>0:59</span></button>
+  <p class="cr">Maia City · Day 0001 of 5423 · 1 of 1,000,000<br>Brand draft 05 of 08 · Subtitle</p>
+</div></footer>
+</main>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),pad=(n,w=4)=>String(n).padStart(w,'0');
+const fmt=t=>Math.floor(t/60)+':'+pad(Math.floor(t%60),2);
+let seed=1;const rnd=()=>(seed=seed*16807%2147483647)/2147483647;
+
+/* story 01, as its timeline.json has it: shots (name, kind, mm, seconds) and subtitles (at, for, who, line) */
+const SHOTS=[['From the sky','wide',28,7.5],['Down the river','drone',28,11.6],['The river going by','medium',40,5.6],['Where the water meets the sand','close',100,5.7],['Among the blades','low angle',28,6.2],['Lifting off','top down',35,7.5],['Back to the water','glide',60,5.8],['Leaving','crane',40,9.3]];
+const TOTAL=59.2,ST=[];SHOTS.reduce((a,s,i)=>(ST[i]=a,a+s[3]),0);
+const CAPS=[[4.4,3.2,'Samuel','It all starts with a green meadow and one tent.'],[8,2.8,'Maia','I looked for the meadow. There was none.'],[11.2,2.2,'Samuel','First we need a world.'],[13.8,2.6,'Maia','So I made one. Land that never ends, and one river.'],[16.7,2.3,'Maia','No trees. No sun. No shadows. Not yet.'],[19.4,2.8,'Maia','My first grass was too slow to walk through.'],[22.5,2,'Maia','I made it fast.'],[24.9,3.1,'Samuel','The grass is still super blocky, can you see?'],[28.3,1.9,'Maia','You were right. I fixed the wrong thing first.'],[30.7,2.9,'Maia','Then the meadow was a meadow. And I put up your tent.'],[33.9,2.4,'Maia','One tent. Nobody in it yet.'],[36.9,4.1,'Samuel','The vision, the city, the game: everything grows as we do, with citizens.'],[41.3,2.6,'Maia','Then it grows from here.'],[44.4,2.6,'Maia','There is no city on this land.'],[47.3,2.4,'Maia','There is a meadow, a river and a tent.'],[50.3,3.1,'Samuel','This is day one. Today I am alone.'],[53.7,2.3,'Samuel','Tomorrow we will see.'],[56.4,2.3,'Maia','Tomorrow I am here too.']];
+const SEQ=['hero',0,1,'c1',2,3,4,'c2',5,6,7,'end'],BEHIND={hero:4,c1:1,c2:4,end:7};
+const CARDNAME={hero:'Opening title',c1:'Intertitle',c2:'Intertitle',end:'End of part one'};
+
+/* the frames, drawn. No trees, no sun, no shadows: not yet. */
+const svg=(s,vb='0 0 1195 500')=>`<svg viewBox="${vb}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${s}</svg>`;
+const SKY='<rect x="-200" y="-200" width="1600" height="900" fill="url(#gSky)"/>';
+const tent=(x,y,s)=>`<g transform="translate(${x} ${y}) scale(${s})"><path d="M0-46-36 0h58z" fill="#efe6cf"/><path d="M0-46 22 0l27-10z" fill="#c6b893"/><path d="M-12 0-7-26-2 0z" fill="#23261d"/></g>`;
+const G=['#2c5230','#3f6a3c','#4d7a44','#356036','#5a8349'];
+function blades(n,y0,h0,h1,cols,x0=-20,x1=1215,fat=1){let s='';for(let i=0;i<n;i++){const x=x0+rnd()*(x1-x0),h=h0+rnd()*(h1-h0),w=(3+rnd()*5)*fat*(h/110+.5),l=(rnd()-.5)*h*.5,f=v=>v.toFixed(0);
+  s+=`<path d="M${f(x)} ${y0}Q${f(x+l*.3)} ${f(y0-h*.6)} ${f(x+l)} ${f(y0-h)}Q${f(x+l*.4+w)} ${f(y0-h*.5)} ${f(x+w)} ${y0}z" fill="${cols[i%cols.length]}"/>`}return s}
+const flow=(ys,x0=-340,x1=1300)=>`<g class="flow" stroke="#eef4f1" stroke-linecap="round" fill="none">${ys.map(([y,w,d,o])=>`<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke-width="${w}" stroke-dasharray="${d} ${300-d}" stroke-dashoffset="${(y*7)%300}" opacity="${o}"/>`).join('')}</g>`;
+const SC=[
+()=>svg(SKY+`<g fill="#fff" opacity=".3"><rect x="-40" y="62" width="520" height="2.5" rx="1"/><rect x="640" y="118" width="700" height="2" rx="1"/></g>
+ <g class="tilt"><path d="M-60 398Q600 370 1255 398V760H-60z" fill="url(#gLand)"/><path d="M572 386c44 24-66 40 6 70s-34 62 18 116h170c-86-52 12-84-62-116s38-48-28-72z" fill="url(#gRiv)"/></g>`),
+()=>{seed=17;const rp=[...Array(12)].map((_,i)=>{const dx=(rnd()-.5)*780,len=50+rnd()*170,y=436+rnd()*56,f=v=>v.toFixed(0);return `<g class="rip" style="animation-delay:${(-i*.125).toFixed(2)}s"><line x1="${f(654+dx-len/2)}" y1="${f(y)}" x2="${f(654+dx+len/2)}" y2="${f(y)}"/></g>`}).join('');
+ return svg(SKY+`<path d="M-60 214Q600 198 1255 214V500H-60z" fill="url(#gLand)"/><path d="M646 208C560 262 300 340-150 500h1500C980 340 750 262 664 208z" fill="url(#gRiv)"/>
+ <g stroke="#f1f6f3" stroke-width="3.5" stroke-linecap="round">${rp}</g>
+ <g fill="#8d8f85"><ellipse cx="236" cy="336" rx="27" ry="9"/><ellipse cx="1090" cy="374" rx="34" ry="11"/><ellipse cx="884" cy="262" rx="12" ry="4"/><ellipse cx="404" cy="254" rx="9" ry="3"/></g>`)},
+()=>{seed=21;return svg(SKY+`<path d="M-60 178Q600 160 1255 178V240H-60z" fill="#7f9a6b"/><rect x="-60" y="214" width="1320" height="160" fill="url(#gRiv)"/>${flow([[232,2,60,.5],[254,2.5,90,.45],[281,3,70,.5],[306,3,120,.4],[330,3.5,80,.45]])}
+ <path d="M-60 356Q380 334 800 350T1255 344V500H-60z" fill="#3f6a3c"/><g fill="#9a9b90"><ellipse cx="300" cy="352" rx="34" ry="11"/><ellipse cx="352" cy="358" rx="16" ry="6"/><ellipse cx="930" cy="352" rx="24" ry="8"/></g>
+ <g class="sway">${blades(150,500,90,190,G)}</g>`)},
+()=>{seed=8;let b='';for(let x=-10;x<1200;x+=30){const n=2+Math.floor(rnd()*4)+(x<420?2:0);for(let j=0;j<n;j++)b+=`<rect x="${x}" y="${500-(j+1)*30}" width="30.5" height="30.5" fill="${G[Math.floor(rnd()*5)]}"/>`}
+ return svg(`<rect width="1195" height="500" fill="url(#gRiv)"/>${flow([[40,2.5,70,.5],[96,3,110,.45],[150,3,60,.5],[205,3.5,90,.4]])}
+ <path d="M-60 300Q300 258 620 306T1255 322V500H-60z" fill="#dccda4"/><path d="M-60 300Q300 258 620 306T1255 322" fill="none" stroke="#f3ead0" stroke-width="7" opacity=".8"/>
+ <g fill="#b9ab86" opacity=".7"><circle cx="210" cy="322" r="3"/><circle cx="520" cy="338" r="2.5"/><circle cx="800" cy="352" r="3"/><circle cx="1040" cy="346" r="2.5"/></g>${b}`)},
+()=>{seed=33;return svg(SKY+`<path d="M-60 300Q600 282 1255 300V500H-60z" fill="url(#gLand)"/>${tent(812,301,1.8)}<g class="sway">${blades(190,500,60,170,G)}</g>
+ <g filter="url(#fBlur)"><g class="sway">${blades(4,540,300,480,['#1d3a22','#27482c','#1a331f'],-90,210,6)}${blades(2,540,150,230,['#27482c','#1d3a22'],420,640,5)}${blades(4,540,260,440,['#1a331f','#27482c','#1d3a22'],1030,1270,6)}</g></g>`)},
+()=>svg(`<rect x="-300" y="-300" width="1800" height="1100" fill="#4d7a44"/><g class="lift"><g opacity=".35"><ellipse cx="240" cy="120" rx="260" ry="90" fill="#5f8c4f"/><ellipse cx="820" cy="430" rx="320" ry="110" fill="#3f6a3c"/><ellipse cx="140" cy="420" rx="200" ry="70" fill="#5f8c4f"/><ellipse cx="1000" cy="60" rx="190" ry="60" fill="#3f6a3c"/></g>
+ <g fill="none" stroke-linecap="round"><path d="M1330-70C1010 50 1060 220 880 300S720 480 520 640" stroke="#dccda4" stroke-width="150"/><path d="M1330-70C1010 50 1060 220 880 300S720 480 520 640" stroke="#6f93a3" stroke-width="124"/><path d="M1330-70C1010 50 1060 220 880 300S720 480 520 640" stroke="#8fb0bb" stroke-width="64"/></g>
+ <g fill="#9a9b90"><circle cx="700" cy="216" r="11"/><circle cx="726" cy="236" r="6"/><circle cx="600" cy="400" r="9"/></g>
+ <g transform="translate(470 250) rotate(-18)"><path d="M-46-32-66-48M46-32 66-48M-46 32-66 48M46 32 66 48" stroke="#ece4cc" stroke-width="1.3"/><rect x="-46" y="-32" width="92" height="32" fill="#efe6cf"/><rect x="-46" width="92" height="32" fill="#c6b893"/><path d="M-46 0h92" stroke="#8d8160" stroke-width="2"/></g></g>`),
+()=>{seed=44;return svg(SKY+`<g class="glide"><path d="M-100 236Q600 222 1300 236V500H-100z" fill="url(#gLand)"/><path d="M-100 270Q380 256 700 278T1300 262V308Q900 334 640 318T-100 302z" fill="url(#gRiv)"/>${flow([[282,2,50,.5],[296,2,80,.45]],-400,1400)}${tent(300,250,.8)}<g class="sway">${blades(170,500,50,140,G,-100,1300)}</g></g>`)},
+()=>svg(SKY+`<g class="crane"><path d="M-300 150Q600 126 1500 150V800H-300z" fill="url(#gLand)"/>
+ <path d="M612 140c30 22-80 40-24 80s190 60 86 140-270 100-150 260h370c-190-130 60-180 80-270s-170-104-212-150 36-42 10-64z" fill="url(#gRiv)"/>${tent(430,304,.55)}
+ <g fill="#9a9b90"><ellipse cx="520" cy="330" rx="9" ry="3"/><ellipse cx="760" cy="262" rx="6" ry="2"/><ellipse cx="350" cy="420" rx="12" ry="4"/></g></g>`)];
+const POSTER=()=>{seed=3;return svg(`<rect width="400" height="600" fill="url(#gSky)"/><g class="crane" style="transform-origin:200px 250px"><path d="M-40 250Q200 236 440 250V640H-40z" fill="url(#gLand)"/><path d="M290 246c22 20-50 34-10 66s-70 80-20 330h190c-90-150-10-250-60-300s20-56-30-98z" fill="url(#gRiv)"/>${tent(168,252,1.8)}</g><g class="sway">${blades(70,600,50,150,G,-10,410)}</g>`,'0 0 400 600')};
+
+/* the stage */
+const film=$('#film'),stage=$('.stage'),sub=$('#sub'),ttl=$('#ttl'),fade=$('#fade'),trk=$('#trk'),head=$('#head');
+$('#scenes').innerHTML=SC.map(f=>`<div class="scene">${f()}</div>`).join('');
+const sceneEls=$$('.scene');
+film.insertAdjacentHTML('beforeend',SEQ.map((_,i)=>`<i class="snap" style="top:${i*100}vh;top:calc(${i}*100svh)"></i>`).join(''));
+trk.insertAdjacentHTML('afterbegin',SHOTS.map((s,i)=>`<i style="flex:${s[3]}" data-n="${i+1}"><b></b></i>`).join(''));
+const segs=$$('i b',trk);
+let T=0,step=0,playing=false,running=false,visible=true,last=performance.now(),cur=null,curN=-1;
+const vh=()=>stage.offsetHeight,seqOf=k=>SEQ.indexOf(k);
+
+function typeInto(el,text,n){const a=$('.shown',el),b=$('.rest',el);a.textContent=text.slice(0,n);b.textContent=text.slice(n)}
+function setSub(c,el){
+  if(c!==cur){cur=c;curN=-1;sub.style.visibility=c?'visible':'hidden';if(c)$('small',sub).textContent=c[2]}
+  if(!c)return;
+  const len=c[3].length,n=RM?len:clamp(Math.floor(el/Math.min(.032,c[1]*.5/len)),0,len);
+  if(n!==curN){curN=n;typeInto(sub,c[3],n)}
+}
+function applyStep(){
+  const it=SEQ[step],shot=typeof it==='number',k=shot?it:BEHIND[it];
+  stage.dataset.mode=shot?'shot':it==='hero'?'hero':'card';
+  $$('.card').forEach(c=>c.classList.toggle('on',c.dataset.card===it));
+  sceneEls.forEach((e,i)=>e.classList.toggle('on',i===k));
+  $$('#chap li').forEach((li,i)=>li.classList.toggle('at',shot&&i===it));
+  render();
+}
+function render(){
+  const it=SEQ[step],shot=typeof it==='number';
+  ttl.classList.toggle('on',shot&&it===0&&T>=.8&&T<4);
+  let c=null;
+  if(shot){for(const x of CAPS)if(x[0]<=T&&x[0]>=ST[it]-.01)c=x;if(c&&(running||playing)&&T>c[0]+c[1])c=null}
+  setSub(c,c?T-c[0]:0);
+  fade.style.opacity=shot&&it===7?clamp((T-56)/3,0,1)*.92:0;
+  $('#nm').textContent=shot?SHOTS[it][0]:CARDNAME[it];
+  $('#mt').textContent=shot?`${SHOTS[it][1]} · ${SHOTS[it][2]} mm · shot ${it+1} / 8`:'Story 01 · 8 shots · 59 seconds';
+  $('#tm').textContent=fmt(Math.min(T,59))+' / 0:59';
+  segs.forEach((b,i)=>b.style.width=clamp((T-ST[i])/SHOTS[i][3],0,1)*100+'%');
+  let x=0;const kk=Math.max(0,ST.findLastIndex(s=>s<=T)),seg=segs[kk].parentNode;
+  x=seg.offsetLeft+seg.offsetWidth*clamp((T-ST[kk])/SHOTS[kk][3],0,1);head.style.left=x+'px';
+  $('#player').classList.toggle('playing',playing);
+}
+function goStep(s){step=s;window.scrollTo(0,film.offsetTop+s*vh());applyStep()}
+function arrive(s){step=s;const it=SEQ[s];if(typeof it==='number'){T=ST[it];running=true}else{running=false;T=it==='end'?TOTAL:it==='hero'?0:T}applyStep()}
+function watch(t=0){T=t;playing=true;running=true;goStep(seqOf(Math.max(0,ST.findLastIndex(s=>s<=t))))}
+addEventListener('scroll',()=>{const s=clamp(Math.round((scrollY-film.offsetTop)/vh()),0,SEQ.length-1);if(s!==step){playing=false;arrive(s)}},{passive:true});
+$('#pl').onclick=()=>{
+  if(playing){playing=false;running=false;return render()}
+  const it=SEQ[step];
+  if(typeof it==='number'){const end=T>=ST[it]+SHOTS[it][3]-.05;watch(end?(it===7?0:ST[it+1]):T)}
+  else watch(it==='hero'||it==='end'?0:ST[SEQ[step+1]]);
+};
+$$('[data-watch]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();watch(0)}));
+trk.addEventListener('pointerdown',e=>{const r=trk.getBoundingClientRect();watch(clamp((e.clientX-r.left)/r.width,0,.999)*TOTAL)});
+new IntersectionObserver(e=>{visible=e[0].isIntersecting;if(!visible)playing=false}).observe(film);
+
+/* the wall of days */
+let ph=`<a class="p1 loop" href="#film" data-watch><div class="loop" id="p1sc">${POSTER()}</div>
+ <p class="pt"><span>Day 0001</span><span>59 seconds</span></p><p class="sub"><small>Maia</small>One tent. Nobody in it yet.</p>
+ <div class="pb"><h3>A green meadow and one tent</h3><p class="bill">With Samuel and Maia · a meadow · a river<br>one tent, nobody in it yet</p></div></a>`;
+for(let d=2;d<=38;d++)ph+=`<i class="b"><span>${pad(d)}</span></i>`;
+$('#posters').innerHTML=ph+'<i class="b dots"><span>···</span></i><i class="b last"><span>5423</span></i>';
+const p1=$('.p1');p1.addEventListener('click',e=>{e.preventDefault();watch(0)});
+p1.addEventListener('pointerenter',()=>p1.classList.add('on'));p1.addEventListener('pointerleave',()=>p1.classList.remove('on'));
+
+/* the contact sheet: 5423 frames, one exposed */
+const cv=$('#sheet'),cue=$('#sheetcue');let grid={};
+function drawSheet(hot=-1){
+  const W=cv.clientWidth,Hh=W<700?300:260,dpr=Math.min(2,devicePixelRatio||1),cols=Math.ceil(Math.sqrt(5423*W/(1.45*Hh))),px=W/cols,py=px/1.45,rows=Math.ceil(5423/cols);
+  grid={cols,px,py};cv.style.height=rows*py+'px';cv.width=W*dpr;cv.height=rows*py*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);
+  for(let i=0;i<5423;i++){g.fillStyle=i===0?'#ffe14a':i===hot?'#f1e9d8':'rgba(241,233,216,.15)';g.fillRect(i%cols*px,Math.floor(i/cols)*py,px-1.4,py-1.4)}
+}
+cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect(),i=Math.floor((e.clientY-r.top)/grid.py)*grid.cols+Math.floor((e.clientX-r.left)/grid.px);
+  if(i<0||i>5422)return;drawSheet(i);cue.textContent=i===0?'[ day 0001 · A green meadow and one tent · exposed ]':`[ day ${pad(i+1)} · not yet shot ]`});
+cv.addEventListener('pointerleave',()=>{drawSheet();cue.textContent='[ contact sheet: 5423 frames, 1 exposed. Point at one. ]'});
+let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{drawSheet();goStepQuiet()},150)});
+function goStepQuiet(){const s=clamp(Math.round((scrollY-film.offsetTop)/vh()),0,SEQ.length-1);if(scrollY<film.offsetHeight-vh()+4&&s!==step){arrive(s)}}
+
+/* the sixteen-year cut: year 1 is filmed, the rest is storyboard in pencil */
+seed=11;const PROPS=[...Array(150)].map(()=>({x:40+rnd()*1115,d:rnd(),r:rnd()})),count=y=>y<2?0:Math.round(4+(y-1)**2.1*.48);
+PROPS.forEach((p,i)=>{p.born=2;while(count(p.born)<=i)p.born++;p.y=178+p.d**1.25*300;p.s=.32+p.d});
+const rcx=y=>640+150*Math.sin((y-150)/78),rw=y=>10+(y-172)*.24;
+function board(y){
+  let l='',r='';for(let yy=172;yy<=504;yy+=12){l+=`${(rcx(yy)-rw(yy)/2).toFixed(0)} ${yy} `;r=`${(rcx(yy)+rw(yy)/2).toFixed(0)} ${yy} `+r}
+  const kind=(p)=>{const a=y-p.born;if(p.r<.18&&y>=4)return'<path d="M0 0v-8M0-8c-7-8-5-30 0-38 5 8 7 30 0 38z"/>';
+    if(a<2)return'<path d="M0-26-20 0h40z"/>';if(a<6)return'<path d="M-16 0v-20l16-13 16 13v20z"/>';
+    return p.r>.62?'<path d="M-26 0a26 26 0 0 1 52 0zM0-26v26M-13-22q-6 12-3 22M13-22q6 12 3 22"/>':'<path d="M-14 0v-42l14-10 14 10v42zM-14-21h28"/>'};
+  const props=PROPS.filter((p,i)=>i<count(y)&&Math.abs(p.x-rcx(p.y))>rw(p.y)/2+26*p.s).sort((a,b)=>a.d-b.d).map(p=>`<g transform="translate(${p.x.toFixed(0)} ${p.y.toFixed(0)}) scale(${p.s.toFixed(2)})">${kind(p)}</g>`).join('');
+  const aq=y>=10?`<path d="M470 196h340M470 196v-18h340v18${[...Array(8)].map((_,i)=>`M${486+i*40} 196a14 14 0 0 1 28 0`).join('')}"/>`:'';
+  const st=y>=5?`<g stroke-dasharray="7 7" opacity=".6"><path d="M430 304 120 500M430 304 30 330M430 304 520 180"/></g>`:'';
+  return svg(`<rect width="1195" height="500" fill="#11110f"/><g fill="#11110f" stroke="#f1e9d8" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity=".86">
+   <path d="M-60 174Q600 150 1255 174" fill="none"/><path d="M${l}${r}z" fill="#171b1c"/>${aq}${st}${props}</g>
+   <g transform="translate(430 304) scale(.55)" fill="#11110f" stroke="#ffe14a" stroke-width="3" stroke-linejoin="round"><path d="M0-46-36 0h58zM0-46 22 0l27-10z"/></g>
+   <text x="447" y="320" font-family="Inter,sans-serif" font-size="11" fill="#ffe14a">the first tent</text>`);
+}
+const strip=$('#strip'),ysub=$('#ysub');let year=0;
+strip.insertAdjacentHTML('afterbegin',[...Array(16)].map((_,i)=>`<i>${pad(i+1,2)}</i>`).join(''));
+function setYear(y){
+  if(y===year)return;year=y;$('#ysc').innerHTML=y===1?SC[7]():board(y);
+  $('#ytag').textContent=y===1?'Year 01 of 16 · exposed':`Year ${pad(y,2)} of 16 · storyboard · not yet shot`;
+  $('small',ysub).textContent=y===1?'Maia':'';
+  $('span',ysub).textContent=y===1?'There is a meadow, a river and a tent.':y===16?'[ year 16. One million humans. The city stands. Not yet shot. ]':`[ year ${y}. Not yet shot. A guess, in pencil. ]`;
+  const fr=$$('i',strip);fr.forEach((f,i)=>f.classList.toggle('at',i===y-1));
+  $('.head',strip).style.left=fr[y-1].offsetLeft+fr[y-1].offsetWidth/2+'px';strip.setAttribute('aria-valuenow',y);
+}
+const yearAt=e=>{const r=strip.getBoundingClientRect();return clamp(Math.ceil((e.clientX-r.left-12)/(r.width-24)*16),1,16)};
+strip.addEventListener('pointerdown',e=>{strip.setPointerCapture(e.pointerId);setYear(yearAt(e))});
+strip.addEventListener('pointermove',e=>{if(e.buttons||e.pointerType==='touch')setYear(yearAt(e))});
+strip.addEventListener('keydown',e=>{if(e.key==='ArrowRight')setYear(Math.min(16,year+1));if(e.key==='ArrowLeft')setYear(Math.max(1,year-1))});
+
+/* front of house */
+$('#vf').insertAdjacentHTML('afterbegin',SC[4]());$('#finsc').innerHTML=SC[7]();
+$('#chap').innerHTML=SHOTS.map((s,i)=>`<li><span>${pad(i+1,2)}</span><b>${s[0]}</b><span>${s[1]} · ${s[2]} mm</span><time>${fmt(ST[i])}</time></li>`).join('');
+$$('#chap li').forEach((li,i)=>li.onclick=()=>watch(ST[i]));
+const cd=$('#cd');function tickCd(){const n=new Date(),m=new Date(n);m.setHours(24,0,0,0);const s=Math.floor((m-n)/1000);cd.textContent=[s/3600,s/60%60,s%60].map(v=>pad(Math.floor(v),2)).join(':')}
+tickCd();setInterval(tickCd,1000);
+$('#name').addEventListener('input',e=>{const v=e.target.value.trim();$('#you').textContent=v||'Not yet cast'});
+const cr=$('#credits');new IntersectionObserver(e=>cr.classList.toggle('run',e[0].isIntersecting)).observe(cr);
+cr.addEventListener('click',()=>cr.classList.toggle('hold'));
+const slate=$('#slate');slate.onclick=()=>{slate.classList.add('up');setTimeout(()=>slate.classList.remove('up'),260)};
+const fin=$('.fin .ff');new IntersectionObserver(e=>$('#finsc').classList.toggle('on',e[0].isIntersecting)).observe(fin);
+let vfOn=false;new IntersectionObserver(e=>{vfOn=e[0].isIntersecting;$('#vf').classList.toggle('on',vfOn)}).observe($('#vf'));
+
+/* the clock of the film */
+const tc=$('#tc'),t0=performance.now();
+function tick(now){
+  const dt=Math.min(.1,(now-last)/1000);last=now;
+  if(running&&visible){
+    T+=dt;const k=SEQ[step];
+    if(typeof k==='number'&&T>=ST[k]+SHOTS[k][3]){
+      if(playing){if(k===7){playing=false;running=false;T=TOTAL;goStep(SEQ.length-1)}else{T=ST[k+1];goStep(seqOf(k+1))}}
+      else{T=ST[k]+SHOTS[k][3]-.01;running=false}
+    }
+    render();
+  }
+  if(vfOn){const s=30.4+((now-t0)/1000)%6.2,f=Math.floor(s%1*24);tc.textContent=`00:00:${pad(Math.floor(s),2)}:${pad(f,2)}`}
+  requestAnimationFrame(tick);
+}
+drawSheet();setYear(1);arrive(clamp(Math.round((scrollY-film.offsetTop)/vh()),0,SEQ.length-1));requestAnimationFrame(tick);
+/* the series line types on, once */
+(function(){const el=$('#series'),text=$('.rest',el).textContent;if(RM)return typeInto(el,text,text.length);let n=0;const iv=setInterval(()=>{n+=2;typeInto(el,text,Math.min(n,text.length));if(n>=text.length)clearInterval(iv)},26)})();
+</script>
+</body>
+</html>

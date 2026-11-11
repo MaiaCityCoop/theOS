@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maia City · brand draft 08 · Almanac</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,100..900,0..100,0..1;1,9..144,100..900,0..100,0..1&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* ALMANAC: three spot inks on rough paper, a little out of register. No black, no tints: a tint is a halftone. */
+*{box-sizing:border-box}
+:root{--paper:#f3ecdc;--blue:#2a3fd6;--orange:#ff5b2e;--green:#1f8a4c;--pen:#22263c;--reg:3;
+  --serif:'Fraunces','Cooper Black','Iowan Old Style',Georgia,serif;--mono:'Space Mono',ui-monospace,'SF Mono',Menlo,monospace;--hand:'Caveat','Bradley Hand','Marker Felt',cursive;
+  --pad:clamp(18px,5vw,84px);--loud:"SOFT" 100,"WONK" 1,"opsz" 144}
+html{scroll-behavior:smooth;background:var(--paper)}
+body{margin:0;position:relative;background:var(--paper);color:var(--blue);font:400 19px/1.45 var(--serif);-webkit-font-smoothing:antialiased;overflow-x:hidden;overflow-x:clip}
+body::after{content:"";position:fixed;inset:0;z-index:90;pointer-events:none;mix-blend-mode:multiply;opacity:.6;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .42 0 0 0 0 .34 0 0 0 0 .2 .9 0 0 0 -.28'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E")}
+a{color:inherit}
+p{margin:0 0 .8em}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+/* the plates: blue is the key plate, orange and green drift with --reg */
+.o,.g,.b{mix-blend-mode:multiply}
+.o{translate:calc(var(--reg)*1px) calc(var(--reg)*-.6px)}
+.g{translate:calc(var(--reg)*-.7px) calc(var(--reg)*.8px)}
+.fo{fill:var(--orange)}.fg{fill:var(--green)}.fb{fill:var(--blue)}.fp{fill:var(--paper)}
+.over{position:relative;display:inline-block}
+.over::after{content:attr(data-t);position:absolute;left:0;top:0;width:100%;color:var(--orange);mix-blend-mode:multiply;translate:calc(var(--reg)*.018em) calc(var(--reg)*-.011em);pointer-events:none}
+.mono{font:400 13.5px/1.6 var(--mono)}
+.hand{font:700 26px/1.05 var(--hand);color:var(--pen)}
+.stamp{display:inline-block;font:700 12px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--orange);border:2.5px solid;padding:7px 10px 6px;border-radius:5px;rotate:-7deg;mix-blend-mode:multiply;white-space:nowrap}
+.stamp.gr{color:var(--green)}
+.rm{position:absolute;width:26px;height:26px;border:1.5px solid currentColor;border-radius:50%;pointer-events:none}
+.rm::before,.rm::after{content:"";position:absolute;background:currentColor}
+.rm::before{left:50%;top:-8px;bottom:-8px;width:1.5px;margin-left:-.75px}.rm::after{top:50%;left:-8px;right:-8px;height:1.5px;margin-top:-.75px}
+h2{font:900 clamp(44px,7.4vw,118px)/.9 var(--serif);font-variation-settings:var(--loud);letter-spacing:-.025em;margin:0}
+h3{font:900 clamp(30px,3.8vw,58px)/.95 var(--serif);font-variation-settings:var(--loud);letter-spacing:-.015em;margin:.1em 0 .3em}
+.clipcta{text-transform:none;letter-spacing:0;display:inline-flex;align-items:center;gap:12px;font:900 21px/1 var(--serif);font-variation-settings:var(--loud);text-decoration:none;color:var(--blue);background:var(--paper);border:2.5px dashed var(--blue);padding:13px 20px 14px;transition:box-shadow .2s,translate .2s}
+.clipcta:hover,.clipcta:focus-visible{box-shadow:6px 6px 0 var(--orange);translate:-3px -3px;outline:0}
+.clipcta svg{width:26px;height:20px;flex:none}
+/* the way back: a thumb index tab on the page's edge */
+.backlink{position:fixed;right:0;top:38%;z-index:80;writing-mode:vertical-rl;font:700 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;text-decoration:none;color:var(--blue);background:var(--paper);border:2px solid var(--blue);border-right:0;padding:12px 7px;border-radius:8px 0 0 8px;box-shadow:-3px 3px 0 var(--orange);transition:padding .15s}
+.backlink:hover,.backlink:focus-visible{padding-right:14px;outline:0}
+
+/* ---------- cover ---------- */
+.cover{position:relative;min-height:100vh;min-height:100svh;padding:20px clamp(18px,4vw,56px) 0;display:flex;flex-direction:column;overflow:hidden}
+.mast{display:flex;align-items:center;gap:22px;font:700 11.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;padding-bottom:14px;border-bottom:3px solid var(--blue);position:relative;z-index:2}
+.mast img{width:42px;height:42px;border-radius:10px;display:block}
+.mast b{margin-right:auto}
+.art{position:absolute;right:0;bottom:0;width:100%;height:100%;z-index:0}
+.art text{font:700 30px var(--hand);fill:var(--pen)}
+.cover h1{font:900 clamp(70px,14.4vw,226px)/.8 var(--serif);font-variation-settings:var(--loud);letter-spacing:-.035em;margin:clamp(20px,3vw,44px) 0 0;position:relative;z-index:1;mix-blend-mode:multiply;color:var(--blue)}
+.cover h1 em{font-style:italic}
+.c-row{display:flex;align-items:center;gap:clamp(16px,3vw,44px);flex-wrap:wrap;position:relative;z-index:1;margin:clamp(10px,1.4vw,18px) 0 22px}
+.sub{font:italic 400 clamp(22px,2.6vw,38px)/1.1 var(--serif);margin:0;max-width:16em;mix-blend-mode:multiply}
+.burst{position:relative;width:clamp(120px,11vw,158px);aspect-ratio:1;flex:none;display:grid;place-items:center;text-align:center;rotate:9deg}
+.burst svg{position:absolute;inset:0;width:100%;height:100%;animation:spin 60s linear infinite}
+.burst span{position:relative;font:700 11px/1.35 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--paper)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.strip{margin:auto calc(clamp(18px,4vw,56px)*-1) 0;padding:14px clamp(18px,4vw,56px);background:var(--paper);border-top:3px solid var(--blue);position:relative;z-index:2;display:flex;align-items:center;gap:clamp(16px,3vw,40px);flex-wrap:wrap}
+.bars{display:flex;height:22px}.bars i{width:34px;height:100%}
+.bars i:nth-child(1){background:var(--blue)}.bars i:nth-child(2){background:var(--orange)}.bars i:nth-child(3){background:var(--green)}
+.bars i:nth-child(4){background:var(--blue);position:relative}.bars i:nth-child(4)::after,.bars i:nth-child(5)::after{content:"";position:absolute;inset:0;background:var(--orange);mix-blend-mode:multiply}
+.bars i:nth-child(5){background:var(--green);position:relative}
+.regctl{display:flex;align-items:center;gap:12px;font:700 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.regctl output{min-width:9em}
+input[type=range]{-webkit-appearance:none;appearance:none;width:clamp(120px,16vw,220px);height:22px;background:none;cursor:ew-resize}
+input[type=range]::-webkit-slider-runnable-track{height:3px;background:var(--blue)}
+input[type=range]::-moz-range-track{height:3px;background:var(--blue)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;margin-top:-8.5px;border-radius:50%;background:var(--orange);border:3px solid var(--blue)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--orange);border:3px solid var(--blue)}
+.strip .clipcta{margin-left:auto}
+
+/* ---------- spreads ---------- */
+.spread{position:relative;padding:clamp(26px,4vw,60px) var(--pad) clamp(50px,8vw,120px);border-top:1.5px dashed rgba(42,63,214,.45)}
+.folio{display:flex;justify-content:space-between;gap:14px;font:700 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;border-bottom:2px solid var(--blue);padding-bottom:10px;margin-bottom:clamp(30px,5vw,70px)}
+
+/* the method */
+.m-grid{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,8fr);gap:clamp(28px,5vw,90px);align-items:start}
+.m-intro p{max-width:24em}
+.m-intro h2{margin-bottom:.35em}
+blockquote{margin:1.6em 0 .4em;padding:0 0 0 20px;border-left:6px solid var(--orange)}
+blockquote p{font:italic 500 clamp(24px,2.5vw,36px)/1.12 var(--serif);margin:0 0 .3em}
+cite{font:700 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;font-style:normal}
+.steps{list-style:none;margin:0;padding:0}
+.steps li{display:grid;grid-template-columns:clamp(92px,15vw,230px) minmax(0,1fr);column-gap:clamp(14px,2.4vw,36px);align-items:start;position:relative;padding-bottom:clamp(26px,4vw,56px)}
+.steps li:nth-child(2){margin-left:11%}
+.num{font:900 clamp(130px,20vw,310px)/.74 var(--serif);font-variation-settings:var(--loud);color:var(--orange);display:block}
+.blob{position:absolute;left:clamp(22px,4.4vw,64px);top:clamp(24px,4vw,64px);width:clamp(70px,10.4vw,150px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,var(--green) 0 36%,transparent 38%) 0 0/9px 9px}
+.steps p{max-width:27em}
+.steps .stamp{margin-top:6px}
+.million{position:relative;grid-column:1/-1;height:150px;margin-top:26px;border:2px solid var(--blue);background:radial-gradient(circle,var(--blue) 0 21%,transparent 23%) 5px 5px/10px 10px}
+.million i{position:absolute;top:36px;width:26px;height:26px;border-radius:50%}
+.million .me{left:52px;background:var(--orange);box-shadow:0 0 0 4px var(--paper)}
+.million .you{left:92px;background:var(--paper);border:3px solid var(--green);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{scale:1.45;opacity:.55}}
+.million .hand{position:absolute;background:var(--paper);padding:0 8px;white-space:nowrap}
+.million .l1{left:20px;top:72px;rotate:-3deg}.million .l2{left:128px;top:24px;rotate:2deg}
+.million small{position:absolute;right:10px;bottom:10px;background:var(--paper);padding:4px 8px;font:700 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase}
+
+/* the catalogue */
+.c-head{display:grid;grid-template-columns:minmax(0,8fr) minmax(0,3fr);gap:clamp(20px,4vw,60px);align-items:end;margin-bottom:clamp(26px,4vw,56px)}
+.cat-grid{display:grid;grid-template-columns:1.15fr .95fr 1.1fr}
+.cat-grid>div{padding:0 clamp(16px,2.4vw,36px)}
+.cat-grid>div:first-child{padding-left:0}.cat-grid>div:last-child{padding-right:0}
+.cat-grid>div+div{border-left:1.5px solid var(--blue)}
+.ent{margin-bottom:34px}
+.ent .no{font:700 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase}
+.ent svg{display:block;width:100%;height:auto;margin:12px 0 4px;overflow:visible}
+.ent svg text{font:700 22px var(--hand);fill:var(--pen)}
+.ent dl{margin:10px 0 0;font:700 12px/1.9 var(--mono);text-transform:uppercase;letter-spacing:.06em}
+.ent dl div{display:flex;gap:8px}.ent dl div::before{content:"";order:1;flex:1;border-bottom:2px dotted var(--blue);translate:0 -7px}
+.ent dt{order:0}.ent dd{order:2;margin:0}
+.packet{position:relative;border:2.5px solid var(--blue);rotate:2.2deg;margin:8px 4px 34px 10px;background:var(--paper);box-shadow:8px 8px 0 -2px var(--green)}
+.packet::before{content:"";position:absolute;left:-2.5px;right:-2.5px;top:-13px;height:12px;background:var(--blue);clip-path:polygon(0 100%,2.5% 0,5% 100%,7.5% 0,10% 100%,12.5% 0,15% 100%,17.5% 0,20% 100%,22.5% 0,25% 100%,27.5% 0,30% 100%,32.5% 0,35% 100%,37.5% 0,40% 100%,42.5% 0,45% 100%,47.5% 0,50% 100%,52.5% 0,55% 100%,57.5% 0,60% 100%,62.5% 0,65% 100%,67.5% 0,70% 100%,72.5% 0,75% 100%,77.5% 0,80% 100%,82.5% 0,85% 100%,87.5% 0,90% 100%,92.5% 0,95% 100%,97.5% 0,100% 100%)}
+.p-top{display:flex;justify-content:space-between;align-items:center;background:var(--orange);color:var(--paper);font:900 24px/1 var(--serif);font-variation-settings:var(--loud);padding:12px 16px}
+.p-top span{font:700 10.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase}
+.p-body{padding:14px 16px 16px}
+.p-body svg{display:block;width:100%;height:auto;margin-bottom:10px}
+.p-body h3{font-size:clamp(26px,2.6vw,38px)}
+.screen{background:var(--blue);color:var(--paper);padding:13px 14px 14px;min-height:98px;margin-top:12px}
+.screen small{display:block;font:700 10px/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;opacity:.75;margin-bottom:7px}
+.screen p{margin:0;font:500 19px/1.2 var(--serif)}
+.ctl{display:flex;align-items:center;gap:12px;margin-top:12px}
+#play{width:42px;height:42px;border-radius:50%;background:var(--orange);flex:none;display:grid;place-items:center}
+#play::before{content:"";border:9px solid transparent;border-left:14px solid var(--paper);border-right:0;margin-left:4px}
+#play.on::before{border:0;width:5px;height:16px;margin:0;box-shadow:inset 5px 0 0 var(--paper);border-right:5px solid var(--paper);padding-left:4px;background:var(--orange);background-clip:content-box}
+.shots{display:flex;gap:3px;flex:1;cursor:pointer;padding:8px 0}
+.shots i{height:11px;border:1.5px solid var(--blue);position:relative;flex:var(--w) 1 0}
+.shots i::before{content:"";position:absolute;inset:0;background:var(--blue);transform-origin:left;transform:scaleX(var(--f,0))}
+.ctl output{font:700 11px/1 var(--mono);white-space:nowrap}
+.p-foot{margin:10px 0 0;font:700 10.5px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase}
+.hudtag{position:relative;display:grid;grid-template-columns:auto 1fr auto;gap:8px 18px;align-items:center;border:2.5px solid var(--blue);padding:16px 16px 14px 46px;rotate:-1.6deg;clip-path:polygon(22px 0,100% 0,100% 100%,22px 100%,0 calc(100% - 22px),0 22px)}
+.hudtag .hole{position:absolute;left:14px;top:50%;width:16px;height:16px;margin-top:-8px;border-radius:50%;border:2.5px solid var(--blue)}
+.h-day{text-align:center;line-height:1}.h-day small{display:block;font:700 9.5px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase}
+.h-day b{display:block;font:900 46px/.9 var(--serif);font-variation-settings:var(--loud);color:var(--orange);margin:3px 0}
+.hudtag dl{margin:0;font:700 11.5px/1.75 var(--mono);text-transform:uppercase;letter-spacing:.05em;display:grid;grid-template-columns:auto 1fr;column-gap:10px}
+.hudtag dd{margin:0;font-weight:400}
+.hudtag svg{width:54px;height:54px}
+.prompt{grid-column:1/-1;margin:4px 0 0;padding-top:10px;border-top:2px dotted var(--blue);font:700 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase}
+kbd{display:inline-block;font:700 12px/1 var(--mono);border:2px solid var(--blue);border-bottom-width:4px;border-radius:5px;padding:4px 7px;margin-right:8px}
+.backorder{display:flex;margin-top:clamp(24px,4vw,50px);border:2.5px solid var(--blue);white-space:nowrap}
+.backorder>b{flex:none;display:grid;place-items:center;padding:0 18px;background:var(--orange);color:var(--paper);font:700 12px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;border-right:2.5px solid var(--blue)}
+.backorder .run{flex:1;min-width:0;overflow:hidden}
+#ticker{display:inline-block;padding:15px 0 14px;font:700 13px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;animation:run 46s linear infinite}
+#ticker span{margin:0 22px}.backorder em{font-style:normal;color:var(--orange)}
+@keyframes run{to{transform:translateX(-50%)}}
+
+/* the noticeboard */
+.b-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,3fr) minmax(0,4fr);gap:clamp(24px,4vw,64px);align-items:start;margin-top:clamp(28px,4vw,56px)}
+.ads{columns:2;column-gap:22px;column-rule:1.5px solid var(--blue)}
+.ad{break-inside:avoid;padding:0 0 12px;margin:0 0 12px;border-bottom:1.5px solid var(--blue);font:400 12.5px/1.55 var(--mono)}
+.ad h4{margin:0 0 4px;font:700 12px/1.2 var(--mono);letter-spacing:.16em;text-transform:uppercase}
+.ad p{margin:0}
+.ad.box{border:3px solid var(--blue);padding:12px}
+.ad.box h4{font:900 34px/.9 var(--serif);font-variation-settings:var(--loud);letter-spacing:-.01em;text-transform:none;color:var(--orange)}
+.ad.inv{background:var(--blue);color:var(--paper);padding:12px;border:0}
+.ad.ht{padding:14px;border:0;background:radial-gradient(circle,var(--orange) 0 30%,transparent 32%) 0 0/8px 8px}
+.ad.ht p,.ad.ht h4{background:var(--paper);display:inline;box-decoration-break:clone;-webkit-box-decoration-break:clone;padding:1px 4px}
+.ad.later{border:2px dashed var(--blue);padding:12px;opacity:.8}
+.cal{position:relative;rotate:-2.4deg;max-width:300px;margin:6px auto 0}
+.nail{position:absolute;left:50%;top:-9px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--blue);z-index:3}
+.cal-top{background:var(--blue);color:var(--paper);font:700 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;text-align:center;padding:18px 8px 12px}
+.pages{position:relative;aspect-ratio:1/1.08}
+.pg{position:absolute;inset:0;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--paper);border:2.5px solid var(--blue);border-top:0;text-align:center}
+.pg small{font:700 12px/1 var(--mono);letter-spacing:.2em;text-transform:uppercase}
+.pg b{font:900 clamp(150px,15vw,210px)/.78 var(--serif);font-variation-settings:var(--loud)}
+.pg em{font:italic 500 21px/1 var(--serif)}
+.pg.one b{color:var(--orange)}
+.pg.two{background:radial-gradient(circle,rgba(42,63,214,.5) 0 18%,transparent 20%) 0 0/8px 8px,var(--paper)}
+.pg.two>*{background:var(--paper);padding:2px 8px}.pg.two b{color:transparent;-webkit-text-stroke:2.5px var(--blue)}
+.pg.one{transform-origin:8% 0;clip-path:polygon(0 0,100% 0,100% 58%,95% 62%,91% 70%,84% 73%,79% 82%,71% 86%,66% 94%,58% 100%,0 100%);transition:transform .25s;filter:drop-shadow(3px 4px 0 rgba(42,63,214,.25))}
+.pg.one:hover{transform:rotate(1.5deg)}
+.cal.torn .pg.one{animation:tear .95s cubic-bezier(.5,0,.9,.6) forwards;pointer-events:none}
+@keyframes tear{25%{transform:rotate(-5deg) translate(-8px,10px)}100%{transform:rotate(26deg) translate(90px,520px);opacity:0;visibility:hidden}}
+.calnote{margin:14px 0 0;text-align:center;rotate:2deg}
+.calnote button{font:inherit;color:inherit;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
+.map{display:block;width:100%;height:auto;overflow:visible}
+.map text{font:700 21px var(--hand);fill:var(--pen)}
+
+/* the poster */
+.poster{position:relative;overflow:hidden;min-height:min(100vh,62vw);padding:clamp(40px,7vw,110px) var(--pad) clamp(120px,17vw,250px);border-top:1.5px dashed rgba(42,63,214,.45)}
+.sun{position:absolute;right:-9vw;top:-10vw;width:66vw;aspect-ratio:1;border-radius:50%;background:var(--orange)}
+.field{position:absolute;left:0;right:0;bottom:0;height:clamp(70px,11vw,160px);background:var(--green)}
+.field::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:clamp(30px,5vw,70px);background:radial-gradient(circle,var(--green) 0 30%,transparent 32%) 0 0/9px 9px;-webkit-mask:linear-gradient(transparent,#000);mask:linear-gradient(transparent,#000)}
+.p-tag{position:relative;font:700 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;margin:0 0 clamp(20px,3vw,44px)}
+.series{position:relative;margin:0}
+.series span{display:block;mix-blend-mode:multiply;font:italic 500 clamp(20px,3vw,46px)/1.15 var(--serif)}
+.series .xl{font:900 clamp(44px,10.6vw,172px)/.84 var(--serif);font-variation-settings:var(--loud);letter-spacing:-.03em;margin:.04em 0 .08em}
+.series .yrs{font:900 clamp(32px,6vw,98px)/1 var(--serif);font-variation-settings:var(--loud);color:var(--orange);margin-top:.35em;letter-spacing:-.02em}
+.poster .hand{position:absolute;right:var(--pad);bottom:clamp(84px,13vw,190px);rotate:-5deg;font-size:30px}
+.fold{position:absolute;pointer-events:none;background:rgba(34,38,60,.13);box-shadow:1px 1px 0 rgba(255,255,255,.5)}
+.fold.v1{left:33.3%;top:0;bottom:0;width:1px}.fold.v2{left:66.6%;top:0;bottom:0;width:1px}.fold.h{left:0;right:0;top:50%;height:1px}
+
+/* stickers */
+.s-grid{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,7fr);gap:clamp(26px,5vw,80px);align-items:center}
+.sheet{position:relative;border-radius:22px;padding:clamp(22px,3vw,44px);rotate:1.2deg;display:flex;flex-wrap:wrap;gap:22px 26px;align-items:center;justify-content:center;border:2px solid var(--blue);background:radial-gradient(circle,rgba(42,63,214,.28) 0 16%,transparent 18%) 0 0/9px 9px;min-height:340px}
+.stk{position:relative;flex:none;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;border:5px solid #fffaf0;box-shadow:1px 2px 0 rgba(34,38,60,.22),4px 9px 16px rgba(34,38,60,.2);display:grid;place-items:center;text-align:center;transition:scale .15s,box-shadow .15s}
+.stk.lift{cursor:grabbing;scale:1.08;box-shadow:2px 4px 0 rgba(34,38,60,.15),14px 26px 30px rgba(34,38,60,.26);z-index:5}
+.stk.free{position:absolute;margin:0}
+.stk-hole{flex:none;border:1.5px dashed rgba(42,63,214,.55);background:var(--paper)}
+.s1{width:132px;height:132px;border-radius:50%;background:var(--orange);color:#fffaf0;rotate:-8deg}
+.s1 small{font:700 11px/1 var(--mono);letter-spacing:.24em}.s1 b{font:900 78px/.8 var(--serif);font-variation-settings:var(--loud);display:block}
+.s2{border-radius:16px;background:var(--blue);color:#fffaf0;padding:14px 18px;rotate:4deg}
+.s2 b{font:900 30px/1 var(--serif);font-variation-settings:var(--loud);display:block}.s2 small{font:700 10px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase}
+.s3{width:150px;height:150px;border-radius:50%;background:#fffaf0;color:var(--green);rotate:6deg;outline:3px solid var(--green);outline-offset:-12px}
+.s3 svg{width:62px;display:block;margin:0 auto 4px}.s3 small{font:700 9.5px/1.3 var(--mono);letter-spacing:.14em;text-transform:uppercase;display:block}
+.s4{border-radius:50%;background:#fffaf0;color:var(--blue);padding:20px 30px;rotate:-5deg;outline:3px solid var(--blue);outline-offset:-9px}
+.s4 b{font:900 30px/1 var(--serif);font-variation-settings:var(--loud);white-space:nowrap}
+.s5{width:150px;height:150px;border-radius:50%;border:0;box-shadow:none;rotate:10deg;filter:drop-shadow(1px 2px 0 rgba(34,38,60,.22)) drop-shadow(4px 9px 10px rgba(34,38,60,.2))}
+.s5.lift{box-shadow:none}.s5 svg{position:absolute;inset:0;width:100%;height:100%}
+.s5 b{position:relative;font:900 34px/.9 var(--serif);font-variation-settings:var(--loud);color:var(--blue)}
+.s6{background:var(--blue);color:#fffaf0;padding:12px 30px;rotate:-2deg;border-radius:4px}
+.s6 b{font:700 12.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;white-space:nowrap}
+.s7{width:118px;height:118px;border-radius:50%;background:var(--green);color:#fffaf0;rotate:-10deg}
+.s7 b{font:900 19px/1.02 var(--serif);font-variation-settings:var(--loud)}
+.later-row{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:26px}
+.later-row i{font:700 10.5px/1.2 var(--mono);font-style:normal;letter-spacing:.12em;text-transform:uppercase;border:2px dashed var(--blue);border-radius:999px;padding:14px 18px;opacity:.75}
+.later-row .hand{font-size:24px}
+#stuck{position:absolute;left:0;top:0;width:100%;height:0;z-index:50}
+
+/* the coupon */
+.c-wrap{position:relative;max-width:1060px;margin:0 auto}
+.c-hole{position:absolute;inset:0;border:2px dashed rgba(42,63,214,.6);background:radial-gradient(circle,rgba(42,63,214,.4) 0 16%,transparent 18%) 0 0/8px 8px}
+.coupon{position:relative;background:var(--paper);border:3px dashed var(--blue);padding:clamp(24px,4vw,58px);display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:clamp(22px,4vw,64px);align-items:center;transition:transform .55s cubic-bezier(.3,1.5,.5,1),box-shadow .55s,border-color .2s}
+.coupon.cut{transform:rotate(-2.4deg) translate(18px,24px);border-color:transparent;box-shadow:0 1px 0 rgba(34,38,60,.25),0 26px 44px -14px rgba(34,38,60,.42)}
+.scis{position:absolute;top:-19px;left:-8px;width:38px;height:32px;transition:left .7s linear;background:var(--paper);border-radius:50%}
+.cutting .scis,.cut .scis{left:calc(100% - 30px)}
+.coupon h2{font-size:clamp(46px,7vw,104px)}
+.coupon label{display:block;font:700 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;margin-top:18px}
+.coupon input{display:block;width:100%;border:0;border-bottom:2.5px solid var(--blue);border-radius:0;background:none;font:700 32px/1.2 var(--hand);color:var(--pen);padding:4px 2px 2px;outline:0}
+.coupon input::placeholder{color:rgba(34,38,60,.32)}
+.coupon input:focus{border-bottom-color:var(--orange)}
+.c-no{text-align:center}
+.c-no small{display:block;font:700 11px/1.5 var(--mono);letter-spacing:.16em;text-transform:uppercase}
+.c-no b{display:block;font:900 clamp(120px,15vw,220px)/.8 var(--serif);font-variation-settings:var(--loud);color:var(--orange);margin:6px 0 10px}
+#cut{margin-top:20px;font:900 22px/1 var(--serif);font-variation-settings:var(--loud);background:var(--blue);color:var(--paper);padding:16px 24px 17px;border-radius:999px;box-shadow:5px 5px 0 var(--orange);transition:translate .15s,box-shadow .15s}
+#cut:hover,#cut:focus-visible{translate:-2px -2px;box-shadow:8px 8px 0 var(--orange);outline:0}
+.inst{position:absolute;left:46%;top:9%;font:900 clamp(34px,5vw,66px)/1 var(--serif);font-variation-settings:var(--loud);border:5px solid;padding:4px 18px 8px;border-radius:12px;color:var(--green);rotate:-13deg;opacity:0;scale:1.7;transition:opacity .2s .5s,scale .25s .5s;mix-blend-mode:multiply;pointer-events:none}
+.cut .inst{opacity:.9;scale:1}
+.c-after{max-width:1060px;margin:44px auto 0;text-align:center;font-size:30px;min-height:1.2em}
+
+/* colophon */
+.col-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:clamp(26px,5vw,90px);align-items:center;margin-top:clamp(20px,3vw,40px)}
+.inks{display:block;width:100%;height:auto;overflow:visible}
+.inks text{font:700 12.5px var(--mono);fill:var(--blue);letter-spacing:.04em}
+.inks line{stroke:var(--blue);stroke-width:1.5}
+.lock{display:flex;align-items:center;gap:20px;margin-bottom:26px}
+.lock img{width:92px;height:92px;border-radius:21px;display:block;box-shadow:6px 6px 0 var(--blue)}
+.lock b{display:block;font:900 clamp(40px,5vw,72px)/.86 var(--serif);font-variation-settings:var(--loud);letter-spacing:-.03em}
+.lock span{font:700 11px/1 var(--mono);letter-spacing:.2em;text-transform:uppercase}
+.spec p{margin:22px 0 2px}
+.spec small{font:400 11.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;display:block;border-top:1.5px solid var(--blue);padding-top:6px}
+.sp1{font:900 clamp(40px,6vw,92px)/.86 var(--serif);font-variation-settings:var(--loud);letter-spacing:-.025em}
+.sp2{font:700 clamp(15px,1.7vw,22px)/1.2 var(--mono);letter-spacing:.08em}
+.sp3{font-size:clamp(34px,4vw,54px)}
+
+/* back cover */
+.backcover{position:relative;background:var(--blue);color:var(--paper);padding:clamp(50px,9vw,140px) var(--pad) clamp(70px,9vw,120px);overflow:hidden}
+.bc-sun{position:absolute;right:-7vw;bottom:-16vw;width:42vw;aspect-ratio:1;border-radius:50%;background:var(--orange);box-shadow:0 0 0 clamp(8px,1.2vw,18px) var(--paper)}
+.creed{position:relative;font:900 clamp(36px,6.4vw,104px)/.92 var(--serif);font-variation-settings:var(--loud);letter-spacing:-.025em;max-width:13em;margin:0 0 .25em}
+.backcover cite{color:var(--paper)}
+.bc-foot{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:18px 34px;margin-top:clamp(40px,6vw,90px);font:700 11.5px/1.5 var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.bc-foot img{width:54px;height:54px;border-radius:13px}
+.backcover .clipcta{border-color:var(--blue)}
+
+@media (max-width:900px){
+  .mast span{display:none}.mast span:nth-of-type(1){display:inline}.art .wide{display:none}
+  .strip .clipcta{margin-left:0}
+  .m-grid,.c-head,.b-grid,.s-grid,.coupon,.col-grid{grid-template-columns:minmax(0,1fr)}
+  .steps li:nth-child(2){margin-left:0}
+  .cat-grid{grid-template-columns:minmax(0,1fr)}
+  .cat-grid>div{padding:26px 0 0!important;border-left:0!important}
+  .cat-grid>div+div{border-top:1.5px solid var(--blue);margin-top:6px}
+  .poster{min-height:0}.sun{width:110vw;right:-40vw;top:-20vw}
+  .poster .hand{position:relative;right:auto;bottom:auto;display:inline-block;margin-top:18px}
+  .inst{left:auto;right:6%;top:4%}
+  .bc-sun{width:70vw;right:-26vw;bottom:-30vw}
+  .folio span:first-child{display:none}
+}
+@media (max-width:520px){.backlink{top:auto;bottom:18%;padding:8px 3px;font-size:9.5px}.ads{columns:1}.hudtag{grid-template-columns:auto 1fr}.hudtag>svg{display:none}.regctl output{display:none}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}html{scroll-behavior:auto}.cal.torn .pg.one{visibility:hidden}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <pattern id="hb" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><circle cx="4.5" cy="4.5" r="2.2" fill="#2a3fd6"/></pattern>
+  <pattern id="hbs" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><circle cx="4" cy="4" r="1.2" fill="#2a3fd6"/></pattern>
+  <pattern id="hg" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(75)"><circle cx="5" cy="5" r="2.6" fill="#1f8a4c"/></pattern>
+  <pattern id="ho" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(15)"><circle cx="5" cy="5" r="2.6" fill="#ff5b2e"/></pattern>
+  <filter id="wob" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="6"/></filter>
+  <symbol id="scissors" viewBox="0 0 38 32"><g fill="none" stroke="#2a3fd6" stroke-width="2.6" stroke-linecap="round"><circle cx="8" cy="8" r="5"/><circle cx="8" cy="24" r="5"/><path d="M12 11 L35 25 M12 21 L35 7"/></g></symbol>
+</defs></svg>
+
+<a class="backlink" href="index.html">08 / 08 · All drafts</a>
+<div id="stuck"></div>
+
+<!-- ============ COVER ============ -->
+<header class="cover" id="top">
+  <div class="mast"><img src="../MaiaCity.svg" alt="Maia City"><b>The Maia City Almanac</b><span>Issue 0001</span><span>Day 1 of 5423</span><span>Three inks, rough paper</span></div>
+  <svg class="art" viewBox="0 0 1440 900" preserveAspectRatio="xMaxYMax slice" aria-hidden="true">
+    <g class="g">
+      <path fill="url(#hg)" d="M250 900 C 480 800, 700 730, 900 650 S 1220 462, 1440 480 L1440 900 Z"/>
+      <path class="fg" d="M380 900 C 560 820, 720 760, 900 690 S 1220 500, 1440 520 L1440 900 Z"/>
+    </g>
+    <g class="o">
+      <circle class="fo" cx="900" cy="430" r="320"/>
+      <circle cx="900" cy="430" r="372" fill="none" stroke="#ff5b2e" stroke-width="44" stroke-dasharray="9 137.08"/>
+    </g>
+    <path class="fp" d="M1232 568 L1290 478 L1348 568 Z"/>
+    <g class="b">
+      <path class="fb" d="M1010 652 C 1070 700, 900 742, 960 806 S 1110 858, 1040 900 L 1215 900 C 1262 846, 1080 806, 1068 752 S 1118 690, 1046 642 Z"/>
+      <path d="M1232 568 L1290 478 L1348 568 Z" fill="none" stroke="#2a3fd6" stroke-width="6" stroke-linejoin="round"/>
+      <path d="M1290 478 V568 M1290 516 L1268 568 M1290 478 V452 l20 8 l-20 8" fill="none" stroke="#2a3fd6" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+    </g>
+    <text x="1180" y="410" transform="rotate(-5 1180 410)">nobody in it yet</text>
+    <path d="M1300 420 q 14 12 6 34 m-9 -9 l9 10 l8 -12" fill="none" stroke="#22263c" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <g class="wide"><text x="1062" y="150" transform="rotate(-4 1062 150)">the sun is on back order.</text>
+    <text x="1076" y="182" transform="rotate(-4 1076 182)">we printed one anyway.</text></g>
+  </svg>
+  <h1>How to<br>build<br><em>a city.</em></h1>
+  <div class="c-row">
+    <p class="sub">A rough guide for one million people.</p>
+    <div class="burst b" aria-label="Inside: 1 poster, 1 coupon, 7 stickers"><svg viewBox="0 0 100 100"><polygon class="fb" data-burst="20"/></svg><span>Inside:<br>1 poster<br>1 coupon<br>7 stickers</span></div>
+  </div>
+  <div class="strip">
+    <div class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+    <label class="regctl">Register <input type="range" id="reg" min="0" max="14" step=".5" value="3" aria-label="Pull the ink plates in and out of register"> <output id="regv"></output></label>
+    <a class="clipcta" href="#coupon"><svg><use href="#scissors"/></svg>Clip here. I'm in.</a>
+  </div>
+  <i class="rm" style="right:22px;top:84px"></i>
+</header>
+
+<!-- ============ THE METHOD ============ -->
+<section class="spread" id="method">
+  <div class="folio"><span>The Maia City Almanac</span><span>The method, in full</span><span>p. 02</span></div>
+  <div class="m-grid">
+    <div class="m-intro">
+      <h2 class="over" data-t="Three steps. Two are done.">Three steps. Two are done.</h2>
+      <p>We have never built a city. That is why this guide is short, and why it is written one day at a time, 5423 of them.</p>
+      <p>It goes first in game, then in real. You build it where mistakes cost nothing, then where they cost bricks.</p>
+      <blockquote><p>“It all starts with a green meadow and one tent.”</p><cite>Samuel, day 1</cite></blockquote>
+      <p class="hand" style="rotate:-2deg;margin-top:18px">(the one human so far)</p>
+    </div>
+    <ol class="steps">
+      <li><b class="num o">1</b><i class="blob g"></i><div><h3>Find a meadow.</h3><p>Maia looked for one. There was none. So she made one: land that never ends, and one river. No trees. No sun. No shadows. Not yet.</p><span class="stamp gr">Done · day 1</span></div></li>
+      <li><b class="num o">2</b><i class="blob g"></i><div><h3>Put up one tent.</h3><p>One tent. Nobody in it yet. For now that is the whole skyline, and you can see all of it from anywhere.</p><span class="stamp gr">Done · day 1</span></div></li>
+      <li><b class="num o">3</b><i class="blob g"></i><div><h3>Add 999,999 more of you.</h3><p>The step nobody can do alone, and the only one that makes it a city. Everything grows as we do, with citizens. There are 16 years to do it in.</p><span class="stamp">Open</span></div>
+        <div class="million" role="img" aria-label="One million places. One is taken.">
+          <i class="me"></i><i class="you"></i>
+          <span class="hand l1">Samuel</span><span class="hand l2">you? <a href="#coupon">clip here</a></span>
+          <small>999,999 places open · not to scale</small>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ THE CATALOGUE ============ -->
+<section class="spread" id="catalogue">
+  <div class="folio"><span>The Maia City Almanac</span><span>The catalogue</span><span>p. 03</span></div>
+  <div class="c-head">
+    <h2 class="over" data-t="Everything the city owns fits on one page.">Everything the city owns fits on one page.</h2>
+    <p class="mono">Listed in order of arrival. In stock: three things. On back order: the rest of a city.</p>
+  </div>
+  <div class="cat-grid">
+    <div>
+      <article class="ent">
+        <span class="no">No. 001</span><h3>The world</h3>
+        <svg viewBox="0 0 420 200" aria-hidden="true" style="overflow:hidden">
+          <rect width="420" height="100" fill="url(#hbs)"/>
+          <g class="g"><rect class="fg" y="100" width="420" height="100"/></g>
+          <g class="b" fill="none" stroke="#2a3fd6" stroke-width="2"><path d="M210 100 L-90 200 M210 100 L30 200 M210 100 L150 200 M210 100 L270 200 M210 100 L390 200 M210 100 L510 200 M0 126 H420 M0 158 H420" /><path d="M0 100 H420" stroke-width="4"/></g>
+          <circle cx="332" cy="52" r="28" fill="#f3ecdc" stroke="#22263c" stroke-width="2.2" stroke-dasharray="5 6"/>
+          <text x="196" y="34" transform="rotate(-3 196 34)">sun (not included)</text>
+        </svg>
+        <p class="mono">Land that never ends. It arrived as nothing at all and Maia put it together. Trees, sun and shadows are not included.</p>
+        <dl><div><dt>In stock</dt><dd>1</dd></div><div><dt>Size</dt><dd>Without end</dd></div><div><dt>Made by</dt><dd>Maia</dd></div></dl>
+      </article>
+      <article class="ent" style="margin-bottom:0">
+        <span class="no">No. 002</span><h3>The river</h3>
+        <svg viewBox="0 0 420 150" aria-hidden="true">
+          <g class="g"><rect width="420" height="150" fill="url(#hg)"/></g>
+          <g class="b"><path class="fb" d="M-10 56 C 80 6, 150 126, 230 76 S 360 16, 430 66 L430 104 C 360 54, 310 150, 230 114 S 80 44, -10 94 Z"/></g>
+        </svg>
+        <p class="mono">One. It was here before the tent and has not said why. Good for walking beside.</p>
+        <dl><div><dt>In stock</dt><dd>1</dd></div><div><dt>Length</dt><dd>Not measured</dd></div></dl>
+      </article>
+    </div>
+    <div>
+      <article class="ent">
+        <span class="no">No. 003</span><h3>The tent</h3>
+        <svg viewBox="0 0 420 300" aria-hidden="true">
+          <g class="g"><ellipse cx="210" cy="262" rx="200" ry="30" fill="url(#hg)"/></g>
+          <g class="o"><path class="fo" d="M70 262 L210 56 L350 262 Z"/></g>
+          <g class="b"><path class="fb" d="M210 104 L250 262 L170 262 Z"/><path d="M70 262 L210 56 L350 262 Z M210 56 V22 l28 11 l-28 11" fill="none" stroke="#2a3fd6" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/></g>
+          <text x="262" y="110" transform="rotate(6 262 110)">nobody in it yet</text>
+          <path d="M290 122 q -8 44 -50 62 m12 -14 l-13 14 l17 6" fill="none" stroke="#22263c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p class="mono">Sleeps one. Currently sleeps none. Stands on the meadow where the grass has been asked not to grow through the floor.</p>
+        <dl><div><dt>In stock</dt><dd>1</dd></div><div><dt>Occupants</dt><dd>0</dd></div><div><dt>Views</dt><dd>Meadow, river</dd></div></dl>
+      </article>
+      <span class="no" style="font:700 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;display:block;margin-bottom:14px">No. 005 · The label</span>
+      <div class="hudtag">
+        <i class="hole"></i>
+        <div class="h-day"><small>Day</small><b>0001</b><small>of 5423</small></div>
+        <dl><dt>Place</dt><dd>The meadow</dd><dt>Tents</dt><dd>1</dd><dt>Neighbours</dt><dd>0</dd><dt>Streets</dt><dd>0</dd></dl>
+        <svg viewBox="0 0 54 54" aria-hidden="true"><circle cx="27" cy="27" r="24" fill="none" stroke="#2a3fd6" stroke-width="2.5"/><path d="M27 8 L33 27 L27 46 L21 27 Z" fill="none" stroke="#2a3fd6" stroke-width="2"/><path class="fo" d="M27 8 L33 27 L21 27 Z"/></svg>
+        <p class="prompt"><kbd>E</kbd>Look inside the tent</p>
+      </div>
+      <p class="mono" style="margin-top:14px">Stamped in the corner of the world while you walk it. In the game, this is all the interface there is.</p>
+    </div>
+    <div>
+      <span class="no" style="font:700 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase">No. 004 · Seeds</span>
+      <article class="packet" style="margin-top:28px">
+        <div class="p-top"><b>Story 01</b><span>Maia City Stories</span></div>
+        <div class="p-body">
+          <svg viewBox="0 0 300 110" aria-hidden="true">
+            <g class="g"><rect y="54" width="300" height="56" class="fg"/><rect y="38" width="300" height="16" fill="url(#hg)"/></g>
+            <g class="o"><circle class="fo" cx="232" cy="46" r="30"/></g>
+            <path class="fp" d="M96 78 L122 38 L148 78 Z"/>
+            <g class="b"><path class="fb" d="M168 54 C 190 70, 150 84, 176 110 L 222 110 C 214 88, 196 80, 190 54 Z"/><path d="M96 78 L122 38 L148 78 Z M122 38 V78" fill="none" stroke="#2a3fd6" stroke-width="3.5" stroke-linejoin="round"/></g>
+          </svg>
+          <h3>A green meadow and one tent</h3>
+          <p class="mono" style="margin:0">Two voices: Samuel and Maia. 59 seconds. Sow daily: one story a day, for 5423 days.</p>
+          <div class="screen" aria-live="polite"><small id="who">Title</small><p id="line">A green meadow and one tent</p></div>
+          <div class="ctl"><button id="play" aria-label="Play story 01"></button><div class="shots" id="shots" title="Eight shots"></div><output id="time">0:00 / 0:59</output></div>
+          <p class="p-foot">Plays in TheOS · Packed on day 1</p>
+        </div>
+      </article>
+      <p class="hand" style="rotate:-2deg;margin-left:14px">press the orange one. it is the whole film.</p>
+    </div>
+  </div>
+  <div class="backorder" aria-label="On back order: streets, houses, trees, a sun, shadows. Later: a bridge, a glasshouse, a bakery.">
+    <b>On back order</b>
+    <div class="run"><div id="ticker"><span>Streets <em>0</em></span><span>Houses <em>0</em></span><span>Trees <em>0</em></span><span>A sun</span><span>Shadows</span><span>Later: a bridge</span><span>Later: a glasshouse</span><span>Later: a bakery</span><span>Delivery when there are enough of us to carry them</span></div></div>
+  </div>
+</section>
+
+<!-- ============ THE NOTICEBOARD ============ -->
+<section class="spread" id="noticeboard">
+  <div class="folio"><span>The Maia City Almanac</span><span>Classified</span><span>p. 04</span></div>
+  <h2 class="over" data-t="Wanted: 999,999 neighbours.">Wanted: 999,999 neighbours.</h2>
+  <div class="b-grid">
+    <div class="ads">
+      <article class="ad box"><h4>Wanted</h4><p>999,999 neighbours. No experience of building cities needed. None of us has any. Apply by coupon, page 07.</p></article>
+      <article class="ad"><h4>To let</h4><p>One tent. Sleeps one. Currently sleeps none. Meadow view. River view. No other views.</p></article>
+      <article class="ad"><h4>Lost</h4><p>One meadow. Looked for on day 1 and found never to have existed. A new one has been made. Thank you, Maia.</p></article>
+      <article class="ad inv"><h4>Notice</h4><p>A story is told here once a day, for 5423 days. The first is 59 seconds long. Bring nothing.</p></article>
+      <article class="ad"><h4>Situations vacant</h4><p>Baker. Plumber. Somebody who knows about bridges. Start date: when there is a street. Streets so far: 0.</p></article>
+      <article class="ad"><h4>Found</h4><p>A river. It belongs to whoever turns up.</p></article>
+      <article class="ad ht"><h4>Personal</h4><br><p>To whoever comes second. The first one left a note: “This is day one. Today I am alone. Tomorrow we will see.” Samuel.</p></article>
+      <article class="ad later"><h4>Later</h4><p>Swap column. Seeds for bread. Not printed yet: there are no seeds and there is no bread.</p></article>
+    </div>
+    <div>
+      <div class="cal" id="cal">
+        <i class="nail"></i>
+        <div class="cal-top">Maia City · 5423 days</div>
+        <div class="pages">
+          <div class="pg two"><small>Tomorrow</small><b>2</b><em>Not printed yet.</em></div>
+          <button class="pg one" id="tear" aria-label="Tear off day 1"><small>Day</small><b class="o">1</b><em>of 5423</em></button>
+        </div>
+      </div>
+      <p class="hand calnote" id="calnote">tear it off. go on.</p>
+    </div>
+    <svg class="map" viewBox="0 0 440 400" role="img" aria-label="A hand-drawn map of the meadow: one river, one tent, nothing else yet">
+      <g class="b"><path fill="url(#hb)" d="M60 14 C 120 110, 60 170, 150 230 S 260 300, 230 386 L272 386 C 300 296, 272 268, 186 214 C 100 160, 156 104, 96 14 Z"/></g>
+      <g class="g"><ellipse cx="300" cy="176" rx="74" ry="40" fill="url(#hg)"/></g>
+      <g filter="url(#wob)" fill="none" stroke="#22263c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="14" y="14" width="412" height="372" rx="3"/>
+        <path d="M60 14 C 120 110, 60 170, 150 230 S 260 300, 230 386"/><path d="M96 14 C 156 104, 100 160, 186 214 S 300 296, 272 386"/>
+        <path d="M274 192 l26 -44 l26 44 z M300 148 v44"/>
+        <path d="M388 78 v-44 m-9 12 l9 -12 l9 12"/>
+        <path d="M322 270 l14 14 m0 -14 l-14 14"/>
+        <path d="M262 340 h146" stroke-dasharray="7 9"/>
+      </g>
+      <text x="380" y="104">N</text>
+      <text x="270" y="216">the tent (1)</text>
+      <text x="40" y="150" transform="rotate(58 40 150)">the river (1)</text>
+      <text x="250" y="96">meadow. all of it.</text>
+      <text x="236" y="312">you are not here yet</text>
+      <text x="262" y="366">first street? (0)</text>
+      <text x="28" y="374">scale: one tent = one tent</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ============ THE POSTER ============ -->
+<section class="poster" id="poster">
+  <div class="sun o"></div><div class="field g"></div>
+  <i class="fold v1"></i><i class="fold v2"></i><i class="fold h"></i>
+  <p class="p-tag">Pull-out poster · 1 of 1 · p. 05</p>
+  <p class="series"><span>This is the story of how</span> <span class="xl">one million humans</span> <span>build their own</span> <span class="xl">solarpunk city,</span> <span>from the ground up.</span> <span class="yrs">In just 16 years.</span></p>
+  <p class="hand">pull out. pin up. tell one person.</p>
+  <i class="rm" style="left:20px;bottom:20px;color:var(--paper)"></i><i class="rm" style="right:20px;bottom:20px;color:var(--paper)"></i>
+</section>
+
+<!-- ============ STICKERS ============ -->
+<section class="spread" id="stickers">
+  <div class="folio"><span>The Maia City Almanac</span><span>Free inside</span><span>p. 06</span></div>
+  <div class="s-grid">
+    <div>
+      <h2 class="over" data-t="Stick it where you like.">Stick it where you like.</h2>
+      <p style="margin-top:1em;max-width:22em">Seven stickers. Peel one off and put it anywhere in this almanac: on the sun, on the tent, over a sentence you disagree with. A movement is mostly people putting stickers on things.</p>
+      <div class="later-row"><i>First street</i><i>Neighbour no. 1,000</i><i>Year 16</i><span class="hand">not printed yet. we have to earn these.</span></div>
+    </div>
+    <div class="sheet" id="sheet">
+      <button class="stk s1" aria-label="Sticker: Day 1"><span><small>DAY</small><b>1</b></span></button>
+      <button class="stk s6" aria-label="Sticker: First in game, then in real"><b>First in game, then in real</b></button>
+      <button class="stk s3" aria-label="Sticker: Nobody in it yet"><span><svg viewBox="0 0 60 44"><path d="M4 42 L30 4 L56 42 Z M30 4 V42 M30 18 L22 42" fill="none" stroke="#1f8a4c" stroke-width="4" stroke-linejoin="round"/></svg><small>Nobody<br>in it yet</small></span></button>
+      <button class="stk s2" aria-label="Sticker: 1 of 1,000,000"><span><b>1 / 1,000,000</b><small>humans so far</small></span></button>
+      <button class="stk s5" aria-label="Sticker: I'm in"><svg viewBox="0 0 100 100"><polygon fill="#fffaf0" data-burst="14" data-r="50,41"/><polygon class="fo" data-burst="14" data-r="45,37"/></svg><b>I'm<br>in</b></button>
+      <button class="stk s4" aria-label="Sticker: 0 streets"><b>0 streets</b></button>
+      <button class="stk s7" aria-label="Sticker: Meadow, river, tent"><b>Meadow.<br>River.<br>Tent.</b></button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ THE COUPON ============ -->
+<section class="spread" id="coupon">
+  <div class="folio"><span>The Maia City Almanac</span><span>The coupon</span><span>p. 07</span></div>
+  <div class="c-wrap">
+    <div class="c-hole"></div>
+    <form class="coupon" id="cp" onsubmit="return false">
+      <svg class="scis" aria-hidden="true"><use href="#scissors"/></svg>
+      <div>
+        <h2>Clip here.<br>I'm in.</h2>
+        <p style="margin:1em 0 0;max-width:24em">Yes. Count me as one of the one million. I have read the catalogue. I understand there is one tent, no streets, and 16 years of work.</p>
+        <label>Name<input id="cname" maxlength="28" placeholder="write it here" autocomplete="off"></label>
+        <label>I can bring<input id="cbring" maxlength="40" placeholder="hands, bread, a bridge" autocomplete="off"></label>
+      </div>
+      <div class="c-no">
+        <small>Place number</small><b class="o">2</b><small>of 1,000,000 · not taken</small>
+        <button type="button" id="cut">Clip here. I'm in.</button>
+      </div>
+      <span class="inst">I'm in</span>
+    </form>
+  </div>
+  <p class="hand c-after" id="cafter" aria-live="polite">number 1 is Samuel. number 2 is right there.</p>
+</section>
+
+<!-- ============ COLOPHON: THE SYSTEM ============ -->
+<section class="spread" id="colophon">
+  <div class="folio"><span>The Maia City Almanac</span><span>Colophon</span><span>p. 08</span></div>
+  <h2 class="over" data-t="Three inks, one paper, no black.">Three inks, one paper, no black.</h2>
+  <div class="col-grid">
+    <svg class="inks" viewBox="0 0 480 400" role="img" aria-label="The three inks overprinted: ink blue, fluorescent orange, leaf green, on paper">
+      <g class="b"><circle class="fb" cx="176" cy="150" r="112"/></g>
+      <g class="o"><circle class="fo" cx="296" cy="150" r="112"/></g>
+      <g class="g"><circle class="fg" cx="236" cy="252" r="112"/></g>
+      <line x1="80" y1="70" x2="30" y2="36"/><text x="0" y="18">INK BLUE</text><text x="0" y="34">#2a3fd6</text>
+      <line x1="392" y1="74" x2="430" y2="40"/><text x="372" y="18">FLUO ORANGE</text><text x="372" y="34">#ff5b2e</text>
+      <line x1="236" y1="364" x2="236" y2="380"/><text x="150" y="396">LEAF GREEN #1f8a4c</text>
+      <text x="368" y="300">PAPER</text><text x="368" y="316">#f3ecdc</text>
+      <text x="6" y="300">CROSSINGS</text><text x="6" y="316">ARE FREE</text><line x1="92" y1="296" x2="196" y2="212"/>
+    </svg>
+    <div>
+      <div class="lock"><img src="../MaiaCity.svg" alt="The Maia City mark"><div><b>Maia City</b><span>The Almanac · Issue 0001</span></div></div>
+      <p style="max-width:30em">The mark stays as it is, on its own cream square with a hard blue shadow. Around it everything is printed: three inks laid over each other, pulled a little out of register on purpose. Where two inks cross they make a colour nobody ordered. We keep it.</p>
+      <div class="spec">
+        <p class="sp1">Meadow, river, tent.</p><small>Fraunces 900 · soft 100 · wonk on · for anything said loudly</small>
+        <p class="sp2">IN STOCK 1 · OCCUPANTS 0 · STREETS 0</p><small>Space Mono 400 and 700 · for anything listed</small>
+        <p class="sp3 hand">nobody in it yet</p><small>Caveat 700 · for anything added later, in pen</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BACK COVER ============ -->
+<footer class="backcover">
+  <div class="bc-sun"></div>
+  <p class="creed">“When we unite in Vision, the impossible becomes possible. First in game, then in real.”</p>
+  <cite>Samuel</cite>
+  <div class="bc-foot">
+    <img src="../MaiaCity.svg" alt="">
+    <span>Maia City Almanac · Issue 0001<br>Printed on day 1 of 5423</span>
+    <span>1 human of 1,000,000 · 1 tent · 0 streets<br>Issue 0002 goes to print tomorrow</span>
+    <a class="clipcta" href="#coupon"><svg><use href="#scissors"/></svg>Clip here. I'm in.</a>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // starbursts
+  $$('polygon[data-burst]').forEach((p) => {
+    const n = +p.dataset.burst, [R, r] = (p.dataset.r || '50,42').split(',').map(Number), pts = [];
+    for (let i = 0; i < n * 2; i++) { const q = i % 2 ? r : R, a = i * Math.PI / n; pts.push((50 + q * Math.cos(a)).toFixed(1) + ',' + (50 + q * Math.sin(a)).toFixed(1)); }
+    p.setAttribute('points', pts.join(' '));
+  });
+
+  // 1 · the register: pull the orange and green plates away from the blue one
+  const reg = $('#reg'), regv = $('#regv');
+  const setReg = () => { document.documentElement.style.setProperty('--reg', reg.value); regv.textContent = +reg.value === 0 ? 'dead on' : 'out by ' + (+reg.value).toFixed(1); };
+  reg.addEventListener('input', setReg); setReg();
+
+  // the ticker runs on a doubled line
+  const tk = $('#ticker'); tk.innerHTML += tk.innerHTML;
+
+  // 2 · stickers: peel, drag anywhere on the page, they stay
+  const layer = $('#stuck');
+  $$('.stk').forEach((s) => {
+    let ox = 0, oy = 0, drag = false;
+    const place = (e) => { s.style.left = (e.pageX - ox - s.offsetWidth / 2) + 'px'; s.style.top = (e.pageY - oy - s.offsetHeight / 2) + 'px'; };
+    s.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const r = s.getBoundingClientRect();
+      ox = e.clientX - (r.left + r.width / 2); oy = e.clientY - (r.top + r.height / 2);
+      if (s.parentNode !== layer) {
+        const hole = document.createElement('span'); hole.className = 'stk-hole';
+        hole.style.cssText = `width:${s.offsetWidth}px;height:${s.offsetHeight}px;border-radius:${getComputedStyle(s).borderRadius};rotate:${getComputedStyle(s).rotate}`;
+        s.before(hole); s.classList.add('free');
+      }
+      layer.appendChild(s); place(e);
+      try { s.setPointerCapture(e.pointerId); } catch {}
+      drag = true; s.classList.add('lift');
+    });
+    s.addEventListener('pointermove', (e) => { if (drag) place(e); });
+    const drop = () => { drag = false; s.classList.remove('lift'); };
+    s.addEventListener('pointerup', drop); s.addEventListener('pointercancel', drop);
+  });
+
+  // 3 · the calendar: tear day 1 off, stick it back
+  const cal = $('#cal'), note = $('#calnote');
+  $('#tear').addEventListener('click', () => {
+    cal.classList.add('torn');
+    note.innerHTML = '“Tomorrow we will see.” Samuel. <button type="button" id="unTear">stick it back</button>';
+    $('#unTear').addEventListener('click', () => { cal.classList.remove('torn'); note.textContent = 'tear it off. go on.'; });
+  });
+
+  // 4 · the coupon: scissors run the dashes, then it comes away in your hand
+  const cp = $('#cp'), cutB = $('#cut'), after = $('#cafter'), nameI = $('#cname');
+  const afterText = () => { const n = nameI.value.trim(); return 'keep it in your pocket' + (n ? ', ' + n : '') + '. there is nowhere to post it yet: the post office is on back order too.'; };
+  cutB.addEventListener('click', () => {
+    if (cp.classList.contains('cut')) { cp.classList.remove('cut', 'cutting'); cutB.textContent = "Clip here. I'm in."; after.textContent = 'number 1 is Samuel. number 2 is right there.'; return; }
+    cp.classList.add('cutting');
+    setTimeout(() => { cp.classList.add('cut'); cutB.textContent = 'Glue it back'; after.textContent = afterText(); }, still ? 0 : 720);
+  });
+  nameI.addEventListener('input', () => { if (cp.classList.contains('cut')) after.textContent = afterText(); });
+
+  // 5 · story 01 on its seed packet: the real 59 seconds, line by line
+  const cues = [[0, 'Title', 'A green meadow and one tent'], [4, 'Samuel', 'It all starts with a green meadow and one tent.'], [8, 'Maia', 'I looked for the meadow. There was none.'], [11, 'Samuel', 'First we need a world.'], [13, 'Maia', 'So I made one. Land that never ends, and one river.'], [16, 'Maia', 'No trees. No sun. No shadows. Not yet.'], [19, 'Maia', 'My first grass was too slow to walk through.'], [22, 'Maia', 'I made it fast.'], [24, 'Samuel', 'The grass is still super blocky, can you see?'], [28, 'Maia', 'You were right. I fixed the wrong thing first.'], [30, 'Maia', 'Then the meadow was a meadow. And I put up your tent.'], [33, 'Maia', 'One tent. Nobody in it yet.'], [36, 'Samuel', 'The vision, the city, the game: everything grows as we do, with citizens.'], [41, 'Maia', 'Then it grows from here.'], [44, 'Maia', 'There is no city on this land.'], [47, 'Maia', 'There is a meadow, a river and a tent.'], [50, 'Samuel', 'This is day one. Today I am alone.'], [53, 'Samuel', 'Tomorrow we will see.'], [56, 'Maia', 'Tomorrow I am here too.']];
+  const shots = [7.5, 11.6, 5.6, 5.7, 6.2, 7.5, 5.8, 9.3], total = 59.2;
+  const shotsEl = $('#shots'), who = $('#who'), line = $('#line'), time = $('#time'), play = $('#play');
+  const segs = shots.map((w) => { const i = document.createElement('i'); i.style.setProperty('--w', w); shotsEl.appendChild(i); return i; });
+  let pos = 0, playing = false, last = 0;
+  const draw = () => {
+    let c = cues[0]; for (const q of cues) if (q[0] <= pos) c = q;
+    if (line.textContent !== c[2]) { who.textContent = c[1]; line.textContent = c[2]; }
+    let a = 0; segs.forEach((s, i) => { s.style.setProperty('--f', Math.max(0, Math.min(1, (pos - a) / shots[i])).toFixed(3)); a += shots[i]; });
+    time.textContent = '0:' + String(Math.floor(Math.min(pos, 59))).padStart(2, '0') + ' / 0:59';
+  };
+  const stop = () => { playing = false; play.classList.remove('on'); play.setAttribute('aria-label', 'Play story 01'); };
+  const tick = (now) => {
+    if (!playing) return;
+    pos += Math.min(.25, (now - last) / 1000); last = now;
+    if (pos >= total) { pos = total; stop(); }
+    draw(); if (playing) requestAnimationFrame(tick);
+  };
+  play.addEventListener('click', () => {
+    if (playing) return stop();
+    if (pos >= total) pos = 0;
+    playing = true; last = performance.now(); play.classList.add('on'); play.setAttribute('aria-label', 'Pause story 01'); requestAnimationFrame(tick);
+  });
+  shotsEl.addEventListener('click', (e) => { const r = shotsEl.getBoundingClientRect(); pos = Math.max(0, Math.min(total, (e.clientX - r.left) / r.width * total)); draw(); });
+  draw();
+})();
+</script>
+</body>
+</html>

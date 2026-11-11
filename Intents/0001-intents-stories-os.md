@@ -144,7 +144,8 @@ _Samuel's decision._
 - [x] `TheStory/` renamed `Stories/`
 - [x] Samuel looked again: brand again from the mark, liquid glass, the Game tab's bug, the film with its story
 - [x] Samuel looked again: story as a dialogue from day 1, a tent, the timeline redesigned, four brand sheets
-- [ ] Samuel: choose a brand sheet (or parts of several); then the product is restyled once, to that
+- [x] Samuel looked again: the four sheets out; eight brand drafts, each a whole landing page
+- [ ] Samuel: choose a brand draft (or parts of several); then the product is restyled once, to that
 - [ ] Samuel: look again; accept or say what is wrong
 - [ ] Samuel: his opening to camera for story 01
 - [ ] Then: the Story section here
@@ -252,6 +253,40 @@ _Samuel's decision._
   fourth, rejected look until a sheet is chosen. From straight above, the tent sits at the edge
   of the frame and is easy to miss. A grid mistake put the time beside the play button instead
   of at the right end; fixed in the sheets and in the film's bar, the bar not looked at again.
+
+### 2026-11-11, fifth round
+
+- **Asked:** the four sheets are completely standard, like bad Bootstrap boilerplates: go far
+  more extraordinary and iconic, like real, interactive, modern high-end brands. Delete the four
+  and try eight more. The work should not be part of the component snippets. Be more creative,
+  also with components that might come along later. Proper landing page, app and game design,
+  with persuasion copy and layout, each draft its own variant, not everything the same.
+- **Delivered:**
+  - The four sheets are deleted. `brand/sheets/` now holds eight drafts, each one whole landing
+    page for Maia City in its own file, with its own idea, layout, type, voice and things to
+    touch, and an overview (`index.html`) that shows the eight live:
+    **01 Count** (the city is a number: a scoreboard, black on bone, one yellow; "Be number 2"),
+    **02 Daylight** (drag the sun and the page changes hour; skies instead of boxes),
+    **03 Plot** (an isometric diorama, the page framed like a game; "Claim plot 000,002"),
+    **04 Instrument** (TheOS as a desktop: windows, a dock, dot-matrix displays, a knob),
+    **05 Subtitle** (a film: letterboxed shots, the yellow subtitle as the voice, credits),
+    **06 Line 1** (a civic identity: a transit line down the page, a departure board, a pass),
+    **07 Seed** (dark, one living light that is Maia, speaking for herself),
+    **08 Almanac** (three inks overprinted on paper: a handbook with stickers and a coupon).
+  - Each shows the app (a story and its film), the game (a HUD) and pieces that do not exist yet,
+    marked as later. None shows the work board. Every current number is today's: day 1 of 5423,
+    one human of a million, one meadow, one river, one tent.
+- **Good:** each draft's builder loaded its page at 1440 and at phone width and reported its
+  typefaces loaded, its interactions answering, no console errors and no sideways scroll.
+- **Broke / not there yet:** the session this intent was worked in stopped answering (every
+  message ended in an execution error); the work was taken over in a new session, in a worktree
+  on the branch `claude/os-session-handover-4c7132`, so the drafts are not on main and the
+  dashboard on port 5180 does not serve them until that branch is merged; they are served from
+  the worktree on port 5190. The eight were built in parallel, one builder each; of the finished
+  pages only Count and Line 1 were looked at a second time, at 1440, before Samuel said no more
+  testing was needed. None was seen in Safari, on a real phone, by touch or with reduced motion.
+  The pages load their typefaces from Google Fonts, so they need the network. The live pages
+  still wear the fourth, rejected look.
 
 ## Trail
 

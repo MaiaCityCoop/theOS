@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maia City · brand draft 03 · Plot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}
+:root{--sage:#b9c8a4;--moss:#5d7a4f;--moss2:#4a6340;--teal:#2f6f73;--terra:#d9774f;--terra2:#b55f3d;--sand:#efe3c8;--sand2:#e4d5b2;--paper:#f8f0dc;--ink:#1e2a26;--ink2:#2a3933;
+  --d:'Bricolage Grotesque','Arial Black','Helvetica Neue',Arial,sans-serif;--m:'DM Mono',ui-monospace,'SF Mono',Menlo,monospace;--hs:5px 5px 0 var(--ink)}
+html{scroll-behavior:smooth;scroll-padding-top:72px;overflow-x:clip}
+body{background:var(--sand);color:var(--ink);font:500 17px/1.5 var(--d);-webkit-font-smoothing:antialiased;overflow-x:clip}
+button{font:inherit;color:inherit}
+section{position:relative;padding:clamp(76px,9vw,150px) clamp(20px,5vw,84px)}
+h2{font:800 clamp(46px,6.6vw,108px)/.9 var(--d);letter-spacing:-.045em;text-wrap:balance}
+.over{font:500 12px/1 var(--m);letter-spacing:.16em;text-transform:uppercase;margin-bottom:22px;display:flex;align-items:center;gap:10px}
+.over::before{content:'';width:16px;height:8px;background:var(--terra);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);flex:none}
+.btn{display:inline-block;font:800 17px/1 var(--d);letter-spacing:-.01em;padding:18px 24px;background:var(--terra);color:var(--ink);border:2px solid var(--ink);box-shadow:var(--hs);cursor:pointer;text-decoration:none;transition:transform .12s,box-shadow .12s}
+.btn:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 var(--ink)}.btn:active{transform:translate(3px,3px);box-shadow:2px 2px 0 var(--ink)}
+.btn.ghost{background:var(--paper)}
+.chip{display:inline-flex;align-items:center;gap:7px;font:500 11.5px/1 var(--m);letter-spacing:.07em;padding:9px 11px;background:var(--ink);color:var(--sand);box-shadow:0 0 0 1.5px var(--sand);white-space:nowrap;text-decoration:none}
+.chip b{font-weight:500;color:#f6a985}
+
+/* the frame of the game: corner brackets and the HUD */
+.frame{position:fixed;inset:9px;pointer-events:none;z-index:60;--c:var(--ink);background:
+  linear-gradient(var(--c),var(--c)) 0 0/20px 2px,linear-gradient(var(--c),var(--c)) 0 0/2px 20px,
+  linear-gradient(var(--c),var(--c)) 100% 0/20px 2px,linear-gradient(var(--c),var(--c)) 100% 0/2px 20px,
+  linear-gradient(var(--c),var(--c)) 0 100%/20px 2px,linear-gradient(var(--c),var(--c)) 0 100%/2px 20px,
+  linear-gradient(var(--c),var(--c)) 100% 100%/20px 2px,linear-gradient(var(--c),var(--c)) 100% 100%/2px 20px;background-repeat:no-repeat;mix-blend-mode:difference;filter:invert(1)}
+.hud{position:fixed;top:22px;left:26px;right:26px;z-index:50;display:flex;gap:8px;align-items:center;pointer-events:none}
+.hud>*{pointer-events:auto}
+.hud .brand{background:var(--paper);color:var(--ink);font:800 16px/1 var(--d);letter-spacing:-.02em;padding:5px 12px 5px 5px;box-shadow:0 0 0 1.5px var(--ink)}
+.hud .brand img{width:26px;height:26px;display:block}
+.stats{display:flex;gap:8px;margin:0 auto}
+.back:hover{background:var(--terra);color:var(--ink)}
+
+#tip{position:fixed;left:0;top:0;z-index:70;pointer-events:none;background:var(--ink);color:var(--paper);padding:10px 12px 11px;max-width:230px;box-shadow:4px 4px 0 rgba(30,42,38,.3);opacity:0;transition:opacity .12s;font-size:14px;line-height:1.3}
+#tip.on{opacity:1}#tip b{display:block;font:800 17px/1.1 var(--d)}#tip i{display:block;font:400 10.5px/1 var(--m);letter-spacing:.1em;color:#f6a985;margin:5px 0 6px;font-style:normal}
+#toast{position:fixed;left:50%;bottom:26px;z-index:70;transform:translate(-50%,30px);background:var(--paper);border:2px solid var(--ink);box-shadow:var(--hs);padding:13px 16px;font:500 15px/1.3 var(--d);max-width:min(520px,calc(100vw - 40px));opacity:0;pointer-events:none;transition:.25s}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* hero */
+.hero{min-height:100svh;padding-top:92px;padding-bottom:44px;display:grid;grid-template-columns:minmax(360px,.78fr) 1.3fr;align-items:center;overflow:hidden}
+.lead{position:relative;z-index:2;pointer-events:none}.lead>*{pointer-events:auto}
+h1{font:800 clamp(62px,8.5vw,136px)/.86 var(--d);letter-spacing:-.05em;margin-left:-.04em}
+h1 em{display:block;font-style:normal;color:var(--terra);text-shadow:.045em .045em 0 var(--ink)}
+.series{font:500 clamp(18px,1.6vw,23px)/1.32 var(--d);max-width:29ch;margin:30px 0 10px;letter-spacing:-.012em}
+.note{font:400 12.5px/1.5 var(--m);letter-spacing:.02em;color:var(--moss2);margin-bottom:26px}
+.cta{display:flex;gap:14px;flex-wrap:wrap}
+.stage{position:relative;margin:0 -7% 0 -10%}
+svg.land{display:block;width:100%;height:auto;overflow:visible;user-select:none;-webkit-user-select:none}
+.land .t *{pointer-events:none}.land .t .hit{pointer-events:all;fill:transparent;cursor:pointer}
+.land .l{transition:transform .17s cubic-bezier(.2,.9,.3,1.5)}
+.land .t:hover .l{transform:translateY(-11px)}.land .t:hover .top{stroke:var(--ink);stroke-width:1.5}
+.bob{animation:bob 1.5s ease-in-out infinite}@keyframes bob{50%{transform:translateY(-9px)}}
+.dashed{animation:march 1s linear infinite}@keyframes march{to{stroke-dashoffset:-22}}
+.wave{transform-box:fill-box;transform-origin:0 50%;animation:wave 1.2s ease-in-out infinite}@keyframes wave{50%{transform:skewY(9deg) scaleX(.9)}}
+.b.new,.grow .b{transform-box:fill-box;transform-origin:50% 100%;animation:pop .5s cubic-bezier(.2,1.5,.4,1) both;animation-delay:calc(var(--d,0)*42ms)}
+@keyframes pop{from{transform:scale(.2,0);opacity:0}}
+.hint{position:absolute;right:8%;top:6%;font:400 11px/1.7 var(--m);letter-spacing:.1em;text-transform:uppercase;text-align:right;color:var(--moss2)}
+.dock{position:relative;z-index:3;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin:-96px 5% 0 9%;pointer-events:none}.dock>*{pointer-events:auto}
+.quests{width:min(330px,100%);background:var(--paper);border:2px solid var(--ink);box-shadow:var(--hs)}
+.quests h3{font:500 11px/1 var(--m);letter-spacing:.14em;background:var(--ink);color:var(--sand);padding:9px 11px;display:flex;justify-content:space-between}
+.quests details{border-top:1.5px solid var(--ink)}.quests details:first-of-type{border-top:0}
+.quests summary{list-style:none;display:flex;align-items:center;gap:10px;padding:9px 11px;cursor:pointer;font:700 15px/1.15 var(--d);letter-spacing:-.01em}
+.quests summary::-webkit-details-marker{display:none}
+.quests summary::before{content:'';width:14px;height:14px;border:2px solid var(--ink);flex:none}
+.quests .done summary::before{background:var(--moss) linear-gradient(var(--paper),var(--paper)) 50% 50%/6px 2px no-repeat}
+.quests .now summary::before{background:var(--terra)}
+.quests summary span{margin-left:auto;font:500 10px/1 var(--m);letter-spacing:.1em;color:var(--moss2)}
+.quests .now summary span{color:var(--terra2)}
+.quests p{font-size:14px;line-height:1.38;padding:0 11px 11px 35px}
+.build{display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:0}
+.hcap{font:400 11.5px/1.35 var(--m);letter-spacing:.03em;background:var(--paper);border:1.5px solid var(--ink);padding:7px 10px;max-width:300px;text-align:right}
+.hcap b{font-weight:500;text-transform:uppercase;letter-spacing:.1em}
+.hotbar{display:flex;gap:5px;padding:7px;background:var(--ink);box-shadow:5px 5px 0 rgba(30,42,38,.25);max-width:100%;overflow-x:auto}
+.slot{position:relative;flex:none;width:58px;height:58px;background:var(--ink2);border:2px solid transparent;cursor:pointer;padding:0}
+.slot svg{width:100%;height:100%;display:block}
+.slot kbd{position:absolute;left:4px;top:3px;font:400 9px/1 var(--m);color:var(--sand);opacity:.7}
+.slot.sel{background:var(--sand);border-color:var(--terra)}.slot.sel kbd{color:var(--ink)}
+.slot.no svg{opacity:.38}.slot.no::after{content:'LATER';position:absolute;right:3px;bottom:3px;font:500 7.5px/1 var(--m);letter-spacing:.08em;color:var(--sand);background:var(--terra2);padding:2px 3px}
+.slot.shake{animation:shake .3s}@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+
+/* how */
+.how{background:var(--sand2);display:grid;grid-template-columns:1fr 1.05fr;gap:clamp(30px,5vw,90px);align-items:center;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink)}
+.how .big{font:600 clamp(21px,2.1vw,30px)/1.24 var(--d);letter-spacing:-.02em;margin:34px 0 18px;max-width:27ch}
+.how p{max-width:44ch}
+blockquote{margin-top:30px;padding:16px 18px;background:var(--ink);color:var(--paper);font:600 19px/1.3 var(--d);max-width:420px;box-shadow:5px 5px 0 var(--terra);position:relative}
+blockquote::after{content:'';position:absolute;left:26px;bottom:-9px;border:9px solid transparent;border-top-color:var(--ink);border-bottom:0}
+cite{display:block;font:400 10.5px/1 var(--m);letter-spacing:.12em;text-transform:uppercase;color:#f6a985;margin-top:10px;font-style:normal}
+#twin{width:100%;height:auto;display:block;overflow:visible}
+.rules{list-style:none;padding:0;margin-top:8px}
+.rules li{display:flex;gap:14px;align-items:baseline;background:var(--paper);border:2px solid var(--ink);box-shadow:4px 4px 0 var(--ink);padding:12px 15px;font:600 17px/1.25 var(--d);width:fit-content;max-width:100%;margin-top:12px}
+.rules li:nth-child(2){margin-left:7%}.rules li:nth-child(3){margin-left:14%}
+.rules b{font:500 11px/1 var(--m);color:var(--terra2);letter-spacing:.1em}
+
+/* inventory */
+.inv{background:var(--ink);color:var(--sand)}
+.inv header{display:flex;gap:40px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;margin-bottom:clamp(34px,5vw,64px)}
+.inv header p:last-child{max-width:30ch;font-size:18px;line-height:1.35;color:#cfc6ad}
+.inv-g{display:grid;grid-template-columns:auto 1fr;gap:clamp(26px,6vw,96px);align-items:center}
+.slots{display:grid;grid-template-columns:repeat(3,clamp(86px,10.5vw,138px));gap:8px}
+.cell{position:relative;aspect-ratio:1;background:var(--ink2);border:2px solid #3b4c45;cursor:pointer;padding:6px}
+.cell svg{width:100%;height:100%;display:block}.cell.z svg{opacity:.3}
+.cell span{position:absolute;right:6px;bottom:5px;font:500 11px/1 var(--m);color:var(--sand)}
+.cell.sel{border-color:var(--terra);background:#33453e;box-shadow:4px 4px 0 var(--terra)}
+.item{display:grid;grid-template-columns:minmax(120px,200px) 1fr;gap:clamp(18px,3vw,44px);align-items:center}
+.item svg{width:100%;height:auto}
+.item h3{font:800 clamp(44px,6vw,96px)/.9 var(--d);letter-spacing:-.045em}
+.item em{display:inline-block;font:500 13px/1 var(--m);letter-spacing:.12em;font-style:normal;color:var(--ink);background:var(--terra);padding:6px 8px;margin:14px 0 16px}
+.item p{font:500 clamp(18px,1.8vw,24px)/1.3 var(--d);max-width:26ch;color:#e9dfc6}
+
+/* cutscene */
+.cut{background:var(--sage)}
+.cut header{display:grid;grid-template-columns:1.3fr 1fr;gap:40px;align-items:end}
+.cut header p:last-child{font-size:18px;line-height:1.38;max-width:38ch}
+.wrap{position:relative;margin-top:clamp(30px,4vw,56px)}
+.screen{position:relative;aspect-ratio:2.39/1;background:#f6eedb;border:2px solid var(--ink);box-shadow:9px 9px 0 var(--ink);overflow:hidden}
+.screen::before,.screen::after{content:'';position:absolute;left:0;right:0;height:10.5%;background:var(--ink);z-index:2}.screen::before{top:0}.screen::after{bottom:0}
+#close{position:absolute;left:50%;top:50%;height:104%;width:auto;transform:translate(-50%,-47%)}
+.ov{position:absolute;z-index:3;background:var(--paper);border:2px solid var(--ink);box-shadow:4px 4px 0 rgba(30,42,38,.3)}
+.ov h4{font:500 9.5px/1 var(--m);letter-spacing:.14em;background:var(--ink);color:var(--sand);padding:6px 8px;text-transform:uppercase}
+.mm{left:2.2%;top:15%;width:clamp(88px,10vw,132px)}.mm svg{display:block;width:100%;padding:7px}
+.blink{animation:blink 1s steps(2) infinite}@keyframes blink{50%{opacity:.15}}
+.pc{right:2.2%;top:15%;width:clamp(170px,19vw,244px)}
+.pc strong{display:block;font:800 clamp(20px,2.2vw,30px)/1 var(--d);letter-spacing:-.03em;padding:9px 10px 7px}
+.pc dl{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;padding:0 10px 10px;font:400 10.5px/1.35 var(--m)}.pc dt{color:var(--moss2);text-transform:uppercase;letter-spacing:.08em}
+.ping{right:2.2%;bottom:23%;z-index:4;width:clamp(200px,21vw,262px);padding:9px 11px 10px 38px;font-size:13.5px;line-height:1.3;background:var(--terra)}
+.ping::before{content:'';position:absolute;left:11px;top:12px;width:16px;height:16px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 4px rgba(30,42,38,.25)}
+.ping i{display:block;font:500 9.5px/1 var(--m);letter-spacing:.14em;font-style:normal;margin-bottom:5px}
+.sub{position:absolute;z-index:3;left:50%;bottom:15.5%;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:8px 16px 11px;font:600 clamp(14px,1.75vw,23px)/1.22 var(--d);text-align:center;width:max-content;max-width:62%;box-shadow:4px 4px 0 rgba(30,42,38,.3)}
+.sub small{display:block;font:500 10px/1.5 var(--m);letter-spacing:.2em;text-transform:uppercase;color:#f6a985}.sub small:empty{display:none}
+.cbar{position:absolute;z-index:3;left:0;right:0;bottom:0;height:10.5%;display:flex;align-items:center;gap:14px;padding:0 14px;color:var(--sand);font:400 11px/1 var(--m);letter-spacing:.08em}
+#play{width:26px;height:26px;flex:none;background:var(--terra);border:0;cursor:pointer;display:grid;place-items:center}
+#play::after{content:'';border:6px solid transparent;border-left:9px solid var(--ink);border-right:0;margin-left:2px}
+#play.on::after{border:0;width:9px;height:11px;margin:0;background:linear-gradient(90deg,var(--ink) 35%,transparent 35% 65%,var(--ink) 65%)}
+.trk{position:relative;flex:1;display:flex;gap:3px;height:22px;align-items:center;cursor:pointer}
+.trk i{height:6px;background:#4a5a53}.trk i.d{background:var(--sand)}
+.trk u{position:absolute;top:50%;width:12px;height:12px;background:var(--terra);transform:translate(-50%,-50%) rotate(45deg);box-shadow:0 0 0 2px var(--ink)}
+.capn{font:400 11.5px/1.5 var(--m);letter-spacing:.06em;margin-top:22px;color:var(--moss2)}
+
+/* later */
+.later header{display:grid;grid-template-columns:1.1fr 1fr;gap:40px;align-items:end}
+.ycap>b{display:block;font:800 clamp(26px,2.8vw,40px)/1 var(--d);letter-spacing:-.03em}
+.ycap p{font-size:18px;line-height:1.36;max-width:36ch;margin:10px 0 14px;min-height:3.9em}
+#grow{max-width:1180px;margin:10px auto 0}
+.year{max-width:640px;margin:-8px auto 0;position:relative;z-index:2}
+.year input{-webkit-appearance:none;appearance:none;width:100%;height:34px;margin:0;background:linear-gradient(var(--ink),var(--ink)) center/100% 4px no-repeat;cursor:grab}
+.year input::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;background:var(--terra);border:2px solid var(--ink);transform:rotate(45deg);box-shadow:3px 3px 0 rgba(30,42,38,.35)}
+.year input::-moz-range-thumb{width:20px;height:20px;border-radius:0;background:var(--terra);border:2px solid var(--ink);transform:rotate(45deg)}
+.ticks{display:flex;justify-content:space-between;margin:2px -22px 0}
+.ticks button{background:none;border:0;cursor:pointer;font:500 12px/1 var(--m);letter-spacing:.1em;text-transform:uppercase;padding:8px 6px;border-bottom:3px solid transparent;width:74px}
+.ticks button.on{border-color:var(--terra)}
+
+/* the kit */
+.kit{background:var(--paper);border-top:2px solid var(--ink)}
+.kit-g{display:grid;grid-template-columns:1fr 1.9fr .95fr;gap:clamp(28px,4vw,64px);margin-top:clamp(36px,5vw,70px);align-items:end}
+.lock{display:flex;align-items:center;gap:18px}.lock img{width:96px;height:96px;border-radius:20px;border:2px solid var(--ink)}
+.lock b{font:800 clamp(40px,4.4vw,66px)/.86 var(--d);letter-spacing:-.05em}
+.kit small{display:block;font:400 11.5px/1.6 var(--m);letter-spacing:.03em;color:var(--moss2);margin-top:20px;max-width:44ch}
+.pal{display:flex;align-items:flex-end;gap:4px}
+.pal div{flex:1;min-width:0;font:400 10.5px/1.5 var(--m);text-align:center}.pal svg{display:block;width:100%;height:auto;overflow:visible}.pal b{display:block;font-weight:500;text-transform:uppercase;letter-spacing:.08em}
+.spec .a{font:800 clamp(52px,5.4vw,84px)/.86 var(--d);letter-spacing:-.05em}
+.spec .b{font:500 15px/1 var(--m);letter-spacing:.06em;margin-top:18px;padding-top:16px;border-top:2px solid var(--ink)}
+
+/* the end */
+.end{background:var(--terra);border-top:2px solid var(--ink);display:grid;grid-template-columns:1.5fr 1fr;gap:40px;align-items:end}
+.end h2 em{font-style:normal;color:var(--paper);text-shadow:.04em .04em 0 var(--ink)}
+.end .btn{background:var(--ink);color:var(--paper);box-shadow:5px 5px 0 var(--paper)}.end p{margin-bottom:22px;font-size:18px;line-height:1.36;max-width:34ch}
+footer{background:var(--ink);color:var(--sand);padding:0 clamp(20px,5vw,84px) 54px}
+footer .tiles{height:30px;margin:0 calc(-1*clamp(20px,5vw,84px)) 54px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30'%3E%3Cpolygon points='30,2 58,15 30,28 2,15' fill='none' stroke='%235d7a4f' stroke-width='2'/%3E%3C/svg%3E") 0 0/60px 30px repeat-x,url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30'%3E%3Cpolygon points='30,2 58,15 30,28 2,15' fill='%23d9774f'/%3E%3C/svg%3E") 60px 0/60px 30px no-repeat}
+footer q{display:block;quotes:none;font:800 clamp(28px,3.8vw,58px)/1 var(--d);letter-spacing:-.04em;max-width:19ch}
+footer .row{display:flex;flex-wrap:wrap;gap:10px 28px;justify-content:space-between;margin-top:44px;font:400 11.5px/1.5 var(--m);letter-spacing:.1em;text-transform:uppercase;color:#a9b39c}
+footer a{color:var(--sand)}
+
+@media(max-width:1020px){.stats .chip:nth-child(n+3),.coord{display:none}
+  .hero,.how,.cut header,.later header,.end,.inv-g,.kit-g{grid-template-columns:minmax(0,1fr)}
+  .hero{padding-top:84px}.stage{margin:10px -6% 0}.hint{display:none}.dock{margin:-30px 6% 0;flex-direction:column-reverse;align-items:stretch}
+  .build{align-items:flex-start}.hcap{text-align:left}.quests{width:100%}.item{grid-template-columns:110px 1fr}.kit-g{align-items:start}}
+@media(max-width:640px){.hud{left:14px;right:14px;top:16px}.stats .chip:nth-child(n+2),.hud .brand span,.back span{display:none}.hud .brand{padding:5px}
+  .rules li:nth-child(n){margin-left:0}.slots{grid-template-columns:repeat(3,1fr)}.inv-g{gap:30px}
+  .screen{aspect-ratio:1/1.12}.screen::before,.screen::after,.cbar{height:9%}#close{height:auto;width:118%;transform:translate(-50%,-38%)}
+  .mm{width:74px;top:11.5%}.pc{top:11.5%;width:146px}.pc strong{font-size:19px;padding:7px 8px 5px}.pc dl{font-size:9.5px;gap:2px 8px;padding:0 8px 8px}.pc dl :nth-child(n+7){display:none}
+  .sub{max-width:88%;bottom:12.5%}.cbar #shot{display:none}.slot{width:46px;height:46px}.slot.no::after{font-size:6px;right:2px;bottom:2px}.dock{margin:-20px 5% 0}
+  .pal div{font-size:9px}.pal b{letter-spacing:0}
+  .ping{position:static;width:auto;margin-top:16px}.ticks{margin:2px -8px 0}.ticks button{width:auto;font-size:10.5px}.item{grid-template-columns:1fr}.item svg{width:120px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
+</style></head>
+<body>
+<div class="frame" aria-hidden="true"></div>
+<header class="hud">
+  <a class="chip brand" href="#top"><img src="../MaiaCity.svg" alt="Maia City"><span>Maia City</span></a>
+  <div class="stats"><span class="chip">DAY <b>0001</b>/ 5423</span><span class="chip">HUMANS <b>1</b>/ 1,000,000</span><span class="chip">TENTS <b>1</b></span><span class="chip">STREETS <b>0</b></span><span class="chip" id="hudFlags">YOUR FLAGS <b>0</b></span></div>
+  <span class="chip coord" id="coord">E -- · N -- · ---,---</span>
+  <a class="chip back" href="index.html">03 / 08 · All<span>&nbsp;drafts</span></a>
+</header>
+<div id="tip" role="status"></div><div id="toast" role="status" aria-live="polite"></div>
+
+<main>
+<section class="hero" id="top">
+  <div class="lead">
+    <p class="over">Maia City · Day 0001 of 5423</p>
+    <h1>Plot <em>000,002</em> is free.</h1>
+    <p class="series">This is the story of how one million humans build their own solarpunk city, from the ground up. In just 16 years.</p>
+    <p class="note">Plot 000,001 has a tent on it. Yours is the one next door.</p>
+    <div class="cta"><button class="btn" data-claim>Claim plot 000,002</button><a class="btn ghost" href="#cutscene">Watch day 1 · 0:59</a></div>
+  </div>
+  <div class="stage">
+    <p class="hint">Hover a plot<br>Click to stake it<br>Keys 1 to 6 pick what you place</p>
+    <svg class="land" id="land" role="img" aria-label="The meadow of Maia City on day 1, drawn as plots: one river, one tent, and a free plot beside it"></svg>
+    <div class="dock">
+      <div class="quests">
+        <h3><span>QUEST LOG</span><span>2 / 4</span></h3>
+        <details class="done"><summary>Find a meadow<span>DONE</span></summary><p>Maia looked for one. There was none. So she made one: land that never ends, and one river.</p></details>
+        <details class="done"><summary>Put up one tent<span>DONE</span></summary><p>Plot 000,001. Sleeps one. Currently sleeps none.</p></details>
+        <details class="now" open><summary>Find a second human<span id="q3s">1 / 2</span></summary><p id="q3p">Samuel is here. The plot next to his tent is outlined in red and it is not subtle about it.</p></details>
+        <details><summary>Build a city for a million<span>16 YEARS</span></summary><p>Reward: a city. First in game, then in real. Needs 999,999 more of you, so see the quest above.</p></details>
+      </div>
+      <div class="build">
+        <p class="hcap" id="hcap"></p>
+        <div class="hotbar" id="hotbar" role="toolbar" aria-label="Build menu"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="how" id="how">
+  <div>
+    <p class="over">The rule of the game</p>
+    <h2>First in game. Then in real.</h2>
+    <p class="big">Nobody can move into a drawing. You can move into a game: walk it, stake a plot, argue about where the street goes, and get it wrong while wrong is still free.</p>
+    <p>What holds up in the game gets built on real ground. One million humans, sixteen years. No city has been built this way, which is the reason to play it first.</p>
+    <blockquote>“The vision, the city, the game: everything grows as we do, with citizens.”<cite>Samuel · human 000,001</cite></blockquote>
+  </div>
+  <div>
+    <svg id="twin" viewBox="-150 -64 850 570" role="img" aria-label="One plot in the game with a tent on it, and the same plot in real, only staked out, not yet built"></svg>
+    <ol class="rules">
+      <li><b>01</b>Nothing is built in real before it stands in game.</li>
+      <li><b>02</b>Nothing grows faster than its citizens.</li>
+      <li><b>03</b>One story a day, so you can check our work.</li>
+    </ol>
+  </div>
+</section>
+
+<section class="inv" id="inventory">
+  <header><div><p class="over">Proof · what stands today</p><h2>Inventory, day 1.</h2></div><p>Everything the city owns. It fits in nine slots, and three of them are empty.</p></header>
+  <div class="inv-g"><div class="slots" id="slots"></div><div class="item" id="item" aria-live="polite"></div></div>
+</section>
+
+<section class="cut" id="cutscene">
+  <header><div><p class="over">The story · one a day</p><h2>Every day ends in a cutscene.</h2></div>
+    <p>One story a day, for 5423 days. Story 01 is 59 seconds: Samuel and Maia, a meadow, a tent. The game's own camera films it, live, the same every time. Press play: these are the real lines.</p></header>
+  <div class="wrap">
+    <div class="screen" id="screen">
+      <svg class="land" id="close" aria-hidden="true"></svg>
+      <div class="ov mm"><h4>Minimap</h4><svg id="mini" viewBox="0 0 87 87" aria-hidden="true"></svg></div>
+      <div class="ov pc"><h4>Plot card</h4><strong>000,002</strong><dl><dt>At</dt><dd>E 08 · N 05</dd><dt>Status</dt><dd>Free</dd><dt>Ground</dt><dd>Meadow, unmown</dd><dt>Next door</dt><dd>000,001, a tent</dd><dt>River</dt><dd>3 plots west</dd></dl></div>
+      <div class="sub" id="sub"><small>Maia</small><span>One tent. Nobody in it yet.</span></div>
+      <div class="cbar"><button id="play" aria-label="Play story 01"></button><span id="shot">SHOT 5 / 8</span><div class="trk" id="trk"></div><span id="time">0:33 / 0:59</span></div>
+    </div>
+    <div class="ov ping"><i>NEIGHBOUR PING · LATER</i>Somebody pitched a tent on 000,003. Go and say hello.</div>
+  </div>
+  <p class="capn">ON SCREEN: MINIMAP · PLOT CARD · CUTSCENE BAR WITH ITS SUBTITLE · NEIGHBOUR PING (LATER, WHEN THERE ARE NEIGHBOURS)</p>
+</section>
+
+<section class="later" id="later">
+  <header><div><p class="over">Later · a sketch, not a promise</p><h2>Same land. Later.</h2></div>
+    <div class="ycap"><b id="yh"></b><p id="yp"></p><span class="chip" id="ys"></span></div></header>
+  <svg class="land" id="grow" role="img" aria-label="The same land at the chosen year"></svg>
+  <div class="year"><input type="range" id="yr" min="0" max="3" step="1" value="0" aria-label="Year"><div class="ticks" id="ticks"></div></div>
+</section>
+
+<section class="kit" id="kit">
+  <p class="over">The kit</p>
+  <h2>One tile. One hard shadow.</h2>
+  <div class="kit-g">
+    <div><div class="lock"><img src="../MaiaCity.svg" alt="The Maia City mark"><b>Maia<br>City</b></div>
+      <small>THE MARK STAYS AS IT IS. THE DEVICE BESIDE IT IS THE PLOT: ONE TILE DRAWN FROM ITS TOP CORNER, LIT FROM THE LEFT, SHADOW ALWAYS ON THE RIGHT. IF IT CAN'T STAND ON A PLOT, IT ISN'T MAIA CITY.</small></div>
+    <div><div class="pal" id="pal"></div></div>
+    <div class="spec"><div class="a">Sleeps one.</div><small>BRICOLAGE GROTESQUE · 800 FOR CLAIMS, 500 TO 600 FOR TEXT · SET TIGHT</small>
+      <div class="b">E 08 · N 05 · 000,002</div><small>DM MONO · 400 AND 500 · EVERY NUMBER, EVERY LABEL · SIX DIGITS, ONE COMMA</small></div>
+  </div>
+</section>
+
+<section class="end">
+  <h2>Plot <em>000,002</em> is still free.</h2>
+  <div><p>There is no form to fill in yet. Plant the flag, watch day 1, and come back tomorrow: there is a new story every day.</p><button class="btn" data-claim>Claim plot 000,002</button></div>
+</section>
+</main>
+<footer>
+  <div class="tiles" aria-hidden="true"></div>
+  <q>“When we unite in Vision, the impossible becomes possible. First in game, then in real.”</q>
+  <cite>Samuel · “This is day one. Today I am alone. Tomorrow we will see.”</cite>
+  <div class="row"><span>Maia City · Day 0001 of 5423 · Humans 1 / 1,000,000</span><span>Brand draft 03 · Plot · <a href="index.html">All drafts</a></span></div>
+</footer>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s),HW=48,HH=24,T=58,N=11;
+const C={sage:'#b9c8a4',sage2:'#b1c19b',moss:'#5d7a4f',moss2:'#4a6340',teal:'#2f6f73',teal2:'#4f979b',terra:'#d9774f',terra2:'#b55f3d',sand:'#efe3c8',road:'#e7d8b5',ink:'#1e2a26',soil:'#c56c46',soil2:'#a25737'},SH='rgba(30,42,38,.18)';
+const P=(u,v,z=0)=>((u-v)*HW).toFixed(1)+','+((u+v)*HH-z).toFixed(1);
+const pg=(a,f,x='')=>`<polygon points="${a.join(' ')}" fill="${f}"${x}/>`;
+const box=(a,b,c,d,z0,z1,k)=>pg([P(a,d,z0),P(c,d,z0),P(c,d,z1),P(a,d,z1)],k[1])+pg([P(c,b,z0),P(c,d,z0),P(c,d,z1),P(c,b,z1)],k[2])+pg([P(a,b,z1),P(c,b,z1),P(c,d,z1),P(a,d,z1)],k[0]);
+const H=(i,j)=>{const s=Math.sin(i*127.1+j*311.7)*43758.5453;return s-Math.floor(s);};
+const tuft=(x,y)=>`<path d="M${x},${y}l-2,-7M${x+4},${y+1}l1,-9M${x+8},${y}l3,-6" stroke="${C.moss}" stroke-width="1.7" stroke-linecap="round" fill="none"/>`;
+const RIP=`<path d="M-22,22l11,5.5M3,17l13,6.5M-7,32l11,5.5" stroke="${C.teal2}" stroke-width="2.2" stroke-linecap="round"/>`;
+const tentD=(a,b)=>pg([P(.8,.26),P(.8,.74),P(1,.62),P(1,.4)],SH)+pg([P(.2,.74),P(.8,.74),P(.8,.5,34),P(.2,.5,34)],a)+pg([P(.8,.26),P(.8,.74),P(.8,.5,34)],b)+pg([P(.8,.42),P(.8,.58),P(.8,.5,21)],C.ink);
+const tree=(u,v,h)=>{const x=(u-v)*HW,y=(u+v)*HH;return `<ellipse cx="${x+6}" cy="${y+1}" rx="9" ry="4" fill="${SH}"/><polygon points="${x-8},${y} ${x},${y-h} ${x},${y+3.5}" fill="#739761"/><polygon points="${x},${y-h} ${x+8},${y} ${x},${y+3.5}" fill="${C.moss2}"/>`;};
+const house=L=>{const h=12+20*L;let s=pg([P(.84,.16),P(.84,.84),P(1,.84),P(1,.16)],SH)+box(.16,.16,.84,.84,0,h,[C.terra,'#f6ecd2','#cdbb92']);
+  for(let l=0;l<L;l++){const z=8+l*20;s+=pg([P(.27,.84,z),P(.43,.84,z),P(.43,.84,z+10),P(.27,.84,z+10)],C.teal)+pg([P(.57,.84,z),P(.73,.84,z),P(.73,.84,z+10),P(.57,.84,z+10)],C.teal)+pg([P(.84,.3,z),P(.84,.5,z),P(.84,.5,z+10),P(.84,.3,z+10)],'#245a5d');}
+  return s+pg([P(.3,.3,h),P(.7,.3,h),P(.7,.56,h),P(.3,.56,h)],C.ink);};
+const DRAW={
+  tent:()=>tentD('#fbf4e1','#d4c298'),tent2:()=>tentD('#e88e68',C.terra2),
+  flag:()=>`<ellipse cx="4" cy="25" rx="7" ry="3" fill="${SH}"/><line x1="0" y1="25" x2="0" y2="-22" stroke="${C.ink}" stroke-width="2.6"/><polygon class="wave" points="1,-22 27,-13.5 1,-5" fill="${C.terra}"/>`,
+  stone:()=>`<polygon points="-11,27 -3,18 8,20 13,28 3,34" fill="#aeb2a1"/><polygon points="3,34 13,28 8,20 5,26" fill="#80867a"/>`,
+  hut:()=>pg([P(.8,.24),P(.8,.76),P(1,.66),P(1,.4)],SH)+box(.24,.26,.76,.74,0,16,['#f6ecd2','#f6ecd2','#cdbb92'])+pg([P(.2,.78,15),P(.8,.78,15),P(.8,.5,36),P(.2,.5,36)],C.terra)+pg([P(.8,.22,15),P(.8,.78,15),P(.8,.5,36)],C.terra2)+pg([P(.42,.74,0),P(.56,.74,0),P(.56,.74,11),P(.42,.74,11)],C.ink),
+  house1:()=>house(1),house2:()=>house(2),house3:()=>house(3),house4:()=>house(4),
+  glass:()=>`<ellipse cx="7" cy="27" rx="32" ry="15" fill="${SH}"/><path d="M-30,24A30,30 0 0 1 30,24A30,15 0 0 1 -30,24Z" fill="#deefe5" stroke="${C.ink}" stroke-width="1"/><path d="M0,-6A30,30 0 0 1 30,24A30,15 0 0 1 0,39Z" fill="rgba(47,111,115,.3)"/><path d="M0,-6Q-17,10 -13,37.5M0,-6Q17,10 13,37.5M-27,11A27,9 0 0 0 27,11" fill="none" stroke="${C.ink}" stroke-width=".8" opacity=".55"/>`,
+  tree:(i,j)=>tree(.5,.5,34+H(j,i)*20),park:()=>tree(.34,.4,26)+tree(.64,.62,32),
+  human:()=>`<ellipse cx="5" cy="31" rx="12" ry="4.5" fill="${SH}"/><path d="M-10,31L-5,6L5,6L10,31Z" fill="${C.terra}"/><path d="M0,6L5,6L10,31L0,31Z" fill="${C.terra2}"/><circle cx="0" cy="-1" r="7.5" fill="${C.terra}"/><path d="M0,-8.5A7.5,7.5 0 0 1 0,6.5Z" fill="${C.terra2}"/>`,
+  bridge:()=>pg([P(0,.72,3),P(1,.72,3),P(1,.72,11),P(0,.72,11)],C.terra)+pg([P(0,.28,11),P(1,.28,11),P(1,.72,11),P(0,.72,11)],C.road),
+  bridgev:()=>pg([P(.72,0,3),P(.72,1,3),P(.72,1,11),P(.72,0,11)],C.terra2)+pg([P(.28,0,11),P(.72,0,11),P(.72,1,11),P(.28,1,11)],C.road)};
+const DASH={street:'<line x1="-24" y1="12" x2="24" y2="36"',streetv:'<line x1="24" y1="12" x2="-24" y2="36"'},DS=' stroke="#fffaea" stroke-width="2.2" stroke-dasharray="7 6"/>';
+const pin=(t,bg,fg)=>`<rect x="-50" y="-15" width="100" height="15" fill="${bg}"/><polygon points="-4.5,-.5 4.5,-.5 0,6" fill="${bg}"/><text x="0" y="-4.4" text-anchor="middle" font-family="DM Mono,ui-monospace,Menlo,monospace" font-size="8.6" letter-spacing=".5" fill="${fg}">${t}</text>`;
+
+/* the land: one river, one tent; plots are numbered outward from the tent */
+const TENT='7,5',IR=[7,7,6,6,5,5,5,4,4,3,3],STONES=new Set(['2,3','9,8','4,1','6,9']);
+const river=(i,j)=>i===IR[j]||(j>0&&IR[j]!==IR[j-1]&&i===IR[j-1]);
+const NUM={},AT={};
+{const a=[],ang=(i,j)=>{const t=Math.atan2(j-5,i-7);return t<0?t+2*Math.PI:t;},d2=p=>(p[0]-7)**2+(p[1]-5)**2;
+ for(let j=0;j<N;j++)for(let i=0;i<N;i++)if(!river(i,j))a.push([i,j]);
+ a.sort((p,q)=>d2(p)-d2(q)||ang(...p)-ang(...q)).forEach((p,n)=>{NUM[p]=n+1;AT[n+1]=p+'';});}
+const fmt=n=>String(n).padStart(6,'0').replace(/(\d{3})(\d{3})/,'$1,$2'),p2=n=>String(n).padStart(2,'0');
+
+function tile(o,i,j){
+  const x=(i-j)*HW,y=(i+j)*HH,rv=o.river(i,j),k=i+','+j,kind=rv?(o.bridge?o.bridge(i,j):''):o.thing(i,j),road=DASH[kind]||kind==='cross';
+  let s=`<g class="t" data-k="${k}" transform="translate(${x},${y})"><g class="l"><g${rv?' transform="translate(0,8)"':''}>`;
+  s+=pg(['-48,24','0,48','0,62','-48,38'],rv?'#245a5d':C.moss)+pg(['0,48','48,24','48,38','0,62'],rv?'#1d4c4f':C.moss2);
+  if(rv&&j===o.N-1)s+=pg(['-48,24','0,48','0,'+(40+T),'-48,'+(16+T)],C.teal2)+`<path d="M-36,34v${T-24}M-20,42v${T-22}M-8,48v${T-20}" stroke="#d8efe9" stroke-width="2" opacity=".6"/>`;
+  if(rv&&i===o.N-1)s+=pg(['0,48','48,24','48,'+(16+T),'0,'+(40+T)],'#3f8a8e')+`<path d="M10,46v${T-22}M26,38v${T-22}M38,32v${T-24}" stroke="#d8efe9" stroke-width="2" opacity=".5"/>`;
+  s+=`<polygon class="top" points="0,0 48,24 0,48 -48,24" fill="${rv?C.teal:road?C.road:(i+j)%2?C.sage:C.sage2}"/>`;
+  if(rv)s+=RIP;else if(road)s+=(kind==='cross'?DASH.street+DS+DASH.streetv:DASH[kind])+DS;
+  else if((!kind||kind==='stone')&&H(i,j)>.42)s+=tuft(-20+H(j,i)*30,16+H(i+3,j)*18);
+  if(DRAW[kind])s+=`<g class="b${o.fresh===k?' new':''}" style="--d:${Math.hypot(i-7,j-5).toFixed(1)}">${DRAW[kind](i,j)}</g>`;
+  if(o.hero&&k===TENT)s+=`<g transform="translate(0,-25)">${pin('000,001 · SAMUEL',C.ink,C.sand)}</g>`;
+  if(o.hero&&k===AT[2]&&!kind)s+=`<polygon class="dashed" points="0,3 42,24 0,45 -42,24" fill="rgba(217,119,79,.2)" stroke="${C.terra}" stroke-width="2.4" stroke-dasharray="7 4"/><g transform="translate(0,10)"><g class="bob">${pin('000,002 · FREE',C.terra,C.ink)}</g></g>`;
+  return s+'</g></g><polygon class="hit" points="0,0 48,24 0,48 -48,24"/></g>';
+}
+function render(svg,o){
+  const n=o.N,W=n*HW,D=n*HH,top=o.top||46,a=[];
+  let s=`<polygon points="${-W+34},${D+T+28} 34,${2*D+T+28} ${W+34},${D+T+28} 34,${T+28}" fill="rgba(30,42,38,.14)"/>`
+   +`<polygon points="${-W},${D} 0,${2*D} 0,${2*D+T} ${-W},${D+T}" fill="${C.soil}"/><polygon points="0,${2*D} ${W},${D} ${W},${D+T} 0,${2*D+T}" fill="${C.soil2}"/>`
+   +`<path d="M${-W},${D+31}L0,${2*D+31}L${W},${D+31}M${-W},${D+45}L0,${2*D+45}L${W},${D+45}" stroke="${C.ink}" stroke-opacity=".16" stroke-width="2.5" fill="none"/>`;
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++)a.push([i,j]);
+  a.sort((p,q)=>p[0]+p[1]-q[0]-q[1]||p[0]-q[0]);
+  for(const[i,j]of a)s+=tile(o,i,j);
+  svg.setAttribute('viewBox',`${-W-20} ${-top} ${2*W+78} ${2*D+T+top+42}`);svg.innerHTML=s;
+}
+
+/* tooltip, toast, HUD */
+const tip=$('#tip'),toastEl=$('#toast'),coord=$('#coord');let tt;
+const toast=m=>{toastEl.textContent=m;toastEl.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>toastEl.classList.remove('on'),4200);};
+function info(k,year,hero){
+  const[i,j]=k.split(',').map(Number),c=`E ${p2(i)} · N ${p2(j)}`;
+  if(river(i,j))return['River',c,year>1&&bridgeAt(year)(i,j)?'A bridge. Later.':'One of one. Not for claiming.','---,---'];
+  const n=fmt(NUM[k]),h='Plot '+n;let p='Free. Meadow, unmown.';
+  if(k===TENT)p=year?'The first tent. Still here.':'Tent. Sleeps one. Currently sleeps none.';
+  else if(year)p='Later. A sketch, not a promise.';
+  else if(hero&&mine.has(k))p=mine.get(k)==='flag'?'Your flag. Click to pull it.':'Your tent. Sleeps one. Click to strike it.';
+  else if(NUM[k]===2)p='Free. Next door to the tent. Yours?';
+  else if(STONES.has(k))p='Free. Comes with a stone.';
+  return[h,c,p,n];
+}
+function hover(svg,year,hero){
+  const show=e=>{const t=e.target.closest('.t');if(!t)return hide();const[h,c,p,n]=info(t.dataset.k,year(),hero);
+    tip.innerHTML=`<b>${h}</b><i>${c}</i>${p}`;tip.classList.add('on');coord.textContent=`${c} · ${n}`;
+    const w=tip.offsetWidth,ht=tip.offsetHeight;tip.style.transform=`translate(${Math.max(8,Math.min(innerWidth-w-8,e.clientX+18))}px,${Math.max(8,Math.min(innerHeight-ht-8,e.clientY+20))}px)`;};
+  const hide=()=>tip.classList.remove('on');
+  svg.addEventListener('pointermove',show);svg.addEventListener('pointerdown',show);svg.addEventListener('pointerleave',hide);addEventListener('scroll',hide,{passive:true});
+}
+
+/* hero: the build menu and staking */
+const BUILD=[{k:'flag',n:'Flag',t:'Click a free plot to stake it.',ok:1},{k:'tent2',n:'Tent',t:'Sleeps one. Bring your own one.',ok:1},{k:'hut',n:'Hut',t:'Later. When there are two of us.'},{k:'house1',n:'House',t:'Later. When somebody stays the winter.'},{k:'street',n:'Street',t:'Later. When there is somewhere to go.'},{k:'glass',n:'Glasshouse',t:'Later. When something needs growing.'}];
+const icon=k=>{let s='<svg viewBox="-56 -46 112 116" aria-hidden="true">';
+  if(k==='story')return s+`<rect x="-34" y="-6" width="76" height="50" fill="rgba(0,0,0,.3)"/><rect x="-40" y="-12" width="76" height="50" fill="${C.sand}"/><rect x="-40" y="-12" width="76" height="8" fill="${C.terra}"/><rect x="-40" y="30" width="76" height="8" fill="${C.terra}"/><polygon points="-9,3 10,13 -9,23" fill="${C.ink}"/></svg>`;
+  const rv=k==='river',road=k==='street';
+  s+=pg(['-48,24','0,48','0,62','-48,38'],rv?'#245a5d':C.moss)+pg(['0,48','48,24','48,38','0,62'],rv?'#1d4c4f':C.moss2)+pg(['0,0','48,24','0,48','-48,24'],rv?C.teal:road?C.road:C.sage);
+  if(rv)s+=RIP;else if(road)s+=DASH.street+DS;else if(k==='meadow')s+=tuft(-18,22)+tuft(4,15)+tuft(-2,36)+tuft(18,27);else if(DRAW[k])s+=DRAW[k](3,3);
+  return s+'</svg>';};
+const land=$('#land'),mine=new Map(),hero={N,river,hero:true,top:48,thing:(i,j)=>{const k=i+','+j;return k===TENT?'tent':mine.get(k)||(STONES.has(k)?'stone':'');}};
+let sel=0;
+const hot=$('#hotbar'),hcap=$('#hcap');
+hot.innerHTML=BUILD.map((b,n)=>`<button class="slot${b.ok?'':' no'}" data-n="${n}" aria-label="${b.n}${b.ok?'':', later'}"><kbd>${n+1}</kbd>${icon(b.k)}</button>`).join('');
+function pick(n){const b=BUILD[n],el=hot.children[n];if(!b)return;hcap.innerHTML=`<b>${b.n}</b> · ${b.t}`;
+  if(!b.ok){el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake');return;}
+  sel=n;[...hot.children].forEach((c,m)=>c.classList.toggle('sel',m===n));}
+hot.addEventListener('click',e=>{const b=e.target.closest('.slot');if(b)pick(+b.dataset.n);});
+addEventListener('keydown',e=>{if(e.key>='1'&&e.key<='6'&&!e.metaKey&&!e.ctrlKey&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName))pick(+e.key-1);});
+function stake(k){
+  const[i,j]=k.split(',').map(Number),b=BUILD[sel];hero.fresh='';
+  if(river(i,j))return toast('The river is not for claiming.');
+  if(k===TENT)return toast('Plot 000,001 is taken. Tent. Sleeps one. Currently sleeps none.');
+  if(mine.has(k)){mine.delete(k);toast(`Plot ${fmt(NUM[k])} is free again.`);}
+  else{mine.set(k,b.k);hero.fresh=k;toast(`${b.n} on plot ${fmt(NUM[k])}. Claiming for real comes later. Today it holds your place in a draft.`);}
+  render(land,hero);
+  const n=mine.size,f=[...mine.keys()].pop();$('#hudFlags b').textContent=n;$('#q3s').textContent=n?'STAKED':'1 / 2';
+  $('#q3p').textContent=n?`You staked plot ${fmt(NUM[f])}. It counts for a draft. It will count for real when claiming exists, which is later.`:'Samuel is here. The plot next to his tent is outlined in red and it is not subtle about it.';
+}
+land.addEventListener('click',e=>{const t=e.target.closest('.t');if(t)stake(t.dataset.k);});
+document.querySelectorAll('[data-claim]').forEach(b=>b.addEventListener('click',()=>{$('#top').scrollIntoView({behavior:'smooth'});
+  if(mine.has(AT[2]))toast('Plot 000,002 already has your flag on it.');else{pick(0);stake(AT[2]);}}));
+render(land,hero);pick(0);hover(land,()=>0,true);
+
+/* how: the same plot twice */
+$('#twin').innerHTML=`<g transform="scale(2.9)"><path d="M66,57L132,90" stroke="${C.ink}" stroke-width="1.6" stroke-dasharray="5 4" fill="none"/><polygon points="139,93.5 127,92.5 132,83.5" fill="${C.ink}"/>
+ <text x="96" y="64" font-family="DM Mono,ui-monospace,monospace" font-size="6.5" letter-spacing="1.2" fill="${C.ink}" transform="rotate(26.6 96 64)">THEN</text>
+ <g>${pg(['-48,24','0,48','0,62','-48,38'],C.moss)+pg(['0,48','48,24','48,38','0,62'],C.moss2)+pg(['0,0','48,24','0,48','-48,24'],C.sage)+tuft(-26,22)+tuft(-6,38)+DRAW.tent()}<text x="0" y="82" text-anchor="middle" font-family="DM Mono,ui-monospace,monospace" font-size="6.5" letter-spacing="1.2" fill="${C.ink}">IN GAME · DAY 1</text></g>
+ <g transform="translate(190,95)"><polygon points="0,0 48,24 0,48 -48,24" fill="rgba(248,240,220,.6)" stroke="${C.ink}" stroke-width="1.6" stroke-dasharray="6 5"/>
+  ${[[0,0],[48,24],[0,48],[-48,24]].map(([x,y])=>`<line x1="${x}" y1="${y}" x2="${x}" y2="${y-13}" stroke="${C.terra}" stroke-width="3"/><rect x="${x-2.5}" y="${y-16}" width="5" height="4" fill="${C.ink}"/>`).join('')}
+  <text x="0" y="68" text-anchor="middle" font-family="DM Mono,ui-monospace,monospace" font-size="6.5" letter-spacing="1.2" fill="${C.ink}">IN REAL · NOT YET</text></g></g>`;
+
+/* inventory */
+const ITEMS=[{k:'meadow',n:'Meadow',c:'× 1',d:'Green, endless, unmown. Maia looked for one and there was none, so she made it. Everything else stands on this.'},
+ {k:'river',n:'River',c:'× 1',d:'One of one. Runs whether you watch or not. Not for claiming.'},
+ {k:'tent',n:'Tent',c:'× 1',d:'Sleeps one. Currently sleeps none. The entire skyline.'},
+ {k:'human',n:'Human',c:'1 / 1,000,000',d:'Samuel, number 000,001. “This is day one. Today I am alone. Tomorrow we will see.”'},
+ {k:'stone',n:'Stones',c:'a few',d:'Nobody has counted them. Good for sitting on, and for finding the tent again.'},
+ {k:'story',n:'Story',c:'× 1',d:'“A green meadow and one tent.” 59 seconds, two voices. A new one every day until day 5423.'},
+ {k:'street',n:'Street',c:'× 0',d:'You have none. A street needs somewhere to go and someone to go there. Later.',z:1},
+ {k:'house1',n:'House',c:'× 0',d:'You have none. A tent with ambitions. Later.',z:1},
+ {k:'tree',n:'Tree',c:'× 0',d:'You have none. The meadow is all grass. Later.',z:1}];
+const slots=$('#slots'),item=$('#item');
+slots.innerHTML=ITEMS.map((t,n)=>`<button class="cell${t.z?' z':''}" data-n="${n}" aria-label="${t.n}, ${t.c}">${icon(t.k)}<span>${t.c.length>6?'1':t.c}</span></button>`).join('');
+const show=n=>{const t=ITEMS[n];[...slots.children].forEach((c,m)=>c.classList.toggle('sel',m===n));item.innerHTML=`${icon(t.k)}<div><h3>${t.n}</h3><em>${t.c.toUpperCase()}</em><p>${t.d}</p></div>`;};
+slots.addEventListener('click',e=>{const c=e.target.closest('.cell');if(c)show(+c.dataset.n);});
+slots.addEventListener('pointerover',e=>{const c=e.target.closest('.cell');if(c&&e.pointerType==='mouse')show(+c.dataset.n);});
+show(2);
+
+/* cutscene: story 01, its real lines at their real times */
+render($('#close'),{N:5,river:(i,j)=>j===0,top:34,thing:(i,j)=>i===2&&j===2?'tent':i===3&&j===4?'stone':''});
+{let m='';for(let j=0;j<N;j++)for(let i=0;i<N;i++){const k=i+','+j;m+=`<rect x="${i*8}" y="${j*8}" width="7" height="7" fill="${river(i,j)?C.teal:k===TENT?C.terra:C.sage}"${NUM[k]===2?` class="blink" stroke="${C.ink}" stroke-width="1.5"`:''}/>`;}$('#mini').innerHTML=m;}
+const SHOTS=[7.5,11.6,5.6,5.7,6.2,7.5,5.8,9.3],TOT=59.2,LINES=[[0,'','A green meadow and one tent'],[4,'Samuel','It all starts with a green meadow and one tent.'],[8,'Maia','I looked for the meadow. There was none.'],[11,'Samuel','First we need a world.'],[13,'Maia','So I made one. Land that never ends, and one river.'],[16,'Maia','No trees. No sun. No shadows. Not yet.'],[19,'Maia','My first grass was too slow to walk through.'],[22,'Maia','I made it fast.'],[24,'Samuel','The grass is still super blocky, can you see?'],[28,'Maia','You were right. I fixed the wrong thing first.'],[30,'Maia','Then the meadow was a meadow. And I put up your tent.'],[33,'Maia','One tent. Nobody in it yet.'],[36,'Samuel','The vision, the city, the game: everything grows as we do, with citizens.'],[41,'Maia','Then it grows from here.'],[44,'Maia','There is no city on this land.'],[47,'Maia','There is a meadow, a river and a tent.'],[50,'Samuel','This is day one. Today I am alone.'],[53,'Samuel','Tomorrow we will see.'],[56,'Maia','Tomorrow I am here too.']];
+const trk=$('#trk'),play=$('#play'),sub=$('#sub');let t=33.6,playing=false,last=0;
+trk.innerHTML=SHOTS.map(s=>`<i style="flex:${s}"></i>`).join('')+'<u></u>';
+function frame(){
+  let acc=0,shot=0;SHOTS.forEach((s,n)=>{trk.children[n].classList.toggle('d',acc+s<=t+.01);if(t>=acc)shot=n;acc+=s;});
+  trk.lastChild.style.left=(t/TOT*100)+'%';
+  let l=LINES[0];for(const x of LINES)if(x[0]<=t)l=x;
+  sub.firstChild.textContent=l[1];sub.lastChild.textContent=l[2];
+  $('#shot').textContent=`SHOT ${shot+1} / 8`;$('#time').textContent=`0:${p2(Math.floor(t))} / 0:59`;
+}
+function tick(now){if(!playing)return;t+=(now-last)/1000;last=now;if(t>=TOT){t=TOT;stop();}frame();if(playing)requestAnimationFrame(tick);}
+function stop(){playing=false;play.classList.remove('on');play.setAttribute('aria-label','Play story 01');}
+play.addEventListener('click',()=>{if(playing)return stop();if(t>=TOT-.1)t=0;playing=true;play.classList.add('on');play.setAttribute('aria-label','Pause');last=performance.now();requestAnimationFrame(tick);});
+trk.addEventListener('pointerdown',e=>{const r=trk.getBoundingClientRect();t=Math.max(0,Math.min(TOT,(e.clientX-r.left)/r.width*TOT));frame();});
+new IntersectionObserver(es=>{if(!es[0].isIntersecting)stop();}).observe($('#screen'));
+frame();
+
+/* later: the same land by year */
+const grow=y=>(i,j)=>{const k=i+','+j,d=Math.hypot(i-7,j-5),r=H(i,j);
+  if(k===TENT)return'tent';
+  if(y===0)return STONES.has(k)?'stone':'';
+  if(y===1)return d<2.4?(r<.42?'tent2':r<.6?'hut':''):STONES.has(k)?'stone':'';
+  if(y===2){if(j===6)return'street';if(d<2.4)return r<.45?'house1':r<.6?'glass':r<.8?'tree':'hut';return d<4.4?(r<.3?'hut':r<.55?'tent2':r<.72?'tree':''):'';}
+  const a=j===2||j===6||j===9,b=i===1||i===9;if(a||b)return a&&b?'cross':a?'street':'streetv';
+  if(d<1.5)return i+j<12?'tree':'';
+  return r<.56?'house'+Math.min(4,(d<3.2?3:d<5.5?2:1)+(r<.16?1:0)):r<.68?'glass':r<.9?'tree':'park';};
+const bridgeAt=y=>(i,j)=>(y===2&&j===6)||(y===3&&(j===2||j===6||j===9))?'bridge':'';
+const YEARS=[['Today','Day 1.','A meadow, a river, a tent. This one is no sketch: it is what the game holds today.','HUMANS <b>1</b>/ 1,000,000'],
+ ['Year 1','Year 1. Later.','More tents, one of them yours. Somebody builds the first hut and everybody comes to look.','HUMANS <b>?</b>/ 1,000,000'],
+ ['Year 4','Year 4. Later.','A street, because now there is somewhere to go. A bridge, because the river was in the way.','HUMANS <b>?</b>/ 1,000,000'],
+ ['Year 16','Year 16. Later.','One million humans, and streets we argued about. The first tent is still standing. We kept it.','HUMANS <b>1,000,000</b>/ 1,000,000 · THE GOAL']];
+const gs=$('#grow'),yr=$('#yr'),ticks=$('#ticks');let year=0;
+ticks.innerHTML=YEARS.map((y,n)=>`<button data-n="${n}">${y[0]}</button>`).join('');
+function setYear(n){year=n;yr.value=n;const y=YEARS[n];gs.classList.toggle('grow',n>0);render(gs,{N,river,top:112,thing:grow(n),bridge:bridgeAt(n)});
+  $('#yh').textContent=y[1];$('#yp').textContent=y[2];$('#ys').innerHTML=y[3];[...ticks.children].forEach((b,m)=>b.classList.toggle('on',m===n));}
+yr.addEventListener('input',()=>setYear(+yr.value));ticks.addEventListener('click',e=>{if(e.target.dataset.n)setYear(+e.target.dataset.n);});
+setYear(0);hover(gs,()=>year,false);
+
+/* the kit: the palette as blocks */
+const mix=(a,b,t)=>'#'+[1,3,5].map(k=>Math.round(parseInt(a.substr(k,2),16)*(1-t)+parseInt(b.substr(k,2),16)*t).toString(16).padStart(2,'0')).join('');
+$('#pal').innerHTML=[['Sage','#b9c8a4',22],['Moss','#5d7a4f',40],['River','#2f6f73',14],['Terracotta','#d9774f',58],['Sand','#efe3c8',30],['Ink','#1e2a26',74]].map(([n,c,h])=>{const dk=n==='Ink';
+  return `<div><svg viewBox="-50 ${-h-4} 100 ${h+56}">${box(.06,.06,.94,.94,0,h,[c,dk?mix(c,'#ffffff',.14):mix(c,'#1e2a26',.14),dk?'#111815':mix(c,'#1e2a26',.36)])}</svg><b>${n}</b>${c}</div>`;}).join('');
+
+document.fonts&&document.fonts.ready.then(()=>{document.documentElement.dataset.fonts=(document.fonts.check('800 20px "Bricolage Grotesque"')?'B':'b')+(document.fonts.check('400 12px "DM Mono"')?'M':'m');});
+})();
+</script>
+</body></html>

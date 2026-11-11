@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maia City · brand draft 02 · Daylight</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+<style>
+/* DAYLIGHT. The city runs on the sun: one sky, one day, and the sun is the handle.
+   Every colour on the page is set from the hour (see the script). These are 06:00, for the moment before it runs. */
+:root{
+  --sky-top:#8497c9;--sky-mid:#f0bfb5;--sky-low:#ffdcb4;--hz:62vh;
+  --ink:#2b2238;--ink-2:rgba(43,34,56,.68);--ink-3:rgba(43,34,56,.26);--veil:transparent;
+  --land-far:#8fa888;--land-mid:#6f8e6e;--land-near:#4f7355;--river:#f3c3b0;--glint-o:.5;
+  --tent-a:#f7e7d8;--tent-b:#d9c6bd;--tent-d:#3a3346;--shade-fill:rgba(40,34,70,.25);
+  --sun:#ffc994;--gold:#f4b548;--glow:rgba(255,201,148,.5);--ring:rgba(255,201,148,.22);--sun-s:1.3;--day:1;
+  --cloud:rgba(255,230,218,.7);--stars:0;--drift:0px;
+  --shade:rgba(40,34,70,.2);--sx:30;--sy:20;--sb:50;--glass:rgba(255,255,255,.16);--sunlight:rgba(255,220,170,.5);
+  --land-h:40vh;--gut:clamp(22px,8vw,116px);
+  --serif:'Fraunces','Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+  --sans:'Outfit','Avenir Next','Helvetica Neue',Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--sky-mid);color:var(--ink);font:300 19px/1.55 var(--serif);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+p{margin:0}
+em{font-style:italic}
+
+/* ---- the fixed world: sky, stars, clouds, the arc, the sun, the land ---- */
+.sky,.stars,.clouds,#arc{position:fixed;inset:0;pointer-events:none}
+.sky{z-index:0;background:linear-gradient(180deg,var(--sky-top) 0,var(--sky-mid) calc(var(--hz)*.58),var(--sky-low) var(--hz))}
+.stars{z-index:1;width:100%;height:100%;opacity:var(--stars)}
+.clouds{z-index:1}
+.clouds i{position:absolute;border-radius:50%;background:var(--cloud);filter:blur(34px);transform:translateX(var(--drift))}
+#arc{z-index:2;width:100%;height:100%;overflow:visible}
+#arc path{fill:none;stroke:var(--ink);stroke-opacity:.3;stroke-width:1.4;stroke-linecap:round;stroke-dasharray:.1 9}
+#arc circle{fill:var(--ink);fill-opacity:.35}
+#arc text{font:400 10px var(--sans);letter-spacing:.2em;fill:var(--ink);fill-opacity:.4;text-anchor:middle}
+#sun{position:fixed;left:0;top:0;z-index:2;width:0;height:0;touch-action:none;cursor:grab;outline:0;-webkit-user-select:none;user-select:none}
+#sun.held{cursor:grabbing}
+#sun .halo{position:absolute;left:-38vmin;top:-38vmin;width:76vmin;height:76vmin;border-radius:50%;background:radial-gradient(closest-side,var(--glow),transparent);pointer-events:none;opacity:var(--day)}
+#sun .grab{position:absolute;left:-46px;top:-46px;width:92px;height:92px;border-radius:50%}
+#sun .disc{position:absolute;left:-28px;top:-28px;width:56px;height:56px;border-radius:50%;background:radial-gradient(circle,#fff 0,var(--sun) 64%);box-shadow:0 0 0 9px var(--ring),0 0 46px 12px var(--glow);transform:scale(var(--sun-s));transition:box-shadow .3s}
+#sun:hover .disc,#sun.held .disc{box-shadow:0 0 0 15px var(--ring),0 0 60px 18px var(--glow)}
+#sun:focus-visible .disc{outline:2px solid var(--ink);outline-offset:14px}
+#sun .hint{position:absolute;left:58px;top:-40px;white-space:nowrap;font:400 11px/1.7 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--ink);pointer-events:none;transition:opacity .6s}
+#sun .hint::before{content:'';position:absolute;left:-18px;top:17px;width:10px;height:1px;background:currentColor}
+body.touched #sun .hint,body.away #sun .hint{opacity:0}
+.land{position:fixed;left:0;right:0;bottom:0;height:var(--land-h);z-index:4;pointer-events:none;will-change:transform}
+.land svg{display:block;width:100%;height:100%}
+.strip{position:fixed;left:var(--gut);right:var(--gut);bottom:15px;z-index:6;display:flex;justify-content:space-between;align-items:baseline;gap:20px;color:#fff;text-shadow:0 1px 10px rgba(0,10,20,.55);font:400 10.5px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;pointer-events:none}
+.strip a{color:inherit;text-decoration:none;pointer-events:auto;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.5)}
+.strip em{font:italic 300 16px/1 var(--serif);letter-spacing:0;text-transform:none}
+
+/* ---- the bar: the name, the hour, the one thing to do ---- */
+.topfade{position:fixed;inset:0 0 auto 0;height:132px;z-index:5;background:linear-gradient(var(--sky-top) 52%,transparent);pointer-events:none}
+.bar{position:fixed;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px var(--gut);color:var(--ink)}
+.brand{display:flex;align-items:center;gap:12px;font:400 22px/1 var(--serif);font-variation-settings:'opsz' 60;letter-spacing:-.015em;color:inherit;text-decoration:none}
+.brand img{width:32px;height:32px;border-radius:9px;box-shadow:0 2px 12px rgba(0,0,0,.14)}
+.now{display:flex;gap:16px;align-items:baseline;font:300 12px/1 var(--sans);letter-spacing:.32em;text-transform:uppercase}
+.now b{font-weight:500;font-variant-numeric:tabular-nums;letter-spacing:.2em}
+.come{font:400 12px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:inherit;text-decoration:none;padding-bottom:6px;border-bottom:1px solid currentColor}
+
+/* ---- words on the sky ---- */
+main{position:relative;z-index:3;pointer-events:none;text-shadow:0 0 22px var(--veil),0 0 5px var(--veil)}
+main a,main button,main .lit,main .yr,main .line{pointer-events:auto}
+section{padding:22vh var(--gut) 18vh;position:relative}
+.hr{display:flex;align-items:center;gap:14px;font:300 12px/1 var(--sans);letter-spacing:.32em;text-transform:uppercase;margin-bottom:30px}
+.hr i,.dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px 2px var(--glow)}
+.hr b{font-weight:500;letter-spacing:.2em;font-variant-numeric:tabular-nums}
+h1,h2{font-family:var(--serif);font-weight:300;font-variation-settings:'opsz' 144;margin:0;letter-spacing:-.025em;text-wrap:balance}
+h1{font-size:clamp(40px,5.5vw,82px);line-height:1.02}
+h1 em{display:block;color:var(--ink-2)}
+h2{font-size:clamp(34px,4.5vw,68px);line-height:1.05;max-width:17ch}
+h2 em{color:var(--ink-2)}
+h3{font:500 11px/1.4 var(--sans);letter-spacing:.26em;text-transform:uppercase;margin:0 0 12px}
+blockquote{margin:0}
+blockquote p{font:italic 300 clamp(22px,2.2vw,32px)/1.25 var(--serif);font-variation-settings:'opsz' 100;letter-spacing:-.012em;margin-bottom:12px}
+cite{font:400 11px/1 var(--sans);letter-spacing:.28em;text-transform:uppercase;font-style:normal;color:var(--ink-2)}
+.btn{display:inline-flex;align-items:center;gap:13px;font:500 13px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;padding:20px 32px 20px 24px;border-radius:999px;background:var(--ink);color:var(--sky-low);text-decoration:none;border:0;cursor:pointer;text-shadow:none;box-shadow:calc(var(--sx)*1px) calc(var(--sy)*1px) calc(var(--sb)*1px) var(--shade);transition:transform .25s}
+.btn::before{content:'';width:12px;height:12px;border-radius:50%;background:var(--gold);box-shadow:0 0 14px 3px var(--glow)}
+.btn:hover{transform:translateY(-2px)}
+.quiet{font:300 12px/1.5 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--ink-2);text-decoration:none}
+a.quiet{border-bottom:1px solid var(--ink-3);padding-bottom:4px}
+.acts{display:flex;align-items:center;gap:26px;flex-wrap:wrap}
+
+/* 06:00 */
+.hero{min-height:100vh;padding-top:clamp(92px,13vh,128px);padding-bottom:calc(var(--land-h) + 10px)}
+.open{display:flex;justify-content:space-between;align-items:flex-end;gap:40px;margin-top:38px}
+.lede{font:300 clamp(18px,1.6vw,23px)/1.42 var(--serif);max-width:33em}
+.lede+p{font-style:italic;color:var(--ink-2);margin-top:12px}
+.open .acts{flex-direction:column;align-items:flex-end;gap:14px;flex:none}
+
+/* 09:00 */
+.col.r{margin-left:42%}
+.two{display:flex;gap:44px;margin:7vh 0 8vh}
+.two>div{flex:1}
+.two .drop{margin-top:9vh}
+.two p{color:var(--ink-2)}
+.aside{margin-top:6vh;font:300 13px/1.7 var(--sans);letter-spacing:.16em;text-transform:uppercase;max-width:34em}
+
+/* 12:00 */
+.noon h2{max-width:20ch}
+.stand{display:flex;gap:clamp(14px,3vw,52px);align-items:flex-end;margin-top:9vh}
+.stand div{flex:1}
+.stand b{display:block;font:100 clamp(88px,11.5vw,180px)/.8 var(--serif);font-variation-settings:'opsz' 144;letter-spacing:-.03em;text-shadow:calc(var(--sx)*1.7px) calc(var(--sy)*1.3px) calc(var(--sb)*.5px) var(--shade)}
+.stand .zero b{color:var(--ink-3);text-shadow:none}
+.stand span{display:block;margin-top:16px;font:400 11px/1 var(--sans);letter-spacing:.3em;text-transform:uppercase}
+.stand .zero span{color:var(--ink-2)}
+.under{display:flex;gap:60px;margin-top:9vh}
+.under p{flex:1;max-width:30em}
+.under .fine{font-size:16px;color:var(--ink-2);font-style:italic}
+
+/* 15:00: the instruments. No boxes: a ring, a line, a pill, an arch */
+.holdtop{display:flex;justify-content:space-between;align-items:flex-end;gap:40px}
+.holdtop>p{max-width:26em;color:var(--ink-2)}
+.hold{display:grid;grid-template-columns:repeat(12,1fr);column-gap:28px;row-gap:10vh;margin-top:11vh;align-items:start}
+.p-dial{grid-column:1/5}.p-story{grid-column:6/9;margin-top:11vh}.p-wheel{grid-column:10/13;margin-top:-5vh}
+.p-hud{grid-column:1/13}.p-meter{grid-column:2/7}.p-note{grid-column:8/13;margin-top:6vh}
+.glass{background:var(--glass);border:1px solid var(--ink-3);box-shadow:calc(var(--sx)*1px) calc(var(--sy)*1px) calc(var(--sb)*1px) var(--shade)}
+.lit{position:relative}
+.lit::after{content:'';position:absolute;inset:-1px;border-radius:inherit;background:linear-gradient(var(--lit,180deg),var(--sunlight),transparent 64%);opacity:0;transition:opacity .6s;pointer-events:none}
+.lit:hover::after,.lit:active::after{opacity:1}
+.cap{margin-top:20px;font:300 15px/1.5 var(--serif);color:var(--ink-2);max-width:27em}
+.cap b{display:block;font:500 11px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--ink);margin-bottom:10px}
+.tag{display:flex;align-items:center;gap:9px;font:400 10px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--ink-2);margin-bottom:10px}
+.tag::before{content:'';width:9px;height:9px;border-radius:50%}
+.tag.up::before{background:var(--gold);box-shadow:0 0 10px 2px var(--glow)}
+.tag.not::before{height:5px;width:10px;border:1px solid currentColor;border-bottom:0;border-radius:10px 10px 0 0;box-shadow:0 1px 0 currentColor}
+.dial{width:min(100%,280px);aspect-ratio:1;border-radius:50%}
+.dial svg,.wheel svg{display:block;width:100%;height:100%;overflow:visible}
+.dial .rg{fill:none;stroke:var(--ink);stroke-opacity:.55;stroke-width:1}
+.dial .nt{fill:var(--ink);fill-opacity:.09}
+.dial .tk{stroke:var(--ink);stroke-opacity:.5;stroke-width:1}
+.dial text{fill:var(--ink);text-anchor:middle;font-family:var(--sans)}
+.dial .dn{font-size:9px;letter-spacing:.2em;fill-opacity:.6}
+.dial .dl{font-size:9.5px;letter-spacing:.3em;text-transform:uppercase;fill-opacity:.7}
+.dial .dt{font-size:46px;font-weight:100;letter-spacing:-.02em}
+.dial .mk,.wheel .on{filter:drop-shadow(0 0 5px var(--gold))}
+.dial .mk{fill:var(--gold);stroke:#fff;stroke-width:1.5}
+.rise{display:block;width:236px;max-width:100%;border-radius:118px 118px 22px 22px;padding:46px 24px 26px;text-align:center;color:inherit;text-decoration:none;text-shadow:none}
+.rise svg{width:56px;display:block;margin:0 auto 20px;overflow:visible}
+.rise svg path{fill:var(--gold);filter:drop-shadow(0 0 6px var(--gold))}
+.rise svg line{stroke:var(--ink);stroke-width:1}
+.rise small,.rise span,.rise em{display:block;font:400 10px/1.5 var(--sans);letter-spacing:.24em;text-transform:uppercase;font-style:normal;color:var(--ink-2)}
+.rise strong{display:block;font:300 25px/1.1 var(--serif);font-variation-settings:'opsz' 100;letter-spacing:-.015em;margin:12px 0 12px}
+.rise em{margin-top:20px;padding-top:16px;border-top:1px solid var(--ink-3);color:var(--ink)}
+.wheel{width:min(100%,230px);aspect-ratio:1;border-radius:50%}
+.wheel .yr{fill:none;stroke:var(--ink);stroke-opacity:.2;stroke-width:14;cursor:pointer;pointer-events:stroke;transition:stroke-opacity .25s}
+.wheel .yr:hover,.wheel .yr.pick{stroke-opacity:.75}
+.wheel .yr.on{stroke:var(--gold);stroke-opacity:1}
+.wheel .sn{stroke:var(--ink);stroke-opacity:.4;stroke-width:1}
+.wheel text{fill:var(--ink);text-anchor:middle;font-family:var(--sans)}
+.wheel .wy{font-size:25px;font-weight:200}
+.wheel .ws{font-size:8px;letter-spacing:.24em;text-transform:uppercase;fill-opacity:.7}
+.hud{position:relative;padding:20px 0 26px;font:400 11px/1 var(--sans);letter-spacing:.3em;text-transform:uppercase;display:flex;justify-content:space-between}
+.hud .r{font-variant-numeric:tabular-nums}
+.hl{position:absolute;left:0;right:0;bottom:8px;height:1px;background:linear-gradient(90deg,var(--ink) 0 66.6%,var(--gold) 66.7% 78.1%,var(--ink) 78.2%)}
+.hl i{position:absolute;top:-5px;width:11px;height:11px;margin-left:-5.5px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px var(--glass),0 0 14px 3px var(--glow)}
+.hl u{position:absolute;top:9px;font-size:9px;text-decoration:none;color:var(--ink-2);transform:translateX(-50%)}
+.hl u:first-of-type{transform:none}
+.p-hud .cap{margin-top:34px}
+.meter{height:15px;border-radius:999px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--sun),var(--gold));box-shadow:0 0 16px var(--glow)}
+.mval{margin-top:18px;display:flex;align-items:baseline;gap:12px;font:300 12px/1 var(--sans);letter-spacing:.24em;text-transform:uppercase}
+.mval b{font:100 64px/.8 var(--sans);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.note{display:inline-flex;gap:16px;align-items:center;padding:17px 30px 17px 20px;border-radius:999px;text-shadow:none}
+.note .dot{width:12px;height:12px}
+.note b{display:block;font:500 13px/1.3 var(--sans);letter-spacing:.06em}
+.note span{font:300 14px/1.3 var(--serif);font-style:italic;color:var(--ink-2)}
+
+/* 17:00: the film */
+.filmrow{display:grid;grid-template-columns:repeat(12,1fr);column-gap:28px;margin-top:8vh;align-items:end}
+.filmwrap{grid-column:1/9}
+.said{grid-column:9/13;padding-bottom:8px}
+.said blockquote+blockquote{margin-top:26px}
+.film{position:relative;aspect-ratio:2.39/1;border-radius:18px;overflow:hidden;text-shadow:none;background:linear-gradient(180deg,var(--sky-top),var(--sky-mid) 36%,var(--sky-low) 54%);box-shadow:calc(var(--sx)*1.5px) calc(var(--sy)*1.5px) calc(var(--sb)*1.3px) var(--shade);--shade-fill:transparent;--glint-o:0}
+.film .world{position:absolute;left:0;right:0;bottom:0;width:100%;height:50%}
+.film .sub{position:absolute;left:8%;right:8%;bottom:18%;text-align:center;color:#fffdf6;font:400 clamp(13px,1.65vw,22px)/1.3 var(--sans);text-shadow:0 1px 14px rgba(10,20,30,.75),0 0 3px rgba(10,20,30,.6)}
+.film .sub small{display:block;font:500 clamp(8px,.75vw,10px)/1 var(--sans);letter-spacing:.32em;text-transform:uppercase;margin-bottom:8px;color:#ffe7b5}
+.film .ttl{position:absolute;inset:0 8% 30%;display:grid;place-items:center;text-align:center;color:#fffdf6;font:italic 300 clamp(20px,3.4vw,46px)/1.1 var(--serif);text-shadow:0 2px 24px rgba(10,20,40,.5);opacity:0;transition:opacity .5s}
+.film.card .ttl{opacity:1}.film.card .sub{opacity:0}
+.ctl{position:absolute;left:16px;right:20px;bottom:11px;display:flex;align-items:center;gap:16px;color:#fff}
+.play{flex:none;width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.85);background:rgba(255,255,255,.14);cursor:pointer;position:relative;padding:0}
+.play::before{content:'';position:absolute;left:15px;top:11px;border:7px solid transparent;border-left:11px solid #fff;border-right:0}
+.playing .play::before{left:13px;top:12px;width:4px;height:13px;border:0;border-left:4px solid #fff;border-right:4px solid #fff}
+.line{flex:1;height:26px;position:relative;cursor:pointer;touch-action:none}
+.line::before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(255,255,255,.6)}
+.line i{position:absolute;top:50%;left:0;width:13px;height:13px;margin:-6.5px;border-radius:50%;background:#ffd98a;box-shadow:0 0 14px 3px rgba(255,214,140,.85)}
+.ctl time{font:400 11px/1 var(--sans);letter-spacing:.14em;font-variant-numeric:tabular-nums;text-shadow:0 1px 8px rgba(0,0,0,.5)}
+.filmwrap .cap{max-width:none;display:flex;gap:26px;align-items:baseline;flex-wrap:wrap}
+.filmwrap .cap .tag{margin:0}
+
+/* 18:20 */
+.inter{padding-top:24vh;padding-bottom:22vh}
+.inter p{font:300 clamp(30px,4.1vw,60px)/1.12 var(--serif);font-variation-settings:'opsz' 144;letter-spacing:-.02em;max-width:19em;margin:0 auto;text-align:center;text-wrap:balance}
+
+/* 19:30: the system, as a landscape */
+.lock{display:flex;align-items:center;gap:26px;margin:7vh 0 8vh;flex-wrap:wrap}
+.lock img{width:92px;height:92px;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.lock .wm{font:300 clamp(46px,6vw,88px)/1 var(--serif);font-variation-settings:'opsz' 144;letter-spacing:-.03em}
+.lock svg{width:150px;margin-left:auto;overflow:visible}
+.lock svg path{fill:none;stroke:var(--ink);stroke-opacity:.5;stroke-dasharray:.1 6;stroke-linecap:round;stroke-width:1.4}
+.lock svg line{stroke:var(--ink);stroke-opacity:.6}
+.lock svg circle{fill:var(--gold);filter:drop-shadow(0 0 6px var(--gold))}
+.dayband{display:flex;height:clamp(200px,30vh,280px);border-radius:16px 16px 0 0;overflow:hidden;text-shadow:none}
+.dayband div{flex:1;position:relative}
+.dayband span{position:absolute;left:50%;bottom:16px;writing-mode:vertical-rl;transform:translateX(-50%) rotate(180deg);font:400 10px/1 var(--sans);letter-spacing:.22em;text-transform:uppercase;white-space:nowrap}
+.ground{display:flex;border-radius:0 0 16px 16px;overflow:hidden;text-shadow:none}
+.ground span{flex:1;padding:16px 6px 15px 14px;font:400 9.5px/1.5 var(--sans);letter-spacing:.18em;text-transform:uppercase;background:var(--c);color:var(--t,#fff)}
+.type{display:flex;gap:60px;margin-top:9vh;align-items:flex-end}
+.type>div{flex:1;min-width:0}
+.spec-s{font:300 clamp(40px,5.4vw,80px)/1 var(--serif);font-variation-settings:'opsz' 144;letter-spacing:-.03em}
+.spec-s em{color:var(--ink-2)}
+.spec-n{font:100 clamp(32px,4vw,60px)/1 var(--sans);letter-spacing:.04em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.type small{display:block;margin-top:18px;font:300 11px/1.6 var(--sans);letter-spacing:.24em;text-transform:uppercase;color:var(--ink-2)}
+.rules{list-style:none;margin:9vh 0 0;padding:0;display:flex;gap:36px;flex-wrap:wrap;font:italic 300 19px/1.4 var(--serif)}
+.rules li{display:flex;align-items:center;gap:14px}
+
+/* 21:00 */
+.night{min-height:100vh;padding-bottom:26vh}
+.voices{display:flex;gap:70px;margin:8vh 0;flex-wrap:wrap}
+.voices blockquote{max-width:24em}
+.foot{margin-top:14vh;padding-top:30px;border-top:1px solid var(--ink-3);display:flex;justify-content:space-between;gap:40px;flex-wrap:wrap;font:300 11px/1.8 var(--sans);letter-spacing:.24em;text-transform:uppercase;color:var(--ink-2)}
+.foot p:first-child{font:italic 300 17px/1.45 var(--serif);letter-spacing:0;text-transform:none;max-width:27em;color:var(--ink)}
+.foot a{color:inherit}
+
+@media (max-width:860px){
+  :root{--land-h:34vh}
+  body{font-size:17px}
+  .now span,.come,.strip em{display:none}
+  section{padding-top:16vh;padding-bottom:14vh}
+  .open,.two,.under,.type,.holdtop{display:block}
+  .open .acts{align-items:flex-start;margin-top:24px}
+  .lede+p{display:none}
+  .col.r{margin-left:0}
+  .two .drop,.under .fine,.holdtop>p,.type>div+div{margin-top:30px}
+  .stand{display:grid;grid-template-columns:repeat(3,1fr);row-gap:34px}
+  .hold{display:block;margin-top:8vh}
+  .hold>div{margin:0 0 70px}
+  .p-story .rise{margin-left:auto}.p-story .cap{margin-left:auto;text-align:right}.p-story .tag{justify-content:flex-end}
+  .p-wheel .wheel{margin:0 auto}
+  .filmrow{display:block}.said{margin-top:40px}
+  .lock img{width:64px;height:64px;border-radius:17px}.lock svg{margin-left:0;width:110px}
+  .dayband span{font-size:8.5px;bottom:12px}
+  .ground{flex-wrap:wrap}.ground span{flex:1 0 25%}
+  .rules{display:block}.rules li{margin-bottom:14px}
+  .voices{gap:36px}
+  #sun .hint{font-size:9.5px;left:50px;top:-16px}
+  .open .quiet{display:none}
+  #arc text{display:none}#arc path{stroke-opacity:.2}
+  .film{aspect-ratio:16/10}.film .world{height:56%}.film .sub{bottom:60px;font-size:14px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="sky"></div>
+<canvas class="stars" id="stars"></canvas>
+<div class="clouds" aria-hidden="true"><i style="left:6%;top:15%;width:34vw;height:9vh"></i><i style="left:52%;top:27%;width:44vw;height:10vh"></i><i style="left:26%;top:50%;width:30vw;height:7vh"></i></div>
+<svg id="arc" aria-hidden="true"><path id="arcp"/><g id="arct"></g></svg>
+<div id="sun" role="slider" tabindex="0" aria-label="The hour of the day. Drag the sun, or use the arrow keys." aria-valuemin="6" aria-valuemax="21.75" aria-valuenow="6"><div class="halo"></div><div class="grab"></div><div class="disc"></div><span class="hint">Drag the sun.<br>The day follows.</span></div>
+
+<header class="bar">
+  <a class="brand" href="#dawn"><img src="../MaiaCity.svg" alt="">Maia City</a>
+  <p class="now"><span>Day 1</span><b id="clk">06:00</b><span id="phase">first light</span></p>
+  <a class="come" href="#come" id="topcome">Come before noon</a>
+</header>
+<div class="topfade"></div>
+
+<main>
+<section class="hero" id="dawn" data-h="6">
+  <p class="hr"><i></i><b>06:00</b><span>Day 1 of 5423</span></p>
+  <h1>It is morning in Maia City. <em>It has been morning for one day.</em></h1>
+  <div class="open">
+    <div>
+      <p class="lede">This is the story of how one million humans build their own solarpunk city, from the ground up. In just 16 years.</p>
+      <p>Today the light falls on a meadow, a river and one tent.</p>
+    </div>
+    <div class="acts"><a class="btn" href="#come">Come before noon</a><a class="quiet" href="#film">or watch the first day, 59 seconds</a></div>
+  </div>
+</section>
+
+<section data-h="9">
+  <div class="col r">
+    <p class="hr"><i></i><b>09:00</b><span>How a city gets built</span></p>
+    <h2>First in game. Then in real.</h2>
+    <div class="two">
+      <div><h3>In game, from this morning</h3><p>The whole city goes up where a wrong street costs an afternoon, not a decade. You walk it. You live in it. You move the bridge. So does everyone else.</p></div>
+      <div class="drop"><h3>In real, once it has been lived in</h3><p>What a million people already call home is what gets dug, planted and glazed. By then nobody is guessing where the light falls. We will have watched it fall for years.</p></div>
+    </div>
+    <blockquote><p>“The vision, the city, the game: everything grows as we do, with citizens.”</p><cite>Samuel, day 1</cite></blockquote>
+    <p class="aside">No citizens, no growth. That is not a risk in the plan. It is the plan.</p>
+  </div>
+</section>
+
+<section class="noon" data-h="12">
+  <p class="hr"><i></i><b>12:00</b><span>What stands at noon</span></p>
+  <h2>At noon there are no long shadows. <em>There is not much here to cast one.</em></h2>
+  <div class="stand">
+    <div><b>1</b><span>meadow</span></div><div><b>1</b><span>river</span></div><div><b>1</b><span>tent</span></div>
+    <div class="zero"><b>0</b><span>streets</span></div><div class="zero"><b>0</b><span>houses</span></div><div class="zero"><b>0</b><span>trees</span></div>
+  </div>
+  <div class="under">
+    <p>One human of 1,000,000 is here. The tent is his. Maia put it up, looked at it and said: “One tent. Nobody in it yet.”</p>
+    <p class="fine">Even the sun is early. In the game she says: “No trees. No sun. No shadows. Not yet.” The one you are dragging is drawn. The one in the game has not risen.</p>
+  </div>
+</section>
+
+<section data-h="15">
+  <p class="hr"><i></i><b>15:00</b><span>What you hold</span></p>
+  <div class="holdtop">
+    <h2>A city you can tell the time by.</h2>
+    <p>TheOS is the window onto the city. It keeps one clock, and it is the sun's. A story rises with it every morning. The game shows the hour as a line of light, and nothing else.</p>
+  </div>
+  <div class="hold">
+    <div class="p-dial">
+      <div class="dial glass lit"><svg id="dial" viewBox="0 0 240 240" aria-hidden="true">
+        <path class="nt" d="M20 120a100 100 0 0 0 200 0z"/><circle class="rg" cx="120" cy="120" r="100"/>
+        <text class="dn" x="120" y="42">12</text><text class="dn" x="38" y="123">06</text><text class="dn" x="202" y="123">18</text><text class="dn" x="120" y="205">24</text>
+        <text class="dl" x="120" y="92">Day 1</text><text class="dt" x="120" y="138" id="dtime">06:00</text><text class="dl" x="120" y="162">of 5423</text>
+        <circle class="mk" id="dm" r="7" cx="20" cy="120"/>
+      </svg></div>
+      <p class="cap"><b>The city clock</b><span class="tag not">Not risen yet</span>One day, one turn. Noon is at the top, because that is where the sun is.</p>
+    </div>
+    <div class="p-story">
+      <a class="rise glass lit" href="#film">
+        <svg viewBox="0 0 60 30" aria-hidden="true"><path d="M8 28a22 22 0 0 1 44 0z"/><line x1="-6" y1="28.5" x2="66" y2="28.5"/></svg>
+        <small>Story 01 · rose at 06:00</small><strong>A green meadow and one tent</strong><span>0:59 · Samuel and Maia</span>
+        <em id="next">Story 02 rises in 24 h 00 min</em>
+      </a>
+      <p class="cap"><b>The story of the day</b><span class="tag up">Up today</span>One rises every morning at six, for 5423 mornings.</p>
+    </div>
+    <div class="p-wheel">
+      <div class="wheel glass lit"><svg id="wheel" viewBox="0 0 200 200"><text class="wy" x="100" y="103" id="wy">Year 1</text><text class="ws" x="100" y="121" id="ws">of 16 · today</text></svg></div>
+      <p class="cap"><b>Sixteen years of seasons</b><span class="tag not">Not risen yet</span>One turn of the wheel is the whole build. Touch a year.</p>
+    </div>
+    <div class="p-hud">
+      <div class="hud"><span>Day 1 · the meadow</span><span class="r" id="hudt">06:00</span>
+        <div class="hl"><i id="hudm"></i><u style="left:0">06</u><u style="left:38.1%">12</u><u style="left:76.2%">18</u></div></div>
+      <p class="cap"><b>The game's whole display</b><span class="tag not">Not risen yet</span>One line: the horizon, with the hour on it. When the line turns gold, go outside.</p>
+    </div>
+    <div class="p-meter">
+      <div class="meter glass lit"><i id="mfill"></i></div>
+      <p class="mval"><b id="mpct">0</b><span>% of today's light, banked</span></p>
+      <p class="cap"><b>The sunlight meter</b><span class="tag not">Not risen yet</span>It fills as the day goes. It is waiting for the first roof that can catch anything.</p>
+    </div>
+    <div class="p-note">
+      <div class="note glass lit"><i class="dot"></i><p><b id="gh">Golden hour in 10 h 30 min</b><span>The river turns to brass. Come outside.</span></p></div>
+      <p class="cap"><b>The only notification</b><span class="tag not">Not risen yet</span>Once a day, and only for light.</p>
+    </div>
+  </div>
+</section>
+
+<section id="film" data-h="17">
+  <p class="hr"><i></i><b>17:00</b><span>The first day, on film</span></p>
+  <h2>At golden hour, watch what the day made.</h2>
+  <div class="filmrow">
+    <div class="filmwrap">
+      <div class="film" id="filmbox">
+        <svg class="world" viewBox="0 0 1440 400" preserveAspectRatio="xMidYMin slice" aria-hidden="true"><use href="#scene"/></svg>
+        <div class="ttl">A green meadow and one tent</div>
+        <div class="sub"><small id="fwho">Maia</small><span id="fsub">One tent. Nobody in it yet.</span></div>
+        <div class="ctl"><button class="play" id="fplay" aria-label="Play"></button><div class="line" id="fline"><i id="fhead"></i></div><time id="ftime">0:33 / 0:59</time></div>
+      </div>
+      <p class="cap"><span class="tag up">Up today</span><span>Story 01, played live in the game. The same every time. In the film's world there is no sun yet, so nothing in it casts a shadow.</span></p>
+    </div>
+    <div class="said">
+      <blockquote><p>“I looked for the meadow. There was none.”</p><cite>Maia</cite></blockquote>
+      <blockquote><p>“So I made one. Land that never ends, and one river.”</p><cite>Maia</cite></blockquote>
+    </div>
+  </div>
+</section>
+
+<section class="inter" data-h="18.3">
+  <p>The sun goes down behind a meadow with nothing on it. It is the best view in the city. <em>It is also the only one.</em></p>
+</section>
+
+<section data-h="19.6">
+  <p class="hr"><i></i><b>19:30</b><span>The system</span></p>
+  <h2>One sun. One day of skies. Two voices in type.</h2>
+  <div class="lock"><img src="../MaiaCity.svg" alt="The Maia City mark"><span class="wm">Maia City</span>
+    <svg viewBox="0 0 150 70" aria-hidden="true"><path d="M5 62a70 70 0 0 1 140 0"/><line x1="0" y1="62.5" x2="150" y2="62.5"/><circle cx="40" cy="20" r="7"/></svg></div>
+  <div class="dayband" id="dayband"></div>
+  <div class="ground">
+    <span style="--c:#55984a">Meadow<br>#55984a</span><span style="--c:#86c06a;--t:#12301a">Ridge<br>#86c06a</span><span style="--c:#6fbbe8;--t:#0f2438">River<br>#6fbbe8</span><span style="--c:#fffaf0;--t:#0f2438">Canvas<br>#fffaf0</span><span style="--c:#f4b548;--t:#2f1f10">Sun gold<br>#f4b548</span><span style="--c:#0f2438">Day ink<br>#0f2438</span><span style="--c:#eef0ff;--t:#0f2438">Night ink<br>#eef0ff</span>
+  </div>
+  <div class="type">
+    <div><p class="spec-s">Tomorrow <em>we will see.</em></p><small>Fraunces Light, set large · for everything that is said</small></div>
+    <div><p class="spec-n">06:00 · 1 / 1,000,000</p><small>Outfit Thin and Light, tracked wide · for everything that is measured</small></div>
+  </div>
+  <ul class="rules"><li><i class="dot"></i>Words sit on the sky, never in a box.</li><li><i class="dot"></i>Every shadow falls away from the sun.</li><li><i class="dot"></i>Nothing on the page is brighter than the sun.</li></ul>
+</section>
+
+<section class="night" id="come" data-h="21">
+  <p class="hr"><i></i><b>21:00</b><span>Day 1 ends</span></p>
+  <h2>There is no lit window here yet. <em>Bring the first.</em></h2>
+  <div class="voices">
+    <blockquote><p>“This is day one. Today I am alone. Tomorrow we will see.”</p><cite>Samuel</cite></blockquote>
+    <blockquote><p>“Tomorrow I am here too.”</p><cite>Maia</cite></blockquote>
+  </div>
+  <div class="acts"><button class="btn" id="comebtn">Come before noon</button><span class="quiet" id="comesay">Day 2 rises at 06:00.</span></div>
+  <div class="foot">
+    <p>“When we unite in Vision, the impossible becomes possible. First in game, then in real.”</p>
+    <p>Maia City · Day 1 of 5423 · 1 of 1,000,000<br><a href="#dawn">Raise the sun again</a> · Brand draft 02 · Daylight</p>
+  </div>
+</section>
+</main>
+
+<div class="land" aria-hidden="true"><svg viewBox="0 0 1440 400" preserveAspectRatio="xMidYMin slice"><use href="#scene"/></svg></div>
+<div class="strip"><a href="index.html">02 / 08 · All drafts</a><em id="say">It is first light in Maia City.</em></div>
+
+<!-- the land, drawn once: a ridge with one tent on it, a meadow, a river. Used by the page and by the film. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="soft" x="-30%" y="-300%" width="160%" height="700%"><feGaussianBlur stdDeviation="2.6"/></filter>
+  <radialGradient id="lampg"><stop offset="0" stop-color="#ffd98a" stop-opacity=".9"/><stop offset="1" stop-color="#ffd98a" stop-opacity="0"/></radialGradient>
+  <linearGradient id="glint" gradientUnits="userSpaceOnUse" x1="500" x2="820" y1="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  <g id="scene">
+    <path d="M0 70C180 40 340 62 520 54S820 38 1010 56S1300 44 1440 60V400H0Z" style="fill:var(--land-far)"/>
+    <path d="M0 108C240 90 420 114 640 102S1100 94 1440 112V400H0Z" style="fill:var(--land-mid)"/>
+    <path d="M0 196C300 164 520 204 760 190S1200 172 1440 200V400H0Z" style="fill:var(--land-near)"/>
+    <path id="riv" d="M686 50C706 82 628 104 604 148C578 196 742 236 700 400H880C900 300 700 230 690 160C684 118 724 84 698 50Z" style="fill:var(--river)"/>
+    <path d="M686 50C706 82 628 104 604 148C578 196 742 236 700 400H880C900 300 700 230 690 160C684 118 724 84 698 50Z" fill="url(#glint)" style="opacity:var(--glint-o)"/>
+    <polygon id="tshadow" points="862,53 934,48 1100,60 1060,64" filter="url(#soft)" style="fill:var(--shade-fill)"/>
+    <path d="M878 8L846 55M918 14L952 48" style="stroke:var(--tent-d);stroke-width:.8;fill:none;opacity:.7"/>
+    <path d="M878 8L918 14L936 47L898 51Z" style="fill:var(--tent-b)"/>
+    <path d="M858 53L878 8L898 51Z" style="fill:var(--tent-a)"/>
+    <path d="M874 52L878 27L882 51.2Z" style="fill:var(--tent-d)"/>
+    <g style="opacity:var(--lamp,0)"><circle cx="968" cy="44" r="20" fill="url(#lampg)"/><circle cx="968" cy="44" r="2.6" fill="#fff3cf"/></g>
+  </g>
+</defs></svg>
+
+<script>
+(() => {
+const R = document.documentElement, $ = (s) => document.querySelector(s), $$ = (s) => [...document.querySelectorAll(s)];
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const NS = 'http://www.w3.org/2000/svg';
+const el = (n, a, p) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+const lerp = (a, b, t) => a + (b - a) * t, clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const hx = (s) => [0, 2, 4].map((i) => parseInt(s.substr(i, 2), 16));
+const mix = (a, b, t) => a.map((v, i) => Math.round(lerp(v, b[i], t)));
+const rgb = (c) => `rgb(${c[0]},${c[1]},${c[2]})`, rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a.toFixed(3)})`;
+
+/* The day: hour, sky top / middle / low, ridge, meadow, river, sun, cloud, canvas, ink, cloud alpha, stars */
+const KEYS = [
+  [6,    '8497c9', 'f0bfb5', 'ffdcb4', '8fa888', '4f7355', 'f3c3b0', 'ffc994', 'ffe6da', 'f7e7d8', '2b2238', .7, 0, 'Dawn'],
+  [7.5,  '79addf', 'cfe2ee', 'fdeacb', '8fb07c', '5d8a56', 'c4dcea', 'ffe6ad', 'ffffff', 'fbf3e2', '1d2a3a', .8, 0, 'Morning'],
+  [9,    '4f9be0', 'a9d3f2', 'ebf5f4', '8cbb72', '5a944e', '8fc7e7', 'fff3c6', 'ffffff', 'fff8ea', '14283a', .85, 0, 'Morning'],
+  [12,   '2f86dc', '86c5f5', 'e2f3fb', '86c06a', '55984a', '6fbbe8', 'fffbe8', 'ffffff', 'fffaf0', '0f2438', .9, 0, 'Noon'],
+  [15,   '3c8ad6', '9ccdef', 'f4f1dd', '8bbd68', '589348', '80c1e4', 'fff4c8', 'ffffff', 'fff6e2', '12263a', .85, 0, 'Afternoon'],
+  [17,   '6f9bcb', 'f3d4a0', 'ffd27a', 'a8a95c', '6c7f3d', 'f7d38c', 'ffd06a', 'ffe9c2', 'fbe7bf', '2f1f10', .8, 0, 'Golden hour'],
+  [18.3, '7f86b8', 'e59a84', 'ffb565', '6a6a4a', '3c4a33', 'f3a070', 'ff9c50', 'ffb9a0', 'f0c8a0', '2a1626', .6, 0, 'Sunset'],
+  [19.2, '2c3272', '86599a', 'f08fa0', '3e4459', '262f3c', 'c58fb4', 'ff8a6a', 'c78fb0', 'b9a6b8', 'fff1f0', .4, .2, 'Dusk'],
+  [20,   '141a4a', '3a3878', '8a5f9a', '232b44', '151d2e', '7a6fa8', 'ff8a6a', '5a4f86', '7d7f9c', 'f1eeff', .25, .65, 'Dusk'],
+  [21,   '070b1f', '101a3e', '283461', '152035', '0c1525', '4a5f9c', 'ff8a6a', '2a3566', '5d6a90', 'eef0ff', .2, 1, 'Night'],
+  [22,   '070b1f', '101a3e', '283461', '152035', '0c1525', '4a5f9c', 'ff8a6a', '2a3566', '5d6a90', 'eef0ff', .2, 1, 'Night'],
+].map((k) => ({ h: k[0], top: hx(k[1]), mid: hx(k[2]), low: hx(k[3]), far: hx(k[4]), near: hx(k[5]), river: hx(k[6]), sun: hx(k[7]), cloud: hx(k[8]), tent: hx(k[9]), ink: hx(k[10]), ca: k[11], st: k[12], raw: k }));
+function at(h) {
+  let i = 0; while (i < KEYS.length - 2 && h > KEYS[i + 1].h) i++;
+  const a = KEYS[i], b = KEYS[i + 1], t = clamp((h - a.h) / (b.h - a.h), 0, 1), o = {};
+  for (const k of ['top', 'mid', 'low', 'far', 'near', 'river', 'sun', 'cloud', 'tent', 'ink']) o[k] = mix(a[k], b[k], t);
+  o.ca = lerp(a.ca, b.ca, t); o.st = lerp(a.st, b.st, t); return o;
+}
+const GOLD = [244, 181, 72], H0 = 6, H1 = 21.75, RISE = 5.5, SET = 19.5, FLIP = 18.9;
+const P = (h) => (h - RISE) / (SET - RISE);
+const hhmm = (h) => { const m = Math.round(h * 60); return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+const span = (h) => { const m = Math.max(0, Math.round(h * 60)); return Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0') + ' min'; };
+const phase = (h) => h < 7.5 ? 'first light' : h < 11 ? 'morning' : h < 13 ? 'noon' : h < 16.5 ? 'afternoon' : h < 18.3 ? 'golden hour' : h < 19.5 ? 'sunset' : h < 20.6 ? 'dusk' : 'night';
+
+/* ---- geometry: where the sections are, how tall the land is ---- */
+const land = $('.land'), sun = $('#sun'), secs = $$('main section[data-h]');
+let W = 0, VH = 0, landH = 0, scale = 1, strip = 0, maxS = 1, anchors = [], sunPos = [0, 0], geo = '';
+function measure() {
+  W = innerWidth; VH = innerHeight; landH = land.offsetHeight;
+  scale = Math.max(W / 1440, landH / 400);
+  strip = Math.min(landH, Math.max(VH * (W < 860 ? .13 : .15), 62 * scale + 26));
+  maxS = Math.max(1, R.scrollHeight - VH);
+  anchors = secs.map((s, i) => ({ s: i ? Math.max(0, s.offsetTop - VH * .35) : 0, h: +s.dataset.h }));
+  anchors.push({ s: maxS, h: H1 });
+  for (let i = 1; i < anchors.length; i++) if (anchors[i].s <= anchors[i - 1].s) anchors[i].s = anchors[i - 1].s + 1;
+  stars(); geo = ''; schedule();
+}
+function hourAt(y) { for (let i = 0; i < anchors.length - 1; i++) { const a = anchors[i], b = anchors[i + 1]; if (y <= b.s) return lerp(a.h, b.h, clamp((y - a.s) / (b.s - a.s), 0, 1)); } return H1; }
+function scrollFor(h) { for (let i = 0; i < anchors.length - 1; i++) { const a = anchors[i], b = anchors[i + 1]; if (h <= b.h) return lerp(a.s, b.s, clamp((h - a.h) / (b.h - a.h), 0, 1)); } return maxS; }
+const sunAt = (h, hz) => { const p = P(h), A = Math.max(140, hz - (W < 860 ? 104 : 124)); return [W * (.06 + .8 * p), hz - Math.sin(Math.PI * p) * A]; };
+const hourFromX = (x) => clamp(RISE + ((x / W - .06) / .8) * (SET - RISE), H0, H1);
+function stars() {
+  const c = $('#stars'), d = Math.min(devicePixelRatio || 1, 2), g = c.getContext('2d'); c.width = W * d; c.height = VH * d;
+  let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  g.fillStyle = '#fff';
+  for (let i = 0; i < 260; i++) { g.globalAlpha = .3 + rnd() * .7; g.beginPath(); g.arc(rnd() * c.width, rnd() * rnd() * c.height * .95, (rnd() * 1.1 + .3) * d, 0, 7); g.fill(); }
+}
+
+/* ---- one frame: the hour sets everything ---- */
+let pending = false, inkM = null; const said = {};
+const say = (id, t) => { if (said[id] !== t) { said[id] = t; document.getElementById(id).textContent = t; } };
+function schedule() { if (!pending) { pending = true; requestAnimationFrame(render); } }
+function render() {
+  pending = false;
+  const y = scrollY, h = hourAt(y), c = at(h), S = R.style, set = (k, v) => S.setProperty(k, v);
+  const k = clamp(y / (VH * .8), 0, 1), sink = (landH - strip) * k * k * (3 - 2 * k);
+  land.style.transform = `translate3d(0,${sink.toFixed(1)}px,0)`;
+  const hz = VH - landH + sink + 56 * scale, p = P(h), [sx, sy] = sunAt(h, hz);
+  sunPos = [sx, sy];
+  sun.style.transform = `translate3d(${sx.toFixed(1)}px,${sy.toFixed(1)}px,0)`;
+  sun.setAttribute('aria-valuenow', h.toFixed(2)); sun.setAttribute('aria-valuetext', hhmm(h) + ', ' + phase(h));
+  const sinE = Math.sin(Math.PI * p), up = p >= 0 && p <= 1, day = up ? clamp(sinE * 5, 0, 1) : 0;
+  const dx = Math.cos(Math.PI * clamp(p, 0, 1)), len = clamp(1 / Math.max(.17, sinE), 1, 5.6);
+
+  // ink flips once, at sunset, and takes a moment to do it
+  const target = h >= FLIP ? 1 : 0;
+  if (inkM === null || reduce) inkM = target; else if (Math.abs(target - inkM) < .012) inkM = target; else { inkM += (target - inkM) * .2; schedule(); }
+  const ink = mix(at(Math.min(h, 18.3)).ink, at(Math.max(h, 19.2)).ink, inkM);
+  const veilA = clamp(1 - Math.abs(h - FLIP) / 1.1, 0, 1) * .6;
+
+  set('--hz', hz.toFixed(0) + 'px');
+  set('--sky-top', rgb(c.top)); set('--sky-mid', rgb(c.mid)); set('--sky-low', rgb(c.low));
+  set('--ink', rgb(ink)); set('--ink-2', rgba(ink, .7)); set('--ink-3', rgba(ink, .27));
+  set('--veil', rgba(inkM < .5 ? c.low : c.top, veilA));
+  set('--land-far', rgb(c.far)); set('--land-mid', rgb(mix(c.far, c.near, .5))); set('--land-near', rgb(c.near)); set('--river', rgb(c.river));
+  const dark = mix(c.near, [16, 18, 40], .55);
+  set('--tent-a', rgb(mix(c.tent, dark, dx > 0 ? .04 : .4 * -dx * day)));
+  set('--tent-b', rgb(mix(c.tent, dark, dx > 0 ? .1 + .3 * dx * day : .06)));
+  set('--tent-d', rgb(mix(dark, [0, 0, 10], .3)));
+  set('--shade-fill', rgba(dark, .5 * day));
+  set('--sun', rgb(c.sun)); set('--gold', rgb(mix(c.sun, GOLD, .72))); set('--glow', rgba(c.sun, .34 + .3 * (1 - clamp(sinE, 0, 1)))); set('--ring', rgba(c.sun, .22));
+  set('--sun-s', (1 + .38 * (1 - clamp(sinE, 0, 1))).toFixed(3)); set('--day', (day * (.6 + .4 * (1 - clamp(sinE, 0, 1)))).toFixed(3));
+  set('--cloud', rgba(c.cloud, c.ca)); set('--stars', c.st.toFixed(3)); set('--drift', ((h - 6) * 14).toFixed(1) + 'px');
+  set('--sx', (dx * len * 7 * day).toFixed(1)); set('--sy', (4 + len * 3.2 * day + 4 * (1 - day)).toFixed(1)); set('--sb', (16 + len * 7 * day).toFixed(1));
+  set('--shade', rgba(mix(c.top, [8, 10, 34], .7), (.14 + .12 * clamp(sinE, 0, 1)) * day + .24 * (1 - day)));
+  set('--glass', rgba([255, 255, 255], .05 + .13 * day)); set('--sunlight', rgba(day ? c.sun : [150, 160, 220], .12 + .5 * day));
+  set('--glint-o', (day * (.3 + .6 * (1 - clamp(sinE, 0, 1)))).toFixed(3));
+
+  // the tent's shadow on the ridge, and the light on the river
+  const tx = 898 + -dx * len * 34, ty = 55 + len * 1.5;
+  $('#tshadow').setAttribute('points', `862,53 934,48 ${(tx + 20).toFixed(1)},${(ty - 1.5).toFixed(1)} ${(tx - 20).toFixed(1)},${(ty + 1.5).toFixed(1)}`);
+  const gx = (sx - (W - 1440 * scale) / 2) / scale, gl = $('#glint'); gl.setAttribute('x1', (gx - 170).toFixed(0)); gl.setAttribute('x2', (gx + 170).toFixed(0));
+
+  // the arc, when the horizon has moved
+  const g = W + '|' + hz.toFixed(0);
+  if (g !== geo) {
+    geo = g; let d = '';
+    for (let t = RISE; t <= SET + .01; t += .25) { const q = sunAt(t, hz); d += (d ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1); }
+    $('#arcp').setAttribute('d', d);
+    const gt = $('#arct'); gt.textContent = '';
+    for (const t of [6, 9, 12, 15, 18]) { const q = sunAt(t, hz); el('circle', { cx: q[0], cy: q[1], r: 2 }, gt); el('text', { x: q[0], y: q[1] - 14 }, gt).textContent = String(t).padStart(2, '0'); }
+  }
+
+  // the words that follow the hour
+  const clock = hhmm(h);
+  say('clk', clock); say('phase', phase(h)); say('say', `It is ${phase(h)} in Maia City.`); say('dtime', clock); say('hudt', clock);
+  say('topcome', h < 12 ? 'Come before noon' : 'Come before noon, tomorrow');
+  say('next', 'Story 02 rises in ' + span(30 - h));
+  say('gh', h < 16.5 ? 'Golden hour in ' + span(16.5 - h) : h < 18.3 ? 'Golden hour. Now.' : 'Golden hour is over. Back tomorrow.');
+  const th = (h - 12) / 24 * Math.PI * 2, dm = $('#dm'); dm.setAttribute('cx', (120 + 100 * Math.sin(th)).toFixed(1)); dm.setAttribute('cy', (120 - 100 * Math.cos(th)).toFixed(1));
+  $('#hudm').style.left = ((h - H0) / (H1 - H0) * 100).toFixed(2) + '%';
+  const f = p >= 1 ? 1 : (1 - Math.cos(Math.PI * clamp(p, 0, 1))) / 2;
+  $('#mfill').style.width = (f * 100).toFixed(1) + '%'; say('mpct', String(Math.round(f * 100)));
+  document.body.classList.toggle('away', y > VH * .25);
+}
+
+/* ---- the sun is the handle ---- */
+let drag = false, off = 0;
+const go = (h) => scrollTo({ top: scrollFor(h), behavior: 'instant' });
+sun.addEventListener('pointerdown', (e) => { drag = true; off = e.clientX - sunPos[0]; sun.setPointerCapture(e.pointerId); sun.classList.add('held'); document.body.classList.add('touched'); e.preventDefault(); });
+sun.addEventListener('pointermove', (e) => { if (drag) go(hourFromX(e.clientX - off)); });
+const drop = () => { drag = false; sun.classList.remove('held'); };
+sun.addEventListener('pointerup', drop); sun.addEventListener('pointercancel', drop);
+sun.addEventListener('keydown', (e) => { const d = { ArrowRight: .25, ArrowUp: .25, ArrowLeft: -.25, ArrowDown: -.25, PageUp: 1, PageDown: -1 }[e.key]; if (d) { e.preventDefault(); go(clamp(hourAt(scrollY) + d, H0, H1)); } });
+addEventListener('scroll', schedule, { passive: true });
+addEventListener('resize', measure); addEventListener('load', measure);
+
+/* ---- a thing under the pointer is lit from the sun's side ---- */
+$$('.lit').forEach((n) => { const f = () => { const r = n.getBoundingClientRect(); n.style.setProperty('--lit', (Math.atan2(r.left + r.width / 2 - sunPos[0], -(r.top + r.height / 2 - sunPos[1])) * 180 / Math.PI).toFixed(1) + 'deg'); }; n.addEventListener('pointerenter', f); n.addEventListener('pointerdown', f); });
+
+/* ---- the instruments that are drawn once ---- */
+const dial = $('#dial'), dmk = $('#dm');
+for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2, r1 = i % 6 ? 94 : 88; dial.insertBefore(el('line', { class: 'tk', x1: 120 + 100 * Math.sin(a), y1: 120 - 100 * Math.cos(a), x2: 120 + r1 * Math.sin(a), y2: 120 - r1 * Math.cos(a) }), dmk); }
+const wheel = $('#wheel'), pt = (a, r) => (100 + r * Math.cos(a)).toFixed(2) + ' ' + (100 + r * Math.sin(a)).toFixed(2);
+const yearSay = (n) => { say('wy', 'Year ' + n); say('ws', n === 1 ? 'of 16 · today' : 'not risen yet'); $$('.yr').forEach((q) => q.classList.toggle('pick', +q.dataset.y === n && n > 1)); };
+for (let i = 0; i < 16; i++) {
+  const a0 = i / 16 * Math.PI * 2 - Math.PI / 2 + .04, a1 = (i + 1) / 16 * Math.PI * 2 - Math.PI / 2 - .04;
+  const s = el('path', { class: 'yr' + (i ? '' : ' on'), 'data-y': i + 1, d: `M${pt(a0, 80)}A80 80 0 0 1 ${pt(a1, 80)}` }, wheel);
+  s.addEventListener('pointerenter', () => yearSay(i + 1)); s.addEventListener('pointerdown', () => yearSay(i + 1));
+  for (let q = 0; q < 4; q++) { const a = (i + q / 4) / 16 * Math.PI * 2 - Math.PI / 2; el('path', { class: 'sn', d: `M${pt(a, 93)}L${pt(a, q ? 96 : 99)}` }, wheel); }
+}
+wheel.addEventListener('pointerleave', () => yearSay(1));
+const band = $('#dayband');
+for (const i of [0, 2, 3, 5, 6, 7, 9]) {
+  const k = KEYS[i].raw, d = document.createElement('div'), light = i >= 7;
+  d.style.background = `linear-gradient(#${k[1]},#${k[2]} 58%,#${k[3]})`;
+  d.innerHTML = `<span style="color:${light ? '#eef0ff' : '#' + k[10]}">${hhmm(k[0])} · ${k[13]} · #${k[2]}</span>`;
+  band.appendChild(d);
+}
+
+/* ---- story 01: the real lines, at their real seconds ---- */
+const LINES = [[0, '', ''], [4, 'Samuel', 'It all starts with a green meadow and one tent.'], [8, 'Maia', 'I looked for the meadow. There was none.'], [11, 'Samuel', 'First we need a world.'], [13, 'Maia', 'So I made one. Land that never ends, and one river.'], [16, 'Maia', 'No trees. No sun. No shadows. Not yet.'], [19, 'Maia', 'My first grass was too slow to walk through.'], [22, 'Maia', 'I made it fast.'], [24, 'Samuel', 'The grass is still super blocky, can you see?'], [28, 'Maia', 'You were right. I fixed the wrong thing first.'], [30, 'Maia', 'Then the meadow was a meadow. And I put up your tent.'], [33, 'Maia', 'One tent. Nobody in it yet.'], [36, 'Samuel', 'The vision, the city, the game: everything grows as we do, with citizens.'], [41, 'Maia', 'Then it grows from here.'], [44, 'Maia', 'There is no city on this land.'], [47, 'Maia', 'There is a meadow, a river and a tent.'], [50, 'Samuel', 'This is day one. Today I am alone.'], [53, 'Samuel', 'Tomorrow we will see.'], [56, 'Maia', 'Tomorrow I am here too.']];
+const DUR = 59, film = $('#filmbox'), fline = $('#fline'), fplay = $('#fplay');
+let ft = 33, playing = false, last = 0;
+function drawFilm() {
+  let i = 0; while (i < LINES.length - 1 && ft >= LINES[i + 1][0]) i++;
+  film.classList.toggle('card', i === 0);
+  if (i) { say('fwho', LINES[i][1]); say('fsub', LINES[i][2]); }
+  $('#fhead').style.left = (ft / DUR * 100).toFixed(2) + '%';
+  say('ftime', '0:' + String(Math.floor(ft)).padStart(2, '0') + ' / 0:59');
+  const c = at(6.2 + 3 * ft / DUR), dark = mix(c.near, [16, 18, 40], .55), fs = film.style;
+  fs.setProperty('--sky-top', rgb(c.top)); fs.setProperty('--sky-mid', rgb(c.mid)); fs.setProperty('--sky-low', rgb(c.low));
+  fs.setProperty('--land-far', rgb(c.far)); fs.setProperty('--land-mid', rgb(mix(c.far, c.near, .5))); fs.setProperty('--land-near', rgb(c.near)); fs.setProperty('--river', rgb(c.river));
+  fs.setProperty('--tent-a', rgb(c.tent)); fs.setProperty('--tent-b', rgb(mix(c.tent, dark, .22))); fs.setProperty('--tent-d', rgb(dark));
+}
+function tick(now) { if (!playing) return; ft += Math.min(.1, (now - last) / 1000); last = now; if (ft >= DUR) { ft = DUR; stop(); } drawFilm(); if (playing) requestAnimationFrame(tick); }
+function stop() { playing = false; film.classList.remove('playing'); fplay.setAttribute('aria-label', 'Play'); }
+fplay.addEventListener('click', () => { if (playing) return stop(); if (ft >= DUR - .05) ft = 0; playing = true; last = performance.now(); film.classList.add('playing'); fplay.setAttribute('aria-label', 'Pause'); requestAnimationFrame(tick); });
+new IntersectionObserver((es) => { if (!es[0].isIntersecting && playing) stop(); }).observe(film);
+let scrub = false; const seek = (e) => { const r = fline.getBoundingClientRect(); ft = clamp((e.clientX - r.left) / r.width, 0, 1) * DUR; drawFilm(); };
+fline.addEventListener('pointerdown', (e) => { scrub = true; fline.setPointerCapture(e.pointerId); seek(e); });
+fline.addEventListener('pointermove', (e) => { if (scrub) seek(e); });
+fline.addEventListener('pointerup', () => { scrub = false; }); fline.addEventListener('pointercancel', () => { scrub = false; });
+
+/* ---- the one thing to do ---- */
+$('#comebtn').addEventListener('click', () => { R.style.setProperty('--lamp', 1); say('comesay', 'A light is on beside the tent. It is yours when you come.'); });
+
+if (reduce) R.style.scrollBehavior = 'auto';
+drawFilm(); measure();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
+})();
+</script>
+</body>
+</html>

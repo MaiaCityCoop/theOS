@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maia City · brand draft 01 · Count</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;border-radius:0}
+:root{--bone:#f2efe6;--bone2:#e9e5d9;--ink:#0b0b0a;--sun:#ffd60a;--dim:rgba(11,11,10,.13);--mid:rgba(11,11,10,.6);--pad:28px;
+  --disp:'Archivo','Helvetica Neue',Arial,sans-serif;--mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace}
+html{background:var(--bone);scroll-behavior:smooth}
+body{margin:0;color:var(--ink);font-family:var(--disp);font-size:16px;line-height:1.45;font-weight:450;-webkit-font-smoothing:antialiased;overflow-x:clip}
+p{margin:0}
+a{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+/* three voices: x = expanded label, m = small print, n = the numerals */
+.x{font-family:var(--disp);font-weight:700;font-stretch:125%;font-size:11px;line-height:1.2;letter-spacing:.16em;text-transform:uppercase}
+.m{font-family:var(--mono);font-size:12px;line-height:1.55;font-weight:400;letter-spacing:0}
+.n{font-family:var(--disp);font-weight:900;font-stretch:62%;line-height:.82;letter-spacing:-.012em;font-variant-numeric:lining-nums tabular-nums;text-transform:uppercase}
+.hollow,.zero b{color:var(--bone);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill}
+
+.back{position:fixed;left:0;bottom:0;z-index:40;display:flex;align-items:center;gap:8px;background:var(--ink);color:var(--bone);padding:8px 12px;text-decoration:none;font-family:var(--mono);font-size:11px}
+.back::before{content:'';width:7px;height:7px;background:var(--sun)}
+.back:hover{background:var(--sun);color:var(--ink)}.back:hover::before{background:var(--ink)}
+
+/* the scoreline that never leaves */
+.bar{position:sticky;top:0;z-index:30;display:flex;height:46px;background:var(--ink);color:var(--bone)}
+.bar>*{display:flex;align-items:center;padding:0 16px;border-right:1px solid rgba(242,239,230,.22);white-space:nowrap;text-decoration:none}
+.bar .brand{gap:10px;font-weight:800;font-stretch:125%;letter-spacing:.16em;font-size:12px;text-transform:uppercase}
+.bar .brand img{width:26px;height:26px;display:block}
+.bar .sp{flex:1;border-right:0;padding:0}
+.bar .cnt b{color:var(--sun);font-weight:700;margin-right:.6ch}
+.bar .cnt em{font-style:normal;margin-left:1.2ch;color:var(--sun);display:none}
+.is-later .bar .cnt em{display:inline}
+.bar .go{background:var(--sun);color:var(--ink);font-weight:800;font-stretch:125%;letter-spacing:.14em;font-size:11px;text-transform:uppercase;border-right:0}
+.bar .go:hover{background:var(--bone)}
+
+/* hero: the count over the goal */
+.hero{padding:0 var(--pad);min-height:calc(100vh - 46px);display:flex;flex-direction:column;justify-content:space-between}
+.hrow{display:flex;justify-content:space-between;gap:16px;padding:13px 0 11px}
+.hrow .later{display:none;background:var(--ink);color:var(--sun);padding:3px 8px;margin:-3px 0}
+.is-later .hrow .later{display:inline-block}
+.odo{display:flex;font-size:var(--fs,22vw)}
+.odo .cell{flex:1 1 0;min-width:0;height:.82em;overflow:hidden;text-align:center;transition:background-color .35s,color .35s}
+.reel{display:block;transform:translateY(calc(var(--p,0) * -.82em));transition:transform var(--t,.3s) cubic-bezier(.16,.8,.2,1);will-change:transform}
+.reel b{display:block;height:.82em;line-height:.82em;font-weight:inherit}
+.hero .odo{margin:0 calc(var(--pad) * -1)}
+.big .cell.lead{color:var(--dim)}
+.big .cell:not(.lead){background:var(--sun)}
+.goal .cell{line-height:.82em}
+.frac{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:28px;align-items:center;border-top:6px solid var(--ink);border-bottom:1px solid var(--ink);padding:15px 0;margin:10px 0}
+.frac .of{font-size:13px}
+.series{max-width:66ch;font-size:17px;line-height:1.34;font-weight:500}
+.cta{display:inline-flex;align-items:center;gap:14px;background:var(--ink);color:var(--bone);text-decoration:none;padding:17px 20px;border:0;font-weight:800;font-stretch:125%;letter-spacing:.14em;font-size:12px;text-transform:uppercase}
+.cta i{font-style:normal;display:inline-block;width:10px;height:10px;background:var(--sun)}
+.cta:hover{background:var(--sun);color:var(--ink)}.cta:hover i{background:var(--ink)}
+
+.tick{background:var(--ink);color:var(--bone);overflow:hidden;white-space:nowrap}
+.tick div{display:inline-block;padding:13px 0;animation:tk 60s linear infinite}
+.tick span{font-weight:700;font-stretch:125%;font-size:12px;letter-spacing:.16em;text-transform:uppercase}
+.tick i{display:inline-block;width:9px;height:9px;background:var(--sun);margin:0 22px}
+@keyframes tk{to{transform:translateX(-50%)}}
+
+.sec{padding:0 var(--pad);margin-top:128px}
+.sh{display:flex;justify-content:space-between;gap:16px;border-top:1px solid var(--ink);padding:12px 0 0}
+.lead-h{font-size:clamp(56px,8.4vw,128px);margin:26px 0 0}
+
+/* § 1 */
+.stack{margin:22px 0 0;font-size:0}
+.stack .fit{display:block;white-space:nowrap;width:max-content}
+.stack .fit+.fit{margin-top:.02em}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:40px;border-top:6px solid var(--ink)}
+.cols>div{padding:16px 24px 0 0}
+.cols>div+div{border-left:1px solid var(--ink);padding-left:24px}
+.cols p{margin-top:12px;font-size:18px;line-height:1.36;max-width:36ch}
+.cols .q{font-weight:600}
+.cols cite{display:block;margin-top:12px;font-style:normal}
+.score{display:flex;align-items:flex-end;gap:18px;margin-top:14px}
+.score b{font-size:118px;display:block}
+.score i{font-style:normal;font-size:60px;padding-bottom:14px}
+.score small{display:block;margin-top:6px}
+
+/* § 2 the ledger */
+.led{margin-top:30px;border-top:6px solid var(--ink)}
+.row{display:grid;grid-template-columns:minmax(110px,2fr) minmax(0,5fr) auto;align-items:end;gap:20px;border-bottom:1px solid var(--ink);padding:12px 0 8px}
+.row .l{font-size:clamp(40px,5.8vw,88px)}.row.zero .l{color:var(--mid)}.row .m{padding-bottom:9px;color:var(--mid)}
+.row b{font-size:clamp(78px,11.6vw,176px);text-align:right}
+.row.go{background:var(--sun);margin:0 calc(var(--pad) * -1);padding-left:var(--pad);padding-right:var(--pad);border-bottom:0}
+.row.go .m{color:var(--ink)}
+.led+.m{margin-top:14px}
+
+/* § 3 the field */
+.fgrid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:48px;align-items:start;margin-top:26px}
+.fgrid h3{font-size:clamp(56px,7.6vw,116px);margin:0}
+.fgrid p{font-size:18px;line-height:1.38;max-width:34ch;margin-top:20px}
+.read{margin-top:34px;border-top:6px solid var(--ink);padding-top:12px}
+.read b{display:block;font-size:clamp(64px,7vw,104px);margin-top:10px}
+.read .st{display:inline-block;margin-top:10px;padding:5px 8px;background:var(--ink);color:var(--bone)}
+.read .st.me{background:var(--sun);color:var(--ink)}
+.zb{display:flex;flex-wrap:wrap;margin-top:22px;border:1px solid var(--ink);width:max-content;max-width:100%}
+.zb button{background:none;border:0;border-right:1px solid var(--ink);padding:11px 14px}
+.zb button:last-child{border-right:0}
+.zb button.on{background:var(--ink);color:var(--bone)}
+.zb button:hover:not(.on){background:var(--sun)}
+.fcan{border:1px solid var(--ink);background:var(--ink);max-width:min(100%,82vh);justify-self:end;width:100%}
+.fcan canvas{display:block;width:100%;aspect-ratio:1/1;cursor:crosshair;touch-action:pan-y}
+.fcan .m{display:flex;justify-content:space-between;gap:12px;border-top:1px solid rgba(242,239,230,.3);padding:8px 10px;color:var(--bone)}
+
+/* § 4 the ladder */
+.lgrid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:48px;align-items:end;margin-top:26px}
+.lgrid h3{font-size:clamp(56px,7.6vw,116px);margin:0}
+.lgrid p{font-size:18px;line-height:1.38;max-width:36ch;margin-top:20px}
+.lnow .tag{display:inline-block;padding:5px 8px;background:var(--sun);color:var(--ink)}
+.is-later .lnow .tag{background:var(--ink);color:var(--sun)}
+.lnow .odo{font-size:clamp(70px,11.4vw,170px);margin-top:10px;border-top:6px solid var(--ink);border-bottom:1px solid var(--ink)}
+.lnow .odo .cell.lead{color:var(--dim)}
+.lnow .m{margin-top:10px;font-size:14px}
+.track{position:relative;height:112px;margin:44px 14px 0;cursor:ew-resize;touch-action:none;user-select:none;-webkit-user-select:none}
+.track::before{content:'';position:absolute;left:0;right:0;top:27px;height:1px;background:var(--ink)}
+.track .fill{position:absolute;left:0;top:24px;height:7px;background:var(--ink);width:calc(var(--v,0) / 6 * 100%)}
+.track .knob{position:absolute;top:14px;left:calc(var(--v,0) / 6 * 100%);width:28px;height:28px;margin-left:-14px;background:var(--sun);border:2px solid var(--ink);outline-offset:3px}
+.track .t{position:absolute;top:18px;left:calc(var(--i) / 6 * 100%);width:1px;height:19px;background:var(--ink)}
+.track .t b{position:absolute;top:36px;left:0;transform:translateX(-50%);font-size:46px;color:var(--dim);transition:color .2s}
+.track .t.on b{color:var(--ink)}
+.track .t:first-of-type b,.track .t:first-of-type small{transform:translateX(-14px)}
+.track .t:nth-last-of-type(1) b,.track .t:nth-last-of-type(1) small{transform:translateX(calc(-100% + 14px))}
+.track .t small{position:absolute;top:82px;left:0;transform:translateX(-50%);white-space:nowrap;color:var(--mid)}
+.reset{margin-top:22px;background:none;border:1px solid var(--ink);padding:11px 14px;visibility:hidden}
+.is-later .reset{visibility:visible}
+.reset:hover{background:var(--sun)}
+
+/* § 5 on the board */
+.kgrid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));margin-top:34px;border-top:6px solid var(--ink)}
+.k{margin:0;padding:14px 26px 40px 0;border-bottom:1px solid var(--ink);min-width:0}
+.k+.k{border-left:1px solid var(--ink);padding-left:26px}
+.k figcaption{display:flex;justify-content:space-between;gap:12px;margin-bottom:22px}
+.k figcaption span:last-child{color:var(--mid)}
+.k.hud{grid-column:span 8}.k.day{grid-column:span 4}
+.k.watch{grid-column:span 7;border-left:0;padding-left:0}.k.tkt{grid-column:span 5}
+.k.tally{grid-column:span 5;border-left:0;padding-left:0;border-bottom:0}.k.roll{grid-column:span 7;border-bottom:0}
+.view{position:relative;border:1px solid var(--ink);background:var(--bone2);overflow:hidden}
+.view svg{display:block;width:100%;height:auto}
+.sl{position:absolute;left:12px;top:12px;right:12px;display:flex;flex-wrap:wrap}
+.sl span{background:var(--ink);color:var(--bone);padding:7px 10px;border-right:1px solid rgba(242,239,230,.25);font-family:var(--mono);font-size:11px;line-height:1;white-space:nowrap}
+.sl span b{font-weight:700}
+.sl .y{background:var(--sun);color:var(--ink)}
+.pr{position:absolute;left:12px;bottom:12px;background:var(--bone);border:1px solid var(--ink);padding:7px 10px;font-family:var(--mono);font-size:11px;line-height:1}
+.pr kbd{font:inherit;background:var(--ink);color:var(--bone);padding:2px 5px;margin-right:6px}
+.day .odo{font-size:clamp(84px,10.4vw,158px);border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)}
+.day .odo .cell.lead{color:var(--dim)}
+.day .of{display:flex;justify-content:space-between;margin-top:10px}
+.day .prog{position:relative;height:9px;border:1px solid var(--ink);margin-top:22px}
+.day .prog i{position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--ink)}
+.day p{margin-top:12px}
+.sw{display:flex;font-size:clamp(88px,13vw,196px)}
+.sw span{flex:0 0 .46em;text-align:center}.sw span.p{flex-basis:.24em}
+.sub{margin-top:16px;border-top:1px solid var(--ink);padding-top:12px;min-height:92px}
+.sub .who{display:inline-block;padding:4px 7px;background:var(--ink);color:var(--bone)}
+.sub .who.samuel{background:var(--sun);color:var(--ink)}
+.sub p{font-size:21px;line-height:1.28;font-weight:600;margin-top:9px;max-width:34ch}
+.laps{position:relative;height:22px;margin-top:6px;border-bottom:1px solid var(--ink);cursor:pointer;touch-action:none}
+.laps i{position:absolute;bottom:0;width:1px;height:9px;background:var(--ink)}
+.laps i.s{height:16px;width:2px}
+.laps u{position:absolute;left:0;bottom:-1px;height:5px;background:var(--ink);width:0}
+.swb{display:flex;align-items:center;gap:0;margin-top:18px;flex-wrap:wrap}
+.btn{background:var(--ink);color:var(--bone);border:1px solid var(--ink);padding:13px 18px;min-width:96px}
+.btn.ghost{background:none;color:var(--ink);border-left:0}
+.btn:hover{background:var(--sun);color:var(--ink)}
+.swb .m{margin-left:16px;color:var(--mid)}
+.ticket{display:grid;grid-template-columns:minmax(0,1fr) 74px;border:2px solid var(--ink);background:var(--bone)}
+.ticket .main{padding:14px 16px 16px;border-right:2px dashed var(--ink)}
+.ticket .no{font-size:clamp(64px,7.6vw,112px);margin:16px 0 12px}
+.ticket .no small{font-size:.34em;letter-spacing:.02em;margin-right:.18em;vertical-align:.86em}
+.ticket .res{display:inline-block;background:var(--sun);padding:5px 8px}
+.ticket dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:16px 0 0}
+.ticket dd{margin:0;border-bottom:1px solid var(--ink)}
+.ticket .stub{position:relative;background:var(--bone);transition:transform .5s cubic-bezier(.2,.8,.2,1);transform-origin:0 100%;overflow:hidden}
+.ticket .stub b{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg);font-size:40px;white-space:nowrap}
+.ticket .stub::after{content:'';position:absolute;left:10px;right:10px;bottom:10px;height:26px;background:repeating-linear-gradient(90deg,var(--ink) 0 2px,transparent 2px 5px,var(--ink) 5px 6px,transparent 6px 10px)}
+.ticket.torn .stub{transform:translate(16px,10px) rotate(7deg)}
+.tkt .cta{margin-top:18px}
+.tkt .gate{margin-top:12px;min-height:38px;color:var(--mid)}
+.tsvg{display:block;width:100%;height:auto}
+.tally p{margin-top:12px}
+.rc{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:0 16px;align-items:center;border-bottom:1px solid var(--ink);padding:13px 0}
+.rc:first-of-type{border-top:1px solid var(--ink)}
+.rc .lt{border:1px solid var(--ink);padding:4px 6px;font-size:9px}
+.rc b{font-size:38px;line-height:.9}
+.rc .m{color:var(--mid);text-align:right}
+.roll>p{margin-top:14px;color:var(--mid)}
+
+/* § 6 the system */
+.sys{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,8fr);gap:48px;margin-top:30px;border-top:6px solid var(--ink);padding-top:22px}
+.lock{display:flex;align-items:center;gap:18px}
+.lock img{width:92px;height:92px;display:block}
+.lock b{display:block;font-weight:900;font-stretch:125%;font-size:30px;line-height:1;letter-spacing:.04em;text-transform:uppercase}
+.lock span{display:block;margin-top:8px}
+.rules{margin-top:26px;border-top:1px solid var(--ink)}
+.rules div{display:flex;gap:14px;align-items:baseline;border-bottom:1px solid var(--ink);padding:7px 0}
+.rules b{font-size:34px;flex:0 0 1.5ch}
+.pal{display:flex;height:132px;border:1px solid var(--ink)}
+.pal i{display:block}
+.pal i:nth-child(1){flex:70;background:var(--bone)}.pal i:nth-child(2){flex:24;background:var(--ink)}.pal i:nth-child(3){flex:6;background:var(--sun)}
+.pall{display:flex;flex-wrap:wrap;gap:6px 26px;margin-top:10px}
+.pall span::before{content:'';display:inline-block;width:9px;height:9px;border:1px solid var(--ink);background:var(--c);margin-right:8px}
+.spec{margin-top:36px;border-top:1px solid var(--ink);padding-top:12px}
+.spec .dg{font-size:clamp(70px,10.6vw,160px);margin-top:10px;white-space:nowrap;overflow:hidden}
+.wd{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:24px;align-items:end;margin-top:18px;border-top:1px solid var(--ink);padding-top:12px}
+.wd b{display:block;font-weight:900;font-size:clamp(34px,5vw,74px);line-height:1;text-transform:uppercase;white-space:nowrap;overflow:hidden;font-stretch:var(--w,125%);font-variation-settings:'wdth' var(--wn,125)}
+.wd input{width:100%;accent-color:var(--ink);margin:8px 0 0}
+
+/* the end */
+.end{margin-top:128px;background:var(--sun)}
+.endgo{display:block;padding:26px var(--pad) 8px;text-decoration:none;font-size:0;overflow:hidden}
+.endgo .fit{display:block;white-space:nowrap;width:max-content}
+.endgo:hover .fit{color:var(--sun);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill}
+.endrow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px;padding:18px var(--pad) 64px;border-top:6px solid var(--ink);margin-top:14px}
+.endrow blockquote{margin:0;font-size:22px;line-height:1.24;font-weight:700}
+.endrow cite{display:block;margin-top:12px;font-style:normal}
+.endrow p{font-size:16px;line-height:1.4}
+
+@media (max-width:860px){
+  :root{--pad:16px}
+  .bar .hide{display:none}.bar>*{padding:0 12px}
+  .hero{min-height:0;display:block}.hero .hrow:last-child{padding-bottom:22px}
+  .frac{grid-template-columns:1fr;gap:14px}.frac .of{display:none}.series{font-size:15px}
+  .sec{margin-top:84px}
+  .cols{grid-template-columns:1fr}.cols>div+div{border-left:0;border-top:1px solid var(--ink);padding-left:0;margin-top:22px}
+  .row{grid-template-columns:minmax(0,1fr) auto;gap:10px}.row .m{grid-column:1;grid-row:2;padding:0}.row b{grid-row:1/3;grid-column:2}
+  .fgrid,.lgrid,.sys{grid-template-columns:1fr;gap:28px}
+  .fcan{max-width:100%}
+  .track .t b{font-size:22px}.track .t small{display:none}
+  .kgrid{display:block}.k,.k+.k{border-left:0;padding:14px 0 34px;border-bottom:1px solid var(--ink)}
+  .wd{grid-template-columns:1fr}
+  .sl{position:static;background:var(--ink)}.pr{position:static;border:0;border-top:1px solid var(--ink)}
+  .reset{margin-top:8px}
+  .endrow{grid-template-columns:1fr;gap:22px}
+  .hollow,.zero b{-webkit-text-stroke-width:2px}
+}
+@media (max-width:520px){.bar .brand span{display:none}.bar .go{padding:0 14px}}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}.tick div{animation:none}.reel,.ticket .stub{transition:none}
+}
+</style>
+</head>
+<body>
+<a class="back" href="index.html">01 / 08 · All drafts</a>
+
+<header class="bar">
+  <a class="brand" href="#top" aria-label="Maia City"><img src="../MaiaCity.svg" alt=""><span>Maia City</span></a>
+  <span class="m hide">DAY 0001 / 5423</span>
+  <span class="sp"></span>
+  <span class="m cnt"><b id="barN">0000001</b>/ 1000000<em>LATER</em></span>
+  <a class="go" href="#two">Be number 2</a>
+</header>
+
+<main id="top">
+<section class="hero">
+  <div class="hrow x"><span>Humans here, counted daily</span><span class="later">Later · a projection, not a count</span><span>Day 0001 of 5423</span></div>
+  <div class="odo big n" id="odoHero"></div>
+  <div class="frac">
+    <span class="x of">of</span>
+    <p class="series">This is the story of how one million humans build their own solarpunk city, from the ground up. In just 16 years.</p>
+    <a class="cta" href="#two"><i></i>Be number 2</a>
+  </div>
+  <div class="odo goal n hollow" aria-label="of 1,000,000"><span class="cell">1</span><span class="cell">0</span><span class="cell">0</span><span class="cell">0</span><span class="cell">0</span><span class="cell">0</span><span class="cell">0</span></div>
+  <div class="hrow x"><span id="hereN">1 here</span><span id="goN">999,999 to go</span></div>
+</section>
+
+<div class="tick" aria-hidden="true"><div id="tk"><span>Day 0001 of 5423</span><i></i><span>1 of 1,000,000</span><i></i><span>1 meadow</span><i></i><span>1 river</span><i></i><span>1 tent</span><i></i><span>0 inside</span><i></i><span>0 streets</span><i></i><span>0 houses</span><i></i><span>0 trees</span><i></i><span>16 years</span><i></i><span>1 story a day</span><i></i><span>First in game, then in real</span><i></i></div></div>
+
+<section class="sec">
+  <div class="sh x"><span>§ 1 · The claim</span><span>3 numbers</span></div>
+  <h2 class="stack n"><span class="fit" data-fit>1,000,000 humans.</span><span class="fit" data-fit>1 city.</span><span class="fit" data-fit>16 years.</span></h2>
+  <div class="cols">
+    <div><span class="x">2 places, in this order</span>
+      <p>First in game. Then in real. A street that fails in the game costs an evening. So every street fails there first.</p>
+      <div class="score"><div><b class="n">1</b><small class="x">Tents in game</small></div><i class="n">:</i><div><b class="n hollow">0</b><small class="x">Tents in real</small></div></div>
+    </div>
+    <div><span class="x">1 rule</span>
+      <p class="q">“The vision, the city, the game: everything grows as we do, with citizens.”</p>
+      <cite class="x">Samuel, No. 0000001</cite>
+      <p>No arrival, no growth. That is why this brand is a counter and not a skyline. The count is the city.</p>
+    </div>
+    <div><span class="x">0 shortcuts</span>
+      <p>Nobody buys a finished city here. One million humans build their own, from the ground up, and the board shows every one of them arriving.</p>
+      <p>Today it shows 1.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="sh x"><span>§ 2 · The score after day 1</span><span>We print the zeros too</span></div>
+  <div class="led">
+    <div class="row"><span class="n l">Meadow</span><span class="m">green, and it does not end</span><b class="n">1</b></div>
+    <div class="row"><span class="n l">River</span><span class="m">one, running through it</span><b class="n">1</b></div>
+    <div class="row"><span class="n l">Tent</span><span class="m">nobody in it yet</span><b class="n">1</b></div>
+    <div class="row"><span class="n l">Human</span><span class="m">Samuel, No. 0000001</span><b class="n">1</b></div>
+    <div class="row zero"><span class="n l">Streets</span><span class="m">not one</span><b class="n">0</b></div>
+    <div class="row zero"><span class="n l">Houses</span><span class="m">not one</span><b class="n">0</b></div>
+    <div class="row zero"><span class="n l">Trees</span><span class="m">not yet</span><b class="n">0</b></div>
+    <div class="row go"><span class="n l">To go</span><span class="m">humans, and you are one of them</span><b class="n">999,999</b></div>
+  </div>
+  <p class="m">Counted on day 0001. Recounted every day for 5423 days. 1 story a day says what moved.</p>
+</section>
+
+<section class="sec" id="fieldSec">
+  <div class="sh x"><span>§ 3 · The field</span><span>1,000,000 dots, drawn to scale</span></div>
+  <div class="fgrid">
+    <div>
+      <h3 class="n">1,000 × 1,000.<br>1 is lit.</h3>
+      <p>Every dot is one human who is not here yet. No. 0000001 sits in the middle, in a tent. The city grows outward from there, one number at a time.</p>
+      <p>The next one is pulsing. It is yours.</p>
+      <div class="read">
+        <span class="x" id="rdLab">Next free number</span>
+        <b class="n" id="rdNo">No. 0000002</b>
+        <span class="x st me" id="rdSt">Reserved for you</span>
+      </div>
+      <div class="zb x" id="zb"><button class="x on" data-z="1">× 1</button><button class="x" data-z="10">× 10</button><button class="x" data-z="80">× 80</button><button class="x" data-find>Find No. 0000001</button></div>
+    </div>
+    <div class="fcan">
+      <canvas id="field" aria-label="A field of one million dots. One is lit."></canvas>
+      <div class="m"><span>Click to go closer. Drag to move.</span><span id="fScale">1 square = 10,000</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="ladder">
+  <div class="sh x"><span>§ 4 · The ladder</span><span>Later · a projection, not a count</span></div>
+  <div class="lgrid">
+    <div>
+      <h3 class="n">6 × 10.</h3>
+      <p>From 1 to 1,000,000 is six tenfolds. That is the whole 16 years. Drag the square and every counter on this page follows. Everything past 1 has not happened yet.</p>
+    </div>
+    <div class="lnow">
+      <span class="x tag" id="rungTag">Today · counted</span>
+      <div class="odo n" id="odoLadder"></div>
+      <p class="m" id="rungTxt">1. One human, one tent.</p>
+    </div>
+  </div>
+  <div class="track" id="track">
+    <i class="fill"></i>
+    <span class="t on" style="--i:0"><b class="n">1</b><small class="x">Day 1</small></span>
+    <span class="t" style="--i:1"><b class="n">10</b></span>
+    <span class="t" style="--i:2"><b class="n">100</b></span>
+    <span class="t" style="--i:3"><b class="n">1K</b></span>
+    <span class="t" style="--i:4"><b class="n">10K</b></span>
+    <span class="t" style="--i:5"><b class="n">100K</b></span>
+    <span class="t" style="--i:6"><b class="n">1M</b><small class="x">Year 16</small></span>
+    <i class="knob" id="knob" tabindex="0" role="slider" aria-label="Scrub the count, 1 to 1,000,000" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0"></i>
+  </div>
+  <button class="x reset" id="reset">Back to today: 1</button>
+</section>
+
+<section class="sec" id="kit">
+  <div class="sh x"><span>§ 5 · On the board</span><span>App, game, and pieces that come later</span></div>
+  <h3 class="n lead-h">Every screen keeps score.</h3>
+  <div class="kgrid">
+    <figure class="k hud">
+      <figcaption class="x"><span>A · Game · the scoreline</span><span>Now</span></figcaption>
+      <div class="view">
+        <svg viewBox="0 0 800 330" role="img" aria-label="The meadow, the river and the tent, as the game shows them">
+          <defs><pattern id="gr" width="26" height="22" patternUnits="userSpaceOnUse"><path d="M4 20v-7M15 11V5M22 21v-5" stroke="#0b0b0a" stroke-width="1" opacity=".34"/></pattern></defs>
+          <rect width="800" height="330" fill="#e9e5d9"/><rect y="148" width="800" height="182" fill="url(#gr)"/>
+          <path d="M0 148.5H800" stroke="#0b0b0a"/>
+          <path d="M560 149C520 176 330 196 250 236S120 300 60 330H330C350 296 392 262 470 228S640 176 660 149Z" fill="#f2efe6" stroke="#0b0b0a"/>
+          <path d="M556 160h64M470 186h120M330 214h150M236 250h150M150 290h150" stroke="#0b0b0a" stroke-dasharray="14 9" opacity=".5"/>
+          <path d="M180 226 228 152 276 226Z" fill="#0b0b0a"/><path d="M228 226 219 198 237 198Z" fill="#e9e5d9"/>
+          <path d="M228 152V96" stroke="#0b0b0a"/><rect x="228" y="96" width="124" height="22" fill="#ffd60a" stroke="#0b0b0a"/>
+          <text x="236" y="111" font-family="JetBrains Mono,Menlo,monospace" font-size="11" font-weight="700" fill="#0b0b0a">TENT · 0 INSIDE</text>
+        </svg>
+        <div class="sl"><span><b>MC</b></span><span>DAY <b>0001</b></span><span class="y">POP <b>0000001</b></span><span>TENTS <b>1</b></span><span>STREETS <b>0</b></span><span>TO GO <b>999,999</b></span></div>
+        <div class="pr"><kbd>E</kbd>Enter tent · sleeps 1</div>
+      </div>
+    </figure>
+    <figure class="k day">
+      <figcaption class="x"><span>B · App · day counter</span><span>Now</span></figcaption>
+      <div class="odo n" id="odoDay"></div>
+      <div class="of x"><span>Day</span><span>of 5423</span></div>
+      <div class="prog" title="1 of 5423"><i></i></div>
+      <p class="m">This bar is to scale. 1 day done, 5422 to go, 1 story for each.</p>
+    </figure>
+    <figure class="k watch">
+      <figcaption class="x"><span>C · App · story 01, on the stopwatch</span><span>Now</span></figcaption>
+      <div class="sw n" id="sw" aria-label="Story 01 timer"></div>
+      <div class="laps" id="laps" title="Jump to a line"><u></u></div>
+      <div class="sub"><span class="x who" id="who">Title</span><p id="line">A green meadow and one tent</p></div>
+      <div class="swb"><button class="btn x" id="swGo">Start</button><button class="btn ghost x" id="swRe">Reset</button><span class="m">2 voices. 59 seconds. 1 a day.</span></div>
+    </figure>
+    <figure class="k tkt" id="two">
+      <figcaption class="x"><span>D · The ticket</span><span>Soon</span></figcaption>
+      <div class="ticket" id="ticket">
+        <div class="main">
+          <span class="x">Maia City · human</span>
+          <div class="no n"><small>No.</small>0000002</div>
+          <span class="x res">Reserved for you</span>
+          <dl class="m"><dt>Name</dt><dd>&nbsp;</dd><dt>Day in</dt><dd>&nbsp;</dd></dl>
+        </div>
+        <div class="stub"><b class="n">0000002</b></div>
+      </div>
+      <button class="cta" id="be2"><i></i>Be number 2</button>
+      <p class="m gate" id="gate">Numbers go in order. 1 is taken. 2 is next.</p>
+    </figure>
+    <figure class="k tally">
+      <figcaption class="x"><span>E · The tally of days</span><span>Now</span></figcaption>
+      <svg class="tsvg" id="tsvg" viewBox="0 0 420 250" role="img" aria-label="A tally sheet with one stroke"></svg>
+      <p class="m">1 struck. 5422 to strike. Sheet 1 of 31.</p>
+    </figure>
+    <figure class="k roll">
+      <figcaption class="x"><span>F · Roll call</span><span>Later · none of this has happened</span></figcaption>
+      <div class="rc"><span class="x lt">Later</span><b class="n">No. 0000010 is in.</b><span class="m">× 10 · 1 of 6</span></div>
+      <div class="rc"><span class="x lt">Later</span><b class="n">Street 1 stands.</b><span class="m">streets 0 → 1</span></div>
+      <div class="rc"><span class="x lt">Later</span><b class="n">Tree 1 is in the ground.</b><span class="m">trees 0 → 1</span></div>
+      <div class="rc"><span class="x lt">Later</span><b class="n">No. 1000000 is in.</b><span class="m">× 10 · 6 of 6</span></div>
+      <p class="m">Every first gets a line on the board, and the line stays.</p>
+    </figure>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="sh x"><span>§ 6 · The system</span><span>3 colours · 2 typefaces · 0 curves</span></div>
+  <div class="sys">
+    <div>
+      <div class="lock"><img src="../MaiaCity.svg" alt="The Maia City mark"><div><b>Maia City</b><span class="m">0000001 / 1000000</span></div></div>
+      <div class="rules">
+        <div><b class="n">1</b><span class="m">yellow thing per screen: whatever was just counted</span></div>
+        <div><b class="n">0</b><span class="m">rounded corners, gradients or shadows</span></div>
+        <div><b class="n">7</b><span class="m">digits, always, with the zeros left in</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="pal"><i></i><i></i><i></i></div>
+      <div class="pall m"><span style="--c:#f2efe6">Bone #F2EFE6 · 70</span><span style="--c:#0b0b0a">Black #0B0B0A · 24</span><span style="--c:#ffd60a">Solar #FFD60A · 6</span></div>
+      <div class="spec"><span class="x">Archivo · width 62, weight 900 · every numeral</span><div class="dg n">0123456789</div></div>
+      <div class="wd"><div><span class="x">Archivo · width <span id="wdN">125</span> · labels and the name</span><b id="wdB">Maia City</b></div><label class="m">Width axis, 62 to 125<input type="range" id="wd" min="62" max="125" value="125" aria-label="Archivo width"></label></div>
+      <p class="m" style="margin-top:18px;border-top:1px solid var(--ink);padding-top:12px">JetBrains Mono 12 · the small print, the units, the things that are true but not loud.</p>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="end">
+  <a class="endgo n" href="#two"><span class="fit" data-fit>Be number 2.</span></a>
+  <div class="endrow">
+    <blockquote>“This is day one. Today I am alone. Tomorrow we will see.”<cite class="x">Samuel, No. 0000001</cite></blockquote>
+    <p>“When we unite in Vision, the impossible becomes possible. First in game, then in real.”</p>
+    <p class="m">MAIA CITY · 0000001 / 1000000 · DAY 0001 / 5423<br>Brand draft 01 of 08 · COUNT</p>
+  </div>
+</footer>
+
+<script>
+(()=>{
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const pad7=n=>String(n).padStart(7,'0');
+
+/* ---- odometers ---- */
+function makeOdo(el,n){ const cells=[]; for(let i=0;i<n;i++){ const c=document.createElement('span'); c.className='cell lead'; const r=document.createElement('span'); r.className='reel'; let h=''; for(let k=0;k<20;k++) h+='<b>'+(k%10)+'</b>'; r.innerHTML=h; c.appendChild(r); el.appendChild(c); cells.push({c,r,to:0}); } el._c=cells; el._n=n; return el; }
+function setOdo(el,val,spin){ const n=el._n, s=String(val).padStart(n,'0'), lead=n-String(val).length; el.setAttribute('aria-label',String(val));
+  el._c.forEach((o,i)=>{ const d=+s[i], st=o.r.style; clearTimeout(o.to);
+    if(spin&&!reduce){ const T=1+i*.13; o.c.classList.add('lead'); st.setProperty('--t','0s'); st.setProperty('--p',0); void o.r.offsetWidth; st.setProperty('--t',T+'s'); st.setProperty('--p',10+d);
+      o.to=setTimeout(()=>{ st.setProperty('--t','0s'); st.setProperty('--p',d); void o.r.offsetWidth; st.setProperty('--t','.3s'); o.c.classList.toggle('lead',i<lead); },T*1000+40);
+    } else { st.setProperty('--t',reduce?'0s':'.3s'); st.setProperty('--p',d); o.c.classList.toggle('lead',i<lead); } }); }
+const odoHero=makeOdo($('#odoHero'),7), odoLadder=makeOdo($('#odoLadder'),7), odoDay=makeOdo($('#odoDay'),4);
+
+/* ---- fitting the big type to the page ---- */
+function fitHero(){ const hero=$('.hero'), W=odoHero.clientWidth; if(!W) return; const pr=document.createElement('span'); pr.className='n'; pr.style.cssText='position:absolute;visibility:hidden;font-size:200px;white-space:nowrap'; pr.textContent='0'; document.body.appendChild(pr); const r=pr.getBoundingClientRect().width/200; pr.remove();
+  const byW=W/7/r*.95, byH=(innerHeight-46-178)/2/.82; hero.style.setProperty('--fs',Math.max(60,Math.min(byW,Math.max(byH,90)))+'px'); }
+function fitAll(){ $$('[data-fit]').forEach(el=>{ const box=el.parentElement.clientWidth-(el.closest('.endgo')?parseFloat(getComputedStyle(el.parentElement).paddingLeft)*2:0); el.style.fontSize='100px'; const w=el.getBoundingClientRect().width; if(w) el.style.fontSize=(100*box/w*.992)+'px'; }); }
+function refit(){ fitHero(); fitAll(); sizeField(); }
+
+/* ---- ticker ---- */
+const tk=$('#tk'); tk.innerHTML+=tk.innerHTML;
+
+/* ---- § 3 the field: 1,000 x 1,000, numbered in a spiral from the middle ---- */
+const cv=$('#field'), g=cv.getContext('2d'); let S=0, dpr=1, fieldOn=false, fraf=0, hov=null, drag=null;
+const cam={u:500,v:500,z:1}, tgt={u:500,v:500,z:1};
+const idx=(x,y)=>{ const k=Math.max(Math.abs(x),Math.abs(y)); if(!k) return 1; const b=(2*k-1)*(2*k-1); if(x===k&&y>-k) return b+y+k; if(y===k) return b+2*k+(k-x); if(x===-k) return b+4*k+(k-y); return b+6*k+x+k; };
+const clampCam=c=>{ const h=500/c.z; c.u=Math.min(1000-h,Math.max(h,c.u)); c.v=Math.min(1000-h,Math.max(h,c.v)); };
+function cellAt(sx,sy){ const p=S/1000*cam.z, col=Math.floor(cam.u+(sx-S/2)/p), row=Math.floor(cam.v+(sy-S/2)/p); if(col<0||col>999||row<0||row>999) return null; return {col,row,n:idx(col-499,500-row)}; }
+function sizeField(){ const r=cv.getBoundingClientRect(); if(!r.width) return; S=r.width; dpr=Math.min(window.devicePixelRatio||1,2); cv.width=cv.height=Math.round(S*dpr); drawField(performance.now()); }
+function drawField(now){ if(!S) return; const W=cv.width, p=S/1000*cam.z*dpr, ox=W/2-cam.u*p, oy=W/2-cam.v*p, ph=reduce?.5:(now%1500)/1500, MONO='"JetBrains Mono",Menlo,monospace', BONE='242,239,230';
+  g.setTransform(1,0,0,1,0,0); g.fillStyle='#0b0b0a'; g.fillRect(0,0,W,W);
+  if(p<6){ g.fillStyle='rgba('+BONE+',.2)'; g.fillRect(ox,oy,1000*p,1000*p); g.strokeStyle='#0b0b0a'; g.lineWidth=dpr; g.beginPath();
+    for(let i=1;i<10;i++){ const a=Math.round(ox+i*100*p)+.5, b=Math.round(oy+i*100*p)+.5; g.moveTo(a,oy); g.lineTo(a,oy+1000*p); g.moveTo(ox,b); g.lineTo(ox+1000*p,b); } g.stroke();
+  } else { const c0=Math.max(0,Math.floor(-ox/p)), c1=Math.min(999,Math.floor((W-ox)/p)), r0=Math.max(0,Math.floor(-oy/p)), r1=Math.min(999,Math.floor((W-oy)/p)), s=Math.max(1,Math.round(p*.56)), o=(p-s)/2;
+    g.fillStyle='rgba('+BONE+',.24)'; g.beginPath(); for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++) g.rect(Math.round(ox+c*p+o),Math.round(oy+r*p+o),s,s); g.fill();
+    if(p/dpr>=44){ g.font='500 '+Math.round(9.5*dpr)+'px '+MONO; g.textAlign='center'; g.textBaseline='bottom'; g.fillStyle='rgba('+BONE+',.62)';
+      for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){ const n=idx(c-499,500-r); if(n>2) g.fillText(pad7(n),ox+(c+.5)*p,oy+(r+1)*p-2*dpr); } } }
+  const x1=ox+499.5*p, y1=oy+500.5*p, m=Math.max(p*.78,9*dpr), gap=m/2+6*dpr;
+  if(p<6){ const X=Math.round(x1)+.5, Y=Math.round(y1)+.5; g.strokeStyle='#ffd60a'; g.lineWidth=dpr; g.beginPath(); g.moveTo(X,0); g.lineTo(X,y1-gap); g.moveTo(X,y1+gap); g.lineTo(X,W); g.moveTo(0,Y); g.lineTo(x1-gap,Y); g.moveTo(x1+gap,Y); g.lineTo(W,Y); g.stroke();
+    if(!reduce){ const rr=m/2+4*dpr+ph*20*dpr; g.globalAlpha=1-ph; g.lineWidth=dpr*1.5; g.strokeRect(x1-rr,y1-rr,rr*2,rr*2); g.globalAlpha=1; }
+    g.fillStyle='#ffd60a'; g.font='700 '+Math.round(11*dpr)+'px '+MONO; g.textAlign='left'; g.textBaseline='bottom'; g.fillText('No. 0000001',x1+gap+2*dpr,y1-7*dpr);
+  } else { const x2=ox+500.5*p, s2=p*.78, q=s2*(.18+.62*ph); g.strokeStyle='rgb('+BONE+')'; g.lineWidth=Math.max(dpr,p*.035); g.strokeRect(x2-s2/2,y1-s2/2,s2,s2); g.fillStyle='rgba('+BONE+','+(.8*(1-ph)).toFixed(3)+')'; g.fillRect(x2-q/2,y1-q/2,q,q); }
+  g.fillStyle='#ffd60a'; g.fillRect(x1-m/2,y1-m/2,m,m);
+  if(p/dpr>=44){ const x2=ox+500.5*p; g.font='700 '+Math.round(9.5*dpr)+'px '+MONO; g.textAlign='center'; const e=p*.39-4*dpr; g.fillStyle='rgb('+BONE+')'; g.textBaseline='bottom'; g.fillText('0000002',x2,y1+e); g.textBaseline='top'; g.fillText('YOURS',x2,y1-e); g.fillStyle='#0b0b0a'; g.fillText('SAMUEL',x1,y1-e); g.textBaseline='bottom'; g.fillText('0000001',x1,y1+e); }
+  if(hov&&p>=6){ g.lineWidth=2*dpr; g.strokeStyle='rgb('+BONE+')'; g.strokeRect(ox+hov.col*p+dpr,oy+hov.row*p+dpr,p-2*dpr,p-2*dpr); } }
+function loop(now){ fraf=0; if(!fieldOn) return; for(const a of ['u','v']){ const d=tgt[a]-cam[a]; cam[a]=Math.abs(d)<.02?tgt[a]:cam[a]+d*.18; } const zr=tgt.z/cam.z; cam.z=Math.abs(zr-1)<.004?tgt.z:cam.z*Math.pow(zr,.16); drawField(now); if(!reduce) fraf=requestAnimationFrame(loop); }
+const kick=()=>{ if(reduce){ Object.assign(cam,tgt); drawField(0); } else if(!fraf&&fieldOn) fraf=requestAnimationFrame(loop); };
+function setHover(c){ hov=c; const lab=$('#rdLab'), no=$('#rdNo'), st=$('#rdSt'); if(!c){ lab.textContent='Next free number'; no.textContent='No. 0000002'; st.textContent='Reserved for you'; st.className='x st me'; }
+  else { lab.textContent='Under the pointer'; no.textContent='No. '+pad7(c.n); st.textContent=c.n===1?'Samuel · here since day 1':c.n===2?'Reserved for you':'Open · '+(c.n-1).toLocaleString('en-US')+' arrive first'; st.className='x st'+(c.n<3?' me':''); } if(reduce) drawField(0); }
+function zoomTo(z,u,v){ tgt.z=z; if(u!=null){ tgt.u=u; tgt.v=v; } clampCam(tgt); cv.style.touchAction=z>1?'none':'pan-y'; cv.style.cursor=z>1?'grab':'crosshair';
+  $$('#zb [data-z]').forEach(b=>b.classList.toggle('on',+b.dataset.z===z)); $('#fScale').textContent=z===1?'1 square = 10,000':z===10?'In view: 10,000':'In view: about 150'; kick(); }
+const loc=e=>{ const r=cv.getBoundingClientRect(); return [e.clientX-r.left,e.clientY-r.top]; };
+cv.addEventListener('pointerdown',e=>{ drag={x:e.clientX,y:e.clientY,u:tgt.u,v:tgt.v,moved:false}; try{cv.setPointerCapture(e.pointerId)}catch(_){} });
+cv.addEventListener('pointermove',e=>{ if(drag){ const dx=e.clientX-drag.x, dy=e.clientY-drag.y; if(Math.abs(dx)+Math.abs(dy)>6) drag.moved=true; if(drag.moved&&tgt.z>1){ const p=S/1000*cam.z; tgt.u=drag.u-dx/p; tgt.v=drag.v-dy/p; clampCam(tgt); cam.u=tgt.u; cam.v=tgt.v; kick(); } } setHover(cellAt(...loc(e))); });
+cv.addEventListener('pointerup',e=>{ const d=drag; drag=null; if(!d||d.moved) return; const c=cellAt(...loc(e)); if(!c) return; if(tgt.z<10) zoomTo(10,c.col+.5,c.row+.5); else if(tgt.z<80) zoomTo(80,c.col+.5,c.row+.5); setHover(c); });
+cv.addEventListener('pointercancel',()=>{ drag=null; });
+cv.addEventListener('pointerleave',()=>{ if(!drag) setHover(null); });
+$$('#zb [data-z]').forEach(b=>b.addEventListener('click',()=>zoomTo(+b.dataset.z, +b.dataset.z===1?500:null, 500)));
+$('#zb [data-find]').addEventListener('click',()=>{ zoomTo(80,500,500.5); setHover({col:499,row:500,n:1}); });
+new IntersectionObserver(es=>{ fieldOn=es[0].isIntersecting; if(fieldOn){ sizeField(); kick(); } },{threshold:.05}).observe(cv);
+
+/* ---- § 4 the ladder: one value drives every counter on the page ---- */
+const RUNG=['1. One human, one tent.','10. A camp.','100. A first street’s worth.','1,000. A village.','10,000. A small town.','100,000. A city, by most counts.','1,000,000. Maia City. Year 16.'];
+const track=$('#track'), knob=$('#knob'); let lv=0, lastN=0;
+function setCount(v,first){ lv=Math.min(6,Math.max(0,v)); if(Math.abs(lv-Math.round(lv))<.07) lv=Math.round(lv); const n=Math.round(Math.pow(10,lv)), later=n>1;
+  track.style.setProperty('--v',lv); knob.setAttribute('aria-valuenow',lv.toFixed(2)); knob.setAttribute('aria-valuetext',n.toLocaleString('en-US')+(later?', later':', today'));
+  $$('.t',track).forEach((t,i)=>t.classList.toggle('on',i<=lv+.001));
+  if(n===lastN&&!first) return; lastN=n; document.documentElement.classList.toggle('is-later',later);
+  if(!first){ setOdo(odoHero,n); setOdo(odoLadder,n); } $('#barN').textContent=pad7(n); $('#hereN').textContent=n.toLocaleString('en-US')+' here'; $('#goN').textContent=(1e6-n).toLocaleString('en-US')+' to go';
+  $('#rungTag').textContent=later?'Later · not counted':'Today · counted'; const f=Math.floor(lv+.001); $('#rungTxt').textContent=Number.isInteger(lv)?RUNG[f]:n.toLocaleString('en-US')+'. Past '+RUNG[f].split('.')[0]+', on the way to '+RUNG[f+1].split('.')[0]+'.'; }
+const tv=e=>{ const r=track.getBoundingClientRect(); return (e.clientX-r.left)/r.width*6; };
+let ld=false; track.addEventListener('pointerdown',e=>{ ld=true; try{track.setPointerCapture(e.pointerId)}catch(_){} setCount(tv(e)); knob.focus({preventScroll:true}); e.preventDefault(); });
+track.addEventListener('pointermove',e=>{ if(ld) setCount(tv(e)); });
+['pointerup','pointercancel'].forEach(t=>track.addEventListener(t,()=>{ ld=false; }));
+knob.addEventListener('keydown',e=>{ const k=e.key; if(k==='ArrowRight'||k==='ArrowUp'){ setCount(Math.floor(lv+.001)+1); e.preventDefault(); } else if(k==='ArrowLeft'||k==='ArrowDown'){ setCount(Math.ceil(lv-.001)-1); e.preventDefault(); } else if(k==='Home'){ setCount(0); e.preventDefault(); } else if(k==='End'){ setCount(6); e.preventDefault(); } });
+$('#reset').addEventListener('click',()=>setCount(0));
+
+/* ---- § 5 C: story 01 on the stopwatch ---- */
+const L=[[0,'Title','A green meadow and one tent'],[4,'Samuel','It all starts with a green meadow and one tent.'],[8,'Maia','I looked for the meadow. There was none.'],[11,'Samuel','First we need a world.'],[13,'Maia','So I made one. Land that never ends, and one river.'],[16,'Maia','No trees. No sun. No shadows. Not yet.'],[19,'Maia','My first grass was too slow to walk through.'],[22,'Maia','I made it fast.'],[24,'Samuel','The grass is still super blocky, can you see?'],[28,'Maia','You were right. I fixed the wrong thing first.'],[30,'Maia','Then the meadow was a meadow. And I put up your tent.'],[33,'Maia','One tent. Nobody in it yet.'],[36,'Samuel','The vision, the city, the game: everything grows as we do, with citizens.'],[41,'Maia','Then it grows from here.'],[44,'Maia','There is no city on this land.'],[47,'Maia','There is a meadow, a river and a tent.'],[50,'Samuel','This is day one. Today I am alone.'],[53,'Samuel','Tomorrow we will see.'],[56,'Maia','Tomorrow I am here too.']];
+const sw=$('#sw'), laps=$('#laps'), lapBar=$('u',laps), swGo=$('#swGo'); let swT=0, swRun=false, swLast=0, swK=-1;
+'0:00.00'.split('').forEach(ch=>{ const s=document.createElement('span'); s.textContent=ch; if(ch===':'||ch==='.') s.className='p'; sw.appendChild(s); });
+L.forEach(l=>{ const i=document.createElement('i'); i.style.left=(l[0]/59*100)+'%'; if(l[1]==='Samuel') i.className='s'; laps.appendChild(i); });
+function swDraw(){ const t=Math.min(swT,59), s=Math.floor(t), str='0:'+String(s).padStart(2,'0')+'.'+String(Math.floor((t-s)*100)).padStart(2,'0'); for(let i=0;i<7;i++) if(sw.children[i].textContent!==str[i]) sw.children[i].textContent=str[i];
+  lapBar.style.width=(t/59*100)+'%'; let k=0; for(let i=0;i<L.length;i++) if(L[i][0]<=t) k=i; if(k!==swK){ swK=k; const w=$('#who'); w.textContent=L[k][1]; w.className='x who '+L[k][1].toLowerCase(); $('#line').textContent=L[k][2]; } }
+function swTick(now){ if(!swRun) return; swT+=(now-swLast)/1000; swLast=now; if(swT>=59){ swT=59; swRun=false; swGo.textContent='Again'; } swDraw(); if(swRun) requestAnimationFrame(swTick); }
+swGo.addEventListener('click',()=>{ if(swRun){ swRun=false; swGo.textContent='Start'; return; } if(swT>=59) swT=0; swRun=true; swLast=performance.now(); swGo.textContent='Stop'; requestAnimationFrame(swTick); });
+$('#swRe').addEventListener('click',()=>{ swRun=false; swT=0; swGo.textContent='Start'; swDraw(); });
+const lapAt=e=>{ const r=laps.getBoundingClientRect(); swT=Math.min(59,Math.max(0,(e.clientX-r.left)/r.width*59)); swLast=performance.now(); swDraw(); };
+let lapD=false; laps.addEventListener('pointerdown',e=>{ lapD=true; try{laps.setPointerCapture(e.pointerId)}catch(_){} lapAt(e); }); laps.addEventListener('pointermove',e=>{ if(lapD) lapAt(e); }); ['pointerup','pointercancel'].forEach(t=>laps.addEventListener(t,()=>{ lapD=false; }));
+swDraw();
+
+/* ---- § 5 D: the ticket ---- */
+$('#be2').addEventListener('click',()=>{ const t=$('#ticket').classList.toggle('torn'); $('#gate').textContent=t?'0 gates built yet. This ticket is a drawing. The stub comes off when the gate is real.':'Numbers go in order. 1 is taken. 2 is next.'; });
+
+/* ---- § 5 E: the tally, 35 groups of five; one stroke is struck ---- */
+(()=>{ let h=''; for(let r=0;r<5;r++) for(let c=0;c<7;c++){ const x=8+c*59, y=8+r*49; for(let k=0;k<4;k++){ const first=!r&&!c&&!k; h+='<path d="M'+(x+k*10)+' '+y+'v34" stroke="#0b0b0a" stroke-width="'+(first?3.4:1.4)+'" opacity="'+(first?1:.15)+'"/>'; } h+='<path d="M'+(x-5)+' '+(y+28)+'L'+(x+35)+' '+(y+6)+'" stroke="#0b0b0a" stroke-width="1.4" opacity=".15"/>'; } $('#tsvg').innerHTML=h; })();
+
+/* ---- § 6: the width axis ---- */
+$('#wd').addEventListener('input',e=>{ const w=e.target.value, b=$('#wdB'); b.style.setProperty('--w',w+'%'); b.style.setProperty('--wn',w); $('#wdN').textContent=w; });
+
+/* ---- start ---- */
+setCount(0,true); refit();
+setTimeout(()=>{ setOdo(odoHero,1,true); },250);
+const seen=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting) setOdo(e.target, e.target===odoDay?1:lastN, true); }),{threshold:.6});
+seen.observe(odoDay); seen.observe(odoLadder);
+addEventListener('resize',refit);
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>{ document.documentElement.dataset.fonts=(document.fonts.check('900 40px Archivo')?'archivo ':'')+(document.fonts.check('12px "JetBrains Mono"')?'jetbrains-mono':''); refit(); });
+})();
+</script>
+</body>
+</html>

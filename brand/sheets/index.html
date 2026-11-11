@@ -1,1 +1,49 @@
-<!doctype html><html lang='en'><head><meta charset='utf-8'><title>TheOS · four brand sheets</title><style>html,body{margin:0;background:#e9e6df;font:14px/1.5 -apple-system,Helvetica,sans-serif;color:#222}h1{font:600 18px/1 -apple-system;margin:0;padding:22px 28px 6px}p{margin:0;padding:0 28px 18px;color:#666}.g{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:0 28px 40px}a{display:block;text-decoration:none;color:inherit;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.12)}a b{display:block;padding:12px 16px;font-weight:600}.f{height:62vh;overflow:hidden}iframe{width:200%;height:124vh;border:0;transform:scale(.5);transform-origin:0 0;pointer-events:none}</style></head><body><h1>TheOS: four brand sheets</h1><p>Four different directions, each on the same content. Click one to open it full size.</p><div class='g'><a href='a-atelier.html'><b>A · Atelier</b><div class='f'><iframe src='a-atelier.html' title='Atelier'></iframe></div></a><a href='b-glasshouse.html'><b>B · Glasshouse</b><div class='f'><iframe src='b-glasshouse.html' title='Glasshouse'></iframe></div></a><a href='c-nightgarden.html'><b>C · Nightgarden</b><div class='f'><iframe src='c-nightgarden.html' title='Nightgarden'></iframe></div></a><a href='d-field.html'><b>D · Field</b><div class='f'><iframe src='d-field.html' title='Field'></iframe></div></a></div></body></html>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maia City · eight brand drafts</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;background:#0e0e0d;color:#eceae4;font:15px/1.5 -apple-system,'SF Pro Text','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+header{display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:end;padding:56px clamp(20px,4vw,64px) 40px;border-bottom:1px solid #262624}
+header img{width:72px;height:72px;border-radius:18px;display:block}
+h1{font:600 clamp(30px,4.4vw,64px)/.98 -apple-system,'SF Pro Display','Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:-.035em;margin:0;text-wrap:balance}
+h1 span{color:#77756d}
+header p{grid-column:1/-1;max-width:74ch;margin:0;color:#a3a096;font-size:16px}
+ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+li{border-bottom:1px solid #262624;border-right:1px solid #262624}
+li:nth-child(2n){border-right:0}
+a{display:block;color:inherit;text-decoration:none;padding:28px clamp(20px,3vw,44px) 34px;transition:background .25s}
+a:hover{background:#151514}
+.meta{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:baseline;margin-bottom:18px}
+.meta b{font:500 12px/1 ui-monospace,'SF Mono',Menlo,monospace;color:#77756d;letter-spacing:.08em}
+.meta h2{font:600 24px/1 -apple-system,'SF Pro Display','Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:-.02em;margin:0}
+.meta i{font-style:normal;color:#77756d;font-size:13px;transition:color .25s,transform .25s;display:inline-block}
+a:hover .meta i{color:#eceae4;transform:translateX(4px)}
+.shot{position:relative;aspect-ratio:1440/900;overflow:hidden;border-radius:6px;background:#1a1a18;box-shadow:0 0 0 1px #2c2c29,0 30px 70px rgba(0,0,0,.5)}
+.shot iframe{position:absolute;left:0;top:0;width:1440px;height:900px;border:0;transform-origin:0 0;transform:scale(var(--s,.4));pointer-events:none}
+.say{margin:18px 0 0;font-size:17px;color:#eceae4}
+.how{margin:6px 0 0;color:#8f8c83;font-size:13.5px;max-width:62ch}
+footer{padding:34px clamp(20px,4vw,64px) 70px;color:#77756d;font-size:13.5px;max-width:90ch}
+@media (max-width:900px){ol{grid-template-columns:1fr}li{border-right:0}header{grid-template-columns:1fr}}
+</style></head><body>
+<header>
+  <img src="../MaiaCity.svg" alt="Maia City">
+  <h1>Eight brands for Maia City. <span>Each one a whole page, in its own voice.</span></h1>
+  <p>Not sheets this time: eight landing pages, each with its own idea, layout, type, copy and things to touch. They show the app, the game and pieces that might come later, never the work board. Open one, scroll it, play with it. Then say which one, or which parts.</p>
+</header>
+<ol>
+  <li><a href="01-count.html"><div class="meta"><b>01</b><h2>Count</h2><i>open →</i></div><div class="shot"><iframe loading="lazy" src="01-count.html" title="Count"></iframe></div><p class="say">The city is a number.</p><p class="how">A scoreboard: 0000001 of 1,000,000. Swiss, stark, black on bone with one solar yellow. Call: "Be number 2."</p></a></li>
+  <li><a href="02-daylight.html"><div class="meta"><b>02</b><h2>Daylight</h2><i>open →</i></div><div class="shot"><iframe loading="lazy" src="02-daylight.html" title="Daylight"></iframe></div><p class="say">The city runs on the sun.</p><p class="how">Drag the sun and the whole page changes hour. Skies instead of boxes, a light serif. Call: "Come before noon."</p></a></li>
+  <li><a href="03-plot.html"><div class="meta"><b>03</b><h2>Plot</h2><i>open →</i></div><div class="shot"><iframe loading="lazy" src="03-plot.html" title="Plot"></iframe></div><p class="say">The city is a place you can stand on.</p><p class="how">An isometric diorama and a page framed like a game: quests, tooltips, a build menu. Call: "Claim plot 000,002."</p></a></li>
+  <li><a href="04-instrument.html"><div class="meta"><b>04</b><h2>Instrument</h2><i>open →</i></div><div class="shot"><iframe loading="lazy" src="04-instrument.html" title="Instrument"></iframe></div><p class="say">The city is a machine you can open.</p><p class="how">TheOS as a real desktop: windows, a dock, dot-matrix displays, a knob for the hour. Call: "Boot day 1."</p></a></li>
+  <li><a href="05-subtitle.html"><div class="meta"><b>05</b><h2>Subtitle</h2><i>open →</i></div><div class="shot"><iframe loading="lazy" src="05-subtitle.html" title="Subtitle"></iframe></div><p class="say">The city is a film, one day long, 5423 times.</p><p class="how">Letterboxed shots, the yellow subtitle as the brand's voice, title cards and credits. Call: "Watch day 1."</p></a></li>
+  <li><a href="06-line-one.html"><div class="meta"><b>06</b><h2>Line 1</h2><i>open →</i></div><div class="shot"><iframe loading="lazy" src="06-line-one.html" title="Line 1"></iframe></div><p class="say">The city already has signs.</p><p class="how">A civic identity: a transit line down the page, a departure board, pictograms, a pass with your name. Call: "Get your citizen pass."</p></a></li>
+  <li><a href="07-seed.html"><div class="meta"><b>07</b><h2>Seed</h2><i>open →</i></div><div class="shot"><iframe loading="lazy" src="07-seed.html" title="Seed"></iframe></div><p class="say">The city is alive, and she is learning.</p><p class="how">Dark and quiet; one living light that is Maia, speaking for herself. Glass, a serif italic. Call: "Follow day 1."</p></a></li>
+  <li><a href="08-almanac.html"><div class="meta"><b>08</b><h2>Almanac</h2><i>open →</i></div><div class="shot"><iframe loading="lazy" src="08-almanac.html" title="Almanac"></iframe></div><p class="say">The city is a movement, and it prints.</p><p class="how">Three inks overprinted on rough paper: a builders' handbook with stickers, a calendar and a coupon. Call: "Clip here. I'm in."</p></a></li>
+</ol>
+<footer>The numbers on every page are today's: day 1 of 5423, one human of a million, a meadow, a river, one tent. Pieces marked as later do not exist yet. The pages load their typefaces from Google Fonts.</footer>
+<script>
+const fit = () => document.querySelectorAll('.shot').forEach((s) => s.style.setProperty('--s', s.clientWidth / 1440));
+new ResizeObserver(fit).observe(document.body); fit();
+</script>
+</body></html>
