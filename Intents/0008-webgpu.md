@@ -139,3 +139,4 @@ latest today, 0.187.0 (installed and the registry's newest, checked 2026-11-12).
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-12 | `859753c` | The intent opened, at idea |
+| 2026-11-12 | `8ddd807` | Defined; three.js pinned at its latest, 0.187.0 |
