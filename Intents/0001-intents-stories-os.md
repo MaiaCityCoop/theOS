@@ -433,6 +433,31 @@ _Samuel's decision._
 - **Broke / not there yet:** pointing at single dots in the calendar was not tried; at phone
   width and in Safari not seen. Still only on the handover branch (5181, 5174).
 
+### 2026-11-11, twelfth round
+
+- **Asked:** no tab bar at the top: the top bar is just "Visit Maia City", which opens a
+  clean dashboard of tiles (the stories, the intents, the game). The tabs become a pill at the
+  bottom, centred, shown only inside those views; they are for admins, with no links to them
+  from the website. The calendar under the film as full-width rows of cards: about six large
+  ones now, with their preview picture and citizen count, a row of smaller ones under them,
+  smaller again under that. Then: the meadow is day 2 (day 1 is the decision), and day 2
+  already has 2 citizens.
+- **Delivered:** the front page's header holds the mark and "Visit Maia City". That and the
+  hero's button open the dashboard (`#city`): the game as a large tile with the day's shot
+  from above, a tile for the stories and one for the intents. Inside, a pill at the bottom
+  (Maia City, Intents, Stories, The Game); each view has its own address (`#city`, `#intents`,
+  `#stories`, `#game`). Under the film the calendar: a row of 6 cards (day 1 "The decision",
+  day 2 today with its shot from above and "2 in game", tomorrow, and on), a row of 12, a row
+  of 24, then every remaining day as a dot, to 5,423. Story 01's `timeline.json` now says day 2,
+  2 in game, its three goals done.
+- **Good:** seen in the pane at 1440: the header with one button, the calendar rows, the
+  dashboard's three tiles, the game full window with the pill and Walk / Lenses at the top.
+- **Broke / not there yet:** the gradients of a drawing were shared between copies, so the
+  dashboard's game tile painted pale; each drawing now has its own. Story 01's own text and
+  subtitles still say "day 1" ("This is day one"; Samuel's words): not changed, his to decide.
+  "The decision" for day 1 is written in the dashboard's code, not in a story of its own.
+  Phone width and Safari not seen.
+
 ## Trail
 
 | When | Commit | What |
