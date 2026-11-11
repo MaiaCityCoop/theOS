@@ -517,3 +517,4 @@ _Samuel's decision._
 | 2026-11-11 | `1d17df3` | Visit Maia City and its dashboard, the bottom pill, the calendar as rows of cards, the meadow as day 2 |
 | 2026-11-11 | `469297a` | The story editor: film without bars, timeline with shot stills, voices and playhead |
 | 2026-11-11 | `37bc7f9` | The sub line in its own pill under the title |
+| 2026-11-11 | `72e693d` | The count named citizens; day 1 with one citizen |
