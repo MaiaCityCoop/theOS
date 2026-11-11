@@ -110,6 +110,13 @@ Samuel approved the definition on 2026-11-11 ("Approve, start stage 1").
   they did (about a kilometre). The grass is not moved yet.
 - The terrain, grass and water joined the contract (weather and the clouds' shadow). Tried once in the game with
   snow and fog turned up: the ground, grass, rocks and tent all whitened and greyed together; then back to neutral.
+- **Check 2, run on stage 1** (2026-11-11): a scripted flight in the library over the bell tent, 10 km down to 2 m
+  and back (720 frames, log-spaced, 35 mm, at 1400×800); each frame the middle 96×96 pixels compared with the last,
+  a jump counted where a frame changes more than 3× its 16 neighbours' median. **0 jumps.** The tent's levels changed
+  8 times (appearing at 1.2 km, 4.4 px; to its finest at 34 m, 149 px) and each change frame changed no more than its
+  neighbours (ratio 1.0). Only the middle of the frame was compared, so mostly the tent; the rocks' hand-over is not
+  yet measured on its own. Frame times read during the flight (median 47 ms) include the pixel reading and a hidden
+  pane, so they are not check 3.
 - Asked on the way: one server for TheOS. The dashboard's Vite runs the game's inside it under `/game/`
   (`OS/vite.config.js`); the game's routes and fetches follow its base. `bun run dev` starts both on 5180.
 - Asked on the way: the walker starts in front of the first tent's door (`spawn`, `src/camera/walk.js`); the tent
