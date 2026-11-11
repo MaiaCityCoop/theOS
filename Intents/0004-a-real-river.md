@@ -109,3 +109,4 @@ is built at once.
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-12 | `c30f881` | The river by its bends, two new biomes, the water by depth; the board shows every intent |
