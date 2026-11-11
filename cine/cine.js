@@ -47,14 +47,26 @@ function aim(v) {
 }
 
 // ---- the timeline: clips cut one after the other; inside a clip the camera moves through its keys ----
-// a clip: { name, kind, secs, ease: 'inout' | 'soft' | 'linear', keys: [{ pos, look, mm, roll }] }
+// a clip: { name, kind, secs, ease, in, inSecs, out, keys: [{ pos, look, mm, roll }] }
+//   ease: how the move starts and ends. 'inout' from rest to rest · 'in' from rest, leaves moving ·
+//         'out' arrives moving, comes to rest · 'linear' moving through · 'soft' barely eased
+//   in:   how the clip is cut in. 'cut' (the default) · 'dissolve' (the last frame of the shot before
+//         melts into this one) · 'dip' (through the sky's colour); inSecs its length
+//   out:  'dip' on the last clip fades the film out
+// A cut on motion is a 'cut' between a clip that leaves moving and one that arrives moving.
+function ease(kind, q) {
+  if (kind === 'linear') return q;
+  if (kind === 'soft') return q + (q * q * (3 - 2 * q) - q) * 0.5;
+  const s0 = kind === 'out' ? 1.5 : 0, s1 = kind === 'in' ? 1.5 : 0, q2 = q * q, q3 = q2 * q;   // a curve with those speeds at its ends
+  return (q3 - 2 * q2 + q) * s0 + (3 * q2 - 2 * q3) + (q3 - q2) * s1;
+}
 const P = [0, 0, 0], L = [0, 0, 0], V = { pos: P, look: L, roll: 0, mm: 35 };
 function evalAt(time) {
   if (!clips.length) return;
   let i = clips.length - 1; while (i > 0 && starts[i] > time) i--;
   const c = clips[i], K = c.keys, n = K.length;
   let q = Math.max(0, Math.min(1, (time - starts[i]) / c.secs));
-  if (c.ease === 'soft') q = q + (q * q * (3 - 2 * q) - q) * 0.5; else if (c.ease !== 'linear') q = q * q * (3 - 2 * q);
+  q = ease(c.ease, q);
   if (n === 1) { aim(K[0]); return; }
   const f = q * (n - 1), j = Math.min(Math.floor(f), n - 2), u = f - j;
   const a = K[Math.max(j - 1, 0)], b = K[j], d = K[j + 1], e = K[Math.min(j + 2, n - 1)];
@@ -78,9 +90,35 @@ function pre(now) {
     if (t >= T) { if (api.loop) t %= T; else { t = T; playing = false; if (rec) record(false); } }
     evalAt(t);
   }
-  apply();
+  apply(); transitions();
+}
+// ---- transitions: a veil of the sky's colour (dip) and the frozen last frame of the shot before (dissolve) ----
+let veil, frost, fctx, frozenFor = -1;
+function overlays() {
+  if (veil) return;
+  veil = document.createElement('div'); frost = document.createElement('canvas'); fctx = frost.getContext('2d');
+  for (const e of [frost, veil]) { e.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;opacity:0;z-index:2'; document.body.append(e); }
+}
+const clipAt = (time) => { let i = clips.length - 1; while (i > 0 && starts[i] > time) i--; return i; };
+function transitions() {
+  if (!veil || !clips.length) return;
+  const i = clipAt(t), c = clips[i], n = clips[i + 1];
+  let dip = 0;
+  if (c.in === 'dip') { const d = c.inSecs || 1.2; dip = i === 0 ? 1 - (t - starts[i]) / d : 1 - (t - starts[i]) / (d / 2); }
+  if (n?.in === 'dip') dip = Math.max(dip, 1 - (starts[i + 1] - t) / ((n.inSecs || 1.2) / 2));
+  if (!n && c.out === 'dip') dip = Math.max(dip, 1 - (T - t) / 1.2);
+  veil.style.background = api.dipColor; veil.style.opacity = Math.max(0, Math.min(1, dip));
+  frost.style.opacity = frozenFor === i && c.in === 'dissolve' ? Math.max(0, 1 - (t - starts[i]) / (c.inSecs || 1)) : 0;
 }
 function post() {
+  if (playing && clips.length) { // the shot's last frames are kept, to melt into the next
+    const i = clipAt(t), n = clips[i + 1];
+    if (n?.in === 'dissolve' && starts[i + 1] - t < 0.05) {
+      const g = window.__s8.renderer.domElement, w = Math.min(g.width, 1600), h = Math.round((w * g.height) / g.width);
+      if (frost.width !== w || frost.height !== h) { frost.width = w; frost.height = h; }
+      fctx.drawImage(g, 0, 0, w, h); frozenFor = i + 1;
+    }
+  }
   while (stills.length) stills.shift()(window.__s8.renderer.domElement.toDataURL('image/png'));
 }
 const ready = (fn) => (cam ? fn() : pending.push(fn));
@@ -102,16 +140,17 @@ const api = (window.__cine = {
   lenses: [12, 18, 24, 35, 50, 85, 135, 180],
   floor: null,          // (x, z) => the ground's height there; set, the camera never sinks under it
   loop: false,
+  dipColor: '#9fc2e6',  // what a 'dip' passes through: the sky
   /** Hold the camera at a view: { pos, look | yaw, pitch, roll, mm }. */
   take(view) { ready(() => { lock(); playing = false; aim(view); apply(); }); },
   /** Give the camera back to the walker. */
   release() { ready(unlock); },
   /** Load a timeline of clips; the camera stands on its first frame. */
-  load(list) { clips = list; starts = []; T = 0; for (const c of list) { starts.push(T); T += c.secs; } t = 0; ready(() => { lock(); evalAt(0); apply(); }); },
+  load(list) { clips = list; starts = []; T = 0; for (const c of list) { starts.push(T); T += c.secs; } t = 0; frozenFor = -1; ready(() => { overlays(); lock(); evalAt(0); apply(); }); },
   play() { ready(() => { lock(); if (t >= T) t = 0; playing = true; }); },
   pause() { playing = false; },
   /** Stand on the timeline's frame at `time` seconds. */
-  seek(time) { t = Math.max(0, Math.min(T, time)); ready(() => { lock(); evalAt(t); apply(); }); },
+  seek(time) { t = Math.max(0, Math.min(T, time)); frozenFor = -1; ready(() => { lock(); evalAt(t); apply(); }); },
   /** The next drawn frame as a PNG data URL. */
   still() { return new Promise((r) => stills.push(r)); },
   /** Record the canvas to a video file until record(false), or until the timeline ends. */

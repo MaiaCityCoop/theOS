@@ -1,0 +1,530 @@
+[
+ {
+  "name": "From the sky",
+  "kind": "wide",
+  "act": "arrive",
+  "secs": 7.5,
+  "ease": "in",
+  "in": "dip",
+  "inSecs": 1.6,
+  "why": "Opens out of the sky and tilts down: first the horizon, then the river the film will follow. Leaves moving.",
+  "keys": [
+   {
+    "pos": [
+     -1387.9,
+     90.36,
+     95.68
+    ],
+    "look": [
+     -1323.89,
+     54.3,
+     520.06
+    ],
+    "mm": 18
+   },
+   {
+    "pos": [
+     -1380.72,
+     65.19,
+     155.24
+    ],
+    "look": [
+     -1350.25,
+     -5.24,
+     413.43
+    ],
+    "mm": 18
+   },
+   {
+    "pos": [
+     -1372.34,
+     33.08,
+     224.74
+    ],
+    "look": [
+     -1358.06,
+     -5.09,
+     347.91
+    ],
+    "mm": 18
+   }
+  ]
+ },
+ {
+  "name": "Down the river",
+  "kind": "drone",
+  "act": "arrive",
+  "secs": 11.6,
+  "ease": "out",
+  "in": "cut",
+  "why": "Cut on motion, and on contrast: from high and slow to low and fast along the same line. Rises and slows over the place we stop at.",
+  "keys": [
+   {
+    "pos": [
+     -1362.76,
+     -2.82,
+     304.16
+    ],
+    "look": [
+     -1355.81,
+     -4.63,
+     369.79
+    ],
+    "mm": 24,
+    "roll": 5.592234515803358
+   },
+   {
+    "pos": [
+     -1357.89,
+     -2.77,
+     325.77
+    ],
+    "look": [
+     -1353.29,
+     -4.51,
+     391.65
+    ],
+    "mm": 24,
+    "roll": 5.001135847541248
+   },
+   {
+    "pos": [
+     -1354.7,
+     -2.54,
+     347.57
+    ],
+    "look": [
+     -1350.25,
+     -4.4,
+     413.43
+    ],
+    "mm": 24,
+    "roll": 1.6749407507795255
+   },
+   {
+    "pos": [
+     -1353.54,
+     -2.12,
+     369.55
+    ],
+    "look": [
+     -1346.47,
+     -4.31,
+     435.09
+    ],
+    "mm": 24,
+    "roll": -1.9913419948268378
+   },
+   {
+    "pos": [
+     -1353.49,
+     -1.53,
+     391.67
+    ],
+    "look": [
+     -1341.85,
+     -4.22,
+     456.59
+    ],
+    "mm": 24,
+    "roll": -3.8064082955580645
+   },
+   {
+    "pos": [
+     -1352.62,
+     -0.77,
+     413.8
+    ],
+    "look": [
+     -1336.42,
+     -4.15,
+     477.9
+    ],
+    "mm": 24,
+    "roll": -3.0920912950205355
+   },
+   {
+    "pos": [
+     -1348.59,
+     0.15,
+     435.5
+    ],
+    "look": [
+     -1330.35,
+     -4.09,
+     499.04
+    ],
+    "mm": 24,
+    "roll": -0.8382464945967751
+   },
+   {
+    "pos": [
+     -1343.1,
+     1.24,
+     456.88
+    ],
+    "look": [
+     -1323.89,
+     -4.04,
+     520.06
+    ],
+    "mm": 24,
+    "roll": 1.2352833778465222
+   },
+   {
+    "pos": [
+     -1336.2,
+     2.5,
+     477.83
+    ],
+    "look": [
+     -1317.3,
+     -4,
+     541.05
+    ],
+    "mm": 24,
+    "roll": 1.9358393440629733
+   },
+   {
+    "pos": [
+     -1328.81,
+     3.92,
+     498.57
+    ],
+    "look": [
+     -1310.79,
+     -3.97,
+     562.07
+    ],
+    "mm": 24,
+    "roll": 1.2818983621324207
+   },
+   {
+    "pos": [
+     -1321.98,
+     5.52,
+     519.47
+    ],
+    "look": [
+     -1304.69,
+     -3.95,
+     583.19
+    ],
+    "mm": 24,
+    "roll": 0.2228899141002476
+   },
+   {
+    "pos": [
+     -1316.17,
+     7.29,
+     540.7
+    ],
+    "look": [
+     -1299.79,
+     -3.94,
+     604.6
+    ],
+    "mm": 24,
+    "roll": -0.272010555444685
+   },
+   {
+    "pos": [
+     -1311.13,
+     9.23,
+     562.17
+    ],
+    "look": [
+     -1296.61,
+     -3.94,
+     626.31
+    ],
+    "mm": 24,
+    "roll": 0
+   }
+  ]
+ },
+ {
+  "name": "The river going by",
+  "kind": "medium",
+  "act": "look",
+  "secs": 5.6,
+  "ease": "in",
+  "in": "dissolve",
+  "inSecs": 1.2,
+  "why": "Dissolve: the flight has come to rest, time passes, we are standing on the bank. Travel keeps the flight's direction; the look turns across the water.",
+  "keys": [
+   {
+    "pos": [
+     -1292.87,
+     -4.05,
+     574.9
+    ],
+    "look": [
+     -1316.1,
+     -4.83,
+     585.18
+    ],
+    "mm": 35
+   },
+   {
+    "pos": [
+     -1291.08,
+     -4.16,
+     581.67
+    ],
+    "look": [
+     -1314.31,
+     -4.95,
+     591.94
+    ],
+    "mm": 35
+   }
+  ]
+ },
+ {
+  "name": "Where the water meets the sand",
+  "kind": "close",
+  "act": "look",
+  "secs": 5.7,
+  "ease": "out",
+  "in": "cut",
+  "why": "A cut in on the same axis, on the move: same look across, same direction of travel, 35 to 85 mm. Comes to rest on the waterline.",
+  "keys": [
+   {
+    "pos": [
+     -1294.53,
+     -5.48,
+     583.2
+    ],
+    "look": [
+     -1294.59,
+     -6.21,
+     589.31
+    ],
+    "mm": 85
+   },
+   {
+    "pos": [
+     -1293.87,
+     -5.56,
+     585.71
+    ],
+    "look": [
+     -1294.08,
+     -6.22,
+     591.25
+    ],
+    "mm": 85
+   }
+  ]
+ },
+ {
+  "name": "Among the blades",
+  "kind": "low angle",
+  "act": "look",
+  "secs": 6.2,
+  "ease": "in",
+  "in": "dissolve",
+  "inSecs": 1.2,
+  "why": "Dissolve to the other thing the land is made of. Contrast: the longest lens to the widest, eye in the grass. Pushes on and tilts up to the sky.",
+  "keys": [
+   {
+    "pos": [
+     -1263.84,
+     -6.63,
+     619.93
+    ],
+    "look": [
+     -1262.92,
+     -6.02,
+     628.88
+    ],
+    "mm": 12,
+    "roll": 9
+   },
+   {
+    "pos": [
+     -1263.53,
+     -6.57,
+     622.92
+    ],
+    "look": [
+     -1262.71,
+     -4.54,
+     630.87
+    ],
+    "mm": 12,
+    "roll": 4
+   },
+   {
+    "pos": [
+     -1263.29,
+     -6.37,
+     625.3
+    ],
+    "look": [
+     -1262.82,
+     2.07,
+     629.88
+    ],
+    "mm": 12,
+    "roll": 0
+   }
+  ]
+ },
+ {
+  "name": "Lifting off",
+  "kind": "top down",
+  "act": "leave",
+  "secs": 7.5,
+  "ease": "out",
+  "in": "cut",
+  "why": "Cut on motion: the tilt up becomes a climb, from the same spot. The view turns over and the river slides into frame; slows at the top.",
+  "keys": [
+   {
+    "pos": [
+     -1263.29,
+     2.13,
+     625.3
+    ],
+    "look": [
+     -1263.2,
+     -6.88,
+     626.1
+    ],
+    "mm": 28,
+    "roll": 0
+   },
+   {
+    "pos": [
+     -1263.29,
+     31.13,
+     625.3
+    ],
+    "look": [
+     -1275.12,
+     -6.25,
+     627.52
+    ],
+    "mm": 28,
+    "roll": 12
+   },
+   {
+    "pos": [
+     -1263.29,
+     75.13,
+     625.3
+    ],
+    "look": [
+     -1291.82,
+     -7.5,
+     628.83
+    ],
+    "mm": 28,
+    "roll": 22
+   }
+  ]
+ },
+ {
+  "name": "Back to the water",
+  "kind": "glide",
+  "act": "leave",
+  "secs": 5.8,
+  "ease": "in",
+  "in": "dissolve",
+  "inSecs": 1.4,
+  "why": "Dissolve from the height back to the ground, further on: low over the meadow, gathering speed towards the river.",
+  "keys": [
+   {
+    "pos": [
+     -1216.44,
+     -11.41,
+     691.95
+    ],
+    "look": [
+     -1302.29,
+     -6.51,
+     711.6
+    ],
+    "mm": 50
+   },
+   {
+    "pos": [
+     -1272.03,
+     -6,
+     696.54
+    ],
+    "look": [
+     -1304.68,
+     -6.59,
+     725.39
+    ],
+    "mm": 50
+   }
+  ]
+ },
+ {
+  "name": "Leaving",
+  "kind": "crane",
+  "act": "leave",
+  "secs": 9.3,
+  "ease": "out",
+  "in": "cut",
+  "out": "dip",
+  "why": "Cut on motion: the glide carries over the bank and up. The opening run backwards: river, then land, then sky; widens to 14 mm, comes to rest, fades to the sky.",
+  "keys": [
+   {
+    "pos": [
+     -1282.74,
+     -5.03,
+     699.76
+    ],
+    "look": [
+     -1305.71,
+     -6.63,
+     731.3
+    ],
+    "mm": 35
+   },
+   {
+    "pos": [
+     -1301.27,
+     2.03,
+     705.68
+    ],
+    "look": [
+     -1317.3,
+     -5.21,
+     755.07
+    ],
+    "mm": 24
+   },
+   {
+    "pos": [
+     -1305.11,
+     33.14,
+     694.87
+    ],
+    "look": [
+     -1330.32,
+     4.61,
+     796.86
+    ],
+    "mm": 18
+   },
+   {
+    "pos": [
+     -1304.85,
+     89.38,
+     660.41
+    ],
+    "look": [
+     -1349.62,
+     61.99,
+     915.3
+    ],
+    "mm": 14
+   }
+  ]
+ }
+]

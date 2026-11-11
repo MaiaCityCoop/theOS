@@ -16,8 +16,9 @@ if [ ! -d "$dir" ]; then
 fi
 cd "$dir/game" || exit 1
 [ "$(git rev-parse --show-toplevel)" = "$dir" ] || { echo "not in the stage's own tree"; exit 1; }
-rm -rf cine && cp -R "$here" cine && cp "$here/../timeline.html" timeline.html
+rm -rf cine && cp -R "$here" cine && cp "$here/../timeline.html" "$here/../vite.config.js" .
 grep -q 'cine/cine.js' index.html || sed -i '' 's|</body>|<script type="module" src="/cine/cine.js"></script>\n</body>|' index.html
+grep -q 'cine/menu.js' index.html || sed -i '' 's|</body>|<script type="module" src="/cine/menu.js"></script>\n</body>|' index.html
 bun install --silent
 echo "stage $short on http://localhost:$port  (remove it with: git worktree remove --force $dir)"
 exec bunx --bun vite --port "$port" --strictPort

@@ -12,6 +12,7 @@ cameras can shoot again.
 | `cine/trailer.js` | composes a small trailer of the land from a seed |
 | `cine/view.js`, `timeline.html` | the timeline view: the world playing, its clips as a strip underneath |
 | `cine/timelines/<name>.json` | kept timelines: cameras set once, played back by name |
+| `cine/menu.js` | the menu on every page: walk, or a timeline |
 | `cine/at.sh` | serves an earlier commit with today's camera over it |
 
 ## Two views
@@ -49,15 +50,45 @@ Inside a clip the camera travels through its keys on a smooth curve (place and a
 (`inout`, the gentler `soft`, or `linear`); the lens may change from key to key (a zoom) and so may
 the roll. One key is a locked-off shot.
 
+## Cuts, and how a move starts and ends
+
+A clip also says how it is cut in and how its move behaves at its ends, so that shots connect:
+
+| Field | Values |
+| --- | --- |
+| `ease` | `inout` from rest to rest · `in` from rest, leaves moving · `out` arrives moving, comes to rest · `linear` moving through · `soft` barely eased |
+| `in` | `cut` (default) · `dissolve`: the last frame of the shot before melts into this one · `dip`: through the sky's colour (on the first clip: a fade in) |
+| `inSecs` | the transition's length |
+| `out` | `dip` on the last clip fades the film out |
+| `why` | one line on what the cut is for; shown in the timeline view |
+
+A **cut on motion** is a plain `cut` between a clip that leaves moving (`in` or `linear`) and one
+that arrives moving (`out` or `linear`): the movement carries across the cut. A `dissolve` wants
+the shot before it to have come to rest (`out`, `inout`): what melts is its held last frame.
+
 ## The trailer
 
 `trailer(seed)` reads the world's own functions (where the river runs, how high the ground is) and
-sets nine shots along a stretch of river: a wide establishing shot, a drone flight down the river,
-then, in an order the seed picks, a medium on the far bank, a close on the waterline (85 mm), a low
-angle among the blades (12 mm, rolled), a look straight down that turns as it rises, a glide over
-the meadow (50 mm), a long lens across the water (135 mm), and a crane up and away to end. About
-55 seconds. The same seed gives the same trailer on the same stage; on another stage it follows
-that stage's river.
+tells one line of story along a stretch of river, always in this order:
+
+| Act | Shot | Cut in | Why |
+| --- | --- | --- | --- |
+| Arrive | From the sky, 18 mm | fade in from the sky | horizon first, then the river the film follows; leaves moving |
+| | Down the river, 24 mm drone | cut on motion | contrast: high and slow to low and fast, same line; rises, slows, stops over the place we look at |
+| Look | The river going by, 35 mm | dissolve | the flight has come to rest; now standing on the bank, travelling the same way, looking across |
+| | Where the water meets the sand, 85 mm | cut in, on the move | same axis, same travel, closer; comes to rest |
+| | Among the blades, 12 mm | dissolve | the other thing the land is made of; longest lens to widest; ends tilting up into the sky |
+| Leave | Lifting off, 28 mm straight down | cut on motion | the tilt up becomes a climb from the same spot; the river slides into frame |
+| | Back to the water, 50 mm | dissolve | from the height back to the ground, gathering speed to the river |
+| | Leaving, 35 → 14 mm crane | cut on motion | the opening run backwards: river, land, sky; rests, fades to the sky |
+
+About a minute. The seed picks the stretch (the greenest of six), the bank and the direction of
+travel; the story stays. The same seed gives the same trailer on the same stage.
+
+## The menu
+
+Every page carries the same small menu, top right: **Walk the world** (the game, by hand), and
+under **Timelines** the composed trailer and every kept timeline by name.
 
 ## Keeping cameras, and playing them back
 

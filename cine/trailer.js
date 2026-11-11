@@ -30,62 +30,96 @@ function trace(p, dir, step, n) { // along the river, downstream or up
   return pts;
 }
 
-/** The trailer for a seed: a list of clips for __cine.load(). */
+/**
+ * The trailer for a seed: a list of clips for __cine.load(). One line of story, always in this order:
+ *   ARRIVE   1 from the sky down to the river · 2 low and fast down the river, rising, slowing
+ *   LOOK     3 on the bank, the river going by · 4 the same look, closer: the waterline · 5 down in the grass
+ *   LEAVE    6 straight up out of the grass · 7 back over the meadow to the river · 8 up and away
+ * The seed picks the stretch of river (the greenest of a few), the bank and the direction of travel.
+ * Every cut is meant: see each clip's `why`.
+ */
 export function trailer(seed = 1) {
   const R = rng(seed * 7919 + 13), r = (a, b) => a + (b - a) * R();
-  const start = findRiver(r(-2500, 2500), r(-2500, 2500));
-  const pts = trace(start, R() < 0.5 ? 1 : -1, 22, 18), side = R() < 0.5 ? 1 : -1;
-  // a place: from a river point p, `across` metres off its line (past the bank when > 0), `along` metres
-  // down it, `h` metres over the ground there
+  // a few stretches; the one with the least dry land along it
+  let pts, best = 1e9;
+  for (let k = 0; k < 6; k++) {
+    const c = trace(findRiver(r(-3000, 3000), r(-3000, 3000)), R() < 0.5 ? 1 : -1, 22, 24);
+    let dry = 0; if (W.aridAt) for (const p of c) dry += W.aridAt(p.x + p.nx * 30, p.z + p.nz * 30) + W.aridAt(p.x - p.nx * 30, p.z - p.nz * 30);
+    if (dry < best) { best = dry; pts = c; }
+    if (!W.aridAt) break;
+  }
+  const side = R() < 0.5 ? 1 : -1;
+  // a place: from a river point p, `across` metres off its line (to our bank when > 0), `along` metres
+  // in the direction of travel, `h` metres over the ground there
   const at = (p, across, along, h) => {
     const x = p.x + p.nx * side * across + p.tx * along, z = p.z + p.nz * side * across + p.tz * along;
     return [x, W.heightAt(x, z) + h, z];
   };
-  const surf = (p, across, along, h) => { const v = at(p, across, along, 0); v[1] = W.baseB(v[0], v[2]) + h; return v; }; // over the water
-  const A = pts[0], M = pts[6], D = pts[11], E = pts[15];
+  const surf = (p, across, along, h) => { const v = at(p, across, along, 0); v[1] = W.baseB(v[0], v[2]) - 0.2 + h; return v; }; // over the water
+  const A = pts[0], M = pts[13], G = pts[15], E = pts[18];
   const clips = [];
-  const clip = (name, kind, secs, ease, keys) => clips.push({ name, kind, secs: +secs.toFixed(1), ease, keys });
+  const clip = (c) => clips.push({ ...c, secs: +c.secs.toFixed(1) });
 
-  clip('The land', 'wide', r(5.5, 6.5), 'inout', [
-    { pos: at(A, A.w + 115, -45, 24), look: surf(A, 0, 30, 0), mm: 18 },
-    { pos: at(A, A.w + 88, -28, 17), look: surf(A, 0, 45, 0), mm: 18 },
-  ]);
+  // ---- ARRIVE ----
+  clip({ name: 'From the sky', kind: 'wide', act: 'arrive', secs: r(7, 8), ease: 'in', in: 'dip', inSecs: 1.6,
+    why: 'Opens out of the sky and tilts down: first the horizon, then the river the film will follow. Leaves moving.',
+    keys: [
+      { pos: surf(A, 0, -210, 95), look: surf(pts[10], 0, 0, 60), mm: 18 },
+      { pos: surf(A, 0, -150, 70), look: surf(pts[5], 0, 0, 0), mm: 18 },
+      { pos: surf(A, 0, -80, 38), look: surf(pts[2], 0, 0, 0), mm: 18 },
+    ] });
   const drone = [];
-  for (let i = 0; i <= 12; i++) drone.push({ pos: surf(pts[i], Math.sin(i * 0.7) * pts[i].w * 0.35, 0, 7 + 20 * (i / 12) ** 1.5), look: surf(pts[Math.min(i + 4, 18)], 0, 0, 0), mm: 24, roll: Math.sin(i * 0.9) * 5 });
-  clip('Down the river', 'drone', r(10, 12), 'soft', drone);
-  clip('The far bank', 'medium', r(4.5, 5.5), 'inout', [
-    { pos: at(M, M.w + 5, -4, 1.6), look: at(M, -M.w - 2, 2, 0.6), mm: 35 },
-    { pos: at(M, M.w + 5, 4, 1.6), look: at(M, -M.w - 2, 5, 0.6), mm: 35 },
-  ]);
-  clip('Where the water meets the sand', 'close', r(4, 5), 'inout', [
-    { pos: at(M, M.w + 2.2, -1.6, 0.4), look: surf(M, M.w * 0.92, 5, 0), mm: 85 },
-    { pos: at(M, M.w + 2.2, 1.6, 0.45), look: surf(M, M.w * 0.92, 7, 0), mm: 85 },
-  ]);
-  clip('Among the blades', 'low angle', r(4.5, 5.5), 'inout', [
-    { pos: at(M, M.w + 30, 0, 0.2), look: at(M, M.w + 30, 9, 1.5), mm: 12, roll: 11 * side },
-    { pos: at(M, M.w + 30, 3.6, 0.3), look: at(M, M.w + 31, 13, 2.2), mm: 12, roll: 4 * side },
-  ]);
-  { // straight down, turning
-    const lo = surf(D, 0, 0, 36), hi = surf(D, 0, 0, 78), g = surf(D, 0, 0.6, 0), g2 = surf(D, 0.6 * side, 0, 0);
-    clip('From above', 'top down', r(5.5, 6.5), 'inout', [{ pos: lo, look: g, mm: 35, roll: 0 }, { pos: hi, look: g2, mm: 35, roll: 25 * side }]);
+  for (let i = 0; i <= 12; i++) {
+    const u = i / 12;
+    drone.push({ pos: surf(pts[i], Math.sin(i * 0.8) * pts[i].w * 0.3, 0, 2.2 + 13 * u * u), look: surf(pts[Math.min(i + 3, 23)], 0, 0, 0.5 + 2 * u), mm: 24, roll: Math.sin(i * 0.8 + 1.2) * 6 * (1 - u) });
   }
-  clip('Over the meadow', 'glide', r(5, 6), 'inout', [
-    { pos: at(D, D.w + 62, -10, 1.3), look: surf(D, 0, 12, 0.3), mm: 50 },
-    { pos: at(D, D.w + 14, 0, 1.0), look: surf(D, 0, 18, 0.3), mm: 50 },
-  ]);
-  clip('Light on the water', 'tele', r(4, 5), 'linear', [
-    { pos: at(E, E.w + 3, -30, 0.7), look: surf(E, 0, 6, 0), mm: 135 },
-    { pos: at(E, E.w + 3, -30, 0.9), look: surf(E, 0, 22, 0), mm: 135 },
-  ]);
-  clip('Leaving', 'crane', r(7.5, 8.5), 'inout', [
-    { pos: at(E, E.w + 4, 0, 2), look: surf(E, 0, 4, 0), mm: 24 },
-    { pos: at(E, E.w + 55, -30, 26), look: surf(E, 0, 10, 0), mm: 18 },
-    { pos: at(E, E.w + 150, -80, 72), look: surf(E, 0, 30, 0), mm: 14 },
-  ]);
-  // the middle shots trade places by the seed; the opening, the flight and the ending stay where they are
-  const mid = clips.splice(2, 6);
-  for (let i = mid.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [mid[i], mid[j]] = [mid[j], mid[i]]; }
-  clips.splice(2, 0, ...mid);
+  clip({ name: 'Down the river', kind: 'drone', act: 'arrive', secs: r(10.5, 12), ease: 'out', in: 'cut',
+    why: 'Cut on motion, and on contrast: from high and slow to low and fast along the same line. Rises and slows over the place we stop at.',
+    keys: drone });
+
+  // ---- LOOK ----
+  clip({ name: 'The river going by', kind: 'medium', act: 'look', secs: r(5.5, 6.5), ease: 'in', in: 'dissolve', inSecs: 1.2,
+    why: 'Dissolve: the flight has come to rest, time passes, we are standing on the bank. Travel keeps the flight\'s direction; the look turns across the water.',
+    keys: [
+      { pos: at(M, M.w + 5, -5, 1.6), look: at(M, -M.w - 3, -1, 0.8), mm: 35 },
+      { pos: at(M, M.w + 5, 2, 1.6), look: at(M, -M.w - 3, 6, 0.8), mm: 35 },
+    ] });
+  clip({ name: 'Where the water meets the sand', kind: 'close', act: 'look', secs: r(5, 6), ease: 'out', in: 'cut',
+    why: 'A cut in on the same axis, on the move: same look across, same direction of travel, 35 to 85 mm. Comes to rest on the waterline.',
+    keys: [
+      { pos: at(M, M.w * 0.95 + 1.7, 2.6, 0.55), look: surf(M, M.w * 0.96, 8.5, 0), mm: 85 },
+      { pos: at(M, M.w * 0.95 + 1.7, 5.2, 0.55), look: surf(M, M.w * 0.96, 10.5, 0), mm: 85 },
+    ] });
+  clip({ name: 'Among the blades', kind: 'low angle', act: 'look', secs: r(6, 7), ease: 'in', in: 'dissolve', inSecs: 1.2,
+    why: 'Dissolve to the other thing the land is made of. Contrast: the longest lens to the widest, eye in the grass. Pushes on and tilts up to the sky.',
+    keys: [
+      { pos: at(G, G.w + 22, -3, 0.2), look: at(G, G.w + 22, 6, 0.9), mm: 12, roll: 9 * side },
+      { pos: at(G, G.w + 22, 0, 0.26), look: at(G, G.w + 22, 8, 2.4), mm: 12, roll: 4 * side },
+      { pos: at(G, G.w + 22, 2.4, 0.5), look: at(G, G.w + 22, 7, 9), mm: 12, roll: 0 },
+    ] });
+
+  // ---- LEAVE ----
+  { // straight up from that very spot, the view turning; the river comes into the frame
+    const x = at(G, G.w + 22, 2.4, 0), lo = [x[0], x[1] + 9, x[2]], mid = [x[0], x[1] + 38, x[2]], hi = [x[0], x[1] + 82, x[2]];
+    const g = at(G, G.w + 22, 3.2, 0), g2 = at(G, G.w + 10, 3.4, 0), g3 = at(G, G.w * 0.4, 3.0, 0);
+    clip({ name: 'Lifting off', kind: 'top down', act: 'leave', secs: r(6.5, 7.5), ease: 'out', in: 'cut',
+      why: 'Cut on motion: the tilt up becomes a climb, from the same spot. The view turns over and the river slides into frame; slows at the top.',
+      keys: [{ pos: lo, look: g, mm: 28, roll: 0 }, { pos: mid, look: g2, mm: 28, roll: 12 * side }, { pos: hi, look: g3, mm: 28, roll: 22 * side }] });
+  }
+  clip({ name: 'Back to the water', kind: 'glide', act: 'leave', secs: r(5.5, 6.5), ease: 'in', in: 'dissolve', inSecs: 1.4,
+    why: 'Dissolve from the height back to the ground, further on: low over the meadow, gathering speed towards the river.',
+    keys: [
+      { pos: at(E, E.w + 70, -14, 1.4), look: surf(E, 0, 20, 0.5), mm: 50 },
+      { pos: at(E, E.w + 16, 0, 1.2), look: surf(E, 0, 34, 0.5), mm: 50 },
+    ] });
+  clip({ name: 'Leaving', kind: 'crane', act: 'leave', secs: r(9, 10), ease: 'out', in: 'cut', out: 'dip',
+    why: 'Cut on motion: the glide carries over the bank and up. The opening run backwards: river, then land, then sky; widens to 14 mm, comes to rest, fades to the sky.',
+    keys: [
+      { pos: at(E, E.w + 6, 5, 1.6), look: surf(E, 0, 40, 0.5), mm: 35 },
+      { pos: surf(E, 0, 14, 9), look: surf(pts[21], 0, 0, 2), mm: 24 },
+      { pos: surf(E, -E.w * 0.5, 4, 40), look: surf(pts[23], 0, 0, 12), mm: 18 },
+      { pos: surf(E, -E.w, -30, 96), look: surf(pts[23], 0, 120, 70), mm: 14 },
+    ] });
   return clips;
 }
 export const floor = (x, z) => Math.max(W.heightAt(x, z), W.baseB(x, z) - 0.2);
