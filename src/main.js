@@ -74,12 +74,13 @@ addEventListener('resize', () => {
 });
 
 // ---- the frame ----
-let last = 0, ema = 16.7, worst = 0, frames = 0, hudAt = 0, dprAt = 0, ceiling = DPR_MAX, ceilingAt = 0, calm = 0, cpu = 0;
+let last = 0, ema = 16.7, worst = 0, frames = 0, hudAt = 0, dprAt = 0, ceiling = DPR_MAX, ceilingAt = 0, calm = 0, cpu = 0, resize = false;
 function frame(now) {
   requestAnimationFrame(frame);
   const ms = last ? now - last : 16.7; last = now;
   const dt = Math.min(ms, 100) / 1000;
   U.uTime.value = (now - t0) / 1000;
+  if (resize) { renderer.setPixelRatio(dpr); resize = false; }   // resizing empties the canvas: only right before drawing into it
   const c0 = performance.now();
   place(dt);
   cpu += (performance.now() - c0 - cpu) * 0.08;
@@ -93,7 +94,7 @@ function frame(now) {
     else if (ema < 17.3) { if (++calm >= 4 && dpr < Math.min(DPR_MAX, ceiling)) { next = Math.min(DPR_MAX, ceiling, dpr + 0.125); calm = 0; } }
     else calm = 0;
     if (now - ceilingAt > 20000) ceiling = DPR_MAX;
-    if (next !== dpr) { dpr = next; renderer.setPixelRatio(dpr); ema = 16.7; }
+    if (next !== dpr) { dpr = next; resize = true; ema = 16.7; }   // applied before the next frame is drawn, never after this one
     dprAt = now;
   }
   if (now - hudAt > 300) {
