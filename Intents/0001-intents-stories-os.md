@@ -192,3 +192,4 @@ _Samuel's decision._
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-11 | `7702d1b` | The intents system (template, skill), this intent, its story and film, story playback with captions in the game, the OS dashboard, one dev command; the devlog removed |
+| 2026-11-11 | `7c7b951` | The brand, the front page, the game's overlays in the brand, story 01 retold with subtitles, TheStory renamed Stories |
