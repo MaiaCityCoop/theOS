@@ -72,7 +72,7 @@ const VERT = /* glsl */ `
 ${WORLD_GLSL}
 ${GROUND_GLSL}
 ${CELL_GLSL}
-uniform float uNear, uFar, uSizeMin, uSizeMax, uVar, uVars, uBig;
+uniform float uNear, uFar, uSizeMin, uSizeMax, uVar, uVars, uBig, uFade;
 out vec3 vWorld; out vec3 vN; out float vArid; out float vLy; out vec3 vTint;
 vec3 rot(vec3 v, vec3 a, float cs, float sn){ return v * cs + cross(a, v) * sn + a * dot(a, v) * (1.0 - cs); }
 void main(){
@@ -96,6 +96,7 @@ void main(){
 #endif
   float r1 = rnd(c, 204u), r2 = rnd(c, 205u), r3 = rnd(c, 206u), r4 = rnd(c, 207u);
   float s = mix(uSizeMin, uSizeMax, r1 * r1 * r1 + oc * 0.25 * uBig * r1);
+  s *= 1.0 - smoothstep(uFade * 0.6, uFade, dist);   // the farthest rocks shrink away, none pops in as a speck
   vec3 scl = s * vec3(0.8 + 0.5 * r2, 0.55 + 0.4 * r3, 0.8 + 0.5 * r4);
   vec3 ax = normalize(vec3(rnd(c, 208u), rnd(c, 209u), rnd(c, 210u)) - 0.5 + 1e-4);
   float ang = rnd(c, 211u) * 6.2831853, cs = cos(ang), sn = sin(ang);
@@ -141,7 +142,7 @@ export function createRocks(scene, U, tex) {
         vertexShader: (big ? '#define BIG\n' : '') + VERT, fragmentShader: FRAG,
         uniforms: {
           ...U, uCell: { value: cell }, uP: { value: L.P }, uNear: { value: li ? lods[li - 1].far : -1 }, uFar: { value: L.far },
-          uSizeMin: { value: sizeMin }, uSizeMax: { value: sizeMax }, uVar: { value: v }, uVars: { value: vars }, uBig: { value: big ? 1 : 0 },
+          uSizeMin: { value: sizeMin }, uSizeMax: { value: sizeMax }, uVar: { value: v }, uVars: { value: vars }, uFade: { value: lods[lods.length - 1].far }, uBig: { value: big ? 1 : 0 },
           tA: { value: tex.a[4] }, tN: { value: tex.n[4] }, tM: { value: tex.a[0] }, uTex: { value: texScale },
         },
       });
@@ -149,6 +150,6 @@ export function createRocks(scene, U, tex) {
     });
   };
   layer(false, 2.2, 0.07, 0.55, 1.1, 1, [{ detail: 2, P: 8, far: 12 }, { detail: 1, P: 16, far: 50 }, { detail: 0, P: 32, far: 110 }]);
-  layer(true, 20, 0.7, 4.2, 3.0, 1, [{ detail: 3, P: 4, far: 60 }, { detail: 2, P: 8, far: 250 }, { detail: 1, P: 16, far: 700 }, { detail: 0, P: 32, far: 1500 }]);
+  layer(true, 20, 0.7, 4.2, 3.0, 1, [{ detail: 3, P: 4, far: 60 }, { detail: 2, P: 8, far: 250 }, { detail: 1, P: 16, far: 600 }, { detail: 0, P: 32, far: 1100 }]);
   return { rings, update(cx, cz, dy) { for (let i = 0; i < rings.length; i++) rings[i].update(cx, cz, dy); } };
 }

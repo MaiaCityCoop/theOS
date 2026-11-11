@@ -76,10 +76,14 @@ Mat hblend(Mat a, Mat b, float t){
 void main(){
   vec2 p = vWorld.xz, dx = dFdx(p), dy = dFdy(p);
   float dist = length(vWorld - uCam);
-  float mx = vnoise(p * (1.0 / 5.3), 90u);
-  float macro = 0.82 + 0.36 * vnoise(p * (1.0 / 23.0), 91u);
+  // every noise is let go before it is finer than a pixel: far away it would only shimmer
+  float mx = dist < 140.0 ? mix(vnoise(p * (1.0 / 5.3), 90u), 0.5, smoothstep(50.0, 140.0, dist)) : 0.5;
+  float m1 = dist < 700.0 ? (vnoise(p * (1.0 / 23.0), 91u) - 0.5) * (1.0 - smoothstep(250.0, 700.0, dist)) : 0.0;
+  float m2 = dist < 5000.0 ? (vnoise(p * (1.0 / 170.0) + 2.3, 92u) - 0.5) * (1.0 - smoothstep(2000.0, 5000.0, dist)) : 0.0;
+  float m3 = vnoise(p * (1.0 / 1100.0) + 6.1, 93u) - 0.5;
+  float macro = 1.0 + 0.36 * m1 + 0.30 * m2 + 0.26 * m3;
   float d = riverDist(vR), w = vW;
-  float path = pathMask(vPth) * (1.0 - smoothstep(250.0, 700.0, dist));
+  float path = pathMask(vPth) * (1.0 - smoothstep(70.0, 220.0, dist));   // a path is a thing of the near ground; from afar it was a drawn line
   float bare = dist < 160.0 ? bareMask(p) * (1.0 - smoothstep(100.0, 160.0, dist)) : 0.0;
 
   Mat m = smp(tA0, tN0, p, dx, dy, 2.0, 3.2, mx);
@@ -87,7 +91,7 @@ void main(){
   float bank = clamp(bankMask(d, w) + (m.h - 0.5) * 0.3 * step(0.01, bankMask(d, w)), 0.0, 1.0);
   if (vArid > 0.003) {
     Mat c = smp(tA1, tN1, p, dx, dy, 4.0, 6.4, mx);
-    float sp = smoothstep(0.55, 0.72, vnoise(p * (1.0 / 45.0), 73u));
+    float sp = dist < 1500.0 ? smoothstep(0.55, 0.72, vnoise(p * (1.0 / 45.0), 73u)) * (1.0 - smoothstep(600.0, 1500.0, dist)) : 0.0;
     if (sp > 0.003) { sand = smp(tA2, tN2, p, dx, dy, 2.0, 3.2, mx); haveSand = true; c = hblend(c, sand, sp); }
     m = hblend(m, c, vArid);
   }
@@ -196,6 +200,7 @@ export function createTerrain(scene, U, tex) {
   });
   const waterMat = new THREE.ShaderMaterial({
     vertexShader: '#define WATER\n' + VERT, fragmentShader: WFRAG, transparent: true, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4,   // far off the depth buffer cannot tell water from its bed: the water wins
     uniforms: { ...U, ...common, tWN: { value: tex.n[5] }, tWA: { value: tex.a[5] } },
   });
   const landMesh = new THREE.Mesh(land.g, landMat), waterMesh = new THREE.Mesh(water.g, waterMat);
