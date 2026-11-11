@@ -485,6 +485,19 @@ _Samuel's decision._
 - **Good:** seen in the pane at 1440.
 - **Broke / not there yet:** phone width and Safari not seen.
 
+### 2026-11-11, fifteenth round
+
+- **Asked:** the count is citizens, not "in game": 1 citizen, 2 citizens, and so on.
+- **Delivered:** everywhere on the dashboard the count reads "N citizen(s)": the cards, the
+  window over the film, the calendar's head, the dashboard's line and its game tile. Day 1
+  ("The decision") carries 1 citizen, so day 2 shows "+1 joined" (before, with no count for
+  day 1, it said "+2").
+- **Good:** seen in the pane at 1440: "1 citizen" on day 1, "2 citizens" and "+1 joined" on
+  day 2.
+- **Broke / not there yet:** day 1's one citizen (Samuel alone) is my reading of "today I am
+  alone", written in the dashboard's code; Samuel to confirm. Story 01's `timeline.json` still
+  names its field `inGame`.
+
 ## Trail
 
 | When | Commit | What |

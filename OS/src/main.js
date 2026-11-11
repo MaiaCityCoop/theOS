@@ -6,12 +6,13 @@ import { marked } from 'marked';
 
 const GAME = import.meta.env.VITE_GAME || `http://${location.hostname}:5173`;
 const STATES = ['idea', 'define', 'build', 'propose', 'story', 'archived'];
-const DAYS = 5423, NOTED = { 1: 'The decision' };   // days that have a name but no film yet
+const DAYS = 5423, NOTED = { 1: { title: 'The decision', inGame: 1 } };   // days that have a name and a count but no film yet: day 1, Samuel alone
 const DAYS_ = DAYS;   // the days; the humans, 1,346,269 (the 31st Fibonacci number), stand in the page's title
 const $ = (id) => document.getElementById(id);
 const get = (u) => fetch(u).then((r) => (r.ok ? r : Promise.reject(r.status)));
 const body = (md) => marked.parse(md.replace(/^---\n[\s\S]*?\n---\n/, ''));   // without the front matter
 const n = (v) => Math.round(v).toLocaleString('en-US'), pad = (d, w = 4) => String(d).padStart(w, '0');
+const cit = (v) => `${n(v)} citizen${v === 1 ? '' : 's'}`;   // the count is of citizens
 const mm = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 let intents = [], stories = [], current = null, gameView = 'walk';
 const latest = () => stories.filter((s) => s.film).pop();
@@ -149,7 +150,7 @@ function drone(e, joined) {
 // the next days after it, the far ones small. Pointing at a day that is told brings its story into the banner. ----
 function home() {
   const days = stories.filter((s) => s.film).map((s, i) => ({ ...s, day: s.day || i + 1 })), today = days[days.length - 1], told = days.length, T = today ? today.day : 0;
-  const joined = (e) => { const i = days.indexOf(e); return e.inGame == null ? null : e.inGame - (i ? days[i - 1].inGame || 0 : 0); };
+  const joined = (e) => { const i = days.indexOf(e); return e.inGame == null ? null : e.inGame - (i ? days[i - 1].inGame || 0 : NOTED[e.day - 1]?.inGame || 0); };
   const count = (e) => (e && e.inGame != null ? n(e.inGame) : '–');
   $('h-in').textContent = count(today); $('h-day').textContent = today ? n(T) : '–';
   $('travel').onclick = () => tab('city');
@@ -168,7 +169,7 @@ function home() {
   const show = (e) => { e = e || today; if (!e) return; const j = joined(e);
     if (e !== shown) { shown = e; $('dayboard').innerHTML = drone(e, j);
       $('daycard').innerHTML = `<span class="label num">Day ${pad(e.day)}${e === today ? ' · today' : ''}</span><h2>${e.title}</h2>
-        <p class="count">${e.inGame != null ? `<span><b>${n(e.inGame)}</b>in game</span>` : ''}${j ? `<span><b>+${n(j)}</b>joined</span>` : ''}${e.secs ? `<span>${mm(e.secs)}</span>` : ''}</p>`;
+        <p class="count">${e.inGame != null ? `<span><b>${n(e.inGame)}</b>${e.inGame === 1 ? 'citizen' : 'citizens'}</span>` : ''}${j ? `<span><b>+${n(j)}</b>joined</span>` : ''}${e.secs ? `<span>${mm(e.secs)}</span>` : ''}</p>`;
       goals(e); }
     sync(); };
   new IntersectionObserver(([en]) => { inView = en.intersectionRatio >= .45; sync(); }, { threshold: [0, .45, .9] }).observe($('window'));
@@ -180,9 +181,9 @@ function home() {
   let d = start, rows = '';
   const card = (x, t) => { const e = toldOn.get(x), note = NOTED[x];
     return `<button class="cd${e ? ' told' : ''}${note && !e ? ' noted' : ''}${x === T ? ' today' : ''}" data-d="${x}">${e && t < 2 ? drone(e, joined(e)) : ''}<span class="cn">${t < 2 ? (x === T ? 'Today · ' : x === T + 1 ? 'Tomorrow · ' : '') + 'Day ' : ''}${n(x)}</span>` +
-      (t === 0 ? (e ? `${e.inGame != null ? `<span class="cs"><b>${n(e.inGame)}</b> in game</span>` : ''}<span class="ct">${e.title}</span>` : `<span class="ct">${note || 'Not yet told'}</span>`) : '') + '</button>'; };
+      (t === 0 ? (e ? `${e.inGame != null ? `<span class="cs"><b>${n(e.inGame)}</b> ${e.inGame === 1 ? 'citizen' : 'citizens'}</span>` : ''}<span class="ct">${e.title}</span>` : `${note?.inGame ? `<span class="cs"><b>${n(note.inGame)}</b> ${note.inGame === 1 ? 'citizen' : 'citizens'}</span>` : ''}<span class="ct">${note?.title || 'Not yet told'}</span>`) : '') + '</button>'; };
   [6, 12, 24].forEach((k, t) => { rows += `<div class="crow r${t}">`; for (let i = 0; i < k && d <= DAYS; i++) rows += card(d++, t); rows += '</div>'; });
-  cal.innerHTML = `<header class="calhead"><h2>Day by day</h2><p><b>${n(told)}</b> of ${n(DAYS)} days told · <b>${count(today)}</b> in game today</p></header>${rows}<canvas></canvas><span class="tip"></span>`;
+  cal.innerHTML = `<header class="calhead"><h2>Day by day</h2><p><b>${n(told)}</b> of ${n(DAYS)} days told · <b>${count(today)}</b> ${today?.inGame === 1 ? 'citizen' : 'citizens'} today</p></header>${rows}<canvas></canvas><span class="tip"></span>`;
   cal.querySelectorAll('.cd').forEach((b) => { const e = toldOn.get(+b.dataset.d); if (!e) return;
     b.onpointerenter = () => show(e); b.onpointerleave = () => show(null); b.onclick = () => story(stories.find((s) => s.id === e.id)); });
   const cv = cal.querySelector('canvas'), tip = cal.querySelector('.tip'), first = d; let grid = [], hot = 0;
@@ -203,8 +204,8 @@ function home() {
 // ---- inside: the city's dashboard. A few tiles: the game, the stories, the intents ----
 function city() {
   const today = home.today, open = intents.filter((i) => i.state !== 'archived');
-  $('citysub').textContent = today ? `Day ${n(today.day)} of ${n(DAYS)} · ${today.inGame != null ? n(today.inGame) : '–'} in game` : '';
-  $('tiles').innerHTML = `<button class="tile big" data-go="game">${today ? drone(today, home.joined(today)) : ''}<span class="label">The Game</span><h2>Walk the world</h2><p>The meadow, the river and the first tent, live. Or look at it through the lenses.</p><div class="foot"><b>${today?.inGame != null ? n(today.inGame) : '–'}</b> in game<span class="go"></span></div></button>
+  $('citysub').textContent = today ? `Day ${n(today.day)} of ${n(DAYS)} · ${today.inGame != null ? cit(today.inGame) : '–'}` : '';
+  $('tiles').innerHTML = `<button class="tile big" data-go="game">${today ? drone(today, home.joined(today)) : ''}<span class="label">The Game</span><h2>Walk the world</h2><p>The meadow, the river and the first tent, live. Or look at it through the lenses.</p><div class="foot"><b>${today?.inGame != null ? n(today.inGame) : '–'}</b> citizens<span class="go"></span></div></button>
     <button class="tile" data-go="stories"><span class="label">Stories</span><h2>One a day</h2><p>${latest() ? 'Latest: ' + latest().title : 'None yet.'}</p><div class="foot"><b>${n(stories.length)}</b> of ${n(DAYS)}<span class="go"></span></div></button>
     <button class="tile" data-go="intents"><span class="label">Intents</span><h2>The work</h2><div class="rows">${open.slice(0, 3).map((i) => `<div>${i.title}</div>`).join('') || '<div>Nothing open.</div>'}</div><div class="foot"><b>${n(open.length)}</b> open<span class="go"></span></div></button>`;
   $('tiles').querySelectorAll('.tile').forEach((t) => (t.onclick = () => tab(t.dataset.go)));
