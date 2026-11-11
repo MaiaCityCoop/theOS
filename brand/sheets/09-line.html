@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maia City · brand draft 09 · Line</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+:root{--ink:#111a17;--ink-2:#44524c;--muted:#7d8a83;--paper:#f6f1e4;--rule:#ddd5c1;--sun:#f4b548;--terra:#d9774f;--moss:#5d7a4f;
+  --serif:'Fraunces',ui-serif,'New York',Georgia,serif;--ui:'Outfit',-apple-system,'SF Pro Text','Helvetica Neue',Arial,sans-serif}
+html,body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.5 var(--ui);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+.lab{font:500 11px/1 var(--ui);letter-spacing:.2em;text-transform:uppercase}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- the one banner: the game, live, with its interface ---------- */
+.banner{position:relative;height:100svh;min-height:620px;display:flex;flex-direction:column;background:#0c1311;color:#fff;overflow:hidden}
+.picture{position:relative;flex:1;min-height:0;overflow:hidden}
+/* painted stand-in, shown until (or unless) the game answers */
+.paint{position:absolute;inset:0;background:linear-gradient(180deg,#5d9be0 0%,#a9cdf0 44%,#dbe9e2 57%,#8fb46c 57.2%,#6d9a55 74%,#4f7d45 100%)}
+.paint::before{content:'';position:absolute;left:44%;width:20%;top:57.2%;bottom:0;background:linear-gradient(180deg,#b9d6ea,#6fa3c6);clip-path:polygon(40% 0,52% 0,100% 100%,10% 100%)}
+.paint::after{content:'';position:absolute;left:66%;top:calc(57.2% - 46px);border:38px solid transparent;border-bottom:50px solid #f1e8d2;border-top:0;filter:drop-shadow(8px 10px 6px rgba(0,0,0,.22))}
+.live{position:absolute;inset:0;width:100%;height:100%;border:0;opacity:0;transition:opacity 1.2s}
+.live.on{opacity:1}
+.shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(8,14,12,.62) 0%,rgba(8,14,12,.28) 38%,rgba(8,14,12,0) 62%),linear-gradient(180deg,rgba(8,14,12,.38) 0%,rgba(8,14,12,0) 22%)}
+.hud{position:absolute;inset:0;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+.hud>*{pointer-events:auto}
+.top{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:14px;padding:26px clamp(20px,4vw,56px)}
+.top img{width:38px;height:38px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.top b{font:400 22px/1 var(--serif);letter-spacing:-.01em}
+.top .day{margin-left:auto;display:flex;align-items:baseline;gap:10px}
+.top .day i{font-style:normal;font:500 15px/1 var(--ui);letter-spacing:.08em}
+.claim{position:absolute;left:clamp(20px,4vw,56px);top:50%;transform:translateY(-54%);width:min(680px,calc(100% - 40px))}
+.claim .lab{opacity:.8}
+h1{font:300 clamp(34px,4.5vw,66px)/1.04 var(--serif);letter-spacing:-.028em;margin:18px 0 30px;text-wrap:balance}
+h1 b{font-weight:400;color:var(--sun);font-variant-numeric:tabular-nums}
+h1 span{white-space:nowrap}
+.acts{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:12px;height:48px;padding:0 22px 0 18px;border-radius:6px;background:rgba(255,255,255,.94);color:var(--ink);font:500 15px/1 var(--ui);letter-spacing:.02em;text-shadow:none;cursor:pointer;border:0;transition:background .2s,transform .2s}
+.btn:hover{background:#fff;transform:translateY(-1px)}
+.btn::before{content:'';border:6px solid transparent;border-left:10px solid var(--ink);border-right:0}
+.btn span{color:var(--muted);font-variant-numeric:tabular-nums}
+.prompt{display:inline-flex;align-items:center;gap:10px;font:400 14px/1 var(--ui);letter-spacing:.03em;opacity:.92}
+.key{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:5px;border:1px solid rgba(255,255,255,.7);background:rgba(10,16,14,.35);font:500 12px/1 var(--ui);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+/* objective tracker, as a game shows it */
+.goals{position:absolute;right:clamp(20px,4vw,56px);top:104px;width:250px;padding-left:14px;border-left:1px solid rgba(255,255,255,.5)}
+.goals .lab{display:block;margin-bottom:12px;opacity:.8}
+.goals p{margin:0 0 9px;display:flex;gap:10px;align-items:center;font:400 14px/1.25 var(--ui)}
+.goals p::before{content:'';flex:none;width:9px;height:9px;transform:rotate(45deg);border:1px solid #fff}
+.goals p.done{opacity:.62}.goals p.done::before{background:#fff}
+.goals p.now::before{border-color:var(--sun);box-shadow:0 0 0 3px rgba(244,181,72,.25)}
+
+/* ---------- the line: 5423 days, one story at a time ---------- */
+.line{position:relative;flex:none;padding:22px clamp(20px,4vw,56px) 26px;background:#0c1311;border-top:1px solid rgba(255,255,255,.1)}
+.stats{display:flex;align-items:flex-end;gap:clamp(22px,4vw,64px);margin-bottom:22px}
+.stats div{min-width:0}
+.stats .lab{display:block;color:#8a9790;margin-bottom:9px;white-space:nowrap}
+.stats strong{font:300 clamp(24px,2.6vw,36px)/1 var(--ui);letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stats strong small{font:400 13px/1 var(--ui);letter-spacing:.02em;color:#8a9790;margin-left:8px}
+.stats .big strong{color:var(--sun)}
+.stats .sp{margin-left:auto;text-align:right}
+.track{position:relative;height:34px;cursor:crosshair;touch-action:none}
+.track::before{content:'';position:absolute;left:0;right:0;top:9px;height:2px;background:rgba(255,255,255,.2);border-radius:2px}
+.track .tick{position:absolute;top:5px;width:1px;height:10px;background:rgba(255,255,255,.34)}
+.track .tick span{position:absolute;top:16px;left:50%;transform:translateX(-50%);font:400 10px/1 var(--ui);letter-spacing:.1em;color:#75827b;white-space:nowrap}
+.track .sunhead{position:absolute;top:10px;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:var(--sun);box-shadow:0 0 0 4px rgba(244,181,72,.2),0 0 18px rgba(244,181,72,.7)}
+.track .end{position:absolute;right:0;top:16px;font:400 10px/1 var(--ui);letter-spacing:.1em;color:#75827b;text-transform:uppercase}
+.track .probe{position:absolute;top:0;width:1px;height:20px;background:#fff;opacity:0;pointer-events:none}
+.track .tip{position:absolute;bottom:32px;transform:translateX(-50%);padding:8px 11px;border-radius:5px;background:rgba(246,241,228,.96);color:var(--ink);font:400 12.5px/1.2 var(--ui);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s}
+.track .tip b{font-weight:600}
+.track.on .probe,.track.on .tip{opacity:1}
+
+/* ---------- the devlog: one entry a day ---------- */
+.log{max-width:1180px;margin:0 auto;padding:clamp(48px,7vw,96px) clamp(20px,4vw,56px) 40px}
+.log header{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:end;padding-bottom:26px;border-bottom:1px solid var(--ink)}
+.log h2{font:300 clamp(30px,3.4vw,46px)/1.05 var(--serif);letter-spacing:-.025em;margin:10px 0 0}
+.log header p{margin:0;max-width:40ch;color:var(--ink-2);font-size:15px}
+.row{display:grid;grid-template-columns:92px 150px minmax(0,1fr) 110px 150px 40px;gap:24px;align-items:center;padding:22px 0;border-bottom:1px solid var(--rule)}
+.row .d{font:500 13px/1 var(--ui);letter-spacing:.14em}
+.thumb{aspect-ratio:16/9;border-radius:4px;overflow:hidden;position:relative;background:linear-gradient(180deg,#6fa6e2 0%,#bcd8f0 52%,#86ad66 52.5%,#5d8a4c 100%)}
+.thumb::after{content:'';position:absolute;left:58%;top:calc(52.5% - 13px);border:10px solid transparent;border-bottom:14px solid #f1e8d2;border-top:0}
+.thumb em{position:absolute;right:6px;bottom:6px;font:500 10px/1 var(--ui);font-style:normal;color:#fff;background:rgba(10,16,14,.6);padding:3px 5px;border-radius:3px}
+.row h3{font:400 21px/1.2 var(--serif);letter-spacing:-.012em;margin:0 0 6px}
+.row .q{margin:0;color:var(--ink-2);font-size:14.5px;line-height:1.45}
+.row .q b{font:500 10.5px/1 var(--ui);letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-right:6px}
+.cell .lab{display:block;color:var(--muted);margin-bottom:8px;font-size:10px}
+.cell strong{font:400 22px/1 var(--ui);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.cell strong small{font:400 12px/1 var(--ui);color:var(--muted);margin-left:5px}
+.go{width:40px;height:40px;border-radius:50%;border:1px solid var(--ink);background:none;cursor:pointer;display:grid;place-items:center;transition:background .2s}
+.go::before{content:'';border:6px solid transparent;border-left:9px solid var(--ink);border-right:0;margin-left:3px;transition:border-color .2s}
+.go:hover{background:var(--ink)}.go:hover::before{border-left-color:var(--paper)}
+.row.next{color:var(--muted)}
+.row.next .thumb{background:none;border:1px dashed #c4bba5}.row.next .thumb::after{display:none}
+.row.next h3{color:var(--ink-2)}
+.rest{padding:22px 0 0;color:var(--muted);font-size:14px;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.rest a{border-bottom:1px solid currentColor}
+footer{max-width:1180px;margin:0 auto;padding:30px clamp(20px,4vw,56px) 60px;color:var(--muted);font-size:13px;line-height:1.6}
+
+@media (max-width:900px){
+  .goals{display:none}
+  .claim{top:46%}
+  .stats{flex-wrap:wrap;gap:18px 28px}.stats .sp{margin-left:0;text-align:left}
+  .track .tick span{display:none}
+  .log header{grid-template-columns:1fr}
+  .row{grid-template-columns:76px minmax(0,1fr) minmax(0,1fr);gap:16px}
+  .row .thumb{display:none}
+  .row>:nth-child(3){grid-column:2/4;grid-row:1}
+  .row>:nth-child(4){grid-column:2;grid-row:2}.row>:nth-child(5){grid-column:3;grid-row:2}
+  .row>:nth-child(6){grid-column:1;grid-row:2}
+}
+</style></head><body>
+
+<section class="banner">
+  <div class="picture">
+    <div class="paint"></div>
+    <iframe class="live" title="Maia City, live from the game" tabindex="-1"></iframe>
+    <div class="shade"></div>
+    <div class="hud">
+      <div class="top"><img src="../MaiaCity.svg" alt=""><b>Maia City</b>
+        <span class="day"><span class="lab">Day</span><i class="num">0001 / 5423</i></span></div>
+      <div class="claim">
+        <span class="lab">The devlog of a city · one story a day</span>
+        <h1>This is the story of how <b id="h-in">1</b> of <span>1,346,269</span> humans build their own solarpunk city, from the ground up.</h1>
+        <div class="acts"><button class="btn" id="play">Watch day 1 <span>0:59</span></button>
+          <span class="prompt"><span class="key">E</span>Enter the meadow</span></div>
+      </div>
+      <div class="goals"><span class="lab">Day 1</span>
+        <p class="done">Make a world</p><p class="done">Put up one tent</p><p class="now">Find human number two</p></div>
+    </div>
+  </div>
+
+  <div class="line">
+    <div class="stats">
+      <div class="big"><span class="lab">In game today</span><strong id="s-in">1</strong></div>
+      <div><span class="lab">Pace</span><strong><span id="s-pace">1</span><small>a day · <span id="s-need">248</span> needed</small></strong></div>
+      <div><span class="lab">At this pace the city takes</span><strong><span id="s-years">3,686</span><small>years</small></strong></div>
+      <div class="sp"><span class="lab">Stories told</span><strong><span id="s-told">1</span><small>of 5,423</small></strong></div>
+    </div>
+    <div class="track" id="track"><i class="sunhead" id="sunhead"></i><span class="end">Day 5423 · 1,346,269</span><i class="probe"></i><span class="tip"></span></div>
+  </div>
+</section>
+
+<main class="log" id="devlog">
+  <header><div><span class="lab">Devlog</span><h2>One entry a day. Each one counts.</h2></div>
+    <p>Every day gets one story, the number of humans in the game that day, and how long the city would take at that pace.</p></header>
+  <div id="rows"></div>
+  <div class="rest"><span><span class="num" id="left">5,421</span> entries not written yet.</span><a href="index.html">09 · All drafts</a></div>
+</main>
+<footer>The numbers are today's: day 1 of 5423, one human in the game, one story. 1,346,269 is the 31st Fibonacci number. "At this pace" is the humans still missing divided by the humans who have joined per day so far. The line under the picture answers to the pointer: it says how many humans must be in the game by any day to arrive on day 5423.</footer>
+
+<script>
+const TARGET = 1346269, DAYS = 5423, GAME = `${location.protocol}//${location.hostname}:5173`, STORY = '0001-intents-stories-os';
+// the devlog: one entry a day. Add a day here and the banner, the line and the list follow.
+const LOG = [
+  { day: 1, title: 'A green meadow and one tent', secs: 59, inGame: 1, story: STORY,
+    lines: [['Samuel', 'This is day one. Today I am alone. Tomorrow we will see.'], ['Maia', 'Tomorrow I am here too.']] },
+];
+const n = (v) => Math.round(v).toLocaleString('en-US'), pad = (d) => String(d).padStart(4, '0');
+const years = (e) => (TARGET - e.inGame) / (e.inGame / e.day) / 365.25;   // humans still missing ÷ humans a day so far
+const today = LOG[LOG.length - 1], $ = (id) => document.getElementById(id);
+
+$('h-in').textContent = n(today.inGame); $('s-in').textContent = n(today.inGame);
+$('s-pace').textContent = (today.inGame / today.day).toLocaleString('en-US', { maximumFractionDigits: 1 });
+$('s-need').textContent = n(TARGET / DAYS); $('s-years').textContent = n(years(today));
+$('s-told').textContent = n(LOG.length); $('left').textContent = n(DAYS - LOG.length - 1);
+
+// the line: a tick a year, the sun where today is, and what "on pace" means under the pointer
+const track = $('track'), tip = track.querySelector('.tip'), probe = track.querySelector('.probe');
+for (let y = 1; y * 365.25 < DAYS; y++) { const t = document.createElement('i'); t.className = 'tick'; t.style.left = (y * 365.25 / DAYS * 100) + '%'; if (y < 14) t.innerHTML = `<span>Y${y}</span>`; track.prepend(t); }
+$('sunhead').style.left = (today.day / DAYS * 100) + '%';
+const point = (ev) => { const r = track.getBoundingClientRect(), x = Math.min(Math.max(ev.clientX - r.left, 0), r.width), d = Math.max(1, Math.round(x / r.width * DAYS));
+  probe.style.left = x + 'px'; tip.style.left = Math.min(Math.max(x, 120), r.width - 120) + 'px';
+  tip.innerHTML = `<b>Day ${n(d)}</b> · on pace means ${n(TARGET * d / DAYS)} in game`; track.classList.add('on'); };
+track.addEventListener('pointermove', point); track.addEventListener('pointerdown', point);
+track.addEventListener('pointerleave', () => track.classList.remove('on'));
+
+// the list
+const mm = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+$('rows').innerHTML = LOG.slice().reverse().map((e) => `<article class="row"><span class="d num">DAY ${pad(e.day)}</span>
+  <div class="thumb"><em>${mm(e.secs)}</em></div>
+  <div><h3>${e.title}</h3>${e.lines.map(([who, l]) => `<p class="q"><b>${who}</b>${l}</p>`).join('')}</div>
+  <div class="cell"><span class="lab">In game</span><strong>${n(e.inGame)}</strong></div>
+  <div class="cell"><span class="lab">At this pace</span><strong>${n(years(e))}<small>years</small></strong></div>
+  <button class="go" data-story="${e.story}" aria-label="Play day ${e.day}"></button></article>`).join('')
+  + `<article class="row next"><span class="d num">DAY ${pad(today.day + 1)}</span><div class="thumb"></div>
+  <div><h3>Tomorrow.</h3><p class="q">Not written yet. It is written the day it happens.</p></div>
+  <div class="cell"><span class="lab">In game</span><strong>?</strong></div><div class="cell"><span class="lab">At this pace</span><strong>?</strong></div><span></span></article>`;
+
+// the picture: the game itself, playing the day's film, if it is running
+const live = document.querySelector('.live'), film = (id) => `${GAME}/timeline.html?story=${id}&embed`;
+const show = (id) => { live.classList.remove('on'); live.onload = () => live.classList.add('on'); live.src = film(id); };
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) fetch(GAME + '/timeline.html', { mode: 'no-cors' }).then(() => show(today.story)).catch(() => {});
+const play = (id) => { scrollTo({ top: 0, behavior: 'smooth' }); fetch(GAME + '/timeline.html', { mode: 'no-cors' }).then(() => show(id)).catch(() => {}); };
+$('play').addEventListener('click', () => play(today.story));
+document.querySelectorAll('.go').forEach((b) => b.addEventListener('click', () => play(b.dataset.story)));
+</script>
+</body></html>

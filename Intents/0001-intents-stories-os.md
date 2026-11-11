@@ -145,6 +145,7 @@ _Samuel's decision._
 - [x] Samuel looked again: brand again from the mark, liquid glass, the Game tab's bug, the film with its story
 - [x] Samuel looked again: story as a dialogue from day 1, a tent, the timeline redesigned, four brand sheets
 - [x] Samuel looked again: the four sheets out; eight brand drafts, each a whole landing page
+- [x] Samuel looked: Daylight liked; Plot, Subtitle and Daylight merged and reduced to draft 09 (one banner, the line, the devlog)
 - [ ] Samuel: choose a brand draft (or parts of several); then the product is restyled once, to that
 - [ ] Samuel: look again; accept or say what is wrong
 - [ ] Samuel: his opening to camera for story 01
@@ -287,6 +288,30 @@ _Samuel's decision._
   testing was needed. None was seen in Safari, on a real phone, by touch or with reduced motion.
   The pages load their typefaces from Google Fonts, so they need the network. The live pages
   still wear the fourth, rejected look.
+
+### 2026-11-11, sixth round
+
+- **Asked:** Daylight is nice; merge Plot's look, Subtitle's storytelling and Daylight's style,
+  and say first how it would be built. Then: massively less. Only the line of the 5423 days, one
+  story at a time, each day documenting how many players are in the game and how many years the
+  city takes at the current rate; the real citizens in the game are what is counted. Less blocky,
+  more like a real game's interface. One master banner only, no long storyline. Each day one
+  content snippet into a devlog section. The line: "This is the story of how 1 of 1.3 million
+  (a Fibonacci number) humans build their own solarpunk city, from the ground up."
+- **Delivered:** `brand/sheets/09-line.html`, first in the overview. One banner: the game itself
+  playing the day's film behind a game interface (name, day 0001 / 5423, the day's objectives, a
+  key prompt), the count in the headline (1 of 1,346,269, the 31st Fibonacci number). Under the
+  picture the line: 5423 days with a tick a year and the sun at today; humans in game (1), pace
+  (1 a day, 248 needed), years at this pace (3,686), stories told (1 of 5,423); under the pointer
+  the line says how many humans being on pace means on any day. Then the devlog: one row a day
+  (day, film, title, two lines of the dialogue, in game, at this pace), and tomorrow's row empty.
+  Adding a day is one entry in the page's list; headline, line and rows follow.
+- **Good:** seen once in the pane at 1440: the game's film ran behind the banner, both typefaces
+  loaded, the numbers stood as computed.
+- **Broke / not there yet:** the picture needs the game running on port 5173; without it a
+  painted meadow stands in (not looked at). "In just 16 years" is not on this page, following
+  Samuel's line as he gave it. The village idea (one plot per village, by invitation) is not on
+  it. Not seen in Safari, at phone width, or with the pointer on the line.
 
 ## Trail
 
