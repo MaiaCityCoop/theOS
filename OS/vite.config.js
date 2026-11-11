@@ -36,11 +36,12 @@ export default {
             // a story's film also says which day it is, how many humans were in the game that day, and the day's goals
             let t = {}; try { t = JSON.parse(readFileSync(resolve(stories, d, 'timeline.json'), 'utf8')); } catch {}
             return { id: d, film: Array.isArray(t.clips), title: (readFileSync(resolve(stories, d, 'story.md'), 'utf8').match(/^# (.*)$/m) || [])[1] || d,
-              day: t.day, inGame: t.inGame, goals: t.goals, preview: existsSync(resolve(stories, d, 'preview.jpg')), secs: Array.isArray(t.clips) ? Math.round(t.clips.reduce((a, c) => a + (c.secs || 0), 0)) : undefined };
+              day: t.day, inGame: t.inGame, goals: t.goals, preview: existsSync(resolve(stories, d, 'preview.jpg')), shots: (() => { try { return readdirSync(resolve(stories, d, 'shots')).filter((f) => f.endsWith('.jpg')).length; } catch { return 0; } })(), secs: Array.isArray(t.clips) ? Math.round(t.clips.reduce((a, c) => a + (c.secs || 0), 0)) : undefined };
           }); } catch {}
           return json(res, list);
         }
         if ((m = url.match(/^\/stories\/([a-z0-9][a-z0-9-]*)\/(story\.md|timeline\.json)$/))) return text(res, resolve(stories, m[1], m[2]));
+        if ((m = url.match(/^\/stories\/([a-z0-9][a-z0-9-]*)\/shots\/(\d{1,3})\.jpg$/))) { const f = resolve(stories, m[1], 'shots', m[2] + '.jpg'); if (!existsSync(f)) { res.statusCode = 404; res.end(''); return; } res.setHeader('content-type', 'image/jpeg'); return res.end(readFileSync(f)); }
         if ((m = url.match(/^\/stories\/([a-z0-9][a-z0-9-]*)\/preview\.jpg$/))) { const f = resolve(stories, m[1], 'preview.jpg'); if (!existsSync(f)) { res.statusCode = 404; res.end(''); return; } res.setHeader('content-type', 'image/jpeg'); return res.end(readFileSync(f)); }
         res.statusCode = 404; res.end('');
       });

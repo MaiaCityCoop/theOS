@@ -88,8 +88,8 @@ async function story(s, show = true) {
   current = s;
   const md = await get(`/api/stories/${s.id}/story.md`).then((r) => r.text()), d = $('storyedit');
   d.innerHTML = `<header class="studiohead"><button class="btn small quiet" data-do="shelf">← Stories</button><h1>${s.title}</h1><span class="chip">Day ${n(s.day || 1)}${s.inGame != null ? ' · ' + (s.inGame === 1 ? '1 citizen' : n(s.inGame) + ' citizens') : ''}</span><button class="btn small quiet" data-do="intent">Its intent</button></header>` +
-    (s.film ? `<div class="editpage"><div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div>${EDIT}</div>` : '') + `<div class="stagedoc"></div><nav class="pages"></nav>`;
-  if (s.film) editor(d.querySelector('.edit'), d.querySelector('.player iframe'));
+    (s.film ? `<div class="editpage"><div class="pstage"><div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div></div>${EDIT}</div>` : '') + `<div class="stagedoc"></div><nav class="pages"></nav>`;
+  if (s.film) editor(d.querySelector('.edit'), d.querySelector('.player iframe'), s);
   pages(d, md, s.film);
   d.querySelector('[data-do=intent]').onclick = () => { tab('intents'); board(s.id); };
   d.querySelector('[data-do=shelf]').onclick = () => { current = null; tab('stories'); };
@@ -120,7 +120,7 @@ const EDIT = `<div class="edit"><div class="etop"><button class="eplay" aria-lab
   <div class="elanes"><div class="eruler"></div><div class="elane t"></div><div class="elane v"></div><div class="elane s"></div><div class="elane a"></div><div class="elane m"><span class="eempty">no music yet</span></div><i class="ehead"></i></div></div></div>`;
 let onFilm = null;
 addEventListener('message', (ev) => { const m = ev.data; if (m?.maia && onFilm && ev.source === onFilm.win()) onFilm.take(m); });
-function editor(el, frame) {
+function editor(el, frame, story) {
   const q = (c) => el.querySelector(c), lanes = q('.elanes'), say = (m) => frame.contentWindow?.postMessage({ maia: 1, ...m }, '*');
   let D = 0, clips = [], starts = [], playing = false, asked = false, cur = -1;
   const pct = (t) => (D ? (t / D) * 100 : 0);
@@ -133,7 +133,8 @@ function editor(el, frame) {
       q('.elane.t').innerHTML = caps.filter((c) => c.kind === 'title').map((c) => block(c, 'ecap')).join('');
       q('.elane.a').innerHTML = caps.filter((c) => c.kind === 'samuel' || c.kind === 'maia').map((c) => block({ ...c, text: (c.kind === 'samuel' ? 'Samuel' : 'Maia') + ' · not recorded' }, 'eaud')).join('');
       q('.elane.s').innerHTML = caps.filter((c) => c.kind !== 'title').map((c) => `<div class="ecap ${c.kind}" style="left:${pct(c.at)}%;width:calc(${pct(c.for)}% - 2px)" title="${c.text.replace(/"/g, '&quot;')}">${c.text}</div>`).join('');
-      if (!asked) { asked = true; say({ cmd: 'thumbs' }); }
+      if (story?.shots >= clips.length) clips.forEach((c, i) => { q(`.eclip[data-i="${i}"]`).style.backgroundImage = `url(/api/stories/${story.id}/shots/${i}.jpg)`; });   // taken before: no run through the shots
+      else if (!asked) { asked = true; say({ cmd: 'thumbs' }); }
     }
     if (m.type === 'thumb') { const c = q(`.eclip[data-i="${m.i}"]`); if (c) c.style.backgroundImage = `url(${m.src})`; }
     if (m.type === 'time' && D) {

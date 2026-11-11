@@ -238,7 +238,9 @@
   .studiohead .chip{background:rgba(251,246,234,.1);color:var(--cream);font-size:11.5px;padding:6px 10px}
   #storyedit .studiohead{margin:0}
   #storyedit .edit{margin:0}
-  #storyedit .player{width:100%;height:100%;max-height:none;aspect-ratio:auto;margin:0;border-radius:14px}
+  /* the film keeps the shape it was made in, 2.39:1, as large as the space allows, centred */
+  #storyedit .pstage{min-height:0;container-type:size;display:grid;place-items:center}
+  #storyedit .player{width:min(100cqw,calc(100cqh * 2.39));height:auto;max-height:none;aspect-ratio:2.39/1;margin:0;border-radius:14px}
   #storyedit .edit{border-radius:14px;background:#18243c}
   /* the studio's pages: one at a time. Edit is the film over its timeline; a text page fills the stage */
   #storyedit .editpage{grid-row:2;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:8px;min-height:0}
@@ -246,6 +248,17 @@
   #storyedit[data-page="doc"] .editpage{display:none}#storyedit[data-page="doc"] .stagedoc{display:block}
   #storyedit .stagedoc .doc{width:auto;max-width:860px;margin:0 auto;border-radius:18px;padding:6px clamp(22px,3vw,48px) 36px}
   #storyedit .stagedoc h2{margin-top:22px;padding-top:0;border:0}
+  /* every page of the studio is dark, as the film's */
+  #storyedit .stagedoc .doc{background:#18243c;color:rgba(251,246,234,.82)}
+  #storyedit .stagedoc .doc h1,#storyedit .stagedoc .doc h2,#storyedit .stagedoc .doc strong{color:var(--cream)}
+  #storyedit .stagedoc .doc h3{color:var(--sun)}
+  #storyedit .stagedoc .doc p,#storyedit .stagedoc .doc li,#storyedit .stagedoc .doc td{color:rgba(251,246,234,.78)}
+  #storyedit .stagedoc .doc em{color:rgba(251,246,234,.55)}
+  #storyedit .stagedoc .doc th{color:rgba(251,246,234,.5);border-bottom-color:rgba(251,246,234,.2)}
+  #storyedit .stagedoc .doc td{border-bottom-color:rgba(251,246,234,.08)}
+  #storyedit .stagedoc .doc blockquote{background:rgba(251,246,234,.06);color:var(--cream)}
+  #storyedit .stagedoc .doc code{background:rgba(251,246,234,.08);color:var(--sun)}
+  #storyedit .stagedoc .doc a{color:var(--cream)}
   /* the bar of pages: bottom left, as a suite's page bar; on a phone, one button that opens them */
   .pages{position:fixed;left:clamp(12px,1.4vw,20px);bottom:18px;z-index:8;display:flex;align-items:center;gap:2px;height:52px;padding:0 5px;border-radius:999px;background:rgba(24,36,60,.94);border:1px solid rgba(251,246,234,.12)}
   .pages .pg{font:500 13px/1 var(--sans);color:rgba(251,246,234,.65);background:none;border:0;padding:12px 14px;border-radius:999px;cursor:pointer;white-space:nowrap}

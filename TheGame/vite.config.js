@@ -40,6 +40,14 @@ export default {
           if (!m) { res.statusCode = 400; res.end('a JPEG data URL'); return; }
           writeFileSync(resolve(dir, 'preview.jpg'), Buffer.from(m[1], 'base64')); res.end('kept'); });
       });
+      // a shot's still, taken once by the story editor: POST /story-shot?id=<story>&i=<shot> writes ../Stories/<id>/shots/<i>.jpg
+      server.middlewares.use('/story-shot', (req, res) => {
+        const q = new URL(req.url, 'http://x').searchParams, id = q.get('id') || '', i = q.get('i') || '', dir = resolve(server.config.root, '../Stories', id);
+        if (req.method !== 'POST' || !/^[a-z0-9][a-z0-9-]*$/.test(id) || !/^\d{1,3}$/.test(i) || !existsSync(dir)) { res.statusCode = 400; res.end('POST, id and i'); return; }
+        let body = ''; req.on('data', (c) => { body += c; });
+        req.on('end', () => { const m = body.match(/^data:image\/jpeg;base64,(.+)$/); if (!m) { res.statusCode = 400; res.end('a JPEG data URL'); return; }
+          mkdirSync(resolve(dir, 'shots'), { recursive: true }); writeFileSync(resolve(dir, 'shots', i + '.jpg'), Buffer.from(m[1], 'base64')); res.end('kept'); });
+      });
       server.middlewares.use('/cine/keep', (req, res) => {
         const name = new URL(req.url, 'http://x').searchParams.get('name') || '';
         if (req.method !== 'POST' || !/^[a-z0-9][a-z0-9-]{0,60}$/.test(name)) { res.statusCode = 400; res.end('POST, name: a-z 0-9 -'); return; }

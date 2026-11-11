@@ -101,7 +101,8 @@ if (parent !== window) {
         const { renderer, scene, camera } = window.__s8, g = renderer.domElement;
         renderer.render(scene, camera);                       // drawn now and copied in the same moment, before the browser clears it
         const c = document.createElement('canvas'); c.width = 360; c.height = Math.round((360 * g.height) / g.width);
-        c.getContext('2d').drawImage(g, 0, 0, c.width, c.height); send({ type: 'thumb', i, src: c.toDataURL('image/jpeg', 0.75) });
+        c.getContext('2d').drawImage(g, 0, 0, c.width, c.height); const src = c.toDataURL('image/jpeg', 0.75); send({ type: 'thumb', i, src });
+        if (storyId) fetch(`/story-shot?id=${storyId}&i=${i}`, { method: 'POST', body: src }).catch(() => {});   // kept with the story: taken once
       }
       cine.seek(at); if (was || at < 0.5) cine.play(); busy = false;   // a film that had not begun yet plays on
     }

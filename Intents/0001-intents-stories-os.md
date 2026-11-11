@@ -691,6 +691,20 @@ _Samuel's decision._
 - **Good:** seen in the pane at 1440 (Edit, then Hook alone) and at 375 (Hook, the menu open
   and closed); nothing wider than the screen.
 
+### 2026-11-11, thirtieth round
+
+- **Asked:** keep the film at 2.39:1; every page of the studio dark, not light; and remove
+  the strange run through every shot when a story opens.
+- **Delivered:** the studio's film keeps 2.39:1 at any size of the window, as large as fits,
+  centred (measured 2.390 at 1440x900 and 1000x900). The text pages are dark like the film.
+  A shot's still is now taken once and kept with the story (`Stories/<id>/shots/<n>.jpg`, by a
+  new dev route of the game, `POST /story-shot`); afterwards the editor loads the stills from
+  there and the film is never run through its shots on opening. Story 01's eight are kept.
+- **Good:** seen in the pane: the ratio at two sizes, the Story page dark, and on a fresh load
+  all eight stills from disk with the film at 0:00.
+- **Broke / not there yet:** a story whose shots change keeps its old stills until its
+  `shots/` folder is emptied.
+
 ## Trail
 
 | When | Commit | What |
