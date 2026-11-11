@@ -224,3 +224,4 @@ _Samuel's decision._
 | --- | --- | --- |
 | 2026-11-11 | `7702d1b` | The intents system (template, skill), this intent, its story and film, story playback with captions in the game, the OS dashboard, one dev command; the devlog removed |
 | 2026-11-11 | `7c7b951` | The brand, the front page, the game's overlays in the brand, story 01 retold with subtitles, TheStory renamed Stories |
+| 2026-11-11 | `877bf95` | The mark and a brand grown from it, liquid-glass overlays, the story's film on its page, the Game tab and lens bench bugs fixed |
