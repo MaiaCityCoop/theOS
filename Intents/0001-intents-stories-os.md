@@ -640,6 +640,7 @@ _Samuel's decision._
   further down, and a small half-round x hangs from its bottom edge; the top-right Close is gone.
   The x goes back to the dashboard and brings the pill back.
 - **Good:** seen in the pane at 1440; clicking the x returned to the dashboard with the pill.
+- **Then:** the dashboard behind an open sheet is blurred more (10 px) under a veil of TheOS blue.
 
 ## Trail
 

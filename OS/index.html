@@ -38,7 +38,9 @@
   .sheetx:hover{color:var(--clay)}
   body.sheet .sheetx{display:block}
   .sheethead [data-close]{display:none}
-  body.sheet #city{display:block;filter:blur(2px);opacity:.6;pointer-events:none}
+  body.sheet #city{display:block;filter:blur(10px) saturate(.8);opacity:.9;pointer-events:none}
+  /* behind a sheet: the dashboard blurred under a veil of TheOS blue */
+  body.sheet::after{content:'';position:fixed;inset:0;z-index:6;background:rgba(23,54,85,.38);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);pointer-events:none}
   body.admin main{padding-bottom:90px}
   /* the city's dashboard: a few tiles */
   #city{padding:clamp(20px,3vw,40px) clamp(18px,3vw,44px)}
