@@ -1217,3 +1217,4 @@ _Samuel's decision._
 | 2026-11-11 | `ccbfd7a` | Clear glass with a dimming, always-light words set firmly, flat stacked items; the glass's rules in the brand file |
 | 2026-11-11 | `20f885d` | The light glass restored; words in rounded system letters with a fine shadow; a dimming only over the sky |
 | 2026-11-11 | `ad686c0` | Cards on glass in three levels, clearer grey glass, one game-screen layout, lenses at the top, brand subtitles, 16:9 film |
+| 2026-11-11 | `4468d88` | One pill height; the asset card's Info and Detail tabs, levels of detail to fly to |
