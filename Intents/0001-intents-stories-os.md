@@ -936,6 +936,23 @@ _Samuel's decision._
   screen) and fixed. A comment put in the middle of a line had hidden them as well. Day 2's
   preview picture and the story's shot stills still show the ridge tent until retaken.
 
+### 2026-11-11, forty-fifth round
+
+- **Asked:** the glass a little more see-through; the right side as wide as the list, more
+  compact; fix the smearing at the bottom edge; a far larger door on the bell tent. Then: a
+  biome is staged cleanly in its own sandbox, not found in the world; materials get their own
+  viewer too; the goal: everything configurable and extendable with new textures, materials,
+  assets and biomes over time, while the engine improves for all of them.
+- **Delivered:** clearer glass; both sides 210 px, the card set smaller. The smear: in a frame of
+  any shape the lens still bent the picture as if it were 2.39:1, so in a tall window it read past
+  the picture's edge; it now bends the picture it is drawn in. The bell tent's door is 1.8 m wide
+  and reaches 2.05 m into the roof, built in small pieces that follow the curve of wall and roof
+  (a flat door sank into the round tent and showed only its edges), its flaps tied back beside it.
+- **Good:** seen in the pane: no smear in a tall window; the door in the film's shot among the
+  blades, dark and whole.
+- **Broke / not there yet:** biomes and materials as configurable registries: proposed in the
+  reply, not built.
+
 ## Trail
 
 | When | Commit | What |

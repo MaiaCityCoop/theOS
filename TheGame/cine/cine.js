@@ -43,7 +43,7 @@ function apply() {
   const f = vfov(S.mm);
   if (Math.abs(cam.fov - f) > 1e-4) { cam.fov = f; cam.updateProjectionMatrix(); }
   // the lens, for the game's depth of field: always wide open
-  DOF.on = api.dof; DOF.focus = S.focus; DOF.mm = S.mm; DOF.N = api.aperture; DOF.aspect = S.fmt.aspect; DOF.barrel = api.distortion * Math.min(1, (28 / S.mm) ** 1.5); cam.userData.dof = DOF;
+  DOF.on = api.dof; DOF.focus = S.focus; DOF.mm = S.mm; DOF.N = api.aperture; DOF.aspect = FILL ? innerWidth / innerHeight : S.fmt.aspect;   // framed in any shape, the picture is the window's own DOF.barrel = api.distortion * Math.min(1, (28 / S.mm) ** 1.5); cam.userData.dof = DOF;
 }
 const DOF = { on: false, focus: 10, mm: 35, N: 1.9, aspect: 2.39 };
 // a view: { pos: [x, y, z], look: [x, y, z] | yaw, pitch (degrees), roll (degrees), mm }

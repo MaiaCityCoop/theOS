@@ -4,9 +4,9 @@
 // (assets/index.js). Units are metres; the origin is the middle of its floor; the door faces -z.
 const R = 2.5, WALL = 0.62, PEAK = 3.0;
 const canvas = [0.86, 0.82, 0.71], shade = [0.74, 0.69, 0.57], inside = [0.07, 0.06, 0.05], rope = [0.58, 0.5, 0.37], wood = [0.42, 0.31, 0.2], sheet = [0.24, 0.29, 0.22];
-const DOOR = [-Math.PI / 2 - 0.32, -Math.PI / 2 + 0.32];   // the door: the stretch of wall facing -z
+const DOOR_W = 0.36, DOOR_H = 2.05;   // the door: half its width as an angle round the tent, and how high it reaches into the roof
 const at = (r, y, t) => [r * Math.cos(t), y, r * Math.sin(t)];
-const inDoor = (t0, t1) => { const m = (t0 + t1) / 2; return m > DOOR[0] && m < DOOR[1]; };
+const coneR = (y) => R * (PEAK - y) / (PEAK - WALL);   // the roof's radius at a height
 const lit = (t) => (Math.cos(t - 0.9) > 0 ? canvas : shade);   // the side towards the sun is lighter
 
 function bell(n, { door = true, flaps = false, ropes = 0, pegs = false, pole = false, groundsheet = false } = {}) {
@@ -14,12 +14,21 @@ function bell(n, { door = true, flaps = false, ropes = 0, pegs = false, pole = f
   for (let i = 0; i < n; i++) {
     const t0 = -Math.PI / 2 + (i / n) * 2 * Math.PI + Math.PI / n, t1 = t0 + (2 * Math.PI) / n;   // a seam, not a face, faces the door's middle
     const a0 = at(R, 0, t0), a1 = at(R, 0, t1), b0 = at(R, WALL, t0), b1 = at(R, WALL, t1), c = lit((t0 + t1) / 2);
-    if (door && inDoor(t0, t1)) { f.push([a0, a1, b1, inside], [a0, b1, b0, inside]); }   // the open door: dark inside
-    else { f.push([a0, a1, b1, c], [a0, b1, b0, c]); }                                     // the wall
+    f.push([a0, a1, b1, c], [a0, b1, b0, c]);   // the wall
     f.push([b0, b1, top, c]);                                                               // the roof
   }
-  if (door && flaps) {   // the two flaps, tied back beside the door
-    for (const s of [-1, 1]) { const t = -Math.PI / 2 + s * 0.42; f.push([at(R + 0.02, 0, t), at(R + 0.02, 0, t + s * 0.22), at(R + 0.02, WALL * 1.15, t), canvas]); }
+  if (door) {   // the open door, laid just outside the canvas: from the ground, through the wall, up into the roof to a point
+    // in small pieces that follow the curve of wall and roof: a flat door across a round tent would sink into it
+    const m = -Math.PI / 2, e = 0.02, H = 8, Wn = 6;
+    const half = (y) => (y <= WALL ? DOOR_W * (1 - 0.06 * y / WALL) : DOOR_W * 0.94 * (1 - (y - WALL) / (DOOR_H - WALL)));
+    const on = (y, k) => { const w = half(y), t = m - w + (2 * w * k) / Wn; return at((y <= WALL ? R : coneR(y)) + e, y, t); };
+    const ys = [0, WALL / 2, WALL]; for (let j = 1; j <= H; j++) ys.push(WALL + ((DOOR_H - WALL) * j) / H);   // a break exactly where the wall meets the roof
+    for (let j = 0; j < ys.length - 1; j++) { const y0 = ys[j], y1 = ys[j + 1];
+      for (let k = 0; k < Wn; k++) f.push([on(y0, k), on(y0, k + 1), on(y1, k + 1), inside], [on(y0, k), on(y1, k + 1), on(y1, k), inside]); }
+    if (flaps) for (const s of [-1, 1]) {   // its two flaps, rolled back and tied beside it
+      const t = m + s * (DOOR_W + 0.06), u = m + s * (DOOR_W + 0.3);
+      f.push([at(R + e * 2, 0, t), at(R + e * 2, 0, u), at(coneR(DOOR_H * 0.82) + e * 2, DOOR_H * 0.82, t), shade]);
+    }
   }
   if (pole) {   // the centre pole, through the peak
     const w = 0.035, p = (x, z, y) => [x, y, z];
