@@ -16,7 +16,7 @@
   body.admin header.site .visit{display:none}
   /* inside: one pill at the bottom, centred */
   /* inside: the pill at the bottom, as in the old play: back, one large round home (the dashboard), the city's badge */
-  nav.admin{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:8;display:none;align-items:center;gap:12px;padding:0 12px;height:var(--pill-h);box-sizing:border-box;border-radius:999px;background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:var(--glass-edge);box-shadow:var(--glass-shadow)}
+  nav.admin{position:fixed;left:50%;bottom:var(--edge-b);transform:translateX(-50%);z-index:8;display:none;align-items:center;gap:12px;padding:0 12px;height:var(--pill-h);box-sizing:border-box;border-radius:999px;background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:var(--glass-edge);box-shadow:var(--glass-shadow)}
   body.admin nav.admin{display:flex}
   nav.admin .back{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;cursor:pointer;color:var(--on-glass);font:500 10.5px/1 var(--sans);letter-spacing:.06em;padding:0 6px}
   nav.admin .back svg{width:22px;height:20px}
@@ -264,8 +264,8 @@
   #storyedit .stagedoc .doc code{background:rgba(251,246,234,.08);color:var(--sun)}
   #storyedit .stagedoc .doc a{color:var(--cream)}
   /* the bar of pages: bottom left, as a suite's page bar; on a phone, one button that opens them */
-  .pages{position:fixed;left:clamp(12px,1.4vw,20px);bottom:18px;z-index:8;display:flex;align-items:center;gap:2px;height:52px;padding:0 5px;border-radius:999px;background:rgba(24,36,60,.94);border:1px solid rgba(251,246,234,.12)}
-  .pages .pg{font:500 13px/1 var(--sans);color:rgba(251,246,234,.65);background:none;border:0;padding:12px 14px;border-radius:999px;cursor:pointer;white-space:nowrap}
+  .pages{position:fixed;left:var(--edge);bottom:var(--edge-b);z-index:8;display:flex;align-items:center;gap:2px;height:var(--pill-h);box-sizing:border-box;padding:0 4px;border-radius:999px;background:rgba(24,36,60,.94);border:1px solid rgba(251,246,234,.12)}
+  .pages .pg{font:500 13px/1 var(--sans);color:rgba(251,246,234,.65);background:none;border:0;height:34px;padding:0 14px;border-radius:999px;cursor:pointer;white-space:nowrap}
   .pages .pg:hover{color:var(--cream)}
   .pages .pg.on{background:var(--cream);color:var(--navy)}
   .pages .burger{display:none;width:42px;height:42px;border:0;border-radius:50%;background:none;cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:4px}

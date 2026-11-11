@@ -1141,6 +1141,19 @@ _Samuel's decision._
   pill look slimmer, not changed. The story's shot stills were taken at 2.39:1 and need retaking in 16:9. The
   dashboard's studio, the front page and Safari were not looked at in the new glass.
 
+### 2026-11-11, fifty-sixth round
+
+- **Asked:** the nav pill's wings, the library's Back and the studio's page bar never of different heights; in the
+  library's card a tab Info | Detail, Detail listing every level of detail of the asset, a click taking the camera to
+  where that level is drawn, to test every distance.
+- **Delivered:** one height for every pill at the bottom (`--pill-h`, 44 px with its border; the studio's page bar was
+  52 px); the asset card's tabs (`.g-tabs`) and its levels of detail as a list (`.g-pick`), each with its faces, its
+  range and the camera's distance; a scattered asset's stage rocks drawn at the chosen level; the wheel out to 1.5 km.
+- **Good:** the bell tent switched to the chosen level (the 4th, 18 faces, at 675 m); the page bar and the nav pill
+  both measured 44 px on the same bottom line.
+- **Broke / not there yet:** the dev server on 5173 served modules from before the merge (the library failed there);
+  tested on a fresh server on 5176. Far levels are a dot at 35 mm, as they are from that far.
+
 ## Trail
 
 | When | Commit | What |

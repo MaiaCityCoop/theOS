@@ -96,10 +96,10 @@
   --glass-track: rgba(23, 54, 85, .22);           /* an empty track (the film's line) */
   --glass-solid: var(--cream);                    /* a solid thing on glass, */
   --glass-solid-ink: var(--navy);                 /* and what is written on it */
-  --pill-h: 44px;
-  --side-w: 236px;
+  --pill-h: 44px;   /* every pill at the bottom, border included: the nav pill's wings, the library's Back, the studio's pages; never another height */
+  --side-w: 236px;  /* the library's two sides, the list and the card, one width */
   --edge: 14px;     /* every game screen keeps its overlays this far from the window's edge */
-  --edge-b: 18px;   /* and from the bottom, where the pill is */  /* the library's two sides, the list and the card, one width */   /* every pill and round button at the bottom: the nav pill, the library's Back */
+  --edge-b: 18px;   /* and from the bottom, where the pill is */
   /* the words on glass: always light, no shadow */
   --glass-font: var(--sans);
   --on-glass: #ffffff;                            /* titles and names, values */
@@ -133,6 +133,17 @@
 .g-chip i { width: 13px; height: 13px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(255, 255, 255, .55); }
 .g-file { display: block; font: 400 11.5px/1.2 var(--mono); color: var(--on-glass-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .g-hint { font: 500 10.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--on-glass-3); text-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
+/* tabs at the top of a card (Info | Detail), and a list of choices in it (a card's levels of detail) */
+.g-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1px var(--glass-line); }
+.g-tabs button { flex: 1; height: 28px; border: 0; border-radius: 999px; background: none; cursor: pointer; font: 550 12.5px/1 var(--glass-font); color: var(--on-glass-2); }
+.g-tabs button:hover { background: var(--glass-hover); }
+.g-tabs button.on { background: var(--glass-solid); color: var(--glass-solid-ink); }
+.g-pick { display: grid; gap: 4px; }
+.g-pick button { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 14px; background: rgba(255, 255, 255, .08); cursor: pointer; text-align: left; color: var(--on-glass); font: inherit; }
+.g-pick button:hover { background: var(--glass-hover); }
+.g-pick button.on { background: var(--glass-on); }
+.g-pick b { font: 300 22px/1 var(--glass-font); font-variant-numeric: tabular-nums; }
+.g-pick .g-file { text-align: right; }
 /* a card on glass: its parts one under the other, a rule between them */
 .g-card { box-sizing: border-box; width: var(--side-w); padding: 16px; border-radius: var(--radius); display: grid; gap: 13px; align-content: start; }
 .g-part { border-top: 1px solid var(--glass-line); padding-top: 13px; }
