@@ -18,6 +18,7 @@ import * as THREE from 'three';
 import { LIGHT_GLSL, heightAt } from '../src/world.js';
 import { detailOf, Detailed } from '../src/detail/index.js';
 import { impostorOf } from '../src/detail/impostor.js';
+import KINDS from './kinds.js';
 import { addSolid } from '../src/world/solids.js';
 import belltent from './belltent.js';
 import stone from './stone.js';
@@ -64,6 +65,16 @@ export function materialFor(U) {
   });
 }
 
+/** What an asset's body is to a walker and the camera: its own `solid` block, else its kind's default made from its
+    size (assets/kinds.js, intent 0003). */
+export function solidOf(asset) {
+  if (asset.solid) return asset.solid;
+  const k = KINDS[asset.kind]?.solid || KINDS.default.solid, m = (v) => (Array.isArray(v) ? v[1] : v);
+  const L = m(asset.size.length), W = m(asset.size.width ?? asset.size.length);
+  if (k.post) return { posts: [{ x: 0, z: 0, r: Math.max(L, W) * k.post }] };
+  return { boxes: [{ x: 0, z: 0, w: L, d: W }] };   // (a ceiling, a function of where you stand, only an asset of its own can say)
+}
+
 /** Stand an asset at a place ({ x, z, yaw }), on the ground there. */
 export function place(scene, U, asset, at) {
   // its levels of detail, chosen each frame by its size on screen with a hand-over between them (src/detail);
@@ -75,7 +86,7 @@ export function place(scene, U, asset, at) {
   lod.rotation.y = at.yaw || 0;
   lod.name = asset.id;
   scene.add(lod);
-  if (at.solid !== false) addSolid(asset.solid, at);   // the walker cannot walk through it
+  if (at.solid !== false) addSolid(solidOf(asset), at);   // the walker and the camera cannot pass it
   return lod;
 }
 

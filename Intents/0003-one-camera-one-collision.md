@@ -1,7 +1,7 @@
 ---
 id: "0003"
 title: One camera from skyline to eye level, one collision for every asset
-state: define            # idea | define | build | propose | story | archived
+state: build             # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-11
 story:
@@ -80,7 +80,31 @@ a ceiling) in `src/world/solids.js`. Rocks have none; the camera itself goes thr
 
 ## Build
 
-_Not started: waits for Samuel's approval of the definition above._
+Samuel approved the definition on 2026-11-11 ("Approve, start it").
+
+**First slice** (the rig, its bands as data, the walk page on it, collision defaults):
+
+- `TheGame/camera/rig.js` holds the bands as data: for each key height, the tilt, the lens (field of view), the speed
+  and the orbit; between keys every value eases over the height's logarithm. Asked on the way ("should it switch
+  lenses automatically too?"): yes, the lens is one of those values, 68° at the eyes to 44° over the city.
+- `src/camera/rig.js` is the one camera: hung over a point on the ground, driven by its height; the wheel moves the
+  height; WASD moves the point at the height's speed; mouse drag and Q / E turn; at eye level the mouse looks freely
+  (pointer lock only there) and the walker's collision and stooping apply. Higher, it hangs back from the point and
+  looks at it; a wall between pulls it in front of the wall (`clear`, a line of sight, in `src/world/solids.js`); it
+  never goes under the ground. The walk page runs on it; the old walker (`src/camera/walk.js`) keeps only `spawn`.
+- The top is 4 km for now, not 12: above about 4 km there is only haze until the land reaches 10 km (intent 0002,
+  stage 4). One edit of `top` in the data raises it.
+- Collision defaults by kind (`solid` in `assets/kinds.js`: a rock a round of 0.4 of its size, the default kind its
+  footprint as a box), used by `solidOf` in `assets/index.js` where an asset's file has no `solid`; the tent's own
+  block wins.
+- Seen in the game: eye level, 40 m (town), 2.5 km and the top, no console errors. Walking in from 14 m before the tent
+  with W: through the door to the centre pole (stopped 0.35 m from it, its 0.05 m and the body's 0.3 m), a sidestep
+  stopped by the wall at 2.15 m.
+- Not yet: scattered rocks have no collision (they are placed on the graphics card from the ground's textures; the
+  engine cannot look them up yet), scrolling in does not yet land you before an asset's door on its own, out through a
+  roof is not there, `cine` and the library's orbit are not on the rig, the library does not show collision, and checks
+  1, 3, 6 and 7 are not run. Near the tent's wall the eyes, at 1.7 m, can rise above the sloping roof (as before; the
+  tent's ceiling only lowers them where it says).
 
 ## Propose
 
@@ -92,8 +116,8 @@ _Not started: waits for Samuel's approval of the definition above._
 
 ## Todo
 
-- [ ] Samuel: approve or change the definition
-- [ ] The rig and its bands as data
+- [x] Samuel: approve or change the definition
+- [x] The rig and its bands as data
 - [ ] The controls per band; the walker as the eye band
 - [ ] Into and out of assets
 - [ ] `cine` and the library on the rig
@@ -111,6 +135,16 @@ _Not started: waits for Samuel's approval of the definition above._
   asset, lit like it; intent 0002, stage 2).
 - **Good:** the tent's `solid` block and `src/world/solids.js` are a start for the collision engine.
 - **Broke / not there yet:** nothing built.
+
+### 2026-11-11, first slice
+
+- **Asked:** approve, start it; on the way: should it switch lenses automatically too.
+- **Delivered:** the rig and its bands as data, the walk page on it (eye, street, town, skyline by scrolling), the lens
+  changing with the height, a line-of-sight test for the camera, collision defaults by kind.
+- **Good:** one scroll from eye level to 4 km and back; walking into the tent through its door and being stopped by
+  its walls and pole.
+- **Broke / not there yet:** rocks have no collision yet; no landing at doors, no roof exit; films and library not on
+  the rig; above 4 km only haze until the land reaches further.
 
 ## Trail
 

@@ -12,6 +12,18 @@ export function addSolid(solid, at) {
 const toL = (o, x, z) => { const dx = x - o.x, dz = z - o.z; return [dx * o.c - dz * o.n, dx * o.n + dz * o.c]; };
 const toW = (o, u, v) => [o.x + u * o.c + v * o.n, o.z - u * o.n + v * o.c];
 
+/** A line of sight from (x0, z0) to (x1, z1): the share of it (0 to 1) clear before a solid stops it; doors let it through. */
+export function clear(x0, z0, x1, z1) {
+  const n = Math.max(2, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.25));
+  let px = x0, pz = z0;
+  for (let i = 1; i <= n; i++) {
+    const x = x0 + ((x1 - x0) * i) / n, z = z0 + ((z1 - z0) * i) / n, [qx, qz] = step(px, pz, x, z);
+    if (Math.hypot(qx - x, qz - z) > 0.01) return Math.max(0, (i - 1) / n);
+    px = x; pz = z;
+  }
+  return 1;
+}
+
 /** A step from (px, pz) to (x, z): where it really ends, kept out of every solid. */
 export function step(px, pz, x, z) {
   for (const o of list) {

@@ -22,7 +22,8 @@ import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
 import { ASSETS, place } from '../assets/index.js';
 import { PLACES } from './world/places.js';
-import { createControls, spawn } from './camera/walk.js';
+import { spawn } from './camera/walk.js';
+import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
 import { createPost } from './camera/post.js';
 
 const SKY = 0x9fc2e6, t0 = performance.now();
@@ -96,7 +97,7 @@ function frame(now) {
   const d0 = performance.now(); draw(); parts.draw = performance.now() - d0;
   governor.end(ms, now, scatter.over);
   hitch(ms, now);
-  hud.frame(ms, now, controls.fly ? '  flying' : '');
+  hud.frame(ms, now, controls.band !== 'eye' ? `  ${controls.band} ${Math.round(controls.height)} m` : '');
 }
 
 // ---- the hitch log (dev only): every frame over 24 ms, with where its time went, sent to the dev server every
