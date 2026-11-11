@@ -1,5 +1,5 @@
 // First person: WASD, Shift to run, the mouse looks (click to lock it). F flies; Space / C rise and sink.
-import { heightAt } from './world.js';
+import { heightAt, riverAt, aridAt } from '../world.js';
 
 export function createControls(camera, canvas, msg) {
   const keys = new Set();
@@ -47,4 +47,16 @@ export function createControls(camera, canvas, msg) {
       camera.rotation.set(pitch, yaw, 0);
     },
   };
+}
+
+/** Where the walker starts: on the bank of the nearest green stretch of river, looking down it and a little across. */
+export function spawn(controls) {
+  let x = 0, z = 0, found = false;
+  for (let r = 0; r < 4000 && !found; r += 6) for (let a = 0; a < 6.283 && !found; a += 6 / (r + 6)) {
+    x = Math.cos(a) * r; z = Math.sin(a) * r;
+    if (riverAt(x, z).d < 4 && aridAt(x, z) < 0.05) found = true;
+  }
+  for (let i = 0; i < 12; i++) { const R = riverAt(x, z), g2 = R.gx * R.gx + R.gz * R.gz || 1e-9; x -= (R.r * R.gx) / g2; z -= (R.r * R.gz) / g2; } // onto the river's line
+  const R = riverAt(x, z), gl = Math.hypot(R.gx, R.gz) || 1, nx = R.gx / gl, nz = R.gz / gl, off = R.w + 4;
+  controls.place(x + nx * off - nz * 4, z + nz * off + nx * 4, Math.atan2(-(nz * 0.9 - nx * 0.45), -(-nx * 0.9 - nz * 0.45)));
 }

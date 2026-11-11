@@ -1,8 +1,8 @@
 // Stones and rock outcrops: a few rock shapes (cut, displaced icospheres at three levels of detail),
 // instanced by hashed cells around the camera. Which cell holds a rock, how big, how it lies: hashed.
 import * as THREE from 'three';
-import { WORLD_GLSL, LIGHT_GLSL } from './world.js';
-import { PatchRing, CELL_GLSL } from './rings.js';
+import { WORLD_GLSL, LIGHT_GLSL } from '../world.js';
+import { Tier, CELL_GLSL } from './tier.js';
 import { GROUND_GLSL } from './ground.js';
 
 // ---- shapes ----
@@ -132,24 +132,20 @@ void main(){
   gl_FragColor = toScreen(haze(col, length(uCam - vWorld)));
 }`;
 
-export function createRocks(scene, U, tex) {
-  const rings = [];
-  const layer = (big, cell, sizeMin, sizeMax, texScale, vars, lods) => {
-    for (let v = 0; v < vars; v++) lods.forEach((L, li) => {
-      const g = rockGeometry(L.detail, (big ? 100 : 200) + v * 7);
-      g.instanceCount = L.P * L.P;
-      const mat = new THREE.ShaderMaterial({
-        vertexShader: (big ? '#define BIG\n' : '') + VERT, fragmentShader: FRAG,
-        uniforms: {
-          ...U, uCell: { value: cell }, uP: { value: L.P }, uNear: { value: li ? lods[li - 1].far : -1 }, uFar: { value: L.far },
-          uSizeMin: { value: sizeMin }, uSizeMax: { value: sizeMax }, uVar: { value: v }, uVars: { value: vars }, uFade: { value: lods[lods.length - 1].far }, uBig: { value: big ? 1 : 0 },
-          tA: { value: tex.a[4] }, tN: { value: tex.n[4] }, tM: { value: tex.a[0] }, uTex: { value: texScale },
-        },
-      });
-      rings.push(new PatchRing(scene, g, mat, { patch: cell * L.P, near: li ? lods[li - 1].far : 0, far: L.far, pad: big ? 30 : 6, order: 1 }));
+/** The assets of kind `rocks`: for each a tier per row of its table. */
+export function createRocks(scene, U, tex, asset) {
+  const tiers = [], lods = asset.tiers, big = asset.outcrops;
+  for (let v = 0; v < asset.shapes; v++) lods.forEach((L, li) => {
+    const g = rockGeometry(L.detail, asset.seed + v * 7);
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: (big ? '#define BIG\n' : '') + VERT, fragmentShader: FRAG,
+      uniforms: {
+        ...U, uNear: { value: li ? lods[li - 1].far : -1 }, uFar: { value: L.far },
+        uSizeMin: { value: asset.size[0] }, uSizeMax: { value: asset.size[1] }, uVar: { value: v }, uVars: { value: asset.shapes }, uFade: { value: lods[lods.length - 1].far }, uBig: { value: big ? 1 : 0 },
+        tA: { value: tex.a[4] }, tN: { value: tex.n[4] }, tM: { value: tex.a[0] }, uTex: { value: asset.texture },
+      },
     });
-  };
-  layer(false, 2.2, 0.07, 0.55, 1.1, 1, [{ detail: 2, P: 8, far: 12 }, { detail: 1, P: 16, far: 50 }, { detail: 0, P: 32, far: 110 }]);
-  layer(true, 20, 0.7, 4.2, 3.0, 1, [{ detail: 3, P: 4, far: 60 }, { detail: 2, P: 8, far: 250 }, { detail: 1, P: 16, far: 600 }, { detail: 0, P: 32, far: 1100 }]);
-  return { rings, update(cx, cz, dy) { for (let i = 0; i < rings.length; i++) rings[i].update(cx, cz, dy); } };
+    tiers.push(new Tier(scene, g, mat, { cell: asset.cell, P: L.P, near: li ? lods[li - 1].far : 0, far: L.far, order: 1 }));
+  });
+  return tiers;
 }

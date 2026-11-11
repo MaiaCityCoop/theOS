@@ -1,8 +1,8 @@
 // Grass: instanced blades. A blade's place, height, bend, colour and dryness are hashed from its
 // cell; its density comes from the land's masks. Three rings: dense and fine close, sparse and wide far.
 import * as THREE from 'three';
-import { WORLD_GLSL, LIGHT_GLSL } from './world.js';
-import { PatchRing, CELL_GLSL } from './rings.js';
+import { WORLD_GLSL, LIGHT_GLSL } from '../world.js';
+import { Tier, CELL_GLSL } from './tier.js';
 import { GROUND_GLSL } from './ground.js';
 
 const VERT = /* glsl */ `
@@ -71,26 +71,19 @@ function blade(segs) {
   return { pos: new Float32Array(pos), idx };
 }
 
-// cell: metres per blade; P: blades per patch side
-const LODS = [
-  { segs: 3, cell: 0.085, P: 96, near: -1, nearFade: 0, far: 15, farFade: 5, w: 0.014, end: 1e6 },
-  { segs: 2, cell: 0.17, P: 96, near: 15, nearFade: 5, far: 42, farFade: 10, w: 0.033, end: 1e6 },
-  { segs: 1, cell: 0.34, P: 96, near: 42, nearFade: 10, far: 105, farFade: 25, w: 0.085, end: 105 },
-];
-
-export function createGrass(scene, U) {
-  const rings = LODS.map((L) => {
+/** The asset `grass`: a tier per row of its table. */
+export function createGrass(scene, U, tex, asset) {
+  const rings = asset.tiers.map((L) => {
     const b = blade(L.segs), g = new THREE.InstancedBufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(b.pos, 3)); g.setIndex(b.idx);
-    g.instanceCount = L.P * L.P;
     const mat = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG, side: THREE.DoubleSide,
       uniforms: {
-        ...U, uCell: { value: L.cell }, uP: { value: L.P }, uNear: { value: L.near }, uNearFade: { value: L.nearFade },
-        uFar: { value: L.far }, uFarFade: { value: L.farFade }, uBladeH: { value: 0.58 }, uBladeW: { value: L.w }, uEnd: { value: L.end },
+        ...U, uNear: { value: L.near }, uNearFade: { value: L.nearFade },
+        uFar: { value: L.far }, uFarFade: { value: L.farFade }, uBladeH: { value: asset.height }, uBladeW: { value: L.w }, uEnd: { value: L.end },
       },
     });
-    return new PatchRing(scene, g, mat, { patch: L.cell * L.P, near: L.near - L.nearFade, far: L.far, pad: 5, order: 0 });
+    return new Tier(scene, g, mat, { cell: L.cell, P: L.P, near: L.near - L.nearFade, far: L.far, order: 0 });
   });
-  return { rings, update(cx, cz, dy) { for (let i = 0; i < rings.length; i++) rings[i].update(cx, cz, dy); } };
+  return rings;
 }

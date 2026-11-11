@@ -102,7 +102,13 @@ export function masters(seed = 1) {
     { lens: 'A180', name: 'Across the land', what: `the same rock from ${Math.round(70 + rs * 30)} m: the far rings of detail, magnified`, pos: p180, look: aim(p180, rock, 180) },
   ];
   const fd = (p, t) => Math.hypot(t[0] - p[0], t[1] - p[1], t[2] - p[2]);
-  list[4].focus = 2.6;   // in the grass the near blades are the subject
+  // every master holds something real in focus, a third of the way into its picture, not the far point it aims at
+  list[0].focus = 70;    // the land: the first bend of the river; at 28 mm nearly all of it holds
+  list[1].focus = 14;    // down the river: the near bank's edge
+  list[2].focus = 9;     // the meadow: the grass in front
+  list[3].focus = fd(list[3].pos, surf(M, M.w * 0.95, 4, 0));   // the bank: the near waterline
+  list[4].focus = 2.6;   // in the grass: the near blades
+  list[6].focus = fd(list[6].pos, list[6].look);                // the waterline itself
   list[5].focus = fd(p75, rock); list[7].focus = fd(p135, rock); list[8].focus = fd(p180, rock);
   return list;
 }
