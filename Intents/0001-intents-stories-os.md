@@ -534,3 +534,4 @@ _Samuel's decision._
 | 2026-11-11 | `37bc7f9` | The sub line in its own pill under the title |
 | 2026-11-11 | `72e693d` | The count named citizens; day 1 with one citizen |
 | 2026-11-11 | `09ed3e2` | The day line without "This is" |
+| 2026-11-11 | `626e39c` | The eyebrow over the title, the button under the film |
