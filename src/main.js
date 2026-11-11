@@ -51,7 +51,8 @@ const controls = createControls(camera, canvas, msg);
   for (let i = 0; i < 12; i++) { const R = riverAt(x, z), g2 = R.gx * R.gx + R.gz * R.gz || 1e-9; x -= R.r * R.gx / g2; z -= R.r * R.gz / g2; } // onto the line
   const R = riverAt(x, z), gl = Math.hypot(R.gx, R.gz) || 1, nx = R.gx / gl, nz = R.gz / gl;
   // stand on the bank, a few metres off, looking down the stream and a little across it
-  controls.place(x + nx * 6 - nz * 4, z + nz * 6 + nx * 4, Math.atan2(-(nz * 0.9 - nx * 0.45), -(-nx * 0.9 - nz * 0.45) ));
+  const off = R.w + 4;
+  controls.place(x + nx * off - nz * 4, z + nz * off + nx * 4, Math.atan2(-(nz * 0.9 - nx * 0.45), -(-nx * 0.9 - nz * 0.45) ));
 }
 
 const projScreen = new THREE.Matrix4();

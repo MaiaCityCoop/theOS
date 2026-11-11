@@ -103,7 +103,7 @@ void main(){
   float steep = smoothstep(0.80, 0.68, vN.y);
   if (steep > 0.003) m = hblend(m, smp(tA4, tN4, p, dx, dy, 3.0, 4.8, mx), steep);
 
-  float wet = 1.0 - smoothstep(w * 0.85, w * 1.4, d);
+  float wet = 1.0 - smoothstep(w * 0.9, w + 2.5, d);
   m.c *= mix(1.0, 0.5, wet);
   vec3 n = normalize(vN + vec3(m.n.x, 0.0, m.n.y) * (1.0 - smoothstep(60.0, 400.0, dist) * 0.7));
   vec3 col = m.c * macro * (uAmb + uSun * max(dot(n, uSunDir), 0.0));
@@ -120,45 +120,44 @@ uniform sampler2D tWN, tWA;
 uniform float uTime;
 void main(){
   float d = riverDist(vR), w = vW;
-  if (d > w * 1.3) discard;
+  if (d > w * 1.15) discard;
   vec2 p = vWorld.xz;
-  float depth = 0.75 * (1.0 - smoothstep(w * 0.25, w * 1.25, d)) - WATER_DROP;
+  float depth = riverCarve(d, w) - WATER_DROP;
   vec2 fl = normalize(vec2(-vR.z, vR.y) + 1e-9);
   float mid = clamp(1.0 - d / w, 0.0, 1.0);
-  float speed = 0.35 + 1.1 * mid;
+  float speed = 0.25 + 0.9 * sqrt(mid);            // slow at the banks, quick in the middle
   // two takes sliding along the flow, half a cycle apart, cross-faded: the water runs and never stretches
-  float t = uTime * 0.5, f1 = fract(t), f2 = fract(t + 0.5), wb = abs(2.0 * f1 - 1.0);
-  vec2 o1 = fl * speed * (f1 - 0.5) * 1.6, o2 = fl * speed * (f2 - 0.5) * 1.6;
-  vec2 uA = (p - o1) / 1.9, uB = (p - o2) / 1.9 + 0.43;
-  vec3 nA = texture(tWN, uA).xyz + texture(tWN, uA * 2.7 + 0.2).xyz - 1.0;
-  vec3 nB = texture(tWN, uB).xyz + texture(tWN, uB * 2.7 + 0.6).xyz - 1.0;
+  float t = uTime * 0.3, f1 = fract(t), f2 = fract(t + 0.5), wb = abs(2.0 * f1 - 1.0);
+  vec2 o1 = fl * speed * (f1 - 0.5) * 3.3, o2 = fl * speed * (f2 - 0.5) * 3.3;
+  vec2 uA = (p - o1) / 4.5, uB = (p - o2) / 4.5 + 0.43;
+  vec3 nA = texture(tWN, uA).xyz + texture(tWN, uA * 3.1 + 0.2).xyz - 1.0;
+  vec3 nB = texture(tWN, uB).xyz + texture(tWN, uB * 3.1 + 0.6).xyz - 1.0;
   vec2 nn = mix(nA.xy, nB.xy, wb);
-  vec3 n = normalize(vec3(nn.x * (0.35 + 0.5 * mid), 1.0, nn.y * (0.35 + 0.5 * mid)));
+  float rough = 0.16 + 0.30 * mid;                 // calm water, a little livelier where it runs
+  vec3 n = normalize(vec3(nn.x * rough, 1.0, nn.y * rough));
   vec3 V = normalize(uCam - vWorld);
   float fres = 0.02 + 0.98 * pow(1.0 - max(dot(n, V), 0.0), 5.0);
-  // foam: at the shore, and in streaks torn along the current
-  float fA = texture(tWA, uA * vec2(1.0) * 0.9).r, fB = texture(tWA, uB * 0.9).r;
-  float ftex = mix(fA, fB, wb);
-  float shore = (1.0 - smoothstep(0.0, 0.1, depth)) * (0.35 + 0.65 * ftex);
-  float streak = smoothstep(0.45, 0.8, ftex * (0.5 + 0.9 * mid)) * 0.55;
-  float foam = clamp(shore + streak, 0.0, 1.0);
-  // things afloat: specks carried by the same two takes
+  // foam: only a thin broken line where the water meets the bank
+  float ftex = mix(texture(tWA, uA * 2.0).r, texture(tWA, uB * 2.0).r, wb);
+  float foam = (1.0 - smoothstep(0.0, 0.05, depth)) * smoothstep(0.15, 0.6, ftex) * 0.5;
+  // things afloat: a few specks carried by the same two takes
   float specks = 0.0;
   for (int i = 0; i < 2; i++) {
-    vec2 q = (i == 0 ? (p - o1) : (p - o2) + 3.7) * 5.0; vec2 c = floor(q);
-    float h = rnd(ivec2(c), 95u);
+    vec2 q = (i == 0 ? (p - o1) : (p - o2) + 3.7) * 4.0; vec2 c = floor(q);
     vec2 pt = c + 0.25 + 0.5 * vec2(rnd(ivec2(c), 96u), rnd(ivec2(c), 97u));
-    float s = step(0.9, h) * (1.0 - smoothstep(0.05, 0.16, length(q - pt)));
+    float s = step(0.955, rnd(ivec2(c), 95u)) * (1.0 - smoothstep(0.03, 0.10, length(q - pt)));
     specks += s * (i == 0 ? 1.0 - wb : wb);
   }
-  vec3 body = mix(vec3(0.07, 0.10, 0.07), vec3(0.015, 0.045, 0.045), clamp(depth * 2.2, 0.0, 1.0));
+  // the water's own colour: clear over the sand at the edge, green-brown and dark in the deep
+  vec3 body = mix(vec3(0.085, 0.085, 0.05), vec3(0.022, 0.034, 0.024), clamp(depth * 1.1, 0.0, 1.0));
+  vec3 skyRef = mix(uSky, vec3(dot(uSky, vec3(0.333))), 0.55) * 0.8;   // the plain sky, greyed: no blue sheet
   vec3 H = normalize(V + uSunDir);
-  float spec = pow(max(dot(n, H), 0.0), 220.0) * 6.0 + pow(max(dot(n, H), 0.0), 900.0) * 30.0 * step(0.55, ftex);
-  vec3 col = mix(body * (uAmb + uSun * 0.5), uSky, fres) + uSun * spec;
-  col = mix(col, vec3(0.9) * (uAmb + uSun * 0.6), foam * 0.85);
-  col = mix(col, vec3(0.75, 0.72, 0.55), specks * 0.8);
-  float a = clamp(0.3 + depth * 1.5, 0.0, 0.92);
-  a = max(max(a, fres), max(foam, specks)) * smoothstep(-0.04, 0.02, depth + 0.04);
+  float spec = pow(max(dot(n, H), 0.0), 350.0) * 2.5;
+  vec3 col = mix(body * (uAmb + uSun * 0.45), skyRef, fres * 0.75) + uSun * spec;
+  col = mix(col, vec3(0.8) * (uAmb + uSun * 0.5), foam);
+  col = mix(col, vec3(0.5, 0.46, 0.3), specks * 0.6);
+  float a = clamp(0.2 + depth * 1.1, 0.0, 0.93);
+  a = max(max(a, fres * 0.75), max(foam, specks * 0.6)) * smoothstep(-0.04, 0.02, depth);
   gl_FragColor = vec4(toScreen(col).rgb, a);
 }`;
 
@@ -236,7 +235,7 @@ export function createTerrain(scene, U, tex) {
     if (land.n < land.cap) { const o = land.n++ * 4, a = land.data; a[o] = x; a[o + 1] = z; a[o + 2] = size; a[o + 3] = level; }
     if (level < WATER_LEVELS && water.n < water.cap) {
       const half = size * 0.71, r = riverAt(x + size * 0.5, z + size * 0.5);
-      const near = size >= 128 ? Math.abs(r.r) < 0.0036 * (half + 6) : r.d < 2 * half + 8;
+      const near = size >= 128 ? Math.abs(r.r) < 0.0042 * (half + 16) : r.d < 2 * half + r.w * 1.3 + 3;
       if (near) { const o = water.n++ * 4, a = water.data; a[o] = x; a[o + 1] = z; a[o + 2] = size; a[o + 3] = level; }
     }
   }

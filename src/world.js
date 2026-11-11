@@ -39,11 +39,11 @@ export const river = { r: 0, gx: 0, gz: 0, d: 0, w: 0 };
 export function riverAt(x, z) {
   const n1 = noised(x / 1600, z / 1600, 40), g1x = gx, g1y = gy;
   const n2 = noised(x / 330 + 17.3, z / 330 + 17.3, 41);
-  river.r = (n1 - 0.5) + 0.22 * (n2 - 0.5);
-  river.gx = g1x / 1600 + 0.22 * gx / 330;
-  river.gz = g1y / 1600 + 0.22 * gy / 330;
+  river.r = (n1 - 0.5) + 0.28 * (n2 - 0.5);
+  river.gx = g1x / 1600 + 0.28 * gx / 330;
+  river.gz = g1y / 1600 + 0.28 * gy / 330;
   river.d = Math.abs(river.r) / Math.max(Math.hypot(river.gx, river.gz), 2e-4);
-  river.w = 1.5 + 1.5 * vnoise(x / 120, z / 120, 42);
+  river.w = 6.75 + 4.5 * sstep(0.3, 0.7, vnoise(x / 170, z / 170, 42)); // half-width: 3 to 5 times the first stream's
   return river;
 }
 export function baseB(x, z) {
@@ -52,7 +52,7 @@ export function baseB(x, z) {
 /** The ground's height under (x, z), at full detail (what the GPU draws under the camera). */
 export function heightAt(x, z) {
   const { d, w } = riverAt(x, z);
-  const m = sstep(3, 80, d), mm = 0.35 + 0.65 * m;
+  const m = sstep(w, w + 80, d), mm = 0.35 + 0.65 * m;
   let h = 0, qx = x, qy = z;
   for (let i = 0; i < 8; i++) {
     const t = 0.8 * qx - 0.6 * qy; qy = 0.6 * qx + 0.8 * qy; qx = t;
@@ -60,7 +60,7 @@ export function heightAt(x, z) {
     h += OCT_AMP[i] * (vnoise(qx / lam + o, qy / lam + o, 20 + i) - 0.5) * (i >= 6 ? mm : m);
   }
   const bank = 0.3 * sstep(w, w + 5, d);
-  const carve = 0.75 * (1 - sstep(w * 0.25, w * 1.25, d));
+  const carve = 1.2 * (1 - sstep(w * 0.55, w * 1.1, d));
   return baseB(x, z) + h + m * 3 + bank - carve;
 }
 
@@ -107,17 +107,18 @@ float vnoise(vec2 p, uint s){
 vec3 riverR(vec2 p){
   vec3 n1 = noised(p * (1.0 / 1600.0), 40u);
   vec3 n2 = noised(p * (1.0 / 330.0) + 17.3, 41u);
-  return vec3((n1.x - 0.5) + 0.22 * (n2.x - 0.5), n1.yz * (1.0 / 1600.0) + 0.22 * n2.yz * (1.0 / 330.0));
+  return vec3((n1.x - 0.5) + 0.28 * (n2.x - 0.5), n1.yz * (1.0 / 1600.0) + 0.28 * n2.yz * (1.0 / 330.0));
 }
 float riverDist(vec3 R){ return abs(R.x) / max(length(R.yz), 2e-4); }
-float riverW(vec2 p){ return 1.5 + 1.5 * vnoise(p * (1.0 / 120.0), 42u); }
+float riverW(vec2 p){ return 6.75 + 4.5 * smoothstep(0.3, 0.7, vnoise(p * (1.0 / 170.0), 42u)); }
+float riverCarve(float d, float w){ return 1.2 * (1.0 - smoothstep(w * 0.55, w * 1.1, d)); }
 
 float baseB(vec2 p){
   return 40.0 * (vnoise(p * (1.0 / 2600.0), 11u) - 0.5) + 14.0 * (vnoise(p * (1.0 / 900.0) + 3.7, 12u) - 0.5);
 }
 // dist fades each octave out before the grid at that distance is too coarse to carry it.
 float heightAt(vec2 p, float dist, float d, float w){
-  float m = smoothstep(3.0, 80.0, d), mm = mix(0.35, 1.0, m);
+  float m = smoothstep(w, w + 80.0, d), mm = mix(0.35, 1.0, m);
   float h = 0.0; vec2 q = p;
   for (int i = 0; i < 8; i++) {
     q = vec2(0.8 * q.x - 0.6 * q.y, 0.6 * q.x + 0.8 * q.y);
@@ -128,7 +129,7 @@ float heightAt(vec2 p, float dist, float d, float w){
     }
   }
   float bank = 0.3 * smoothstep(w, w + 5.0, d);
-  float carve = 0.75 * (1.0 - smoothstep(w * 0.25, w * 1.25, d));
+  float carve = riverCarve(d, w);
   return baseB(p) + h + m * 3.0 + bank - carve;
 }
 
