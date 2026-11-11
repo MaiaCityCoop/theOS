@@ -73,3 +73,4 @@ _Filled when the idea is taken up._
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-12 | `859753c` | The intent opened, at idea |
