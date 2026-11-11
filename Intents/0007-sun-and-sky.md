@@ -147,3 +147,4 @@ Samuel approved the definition on 2026-11-12 ("Approve, start it").
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-12 | `6bb4ba2` | The intent opened, its definition written |
+| 2026-11-12 | `808ba6a` | The day and night: sun, moon, sky dome, light, haze, exposure, the clock |
