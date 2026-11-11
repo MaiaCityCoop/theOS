@@ -242,9 +242,9 @@
   #storyedit .studiohead{margin:0}
   #storyedit .edit{margin:0}
   /* the film keeps the shape it was made in, 2.39:1, as large as the space allows, centred */
-  #storyedit .pstage{min-height:0;container-type:size;display:grid;place-items:center;contain:strict}   /* nothing outside can change the film's size */
+  #storyedit .pstage{min-height:0;display:grid;place-items:center;contain:strict}   /* nothing outside can change the film's size */
   #storyedit .edit{contain:layout}
-  #storyedit .player{width:min(100cqw,calc(100cqh * 2.39));height:auto;max-height:none;aspect-ratio:2.39/1;margin:0;border-radius:14px}
+  #storyedit .player{max-height:none;aspect-ratio:auto;margin:0;border-radius:14px}
   #storyedit .edit{border-radius:14px;background:#18243c}
   /* the studio's pages: one at a time. Edit is the film over its timeline; a text page fills the stage */
   #storyedit .editpage{grid-row:2;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:8px;min-height:0}
@@ -284,7 +284,7 @@
   .eplay{width:34px;height:34px;border-radius:50%;border:0;background:var(--sun) var(--playmark) 55% 50%/14px no-repeat;cursor:pointer;flex:none;transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
   .eplay:hover{transform:scale(1.06)}
   .eplay.on{background:var(--sun) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M4.3 2.5v9M9.7 2.5v9' stroke='%231f3a2c' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") center/14px no-repeat}
-  .etime{font:500 14px/1 var(--sans);font-variant-numeric:tabular-nums;color:rgba(251,246,234,.65);display:inline-block;width:6.2em;white-space:nowrap;contain:layout paint}.etime b{color:var(--cream);font-weight:600}
+  .etime{display:inline-block;width:96px;height:20px;contain:strict}.etime b{color:var(--cream);font-weight:600}
   .efull{width:34px;height:34px;flex:none;border:0;border-radius:50%;background:rgba(251,246,234,.1);color:var(--cream);cursor:pointer;display:grid;place-items:center}
   .efull:hover{background:rgba(251,246,234,.2)}.efull svg{width:15px;height:15px}
   .player:fullscreen{border-radius:0;width:100vw!important;height:100vh!important;aspect-ratio:auto;background:#000;display:grid;place-items:center}

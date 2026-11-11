@@ -90,6 +90,9 @@ async function story(s, show = true) {
   d.innerHTML = `<header class="studiohead"><button class="btn small quiet" data-do="shelf">← Stories</button><h1>${s.title}</h1><span class="chip">Day ${n(s.day || 1)}${s.inGame != null ? ' · ' + (s.inGame === 1 ? '1 citizen' : n(s.inGame) + ' citizens') : ''}</span>${s.film ? '<button class="btn small quiet" data-do="retake" title="Take the preview picture again from the live scene, at the camera the story names">Retake picture</button>' : ''}<button class="btn small quiet" data-do="intent">Its intent</button></header>` +
     (s.film ? `<div class="editpage"><div class="pstage"><div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div></div>${EDIT}</div>` : '') + `<div class="stagedoc"></div><nav class="pages"></nav>`;
   if (s.film) editor(d.querySelector('.edit'), d.querySelector('.player iframe'), s);
+  if (s.film) { const ps = d.querySelector('.pstage'), pl = d.querySelector('.player');   // the film's frame in whole pixels, set only when the window's size changes
+    const fit = () => { const w = ps.clientWidth, h = ps.clientHeight; if (!w || !h) return; const W = Math.floor(Math.min(w, h * 2.39)); pl.style.width = W + 'px'; pl.style.height = Math.floor(W / 2.39) + 'px'; };
+    new ResizeObserver(fit).observe(ps); fit(); }
   pages(d, md, s.film);
   d.querySelector('[data-do=intent]').onclick = () => { tab('intents'); board(s.id); };
   d.querySelector('[data-do=shelf]').onclick = () => { current = null; tab('stories'); };
@@ -126,10 +129,16 @@ function editor(el, frame, story) {
   const q = (c) => el.querySelector(c), lanes = q('.elanes'), say = (m) => frame.contentWindow?.postMessage({ maia: 1, ...m }, '*');
   let D = 0, clips = [], starts = [], playing = false, asked = false, cur = -1, base = 0, stamp = 0, shownSec = -1;
   const head = q('.ehead'), clock = q('.etime');
+  // the clock is a small canvas: a changed text would make the browser look at the page's layout again, every second
+  const cv = document.createElement('canvas'), cx = cv.getContext('2d'), DPR = Math.min(2, devicePixelRatio || 1);
+  cv.width = 96 * DPR; cv.height = 20 * DPR; cv.style.width = '96px'; cv.style.height = '20px'; clock.replaceChildren(cv);
+  const paintClock = (sec) => { cx.setTransform(DPR, 0, 0, DPR, 0, 0); cx.clearRect(0, 0, 96, 20); cx.textBaseline = 'middle';
+    cx.font = '600 14px Outfit, sans-serif'; cx.fillStyle = '#fbf6ea'; const a = mm(sec); cx.fillText(a, 0, 10);
+    cx.font = '500 14px Outfit, sans-serif'; cx.fillStyle = 'rgba(251,246,234,.65)'; cx.fillText(' / ' + mm(Math.round(D)), cx.measureText(a).width + 2, 10); };
   const run = () => { if (!el.isConnected) return; requestAnimationFrame(run); if (!D) return;   // the playhead glides with the film, not in the steps the frame reports in
     const t = Math.min(D, playing ? base + (performance.now() - stamp) / 1000 : base);
     head.style.transform = `translateX(${(t / D) * lanes.clientWidth}px)`;
-    const sec = Math.floor(t); if (sec !== shownSec) { shownSec = sec; (clock.firstChild || clock).textContent = mm(sec); } };   // one text node changes, in a box of fixed width: nothing around it moves
+    const sec = Math.floor(t); if (sec !== shownSec) { shownSec = sec; paintClock(sec); } };   // drawn, not written: no text in the page changes while the film plays
   requestAnimationFrame(run);
   const pct = (t) => (D ? (t / D) * 100 : 0);
   onFilm = { win: () => frame.contentWindow, take(m) {
@@ -141,7 +150,7 @@ function editor(el, frame, story) {
       q('.elane.t').innerHTML = caps.filter((c) => c.kind === 'title').map((c) => block(c, 'ecap')).join('');
       q('.elane.a').innerHTML = caps.filter((c) => c.kind === 'samuel' || c.kind === 'maia').map((c) => block({ ...c, text: (c.kind === 'samuel' ? 'Samuel' : 'Maia') + ' · not recorded' }, 'eaud')).join('');
       q('.elane.s').innerHTML = caps.filter((c) => c.kind !== 'title').map((c) => `<div class="ecap ${c.kind}" style="left:${pct(c.at)}%;width:calc(${pct(c.for)}% - 2px)" title="${c.text.replace(/"/g, '&quot;')}">${c.text}</div>`).join('');
-      clock.innerHTML = `<b>0:00</b> / ${mm(Math.round(D))}`;
+      paintClock(0);
       if (story?.shots >= clips.length) clips.forEach((c, i) => { q(`.eclip[data-i="${i}"]`).style.backgroundImage = `url(/api/stories/${story.id}/shots/${i}.jpg)`; });   // taken before: no run through the shots
       else if (!asked) { asked = true; say({ cmd: 'thumbs' }); }
     }

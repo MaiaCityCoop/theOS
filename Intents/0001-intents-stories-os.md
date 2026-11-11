@@ -825,6 +825,22 @@ _Samuel's decision._
   light titles and the pill in blue.
 - **Good:** seen in the pane at 1440.
 
+### 2026-11-11, thirty-ninth round
+
+- **Asked:** it still stutters.
+- **Found (hitch log, Safari, the studio):** no resizes at all, so not the canvas; the stall is
+  unchanged, 125–147 ms at almost every whole second of the film, the game's own work nil. The
+  game and the dashboard share one thread in the browser (both on localhost), so work in the
+  dashboard stops the game; the one thing the dashboard does at each whole second is change its
+  clock's text, which makes the browser look at the page's layout again (the film's frame was
+  sized by its container).
+- **Delivered:** while the film plays no text in the studio changes: the clock is drawn on a
+  small canvas. The film's frame has a size in whole pixels, set only when the window changes
+  (917x383 at 1440x900, 2.39:1).
+- **Broke / not there yet:** the third guess at the cause in a row; waits for Safari. To tell the
+  studio from the film for certain: the film alone at
+  `localhost:5174/timeline.html?story=0001-intents-stories-os&embed`.
+
 ## Trail
 
 | When | Commit | What |
