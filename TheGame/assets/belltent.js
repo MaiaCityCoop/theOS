@@ -4,7 +4,7 @@
 // (assets/index.js). Units are metres; the origin is the middle of its floor; the door faces -z.
 const R = 2.5, WALL = 0.62, PEAK = 3.0;
 const canvas = [0.86, 0.82, 0.71], shade = [0.74, 0.69, 0.57], inside = [0.07, 0.06, 0.05], rope = [0.58, 0.5, 0.37], wood = [0.42, 0.31, 0.2], sheet = [0.24, 0.29, 0.22];
-const lining = [0.74, 0.55, 0.3], lining2 = [0.66, 0.48, 0.26], rug = [0.55, 0.27, 0.16], rug2 = [0.78, 0.6, 0.32], linen = [0.84, 0.8, 0.7], wool = [0.3, 0.38, 0.29], lamp = [1.0, 0.82, 0.42];
+const floorPale = [0.8, 0.76, 0.66], lining = [0.74, 0.55, 0.3], lining2 = [0.66, 0.48, 0.26], rug = [0.55, 0.27, 0.16], rug2 = [0.78, 0.6, 0.32], linen = [0.84, 0.8, 0.7], wool = [0.3, 0.38, 0.29], lamp = [1.0, 0.82, 0.42];
 const DOOR_W = 0.36, DOOR_H = 2.05;   // the door: half its width as an angle round the tent, and how high it reaches into the roof
 const at = (r, y, t) => [r * Math.cos(t), y, r * Math.sin(t)];
 const coneR = (y) => R * (PEAK - y) / (PEAK - WALL);   // the roof's radius at a height
@@ -57,10 +57,13 @@ function furnish(f, n) {
   box(f, 0.11, 0, 0.13, 0.13, 2.02, 2.05, [0.16, 0.15, 0.14]);
 }
 
-function bell(n, { door = true, open = false, flaps = false, ropes = 0, pegs = false, pole = false, groundsheet = false } = {}) {
+function bell(n, { door = true, open = false, bare = false, flaps = false, ropes = 0, pegs = false, pole = false, groundsheet = false } = {}) {
   const f = [], top = [0, PEAK, 0];
   if (open) {   // up close the door is a real opening, and there is an inside to walk into
     skin(f, n, R, (t) => doorTop(t + Math.PI / 2), lit, 6); furnish(f, n); door = false;
+  } else if (bare) {   // further off, still an opening: a pale floor and the lit canvas within, nothing else
+    skin(f, n, R, (t) => doorTop(t + Math.PI / 2), lit, 3); skin(f, n, R - 0.03, (t) => doorTop(t + Math.PI / 2), () => lining, 3);
+    disc(f, 0, 0, R - 0.05, 0.06, floorPale, n); door = false;
   } else for (let i = 0; i < n; i++) {
     const t0 = -Math.PI / 2 + (i / n) * 2 * Math.PI + Math.PI / n, t1 = t0 + (2 * Math.PI) / n;   // a seam, not a face, faces the door's middle
     const a0 = at(R, 0, t0), a1 = at(R, 0, t1), b0 = at(R, WALL, t0), b1 = at(R, WALL, t1), c = lit((t0 + t1) / 2);
@@ -111,8 +114,8 @@ export default {
   // levels of detail, near to far, each its own shape: up close every rope and peg; then fewer seams; far, a cone
   lods: [
     { far: 30, faces: bell(32, { open: true, flaps: true, ropes: 8, pegs: true, pole: true, groundsheet: true }) },
-    { far: 110, faces: bell(16, { flaps: true, ropes: 8 }) },
-    { far: 350, faces: bell(10) },
+    { far: 110, faces: bell(16, { bare: true, flaps: true, ropes: 8 }) },
+    { far: 350, faces: bell(10, { bare: true }) },
     { far: 1000, faces: bell(6, { door: false }) },
   ],
   placement: { at: 'places', clearsGround: 3.2 },

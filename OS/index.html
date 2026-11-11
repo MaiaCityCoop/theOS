@@ -16,11 +16,11 @@
   body.admin header.site .visit{display:none}
   /* inside: one pill at the bottom, centred */
   /* inside: the pill at the bottom, as in the old play: back, one large round home (the dashboard), the city's badge */
-  nav.admin{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:8;display:none;align-items:center;gap:14px;padding:0 16px;height:52px;border-radius:999px;background:rgba(251,246,234,.92);border:1px solid var(--sand2);-webkit-backdrop-filter:blur(20px) saturate(1.5);backdrop-filter:blur(20px) saturate(1.5);box-shadow:0 12px 34px rgba(12,28,22,.16)}
+  nav.admin{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:8;display:none;align-items:center;gap:14px;padding:0 16px;height:52px;border-radius:999px;background:linear-gradient(180deg,rgba(251,246,234,.42),rgba(251,246,234,.26));-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);border:1px solid rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 12px 30px rgba(12,28,22,.16)}
   body.admin nav.admin{display:flex}
-  nav.admin .back{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;cursor:pointer;color:var(--muted);font:500 10.5px/1 var(--sans);letter-spacing:.06em;padding:0 6px}
-  nav.admin .back svg{width:20px;height:15px}
-  nav.admin .back:hover{color:var(--forest)}
+  nav.admin .back{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;cursor:pointer;color:var(--cream);filter:drop-shadow(0 1px 2px rgba(8,20,15,.45));font:500 10.5px/1 var(--sans);letter-spacing:.06em;padding:0 6px}
+  nav.admin .back svg{width:24px;height:22px}
+  nav.admin .back:hover{color:#fff}
   nav.admin .home{width:64px;height:64px;margin:-8px 0;border-radius:50%;border:0;cursor:pointer;background:var(--navy) url('/brand/star.svg') center/38px no-repeat;box-shadow:0 0 0 3px rgba(242,181,68,.5),0 14px 34px rgba(12,28,22,.35);transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
   nav.admin .home:hover{transform:scale(1.05)}
   nav.admin .badge{width:38px;height:34px;border:0;cursor:pointer;background:var(--navy);color:var(--cream);font:700 12px/1 var(--sans);letter-spacing:.02em;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
@@ -333,7 +333,7 @@
   <a class="mark" href="#">Maia City</a>
   <button class="btn go visit" id="visit">Visit Maia City<i></i></button>
 </header>
-<nav class="admin" id="adminnav"><button class="back" id="back"><svg viewBox="0 0 26 20"><path d="M24 10H3M10 2.5 2.5 10 10 17.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button><button class="home" id="homebtn" aria-label="Intents"></button><button class="badge" id="badge" title="Maia City, the front page">MC</button></nav>
+<nav class="admin" id="adminnav"><button class="back" id="back" aria-label="Home, the dashboard"><svg viewBox="0 0 24 22"><path d="M3 10.5 12 3l9 7.5M5.5 8.5V19h4.5v-5.5h4V19h4.5V8.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="home" id="homebtn" aria-label="Intents"></button><button class="badge" id="badge" title="Maia City, the front page">MC</button></nav>
 <main id="home" class="on">
   <section class="hero"><div>
     <p class="eyebrow">This is the story of how</p>

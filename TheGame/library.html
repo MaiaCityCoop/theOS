@@ -17,25 +17,26 @@
   /* the two sides: light, clear glass over the world, only as tall as what they hold */
   /* light, clear glass over the world, only as large as what it holds */
   .glass2{background:linear-gradient(180deg,rgba(251,246,234,.42),rgba(251,246,234,.26));-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);border:1px solid rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 12px 30px rgba(12,28,22,.16)}
-  #list{position:fixed;left:14px;top:14px;z-index:3;display:flex;flex-direction:column;gap:6px;width:210px;max-height:calc(100vh - 110px);overflow:auto}
+  #list{position:fixed;left:14px;top:14px;z-index:3;display:flex;flex-direction:column;gap:6px;width:210px;max-height:calc(100vh - 90px);overflow:auto}
   .item{position:relative;display:flex;align-items:center;gap:10px;width:100%;border:0;color:var(--forest);text-align:left;padding:6px 10px 6px 6px;border-radius:14px;cursor:pointer;font:inherit}
   .item:hover{background:rgba(251,246,234,.55)}
   .item.on{background:rgba(255,255,255,.66)}
   .item.on::before{content:'';position:absolute;left:-1px;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--sun)}
   /* the library's sections: a switch at the top of the list, and a grid of them to start from */
-  #tabs{display:flex;gap:2px;padding:3px;border-radius:999px;margin-bottom:4px}
-  #tabs button{flex:1;border:0;background:none;font:500 11.5px/1 var(--sans);color:var(--forest2);padding:8px 0;border-radius:999px;cursor:pointer}
-  #tabs button.on{background:rgba(255,255,255,.75);color:var(--navy)}
+  #toLib{position:fixed;left:14px;bottom:18px;z-index:7;display:flex;align-items:center;gap:8px;height:44px;padding:0 18px 0 14px;border-radius:999px;cursor:pointer;font:500 13.5px/1 var(--sans);color:var(--cream);text-shadow:0 1px 2px rgba(8,20,15,.45)}
+  #toLib svg{width:17px;height:13px}
+  #toLib:hover{background:rgba(255,255,255,.35)}
+  #grid.on ~ #toLib{display:none}
   #list[data-sec] .item, #list[data-sec] .group{display:none}
   #list[data-sec="assets"] .item[data-id], #list[data-sec="biomes"] .item[data-biome], #list[data-sec="materials"] .item[data-mat]{display:flex}
   #grid{position:fixed;inset:0;z-index:6;display:none;place-items:center;background:rgba(15,29,44,.28);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
   #grid.on{display:grid}
   #grid .cards{display:grid;grid-template-columns:repeat(3,minmax(0,200px));gap:16px;padding:16px}
   #grid h1{grid-column:1/-1;margin:0 0 4px;font:440 30px/1.1 var(--serif);font-variation-settings:var(--soft);color:var(--cream);text-align:center;text-shadow:0 1px 8px rgba(0,0,0,.35)}
-  #grid button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 14px 18px;border:0;border-radius:24px;cursor:pointer;color:var(--forest);font:inherit;transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+  #grid button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 14px 18px;border-radius:24px;background:linear-gradient(180deg,rgba(251,246,234,.72),rgba(251,246,234,.56));cursor:pointer;color:var(--forest);font:inherit;transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
   #grid button:hover{transform:translateY(-3px)}
-  #grid canvas{width:96px;height:96px;filter:drop-shadow(0 6px 10px rgba(12,28,22,.3))}
-  #grid b{font:460 19px/1.1 var(--serif);font-variation-settings:var(--soft);color:var(--navy)}#grid small{font-size:12px;color:var(--forest2)}
+  #grid canvas{width:112px;height:112px;filter:drop-shadow(0 6px 10px rgba(12,28,22,.3))}
+  #grid b{font:460 19px/1.1 var(--serif);font-variation-settings:var(--soft);color:var(--navy)}#grid small{font-size:12px;color:var(--navy);opacity:.72}
   @media (max-width:760px){#grid .cards{grid-template-columns:1fr 1fr}}
   .group{font:500 10.5px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:rgba(251,246,234,.8);text-shadow:0 1px 3px rgba(0,0,0,.45);margin:8px 0 2px 8px}.group:first-child{margin-top:2px}
   .item canvas{width:34px;height:34px;flex:none;filter:drop-shadow(0 2px 3px rgba(12,28,22,.25))}
@@ -61,6 +62,7 @@
 <div id="orbit"></div>
 <nav id="list" aria-label="The library"></nav>
 <div id="grid"><div class="cards"><h1>The library</h1></div></div>
+<button id="toLib" class="glass2"><svg viewBox="0 0 26 20"><path d="M24 10H3M10 2.5 2.5 10 10 17.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Library</button>
 <aside class="side right glass2" id="info"></aside>
 <span class="hint">drag to circle · wheel to come closer</span>
 <script type="module" src="/cine/cine.js"></script>
@@ -76,7 +78,7 @@ import { rockSample } from './src/scatter/rocks.js';
 import { STAGE } from './src/world/places.js';
 import { heightAt } from './src/world.js';
 import { MATERIALS, MATERIAL } from './materials/index.js';
-import { materialPreview, materialThumb } from './src/materials/preview.js';
+import { materialPreview, materialThumb, dioramaThumb } from './src/materials/preview.js';
 import { BIOMES, BIOME } from './biomes/index.js';
 const q = new URLSearchParams(location.search), cine = window.__cine;
 const hex = (c) => '#' + c.map((v) => Math.round(Math.min(1, v) * 255).toString(16).padStart(2, '0')).join('');
@@ -86,24 +88,29 @@ const { scene, U, ground, tex } = window.__s8;
 ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BIOME.meadow));   // round the stage, the land is all meadow
 
 // the list: each asset with a small picture of its nearest level
-document.getElementById('list').innerHTML = '<div id="tabs" class="glass2"><button data-s="assets">Assets</button><button data-s="biomes">Biomes</button><button data-s="materials">Materials</button><button data-s="grid" title="All sections">▦</button></div><div class="group">Assets</div>' + ids.map((id) => `<button class="item glass2" data-id="${id}"><canvas width="72" height="72"></canvas><span><b>${ASSETS[id].name}</b><small>${ASSETS[id].kind}</small></span></button>`).join('')
+document.getElementById('list').innerHTML = '<div class="group">Assets</div>' + ids.map((id) => `<button class="item glass2" data-id="${id}"><canvas width="72" height="72"></canvas><span><b>${ASSETS[id].name}</b><small>${ASSETS[id].kind}</small></span></button>`).join('')
   + '<div class="group">Biomes</div>' + BIOMES.map((b) => `<button class="item glass2" data-biome="${b.id}"><canvas width="72" height="72"></canvas><span><b>${b.name}</b><small>${b.kind}</small></span></button>`).join('')
   + '<div class="group">Materials</div>' + MATERIALS.map((m) => `<button class="item glass2" data-mat="${m.id}"><canvas width="72" height="72"></canvas><span><b>${m.name}</b><small>${m.kind}</small></span></button>`).join('');
 for (const b of document.querySelectorAll('.item[data-mat]')) {   // a material's picture: its own baked tile
   materialThumb(window.__s8.renderer, U, tex.of(b.dataset.mat), b.querySelector('canvas'));
   b.onclick = () => chooseMaterial(b.dataset.mat);
 }
+// an asset's picture: its nearest level, lit, on nothing
+function assetThumb(a, canvas, near = 1) {
+  const S = canvas.width, r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true }), sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(32, 1, 0.05, 100);
+  sc.add(new THREE.HemisphereLight(0xdbe9ff, 0x4a5a3a, 1.4)); const sun = new THREE.DirectionalLight(0xfff1d6, 2.2); sun.position.set(4, 7, 3); sc.add(sun);
+  sc.add(new THREE.Mesh(geometryOf(a), new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.9 })));
+  const d = (a.placement.at === 'scatter' ? 2.2 : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 1.9) / near;
+  cam.position.set(d * 0.7, d * 0.55, -d * 0.7); cam.lookAt(0, (a.placement.at === 'scatter' ? 0.5 : most(a.size.height)) * 0.4, 0);
+  r.setPixelRatio(1); r.setSize(S, S, false); r.render(sc, cam); const out = document.createElement('canvas'); out.width = out.height = S; out.getContext('2d').drawImage(canvas, 0, 0);
+  r.dispose(); canvas.replaceWith(out); out.style.cssText = canvas.style.cssText;
+}
 for (const b of document.querySelectorAll('.item[data-biome]')) {   // a biome's picture: a ball of its ground
   materialThumb(window.__s8.renderer, U, tex.of(BIOME[b.dataset.biome].floor.material), b.querySelector('canvas'));
   b.onclick = () => chooseBiome(b.dataset.biome);
 }
 for (const b of document.querySelectorAll('.item[data-id]')) {
-  const a = ASSETS[b.dataset.id], r = new THREE.WebGLRenderer({ canvas: b.querySelector('canvas'), antialias: true, alpha: true }), sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(32, 1, 0.05, 100);
-  sc.add(new THREE.HemisphereLight(0xdbe9ff, 0x4a5a3a, 1.4)); const sun = new THREE.DirectionalLight(0xfff1d6, 2.2); sun.position.set(4, 7, 3); sc.add(sun);
-  sc.add(new THREE.Mesh(geometryOf(a), new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.9 })));
-  const d = a.placement.at === 'scatter' ? 2.2 : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 1.9;
-  cam.position.set(d * 0.7, d * 0.55, -d * 0.7); cam.lookAt(0, (a.placement.at === 'scatter' ? 0.5 : most(a.size.height)) * 0.4, 0);
-  r.setSize(36, 36, false); r.render(sc, cam); r.dispose();
+  assetThumb(ASSETS[b.dataset.id], b.querySelector('canvas'));
   b.onclick = () => choose(b.dataset.id);
 }
 
@@ -198,22 +205,18 @@ function frame() {
 }
 // the sections: the switch over the list, the grid to start from
 const SECTIONS = [
-  { id: 'assets', name: 'Assets', what: 'things made and stood', n: ids.length, open: () => choose(ids[0]), pic: (c) => c.getContext('2d').drawImage(document.querySelector('.item[data-id] canvas'), 0, 0, c.width, c.height) },
-  { id: 'biomes', name: 'Biomes', what: 'what lies and grows', n: BIOMES.length, open: () => chooseBiome(BIOMES[0].id), pic: (c) => materialThumb(window.__s8.renderer, U, tex.of('meadow'), c) },
+  { id: 'assets', name: 'Assets', what: 'things made and stood', n: ids.length, open: () => choose(ids[0]), pic: (c) => assetThumb(ASSETS.belltent, c, 1.5) },
+  { id: 'biomes', name: 'Biomes', what: 'what lies and grows', n: BIOMES.length, open: () => chooseBiome(BIOMES[0].id), pic: (c) => dioramaThumb(window.__s8.renderer, U, tex, c) },
   { id: 'materials', name: 'Materials', what: 'what it is all made of', n: MATERIALS.length, open: () => chooseMaterial(MATERIALS[0].id), pic: (c) => materialThumb(window.__s8.renderer, U, tex.of('rock'), c) },
 ];
 const list = document.getElementById('list'), grid = document.getElementById('grid');
-function section(id) { list.dataset.sec = id; document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.s === id)); }
+function section(id) { list.dataset.sec = id; }
 for (const sct of SECTIONS) {
   const b = document.createElement('button'); b.className = 'glass2'; b.innerHTML = `<canvas width="192" height="192"></canvas><b>${sct.name}</b><small>${sct.n} · ${sct.what}</small>`;
   grid.querySelector('.cards').append(b); sct.pic(b.querySelector('canvas'));
   b.onclick = () => { grid.classList.remove('on'); section(sct.id); sct.open(); };
 }
-document.getElementById('tabs').onclick = (e) => {
-  const s = e.target.dataset?.s; if (!s) return;
-  if (s === 'grid') { grid.classList.add('on'); return; }
-  section(s); SECTIONS.find((x) => x.id === s).open();
-};
+document.getElementById('toLib').onclick = () => grid.classList.add('on');   // back to the library's sections
 grid.onclick = (e) => { if (e.target === grid) grid.classList.remove('on'); };
 section(q.get('biome') ? 'biomes' : q.get('material') ? 'materials' : 'assets');
 if (!q.get('asset') && !q.get('biome') && !q.get('material')) grid.classList.add('on');   // the library opens on its sections

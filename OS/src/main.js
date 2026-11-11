@@ -37,7 +37,7 @@ function tab(name) {
   if (name === 'city') city();   // the front page's film starts when its window is on screen, not before
 }
 $('homebtn').onclick = () => tab(location.hash === '#intents' ? 'city' : 'intents');   // the star opens the board of intents, as in the old play; again, it closes it
-$('back').onclick = () => tab(document.body.classList.contains('sheet') || location.hash === '#game' ? 'city' : 'home');
+$('back').onclick = () => tab('city');   // home: the dashboard
 $('badge').onclick = () => tab('home');
 document.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => tab('city')));
 $('visit').onclick = () => tab('city');

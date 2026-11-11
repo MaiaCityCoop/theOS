@@ -1022,6 +1022,24 @@ _Samuel's decision._
 - **Broke / not there yet:** the Assets card's picture is the small list picture scaled up; day 2's
   picture and stills still to be retaken.
 
+### 2026-11-11, forty-ninth round
+
+- **Asked:** the pill and the library's sides in the same light liquid glass; no green text in the
+  library's grid; better pictures for the Biomes and Assets cards; the far tent's door not a brown
+  slab: a pale floor and nothing inside; no section tabs over the list, a Back to the library's
+  sections at the bottom left instead; the pill's Back a Home, an icon without a label, light for
+  contrast.
+- **Delivered:** one `.glass2` in the brand file; the game's pill and the dashboard's in it. The
+  pill's first button is Home (a house, no label, cream): the dashboard; in the game the star opens
+  the intents. The library: the tabs gone, a glass "Library" button bottom left back to the grid;
+  the grid's cards more opaque, their text navy; Assets drawn as the tent at full size, Biomes as a
+  diorama (a round of grassland cut out, earth down its side, a sandy shore with water, a
+  pebble). The bell tent's middle levels (to 110 m and to 350 m) keep the door open on a pale
+  floor and the lit lining, nothing else.
+- **Good:** seen in the pane: the grid and its pictures; the Home icon and Library button
+  readable over the dark letterbox; the far tent's door light, not brown.
+- **Broke / not there yet:** day 2's picture and stills still to be retaken.
+
 ## Trail
 
 | When | Commit | What |

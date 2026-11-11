@@ -1,4 +1,4 @@
-// The game's pill, on every page opened on its own, as in the dashboard: Back, one large round home (the dashboard),
+// The game's pill, on every page opened on its own, as in the dashboard: Home (the dashboard), the large round star (the intents),
 // and the city's badge (the front page). Framed inside the dashboard (?in=os) the dashboard has its own;
 // as a picture (?embed) there is none.
 const qs = new URLSearchParams(location.search);
@@ -8,7 +8,6 @@ document.getElementById('hud')?.classList.add('glass');
 const OS = import.meta.env.VITE_OS || `http://${location.hostname}:5180`;
 const bar = document.createElement('nav');
 bar.dataset.menu = '1'; bar.className = 'os-pill';
-bar.innerHTML = `<a class="back" href="${OS}/#city"><svg viewBox="0 0 26 20"><path d="M24 10H3M10 2.5 2.5 10 10 17.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</a>` +
-  `<a class="home" href="${OS}/#city" aria-label="Dashboard"></a><a class="badge" href="${OS}/" title="Maia City, the front page">MC</a>`;
-bar.querySelector('.back').onclick = (e) => { if (history.length > 1 && document.referrer) { e.preventDefault(); history.back(); } };
+bar.innerHTML = `<a class="back" href="${OS}/#city" aria-label="Home, the dashboard"><svg viewBox="0 0 24 22"><path d="M3 10.5 12 3l9 7.5M5.5 8.5V19h4.5v-5.5h4V19h4.5V8.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>` +
+  `<a class="home" href="${OS}/#intents" aria-label="Intents"></a><a class="badge" href="${OS}/" title="Maia City, the front page">MC</a>`;
 document.body.append(bar);
