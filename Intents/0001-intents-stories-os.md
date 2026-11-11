@@ -576,3 +576,4 @@ _Samuel's decision._
 | 2026-11-11 | `86be478` | 1 million in the title, the 16-years pill, Welcome to Day 2, the why section, story 01 retitled |
 | 2026-11-11 | `f2669f9` | One title in the film window, the large play from the start in full screen |
 | 2026-11-11 | `2b90a8c` | Play and figures centred, subtitles lifted |
+| 2026-11-11 | `59cd937` | Title in the upper third, subtitles under the play |
