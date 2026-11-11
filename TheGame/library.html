@@ -14,21 +14,25 @@
   #msg{display:none}
   #hud{display:none!important}
   #orbit{position:fixed;inset:0;z-index:1;cursor:grab;touch-action:none}#orbit:active{cursor:grabbing}
-  .side{position:fixed;top:14px;max-height:calc(100vh - 110px);z-index:3;width:228px;padding:12px 8px;border-radius:18px;background:rgba(15,29,44,.86);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid rgba(251,246,234,.08);overflow:auto}
-  .side.left{left:14px}.side.right{right:14px;width:262px;padding:16px 18px}
-  .side h1{font:440 18px/1 var(--serif);font-variation-settings:var(--soft);margin:4px 8px 12px}
-  .side .label{display:block;margin:6px 8px 6px;color:rgba(251,246,234,.45);font-size:10.5px}
-  .item{position:relative;display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;color:rgba(251,246,234,.8);text-align:left;padding:7px 8px;border-radius:12px;cursor:pointer;font:inherit}
-  .item:hover{background:rgba(251,246,234,.05);color:var(--cream)}
-  .item.on{background:rgba(242,181,68,.12);color:var(--cream)}
-  .item.on::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--sun)}
-  .item canvas{width:36px;height:36px;border-radius:9px;background:#223352;flex:none}
-  .item b{display:block;font:500 13.5px/1.2 var(--sans)}.item small{display:block;font-size:11.5px;opacity:.55;text-transform:capitalize}
-  .right h2{font:440 22px/1.1 var(--serif);font-variation-settings:var(--soft);margin:0 0 6px}
-  .right p{margin:0 0 14px;color:rgba(251,246,234,.72);font-size:13.5px}
-  .right dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0;font-size:12.5px}
-  .right dt{color:rgba(251,246,234,.45)}.right dd{margin:0;font-variant-numeric:tabular-nums;word-break:break-word}
-  .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+  /* the two sides: light, clear glass over the world, only as tall as what they hold */
+  .side{position:fixed;top:14px;height:auto;max-height:calc(100vh - 110px);z-index:3;width:220px;padding:12px 8px;border-radius:20px;color:var(--forest);
+    background:linear-gradient(180deg,rgba(251,246,234,.58),rgba(251,246,234,.42));-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);
+    border:1px solid rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 12px 34px rgba(12,28,22,.18);overflow:auto}
+  .side.left{left:14px}.side.right{right:14px;width:256px;padding:14px 16px}
+  .side h1{font:460 18px/1 var(--serif);font-variation-settings:var(--soft);margin:4px 8px 10px;color:var(--navy)}
+  .side .label{display:block;margin:6px 8px 6px;color:var(--forest2);opacity:.75;font-size:10.5px}
+  .item{position:relative;display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;color:var(--forest);text-align:left;padding:6px 8px;border-radius:12px;cursor:pointer;font:inherit}
+  .item:hover{background:rgba(255,255,255,.35)}
+  .item.on{background:rgba(255,255,255,.62);box-shadow:inset 0 0 0 1px rgba(255,255,255,.8)}
+  .item.on::before{content:'';position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:3px;background:var(--sun)}
+  .item canvas{width:34px;height:34px;border-radius:9px;background:rgba(23,54,85,.85);flex:none}
+  .item b{display:block;font:500 13.5px/1.2 var(--sans);color:var(--navy)}.item small{display:block;font-size:11.5px;color:var(--forest2);opacity:.8;text-transform:capitalize}
+  .right .label{margin:0 0 6px}
+  .right h2{font:460 21px/1.1 var(--serif);font-variation-settings:var(--soft);margin:0 0 6px;color:var(--navy)}
+  .right p{margin:0 0 12px;color:var(--forest2);font-size:13.5px}
+  .right dl{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0;font-size:12.5px}
+  .right dt{color:var(--forest2);opacity:.7}.right dd{margin:0;color:var(--forest);font-variant-numeric:tabular-nums;word-break:break-word}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
   .hint{position:fixed;left:50%;transform:translateX(-50%);top:16px;z-index:2;font-size:12px;color:rgba(251,246,234,.75);text-shadow:0 1px 3px rgba(0,0,0,.5)}
   @media (max-width:760px){.side.right{display:none}.side.left{width:180px}}
 </style>
@@ -74,7 +78,7 @@ function choose(id) {
   dist = Math.max(a.size.length, a.size.width, a.size.height) * 2.6; spin = true;
   document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
   const where = Object.entries(PLACES).filter(([, p]) => p.asset === id).map(([k, p]) => `${k} (${p.x.toFixed(0)}, ${p.z.toFixed(0)})`).join(', ') || 'not placed yet';
-  document.getElementById('info').innerHTML = `<span class="label" style="margin:0 0 8px">Asset</span><h2>${a.name}</h2><p>${a.about || ''}</p><dl>
+  document.getElementById('info').innerHTML = `<span class="label">Asset</span><h2>${a.name}</h2><p>${a.about || ''}</p><dl>
     <dt>Kind</dt><dd style="text-transform:capitalize">${a.kind}</dd>
     <dt>Size</dt><dd>${a.size.length} × ${a.size.width} × ${a.size.height} m</dd>
     <dt>Faces</dt><dd>${a.faces.length}</dd>

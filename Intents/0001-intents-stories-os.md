@@ -875,6 +875,18 @@ _Samuel's decision._
 - **Good:** seen in the pane at 1440: the tent in the meadow's grass, the river behind, both
   sides and the pill; no errors.
 
+### 2026-11-11, forty-second round
+
+- **Asked:** explain the current LOD logic: does each asset or biome have its own LOD variants,
+  kept together? And the Library's two sides more see-through, as tall as their content, light
+  again, as liquid glass.
+- **Delivered:** the sides are light, clear glass over the world (cream at about half, blurred
+  behind), only as tall as what they hold; the chosen item a brighter glass with the sun's edge.
+  The LOD logic explained in the reply (terrain by a quadtree of levels; scattered things by
+  tiers kept in one row each in `src/scatter/assets.js`; no LOD for library assets yet; biomes
+  are masks, not objects with variants).
+- **Good:** seen in the pane at 1440.
+
 ## Trail
 
 | When | Commit | What |
