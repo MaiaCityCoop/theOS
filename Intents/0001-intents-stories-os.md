@@ -598,6 +598,22 @@ _Samuel's decision._
   top bar's) are gone from its pages; they are reached from the dashboard. Phone width and
   Safari not seen.
 
+### 2026-11-11, twenty-third round
+
+- **Asked:** the intents in a modal like the kanban board of the old play, opened by the pill's
+  star; and the real star from `theOS.svg` (and `theOS_dark.svg`) on the button.
+- **Delivered:** the star opens the Intents sheet (again, it closes it). The board: a rounded
+  column per state with its name and count; an empty column folds to a thin vertical strip
+  (click its name to open or fold it); cards with the intent's number, title, who and when, and
+  a coloured edge; a card opens its document beside the board, with Close. `brand/theOS.svg`
+  and `brand/theOS_dark.svg` are the logos as given; `brand/star.svg` is their star alone
+  (gold rays, light centre), on the pill's button.
+- **Good:** seen in the pane at 1440: the star on the button, the board with five folded
+  columns and Propose open, the document opening beside a card.
+- **Broke / not there yet:** a card's "who" is always Samuel (the intent's file has no author
+  field). The legacy board's own columns (Specify, Proposal, Ship, Accepted) are not ours; ours
+  are the six states of the skill. Phone width and Safari not seen.
+
 ## Trail
 
 | When | Commit | What |

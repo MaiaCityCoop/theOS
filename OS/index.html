@@ -21,7 +21,7 @@
   nav.admin .back{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;cursor:pointer;color:var(--muted);font:500 10.5px/1 var(--sans);letter-spacing:.06em;padding:0 6px}
   nav.admin .back svg{width:20px;height:15px}
   nav.admin .back:hover{color:var(--forest)}
-  nav.admin .home{width:64px;height:64px;margin:-8px 0;border-radius:50%;border:0;cursor:pointer;background:var(--forest) var(--sunmark) center/26px no-repeat;box-shadow:0 0 0 3px rgba(242,181,68,.5),0 14px 34px rgba(12,28,22,.35);transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+  nav.admin .home{width:64px;height:64px;margin:-8px 0;border-radius:50%;border:0;cursor:pointer;background:var(--forest) url('/brand/star.svg') center/38px no-repeat;box-shadow:0 0 0 3px rgba(242,181,68,.5),0 14px 34px rgba(12,28,22,.35);transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
   nav.admin .home:hover{transform:scale(1.05)}
   nav.admin .badge{width:38px;height:34px;border:0;cursor:pointer;background:var(--forest);color:var(--cream);font:700 12px/1 var(--sans);letter-spacing:.02em;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
   /* a view inside opens as a sheet over the dashboard, with its name and Close */
@@ -152,15 +152,24 @@
   .cal .tip.on{opacity:1}
 
   /* ---- the board: the work, by state ---- */
-  #board{flex:1;display:flex;gap:10px;padding:14px 10px 30px clamp(18px,3vw,44px);overflow:auto;min-width:0}
-  .col{flex:1;min-width:176px;padding:14px 10px;border-radius:26px;background:rgba(236,225,204,.5)}
-  .col h2{margin:4px 8px 16px;display:flex;justify-content:space-between}
-  .card{padding:16px 18px 18px;margin-bottom:10px;border-radius:20px;background:var(--cream);cursor:pointer;font:440 20px/1.18 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.012em;color:var(--forest);box-shadow:0 2px 10px rgba(31,58,44,.06);transition:transform .25s cubic-bezier(.3,1.6,.5,1),box-shadow .2s}
-  .card:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(31,58,44,.12)}
-  .card.on{box-shadow:0 0 0 2px var(--forest),0 8px 22px rgba(31,58,44,.12)}
-  .card b{display:block;font:500 11px/2.2 var(--sans);letter-spacing:.14em;color:var(--muted)}
+  /* the board, as in the old play: a column per state, its name and count; an empty column folds to a thin strip */
+  #board{flex:1;display:flex;gap:12px;padding:10px clamp(14px,2vw,26px) 22px;overflow:auto;min-width:0}
+  .col{flex:1 1 0;min-width:200px;display:flex;flex-direction:column;padding:16px 14px;border-radius:26px;background:rgba(236,225,204,.55);transition:flex .3s}
+  .col h2{margin:2px 4px 16px;display:flex;align-items:center;gap:10px;font:440 22px/1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.01em;text-transform:capitalize;cursor:pointer}
+  .col h2 i{font:600 12px/1 var(--sans);font-style:normal;padding:5px 9px;border-radius:999px;background:var(--cream);color:var(--forest2)}
+  .col h2 u{margin-left:auto;text-decoration:none;color:var(--muted);font:400 16px/1 var(--sans)}
+  .col .none{margin:2px 4px;color:var(--muted);font-size:15px}
+  .col.fold{flex:0 0 58px;min-width:58px;padding:16px 0;align-items:center}
+  .col.fold h2{writing-mode:vertical-rl;margin:0;gap:12px}.col.fold h2 i{writing-mode:horizontal-tb}.col.fold h2 u,.col.fold .none,.col.fold .card{display:none}
+  .card{padding:16px 18px 16px;margin-bottom:10px;border-radius:20px;background:#fffdf7;border-left:4px solid var(--sand2);cursor:pointer;font:500 16px/1.3 var(--sans);color:var(--forest);box-shadow:0 3px 12px rgba(31,58,44,.07);transition:transform .25s cubic-bezier(.3,1.6,.5,1),box-shadow .2s}
+  .card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(31,58,44,.13)}
+  .card.on{border-left-color:var(--sun);box-shadow:0 0 0 2px var(--forest),0 10px 24px rgba(31,58,44,.13)}
+  .card b{display:block;font:500 11px/1 var(--sans);letter-spacing:.12em;color:var(--muted);margin-bottom:8px}
   .card i{display:inline-block;margin-top:12px;font:500 12px/1 var(--sans);font-style:normal;color:var(--clay);background:rgba(189,91,51,.12);padding:6px 10px;border-radius:999px}
+  .card .meta{display:flex;align-items:center;gap:8px;margin-top:12px;font:400 13px/1 var(--sans);color:var(--muted)}
+  .card .meta em{width:24px;height:24px;border-radius:50%;background:var(--clay);color:#fff;font:600 11px/24px var(--sans);font-style:normal;text-align:center}
   .card.rejected{opacity:.5}
+  #intentdoc .shut{margin-left:auto}
 
   /* a document */
   .doc{width:min(52vw,820px);margin:14px clamp(8px,1vw,14px) 14px 4px;background:var(--cream);border-radius:34px;overflow:auto;padding:0 clamp(26px,3.6vw,56px) 100px;display:none;box-shadow:0 10px 40px rgba(31,58,44,.08)}
@@ -235,7 +244,7 @@
   <a class="mark" href="#">Maia City</a>
   <button class="btn go visit" id="visit">Visit Maia City<i></i></button>
 </header>
-<nav class="admin" id="adminnav"><button class="back" id="back"><svg viewBox="0 0 26 20"><path d="M24 10H3M10 2.5 2.5 10 10 17.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button><button class="home" id="homebtn" aria-label="Dashboard"></button><button class="badge" id="badge" title="Maia City, the front page">MC</button></nav>
+<nav class="admin" id="adminnav"><button class="back" id="back"><svg viewBox="0 0 26 20"><path d="M24 10H3M10 2.5 2.5 10 10 17.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button><button class="home" id="homebtn" aria-label="Intents"></button><button class="badge" id="badge" title="Maia City, the front page">MC</button></nav>
 <main id="home" class="on">
   <section class="hero"><div>
     <p class="eyebrow">This is the story of how</p>

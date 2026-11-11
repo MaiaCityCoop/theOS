@@ -34,7 +34,7 @@ function tab(name) {
   if (name === 'home') { home.sync?.(); home.draw?.(); }
   if (name === 'city') city();   // the front page's film starts when its window is on screen, not before
 }
-$('homebtn').onclick = () => tab('city');
+$('homebtn').onclick = () => tab(location.hash === '#intents' ? 'city' : 'intents');   // the star opens the board of intents, as in the old play; again, it closes it
 $('back').onclick = () => tab(document.body.classList.contains('sheet') || location.hash === '#game' ? 'city' : 'home');
 $('badge').onclick = () => tab('home');
 document.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => tab('city')));
@@ -54,20 +54,23 @@ function game(view, show = true) {
 
 // ---- intents: a board by state ----
 function board(open) {
-  $('board').innerHTML = STATES.map((s) => {
-    const mine = intents.filter((i) => i.state === s);
-    return `<div class="col"><h2 class="label"><span>${s}</span><span>${mine.length || ''}</span></h2>` +
-      mine.map((i) => `<div class="card ${i.outcome || ''}" data-file="${i.file}"><b>INTENT ${i.id}</b>${i.title}${i.outcome ? `<i>${i.outcome}</i>` : ''}</div>`).join('') + '</div>';
+  const folded = board.folded || (board.folded = new Set(STATES.filter((st) => !intents.some((i) => i.state === st))));
+  $('board').innerHTML = STATES.map((st) => {
+    const mine = intents.filter((i) => i.state === st);
+    return `<div class="col${folded.has(st) ? ' fold' : ''}" data-st="${st}"><h2>${st}<i>${mine.length}</i><u>${folded.has(st) ? '›' : '‹'}</u></h2>` +
+      (mine.length ? mine.map((i) => `<div class="card ${i.outcome || ''}" data-file="${i.file}"><b>INTENT ${i.id}</b>${i.title}${i.outcome ? `<br><i>${i.outcome}</i>` : ''}<div class="meta"><em>S</em>Samuel${i.opened ? ` · ${i.opened}` : ''}</div></div>`).join('') : '<p class="none">None.</p>') + '</div>';
   }).join('');
+  $('board').querySelectorAll('.col h2').forEach((h) => (h.onclick = () => { const st = h.parentNode.dataset.st; folded.has(st) ? folded.delete(st) : folded.add(st); board(); }));
   $('board').querySelectorAll('.card').forEach((c) => (c.onclick = () => intent(intents.find((i) => i.file === c.dataset.file))));
-  const first = intents.find((i) => i.slug === open) || intents.find((i) => i.state !== 'archived') || intents[0];
-  if (first) intent(first);
+  const pick = intents.find((i) => i.slug === open);
+  if (pick) intent(pick); else $('intentdoc').classList.remove('on');   // the board first; a card opens its intent beside it
 }
 async function intent(i) {
   document.querySelectorAll('#board .card').forEach((c) => c.classList.toggle('on', c.dataset.file === i.file));
   const md = await get(`/api/intents/${i.file}`).then((r) => r.text()), s = stories.find((x) => x.id === i.slug);
   const d = $('intentdoc'); d.classList.add('on');
-  d.innerHTML = `<div class="bar">${s ? `<button class="btn small play" data-do="story">Its story</button>` : ''}<span class="chip live">${i.state}${i.outcome ? ' · ' + i.outcome : ''}</span></div>` + body(md);
+  d.innerHTML = `<div class="bar">${s ? `<button class="btn small play" data-do="story">Its story</button>` : ''}<span class="chip live" style="margin-left:auto">${i.state}${i.outcome ? ' · ' + i.outcome : ''}</span><button class="btn small quiet shut" data-do="shut">Close</button></div>` + body(md);
+  d.querySelector('[data-do=shut]').onclick = () => { d.classList.remove('on'); document.querySelectorAll('#board .card').forEach((c) => c.classList.remove('on')); };
   d.querySelector('[data-do=story]')?.addEventListener('click', () => story(s));
   d.scrollTop = 0;
 }
