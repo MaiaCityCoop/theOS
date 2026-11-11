@@ -128,3 +128,4 @@ is built at once.
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-12 | `c30f881` | The river by its bends, two new biomes, the water by depth; the board shows every intent |
+| 2026-11-12 | `3e23aaf` | Slope limit; ragged banks and frayed edges |
