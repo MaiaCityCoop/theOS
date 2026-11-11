@@ -88,7 +88,8 @@
 .os-bar.bottom { bottom: 16px; }
 body.framed .os-top { display: none; }      /* inside the dashboard, the dashboard is the menu */
 body.embed .os-top, body.embed .os-bar, body.embed #hud { display: none; }
-body.embed #cap:not(.title) { bottom: 30vh; }   /* framed on the front page, the play and the day's figures sit low and centred */   /* as a picture: nothing but the film and its subtitles */
+body.embed #cap:not(.title) { bottom: 4vh; }    /* framed on the front page: the subtitles under the play and the day's figures */
+body.embed #cap.title { top: 20%; }              /* and the title in the upper third */   /* as a picture: nothing but the film and its subtitles */
 
 /* subtitles: one place, two lines at most, readable over any picture */
 #cap { position: fixed; left: 50%; bottom: 8vh; transform: translateX(-50%); z-index: 4; width: max-content; max-width: min(46ch, 84vw); text-align: center; pointer-events: none; opacity: 0; display: none;
