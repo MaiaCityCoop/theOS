@@ -12,6 +12,8 @@ cameras can shoot again.
 | `cine/trailer.js` | composes a small trailer of the land from a seed |
 | `cine/view.js`, `timeline.html` | the timeline view: the world playing, its clips as a strip underneath |
 | `cine/timelines/<name>.json` | kept timelines: cameras set once, played back by name |
+| `cine/lenses.js` | the lens kit: spherical 12–180 mm, anamorphic 16–180 mm |
+| `cine/sheet.js`, `lenses.html` | the lens test: still scenes through every lens, with their cost |
 | `cine/menu.js` | the menu on every page: walk, or a timeline |
 | `cine/at.sh` | serves an earlier commit with today's camera over it |
 
@@ -89,6 +91,30 @@ travel; the story stays. The same seed gives the same trailer on the same stage.
 
 Every page carries the same small menu, top right: **Walk the world** (the game, by hand), and
 under **Timelines** every kept timeline by name (today: `river-story`).
+
+## The lens kit
+
+`cine/lenses.js`. A lens is a focal length and a format; a view or a clip's key names one with
+`lens: 'A50'` (or gives `mm`, with `format: 'anamorphic'` if it is not spherical).
+
+| Set | Lenses | Format |
+| --- | --- | --- |
+| Spherical | `S12 S18 S24 S35 S50 S85 S135 S180` | full-frame gate, 36 mm wide; the picture takes the window's shape |
+| Anamorphic | `A16 A19 A24 A28 A35 A40 A50 A60 A75 A100 A135 A180` | 2x squeeze on a 4:3 Super 35 gate, framed 2.39 : 1 with black bars |
+
+An anamorphic lens sees as wide as a spherical lens of half its focal length, and as tall as its
+own: `A50` is 46.1° wide. 28 to 180 mm are the focal lengths of a classic set of 2x anamorphic
+primes; 19 and 24 lie in an ultra-wide anamorphic zoom's range; 16 is ours, wider than that glass
+goes. Only the framing is modelled so far: no depth of field, oval bokeh, flares or breathing.
+
+## The lens test
+
+`/lenses.html` (menu: Lens test): six still scenes on the river-story's stretch (vista, far bank,
+meadow, in the grass, boulder, from above), each through every lens of a set from one fixed
+place, side by side, with what each still cost: frame time (red over 16.7 ms), triangles, draws.
+`?set=spherical` for the other set. A click opens that view in the world. The costs are also in
+`window.__sheet` for the agent. It is the bench for tuning the land's detail lens by lens: read
+its numbers in Safari with nothing else drawing.
 
 ## Keeping cameras, and playing them back
 

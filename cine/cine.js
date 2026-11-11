@@ -4,14 +4,21 @@
 // It needs nothing of the game but `window.__s8.camera`, so the same file shoots every stage of
 // the build (cine/README.md).
 
-const SENSOR_W = 36, RAD = Math.PI / 180;
-const S = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, mm: 35 };   // radians inside
+import { LENSES, SPHERICAL, ANAMORPHIC } from './lenses.js';
+
+const RAD = Math.PI / 180;
+const S = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, mm: 35, fmt: SPHERICAL, lens: '' };   // radians inside
 let cam, on = false, eulerSet, last = 0;
 let clips = [], starts = [], T = 0, t = 0, playing = false, stills = [], rec = null;
 const pending = [];   // what was asked before the game's camera existed
 
 const clampMm = (mm) => Math.max(12, Math.min(180, mm));
-const vfov = (mm) => (2 * Math.atan(SENSOR_W / 2 / mm / (cam?.aspect || 1.5))) / RAD;   // three's fov is the vertical one
+// three's fov is the vertical one, of the whole window. The lens fixes how wide the picture sees; where the
+// window is wider than the picture's shape (bars left and right), it fixes how tall instead.
+function vfov(mm) {
+  const wa = cam?.aspect || 1.5, pa = S.fmt.aspect || wa;
+  return (2 * Math.atan(S.fmt.w / 2 / mm / Math.max(wa, pa))) / RAD;
+}
 
 // ---- holding the camera against the game's own controls ----
 function lock() {
@@ -24,7 +31,7 @@ function lock() {
   cam.userData.fov0 = cam.fov;
 }
 function unlock() {
-  if (!on) return; on = false; playing = false;
+  if (!on) return; on = false; playing = false; frame();
   for (const k of ['x', 'y', 'z']) Object.defineProperty(cam.position, k, { value: S[k], writable: true, configurable: true, enumerable: true });
   delete cam.rotation.set;
   cam.fov = cam.userData.fov0; cam.updateProjectionMatrix();
@@ -43,7 +50,8 @@ function aim(v) {
     S.yaw = Math.atan2(-dx, -dz); S.pitch = Math.atan2(dy, Math.hypot(dx, dz));
   } else { if (v.yaw != null) S.yaw = v.yaw * RAD; if (v.pitch != null) S.pitch = v.pitch * RAD; }
   if (v.roll != null) S.roll = v.roll * RAD;
-  if (v.mm != null) S.mm = clampMm(v.mm);
+  if (v.lens && LENSES[v.lens]) { S.lens = v.lens; S.mm = LENSES[v.lens].mm; S.fmt = LENSES[v.lens].fmt; }
+  else if (v.mm != null) { S.mm = clampMm(v.mm); S.lens = ''; S.fmt = v.format === 'anamorphic' ? ANAMORPHIC : v.format === 'spherical' || !v.format && !v.keep ? SPHERICAL : S.fmt; }
 }
 
 // ---- the timeline: clips cut one after the other; inside a clip the camera moves through its keys ----
@@ -60,7 +68,7 @@ function ease(kind, q) {
   const s0 = kind === 'out' ? 1.5 : 0, s1 = kind === 'in' ? 1.5 : 0, q2 = q * q, q3 = q2 * q;   // a curve with those speeds at its ends
   return (q3 - 2 * q2 + q) * s0 + (3 * q2 - 2 * q3) + (q3 - q2) * s1;
 }
-const P = [0, 0, 0], L = [0, 0, 0], V = { pos: P, look: L, roll: 0, mm: 35 };
+const P = [0, 0, 0], L = [0, 0, 0], V = { pos: P, look: L, roll: 0, mm: 35, format: 'spherical' };
 function evalAt(time) {
   if (!clips.length) return;
   let i = clips.length - 1; while (i > 0 && starts[i] > time) i--;
@@ -76,6 +84,7 @@ function evalAt(time) {
   }
   V.roll = (b.roll || 0) + ((d.roll || 0) - (b.roll || 0)) * u;
   V.mm = Math.exp(Math.log(b.mm) + (Math.log(d.mm) - Math.log(b.mm)) * u);   // a zoom runs evenly in stops
+  V.format = b.format;
   aim(V);
 }
 const cr = (a, b, c, d, t) => 0.5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (3 * b - a - 3 * c + d) * t * t * t);
@@ -90,10 +99,17 @@ function pre(now) {
     if (t >= T) { if (api.loop) t %= T; else { t = T; playing = false; if (rec) record(false); } }
     evalAt(t);
   }
-  apply(); transitions();
+  apply(); transitions(); frame();
 }
 // ---- transitions: a veil of the sky's colour (dip) and the frozen last frame of the shot before (dissolve) ----
-let veil, frost, fctx, frozenFor = -1;
+let veil, frost, fctx, frozenFor = -1, bars = [];
+function frame() { // the picture's shape: black where the lens's format leaves the window empty
+  if (!bars.length) for (let i = 0; i < 2; i++) { const b = document.createElement('div'); b.style.cssText = 'position:fixed;background:#000;pointer-events:none;z-index:3;display:none'; document.body.append(b); bars.push(b); }
+  const pa = on ? S.fmt.aspect : 0, wa = innerWidth / innerHeight;
+  if (!pa || Math.abs(pa - wa) < 0.01) { bars[0].style.display = bars[1].style.display = 'none'; return; }
+  const tb = pa > wa, size = tb ? (innerHeight - innerWidth / pa) / 2 : (innerWidth - innerHeight * pa) / 2;
+  bars.forEach((b, i) => { b.style.display = 'block'; b.style.inset = tb ? (i ? `auto 0 0 0` : `0 0 auto 0`) : (i ? `0 0 0 auto` : `0 auto 0 0`); b.style.width = tb ? 'auto' : size + 'px'; b.style.height = tb ? size + 'px' : 'auto'; });
+}
 function overlays() {
   if (veil) return;
   veil = document.createElement('div'); frost = document.createElement('canvas'); fctx = frost.getContext('2d');
@@ -110,7 +126,12 @@ function transitions() {
   veil.style.background = api.dipColor; veil.style.opacity = Math.max(0, Math.min(1, dip));
   frost.style.opacity = frozenFor === i && c.in === 'dissolve' ? Math.max(0, 1 - (t - starts[i]) / (c.inSecs || 1)) : 0;
 }
+const grabs = [];
 function post() {
+  while (grabs.length) {
+    const [w, r] = grabs.shift(), g = window.__s8.renderer.domElement, c = document.createElement('canvas');
+    c.width = w; c.height = Math.round((w * g.height) / g.width); c.getContext('2d').drawImage(g, 0, 0, c.width, c.height); r(c);
+  }
   if (playing && clips.length) { // the shot's last frames are kept, to melt into the next
     const i = clipAt(t), n = clips[i + 1];
     if (n?.in === 'dissolve' && starts[i + 1] - t < 0.05) {
@@ -137,7 +158,7 @@ function record(v) {
 }
 
 const api = (window.__cine = {
-  lenses: [12, 18, 24, 35, 50, 85, 135, 180],
+  lenses: LENSES,       // the kit: S12 … S180 spherical, A16 … A180 anamorphic (cine/lenses.js)
   floor: null,          // (x, z) => the ground's height there; set, the camera never sinks under it
   loop: false,
   dipColor: '#9fc2e6',  // what a 'dip' passes through: the sky
@@ -146,7 +167,8 @@ const api = (window.__cine = {
   /** Give the camera back to the walker. */
   release() { ready(unlock); },
   /** Load a timeline of clips; the camera stands on its first frame. */
-  load(list) { clips = list; starts = []; T = 0; for (const c of list) { starts.push(T); T += c.secs; } t = 0; frozenFor = -1; ready(() => { overlays(); lock(); evalAt(0); apply(); }); },
+  load(list) { for (const c of list) for (const k of c.keys) if (k.lens && LENSES[k.lens]) { k.mm = LENSES[k.lens].mm; k.format = LENSES[k.lens].fmt.id; }   // a key may name its lens
+    clips = list; starts = []; T = 0; for (const c of list) { starts.push(T); T += c.secs; } t = 0; frozenFor = -1; ready(() => { overlays(); lock(); evalAt(0); apply(); }); },
   play() { ready(() => { lock(); if (t >= T) t = 0; playing = true; }); },
   pause() { playing = false; },
   /** Stand on the timeline's frame at `time` seconds. */
@@ -158,12 +180,14 @@ const api = (window.__cine = {
   get time() { return t; }, get duration() { return T; }, get playing() { return playing; }, get clips() { return clips; }, get starts() { return starts; },
   get active() { return on; },
   /** Where the camera is now, in the units take() takes. */
-  get view() { return { pos: [S.x, S.y, S.z], yaw: S.yaw / RAD, pitch: S.pitch / RAD, roll: S.roll / RAD, mm: S.mm }; },
+  get view() { return { pos: [S.x, S.y, S.z], yaw: S.yaw / RAD, pitch: S.pitch / RAD, roll: S.roll / RAD, mm: S.mm, lens: S.lens, format: S.fmt.id }; },
+  /** The next drawn frame as a small canvas, `width` pixels wide: for contact sheets. */
+  grab(width = 480) { return new Promise((r) => grabs.push([width, r])); },
 });
 
 // ?cam=x,y,z,yaw,pitch,roll,mm : stand exactly there
 const q = new URLSearchParams(location.search);
-if (q.has('cam')) { const v = q.get('cam').split(',').map(Number); api.take({ pos: [v[0], v[1], v[2]], yaw: v[3] || 0, pitch: v[4] || 0, roll: v[5] || 0, mm: v[6] || 35 }); }
+if (q.has('cam')) { const v = q.get('cam').split(',').map(Number); api.take({ pos: [v[0], v[1], v[2]], yaw: v[3] || 0, pitch: v[4] || 0, roll: v[5] || 0, mm: v[6] || 35, lens: q.get('lens') || undefined }); }   // &lens=A50 puts a lens of the kit on
 
 // every frame of the game passes through the camera
 const raf = window.requestAnimationFrame.bind(window);

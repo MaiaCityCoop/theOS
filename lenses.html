@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sandbox 8 · lens test</title>
+<style>
+  html,body{margin:0;height:100%;background:#0d0f12;overflow:hidden;font:12px/1.35 ui-monospace,Menlo,monospace;color:#e8eaee}
+  canvas#c{display:block;width:100vw;height:100vh;pointer-events:none}
+  #hud,#msg{display:none}
+  #sheet{position:fixed;inset:0;z-index:4;background:#0d0f12;overflow:auto;padding:14px 14px 30px}
+  #top{display:flex;gap:14px;align-items:baseline;margin:0 220px 12px 0}
+  #top h1{font-size:14px;margin:0;font-weight:600}
+  #top a{color:#9fb6d8;text-decoration:none}
+  #grid{display:grid;gap:6px;align-items:start;margin-top:84px;min-width:2300px}
+  .h{padding:4px 2px;color:#aeb6c2}.h b{color:#fff}.h i{font-style:normal;opacity:.7}
+  .side{align-self:center}
+  .cell{display:block;text-decoration:none;color:#aeb6c2;background:#15181d;border-radius:5px;overflow:hidden}
+  .cell canvas{display:block;width:100%;height:auto}
+  .cell span{display:block;padding:3px 5px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cell span.slow{color:#ff8f7d}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div><div id="msg"></div>
+<div id="sheet">
+  <div id="top"><h1>Lens test</h1><a href="?set=anamorphic">anamorphic 16–180</a><a href="?set=spherical">spherical 12–180</a><span id="status">building the land…</span></div>
+  <div id="grid"></div>
+</div>
+<script type="module" src="/cine/cine.js"></script>
+<script type="module" src="/cine/menu.js"></script>
+<script type="module" src="/src/main.js"></script>
+<script type="module" src="/cine/sheet.js"></script>
+</body>
+</html>

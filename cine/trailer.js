@@ -38,7 +38,7 @@ function trace(p, dir, step, n) { // along the river, downstream or up
  * The seed picks the stretch of river (the greenest of a few), the bank and the direction of travel.
  * Every cut is meant: see each clip's `why`.
  */
-export function trailer(seed = 1) {
+function stretch(seed) {
   const R = rng(seed * 7919 + 13), r = (a, b) => a + (b - a) * R();
   // a few stretches; the one with the least dry land along it
   let pts, best = 1e9;
@@ -56,6 +56,27 @@ export function trailer(seed = 1) {
     return [x, W.heightAt(x, z) + h, z];
   };
   const surf = (p, across, along, h) => { const v = at(p, across, along, 0); v[1] = W.baseB(v[0], v[2]) - 0.2 + h; return v; }; // over the water
+  return { pts, side, at, surf, r };
+}
+
+/**
+ * Still scenes on the same stretch, for testing lenses: each is one camera place and one thing it
+ * looks at; the lens is put on afterwards. The same place through every lens is the test.
+ */
+export function scenes(seed = 1) {
+  const { pts, at, surf } = stretch(seed), M = pts[13], G = pts[15], E = pts[18];
+  return [
+    { name: 'Vista', what: 'the land from 60 m up, down the river', pos: surf(pts[0], 0, -120, 60), look: surf(pts[6], 0, 0, 0) },
+    { name: 'Far bank', what: 'standing on the bank, across the water', pos: at(M, M.w + 5, 0, 1.6), look: at(M, -M.w - 3, 4, 0.8) },
+    { name: 'Meadow', what: 'eye height over the grass, to the horizon', pos: at(G, G.w + 26, 0, 1.6), look: at(G, G.w + 60, 60, 1.0) },
+    { name: 'In the grass', what: '25 cm over the ground, along the blades', pos: at(G, G.w + 22, 0, 0.25), look: at(G, G.w + 22, 8, 0.7) },
+    { name: 'Boulder', what: 'a rock field from 40 m, eye height', pos: at(E, E.w + 40, 0, 1.6), look: at(E, E.w + 80, 30, 1.0) },
+    { name: 'From above', what: 'straight down from 45 m, bank and meadow', pos: surf(E, E.w, 0, 45), look: surf(E, E.w, 0.5, 0) },
+  ];
+}
+
+export function trailer(seed = 1) {
+  const { pts, side, at, surf, r } = stretch(seed);
   const A = pts[0], M = pts[13], G = pts[15], E = pts[18];
   const clips = [];
   const clip = (c) => clips.push({ ...c, secs: +c.secs.toFixed(1) });
