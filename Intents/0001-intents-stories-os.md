@@ -313,6 +313,27 @@ _Samuel's decision._
   Samuel's line as he gave it. The village idea (one plot per village, by invitation) is not on
   it. Not seen in Safari, at phone width, or with the pointer on the line.
 
+### 2026-11-11, seventh round
+
+- **Asked:** (with screenshots of Subtitle) the wall that counts the days per story is great,
+  and the scrubbing through the years; the banner of draft 09 is a good beginning. Remove the
+  pace and merge the stories and days told into one figure. The Subtitle build-up in light mode.
+  The message clear: first in game, then in real, this is day x. The banner's title: x of y
+  humans build their own solarpunk city, first in game, then in real, in 16 years.
+- **Delivered:** draft 09 again. The title is "1 of 1,346,269 humans build their own solarpunk
+  city. First in game, then in real. In 16 years." with "This is day 1 of 5,423." under it. The
+  line has three figures (in game today; the years at today's rate; days told, 1 of 5,423); the
+  pace is gone. The line is sixteen years of days: moving along it lays that year over the
+  picture as a storyboard in pencil on paper, and leaving it returns to today. Under the banner,
+  in light mode, the wall from Subtitle: "One day is told. 5,422 are not yet.", day 1 as a poster
+  with its film, its humans in game and its years, an empty numbered frame for each day after
+  it up to 5423, and the sheet of all 5423 days with the told one lit.
+- **Good:** seen in the pane at 1440: the title over the game's film, year 14 in pencil with
+  the pointer on the line, the wall and the sheet in light.
+- **Broke / not there yet:** the first version of this round had the wall dark; Samuel asked for
+  light while it was being written. Not seen in Safari or at phone width; the line not tried by
+  touch; a click on the poster not tried.
+
 ## Trail
 
 | When | Commit | What |

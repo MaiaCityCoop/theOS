@@ -2,124 +2,136 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Maia City · brand draft 09 · Line</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box}
-:root{--ink:#111a17;--ink-2:#44524c;--muted:#7d8a83;--paper:#f6f1e4;--rule:#ddd5c1;--sun:#f4b548;--terra:#d9774f;--moss:#5d7a4f;
+:root{--paper:#f6f1e4;--cream:#f6f1e4;--c6:rgba(246,241,228,.6);--c3:rgba(246,241,228,.34);--sun:#f4b548;--amber:#a8690a;--ink:#111a17;--ink2:#44524c;--muted:#7d8a83;--i3:rgba(17,26,23,.34);--i1:rgba(17,26,23,.14);
   --serif:'Fraunces',ui-serif,'New York',Georgia,serif;--ui:'Outfit',-apple-system,'SF Pro Text','Helvetica Neue',Arial,sans-serif}
 html,body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.5 var(--ui);-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
 .lab{font:500 11px/1 var(--ui);letter-spacing:.2em;text-transform:uppercase}
 .num{font-variant-numeric:tabular-nums}
+.wrap{padding-left:clamp(20px,4vw,56px);padding-right:clamp(20px,4vw,56px)}
 
 /* ---------- the one banner: the game, live, with its interface ---------- */
-.banner{position:relative;height:100svh;min-height:620px;display:flex;flex-direction:column;background:#0c1311;color:#fff;overflow:hidden}
+.banner{position:relative;height:100svh;min-height:620px;display:flex;flex-direction:column;overflow:hidden}
+.picture{color:#fff}
 .picture{position:relative;flex:1;min-height:0;overflow:hidden}
-/* painted stand-in, shown until (or unless) the game answers */
 .paint{position:absolute;inset:0;background:linear-gradient(180deg,#5d9be0 0%,#a9cdf0 44%,#dbe9e2 57%,#8fb46c 57.2%,#6d9a55 74%,#4f7d45 100%)}
 .paint::before{content:'';position:absolute;left:44%;width:20%;top:57.2%;bottom:0;background:linear-gradient(180deg,#b9d6ea,#6fa3c6);clip-path:polygon(40% 0,52% 0,100% 100%,10% 100%)}
 .paint::after{content:'';position:absolute;left:66%;top:calc(57.2% - 46px);border:38px solid transparent;border-bottom:50px solid #f1e8d2;border-top:0;filter:drop-shadow(8px 10px 6px rgba(0,0,0,.22))}
 .live{position:absolute;inset:0;width:100%;height:100%;border:0;opacity:0;transition:opacity 1.2s}
 .live.on{opacity:1}
-.shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(8,14,12,.62) 0%,rgba(8,14,12,.28) 38%,rgba(8,14,12,0) 62%),linear-gradient(180deg,rgba(8,14,12,.38) 0%,rgba(8,14,12,0) 22%)}
+.shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(8,14,12,.62) 0%,rgba(8,14,12,.28) 38%,rgba(8,14,12,0) 62%),linear-gradient(180deg,rgba(8,14,12,.38) 0%,rgba(8,14,12,0) 22%);transition:opacity .3s}
+/* the years ahead, in pencil, when the line is scrubbed */
+.board{position:absolute;inset:0;opacity:0;transition:opacity .25s;pointer-events:none;background:var(--paper)}
+.board svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.ahead-cap{position:absolute;left:0;right:0;bottom:clamp(22px,5vh,52px);text-align:center;opacity:0;transition:opacity .25s;pointer-events:none;padding:0 20px}
+.ahead-cap .lab{display:block;color:var(--ink2);margin-bottom:12px}
+.ahead-cap b{font:500 clamp(17px,1.9vw,26px)/1.3 var(--ui);color:var(--ink);background:var(--paper);padding:6px 14px;border-radius:4px}
+.ahead-cap .lab span{background:var(--paper);padding:4px 10px}
+.banner.ahead .board,.banner.ahead .ahead-cap{opacity:1}
+.banner.ahead .shade,.banner.ahead .claim,.banner.ahead .goals{opacity:0}
+.banner.ahead .top{color:var(--ink);text-shadow:none}
 .hud{position:absolute;inset:0;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.45)}
 .hud>*{pointer-events:auto}
-.top{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:14px;padding:26px clamp(20px,4vw,56px)}
+.top{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:14px;padding-top:26px}
 .top img{width:38px;height:38px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
 .top b{font:400 22px/1 var(--serif);letter-spacing:-.01em}
-.top .day{margin-left:auto;display:flex;align-items:baseline;gap:10px}
-.top .day i{font-style:normal;font:500 15px/1 var(--ui);letter-spacing:.08em}
-.claim{position:absolute;left:clamp(20px,4vw,56px);top:50%;transform:translateY(-54%);width:min(680px,calc(100% - 40px))}
+.top a{margin-left:auto;opacity:.75;border-bottom:1px solid currentColor;padding-bottom:4px}
+.claim{position:absolute;left:clamp(20px,4vw,56px);top:50%;transform:translateY(-54%);width:min(680px,calc(100% - 40px));transition:opacity .25s}
 .claim .lab{opacity:.8}
-h1{font:300 clamp(34px,4.5vw,66px)/1.04 var(--serif);letter-spacing:-.028em;margin:18px 0 30px;text-wrap:balance}
+h1{font:300 clamp(34px,4.5vw,66px)/1.04 var(--serif);letter-spacing:-.028em;margin:18px 0 20px;text-wrap:balance}
+.msg{font:300 italic clamp(20px,2.1vw,30px)/1.2 var(--serif);letter-spacing:-.012em;margin:0 0 30px}
+.msg b{font-style:normal;font-weight:400;color:var(--sun)}
 h1 b{font-weight:400;color:var(--sun);font-variant-numeric:tabular-nums}
 h1 span{white-space:nowrap}
 .acts{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
 .btn{display:inline-flex;align-items:center;gap:12px;height:48px;padding:0 22px 0 18px;border-radius:6px;background:rgba(255,255,255,.94);color:var(--ink);font:500 15px/1 var(--ui);letter-spacing:.02em;text-shadow:none;cursor:pointer;border:0;transition:background .2s,transform .2s}
 .btn:hover{background:#fff;transform:translateY(-1px)}
 .btn::before{content:'';border:6px solid transparent;border-left:10px solid var(--ink);border-right:0}
-.btn span{color:var(--muted);font-variant-numeric:tabular-nums}
+.btn span{color:#7d8a83;font-variant-numeric:tabular-nums}
 .prompt{display:inline-flex;align-items:center;gap:10px;font:400 14px/1 var(--ui);letter-spacing:.03em;opacity:.92}
 .key{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:5px;border:1px solid rgba(255,255,255,.7);background:rgba(10,16,14,.35);font:500 12px/1 var(--ui);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-/* objective tracker, as a game shows it */
-.goals{position:absolute;right:clamp(20px,4vw,56px);top:104px;width:250px;padding-left:14px;border-left:1px solid rgba(255,255,255,.5)}
+.goals{position:absolute;right:clamp(20px,4vw,56px);top:104px;width:250px;padding-left:14px;border-left:1px solid rgba(255,255,255,.5);transition:opacity .25s}
 .goals .lab{display:block;margin-bottom:12px;opacity:.8}
 .goals p{margin:0 0 9px;display:flex;gap:10px;align-items:center;font:400 14px/1.25 var(--ui)}
 .goals p::before{content:'';flex:none;width:9px;height:9px;transform:rotate(45deg);border:1px solid #fff}
 .goals p.done{opacity:.62}.goals p.done::before{background:#fff}
 .goals p.now::before{border-color:var(--sun);box-shadow:0 0 0 3px rgba(244,181,72,.25)}
 
-/* ---------- the line: 5423 days, one story at a time ---------- */
-.line{position:relative;flex:none;padding:22px clamp(20px,4vw,56px) 26px;background:#0c1311;border-top:1px solid rgba(255,255,255,.1)}
-.stats{display:flex;align-items:flex-end;gap:clamp(22px,4vw,64px);margin-bottom:22px}
-.stats div{min-width:0}
-.stats .lab{display:block;color:#8a9790;margin-bottom:9px;white-space:nowrap}
+/* ---------- the line: 5423 days, one story a day, sixteen years ---------- */
+.line{position:relative;flex:none;padding-top:22px;padding-bottom:24px;background:var(--paper)}
+.stats{display:flex;align-items:flex-end;gap:clamp(24px,5vw,80px);margin-bottom:22px}
+.stats .lab{display:block;color:var(--muted);margin-bottom:9px;white-space:nowrap}
 .stats strong{font:300 clamp(24px,2.6vw,36px)/1 var(--ui);letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
-.stats strong small{font:400 13px/1 var(--ui);letter-spacing:.02em;color:#8a9790;margin-left:8px}
-.stats .big strong{color:var(--sun)}
+.stats strong small{font:400 13px/1 var(--ui);letter-spacing:.02em;color:var(--muted);margin-left:8px}
+.stats .big strong{color:var(--amber);font-weight:400}
 .stats .sp{margin-left:auto;text-align:right}
-.track{position:relative;height:34px;cursor:crosshair;touch-action:none}
-.track::before{content:'';position:absolute;left:0;right:0;top:9px;height:2px;background:rgba(255,255,255,.2);border-radius:2px}
-.track .tick{position:absolute;top:5px;width:1px;height:10px;background:rgba(255,255,255,.34)}
-.track .tick span{position:absolute;top:16px;left:50%;transform:translateX(-50%);font:400 10px/1 var(--ui);letter-spacing:.1em;color:#75827b;white-space:nowrap}
+.track{position:relative;height:38px;cursor:ew-resize;touch-action:none;user-select:none;-webkit-user-select:none}
+.track::before{content:'';position:absolute;left:0;right:0;top:9px;height:2px;background:var(--i1);border-radius:2px}
+.track .seg{position:absolute;top:5px;height:10px;border-left:1px solid var(--i3)}
+.track .seg span{position:absolute;top:17px;left:6px;font:400 10px/1 var(--ui);letter-spacing:.12em;color:var(--muted)}
+.track .seg.at span{color:var(--amber);font-weight:600}
 .track .sunhead{position:absolute;top:10px;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:var(--sun);box-shadow:0 0 0 4px rgba(244,181,72,.2),0 0 18px rgba(244,181,72,.7)}
-.track .end{position:absolute;right:0;top:16px;font:400 10px/1 var(--ui);letter-spacing:.1em;color:#75827b;text-transform:uppercase}
-.track .probe{position:absolute;top:0;width:1px;height:20px;background:#fff;opacity:0;pointer-events:none}
-.track .tip{position:absolute;bottom:32px;transform:translateX(-50%);padding:8px 11px;border-radius:5px;background:rgba(246,241,228,.96);color:var(--ink);font:400 12.5px/1.2 var(--ui);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s}
+.track .probe{position:absolute;top:0;width:2px;margin-left:-1px;height:20px;background:var(--ink);opacity:0;pointer-events:none}
+.track .tip{position:absolute;bottom:36px;transform:translateX(-50%);padding:8px 11px;border-radius:5px;background:var(--ink);color:var(--paper);font:400 12.5px/1.2 var(--ui);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s}
 .track .tip b{font-weight:600}
 .track.on .probe,.track.on .tip{opacity:1}
 
-/* ---------- the devlog: one entry a day ---------- */
-.log{max-width:1180px;margin:0 auto;padding:clamp(48px,7vw,96px) clamp(20px,4vw,56px) 40px}
-.log header{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:end;padding-bottom:26px;border-bottom:1px solid var(--ink)}
-.log h2{font:300 clamp(30px,3.4vw,46px)/1.05 var(--serif);letter-spacing:-.025em;margin:10px 0 0}
-.log header p{margin:0;max-width:40ch;color:var(--ink-2);font-size:15px}
-.row{display:grid;grid-template-columns:92px 150px minmax(0,1fr) 110px 150px 40px;gap:24px;align-items:center;padding:22px 0;border-bottom:1px solid var(--rule)}
-.row .d{font:500 13px/1 var(--ui);letter-spacing:.14em}
-.thumb{aspect-ratio:16/9;border-radius:4px;overflow:hidden;position:relative;background:linear-gradient(180deg,#6fa6e2 0%,#bcd8f0 52%,#86ad66 52.5%,#5d8a4c 100%)}
-.thumb::after{content:'';position:absolute;left:58%;top:calc(52.5% - 13px);border:10px solid transparent;border-bottom:14px solid #f1e8d2;border-top:0}
-.thumb em{position:absolute;right:6px;bottom:6px;font:500 10px/1 var(--ui);font-style:normal;color:#fff;background:rgba(10,16,14,.6);padding:3px 5px;border-radius:3px}
-.row h3{font:400 21px/1.2 var(--serif);letter-spacing:-.012em;margin:0 0 6px}
-.row .q{margin:0;color:var(--ink-2);font-size:14.5px;line-height:1.45}
-.row .q b{font:500 10.5px/1 var(--ui);letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-right:6px}
-.cell .lab{display:block;color:var(--muted);margin-bottom:8px;font-size:10px}
-.cell strong{font:400 22px/1 var(--ui);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
-.cell strong small{font:400 12px/1 var(--ui);color:var(--muted);margin-left:5px}
-.go{width:40px;height:40px;border-radius:50%;border:1px solid var(--ink);background:none;cursor:pointer;display:grid;place-items:center;transition:background .2s}
-.go::before{content:'';border:6px solid transparent;border-left:9px solid var(--ink);border-right:0;margin-left:3px;transition:border-color .2s}
-.go:hover{background:var(--ink)}.go:hover::before{border-left-color:var(--paper)}
-.row.next{color:var(--muted)}
-.row.next .thumb{background:none;border:1px dashed #c4bba5}.row.next .thumb::after{display:none}
-.row.next h3{color:var(--ink-2)}
-.rest{padding:22px 0 0;color:var(--muted);font-size:14px;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
-.rest a{border-bottom:1px solid currentColor}
-footer{max-width:1180px;margin:0 auto;padding:30px clamp(20px,4vw,56px) 60px;color:var(--muted);font-size:13px;line-height:1.6}
+/* ---------- the devlog: a wall of days, one frame each ---------- */
+.wall{padding-top:clamp(64px,9vw,130px);padding-bottom:clamp(50px,7vw,100px)}
+.wall header{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,4fr);column-gap:clamp(24px,6vw,100px);align-items:end;margin-bottom:clamp(36px,5vw,64px)}
+.wall header .lab{grid-column:1/-1;color:var(--muted);margin-bottom:22px}
+h2{font:300 clamp(36px,5.4vw,84px)/1 var(--serif);letter-spacing:-.03em;margin:0;text-wrap:balance}
+h2 em{font-weight:300}
+.wall header p{margin:0;color:var(--ink2);font-size:clamp(15px,1.25vw,18px);line-height:1.55;max-width:44ch}
+.posters{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
+.b{aspect-ratio:2/3;border:1px solid var(--i1);position:relative;display:block;font-style:normal;transition:border-color .15s}
+.b span{position:absolute;left:8px;bottom:8px;font:500 11px/1 var(--ui);letter-spacing:.2em;color:var(--i3);font-variant-numeric:tabular-nums}
+.b::after{content:'[ not yet told ]';position:absolute;left:0;right:0;top:44%;text-align:center;font:500 10px/1.2 var(--ui);color:var(--amber);opacity:0;transition:opacity .15s}
+.b:hover{border-color:var(--ink)}.b:hover::after{opacity:1}
+.b.dots{border:0}.b.dots::after{content:none}.b.dots span{left:0;right:0;top:46%;bottom:auto;text-align:center;font-size:18px;letter-spacing:.3em}
+.b.last{border:1px dashed var(--ink2)}.b.last span{color:var(--ink)}.b.last::after{content:'[ the city stands ]'}
+.p1{grid-column:span 3;grid-row:span 3;position:relative;overflow:hidden;display:block;cursor:pointer;border:0;padding:0;color:var(--cream);background:#000;text-align:center;font:inherit}
+.p1 svg{position:absolute;inset:0;width:100%;height:100%;transition:transform 1.6s ease}
+.p1:hover svg{transform:scale(1.06)}
+.p1::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.4),transparent 20%,transparent 40%,rgba(0,0,0,.6) 56%,rgba(0,0,0,.93) 82%);pointer-events:none}
+.p1 .pt,.p1 .pb{position:absolute;left:0;right:0;z-index:2;padding:0 7%}
+.p1 .pt{top:6%;display:flex;justify-content:space-between;font:500 12px/1 var(--ui);letter-spacing:.28em;text-transform:uppercase}
+.p1 .pb{bottom:5.5%}
+.p1 h3{font:300 clamp(22px,2.3vw,34px)/1.04 var(--serif);letter-spacing:-.02em;margin:0 0 12px;text-wrap:balance}
+.p1 .bill{margin:0 0 14px;font:500 10.5px/1.5 var(--ui);letter-spacing:.24em;text-transform:uppercase;color:var(--c6)}
+.p1 .count{margin:0;display:flex;justify-content:center;gap:18px;padding-top:12px;border-top:1px solid var(--c3);font:400 13px/1 var(--ui);color:var(--c6)}
+.p1 .count b{font-weight:500;color:var(--sun);font-variant-numeric:tabular-nums;margin-right:5px}
+.sheet{margin-top:clamp(40px,6vw,84px)}
+#sheet{width:100%;display:block;cursor:crosshair}
+.cue{margin:14px 0 0;font:500 15px/1.3 var(--ui);color:var(--amber)}
+footer{padding-top:26px;padding-bottom:56px;border-top:1px solid var(--i1);color:var(--muted);font-size:13px;line-height:1.6;max-width:1100px}
 
 @media (max-width:900px){
-  .goals{display:none}
-  .claim{top:46%}
+  .goals{display:none}.claim{top:46%}
   .stats{flex-wrap:wrap;gap:18px 28px}.stats .sp{margin-left:0;text-align:left}
-  .track .tick span{display:none}
-  .log header{grid-template-columns:1fr}
-  .row{grid-template-columns:76px minmax(0,1fr) minmax(0,1fr);gap:16px}
-  .row .thumb{display:none}
-  .row>:nth-child(3){grid-column:2/4;grid-row:1}
-  .row>:nth-child(4){grid-column:2;grid-row:2}.row>:nth-child(5){grid-column:3;grid-row:2}
-  .row>:nth-child(6){grid-column:1;grid-row:2}
+  .track .seg:nth-child(even) span{display:none}
+  .wall header{grid-template-columns:minmax(0,1fr);row-gap:20px}
+  .posters{grid-template-columns:repeat(4,minmax(0,1fr))}.p1{grid-column:span 3}
 }
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body>
 
-<section class="banner">
+<section class="banner" id="banner">
   <div class="picture">
     <div class="paint"></div>
     <iframe class="live" title="Maia City, live from the game" tabindex="-1"></iframe>
     <div class="shade"></div>
+    <div class="board" id="board"></div>
+    <p class="ahead-cap"><span class="lab"><span id="ahead-tag"></span></span><b id="ahead-line"></b></p>
     <div class="hud">
-      <div class="top"><img src="../MaiaCity.svg" alt=""><b>Maia City</b>
-        <span class="day"><span class="lab">Day</span><i class="num">0001 / 5423</i></span></div>
+      <div class="top wrap"><img src="../MaiaCity.svg" alt=""><b>Maia City</b><a class="lab" href="index.html">09 · All drafts</a></div>
       <div class="claim">
-        <span class="lab">The devlog of a city · one story a day</span>
-        <h1>This is the story of how <b id="h-in">1</b> of <span>1,346,269</span> humans build their own solarpunk city, from the ground up.</h1>
+        <span class="lab">Maia City · the devlog · one story a day</span>
+        <h1><b id="h-in">1</b> of <span>1,346,269</span> humans build their own solarpunk city. First in game, then in real. In 16 years.</h1>
+        <p class="msg"><b>This is day <span id="h-day">1</span></b> of 5,423.</p>
         <div class="acts"><button class="btn" id="play">Watch day 1 <span>0:59</span></button>
           <span class="prompt"><span class="key">E</span>Enter the meadow</span></div>
       </div>
@@ -128,69 +140,113 @@ footer{max-width:1180px;margin:0 auto;padding:30px clamp(20px,4vw,56px) 60px;col
     </div>
   </div>
 
-  <div class="line">
+  <div class="line wrap">
     <div class="stats">
       <div class="big"><span class="lab">In game today</span><strong id="s-in">1</strong></div>
-      <div><span class="lab">Pace</span><strong><span id="s-pace">1</span><small>a day · <span id="s-need">248</span> needed</small></strong></div>
-      <div><span class="lab">At this pace the city takes</span><strong><span id="s-years">3,686</span><small>years</small></strong></div>
-      <div class="sp"><span class="lab">Stories told</span><strong><span id="s-told">1</span><small>of 5,423</small></strong></div>
+      <div><span class="lab">At today's rate the city takes</span><strong><span id="s-years">3,686</span><small>years</small></strong></div>
+      <div class="sp"><span class="lab">Days told</span><strong><span id="s-told">1</span><small>of 5,423</small></strong></div>
     </div>
-    <div class="track" id="track"><i class="sunhead" id="sunhead"></i><span class="end">Day 5423 · 1,346,269</span><i class="probe"></i><span class="tip"></span></div>
+    <div class="track" id="track" role="slider" aria-label="The 5423 days, sixteen years" aria-valuemin="1" aria-valuemax="5423" aria-valuenow="1"><i class="sunhead" id="sunhead"></i><i class="probe"></i><span class="tip"></span></div>
   </div>
 </section>
 
-<main class="log" id="devlog">
-  <header><div><span class="lab">Devlog</span><h2>One entry a day. Each one counts.</h2></div>
-    <p>Every day gets one story, the number of humans in the game that day, and how long the city would take at that pace.</p></header>
-  <div id="rows"></div>
-  <div class="rest"><span><span class="num" id="left">5,421</span> entries not written yet.</span><a href="index.html">09 · All drafts</a></div>
+<main class="wall wrap" id="devlog">
+  <header><span class="lab">Devlog</span>
+    <h2><span id="w-out">One day is</span> told. <span class="num" id="w-left">5,422</span> <em>are not yet.</em></h2>
+    <p>One story a day, and with it the count: how many humans are in the game that day, and how long the city takes at that rate. Every day gets a frame on this wall.</p></header>
+  <div class="posters" id="posters"></div>
+  <div class="sheet"><canvas id="sheet" height="260"></canvas><p class="cue" id="cue"></p></div>
 </main>
-<footer>The numbers are today's: day 1 of 5423, one human in the game, one story. 1,346,269 is the 31st Fibonacci number. "At this pace" is the humans still missing divided by the humans who have joined per day so far. The line under the picture answers to the pointer: it says how many humans must be in the game by any day to arrive on day 5423.</footer>
+<footer class="wrap">The numbers are today's: day 1 of 5423, one human in the game, one story. 1,346,269 is the 31st Fibonacci number. "At today's rate" is the humans still missing divided by the humans who have joined per day so far. Move along the line under the picture to look ahead: year one is filmed; the other fifteen are a guess, in pencil.</footer>
 
 <script>
-const TARGET = 1346269, DAYS = 5423, GAME = `${location.protocol}//${location.hostname}:5173`, STORY = '0001-intents-stories-os';
-// the devlog: one entry a day. Add a day here and the banner, the line and the list follow.
+const TARGET = 1346269, DAYS = 5423, YEARS = 16, GAME = `${location.protocol}//${location.hostname}:5173`, STORY = '0001-intents-stories-os';
+// the devlog: one entry a day. Add a day here and the headline, the line and the wall follow.
 const LOG = [
-  { day: 1, title: 'A green meadow and one tent', secs: 59, inGame: 1, story: STORY,
-    lines: [['Samuel', 'This is day one. Today I am alone. Tomorrow we will see.'], ['Maia', 'Tomorrow I am here too.']] },
+  { day: 1, title: 'A green meadow and one tent', bill: 'With Samuel and Maia · a meadow · a river', secs: 59, inGame: 1, story: STORY },
 ];
-const n = (v) => Math.round(v).toLocaleString('en-US'), pad = (d) => String(d).padStart(4, '0');
-const years = (e) => (TARGET - e.inGame) / (e.inGame / e.day) / 365.25;   // humans still missing ÷ humans a day so far
-const today = LOG[LOG.length - 1], $ = (id) => document.getElementById(id);
-
-$('h-in').textContent = n(today.inGame); $('s-in').textContent = n(today.inGame);
-$('s-pace').textContent = (today.inGame / today.day).toLocaleString('en-US', { maximumFractionDigits: 1 });
-$('s-need').textContent = n(TARGET / DAYS); $('s-years').textContent = n(years(today));
-$('s-told').textContent = n(LOG.length); $('left').textContent = n(DAYS - LOG.length - 1);
-
-// the line: a tick a year, the sun where today is, and what "on pace" means under the pointer
-const track = $('track'), tip = track.querySelector('.tip'), probe = track.querySelector('.probe');
-for (let y = 1; y * 365.25 < DAYS; y++) { const t = document.createElement('i'); t.className = 'tick'; t.style.left = (y * 365.25 / DAYS * 100) + '%'; if (y < 14) t.innerHTML = `<span>Y${y}</span>`; track.prepend(t); }
-$('sunhead').style.left = (today.day / DAYS * 100) + '%';
-const point = (ev) => { const r = track.getBoundingClientRect(), x = Math.min(Math.max(ev.clientX - r.left, 0), r.width), d = Math.max(1, Math.round(x / r.width * DAYS));
-  probe.style.left = x + 'px'; tip.style.left = Math.min(Math.max(x, 120), r.width - 120) + 'px';
-  tip.innerHTML = `<b>Day ${n(d)}</b> · on pace means ${n(TARGET * d / DAYS)} in game`; track.classList.add('on'); };
-track.addEventListener('pointermove', point); track.addEventListener('pointerdown', point);
-track.addEventListener('pointerleave', () => track.classList.remove('on'));
-
-// the list
+const n = (v) => Math.round(v).toLocaleString('en-US'), pad = (d, w = 4) => String(d).padStart(w, '0'), $ = (id) => document.getElementById(id);
+const rate = (e) => (TARGET - e.inGame) / (e.inGame / e.day) / 365.25;   // years: humans still missing ÷ humans a day so far
 const mm = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-$('rows').innerHTML = LOG.slice().reverse().map((e) => `<article class="row"><span class="d num">DAY ${pad(e.day)}</span>
-  <div class="thumb"><em>${mm(e.secs)}</em></div>
-  <div><h3>${e.title}</h3>${e.lines.map(([who, l]) => `<p class="q"><b>${who}</b>${l}</p>`).join('')}</div>
-  <div class="cell"><span class="lab">In game</span><strong>${n(e.inGame)}</strong></div>
-  <div class="cell"><span class="lab">At this pace</span><strong>${n(years(e))}<small>years</small></strong></div>
-  <button class="go" data-story="${e.story}" aria-label="Play day ${e.day}"></button></article>`).join('')
-  + `<article class="row next"><span class="d num">DAY ${pad(today.day + 1)}</span><div class="thumb"></div>
-  <div><h3>Tomorrow.</h3><p class="q">Not written yet. It is written the day it happens.</p></div>
-  <div class="cell"><span class="lab">In game</span><strong>?</strong></div><div class="cell"><span class="lab">At this pace</span><strong>?</strong></div><span></span></article>`;
+const today = LOG[LOG.length - 1], told = LOG.length;
 
-// the picture: the game itself, playing the day's film, if it is running
+$('h-in').textContent = n(today.inGame); $('h-day').textContent = n(today.day); $('s-in').textContent = n(today.inGame);
+$('s-years').textContent = n(rate(today)); $('s-told').textContent = n(told);
+$('w-out').textContent = told === 1 ? 'One day is' : `${n(told)} days are`; $('w-left').textContent = n(DAYS - told);
+
+// ---- the years ahead, in pencil: the same land, guessed, more of it each year
+let seed = 11; const rnd = () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const PROPS = [...Array(150)].map(() => ({ x: 40 + rnd() * 1115, d: rnd(), r: rnd() })), count = (y) => y < 2 ? 0 : Math.round(4 + (y - 1) ** 2.1 * .48);
+PROPS.forEach((p, i) => { p.born = 2; while (count(p.born) <= i) p.born++; p.y = 178 + p.d ** 1.25 * 300; p.s = .32 + p.d; });
+const rcx = (y) => 640 + 150 * Math.sin((y - 150) / 78), rw = (y) => 10 + (y - 172) * .24;
+function board(y) {
+  let l = '', r = ''; for (let yy = 172; yy <= 504; yy += 12) { l += `${(rcx(yy) - rw(yy) / 2).toFixed(0)} ${yy} `; r = `${(rcx(yy) + rw(yy) / 2).toFixed(0)} ${yy} ` + r; }
+  const kind = (p) => { const a = y - p.born; if (p.r < .18 && y >= 4) return '<path d="M0 0v-8M0-8c-7-8-5-30 0-38 5 8 7 30 0 38z"/>';
+    if (a < 2) return '<path d="M0-26-20 0h40z"/>'; if (a < 6) return '<path d="M-16 0v-20l16-13 16 13v20z"/>';
+    return p.r > .62 ? '<path d="M-26 0a26 26 0 0 1 52 0zM0-26v26M-13-22q-6 12-3 22M13-22q6 12 3 22"/>' : '<path d="M-14 0v-42l14-10 14 10v42zM-14-21h28"/>'; };
+  const props = PROPS.filter((p, i) => i < count(y) && Math.abs(p.x - rcx(p.y)) > rw(p.y) / 2 + 26 * p.s).sort((a, b) => a.d - b.d).map((p) => `<g transform="translate(${p.x.toFixed(0)} ${p.y.toFixed(0)}) scale(${p.s.toFixed(2)})">${kind(p)}</g>`).join('');
+  const aq = y >= 10 ? `<path d="M470 196h340M470 196v-18h340v18${[...Array(8)].map((_, i) => `M${486 + i * 40} 196a14 14 0 0 1 28 0`).join('')}"/>` : '';
+  const st = y >= 5 ? '<g stroke-dasharray="7 7" opacity=".6"><path d="M430 304 120 500M430 304 30 330M430 304 520 180"/></g>' : '';
+  return `<svg viewBox="0 0 1195 500" preserveAspectRatio="xMidYMid slice"><g fill="#f6f1e4" stroke="#111a17" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity=".82">
+    <path d="M-60 174Q600 150 1255 174" fill="none"/><path d="M${l}${r}z" fill="#e7e0cd"/>${aq}${st}${props}</g>
+    <g transform="translate(430 304) scale(.55)" fill="#f4b548" stroke="#111a17" stroke-width="3" stroke-linejoin="round"><path d="M0-46-36 0h58zM0-46 22 0l27-10z"/></g>
+    <text x="447" y="320" font-family="Outfit,sans-serif" font-size="11" font-weight="600" fill="#a8690a">the first tent</text></svg>`;
+}
+
+// ---- the line: sixteen years of days; the sun is today; move along it to look ahead
+const track = $('track'), tip = track.querySelector('.tip'), probe = track.querySelector('.probe'), banner = $('banner');
+for (let y = YEARS; y >= 1; y--) { const s = document.createElement('i'); s.className = 'seg'; s.style.left = ((y - 1) / YEARS * 100) + '%'; s.style.width = (100 / YEARS) + '%'; s.innerHTML = `<span>${pad(y, 2)}</span>`; s.dataset.y = y; track.prepend(s); }
+$('sunhead').style.left = (today.day / DAYS * 100) + '%';
+let shown = 0;
+const look = (y) => { track.querySelectorAll('.seg').forEach((s) => s.classList.toggle('at', +s.dataset.y === y));
+  if (y === shown) return; shown = y;
+  if (y <= 1) { banner.classList.remove('ahead'); return; }
+  $('board').innerHTML = board(y); $('ahead-tag').textContent = `Year ${pad(y, 2)} of ${YEARS} · storyboard · not yet told`;
+  $('ahead-line').textContent = y === YEARS ? `[ year ${YEARS}. ${n(TARGET)} humans. The city stands. Not yet told. ]` : `[ year ${y}. Not yet told. A guess, in pencil. ]`;
+  banner.classList.add('ahead'); };
+const scrub = (ev) => { const r = track.getBoundingClientRect(), x = Math.min(Math.max(ev.clientX - r.left, 0), r.width), f = x / r.width,
+    d = Math.max(1, Math.round(f * DAYS)), y = Math.min(YEARS, Math.floor(f * YEARS) + 1);
+  probe.style.left = x + 'px'; tip.style.left = Math.min(Math.max(x, 110), r.width - 110) + 'px';
+  tip.innerHTML = d <= told ? `<b>Day ${n(d)}</b> · told` : `<b>Day ${n(d)}</b> · year ${y} of ${YEARS} · not yet told`;
+  track.classList.add('on'); track.setAttribute('aria-valuenow', d); look(y); };
+const back = () => { track.classList.remove('on'); look(1); track.querySelectorAll('.seg').forEach((s) => s.classList.remove('at')); };
+track.addEventListener('pointerdown', (e) => { track.setPointerCapture(e.pointerId); scrub(e); });
+track.addEventListener('pointermove', scrub); track.addEventListener('pointerleave', back);
+track.addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') back(); }); track.addEventListener('pointercancel', back);
+
+// ---- the wall: a frame a day. The told ones carry their film and their count
+const poster = () => `<svg viewBox="0 0 300 450" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="sk" x2="0" y2="1"><stop offset="0" stop-color="#6f9fd6"/><stop offset="1" stop-color="#d7e4e6"/></linearGradient><linearGradient id="md" x2="0" y2="1"><stop offset="0" stop-color="#7da55f"/><stop offset="1" stop-color="#274a2d"/></linearGradient></defs>
+  <rect width="300" height="450" fill="url(#sk)"/><path d="M0 252Q150 236 300 250V450H0z" fill="url(#md)"/>
+  <path d="M196 250c26 30-30 46-6 80 22 32 70 60 60 120H150c20-50-30-80-10-124 14-30 40-50 34-76z" fill="#a9c9dc" opacity=".85"/>
+  <path d="M96 196 52 262h96z" fill="#f1e8d2"/><path d="M96 196 148 262l22-9z" fill="#cfc3a6"/><path d="M96 226 88 262h16z" fill="#1c2420"/>
+  <g stroke="#1f3d27" stroke-width="2" opacity=".7">${[...Array(46)].map((_, i) => `<path d="M${i * 6.6 + 2} 450l${(i % 5) - 2} -${28 + (i * 37) % 44}"/>`).join('')}</g></svg>`;
+let ph = LOG.slice().reverse().map((e) => `<button class="p1" data-story="${e.story}" aria-label="Play day ${e.day}">${poster()}
+  <p class="pt"><span class="num">Day ${pad(e.day)}</span><span class="num">${mm(e.secs)}</span></p>
+  <div class="pb"><h3>${e.title}</h3><p class="bill">${e.bill}</p>
+  <p class="count"><span><b>${n(e.inGame)}</b>in game</span><span><b>${n(rate(e))}</b>years at this rate</span></p></div></button>`).join('');
+for (let d = told + 1; d <= 38; d++) ph += `<i class="b"><span>${pad(d)}</span></i>`;
+$('posters').innerHTML = ph + '<i class="b dots"><span>···</span></i><i class="b last"><span>5423</span></i>';
+
+// ---- the contact sheet: every one of the 5423 days, the told ones lit
+const cv = $('sheet'), cue = $('cue'), REST = `[ ${n(DAYS)} days. ${n(told)} told. Point at one. ]`; let grid = {};
+function sheet(hot = -1) {
+  const W = cv.clientWidth, H = W < 700 ? 300 : 260, dpr = Math.min(2, devicePixelRatio || 1), cols = Math.ceil(Math.sqrt(DAYS * W / (1.45 * H))), px = W / cols, py = px / 1.45, rows = Math.ceil(DAYS / cols);
+  grid = { cols, px, py }; cv.style.height = rows * py + 'px'; cv.width = W * dpr; cv.height = rows * py * dpr; const g = cv.getContext('2d'); g.scale(dpr, dpr);
+  for (let i = 0; i < DAYS; i++) { g.fillStyle = i < told ? '#e9a321' : i === hot ? '#111a17' : 'rgba(17,26,23,.13)'; g.fillRect(i % cols * px, Math.floor(i / cols) * py, px - 1.4, py - 1.4); }
+}
+cv.addEventListener('pointermove', (e) => { const r = cv.getBoundingClientRect(), i = Math.floor((e.clientY - r.top) / grid.py) * grid.cols + Math.floor((e.clientX - r.left) / grid.px);
+  if (i < 0 || i >= DAYS) return; sheet(i); const e1 = LOG[i];
+  cue.textContent = e1 ? `[ day ${pad(i + 1)} · ${e1.title} · ${n(e1.inGame)} in game ]` : `[ day ${pad(i + 1)} · not yet told ]`; });
+cv.addEventListener('pointerleave', () => { sheet(); cue.textContent = REST; });
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(sheet, 150); }); sheet(); cue.textContent = REST;
+
+// ---- the picture: the game itself, playing the day's film, if it is running
 const live = document.querySelector('.live'), film = (id) => `${GAME}/timeline.html?story=${id}&embed`;
 const show = (id) => { live.classList.remove('on'); live.onload = () => live.classList.add('on'); live.src = film(id); };
-if (!matchMedia('(prefers-reduced-motion: reduce)').matches) fetch(GAME + '/timeline.html', { mode: 'no-cors' }).then(() => show(today.story)).catch(() => {});
-const play = (id) => { scrollTo({ top: 0, behavior: 'smooth' }); fetch(GAME + '/timeline.html', { mode: 'no-cors' }).then(() => show(id)).catch(() => {}); };
+const reach = (id) => fetch(GAME + '/timeline.html', { mode: 'no-cors' }).then(() => show(id)).catch(() => {});
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) reach(today.story);
+const play = (id) => { scrollTo({ top: 0, behavior: 'smooth' }); reach(id); };
 $('play').addEventListener('click', () => play(today.story));
-document.querySelectorAll('.go').forEach((b) => b.addEventListener('click', () => play(b.dataset.story)));
+document.querySelectorAll('.p1').forEach((b) => b.addEventListener('click', () => play(b.dataset.story)));
 </script>
 </body></html>
