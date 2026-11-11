@@ -367,3 +367,4 @@ _Samuel's decision._
 | 2026-11-11 | `997b522` | The four sheets removed; eight brand drafts as whole landing pages and their overview |
 | 2026-11-11 | `7ff3909` | Brand draft 09, Line: the reduced one (banner, the line of days, the devlog) |
 | 2026-11-11 | `dd196b9` | Draft 09: the new title, the line scrubbed into the years, the wall of days in light |
+| 2026-11-11 | `54eed0c` | Brand draft 10, Meadow: the rounded, earthy rebrand of draft 09 |
