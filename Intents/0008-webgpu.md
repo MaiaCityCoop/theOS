@@ -181,3 +181,4 @@ not yet compared pixel for pixel (check 1 is for step 2). The near view's cost i
 | --- | --- | --- |
 | 2026-11-12 | `859753c` | The intent opened, at idea |
 | 2026-11-12 | `8ddd807` | Defined; three.js pinned at its latest, 0.187.0 |
+| 2026-11-12 | `03bd30b` | Step 1: the spike, land and terrain in TSL, timed |
