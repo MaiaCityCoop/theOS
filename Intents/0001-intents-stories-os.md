@@ -533,6 +533,21 @@ _Samuel's decision._
   citizen count no longer stands in the title; it is on the day cards. Phone width and Safari
   not seen.
 
+### 2026-11-11, nineteenth round
+
+- **Asked:** the day's title stood twice in the film's window (top left and the film's own
+  title in the centre): keep only the centre title and the figures. And a large play button
+  that restarts the film from the start, full screen (with sound when there is sound).
+- **Delivered:** the top-left title is gone; the film's own title card is the one title. At
+  the bottom left, a large sun-gold play button and beside it the day and its figures
+  (citizens, joined, length). The play button sends the film back to its first frame, plays
+  it and asks for the window to go full screen, where only the film shows. The film's title
+  card now reads "Maia City · Day 2".
+- **Good:** seen in the pane at 1440: one title, the play button with the figures; clicking it
+  restarted the film at its title card.
+- **Broke / not there yet:** full screen did not open in the app's browser pane (the pane
+  does not allow it, as far as could be seen); not tried in Safari. There is no sound yet.
+
 ## Trail
 
 | When | Commit | What |

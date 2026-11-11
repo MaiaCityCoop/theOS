@@ -166,10 +166,15 @@ function home() {
     if (playing(shown)) return;
     banner.classList.add('poster'); const e = shown;
     wait = setTimeout(() => { hero.onload = () => { if (playing(e)) banner.classList.remove('poster'); }; hero.src = filmOf(e.id); }, 350); };
+  // the large play: the day's film from its first frame, the window full screen
+  const full = (e) => { clearTimeout(wait); const go = () => { hero.contentWindow?.postMessage({ maia: 1, cmd: 'seek', t: 0 }, '*'); hero.contentWindow?.postMessage({ maia: 1, cmd: 'play' }, '*'); banner.classList.remove('poster'); };
+    $('window').requestFullscreen?.().catch(() => {});
+    if (playing(e)) go(); else { hero.onload = () => setTimeout(go, 400); hero.src = filmOf(e.id); } };
   const show = (e) => { e = e || today; if (!e) return; const j = joined(e);
     if (e !== shown) { shown = e; $('dayboard').innerHTML = drone(e, j);
-      $('daycard').innerHTML = `<span class="label num">Day ${pad(e.day)}${e === today ? ' · today' : ''}</span><h2>${e.title}</h2>
-        <p class="count">${e.inGame != null ? `<span><b>${n(e.inGame)}</b>${e.inGame === 1 ? 'citizen' : 'citizens'}</span>` : ''}${j ? `<span><b>+${n(j)}</b>joined</span>` : ''}${e.secs ? `<span>${mm(e.secs)}</span>` : ''}</p>`;
+      $('daycard').innerHTML = `<button class="bigplay" aria-label="Play day ${e.day} from the start, full screen"></button><div><span class="label num">Day ${pad(e.day)}${e === today ? ' · today' : ''}</span>
+        <p class="count">${e.inGame != null ? `<span><b>${n(e.inGame)}</b>${e.inGame === 1 ? 'citizen' : 'citizens'}</span>` : ''}${j ? `<span><b>+${n(j)}</b>joined</span>` : ''}${e.secs ? `<span>${mm(e.secs)}</span>` : ''}</p></div>`;
+      $('daycard').querySelector('.bigplay').onclick = () => full(e);
       goals(e); }
     sync(); };
   new IntersectionObserver(([en]) => { inView = en.intersectionRatio >= .45; sync(); }, { threshold: [0, .45, .9] }).observe($('window'));
