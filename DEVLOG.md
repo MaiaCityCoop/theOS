@@ -491,3 +491,22 @@ loads in about a second and drew at 60 fps after the split.
 - Through a long lens the ground map's texel grows with the factor (4 m at ×8): blades may sit a
   few centimetres off the ground and the edges of paths and patches go soft.
 - The split was a mechanical move, checked by loading the three pages, not by reading every line.
+
+---
+
+## 17 · A repository of its own · 2026-11-11 · `78f3524d6`
+
+**Asked.** A new repository called TheOS for the whole new game: its workflow, files and demo
+committed into it, and pushed to a new GitHub repository TheOS in the MaiaCityCoop organisation.
+
+**Delivered.**
+- The repository TheOS, with the project at its root (it was the folder `game/` of maiaCITY).
+- Its history came with it: the 30 commits of cycles 1 to 16 were replayed here one by one, with
+  their messages and dates. Their hashes are new, so every commit named in this devlog and in the
+  manuals was rewritten to this repository's. Each stage can still be checked out.
+- `cine/at.sh` serves an earlier stage from this repository's layout.
+- Pushed to github.com/MaiaCityCoop/TheOS, private.
+
+**Broke / not there yet.**
+- The branch `game/sandbox-8` in maiaCITY still holds the same work; it was left as it is.
+- The name is close to the Mac app "The OS" in maiaCITY: two different things.
