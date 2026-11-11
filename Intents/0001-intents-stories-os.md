@@ -498,6 +498,12 @@ _Samuel's decision._
   alone", written in the dashboard's code; Samuel to confirm. Story 01's `timeline.json` still
   names its field `inGame`.
 
+### 2026-11-11, sixteenth round
+
+- **Asked:** remove "This is" from "This is day 2 of 5,423. One story a day."
+- **Delivered:** the line reads "Day 2 of 5,423. One story a day."
+- **Good / not there yet:** a one-word change; not looked at in the browser.
+
 ## Trail
 
 | When | Commit | What |
@@ -518,3 +524,4 @@ _Samuel's decision._
 | 2026-11-11 | `469297a` | The story editor: film without bars, timeline with shot stills, voices and playhead |
 | 2026-11-11 | `37bc7f9` | The sub line in its own pill under the title |
 | 2026-11-11 | `72e693d` | The count named citizens; day 1 with one citizen |
+| 2026-11-11 | `09ed3e2` | The day line without "This is" |
