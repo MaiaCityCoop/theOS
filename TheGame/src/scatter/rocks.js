@@ -1,7 +1,8 @@
 // Stones and rock outcrops: a few rock shapes (cut, displaced icospheres at three levels of detail),
 // instanced by hashed cells around the camera. Which cell holds a rock, how big, how it lies: hashed.
 import * as THREE from 'three';
-import { WORLD_GLSL, LIGHT_GLSL } from '../world.js';
+import { WORLD_GLSL, LIGHT_GLSL, DETAIL_GLSL } from '../world.js';
+import { pxK } from '../detail/index.js';
 import { Tier, CELL_GLSL } from './tier.js';
 import { GROUND_GLSL } from './ground.js';
 
@@ -73,8 +74,9 @@ const VERT = /* glsl */ `
 ${WORLD_GLSL}
 ${GROUND_GLSL}
 ${CELL_GLSL}
-uniform float uNear, uFar, uSizeMin, uSizeMax, uVar, uVars, uBig, uFade;
-out vec3 vWorld; out vec3 vN; out float vArid; out float vLy; out vec3 vTint;
+${DETAIL_GLSL}
+uniform float uNear, uFar, uSizeMin, uSizeMax, uVar, uVars, uBig, uLo, uHi, uBand;   // uNear/uFar: the band of cells this tier looks at; uLo/uHi: its level's size on screen (src/detail)
+out vec3 vWorld; out vec3 vN; out float vArid; out float vLy; out vec3 vTint; flat out vec2 vKeep;
 vec3 rot(vec3 v, vec3 a, float cs, float sn){ return v * cs + cross(a, v) * sn + a * dot(a, v) * (1.0 - cs); }
 void main(){
   ivec2 c = instanceCell();
@@ -97,7 +99,8 @@ void main(){
 #endif
   float r1 = rnd(c, 204u), r2 = rnd(c, 205u), r3 = rnd(c, 206u), r4 = rnd(c, 207u);
   float s = mix(uSizeMin, uSizeMax, r1 * r1 * r1 + oc * 0.25 * uBig * r1);
-  s *= 1.0 - smoothstep(uFade * 0.6, uFade, dist);   // the farthest rocks shrink away, none pops in as a speck
+  vKeep = detailKeep(2.0 * s * uPxK / max(dist, 1e-3), uLo, uHi, uBand);   // its size on screen picks the level, with a hand-over (src/detail)
+  if (vKeep.x <= 0.0) return;
   vec3 scl = s * vec3(0.8 + 0.5 * r2, 0.55 + 0.4 * r3, 0.8 + 0.5 * r4);
   vec3 ax = normalize(vec3(rnd(c, 208u), rnd(c, 209u), rnd(c, 210u)) - 0.5 + 1e-4);
   float ang = rnd(c, 211u) * 6.2831853, cs = cos(ang), sn = sin(ang);
@@ -113,8 +116,9 @@ const FRAG = /* glsl */ `
 uniform vec3 uCam; uniform float uDy;
 ${LIGHT_GLSL}
 uniform sampler2D tA, tN, tM; uniform float uTex, uMoss, uRelief; uniform vec3 uTintR;   // the asset's look (assets/*.js)
-in vec3 vWorld; in vec3 vN; in float vArid; in float vLy; in vec3 vTint;
+in vec3 vWorld; in vec3 vN; in float vArid; in float vLy; in vec3 vTint; flat in vec2 vKeep;
 void main(){
+  if (detailCut(vKeep)) discard;   // its share of a hand-over between levels
   vec3 N = normalize(vN), b = pow(abs(N), vec3(4.0)); b /= b.x + b.y + b.z;
   vec3 q = vWorld / uTex;
   vec4 ax = texture(tA, q.zy), ay = texture(tA, q.xz), az = texture(tA, q.xy);
@@ -127,9 +131,10 @@ void main(){
   float moss = smoothstep(0.45, 0.8, N.y * 0.75 + (a.a - 0.5) * 0.7 + (mt.a - 0.5) * 0.5) * (1.0 - vArid * 0.85) * min(uMoss, 1.0);
   col = mix(col, vTint * 0.75 * (0.5 + mt.a), moss * 0.9 * min(uMoss * 1.5, 1.0));
   col *= mix(0.45, 1.0, smoothstep(-0.25, 0.35, vLy));   // darker where it meets the ground
+  col = weathered(col, n);
   float ndl = max(dot(n, uSunDir), 0.0);
   vec3 V = normalize(uCam - vWorld);
-  col = col * (uAmb + uSun * ndl) + uSun * pow(max(dot(n, normalize(V + uSunDir)), 0.0), 30.0) * 0.06 * (1.0 - moss);
+  col = col * (uAmb + uSun * cloudAt(vWorld) * ndl) + uSun * pow(max(dot(n, normalize(V + uSunDir)), 0.0), 30.0) * 0.06 * (1.0 - moss);
   gl_FragColor = toScreen(haze(col, length(uCam - vWorld)));
 }`;
 
@@ -138,8 +143,8 @@ const lookUniforms = (look = {}) => ({ uMoss: { value: look.moss ?? 1 }, uRelief
 
 // One rock on its own, in the world's rock material (its textures, its moss), for the asset library's stage.
 const SAMPLE_VERT = /* glsl */ `
-out vec3 vWorld; out vec3 vN; out float vArid; out float vLy; out vec3 vTint; uniform vec3 uTintS;
-void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vArid = 0.0; vLy = position.y; vTint = uTintS; gl_Position = projectionMatrix * viewMatrix * w; }`;
+out vec3 vWorld; out vec3 vN; out float vArid; out float vLy; out vec3 vTint; flat out vec2 vKeep; uniform vec3 uTintS;
+void main(){ vKeep = vec2(1.0, 0.0); vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vArid = 0.0; vLy = position.y; vTint = uTintS; gl_Position = projectionMatrix * viewMatrix * w; }`;
 export function rockSample(U, tex, row, detail = 2, shape = 0) {
   const ig = rockGeometry(detail, row.seed + shape * 7, row.look), g = new THREE.BufferGeometry();   // the rock's shape is made for instancing; one on its own is a plain geometry
   g.setAttribute('position', ig.attributes.position); g.setAttribute('normal', ig.attributes.normal); g.setIndex(ig.index);
@@ -147,20 +152,29 @@ export function rockSample(U, tex, row, detail = 2, shape = 0) {
     uniforms: { ...U, tA: { value: tex.of(row.look?.material || 'rock').a }, tN: { value: tex.of(row.look?.material || 'rock').n }, tM: { value: tex.of('meadow').a }, uTex: { value: row.texture }, uTintS: { value: new THREE.Vector3(0.05, 0.13, 0.02) }, ...lookUniforms(row.look) } }));
 }
 
-/** The assets of kind `rocks`: for each a tier per row of its table. */
+/** The assets of kind `rocks`: a tier per level of detail and shape. Each level is drawn where a rock of it is the size
+    on screen its asset file asks (src/detail); the tier looks only at the cells where that can be, at this screen size. */
 export function createRocks(scene, U, tex, asset) {
-  const tiers = [], lods = asset.tiers, big = asset.outcrops;
-  for (let v = 0; v < asset.shapes; v++) lods.forEach((L, li) => {
-    const g = rockGeometry(L.detail, asset.seed + v * 7, asset.look);
+  const tiers = [], { levels, fade } = asset.detail, big = asset.outcrops;
+  const span = [2 * asset.size[0], 2 * asset.size[1] * (big ? 1.25 : 1)];   // a rock is an icosphere of radius 1 times its size
+  for (let v = 0; v < asset.shapes; v++) levels.forEach((L) => {
+    const g = rockGeometry(L.rock, asset.seed + v * 7, asset.look);
     const mat = new THREE.ShaderMaterial({
       vertexShader: (big ? '#define BIG\n' : '') + VERT, fragmentShader: FRAG,
       uniforms: {
-        ...U, uNear: { value: li ? lods[li - 1].far : -1 }, uFar: { value: L.far },
-        uSizeMin: { value: asset.size[0] }, uSizeMax: { value: asset.size[1] }, uVar: { value: v }, uVars: { value: asset.shapes }, uFade: { value: lods[lods.length - 1].far }, uBig: { value: big ? 1 : 0 },
+        ...U, uNear: { value: 0 }, uFar: { value: 1 }, uLo: { value: L.lo }, uHi: { value: Number.isFinite(L.hi) ? L.hi : 1e9 }, uBand: { value: fade },
+        uSizeMin: { value: asset.size[0] }, uSizeMax: { value: asset.size[1] }, uVar: { value: v }, uVars: { value: asset.shapes }, uBig: { value: big ? 1 : 0 },
         tA: { value: tex.of(asset.look?.material || 'rock').a }, tN: { value: tex.of(asset.look?.material || 'rock').n }, tM: { value: tex.of('meadow').a }, uTex: { value: asset.texture }, ...lookUniforms(asset.look),
       },
     });
-    tiers.push(new Tier(scene, g, mat, { cell: asset.cell, P: L.P, near: li ? lods[li - 1].far : 0, far: L.far, order: 1 }));
+    const t = new Tier(scene, g, mat, { cell: asset.cell, P: L.P, near: 0, far: 1, order: 1 });
+    t.band = () => {   // the distances where a rock of this level can be, from the largest seen small to the smallest seen large
+      const K = pxK(), e = Math.exp(fade);
+      t.near = Number.isFinite(L.hi) ? (span[0] * K) / (L.hi * e) : 0; t.far = (span[1] * K * e) / L.lo;
+      mat.uniforms.uNear.value = t.near > 0 ? t.near : -1; mat.uniforms.uFar.value = t.far;
+    };
+    t.band(); tiers.push(t);
   });
+  addEventListener('resize', () => tiers.forEach((t) => t.band()));
   return tiers;
 }

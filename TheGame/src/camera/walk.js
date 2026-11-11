@@ -1,4 +1,5 @@
 // First person: WASD, Shift to run, the mouse looks (click to lock it). F flies; Space / C rise and sink.
+import { PLACES } from '../world/places.js';
 import { heightAt, riverAt, aridAt } from '../world.js';
 import { step, ceilingAt } from '../world/solids.js';
 
@@ -50,8 +51,19 @@ export function createControls(camera, canvas, msg) {
   };
 }
 
-/** Where the walker starts: on the bank of the nearest green stretch of river, looking down it and a little across. */
+/** Where the walker starts: by the first tent (src/world/places.js), in front of its door, looking at it. The tent
+    stands where story 01's film frames it, so the walker comes to it, not it to the walker. */
 export function spawn(controls) {
+  const t = PLACES.tent;
+  if (t) {
+    const dx = -Math.sin(t.yaw), dz = -Math.cos(t.yaw);   // the way its door looks (the door is towards -z in its own frame)
+    controls.place(t.x + dx * 14, t.z + dz * 14, Math.atan2(dx, dz));   // 14 m out, facing back at it
+    return;
+  }
+  spawnByRiver(controls);
+}
+/** The old start, kept for a world with no tent: on the bank of the nearest green stretch of river. */
+function spawnByRiver(controls) {
   let x = 0, z = 0, found = false;
   for (let r = 0; r < 4000 && !found; r += 6) for (let a = 0; a < 6.283 && !found; a += 6 / (r + 6)) {
     x = Math.cos(a) * r; z = Math.sin(a) * r;

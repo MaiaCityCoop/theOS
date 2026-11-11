@@ -3,3 +3,4 @@
 export * from './world/land.js';
 export { WORLD_GLSL } from './world/land.glsl.js';
 export { LIGHT_GLSL } from './world/light.glsl.js';
+export { DETAIL_GLSL } from './world/shade.glsl.js';

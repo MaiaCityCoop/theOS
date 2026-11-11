@@ -112,12 +112,15 @@ export default {
   size: { length: 2 * R * 1.75, width: 2 * R * 1.75, height: PEAK + 0.18 },
   colours: { canvas, shade, inside, rope, wood, groundsheet: sheet },
   // levels of detail, near to far, each its own shape: up close every rope and peg; then fewer seams; far, a cone
-  lods: [
-    { far: 30, faces: bell(32, { open: true, flaps: true, ropes: 8, pegs: true, pole: true, groundsheet: true }) },
-    { far: 110, faces: bell(16, { bare: true, flaps: true, ropes: 8 }) },
-    { far: 350, faces: bell(10, { bare: true }) },
-    { far: 1000, faces: bell(6, { door: false }) },
-  ],
+  // its levels of detail, near to far (src/detail): where each ends comes from its kind, shelter (assets/kinds.js)
+  detail: {
+    levels: [
+      { faces: bell(32, { open: true, flaps: true, ropes: 8, pegs: true, pole: true, groundsheet: true }) },
+      { faces: bell(16, { bare: true, flaps: true, ropes: 8 }) },
+      { faces: bell(10, { bare: true }) },
+      { faces: bell(6, { door: false }) },
+    ],
+  },
   placement: { at: 'places', clearsGround: 3.2 },
   // what a walker cannot pass, in its own frame (the origin the middle of its floor, the door towards -z):
   // walls (a round, with the gaps that can be walked through), posts, boxes; and the height of what is overhead

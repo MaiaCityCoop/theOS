@@ -11,6 +11,7 @@ export default {
   // worn round and smooth by the river and the weather: few broken faces, little moss, a paler, warmer grey than the boulders
   look: { material: 'pebble', moss: 0.12, relief: 0.6, tint: [0.92, 0.9, 0.87], cuts: 0.3, smooth: 0.85 },
   // rock: how often its icosphere is divided (2 round, 0 a rough twenty-sided stone); P: cells per patch side
-  lods: [{ far: 12, rock: 2, P: 8 }, { far: 50, rock: 1, P: 16 }, { far: 110, rock: 0, P: 32 }],
+  // its levels of detail, near to far (src/detail): where each ends comes from its kind, rock (assets/kinds.js)
+  detail: { levels: [{ rock: 2, P: 8 }, { rock: 1, P: 16 }, { rock: 0, P: 32 }] },
   placement: { at: 'scatter', engine: 'rocks', cell: 2.2, outcrops: false, texture: 1.1, shapes: 1, seed: 200 },
 };

@@ -66,6 +66,7 @@
 import * as THREE from 'three';
 import { ASSETS, geometryOf, materialFor, place, scatterRow } from './assets/index.js';
 import { rockSample } from './src/scatter/rocks.js';
+import { detailOf, spanOf, distanceAt } from './src/detail/index.js';
 import { STAGE } from './src/world/places.js';
 import { heightAt } from './src/world.js';
 import { MATERIALS, MATERIAL } from './materials/index.js';
@@ -113,7 +114,7 @@ for (const b of document.querySelectorAll('.item[data-biome]')) {   // a biome's
 }
 // a scattered rock's picture: the largest of its kind in the world's own material (its look: pebble or rock, its moss), as on the stage
 function rockThumb(a, canvas) {
-  const s = most(a.size.length), m = rockSample(U, tex, scatterRow(a), a.lods[0].rock, 0); m.scale.set(s, s * 0.8, s);
+  const s = most(a.size.length), m = rockSample(U, tex, scatterRow(a), a.detail.levels[0].rock, 0); m.scale.set(s, s * 0.8, s);
   sceneThumb(window.__s8.renderer, [m], canvas, [s * 2.1, s * 2.0, s * 3.3], [0, -s * 0.05, 0]);
 }
 for (const b of document.querySelectorAll('.item[data-id]')) {
@@ -132,7 +133,7 @@ function stageAsset(a) {
     staged = new THREE.Group(); const row = { ...scatterRow(a), seed: seed ?? a.placement.seed }, [lo, hi] = a.size.length;
     for (let i = 0; i < 7; i++) {
       const k = i / 6, s = lo + (hi - lo) * k ** 1.6, t = i * 2.4, rr = i ? (hi * 0.7 + 0.4) * Math.sqrt(i) * 0.55 : 0;
-      const m = rockSample(U, tex, row, a.lods[Math.min(lodAt ?? 0, a.lods.length - 1)].rock, i % 3), x = STAGE.x + Math.cos(t) * rr, z = STAGE.z + Math.sin(t) * rr;   // the world's own rock: its texture, its moss
+      const m = rockSample(U, tex, row, a.detail.levels[Math.min(lodAt ?? 0, a.detail.levels.length - 1)].rock, i % 3), x = STAGE.x + Math.cos(t) * rr, z = STAGE.z + Math.sin(t) * rr;   // the world's own rock: its texture, its moss
       m.scale.set(s, s * 0.8, s); m.renderOrder = 1; m.position.set(x, heightAt(x, z) - s * 0.25, z); m.rotation.y = t * 1.7; staged.add(m);   // drawn after the ground, as the world's own things are
     }
     scene.add(staged);
@@ -149,7 +150,7 @@ function choose(id, keepSeed) {
   // what a person reads: what it is, how large, where it stands (its colours and its levels of detail are the file's)
   const info = document.getElementById('info');
   info.innerHTML = `<div class="g-tabs"><button data-tab="info" class="${cardTab === 'info' ? 'on' : ''}">Info</button><button data-tab="detail" class="${cardTab === 'detail' ? 'on' : ''}">Detail</button></div>`
-    + (cardTab === 'detail' ? detailOf(a) : head('Asset', a.kind, a.name, a.about)
+    + (cardTab === 'detail' ? detailOf_(a) : head('Asset', a.kind, a.name, a.about)
     + figs(scat ? [sizeFig(a.size.length, 'Length'), fig(num(a.placement.cell), 'm', 'Apart')] : [sizeFig(a.size.length, 'Footprint'), sizeFig(a.size.height, 'Height')], scat)
     + `<div class="g-cells g-part">${cell('Placed', say(where), true)}${a.look ? cell('Look', `<div class="g-chips">${chip(a.look.material || 'rock')}</div><span class="g-sub" style="white-space:normal">moss ${a.look.moss} · relief ${a.look.relief} · worn ${a.look.smooth} · broken ${a.look.cuts}</span>`, true) : ''}</div>`
     + (seeded ? `<div class="seed g-part"><span class="g-label">Seed</span><b>${seed ?? s0}${seed != null && seed !== s0 ? '' : ' · its own'}</b>${seed != null && seed !== s0 ? '<button class="g-btn quiet" id="seed0">Own</button>' : ''}<button class="g-btn" id="seedR">Random</button></div>` : '')
@@ -163,22 +164,25 @@ function choose(id, keepSeed) {
   history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}asset=${id}`);
 }
 // the Detail tab: every level of detail of the asset, each a button that takes the camera to where that level is drawn
-function bands(a) {
-  const out = a.lods.map((l, i) => ({ i, near: i ? a.lods[i - 1].far : 0, far: l.far, faces: l.faces ? l.faces.length : 20 * 4 ** (l.rock || 0) }));
-  const last = a.lods[a.lods.length - 1].far; if (Number.isFinite(last)) out.push({ i: out.length, near: last, far: Infinity, faces: 0 });   // past the last: nothing drawn
-  return out;
+function bands(a) {   // its levels as the detail engine resolves them (src/detail): each drawn between lo and hi pixels on screen
+  const { levels, cut } = detailOf(a), faces = (l) => (l.faces ? l.faces.length : 20 * 4 ** (l.rock || 0));
+  return [...levels.map((l) => ({ i: l.i, lo: l.lo, hi: l.hi, faces: faces(l) })), { i: levels.length, lo: 0, hi: cut, faces: 0 }];   // and below the last: nothing drawn
 }
+const span = (a) => (a.placement.at === 'scatter' ? 2 * most(a.size.length) : spanOf(a));   // a scattered rock: an icosphere of radius 1 times its size
 const near0 = (a) => (a.placement.at === 'scatter' ? Math.max(4, most(a.size.length) * 4.5) : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 2.2);   // the close look
-const at = (b, a) => (b.i === 0 ? Math.min(near0(a), b.far * 0.8) : Number.isFinite(b.far) ? (b.near + b.far) / 2 : b.near * 1.2);   // inside its band: close for the first, its middle for the rest
-function detailOf(a) {
-  const m = (v) => (v >= 1000 ? `${num(v / 1000)} km` : `${Math.round(v)} m`);
-  return `<header><span class="g-label">${a.name} · levels of detail</span><p class="g-text" style="margin-top:8px">Choose one: the camera goes to where it is drawn.</p></header>
-    <div class="g-pick g-part">${bands(a).map((b) => `<button data-lod="${b.i}" class="${lodAt === b.i ? 'on' : ''}"><b>${b.faces ? b.i + 1 : '–'}</b><span><span class="g-name">${b.faces ? `${b.faces.toLocaleString('en')} faces` : 'Not drawn'}</span><span class="g-sub">${Number.isFinite(b.far) ? `${m(b.near)} to ${m(b.far)}` : `past ${m(b.near)}`}</span></span><span class="g-file">${m(at(b, a))}</span></button>`).join('')}</div>`
+const pxAim = (b) => (b.hi === Infinity ? b.lo * 3 : b.lo === 0 ? b.hi / 2.5 : Math.sqrt(b.lo * b.hi));   // well inside its band
+// where the camera stands to see a band: by size on screen, as the engine measures it (the lens and the governor count)
+const at = (b, a) => (b.hi === Infinity ? Math.min(near0(a), (span(a) * U.uPxK.value) / (b.lo * 1.5 * U.uLodInv.value)) : (span(a) * U.uPxK.value) / (pxAim(b) * U.uLodInv.value));
+function detailOf_(a) {
+  const m = (v) => (v >= 1000 ? `${num(v / 1000)} km` : `${Math.round(v)} m`), p = (v) => `${num(v)} px`;
+  const range = (b) => (b.hi === Infinity ? `over ${p(b.lo)}` : b.lo === 0 ? `under ${p(b.hi)}` : `${p(b.lo)} to ${p(b.hi)}`);
+  return `<header><span class="g-label">${a.name} · levels of detail</span><p class="g-text" style="margin-top:8px">Each level by its size on screen; choose one and the camera goes to where it is drawn. On the right, how far that is with the walker's lens on this screen.</p></header>
+    <div class="g-pick g-part">${bands(a).map((b) => `<button data-lod="${b.i}" class="${lodAt === b.i ? 'on' : ''}"><b>${b.faces ? b.i + 1 : '–'}</b><span><span class="g-name">${b.faces ? `${b.faces.toLocaleString('en')} faces` : 'Not drawn'}</span><span class="g-sub">${range(b)}</span></span><span class="g-file">${m(distanceAt(pxAim(b), span(a)))}</span></button>`).join('')}</div>`
     + fileOf(`TheGame/assets/${a.id}.js`);
 }
 function lookAtLevel(a, i) {
   lodAt = i; const p = Math.max(pitch, 0.25), y = yaw;
-  choose(a.id, true);   // the stage again: a scattered asset's rocks at that level's own detail; a stood one switches by itself
+  choose(a.id, true);   // the stage again: a scattered asset's rocks at that level's own detail; a stood one hands over by itself
   dist = at(bands(a)[i], a); pitch = p; yaw = y;
 }
 // a biome: laid over all the land round the stage, the stage's bare round taken away; the river as a pond

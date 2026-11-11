@@ -4,9 +4,10 @@
 //   size                      { length, width, height } in metres; a [min, max] where it varies
 //   colours                   its named colours, [r, g, b]
 //   look                      a rock's look: { material, moss, relief, tint, cuts, smooth } (src/scatter/rocks.js)
-//   lods                      its levels of detail, near to far: { far, ...shape } is drawn up to `far` metres, and
-//                             past the last level nothing is. A shape is `faces` ([corner, corner, corner, colour], ...)
-//                             or `rock` (a rough rock of an icosphere divided that often), with `P` for scattered ones
+//   detail                    its levels of detail, near to far: { levels: [shape, ...], px?, fade? } (src/detail, intent
+//                             0002); where each level ends on screen comes from its kind (assets/kinds.js) unless it says.
+//                             A shape is `faces` ([corner, corner, corner, colour], ...) or `rock` (a rough rock of an
+//                             icosphere divided that often), with `P` for scattered ones
 //   solid                     what a walker cannot pass: walls (rounds with gaps), posts, boxes, and the ceiling
 //                             overhead (src/world/solids.js); in the asset's own frame
 //   placement                 { at: 'places', ... } stood at a named place (src/world/places.js), or
@@ -15,6 +16,7 @@
 // Here they are listed, built into meshes level by level with the one lit material they share, and stood.
 import * as THREE from 'three';
 import { LIGHT_GLSL, heightAt } from '../src/world.js';
+import { detailOf, Detailed } from '../src/detail/index.js';
 import { addSolid } from '../src/world/solids.js';
 import belltent from './belltent.js';
 import stone from './stone.js';
@@ -23,12 +25,12 @@ import boulder from './boulder.js';
 export const ASSETS = { belltent, stone, boulder };
 
 /** A scattered asset as the row the land's scatter engine (src/scatter) reads. */
-export const scatterRow = (a) => ({ name: a.id, kind: a.placement.engine, outcrops: a.placement.outcrops, cell: a.placement.cell, size: a.size.length, texture: a.placement.texture, shapes: a.placement.shapes, seed: a.placement.seed, look: a.look, tiers: a.lods.map((l) => ({ detail: l.rock, P: l.P, far: l.far })) });
+export const scatterRow = (a) => ({ name: a.id, kind: a.placement.engine, outcrops: a.placement.outcrops, cell: a.placement.cell, size: a.size.length, texture: a.placement.texture, shapes: a.placement.shapes, seed: a.placement.seed, look: a.look, detail: detailOf(a) });
 /** How many faces a level has. */
 export const facesOf = (l) => (l.faces ? l.faces.length : 20 * 4 ** (l.rock || 0));
 
 /** A level of detail of an asset as a geometry, coloured per face (the nearest level unless one is named). */
-export function geometryOf(asset, level = asset.lods[0]) {
+export function geometryOf(asset, level = asset.detail.levels[0]) {
   const faces = level.faces; if (!faces) return rockPreview(asset, level.rock);
   const pos = [], col = [];
   for (const [p0, p1, p2, c] of faces) for (const v of [p0, p1, p2]) { pos.push(...v); col.push(...c); }
@@ -42,19 +44,20 @@ export function geometryOf(asset, level = asset.lods[0]) {
 /** The material every asset shares: its own colours, lit by the sun and the sky and hazed with distance like the land. */
 export function materialFor(U) {
   return new THREE.ShaderMaterial({
-    side: THREE.DoubleSide, uniforms: U,
+    side: THREE.DoubleSide, uniforms: { ...U, uKeep: { value: new THREE.Vector2(1, 0) } },   // uKeep: this level's share in a hand-over (src/detail)
     vertexShader: /* glsl */ `
       in vec3 color;
       out vec3 vN; out vec3 vCol; out vec3 vWorld;
       void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; vN = mat3(modelMatrix) * normal; vCol = color; gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: /* glsl */ `
-      uniform vec3 uCam;
+      uniform vec3 uCam; uniform vec2 uKeep;
       ${LIGHT_GLSL}
       in vec3 vN; in vec3 vCol; in vec3 vWorld;
       void main(){
+        if (detailCut(uKeep)) discard;
         vec3 n = normalize(gl_FrontFacing ? vN : -vN);
         float ndl = max(dot(n, uSunDir), 0.0);
-        vec3 col = vCol * (uAmb + uSun * (0.2 + 0.8 * ndl));
+        vec3 col = weathered(vCol, n) * (uAmb + uSun * cloudAt(vWorld) * (0.2 + 0.8 * ndl));
         gl_FragColor = toScreen(haze(col, length(uCam - vWorld)));
       }`,
   });
@@ -62,11 +65,10 @@ export function materialFor(U) {
 
 /** Stand an asset at a place ({ x, z, yaw }), on the ground there. */
 export function place(scene, U, asset, at) {
-  // its detail levels: each drawn up to its distance, nothing past the last (THREE.LOD picks the level every frame)
-  const mat = materialFor(U), lod = new THREE.LOD(), levels = asset.lods;
-  let near = 0;
-  for (const l of levels) { const m = new THREE.Mesh(geometryOf(asset, l), mat); m.renderOrder = 1; lod.addLevel(m, near); near = l.far; }
-  if (Number.isFinite(near)) lod.addLevel(new THREE.Object3D(), near);
+  // its levels of detail, chosen each frame by its size on screen with a hand-over between them (src/detail);
+  // each level its own material, for its own share of the pixels
+  const meshes = asset.detail.levels.map((l) => { const m = new THREE.Mesh(geometryOf(asset, l), materialFor(U)); m.renderOrder = 1; return m; });
+  const lod = new Detailed(asset, meshes, U);
   lod.position.set(at.x, heightAt(at.x, at.z) - 0.03, at.z);
   lod.rotation.y = at.yaw || 0;
   lod.name = asset.id;
