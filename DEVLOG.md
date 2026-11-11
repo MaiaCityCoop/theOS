@@ -277,3 +277,34 @@ Five noise evaluations per pixel became five texture reads.
   clumps, a sheen that changes with the sun. Shadow, sky and haze are still held back.
 - Safari read 52 fps (19.3 ms) at ratio 1.5 on the opening shot before this change: under the
   60 fps target. Not read again since.
+
+---
+
+## 11 · The grass itself · 2026-11-11 · `d640fa0a5`
+
+**Asked.** (With a Safari screenshot of the walk view: 45 fps at pixel ratio 0.75, 2.95 M
+triangles.) Even in the walk view the grass doesn't look correct and its density is not good.
+Then a reference picture: a lush game meadow, long soft dense grass in clumps, bright lit tips
+over dark depths, small white flowers, haze and sky behind.
+
+**Delivered.**
+- Why it read thin: narrow short blades over a pale floor (pebbly dirt wherever boulders stand),
+  so every gap showed ground. Now the floor under grass is the grass's own colour, in shade, and
+  the boulder fields' dirt is held back: a gap between blades reads as more grass.
+- Blades are longer (to about 0.9 m), finer, arc over, and stand in tufts that share a height, a
+  lean and a shade. Greener; tips lit, light through the blade, depths dark. About one stalk in
+  seventy carries a small white head.
+- Cost, since Safari was slow even at the lowest pixel ratio (so it was geometry, not pixels):
+  a blade is now three hashes instead of eight, reads the ground once (a filtered half-float
+  texture) instead of four times, and reads nothing at all before it is known to stand; a fifth
+  fewer blades per square metre, each covering more.
+
+**Good.** Same walk view, before and after: from sparse straws on gravel to a closed meadow.
+
+**Broke / not there yet.**
+- Not yet the reference: that picture also has haze, a sky, sun shadows and bushes, all still
+  held back; the flowers here are specks, not flowers.
+- Where the near ring of blades hands over to the next (about 15 m) the meadow changes texture
+  in a visible band.
+- Safari's frame rate after this change is unread; the pane (18–20 fps with Safari drawing the
+  same page) says nothing.
