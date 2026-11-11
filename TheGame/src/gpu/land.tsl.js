@@ -39,7 +39,7 @@ export const vnoise = Fn(([p, s]) => {
 export const camDist = Fn(([p]) => { const d = p.sub(L.cam.xz); return sqrt(d.dot(d).add(L.dy.mul(L.dy))).mul(L.lodInv); });
 
 // ---- the river (riverWorld, riverInfo, riverCarve, riverBank) ----
-const riverRaw = Fn(([p]) => {
+export const riverRaw = Fn(([p]) => {
   const n1 = noised(p.mul(1 / 1600), uint(40)), n2 = noised(p.mul(1 / 330).add(17.3), uint(41));
   return vec3(n1.x.sub(0.5).add(n2.x.sub(0.5).mul(0.28)), n1.yz.mul(1 / 1600).add(n2.yz.mul(0.28 / 330)));
 });
