@@ -673,3 +673,4 @@ _Samuel's decision._
 | 2026-11-11 | `2231d56` | The star opens the intents board, legacy style; the theOS star on the pill |
 | 2026-11-11 | `c9483c7` | TheOS blue inside; the intent across the sheet |
 | 2026-11-11 | `29bc7f5` | No Intents tile on the dashboard |
+| 2026-11-11 | `c270792` | The half-round x under an open sheet |
