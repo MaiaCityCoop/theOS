@@ -224,3 +224,28 @@ its "new trailer" button are gone, and `/timeline.html` plays `river-story` by d
 composer itself stays for the agent (`?seed=`), out of the menu.
 
 **Broke / not there yet.** Nothing new. `first-look` can be had back from commit `cdc1e5909`.
+
+---
+
+## 9 · Grass in the distance · 2026-11-11 · `8b7c32411`
+
+**Asked.** (With a screenshot of the opening shot.) The first and last shots don't render the
+grass in the distance, which looks weird as well.
+
+**Delivered.** Real blades reach 115 m; from the opening's and the ending's height nothing in
+frame is that close, so the land was bare terrain colour, and that colour was worked out per
+vertex, which far away showed as soft square blotches. Two changes:
+- A seventh baked material, the grass seen as a carpet (blades as strokes, light on dark), laid
+  over all grassed ground at three sizes: blades near (1.6 m tile), tufts further (9.6 m), drifts
+  from high up (44 m); it also carries the ground's normal there. The land's tint colours it.
+- The grass's tint, the dry-land mask and the tufts are now worked out per pixel, each noise let
+  go before it is finer than a pixel. The blocks are gone.
+
+**Good.** The same opening frame now has grain to the horizon and no squares.
+
+**Broke / not there yet.**
+- It is a texture, not blades: from above it reads as grass, at a low grazing angle beyond 115 m
+  the land is still flat where blades would stand up against the sky.
+- The ground's pixel shader got heavier (four more noises, five more texture reads). The pane
+  read 27–40 fps on these frames, with Safari drawing the same page beside it, so not a clean
+  number; the 60 fps target has to be read again in Safari.
