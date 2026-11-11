@@ -15,11 +15,22 @@
   header.site .visit i{width:34px;height:34px}
   body.admin header.site .visit{display:none}
   /* inside: one pill at the bottom, centred */
-  nav.admin{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:8;display:none;gap:3px;padding:5px;border-radius:999px;background:rgba(236,225,204,.82);-webkit-backdrop-filter:blur(20px) saturate(1.5);backdrop-filter:blur(20px) saturate(1.5);box-shadow:0 10px 30px rgba(12,28,22,.18)}
+  /* inside: the pill at the bottom, as in the old play: back, one large round home (the dashboard), the city's badge */
+  nav.admin{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:8;display:none;align-items:center;gap:22px;padding:0 22px;height:72px;border-radius:999px;background:rgba(251,246,234,.92);border:1px solid var(--sand2);-webkit-backdrop-filter:blur(20px) saturate(1.5);backdrop-filter:blur(20px) saturate(1.5);box-shadow:0 12px 34px rgba(12,28,22,.16)}
   body.admin nav.admin{display:flex}
-  nav.admin button{font:500 14px/1 var(--sans);color:var(--forest2);background:none;border:0;padding:12px 20px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:background .2s,color .2s}
-  nav.admin button:hover{color:var(--forest);background:rgba(251,246,234,.6)}
-  nav.admin button.on{color:var(--cream);background:var(--forest)}
+  nav.admin .back{display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:0;cursor:pointer;color:var(--muted);font:500 12px/1 var(--sans);letter-spacing:.06em;padding:0 6px}
+  nav.admin .back svg{width:26px;height:20px}
+  nav.admin .back:hover{color:var(--forest)}
+  nav.admin .home{width:96px;height:96px;margin:-12px 0;border-radius:50%;border:0;cursor:pointer;background:var(--forest) var(--sunmark) center/40px no-repeat;box-shadow:0 0 0 4px rgba(242,181,68,.5),0 14px 34px rgba(12,28,22,.35);transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+  nav.admin .home:hover{transform:scale(1.05)}
+  nav.admin .badge{width:54px;height:48px;border:0;cursor:pointer;background:var(--forest);color:var(--cream);font:700 16px/1 var(--sans);letter-spacing:.02em;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
+  /* a view inside opens as a sheet over the dashboard, with its name and Close */
+  .sheethead{flex:none;display:flex;align-items:center;gap:14px;padding:22px clamp(18px,3vw,44px) 8px}
+  .sheethead h1{font:420 clamp(32px,3.4vw,50px)/1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.03em;margin:0}
+  .sheethead button{margin-left:auto}
+  .sheetbody{flex:1;min-height:0;display:flex}
+  #intents.on,#stories.on{display:flex;flex-direction:column;position:fixed;left:14px;right:14px;top:14px;bottom:104px;z-index:7;min-height:0;border-radius:34px;background:var(--paper);box-shadow:0 30px 80px rgba(12,28,22,.25);overflow:hidden;padding-bottom:0}
+  body.sheet #city{display:block;filter:blur(2px);opacity:.6;pointer-events:none}
   body.admin main{padding-bottom:90px}
   /* the city's dashboard: a few tiles */
   #city{padding:clamp(20px,3vw,40px) clamp(18px,3vw,44px)}
@@ -29,7 +40,9 @@
   .tile{position:relative;grid-column:span 4;min-height:250px;border:0;border-radius:32px;padding:26px;background:var(--cream);color:var(--forest);text-align:left;font:inherit;cursor:pointer;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(31,58,44,.06);transition:transform .3s cubic-bezier(.3,1.4,.5,1),box-shadow .2s}
   .tile:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(31,58,44,.14)}
   .tile.big{grid-column:span 8;grid-row:span 2;min-height:520px;color:var(--cream)}
-  .tile.big svg{position:absolute;inset:0;width:100%;height:100%}
+  .tile.dark{background:var(--forest);color:var(--cream)}.tile.dark .foot b{color:var(--sun)}
+  .tile.wide{grid-column:span 12;min-height:180px}
+  .tile.big svg,.tile.big .pic{position:absolute;inset:0;width:100%;height:100%}
   .tile.big::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(14,28,20,.75),rgba(14,28,20,0) 55%)}
   .tile>*{position:relative;z-index:1}
   .tile .label{color:inherit;opacity:.75}
@@ -80,7 +93,7 @@
   .window{position:relative;flex:1;min-height:0;overflow:hidden;border-radius:clamp(26px,3.2vw,46px);color:var(--cream);transform:translateZ(0);background:#20362a}
   .window iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
   .board{position:absolute;inset:0;opacity:0;transition:opacity .4s;pointer-events:none}      /* the day's shot from above: what stands in the window until its film runs */
-  .board svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .board svg,.board .pic{position:absolute;inset:0;width:100%;height:100%;display:block}
   .banner.poster .board{opacity:1}
   .shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(140deg,rgba(14,28,20,.58) 0%,rgba(14,28,20,0) 44%)}
   .hud{position:absolute;inset:0;pointer-events:none;text-shadow:0 1px 3px rgba(10,24,16,.4)}
@@ -116,7 +129,8 @@
   .crow.r2{grid-template-columns:repeat(24,minmax(0,1fr));--g:5px;gap:var(--g)}
   .cd{position:relative;aspect-ratio:16/11;border:0;padding:0;border-radius:24px;background:var(--sand);overflow:hidden;text-align:left;font:inherit;color:var(--forest2);cursor:default;transition:transform .3s cubic-bezier(.3,1.4,.5,1)}
   .r1 .cd{border-radius:14px}.r2 .cd{border-radius:8px;aspect-ratio:1}
-  .cd svg{position:absolute;inset:0;width:100%;height:100%}
+  .cd svg,.cd .pic{position:absolute;inset:0;width:100%;height:100%}
+  .pic{object-fit:cover;display:block}
   .cd.told{cursor:pointer;color:var(--cream);background:#20362a}
   .cd.told:hover{transform:translateY(-3px)}
   .cd.told::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(14,28,20,.78),rgba(14,28,20,0) 60%)}
@@ -136,7 +150,6 @@
   .cal .tip.on{opacity:1}
 
   /* ---- the board: the work, by state ---- */
-  #intents.on{display:flex;height:calc(100% - 76px)}
   #board{flex:1;display:flex;gap:10px;padding:14px 10px 30px clamp(18px,3vw,44px);overflow:auto;min-width:0}
   .col{flex:1;min-width:176px;padding:14px 10px;border-radius:26px;background:rgba(236,225,204,.5)}
   .col h2{margin:4px 8px 16px;display:flex;justify-content:space-between}
@@ -169,7 +182,6 @@
   .bar .chip{margin-left:auto}
 
   /* stories: the film first, then the telling */
-  #stories.on{display:flex;height:calc(100% - 76px)}
   #list{width:340px;padding:14px 10px 26px clamp(18px,3vw,44px);overflow:auto}
   #storydoc{flex:1;width:auto}
   .player{position:relative;aspect-ratio:2.39/1;width:100%;margin:4px 0 0;border-radius:30px 30px 10px 10px;overflow:hidden;background:#20362a;transform:translateZ(0)}
@@ -221,7 +233,7 @@
   <a class="mark" href="#">Maia City</a>
   <button class="btn go visit" id="visit">Visit Maia City<i></i></button>
 </header>
-<nav class="admin" id="adminnav"><button data-tab="city">Maia City</button><button data-tab="intents">Intents</button><button data-tab="stories">Stories</button><button data-tab="game">The Game</button></nav>
+<nav class="admin" id="adminnav"><button class="back" id="back"><svg viewBox="0 0 26 20"><path d="M24 10H3M10 2.5 2.5 10 10 17.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button><button class="home" id="homebtn" aria-label="Dashboard"></button><button class="badge" id="badge" title="Maia City, the front page">MC</button></nav>
 <main id="home" class="on">
   <section class="hero"><div>
     <p class="eyebrow">This is the story of how</p>
@@ -252,8 +264,8 @@
   </div></section>
 </main>
 <main id="city"><span class="label sun">Inside</span><h1>Maia City</h1><p class="sub" id="citysub"></p><div class="tiles" id="tiles"></div></main>
-<main id="intents"><div id="board"></div><div id="intentdoc" class="doc"></div></main>
-<main id="stories"><div id="list"></div><div id="storydoc" class="doc on"><p class="empty">Choose a story.</p></div></main>
+<main id="intents"><header class="sheethead"><h1>Intents</h1><button class="btn small quiet" data-close>Close</button></header><div class="sheetbody"><div id="board"></div><div id="intentdoc" class="doc"></div></div></main>
+<main id="stories"><header class="sheethead"><h1>Stories</h1><button class="btn small quiet" data-close>Close</button></header><div class="sheetbody"><div id="list"></div><div id="storydoc" class="doc on"><p class="empty">Choose a story.</p></div></div></main>
 <main id="game"><div id="gamebar"></div><iframe id="frame" allow="fullscreen; pointer-lock" title="The Game"></iframe></main>
 <script type="module" src="/src/main.js"></script>
 </body>

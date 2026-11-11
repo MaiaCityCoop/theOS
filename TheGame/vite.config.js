@@ -1,5 +1,5 @@
 // The dev server serves the intents' stories (../Stories) and keeps timelines: POST /cine/keep?name=<name> with a timeline's JSON writes
-// cine/timelines/<name>.json, so a set of cameras an agent composed can be played back later by name.
+// cine/timelines/<name>.json, so a set of cameras an agent composed can be played back later by name; POST /story-preview keeps a story's picture.
 import { writeFileSync, mkdirSync, readdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -30,6 +30,15 @@ export default {
         const m = url.match(/^\/([a-z0-9][a-z0-9-]*)\/timeline\.json$/);
         if (!m || !existsSync(resolve(dir, m[1], 'timeline.json'))) { res.statusCode = 404; res.end('{}'); return; }
         res.end(readFileSync(resolve(dir, m[1], 'timeline.json')));
+      });
+      // a story's preview picture, filmed in the game: POST /story-preview?id=<story> with a JPEG data URL writes ../Stories/<id>/preview.jpg
+      server.middlewares.use('/story-preview', (req, res) => {
+        const id = new URL(req.url, 'http://x').searchParams.get('id') || '', dir = resolve(server.config.root, '../Stories', id);
+        if (req.method !== 'POST' || !/^[a-z0-9][a-z0-9-]*$/.test(id) || !existsSync(dir)) { res.statusCode = 400; res.end('POST, id of a story'); return; }
+        let body = ''; req.on('data', (c) => { body += c; });
+        req.on('end', () => { const m = body.match(/^data:image\/jpeg;base64,(.+)$/);
+          if (!m) { res.statusCode = 400; res.end('a JPEG data URL'); return; }
+          writeFileSync(resolve(dir, 'preview.jpg'), Buffer.from(m[1], 'base64')); res.end('kept'); });
       });
       server.middlewares.use('/cine/keep', (req, res) => {
         const name = new URL(req.url, 'http://x').searchParams.get('name') || '';

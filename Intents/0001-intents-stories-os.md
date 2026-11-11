@@ -556,6 +556,31 @@ _Samuel's decision._
 - **Delivered:** the title reads "1.3 million humans build their own solarpunk city."
 - **Good / not there yet:** a one-word change; not looked at in the browser.
 
+### 2026-11-11, twenty-first round
+
+- **Asked:** more dry land and less green overall in the world. Lenses as its own "debug /
+  performance" tile on the dashboard. A proper preview picture for day 2: the tent from above,
+  slightly angled. Then: the bottom pill as in the legacy maiaCITY play (Back, a large round
+  button that goes home, the MC badge), and the intents and their detail opening from it like
+  there, as a sheet with Close.
+- **Delivered:**
+  - The world: the dry land's threshold lowered in both land files (CPU and GPU), so about half
+    the land is dry now (measured over a 12 km square: 0.51), grass on it thinner, and the
+    green itself yellows sooner. The tent's spot stays green.
+  - Day 2's preview: filmed in the game (camera 16 m east, 16 m up, 20 m south of the tent,
+    looking down past it to the river), kept as `Stories/0001-…/preview.jpg` by a new dev route
+    of the game (`POST /story-preview`). The dashboard shows it wherever a day has one: the day
+    card, the film's window before it plays, the game tile.
+  - The dashboard: a wide dark tile "Debug & performance · Lenses" that opens the lens bench.
+    The pill at the bottom: Back, a large round forest button with the sun (the dashboard),
+    and the MC badge (the front page). Intents and Stories open as sheets over the dashboard,
+    each with its name and Close.
+- **Good:** seen in the pane at 1440: the preview in the game tile, the Lenses tile, the pill,
+  the Intents sheet with its document. The dev servers were restarted for the new routes.
+- **Broke / not there yet:** the world's change was seen only in the preview's frame, not
+  walked. The game's own top bar (on its pages opened directly) is unchanged. Day 2 has two
+  citizens and the world still has one tent. Phone width and Safari not seen.
+
 ## Trail
 
 | When | Commit | What |

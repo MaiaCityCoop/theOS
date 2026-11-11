@@ -64,7 +64,7 @@ export function heightAt(x, z) {
 }
 
 export function aridAt(x, z) {
-  return sstep(0.50, 0.66, vnoise(x / 700, z / 700, 50) + 0.3 * (vnoise(x / 150, z / 150, 51) - 0.5));
+  return sstep(0.40, 0.56, vnoise(x / 700, z / 700, 50) + 0.3 * (vnoise(x / 150, z / 150, 51) - 0.5));
 }
 
 // what the rocks' shader hashes, for those who must know where a boulder stands

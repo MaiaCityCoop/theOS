@@ -20,10 +20,11 @@ const filmOf = (id) => `${GAME}/timeline.html?story=${id}&embed`;
 
 // ---- tabs: showing one stops the framed games of the others ----
 function tab(name) {
-  document.querySelectorAll('nav.admin button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+  document.body.classList.toggle('sheet', name === 'intents' || name === 'stories');   // these open as sheets over the dashboard
   document.body.classList.toggle('admin', name !== 'home');   // inside: the bottom pill; the front page has none
   if (location.hash.slice(1) !== (name === 'home' ? '' : name)) history.replaceState(null, '', name === 'home' ? location.pathname : '#' + name);
   document.querySelectorAll('main').forEach((m) => m.classList.toggle('on', m.id === name));
+  if (name === 'intents' || name === 'stories') { $('city').classList.add('on'); city(); }   // the dashboard stays under the sheet
   document.body.classList.toggle('play', name === 'game');   // the game takes the whole window
   if (name !== 'home') $('heroframe').removeAttribute('src');
   if (name === 'game') { if (!$('frame').getAttribute('src')) $('frame').src = GAME + VIEWS[gameView][1]; } else $('frame').removeAttribute('src');
@@ -33,7 +34,10 @@ function tab(name) {
   if (name === 'home') { home.sync?.(); home.draw?.(); }
   if (name === 'city') city();   // the front page's film starts when its window is on screen, not before
 }
-document.querySelectorAll('nav.admin button').forEach((b) => (b.onclick = () => tab(b.dataset.tab)));
+$('homebtn').onclick = () => tab('city');
+$('back').onclick = () => tab(document.body.classList.contains('sheet') || location.hash === '#game' ? 'city' : 'home');
+$('badge').onclick = () => tab('home');
+document.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => tab('city')));
 $('visit').onclick = () => tab('city');
 addEventListener('hashchange', () => tab(location.hash.slice(1) || 'home'));
 document.querySelector('header.site .mark').onclick = (e) => { e.preventDefault(); tab('home'); };
@@ -122,6 +126,8 @@ const home0 = (i) => { const r = 13 * Math.sqrt(i), a = i * 2.39996; return [r *
 
 // one day, from above: a drone's look down at an angle. The more humans, the more ground it has to hold, so it climbs.
 let uid = 0;   // every drawing gets its own gradient ids: a copy on a hidden page would otherwise paint nothing
+// a day's picture: its preview filmed in the game where there is one, else the drawing from above
+const pic = (e, joined) => (e?.preview ? `<img class="pic" src="/api/stories/${e.id}/preview.jpg" alt="">` : drone(e, joined));
 function drone(e, joined) {
   const id = ++uid;
   const N = Math.max(1, e.inGame || 1), R = 46 + 15 * Math.sqrt(N) + 4 * Math.log2(e.day + 1);
@@ -171,7 +177,7 @@ function home() {
     $('window').requestFullscreen?.().catch(() => {});
     if (playing(e)) go(); else { hero.onload = () => setTimeout(go, 400); hero.src = filmOf(e.id); } };
   const show = (e) => { e = e || today; if (!e) return; const j = joined(e);
-    if (e !== shown) { shown = e; $('dayboard').innerHTML = drone(e, j);
+    if (e !== shown) { shown = e; $('dayboard').innerHTML = pic(e, j);
       $('daycard').innerHTML = `<button class="bigplay" aria-label="Play day ${e.day} from the start, full screen"></button><div><span class="label num">Day ${pad(e.day)}${e === today ? ' · today' : ''}</span>
         <p class="count">${e.inGame != null ? `<span><b>${n(e.inGame)}</b>${e.inGame === 1 ? 'citizen' : 'citizens'}</span>` : ''}${j ? `<span><b>+${n(j)}</b>joined</span>` : ''}${e.secs ? `<span>${mm(e.secs)}</span>` : ''}</p></div>`;
       $('daycard').querySelector('.bigplay').onclick = () => full(e);
@@ -185,7 +191,7 @@ function home() {
   const toldOn = new Map(days.map((e) => [e.day, e])), cal = $('cal'), start = Math.max(1, T - 1);
   let d = start, rows = '';
   const card = (x, t) => { const e = toldOn.get(x), note = NOTED[x];
-    return `<button class="cd${e ? ' told' : ''}${note && !e ? ' noted' : ''}${x === T ? ' today' : ''}" data-d="${x}">${e && t < 2 ? drone(e, joined(e)) : ''}<span class="cn">${t < 2 ? (x === T ? 'Today · ' : x === T + 1 ? 'Tomorrow · ' : '') + 'Day ' : ''}${n(x)}</span>` +
+    return `<button class="cd${e ? ' told' : ''}${note && !e ? ' noted' : ''}${x === T ? ' today' : ''}" data-d="${x}">${e && t < 2 ? pic(e, joined(e)) : ''}<span class="cn">${t < 2 ? (x === T ? 'Today · ' : x === T + 1 ? 'Tomorrow · ' : '') + 'Day ' : ''}${n(x)}</span>` +
       (t === 0 ? (e ? `${e.inGame != null ? `<span class="cs"><b>${n(e.inGame)}</b> ${e.inGame === 1 ? 'citizen' : 'citizens'}</span>` : ''}<span class="ct">${e.title}</span>` : `${note?.inGame ? `<span class="cs"><b>${n(note.inGame)}</b> ${note.inGame === 1 ? 'citizen' : 'citizens'}</span>` : ''}<span class="ct">${note?.title || 'Not yet told'}</span>`) : '') + '</button>'; };
   [6, 12, 24].forEach((k, t) => { rows += `<div class="crow r${t}">`; for (let i = 0; i < k && d <= DAYS; i++) rows += card(d++, t); rows += '</div>'; });
   cal.innerHTML = `<header class="calhead"><h2>Day by day</h2><p><b>${n(told)}</b> of ${n(DAYS)} days told · <b>${count(today)}</b> ${today?.inGame === 1 ? 'citizen' : 'citizens'} today</p></header>${rows}<canvas></canvas><span class="tip"></span>`;
@@ -210,10 +216,11 @@ function home() {
 function city() {
   const today = home.today, open = intents.filter((i) => i.state !== 'archived');
   $('citysub').textContent = today ? `Day ${n(today.day)} of ${n(DAYS)} · ${today.inGame != null ? cit(today.inGame) : '–'}` : '';
-  $('tiles').innerHTML = `<button class="tile big" data-go="game">${today ? drone(today, home.joined(today)) : ''}<span class="label">The Game</span><h2>Walk the world</h2><p>The meadow, the river and the first tent, live. Or look at it through the lenses.</p><div class="foot"><b>${today?.inGame != null ? n(today.inGame) : '–'}</b> citizens<span class="go"></span></div></button>
+  $('tiles').innerHTML = `<button class="tile big" data-go="game">${today ? pic(today, home.joined(today)) : ''}<span class="label">The Game</span><h2>Walk the world</h2><p>The meadow, the river and the first tent, live. Or look at it through the lenses.</p><div class="foot"><b>${today?.inGame != null ? n(today.inGame) : '–'}</b> citizens<span class="go"></span></div></button>
     <button class="tile" data-go="stories"><span class="label">Stories</span><h2>One a day</h2><p>${latest() ? 'Latest: ' + latest().title : 'None yet.'}</p><div class="foot"><b>${n(stories.length)}</b> of ${n(DAYS)}<span class="go"></span></div></button>
     <button class="tile" data-go="intents"><span class="label">Intents</span><h2>The work</h2><div class="rows">${open.slice(0, 3).map((i) => `<div>${i.title}</div>`).join('') || '<div>Nothing open.</div>'}</div><div class="foot"><b>${n(open.length)}</b> open<span class="go"></span></div></button>`;
-  $('tiles').querySelectorAll('.tile').forEach((t) => (t.onclick = () => tab(t.dataset.go)));
+  $('tiles').insertAdjacentHTML('beforeend', `<button class="tile wide dark" data-lenses><span class="label">Debug &amp; performance</span><h2>Lenses</h2><p>The world through nine film lenses, with the frame time, draw calls and triangles: where it runs smooth and where it does not.</p><div class="foot"><span class="go"></span></div></button>`);
+  $('tiles').querySelectorAll('.tile').forEach((t) => (t.onclick = () => (t.dataset.lenses !== undefined ? game('lenses') : tab(t.dataset.go))));
 }
 
 [intents, stories] = await Promise.all([get('/api/intents').then((r) => r.json()), get('/api/stories').then((r) => r.json()).catch(() => [])]);

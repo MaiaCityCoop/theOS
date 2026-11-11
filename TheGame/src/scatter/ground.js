@@ -20,7 +20,7 @@ void main(){
   gl_FragColor = vec4(sqrt(t.rgb), t.a);
 #else
   float path = pathMask(pathN(pos)), oc = outcropMask(pos);
-  float dens = (1.0 - path) * (1.0 - bankMask(d, w)) * (1.0 - bareMask(pos)) * (1.0 - oc * 0.25) * mix(1.0, 0.45 * tuftMask(pos), arid);
+  float dens = (1.0 - path) * (1.0 - bankMask(d, w)) * (1.0 - bareMask(pos)) * (1.0 - oc * 0.25) * mix(1.0, 0.32 * tuftMask(pos), arid);
   dens *= smoothstep(1.5, 2.7, length(pos - uTent));   // the tent's floor is kept clear
   float stone = (0.07 + 0.3 * arid + 0.45 * (1.0 - smoothstep(w * 0.6, w + 4.0, d)) + 0.5 * oc) * (1.0 - path * 0.8);
   gl_FragColor = vec4(heightAt(pos, camDist(pos), d, w) - uGBase, dens, arid, stone);   // heights from a base near by: small numbers keep a half float exact to the centimetre
