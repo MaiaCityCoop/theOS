@@ -17,7 +17,7 @@ in vec4 aNode; // x, z, size, level
 uniform float uGrid, uR0;
 out vec3 vWorld; out vec3 vR; out float vW;
 #ifndef WATER
-out vec3 vN; out vec3 vPth; out float vArid; out vec4 vTint; out float vTuft; out float vOut;
+out vec3 vN; out vec3 vPth; out float vOut;
 #endif
 void main(){
   vec2 g = position.xz;
@@ -39,9 +39,6 @@ void main(){
   float hz = heightAt(pz, dist, riverDist(riverR(pz)), riverW(pz));
   vN = normalize(vec3(h - hx, e, h - hz));
   vPth = pathN(wp);
-  vArid = aridMask(wp);
-  vTint = grassTint(wp, vArid);
-  vTuft = tuftMask(wp);
   vOut = outcropMask(wp);
 #endif
   vWorld = vec3(wp.x, h, wp.y);
@@ -52,8 +49,8 @@ const FRAG = /* glsl */ `
 ${WORLD_GLSL}
 ${LIGHT_GLSL}
 in vec3 vWorld; in vec3 vR; in float vW;
-in vec3 vN; in vec3 vPth; in float vArid; in vec4 vTint; in float vTuft; in float vOut;
-uniform sampler2D tA0, tA1, tA2, tA3, tA4, tN0, tN1, tN2, tN3, tN4;
+in vec3 vN; in vec3 vPth; in float vOut;
+uniform sampler2D tA0, tA1, tA2, tA3, tA4, tA6, tN0, tN1, tN2, tN3, tN4, tN6;
 struct Mat { vec3 c; float h; vec2 n; float r; };
 // two takes of the texture, one turned and at another size, mixed by noise: no visible tiling
 Mat smp(sampler2D ta, sampler2D tn, vec2 p, vec2 dx, vec2 dy, float T1, float T2, float mx){
@@ -82,6 +79,20 @@ void main(){
   float m2 = dist < 5000.0 ? (vnoise(p * (1.0 / 170.0) + 2.3, 92u) - 0.5) * (1.0 - smoothstep(2000.0, 5000.0, dist)) : 0.0;
   float m3 = vnoise(p * (1.0 / 1100.0) + 6.1, 93u) - 0.5;
   float macro = 1.0 + 0.36 * m1 + 0.30 * m2 + 0.26 * m3;
+  // what grows here is worked out per pixel (per vertex it went blocky far away), each noise again let go in time
+  float vArid = smoothstep(0.50, 0.66, vnoise(p * (1.0 / 700.0), 50u) + 0.3 * (vnoise(p * (1.0 / 150.0), 51u) - 0.5) * (1.0 - smoothstep(3000.0, 8000.0, dist)));
+  float ta = dist < 2500.0 ? mix(vnoise(p * (1.0 / 37.0), 80u), 0.5, smoothstep(900.0, 2500.0, dist)) : 0.5;
+  float tb = dist < 600.0 ? mix(vnoise(p * (1.0 / 11.0) + 9.1, 81u), 0.5, smoothstep(250.0, 600.0, dist)) : 0.5;
+  vec4 vTint = grassTintAB(ta, tb, vArid);
+  float vTuft = vArid > 0.003 && dist < 900.0 ? mix(tuftMask(p), 0.5, smoothstep(350.0, 900.0, dist)) : 0.5;
+  // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up
+  vec2 pr = vec2(0.6 * p.x - 0.8 * p.y, 0.8 * p.x + 0.6 * p.y);
+  vec4 g1 = texture(tA6, p / 1.6), g2 = texture(tA6, pr / 9.6), g3 = texture(tA6, p / 44.0);
+  vec4 gn1 = texture(tN6, p / 1.6), gn2 = texture(tN6, pr / 9.6);
+  float gk = smoothstep(25.0, 110.0, dist), gk2 = smoothstep(300.0, 1400.0, dist);
+  float glum = mix(mix(g1.a, g2.a, gk), mix(g2.a, g3.a, 0.6), gk2);
+  vec2 gq = gn2.xy * 2.0 - 1.0; gq = vec2(0.6 * gq.x + 0.8 * gq.y, -0.8 * gq.x + 0.6 * gq.y);
+  vec2 gnrm = mix(gn1.xy * 2.0 - 1.0, gq, gk) * (1.0 - 0.7 * gk2);
   float d = riverDist(vR), w = vW;
   float path = pathMask(vPth) * (1.0 - smoothstep(70.0, 220.0, dist));   // a path is a thing of the near ground; from afar it was a drawn line
   float bare = dist < 160.0 ? bareMask(p) * (1.0 - smoothstep(100.0, 160.0, dist)) : 0.0;
@@ -101,7 +112,7 @@ void main(){
   // the grass's own colour over the floor, more of it the farther away: where the blades end, nothing shows
   float cover = (1.0 - bare) * mix(1.0, 0.45 * vTuft, vArid);
   float cv = cover * (0.3 + 0.7 * smoothstep(4.0, 60.0, dist));
-  m.c = mix(m.c, vTint.rgb * (0.45 + 0.8 * m.h), cv); m.n *= 1.0 - 0.6 * cv;
+  m.c = mix(m.c, vTint.rgb * (0.35 + 1.3 * glum), cv); m.n = mix(m.n, gnrm * 1.4, cv); m.h = mix(m.h, glum, cv);
   if (path > 0.003) m = hblend(m, dirt, path);
   if (bank > 0.003) { if (!haveSand) sand = smp(tA2, tN2, p, dx, dy, 2.0, 3.2, mx); m = hblend(m, sand, bank); }
   float steep = smoothstep(0.80, 0.68, vN.y);
@@ -195,6 +206,7 @@ export function createTerrain(scene, U, tex) {
     uniforms: {
       ...U, ...common,
       tA0: { value: tex.a[0] }, tA1: { value: tex.a[1] }, tA2: { value: tex.a[2] }, tA3: { value: tex.a[3] }, tA4: { value: tex.a[4] },
+      tA6: { value: tex.a[6] }, tN6: { value: tex.n[6] },
       tN0: { value: tex.n[0] }, tN1: { value: tex.n[1] }, tN2: { value: tex.n[2] }, tN3: { value: tex.n[3] }, tN4: { value: tex.n[4] },
     },
   });

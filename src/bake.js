@@ -99,6 +99,16 @@ void mat(vec2 uv, out float h, out vec3 col, out float rough){
   col = mix(col, vec3(0.03), crack * 0.8);
   col = mix(col, vec3(0.33, 0.35, 0.22), lich * 0.6);
   rough = 0.8;
+#elif MAT == 6 // grass seen as a carpet: blades as strokes, light on dark; kept grey, the land tints it
+  vec2 a = uv, b = uv.yx, c = vec2(uv.x + uv.y, uv.x - uv.y), d = vec2(uv.x - uv.y, uv.x + uv.y), e = vec2(2.0 * uv.x + uv.y, uv.x - 2.0 * uv.y), f = vec2(uv.x + 2.0 * uv.y, 2.0 * uv.x - uv.y);
+  float s1 = smoothstep(0.5, 0.78, pn(a * vec2(22.0, 190.0), vec2(22.0, 190.0), 2u)), s2 = smoothstep(0.5, 0.78, pn(b * vec2(26.0, 170.0), vec2(26.0, 170.0), 3u));
+  float s3 = smoothstep(0.5, 0.78, pn(c * vec2(17.0, 140.0), vec2(17.0, 140.0), 4u)), s4 = smoothstep(0.5, 0.78, pn(d * vec2(15.0, 130.0), vec2(15.0, 130.0), 5u));
+  float s5 = smoothstep(0.5, 0.78, pn(e * vec2(11.0, 90.0), vec2(11.0, 90.0), 6u)), s6 = smoothstep(0.5, 0.78, pn(f * vec2(10.0, 80.0), vec2(10.0, 80.0), 7u));
+  float top = max(max(s1, s2), max(max(s3, s4), max(s5, s6))), under = (s1 + s2 + s3 + s4 + s5 + s6) / 6.0;
+  float clump = pfbm(uv, 4.0, 21u, 4), tone = pn(uv * 9.0, vec2(9.0), 22u);
+  h = clamp(0.12 + 0.5 * top + 0.5 * under + 0.45 * (clump - 0.5), 0.0, 1.0);
+  col = vec3(0.12 + 0.62 * h) * mix(vec3(1.0, 1.0, 0.82), vec3(0.86, 1.0, 0.9), tone);
+  rough = 0.9;
 #else // water: ripples (the albedo pass keeps foam in rgb)
   float n1 = pfbm(uv, 5.0, 1u, 4), n2 = pfbm(uv + 0.37, 11.0, 2u, 3);
   h = n1 * 0.6 + (1.0 - abs(2.0 * n2 - 1.0)) * 0.4;
@@ -110,7 +120,7 @@ void mat(vec2 uv, out float h, out vec3 col, out float rough){
 }
 `;
 
-const BUMP = [0.014, 0.014, 0.007, 0.016, 0.035, 0.02];
+const BUMP = [0.014, 0.014, 0.007, 0.016, 0.035, 0.02, 0.02];
 
 function program(mat, normalPass) {
   return new THREE.ShaderMaterial({
@@ -131,14 +141,14 @@ void main(){
   });
 }
 
-/** Bakes every material; returns { a: [albedo…], n: [normal…] } (index 5 is the water). */
+/** Bakes every material; returns { a: [albedo…], n: [normal…] } (index 5 is the water, 6 the grass as a carpet). */
 export function bakeTextures(renderer) {
   const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
   quad.frustumCulled = false;
   const out = { a: [], n: [] };
-  for (let m = 0; m < 6; m++) for (const pass of ['a', 'n']) {
+  for (let m = 0; m < 7; m++) for (const pass of ['a', 'n']) {
     const rt = new THREE.WebGLRenderTarget(SIZE, SIZE, {
       depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter,
       wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, anisotropy: aniso, colorSpace: THREE.NoColorSpace,

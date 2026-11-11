@@ -146,8 +146,11 @@ float bankMask(float d, float w){ return 1.0 - smoothstep(w * 1.15, w * 1.15 + 2
 float tuftMask(vec2 p){ return smoothstep(0.45, 0.7, vnoise(p * (1.0 / 28.0), 72u)); }
 float outcropMask(vec2 p){ return smoothstep(0.60, 0.72, vnoise(p * (1.0 / 230.0), 74u)); }
 // rgb: the grass's colour here; a: how dry
+vec4 grassTintAB(float a, float b, float arid);
 vec4 grassTint(vec2 p, float arid){
-  float a = vnoise(p * (1.0 / 37.0), 80u), b = vnoise(p * (1.0 / 11.0) + 9.1, 81u);
+  return grassTintAB(vnoise(p * (1.0 / 37.0), 80u), vnoise(p * (1.0 / 11.0) + 9.1, 81u), arid);
+}
+vec4 grassTintAB(float a, float b, float arid){
   vec3 c = mix(vec3(0.050, 0.115, 0.022), vec3(0.135, 0.19, 0.04), smoothstep(0.3, 0.75, a * 0.7 + b * 0.3));
   float dry = clamp(arid * 0.9 + smoothstep(0.55, 0.9, b * 0.6 + a * 0.4) * 0.4, 0.0, 1.0);
   return vec4(mix(c, vec3(0.36, 0.29, 0.12), dry), dry);
