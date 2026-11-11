@@ -37,6 +37,7 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 const stats = (window.__s8 = { renderer, camera, scene });
 const U = createUniforms(camera, SKY);
 const governor = createGovernor(renderer);
+stats.governor = governor;   // the film holds it still while it plays
 const tex = bakeTextures(renderer);
 U.tNoise = { value: tex.a[7] };
 const ground = createGround(renderer, U);

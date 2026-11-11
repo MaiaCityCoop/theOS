@@ -744,6 +744,20 @@ _Samuel's decision._
   4:3 frame; that picture was discarded and the previous one restored. The preview therefore
   still shows the dry land until it is retaken in Safari with the button. Not tried.
 
+### 2026-11-11, thirty-third round
+
+- **Asked:** playback stops about every second: a timeline frame-rate issue? Should the
+  timeline and the game run at 30 fps, or synchronised at 60? Then: the Open tab is not needed.
+- **Found:** not a matter of frame rates (the editor draws at the screen's rate, the film ran at
+  60 fps). The game's governor re-weighs its detail every 0.7 s and, around a heavy view, turns
+  it up and down again; each turn makes the world choose its grass and rocks anew, a frame or
+  two of cost: a hitch about once a second. That is the likely cause, not measured as such.
+- **Delivered:** while a film plays, the governor settles for two seconds and then holds its
+  dials until the film stops (`governor.hold`, called from the film page each frame). The
+  studio has no Open page any more (the section stays in `story.md`).
+- **Broke / not there yet:** whether the hitch is gone was not seen: the app's browser pane is
+  hidden and pauses the game. Samuel's eye in Safari.
+
 ## Trail
 
 | When | Commit | What |

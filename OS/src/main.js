@@ -99,11 +99,12 @@ async function story(s, show = true) {
 
 // ---- a story's work, as the pages of an editing suite: one page at a time, chosen from a bar at the bottom left.
 // Edit is the film and its timeline; the others are the parts of story.md (its ## sections), hook first ----
-const STEP = [['The hook', 'Hook'], ['The story', 'Story'], ['The film', 'Script'], ['EDIT', 'Edit'], ['Receipts', 'Receipts'], ['Open', 'Open'], ['The series', 'Series']];
+const STEP = [['The hook', 'Hook'], ['The story', 'Story'], ['The film', 'Script'], ['EDIT', 'Edit'], ['Receipts', 'Receipts'], ['The series', 'Series']];
+const HIDE = ['Open'];   // sections of story.md the studio does not show as pages
 function pages(root, md, film) {
   const parts = md.replace(/^---\n[\s\S]*?\n---\n/, '').split(/^## /m).slice(1).map((p) => { const nl = p.indexOf('\n'); return { head: p.slice(0, nl).trim(), text: p.slice(nl + 1) }; });
   const tabs = STEP.map(([h, name]) => (h === 'EDIT' ? (film ? { name, edit: true } : null) : { name, part: parts.find((p) => p.head.startsWith(h)) })).filter((t) => t && (t.edit || t.part));
-  for (const p of parts) if (!tabs.some((t) => t.part === p)) tabs.push({ name: p.head, part: p });
+  for (const p of parts) if (!tabs.some((t) => t.part === p) && !HIDE.some((h) => p.head.startsWith(h))) tabs.push({ name: p.head, part: p });
   const bar = root.querySelector('.pages'), stage = root.querySelector('.stagedoc'), frame = root.querySelector('.player iframe');
   bar.innerHTML = `<button class="burger" aria-label="Pages"><i></i><i></i><i></i></button>` + tabs.map((t, i) => `<button class="pg" data-i="${i}">${t.name}</button>`).join('');
   const open = (i) => { const t = tabs[i]; root.dataset.page = t.edit ? 'edit' : 'doc'; bar.classList.remove('open');

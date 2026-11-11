@@ -26,8 +26,12 @@ function build() {
 }
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 let lastI = -1;
+// While the film plays the governor is held: it settles in the first two seconds, then its dials stay put, so no
+// change of detail breaks the picture's pace every second or so. Paused, it may move again.
+let since = 0;
+function hold() { const g = window.__s8?.governor; if (!g) return; if (!cine.playing) { since = 0; g.hold(false); return; } if (!since) since = performance.now(); g.hold(performance.now() - since > 2000); }
 function tick() {
-  requestAnimationFrame(tick);
+  requestAnimationFrame(tick); hold();
   const d = cine.duration || 1, t = cine.time;
   head.style.left = (t / d) * 100 + '%';
   let i = cine.clips.length - 1; while (i > 0 && cine.starts[i] > t) i--;

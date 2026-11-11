@@ -14,6 +14,7 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
   const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2), DPR_MIN = Math.min(1, DPR_MAX);   // under 1 the picture only blurs
   let dpr = Math.min(DPR_MAX, 1.5), resize = false, ceiling = DPR_MAX, ceilingAt = 0;
   let cap = startCap, zoom = 1, lod = 1, ema = 16.7, calm = 0, at = 0;
+  let held = false;   // a film playing: no turning of the dials, so its frames come out even (it plays the same every time, too)
   renderer.setPixelRatio(dpr);
   return {
     /** Before drawing: a change of pixel ratio empties the canvas, so it is made only here. */
@@ -23,7 +24,7 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
     /** After drawing: the frame's time, and whether a tier ran out of patches. */
     end(ms, now, over) {
       if (ms < 250) ema += (ms - ema) * 0.08;   // a longer gap is the browser holding the page back, not the picture's cost
-      if (now - at < 700 || document.hidden) return;
+      if (now - at < 700 || document.hidden || held) return;
       at = now;
       let next = dpr;
       if (ema > 18.6 || over) {
@@ -36,6 +37,8 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
       if (now - ceilingAt > 20000) ceiling = DPR_MAX;
       if (next !== dpr) { dpr = next; resize = true; ema = 16.7; }
     },
+    /** Hold the dials where they are (true), or let them move again (false). */
+    hold(on) { held = !!on; },
     get ms() { return ema; }, get dpr() { return dpr; }, get lod() { return lod; }, get zoom() { return zoom; }, get cap() { return cap; },
   };
 }
