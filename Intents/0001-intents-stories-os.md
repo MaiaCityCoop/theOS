@@ -1056,6 +1056,20 @@ _Samuel's decision._
 - **Broke / not there yet:** in the studio the pill keeps its solid navy (no blur over a film that
   plays); day 2's picture and stills still to be retaken.
 
+### 2026-11-11, fifty-first round
+
+- **Asked:** the studio's pill stays solid navy; the words on glass made one standard (labels,
+  titles, descriptions, their colours); nothing but the grid while a library section is chosen; the
+  Biomes card's round cut at its sides.
+- **Delivered:** the brand file holds the ink on glass (`--on-glass`, `-2`, `-3`, all navy) and six
+  classes: `.g-label`, `.g-title`, `.g-name`, `.g-sub` (one line), `.g-text`, `.g-rows`; the
+  library's list, card and grid use them and keep no text styles of their own. While the grid is
+  open the list, the card and the Back are hidden. The diorama is framed with a margin all round.
+- **Good:** seen in the pane: the grid alone on screen, the round whole; the card's rows and the
+  list in the shared styles.
+- **Broke / not there yet:** the dashboard's own glass panels (goals, day figures) still set their
+  words themselves; day 2's picture and stills still to be retaken.
+
 ## Trail
 
 | When | Commit | What |

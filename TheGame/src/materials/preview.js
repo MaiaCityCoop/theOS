@@ -39,7 +39,7 @@ export function materialThumb(renderer, U, t, canvas) {
 }
 /** The biomes' picture: a round of land cut out, grass on top, earth down its side, a pebble on it, water at one edge. */
 export function dioramaThumb(renderer, U, tex, canvas) {
-  const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 20); cam.position.set(0, 1.7, 3.0); cam.lookAt(0, -0.05, 0);
+  const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 20); cam.position.set(0, 2.15, 3.75); cam.lookAt(0, -0.08, 0);   // the whole round in frame, a margin all round
   const own = (t, tile, tint) => materialPreview(U, t, tile, { uCam: { value: cam.position.clone() }, uTint: { value: new THREE.Vector3(...tint) } });
   const sc = new THREE.Scene(), earth = own(tex.of('path'), 0.5, [1, 1, 1]);
   const puck = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.88, 0.32, 72, 1, false), [earth, own(tex.of('grasscarpet'), 0.45, [0.42, 0.95, 0.26]), earth]);

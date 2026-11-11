@@ -24,7 +24,7 @@
   #toLib{position:fixed;left:14px;bottom:18px;z-index:7;display:flex;align-items:center;gap:8px;height:var(--pill-h);padding:0 18px 0 14px;border-radius:999px;cursor:pointer;font:500 13.5px/1 var(--sans);color:var(--cream);text-shadow:0 1px 2px rgba(8,20,15,.45)}
   #toLib svg{width:17px;height:13px}
   #toLib:hover{background:var(--glass-hover)}
-  #grid.on ~ #toLib{display:none}
+  #grid.on ~ #toLib, #grid.on ~ #info, body:has(#grid.on) #list{display:none}   /* choosing a section: nothing else on screen */
   #list[data-sec] .item, #list[data-sec] .group{display:none}
   #list[data-sec="assets"] .item[data-id], #list[data-sec="biomes"] .item[data-biome], #list[data-sec="materials"] .item[data-mat]{display:flex}
   #grid{position:fixed;inset:0;z-index:6;display:none;place-items:center;background:rgba(15,29,44,.28);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
@@ -34,18 +34,13 @@
   #grid button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 14px 18px;border-radius:24px;cursor:pointer;color:var(--forest);font:inherit;transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
   #grid button:hover{transform:translateY(-3px)}
   #grid canvas{width:112px;height:112px;filter:drop-shadow(0 6px 10px rgba(12,28,22,.3))}
-  #grid b{font:460 19px/1.1 var(--serif);font-variation-settings:var(--soft);color:var(--navy)}#grid small{font-size:12px;color:var(--navy);opacity:.72}
+  #grid .g-title{margin:0}
   @media (max-width:760px){#grid .cards{grid-template-columns:1fr 1fr}}
   .group{font:500 10.5px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:rgba(251,246,234,.8);text-shadow:0 1px 3px rgba(0,0,0,.45);margin:8px 0 2px 8px}.group:first-child{margin-top:2px}
   .item canvas{width:34px;height:34px;flex:none;filter:drop-shadow(0 2px 3px rgba(12,28,22,.25))}
-  .item b{display:block;font:500 13.5px/1.2 var(--sans);color:var(--navy)}.item small{display:block;font-size:11.5px;color:var(--forest2);opacity:.8;text-transform:capitalize;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item span{min-width:0}
+  .item .g-sub{text-transform:capitalize}.item span{min-width:0}
   .side{position:fixed;top:14px;right:14px;z-index:3;width:210px;max-height:calc(100vh - 110px);overflow:auto;padding:12px 14px;border-radius:18px;color:var(--forest)}
-  .side .label{display:block;color:var(--forest2);opacity:.75;font-size:10.5px}
-  .right .label{margin:0 0 6px}
-  .right h2{font:460 18px/1.1 var(--serif);font-variation-settings:var(--soft);margin:0 0 6px;color:var(--navy)}
-  .right p{margin:0 0 10px;color:var(--forest2);font-size:12.5px;line-height:1.4}
-  .right dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0;font-size:11.5px}
-  .right dt{color:var(--forest2);opacity:.7}.right dd{margin:0;color:var(--forest);font-variant-numeric:tabular-nums;word-break:break-word}
+  /* the words on the sides and cards: brand.css (.g-label, .g-title, .g-name, .g-sub, .g-text, .g-rows) */
   .seed{display:flex;align-items:center;gap:8px;margin:10px 0 0;padding-top:10px;border-top:1px solid rgba(31,58,44,.12);font-size:11.5px}.seed b{font-variant-numeric:tabular-nums;color:var(--navy);flex:1}
   .seed button{font:500 11.5px/1 var(--sans);color:var(--cream);background:var(--navy);border:0;border-radius:999px;padding:7px 11px;cursor:pointer}.seed button.q{background:none;color:var(--forest2);box-shadow:inset 0 0 0 1px rgba(31,58,44,.25)}
   .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
@@ -86,9 +81,9 @@ const { scene, U, ground, tex } = window.__s8;
 ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BIOME.meadow));   // round the stage, the land is all meadow
 
 // the list: each asset with a small picture of its nearest level
-document.getElementById('list').innerHTML = '<div class="group">Assets</div>' + ids.map((id) => `<button class="item glass" data-id="${id}"><canvas width="72" height="72"></canvas><span><b>${ASSETS[id].name}</b><small>${ASSETS[id].kind}</small></span></button>`).join('')
-  + '<div class="group">Biomes</div>' + BIOMES.map((b) => `<button class="item glass" data-biome="${b.id}"><canvas width="72" height="72"></canvas><span><b>${b.name}</b><small>${b.kind}</small></span></button>`).join('')
-  + '<div class="group">Materials</div>' + MATERIALS.map((m) => `<button class="item glass" data-mat="${m.id}"><canvas width="72" height="72"></canvas><span><b>${m.name}</b><small>${m.kind}</small></span></button>`).join('');
+document.getElementById('list').innerHTML = '<div class="group">Assets</div>' + ids.map((id) => `<button class="item glass" data-id="${id}"><canvas width="72" height="72"></canvas><span><b class="g-name">${ASSETS[id].name}</b><small class="g-sub">${ASSETS[id].kind}</small></span></button>`).join('')
+  + '<div class="group">Biomes</div>' + BIOMES.map((b) => `<button class="item glass" data-biome="${b.id}"><canvas width="72" height="72"></canvas><span><b class="g-name">${b.name}</b><small class="g-sub">${b.kind}</small></span></button>`).join('')
+  + '<div class="group">Materials</div>' + MATERIALS.map((m) => `<button class="item glass" data-mat="${m.id}"><canvas width="72" height="72"></canvas><span><b class="g-name">${m.name}</b><small class="g-sub">${m.kind}</small></span></button>`).join('');
 for (const b of document.querySelectorAll('.item[data-mat]')) {   // a material's picture: its own baked tile
   materialThumb(window.__s8.renderer, U, tex.of(b.dataset.mat), b.querySelector('canvas'));
   b.onclick = () => chooseMaterial(b.dataset.mat);
@@ -135,14 +130,14 @@ function choose(id, keepSeed) {
   document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
   const s0 = a.placement.seed, seeded = s0 != null;
   const where = a.placement.at === 'scatter' ? `scattered over ${a.placement.outcrops ? 'the outcrops' : 'all the land'}, at most one every ${a.placement.cell} m` : 'stood at a named place';
-  document.getElementById('info').innerHTML = `<span class="label">Asset</span><h2>${a.name}</h2><p>${a.about || ''}</p><dl>
+  document.getElementById('info').innerHTML = `<span class="g-label">Asset</span><h2 class="g-title">${a.name}</h2><p class="g-text">${a.about || ''}</p><dl class="g-rows">
     <dt>Kind</dt><dd style="text-transform:capitalize">${a.kind}</dd>
     <dt>Size</dt><dd>${span(a.size.length)} × ${span(a.size.width)} × ${span(a.size.height)} m</dd>
     <dt>Detail</dt><dd>${a.lods.map((l, i) => `${i ? 'then' : 'up to'} ${l.far} m · ${facesOf(l)} faces`).join('<br>')}<br>none past ${a.lods[a.lods.length - 1].far} m</dd>
     ${a.look ? `<dt>Look</dt><dd>${MATERIAL[a.look.material]?.name || "Rock"} · moss ${a.look.moss} · relief ${a.look.relief}<br>worn ${a.look.smooth} · broken ${a.look.cuts}</dd>` : ''}
     <dt>Colours</dt><dd>${Object.entries(a.colours || {}).map(([k, c]) => `<span class="sw" style="background:${hex(c)}"></span>${k}`).join('<br>')}</dd>
     <dt>Placed</dt><dd>${where}</dd>
-    <dt>File</dt><dd>TheGame/assets/${a.id}.js</dd></dl>${seeded ? `<div class="seed"><span class="label" style="margin:0">Seed</span><b>${seed ?? s0}${seed != null && seed !== s0 ? '' : ' · its own'}</b>${seed != null && seed !== s0 ? '<button class="q" id="seed0">Own</button>' : ''}<button id="seedR">Random</button></div>` : ''}`;
+    <dt>File</dt><dd>TheGame/assets/${a.id}.js</dd></dl>${seeded ? `<div class="seed"><span class="g-label" style="margin:0">Seed</span><b>${seed ?? s0}${seed != null && seed !== s0 ? '' : ' · its own'}</b>${seed != null && seed !== s0 ? '<button class="q" id="seed0">Own</button>' : ''}<button id="seedR">Random</button></div>` : ''}`;
   if (seeded) {   // a procedural asset made again from another seed: the same recipe, another of its kind; the file keeps its own
     document.getElementById('seedR').onclick = () => { seed = Math.floor(Math.random() * 100000); choose(id, true); };
     const o = document.getElementById('seed0'); if (o) o.onclick = () => { seed = null; choose(id, true); };
@@ -155,7 +150,7 @@ function chooseBiome(id) {
   H = 0.8; dist = b.where === 'water' ? 85 : 26; pitch = b.where === 'water' ? 0.55 : 0.42; spin = true;
   document.querySelectorAll('.item').forEach((e) => e.classList.toggle('on', e.dataset.biome === id));
   const g = (x) => (x ? `<span class="sw" style="background:${hex(MATERIAL[x.material].swatch.map(Math.sqrt))}"></span>${MATERIAL[x.material].name}` : '');
-  document.getElementById('info').innerHTML = `<span class="label">Biome</span><h2>${b.name}</h2><p>${b.about}</p><dl>
+  document.getElementById('info').innerHTML = `<span class="g-label">Biome</span><h2 class="g-title">${b.name}</h2><p class="g-text">${b.about}</p><dl class="g-rows">
     <dt>Kind</dt><dd style="text-transform:capitalize">${b.kind}</dd>
     <dt>Laid</dt><dd>${{ land: 'everywhere no other biome is', arid: 'where the land is dry', bank: 'along the river', water: 'in the river; here its own, meandering through the sandbox' }[b.where]}</dd>
     <dt>Ground</dt><dd>${[b.floor, b.patches, b.spots, b.slopes].filter(Boolean).map(g).join('<br>')}</dd>
@@ -182,7 +177,7 @@ function chooseMaterial(id) {
   scene.add(staged);
   H = 1.3; dist = 9.5; pitch = 0.5; spin = true;
   document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', b.dataset.mat === id));
-  document.getElementById('info').innerHTML = `<span class="label">Material</span><h2>${m.name}</h2><p>${m.about}</p><dl>
+  document.getElementById('info').innerHTML = `<span class="g-label">Material</span><h2 class="g-title">${m.name}</h2><p class="g-text">${m.about}</p><dl class="g-rows">
     <dt>Used by</dt><dd>${m.usedBy.replace(/; /g, '<br>')}</dd>
     <dt>Colour</dt><dd><span class="sw" style="background:${hex(m.swatch.map((v) => Math.sqrt(v)))}"></span>at a glance</dd>
     <dt>Relief</dt><dd>${m.bump} (smaller is deeper)</dd>
@@ -210,7 +205,7 @@ const SECTIONS = [
 const list = document.getElementById('list'), grid = document.getElementById('grid');
 function section(id) { list.dataset.sec = id; }
 for (const sct of SECTIONS) {
-  const b = document.createElement('button'); b.className = 'glass'; b.innerHTML = `<canvas width="192" height="192"></canvas><b>${sct.name}</b><small>${sct.n} · ${sct.what}</small>`;
+  const b = document.createElement('button'); b.className = 'glass'; b.innerHTML = `<canvas width="192" height="192"></canvas><b class="g-title big">${sct.name}</b><small class="g-sub">${sct.n} · ${sct.what}</small>`;
   grid.querySelector('.cards').append(b); sct.pic(b.querySelector('canvas'));
   b.onclick = () => { grid.classList.remove('on'); section(sct.id); sct.open(); };
 }

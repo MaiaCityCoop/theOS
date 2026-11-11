@@ -73,9 +73,25 @@
   --glass-edge: 1px solid rgba(255, 255, 255, .55);
   --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), 0 12px 30px rgba(12, 28, 22, .16);
   --glass-hover: rgba(255, 255, 255, .35);
-  --pill-h: 44px;   /* every pill and round button at the bottom: the nav pill, the library's Back */
+  --pill-h: 44px;
+  /* the words on glass: one ink, three strengths */
+  --on-glass: var(--navy);                    /* titles and names */
+  --on-glass-2: rgba(23, 54, 85, .74);         /* lines under a name, descriptions, values */
+  --on-glass-3: rgba(23, 54, 85, .56);         /* labels, the names of values */   /* every pill and round button at the bottom: the nav pill, the library's Back */
 }
-.glass, .glass2 { color: var(--forest); background:var(--glass); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); border:var(--glass-edge); box-shadow:var(--glass-shadow); }
+.glass, .glass2 { color: var(--on-glass); background:var(--glass); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); border:var(--glass-edge); box-shadow:var(--glass-shadow); }
+
+/* words on glass, everywhere the same: a label over it, a title, a name (in a list), the one line under a name,
+   a text, and rows of values (a dl) */
+.g-label { display: block; font: 500 10.5px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--on-glass-3); margin: 0 0 7px; }
+.g-title { font: 460 18px/1.1 var(--serif); font-variation-settings: var(--soft); letter-spacing: -.01em; color: var(--on-glass); margin: 0 0 6px; }
+.g-title.big { font-size: 19px; }
+.g-name { display: block; font: 500 13.5px/1.2 var(--sans); color: var(--on-glass); }
+.g-sub { display: block; font: 400 11.5px/1.3 var(--sans); color: var(--on-glass-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-text { font: 400 12.5px/1.4 var(--sans); color: var(--on-glass-2); margin: 0 0 10px; }
+.g-rows { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font: 400 11.5px/1.35 var(--sans); }
+.g-rows dt { color: var(--on-glass-3); }
+.g-rows dd { margin: 0; color: var(--on-glass); font-variant-numeric: tabular-nums; word-break: break-word; }
 
 /* the game's pill: Home (the dashboard), the large round star (the intents), the city's badge; as in the dashboard */
 .os-pill { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 12px; padding: 0 12px; height: var(--pill-h); box-sizing: border-box; border-radius: 999px; background:var(--glass); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); border:var(--glass-edge); box-shadow:var(--glass-shadow); }
