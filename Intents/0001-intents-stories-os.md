@@ -661,6 +661,24 @@ _Samuel's decision._
   showing each lens's film format; opened on their own they still show the format. Phone width
   and Safari not seen.
 
+### 2026-11-11, twenty-eighth round
+
+- **Asked:** the story's script should be a few sub-tabs with different viewers, like an
+  editing suite's pages per work step: first the hook and the storytelling, then the script,
+  and so on. The timeline with several rows for the different layers (audio, subtitles, video).
+  All far more compact, so the player has more room; a compact title row; the whole studio at
+  full height, not scrolling.
+- **Delivered:** the studio is one screen: a slim head row (← Stories, the title at 17 px, day
+  and citizens, its intent); the film filling the space beside a panel of work steps (Hook,
+  Story, Script, Receipts, Open, Series: one tab per section of `story.md`, hook first, only the
+  viewer scrolls); across the bottom a compact timeline with five tracks: T1 Title, V1 Picture
+  (the stills), S1 Subtitles, A1 Voices (each line as a clip, marked "not recorded"), A2 Music
+  (empty).
+- **Good:** seen in the pane at 1440x900: everything on one screen, nothing scrolling, the hook
+  in its tab, all tracks filled.
+- **Broke / not there yet:** the voices and music are not real yet; the tracks show where they
+  will go. Narrow screens not looked at.
+
 ## Trail
 
 | When | Commit | What |

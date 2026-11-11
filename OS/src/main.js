@@ -88,17 +88,30 @@ async function story(s, show = true) {
   current = s;
   const md = await get(`/api/stories/${s.id}/story.md`).then((r) => r.text()), d = $('storyedit');
   d.innerHTML = `<header class="studiohead"><button class="btn small quiet" data-do="shelf">← Stories</button><h1>${s.title}</h1><span class="chip">Day ${n(s.day || 1)}${s.inGame != null ? ' · ' + (s.inGame === 1 ? '1 citizen' : n(s.inGame) + ' citizens') : ''}</span><button class="btn small quiet" data-do="intent">Its intent</button></header>` +
-    (s.film ? `<div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div>${EDIT}` : '') + `<article class="doc on">${body(md)}</article>`;
+    (s.film ? `<div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div>${EDIT}` : '') + `<section class="steps"></section>`;
   if (s.film) editor(d.querySelector('.edit'), d.querySelector('.player iframe'));
+  steps(d.querySelector('.steps'), md);
   d.querySelector('[data-do=intent]').onclick = () => { tab('intents'); board(s.id); };
   d.querySelector('[data-do=shelf]').onclick = () => { current = null; tab('stories'); };
   if (show) tab('stories');
 }
 
+// ---- a story's work, as the steps of an editing suite: a tab per part of story.md (its ## sections), hook first ----
+const STEP = [['The hook', 'Hook'], ['The story', 'Story'], ['The film', 'Script'], ['Receipts', 'Receipts'], ['Open', 'Open'], ['The series', 'Series']];
+function steps(el, md) {
+  const parts = md.replace(/^---\n[\s\S]*?\n---\n/, '').split(/^## /m).slice(1).map((p) => { const nl = p.indexOf('\n'); return { head: p.slice(0, nl).trim(), text: p.slice(nl + 1) }; });
+  const tabs = STEP.map(([h, name]) => ({ name, part: parts.find((p) => p.head.startsWith(h)) })).filter((t) => t.part);
+  for (const p of parts) if (!tabs.some((t) => t.part === p)) tabs.push({ name: p.head, part: p });
+  el.innerHTML = `<nav>${tabs.map((t, i) => `<button data-i="${i}">${t.name}</button>`).join('')}</nav><article class="doc on step"></article>`;
+  const open = (i) => { el.querySelectorAll('nav button').forEach((b) => b.classList.toggle('on', +b.dataset.i === i)); el.querySelector('.step').innerHTML = `<h2>${tabs[i].part.head}</h2>` + marked.parse(tabs[i].part.text); };
+  el.querySelectorAll('nav button').forEach((b) => (b.onclick = () => open(+b.dataset.i))); if (tabs.length) open(0);
+}
+
 // ---- a story's editor: the film above, its timeline under it. A ruler, the picture track (one still per shot,
 // taken in the game), the voices track (the subtitles, by who speaks), and a playhead to drag. It drives the film. ----
 const EDIT = `<div class="edit"><div class="etop"><button class="eplay" aria-label="Play or pause"></button><span class="etime"><b>0:00</b> / 0:00</span><span class="eshot"></span></div>
-  <div class="etracks"><div class="elabs"><span></span><span>Picture</span><span>Voices</span></div><div class="elanes"><div class="eruler"></div><div class="elane v"></div><div class="elane s"></div><i class="ehead"></i></div></div></div>`;
+  <div class="etracks"><div class="elabs"><span></span><span>T1 · Title</span><span>V1 · Picture</span><span>S1 · Subtitles</span><span>A1 · Voices</span><span>A2 · Music</span></div>
+  <div class="elanes"><div class="eruler"></div><div class="elane t"></div><div class="elane v"></div><div class="elane s"></div><div class="elane a"></div><div class="elane m"><span class="eempty">no music yet</span></div><i class="ehead"></i></div></div></div>`;
 let onFilm = null;
 addEventListener('message', (ev) => { const m = ev.data; if (m?.maia && onFilm && ev.source === onFilm.win()) onFilm.take(m); });
 function editor(el, frame) {
@@ -110,7 +123,10 @@ function editor(el, frame) {
       D = m.duration; clips = m.clips; starts = []; let T = 0; for (const c of clips) { starts.push(T); T += c.secs; }
       let r = ''; for (let s = 0; s <= D; s += 5) r += `<span style="left:${pct(s)}%">${mm(s)}</span>`; q('.eruler').innerHTML = r;
       q('.elane.v').innerHTML = clips.map((c, i) => `<div class="eclip" data-i="${i}" style="left:${pct(starts[i])}%;width:calc(${pct(c.secs)}% - 3px)"><span>${c.name}</span></div>`).join('');
-      q('.elane.s').innerHTML = (m.captions || []).filter((c) => c.kind !== 'title').map((c) => `<div class="ecap ${c.kind}" style="left:${pct(c.at)}%;width:calc(${pct(c.for)}% - 2px)" title="${c.text.replace(/"/g, '&quot;')}">${c.text}</div>`).join('');
+      const caps = m.captions || [], block = (c, cls) => `<div class="${cls} ${c.kind}" style="left:${pct(c.at)}%;width:calc(${pct(c.for)}% - 2px)" title="${c.text.replace(/"/g, '&quot;')}">${c.text}</div>`;
+      q('.elane.t').innerHTML = caps.filter((c) => c.kind === 'title').map((c) => block(c, 'ecap')).join('');
+      q('.elane.a').innerHTML = caps.filter((c) => c.kind === 'samuel' || c.kind === 'maia').map((c) => block({ ...c, text: (c.kind === 'samuel' ? 'Samuel' : 'Maia') + ' · not recorded' }, 'eaud')).join('');
+      q('.elane.s').innerHTML = caps.filter((c) => c.kind !== 'title').map((c) => `<div class="ecap ${c.kind}" style="left:${pct(c.at)}%;width:calc(${pct(c.for)}% - 2px)" title="${c.text.replace(/"/g, '&quot;')}">${c.text}</div>`).join('');
       if (!asked) { asked = true; say({ cmd: 'thumbs' }); }
     }
     if (m.type === 'thumb') { const c = q(`.eclip[data-i="${m.i}"]`); if (c) c.style.backgroundImage = `url(${m.src})`; }
