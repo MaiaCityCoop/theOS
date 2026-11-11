@@ -642,6 +642,25 @@ _Samuel's decision._
 - **Good:** seen in the pane at 1440; clicking the x returned to the dashboard with the pill.
 - **Then:** the dashboard behind an open sheet is blurred more (10 px) under a veil of TheOS blue.
 
+### 2026-11-11, twenty-seventh round
+
+- **Asked:** the Stories app is not a modal; it should look like an editing suite (Resolve):
+  first a grid of the stories to choose from, like the front page's calendar, and a story
+  opened is a full-width timeline editor. Then: the lens view inside the dashboard can be laid
+  out far better (black bars, the pill over the lens bar, the readout over a black band).
+- **Delivered:** Stories is a full page: a shelf of the stories as cards with their pictures,
+  day, length, citizens and title. A card opens the studio: the window goes dark blue, the
+  site's header steps aside, a head row (← Stories, the title, the day and citizens, its
+  intent), the film, and under it the full-width timeline (ruler, a still per shot, the
+  voices, the playhead); the story's text below. Inside the dashboard the game fills its frame
+  (no letterbox bars, for the lenses too), its lens bar and film bar stand above the
+  dashboard's pill, and its readout sits under the top row.
+- **Good:** seen in the pane at 1440: the shelf, the studio with all its stills, the lens bench
+  without bars and clear of the pill.
+- **Broke / not there yet:** the lenses inside the dashboard now fill the frame instead of
+  showing each lens's film format; opened on their own they still show the format. Phone width
+  and Safari not seen.
+
 ## Trail
 
 | When | Commit | What |

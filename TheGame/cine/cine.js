@@ -15,7 +15,7 @@ const pending = [];   // what was asked before the game's camera existed
 const clampMm = (mm) => Math.max(28, Math.min(180, mm));   // between the primes only a zoom move passes
 // three's fov is the vertical one, of the whole window. The lens fixes how wide the picture sees; where the
 // window is wider than the picture's shape (bars left and right), it fixes how tall instead.
-const FILL = new URLSearchParams(location.search).has('embed');   // as a picture in a frame of any shape: the lens fills it, no bars
+const FILL = new URLSearchParams(location.search).has('embed') || new URLSearchParams(location.search).get('in') === 'os';   // as a picture in a frame (or inside the dashboard): the lens fills it, no bars
 function vfov(mm) {
   const wa = cam?.aspect || 1.5, pa = FILL ? wa : S.fmt.aspect || wa;
   return (2 * Math.atan(S.fmt.w / 2 / mm / Math.max(wa, pa))) / RAD;

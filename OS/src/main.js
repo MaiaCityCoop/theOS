@@ -20,11 +20,13 @@ const filmOf = (id) => `${GAME}/timeline.html?story=${id}&embed`;
 
 // ---- tabs: showing one stops the framed games of the others ----
 function tab(name) {
-  document.body.classList.toggle('sheet', name === 'intents' || name === 'stories');   // these open as sheets over the dashboard
+  document.body.classList.toggle('sheet', name === 'intents');   // the intents open as a sheet over the dashboard
+  document.body.classList.toggle('studio', name === 'stories' && !!current);   // a story open: the editor, dark, the whole window
   document.body.classList.toggle('admin', name !== 'home');   // inside: the bottom pill; the front page has none
   if (location.hash.slice(1) !== (name === 'home' ? '' : name)) history.replaceState(null, '', name === 'home' ? location.pathname : '#' + name);
   document.querySelectorAll('main').forEach((m) => m.classList.toggle('on', m.id === name));
-  if (name === 'intents' || name === 'stories') { $('city').classList.add('on'); city(); }   // the dashboard stays under the sheet
+  if (name === 'intents') { $('city').classList.add('on'); city(); }   // the dashboard stays under the sheet
+  if (name === 'stories') $('stories').classList.toggle('editing', !!current);
   document.body.classList.toggle('play', name === 'game');   // the game takes the whole window
   if (name !== 'home') $('heroframe').removeAttribute('src');
   if (name === 'game') { if (!$('frame').getAttribute('src')) $('frame').src = GAME + VIEWS[gameView][1]; } else $('frame').removeAttribute('src');
@@ -77,15 +79,19 @@ async function intent(i) {
 }
 
 // ---- stories: the film at the top, the telling under it ----
+// ---- stories: first a shelf of them, each with its picture; one opened is the editor, the whole window ----
+function shelf() {
+  $('shelf').innerHTML = stories.filter((s) => s.film).slice().reverse().map((e) => `<button class="cd told" data-id="${e.id}">${pic(e)}<span class="cn">Day ${n(e.day || 1)}${e.secs ? ' · ' + mm(e.secs) : ''}</span>${e.inGame != null ? `<span class="cs"><b>${n(e.inGame)}</b> ${e.inGame === 1 ? 'citizen' : 'citizens'}</span>` : ''}<span class="ct">${e.title}</span></button>`).join('') || '<p class="empty">No stories yet.</p>';
+  $('shelf').querySelectorAll('.cd').forEach((c) => (c.onclick = () => story(stories.find((s) => s.id === c.dataset.id))));
+}
 async function story(s, show = true) {
   current = s;
-  document.querySelectorAll('#list .card').forEach((c) => c.classList.toggle('on', c.dataset.id === s.id));
-  const md = await get(`/api/stories/${s.id}/story.md`).then((r) => r.text()), d = $('storydoc');
-  d.innerHTML = `<div class="bar"><span class="label">Story ${s.id.slice(0, 4)}</span><button class="btn small quiet" data-do="intent" style="margin-left:auto">Its intent</button></div>` +
-    (s.film ? `<div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div>${EDIT}` : '') + body(md);
+  const md = await get(`/api/stories/${s.id}/story.md`).then((r) => r.text()), d = $('storyedit');
+  d.innerHTML = `<header class="studiohead"><button class="btn small quiet" data-do="shelf">← Stories</button><h1>${s.title}</h1><span class="chip">Day ${n(s.day || 1)}${s.inGame != null ? ' · ' + (s.inGame === 1 ? '1 citizen' : n(s.inGame) + ' citizens') : ''}</span><button class="btn small quiet" data-do="intent">Its intent</button></header>` +
+    (s.film ? `<div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div>${EDIT}` : '') + `<article class="doc on">${body(md)}</article>`;
   if (s.film) editor(d.querySelector('.edit'), d.querySelector('.player iframe'));
-  d.querySelector('[data-do=intent]').addEventListener('click', () => { tab('intents'); board(s.id); });
-  d.scrollTop = 0;
+  d.querySelector('[data-do=intent]').onclick = () => { tab('intents'); board(s.id); };
+  d.querySelector('[data-do=shelf]').onclick = () => { current = null; tab('stories'); };
   if (show) tab('stories');
 }
 
@@ -227,8 +233,6 @@ function city() {
 }
 
 [intents, stories] = await Promise.all([get('/api/intents').then((r) => r.json()), get('/api/stories').then((r) => r.json()).catch(() => [])]);
-$('list').innerHTML = stories.length ? stories.map((s) => `<div class="card" data-id="${s.id}"><b>STORY ${s.id.slice(0, 4)}</b>${s.title}${s.film ? '<i>with a film</i>' : ''}</div>`).join('') : '<p class="empty">No stories yet. A story is spawned when an intent is proposed.</p>';
-$('list').querySelectorAll('.card').forEach((c) => (c.onclick = () => story(stories.find((s) => s.id === c.dataset.id))));
 board(); home();
-if (stories.length) await story(stories[stories.length - 1], false);   // made ready, not shown: nothing loads a game it will not show
+shelf();
 game('walk', false); tab(['city', 'intents', 'stories', 'game'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');
