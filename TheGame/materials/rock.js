@@ -6,6 +6,7 @@
 export default {
   id: 'rock',
   name: "Rock",
+  kind: 'stone',
   about: "Ridged rock with strata, cracks and lichen.",
   usedBy: "stones and boulders; steep slopes",
   swatch: [0.22, 0.21, 0.2],

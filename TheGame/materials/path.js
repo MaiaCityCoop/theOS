@@ -6,6 +6,7 @@
 export default {
   id: 'path',
   name: "Path",
+  kind: 'ground',
   about: "Trodden earth full of pebbles of three sizes.",
   usedBy: "paths, bare patches, the outcrops' floor, the library stage",
   swatch: [0.17, 0.12, 0.08],

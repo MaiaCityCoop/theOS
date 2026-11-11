@@ -3,6 +3,7 @@
 // outer vertices morph to the coarser grid, so the levels meet without cracks or pops.
 import * as THREE from 'three';
 import { HMIN, HMAX, heightAt, riverAt } from '../world.js';
+import { LAND_MATERIALS } from '../world/biomes.glsl.js';
 import { boxIn } from '../core/frustum.js';
 import { VERT, FRAG } from './terrain.glsl.js';
 import { WATER_FRAG } from './water.glsl.js';
@@ -43,9 +44,7 @@ export function createTerrain(scene, U, tex) {
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {
       ...U, ...common,
-      tA0: { value: tex.of('meadow').a }, tA1: { value: tex.of('dryearth').a }, tA2: { value: tex.of('sand').a }, tA3: { value: tex.of('path').a }, tA4: { value: tex.of('rock').a },
-      tA6: { value: tex.of('grasscarpet').a }, tN6: { value: tex.of('grasscarpet').n },
-      tN0: { value: tex.of('meadow').n }, tN1: { value: tex.of('dryearth').n }, tN2: { value: tex.of('sand').n }, tN3: { value: tex.of('path').n }, tN4: { value: tex.of('rock').n },
+      ...Object.fromEntries(LAND_MATERIALS.flatMap((i) => [[`tA${i}`, { value: tex.a[i] }], [`tN${i}`, { value: tex.n[i] }]])),   // the materials the biomes lay
     },
   });
   const waterMat = new THREE.ShaderMaterial({

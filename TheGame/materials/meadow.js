@@ -6,6 +6,7 @@
 export default {
   id: 'meadow',
   name: "Meadow floor",
+  kind: 'ground',
   about: "The ground under the grass: dark soil under a thatch of dead and green strands.",
   usedBy: "the terrain where grass grows; the moss on rocks",
   swatch: [0.07, 0.09, 0.04],

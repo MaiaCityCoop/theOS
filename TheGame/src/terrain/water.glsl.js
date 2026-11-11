@@ -18,7 +18,7 @@ void main(){
   // two takes sliding along the flow, half a cycle apart, cross-faded: the water runs and never stretches
   float t = uTime * 0.3, f1 = fract(t), f2 = fract(t + 0.5), wb = abs(2.0 * f1 - 1.0);
   vec2 o1 = fl * speed * (f1 - 0.5) * 3.3, o2 = fl * speed * (f2 - 0.5) * 3.3;
-  vec2 uA = (p - o1) / 4.5, uB = (p - o2) / 4.5 + 0.43;
+  vec2 uA = (p - o1) / WATER_TILE, uB = (p - o2) / WATER_TILE + 0.43;   // the river's biome (biomes/river.js)
   vec3 nA = texture(tWN, uA).xyz + texture(tWN, uA * 3.1 + 0.2).xyz - 1.0;
   vec3 nB = texture(tWN, uB).xyz + texture(tWN, uB * 3.1 + 0.6).xyz - 1.0;
   vec2 nn = mix(nA.xy, nB.xy, wb);
@@ -38,7 +38,7 @@ void main(){
     specks += s * (i == 0 ? 1.0 - wb : wb);
   }
   // the water's own colour: clear over the sand at the edge, green-brown and dark in the deep
-  vec3 body = mix(vec3(0.085, 0.09, 0.05), vec3(0.018, 0.045, 0.034), clamp(depth * 1.1, 0.0, 1.0));
+  vec3 body = mix(WATER_SHALLOW, WATER_DEEP, clamp(depth * 1.1, 0.0, 1.0));
   vec3 skyRef = mix(uSky, vec3(dot(uSky, vec3(0.333))), 0.4) * 0.92;   // the sky in the water, a little greyed
   vec3 H = normalize(V + uSunDir);
   float wd = length(uCam - vWorld);

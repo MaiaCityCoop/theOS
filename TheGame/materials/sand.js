@@ -6,6 +6,7 @@
 export default {
   id: 'sand',
   name: "Sand",
+  kind: 'ground',
   about: "Sand with grains and soft ripples, and a few pebbles.",
   usedBy: "the river banks, the sandy patches of dry land",
   swatch: [0.5, 0.41, 0.26],

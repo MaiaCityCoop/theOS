@@ -6,6 +6,7 @@
 export default {
   id: 'noise',
   name: "Land noise",
+  kind: 'noise',
   about: "Four cloudy noises, one per channel, for the land's colour variation with no grid to see.",
   usedBy: "the tint of grass and ground across the land",
   swatch: [0.5, 0.5, 0.5],

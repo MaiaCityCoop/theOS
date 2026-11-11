@@ -981,6 +981,29 @@ _Samuel's decision._
   inside is lit like the outside (no shade under the canvas); day 2's picture and stills still to
   be retaken.
 
+### 2026-11-11, forty-seventh round
+
+- **Asked:** the biomes; each list item with one line under its name, never two; a material's
+  picture its shaded ball, cut out, with no square behind it (assets too); a patch flickering through
+  the material floor as the camera circled; stones styled apart from the boulders.
+- **Delivered:** `TheGame/biomes/` holds meadow, dry land, riverbank and river, one file each in one
+  recipe (where it is laid, its grounds as materials and tile sizes, its grass's cover, height,
+  colours, tufts and flowers, its stones, the river's colours), listed in `biomes/index.js`. The
+  land's shaders are written from them (`src/world/biomes.glsl.js`): the terrain's grounds and the
+  materials it binds, the grass's greens and dry colour, its cover and height on dry land, the
+  flowers, the stones' chances, the water's colours and ripple size. The library has a Biomes
+  section: a biome is laid over all the land round the stage (a sandbox uniform the land, grass and
+  stones all read), the river staged as a pond with its bank. Materials carry a one-word kind for
+  the list's one line; their pictures and the biomes' are shaded balls drawn by the world's own
+  renderer, cut out; the assets' dark squares gone. The material floor is lifted and drawn over the
+  land, so it no longer shows through. Rock assets get a `look` (moss, relief, tint, broken faces,
+  wear): stones worn round, pale and nearly bare, boulders broken and mossy.
+- **Good:** seen in the pane: the world renders as before from the biome files; dry land and the
+  river's pond in the sandbox; the list's pictures as balls; stones and boulders now distinct.
+- **Broke / not there yet:** a biome's place in the land (dry, bank, water) is still the land's
+  mask in code: a biome on a new kind of place needs a mask too; the stones still carry the rock
+  texture's crack lines; day 2's picture and stills still to be retaken.
+
 ## Trail
 
 | When | Commit | What |

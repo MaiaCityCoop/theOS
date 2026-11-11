@@ -1,6 +1,7 @@
 // The land in GLSL: the same functions as world/land.js, constant for constant, so the GPU's ground
 // is the walker's ground. Every shader that needs the land starts with this.
 import { OCT_LAM, OCT_AMP, WATER_DROP } from './land.js';
+import { BIOME_GLSL } from './biomes.glsl.js';
 
 const fl = (a) => a.map((v) => v.toFixed(3)).join(', ');
 export const WORLD_GLSL = /* glsl */ `
@@ -8,6 +9,7 @@ uniform vec3 uCam;
 uniform float uDy, uLodInv;
 uniform sampler2D tNoise;   // baked cloudy noise, four of them in rgba
 const float WATER_DROP = ${WATER_DROP.toFixed(3)};
+${BIOME_GLSL}
 const float LAM[8] = float[8](${fl(OCT_LAM)});
 const float AMP[8] = float[8](${fl(OCT_AMP)});
 
@@ -90,9 +92,9 @@ vec4 grassTint(vec2 p, float arid){
   return grassTintAB(a, textureLod(tNoise, pr * (1.0 / 45.0), 0.0).g, arid);
 }
 vec4 grassTintAB(float a, float b, float arid){
-  vec3 c = mix(vec3(0.026, 0.105, 0.016), vec3(0.058, 0.150, 0.022), smoothstep(0.1, 0.9, a * 0.65 + b * 0.35));
-  c = mix(vec3(dot(c, vec3(0.3, 0.6, 0.1))), c, 0.8);   // a real meadow is a muted green
+  vec3 c = mix(LAND_GRASS_A, LAND_GRASS_B, smoothstep(0.1, 0.9, a * 0.65 + b * 0.35));   // the meadow's greens (biomes/meadow.js)
+  c = mix(vec3(dot(c, vec3(0.3, 0.6, 0.1))), c, LAND_GRASS_MUTE);   // a real meadow is a muted green
   float dry = clamp(arid * 0.9 + smoothstep(0.6, 1.0, b * 0.6 + a * 0.4) * 0.28, 0.0, 1.0);
-  return vec4(mix(c, vec3(0.36, 0.29, 0.12), dry), dry);
+  return vec4(mix(c, ARID_GRASS_DRY, dry), dry);   // dried to dry land's colour (biomes/dryland.js)
 }
 `;

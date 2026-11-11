@@ -6,6 +6,7 @@
 export default {
   id: 'dryearth',
   name: "Dry earth",
+  kind: 'ground',
   about: "Cracked plates of dry soil, dusty, with fine cracks between the big ones.",
   usedBy: "the terrain where the land is dry",
   swatch: [0.33, 0.25, 0.16],

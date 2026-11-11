@@ -36,16 +36,17 @@ function icosphere(detail) {
   }
   return { v, f };
 }
-function rockGeometry(detail, seed) {
-  const { v, f } = icosphere(detail), n = v.length / 3;
+// look: { cuts (0..1, how many flat faces are broken off it), smooth (0..1, how worn round it is) }
+function rockGeometry(detail, seed, look = {}) {
+  const { v, f } = icosphere(detail), n = v.length / 3, sm = 1 - 0.75 * (look.smooth ?? 0);
   const cuts = [];
-  for (let k = 0; k < 7; k++) {
+  for (let k = 0; k < Math.round(7 * (look.cuts ?? 1)); k++) {
     let x = hash3(k, 1, 0, seed) - 0.5, y = hash3(k, 2, 0, seed) - 0.5, z = hash3(k, 3, 0, seed) - 0.5; const l = Math.hypot(x, y, z);
     cuts.push([x / l, y / l, z / l, 0.62 + 0.3 * hash3(k, 4, 0, seed)]);
   }
   const P = (x, y, z, out, o) => {
     const l = Math.hypot(x, y, z); x /= l; y /= l; z /= l;
-    let r = 1 + 0.5 * (noise3(x * 1.4 + 9, y * 1.4, z * 1.4, seed) - 0.5) + 0.22 * (noise3(x * 3.3, y * 3.3 + 5, z * 3.3, seed + 1) - 0.5) + 0.08 * (noise3(x * 8, y * 8, z * 8 + 3, seed + 2) - 0.5);
+    let r = 1 + 0.5 * (noise3(x * 1.4 + 9, y * 1.4, z * 1.4, seed) - 0.5) + sm * (0.22 * (noise3(x * 3.3, y * 3.3 + 5, z * 3.3, seed + 1) - 0.5) + 0.08 * (noise3(x * 8, y * 8, z * 8 + 3, seed + 2) - 0.5));
     for (const c of cuts) { const dt = x * c[0] + y * c[1] + z * c[2]; if (dt > 0.05) { const lim = c[3] / dt; if (lim < r) r = lim + (r - lim) * 0.12; } }
     out[o] = x * r; out[o + 1] = y * r; out[o + 2] = z * r;
   };
@@ -84,11 +85,11 @@ void main(){
   if (dist >= uFar || dist < uNear) return;
   float arid, oc, y; vec3 tint;
 #ifdef BIG
-  oc = outcropMask(pos);
+  oc = placeOff(pos, outcropMask(pos));
   if (rnd(c, 200u) > 0.012 + 0.6 * oc) return;       // the cheap test first: most cells hold no rock
   vec3 R = riverR(pos); float w = riverW(pos), d = riverDist(R);
   if (rnd(c, 200u) > (0.012 + 0.6 * oc) * smoothstep(w + 2.0, w + 9.0, d)) return;
-  arid = aridMask(pos); y = heightAt(pos, dist, d, w); tint = grassTint(pos, arid).rgb;
+  arid = placeArid(pos, aridMask(pos)); y = heightAt(pos, dist, d, w); tint = grassTint(pos, arid).rgb;
 #else
   vec4 G = groundA(pos);
   if (rnd(c, 200u) > G.w * 0.7) return;
@@ -111,20 +112,20 @@ void main(){
 const FRAG = /* glsl */ `
 uniform vec3 uCam; uniform float uDy;
 ${LIGHT_GLSL}
-uniform sampler2D tA, tN, tM; uniform float uTex;
+uniform sampler2D tA, tN, tM; uniform float uTex, uMoss, uRelief; uniform vec3 uTintR;   // the asset's look (assets/*.js)
 in vec3 vWorld; in vec3 vN; in float vArid; in float vLy; in vec3 vTint;
 void main(){
   vec3 N = normalize(vN), b = pow(abs(N), vec3(4.0)); b /= b.x + b.y + b.z;
   vec3 q = vWorld / uTex;
   vec4 ax = texture(tA, q.zy), ay = texture(tA, q.xz), az = texture(tA, q.xy);
   vec4 nx = texture(tN, q.zy), ny = texture(tN, q.xz), nz = texture(tN, q.xy);
-  vec4 a = ax * b.x + ay * b.y + az * b.z; vec3 col = a.rgb * a.rgb;
+  vec4 a = ax * b.x + ay * b.y + az * b.z; vec3 col = a.rgb * a.rgb * uTintR;
   vec2 tx = nx.xy * 2.0 - 1.0, ty = ny.xy * 2.0 - 1.0, tz = nz.xy * 2.0 - 1.0;
-  vec3 n = normalize(N + (vec3(0.0, tx.y, tx.x) * b.x + vec3(ty.x, 0.0, ty.y) * b.y + vec3(tz.x, tz.y, 0.0) * b.z) * 1.1);
+  vec3 n = normalize(N + (vec3(0.0, tx.y, tx.x) * b.x + vec3(ty.x, 0.0, ty.y) * b.y + vec3(tz.x, tz.y, 0.0) * b.z) * uRelief);
   // moss where the rock looks up, held back where it is dry
   vec4 mt = texture(tM, q.xz * 1.7);
-  float moss = smoothstep(0.45, 0.8, N.y * 0.75 + (a.a - 0.5) * 0.7 + (mt.a - 0.5) * 0.5) * (1.0 - vArid * 0.85);
-  col = mix(col, vTint * 0.75 * (0.5 + mt.a), moss * 0.9);
+  float moss = smoothstep(0.45, 0.8, N.y * 0.75 + (a.a - 0.5) * 0.7 + (mt.a - 0.5) * 0.5) * (1.0 - vArid * 0.85) * min(uMoss, 1.0);
+  col = mix(col, vTint * 0.75 * (0.5 + mt.a), moss * 0.9 * min(uMoss * 1.5, 1.0));
   col *= mix(0.45, 1.0, smoothstep(-0.25, 0.35, vLy));   // darker where it meets the ground
   float ndl = max(dot(n, uSunDir), 0.0);
   vec3 V = normalize(uCam - vWorld);
@@ -132,28 +133,31 @@ void main(){
   gl_FragColor = toScreen(haze(col, length(uCam - vWorld)));
 }`;
 
+// a rock asset's look, for the shader: how much moss, how deep its texture's relief, a tint over the rock's colour
+const lookUniforms = (look = {}) => ({ uMoss: { value: look.moss ?? 1 }, uRelief: { value: look.relief ?? 1.1 }, uTintR: { value: new THREE.Vector3(...(look.tint || [1, 1, 1])) } });
+
 // One rock on its own, in the world's rock material (its textures, its moss), for the asset library's stage.
 const SAMPLE_VERT = /* glsl */ `
 out vec3 vWorld; out vec3 vN; out float vArid; out float vLy; out vec3 vTint; uniform vec3 uTintS;
 void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vArid = 0.0; vLy = position.y; vTint = uTintS; gl_Position = projectionMatrix * viewMatrix * w; }`;
 export function rockSample(U, tex, row, detail = 2, shape = 0) {
-  const ig = rockGeometry(detail, row.seed + shape * 7), g = new THREE.BufferGeometry();   // the rock's shape is made for instancing; one on its own is a plain geometry
+  const ig = rockGeometry(detail, row.seed + shape * 7, row.look), g = new THREE.BufferGeometry();   // the rock's shape is made for instancing; one on its own is a plain geometry
   g.setAttribute('position', ig.attributes.position); g.setAttribute('normal', ig.attributes.normal); g.setIndex(ig.index);
   return new THREE.Mesh(g, new THREE.ShaderMaterial({ vertexShader: SAMPLE_VERT, fragmentShader: FRAG,
-    uniforms: { ...U, tA: { value: tex.of('rock').a }, tN: { value: tex.of('rock').n }, tM: { value: tex.of('meadow').a }, uTex: { value: row.texture }, uTintS: { value: new THREE.Vector3(0.05, 0.13, 0.02) } } }));
+    uniforms: { ...U, tA: { value: tex.of('rock').a }, tN: { value: tex.of('rock').n }, tM: { value: tex.of('meadow').a }, uTex: { value: row.texture }, uTintS: { value: new THREE.Vector3(0.05, 0.13, 0.02) }, ...lookUniforms(row.look) } }));
 }
 
 /** The assets of kind `rocks`: for each a tier per row of its table. */
 export function createRocks(scene, U, tex, asset) {
   const tiers = [], lods = asset.tiers, big = asset.outcrops;
   for (let v = 0; v < asset.shapes; v++) lods.forEach((L, li) => {
-    const g = rockGeometry(L.detail, asset.seed + v * 7);
+    const g = rockGeometry(L.detail, asset.seed + v * 7, asset.look);
     const mat = new THREE.ShaderMaterial({
       vertexShader: (big ? '#define BIG\n' : '') + VERT, fragmentShader: FRAG,
       uniforms: {
         ...U, uNear: { value: li ? lods[li - 1].far : -1 }, uFar: { value: L.far },
         uSizeMin: { value: asset.size[0] }, uSizeMax: { value: asset.size[1] }, uVar: { value: v }, uVars: { value: asset.shapes }, uFade: { value: lods[lods.length - 1].far }, uBig: { value: big ? 1 : 0 },
-        tA: { value: tex.of('rock').a }, tN: { value: tex.of('rock').n }, tM: { value: tex.of('meadow').a }, uTex: { value: asset.texture },
+        tA: { value: tex.of('rock').a }, tN: { value: tex.of('rock').n }, tM: { value: tex.of('meadow').a }, uTex: { value: asset.texture }, ...lookUniforms(asset.look),
       },
     });
     tiers.push(new Tier(scene, g, mat, { cell: asset.cell, P: L.P, near: li ? lods[li - 1].far : 0, far: L.far, order: 1 }));

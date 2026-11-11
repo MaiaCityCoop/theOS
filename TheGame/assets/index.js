@@ -3,6 +3,7 @@
 //   id, name, kind, about     what it is
 //   size                      { length, width, height } in metres; a [min, max] where it varies
 //   colours                   its named colours, [r, g, b]
+//   look                      a rock's look: { moss, relief, tint, cuts, smooth } (src/scatter/rocks.js)
 //   lods                      its levels of detail, near to far: { far, ...shape } is drawn up to `far` metres, and
 //                             past the last level nothing is. A shape is `faces` ([corner, corner, corner, colour], ...)
 //                             or `rock` (a rough rock of an icosphere divided that often), with `P` for scattered ones
@@ -22,7 +23,7 @@ import boulder from './boulder.js';
 export const ASSETS = { belltent, stone, boulder };
 
 /** A scattered asset as the row the land's scatter engine (src/scatter) reads. */
-export const scatterRow = (a) => ({ name: a.id, kind: a.placement.engine, outcrops: a.placement.outcrops, cell: a.placement.cell, size: a.size.length, texture: a.placement.texture, shapes: a.placement.shapes, seed: a.placement.seed, tiers: a.lods.map((l) => ({ detail: l.rock, P: l.P, far: l.far })) });
+export const scatterRow = (a) => ({ name: a.id, kind: a.placement.engine, outcrops: a.placement.outcrops, cell: a.placement.cell, size: a.size.length, texture: a.placement.texture, shapes: a.placement.shapes, seed: a.placement.seed, look: a.look, tiers: a.lods.map((l) => ({ detail: l.rock, P: l.P, far: l.far })) });
 /** How many faces a level has. */
 export const facesOf = (l) => (l.faces ? l.faces.length : 20 * 4 ** (l.rock || 0));
 

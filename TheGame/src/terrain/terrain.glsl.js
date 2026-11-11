@@ -1,6 +1,7 @@
 // The ground's shaders. The vertex shader is shared with the water (#define WATER): the same grid,
 // the same morph, another height.
 import { WORLD_GLSL, LIGHT_GLSL } from '../world.js';
+import { LAND_MATERIALS } from '../world/biomes.glsl.js';
 
 export const VERT = /* glsl */ `
 ${WORLD_GLSL}
@@ -42,7 +43,7 @@ ${WORLD_GLSL}
 ${LIGHT_GLSL}
 in vec3 vWorld; in vec3 vR; in float vW;
 in vec3 vN; in vec3 vPth; in float vOut; in float vHill;
-uniform sampler2D tA0, tA1, tA2, tA3, tA4, tA6, tN0, tN1, tN2, tN3, tN4, tN6;
+uniform sampler2D ${LAND_MATERIALS.map((i) => `tA${i}, tN${i}`).join(', ')};   // the materials the biomes lay (biomes/*.js)
 uniform vec3 uStage;
 struct Mat { vec3 c; float h; vec2 n; float r; };
 // two takes of the texture, one turned and at another size, mixed by noise: no visible tiling
@@ -73,44 +74,43 @@ void main(){
   float m1 = texture(tNoise, vec2(0.8 * p.x + 0.6 * p.y, -0.6 * p.x + 0.8 * p.y) * (1.0 / 97.0) + 0.37).b - 0.5, m2 = texture(tNoise, pr * (1.0 / 700.0)).a - 0.5, m3 = texture(tNoise, p * (1.0 / 4500.0) + 0.11).r - 0.5;
   float macro = 1.0 + 0.16 * m1 + 0.20 * m2 + 0.18 * m3;
   // what grows here is worked out per pixel (per vertex it went blocky far away), each noise again let go in time
-  float sbx = uStage.z > 0.0 ? 1.0 - smoothstep(220.0, 340.0, length(p - uStage.xy)) : 0.0;   // around the library's stage: a clean sandbox of meadow, nothing but grass
-  float vArid = (1.0 - sbx) * smoothstep(0.50, 0.66, vnoise(p * (1.0 / 700.0), 50u) + 0.3 * (vnoise(p * (1.0 / 150.0), 51u) - 0.5) * (1.0 - smoothstep(3000.0, 8000.0, dist)));
+  float vArid = placeArid(p, smoothstep(0.50, 0.66, vnoise(p * (1.0 / 700.0), 50u) + 0.3 * (vnoise(p * (1.0 / 150.0), 51u) - 0.5) * (1.0 - smoothstep(3000.0, 8000.0, dist))));
   float ta = clamp((texture(tNoise, p * (1.0 / 150.0)).r + texture(tNoise, pr * (1.0 / 397.0)).a - 1.0) * 0.8 + 0.5, 0.0, 1.0), tb = texture(tNoise, pr * (1.0 / 45.0)).g;
   vec4 vTint = grassTintAB(ta, tb, vArid);
   float vTuft = vArid > 0.003 && dist < 900.0 ? mix(tuftMask(p), 0.5, smoothstep(350.0, 900.0, dist)) : 0.5;
   // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up
-  vec4 g1 = texture(tA6, p / 1.6), g2 = texture(tA6, pr / 9.6), g3 = texture(tA6, vec2(0.8 * p.x + 0.6 * p.y, -0.6 * p.x + 0.8 * p.y) / 57.0);
-  vec4 gn1 = texture(tN6, p / 1.6), gn2 = texture(tN6, pr / 9.6);
+  vec4 g1 = texture(LAND_CARPET, p / 1.6), g2 = texture(LAND_CARPET, pr / 9.6), g3 = texture(LAND_CARPET, vec2(0.8 * p.x + 0.6 * p.y, -0.6 * p.x + 0.8 * p.y) / 57.0);
+  vec4 gn1 = texture(LAND_CARPET_N, p / 1.6), gn2 = texture(LAND_CARPET_N, pr / 9.6);
   float gk = smoothstep(25.0, 110.0, dist), gk2 = smoothstep(300.0, 1400.0, dist);
   float glum = mix(mix(g1.a, g2.a, gk), mix(g2.a, g3.a, 0.6), gk2);
   vec2 gq = gn2.xy * 2.0 - 1.0; gq = vec2(0.6 * gq.x + 0.8 * gq.y, -0.8 * gq.x + 0.6 * gq.y);
   vec2 gnrm = mix(gn1.xy * 2.0 - 1.0, gq, gk) * (1.0 - 0.7 * gk2);
   float d = riverDist(vR), w = vW;
-  float path = (1.0 - sbx) * pathMask(vPth) * (1.0 - smoothstep(70.0, 220.0, dist));   // a path is a thing of the near ground; from afar it was a drawn line
-  float bare = dist < 160.0 ? (1.0 - sbx) * bareMask(p) * (1.0 - smoothstep(100.0, 160.0, dist)) : 0.0;
+  float path = placeOff(p, pathMask(vPth)) * (1.0 - smoothstep(70.0, 220.0, dist));   // a path is a thing of the near ground; from afar it was a drawn line
+  float bare = dist < 160.0 ? placeOff(p, bareMask(p)) * (1.0 - smoothstep(100.0, 160.0, dist)) : 0.0;
   if (uStage.z > 0.0) bare = max(bare, 1.0 - smoothstep(uStage.z - 0.5, uStage.z + 0.7, length(p - uStage.xy)));   // the library's stage: a round of bare, dry earth
 
-  Mat m = smp(tA0, tN0, p, dx, dy, 2.0, 3.2, mx);
+  Mat m = smp(LAND_FLOOR, p, dx, dy, LAND_FLOOR_TILE, mx);
   Mat sand; bool haveSand = false; Mat dirt; bool haveDirt = false;
-  float bank = clamp(bankMask(d, w) + (m.h - 0.5) * 0.3 * step(0.01, bankMask(d, w)), 0.0, 1.0);
+  float bk = placeBank(p, bankMask(d, w)), bank = clamp(bk + (m.h - 0.5) * 0.3 * step(0.01, bk), 0.0, 1.0);
   if (vArid > 0.003) {
-    Mat c = smp(tA1, tN1, p, dx, dy, 4.0, 6.4, mx);
+    Mat c = smp(ARID_FLOOR, p, dx, dy, ARID_FLOOR_TILE, mx);
     float sp = dist < 1500.0 ? smoothstep(0.55, 0.72, vnoise(p * (1.0 / 45.0), 73u)) * (1.0 - smoothstep(600.0, 1500.0, dist)) : 0.0;
-    if (sp > 0.003) { sand = smp(tA2, tN2, p, dx, dy, 2.0, 3.2, mx); haveSand = true; c = hblend(c, sand, sp); }
+    if (sp > 0.003) { sand = smp(ARID_SPOTS, p, dx, dy, ARID_SPOTS_TILE, mx); haveSand = true; c = hblend(c, sand, sp); }
     m = hblend(m, c, vArid);
   }
-  float bd = max(bare * (1.0 - vArid), vOut * 0.25 * (1.0 - sbx));
-  if (bd > 0.003 || path > 0.003) { dirt = smp(tA3, tN3, p, dx, dy, 2.0, 3.2, mx); haveDirt = true; }
+  float bd = max(bare * (1.0 - vArid), placeOff(p, vOut) * 0.25);
+  if (bd > 0.003 || path > 0.003) { dirt = smp(LAND_PATCHES, p, dx, dy, LAND_PATCHES_TILE, mx); haveDirt = true; }
   if (bd > 0.003) m = hblend(m, dirt, bd);
   // the grass's own colour over the floor, more of it the farther away: where the blades end, nothing shows
-  float cover = (1.0 - bare) * mix(1.0, 0.45 * vTuft, vArid);
+  float cover = (1.0 - bare) * mix(1.0, ARID_COVER * vTuft, vArid);
   // under the blades the floor is the grass's own colour, in shade: a gap between blades reads as more grass
   float cv = cover * (0.82 + 0.18 * smoothstep(4.0, 60.0, dist));
   m.c = mix(m.c, vTint.rgb * (0.32 + 1.05 * glum) * mix(0.5, 1.0, smoothstep(3.0, 70.0, dist)), cv); m.n = mix(m.n, gnrm * 1.4, cv); m.h = mix(m.h, glum, cv);
   if (path > 0.003) m = hblend(m, dirt, path);
-  if (bank > 0.003) { if (!haveSand) sand = smp(tA2, tN2, p, dx, dy, 2.0, 3.2, mx); m = hblend(m, sand, bank); }
+  if (bank > 0.003) m = hblend(m, smp(BANK_FLOOR, p, dx, dy, BANK_FLOOR_TILE, mx), bank);
   float steep = smoothstep(0.80, 0.68, vN.y);
-  if (steep > 0.003) m = hblend(m, smp(tA4, tN4, p, dx, dy, 3.0, 4.8, mx), steep);
+  if (steep > 0.003) m = hblend(m, smp(LAND_SLOPES, p, dx, dy, LAND_SLOPES_TILE, mx), steep);
 
   float wet = 1.0 - smoothstep(w * 0.9, w + 2.5, d);
   m.c *= mix(1.0, 0.5, wet);

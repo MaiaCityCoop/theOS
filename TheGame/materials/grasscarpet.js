@@ -6,6 +6,7 @@
 export default {
   id: 'grasscarpet',
   name: "Grass, from afar",
+  kind: 'grass',
   about: "Grass seen as a carpet: blades as light strokes on dark, kept grey for the land to tint.",
   usedBy: "the terrain's grass far away, where blades are no longer drawn",
   swatch: [0.4, 0.5, 0.32],

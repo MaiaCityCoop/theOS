@@ -1,6 +1,6 @@
 // The material library: every texture the world is drawn with, one file each in this folder, in one recipe:
 //
-//   id, name, about     what it is
+//   id, name, kind, about   what it is (kind: one word, the list's line under its name)
 //   usedBy              where the world uses it, in words
 //   swatch              its colour at a glance, [r, g, b]
 //   bump                how deep its relief reads: larger is flatter

@@ -28,8 +28,8 @@ void main(){
   uint hc = hashI(ivec2(floor(pos * (1.0 / 0.6))), 102u);
   float c1 = float(hc & 0xFFu) * (1.0 / 256.0), c2 = float((hc >> 8) & 0xFFu) * (1.0 / 256.0), c3 = float((hc >> 16) & 0xFFu) * (1.0 / 256.0);
   vec4 tint = groundTint(pos);
-  float flower = step(0.985, r2) * (1.0 - arid);   // now and then a stalk with a small white head
-  float hgt = uBladeH * (0.5 + 0.55 * r1 * r1 + 0.8 * c1 * c1 + 0.35 * flower) * mix(1.0, 0.6, arid) * (0.6 + 0.4 * dens) * (1.0 - smoothstep(uEnd * 0.7, uEnd, dist));
+  float flower = step(0.985, r2) * (1.0 - arid) * LAND_FLOWERS;   // now and then a stalk with a small white head
+  float hgt = uBladeH * (0.5 + 0.55 * r1 * r1 + 0.8 * c1 * c1 + 0.35 * flower) * mix(1.0, ARID_HEIGHT, arid) * (0.6 + 0.4 * dens) * (1.0 - smoothstep(uEnd * 0.7, uEnd, dist));
   float ang = (c2 + (r2 - 0.5) * 0.55) * 6.2831853; vec2 dir = vec2(cos(ang), sin(ang)), side = vec2(-dir.y, dir.x);
   float t = position.y, s = position.x, bend = (0.2 + 0.55 * r3 + 0.35 * c3) * (1.0 - 0.7 * flower);
   float wd = uBladeW * (0.75 + 0.5 * r1) * (1.0 - 0.8 * t * t);
