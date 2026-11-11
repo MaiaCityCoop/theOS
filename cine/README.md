@@ -1,60 +1,86 @@
 # The virtual camera
 
-One free film camera for Sandbox 8, made for the devlog: it can stand anywhere, look anywhere, and
-shoot through any lens from 12 mm to 180 mm. It is one file, `cine/cine.js`, and it needs nothing of
-the game but `window.__s8.camera`, so **the same camera shoots every stage of the build**: a shot
-framed today can be replayed at any earlier commit, from the same place, through the same lens.
+A film camera inside Sandbox 8's world, **driven by an agent, not by hand**: no keys, no readouts.
+The agent sets cameras (a place, where it looks, a lens) and strings them into a timeline of shots;
+the timeline then plays **live in the real world**: nothing is rendered ahead, the camera simply
+moves through the land as it is. It is made for the devlog: at every stage of the build the same
+cameras can shoot again.
 
-## Using it
-
-Press **V** in the running game. The camera takes the picture over from the walker (the walker's
-own place and view are held until V is pressed again).
-
-| Key | What it does |
+| File | What it is |
 | --- | --- |
-| mouse (click to capture, or drag) | look |
-| W A S D, Q E | move along the view, sideways, down and up |
-| Shift / Alt | eight times faster / much slower, for fine framing |
-| 1 … 8 | lens: 12, 18, 24, 35, 50, 85, 135, 180 mm |
-| mouse wheel | zoom between 12 and 180 mm |
-| Z X, 0 | roll left and right, level again |
-| B, Backspace | set a keyframe here (place, view, lens); take the last one back |
-| P | play the move through the keyframes; again to stop |
-| , . | seconds per leg of the move |
-| [ ] | choose the shot (yours, "scratch", and those in `shots.json`) |
-| O | export the shot as JSON (to the clipboard and the console) |
-| Enter | save a still (PNG, at the canvas's own resolution) |
-| R | record video until R again (mp4 in Safari, webm elsewhere) |
-| L | 2.39 : 1 bars |
-| H | clean picture: no readouts |
+| `cine/cine.js` | the camera and its timeline: `window.__cine` |
+| `cine/trailer.js` | composes a small trailer of the land from a seed |
+| `cine/view.js`, `timeline.html` | the timeline view: the world playing, its clips as a strip underneath |
+| `cine/timelines/<name>.json` | kept timelines: cameras set once, played back by name |
+| `cine/at.sh` | serves an earlier commit with today's camera over it |
 
-**Lenses** are those of a full-frame camera (a sensor 36 mm wide): 12 mm sees 112.6° across, 35 mm
-54.4°, 180 mm 11.4°, whatever the window's shape. A long lens also turns more slowly, as on a real head.
+## Two views
 
-**A move** runs through its keyframes on a smooth curve, eased in and out; the lens may change
-along the way (a zoom).
+- **The game**, `/`: the walker's own view.
+- **The timeline**, `/timeline.html`: the same world, shown through the virtual camera. Under it,
+  the clips in order with their kind, lens and length, and a playhead. Play / pause (or Space),
+  click or drag the strip to scrub, "new trailer" for the next seed.
+  - `?seed=7`: the trailer composed from seed 7
+  - `?tl=first-look`: the kept timeline `cine/timelines/first-look.json`, exactly as it was set
 
-## Shots that are kept
+## The camera, for an agent: `window.__cine`
 
-"scratch" lives in this browser only. To keep a shot for the film, press O and add the JSON to
-`cine/shots.json` (a list of `{ "name", "secs", "keys": [{ x, y, z, yaw, pitch, roll, mm }] }`,
-angles in radians). Kept shots are in every stage's list.
+    __cine.take({ pos: [x, y, z], look: [x, y, z], mm: 35, roll: 0 })   // hold the camera there
+    __cine.take({ pos: [x, y, z], yaw: 200, pitch: -12, mm: 85 })       // or by angles, in degrees
+    __cine.release()                                                    // back to the walker
+    __cine.load(clips); __cine.play(); __cine.pause(); __cine.seek(seconds)
+    await __cine.still()                                                // the next frame, a PNG data URL
+    __cine.record(true)                                                 // video, until record(false) or the end
+    __cine.view, __cine.time, __cine.duration, __cine.clips, __cine.playing
+    __cine.floor = (x, z) => groundHeight                               // set: the camera never sinks under it
+    __cine.loop = true
 
-A shot can also be called by address:
+Also by address: `?cam=x,y,z,yaw,pitch,roll,mm` (degrees) stands the camera exactly there.
 
-- `?cam=x,y,z,yaw,pitch,roll,mm` (angles in degrees): stand exactly there
-- `?shot=<name>`: start on a kept shot; `&play` plays it, `&rec` records that play and saves it
-- `&bars`, `&clean`: with the bars, without the readouts
+**Lenses** are a full-frame camera's (a sensor 36 mm wide), 12 to 180 mm: 12 mm sees 112.6° across,
+35 mm 54.4°, 180 mm 11.4°, whatever the window's shape.
+
+**A timeline** is a list of clips, cut one after the other:
+
+    { "name": "The far bank", "kind": "medium", "secs": 5.1, "ease": "inout",
+      "keys": [ { "pos": [x, y, z], "look": [x, y, z], "mm": 35, "roll": 0 }, … ] }
+
+Inside a clip the camera travels through its keys on a smooth curve (place and aim both), eased
+(`inout`, the gentler `soft`, or `linear`); the lens may change from key to key (a zoom) and so may
+the roll. One key is a locked-off shot.
+
+## The trailer
+
+`trailer(seed)` reads the world's own functions (where the river runs, how high the ground is) and
+sets nine shots along a stretch of river: a wide establishing shot, a drone flight down the river,
+then, in an order the seed picks, a medium on the far bank, a close on the waterline (85 mm), a low
+angle among the blades (12 mm, rolled), a look straight down that turns as it rises, a glide over
+the meadow (50 mm), a long lens across the water (135 mm), and a crane up and away to end. About
+55 seconds. The same seed gives the same trailer on the same stage; on another stage it follows
+that stage's river.
+
+## Keeping cameras, and playing them back
+
+A composed or hand-set timeline is kept as a file and played back later by name:
+
+    await __timeline.keep('first-look')      // in the timeline view: writes cine/timelines/first-look.json
+    /timeline.html?tl=first-look             // plays it back
+
+(or `POST /cine/keep?name=…` with the clips as JSON; the dev server writes the file). A kept
+timeline holds fixed places, so it frames the very same shots on every stage: that is the one to
+cut a before/after from.
 
 ## Shooting an earlier stage
 
     bash game/cine/at.sh <commit> [port]
 
 checks that commit's `game/` out beside the repository (never in the tree being worked in), lays
-today's `cine/` over it, and serves it (port 5174 unless told). The commits are in `game/DEVLOG.md`.
-The same `?shot=…&play&rec` address on two ports gives the same move over two stages, to cut between.
+today's `cine/` and `timeline.html` over it, and serves it (port 5174 unless told). The commits are
+in `game/DEVLOG.md`. The camera needs nothing of the game but `window.__s8.camera`, and the trailer
+only `src/world.js`, so both work on every commit since the first.
 
 ## What it does not do yet
 
-No depth of field, no motion blur, and stills are no larger than the window. The land's levels of
+No depth of field, no motion blur; stills are no larger than the window. The land's levels of
 detail follow distance, not the lens: at 85 mm and longer, far grass shows its coarse blades.
+`still()` and `record()` are written and not yet tried.
