@@ -508,7 +508,7 @@ _Samuel's decision._
 
 - **Asked:** a top header, uppercase and centred: "This is the story of", over the title.
   Remove "One story a day." The "Travel to Maia City" button below the video.
-- **Delivered:** "THIS IS THE STORY OF" over the title; under it "Day 2 of 5,423."; the
+- **Delivered:** "THIS IS THE STORY OF HOW" over the title (Samuel added "how" after the first look); under it "Day 2 of 5,423."; the
   button stands centred between the film and the calendar.
 - **Good:** seen in the pane at 1440.
 - **Broke / not there yet:** phone width and Safari not seen.
@@ -535,3 +535,4 @@ _Samuel's decision._
 | 2026-11-11 | `72e693d` | The count named citizens; day 1 with one citizen |
 | 2026-11-11 | `09ed3e2` | The day line without "This is" |
 | 2026-11-11 | `626e39c` | The eyebrow over the title, the button under the film |
+| 2026-11-11 | `d89a00c` | The eyebrow reads "This is the story of how" |
