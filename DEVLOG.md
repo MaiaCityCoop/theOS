@@ -308,3 +308,35 @@ over dark depths, small white flowers, haze and sky behind.
   in a visible band.
 - Safari's frame rate after this change is unread; the pane (18–20 fps with Safari drawing the
   same page) says nothing.
+
+---
+
+## 12 · The wide shots · 2026-11-11 · `4f898431c`
+
+**Asked.** (With a Safari screenshot of the final crane shot: 60 fps, ratio 0.75.) The close-up
+is good enough now. The big flight / top / total shots still look unrealistic, and the grass is
+overall a bit too green: slightly less saturation. Also: is only what the camera sees rendered,
+and how could levels of detail be configured per asset and biome?
+
+**Delivered.**
+- Air: a light haze takes the far land into the sky's colour, so the horizon melts instead of
+  ending in a hard line. (Haze was one of the things held back at the start; the wide shots
+  could not be fixed without it.)
+- Relief: ground standing high over the valley floor is lit, hollows sit in shade, and far
+  slopes facing the sun are lit harder.
+- Colour: the grass's green is darker and a fifth less saturated; the far carpet less bright.
+- The far river carries the sky and a broad glint instead of flat grey.
+- The noise texture's tile no longer shows as a repeat across the land (two sizes that never
+  line up; turned samples).
+- The pixel ratio never goes under 1: at 0.75 the picture only blurred, and the cost that had
+  pushed it there (blades) is not in pixels.
+
+**Good.** Same crane frame, before and after: from neon green ending at a line to a muted land
+receding into air.
+
+**Broke / not there yet.**
+- The first haze was darker than the sky: it was mixed before tone mapping while the sky is
+  drawn without it. The haze colour is now the one that comes out of tone mapping as the sky.
+- A thin darker line still sits right on the horizon; its cause is not found.
+- From high up the land is still one texture: no shadows of clouds, no trees or bushes to give
+  scale, which is what such shots live on.
