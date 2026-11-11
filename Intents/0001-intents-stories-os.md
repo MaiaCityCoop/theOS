@@ -843,6 +843,24 @@ _Samuel's decision._
   studio from the film for certain: the film alone at
   `localhost:5174/timeline.html?story=0001-intents-stories-os&embed`.
 
+### 2026-11-11, fortieth round
+
+- **Asked:** pull the tent out into its own file, to start an asset library; and a "Library"
+  tile on the dashboard with its own small viewer showing every asset, with a list on the left
+  to choose one.
+- **Delivered:** `TheGame/assets/`: the library. `tent.js` is the tent alone, as data (id,
+  name, kind, what it is, size in metres, colours, faces), knowing nothing of the world;
+  `index.js` lists the assets and builds any of them into a mesh with the one lit material
+  they share, and stands it at a place. `src/world/places.js` names each place's asset, and the
+  game stands every place's asset from the library; `src/scatter/tent.js` is gone. The viewer
+  `TheGame/library.html`: the list on the left (each with a small picture), the chosen asset
+  turning on a round of grass (drag to turn, wheel to come closer), and what it is (kind, size,
+  faces, colours, its file). The dashboard has a Library tile beside Lenses.
+- **Good:** seen in the pane at 1440: the viewer with the tent and its card, the tent standing
+  in the world (found in the scene by name), the Library tile on the dashboard.
+- **Broke / not there yet:** the library has one asset. The viewer lights things with its own
+  simple light, not the world's.
+
 ## Trail
 
 | When | Commit | What |

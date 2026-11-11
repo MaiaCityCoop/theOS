@@ -45,7 +45,7 @@ addEventListener('hashchange', () => tab(location.hash.slice(1) || 'home'));
 document.querySelector('header.site .mark').onclick = (e) => { e.preventDefault(); tab('home'); };
 
 // ---- the game, framed: to walk, or to look through the lenses ----
-const VIEWS = { walk: ['Walk the world', '/?in=os'], lenses: ['Lenses', '/lenses.html?in=os'] };
+const VIEWS = { walk: ['Walk the world', '/?in=os'], lenses: ['Lenses', '/lenses.html?in=os'], library: ['Library', '/library.html?in=os'] };
 function game(view, show = true) {
   gameView = view;
   $('gamebar').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button class="${k === view ? 'on' : ''}" data-v="${k}">${v[0]}</button>`).join('') + `<span class="label">${GAME.replace('http://', '')}</span>`;
@@ -271,8 +271,9 @@ function city() {
   $('citysub').textContent = today ? `Day ${n(today.day)} of ${n(DAYS)} · ${today.inGame != null ? cit(today.inGame) : '–'}` : '';
   $('tiles').innerHTML = `<button class="tile big" data-go="game">${today ? pic(today, home.joined(today)) : ''}<span class="label">The Game</span><h2>Walk the world</h2><p>The meadow, the river and the first tent, live. Or look at it through the lenses.</p><div class="foot"><b>${today?.inGame != null ? n(today.inGame) : '–'}</b> citizens<span class="go"></span></div></button>
     <button class="tile" data-go="stories"><span class="label">Stories</span><h2>One a day</h2><p>${latest() ? 'Latest: ' + latest().title : 'None yet.'}</p><div class="foot"><b>${n(stories.length)}</b> of ${n(DAYS)}<span class="go"></span></div></button>`;
+  $('tiles').insertAdjacentHTML('beforeend', `<button class="tile" data-library><span class="label">Library</span><h2>Assets</h2><p>Every made thing that stands in the world, one file each. Turn them, read what they are.</p><div class="foot"><span class="go"></span></div></button>`);
   $('tiles').insertAdjacentHTML('beforeend', `<button class="tile wide dark" data-lenses><span class="label">Debug &amp; performance</span><h2>Lenses</h2><p>The world through nine film lenses, with the frame time, draw calls and triangles: where it runs smooth and where it does not.</p><div class="foot"><span class="go"></span></div></button>`);
-  $('tiles').querySelectorAll('.tile').forEach((t) => (t.onclick = () => (t.dataset.lenses !== undefined ? game('lenses') : tab(t.dataset.go))));
+  $('tiles').querySelectorAll('.tile').forEach((t) => (t.onclick = () => (t.dataset.lenses !== undefined ? game('lenses') : t.dataset.library !== undefined ? game('library') : tab(t.dataset.go))));
 }
 
 [intents, stories] = await Promise.all([get('/api/intents').then((r) => r.json()), get('/api/stories').then((r) => r.json()).catch(() => [])]);
