@@ -73,6 +73,7 @@ const fl = (a) => a.map((v) => v.toFixed(3)).join(', ');
 export const WORLD_GLSL = /* glsl */ `
 uniform vec3 uCam;
 uniform float uDy;
+uniform sampler2D tNoise;   // baked cloudy noise, four of them in rgba
 const float WATER_DROP = ${WATER_DROP.toFixed(3)};
 const float LAM[8] = float[8](${fl(OCT_LAM)});
 const float AMP[8] = float[8](${fl(OCT_AMP)});
@@ -148,11 +149,12 @@ float outcropMask(vec2 p){ return smoothstep(0.60, 0.72, vnoise(p * (1.0 / 230.0
 // rgb: the grass's colour here; a: how dry
 vec4 grassTintAB(float a, float b, float arid);
 vec4 grassTint(vec2 p, float arid){
-  return grassTintAB(vnoise(p * (1.0 / 37.0), 80u), vnoise(p * (1.0 / 11.0) + 9.1, 81u), arid);
+  vec2 pr = vec2(0.6 * p.x - 0.8 * p.y, 0.8 * p.x + 0.6 * p.y);
+  return grassTintAB(textureLod(tNoise, p * (1.0 / 150.0), 0.0).r, textureLod(tNoise, pr * (1.0 / 45.0), 0.0).g, arid);
 }
 vec4 grassTintAB(float a, float b, float arid){
-  vec3 c = mix(vec3(0.050, 0.115, 0.022), vec3(0.135, 0.19, 0.04), smoothstep(0.3, 0.75, a * 0.7 + b * 0.3));
-  float dry = clamp(arid * 0.9 + smoothstep(0.55, 0.9, b * 0.6 + a * 0.4) * 0.4, 0.0, 1.0);
+  vec3 c = mix(vec3(0.050, 0.115, 0.022), vec3(0.105, 0.165, 0.036), smoothstep(0.1, 0.9, a * 0.65 + b * 0.35));
+  float dry = clamp(arid * 0.9 + smoothstep(0.6, 1.0, b * 0.6 + a * 0.4) * 0.28, 0.0, 1.0);
   return vec4(mix(c, vec3(0.36, 0.29, 0.12), dry), dry);
 }
 `;

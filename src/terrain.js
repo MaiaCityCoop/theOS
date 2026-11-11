@@ -75,18 +75,16 @@ void main(){
   float dist = length(vWorld - uCam);
   // every noise is let go before it is finer than a pixel: far away it would only shimmer
   float mx = dist < 140.0 ? mix(vnoise(p * (1.0 / 5.3), 90u), 0.5, smoothstep(50.0, 140.0, dist)) : 0.5;
-  float m1 = dist < 700.0 ? (vnoise(p * (1.0 / 23.0), 91u) - 0.5) * (1.0 - smoothstep(250.0, 700.0, dist)) : 0.0;
-  float m2 = dist < 5000.0 ? (vnoise(p * (1.0 / 170.0) + 2.3, 92u) - 0.5) * (1.0 - smoothstep(2000.0, 5000.0, dist)) : 0.0;
-  float m3 = vnoise(p * (1.0 / 1100.0) + 6.1, 93u) - 0.5;
-  float macro = 1.0 + 0.36 * m1 + 0.30 * m2 + 0.26 * m3;
+  // the land's colour variation is read from the baked cloudy noise: no grid in it, and its mips let it go by themselves
+  vec2 pr = vec2(0.6 * p.x - 0.8 * p.y, 0.8 * p.x + 0.6 * p.y);
+  float m1 = texture(tNoise, p * (1.0 / 90.0) + 0.37).b - 0.5, m2 = texture(tNoise, pr * (1.0 / 700.0)).a - 0.5, m3 = texture(tNoise, p * (1.0 / 4500.0) + 0.11).r - 0.5;
+  float macro = 1.0 + 0.16 * m1 + 0.20 * m2 + 0.18 * m3;
   // what grows here is worked out per pixel (per vertex it went blocky far away), each noise again let go in time
   float vArid = smoothstep(0.50, 0.66, vnoise(p * (1.0 / 700.0), 50u) + 0.3 * (vnoise(p * (1.0 / 150.0), 51u) - 0.5) * (1.0 - smoothstep(3000.0, 8000.0, dist)));
-  float ta = dist < 2500.0 ? mix(vnoise(p * (1.0 / 37.0), 80u), 0.5, smoothstep(900.0, 2500.0, dist)) : 0.5;
-  float tb = dist < 600.0 ? mix(vnoise(p * (1.0 / 11.0) + 9.1, 81u), 0.5, smoothstep(250.0, 600.0, dist)) : 0.5;
+  float ta = texture(tNoise, p * (1.0 / 150.0)).r, tb = texture(tNoise, pr * (1.0 / 45.0)).g;
   vec4 vTint = grassTintAB(ta, tb, vArid);
   float vTuft = vArid > 0.003 && dist < 900.0 ? mix(tuftMask(p), 0.5, smoothstep(350.0, 900.0, dist)) : 0.5;
   // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up
-  vec2 pr = vec2(0.6 * p.x - 0.8 * p.y, 0.8 * p.x + 0.6 * p.y);
   vec4 g1 = texture(tA6, p / 1.6), g2 = texture(tA6, pr / 9.6), g3 = texture(tA6, p / 44.0);
   vec4 gn1 = texture(tN6, p / 1.6), gn2 = texture(tN6, pr / 9.6);
   float gk = smoothstep(25.0, 110.0, dist), gk2 = smoothstep(300.0, 1400.0, dist);
@@ -112,7 +110,7 @@ void main(){
   // the grass's own colour over the floor, more of it the farther away: where the blades end, nothing shows
   float cover = (1.0 - bare) * mix(1.0, 0.45 * vTuft, vArid);
   float cv = cover * (0.3 + 0.7 * smoothstep(4.0, 60.0, dist));
-  m.c = mix(m.c, vTint.rgb * (0.35 + 1.3 * glum), cv); m.n = mix(m.n, gnrm * 1.4, cv); m.h = mix(m.h, glum, cv);
+  m.c = mix(m.c, vTint.rgb * (0.25 + 1.5 * glum), cv); m.n = mix(m.n, gnrm * 1.4, cv); m.h = mix(m.h, glum, cv);
   if (path > 0.003) m = hblend(m, dirt, path);
   if (bank > 0.003) { if (!haveSand) sand = smp(tA2, tN2, p, dx, dy, 2.0, 3.2, mx); m = hblend(m, sand, bank); }
   float steep = smoothstep(0.80, 0.68, vN.y);

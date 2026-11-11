@@ -35,6 +35,7 @@ const U = {
 };
 
 const tex = bakeTextures(renderer);
+U.tNoise = { value: tex.a[7] };
 const ground = createGround(renderer, U);
 const terrain = createTerrain(scene, U, tex);
 const grass = createGrass(scene, U);

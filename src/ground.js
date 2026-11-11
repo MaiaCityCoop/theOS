@@ -41,7 +41,7 @@ export function createGround(renderer, U) {
   const rtB = new THREE.WebGLRenderTarget(N, N, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false });
   U.uGO = { value: new THREE.Vector2(1e9, 1e9) }; U.tGA = { value: rtA.texture }; U.tGB = { value: rtB.texture };
   const vs = `void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }`;
-  const mk = (def) => new THREE.ShaderMaterial({ vertexShader: vs, fragmentShader: def + FRAG, uniforms: { uCam: U.uCam, uDy: U.uDy, uGO: U.uGO }, depthTest: false, depthWrite: false });
+  const mk = (def) => new THREE.ShaderMaterial({ vertexShader: vs, fragmentShader: def + FRAG, uniforms: { uCam: U.uCam, uDy: U.uDy, uGO: U.uGO, tNoise: U.tNoise }, depthTest: false, depthWrite: false });
   const mA = mk(''), mB = mk('#define TINT\n');
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mA), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   quad.frustumCulled = false;

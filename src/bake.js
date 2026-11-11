@@ -109,6 +109,10 @@ void mat(vec2 uv, out float h, out vec3 col, out float rough){
   h = clamp(0.12 + 0.5 * top + 0.5 * under + 0.45 * (clump - 0.5), 0.0, 1.0);
   col = vec3(0.12 + 0.62 * h) * mix(vec3(1.0, 1.0, 0.82), vec3(0.86, 1.0, 0.9), tone);
   rough = 0.9;
+#elif MAT == 7 // four cloudy noises (rgb and a), many octaves each: the land's colour variation, with no grid to see
+  vec3 n = vec3(pfbm(uv, 4.0, 31u, 7), pfbm(uv + 0.31, 4.0, 41u, 7), pfbm(uv + 0.67, 4.0, 51u, 7));
+  n = smoothstep(0.3, 0.7, n);
+  col = n * n; h = smoothstep(0.3, 0.7, pfbm(uv + 0.13, 4.0, 61u, 7)); rough = 1.0;
 #else // water: ripples (the albedo pass keeps foam in rgb)
   float n1 = pfbm(uv, 5.0, 1u, 4), n2 = pfbm(uv + 0.37, 11.0, 2u, 3);
   h = n1 * 0.6 + (1.0 - abs(2.0 * n2 - 1.0)) * 0.4;
@@ -120,7 +124,7 @@ void mat(vec2 uv, out float h, out vec3 col, out float rough){
 }
 `;
 
-const BUMP = [0.014, 0.014, 0.007, 0.016, 0.035, 0.02, 0.02];
+const BUMP = [0.014, 0.014, 0.007, 0.016, 0.035, 0.02, 0.02, 0.02];
 
 function program(mat, normalPass) {
   return new THREE.ShaderMaterial({
@@ -148,7 +152,7 @@ export function bakeTextures(renderer) {
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
   quad.frustumCulled = false;
   const out = { a: [], n: [] };
-  for (let m = 0; m < 7; m++) for (const pass of ['a', 'n']) {
+  for (let m = 0; m < 8; m++) for (const pass of ['a', 'n']) {
     const rt = new THREE.WebGLRenderTarget(SIZE, SIZE, {
       depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter,
       wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, anisotropy: aniso, colorSpace: THREE.NoColorSpace,
