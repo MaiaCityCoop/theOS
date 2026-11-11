@@ -476,6 +476,15 @@ _Samuel's decision._
   through the shots for about three seconds when a story opens. Dragging the playhead was not
   tried; phone width and Safari not seen.
 
+### 2026-11-11, fourteenth round
+
+- **Asked:** "First in game, then in real. In 16 years." as its own sub line, styled as its own
+  section.
+- **Delivered:** the title ends at "…build their own solarpunk city."; under it the line stands
+  in its own pill, "In 16 years." in clay; then the day line and the button.
+- **Good:** seen in the pane at 1440.
+- **Broke / not there yet:** phone width and Safari not seen.
+
 ## Trail
 
 | When | Commit | What |

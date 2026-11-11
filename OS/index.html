@@ -49,9 +49,11 @@
      (today large, the next days after it, the far ones small). Pointing at a day that is told
      brings that day's story into the window. ---- */
   .hero{min-height:calc(100vh - 76px - 120px);display:grid;place-items:center;text-align:center;padding:clamp(36px,7vh,90px) clamp(20px,4vw,60px) clamp(40px,8vh,100px)}
-  .hero h1{font:420 clamp(38px,6.2vw,96px)/1.01 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.035em;margin:0 auto 26px;max-width:15.5em;text-wrap:balance}
+  .hero h1{font:420 clamp(38px,6.2vw,96px)/1.01 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.035em;margin:0 auto 26px;max-width:13em;text-wrap:balance}
   .hero h1 b{font-weight:560;color:var(--clay);font-variant-numeric:tabular-nums}
   .hero h1 span{white-space:nowrap}
+  .hero .sub{font:500 clamp(18px,1.9vw,26px)/1.2 var(--sans);letter-spacing:.01em;color:var(--forest);margin:-6px 0 22px;display:inline-flex;gap:.4em;align-items:center;padding:12px 24px;border-radius:999px;background:var(--sand)}
+  .hero .sub b{font-weight:600;color:var(--clay)}
   .msg{font:380 italic clamp(21px,2.3vw,34px)/1.2 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.012em;color:var(--forest2);margin:0 0 38px}
   .msg b{font-style:normal;font-weight:520;color:var(--clay)}
   .acts{display:flex;justify-content:center}
@@ -203,7 +205,8 @@
 <nav class="admin" id="adminnav"><button data-tab="city">Maia City</button><button data-tab="intents">Intents</button><button data-tab="stories">Stories</button><button data-tab="game">The Game</button></nav>
 <main id="home" class="on">
   <section class="hero"><div>
-    <h1><b id="h-in">–</b> of <span>1,346,269</span> humans build their own solarpunk city. First in game, then in real. In 16 years.</h1>
+    <h1><b id="h-in">–</b> of <span>1,346,269</span> humans build their own solarpunk city.</h1>
+    <p class="sub">First in game, then in real. <b>In 16 years.</b></p>
     <p class="msg"><b>This is day <span id="h-day">–</span></b> of 5,423. One story a day.</p>
     <div class="acts"><button class="btn go" id="travel">Travel to Maia City now<i></i></button></div>
   </div></section>
