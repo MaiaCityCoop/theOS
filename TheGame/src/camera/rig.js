@@ -4,7 +4,7 @@
 // height is in camera/rig.js; here only the mechanics. Walls, rocks and the ground stop it (src/world/solids.js).
 import RIG from '../../camera/rig.js';
 import { heightAt } from '../world.js';
-import { step, ceilingAt, clear } from '../world/solids.js';
+import { step, ceilingAt, clear, within } from '../world/solids.js';
 
 const L0 = Math.log(RIG.eye), L1 = Math.log(RIG.top);
 const ease = (t) => t * t * (3 - 2 * t);
@@ -14,22 +14,51 @@ export function at(h) {
   while (i < K.length - 2 && L > Math.log(K[i + 1].h)) i++;
   const a = K[i], b = K[i + 1], t = ease(Math.min(1, Math.max(0, (L - Math.log(a.h)) / (Math.log(b.h) - Math.log(a.h)))));
   const mix = (k) => a[k] + (b[k] - a[k]) * t;
-  return { band: t < 0.5 ? a.band : b.band, pitch: a.pitch === null ? (b.pitch ?? 0) : mix('pitch'), free: a.pitch === null ? 1 - t : 0, fov: mix('fov'), speed: mix('speed'), run: mix('run'), orbit: mix('orbit') };
+  return { band: t < 0.5 ? a.band : b.band, lock: t < 0.5 ? a.lock : b.lock, pitch: a.pitch === null ? (b.pitch ?? 0) : mix('pitch'), free: a.pitch === null ? 1 - t : 0, fov: mix('fov'), speed: mix('speed'), run: mix('run'), orbit: mix('orbit') };
 }
 
-export function createControls(camera, canvas, msg) {
+/** Where the camera stands and looks for a point on the ground, a heading, a height and (at eye level) a look up or
+    down: the rig's one pose, for the game, the films and the library alike. { pos, pitch, yaw, fov } */
+export function poseAt(x, z, yaw, h, look = 0) {
+  const v = at(h), pitch = v.pitch * (1 - v.free) + look * v.free;
+  const back = v.orbit * Math.max(0, h - RIG.eye) / Math.tan(Math.max(0.05, -pitch || 0.05));
+  const cx = x + Math.sin(yaw) * back, cz = z + Math.cos(yaw) * back;
+  return { pos: [cx, Math.max(heightAt(x, z) + h, heightAt(cx, cz) + 0.5), cz], pitch, yaw, fov: v.fov, back, v };
+}
+
+/** A film's shot by the rig (intent 0003): { at: [x, z], height, yaw, look?, mm? } as the pose cine takes. */
+export function shotAt({ at: [x, z], height, yaw = 0, look = 0, mm = 35 }) {
+  const p = poseAt(x, z, yaw, height, look), c = Math.cos(p.pitch);
+  return { pos: p.pos, look: [p.pos[0] - Math.sin(p.yaw) * c * 50, p.pos[1] + Math.sin(p.pitch) * 50, p.pos[2] - Math.cos(p.yaw) * c * 50], mm };
+}
+/** The rig's height for a distance from its point: the library holds the rig over its stage at a distance. */
+export function heightFor(x, z, yaw, dist) {
+  let lo = Math.log(RIG.eye), hi = Math.log(RIG.top * 3);
+  for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2, p = poseAt(x, z, yaw, Math.exp(m)), d = Math.hypot(p.pos[0] - x, p.pos[1] - heightAt(x, z), p.pos[2] - z); if (d < dist) lo = m; else hi = m; }
+  return Math.exp((lo + hi) / 2);
+}
+
+/** The camera's height as words and a scale bar: '40 m · town', and how many metres a bar of px pixels spans. */
+export function scaleAt(camera, x, z, px = 48) {
+  const d = camera.position.distanceTo({ x, y: heightAt(x, z), z }), mPerPx = (2 * d * Math.tan((camera.fov * Math.PI) / 360)) / innerHeight;
+  const raw = mPerPx * px, p10 = 10 ** Math.floor(Math.log10(raw)), nice = [1, 2, 5, 10].map((k) => k * p10).find((k) => k >= raw * 0.75) || 10 * p10;
+  return { metres: nice, px: nice / mPerPx };
+}
+const fmt = (m) => (m >= 1000 ? `${+(m / 1000).toFixed(m >= 10000 ? 0 : 1)} km` : m >= 10 ? `${Math.round(m)} m` : `${+m.toFixed(1)} m`);
+
+export function createControls(camera, canvas, msg, stat) {
   const keys = new Set();
   let yaw = 0, look = -0.08, L = L0, locked = false, drag = false;
   const pivot = { x: 0, z: 0 };
-  const hints = { eye: 'Click to look · WASD · Shift runs · scroll out to rise', street: 'Drag to turn · WASD · scroll in to walk, out to rise', town: 'Drag to turn · WASD moves · Q E turn · scroll in and out', skyline: 'Drag to turn · WASD moves · scroll in to come down' };
+  const hints = { eye: 'Click to look · WASD · Shift runs · scroll out to rise', street: 'Click to look · WASD · scroll in to walk, out to rise', town: 'Drag to turn · WASD moves · Q E turn · scroll in and out', skyline: 'Drag to turn · WASD moves · scroll in to come down' };
   let band = 'eye'; msg.textContent = hints.eye;
   addEventListener('keydown', (e) => { keys.add(e.code); if (e.code === 'Space') e.preventDefault(); });
   addEventListener('keyup', (e) => keys.delete(e.code));
   addEventListener('blur', () => keys.clear());
-  canvas.addEventListener('mousedown', () => {
-    drag = true;
-    if (!locked && band === 'eye') { try { const r = canvas.requestPointerLock?.(); r?.catch?.(() => {}); } catch {} }   // pointer lock only at eye level
-  });
+  let lockHere = true;
+  const take = () => { if (!locked && lockHere) { try { const r = canvas.requestPointerLock?.(); r?.catch?.(() => {}); } catch {} } };   // only in a band that holds the mouse (camera/rig.js: lock)
+  canvas.addEventListener('mousedown', () => { drag = true; take(); });
+  addEventListener('keydown', (e) => { if (/^(Key[WASDQE]|Arrow)/.test(e.code)) take(); });   // coming back down, a click or a key takes it again (a scroll cannot: the browser asks for a click or a key)
   addEventListener('mouseup', () => { drag = false; });
   document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; msg.textContent = locked ? '' : hints[band]; });
   document.addEventListener('mousemove', (e) => {
@@ -39,10 +68,9 @@ export function createControls(camera, canvas, msg) {
   canvas.addEventListener('wheel', (e) => {   // the one zoom: the height, from the eyes to the city
     e.preventDefault();
     L = Math.max(L0, Math.min(L1, L + e.deltaY * RIG.wheel * (e.deltaMode ? 30 : 1)));
-    if (L > L0 + 0.05 && locked) document.exitPointerLock?.();
   }, { passive: false });
   camera.rotation.order = 'YXZ';
-  let eyeY = null;
+  let eyeY = null, hPrev = RIG.eye, fromAbove = false, shown = '';
   return {
     get fly() { return band !== 'eye'; },
     get band() { return band; },
@@ -51,7 +79,15 @@ export function createControls(camera, canvas, msg) {
     place(x, z, facing) { pivot.x = x; pivot.z = z; yaw = facing; L = L0; eyeY = null; },
     update(dt) {
       const h = Math.exp(L), v = at(h);
+      // into things by their doors: coming down from above into something's walls lands before its door, facing in;
+      // rising from inside something that is left by its door goes out of the door first (its walls: src/world/solids.js)
+      if (h > 6) fromAbove = true;
+      if (h < 3 && hPrev >= 3 && fromAbove) { const w = within(pivot.x, pivot.z); if (w) { pivot.x = w.door.x; pivot.z = w.door.z; yaw = w.door.yaw; look = -0.05; } fromAbove = false; }
+      if (h >= 2 && hPrev < 2) { const w = within(pivot.x, pivot.z); if (w?.leave === 'door') { pivot.x = w.door.x; pivot.z = w.door.z; } }
+      if (h < 2) fromAbove = false;
+      hPrev = h;
       if (v.band !== band) { band = v.band; if (!locked) msg.textContent = hints[band] || ''; }
+      if (v.lock !== lockHere) { lockHere = v.lock; if (!lockHere && locked) document.exitPointerLock?.(); }   // up in town the mouse is free again
       // move the point on the ground: by the keys, at this height's speed; on foot (low), walls and things stop it
       const f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
       const s = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
@@ -64,12 +100,16 @@ export function createControls(camera, canvas, msg) {
       const pitch = v.pitch * (1 - v.free) + look * v.free;
       const back = v.orbit * Math.max(0, h - RIG.eye) / Math.tan(Math.max(0.05, -pitch || 0.05));
       let cx = pivot.x + sy * back, cz = pivot.z + cy * back;
-      if (back > 0.01) { const t = clear(pivot.x, pivot.z, cx, cz); cx = pivot.x + (cx - pivot.x) * t; cz = pivot.z + (cz - pivot.z) * t; }   // a wall between: come in front of it
+      if (back > 0.01 && h < 60) { const t = clear(pivot.x, pivot.z, cx, cz); cx = pivot.x + (cx - pivot.x) * t; cz = pivot.z + (cz - pivot.z) * t; }   // a wall between: come in front of it
       const y = Math.max(g + Math.min(h, stoop) + Math.max(0, h - RIG.eye), heightAt(cx, cz) + 0.5);   // never under the ground
       eyeY = eyeY === null || h > 2 ? y : eyeY + (y - eyeY) * Math.min(1, dt * 14);   // at eye level the eyes follow the ground, eased
       camera.position.set(cx, eyeY, cz);
       camera.rotation.set(pitch, yaw, 0);
       if (Math.abs(camera.fov - v.fov) > 1e-3) { camera.fov = v.fov; camera.updateProjectionMatrix(); }
+      if (stat) {   // the stat pill at the top: the height, its band, a scale bar
+        const sc = scaleAt(camera, pivot.x, pivot.z), txt = `${fmt(h)} · ${band}|${fmt(sc.metres)}|${Math.round(sc.px)}`;
+        if (txt !== shown) { shown = txt; stat.innerHTML = `<b>${fmt(h)}</b><span>${band}</span><i style="width:${Math.round(sc.px)}px"></i><span>${fmt(sc.metres)}</span>`; }
+      }
     },
   };
 }

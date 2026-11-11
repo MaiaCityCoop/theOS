@@ -67,6 +67,7 @@ import * as THREE from 'three';
 import { ASSETS, geometryOf, materialFor, place, scatterRow } from './assets/index.js';
 import { rockSample } from './src/scatter/rocks.js';
 import { detailOf, spanOf, distanceAt } from './src/detail/index.js';
+import { poseAt, heightFor } from './src/camera/rig.js';
 import { STAGE } from './src/world/places.js';
 import { heightAt } from './src/world.js';
 import { MATERIALS, MATERIAL } from './materials/index.js';
@@ -230,7 +231,8 @@ function frame() {
   requestAnimationFrame(frame);
   if (spin) yaw += 0.0025;
   const ty = ground0 + H * 0.45, c = Math.cos(pitch);
-  cine.take({ pos: [STAGE.x + Math.sin(yaw) * c * dist, ty + Math.sin(pitch) * dist, STAGE.z + Math.cos(yaw) * c * dist], look: [STAGE.x, ty, STAGE.z], mm: 35 });
+  const p = poseAt(STAGE.x, STAGE.z, yaw, heightFor(STAGE.x, STAGE.z, yaw, dist));   // the game's one camera, held over the stage at this distance (intent 0003)
+  cine.take({ pos: p.pos, look: [STAGE.x, ty, STAGE.z], mm: 35 });
 }
 // the sections: the switch over the list, the grid to start from
 const SECTIONS = [

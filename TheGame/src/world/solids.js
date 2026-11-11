@@ -1,6 +1,7 @@
 // What the walker cannot walk through: every placed asset's `solid` (assets/index.js), stood where the asset
 // stands. One rule for all of them: walls are rounds with gaps (a door), posts are rounds, boxes are boxes, and
 // `ceiling` says how high the room overhead is, so the walker stoops under a low roof.
+import { rocksNear } from './rocksolid.js';
 const BODY = 0.3;   // how wide the walker is, from the middle: a step keeps this far off anything
 const list = [];
 
@@ -11,6 +12,20 @@ export function addSolid(solid, at) {
 // into a solid's frame and out (three's turn about y: x' = x c + z s, z' = -x s + z c)
 const toL = (o, x, z) => { const dx = x - o.x, dz = z - o.z; return [dx * o.c - dz * o.n, dx * o.n + dz * o.c]; };
 const toW = (o, u, v) => [o.x + u * o.c + v * o.n, o.z - u * o.n + v * o.c];
+
+/** The placed thing whose walls (x, z) is inside, with the way in: { door: { x, z, yaw }, leave } (null outside all).
+    door: a spot 2.5 m outside its first door, facing in; leave: 'roof' (rise through it) or 'door' (out by the door first). */
+export function within(x, z) {
+  for (const o of list) {
+    const [u, v] = toL(o, x, z);
+    for (const w of o.s.walls || []) {
+      if (Math.hypot(u, v) >= w.round || !(w.gaps || []).length) continue;
+      const m = w.gaps[0][0], [dx, dz] = toW(o, Math.cos(m) * (w.round + 2.5), Math.sin(m) * (w.round + 2.5));
+      return { door: { x: dx, z: dz, yaw: Math.atan2(dx - o.x, dz - o.z) }, leave: o.s.leave || 'roof' };   // facing the middle: forward is (-sin yaw, -cos yaw)
+    }
+  }
+  return null;
+}
 
 /** A line of sight from (x0, z0) to (x1, z1): the share of it (0 to 1) clear before a solid stops it; doors let it through. */
 export function clear(x0, z0, x1, z1) {
@@ -50,6 +65,10 @@ export function step(px, pz, x, z) {
       }
     }
     [x, z] = toW(o, u, v);
+  }
+  for (const r of rocksNear(x, z, 1.5)) {   // the scattered rocks, as the card places them (src/world/rocksolid.js)
+    const du = x - r.x, dv = z - r.z, d = Math.hypot(du, dv), m = r.r + BODY;
+    if (d < m) { const k = m / Math.max(d, 1e-6); x = r.x + du * k; z = r.z + dv * k; }
   }
   return [x, z];
 }

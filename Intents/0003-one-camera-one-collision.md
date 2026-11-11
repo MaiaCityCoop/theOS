@@ -106,6 +106,37 @@ Samuel approved the definition on 2026-11-11 ("Approve, start it").
   1, 3, 6 and 7 are not run. Near the tent's wall the eyes, at 1.7 m, can rise above the sloping roof (as before; the
   tent's ceiling only lowers them where it says).
 
+**Second slice** (asked: a small stat in the top centre, the pointer held again, finish what was not working):
+
+- The stat pill: top centre, small and compact, the height, its band and a scale bar (`#stat`, `.os-stat` in the
+  brand file); more stats join it later. The hint moved under it.
+- The pointer: held at eye level and in the follow view (street), free in town and skyline, to point and pick (asked:
+  "pointer lock on for POV and follow cam"); `lock` per band in `camera/rig.js`. Coming down, the next click or key
+  takes it again: a browser does not let a scroll take it.
+- Rocks are bodies: `src/world/rocksolid.js` works the cards' placement hash out again on the CPU for the cells round
+  a point, so the walker and the camera are stopped by the rocks they see, no list kept. Stones lower than 0.3 m are
+  stepped over. Paths, which only the graphics card knows, are counted as none, so a rock may now and then stand in a
+  path for the walker that is not drawn there.
+- Into things: coming down from above into a thing's walls lands 2.5 m before its door, facing in; a thing that says
+  `leave: 'door'` is left by its door when rising; the tent says nothing and is left through its roof.
+- One pose for all: `poseAt` and `shotAt` in `src/camera/rig.js`. Films may give a shot as the rig's (`{ at, height,
+  yaw }`) and `cine` turns it into its pose; the library holds the rig over its stage at the distance it wants
+  (`heightFor`). Existing film shots, given as free poses, are taken as before.
+
+**Checks, run on the second slice** (2026-11-12, 1400×800 in the browser pane):
+
+- 1 (one continuous zoom): the pose from 4 km to eye level in 2000 steps; no value (x, y, z, tilt, lens, speed)
+  stepped more than 3× its neighbours' median: 0 jumps each.
+- 2 (into a tent): walked in through the door to the pole and stopped by the walls (first slice); landing: from 200 m
+  over the tent's middle, down to eye level, the camera stood 4.95 m from the middle, before the door, as meant.
+- 3 (never inside things): 200 random places within 40 m of the tent at random heights from 1.7 to 300 m: 0 ended
+  under the ground, inside a rock or inside the tent from outside.
+- 6 (films unchanged): story 01 played through to its subtitles with no console errors; its shots are free poses,
+  taken as before. Stills not compared frame by frame.
+- 7 (frame time): 16.5 ms at 800 m and 16.7 ms at 4 km, but **45.5 ms at 40 m** (town, the meadow's grass and stones
+  seen wide and at a slant): failed; the far land's cost is intent 0002's (tiles, folding).
+- 4, 5 not run as written.
+
 ## Propose
 
 ## Story
@@ -118,10 +149,10 @@ Samuel approved the definition on 2026-11-11 ("Approve, start it").
 
 - [x] Samuel: approve or change the definition
 - [x] The rig and its bands as data
-- [ ] The controls per band; the walker as the eye band
-- [ ] Into and out of assets
-- [ ] `cine` and the library on the rig
-- [ ] Collision defaults by kind; steps and rays for placed and scattered assets
+- [x] The controls per band; the walker as the eye band
+- [x] Into and out of assets
+- [x] `cine` and the library on the rig
+- [x] Collision defaults by kind; steps and rays for placed and scattered assets
 - [ ] The library shows collision
 
 ## Changelog
@@ -145,6 +176,16 @@ Samuel approved the definition on 2026-11-11 ("Approve, start it").
   its walls and pole.
 - **Broke / not there yet:** rocks have no collision yet; no landing at doors, no roof exit; films and library not on
   the rig; above 4 km only haze until the land reaches further.
+
+### 2026-11-12, second slice
+
+- **Asked:** a small distance and scale stat at the top centre, for more stats later; the pointer held again; pointer
+  lock for eye and follow; finish what was not working.
+- **Delivered:** the stat pill, pointer lock per band, rocks as bodies, landing at doors and leaving by them, films and
+  the library on the rig; checks 1, 2, 3, 6 and 7 run.
+- **Good:** no jumps in the zoom; no camera inside anything in 200 tries; landing at the tent's door.
+- **Broke / not there yet:** the town band runs at 45 ms a frame on this Mac; the top stays 4 km; the library does not
+  show collision yet.
 
 ## Trail
 

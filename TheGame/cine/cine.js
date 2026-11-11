@@ -5,6 +5,7 @@
 // the build (cine/README.md).
 
 import { LENSES, ANAMORPHIC } from './lenses.js';
+import { shotAt } from '../src/camera/rig.js';   // a shot may be given as the rig's: a point, a height, a heading (intent 0003)
 
 const RAD = Math.PI / 180;
 const S = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, mm: 35, fmt: ANAMORPHIC, lens: 'A35', focus: 10 };   // radians inside
@@ -172,7 +173,7 @@ const api = (window.__cine = {
   distortion: 0.045,    // barrel at 28 mm, falling away with focal length; this glass is known for having very little
   dipColor: '#9fc2e6',  // what a 'dip' passes through: the sky
   /** Hold the camera at a view: { pos, look | yaw, pitch, roll, mm }. */
-  take(view) { ready(() => { lock(); playing = false; aim(view); apply(); }); },
+  take(view) { if (view?.height != null && view.at) view = { ...view, ...shotAt(view) }; ready(() => { lock(); playing = false; aim(view); apply(); }); },
   /** Give the camera back to the walker. */
   release() { ready(unlock); },
   /** Load a timeline of clips; the camera stands on its first frame. */

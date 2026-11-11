@@ -9,15 +9,16 @@
 //   fov     the lens: the picture's height in degrees
 //   speed   metres a second the keys move it; run: with Shift
 //   orbit   0: the camera is the walker's eyes; 1: it hangs back from a point on the ground it looks at
+//   lock    the mouse is held for looking (pointer lock) in this band; elsewhere it is a free pointer, to point and pick
 export default {
   eye: 1.7,            // the walker's eyes
   top: 4000,           // the highest it goes; 12000 (the city and the horizon) once the land reaches that far (intent 0002, stage 4): above 4 km there is only haze today
   wheel: 0.0016,       // how fast the wheel changes the height (its logarithm per wheel step)
   keys: [
-    { h: 1.7, band: 'eye', pitch: null, fov: 68, speed: 3.2, run: 9, orbit: 0 },
-    { h: 5, band: 'street', pitch: -0.32, fov: 64, speed: 7, run: 20, orbit: 1 },
-    { h: 40, band: 'town', pitch: -0.62, fov: 54, speed: 40, run: 120, orbit: 1 },
-    { h: 800, band: 'skyline', pitch: -0.9, fov: 44, speed: 500, run: 1500, orbit: 1 },
-    { h: 12000, band: 'skyline', pitch: -1.05, fov: 40, speed: 6000, run: 18000, orbit: 1 },
+    { h: 1.7, band: 'eye', pitch: null, fov: 68, speed: 3.2, run: 9, orbit: 0, lock: true },
+    { h: 5, band: 'street', pitch: -0.32, fov: 64, speed: 7, run: 20, orbit: 1, lock: true },
+    { h: 40, band: 'town', pitch: -0.62, fov: 54, speed: 40, run: 120, orbit: 1, lock: false },
+    { h: 800, band: 'skyline', pitch: -0.9, fov: 44, speed: 500, run: 1500, orbit: 1, lock: false },
+    { h: 12000, band: 'skyline', pitch: -1.05, fov: 40, speed: 6000, run: 18000, orbit: 1, lock: false },
   ],
 };
