@@ -323,3 +323,4 @@ _Samuel's decision._
 | 2026-11-11 | `8ada702` | Story 01 as a dialogue, the first tent, the film timeline redesigned, the headline, a fourth look |
 | 2026-11-11 | `1424393` | Four standalone brand sheets and their overview; the film bar's grid fixed |
 | 2026-11-11 | `997b522` | The four sheets removed; eight brand drafts as whole landing pages and their overview |
+| 2026-11-11 | `7ff3909` | Brand draft 09, Line: the reduced one (banner, the line of days, the devlog) |
