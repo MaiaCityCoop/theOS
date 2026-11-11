@@ -4,24 +4,24 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sandbox 8 · timeline</title>
+<link rel="icon" href="/brand/MaiaCity.svg">
 <link rel="stylesheet" href="/brand/brand.css">
 <style>
   html,body{margin:0;height:100%;background:#9fc2e6;overflow:hidden}
   canvas{display:block;width:100vw;height:100vh;pointer-events:none}
   #msg{display:none}
   #row{display:flex;align-items:center;gap:12px;margin-bottom:9px}
-  #info{white-space:pre;font:11px/1 var(--mono);color:var(--ink)}
+  #info{white-space:pre;font:700 12px/1 var(--round);color:var(--forest)}
+  body.framed #hud{display:none}
   #why{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
   #strip{position:relative;display:flex;gap:3px;height:44px;cursor:pointer;user-select:none}
-  .clip{min-width:0;border-radius:8px;padding:4px 8px;color:var(--ink);overflow:hidden;white-space:nowrap;opacity:.6;display:flex;flex-direction:column;justify-content:center;transition:opacity .2s}
+  .clip{min-width:0;border-radius:14px;padding:4px 9px;color:var(--ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.6);overflow:hidden;white-space:nowrap;opacity:.6;display:flex;flex-direction:column;justify-content:center;transition:opacity .2s}
   .clip.now{opacity:1;box-shadow:inset 0 0 0 1.5px var(--ink)}
-  .clip b{font:600 9.5px/1.5 var(--mono);letter-spacing:.07em;text-transform:uppercase}
+  .clip b{font:700 10px/1.5 var(--round);letter-spacing:.06em;text-transform:uppercase;color:var(--forest)}
   .clip span,.clip i{overflow:hidden;text-overflow:ellipsis;font-style:normal;font-size:10.5px;color:var(--muted)}
   .cue{position:absolute;bottom:-7px;height:3px;border-radius:2px;background:var(--green);opacity:.75;pointer-events:none}
   .cue.samuel{background:var(--amber)}.cue.title{background:var(--ink)}
-  #head{position:absolute;top:-4px;bottom:-4px;width:2px;border-radius:2px;background:var(--ink);pointer-events:none}
-  body.bar #cap:not(.title){bottom:124px}
-  body.embed #tl,body.embed #hud{display:none}
+  #head{position:absolute;top:-5px;bottom:-5px;width:3px;margin-left:-1px;border-radius:3px;background:var(--gold);box-shadow:0 0 0 2px rgba(255,251,245,.8);pointer-events:none}
 </style>
 </head>
 <body>
@@ -29,7 +29,7 @@
 <div id="hud">loading…</div>
 <div id="msg"></div>
 <div id="cap"></div>
-<div id="tl" class="os-bar glass">
+<div id="tl" class="os-bar top glass">
   <div id="row"><button id="play">▶</button><div id="info"></div><div id="why"></div></div>
   <div id="strip"><div id="head"></div></div>
 </div>

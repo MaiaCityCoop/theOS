@@ -16,7 +16,7 @@ export default {
       server.middlewares.use('/brand', (req, res) => {
         const f = resolve(server.config.root, '../brand', new URL(req.url, 'http://x').pathname.replace(/^\/+/, '').replace(/\.\./g, ''));
         if (!existsSync(f)) { res.statusCode = 404; res.end(''); return; }
-        res.setHeader('content-type', f.endsWith('.css') ? 'text/css' : 'application/octet-stream'); res.end(readFileSync(f));
+        res.setHeader('content-type', f.endsWith('.css') ? 'text/css' : f.endsWith('.svg') ? 'image/svg+xml' : 'application/octet-stream'); res.end(readFileSync(f));
       });
       // the stories of the intents, from ../Stories: /story/list, /story/<id>/timeline.json
       server.middlewares.use('/story', (req, res) => {
@@ -24,7 +24,7 @@ export default {
         res.setHeader('content-type', 'application/json');
         if (url === '/list') {
           let ids = [];
-          try { ids = readdirSync(dir).filter((d) => existsSync(resolve(dir, d, 'timeline.json'))).sort(); } catch {}
+          try { ids = readdirSync(dir).filter((d) => existsSync(resolve(dir, d, 'timeline.json'))).sort().map((d) => ({ id: d, title: JSON.parse(readFileSync(resolve(dir, d, 'timeline.json'), 'utf8')).title || d })); } catch {}
           res.end(JSON.stringify(ids)); return;
         }
         const m = url.match(/^\/([a-z0-9][a-z0-9-]*)\/timeline\.json$/);

@@ -78,7 +78,7 @@ It plays at `http://localhost:5173/timeline.html?story=NNNN-slug`, and from the 
 | --- | --- |
 | `Intents/` | the intents, `TEMPLATE.md` |
 | `Stories/` | a folder per proposed intent: `story.md`, `timeline.json` |
-| `brand/` | `brand.css`: the one look of every page (light, quiet, one green). New interface takes its colours and shapes from there |
+| `brand/` | `MaiaCity.svg`, the mark, and `brand.css`, the one look of every page, grown from the mark (cream, forest, gold; round heavy letters; soft shapes; liquid glass over the game). New interface takes its colours and shapes from there, never its own |
 | `TheGame/` | the world and the virtual camera |
 | `OS/` | the dashboard over the three: `bun run dev` at the repository's root starts it (port 5180) with the game (5173) |
 

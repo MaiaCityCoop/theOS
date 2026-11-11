@@ -20,7 +20,7 @@ export default {
       server.middlewares.use('/brand', (req, res) => {
         const f = resolve(server.config.root, '../brand', new URL(req.url, 'http://x').pathname.replace(/^\/+/, '').replace(/\.\./g, ''));
         if (!existsSync(f)) { res.statusCode = 404; res.end(''); return; }
-        res.setHeader('content-type', f.endsWith('.css') ? 'text/css' : 'application/octet-stream'); res.end(readFileSync(f));
+        res.setHeader('content-type', f.endsWith('.css') ? 'text/css' : f.endsWith('.svg') ? 'image/svg+xml' : 'application/octet-stream'); res.end(readFileSync(f));
       });
       server.middlewares.use('/api', (req, res) => {
         const url = decodeURIComponent(new URL(req.url, 'http://x').pathname);

@@ -142,6 +142,7 @@ _Samuel's decision._
 - [x] A brand (`brand/brand.css`), the dashboard's front page, the game's overlays in it
 - [x] The story retold by avenMAIA; captions as subtitles
 - [x] `TheStory/` renamed `Stories/`
+- [x] Samuel looked again: brand again from the mark, liquid glass, the Game tab's bug, the film with its story
 - [ ] Samuel: look again; accept or say what is wrong
 - [ ] Samuel: his opening to camera for story 01
 - [ ] Then: the Story section here
@@ -186,6 +187,36 @@ _Samuel's decision._
   subtitles only: nothing is spoken. Samuel's opening to camera and the series trailer do not
   exist. The game's menu lists a story by its folder name, not its title. Seen in the pane, not
   in Safari.
+
+### 2026-11-11, third round
+
+- **Asked:** (with two screenshots from Safari) the brand is boring: more sophisticated, more
+  iconic; then: start the brand again from scratch, it is still bad. Liquid-glass overlays on all
+  game pages. "Walk the world" is broken; Lenses and the story cannot be selected. A story's
+  timeline belongs with the story, at the top, not in the Game tab. Use the Maia City logo
+  (`MaiaCity.svg`), copied into the repository.
+- **Delivered:**
+  - The bug: the Game tab and the function that fills it called each other without end, so the
+    framed game never got an address. That is why the frame stayed empty and nothing in its bar
+    answered. Fixed; and only one framed game runs at a time now (front page, a story, or the
+    Game tab).
+  - A second bug found on the way: a comment appended to a one-line handler in the lens bench
+    swallowed its closing bracket; the lens page would not load. Fixed.
+  - Stories: a story's page opens with its film, played in a framed game with its timeline strip
+    at the top and its subtitles at the bottom; the telling is underneath. The Game tab holds only
+    Walk and Lenses.
+  - The brand, three takes. The first (paper, one green) was called boring. The second (a
+    surveyor's plan: serif, grid, mono labels) was called still bad. The third starts from the
+    mark itself, `brand/MaiaCity.svg`: its cream, forest green, gold, teal; round heavy letters;
+    big soft shapes; colour in calm fields; the headline's "green meadow" underlined in the sun's
+    gold. The mark sits in the header, the game's bar and the browser tab.
+  - Liquid glass on every game overlay: a pill bar at the top (where you are, where you can go),
+    the timeline under it, the lens bar at the bottom, the readout small in a corner.
+- **Good:** in the pane, Walk and Lenses load in the Game tab, the story plays at the top of its
+  page, and switching tabs leaves exactly one framed game running.
+- **Broke / not there yet:** the two bugs above reached Samuel because the dashboard's Game tab
+  was not clicked through after its rewrite. The third brand has been seen by me only, in the
+  pane; whether it is right is Samuel's eye. The game's own page title still says "Sandbox 8".
 
 ## Trail
 

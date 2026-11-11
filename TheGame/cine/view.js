@@ -6,8 +6,8 @@ const cine = window.__cine, q = new URLSearchParams(location.search);
 let seed = +(q.get('seed') || 1);
 const storyId = q.get('story');             // ?story=<id>: an intent's story, ../Stories/<id>/timeline.json: its camera and its captions
 let kept = storyId ? null : q.get('tl') || (q.has('seed') ? null : 'river-story'), keptClips = null, captions = [], story = null;   // ?tl=<name>: a kept timeline, cine/timelines/<name>.json, played as it was set
-const COL = { wide: '#d3e2f6', drone: '#f5e3bd', medium: '#d2ebd9', close: '#f6d5d1', 'low angle': '#e3d9f3', 'top down': '#cdeeea', glide: '#e2eac8', tele: '#f3d7e5', crane: '#e1e4e9' };
-document.body.classList.add(q.has('embed') ? 'embed' : 'bar');   // ?embed: only the picture and its subtitles
+const COL = { wide: '#dbe8ea', drone: '#f6e1ba', medium: '#dfe7d8', close: '#f3d9c4', 'low angle': '#e6e2c4', 'top down': '#cfe2de', glide: '#dfe4c6', tele: '#ecdcc8', crane: '#e9e4d8' };   // the mark's colours, pale
+
 
 const bar = document.getElementById('tl'), strip = document.getElementById('strip'), head = document.getElementById('head');
 const why = document.getElementById('why');

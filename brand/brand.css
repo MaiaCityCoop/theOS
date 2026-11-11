@@ -1,63 +1,99 @@
-/* TheOS: the brand, in one file. Light, quiet, one green.
-   Paper for the ground, ink for words, the meadow's green for what is alive or chosen.
-   Every page of TheOS (the dashboard, the game's overlays) reads its colours and shapes from here. */
+/* TheOS: the brand, in one file. Third take, from the mark outward.
+
+   The mark (brand/MaiaCity.svg) is a garden city: leaves, fruit, domes, a river, a sun, drawn in
+   soft shapes. So the brand is soft and warm, never technical:
+   - cream, like the mark's ground; forest green for words; the sun's gold for the one thing to do
+   - round letters (the system's rounded face), heavy for headlines, set tight
+   - big radii, pills, soft shadows; colour in large calm fields, the way the mark fills its shapes
+   - over the game, liquid glass: panels that bend the picture behind them */
 :root {
-  --paper: #f7f6f2;        /* the ground of every page */
-  --surface: #ffffff;      /* cards, panels */
-  --ink: #15181c;          /* words */
-  --muted: #6c727c;        /* second words */
-  --faint: #a3a8b0;
-  --line: #e8e5dd;         /* hairlines */
-  --green: #1f7a4d;        /* the meadow: actions, what is live, what is chosen */
-  --green-ink: #145a37;
-  --green-soft: #e4f1e9;
-  --sky: #9fc2e6;
-  --sand: #efe7d6;
-  --amber: #b7791f;
-  --radius: 14px;
-  --radius-s: 9px;
-  --shadow: 0 1px 2px rgba(21, 24, 28, .05), 0 10px 30px rgba(21, 24, 28, .07);
-  --glass: rgba(255, 255, 255, .78);
+  --cream: #f8f1e8;
+  --cream-2: #f1e7d8;
+  --card: #fffbf5;
+  --forest: #22433b;
+  --moss: #36573d;
+  --leaf: #4e6d46;
+  --olive: #77894d;
+  --sage: #bdc2ae;
+  --mist: #dfe7d8;
+  --teal: #487d81;
+  --river: #2a4d6e;
+  --gold: #d8a050;
+  --sun: #ecbe62;
+  --peach: #f6e1ba;
+  --ink: #1b2b26;
+  --ink-2: #3a4a43;
+  --muted: #6f7b73;
+  --faint: #a9b0a3;
+  --line: #e7dccb;
+  /* older names, kept so every page follows */
+  --paper: var(--cream); --paper-2: var(--cream-2); --surface: var(--card); --green: var(--forest); --green-bright: var(--leaf); --green-soft: var(--mist); --sky: #9fc2e6;
+  --radius: 26px;
+  --radius-s: 14px;
+  --shadow: 0 2px 4px rgba(34, 67, 59, .05), 0 18px 44px rgba(34, 67, 59, .1);
+  --round: ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', 'Arial Rounded MT Bold', system-ui, sans-serif;
   --sans: -apple-system, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --display: -apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --serif: var(--round); --display: var(--round);
 }
 
-/* ---- the mark ---- */
-.mark { display: inline-flex; align-items: center; gap: 9px; font: 650 16px/1 var(--display); letter-spacing: -.01em; color: var(--ink); text-decoration: none; }
-.mark::before { content: ''; width: 14px; height: 14px; border-radius: 4px; background: var(--green); box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .12); }
+/* ---- the mark and the name ---- */
+.mark { display: inline-flex; align-items: center; gap: 10px; font: 800 20px/1 var(--round); letter-spacing: -.02em; color: var(--forest); text-decoration: none; }
+.mark::before { content: ''; width: 36px; height: 36px; border-radius: 11px; background: url('/brand/MaiaCity.svg') center/cover no-repeat; box-shadow: 0 2px 6px rgba(34, 67, 59, .2); }
+.mark b { font-weight: 800; color: var(--gold); margin-left: -10px; }
 
-/* ---- shared pieces ---- */
-.glass { background: var(--glass); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); border: 1px solid rgba(255, 255, 255, .7); box-shadow: var(--shadow); color: var(--ink); }
-.btn { font: 550 14px/1 var(--sans); color: #fff; background: var(--green); border: 0; border-radius: 999px; padding: 11px 18px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
-.btn:hover { background: var(--green-ink); }
-.btn.quiet { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
-.btn.quiet:hover { box-shadow: inset 0 0 0 1px var(--faint); background: var(--surface); }
-.btn.small { font-size: 13px; padding: 8px 13px; }
-.chip { font: 600 10.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--paper); border-radius: 999px; padding: 5px 9px; display: inline-block; }
-.chip.live { color: var(--green-ink); background: var(--green-soft); }
+/* ---- pieces ---- */
+.btn { font: 700 15px/1 var(--round); color: var(--forest); background: var(--sun); border: 0; border-radius: 999px; padding: 14px 24px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 2px 0 rgba(34, 67, 59, .12), 0 8px 20px rgba(216, 160, 80, .35); transition: transform .14s, box-shadow .14s, background .14s; }
+.btn:hover { transform: translateY(-1px); background: #f2c872; }
+.btn:active { transform: translateY(1px) scale(.98); }
+.btn.play::before { content: ''; width: 0; height: 0; border: 6px solid transparent; border-left: 10px solid var(--forest); border-right: 0; margin-right: -2px; }
+.btn.quiet { background: var(--card); color: var(--forest); box-shadow: inset 0 0 0 1.5px var(--line); }
+.btn.quiet:hover { background: var(--mist); box-shadow: inset 0 0 0 1.5px var(--sage); }
+.btn.dark { background: var(--forest); color: var(--cream); box-shadow: 0 8px 20px rgba(34, 67, 59, .25); }
+.btn.small { font-size: 13.5px; padding: 10px 16px; box-shadow: none; }
+.btn.small.quiet { box-shadow: inset 0 0 0 1.5px var(--line); }
+.label { font: 700 11.5px/1 var(--round); letter-spacing: .09em; text-transform: uppercase; color: var(--olive); }
+.chip { font: 700 11px/1 var(--round); letter-spacing: .06em; text-transform: uppercase; color: var(--moss); background: var(--mist); border-radius: 999px; padding: 6px 11px; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.chip.live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 3px rgba(216, 160, 80, .25); }
 
-/* ---- the game's overlays: readout, menu, bars, subtitles ---- */
-#hud { position: fixed; left: 12px; top: 12px; z-index: 5; padding: 8px 11px; border-radius: var(--radius-s); white-space: pre; pointer-events: none; font: 11px/1.45 var(--mono); background: var(--glass); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); color: var(--ink); box-shadow: var(--shadow); }
-.os-menu { position: fixed; right: 12px; top: 12px; z-index: 6; min-width: 210px; padding: 7px; border-radius: var(--radius); font: 13px/1.35 var(--sans); }
-.os-menu h6 { margin: 8px 9px 3px; font: 600 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
-.os-menu a { display: flex; justify-content: space-between; gap: 16px; padding: 7px 9px; border-radius: 8px; text-decoration: none; color: var(--ink); }
-.os-menu a.mark { justify-content: flex-start; }
-.os-menu a.mark:hover { background: none; }
-.os-menu a:hover { background: rgba(21, 24, 28, .05); }
-.os-menu a.on { background: var(--ink); color: #fff; }
-.os-menu a span + span { color: var(--faint); font-size: 11px; }
-.os-menu a.on span + span { color: rgba(255, 255, 255, .6); }
-.os-bar { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 5; padding: 10px 12px 12px; border-radius: var(--radius); font: 12px/1.35 var(--sans); }
-.os-bar button { font: 550 12px/1 var(--sans); color: var(--ink); background: var(--surface); border: 0; box-shadow: inset 0 0 0 1px var(--line); border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+/* ---- liquid glass: every overlay on the game ---- */
+.glass {
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(255, 252, 246, .74), rgba(255, 252, 246, .5));   /* light enough to read on, over grass, sky or the black of a letterbox */
+  -webkit-backdrop-filter: blur(28px) saturate(1.9) brightness(1.06); backdrop-filter: blur(28px) saturate(1.9) brightness(1.06);
+  border: 1px solid rgba(255, 255, 255, .6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), inset 0 -1px 0 rgba(255, 255, 255, .2), inset 0 0 20px rgba(255, 255, 255, .14), 0 12px 36px rgba(20, 44, 36, .22), 0 1px 2px rgba(20, 44, 36, .12);
+}
 
-/* Subtitles: one place, two lines at most, readable over any picture. */
-#cap { position: fixed; left: 50%; bottom: 7vh; transform: translateX(-50%); z-index: 4; width: max-content; max-width: min(44ch, 84vw); text-align: center; pointer-events: none; opacity: 0; display: none;
-  font: 500 clamp(17px, 1.75vw, 24px)/1.32 var(--sans); color: #fff; background: rgba(15, 18, 21, .62); padding: .34em .8em .4em; border-radius: 10px; text-wrap: balance; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+/* the game's top bar: where you are, and where else you can go */
+.os-top { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 2px; padding: 6px 7px 6px 8px; border-radius: 999px; font: 700 13.5px/1 var(--round); max-width: calc(100vw - 28px); overflow: hidden; }
+.os-top .mark { margin-right: 8px; font-size: 16px; gap: 8px; }
+.os-top .mark b { margin-left: -8px; }
+.os-top .mark::before { width: 30px; height: 30px; border-radius: 50%; }
+.os-top a.go { color: var(--forest); text-decoration: none; padding: 9px 14px; border-radius: 999px; white-space: nowrap; }
+.os-top a.go:hover { background: rgba(255, 255, 255, .5); }
+.os-top a.go.on { background: var(--forest); color: var(--cream); }
+.os-top i { width: 1.5px; height: 18px; border-radius: 2px; background: rgba(34, 67, 59, .2); margin: 0 5px; }
+
+/* the readout: small, out of the way */
+#hud { position: fixed; left: 14px; bottom: 14px; z-index: 5; padding: 9px 13px; border-radius: 16px; white-space: pre; pointer-events: none; font: 10.5px/1.5 var(--mono); color: var(--forest); }
+
+/* a bar of controls (the timeline, the lenses) */
+.os-bar { position: fixed; left: 14px; right: 14px; z-index: 5; padding: 12px 14px 14px; border-radius: 28px; font: 12.5px/1.35 var(--sans); }
+.os-bar.top { top: 74px; }
+.os-bar.bottom { bottom: 14px; }
+.os-bar button { font: 700 12.5px/1 var(--round); color: var(--forest); background: rgba(255, 252, 246, .55); border: 0; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .75); border-radius: 999px; padding: 9px 13px; cursor: pointer; }
+.os-bar button:hover { background: rgba(255, 252, 246, .9); }
+body.framed .os-top { display: none; }      /* inside the dashboard, the dashboard is the menu */
+body.framed .os-bar.top { top: 14px; }
+body.embed .os-top, body.embed .os-bar, body.embed #hud { display: none; }   /* as a picture: nothing but the film and its subtitles */
+
+/* subtitles: one place, two lines at most, readable over any picture */
+#cap { position: fixed; left: 50%; bottom: 8vh; transform: translateX(-50%); z-index: 4; width: max-content; max-width: min(44ch, 84vw); text-align: center; pointer-events: none; opacity: 0; display: none;
+  font: 600 clamp(17px, 1.8vw, 25px)/1.3 var(--round); color: #fffaf0; background: rgba(20, 38, 32, .6); padding: .36em .9em .44em; border-radius: 16px; text-wrap: balance; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 #cap.on { display: block; }
-#cap.samuel { font-style: italic; }
-#cap.samuel::after { content: ' — Samuel'; font-style: normal; opacity: .7; font-size: .8em; }
-#cap.note { font-size: clamp(14px, 1.3vw, 18px); background: rgba(15, 18, 21, .5); }
-/* A title card: the film's name, once, in the middle. */
-#cap.title { bottom: auto; top: 44%; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; max-width: 80vw; font: 650 clamp(30px, 4.6vw, 64px)/1.05 var(--display); letter-spacing: -.02em; text-shadow: 0 2px 30px rgba(0, 0, 0, .35), 0 1px 2px rgba(0, 0, 0, .3); }
-#cap.title small { display: block; font: 600 12px/2.4 var(--mono); letter-spacing: .18em; text-transform: uppercase; opacity: .9; }
+#cap.samuel { color: var(--sun); }
+#cap.samuel::before { content: '“'; } #cap.samuel::after { content: '”  Samuel'; font-size: .7em; opacity: .8; color: #fffaf0; }
+#cap.note { font-size: clamp(14px, 1.3vw, 18px); }
+#cap.title { bottom: auto; top: 40%; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; max-width: 86vw; font: 800 clamp(36px, 6vw, 88px)/.98 var(--round); letter-spacing: -.035em; text-shadow: 0 4px 44px rgba(10, 30, 22, .45), 0 1px 2px rgba(10, 30, 22, .3); }
+#cap.title small { display: block; font: 700 13px/2.8 var(--round); letter-spacing: .2em; text-transform: uppercase; color: var(--sun); }
