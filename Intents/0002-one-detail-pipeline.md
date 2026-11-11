@@ -127,3 +127,4 @@ _Not started: waits for Samuel's approval of the definition above._
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-11 | `8db7968` | The intent opened, its definition written |
