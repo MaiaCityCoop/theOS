@@ -758,6 +758,20 @@ _Samuel's decision._
 - **Broke / not there yet:** whether the hitch is gone was not seen: the app's browser pane is
   hidden and pauses the game. Samuel's eye in Safari.
 
+### 2026-11-11, thirty-fourth round
+
+- **Asked:** shouldn't the game be smooth in general, not the governor changing detail levels
+  about every 0.7 s everywhere?
+- **Delivered:** the governor is calm everywhere: it lowers detail only when the frames stay too
+  slow (two looks in a row, about 1.4 s) or are far too slow; it raises only after about three
+  seconds of room, never within eight seconds of a step down, and by smaller steps (×1.12, not
+  ×1.25). The hold during a film stays.
+- **Good:** simulated (`bun`, the governor alone, 60 s of frames): with frame times swinging
+  around the budget it changed its detail 57 times before and 10 times now; with steady frames
+  4 times either way (its first climb).
+- **Broke / not there yet:** not watched in the game: the app's browser pane is hidden. On a
+  slow machine detail now takes longer to come back up after a heavy view.
+
 ## Trail
 
 | When | Commit | What |
