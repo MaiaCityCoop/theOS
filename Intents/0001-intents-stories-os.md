@@ -458,6 +458,24 @@ _Samuel's decision._
   "The decision" for day 1 is written in the dashboard's code, not in a story of its own.
   Phone width and Safari not seen.
 
+### 2026-11-11, thirteenth round
+
+- **Asked:** no black bars on a story's film; move the timeline scrubber off the picture,
+  below it, and show a thumbnail of each shot, like an editing preview in Resolve: the story
+  should have an actual editing timeline.
+- **Delivered:** on a story's page the film fills its frame (2.39:1, no bars) and has nothing
+  over it but its subtitles. Under it the editor: play, the time, the shot's name; a ruler
+  every five seconds; a picture track with one block per shot, as long as the shot, showing a
+  still taken in the game from the middle of that shot; a voices track with every subtitle as a
+  block, coloured by who speaks; a playhead with the sun on it, to drag. The editor drives the
+  film in the game through messages between the two pages (`TheGame/cine/view.js`).
+- **Good:** seen in the pane at 1440: all eight shots' stills on the picture track, 18 voices,
+  the playhead and time following the film.
+- **Broke / not there yet:** the stills first came back black: the picture is cleared once it
+  is shown, so each still is now drawn and copied in the same moment. Taking the stills plays
+  through the shots for about three seconds when a story opens. Dragging the playhead was not
+  tried; phone width and Safari not seen.
+
 ## Trail
 
 | When | Commit | What |

@@ -81,3 +81,29 @@ async function keep(name) {
   return `/timeline.html?tl=${name}`;
 }
 window.__timeline = { get seed() { return seed; }, set seed(v) { kept = keptClips = null; seed = v; build(); }, keep };
+
+// In a frame (the dashboard's story editor): say what is playing, keep the frame told of the time, and take its
+// play, pause, seek, and a request for one still from the middle of every shot, for the editor's picture track.
+if (parent !== window) {
+  const send = (m) => parent.postMessage({ maia: 1, ...m }, '*');
+  const film = () => send({ type: 'film', duration: cine.duration, clips: cine.clips.map((c) => ({ name: c.name, secs: c.secs, act: c.act || '', kind: c.kind })), captions });
+  film();
+  setInterval(() => send({ type: 'time', t: cine.time, playing: cine.playing }), 80);
+  let busy = false;
+  addEventListener('message', async (ev) => {
+    const m = ev.data || {}; if (!m.maia) return;
+    if (m.cmd === 'play') cine.play(); if (m.cmd === 'pause') cine.pause(); if (m.cmd === 'seek') cine.seek(m.t); if (m.cmd === 'film') film();
+    if (m.cmd === 'thumbs' && !busy) {
+      busy = true; const was = cine.playing, at = cine.time; cine.pause();
+      for (let i = 0; i < cine.clips.length; i++) {
+        cine.seek(cine.starts[i] + cine.clips[i].secs * 0.5); cine.play();      // the picture is only drawn while it runs
+        await new Promise((r) => setTimeout(r, 300)); cine.pause();   // a moment, so the ground has filled in
+        const { renderer, scene, camera } = window.__s8, g = renderer.domElement;
+        renderer.render(scene, camera);                       // drawn now and copied in the same moment, before the browser clears it
+        const c = document.createElement('canvas'); c.width = 360; c.height = Math.round((360 * g.height) / g.width);
+        c.getContext('2d').drawImage(g, 0, 0, c.width, c.height); send({ type: 'thumb', i, src: c.toDataURL('image/jpeg', 0.75) });
+      }
+      cine.seek(at); if (was || at < 0.5) cine.play(); busy = false;   // a film that had not begun yet plays on
+    }
+  });
+}

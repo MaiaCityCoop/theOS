@@ -27,7 +27,7 @@ function tab(name) {
   if (name !== 'home') $('heroframe').removeAttribute('src');
   if (name === 'game') { if (!$('frame').getAttribute('src')) $('frame').src = GAME + VIEWS[gameView][1]; } else $('frame').removeAttribute('src');
   const player = document.querySelector('.player iframe');
-  if (player) { if (name === 'stories' && current) { if (!player.getAttribute('src')) player.src = `${GAME}/timeline.html?story=${current.id}&in=os`; } else player.removeAttribute('src'); }
+  if (player) { if (name === 'stories' && current) { if (!player.getAttribute('src')) player.src = filmOf(current.id); } else player.removeAttribute('src'); }
   scrollTo(0, 0);
   if (name === 'home') { home.sync?.(); home.draw?.(); }
   if (name === 'city') city();   // the front page's film starts when its window is on screen, not before
@@ -73,10 +73,43 @@ async function story(s, show = true) {
   document.querySelectorAll('#list .card').forEach((c) => c.classList.toggle('on', c.dataset.id === s.id));
   const md = await get(`/api/stories/${s.id}/story.md`).then((r) => r.text()), d = $('storydoc');
   d.innerHTML = `<div class="bar"><span class="label">Story ${s.id.slice(0, 4)}</span><button class="btn small quiet" data-do="intent" style="margin-left:auto">Its intent</button></div>` +
-    (s.film ? `<div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div>` : '') + body(md);
+    (s.film ? `<div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div>${EDIT}` : '') + body(md);
+  if (s.film) editor(d.querySelector('.edit'), d.querySelector('.player iframe'));
   d.querySelector('[data-do=intent]').addEventListener('click', () => { tab('intents'); board(s.id); });
   d.scrollTop = 0;
   if (show) tab('stories');
+}
+
+// ---- a story's editor: the film above, its timeline under it. A ruler, the picture track (one still per shot,
+// taken in the game), the voices track (the subtitles, by who speaks), and a playhead to drag. It drives the film. ----
+const EDIT = `<div class="edit"><div class="etop"><button class="eplay" aria-label="Play or pause"></button><span class="etime"><b>0:00</b> / 0:00</span><span class="eshot"></span></div>
+  <div class="etracks"><div class="elabs"><span></span><span>Picture</span><span>Voices</span></div><div class="elanes"><div class="eruler"></div><div class="elane v"></div><div class="elane s"></div><i class="ehead"></i></div></div></div>`;
+let onFilm = null;
+addEventListener('message', (ev) => { const m = ev.data; if (m?.maia && onFilm && ev.source === onFilm.win()) onFilm.take(m); });
+function editor(el, frame) {
+  const q = (c) => el.querySelector(c), lanes = q('.elanes'), say = (m) => frame.contentWindow?.postMessage({ maia: 1, ...m }, '*');
+  let D = 0, clips = [], starts = [], playing = false, asked = false, cur = -1;
+  const pct = (t) => (D ? (t / D) * 100 : 0);
+  onFilm = { win: () => frame.contentWindow, take(m) {
+    if (m.type === 'film' && m.duration && !D) {
+      D = m.duration; clips = m.clips; starts = []; let T = 0; for (const c of clips) { starts.push(T); T += c.secs; }
+      let r = ''; for (let s = 0; s <= D; s += 5) r += `<span style="left:${pct(s)}%">${mm(s)}</span>`; q('.eruler').innerHTML = r;
+      q('.elane.v').innerHTML = clips.map((c, i) => `<div class="eclip" data-i="${i}" style="left:${pct(starts[i])}%;width:calc(${pct(c.secs)}% - 3px)"><span>${c.name}</span></div>`).join('');
+      q('.elane.s').innerHTML = (m.captions || []).filter((c) => c.kind !== 'title').map((c) => `<div class="ecap ${c.kind}" style="left:${pct(c.at)}%;width:calc(${pct(c.for)}% - 2px)" title="${c.text.replace(/"/g, '&quot;')}">${c.text}</div>`).join('');
+      if (!asked) { asked = true; say({ cmd: 'thumbs' }); }
+    }
+    if (m.type === 'thumb') { const c = q(`.eclip[data-i="${m.i}"]`); if (c) c.style.backgroundImage = `url(${m.src})`; }
+    if (m.type === 'time' && D) {
+      playing = m.playing; q('.eplay').classList.toggle('on', playing); q('.ehead').style.left = pct(m.t) + '%';
+      q('.etime').innerHTML = `<b>${mm(Math.floor(m.t))}</b> / ${mm(Math.round(D))}`;
+      let i = starts.length - 1; while (i > 0 && starts[i] > m.t) i--;
+      if (i !== cur) { cur = i; el.querySelectorAll('.eclip').forEach((c) => c.classList.toggle('on', +c.dataset.i === i)); q('.eshot').textContent = clips[i] ? `${i + 1} / ${clips.length} · ${clips[i].name}` : ''; }
+    } } };
+  q('.eplay').onclick = () => say({ cmd: playing ? 'pause' : 'play' });
+  const seek = (ev) => { const r = lanes.getBoundingClientRect(); say({ cmd: 'seek', t: Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * D }); };
+  lanes.onpointerdown = (ev) => { lanes.setPointerCapture(ev.pointerId); say({ cmd: 'pause' }); seek(ev); lanes.onpointermove = seek; };
+  lanes.onpointerup = () => { lanes.onpointermove = null; };
+  frame.addEventListener('load', () => say({ cmd: 'film' }));
 }
 
 // ---- the land, drawn: the same ground in every picture, so the days can be compared ----
