@@ -117,6 +117,24 @@ Samuel approved the definition on 2026-11-11 ("Approve, start stage 1").
   neighbours (ratio 1.0). Only the middle of the frame was compared, so mostly the tent; the rocks' hand-over is not
   yet measured on its own. Frame times read during the flight (median 47 ms) include the pixel reading and a hidden
   pane, so they are not check 3.
+**Stage 2** (impostors):
+
+- `src/detail/impostor.js`: an asset's nearest level rendered once from 8 × 8 directions over the half-sphere above it
+  (hemi-octahedral) into two atlases of 1024², its colour (stored as its square root, so dark colours keep their steps
+  in 8 bits) and its normals. At run time one card shows the view nearest the camera's, turned to it, and is lit live
+  by the shading contract like a mesh (sun, sky, weather, the clouds' shadow, the air, the hand-over). Atlases are kept
+  by a hash of the recipe's geometry: baked once per recipe. Baked on the main thread with the game's renderer, not in
+  a worker as defined (a worker has no WebGL of its own here); for the three assets it takes no visible time.
+- The engine adds the card as one more level after the meshes where a kind or an asset asks (`impostor: { px, views }`);
+  shelters and the default kind do, rocks do not (their last level is twenty faces already). The tent now shows as a
+  card from 4 km in to 1.2 km, then as meshes.
+- Checked: the card and the meshes of the tent, seen alike, measured the same within 1 to 4 of 255 in each colour
+  (check 5 for the card: 204 201 191 against 205 203 195). A flight from 6 km to 400 m over the tent: 0 jumps; the card
+  came in at 4 km (1.3 px) and handed over to the mesh at 1.2 km (4.3 px), each change frame like its neighbours.
+- Known: the card stands through the asset's middle, so up close its lower part goes into the ground; it is never shown
+  up close (under 5 px). Only placed assets get cards; scattered ones (rocks, later plants) need instanced cards,
+  which come with the tiles (stage 4). No depth in the card yet.
+
 - Asked on the way: one server for TheOS. The dashboard's Vite runs the game's inside it under `/game/`
   (`OS/vite.config.js`); the game's routes and fetches follow its base. `bun run dev` starts both on 5180.
 - Asked on the way: the walker starts in front of the first tent's door (`spawn`, `src/camera/walk.js`); the tent
@@ -134,7 +152,7 @@ Samuel approved the definition on 2026-11-11 ("Approve, start stage 1").
 
 - [x] Samuel: approve or change the definition
 - [x] Stage 1: selection by pixel size, cross-over, `detail` blocks and kind defaults; the shading contract begun (tent and rocks; not yet measured with the recorded flight, check 2)
-- [ ] Stage 2: impostors
+- [x] Stage 2: impostors (placed assets; scattered ones with stage 4)
 - [ ] Stage 3: material levels
 - [ ] Stage 4: tiles to 10 km
 - [ ] Stage 5: folding into the ground
@@ -165,6 +183,15 @@ Samuel approved the definition on 2026-11-11 ("Approve, start stage 1").
   read 68 fps, 16.7 ms, 15 draws.
 - **Broke / not there yet:** the recorded 10 km flight (check 2) and the brightness check (5) are not run; weather and
   clouds are slots only; the grass keeps its own tiers.
+
+### 2026-11-11, stage 2
+
+- **Asked:** go to stage 2 (impostors).
+- **Delivered:** impostors baked per recipe and lit live, as a level after the meshes; the tent's card from 4 km to
+  1.2 km; the library's Detail tab lists the card.
+- **Good:** card and mesh alike in brightness (within 4/255); the flight over the hand-over showed no jump.
+- **Broke / not there yet:** the first bake drew nothing (each view's clear wiped the atlas; fixed by scissoring);
+  baked on the main thread, not a worker; scattered assets get no card yet.
 
 ## Trail
 

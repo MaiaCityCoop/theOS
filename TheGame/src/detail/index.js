@@ -19,6 +19,8 @@ export const pxK = (h = innerHeight) => h / (2 * Math.tan((68 / 2) * Math.PI / 1
 export function detailOf(a) {
   const k = KINDS[a.kind] || KINDS.default, d = a.detail || {}, px = d.px || k.px, fade = d.fade ?? k.fade;
   const levels = (d.levels || []).map((l, i) => ({ ...l, i, lo: l.px ?? px[Math.min(i, px.length - 1)] }));
+  const imp = d.impostor ?? k.impostor;   // after the meshes: one card (src/detail/impostor.js)
+  if (imp) levels.push({ impostor: true, views: imp.views ?? 8, i: levels.length, lo: imp.px });
   levels.forEach((l, i) => (l.hi = i ? levels[i - 1].lo : Infinity));
   return { levels, fade, cut: levels.length ? levels[levels.length - 1].lo : 0 };
 }

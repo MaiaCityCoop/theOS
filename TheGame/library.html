@@ -165,8 +165,9 @@ function choose(id, keepSeed) {
 }
 // the Detail tab: every level of detail of the asset, each a button that takes the camera to where that level is drawn
 function bands(a) {   // its levels as the detail engine resolves them (src/detail): each drawn between lo and hi pixels on screen
-  const { levels, cut } = detailOf(a), faces = (l) => (l.faces ? l.faces.length : 20 * 4 ** (l.rock || 0));
-  return [...levels.map((l) => ({ i: l.i, lo: l.lo, hi: l.hi, faces: faces(l) })), { i: levels.length, lo: 0, hi: cut, faces: 0 }];   // and below the last: nothing drawn
+  const { levels, cut } = detailOf(a), faces = (l) => (l.impostor ? 2 : l.faces ? l.faces.length : 20 * 4 ** (l.rock || 0));
+  const shown = a.placement.at === 'scatter' ? levels.filter((l) => !l.impostor) : levels;   // a scattered asset has no card yet
+  return [...shown.map((l) => ({ i: l.i, lo: l.lo, hi: l.hi, faces: faces(l), impostor: l.impostor, views: l.views })), { i: levels.length, lo: 0, hi: cut, faces: 0 }];   // and below the last: nothing drawn
 }
 const span = (a) => (a.placement.at === 'scatter' ? 2 * most(a.size.length) : spanOf(a));   // a scattered rock: an icosphere of radius 1 times its size
 const near0 = (a) => (a.placement.at === 'scatter' ? Math.max(4, most(a.size.length) * 4.5) : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 2.2);   // the close look
@@ -177,7 +178,7 @@ function detailOf_(a) {
   const m = (v) => (v >= 1000 ? `${num(v / 1000)} km` : `${Math.round(v)} m`), p = (v) => `${num(v)} px`;
   const range = (b) => (b.hi === Infinity ? `over ${p(b.lo)}` : b.lo === 0 ? `under ${p(b.hi)}` : `${p(b.lo)} to ${p(b.hi)}`);
   return `<header><span class="g-label">${a.name} · levels of detail</span><p class="g-text" style="margin-top:8px">Each level by its size on screen; choose one and the camera goes to where it is drawn. On the right, how far that is with the walker's lens on this screen.</p></header>
-    <div class="g-pick g-part">${bands(a).map((b) => `<button data-lod="${b.i}" class="${lodAt === b.i ? 'on' : ''}"><b>${b.faces ? b.i + 1 : '–'}</b><span><span class="g-name">${b.faces ? `${b.faces.toLocaleString('en')} faces` : 'Not drawn'}</span><span class="g-sub">${range(b)}</span></span><span class="g-file">${m(distanceAt(pxAim(b), span(a)))}</span></button>`).join('')}</div>`
+    <div class="g-pick g-part">${bands(a).map((b) => `<button data-lod="${b.i}" class="${lodAt === b.i ? 'on' : ''}"><b>${b.impostor ? '◆' : b.faces ? b.i + 1 : '–'}</b><span><span class="g-name">${b.impostor ? `Card · ${b.views * b.views} views` : b.faces ? `${b.faces.toLocaleString('en')} faces` : 'Not drawn'}</span><span class="g-sub">${range(b)}</span></span><span class="g-file">${m(distanceAt(pxAim(b), span(a)))}</span></button>`).join('')}</div>`
     + fileOf(`TheGame/assets/${a.id}.js`);
 }
 function lookAtLevel(a, i) {

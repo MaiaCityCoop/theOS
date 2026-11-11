@@ -17,6 +17,7 @@
 import * as THREE from 'three';
 import { LIGHT_GLSL, heightAt } from '../src/world.js';
 import { detailOf, Detailed } from '../src/detail/index.js';
+import { impostorOf } from '../src/detail/impostor.js';
 import { addSolid } from '../src/world/solids.js';
 import belltent from './belltent.js';
 import stone from './stone.js';
@@ -67,7 +68,8 @@ export function materialFor(U) {
 export function place(scene, U, asset, at) {
   // its levels of detail, chosen each frame by its size on screen with a hand-over between them (src/detail);
   // each level its own material, for its own share of the pixels
-  const meshes = asset.detail.levels.map((l) => { const m = new THREE.Mesh(geometryOf(asset, l), materialFor(U)); m.renderOrder = 1; return m; });
+  const D = detailOf(asset);
+  const meshes = D.levels.map((l) => { if (l.impostor) return impostorOf(geometryOf(asset), U, l.views); const m = new THREE.Mesh(geometryOf(asset, l), materialFor(U)); m.renderOrder = 1; return m; });
   const lod = new Detailed(asset, meshes, U);
   lod.position.set(at.x, heightAt(at.x, at.z) - 0.03, at.z);
   lod.rotation.y = at.yaw || 0;

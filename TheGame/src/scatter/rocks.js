@@ -155,7 +155,7 @@ export function rockSample(U, tex, row, detail = 2, shape = 0) {
 /** The assets of kind `rocks`: a tier per level of detail and shape. Each level is drawn where a rock of it is the size
     on screen its asset file asks (src/detail); the tier looks only at the cells where that can be, at this screen size. */
 export function createRocks(scene, U, tex, asset) {
-  const tiers = [], { levels, fade } = asset.detail, big = asset.outcrops;
+  const tiers = [], levels = asset.detail.levels.filter((l) => !l.impostor), { fade } = asset.detail, big = asset.outcrops;
   const span = [2 * asset.size[0], 2 * asset.size[1] * (big ? 1.25 : 1)];   // a rock is an icosphere of radius 1 times its size
   for (let v = 0; v < asset.shapes; v++) levels.forEach((L) => {
     const g = rockGeometry(L.rock, asset.seed + v * 7, asset.look);

@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { HMIN, HMAX, heightAt } from './world.js';
 import { createUniforms } from './core/uniforms.js';
 import { trackView } from './detail/index.js';
+import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
 import { createHud } from './core/hud.js';
@@ -43,7 +44,7 @@ addEventListener('resize', () => {   // only a real change of size rebuilds the 
 
 const stats = (window.__s8 = { renderer, camera, scene });
 const U = createUniforms(camera, SKY);
-trackView(U);   // the measure of size on screen for every level of detail (src/detail)
+trackView(U); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
 const governor = createGovernor(renderer);
 stats.governor = governor;   // the film holds it still while it plays
 const tex = bakeTextures(renderer);
