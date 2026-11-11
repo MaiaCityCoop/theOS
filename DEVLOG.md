@@ -1,0 +1,94 @@
+# Sandbox 8: devlog
+
+One entry per request cycle between Samuel and the agent: what was asked, what was delivered, what
+was good, what broke, and the commit to go back to. Newest last. To see a stage again, with the
+virtual camera over it: `bash game/cine/at.sh <commit>` (see `cine/README.md`).
+
+Numbers are from the app's browser pane on the M1 MacBook Air unless said otherwise; Safari's own
+have not been read yet.
+
+---
+
+## 1 · The land, from the ground up · 2026-11-11 · `4ae6541c1`
+
+**Asked.** A brand-new standalone world in `game/`, nothing reused: one endless procedural land
+(meadow, arid patches, one small stream, a few stones and rocks, nothing else growing), plain light,
+no sky. Stable 60 fps on the M1 Air in Safari first, a realistic ground second, fast loading third.
+Nothing built while walking; heights from the GPU.
+
+**Delivered.**
+- Terrain: a quadtree of one shared 16 × 16 tile (CDLOD), 10 levels to about 24 km, heights in the
+  vertex shader, levels morphing into each other; one instanced draw call.
+- The same integer-hash noise in JS and GLSL, so the walker's feet match the ground.
+- Five ground materials baked on the GPU at start (1024² albedo + normal each), sampled twice
+  against tiling, blended by height.
+- Grass: instanced blades in three rings to 115 m, everything about a blade hashed from its cell.
+- Stones and mossy boulders: displaced icospheres, hashed into cells.
+- A stream carved along a noise contour, water flowing with ripples, foam and specks.
+- Walk, run, fly; fps / draws / triangles readout; adaptive pixel ratio. WebGL2, not WebGPU.
+
+**Good.** It drew on the very first run, no shader errors. Ready in about 1.6 s. Cracked earth,
+pebbly dirt and the mossy rocks read well at once.
+
+**Broke, and what it taught.**
+- The first version ran at 28 fps on the meadow. Measured by switching layers off: grass cost
+  15 ms, rocks 4.5 ms, the terrain about 1 ms. The cause was each blade working the land's noise
+  out again at every one of its vertices. Fix at the root: the GPU writes the ground around the
+  camera (height, density, tint) into one 512² texture, redrawn whole every 8 m walked, and blades
+  and stones read it. Back to 60 fps at pixel ratio 1.5. This is the one departure from "walking
+  only moves uniforms".
+- Rocks first submitted 7 M triangles a frame, nearly all empty cells; fewer instances per patch
+  and coarser far levels brought the whole scene to about 2.5 M.
+- The spawn's "distance to the stream" estimate was off by tens of metres, so the first views had
+  no water in them. The spawn now walks onto the stream's line before stepping back from it.
+- The mouse could not be captured in the app's browser pane (it refuses pointer lock); drag-to-look
+  was added as the fallback. Safari captures it on a click.
+
+**Left open.** No rock collision. Two rock shapes, not three. No stutter measurement while walking
+far or flying fast.
+
+---
+
+## 2 · A real river, calmer water · 2026-11-11 · `4c07ab144`
+
+**Asked.** The stream three times as wide, its width wandering between 3× and 5× like a true
+meandering river. The white gushes look weird: more realistic water, slightly less blue.
+
+**Delivered.**
+- Water now about 12–20 m across, the width changing along the course, stronger meanders; a flat
+  bed up to 1 m deep with sloped sandy banks.
+- The cellular white foam is gone: clear over the sand at the edge, dark green-brown in the deep,
+  gentle ripples running with the current, a thin broken foam line at the bank, a few specks.
+- The sky's reflection greyed and dimmed.
+
+**Good.** The bank reads as a real shore now: sand showing through shallow water, then depth.
+
+**Broke / not there yet.** The water is on the flat side: little life in the middle of the river,
+and it still takes a grey-blue from the plain sky colour. The spawn stood in the river after the
+widening and was moved to the new bank.
+
+---
+
+## 3 · The devlog and the virtual camera · 2026-11-11 · `b3b328558`
+
+**Asked.** A small dev log for every request cycle (asked, delivered, good, broke, commit), so an
+actual devlog video can be written from it and each stage checked out again. And one universal
+virtual camera that takes any perspective with lenses from 12 to 180 mm, to shoot a cinematic
+devlog at each step; the camera documented.
+
+**Delivered.**
+- This file, with the first two cycles written up after the fact.
+- `cine/cine.js`: a free film camera (V). Full-frame lenses 12–180 mm on keys and the wheel, roll,
+  keyframed moves on a smooth curve with zooms, stills (PNG), video recording, 2.39 : 1 bars, a
+  clean picture, shots by address (`?cam=…`, `?shot=…&play&rec`).
+- `cine/at.sh <commit>`: serves any earlier stage with today's camera over it.
+- `cine/README.md`: the camera's manual.
+
+**Good.** The camera needs nothing of the game but its camera object, so it worked unchanged on
+the first commit: the same `?cam=` address gave the same framing over stage 1 and stage 2.
+
+**Broke / not there yet.**
+- Long lenses show what distance-based detail hides: at 85 mm and beyond, far grass is visibly a
+  few coarse triangles. Detail has to follow the lens, not only the distance.
+- No depth of field, no motion blur; stills are no larger than the window.
+- Recording and saving stills were written but not tried in Safari yet.
