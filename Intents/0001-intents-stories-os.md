@@ -695,3 +695,4 @@ _Samuel's decision._
 | 2026-11-11 | `29bc7f5` | No Intents tile on the dashboard |
 | 2026-11-11 | `c270792` | The half-round x under an open sheet |
 | 2026-11-11 | `47e7649` | A stronger, blue-veiled blur behind a sheet |
+| 2026-11-11 | `78778e6` | The stories shelf and studio; the lens view without bars, clear of the pill |
