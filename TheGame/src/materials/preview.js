@@ -1,7 +1,7 @@
 // A material on its own, for the library: its two baked textures laid over any shape from the world's position
 // (three planar projections blended by the normal, so a ball and a slab both read true), lit like the world.
 import * as THREE from 'three';
-import { LIGHT_GLSL, WORLD_GLSL } from '../world.js';
+import { LIGHT_GLSL } from '../world.js';
 
 /** t: { a, n } from tex.of(id); tile: metres one tile of the texture covers. */
 export function materialPreview(U, t, tile = 2, own = {}) {
@@ -44,26 +44,3 @@ export function materialThumb(renderer, U, t, canvas) {
   canvas.getContext('2d').putImageData(img, 0, 0);
 }
 
-/** Still water for the library's sandbox: a round pond of the river's own colours and ripples (biomes/river.js). */
-export function pondPreview(U, t, centre, r) {
-  return new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8,
-    uniforms: { ...U, tWN: { value: t.n }, uC: { value: new THREE.Vector2(centre.x, centre.z) }, uR: { value: r } },
-    vertexShader: /* glsl */ `out vec3 vWorld; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
-    fragmentShader: /* glsl */ `
-      ${WORLD_GLSL}
-      ${LIGHT_GLSL}
-      uniform sampler2D tWN; uniform vec2 uC; uniform float uR, uTime; in vec3 vWorld;
-      void main(){
-        vec2 p = vWorld.xz; float e = length(p - uC) / uR;
-        vec2 o = vec2(uTime * 0.05, uTime * 0.03);
-        vec3 nn = texture(tWN, (p + o) / WATER_TILE).xyz + texture(tWN, (p - o * 1.3) / WATER_TILE * 3.1 + 0.2).xyz - 1.0;
-        vec3 n = normalize(vec3(nn.x * 0.16, 1.0, nn.y * 0.16)), V = normalize(uCam - vWorld);
-        float fres = 0.02 + 0.98 * pow(1.0 - max(dot(n, V), 0.0), 5.0);
-        vec3 body = mix(WATER_SHALLOW, WATER_DEEP, smoothstep(0.2, 0.85, 1.0 - e));
-        vec3 skyRef = mix(uSky, vec3(dot(uSky, vec3(0.333))), 0.4) * 0.92;
-        vec3 col = mix(body * (uAmb + uSun * 0.45), skyRef, clamp(fres * 0.9, 0.0, 1.0)) + uSun * pow(max(dot(n, normalize(V + uSunDir)), 0.0), 120.0) * 0.8;
-        gl_FragColor = vec4(toScreen(haze(col, length(uCam - vWorld))).rgb, 1.0 - smoothstep(0.9, 1.0, e));
-      }`,
-  });
-}

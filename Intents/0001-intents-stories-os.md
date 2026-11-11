@@ -1004,6 +1004,24 @@ _Samuel's decision._
   mask in code: a biome on a new kind of place needs a mask too; the stones still carry the rock
   texture's crack lines; day 2's picture and stills still to be retaken.
 
+### 2026-11-11, forty-eighth round
+
+- **Asked:** stones with a texture of their own, apart from the rocks; the river biome as a real
+  meandering river; the library with a grid to choose its sections from (assets, biomes,
+  materials).
+- **Delivered:** a ninth material, Pebble (`materials/pebble.js`): worn, speckled stone with
+  clouds of colour and a pale vein now and then, no cracks; a rock asset's `look` names its
+  material, so stones are drawn in pebble and boulders in rock. In the river's sandbox a river of
+  its own meanders through the middle (its heading, swing and bend length in `MEANDER`, the same
+  in JavaScript and GLSL), so the land carves its bed, the banks lay sand, and the water is the
+  world's own water; the pond is gone. The library opens on a grid of its three sections, each with
+  its picture and count; over the list a switch (Assets, Biomes, Materials, and the grid) shows one
+  section at a time.
+- **Good:** seen in the pane: stones speckled and smooth beside the mossy boulders; the river with
+  its banks through the sandbox; the grid, and the list showing only the chosen section.
+- **Broke / not there yet:** the Assets card's picture is the small list picture scaled up; day 2's
+  picture and stills still to be retaken.
+
 ## Trail
 
 | When | Commit | What |

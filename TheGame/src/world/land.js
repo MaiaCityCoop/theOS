@@ -35,6 +35,19 @@ function vnoise(px, py, s) {
 
 /** The river's field at (x, z): r (0 on the stream's line), its gradient, the distance d and half-width w. */
 export const river = { r: 0, gx: 0, gz: 0, d: 0, w: 0 };
+// The library's sandbox: round (x, z) the land is one biome; with `river`, a river of its own meanders through
+// its middle in place of the world's (the same in GLSL: sandRiver in land.glsl.js). Set by the ground (scatter/ground.js).
+export const SAND = { on: false, x: 0, z: 0, river: false };
+export const MEANDER = { turn: 0.6, swing: 26, wave: 150 };   // the sandbox river: its heading, how far it swings either side, the length of a bend
+function sandRiver(x, z) {
+  const dx = x - SAND.x, dz = z - SAND.z, s = 1 - sstep(220, 340, Math.hypot(dx, dz));
+  if (s <= 0) return;
+  const c = Math.cos(MEANDER.turn), sn = Math.sin(MEANDER.turn), u = dx * c + dz * sn, v = -dx * sn + dz * c, k = (2 * Math.PI) / MEANDER.wave;
+  const g = v - MEANDER.swing * Math.sin(k * u), gu = -MEANDER.swing * k * Math.cos(k * u);
+  const gx = (gu * c - sn) / 1600, gz = (gu * sn + c) / 1600, gl = Math.hypot(gx, gz);   // in the world river's own measure
+  river.r = Math.sign(g || 1) * (Math.abs(g) / 1600 + (1 - s) * 2 * gl * 1600); river.gx = gx; river.gz = gz;   // it ends where the sandbox does
+  river.d = Math.abs(river.r) / Math.max(gl, 2e-4);
+}
 export function riverAt(x, z) {
   const n1 = noised(x / 1600, z / 1600, 40), g1x = gx, g1y = gy;
   const n2 = noised(x / 330 + 17.3, z / 330 + 17.3, 41);
@@ -43,6 +56,7 @@ export function riverAt(x, z) {
   river.gz = g1y / 1600 + 0.28 * gy / 330;
   river.d = Math.abs(river.r) / Math.max(Math.hypot(river.gx, river.gz), 2e-4);
   river.w = 6.75 + 4.5 * sstep(0.3, 0.7, vnoise(x / 170, z / 170, 42)); // half-width: 3 to 5 times the first stream's
+  if (SAND.on && SAND.river) sandRiver(x, z);
   return river;
 }
 export function baseB(x, z) {

@@ -3,7 +3,7 @@
 //   id, name, kind, about     what it is
 //   size                      { length, width, height } in metres; a [min, max] where it varies
 //   colours                   its named colours, [r, g, b]
-//   look                      a rock's look: { moss, relief, tint, cuts, smooth } (src/scatter/rocks.js)
+//   look                      a rock's look: { material, moss, relief, tint, cuts, smooth } (src/scatter/rocks.js)
 //   lods                      its levels of detail, near to far: { far, ...shape } is drawn up to `far` metres, and
 //                             past the last level nothing is. A shape is `faces` ([corner, corner, corner, colour], ...)
 //                             or `rock` (a rough rock of an icosphere divided that often), with `P` for scattered ones

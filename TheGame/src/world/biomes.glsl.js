@@ -38,13 +38,10 @@ const float WATER_TILE = ${f(water.floor.tile[0])};
 
 // the library's sandbox: round (x, z) the land is one biome; z of uSand: on, w: which biome (its number in biomes/)
 uniform vec4 uSand;
-const float SAND_POND = 9.0;   // the river's biome is staged as a pond this wide, with its bank round it
+const float SAND_RIVER = ${idx(water)};   // the river's biome: a river of its own meanders through the sandbox
 float sandW(vec2 p){ return uSand.z > 0.0 ? 1.0 - smoothstep(220.0, 340.0, length(p - uSand.xy)) : 0.0; }
 float sandIs(float i){ return abs(uSand.w - i) < 0.5 ? 1.0 : 0.0; }
 float placeArid(vec2 p, float natural){ return mix(natural, sandIs(${idx(arid)}), sandW(p)); }
-float placeBank(vec2 p, float natural){
-  float pond = 1.0 - smoothstep(SAND_POND + 2.0, SAND_POND + 5.0, length(p - uSand.xy));
-  return mix(natural, max(sandIs(${idx(bank)}), sandIs(${idx(water)}) * pond), sandW(p));
-}
+float placeBank(vec2 p, float natural){ return sandIs(${idx(water)}) > 0.5 ? natural : mix(natural, sandIs(${idx(bank)}), sandW(p)); }   // the river's sandbox has its own banks
 float placeOff(vec2 p, float natural){ return natural * (1.0 - sandW(p)); }   // paths, bare patches, outcrops: none in a sandbox
 `;

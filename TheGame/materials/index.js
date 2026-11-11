@@ -16,7 +16,8 @@ import rock from './rock.js';
 import water from './water.js';
 import grasscarpet from './grasscarpet.js';
 import noise from './noise.js';
+import pebble from './pebble.js';
 
 // the order is the texture's number in the land's shaders (tA0 … tA7); new materials go at the end
-export const MATERIALS = [meadow, dryearth, sand, path, rock, water, grasscarpet, noise];
+export const MATERIALS = [meadow, dryearth, sand, path, rock, water, grasscarpet, noise, pebble];
 export const MATERIAL = Object.fromEntries(MATERIALS.map((m) => [m.id, m]));

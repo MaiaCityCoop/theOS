@@ -9,7 +9,7 @@ export default {
   size: { length: [0.07, 0.55], width: [0.07, 0.55], height: [0.05, 0.4] },
   colours: { stone: [0.52, 0.5, 0.46] },
   // worn round and smooth by the river and the weather: few broken faces, little moss, a paler, warmer grey than the boulders
-  look: { moss: 0.12, relief: 0.45, tint: [1.12, 1.06, 0.97], cuts: 0.3, smooth: 0.85 },
+  look: { material: 'pebble', moss: 0.12, relief: 0.6, tint: [0.92, 0.9, 0.87], cuts: 0.3, smooth: 0.85 },
   // rock: how often its icosphere is divided (2 round, 0 a rough twenty-sided stone); P: cells per patch side
   lods: [{ far: 12, rock: 2, P: 8 }, { far: 50, rock: 1, P: 16 }, { far: 110, rock: 0, P: 32 }],
   placement: { at: 'scatter', engine: 'rocks', cell: 2.2, outcrops: false, texture: 1.1, shapes: 1, seed: 200 },

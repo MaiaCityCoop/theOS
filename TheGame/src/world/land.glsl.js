@@ -1,6 +1,6 @@
 // The land in GLSL: the same functions as world/land.js, constant for constant, so the GPU's ground
 // is the walker's ground. Every shader that needs the land starts with this.
-import { OCT_LAM, OCT_AMP, WATER_DROP } from './land.js';
+import { OCT_LAM, OCT_AMP, WATER_DROP, MEANDER } from './land.js';
 import { BIOME_GLSL } from './biomes.glsl.js';
 
 const fl = (a) => a.map((v) => v.toFixed(3)).join(', ');
@@ -42,10 +42,20 @@ float vnoise(vec2 p, uint s){
 }
 
 // The stream: the zero line of r. (r, its gradient per metre)
-vec3 riverR(vec2 p){
+vec3 riverWorld(vec2 p){
   vec3 n1 = noised(p * (1.0 / 1600.0), 40u);
   vec3 n2 = noised(p * (1.0 / 330.0) + 17.3, 41u);
   return vec3((n1.x - 0.5) + 0.28 * (n2.x - 0.5), n1.yz * (1.0 / 1600.0) + 0.28 * n2.yz * (1.0 / 330.0));
+}
+// the library's sandbox river (land.js: sandRiver): meandering through the sandbox in place of the world's
+vec3 riverR(vec2 p){
+  vec3 R = riverWorld(p);
+  if (uSand.z <= 0.0 || sandIs(SAND_RIVER) < 0.5) return R;
+  vec2 d = p - uSand.xy; float s = sandW(p); if (s <= 0.0) return R;
+  float c = cos(${MEANDER.turn.toFixed(4)}), sn = sin(${MEANDER.turn.toFixed(4)}), u = d.x * c + d.y * sn, v = -d.x * sn + d.y * c, k = 6.2831853 / ${MEANDER.wave.toFixed(1)};
+  float g = v - ${MEANDER.swing.toFixed(1)} * sin(k * u), gu = -${MEANDER.swing.toFixed(1)} * k * cos(k * u);
+  vec2 gr = vec2(gu * c - sn, gu * sn + c) / 1600.0;
+  return vec3((g >= 0.0 ? 1.0 : -1.0) * (abs(g) / 1600.0 + (1.0 - s) * 2.0 * length(gr) * 1600.0), gr);
 }
 float riverDist(vec3 R){ return abs(R.x) / max(length(R.yz), 2e-4); }
 float riverW(vec2 p){ return 6.75 + 4.5 * smoothstep(0.3, 0.7, vnoise(p * (1.0 / 170.0), 42u)); }

@@ -5,6 +5,8 @@
 import * as THREE from 'three';
 import { WORLD_GLSL, heightAt } from '../world.js';
 import { PLACES } from '../world/places.js';
+import { SAND } from '../world/land.js';
+import { BIOMES } from '../../biomes/index.js';
 
 const N = 512;   // texels a side; a texel is 0.5 m to the 68° lens and grows with a longer one, so the texture always covers the blades' reach
 
@@ -54,7 +56,7 @@ export function createGround(renderer, U) {
     /** The library's stage: a round of bare ground at (x, z), r metres across the middle; r 0 takes it away. */
     stage(x, z, r) { stage.value.set(x, z, r); lastS = 0; },
     /** The library's sandbox: round (x, z) the land is all one biome (its number in biomes/); no arguments: off. */
-    sandbox(x = 0, z = 0, biome = -1) { U.uSand.value.set(x, z, biome < 0 ? 0 : 1, biome); lastS = 0; },
+    sandbox(x = 0, z = 0, biome = -1) { U.uSand.value.set(x, z, biome < 0 ? 0 : 1, biome); Object.assign(SAND, { on: biome >= 0, x, z, river: BIOMES[biome]?.where === 'water' }); lastS = 0; },
     /** s: the lens factor; the texture is drawn again when the camera has walked 16 texels, or the lens changed */
     update(cx, cz, dy, s) {
       const TEXEL = 0.5 * s, SNAP = 16 * TEXEL;
