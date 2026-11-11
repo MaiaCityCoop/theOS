@@ -30,7 +30,7 @@ document.querySelector('header .mark').onclick = (e) => { e.preventDefault(); ta
 const VIEWS = { walk: ['Walk the world', '/?in=os'], lenses: ['Lenses', '/lenses.html?in=os'] };
 function game(view, show = true) {
   gameView = view;
-  $('gamebar').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button class="btn small ${k === view ? 'dark' : 'quiet'}" data-v="${k}">${v[0]}</button>`).join('') + `<span class="label">${GAME.replace('http://', '')}</span>`;
+  $('gamebar').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button class="${k === view ? 'on' : ''}" data-v="${k}">${v[0]}</button>`).join('') + `<span class="label">${GAME.replace('http://', '')}</span>`;
   $('gamebar').querySelectorAll('button').forEach((b) => (b.onclick = () => game(b.dataset.v)));
   $('frame').removeAttribute('src');
   if (show) tab('game');
@@ -76,7 +76,7 @@ function home() {
   const open = intents.filter((i) => i.state !== 'archived');
   $('nowlist').innerHTML = open.length ? open.slice(0, 4).map((i) => `<div class="row" data-slug="${i.slug}"><span>${i.title}</span><span class="chip live">${i.state}</span></div>`).join('') : '<p>Nothing is open.</p>';
   $('nowlist').querySelectorAll('.row').forEach((r) => (r.onclick = () => { tab('intents'); board(r.dataset.slug); }));
-  if (film) { $('storytitle').textContent = film.title; $('storysub').textContent = `Story ${film.id.slice(0, 4)}, told by avenMAIA, played by a camera inside the world. The same film every time.`; }
+  if (film) { $('storytitle').textContent = film.title; $('storysub').textContent = `Story ${film.id.slice(0, 4)}: Samuel and Maia, and a camera inside the world. The same film every time.`; $('herocap').textContent = film.title; }
   for (const id of ['watch', 'watch2']) $(id).onclick = () => (film ? story(film) : tab('stories'));
   for (const id of ['walk', 'walk2']) $(id).onclick = () => game('walk');
   $('lenses').onclick = () => game('lenses');

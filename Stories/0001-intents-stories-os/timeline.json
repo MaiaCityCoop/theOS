@@ -1,6 +1,6 @@
 {
  "intent": "0001",
- "title": "Before the city, a meadow",
+ "title": "A green meadow and one tent",
  "clips": [
   {
    "name": "From the sky",
@@ -536,112 +536,121 @@
    "at": 0.8,
    "for": 3.2,
    "kind": "title",
-   "text": "Before the city, a meadow",
-   "over": "TheOS \u00b7 Story 01"
+   "text": "A green meadow and one tent",
+   "over": "Maia City \u00b7 Day 1"
   },
   {
    "at": 4.4,
-   "for": 2.9,
-   "kind": "maia",
-   "text": "Everybody wants to build a city."
+   "for": 3.2,
+   "kind": "samuel",
+   "text": "It all starts with a green meadow and one tent."
   },
   {
-   "at": 7.8,
+   "at": 8.0,
    "for": 2.8,
    "kind": "maia",
-   "text": "Nobody asks where it stands."
+   "text": "I looked for the meadow. There was none."
   },
   {
-   "at": 11.0,
-   "for": 3.6,
-   "kind": "maia",
-   "text": "I am avenMAIA. I am learning to build one."
+   "at": 11.2,
+   "for": 2.2,
+   "kind": "samuel",
+   "text": "First we need a world."
   },
   {
-   "at": 15.0,
-   "for": 3.8,
+   "at": 13.8,
+   "for": 2.6,
    "kind": "maia",
-   "text": "One million founders, sixteen years. First in game, then in real."
+   "text": "So I made one. Land that never ends, and one river."
+  },
+  {
+   "at": 16.7,
+   "for": 2.3,
+   "kind": "maia",
+   "text": "No trees. No sun. No shadows. Not yet."
   },
   {
    "at": 19.4,
-   "for": 2.6,
+   "for": 2.8,
    "kind": "maia",
-   "text": "A city starts on a green meadow."
+   "text": "My first grass was too slow to walk through."
   },
   {
-   "at": 22.3,
-   "for": 2.2,
+   "at": 22.5,
+   "for": 2.0,
    "kind": "maia",
-   "text": "I had no meadow. So first: a world."
+   "text": "I made it fast."
   },
   {
    "at": 24.9,
-   "for": 2.5,
-   "kind": "maia",
-   "text": "Land that never ends. One river."
-  },
-  {
-   "at": 27.7,
-   "for": 2.5,
-   "kind": "maia",
-   "text": "No trees, no sun, no shadows. Not yet."
-  },
-  {
-   "at": 30.7,
-   "for": 2.7,
-   "kind": "maia",
-   "text": "My first meadow ran at 28 frames a second."
-  },
-  {
-   "at": 33.7,
-   "for": 2.7,
-   "kind": "maia",
-   "text": "Every blade asked the land where it stood. Now it reads a map: 60."
-  },
-  {
-   "at": 36.9,
    "for": 3.1,
    "kind": "samuel",
    "text": "The grass is still super blocky, can you see?"
   },
   {
-   "at": 40.3,
-   "for": 3.5,
+   "at": 28.3,
+   "for": 1.9,
    "kind": "maia",
-   "text": "He was right. My first fix was the wrong one."
+   "text": "You were right. I fixed the wrong thing first."
+  },
+  {
+   "at": 30.7,
+   "for": 2.9,
+   "kind": "maia",
+   "text": "Then the meadow was a meadow. And I put up your tent."
+  },
+  {
+   "at": 33.9,
+   "for": 2.4,
+   "kind": "maia",
+   "text": "One tent. Nobody in it yet."
+  },
+  {
+   "at": 36.9,
+   "for": 4.1,
+   "kind": "samuel",
+   "text": "The vision, the city, the game: everything grows as we do, with citizens."
+  },
+  {
+   "at": 41.3,
+   "for": 2.6,
+   "kind": "maia",
+   "text": "Then it grows from here."
   },
   {
    "at": 44.4,
    "for": 2.6,
    "kind": "maia",
-   "text": "Then he asked for a camera."
+   "text": "There is no city on this land."
   },
   {
    "at": 47.3,
    "for": 2.4,
    "kind": "maia",
-   "text": "Nine lenses, so you can watch me build."
+   "text": "There is a meadow, a river and a tent."
   },
   {
    "at": 50.3,
-   "for": 2.9,
-   "kind": "maia",
-   "text": "There is no city here."
+   "for": 3.1,
+   "kind": "samuel",
+   "text": "This is day one. Today I am alone."
   },
   {
-   "at": 53.5,
-   "for": 2.7,
-   "kind": "maia",
-   "text": "There is a meadow, a river, and a list of what is wrong."
+   "at": 53.7,
+   "for": 2.3,
+   "kind": "samuel",
+   "text": "Tomorrow we will see."
   },
   {
-   "at": 56.5,
-   "for": 2.2,
+   "at": 56.4,
+   "for": 2.3,
    "kind": "maia",
-   "text": "What does a meadow need first? Light."
+   "text": "Tomorrow I am here too."
   }
  ],
- "series": "How AGI learns to build a city in 16 years",
- "narrator": "avenMAIA"
+ "series": "Maia City",
+ "voices": [
+  "Samuel",
+  "Maia"
+ ]
 }

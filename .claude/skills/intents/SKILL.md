@@ -47,14 +47,19 @@ One commit per request cycle where that is natural, so stages can be checked out
 
 At **Propose**, spawn `Stories/NNNN-slug/` with two files:
 
-- `story.md`: the story, told. Not a technical summary: an episode of the devlog *How AGI learns
-  to build a city in 16 years*, narrated by avenMAIA in the first person, about how the world and
-  the city grow and what this intent added to them. Start from the viewer who knows nothing
-  ("a city starts on a green meadow; first we need a world"). It holds the hook (title, overlay,
-  opening shot), the story in a few paragraphs, the film as a table (time, picture, line), the
-  receipts (every number and quote, and where it is true), and what is still open. A link back to
-  the intent and its changelog. Write it with the `sandbox-script` and `writer` skills where they
-  are installed. Samuel's own part to camera is his to say: list it as open, never write his lines.
+- `story.md`: the story, told. Not a technical summary: a day of the series *"This is the story
+  of how one million humans build their own solarpunk city, from the ground up. In just 16
+  years."* It is a **dialogue between Samuel and Maia**: two voices, each speaking for
+  themselves (never "Samuel told me"). It starts from the viewer who knows nothing: a city starts
+  on a green meadow, with one tent; everything grows as we do, with citizens. It holds the hook
+  (title, overlay, opening shot), the story in a few paragraphs, the film as a table (time,
+  picture, who, line), the receipts (every number and quote, and where it is true), and what is
+  still open. A link back to the intent and its changelog.
+  - **Never say "aven", "AI" or "AGI"** in a story. She is Maia.
+  - **Samuel's lines are his own words**, from what he has really said or written (typos tidied,
+    nothing added), and they stay his to change. Maia's lines are written for her.
+  - Use the `sandbox-script` and `writer` skills for rhythm and voice where they are installed;
+    where they disagree with the three rules above, the rules win.
 - `timeline.json`: the film of the story for the in-game camera, played live and the same every
   time:
 
@@ -63,8 +68,8 @@ At **Propose**, spawn `Stories/NNNN-slug/` with two files:
         "captions": [ { "at": seconds, "for": seconds, "kind": "title" | "maia" | "samuel" | "note", "text": "…" } ] }
 
   `clips` is the virtual camera's timeline (`TheGame/cine/README.md`). `captions` are the film's
-  subtitles: `maia` for avenMAIA's narration, `samuel` for a line Samuel really said (typos
-  tidied, nothing else), `note` for a plain fact on screen, `title` for the film's title card
+  subtitles: `maia` and `samuel` for the two voices of the dialogue (the speaker's name stands
+  small over the line), `note` for a plain fact on screen, `title` for the film's title card
   (with `over` for the small line above it). Subtitles are short: one thought, two lines at most,
   about 42 characters a line, on screen two to four seconds, never two at once. About 150 words
   for a minute of film. Compose camera moves with `TheGame/cine/trailer.js` or by hand; a shot

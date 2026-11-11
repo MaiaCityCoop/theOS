@@ -15,8 +15,9 @@ const pending = [];   // what was asked before the game's camera existed
 const clampMm = (mm) => Math.max(28, Math.min(180, mm));   // between the primes only a zoom move passes
 // three's fov is the vertical one, of the whole window. The lens fixes how wide the picture sees; where the
 // window is wider than the picture's shape (bars left and right), it fixes how tall instead.
+const FILL = new URLSearchParams(location.search).has('embed');   // as a picture in a frame of any shape: the lens fills it, no bars
 function vfov(mm) {
-  const wa = cam?.aspect || 1.5, pa = S.fmt.aspect || wa;
+  const wa = cam?.aspect || 1.5, pa = FILL ? wa : S.fmt.aspect || wa;
   return (2 * Math.atan(S.fmt.w / 2 / mm / Math.max(wa, pa))) / RAD;
 }
 
@@ -109,7 +110,7 @@ function pre(now) {
 let veil, frost, fctx, frozenFor = -1, bars = [];
 function frame() { // the picture's shape: black where the lens's format leaves the window empty
   if (!bars.length) for (let i = 0; i < 2; i++) { const b = document.createElement('div'); b.style.cssText = 'position:fixed;background:#000;pointer-events:none;z-index:3;display:none'; document.body.append(b); bars.push(b); }
-  const pa = on ? S.fmt.aspect : 0, wa = innerWidth / innerHeight;
+  const pa = on && !FILL ? S.fmt.aspect : 0, wa = innerWidth / innerHeight;
   if (!pa || Math.abs(pa - wa) < 0.01) { bars[0].style.display = bars[1].style.display = 'none'; return; }
   const tb = pa > wa, size = tb ? (innerHeight - innerWidth / pa) / 2 : (innerWidth - innerHeight * pa) / 2;
   bars.forEach((b, i) => { b.style.display = 'block'; b.style.inset = tb ? (i ? `auto 0 0 0` : `0 0 auto 0`) : (i ? `0 0 0 auto` : `0 auto 0 0`); b.style.width = tb ? 'auto' : size + 'px'; b.style.height = tb ? size + 'px' : 'auto'; });

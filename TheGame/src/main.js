@@ -18,6 +18,7 @@ import { bakeTextures } from './materials/bake.js';
 import { createTerrain } from './terrain/terrain.js';
 import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
+import { createTent } from './scatter/tent.js';
 import { createControls, spawn } from './camera/walk.js';
 import { createPost } from './camera/post.js';
 
@@ -41,6 +42,7 @@ U.tNoise = { value: tex.a[7] };
 const ground = createGround(renderer, U);
 const terrain = createTerrain(scene, U, tex);
 const scatter = createScatter(scene, U, tex);
+createTent(scene, U);
 const controls = createControls(camera, canvas, document.getElementById('msg'));
 const post = createPost(renderer, SKY);
 const hud = createHud(document.getElementById('hud'), renderer, camera, governor, stats);

@@ -8,91 +8,99 @@
 <link rel="stylesheet" href="/brand/brand.css">
 <style>
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;color:var(--ink);font:16px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
-  /* cream, with the mark's colours far away in it: a sun top right, a meadow bottom left */
-  body{background:radial-gradient(900px 620px at 92% -8%,rgba(236,190,98,.34),transparent 62%),radial-gradient(900px 700px at -6% 108%,rgba(119,137,77,.26),transparent 60%),radial-gradient(700px 500px at 60% 120%,rgba(72,125,129,.16),transparent 60%),var(--cream);background-attachment:fixed}
-  header{position:sticky;top:0;z-index:3;display:flex;align-items:center;height:76px;padding:0 34px}
-  header nav{position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:2px;padding:5px;border-radius:999px;background:rgba(255,251,245,.72);-webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6);box-shadow:inset 0 0 0 1px rgba(255,255,255,.8),0 6px 24px rgba(34,67,59,.1)}
-  header nav button{font:700 14.5px/1 var(--round);color:var(--moss);background:none;border:0;padding:11px 18px;border-radius:999px;cursor:pointer;transition:background .15s,color .15s}
-  header nav button:hover{background:var(--mist)}
-  header nav button.on{color:var(--cream);background:var(--forest)}
+  html,body{margin:0;height:100%;background:var(--cream);color:var(--ink);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+  header{position:sticky;top:0;z-index:3;display:flex;align-items:center;height:78px;padding:0 44px;background:rgba(247,242,233,.88);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+  header nav{display:flex;gap:34px;margin-left:64px}
+  header nav button{font:500 13.5px/78px var(--sans);letter-spacing:.03em;color:var(--muted);background:none;border:0;padding:0;cursor:pointer;position:relative;transition:color .2s}
+  header nav button:hover{color:var(--forest)}
+  header nav button.on{color:var(--forest)}
+  header nav button.on::after{content:'';position:absolute;left:50%;bottom:16px;width:11px;height:11px;margin-left:-5.5px;background:var(--sunmark) center/contain no-repeat}
   header #count{margin-left:auto}
-  main{display:none;min-height:calc(100% - 76px)}
+  main{display:none;min-height:calc(100% - 78px)}
   main.on{display:block}
-  .wrap{max-width:1200px;margin:0 auto;padding:0 34px}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 44px}
 
-  /* home */
-  .top{text-align:center;padding:54px 0 40px}
-  .top h1{font:800 clamp(48px,7.6vw,112px)/.94 var(--round);letter-spacing:-.045em;color:var(--forest);margin:20px auto 22px;max-width:13ch}
-  .top h1 em{font-style:normal;color:var(--leaf);background:linear-gradient(transparent 68%,rgba(236,190,98,.75) 68%,rgba(236,190,98,.75) 92%,transparent 92%);border-radius:6px;padding:0 .06em}
-  .top p{font:500 20px/1.5 var(--round);color:var(--ink-2);margin:0 auto 30px;max-width:36ch}
-  .acts{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-  .screen{position:relative;aspect-ratio:2.39/1;border-radius:36px;overflow:hidden;background:var(--sky);box-shadow:0 0 0 8px rgba(255,251,245,.7),0 40px 90px rgba(34,67,59,.26)}
+  /* home: words on the left, the glasshouse window on the right */
+  .top{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:72px;align-items:center;padding:44px 0 84px}
+  .top h1{font:300 clamp(36px,4.5vw,68px)/1.06 var(--serif);letter-spacing:-.025em;color:var(--forest);margin:30px 0 14px}
+  .top p.kick{font:italic 300 clamp(26px,3vw,44px)/1.1 var(--serif);color:var(--gold);margin:0 0 30px}
+  .top h1 em{font-style:italic;font-weight:300}
+  .top p{font:400 19px/1.6 var(--sans);color:var(--ink-2);margin:0 0 36px;max-width:40ch}
+  .acts{display:flex;gap:28px;align-items:center;flex-wrap:wrap}
+  /* THE ARCH: the one grand shape. A glasshouse window; behind it, the world, live. */
+  .arch{position:relative;justify-self:end;width:min(100%,520px);aspect-ratio:4/5}
+  .arch::before{content:'';position:absolute;inset:-14px;border:1px solid var(--gold);border-radius:999px 999px 10px 10px;opacity:.55;pointer-events:none}
+  .screen{position:absolute;inset:0;border-radius:999px 999px 4px 4px;overflow:hidden;background:var(--sky);box-shadow:0 30px 80px rgba(23,37,31,.22)}
   .screen iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
-  .screen .tag{position:absolute;left:18px;top:18px;z-index:1;font:700 11.5px/1 var(--round);letter-spacing:.08em;text-transform:uppercase;padding:9px 14px;border-radius:999px;display:flex;align-items:center;gap:8px;color:var(--forest)}
-  .screen .tag::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 4px rgba(216,160,80,.3)}
-  .plan{display:flex;gap:10px;margin-top:44px}
-  .plan div{flex:1;padding:18px 20px;border-radius:24px;background:rgba(255,251,245,.6);cursor:pointer;transition:transform .15s,background .15s}
-  .plan div:hover{transform:translateY(-2px);background:var(--card)}
-  .plan b{display:block;font:800 40px/1 var(--round);letter-spacing:-.04em;color:var(--sage);margin-bottom:8px}
-  .plan div.has{background:var(--forest)}.plan div.has b{color:var(--sun)}.plan div.has .label{color:var(--mist)}
-  .trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px;padding-bottom:90px}
-  .panel{padding:28px;border-radius:32px;display:flex;flex-direction:column;gap:10px;min-height:250px;background:var(--card);box-shadow:var(--shadow)}
-  .panel:nth-child(1){background:var(--mist)}.panel:nth-child(2){background:var(--peach)}.panel:nth-child(3){background:#dbe8ea}
-  .panel h3{font:800 30px/1.05 var(--round);letter-spacing:-.03em;color:var(--forest);margin:8px 0 2px}
+  .arch figcaption{position:absolute;left:0;right:0;bottom:-44px;display:flex;justify-content:space-between}
+
+  /* the plan: six stations on a line */
+  .plan{display:flex;border-top:1px solid var(--forest);margin-top:8px}
+  .plan div{flex:1;padding:18px 0 0;cursor:pointer;position:relative}
+  .plan div::before{content:'';position:absolute;left:0;top:-4px;width:7px;height:7px;border-radius:50%;background:var(--cream);box-shadow:inset 0 0 0 1px var(--forest)}
+  .plan div.has::before{width:15px;height:15px;top:-8px;left:-4px;border-radius:0;box-shadow:none;background:var(--sunmark) center/contain no-repeat}
+  .plan b{display:block;font:300 46px/1 var(--serif);letter-spacing:-.02em;color:var(--sage);margin-bottom:10px}
+  .plan div.has b{color:var(--forest)}.plan div.has .label{color:var(--forest)}
+  .trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:84px;padding-bottom:110px}
+  .panel{padding:0 40px 0 0;display:flex;flex-direction:column;gap:14px;min-height:240px}
+  .panel + .panel{padding-left:40px;border-left:1px solid var(--line)}
+  .panel h3{font:300 38px/1.05 var(--serif);letter-spacing:-.025em;color:var(--forest);margin:14px 0 0}
   .panel p{margin:0;color:var(--ink-2);font-size:15px}
-  .panel .foot{margin-top:auto;display:flex;gap:8px;padding-top:16px}
-  .row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;margin:0 -6px;border-radius:16px;background:rgba(255,251,245,.7);cursor:pointer;font:600 15px/1.3 var(--round);color:var(--forest)}
-  .row .chip{background:var(--card)}
+  .panel .foot{margin-top:auto;display:flex;gap:26px;align-items:center;padding-top:20px}
+  .row{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:12px 0;border-top:1px solid var(--line);cursor:pointer;font:400 19px/1.25 var(--serif);color:var(--forest)}
+  .row:hover{color:var(--ink)}
 
   /* the board */
-  #intents.on{display:flex;height:calc(100% - 76px)}
-  #board{flex:1;display:flex;gap:10px;padding:12px 16px 30px 34px;overflow:auto;min-width:0}
-  .col{flex:1;min-width:170px;padding:14px 10px;border-radius:26px;background:rgba(255,251,245,.5)}
-  .col h2{margin:4px 8px 14px;display:flex;justify-content:space-between}
-  .card{background:var(--card);border-radius:20px;padding:14px 16px 16px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 2px rgba(34,67,59,.06);font:700 17px/1.2 var(--round);letter-spacing:-.015em;color:var(--forest);transition:transform .14s,box-shadow .14s}
-  .card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
-  .card.on{background:var(--forest);color:var(--cream);box-shadow:var(--shadow)}
-  .card b{display:block;font:700 11px/2.1 var(--round);letter-spacing:.1em;color:var(--olive)}
-  .card.on b{color:var(--sun)}
-  .card i{display:block;margin-top:9px;font:700 11px/1 var(--round);font-style:normal;letter-spacing:.07em;text-transform:uppercase;color:var(--gold)}
+  #intents.on{display:flex;height:calc(100% - 78px)}
+  #board{flex:1;display:flex;padding:22px 0 30px 44px;overflow:auto;min-width:0}
+  .col{flex:1;min-width:176px;padding:0 16px;border-left:1px solid var(--line)}
+  .col:first-child{border-left:0;padding-left:0}
+  .col h2{margin:2px 0 22px;display:flex;justify-content:space-between}
+  .card{padding:16px 0 18px;border-top:1px solid var(--forest);cursor:pointer;font:400 21px/1.18 var(--serif);letter-spacing:-.01em;color:var(--forest);position:relative;transition:padding .2s}
+  .card:hover{padding-left:6px}
+  .card.on{padding-left:22px}
+  .card.on::before{content:'';position:absolute;left:0;top:21px;width:13px;height:13px;background:var(--sunmark) center/contain no-repeat}
+  .card b{display:block;font:600 10px/2.4 var(--sans);letter-spacing:.2em;color:var(--muted)}
+  .card i{display:block;margin-top:10px;font:600 10px/1 var(--sans);font-style:normal;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
   .card.rejected{opacity:.5}
 
-  /* a document */
-  .doc{width:min(50vw,800px);background:var(--card);border-radius:34px 0 0 0;box-shadow:-20px 0 50px rgba(34,67,59,.07);overflow:auto;padding:0 42px 90px;display:none}
+  /* a document: set like a book page */
+  .doc{width:min(52vw,820px);background:var(--paper);border-left:1px solid var(--line);overflow:auto;padding:0 56px 100px;display:none}
   .doc.on{display:block}
-  .doc h1{font:800 44px/1 var(--round);letter-spacing:-.04em;color:var(--forest);margin:30px 0 14px}
-  .doc h2{font:800 24px/1.15 var(--round);letter-spacing:-.025em;color:var(--forest);margin:42px 0 10px;padding-top:26px;border-top:2px solid var(--cream-2)}
-  .doc h3{font:700 12px/1 var(--round);letter-spacing:.09em;text-transform:uppercase;color:var(--olive);margin:26px 0 8px}
+  .doc h1{font:300 50px/1.04 var(--serif);letter-spacing:-.03em;color:var(--forest);margin:34px 0 18px}
+  .doc h2{font:400 26px/1.2 var(--serif);letter-spacing:-.015em;color:var(--forest);margin:52px 0 12px;padding-top:26px;border-top:1px solid var(--line)}
+  .doc h3{font:600 10.5px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:30px 0 10px}
   .doc p,.doc li{color:var(--ink-2)}
-  .doc strong{color:var(--forest)}
-  .doc blockquote{margin:14px 0;padding:16px 20px;border-radius:20px;background:var(--mist);font:500 17px/1.5 var(--round);color:var(--forest)}
-  .doc blockquote p{margin:0;color:inherit}
-  .doc table{border-collapse:collapse;width:100%;font-size:14px;margin:10px 0}
-  .doc td,.doc th{border-bottom:1.5px solid var(--cream-2);padding:10px 12px 10px 0;text-align:left;vertical-align:top}
-  .doc th{font:700 11px/1.4 var(--round);letter-spacing:.08em;text-transform:uppercase;color:var(--olive)}
-  .doc code{background:var(--cream);padding:2px 7px;border-radius:7px;font:12.5px var(--mono);color:var(--moss)}
-  .doc pre{background:var(--cream);padding:16px;border-radius:18px;overflow:auto}.doc pre code{padding:0}
-  .doc em{color:var(--muted)}.doc a{color:var(--teal);text-decoration:none;font-weight:600}
-  .doc hr{border:0;border-top:2px solid var(--cream-2);margin:44px 0 0}
-  .doc li{margin:3px 0}.doc input[type=checkbox]{margin-right:8px;accent-color:var(--leaf)}
-  .bar{position:sticky;top:0;background:rgba(255,251,245,.9);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);padding:18px 0 14px;display:flex;gap:8px;align-items:center;z-index:1}
+  .doc strong{color:var(--forest);font-weight:600}
+  .doc blockquote{margin:18px 0;padding:2px 0 2px 22px;border-left:1px solid var(--gold);font:italic 400 19px/1.55 var(--serif);color:var(--forest)}
+  .doc blockquote p{color:inherit}
+  .doc table{border-collapse:collapse;width:100%;font-size:14px;margin:12px 0}
+  .doc td,.doc th{border-bottom:1px solid var(--line);padding:11px 14px 11px 0;text-align:left;vertical-align:top}
+  .doc th{font:600 10px/1.4 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);border-bottom-color:var(--forest)}
+  .doc code{font:12.5px var(--mono);color:var(--teal)}
+  .doc pre{background:var(--cream);padding:16px;border-radius:4px;overflow:auto}
+  .doc em{color:var(--muted)}.doc a{color:var(--forest);text-decoration:none;box-shadow:inset 0 -1px 0 var(--gold)}
+  .doc hr{border:0;border-top:1px solid var(--forest);margin:56px 0 0}
+  .doc li{margin:4px 0}.doc input[type=checkbox]{margin-right:8px;accent-color:var(--forest)}
+  .bar{position:sticky;top:0;background:rgba(252,249,243,.92);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);padding:20px 0 16px;display:flex;gap:20px;align-items:center;z-index:1}
   .bar .chip{margin-left:auto}
 
   /* stories: the film first, then the telling */
-  #stories.on{display:flex;height:calc(100% - 76px)}
-  #list{width:330px;padding:12px 16px 26px 34px;overflow:auto}
+  #stories.on{display:flex;height:calc(100% - 78px)}
+  #list{width:340px;padding:22px 20px 26px 44px;overflow:auto}
   #storydoc{flex:1;width:auto}
-  .player{position:relative;aspect-ratio:16/9;max-height:64vh;width:100%;margin:8px 0 6px;border-radius:30px;overflow:hidden;background:var(--sky);box-shadow:var(--shadow)}
+  .player{position:relative;aspect-ratio:16/9;max-height:66vh;width:100%;margin:4px 0 10px;border-radius:6px;overflow:hidden;background:#0c1612;box-shadow:var(--shadow)}
   .player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 
   /* the game */
-  #game.on{display:flex;flex-direction:column;height:calc(100% - 76px)}
-  #gamebar{display:flex;gap:8px;padding:4px 34px 14px;align-items:center}
+  #game.on{display:flex;flex-direction:column;height:calc(100% - 78px)}
+  #gamebar{display:flex;gap:30px;padding:2px 44px 16px;align-items:center}
+  #gamebar button{font:500 13.5px/1 var(--sans);letter-spacing:.03em;color:var(--muted);background:none;border:0;padding:8px 0;cursor:pointer;box-shadow:inset 0 -1px 0 transparent}
+  #gamebar button.on{color:var(--forest);box-shadow:inset 0 -1.5px 0 var(--gold)}
   #gamebar .label{margin-left:auto}
-  #game iframe{flex:1;border:0;width:calc(100% - 68px);margin:0 34px 34px;border-radius:34px;background:var(--sky);box-shadow:0 0 0 8px rgba(255,251,245,.7),var(--shadow)}
+  #game iframe{flex:1;border:0;width:calc(100% - 88px);margin:0 44px 44px;border-radius:6px;background:var(--sky);box-shadow:var(--shadow)}
   .empty{color:var(--muted);padding:26px 0}
-  @media (max-width:900px){header nav{position:static;transform:none;margin-left:14px}header #count{display:none}.trio{grid-template-columns:1fr}.plan{flex-wrap:wrap}.plan div{min-width:30%}}
+  @media (max-width:980px){.top{grid-template-columns:1fr;gap:70px}.arch{justify-self:center}.trio{grid-template-columns:1fr;gap:50px}.panel + .panel{padding-left:0;border-left:0}.plan{flex-wrap:wrap}.plan div{min-width:33%;margin-bottom:24px}header nav{margin-left:28px;gap:20px}header #count{display:none}}
 </style>
 </head>
 <body>
@@ -104,17 +112,21 @@
 <main id="home" class="on">
   <div class="wrap">
     <section class="top">
-      <span class="chip live">Maia City · first in game, then in real</span>
-      <h1>A city starts on a <em>green meadow.</em></h1>
-      <p>TheOS is where the city gets built: the world it stands on, the work that makes it, and the story of both.</p>
-      <div class="acts"><button class="btn play" id="watch">Watch the latest story</button><button class="btn quiet" id="walk">Walk the world</button></div>
+      <div>
+        <span class="label sun">Maia City · day 1 · first in game, then in real</span>
+        <h1>This is the story of how one million humans build their own <em>solarpunk city</em>, from the ground up.</h1>
+        <p class="kick">In just 16 years.</p>
+        <p>It starts on a green meadow, with one tent. TheOS is where it gets built: the world it stands on, the work that makes it, and the story of both.</p>
+        <div class="acts"><button class="btn play" id="watch">Watch the latest story</button><button class="btn quiet" id="walk">Walk the world</button></div>
+      </div>
+      <figure class="arch"><div class="screen"><iframe id="heroframe" title="The latest story, playing in the game" allow="fullscreen"></iframe></div>
+        <figcaption><span class="label sun">Live, in the game</span><span class="label" id="herocap"></span></figcaption></figure>
     </section>
-    <div class="screen"><span class="tag glass">live, in the game</span><iframe id="heroframe" title="The latest story, playing in the game" allow="fullscreen"></iframe></div>
     <section class="plan" id="flow"></section>
     <section class="trio">
-      <div class="panel"><span class="label">The work</span><h3>Intents</h3><div id="nowlist"></div><div class="foot"><button class="btn small dark" data-go="intents">Open the board</button></div></div>
+      <div class="panel"><span class="label">The work</span><h3>Intents</h3><div id="nowlist"></div><div class="foot"><button class="btn small quiet" data-go="intents">Open the board</button></div></div>
       <div class="panel"><span class="label">The story</span><h3 id="storytitle">No story yet</h3><p id="storysub">A story is told for every proposed intent: what was wanted, what was made, played by a camera inside the world.</p><div class="foot"><button class="btn small play" id="watch2">Play</button></div></div>
-      <div class="panel"><span class="label">The world</span><h3>The Game</h3><p>One endless land, a river, a meadow, drawn live in the browser. Walk it yourself, or look at it through nine film lenses.</p><div class="foot"><button class="btn small dark" id="walk2">Walk</button><button class="btn small quiet" id="lenses">Lenses</button></div></div>
+      <div class="panel"><span class="label">The world</span><h3>The Game</h3><p>One endless land, a river, a meadow, drawn live in the browser. Walk it yourself, or look at it through nine film lenses.</p><div class="foot"><button class="btn small quiet" id="walk2">Walk</button><button class="btn small quiet" id="lenses">Lenses</button></div></div>
     </section>
   </div>
 </main>

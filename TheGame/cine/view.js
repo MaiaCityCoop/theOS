@@ -1,4 +1,5 @@
-// The timeline view: the trailer's clips as a strip under the live world, a playhead, play and scrub.
+// The timeline view: a film's controls under the live world. The film is drawn as a line, one
+// stretch per shot, its acts named under it; a sun is the playhead; play, and scrub by the line.
 // What it shows is the virtual camera moving through the real world as it plays; nothing is rendered ahead.
 import { trailer, floor } from './trailer.js';
 
@@ -6,46 +7,50 @@ const cine = window.__cine, q = new URLSearchParams(location.search);
 let seed = +(q.get('seed') || 1);
 const storyId = q.get('story');             // ?story=<id>: an intent's story, ../Stories/<id>/timeline.json: its camera and its captions
 let kept = storyId ? null : q.get('tl') || (q.has('seed') ? null : 'river-story'), keptClips = null, captions = [], story = null;   // ?tl=<name>: a kept timeline, cine/timelines/<name>.json, played as it was set
-const COL = { wide: '#dbe8ea', drone: '#f6e1ba', medium: '#dfe7d8', close: '#f3d9c4', 'low angle': '#e6e2c4', 'top down': '#cfe2de', glide: '#dfe4c6', tele: '#ecdcc8', crane: '#e9e4d8' };   // the mark's colours, pale
 
-
-const bar = document.getElementById('tl'), strip = document.getElementById('strip'), head = document.getElementById('head');
-const why = document.getElementById('why');
-const info = document.getElementById('info'), btn = document.getElementById('play');
+const $ = (id) => document.getElementById(id);
+const track = $('track'), segs = $('segs'), cues = $('cues'), head = $('head'), acts = $('acts'), btn = $('play');
+const lensOf = (c) => { const a = c.keys[0].mm, b = c.keys[c.keys.length - 1].mm; return a === b ? `${a} mm` : `${a} → ${b} mm`; };
+const cutOf = (c, k) => (k === 0 ? (c.in === 'dip' ? 'fades in' : 'opens') : c.in === 'dissolve' ? 'dissolve' : c.in === 'dip' ? 'through the sky' : 'cut');
 function build() {
   cine.floor = floor; cine.loop = true;
   cine.load(keptClips || trailer(seed));
-  strip.querySelectorAll('.clip').forEach((e) => e.remove());
-  cine.clips.forEach((c, k) => {
-    const e = document.createElement('div'); e.className = 'clip'; e.style.flex = c.secs; e.style.background = COL[c.kind] || '#888';
-    const mm = c.keys[0].mm === c.keys[c.keys.length - 1].mm ? `${c.keys[0].mm} mm` : `${c.keys[0].mm}→${c.keys[c.keys.length - 1].mm} mm`;
-    const cut = k === 0 ? (c.in === 'dip' ? 'fade in' : '') : c.in === 'dissolve' ? 'dissolve' : c.in === 'dip' ? 'dip' : 'cut';
-    e.title = c.why || '';
-    e.innerHTML = `<b>${cut ? cut + ' → ' : ''}${c.kind}</b><span>${c.name}</span><i>${mm} · ${c.secs} s</i>`;
-    strip.append(e);
-  });
-  history.replaceState(null, '', storyId ? `?story=${storyId}` : kept ? `?tl=${kept}` : `?seed=${seed}`);
-  strip.querySelectorAll('.cue').forEach((e) => e.remove());
-  for (const c of captions) { const e = document.createElement('div'); e.className = 'cue ' + c.kind; e.style.left = (c.at / cine.duration) * 100 + '%'; e.style.width = (c.for / cine.duration) * 100 + '%'; strip.append(e); }
+  // the film as a line: one stretch per shot, as long as the shot
+  segs.innerHTML = cine.clips.map((c, k) => `<div class="seg ${k ? c.in || 'cut' : c.in || ''}" style="flex:${c.secs}" title="${k + 1} · ${c.name} · ${lensOf(c)} · ${c.secs} s · ${cutOf(c, k)}"><u></u></div>`).join('');
+  // the acts, each under its shots
+  const groups = [];
+  for (const c of cine.clips) { const g = groups[groups.length - 1]; if (g && g.act === (c.act || '')) { g.secs += c.secs; g.n++; } else groups.push({ act: c.act || '', secs: c.secs, n: 1 }); }
+  acts.innerHTML = groups.map((g) => `<span style="flex:${g.secs};margin-right:${(g.n - 1) * 0}px" data-act="${g.act}">${g.act}</span>`).join('');
+  cues.innerHTML = captions.map((c) => `<div class="cue" style="left:${(c.at / cine.duration) * 100}%;width:${(c.for / cine.duration) * 100}%"></div>`).join('');
+  history.replaceState(null, '', (storyId ? `?story=${storyId}` : kept ? `?tl=${kept}` : `?seed=${seed}`) + (q.has('in') ? `&in=${q.get('in')}` : '') + (q.has('embed') ? '&embed' : ''));
 }
-const fmt = (s) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+let lastI = -1;
 function tick() {
   requestAnimationFrame(tick);
   const d = cine.duration || 1, t = cine.time;
   head.style.left = (t / d) * 100 + '%';
   let i = cine.clips.length - 1; while (i > 0 && cine.starts[i] > t) i--;
-  const c = cine.clips[i], v = cine.view;
-  info.textContent = c ? `${fmt(t)} / ${fmt(d)}   ${c.act ? c.act.toUpperCase() + ' · ' : ''}shot ${i + 1}/${cine.clips.length}  ${c.name}   ${v.mm.toFixed(0)} mm   ${story ? 'story: ' + storyId : kept ? 'kept: ' + kept : 'seed ' + seed}` : '';
-  why.textContent = c?.why || '';
+  const c = cine.clips[i];
+  if (!c) return;
+  const els = segs.children;
+  for (let k = 0; k < els.length; k++) els[k].firstChild.style.width = k < i ? '100%' : k > i ? '0' : ((t - cine.starts[i]) / c.secs) * 100 + '%';
+  if (i !== lastI) {
+    lastI = i;
+    for (let k = 0; k < els.length; k++) els[k].classList.toggle('now', k === i);
+    $('act').textContent = `${i + 1} / ${cine.clips.length}`;
+    $('shot').textContent = c.name; $('lens').textContent = `${c.kind} · ${lensOf(c)}`; $('why').textContent = c.why || '';
+    acts.querySelectorAll('span').forEach((s) => s.classList.toggle('now', s.dataset.act === (c.act || '')));
+  }
+  $('time').innerHTML = `<b>${fmt(t)}</b> / ${fmt(d)}`;
   caption(t);
-  btn.textContent = cine.playing ? '❚❚' : '▶';
-  strip.querySelectorAll('.clip').forEach((e, k) => e.classList.toggle('now', k === i));
+  btn.classList.toggle('on', cine.playing);
 }
 const toggle = () => (cine.playing ? cine.pause() : cine.play());
 btn.onclick = toggle;
 let scrub = false;
-const seekTo = (e) => { const r = strip.getBoundingClientRect(); cine.seek(((e.clientX - r.left) / r.width) * cine.duration); };
-strip.addEventListener('mousedown', (e) => { scrub = true; cine.pause(); seekTo(e); });
+const seekTo = (e) => { const r = track.getBoundingClientRect(); cine.seek(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * cine.duration); };
+track.addEventListener('mousedown', (e) => { scrub = true; cine.pause(); seekTo(e); });
 addEventListener('mousemove', (e) => scrub && seekTo(e));
 addEventListener('mouseup', () => { scrub = false; });
 addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); toggle(); } });
@@ -57,7 +62,7 @@ function caption(t) {
   let c = null; for (const k of captions) if (t >= k.at && t < k.at + k.for) c = k;
   if (c !== shown) {
     shown = c; cap.className = c ? 'on ' + c.kind : '';
-    if (c) { cap.textContent = c.text; if (c.kind === 'title' && c.over) cap.insertAdjacentHTML('afterbegin', `<small>${c.over}</small>`); }
+    if (c) { cap.textContent = c.text; if (c.kind === 'title' && c.over) cap.insertAdjacentHTML('afterbegin', `<small>${c.over}</small>`); cap.dataset.who = { samuel: 'Samuel', maia: 'Maia' }[c.kind] || ''; }
   }
   if (c) cap.style.opacity = Math.min(1, (t - c.at) / (c.kind === 'title' ? 0.8 : 0.18), (c.at + c.for - t) / (c.kind === 'title' ? 0.8 : 0.18));   // a subtitle comes and goes at once; a title breathes
 }

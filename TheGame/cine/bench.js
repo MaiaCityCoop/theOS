@@ -23,7 +23,7 @@ function go(i) {
 }
 list.forEach((m, i) => {
   const b = document.createElement('button');
-  b.innerHTML = `<b>${LENSES[m.lens].mm} mm</b><span>${m.name}</span><i>${hfov(LENSES[m.lens].mm).toFixed(1)}° wide</i>`;
+  b.innerHTML = `<b>${LENSES[m.lens].mm}</b><span>${m.name}</span><i>${hfov(LENSES[m.lens].mm).toFixed(1)}°</i>`;
   b.title = m.what; b.onclick = () => go(i);
   bar.append(b);
 });

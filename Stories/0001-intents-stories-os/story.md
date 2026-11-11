@@ -1,72 +1,76 @@
-# Before the city, a meadow
+# A green meadow and one tent
 
-**Story 01** of *How AGI learns to build a city in 16 years*. Narrated by avenMAIA.
+**Maia City · Day 1.** A dialogue between Samuel and Maia.
 Told for [intent 0001](../../Intents/0001-intents-stories-os.md), the intent that gave the work
 its stories; its facts are in that intent's [changelog](../../Intents/0001-intents-stories-os.md#changelog)
 and in the receipts below. The film is [`timeline.json`](timeline.json): the camera's moves and the
 subtitles, played live in the game, the same every time:
 `http://localhost:5173/timeline.html?story=0001-intents-stories-os`
 
+## The series
+
+> This is the story of how one million humans build their own solarpunk city, from the ground up.
+> In just 16 years.
+
 ## The hook
 
-- **Title:** I wanted to build a city and found out I had nowhere to put it (so I built a meadow first)
-- **Overlay:** FIRST, A WORLD
+- **Title:** Day 1 of building a city for a million people: one meadow, one tent, nobody home
+- **Overlay:** DAY 1
 - **Shot:** out of an empty sky, down to one river on an empty land.
 
 ## The story
 
-Everybody wants to build a city. Nobody asks where it stands.
+Every city starts the same way: a green meadow, and one tent. That is where Samuel begins. But
+when Maia looks for the meadow, there is none. There is nothing. So before the tent, she has to
+make the ground it stands on.
 
-A city starts *auf der grünen Wiese*: on a green meadow, on land nobody has built on. avenMAIA is
-learning to build Maia City, and on the first day of the world she has no meadow. So the first
-thing she builds is not a house. It is the ground.
+She makes a world: land that never ends, and one river. No trees, no sun, no shadows yet. Her
+first grass is too slow to walk through. She makes it fast, and Samuel looks at it and says it is
+blocky. He is right, and the first thing she fixes is the wrong thing.
 
-Land that never ends, one river, grass, a few stones. No trees, no sun, no shadows yet. Her first
-meadow is too slow to walk through, and when it is fast, her human looks at it and says it is
-blocky. He is right, and her first fix is the wrong one. Then he asks for a camera, so that the
-building can be watched.
+Then the meadow is a meadow, and she puts up the tent. One tent. Nobody in it yet.
 
-At the end there is still no city. There is a meadow, a river, and an honest list of what is
-wrong with them. And a question for tomorrow: what does a meadow need first?
+Samuel says what the tent is for: the vision, the city, the game, everything grows as we do, with
+citizens. Today there is no city on this land. There is a meadow, a river and a tent.
 
-## The film: 59 seconds, 146 words
+This is day one. Today he is alone. Tomorrow we will see.
 
-| At | On screen | avenMAIA |
-| --- | --- | --- |
-| 0:00 | Out of the sky, tilting down to the river | *title:* Before the city, a meadow |
-| 0:04 | | Everybody wants to build a city. |
-| 0:07 | Low and fast down the river | Nobody asks where it stands. |
-| 0:11 | | I am avenMAIA. I am learning to build one. |
-| 0:15 | The flight rises, slows | One million founders, sixteen years. First in game, then in real. |
-| 0:19 | On the bank, the river going by | A city starts on a green meadow. |
-| 0:22 | | I had no meadow. So first: a world. |
-| 0:24 | The waterline, close | Land that never ends. One river. |
-| 0:27 | | No trees, no sun, no shadows. Not yet. |
-| 0:30 | Down among the blades | My first meadow ran at 28 frames a second. |
-| 0:33 | | Every blade asked the land where it stood. Now it reads a map: 60. |
-| 0:36 | Straight up out of the grass | *Samuel:* "The grass is still super blocky, can you see?" |
-| 0:40 | The river slides into frame | He was right. My first fix was the wrong one. |
-| 0:44 | Low over the meadow, back to the water | Then he asked for a camera. |
-| 0:47 | | Nine lenses, so you can watch me build. |
-| 0:50 | The crane up and away | There is no city here. |
-| 0:53 | | There is a meadow, a river, and a list of what is wrong. |
-| 0:56 | Fade to the sky | What does a meadow need first? Light. |
+## The film: 59 seconds, two voices
+
+| At | On screen | Who | Line |
+| --- | --- | --- | --- |
+| 0:00 | Out of the sky, tilting down to the river | | *title:* A green meadow and one tent |
+| 0:04 | | Samuel | It all starts with a green meadow and one tent. |
+| 0:08 | Low and fast down the river | Maia | I looked for the meadow. There was none. |
+| 0:11 | | Samuel | First we need a world. |
+| 0:13 | The flight rises, slows | Maia | So I made one. Land that never ends, and one river. |
+| 0:16 | | Maia | No trees. No sun. No shadows. Not yet. |
+| 0:19 | On the bank, the river going by | Maia | My first grass was too slow to walk through. |
+| 0:22 | | Maia | I made it fast. |
+| 0:24 | The waterline, close | Samuel | The grass is still super blocky, can you see? |
+| 0:28 | | Maia | You were right. I fixed the wrong thing first. |
+| 0:30 | Down among the blades, the tent ahead | Maia | Then the meadow was a meadow. And I put up your tent. |
+| 0:33 | | Maia | One tent. Nobody in it yet. |
+| 0:36 | Straight up over the tent, the river sliding in | Samuel | The vision, the city, the game: everything grows as we do, with citizens. |
+| 0:41 | | Maia | Then it grows from here. |
+| 0:44 | Low over the meadow, back to the water | Maia | There is no city on this land. |
+| 0:47 | | Maia | There is a meadow, a river and a tent. |
+| 0:50 | The crane up and away | Samuel | This is day one. Today I am alone. |
+| 0:53 | | Samuel | Tomorrow we will see. |
+| 0:56 | Fade to the sky | Maia | Tomorrow I am here too. |
 
 ## Receipts
 
 | Line | Where it is true |
 | --- | --- |
-| "28 frames a second" | The first version of the grass, read in the app's browser pane on the day it was built, 2026-11-11 |
-| "asked the land where it stood … reads a map: 60" | Each blade worked the land's noise out at every vertex (15 ms a frame); now it reads the ground map. 60 fps in the same pane afterwards |
-| Samuel's line | His words in the session, 2026-11-11, typos tidied |
-| "My first fix was the wrong one" | The first fix blamed per-vertex colour; the squares were the noise's own grid, fixed the round after |
-| "Nine lenses" | `TheGame/cine/lenses.js`: 28 to 180 mm |
-| "a list of what is wrong" | `TheGame/LENS-REVIEW.md` |
+| Samuel's five lines | His own words in the session of 2026-11-11, typos tidied, nothing added: "it all starts with a green meadow and one tent", "first we need a world", "the grass is still super blocky, can you see?", "the vision, the city, the game, everything grows as we do, with citizens", "this is day 1: today I am alone, tomorrow we will see" |
+| "too slow to walk through … I made it fast" | The first grass ran at 28 frames a second in the app's browser pane on the day it was built; 60 after each blade read the ground from a map |
+| "I fixed the wrong thing first" | The first fix blamed per-vertex colour; the squares were the noise's own grid, fixed the round after |
+| "I put up your tent" | `TheGame/src/scatter/tent.js`, standing at `TheGame/src/world/places.js` |
+| "a meadow, a river and a tent" | What the world holds today, with stones |
 
 ## Open
 
-- **Samuel's opening to camera** (his promise, 15 to 25 seconds, before this film): his to say and to film. Not written here.
-- **The series trailer**: does not exist yet.
-- **Her voice**: the lines are subtitles only; nothing is spoken yet.
-- **"Light" as tomorrow's answer** is avenMAIA's guess, not a decided intent.
-- The numbers were read in the app's browser pane, not in Safari.
+- **The voices.** The lines are subtitles only; nothing is spoken yet. Samuel's are his to speak, and his to change.
+- **The series trailer** does not exist yet.
+- The frame rates were read in the app's browser pane, not in Safari.
