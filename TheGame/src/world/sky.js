@@ -87,7 +87,7 @@ export function createSky(scene, camera, U, renderer) {
 
   // the clock, top right: the hour, a slider, Auto (not on a film's page, nor as a picture)
   let ui = null;
-  const film = /timeline\.html$/.test(location.pathname) || new URLSearchParams(location.search).has('embed');
+  const film = /(timeline|library)\.html$/.test(location.pathname) || new URLSearchParams(location.search).has('embed');   // a film sets its own hour; the library keeps its own light
   if (!film) {
     ui = document.createElement('div'); ui.className = 'os-clock glass'; ui.setAttribute('aria-label', 'Time of day');
     ui.innerHTML = '<b></b><input type="range" id="sky-hour" min="0" max="24" step="0.05" aria-label="Time of day"><button type="button" class="g-btn quiet">Auto</button>';
@@ -109,6 +109,8 @@ export function createSky(scene, camera, U, renderer) {
   return {
     get hour() { return hour; },
     set(h) { hour = ((h % 24) + 24) % 24; apply(); show(); },
+    /** Hold the day at an hour, Auto off, without keeping it (the library's studio light). */
+    hold(h) { hour = ((h % 24) + 24) % 24; auto = false; apply(); show(); },
     update(dt) {
       if (auto) { hour = (hour + (dt * SKY.speed) / 60) % 24; if ((saved += dt) > 5) { saved = 0; keep('hour', hour); } }
       if (hour !== shown) { shown = hour; apply(); if (auto) show(); }

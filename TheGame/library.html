@@ -87,7 +87,8 @@ const chip = (m) => `<span class="g-chip"><i style="background:${hex(MATERIAL[m]
 const fileOf = (path) => `<footer class="g-part"><span class="g-file">${path}</span></footer>`;
 // a size as a figure: one number in metres, or a range (in centimetres where it is all under a metre)
 const sizeFig = (v, label) => (Array.isArray(v) ? (v[1] < 1 ? fig(`${num(v[0] * 100)}–${num(v[1] * 100)}`, 'cm', label) : fig(`${num(v[0])}–${num(v[1])}`, 'm', label)) : fig(num(v), 'm', label));
-while (!window.__s8?.U || !window.__s8?.ground) await new Promise((r) => setTimeout(r, 50));
+while (!window.__s8?.U || !window.__s8?.ground || !window.__s8?.sky) await new Promise((r) => setTimeout(r, 50));
+window.__s8.sky.hold(11);   // the library's studio: one day's light, held; the key light follows the camera (frame)
 const { scene, U, ground, tex } = window.__s8;
 ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BIOME.meadow));   // round the stage, the land is all meadow
 
@@ -221,9 +222,9 @@ function lookAtLevel(a, i) {
 // a biome: laid over all the land round the stage, the stage's bare round taken away; the river as a pond
 function chooseBiome(id) {
   const b = BIOME[id]; clearStage(); ground.stage(STAGE.x, STAGE.z, 0); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(b));
-  H = 0.8; const wet = ['water', 'cutbank', 'bar'].includes(b.where); dist = wet ? 85 : 26; pitch = wet ? 0.55 : 0.42; spin = true;
+  H = 0.8; const wet = b.where === 'water'; dist = wet ? 85 : 26; pitch = wet ? 0.55 : 0.42; spin = true;
   document.querySelectorAll('.item').forEach((e) => e.classList.toggle('on', e.dataset.biome === id));
-  const laid = { land: 'Everywhere no other biome is', arid: 'Where the land is dry', bank: 'Along the river', water: 'In the river; here its own, meandering through the sandbox', cutbank: "On a bend's outside, where the current cuts the bank", bar: "On a bend's inside, between the water and the grass" }[b.where], pct = (v) => Math.round(v * 100);
+  const laid = { land: 'Everywhere no other biome is', arid: 'Where the land is dry', bank: 'Along the river', water: 'In the river; here its own, meandering through the sandbox', cutbank: "On a bend's outside, where the current cuts the bank; here on its own", bar: "On a bend's inside, between the water and the grass; here on its own" }[b.where], pct = (v) => Math.round(v * 100);
   document.getElementById('info').innerHTML = head('Biome', b.kind, b.name, b.about)
     + figs([b.grass && fig(pct(b.grass.cover), '%', 'Grass'), b.grass && fig(pct(b.grass.height), '%', 'Height'), b.stones && fig(pct(b.stones), '%', 'Stones')].filter(Boolean))
     + `<div class="g-cells g-part">${cell('Laid', say(laid))}${cell('Grass', say(b.grass ? cap([b.grass.tufts && 'in tufts', b.grass.flowers && 'with flowers'].filter(Boolean).join(', ')) || 'Plain' : 'None'))}${cell('Ground', `<div class="g-chips">${[b.floor, b.patches, b.spots, b.slopes].filter(Boolean).map((x) => chip(x.material)).join('')}</div>`, true)}</div>`
@@ -240,7 +241,7 @@ const ballGeo = new THREE.SphereGeometry(1.1, 128, 96);
 function chooseMaterial(id) {
   const m = MATERIAL[id]; clearStage(); staged = new THREE.Group();
   const mat = materialPreview(U, tex.of(id), 2), y = heightAt(STAGE.x, STAGE.z);
-  const fmat = materialPreview(U, tex.of(id), 2); fmat.polygonOffset = true; fmat.polygonOffsetFactor = -4; fmat.polygonOffsetUnits = -8;   // the floor always wins over the land under it
+  const fmat = materialPreview(U, tex.of(id), 2, { uEdge: { value: new THREE.Vector3(STAGE.x, STAGE.z, STAGE.r + 0.2) } }); fmat.polygonOffset = true;   // its edge fades into the grass fmat.polygonOffsetFactor = -4; fmat.polygonOffsetUnits = -8;   // the floor always wins over the land under it
   const ball = new THREE.Mesh(ballGeo, mat), floor = new THREE.Mesh(floorGeo, fmat);
   ball.position.set(STAGE.x, y + 1.15, STAGE.z);
   for (const o of [ball, floor]) { o.renderOrder = 1; o.frustumCulled = false; staged.add(o); }
@@ -260,7 +261,12 @@ orbit.onpointerup = () => { orbit.onpointermove = null; };
 orbit.onwheel = (e) => { e.preventDefault(); dist = Math.max(3, Math.min(1500, dist * Math.exp(e.deltaY * 0.001))); };
 function frame() {
   requestAnimationFrame(frame);
+  // one way for every asset, material and biome: the camera circles it, so the world turns round it, and the key light
+  // stays fixed to the camera, so the subject always turns under the same light
   if (spin) yaw += 0.0025;
+  // Rembrandt light: the key 45° to the camera's left and 40° up, wherever the camera is (the sky's day held at 11:00)
+  const sy = Math.sin(yaw), cy = Math.cos(yaw), kx = sy - cy, kz = cy + sy, kl = Math.hypot(kx, kz), up = 40 * Math.PI / 180;
+  U.uSunDir.value.set((kx / kl) * Math.cos(up), Math.sin(up), (kz / kl) * Math.cos(up));
   const ty = ground0 + H * 0.45, c = Math.cos(pitch);
   const p = poseAt(STAGE.x, STAGE.z, yaw, heightFor(STAGE.x, STAGE.z, yaw, dist));   // the game's one camera, held over the stage at this distance (intent 0003)
   cine.take({ pos: p.pos, look: [STAGE.x, ty, STAGE.z], mm: 35 });

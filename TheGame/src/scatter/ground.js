@@ -19,15 +19,15 @@ void main(){
   float arid = placeArid(pos, aridMask(pos));
 #ifdef TINT
   vec4 t = grassTint(pos, arid);
-  if (uStage.z > 0.0) t = mix(vec4(0.30, 0.24, 0.15, 1.0), t, smoothstep(uStage.z - 0.5, uStage.z + 0.7, length(pos - uStage.xy)));   // the stage: dry, bare earth
+  if (uStage.z > 0.0) t = mix(vec4(0.30, 0.24, 0.15, 1.0), t, smoothstep(uStage.z - 0.9, uStage.z + 0.9, length(pos - uStage.xy) + edgeJit(pos) * 0.8));   // the stage: dry, bare earth
   gl_FragColor = vec4(sqrt(t.rgb), t.a);
 #else
   float path = placeOff(pos, pathMask(pathN(pos))), oc = placeOff(pos, outcropMask(pos));
-  float dens = (1.0 - path) * (1.0 - placeBank(pos, bankMask(pos, d, w, b))) * (1.0 - placeOff(pos, bareMask(pos))) * (1.0 - oc * 0.25) * mix(1.0, ARID_COVER * tuftMask(pos), arid);
+  float dens = (1.0 - path) * (1.0 - placeBank(pos, bankMask(pos, d, w, b))) * (1.0 - placeCut(pos, cutMask(pos, d, w, b))) * (1.0 - placeBar(pos, barMask(pos, d, w, b))) * (1.0 - placeOff(pos, bareMask(pos))) * (1.0 - oc * 0.25) * mix(1.0, ARID_COVER * tuftMask(pos), arid);
   dens *= smoothstep(uTentR - 0.4, uTentR + 0.3, length(pos - uTent));   // the tent's floor is kept clear, right to its walls
-  float bare = uStage.z > 0.0 ? smoothstep(uStage.z - 0.5, uStage.z + 0.7, length(pos - uStage.xy)) : 1.0;   // the library's stage: a round of bare ground
+  float bare = uStage.z > 0.0 ? smoothstep(uStage.z - 0.9, uStage.z + 0.9, length(pos - uStage.xy) + edgeJit(pos) * 0.8) : 1.0;   // the library's stage: a round of bare ground
   dens *= bare;
-  float stone = smoothstep(uTentR - 0.4, uTentR + 0.3, length(pos - uTent)) * (LAND_STONES + ARID_STONES * arid + BANK_STONES * placeBank(pos, 1.0 - smoothstep(w * 0.6, w + 4.0, d)) + CUT_STONES * cutMask(pos, d, w, b) + BAR_STONES * placeBank(pos, barMask(pos, d, w, b)) + 0.5 * oc) * (1.0 - path * 0.8);
+  float stone = smoothstep(uTentR - 0.4, uTentR + 0.3, length(pos - uTent)) * (LAND_STONES + ARID_STONES * arid + BANK_STONES * placeBank(pos, 1.0 - smoothstep(w * 0.6, w + 4.0, d)) + CUT_STONES * placeCut(pos, cutMask(pos, d, w, b)) + BAR_STONES * placeBar(pos, barMask(pos, d, w, b)) + 0.5 * oc) * (1.0 - path * 0.8);
   stone *= bare;
   gl_FragColor = vec4(heightAt(pos, camDist(pos), d, w, b) - uGBase, dens, arid, stone);   // heights from a base near by: small numbers keep a half float exact to the centimetre
 #endif
@@ -56,7 +56,7 @@ export function createGround(renderer, U) {
     /** The library's stage: a round of bare ground at (x, z), r metres across the middle; r 0 takes it away. */
     stage(x, z, r) { stage.value.set(x, z, r); lastS = 0; },
     /** The library's sandbox: round (x, z) the land is all one biome (its number in biomes/); no arguments: off. */
-    sandbox(x = 0, z = 0, biome = -1) { U.uSand.value.set(x, z, biome < 0 ? 0 : 1, biome); Object.assign(SAND, { on: biome >= 0, x, z, river: ['water', 'cutbank', 'bar'].includes(BIOMES[biome]?.where) }); lastS = 0; },
+    sandbox(x = 0, z = 0, biome = -1) { U.uSand.value.set(x, z, biome < 0 ? 0 : 1, biome); Object.assign(SAND, { on: biome >= 0, x, z, river: BIOMES[biome]?.where === 'water' }); lastS = 0; },
     /** s: the lens factor; the texture is drawn again when the camera has walked 16 texels, or the lens changed */
     update(cx, cz, dy, s) {
       const TEXEL = 0.5 * s, SNAP = 16 * TEXEL;

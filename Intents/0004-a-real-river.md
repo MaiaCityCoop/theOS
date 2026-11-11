@@ -131,6 +131,17 @@ is built at once.
 - **Good:** looked at from 18 m over a bend: bluer, still the river's own colour; 16.7 ms.
 - **Broke / not there yet:** —
 
+### 2026-11-12, the river's grounds on their own; soft edges in the library
+
+- **Asked:** the cut bank and the gravel bar as biomes of their own, apart from the river (only the river's sandbox
+  shows the whole river); a softer edge where the library's round of ground meets the grass.
+- **Delivered:** in the library, Cut bank shows a sandbox of bare earth and Gravel bar one of gravel, as Riverbank shows
+  sand; only River brings the meandering river (`placeCut`, `placeBar`); grass does not grow on the cut bank's face or
+  on a bar. The material floor's round fades into the grass over its last 1.6 m, frayed; the stage's bare round has a
+  ragged edge too.
+- **Good:** the three looked at in the library.
+- **Broke / not there yet:** —
+
 ## Trail
 
 | When | Commit | What |

@@ -47,6 +47,9 @@ const float SAND_RIVER = ${idx(water)}, SAND_CUT = ${idx(cut)}, SAND_BAR = ${idx
 float sandW(vec2 p){ return uSand.z > 0.0 ? 1.0 - smoothstep(220.0, 340.0, length(p - uSand.xy)) : 0.0; }
 float sandIs(float i){ return abs(uSand.w - i) < 0.5 ? 1.0 : 0.0; }
 float placeArid(vec2 p, float natural){ return mix(natural, sandIs(${idx(arid)}), sandW(p)); }
-float placeBank(vec2 p, float natural){ return sandIs(${idx(water)}) + sandIs(${idx(cut)}) + sandIs(${idx(bar)}) > 0.5 ? natural : mix(natural, sandIs(${idx(bank)}), sandW(p)); }   // the river's sandbox has its own banks
+float placeBank(vec2 p, float natural){ return sandIs(${idx(water)}) > 0.5 ? natural : mix(natural, sandIs(${idx(bank)}), sandW(p)); }   // the river's sandbox has its own banks
+// the cut bank and the gravel bar on their own: in their sandbox the land is all of them, as the riverbank's is all sand
+float placeCut(vec2 p, float natural){ return sandIs(${idx(water)}) > 0.5 ? natural : mix(natural, sandIs(${idx(cut)}), sandW(p)); }
+float placeBar(vec2 p, float natural){ return sandIs(${idx(water)}) > 0.5 ? natural : mix(natural, sandIs(${idx(bar)}), sandW(p)); }   // the river's sandbox has its own banks
 float placeOff(vec2 p, float natural){ return natural * (1.0 - sandW(p)); }   // paths, bare patches, outcrops: none in a sandbox
 `;

@@ -92,6 +92,27 @@ Samuel approved the definition on 2026-11-12 ("Approve, start it").
   browser between visits. On the library the card moves under it. Not on a film's page nor as a picture. A film's shot
   may set the hour (`cine.take({ hour })`).
 
+**Asked on the way** (2026-11-12):
+
+- *Rembrandt light in the library* (asked: "the camera in the centre, the sun 45° to the left, fixed, while the asset
+  turns"; then "no special case for the tent"): the library holds the day at 11:00 (`sky.hold`), has no clock, and its
+  key light is fixed to the camera, 45° to its left and 40° up, for every asset, material and biome; the camera circles,
+  so the world turns round the subject under the same light. (A rock's or a material's texture is laid by where it
+  is in the world, so turning the thing itself would slide its texture.)
+- *Shadows* (asked: "wire up that every asset throws its shadow on the side away from its sun"; then: universal,
+  for every asset, from its own shape and levels, trees later too?): one shadow map from the light of the hour (the sun,
+  or the moon at night), round where the camera is and larger the higher it is (`src/world/shadow.js`). What casts is
+  drawn once more from the light, as the eye sees it: each placed asset's level (card included) and the scattered rocks;
+  a new asset casts with its own shape at its own level, nothing to add. `casts` in `assets/kinds.js` (and any asset's
+  `detail`) turns it off. Every surface reads the map in the shading contract (`shadowAt`, folded into `cloudAt`, the
+  share of sunlight that reaches a point), so ground, grass, rocks, tent, card and water all darken behind what casts.
+  The grass does not cast (too many blades) and the land does not shadow itself yet. Found on the way: the casters read
+  the very map they are drawn into, which WebGL refuses (the draws were dropped); the map is unbound for its own pass.
+  Seen: at 17:00 the tent's shadow lies east of it on the grass; 16.7 ms.
+- *A broken library* (Samuel: "the asset library viewer is broken"): a comment written into the middle of a line of
+  `cine/cine.js` hid the rest of it; the film camera failed to load, so the library, the lenses and the films lost their
+  camera from commit 2bfa73f. Fixed; the library, the lenses and story 01 load again.
+
 **Checks, as they were** (2026-11-12, 1400×800 in the pane):
 
 | # | Result | Evidence |

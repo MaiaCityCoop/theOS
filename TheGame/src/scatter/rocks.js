@@ -148,8 +148,9 @@ void main(){ vKeep = vec2(1.0, 0.0); vec4 w = modelMatrix * vec4(position, 1.0);
 export function rockSample(U, tex, row, detail = 2, shape = 0) {
   const ig = rockGeometry(detail, row.seed + shape * 7, row.look), g = new THREE.BufferGeometry();   // the rock's shape is made for instancing; one on its own is a plain geometry
   g.setAttribute('position', ig.attributes.position); g.setAttribute('normal', ig.attributes.normal); g.setIndex(ig.index);
-  return new THREE.Mesh(g, new THREE.ShaderMaterial({ vertexShader: SAMPLE_VERT, fragmentShader: FRAG,
+  const mesh = new THREE.Mesh(g, new THREE.ShaderMaterial({ vertexShader: SAMPLE_VERT, fragmentShader: FRAG,
     uniforms: { ...U, tA: { value: tex.of(row.look?.material || 'rock').a }, tN: { value: tex.of(row.look?.material || 'rock').n }, tM: { value: tex.of('meadow').a }, uTex: { value: row.texture }, uTintS: { value: new THREE.Vector3(0.05, 0.13, 0.02) }, ...lookUniforms(row.look) } }));
+  mesh.layers.enable(1); return mesh;
 }
 
 /** The assets of kind `rocks`: a tier per level of detail and shape. Each level is drawn where a rock of it is the size
@@ -173,7 +174,7 @@ export function createRocks(scene, U, tex, asset) {
       t.near = Number.isFinite(L.hi) ? (span[0] * K) / (L.hi * e) : 0; t.far = (span[1] * K * e) / L.lo;
       mat.uniforms.uNear.value = t.near > 0 ? t.near : -1; mat.uniforms.uFar.value = t.far;
     };
-    t.band(); tiers.push(t);
+    t.band(); if (asset.detail.casts) t.mesh.layers.enable(1); tiers.push(t);   // rocks cast shadows, as drawn (src/world/shadow.js; casts in their kind)
   });
   addEventListener('resize', () => tiers.forEach((t) => t.band()));
   return tiers;

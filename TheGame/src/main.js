@@ -26,6 +26,7 @@ import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
 import { createPost } from './camera/post.js';
 import { createSky } from './world/sky.js';
+import { createShadows } from './world/shadow.js';
 
 const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
@@ -59,6 +60,8 @@ for (const at of Object.values(PLACES)) place(scene, U, ASSETS[at.asset], at);  
 const controls = createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat'));
 const sky = createSky(scene, camera, U, renderer);   // the sun and the sky: one time of day drives the light (intent 0007)
 stats.sky = sky;
+const shadows = createShadows(renderer, scene, U);   // the casters' shadows, read by every surface (LIGHT_GLSL)
+stats.shadows = shadows;
 stats.controls = controls;
 const post = createPost(renderer, SKY);
 const hud = createHud(document.getElementById('hud'), renderer, camera, governor, stats);
@@ -86,6 +89,7 @@ function choose(dt) {
 }
 function draw() {
   const dof = camera.userData.dof;   // the virtual camera brings a lens with it: its picture is drawn through it
+  shadows.render(camera, heightAt(camera.position.x, camera.position.z));
   if (dof && dof.on) post.render(scene, camera, dof); else renderer.render(scene, camera);
 }
 let last = 0;

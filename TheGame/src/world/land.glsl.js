@@ -51,7 +51,7 @@ vec3 riverWorld(vec2 p){
 // the library's sandbox river (land.js: sandRiver): meandering through the sandbox in place of the world's
 vec3 riverRaw(vec2 p){
   vec3 R = riverWorld(p);
-  if (uSand.z <= 0.0 || sandIs(SAND_RIVER) + sandIs(SAND_CUT) + sandIs(SAND_BAR) < 0.5) return R;   // the river's biomes each show it in the sandbox
+  if (uSand.z <= 0.0 || sandIs(SAND_RIVER) < 0.5) return R;   // only the river's own biome brings a river into the sandbox
   vec2 d = p - uSand.xy; float s = sandW(p); if (s <= 0.0) return R;
   float c = cos(${MEANDER.turn.toFixed(4)}), sn = sin(${MEANDER.turn.toFixed(4)}), u = d.x * c + d.y * sn, v = -d.x * sn + d.y * c, k = 6.2831853 / ${MEANDER.wave.toFixed(1)};
   float g = v - ${MEANDER.swing.toFixed(1)} * sin(k * u), gu = -${MEANDER.swing.toFixed(1)} * k * cos(k * u);

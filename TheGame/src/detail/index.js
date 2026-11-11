@@ -22,7 +22,7 @@ export function detailOf(a) {
   const imp = d.impostor ?? k.impostor;   // after the meshes: one card (src/detail/impostor.js)
   if (imp) levels.push({ impostor: true, views: imp.views ?? 8, i: levels.length, lo: imp.px });
   levels.forEach((l, i) => (l.hi = i ? levels[i - 1].lo : Infinity));
-  return { levels, fade, cut: levels.length ? levels[levels.length - 1].lo : 0 };
+  return { levels, fade, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: d.casts ?? k.casts ?? true };
 }
 
 /** How much of a level shows at px pixels: [share kept, side] (side 0: it is the finer side of a hand-over). */
@@ -49,10 +49,11 @@ export function trackView(U, onChange) {
 export class Detailed extends THREE.LOD {
   constructor(asset, meshes, U) {
     super(); this.d = detailOf(asset); this.span = spanOf(asset); this.U = U; this.meshes = meshes;
-    for (const m of meshes) this.add(m);
+    for (const m of meshes) { if (this.d.casts) m.layers.enable(1); this.add(m); }   // every level casts a shadow, as drawn, unless the asset says not (src/world/shadow.js)
     this.px = 0; this.level = 0;
   }
   update(camera) {
+    if (camera.userData.shadow) return;   // the shadow's camera keeps the levels the eye chose
     const d = Math.max(0.01, camera.getWorldPosition(_a).distanceTo(this.getWorldPosition(_b)));
     const px = (this.px = (this.span * this.U.uPxK.value) / (d * this.U.uLodInv.value));   // the lens and the detail governor count, as for the scatter
     const { levels, fade } = this.d; let shown = -1;

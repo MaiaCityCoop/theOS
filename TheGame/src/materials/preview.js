@@ -6,15 +6,20 @@ import { LIGHT_GLSL } from '../world.js';
 /** t: { a, n } from tex.of(id); tile: metres one tile of the texture covers. */
 export function materialPreview(U, t, tile = 2, own = {}) {
   return new THREE.ShaderMaterial({
-    uniforms: { ...U, tA: { value: t.a }, tN: { value: t.n }, uTile: { value: tile }, uTint: { value: new THREE.Vector3(1, 1, 1) }, ...own },
+    uniforms: { ...U, tA: { value: t.a }, tN: { value: t.n }, uTile: { value: tile }, uTint: { value: new THREE.Vector3(1, 1, 1) }, uEdge: { value: new THREE.Vector3(0, 0, 0) }, ...own },   // uEdge: (x, z, radius) a round's soft, frayed edge; radius 0: none
     vertexShader: /* glsl */ `
       out vec3 vN; out vec3 vWorld;
       void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: /* glsl */ `
-      uniform vec3 uCam, uTint; uniform sampler2D tA, tN; uniform float uTile;
+      uniform vec3 uCam, uTint, uEdge; uniform sampler2D tA, tN; uniform float uTile;
       ${LIGHT_GLSL}
       in vec3 vN; in vec3 vWorld;
       void main(){
+        if (uEdge.z > 0.0) {   // a round laid on the land fades into it over its last metre and a half, its edge frayed
+          vec2 q = vWorld.xz - uEdge.xy; float an = atan(q.y, q.x);
+          float dd = length(q) + 0.45 * sin(an * 9.0 + 1.3) + 0.25 * sin(an * 23.0 + 0.4) + 0.3 * (texture(tA, vWorld.xz / uTile).a - 0.5);
+          if (ign(gl_FragCoord.xy) > 1.0 - smoothstep(uEdge.z - 1.6, uEdge.z + 0.1, dd)) discard;
+        }
         vec3 n = normalize(vN), w = pow(abs(n), vec3(4.0)); w /= w.x + w.y + w.z;
         vec2 px = vWorld.zy / uTile, py = vWorld.xz / uTile, pz = vWorld.xy / uTile;
         vec3 a = texture(tA, px).rgb * w.x + texture(tA, py).rgb * w.y + texture(tA, pz).rgb * w.z;

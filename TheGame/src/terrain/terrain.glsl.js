@@ -89,7 +89,7 @@ void main(){
   float d = abs(vR.x), w = vW, b = vB;
   float path = placeOff(p, pathMask(vPth)) * (1.0 - smoothstep(70.0, 220.0, dist));   // a path is a thing of the near ground; from afar it was a drawn line
   float bare = dist < 160.0 ? placeOff(p, bareMask(p)) * (1.0 - smoothstep(100.0, 160.0, dist)) : 0.0;
-  if (uStage.z > 0.0) bare = max(bare, 1.0 - smoothstep(uStage.z - 0.5, uStage.z + 0.7, length(p - uStage.xy)));   // the library's stage: a round of bare, dry earth
+  if (uStage.z > 0.0) bare = max(bare, 1.0 - smoothstep(uStage.z - 0.9, uStage.z + 0.9, length(p - uStage.xy) + edgeJit(p) * 0.8));   // the library's stage: a round of bare, dry earth
 
   Mat m = smp(LAND_FLOOR, p, dx, dy, LAND_FLOOR_TILE, mx);
   Mat sand; bool haveSand = false; Mat dirt; bool haveDirt = false;
@@ -110,7 +110,7 @@ void main(){
   m.c = mix(m.c, vTint.rgb * (0.32 + 1.05 * glum) * mix(0.5, 1.0, smoothstep(3.0, 70.0, dist)), cv); m.n = mix(m.n, gnrm * 1.4, cv); m.h = mix(m.h, glum, cv);
   if (path > 0.003) m = hblend(m, dirt, path);
   if (bank > 0.003) m = hblend(m, smp(BANK_FLOOR, p, dx, dy, BANK_FLOOR_TILE, mx), bank);
-  float bar = placeBank(p, barMask(p, d, w, b)) * 0.75, cutb = placeBank(p, cutMask(p, d, w, b));   // the bar a mix over the sand, not a stripe   // the river's own grounds (biomes/gravelbar.js, cutbank.js)
+  float bar = placeBar(p, barMask(p, d, w, b)) * 0.75, cutb = placeCut(p, cutMask(p, d, w, b));   // the bar a mix over the sand, not a stripe   // the river's own grounds (biomes/gravelbar.js, cutbank.js)
   if (bar > 0.003) m = hblend(m, smp(BAR_FLOOR, p, dx, dy, BAR_FLOOR_TILE, mx), bar);
   float steep = smoothstep(0.80, 0.68, vN.y);
   if (steep > 0.003) m = hblend(m, smp(LAND_SLOPES, p, dx, dy, LAND_SLOPES_TILE, mx), steep);
