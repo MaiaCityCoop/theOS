@@ -91,7 +91,7 @@ void main(){
   arid = aridMask(pos); y = heightAt(pos, dist, d, w); tint = grassTint(pos, arid).rgb;
 #else
   vec4 G = groundA(pos);
-  if (rnd(c, 200u) > G.w) return;
+  if (rnd(c, 200u) > G.w * 0.7) return;
   arid = G.z; oc = 0.0; y = G.x; tint = groundTint(pos).rgb;
 #endif
   float r1 = rnd(c, 204u), r2 = rnd(c, 205u), r3 = rnd(c, 206u), r4 = rnd(c, 207u);

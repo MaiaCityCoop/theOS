@@ -104,13 +104,14 @@ void main(){
     if (sp > 0.003) { sand = smp(tA2, tN2, p, dx, dy, 2.0, 3.2, mx); haveSand = true; c = hblend(c, sand, sp); }
     m = hblend(m, c, vArid);
   }
-  float bd = max(bare * (1.0 - vArid), vOut * 0.55);
+  float bd = max(bare * (1.0 - vArid), vOut * 0.25);
   if (bd > 0.003 || path > 0.003) { dirt = smp(tA3, tN3, p, dx, dy, 2.0, 3.2, mx); haveDirt = true; }
   if (bd > 0.003) m = hblend(m, dirt, bd);
   // the grass's own colour over the floor, more of it the farther away: where the blades end, nothing shows
   float cover = (1.0 - bare) * mix(1.0, 0.45 * vTuft, vArid);
-  float cv = cover * (0.3 + 0.7 * smoothstep(4.0, 60.0, dist));
-  m.c = mix(m.c, vTint.rgb * (0.25 + 1.5 * glum), cv); m.n = mix(m.n, gnrm * 1.4, cv); m.h = mix(m.h, glum, cv);
+  // under the blades the floor is the grass's own colour, in shade: a gap between blades reads as more grass
+  float cv = cover * (0.82 + 0.18 * smoothstep(4.0, 60.0, dist));
+  m.c = mix(m.c, vTint.rgb * (0.25 + 1.5 * glum) * mix(0.5, 1.0, smoothstep(3.0, 70.0, dist)), cv); m.n = mix(m.n, gnrm * 1.4, cv); m.h = mix(m.h, glum, cv);
   if (path > 0.003) m = hblend(m, dirt, path);
   if (bank > 0.003) { if (!haveSand) sand = smp(tA2, tN2, p, dx, dy, 2.0, 3.2, mx); m = hblend(m, sand, bank); }
   float steep = smoothstep(0.80, 0.68, vN.y);

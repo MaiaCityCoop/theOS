@@ -153,7 +153,7 @@ vec4 grassTint(vec2 p, float arid){
   return grassTintAB(textureLod(tNoise, p * (1.0 / 150.0), 0.0).r, textureLod(tNoise, pr * (1.0 / 45.0), 0.0).g, arid);
 }
 vec4 grassTintAB(float a, float b, float arid){
-  vec3 c = mix(vec3(0.050, 0.115, 0.022), vec3(0.105, 0.165, 0.036), smoothstep(0.1, 0.9, a * 0.65 + b * 0.35));
+  vec3 c = mix(vec3(0.022, 0.120, 0.014), vec3(0.055, 0.200, 0.020), smoothstep(0.1, 0.9, a * 0.65 + b * 0.35));
   float dry = clamp(arid * 0.9 + smoothstep(0.6, 1.0, b * 0.6 + a * 0.4) * 0.28, 0.0, 1.0);
   return vec4(mix(c, vec3(0.36, 0.29, 0.12), dry), dry);
 }
