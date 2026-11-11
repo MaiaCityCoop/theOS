@@ -251,3 +251,4 @@ everything left open; on the way: collision jumping, one global haze, the tent's
 | 2026-11-11 | `611c4ce` | First slice: the rig and its bands as data, the walk page on it, collision defaults by kind |
 | 2026-11-12 | `4c2af42` | Second slice: stat pill, pointer lock per band, rocks as bodies, doors, films and library on the rig |
 | 2026-11-12 | `1632a3d` | Third slice: touch, joystick, pinch, its own settings file |
+| 2026-11-12 | `3026826` | Fourth slice: phone layout, smoother collision, town frame time, height fog and 12 km, levelled ground, bodies in the library |
