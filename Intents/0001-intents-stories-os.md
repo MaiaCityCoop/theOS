@@ -1120,6 +1120,27 @@ _Samuel's decision._
 - **Broke / not there yet:** the pane draws the system's plain letters where Safari draws its
   rounded ones: the rounded cut not seen here; day 2's picture and stills still to be retaken.
 
+### 2026-11-11, fifty-fifth round
+
+- **Asked:** (with reference cards) an audit of the font pair and the liquid glass, a more iconic brand; then: the
+  smoked glass sample was "super ugly", keep the light see-through glass and improve the cards' layout, fonts and
+  labels; the stones' list picture in their pebble look; the pill as high as the Library button; colours and detail
+  distances off the cards; DM Sans as the partner; the glass slightly more see-through and less green, like the
+  library's section cards; both sides compact and one width; no bright top line on the glass; the Walk tile opens the
+  world; one layout for every game screen, the lenses a compact top nav; subtitles in the brand's glass type; the
+  film 16:9 in place of 2.39:1.
+- **Delivered:** the words on glass in three levels (`brand/brand.css`: `.g-card`, `.g-part`, `.g-fig`, `.g-cell`,
+  `.g-chip`, `.g-file`, `.g-hint`); the library's asset, biome and material cards rebuilt on them; the glass clearer
+  and greyer (sheen 17–5 %, `saturate(.85) brightness(.92)`), no top line; the list and the card 236 px
+  (`--side-w`); one screen layout (`--edge`, `.os-top`, `.os-hint`, the readout bottom right); the lenses a pill at
+  the top; the walk hint at the top centre; subtitles in DM Sans with the speaker as a gold label; the film framed
+  16:9 (`cine/lenses.js`); scattered rocks' list pictures in their own material; the Walk tile always walks.
+- **Good:** the cards, the list, the lenses, the walk view and the film with subtitles drew as meant in the running
+  game, no console errors. A mock of the cards was looked at first (the Meadow card, as now and as new).
+- **Broke / not there yet:** the pill and the Library button were already both 44 px; the star sticking out makes the
+  pill look slimmer, not changed. The story's shot stills were taken at 2.39:1 and need retaking in 16:9. The
+  dashboard's studio, the front page and Safari were not looked at in the new glass.
+
 ## Trail
 
 | When | Commit | What |

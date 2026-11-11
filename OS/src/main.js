@@ -91,7 +91,7 @@ async function story(s, show = true) {
     (s.film ? `<div class="editpage"><div class="pstage"><div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div></div>${EDIT}</div>` : '') + `<div class="stagedoc"></div><nav class="pages"></nav>`;
   if (s.film) editor(d.querySelector('.edit'), d.querySelector('.player iframe'), s);
   if (s.film) { const ps = d.querySelector('.pstage'), pl = d.querySelector('.player');   // the film's frame in whole pixels, set only when the window's size changes
-    const fit = () => { const w = ps.clientWidth, h = ps.clientHeight; if (!w || !h) return; const W = Math.floor(Math.min(w, h * 2.39)); pl.style.width = W + 'px'; pl.style.height = Math.floor(W / 2.39) + 'px'; };
+    const fit = () => { const w = ps.clientWidth, h = ps.clientHeight; if (!w || !h) return; const W = Math.floor(Math.min(w, h * 16 / 9)); pl.style.width = W + 'px'; pl.style.height = Math.floor(W * 9 / 16) + 'px'; };
     new ResizeObserver(fit).observe(ps); fit(); }
   pages(d, md, s.film);
   d.querySelector('[data-do=intent]').onclick = () => { tab('intents'); board(s.id); };
@@ -133,8 +133,8 @@ function editor(el, frame, story) {
   const cv = document.createElement('canvas'), cx = cv.getContext('2d'), DPR = Math.min(2, devicePixelRatio || 1);
   cv.width = 96 * DPR; cv.height = 20 * DPR; cv.style.width = '96px'; cv.style.height = '20px'; clock.replaceChildren(cv);
   const paintClock = (sec) => { cx.setTransform(DPR, 0, 0, DPR, 0, 0); cx.clearRect(0, 0, 96, 20); cx.textBaseline = 'middle';
-    cx.font = '600 14px Outfit, sans-serif'; cx.fillStyle = '#fbf6ea'; const a = mm(sec); cx.fillText(a, 0, 10);
-    cx.font = '500 14px Outfit, sans-serif'; cx.fillStyle = 'rgba(251,246,234,.65)'; cx.fillText(' / ' + mm(Math.round(D)), cx.measureText(a).width + 2, 10); };
+    cx.font = '600 14px "DM Sans", sans-serif'; cx.fillStyle = '#fbf6ea'; const a = mm(sec); cx.fillText(a, 0, 10);
+    cx.font = '500 14px "DM Sans", sans-serif'; cx.fillStyle = 'rgba(251,246,234,.65)'; cx.fillText(' / ' + mm(Math.round(D)), cx.measureText(a).width + 2, 10); };
   const run = () => { if (!el.isConnected) return; requestAnimationFrame(run); if (!D) return;   // the playhead glides with the film, not in the steps the frame reports in
     const t = Math.min(D, playing ? base + (performance.now() - stamp) / 1000 : base);
     head.style.transform = `translateX(${(t / D) * lanes.clientWidth}px)`;
@@ -273,7 +273,7 @@ function city() {
     <button class="tile" data-go="stories"><span class="label">Stories</span><h2>One a day</h2><p>${latest() ? 'Latest: ' + latest().title : 'None yet.'}</p><div class="foot"><b>${n(stories.length)}</b> of ${n(DAYS)}<span class="go"></span></div></button>`;
   $('tiles').insertAdjacentHTML('beforeend', `<button class="tile" data-library><span class="label">Library</span><h2>Assets</h2><p>Every made thing that stands in the world, one file each. Turn them, read what they are.</p><div class="foot"><span class="go"></span></div></button>`);
   $('tiles').insertAdjacentHTML('beforeend', `<button class="tile wide dark" data-lenses><span class="label">Debug &amp; performance</span><h2>Lenses</h2><p>The world through nine film lenses, with the frame time, draw calls and triangles: where it runs smooth and where it does not.</p><div class="foot"><span class="go"></span></div></button>`);
-  $('tiles').querySelectorAll('.tile').forEach((t) => (t.onclick = () => (t.dataset.lenses !== undefined ? game('lenses') : t.dataset.library !== undefined ? game('library') : tab(t.dataset.go))));
+  $('tiles').querySelectorAll('.tile').forEach((t) => (t.onclick = () => (t.dataset.lenses !== undefined ? game('lenses') : t.dataset.library !== undefined ? game('library') : t.dataset.go === 'game' ? game('walk') : tab(t.dataset.go))));   // the game's tile always walks, whatever was open last
 }
 
 [intents, stories] = await Promise.all([get('/api/intents').then((r) => r.json()), get('/api/stories').then((r) => r.json()).catch(() => [])]);

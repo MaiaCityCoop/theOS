@@ -10,22 +10,24 @@
   html,body{margin:0;height:100%;background:#000;overflow:hidden}
   canvas{display:block;width:100vw;height:100vh;pointer-events:none}
   #msg{display:none}
-  #panel{padding:14px}
-  #info{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 10px 12px;color:var(--on-glass-2);font-size:13px;font-weight:550}
-  #lensbar{display:flex;gap:6px}
-  #lensbar button{flex:1;min-width:0;text-align:left;background:rgba(255,255,255,.1);border:0;border-radius:22px;padding:12px 14px 10px;cursor:pointer;display:flex;flex-direction:column;gap:3px;overflow:hidden;white-space:nowrap;color:var(--on-glass-2);text-shadow:inherit;transition:background .2s,color .2s,transform .25s cubic-bezier(.3,1.6,.5,1)}
-  #lensbar button:hover{background:var(--glass-hover);transform:translateY(-2px)}
-  #lensbar button.now{color:var(--on-glass);background:var(--glass-on);box-shadow:inset 0 -3px 0 var(--sun)}
-  #lensbar b{font:460 23px/1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.01em}
-  #lensbar span{font:600 12.5px/1.2 var(--glass-font);overflow:hidden;text-overflow:ellipsis}
-  #lensbar i{font:550 11px/1.3 var(--glass-font);font-style:normal;font-variant-numeric:tabular-nums;opacity:.85}
+  /* the lenses: the screen's nav at the top centre, one compact pill (brand.css .os-top); what the lens shows under it as the hint */
+  #panel{height:var(--pill-h);box-sizing:border-box;padding:4px;border-radius:999px;display:flex;align-items:center}
+  #lensbar{display:flex;gap:2px}
+  #lensbar button{height:34px;padding:0 13px;border:0;border-radius:999px;background:none;cursor:pointer;display:flex;align-items:baseline;gap:6px;white-space:nowrap;color:var(--on-glass-2);font:inherit;transition:background .2s,color .2s}
+  #lensbar button:hover{background:var(--glass-hover)}
+  #lensbar button.now{color:var(--on-glass);background:var(--glass-on)}
+  #lensbar button{align-items:center}
+  #lensbar b{font:500 14px/1 var(--glass-font);font-variant-numeric:tabular-nums}
+  #lensbar span{font:450 12.5px/1 var(--glass-font)}
+  #lensbar i{display:none}
+  #lensbar button:not(.now) span{display:none}   /* only the chosen lens says its name; the others are their millimetres */
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="hud">loading…</div>
 <div id="msg"></div>
-<div id="panel" class="os-bar bottom glass"><div id="info"></div><div id="lensbar"></div></div>
+<nav id="panel" class="os-top glass" aria-label="Lenses"><div id="lensbar"></div></nav><div id="info" class="os-hint g-hint"></div>
 <script type="module" src="/cine/cine.js"></script>
 <script type="module" src="/cine/menu.js"></script>
 <script type="module" src="/src/main.js"></script>

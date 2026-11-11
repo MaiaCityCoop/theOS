@@ -49,6 +49,14 @@ export function dioramaThumb(renderer, U, tex, canvas) {
   sc.add(puck, sand, pool, stone);
   snap(renderer, sc, cam, canvas);
 }
+/** A thing's picture for a list, in its own material: `things` stand round the origin, seen from `eye` looking at `at`
+    (a scattered rock in the world's rock material: its look, its moss); drawn once by the world's renderer, into a 2D canvas. */
+export function sceneThumb(renderer, things, canvas, eye = [0, 0.6, 3.4], at = [0, 0, 0]) {
+  const far = Math.hypot(...eye) * 4, cam = new THREE.PerspectiveCamera(30, 1, far / 400, far); cam.position.set(...eye); cam.lookAt(...at);
+  const sc = new THREE.Scene();
+  for (const m of things) { if (m.material?.uniforms) m.material.uniforms.uCam = { value: cam.position.clone() }; sc.add(m); }   // lit and hazed from the picture's own eye, not the world's camera
+  snap(renderer, sc, cam, canvas);
+}
 function snap(renderer, sc, cam, canvas) {
   const S = canvas.width, rt = new THREE.WebGLRenderTarget(S, S, { samples: 4 });
   const prev = renderer.getRenderTarget(), px = new Uint8Array(S * S * 4), cc = renderer.getClearColor(new THREE.Color()), ca = renderer.getClearAlpha();
