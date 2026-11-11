@@ -4,7 +4,8 @@ import { trailer, floor } from './trailer.js';
 
 const cine = window.__cine, q = new URLSearchParams(location.search);
 let seed = +(q.get('seed') || 1);
-let kept = q.get('tl') || (q.has('seed') ? null : 'river-story'), keptClips = null;   // ?tl=<name>: a kept timeline, cine/timelines/<name>.json, played as it was set
+const storyId = q.get('story');             // ?story=<id>: an intent's story, ../TheStory/<id>/timeline.json: its camera and its captions
+let kept = storyId ? null : q.get('tl') || (q.has('seed') ? null : 'river-story'), keptClips = null, captions = [], story = null;   // ?tl=<name>: a kept timeline, cine/timelines/<name>.json, played as it was set
 const COL = { wide: '#5b8def', drone: '#e0a43a', medium: '#59b56b', close: '#d9655f', 'low angle': '#a678d8', 'top down': '#3fb7b0', glide: '#8aa13c', tele: '#c7709f', crane: '#7d8796' };
 
 const bar = document.getElementById('tl'), strip = document.getElementById('strip'), head = document.getElementById('head');
@@ -22,7 +23,9 @@ function build() {
     e.innerHTML = `<b>${cut ? cut + ' → ' : ''}${c.kind}</b><span>${c.name}</span><i>${mm} · ${c.secs} s</i>`;
     strip.append(e);
   });
-  history.replaceState(null, '', kept ? `?tl=${kept}` : `?seed=${seed}`);
+  history.replaceState(null, '', storyId ? `?story=${storyId}` : kept ? `?tl=${kept}` : `?seed=${seed}`);
+  strip.querySelectorAll('.mark').forEach((e) => e.remove());
+  for (const c of captions) { const e = document.createElement('div'); e.className = 'mark ' + c.kind; e.style.left = (c.at / cine.duration) * 100 + '%'; e.style.width = (c.for / cine.duration) * 100 + '%'; strip.append(e); }
 }
 const fmt = (s) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
 function tick() {
@@ -31,8 +34,9 @@ function tick() {
   head.style.left = (t / d) * 100 + '%';
   let i = cine.clips.length - 1; while (i > 0 && cine.starts[i] > t) i--;
   const c = cine.clips[i], v = cine.view;
-  info.textContent = c ? `${fmt(t)} / ${fmt(d)}   ${c.act ? c.act.toUpperCase() + ' · ' : ''}shot ${i + 1}/${cine.clips.length}  ${c.name}   ${v.mm.toFixed(0)} mm   ${kept ? 'kept: ' + kept : 'seed ' + seed}` : '';
+  info.textContent = c ? `${fmt(t)} / ${fmt(d)}   ${c.act ? c.act.toUpperCase() + ' · ' : ''}shot ${i + 1}/${cine.clips.length}  ${c.name}   ${v.mm.toFixed(0)} mm   ${story ? 'story: ' + storyId : kept ? 'kept: ' + kept : 'seed ' + seed}` : '';
   why.textContent = c?.why || '';
+  caption(t);
   btn.textContent = cine.playing ? '❚❚' : '▶';
   strip.querySelectorAll('.clip').forEach((e, k) => e.classList.toggle('now', k === i));
 }
@@ -45,6 +49,21 @@ addEventListener('mousemove', (e) => scrub && seekTo(e));
 addEventListener('mouseup', () => { scrub = false; });
 addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); toggle(); } });
 
+// captions: the documentary lines of a story, over the picture, each for its stretch of the film
+const cap = document.getElementById('cap');
+let shown = null;
+function caption(t) {
+  let c = null; for (const k of captions) if (t >= k.at && t < k.at + k.for) c = k;
+  if (c !== shown) {
+    shown = c; cap.className = c ? 'on ' + c.kind : '';
+    if (c) cap.innerHTML = `<small>${{ human: 'Samuel', agent: 'the agent', note: '', title: '' }[c.kind] || ''}</small><span></span>`, cap.lastChild.textContent = c.text;
+  }
+  if (c) cap.style.opacity = Math.min(1, (t - c.at) / 0.5, (c.at + c.for - t) / 0.5);
+}
+if (storyId) {
+  story = await fetch(`/story/${storyId}/timeline.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  if (story) { keptClips = story.clips; captions = story.captions || []; document.title = `${story.title} · story`; }
+}
 if (kept) keptClips = await fetch(`/cine/timelines/${kept}.json`).then((r) => r.json()).catch(() => { kept = null; return null; });
 build(); cine.play(); tick();
 // keep what is loaded as cine/timelines/<name>.json (places rounded to the centimetre)

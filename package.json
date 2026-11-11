@@ -1,0 +1,5 @@
+{
+  "name": "theos",
+  "private": true,
+  "scripts": { "dev": "bun run --cwd TheGame dev & bun run --cwd OS dev & wait" }
+}

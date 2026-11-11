@@ -4,11 +4,11 @@ Sandbox 8: one endless procedural land, drawn at 60 fps in a browser, and a virt
 shoot it with. `bun run dev` in this folder, then http://localhost:5173.
 
 - `/` walk the world (click, W A S D, Shift runs, F flies)
-- `/timeline.html` a kept film of camera moves, played live in the world
+- `/timeline.html` a kept film of camera moves, played live in the world; `?story=<id>` plays an intent's story (`../TheStory/<id>/timeline.json`) with its captions
 - `/lenses.html` the lens bench: the live world through each lens of the kit
 
-`DEVLOG.md` is the history, a cycle at a time with its commit. `LENS-REVIEW.md` is what is still
-wrong and the plan against it. `cine/README.md` is the virtual camera's manual.
+Work on it is tracked as intents (`../Intents/`). `LENS-REVIEW.md` is what is still wrong in the
+picture and the plan against it. `cine/README.md` is the virtual camera's manual.
 
 ## How the source is laid out
 
