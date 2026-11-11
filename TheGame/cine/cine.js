@@ -162,6 +162,7 @@ function record(v) {
   r.start(); rec = r;
 }
 
+const q0 = () => new URLSearchParams(location.search);
 const api = (window.__cine = {
   lenses: LENSES,       // the kit: A28 … A180, the Master Anamorphic primes (cine/lenses.js)
   floor: null,          // (x, z) => the ground's height there; set, the camera never sinks under it
@@ -193,6 +194,7 @@ const api = (window.__cine = {
   grab(width = 480) { return new Promise((r) => grabs.push([width, r])); },
 });
 
+if (q0().has('nodof')) api.dof = false;   // ?nodof: the film without its lens's depth of field, to compare
 // ?cam=x,y,z,yaw,pitch,roll,mm : stand exactly there
 const q = new URLSearchParams(location.search);
 if (q.has('cam')) { const v = q.get('cam').split(',').map(Number); api.take({ pos: [v[0], v[1], v[2]], yaw: v[3] || 0, pitch: v[4] || 0, roll: v[5] || 0, mm: v[6] || 35, lens: q.get('lens') || undefined }); }   // &lens=A50 puts a lens of the kit on

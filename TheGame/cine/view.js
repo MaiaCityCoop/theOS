@@ -25,30 +25,31 @@ function build() {
   history.replaceState(null, '', (storyId ? `?story=${storyId}` : kept ? `?tl=${kept}` : `?seed=${seed}`) + (q.has('in') ? `&in=${q.get('in')}` : '') + (q.has('embed') ? '&embed' : ''));
 }
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-let lastI = -1;
-// While the film plays the governor is held: it settles in the first two seconds, then its dials stay put, so no
-// change of detail breaks the picture's pace every second or so. Paused, it may move again.
+// While the film plays the governor is held: it settles in the first two seconds, then its dials stay put. Paused, it may move again.
 let since = 0;
 function hold() { const g = window.__s8?.governor; if (!g) return; if (!cine.playing) { since = 0; g.hold(false); return; } if (!since) since = performance.now(); g.hold(performance.now() - since > 2000); }
+let lastI = -1, lastSec = -1, lastCap = -2;
+const embedded = document.body.classList.contains('embed');   // as a picture: its own controls are hidden, so they are not kept up
 function tick() {
   requestAnimationFrame(tick); hold();
   const d = cine.duration || 1, t = cine.time;
+  caption(t);
+  if (embedded) return;   // nothing else on this page is seen: no work, no garbage, every frame
   head.style.left = (t / d) * 100 + '%';
   let i = cine.clips.length - 1; while (i > 0 && cine.starts[i] > t) i--;
   const c = cine.clips[i];
   if (!c) return;
   const els = segs.children;
-  for (let k = 0; k < els.length; k++) els[k].firstChild.style.width = k < i ? '100%' : k > i ? '0' : ((t - cine.starts[i]) / c.secs) * 100 + '%';
+  if (els[i]) els[i].firstChild.style.width = ((t - cine.starts[i]) / c.secs) * 100 + '%';   // only the running shot's bar moves
   if (i !== lastI) {
     lastI = i;
-    for (let k = 0; k < els.length; k++) els[k].classList.toggle('now', k === i);
+    for (let k = 0; k < els.length; k++) { els[k].classList.toggle('now', k === i); els[k].firstChild.style.width = k < i ? '100%' : k > i ? '0' : els[k].firstChild.style.width; }
     $('act').textContent = `${i + 1} / ${cine.clips.length}`;
     $('shot').textContent = c.name; $('lens').textContent = `${c.kind} · ${lensOf(c)}`; $('why').textContent = c.why || '';
     acts.querySelectorAll('span').forEach((s) => s.classList.toggle('now', s.dataset.act === (c.act || '')));
   }
-  $('time').innerHTML = `<b>${fmt(t)}</b> / ${fmt(d)}`;
-  caption(t);
-  btn.classList.toggle('on', cine.playing);
+  const sec = Math.floor(t); if (sec !== lastSec) { lastSec = sec; $('time').innerHTML = `<b>${fmt(t)}</b> / ${fmt(d)}`; }   // the clock's text changes once a second, so it is written once a second
+  const on = cine.playing; if (on !== tick.on) { tick.on = on; btn.classList.toggle('on', on); }
 }
 const toggle = () => (cine.playing ? cine.pause() : cine.play());
 btn.onclick = toggle;
@@ -68,7 +69,7 @@ function caption(t) {
     shown = c; cap.className = c ? 'on ' + c.kind : '';
     if (c) { cap.textContent = c.text; if (c.kind === 'title' && c.over) cap.insertAdjacentHTML('afterbegin', `<small>${c.over}</small>`); cap.dataset.who = { samuel: 'Samuel', maia: 'Maia' }[c.kind] || ''; }
   }
-  if (c) cap.style.opacity = Math.min(1, (t - c.at) / (c.kind === 'title' ? 0.8 : 0.18), (c.at + c.for - t) / (c.kind === 'title' ? 0.8 : 0.18));   // a subtitle comes and goes at once; a title breathes
+  if (c) { const o = Math.min(1, (t - c.at) / (c.kind === 'title' ? 0.8 : 0.18), (c.at + c.for - t) / (c.kind === 'title' ? 0.8 : 0.18)).toFixed(2); if (o !== lastCap) { lastCap = o; cap.style.opacity = o; } }   // a subtitle comes and goes at once; a title breathes. Written only when it changes
 }
 if (storyId) {
   story = await fetch(`/story/${storyId}/timeline.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null);

@@ -784,6 +784,23 @@ _Samuel's decision._
 - **Broke / not there yet:** the cause is not found yet; the log waits for a run in Samuel's
   Safari. The two calmings of the governor (rounds 33, 34) did not remove the stutter.
 
+### 2026-11-11, thirty-sixth round
+
+- **Asked:** walking has zero issues; the film's playback is the problem, a pure timeline issue
+  (and the film is not faster than flying with F and Shift, which is smooth).
+- **Found:** the film's camera path, recreated from `timeline.json` at 60 frames a second, has no
+  jumps in speed (only where it is nearly still). What runs only in a film: the film page
+  rewrote its own controls every frame (the clock's HTML, every shot's bar, the subtitle's
+  opacity), even inside the studio where they are hidden: garbage 60 times a second, for the
+  browser to collect in a pause now and then; and the lens's depth of field is drawn.
+- **Delivered:** the film page writes only what changes: inside a frame (the studio, the front
+  page) it keeps up nothing but the subtitle; its clock's text is written once a second; only the
+  running shot's bar moves; the subtitle's opacity only when it changes. `?nodof` plays a film
+  without the depth of field, to compare. A slip on the way (the governor's hold dropped from
+  the film page) was seen in the console and put back.
+- **Broke / not there yet:** not seen playing in a visible browser; Samuel's eye in Safari, and
+  the hitch log (cleared) for a run there.
+
 ## Trail
 
 | When | Commit | What |
