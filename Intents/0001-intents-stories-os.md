@@ -923,3 +923,4 @@ _Samuel's decision._
 | 2026-11-11 | `4258a9a` | The stories shelf dark blue |
 | 2026-11-11 | `c2e5532` | The clock on a canvas, the film frame in whole pixels |
 | 2026-11-11 | `aab3673` | The asset library: the tent as data, the Library viewer and tile |
+| 2026-11-11 | `f19185f` | The Library in the live world, list left, details right |
