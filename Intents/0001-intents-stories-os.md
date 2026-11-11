@@ -614,6 +614,17 @@ _Samuel's decision._
   field). The legacy board's own columns (Specify, Proposal, Ship, Accepted) are not ours; ours
   are the six states of the skill. Phone width and Safari not seen.
 
+### 2026-11-11, twenty-fourth round
+
+- **Asked:** use the blue brand colour; an intent should open far more compact, across the
+  whole intents viewer, in place of the board, instead of beside it.
+- **Delivered:** TheOS's blue from its mark (`--navy`, #173655) in `brand.css`; inside, it is
+  the pill's star button and badge, the dark buttons, a chosen card's ring, the sheets' and the
+  dashboard's titles, and the Lenses tile. A card now opens its intent across the whole sheet
+  (the board hidden), set smaller (title 36 px, sections 21 px, text 15 px); "← Board" goes back.
+- **Good:** seen in the pane at 1440: the intent across the sheet, back to the board.
+- **Broke / not there yet:** the front page keeps the forest green; only the inside is blue.
+
 ## Trail
 
 | When | Commit | What |

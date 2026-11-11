@@ -16,6 +16,8 @@
   --sand2: #dfd2b8;
   --forest: #1f3a2c;
   --forest2: #47604f;
+  --navy: #173655;          /* TheOS's own blue, from its mark: the inside, where the work is done */
+  --navy2: #18243c;
   --moss: #5f7f52;
   --leaf: #8fb46c;
   --clay: #bd5b33;          /* what counts, and gold that can be read as text */
@@ -77,9 +79,9 @@
 .os-pill .back { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--muted); font: 500 10.5px/1 var(--sans); letter-spacing: .06em; padding: 0 6px; }
 .os-pill .back svg { width: 20px; height: 15px; }
 .os-pill .back:hover { color: var(--forest); }
-.os-pill .home { width: 64px; height: 64px; margin: -8px 0; border-radius: 50%; background: var(--forest) url('/brand/star.svg') center/38px no-repeat; box-shadow: 0 0 0 3px rgba(242, 181, 68, .5), 0 14px 34px rgba(12, 28, 22, .35); transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
+.os-pill .home { width: 64px; height: 64px; margin: -8px 0; border-radius: 50%; background: var(--navy) url('/brand/star.svg') center/38px no-repeat; box-shadow: 0 0 0 3px rgba(242, 181, 68, .5), 0 14px 34px rgba(12, 28, 22, .35); transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
 .os-pill .home:hover { transform: scale(1.05); }
-.os-pill .badge { width: 38px; height: 34px; display: grid; place-items: center; background: var(--forest); color: var(--cream); font: 700 12px/1 var(--sans); letter-spacing: .02em; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
+.os-pill .badge { width: 38px; height: 34px; display: grid; place-items: center; background: var(--navy); color: var(--cream); font: 700 12px/1 var(--sans); letter-spacing: .02em; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
 body:not(.framed):not(.embed) .os-bar.bottom { bottom: 86px; }        /* the film's and the lenses' bars stand above the pill */
 
 /* the readout: small, out of the way */

@@ -63,14 +63,15 @@ function board(open) {
   $('board').querySelectorAll('.col h2').forEach((h) => (h.onclick = () => { const st = h.parentNode.dataset.st; folded.has(st) ? folded.delete(st) : folded.add(st); board(); }));
   $('board').querySelectorAll('.card').forEach((c) => (c.onclick = () => intent(intents.find((i) => i.file === c.dataset.file))));
   const pick = intents.find((i) => i.slug === open);
-  if (pick) intent(pick); else $('intentdoc').classList.remove('on');   // the board first; a card opens its intent beside it
+  if (pick) intent(pick); else { $('intentdoc').classList.remove('on'); $('intents').classList.remove('reading'); }   // the board first; a card opens its intent beside it
 }
 async function intent(i) {
   document.querySelectorAll('#board .card').forEach((c) => c.classList.toggle('on', c.dataset.file === i.file));
   const md = await get(`/api/intents/${i.file}`).then((r) => r.text()), s = stories.find((x) => x.id === i.slug);
   const d = $('intentdoc'); d.classList.add('on');
-  d.innerHTML = `<div class="bar">${s ? `<button class="btn small play" data-do="story">Its story</button>` : ''}<span class="chip live" style="margin-left:auto">${i.state}${i.outcome ? ' · ' + i.outcome : ''}</span><button class="btn small quiet shut" data-do="shut">Close</button></div>` + body(md);
-  d.querySelector('[data-do=shut]').onclick = () => { d.classList.remove('on'); document.querySelectorAll('#board .card').forEach((c) => c.classList.remove('on')); };
+  d.innerHTML = `<div class="bar"><button class="btn small quiet shut" data-do="shut">← Board</button>${s ? `<button class="btn small play" data-do="story">Its story</button>` : ''}<span class="chip live" style="margin-left:auto">${i.state}${i.outcome ? ' · ' + i.outcome : ''}</span></div>` + body(md);
+  $('intents').classList.add('reading');
+  d.querySelector('[data-do=shut]').onclick = () => { d.classList.remove('on'); $('intents').classList.remove('reading'); document.querySelectorAll('#board .card').forEach((c) => c.classList.remove('on')); };
   d.querySelector('[data-do=story]')?.addEventListener('click', () => story(s));
   d.scrollTop = 0;
 }

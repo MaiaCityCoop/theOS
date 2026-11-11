@@ -21,9 +21,9 @@
   nav.admin .back{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;cursor:pointer;color:var(--muted);font:500 10.5px/1 var(--sans);letter-spacing:.06em;padding:0 6px}
   nav.admin .back svg{width:20px;height:15px}
   nav.admin .back:hover{color:var(--forest)}
-  nav.admin .home{width:64px;height:64px;margin:-8px 0;border-radius:50%;border:0;cursor:pointer;background:var(--forest) url('/brand/star.svg') center/38px no-repeat;box-shadow:0 0 0 3px rgba(242,181,68,.5),0 14px 34px rgba(12,28,22,.35);transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+  nav.admin .home{width:64px;height:64px;margin:-8px 0;border-radius:50%;border:0;cursor:pointer;background:var(--navy) url('/brand/star.svg') center/38px no-repeat;box-shadow:0 0 0 3px rgba(242,181,68,.5),0 14px 34px rgba(12,28,22,.35);transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
   nav.admin .home:hover{transform:scale(1.05)}
-  nav.admin .badge{width:38px;height:34px;border:0;cursor:pointer;background:var(--forest);color:var(--cream);font:700 12px/1 var(--sans);letter-spacing:.02em;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
+  nav.admin .badge{width:38px;height:34px;border:0;cursor:pointer;background:var(--navy);color:var(--cream);font:700 12px/1 var(--sans);letter-spacing:.02em;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
   /* a view inside opens as a sheet over the dashboard, with its name and Close */
   .sheethead{flex:none;display:flex;align-items:center;gap:14px;padding:22px clamp(18px,3vw,44px) 8px}
   .sheethead h1{font:420 clamp(32px,3.4vw,50px)/1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.03em;margin:0}
@@ -169,7 +169,20 @@
   .card .meta{display:flex;align-items:center;gap:8px;margin-top:12px;font:400 13px/1 var(--sans);color:var(--muted)}
   .card .meta em{width:24px;height:24px;border-radius:50%;background:var(--clay);color:#fff;font:600 11px/24px var(--sans);font-style:normal;text-align:center}
   .card.rejected{opacity:.5}
-  #intentdoc .shut{margin-left:auto}
+  /* an intent opens across the whole sheet, in place of the board; Close goes back to the board */
+  #intents.reading #board{display:none}
+  #intentdoc.on{flex:1;width:auto;margin:6px clamp(14px,2vw,26px) 18px;padding:0 clamp(24px,4vw,64px) 60px;border-radius:28px}
+  #intentdoc .shut{margin-left:0}
+  #intentdoc h1{font-size:clamp(26px,2.4vw,36px);margin:14px 0 8px}
+  #intentdoc h2{font-size:21px;margin:30px 0 8px;padding-top:18px}
+  #intentdoc p,#intentdoc li{font-size:15px;line-height:1.55}
+  #intentdoc blockquote{font-size:16px;padding:12px 20px}
+  #intentdoc .bar{padding:16px 0 10px}
+  /* inside is TheOS's: its blue */
+  body.admin .btn:not(.light):not(.quiet){background:var(--navy)}
+  body.admin .card.on{box-shadow:0 0 0 2px var(--navy),0 10px 24px rgba(23,54,85,.15);border-left-color:var(--sun)}
+  body.admin .sheethead h1,body.admin .cityhead .mark,body.admin #intentdoc h1{color:var(--navy)}
+  body.admin .tile.dark{background:var(--navy)}
 
   /* a document */
   .doc{width:min(52vw,820px);margin:14px clamp(8px,1vw,14px) 14px 4px;background:var(--cream);border-radius:34px;overflow:auto;padding:0 clamp(26px,3.6vw,56px) 100px;display:none;box-shadow:0 10px 40px rgba(31,58,44,.08)}
