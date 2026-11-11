@@ -474,3 +474,4 @@ _Samuel's decision._
 | 2026-11-11 | `5ebff50` | Meadow in the product: brand file, dashboard front page with a shot from above per day, the game's overlays |
 | 2026-11-11 | `88a814e` | Front page as one banner and one strip with the calendar of days; the film's bar reduced |
 | 2026-11-11 | `3f7e4da` | Words alone above the film, film on scroll, all 5,423 days as dots, the game full window |
+| 2026-11-11 | `1d17df3` | Visit Maia City and its dashboard, the bottom pill, the calendar as rows of cards, the meadow as day 2 |
