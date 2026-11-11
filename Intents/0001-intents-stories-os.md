@@ -801,6 +801,23 @@ _Samuel's decision._
 - **Broke / not there yet:** not seen playing in a visible browser; Samuel's eye in Safari, and
   the hitch log (cleared) for a run there.
 
+### 2026-11-11, thirty-seventh round
+
+- **Asked:** it still stutters, about every second; it feels like a timecode mismatch; it was not
+  there before the restyle of the website and the brand.
+- **Found (hitch log, Samuel's Safari, the film in the studio):** 152 slow frames while the film
+  played; the long ones (100–126 ms) come once a second, about 0.12 s after each whole second of
+  the film (1.12, 2.14, 3.12, 5.15, 6.14, 7.14, 9.16, 10.16, 11.14). Inside those frames the
+  game's own work is nil (ground, terrain, grass, drawing 0–1 ms): something outside the game's
+  frame stops it. Once a second, just after the film's second turns, the studio rewrote its
+  clock; the film's frame is sized by its container, so a change of layout there can resize the
+  game's canvas, which costs about 100 ms.
+- **Delivered:** the game rebuilds its canvas only on a real change of size, and counts its
+  resizes in the hitch log. The studio's clock changes one text node in a box of fixed width,
+  and the film's frame is walled off (`contain`) from the layout around it.
+- **Broke / not there yet:** whether this was the cause waits for one more run in Safari (the
+  log is cleared; it now carries the resize count).
+
 ## Trail
 
 | When | Commit | What |

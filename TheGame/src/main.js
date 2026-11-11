@@ -32,7 +32,12 @@ renderer.info.autoReset = false;   // a frame may be several passes: counted tog
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(68, innerWidth / innerHeight, 0.15, 30000);
 scene.add(camera);
-addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight, false); });
+let sizeW = innerWidth, sizeH = innerHeight, resizes = 0;
+addEventListener('resize', () => {   // only a real change of size rebuilds the canvas: that costs a frame of 100 ms
+  if (innerWidth === sizeW && innerHeight === sizeH) return;
+  sizeW = innerWidth; sizeH = innerHeight; resizes++;
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight, false);
+});
 
 const stats = (window.__s8 = { renderer, camera, scene });
 const U = createUniforms(camera, SKY);
@@ -96,7 +101,7 @@ function hitch(ms, now) {
   if (ms > HITCH && frames > 30) {
     const r = renderer.info.render, c = window.__cine, f = (v) => +v.toFixed(2);
     hitches.push({ at: Math.round(now), ms: f(ms), ctl: f(parts.ctl), ground: f(parts.ground), terrain: f(parts.terrain), scatter: f(parts.scatter), draw: f(parts.draw),
-      lod: f(governor.lod), cap: f(governor.cap), dpr: governor.dpr, tris: r.triangles, calls: r.calls, film: c?.clips?.length ? f(c.time) : null, playing: !!c?.playing, page: location.pathname + location.search });
+      lod: f(governor.lod), cap: f(governor.cap), dpr: governor.dpr, resizes, w: innerWidth, h: innerHeight, tris: r.triangles, calls: r.calls, film: c?.clips?.length ? f(c.time) : null, playing: !!c?.playing, page: location.pathname + location.search });
   }
   if (import.meta.env.DEV && now - sentAt > 4000 && (hitches.length || frames > 0)) {
     sentAt = now;

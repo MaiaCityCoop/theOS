@@ -129,7 +129,7 @@ function editor(el, frame, story) {
   const run = () => { if (!el.isConnected) return; requestAnimationFrame(run); if (!D) return;   // the playhead glides with the film, not in the steps the frame reports in
     const t = Math.min(D, playing ? base + (performance.now() - stamp) / 1000 : base);
     head.style.transform = `translateX(${(t / D) * lanes.clientWidth}px)`;
-    const sec = Math.floor(t); if (sec !== shownSec) { shownSec = sec; clock.innerHTML = `<b>${mm(sec)}</b> / ${mm(Math.round(D))}`; } };
+    const sec = Math.floor(t); if (sec !== shownSec) { shownSec = sec; (clock.firstChild || clock).textContent = mm(sec); } };   // one text node changes, in a box of fixed width: nothing around it moves
   requestAnimationFrame(run);
   const pct = (t) => (D ? (t / D) * 100 : 0);
   onFilm = { win: () => frame.contentWindow, take(m) {
@@ -141,6 +141,7 @@ function editor(el, frame, story) {
       q('.elane.t').innerHTML = caps.filter((c) => c.kind === 'title').map((c) => block(c, 'ecap')).join('');
       q('.elane.a').innerHTML = caps.filter((c) => c.kind === 'samuel' || c.kind === 'maia').map((c) => block({ ...c, text: (c.kind === 'samuel' ? 'Samuel' : 'Maia') + ' · not recorded' }, 'eaud')).join('');
       q('.elane.s').innerHTML = caps.filter((c) => c.kind !== 'title').map((c) => `<div class="ecap ${c.kind}" style="left:${pct(c.at)}%;width:calc(${pct(c.for)}% - 2px)" title="${c.text.replace(/"/g, '&quot;')}">${c.text}</div>`).join('');
+      clock.innerHTML = `<b>0:00</b> / ${mm(Math.round(D))}`;
       if (story?.shots >= clips.length) clips.forEach((c, i) => { q(`.eclip[data-i="${i}"]`).style.backgroundImage = `url(/api/stories/${story.id}/shots/${i}.jpg)`; });   // taken before: no run through the shots
       else if (!asked) { asked = true; say({ cmd: 'thumbs' }); }
     }
