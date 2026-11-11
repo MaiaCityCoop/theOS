@@ -643,3 +643,4 @@ _Samuel's decision._
 | 2026-11-11 | `59cd937` | Title in the upper third, subtitles under the play |
 | 2026-11-11 | `3aedce8` | More dry land, day 2 preview from the game, Lenses tile, legacy pill and sheets |
 | 2026-11-11 | `3f29932` | The pill on the game pages, smaller; one-line dashboard header |
+| 2026-11-11 | `2231d56` | The star opens the intents board, legacy style; the theOS star on the pill |
