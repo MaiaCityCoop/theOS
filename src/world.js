@@ -150,16 +150,21 @@ float outcropMask(vec2 p){ return smoothstep(0.60, 0.72, vnoise(p * (1.0 / 230.0
 vec4 grassTintAB(float a, float b, float arid);
 vec4 grassTint(vec2 p, float arid){
   vec2 pr = vec2(0.6 * p.x - 0.8 * p.y, 0.8 * p.x + 0.6 * p.y);
-  return grassTintAB(textureLod(tNoise, p * (1.0 / 150.0), 0.0).r, textureLod(tNoise, pr * (1.0 / 45.0), 0.0).g, arid);
+  // two sizes that never line up: the noise's own tile does not show as a repeat across the land
+  float a = clamp((textureLod(tNoise, p * (1.0 / 150.0), 0.0).r + textureLod(tNoise, pr * (1.0 / 397.0), 0.0).a - 1.0) * 0.8 + 0.5, 0.0, 1.0);
+  return grassTintAB(a, textureLod(tNoise, pr * (1.0 / 45.0), 0.0).g, arid);
 }
 vec4 grassTintAB(float a, float b, float arid){
-  vec3 c = mix(vec3(0.022, 0.120, 0.014), vec3(0.055, 0.200, 0.020), smoothstep(0.1, 0.9, a * 0.65 + b * 0.35));
+  vec3 c = mix(vec3(0.026, 0.105, 0.016), vec3(0.058, 0.150, 0.022), smoothstep(0.1, 0.9, a * 0.65 + b * 0.35));
+  c = mix(vec3(dot(c, vec3(0.3, 0.6, 0.1))), c, 0.8);   // a real meadow is a muted green
   float dry = clamp(arid * 0.9 + smoothstep(0.6, 1.0, b * 0.6 + a * 0.4) * 0.28, 0.0, 1.0);
   return vec4(mix(c, vec3(0.36, 0.29, 0.12), dry), dry);
 }
 `;
 
 export const LIGHT_GLSL = /* glsl */ `
-uniform vec3 uSunDir, uSun, uAmb, uSky;
+uniform vec3 uSunDir, uSun, uAmb, uSky, uHazeCol; uniform float uHaze;
+// air: the far land takes the sky's colour, and the horizon melts into it
+vec3 haze(vec3 c, float dist){ return mix(uHazeCol, c, exp(-dist * uHaze)); }
 vec4 toScreen(vec3 c){ c = 1.0 - exp(-c * 1.25); return vec4(pow(c, vec3(1.0 / 2.2)), 1.0); }
 `;

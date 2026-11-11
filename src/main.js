@@ -14,7 +14,7 @@ const t0 = performance.now();
 const SKY = new THREE.Color(0x9fc2e6);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', stencil: false });
-const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2), DPR_MIN = Math.min(1, DPR_MAX) * 0.75;
+const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2), DPR_MIN = Math.min(1, DPR_MAX);   // never under 1: below it the picture only blurs, and the blades' cost is not in pixels
 let dpr = Math.min(DPR_MAX, 1.5);
 renderer.setPixelRatio(dpr);
 renderer.setSize(innerWidth, innerHeight, false);
@@ -31,7 +31,9 @@ const U = {
   uCam: { value: camera.position }, uDy: { value: 0 }, uTime: { value: 0 },
   uSunDir: { value: new THREE.Vector3(0.5, 0.78, 0.36).normalize() },
   uSun: { value: new THREE.Vector3(1.75, 1.66, 1.5) }, uAmb: { value: new THREE.Vector3(0.50, 0.56, 0.66) },
-  uSky: { value: new THREE.Vector3(sky.r, sky.g, sky.b) },
+  uSky: { value: new THREE.Vector3(sky.r, sky.g, sky.b) }, uHaze: { value: 1 / 6500 },
+  // the sky's colour as a light that comes out of toScreen() as exactly the sky
+  uHazeCol: { value: new THREE.Vector3(sky.r, sky.g, sky.b).set(-Math.log(1 - sky.r) / 1.25, -Math.log(1 - sky.g) / 1.25, -Math.log(1 - sky.b) / 1.25) },
 };
 
 const tex = bakeTextures(renderer);

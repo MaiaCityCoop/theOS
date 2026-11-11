@@ -59,7 +59,7 @@ void main(){
   float sheen = pow(max(dot(n, normalize(V + uSunDir)), 0.0), 20.0) * 0.16 * vT;
   vec3 col = vCol * (uAmb * (0.55 + 0.45 * vT) + uSun * (ndl * ndl * 1.1 + thru * vec3(0.5, 1.0, 0.22))) + uSun * sheen;
   if (vFlower > 0.5 && vT > 0.86) col = vec3(0.92, 0.92, 0.86) * (uAmb + uSun * 0.7);
-  gl_FragColor = toScreen(col);
+  gl_FragColor = toScreen(haze(col, length(uCam - vWorld)));
 }`;
 
 function blade(segs) {

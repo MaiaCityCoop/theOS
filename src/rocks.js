@@ -129,7 +129,7 @@ void main(){
   float ndl = max(dot(n, uSunDir), 0.0);
   vec3 V = normalize(uCam - vWorld);
   col = col * (uAmb + uSun * ndl) + uSun * pow(max(dot(n, normalize(V + uSunDir)), 0.0), 30.0) * 0.06 * (1.0 - moss);
-  gl_FragColor = toScreen(col);
+  gl_FragColor = toScreen(haze(col, length(uCam - vWorld)));
 }`;
 
 export function createRocks(scene, U, tex) {
