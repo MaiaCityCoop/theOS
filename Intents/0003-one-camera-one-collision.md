@@ -151,3 +151,4 @@ Samuel approved the definition on 2026-11-11 ("Approve, start it").
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-11 | `2ee48e7` | The intent opened, its definition written |
+| 2026-11-11 | `611c4ce` | First slice: the rig and its bands as data, the walk page on it, collision defaults by kind |
