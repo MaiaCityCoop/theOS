@@ -967,3 +967,4 @@ _Samuel's decision._
 | 2026-11-11 | `aab3673` | The asset library: the tent as data, the Library viewer and tile |
 | 2026-11-11 | `f19185f` | The Library in the live world, list left, details right |
 | 2026-11-11 | `3f12ee0` | Light glass sides in the Library |
+| 2026-11-11 | `24ea5d2` | One asset recipe, rocks in the library, the bell tent, the library stage |
