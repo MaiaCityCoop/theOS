@@ -165,3 +165,4 @@ Samuel approved the definition on 2026-11-11 ("Approve, start stage 1").
 | --- | --- | --- |
 | 2026-11-11 | `8db7968` | The intent opened, its definition written |
 | 2026-11-11 | `314d00d` | Stage 1: the detail engine, the hand-over, the shading contract; the walker at the tent |
+| 2026-11-11 | `c29230d` | One server for TheOS; terrain, grass and water on the shading contract |
