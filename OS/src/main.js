@@ -55,14 +55,18 @@ function game(view, show = true) {
 }
 
 // ---- intents: a board by state ----
-function board(open) {
-  const folded = board.folded || (board.folded = new Set(STATES.filter((st) => !intents.some((i) => i.state === st))));
+function board(open, fresh) {
+  // the list is read again each time the board opens, so a new intent or a changed state shows without a reload
+  if (!fresh) get('/api/intents').then((r) => r.json()).then((list) => { if (JSON.stringify(list) !== JSON.stringify(intents)) { intents = list; board(open, true); } }).catch(() => {});
+  // a column with no intents is folded, one with intents open; what you fold or open yourself stays so
+  const mine = board.mine || (board.mine = new Map());
+  const folded = new Set(STATES.filter((st) => (mine.has(st) ? mine.get(st) : !intents.some((i) => i.state === st))));
   $('board').innerHTML = STATES.map((st) => {
     const mine = intents.filter((i) => i.state === st);
     return `<div class="col${folded.has(st) ? ' fold' : ''}" data-st="${st}"><h2>${st}<i>${mine.length}</i><u>${folded.has(st) ? '›' : '‹'}</u></h2>` +
       (mine.length ? mine.map((i) => `<div class="card ${i.outcome || ''}" data-file="${i.file}"><b>INTENT ${i.id}</b>${i.title}${i.outcome ? `<br><i>${i.outcome}</i>` : ''}<div class="meta"><em>S</em>Samuel${i.opened ? ` · ${i.opened}` : ''}</div></div>`).join('') : '<p class="none">None.</p>') + '</div>';
   }).join('');
-  $('board').querySelectorAll('.col h2').forEach((h) => (h.onclick = () => { const st = h.parentNode.dataset.st; folded.has(st) ? folded.delete(st) : folded.add(st); board(); }));
+  $('board').querySelectorAll('.col h2').forEach((h) => (h.onclick = () => { const st = h.parentNode.dataset.st; mine.set(st, !folded.has(st)); board(undefined, true); }));
   $('board').querySelectorAll('.card').forEach((c) => (c.onclick = () => intent(intents.find((i) => i.file === c.dataset.file))));
   const pick = intents.find((i) => i.slug === open);
   if (pick) intent(pick); else { $('intentdoc').classList.remove('on'); $('intents').classList.remove('reading'); }   // the board first; a card opens its intent beside it

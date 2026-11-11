@@ -49,23 +49,46 @@ function sandRiver(x, z) {
   river.r = Math.sign(g || 1) * (Math.abs(g) / 1600 + (1 - s) * 2 * gl * 1600); river.gx = gx; river.gz = gz;   // it ends where the sandbox does
   river.d = Math.abs(river.r) / Math.max(gl, 2e-4);
 }
-export function riverAt(x, z) {
+// the river's raw field: r (0 on the stream's line) and its gradient, the world's or the sandbox's
+function riverRaw(x, z) {
   const n1 = noised(x / 1600, z / 1600, 40), g1x = gx, g1y = gy;
   const n2 = noised(x / 330 + 17.3, z / 330 + 17.3, 41);
   river.r = (n1 - 0.5) + 0.28 * (n2 - 0.5);
   river.gx = g1x / 1600 + 0.28 * gx / 330;
   river.gz = g1y / 1600 + 0.28 * gy / 330;
-  river.d = Math.abs(river.r) / Math.max(Math.hypot(river.gx, river.gz), 2e-4);
-  river.w = 6.75 + 4.5 * sstep(0.3, 0.7, vnoise(x / 170, z / 170, 42)); // half-width: 3 to 5 times the first stream's
   if (SAND.on && SAND.river) sandRiver(x, z);
+  return [river.r, river.gx, river.gz];
+}
+// A river shaped by its bends (intent 0004): how much it turns here (from its course 20 m either way), and from that its
+// width (wider through bends, where bars grow, and varying along it), its middle shifted to the bend's outside, and
+// which bank this point is on: b > 0 the outside (a steep cut bank), b < 0 the inside (a gentle bar). Same in GLSL.
+export const BEND = 80;   // a bend of this radius (m) or tighter counts fully
+export function riverAt(x, z) {
+  const [r, rx, rz] = riverRaw(x, z), gl = Math.max(Math.hypot(rx, rz), 2e-4), tx = -rz / gl, tz = rx / gl;
+  const A = riverRaw(x + tx * 20, z + tz * 20), B = riverRaw(x - tx * 20, z - tz * 20);
+  let dt = Math.atan2(A[2], A[1]) - Math.atan2(B[2], B[1]); dt = Math.atan2(Math.sin(dt), Math.cos(dt));
+  const bend = Math.max(-1, Math.min(1, (dt / 40) * BEND));
+  const w = 4.5 + 3.5 * sstep(0.25, 0.75, vnoise(x / 90, z / 90, 42)) + 7 * Math.abs(bend);   // half-width, 4.5 to 15 m
+  const sd = r / gl - 0.25 * w * bend;   // signed distance from the channel's middle, shifted to the bend's outside
+  river.r = sd * gl; river.gx = rx; river.gz = rz; river.d = Math.abs(sd); river.w = w; river.b = bend * (sd >= 0 ? 1 : -1);
   return river;
+}
+/** How deep the river cuts at d from its middle (narrow is deeper; a cut bank drops sharply, a bar slopes gently). */
+export function riverCarve(d, w, b) {
+  const cut = Math.max(b, 0), bar = Math.max(-b, 0), D = 1.2 * Math.max(0.75, Math.min(1.7, 9 / w));
+  return D * (1 - sstep(w * (0.55 + 0.4 * cut - 0.35 * bar), w * (1.1 - 0.06 * cut + 0.25 * bar), d));
+}
+/** How the bank rises from the water: a low lift, a cliff of earth on a bend's outside, a long slope on its inside. */
+export function riverBank(d, w, b) {
+  const cut = Math.max(b, 0), bar = Math.max(-b, 0);
+  return 0.3 * sstep(w, w + 5 + 8 * bar, d) + 1.3 * cut * sstep(w, w + 1.2, d) * (1 - 0.6 * sstep(w + 6, w + 30, d));
 }
 export function baseB(x, z) {
   return 40 * (vnoise(x / 2600, z / 2600, 11) - 0.5) + 14 * (vnoise(x / 900 + 3.7, z / 900 + 3.7, 12) - 0.5);
 }
 /** The land's own height under (x, z), before anything is stood on it. */
 export function naturalAt(x, z) {
-  const { d, w } = riverAt(x, z);
+  const { d, w, b } = riverAt(x, z);
   const m = sstep(w, w + 80, d), mm = 0.35 + 0.65 * m;
   let h = 0, qx = x, qy = z;
   for (let i = 0; i < 8; i++) {
@@ -73,8 +96,8 @@ export function naturalAt(x, z) {
     const lam = OCT_LAM[i], o = i * 7.31;
     h += OCT_AMP[i] * (vnoise(qx / lam + o, qy / lam + o, 20 + i) - 0.5) * (i >= 6 ? mm : m);
   }
-  const bank = 0.3 * sstep(w, w + 5, d);
-  const carve = 1.2 * (1 - sstep(w * 0.55, w * 1.1, d));
+  const bank = riverBank(d, w, b);
+  const carve = riverCarve(d, w, b);
   return baseB(x, z) + h + m * 3 + bank - carve;
 }
 

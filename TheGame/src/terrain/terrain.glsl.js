@@ -7,7 +7,7 @@ export const VERT = /* glsl */ `
 ${WORLD_GLSL}
 in vec4 aNode; // x, z, size, level
 uniform float uGrid, uR0;
-out vec3 vWorld; out vec3 vR; out float vW;
+out vec3 vWorld; out vec3 vR; out float vW; out float vB;
 #ifndef WATER
 out vec3 vN; out vec3 vPth; out float vOut; out float vHill;
 #endif
@@ -19,16 +19,17 @@ void main(){
   float k = clamp((camDist(wp) - rng * 0.8) / (rng * 0.15), 0.0, 1.0);
   wp = aNode.xy + (g - fract(g * 0.5) * 2.0 * k) * cell;
   float dist = camDist(wp);
-  vec3 R = riverR(wp); float w = riverW(wp);
-  vR = R; vW = w;
+  vec2 rg; vec4 I = riverInfo(wp, rg); float w = I.y;
+  vR = vec3(I.x, rg); vW = w; vB = I.z;   // (signed distance from the middle, the flow), half-width, which bank
 #ifdef WATER
   float h = baseB(wp) - WATER_DROP;
 #else
-  float h = heightAt(wp, dist, riverDist(R), w);
+  float h = heightAt(wp, dist, abs(I.x), w, I.z);
   float e = max(0.3, dist / 96.0);
   vec2 px = wp + vec2(e, 0.0), pz = wp + vec2(0.0, e);
-  float hx = heightAt(px, dist, riverDist(riverR(px)), riverW(px));
-  float hz = heightAt(pz, dist, riverDist(riverR(pz)), riverW(pz));
+  vec4 Ix = riverInfo(px), Iz = riverInfo(pz);
+  float hx = heightAt(px, dist, abs(Ix.x), Ix.y, Ix.z);
+  float hz = heightAt(pz, dist, abs(Iz.x), Iz.y, Iz.z);
   vN = normalize(vec3(h - hx, e, h - hz));
   vPth = pathN(wp);
   vOut = outcropMask(wp);
@@ -41,7 +42,7 @@ void main(){
 export const FRAG = /* glsl */ `
 ${WORLD_GLSL}
 ${LIGHT_GLSL}
-in vec3 vWorld; in vec3 vR; in float vW;
+in vec3 vWorld; in vec3 vR; in float vW; in float vB;
 in vec3 vN; in vec3 vPth; in float vOut; in float vHill;
 uniform sampler2D ${LAND_MATERIALS.map((i) => `tA${i}, tN${i}`).join(', ')};   // the materials the biomes lay (biomes/*.js)
 uniform vec3 uStage;
@@ -85,14 +86,14 @@ void main(){
   float glum = mix(mix(g1.a, g2.a, gk), mix(g2.a, g3.a, 0.6), gk2);
   vec2 gq = gn2.xy * 2.0 - 1.0; gq = vec2(0.6 * gq.x + 0.8 * gq.y, -0.8 * gq.x + 0.6 * gq.y);
   vec2 gnrm = mix(gn1.xy * 2.0 - 1.0, gq, gk) * (1.0 - 0.7 * gk2);
-  float d = riverDist(vR), w = vW;
+  float d = abs(vR.x), w = vW, b = vB;
   float path = placeOff(p, pathMask(vPth)) * (1.0 - smoothstep(70.0, 220.0, dist));   // a path is a thing of the near ground; from afar it was a drawn line
   float bare = dist < 160.0 ? placeOff(p, bareMask(p)) * (1.0 - smoothstep(100.0, 160.0, dist)) : 0.0;
   if (uStage.z > 0.0) bare = max(bare, 1.0 - smoothstep(uStage.z - 0.5, uStage.z + 0.7, length(p - uStage.xy)));   // the library's stage: a round of bare, dry earth
 
   Mat m = smp(LAND_FLOOR, p, dx, dy, LAND_FLOOR_TILE, mx);
   Mat sand; bool haveSand = false; Mat dirt; bool haveDirt = false;
-  float bk = placeBank(p, bankMask(d, w)), bank = clamp(bk + (m.h - 0.5) * 0.3 * step(0.01, bk), 0.0, 1.0);
+  float bk = placeBank(p, bankMask(d, w, b)), bank = clamp(bk + (m.h - 0.5) * 0.3 * step(0.01, bk), 0.0, 1.0);
   if (vArid > 0.003) {
     Mat c = smp(ARID_FLOOR, p, dx, dy, ARID_FLOOR_TILE, mx);
     float sp = dist < 1500.0 ? smoothstep(0.55, 0.72, vnoise(p * (1.0 / 45.0), 73u)) * (1.0 - smoothstep(600.0, 1500.0, dist)) : 0.0;
@@ -109,8 +110,11 @@ void main(){
   m.c = mix(m.c, vTint.rgb * (0.32 + 1.05 * glum) * mix(0.5, 1.0, smoothstep(3.0, 70.0, dist)), cv); m.n = mix(m.n, gnrm * 1.4, cv); m.h = mix(m.h, glum, cv);
   if (path > 0.003) m = hblend(m, dirt, path);
   if (bank > 0.003) m = hblend(m, smp(BANK_FLOOR, p, dx, dy, BANK_FLOOR_TILE, mx), bank);
+  float bar = placeBank(p, barMask(d, w, b)), cutb = placeBank(p, cutMask(d, w, b));   // the river's own grounds (biomes/gravelbar.js, cutbank.js)
+  if (bar > 0.003) m = hblend(m, smp(BAR_FLOOR, p, dx, dy, BAR_FLOOR_TILE, mx), bar);
   float steep = smoothstep(0.80, 0.68, vN.y);
   if (steep > 0.003) m = hblend(m, smp(LAND_SLOPES, p, dx, dy, LAND_SLOPES_TILE, mx), steep);
+  if (cutb > 0.003) m = hblend(m, smp(CUT_FLOOR, p, dx, dy, CUT_FLOOR_TILE, mx), cutb);   // a cut bank's face is earth, steep as it is (after the slopes' rock)
 
   float wet = 1.0 - smoothstep(w * 0.9, w + 2.5, d);
   m.c *= mix(1.0, 0.5, wet);

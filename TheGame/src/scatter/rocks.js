@@ -89,9 +89,9 @@ void main(){
 #ifdef BIG
   oc = placeOff(pos, outcropMask(pos));
   if (rnd(c, 200u) > 0.012 + 0.6 * oc) return;       // the cheap test first: most cells hold no rock
-  vec3 R = riverR(pos); float w = riverW(pos), d = riverDist(R);
+  vec4 I = riverInfo(pos); float w = I.y, d = abs(I.x);
   if (rnd(c, 200u) > (0.012 + 0.6 * oc) * smoothstep(w + 2.0, w + 9.0, d)) return;
-  arid = placeArid(pos, aridMask(pos)); y = heightAt(pos, dist, d, w); tint = grassTint(pos, arid).rgb;
+  arid = placeArid(pos, aridMask(pos)); y = heightAt(pos, dist, d, w, I.z); tint = grassTint(pos, arid).rgb;
 #else
   vec4 G = groundA(pos);
   if (rnd(c, 200u) > G.w * 0.7) return;

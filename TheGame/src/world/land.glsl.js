@@ -1,6 +1,6 @@
 // The land in GLSL: the same functions as world/land.js, constant for constant, so the GPU's ground
 // is the walker's ground. Every shader that needs the land starts with this.
-import { OCT_LAM, OCT_AMP, WATER_DROP, MEANDER, PADS, PAD_FALL } from './land.js';
+import { OCT_LAM, OCT_AMP, WATER_DROP, MEANDER, PADS, PAD_FALL, BEND } from './land.js';
 import { BIOME_GLSL } from './biomes.glsl.js';
 
 const fl = (a) => a.map((v) => v.toFixed(3)).join(', ');
@@ -49,24 +49,42 @@ vec3 riverWorld(vec2 p){
   return vec3((n1.x - 0.5) + 0.28 * (n2.x - 0.5), n1.yz * (1.0 / 1600.0) + 0.28 * n2.yz * (1.0 / 330.0));
 }
 // the library's sandbox river (land.js: sandRiver): meandering through the sandbox in place of the world's
-vec3 riverR(vec2 p){
+vec3 riverRaw(vec2 p){
   vec3 R = riverWorld(p);
-  if (uSand.z <= 0.0 || sandIs(SAND_RIVER) < 0.5) return R;
+  if (uSand.z <= 0.0 || sandIs(SAND_RIVER) + sandIs(SAND_CUT) + sandIs(SAND_BAR) < 0.5) return R;   // the river's biomes each show it in the sandbox
   vec2 d = p - uSand.xy; float s = sandW(p); if (s <= 0.0) return R;
   float c = cos(${MEANDER.turn.toFixed(4)}), sn = sin(${MEANDER.turn.toFixed(4)}), u = d.x * c + d.y * sn, v = -d.x * sn + d.y * c, k = 6.2831853 / ${MEANDER.wave.toFixed(1)};
   float g = v - ${MEANDER.swing.toFixed(1)} * sin(k * u), gu = -${MEANDER.swing.toFixed(1)} * k * cos(k * u);
   vec2 gr = vec2(gu * c - sn, gu * sn + c) / 1600.0;
   return vec3((g >= 0.0 ? 1.0 : -1.0) * (abs(g) / 1600.0 + (1.0 - s) * 2.0 * length(gr) * 1600.0), gr);
 }
-float riverDist(vec3 R){ return abs(R.x) / max(length(R.yz), 2e-4); }
-float riverW(vec2 p){ return 6.75 + 4.5 * smoothstep(0.3, 0.7, vnoise(p * (1.0 / 170.0), 42u)); }
-float riverCarve(float d, float w){ return 1.2 * (1.0 - smoothstep(w * 0.55, w * 1.1, d)); }
+// A river shaped by its bends (intent 0004), as world/land.js's riverAt: (signed distance from the channel's middle,
+// half-width, which bank: > 0 a bend's outside, < 0 its inside, the bend), and g, the raw field's gradient (its flow).
+vec4 riverInfo(vec2 p, out vec2 g){
+  vec3 R = riverRaw(p); float gl = max(length(R.yz), 2e-4); vec2 t = vec2(-R.z, R.y) / gl;
+  vec3 A = riverRaw(p + t * 20.0), B = riverRaw(p - t * 20.0);
+  float dt = atan(A.z, A.y) - atan(B.z, B.y); dt = atan(sin(dt), cos(dt));
+  float bend = clamp(dt / 40.0 * ${BEND.toFixed(1)}, -1.0, 1.0);
+  float w = 4.5 + 3.5 * smoothstep(0.25, 0.75, vnoise(p * (1.0 / 90.0), 42u)) + 7.0 * abs(bend);
+  float sd = R.x / gl - 0.25 * w * bend;
+  g = R.yz;
+  return vec4(sd, w, bend * (sd >= 0.0 ? 1.0 : -1.0), bend);
+}
+vec4 riverInfo(vec2 p){ vec2 g; return riverInfo(p, g); }
+float riverCarve(float d, float w, float b){
+  float cut = max(b, 0.0), bar = max(-b, 0.0), D = 1.2 * clamp(9.0 / w, 0.75, 1.7);
+  return D * (1.0 - smoothstep(w * (0.55 + 0.4 * cut - 0.35 * bar), w * (1.1 - 0.06 * cut + 0.25 * bar), d));
+}
+float riverBank(float d, float w, float b){
+  float cut = max(b, 0.0), bar = max(-b, 0.0);
+  return 0.3 * smoothstep(w, w + 5.0 + 8.0 * bar, d) + 1.3 * cut * smoothstep(w, w + 1.2, d) * (1.0 - 0.6 * smoothstep(w + 6.0, w + 30.0, d));
+}
 
 float baseB(vec2 p){
   return 40.0 * (vnoise(p * (1.0 / 2600.0), 11u) - 0.5) + 14.0 * (vnoise(p * (1.0 / 900.0) + 3.7, 12u) - 0.5);
 }
 // dist fades each octave out before the grid at that distance is too coarse to carry it.
-float heightAt(vec2 p, float dist, float d, float w){
+float heightAt(vec2 p, float dist, float d, float w, float b){
   float m = smoothstep(w, w + 80.0, d), mm = mix(0.35, 1.0, m);
   float h = 0.0; vec2 q = p;
   for (int i = 0; i < 8; i++) {
@@ -77,8 +95,8 @@ float heightAt(vec2 p, float dist, float d, float w){
       h += AMP[i] * (vnoise(q / lam + float(i) * 7.31, 20u + uint(i)) - 0.5) * f * (i >= 6 ? mm : m);
     }
   }
-  float bank = 0.3 * smoothstep(w, w + 5.0, d);
-  float carve = riverCarve(d, w);
+  float bank = riverBank(d, w, b);
+  float carve = riverCarve(d, w, b);
   float H = baseB(p) + h + m * 3.0 + bank - carve;
   // pads: the ground levels itself under what is stood on it, as world/land.js does (PADS)
   for (int i = 0; i < ${PADS.length}; i++) { vec4 P = PAD[i]; H = mix(P.w, H, smoothstep(P.z, P.z + ${PAD_FALL.toFixed(1)}, length(p - P.xy))); }
@@ -94,7 +112,11 @@ float pathMask(vec3 P){ return 1.0 - smoothstep(0.45, 0.95, abs(P.x - 0.5) / max
 float bareMask(vec2 p){
   return smoothstep(0.60, 0.70, vnoise(p * (1.0 / 8.0), 70u) * 0.7 + vnoise(p * (1.0 / 2.1) + 4.4, 71u) * 0.3);
 }
-float bankMask(float d, float w){ return 1.0 - smoothstep(w * 1.15, w * 1.15 + 2.2, d); }
+// the river's grounds by where they lie (intent 0004): sand along the water, wider over a bar; bare earth on a cut bank's
+// face; gravel on a bar, from the water's edge up
+float bankMask(float d, float w, float b){ float bar = max(-b, 0.0), cut = max(b, 0.0); float e = w * (1.15 + 0.5 * bar); return (1.0 - smoothstep(e, e + 2.2 + 4.0 * bar, d)) * (1.0 - 0.6 * cut); }
+float cutMask(float d, float w, float b){ return max(b, 0.0) * smoothstep(w * 0.85, w * 0.98, d) * (1.0 - smoothstep(w + 1.6, w + 3.2, d)); }
+float barMask(float d, float w, float b){ float bar = max(-b, 0.0); return smoothstep(0.15, 0.5, bar) * smoothstep(w * 0.45, w * 0.8, d) * (1.0 - smoothstep(w * (1.0 + 0.35 * bar), w * (1.15 + 0.5 * bar), d)); }
 float tuftMask(vec2 p){ return smoothstep(0.45, 0.7, vnoise(p * (1.0 / 28.0), 72u)); }
 float outcropMask(vec2 p){ return smoothstep(0.60, 0.72, vnoise(p * (1.0 / 230.0), 74u)); }
 // rgb: the grass's colour here; a: how dry

@@ -6,11 +6,11 @@ import { MATERIALS } from '../../materials/index.js';
 const v3 = (c) => `vec3(${c.map((x) => x.toFixed(4)).join(', ')})`, f = (x) => Number(x).toFixed(4);
 const tex = (g) => { const i = MATERIALS.findIndex((m) => m.id === g.material); return `tA${i}, tN${i}`; };
 const tile = (g) => `${f(g.tile[0])}, ${f(g.tile[1])}`;
-const land = at('land'), arid = at('arid'), bank = at('bank'), water = at('water');
+const land = at('land'), arid = at('arid'), bank = at('bank'), water = at('water'), cut = at('cutbank'), bar = at('bar');
 const idx = (b) => BIOMES.indexOf(b).toFixed(1);
 
 /** The materials the land's shader samples, by their numbers. */
-export const LAND_MATERIALS = [...new Set([land.floor, land.patches, land.slopes, arid.floor, arid.spots, bank.floor].map((g) => MATERIALS.findIndex((m) => m.id === g.material)).concat(MATERIALS.findIndex((m) => m.id === land.grass.carpet)))].sort();
+export const LAND_MATERIALS = [...new Set([land.floor, land.patches, land.slopes, arid.floor, arid.spots, bank.floor, cut.floor, bar.floor].map((g) => MATERIALS.findIndex((m) => m.id === g.material)).concat(MATERIALS.findIndex((m) => m.id === land.grass.carpet)))].sort();
 
 export const BIOME_GLSL = /* glsl */ `
 // ---- the biomes, from biomes/*.js ----
@@ -35,13 +35,18 @@ const float WATER_TILE = ${f(water.floor.tile[0])};
 #define ARID_SPOTS_TILE ${tile(arid.spots)}
 #define BANK_FLOOR ${tex(bank.floor)}
 #define BANK_FLOOR_TILE ${tile(bank.floor)}
+#define CUT_FLOOR ${tex(cut.floor)}
+#define CUT_FLOOR_TILE ${tile(cut.floor)}
+#define BAR_FLOOR ${tex(bar.floor)}
+#define BAR_FLOOR_TILE ${tile(bar.floor)}
+const float CUT_STONES = ${f(cut.stones - land.stones)}, BAR_STONES = ${f(bar.stones - land.stones)};
 
 // the library's sandbox: round (x, z) the land is one biome; z of uSand: on, w: which biome (its number in biomes/)
 uniform vec4 uSand;
-const float SAND_RIVER = ${idx(water)};   // the river's biome: a river of its own meanders through the sandbox
+const float SAND_RIVER = ${idx(water)}, SAND_CUT = ${idx(cut)}, SAND_BAR = ${idx(bar)};   // the river's biomes: a river of its own meanders through the sandbox
 float sandW(vec2 p){ return uSand.z > 0.0 ? 1.0 - smoothstep(220.0, 340.0, length(p - uSand.xy)) : 0.0; }
 float sandIs(float i){ return abs(uSand.w - i) < 0.5 ? 1.0 : 0.0; }
 float placeArid(vec2 p, float natural){ return mix(natural, sandIs(${idx(arid)}), sandW(p)); }
-float placeBank(vec2 p, float natural){ return sandIs(${idx(water)}) > 0.5 ? natural : mix(natural, sandIs(${idx(bank)}), sandW(p)); }   // the river's sandbox has its own banks
+float placeBank(vec2 p, float natural){ return sandIs(${idx(water)}) + sandIs(${idx(cut)}) + sandIs(${idx(bar)}) > 0.5 ? natural : mix(natural, sandIs(${idx(bank)}), sandW(p)); }   // the river's sandbox has its own banks
 float placeOff(vec2 p, float natural){ return natural * (1.0 - sandW(p)); }   // paths, bare patches, outcrops: none in a sandbox
 `;

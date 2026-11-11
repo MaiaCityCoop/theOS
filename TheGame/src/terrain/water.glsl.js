@@ -4,14 +4,14 @@ import { WORLD_GLSL, LIGHT_GLSL } from '../world.js';
 export const WATER_FRAG = /* glsl */ `
 ${WORLD_GLSL}
 ${LIGHT_GLSL}
-in vec3 vWorld; in vec3 vR; in float vW;
+in vec3 vWorld; in vec3 vR; in float vW; in float vB;
 uniform sampler2D tWN, tWA;
 uniform float uTime;
 void main(){
-  float d = riverDist(vR), w = vW;
-  if (d > w * 1.15) discard;
+  float d = abs(vR.x), w = vW, b = vB;   // (intent 0004: the channel by its bends)
+  if (d > w * 1.5) discard;
   vec2 p = vWorld.xz;
-  float depth = riverCarve(d, w) - WATER_DROP;
+  float depth = riverCarve(d, w, b) - riverBank(d, w, b) - WATER_DROP;   // the water's real depth: clear over a bar, dark under a cut bank
   vec2 fl = normalize(vec2(-vR.z, vR.y) + 1e-9);
   float mid = clamp(1.0 - d / w, 0.0, 1.0);
   float speed = 0.25 + 0.9 * sqrt(mid);            // slow at the banks, quick in the middle
