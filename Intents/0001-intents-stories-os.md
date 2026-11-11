@@ -550,6 +550,12 @@ _Samuel's decision._
 - **Broke / not there yet:** full screen did not open in the app's browser pane (the pane
   does not allow it, as far as could be seen); not tried in Safari. There is no sound yet.
 
+### 2026-11-11, twentieth round
+
+- **Asked:** make it 1.3 million.
+- **Delivered:** the title reads "1.3 million humans build their own solarpunk city."
+- **Good / not there yet:** a one-word change; not looked at in the browser.
+
 ## Trail
 
 | When | Commit | What |
