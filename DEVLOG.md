@@ -132,3 +132,40 @@ close sits right on the waterline. The kept timeline played back identically aft
 - Seed 1's stretch of river lies in dry land: the trailer shows straw and sand, little green.
   The composer does not yet choose its stretch for how it looks.
 - `still()` and `record()` are still untried.
+
+---
+
+## 5 · A story, real transitions, a menu · 2026-11-11 · `516bf1bbc`
+
+**Asked.** The camera moves should follow a proper storytelling line that introduces the actual
+world; the shots were quite random. Transitions between connecting shots should be smooth like
+real camera transitions: nice cuts, easing, movements that continue or deliberately contrast.
+And a menu, like an explorer, to choose between the timelines and walking the world oneself.
+
+**Delivered.**
+- The trailer is one story in a fixed order, three acts: **Arrive** (out of the sky down to the
+  river; low and fast down the river, rising and slowing), **Look** (on the bank; a cut in to the
+  waterline; down in the grass), **Leave** (straight up out of the grass; back over the meadow; a
+  crane up and away, the opening run backwards). Each clip carries a `why` line for its cut,
+  shown in the timeline view. The seed now only picks the stretch (the greenest of six), the bank
+  and the direction of travel.
+- The camera learned transitions: `cut`, `dissolve` (the held last frame of the shot before
+  melts into the next), `dip` through the sky's colour, fade in and fade out; and eases that say
+  how a move starts and ends (`in`, `out`, `inout`, `linear`), so a cut on motion carries the
+  movement across.
+- A menu on every page, top right: Walk the world, the composed trailer, every kept timeline
+  (the dev server lists `cine/timelines`).
+- Kept as `river-story` (seed 1): `/timeline.html?tl=river-story`.
+
+**Good.** Two joins read as intended in stills: the low angle tilts up into plain sky and the next
+shot looks straight down at that very spot, climbing until the river slides into frame; and the
+flight's last frame melts into the bank shot. Seed 1 now lands on a green stretch.
+
+**Broke / not there yet.**
+- The transitions were checked as stills and by their opacities, not watched as motion at full
+  frame rate; whether the cuts on motion feel right is for the eye, in Safari.
+- The 85 mm close shows mostly open water with the bank only at the frame's edge: it was re-aimed
+  once and is still the weakest frame.
+- A dissolve freezes the outgoing shot (one camera, one picture); if that shot is still moving
+  when it ends, the freeze would show. The trailer only dissolves out of shots that came to rest.
+- Frame rate on the timeline page is still unread in Safari.
