@@ -65,49 +65,71 @@
 .chip.live::before { width: 13px; height: 13px; margin-right: 6px; vertical-align: 0; }
 
 /* ---- liquid glass: the one look of every card, side and pill over the game or a picture ----
-   Taken from the pill. Use the class .glass, or these five tokens where a rule must carry it itself;
-   never a glass of its own. (.glass2 is the same, its older name.) */
+   Use the class .glass, or these tokens where a rule must carry it itself; never a glass of its own
+   (.glass2 is the same, its older name). The rules (after Apple's clear glass and what holds on the web):
+   - the glass is clear and see-through: no colour of its own, only a thin sheen of light; it blurs what is
+     behind it and dims it a little, as clear glass over a picture must, so that light words always hold
+   - words on it are always light, never dark: one cream-white in three strengths (--on-glass, -2, -3), the
+     first fully solid. They are set firmly (semibold names, medium text, never thin or light weights), and
+     carry one soft, wide shadow (--on-glass-shadow), never a hard dark one. Hierarchy comes from weight and
+     size before strength. No colour for plain words (colour is for a state: the sun for now or chosen)
+   - one thin light edge, the light from above (a brighter inner top line), one soft shadow under the glass;
+     pieces in a stack (a list's items) take .flat: no shadow under them, or each would darken the next
+   - a chosen item is brighter glass (--glass-on) with the sun's bar, a hovered one a little less (--glass-hover)
+   - a solid thing on glass (a button, a tick, the badge) is cream with navy on it (--glass-solid, -ink);
+     a quiet button is an outline of light
+   - glass over glass is not done: one layer; over a film that plays, no blur (the studio's pill stays navy) */
 :root {
-  --glass: linear-gradient(180deg, rgba(251, 246, 234, .42), rgba(251, 246, 234, .26));
-  --glass-blur: blur(18px) saturate(1.6);
-  --glass-edge: 1px solid rgba(255, 255, 255, .55);
-  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), 0 12px 30px rgba(12, 28, 22, .16);
-  --glass-hover: rgba(255, 255, 255, .35);
-  --pill-h: 44px;
-  /* the words on glass: one ink, three strengths */
-  --on-glass: var(--navy);                    /* titles and names */
-  --on-glass-2: rgba(23, 54, 85, .74);         /* lines under a name, descriptions, values */
-  --on-glass-3: rgba(23, 54, 85, .56);         /* labels, the names of values */   /* every pill and round button at the bottom: the nav pill, the library's Back */
+  --glass: linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .06));
+  --glass-blur: blur(20px) saturate(1.7) brightness(.68);
+  --glass-edge: 1px solid rgba(255, 255, 255, .4);
+  --glass-inner: inset 0 1px 0 rgba(255, 255, 255, .5);                  /* the light from above */
+  --glass-shadow: var(--glass-inner), 0 10px 28px rgba(8, 20, 15, .18);
+  --glass-hover: rgba(255, 255, 255, .1);
+  --glass-on: rgba(255, 255, 255, .22);           /* a chosen item: brighter glass */
+  --glass-line: rgba(255, 255, 255, .2);          /* a rule between parts of a card */
+  --glass-track: rgba(255, 255, 255, .24);        /* an empty track (the film's line) */
+  --glass-solid: var(--cream);                    /* a solid thing on glass, */
+  --glass-solid-ink: var(--navy);                 /* and what is written on it */
+  --pill-h: 44px;   /* every pill and round button at the bottom: the nav pill, the library's Back */
+  /* the words on glass: always light, one cream-white in three strengths */
+  --on-glass: #fffdf8;                           /* titles and names, values */
+  --on-glass-2: rgba(255, 253, 248, .86);         /* lines under a name, descriptions */
+  --on-glass-3: rgba(255, 253, 248, .7);          /* labels, the names of values */
+  --on-glass-shadow: 0 1px 5px rgba(8, 20, 15, .28);   /* soft and wide: it lifts the words, it is not seen */
 }
-.glass, .glass2 { color: var(--on-glass); background:var(--glass); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); border:var(--glass-edge); box-shadow:var(--glass-shadow); }
+.glass, .glass2 { color: var(--on-glass); text-shadow: var(--on-glass-shadow); -webkit-font-smoothing: antialiased; background:var(--glass); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); border:var(--glass-edge); box-shadow:var(--glass-shadow); }
+.glass.flat { box-shadow: var(--glass-inner); }   /* in a stack: no shadow under it */
 
 /* words on glass, everywhere the same: a label over it, a title, a name (in a list), the one line under a name,
    a text, and rows of values (a dl) */
-.g-label { display: block; font: 500 10.5px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--on-glass-3); margin: 0 0 7px; }
+.g-label { display: block; font: 600 10px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--on-glass-3); margin: 0 0 7px; }
 .g-title { font: 460 18px/1.1 var(--serif); font-variation-settings: var(--soft); letter-spacing: -.01em; color: var(--on-glass); margin: 0 0 6px; }
 .g-title.big { font-size: 19px; }
-.g-name { display: block; font: 500 13.5px/1.2 var(--sans); color: var(--on-glass); }
-.g-sub { display: block; font: 400 11.5px/1.3 var(--sans); color: var(--on-glass-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.g-text { font: 400 12.5px/1.4 var(--sans); color: var(--on-glass-2); margin: 0 0 10px; }
-.g-rows { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font: 400 11.5px/1.35 var(--sans); }
+.g-name { display: block; font: 600 13.5px/1.2 var(--sans); letter-spacing: .005em; color: var(--on-glass); }
+.g-sub { display: block; font: 500 11.5px/1.3 var(--sans); color: var(--on-glass-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-text { font: 500 12.5px/1.45 var(--sans); color: var(--on-glass-2); margin: 0 0 10px; }
+.g-rows { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 0; font: 500 11.5px/1.35 var(--sans); }
 .g-rows dt { color: var(--on-glass-3); }
 .g-rows dd { margin: 0; color: var(--on-glass); font-variant-numeric: tabular-nums; word-break: break-word; }
+.g-btn { font: 600 11.5px/1 var(--sans); color: var(--glass-solid-ink); background: var(--glass-solid); border: 0; border-radius: 999px; padding: 7px 12px; cursor: pointer; text-shadow: none; }
+.g-btn.quiet { background: none; color: var(--on-glass); text-shadow: var(--on-glass-shadow); box-shadow: inset 0 0 0 1.5px var(--on-glass-3); }
 
 /* the game's pill: Home (the dashboard), the large round star (the intents), the city's badge; as in the dashboard */
 .os-pill { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 12px; padding: 0 12px; height: var(--pill-h); box-sizing: border-box; border-radius: 999px; background:var(--glass); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); border:var(--glass-edge); box-shadow:var(--glass-shadow); }
 .os-pill a { text-decoration: none; }
-.os-pill .back { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--cream); filter: drop-shadow(0 1px 2px rgba(8, 20, 15, .45)); font: 500 10.5px/1 var(--sans); letter-spacing: .06em; padding: 0 6px; }
+.os-pill .back { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--on-glass); filter: drop-shadow(var(--on-glass-shadow)); font: 500 10.5px/1 var(--sans); letter-spacing: .06em; padding: 0 6px; }
 .os-pill .back svg { width: 22px; height: 20px; }
-.os-pill .back:hover { color: #fff; }
+.os-pill .back:hover { opacity: .75; }
 .os-pill .home { width: 56px; height: 56px; margin: -6px 0; border-radius: 50%; background: var(--navy) url('/brand/star.svg') center/33px no-repeat; box-shadow: 0 0 0 3px rgba(242, 181, 68, .5), 0 14px 34px rgba(12, 28, 22, .35); transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
 .os-pill .home:hover { transform: scale(1.05); }
-.os-pill .badge { width: 34px; height: 30px; display: grid; place-items: center; background: var(--navy); color: var(--cream); font: 700 12px/1 var(--sans); letter-spacing: .02em; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
+.os-pill .badge { width: 34px; height: 30px; display: grid; place-items: center; background: var(--glass-solid); color: var(--glass-solid-ink); font: 700 12px/1 var(--sans); letter-spacing: .02em; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
 body:not(.framed):not(.embed) .os-bar.bottom { bottom: 86px; }
 body.framed .os-bar.bottom { bottom: 96px; }                          /* inside the dashboard, above the dashboard's pill */
 body.framed #hud { top: 76px; }        /* the film's and the lenses' bars stand above the pill */
 
 /* the readout: small, out of the way */
-#hud { position: fixed; right: 16px; top: 16px; left: auto; z-index: 5; padding: 11px 16px; border-radius: 18px; white-space: pre; pointer-events: none; font: 10px/1.5 var(--mono); color: var(--forest2); }
+#hud { position: fixed; right: 16px; top: 16px; left: auto; z-index: 5; padding: 11px 16px; border-radius: 18px; white-space: pre; pointer-events: none; font: 10px/1.5 var(--mono); color: var(--on-glass-2); }
 
 /* a bar of controls (the film's, the lenses') */
 .os-bar { position: fixed; left: 16px; right: 16px; z-index: 5; border-radius: 34px; font: 14px/1.35 var(--sans); }

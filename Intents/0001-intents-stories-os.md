@@ -1079,6 +1079,30 @@ _Samuel's decision._
 - **Good:** seen in the pane: both read in navy on the glass over the film.
 - **Broke / not there yet:** day 2's picture and stills still to be retaken.
 
+### 2026-11-11, fifty-third round
+
+- **Asked:** what is best practice for the words on liquid glass; light words, at about 90 %. Then:
+  the light words on the pale glass were badly contrasted; a dark navy glass was tried and refused
+  (the see-through glass was the beautiful one; the fault was the words' weight and shadow); the
+  shadows between the list's items were bad; look up how glass is done well; and: never dark words,
+  always light.
+- **Delivered:** looked up (Apple's materials and clear-glass guidance, and what holds on the web):
+  solid, not faded words; medium weights and up, never thin; shadows belong to the glass, at most a
+  soft one under words; clear glass over a picture takes a dimming layer. So the glass is clear
+  again and without a colour of its own: a thin sheen, a strong blur, and the picture behind dimmed
+  a little (`brightness(.68)` in `--glass-blur`). Words are always light: one cream-white in three
+  strengths, the first solid; names semibold, text medium; one soft wide shadow in place of the hard
+  one. Solid things on glass (buttons, ticks, the badge) are cream with navy on them, as tokens
+  (`--glass-solid`, `--glass-solid-ink`); the film's track and the cards' rules are tokens too.
+  Stacked pieces take `.flat` (no shadow under them): the dark bands between the list's items are
+  gone. The rules stand written over the tokens in `brand/brand.css`. The film's and the lenses'
+  bars, the dashboard's pill, the goals and the day figures follow the same tokens.
+- **Good:** seen in the pane: white words clear on the glass over grass, over the pale stones and
+  over the bright sky of the front page; the glass still showing each picture's own colour.
+- **Broke / not there yet:** on the way, two wrong turns (the glass made dark navy; the words made
+  navy), both taken back within the round. Over the brightest sky the words stand at about 3 : 1,
+  held by their weight and shadow; day 2's picture and stills still to be retaken.
+
 ## Trail
 
 | When | Commit | What |
