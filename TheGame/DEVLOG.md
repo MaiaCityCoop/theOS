@@ -2,7 +2,7 @@
 
 One entry per request cycle between Samuel and the agent: what was asked, what was delivered, what
 was good, what broke, and the commit to go back to. Newest last. To see a stage again, with the
-virtual camera over it: `bash cine/at.sh <commit>` (see `cine/README.md`).
+virtual camera over it: `bash TheGame/cine/at.sh <commit>` (see `cine/README.md`).
 
 Cycles 1 to 16 were made in the folder `game/` of the maiaCITY repository, on its branch
 `game/sandbox-8`; cycle 17 moved the project here, into its own repository, with its history. The

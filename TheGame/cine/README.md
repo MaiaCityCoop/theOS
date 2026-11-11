@@ -146,7 +146,7 @@ cut a before/after from.
 
 ## Shooting an earlier stage
 
-    bash cine/at.sh <commit> [port]
+    bash TheGame/cine/at.sh <commit> [port]
 
 checks that commit out beside the repository (never in the tree being worked in), lays
 today's `cine/` and `timeline.html` over it, and serves it (port 5174 unless told). The commits are
