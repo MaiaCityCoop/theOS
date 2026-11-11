@@ -149,3 +149,4 @@ is built at once.
 | 2026-11-12 | `c30f881` | The river by its bends, two new biomes, the water by depth; the board shows every intent |
 | 2026-11-12 | `3e23aaf` | Slope limit; ragged banks and frayed edges |
 | 2026-11-12 | `4a754cb` | The water a notch bluer; reeds and driftwood to intent 0005 |
+| 2026-11-12 | `c274ce5` | Cut bank and Gravel bar on their own; soft edges in the library |
