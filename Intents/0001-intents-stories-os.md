@@ -413,6 +413,26 @@ _Samuel's decision._
   could not be tried. The calendar was not looked at with days in the past, nor at phone width.
   Not seen in Safari. Still only on the handover branch (ports 5181 and 5174).
 
+### 2026-11-11, eleventh round
+
+- **Asked:** the game's view should be full screen. Separate the banner into the hero, pure
+  text standing alone and centred above, and the actual video under it; start the video only
+  once it is scrolled to. The calendar should show all 5,423 dots.
+- **Delivered:** the front page opens on the words alone, centred: the title with the count,
+  "This is day 1 of 5,423. One story a day.", and "Travel to Maia City now". Under them the
+  day's film in its round window, with the day's name, count and challenge on it; the film is
+  loaded only when the window is at least half on screen and unloaded when it is scrolled away
+  or another tab is opened; until then the day's shot from above stands there. Under the
+  window the strip: the two figures and a calendar of all 5,423 days as dots, today as the sun
+  as tall as the strip, the days after it large and numbered, shrinking until the rest are
+  small dots that fill the strip. The Game tab fills the whole window, with the header and the
+  Walk / Lenses buttons floating over it as glass.
+- **Good:** seen in the pane at 1440: the words alone on the first screen with no film loaded;
+  scrolled to the window, the film loaded and played; the calendar with every day drawn; the
+  game edge to edge under the floating header.
+- **Broke / not there yet:** pointing at single dots in the calendar was not tried; at phone
+  width and in Safari not seen. Still only on the handover branch (5181, 5174).
+
 ## Trail
 
 | When | Commit | What |
