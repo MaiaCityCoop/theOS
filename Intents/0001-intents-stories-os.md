@@ -679,6 +679,18 @@ _Samuel's decision._
 - **Broke / not there yet:** the voices and music are not real yet; the tracks show where they
   will go. Narrow screens not looked at.
 
+### 2026-11-11, twenty-ninth round
+
+- **Asked:** the tabs at the bottom left, folded into a menu button on a phone; and each tab
+  showing only its own kind (not the timeline together with the story or the hook).
+- **Delivered:** the studio shows one page at a time, chosen from a bar at the bottom left:
+  Hook, Story, Script, Edit, Receipts, Open, Series. Edit is the film over its five-track
+  timeline and opens first; every other page is its part of `story.md`, alone, filling the
+  stage. Leaving Edit pauses the film. Below 1180 px the bar folds into a menu button that opens
+  the list upward. On a phone the head keeps only ← Stories and the title.
+- **Good:** seen in the pane at 1440 (Edit, then Hook alone) and at 375 (Hook, the menu open
+  and closed); nothing wider than the screen.
+
 ## Trail
 
 | When | Commit | What |

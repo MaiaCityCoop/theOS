@@ -88,23 +88,29 @@ async function story(s, show = true) {
   current = s;
   const md = await get(`/api/stories/${s.id}/story.md`).then((r) => r.text()), d = $('storyedit');
   d.innerHTML = `<header class="studiohead"><button class="btn small quiet" data-do="shelf">← Stories</button><h1>${s.title}</h1><span class="chip">Day ${n(s.day || 1)}${s.inGame != null ? ' · ' + (s.inGame === 1 ? '1 citizen' : n(s.inGame) + ' citizens') : ''}</span><button class="btn small quiet" data-do="intent">Its intent</button></header>` +
-    (s.film ? `<div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div>${EDIT}` : '') + `<section class="steps"></section>`;
+    (s.film ? `<div class="editpage"><div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div>${EDIT}</div>` : '') + `<div class="stagedoc"></div><nav class="pages"></nav>`;
   if (s.film) editor(d.querySelector('.edit'), d.querySelector('.player iframe'));
-  steps(d.querySelector('.steps'), md);
+  pages(d, md, s.film);
   d.querySelector('[data-do=intent]').onclick = () => { tab('intents'); board(s.id); };
   d.querySelector('[data-do=shelf]').onclick = () => { current = null; tab('stories'); };
   if (show) tab('stories');
 }
 
-// ---- a story's work, as the steps of an editing suite: a tab per part of story.md (its ## sections), hook first ----
-const STEP = [['The hook', 'Hook'], ['The story', 'Story'], ['The film', 'Script'], ['Receipts', 'Receipts'], ['Open', 'Open'], ['The series', 'Series']];
-function steps(el, md) {
+// ---- a story's work, as the pages of an editing suite: one page at a time, chosen from a bar at the bottom left.
+// Edit is the film and its timeline; the others are the parts of story.md (its ## sections), hook first ----
+const STEP = [['The hook', 'Hook'], ['The story', 'Story'], ['The film', 'Script'], ['EDIT', 'Edit'], ['Receipts', 'Receipts'], ['Open', 'Open'], ['The series', 'Series']];
+function pages(root, md, film) {
   const parts = md.replace(/^---\n[\s\S]*?\n---\n/, '').split(/^## /m).slice(1).map((p) => { const nl = p.indexOf('\n'); return { head: p.slice(0, nl).trim(), text: p.slice(nl + 1) }; });
-  const tabs = STEP.map(([h, name]) => ({ name, part: parts.find((p) => p.head.startsWith(h)) })).filter((t) => t.part);
+  const tabs = STEP.map(([h, name]) => (h === 'EDIT' ? (film ? { name, edit: true } : null) : { name, part: parts.find((p) => p.head.startsWith(h)) })).filter((t) => t && (t.edit || t.part));
   for (const p of parts) if (!tabs.some((t) => t.part === p)) tabs.push({ name: p.head, part: p });
-  el.innerHTML = `<nav>${tabs.map((t, i) => `<button data-i="${i}">${t.name}</button>`).join('')}</nav><article class="doc on step"></article>`;
-  const open = (i) => { el.querySelectorAll('nav button').forEach((b) => b.classList.toggle('on', +b.dataset.i === i)); el.querySelector('.step').innerHTML = `<h2>${tabs[i].part.head}</h2>` + marked.parse(tabs[i].part.text); };
-  el.querySelectorAll('nav button').forEach((b) => (b.onclick = () => open(+b.dataset.i))); if (tabs.length) open(0);
+  const bar = root.querySelector('.pages'), stage = root.querySelector('.stagedoc'), frame = root.querySelector('.player iframe');
+  bar.innerHTML = `<button class="burger" aria-label="Pages"><i></i><i></i><i></i></button>` + tabs.map((t, i) => `<button class="pg" data-i="${i}">${t.name}</button>`).join('');
+  const open = (i) => { const t = tabs[i]; root.dataset.page = t.edit ? 'edit' : 'doc'; bar.classList.remove('open');
+    bar.querySelectorAll('.pg').forEach((b) => b.classList.toggle('on', +b.dataset.i === i));
+    if (!t.edit) { stage.innerHTML = `<article class="doc on"><h2>${t.part.head}</h2>${marked.parse(t.part.text)}</article>`; stage.scrollTop = 0; frame?.contentWindow?.postMessage({ maia: 1, cmd: 'pause' }, '*'); } };
+  bar.querySelectorAll('.pg').forEach((b) => (b.onclick = () => open(+b.dataset.i)));
+  bar.querySelector('.burger').onclick = () => bar.classList.toggle('open');
+  const first = tabs.findIndex((t) => t.edit); open(first >= 0 ? first : 0);
 }
 
 // ---- a story's editor: the film above, its timeline under it. A ruler, the picture track (one still per shot,

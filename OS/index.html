@@ -224,12 +224,9 @@
   #storyedit{display:none}
   #stories.editing #shelfview{display:none}
   /* the studio: one screen, nothing scrolls but the step viewer. Head on top, the film and the steps beside it, the timeline across the bottom */
-  #stories.editing #storyedit{display:grid;position:fixed;inset:0;z-index:2;grid-template-columns:minmax(0,1fr) clamp(320px,28vw,460px);grid-template-rows:34px minmax(0,1fr) auto;gap:8px 10px;padding:10px clamp(12px,1.4vw,20px) 82px}
+  #stories.editing #storyedit{display:grid;position:fixed;inset:0;z-index:2;grid-template-rows:34px minmax(0,1fr);grid-template-columns:minmax(0,1fr);gap:8px;padding:10px clamp(12px,1.4vw,20px) 82px}
+  @media (max-width:700px){#storyedit .studiohead .chip,#storyedit .studiohead [data-do=intent]{display:none}#storyedit .studiohead .btn{white-space:nowrap}}
   body.studio{overflow:hidden}
-  #storyedit .studiohead{grid-column:1/-1;margin:0}
-  #storyedit .edit{grid-column:1/-1;grid-row:3;margin:0}
-  #storyedit .steps{grid-column:2;grid-row:2;margin:0;display:flex;flex-direction:column;min-height:0;gap:8px}
-  #storyedit .steps .step{flex:1;min-height:0;overflow:auto;margin:0}
   body.studio{background:#0f1d2c}
   body.studio header.site{display:none}
   body.studio nav.admin{background:rgba(24,36,60,.92);border-color:rgba(251,246,234,.12)}
@@ -239,15 +236,30 @@
   .studiohead .btn.quiet{color:var(--cream);box-shadow:inset 0 0 0 1.5px rgba(251,246,234,.22)}
   .studiohead .btn.quiet:hover{background:rgba(251,246,234,.08)}
   .studiohead .chip{background:rgba(251,246,234,.1);color:var(--cream);font-size:11.5px;padding:6px 10px}
-  #storyedit .player{grid-column:1;grid-row:2;width:100%;height:100%;max-height:none;aspect-ratio:auto;margin:0;border-radius:14px}
+  #storyedit .studiohead{margin:0}
+  #storyedit .edit{margin:0}
+  #storyedit .player{width:100%;height:100%;max-height:none;aspect-ratio:auto;margin:0;border-radius:14px}
   #storyedit .edit{border-radius:14px;background:#18243c}
-  /* the work steps, as an editing suite's pages: a tab per step, its viewer under it */
-  .steps{margin-top:12px}
-  .steps nav{display:flex;gap:2px;padding:3px;border-radius:999px;background:#18243c;max-width:100%;overflow:auto;flex:none}
-  .steps nav button{font:500 12.5px/1 var(--sans);color:rgba(251,246,234,.65);background:none;border:0;padding:8px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
-  .steps nav button.on{background:var(--cream);color:var(--navy)}
-  #storyedit .step{width:auto;max-width:none;border-radius:14px;padding:4px 22px 24px;font-size:14.5px}
-  #storyedit .step h2{margin-top:18px;padding-top:0;border:0}
+  /* the studio's pages: one at a time. Edit is the film over its timeline; a text page fills the stage */
+  #storyedit .editpage{grid-row:2;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:8px;min-height:0}
+  #storyedit .stagedoc{grid-row:2;min-height:0;overflow:auto;display:none}
+  #storyedit[data-page="doc"] .editpage{display:none}#storyedit[data-page="doc"] .stagedoc{display:block}
+  #storyedit .stagedoc .doc{width:auto;max-width:860px;margin:0 auto;border-radius:18px;padding:6px clamp(22px,3vw,48px) 36px}
+  #storyedit .stagedoc h2{margin-top:22px;padding-top:0;border:0}
+  /* the bar of pages: bottom left, as a suite's page bar; on a phone, one button that opens them */
+  .pages{position:fixed;left:clamp(12px,1.4vw,20px);bottom:18px;z-index:8;display:flex;align-items:center;gap:2px;height:52px;padding:0 5px;border-radius:999px;background:rgba(24,36,60,.94);border:1px solid rgba(251,246,234,.12)}
+  .pages .pg{font:500 13px/1 var(--sans);color:rgba(251,246,234,.65);background:none;border:0;padding:12px 14px;border-radius:999px;cursor:pointer;white-space:nowrap}
+  .pages .pg:hover{color:var(--cream)}
+  .pages .pg.on{background:var(--cream);color:var(--navy)}
+  .pages .burger{display:none;width:42px;height:42px;border:0;border-radius:50%;background:none;cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+  .pages .burger i{width:18px;height:2px;border-radius:2px;background:var(--cream)}
+  @media (max-width:1180px){
+    .pages{flex-direction:column;align-items:stretch;height:auto;padding:5px;border-radius:24px}
+    .pages .burger{display:flex}
+    .pages .pg{display:none;text-align:left}
+    .pages.open .pg{display:block}
+    .pages.open{padding-bottom:5px}.pages.open .burger{order:9}
+  }
   .player{position:relative;aspect-ratio:2.39/1;width:100%;margin:4px 0 0;border-radius:30px 30px 10px 10px;overflow:hidden;background:#20362a;transform:translateZ(0)}
   /* the story's editor: under the picture, never over it */
   .edit{margin:4px 0 10px;padding:10px 14px 12px;border-radius:10px 10px 30px 30px;background:var(--forest);color:var(--cream);box-shadow:var(--shadow)}
