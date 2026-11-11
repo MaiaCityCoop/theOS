@@ -23,11 +23,11 @@ void main(){
   gl_FragColor = vec4(sqrt(t.rgb), t.a);
 #else
   float path = placeOff(pos, pathMask(pathN(pos))), oc = placeOff(pos, outcropMask(pos));
-  float dens = (1.0 - path) * (1.0 - placeBank(pos, bankMask(d, w, b))) * (1.0 - placeOff(pos, bareMask(pos))) * (1.0 - oc * 0.25) * mix(1.0, ARID_COVER * tuftMask(pos), arid);
+  float dens = (1.0 - path) * (1.0 - placeBank(pos, bankMask(pos, d, w, b))) * (1.0 - placeOff(pos, bareMask(pos))) * (1.0 - oc * 0.25) * mix(1.0, ARID_COVER * tuftMask(pos), arid);
   dens *= smoothstep(uTentR - 0.4, uTentR + 0.3, length(pos - uTent));   // the tent's floor is kept clear, right to its walls
   float bare = uStage.z > 0.0 ? smoothstep(uStage.z - 0.5, uStage.z + 0.7, length(pos - uStage.xy)) : 1.0;   // the library's stage: a round of bare ground
   dens *= bare;
-  float stone = smoothstep(uTentR - 0.4, uTentR + 0.3, length(pos - uTent)) * (LAND_STONES + ARID_STONES * arid + BANK_STONES * placeBank(pos, 1.0 - smoothstep(w * 0.6, w + 4.0, d)) + CUT_STONES * cutMask(d, w, b) + BAR_STONES * placeBank(pos, barMask(d, w, b)) + 0.5 * oc) * (1.0 - path * 0.8);
+  float stone = smoothstep(uTentR - 0.4, uTentR + 0.3, length(pos - uTent)) * (LAND_STONES + ARID_STONES * arid + BANK_STONES * placeBank(pos, 1.0 - smoothstep(w * 0.6, w + 4.0, d)) + CUT_STONES * cutMask(pos, d, w, b) + BAR_STONES * placeBank(pos, barMask(pos, d, w, b)) + 0.5 * oc) * (1.0 - path * 0.8);
   stone *= bare;
   gl_FragColor = vec4(heightAt(pos, camDist(pos), d, w, b) - uGBase, dens, arid, stone);   // heights from a base near by: small numbers keep a half float exact to the centimetre
 #endif

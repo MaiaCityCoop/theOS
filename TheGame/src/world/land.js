@@ -68,7 +68,7 @@ export function riverAt(x, z) {
   const A = riverRaw(x + tx * 20, z + tz * 20), B = riverRaw(x - tx * 20, z - tz * 20);
   let dt = Math.atan2(A[2], A[1]) - Math.atan2(B[2], B[1]); dt = Math.atan2(Math.sin(dt), Math.cos(dt));
   const bend = Math.max(-1, Math.min(1, (dt / 40) * BEND));
-  const w = 4.5 + 3.5 * sstep(0.25, 0.75, vnoise(x / 90, z / 90, 42)) + 7 * Math.abs(bend);   // half-width, 4.5 to 15 m
+  const w = (4.5 + 3.5 * sstep(0.25, 0.75, vnoise(x / 90, z / 90, 42)) + 7 * Math.abs(bend)) * (0.86 + 0.28 * vnoise(x / 14, z / 14, 43));   // half-width, 4 to 17 m; ragged every few metres
   const sd = r / gl - 0.25 * w * bend;   // signed distance from the channel's middle, shifted to the bend's outside
   river.r = sd * gl; river.gx = rx; river.gz = rz; river.d = Math.abs(sd); river.w = w; river.b = bend * (sd >= 0 ? 1 : -1);
   return river;

@@ -65,7 +65,7 @@ vec4 riverInfo(vec2 p, out vec2 g){
   vec3 A = riverRaw(p + t * 20.0), B = riverRaw(p - t * 20.0);
   float dt = atan(A.z, A.y) - atan(B.z, B.y); dt = atan(sin(dt), cos(dt));
   float bend = clamp(dt / 40.0 * ${BEND.toFixed(1)}, -1.0, 1.0);
-  float w = 4.5 + 3.5 * smoothstep(0.25, 0.75, vnoise(p * (1.0 / 90.0), 42u)) + 7.0 * abs(bend);
+  float w = (4.5 + 3.5 * smoothstep(0.25, 0.75, vnoise(p * (1.0 / 90.0), 42u)) + 7.0 * abs(bend)) * (0.86 + 0.28 * vnoise(p * (1.0 / 14.0), 43u));
   float sd = R.x / gl - 0.25 * w * bend;
   g = R.yz;
   return vec4(sd, w, bend * (sd >= 0.0 ? 1.0 : -1.0), bend);
@@ -114,9 +114,12 @@ float bareMask(vec2 p){
 }
 // the river's grounds by where they lie (intent 0004): sand along the water, wider over a bar; bare earth on a cut bank's
 // face; gravel on a bar, from the water's edge up
-float bankMask(float d, float w, float b){ float bar = max(-b, 0.0), cut = max(b, 0.0); float e = w * (1.15 + 0.5 * bar); return (1.0 - smoothstep(e, e + 2.2 + 4.0 * bar, d)) * (1.0 - 0.6 * cut); }
-float cutMask(float d, float w, float b){ return max(b, 0.0) * smoothstep(w * 0.85, w * 0.98, d) * (1.0 - smoothstep(w + 1.6, w + 3.2, d)); }
-float barMask(float d, float w, float b){ float bar = max(-b, 0.0); return smoothstep(0.15, 0.5, bar) * smoothstep(w * 0.45, w * 0.8, d) * (1.0 - smoothstep(w * (1.0 + 0.35 * bar), w * (1.15 + 0.5 * bar), d)); }
+// edges between grounds are never lines: each mask reads its distance through two noises (a few metres, a hand's
+// breadth), so grass, sand, gravel and earth fray into one another
+float edgeJit(vec2 p){ return (vnoise(p * (1.0 / 6.0), 44u) - 0.5) * 2.0 + (vnoise(p * (1.0 / 1.7), 45u) - 0.5); }
+float bankMask(vec2 p, float d, float w, float b){ float bar = max(-b, 0.0), cut = max(b, 0.0); d += edgeJit(p) * (1.6 + 1.5 * bar); float e = w * (1.15 + 0.5 * bar); return (1.0 - smoothstep(e, e + 3.0 + 4.0 * bar, d)) * (1.0 - 0.6 * cut); }
+float cutMask(vec2 p, float d, float w, float b){ d += edgeJit(p + 31.0) * 0.7; return max(b, 0.0) * smoothstep(w * 0.85, w * 0.98, d) * (1.0 - smoothstep(w + 1.4, w + 3.4, d)); }
+float barMask(vec2 p, float d, float w, float b){ float bar = max(-b, 0.0); d += edgeJit(p + 57.0) * 1.4; return smoothstep(0.15, 0.6, bar) * smoothstep(w * 0.4, w * 0.85, d) * (1.0 - smoothstep(w * (0.95 + 0.35 * bar), w * (1.2 + 0.5 * bar), d)) * smoothstep(0.35, 0.65, vnoise(p * (1.0 / 9.0), 46u) + 0.25); }
 float tuftMask(vec2 p){ return smoothstep(0.45, 0.7, vnoise(p * (1.0 / 28.0), 72u)); }
 float outcropMask(vec2 p){ return smoothstep(0.60, 0.72, vnoise(p * (1.0 / 230.0), 74u)); }
 // rgb: the grass's colour here; a: how dry

@@ -104,7 +104,12 @@ export function createControls(camera, canvas, msg, stat) {
       yaw += ((keys.has('KeyQ') ? 1 : 0) - (keys.has('KeyE') ? 1 : 0)) * 1.4 * dt;
       const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') || touch.run ? v.run : v.speed, n = Math.max(1, Math.hypot(f, s)) > 1 ? 1 / Math.hypot(f, s) : 1, sy = Math.sin(yaw), cy = Math.cos(yaw);
       const nx = pivot.x + (-sy * f + cy * s) * speed * n * dt, nz = pivot.z + (-cy * f - sy * s) * speed * n * dt;
-      if (h < 4) [pivot.x, pivot.z] = step(pivot.x, pivot.z, nx, nz); else { pivot.x = nx; pivot.z = nz; }
+      if (h < 4) {   // on foot: walls and rocks stop you, and ground too steep to walk up (camera/rig.js: climb); along it you slide
+        const up = (ax, az, bx, bz) => { const rise = heightAt(bx, bz) - heightAt(ax, az), run = Math.hypot(bx - ax, bz - az); return rise <= RIG.stepUp * Math.min(1, run / 0.3) || rise / Math.max(run, 1e-6) <= RIG.climb; };
+        const [qx, qz] = step(pivot.x, pivot.z, nx, nz);
+        if (up(pivot.x, pivot.z, qx, qz)) { pivot.x = qx; pivot.z = qz; }
+        else { const [ax, az] = step(pivot.x, pivot.z, qx, pivot.z), [bx, bz] = step(pivot.x, pivot.z, pivot.x, qz); if (up(pivot.x, pivot.z, ax, az)) { pivot.x = ax; pivot.z = az; } else if (up(pivot.x, pivot.z, bx, bz)) { pivot.x = bx; pivot.z = bz; } }
+      } else { pivot.x = nx; pivot.z = nz; }
       // the camera: at eye level the walker's eyes (stooping under a low roof); higher, hung back from the point
       const g = heightAt(pivot.x, pivot.z), stoop = Math.max(0.6, Math.min(RIG.eye, ceilingAt(pivot.x, pivot.z) - 0.25));
       const pitch = v.pitch * (1 - v.free) + look * v.free;

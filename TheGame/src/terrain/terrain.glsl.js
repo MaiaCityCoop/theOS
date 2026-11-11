@@ -93,7 +93,7 @@ void main(){
 
   Mat m = smp(LAND_FLOOR, p, dx, dy, LAND_FLOOR_TILE, mx);
   Mat sand; bool haveSand = false; Mat dirt; bool haveDirt = false;
-  float bk = placeBank(p, bankMask(d, w, b)), bank = clamp(bk + (m.h - 0.5) * 0.3 * step(0.01, bk), 0.0, 1.0);
+  float bk = placeBank(p, bankMask(p, d, w, b)), bank = clamp(bk + (m.h - 0.5) * 0.3 * step(0.01, bk), 0.0, 1.0);
   if (vArid > 0.003) {
     Mat c = smp(ARID_FLOOR, p, dx, dy, ARID_FLOOR_TILE, mx);
     float sp = dist < 1500.0 ? smoothstep(0.55, 0.72, vnoise(p * (1.0 / 45.0), 73u)) * (1.0 - smoothstep(600.0, 1500.0, dist)) : 0.0;
@@ -110,7 +110,7 @@ void main(){
   m.c = mix(m.c, vTint.rgb * (0.32 + 1.05 * glum) * mix(0.5, 1.0, smoothstep(3.0, 70.0, dist)), cv); m.n = mix(m.n, gnrm * 1.4, cv); m.h = mix(m.h, glum, cv);
   if (path > 0.003) m = hblend(m, dirt, path);
   if (bank > 0.003) m = hblend(m, smp(BANK_FLOOR, p, dx, dy, BANK_FLOOR_TILE, mx), bank);
-  float bar = placeBank(p, barMask(d, w, b)), cutb = placeBank(p, cutMask(d, w, b));   // the river's own grounds (biomes/gravelbar.js, cutbank.js)
+  float bar = placeBank(p, barMask(p, d, w, b)) * 0.75, cutb = placeBank(p, cutMask(p, d, w, b));   // the bar a mix over the sand, not a stripe   // the river's own grounds (biomes/gravelbar.js, cutbank.js)
   if (bar > 0.003) m = hblend(m, smp(BAR_FLOOR, p, dx, dy, BAR_FLOOR_TILE, mx), bar);
   float steep = smoothstep(0.80, 0.68, vN.y);
   if (steep > 0.003) m = hblend(m, smp(LAND_SLOPES, p, dx, dy, LAND_SLOPES_TILE, mx), steep);

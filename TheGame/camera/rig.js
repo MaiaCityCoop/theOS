@@ -14,6 +14,8 @@ export default {
   eye: 1.7,            // the walker's eyes
   top: 12000,          // the highest it goes: the city and the horizon (the height fog thins the air up there, LIGHT_GLSL)
   wheel: 0.0016,       // how fast the wheel changes the height (its logarithm per wheel step)
+  climb: 0.75,         // on foot: the steepest ground walked up (metres up per metre on); steeper stops you, as a cut bank does
+  stepUp: 0.25,        // a rise lower than this is stepped up whatever its slope (a kerb, a root)
   keys: [
     { h: 1.7, band: 'eye', pitch: null, fov: 68, speed: 3.2, run: 9, orbit: 0, lock: true },
     { h: 5, band: 'street', pitch: -0.32, fov: 64, speed: 7, run: 20, orbit: 1, lock: true },
