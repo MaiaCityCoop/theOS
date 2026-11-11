@@ -1,4 +1,4 @@
-# A green meadow and one tent
+# It all starts with one tent on a green meadow
 
 **Maia City · Day 1.** A dialogue between Samuel and Maia.
 Told for [intent 0001](../../Intents/0001-intents-stories-os.md), the intent that gave the work
@@ -39,7 +39,7 @@ This is day one. Today he is alone. Tomorrow we will see.
 
 | At | On screen | Who | Line |
 | --- | --- | --- | --- |
-| 0:00 | Out of the sky, tilting down to the river | | *title:* A green meadow and one tent |
+| 0:00 | Out of the sky, tilting down to the river | | *title:* It all starts with one tent on a green meadow |
 | 0:04 | | Samuel | It all starts with a green meadow and one tent. |
 | 0:08 | Low and fast down the river | Maia | I looked for the meadow. There was none. |
 | 0:11 | | Samuel | First we need a world. |

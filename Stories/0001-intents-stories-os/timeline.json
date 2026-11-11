@@ -1,6 +1,6 @@
 {
  "intent": "0001",
- "title": "A green meadow and one tent",
+ "title": "It all starts with one tent on a green meadow",
  "day": 2,
  "inGame": 2,
  "goals": [["Make a world", true], ["Put up one tent", true], ["Find human number two", true]],
@@ -539,7 +539,7 @@
    "at": 0.8,
    "for": 3.2,
    "kind": "title",
-   "text": "A green meadow and one tent",
+   "text": "It all starts with one tent on a green meadow",
    "over": "Maia City \u00b7 Day 1"
   },
   {

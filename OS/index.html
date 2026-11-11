@@ -52,12 +52,24 @@
   .hero h1{font:420 clamp(38px,6.2vw,96px)/1.01 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.035em;margin:0 auto 26px;max-width:13em;text-wrap:balance}
   .hero h1 b{font-weight:560;color:var(--clay);font-variant-numeric:tabular-nums}
   .hero h1 span{white-space:nowrap}
-  .hero .sub{font:500 clamp(18px,1.9vw,26px)/1.2 var(--sans);letter-spacing:.01em;color:var(--forest);margin:-6px 0 22px;display:inline-flex;gap:.4em;align-items:center;padding:12px 24px;border-radius:999px;background:var(--sand)}
-  .hero .sub b{font-weight:600;color:var(--clay)}
+  .hero h1 b{color:var(--clay);font-weight:560}
+  .hero .sub{display:inline-block;margin:4px 0 26px;padding:16px 34px 17px;border-radius:999px;background:var(--sun);color:var(--forest);font:520 clamp(26px,3vw,44px)/1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.02em;box-shadow:0 12px 34px rgba(242,181,68,.45);transform:rotate(-2deg)}
+  /* why: the case for coming, and the one call */
+  .why{padding-bottom:clamp(40px,6vw,90px)}
+  .whyin{border-radius:clamp(30px,3.6vw,52px);background:var(--forest);color:var(--cream);padding:clamp(40px,7vw,110px) clamp(24px,6vw,100px);text-align:center;position:relative;overflow:hidden}
+  .whyin::before{content:'';position:absolute;right:-90px;top:-90px;width:300px;height:300px;background:var(--sunmark) center/contain no-repeat;opacity:.18}
+  .whyin .eyebrow{margin:0 0 18px;font:500 14px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--sun)}
+  .whyin h2{font:420 clamp(36px,5vw,76px)/1.02 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.035em;margin:0 auto 20px;max-width:14em}
+  .whyin .lede{font:400 clamp(17px,1.5vw,21px)/1.55 var(--sans);color:rgba(251,246,234,.8);max-width:40em;margin:0 auto clamp(36px,5vw,64px)}
+  .pillars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(12px,1.6vw,22px);text-align:left;margin-bottom:clamp(36px,5vw,64px)}
+  .pillars div{padding:clamp(22px,2.4vw,32px);border-radius:28px;background:rgba(251,246,234,.08);border:1px solid rgba(251,246,234,.14)}
+  .pillars b{display:block;font:460 clamp(22px,2vw,28px)/1.1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.015em;color:var(--sun);margin-bottom:10px}
+  .pillars p{margin:0;color:rgba(251,246,234,.82);font-size:16px;line-height:1.55}
+  .whyin .close{font:380 italic clamp(22px,2.4vw,34px)/1.25 var(--serif);font-variation-settings:var(--soft);margin:0 0 30px}
+  .whyin .btn{height:60px;font-size:17px;padding-left:30px}
   .msg{font:380 italic clamp(21px,2.3vw,34px)/1.2 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.012em;color:var(--forest2);margin:0}
   .msg b{font-style:normal;font-weight:520;color:var(--clay)}
   .acts{display:flex;justify-content:center}
-  .acts.after{padding-top:clamp(22px,3vw,36px)}
   .hero .eyebrow{margin:0 0 22px;font:500 clamp(14px,1.3vw,18px)/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--forest2)}
   .acts .btn{height:58px;font-size:17px;padding-left:28px}
   .btn.go{padding-right:9px}
@@ -194,7 +206,7 @@
   body.play header.site .mark{padding:6px 18px 6px 6px;border-radius:999px;background:rgba(251,246,234,.74);-webkit-backdrop-filter:blur(20px) saturate(1.5);backdrop-filter:blur(20px) saturate(1.5);box-shadow:0 6px 20px rgba(12,28,22,.16)}
   .empty{color:var(--muted);padding:26px 8px}
   @media (max-width:980px){
-    header.site .visit{height:40px;font-size:14px}.goals{display:none}.tile,.tile.big{grid-column:span 12;min-height:220px}.crow.r0{grid-template-columns:repeat(2,minmax(0,1fr))}.crow.r1{grid-template-columns:repeat(4,minmax(0,1fr))}.crow.r2{grid-template-columns:repeat(8,minmax(0,1fr))}
+    header.site .visit{height:40px;font-size:14px}.goals{display:none}.tile,.tile.big{grid-column:span 12;min-height:220px}.pillars{grid-template-columns:1fr}.crow.r0{grid-template-columns:repeat(2,minmax(0,1fr))}.crow.r1{grid-template-columns:repeat(4,minmax(0,1fr))}.crow.r2{grid-template-columns:repeat(8,minmax(0,1fr))}
     .daycard{width:calc(100% - 40px)}.hero{min-height:0}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -209,9 +221,9 @@
 <main id="home" class="on">
   <section class="hero"><div>
     <p class="eyebrow">This is the story of how</p>
-    <h1><b id="h-in">–</b> of <span>1,346,269</span> humans build their own solarpunk city.</h1>
-    <p class="sub">First in game, then in real. <b>In 16 years.</b></p>
-    <p class="msg"><b>Day <span id="h-day">–</span></b> of 5,423.</p>
+    <h1><b>1 million</b> humans build their own solarpunk city.</h1>
+    <p class="sub">In 16 years.</p>
+    <p class="msg">Welcome to <b>Day <span id="h-day">–</span></b> of 5,423.</p>
   </div></section>
   <section class="banner poster" id="banner">
     <div class="window" id="window">
@@ -221,8 +233,19 @@
       <div class="hud"><div class="daycard" id="daycard"></div><div class="goals" id="goals"></div></div>
     </div>
   </section>
-  <div class="acts after"><button class="btn go" id="travel">Travel to Maia City now<i></i></button></div>
   <section class="cal wrap" id="cal"></section>
+  <section class="why wrap"><div class="whyin">
+    <p class="eyebrow">Why</p>
+    <h2>Imagine we could start clean.</h2>
+    <p class="lede">No old city to fix, no old rules to work around. A meadow, a river, and every choice still open.</p>
+    <div class="pillars">
+      <div><b>Work you choose</b><p>Machines carry the work nobody wants. People spend their days on what they love, and on each other.</p></div>
+      <div><b>Wealth that stays</b><p>What the city makes belongs to the people who build it. Every citizen owns a share of the whole.</p></div>
+      <div><b>A forest you can eat</b><p>Food grows where we live: fruit, nuts and greens one step from every door, a forest that feeds us.</p></div>
+    </div>
+    <p class="close">A hundred times better way to live. First in game, then in real.</p>
+    <button class="btn go light" id="travel">Travel to Maia City now<i></i></button>
+  </div></section>
 </main>
 <main id="city"><span class="label sun">Inside</span><h1>Maia City</h1><p class="sub" id="citysub"></p><div class="tiles" id="tiles"></div></main>
 <main id="intents"><div id="board"></div><div id="intentdoc" class="doc"></div></main>

@@ -513,6 +513,26 @@ _Samuel's decision._
 - **Good:** seen in the pane at 1440.
 - **Broke / not there yet:** phone width and Safari not seen.
 
+### 2026-11-11, eighteenth round
+
+- **Asked:** "1 million" instead of "2 of 1,346,269"; "In 16 years." alone and more popping;
+  "Welcome to Day 2 of 5,423."; story 01's title "It all starts with one tent on a green
+  meadow"; and the "Travel to Maia City" call as its own full-width persuasion section under
+  the calendar, with more of the why: imagine we can start clean, the economy and the work
+  after the machines, food forests, a hundred times better way of living, without the jargon.
+- **Delivered:** the front page reads "THIS IS THE STORY OF HOW / 1 million humans build their
+  own solarpunk city." with "In 16 years." on a tilted sun-gold pill and "Welcome to Day 2 of
+  5,423." Under the calendar a dark green section: "Imagine we could start clean.", three
+  pillars (Work you choose, Wealth that stays, A forest you can eat), "A hundred times better
+  way to live. First in game, then in real." and the button. Story 01 is titled "It all starts
+  with one tent on a green meadow" in `story.md` and `timeline.json` (its title card too);
+  Samuel's own line in the film is unchanged.
+- **Good:** seen in the pane at 1440: the hero and the why section.
+- **Broke / not there yet:** the why section's words are mine, written to Samuel's points
+  ("Every citizen owns a share of the whole" is a promise he should confirm or strike). The
+  citizen count no longer stands in the title; it is on the day cards. Phone width and Safari
+  not seen.
+
 ## Trail
 
 | When | Commit | What |

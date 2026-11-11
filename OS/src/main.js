@@ -152,7 +152,7 @@ function home() {
   const days = stories.filter((s) => s.film).map((s, i) => ({ ...s, day: s.day || i + 1 })), today = days[days.length - 1], told = days.length, T = today ? today.day : 0;
   const joined = (e) => { const i = days.indexOf(e); return e.inGame == null ? null : e.inGame - (i ? days[i - 1].inGame || 0 : NOTED[e.day - 1]?.inGame || 0); };
   const count = (e) => (e && e.inGame != null ? n(e.inGame) : '–');
-  $('h-in').textContent = count(today); $('h-day').textContent = today ? n(T) : '–';
+  $('h-day').textContent = today ? n(T) : '–';
   $('travel').onclick = () => tab('city');
 
   // the day's challenge: its few goals, the next one lit
