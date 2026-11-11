@@ -783,3 +783,4 @@ _Samuel's decision._
 | 2026-11-11 | `13cdc98` | The studio as pages with a bottom-left bar, a menu on phones |
 | 2026-11-11 | `dafe7da` | 2.39:1 film, dark pages, stills kept with the story |
 | 2026-11-11 | `9c306d5` | Smooth playhead, dry land reverted, full-screen button |
+| 2026-11-11 | `fbaefe5` | Letterboxed full screen, the preview camera in the story, Retake picture |
