@@ -510,3 +510,15 @@ committed into it, and pushed to a new GitHub repository TheOS in the MaiaCityCo
 **Broke / not there yet.**
 - The branch `game/sandbox-8` in maiaCITY still holds the same work; it was left as it is.
 - The name is close to the Mac app "The OS" in maiaCITY: two different things.
+
+---
+
+## 18 · Into TheGame/ · 2026-11-11 · `95f6a6ad9`
+
+**Asked.** A subfolder called TheGame, with everything inside it.
+
+**Delivered.** Every file of the project moved from the repository's root into `TheGame/`; the
+root keeps only a short README pointing in. `cine/at.sh` serves stages of either layout (the
+root, cycles 1 to 17; `TheGame/`, from here on). The dev server runs from `TheGame/`.
+
+**Broke / not there yet.** Nothing new.
