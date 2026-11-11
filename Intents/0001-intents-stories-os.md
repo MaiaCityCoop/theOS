@@ -158,3 +158,4 @@ _Samuel's decision._
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-11 | `7702d1b` | The intents system (template, skill), this intent, its story and film, story playback with captions in the game, the OS dashboard, one dev command; the devlog removed |
