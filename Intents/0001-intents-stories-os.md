@@ -556,3 +556,4 @@ _Samuel's decision._
 | 2026-11-11 | `09ed3e2` | The day line without "This is" |
 | 2026-11-11 | `626e39c` | The eyebrow over the title, the button under the film |
 | 2026-11-11 | `d89a00c` | The eyebrow reads "This is the story of how" |
+| 2026-11-11 | `86be478` | 1 million in the title, the 16-years pill, Welcome to Day 2, the why section, story 01 retitled |
