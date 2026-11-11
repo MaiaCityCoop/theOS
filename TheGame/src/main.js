@@ -47,6 +47,7 @@ stats.governor = governor;   // the film holds it still while it plays
 const tex = bakeTextures(renderer);
 U.tNoise = { value: tex.a[7] };
 const ground = createGround(renderer, U);
+stats.ground = ground; stats.U = U;   // for pages that stage things (the library)
 const terrain = createTerrain(scene, U, tex);
 const scatter = createScatter(scene, U, tex);
 for (const at of Object.values(PLACES)) place(scene, U, ASSETS[at.asset], at);   // what stands at a named place, from the asset library

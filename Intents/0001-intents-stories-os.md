@@ -887,6 +887,36 @@ _Samuel's decision._
   are masks, not objects with variants).
 - **Good:** seen in the pane at 1440.
 
+### 2026-11-11, forty-third round
+
+- **Asked:** levels of detail in each library file; stones, rocks and boulders as their own
+  library items (does that make sense? yes: the library holds what each thing is, the scatter
+  engine stays how it is drawn). Then: no panel around the list, just the items; one standard
+  recipe for every item; a far more detailed tent variant with its own levels of detail in many
+  grades; and one fixed stage for the viewer, a round of dry land with grass around it, reused
+  for every asset.
+- **Delivered:**
+  - One recipe for every asset (`TheGame/assets/index.js` says it): id, name, kind, about; size
+    (length, width, height, a [min, max] where it varies); colours; `lods`, its levels of detail
+    near to far, each drawn up to its `far` and nothing past the last, a level being `faces` or a
+    `rock`; and `placement`, at a named place or scattered (engine, spacing, seed).
+  - `tent.js` in it, with two levels (the door and flaps only near). `stone.js` and `boulder.js`:
+    the stones and boulders, their levels the rock tiers; the land's scatter now reads its rock
+    rows from them (`scatterRow`). The library builds a placed asset level by level (THREE.LOD).
+  - `belltent.js`: a round canvas bell tent, five metres across: wall, cone roof, centre pole, a
+    door with tied-back flaps, eight guy ropes with pegs, a groundsheet. Four levels in its file:
+    150 faces to 30 m, 66 to 110 m, 30 to 350 m, 18 to 1000 m, nothing past.
+  - The library's stage: one flat spot in the meadow, far from the river (`STAGE` in
+    `src/world/places.js`): a round of bare, dry earth (the ground map clears grass and stones, the
+    terrain lays dirt), the grass around it. Every asset is shown in its middle; a scattered one as
+    seven of its kind, small to large. The list floats as glass items, without a panel.
+- **Good:** seen in the pane at 1440: the bell tent on the bare round with the grass around, its
+  four levels in the card; the stones laid on the round; the list of four.
+- **Broke / not there yet:** two slips on the way (a doubled escape in a string, an extra brace;
+  a list in the library file not replaced), each seen in the browser and fixed. The bell tent is
+  in the library only, not in the world. Grass is not yet a library item. Levels are by plain
+  distance (THREE.LOD), not by the lens's stretch as the scatter's are.
+
 ## Trail
 
 | When | Commit | What |

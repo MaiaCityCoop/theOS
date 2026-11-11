@@ -43,6 +43,7 @@ ${LIGHT_GLSL}
 in vec3 vWorld; in vec3 vR; in float vW;
 in vec3 vN; in vec3 vPth; in float vOut; in float vHill;
 uniform sampler2D tA0, tA1, tA2, tA3, tA4, tA6, tN0, tN1, tN2, tN3, tN4, tN6;
+uniform vec3 uStage;
 struct Mat { vec3 c; float h; vec2 n; float r; };
 // two takes of the texture, one turned and at another size, mixed by noise: no visible tiling
 Mat smp(sampler2D ta, sampler2D tn, vec2 p, vec2 dx, vec2 dy, float T1, float T2, float mx){
@@ -86,6 +87,7 @@ void main(){
   float d = riverDist(vR), w = vW;
   float path = pathMask(vPth) * (1.0 - smoothstep(70.0, 220.0, dist));   // a path is a thing of the near ground; from afar it was a drawn line
   float bare = dist < 160.0 ? bareMask(p) * (1.0 - smoothstep(100.0, 160.0, dist)) : 0.0;
+  if (uStage.z > 0.0) bare = max(bare, 1.0 - smoothstep(uStage.z - 0.5, uStage.z + 0.7, length(p - uStage.xy)));   // the library's stage: a round of bare, dry earth
 
   Mat m = smp(tA0, tN0, p, dx, dy, 2.0, 3.2, mx);
   Mat sand; bool haveSand = false; Mat dirt; bool haveDirt = false;

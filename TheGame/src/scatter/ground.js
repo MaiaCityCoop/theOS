@@ -10,19 +10,23 @@ const N = 512;   // texels a side; a texel is 0.5 m to the 68° lens and grows w
 
 const FRAG = /* glsl */ `
 ${WORLD_GLSL}
-uniform vec2 uGO; uniform float uGBase, uGTexel; uniform vec2 uTent;
+uniform vec2 uGO; uniform float uGBase, uGTexel; uniform vec2 uTent; uniform vec3 uStage;
 void main(){
   vec2 pos = uGO + floor(gl_FragCoord.xy) * uGTexel;
   vec3 R = riverR(pos); float w = riverW(pos), d = riverDist(R);
   float arid = aridMask(pos);
 #ifdef TINT
   vec4 t = grassTint(pos, arid);
+  if (uStage.z > 0.0) t = mix(vec4(0.30, 0.24, 0.15, 1.0), t, smoothstep(uStage.z - 0.5, uStage.z + 0.7, length(pos - uStage.xy)));   // the stage: dry, bare earth
   gl_FragColor = vec4(sqrt(t.rgb), t.a);
 #else
   float path = pathMask(pathN(pos)), oc = outcropMask(pos);
   float dens = (1.0 - path) * (1.0 - bankMask(d, w)) * (1.0 - bareMask(pos)) * (1.0 - oc * 0.25) * mix(1.0, 0.45 * tuftMask(pos), arid);
   dens *= smoothstep(1.5, 2.7, length(pos - uTent));   // the tent's floor is kept clear
+  float bare = uStage.z > 0.0 ? smoothstep(uStage.z - 0.5, uStage.z + 0.7, length(pos - uStage.xy)) : 1.0;   // the library's stage: a round of bare ground
+  dens *= bare;
   float stone = (0.07 + 0.3 * arid + 0.45 * (1.0 - smoothstep(w * 0.6, w + 4.0, d)) + 0.5 * oc) * (1.0 - path * 0.8);
+  stone *= bare;
   gl_FragColor = vec4(heightAt(pos, camDist(pos), d, w) - uGBase, dens, arid, stone);   // heights from a base near by: small numbers keep a half float exact to the centimetre
 #endif
 }`;
@@ -40,13 +44,15 @@ export function createGround(renderer, U) {
   const rtA = new THREE.WebGLRenderTarget(N, N, { type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false });
   const rtB = new THREE.WebGLRenderTarget(N, N, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false });
   U.uGO = { value: new THREE.Vector2(1e9, 1e9) }; U.uGBase = { value: 0 }; U.uGTexel = { value: 0.5 }; U.tGA = { value: rtA.texture }; U.tGB = { value: rtB.texture };
-  const vs = `void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }`;
-  const mk = (def) => new THREE.ShaderMaterial({ vertexShader: vs, fragmentShader: def + FRAG, uniforms: { uCam: U.uCam, uDy: U.uDy, uLodInv: U.uLodInv, uGO: U.uGO, uGBase: U.uGBase, uGTexel: U.uGTexel, tNoise: U.tNoise, uTent: { value: new THREE.Vector2(PLACES.tent.x, PLACES.tent.z) } }, depthTest: false, depthWrite: false });
+  const vs = `void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }`, stage = (U.uStage = { value: new THREE.Vector3(0, 0, 0) });   // (x, z, radius); radius 0: no stage. Shared: the terrain lays bare earth there too
+  const mk = (def) => new THREE.ShaderMaterial({ vertexShader: vs, fragmentShader: def + FRAG, uniforms: { uCam: U.uCam, uDy: U.uDy, uLodInv: U.uLodInv, uGO: U.uGO, uGBase: U.uGBase, uGTexel: U.uGTexel, tNoise: U.tNoise, uTent: { value: new THREE.Vector2(PLACES.tent.x, PLACES.tent.z) }, uStage: stage }, depthTest: false, depthWrite: false });
   const mA = mk(''), mB = mk('#define TINT\n');
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mA), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   quad.frustumCulled = false;
   let lastDy = -1, lastS = 0;
   return {
+    /** The library's stage: a round of bare ground at (x, z), r metres across the middle; r 0 takes it away. */
+    stage(x, z, r) { stage.value.set(x, z, r); lastS = 0; },
     /** s: the lens factor; the texture is drawn again when the camera has walked 16 texels, or the lens changed */
     update(cx, cz, dy, s) {
       const TEXEL = 0.5 * s, SNAP = 16 * TEXEL;

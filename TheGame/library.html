@@ -7,26 +7,25 @@
 <link rel="icon" href="/brand/MaiaCity.svg">
 <link rel="stylesheet" href="/brand/brand.css">
 <style>
-  /* The asset library. The middle is the live world: the camera circles the chosen asset where it stands, on its own
-     ground. Left, the assets to choose from; right, what the chosen one is. */
+  /* The asset library. The middle is the live world at the library's stage: a round of bare ground in the meadow,
+     the chosen asset in the middle, the camera circling it. Left, the assets; right, what the chosen one is. */
   html,body{margin:0;height:100%;background:#0f1d2c;overflow:hidden;font:14px/1.45 var(--sans);color:var(--cream)}
   canvas#c{display:block;width:100vw;height:100vh;pointer-events:none}
   #msg{display:none}
   #hud{display:none!important}
   #orbit{position:fixed;inset:0;z-index:1;cursor:grab;touch-action:none}#orbit:active{cursor:grabbing}
   /* the two sides: light, clear glass over the world, only as tall as what they hold */
-  .side{position:fixed;top:14px;height:auto;max-height:calc(100vh - 110px);z-index:3;width:220px;padding:12px 8px;border-radius:20px;color:var(--forest);
-    background:linear-gradient(180deg,rgba(251,246,234,.58),rgba(251,246,234,.42));-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);
-    border:1px solid rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 12px 34px rgba(12,28,22,.18);overflow:auto}
-  .side.left{left:14px}.side.right{right:14px;width:256px;padding:14px 16px}
-  .side h1{font:460 18px/1 var(--serif);font-variation-settings:var(--soft);margin:4px 8px 10px;color:var(--navy)}
-  .side .label{display:block;margin:6px 8px 6px;color:var(--forest2);opacity:.75;font-size:10.5px}
-  .item{position:relative;display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;color:var(--forest);text-align:left;padding:6px 8px;border-radius:12px;cursor:pointer;font:inherit}
-  .item:hover{background:rgba(255,255,255,.35)}
-  .item.on{background:rgba(255,255,255,.62);box-shadow:inset 0 0 0 1px rgba(255,255,255,.8)}
-  .item.on::before{content:'';position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:3px;background:var(--sun)}
+  /* light, clear glass over the world, only as large as what it holds */
+  .glass2{background:linear-gradient(180deg,rgba(251,246,234,.6),rgba(251,246,234,.44));-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);border:1px solid rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 12px 30px rgba(12,28,22,.16)}
+  #list{position:fixed;left:14px;top:14px;z-index:3;display:flex;flex-direction:column;gap:6px;width:210px;max-height:calc(100vh - 110px);overflow:auto}
+  .item{position:relative;display:flex;align-items:center;gap:10px;width:100%;border:0;color:var(--forest);text-align:left;padding:6px 10px 6px 6px;border-radius:14px;cursor:pointer;font:inherit}
+  .item:hover{background:rgba(251,246,234,.7)}
+  .item.on{background:rgba(255,255,255,.82)}
+  .item.on::before{content:'';position:absolute;left:-1px;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--sun)}
   .item canvas{width:34px;height:34px;border-radius:9px;background:rgba(23,54,85,.85);flex:none}
   .item b{display:block;font:500 13.5px/1.2 var(--sans);color:var(--navy)}.item small{display:block;font-size:11.5px;color:var(--forest2);opacity:.8;text-transform:capitalize}
+  .side{position:fixed;top:14px;right:14px;z-index:3;width:256px;max-height:calc(100vh - 110px);overflow:auto;padding:14px 16px;border-radius:20px;color:var(--forest)}
+  .side .label{display:block;color:var(--forest2);opacity:.75;font-size:10.5px}
   .right .label{margin:0 0 6px}
   .right h2{font:460 21px/1.1 var(--serif);font-variation-settings:var(--soft);margin:0 0 6px;color:var(--navy)}
   .right p{margin:0 0 12px;color:var(--forest2);font-size:13.5px}
@@ -34,7 +33,7 @@
   .right dt{color:var(--forest2);opacity:.7}.right dd{margin:0;color:var(--forest);font-variant-numeric:tabular-nums;word-break:break-word}
   .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
   .hint{position:fixed;left:50%;transform:translateX(-50%);top:16px;z-index:2;font-size:12px;color:rgba(251,246,234,.75);text-shadow:0 1px 3px rgba(0,0,0,.5)}
-  @media (max-width:760px){.side.right{display:none}.side.left{width:180px}}
+  @media (max-width:760px){.side.right{display:none}#list{width:170px}}
 </style>
 </head>
 <body>
@@ -42,48 +41,66 @@
 <div id="hud">loading…</div>
 <div id="msg"></div>
 <div id="orbit"></div>
-<aside class="side left"><h1>Library</h1><span class="label">Assets</span><div id="list"></div></aside>
-<aside class="side right" id="info"></aside>
+<nav id="list" aria-label="Assets"></nav>
+<aside class="side right glass2" id="info"></aside>
 <span class="hint">drag to circle · wheel to come closer</span>
 <script type="module" src="/cine/cine.js"></script>
 <script type="module" src="/cine/menu.js"></script>
 <script type="module" src="/src/main.js"></script>
 <script type="module">
-// The library: every asset (assets/index.js), each shown where it stands in the world (src/world/places.js), on its
-// ground, by the film camera circling it. An asset with no place yet is shown at the first place.
+// The library: every asset (assets/index.js) on one stage: a fixed flat spot in the meadow (STAGE in
+// src/world/places.js), a round of bare ground with the grass around it, the camera circling it. A placed asset
+// stands in the middle; a scattered one lies there as a few of its kind, small to large.
 import * as THREE from 'three';
-import { ASSETS, geometryOf } from './assets/index.js';
-import { PLACES } from './src/world/places.js';
+import { ASSETS, geometryOf, materialFor, place, facesOf } from './assets/index.js';
+import { STAGE } from './src/world/places.js';
 import { heightAt } from './src/world.js';
 const q = new URLSearchParams(location.search), cine = window.__cine;
 const hex = (c) => '#' + c.map((v) => Math.round(Math.min(1, v) * 255).toString(16).padStart(2, '0')).join('');
-const ids = Object.keys(ASSETS), firstPlace = Object.values(PLACES)[0];
-const placeOf = (id) => Object.values(PLACES).find((p) => p.asset === id) || firstPlace;
+const ids = Object.keys(ASSETS), most = (v) => (Array.isArray(v) ? v[1] : v), span = (v) => (Array.isArray(v) ? `${v[0]} to ${v[1]}` : v);
+while (!window.__s8?.U || !window.__s8?.ground) await new Promise((r) => setTimeout(r, 50));
+const { scene, U, ground } = window.__s8;
+ground.stage(STAGE.x, STAGE.z, STAGE.r);
 
-// the list, each with a small picture of its own
-document.getElementById('list').innerHTML = ids.map((id) => `<button class="item" data-id="${id}"><canvas width="72" height="72"></canvas><span><b>${ASSETS[id].name}</b><small>${ASSETS[id].kind}</small></span></button>`).join('');
+// the list: each asset with a small picture of its nearest level
+document.getElementById('list').innerHTML = ids.map((id) => `<button class="item glass2" data-id="${id}"><canvas width="72" height="72"></canvas><span><b>${ASSETS[id].name}</b><small>${ASSETS[id].kind}</small></span></button>`).join('');
 for (const b of document.querySelectorAll('.item')) {
   const a = ASSETS[b.dataset.id], r = new THREE.WebGLRenderer({ canvas: b.querySelector('canvas'), antialias: true, alpha: true }), sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(32, 1, 0.05, 100);
   sc.add(new THREE.HemisphereLight(0xdbe9ff, 0x4a5a3a, 1.4)); const sun = new THREE.DirectionalLight(0xfff1d6, 2.2); sun.position.set(4, 7, 3); sc.add(sun);
   sc.add(new THREE.Mesh(geometryOf(a), new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.9 })));
-  const d = Math.max(a.size.length, a.size.width, a.size.height) * 1.9; cam.position.set(d * 0.7, d * 0.55, -d * 0.7); cam.lookAt(0, a.size.height * 0.4, 0);
+  const d = a.placement.at === 'scatter' ? 2.2 : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 1.9;
+  cam.position.set(d * 0.7, d * 0.55, -d * 0.7); cam.lookAt(0, (a.placement.at === 'scatter' ? 0.5 : most(a.size.height)) * 0.4, 0);
   r.setSize(36, 36, false); r.render(sc, cam); r.dispose();
   b.onclick = () => choose(b.dataset.id);
 }
 
-// the middle: the live world, the camera circling the chosen asset
-let at = firstPlace, ground = 0, H = 1, yaw = 2.6, pitch = 0.32, dist = 9, spin = true;
+// the stage: what stands on it now
+let staged = null, ground0 = heightAt(STAGE.x, STAGE.z), H = 1, yaw = 2.6, pitch = 0.32, dist = 9, spin = true;
+function stageAsset(a) {
+  if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); }
+  if (a.placement.at === 'scatter') {   // a few of its kind, small to large, lying about the middle
+    staged = new THREE.Group(); const mat = materialFor(U), geo = geometryOf(a), [lo, hi] = a.size.length;
+    for (let i = 0; i < 7; i++) {
+      const k = i / 6, s = lo + (hi - lo) * k ** 1.6, t = i * 2.4, rr = i ? (hi * 0.7 + 0.4) * Math.sqrt(i) * 0.55 : 0;
+      const m = new THREE.Mesh(geo, mat), x = STAGE.x + Math.cos(t) * rr, z = STAGE.z + Math.sin(t) * rr;
+      m.scale.set(s * 2, s * 2, s * 2); m.position.set(x, heightAt(x, z) - s * 0.25, z); m.rotation.y = t * 1.7; staged.add(m);
+    }
+    scene.add(staged);
+  } else staged = place(scene, U, a, { x: STAGE.x, z: STAGE.z, yaw: 0.6 });
+}
 function choose(id) {
-  const a = ASSETS[id]; at = placeOf(id); ground = heightAt(at.x, at.z); H = a.size.height;
-  dist = Math.max(a.size.length, a.size.width, a.size.height) * 2.6; spin = true;
+  const a = ASSETS[id]; stageAsset(a);
+  H = a.placement.at === 'scatter' ? most(a.size.height) * 0.5 : most(a.size.height);
+  dist = a.placement.at === 'scatter' ? Math.max(4, most(a.size.length) * 4.5) : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 2.2;
+  pitch = a.placement.at === 'scatter' ? 0.55 : 0.32; spin = true;
   document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
-  const where = Object.entries(PLACES).filter(([, p]) => p.asset === id).map(([k, p]) => `${k} (${p.x.toFixed(0)}, ${p.z.toFixed(0)})`).join(', ') || 'not placed yet';
+  const where = a.placement.at === 'scatter' ? `scattered over ${a.placement.outcrops ? 'the outcrops' : 'all the land'}, at most one every ${a.placement.cell} m` : 'stood at a named place';
   document.getElementById('info').innerHTML = `<span class="label">Asset</span><h2>${a.name}</h2><p>${a.about || ''}</p><dl>
     <dt>Kind</dt><dd style="text-transform:capitalize">${a.kind}</dd>
-    <dt>Size</dt><dd>${a.size.length} × ${a.size.width} × ${a.size.height} m</dd>
-    <dt>Faces</dt><dd>${a.faces.length}</dd>
+    <dt>Size</dt><dd>${span(a.size.length)} × ${span(a.size.width)} × ${span(a.size.height)} m</dd>
+    <dt>Detail</dt><dd>${a.lods.map((l, i) => `${i ? 'then' : 'up to'} ${l.far} m · ${facesOf(l)} faces`).join('<br>')}<br>none past ${a.lods[a.lods.length - 1].far} m</dd>
     <dt>Colours</dt><dd>${Object.entries(a.colours || {}).map(([k, c]) => `<span class="sw" style="background:${hex(c)}"></span>${k}`).join('<br>')}</dd>
-    <dt>Stands at</dt><dd>${where}</dd>
+    <dt>Placed</dt><dd>${where}</dd>
     <dt>File</dt><dd>TheGame/assets/${a.id}.js</dd></dl>`;
   history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}asset=${id}`);
 }
@@ -94,8 +111,8 @@ orbit.onwheel = (e) => { e.preventDefault(); dist = Math.max(3, Math.min(80, dis
 function frame() {
   requestAnimationFrame(frame);
   if (spin) yaw += 0.0025;
-  const ty = ground + H * 0.45, c = Math.cos(pitch);
-  cine.take({ pos: [at.x + Math.sin(yaw) * c * dist, ty + Math.sin(pitch) * dist, at.z + Math.cos(yaw) * c * dist], look: [at.x, ty, at.z], mm: 35 });
+  const ty = ground0 + H * 0.45, c = Math.cos(pitch);
+  cine.take({ pos: [STAGE.x + Math.sin(yaw) * c * dist, ty + Math.sin(pitch) * dist, STAGE.z + Math.cos(yaw) * c * dist], look: [STAGE.x, ty, STAGE.z], mm: 35 });
 }
 choose(ASSETS[q.get('asset')] ? q.get('asset') : ids[0]); requestAnimationFrame(frame);
 </script>

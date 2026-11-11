@@ -4,3 +4,7 @@
 export const PLACES = {
   tent: { asset: 'tent', x: -1262.6, z: 631.0, yaw: 0.1 },   // on the stretch the stories are told on; its door looks up the river
 };
+
+// The library's stage: one fixed, flat spot in the meadow, far from the river, where the asset library shows every
+// asset on a round of bare ground with the grass around it (library.html). Nothing stands there in the world itself.
+export const STAGE = { x: -1161.4, z: -137.4, r: 7 };

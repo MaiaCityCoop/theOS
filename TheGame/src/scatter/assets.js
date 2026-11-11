@@ -7,6 +7,10 @@
 //   cell   metres per cell: one thing may stand in each
 //   P      cells along a patch's side: P * P instances per patch, a patch is cell * P metres
 //   far    where the tier ends; the next begins there
+import stone from '../../assets/stone.js';
+import boulder from '../../assets/boulder.js';
+import { scatterRow } from '../../assets/index.js';
+
 export const ASSETS = [
   {
     name: 'grass', kind: 'grass', height: 0.58,
@@ -17,13 +21,6 @@ export const ASSETS = [
       { segs: 1, cell: 0.34, P: 96, near: 42, nearFade: 10, far: 105, farFade: 25, w: 0.085, end: 105 },
     ],
   },
-  {
-    name: 'stones', kind: 'rocks', outcrops: false, cell: 2.2, size: [0.07, 0.55], texture: 1.1, shapes: 1, seed: 200,
-    // detail: how often the icosphere is divided
-    tiers: [{ detail: 2, P: 8, far: 12 }, { detail: 1, P: 16, far: 50 }, { detail: 0, P: 32, far: 110 }],
-  },
-  {
-    name: 'boulders', kind: 'rocks', outcrops: true, cell: 20, size: [0.7, 4.2], texture: 3.0, shapes: 1, seed: 100,
-    tiers: [{ detail: 3, P: 4, far: 60 }, { detail: 2, P: 8, far: 250 }, { detail: 1, P: 16, far: 600 }, { detail: 0, P: 32, far: 1100 }],
-  },
+  scatterRow(stone),     // from the asset library: TheGame/assets/stone.js
+  scatterRow(boulder),   // and TheGame/assets/boulder.js
 ];
