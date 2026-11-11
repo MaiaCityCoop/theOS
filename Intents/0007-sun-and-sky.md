@@ -1,7 +1,7 @@
 ---
 id: "0007"
 title: The sun and the sky, a day and a night
-state: define            # idea | define | build | propose | story | archived
+state: build             # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-12
 story:
@@ -75,7 +75,34 @@ shading contract (intent 0002: `LIGHT_GLSL`), so a moving sun reaches everything
 
 ## Build
 
-_Not started: waits for Samuel's approval of the definition above._
+Samuel approved the definition on 2026-11-12 ("Approve, start it").
+
+- `TheGame/world/sky.js` holds it all as data: the latitude (41.2° N), the day of the year (172, midsummer), the hour
+  the game opens at, Auto's speed (game hours a real minute) and whether it runs, and seven keys of light by the sun's
+  height (−18° to 90°): the sky overhead and at the horizon, the sun's light, the sky's light, the glow round the sun,
+  the exposure; and the moon's light and size, the stars' number and brightness.
+- `src/world/sky.js`: the sun's place from the hour, the day and the latitude (hour angle and declination); the moon's,
+  near enough, lagging the sun by its phase; the light eased between the keys by the sun's height; as the sun sets the
+  light turns smoothly to the moon's (by its phase and height). It writes the shading contract only: `uSunDir`, `uSun`,
+  `uAmb`, `uSky` (the water's mirrored sky), `uHazeCol` (the horizon of the hour, so the far land melts into it) and
+  a new `uExposure` in `toScreen` (brighter at night, so it stays readable). No material changed.
+- The sky is a dome round the camera, drawn first: from the horizon's colour to the zenith's, a glow round the sun
+  strongest low, the sun's disc, the moon's (brighter full and by night), stars as the sky darkens.
+- The clock, top right, glass: the hour, a slider, Auto. Moving the slider stops Auto; the hour and Auto are kept in the
+  browser between visits. On the library the card moves under it. Not on a film's page nor as a picture. A film's shot
+  may set the hour (`cine.take({ hour })`).
+
+**Checks, as they were** (2026-11-12, 1400×800 in the pane):
+
+| # | Result | Evidence |
+| --- | --- | --- |
+| 1 | passed | the sun on 21 June at 41.2° N: noon 72.24° high due south (180°); 6:00 15.19° high at 71.9°, 18:00 15.19° at 288.1°: as the textbook (noon 90 − 41.2 + 23.44 = 72.24°; at 6:00 sin(alt) = sin 41.2° · sin 23.44°: 15.19°) |
+| 2 | looked at | the same place towards the sun at 4:54 (sunrise glow), 5:24, 13:00, 19:00 (pink, the sun low), 19:54 (dusk); towards the tent at 12:30 (pale blue day), 21:12 and 0:30, 23:00 (dark blue night, the moon two-thirds full lighting the tent grey) |
+| 3 | passed | the light over 24 hours in 1000 steps (sky, sun, ambient, exposure: 13 values): 0 steps more than 3× their neighbours' |
+| 4 | by construction | every material reads the same uniforms; not measured material by material |
+| 5 | partly | the clock works with the mouse; the file's numbers drive it; touch not tried |
+| 6 | partly | noon at eye level: 16.6 ms (60 fps); the night reading (26.6 ms) was taken right after screenshots, which stall frames, so it is not a fair number; the night draws the same as the day plus the stars |
+
 
 ## Propose
 
@@ -87,12 +114,12 @@ _Not started: waits for Samuel's approval of the definition above._
 
 ## Todo
 
-- [ ] Samuel: approve or change the definition
-- [ ] The sky file and the sun's and moon's place
-- [ ] The sky dome and stars
-- [ ] The light and the haze from the sky
-- [ ] The control, top right
-- [ ] A film's shot may set the hour
+- [x] Samuel: approve or change the definition
+- [x] The sky file and the sun's and moon's place
+- [x] The sky dome and stars
+- [x] The light and the haze from the sky
+- [x] The control, top right
+- [x] A film's shot may set the hour
 
 ## Changelog
 
@@ -103,6 +130,17 @@ _Not started: waits for Samuel's approval of the definition above._
 - **Delivered:** this intent, at define.
 - **Good:** the shading contract (intent 0002) already carries the sun, the sky and the haze to every material.
 - **Broke / not there yet:** nothing built.
+
+### 2026-11-12, built
+
+- **Asked:** approve, start it.
+- **Delivered:** the sun and the moon from the hour, the date and the latitude; the sky dome with glow, sun, moon and
+  stars; the light, the sky's light, the haze and the exposure from the sun's height; the clock top right with a
+  slider and Auto; films may set the hour.
+- **Good:** the sun's place matches the textbook; no step in the light over a day; sunrise and sunset warm, nights
+  dark blue and readable.
+- **Broke / not there yet:** the night's frame time not fairly measured; touch on the slider not tried; no shadows or
+  clouds (out of scope).
 
 ## Trail
 

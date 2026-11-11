@@ -173,7 +173,7 @@ const api = (window.__cine = {
   distortion: 0.045,    // barrel at 28 mm, falling away with focal length; this glass is known for having very little
   dipColor: '#9fc2e6',  // what a 'dip' passes through: the sky
   /** Hold the camera at a view: { pos, look | yaw, pitch, roll, mm }. */
-  take(view) { if (view?.height != null && view.at) view = { ...view, ...shotAt(view) }; ready(() => { lock(); playing = false; aim(view); apply(); }); },
+  take(view) { if (view?.height != null && view.at) view = { ...view, ...shotAt(view) }; if (view?.hour != null) window.__s8?.sky?.set(view.hour); ready(() => {   // a shot may set the hour (intent 0007) lock(); playing = false; aim(view); apply(); }); },
   /** Give the camera back to the walker. */
   release() { ready(unlock); },
   /** Load a timeline of clips; the camera stands on its first frame. */

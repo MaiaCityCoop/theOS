@@ -25,6 +25,7 @@ import { PLACES } from './world/places.js';
 import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
 import { createPost } from './camera/post.js';
+import { createSky } from './world/sky.js';
 
 const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
@@ -56,6 +57,8 @@ const terrain = createTerrain(scene, U, tex);
 const scatter = createScatter(scene, U, tex);
 for (const at of Object.values(PLACES)) place(scene, U, ASSETS[at.asset], at);   // what stands at a named place, from the asset library
 const controls = createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat'));
+const sky = createSky(scene, camera, U, renderer);   // the sun and the sky: one time of day drives the light (intent 0007)
+stats.sky = sky;
 stats.controls = controls;
 const post = createPost(renderer, SKY);
 const hud = createHud(document.getElementById('hud'), renderer, camera, governor, stats);
@@ -66,7 +69,7 @@ const projScreen = new THREE.Matrix4();
 const parts = { ctl: 0, ground: 0, terrain: 0, scatter: 0, draw: 0 };   // where a frame's time went, for the hitch log
 function choose(dt) {
   let t = performance.now(), u;
-  controls.update(dt);
+  controls.update(dt); sky.update(dt);
   const p = camera.position, dy = (U.uDy.value = Math.max(0, p.y - heightAt(p.x, p.z) - 2, HMIN - p.y));   // how high above the ground here: lifted, the grass and stones see it far off (intent 0003)
   U.uAirH.value = Math.max(0, p.y - heightAt(p.x, p.z));   // the height fog thins along a line of sight from up here (LIGHT_GLSL)
   camera.updateMatrixWorld();

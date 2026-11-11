@@ -19,5 +19,6 @@ vec3 weathered(vec3 col, vec3 n){ return mix(col * (1.0 - 0.35 * uWeather.x), ve
 // the hand-over between two levels of detail: keep.x of the pixels, chosen by one screen noise shared by both sides
 float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 bool detailCut(vec2 keep){ float n = ign(gl_FragCoord.xy); return (keep.y > 0.5 ? 1.0 - n : n) >= keep.x; }
-vec4 toScreen(vec3 c){ c = 1.0 - exp(-c * 1.25); return vec4(pow(c, vec3(1.0 / 2.2)), 1.0); }
+uniform float uExposure;   // the picture's exposure: brighter as the night falls, so it stays readable (intent 0007)
+vec4 toScreen(vec3 c){ c = 1.0 - exp(-c * 1.25 * (uExposure > 0.0 ? uExposure : 1.0)); return vec4(pow(c, vec3(1.0 / 2.2)), 1.0); }
 `;
