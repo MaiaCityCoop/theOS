@@ -212,3 +212,15 @@ remains exactly on a cut, the next suspect is the dissolve's frame grab.
 - The far land is still flat-lit and sharp to the horizon; with no haze, sky or shadow (all held
   back on purpose for now) distance has nothing to soften it. The far river reads as a grey road.
 - The grass's far ring (46–115 m) is still coarse triangles.
+
+---
+
+## 8 · A shorter menu · 2026-11-11 · `b2cf4e35a`
+
+**Asked.** Delete "first-look" and "Trailer (composed)"; keep "Walk the world" and "river-story".
+
+**Delivered.** The kept timeline `first-look` is deleted, the composed trailer's menu entry and
+its "new trailer" button are gone, and `/timeline.html` plays `river-story` by default. The
+composer itself stays for the agent (`?seed=`), out of the menu.
+
+**Broke / not there yet.** Nothing new. `first-look` can be had back from commit `cdc1e5909`.
