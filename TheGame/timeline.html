@@ -3,44 +3,43 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sandbox 8 · timeline</title>
+<title>Maia City · film</title>
 <link rel="icon" href="/brand/MaiaCity.svg">
 <link rel="stylesheet" href="/brand/brand.css">
 <style>
   html,body{margin:0;height:100%;background:#9fc2e6;overflow:hidden}
   canvas{display:block;width:100vw;height:100vh;pointer-events:none}
   #msg{display:none}
-  /* The film's controls: one quiet bar. Left, play. Middle, what is on screen now, over the film
-     as a line: one stretch per shot, the acts named under it. Right, the time. */
-  #tl{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:20px;align-items:center;padding:14px 22px 12px 14px}
+  /* The film's controls: one round bar. Left, play, on the sun. Middle, what is on screen now, over
+     the film as a line: one stretch per shot, the acts named under it. Right, the time. */
+  #tl{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:20px;align-items:center;padding:14px 26px 12px 14px}
   #meta,#track,#acts{grid-column:2}
-  #play{grid-column:1;grid-row:1 / span 3;width:46px;height:46px;border-radius:50%;border:0;background:var(--forest);cursor:pointer;position:relative;transition:background .2s}
-  #play:hover{background:var(--ink)}
-  #play::before{content:'';position:absolute;left:19px;top:15px;border:8px solid transparent;border-left:13px solid var(--paper);border-right:0}
-  #play.on::before{left:16px;top:15px;width:4px;height:16px;border:0;border-left:5px solid var(--paper);border-right:5px solid var(--paper)}
+  #play{grid-column:1;grid-row:1 / span 3;width:54px;height:54px;border-radius:50%;border:0;background:var(--sun);cursor:pointer;position:relative;box-shadow:0 6px 18px rgba(242,181,68,.5);transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+  #play:hover{transform:scale(1.06)}
+  #play::before{content:'';position:absolute;inset:0;background:var(--playmark) 55% 50%/18px no-repeat}
+  #play.on::before{inset:auto;left:19px;top:18px;width:16px;height:18px;background:none;border-left:6px solid var(--forest);border-right:6px solid var(--forest);border-radius:3px;box-sizing:border-box}
   #meta{display:flex;align-items:baseline;gap:14px;min-width:0;white-space:nowrap}
-  #shot{font:400 19px/1.1 var(--serif);color:var(--forest);overflow:hidden;text-overflow:ellipsis}
-  #lens{font:500 12px/1 var(--sans);color:var(--muted);letter-spacing:.02em}
-  #why{font:400 12.5px/1 var(--sans);color:var(--muted);overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;text-align:right}
-  #time{grid-column:3;grid-row:1 / span 3;white-space:nowrap;font:500 12px/1 var(--mono);color:var(--ink-2);letter-spacing:.02em}
-  #time b{font-weight:500;color:var(--forest)}
-  #track{position:relative;height:26px;cursor:pointer;user-select:none;margin-top:4px}
-  #segs{position:absolute;left:0;right:0;top:11px;display:flex;gap:5px}
-  .seg{position:relative;height:3px;border-radius:2px;background:rgba(23,37,31,.18);overflow:visible;transition:height .15s,margin .15s}
-  .seg u{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--forest);width:0}
-  .seg.now{height:5px;margin-top:-1px}
-  .seg:hover{background:rgba(23,37,31,.32)}
-  /* how a shot is cut in, drawn in the gap before it: a dissolve is two shots overlapping, a fade a small sun */
-  .seg.dissolve::before{content:'';position:absolute;left:-7px;top:-2.5px;width:8px;height:8px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--forest);background:var(--paper)}
-  .seg.dip::before{content:'';position:absolute;left:-6px;top:-4px;width:11px;height:11px;background:var(--sunmark) center/contain no-repeat}
-  #cues{position:absolute;left:0;right:0;top:21px;height:2px}
-  .cue{position:absolute;top:0;height:2px;border-radius:1px;background:var(--gold);opacity:.55}
-  #head{position:absolute;top:3px;width:18px;height:18px;margin-left:-9px;background:var(--sunmark) center/contain no-repeat;pointer-events:none;filter:drop-shadow(0 0 3px rgba(252,249,243,.9))}
-  #acts{display:flex;gap:5px;margin-top:1px}
-  #acts span{font:600 9.5px/1.6 var(--sans);letter-spacing:.22em;text-transform:uppercase;color:var(--faint);overflow:hidden;white-space:nowrap}
+  #shot{font:460 20px/1.1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.01em;color:var(--forest);overflow:hidden;text-overflow:ellipsis}
+  #lens{font:500 12.5px/1 var(--sans);color:var(--muted)}
+  #why{font:400 13px/1 var(--sans);color:var(--muted);overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;text-align:right}
+  #time{grid-column:3;grid-row:1 / span 3;white-space:nowrap;font:500 13px/1 var(--sans);font-variant-numeric:tabular-nums;color:var(--forest2)}
+  #time b{font-weight:600;color:var(--forest)}
+  #track{position:relative;height:30px;cursor:pointer;user-select:none;margin-top:5px}
+  #segs{position:absolute;left:0;right:0;top:9px;display:flex;gap:5px}
+  .seg{position:relative;height:8px;border-radius:999px;background:rgba(31,58,44,.14);overflow:visible;transition:background .15s}
+  .seg u{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--forest);width:0}
+  .seg:hover{background:rgba(31,58,44,.26)}
+  /* how a shot is cut in, drawn in the gap before it: a dissolve is a ring, a fade a small sun */
+  .seg.dissolve::before{content:'';position:absolute;left:-8px;top:-1px;width:10px;height:10px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--forest);background:var(--cream);z-index:1}
+  .seg.dip::before{content:'';position:absolute;left:-8px;top:-3px;width:14px;height:14px;background:var(--sunmark) center/contain no-repeat;z-index:1}
+  #cues{position:absolute;left:0;right:0;top:22px;height:3px}
+  .cue{position:absolute;top:0;height:3px;border-radius:999px;background:var(--clay);opacity:.5}
+  #head{position:absolute;top:0;width:26px;height:26px;margin-left:-13px;background:var(--sunmark) center/contain no-repeat;pointer-events:none;filter:drop-shadow(0 2px 6px rgba(242,181,68,.8))}
+  #acts{display:flex;gap:5px;margin-top:0}
+  #acts span{font:500 11px/1.6 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--faint);overflow:hidden;white-space:nowrap}
   #acts span.now{color:var(--forest)}
   body.embed #tl{display:none}
-  body:not(.embed) #cap:not(.title){bottom:136px}
+  body:not(.embed) #cap:not(.title){bottom:150px}
   body.framed #hud{display:none}
   @media (max-width:760px){#why{display:none}}
 </style>

@@ -63,11 +63,13 @@ At **Propose**, spawn `Stories/NNNN-slug/` with two files:
 - `timeline.json`: the film of the story for the in-game camera, played live and the same every
   time:
 
-      { "intent": "NNNN", "title": "…",
+      { "intent": "NNNN", "title": "…", "day": N, "inGame": N, "goals": [ [ "…", done ] ],
         "clips":    [ { "name", "kind", "secs", "ease", "in", "why", "keys": [ { "pos", "look", "mm", "roll", "focus" } ] } ],
         "captions": [ { "at": seconds, "for": seconds, "kind": "title" | "maia" | "samuel" | "note", "text": "…" } ] }
 
-  `clips` is the virtual camera's timeline (`TheGame/cine/README.md`). `captions` are the film's
+  `day` is the day of the 5423 the story tells, `inGame` the humans in the game that day (counted,
+  never guessed), `goals` the day's few goals with whether each is done; the dashboard's front
+  page is drawn from them. `clips` is the virtual camera's timeline (`TheGame/cine/README.md`). `captions` are the film's
   subtitles: `maia` and `samuel` for the two voices of the dialogue (the speaker's name stands
   small over the line), `note` for a plain fact on screen, `title` for the film's title card
   (with `over` for the small line above it). Subtitles are short: one thought, two lines at most,
@@ -83,7 +85,7 @@ It plays at `http://localhost:5173/timeline.html?story=NNNN-slug`, and from the 
 | --- | --- |
 | `Intents/` | the intents, `TEMPLATE.md` |
 | `Stories/` | a folder per proposed intent: `story.md`, `timeline.json` |
-| `brand/` | `MaiaCity.svg`, the mark, and `brand.css`, the one look of every page, grown from the mark (cream, forest, gold; round heavy letters; soft shapes; liquid glass over the game). New interface takes its colours and shapes from there, never its own |
+| `brand/` | `MaiaCity.svg`, the mark, and `brand.css`, the one look of every page: Meadow (cream, forest, clay, gold; Fraunces at its softest with Outfit; the arch, the seed and the sun; everything round, glass over the game). New interface takes its colours and shapes from there, never its own. `brand/sheets/` keeps the drafts it was chosen from |
 | `TheGame/` | the world and the virtual camera |
 | `OS/` | the dashboard over the three: `bun run dev` at the repository's root starts it (port 5180) with the game (5173) |
 

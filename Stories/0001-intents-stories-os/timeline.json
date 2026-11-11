@@ -1,6 +1,9 @@
 {
  "intent": "0001",
  "title": "A green meadow and one tent",
+ "day": 1,
+ "inGame": 1,
+ "goals": [["Make a world", true], ["Put up one tent", true], ["Find human number two", false]],
  "clips": [
   {
    "name": "From the sky",

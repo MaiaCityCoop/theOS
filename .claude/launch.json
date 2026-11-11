@@ -1,0 +1,35 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "brand-drafts",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5190",
+        "--directory",
+        "brand"
+      ],
+      "port": 5190
+    },
+    {
+      "name": "game-worktree",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd TheGame && exec bunx --bun vite --port 5174 --strictPort"
+      ],
+      "port": 5174
+    },
+    {
+      "name": "os-worktree",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd OS && VITE_GAME=http://localhost:5174 exec bunx --bun vite --port 5181 --strictPort"
+      ],
+      "port": 5181
+    }
+  ]
+}

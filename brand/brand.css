@@ -1,90 +1,90 @@
-/* TheOS: the brand, in one file. Fourth take: solarpunk, and quiet about it.
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,100..900,0..100,0..1;1,9..144,100..900,0..100,0..1&family=Outfit:wght@300..600&display=swap');
 
-   Solarpunk is not a playful style. It is a calm, grown-up optimism: glasshouses and gardens,
-   brass and leaves, the long light of a good afternoon. So:
-   - the page is warm paper with a great deal of air; nothing shouts
-   - words are set in a fine serif, large and light, as on the title plate of a botanical print;
-     labels in small spaced capitals; body in a plain sans
-   - one deep green carries the words, one brass-gold carries the light (and only the light: the
-     thing that plays, the place you are, the sun)
-   - lines are hairlines; corners are barely rounded; the one grand shape is the ARCH, the
-     glasshouse window, and it is used once per page, for the living picture
-   - the sun of the mark (four long rays, four short) is the brand's small sign: it marks what is
-     live and where the playhead stands
-   Over the game, panels are liquid glass: thin, clear, edged with light. */
+/* TheOS: the brand, in one file. Meadow (chosen from brand/sheets/10-meadow.html).
+
+   Round and earthy, grown from the mark. Three shapes carry it:
+   - the ARCH, the glasshouse window: a day is a window; the game's picture sits in a round one
+   - the SEED, a dot: every day that is still to come
+   - the SUN, eight rays: wherever today is, whatever plays, the place you are
+   Cream paper, forest for the words, clay for what counts, gold for the light. Words are set in
+   Fraunces at its softest; the interface in Outfit. Nothing has a hard corner: buttons, chips and
+   lines are pills. Over the game, panels are round glass. */
 :root {
-  --cream: #f7f2e9;
-  --paper: #fcf9f3;
-  --forest: #1c3a32;
-  --ink: #17251f;
-  --ink-2: #3b4a42;
-  --muted: #717b72;
-  --faint: #a8ad9f;
-  --line: #e3dccc;
-  --sage: #c9cdb9;
-  --mist: #e6ebdf;
-  --gold: #b0842c;         /* brass: gold that can be read as text */
-  --sun: #e0b553;          /* the light itself */
-  --teal: #3f7377;
+  --paper: #f7f0e3;
+  --cream: #fbf6ea;
+  --sand: #ece1cc;
+  --sand2: #dfd2b8;
+  --forest: #1f3a2c;
+  --forest2: #47604f;
+  --moss: #5f7f52;
+  --leaf: #8fb46c;
+  --clay: #bd5b33;          /* what counts, and gold that can be read as text */
+  --sun: #f2b544;           /* the light itself */
+  --sunlight: #ffe2a0;
+  --river: #2f5f73;
   --sky: #9fc2e6;
+  --muted: #7f8a78;
+  --faint: #a99f88;
   /* names older pages use */
-  --surface: var(--paper); --card: var(--paper); --paper-2: #efe9dc; --cream-2: #efe9dc; --green: var(--forest); --green-bright: #4e6d46; --leaf: #4e6d46; --moss: #36573d; --olive: #77894d; --green-soft: var(--mist); --peach: #f3e6c8;
-  --radius: 6px;
-  --radius-s: 4px;
-  --shadow: 0 1px 2px rgba(23, 37, 31, .05), 0 18px 50px rgba(23, 37, 31, .09);
-  --serif: ui-serif, 'New York', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
-  --sans: -apple-system, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ink: var(--forest); --ink-2: var(--forest2); --line: var(--sand2); --gold: var(--clay); --teal: var(--river); --sage: var(--sand2); --mist: var(--sand);
+  --surface: var(--cream); --card: var(--cream); --green: var(--forest);
+  --radius: 28px;
+  --radius-s: 16px;
+  --shadow: 0 18px 50px rgba(31, 58, 44, .16);
+  --serif: 'Fraunces', ui-serif, 'New York', 'Iowan Old Style', Georgia, serif;
+  --sans: 'Outfit', -apple-system, 'SF Pro Rounded', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --mono: ui-monospace, 'SF Mono', Menlo, monospace;
-  --round: var(--sans); --display: var(--serif);
-  --sunmark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpolygon points='12.00,0.50 13.30,8.86 17.09,6.91 15.14,10.70 23.50,12.00 15.14,13.30 17.09,17.09 13.30,15.14 12.00,23.50 10.70,15.14 6.91,17.09 8.86,13.30 0.50,12.00 8.86,10.70 6.91,6.91 10.70,8.86' fill='%23b0842c'/%3E%3C/svg%3E");
-  --sunmark-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpolygon points='12.00,0.50 13.30,8.86 17.09,6.91 15.14,10.70 23.50,12.00 15.14,13.30 17.09,17.09 13.30,15.14 12.00,23.50 10.70,15.14 6.91,17.09 8.86,13.30 0.50,12.00 8.86,10.70 6.91,6.91 10.70,8.86' fill='%23e0b553'/%3E%3C/svg%3E");
+  --soft: 'SOFT' 100, 'WONK' 0;
+  --sunmark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpolygon points='12,1.2 13.4,8.6 17.3,6.7 15.4,10.6 22.8,12 15.4,13.4 17.3,17.3 13.4,15.4 12,22.8 10.6,15.4 6.7,17.3 8.6,13.4 1.2,12 8.6,10.6 6.7,6.7 10.6,8.6' fill='%23f2b544' stroke='%23f2b544' stroke-width='1.6' stroke-linejoin='round'/%3E%3Ccircle cx='12' cy='12' r='4.3' fill='%23ffe2a0'/%3E%3C/svg%3E");
+  --sunmark-light: var(--sunmark);
+  --playmark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3.6 2.4v9.2L11.4 7z' fill='%231f3a2c' stroke='%231f3a2c' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 /* ---- the mark and the name ---- */
-.mark { display: inline-flex; align-items: center; gap: 12px; font: 400 21px/1 var(--serif); letter-spacing: .01em; color: var(--forest); text-decoration: none; }
-.mark::before { content: ''; width: 34px; height: 34px; border-radius: 50%; background: url('/brand/MaiaCity.svg') center/118% no-repeat; box-shadow: 0 0 0 1px var(--line); }
-.mark b { font-weight: 400; margin-left: -12px; }
+.mark { display: inline-flex; align-items: center; gap: 12px; font: 500 22px/1 var(--serif); font-variation-settings: var(--soft); letter-spacing: -.01em; color: var(--forest); text-decoration: none; white-space: nowrap; }
+.mark::before { content: ''; width: 40px; height: 40px; border-radius: 12px; background: url('/brand/MaiaCity.svg') center/cover no-repeat; box-shadow: 0 2px 10px rgba(31, 58, 44, .16); }
 
 /* ---- pieces ---- */
-.label { font: 600 10.5px/1 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
-.sun::before, .chip.live::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 9px; vertical-align: -2px; background: var(--sunmark) center/contain no-repeat; }
-.btn { font: 500 14px/1 var(--sans); letter-spacing: .02em; color: var(--paper); background: var(--forest); border: 0; border-radius: 999px; padding: 14px 24px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 10px; transition: background .2s; }
-.btn:hover { background: var(--ink); }
-.btn.play::before { content: ''; width: 13px; height: 13px; background: var(--sunmark-light) center/contain no-repeat; }
-.btn.quiet, .btn.dark.quiet { background: none; color: var(--forest); padding-left: 4px; padding-right: 4px; border-radius: 0; box-shadow: inset 0 -1px 0 var(--sage); }
-.btn.quiet:hover { box-shadow: inset 0 -1px 0 var(--forest); background: none; }
-.btn.quiet::after { content: '→'; font-family: var(--serif); transition: transform .2s; }
-.btn.quiet:hover::after { transform: translateX(3px); }
-.btn.dark { background: var(--forest); }
-.btn.small { font-size: 13px; padding: 10px 16px; }
-.btn.small.quiet { padding: 8px 2px; }
-.chip { font: 600 10.5px/1 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
-.chip.live { color: var(--forest); }
+.label { font: 500 12px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.sun::before, .chip.live::before { content: ''; display: inline-block; width: 15px; height: 15px; margin-right: 8px; vertical-align: -3px; background: var(--sunmark) center/contain no-repeat; }
+.btn { font: 500 15px/1 var(--sans); color: var(--cream); background: var(--forest); border: 0; border-radius: 999px; height: 48px; padding: 0 24px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 11px; transition: transform .25s cubic-bezier(.3, 1.6, .5, 1), background .2s; }
+.btn:hover { transform: translateY(-2px); background: #16291f; }
+.btn.play { padding-left: 7px; }
+.btn.play::before { content: ''; width: 34px; height: 34px; border-radius: 50%; background: var(--sun) var(--playmark) 55% 50%/13px no-repeat; }
+.btn.light { background: var(--cream); color: var(--forest); box-shadow: 0 8px 28px rgba(10, 24, 16, .28); }
+.btn.light:hover { background: #fff; }
+.btn.quiet, .btn.dark.quiet { background: none; color: var(--forest); box-shadow: inset 0 0 0 1.5px var(--sand2); }
+.btn.quiet:hover { background: var(--sand); }
+.btn.small { height: 38px; font-size: 14px; padding: 0 17px; }
+.btn.small.play { padding-left: 5px; }
+.btn.small.play::before { width: 28px; height: 28px; background-size: 11px; }
+.chip { display: inline-flex; align-items: center; font: 500 12px/1 var(--sans); letter-spacing: .02em; color: var(--forest2); background: var(--sand); border-radius: 999px; padding: 7px 12px; white-space: nowrap; text-transform: capitalize; }
+.chip.live { color: var(--forest); background: rgba(242, 181, 68, .24); }
+.chip.live::before { width: 13px; height: 13px; margin-right: 6px; vertical-align: 0; }
 
-/* ---- liquid glass: every overlay on the game: thin, clear, edged with light ---- */
+/* ---- round glass: every overlay on the game ---- */
 .glass {
-  color: var(--ink);
-  background: linear-gradient(180deg, rgba(252, 249, 243, .72), rgba(252, 249, 243, .56));
-  -webkit-backdrop-filter: blur(30px) saturate(1.7); backdrop-filter: blur(30px) saturate(1.7);
-  border: 1px solid rgba(255, 255, 255, .55);
+  color: var(--forest);
+  background: linear-gradient(180deg, rgba(251, 246, 234, .8), rgba(251, 246, 234, .62));
+  -webkit-backdrop-filter: blur(26px) saturate(1.6); backdrop-filter: blur(26px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, .6);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .85), 0 14px 40px rgba(12, 28, 22, .22), 0 1px 2px rgba(12, 28, 22, .1);
 }
 
 /* the game's top bar: where you are, and where else you can go */
-.os-top { position: fixed; left: 16px; top: 16px; z-index: 6; display: flex; align-items: center; gap: 22px; padding: 7px 22px 7px 8px; border-radius: 999px; font: 500 13px/1 var(--sans); letter-spacing: .01em; max-width: calc(100vw - 32px); overflow: hidden; }
-.os-top .mark { font-size: 17px; gap: 9px; }
-.os-top .mark::before { width: 28px; height: 28px; }
-.os-top .mark b { margin-left: -9px; }
-.os-top a.go { color: var(--ink-2); text-decoration: none; padding: 6px 0; white-space: nowrap; box-shadow: inset 0 -1px 0 transparent; }
-.os-top a.go:hover { color: var(--forest); }
-.os-top a.go.on { color: var(--forest); box-shadow: inset 0 -1.5px 0 var(--gold); }
-.os-top i { width: 1px; height: 16px; background: rgba(23, 37, 31, .18); }
+.os-top { position: fixed; left: 16px; top: 16px; z-index: 6; display: flex; align-items: center; gap: 4px; padding: 7px 8px; border-radius: 999px; font: 500 14px/1 var(--sans); max-width: calc(100vw - 32px); overflow: hidden; }
+.os-top .mark { font-size: 18px; gap: 10px; margin-right: 12px; }
+.os-top .mark::before { width: 34px; height: 34px; border-radius: 50%; }
+.os-top a.go { color: var(--forest2); text-decoration: none; padding: 10px 15px; border-radius: 999px; white-space: nowrap; transition: background .2s, color .2s; }
+.os-top a.go:hover { background: rgba(31, 58, 44, .08); color: var(--forest); }
+.os-top a.go.on { color: var(--cream); background: var(--forest); }
+.os-top i { width: 5px; height: 5px; border-radius: 50%; background: var(--sand2); margin: 0 6px; flex: none; }
 
 /* the readout: small, out of the way */
-#hud { position: fixed; right: 16px; top: 16px; left: auto; z-index: 5; padding: 9px 13px; border-radius: 10px; white-space: pre; pointer-events: none; font: 10px/1.5 var(--mono); color: var(--ink-2); }
+#hud { position: fixed; right: 16px; top: 16px; left: auto; z-index: 5; padding: 11px 16px; border-radius: 18px; white-space: pre; pointer-events: none; font: 10px/1.5 var(--mono); color: var(--forest2); }
 
 /* a bar of controls (the film's, the lenses') */
-.os-bar { position: fixed; left: 16px; right: 16px; z-index: 5; border-radius: 16px; font: 13px/1.35 var(--sans); }
+.os-bar { position: fixed; left: 16px; right: 16px; z-index: 5; border-radius: 34px; font: 14px/1.35 var(--sans); }
 .os-bar.bottom { bottom: 16px; }
 body.framed .os-top { display: none; }      /* inside the dashboard, the dashboard is the menu */
 body.embed .os-top, body.embed .os-bar, body.embed #hud { display: none; }   /* as a picture: nothing but the film and its subtitles */
@@ -94,8 +94,8 @@ body.embed .os-top, body.embed .os-bar, body.embed #hud { display: none; }   /* 
   font: 500 clamp(16px, 1.65vw, 23px)/1.34 var(--sans); letter-spacing: .005em; color: #fffdf8; text-shadow: 0 1px 2px rgba(8, 20, 15, .85), 0 0 18px rgba(8, 20, 15, .55); text-wrap: balance; }
 #cap.on { display: block; }
 /* a dialogue: who speaks stands small over the line */
-#cap[data-who]:not([data-who=''])::before { content: attr(data-who); display: block; font: 600 .5em/2 var(--sans); letter-spacing: .3em; text-transform: uppercase; color: var(--sun); }
-#cap.samuel { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: clamp(18px, 1.85vw, 26px); }
+#cap[data-who]:not([data-who=''])::before { content: attr(data-who); display: block; font: 600 .5em/2 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--sun); }
+#cap.samuel { font-family: var(--serif); font-variation-settings: var(--soft); font-style: italic; font-weight: 420; font-size: clamp(18px, 1.85vw, 26px); }
 #cap.note { font-size: clamp(13px, 1.2vw, 17px); letter-spacing: .04em; }
-#cap.title { bottom: auto; top: 40%; max-width: 86vw; font: 400 clamp(36px, 5.8vw, 86px)/1 var(--serif); letter-spacing: -.02em; text-shadow: 0 2px 50px rgba(8, 20, 15, .5), 0 1px 2px rgba(8, 20, 15, .35); }
-#cap.title small { display: block; font: 600 11px/3 var(--sans); letter-spacing: .34em; text-transform: uppercase; }
+#cap.title { bottom: auto; top: 40%; max-width: 86vw; font: 420 clamp(36px, 5.8vw, 86px)/1 var(--serif); font-variation-settings: var(--soft); letter-spacing: -.03em; text-shadow: 0 2px 50px rgba(8, 20, 15, .5), 0 1px 2px rgba(8, 20, 15, .35); }
+#cap.title small { display: block; font: 500 12px/3 var(--sans); letter-spacing: .2em; text-transform: uppercase; }

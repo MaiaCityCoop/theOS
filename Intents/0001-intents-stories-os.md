@@ -146,7 +146,8 @@ _Samuel's decision._
 - [x] Samuel looked again: story as a dialogue from day 1, a tent, the timeline redesigned, four brand sheets
 - [x] Samuel looked again: the four sheets out; eight brand drafts, each a whole landing page
 - [x] Samuel looked: Daylight liked; Plot, Subtitle and Daylight merged and reduced to draft 09 (one banner, the line, the devlog)
-- [ ] Samuel: choose a brand draft (or parts of several); then the product is restyled once, to that
+- [x] Samuel chose Meadow (draft 10); the dashboard and the game restyled to it; each day one shot from above
+- [ ] A day's shot from above filmed in the game, not drawn
 - [ ] Samuel: look again; accept or say what is wrong
 - [ ] Samuel: his opening to camera for story 01
 - [ ] Then: the Story section here
@@ -354,6 +355,41 @@ _Samuel's decision._
   years; a replacement script stopped on its own check and was run again. Draft 09 still has
   both. Not seen in Safari or at phone width; the line not tried by touch; a click on the day's
   window not tried.
+
+### 2026-11-11, ninth round
+
+- **Asked:** yes, restyle the dashboard and the game to Meadow. Then, while it was being done:
+  the days ahead should not be filled in beforehand, and the arched windows are not a good
+  layout; cinematic and wide instead: each day shows one preview banner, a drone shot at an
+  angle from above showing the map and what joined, and with each day we grow the day's banner
+  zooms further out. The one call is "Travel to Maia City now". Moving through the days on
+  the line should show how the actual city grew. Put "One story a day, for 5,423 days" and
+  "This is day 1 of 5,423." together as one message.
+- **Delivered:**
+  - `brand/brand.css` is Meadow: cream, forest, clay and gold; Fraunces at its softest with
+    Outfit; pills, round glass, the mark's sun. The skill's note on the brand says so.
+  - The dashboard is headed "Maia City". Its front page is the one banner (the game's film live
+    in a round window, the day's goals, the title with the count, "This is day 1 of 5,423. One
+    story a day.", the one call "Travel to Maia City now", which opens the game), the line
+    (in game today, days told; near the sun it shows a day told as it stood, further on the
+    years ahead in pencil), then day by day: one widescreen shot from above per day told, newest
+    first, drawn from the day's count so that it climbs as humans join, with the day, its title,
+    humans in game and joined, and its film; no frame stands in for a day that has not happened.
+    Under them the 5423 days as seeds. The old front page (the six states, the three panels) is
+    gone; the board, a document, the stories and the game's tab wear the new look.
+  - A story's `timeline.json` now also says its `day`, the humans `inGame` that day and the
+    day's `goals`; the dashboard reads them. Story 01: day 1, 1 in game, three goals.
+  - The game: the top menu, the film's bar (play on the sun, the shots as round stretches, the
+    sun as playhead), the lens bar and the subtitles in Meadow; the pages are titled Maia City.
+- **Good:** run from the worktree (game 5174, dashboard 5181) and seen in the pane at 1440: the
+  front page with the live film, day 1's shot from above, the line showing day 1 near the sun
+  and year 10 in pencil further on, the stories' page with the film bar, the board with a
+  document. No console errors; both typefaces loaded.
+- **Broke / not there yet:** a day's shot from above is drawn, not filmed in the game. The
+  drafts in `brand/sheets/` still show the arches. The game's walk and lens pages and the game's
+  top menu were not looked at after the restyle. The servers on 5173 and 5180 run from main and
+  do not show any of this until the branch is merged; the dashboard's server must be restarted
+  then, because what it reads from a story changed. Not seen in Safari or at phone width.
 
 ## Trail
 

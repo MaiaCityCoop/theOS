@@ -32,7 +32,12 @@ export default {
         if ((m = url.match(/^\/intents\/(\d{4}-[a-z0-9-]+\.md)$/))) return text(res, resolve(intents, m[1]));
         if (url === '/stories') {
           let list = [];
-          try { list = readdirSync(stories).filter((d) => existsSync(resolve(stories, d, 'story.md'))).sort().map((d) => ({ id: d, film: existsSync(resolve(stories, d, 'timeline.json')), title: (readFileSync(resolve(stories, d, 'story.md'), 'utf8').match(/^# (.*)$/m) || [])[1] || d })); } catch {}
+          try { list = readdirSync(stories).filter((d) => existsSync(resolve(stories, d, 'story.md'))).sort().map((d) => {
+            // a story's film also says which day it is, how many humans were in the game that day, and the day's goals
+            let t = {}; try { t = JSON.parse(readFileSync(resolve(stories, d, 'timeline.json'), 'utf8')); } catch {}
+            return { id: d, film: Array.isArray(t.clips), title: (readFileSync(resolve(stories, d, 'story.md'), 'utf8').match(/^# (.*)$/m) || [])[1] || d,
+              day: t.day, inGame: t.inGame, goals: t.goals, secs: Array.isArray(t.clips) ? Math.round(t.clips.reduce((a, c) => a + (c.secs || 0), 0)) : undefined };
+          }); } catch {}
           return json(res, list);
         }
         if ((m = url.match(/^\/stories\/([a-z0-9][a-z0-9-]*)\/(story\.md|timeline\.json)$/))) return text(res, resolve(stories, m[1], m[2]));
