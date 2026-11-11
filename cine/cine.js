@@ -1,18 +1,18 @@
 // The virtual camera: a film camera inside the world, driven by an agent, not by hand. No keys, no
 // readouts: only `window.__cine`. It holds the game's camera wherever it is told (any place, any
-// angle, a full-frame lens from 12 to 180 mm) and plays a timeline of shots live in the real world.
+// angle, an anamorphic prime from 28 to 180 mm, framed 2.39 : 1) and plays a timeline of shots live in the real world.
 // It needs nothing of the game but `window.__s8.camera`, so the same file shoots every stage of
 // the build (cine/README.md).
 
-import { LENSES, SPHERICAL, ANAMORPHIC } from './lenses.js';
+import { LENSES, ANAMORPHIC } from './lenses.js';
 
 const RAD = Math.PI / 180;
-const S = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, mm: 35, fmt: SPHERICAL, lens: '' };   // radians inside
+const S = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, mm: 35, fmt: ANAMORPHIC, lens: 'A35', focus: 10 };   // radians inside
 let cam, on = false, eulerSet, last = 0;
 let clips = [], starts = [], T = 0, t = 0, playing = false, stills = [], rec = null;
 const pending = [];   // what was asked before the game's camera existed
 
-const clampMm = (mm) => Math.max(12, Math.min(180, mm));
+const clampMm = (mm) => Math.max(28, Math.min(180, mm));   // between the primes only a zoom move passes
 // three's fov is the vertical one, of the whole window. The lens fixes how wide the picture sees; where the
 // window is wider than the picture's shape (bars left and right), it fixes how tall instead.
 function vfov(mm) {
@@ -33,7 +33,7 @@ function lock() {
 function unlock() {
   if (!on) return; on = false; playing = false; frame();
   for (const k of ['x', 'y', 'z']) Object.defineProperty(cam.position, k, { value: S[k], writable: true, configurable: true, enumerable: true });
-  delete cam.rotation.set;
+  delete cam.rotation.set; DOF.on = false;
   cam.fov = cam.userData.fov0; cam.updateProjectionMatrix();
 }
 function apply() {
@@ -41,17 +41,22 @@ function apply() {
   eulerSet.call(cam.rotation, S.pitch, S.yaw, S.roll, 'YXZ');
   const f = vfov(S.mm);
   if (Math.abs(cam.fov - f) > 1e-4) { cam.fov = f; cam.updateProjectionMatrix(); }
+  // the lens, for the game's depth of field: always wide open
+  DOF.on = api.dof; DOF.focus = S.focus; DOF.mm = S.mm; DOF.N = api.aperture; DOF.aspect = S.fmt.aspect; cam.userData.dof = DOF;
 }
+const DOF = { on: false, focus: 10, mm: 35, N: 1.9, aspect: 2.39 };
 // a view: { pos: [x, y, z], look: [x, y, z] | yaw, pitch (degrees), roll (degrees), mm }
 function aim(v) {
   if (v.pos) { S.x = v.pos[0]; S.y = v.pos[1]; S.z = v.pos[2]; }
   if (v.look) {
     const dx = v.look[0] - S.x, dy = v.look[1] - S.y, dz = v.look[2] - S.z;
     S.yaw = Math.atan2(-dx, -dz); S.pitch = Math.atan2(dy, Math.hypot(dx, dz));
+    S.focus = Math.hypot(dx, dy, dz);   // what the camera looks at is what it holds in focus
   } else { if (v.yaw != null) S.yaw = v.yaw * RAD; if (v.pitch != null) S.pitch = v.pitch * RAD; }
+  if (v.focus != null) S.focus = v.focus;
   if (v.roll != null) S.roll = v.roll * RAD;
-  if (v.lens && LENSES[v.lens]) { S.lens = v.lens; S.mm = LENSES[v.lens].mm; S.fmt = LENSES[v.lens].fmt; }
-  else if (v.mm != null) { S.mm = clampMm(v.mm); S.lens = ''; S.fmt = v.format === 'anamorphic' ? ANAMORPHIC : v.format === 'spherical' || !v.format && !v.keep ? SPHERICAL : S.fmt; }
+  if (v.lens && LENSES[v.lens]) { S.lens = v.lens; S.mm = LENSES[v.lens].mm; }
+  else if (v.mm != null) { S.mm = clampMm(v.mm); S.lens = LENSES['A' + S.mm] ? 'A' + S.mm : ''; }
 }
 
 // ---- the timeline: clips cut one after the other; inside a clip the camera moves through its keys ----
@@ -68,7 +73,7 @@ function ease(kind, q) {
   const s0 = kind === 'out' ? 1.5 : 0, s1 = kind === 'in' ? 1.5 : 0, q2 = q * q, q3 = q2 * q;   // a curve with those speeds at its ends
   return (q3 - 2 * q2 + q) * s0 + (3 * q2 - 2 * q3) + (q3 - q2) * s1;
 }
-const P = [0, 0, 0], L = [0, 0, 0], V = { pos: P, look: L, roll: 0, mm: 35, format: 'spherical' };
+const P = [0, 0, 0], L = [0, 0, 0], V = { pos: P, look: L, roll: 0, mm: 35 };
 function evalAt(time) {
   if (!clips.length) return;
   let i = clips.length - 1; while (i > 0 && starts[i] > time) i--;
@@ -84,7 +89,6 @@ function evalAt(time) {
   }
   V.roll = (b.roll || 0) + ((d.roll || 0) - (b.roll || 0)) * u;
   V.mm = Math.exp(Math.log(b.mm) + (Math.log(d.mm) - Math.log(b.mm)) * u);   // a zoom runs evenly in stops
-  V.format = b.format;
   aim(V);
 }
 const cr = (a, b, c, d, t) => 0.5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (3 * b - a - 3 * c + d) * t * t * t);
@@ -158,16 +162,18 @@ function record(v) {
 }
 
 const api = (window.__cine = {
-  lenses: LENSES,       // the kit: S12 … S180 spherical, A16 … A180 anamorphic (cine/lenses.js)
+  lenses: LENSES,       // the kit: A28 … A180, the Master Anamorphic primes (cine/lenses.js)
   floor: null,          // (x, z) => the ground's height there; set, the camera never sinks under it
   loop: false,
+  dof: true,            // depth of field, where the game can draw it
+  aperture: 1.9,        // T1.9: the Master Anamorphics wide open, always
   dipColor: '#9fc2e6',  // what a 'dip' passes through: the sky
   /** Hold the camera at a view: { pos, look | yaw, pitch, roll, mm }. */
   take(view) { ready(() => { lock(); playing = false; aim(view); apply(); }); },
   /** Give the camera back to the walker. */
   release() { ready(unlock); },
   /** Load a timeline of clips; the camera stands on its first frame. */
-  load(list) { for (const c of list) for (const k of c.keys) if (k.lens && LENSES[k.lens]) { k.mm = LENSES[k.lens].mm; k.format = LENSES[k.lens].fmt.id; }   // a key may name its lens
+  load(list) { for (const c of list) for (const k of c.keys) if (k.lens && LENSES[k.lens]) k.mm = LENSES[k.lens].mm;   // a key may name its lens
     clips = list; starts = []; T = 0; for (const c of list) { starts.push(T); T += c.secs; } t = 0; frozenFor = -1; ready(() => { overlays(); lock(); evalAt(0); apply(); }); },
   play() { ready(() => { lock(); if (t >= T) t = 0; playing = true; }); },
   pause() { playing = false; },
@@ -180,7 +186,7 @@ const api = (window.__cine = {
   get time() { return t; }, get duration() { return T; }, get playing() { return playing; }, get clips() { return clips; }, get starts() { return starts; },
   get active() { return on; },
   /** Where the camera is now, in the units take() takes. */
-  get view() { return { pos: [S.x, S.y, S.z], yaw: S.yaw / RAD, pitch: S.pitch / RAD, roll: S.roll / RAD, mm: S.mm, lens: S.lens, format: S.fmt.id }; },
+  get view() { return { pos: [S.x, S.y, S.z], yaw: S.yaw / RAD, pitch: S.pitch / RAD, roll: S.roll / RAD, mm: S.mm, lens: S.lens, focus: S.focus }; },
   /** The next drawn frame as a small canvas, `width` pixels wide: for contact sheets. */
   grab(width = 480) { return new Promise((r) => grabs.push([width, r])); },
 });

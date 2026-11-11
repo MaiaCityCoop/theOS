@@ -68,6 +68,10 @@ export function aridAt(x, z) {
   return sstep(0.50, 0.66, vnoise(x / 700, z / 700, 50) + 0.3 * (vnoise(x / 150, z / 150, 51) - 0.5));
 }
 
+// what the rocks' shader hashes, for those who must know where a boulder stands
+export const cellRnd = rnd;
+export function outcropAt(x, z) { return sstep(0.60, 0.72, vnoise(x / 230, z / 230, 74)); }
+
 // ---------- GLSL ----------
 const fl = (a) => a.map((v) => v.toFixed(3)).join(', ');
 export const WORLD_GLSL = /* glsl */ `

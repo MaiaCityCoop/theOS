@@ -7,6 +7,7 @@ import { createGround } from './ground.js';
 import { createGrass } from './grass.js';
 import { createRocks } from './rocks.js';
 import { createControls } from './controls.js';
+import { createPost } from './post.js';
 import { riverAt, aridAt, HMIN, HMAX } from './world.js';
 
 const canvas = document.getElementById('c'), hud = document.getElementById('hud'), msg = document.getElementById('msg');
@@ -43,6 +44,8 @@ const terrain = createTerrain(scene, U, tex);
 const grass = createGrass(scene, U);
 const rocks = createRocks(scene, U, tex);
 const controls = createControls(camera, canvas, msg);
+const post = createPost(renderer, 0x9fc2e6);
+renderer.info.autoReset = false;   // a frame may be several passes: counted together
 
 // start beside the stream, looking along it
 {
@@ -83,11 +86,14 @@ function frame(now) {
   const ms = last ? now - last : 16.7; last = now;
   const dt = Math.min(ms, 100) / 1000;
   U.uTime.value = (now - t0) / 1000;
+  renderer.info.reset();
   if (resize) { renderer.setPixelRatio(dpr); resize = false; }   // resizing empties the canvas: only right before drawing into it
   const c0 = performance.now();
   place(dt);
   cpu += (performance.now() - c0 - cpu) * 0.08;
-  renderer.render(scene, camera);
+  // the virtual camera brings a lens with it: its depth of field is drawn only then
+  const dof = camera.userData.dof;
+  if (dof && dof.on) post.render(scene, camera, dof); else renderer.render(scene, camera);
 
   // hold 16.6 ms: give pixels back when a frame runs long, take them again when there is room
   ema += (ms - ema) * 0.08; if (ms > worst) worst = ms; frames++;

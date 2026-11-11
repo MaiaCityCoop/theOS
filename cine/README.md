@@ -12,8 +12,8 @@ cameras can shoot again.
 | `cine/trailer.js` | composes a small trailer of the land from a seed |
 | `cine/view.js`, `timeline.html` | the timeline view: the world playing, its clips as a strip underneath |
 | `cine/timelines/<name>.json` | kept timelines: cameras set once, played back by name |
-| `cine/lenses.js` | the lens kit: spherical 12–180 mm, anamorphic 16–180 mm |
-| `cine/sheet.js`, `lenses.html` | the lens test: still scenes through every lens, with their cost |
+| `cine/lenses.js` | the lens kit: the nine Master Anamorphic primes, 28–180 mm |
+| `cine/bench.js`, `lenses.html` | the lens bench: the live world through each lens, on its master shot |
 | `cine/menu.js` | the menu on every page: walk, or a timeline |
 | `cine/at.sh` | serves an earlier commit with today's camera over it |
 
@@ -40,8 +40,7 @@ cameras can shoot again.
 
 Also by address: `?cam=x,y,z,yaw,pitch,roll,mm` (degrees) stands the camera exactly there.
 
-**Lenses** are a full-frame camera's (a sensor 36 mm wide), 12 to 180 mm: 12 mm sees 112.6° across,
-35 mm 54.4°, 180 mm 11.4°, whatever the window's shape.
+**Lenses** are the kit's (below): anamorphic primes, 28 to 180 mm, framed 2.39 : 1.
 
 **A timeline** is a list of clips, cut one after the other:
 
@@ -94,27 +93,45 @@ under **Timelines** every kept timeline by name (today: `river-story`).
 
 ## The lens kit
 
-`cine/lenses.js`. A lens is a focal length and a format; a view or a clip's key names one with
-`lens: 'A50'` (or gives `mm`, with `format: 'anamorphic'` if it is not spherical).
+`cine/lenses.js`: the nine focal lengths of the ARRI/ZEISS Master Anamorphic primes and nothing
+else: `A28 A35 A40 A50 A60 A75 A100 A135 A180`. A view or a clip's key names one (`lens: 'A50'`);
+a bare `mm` between 28 and 180 is a zoom position between them.
 
-| Set | Lenses | Format |
+- **Framing.** A 2x squeeze on a 4:3 Super 35 gate (17.82 mm high), framed 2.39 : 1 with black
+  bars. A lens sees as wide as a spherical lens of half its focal length and as tall as its own:
+  `A50` is 46.1° wide.
+- **Depth of field.** Always wide open, T1.9 (`__cine.aperture`). The camera holds in focus what
+  it looks at (`look`), so a move that follows a subject pulls focus by itself; `focus` (metres)
+  sets it by hand. The blur is the thin lens's circle of confusion for that focal length, focus
+  and distance, drawn as an upright oval, twice as tall as wide, as anamorphic glass gives.
+  It is drawn by the game (`src/post.js`) only while the virtual camera holds the picture; the
+  walk view has none. `__cine.dof = false` turns it off.
+- Not modelled: flares, breathing, distortion.
+
+## The lens bench
+
+`/lenses.html` (menu: Lenses). The live world through one lens at a time. The bar at the bottom
+holds the kit; a lens puts the virtual camera on that lens's **master shot**, in the real, running
+world: a place and a subject the focal length is for.
+
+| Lens | Master shot | What it tests |
 | --- | --- | --- |
-| Spherical | `S12 S18 S24 S35 S50 S85 S135 S180` | full-frame gate, 36 mm wide; the picture takes the window's shape |
-| Anamorphic | `A16 A19 A24 A28 A35 A40 A50 A60 A75 A100 A135 A180` | 2x squeeze on a 4:3 Super 35 gate, framed 2.39 : 1 with black bars |
+| A28 | The land, from 26 m up down the river | everything at once, to the horizon |
+| A35 | Down the river, from the bank | water, both banks, meadow |
+| A40 | The meadow at eye height | the rings of blades, one after the other |
+| A50 | The bank | where grass, sand and water meet |
+| A60 | In the grass, half a metre up | the blade itself |
+| A75 | The largest boulder near by | rock, moss, grass at its foot |
+| A100 | The waterline, low from the sand | foam, wet sand, ripples |
+| A135 | The same boulder from further off | grass between, compressed |
+| A180 | The same boulder from across the land | the far rings of detail, magnified |
 
-An anamorphic lens sees as wide as a spherical lens of half its focal length, and as tall as its
-own: `A50` is 46.1° wide. 28 to 180 mm are the focal lengths of a classic set of 2x anamorphic
-primes; 19 and 24 lie in an ultra-wide anamorphic zoom's range; 16 is ours, wider than that glass
-goes. Only the framing is modelled so far: no depth of field, oval bokeh, flares or breathing.
+From a master the view is free: drag turns, W A S D and Q E move (Shift faster), the wheel
+dollies, Alt+wheel pulls focus, R or the lens's button goes back to the master, 1–9 pick a lens.
+The readout top left is the game's own (frame time, draws, triangles), so each lens can be tuned
+on its own shot, from any angle and distance. `window.__bench` gives the agent the list and `go(i)`.
 
-## The lens test
-
-`/lenses.html` (menu: Lens test): six still scenes on the river-story's stretch (vista, far bank,
-meadow, in the grass, boulder, from above), each through every lens of a set from one fixed
-place, side by side, with what each still cost: frame time (red over 16.7 ms), triangles, draws.
-`?set=spherical` for the other set. A click opens that view in the world. The costs are also in
-`window.__sheet` for the agent. It is the bench for tuning the land's detail lens by lens: read
-its numbers in Safari with nothing else drawing.
+The boulder is found, not guessed: `cine/trailer.js` runs the same hashes the rocks' shader runs.
 
 ## Keeping cameras, and playing them back
 
@@ -138,6 +155,6 @@ only `src/world.js`, so both work on every commit since the first.
 
 ## What it does not do yet
 
-No depth of field, no motion blur; stills are no larger than the window. The land's levels of
+No motion blur; stills are no larger than the window. The land's levels of
 detail follow distance, not the lens: at 85 mm and longer, far grass shows its coarse blades.
 `still()` and `record()` are written and not yet tried.
