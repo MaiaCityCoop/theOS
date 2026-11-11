@@ -446,3 +446,44 @@ haze, wind and shadow come. Also: the proper anamorphic distortion at the lens's
   older-anamorphic look is a matter of that one number.
 - A post-shader edit shadowed its own input and would have read garbage; caught before a run.
 - All judged on stills in the pane. Nothing in motion, nothing in Safari.
+
+---
+
+## 16 · Detail by size in the picture; the source by role · 2026-11-11 · `0e0d3c320`
+
+**Asked.** Do what was recommended first (detail by size on screen, scatter where the lens
+looks, a governor). Use the moment to split each file into its own role, a clean architecture
+that can be extended generically. And give every reference shot a proper focal point: some
+seemed to have no focus at all.
+
+**Delivered.**
+- One measure of distance for all detail: metres as the walker's 68° lens sees them. A lens
+  factor (how much larger this lens shows a thing) stretches every range: terrain levels, blade
+  tiers, rock tiers, the ground map's reach.
+- Scatter is no longer rings of meshes around the camera. A tier is one instanced draw call over
+  the patches the frustum touches inside its band; a patch is a number pair in a uniform array.
+  The whole world went from about 100 draw calls to 12 or 13.
+- A governor (`core/governor.js`): the lens factor is capped, the cap moves with the frame time;
+  too slow, detail goes first and pixels after; room again, the other way round.
+- The source by role: `world/` (the land in JS and GLSL, the light), `core/` (uniforms,
+  frustum, governor, readout), `materials/`, `terrain/` (quadtree; shaders apart), `scatter/`
+  (an asset table, tiers, the kinds), `camera/` (walker, lens). `main.js` is 90 lines of
+  wiring. A new rock or plant is a row in `scatter/assets.js`. `game/README.md` says what goes
+  where.
+- Every master names what it holds sharp: the near bank at 35 mm, the grass in front at 40, the
+  near waterline at 50, the first bend at 28; the boulders and the blades as before.
+
+**Good.** With the cap off, the 180 mm master showed real grass round boulders 215 m away, and
+the 135 a meadow where there had been spikes: the law itself is right. The walk view still
+loads in about a second and drew at 60 fps after the split.
+
+**Broke / not there yet.**
+- Uncapped, the 180 cost 19.6 M triangles at 9 fps: full detail through a long lens costs about
+  the lens factor times the blades. That is what the cap is for; how much of a long lens's
+  detail a frame can pay on this Mac is not known yet.
+- In the pane the browser held the page back to 3 fps at times; the governor read that as cost
+  and took the cap down to ×1.03, so the long lenses showed no gain there. Gaps over 250 ms are
+  ignored now and the cap climbs faster. Not confirmed since: the pane cannot tell me.
+- Through a long lens the ground map's texel grows with the factor (4 m at ×8): blades may sit a
+  few centimetres off the ground and the edges of paths and patches go soft.
+- The split was a mechanical move, checked by loading the three pages, not by reading every line.
