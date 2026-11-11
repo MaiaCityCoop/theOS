@@ -1096,3 +1096,4 @@ _Samuel's decision._
 | 2026-11-11 | `10cd808` | Materials as files baked from one registry; Materials and seeds in the library; the bell tent's inside and solids for the walker; the stage's meadow sandbox |
 | 2026-11-11 | `2166d88` | Biomes as files the land's shaders are written from; Biomes in the library's sandbox; list pictures as balls; stones apart from boulders |
 | 2026-11-11 | `9183628` | Pebble material for stones; a meandering river in the sandbox; the library's section grid and switch |
+| 2026-11-11 | `7516baa` | One liquid glass; Home for Back; library Back to sections and better pictures; the far tent's open door |
