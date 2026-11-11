@@ -340,3 +340,34 @@ receding into air.
 - A thin darker line still sits right on the horizon; its cause is not found.
 - From high up the land is still one texture: no shadows of clouds, no trees or bushes to give
   scale, which is what such shots live on.
+
+---
+
+## 13 · Lenses, and a bench to tune them · 2026-11-11 · `bb53b985a`
+
+**Asked.** Ranges of detail should be per camera lens. Introduce the full set of 16–180 mm ARRI
+anamorphic lenses for the virtual camera. Start by optimising each lens on different scenes as
+static shots, not videos, in parallel. And: this should bring proper depth of field too, which
+would solve many problems.
+
+**Delivered.**
+- A lens kit, `cine/lenses.js`: the spherical set (12–180 mm, full frame) and an anamorphic set
+  of twelve, 16–180 mm: 2x squeeze on a 4:3 Super 35 gate, framed 2.39 : 1 with bars. A view or
+  a key names its lens (`lens: 'A50'`).
+- A lens test, `/lenses.html`: six still scenes on the river-story's stretch, each through
+  every lens of a set from one fixed place, laid side by side with what each still cost (frame
+  time, triangles, draws); `window.__sheet` holds the numbers for the agent.
+- In the menu under Camera.
+
+**Good.** All 72 anamorphic stills came out on the first full run; the bars and the framing
+follow the lens.
+
+**Broke / not there yet.**
+- The kit is framing only. 28–180 mm are a real 2x anamorphic prime set's focal lengths; 19 and
+  24 are in an ultra-wide zoom's range; there is no real 16, it is ours. No oval bokeh, flares
+  or breathing.
+- Detail per lens is not built yet: the sheet shows the problem (the same coarse far grass
+  through a 180 as through a 16), it does not fix it.
+- Depth of field is not built yet.
+- The pane read 64 of 72 stills over budget, with Safari drawing beside it: not a clean reading.
+  The sheet has to be run in Safari alone.
