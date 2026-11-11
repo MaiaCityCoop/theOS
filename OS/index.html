@@ -283,7 +283,8 @@
   .etime{font:500 14px/1 var(--sans);font-variant-numeric:tabular-nums;color:rgba(251,246,234,.65)}.etime b{color:var(--cream);font-weight:600}
   .efull{width:34px;height:34px;flex:none;border:0;border-radius:50%;background:rgba(251,246,234,.1);color:var(--cream);cursor:pointer;display:grid;place-items:center}
   .efull:hover{background:rgba(251,246,234,.2)}.efull svg{width:15px;height:15px}
-  .player:fullscreen{border-radius:0;width:100vw!important;height:100vh!important;aspect-ratio:auto}
+  .player:fullscreen{border-radius:0;width:100vw!important;height:100vh!important;aspect-ratio:auto;background:#000;display:grid;place-items:center}
+  .player:fullscreen iframe{position:static;width:min(100vw,calc(100vh * 2.39));height:auto;aspect-ratio:2.39/1}   /* full screen keeps the film's shape: black above and below */
   .eshot{margin-left:auto;font:440 17px/1 var(--serif);font-variation-settings:var(--soft);color:rgba(251,246,234,.85)}
   .etracks{display:grid;grid-template-columns:96px minmax(0,1fr);column-gap:10px;user-select:none;-webkit-user-select:none}
   .elabs,.elanes{display:grid;grid-template-rows:16px 20px 56px 22px 22px 22px;row-gap:4px}

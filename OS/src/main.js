@@ -87,12 +87,13 @@ function shelf() {
 async function story(s, show = true) {
   current = s;
   const md = await get(`/api/stories/${s.id}/story.md`).then((r) => r.text()), d = $('storyedit');
-  d.innerHTML = `<header class="studiohead"><button class="btn small quiet" data-do="shelf">← Stories</button><h1>${s.title}</h1><span class="chip">Day ${n(s.day || 1)}${s.inGame != null ? ' · ' + (s.inGame === 1 ? '1 citizen' : n(s.inGame) + ' citizens') : ''}</span><button class="btn small quiet" data-do="intent">Its intent</button></header>` +
+  d.innerHTML = `<header class="studiohead"><button class="btn small quiet" data-do="shelf">← Stories</button><h1>${s.title}</h1><span class="chip">Day ${n(s.day || 1)}${s.inGame != null ? ' · ' + (s.inGame === 1 ? '1 citizen' : n(s.inGame) + ' citizens') : ''}</span>${s.film ? '<button class="btn small quiet" data-do="retake" title="Take the preview picture again from the live scene, at the camera the story names">Retake picture</button>' : ''}<button class="btn small quiet" data-do="intent">Its intent</button></header>` +
     (s.film ? `<div class="editpage"><div class="pstage"><div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div></div>${EDIT}</div>` : '') + `<div class="stagedoc"></div><nav class="pages"></nav>`;
   if (s.film) editor(d.querySelector('.edit'), d.querySelector('.player iframe'), s);
   pages(d, md, s.film);
   d.querySelector('[data-do=intent]').onclick = () => { tab('intents'); board(s.id); };
   d.querySelector('[data-do=shelf]').onclick = () => { current = null; tab('stories'); };
+  const rt = d.querySelector('[data-do=retake]'); if (rt) rt.onclick = () => { rt.textContent = 'Taking…'; rt.disabled = true; d.querySelector('.player iframe')?.contentWindow?.postMessage({ maia: 1, cmd: 'preview' }, '*'); };
   if (show) tab('stories');
 }
 
@@ -142,6 +143,7 @@ function editor(el, frame, story) {
       if (story?.shots >= clips.length) clips.forEach((c, i) => { q(`.eclip[data-i="${i}"]`).style.backgroundImage = `url(/api/stories/${story.id}/shots/${i}.jpg)`; });   // taken before: no run through the shots
       else if (!asked) { asked = true; say({ cmd: 'thumbs' }); }
     }
+    if (m.type === 'preview') { const b = document.querySelector('[data-do=retake]'); if (b) { b.textContent = m.ok ? 'Picture retaken' : 'No preview camera'; b.disabled = false; } }
     if (m.type === 'thumb') { const c = q(`.eclip[data-i="${m.i}"]`); if (c) c.style.backgroundImage = `url(${m.src})`; }
     if (m.type === 'time' && D) {
       if (m.playing !== playing) q('.eplay').classList.toggle('on', m.playing);

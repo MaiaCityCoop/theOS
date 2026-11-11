@@ -3,6 +3,7 @@
  "title": "It all starts with one tent on a green meadow",
  "day": 2,
  "inGame": 2,
+ "preview": { "pos": [-1246.6, 16, 611.0], "look": [-1271.6, -6.8, 636.0], "mm": 28 },
  "goals": [["Make a world", true], ["Put up one tent", true], ["Find human number two", true]],
  "clips": [
   {

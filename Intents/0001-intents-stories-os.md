@@ -725,6 +725,25 @@ _Samuel's decision._
   was hidden, which pauses animation. Whether the film is smoother in Safari is Samuel's eye.
   Full screen not tried (the pane does not allow it).
 
+### 2026-11-11, thirty-second round
+
+- **Asked:** full-screen playback should keep the aspect ratio with black bars above and
+  below. And: is the day 2 preview not live? The film is a dynamic virtual camera in the real
+  scene, configured, not rendered ahead.
+- **Answered:** the film is live: a camera configuration played in the real scene every time.
+  The preview picture and the timeline's shot stills are snapshots taken from that live camera
+  and kept as JPEGs, so cards and the timeline need no running game; they do not change when the
+  world does.
+- **Delivered:** full screen keeps 2.39:1 with black above and below. Story 01's
+  `timeline.json` now names its preview camera (`preview`: pos, look, mm), so the picture can be
+  taken again from the live scene; the studio has a "Retake picture" button that does it in the
+  film's own frame. The kept shot stills (taken on the dry land) are removed; they are taken
+  again, once, the next time the story is opened in a visible browser.
+- **Broke / not there yet:** retaking the preview from the app's hidden browser pane failed:
+  with the pane hidden the scene does not advance, and it kept the walker's starting view in a
+  4:3 frame; that picture was discarded and the previous one restored. The preview therefore
+  still shows the dry land until it is retaken in Safari with the button. Not tried.
+
 ## Trail
 
 | When | Commit | What |

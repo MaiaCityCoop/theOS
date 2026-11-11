@@ -80,7 +80,18 @@ async function keep(name) {
   if (!res.ok) throw new Error(await res.text());
   return `/timeline.html?tl=${name}`;
 }
-window.__timeline = { get seed() { return seed; }, set seed(v) { kept = keptClips = null; seed = v; build(); }, keep };
+// the story's preview picture, taken again from the live scene at the camera the story names ("preview": pos, look, mm)
+async function preview() {
+  if (!story?.preview) throw new Error('this story names no preview camera');
+  const k = { pos: story.preview.pos, look: story.preview.look, mm: story.preview.mm || 28 };
+  cine.load([{ name: 'preview', kind: 'wide', secs: 30, ease: 'inout', keys: [k, k] }]); cine.seek(5); cine.play();
+  await new Promise((r) => setTimeout(r, 3000)); cine.pause();
+  const { renderer, scene, camera } = window.__s8, g = renderer.domElement; renderer.render(scene, camera);
+  const c = document.createElement('canvas'); c.width = 1600; c.height = Math.round((1600 * g.height) / g.width); c.getContext('2d').drawImage(g, 0, 0, c.width, c.height);
+  const res = await fetch(`/story-preview?id=${storyId}`, { method: 'POST', body: c.toDataURL('image/jpeg', 0.86) });
+  build(); cine.play(); return res.text();
+}
+window.__timeline = { get seed() { return seed; }, set seed(v) { kept = keptClips = null; seed = v; build(); }, keep, preview };
 
 // In a frame (the dashboard's story editor): say what is playing, keep the frame told of the time, and take its
 // play, pause, seek, and a request for one still from the middle of every shot, for the editor's picture track.
@@ -93,6 +104,7 @@ if (parent !== window) {
   addEventListener('message', async (ev) => {
     const m = ev.data || {}; if (!m.maia) return;
     if (m.cmd === 'play') cine.play(); if (m.cmd === 'pause') cine.pause(); if (m.cmd === 'seek') cine.seek(m.t); if (m.cmd === 'film') film();
+    if (m.cmd === 'preview') send({ type: 'preview', ok: await preview().then(() => true, () => false) });
     if (m.cmd === 'thumbs' && !busy) {
       busy = true; const was = cine.playing, at = cine.time; cine.pause();
       for (let i = 0; i < cine.clips.length; i++) {
