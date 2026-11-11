@@ -6,12 +6,15 @@
 //   lods                      its levels of detail, near to far: { far, ...shape } is drawn up to `far` metres, and
 //                             past the last level nothing is. A shape is `faces` ([corner, corner, corner, colour], ...)
 //                             or `rock` (a rough rock of an icosphere divided that often), with `P` for scattered ones
+//   solid                     what a walker cannot pass: walls (rounds with gaps), posts, boxes, and the ceiling
+//                             overhead (src/world/solids.js); in the asset's own frame
 //   placement                 { at: 'places', ... } stood at a named place (src/world/places.js), or
 //                             { at: 'scatter', engine, cell, ... } spread over the land by the scatter engine
 //
 // Here they are listed, built into meshes level by level with the one lit material they share, and stood.
 import * as THREE from 'three';
 import { LIGHT_GLSL, heightAt } from '../src/world.js';
+import { addSolid } from '../src/world/solids.js';
 import belltent from './belltent.js';
 import stone from './stone.js';
 import boulder from './boulder.js';
@@ -67,6 +70,7 @@ export function place(scene, U, asset, at) {
   lod.rotation.y = at.yaw || 0;
   lod.name = asset.id;
   scene.add(lod);
+  if (at.solid !== false) addSolid(asset.solid, at);   // the walker cannot walk through it
   return lod;
 }
 

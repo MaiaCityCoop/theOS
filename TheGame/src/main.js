@@ -45,13 +45,14 @@ const U = createUniforms(camera, SKY);
 const governor = createGovernor(renderer);
 stats.governor = governor;   // the film holds it still while it plays
 const tex = bakeTextures(renderer);
-U.tNoise = { value: tex.a[7] };
+U.tNoise = { value: tex.of('noise').a };
 const ground = createGround(renderer, U);
 stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage things (the library)
 const terrain = createTerrain(scene, U, tex);
 const scatter = createScatter(scene, U, tex);
 for (const at of Object.values(PLACES)) place(scene, U, ASSETS[at.asset], at);   // what stands at a named place, from the asset library
 const controls = createControls(camera, canvas, document.getElementById('msg'));
+stats.controls = controls;
 const post = createPost(renderer, SKY);
 const hud = createHud(document.getElementById('hud'), renderer, camera, governor, stats);
 spawn(controls);

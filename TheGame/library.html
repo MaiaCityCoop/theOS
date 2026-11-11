@@ -22,6 +22,7 @@
   .item:hover{background:rgba(251,246,234,.55)}
   .item.on{background:rgba(255,255,255,.66)}
   .item.on::before{content:'';position:absolute;left:-1px;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--sun)}
+  .group{font:500 10.5px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:rgba(251,246,234,.8);text-shadow:0 1px 3px rgba(0,0,0,.45);margin:8px 0 2px 8px}.group:first-child{margin-top:2px}
   .item canvas{width:34px;height:34px;border-radius:9px;background:rgba(23,54,85,.85);flex:none}
   .item b{display:block;font:500 13.5px/1.2 var(--sans);color:var(--navy)}.item small{display:block;font-size:11.5px;color:var(--forest2);opacity:.8;text-transform:capitalize}
   .side{position:fixed;top:14px;right:14px;z-index:3;width:210px;max-height:calc(100vh - 110px);overflow:auto;padding:12px 14px;border-radius:18px;color:var(--forest)}
@@ -31,6 +32,8 @@
   .right p{margin:0 0 10px;color:var(--forest2);font-size:12.5px;line-height:1.4}
   .right dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0;font-size:11.5px}
   .right dt{color:var(--forest2);opacity:.7}.right dd{margin:0;color:var(--forest);font-variant-numeric:tabular-nums;word-break:break-word}
+  .seed{display:flex;align-items:center;gap:8px;margin:10px 0 0;padding-top:10px;border-top:1px solid rgba(31,58,44,.12);font-size:11.5px}.seed b{font-variant-numeric:tabular-nums;color:var(--navy);flex:1}
+  .seed button{font:500 11.5px/1 var(--sans);color:var(--cream);background:var(--navy);border:0;border-radius:999px;padding:7px 11px;cursor:pointer}.seed button.q{background:none;color:var(--forest2);box-shadow:inset 0 0 0 1px rgba(31,58,44,.25)}
   .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
   .hint{position:fixed;left:50%;transform:translateX(-50%);top:16px;z-index:2;font-size:12px;color:rgba(251,246,234,.75);text-shadow:0 1px 3px rgba(0,0,0,.5)}
   @media (max-width:760px){.side.right{display:none}#list{width:170px}}
@@ -41,7 +44,7 @@
 <div id="hud">loading…</div>
 <div id="msg"></div>
 <div id="orbit"></div>
-<nav id="list" aria-label="Assets"></nav>
+<nav id="list" aria-label="The library"></nav>
 <aside class="side right glass2" id="info"></aside>
 <span class="hint">drag to circle · wheel to come closer</span>
 <script type="module" src="/cine/cine.js"></script>
@@ -56,6 +59,8 @@ import { ASSETS, geometryOf, materialFor, place, facesOf, scatterRow } from './a
 import { rockSample } from './src/scatter/rocks.js';
 import { STAGE } from './src/world/places.js';
 import { heightAt } from './src/world.js';
+import { MATERIALS, MATERIAL } from './materials/index.js';
+import { materialPreview } from './src/materials/preview.js';
 const q = new URLSearchParams(location.search), cine = window.__cine;
 const hex = (c) => '#' + c.map((v) => Math.round(Math.min(1, v) * 255).toString(16).padStart(2, '0')).join('');
 const ids = Object.keys(ASSETS), most = (v) => (Array.isArray(v) ? v[1] : v), span = (v) => (Array.isArray(v) ? `${v[0]} to ${v[1]}` : v);
@@ -64,8 +69,13 @@ const { scene, U, ground, tex } = window.__s8;
 ground.stage(STAGE.x, STAGE.z, STAGE.r);
 
 // the list: each asset with a small picture of its nearest level
-document.getElementById('list').innerHTML = ids.map((id) => `<button class="item glass2" data-id="${id}"><canvas width="72" height="72"></canvas><span><b>${ASSETS[id].name}</b><small>${ASSETS[id].kind}</small></span></button>`).join('');
-for (const b of document.querySelectorAll('.item')) {
+document.getElementById('list').innerHTML = '<div class="group">Assets</div>' + ids.map((id) => `<button class="item glass2" data-id="${id}"><canvas width="72" height="72"></canvas><span><b>${ASSETS[id].name}</b><small>${ASSETS[id].kind}</small></span></button>`).join('')
+  + '<div class="group">Materials</div>' + MATERIALS.map((m) => `<button class="item glass2" data-mat="${m.id}"><canvas width="72" height="72"></canvas><span><b>${m.name}</b><small style="text-transform:none">${m.usedBy.split(";")[0]}</small></span></button>`).join('');
+for (const b of document.querySelectorAll('.item[data-mat]')) {   // a material's picture: its own baked tile
+  const c = b.querySelector('canvas'), g = c.getContext('2d'), sw = MATERIAL[b.dataset.mat].swatch; g.fillStyle = hex(sw.map((v) => Math.sqrt(v))); g.fillRect(0, 0, 72, 72);
+  b.onclick = () => chooseMaterial(b.dataset.mat);
+}
+for (const b of document.querySelectorAll('.item[data-id]')) {
   const a = ASSETS[b.dataset.id], r = new THREE.WebGLRenderer({ canvas: b.querySelector('canvas'), antialias: true, alpha: true }), sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(32, 1, 0.05, 100);
   sc.add(new THREE.HemisphereLight(0xdbe9ff, 0x4a5a3a, 1.4)); const sun = new THREE.DirectionalLight(0xfff1d6, 2.2); sun.position.set(4, 7, 3); sc.add(sun);
   sc.add(new THREE.Mesh(geometryOf(a), new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.9 })));
@@ -76,25 +86,27 @@ for (const b of document.querySelectorAll('.item')) {
 }
 
 // the stage: what stands on it now
-let staged = null, ground0 = heightAt(STAGE.x, STAGE.z), H = 1, yaw = 2.6, pitch = 0.32, dist = 9, spin = true;
+let staged = null, ground0 = heightAt(STAGE.x, STAGE.z), H = 1, yaw = 2.6, pitch = 0.32, dist = 9, spin = true, seed = null;
+function clearStage() { if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); staged = null; } }
 function stageAsset(a) {
-  if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); }
+  clearStage();
   if (a.placement.at === 'scatter') {   // a few of its kind, small to large, lying about the middle
-    staged = new THREE.Group(); const row = scatterRow(a), [lo, hi] = a.size.length;
+    staged = new THREE.Group(); const row = { ...scatterRow(a), seed: seed ?? a.placement.seed }, [lo, hi] = a.size.length;
     for (let i = 0; i < 7; i++) {
       const k = i / 6, s = lo + (hi - lo) * k ** 1.6, t = i * 2.4, rr = i ? (hi * 0.7 + 0.4) * Math.sqrt(i) * 0.55 : 0;
       const m = rockSample(U, tex, row, a.lods[0].rock, i % 3), x = STAGE.x + Math.cos(t) * rr, z = STAGE.z + Math.sin(t) * rr;   // the world's own rock: its texture, its moss
       m.scale.set(s, s * 0.8, s); m.renderOrder = 1; m.position.set(x, heightAt(x, z) - s * 0.25, z); m.rotation.y = t * 1.7; staged.add(m);   // drawn after the ground, as the world's own things are
     }
     scene.add(staged);
-  } else staged = place(scene, U, a, { x: STAGE.x, z: STAGE.z, yaw: 0.6 });
+  } else staged = place(scene, U, a, { x: STAGE.x, z: STAGE.z, yaw: 0.6, solid: false });
 }
-function choose(id) {
-  const a = ASSETS[id]; stageAsset(a);
+function choose(id, keepSeed) {
+  const a = ASSETS[id]; if (!keepSeed) seed = null; stageAsset(a);
   H = a.placement.at === 'scatter' ? most(a.size.height) * 0.5 : most(a.size.height);
   dist = a.placement.at === 'scatter' ? Math.max(4, most(a.size.length) * 4.5) : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 2.2;
   pitch = a.placement.at === 'scatter' ? 0.55 : 0.32; spin = true;
   document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
+  const s0 = a.placement.seed, seeded = s0 != null;
   const where = a.placement.at === 'scatter' ? `scattered over ${a.placement.outcrops ? 'the outcrops' : 'all the land'}, at most one every ${a.placement.cell} m` : 'stood at a named place';
   document.getElementById('info').innerHTML = `<span class="label">Asset</span><h2>${a.name}</h2><p>${a.about || ''}</p><dl>
     <dt>Kind</dt><dd style="text-transform:capitalize">${a.kind}</dd>
@@ -102,8 +114,38 @@ function choose(id) {
     <dt>Detail</dt><dd>${a.lods.map((l, i) => `${i ? 'then' : 'up to'} ${l.far} m · ${facesOf(l)} faces`).join('<br>')}<br>none past ${a.lods[a.lods.length - 1].far} m</dd>
     <dt>Colours</dt><dd>${Object.entries(a.colours || {}).map(([k, c]) => `<span class="sw" style="background:${hex(c)}"></span>${k}`).join('<br>')}</dd>
     <dt>Placed</dt><dd>${where}</dd>
-    <dt>File</dt><dd>TheGame/assets/${a.id}.js</dd></dl>`;
+    <dt>File</dt><dd>TheGame/assets/${a.id}.js</dd></dl>${seeded ? `<div class="seed"><span class="label" style="margin:0">Seed</span><b>${seed ?? s0}${seed != null && seed !== s0 ? '' : ' · its own'}</b>${seed != null && seed !== s0 ? '<button class="q" id="seed0">Own</button>' : ''}<button id="seedR">Random</button></div>` : ''}`;
+  if (seeded) {   // a procedural asset made again from another seed: the same recipe, another of its kind; the file keeps its own
+    document.getElementById('seedR').onclick = () => { seed = Math.floor(Math.random() * 100000); choose(id, true); };
+    const o = document.getElementById('seed0'); if (o) o.onclick = () => { seed = null; choose(id, true); };
+  }
   history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}asset=${id}`);
+}
+// a material: a ball of it in the middle of the stage, and the stage's round floor laid in it, lit like the world
+const floorGeo = (() => {   // the stage's round, following the land under it
+  const g = new THREE.CircleGeometry(STAGE.r + 0.2, 96, 0, Math.PI * 2); g.rotateX(-Math.PI / 2);
+  const p = g.attributes.position; for (let i = 0; i < p.count; i++) { const x = STAGE.x + p.getX(i), z = STAGE.z + p.getZ(i); p.setXYZ(i, x, heightAt(x, z) + 0.025, z); }
+  g.computeVertexNormals(); return g;
+})();
+const ballGeo = new THREE.SphereGeometry(1.1, 128, 96);
+function chooseMaterial(id) {
+  const m = MATERIAL[id]; clearStage(); staged = new THREE.Group();
+  const mat = materialPreview(U, tex.of(id), 2), y = heightAt(STAGE.x, STAGE.z);
+  const ball = new THREE.Mesh(ballGeo, mat), floor = new THREE.Mesh(floorGeo, mat);
+  ball.position.set(STAGE.x, y + 1.15, STAGE.z);
+  for (const o of [ball, floor]) { o.renderOrder = 1; o.frustumCulled = false; staged.add(o); }
+  staged.traverse = (f) => f(staged);   // its geometries are shared: nothing to free when it goes
+  scene.add(staged);
+  H = 1.3; dist = 9.5; pitch = 0.5; spin = true;
+  document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', b.dataset.mat === id));
+  document.getElementById('info').innerHTML = `<span class="label">Material</span><h2>${m.name}</h2><p>${m.about}</p><dl>
+    <dt>Used by</dt><dd>${m.usedBy.replace(/; /g, '<br>')}</dd>
+    <dt>Colour</dt><dd><span class="sw" style="background:${hex(m.swatch.map((v) => Math.sqrt(v)))}"></span>at a glance</dd>
+    <dt>Relief</dt><dd>${m.bump} (smaller is deeper)</dd>
+    <dt>Baked</dt><dd>1024² albedo + height, normal + roughness</dd>
+    <dt>Number</dt><dd>${MATERIALS.indexOf(m)} in the land's shaders</dd>
+    <dt>File</dt><dd>TheGame/materials/${m.id}.js</dd></dl>`;
+  history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}material=${id}`);
 }
 const orbit = document.getElementById('orbit');
 orbit.onpointerdown = (e) => { spin = false; orbit.setPointerCapture(e.pointerId); orbit.onpointermove = (m) => { yaw -= m.movementX * 0.008; pitch = Math.max(0.06, Math.min(1.35, pitch + m.movementY * 0.006)); }; };
@@ -115,7 +157,8 @@ function frame() {
   const ty = ground0 + H * 0.45, c = Math.cos(pitch);
   cine.take({ pos: [STAGE.x + Math.sin(yaw) * c * dist, ty + Math.sin(pitch) * dist, STAGE.z + Math.cos(yaw) * c * dist], look: [STAGE.x, ty, STAGE.z], mm: 35 });
 }
-choose(ASSETS[q.get('asset')] ? q.get('asset') : ids[0]); requestAnimationFrame(frame);
+if (MATERIAL[q.get('material')]) chooseMaterial(q.get('material')); else choose(ASSETS[q.get('asset')] ? q.get('asset') : ids[0]);
+requestAnimationFrame(frame);
 </script>
 </body>
 </html>

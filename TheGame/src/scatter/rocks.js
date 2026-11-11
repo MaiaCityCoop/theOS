@@ -140,7 +140,7 @@ export function rockSample(U, tex, row, detail = 2, shape = 0) {
   const ig = rockGeometry(detail, row.seed + shape * 7), g = new THREE.BufferGeometry();   // the rock's shape is made for instancing; one on its own is a plain geometry
   g.setAttribute('position', ig.attributes.position); g.setAttribute('normal', ig.attributes.normal); g.setIndex(ig.index);
   return new THREE.Mesh(g, new THREE.ShaderMaterial({ vertexShader: SAMPLE_VERT, fragmentShader: FRAG,
-    uniforms: { ...U, tA: { value: tex.a[4] }, tN: { value: tex.n[4] }, tM: { value: tex.a[0] }, uTex: { value: row.texture }, uTintS: { value: new THREE.Vector3(0.05, 0.13, 0.02) } } }));
+    uniforms: { ...U, tA: { value: tex.of('rock').a }, tN: { value: tex.of('rock').n }, tM: { value: tex.of('meadow').a }, uTex: { value: row.texture }, uTintS: { value: new THREE.Vector3(0.05, 0.13, 0.02) } } }));
 }
 
 /** The assets of kind `rocks`: for each a tier per row of its table. */
@@ -153,7 +153,7 @@ export function createRocks(scene, U, tex, asset) {
       uniforms: {
         ...U, uNear: { value: li ? lods[li - 1].far : -1 }, uFar: { value: L.far },
         uSizeMin: { value: asset.size[0] }, uSizeMax: { value: asset.size[1] }, uVar: { value: v }, uVars: { value: asset.shapes }, uFade: { value: lods[lods.length - 1].far }, uBig: { value: big ? 1 : 0 },
-        tA: { value: tex.a[4] }, tN: { value: tex.n[4] }, tM: { value: tex.a[0] }, uTex: { value: asset.texture },
+        tA: { value: tex.of('rock').a }, tN: { value: tex.of('rock').n }, tM: { value: tex.of('meadow').a }, uTex: { value: asset.texture },
       },
     });
     tiers.push(new Tier(scene, g, mat, { cell: asset.cell, P: L.P, near: li ? lods[li - 1].far : 0, far: L.far, order: 1 }));

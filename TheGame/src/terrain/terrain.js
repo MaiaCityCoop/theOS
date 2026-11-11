@@ -43,15 +43,15 @@ export function createTerrain(scene, U, tex) {
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {
       ...U, ...common,
-      tA0: { value: tex.a[0] }, tA1: { value: tex.a[1] }, tA2: { value: tex.a[2] }, tA3: { value: tex.a[3] }, tA4: { value: tex.a[4] },
-      tA6: { value: tex.a[6] }, tN6: { value: tex.n[6] },
-      tN0: { value: tex.n[0] }, tN1: { value: tex.n[1] }, tN2: { value: tex.n[2] }, tN3: { value: tex.n[3] }, tN4: { value: tex.n[4] },
+      tA0: { value: tex.of('meadow').a }, tA1: { value: tex.of('dryearth').a }, tA2: { value: tex.of('sand').a }, tA3: { value: tex.of('path').a }, tA4: { value: tex.of('rock').a },
+      tA6: { value: tex.of('grasscarpet').a }, tN6: { value: tex.of('grasscarpet').n },
+      tN0: { value: tex.of('meadow').n }, tN1: { value: tex.of('dryearth').n }, tN2: { value: tex.of('sand').n }, tN3: { value: tex.of('path').n }, tN4: { value: tex.of('rock').n },
     },
   });
   const waterMat = new THREE.ShaderMaterial({
     vertexShader: '#define WATER\n' + VERT, fragmentShader: WATER_FRAG, transparent: true, depthWrite: false,
     polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4,   // far off the depth buffer cannot tell water from its bed: the water wins
-    uniforms: { ...U, ...common, tWN: { value: tex.n[5] }, tWA: { value: tex.a[5] } },
+    uniforms: { ...U, ...common, tWN: { value: tex.of('water').n }, tWA: { value: tex.of('water').a } },
   });
   const landMesh = new THREE.Mesh(land.g, landMat), waterMesh = new THREE.Mesh(water.g, waterMat);
   landMesh.frustumCulled = waterMesh.frustumCulled = false;

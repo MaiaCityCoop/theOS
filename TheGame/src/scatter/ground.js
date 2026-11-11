@@ -14,19 +14,20 @@ uniform vec2 uGO; uniform float uGBase, uGTexel; uniform vec2 uTent; uniform flo
 void main(){
   vec2 pos = uGO + floor(gl_FragCoord.xy) * uGTexel;
   vec3 R = riverR(pos); float w = riverW(pos), d = riverDist(R);
-  float arid = aridMask(pos);
+  float sbx = uStage.z > 0.0 ? 1.0 - smoothstep(220.0, 340.0, length(pos - uStage.xy)) : 0.0;   // around the library's stage, a clean sandbox: meadow, only grass
+  float arid = (1.0 - sbx) * aridMask(pos);
 #ifdef TINT
   vec4 t = grassTint(pos, arid);
   if (uStage.z > 0.0) t = mix(vec4(0.30, 0.24, 0.15, 1.0), t, smoothstep(uStage.z - 0.5, uStage.z + 0.7, length(pos - uStage.xy)));   // the stage: dry, bare earth
   gl_FragColor = vec4(sqrt(t.rgb), t.a);
 #else
-  float path = pathMask(pathN(pos)), oc = outcropMask(pos);
-  float dens = (1.0 - path) * (1.0 - bankMask(d, w)) * (1.0 - bareMask(pos)) * (1.0 - oc * 0.25) * mix(1.0, 0.45 * tuftMask(pos), arid);
-  dens *= smoothstep(uTentR - 1.2, uTentR, length(pos - uTent));   // the tent's floor is kept clear
+  float path = (1.0 - sbx) * pathMask(pathN(pos)), oc = (1.0 - sbx) * outcropMask(pos);
+  float dens = (1.0 - path) * (1.0 - bankMask(d, w)) * (1.0 - (1.0 - sbx) * bareMask(pos)) * (1.0 - oc * 0.25) * mix(1.0, 0.45 * tuftMask(pos), arid);
+  dens *= smoothstep(uTentR - 0.4, uTentR + 0.3, length(pos - uTent));   // the tent's floor is kept clear, right to its walls
   float bare = uStage.z > 0.0 ? smoothstep(uStage.z - 0.5, uStage.z + 0.7, length(pos - uStage.xy)) : 1.0;   // the library's stage: a round of bare ground
   dens *= bare;
-  float stone = (0.07 + 0.3 * arid + 0.45 * (1.0 - smoothstep(w * 0.6, w + 4.0, d)) + 0.5 * oc) * (1.0 - path * 0.8);
-  stone *= bare;
+  float stone = smoothstep(uTentR - 0.4, uTentR + 0.3, length(pos - uTent)) * (0.07 + 0.3 * arid + 0.45 * (1.0 - smoothstep(w * 0.6, w + 4.0, d)) + 0.5 * oc) * (1.0 - path * 0.8);
+  stone *= bare * (1.0 - sbx);
   gl_FragColor = vec4(heightAt(pos, camDist(pos), d, w) - uGBase, dens, arid, stone);   // heights from a base near by: small numbers keep a half float exact to the centimetre
 #endif
 }`;

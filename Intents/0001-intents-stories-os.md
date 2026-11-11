@@ -953,6 +953,34 @@ _Samuel's decision._
 - **Broke / not there yet:** biomes and materials as configurable registries: proposed in the
   reply, not built.
 
+### 2026-11-11, forty-sixth round
+
+- **Asked:** materials first: each in its own file, the world drawn from them; a random-seed button
+  on the asset card for procedural assets; a proper inside to the bell tent, walked into through its
+  door, with a real tent floor; the material viewer as one sphere in the middle with the material
+  on the stage's round floor; around the library's stage only grass. Also asked: is React used
+  (no: plain JavaScript, three.js, Vite; nothing to replace), and should the whole world come
+  together from single-source config files per asset, material and biome (yes: the direction).
+- **Delivered:** `TheGame/materials/` holds the eight materials, one file each in one recipe (id,
+  name, about, usedBy, swatch, bump, paint as GLSL), listed in `materials/index.js`; the baker
+  bakes whatever is listed there and the world asks for a material by its id (`tex.of('rock')`).
+  The library lists Assets and Materials; a material shows on a ball in the middle and on the
+  stage's round floor, with its card (used by, relief, file). Procedural assets (stones, boulders)
+  get a Seed row with Random and Own. Around the stage, 220–340 m out, the land is a clean meadow:
+  no dry land, paths, bare patches or stones. The bell tent's nearest level has a real door
+  opening following its line, a warm lining, a sewn-in groundsheet turned up the wall with a sill,
+  a rug, a cot with mattress, blanket and pillow, a crate with a candle lamp, a stool, a chest and
+  a lantern on the pole. A new `solid` field in the asset recipe (walls as rounds with gaps,
+  posts, boxes, the ceiling overhead) is read by `src/world/solids.js`: the walker comes in only
+  through the door, is stopped by the pole and the furniture, and stoops under the low roof.
+- **Good:** seen in the pane: the world renders the same from the registry; rock and path on the
+  ball and the floor; Random gives the boulders new shapes; in the game, walking in through the
+  door and stopping at the pole and the cot; the door's edge smooth, the floor and rug through it.
+- **Broke / not there yet:** the biome registry (meadow, dry land, riverbank, river, grass moved
+  into them) is next; the material list's pictures are the swatch colour, not the baked tile; the
+  inside is lit like the outside (no shade under the canvas); day 2's picture and stills still to
+  be retaken.
+
 ## Trail
 
 | When | Commit | What |

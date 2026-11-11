@@ -73,7 +73,8 @@ void main(){
   float m1 = texture(tNoise, vec2(0.8 * p.x + 0.6 * p.y, -0.6 * p.x + 0.8 * p.y) * (1.0 / 97.0) + 0.37).b - 0.5, m2 = texture(tNoise, pr * (1.0 / 700.0)).a - 0.5, m3 = texture(tNoise, p * (1.0 / 4500.0) + 0.11).r - 0.5;
   float macro = 1.0 + 0.16 * m1 + 0.20 * m2 + 0.18 * m3;
   // what grows here is worked out per pixel (per vertex it went blocky far away), each noise again let go in time
-  float vArid = smoothstep(0.50, 0.66, vnoise(p * (1.0 / 700.0), 50u) + 0.3 * (vnoise(p * (1.0 / 150.0), 51u) - 0.5) * (1.0 - smoothstep(3000.0, 8000.0, dist)));
+  float sbx = uStage.z > 0.0 ? 1.0 - smoothstep(220.0, 340.0, length(p - uStage.xy)) : 0.0;   // around the library's stage: a clean sandbox of meadow, nothing but grass
+  float vArid = (1.0 - sbx) * smoothstep(0.50, 0.66, vnoise(p * (1.0 / 700.0), 50u) + 0.3 * (vnoise(p * (1.0 / 150.0), 51u) - 0.5) * (1.0 - smoothstep(3000.0, 8000.0, dist)));
   float ta = clamp((texture(tNoise, p * (1.0 / 150.0)).r + texture(tNoise, pr * (1.0 / 397.0)).a - 1.0) * 0.8 + 0.5, 0.0, 1.0), tb = texture(tNoise, pr * (1.0 / 45.0)).g;
   vec4 vTint = grassTintAB(ta, tb, vArid);
   float vTuft = vArid > 0.003 && dist < 900.0 ? mix(tuftMask(p), 0.5, smoothstep(350.0, 900.0, dist)) : 0.5;
@@ -85,8 +86,8 @@ void main(){
   vec2 gq = gn2.xy * 2.0 - 1.0; gq = vec2(0.6 * gq.x + 0.8 * gq.y, -0.8 * gq.x + 0.6 * gq.y);
   vec2 gnrm = mix(gn1.xy * 2.0 - 1.0, gq, gk) * (1.0 - 0.7 * gk2);
   float d = riverDist(vR), w = vW;
-  float path = pathMask(vPth) * (1.0 - smoothstep(70.0, 220.0, dist));   // a path is a thing of the near ground; from afar it was a drawn line
-  float bare = dist < 160.0 ? bareMask(p) * (1.0 - smoothstep(100.0, 160.0, dist)) : 0.0;
+  float path = (1.0 - sbx) * pathMask(vPth) * (1.0 - smoothstep(70.0, 220.0, dist));   // a path is a thing of the near ground; from afar it was a drawn line
+  float bare = dist < 160.0 ? (1.0 - sbx) * bareMask(p) * (1.0 - smoothstep(100.0, 160.0, dist)) : 0.0;
   if (uStage.z > 0.0) bare = max(bare, 1.0 - smoothstep(uStage.z - 0.5, uStage.z + 0.7, length(p - uStage.xy)));   // the library's stage: a round of bare, dry earth
 
   Mat m = smp(tA0, tN0, p, dx, dy, 2.0, 3.2, mx);
@@ -98,7 +99,7 @@ void main(){
     if (sp > 0.003) { sand = smp(tA2, tN2, p, dx, dy, 2.0, 3.2, mx); haveSand = true; c = hblend(c, sand, sp); }
     m = hblend(m, c, vArid);
   }
-  float bd = max(bare * (1.0 - vArid), vOut * 0.25);
+  float bd = max(bare * (1.0 - vArid), vOut * 0.25 * (1.0 - sbx));
   if (bd > 0.003 || path > 0.003) { dirt = smp(tA3, tN3, p, dx, dy, 2.0, 3.2, mx); haveDirt = true; }
   if (bd > 0.003) m = hblend(m, dirt, bd);
   // the grass's own colour over the floor, more of it the farther away: where the blades end, nothing shows
