@@ -608,3 +608,4 @@ _Samuel's decision._
 | 2026-11-11 | `f2669f9` | One title in the film window, the large play from the start in full screen |
 | 2026-11-11 | `2b90a8c` | Play and figures centred, subtitles lifted |
 | 2026-11-11 | `59cd937` | Title in the upper third, subtitles under the play |
+| 2026-11-11 | `3aedce8` | More dry land, day 2 preview from the game, Lenses tile, legacy pill and sheets |
