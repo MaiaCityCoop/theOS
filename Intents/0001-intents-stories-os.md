@@ -143,6 +143,8 @@ _Samuel's decision._
 - [x] The story retold by avenMAIA; captions as subtitles
 - [x] `TheStory/` renamed `Stories/`
 - [x] Samuel looked again: brand again from the mark, liquid glass, the Game tab's bug, the film with its story
+- [x] Samuel looked again: story as a dialogue from day 1, a tent, the timeline redesigned, four brand sheets
+- [ ] Samuel: choose a brand sheet (or parts of several); then the product is restyled once, to that
 - [ ] Samuel: look again; accept or say what is wrong
 - [ ] Samuel: his opening to camera for story 01
 - [ ] Then: the Story section here
@@ -217,6 +219,39 @@ _Samuel's decision._
 - **Broke / not there yet:** the two bugs above reached Samuel because the dashboard's Game tab
   was not clicked through after its rewrite. The third brand has been seen by me only, in the
   pane; whether it is right is Samuel's eye. The game's own page title still says "Sandbox 8".
+
+### 2026-11-11, fourth round
+
+- **Asked:** the third brand is too playful and the timeline badly designed: a complete rethink,
+  solarpunk, an iconic identity. The headline should be the series' line: the story of how one
+  million humans build their own solarpunk city from the ground up, in just 16 years. The story
+  should begin with a green meadow and one tent, grow with citizens, be day 1 ("today I am
+  alone, tomorrow we will see"), and be a real dialogue between Samuel and Maia, each in their
+  own voice, never "aven" or "AI". Then: the brand is a catastrophe; make four standalone brand
+  sheets instead, to find the direction together.
+- **Delivered:**
+  - Story 01 is now *A green meadow and one tent*, Maia City day 1: nineteen lines, five of them
+    Samuel's own words from the session, the rest Maia's; the speaker's name stands over each
+    subtitle. The skill holds the three rules (a dialogue; never "aven", "AI" or "AGI"; Samuel's
+    lines are his own words).
+  - The first tent stands in the world (`src/scatter/tent.js`, at `src/world/places.js`), on the
+    meadow where the film goes down into the grass; no grass grows through its floor.
+  - The film's controls redesigned: one bar, play, the shot's name, the film as a line with one
+    stretch per shot and the acts named under it, a sun as the playhead, the time.
+  - The front page's headline is the series' line.
+  - A fourth look (quiet serif, brass, an arched window), which Samuel turned down as well.
+  - `brand/sheets/`: four standalone sheets on the same content (name and mark, headline, colour,
+    type, the board's pieces, the film with subtitle and timeline): **A Atelier** (bookish serif,
+    hairlines, brass), **B Glasshouse** (bright, frosted, modern sans, one living green),
+    **C Nightgarden** (dark, gold, cinematic), **D Field** (clay and olive, condensed capitals,
+    hard edges). An overview page shows the four side by side.
+- **Good:** all four sheets drew as meant; the tent is in the grass shot; the dialogue's names
+  show over the lines.
+- **Broke / not there yet:** four takes at the brand were built into the product before asking
+  what it should look like; the sheets should have come first. The live pages still wear the
+  fourth, rejected look until a sheet is chosen. From straight above, the tent sits at the edge
+  of the frame and is easy to miss. A grid mistake put the time beside the play button instead
+  of at the right end; fixed in the sheets and in the film's bar, the bar not looked at again.
 
 ## Trail
 

@@ -13,7 +13,8 @@
   /* The film's controls: one quiet bar. Left, play. Middle, what is on screen now, over the film
      as a line: one stretch per shot, the acts named under it. Right, the time. */
   #tl{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:20px;align-items:center;padding:14px 22px 12px 14px}
-  #play{grid-row:1 / span 3;width:46px;height:46px;border-radius:50%;border:0;background:var(--forest);cursor:pointer;position:relative;transition:background .2s}
+  #meta,#track,#acts{grid-column:2}
+  #play{grid-column:1;grid-row:1 / span 3;width:46px;height:46px;border-radius:50%;border:0;background:var(--forest);cursor:pointer;position:relative;transition:background .2s}
   #play:hover{background:var(--ink)}
   #play::before{content:'';position:absolute;left:19px;top:15px;border:8px solid transparent;border-left:13px solid var(--paper);border-right:0}
   #play.on::before{left:16px;top:15px;width:4px;height:16px;border:0;border-left:5px solid var(--paper);border-right:5px solid var(--paper)}
@@ -21,7 +22,7 @@
   #shot{font:400 19px/1.1 var(--serif);color:var(--forest);overflow:hidden;text-overflow:ellipsis}
   #lens{font:500 12px/1 var(--sans);color:var(--muted);letter-spacing:.02em}
   #why{font:400 12.5px/1 var(--sans);color:var(--muted);overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;text-align:right}
-  #time{grid-row:1 / span 3;white-space:nowrap;font:500 12px/1 var(--mono);color:var(--ink-2);letter-spacing:.02em}
+  #time{grid-column:3;grid-row:1 / span 3;white-space:nowrap;font:500 12px/1 var(--mono);color:var(--ink-2);letter-spacing:.02em}
   #time b{font-weight:500;color:var(--forest)}
   #track{position:relative;height:26px;cursor:pointer;user-select:none;margin-top:4px}
   #segs{position:absolute;left:0;right:0;top:11px;display:flex;gap:5px}
