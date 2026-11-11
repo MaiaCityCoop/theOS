@@ -1128,3 +1128,4 @@ _Samuel's decision._
 | 2026-11-11 | `9183628` | Pebble material for stones; a meandering river in the sandbox; the library's section grid and switch |
 | 2026-11-11 | `7516baa` | One liquid glass; Home for Back; library Back to sections and better pictures; the far tent's open door |
 | 2026-11-11 | `7c229e4` | One liquid glass in the brand file for every card, side and pill; one pill height |
+| 2026-11-11 | `aad6a6d` | Words on glass as one standard; the grid alone; the diorama whole |
