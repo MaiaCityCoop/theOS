@@ -1103,6 +1103,23 @@ _Samuel's decision._
   navy), both taken back within the round. Over the brightest sky the words stand at about 3 : 1,
   held by their weight and shadow; day 2's picture and stills still to be retaken.
 
+### 2026-11-11, fifty-fourth round
+
+- **Asked:** the font and its shadow on the glass are bad, try a better one; and the see-through
+  glass as it was: its background was good already.
+- **Delivered:** the glass exactly as before (the cream sheen, the blur, nothing dimmed). The words
+  on it stay light and are set anew: the system's rounded letters (`--glass-font`: `ui-rounded`,
+  then the system's own, then Outfit) in place of Outfit, at semibold and bold (names 650, titles
+  700, text 550); a shadow in three fine layers (a hairline that draws the letter's edge, a short
+  drop, a faint wide breath) in place of the one soft dark one. A chosen item is glass warmed by the
+  sun, not brighter glass (white words would be lost on it). Only the two surfaces over the film's
+  bright sky (the goals, the day's figures) dim what is behind them (`--glass-blur-dim`): seen
+  without it, their words were all but lost.
+- **Good:** seen in the pane at true size: the light glass back, the words crisp over grass; the
+  goals readable over the sky with their dimming.
+- **Broke / not there yet:** the pane draws the system's plain letters where Safari draws its
+  rounded ones: the rounded cut not seen here; day 2's picture and stills still to be retaken.
+
 ## Trail
 
 | When | Commit | What |
