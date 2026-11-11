@@ -18,7 +18,7 @@
       "runtimeExecutable": "bash",
       "runtimeArgs": [
         "-c",
-        "cd TheGame && exec bunx --bun vite --port 5174 --strictPort"
+        "cd TheGame && VITE_OS=http://localhost:5181 exec bunx --bun vite --port 5174 --strictPort"
       ],
       "port": 5174
     },

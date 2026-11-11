@@ -581,6 +581,23 @@ _Samuel's decision._
   walked. The game's own top bar (on its pages opened directly) is unchanged. Day 2 has two
   citizens and the world still has one tent. Phone width and Safari not seen.
 
+### 2026-11-11, twenty-second round
+
+- **Asked:** yes, the game's own top bar becomes the pill too. The pill is far too large.
+  Compact and deduplicate the dashboard's header (the site's name, then "Inside", then the
+  name again).
+- **Delivered:** the game's pages opened on their own (walk, lenses, a film) carry the same
+  pill as the dashboard instead of the top bar: Back, home (the dashboard, `#city`), MC (the
+  front page); the film's and the lenses' bars stand above it. The game reads the dashboard's
+  address from `VITE_OS` (the worktree's game runs with 5181). The pill is smaller on both:
+  52 px tall, a 64 px home. Inside, the site's header is hidden and the dashboard has one line:
+  the mark, "Maia City", and the day with its citizens.
+- **Good:** seen in the pane at 1440: the dashboard's one-line header and small pill, the lens
+  bench with its bar above the pill, the drier land in the lens view.
+- **Broke / not there yet:** the game's own links to its kept timelines and stories (the old
+  top bar's) are gone from its pages; they are reached from the dashboard. Phone width and
+  Safari not seen.
+
 ## Trail
 
 | When | Commit | What |
