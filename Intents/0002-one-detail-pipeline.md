@@ -108,6 +108,10 @@ Samuel approved the definition on 2026-11-11 ("Approve, start stage 1").
   the rocks use them; terrain, grass and water do not yet.
 - The bell tent, stones and boulders carry `detail` blocks; the boulders keep their own `px` so they end near where
   they did (about a kilometre). The grass is not moved yet.
+- The terrain, grass and water joined the contract (weather and the clouds' shadow). Tried once in the game with
+  snow and fog turned up: the ground, grass, rocks and tent all whitened and greyed together; then back to neutral.
+- Asked on the way: one server for TheOS. The dashboard's Vite runs the game's inside it under `/game/`
+  (`OS/vite.config.js`); the game's routes and fetches follow its base. `bun run dev` starts both on 5180.
 - Asked on the way: the walker starts in front of the first tent's door (`spawn`, `src/camera/walk.js`); the tent
   stays where story 01's film frames it.
 
@@ -153,7 +157,7 @@ Samuel approved the definition on 2026-11-11 ("Approve, start stage 1").
   boulders' Detail tab lists its levels with their pixel bands and distances, and a click goes there; the 28 mm lens
   read 68 fps, 16.7 ms, 15 draws.
 - **Broke / not there yet:** the recorded 10 km flight (check 2) and the brightness check (5) are not run; weather and
-  clouds are slots only; terrain, grass and water are not on the contract yet; the grass keeps its own tiers.
+  clouds are slots only; the grass keeps its own tiers.
 
 ## Trail
 

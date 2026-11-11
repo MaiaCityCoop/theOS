@@ -57,7 +57,8 @@ void main(){
   vec3 V = normalize(uCam - vWorld);
   float thru = pow(max(dot(-V, uSunDir), 0.0), 2.0) * vT;         // light through the blade: the bright yellow-green of a lit meadow
   float sheen = pow(max(dot(n, normalize(V + uSunDir)), 0.0), 20.0) * 0.16 * vT;
-  vec3 col = vCol * (uAmb * (0.55 + 0.45 * vT) + uSun * (ndl * ndl * 1.1 + thru * vec3(0.5, 1.0, 0.22))) + uSun * sheen;
+  vec3 sun = uSun * cloudAt(vWorld);   // the shading contract (intent 0002): the clouds' shadow, the weather
+  vec3 col = weathered(vCol, n) * (uAmb * (0.55 + 0.45 * vT) + sun * (ndl * ndl * 1.1 + thru * vec3(0.5, 1.0, 0.22))) + sun * sheen;
   if (vFlower > 0.5 && vT > 0.86) col = vec3(0.92, 0.92, 0.86) * (uAmb + uSun * 0.7);
   gl_FragColor = toScreen(haze(col, length(uCam - vWorld)));
 }`;

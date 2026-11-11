@@ -7,19 +7,20 @@ export default {
   plugins: [{
     name: 'cine-keep',
     configureServer(server) {
-      server.middlewares.use('/cine/list', (req, res) => { // the kept timelines' names
+      const B = (server.config.base || '/').replace(/\/$/, '');   // '' on its own, '/game' inside the dashboard's server
+      server.middlewares.use(B + '/cine/list', (req, res) => { // the kept timelines' names
         let names = [];
         try { names = readdirSync(resolve(server.config.root, 'cine/timelines')).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).sort(); } catch {}
         res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(names));
       });
       // the brand, one file for every page of TheOS: ../brand
-      server.middlewares.use('/brand', (req, res) => {
+      server.middlewares.use(B + '/brand', (req, res) => {
         const f = resolve(server.config.root, '../brand', new URL(req.url, 'http://x').pathname.replace(/^\/+/, '').replace(/\.\./g, ''));
         if (!existsSync(f)) { res.statusCode = 404; res.end(''); return; }
         res.setHeader('content-type', f.endsWith('.css') ? 'text/css' : f.endsWith('.svg') ? 'image/svg+xml' : 'application/octet-stream'); res.end(readFileSync(f));
       });
       // the stories of the intents, from ../Stories: /story/list, /story/<id>/timeline.json
-      server.middlewares.use('/story', (req, res) => {
+      server.middlewares.use(B + '/story', (req, res) => {
         const dir = resolve(server.config.root, '../Stories'), url = new URL(req.url, 'http://x').pathname;
         res.setHeader('content-type', 'application/json');
         if (url === '/list') {
@@ -32,7 +33,7 @@ export default {
         res.end(readFileSync(resolve(dir, m[1], 'timeline.json')));
       });
       // a story's preview picture, filmed in the game: POST /story-preview?id=<story> with a JPEG data URL writes ../Stories/<id>/preview.jpg
-      server.middlewares.use('/story-preview', (req, res) => {
+      server.middlewares.use(B + '/story-preview', (req, res) => {
         const id = new URL(req.url, 'http://x').searchParams.get('id') || '', dir = resolve(server.config.root, '../Stories', id);
         if (req.method !== 'POST' || !/^[a-z0-9][a-z0-9-]*$/.test(id) || !existsSync(dir)) { res.statusCode = 400; res.end('POST, id of a story'); return; }
         let body = ''; req.on('data', (c) => { body += c; });
@@ -41,7 +42,7 @@ export default {
           writeFileSync(resolve(dir, 'preview.jpg'), Buffer.from(m[1], 'base64')); res.end('kept'); });
       });
       // a shot's still, taken once by the story editor: POST /story-shot?id=<story>&i=<shot> writes ../Stories/<id>/shots/<i>.jpg
-      server.middlewares.use('/story-shot', (req, res) => {
+      server.middlewares.use(B + '/story-shot', (req, res) => {
         const q = new URL(req.url, 'http://x').searchParams, id = q.get('id') || '', i = q.get('i') || '', dir = resolve(server.config.root, '../Stories', id);
         if (req.method !== 'POST' || !/^[a-z0-9][a-z0-9-]*$/.test(id) || !/^\d{1,3}$/.test(i) || !existsSync(dir)) { res.statusCode = 400; res.end('POST, id and i'); return; }
         let body = ''; req.on('data', (c) => { body += c; });
@@ -49,12 +50,12 @@ export default {
           mkdirSync(resolve(dir, 'shots'), { recursive: true }); writeFileSync(resolve(dir, 'shots', i + '.jpg'), Buffer.from(m[1], 'base64')); res.end('kept'); });
       });
       // the hitch log (dev only): the game posts its slow frames here; appended to .perf/hitches.jsonl
-      server.middlewares.use('/perf-log', (req, res) => {
+      server.middlewares.use(B + '/perf-log', (req, res) => {
         if (req.method !== 'POST') { res.statusCode = 400; res.end(''); return; }
         let body = ''; req.on('data', (c) => { body += c; });
         req.on('end', () => { try { JSON.parse(body); const dir = resolve(server.config.root, '.perf'); mkdirSync(dir, { recursive: true }); appendFileSync(resolve(dir, 'hitches.jsonl'), body + '\n'); } catch {} res.end('ok'); });
       });
-      server.middlewares.use('/cine/keep', (req, res) => {
+      server.middlewares.use(B + '/cine/keep', (req, res) => {
         const name = new URL(req.url, 'http://x').searchParams.get('name') || '';
         if (req.method !== 'POST' || !/^[a-z0-9][a-z0-9-]{0,60}$/.test(name)) { res.statusCode = 400; res.end('POST, name: a-z 0-9 -'); return; }
         let body = '';

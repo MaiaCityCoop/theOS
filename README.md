@@ -8,7 +8,8 @@
 | [`OS/`](OS/README.md) | The dashboard over the three, and the front page |
 | `brand/` | `brand.css`: the one look of every page |
 
-`bun install` in `TheGame/` and in `OS/` once; then `bun run dev` here: the dashboard on
-http://localhost:5180, the game on http://localhost:5173.
+`bun install` in `TheGame/` and in `OS/` once; then `bun run dev` here: one server, http://localhost:5180, the
+dashboard at `/` and the game inside it at `/game/` (`/game/library.html`, `/game/lenses.html`, `/game/timeline.html`).
+`bun run game` still starts the game on its own on http://localhost:5173.
 
 How work is done here: [`.claude/skills/intents/SKILL.md`](.claude/skills/intents/SKILL.md).

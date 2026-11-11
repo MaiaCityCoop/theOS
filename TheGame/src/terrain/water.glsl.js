@@ -40,11 +40,12 @@ void main(){
   // the water's own colour: clear over the sand at the edge, green-brown and dark in the deep
   vec3 body = mix(WATER_SHALLOW, WATER_DEEP, clamp(depth * 1.1, 0.0, 1.0));
   vec3 skyRef = mix(uSky, vec3(dot(uSky, vec3(0.333))), 0.4) * 0.92;   // the sky in the water, a little greyed
+  vec3 sunC = uSun * cloudAt(vWorld);   // the shading contract (intent 0002): the clouds' shadow
   vec3 H = normalize(V + uSunDir);
   float wd = length(uCam - vWorld);
   float spec = pow(max(dot(n, H), 0.0), 350.0) * 2.5 + pow(max(dot(n, H), 0.0), 30.0) * 0.22 * smoothstep(40.0, 300.0, wd);   // from far and high: a broad glint
-  vec3 col = mix(body * (uAmb + uSun * 0.45), skyRef, clamp(fres * 0.9 + 0.12 * smoothstep(40.0, 400.0, wd), 0.0, 1.0)) + uSun * spec;
-  col = mix(col, vec3(0.8) * (uAmb + uSun * 0.5), foam);
+  vec3 col = mix(body * (uAmb + sunC * 0.45), skyRef, clamp(fres * 0.9 + 0.12 * smoothstep(40.0, 400.0, wd), 0.0, 1.0)) + sunC * spec;
+  col = mix(col, vec3(0.8) * (uAmb + sunC * 0.5), foam);
   col = mix(col, vec3(0.5, 0.46, 0.3), specks * 0.6);
   float a = clamp(0.2 + depth * 1.1, 0.0, 0.93);
   a = max(max(a, fres * 0.75), max(foam, specks * 0.6)) * smoothstep(-0.04, 0.02, depth);

@@ -2,6 +2,7 @@
 // Nothing is copied or cached: the files are the one source.
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createServer } from 'vite';
 
 const front = (text) => { // the few "key: value" lines between the first two ---
   const m = text.match(/^---\n([\s\S]*?)\n---/), out = {};
@@ -12,7 +13,11 @@ const front = (text) => { // the few "key: value" lines between the first two --
 export default {
   plugins: [{
     name: 'os-repository',
-    configureServer(server) {
+    async configureServer(server) {
+      // one server for all of TheOS: the game's own Vite runs inside this one, under /game/, with its own config
+      const game = await createServer({ root: resolve(server.config.root, '../TheGame'), configFile: resolve(server.config.root, '../TheGame/vite.config.js'), base: '/game/', server: { middlewareMode: true, hmr: { port: 24690 } }, appType: 'mpa' });
+      server.middlewares.use((req, res, next) => (req.url.startsWith('/game') ? game.middlewares(req, res, next) : next()));
+      server.httpServer?.on('close', () => game.close());
       const root = resolve(server.config.root, '..'), intents = resolve(root, 'Intents'), stories = resolve(root, 'Stories');
       const json = (res, v) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(v)); };
       const text = (res, f) => { if (!existsSync(f)) { res.statusCode = 404; res.end(''); return; } res.setHeader('content-type', 'text/plain; charset=utf-8'); res.end(readFileSync(f)); };

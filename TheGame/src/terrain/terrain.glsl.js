@@ -118,7 +118,7 @@ void main(){
   // relief: hollows sit in shade, crowns in light; and slopes facing the sun are lit harder than the plain normal says
   float relief = mix(0.74, 1.1, smoothstep(-6.0, 16.0, vHill));
   float sunl = max(dot(n, uSunDir), 0.0); sunl = mix(sunl, smoothstep(0.55, 0.95, sunl), 0.5 * smoothstep(60.0, 600.0, dist));
-  vec3 col = m.c * macro * relief * (uAmb + uSun * sunl);
+  vec3 col = weathered(m.c * macro * relief, n) * (uAmb + uSun * cloudAt(vWorld) * sunl);   // the shading contract (intent 0002): weather and the clouds' shadow
   vec3 V = normalize(uCam - vWorld);
   col += uSun * pow(max(dot(n, normalize(V + uSunDir)), 0.0), 48.0) * 0.3 * wet;
   gl_FragColor = toScreen(haze(col, rdist));

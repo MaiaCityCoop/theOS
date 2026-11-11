@@ -3,7 +3,7 @@
 // What it shows is the virtual camera moving through the real world as it plays; nothing is rendered ahead.
 import { trailer, floor } from './trailer.js';
 
-const cine = window.__cine, q = new URLSearchParams(location.search);
+const cine = window.__cine, q = new URLSearchParams(location.search), BASE = import.meta.env.BASE_URL.replace(/\/$/, '');   // '/game' inside the dashboard's server
 let seed = +(q.get('seed') || 1);
 const storyId = q.get('story');             // ?story=<id>: an intent's story, ../Stories/<id>/timeline.json: its camera and its captions
 let kept = storyId ? null : q.get('tl') || (q.has('seed') ? null : 'river-story'), keptClips = null, captions = [], story = null;   // ?tl=<name>: a kept timeline, cine/timelines/<name>.json, played as it was set
@@ -72,18 +72,18 @@ function caption(t) {
   if (c) { const o = Math.min(1, (t - c.at) / (c.kind === 'title' ? 0.8 : 0.18), (c.at + c.for - t) / (c.kind === 'title' ? 0.8 : 0.18)).toFixed(2); if (o !== lastCap) { lastCap = o; cap.style.opacity = o; } }   // a subtitle comes and goes at once; a title breathes. Written only when it changes
 }
 if (storyId) {
-  story = await fetch(`/story/${storyId}/timeline.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  story = await fetch(`${BASE}/story/${storyId}/timeline.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
   if (story) { keptClips = story.clips; captions = story.captions || []; document.title = `${story.title} · story`; }
 }
-if (kept) keptClips = await fetch(`/cine/timelines/${kept}.json`).then((r) => r.json()).catch(() => { kept = null; return null; });
+if (kept) keptClips = await fetch(`${BASE}/cine/timelines/${kept}.json`).then((r) => r.json()).catch(() => { kept = null; return null; });
 build(); cine.play(); tick();
 // keep what is loaded as cine/timelines/<name>.json (places rounded to the centimetre)
 async function keep(name) {
   const r2 = (v) => v.map((x) => +x.toFixed(2));
   const clips = cine.clips.map((c) => ({ ...c, keys: c.keys.map((k) => ({ ...k, pos: r2(k.pos), look: r2(k.look) })) }));
-  const res = await fetch(`/cine/keep?name=${encodeURIComponent(name)}`, { method: 'POST', body: JSON.stringify(clips) });
+  const res = await fetch(`${BASE}/cine/keep?name=${encodeURIComponent(name)}`, { method: 'POST', body: JSON.stringify(clips) });
   if (!res.ok) throw new Error(await res.text());
-  return `/timeline.html?tl=${name}`;
+  return `${BASE}/timeline.html?tl=${name}`;
 }
 // the story's preview picture, taken again from the live scene at the camera the story names ("preview": pos, look, mm)
 async function preview() {
@@ -93,7 +93,7 @@ async function preview() {
   await new Promise((r) => setTimeout(r, 3000)); cine.pause();
   const { renderer, scene, camera } = window.__s8, g = renderer.domElement; renderer.render(scene, camera);
   const c = document.createElement('canvas'); c.width = 1600; c.height = Math.round((1600 * g.height) / g.width); c.getContext('2d').drawImage(g, 0, 0, c.width, c.height);
-  const res = await fetch(`/story-preview?id=${storyId}`, { method: 'POST', body: c.toDataURL('image/jpeg', 0.86) });
+  const res = await fetch(`${BASE}/story-preview?id=${storyId}`, { method: 'POST', body: c.toDataURL('image/jpeg', 0.86) });
   build(); cine.play(); return res.text();
 }
 window.__timeline = { get seed() { return seed; }, set seed(v) { kept = keptClips = null; seed = v; build(); }, keep, preview };
@@ -119,7 +119,7 @@ if (parent !== window) {
         renderer.render(scene, camera);                       // drawn now and copied in the same moment, before the browser clears it
         const c = document.createElement('canvas'); c.width = 360; c.height = Math.round((360 * g.height) / g.width);
         c.getContext('2d').drawImage(g, 0, 0, c.width, c.height); const src = c.toDataURL('image/jpeg', 0.75); send({ type: 'thumb', i, src });
-        if (storyId) fetch(`/story-shot?id=${storyId}&i=${i}`, { method: 'POST', body: src }).catch(() => {});   // kept with the story: taken once
+        if (storyId) fetch(`${BASE}/story-shot?id=${storyId}&i=${i}`, { method: 'POST', body: src }).catch(() => {});   // kept with the story: taken once
       }
       cine.seek(at); if (was || at < 0.5) cine.play(); busy = false;   // a film that had not begun yet plays on
     }

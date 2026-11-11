@@ -4,7 +4,7 @@
 // It only reads the repository and frames the game. Only one framed game runs at a time.
 import { marked } from 'marked';
 
-const GAME = import.meta.env.VITE_GAME || `http://${location.hostname}:5173`;
+const GAME = import.meta.env.VITE_GAME || '/game';   // the game, served by this same server under /game (OS/vite.config.js)
 const STATES = ['idea', 'define', 'build', 'propose', 'story', 'archived'];
 const DAYS = 5423, NOTED = { 1: { title: 'The decision', inGame: 1 } };   // days that have a name and a count but no film yet: day 1, Samuel alone
 const DAYS_ = DAYS;   // the days; the humans, 1,346,269 (the 31st Fibonacci number), stand in the page's title

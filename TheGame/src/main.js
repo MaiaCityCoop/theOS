@@ -111,7 +111,7 @@ function hitch(ms, now) {
   if (import.meta.env.DEV && now - sentAt > 4000 && (hitches.length || frames > 0)) {
     sentAt = now;
     const body = JSON.stringify({ at: Math.round(now), frames, hitches: hitches.splice(0) }); frames = 0;
-    fetch('/perf-log', { method: 'POST', body }).catch(() => {});
+    fetch(import.meta.env.BASE_URL + 'perf-log', { method: 'POST', body }).catch(() => {});
   }
 }
 
