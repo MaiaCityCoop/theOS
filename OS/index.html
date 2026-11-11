@@ -219,6 +219,9 @@
   /* stories: the film first, then the telling */
   /* stories: a shelf of them; one opened is the editor, dark and the whole window, as in an editing suite */
   #shelfview{padding-top:clamp(22px,3vw,40px)}
+  body.studio #shelfview .calhead h2{color:var(--cream)}
+  body.studio #shelfview .calhead p{color:rgba(251,246,234,.6)}
+  body.studio #shelfview .cd{box-shadow:0 0 0 1px rgba(251,246,234,.1),0 18px 40px rgba(0,0,0,.35)}
   .shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:clamp(12px,1.4vw,20px)}
   .shelf .cd{aspect-ratio:16/10}
   #storyedit{display:none}

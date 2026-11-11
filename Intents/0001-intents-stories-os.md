@@ -818,6 +818,13 @@ _Samuel's decision._
 - **Broke / not there yet:** whether this was the cause waits for one more run in Safari (the
   log is cleared; it now carries the resize count).
 
+### 2026-11-11, thirty-eighth round
+
+- **Asked:** the stories' shelf in the dark brand blue as well.
+- **Delivered:** the whole Stories view (the shelf and a story's studio) is dark TheOS blue with
+  light titles and the pill in blue.
+- **Good:** seen in the pane at 1440.
+
 ## Trail
 
 | When | Commit | What |

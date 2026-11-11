@@ -21,7 +21,7 @@ const filmOf = (id) => `${GAME}/timeline.html?story=${id}&embed`;
 // ---- tabs: showing one stops the framed games of the others ----
 function tab(name) {
   document.body.classList.toggle('sheet', name === 'intents');   // the intents open as a sheet over the dashboard
-  document.body.classList.toggle('studio', name === 'stories' && !!current);   // a story open: the editor, dark, the whole window
+  document.body.classList.toggle('studio', name === 'stories');   // the stories, their shelf and their editor: dark, TheOS blue
   document.body.classList.toggle('admin', name !== 'home');   // inside: the bottom pill; the front page has none
   if (location.hash.slice(1) !== (name === 'home' ? '' : name)) history.replaceState(null, '', name === 'home' ? location.pathname : '#' + name);
   document.querySelectorAll('main').forEach((m) => m.classList.toggle('on', m.id === name));
