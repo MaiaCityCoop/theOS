@@ -55,6 +55,7 @@ U.tNoise = { value: tex.of('noise').a };
 const ground = createGround(renderer, U);
 stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage things (the library)
 const terrain = createTerrain(scene, U, tex);
+stats.terrain = terrain;
 const scatter = createScatter(scene, U, tex);
 for (const at of Object.values(PLACES)) place(scene, U, ASSETS[at.asset], at);   // what stands at a named place, from the asset library
 const controls = createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat'));

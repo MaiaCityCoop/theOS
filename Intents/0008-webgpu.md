@@ -1,7 +1,7 @@
 ---
 id: "0008"
 title: The game on WebGPU
-state: define            # idea | define | build | propose | story | archived
+state: build             # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-12
 story:
@@ -99,6 +99,37 @@ latest today, 0.187.0 (installed and the registry's newest, checked 2026-11-12).
 
 ## Build
 
+Samuel approved the definition on 2026-11-12 ("Approve, start step 1").
+
+**Step 1, the spike** (2026-11-12): the terrain alone on three.js's `WebGPURenderer`, the game untouched.
+
+- `src/gpu/land.tsl.js`: the land in TSL, constant for constant with `land.glsl.js`: the integer hash, the value noise
+  and its gradient, the river by its bends (width, bank side, carve, bank), the heights with their octaves let go by
+  distance and the pads under what stands, and the masks (arid, paths, bare, edges, bank, cut bank, bar, tufts,
+  outcrops) and the grass's colour, from the biomes' own numbers. Not ported yet: the library's sandbox.
+- `src/gpu/terrain.tsl.js`: the light (sun, sky, height fog, weather, exposure; shadows not yet) and the terrain as one
+  node material: the same grid and morphing in the vertex stage, the same materials, the same two-take sampling and
+  height blending, the same branches that skip a texture where it is not laid (`If`).
+- `spike.html`: the terrain alone, the materials baked as the game bakes them and handed over, the quadtree as the game
+  picks it, the camera stood by the game's rig (`poseAt`), the light of noon from the game's sky; `?webgl` forces the
+  WebGL 2 fallback. It shows which backend it runs on.
+- It compiled and drew on WebGPU at the first try, and on the WebGL 2 fallback from the same nodes.
+
+**Measured** (1400×800, pixel ratio 1, this Mac, 60 frames drawn back to back at each view, then waited for the card
+to finish: WebGPU `onSubmittedWorkDone`, WebGL a one-pixel read; the terrain only, the same nodes):
+
+| View | WebGL today (GLSL) | WebGPU (TSL) | WebGL 2 fallback (TSL) |
+| --- | --- | --- | --- |
+| tent, eye level (406 nodes) | 6.57 ms | 7.30 ms | 8.63 ms |
+| river bend, 26 m (182) | 9.50 ms | 6.59 ms | 7.82 ms |
+| town, 40 m (156) | 8.05 ms | 6.00 ms | 6.65 ms |
+| skyline, 2.5 km (44) | 4.45 ms | 2.77 ms | 2.88 ms |
+
+WebGPU is faster at three of the four views (by 25 to 38 %) and 11 % slower at eye level by the tent; the fallback is
+close to today's or better except at eye level. Not like for like in two ways: today's terrain still carries the
+sandbox, the library's stage and the shadow map's branch (off for the timing), the spike does not; and the pictures are
+not yet compared pixel for pixel (check 1 is for step 2). The near view's cost is the place to look first.
+
 ## Propose
 
 ## Story
@@ -111,7 +142,7 @@ latest today, 0.187.0 (installed and the registry's newest, checked 2026-11-12).
 
 - [x] Samuel: take the idea up
 - [ ] Samuel: approve or change the definition
-- [ ] Step 1: the spike (renderer, shared node code, terrain), measured
+- [x] Step 1: the spike (renderer, shared node code, terrain), measured
 - [ ] Step 2: every material ported, no GLSL left
 - [ ] Step 3: ground texture and scatter as compute; collision from the card
 - [ ] Step 4: post pass, films, library, lenses checked
@@ -133,6 +164,16 @@ latest today, 0.187.0 (installed and the registry's newest, checked 2026-11-12).
   registry), so no update was due.
 - **Good:** —
 - **Broke / not there yet:** nothing built; the definition waits for Samuel's approval.
+
+### 2026-11-12, step 1
+
+- **Asked:** approve, start step 1; on the way: does this improve the whole architecture, performance and the future
+  for millions of different assets; and the grass, more realistic in the distance and its levels too.
+- **Delivered:** the land and the terrain in TSL; the spike page on WebGPURenderer with its WebGL 2 fallback; the
+  terrain timed at four views on WebGPU, on the fallback and on today's WebGL.
+- **Good:** it ran on WebGPU at the first try; faster at three views of four.
+- **Broke / not there yet:** slower at eye level by the tent; pictures not compared yet; no sandbox, stage or shadow in
+  the TSL terrain; the rest of the game still on WebGL.
 
 ## Trail
 

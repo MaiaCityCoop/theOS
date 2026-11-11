@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maia City · WebGPU spike</title>
+<link rel="icon" href="/brand/MaiaCity.svg">
+<link rel="stylesheet" href="/brand/brand.css">
+<style>
+  html,body{margin:0;height:100%;background:#9fc2e6;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh}
+  #out{position:fixed;left:var(--edge);top:var(--edge);z-index:3;padding:10px 14px;border-radius:18px;white-space:pre;font:400 11px/1.55 var(--mono);color:var(--on-glass)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="out" class="glass">starting…</div>
+<script type="module">
+// Intent 0008, step 1, the spike: the terrain alone, on three.js's WebGPURenderer (WebGL 2 where there is no WebGPU),
+// its land and light in TSL (src/gpu/). The game itself is untouched. ?webgl forces the WebGL 2 fallback.
+import * as THREE from 'three/webgpu';
+import * as WGL from 'three';
+import { bakeTextures } from './src/materials/bake.js';
+import { terrainMaterial, LIGHT, GRID, R0 } from './src/gpu/terrain.tsl.js';
+import { L } from './src/gpu/land.tsl.js';
+import { heightAt, HMIN, HMAX } from './src/world/land.js';
+import { poseAt } from './src/camera/rig.js';
+import { sunAt, lightAt } from './src/world/sky.js';
+import SKY from './world/sky.js';
+const out = document.getElementById('out'), q = new URLSearchParams(location.search);
+const say = (t) => (out.textContent = t);
+
+// the materials, baked as the game bakes them (WebGL), read back and handed to the new renderer
+say('baking the materials…');
+const wr = new WGL.WebGLRenderer({ canvas: document.createElement('canvas') }), baked = bakeTextures(wr);
+const toTex = (rt) => {
+  const S = rt.width, px = new Uint8Array(S * S * 4); wr.readRenderTargetPixels(rt, 0, 0, S, S, px);
+  const t = new THREE.DataTexture(px, S, S, THREE.RGBAFormat, THREE.UnsignedByteType);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = true; t.anisotropy = 8; t.colorSpace = THREE.NoColorSpace; t.needsUpdate = true;
+  return t;
+};
+const n = baked.rt.length / 2, tex = { a: [], n: [] };
+for (let i = 0; i < n; i++) { tex.a.push(toTex(baked.rt[i * 2])); tex.n.push(toTex(baked.rt[i * 2 + 1])); }
+wr.dispose();
+
+// the renderer
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, forceWebGL: q.has('webgl') });
+await renderer.init();
+renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight, false);
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // the colours are made for the screen in the material (toScreen)
+const backend = renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL 2 (fallback)';
+const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(68, innerWidth / innerHeight, 0.15, 30000);
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight, false); });
+
+// the light of an hour (the same sky the game uses), held
+function light(hour) {
+  const s = sunAt(hour, SKY.day, SKY.latitude), K = lightAt((s.alt * 180) / Math.PI);
+  LIGHT.sunDir.value.copy(s.dir); LIGHT.sun.value.set(...K.sun); LIGHT.amb.value.set(...K.amb); LIGHT.hazeCol.value.set(...K.horizon); LIGHT.exposure.value = K.exposure;
+  renderer.setClearColor(new THREE.Color().setRGB(...K.horizon.map((x) => Math.pow(1 - Math.exp(-x * 1.25 * K.exposure), 1 / 2.2)), THREE.LinearSRGBColorSpace));
+}
+light(12);
+
+// the grid, instanced for every node of the quadtree round the camera (as src/terrain/terrain.js)
+const gn = GRID + 1, pos = new Float32Array(gn * gn * 3), idx = new Uint16Array(GRID * GRID * 6);
+for (let z = 0, i = 0; z < gn; z++) for (let x = 0; x < gn; x++, i += 3) { pos[i] = x; pos[i + 2] = z; }
+for (let z = 0, i = 0; z < GRID; z++) for (let x = 0; x < GRID; x++) { const a = z * gn + x, b = a + 1, c = a + gn, d = c + 1; if ((x + z) & 1) idx.set([a, c, b, b, c, d], i); else idx.set([a, c, d, a, d, b], i); i += 6; }
+const geo = new THREE.InstancedBufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setIndex(new THREE.BufferAttribute(idx, 1));
+const CAP = 4096, data = new Float32Array(CAP * 4), aNode = new THREE.InstancedBufferAttribute(data, 4); aNode.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('aNode', aNode); geo.instanceCount = 0;
+say('compiling the terrain…');
+const mesh = new THREE.Mesh(geo, terrainMaterial(tex)); mesh.frustumCulled = false; scene.add(mesh);
+const LEVELS = 10, S0 = 8, TOP = S0 * 2 ** (LEVELS - 1), range2 = []; for (let i = 0; i < LEVELS; i++) range2.push((R0 * 2 ** i) ** 2);
+const fr = new THREE.Frustum(), box = new THREE.Box3(), pm = new THREE.Matrix4();
+let cx = 0, cz = 0, dy2 = 0, count = 0;
+const inView = (x, z, s, lv) => { let y0 = HMIN, y1 = HMAX; if (lv <= 4) { const yc = heightAt(x + s / 2, z + s / 2), e = s / 2 + 3; y0 = yc - e; y1 = yc + e; } box.min.set(x, y0, z); box.max.set(x + s, y1, z + s); return fr.intersectsBox(box); };
+const d2 = (x, z, s) => { const ax = cx < x ? x - cx : cx > x + s ? cx - x - s : 0, az = cz < z ? z - cz : cz > z + s ? cz - z - s : 0; return ax * ax + az * az + dy2; };
+const add = (x, z, s, lv) => { if (count < CAP) { data.set([x, z, s, lv], count * 4); count++; } };
+function select(x, z, s, lv) {
+  const dd = d2(x, z, s); if (dd > range2[lv]) return false; if (!inView(x, z, s, lv)) return true;
+  if (lv === 0 || dd > range2[lv - 1]) { add(x, z, s, lv); return true; }
+  const h = s / 2, fx = cx > x + h ? 1 : 0, fz = cz > z + h ? 1 : 0;
+  for (let i = 0; i < 4; i++) { const ix = (i & 1) ^ fx, iz = (i >> 1) ^ fz, nx = x + ix * h, nz = z + iz * h; if (!select(nx, nz, h, lv - 1) && inView(nx, nz, h, lv - 1)) add(nx, nz, h, lv - 1); }
+  return true;
+}
+function frameFor() {
+  camera.updateMatrixWorld(); fr.setFromProjectionMatrix(pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  const p = camera.position, g = heightAt(p.x, p.z); cx = p.x; cz = p.z; const dy = Math.max(0, p.y - g - 2); dy2 = dy * dy; count = 0;
+  L.cam.value.copy(p); L.dy.value = dy; L.lodInv.value = 1; LIGHT.airH.value = Math.max(0, p.y - g);
+  const R = Math.min(R0 * 2 ** (LEVELS - 1), camera.far);
+  for (let j = Math.floor((cz - R) / TOP); j <= Math.floor((cz + R) / TOP); j++) for (let i = Math.floor((cx - R) / TOP); i <= Math.floor((cx + R) / TOP); i++) select(i * TOP, j * TOP, TOP, LEVELS - 1);
+  geo.instanceCount = count; aNode.clearUpdateRanges(); aNode.addUpdateRange(0, count * 4); aNode.needsUpdate = true;
+}
+/** Stand the camera as the game's rig would: a point, a heading, a height. */
+function view(x, z, yaw, h) { const P = poseAt(x, z, yaw, h, -0.05); camera.position.set(...P.pos); camera.rotation.order = 'YXZ'; camera.rotation.set(P.pitch, P.yaw, 0); camera.fov = P.fov; camera.updateProjectionMatrix(); }
+window.__spike = { renderer, scene, camera, view, frameFor, light, backend, nodes: () => count };
+
+// the views the definition names, and a timing of each: n frames drawn back to back, then wait for the card to finish
+const VIEWS = [
+  { name: 'tent, eye level', x: -1262.6 + 14 * -Math.sin(0.1), z: 631 + 14 * -Math.cos(0.1), yaw: Math.atan2(-Math.sin(0.1), -Math.cos(0.1)), h: 1.7 },
+  { name: 'river bend, 26 m', x: -1334.8, z: 808.6, yaw: 0.9, h: 26 },
+  { name: 'town, 40 m', x: -1262.6, z: 631, yaw: 0.3, h: 40 },
+  { name: 'skyline, 2.5 km', x: -1262.6, z: 631, yaw: 0.3, h: 2500 },
+];
+window.__spike.VIEWS = VIEWS;
+async function finish() { if (renderer.backend.isWebGPUBackend) await renderer.backend.device.queue.onSubmittedWorkDone(); else { const gl = renderer.backend.gl; gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)); } }
+window.__spike.time = async (v, frames = 60) => {
+  view(v.x, v.z, v.yaw, v.h); frameFor(); renderer.render(scene, camera); await finish();
+  const t0 = performance.now(); for (let i = 0; i < frames; i++) { frameFor(); renderer.render(scene, camera); } await finish();
+  return { view: v.name, ms: +((performance.now() - t0) / frames).toFixed(2), nodes: count };
+};
+
+let shown = 0;
+view(VIEWS[0].x, VIEWS[0].z, VIEWS[0].yaw, VIEWS[0].h);
+function loop(t) {
+  requestAnimationFrame(loop); frameFor(); renderer.render(scene, camera);
+  if (t - shown > 500) { shown = t; say(`${backend} · terrain only · ${count} nodes · ${innerWidth}×${innerHeight}`); }
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

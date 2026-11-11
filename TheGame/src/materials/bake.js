@@ -80,7 +80,7 @@ export function bakeTextures(renderer) {
     renderer.setRenderTarget(rt);
     renderer.render(quad, cam);
     quad.material.dispose();
-    out[pass].push(rt.texture);
+    out[pass].push(rt.texture); (out.rt ||= []).push(rt);   // the targets too, for a page that reads them back (spike.html)
   }
   renderer.setRenderTarget(null);
   quad.geometry.dispose();
