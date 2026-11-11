@@ -48,7 +48,7 @@ is built at once.
 | 4 | Frame time | on the river at eye level and in town: at or under 16.7 ms |
 | 5 | Biomes in the library | Cut bank and Gravel bar listed, with their cards and sandbox |
 
-**Out of scope:** reeds and driftwood as assets (next), riffles' white water, flow speed by width.
+**Out of scope:** reeds and driftwood as assets (intent 0005), riffles' white water, flow speed by width.
 
 ## Build
 
@@ -101,7 +101,7 @@ is built at once.
 - [x] Cut bank and Gravel bar biomes
 - [x] Water by depth
 - [x] Checks
-- [ ] Reeds and driftwood as library assets
+- [x] ~~Reeds and driftwood as library assets~~ moved to intent 0005 (Samuel, 2026-11-12)
 - [x] A slope limit for the walker (cut banks to climb only where low)
 - [x] Ragged banks and frayed edges between the river's grounds
 
@@ -122,6 +122,14 @@ is built at once.
 - **Delivered:** the slope limit as data; ragged banks; frayed edges between grass, sand, gravel and earth; a lighter bar.
 - **Good:** a cut bank stops the walker, a bar does not; the river reads less like a canal.
 - **Broke / not there yet:** reeds and driftwood, the next step to make the banks lived-in.
+
+### 2026-11-12, the water a notch bluer
+
+- **Asked:** the river slightly more paradise blue, just a notch; reeds and driftwood into their own intent, at idea.
+- **Delivered:** the water's colours a notch towards a clear blue-green (`biomes/river.js`: shallow 0.072 0.098 0.078,
+  deep 0.013 0.046 0.06); intent 0005 opened for reeds and driftwood.
+- **Good:** looked at from 18 m over a bend: bluer, still the river's own colour; 16.7 ms.
+- **Broke / not there yet:** —
 
 ## Trail
 

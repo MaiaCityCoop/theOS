@@ -6,7 +6,7 @@ export default {
   about: 'Slow, clear water over sand at its edges, green-brown and dark where it is deep; foam only where it meets the bank.',
   where: 'water',                                          // in the river's bed (src/terrain/water.glsl.js)
   floor: { material: 'water', tile: [4.5, 4.5] },          // its ripples, sliding with the flow
-  colours: { shallow: [0.085, 0.09, 0.05], deep: [0.018, 0.045, 0.034] },
+  colours: { shallow: [0.072, 0.098, 0.078], deep: [0.013, 0.046, 0.06] },   // a notch towards a clear blue-green (was shallow 0.085 0.09 0.05, deep 0.018 0.045 0.034)
   grass: null,
   stones: 0,
 };
