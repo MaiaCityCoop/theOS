@@ -4,7 +4,7 @@ import { trailer, floor } from './trailer.js';
 
 const cine = window.__cine, q = new URLSearchParams(location.search);
 let seed = +(q.get('seed') || 1);
-let kept = q.get('tl'), keptClips = null;   // ?tl=<name>: a kept timeline, cine/timelines/<name>.json, played as it was set
+let kept = q.get('tl') || (q.has('seed') ? null : 'river-story'), keptClips = null;   // ?tl=<name>: a kept timeline, cine/timelines/<name>.json, played as it was set
 const COL = { wide: '#5b8def', drone: '#e0a43a', medium: '#59b56b', close: '#d9655f', 'low angle': '#a678d8', 'top down': '#3fb7b0', glide: '#8aa13c', tele: '#c7709f', crane: '#7d8796' };
 
 const bar = document.getElementById('tl'), strip = document.getElementById('strip'), head = document.getElementById('head');
@@ -38,7 +38,6 @@ function tick() {
 }
 const toggle = () => (cine.playing ? cine.pause() : cine.play());
 btn.onclick = toggle;
-document.getElementById('next').onclick = () => { if (kept) { kept = keptClips = null; } else seed++; const p = cine.playing; build(); if (p) cine.play(); };
 let scrub = false;
 const seekTo = (e) => { const r = strip.getBoundingClientRect(); cine.seek(((e.clientX - r.left) / r.width) * cine.duration); };
 strip.addEventListener('mousedown', (e) => { scrub = true; cine.pause(); seekTo(e); });

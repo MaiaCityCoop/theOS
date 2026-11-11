@@ -20,9 +20,9 @@ cameras can shoot again.
 - **The game**, `/`: the walker's own view.
 - **The timeline**, `/timeline.html`: the same world, shown through the virtual camera. Under it,
   the clips in order with their kind, lens and length, and a playhead. Play / pause (or Space),
-  click or drag the strip to scrub, "new trailer" for the next seed.
-  - `?seed=7`: the trailer composed from seed 7
-  - `?tl=first-look`: the kept timeline `cine/timelines/first-look.json`, exactly as it was set
+  click or drag the strip to scrub. It plays the kept timeline `river-story` unless told otherwise.
+  - `?tl=<name>`: the kept timeline `cine/timelines/<name>.json`, exactly as it was set
+  - `?seed=7`: for the agent, a trailer composed afresh from seed 7 (not in the menu)
 
 ## The camera, for an agent: `window.__cine`
 
@@ -88,14 +88,14 @@ travel; the story stays. The same seed gives the same trailer on the same stage.
 ## The menu
 
 Every page carries the same small menu, top right: **Walk the world** (the game, by hand), and
-under **Timelines** the composed trailer and every kept timeline by name.
+under **Timelines** every kept timeline by name (today: `river-story`).
 
 ## Keeping cameras, and playing them back
 
 A composed or hand-set timeline is kept as a file and played back later by name:
 
-    await __timeline.keep('first-look')      // in the timeline view: writes cine/timelines/first-look.json
-    /timeline.html?tl=first-look             // plays it back
+    await __timeline.keep('river-story')      // in the timeline view: writes cine/timelines/river-story.json
+    /timeline.html?tl=river-story             // plays it back
 
 (or `POST /cine/keep?name=…` with the clips as JSON; the dev server writes the file). A kept
 timeline holds fixed places, so it frames the very same shots on every stage: that is the one to
