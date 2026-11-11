@@ -92,3 +92,43 @@ the first commit: the same `?cam=` address gave the same framing over stage 1 an
   few coarse triangles. Detail has to follow the lens, not only the distance.
 - No depth of field, no motion blur; stills are no larger than the window.
 - Recording and saving stills were written but not tried in Safari yet.
+
+---
+
+## 4 · The camera is the agent's; a timeline plays a trailer in the world · 2026-11-11 · `cdc1e5909`
+
+**Asked.** The camera was misunderstood: it should be a virtual camera for an agent to create
+cinematic shots, not something a person steers. Beside the game view, a second view: the actual
+timeline, which plays inside the real 3D world (only moving the virtual camera, nothing rendered
+ahead) a random mini cinematic trailer across the land: wide, medium and close shots, a few
+extraordinary angles, a drone flight, all in one timeline. And the preconfigured cameras must be
+playable again later.
+
+**Delivered.**
+- `cine/cine.js` rewritten as an API only, `window.__cine`: take a view (place, look-at or
+  angles, lens 12–180 mm, roll), load / play / pause / seek a timeline of clips, still, record.
+  Cycle 3's keys and readouts are gone.
+- `cine/trailer.js`: composes a trailer from a seed by reading the world itself (the river's line,
+  the ground's height). Nine shots, about 55 s: wide, drone flight down the river, medium, close
+  (85 mm), low angle among the blades (12 mm, rolled), straight down and turning, glide (50 mm),
+  long lens (135 mm), crane away.
+- `/timeline.html`: the world through the virtual camera, the clips as a strip underneath with
+  kind, lens and length, a playhead, play / scrub, "new trailer" for the next seed.
+- Kept timelines: `__timeline.keep(name)` writes `cine/timelines/<name>.json`;
+  `/timeline.html?tl=<name>` plays it back. The first one kept: `first-look` (seed 1).
+- `cine/at.sh` now lays the timeline view over an earlier stage too.
+
+**Good.** The shots framed well on the first composition: the low angle looks up through the
+blades at the far bank, the top-down shows the river's banding of sand, shallows and depth, the
+close sits right on the waterline. The kept timeline played back identically after a reload.
+
+**Broke / not there yet.**
+- Cycle 3 built the wrong thing (a hand-steered camera with keys); its place-holding trick and
+  lens maths carried over, the rest was thrown away.
+- A new `vite.config.js` was not picked up by the running dev server; keeping a timeline failed
+  with a 404 until the server was restarted.
+- The pane showed 15–19 fps on the timeline page while Safari was drawing the game beside it and
+  the pane emulated a 1280 × 720 window: not a clean reading, and not yet read in Safari. Open.
+- Seed 1's stretch of river lies in dry land: the trailer shows straw and sand, little green.
+  The composer does not yet choose its stretch for how it looks.
+- `still()` and `record()` are still untried.
