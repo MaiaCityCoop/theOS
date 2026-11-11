@@ -14,18 +14,16 @@
   #msg{display:none}
   #hud{display:none!important}
   #orbit{position:fixed;inset:0;z-index:1;cursor:grab;touch-action:none}#orbit:active{cursor:grabbing}
-  /* the two sides: light, clear glass over the world, only as tall as what they hold */
-  /* light, clear glass over the world, only as large as what it holds */
-  .glass2{background:linear-gradient(180deg,rgba(251,246,234,.42),rgba(251,246,234,.26));-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);border:1px solid rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 12px 30px rgba(12,28,22,.16)}
+  /* the glass of every side, card and button: brand.css (.glass) */
   #list{position:fixed;left:14px;top:14px;z-index:3;display:flex;flex-direction:column;gap:6px;width:210px;max-height:calc(100vh - 90px);overflow:auto}
   .item{position:relative;display:flex;align-items:center;gap:10px;width:100%;border:0;color:var(--forest);text-align:left;padding:6px 10px 6px 6px;border-radius:14px;cursor:pointer;font:inherit}
   .item:hover{background:rgba(251,246,234,.55)}
   .item.on{background:rgba(255,255,255,.66)}
   .item.on::before{content:'';position:absolute;left:-1px;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--sun)}
   /* the library's sections: a switch at the top of the list, and a grid of them to start from */
-  #toLib{position:fixed;left:14px;bottom:18px;z-index:7;display:flex;align-items:center;gap:8px;height:44px;padding:0 18px 0 14px;border-radius:999px;cursor:pointer;font:500 13.5px/1 var(--sans);color:var(--cream);text-shadow:0 1px 2px rgba(8,20,15,.45)}
+  #toLib{position:fixed;left:14px;bottom:18px;z-index:7;display:flex;align-items:center;gap:8px;height:var(--pill-h);padding:0 18px 0 14px;border-radius:999px;cursor:pointer;font:500 13.5px/1 var(--sans);color:var(--cream);text-shadow:0 1px 2px rgba(8,20,15,.45)}
   #toLib svg{width:17px;height:13px}
-  #toLib:hover{background:rgba(255,255,255,.35)}
+  #toLib:hover{background:var(--glass-hover)}
   #grid.on ~ #toLib{display:none}
   #list[data-sec] .item, #list[data-sec] .group{display:none}
   #list[data-sec="assets"] .item[data-id], #list[data-sec="biomes"] .item[data-biome], #list[data-sec="materials"] .item[data-mat]{display:flex}
@@ -33,7 +31,7 @@
   #grid.on{display:grid}
   #grid .cards{display:grid;grid-template-columns:repeat(3,minmax(0,200px));gap:16px;padding:16px}
   #grid h1{grid-column:1/-1;margin:0 0 4px;font:440 30px/1.1 var(--serif);font-variation-settings:var(--soft);color:var(--cream);text-align:center;text-shadow:0 1px 8px rgba(0,0,0,.35)}
-  #grid button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 14px 18px;border-radius:24px;background:linear-gradient(180deg,rgba(251,246,234,.72),rgba(251,246,234,.56));cursor:pointer;color:var(--forest);font:inherit;transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+  #grid button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 14px 18px;border-radius:24px;cursor:pointer;color:var(--forest);font:inherit;transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
   #grid button:hover{transform:translateY(-3px)}
   #grid canvas{width:112px;height:112px;filter:drop-shadow(0 6px 10px rgba(12,28,22,.3))}
   #grid b{font:460 19px/1.1 var(--serif);font-variation-settings:var(--soft);color:var(--navy)}#grid small{font-size:12px;color:var(--navy);opacity:.72}
@@ -62,8 +60,8 @@
 <div id="orbit"></div>
 <nav id="list" aria-label="The library"></nav>
 <div id="grid"><div class="cards"><h1>The library</h1></div></div>
-<button id="toLib" class="glass2"><svg viewBox="0 0 26 20"><path d="M24 10H3M10 2.5 2.5 10 10 17.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Library</button>
-<aside class="side right glass2" id="info"></aside>
+<button id="toLib" class="glass"><svg viewBox="0 0 26 20"><path d="M24 10H3M10 2.5 2.5 10 10 17.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Library</button>
+<aside class="side right glass" id="info"></aside>
 <span class="hint">drag to circle · wheel to come closer</span>
 <script type="module" src="/cine/cine.js"></script>
 <script type="module" src="/cine/menu.js"></script>
@@ -88,9 +86,9 @@ const { scene, U, ground, tex } = window.__s8;
 ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BIOME.meadow));   // round the stage, the land is all meadow
 
 // the list: each asset with a small picture of its nearest level
-document.getElementById('list').innerHTML = '<div class="group">Assets</div>' + ids.map((id) => `<button class="item glass2" data-id="${id}"><canvas width="72" height="72"></canvas><span><b>${ASSETS[id].name}</b><small>${ASSETS[id].kind}</small></span></button>`).join('')
-  + '<div class="group">Biomes</div>' + BIOMES.map((b) => `<button class="item glass2" data-biome="${b.id}"><canvas width="72" height="72"></canvas><span><b>${b.name}</b><small>${b.kind}</small></span></button>`).join('')
-  + '<div class="group">Materials</div>' + MATERIALS.map((m) => `<button class="item glass2" data-mat="${m.id}"><canvas width="72" height="72"></canvas><span><b>${m.name}</b><small>${m.kind}</small></span></button>`).join('');
+document.getElementById('list').innerHTML = '<div class="group">Assets</div>' + ids.map((id) => `<button class="item glass" data-id="${id}"><canvas width="72" height="72"></canvas><span><b>${ASSETS[id].name}</b><small>${ASSETS[id].kind}</small></span></button>`).join('')
+  + '<div class="group">Biomes</div>' + BIOMES.map((b) => `<button class="item glass" data-biome="${b.id}"><canvas width="72" height="72"></canvas><span><b>${b.name}</b><small>${b.kind}</small></span></button>`).join('')
+  + '<div class="group">Materials</div>' + MATERIALS.map((m) => `<button class="item glass" data-mat="${m.id}"><canvas width="72" height="72"></canvas><span><b>${m.name}</b><small>${m.kind}</small></span></button>`).join('');
 for (const b of document.querySelectorAll('.item[data-mat]')) {   // a material's picture: its own baked tile
   materialThumb(window.__s8.renderer, U, tex.of(b.dataset.mat), b.querySelector('canvas'));
   b.onclick = () => chooseMaterial(b.dataset.mat);
@@ -212,7 +210,7 @@ const SECTIONS = [
 const list = document.getElementById('list'), grid = document.getElementById('grid');
 function section(id) { list.dataset.sec = id; }
 for (const sct of SECTIONS) {
-  const b = document.createElement('button'); b.className = 'glass2'; b.innerHTML = `<canvas width="192" height="192"></canvas><b>${sct.name}</b><small>${sct.n} · ${sct.what}</small>`;
+  const b = document.createElement('button'); b.className = 'glass'; b.innerHTML = `<canvas width="192" height="192"></canvas><b>${sct.name}</b><small>${sct.n} · ${sct.what}</small>`;
   grid.querySelector('.cards').append(b); sct.pic(b.querySelector('canvas'));
   b.onclick = () => { grid.classList.remove('on'); section(sct.id); sct.open(); };
 }

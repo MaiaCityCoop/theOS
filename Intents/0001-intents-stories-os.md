@@ -1040,6 +1040,22 @@ _Samuel's decision._
   readable over the dark letterbox; the far tent's door light, not brown.
 - **Broke / not there yet:** day 2's picture and stills still to be retaken.
 
+### 2026-11-11, fiftieth round
+
+- **Asked:** the glass of every card, side and pill made one, kept in one place, the pill's as the
+  model; the pill as compact as the library's Back.
+- **Delivered:** the brand file holds the glass as five tokens (`--glass`, `--glass-blur`,
+  `--glass-edge`, `--glass-shadow`, `--glass-hover`) and one class, `.glass` (`.glass2` its older
+  name), both the pill's look. The game's pill, the dashboard's pill, the library's sides, list
+  items, cards and Back, the film's and the lenses' bars, the readout, the front page's goals and
+  day figures, the game bar's buttons and the city's mark over the game all take it; no page keeps a
+  glass of its own. One height for the bottom pills, `--pill-h` (44 px): the nav pill and the
+  library's Back now match, the star and badge scaled to it.
+- **Good:** seen in the pane: the pill and the Back both 44 px; the sides blurred by the shared
+  tokens; the dashboard's pill in the same glass.
+- **Broke / not there yet:** in the studio the pill keeps its solid navy (no blur over a film that
+  plays); day 2's picture and stills still to be retaken.
+
 ## Trail
 
 | When | Commit | What |

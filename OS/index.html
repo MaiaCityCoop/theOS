@@ -16,14 +16,14 @@
   body.admin header.site .visit{display:none}
   /* inside: one pill at the bottom, centred */
   /* inside: the pill at the bottom, as in the old play: back, one large round home (the dashboard), the city's badge */
-  nav.admin{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:8;display:none;align-items:center;gap:14px;padding:0 16px;height:52px;border-radius:999px;background:linear-gradient(180deg,rgba(251,246,234,.42),rgba(251,246,234,.26));-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);border:1px solid rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 12px 30px rgba(12,28,22,.16)}
+  nav.admin{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:8;display:none;align-items:center;gap:12px;padding:0 12px;height:var(--pill-h);box-sizing:border-box;border-radius:999px;background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:var(--glass-edge);box-shadow:var(--glass-shadow)}
   body.admin nav.admin{display:flex}
   nav.admin .back{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;cursor:pointer;color:var(--cream);filter:drop-shadow(0 1px 2px rgba(8,20,15,.45));font:500 10.5px/1 var(--sans);letter-spacing:.06em;padding:0 6px}
-  nav.admin .back svg{width:24px;height:22px}
+  nav.admin .back svg{width:22px;height:20px}
   nav.admin .back:hover{color:#fff}
-  nav.admin .home{width:64px;height:64px;margin:-8px 0;border-radius:50%;border:0;cursor:pointer;background:var(--navy) url('/brand/star.svg') center/38px no-repeat;box-shadow:0 0 0 3px rgba(242,181,68,.5),0 14px 34px rgba(12,28,22,.35);transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+  nav.admin .home{width:56px;height:56px;margin:-6px 0;border-radius:50%;border:0;cursor:pointer;background:var(--navy) url('/brand/star.svg') center/33px no-repeat;box-shadow:0 0 0 3px rgba(242,181,68,.5),0 14px 34px rgba(12,28,22,.35);transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
   nav.admin .home:hover{transform:scale(1.05)}
-  nav.admin .badge{width:38px;height:34px;border:0;cursor:pointer;background:var(--navy);color:var(--cream);font:700 12px/1 var(--sans);letter-spacing:.02em;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
+  nav.admin .badge{width:34px;height:30px;border:0;cursor:pointer;background:var(--navy);color:var(--cream);font:700 12px/1 var(--sans);letter-spacing:.02em;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
   /* a view inside opens as a sheet over the dashboard, with its name and Close */
   .sheethead{flex:none;display:flex;align-items:center;gap:14px;padding:22px clamp(18px,3vw,44px) 8px}
   .sheethead h1{font:420 clamp(32px,3.4vw,50px)/1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.03em;margin:0}
@@ -119,9 +119,9 @@
   .daycard .label{color:inherit;opacity:.85;display:block;margin:4px 0 10px}
   .window:fullscreen{border-radius:0}.window:fullscreen .hud,.window:fullscreen .shade,.window:fullscreen .board{display:none}
   .daycard .count{margin:0;display:flex;gap:8px;flex-wrap:wrap}
-  .daycard .count span{font:400 13.5px/1 var(--sans);padding:9px 14px;border-radius:999px;background:rgba(251,246,234,.14);border:1px solid rgba(251,246,234,.28);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);text-shadow:none}
+  .daycard .count span{font:400 13.5px/1 var(--sans);padding:9px 14px;border-radius:999px;background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:var(--glass-edge);box-shadow:var(--glass-shadow);color:var(--cream);text-shadow:0 1px 2px rgba(8,20,15,.4)}
   .daycard .count b{font-weight:600;color:var(--sun);font-variant-numeric:tabular-nums;margin-right:5px}
-  .goals{position:absolute;right:clamp(20px,3.4vw,50px);top:clamp(20px,3.4vw,40px);width:258px;padding:18px 20px 12px;border-radius:26px;background:rgba(14,28,20,.3);border:1px solid rgba(251,246,234,.26);backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3)}
+  .goals{position:absolute;right:clamp(20px,3.4vw,50px);top:clamp(20px,3.4vw,40px);width:258px;padding:18px 20px 12px;border-radius:26px;background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:var(--glass-edge);box-shadow:var(--glass-shadow)}
   .goals:empty{display:none}
   .goals .label{display:block;margin-bottom:14px;color:inherit;opacity:.8}
   .goals p{margin:0 0 10px;display:flex;gap:11px;align-items:center;font:400 15px/1.25 var(--sans)}
@@ -314,12 +314,12 @@
   #game.on{display:block}
   #game iframe{position:fixed;inset:0;width:100%;height:100%;border:0;z-index:1;background:var(--sky)}
   #gamebar{display:none!important;position:fixed;left:50%;transform:translateX(-50%);top:18px;z-index:6;display:flex;gap:6px;align-items:center}
-  #gamebar button{font:500 14px/1 var(--sans);color:var(--forest);border:0;padding:11px 18px;border-radius:999px;cursor:pointer;background:rgba(251,246,234,.74);-webkit-backdrop-filter:blur(20px) saturate(1.5);backdrop-filter:blur(20px) saturate(1.5);box-shadow:0 6px 20px rgba(12,28,22,.16);transition:background .2s,color .2s}
+  #gamebar button{font:500 14px/1 var(--sans);color:var(--forest);border:0;padding:11px 18px;border-radius:999px;cursor:pointer;background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:var(--glass-edge);box-shadow:var(--glass-shadow);transition:background .2s,color .2s}
   #gamebar button.on{color:var(--cream);background:var(--forest)}
   #gamebar .label{display:none}
   body.play header.site{background:none;-webkit-backdrop-filter:none;backdrop-filter:none;pointer-events:none}
   body.play header.site>*{pointer-events:auto}
-  body.play header.site .mark{padding:6px 18px 6px 6px;border-radius:999px;background:rgba(251,246,234,.74);-webkit-backdrop-filter:blur(20px) saturate(1.5);backdrop-filter:blur(20px) saturate(1.5);box-shadow:0 6px 20px rgba(12,28,22,.16)}
+  body.play header.site .mark{padding:6px 18px 6px 6px;border-radius:999px;background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:var(--glass-edge);box-shadow:var(--glass-shadow)}
   .empty{color:var(--muted);padding:26px 8px}
   @media (max-width:980px){
     header.site .visit{height:40px;font-size:14px}.goals{display:none}.tile,.tile.big{grid-column:span 12;min-height:220px}.pillars{grid-template-columns:1fr}.crow.r0{grid-template-columns:repeat(2,minmax(0,1fr))}.crow.r1{grid-template-columns:repeat(4,minmax(0,1fr))}.crow.r2{grid-template-columns:repeat(8,minmax(0,1fr))}

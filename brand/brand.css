@@ -64,26 +64,28 @@
 .chip.live { color: var(--forest); background: rgba(242, 181, 68, .24); }
 .chip.live::before { width: 13px; height: 13px; margin-right: 6px; vertical-align: 0; }
 
-/* ---- round glass: every overlay on the game ---- */
-.glass {
-  color: var(--forest);
-  background: linear-gradient(180deg, rgba(251, 246, 234, .8), rgba(251, 246, 234, .62));
-  -webkit-backdrop-filter: blur(26px) saturate(1.6); backdrop-filter: blur(26px) saturate(1.6);
-  border: 1px solid rgba(255, 255, 255, .6);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .85), 0 14px 40px rgba(12, 28, 22, .22), 0 1px 2px rgba(12, 28, 22, .1);
+/* ---- liquid glass: the one look of every card, side and pill over the game or a picture ----
+   Taken from the pill. Use the class .glass, or these five tokens where a rule must carry it itself;
+   never a glass of its own. (.glass2 is the same, its older name.) */
+:root {
+  --glass: linear-gradient(180deg, rgba(251, 246, 234, .42), rgba(251, 246, 234, .26));
+  --glass-blur: blur(18px) saturate(1.6);
+  --glass-edge: 1px solid rgba(255, 255, 255, .55);
+  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), 0 12px 30px rgba(12, 28, 22, .16);
+  --glass-hover: rgba(255, 255, 255, .35);
+  --pill-h: 44px;   /* every pill and round button at the bottom: the nav pill, the library's Back */
 }
+.glass, .glass2 { color: var(--forest); background:var(--glass); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); border:var(--glass-edge); box-shadow:var(--glass-shadow); }
 
-/* the game's pill: Back, one large round home (the dashboard), the city's badge; as in the dashboard */
-/* light liquid glass: the pill, the library's sides and cards; one look for everything over the game */
-.glass2 { background: linear-gradient(180deg,rgba(251,246,234,.42),rgba(251,246,234,.26)); -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6); border: 1px solid rgba(255,255,255,.55); box-shadow: inset 0 1px 0 rgba(255,255,255,.75),0 12px 30px rgba(12,28,22,.16); }
-.os-pill { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 14px; padding: 0 16px; height: 52px; border-radius: 999px; background:linear-gradient(180deg,rgba(251,246,234,.42),rgba(251,246,234,.26));-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);border:1px solid rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 12px 30px rgba(12,28,22,.16); }
+/* the game's pill: Home (the dashboard), the large round star (the intents), the city's badge; as in the dashboard */
+.os-pill { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 12px; padding: 0 12px; height: var(--pill-h); box-sizing: border-box; border-radius: 999px; background:var(--glass); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); border:var(--glass-edge); box-shadow:var(--glass-shadow); }
 .os-pill a { text-decoration: none; }
 .os-pill .back { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--cream); filter: drop-shadow(0 1px 2px rgba(8, 20, 15, .45)); font: 500 10.5px/1 var(--sans); letter-spacing: .06em; padding: 0 6px; }
-.os-pill .back svg { width: 24px; height: 22px; }
+.os-pill .back svg { width: 22px; height: 20px; }
 .os-pill .back:hover { color: #fff; }
-.os-pill .home { width: 64px; height: 64px; margin: -8px 0; border-radius: 50%; background: var(--navy) url('/brand/star.svg') center/38px no-repeat; box-shadow: 0 0 0 3px rgba(242, 181, 68, .5), 0 14px 34px rgba(12, 28, 22, .35); transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
+.os-pill .home { width: 56px; height: 56px; margin: -6px 0; border-radius: 50%; background: var(--navy) url('/brand/star.svg') center/33px no-repeat; box-shadow: 0 0 0 3px rgba(242, 181, 68, .5), 0 14px 34px rgba(12, 28, 22, .35); transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
 .os-pill .home:hover { transform: scale(1.05); }
-.os-pill .badge { width: 38px; height: 34px; display: grid; place-items: center; background: var(--navy); color: var(--cream); font: 700 12px/1 var(--sans); letter-spacing: .02em; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
+.os-pill .badge { width: 34px; height: 30px; display: grid; place-items: center; background: var(--navy); color: var(--cream); font: 700 12px/1 var(--sans); letter-spacing: .02em; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
 body:not(.framed):not(.embed) .os-bar.bottom { bottom: 86px; }
 body.framed .os-bar.bottom { bottom: 96px; }                          /* inside the dashboard, above the dashboard's pill */
 body.framed #hud { top: 76px; }        /* the film's and the lenses' bars stand above the pill */

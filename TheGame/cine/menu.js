@@ -7,7 +7,7 @@ if (qs.get('in') === 'os') document.body.classList.add('framed');
 document.getElementById('hud')?.classList.add('glass');
 const OS = import.meta.env.VITE_OS || `http://${location.hostname}:5180`;
 const bar = document.createElement('nav');
-bar.dataset.menu = '1'; bar.className = 'os-pill';
+bar.dataset.menu = '1'; bar.className = 'os-pill glass';
 bar.innerHTML = `<a class="back" href="${OS}/#city" aria-label="Home, the dashboard"><svg viewBox="0 0 24 22"><path d="M3 10.5 12 3l9 7.5M5.5 8.5V19h4.5v-5.5h4V19h4.5V8.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>` +
   `<a class="home" href="${OS}/#intents" aria-label="Intents"></a><a class="badge" href="${OS}/" title="Maia City, the front page">MC</a>`;
 document.body.append(bar);
