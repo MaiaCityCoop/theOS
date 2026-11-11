@@ -30,7 +30,7 @@ function rockIn(k, ki, i, j) {
     const r1 = rnd(i, j, 204), r2 = rnd(i, j, 205), r3 = rnd(i, j, 206), r4 = rnd(i, j, 207);
     const s = k.lo + (k.hi - k.lo) * (r1 * r1 * r1 + (k.big ? oc * 0.25 * r1 : 0));
     const top = s * (0.55 + 0.4 * r3) - 0.22 * s;
-    if (top > STEP_OVER) rock = { x, z, r: s * (0.8 + 0.5 * Math.max(r2, r4)) * 0.9 };
+    if (top > STEP_OVER) rock = { x, z, r: s * (0.8 + 0.5 * Math.max(r2, r4)) * 0.7 };   // a little inside its outline: it is half buried, and stops you where you see it
   }
   kept.set(key, rock); return rock;
 }

@@ -76,7 +76,7 @@ export function createControls(camera, canvas, msg, stat) {
     L = Math.max(L0, Math.min(L1, L + e.deltaY * RIG.wheel * (e.deltaMode ? 30 : 1)));
   }, { passive: false });
   camera.rotation.order = 'YXZ';
-  let eyeY = null, hPrev = RIG.eye, fromAbove = false, shown = '';
+  let eyeY = null, hPrev = RIG.eye, fromAbove = false, shown = '', glide = null, backNow = 0;
   return {
     get fly() { return band !== 'eye'; },
     get band() { return band; },
@@ -88,8 +88,11 @@ export function createControls(camera, canvas, msg, stat) {
       // into things by their doors: coming down from above into something's walls lands before its door, facing in;
       // rising from inside something that is left by its door goes out of the door first (its walls: src/world/solids.js)
       if (h > 6) fromAbove = true;
-      if (h < 3 && hPrev >= 3 && fromAbove) { const w = within(pivot.x, pivot.z); if (w) { pivot.x = w.door.x; pivot.z = w.door.z; yaw = w.door.yaw; look = -0.05; } fromAbove = false; }
-      if (h >= 2 && hPrev < 2) { const w = within(pivot.x, pivot.z); if (w?.leave === 'door') { pivot.x = w.door.x; pivot.z = w.door.z; } }
+      // a thing left by its door (leave: 'door') is also come into by it: the point glides to before its door, never jumps;
+      // a thing left through its roof (the tent) is come into from above, where you are
+      if (h < 3 && hPrev >= 3 && fromAbove) { const w = within(pivot.x, pivot.z); if (w?.leave === 'door') glide = { ...w.door, t: 0 }; fromAbove = false; }
+      if (h >= 2 && hPrev < 2) { const w = within(pivot.x, pivot.z); if (w?.leave === 'door') glide = { ...w.door, t: 0 }; }
+      if (glide) { glide.t = Math.min(1, glide.t + dt * 1.6); const k = glide.t * glide.t * (3 - 2 * glide.t); pivot.x += (glide.x - pivot.x) * k; pivot.z += (glide.z - pivot.z) * k; if (glide.t >= 1) glide = null; }
       if (h < 2) fromAbove = false;
       hPrev = h;
       if (v.band !== band) { band = v.band; if (!locked) msg.textContent = hints[band] || ''; }
@@ -107,7 +110,9 @@ export function createControls(camera, canvas, msg, stat) {
       const pitch = v.pitch * (1 - v.free) + look * v.free;
       const back = v.orbit * Math.max(0, h - RIG.eye) / Math.tan(Math.max(0.05, -pitch || 0.05));
       let cx = pivot.x + sy * back, cz = pivot.z + cy * back;
-      if (back > 0.01 && h < 60) { const t = clear(pivot.x, pivot.z, cx, cz); cx = pivot.x + (cx - pivot.x) * t; cz = pivot.z + (cz - pivot.z) * t; }   // a wall between: come in front of it
+      let want = back; if (back > 0.01 && h < 60) want = back * clear(pivot.x, pivot.z, cx, cz);   // a wall between: come in front of it
+      backNow = want < backNow ? want : backNow + (want - backNow) * Math.min(1, dt * 3);   // in at once (never see through a wall), back out gently
+      if (back > 0.01) { cx = pivot.x + sy * backNow; cz = pivot.z + cy * backNow; }
       const y = Math.max(g + Math.min(h, stoop) + Math.max(0, h - RIG.eye), heightAt(cx, cz) + 0.5);   // never under the ground
       eyeY = eyeY === null || h > 2 ? y : eyeY + (y - eyeY) * Math.min(1, dt * 14);   // at eye level the eyes follow the ground, eased
       camera.position.set(cx, eyeY, cz);

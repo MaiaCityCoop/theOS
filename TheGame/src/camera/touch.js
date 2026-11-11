@@ -11,7 +11,7 @@ export function createTouch(canvas, { look, height }) {
   function build() {   // the joystick appears with the first touch: a mouse never sees it
     if (el) return;
     const S = TOUCH.stick;
-    el = document.createElement('div'); el.className = 'os-stick glass'; el.style.cssText = `width:${S.size}px;height:${S.size}px;left:calc(var(--edge) + ${S.margin}px);bottom:calc(var(--edge-b) + var(--pill-h) + ${S.margin}px)`;
+    el = document.createElement('div'); el.className = 'os-stick glass'; el.style.cssText = `width:${S.size}px;height:${S.size}px;left:calc(var(--edge) + ${S.margin}px);bottom:calc(var(--edge-b) + var(--pill-h) + 12px + ${S.margin}px)`;
     knob = document.createElement('i'); knob.style.cssText = `width:${S.knob}px;height:${S.knob}px`; el.append(knob); document.body.append(el);
     el.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') return; e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch {} stick = { id: e.pointerId }; drive(e); });
     el.addEventListener('pointermove', (e) => { if (stick?.id === e.pointerId) drive(e); });

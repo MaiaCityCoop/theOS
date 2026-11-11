@@ -3,8 +3,15 @@ export const LIGHT_GLSL = /* glsl */ `
 uniform vec3 uSunDir, uSun, uAmb, uSky, uHazeCol; uniform float uHaze;
 // the weather every surface answers, all neutral today (intent 0002): x wet, y snow, z fog, w storm (darker light)
 uniform vec4 uWeather; uniform float uClouds;
-// air: the far land takes the sky's colour, and the horizon melts into it; fog thickens it
-vec3 haze(vec3 c, float dist){ return mix(uHazeCol, c, exp(-dist * uHaze * (1.0 + 40.0 * uWeather.z))); }
+uniform float uAirH, uAirScale;   // the camera's height above the ground under it; how fast the air thins with height (m)
+// air: the far land takes the sky's colour, and the horizon melts into it. One height fog for everything, near or 12 km
+// up: the air is thickest at the ground and thins upwards (by e every uAirScale metres), so a line of sight from high up
+// passes through less of it; mostly the line ends on the ground, so its mean thickness is that of the air from the
+// camera's height down. Fog (the weather) thickens it all.
+float airMean(float h){ float k = h / max(uAirScale, 1.0);   // (a material without the shared uniforms: no thinning)
+  if (uAirScale < 1.0) return 1.0;
+  return k < 1e-3 ? 1.0 - 0.5 * k : (1.0 - exp(-k)) / k; }
+vec3 haze(vec3 c, float dist){ return mix(uHazeCol, c, exp(-dist * uHaze * airMean(uAirH) * (1.0 + 40.0 * uWeather.z))); }
 // the share of sunlight that reaches a point past the clouds (1: all); a moving cloud map comes with the clouds
 float cloudAt(vec3 w){ return (1.0 - uClouds * 0.0) * (1.0 - 0.6 * uWeather.w); }
 // a surface under the weather: darker when wet, white where snow settles (on what faces up)

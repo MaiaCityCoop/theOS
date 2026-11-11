@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bunx --bun vite --port 5180 --strictPort --host localhost"
+    "dev": "bunx --bun vite --port 5180 --strictPort --host localhost",
+    "lan": "bunx --bun vite --port 5180 --strictPort --host"
   },
   "dependencies": {
     "marked": "^18.2.0"

@@ -27,12 +27,13 @@ export function within(x, z) {
   return null;
 }
 
-/** A line of sight from (x0, z0) to (x1, z1): the share of it (0 to 1) clear before a solid stops it; doors let it through. */
+/** A line of sight from (x0, z0) to (x1, z1): the share of it (0 to 1) clear before a placed thing's walls stop it; doors let
+    it through. Rocks do not: a camera pulled in by every stone it passes would jump in and out. */
 export function clear(x0, z0, x1, z1) {
   const n = Math.max(2, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.25));
   let px = x0, pz = z0;
   for (let i = 1; i <= n; i++) {
-    const x = x0 + ((x1 - x0) * i) / n, z = z0 + ((z1 - z0) * i) / n, [qx, qz] = step(px, pz, x, z);
+    const x = x0 + ((x1 - x0) * i) / n, z = z0 + ((z1 - z0) * i) / n, [qx, qz] = step(px, pz, x, z, false);
     if (Math.hypot(qx - x, qz - z) > 0.01) return Math.max(0, (i - 1) / n);
     px = x; pz = z;
   }
@@ -40,7 +41,7 @@ export function clear(x0, z0, x1, z1) {
 }
 
 /** A step from (px, pz) to (x, z): where it really ends, kept out of every solid. */
-export function step(px, pz, x, z) {
+export function step(px, pz, x, z, rocks = true) {
   for (const o of list) {
     let [u0, v0] = toL(o, px, pz), [u, v] = toL(o, x, z);
     if (Math.hypot(u, v) > 40) continue;
@@ -66,7 +67,7 @@ export function step(px, pz, x, z) {
     }
     [x, z] = toW(o, u, v);
   }
-  for (const r of rocksNear(x, z, 1.5)) {   // the scattered rocks, as the card places them (src/world/rocksolid.js)
+  if (rocks) for (const r of rocksNear(x, z, 1.5)) {   // the scattered rocks, as the card places them (src/world/rocksolid.js)
     const du = x - r.x, dv = z - r.z, d = Math.hypot(du, dv), m = r.r + BODY;
     if (d < m) { const k = m / Math.max(d, 1e-6); x = r.x + du * k; z = r.z + dv * k; }
   }

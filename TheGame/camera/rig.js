@@ -12,7 +12,7 @@
 //   lock    the mouse is held for looking (pointer lock) in this band; elsewhere it is a free pointer, to point and pick
 export default {
   eye: 1.7,            // the walker's eyes
-  top: 4000,           // the highest it goes; 12000 (the city and the horizon) once the land reaches that far (intent 0002, stage 4): above 4 km there is only haze today
+  top: 12000,          // the highest it goes: the city and the horizon (the height fog thins the air up there, LIGHT_GLSL)
   wheel: 0.0016,       // how fast the wheel changes the height (its logarithm per wheel step)
   keys: [
     { h: 1.7, band: 'eye', pitch: null, fov: 68, speed: 3.2, run: 9, orbit: 0, lock: true },

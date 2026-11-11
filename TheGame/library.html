@@ -64,7 +64,7 @@
 // src/world/places.js), a round of bare ground with the grass around it, the camera circling it. A placed asset
 // stands in the middle; a scattered one lies there as a few of its kind, small to large.
 import * as THREE from 'three';
-import { ASSETS, geometryOf, materialFor, place, scatterRow } from './assets/index.js';
+import { ASSETS, geometryOf, materialFor, place, scatterRow, solidOf } from './assets/index.js';
 import { rockSample } from './src/scatter/rocks.js';
 import { detailOf, spanOf, distanceAt } from './src/detail/index.js';
 import { poseAt, heightFor } from './src/camera/rig.js';
@@ -126,7 +126,7 @@ for (const b of document.querySelectorAll('.item[data-id]')) {
 
 // the stage: what stands on it now
 let staged = null, ground0 = heightAt(STAGE.x, STAGE.z), H = 1, yaw = 2.6, pitch = 0.32, dist = 9, spin = true, seed = null;
-let cardTab = 'info', lodAt = null;   // the asset card's tab; the level of detail being looked at (null: none chosen)
+let cardTab = 'info', lodAt = null, showBody = false, bodyLines = null;   // showBody: the asset's collision drawn on the stage (intent 0003)   // the asset card's tab; the level of detail being looked at (null: none chosen)
 function clearStage() { ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BIOME.meadow)); if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); staged = null; } }
 function stageAsset(a) {
   clearStage();
@@ -139,6 +139,30 @@ function stageAsset(a) {
     }
     scene.add(staged);
   } else staged = place(scene, U, a, { x: STAGE.x, z: STAGE.z, yaw: 0.6, solid: false });
+  drawBody(a);
+}
+// an asset's body as lines on the ground: its walls (with their doors left open), posts and boxes, from its file or its kind
+function drawBody(a) {
+  if (bodyLines) { scene.remove(bodyLines); bodyLines.traverse((o) => o.geometry?.dispose()); bodyLines = null; }
+  if (!showBody) return;
+  const s = solidOf(a), g = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color: 0xffd27a, depthTest: false, transparent: true, opacity: 0.95, side: THREE.DoubleSide });
+  const y = (x, z) => heightAt(STAGE.x + x, STAGE.z + z) + 0.08;
+  const pts = (list) => {   // a ribbon 6 cm wide along the line, lying on the ground (a GL line is one pixel: too thin to see)
+    const pos = [];
+    for (let i = 1; i < list.length; i++) {
+      const [x0, z0] = list[i - 1], [x1, z1] = list[i], l = Math.hypot(x1 - x0, z1 - z0) || 1, nx = (-(z1 - z0) / l) * 0.03, nz = ((x1 - x0) / l) * 0.03;
+      const A = [x0 + nx, y(x0, z0), z0 + nz], B = [x0 - nx, y(x0, z0), z0 - nz], C = [x1 + nx, y(x1, z1), z1 + nz], D = [x1 - nx, y(x1, z1), z1 - nz];
+      pos.push(...A, ...B, ...C, ...B, ...D, ...C);
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); return geo;
+  };
+  const yaw = a.placement.at === 'scatter' ? 0 : 0.6, c = Math.cos(yaw), n = Math.sin(yaw), W = (u, v) => [u * c + v * n, -u * n + v * c];   // as place() turns it
+  const ring = (cx, cz, r, gaps = []) => { const out = []; for (let i = 0; i <= 96; i++) { const t = (i / 96) * Math.PI * 2; if (gaps.some(([m, h]) => Math.abs(Math.atan2(Math.sin(t - m), Math.cos(t - m))) < h)) { if (out.length > 1) g.add(new THREE.Mesh(pts(out.splice(0)), mat)); out.length = 0; continue; } out.push(W(cx + Math.cos(t) * r, cz + Math.sin(t) * r)); } if (out.length > 1) g.add(new THREE.Mesh(pts(out), mat)); };
+  for (const w of s.walls || []) ring(0, 0, w.round, w.gaps);
+  for (const p of s.posts || []) ring(p.x, p.z, p.r);
+  for (const b of s.boxes || []) { const ca = Math.cos(b.a || 0), sa = Math.sin(b.a || 0), k = [[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]].map(([i, j]) => { const u = (i * b.w) / 2, v = (j * b.d) / 2; return W(b.x + u * ca - v * sa, b.z + u * sa + v * ca); }); g.add(new THREE.Mesh(pts(k), mat)); }
+  g.children.forEach((l) => { l.renderOrder = 9; const p = l.geometry.attributes.position; for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) + STAGE.x, p.getY(i), p.getZ(i) + STAGE.z); });   // from the stage's middle to the world
+  scene.add((bodyLines = g));
 }
 function choose(id, keepSeed) {
   const a = ASSETS[id]; if (!keepSeed) { seed = null; lodAt = null; } stageAsset(a);
@@ -158,6 +182,7 @@ function choose(id, keepSeed) {
     + fileOf(`TheGame/assets/${a.id}.js`));
   info.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { const d = dist, p = pitch; cardTab = b.dataset.tab; choose(id, true); dist = d; pitch = p; }));   // a tab changes the card, not the view
   info.querySelectorAll('[data-lod]').forEach((b) => (b.onclick = () => lookAtLevel(a, +b.dataset.lod)));
+  const bt = document.getElementById('bodyT'); if (bt) bt.onclick = () => { const d = dist, p = pitch; showBody = !showBody; choose(id, true); dist = d; pitch = p; };
   if (seeded && cardTab === 'info') {   // a procedural asset made again from another seed: the same recipe, another of its kind; the file keeps its own
     document.getElementById('seedR').onclick = () => { seed = Math.floor(Math.random() * 100000); choose(id, true); };
     const o = document.getElementById('seed0'); if (o) o.onclick = () => { seed = null; choose(id, true); };
@@ -179,8 +204,14 @@ function detailOf_(a) {
   const m = (v) => (v >= 1000 ? `${num(v / 1000)} km` : `${Math.round(v)} m`), p = (v) => `${num(v)} px`;
   const range = (b) => (b.hi === Infinity ? `over ${p(b.lo)}` : b.lo === 0 ? `under ${p(b.hi)}` : `${p(b.lo)} to ${p(b.hi)}`);
   return `<header><span class="g-label">${a.name} · levels of detail</span><p class="g-text" style="margin-top:8px">Each level by its size on screen; choose one and the camera goes to where it is drawn. On the right, how far that is with the walker's lens on this screen.</p></header>
+    ${bodyCell(a)}
     <div class="g-pick g-part">${bands(a).map((b) => `<button data-lod="${b.i}" class="${lodAt === b.i ? 'on' : ''}"><b>${b.impostor ? '◆' : b.faces ? b.i + 1 : '–'}</b><span><span class="g-name">${b.impostor ? `Card · ${b.views * b.views} views` : b.faces ? `${b.faces.toLocaleString('en')} faces` : 'Not drawn'}</span><span class="g-sub">${range(b)}</span></span><span class="g-file">${m(distanceAt(pxAim(b), span(a)))}</span></button>`).join('')}</div>`
     + fileOf(`TheGame/assets/${a.id}.js`);
+}
+// its body, as a line of words and a button to draw it on the stage
+function bodyCell(a) {
+  const s = solidOf(a), own = !!a.solid, parts = [s.walls?.length && `${s.walls.length} wall${s.walls.length > 1 ? 's' : ''}${s.walls.some((w) => w.gaps?.length) ? ' with a door' : ''}`, s.posts?.length && `${s.posts.length} post${s.posts.length > 1 ? 's' : ''}`, s.boxes?.length && `${s.boxes.length} box${s.boxes.length > 1 ? 'es' : ''}`].filter(Boolean).join(', ');
+  return `<div class="g-cell g-part"><span class="g-label">Body · ${own ? 'its own' : `its kind's (${a.kind})`}</span><div class="seed"><b style="font-weight:450">${parts || 'none'}</b><button class="g-btn${showBody ? '' : ' quiet'}" id="bodyT">${showBody ? 'Hide' : 'Show'}</button></div></div>`;
 }
 function lookAtLevel(a, i) {
   lodAt = i; const p = Math.max(pitch, 0.25), y = yaw;

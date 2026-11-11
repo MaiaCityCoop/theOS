@@ -1,6 +1,6 @@
 // The land in GLSL: the same functions as world/land.js, constant for constant, so the GPU's ground
 // is the walker's ground. Every shader that needs the land starts with this.
-import { OCT_LAM, OCT_AMP, WATER_DROP, MEANDER } from './land.js';
+import { OCT_LAM, OCT_AMP, WATER_DROP, MEANDER, PADS, PAD_FALL } from './land.js';
 import { BIOME_GLSL } from './biomes.glsl.js';
 
 const fl = (a) => a.map((v) => v.toFixed(3)).join(', ');
@@ -12,6 +12,7 @@ const float WATER_DROP = ${WATER_DROP.toFixed(3)};
 ${BIOME_GLSL}
 const float LAM[8] = float[8](${fl(OCT_LAM)});
 const float AMP[8] = float[8](${fl(OCT_AMP)});
+const vec4 PAD[${Math.max(1, PADS.length)}] = vec4[${Math.max(1, PADS.length)}](${PADS.length ? PADS.map((p) => `vec4(${p.x.toFixed(3)}, ${p.z.toFixed(3)}, ${p.r.toFixed(3)}, ${p.h.toFixed(4)})`).join(', ') : 'vec4(0.0, 0.0, 0.0, 0.0)'});   // the pads under what stands (x, z, radius, height)
 
 // The one measure every level of detail goes by: distance as a 68° lens would see it. A longer
 // lens shows a thing larger, so it counts as nearer by that much (uLodInv is one over that factor).
@@ -78,7 +79,10 @@ float heightAt(vec2 p, float dist, float d, float w){
   }
   float bank = 0.3 * smoothstep(w, w + 5.0, d);
   float carve = riverCarve(d, w);
-  return baseB(p) + h + m * 3.0 + bank - carve;
+  float H = baseB(p) + h + m * 3.0 + bank - carve;
+  // pads: the ground levels itself under what is stood on it, as world/land.js does (PADS)
+  for (int i = 0; i < ${PADS.length}; i++) { vec4 P = PAD[i]; H = mix(P.w, H, smoothstep(P.z, P.z + ${PAD_FALL.toFixed(1)}, length(p - P.xy))); }
+  return H;
 }
 
 // ---- what grows where ----

@@ -67,7 +67,8 @@ const parts = { ctl: 0, ground: 0, terrain: 0, scatter: 0, draw: 0 };   // where
 function choose(dt) {
   let t = performance.now(), u;
   controls.update(dt);
-  const p = camera.position, dy = (U.uDy.value = Math.max(0, p.y - HMAX, HMIN - p.y));
+  const p = camera.position, dy = (U.uDy.value = Math.max(0, p.y - heightAt(p.x, p.z) - 2, HMIN - p.y));   // how high above the ground here: lifted, the grass and stones see it far off (intent 0003)
+  U.uAirH.value = Math.max(0, p.y - heightAt(p.x, p.z));   // the height fog thins along a line of sight from up here (LIGHT_GLSL)
   camera.updateMatrixWorld();
   setPlanes(projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
   const lod = governor.detail(camera);

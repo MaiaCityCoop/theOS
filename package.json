@@ -2,5 +2,6 @@
   "name": "theos",
   "private": true,
   "scripts": { "dev": "bun run --cwd OS dev",
-    "game": "bun run --cwd TheGame dev" }
+    "game": "bun run --cwd TheGame dev",
+    "lan": "bun run --cwd OS lan" }
 }

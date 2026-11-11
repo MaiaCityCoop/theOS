@@ -150,6 +150,29 @@ with two fingers):
   the joystick pushed for 1.5 s walked 3.5 m; a finger dragged 50 px turned 0.26 rad; pinching in took the camera from
   1.7 m to 7.4 m and spreading brought it back to 1.7 m. Not tried on a real phone or tablet.
 
+**Fourth slice** (asked: the phone layout, the joystick further into the corner, the readout out of the way, and
+everything left open; on the way: collision jumping, one global haze, the tent's floor on uneven ground):
+
+- Phone and tablet: the joystick sits in the bottom left corner above the bottom line (112 px); the developer's
+  readout is hidden below 1100 px wide. Looked at in the pane at 375×812 and 768×1024.
+- Collision that jumped: the follow camera was pulled in by every stone between it and the walker, and coming down
+  into the tent jumped you to its door. Now only walls pull the camera in (rocks do not), it comes in at once and
+  eases back out; the tent, left through its roof, is come into from above where you are, and a thing left by its door
+  glides you to it. Rocks' bodies are 0.7 of their outline (half buried), so they stop you where you see them.
+- Town at 45 ms: the grass and stones measured distance as if the camera stood on the ground below 70 m (`uDy`); they
+  now count the camera's height above the ground under it. The town view at 40 m: 16.7 ms (60 fps, the screen's
+  limit), 2.17 M triangles; was 45.5 ms.
+- One global haze (asked: "introduce the general distance fog / haze fully globally"): `LIGHT_GLSL`'s haze is a height
+  fog, thickest at the ground and thinning upwards (`uAirScale`, 1200 m), every material's; the weather's fog thickens
+  it. The camera's top is 12 km again: from there the land, rivers and dry ground read through the thinner air.
+- The ground under what stands: the land levels itself in a pad under each placed thing (its `clear`, meeting the land
+  over 3 m), in `world/land.js` and the same in `WORLD_GLSL`, so the drawn ground is the walked ground; the tent's floor
+  now meets its walls all round.
+- The library shows a body: the Detail tab's Body row (its own or its kind's: walls, doors, posts, boxes) and a button
+  that draws it on the stage as gold lines through the asset.
+- Real devices: `bun run lan` opens the server to the local network; then the game is at
+  `http://<this Mac's address>:5180/game/` on a phone or tablet on the same Wi-Fi. Not tried on a device by me.
+
 ## Propose
 
 ## Story
@@ -166,7 +189,7 @@ with two fingers):
 - [x] Into and out of assets
 - [x] `cine` and the library on the rig
 - [x] Collision defaults by kind; steps and rays for placed and scattered assets
-- [ ] The library shows collision
+- [x] The library shows collision
 
 ## Changelog
 
@@ -209,6 +232,16 @@ with two fingers):
   the one rig.
 - **Good:** walking, turning and both pinches worked by scripted touch at phone size.
 - **Broke / not there yet:** not tried on a real device; the tablet size was not looked at (the pane closed).
+
+### 2026-11-12, fourth slice
+
+- **Asked:** the phone layout and the joystick's place; the readout wrongly placed; do everything still open (town
+  frame time, real devices, 12 km, the library's collision); then: collision jumps you away from tents and rocks; one
+  global haze; the tent's floor on uneven ground.
+- **Delivered:** all of those (see Build, fourth slice).
+- **Good:** town 45 ms → 16.7 ms; the land seen from 12 km; the tent level; the library draws bodies.
+- **Broke / not there yet:** no real device tried by me (a LAN start is there); the collision fix is not yet felt by
+  Samuel; checks 4 and 5 not run as written.
 
 ## Trail
 

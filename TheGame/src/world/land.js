@@ -1,3 +1,4 @@
+import { PLACES } from './places.js';
 // The land, as one function of (x, z): the same integer-hash noise in JS (the walker's feet)
 // and in GLSL (the GPU's ground). Every constant the two share is written once, here.
 
@@ -62,8 +63,8 @@ export function riverAt(x, z) {
 export function baseB(x, z) {
   return 40 * (vnoise(x / 2600, z / 2600, 11) - 0.5) + 14 * (vnoise(x / 900 + 3.7, z / 900 + 3.7, 12) - 0.5);
 }
-/** The ground's height under (x, z), at full detail (what the GPU draws under the camera). */
-export function heightAt(x, z) {
+/** The land's own height under (x, z), before anything is stood on it. */
+export function naturalAt(x, z) {
   const { d, w } = riverAt(x, z);
   const m = sstep(w, w + 80, d), mm = 0.35 + 0.65 * m;
   let h = 0, qx = x, qy = z;
@@ -75,6 +76,18 @@ export function heightAt(x, z) {
   const bank = 0.3 * sstep(w, w + 5, d);
   const carve = 1.2 * (1 - sstep(w * 0.55, w * 1.1, d));
   return baseB(x, z) + h + m * 3 + bank - carve;
+}
+
+// Pads: the ground levels itself under what is stood on it (src/world/places.js): within a thing's `clear` metres the
+// land is flat at the height under its middle, and it meets the land again over PAD_FALL metres. The GPU's land is
+// written with the same pads (WORLD_GLSL), so the walker's ground is the drawn ground.
+export const PAD_FALL = 3;
+export const PADS = Object.values(PLACES).map((p) => ({ x: p.x, z: p.z, r: p.clear || 3, h: naturalAt(p.x, p.z) }));
+/** The ground's height under (x, z), at full detail (what the GPU draws under the camera): the land, levelled under what stands. */
+export function heightAt(x, z) {
+  let h = naturalAt(x, z);
+  for (const p of PADS) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r + PAD_FALL) h = p.h + (h - p.h) * sstep(p.r, p.r + PAD_FALL, d); }
+  return h;
 }
 
 export function aridAt(x, z) {
