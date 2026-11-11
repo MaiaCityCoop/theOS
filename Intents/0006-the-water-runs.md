@@ -69,3 +69,4 @@ _Filled when the idea is taken up._
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-12 | `6bb4ba2` | The intent opened, at idea |
