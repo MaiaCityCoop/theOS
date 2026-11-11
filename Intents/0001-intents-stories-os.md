@@ -837,7 +837,9 @@ _Samuel's decision._
 - **Delivered:** while the film plays no text in the studio changes: the clock is drawn on a
   small canvas. The film's frame has a size in whole pixels, set only when the window changes
   (917x383 at 1440x900, 2.39:1).
-- **Broke / not there yet:** the third guess at the cause in a row; waits for Safari. To tell the
+- **Then:** Samuel, in Safari: smooth in the studio and in the film alone. The stall was the
+  studio's clock text changing once a second.
+- **Before that:** the third guess at the cause in a row; waited for Safari. To tell the
   studio from the film for certain: the film alone at
   `localhost:5174/timeline.html?story=0001-intents-stories-os&embed`.
 
