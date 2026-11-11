@@ -169,3 +169,21 @@ flight's last frame melts into the bank shot. Seed 1 now lands on a green stretc
 - A dissolve freezes the outgoing shot (one camera, one picture); if that shot is still moving
   when it ends, the freeze would show. The trailer only dissolves out of shots that came to rest.
 - Frame rate on the timeline page is still unread in Safari.
+
+---
+
+## 6 · The one-frame flash · 2026-11-11 · `f09a57b15`
+
+**Asked.** About every 5 seconds the cinematic shots flicker: one frame of white.
+
+**Delivered.** The adaptive pixel ratio resized the canvas *after* a frame had been drawn.
+Resizing a canvas empties it, so that frame reached the screen empty (the page's pale background
+showing through). The resize is now held until the start of the next frame, right before drawing.
+The game view had the same fault; it shares the fix.
+
+**Good.** The cause fits the rhythm: the ratio probes upward every few calm seconds and steps
+back, and each step was one empty frame.
+
+**Broke / not there yet.** Not seen fixed by eye: in the pane the ratio did not change once in a
+9-second watch, so no step was caught there. Samuel's look in Safari is the check. If a flash
+remains exactly on a cut, the next suspect is the dissolve's frame grab.
