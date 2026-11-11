@@ -249,3 +249,31 @@ vertex, which far away showed as soft square blotches. Two changes:
 - The ground's pixel shader got heavier (four more noises, five more texture reads). The pane
   read 27–40 fps on these frames, with Safari drawing the same page beside it, so not a clean
   number; the 60 fps target has to be read again in Safari.
+
+---
+
+## 10 · The square patches · 2026-11-11 · `42b4020d9`
+
+**Asked.** (With a Safari screenshot of the opening shot, 52 fps.) The grass is still super
+blocky: block patches. And: how do real games do it; from far above the grass should still look
+like real grass.
+
+**Delivered.** Cycle 9 had the wrong culprit. The squares were not vertices: they were the
+colour-variation noise itself. One octave of value noise has its lattice in plain sight, as soft
+squares of light and dark green. All of the land's colour variation (the grass's tint, the three
+sizes of light and dark) is now read from a baked texture of many-octave cloudy noise, which has
+no grid, and whose mips let it go with distance by themselves. Blades, the ground cache and the
+terrain read the same texture, so they still agree. The patches' contrast was softened and the
+grass carpet's grain strengthened.
+
+**Good.** Same frame, before and after: the squares are gone, the variation is cloud-shaped.
+Five noise evaluations per pixel became five texture reads.
+
+**Broke / not there yet.**
+- Two rounds were spent on this because the first diagnosis (per-vertex colour) was made from a
+  small still without zooming in on the patches' shape.
+- From far above it is still a tinted texture under flat light. What a real meadow shows from
+  that height is not blades (at 300 m a blade is about a pixel) but light: shadowed hollows,
+  clumps, a sheen that changes with the sun. Shadow, sky and haze are still held back.
+- Safari read 52 fps (19.3 ms) at ratio 1.5 on the opening shot before this change: under the
+  60 fps target. Not read again since.
