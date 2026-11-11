@@ -861,6 +861,20 @@ _Samuel's decision._
 - **Broke / not there yet:** the library has one asset. The viewer lights things with its own
   simple light, not the world's.
 
+### 2026-11-11, forty-first round
+
+- **Asked:** the viewer with the list on the left and the chosen asset's metadata on the right;
+  never a light selected item in dark mode; the asset shown on the grass where it is placed; both
+  sides more compact; and remove the game's top bar of buttons.
+- **Delivered:** the Library is the live world: the film camera circles the chosen asset where
+  it stands (`places.js`), on its own ground (the tent on the meadow by the river); drag to
+  circle, wheel to come closer. Left, a compact list (the selected item dark with a gold edge);
+  right, a compact card of what it is (kind, size, faces, colours, where it stands, its file);
+  both only as tall as they need. The dashboard's game view has no top bar (Walk, Lenses,
+  Library each have a tile).
+- **Good:** seen in the pane at 1440: the tent in the meadow's grass, the river behind, both
+  sides and the pill; no errors.
+
 ## Trail
 
 | When | Commit | What |
