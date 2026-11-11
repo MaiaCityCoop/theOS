@@ -772,6 +772,18 @@ _Samuel's decision._
 - **Broke / not there yet:** not watched in the game: the app's browser pane is hidden. On a
   slow machine detail now takes longer to come back up after a heavy view.
 
+### 2026-11-11, thirty-fifth round
+
+- **Asked:** it still stutters ("that wasn't it"). Remove Series and Receipts from the studio's
+  pages.
+- **Delivered:** a hitch log in the game (dev only): every frame over 24 ms is recorded with where
+  its time went (controls, ground, terrain, grass and rocks, drawing), the detail, pixel ratio,
+  triangles, draw calls and the film's time, and posted every few seconds to the dev server,
+  which appends it to `TheGame/.perf/hitches.jsonl` (ignored by git). The studio's pages are
+  Hook, Story, Script, Edit.
+- **Broke / not there yet:** the cause is not found yet; the log waits for a run in Samuel's
+  Safari. The two calmings of the governor (rounds 33, 34) did not remove the stutter.
+
 ## Trail
 
 | When | Commit | What |

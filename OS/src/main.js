@@ -99,8 +99,8 @@ async function story(s, show = true) {
 
 // ---- a story's work, as the pages of an editing suite: one page at a time, chosen from a bar at the bottom left.
 // Edit is the film and its timeline; the others are the parts of story.md (its ## sections), hook first ----
-const STEP = [['The hook', 'Hook'], ['The story', 'Story'], ['The film', 'Script'], ['EDIT', 'Edit'], ['Receipts', 'Receipts'], ['The series', 'Series']];
-const HIDE = ['Open'];   // sections of story.md the studio does not show as pages
+const STEP = [['The hook', 'Hook'], ['The story', 'Story'], ['The film', 'Script'], ['EDIT', 'Edit']];
+const HIDE = ['Open', 'Receipts', 'The series'];   // sections of story.md the studio does not show as pages
 function pages(root, md, film) {
   const parts = md.replace(/^---\n[\s\S]*?\n---\n/, '').split(/^## /m).slice(1).map((p) => { const nl = p.indexOf('\n'); return { head: p.slice(0, nl).trim(), text: p.slice(nl + 1) }; });
   const tabs = STEP.map(([h, name]) => (h === 'EDIT' ? (film ? { name, edit: true } : null) : { name, part: parts.find((p) => p.head.startsWith(h)) })).filter((t) => t && (t.edit || t.part));

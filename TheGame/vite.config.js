@@ -1,6 +1,6 @@
 // The dev server serves the intents' stories (../Stories) and keeps timelines: POST /cine/keep?name=<name> with a timeline's JSON writes
 // cine/timelines/<name>.json, so a set of cameras an agent composed can be played back later by name; POST /story-preview keeps a story's picture.
-import { writeFileSync, mkdirSync, readdirSync, readFileSync, existsSync } from 'node:fs';
+import { writeFileSync, appendFileSync, mkdirSync, readdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 export default {
@@ -47,6 +47,12 @@ export default {
         let body = ''; req.on('data', (c) => { body += c; });
         req.on('end', () => { const m = body.match(/^data:image\/jpeg;base64,(.+)$/); if (!m) { res.statusCode = 400; res.end('a JPEG data URL'); return; }
           mkdirSync(resolve(dir, 'shots'), { recursive: true }); writeFileSync(resolve(dir, 'shots', i + '.jpg'), Buffer.from(m[1], 'base64')); res.end('kept'); });
+      });
+      // the hitch log (dev only): the game posts its slow frames here; appended to .perf/hitches.jsonl
+      server.middlewares.use('/perf-log', (req, res) => {
+        if (req.method !== 'POST') { res.statusCode = 400; res.end(''); return; }
+        let body = ''; req.on('data', (c) => { body += c; });
+        req.on('end', () => { try { JSON.parse(body); const dir = resolve(server.config.root, '.perf'); mkdirSync(dir, { recursive: true }); appendFileSync(resolve(dir, 'hitches.jsonl'), body + '\n'); } catch {} res.end('ok'); });
       });
       server.middlewares.use('/cine/keep', (req, res) => {
         const name = new URL(req.url, 'http://x').searchParams.get('name') || '';

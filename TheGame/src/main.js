@@ -51,16 +51,22 @@ spawn(controls);
 
 // ---- a frame: place the camera, choose what to draw, draw ----
 const projScreen = new THREE.Matrix4();
+const parts = { ctl: 0, ground: 0, terrain: 0, scatter: 0, draw: 0 };   // where a frame's time went, for the hitch log
 function choose(dt) {
+  let t = performance.now(), u;
   controls.update(dt);
   const p = camera.position, dy = (U.uDy.value = Math.max(0, p.y - HMAX, HMIN - p.y));
   camera.updateMatrixWorld();
   setPlanes(projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
   const lod = governor.detail(camera);
   U.uLodInv.value = 1 / lod;
+  u = performance.now(); parts.ctl = u - t; t = u;
   ground.update(p.x, p.z, dy, lod);
+  u = performance.now(); parts.ground = u - t; t = u;
   terrain.update(camera, dy, 1 / lod);
+  u = performance.now(); parts.terrain = u - t; t = u;
   scatter.select(p.x, p.z, heightAt(p.x, p.z), lod, dy);
+  parts.scatter = performance.now() - t;
 }
 function draw() {
   const dof = camera.userData.dof;   // the virtual camera brings a lens with it: its picture is drawn through it
@@ -76,9 +82,27 @@ function frame(now) {
   const c0 = performance.now();
   choose(Math.min(ms, 100) / 1000);
   hud.cpu(performance.now() - c0);
-  draw();
+  const d0 = performance.now(); draw(); parts.draw = performance.now() - d0;
   governor.end(ms, now, scatter.over);
+  hitch(ms, now);
   hud.frame(ms, now, controls.fly ? '  flying' : '');
+}
+
+// ---- the hitch log (dev only): every frame over 24 ms, with where its time went, sent to the dev server every
+// few seconds (TheGame/.perf/hitches.jsonl), to find what makes the picture stop ----
+const HITCH = 24, hitches = []; let frames = 0, sentAt = 0;
+function hitch(ms, now) {
+  frames++;
+  if (ms > HITCH && frames > 30) {
+    const r = renderer.info.render, c = window.__cine, f = (v) => +v.toFixed(2);
+    hitches.push({ at: Math.round(now), ms: f(ms), ctl: f(parts.ctl), ground: f(parts.ground), terrain: f(parts.terrain), scatter: f(parts.scatter), draw: f(parts.draw),
+      lod: f(governor.lod), cap: f(governor.cap), dpr: governor.dpr, tris: r.triangles, calls: r.calls, film: c?.clips?.length ? f(c.time) : null, playing: !!c?.playing, page: location.pathname + location.search });
+  }
+  if (import.meta.env.DEV && now - sentAt > 4000 && (hitches.length || frames > 0)) {
+    sentAt = now;
+    const body = JSON.stringify({ at: Math.round(now), frames, hitches: hitches.splice(0) }); frames = 0;
+    fetch('/perf-log', { method: 'POST', body }).catch(() => {});
+  }
 }
 
 // ---- before the first frame: compile every material, draw everything once ----
