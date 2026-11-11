@@ -727,3 +727,4 @@ _Samuel's decision._
 | 2026-11-11 | `47e7649` | A stronger, blue-veiled blur behind a sheet |
 | 2026-11-11 | `78778e6` | The stories shelf and studio; the lens view without bars, clear of the pill |
 | 2026-11-11 | `b531c0a` | The one-screen studio: step tabs and a five-track timeline |
+| 2026-11-11 | `13cdc98` | The studio as pages with a bottom-left bar, a menu on phones |
