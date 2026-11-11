@@ -334,6 +334,27 @@ _Samuel's decision._
   light while it was being written. Not seen in Safari or at phone width; the line not tried by
   touch; a click on the poster not tried.
 
+### 2026-11-11, eighth round
+
+- **Asked:** the storytelling of draft 09 is right; now rebrand it: rounder, everything less
+  blocky, more iconic, a nature and earth, solarpunk-inspired brand. Then, while it was being
+  written: do not call it a devlog, it is more than that, the real thing is built along the way;
+  and remove the figure "At today's rate the city takes 3,686 years".
+- **Delivered:** `brand/sheets/10-meadow.html`, first in the overview; draft 09 is kept beside
+  it. The same story (title, "This is day 1 of 5,423", the line, the wall, all 5423 days) in a
+  round, earthy dress built on three shapes from the mark: the glasshouse arch (the game's
+  picture is a round window; every day on the wall is an arched window), the seed (the 5423 days
+  as dots, the told one lit) and the sun with eight rays (today on the line, and in the day's
+  picture). Cream, forest, clay and gold; Fraunces at its softest; buttons, chips and the line as
+  pills; the years ahead in pencil with round huts, domes and trees. The word devlog is nowhere
+  on it and the years figure is gone: two figures remain, in game today and days told.
+- **Good:** seen in the pane at 1440: the title over the game's film in the round window, year 4
+  and year 10 in pencil with the pointer on the line, the wall of arches and the seeds.
+- **Broke / not there yet:** the first write of this round still said "devlog" and showed the
+  years; a replacement script stopped on its own check and was run again. Draft 09 still has
+  both. Not seen in Safari or at phone width; the line not tried by touch; a click on the day's
+  window not tried.
+
 ## Trail
 
 | When | Commit | What |
