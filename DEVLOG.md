@@ -187,3 +187,28 @@ back, and each step was one empty frame.
 **Broke / not there yet.** Not seen fixed by eye: in the pane the ratio did not change once in a
 9-second watch, so no step was caught there. Samuel's look in Safari is the check. If a flash
 remains exactly on a cut, the next suspect is the dissolve's frame grab.
+
+---
+
+## 7 · Artifacts in the distance · 2026-11-11 · `c0f42aff7`
+
+**Asked.** In the remote distance everything looks quite artifacty.
+
+**Delivered.** What a wide still showed, and what was done about each:
+- Dirt paths read from afar as thin pale rings drawn on the land. A path now fades out between
+  70 and 220 m.
+- The ground's fine noises (the anti-tiling mix, the 23 m colour variation, the sand patches) ran
+  on at any distance, finer than a pixel far away: shimmer and a blotchy carpet. Each is now let
+  go before it gets that small, and two larger variations (170 m, 1100 m) carry the far colour.
+- The farthest boulders were dark specks popping in at 1500 m. They now end at 1100 m and shrink
+  away over the last stretch.
+- Far water and its bed were closer together than the depth buffer can tell apart at a kilometre;
+  the water is now biased to win there.
+
+**Good.** The rings are gone in the same frame, before and after.
+
+**Broke / not there yet.**
+- Judged on stills only: shimmer is a thing of motion and was not watched.
+- The far land is still flat-lit and sharp to the horizon; with no haze, sky or shadow (all held
+  back on purpose for now) distance has nothing to soften it. The far river reads as a grey road.
+- The grass's far ring (46–115 m) is still coarse triangles.
