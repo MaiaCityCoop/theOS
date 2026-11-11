@@ -1,12 +1,12 @@
-// OS: one place over the three. The front page (the city's count, the line of its 5423 days, one
-// shot from above per day told), the intents (what is worked on, and where each stands), their
+// OS: one place over the three. The front page (the city's count and the calendar of its 5423 days;
+// a day told plays in the banner), the intents (what is worked on, and where each stands), their
 // stories (each with its film, played at the top of its page), and the game to walk in.
 // It only reads the repository and frames the game. Only one framed game runs at a time.
 import { marked } from 'marked';
 
 const GAME = import.meta.env.VITE_GAME || `http://${location.hostname}:5173`;
 const STATES = ['idea', 'define', 'build', 'propose', 'story', 'archived'];
-const TARGET = 1346269, DAYS = 5423, YEARS = 16;   // the humans (the 31st Fibonacci number), the days, the years
+const DAYS = 5423;   // the days; the humans, 1,346,269 (the 31st Fibonacci number), stand in the page's title
 const $ = (id) => document.getElementById(id);
 const get = (u) => fetch(u).then((r) => (r.ok ? r : Promise.reject(r.status)));
 const body = (md) => marked.parse(md.replace(/^---\n[\s\S]*?\n---\n/, ''));   // without the front matter
@@ -14,13 +14,14 @@ const n = (v) => Math.round(v).toLocaleString('en-US'), pad = (d, w = 4) => Stri
 const mm = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 let intents = [], stories = [], current = null, gameView = 'walk';
 const latest = () => stories.filter((s) => s.film).pop();
+const filmOf = (id) => `${GAME}/timeline.html?story=${id}&embed`;
 
 // ---- tabs: showing one stops the framed games of the others ----
 function tab(name) {
   document.querySelectorAll('header.site nav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('main').forEach((m) => m.classList.toggle('on', m.id === name));
   const hero = $('heroframe'), film = latest();
-  if (name === 'home' && film) { if (!hero.getAttribute('src')) hero.src = `${GAME}/timeline.html?story=${film.id}&embed`; } else hero.removeAttribute('src');
+  if (name === 'home' && film) { if (!hero.getAttribute('src')) hero.src = filmOf(film.id); } else hero.removeAttribute('src');
   if (name === 'game') { if (!$('frame').getAttribute('src')) $('frame').src = GAME + VIEWS[gameView][1]; } else $('frame').removeAttribute('src');
   const player = document.querySelector('.player iframe');
   if (player) { if (name === 'stories' && current) { if (!player.getAttribute('src')) player.src = `${GAME}/timeline.html?story=${current.id}&in=os`; } else player.removeAttribute('src'); }
@@ -102,80 +103,50 @@ function drone(e, joined) {
     ${stones}${tents.map(tent).join('')}<rect width="${W}" height="${H}" fill="url(#li${e.day})"/></svg>`;
 }
 
-// the years ahead, guessed in pencil: tents, round huts, domes, trees, more of them each year
-const yr = rng(11), PROPS = [...Array(150)].map(() => ({ x: 40 + yr() * 1115, d: yr(), r: yr() })), count = (y) => (y < 2 ? 0 : Math.round(4 + (y - 1) ** 2.1 * .48));
-PROPS.forEach((p, i) => { p.born = 2; while (count(p.born) <= i) p.born++; p.y = 178 + p.d ** 1.25 * 300; p.s = .32 + p.d; });
-const rcx = (y) => 640 + 150 * Math.sin((y - 150) / 78), rw = (y) => 10 + (y - 172) * .24;
-function pencil(y) {
-  let l = '', r = ''; for (let yy = 172; yy <= 504; yy += 12) { l += `${(rcx(yy) - rw(yy) / 2).toFixed(0)} ${yy} `; r = `${(rcx(yy) + rw(yy) / 2).toFixed(0)} ${yy} ` + r; }
-  const kind = (p) => { const a = y - p.born;
-    if (p.r < .2 && y >= 4) return p.r < .1 ? '<path d="M0 0v-10M0-10c-7-8-5-30 0-38 5 8 7 30 0 38z"/>' : '<path d="M0 0v-14"/><circle cx="0" cy="-27" r="14"/>';
-    if (a < 2) return '<path d="M0-27Q-7-12-20 0h40Q7-12 0-27z"/>';
-    if (a < 6) return '<path d="M-16 0v-16a16 16 0 0 1 32 0v16zM-5 0v-9a5 5 0 0 1 10 0v9"/>';
-    return p.r > .6 ? '<path d="M-28 0a28 28 0 0 1 56 0zM0-28v28M-14-24q-7 12-4 24M14-24q7 12 4 24"/>' : '<path d="M-15 0v-36a15 15 0 0 1 30 0v36zM-15-22h30M-5 0v-10a5 5 0 0 1 10 0v10"/>'; };
-  const props = PROPS.filter((p, i) => i < count(y) && Math.abs(p.x - rcx(p.y)) > rw(p.y) / 2 + 26 * p.s).sort((a, b) => a.d - b.d).map((p) => `<g transform="translate(${p.x.toFixed(0)} ${p.y.toFixed(0)}) scale(${p.s.toFixed(2)})">${kind(p)}</g>`).join('');
-  const aq = y >= 10 ? `<path d="M470 196h340M470 196v-12a6 6 0 0 1 6-6h328a6 6 0 0 1 6 6v12${[...Array(8)].map((_, i) => `M${486 + i * 40} 196a14 14 0 0 1 28 0`).join('')}"/>` : '';
-  const st = y >= 5 ? '<g stroke-dasharray="2 9" opacity=".7"><path d="M430 304Q300 380 120 500M430 304Q240 300 30 330M430 304Q500 250 520 180" fill="none"/></g>' : '';
-  return `<svg viewBox="0 0 1195 500" preserveAspectRatio="xMidYMid slice"><g fill="#f7f0e3" stroke="#1f3a2c" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round" opacity=".84">
-    <path d="M-60 174Q600 150 1255 174" fill="none"/><path d="M${l}${r}z" fill="#e6dcc6"/>${aq}${st}${props}</g>
-    <g transform="translate(430 304) scale(.6)" fill="#f2b544" stroke="#1f3a2c" stroke-width="2.6" stroke-linejoin="round"><path d="M0-46Q-12-20-36 0h72Q12-20 0-46z"/><path d="M0-14v14" fill="none" stroke-linecap="round"/></g>
-    <text x="456" y="312" font-family="Outfit,sans-serif" font-size="11.5" font-weight="600" fill="#bd5b33">the first tent</text></svg>`;
-}
-
-// ---- the front page: the count, the line of the days, and each day told as one shot from above ----
+// ---- the front page: one banner and one strip. The count; and the calendar of the 5423 days, today large,
+// the next days after it, the far ones small. Pointing at a day that is told brings its story into the banner. ----
 function home() {
-  const days = stories.filter((s) => s.film).map((s, i) => ({ ...s, day: s.day || i + 1 })), today = days[days.length - 1], told = days.length;
-  const joined = (i) => (days[i].inGame == null ? null : days[i].inGame - (i ? days[i - 1].inGame || 0 : 0));
+  const days = stories.filter((s) => s.film).map((s, i) => ({ ...s, day: s.day || i + 1 })), today = days[days.length - 1], told = days.length, T = today ? today.day : 0;
+  const joined = (e) => { const i = days.indexOf(e); return e.inGame == null ? null : e.inGame - (i ? days[i - 1].inGame || 0 : 0); };
   const count = (e) => (e && e.inGame != null ? n(e.inGame) : '–');
-  $('h-in').textContent = $('s-in').textContent = count(today); $('h-day').textContent = today ? n(today.day) : '–'; $('s-told').textContent = n(told);
-  $('w-out').textContent = told === 1 ? 'One day is' : `${n(told)} days are`; $('w-left').textContent = n(DAYS - told);
-  $('goals').innerHTML = today?.goals?.length ? `<span class="label">Day ${today.day}</span>` + (() => { const next = today.goals.findIndex((g) => !g[1]); return today.goals.map((g, i) => `<p class="${g[1] ? 'done' : i === next ? 'now' : ''}">${g[0]}</p>`).join(''); })() : '';
+  $('h-in').textContent = $('s-in').textContent = count(today); $('h-day').textContent = today ? n(T) : '–'; $('s-told').textContent = n(told);
   $('travel').onclick = () => game('walk');
 
-  // the line: sixteen years of days. The sun is today. Move along it: a day told shows the city as it stood, a day ahead a guess in pencil
-  const track = $('track'), tip = track.querySelector('.tip'), probe = track.querySelector('.probe'), banner = $('banner');
-  track.querySelectorAll('.seg').forEach((s) => s.remove());
-  for (let y = YEARS; y >= 1; y--) { const s = document.createElement('i'); s.className = 'seg'; s.style.left = ((y - 1) / YEARS * 100) + '%'; s.style.width = (100 / YEARS) + '%'; s.innerHTML = `<span>${pad(y, 2)}</span>`; s.dataset.y = y; track.prepend(s); }
-  $('sunhead').style.left = `max(15px, ${(today ? today.day : 0) / DAYS * 100}%)`;
-  let shown = '';
-  const look = (key, svg, tag, line) => { if (key === shown) return; shown = key; if (!key) { banner.classList.remove('ahead'); return; }
-    $('yearboard').innerHTML = svg; $('ahead-tag').textContent = tag; $('ahead-line').textContent = line; banner.classList.add('ahead'); };
-  const scrub = (ev) => { const r = track.getBoundingClientRect(), x = Math.min(Math.max(ev.clientX - r.left, 0), r.width), f = x / r.width;
-    let d = Math.max(1, Math.round(f * DAYS)); const y = Math.min(YEARS, Math.floor(f * YEARS) + 1);
-    if (told && x <= Math.max(26, today.day / DAYS * r.width + 12)) d = Math.min(d, today.day);      // near the sun is a day told, however thin the days still are on the line
-    const e = days.find((s) => s.day === d) || (d <= (today?.day || 0) ? days.filter((s) => s.day <= d).pop() : null);
-    probe.style.left = x + 'px'; tip.style.left = Math.min(Math.max(x, 130), r.width - 130) + 'px';
-    tip.innerHTML = e ? `<b>Day ${n(e.day)}</b> · told` : `<b>Day ${n(d)}</b> · year ${y} of ${YEARS} · not yet told`;
-    track.classList.add('on'); track.setAttribute('aria-valuenow', d);
-    track.querySelectorAll('.seg').forEach((s) => s.classList.toggle('at', +s.dataset.y === y));
-    if (e) look('d' + e.day, drone(e, joined(days.indexOf(e))), `Day ${n(e.day)} · as it stood`, `${e.title} · ${count(e)} in game`);
-    else look('y' + y, pencil(y), `Year ${y} of ${YEARS} · not yet told`, y === YEARS ? `${n(TARGET)} humans. The city stands.` : 'A guess, in pencil.'); };
-  const back = () => { track.classList.remove('on'); look(''); track.querySelectorAll('.seg').forEach((s) => s.classList.remove('at')); };
-  track.onpointerdown = (e) => { track.setPointerCapture(e.pointerId); scrub(e); };
-  track.onpointermove = scrub; track.onpointerleave = back; track.onpointercancel = back;
-  track.onpointerup = (e) => { if (e.pointerType !== 'mouse') back(); };
+  // the day's challenge: its few goals, the next one lit
+  const goals = (e) => { $('goals').innerHTML = e?.goals?.length ? `<span class="label">Day ${e.day}</span>` + (() => { const next = e.goals.findIndex((g) => !g[1]); return e.goals.map((g, i) => `<p class="${g[1] ? 'done' : i === next ? 'now' : ''}">${g[0]}</p>`).join(''); })() : ''; };
+  goals(today);
 
-  // day by day: one widescreen shot from above per day told, the newest first. Nothing stands in for a day that has not happened
-  $('days').innerHTML = days.map((e, i) => `<button class="day" data-id="${e.id}" aria-label="Play day ${e.day}">${drone(e, joined(i))}
-    <div class="txt"><span class="label num">Day ${pad(e.day)}</span><h3>${e.title}</h3>
-      <p class="count">${e.inGame != null ? `<span><b>${n(e.inGame)}</b>in game</span>` : ''}${joined(i) ? `<span><b>+${n(joined(i))}</b>joined</span>` : ''}</p></div>
-    <span class="go">${e.secs ? `<span>${mm(e.secs)}</span>` : ''}<i></i></span></button>`).reverse().join('');
-  $('days').querySelectorAll('.day').forEach((b) => (b.onclick = () => story(stories.find((s) => s.id === b.dataset.id))));
+  // a day told, brought into the banner: its name and count at once, its shot from above while its film loads, then its film
+  const banner = $('banner'), hero = $('heroframe'); let wait;
+  const playing = (e) => (hero.getAttribute('src') || '').includes(`story=${e.id}&`);
+  const peek = (e) => { clearTimeout(wait);
+    if (!e) { banner.classList.remove('peek', 'poster'); goals(today); if (today && $('home').classList.contains('on') && !playing(today)) hero.src = filmOf(today.id); return; }
+    const j = joined(e);
+    $('daycard').innerHTML = `<span class="label num">Day ${pad(e.day)}${e === today ? ' · today' : ''}</span><h2>${e.title}</h2>
+      <p class="count">${e.inGame != null ? `<span><b>${n(e.inGame)}</b>in game</span>` : ''}${j ? `<span><b>+${n(j)}</b>joined</span>` : ''}${e.secs ? `<span>${mm(e.secs)}</span>` : ''}</p><p class="hint">Click the day to open its story.</p>`;
+    goals(e); banner.classList.add('peek');
+    if (playing(e)) { banner.classList.remove('poster'); return; }
+    $('dayboard').innerHTML = drone(e, j); banner.classList.add('poster');
+    wait = setTimeout(() => { hero.onload = () => banner.classList.remove('poster'); hero.src = filmOf(e.id); }, 450); };
 
-  // the seeds: every one of the 5423 days, the told ones lit
-  const cv = $('seeds'), cue = $('cue'), rest = `${n(DAYS)} days. ${n(told)} told. Point at one.`; let grid = {};
-  const seeds = (hot = -1) => { const W = cv.clientWidth; if (!W) return;
-    const H = W < 700 ? 320 : 250, dpr = Math.min(2, devicePixelRatio || 1), cols = Math.ceil(Math.sqrt(DAYS * W / H)), c = W / cols, rows = Math.ceil(DAYS / cols);
-    grid = { cols, c }; cv.style.height = rows * c + 'px'; cv.width = W * dpr; cv.height = rows * c * dpr; const g = cv.getContext('2d'); g.scale(dpr, dpr);
-    for (let i = 0; i < DAYS; i++) { const on = days.some((s) => s.day === i + 1);
-      g.fillStyle = on ? '#f2b544' : i === hot ? '#1f3a2c' : '#dfd2b8'; g.beginPath(); g.arc(i % cols * c + c / 2, Math.floor(i / cols) * c + c / 2, on || i === hot ? c * .46 : c * .3, 0, 7); g.fill();
-      if (on) { g.strokeStyle = '#bd5b33'; g.lineWidth = 1.2; g.stroke(); } } };
-  cv.onpointermove = (ev) => { const r = cv.getBoundingClientRect(), i = Math.floor((ev.clientY - r.top) / grid.c) * grid.cols + Math.floor((ev.clientX - r.left) / grid.c);
-    if (i < 0 || i >= DAYS) return; seeds(i); const e = days.find((s) => s.day === i + 1);
-    cue.textContent = e ? `Day ${pad(i + 1)} · ${e.title} · ${count(e)} in game` : `Day ${pad(i + 1)} · not yet told`; };
-  cv.onpointerleave = () => { seeds(); cue.textContent = rest; };
-  let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(seeds, 150); });
-  seeds(); cue.textContent = rest; home.redraw = seeds;
+  // the calendar. Around today each day is its own stop; further off a stop holds more days and is drawn smaller
+  const stops = [], near = [46, 42, 38, 34, 30, 27, 24, 22];
+  const past = days.filter((e) => e.day < T).reverse();                                   // nearest first
+  past.slice(0, near.length).forEach((e, i) => stops.unshift({ from: e.day, to: e.day, s: near[i], kind: 'told', e }));
+  for (let i = near.length, len = 3, k = 0; i < past.length; i += Math.round(len), len *= 1.45, k++) { const g = past.slice(i, i + Math.round(len)); stops.unshift({ from: g[g.length - 1].day, to: g[0].day, s: Math.max(8, 18 - k), kind: 'told', e: g[0] }); }
+  if (today) stops.push({ from: T, to: T, s: 66, kind: 'today', e: today });
+  for (let i = 0; i < 7 && T + 1 + i <= DAYS; i++) stops.push({ from: T + 1 + i, to: T + 1 + i, s: [46, 42, 38, 34, 30, 27, 24][i], kind: 'next' });
+  for (let d = T + 8, len = 3, k = 0; d <= DAYS; d += Math.round(len), len *= 1.45, k++) { const to = Math.min(DAYS, d + Math.round(len) - 1); stops.push({ from: d, to, s: Math.max(5, 17 - k * .7), kind: to === DAYS ? 'far end' : 'far' }); }
+  const last = stops[stops.length - 1]; if (last && last.to === DAYS) last.s = Math.max(last.s, 14);
+  const cal = $('cal');
+  cal.innerHTML = stops.map((p, i) => `<button class="stop ${p.kind}" style="--s:${p.s}px" data-i="${i}" aria-label="Day ${p.from}${p.to > p.from ? ' to ' + p.to : ''}">${p.kind !== 'today' && p.s >= 30 ? p.from : ''}${p.kind === 'today' ? `<u>Day ${n(T)}</u>` : p.to === DAYS ? `<u>${n(DAYS)}</u>` : ''}</button>`).join('') + '<span class="tip"></span>';
+  const tip = cal.querySelector('.tip');
+  const say = (p) => { const span = p.to > p.from ? `Days ${n(p.from)} to ${n(p.to)}` : `Day ${n(p.from)}`;
+    return p.kind === 'today' ? `<b>Day ${n(T)}</b> · today · ${p.e.title}` : p.e ? `<b>${span}</b> · ${p.e.title}` : `<b>${span}</b> · ${p.from === T + 1 && p.to === p.from ? 'tomorrow' : 'not yet told'}`; };
+  cal.querySelectorAll('.stop').forEach((b) => { const p = stops[+b.dataset.i];
+    b.onpointerenter = () => { const r = b.getBoundingClientRect(), c = cal.getBoundingClientRect(); tip.innerHTML = say(p); tip.style.left = Math.min(Math.max(r.left - c.left + r.width / 2, 110), c.width - 110) + 'px'; tip.classList.add('on'); peek(p.e || null); };
+    if (p.e) b.onclick = () => story(stories.find((s) => s.id === p.e.id)); });
+  cal.onpointerleave = () => { tip.classList.remove('on'); peek(null); };
 }
 
 [intents, stories] = await Promise.all([get('/api/intents').then((r) => r.json()), get('/api/stories').then((r) => r.json()).catch(() => [])]);
@@ -184,4 +155,4 @@ $('list').innerHTML = stories.length ? stories.map((s) => `<div class="card" dat
 $('list').querySelectorAll('.card').forEach((c) => (c.onclick = () => story(stories.find((s) => s.id === c.dataset.id))));
 board(); home();
 if (stories.length) await story(stories[stories.length - 1], false);   // made ready, not shown: nothing loads a game it will not show
-game('walk', false); tab('home'); home.redraw?.();
+game('walk', false); tab('home');

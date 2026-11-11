@@ -391,6 +391,28 @@ _Samuel's decision._
   do not show any of this until the branch is merged; the dashboard's server must be restarted
   then, because what it reads from a story changed. Not seen in Safari or at phone width.
 
+### 2026-11-11, tenth round
+
+- **Asked:** merge those sections (the count, the line, the days). The storytelling calendar
+  should show the current day and the next ones larger and the distant ones smaller. The
+  preview that guesses the years ahead is bad and should not be done. All of it combined with
+  "In game today" and "Days told", and a day's actual story loaded on hover straight into the
+  main banner. Each day builds up a challenge; the day's list (Make a world, Put up one tent,
+  Find human number two) is nice. The film's player is weird: far cleaner and reduced.
+- **Delivered:** the front page is one banner and one strip, on one screen. The strip holds
+  the two figures and the calendar: today as the sun, the next seven days as numbered rings
+  getting smaller, then dots that each hold more days and shrink, to day 5,423. Pointing at a
+  day that is told puts it in the banner: its day, title, humans in game, joined and length,
+  its challenge in the corner, and (for an earlier day) its shot from above until its film
+  has loaded; a click opens its story. The pencil guess, the list of day banners and the seeds
+  are gone. The film's bar is play, the film as one line with the sun on it, and the time.
+- **Good:** seen in the pane at 1440: the strip with 27 stops, day 1 brought into the banner
+  on pointing at the sun, a far stop saying "Days 31 to 43 · not yet told", and the reduced
+  player on the story's page.
+- **Broke / not there yet:** with one day told, an earlier day loading its film into the banner
+  could not be tried. The calendar was not looked at with days in the past, nor at phone width.
+  Not seen in Safari. Still only on the handover branch (ports 5181 and 5174).
+
 ## Trail
 
 | When | Commit | What |
