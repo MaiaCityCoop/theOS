@@ -85,11 +85,12 @@
   .shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(140deg,rgba(14,28,20,.58) 0%,rgba(14,28,20,0) 44%)}
   .hud{position:absolute;inset:0;pointer-events:none;text-shadow:0 1px 3px rgba(10,24,16,.4)}
   .hud>*{pointer-events:auto}
-  /* bottom left: one large play (from the start, full screen), and the day's figures beside it; the title is the film's own */
-  .daycard{position:absolute;left:clamp(20px,3.4vw,50px);bottom:clamp(20px,3.4vw,44px);display:flex;align-items:center;gap:18px}
+  /* bottom centre: one large play (from the start, full screen), and the day's figures beside it; the title is the film's own */
+  .daycard{position:absolute;left:50%;transform:translateX(-50%);bottom:clamp(20px,3.4vw,44px);display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+  .daycard .count{justify-content:center}
   .bigplay{flex:none;width:clamp(72px,6.4vw,96px);height:clamp(72px,6.4vw,96px);border-radius:50%;border:0;cursor:pointer;background:var(--sun) var(--playmark) 56% 50%/32% no-repeat;box-shadow:0 0 0 10px rgba(242,181,68,.22),0 14px 40px rgba(10,24,16,.35);transition:transform .3s cubic-bezier(.3,1.6,.5,1),box-shadow .3s}
   .bigplay:hover{transform:scale(1.07);box-shadow:0 0 0 16px rgba(242,181,68,.2),0 18px 48px rgba(10,24,16,.4)}
-  .daycard .label{color:inherit;opacity:.85;display:block;margin-bottom:10px}
+  .daycard .label{color:inherit;opacity:.85;display:block;margin:4px 0 10px}
   .window:fullscreen{border-radius:0}.window:fullscreen .hud,.window:fullscreen .shade,.window:fullscreen .board{display:none}
   .daycard .count{margin:0;display:flex;gap:8px;flex-wrap:wrap}
   .daycard .count span{font:400 13.5px/1 var(--sans);padding:9px 14px;border-radius:999px;background:rgba(251,246,234,.14);border:1px solid rgba(251,246,234,.28);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);text-shadow:none}

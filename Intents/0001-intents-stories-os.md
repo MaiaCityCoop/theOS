@@ -545,6 +545,7 @@ _Samuel's decision._
   card now reads "Maia City · Day 2".
 - **Good:** seen in the pane at 1440: one title, the play button with the figures; clicking it
   restarted the film at its title card.
+- **Then:** Samuel found the bottom-left placing poor; the play and the figures now stand centred at the bottom, and the framed film's subtitles sit higher (30% from the bottom) so they clear them.
 - **Broke / not there yet:** full screen did not open in the app's browser pane (the pane
   does not allow it, as far as could be seen); not tried in Safari. There is no sound yet.
 
