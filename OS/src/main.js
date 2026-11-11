@@ -115,14 +115,20 @@ function pages(root, md, film) {
 
 // ---- a story's editor: the film above, its timeline under it. A ruler, the picture track (one still per shot,
 // taken in the game), the voices track (the subtitles, by who speaks), and a playhead to drag. It drives the film. ----
-const EDIT = `<div class="edit"><div class="etop"><button class="eplay" aria-label="Play or pause"></button><span class="etime"><b>0:00</b> / 0:00</span><span class="eshot"></span></div>
+const EDIT = `<div class="edit"><div class="etop"><button class="eplay" aria-label="Play or pause"></button><span class="etime"><b>0:00</b> / 0:00</span><span class="eshot"></span><button class="efull" aria-label="Full screen" title="Full screen"><svg viewBox="0 0 16 16"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
   <div class="etracks"><div class="elabs"><span></span><span>T1 · Title</span><span>V1 · Picture</span><span>S1 · Subtitles</span><span>A1 · Voices</span><span>A2 · Music</span></div>
   <div class="elanes"><div class="eruler"></div><div class="elane t"></div><div class="elane v"></div><div class="elane s"></div><div class="elane a"></div><div class="elane m"><span class="eempty">no music yet</span></div><i class="ehead"></i></div></div></div>`;
 let onFilm = null;
 addEventListener('message', (ev) => { const m = ev.data; if (m?.maia && onFilm && ev.source === onFilm.win()) onFilm.take(m); });
 function editor(el, frame, story) {
   const q = (c) => el.querySelector(c), lanes = q('.elanes'), say = (m) => frame.contentWindow?.postMessage({ maia: 1, ...m }, '*');
-  let D = 0, clips = [], starts = [], playing = false, asked = false, cur = -1;
+  let D = 0, clips = [], starts = [], playing = false, asked = false, cur = -1, base = 0, stamp = 0, shownSec = -1;
+  const head = q('.ehead'), clock = q('.etime');
+  const run = () => { if (!el.isConnected) return; requestAnimationFrame(run); if (!D) return;   // the playhead glides with the film, not in the steps the frame reports in
+    const t = Math.min(D, playing ? base + (performance.now() - stamp) / 1000 : base);
+    head.style.transform = `translateX(${(t / D) * lanes.clientWidth}px)`;
+    const sec = Math.floor(t); if (sec !== shownSec) { shownSec = sec; clock.innerHTML = `<b>${mm(sec)}</b> / ${mm(Math.round(D))}`; } };
+  requestAnimationFrame(run);
   const pct = (t) => (D ? (t / D) * 100 : 0);
   onFilm = { win: () => frame.contentWindow, take(m) {
     if (m.type === 'film' && m.duration && !D) {
@@ -138,12 +144,13 @@ function editor(el, frame, story) {
     }
     if (m.type === 'thumb') { const c = q(`.eclip[data-i="${m.i}"]`); if (c) c.style.backgroundImage = `url(${m.src})`; }
     if (m.type === 'time' && D) {
-      playing = m.playing; q('.eplay').classList.toggle('on', playing); q('.ehead').style.left = pct(m.t) + '%';
-      q('.etime').innerHTML = `<b>${mm(Math.floor(m.t))}</b> / ${mm(Math.round(D))}`;
+      if (m.playing !== playing) q('.eplay').classList.toggle('on', m.playing);
+      playing = m.playing; base = m.t; stamp = performance.now();   // the frame's clock; the playhead runs on from it every frame
       let i = starts.length - 1; while (i > 0 && starts[i] > m.t) i--;
       if (i !== cur) { cur = i; el.querySelectorAll('.eclip').forEach((c) => c.classList.toggle('on', +c.dataset.i === i)); q('.eshot').textContent = clips[i] ? `${i + 1} / ${clips.length} · ${clips[i].name}` : ''; }
     } } };
   q('.eplay').onclick = () => say({ cmd: playing ? 'pause' : 'play' });
+  q('.efull').onclick = () => { frame.parentNode.requestFullscreen?.().catch(() => {}); say({ cmd: 'play' }); };   // the film alone, the whole screen, playing on
   const seek = (ev) => { const r = lanes.getBoundingClientRect(); say({ cmd: 'seek', t: Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * D }); };
   lanes.onpointerdown = (ev) => { lanes.setPointerCapture(ev.pointerId); say({ cmd: 'pause' }); seek(ev); lanes.onpointermove = seek; };
   lanes.onpointerup = () => { lanes.onpointermove = null; };

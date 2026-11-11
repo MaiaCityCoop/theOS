@@ -148,6 +148,7 @@ _Samuel's decision._
 - [x] Samuel looked: Daylight liked; Plot, Subtitle and Daylight merged and reduced to draft 09 (one banner, the line, the devlog)
 - [x] Samuel chose Meadow (draft 10); the dashboard and the game restyled to it; each day one shot from above
 - [ ] A day's shot from above filmed in the game, not drawn
+- [ ] Day 2's preview picture filmed again on the land as it is now (without the dry land)
 - [ ] Samuel: look again; accept or say what is wrong
 - [ ] Samuel: his opening to camera for story 01
 - [ ] Then: the Story section here
@@ -704,6 +705,25 @@ _Samuel's decision._
   all eight stills from disk with the film at 0:00.
 - **Broke / not there yet:** a story whose shots change keeps its old stills until its
   `shots/` folder is emptied.
+
+### 2026-11-11, thirty-first round
+
+- **Asked:** did we lose performance with the timeline editor? Playback feels choppy. Then: or
+  did the choppiness come with the drier land; maybe revert that step. And a full-screen
+  playback button.
+- **Found:** the film alone, in the game at the editor's size, ran at a steady 60 fps (worst
+  frame 18 ms) with the dry land, in the app's browser pane. The editor moved its playhead and
+  clock only when the game reported the time, about 12 times a second, so they stepped. The
+  drier land brings more rocks: the lens view showed about 2.7 M triangles against 2.2 M
+  before (seen once each, from different places, so not a fair comparison).
+- **Delivered:** the editor's playhead and clock now run every frame from the film's clock
+  (on the GPU's transform, not the layout). No blur behind the pill in the studio. The dry-land
+  change is reverted (`land.js`, `land.glsl.js`, `ground.js` as before round twenty-one); day
+  2's preview picture was filmed with it and keeps its dry patches. A full-screen button beside
+  the editor's clock puts the film alone on the whole screen, playing.
+- **Broke / not there yet:** the smoother playhead could not be watched: the app's browser pane
+  was hidden, which pauses animation. Whether the film is smoother in Safari is Samuel's eye.
+  Full screen not tried (the pane does not allow it).
 
 ## Trail
 

@@ -71,7 +71,7 @@ float heightAt(vec2 p, float dist, float d, float w){
 
 // ---- what grows where ----
 float aridMask(vec2 p){
-  return smoothstep(0.40, 0.56, vnoise(p * (1.0 / 700.0), 50u) + 0.3 * (vnoise(p * (1.0 / 150.0), 51u) - 0.5));
+  return smoothstep(0.50, 0.66, vnoise(p * (1.0 / 700.0), 50u) + 0.3 * (vnoise(p * (1.0 / 150.0), 51u) - 0.5));
 }
 vec3 pathN(vec2 p){ vec3 n = noised(p * (1.0 / 260.0) + 5.1, 60u); return vec3(n.x, n.yz * (1.0 / 260.0)); }
 float pathMask(vec3 P){ return 1.0 - smoothstep(0.45, 0.95, abs(P.x - 0.5) / max(length(P.yz), 1e-3)); }
@@ -92,7 +92,7 @@ vec4 grassTint(vec2 p, float arid){
 vec4 grassTintAB(float a, float b, float arid){
   vec3 c = mix(vec3(0.026, 0.105, 0.016), vec3(0.058, 0.150, 0.022), smoothstep(0.1, 0.9, a * 0.65 + b * 0.35));
   c = mix(vec3(dot(c, vec3(0.3, 0.6, 0.1))), c, 0.8);   // a real meadow is a muted green
-  float dry = clamp(arid * 0.9 + smoothstep(0.5, 1.0, b * 0.6 + a * 0.4) * 0.38, 0.0, 1.0);
+  float dry = clamp(arid * 0.9 + smoothstep(0.6, 1.0, b * 0.6 + a * 0.4) * 0.28, 0.0, 1.0);
   return vec4(mix(c, vec3(0.36, 0.29, 0.12), dry), dry);
 }
 `;
