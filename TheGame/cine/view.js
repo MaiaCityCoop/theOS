@@ -4,9 +4,10 @@ import { trailer, floor } from './trailer.js';
 
 const cine = window.__cine, q = new URLSearchParams(location.search);
 let seed = +(q.get('seed') || 1);
-const storyId = q.get('story');             // ?story=<id>: an intent's story, ../TheStory/<id>/timeline.json: its camera and its captions
+const storyId = q.get('story');             // ?story=<id>: an intent's story, ../Stories/<id>/timeline.json: its camera and its captions
 let kept = storyId ? null : q.get('tl') || (q.has('seed') ? null : 'river-story'), keptClips = null, captions = [], story = null;   // ?tl=<name>: a kept timeline, cine/timelines/<name>.json, played as it was set
-const COL = { wide: '#5b8def', drone: '#e0a43a', medium: '#59b56b', close: '#d9655f', 'low angle': '#a678d8', 'top down': '#3fb7b0', glide: '#8aa13c', tele: '#c7709f', crane: '#7d8796' };
+const COL = { wide: '#d3e2f6', drone: '#f5e3bd', medium: '#d2ebd9', close: '#f6d5d1', 'low angle': '#e3d9f3', 'top down': '#cdeeea', glide: '#e2eac8', tele: '#f3d7e5', crane: '#e1e4e9' };
+document.body.classList.add(q.has('embed') ? 'embed' : 'bar');   // ?embed: only the picture and its subtitles
 
 const bar = document.getElementById('tl'), strip = document.getElementById('strip'), head = document.getElementById('head');
 const why = document.getElementById('why');
@@ -24,8 +25,8 @@ function build() {
     strip.append(e);
   });
   history.replaceState(null, '', storyId ? `?story=${storyId}` : kept ? `?tl=${kept}` : `?seed=${seed}`);
-  strip.querySelectorAll('.mark').forEach((e) => e.remove());
-  for (const c of captions) { const e = document.createElement('div'); e.className = 'mark ' + c.kind; e.style.left = (c.at / cine.duration) * 100 + '%'; e.style.width = (c.for / cine.duration) * 100 + '%'; strip.append(e); }
+  strip.querySelectorAll('.cue').forEach((e) => e.remove());
+  for (const c of captions) { const e = document.createElement('div'); e.className = 'cue ' + c.kind; e.style.left = (c.at / cine.duration) * 100 + '%'; e.style.width = (c.for / cine.duration) * 100 + '%'; strip.append(e); }
 }
 const fmt = (s) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
 function tick() {
@@ -56,9 +57,9 @@ function caption(t) {
   let c = null; for (const k of captions) if (t >= k.at && t < k.at + k.for) c = k;
   if (c !== shown) {
     shown = c; cap.className = c ? 'on ' + c.kind : '';
-    if (c) cap.innerHTML = `<small>${{ human: 'Samuel', agent: 'the agent', note: '', title: '' }[c.kind] || ''}</small><span></span>`, cap.lastChild.textContent = c.text;
+    if (c) { cap.textContent = c.text; if (c.kind === 'title' && c.over) cap.insertAdjacentHTML('afterbegin', `<small>${c.over}</small>`); }
   }
-  if (c) cap.style.opacity = Math.min(1, (t - c.at) / 0.5, (c.at + c.for - t) / 0.5);
+  if (c) cap.style.opacity = Math.min(1, (t - c.at) / (c.kind === 'title' ? 0.8 : 0.18), (c.at + c.for - t) / (c.kind === 'title' ? 0.8 : 0.18));   // a subtitle comes and goes at once; a title breathes
 }
 if (storyId) {
   story = await fetch(`/story/${storyId}/timeline.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null);

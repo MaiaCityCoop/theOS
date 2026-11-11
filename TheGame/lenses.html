@@ -4,24 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sandbox 8 · lenses</title>
+<link rel="stylesheet" href="/brand/brand.css">
 <style>
-  html,body{margin:0;height:100%;background:#000;overflow:hidden;font:12px/1.35 ui-monospace,Menlo,monospace}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden}
   canvas{display:block;width:100vw;height:100vh;pointer-events:none}
-  #hud{z-index:5;position:fixed;left:8px;top:8px;color:#fff;background:rgba(0,0,0,.45);padding:6px 8px;border-radius:6px;white-space:pre;pointer-events:none}
   #msg{display:none}
-  #panel{z-index:5;position:fixed;left:0;right:0;bottom:0;background:rgba(12,14,18,.82);color:#e8eaee;padding:8px 10px 10px;backdrop-filter:blur(6px)}
-  #info{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:7px;color:#c9cfd8}
-  #lensbar{display:flex;gap:4px}
-  #lensbar button{flex:1;min-width:0;font:inherit;text-align:left;color:#e8eaee;background:#232830;border:1px solid #3a414c;border-radius:5px;padding:5px 8px;cursor:pointer;display:flex;flex-direction:column;overflow:hidden;white-space:nowrap}
-  #lensbar button.now{background:#e8eaee;color:#0d0f12;border-color:#fff}
-  #lensbar b{font-size:13px}#lensbar span,#lensbar i{font-style:normal;font-size:10px;opacity:.75;overflow:hidden;text-overflow:ellipsis}
+  #info{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:9px;color:var(--muted)}
+  #lensbar{display:flex;gap:5px}
+  #lensbar button{flex:1;min-width:0;text-align:left;border-radius:10px;padding:7px 10px;display:flex;flex-direction:column;gap:2px;overflow:hidden;white-space:nowrap}
+  #lensbar button.now{background:var(--ink);color:#fff;box-shadow:none}
+  #lensbar b{font:650 13px/1.2 var(--display)}#lensbar span,#lensbar i{font-style:normal;font-size:10.5px;font-weight:400;opacity:.7;overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="hud">loading…</div>
 <div id="msg"></div>
-<div id="panel"><div id="info"></div><div id="lensbar"></div></div>
+<div id="panel" class="os-bar glass"><div id="info"></div><div id="lensbar"></div></div>
 <script type="module" src="/cine/cine.js"></script>
 <script type="module" src="/cine/menu.js"></script>
 <script type="module" src="/src/main.js"></script>

@@ -4,7 +4,7 @@ title: A short name for the work
 state: idea            # idea | define | build | propose | story | archived
 outcome:               # accepted | rejected, set only when archived
 opened: 2026-01-01
-story:                 # TheStory/0000-slug/, set at propose
+story:                 # Stories/0000-slug/, set at propose
 ---
 
 # 0000 · A short name for the work

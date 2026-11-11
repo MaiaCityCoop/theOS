@@ -1,4 +1,4 @@
-// The dev server serves the intents' stories (../TheStory) and keeps timelines: POST /cine/keep?name=<name> with a timeline's JSON writes
+// The dev server serves the intents' stories (../Stories) and keeps timelines: POST /cine/keep?name=<name> with a timeline's JSON writes
 // cine/timelines/<name>.json, so a set of cameras an agent composed can be played back later by name.
 import { writeFileSync, mkdirSync, readdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -12,9 +12,15 @@ export default {
         try { names = readdirSync(resolve(server.config.root, 'cine/timelines')).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).sort(); } catch {}
         res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(names));
       });
-      // the stories of the intents, from ../TheStory: /story/list, /story/<id>/timeline.json
+      // the brand, one file for every page of TheOS: ../brand
+      server.middlewares.use('/brand', (req, res) => {
+        const f = resolve(server.config.root, '../brand', new URL(req.url, 'http://x').pathname.replace(/^\/+/, '').replace(/\.\./g, ''));
+        if (!existsSync(f)) { res.statusCode = 404; res.end(''); return; }
+        res.setHeader('content-type', f.endsWith('.css') ? 'text/css' : 'application/octet-stream'); res.end(readFileSync(f));
+      });
+      // the stories of the intents, from ../Stories: /story/list, /story/<id>/timeline.json
       server.middlewares.use('/story', (req, res) => {
-        const dir = resolve(server.config.root, '../TheStory'), url = new URL(req.url, 'http://x').pathname;
+        const dir = resolve(server.config.root, '../Stories'), url = new URL(req.url, 'http://x').pathname;
         res.setHeader('content-type', 'application/json');
         if (url === '/list') {
           let ids = [];

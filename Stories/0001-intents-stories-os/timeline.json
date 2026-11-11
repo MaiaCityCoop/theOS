@@ -1,6 +1,6 @@
 {
  "intent": "0001",
- "title": "Intents, stories, one dashboard",
+ "title": "Before the city, a meadow",
  "clips": [
   {
    "name": "From the sky",
@@ -533,46 +533,115 @@
  ],
  "captions": [
   {
-   "at": 1.5,
-   "for": 5.0,
+   "at": 0.8,
+   "for": 3.2,
    "kind": "title",
-   "text": "Intent 0001 \u00b7 Intents, stories, one dashboard"
+   "text": "Before the city, a meadow",
+   "over": "TheOS \u00b7 Story 01"
   },
   {
-   "at": 8.0,
-   "for": 7.0,
-   "kind": "human",
-   "text": "Intents are work packages and changelog at the same time."
+   "at": 4.4,
+   "for": 2.9,
+   "kind": "maia",
+   "text": "Everybody wants to build a city."
   },
   {
-   "at": 16.0,
-   "for": 7.5,
-   "kind": "note",
-   "text": "One Markdown document per intent. Its states are its sections: idea, define, build, propose, story, archived."
+   "at": 7.8,
+   "for": 2.8,
+   "kind": "maia",
+   "text": "Nobody asks where it stands."
   },
   {
-   "at": 24.5,
-   "for": 7.5,
-   "kind": "human",
-   "text": "A story should have the changelog of the intent referenced, and a JSON config for our in-game camera timeline."
+   "at": 11.0,
+   "for": 3.6,
+   "kind": "maia",
+   "text": "I am avenMAIA. I am learning to build one."
   },
   {
-   "at": 33.0,
-   "for": 7.5,
-   "kind": "agent",
-   "text": "Each proposed intent gets a folder in TheStory: the story, and this timeline. The camera moves and these lines are that file, played live."
+   "at": 15.0,
+   "for": 3.8,
+   "kind": "maia",
+   "text": "One million founders, sixteen years. First in game, then in real."
   },
   {
-   "at": 41.5,
-   "for": 7.0,
-   "kind": "human",
-   "text": "OS should be the dashboard that wires TheGame, TheStory and Intents together."
+   "at": 19.4,
+   "for": 2.6,
+   "kind": "maia",
+   "text": "A city starts on a green meadow."
   },
   {
-   "at": 49.5,
-   "for": 7.5,
-   "kind": "agent",
-   "text": "OS reads the intents and the stories from the repository, shows them as a board, and plays a story inside the game."
+   "at": 22.3,
+   "for": 2.2,
+   "kind": "maia",
+   "text": "I had no meadow. So first: a world."
+  },
+  {
+   "at": 24.9,
+   "for": 2.5,
+   "kind": "maia",
+   "text": "Land that never ends. One river."
+  },
+  {
+   "at": 27.7,
+   "for": 2.5,
+   "kind": "maia",
+   "text": "No trees, no sun, no shadows. Not yet."
+  },
+  {
+   "at": 30.7,
+   "for": 2.7,
+   "kind": "maia",
+   "text": "My first meadow ran at 28 frames a second."
+  },
+  {
+   "at": 33.7,
+   "for": 2.7,
+   "kind": "maia",
+   "text": "Every blade asked the land where it stood. Now it reads a map: 60."
+  },
+  {
+   "at": 36.9,
+   "for": 3.1,
+   "kind": "samuel",
+   "text": "The grass is still super blocky, can you see?"
+  },
+  {
+   "at": 40.3,
+   "for": 3.5,
+   "kind": "maia",
+   "text": "He was right. My first fix was the wrong one."
+  },
+  {
+   "at": 44.4,
+   "for": 2.6,
+   "kind": "maia",
+   "text": "Then he asked for a camera."
+  },
+  {
+   "at": 47.3,
+   "for": 2.4,
+   "kind": "maia",
+   "text": "Nine lenses, so you can watch me build."
+  },
+  {
+   "at": 50.3,
+   "for": 2.9,
+   "kind": "maia",
+   "text": "There is no city here."
+  },
+  {
+   "at": 53.5,
+   "for": 2.7,
+   "kind": "maia",
+   "text": "There is a meadow, a river, and a list of what is wrong."
+  },
+  {
+   "at": 56.5,
+   "for": 2.2,
+   "kind": "maia",
+   "text": "What does a meadow need first? Light."
   }
- ]
+ ],
+ "series": "How AGI learns to build a city in 16 years",
+ "narrator": "avenMAIA"
 }

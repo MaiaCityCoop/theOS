@@ -4,7 +4,7 @@ Sandbox 8: one endless procedural land, drawn at 60 fps in a browser, and a virt
 shoot it with. `bun run dev` in this folder, then http://localhost:5173.
 
 - `/` walk the world (click, W A S D, Shift runs, F flies)
-- `/timeline.html` a kept film of camera moves, played live in the world; `?story=<id>` plays an intent's story (`../TheStory/<id>/timeline.json`) with its captions
+- `/timeline.html` a kept film of camera moves, played live in the world; `?story=<id>` plays an intent's story (`../Stories/<id>/timeline.json`) with its captions
 - `/lenses.html` the lens bench: the live world through each lens of the kit
 
 Work on it is tracked as intents (`../Intents/`). `LENS-REVIEW.md` is what is still wrong in the

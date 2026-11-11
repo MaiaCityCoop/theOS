@@ -4,7 +4,7 @@ title: Intents, stories, one dashboard
 state: propose
 outcome:
 opened: 2026-11-11
-story: TheStory/0001-intents-stories-os/
+story: Stories/0001-intents-stories-os/
 ---
 
 # 0001 · Intents, stories, one dashboard
@@ -51,7 +51,7 @@ was written with the work, not approved before it. It is here for him to hold th
    of commits.
 2. A Claude Code skill that says how to work with intents.
 3. The old devlog removed; this intent as the first one.
-4. `TheStory/<intent>/` per proposed intent: `story.md` linking the intent's changelog, and
+4. `Stories/<intent>/` per proposed intent: `story.md` linking the intent's changelog, and
    `timeline.json` for the in-game camera, with captions.
 5. The game's timeline view plays a story's `timeline.json` and shows its captions on screen.
 6. `OS/`: a dashboard that shows the intents as a board by state, opens an intent and a story as
@@ -64,7 +64,7 @@ was written with the work, not approved before it. It is here for him to hold th
 | 1 | The template holds every state, the todo, the changelog and the trail | read `Intents/TEMPLATE.md` |
 | 2 | The skill is found by Claude Code | `.claude/skills/intents/SKILL.md` exists with a name and a description |
 | 3 | The devlog is gone and nothing points to it | `grep -r DEVLOG` in the repository finds no live reference |
-| 4 | The story folder exists with both files | `ls TheStory/0001-intents-stories-os/` |
+| 4 | The story folder exists with both files | `ls Stories/0001-intents-stories-os/` |
 | 5 | The story plays with captions | open `http://localhost:5173/timeline.html?story=0001-intents-stories-os` |
 | 6 | The dashboard shows this intent in its state and plays its story in the game | open `http://localhost:5180`, the card, then "Play it in the game" |
 | 7 | One command starts both | `bun run dev` at the repository's root |
@@ -85,13 +85,13 @@ was written with the work, not approved before it. It is here for him to hold th
   section, when to stop for the human, what a commit message ends with (`Intent: NNNN`).
 - A story's `timeline.json` is the virtual camera's clips plus `captions`: lines with a start, a
   length and a kind (`title`, `human`, `agent`, `note`). The game's dev server serves
-  `../TheStory` under `/story/`; the timeline view loads `?story=<id>`, draws the caption that is
+  `../Stories` under `/story/`; the timeline view loads `?story=<id>`, draws the caption that is
   due as a lower third, and marks every caption under the clips' strip. The game's menu lists the
   stories.
 - This intent's film reuses the camera moves of the kept timeline `river-story`: the intent
   changed nothing in the world, so there is nothing of its own to show there. The captions are
   Samuel's words and plain statements of what was made.
-- OS is its own small Vite app (port 5180). Its dev server reads `../Intents` and `../TheStory`
+- OS is its own small Vite app (port 5180). Its dev server reads `../Intents` and `../Stories`
   from disk on each request; the page shows a board of six columns, renders a document with
   `marked`, and frames the game (port 5173) for walking, the lens bench and each story's film.
 - `TheGame/DEVLOG.md` is deleted. `bun run dev` at the root starts the game and OS together.
@@ -115,7 +115,8 @@ http://localhost:5180.
 
 **Known gaps**
 
-- Checked in the pane only, not in Safari. The film was looked at as two stills, not watched through.
+- Checked in the pane only, not in Safari. The film was looked at as stills, not watched through.
+- Second round (restyle, front page, story retold, subtitles): see the changelog; the checks above still hold, 5 and 6 seen again in the new look.
 - The board was seen with one intent; with many, and with the document open, the last column is off screen until scrolled.
 - OS does not refresh by itself when a file changes; reload the page.
 - The film does not show the dashboard or the documents themselves: the camera only sees the world.
@@ -137,8 +138,13 @@ _Samuel's decision._
 - [x] Story folder with `story.md` and `timeline.json`
 - [x] Timeline view plays a story with captions; menu lists stories
 - [x] OS dashboard: board, documents, the game framed
-- [ ] Samuel: look at it; accept or say what is wrong
-- [ ] Then: the Story section, and `story.md` in full
+- [x] Samuel looked: restyle, a landing page, the story as real storytelling, subtitles (below)
+- [x] A brand (`brand/brand.css`), the dashboard's front page, the game's overlays in it
+- [x] The story retold by avenMAIA; captions as subtitles
+- [x] `TheStory/` renamed `Stories/`
+- [ ] Samuel: look again; accept or say what is wrong
+- [ ] Samuel: his opening to camera for story 01
+- [ ] Then: the Story section here
 
 ## Changelog
 
@@ -146,13 +152,40 @@ _Samuel's decision._
 
 - **Asked:** the intents system as above; the old devlog out; a story per proposed intent with a
   camera timeline and captions; OS as the dashboard over the three.
-- **Delivered:** `Intents/` (template, README), the skill, this intent, `TheStory/0001-…` with a
+- **Delivered:** `Intents/` (template, README), the skill, this intent, `Stories/0001-…` with a
   film, the story mode and captions in the game's timeline view, the OS app, one command for both
   servers.
 - **Good:** the dashboard read the repository and played the story in the framed game on the
   first run; the captions sit over the live picture as lower thirds.
 - **Broke / not there yet:** nothing broke in the pane. Not seen in Safari; the skill not tried
   in a fresh session; OS reads only.
+
+### 2026-11-11, second round
+
+- **Asked:** restyle the whole thing, more modern, with a clean, light brand overall. The story
+  should not be technical but true storytelling, a devlog of how the world evolves and how it
+  starts ("how do we build a city: it all starts on the green meadow, so first we need a world").
+  Captions positioned like proper subtitles. A landing page for the dashboard, which was
+  forgotten. Rename TheStory to Stories.
+- **Delivered:**
+  - `brand/brand.css`: one light look (paper, ink, the meadow's green, a wordmark), served to
+    both apps. The dashboard and the game's overlays (readout, menu, timeline strip, lens bar)
+    take their colours and shapes from it.
+  - The dashboard opens on a front page: the claim, the latest story playing live in a framed
+    game, the six states with their counts, and three doors (the work, the story, the world).
+  - Story 01 retold as *Before the city, a meadow*: avenMAIA's narration, 146 words over 59
+    seconds, one line of Samuel's own, with receipts for every number and quote.
+  - Captions are subtitles: one place at the bottom, two lines at most, on a soft dark plate; the
+    film's title is a card of its own. A framed game (`?embed`) shows only picture and subtitles.
+  - The folder is `Stories/`; every path follows. Samuel's quoted words above still say "TheStory".
+  - The skill says how a story is written and what a subtitle is.
+- **Good:** on the front page the film ran in its frame with its subtitle; the board, a document
+  and the story in the game all drew in the new look on the first load.
+- **Broke / not there yet:** the front page draws the game live, so it costs what the game costs
+  while it is open (it stops when another tab of the dashboard is shown). The story's lines are
+  subtitles only: nothing is spoken. Samuel's opening to camera and the series trailer do not
+  exist. The game's menu lists a story by its folder name, not its title. Seen in the pane, not
+  in Safari.
 
 ## Trail
 

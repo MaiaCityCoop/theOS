@@ -1,4 +1,4 @@
-// OS reads the repository as it is: the intents (../Intents/*.md) and the stories (../TheStory/*).
+// OS reads the repository as it is: the intents (../Intents/*.md) and the stories (../Stories/*).
 // Nothing is copied or cached: the files are the one source.
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -13,9 +13,15 @@ export default {
   plugins: [{
     name: 'os-repository',
     configureServer(server) {
-      const root = resolve(server.config.root, '..'), intents = resolve(root, 'Intents'), stories = resolve(root, 'TheStory');
+      const root = resolve(server.config.root, '..'), intents = resolve(root, 'Intents'), stories = resolve(root, 'Stories');
       const json = (res, v) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(v)); };
       const text = (res, f) => { if (!existsSync(f)) { res.statusCode = 404; res.end(''); return; } res.setHeader('content-type', 'text/plain; charset=utf-8'); res.end(readFileSync(f)); };
+      // the brand, one file for every page of TheOS: ../brand
+      server.middlewares.use('/brand', (req, res) => {
+        const f = resolve(server.config.root, '../brand', new URL(req.url, 'http://x').pathname.replace(/^\/+/, '').replace(/\.\./g, ''));
+        if (!existsSync(f)) { res.statusCode = 404; res.end(''); return; }
+        res.setHeader('content-type', f.endsWith('.css') ? 'text/css' : 'application/octet-stream'); res.end(readFileSync(f));
+      });
       server.middlewares.use('/api', (req, res) => {
         const url = decodeURIComponent(new URL(req.url, 'http://x').pathname);
         let m;
@@ -26,7 +32,7 @@ export default {
         if ((m = url.match(/^\/intents\/(\d{4}-[a-z0-9-]+\.md)$/))) return text(res, resolve(intents, m[1]));
         if (url === '/stories') {
           let list = [];
-          try { list = readdirSync(stories).filter((d) => existsSync(resolve(stories, d, 'story.md'))).sort().map((d) => ({ id: d, film: existsSync(resolve(stories, d, 'timeline.json')) })); } catch {}
+          try { list = readdirSync(stories).filter((d) => existsSync(resolve(stories, d, 'story.md'))).sort().map((d) => ({ id: d, film: existsSync(resolve(stories, d, 'timeline.json')), title: (readFileSync(resolve(stories, d, 'story.md'), 'utf8').match(/^# (.*)$/m) || [])[1] || d })); } catch {}
           return json(res, list);
         }
         if ((m = url.match(/^\/stories\/([a-z0-9][a-z0-9-]*)\/(story\.md|timeline\.json)$/))) return text(res, resolve(stories, m[1], m[2]));

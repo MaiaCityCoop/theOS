@@ -1,4 +1,4 @@
-# TheStory
+# Stories
 
 A folder per proposed intent, `NNNN-slug/`: `story.md` (the work told as a story, from the
 intent's changelog) and `timeline.json` (its film: the in-game camera's moves and the captions

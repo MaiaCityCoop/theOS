@@ -1,6 +1,6 @@
 ---
 name: intents
-description: How work is done in TheOS. Use whenever something is to be made, changed or fixed in this repository, whenever Samuel asks for work, mentions an intent, a work package, a changelog, a story or a devlog, or asks what is open. Every change belongs to an intent (Intents/NNNN-slug.md); this skill says how to open one, move it through idea, define, build, propose, story and archived, keep its changelog, trail and todo, and spawn its story in TheStory/.
+description: How work is done in TheOS. Use whenever something is to be made, changed or fixed in this repository, whenever Samuel asks for work, mentions an intent, a work package, a changelog, a story or a devlog, or asks what is open. Every change belongs to an intent (Intents/NNNN-slug.md); this skill says how to open one, move it through idea, define, build, propose, story and archived, keep its changelog, trail and todo, and spawn its story in Stories/.
 ---
 
 # Intents
@@ -45,22 +45,30 @@ One commit per request cycle where that is natural, so stages can be checked out
 
 ## The story
 
-At **Propose**, spawn `TheStory/NNNN-slug/` with two files:
+At **Propose**, spawn `Stories/NNNN-slug/` with two files:
 
-- `story.md`: the title, a link back to the intent and its changelog, and the story in short
-  beats. Filled properly at the Story state; at Propose a first draft is enough.
+- `story.md`: the story, told. Not a technical summary: an episode of the devlog *How AGI learns
+  to build a city in 16 years*, narrated by avenMAIA in the first person, about how the world and
+  the city grow and what this intent added to them. Start from the viewer who knows nothing
+  ("a city starts on a green meadow; first we need a world"). It holds the hook (title, overlay,
+  opening shot), the story in a few paragraphs, the film as a table (time, picture, line), the
+  receipts (every number and quote, and where it is true), and what is still open. A link back to
+  the intent and its changelog. Write it with the `sandbox-script` and `writer` skills where they
+  are installed. Samuel's own part to camera is his to say: list it as open, never write his lines.
 - `timeline.json`: the film of the story for the in-game camera, played live and the same every
   time:
 
       { "intent": "NNNN", "title": "…",
         "clips":    [ { "name", "kind", "secs", "ease", "in", "why", "keys": [ { "pos", "look", "mm", "roll", "focus" } ] } ],
-        "captions": [ { "at": seconds, "for": seconds, "kind": "title" | "human" | "agent" | "note", "text": "…" } ] }
+        "captions": [ { "at": seconds, "for": seconds, "kind": "title" | "maia" | "samuel" | "note", "text": "…" } ] }
 
-  `clips` is the virtual camera's timeline (`TheGame/cine/README.md`); `captions` are the
-  documentary lines over it: `human` for what was asked (their words), `agent` for what was made,
-  `note` for a plain fact, `title` for a heading. Compose camera moves with
-  `TheGame/cine/trailer.js` or by hand; shots should show what the intent changed where it can be
-  seen in the world.
+  `clips` is the virtual camera's timeline (`TheGame/cine/README.md`). `captions` are the film's
+  subtitles: `maia` for avenMAIA's narration, `samuel` for a line Samuel really said (typos
+  tidied, nothing else), `note` for a plain fact on screen, `title` for the film's title card
+  (with `over` for the small line above it). Subtitles are short: one thought, two lines at most,
+  about 42 characters a line, on screen two to four seconds, never two at once. About 150 words
+  for a minute of film. Compose camera moves with `TheGame/cine/trailer.js` or by hand; a shot
+  shows what its line talks about wherever the world can show it.
 
 It plays at `http://localhost:5173/timeline.html?story=NNNN-slug`, and from the OS dashboard.
 
@@ -69,7 +77,8 @@ It plays at `http://localhost:5173/timeline.html?story=NNNN-slug`, and from the 
 | Folder | What |
 | --- | --- |
 | `Intents/` | the intents, `TEMPLATE.md` |
-| `TheStory/` | a folder per proposed intent: `story.md`, `timeline.json` |
+| `Stories/` | a folder per proposed intent: `story.md`, `timeline.json` |
+| `brand/` | `brand.css`: the one look of every page (light, quiet, one green). New interface takes its colours and shapes from there |
 | `TheGame/` | the world and the virtual camera |
 | `OS/` | the dashboard over the three: `bun run dev` at the repository's root starts it (port 5180) with the game (5173) |
 

@@ -1,0 +1,63 @@
+/* TheOS: the brand, in one file. Light, quiet, one green.
+   Paper for the ground, ink for words, the meadow's green for what is alive or chosen.
+   Every page of TheOS (the dashboard, the game's overlays) reads its colours and shapes from here. */
+:root {
+  --paper: #f7f6f2;        /* the ground of every page */
+  --surface: #ffffff;      /* cards, panels */
+  --ink: #15181c;          /* words */
+  --muted: #6c727c;        /* second words */
+  --faint: #a3a8b0;
+  --line: #e8e5dd;         /* hairlines */
+  --green: #1f7a4d;        /* the meadow: actions, what is live, what is chosen */
+  --green-ink: #145a37;
+  --green-soft: #e4f1e9;
+  --sky: #9fc2e6;
+  --sand: #efe7d6;
+  --amber: #b7791f;
+  --radius: 14px;
+  --radius-s: 9px;
+  --shadow: 0 1px 2px rgba(21, 24, 28, .05), 0 10px 30px rgba(21, 24, 28, .07);
+  --glass: rgba(255, 255, 255, .78);
+  --sans: -apple-system, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --display: -apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/* ---- the mark ---- */
+.mark { display: inline-flex; align-items: center; gap: 9px; font: 650 16px/1 var(--display); letter-spacing: -.01em; color: var(--ink); text-decoration: none; }
+.mark::before { content: ''; width: 14px; height: 14px; border-radius: 4px; background: var(--green); box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .12); }
+
+/* ---- shared pieces ---- */
+.glass { background: var(--glass); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); border: 1px solid rgba(255, 255, 255, .7); box-shadow: var(--shadow); color: var(--ink); }
+.btn { font: 550 14px/1 var(--sans); color: #fff; background: var(--green); border: 0; border-radius: 999px; padding: 11px 18px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+.btn:hover { background: var(--green-ink); }
+.btn.quiet { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.btn.quiet:hover { box-shadow: inset 0 0 0 1px var(--faint); background: var(--surface); }
+.btn.small { font-size: 13px; padding: 8px 13px; }
+.chip { font: 600 10.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--paper); border-radius: 999px; padding: 5px 9px; display: inline-block; }
+.chip.live { color: var(--green-ink); background: var(--green-soft); }
+
+/* ---- the game's overlays: readout, menu, bars, subtitles ---- */
+#hud { position: fixed; left: 12px; top: 12px; z-index: 5; padding: 8px 11px; border-radius: var(--radius-s); white-space: pre; pointer-events: none; font: 11px/1.45 var(--mono); background: var(--glass); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); color: var(--ink); box-shadow: var(--shadow); }
+.os-menu { position: fixed; right: 12px; top: 12px; z-index: 6; min-width: 210px; padding: 7px; border-radius: var(--radius); font: 13px/1.35 var(--sans); }
+.os-menu h6 { margin: 8px 9px 3px; font: 600 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.os-menu a { display: flex; justify-content: space-between; gap: 16px; padding: 7px 9px; border-radius: 8px; text-decoration: none; color: var(--ink); }
+.os-menu a.mark { justify-content: flex-start; }
+.os-menu a.mark:hover { background: none; }
+.os-menu a:hover { background: rgba(21, 24, 28, .05); }
+.os-menu a.on { background: var(--ink); color: #fff; }
+.os-menu a span + span { color: var(--faint); font-size: 11px; }
+.os-menu a.on span + span { color: rgba(255, 255, 255, .6); }
+.os-bar { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 5; padding: 10px 12px 12px; border-radius: var(--radius); font: 12px/1.35 var(--sans); }
+.os-bar button { font: 550 12px/1 var(--sans); color: var(--ink); background: var(--surface); border: 0; box-shadow: inset 0 0 0 1px var(--line); border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+
+/* Subtitles: one place, two lines at most, readable over any picture. */
+#cap { position: fixed; left: 50%; bottom: 7vh; transform: translateX(-50%); z-index: 4; width: max-content; max-width: min(44ch, 84vw); text-align: center; pointer-events: none; opacity: 0; display: none;
+  font: 500 clamp(17px, 1.75vw, 24px)/1.32 var(--sans); color: #fff; background: rgba(15, 18, 21, .62); padding: .34em .8em .4em; border-radius: 10px; text-wrap: balance; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+#cap.on { display: block; }
+#cap.samuel { font-style: italic; }
+#cap.samuel::after { content: ' — Samuel'; font-style: normal; opacity: .7; font-size: .8em; }
+#cap.note { font-size: clamp(14px, 1.3vw, 18px); background: rgba(15, 18, 21, .5); }
+/* A title card: the film's name, once, in the middle. */
+#cap.title { bottom: auto; top: 44%; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; max-width: 80vw; font: 650 clamp(30px, 4.6vw, 64px)/1.05 var(--display); letter-spacing: -.02em; text-shadow: 0 2px 30px rgba(0, 0, 0, .35), 0 1px 2px rgba(0, 0, 0, .3); }
+#cap.title small { display: block; font: 600 12px/2.4 var(--mono); letter-spacing: .18em; text-transform: uppercase; opacity: .9; }
