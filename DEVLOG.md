@@ -371,3 +371,44 @@ follow the lens.
 - Depth of field is not built yet.
 - The pane read 64 of 72 stills over budget, with Safari drawing beside it: not a clean reading.
   The sheet has to be run in Safari alone.
+
+---
+
+## 14 · Real lenses, a live bench, depth of field · 2026-11-11 · `bf4591071`
+
+**Asked.** Use only the real ARRI anamorphic lenses, ignore all others so far. The lens test
+should not be still frames: always the actual interactive world, rendered live from the same
+camera position. Not all the reference shots: one master shot per lens, placed where it makes
+sense, with a "lens" bar at the bottom that switches the virtual camera to that position, so
+each shot can be optimised interactively, from each angle and distance. Then: do depth of field
+first, aperture always wide open for the cinematic feeling.
+
+**Delivered.**
+- The kit is the nine Master Anamorphic focal lengths, 28–180 mm, and nothing else. The
+  spherical set, the invented 16 and the zoom's 19 and 24 are gone; the river-story was re-kept
+  on the primes (its 12, 14, 18 and 24 mm shots are 28 mm now, 85 is 100, 50 is 60).
+- The still sheet is gone. `/lenses.html` is a bench: the live world, a lens bar at the bottom,
+  each lens on its own master shot (the land, down the river, the meadow, the bank, in the grass,
+  a boulder, the waterline, the boulder from far, the boulder from across the land). From a
+  master the view turns and moves by hand; the game's own readout shows what it costs.
+- The long lenses' boulder is found by running the rocks' shader's hashes in JS.
+- Depth of field (`src/post.js`): the thin lens's blur for the focal length, the focus and each
+  pixel's distance, always at T1.9, as an upright oval. Focus follows what the camera looks at.
+  Only while the virtual camera holds the picture.
+
+**Good.** At 100 mm on the waterline the foreground and the far water fall away and a band of
+shore stays sharp; in the grass at 60 mm the near blades are soft shapes in front of a sharp
+meadow. The far, coarse detail that long lenses showed is now mostly out of focus.
+
+**Broke / not there yet.**
+- With depth of field on, the sky first came out darker and more saturated: a clear colour is
+  written unconverted into a render target. It is given as plain numbers there now.
+- A script that edited several files stopped halfway on a failed match; the bench first loaded
+  without its master shots. Found by the console, finished by hand.
+- The waterline master first stood in the grass and saw only blades; it stands on the sand now.
+- Cost: the blur is 28 more reads per blurred pixel at full resolution. The pane read 15–33 fps
+  on the bench with Safari drawing beside it: not a clean number, but the pass is not free.
+  Unread in Safari.
+- A blurred foreground does not yet spill over sharp things behind it: its edge is harder than
+  a lens would give.
+- Detail per lens (ranges, density) is still not built; the bench is where it will be tuned.
