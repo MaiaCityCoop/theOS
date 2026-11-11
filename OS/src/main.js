@@ -216,13 +216,12 @@ function home() {
   home.today = today; home.joined = joined;
 }
 
-// ---- inside: the city's dashboard. A few tiles: the game, the stories, the intents ----
+// ---- inside: the city's dashboard. A few tiles: the game, the stories, the lenses (the intents open from the pill's star) ----
 function city() {
-  const today = home.today, open = intents.filter((i) => i.state !== 'archived');
+  const today = home.today;
   $('citysub').textContent = today ? `Day ${n(today.day)} of ${n(DAYS)} · ${today.inGame != null ? cit(today.inGame) : '–'}` : '';
   $('tiles').innerHTML = `<button class="tile big" data-go="game">${today ? pic(today, home.joined(today)) : ''}<span class="label">The Game</span><h2>Walk the world</h2><p>The meadow, the river and the first tent, live. Or look at it through the lenses.</p><div class="foot"><b>${today?.inGame != null ? n(today.inGame) : '–'}</b> citizens<span class="go"></span></div></button>
-    <button class="tile" data-go="stories"><span class="label">Stories</span><h2>One a day</h2><p>${latest() ? 'Latest: ' + latest().title : 'None yet.'}</p><div class="foot"><b>${n(stories.length)}</b> of ${n(DAYS)}<span class="go"></span></div></button>
-    <button class="tile" data-go="intents"><span class="label">Intents</span><h2>The work</h2><div class="rows">${open.slice(0, 3).map((i) => `<div>${i.title}</div>`).join('') || '<div>Nothing open.</div>'}</div><div class="foot"><b>${n(open.length)}</b> open<span class="go"></span></div></button>`;
+    <button class="tile" data-go="stories"><span class="label">Stories</span><h2>One a day</h2><p>${latest() ? 'Latest: ' + latest().title : 'None yet.'}</p><div class="foot"><b>${n(stories.length)}</b> of ${n(DAYS)}<span class="go"></span></div></button>`;
   $('tiles').insertAdjacentHTML('beforeend', `<button class="tile wide dark" data-lenses><span class="label">Debug &amp; performance</span><h2>Lenses</h2><p>The world through nine film lenses, with the frame time, draw calls and triangles: where it runs smooth and where it does not.</p><div class="foot"><span class="go"></span></div></button>`);
   $('tiles').querySelectorAll('.tile').forEach((t) => (t.onclick = () => (t.dataset.lenses !== undefined ? game('lenses') : tab(t.dataset.go))));
 }

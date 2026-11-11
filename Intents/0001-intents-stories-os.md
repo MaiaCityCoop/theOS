@@ -625,6 +625,13 @@ _Samuel's decision._
 - **Good:** seen in the pane at 1440: the intent across the sheet, back to the board.
 - **Broke / not there yet:** the front page keeps the forest green; only the inside is blue.
 
+### 2026-11-11, twenty-fifth round
+
+- **Asked:** remove the intents from the dashboard's grid.
+- **Delivered:** the dashboard's tiles are the game, the stories and the lenses; the intents
+  open only from the pill's star.
+- **Good:** seen in the pane at 1440.
+
 ## Trail
 
 | When | Commit | What |
