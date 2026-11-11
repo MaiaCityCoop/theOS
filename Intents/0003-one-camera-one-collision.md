@@ -137,6 +137,19 @@ Samuel approved the definition on 2026-11-11 ("Approve, start it").
   seen wide and at a slant): failed; the far land's cost is intent 0002's (tiles, folding).
 - 4, 5 not run as written.
 
+**Third slice** (asked: the same camera on tablets and phones, a joystick at the left, its own settings file, zooms
+with two fingers):
+
+- `TheGame/camera/touch.js` holds the touch numbers as data: the joystick's size, knob, margin, dead zone and run;
+  how fast a finger turns and looks; how fast two fingers change the height and turn.
+- `src/camera/touch.js`: the joystick appears bottom left with the first touch (a mouse never sees it); one finger
+  elsewhere turns and, at eye level, looks; two fingers pinch the camera up (together) and down (apart) and turn it.
+  It hands the rig what the keys and mouse do (a move, a turn, a look, a change of height): one rig for every input.
+- On a phone the developer's readout is hidden; it covered the pill.
+- Checked in the pane at phone size (375×812) with touch events made by script (the pane's own clicks are a mouse's):
+  the joystick pushed for 1.5 s walked 3.5 m; a finger dragged 50 px turned 0.26 rad; pinching in took the camera from
+  1.7 m to 7.4 m and spreading brought it back to 1.7 m. Not tried on a real phone or tablet.
+
 ## Propose
 
 ## Story
@@ -186,6 +199,16 @@ Samuel approved the definition on 2026-11-11 ("Approve, start it").
 - **Good:** no jumps in the zoom; no camera inside anything in 200 tries; landing at the tent's door.
 - **Broke / not there yet:** the town band runs at 45 ms a frame on this Mac; the top stays 4 km; the library does not
   show collision yet.
+
+### 2026-11-12, third slice
+
+- **Asked:** the same camera on tablets and phones, with a joystick at the left and its own settings file, two-finger
+  zoom; and whether the film camera stays its own virtual camera with focal point, focus pulling and lenses (yes: see
+  the chat; `cine` is unchanged and takes rig shots as well as its own).
+- **Delivered:** the touch settings file, the joystick, one-finger turn and look, two-finger height and turn, all on
+  the one rig.
+- **Good:** walking, turning and both pinches worked by scripted touch at phone size.
+- **Broke / not there yet:** not tried on a real device; the tablet size was not looked at (the pane closed).
 
 ## Trail
 

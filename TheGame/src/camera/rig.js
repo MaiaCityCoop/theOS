@@ -5,6 +5,7 @@
 import RIG from '../../camera/rig.js';
 import { heightAt } from '../world.js';
 import { step, ceilingAt, clear, within } from '../world/solids.js';
+import { createTouch } from './touch.js';
 
 const L0 = Math.log(RIG.eye), L1 = Math.log(RIG.top);
 const ease = (t) => t * t * (3 - 2 * t);
@@ -65,6 +66,11 @@ export function createControls(camera, canvas, msg, stat) {
     if (!locked && !drag) return;
     yaw -= e.movementX * 0.0022; look = Math.max(-1.5, Math.min(1.5, look - e.movementY * 0.0022));
   });
+  // fingers: the same move, turn and look, and height, from a joystick, a drag and a pinch (src/camera/touch.js)
+  const touch = createTouch(canvas, {
+    look: (dyaw, dlook, turnOnly) => { yaw -= dyaw; if (!turnOnly) look = Math.max(-1.5, Math.min(1.5, look - dlook)); },
+    height: (dL) => { L = Math.max(L0, Math.min(L1, L + dL)); },
+  }).move;
   canvas.addEventListener('wheel', (e) => {   // the one zoom: the height, from the eyes to the city
     e.preventDefault();
     L = Math.max(L0, Math.min(L1, L + e.deltaY * RIG.wheel * (e.deltaMode ? 30 : 1)));
@@ -89,10 +95,11 @@ export function createControls(camera, canvas, msg, stat) {
       if (v.band !== band) { band = v.band; if (!locked) msg.textContent = hints[band] || ''; }
       if (v.lock !== lockHere) { lockHere = v.lock; if (!lockHere && locked) document.exitPointerLock?.(); }   // up in town the mouse is free again
       // move the point on the ground: by the keys, at this height's speed; on foot (low), walls and things stop it
-      const f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
-      const s = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
+      let f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
+      let s = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
+      f = Math.max(-1, Math.min(1, f + touch.y)); s = Math.max(-1, Math.min(1, s + touch.x));   // the joystick adds its push
       yaw += ((keys.has('KeyQ') ? 1 : 0) - (keys.has('KeyE') ? 1 : 0)) * 1.4 * dt;
-      const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? v.run : v.speed, n = f && s ? 0.7071 : 1, sy = Math.sin(yaw), cy = Math.cos(yaw);
+      const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') || touch.run ? v.run : v.speed, n = Math.max(1, Math.hypot(f, s)) > 1 ? 1 / Math.hypot(f, s) : 1, sy = Math.sin(yaw), cy = Math.cos(yaw);
       const nx = pivot.x + (-sy * f + cy * s) * speed * n * dt, nz = pivot.z + (-cy * f - sy * s) * speed * n * dt;
       if (h < 4) [pivot.x, pivot.z] = step(pivot.x, pivot.z, nx, nz); else { pivot.x = nx; pivot.z = nz; }
       // the camera: at eye level the walker's eyes (stooping under a low roof); higher, hung back from the point
