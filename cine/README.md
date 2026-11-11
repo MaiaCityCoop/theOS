@@ -146,11 +146,11 @@ cut a before/after from.
 
 ## Shooting an earlier stage
 
-    bash game/cine/at.sh <commit> [port]
+    bash cine/at.sh <commit> [port]
 
-checks that commit's `game/` out beside the repository (never in the tree being worked in), lays
+checks that commit out beside the repository (never in the tree being worked in), lays
 today's `cine/` and `timeline.html` over it, and serves it (port 5174 unless told). The commits are
-in `game/DEVLOG.md`. The camera needs nothing of the game but `window.__s8.camera`, and the trailer
+in `DEVLOG.md`. The camera needs nothing of the game but `window.__s8.camera`, and the trailer
 only `src/world.js`, so both work on every commit since the first.
 
 ## What it does not do yet

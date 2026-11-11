@@ -1,7 +1,7 @@
-# Sandbox 8
+# TheOS
 
-One endless procedural land, drawn at 60 fps in a browser. Standalone: nothing here imports from
-the rest of the repository. `bun run dev`, then http://localhost:5173.
+Sandbox 8: one endless procedural land, drawn at 60 fps in a browser, and a virtual film camera to
+shoot it with. `bun run dev`, then http://localhost:5173.
 
 - `/` walk the world (click, W A S D, Shift runs, F flies)
 - `/timeline.html` a kept film of camera moves, played live in the world

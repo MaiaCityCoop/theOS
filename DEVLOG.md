@@ -2,14 +2,18 @@
 
 One entry per request cycle between Samuel and the agent: what was asked, what was delivered, what
 was good, what broke, and the commit to go back to. Newest last. To see a stage again, with the
-virtual camera over it: `bash game/cine/at.sh <commit>` (see `cine/README.md`).
+virtual camera over it: `bash cine/at.sh <commit>` (see `cine/README.md`).
+
+Cycles 1 to 16 were made in the folder `game/` of the maiaCITY repository, on its branch
+`game/sandbox-8`; cycle 17 moved the project here, into its own repository, with its history. The
+commits named below are this repository's.
 
 Numbers are from the app's browser pane on the M1 MacBook Air unless said otherwise; Safari's own
 have not been read yet.
 
 ---
 
-## 1 · The land, from the ground up · 2026-11-11 · `4ae6541c1`
+## 1 · The land, from the ground up · 2026-11-11 · `ae06c829f`
 
 **Asked.** A brand-new standalone world in `game/`, nothing reused: one endless procedural land
 (meadow, arid patches, one small stream, a few stones and rocks, nothing else growing), plain light,
@@ -49,7 +53,7 @@ far or flying fast.
 
 ---
 
-## 2 · A real river, calmer water · 2026-11-11 · `4c07ab144`
+## 2 · A real river, calmer water · 2026-11-11 · `d7833e97a`
 
 **Asked.** The stream three times as wide, its width wandering between 3× and 5× like a true
 meandering river. The white gushes look weird: more realistic water, slightly less blue.
@@ -69,7 +73,7 @@ widening and was moved to the new bank.
 
 ---
 
-## 3 · The devlog and the virtual camera · 2026-11-11 · `b3b328558`
+## 3 · The devlog and the virtual camera · 2026-11-11 · `8783a9280`
 
 **Asked.** A small dev log for every request cycle (asked, delivered, good, broke, commit), so an
 actual devlog video can be written from it and each stage checked out again. And one universal
@@ -95,7 +99,7 @@ the first commit: the same `?cam=` address gave the same framing over stage 1 an
 
 ---
 
-## 4 · The camera is the agent's; a timeline plays a trailer in the world · 2026-11-11 · `cdc1e5909`
+## 4 · The camera is the agent's; a timeline plays a trailer in the world · 2026-11-11 · `7bd67a4ba`
 
 **Asked.** The camera was misunderstood: it should be a virtual camera for an agent to create
 cinematic shots, not something a person steers. Beside the game view, a second view: the actual
@@ -135,7 +139,7 @@ close sits right on the waterline. The kept timeline played back identically aft
 
 ---
 
-## 5 · A story, real transitions, a menu · 2026-11-11 · `516bf1bbc`
+## 5 · A story, real transitions, a menu · 2026-11-11 · `748db57bd`
 
 **Asked.** The camera moves should follow a proper storytelling line that introduces the actual
 world; the shots were quite random. Transitions between connecting shots should be smooth like
@@ -172,7 +176,7 @@ flight's last frame melts into the bank shot. Seed 1 now lands on a green stretc
 
 ---
 
-## 6 · The one-frame flash · 2026-11-11 · `f09a57b15`
+## 6 · The one-frame flash · 2026-11-11 · `be4d27b84`
 
 **Asked.** About every 5 seconds the cinematic shots flicker: one frame of white.
 
@@ -190,7 +194,7 @@ remains exactly on a cut, the next suspect is the dissolve's frame grab.
 
 ---
 
-## 7 · Artifacts in the distance · 2026-11-11 · `c0f42aff7`
+## 7 · Artifacts in the distance · 2026-11-11 · `4d2bd815e`
 
 **Asked.** In the remote distance everything looks quite artifacty.
 
@@ -215,7 +219,7 @@ remains exactly on a cut, the next suspect is the dissolve's frame grab.
 
 ---
 
-## 8 · A shorter menu · 2026-11-11 · `b2cf4e35a`
+## 8 · A shorter menu · 2026-11-11 · `72f109f09`
 
 **Asked.** Delete "first-look" and "Trailer (composed)"; keep "Walk the world" and "river-story".
 
@@ -223,11 +227,11 @@ remains exactly on a cut, the next suspect is the dissolve's frame grab.
 its "new trailer" button are gone, and `/timeline.html` plays `river-story` by default. The
 composer itself stays for the agent (`?seed=`), out of the menu.
 
-**Broke / not there yet.** Nothing new. `first-look` can be had back from commit `cdc1e5909`.
+**Broke / not there yet.** Nothing new. `first-look` can be had back from commit `7bd67a4ba`.
 
 ---
 
-## 9 · Grass in the distance · 2026-11-11 · `8b7c32411`
+## 9 · Grass in the distance · 2026-11-11 · `b32f78177`
 
 **Asked.** (With a screenshot of the opening shot.) The first and last shots don't render the
 grass in the distance, which looks weird as well.
@@ -252,7 +256,7 @@ vertex, which far away showed as soft square blotches. Two changes:
 
 ---
 
-## 10 · The square patches · 2026-11-11 · `42b4020d9`
+## 10 · The square patches · 2026-11-11 · `1fdd75afb`
 
 **Asked.** (With a Safari screenshot of the opening shot, 52 fps.) The grass is still super
 blocky: block patches. And: how do real games do it; from far above the grass should still look
@@ -280,7 +284,7 @@ Five noise evaluations per pixel became five texture reads.
 
 ---
 
-## 11 · The grass itself · 2026-11-11 · `d640fa0a5`
+## 11 · The grass itself · 2026-11-11 · `45e2275d3`
 
 **Asked.** (With a Safari screenshot of the walk view: 45 fps at pixel ratio 0.75, 2.95 M
 triangles.) Even in the walk view the grass doesn't look correct and its density is not good.
@@ -311,7 +315,7 @@ over dark depths, small white flowers, haze and sky behind.
 
 ---
 
-## 12 · The wide shots · 2026-11-11 · `4f898431c`
+## 12 · The wide shots · 2026-11-11 · `ff98c7528`
 
 **Asked.** (With a Safari screenshot of the final crane shot: 60 fps, ratio 0.75.) The close-up
 is good enough now. The big flight / top / total shots still look unrealistic, and the grass is
@@ -343,7 +347,7 @@ receding into air.
 
 ---
 
-## 13 · Lenses, and a bench to tune them · 2026-11-11 · `bb53b985a`
+## 13 · Lenses, and a bench to tune them · 2026-11-11 · `3302c9073`
 
 **Asked.** Ranges of detail should be per camera lens. Introduce the full set of 16–180 mm ARRI
 anamorphic lenses for the virtual camera. Start by optimising each lens on different scenes as
@@ -374,7 +378,7 @@ follow the lens.
 
 ---
 
-## 14 · Real lenses, a live bench, depth of field · 2026-11-11 · `bf4591071`
+## 14 · Real lenses, a live bench, depth of field · 2026-11-11 · `929ae50e3`
 
 **Asked.** Use only the real ARRI anamorphic lenses, ignore all others so far. The lens test
 should not be still frames: always the actual interactive world, rendered live from the same
@@ -415,7 +419,7 @@ meadow. The far, coarse detail that long lenses showed is now mostly out of focu
 
 ---
 
-## 15 · Better masters, the glass's distortion, a review of every lens · 2026-11-11 · `9463885cf`
+## 15 · Better masters, the glass's distortion, a review of every lens · 2026-11-11 · `160ed570f`
 
 **Asked.** The master shots are partly not good representative shots: choose them better. Then
 screenshot each lens and list, per lens, every bad, unrealistic problem to be seen; with a
@@ -431,7 +435,7 @@ haze, wind and shadow come. Also: the proper anamorphic distortion at the lens's
 - The glass: barrel distortion, strongest at 28 mm and falling away with focal length, mostly
   across the frame as anamorphic glass bows; a little light lost to the corners.
   `__cine.distortion` (0.045) sets it.
-- `game/LENS-REVIEW.md`: all nine masters looked at as stills; what is unreal in each; the six
+- `LENS-REVIEW.md`: all nine masters looked at as stills; what is unreal in each; the six
   causes behind them; one architecture (size-on-screen detail on the terrain's quadtree, an
   asset and biome table over a ground-cache clipmap, one HDR light path, one post chain); what
   sun, sky, haze, wind and shadow dissolve and what they do not; an order of work.
@@ -449,7 +453,7 @@ haze, wind and shadow come. Also: the proper anamorphic distortion at the lens's
 
 ---
 
-## 16 · Detail by size in the picture; the source by role · 2026-11-11 · `0e0d3c320`
+## 16 · Detail by size in the picture; the source by role · 2026-11-11 · `8b90c7762`
 
 **Asked.** Do what was recommended first (detail by size on screen, scatter where the lens
 looks, a governor). Use the moment to split each file into its own role, a clean architecture
@@ -468,7 +472,7 @@ seemed to have no focus at all.
 - The source by role: `world/` (the land in JS and GLSL, the light), `core/` (uniforms,
   frustum, governor, readout), `materials/`, `terrain/` (quadtree; shaders apart), `scatter/`
   (an asset table, tiers, the kinds), `camera/` (walker, lens). `main.js` is 90 lines of
-  wiring. A new rock or plant is a row in `scatter/assets.js`. `game/README.md` says what goes
+  wiring. A new rock or plant is a row in `scatter/assets.js`. `README.md` says what goes
   where.
 - Every master names what it holds sharp: the near bank at 35 mm, the grass in front at 40, the
   near waterline at 50, the first bend at 28; the boulders and the blades as before.
