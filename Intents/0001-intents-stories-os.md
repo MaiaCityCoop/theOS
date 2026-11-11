@@ -504,6 +504,15 @@ _Samuel's decision._
 - **Delivered:** the line reads "Day 2 of 5,423. One story a day."
 - **Good / not there yet:** a one-word change; not looked at in the browser.
 
+### 2026-11-11, seventeenth round
+
+- **Asked:** a top header, uppercase and centred: "This is the story of", over the title.
+  Remove "One story a day." The "Travel to Maia City" button below the video.
+- **Delivered:** "THIS IS THE STORY OF" over the title; under it "Day 2 of 5,423."; the
+  button stands centred between the film and the calendar.
+- **Good:** seen in the pane at 1440.
+- **Broke / not there yet:** phone width and Safari not seen.
+
 ## Trail
 
 | When | Commit | What |
