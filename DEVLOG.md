@@ -412,3 +412,37 @@ meadow. The far, coarse detail that long lenses showed is now mostly out of focu
 - A blurred foreground does not yet spill over sharp things behind it: its edge is harder than
   a lens would give.
 - Detail per lens (ranges, density) is still not built; the bench is where it will be tuned.
+
+---
+
+## 15 · Better masters, the glass's distortion, a review of every lens · 2026-11-11 · `9463885cf`
+
+**Asked.** The master shots are partly not good representative shots: choose them better. Then
+screenshot each lens and list, per lens, every bad, unrealistic problem to be seen; with a
+systematic suggestion, architecture-wise, best-practice three.js patterns, to solve them
+generically while keeping full rendering performance; and which problems will dissolve once sun,
+haze, wind and shadow come. Also: the proper anamorphic distortion at the lens's edges and corners.
+
+**Delivered.**
+- Masters: the three boulder shots had the rock at the bottom edge under 60 % sky; they now aim
+  so the subject sits a sixth over the middle, from a little higher, focused on the rock itself.
+  In the grass: looks through the blades toward the water, focus on the near blades. The
+  waterline: reframed twice.
+- The glass: barrel distortion, strongest at 28 mm and falling away with focal length, mostly
+  across the frame as anamorphic glass bows; a little light lost to the corners.
+  `__cine.distortion` (0.045) sets it.
+- `game/LENS-REVIEW.md`: all nine masters looked at as stills; what is unreal in each; the six
+  causes behind them; one architecture (size-on-screen detail on the terrain's quadtree, an
+  asset and biome table over a ground-cache clipmap, one HDR light path, one post chain); what
+  sun, sky, haze, wind and shadow dissolve and what they do not; an order of work.
+
+**Good.** A28, A35, A40, A50, A135 and A180 are now frames one can judge the land by.
+
+**Broke / not there yet.**
+- A100, the waterline, is still not a picture after two reframings: the water has nothing to
+  show at a hand's distance. It is in the review as a fault of the water, not only of the shot.
+- A60 is a wall of blades; honest for the lens, weak as a frame.
+- The distortion is small on purpose: this glass is known for having very little. A stronger,
+  older-anamorphic look is a matter of that one number.
+- A post-shader edit shadowed its own input and would have read garbage; caught before a run.
+- All judged on stills in the pane. Nothing in motion, nothing in Safari.
