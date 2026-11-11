@@ -10,7 +10,7 @@ const N = 512;   // texels a side; a texel is 0.5 m to the 68° lens and grows w
 
 const FRAG = /* glsl */ `
 ${WORLD_GLSL}
-uniform vec2 uGO; uniform float uGBase, uGTexel; uniform vec2 uTent; uniform vec3 uStage;
+uniform vec2 uGO; uniform float uGBase, uGTexel; uniform vec2 uTent; uniform float uTentR; uniform vec3 uStage;
 void main(){
   vec2 pos = uGO + floor(gl_FragCoord.xy) * uGTexel;
   vec3 R = riverR(pos); float w = riverW(pos), d = riverDist(R);
@@ -22,7 +22,7 @@ void main(){
 #else
   float path = pathMask(pathN(pos)), oc = outcropMask(pos);
   float dens = (1.0 - path) * (1.0 - bankMask(d, w)) * (1.0 - bareMask(pos)) * (1.0 - oc * 0.25) * mix(1.0, 0.45 * tuftMask(pos), arid);
-  dens *= smoothstep(1.5, 2.7, length(pos - uTent));   // the tent's floor is kept clear
+  dens *= smoothstep(uTentR - 1.2, uTentR, length(pos - uTent));   // the tent's floor is kept clear
   float bare = uStage.z > 0.0 ? smoothstep(uStage.z - 0.5, uStage.z + 0.7, length(pos - uStage.xy)) : 1.0;   // the library's stage: a round of bare ground
   dens *= bare;
   float stone = (0.07 + 0.3 * arid + 0.45 * (1.0 - smoothstep(w * 0.6, w + 4.0, d)) + 0.5 * oc) * (1.0 - path * 0.8);
@@ -45,7 +45,7 @@ export function createGround(renderer, U) {
   const rtB = new THREE.WebGLRenderTarget(N, N, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false });
   U.uGO = { value: new THREE.Vector2(1e9, 1e9) }; U.uGBase = { value: 0 }; U.uGTexel = { value: 0.5 }; U.tGA = { value: rtA.texture }; U.tGB = { value: rtB.texture };
   const vs = `void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }`, stage = (U.uStage = { value: new THREE.Vector3(0, 0, 0) });   // (x, z, radius); radius 0: no stage. Shared: the terrain lays bare earth there too
-  const mk = (def) => new THREE.ShaderMaterial({ vertexShader: vs, fragmentShader: def + FRAG, uniforms: { uCam: U.uCam, uDy: U.uDy, uLodInv: U.uLodInv, uGO: U.uGO, uGBase: U.uGBase, uGTexel: U.uGTexel, tNoise: U.tNoise, uTent: { value: new THREE.Vector2(PLACES.tent.x, PLACES.tent.z) }, uStage: stage }, depthTest: false, depthWrite: false });
+  const mk = (def) => new THREE.ShaderMaterial({ vertexShader: vs, fragmentShader: def + FRAG, uniforms: { uCam: U.uCam, uDy: U.uDy, uLodInv: U.uLodInv, uGO: U.uGO, uGBase: U.uGBase, uGTexel: U.uGTexel, tNoise: U.tNoise, uTent: { value: new THREE.Vector2(PLACES.tent.x, PLACES.tent.z) }, uTentR: { value: PLACES.tent.clear || 2.7 }, uStage: stage }, depthTest: false, depthWrite: false });
   const mA = mk(''), mB = mk('#define TINT\n');
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mA), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   quad.frustumCulled = false;

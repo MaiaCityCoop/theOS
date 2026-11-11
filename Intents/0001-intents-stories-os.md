@@ -148,7 +148,7 @@ _Samuel's decision._
 - [x] Samuel looked: Daylight liked; Plot, Subtitle and Daylight merged and reduced to draft 09 (one banner, the line, the devlog)
 - [x] Samuel chose Meadow (draft 10); the dashboard and the game restyled to it; each day one shot from above
 - [ ] A day's shot from above filmed in the game, not drawn
-- [ ] Day 2's preview picture filmed again on the land as it is now (without the dry land)
+- [ ] Day 2's preview picture filmed again on the land as it is now (without the dry land, with the bell tent); and the shot stills
 - [ ] Samuel: look again; accept or say what is wrong
 - [ ] Samuel: his opening to camera for story 01
 - [ ] Then: the Story section here
@@ -916,6 +916,25 @@ _Samuel's decision._
   a list in the library file not replaced), each seen in the browser and fixed. The bell tent is
   in the library only, not in the world. Grass is not yet a library item. Levels are by plain
   distance (THREE.LOD), not by the lens's stretch as the scatter's are.
+
+### 2026-11-11, forty-fourth round
+
+- **Asked:** what are the colours (textures?); the stones and boulders lost their textured, mossy
+  look in the library; grass belongs in a biome viewer (grass, dry land, beach, river biomes)?;
+  only the bell tent: it replaces the ridge tent; should shaders and textures have their own viewer?
+- **Answered:** an asset's `colours` are flat colours per face, no texture; the world's ground and
+  rocks are drawn with textures baked on the GPU at start (`src/materials/bake.js`). Biomes and
+  textures: a proposal in the reply, not built.
+- **Delivered:** the library's stones and boulders are drawn in the world's own rock material
+  (`rockSample` in `src/scatter/rocks.js`: its rock texture, normals and moss). The bell tent
+  replaces the ridge tent, in the world (by the river, where the films are shot) and in the
+  library; `tent.js` is gone; the grass is kept clear 3.2 m round it.
+- **Good:** seen in the pane: mossy, textured boulders and stones on the stage; the bell tent in
+  the film's shot among the blades.
+- **Broke / not there yet:** the rock samples first drew nothing: the rock's shape is made for
+  instancing and had no instances; found by checking where they projected (the middle of the
+  screen) and fixed. A comment put in the middle of a line had hidden them as well. Day 2's
+  preview picture and the story's shot stills still show the ridge tent until retaken.
 
 ## Trail
 

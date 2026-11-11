@@ -1,4 +1,4 @@
-// A bell tent of canvas: round, a short wall, a cone of roof on one centre pole, a door with its flaps tied back,
+// The bell tent, the first thing in Maia City (it stands by the river, src/world/places.js). Canvas: round, a short wall, a cone of roof on one centre pole, a door with its flaps tied back,
 // guy ropes to pegs all round, a groundsheet. The detailed one of the library: four levels of detail, each its own
 // shape, from every rope and peg up close to a plain six-sided cone far away. An asset in the one recipe
 // (assets/index.js). Units are metres; the origin is the middle of its floor; the door faces -z.
@@ -41,7 +41,7 @@ export default {
   id: 'belltent',
   name: 'Bell tent',
   kind: 'shelter',
-  about: 'A round canvas bell tent on one centre pole, five metres across, guyed out on eight ropes. Room for a family.',
+  about: 'A round canvas bell tent on one centre pole, five metres across, guyed out on eight ropes. The first thing that stands in Maia City.',
   size: { length: 2 * R * 1.75, width: 2 * R * 1.75, height: PEAK + 0.18 },
   colours: { canvas, shade, inside, rope, wood, groundsheet: sheet },
   // levels of detail, near to far, each its own shape: up close every rope and peg; then fewer seams; far, a cone

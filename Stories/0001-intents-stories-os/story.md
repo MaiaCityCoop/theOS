@@ -66,7 +66,7 @@ This is day one. Today he is alone. Tomorrow we will see.
 | Samuel's five lines | His own words in the session of 2026-11-11, typos tidied, nothing added: "it all starts with a green meadow and one tent", "first we need a world", "the grass is still super blocky, can you see?", "the vision, the city, the game, everything grows as we do, with citizens", "this is day 1: today I am alone, tomorrow we will see" |
 | "too slow to walk through … I made it fast" | The first grass ran at 28 frames a second in the app's browser pane on the day it was built; 60 after each blade read the ground from a map |
 | "I fixed the wrong thing first" | The first fix blamed per-vertex colour; the squares were the noise's own grid, fixed the round after |
-| "I put up your tent" | `TheGame/assets/tent.js` (the asset library), standing at `TheGame/src/world/places.js` |
+| "I put up your tent" | `TheGame/assets/belltent.js` (the asset library), standing at `TheGame/src/world/places.js` |
 | "a meadow, a river and a tent" | What the world holds today, with stones |
 
 ## Open

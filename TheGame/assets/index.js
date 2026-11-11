@@ -12,12 +12,11 @@
 // Here they are listed, built into meshes level by level with the one lit material they share, and stood.
 import * as THREE from 'three';
 import { LIGHT_GLSL, heightAt } from '../src/world.js';
-import tent from './tent.js';
 import belltent from './belltent.js';
 import stone from './stone.js';
 import boulder from './boulder.js';
 
-export const ASSETS = { tent, belltent, stone, boulder };
+export const ASSETS = { belltent, stone, boulder };
 
 /** A scattered asset as the row the land's scatter engine (src/scatter) reads. */
 export const scatterRow = (a) => ({ name: a.id, kind: a.placement.engine, outcrops: a.placement.outcrops, cell: a.placement.cell, size: a.size.length, texture: a.placement.texture, shapes: a.placement.shapes, seed: a.placement.seed, tiers: a.lods.map((l) => ({ detail: l.rock, P: l.P, far: l.far })) });

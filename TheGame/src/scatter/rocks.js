@@ -132,6 +132,17 @@ void main(){
   gl_FragColor = toScreen(haze(col, length(uCam - vWorld)));
 }`;
 
+// One rock on its own, in the world's rock material (its textures, its moss), for the asset library's stage.
+const SAMPLE_VERT = /* glsl */ `
+out vec3 vWorld; out vec3 vN; out float vArid; out float vLy; out vec3 vTint; uniform vec3 uTintS;
+void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vArid = 0.0; vLy = position.y; vTint = uTintS; gl_Position = projectionMatrix * viewMatrix * w; }`;
+export function rockSample(U, tex, row, detail = 2, shape = 0) {
+  const ig = rockGeometry(detail, row.seed + shape * 7), g = new THREE.BufferGeometry();   // the rock's shape is made for instancing; one on its own is a plain geometry
+  g.setAttribute('position', ig.attributes.position); g.setAttribute('normal', ig.attributes.normal); g.setIndex(ig.index);
+  return new THREE.Mesh(g, new THREE.ShaderMaterial({ vertexShader: SAMPLE_VERT, fragmentShader: FRAG,
+    uniforms: { ...U, tA: { value: tex.a[4] }, tN: { value: tex.n[4] }, tM: { value: tex.a[0] }, uTex: { value: row.texture }, uTintS: { value: new THREE.Vector3(0.05, 0.13, 0.02) } } }));
+}
+
 /** The assets of kind `rocks`: for each a tier per row of its table. */
 export function createRocks(scene, U, tex, asset) {
   const tiers = [], lods = asset.tiers, big = asset.outcrops;
