@@ -632,6 +632,15 @@ _Samuel's decision._
   open only from the pill's star.
 - **Good:** seen in the pane at 1440.
 
+### 2026-11-11, twenty-sixth round
+
+- **Asked:** with the intents open in the sheet, hide the pill and put a small half-round x
+  at the sheet's bottom edge, centred, instead of the Close at the top right.
+- **Delivered:** while a sheet (Intents, Stories) is open the pill is hidden, the sheet reaches
+  further down, and a small half-round x hangs from its bottom edge; the top-right Close is gone.
+  The x goes back to the dashboard and brings the pill back.
+- **Good:** seen in the pane at 1440; clicking the x returned to the dashboard with the pill.
+
 ## Trail
 
 | When | Commit | What |

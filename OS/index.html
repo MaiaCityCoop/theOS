@@ -30,6 +30,14 @@
   .sheethead button{margin-left:auto}
   .sheetbody{flex:1;min-height:0;display:flex}
   #intents.on,#stories.on{display:flex;flex-direction:column;position:fixed;left:14px;right:14px;top:14px;bottom:84px;z-index:7;min-height:0;border-radius:34px;background:var(--paper);box-shadow:0 30px 80px rgba(12,28,22,.25);overflow:hidden;padding-bottom:0}
+  /* a sheet open: the pill steps aside; a small half-round x hangs from the sheet's bottom edge, centred */
+  body.sheet nav.admin{display:none}
+  body.sheet #intents.on,body.sheet #stories.on{bottom:46px}
+  .sheetx{display:none;position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:9;width:72px;height:36px;border:0;border-radius:0 0 36px 36px;background:var(--paper);box-shadow:0 10px 22px rgba(12,28,22,.18);cursor:pointer;color:var(--navy)}
+  .sheetx svg{width:16px;height:16px;margin-top:-6px}
+  .sheetx:hover{color:var(--clay)}
+  body.sheet .sheetx{display:block}
+  .sheethead [data-close]{display:none}
   body.sheet #city{display:block;filter:blur(2px);opacity:.6;pointer-events:none}
   body.admin main{padding-bottom:90px}
   /* the city's dashboard: a few tiles */
@@ -290,6 +298,7 @@
 <main id="city"><header class="cityhead"><span class="mark">Maia City</span><span class="sub" id="citysub"></span></header><div class="tiles" id="tiles"></div></main>
 <main id="intents"><header class="sheethead"><h1>Intents</h1><button class="btn small quiet" data-close>Close</button></header><div class="sheetbody"><div id="board"></div><div id="intentdoc" class="doc"></div></div></main>
 <main id="stories"><header class="sheethead"><h1>Stories</h1><button class="btn small quiet" data-close>Close</button></header><div class="sheetbody"><div id="list"></div><div id="storydoc" class="doc on"><p class="empty">Choose a story.</p></div></div></main>
+<button class="sheetx" data-close aria-label="Close"><svg viewBox="0 0 16 16"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
 <main id="game"><div id="gamebar"></div><iframe id="frame" allow="fullscreen; pointer-lock" title="The Game"></iframe></main>
 <script type="module" src="/src/main.js"></script>
 </body>
