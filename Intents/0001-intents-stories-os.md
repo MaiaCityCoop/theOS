@@ -1070,6 +1070,15 @@ _Samuel's decision._
 - **Broke / not there yet:** the dashboard's own glass panels (goals, day figures) still set their
   words themselves; day 2's picture and stills still to be retaken.
 
+### 2026-11-11, fifty-second round
+
+- **Asked:** the front page's goals and day figures on the shared words-on-glass too.
+- **Delivered:** the goals' day is a `.g-label`, the goals in the glass's ink (`--on-glass`, done
+  ones lighter, their ticks navy with a cream mark, the next one still ringed in sun); the day's
+  figures in `--on-glass-2` with their numbers in `--on-glass`, no shadow.
+- **Good:** seen in the pane: both read in navy on the glass over the film.
+- **Broke / not there yet:** day 2's picture and stills still to be retaken.
+
 ## Trail
 
 | When | Commit | What |

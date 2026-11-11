@@ -215,7 +215,7 @@ function home() {
   $('travel').onclick = () => tab('city');
 
   // the day's challenge: its few goals, the next one lit
-  const goals = (e) => { $('goals').innerHTML = e?.goals?.length ? `<span class="label">Day ${e.day}</span>` + (() => { const next = e.goals.findIndex((g) => !g[1]); return e.goals.map((g, i) => `<p class="${g[1] ? 'done' : i === next ? 'now' : ''}">${g[0]}</p>`).join(''); })() : ''; };
+  const goals = (e) => { $('goals').innerHTML = e?.goals?.length ? `<span class="g-label">Day ${e.day}</span>` + (() => { const next = e.goals.findIndex((g) => !g[1]); return e.goals.map((g, i) => `<p class="${g[1] ? 'done' : i === next ? 'now' : ''}">${g[0]}</p>`).join(''); })() : ''; };
   // the window: the day's story. Its shot from above stands there until its film runs, and the film runs only
   // while the window is on screen: scrolled to, it starts; scrolled away, or on another tab, it stops
   const banner = $('banner'), hero = $('heroframe'); let wait, shown = null, inView = false;
