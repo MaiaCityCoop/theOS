@@ -660,6 +660,27 @@ shadows and the grass.
   before, I stashed the working tree for three minutes, another session's uncommitted work (intent 0009) with it; it
   came back whole, and I will not do that again in a shared tree.
 
+### 2026-11-12, forests and dry land off the noise's grid; a shader too large for Safari (15:20)
+
+- **Asked:** reshape the far fields, angular from high up.
+- **Found:** two causes. The rules themselves: a forest's and the dry land's are value noise on a square grid, and their
+  outlines run along it (plotted from the JS rules: bars, crosses and squares). And far off the land's mesh: past a few
+  kilometres its cells are sixty metres and more, a biome's share is worked out at their corners, an edge comes out in
+  steps.
+- **Delivered:** world/outlines.js: every rule reads its place bent (pushed up to 300 m by a slow noise, none at the
+  tent), adds a second swell turned off the grid from 600 m to 2.5 km out, and turns its finer noise; the dry land's
+  edge keeps its finer noise at any distance. On the GPU (src/world/noise.nodes.js: `bent`, `turned`, `second`) and
+  the same in JS (src/world/land.js: `aridAt`, `woodAt`), which the walker, the films and the city's plots ask
+  (src/city/plan.js now asks `woodAt`). The land within some 600 m of the tent lies as it did.
+- **Good:** from 4 and 9 km up no blocks, bars or rectangles; no errors in WebKit; Samuel's Safari on the game 223 to
+  238 frames per 4 s after it.
+- **Broke / not there yet:** I also worked every biome out per pixel far off, to take the steps away. That made the
+  land's shader so large that Safari's graphics process hung compiling it: every page stayed on the loading screen,
+  also after the code was taken back, until Safari was quit and opened again (some twenty minutes lost). My WebKit
+  test browser compiled it in seconds and showed nothing. Taken out; the steps along the far mesh are still there,
+  ragged now, no longer rectangular. From now on a change to a shader is opened in the real Safari before it is
+  committed (`open -a Safari` on a page of the game, then its frames in the hitch log).
+
 ## Trail
 
 | When | Commit | What |
@@ -716,3 +737,4 @@ shadows and the grass.
 | 2026-11-12 | `0402b88` | Trees: two farthest levels by the kit; sprigs grow and shrink between levels; the last sinks away |
 | 2026-11-12 | `7103261` | The forest's floor: shade past the shadow map, each tree's litter, green grass in the glades |
 | 2026-11-12 | `bcbb58e` | From high up: the land melts into the horizon, clouds from above; the ground's textures filtered 4 and 2 taps |
+| 2026-11-12 | `4ddb352` | The biomes' outlines bent off the noise's grid; held at the tent; the same in JS |
