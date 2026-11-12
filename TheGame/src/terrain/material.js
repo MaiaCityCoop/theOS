@@ -5,6 +5,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, screenCoordinate, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
+import { recipes } from '../core/registry.js';
 import { int } from 'three/tsl';
 import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, shareOf, roofAt, BASE, LAID } from '../world/land.nodes.js';
 import { finish, ign, skyLight, weathered, cloudAt, cloudShade, snowCover, snowDrift, SNOW } from '../world/light.js';
@@ -129,14 +130,21 @@ export function terrainMaterial(tex) {
       lay(bio, wt.mul(bio.mix ?? 1), spots);
     }
     if (!sloped) If(steep.greaterThan(0.003), () => blend(M, smp(SLOPE), steep));
-    // far off, past where a biome's trees are drawn, its land takes the colour of their crowns (its `canopy`), in crowns
-    // of its own: a forest to the horizon for nothing
+    // far off, past where a biome's trees are drawn, its land takes the colour of their crowns (its `canopy`): in the same
+    // groves and glades its trees stand in (their placement's clumps and density, the same noise: src/scatter/trees.js),
+    // crowns as many as stand there, the floor between them in their shade. A forest to the horizon, in patches, for nothing
     L.shares.forEach(({ b: bio, w: wt }) => {
       if (!bio.canopy) return;
-      const cw = wt.mul(smoothstep(bio.canopy.from, bio.canopy.to, dist2));
-      If(cw.greaterThan(0.003), () => {
-        const crowns = smoothstep(0.35, 0.75, nz(p.div(23).add(0.7)).r.mul(0.35).add(nz(prr.div(31.7).add(0.2)).g.mul(0.35)).add(nz(pr.div(9.3)).g.mul(0.3)));   // (takes at scales with no whole ratio: no grid of crowns)
-        M.c.assign(mix(M.c, vec3(...bio.canopy.colour).mul(crowns.mul(0.7).add(0.55)), cw)); M.n.assign(M.n.mul(float(1).sub(cw))); M.h.assign(mix(M.h, crowns, cw));
+      const fade = smoothstep(bio.canopy.from, bio.canopy.to, dist2);
+      If(wt.mul(fade).greaterThan(0.003), () => {
+        const P = recipes('asset').find((o) => o.placement?.engine === 'trees' && o.placement.biome === bio.uid)?.placement, cl = P?.clumps;
+        const grove = cl ? smoothstep(0.22, 0.72, vnoise(p.div(cl), uint(308)).mul(0.7).add(vnoise(p.div(cl * 0.27), uint(310)).mul(0.3))).mul(1.6) : float(1);
+        const cover = clamp(wt.mul(grove).mul((P?.density ?? 1) * 2.4), 0, 1);   // the ground under crowns: a tree a cell crowns some 2.4 cells
+        const n = nz(p.div(23).add(0.7)).r.mul(0.35).add(nz(prr.div(31.7).add(0.2)).g.mul(0.35)).add(nz(pr.div(9.3)).g.mul(0.3));   // (takes at scales with no whole ratio: no grid of crowns)
+        const under = smoothstep(float(1.08).sub(cover.mul(0.75)), float(1.22).sub(cover.mul(0.75)), n.add(cover.mul(0.45)));   // where a crown is, as many as cover says
+        const crown = vec3(...bio.canopy.colour).mul(n.mul(0.6).add(0.42)), floor = M.c.mul(mix(1, 0.45, cover));   // (darker than a crown's own colour: a crown seen from afar is mostly its own shade)   // the crowns lit unevenly; the floor between them in their shade
+        const k = fade.mul(smoothstep(0, 0.15, cover));
+        M.c.assign(mix(M.c, mix(floor, crown, under), k)); M.n.assign(M.n.mul(float(1).sub(k.mul(under)))); M.h.assign(mix(M.h, under, k));
       });
     });
     // the library's stage: its own ground laid into the land like any other, its frayed edge blended by height (uStageGround:

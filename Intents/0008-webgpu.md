@@ -481,6 +481,17 @@ shadows and the grass.
 - **Broke / not there yet:** the WebGL 2 fallback (no compute) not looked at with the buckets; a second kind of tree
   still to be made to try the mix.
 
+### 2026-11-12, the forest to the horizon (night)
+
+- **Asked:** forest patches in the far distance, seen from high up.
+- **Found:** past where its trees are drawn the pine forest's land took one even, pale dotted colour over all of the
+  biome, while its drawn trees stand in groves with open floor between: far off it read as a faint field, not a forest.
+- **Delivered:** the far canopy (src/terrain/material.js) in the same groves and glades its trees stand in (their
+  placement's clumps and density, the very noise the trees' engine uses), crowns as many as stand there, darker (a
+  crown seen from afar is mostly its own shade), the floor between them in their shade.
+- **Good:** from 90 m and from 400 m up, stands and glades carry on from the drawn trees to the horizon, at no cost
+  where there is no forest (the work only where the biome lies, past where its trees end).
+
 ## Trail
 
 | When | Commit | What |
@@ -522,4 +533,5 @@ shadows and the grass.
 | 2026-11-12 | `b00d1a1` | Sky only where it shows, one far take, grass colour per vertex, filtered shadows, shorter far grass |
 | 2026-11-12 | `4bacbbe` | Pine forest: four shapes, its own green per tree, no edge-on cards, a light shade mesh for shadows, solid trunks |
 | 2026-11-12 | `4bc83ca` | Trees: a farthest level, one packing pass per level for all shapes, the tree kit |
-| 2026-11-12 | (this commit) | Trees grow by age (library: growth by year), a mix of kinds per biome, the trunk into its crown, rocks packed once |
+| 2026-11-12 | `e925c57` | Trees grow by age (library: growth by year), a mix of kinds per biome, the trunk into its crown, rocks packed once |
+| 2026-11-12 | (this commit) | The far forest in groves and glades to the horizon |
