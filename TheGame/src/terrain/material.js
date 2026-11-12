@@ -3,11 +3,11 @@
 // says (biomes/*.js: where), in its layer's order, each material two takes mixed by noise so nothing tiles, the higher
 // one winning at a seam; lit by the shading contract.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, screenCoordinate, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { int } from 'three/tsl';
 import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, shareOf, roofAt, BASE, LAID } from '../world/land.nodes.js';
-import { finish, skyLight, weathered, cloudAt, cloudShade, snowCover, snowDrift, SNOW } from '../world/light.js';
+import { finish, ign, skyLight, weathered, cloudAt, cloudShade, snowCover, snowDrift, SNOW } from '../world/light.js';
 import noise from '../../materials/noise.js';
 
 export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
@@ -24,7 +24,7 @@ export function terrainMaterial(tex) {
   // one Fn, every value worked out once into a variable and handed on by name: an expression used twice would otherwise be
   // written out twice, the river three times over at every use, which a browser's shader compiler need not fold back
   const vWorld = varyingProperty('vec3', 'tWorld'), vI = varyingProperty('vec4', 'tI'), vN = varyingProperty('vec3', 'tN');
-  const vPth = varyingProperty('vec3', 'tPth'), vOut = varyingProperty('float', 'tOut'), vHill = varyingProperty('float', 'tHill'), vGD = varyingProperty('vec2', 'tGD');
+  const vPth = varyingProperty('vec3', 'tPth'), vOut = varyingProperty('float', 'tOut'), vHill = varyingProperty('float', 'tHill'), vGD = varyingProperty('vec2', 'tGD'), vTint = varyingProperty('vec4', 'tTint');
   // every biome's share (half a metre apart near by; a biome's edge varies over metres, not pixels) in vec4 lanes: its
   // share, then its spots' where it has them
   const shareLane = []; let nl = 0; for (const bio of LAID) { shareLane.push(nl); nl += bio.spots?.where ? 2 : 1; }
@@ -40,6 +40,7 @@ export function terrainMaterial(tex) {
     while (lanes.length % 4) lanes.push(float(0));
     packs.forEach((v, i) => v.assign(vec4(lanes[i * 4], lanes[i * 4 + 1], lanes[i * 4 + 2], lanes[i * 4 + 3])));
     vGD.assign(vec2(Lv.grassy, Lv.dry));
+    vTint.assign(grassTint(tex, wp, Lv.dry, 1));   // the grass's colour changes over tens of metres: worked out per vertex, not per pixel
     // the snow lifts the ground it lies on (not the river's channel): what stands on the land sinks into it as deep
     return vec3(wp.x, h.add(U.uSnow.mul(smoothstep(C.I.y, C.I.y.add(1.5), C.d)).mul(float(1).sub(roofAt(wp)))), wp.y);
   });
@@ -69,7 +70,7 @@ export function terrainMaterial(tex) {
       const s = float(0).toVar(); If(v.greaterThan(0.0005), () => { s.assign(shareOf(bio, rctx)); }); return s;
     };
     const L = { shares: LAID.map((bio, k) => ({ b: bio, w: shareAt(bio, k), spots: bio.spots?.where ? lane(shareLane[k] + 1) : null })), grassy: vGD.x, dry: vGD.y };
-    const tint = grassTint(tex, p, L.dry);
+    const tint = vTint;
     // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up
     // (the far take is two, turned and at scales with no whole ratio, blended by a slow mask: no grid of the same tufts from high up)
     const g1 = tex.a(carpet, p.div(1.6)), g2 = tex.a(carpet, pr.div(9.6)), gk3 = smoothstep(0.35, 0.65, nz(pr.mul(1 / 431).add(0.61)).g);
@@ -83,13 +84,22 @@ export function terrainMaterial(tex) {
     const stage = stageAt(p), bare = max(dist2.lessThan(160).select(bareMask(p).mul(float(1).sub(smoothstep(100, 160, dist2))), float(0)), stage);   // the library's stage is bare of grass
 
     // two takes of a material, turned and resized, mixed by noise, into the working material M; blend lays one over it
+    // (far off one take is enough: its repeat is lost in the distance; the hand-over dithered, so it shows no line)
+    const twoTakes = dist2.lessThan(ign(screenCoordinate.xy).mul(80).add(240));
+    // ... but a single take's repeat would show from high up as a grid: it is pushed about by a slow noise (metres, over
+    // hundreds of metres), so no two tiles lie the same (near by, where both takes are read, the push is let go)
+    const wob = vec2(nz(p.mul(1 / 131)).g, nz(pr.mul(1 / 157).add(0.3)).b).sub(0.5).mul(smoothstep(200, 320, dist2).mul(9)), pw = p.add(wob);
     const smp = (S) => {
-      const p2 = rot(p), dx2 = rot(dx), dy2 = rot(dy);
-      const a1 = tex.a(S.m, p.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1)), a2 = tex.a(S.m, p2.div(S.t2)).grad(dx2.div(S.t2), dy2.div(S.t2));
-      const n1 = tex.n(S.m, p.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1)), n2 = tex.n(S.m, p2.div(S.t2)).grad(dx2.div(S.t2), dy2.div(S.t2));
-      const q0 = n2.xy.mul(2).sub(1), q = vec2(q0.x.mul(0.6).add(q0.y.mul(0.8)), q0.x.mul(-0.8).add(q0.y.mul(0.6)));
-      const kk = smoothstep(0.35, 0.65, mx.add(a2.a.sub(a1.a).mul(0.3)));
-      return { c: mix(a1.rgb.mul(a1.rgb), a2.rgb.mul(a2.rgb), kk), h: mix(a1.a, a2.a, kk), n: mix(n1.xy.mul(2).sub(1), q, kk) };
+      const a1 = tex.a(S.m, pw.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1)), n1 = tex.n(S.m, pw.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1));
+      const c = a1.rgb.mul(a1.rgb).toVar(), h = a1.a.toVar(), n = n1.xy.mul(2).sub(1).toVar();
+      If(twoTakes, () => {
+        const p2 = rot(p), dx2 = rot(dx), dy2 = rot(dy);
+        const a2 = tex.a(S.m, p2.div(S.t2)).grad(dx2.div(S.t2), dy2.div(S.t2)), n2 = tex.n(S.m, p2.div(S.t2)).grad(dx2.div(S.t2), dy2.div(S.t2));
+        const q0 = n2.xy.mul(2).sub(1), q = vec2(q0.x.mul(0.6).add(q0.y.mul(0.8)), q0.x.mul(-0.8).add(q0.y.mul(0.6)));
+        const kk = smoothstep(0.35, 0.65, mx.add(a2.a.sub(a1.a).mul(0.3)));
+        c.assign(mix(c, a2.rgb.mul(a2.rgb), kk)); h.assign(mix(h, a2.a, kk)); n.assign(mix(n, q, kk));
+      });
+      return { c, h, n };
     };
     const own = (S) => { const s0 = smp(S); return { c: s0.c.toVar(), h: s0.h.toVar(), n: s0.n.toVar() }; };
     const M = own(FLOOR);

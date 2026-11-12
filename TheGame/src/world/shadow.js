@@ -11,7 +11,7 @@ export const CASTS = 1;   // the layer of what casts a shadow
 const S = 2048;           // the map's texels a side
 
 export function createShadows(renderer) {
-  const map = () => { const rt = new THREE.RenderTarget(S, S, { count: 0, depthBuffer: true }); rt.depthTexture = new THREE.DepthTexture(S, S); rt.depthTexture.type = THREE.UnsignedIntType; return rt; };
+  const map = () => { const rt = new THREE.RenderTarget(S, S, { count: 0, depthBuffer: true }); rt.depthTexture = new THREE.DepthTexture(S, S); rt.depthTexture.type = THREE.UnsignedIntType; rt.depthTexture.compareFunction = THREE.LessEqualCompare; rt.depthTexture.minFilter = rt.depthTexture.magFilter = THREE.LinearFilter; return rt; };   // read with a comparison sampler: filtered PCF (src/world/light.js)
   const rts = [map(), map()]; let turn = 0;
   U.tShadow.value = rts[1].depthTexture;
   const cam = new THREE.OrthographicCamera(-60, 60, 60, -60, 1, 900); cam.layers.set(CASTS); cam.userData.shadow = true;

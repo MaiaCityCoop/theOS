@@ -392,6 +392,28 @@ shadows and the grass.
 - **Broke / not there yet:** the shadow pass with the trees is about 6 ms; under the crowns the cards' undersides can show;
   not checked in Samuel's own Safari; a walker passes through trunks.
 
+### 2026-11-12, loading stills; performance and quality across the world (afternoon)
+
+- **Asked:** loading screens over stills of the world with the tent, seen through; then, after the forest, more speed
+  and more quality across every asset, biome, the weather and the distances.
+- **Found:** WebKit's frame was not bound by its pixels nor by the CPU (0.8 ms to encode a frame) but by the GPU's
+  work per pixel and per vertex: the sky dome was drawn first, without a depth test, over the whole screen, its clouds
+  worked out under all the land (about 6 ms); the ground read every material twice at every distance, its grass colour
+  seven times a pixel, and nine shadow taps; the far grass tier drew blades of a pixel. Timings in WebKit swing between
+  runs while anything else uses the GPU (the Chrome pane, a Safari tab with the game).
+- **Delivered:** five stills (brand/loading: morning, midday, evening, snow, the pines), one picked at random by a plain
+  script before the first paint (brand/loading.js), the veil laid over it see-through, the title above the tent. The sky
+  drawn after the land on the far plane with the depth test (only where it shows), its stars only at dusk and night,
+  its clouds only when there are any, the cloud between it and the sun read from the clouds' shadow map. The ground: one
+  take of a material beyond about 250 m (dithered hand-over), that take pushed about by a slow noise so it shows no
+  grid; the grass's colour per vertex. Shadows: four samples through a comparison sampler (the GPU filters each over
+  2 x 2 texels), softer than the nine taps and under half their cost. The far grass tier ends at 88 m with wider cells.
+  The pine's trunk meets its fork.
+- **Good:** the full frame's render from about 10–15 ms to 6.6–9 ms in WebKit; 60 fps in most runs, also in the
+  heaviest weather; the picture as before, the shadows softer.
+- **Broke / not there yet:** some WebKit runs lock at 30 fps whatever the weather (another GPU user is the likely
+  cause: to be checked in Samuel's own Safari with nothing else open); the ground is still the heaviest part.
+
 ## Trail
 
 | When | Commit | What |
@@ -428,4 +450,6 @@ shadows and the grass.
 | 2026-11-12 | `b9aabb0` | Deeper cloud shadows, softer clouds; falling snow with its own slider; tools/shots.js |
 | 2026-11-12 | `832d280` | Smooth far river edges, no grid in the far meadow; the stone pine, its forest biome and the trees' engine |
 | 2026-11-12 | `617d3e9` | The stone pine made real: branches, twigs, needle brushes, bark, three levels |
-| 2026-11-12 | (this commit) | The stone pine after the photos: S-trunk, umbrella limbs, a dome of puffs; indexed |
+| 2026-11-12 | `c90cf51` | The stone pine after the photos: S-trunk, umbrella limbs, a dome of puffs; indexed |
+| 2026-11-12 | `bd5bc2b` | Loading over a still of the world |
+| 2026-11-12 | (this commit) | Sky only where it shows, one far take, grass colour per vertex, filtered shadows, shorter far grass |

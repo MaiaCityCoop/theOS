@@ -5,7 +5,7 @@ import * as THREE from 'three/webgpu';
 import { uniform, texture } from 'three/tsl';
 
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
-const placeholder = new THREE.DepthTexture(1, 1);   // the shadow map until src/world/shadow.js gives the real one
+const placeholder = Object.assign(new THREE.DepthTexture(1, 1), { compareFunction: THREE.LessEqualCompare });   // the shadow map until src/world/shadow.js gives the real one (read with a comparison sampler as it is)
 const lit = Object.assign(new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1), { needsUpdate: true });   // the clouds' shadow map until src/world/cloudmap.js draws one: all in the sun
 
 /** The one set, for node code that reads it directly. */

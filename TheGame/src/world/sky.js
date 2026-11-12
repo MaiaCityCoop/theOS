@@ -4,7 +4,7 @@
 // and a dome round the camera that draws the sky itself, with the sun, the moon and the stars. The weather panel
 // (src/ui/weather.js) steers it by hand or lets it run.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec3, uniform, varying, positionGeometry, normalize, max, mix, pow, smoothstep, step, sin, dot, floor, fract, exp } from 'three/tsl';
+import { Fn, float, vec3, uniform, varying, positionGeometry, normalize, max, mix, pow, smoothstep, step, sin, dot, floor, fract, exp, vec4, cameraProjectionMatrix, cameraViewMatrix, modelWorldMatrix, If } from 'three/tsl';
 import SKY from '../../world/sky.js';
 import { U } from '../core/uniforms.js';
 import { toScreen, cloudField, CLOUD_H } from './light.js';
@@ -46,7 +46,10 @@ const D = {
 const h3 = (p) => fract(sin(dot(p, vec3(127.1, 311.7, 74.7))).mul(43758.5453));
 function dome(camera) {
   const vDir = varying(positionGeometry);
-  const mat = new THREE.NodeMaterial(); mat.side = THREE.BackSide; mat.depthWrite = false; mat.depthTest = false;
+  // drawn after the land, on the far plane, with the depth test: only where nothing stands is the sky worked out (drawn
+  // first under everything, its clouds were worked out for every pixel the land then covered)
+  const mat = new THREE.NodeMaterial(); mat.side = THREE.BackSide; mat.depthWrite = false; mat.depthTest = true;
+  mat.vertexNode = Fn(() => { const c = cameraProjectionMatrix.mul(cameraViewMatrix).mul(modelWorldMatrix.mul(vec4(positionGeometry, 1))); return vec4(c.xy, c.w.mul(0.99999), c.w); })();
   mat.fragmentNode = Fn(() => {
     const v = normalize(vDir), y = v.y;
     const col = mix(D.horizon, D.zenith, pow(max(y, 0), 0.55)).toVar();                                   // the sky from the horizon up
@@ -56,23 +59,31 @@ function dome(camera) {
     col.addAssign(D.sunL.mul(6).mul(smoothstep(0.99989, 0.99994, s)).mul(step(-0.02, D.sunD.y)));       // the sun's disc
     col.addAssign(vec3(0.85, 0.87, 0.92).mul(D.dark.mul(0.65).add(0.35)).mul(sin(D.phase.mul(Math.PI)).mul(0.75).add(0.25))
       .mul(step(-0.05, D.moonD.y)).mul(step(Math.cos(SKY.moon.size), v.dot(D.moonD))));                 // the moon, brighter full and by night
-    const c = floor(v.mul(260)), q = fract(v.mul(260)).sub(0.5);                                           // the stars, as the sky darkens
-    const star = step(1 - SKY.stars.count, h3(c)).mul(smoothstep(0.22, 0, q.length())).mul(h3(c.add(7)).mul(0.6).add(0.4));
-    col.addAssign(vec3(0.85, 0.9, 1).mul(star).mul(SKY.stars.bright).mul(D.dark).mul(smoothstep(0, 0.15, y)).mul(step(0, y)));
+    If(D.dark.greaterThan(0.01).and(y.greaterThan(0)), () => {   // the stars, as the sky darkens (worked out only then)
+      const c = floor(v.mul(260)), q = fract(v.mul(260)).sub(0.5);
+      const star = step(1 - SKY.stars.count, h3(c)).mul(smoothstep(0.22, 0, q.length())).mul(h3(c.add(7)).mul(0.6).add(0.4));
+      col.addAssign(vec3(0.85, 0.9, 1).mul(star).mul(SKY.stars.bright).mul(D.dark).mul(smoothstep(0, 0.15, y)));
+    });
     // the clouds (light.js: cloudField): the view's ray up to their layer; lit from the sun's side, darker where they are
     // thick and where more cloud stands between them and the sun, a bright rim near the sun; thinning into the haze
     // towards the horizon; the sun, the moon and the stars behind them
+    If(U.uClouds.greaterThan(0.005).and(y.greaterThan(-0.02)), () => {   // (none to work out on a clear sky, or below the horizon)
     const t = float(CLOUD_H).sub(U.uCam.y).div(max(y, 0.015)), xz = U.uCam.xz.add(v.xz.mul(t));
-    const d = cloudField(xz, true), toward = cloudField(xz.add(U.uSunDir.xz.mul(700)));
+    // how much cloud stands between this one and the sun: read from the clouds' shadow map where it reaches (one fetch:
+    // its value is the light that comes through), else this cloud's own thickness
+    const d = cloudField(xz, true), m = xz.add(U.uSunDir.xz.mul(700)).sub(U.uCloudMap.xy).div(U.uCloudMap.z);
+    const inMap = m.x.greaterThan(0).and(m.y.greaterThan(0)).and(m.x.lessThan(1)).and(m.y.lessThan(1));
+    const toward = inMap.select(float(1).sub(U.tCloudMap.sample(m).level(0).r).div(0.9), d);
     const thick = smoothstep(0.25, 1, d), lit = mix(1, 0.25, thick.mul(0.6).add(toward.mul(0.4)));   // seen from below: grey where deep, bright at the thin edges
     const rim = U.uSun.mul(pow(s, 6).mul(d.mul(float(1).sub(d)).mul(3.2)));
     const far = float(1).sub(exp(t.negate().div(26000)));
     const cc = mix(U.uAmb.mul(mix(1.1, 0.62, thick)).add(U.uSun.mul(lit).mul(0.8)).add(rim), D.horizon, far.mul(0.85));
     col.assign(mix(col, cc, smoothstep(0.03, 0.55, d).mul(smoothstep(0, 0.05, y)).mul(float(1).sub(far.mul(0.55)))));
+    });
     return toScreen(col);
   })();
   const m = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), mat);
-  m.scale.setScalar(20000); m.renderOrder = -100; m.frustumCulled = false; m.onBeforeRender = () => m.position.copy(camera.position);
+  m.scale.setScalar(20000); m.renderOrder = 15;   // after the land (10), before the water (20) m.frustumCulled = false; m.onBeforeRender = () => m.position.copy(camera.position);
   return m;
 }
 

@@ -64,10 +64,12 @@ const shadowOf = (w, turn) => {
   If(U.uShadowOn.greaterThan(0.5), () => {
     const s = U.uShadowM.mul(vec4(w, 1)), q = s.xyz.div(s.w);
     If(q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(1)).and(q.y.lessThan(1)).and(q.z.lessThan(1)), () => {
+      // four samples, each compared and filtered by the GPU over 2 x 2 texels (a comparison sampler): softer than nine
+      // single taps, at under half their cost
       const k = float(0).toVar(), z = q.z.sub(0.0004);
-      for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) k.addAssign(step(z, U.tShadow.sample(q.xy.add(vec2(i, j).mul(U.uShadowTexel.mul(1.5)))).level(0).r));
+      for (const [i, j] of [[-0.62, -0.24], [0.24, -0.62], [0.62, 0.24], [-0.24, 0.62]]) k.addAssign(U.tShadow.sample(q.xy.add(vec2(i, j).mul(U.uShadowTexel.mul(1.7)))).level(0).compare(z));
       const e = smoothstep(0, 0.08, q.xy).mul(smoothstep(1, 0.92, q.xy));   // fading out at the map's edge
-      r.assign(mix(1, k.div(9), e.x.mul(e.y)));
+      r.assign(mix(1, k.div(4), e.x.mul(e.y)));
     });
   });
   return r;
@@ -81,7 +83,7 @@ export const shadowAtVertex = Fn(([w]) => {
     const s = U.uShadowM.mul(vec4(w, 1)), q = s.xyz.div(s.w);
     If(q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(1)).and(q.y.lessThan(1)).and(q.z.lessThan(1)), () => {
       const e = smoothstep(0, 0.08, q.xy).mul(smoothstep(1, 0.92, q.xy));
-      r.assign(mix(1, step(q.z.sub(0.0004), U.tShadow.sample(q.xy).level(0).r), e.x.mul(e.y)));
+      r.assign(mix(1, U.tShadow.sample(q.xy).level(0).compare(q.z.sub(0.0004)), e.x.mul(e.y)));
     });
   });
   return r;

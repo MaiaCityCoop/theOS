@@ -19,7 +19,7 @@ export const ASSETS = [
     tiers: [
       { segs: 3, cell: 0.085, P: 96, near: -1, nearFade: 0, far: 15, farFade: 5, w: 0.014, end: 1e6 },
       { segs: 2, cell: 0.17, P: 96, near: 15, nearFade: 5, far: 42, farFade: 10, w: 0.033, end: 1e6 },
-      { segs: 1, cell: 0.34, P: 96, near: 42, nearFade: 10, far: 105, farFade: 25, w: 0.085, end: 105 },
+      { segs: 1, cell: 0.38, P: 96, near: 42, nearFade: 10, far: 88, farFade: 22, w: 0.106, end: 88 },
     ],
   },
   ...recipes('asset').filter((a) => a.placement?.at === 'scatter').map(scatterRow),   // from the asset library
