@@ -47,14 +47,19 @@
   #city{padding:clamp(20px,3vw,40px) clamp(18px,3vw,44px)}
   /* inside, one header: the name and the day, nothing twice */
   body.admin header.site{display:none}
-  .cityhead{display:flex;align-items:center;gap:18px;margin:0 0 clamp(18px,2.4vw,28px)}
-  .cityhead .sub{color:var(--forest2);font:400 15px/1 var(--sans);padding-left:18px;border-left:1.5px solid var(--sand2)}
   .tiles{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:clamp(12px,1.4vw,20px)}
   .tile{position:relative;grid-column:span 4;min-height:250px;border:0;border-radius:32px;padding:26px;background:var(--cream);color:var(--forest);text-align:left;font:inherit;cursor:pointer;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(31,58,44,.06);transition:transform .3s cubic-bezier(.3,1.4,.5,1),box-shadow .2s}
   .tile:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(31,58,44,.14)}
   .tile.big{grid-column:span 8;min-height:420px;color:var(--cream)}
   .tile.dark{background:var(--forest);color:var(--cream)}.tile.dark .foot b{color:var(--sun)}
   .tile.wide{grid-column:span 8;min-height:180px}
+  .tile.welcome{grid-column:span 12;min-height:0;flex-direction:row;align-items:center;flex-wrap:wrap;gap:12px clamp(14px,2vw,26px);padding:16px 18px 16px 20px;cursor:default}
+  .tile.welcome:hover{transform:none;box-shadow:0 2px 12px rgba(31,58,44,.06)}
+  .tile.welcome .mark{font-size:0;gap:0}.tile.welcome .mark::before{width:46px;height:46px;border-radius:14px}
+  .tile.welcome h2{margin:0;font-size:clamp(22px,2.3vw,34px)}
+  .tile.welcome p{margin:0 0 0 auto;font:400 16px/1.2 var(--sans);opacity:1;color:var(--forest2)}.tile.welcome p b{font:420 26px/1 var(--serif);font-variation-settings:var(--soft);color:var(--clay);margin:0 4px}
+  .tile.welcome .btn{flex:none;white-space:nowrap}
+  @media (max-width:700px){.tile.welcome h2,.tile.welcome p{flex-basis:100%;margin-left:0}}
   .tile.big svg,.tile.big .pic{position:absolute;inset:0;width:100%;height:100%}
   .tile.big::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(14,28,20,.75),rgba(14,28,20,0) 55%)}
   .tile>*{position:relative;z-index:1}
@@ -64,7 +69,7 @@
   .tile .foot{margin-top:auto;display:flex;align-items:center;gap:10px;padding-top:20px;font:500 14px/1 var(--sans)}
   .tile .foot b{font:420 34px/1 var(--serif);font-variation-settings:var(--soft);color:var(--clay)}
   .tile.big .foot b{color:var(--sun)}
-  .tile .go{margin-left:auto;width:42px;height:42px;border-radius:50%;background:var(--sun) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8h9.4M8.6 3.8 12.8 8l-4.2 4.2' fill='none' stroke='%231f3a2c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat}
+  .tile .go:not(.btn){margin-left:auto;width:42px;height:42px;border-radius:50%;background:var(--sun) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8h9.4M8.6 3.8 12.8 8l-4.2 4.2' fill='none' stroke='%231f3a2c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat}
   .tile .rows{margin-top:8px}.tile .rows div{padding:9px 0;border-top:1.5px solid var(--sand);font:440 17px/1.25 var(--serif);font-variation-settings:var(--soft)}
   main{display:none;min-height:calc(100% - 76px)}
   main.on{display:block}
@@ -101,6 +106,7 @@
   .btn.go{padding-right:9px}
   .btn.go i{width:40px;height:40px;border-radius:50%;background:var(--sun) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8h9.4M8.6 3.8 12.8 8l-4.2 4.2' fill='none' stroke='%231f3a2c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat;margin-left:6px;transition:transform .3s cubic-bezier(.3,1.6,.5,1)}
   .btn.go:hover i{transform:translateX(3px)}
+  .btn.sunny.go i{background-color:var(--forest);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8h9.4M8.6 3.8 12.8 8l-4.2 4.2' fill='none' stroke='%23fbf6ea' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
 
   .banner{height:calc(100vh - 96px);min-height:560px;display:flex;flex-direction:column;padding:0 clamp(8px,1vw,14px)}
   .window{position:relative;flex:1;min-height:0;overflow:hidden;border-radius:clamp(26px,3.2vw,46px);color:var(--cream);transform:translateZ(0);background:#20362a}
@@ -190,10 +196,10 @@
   #intentdoc blockquote{font-size:16px;padding:12px 20px}
   #intentdoc .bar{padding:16px 0 10px}
   /* inside is TheOS's: its blue */
-  body.admin .btn:not(.light):not(.quiet){background:var(--navy)}
+  body.admin .btn:not(.light):not(.quiet):not(.sunny){background:var(--navy)}
   body.admin .card.on{box-shadow:0 0 0 2px var(--navy),0 10px 24px rgba(23,54,85,.15);border-left-color:var(--sun)}
-  body.admin .sheethead h1,body.admin .cityhead .mark,body.admin #intentdoc h1{color:var(--navy)}
-  body.admin .tile.dark{background:var(--navy)}
+  body.admin .sheethead h1,body.admin .tile.welcome h2,body.admin #intentdoc h1{color:var(--navy)}
+  body.admin .tile.dark{background:var(--navy)}body.admin .btn.sunny{color:var(--navy)}body.admin .btn.sunny.go i{background-color:var(--navy)}
 
   /* a document */
   .doc{width:min(52vw,820px);margin:14px clamp(8px,1vw,14px) 14px 4px;background:var(--cream);border-radius:34px;overflow:auto;padding:0 clamp(26px,3.6vw,56px) 100px;display:none;box-shadow:0 10px 40px rgba(31,58,44,.08)}
@@ -363,7 +369,7 @@
     <button class="btn go light" id="travel">Travel to Maia City now<i></i></button>
   </div></section>
 </main>
-<main id="city"><header class="cityhead"><span class="mark">Maia City</span><span class="sub" id="citysub"></span></header><div class="tiles" id="tiles"></div></main>
+<main id="city"><div class="tiles" id="tiles"></div></main>
 <main id="intents"><header class="sheethead"><h1>Intents</h1><button class="btn small quiet" data-close>Close</button></header><div class="sheetbody"><div id="board"></div><div id="intentdoc" class="doc"></div></div></main>
 <main id="stories"><section id="shelfview" class="wrap"><header class="calhead"><h2>Stories</h2><p>One a day. Open one to edit its film.</p></header><div class="shelf" id="shelf"></div></section><section id="storyedit"></section></main>
 <button class="sheetx" data-close aria-label="Close"><svg viewBox="0 0 16 16"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>

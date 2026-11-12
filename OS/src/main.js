@@ -14,7 +14,7 @@ const body = (md) => marked.parse(md.replace(/^---\n[\s\S]*?\n---\n/, ''));   //
 const n = (v) => Math.round(v).toLocaleString('en-US'), pad = (d, w = 4) => String(d).padStart(w, '0');
 const cit = (v) => `${n(v)} citizen${v === 1 ? '' : 's'}`;   // the count is of citizens
 const mm = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-let intents = [], stories = [], current = null, gameView = 'walk';
+let intents = [], stories = [], me = {}, current = null, gameView = 'walk';   // me: who works here (the dashboard's welcome)
 const latest = () => stories.filter((s) => s.film).pop();
 const filmOf = (id) => `${GAME}/timeline.html?story=${id}&embed`;
 
@@ -274,15 +274,22 @@ function home() {
 // ---- inside: the city's dashboard. A few tiles: the game, the stories, the lenses (the intents open from the pill's star) ----
 function city() {
   const today = home.today;
-  $('citysub').textContent = today ? `Day ${n(today.day)} of ${n(DAYS)} · ${today.inGame != null ? cit(today.inGame) : '–'}` : '';
-  $('tiles').innerHTML = `<button class="tile big" data-go="game">${today ? pic(today, home.joined(today)) : ''}<span class="label">The Game</span><h2>Walk the world</h2><p>The meadow, the river and the first tent, live. Or look at it through the lenses.</p><div class="foot"><b>${today?.inGame != null ? n(today.inGame) : '–'}</b> citizens<span class="go"></span></div></button>
-    <button class="tile" data-go="stories"><span class="label">Stories</span><h2>One a day</h2><p>${latest() ? 'Latest: ' + latest().title : 'None yet.'}</p><div class="foot"><b>${n(stories.length)}</b> of ${n(DAYS)}<span class="go"></span></div></button>`;
+  const count = today?.inGame, day = today ? `Day ${n(today.day)} of ${n(DAYS)}` : '';
+  // every part of the dashboard is a card: first the welcome (who is here, how many we are today, and the way to grow), then the tiles
+  $('tiles').innerHTML = `<section class="tile welcome"><span class="mark" aria-hidden="true"></span><h2>Welcome to Maia City${me.name ? ', ' + me.name : ''}</h2><p>${count != null ? `Today we are <b>${n(count)}</b>${count === 1 ? 'citizen' : 'citizens'}` : ''}</p><button class="btn sunny go" id="invite">Grow your village now<i></i></button></section>
+    <button class="tile big" data-go="game"><img class="pic" src="/brand/game.jpg" alt=""><span class="label">The Game</span><h2>Walk the world</h2><p>The meadow, the river, the pines and the first tent, live. Or look at it through the lenses.</p><div class="foot"><span class="go"></span></div></button>
+    <button class="tile" data-go="stories"><span class="label">Stories${day ? ' · ' + day : ''}</span><h2>One a day</h2><p>${latest() ? 'Latest: ' + latest().title : 'None yet.'}</p><div class="foot"><b>${n(stories.length)}</b> told<span class="go"></span></div></button>`;
+  // the invite: the city's address handed on (the system's own share sheet where there is one, else copied)
+  $('invite').onclick = async (e) => {
+    const b = e.currentTarget, url = location.origin + '/', say = (t) => { const was = b.firstChild.textContent; b.firstChild.textContent = t; setTimeout(() => (b.firstChild.textContent = was), 1800); };
+    try { if (navigator.share) await navigator.share({ title: 'Maia City', text: 'Come and see Maia City grow, one day at a time.', url }); else { await navigator.clipboard.writeText(url); say('Link copied'); } } catch {}
+  };
   $('tiles').insertAdjacentHTML('beforeend', `<button class="tile" data-library><span class="label">Library</span><h2>Assets</h2><p>Every made thing that stands in the world, one file each. Turn them, read what they are.</p><div class="foot"><span class="go"></span></div></button>`);
   $('tiles').insertAdjacentHTML('beforeend', `<button class="tile wide dark" data-lenses><span class="label">Debug &amp; performance</span><h2>Lenses</h2><p>The world through nine film lenses, with the frame time, draw calls and triangles: where it runs smooth and where it does not.</p><div class="foot"><span class="go"></span></div></button>`);
-  $('tiles').querySelectorAll('.tile').forEach((t) => (t.onclick = () => (t.dataset.lenses !== undefined ? game('lenses') : t.dataset.library !== undefined ? game('library') : t.dataset.go === 'game' ? game('walk') : tab(t.dataset.go))));   // the game's tile always walks, whatever was open last
+  $('tiles').querySelectorAll('button.tile').forEach((t) => (t.onclick = () => (t.dataset.lenses !== undefined ? game('lenses') : t.dataset.library !== undefined ? game('library') : t.dataset.go === 'game' ? game('walk') : tab(t.dataset.go))));   // the game's tile always walks, whatever was open last
 }
 
-[intents, stories] = await Promise.all([get('/api/intents').then((r) => r.json()), get('/api/stories').then((r) => r.json()).catch(() => [])]);
+[intents, stories, me] = await Promise.all([get('/api/intents').then((r) => r.json()), get('/api/stories').then((r) => r.json()).catch(() => []), get('/api/me').then((r) => r.json()).catch(() => ({}))]);
 board(); home();
 shelf();
 game('walk', false); tab(['city', 'intents', 'stories', 'game'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');

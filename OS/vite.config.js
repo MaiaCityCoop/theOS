@@ -2,6 +2,7 @@
 // Nothing is copied or cached: the files are the one source.
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { execSync } from 'node:child_process';
 import { createServer } from 'vite';
 
 const front = (text) => { // the few "key: value" lines between the first two ---
@@ -25,11 +26,13 @@ export default {
       server.middlewares.use('/brand', (req, res) => {
         const f = resolve(server.config.root, '../brand', new URL(req.url, 'http://x').pathname.replace(/^\/+/, '').replace(/\.\./g, ''));
         if (!existsSync(f)) { res.statusCode = 404; res.end(''); return; }
-        res.setHeader('content-type', f.endsWith('.css') ? 'text/css' : f.endsWith('.svg') ? 'image/svg+xml' : f.endsWith('.html') ? 'text/html; charset=utf-8' : 'application/octet-stream'); res.end(readFileSync(f));
+        res.setHeader('content-type', f.endsWith('.css') ? 'text/css' : f.endsWith('.svg') ? 'image/svg+xml' : f.endsWith('.jpg') ? 'image/jpeg' : f.endsWith('.html') ? 'text/html; charset=utf-8' : 'application/octet-stream'); res.end(readFileSync(f));
       });
       server.middlewares.use('/api', (req, res) => {
         const url = decodeURIComponent(new URL(req.url, 'http://x').pathname);
         let m;
+        // who works here: the first name of the repository's own author (git config), for the dashboard's welcome
+        if (url === '/me') { let name = ''; try { name = execSync('git config user.name', { cwd: root, encoding: 'utf8' }).trim().split(/\s+/)[0]; } catch {} return json(res, { name }); }
         if (url === '/intents') {
           const list = readdirSync(intents).filter((f) => /^\d{4}-.*\.md$/.test(f)).sort().map((f) => ({ file: f, slug: f.slice(0, -3), ...front(readFileSync(resolve(intents, f), 'utf8')) }));
           return json(res, list);
