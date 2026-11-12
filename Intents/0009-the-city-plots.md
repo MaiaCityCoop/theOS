@@ -109,6 +109,13 @@ Asked for outright; built straight away (the skill's rule: no surprise in the de
 - **Good:** the plots follow the rivers; 60 fps held.
 - **Broke / not there yet:** the first cut lost the land across each river (fixed the same hour).
 
+- **Asked (later):** the plots drew on top of the clouds when seen from above.
+- **Delivered:** the plots are seen through the same air as the land (`airOf` in src/world/light.js): a cloud or the far
+  haze hides them as it hides the ground; the Vision Village name fades with the cloud cover when the camera is above the layer.
+- **Broke on the way:** the first try called `airOf` outside a node function and stopped the page loading for a minute
+  (fixed at once).
+- **Not there yet:** the name's fade follows the overall cover, not the cloud right over the village.
+
 ## Trail
 
 | When | Commit | What |
