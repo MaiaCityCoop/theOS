@@ -259,7 +259,7 @@ shadows and the grass.
 - **Broke / not there yet:** biomes still known to the terrain by name; materials all baked at start; the wind not
   read yet; the quality pass not started.
 
-### 2026-11-13, speed and quality (overnight)
+### 2026-11-12, speed and quality (overnight)
 
 - **Asked:** film playback choppy, the library's orbit too; everything at 60 fps with no stutter, at the highest detail;
   the most efficient way to keep correct shadows; one weather panel on every viewer; films set the weather per shot; a
@@ -280,6 +280,38 @@ shadows and the grass.
 - **Broke / not there yet:** not measured on Samuel's screen during a film (the slow-frame log will show it); the
   materials' own recipes not yet reworked; impostors and the films' depth of field not packed by compute.
 
+### 2026-11-12, materials, Safari, snow, clouds (morning)
+
+- **Asked:** the material recipes reworked; the timeline's playhead still stuck (in Safari); a better loading screen for
+  every viewer; the day four times slower; the gravel bar like the Isar's; the river's white dots unreal; more depth on
+  the ground; Safari at 60 fps; snow in the weather panel at 2, 5, 10 and 25 cm, round the tent too, and at 60 fps; every
+  asset's snow from its own config; realistic clouds with their shadows on the ground, their tile's repeat not seen.
+- **Found:** Safari's message source is not the frame's contentWindow, nor its frameElement: the editor dropped every
+  time the film sent. The terrain's vertex shader was 918 KB: every reuse of a value wrote its whole expression out
+  again (the river 27 times a vertex); Chrome's compiler folds that, Safari's does not (36.7 → 20 ms there). A TSL
+  select works out both its sides, so snow and cloud noise cost even with none; per-pixel value noise on grass and
+  stones tipped WebKit over 16.7 ms. The tent's faces wind inwards: lit from below, it took no snow. Timings in WebKit
+  must be taken with the Chrome pane idle (both share the GPU).
+- **Delivered:** richer materials (curled mud plates, bent thatch, bedded rock with lichen, packed path, wind ripples,
+  pebbles with veins) and new painter's helpers (ridged octaves, a tiling warp, warped cracks, pebbles with their contact
+  shade); tools/sheet.js to see the baked tiles side by side. River gravel (pale rounded limestone) for the gravel bars.
+  Crevice shade from a material's height up close. The river without specks, foam only at its shallow edge. The film
+  tags its messages with its channel (ch=edit): the playhead runs in Safari. One loading veil (brand.css, from the first
+  paint, stepped by src/ui/loading.js), not stalled by a hidden page. The day in four minutes. The terrain's vertex stage
+  one Fn of variables (245 KB, the river worked out three times; its neighbours' river cheaper, riverNear); the scatter's
+  compute only when something it reads changed. Snow (uSnow): one rule for every surface (snowCover), the ground lifted
+  under it, drifts, grass bowed, pale and snow-laden, none under a roof; per asset from kinds.js (snow { clumps }) and
+  its own file (roofed), the same on its meshes, far card and scattered copies. Clouds (world/clouds.js): a cumulus
+  layer drifting with the wind, its field a baked tile (materials/clouds.js) read twice, turned and pushed by the tile
+  itself at scales that are not whole tiles (no repeat), lit grey where deep with bright edges; its shadow drawn once a
+  frame into a 256² map over 6 km (src/world/cloudmap.js) that every surface reads with one fetch. Snow and clouds in
+  the weather panel and per film shot (`snow`, `clouds`). Snow and cloud work only runs while there is any.
+- **Good:** in WebKit (Safari's engine, 1000×560) 16.7 ms a frame standing, walking and running: clear, scattered and
+  overcast, with 10 and 25 cm of snow. The tent is lit right now, snow or not.
+- **Broke / not there yet:** not checked in Samuel's own Safari nor on a full Retina window; cloud shadows read faint
+  from high up over the pale dry land; low evening clouds stretch overhead; no falling snow; the ground's stones are
+  still flat texture up close (parallax set aside, "good enough").
+
 ## Trail
 
 | When | Commit | What |
@@ -287,3 +319,29 @@ shadows and the grass.
 | 2026-11-12 | `859753c` | The intent opened, at idea |
 | 2026-11-12 | `8ddd807` | Defined; three.js pinned at its latest, 0.187.0 |
 | 2026-11-12 | `03bd30b` | Step 1: the spike, land and terrain in TSL, timed |
+| 2026-11-12 | `12e6074` | Intent 0008: its trail |
+| 2026-11-12 | `87e2915` | 0008 step 2: water, sky, placed assets and the walking camera on WebGPU |
+| 2026-11-12 | `cc06d3b` | 0008 step 2: grass, rocks and the ground pass on WebGPU |
+| 2026-11-12 | `9824e6d` | 0008 step 2: the whole game on WebGPU, no GLSL left, code in order |
+| 2026-11-12 | `db5a891` | Wind: a breeze by default up to a storm, a dial under the clock |
+| 2026-11-12 | `7acf204` | Wind moves the tent's canvas and drags the river's surface |
+| 2026-11-12 | `a00e945` | Registry: every recipe by a stable uid, versioned by BLAKE3 |
+| 2026-11-12 | `d48e7c2` | Biomes as plug-ins: each brings its own where-rule and layer |
+| 2026-11-12 | `8962c87` | Library stage: its ground laid into the terrain, no dithered edge |
+| 2026-11-12 | `0741dd0` | Biomes lose their role: rock bodies read the ground pass back |
+| 2026-11-12 | `d09fdf0` | Even grass cover out to the last ring; helpers folded into one place each |
+| 2026-11-12 | `aa577c6` | Speed: grass and rocks packed by compute, drawn indirect; shared light finish |
+| 2026-11-12 | `1f8ac6a` | Ground pass: one pass with two outputs, drawn half as often |
+| 2026-11-12 | `7597104` | One weather panel on every viewer; films set the weather per shot; a harder storm |
+| 2026-11-12 | `ede32b6` | Terrain: biome shares worked out per vertex, not per pixel |
+| 2026-11-12 | `a222803` | Far land: slow lush and pale fields in the grass's colour |
+| 2026-11-12 | `687dd98` | Assets take the light better: contact shading, mottle, soft and thin surfaces |
+| 2026-11-12 | `d8c1d3d` | Weather pill as tall as its neighbour; the night's work recorded in Intent 0008 |
+| 2026-11-12 | `fdb50c0` | Materials, richer: curled mud plates, bent thatch, bedded rock, packed path, wind-rippled sand |
+| 2026-11-12 | `34794f9` | Playhead in Safari, a loading veil for every viewer, river gravel, ground depth, calmer water, a slower day |
+| 2026-11-12 | `4e8072e` | Safari at 60 fps: the terrain's vertex stage worked out once, the scatter packed only when something changed |
+| 2026-11-12 | `6c64d11` | Snow: a depth slider in the weather panel, on every surface, per shot in films |
+| 2026-11-12 | `86d5ad8` | Snow round the tent: on its roof in clumps, none under it, grass bowed and pale under deep snow |
+| 2026-11-12 | `e6918d9` | Snow per asset from its config: kinds.js snow { clumps }, an asset's own roofed |
+| 2026-11-12 | `338f9d6` | Clouds: one cumulus layer that drifts with the wind, in the sky and as shadows on all below |
+| 2026-11-12 | (this commit) | Clouds without a repeat; their shadow from a map drawn once a frame; snow's pattern from the baked tile; this record |

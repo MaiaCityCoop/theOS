@@ -7,6 +7,10 @@ import { vnoise } from './noise.nodes.js';
 import CLOUDS from '../../world/clouds.js';
 import cloudMat from '../../materials/clouds.js';
 
+let cloudTex = null;
+/** the baked materials (src/materials/bake.js), for the baked tile the clouds and the snow read (materials/clouds.js): set once at the start, before any material is built */
+export const useCloudTexture = (tex) => { cloudTex = tex; };
+
 /** The light's uniforms by their short names. */
 export const LIGHT = {
   sunDir: U.uSunDir, sun: U.uSun, amb: U.uAmb, hazeCol: U.uHazeCol, haze: U.uHaze, airH: U.uAirH, airScale: U.uAirScale,
@@ -35,6 +39,8 @@ export const toScreen = Fn(([c]) => vec4(pow(float(1).sub(exp(c.negate().mul(1.2
 /** How much of a surface the snow covers: it settles on what faces up, as deep as uSnow; what stands `lift` metres out
     of the ground under it (a pebble's top, a blade's tip) shows through until the snow is deeper than that. */
 export const snowCover = (n, lift = float(0)) => smoothstep(0.3, 0.75, n.y).mul(smoothstep(lift, lift.add(0.012), U.uSnow));
+/** how the snow drifts over the land at p (0..1): deeper in some places, thinner on others; one fetch from the baked tile */
+export const snowDrift = (p) => cloudTex.a(cloudMat, p.div(23)).g.sub(0.5).mul(2.2).add(0.5).clamp(0, 1);
 /** snow's own colour, lit like any surface: white, a little blue in its shade */
 export const SNOW = vec3(0.86, 0.89, 0.94);
 const weatheredF = Fn(([col, n, lift]) => mix(col.mul(float(1).sub(U.uWeather.x.mul(0.35))), SNOW, snowCover(n, lift)));
@@ -42,7 +48,7 @@ const weatheredF = Fn(([col, n, lift]) => mix(col.mul(float(1).sub(U.uWeather.x.
 export const weathered = (col, n, lift = 0) => weatheredF(col, n, float(lift));
 /** how high, at w, the snow must lie before it covers a thing whose snow is `clumps` metres uneven (its kind's or its own
     `snow`, assets/kinds.js): in clumps where it held, bare between, the same pattern at every level of detail */
-const snowLiftF = (w, clumps) => vnoise(w.xz.mul(2.3).add(w.y.mul(1.7)), uint(302)).mul(0.7).add(vnoise(w.xz.mul(7).add(w.y.mul(5)), uint(303)).mul(0.3)).mul(clumps);
+const snowLiftF = (w, clumps) => cloudTex.a(cloudMat, w.xz.mul(0.37).add(w.y.mul(0.29))).g.sub(0.5).mul(2.4).add(0.5).clamp(0, 1).mul(clumps);   // one fetch from the baked billows (a tile, not noise worked out per pixel)
 const snowLiftN = Fn(([w, clumps]) => { const l = float(9).toVar(); If(U.uSnow.greaterThan(0.001), () => { l.assign(snowLiftF(w, clumps)); }); return l; });   // worked out only while snow lies
 export const snowLift = (w, clumps) => snowLiftN(w, float(clumps));
 
@@ -85,27 +91,38 @@ export const unlit = () => U.uShadowPass.greaterThan(0.5);
 // the clouds (world/clouds.js): one layer at CLOUDS.height, a field of cumulus that drifts with the wind (uCloudOff),
 // covering as much of the sky as uClouds says. detail: its finer octaves, for the sky up close; a shadow needs none.
 export const CLOUD_H = CLOUDS.height;
-let cloudTex = null;
-/** the baked materials (src/materials/bake.js), for the cloud field's tile: set once at the start, before any material is built */
-export const useCloudTexture = (tex) => { cloudTex = tex; };
-export const cloudField = (xz, detail = false) => {
-  const q = xz.add(U.uCloudOff).div(CLOUDS.size);
-  // its masses, on a far larger swell of the same tile turned (so the tile's repeat is not seen across the sky), and close
-  // up their billows (the albedo pass keeps a channel as its root: the tile painted them squared)
-  let n = cloudTex.a(cloudMat, q).r.mul(0.78).add(cloudTex.a(cloudMat, vec2(q.y, q.x.negate()).mul(0.23).add(0.6)).r.mul(0.22));
-  if (detail) n = n.add(cloudTex.a(cloudMat, q.mul(3.7).add(0.31)).g.sub(0.5).mul(0.22));   // the billows only fray the edge
-  const th = mix(0.8, 0, U.uClouds);   // the cover: how much of the field lies over the line
-  return smoothstep(th.sub(0.1), th.add(0.22), n.sub(0.5).mul(2.1).add(0.5));   // (the painted field is soft: stretched to the full range)
+// where on the baked tile a point of the layer reads, twice: the tile repeats, so a slow push that does not repeat (value
+// noise) moves each part of it differently, by up to most of a tile, and the second take is turned and scaled by an
+// irrational ratio; mixed, no two stretches of sky alike. And the cover itself swells and thins over tens of kilometres.
+const cloudUV = (xz) => {
+  // (the push and the swell read the tile itself, from a tiny mip, at scales that are not a whole number of tiles: they
+  // repeat at another period than the tile, so together they never do; a fetch from a tiny mip costs next to nothing)
+  const p = xz.add(U.uCloudOff).div(CLOUDS.size), slow = cloudTex.a(cloudMat, p.mul(0.29).add(0.71)).level(7);
+  const off = slow.rg.sub(0.5).mul(3.2);
+  const b = vec2(p.x.mul(0.786).sub(p.y.mul(0.618)), p.x.mul(0.618).add(p.y.mul(0.786))).mul(1.414).add(off.yx).add(0.37);
+  return { p, a: p.add(off), b, region: cloudTex.a(cloudMat, p.mul(0.11).add(3.1)).level(8).r.sub(0.5).mul(0.25) };
 };
-/** the clouds' shadow at w: the layer looked up along the way to the sun (1: in the sun) */
+const cover = (n, soft) => { const th = mix(0.8, 0, U.uClouds); return smoothstep(th.sub(soft[0]), th.add(soft[1]), n.sub(0.5).mul(2.9).add(0.5)); };   // (the painted field, two takes mixed, is soft: stretched to the full range)
+export const cloudField = (xz, detail = false) => {
+  const C = cloudUV(xz);
+  let n = mix(cloudTex.a(cloudMat, C.a).r, cloudTex.a(cloudMat, C.b).r, 0.45).add(C.region);
+  if (detail) n = n.add(cloudTex.a(cloudMat, C.a.mul(3.7).add(0.31)).g.sub(0.5).mul(0.22));   // close up, the billows fray the edge
+  return cover(n, [0.1, 0.22]);
+};
+/** the clouds' shadow at a point q of their layer (1: none): the field from a small mip of the tile, a shadow being soft and
+    wide; what src/world/cloudmap.js draws into its map once a frame */
+export const cloudLayerShade = (q) => {
+  const C = cloudUV(q), n = mix(cloudTex.a(cloudMat, C.a).level(4).r, cloudTex.a(cloudMat, C.b).level(4).r, 0.45).add(C.region);
+  return float(1).sub(cover(n, [0.14, 0.24]).mul(0.82));
+};
+/** the clouds' shadow at w: the layer looked up along the way to the sun, read from the map drawn this frame round the
+    camera (uCloudMap: its corner, its size; one fetch); beyond it the clouds' mean */
 export const cloudShade = Fn(([w]) => {
   const r = float(1).toVar();
-  If(U.uClouds.greaterThan(0.005), () => {   // looked up only while there are clouds
-    const s = U.uSunDir, k = float(CLOUD_H).sub(w.y).div(max(s.y, 0.08));
-    // one fetch from a small mip of the tile: a cloud's shadow is soft and wide, and a tiny mip is always in the cache
-    const q = w.xz.add(s.xz.mul(k)).add(U.uCloudOff).div(CLOUDS.size), th = mix(0.8, 0, U.uClouds);
-    const n = cloudTex.a(cloudMat, q).level(4).r.sub(0.5).mul(2.1).add(0.5);
-    r.assign(float(1).sub(smoothstep(th.sub(0.14), th.add(0.24), n).mul(0.82)));
+  If(U.uClouds.greaterThan(0.005), () => {   // only while there are clouds
+    const s = U.uSunDir, k = float(CLOUD_H).sub(w.y).div(max(s.y, 0.08)), m = w.xz.add(s.xz.mul(k)).sub(U.uCloudMap.xy).div(U.uCloudMap.z);
+    const inside = m.x.greaterThan(0).and(m.y.greaterThan(0)).and(m.x.lessThan(1)).and(m.y.lessThan(1));
+    r.assign(inside.select(U.tCloudMap.sample(m).level(0).r, float(1).sub(U.uClouds.mul(0.45))));
   });
   return r;
 });

@@ -34,6 +34,7 @@ import { createSky } from './world/sky.js';
 import { createWind } from './world/wind.js';
 import { createSnow } from './world/snow.js';
 import { createClouds } from './world/clouds.js';
+import { createCloudMap } from './world/cloudmap.js';
 import { useCloudTexture } from './world/light.js';
 import { createShadows } from './world/shadow.js';
 import { useGround } from './world/rocksolid.js';
@@ -83,6 +84,7 @@ const sky = createSky(scene, camera, renderer);
 const wind = createWind();   // which way the air moves and how hard: the grass and the water follow (world/wind.js)
 stats.snow = createSnow();   // how deep the snow lies (world/light.js: snowCover)
 const clouds = (stats.clouds = createClouds());   // the cloud layer: in the sky, and its shadow on all below
+const cloudMap = createCloudMap(renderer);   // its shadow, drawn once a frame for every surface to read
 stats.wind = wind;   // the sun and the sky: one time of day drives the light (intent 0007)
 stats.sky = sky;
 const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)
@@ -114,7 +116,8 @@ function choose(dt) {
 }
 function draw() {
   const dof = camera.userData.dof;   // the virtual camera brings a lens with it: its picture is drawn through it
-  shadows.render(scene, camera, heightAt(camera.position.x, camera.position.z));
+  const gy = heightAt(camera.position.x, camera.position.z);
+  cloudMap.render(camera, gy); shadows.render(scene, camera, gy);
   if (dof && dof.on) post.render(scene, camera, dof); else renderer.render(scene, camera);
 }
 let last = 0;
