@@ -1,5 +1,5 @@
 // First person: WASD, Shift to run, the mouse looks (click to lock it). F flies; Space / C rise and sink.
-import { PLACES } from '../world/places.js';
+import { PLACES } from '../../world/places.js';
 import { heightAt, riverAt, aridAt } from '../world/land.js';
 import { step, ceilingAt } from '../world/solids.js';
 
@@ -51,7 +51,7 @@ export function createControls(camera, canvas, msg) {
   };
 }
 
-/** Where the walker starts: by the first tent (src/world/places.js), in front of its door, looking at it. The tent
+/** Where the walker starts: by the first tent (world/places.js), in front of its door, looking at it. The tent
     stands where story 01's film frames it, so the walker comes to it, not it to the walker. */
 export function spawn(controls) {
   const t = PLACES.tent;

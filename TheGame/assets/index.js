@@ -11,7 +11,7 @@
 //                             icosphere divided that often), with `P` for scattered ones
 //   solid                     what a walker cannot pass: walls (rounds with gaps), posts, boxes, and the ceiling
 //                             overhead (src/world/solids.js); in the asset's own frame
-//   placement                 { at: 'places', ... } stood at a named place (src/world/places.js), or
+//   placement                 { at: 'places', ... } stood at a named place (world/places.js), or
 //                             { at: 'scatter', engine, cell, ... } spread over the land by the scatter engine
 //   wind                      how it moves in the wind, if not as its kind (assets/kinds.js)
 //

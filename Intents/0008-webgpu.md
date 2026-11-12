@@ -547,6 +547,39 @@ shadows and the grass.
   defaults and the grass as a recipe, the sky's bodies and the light's file split by owner, the library asking an
   engine for its pictures.
 
+### 2026-11-12, the remaining seams: kinds, weather lanes and hooks, the sky in layers, engines and the grass, places (12:05)
+
+- **Asked:** finish the plug-in seams the audit left open.
+- **Found:** two lines where an earlier edit's comment had swallowed live code: the sky's dome no longer followed the
+  camera (since `b00d1a1`: its directions were the origin's, up to 4 degrees off the eye's, the sun's disc beside the
+  light), and the snow's drift never raised or lowered where it lies on the ground (since the first snow). The rock
+  kind had no card only because its kind left the field out. Every scattered asset was taken for a rock by the rocks'
+  bodies (src/world/rocksolid.js).
+- **Delivered:**
+  - Kinds: `kindOf(asset, field)` (a block merged: its own over its kind's over the default's) and `kindRule` (a rule
+    taken whole) in assets/kinds.js, asked by the placer, the detail engine and every scatter engine; the inline
+    fallbacks gone; kinds `grass`, and `impostor: false` said by the rock's.
+  - Weather: shared lanes (`wet`, `fog`, `dim`: src/world/weather/lanes.js), summed by the host from each condition's
+    `lanes(v)`; what a condition does to a surface as its `surface(n, lift) -> { keep, add }`, applied by the
+    contract's `weatherOn` / `weathered` (the snow lying on it is the snow's own file); `before` (the clouds' shadow
+    map, drawn by the clouds' condition), `sky` (the clouds in the dome), `packs` (the scatter's key). The snow's, the
+    clouds' and the wind's node code live in their condition files; light.js hands them on (`snowDepth`, `snowCover`,
+    `windAt`, `windStrength`, `cloudShade`, …), and no material reads a condition's uniform by name.
+  - Sky: the dome draws layers, in order: its bodies (src/world/sky/sun.js, moon.js, stars.js; found by themselves; a
+    body may `update` by the hour) and the conditions' `sky`. The dome follows the camera again.
+  - Engines: each builds its own row over the common one (`row`), and gives the library its picture, its stage and
+    its camera's frame (`thumb`, `stage`, `frame`); the library asks the engine and names none. The grass is a recipe
+    (assets/grass.js: its blade and its rings); src/scatter/assets.js is gone.
+  - By role, not by path: a material says the part it plays (`role`: noise, billows, rock, moss); the engine asks
+    `byRole`. The library's biome picture is made of the world's own recipes.
+  - Places are data: world/places.js. TheGame/README.md: the layout as it is, and one table of every plug-in seam.
+- **Good:** the picture as before by day, in snow with flakes, at night and at sunset (the sun's disc where the light
+  comes from); the game, the library (now with Grass) and the film page load without errors in WebKit.
+- **Broke / not there yet:** the snow's drift on the ground left as it has always looked (the swallowed term not put
+  back: the thin snow already lies in patches; to be decided by eye). The base and the water biome stay one of each.
+  A condition that reshapes surfaces (the snow lifting the ground, bowing the grass) is still known to those
+  surfaces through its own nodes: the lanes and hooks cover what is generic (wet, fog, dim, a cover, the sky).
+
 ## Trail
 
 | When | Commit | What |
@@ -592,4 +625,7 @@ shadows and the grass.
 | 2026-11-12 | `d06ed58` | The far forest in groves and glades to the horizon |
 | 2026-11-12 | `7d49fcf` | Seed drives tree shapes and stands; a floor for the governor; lighter ground; bench with forest views |
 | 2026-11-12 | `66d5fb6` | Tree crowns without speckles: alpha to coverage, levels changing over whole, an opaque canvas |
-| 2026-11-12 | (this commit) | Weather and scatter engines as plug-ins; trees lit per corner and only in view; the governor by late frames; the log by tab |
+| 2026-11-12 | `dca00dc` | Weather and scatter engines as plug-ins; trees lit per corner and only in view; the governor by late frames; the log by tab |
+| 2026-11-12 | `90ac08c` | Seams: one resolver for a kind's defaults; weather lanes and surface hooks; the sky's dome in layers; tiles by role |
+| 2026-11-12 | `10c32f6` | Seams: scatter engines build their rows and the library's pictures; the grass a recipe; rock and moss by role |
+| 2026-11-12 | (this commit) | Seams: places as data, the biome picture from the world's recipes, the README's table of plug-ins |

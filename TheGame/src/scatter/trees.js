@@ -8,7 +8,7 @@ import { Fn, float, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute,
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf } from '../world/land.nodes.js';
 import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, detailKeep, unlit, windAt, windStrength } from '../world/light.js';
-import { PLACES } from '../world/places.js';
+import { PLACES } from '../../world/places.js';
 import { recipe, recipes } from '../core/registry.js';
 import { geometryOf, scatterRow } from '../../assets/index.js';
 import { kindOf } from '../../assets/kinds.js';

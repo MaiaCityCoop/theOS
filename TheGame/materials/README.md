@@ -10,6 +10,7 @@ Every texture the world is drawn with: one file each in this folder, each a reci
 | `usedBy` | where the world uses it, in words |
 | `swatch` | its colour at a glance, `[r, g, b]` |
 | `bump` | how deep its relief reads: larger is flatter |
+| `role` | optional: a part the engine asks for by name, not by file (`src/core/registry.js`: `byRole`): `'noise'` (the land's cloudy noise), `'billows'` (the clouds' field, the snow's clumps), `'rock'` (a rock's stone when its file names none), `'moss'` (what grows on a rock). Another file with that role takes the part over |
 | `paint(uv)` | node code (TSL) that paints one tile of it from `uv` (0..1, tiling) and returns `{ h, col, rough }`, with the tiling noises of `src/materials/paint.js` |
 
 `src/materials/bake.js` bakes every material into one layer of two texture arrays (albedo + height, normal +

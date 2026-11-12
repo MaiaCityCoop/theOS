@@ -5,11 +5,8 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec3, uniform, positionWorld, normalWorld, abs, pow, normalize, max, mix, sign, length } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { finish, skyLight } from '../world/light.js';
-import pathM from '../../materials/path.js';
-import carpetM from '../../materials/grasscarpet.js';
-import sandM from '../../materials/sand.js';
-import waterM from '../../materials/water.js';
-import pebbleM from '../../materials/pebble.js';
+import { recipes } from '../core/registry.js';
+import { BIOMES, BASE, WATER } from '../world/biomes.js';
 
 /** id: the material, its recipe or uid (tex: src/materials/bake.js); tile: metres one tile covers; own: { tint: [r, g, b] }.
     Its `eye` uniform is the camera it is lit and hazed for (a picture sets its own). */
@@ -42,6 +39,10 @@ export function materialThumb(renderer, tex, id, canvas) {
 export function dioramaThumb(renderer, tex, canvas) {
   const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 20); cam.position.set(0, 2.15, 3.75); cam.lookAt(0, -0.08, 0);   // the whole round in frame
   const own = (m, tile, tint) => materialPreview(tex, m, tile, { tint });
+  // made of the world's own: the base biome's bare earth and its grass's carpet, a river biome's floor, the water's
+  // surface, the smallest scattered rock's stone (whatever the recipes are, not files named here)
+  const pathM = BASE.patches.material, carpetM = BASE.grass.carpet, sandM = BIOMES.filter((b) => b.river).at(-1)?.floor.material ?? pathM, waterM = WATER?.floor.material ?? pathM;
+  const pebbleM = recipes('asset').filter((a) => a.look?.material).sort((x, y) => [x.size.length].flat()[0] - [y.size.length].flat()[0])[0]?.look.material ?? pathM;
   const earth = own(pathM, 0.5);
   const puck = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.88, 0.32, 72, 1, false), [earth, own(carpetM, 0.45, [0.42, 0.95, 0.26]), earth]);
   const sand = new THREE.Mesh(new THREE.CircleGeometry(0.42, 48, 0, Math.PI), own(sandM, 0.4)); sand.rotation.x = -Math.PI / 2; sand.position.set(0.18, 0.162, -0.5); sand.scale.set(1, 0.8, 1);

@@ -17,12 +17,14 @@ the files named here.
 
 | Folder | Its job | Extend it by |
 | --- | --- | --- |
-| `src/world/` | The land as functions of a place: height, river, what grows where. Once in JS (`land.js`, for feet and cameras) and once as node code (`land.nodes.js`, for the GPU), constant for constant. `light.js`: the shading contract every material reads (sun, sky light, haze, weather, shadows, the hand-over between levels). `sky.js` the hour's light and the dome; `shadow.js` the shadow map; `place.js` stands a made thing; `places.js`, `solids.js` where things stand and what can't be walked through. | a new field of the land: a function in both land files |
-| `src/core/` | What everything shares: the uniforms (`uniforms.js`, node uniforms every material reads), the frustum (`frustum.js`), the governor (`governor.js`: frame budget in, detail and pixels out), the readout (`hud.js`). | a new shared uniform |
-| `src/materials/` | The world's textures, painted once at start by the GPU into one texture array (`bake.js`), with the tiling noises the painters use (`paint.js`); the library's previews (`preview.js`). | a new material: a file in `materials/` and a line in its index |
-| `src/terrain/` | The ground and the water: a quadtree of one shared tile (`terrain.js`), their materials (`material.js`, `water.js`). | a new ground layer in `material.js` |
-| `src/scatter/` | What stands on the land. `assets.js` is the table (each asset: its kind, its particulars, its tiers). `tier.js` draws one tier as one instanced call over the patches the frustum touches. `ground.js` is the map of the ground the tiers read. `grass.js`, `rocks.js` are the kinds. `index.js` builds every asset of the table. | a new plant or rock: a row in `assets.js`; a new sort of thing: a kind module, named in `index.js` |
-| `src/detail/` | Levels of detail by size on screen, with a dithered hand-over (`index.js`), and far cards (`impostor.js`). | an asset's own `detail` block |
+| `materials/`, `biomes/`, `assets/` | The recipes: every texture, every kind of land, every made thing, one file each, found by the registry (`src/core/registry.js`) by its `uid`. `assets/kinds.js`: what an asset gets from its kind. `assets/kit/tree.js`: what every tree file builds with. | a new file (see Plug-ins below) |
+| `world/` | The world's data: where the named places are (`places.js`), the sky's year and light (`sky.js`), each weather condition's numbers (`clouds.js`, `wind.js`, `snowfall.js`). | a number changed, a place added |
+| `src/world/` | The land as functions of a place: height, river, what grows where. Once in JS (`land.js`, for feet and cameras) and once as node code (`land.nodes.js`, for the GPU), constant for constant. `light.js`: the shading contract every material reads (sun, sky light, the air, the weather, shadows, the hand-over between levels). `sky.js` the hour's light and the dome, its bodies in `sky/`; `weather/` the conditions; `shadow.js` the shadow map; `place.js` stands a made thing; `solids.js`, `trunks.js` what can't be walked through. | a new field of the land: a function in both land files |
+| `src/core/` | What everything shares: the registry (`registry.js`), the uniforms (`uniforms.js`, node uniforms every material reads), the frustum (`frustum.js`), the governor (`governor.js`: 60 fps is the gate; late frames in, detail and pixels out), the readout (`hud.js`). | a new shared uniform |
+| `src/materials/` | The world's textures, painted once at start by the GPU into one texture array (`bake.js`), with the tiling noises the painters use (`paint.js`); the library's previews (`preview.js`). | a new material: a file in `materials/` |
+| `src/terrain/` | The ground and the water: a quadtree of one shared tile (`terrain.js`), their materials (`material.js`, `water.js`). | a biome's own fields; a new ground layer in `material.js` |
+| `src/scatter/` | What stands on the land: every asset placed `at: 'scatter'`, drawn by its engine (`grass.js`, `rocks.js`, `trees.js`; `index.js` finds them). `tier.js` draws a tier as instanced calls over the patches the view touches, packed by a compute pass; `view.js` drops what stands outside the view; `ground.js` is the map of the ground the tiers read. | a new plant, rock or tree: a file in `assets/`; a new sort of thing: an engine module here |
+| `src/detail/` | Levels of detail by size on screen (`index.js`), and far cards (`impostor.js`). | an asset's own `detail` block |
 | `src/camera/` | The one camera (`rig.js`), the walker (`walk.js`), touch (`touch.js`), and the lens's picture (`post.js`: depth of field, the glass). | a new post effect in the lens's pass |
 | `cine/` | The virtual camera, outside the game: it needs only `window.__s8.camera` and `src/world/land.js`. Lenses, timelines, the composer, the bench. | see `cine/README.md` |
 
@@ -32,6 +34,26 @@ hand-written shader text in the game.
 
 `src/main.js` only wires these and runs the frame: place the camera, let the governor name the
 detail, choose what to draw (ground map, terrain nodes, scatter patches), draw.
+
+## Plug-ins: a new thing is a new file
+
+Every moving piece is found by itself (a glob, never a list kept by hand) and speaks through one interface. Nothing
+below needs an edit to an engine's code.
+
+| A new… | Is | Its interface is written in |
+| --- | --- | --- |
+| material | a file in `materials/`: `{ uid, type: 'material', paint(uv) -> { h, col, rough }, … }`; a `role` (`'noise'`, `'billows'`, `'rock'`, `'moss'`) if it plays a part the engine asks for by name | `materials/README.md` |
+| biome | a file in `biomes/`: where it lies (`where`, node code), its floor, its grass, its stones, its far canopy | `biomes/README.md` |
+| made thing | a file in `assets/`: its size, its levels of detail, where it is placed; what it leaves out its kind gives (`assets/kinds.js`: `kindOf`, `kindRule`) | `assets/index.js` |
+| tree | a file in `assets/` built with the tree kit: its growth by age (`growth: { years, form, height }`), `grow`, `shade`; its `placement` says its biome, its share of that biome's trees, its stands' ages, its seed | `assets/kit/tree.js` |
+| sort of scattered thing | a module in `src/scatter/` exporting `engine = { id, row, create, thumb, stage, frame }` | `src/scatter/index.js` |
+| weather condition | a file in `src/world/weather/`: its value on the panel, kept, filmed per shot; what it adds to the shared lanes (`wet`, `fog`, `dim`); what it does to a surface (`surface`), draws into the sky (`sky`), draws before the frame (`before`) | `src/world/weather/index.js` |
+| body in the sky | a file in `src/world/sky/`: `{ id, order, draw({ v, y, s, col, D }), update? }` | `src/world/sky.js` |
+| named place | a line in `world/places.js`: an asset's uid, where it stands | `world/places.js` |
+
+The light's contract (`src/world/light.js`) is the one door for materials: a material asks it for the sun, the sky's
+light, the air, the shadows and the weather (`weathered`, `weatherOn`, and each condition's own nodes handed on:
+`snowDepth`, `windAt`, `cloudShade`), and never reads a condition's uniform by name.
 
 ## The one law of detail
 

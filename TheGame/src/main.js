@@ -26,7 +26,7 @@ import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
 import { recipe } from './core/registry.js';
 import { place } from './world/place.js';
-import { PLACES } from './world/places.js';
+import { PLACES } from '../world/places.js';
 import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
 import { createPost } from './camera/post.js';

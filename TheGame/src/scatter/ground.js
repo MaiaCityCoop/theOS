@@ -7,7 +7,7 @@ import { float, vec2, vec3, vec4, uv, uniform, texture, mrt, positionGeometry, a
 import { U } from '../core/uniforms.js';
 import { heightAt as heightCPU, SAND } from '../world/land.js';
 import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt } from '../world/land.nodes.js';
-import { PLACES } from '../world/places.js';
+import { PLACES } from '../../world/places.js';
 import { BIOMES } from '../world/biomes.js';
 
 const N = 512;   // texels a side; a texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers the blades' reach

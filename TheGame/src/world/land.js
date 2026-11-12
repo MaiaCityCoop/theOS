@@ -1,4 +1,4 @@
-import { PLACES } from './places.js';
+import { PLACES } from '../../world/places.js';
 // The land, as one function of (x, z): the same integer-hash noise in JS (the walker's feet)
 // and as node code (land.nodes.js, the GPU's ground). Every constant the two share is written once, here.
 
@@ -101,7 +101,7 @@ export function naturalAt(x, z) {
   return baseB(x, z) + h + m * 3 + bank - carve;
 }
 
-// Pads: the ground levels itself under what is stood on it (src/world/places.js): within a thing's `clear` metres the
+// Pads: the ground levels itself under what is stood on it (world/places.js): within a thing's `clear` metres the
 // land is flat at the height under its middle, and it meets the land again over PAD_FALL metres. The GPU's land is
 // written with the same pads (land.nodes.js), so the walker's ground is the drawn ground.
 export const PAD_FALL = 3;

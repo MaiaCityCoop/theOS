@@ -62,7 +62,7 @@
 <script type="module" src="/src/main.js"></script>
 <script type="module">
 // The library: every asset (assets/index.js) on one stage: a fixed flat spot in the meadow (STAGE in
-// src/world/places.js), a round of bare ground with the grass around it, the camera circling it. A placed asset
+// world/places.js), a round of bare ground with the grass around it, the camera circling it. A placed asset
 // stands in the middle; a scattered one lies there as a few of its kind, small to large.
 import * as THREE from 'three/webgpu';
 import { geometryOf, solidOf } from './assets/index.js';
@@ -72,7 +72,7 @@ import { place } from './src/world/place.js';
 import { engineOf, rowOf } from './src/scatter/index.js';
 import { detailOf, spanOf, distanceAt, most } from './src/detail/index.js';
 import { poseAt, heightFor } from './src/camera/rig.js';
-import { STAGE } from './src/world/places.js';
+import { STAGE } from './world/places.js';
 import { heightAt } from './src/world/land.js';
 import { materialPreview, materialThumb, dioramaThumb, sceneThumb } from './src/materials/preview.js';
 const q = new URLSearchParams(location.search), cine = window.__cine;

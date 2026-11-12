@@ -8,7 +8,7 @@ import { hashI, rnd, noised, vnoise, camDist, edgeJit } from './noise.nodes.js';
 export { hashI, rnd, noised, vnoise, camDist, edgeJit };
 import { OCT_LAM, OCT_AMP, WATER_DROP, PADS, PAD_FALL, BEND, MEANDER } from './land.js';
 import { BIOMES, BASE, WATER } from './biomes.js';
-import { PLACES } from './places.js';
+import { PLACES } from '../../world/places.js';
 import { recipe, byRole } from '../core/registry.js';
 const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
 
