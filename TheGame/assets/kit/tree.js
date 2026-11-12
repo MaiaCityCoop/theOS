@@ -81,13 +81,15 @@ export function tube(b, pts, rad, sides, { body = false } = {}) {
     grows from and shrinks to as two levels hand over (its foot, unless told: two levels' cards with the same root are
     one sprig to the eye: src/detail/handover.js); hand: [from, kept] for such a sprig: `from`, the size it comes in at
     from the finer level (to its own: it takes the finer one's place at that size, then swells; 0: it grows from
-    nothing), `kept`, 1 if the next coarser level has it too (it gives way at once, not shrinking; 0: it folds away). */
-export function cards(b, p, dir, s, light, ao, R0, root = p, hand = [0, 0]) {
+    nothing), `kept`, 1 if the next coarser level has it too (it gives way at once, not shrinking; 0: it folds away); rep: how
+    many times its sprig's picture is laid across it (a coarser level's card is larger, its leaves are not: the picture
+    is repeated, not stretched, or a bush near by grows giant leaves as it changes level). */
+export function cards(b, p, dir, s, light, ao, R0, root = p, hand = [0, 0], rep = 1) {
   const side0 = norm(cross(dir, Math.abs(dir[1]) < 0.95 ? [0, 1, 0] : [1, 0, 0])), turn = R0() * Math.PI;
   for (const q of [0, Math.PI / 2]) {
     const side = norm(add(mul(side0, Math.cos(turn + q)), mul(cross(dir, side0), Math.sin(turn + q))));
     const w = mul(side, s * 0.5), h = mul(dir, s), c0 = sub(p, w), c1 = add(p, w), c2 = add(c1, h), c3 = add(c0, h), cn = norm(cross(side, dir));
-    const [i0, i1, i2, i3] = [[c0, [0, 0]], [c1, [1, 0]], [c2, [1, 1]], [c3, [0, 1]]].map(([v, uv]) => b.v(v, light, uv, 1, ao, cn, root, hand));
+    const [i0, i1, i2, i3] = [[c0, [0, 0]], [c1, [rep, 0]], [c2, [rep, rep]], [c3, [0, rep]]].map(([v, uv]) => b.v(v, light, uv, 1, ao, cn, root, hand));
     b.index.push(i0, i1, i2, i0, i2, i3);
   }
 }
@@ -161,7 +163,7 @@ export function mound(b, q, { r, h, lobes = 1, ragged = 0.2, dome = [0.1, 1], pu
       // the finest one's foot is)
       const foot = add(p, mul(dir, 0.02 * t)), at = sub(foot, mul(dir, Math.max(0, sz - size[0] * f) * 0.8));
       const hand = [q ? size[q - 1] / size[q] : 0, q + 1 < puffs.length && i < puffs[q + 1] && t < count[q + 1] ? 1 : 0];
-      cards(b, at, dir, sz, light, Math.max(0.3, (0.45 + 0.55 * Math.min(1, p[1] / Math.max(h * 0.75, 0.1))) * (0.65 + 0.35 * Math.min(1, k))), C, foot, hand);
+      cards(b, at, dir, sz, light, Math.max(0.3, (0.45 + 0.55 * Math.min(1, p[1] / Math.max(h * 0.75, 0.1))) * (0.65 + 0.35 * Math.min(1, k))), C, foot, hand, Math.max(1, Math.round(size[q] / size[0])));
     }
   }
   if (q === 0) for (let i = 0; i < stems; i++) {
