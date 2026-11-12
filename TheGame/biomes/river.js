@@ -5,7 +5,9 @@ export default {
   name: 'River',
   kind: 'water',
   about: 'Slow, clear water over sand at its edges, green-brown and dark where it is deep; foam only where it meets the bank.',
-  where: 'water',                                          // in the river's bed (src/terrain/water.js)
+  laid: 'In the river; in the library, its own, meandering through the sandbox',   // where it lies, in words (the library's card)
+  role: 'water',
+  water: true,                                             // the water itself: drawn over the river's bed (src/terrain/water.js), not laid as a ground
   floor: { material: '83e8d1fa-61a3-41fc-a9f1-882ab8be9fbc' /* water */, tile: [4.5, 4.5] },          // its ripples, sliding with the flow
   colours: { shallow: [0.072, 0.098, 0.078], deep: [0.013, 0.046, 0.06] },   // a notch towards a clear blue-green (was shallow 0.085 0.09 0.05, deep 0.018 0.045 0.034)
   grass: null,

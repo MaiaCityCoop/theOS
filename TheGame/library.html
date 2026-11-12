@@ -225,9 +225,9 @@ function lookAtLevel(a, i) {
 // a biome: laid over all the land round the stage, the stage's bare round taken away; the river as a pond
 function chooseBiome(id) {
   const b = BIOME[id]; clearStage(); ground.stage(STAGE.x, STAGE.z, 0); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(b));
-  H = 0.8; const wet = b.where === 'water'; dist = wet ? 85 : 26; pitch = wet ? 0.55 : 0.42; spin = true;
+  H = 0.8; const wet = !!b.water; dist = wet ? 85 : 26; pitch = wet ? 0.55 : 0.42; spin = true;
   document.querySelectorAll('.item').forEach((e) => e.classList.toggle('on', e.dataset.biome === id));
-  const laid = { land: 'Everywhere no other biome is', arid: 'Where the land is dry', bank: 'Along the river', water: 'In the river; here its own, meandering through the sandbox', cutbank: "On a bend's outside, where the current cuts the bank; here on its own", bar: "On a bend's inside, between the water and the grass; here on its own" }[b.where], pct = (v) => Math.round(v * 100);
+  const laid = b.laid || 'Where its own rule lays it', pct = (v) => Math.round(v * 100);
   document.getElementById('info').innerHTML = head('Biome', b.kind, b.name, b.about)
     + figs([b.grass && fig(pct(b.grass.cover), '%', 'Grass'), b.grass && fig(pct(b.grass.height), '%', 'Height'), b.stones && fig(pct(b.stones), '%', 'Stones')].filter(Boolean))
     + `<div class="g-cells g-part">${cell('Laid', say(laid))}${cell('Grass', say(b.grass ? cap([b.grass.tufts && 'in tufts', b.grass.flowers && 'with flowers'].filter(Boolean).join(', ')) || 'Plain' : 'None'))}${cell('Ground', `<div class="g-chips">${[b.floor, b.patches, b.spots, b.slopes].filter(Boolean).map((x) => chip(x.material)).join('')}</div>`, true)}</div>`

@@ -4,7 +4,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, uint, vec2, vec3, uniform, varyingProperty, attribute, positionGeometry, positionWorld, normalWorld, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cross, dot, cos, sin } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { rnd, camDist, riverInfo, heightAt, aridMask, outcropMask, grassTint } from '../world/land.nodes.js';
+import { rnd, camDist, riverInfo, heightAt, outcropMask, grassTint, biomesAt } from '../world/land.nodes.js';
 import { haze, toScreen, weathered, cloudAt, detailCut, detailKeep } from '../world/light.js';
 import { pxK } from '../detail/index.js';
 import { Tier, offScreen, clipOf } from './tier.js';
@@ -113,12 +113,12 @@ function rockMaterial(tex, ground, row, Lv, v, band) {
             If(r0.lessThanEqual(oc.mul(0.6).add(0.012)), () => {   // the cheap test first: most cells hold no rock
               const I = riverInfo(pos), w = I.y, d = abs(I.x);
               If(r0.lessThanEqual(oc.mul(0.6).add(0.012).mul(smoothstep(w.add(2), w.add(9), d))), () => {
-                ar.assign(aridMask(pos, dist)); y.assign(heightAt(pos, dist, d, w, I.z)); tint.assign(grassTint(tex, pos, ar, 0).rgb); ok.assign(1);
+                ar.assign(biomesAt({ p: pos, dist, d, w, b: I.z }).dry); y.assign(heightAt(pos, dist, d, w, I.z)); tint.assign(grassTint(tex, pos, ar, 0).rgb); ok.assign(1);
               });
             });
           } else {
             const G = ground.A(pos);
-            If(r0.lessThanEqual(G.w.mul(0.7)), () => { ar.assign(G.z); y.assign(G.x); tint.assign(ground.tint(pos).rgb); ok.assign(1); });
+            If(r0.lessThanEqual(G.w.mul(0.7)), () => { const t = ground.tint(pos); ar.assign(t.a); y.assign(G.x); tint.assign(t.rgb); ok.assign(1); });
           }
           If(ok.greaterThan(0.5), () => {
             const r1 = rnd(cx, cy, uint(204)), r2 = rnd(cx, cy, uint(205)), r3 = rnd(cx, cy, uint(206)), r4 = rnd(cx, cy, uint(207));

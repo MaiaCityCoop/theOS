@@ -3,7 +3,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, int, uint, vec2, vec3, If, min, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { hashI, camDist, BIO } from '../world/land.nodes.js';
+import { hashI, camDist, BASE } from '../world/land.nodes.js';
 import { haze, toScreen, weathered, cloudAt, windAt } from '../world/light.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 
@@ -29,14 +29,14 @@ function bladeMaterial(asset, T, ground) {
       const pos = vec2(c).add(vec2(float(h1.bitAnd(uint(0xFFF))), float(h1.shiftRight(uint(12)).bitAnd(uint(0xFFF)))).mul(1 / 4096)).mul(T.cell);
       const dist = camDist(pos), hf = u8(h1, 24);
       If(dist.lessThanEqual(hf.mul(-T.farFade).add(T.far)).and(dist.greaterThanEqual(hf.mul(-T.nearFade).add(T.near))), () => {
-        const G = ground.A(pos), ar = G.z, dens = G.y, h2 = hashI(c.x, c.y, uint(101));
+        const G = ground.A(pos), dens = G.y, h2 = hashI(c.x, c.y, uint(101));
         If(u8(h2, 24).lessThanEqual(dens), () => {
           const r1 = u8(h2, 0), r2 = u8(h2, 8), r3 = u8(h2, 16);
           // blades stand in tufts: the tuft they are in gives them a height, a lean and a shade in common
           const hc = hashI(int(floor(pos.x.div(0.6))), int(floor(pos.y.div(0.6))), uint(102)), c1 = u8(hc, 0), c2 = u8(hc, 8), c3 = u8(hc, 16);
           const tint = ground.tint(pos);
-          const flower = step(0.985, r2).mul(float(1).sub(ar)).mul(BIO.LAND_FLOWERS);   // now and then a stalk with a small white head
-          const hgt = float(asset.height).mul(float(0.5).add(r1.mul(r1).mul(0.55)).add(c1.mul(c1).mul(0.8)).add(flower.mul(0.35))).mul(mix(1, BIO.ARID_HEIGHT, ar))
+          const flower = step(0.985, r2).mul(float(1).sub(clamp(tint.a.sub(0.28).mul(1.6), 0, 1))).mul(BASE.grass.flowers ? 1 : 0);   // now and then a stalk with a small white head, not where it is dry
+          const hgt = float(asset.height).mul(float(0.5).add(r1.mul(r1).mul(0.55)).add(c1.mul(c1).mul(0.8)).add(flower.mul(0.35))).mul(G.z)
             .mul(dens.mul(0.4).add(0.6)).mul(float(1).sub(smoothstep(T.end * 0.7, T.end, dist)));
           const ang = c2.add(r2.sub(0.5).mul(0.55)).mul(6.2831853), dir = vec2(cos(ang), sin(ang)), side = vec2(dir.y.negate(), dir.x);
           const t = positionGeometry.y, s = positionGeometry.x, bend = float(0.2).add(r3.mul(0.55)).add(c3.mul(0.35)).mul(float(1).sub(flower.mul(0.7)));

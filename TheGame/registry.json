@@ -28,7 +28,7 @@
     "type": "biome",
     "name": "Cut bank",
     "file": "biomes/cutbank.js",
-    "version": "23a1bd3e4a2259ea00f05e8c7f0ce459852eb40707cc814397d1793bc81104bc",
+    "version": "d2be9f86a272a8a7dcc608d52ac5c6e7a2a34e374df5c0404fd0991eea493e6f",
     "uses": [
       "082f0183-5d92-4ac8-821c-14408d3ee056"
     ]
@@ -37,7 +37,7 @@
     "type": "biome",
     "name": "Dry land",
     "file": "biomes/dryland.js",
-    "version": "4c9a041c3a6921c650feffcebddf2e535de41f8f60c28a98569ffb9c28222c77",
+    "version": "7ae32f817151b04c48d0423f35fcfdc69adf925c7f5804e53af828e15dc6af3e",
     "uses": [
       "082f0183-5d92-4ac8-821c-14408d3ee056",
       "2f329f07-d2ba-4dc8-a6e3-73053c65e10f"
@@ -47,7 +47,7 @@
     "type": "biome",
     "name": "Gravel bar",
     "file": "biomes/gravelbar.js",
-    "version": "c30d45aaa09d1ff86efc7415aefd8d71882bb3eb9d43ae5731146b66bb036341",
+    "version": "4da098977e27de500956e5d74c0be805b39ba91e4cdb51370290ce8971ca28a6",
     "uses": [
       "0db6a039-9f7f-4a58-8137-c3348dfb922e"
     ]
@@ -56,7 +56,7 @@
     "type": "biome",
     "name": "Meadow",
     "file": "biomes/meadow.js",
-    "version": "ec4df4224ef4ff75ed78baa58e1273c1d1641088c65d8c59087ea3a8705d528c",
+    "version": "555dbcc4c9993ee7022aa7b74273e09b738a41c2b161bd808051f6a58cacce27",
     "uses": [
       "0db6a039-9f7f-4a58-8137-c3348dfb922e",
       "506c509b-300d-42eb-8403-f3969b06b271",
@@ -68,7 +68,7 @@
     "type": "biome",
     "name": "River",
     "file": "biomes/river.js",
-    "version": "ad16e46f54f2590d87dd1062b27e7aeb8bb68c8a83f63f15770fb35a5d2a1ffd",
+    "version": "8cb4d78b7d8ce4d85ce4e33cf46d1ed69cdd9d4473155562b12d47fd35e213eb",
     "uses": [
       "83e8d1fa-61a3-41fc-a9f1-882ab8be9fbc"
     ]
@@ -77,7 +77,7 @@
     "type": "biome",
     "name": "Riverbank",
     "file": "biomes/riverbank.js",
-    "version": "a44410a0b62da5320653edc979a1e401c74d0ec5a4ba061cae54b9417b21a528",
+    "version": "db8e86f274fcc1f1ac5121c3ea5d05566adf1c0e01524b8be116ff7436a5cce2",
     "uses": [
       "2f329f07-d2ba-4dc8-a6e3-73053c65e10f"
     ]

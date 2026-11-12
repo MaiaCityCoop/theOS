@@ -57,7 +57,10 @@ const U = createUniforms(camera, SKY);
 trackView(); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
 const governor = createGovernor(renderer);
 stats.governor = governor;   // the film holds it still while it plays
+const boot = (stats.boot = {}), mark = (k) => (boot[k] = Math.round(performance.now() - t0));   // where the start's time goes
+mark('renderer');
 const tex = bakeTextures(renderer);
+mark('bake');
 const ground = createGround(renderer, tex);
 stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage things (the library)
 const terrain = createTerrain(scene, tex);
@@ -140,11 +143,13 @@ choose(0);
 terrain.all(); scatter.warm();
 const seen = [];
 scene.traverse((o) => { if (o.isMesh) { seen.push(o, o.visible); o.visible = true; } });
+mark('built');
 await renderer.compileAsync(scene, camera);
+mark('compiled');
 renderer.render(scene, camera);
 for (let i = 0; i < seen.length; i += 2) seen[i].visible = seen[i + 1];
 choose(0);
 renderer.render(scene, camera);
 stats.loadMs = performance.now() - t0;
-console.log(`[sandbox 8] ready in ${stats.loadMs.toFixed(0)} ms`);
+console.log(`[sandbox 8] ready in ${stats.loadMs.toFixed(0)} ms`, boot);
 requestAnimationFrame(frame);

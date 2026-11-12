@@ -7,12 +7,19 @@ What lies and grows on each kind of land: one file each in this folder, each a r
 | --- | --- |
 | `uid`, `type: 'biome'` | its stable id and what sort of recipe it is |
 | `name`, `kind`, `about` | what it is (`kind`: one word, the list's line under its name) |
-| `where` | which of the land's places lays it: `land` (everywhere else), `arid`, `bank`, `water`, `cutbank` (a bend's steep outside), `bar` (a bend's gentle inside); the places are the land's masks (`src/world/land.nodes.js`) |
-| `floor` | its ground: `{ material (a material's uid), tile: [metres, metres] }` |
+| `where({ p, dist, d, w, b })` | where it lies, 0..1: node code (TSL) with the noises of `src/world/noise.nodes.js`; `p` the point, `dist` the lens's distance to it, `d`, `w`, `b` the river there (how far from its middle, its half-width, which bank: > 0 a bend's outside) |
+| `layer` | the order biomes are laid in, lowest first; one with grass is laid under the grass's carpet, one without over it |
+| `base: true` | the land's own: under every other biome, everywhere; its `patches` (bare patches, paths) and `slopes` (with their own `layer`) |
+| `water: true` | the water itself, drawn over the river's bed; `river: true`: it lies by the river (in the river's own sandbox it keeps to that river) |
+| `role` | one word (`land`, `arid`, `bank`, `water`, `cutbank`, `bar`) for what runs on the CPU and cannot read node code: the rocks' bodies, the walker's start |
+| `laid` | where it lies, in words (the library's card) |
+| `mix` | how much of its ground shows where it lies fully (the gravel bar: 0.75, a mix over the sand) |
+| `floor` | its ground (`spots` may bring a `where` of their own): `{ material (a material's uid), tile: [metres, metres] }` |
 | `patches`, `spots`, `slopes` | more grounds within it, the same way |
 | `grass` | its grass, or `null`: `{ cover, height, colours, tufts, flowers, carpet (a material's uid) }` |
 | `stones` | how many stones lie on it: the chance of one in a stone's cell |
 | `colours` | its own colours where it needs them (the river's) |
 
-The land's node code reads these numbers: change one and the world changes with it. Its version (registry.json) is
+A new biome is a new file: the terrain, the grass, the stones and the library take it from the registry, laid where its
+rule says. The land's node code reads these numbers: change one and the world changes with it. Its version (registry.json) is
 the BLAKE3 hash of its file and of the versions of the materials it lays.

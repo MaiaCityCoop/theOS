@@ -1,12 +1,12 @@
 // The ground under the camera, written by the GPU into two small textures: 256 m square, a texel every 0.5 m (the
-// terrain's own nearest vertices). Blades and stones read their height, density, dryness, stone chance and colour from
+// terrain's own nearest vertices). Blades and stones read their height, density, grass height, stone chance, colour and dryness from
 // them instead of working the land's noise out again at every vertex. Drawn again, whole (two 512² passes), each time
 // the camera has walked 8 m. It also holds the library's stage and sandbox, which the land's nodes read.
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, uv, uniform, texture, positionGeometry, abs, length, mix, smoothstep, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { heightAt as heightCPU, SAND } from '../world/land.js';
-import { camDist, riverInfo, heightAt, aridMask, pathN, pathMask, bareMask, outcropMask, tuftMask, bankMask, cutMask, barMask, placeOff, stageAt, grassTint, BIO } from '../world/land.nodes.js';
+import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt, biomesHere } from '../world/land.nodes.js';
 import { PLACES } from '../world/places.js';
 import { BIOMES } from '../world/biomes.js';
 
@@ -23,16 +23,14 @@ export function createGround(renderer, tex) {
   const posOf = () => G.o.add(vec2(uv().x, float(1).sub(uv().y)).mul(N).sub(0.5).mul(G.texel));
   const fragA = Fn(() => {
     const pos = posOf(), I = riverInfo(pos), w = I.y, d = abs(I.x), b = I.z, dist = camDist(pos);
-    const ar = aridMask(pos, dist), path = placeOff(pos, pathMask(pathN(pos))), oc = outcropMask(pos), bare = float(1).sub(stageAt(pos));
-    const cut = cutMask(pos, d, w, b), bar = barMask(pos, d, w, b), keep = clearOf(pos).mul(bare);
-    const dens = float(1).sub(path).mul(float(1).sub(bankMask(pos, d, w, b))).mul(float(1).sub(cut)).mul(float(1).sub(bar))
-      .mul(float(1).sub(bareMask(pos))).mul(float(1).sub(oc.mul(0.25))).mul(mix(1, tuftMask(pos).mul(BIO.ARID_COVER), ar)).mul(keep);
-    const bankNear = float(1).sub(smoothstep(w.mul(0.6), w.add(4), d));
-    const stone = keep.mul(float(BIO.LAND_STONES).add(ar.mul(BIO.ARID_STONES)).add(bankNear.mul(BIO.BANK_STONES)).add(cut.mul(BIO.CUT_STONES)).add(bar.mul(BIO.BAR_STONES)).add(oc.mul(0.5))).mul(float(1).sub(path.mul(0.8)));
-    return vec4(heightAt(pos, dist, d, w, b).sub(G.base), dens, ar, stone);   // heights from a base near by: a half float keeps the centimetre
+    const L = biomesAt({ p: pos, dist, d, w, b });   // every biome's share here: their grass, its height, their stones
+    const path = placeOff(pos, pathMask(pathN(pos))), oc = outcropMask(pos), keep = clearOf(pos).mul(float(1).sub(stageAt(pos)));
+    const dens = float(1).sub(path).mul(float(1).sub(bareMask(pos))).mul(float(1).sub(oc.mul(0.25))).mul(L.cover).mul(keep);
+    const stone = keep.mul(L.stones.add(oc.mul(0.5))).mul(float(1).sub(path.mul(0.8)));
+    return vec4(heightAt(pos, dist, d, w, b).sub(G.base), dens, L.height, stone);   // heights from a base near by: a half float keeps the centimetre
   });
   const fragB = Fn(() => {
-    const pos = posOf(), t = grassTint(tex, pos, aridMask(pos, camDist(pos)), 0);
+    const pos = posOf(), t = grassTint(tex, pos, biomesHere(pos, camDist(pos)).dry, 0);
     return vec4(sqrt(mix(t.rgb, vec3(0.30, 0.24, 0.15), stageAt(pos))), t.a);   // the stage: dry, bare earth
   });
   const mk = (f) => { const m = new THREE.NodeMaterial(); m.vertexNode = vec4(positionGeometry.xy, 0, 1); m.fragmentNode = f(); m.depthTest = m.depthWrite = false; return m; };
@@ -41,14 +39,14 @@ export function createGround(renderer, tex) {
   const read = (rt, pos) => texture(rt.texture, pos.sub(G.o).div(G.texel).add(0.5).div(N)).level(0);
   let lastDy = -1, lastS = 0;
   return {
-    /** height, grass density, dryness, stone chance at pos (a node; one filtered read) */
+    /** height, grass density, grass height (a share of the asset's), stone chance at pos (a node; one filtered read) */
     A: (pos) => { const g = read(rtA, pos); return vec4(g.x.add(G.base), g.y, g.z, g.w); },
-    /** the grass's colour at pos (a node) */
+    /** the grass's colour at pos, and in w its dryness (a node) */
     tint: (pos) => { const t = read(rtB, pos); return vec4(t.rgb.mul(t.rgb), t.a); },
     /** The library's stage: a round of bare ground at (x, z), r metres across the middle; r 0 takes it away. */
     stage(x, z, r) { U.uStage.value.set(x, z, r); lastS = 0; },
     /** The library's sandbox: round (x, z) the land is all one biome (its number in biomes/); no arguments: off. */
-    sandbox(x = 0, z = 0, biome = -1) { U.uSand.value.set(x, z, biome < 0 ? 0 : 1, biome); Object.assign(SAND, { on: biome >= 0, x, z, river: BIOMES[biome]?.where === 'water' }); lastS = 0; },
+    sandbox(x = 0, z = 0, biome = -1) { U.uSand.value.set(x, z, biome < 0 ? 0 : 1, biome); Object.assign(SAND, { on: biome >= 0, x, z, river: !!BIOMES[biome]?.water }); lastS = 0; },
     /** s: the lens factor; drawn again when the camera has walked 16 texels, or the lens changed */
     update(cx, cz, dy, s = 1) {
       const TEXEL = 0.5 * s, SNAP = 16 * TEXEL, o = G.o.value;
