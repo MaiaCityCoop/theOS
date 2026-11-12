@@ -582,7 +582,7 @@ shadows and the grass.
   A condition that reshapes surfaces (the snow lifting the ground, bowing the grass) is still known to those
   surfaces through its own nodes: the lanes and hooks cover what is generic (wet, fog, dim, a cover, the sky).
 
-### 2026-11-12, a second tree: the holm oak, and the stand the two share (12:40)
+### 2026-11-12, a second tree: the holm oak, and the stand the two share (12:32)
 
 - **Asked:** the holm oak as the second kind of tree: the first trial of several kinds in one forest.
 - **Found:** each kind of tree had its own groves, ages and cell hashes (from its own seed): two kinds would have grown
@@ -661,4 +661,4 @@ shadows and the grass.
 | 2026-11-12 | `10c32f6` | Seams: scatter engines build their rows and the library's pictures; the grass a recipe; rock and moss by role |
 | 2026-11-12 | `bb32bbe` | Seams: places as data, the biome picture from the world's recipes, the README's table of plug-ins |
 | 2026-11-12 | `85083f5` | Intent 0008: the seams' record, with the frame rate the log shows |
-| 2026-11-12 | (this commit) | The holm oak; the stand is the biome's, its kinds in patches; the kit's crown; a calmer governor |
+| 2026-11-12 | `06912a6` | The holm oak; the stand is the biome's, its kinds in patches; the kit's crown; a calmer governor |
