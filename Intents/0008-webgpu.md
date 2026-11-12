@@ -582,6 +582,35 @@ shadows and the grass.
   A condition that reshapes surfaces (the snow lifting the ground, bowing the grass) is still known to those
   surfaces through its own nodes: the lanes and hooks cover what is generic (wet, fog, dim, a cover, the sky).
 
+### 2026-11-12, a second tree: the holm oak, and the stand the two share (12:40)
+
+- **Asked:** the holm oak as the second kind of tree: the first trial of several kinds in one forest.
+- **Found:** each kind of tree had its own groves, ages and cell hashes (from its own seed): two kinds would have grown
+  in different patterns, and the far canopy followed only one of them. A leaf sprig painted leaf by leaf nests its
+  blends deeper than a shader's parser goes (sixty leaves), and leaves so few are far too large on a card seen close
+  (30 cm on an old oak; a holm oak's are 5). A card's empty background painted in the twig's brown turns the crown
+  grey far off (its mips are means of their neighbours).
+- **Delivered:**
+  - The holm oak (assets/holmoak.js): growth by age (a bush of 1.6 m at six, 4 m at eighteen, a small round tree at
+    forty, 15 m at ninety, a dome of 21 m at two hundred), a short stout bole, great limbs leaving it one below
+    another, a dense rounded crown down to head height; its own `foliage` (little light through its leaves, less
+    flutter) and sway. Materials: its bark (materials/holmoakbark.js: dark, in small square plates, lichen) and its
+    sprig (materials/holmoakleaf.js: some four hundred small leaves, a leaf to a cell of a grid, nine cells looked at).
+  - The kit: `crown()`, a crown's limbs, branches, twigs and foliage as most trees share them (the oak's file is its
+    shape and its numbers); a body for a bole that forks below chest height.
+  - The stand is the biome's (biomes/pineforest.js `trees`: cells, density, groves, ages, seed), the same for every
+    kind that grows there; a tree's file gives its `share` (pine 0.7, oak 0.3). Which kind a cell is comes from a
+    slow noise and the cell's hash: a kind leads in patches of some 90 m, not sprinkled evenly. The far canopy reads the
+    biome's stand. `foliage` by kind (assets/kinds.js). Foliage right at the eye is let go.
+  - Governor: a step down only after two looks even when far too slow (a jump of the view is a burst, not a slow picture).
+- **Good:** by the river the same 143k tree triangles as before the oak; in an oak-led patch at eye level 365k (314k
+  with pines alone), four old oaks near by being 76k of it; no errors in WebKit. The log: Samuel's Safari on the film
+  page 239 to 240 frames per 4 s at the median while this was built; the pane in the oak forest 240 at the median
+  with the pixel ratio between 1.4 and 2.
+- **Broke / not there yet:** an old oak's nearest level is 18 to 22 thousand triangles (a pine's 11); the pine still
+  builds its crown with its own code, not the kit's `crown()`; the oak's leaves do not show their pale undersides
+  in the wind; the WebGL 2 fallback still not looked at.
+
 ## Trail
 
 | When | Commit | What |
@@ -631,3 +660,5 @@ shadows and the grass.
 | 2026-11-12 | `90ac08c` | Seams: one resolver for a kind's defaults; weather lanes and surface hooks; the sky's dome in layers; tiles by role |
 | 2026-11-12 | `10c32f6` | Seams: scatter engines build their rows and the library's pictures; the grass a recipe; rock and moss by role |
 | 2026-11-12 | `bb32bbe` | Seams: places as data, the biome picture from the world's recipes, the README's table of plug-ins |
+| 2026-11-12 | `85083f5` | Intent 0008: the seams' record, with the frame rate the log shows |
+| 2026-11-12 | (this commit) | The holm oak; the stand is the biome's, its kinds in patches; the kit's crown; a calmer governor |

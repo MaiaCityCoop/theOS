@@ -22,11 +22,22 @@
     "version": "b9fb7fd4a0d5ee5b715737728283de4b3c305a15d6ad3f5fad4afa786a47c2ca",
     "uses": []
   },
+  "40cb573a-5aa3-4e2f-90ff-41e69d20915e": {
+    "type": "asset",
+    "name": "Holm oak",
+    "file": "assets/holmoak.js",
+    "version": "874353cf41c6c99ba71820b0b19c3e7268dab62c3cb5025a9d0a23f58f2a43c8",
+    "uses": [
+      "170e8df4-254e-4df2-95e2-c584380cf14b",
+      "c4cbd29b-9dd2-494d-913b-9a80c40ab8e6",
+      "fb5ce908-7437-45b6-879f-154de32d12b9"
+    ]
+  },
   "e4f1685f-2db4-41a6-89df-e818cb470fdd": {
     "type": "asset",
     "name": "Stone pine",
     "file": "assets/stonepine.js",
-    "version": "f5b1f68f6191ce9f24ed134a363462ed873aa72528be4c4956326f67bacbe66c",
+    "version": "5c9fdfaf4812cb7ae0a01ced372b9845cfcbbe84e6d8e60e09f4531b7fa0e035",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
@@ -86,7 +97,7 @@
     "type": "biome",
     "name": "Pine forest",
     "file": "biomes/pineforest.js",
-    "version": "beb3a0c76cf44bc6067e65766f54848055d781788723e6a00d4e378b6ab7d214",
+    "version": "8bca99addc60289281162ffd6ead32cd7878bf4b853f5aa9739da72afff4bc69",
     "uses": [
       "795da1c3-9cfe-4c4e-88c7-a58ce86444d4"
     ]
@@ -128,6 +139,20 @@
     "name": "Grass, from afar",
     "file": "materials/grasscarpet.js",
     "version": "c79cc2546341e13899d0e212323361655d21662f72bac0ad8725afb88fa10a8e",
+    "uses": []
+  },
+  "fb5ce908-7437-45b6-879f-154de32d12b9": {
+    "type": "material",
+    "name": "Holm oak bark",
+    "file": "materials/holmoakbark.js",
+    "version": "b9a36418933c78031056dccd6210b3e13d33a2b14a2ddc21636b56142e98de33",
+    "uses": []
+  },
+  "c4cbd29b-9dd2-494d-913b-9a80c40ab8e6": {
+    "type": "material",
+    "name": "Holm oak sprig",
+    "file": "materials/holmoakleaf.js",
+    "version": "f4bf3740df6e56c221b954de16527aa50a5fc08b2d239e3dd6a5f6aa94be35d2",
     "uses": []
   },
   "8bb6dc3b-4919-4351-b31d-8e9873ae151c": {

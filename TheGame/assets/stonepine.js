@@ -130,6 +130,7 @@ export default tree({
   grow: pine, shade,
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, tree (assets/kinds.js); P: cells per patch side
   levels: [{ P: 4 }, { P: 8 }, { P: 16 }, { P: 32 }],
-  // scattered where the pine forest lies: a cell holds one tree at most, as many as the biome's share and its groves say
-  placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, cell: 10, density: 0.75, clumps: 55, scale: [0.93, 1.07], lean: 0.1, seed: 300, age: { stand: [30, 150], young: 0.18, min: 3 } },   // scale: one tree's own, about its age's height; age: a stand's age (a slow noise between the two), one in `young` a sapling from min years; clumps: metres across the groves and glades a stand is made of; lean: how far a trunk may lean
+  // where it grows: the pine forest's stand (its cells, its groves, its ages: biomes/pineforest.js `trees`), of which it
+  // takes its share; scale: one tree's own size about its age's height; lean: how far a trunk may lean; seed: its shapes'
+  placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.7, scale: [0.93, 1.07], lean: 0.1, seed: 300 },
 });

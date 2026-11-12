@@ -140,11 +140,11 @@ export function terrainMaterial(tex) {
     }
     if (!sloped) If(steep.greaterThan(0.003), () => blend(M, smp(SLOPE), steep));
     // far off, past where a biome's trees are drawn, its land takes the colour of their crowns (its `canopy`): in the same
-    // groves and glades its trees stand in (their placement's clumps and density, the same noise: src/scatter/trees.js),
+    // groves and glades its trees stand in (its stand's clumps and density, its `trees`: the same noise as src/scatter/trees.js),
     // crowns as many as stand there, the floor between them in their shade. A forest to the horizon, in patches, for nothing
     L.shares.forEach(({ b: bio, w: wt }) => {
       if (!bio.canopy) return;
-      const A = recipes('asset').find((o) => o.placement?.biome === bio.uid && o.placement.clumps), P = A?.placement, cl = P?.clumps;   // what grows in groves where it lies (whatever its engine)
+      const P = bio.trees, cl = P?.clumps, A = recipes('asset').filter((o) => o.placement?.biome === bio.uid).sort((x, y) => y.size.height / detailOf(y).cut - x.size.height / detailOf(x).cut)[0];   // its stand, and of what grows there the kind drawn farthest (whatever its engine)
       // it comes in where its trees go out: they are drawn while they are taller than their last level's pixels (the
       // same rule, by the lens and the window: src/detail), the largest to `last` metres; without such trees, its own from/to
       const cutPx = A ? detailOf(A).cut : 0, last = cutPx ? U.uPxK.mul(A.size.height / cutPx) : null;

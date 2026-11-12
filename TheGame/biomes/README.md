@@ -18,6 +18,8 @@ What lies and grows on each kind of land: one file each in this folder, each a r
 | `grass` | its grass, or `null`: `{ cover, height, colours, tufts, flowers, carpet (a material's uid) }` |
 | `stones` | how many stones lie on it: the chance of one in a stone's cell |
 | `colours` | its own colours where it needs them (the river's) |
+| `trees` | its stand of trees, the same for every kind of tree that grows there (a tree's file names the biome and its `share` of the stand's cells: `assets/kit/tree.js`): `{ cell (metres: one tree at most in each), density, clumps (metres across its groves and glades), patches (metres across the places where one kind or another leads), age: { stand: [years, years], young, min }, seed }` |
+| `canopy` | far off, past where its trees are drawn, the colour its land takes in its stand's groves: `{ colour, from, to }` (from/to in metres only where no tree of it says where its trees end) |
 
 A new biome is a new file: the terrain, the grass, the stones and the library take it from the registry, laid where its
 rule says. The land's node code reads these numbers: change one and the world changes with it. Its version (registry.json) is

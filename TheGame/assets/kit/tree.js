@@ -4,13 +4,15 @@
 // plane (cn: seen edge-on it is cut away, src/scatter/trees.js), every vertex how much light reaches it (ao).
 //
 //   export default tree({ uid, type: 'asset', name, kind: 'tree', materials: { wood, leaves }, growth, grow, shade,
-//                         levels: [{ P }, …], placement: { …, age }, … })
+//                         levels: [{ P }, …], placement: { biome, share, … }, … })
 //
 // growth { years, variants, form(year, v), height(year) }: its stages of growth, by age (or, without it, shapes: a list).
-// placement { biome, share, age: { stand, young, min }, … }: share, its part of its biome's cells among every kind of
-// tree that grows there (one grid of cells for them all, one tree a cell: a mix); age, how old its stands are.
+// placement { biome, share, scale, lean, seed }: its biome, whose stand it joins (the biome's `trees`: the cells, the
+// groves, the ages, the same for every kind of tree that grows there); share, its part of that stand's cells (one tree a
+// cell: a mix); scale, one tree's own size about its age's height; seed, its shapes' (another seed: other trees of its kind).
 //
-// grow(q, shape, i) builds level q (0 nearest) of a shape (a stage's form, or shapes[i]) with builder()/tube()/cards() and returns the builder;
+// grow(q, shape, i) builds level q (0 nearest) of a shape (a stage's form, or shapes[i]) with builder()/tube()/cards(), or
+// crown() for its limbs and foliage as most trees share them, and returns the builder;
 // shade(shape, i), if given, the light mesh the shadow map is drawn from (else none of its levels cast, but the nearest);
 // tree() works out the rest the engine reads: every level's meshes, the shade's, the tree's size, and each shape's trunk
 // as a body (the tube made with { body: true }, where it stands at a walker's chest).
@@ -56,9 +58,12 @@ export function tube(b, pts, rad, sides, { body = false } = {}) {
     const a = rings[i][k], c = rings[i][k + 1], d = rings[i + 1][k], e = rings[i + 1][k + 1];
     b.index.push(a, d, e, a, e, c);
   }
-  if (body) for (let i = 1; i < n; i++) if (pts[i][1] >= CHEST) {   // the trunk at chest height
-    const t = (CHEST - pts[i - 1][1]) / Math.max(1e-6, pts[i][1] - pts[i - 1][1]), p = lerp(pts[i - 1], pts[i], t);
-    b.body = [p[0], p[2], rad[i - 1] + (rad[i] - rad[i - 1]) * t]; break;
+  if (body) {
+    for (let i = 1; i < n && !b.body; i++) if (pts[i][1] >= CHEST) {   // the trunk at chest height
+      const t = (CHEST - pts[i - 1][1]) / Math.max(1e-6, pts[i][1] - pts[i - 1][1]), p = lerp(pts[i - 1], pts[i], t);
+      b.body = [p[0], p[2], rad[i - 1] + (rad[i] - rad[i - 1]) * t];
+    }
+    if (!b.body && rad[n - 1] >= 0.06) b.body = [pts[n - 1][0], pts[n - 1][2], rad[n - 1]];   // a bole that forks lower: its top (a sapling thinner than that is walked through)
   }
 }
 
@@ -72,6 +77,44 @@ export function cards(b, p, dir, s, light, ao, R0) {
     const [i0, i1, i2, i3] = [[c0, [0, 0]], [c1, [1, 0]], [c2, [1, 1]], [c3, [0, 1]]].map(([v, uv]) => b.v(v, light, uv, 1, ao, cn));
     b.index.push(i0, i1, i2, i0, i2, i3);
   }
+}
+
+/** A crown's wood and foliage, as most trees share them. `limbs`: where each great limb leaves the wood below and where
+    it ends ({ from, end }); `puffs`: its heaps of foliage ({ p: where, pr: how large }). Every puff is fed by the limb
+    whose end is nearest: the limb splits into branches (to groups of its puffs) and twigs (to each puff), as many as
+    level q shows (0: every twig; 1: branches; 2: limbs only; 3: no wood but what the file made); over each puff its
+    cards stand out.
+      thick, g     the wood's girth and the foliage's size, to a grown tree's (1)
+      girth        a limb's radius at its foot and at its end, metres at thick 1; bow: how far it bows upward
+      count, size  cards a puff, and a card's size in metres, per level
+      lift         how much the cards' ways favour up (0: all round the puff; outward())
+      dirOf(p, d)  the way a card stands, from a random way d out of its puff at p (default: d, lifted a little)
+      light(p, d)  the normal it is lit with (a crown is lit as the body it makes); ao(p, d): the light that reaches it */
+export function crown(b, q, { limbs, puffs, thick = 1, g = 1, girth = [0.11, 0.055], bow = 1.3, count, size, lift = 0.25, dirOf, light, ao, R0 }) {
+  const d2 = (u, w) => (u[0] - w[0]) ** 2 + (u[1] - w[1]) ** 2 + (u[2] - w[2]) ** 2;
+  const of = puffs.map((c) => limbs.reduce((m, L, k) => (d2(c.p, L.end) < d2(c.p, limbs[m].end) ? k : m), 0));
+  limbs.forEach((L, li) => {
+    if (q < 3) { const n = 6, pts = bez(L.from, add(lerp(L.from, L.end, 0.45), [0, bow * thick, 0]), L.end, n); tube(b, pts, pts.map((_, i) => (girth[0] + (girth[1] - girth[0]) * (i / n)) * thick), q ? 4 : 6); }   // long, bowed upward
+    // its branches: more of them the more puffs it feeds (a few twigs to a branch's end, not a fan of spokes)
+    const mine = puffs.filter((_, i) => of[i] === li), nG = Math.min(mine.length, q >= 2 ? 1 : q ? Math.min(4, Math.max(2, Math.ceil(mine.length / 5))) : Math.min(9, Math.max(3, Math.ceil(mine.length / 5))));
+    if (!nG) return;
+    const groups = Array.from({ length: nG }, () => []);
+    mine.sort((x, y) => d2(x.p, L.from) - d2(y.p, L.from)).forEach((c, i) => groups[Math.floor((i * nG) / mine.length)].push(c));
+    for (const gr of groups) {
+      const G = sub(mul(gr.reduce((t, c) => add(t, c.p), [0, 0, 0]), 1 / gr.length), [0, 0.6 * g, 0]);   // where its branch ends: under its puffs' middle
+      if (q < 2) tube(b, bez(lerp(L.from, L.end, 0.6), add(lerp(L.end, G, 0.5), [0, 0.6 * g, 0]), G, 4), [0.06, 0.05, 0.042, 0.035, 0.03].map((x) => (x * g * girth[0]) / 0.11), q ? 3 : 5);
+      for (const c of gr) {
+        if (q === 0) { const run = Math.sqrt(d2(G, c.p)); tube(b, bez(G, add(lerp(G, c.p, 0.5), [0, 0.22 * run, 0]), c.p, 3), [0.03, 0.024, 0.018, 0.012].map((x) => x * g), 3); }   // a twig, arching up to its puff
+        for (let t = 0; t < count[q]; t++) {
+          const d = outward(R0, q >= 2 ? Math.max(lift, 0.3) : lift), sz = size[q] * (0.8 + R0() * 0.4) * g, dir = dirOf ? dirOf(c.p, d) : norm(add(d, [0, 0.35, 0]));
+          // its foot on the puff's skin; a coarser level's larger card sunk into it by the part it is larger, so every
+          // level has the same outline (no fringe of the coarser one round the finer where they change over)
+          const at = sub(add(c.p, mul(d, c.pr * 0.35)), mul(dir, Math.max(0, sz - size[0] * g) * 0.8));
+          cards(b, at, dir, sz, light(c.p, d), ao(at, d), R0);
+        }
+      }
+    }
+  });
 }
 
 // the box round every shape's nearest mesh: the tree's size

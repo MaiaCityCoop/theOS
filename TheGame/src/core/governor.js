@@ -11,10 +11,11 @@
 //
 // What it goes by: the share of frames that missed 60 fps (longer than SLOW ms) since its last look, not their mean:
 // a hitch now and then (a pass made again, another program taking the GPU for a moment) is not a slow picture, and
-// must not cost it its sharpness. Too slow (more than LATE of the frames late, two looks running: under 55 fps): the
-// cap comes down first, then pixels (to 1, then under). A step down in pixels is on trial: if it bought no frames (the
-// pixels were not what was slow) it is taken back, and none tried again for a while (longer each time). Room again
-// (hardly a frame late, under ROOM): pixels first, then the cap. Nothing is decided while the page is still starting.
+// must not cost it its sharpness. Too slow (more than LATE of the frames late, three looks running: under 55 fps; two
+// when most frames are late): the cap comes down first, then pixels (to 1, then under). A step down in pixels is on
+// trial: if it bought no frames (the pixels were not what was slow) it is taken back, and none tried again for a while
+// (longer each time). Room again (hardly a frame late, under ROOM): pixels first, then the cap. Nothing is decided
+// while the page is still starting.
 export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 16 } = {}) {
   const REF = 1 / Math.tan((refFov * Math.PI) / 360);
   const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2), DPR_MIN = Math.min(1, DPR_MAX), FLOOR = 0.6;   // DPR_MIN: where it starts and comes back to first; FLOOR: how soft it may go to hold 60 fps
@@ -51,7 +52,7 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
       if (next !== dpr) calm = hot = 0;   // (a step taken back this look: nothing more)
       else if (slow) {
         calm = 0;
-        if (urgent || ++hot >= 2) {
+        if (++hot >= (urgent ? 2 : 3)) {   // (two looks even when far too slow: a jump of the view, a film's cut, is a burst of late frames, not a slow picture)
           hot = 0; downAt = now;
           if (lod > 1.05) cap = Math.max(1, lod * (urgent ? 0.7 : 0.87));
           else if (share > LATE && dpr > FLOOR && now > noPixels && !trial) {
