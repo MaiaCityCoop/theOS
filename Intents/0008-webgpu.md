@@ -757,6 +757,21 @@ shadows and the grass.
   changes is still two ways: what stands in a stand grows, shrinks and sinks; rocks and placed assets swap in a dither.
   The start's time not measured again alone.
 
+### 2026-11-12, one hand-over for everything (16:37)
+
+- **Asked:** rocks and placed assets onto the same hand-over as the plants: one pattern, not two.
+- **Delivered:** src/detail/handover.js: when (the size on screen now, against the level's pixels), how (a thing of
+  parts part by part, a thing of one piece whole at half way), and the way out (its last level sinks); as node code,
+  a level's numbers uniforms, and the same in JS. The trees' engine uses it (its own copy gone); the rocks reckon it
+  per vertex from their size and no longer dither (their cells keep a rock a margin either side of its band, as the
+  plants' do); a placed asset's levels and its far card change over whole and sink (src/detail/index.js `Detailed`,
+  src/world/place.js, impostor.js). Every kind sinks unless it says otherwise (kinds.js `sink`).
+- **Good:** no errors in WebKit; the tent near and from a hundred metres, the boulders by the river, the wood, as
+  before; a page of the game in Samuel's Safari 237 to 241 frames per 4 s, the pixel ratio rising to 1.5.
+- **Broke / not there yet:** `detailKeep` and `detailCut` are still in src/world/light.js, unused (another session
+  had that file open); the grass keeps its own rings. Samuel's own game tab ran at the pixel ratio's floor (0.6) while
+  my test pages shared the GPU: not known what it holds alone. The start's time not measured alone.
+
 ## Trail
 
 | When | Commit | What |
@@ -818,3 +833,4 @@ shadows and the grass.
 | 2026-11-12 | `254e700` | The understory after a real wood: thickets, placed by the light; a fern's frond and a rockrose's sprig |
 | 2026-11-12 | `1610cf4` | Bushes in heaps, ragged; one material a tier, levels as uniforms: the start from 8.5 to 5 s |
 | 2026-11-12 | `5974374` | Every stand hands over to the land: size by kind, far bodies, a stand's cover |
+| 2026-11-12 | `58e8563` | One hand-over for everything: rocks, placed assets and their cards as the plants |
