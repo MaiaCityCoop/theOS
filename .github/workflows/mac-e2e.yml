@@ -1,4 +1,4 @@
-name: Mac E2E
+name: TheGame E2E
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Trigger Mac E2E
+      - name: Trigger build and test on Mac
         id: trigger
         env:
           MAC_E2E_HMAC: ${{ secrets.MAC_E2E_HMAC }}
@@ -45,7 +45,7 @@ jobs:
           test -n "$run_id"
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
 
-      - name: Wait for Mac E2E
+      - name: Wait for Mac E2E screenshot
         id: wait
         env:
           MAC_E2E_HMAC: ${{ secrets.MAC_E2E_HMAC }}
@@ -68,6 +68,13 @@ jobs:
             echo "state=$state"
             case "$state" in
               passed)
+                screenshot=$(jq -r '.screenshot' run.json)
+                echo "screenshot=$screenshot"
+                if [ "$screenshot" != "true" ]; then
+                  echo "state=passed_without_screenshot" >> "$GITHUB_OUTPUT"
+                  echo "Mac test passed but no screenshot was produced" >&2
+                  exit 1
+                fi
                 echo "state=passed" >> "$GITHUB_OUTPUT"
                 jq . run.json
                 exit 0
@@ -92,6 +99,7 @@ jobs:
         run: |
           set -uo pipefail
           base=https://trigger.aven.ceo
+          failed=0
           for item in log screenshot; do
             path="/runs/$RUN_ID/$item"
             ts=$(date +%s)
@@ -100,15 +108,26 @@ jobs:
               | awk '{print $NF}')
             if [ "$item" = log ]; then
               out=mac-e2e.log
+              curl -fsS --max-time 60 \
+                -H "x-timestamp: $ts" \
+                -H "x-signature: $sig" \
+                "$base$path" -o "$out" || true
             else
               out=first-screen.png
+              if ! curl -fsS --max-time 60 \
+                -H "x-timestamp: $ts" \
+                -H "x-signature: $sig" \
+                "$base$path" -o "$out"; then
+                failed=1
+              fi
+              if [ ! -s "$out" ] || ! file "$out" | grep -q 'PNG image data'; then
+                echo 'screenshot missing or not a PNG' >&2
+                failed=1
+              fi
             fi
-            curl -fsS --max-time 60 \
-              -H "x-timestamp: $ts" \
-              -H "x-signature: $sig" \
-              "$base$path" -o "$out" || true
           done
           ls -l mac-e2e.log first-screen.png 2>/dev/null || true
+          exit "$failed"
 
       - name: Upload Mac E2E artifacts
         if: always()
