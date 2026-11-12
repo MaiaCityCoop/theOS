@@ -790,6 +790,22 @@ shadows and the grass.
   say. While my test pages ran beside it his tab fell to 128 to 204 frames per 4 s: my measuring disturbs his picture.
   The start's time not measured alone (one tier more a kind of shrub).
 
+### 2026-11-12, a bush is the same bush at every level (17:16)
+
+- **Asked:** (with a screen recording) it is still not good.
+- **Found:** the recording could not be opened (macOS keeps that temporary folder shut). In frames a metre apart: every
+  level of a bush drew its sprigs at places of its own (one stream of random numbers, read differently at each
+  level), so where two levels hand over one bush folded away while another grew in its place, at three distances at
+  once: bushes pulsing up and down.
+- **Delivered:** the kit's `mound`: a sprig's place, way and size from its own number, the same at every level; a
+  coarser level takes the first of them, larger. A sprig two levels share has one root, so one moment in the
+  hand-over (src/detail/handover.js `partGrown`, a card's `hand`): the coarser one's comes in at the finer one's size
+  as the finer one's goes, then swells; the sprigs the coarser level has not fold away, one by one.
+- **Good:** frames 1.4 m apart: the same bushes, their shapes holding; no errors in WebKit; Samuel's game tab 235 to
+  241 frames per 4 s at pixel ratio 1.4, a page opened in his Safari loads and runs.
+- **Broke / not there yet:** not seen in motion by me. The trees' crowns still draw each level's puffs at places of
+  their own (the kit's `crown`, the pine's own code): the same fault, less seen on a dense crown.
+
 ## Trail
 
 | When | Commit | What |
@@ -853,3 +869,4 @@ shadows and the grass.
 | 2026-11-12 | `5974374` | Every stand hands over to the land: size by kind, far bodies, a stand's cover |
 | 2026-11-12 | `58e8563` | One hand-over for everything: rocks, placed assets and their cards as the plants |
 | 2026-11-12 | `bdefbaf` | A stand changes level as one; a bush's in-between level; the stand's colour on the land early |
+| 2026-11-12 | `45da420` | A bush the same at every level: sprigs shared between levels swell in place |
