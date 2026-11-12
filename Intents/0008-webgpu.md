@@ -547,7 +547,7 @@ shadows and the grass.
   defaults and the grass as a recipe, the sky's bodies and the light's file split by owner, the library asking an
   engine for its pictures.
 
-### 2026-11-12, the remaining seams: kinds, weather lanes and hooks, the sky in layers, engines and the grass, places (12:05)
+### 2026-11-12, the remaining seams: kinds, weather lanes and hooks, the sky in layers, engines and the grass, places (12:01)
 
 - **Asked:** finish the plug-in seams the audit left open.
 - **Found:** two lines where an earlier edit's comment had swallowed live code: the sky's dome no longer followed the
@@ -575,6 +575,8 @@ shadows and the grass.
   - Places are data: world/places.js. TheGame/README.md: the layout as it is, and one table of every plug-in seam.
 - **Good:** the picture as before by day, in snow with flakes, at night and at sunset (the sun's disc where the light
   comes from); the game, the library (now with Grass) and the film page load without errors in WebKit.
+  Samuel's Safari on the film page through the whole refactor (the log, 11:20 to 12:01): 240 to 241 frames per 4 s
+  at the median, on the last code never under 228 (57 fps, while my own test browsers ran).
 - **Broke / not there yet:** the snow's drift on the ground left as it has always looked (the swallowed term not put
   back: the thin snow already lies in patches; to be decided by eye). The base and the water biome stay one of each.
   A condition that reshapes surfaces (the snow lifting the ground, bowing the grass) is still known to those
@@ -628,4 +630,4 @@ shadows and the grass.
 | 2026-11-12 | `dca00dc` | Weather and scatter engines as plug-ins; trees lit per corner and only in view; the governor by late frames; the log by tab |
 | 2026-11-12 | `90ac08c` | Seams: one resolver for a kind's defaults; weather lanes and surface hooks; the sky's dome in layers; tiles by role |
 | 2026-11-12 | `10c32f6` | Seams: scatter engines build their rows and the library's pictures; the grass a recipe; rock and moss by role |
-| 2026-11-12 | (this commit) | Seams: places as data, the biome picture from the world's recipes, the README's table of plug-ins |
+| 2026-11-12 | `bb32bbe` | Seams: places as data, the biome picture from the world's recipes, the README's table of plug-ins |
