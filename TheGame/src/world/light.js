@@ -6,7 +6,7 @@
 // to the shared lanes (wet, fog, dim), and what each does to a surface (`surface`: the snow lying on it). What is one
 // condition's own (the snow's depth, the wind's push, the clouds' shade) is that condition's code, handed on from here,
 // so a material asks the contract and no file but the condition's holds it.
-import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, pow, smoothstep, step, fract, dot, log, max, clamp, length, normalize, screenCoordinate } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, pow, smoothstep, fract, floor, dot, log, max, clamp, length, normalize, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { lane } from './weather/lanes.js';
 import { surfaceHooks, airHooks } from './weather/index.js';
@@ -106,14 +106,28 @@ export const shadowAtOne = Fn(([w]) => {
   return r;
 });
 /** the same in a vertex stage (a tree's corners: src/scatter/trees.js): no comparison is to be had there, so the map's own
-    texel is read and compared here; one texel, unfiltered (what is lit per corner is soft between its corners) */
+    texels are read and compared here. Not one texel compared hard (lit, or not): a crown stands in its own shade, most of
+    its corners lie at that edge, and whatever moved by a hair (the sun going on, the map's box as the camera rises, a
+    crown in the wind) threw whole cards from light into shade and back, a flicker all through the crown. So nine texels
+    round the corner (every other one of a 5 x 5: about as wide as a sprig's card), each weighed by how near the corner lies
+    to it (a smooth bell: the weights slide as the corner moves, none jumps), and each compared over a depth (VSOFT), not
+    at one: a corner's light changes as little as what moved. */
+const VSTEP = 2, VBIAS = 0.0004, VSOFT = 0.0008;   // every VSTEP-th texel; lit when nothing lies nearer the light than VBIAS (of the map's depth), in shade from VBIAS + VSOFT
 export const shadowAtVertex = Fn(([w]) => {
   const r = float(1).toVar();
   if (texelReads) If(U.uShadowOn.greaterThan(0.5), () => {
     const s = U.uShadowM.mul(vec4(w, 1)), q = s.xyz.div(s.w);
     If(q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(1)).and(q.y.lessThan(1)).and(q.z.lessThan(1)), () => {
-      const e = smoothstep(0, 0.08, q.xy).mul(smoothstep(1, 0.92, q.xy)), depth = float(U.tShadow.load(ivec2(q.xy.div(U.uShadowTexel))));
-      r.assign(mix(1, step(q.z.sub(0.0008), depth), e.x.mul(e.y)));   // lit where nothing nearer the light was drawn there
+      const e = smoothstep(0, 0.08, q.xy).mul(smoothstep(1, 0.92, q.xy));
+      // i: the nearest of the texels read; f: how far the corner lies from it, -0.5 .. 0.5 of their spacing
+      const size = float(1).div(U.uShadowTexel), t = q.xy.mul(size).sub(0.5).div(VSTEP), i = floor(t.add(0.5)), f = t.sub(i);
+      const bell = (v) => [v.sub(0.5).mul(v.sub(0.5)).mul(0.5), float(0.75).sub(v.mul(v)), v.add(0.5).mul(v.add(0.5)).mul(0.5)];   // (the three weights along one axis: they add up to 1)
+      const wx = bell(f.x), wy = bell(f.y), z = q.z.sub(VBIAS), k = float(0).toVar();
+      for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) {
+        const depth = float(U.tShadow.load(ivec2(clamp(i.add(vec2(a - 1, b - 1)).mul(VSTEP), 0, size.sub(1)))));
+        k.addAssign(smoothstep(z.sub(VSOFT), z, depth).mul(wx[a]).mul(wy[b]));   // lit where nothing nearer the light was drawn there
+      }
+      r.assign(mix(1, k, e.x.mul(e.y)));
     });
   });
   return r;

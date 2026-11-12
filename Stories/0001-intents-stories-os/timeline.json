@@ -8,7 +8,7 @@
  "clips": [
   {
    "name": "From the sky",
-   "hour": [16.0, 16.3],
+   "hour": 16.0,
    "kind": "wide",
    "act": "arrive",
    "secs": 7.5,
@@ -60,7 +60,7 @@
   },
   {
    "name": "Down the river",
-   "hour": [16.3, 16.7],
+   "hour": 16.4,
    "kind": "drone",
    "act": "arrive",
    "secs": 11.6,
@@ -386,7 +386,7 @@
   },
   {
    "name": "Lifting off",
-   "hour": [17.1, 17.4],
+   "hour": 17.2,
    "kind": "top down",
    "act": "leave",
    "secs": 7.5,
@@ -479,7 +479,7 @@
   },
   {
    "name": "Leaving",
-   "hour": [17.5, 17.9],
+   "hour": 17.7,
    "kind": "crane",
    "act": "leave",
    "secs": 9.3,

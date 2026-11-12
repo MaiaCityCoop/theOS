@@ -11,6 +11,6 @@ export default {
   cover: 0.35,
   height: 1600,
   size: 5200,
-  drift: { calm: 11, storm: 38 },
+  drift: { calm: 16, storm: 52 },
   names: [[0, 'Clear'], [0.08, 'Few clouds'], [0.3, 'Scattered'], [0.55, 'Broken'], [0.82, 'Overcast']],
 };
