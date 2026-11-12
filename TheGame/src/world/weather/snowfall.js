@@ -1,7 +1,7 @@
 // Snow falling (world/snowfall.js): flakes in a box of air round the camera, one instanced draw. Each flake's place is
 // hashed from its number and the time, wrapped into the box so the box follows the camera and never empties; it falls,
 // drifts with the wind (uWind) and flutters; how many of them fall is uSnowFall (the weather panel's Snowfall row, a film
-// shot's `snowfall`). Falling snow thickens the air a little (uWeather.z). Nothing is drawn while none falls.
+// shot's `snowfall`). Falling snow thickens the air a little (its `lanes`: fog). Nothing is drawn while none falls.
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, uv, instanceIndex, varyingProperty, positionGeometry, cameraViewMatrix, cameraProjectionMatrix, sin, floor, max, length, smoothstep, If, Discard, uint } from 'three/tsl';
 import FALL from '../../../world/snowfall.js';
@@ -48,5 +48,6 @@ export default {
   id: 'snowfall', label: 'Snowfall', order: 30, range: [0, 1, 0.01], start: 0,
   read: nameOf,
   init: ({ scene }) => ({ mesh: flakes(scene) }),
-  apply(a, { mesh }) { U.uSnowFall.value = a; mesh.visible = a > 0.005; U.uWeather.value.z = a * FALL.haze; },   // falling snow thickens the air a little
+  apply(a, { mesh }) { U.uSnowFall.value = a; mesh.visible = a > 0.005; },
+  lanes: (a) => ({ fog: a * FALL.haze }),   // falling snow thickens the air a little
 };

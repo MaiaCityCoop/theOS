@@ -4,17 +4,17 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec3, vec4, uniform, varying, attribute, positionLocal, positionWorld, normalLocal, normalWorld, modelWorldMatrix, modelWorldMatrixInverse, normalize, max, clamp, length, smoothstep, sin, pow, uint, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { finish, skyLight, weathered, snowCover, snowLift, cloudAt, detailCut, windAt, unlit } from './light.js';
+import { finish, skyLight, weathered, snowCover, snowLift, snowDepth, cloudAt, detailCut, windAt, windStrength, unlit } from './light.js';
 import { vnoise } from './noise.nodes.js';
 import { heightAt } from './land.js';
 import { addSolid } from './solids.js';
 import { detailOf, Detailed, most } from '../detail/index.js';
 import { impostorOf } from '../detail/impostor.js';
 import { geometryOf, solidOf, snowOf } from '../../assets/index.js';
-import KINDS from '../../assets/kinds.js';
+import { kindOf } from '../../assets/kinds.js';
 
 /** How an asset moves in the wind: its own `wind` block, else its kind's (assets/kinds.js); null: it does not move. */
-export const windOf = (asset) => asset.wind ?? KINDS[asset.kind]?.wind ?? null;
+export const windOf = (asset) => kindOf(asset, 'wind');
 
 // its sway in the wind, in its own frame: pushed downwind with the gust (billow) and fluttering along its surface (flap),
 // held still at the ground and along its middle, moving most halfway up and out (assets/kinds.js: wind)
@@ -22,7 +22,7 @@ function swayOf(asset) {
   const W = windOf(asset); if (!W) return null;
   const H = most(asset.size.height), Rr = most(asset.size.length) / 2, p = positionLocal;
   const hold = smoothstep(0.02, 0.45, p.y.div(H)).mul(float(1).sub(smoothstep(0.8, 1, p.y.div(H)).mul(0.8))).mul(smoothstep(0.08, 0.55, length(p.xz).div(Rr)));
-  const w = modelWorldMatrix.mul(vec4(p, 1)).xyz, push = windAt(w.xz), s = U.uWind.z;
+  const w = modelWorldMatrix.mul(vec4(p, 1)).xyz, push = windAt(w.xz), s = windStrength;
   const along = modelWorldMatrixInverse.mul(vec4(push.x, 0, push.y, 0)).xyz;
   const flap = sin(U.uTime.mul(s.mul(10).add(4)).add(p.y.mul(3.1)).add(p.x.mul(1.7)).add(p.z.mul(2.3))).mul(s).mul(W.flap ?? 0);   // (no angle round the middle: at the pole's tip it has none)
   // sway: a tree's crown pushed downwind, the more the higher (the foot stays), as the trees' engine sways it (src/scatter/trees.js)
@@ -31,7 +31,7 @@ function swayOf(asset) {
 }
 
 /** How an asset's faces take the light: its own `surface`, else its kind's (assets/kinds.js). */
-export const surfaceOf = (asset) => ({ wrap: 0, through: 0, ...(KINDS[asset?.kind]?.surface || {}), ...(asset?.surface || {}) });
+export const surfaceOf = (asset) => kindOf(asset, 'surface');
 
 /** The material every asset shares: its own colours (per face), lit by the sun and the sky, hazed like the land, moving
     in the wind as its recipe says; darker where it meets the ground, faintly mottled, soft or thin as its surface says.
@@ -53,7 +53,7 @@ export function assetMaterial(asset) {
       // snow lies on what faces up in clumps, where it held, slid off between them (so it reads even on pale canvas); the
       // cloth under it darker, damp
       const lift = snowLift(w, snowOf(asset).clumps);   // as its kind holds snow (assets/kinds.js)
-      const damp = float(1).sub(clamp(U.uSnow.mul(1.5), 0, 0.18));
+      const damp = float(1).sub(clamp(snowDepth.mul(1.5), 0, 0.18));
       const col = weathered(vCol.mul(mottle).mul(damp), n, lift).mul(skyLight(n).mul(ground).add(sun.mul(ndl.mul(0.8).add(0.2)))).add(vCol.mul(sun).mul(through).mul(float(1).sub(snowCover(n, lift))));   // snow on it: no light comes through
         out.assign(finish(col, positionWorld));
     });

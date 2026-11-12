@@ -18,6 +18,14 @@ export function recipe(ref) {
 }
 /** Every recipe of a type ('material', 'biome', 'asset'), in the manifest's order. */
 export const recipes = (type) => Object.values(BY).filter((r) => r.type === type).sort(ranked);
+/** The recipe that plays a part the engine needs (a material's `role`: 'noise', 'billows'): the engine asks for the
+    part, a recipe's own file says it plays it, so another file can take the part over. */
+const ROLES = {};
+export function byRole(role) {
+  const r = (ROLES[role] ||= Object.values(BY).find((x) => x.role === role));
+  if (!r) throw new Error(`no recipe plays '${role}'`);
+  return r;
+}
 /** A recipe's version: the BLAKE3 hash of what it is (registry.json). */
 export const versionOf = (ref) => manifest[recipe(ref).uid]?.version;
 /** The recipe of a version, if it is the one here. */

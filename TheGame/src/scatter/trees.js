@@ -7,11 +7,11 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf } from '../world/land.nodes.js';
-import { toScreen, airOf, skyLight, snowCover, snowLiftAtVertex, SNOW, cloudAtVertex, detailKeep, unlit, windAt } from '../world/light.js';
+import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, detailKeep, unlit, windAt, windStrength } from '../world/light.js';
 import { PLACES } from '../world/places.js';
 import { recipe, recipes } from '../core/registry.js';
 import { geometryOf } from '../../assets/index.js';
-import KINDS from '../../assets/kinds.js';
+import { kindOf } from '../../assets/kinds.js';
 import { pxK } from '../detail/index.js';
 import { Tier, offScreen, clipOf, MAXP } from './tier.js';
 import { inView } from './view.js';
@@ -77,7 +77,7 @@ function treeIn(c, row, Lv, band, biome, shapes = 1, all = false, slice = [0, 1]
 // when the sun is behind them, and rounded over the crown as one dome (a crown of a thousand cards takes the light as a
 // whole, not card by card); `ao` the light that reaches into the crown (assets/stonepine.js)
 function treeMaterial(tex, row) {
-  const a = row.asset, H = a.size.height, sway = (a.wind ?? KINDS[a.kind]?.wind)?.sway ?? 0, M = a.materials || {}, clumps = row.snow?.clumps ?? 0.3;
+  const a = row.asset, H = a.size.height, sway = kindOf(a, 'wind')?.sway ?? 0, M = a.materials || {}, clumps = row.snow.clumps;
   return (k = 0) => {   // k: which of its shapes (its own height: how far up it the wind takes hold)
     const Hk = a.heights?.[k] ?? H;
     // what a pixel needs: where on its texture, and the light, the snow and the air already worked out at its corners
@@ -91,7 +91,7 @@ function treeMaterial(tex, row) {
       const lean = vec2(cos(B.y), sin(B.y)).mul(B.z.sub(0.5).mul(2 * (a.placement.lean ?? 0))), lp = positionGeometry.add(vec3(lean.x, 0, lean.y).mul(positionGeometry.y)), up = clamp(lp.y.div(Hk), 0, 1);   // each leans its own way
       // the wind: the crown sways, the foot stays (the push grows with height squared), a slow sway of its own; and the
       // needles' brushes flutter, quicker and wider the harder it blows
-      const push = windAt(A.xy), ws = U.uWind.z;
+      const push = windAt(A.xy), ws = windStrength;
       const kk = push.mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(U.uTime.mul(0.9).add(B.y)), cos(U.uTime.mul(0.7).add(B.y))).mul(up.mul(up).mul(0.05).mul(s)));
       const flutter = sin(U.uTime.mul(ws.mul(8).add(2.5)).add(lp.x.mul(1.9)).add(lp.z.mul(2.3)).add(lp.y.mul(1.3)).add(B.y)).mul(ws.mul(0.09).add(0.015)).mul(part);
       const w = vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(kk.x.add(push.x.mul(flutter)), flutter.mul(0.4), kk.y.add(push.y.mul(flutter)))).toVar();
@@ -110,11 +110,11 @@ function treeMaterial(tex, row) {
         const ndl = leaf.select(n.dot(U.uSunDir).add(0.45).div(1.45), n.dot(U.uSunDir)).max(0);   // needles take the light round their edge
         const through = leaf.select(pow(max(V.negate().dot(U.uSunDir), 0), 3).mul(0.55), float(0));   // the sun behind a brush of needles shines through it
         const L = skyLight(n).mul(ao.mul(ao).mul(0.75).add(ao.mul(0.25))).add(U.uSun.mul(cloudAtVertex(w)).mul(ndl.add(through)).mul(ao.mul(0.6).add(0.4)));
-        const snow = snowCover(n, snowLiftAtVertex(w, clumps)), air = airOf(w);
+        const W = weatherOn(n, snowLiftAtVertex(w, clumps)), air = airOf(w);   // what the weather does to it (wet, its snow in clumps), and the air before it
         // each tree its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
         const tint = leaf.select(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.y.mul(1.1631).fract()).mul(B.z.mul(0.3).add(0.84)), vec3(1));
-        vMul.assign(L.mul(tint).mul(float(1).sub(U.uWeather.x.mul(0.35))).mul(float(1).sub(snow)).mul(air.k));   // (darker when wet: light.js weathered)
-        vAdd.assign(SNOW.mul(L).mul(snow).mul(air.k).add(air.col.mul(float(1).sub(air.k))));
+        vMul.assign(L.mul(tint).mul(W.keep).mul(air.k));
+        vAdd.assign(W.add.mul(L).mul(air.k).add(air.col.mul(float(1).sub(air.k))));
       });
       return clipOf(w);
     };

@@ -90,7 +90,7 @@ function rockShade(tex, row, s, eye = U.uCam) {
   const mt = tex.a(meadow, q.xz.mul(1.7));   // the moss: the meadow's floor
   const moss = smoothstep(0.45, 0.8, N0.y.mul(0.75).add(a.a.sub(0.5).mul(0.7)).add(mt.a.sub(0.5).mul(0.5))).mul(float(1).sub(s.arid.mul(0.85))).mul(Math.min(moss0, 1));
   const c1 = mix(a.rgb.mul(a.rgb).mul(tintR), s.tint.mul(0.75).mul(mt.a.add(0.5)), moss.mul(0.9 * Math.min(moss0 * 1.5, 1)));
-  const c2 = weathered(c1.mul(mix(0.45, 1, smoothstep(-0.25, 0.35, s.ly))), n, snowLift(s.world, row.snow?.clumps ?? 0.05));   // as its kind holds snow (assets/kinds.js)
+  const c2 = weathered(c1.mul(mix(0.45, 1, smoothstep(-0.25, 0.35, s.ly))), n, snowLift(s.world, row.snow.clumps));   // as its kind holds snow (assets/kinds.js)
   const V = normalize(eye.sub(s.world));
   const col = c2.mul(skyLight(n).add(U.uSun.mul(cloudAt(s.world)).mul(max(n.dot(U.uSunDir), 0)))).add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 30)).mul(0.06).mul(float(1).sub(moss)));
   return finish(col, s.world, eye);

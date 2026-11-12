@@ -7,6 +7,7 @@ export default {
   type: 'material',
   name: 'Cloud field',
   kind: 'noise',
+  role: 'billows',   // the part it plays for the engine (src/core/registry.js: byRole)
   about: "The sky's cumulus as a field: heaped masses, and their finer billows, for the cloud layer to read.",
   usedBy: 'the clouds in the sky, and their shadows on the land',
   swatch: [0.8, 0.82, 0.86],

@@ -32,8 +32,8 @@ import { createControls } from './camera/rig.js';   // the one camera, from the 
 import { createPost } from './camera/post.js';
 import { createSky } from './world/sky.js';
 import { createWeather } from './world/weather/index.js';
-import { createCloudMap } from './world/cloudmap.js';
-import { useCloudTexture, useBackend } from './world/light.js';
+import { useBackend } from './world/light.js';
+import { useTiles } from './world/tile.js';
 import { createShadows } from './world/shadow.js';
 import { useGround } from './world/rocksolid.js';
 
@@ -66,7 +66,7 @@ const boot = (stats.boot = {}), mark = (k) => (boot[k] = Math.round(performance.
 mark('renderer');
 await loadingStep('Painting the ground', 0.12);
 const tex = bakeTextures(renderer);
-useCloudTexture(tex);   // the cloud layer reads its field from the baked tile (world/light.js)
+useTiles(tex);   // node code that reads a baked tile by itself (the clouds' field, the snow's clumps: src/world/tile.js)
 useBackend(renderer);   // and what is lit per corner (a tree) reads the shadow map's texels only where the backend can
 mark('bake');
 await loadingStep('Raising the land', 0.3);
@@ -84,7 +84,6 @@ const sky = createSky(scene, camera, renderer);
 // each on the panel, kept, and set by a film's shot by its id; stats[id] for the pages and tools that look at one
 const weather = (stats.weather = createWeather({ scene, renderer, camera }));
 for (const id of weather.ids) stats[id] = weather[id];
-const cloudMap = (stats.cloudMap = createCloudMap(renderer));   // its shadow, drawn once a frame for every surface to read
 stats.sky = sky;   // the sun and the sky: one time of day drives the light (intent 0007)
 const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)
 stats.shadows = shadows;
@@ -116,7 +115,7 @@ function choose(dt) {
 function draw() {
   const dof = camera.userData.dof;   // the virtual camera brings a lens with it: its picture is drawn through it
   const gy = heightAt(camera.position.x, camera.position.z);
-  cloudMap.render(camera, gy); shadows.render(scene, camera, gy);
+  weather.before(camera, gy); shadows.render(scene, camera, gy);   // (what a condition draws before the picture: the clouds' shadow map)
   if (dof && dof.on) post.render(scene, camera, dof); else renderer.render(scene, camera);
 }
 let last = 0;

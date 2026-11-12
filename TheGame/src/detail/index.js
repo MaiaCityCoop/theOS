@@ -7,7 +7,7 @@
 // they cover every pixel once (detailKeep and detailCut in src/world/light.js).
 import * as THREE from 'three/webgpu';
 import { U } from '../core/uniforms.js';
-import KINDS from '../../assets/kinds.js';
+import { kindRule } from '../../assets/kinds.js';
 
 /** the larger end of a size that varies ([min, max]), or the size */
 export const most = (v) => (Array.isArray(v) ? v[1] : v);
@@ -19,12 +19,12 @@ export const pxK = (h = innerHeight) => h / (2 * Math.tan((68 / 2) * Math.PI / 1
 
 /** An asset's levels of detail, resolved: its own `detail` block over its kind's defaults. */
 export function detailOf(a) {
-  const k = KINDS[a.kind] || KINDS.default, d = a.detail || {}, px = d.px || k.px, fade = d.fade ?? k.fade;
+  const d = a.detail || {}, px = d.px || kindRule(a, 'px'), fade = d.fade ?? kindRule(a, 'fade');
   const levels = (d.levels || []).map((l, i) => ({ ...l, i, lo: l.px ?? px[Math.min(i, px.length - 1)] }));
-  const imp = d.impostor ?? k.impostor;   // after the meshes: one card (src/detail/impostor.js)
+  const imp = d.impostor ?? kindRule(a, 'impostor');   // after the meshes: one card (src/detail/impostor.js)
   if (imp) levels.push({ impostor: true, views: imp.views ?? 8, i: levels.length, lo: imp.px });
   levels.forEach((l, i) => (l.hi = i ? levels[i - 1].lo : Infinity));
-  return { levels, fade, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: d.casts ?? k.casts ?? true };
+  return { levels, fade, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: d.casts ?? kindRule(a, 'casts') ?? true };
 }
 
 /** How much of a level shows at px pixels: [share kept, side] (side 0: it is the finer side of a hand-over). */

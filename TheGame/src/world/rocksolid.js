@@ -10,7 +10,7 @@ const STEP_OVER = 0.3;   // a rock whose top is lower than this is stepped over
 let ground = null;
 /** The ground pass to read the stones' chance from (src/main.js gives it). */
 export const useGround = (g) => (ground = g);
-const KINDS = recipes('asset').filter((a) => a.placement?.at === 'scatter').map((a) => ({ cell: a.placement.cell, big: !!a.placement.outcrops, lo: a.size.length[0], hi: a.size.length[1] }));
+const KINDS = recipes('asset').filter((a) => a.placement?.engine === 'rocks').map((a) => ({ cell: a.placement.cell, big: !!a.placement.outcrops, lo: a.size.length[0], hi: a.size.length[1] }));
 const kept = new Map();
 
 function rockIn(k, ki, i, j) {

@@ -9,8 +9,8 @@ export { hashI, rnd, noised, vnoise, camDist, edgeJit };
 import { OCT_LAM, OCT_AMP, WATER_DROP, PADS, PAD_FALL, BEND, MEANDER } from './land.js';
 import { BIOMES, BASE, WATER } from './biomes.js';
 import { PLACES } from './places.js';
-import { recipe } from '../core/registry.js';
-import noise from '../../materials/noise.js';
+import { recipe, byRole } from '../core/registry.js';
+const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
 
 // ---- the biomes (biomes/*.js, from the registry) and the library's sandbox ----
 // Every biome brings its own rule for where it lies (its `where`, node code) and the order it is laid in (`layer`); the

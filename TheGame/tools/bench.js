@@ -22,7 +22,7 @@ export async function bench({ ratio = 1.5, frames = 60 } = {}) {
     const P = poseAt(v.x, v.z, v.yaw, v.h, -0.05); camera.position.set(...P.pos); camera.rotation.order = 'YXZ'; camera.rotation.set(P.pitch, P.yaw, 0); camera.fov = P.fov; camera.updateProjectionMatrix(); camera.updateMatrixWorld();
     const p = camera.position, g = heightAt(p.x, p.z), dy = Math.max(0, p.y - g - 2); U.uDy.value = dy; U.uAirH.value = Math.max(0, p.y - g); U.uLodInv.value = 1;
     setPlanes(pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)); s.ground.update(p.x, p.z, dy, 1); s.terrain.update(camera, dy, 1); s.scatter.select(p.x, p.z, g, 1, dy);
-    s.cloudMap?.render(camera, g); s.shadows.render(s.scene, camera, g); renderer.render(s.scene, camera);
+    s.weather.before(camera, g); s.shadows.render(s.scene, camera, g); renderer.render(s.scene, camera);
   };
   const out = {};
   const gpu = renderer.backend.trackTimestamp;   // the game opened with ?gputime: the GPU's own time, not the wall's
@@ -53,7 +53,7 @@ export async function parts(view = VIEWS[0], { ratio = 1, frames = 30 } = {}) {
   const groups = { sky: (o) => o.renderOrder === 15, land: (o) => o === s.terrain.landMesh, water: (o) => o === s.terrain.waterMesh };
   for (const a of new Set(tierOf.values())) groups[a] = (o) => tierOf.get(o) === a;
   const named = Object.values(groups); groups.placed = (o) => !named.some((f) => f(o)) && !tierOf.has(o);
-  const out = { view: v.name, all: await time(() => renderer.render(scene, camera)), shadow: await time(() => s.shadows.render(scene, camera, g)), cloudMap: await time(() => s.cloudMap.render(camera, g)) };
+  const out = { view: v.name, all: await time(() => renderer.render(scene, camera)), shadow: await time(() => s.shadows.render(scene, camera, g)), weather: await time(() => s.weather.before(camera, g)) };
   for (const [k, f] of Object.entries(groups)) { kids.forEach((o) => (o.visible = f(o))); out[k] = await time(() => renderer.render(scene, camera)); kids.forEach((o) => (o.visible = true)); }
   renderer.setPixelRatio(was); s.governor.hold(false);
   return out;

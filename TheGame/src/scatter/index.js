@@ -4,6 +4,7 @@
 // (placement.engine).
 import { U } from '../core/uniforms.js';
 import { setView } from './view.js';
+import { weatherKey } from '../world/weather/index.js';
 import { ASSETS } from './assets.js';
 
 const FOUND = import.meta.glob(['./*.js', '!./index.js'], { eager: true });   // (whole modules: a named import would fail where a module has none)
@@ -20,7 +21,7 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
     select(cx, cz, h0, lod, dy) {
       for (let i = 0; i < tiers.length; i++) tiers[i].select(cx, cz, h0, lod, dy);
       const view = camera ? setView(camera) : '';   // the eye's view, for what is tested against it one by one (view.js)
-      const v = (u) => u.value.toArray?.().join(',') ?? u.value, world = `${ground.version}|${lod}|${v(U.uSand)}|${v(U.uStage)}|${v(U.uStageGround)}|${U.uSnow.value}`;   // what the packing reads besides the cells and the camera
+      const v = (u) => u.value.toArray?.().join(',') ?? u.value, world = `${ground.version}|${lod}|${v(U.uSand)}|${v(U.uStage)}|${v(U.uStageGround)}|${weatherKey()}`;   // what the packing reads besides the cells and the camera
       for (const t of tiers) t.run(renderer, world, cx, h0 + dy, cz, view);
       for (const f of solid) f(renderer);
     },
