@@ -16,12 +16,12 @@ import { tree, builder, tube, cards, outward, rng, add, sub, mul, norm, lerp, be
 // its dome's height and reach, how its limbs branch (stems from the fork, limbs from each stem). v: one of its variants.
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const height = (year) => 20 * (1 - Math.exp(-year / 55)) ** 1.1;
-function form(year, v) {
-  const R0 = rng(101 + v * 31 + year * 7), H = height(year), old = sstep(10, 90, year), side = v % 2 ? -1 : 1;
+function form(year, v, seed = 300) {
+  const R0 = rng(seed * 7919 + v * 31 + year * 7), H = height(year), old = sstep(10, 90, year), side = v % 2 ? -1 : 1;
   const base = H * (0.14 + 0.64 * old), r = H * (0.42 + 0.1 * old) * (0.94 + 0.12 * R0());
   const stems = year < 25 ? 1 : v % 2 ? 3 : 2, limbs = stems === 1 ? 5 : stems === 2 ? 3 : 2;
   const forkY = stems === 1 ? base : base * (0.68 + 0.08 * R0());
-  return { seed: 11 + v * 12 + year, fork: [side * (0.15 + 0.6 * old), forkY, (R0() - 0.5) * 0.7 * old], base, dome: H - base, r, stems, limbs, bend: side * (0.1 + 0.5 * old) };
+  return { seed: seed * 104729 + v * 12 + year, fork: [side * (0.15 + 0.6 * old), forkY, (R0() - 0.5) * 0.7 * old], base, dome: H - base, r, stems, limbs, bend: side * (0.1 + 0.5 * old) };
 }
 let FORK, BASE, DOME, R, MID;   // the shape being built (use sets them)
 const barkCol = [0.33, 0.22, 0.15], needleCol = [0.1, 0.18, 0.06];   // (for a picture without the textures: the library's list)

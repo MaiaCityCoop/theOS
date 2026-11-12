@@ -6,12 +6,13 @@
 // stretch costs about that many times the blades, so the stretch is capped, and the cap moves
 // with the frame time: `lod` is what the world is drawn with.
 //
-// Pixels. The canvas's pixel ratio, between 1 and the screen's.
+// Pixels. The canvas's pixel ratio, between 1 and the screen's; and below 1, the last dial, down to FLOOR: the picture
+// a little soft, but never slower than 60 frames a second. 60 fps is the hard gate, the picture's detail the soft one.
 //
-// Too slow: the cap comes down first, then pixels. Room again: pixels first, then the cap.
+// Too slow: the cap comes down first, then pixels (to 1, then under). Room again: pixels first, then the cap.
 export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 16 } = {}) {
   const REF = 1 / Math.tan((refFov * Math.PI) / 360);
-  const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2), DPR_MIN = Math.min(1, DPR_MAX);   // under 1 the picture only blurs
+  const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2), DPR_MIN = Math.min(1, DPR_MAX), FLOOR = 0.6;   // DPR_MIN: where it starts and comes back to first; FLOOR: how soft it may go to hold 60 fps
   let dpr = DPR_MIN, resize = false, ceiling = DPR_MAX, ceilingAt = 0;
   let cap = startCap, zoom = 1, lod = 1, ema = 16.7, calm = 0, at = 0;
   let held = false, hot = 0, downAt = -1e9;   // a film playing: no turning of the dials, so its frames come out even (it plays the same every time, too)
@@ -36,7 +37,7 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
         if (urgent || ++hot >= 2) {
           hot = 0; downAt = now;
           if (lod > 1.05) cap = Math.max(1, lod * (urgent ? 0.7 : 0.87));
-          else if (ema > 18.6) { next = Math.max(DPR_MIN, dpr - (ema > 24 ? 0.25 : 0.125)); ceiling = Math.max(DPR_MIN, next); ceilingAt = now; }
+          else if (ema > 18.6) { next = Math.max(FLOOR, dpr - (ema > 24 ? 0.25 : 0.125)); ceiling = Math.max(FLOOR, next); ceilingAt = now; }
         }
       } else if (ema < 16.9) {
         hot = 0;

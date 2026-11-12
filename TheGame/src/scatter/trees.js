@@ -32,36 +32,36 @@ const clearAt = (p) => {
 //          cell one tree of one kind: a mix, not trees standing in each other); growth: its stages by age, the age
 //          from its stand (placement.age), the tree its stage scaled to its own height (assets/kit/tree.js)
 function treeIn(c, row, Lv, band, biome, shapes = 1, all = false, slice = [0, 1]) {
-  const a = row.asset, P = a.placement, GR = a.growth, AG = P.age, cx = c.x, cy = c.y;
+  const a = row.asset, P = a.placement, GR = a.growth, AG = P.age, cx = c.x, cy = c.y, K = (P.seed ?? 300) - 300, h0 = (k) => uint(k + K);   // its seed moves every hash: another seed, another stand
   const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), bucket = float(0).toVar();
-  const pos = vec2(c).add(0.08).add(vec2(rnd(cx, cy, uint(302)), rnd(cx, cy, uint(303))).mul(0.84)).mul(row.cell), dist = camDist(pos);
+  const pos = vec2(c).add(0.08).add(vec2(rnd(cx, cy, h0(302)), rnd(cx, cy, h0(303))).mul(0.84)).mul(row.cell), dist = camDist(pos);
   const range = all ? length(pos.sub(U.uCam.xz)) : dist;   // the shadow's stand-in: metres round the camera, whatever the lens
-  const kind = rnd(cx, cy, uint(320)), mine = slice[0] > 0 || slice[1] < 1 ? kind.greaterThanEqual(slice[0]).and(kind.lessThan(slice[1])) : float(1).greaterThan(0);   // this kind's cell of the mix
+  const kind = rnd(cx, cy, uint(320)), mine = slice[0] > 0 || slice[1] < 1 ? kind.greaterThanEqual(slice[0]).and(kind.lessThan(slice[1])) : float(1).greaterThan(0);   // this kind's cell of the mix (one hash for every kind of the biome, whatever their seeds: one tree a cell)
   If(range.lessThan(band.far).and(range.greaterThanEqual(band.near)).and(mine), () => {
-    const r0 = rnd(cx, cy, uint(300));
+    const r0 = rnd(cx, cy, h0(300));
     // groves and glades: a stand is not a plantation (a noise as wide as P.clumps sets how thick it grows here)
-    const grove = P.clumps ? smoothstep(0.22, 0.72, vnoise(pos.div(P.clumps), uint(308)).mul(0.7).add(vnoise(pos.div(P.clumps * 0.27), uint(310)).mul(0.3))).mul(1.6) : float(1), dens = grove.mul(P.density);
+    const grove = P.clumps ? smoothstep(0.22, 0.72, vnoise(pos.div(P.clumps), h0(308)).mul(0.7).add(vnoise(pos.div(P.clumps * 0.27), h0(310)).mul(0.3))).mul(1.6) : float(1), dens = grove.mul(P.density);
     If(r0.lessThan(shareOf(biome, { p: pos, dist, d: float(1e5), w: float(1), b: float(0) }).mul(dens)), () => {   // its stands, as if far from the river
       const I = riverInfo(pos), d = abs(I.x), w = I.y;
       If(r0.lessThan(shareOf(biome, { p: pos, dist, d, w, b: I.z }).mul(dens).mul(clearAt(pos))), () => {
-        const own = mix(P.scale[0], P.scale[1], rnd(cx, cy, uint(304))), s = float(1).toVar(), h = float(1).toVar();
+        const own = mix(P.scale[0], P.scale[1], rnd(cx, cy, h0(304))), s = float(1).toVar(), h = float(1).toVar();
         if (GR && AG) {   // as old as its stand: a slow noise gives the stand its age, a few saplings among the old
-          const stand = mix(AG.stand[0], AG.stand[1], vnoise(pos.div((P.clumps || 50) * 2.5), uint(311))), r = rnd(cx, cy, uint(312));
-          const age = rnd(cx, cy, uint(313)).lessThan(AG.young ?? 0).select(mix(AG.min ?? 2, stand.mul(0.45), r), stand.mul(mix(0.65, 1.3, r))).toVar();
+          const stand = mix(AG.stand[0], AG.stand[1], vnoise(pos.div((P.clumps || 50) * 2.5), h0(311))), r = rnd(cx, cy, h0(312));
+          const age = rnd(cx, cy, h0(313)).lessThan(AG.young ?? 0).select(mix(AG.min ?? 2, stand.mul(0.45), r), stand.mul(mix(0.65, 1.3, r))).toVar();
           GR.stages.forEach((S, i) => {
             const lo = i ? S.from : -1, hi = i < GR.stages.length - 1 ? S.to : 1e9;
             If(age.greaterThanEqual(lo).and(age.lessThan(hi)), () => {
               const t = clamp(log(max(age, S.from).div(S.from)).div(Math.log(S.to / S.from)), 0, 1), hh = mix(S.hFrom, S.hTo, t);
-              h.assign(hh.mul(own)); s.assign(hh.div(S.h).mul(own)); bucket.assign(floor(rnd(cx, cy, uint(309)).mul(S.variants)).add(S.offset));
+              h.assign(hh.mul(own)); s.assign(hh.div(S.h).mul(own)); bucket.assign(floor(rnd(cx, cy, h0(309)).mul(S.variants)).add(S.offset));
             });
           });
         } else {   // no growth: a shape at random, its size its placement's scale
-          s.assign(mix(P.scale[0], P.scale[1], pow(rnd(cx, cy, uint(304)), 1.3))); h.assign(s.mul(a.size.height)); bucket.assign(floor(rnd(cx, cy, uint(309)).mul(shapes)));
+          s.assign(mix(P.scale[0], P.scale[1], pow(rnd(cx, cy, h0(304)), 1.3))); h.assign(s.mul(a.size.height)); bucket.assign(floor(rnd(cx, cy, h0(309)).mul(shapes)));
         }
         const keep = all ? vec2(1, 0) : detailKeep(h.mul(PXK).div(max(dist, 1e-3)), Lv.lo, Lv.hi, row.detail.fade);   // its size on screen picks the level (the shadow's stand-in: every tree in its band)
         If(keep.x.greaterThan(0), () => {
           A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(0.15), s));
-          B.assign(vec4(rnd(cx, cy, uint(305)).mul(6.2831853), rnd(cx, cy, uint(306)).mul(6.2831853), rnd(cx, cy, uint(307)), keep.x.add(keep.y.mul(2))));
+          B.assign(vec4(rnd(cx, cy, h0(305)).mul(6.2831853), rnd(cx, cy, h0(306)).mul(6.2831853), rnd(cx, cy, h0(307)), keep.x.add(keep.y.mul(2))));
           alive.assign(1);
         });
       });

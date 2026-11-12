@@ -84,12 +84,12 @@ const boundsOf = (meshes) => {
 /** How a tree grows, worked out from its file's growth { years, variants, form, height }: one shape per stage and variant
     (form(year, v): its numbers at that age), each stage standing for the ages round it (from its geometric midpoints
     with the stages either side), a tree between drawn as its stage scaled to its own height (height(year), metres). */
-function stagesOf(G) {
+function stagesOf(G, seed) {
   const n = G.years.length, shapes = [], stages = [];
   G.years.forEach((year, i) => {
     const from = i ? Math.sqrt(G.years[i - 1] * year) : G.min ?? 1, to = i < n - 1 ? Math.sqrt(year * G.years[i + 1]) : G.max ?? 300, k = G.variants?.[i] ?? 1;
     stages.push({ year, from, to, offset: shapes.length, variants: k, h: G.height(year), hFrom: G.height(from), hTo: G.height(to) });
-    for (let v = 0; v < k; v++) shapes.push({ ...G.form(year, v), year, stage: i, variant: v });
+    for (let v = 0; v < k; v++) shapes.push({ ...G.form(year, v, seed), year, stage: i, variant: v });   // its seed: another seed, other trees of the same kind
   });
   /** a tree of this age: which of the shapes (variant v of its stage) and its scale */
   const at = (age, v = 0) => {
@@ -102,8 +102,9 @@ function stagesOf(G) {
 /** A tree file's recipe made whole: its levels' meshes (one per shape), its shade, its size and its trunks' bodies. With
     growth, its shapes are its stages of growth (and their variants), and a tree in the world is as old as its stand says
     (placement.age, src/scatter/trees.js). */
-export function tree({ shapes = [{}], growth, grow, shade, levels, shadow = {}, ...rest }) {
-  const G = growth ? stagesOf(growth) : null; if (G) shapes = G.shapes;
+export function tree(recipe) {
+  const { shapes: own = [{}], growth, grow, shade, levels, shadow = {}, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
+  const G = growth ? stagesOf(growth, seed) : null, shapes = G ? G.shapes : own;
   const built = levels.map((L, q) => { const meshes = shapes.map((s, i) => grow(q, s, i)); return { mesh: meshes[0], meshes, P: L.P }; });
   const shades = shade ? shapes.map((s, i) => shade(s, i)) : null;
   const near = built[0].meshes;
@@ -113,6 +114,8 @@ export function tree({ shapes = [{}], growth, grow, shade, levels, shadow = {}, 
     trunk: near.map((m) => m.body ?? [0, 0, 0.12]),   // each shape's trunk at a walker's chest: where it stands off its foot, its radius (src/world/trunks.js)
     heights: near.map((m) => boundsOf([m]).height),   // each shape's own height
     ...(G ? { growth: { years: growth.years, stages: G.stages, at: G.at, height: growth.height } } : {}),
+    /** the same kind of tree grown from another seed: other shapes, other places (the library's Random) */
+    regrow: (s) => tree({ ...recipe, placement: { ...recipe.placement, seed: s } }),
     // meshes: one per shape (mesh: the first, for a single picture); shadow: drawn into the shadow map for every tree
     // within `far` metres whose shade can reach the view (`reach`: how far a crown's shadow falls)
     detail: { ...(rest.detail || {}), levels: built, ...(shades ? { shadow: { meshes: shades, far: 80, reach: 22, ...shadow } } : {}) },

@@ -74,13 +74,19 @@ export function terrainMaterial(tex) {
     const tint = vTint;
     // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up
     // (the far take is two, turned and at scales with no whole ratio, blended by a slow mask: no grid of the same tufts from high up)
-    const g1 = tex.a(carpet, p.div(1.6)), g2 = tex.a(carpet, pr.div(9.6)), gk3 = smoothstep(0.35, 0.65, nz(pr.mul(1 / 431).add(0.61)).g);
-    const g3 = mix(tex.a(carpet, prr.div(57)), tex.a(carpet, rot(prr).div(80.6).add(0.37)), gk3);
-    const gn1 = tex.n(carpet, p.div(1.6)), gn2 = tex.n(carpet, pr.div(9.6));
-    const gk = smoothstep(25, 110, dist2), gk2 = smoothstep(300, 1400, dist2);
-    const glum = mix(mix(g1.a, g2.a, gk), mix(g2.a, g3.a, 0.6), gk2);
+    // (each size read only where it shows: the blades' within 110 m, the drifts' past 300; in a branch a texture is read
+    // with its gradients given, as a shader may not work them out there)
+    const gk = smoothstep(25, 110, dist2), gk2 = smoothstep(300, 1400, dist2), dpr = rot(dx), dpr2 = rot(dy), dqx = rotB(dx), dqy = rotB(dy);
+    const g2 = tex.a(carpet, pr.div(9.6)), gn2 = tex.n(carpet, pr.div(9.6));
+    const g1a = float(0).toVar(), gn1 = vec2(0).toVar(), g3a = float(0).toVar();
+    If(gk.lessThan(1), () => { g1a.assign(tex.a(carpet, p.div(1.6)).grad(dx.div(1.6), dy.div(1.6)).a); gn1.assign(tex.n(carpet, p.div(1.6)).grad(dx.div(1.6), dy.div(1.6)).xy.mul(2).sub(1)); });
+    If(gk2.greaterThan(0), () => {
+      const gk3 = smoothstep(0.35, 0.65, tex.a(noise, pr.mul(1 / 431).add(0.61)).grad(dpr.mul(1 / 431), dpr2.mul(1 / 431)).g);
+      g3a.assign(mix(tex.a(carpet, prr.div(57)).grad(dqx.div(57), dqy.div(57)).a, tex.a(carpet, rot(prr).div(80.6).add(0.37)).grad(rot(dqx).div(80.6), rot(dqy).div(80.6)).a, gk3));
+    });
+    const glum = mix(mix(g1a, g2.a, gk), mix(g2.a, g3a, 0.6), gk2);
     const gq0 = gn2.xy.mul(2).sub(1), gq = vec2(gq0.x.mul(0.6).add(gq0.y.mul(0.8)), gq0.x.mul(-0.8).add(gq0.y.mul(0.6)));
-    const gnrm = mix(gn1.xy.mul(2).sub(1), gq, gk).mul(float(1).sub(gk2.mul(0.7)));
+    const gnrm = mix(gn1, gq, gk).mul(float(1).sub(gk2.mul(0.7)));
     const path = placeOff(p, pathMask(vPth)).mul(float(1).sub(smoothstep(70, 220, dist2)));   // a path is a thing of the near ground
     const stage = stageAt(p), bare = max(dist2.lessThan(160).select(bareMask(p).mul(float(1).sub(smoothstep(100, 160, dist2))), float(0)), stage);   // the library's stage is bare of grass
 
@@ -89,7 +95,9 @@ export function terrainMaterial(tex) {
     const twoTakes = dist2.lessThan(ign(screenCoordinate.xy).mul(80).add(240));
     // ... but a single take's repeat would show from high up as a grid: it is pushed about by a slow noise (metres, over
     // hundreds of metres), so no two tiles lie the same (near by, where both takes are read, the push is let go)
-    const wob = vec2(nz(p.mul(1 / 131)).g, nz(pr.mul(1 / 157).add(0.3)).b).sub(0.5).mul(smoothstep(200, 320, dist2).mul(9)), pw = p.add(wob);
+    const wob = vec2(0).toVar();
+    If(dist2.greaterThan(200), () => { wob.assign(vec2(tex.a(noise, p.mul(1 / 131)).grad(dx.mul(1 / 131), dy.mul(1 / 131)).g, tex.a(noise, pr.mul(1 / 157).add(0.3)).grad(dpr.mul(1 / 157), dpr2.mul(1 / 157)).b).sub(0.5).mul(smoothstep(200, 320, dist2).mul(9))); });
+    const pw = p.add(wob);
     const smp = (S) => {
       const a1 = tex.a(S.m, pw.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1)), n1 = tex.n(S.m, pw.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1));
       const c = a1.rgb.mul(a1.rgb).toVar(), h = a1.a.toVar(), n = n1.xy.mul(2).sub(1).toVar();
@@ -138,7 +146,7 @@ export function terrainMaterial(tex) {
       const fade = smoothstep(bio.canopy.from, bio.canopy.to, dist2);
       If(wt.mul(fade).greaterThan(0.003), () => {
         const P = recipes('asset').find((o) => o.placement?.engine === 'trees' && o.placement.biome === bio.uid)?.placement, cl = P?.clumps;
-        const grove = cl ? smoothstep(0.22, 0.72, vnoise(p.div(cl), uint(308)).mul(0.7).add(vnoise(p.div(cl * 0.27), uint(310)).mul(0.3))).mul(1.6) : float(1);
+        const K = (P?.seed ?? 300) - 300, grove = cl ? smoothstep(0.22, 0.72, vnoise(p.div(cl), uint(308 + K)).mul(0.7).add(vnoise(p.div(cl * 0.27), uint(310 + K)).mul(0.3))).mul(1.6) : float(1);   // (its seed's groves, as its trees')
         const cover = clamp(wt.mul(grove).mul((P?.density ?? 1) * 2.4), 0, 1);   // the ground under crowns: a tree a cell crowns some 2.4 cells
         const n = nz(p.div(23).add(0.7)).r.mul(0.35).add(nz(prr.div(31.7).add(0.2)).g.mul(0.35)).add(nz(pr.div(9.3)).g.mul(0.3));   // (takes at scales with no whole ratio: no grid of crowns)
         const under = smoothstep(float(1.08).sub(cover.mul(0.75)), float(1.22).sub(cover.mul(0.75)), n.add(cover.mul(0.45)));   // where a crown is, as many as cover says

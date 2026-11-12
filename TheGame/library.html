@@ -139,7 +139,7 @@ for (const b of document.querySelectorAll('.item[data-id]')) {
 
 // the stage: what stands on it now
 let staged = null, ground0 = heightAt(STAGE.x, STAGE.z), H = 1, yaw = 2.6, pitch = 0.32, dist = 9, spin = true, seed = null;
-let age = 70, growRow = false;   // a tree that grows: the age it is shown at, or every stage of its growth in a row
+let age = 70, growRow = false; const regrown = {};   // a tree that grows: the age it is shown at, or every stage of its growth in a row
 let cardTab = 'info', lodAt = null, showBody = false, bodyLines = null;   // showBody: the asset's collision drawn on the stage (intent 0003)   // the asset card's tab; the level of detail being looked at (null: none chosen)
 function clearStage() { ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BASE)); if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); staged = null; } }
 function stageAsset(a) {
@@ -153,7 +153,8 @@ function stageAsset(a) {
     }
     scene.add(staged);
   } else if (a.placement.engine === 'trees') {   // a tree: one, at the level being looked at, in the trees' own material
-    const row = scatterRow(a), lv = lodAt ?? 0, G = a.growth;
+    const A = seed != null && a.regrow ? (regrown[`${a.uid}:${seed}`] ??= a.regrow(seed)) : a;   // another seed: the same kind grown again, other shapes
+    const row = scatterRow(A), lv = lodAt ?? 0, G = A.growth;
     if (G && growRow) {   // its growth: a tree of every stage, youngest to oldest, in a row across the stage
       staged = new THREE.Group(); const at = G.years.map((y) => G.at(y)), w = at.map((t) => G.height(G.years[at.indexOf(t)]) * 0.55);
       let x = -w.reduce((s, v) => s + v, 0);
