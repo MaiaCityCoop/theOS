@@ -12,7 +12,7 @@
 //   lock    the mouse is held for looking (pointer lock) in this band; elsewhere it is a free pointer, to point and pick
 export default {
   eye: 1.7,            // the walker's eyes
-  top: 12000,          // the highest it goes: the city and the horizon (the height fog thins the air up there, LIGHT_GLSL)
+  top: 12000,          // the highest it goes: the city and the horizon (the height fog thins the air up there, src/world/light.js)
   wheel: 0.0016,       // how fast the wheel changes the height (its logarithm per wheel step)
   climb: 0.75,         // on foot: the steepest ground walked up (metres up per metre on); steeper stops you, as a cut bank does
   stepUp: 0.25,        // a rise lower than this is stepped up whatever its slope (a kerb, a root)

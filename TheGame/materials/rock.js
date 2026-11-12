@@ -1,8 +1,10 @@
 // Rock: ridges, strata, cracks, lichen. A material of the world, in the one recipe every material follows (materials/index.js):
 // what it is, where the world uses it, how deep its relief is, and how it is painted, once, at the start.
 //
-// `paint` is GLSL: from uv (0..1, tiling) it sets h (height 0..1), col (albedo, linear) and rough (0..1), with the
-// noises of the baker (pn, pfbm, pvor, fibre, pebbles: src/materials/bake.js) to hand.
+// `paint` is node code (TSL): from uv (0..1, tiling) it returns { h (height 0..1), col (albedo, linear), rough (0..1) },
+// painted with the tiling noises of src/materials/paint.js.
+import { float, vec2, vec3, mix, smoothstep, step, fract, sin, abs, max, clamp } from 'three/tsl';
+import { pn, pfbm, pvor, fibre, pebbles } from '../src/materials/paint.js';
 export default {
   id: 'rock',
   name: "Rock",
@@ -11,17 +13,15 @@ export default {
   usedBy: "stones and boulders; steep slopes",
   swatch: [0.22, 0.21, 0.2],
   bump: 0.035,   // how deep its relief reads in the normals: larger is flatter
-  paint: /* glsl */ `
-float rid = 0.0, a = 0.5, per = 4.0;
-for (int i = 0; i < 6; i++) { rid += a * (1.0 - abs(2.0 * pn(uv * per, vec2(per), 1u + uint(i)) - 1.0)); per *= 2.0; a *= 0.5; }
-float warp = pfbm(uv, 3.0, 9u, 3);
-float strata = sin(6.2831853 * (uv.y * 9.0 + warp * 3.0)) * 0.5 + 0.5;
-vec3 v = pvor(uv * 5.0 + warp, 5.0, 12u); float crack = 1.0 - smoothstep(0.0, 0.035, v.y - v.x);
-float grain = pn(uv * 220.0, vec2(220.0), 13u), lich = smoothstep(0.62, 0.72, pfbm(uv, 9.0, 14u, 3));
-h = rid * 0.6 + strata * 0.15 + grain * 0.07 - crack * 0.35 + 0.15;
-col = mix(vec3(0.12, 0.115, 0.11), vec3(0.27, 0.26, 0.24), rid) * mix(vec3(1.0, 0.94, 0.86), vec3(0.9, 0.96, 1.0), strata) * (0.85 + 0.3 * grain);
-col = mix(col, vec3(0.03), crack * 0.8);
-col = mix(col, vec3(0.33, 0.35, 0.22), lich * 0.6);
-rough = 0.8;
-`,
+  paint: (uv) => {
+    let rid = float(0), a = 0.5, per = 4;
+    for (let i = 0; i < 6; i++) { rid = rid.add(float(1).sub(abs(pn(uv.mul(per), per, 1 + i).mul(2).sub(1))).mul(a)); per *= 2; a *= 0.5; }
+    const warp = pfbm(uv, 3, 9, 3);
+    const strata = sin(uv.y.mul(9).add(warp.mul(3)).mul(6.2831853)).mul(0.5).add(0.5);
+    const v = pvor(uv.mul(5).add(warp), 5, 12), crack = float(1).sub(smoothstep(0, 0.035, v.y.sub(v.x)));
+    const grain = pn(uv.mul(220), 220, 13), lich = smoothstep(0.62, 0.72, pfbm(uv, 9, 14, 3));
+    const h = rid.mul(0.6).add(strata.mul(0.15)).add(grain.mul(0.07)).sub(crack.mul(0.35)).add(0.15);
+    const c0 = mix(vec3(0.12, 0.115, 0.11), vec3(0.27, 0.26, 0.24), rid).mul(mix(vec3(1, 0.94, 0.86), vec3(0.9, 0.96, 1), strata)).mul(grain.mul(0.3).add(0.85));
+    return { h, col: mix(mix(c0, vec3(0.03), crack.mul(0.8)), vec3(0.33, 0.35, 0.22), lich.mul(0.6)), rough: float(0.8) };
+  },
 };

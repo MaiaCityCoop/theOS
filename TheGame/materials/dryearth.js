@@ -1,8 +1,10 @@
 // Dry earth: cracked plates. A material of the world, in the one recipe every material follows (materials/index.js):
 // what it is, where the world uses it, how deep its relief is, and how it is painted, once, at the start.
 //
-// `paint` is GLSL: from uv (0..1, tiling) it sets h (height 0..1), col (albedo, linear) and rough (0..1), with the
-// noises of the baker (pn, pfbm, pvor, fibre, pebbles: src/materials/bake.js) to hand.
+// `paint` is node code (TSL): from uv (0..1, tiling) it returns { h (height 0..1), col (albedo, linear), rough (0..1) },
+// painted with the tiling noises of src/materials/paint.js.
+import { float, vec2, vec3, mix, smoothstep, step, fract, sin, abs, max, clamp } from 'three/tsl';
+import { pn, pfbm, pvor, fibre, pebbles } from '../src/materials/paint.js';
 export default {
   id: 'dryearth',
   name: "Dry earth",
@@ -11,16 +13,14 @@ export default {
   usedBy: "the terrain where the land is dry",
   swatch: [0.33, 0.25, 0.16],
   bump: 0.014,   // how deep its relief reads in the normals: larger is flatter
-  paint: /* glsl */ `
-vec2 warp = vec2(pn(uv * 4.0, vec2(4.0), 1u), pn(uv * 4.0, vec2(4.0), 2u)) * 0.5;
-vec3 v = pvor(uv * 7.0 + warp, 7.0, 3u); vec3 v2 = pvor(uv * 19.0 + warp * 2.0, 19.0, 4u);
-float e1 = v.y - v.x, e2 = v2.y - v2.x;
-float crack = 1.0 - smoothstep(0.0, 0.07, e1), fine = (1.0 - smoothstep(0.0, 0.05, e2)) * 0.45;
-float dust = pfbm(uv, 8.0, 5u, 5), grain = pn(uv * 200.0, vec2(200.0), 6u);
-float cr = max(crack, fine);
-h = (1.0 - cr) * (0.62 + 0.12 * smoothstep(0.0, 0.4, e1) + 0.1 * dust) + grain * 0.06;
-col = mix(vec3(0.27, 0.20, 0.125), vec3(0.37, 0.29, 0.185), fract(v.z * 7.0)) * (0.8 + 0.4 * dust) * (0.92 + 0.16 * grain);
-col = mix(col, vec3(0.07, 0.05, 0.03), cr * 0.9);
-rough = 0.9;
-`,
+  paint: (uv) => {
+    const warp = vec2(pn(uv.mul(4), 4, 1), pn(uv.mul(4), 4, 2)).mul(0.5);
+    const v = pvor(uv.mul(7).add(warp), 7, 3), v2 = pvor(uv.mul(19).add(warp.mul(2)), 19, 4);
+    const e1 = v.y.sub(v.x), e2 = v2.y.sub(v2.x);
+    const crack = float(1).sub(smoothstep(0, 0.07, e1)), fine = float(1).sub(smoothstep(0, 0.05, e2)).mul(0.45);
+    const dust = pfbm(uv, 8, 5, 5), grain = pn(uv.mul(200), 200, 6), cr = max(crack, fine);
+    const h = float(1).sub(cr).mul(float(0.62).add(smoothstep(0, 0.4, e1).mul(0.12)).add(dust.mul(0.1))).add(grain.mul(0.06));
+    const c0 = mix(vec3(0.27, 0.20, 0.125), vec3(0.37, 0.29, 0.185), fract(v.z.mul(7))).mul(dust.mul(0.4).add(0.8)).mul(grain.mul(0.16).add(0.92));
+    return { h, col: mix(c0, vec3(0.07, 0.05, 0.03), cr.mul(0.9)), rough: float(0.9) };
+  },
 };

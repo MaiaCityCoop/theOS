@@ -1,11 +1,13 @@
 // The sun and the sky (intent 0007): one time of day drives the light. From the hour, the date and the latitude
 // (world/sky.js) the sun's and the moon's places; from the sun's height the sky's colours, the sun's light, the sky's
-// light, the haze and the exposure, written to the shading contract's uniforms (LIGHT_GLSL), so every material follows;
+// light, the haze and the exposure, written to the shading contract's uniforms (src/core/uniforms.js), so every material follows;
 // and a dome round the camera that draws the sky itself, with the sun, the moon and the stars. A small clock in the top
 // right corner steers it by hand or lets it run.
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
+import { Fn, float, vec3, uniform, varying, positionGeometry, normalize, max, mix, pow, smoothstep, step, sin, dot, floor, fract } from 'three/tsl';
 import SKY from '../../world/sky.js';
-import { LIGHT_GLSL } from './light.glsl.js';
+import { U } from '../core/uniforms.js';
+import { toScreen } from './light.js';
 
 const RAD = Math.PI / 180;
 
@@ -24,49 +26,49 @@ export function moonAt(hour, day, lat) {
   return { ...sunAt(hour - lag, day + phase * 365, lat), phase };
 }
 
-const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+const lerp3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 /** The light by the sun's height (degrees): the file's keys, eased between. */
 export function lightAt(altDeg) {
   const K = SKY.keys; let i = 0;
   if (altDeg <= K[0].alt) return { ...K[0] };
   while (i < K.length - 2 && altDeg > K[i + 1].alt) i++;
   const a = K[i], b = K[i + 1], t0 = Math.min(1, Math.max(0, (altDeg - a.alt) / (b.alt - a.alt))), t = t0 * t0 * (3 - 2 * t0);
-  return { zenith: mix(a.zenith, b.zenith, t), horizon: mix(a.horizon, b.horizon, t), sun: mix(a.sun, b.sun, t), amb: mix(a.amb, b.amb, t), glow: mix(a.glow, b.glow, t), exposure: a.exposure + (b.exposure - a.exposure) * t };
+  return { zenith: lerp3(a.zenith, b.zenith, t), horizon: lerp3(a.horizon, b.horizon, t), sun: lerp3(a.sun, b.sun, t), amb: lerp3(a.amb, b.amb, t), glow: lerp3(a.glow, b.glow, t), exposure: a.exposure + (b.exposure - a.exposure) * t };
 }
 
-const DOME = {
-  vertexShader: /* glsl */ `out vec3 vDir; void main(){ vDir = position; vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position = p.xyww; }`,
-  fragmentShader: /* glsl */ `
-    uniform vec3 uZenith, uHorizon, uGlow, uSunL, uSunD, uMoonD; uniform float uDark, uMoonPhase, uMoonSize, uStars, uStarBright;
-    ${LIGHT_GLSL}
-    in vec3 vDir;
-    float h3(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
-    void main(){
-      vec3 v = normalize(vDir); float y = v.y;
-      vec3 col = mix(uHorizon, uZenith, pow(max(y, 0.0), 0.55));                 // the sky from the horizon up
-      if (y < 0.0) col = uHorizon * mix(1.0, 0.75, smoothstep(0.0, -0.3, y));    // below the horizon: what the far land hides
-      float s = max(dot(v, uSunD), 0.0);
-      col += uGlow * (pow(s, 5.0) * 0.55 + pow(s, 48.0) * 0.6) * (0.6 + 0.4 * (1.0 - max(y, 0.0)));   // the glow round the sun, strongest low
-      col += uSunL * 6.0 * smoothstep(0.99989, 0.99994, s) * step(-0.02, uSunD.y);  // the sun's disc
-      float m = dot(v, uMoonD);
-      if (uMoonD.y > -0.05 && m > cos(uMoonSize)) col += vec3(0.85, 0.87, 0.92) * (0.35 + 0.65 * uDark) * (0.25 + 0.75 * sin(3.14159 * uMoonPhase));   // the moon, brighter full and by night
-      if (uDark > 0.01 && y > 0.0) {   // the stars, as the sky darkens
-        vec3 c = floor(v * 260.0); float r = h3(c);
-        if (r > 1.0 - uStars) { vec3 q = fract(v * 260.0) - 0.5; float k = smoothstep(0.22, 0.0, length(q)) * (0.4 + 0.6 * h3(c + 7.0)); col += vec3(0.85, 0.9, 1.0) * k * uStarBright * uDark * smoothstep(0.0, 0.15, y); }
-      }
-      gl_FragColor = toScreen(col);
-    }`,
+// the dome's own uniforms: its colours by the hour, where the sun and the moon stand, how dark it is, the moon's phase
+const D = {
+  zenith: uniform(new THREE.Vector3()), horizon: uniform(new THREE.Vector3()), glow: uniform(new THREE.Vector3()), sunL: uniform(new THREE.Vector3()),
+  sunD: uniform(new THREE.Vector3(0, 1, 0)), moonD: uniform(new THREE.Vector3(0, -1, 0)), dark: uniform(0), phase: uniform(0.5),
 };
+const h3 = (p) => fract(sin(dot(p, vec3(127.1, 311.7, 74.7))).mul(43758.5453));
+function dome(camera) {
+  const vDir = varying(positionGeometry);
+  const mat = new THREE.NodeMaterial(); mat.side = THREE.BackSide; mat.depthWrite = false; mat.depthTest = false;
+  mat.fragmentNode = Fn(() => {
+    const v = normalize(vDir), y = v.y;
+    const col = mix(D.horizon, D.zenith, pow(max(y, 0), 0.55)).toVar();                                   // the sky from the horizon up
+    col.assign(y.lessThan(0).select(D.horizon.mul(mix(1, 0.75, smoothstep(0, -0.3, y))), col));          // below the horizon: what the far land hides
+    const s = max(v.dot(D.sunD), 0);
+    col.addAssign(D.glow.mul(pow(s, 5).mul(0.55).add(pow(s, 48).mul(0.6))).mul(float(1).sub(max(y, 0)).mul(0.4).add(0.6)));   // the glow round the sun, strongest low
+    col.addAssign(D.sunL.mul(6).mul(smoothstep(0.99989, 0.99994, s)).mul(step(-0.02, D.sunD.y)));       // the sun's disc
+    col.addAssign(vec3(0.85, 0.87, 0.92).mul(D.dark.mul(0.65).add(0.35)).mul(sin(D.phase.mul(Math.PI)).mul(0.75).add(0.25))
+      .mul(step(-0.05, D.moonD.y)).mul(step(Math.cos(SKY.moon.size), v.dot(D.moonD))));                 // the moon, brighter full and by night
+    const c = floor(v.mul(260)), q = fract(v.mul(260)).sub(0.5);                                           // the stars, as the sky darkens
+    const star = step(1 - SKY.stars.count, h3(c)).mul(smoothstep(0.22, 0, q.length())).mul(h3(c.add(7)).mul(0.6).add(0.4));
+    col.addAssign(vec3(0.85, 0.9, 1).mul(star).mul(SKY.stars.bright).mul(D.dark).mul(smoothstep(0, 0.15, y)).mul(step(0, y)));
+    return toScreen(col);
+  })();
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), mat);
+  m.scale.setScalar(20000); m.renderOrder = -100; m.frustumCulled = false; m.onBeforeRender = () => m.position.copy(camera.position);
+  return m;
+}
 
-export function createSky(scene, camera, U, renderer) {
+export function createSky(scene, camera, renderer) {
   const keep = (k, v) => { try { localStorage.setItem('maia.sky.' + k, JSON.stringify(v)); } catch {} };
   const kept = (k, d) => { try { const v = JSON.parse(localStorage.getItem('maia.sky.' + k)); return v ?? d; } catch { return d; } };
   let hour = kept('hour', SKY.hour), auto = kept('auto', SKY.auto), shown = -1;
-  U.uExposure = U.uExposure || { value: 1 };
-  const du = { uZenith: { value: new THREE.Vector3() }, uHorizon: { value: new THREE.Vector3() }, uGlow: { value: new THREE.Vector3() }, uSunL: { value: new THREE.Vector3() }, uSunD: { value: new THREE.Vector3(0, 1, 0) }, uMoonD: { value: new THREE.Vector3(0, -1, 0) }, uDark: { value: 0 }, uMoonPhase: { value: 0.5 }, uMoonSize: { value: SKY.moon.size }, uStars: { value: SKY.stars.count }, uStarBright: { value: SKY.stars.bright } };
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, depthTest: false, uniforms: { ...U, ...du }, ...DOME }));
-  dome.scale.setScalar(20000); dome.renderOrder = -100; dome.frustumCulled = false; dome.onBeforeRender = () => dome.position.copy(camera.position);
-  scene.add(dome);
+  scene.add(dome(camera));
   const v3 = (u, a) => u.value.set(a[0], a[1], a[2]);
 
   function apply() {
@@ -80,8 +82,8 @@ export function createSky(scene, camera, U, renderer) {
     U.uSky.value.set((L.horizon[0] + L.zenith[0]) / 2, (L.horizon[1] + L.zenith[1]) / 2, (L.horizon[2] + L.zenith[2]) / 2);   // the sky as the water mirrors it
     v3(U.uHazeCol, L.horizon);   // the far land melts into the sky's horizon of this hour
     U.uExposure.value = L.exposure;
-    v3(du.uZenith, L.zenith); v3(du.uHorizon, L.horizon); v3(du.uGlow, L.glow); v3(du.uSunL, L.sun); du.uSunD.value.copy(sun.dir); du.uMoonD.value.copy(moon.dir);
-    du.uDark.value = 1 - Math.min(1, Math.max(0, (sun.alt / RAD + 14) / 12)); du.uMoonPhase.value = moon.phase;
+    v3(D.zenith, L.zenith); v3(D.horizon, L.horizon); v3(D.glow, L.glow); v3(D.sunL, L.sun); D.sunD.value.copy(sun.dir); D.moonD.value.copy(moon.dir);
+    D.dark.value = 1 - Math.min(1, Math.max(0, (sun.alt / RAD + 14) / 12)); D.phase.value = moon.phase;
     const c = L.horizon.map((x) => Math.pow(1 - Math.exp(-x * 1.25 * L.exposure), 1 / 2.2)); renderer.setClearColor(new THREE.Color().setRGB(c[0], c[1], c[2], THREE.LinearSRGBColorSpace));
   }
 

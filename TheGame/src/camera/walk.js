@@ -1,6 +1,6 @@
 // First person: WASD, Shift to run, the mouse looks (click to lock it). F flies; Space / C rise and sink.
 import { PLACES } from '../world/places.js';
-import { heightAt, riverAt, aridAt } from '../world.js';
+import { heightAt, riverAt, aridAt } from '../world/land.js';
 import { step, ceilingAt } from '../world/solids.js';
 
 export function createControls(camera, canvas, msg) {

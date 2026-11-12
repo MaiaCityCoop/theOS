@@ -5,7 +5,7 @@ export default {
   name: 'Cut bank',
   kind: 'bare earth',
   about: 'A low cliff of bare earth on the outside of a bend, cut by the current; deep water at its foot, grass hanging over its edge.',
-  where: 'cutbank',                                        // laid where the bank is steep, on a bend's outside (cutMask, src/world/land.glsl.js)
+  where: 'cutbank',                                        // laid where the bank is steep, on a bend's outside (cutMask, src/world/land.nodes.js)
   floor: { material: 'dryearth', tile: [1.6, 2.6] },
   grass: null,
   stones: 0.12,

@@ -17,13 +17,18 @@ the files named here.
 
 | Folder | Its job | Extend it by |
 | --- | --- | --- |
-| `src/world/` | The land as functions of a place: height, river, what grows where. Once in JS (`land.js`, for feet and cameras) and once in GLSL (`land.glsl.js`, for the GPU), constant for constant. `light.glsl.js`: the light every material shares. Imported everywhere through `src/world.js`. | a new field of the land: a function in both files |
-| `src/core/` | What everything shares: the uniforms (`uniforms.js`), the frustum (`frustum.js`), the governor (`governor.js`: frame budget in, detail and pixels out), the readout (`hud.js`). | a new shared uniform; a new dial for the governor |
-| `src/materials/` | The ground's textures, painted once at start by the GPU (`bake.js`). | a new material: a `MAT` case |
-| `src/terrain/` | The ground and the water: a quadtree of one shared tile (`terrain.js`), their shaders apart (`terrain.glsl.js`, `water.glsl.js`). | a new ground layer in the fragment shader |
+| `src/world/` | The land as functions of a place: height, river, what grows where. Once in JS (`land.js`, for feet and cameras) and once as node code (`land.nodes.js`, for the GPU), constant for constant. `light.js`: the shading contract every material reads (sun, sky light, haze, weather, shadows, the hand-over between levels). `sky.js` the hour's light and the dome; `shadow.js` the shadow map; `place.js` stands a made thing; `places.js`, `solids.js` where things stand and what can't be walked through. | a new field of the land: a function in both land files |
+| `src/core/` | What everything shares: the uniforms (`uniforms.js`, node uniforms every material reads), the frustum (`frustum.js`), the governor (`governor.js`: frame budget in, detail and pixels out), the readout (`hud.js`). | a new shared uniform |
+| `src/materials/` | The world's textures, painted once at start by the GPU into one texture array (`bake.js`), with the tiling noises the painters use (`paint.js`); the library's previews (`preview.js`). | a new material: a file in `materials/` and a line in its index |
+| `src/terrain/` | The ground and the water: a quadtree of one shared tile (`terrain.js`), their materials (`material.js`, `water.js`). | a new ground layer in `material.js` |
 | `src/scatter/` | What stands on the land. `assets.js` is the table (each asset: its kind, its particulars, its tiers). `tier.js` draws one tier as one instanced call over the patches the frustum touches. `ground.js` is the map of the ground the tiers read. `grass.js`, `rocks.js` are the kinds. `index.js` builds every asset of the table. | a new plant or rock: a row in `assets.js`; a new sort of thing: a kind module, named in `index.js` |
-| `src/camera/` | The walker (`walk.js`) and the lens's picture (`post.js`: depth of field, the glass). | a new post effect in the lens's pass |
-| `cine/` | The virtual camera, outside the game: it needs only `window.__s8.camera` and `src/world.js`. Lenses, timelines, the composer, the bench. | see `cine/README.md` |
+| `src/detail/` | Levels of detail by size on screen, with a dithered hand-over (`index.js`), and far cards (`impostor.js`). | an asset's own `detail` block |
+| `src/camera/` | The one camera (`rig.js`), the walker (`walk.js`), touch (`touch.js`), and the lens's picture (`post.js`: depth of field, the glass). | a new post effect in the lens's pass |
+| `cine/` | The virtual camera, outside the game: it needs only `window.__s8.camera` and `src/world/land.js`. Lenses, timelines, the composer, the bench. | see `cine/README.md` |
+
+Drawn by three's `WebGPURenderer` (WebGL 2 where WebGPU is missing; `?webgl` forces it). Every material is node
+code (TSL, `three/tsl`): three writes WGSL for WebGPU and GLSL for the fallback from the same nodes. There is no
+hand-written shader text in the game.
 
 `src/main.js` only wires these and runs the frame: place the camera, let the governor name the
 detail, choose what to draw (ground map, terrain nodes, scatter patches), draw.

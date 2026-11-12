@@ -4,8 +4,9 @@
 //
 // A level i is drawn while the asset is between lo (its px) and hi (the level before's px) pixels tall on screen.
 // Around each boundary both levels draw, each keeping its share of the pixels by the same screen noise, so together
-// they cover every pixel once (DETAIL_GLSL and LIGHT_GLSL's detailCut, src/world/).
-import * as THREE from 'three';
+// they cover every pixel once (detailKeep and detailCut in src/world/light.js).
+import * as THREE from 'three/webgpu';
+import { U } from '../core/uniforms.js';
 import KINDS from '../../assets/kinds.js';
 
 const most = (v) => (Array.isArray(v) ? v[1] : v);
@@ -37,7 +38,7 @@ export function keepOf(px, lo, hi, f) {
 export const distanceAt = (px, span, h) => (span * pxK(h)) / px;
 
 /** Keep uPxK current: the scatter's levels and every placed asset measure by it. */
-export function trackView(U, onChange) {
+export function trackView(onChange) {
   const set = () => { U.uPxK.value = pxK(); onChange?.(); };
   set(); addEventListener('resize', set);
 }
@@ -47,19 +48,19 @@ export function trackView(U, onChange) {
  * large the asset is on screen and shows the one or two levels that size calls for, each with its share of pixels.
  */
 export class Detailed extends THREE.LOD {
-  constructor(asset, meshes, U) {
-    super(); this.d = detailOf(asset); this.span = spanOf(asset); this.U = U; this.meshes = meshes;
+  constructor(asset, meshes) {
+    super(); this.d = detailOf(asset); this.span = spanOf(asset); this.meshes = meshes;
     for (const m of meshes) { if (this.d.casts) m.layers.enable(1); this.add(m); }   // every level casts a shadow, as drawn, unless the asset says not (src/world/shadow.js)
     this.px = 0; this.level = 0;
   }
   update(camera) {
     if (camera.userData.shadow) return;   // the shadow's camera keeps the levels the eye chose
     const d = Math.max(0.01, camera.getWorldPosition(_a).distanceTo(this.getWorldPosition(_b)));
-    const px = (this.px = (this.span * this.U.uPxK.value) / (d * this.U.uLodInv.value));   // the lens and the detail governor count, as for the scatter
+    const px = (this.px = (this.span * U.uPxK.value) / (d * U.uLodInv.value));   // the lens and the detail governor count, as for the scatter
     const { levels, fade } = this.d; let shown = -1;
     for (let i = 0; i < levels.length; i++) {
       const [keep, side] = keepOf(px, levels[i].lo, levels[i].hi, fade), m = this.meshes[i];
-      m.visible = keep > 0; m.material.uniforms.uKeep.value.set(keep, side);
+      m.visible = keep > 0; m.material.keep.value.set(keep, side);
       if (keep > 0 && shown < 0) shown = i;
     }
     this.level = shown;   // the finest level drawing now (-1: none)

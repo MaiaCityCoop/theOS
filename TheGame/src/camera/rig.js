@@ -3,7 +3,7 @@
 // down at it, a city-builder's camera (move, turn); at the top, the whole city. Every number of how it behaves at a
 // height is in camera/rig.js; here only the mechanics. Walls, rocks and the ground stop it (src/world/solids.js).
 import RIG from '../../camera/rig.js';
-import { heightAt } from '../world.js';
+import { heightAt } from '../world/land.js';
 import { step, ceilingAt, clear, within } from '../world/solids.js';
 import { createTouch } from './touch.js';
 

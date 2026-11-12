@@ -1,6 +1,6 @@
 import { PLACES } from './places.js';
 // The land, as one function of (x, z): the same integer-hash noise in JS (the walker's feet)
-// and in GLSL (the GPU's ground). Every constant the two share is written once, here.
+// and as node code (land.nodes.js, the GPU's ground). Every constant the two share is written once, here.
 
 export const OCT_LAM = [700, 300, 140, 65, 30, 14, 6, 2.5];
 export const OCT_AMP = [22, 12, 5.5, 2.4, 1.0, 0.42, 0.16, 0.05];
@@ -37,7 +37,7 @@ function vnoise(px, py, s) {
 /** The river's field at (x, z): r (0 on the stream's line), its gradient, the distance d and half-width w. */
 export const river = { r: 0, gx: 0, gz: 0, d: 0, w: 0 };
 // The library's sandbox: round (x, z) the land is one biome; with `river`, a river of its own meanders through
-// its middle in place of the world's (the same in GLSL: sandRiver in land.glsl.js). Set by the ground (scatter/ground.js).
+// its middle in place of the world's (the same on the GPU: riverRaw in land.nodes.js). Set by the ground (scatter/ground.js).
 export const SAND = { on: false, x: 0, z: 0, river: false };
 export const MEANDER = { turn: 0.6, swing: 26, wave: 150 };   // the sandbox river: its heading, how far it swings either side, the length of a bend
 function sandRiver(x, z) {
@@ -61,7 +61,7 @@ function riverRaw(x, z) {
 }
 // A river shaped by its bends (intent 0004): how much it turns here (from its course 20 m either way), and from that its
 // width (wider through bends, where bars grow, and varying along it), its middle shifted to the bend's outside, and
-// which bank this point is on: b > 0 the outside (a steep cut bank), b < 0 the inside (a gentle bar). Same in GLSL.
+// which bank this point is on: b > 0 the outside (a steep cut bank), b < 0 the inside (a gentle bar). Same on the GPU (land.nodes.js).
 export const BEND = 80;   // a bend of this radius (m) or tighter counts fully
 export function riverAt(x, z) {
   const [r, rx, rz] = riverRaw(x, z), gl = Math.max(Math.hypot(rx, rz), 2e-4), tx = -rz / gl, tz = rx / gl;
@@ -103,7 +103,7 @@ export function naturalAt(x, z) {
 
 // Pads: the ground levels itself under what is stood on it (src/world/places.js): within a thing's `clear` metres the
 // land is flat at the height under its middle, and it meets the land again over PAD_FALL metres. The GPU's land is
-// written with the same pads (WORLD_GLSL), so the walker's ground is the drawn ground.
+// written with the same pads (land.nodes.js), so the walker's ground is the drawn ground.
 export const PAD_FALL = 3;
 export const PADS = Object.values(PLACES).map((p) => ({ x: p.x, z: p.z, r: p.clear || 3, h: naturalAt(p.x, p.z) }));
 /** The ground's height under (x, z), at full detail (what the GPU draws under the camera): the land, levelled under what stands. */

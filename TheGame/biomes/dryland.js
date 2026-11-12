@@ -4,7 +4,7 @@ export default {
   name: 'Dry land',
   kind: 'steppe',
   about: 'Cracked earth with sandy spots, the grass in yellowing tufts, more stones lying about.',
-  where: 'arid',                                           // laid by the land's dryness (aridMask in src/world/land.glsl.js)
+  where: 'arid',                                           // laid by the land's dryness (aridMask in src/world/land.nodes.js)
   floor: { material: 'dryearth', tile: [4.0, 6.4] },
   spots: { material: 'sand', tile: [2.0, 3.2] },           // sandy spots in it
   grass: {

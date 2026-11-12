@@ -1,15 +1,18 @@
 // Sandbox 8: one endless land. This file only wires the parts and runs the frame.
 //
-//   world/      the land as functions: in JS for the walker's feet, in GLSL for the GPU
+//   world/      the land as functions: in JS for the walker's feet (land.js), as nodes for the GPU (land.nodes.js);
+//               the light every material shares (light.js), the sky, the shadows, the places and what stands there
 //   core/       what everything shares: uniforms, the frustum, the governor, the readout
-//   materials/  the ground's textures, painted once at start
+//   materials/  the ground's textures, painted once at start into one texture array
 //   terrain/    the ground and the water: a quadtree of one tile
 //   scatter/    what stands on the land: a table of assets, drawn tier by tier
-//   camera/     the walker, and the lens's picture (depth of field)
+//   detail/     levels of detail by size on screen, and far cards
+//   camera/     the one camera, and the lens's picture (depth of field)
 //
+// Drawn by three's WebGPURenderer (WebGL 2 where WebGPU is missing), every material in node code (TSL, intent 0008).
 // Everything is made before the first frame. A frame only moves uniforms and chooses what to draw.
-import * as THREE from 'three';
-import { HMIN, HMAX, heightAt } from './world.js';
+import * as THREE from 'three/webgpu';
+import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
 import { trackView } from './detail/index.js';
 import { setImpostorRenderer } from './detail/impostor.js';
@@ -20,7 +23,8 @@ import { bakeTextures } from './materials/bake.js';
 import { createTerrain } from './terrain/terrain.js';
 import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
-import { ASSETS, place } from '../assets/index.js';
+import { ASSETS } from '../assets/index.js';
+import { place } from './world/place.js';
 import { PLACES } from './world/places.js';
 import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
@@ -30,7 +34,9 @@ import { createShadows } from './world/shadow.js';
 
 const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', stencil: false });
+const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, powerPreference: 'high-performance', forceWebGL: new URLSearchParams(location.search).has('webgl') });
+await renderer.init();
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // every material makes its colours for the screen itself (toScreen)
 renderer.setSize(innerWidth, innerHeight, false);
 renderer.setClearColor(SKY);
 renderer.info.autoReset = false;   // a frame may be several passes: counted together
@@ -47,22 +53,21 @@ addEventListener('resize', () => {   // only a real change of size rebuilds the 
 
 const stats = (window.__s8 = { renderer, camera, scene });
 const U = createUniforms(camera, SKY);
-trackView(U); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
+trackView(); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
 const governor = createGovernor(renderer);
 stats.governor = governor;   // the film holds it still while it plays
 const tex = bakeTextures(renderer);
-U.tNoise = { value: tex.of('noise').a };
-const ground = createGround(renderer, U);
+const ground = createGround(renderer, tex);
 stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage things (the library)
-const terrain = createTerrain(scene, U, tex);
+const terrain = createTerrain(scene, tex);
 stats.terrain = terrain;
-const scatter = createScatter(scene, U, tex);
+const scatter = createScatter(scene, tex, ground);
 stats.scatter = scatter;   // for timings and pages that look at it
-for (const at of Object.values(PLACES)) place(scene, U, ASSETS[at.asset], at);   // what stands at a named place, from the asset library
+for (const at of Object.values(PLACES)) place(scene, ASSETS[at.asset], at);   // what stands at a named place, from the asset library
 const controls = createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat'));
-const sky = createSky(scene, camera, U, renderer);   // the sun and the sky: one time of day drives the light (intent 0007)
+const sky = createSky(scene, camera, renderer);   // the sun and the sky: one time of day drives the light (intent 0007)
 stats.sky = sky;
-const shadows = createShadows(renderer, scene, U);   // the casters' shadows, read by every surface (LIGHT_GLSL)
+const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)
 stats.shadows = shadows;
 stats.controls = controls;
 const post = createPost(renderer, SKY);
@@ -76,7 +81,7 @@ function choose(dt) {
   let t = performance.now(), u;
   controls.update(dt); sky.update(dt);
   const p = camera.position, dy = (U.uDy.value = Math.max(0, p.y - heightAt(p.x, p.z) - 2, HMIN - p.y));   // how high above the ground here: lifted, the grass and stones see it far off (intent 0003)
-  U.uAirH.value = Math.max(0, p.y - heightAt(p.x, p.z));   // the height fog thins along a line of sight from up here (LIGHT_GLSL)
+  U.uAirH.value = Math.max(0, p.y - heightAt(p.x, p.z));   // the height fog thins along a line of sight from up here (src/world/light.js)
   camera.updateMatrixWorld();
   setPlanes(projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
   const lod = governor.detail(camera);
@@ -91,7 +96,7 @@ function choose(dt) {
 }
 function draw() {
   const dof = camera.userData.dof;   // the virtual camera brings a lens with it: its picture is drawn through it
-  shadows.render(camera, heightAt(camera.position.x, camera.position.z));
+  shadows.render(scene, camera, heightAt(camera.position.x, camera.position.z));
   if (dof && dof.on) post.render(scene, camera, dof); else renderer.render(scene, camera);
 }
 let last = 0;
@@ -118,7 +123,7 @@ function hitch(ms, now) {
   if (ms > HITCH && frames > 30) {
     const r = renderer.info.render, c = window.__cine, f = (v) => +v.toFixed(2);
     hitches.push({ at: Math.round(now), ms: f(ms), ctl: f(parts.ctl), ground: f(parts.ground), terrain: f(parts.terrain), scatter: f(parts.scatter), draw: f(parts.draw),
-      lod: f(governor.lod), cap: f(governor.cap), dpr: governor.dpr, resizes, w: innerWidth, h: innerHeight, tris: r.triangles, calls: r.calls, film: c?.clips?.length ? f(c.time) : null, playing: !!c?.playing, page: location.pathname + location.search });
+      lod: f(governor.lod), cap: f(governor.cap), dpr: governor.dpr, resizes, w: innerWidth, h: innerHeight, tris: r.triangles, calls: r.drawCalls ?? r.calls, film: c?.clips?.length ? f(c.time) : null, playing: !!c?.playing, page: location.pathname + location.search });
   }
   if (import.meta.env.DEV && now - sentAt > 4000 && (hitches.length || frames > 0)) {
     sentAt = now;

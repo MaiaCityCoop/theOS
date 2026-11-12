@@ -2,7 +2,7 @@
 // (where the river runs, how high the ground is) and sets a timeline of shots along the river:
 // wide, medium, close, a few unusual angles, a drone flight. Nothing is rendered ahead: the
 // timeline only moves the virtual camera through the real world.
-import * as W from '/src/world.js';
+import * as W from '/src/world/land.js';
 
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 

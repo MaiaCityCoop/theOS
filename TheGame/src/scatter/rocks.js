@@ -1,10 +1,13 @@
-// Stones and rock outcrops: a few rock shapes (cut, displaced icospheres at three levels of detail),
-// instanced by hashed cells around the camera. Which cell holds a rock, how big, how it lies: hashed.
-import * as THREE from 'three';
-import { WORLD_GLSL, LIGHT_GLSL, DETAIL_GLSL } from '../world.js';
+// Stones and rock outcrops: a few rock shapes (cut, displaced icospheres at three levels of detail), instanced by
+// hashed cells around the camera. Which cell holds a rock, how big, how it lies: hashed. Its look (texture, moss, relief,
+// tint) from its asset file (assets/stone.js, boulder.js); its level of detail by its size on screen (src/detail).
+import * as THREE from 'three/webgpu';
+import { Fn, float, uint, vec2, vec3, uniform, varyingProperty, attribute, positionGeometry, positionWorld, normalWorld, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cross, dot, cos, sin } from 'three/tsl';
+import { U } from '../core/uniforms.js';
+import { rnd, camDist, riverInfo, heightAt, aridMask, outcropMask, grassTint } from '../world/land.nodes.js';
+import { haze, toScreen, weathered, cloudAt, detailCut, detailKeep } from '../world/light.js';
 import { pxK } from '../detail/index.js';
-import { Tier, CELL_GLSL } from './tier.js';
-import { GROUND_GLSL } from './ground.js';
+import { Tier, offScreen, clipOf } from './tier.js';
 
 // ---- shapes ----
 function hash3(x, y, z, s) {
@@ -38,6 +41,7 @@ function icosphere(detail) {
   return { v, f };
 }
 // look: { cuts (0..1, how many flat faces are broken off it), smooth (0..1, how worn round it is) }
+/** a rock's shape: a cut, displaced icosphere of `detail` divisions, as a geometry for instancing */
 export function rockGeometry(detail, seed, look = {}) {
   const { v, f } = icosphere(detail), n = v.length / 3, sm = 1 - 0.75 * (look.smooth ?? 0);
   const cuts = [];
@@ -70,112 +74,102 @@ export function rockGeometry(detail, seed, look = {}) {
   return g;
 }
 
-const VERT = /* glsl */ `
-${WORLD_GLSL}
-${GROUND_GLSL}
-${CELL_GLSL}
-${DETAIL_GLSL}
-uniform float uNear, uFar, uSizeMin, uSizeMax, uVar, uVars, uBig, uLo, uHi, uBand;   // uNear/uFar: the band of cells this tier looks at; uLo/uHi: its level's size on screen (src/detail)
-out vec3 vWorld; out vec3 vN; out float vArid; out float vLy; out vec3 vTint; flat out vec2 vKeep;
-vec3 rot(vec3 v, vec3 a, float cs, float sn){ return v * cs + cross(a, v) * sn + a * dot(a, v) * (1.0 - cs); }
-void main(){
-  ivec2 c = instanceCell();
-  gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-  if (floor(rnd(c, 201u) * uVars) != uVar) return;
-  vec2 pos = (vec2(c) + 0.15 + 0.7 * vec2(rnd(c, 202u), rnd(c, 203u))) * uCell;
-  float dist = camDist(pos);
-  if (dist >= uFar || dist < uNear) return;
-  float arid, oc, y; vec3 tint;
-#ifdef BIG
-  oc = placeOff(pos, outcropMask(pos));
-  if (rnd(c, 200u) > 0.012 + 0.6 * oc) return;       // the cheap test first: most cells hold no rock
-  vec4 I = riverInfo(pos); float w = I.y, d = abs(I.x);
-  if (rnd(c, 200u) > (0.012 + 0.6 * oc) * smoothstep(w + 2.0, w + 9.0, d)) return;
-  arid = placeArid(pos, aridMask(pos)); y = heightAt(pos, dist, d, w, I.z); tint = grassTint(pos, arid).rgb;
-#else
-  vec4 G = groundA(pos);
-  if (rnd(c, 200u) > G.w * 0.7) return;
-  arid = G.z; oc = 0.0; y = G.x; tint = groundTint(pos).rgb;
-#endif
-  float r1 = rnd(c, 204u), r2 = rnd(c, 205u), r3 = rnd(c, 206u), r4 = rnd(c, 207u);
-  float s = mix(uSizeMin, uSizeMax, r1 * r1 * r1 + oc * 0.25 * uBig * r1);
-  vKeep = detailKeep(2.0 * s * uPxK / max(dist, 1e-3), uLo, uHi, uBand);   // its size on screen picks the level, with a hand-over (src/detail)
-  if (vKeep.x <= 0.0) return;
-  vec3 scl = s * vec3(0.8 + 0.5 * r2, 0.55 + 0.4 * r3, 0.8 + 0.5 * r4);
-  vec3 ax = normalize(vec3(rnd(c, 208u), rnd(c, 209u), rnd(c, 210u)) - 0.5 + 1e-4);
-  float ang = rnd(c, 211u) * 6.2831853, cs = cos(ang), sn = sin(ang);
-  vec3 l = rot(position * scl, ax, cs, sn);
-  vN = rot(normalize(normal / scl), ax, cs, sn);
-  y -= 0.22 * s;
-  vWorld = vec3(pos.x, y, pos.y) + l;
-  vLy = l.y / s; vArid = arid; vTint = tint;
-  gl_Position = projectionMatrix * viewMatrix * vec4(vWorld, 1.0);
-}`;
 
-const FRAG = /* glsl */ `
-uniform vec3 uCam; uniform float uDy;
-${LIGHT_GLSL}
-uniform sampler2D tA, tN, tM; uniform float uTex, uMoss, uRelief; uniform vec3 uTintR;   // the asset's look (assets/*.js)
-in vec3 vWorld; in vec3 vN; in float vArid; in float vLy; in vec3 vTint; flat in vec2 vKeep;
-void main(){
-  if (detailCut(vKeep)) discard;   // its share of a hand-over between levels
-  vec3 N = normalize(vN), b = pow(abs(N), vec3(4.0)); b /= b.x + b.y + b.z;
-  vec3 q = vWorld / uTex;
-  vec4 ax = texture(tA, q.zy), ay = texture(tA, q.xz), az = texture(tA, q.xy);
-  vec4 nx = texture(tN, q.zy), ny = texture(tN, q.xz), nz = texture(tN, q.xy);
-  vec4 a = ax * b.x + ay * b.y + az * b.z; vec3 col = a.rgb * a.rgb * uTintR;
-  vec2 tx = nx.xy * 2.0 - 1.0, ty = ny.xy * 2.0 - 1.0, tz = nz.xy * 2.0 - 1.0;
-  vec3 n = normalize(N + (vec3(0.0, tx.y, tx.x) * b.x + vec3(ty.x, 0.0, ty.y) * b.y + vec3(tz.x, tz.y, 0.0) * b.z) * uRelief);
-  // moss where the rock looks up, held back where it is dry
-  vec4 mt = texture(tM, q.xz * 1.7);
-  float moss = smoothstep(0.45, 0.8, N.y * 0.75 + (a.a - 0.5) * 0.7 + (mt.a - 0.5) * 0.5) * (1.0 - vArid * 0.85) * min(uMoss, 1.0);
-  col = mix(col, vTint * 0.75 * (0.5 + mt.a), moss * 0.9 * min(uMoss * 1.5, 1.0));
-  col *= mix(0.45, 1.0, smoothstep(-0.25, 0.35, vLy));   // darker where it meets the ground
-  col = weathered(col, n);
-  float ndl = max(dot(n, uSunDir), 0.0);
-  vec3 V = normalize(uCam - vWorld);
-  col = col * (uAmb + uSun * cloudAt(vWorld) * ndl) + uSun * pow(max(dot(n, normalize(V + uSunDir)), 0.0), 30.0) * 0.06 * (1.0 - moss);
-  gl_FragColor = toScreen(haze(col, length(uCam - vWorld)));
-}`;
+const rot = (v, a, cs, sn) => v.mul(cs).add(cross(a, v).mul(sn)).add(a.mul(dot(a, v)).mul(float(1).sub(cs)));
 
-// a rock asset's look, for the shader: how much moss, how deep its texture's relief, a tint over the rock's colour
-const lookUniforms = (look = {}) => ({ uMoss: { value: look.moss ?? 1 }, uRelief: { value: look.relief ?? 1.1 }, uTintR: { value: new THREE.Vector3(...(look.tint || [1, 1, 1])) } });
+/** A rock's colour, lit: triplanar from its material, moss where it looks up (held back where it is dry), darker where
+    it meets the ground. s: { world, n (its geometric normal), tint (the grass round it), arid, ly (its height, -1..1) }. */
+function rockShade(tex, row, s, eye = U.uCam) {
+  const look = row.look || {}, id = look.material || 'rock', moss0 = look.moss ?? 1, relief = look.relief ?? 1.1, tintR = vec3(...(look.tint || [1, 1, 1]));
+  const N0 = normalize(s.n), b0 = pow(abs(N0), vec3(4)), b = b0.div(b0.x.add(b0.y).add(b0.z)), q = s.world.div(row.texture);
+  const a = tex.a(id, q.zy).mul(b.x).add(tex.a(id, q.xz).mul(b.y)).add(tex.a(id, q.xy).mul(b.z));
+  const tx = tex.n(id, q.zy).xy.mul(2).sub(1), ty = tex.n(id, q.xz).xy.mul(2).sub(1), tz = tex.n(id, q.xy).xy.mul(2).sub(1);
+  const n = normalize(N0.add(vec3(0, tx.y, tx.x).mul(b.x).add(vec3(ty.x, 0, ty.y).mul(b.y)).add(vec3(tz.x, tz.y, 0).mul(b.z)).mul(relief)));
+  const mt = tex.a('meadow', q.xz.mul(1.7));
+  const moss = smoothstep(0.45, 0.8, N0.y.mul(0.75).add(a.a.sub(0.5).mul(0.7)).add(mt.a.sub(0.5).mul(0.5))).mul(float(1).sub(s.arid.mul(0.85))).mul(Math.min(moss0, 1));
+  const c1 = mix(a.rgb.mul(a.rgb).mul(tintR), s.tint.mul(0.75).mul(mt.a.add(0.5)), moss.mul(0.9 * Math.min(moss0 * 1.5, 1)));
+  const c2 = weathered(c1.mul(mix(0.45, 1, smoothstep(-0.25, 0.35, s.ly))), n);
+  const V = normalize(eye.sub(s.world));
+  const col = c2.mul(U.uAmb.add(U.uSun.mul(cloudAt(s.world)).mul(max(n.dot(U.uSunDir), 0)))).add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 30)).mul(0.06).mul(float(1).sub(moss)));
+  return toScreen(haze(col, length(eye.sub(s.world))));
+}
 
-// One rock on its own, in the world's rock material (its textures, its moss), for the asset library's stage.
-const SAMPLE_VERT = /* glsl */ `
-out vec3 vWorld; out vec3 vN; out float vArid; out float vLy; out vec3 vTint; flat out vec2 vKeep; uniform vec3 uTintS;
-void main(){ vKeep = vec2(1.0, 0.0); vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vArid = 0.0; vLy = position.y; vTint = uTintS; gl_Position = projectionMatrix * viewMatrix * w; }`;
-export function rockSample(U, tex, row, detail = 2, shape = 0) {
-  const ig = rockGeometry(detail, row.seed + shape * 7, row.look), g = new THREE.BufferGeometry();   // the rock's shape is made for instancing; one on its own is a plain geometry
-  g.setAttribute('position', ig.attributes.position); g.setAttribute('normal', ig.attributes.normal); g.setIndex(ig.index);
-  const mesh = new THREE.Mesh(g, new THREE.ShaderMaterial({ vertexShader: SAMPLE_VERT, fragmentShader: FRAG,
-    uniforms: { ...U, tA: { value: tex.of(row.look?.material || 'rock').a }, tN: { value: tex.of(row.look?.material || 'rock').n }, tM: { value: tex.of('meadow').a }, uTex: { value: row.texture }, uTintS: { value: new THREE.Vector3(0.05, 0.13, 0.02) }, ...lookUniforms(row.look) } }));
-  mesh.layers.enable(1); return mesh;
+const PXK = uniform(pxK()); addEventListener('resize', () => (PXK.value = pxK()));
+
+function rockMaterial(tex, ground, row, Lv, v, band) {
+  const big = !!row.outcrops, fade = row.detail.fade;
+  return (c) => {
+    const vWorld = varyingProperty('vec3', 'vWorld'), vN = varyingProperty('vec3', 'vN'), vTint = varyingProperty('vec3', 'vTint'), vAL = varyingProperty('vec2', 'vAL'), vKeep = varyingProperty('vec2', 'vKeep');
+    const vert = Fn(() => {
+      const out = offScreen().toVar(), cx = c.x, cy = c.y;
+      If(floor(rnd(cx, cy, uint(201)).mul(row.shapes)).equal(v), () => {
+        const pos = vec2(c).add(0.15).add(vec2(rnd(cx, cy, uint(202)), rnd(cx, cy, uint(203))).mul(0.7)).mul(row.cell), dist = camDist(pos);
+        If(dist.lessThan(band.far).and(dist.greaterThanEqual(band.near)), () => {
+          const ar = float(0).toVar(), oc = float(0).toVar(), y = float(0).toVar(), tint = vec3(0).toVar(), ok = float(0).toVar(), r0 = rnd(cx, cy, uint(200));
+          if (big) {   // outcrops: the land worked out here (the ground pass does not reach so far)
+            oc.assign(outcropMask(pos));
+            If(r0.lessThanEqual(oc.mul(0.6).add(0.012)), () => {   // the cheap test first: most cells hold no rock
+              const I = riverInfo(pos), w = I.y, d = abs(I.x);
+              If(r0.lessThanEqual(oc.mul(0.6).add(0.012).mul(smoothstep(w.add(2), w.add(9), d))), () => {
+                ar.assign(aridMask(pos, dist)); y.assign(heightAt(pos, dist, d, w, I.z)); tint.assign(grassTint(tex, pos, ar, 0).rgb); ok.assign(1);
+              });
+            });
+          } else {
+            const G = ground.A(pos);
+            If(r0.lessThanEqual(G.w.mul(0.7)), () => { ar.assign(G.z); y.assign(G.x); tint.assign(ground.tint(pos).rgb); ok.assign(1); });
+          }
+          If(ok.greaterThan(0.5), () => {
+            const r1 = rnd(cx, cy, uint(204)), r2 = rnd(cx, cy, uint(205)), r3 = rnd(cx, cy, uint(206)), r4 = rnd(cx, cy, uint(207));
+            const s = mix(row.size[0], row.size[1], r1.mul(r1).mul(r1).add(oc.mul(big ? 0.25 : 0).mul(r1)));
+            const keep = detailKeep(s.mul(2).mul(PXK).div(max(dist, 1e-3)), Lv.lo, Lv.hi, fade);   // its size on screen picks the level, with a hand-over
+            If(keep.x.greaterThan(0), () => {
+              const scl = vec3(r2.mul(0.5).add(0.8), r3.mul(0.4).add(0.55), r4.mul(0.5).add(0.8)).mul(s);
+              const ax = normalize(vec3(rnd(cx, cy, uint(208)), rnd(cx, cy, uint(209)), rnd(cx, cy, uint(210))).sub(0.5).add(1e-4));
+              const ang = rnd(cx, cy, uint(211)).mul(6.2831853), cs = cos(ang), sn = sin(ang), l = rot(positionGeometry.mul(scl), ax, cs, sn);
+              const w = vec3(pos.x, y.sub(s.mul(0.22)), pos.y).add(l);
+              vN.assign(rot(normalize(attribute('normal', 'vec3').div(scl)), ax, cs, sn)); vWorld.assign(w); vTint.assign(tint); vAL.assign(vec2(ar, l.y.div(s))); vKeep.assign(keep);
+              out.assign(clipOf(w));
+            });
+          });
+        });
+      });
+      return out;
+    });
+    const frag = Fn(() => {
+      If(detailCut(vKeep), () => { Discard(); });   // its share of a hand-over between levels
+      return rockShade(tex, row, { world: vWorld, n: vN, tint: vTint, arid: vAL.x, ly: vAL.y });
+    });
+    const m = new THREE.NodeMaterial(); m.vertexNode = vert(); m.fragmentNode = frag();
+    return m;
+  };
+}
+
+/** One rock on its own, in the world's rock material (its texture, its moss), for the asset library's stage and list.
+    Its `eye` uniform is the camera it is lit and hazed for (a list's picture sets its own). */
+export function rockSample(tex, row, detail = 2, shape = 0) {
+  const g = rockGeometry(detail, row.seed + shape * 7, row.look), plain = new THREE.BufferGeometry();
+  plain.setAttribute('position', g.attributes.position); plain.setAttribute('normal', g.attributes.normal); plain.setIndex(g.index);
+  const m = new THREE.NodeMaterial(), eye = uniform(U.uCam.value);
+  m.fragmentNode = Fn(() => rockShade(tex, row, { world: positionWorld, n: normalWorld, tint: vec3(0.05, 0.13, 0.02), arid: float(0), ly: positionGeometry.y }, eye))();
+  m.eye = eye;
+  const mesh = new THREE.Mesh(plain, m); mesh.layers.enable(1); return mesh;
 }
 
 /** The assets of kind `rocks`: a tier per level of detail and shape. Each level is drawn where a rock of it is the size
     on screen its asset file asks (src/detail); the tier looks only at the cells where that can be, at this screen size. */
-export function createRocks(scene, U, tex, asset) {
-  const tiers = [], levels = asset.detail.levels.filter((l) => !l.impostor), { fade } = asset.detail, big = asset.outcrops;
-  const span = [2 * asset.size[0], 2 * asset.size[1] * (big ? 1.25 : 1)];   // a rock is an icosphere of radius 1 times its size
-  for (let v = 0; v < asset.shapes; v++) levels.forEach((L) => {
-    const g = rockGeometry(L.rock, asset.seed + v * 7, asset.look);
-    const mat = new THREE.ShaderMaterial({
-      vertexShader: (big ? '#define BIG\n' : '') + VERT, fragmentShader: FRAG,
-      uniforms: {
-        ...U, uNear: { value: 0 }, uFar: { value: 1 }, uLo: { value: L.lo }, uHi: { value: Number.isFinite(L.hi) ? L.hi : 1e9 }, uBand: { value: fade },
-        uSizeMin: { value: asset.size[0] }, uSizeMax: { value: asset.size[1] }, uVar: { value: v }, uVars: { value: asset.shapes }, uBig: { value: big ? 1 : 0 },
-        tA: { value: tex.of(asset.look?.material || 'rock').a }, tN: { value: tex.of(asset.look?.material || 'rock').n }, tM: { value: tex.of('meadow').a }, uTex: { value: asset.texture }, ...lookUniforms(asset.look),
-      },
-    });
-    const t = new Tier(scene, g, mat, { cell: asset.cell, P: L.P, near: 0, far: 1, order: 1 });
+export function createRocks(scene, tex, ground, row) {
+  const tiers = [], levels = row.detail.levels.filter((l) => !l.impostor), { fade } = row.detail;
+  const span = [2 * row.size[0], 2 * row.size[1] * (row.outcrops ? 1.25 : 1)];   // a rock is an icosphere of radius 1 times its size
+  for (let v = 0; v < row.shapes; v++) for (const Lv of levels) {
+    const band = { near: uniform(0), far: uniform(1) };
+    const t = new Tier(scene, rockGeometry(Lv.rock, row.seed + v * 7, row.look), rockMaterial(tex, ground, row, Lv, v, band), { cell: row.cell, P: Lv.P, near: 0, far: 1, order: 1 });
     t.band = () => {   // the distances where a rock of this level can be, from the largest seen small to the smallest seen large
       const K = pxK(), e = Math.exp(fade);
-      t.near = Number.isFinite(L.hi) ? (span[0] * K) / (L.hi * e) : 0; t.far = (span[1] * K * e) / L.lo;
-      mat.uniforms.uNear.value = t.near > 0 ? t.near : -1; mat.uniforms.uFar.value = t.far;
+      t.near = Number.isFinite(Lv.hi) ? (span[0] * K) / (Lv.hi * e) : 0; t.far = (span[1] * K * e) / Lv.lo;
+      band.near.value = t.near > 0 ? t.near : -1; band.far.value = t.far;
     };
-    t.band(); if (asset.detail.casts) t.mesh.layers.enable(1); tiers.push(t);   // rocks cast shadows, as drawn (src/world/shadow.js; casts in their kind)
-  });
+    t.band(); if (row.detail.casts) t.mesh.layers.enable(1); tiers.push(t);   // rocks cast shadows, as drawn (src/world/shadow.js)
+  }
   addEventListener('resize', () => tiers.forEach((t) => t.band()));
   return tiers;
 }

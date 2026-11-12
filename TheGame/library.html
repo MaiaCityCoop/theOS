@@ -63,13 +63,14 @@
 // The library: every asset (assets/index.js) on one stage: a fixed flat spot in the meadow (STAGE in
 // src/world/places.js), a round of bare ground with the grass around it, the camera circling it. A placed asset
 // stands in the middle; a scattered one lies there as a few of its kind, small to large.
-import * as THREE from 'three';
-import { ASSETS, geometryOf, materialFor, place, scatterRow, solidOf } from './assets/index.js';
+import * as THREE from 'three/webgpu';
+import { ASSETS, geometryOf, scatterRow, solidOf } from './assets/index.js';
+import { place } from './src/world/place.js';
 import { rockSample } from './src/scatter/rocks.js';
 import { detailOf, spanOf, distanceAt } from './src/detail/index.js';
 import { poseAt, heightFor } from './src/camera/rig.js';
 import { STAGE } from './src/world/places.js';
-import { heightAt } from './src/world.js';
+import { heightAt } from './src/world/land.js';
 import { MATERIALS, MATERIAL } from './materials/index.js';
 import { materialPreview, materialThumb, dioramaThumb, sceneThumb } from './src/materials/preview.js';
 import { BIOMES, BIOME } from './biomes/index.js';
@@ -97,26 +98,24 @@ document.getElementById('list').innerHTML = `<div class="group" data-g="assets">
   + `<div class="group" data-g="biomes">Biomes · ${BIOMES.length}</div>` + BIOMES.map((b) => `<button class="item glass flat" data-biome="${b.id}"><canvas width="72" height="72"></canvas><span><b class="g-name">${b.name}</b><small class="g-sub">${b.kind}</small></span></button>`).join('')
   + `<div class="group" data-g="materials">Materials · ${MATERIALS.length}</div>` + MATERIALS.map((m) => `<button class="item glass flat" data-mat="${m.id}"><canvas width="72" height="72"></canvas><span><b class="g-name">${m.name}</b><small class="g-sub">${m.kind}</small></span></button>`).join('');
 for (const b of document.querySelectorAll('.item[data-mat]')) {   // a material's picture: its own baked tile
-  materialThumb(window.__s8.renderer, U, tex.of(b.dataset.mat), b.querySelector('canvas'));
+  materialThumb(window.__s8.renderer, tex, b.dataset.mat, b.querySelector('canvas'));
   b.onclick = () => chooseMaterial(b.dataset.mat);
 }
 // an asset's picture: its nearest level, lit, on nothing
 function assetThumb(a, canvas, near = 1) {
-  const S = canvas.width, r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true }), sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(32, 1, 0.05, 100);
-  sc.add(new THREE.HemisphereLight(0xdbe9ff, 0x4a5a3a, 1.4)); const sun = new THREE.DirectionalLight(0xfff1d6, 2.2); sun.position.set(4, 7, 3); sc.add(sun);
-  sc.add(new THREE.Mesh(geometryOf(a), new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.9 })));
+  const sun = new THREE.DirectionalLight(0xfff1d6, 2.2); sun.position.set(4, 7, 3);
+  const things = [new THREE.HemisphereLight(0xdbe9ff, 0x4a5a3a, 1.4), sun, new THREE.Mesh(geometryOf(a), new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.9 }))];
   const d = (a.placement.at === 'scatter' ? 2.2 : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 1.9) / near;
-  cam.position.set(d * 0.7, d * 0.55, -d * 0.7); cam.lookAt(0, (a.placement.at === 'scatter' ? 0.5 : most(a.size.height)) * 0.4, 0);
-  r.setPixelRatio(1); r.setSize(S, S, false); r.render(sc, cam); const out = document.createElement('canvas'); out.width = out.height = S; out.getContext('2d').drawImage(canvas, 0, 0);
-  r.dispose(); canvas.replaceWith(out); out.style.cssText = canvas.style.cssText;
+  const cam = new THREE.PerspectiveCamera(32, 1, 0.05, 100); cam.position.set(d * 0.7, d * 0.55, -d * 0.7); cam.lookAt(0, (a.placement.at === 'scatter' ? 0.5 : most(a.size.height)) * 0.4, 0);
+  sceneThumb(window.__s8.renderer, things, canvas, cam);
 }
 for (const b of document.querySelectorAll('.item[data-biome]')) {   // a biome's picture: a ball of its ground
-  materialThumb(window.__s8.renderer, U, tex.of(BIOME[b.dataset.biome].floor.material), b.querySelector('canvas'));
+  materialThumb(window.__s8.renderer, tex, BIOME[b.dataset.biome].floor.material, b.querySelector('canvas'));
   b.onclick = () => chooseBiome(b.dataset.biome);
 }
 // a scattered rock's picture: the largest of its kind in the world's own material (its look: pebble or rock, its moss), as on the stage
 function rockThumb(a, canvas) {
-  const s = most(a.size.length), m = rockSample(U, tex, scatterRow(a), a.detail.levels[0].rock, 0); m.scale.set(s, s * 0.8, s);
+  const s = most(a.size.length), m = rockSample(tex, scatterRow(a), a.detail.levels[0].rock, 0); m.scale.set(s, s * 0.8, s);
   sceneThumb(window.__s8.renderer, [m], canvas, [s * 2.1, s * 2.0, s * 3.3], [0, -s * 0.05, 0]);
 }
 for (const b of document.querySelectorAll('.item[data-id]')) {
@@ -135,11 +134,11 @@ function stageAsset(a) {
     staged = new THREE.Group(); const row = { ...scatterRow(a), seed: seed ?? a.placement.seed }, [lo, hi] = a.size.length;
     for (let i = 0; i < 7; i++) {
       const k = i / 6, s = lo + (hi - lo) * k ** 1.6, t = i * 2.4, rr = i ? (hi * 0.7 + 0.4) * Math.sqrt(i) * 0.55 : 0;
-      const m = rockSample(U, tex, row, a.detail.levels[Math.min(lodAt ?? 0, a.detail.levels.length - 1)].rock, i % 3), x = STAGE.x + Math.cos(t) * rr, z = STAGE.z + Math.sin(t) * rr;   // the world's own rock: its texture, its moss
+      const m = rockSample(tex, row, a.detail.levels[Math.min(lodAt ?? 0, a.detail.levels.length - 1)].rock, i % 3), x = STAGE.x + Math.cos(t) * rr, z = STAGE.z + Math.sin(t) * rr;   // the world's own rock: its texture, its moss
       m.scale.set(s, s * 0.8, s); m.renderOrder = 1; m.position.set(x, heightAt(x, z) - s * 0.25, z); m.rotation.y = t * 1.7; staged.add(m);   // drawn after the ground, as the world's own things are
     }
     scene.add(staged);
-  } else staged = place(scene, U, a, { x: STAGE.x, z: STAGE.z, yaw: 0.6, solid: false });
+  } else staged = place(scene, a, { x: STAGE.x, z: STAGE.z, yaw: 0.6, solid: false });
   drawBody(a);
 }
 // an asset's body as lines on the ground: its walls (with their doors left open), posts and boxes, from its file or its kind
@@ -240,8 +239,8 @@ const floorGeo = (() => {   // the stage's round, following the land under it
 const ballGeo = new THREE.SphereGeometry(1.1, 128, 96);
 function chooseMaterial(id) {
   const m = MATERIAL[id]; clearStage(); staged = new THREE.Group();
-  const mat = materialPreview(U, tex.of(id), 2), y = heightAt(STAGE.x, STAGE.z);
-  const fmat = materialPreview(U, tex.of(id), 2, { uEdge: { value: new THREE.Vector3(STAGE.x, STAGE.z, STAGE.r + 0.2) } }); fmat.polygonOffset = true;   // its edge fades into the grass fmat.polygonOffsetFactor = -4; fmat.polygonOffsetUnits = -8;   // the floor always wins over the land under it
+  const mat = materialPreview(tex, id, 2), y = heightAt(STAGE.x, STAGE.z);
+  const fmat = materialPreview(tex, id, 2, { edge: [STAGE.x, STAGE.z, STAGE.r + 0.2] }); fmat.polygonOffset = true;   // its edge fades into the grass fmat.polygonOffsetFactor = -4; fmat.polygonOffsetUnits = -8;   // the floor always wins over the land under it
   const ball = new THREE.Mesh(ballGeo, mat), floor = new THREE.Mesh(floorGeo, fmat);
   ball.position.set(STAGE.x, y + 1.15, STAGE.z);
   for (const o of [ball, floor]) { o.renderOrder = 1; o.frustumCulled = false; staged.add(o); }
@@ -274,8 +273,8 @@ function frame() {
 // the sections: the switch over the list, the grid to start from
 const SECTIONS = [
   { id: 'assets', name: 'Assets', what: 'things made and stood', n: ids.length, open: () => choose(ids[0]), pic: (c) => assetThumb(ASSETS.belltent, c, 1.5) },
-  { id: 'biomes', name: 'Biomes', what: 'what lies and grows', n: BIOMES.length, open: () => chooseBiome(BIOMES[0].id), pic: (c) => dioramaThumb(window.__s8.renderer, U, tex, c) },
-  { id: 'materials', name: 'Materials', what: 'what it is all made of', n: MATERIALS.length, open: () => chooseMaterial(MATERIALS[0].id), pic: (c) => materialThumb(window.__s8.renderer, U, tex.of('rock'), c) },
+  { id: 'biomes', name: 'Biomes', what: 'what lies and grows', n: BIOMES.length, open: () => chooseBiome(BIOMES[0].id), pic: (c) => dioramaThumb(window.__s8.renderer, tex, c) },
+  { id: 'materials', name: 'Materials', what: 'what it is all made of', n: MATERIALS.length, open: () => chooseMaterial(MATERIALS[0].id), pic: (c) => materialThumb(window.__s8.renderer, tex, 'rock', c) },
 ];
 const list = document.getElementById('list'), grid = document.getElementById('grid');
 function section(id) { list.dataset.sec = id; }

@@ -1,16 +1,13 @@
 // The ground and the water: one fixed grid tile, drawn instanced for every node of a quadtree
 // picked around the camera each frame (CDLOD). Heights come from the vertex shader; a node's
 // outer vertices morph to the coarser grid, so the levels meet without cracks or pops.
-import * as THREE from 'three';
-import { HMIN, HMAX, heightAt, riverAt } from '../world.js';
-import { LAND_MATERIALS } from '../world/biomes.glsl.js';
+import * as THREE from 'three/webgpu';
+import { HMIN, HMAX, heightAt, riverAt } from '../world/land.js';
 import { boxIn } from '../core/frustum.js';
-import { VERT, FRAG } from './terrain.glsl.js';
-import { WATER_FRAG } from './water.glsl.js';
+import { terrainMaterial, GRID, R0 } from './material.js';
+import { waterMaterial } from './water.js';
 
-const GRID = 16;            // quads per node side
 const S0 = 8;               // a level-0 node's side, metres (0.5 m quads)
-const R0 = 48;              // level 0's range
 const LEVELS = 10;          // the top level reaches R0 * 2^9 = 24.6 km
 const CAP = 4096, WCAP = 1024;
 const WATER_LEVELS = 6;
@@ -27,7 +24,7 @@ function gridGeometry() {
   return { pos: new THREE.BufferAttribute(pos, 3), idx: new THREE.BufferAttribute(idx, 1) };
 }
 
-export function createTerrain(scene, U, tex) {
+export function createTerrain(scene, tex) {
   const { pos, idx } = gridGeometry();
   const make = (cap) => {
     const g = new THREE.InstancedBufferGeometry();
@@ -39,19 +36,7 @@ export function createTerrain(scene, U, tex) {
     return { g, data, attr, n: 0, cap };
   };
   const land = make(CAP), water = make(WCAP);
-  const common = { uGrid: { value: GRID }, uR0: { value: R0 } };
-  const landMat = new THREE.ShaderMaterial({
-    vertexShader: VERT, fragmentShader: FRAG,
-    uniforms: {
-      ...U, ...common,
-      ...Object.fromEntries(LAND_MATERIALS.flatMap((i) => [[`tA${i}`, { value: tex.a[i] }], [`tN${i}`, { value: tex.n[i] }]])),   // the materials the biomes lay
-    },
-  });
-  const waterMat = new THREE.ShaderMaterial({
-    vertexShader: '#define WATER\n' + VERT, fragmentShader: WATER_FRAG, transparent: true, depthWrite: false,
-    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4,   // far off the depth buffer cannot tell water from its bed: the water wins
-    uniforms: { ...U, ...common, tWN: { value: tex.of('water').n }, tWA: { value: tex.of('water').a } },
-  });
+  const landMat = terrainMaterial(tex), waterMat = waterMaterial(tex);
   const landMesh = new THREE.Mesh(land.g, landMat), waterMesh = new THREE.Mesh(water.g, waterMat);
   landMesh.frustumCulled = waterMesh.frustumCulled = false;
   landMesh.renderOrder = 10; // after the grass and the rocks: they are in front, the depth test spares the ground's shader

@@ -130,6 +130,62 @@ close to today's or better except at eye level. Not like for like in two ways: t
 sandbox, the library's stage and the shadow map's branch (off for the timing), the spike does not; and the pictures are
 not yet compared pixel for pixel (check 1 is for step 2). The near view's cost is the place to look first.
 
+**Step 2, first slice** (`src/gpu/water.tsl.js`, `sky.tsl.js`, `assets.tsl.js`): the river's water, the sky dome with
+the light of an hour, and the placed assets with their levels and the dithered hand-over, all as node materials; the
+spike page now walks with the game's own camera (`src/camera/rig.js`, the joystick on touch) from the tent. Measured as
+above, now with water, sky and tent drawn:
+
+| View | Terrain only (step 1) | + water, sky, tent |
+| --- | --- | --- |
+| tent, eye level | 7.30 ms | 7.37 ms |
+| river bend, 26 m | 6.59 ms | 7.48 ms |
+| town, 40 m | 6.00 ms | 6.20 ms |
+| skyline, 2.5 km | 2.77 ms | 3.10 ms |
+
+**Step 2, second slice** (`src/gpu/scatter.tsl.js`): the ground pass under the camera, the scatter's tiers, the grass's
+three rings and the stones and boulders at every level, as node materials; the patch list is a uniform array, the cell
+an instance stands for comes from `instanceIndex`, a cell that holds nothing is sent off screen as today. Found on the
+way: three's node reads turn a render target's rows the other way up (on WebGPU and on its WebGL 2 fallback), so the
+ground pass writes them turned; without it the grass grew on the paths. Measured as above, now against today's whole
+game at the same views (terrain, water, sky, tent, grass, rocks; shadows off on both, as the WebGPU page has none yet):
+
+| View | WebGL today | WebGPU | WebGL 2 fallback |
+| --- | --- | --- | --- |
+| tent, eye level | 14.36 ms | 13.85 ms | 15.19 ms |
+| river bend, 26 m | 18.05 ms | 12.79 ms | 15.59 ms |
+| town, 40 m | 14.32 ms | 15.34 ms | 12.40 ms |
+| skyline, 2.5 km | 5.37 ms | 2.70 ms | 3.08 ms |
+
+The same patches are drawn on both (tier for tier); the picture by the tent matches today's by eye. The town view is
+7 % slower on WebGPU: the place to look next.
+
+**Step 2, done: the switch.** The game, the library, the lenses and the films run on `WebGPURenderer` (WebGL 2 where
+WebGPU is missing, `?webgl` forces it). No hand-written shader text is left: every material is node code. On the way the
+code was put in order, one home per thing:
+
+- `src/core/uniforms.js`: the shared uniforms are node uniforms; code that steers the world writes `U.x.value` as before.
+- `src/world/light.js`: the shading contract (sun, sky light, haze, weather, shadows, the hand-over between levels).
+- `src/world/land.nodes.js`: the land on the GPU, beside `land.js` on the CPU, with the library's sandbox in it.
+- `materials/*.js` paint in node code; `src/materials/bake.js` bakes all of them into one texture array (two bindings
+  whatever the number of materials), `paint.js` the tiling noises.
+- `src/terrain/material.js`, `water.js`; `src/scatter/tier.js`, `ground.js`, `grass.js`, `rocks.js`;
+  `src/world/place.js` (the asset material and `place()`, out of the asset registry); `src/detail/impostor.js`;
+  `src/world/shadow.js` (two maps taking turns, so none is read while it is drawn); `src/camera/post.js`;
+  `src/world/sky.js`; `src/materials/preview.js`.
+- Gone: every `*.glsl.js`, `src/world.js`, the spike page and `src/gpu/`.
+
+Found on the way: three's node reads turn a render target's rows the other way up, and its viewport counts them from
+the top; the ground pass, the bake, the far cards and the shadow map write and read accordingly.
+
+Timed at the four views (1400×800, pixel ratio 1, shadows off / on), the switched game: tent 13.3 / 14.9 ms, river
+bend 12.5 / 14.4, town 12.0 / 11.8, skyline 3.2 / 3.2. The step-1 table's "today" column was taken at the game's own
+pixel ratio, higher than 1: not like for like.
+
+Next (not in this intent's steps yet): biomes as plug-ins (each biome's file brings its own "where" as node code, the
+terrain loops over whatever is registered), the texture array as a cache that bakes a material when it is first needed
+(for thousands of them), the wind read by the grass, and a quality pass on every asset, texture, biome, the sun, the
+shadows and the grass.
+
 ## Propose
 
 ## Story
@@ -143,7 +199,7 @@ not yet compared pixel for pixel (check 1 is for step 2). The near view's cost i
 - [x] Samuel: take the idea up
 - [ ] Samuel: approve or change the definition
 - [x] Step 1: the spike (renderer, shared node code, terrain), measured
-- [ ] Step 2: every material ported, no GLSL left
+- [x] Step 2: every material ported, no GLSL left
 - [ ] Step 3: ground texture and scatter as compute; collision from the card
 - [ ] Step 4: post pass, films, library, lenses checked
 
@@ -174,6 +230,34 @@ not yet compared pixel for pixel (check 1 is for step 2). The near view's cost i
 - **Good:** it ran on WebGPU at the first try; faster at three views of four.
 - **Broke / not there yet:** slower at eye level by the tent; pictures not compared yet; no sandbox, stage or shadow in
   the TSL terrain; the rest of the game still on WebGL.
+
+### 2026-11-12, step 2 (first slice)
+
+- **Asked:** "Yes, step 2".
+- **Delivered:** water, sky dome with the hour's light, the tent with its levels, and the walking camera on the WebGPU
+  page; timed at the four views.
+- **Good:** no errors at first run; the water's depth, banks and gravel read as in the game; the added cost is under 1 ms.
+- **Broke / not there yet:** not yet compared pixel for pixel with the WebGL game; grass, rocks, impostors, shadows,
+  post, clock still to port.
+
+### 2026-11-12, step 2 (grass and rocks)
+
+- **Asked:** "Yes, grass and rocks"; and: update the GitHub remote at the end.
+- **Delivered:** the ground pass, the grass and the rocks on WebGPU; timed against today's whole game.
+- **Good:** faster than today at three views of four (by 4 to 50 %); the picture matches today's by the tent.
+- **Broke / not there yet:** the town view is 7 % slower; impostor cards, shadows, post, clock, sandbox and stage
+  still to port; the remote's new address not set (the permission check stopped it).
+
+### 2026-11-12, step 2 (the switch)
+
+- **Asked:** "please finish all porting"; on the way: clean up, split, deduplicate, remove legacy code, one home per
+  thing, made to take thousands of user-made assets, textures and biomes, every asset plugging into the world's
+  light, shadows, snow and wind; and improve each asset, texture and biome after.
+- **Delivered:** the whole game on WebGPU with its WebGL 2 fallback, no GLSL left, the code in order (above); the game,
+  the library (assets, biomes with the river's sandbox, materials, far cards, pictures), the lenses and the films checked.
+- **Good:** the picture as before; as fast or faster; any number of materials costs two bindings.
+- **Broke / not there yet:** biomes still known to the terrain by name; materials all baked at start; the wind not
+  read yet; the quality pass not started.
 
 ## Trail
 

@@ -1,67 +1,13 @@
-// Grass: instanced blades. A blade's place, height, bend, colour and dryness are hashed from its
-// cell; its density comes from the land's masks. Three rings: dense and fine close, sparse and wide far.
-import * as THREE from 'three';
-import { WORLD_GLSL, LIGHT_GLSL } from '../world.js';
-import { Tier, CELL_GLSL } from './tier.js';
-import { GROUND_GLSL } from './ground.js';
+// Grass: instanced blades. A blade's place, height, bend, colour and dryness are hashed from its cell; its density comes
+// from the ground pass (ground.js). Three rings (assets.js): dense and fine close, sparse and wide far.
+import * as THREE from 'three/webgpu';
+import { Fn, float, int, uint, vec2, vec3, If, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor } from 'three/tsl';
+import { U } from '../core/uniforms.js';
+import { hashI, camDist, BIO } from '../world/land.nodes.js';
+import { haze, toScreen, weathered, cloudAt } from '../world/light.js';
+import { Tier, offScreen, clipOf } from './tier.js';
 
-const VERT = /* glsl */ `
-${WORLD_GLSL}
-${GROUND_GLSL}
-${CELL_GLSL}
-uniform float uNear, uNearFade, uFar, uFarFade, uBladeH, uBladeW, uEnd;
-out vec3 vCol; out vec3 vN; out vec3 vSide; out float vT; out float vS; out vec3 vWorld; out float vFlower;
-void main(){
-  ivec2 c = instanceCell();
-  // three hashes carry everything a blade is; nothing is read before the blade is known to stand
-  uint h1 = hashI(c, 100u);
-  vec2 pos = (vec2(c) + vec2(float(h1 & 0xFFFu), float((h1 >> 12) & 0xFFFu)) * (1.0 / 4096.0)) * uCell;
-  float dist = camDist(pos), hf = float(h1 >> 24) * (1.0 / 256.0);
-  gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-  if (dist > uFar - uFarFade * hf || dist < uNear - uNearFade * hf) return;
-  vec4 G = groundA(pos);
-  float arid = G.z, dens = G.y;
-  uint h2 = hashI(c, 101u);
-  if (float(h2 >> 24) * (1.0 / 256.0) > dens) return;
-  float r1 = float(h2 & 0xFFu) * (1.0 / 256.0), r2 = float((h2 >> 8) & 0xFFu) * (1.0 / 256.0), r3 = float((h2 >> 16) & 0xFFu) * (1.0 / 256.0);
-  // blades stand in tufts: the tuft they are in gives them a height, a lean and a shade in common
-  uint hc = hashI(ivec2(floor(pos * (1.0 / 0.6))), 102u);
-  float c1 = float(hc & 0xFFu) * (1.0 / 256.0), c2 = float((hc >> 8) & 0xFFu) * (1.0 / 256.0), c3 = float((hc >> 16) & 0xFFu) * (1.0 / 256.0);
-  vec4 tint = groundTint(pos);
-  float flower = step(0.985, r2) * (1.0 - arid) * LAND_FLOWERS;   // now and then a stalk with a small white head
-  float hgt = uBladeH * (0.5 + 0.55 * r1 * r1 + 0.8 * c1 * c1 + 0.35 * flower) * mix(1.0, ARID_HEIGHT, arid) * (0.6 + 0.4 * dens) * (1.0 - smoothstep(uEnd * 0.7, uEnd, dist));
-  float ang = (c2 + (r2 - 0.5) * 0.55) * 6.2831853; vec2 dir = vec2(cos(ang), sin(ang)), side = vec2(-dir.y, dir.x);
-  float t = position.y, s = position.x, bend = (0.2 + 0.55 * r3 + 0.35 * c3) * (1.0 - 0.7 * flower);
-  float wd = uBladeW * (0.75 + 0.5 * r1) * (1.0 - 0.8 * t * t);
-  float up = hgt * t * (1.0 - 0.42 * bend * t), fw = hgt * bend * t * t * 1.15;   // long blades arc over
-  vWorld = vec3(pos.x, G.x, pos.y) + vec3(side.x, 0.0, side.y) * (s * wd) + vec3(dir.x * fw, up, dir.y * fw);
-  vec3 tg = normalize(vec3(dir.x * 2.0 * bend * t, 1.0 - 0.6 * bend * t, dir.y * 2.0 * bend * t));
-  vSide = vec3(side.x, 0.0, side.y);
-  vN = cross(vSide, tg);
-  vT = t; vS = s; vFlower = flower;
-  vec3 base = tint.rgb * (0.7 + 0.35 * r3 + 0.35 * c3);
-  float tip = smoothstep(0.5, 1.0, t) * clamp(tint.a * 1.2 + r2 * 0.35 - 0.25, 0.0, 1.0);
-  vCol = mix(base, vec3(0.42, 0.34, 0.15), tip) * mix(0.14, 1.45, t * (0.6 + 0.4 * t));   // dark in the thick of it, light at the tips
-  gl_Position = projectionMatrix * viewMatrix * vec4(vWorld, 1.0);
-}`;
-
-const FRAG = /* glsl */ `
-uniform vec3 uCam; uniform float uDy;
-${LIGHT_GLSL}
-in vec3 vCol; in vec3 vN; in vec3 vSide; in float vT; in float vS; in vec3 vWorld; in float vFlower;
-void main(){
-  vec3 n = normalize(vN + vSide * vS * 0.6);          // a blade is a little rounded
-  if (!gl_FrontFacing) n = -n;
-  n = normalize(n + vec3(0.0, 1.4, 0.0));             // and a meadow lights as a soft whole
-  float ndl = dot(n, uSunDir) * 0.5 + 0.5;
-  vec3 V = normalize(uCam - vWorld);
-  float thru = pow(max(dot(-V, uSunDir), 0.0), 2.0) * vT;         // light through the blade: the bright yellow-green of a lit meadow
-  float sheen = pow(max(dot(n, normalize(V + uSunDir)), 0.0), 20.0) * 0.16 * vT;
-  vec3 sun = uSun * cloudAt(vWorld);   // the shading contract (intent 0002): the clouds' shadow, the weather
-  vec3 col = weathered(vCol, n) * (uAmb * (0.55 + 0.45 * vT) + sun * (ndl * ndl * 1.1 + thru * vec3(0.5, 1.0, 0.22))) + sun * sheen;
-  if (vFlower > 0.5 && vT > 0.86) col = vec3(0.92, 0.92, 0.86) * (uAmb + uSun * 0.7);
-  gl_FragColor = toScreen(haze(col, length(uCam - vWorld)));
-}`;
+const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
 
 function blade(segs) {
   const pos = [], idx = [];
@@ -69,22 +15,62 @@ function blade(segs) {
   pos.push(0, 1, 0);
   for (let i = 0; i < segs - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
   const a = (segs - 1) * 2; idx.push(a, a + 1, a + 2);
-  return { pos: new Float32Array(pos), idx };
+  const g = new THREE.InstancedBufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3)); g.setIndex(idx);
+  return g;
+}
+
+function bladeMaterial(asset, T, ground) {
+  return (c) => {
+    const vCol = varyingProperty('vec3', 'vCol'), vN = varyingProperty('vec3', 'vN'), vSide = varyingProperty('vec3', 'vSide'), vTS = varyingProperty('vec3', 'vTS'), vWorld = varyingProperty('vec3', 'vWorld');
+    const vert = Fn(() => {
+      const out = offScreen().toVar();
+      // three hashes carry everything a blade is; nothing is read before the blade is known to stand
+      const h1 = hashI(c.x, c.y, uint(100));
+      const pos = vec2(c).add(vec2(float(h1.bitAnd(uint(0xFFF))), float(h1.shiftRight(uint(12)).bitAnd(uint(0xFFF)))).mul(1 / 4096)).mul(T.cell);
+      const dist = camDist(pos), hf = u8(h1, 24);
+      If(dist.lessThanEqual(hf.mul(-T.farFade).add(T.far)).and(dist.greaterThanEqual(hf.mul(-T.nearFade).add(T.near))), () => {
+        const G = ground.A(pos), ar = G.z, dens = G.y, h2 = hashI(c.x, c.y, uint(101));
+        If(u8(h2, 24).lessThanEqual(dens), () => {
+          const r1 = u8(h2, 0), r2 = u8(h2, 8), r3 = u8(h2, 16);
+          // blades stand in tufts: the tuft they are in gives them a height, a lean and a shade in common
+          const hc = hashI(int(floor(pos.x.div(0.6))), int(floor(pos.y.div(0.6))), uint(102)), c1 = u8(hc, 0), c2 = u8(hc, 8), c3 = u8(hc, 16);
+          const tint = ground.tint(pos);
+          const flower = step(0.985, r2).mul(float(1).sub(ar)).mul(BIO.LAND_FLOWERS);   // now and then a stalk with a small white head
+          const hgt = float(asset.height).mul(float(0.5).add(r1.mul(r1).mul(0.55)).add(c1.mul(c1).mul(0.8)).add(flower.mul(0.35))).mul(mix(1, BIO.ARID_HEIGHT, ar))
+            .mul(dens.mul(0.4).add(0.6)).mul(float(1).sub(smoothstep(T.end * 0.7, T.end, dist)));
+          const ang = c2.add(r2.sub(0.5).mul(0.55)).mul(6.2831853), dir = vec2(cos(ang), sin(ang)), side = vec2(dir.y.negate(), dir.x);
+          const t = positionGeometry.y, s = positionGeometry.x, bend = float(0.2).add(r3.mul(0.55)).add(c3.mul(0.35)).mul(float(1).sub(flower.mul(0.7)));
+          const wd = float(T.w).mul(r1.mul(0.5).add(0.75)).mul(float(1).sub(t.mul(t).mul(0.8)));
+          const up = hgt.mul(t).mul(float(1).sub(bend.mul(0.42).mul(t))), fw = hgt.mul(bend).mul(t).mul(t).mul(1.15);   // long blades arc over
+          const w = vec3(pos.x, G.x, pos.y).add(vec3(side.x, 0, side.y).mul(s.mul(wd))).add(vec3(dir.x.mul(fw), up, dir.y.mul(fw)));
+          const tg = normalize(vec3(dir.x.mul(2).mul(bend).mul(t), float(1).sub(bend.mul(0.6).mul(t)), dir.y.mul(2).mul(bend).mul(t)));
+          const sd = vec3(side.x, 0, side.y);
+          vWorld.assign(w); vSide.assign(sd); vN.assign(cross(sd, tg)); vTS.assign(vec3(t, s, flower));
+          const base = tint.rgb.mul(float(0.7).add(r3.mul(0.35)).add(c3.mul(0.35)));
+          const tip = smoothstep(0.5, 1, t).mul(clamp(tint.a.mul(1.2).add(r2.mul(0.35)).sub(0.25), 0, 1));
+          vCol.assign(mix(base, vec3(0.42, 0.34, 0.15), tip).mul(mix(0.14, 1.45, t.mul(t.mul(0.4).add(0.6)))));   // dark in the thick of it, light at the tips
+          out.assign(clipOf(w));
+        });
+      });
+      return out;
+    });
+    const frag = Fn(() => {
+      const vT = vTS.x, n0 = normalize(vN.add(vSide.mul(vTS.y).mul(0.6)));   // a blade is a little rounded
+      const n = normalize(frontFacing.select(n0, n0.negate()).add(vec3(0, 1.4, 0)));   // and a meadow lights as a soft whole
+      const ndl = n.dot(U.uSunDir).mul(0.5).add(0.5), V = normalize(U.uCam.sub(vWorld));
+      const thru = pow(max(V.negate().dot(U.uSunDir), 0), 2).mul(vT);   // light through the blade: the bright yellow-green of a lit meadow
+      const sheen = pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 20).mul(0.16).mul(vT);
+      const sun = U.uSun.mul(cloudAt(vWorld));
+      const col0 = weathered(vCol, n).mul(U.uAmb.mul(vT.mul(0.45).add(0.55)).add(sun.mul(ndl.mul(ndl).mul(1.1).add(vec3(0.5, 1, 0.22).mul(thru))))).add(sun.mul(sheen));
+      const col = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86)).select(vec3(0.92, 0.92, 0.86).mul(U.uAmb.add(U.uSun.mul(0.7))), col0);
+      return toScreen(haze(col, length(U.uCam.sub(vWorld))));
+    });
+    const m = new THREE.NodeMaterial(); m.vertexNode = vert(); m.fragmentNode = frag(); m.side = THREE.DoubleSide;
+    return m;
+  };
 }
 
 /** The asset `grass`: a tier per row of its table. */
-export function createGrass(scene, U, tex, asset) {
-  const rings = asset.tiers.map((L) => {
-    const b = blade(L.segs), g = new THREE.InstancedBufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(b.pos, 3)); g.setIndex(b.idx);
-    const mat = new THREE.ShaderMaterial({
-      vertexShader: VERT, fragmentShader: FRAG, side: THREE.DoubleSide,
-      uniforms: {
-        ...U, uNear: { value: L.near }, uNearFade: { value: L.nearFade },
-        uFar: { value: L.far }, uFarFade: { value: L.farFade }, uBladeH: { value: asset.height }, uBladeW: { value: L.w }, uEnd: { value: L.end },
-      },
-    });
-    return new Tier(scene, g, mat, { cell: L.cell, P: L.P, near: L.near - L.nearFade, far: L.far, order: 0 });
-  });
-  return rings;
+export function createGrass(scene, tex, ground, asset) {
+  return asset.tiers.map((T) => new Tier(scene, blade(T.segs), bladeMaterial(asset, T, ground), { cell: T.cell, P: T.P, near: T.near - T.nearFade, far: T.far, order: 0 }));
 }

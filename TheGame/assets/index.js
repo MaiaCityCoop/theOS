@@ -13,13 +13,10 @@
 //   placement                 { at: 'places', ... } stood at a named place (src/world/places.js), or
 //                             { at: 'scatter', engine, cell, ... } spread over the land by the scatter engine
 //
-// Here they are listed, built into meshes level by level with the one lit material they share, and stood.
-import * as THREE from 'three';
-import { LIGHT_GLSL, heightAt } from '../src/world.js';
-import { detailOf, Detailed } from '../src/detail/index.js';
-import { impostorOf } from '../src/detail/impostor.js';
+// Here they are listed and built into geometry level by level; src/world/place.js stands them in the world.
+import * as THREE from 'three/webgpu';
+import { detailOf } from '../src/detail/index.js';
 import KINDS from './kinds.js';
-import { addSolid } from '../src/world/solids.js';
 import belltent from './belltent.js';
 import stone from './stone.js';
 import boulder from './boulder.js';
@@ -43,28 +40,6 @@ export function geometryOf(asset, level = asset.detail.levels[0]) {
   return g;
 }
 
-/** The material every asset shares: its own colours, lit by the sun and the sky and hazed with distance like the land. */
-export function materialFor(U) {
-  return new THREE.ShaderMaterial({
-    side: THREE.DoubleSide, uniforms: { ...U, uKeep: { value: new THREE.Vector2(1, 0) } },   // uKeep: this level's share in a hand-over (src/detail)
-    vertexShader: /* glsl */ `
-      in vec3 color;
-      out vec3 vN; out vec3 vCol; out vec3 vWorld;
-      void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; vN = mat3(modelMatrix) * normal; vCol = color; gl_Position = projectionMatrix * viewMatrix * w; }`,
-    fragmentShader: /* glsl */ `
-      uniform vec3 uCam; uniform vec2 uKeep;
-      ${LIGHT_GLSL}
-      in vec3 vN; in vec3 vCol; in vec3 vWorld;
-      void main(){
-        if (detailCut(uKeep)) discard;
-        vec3 n = normalize(gl_FrontFacing ? vN : -vN);
-        float ndl = max(dot(n, uSunDir), 0.0);
-        vec3 col = weathered(vCol, n) * (uAmb + uSun * cloudAt(vWorld) * (0.2 + 0.8 * ndl));
-        gl_FragColor = toScreen(haze(col, length(uCam - vWorld)));
-      }`,
-  });
-}
-
 /** What an asset's body is to a walker and the camera: its own `solid` block, else its kind's default made from its
     size (assets/kinds.js, intent 0003). */
 export function solidOf(asset) {
@@ -73,21 +48,6 @@ export function solidOf(asset) {
   const L = m(asset.size.length), W = m(asset.size.width ?? asset.size.length);
   if (k.post) return { posts: [{ x: 0, z: 0, r: Math.max(L, W) * k.post }] };
   return { boxes: [{ x: 0, z: 0, w: L, d: W }] };   // (a ceiling, a function of where you stand, only an asset of its own can say)
-}
-
-/** Stand an asset at a place ({ x, z, yaw }), on the ground there. */
-export function place(scene, U, asset, at) {
-  // its levels of detail, chosen each frame by its size on screen with a hand-over between them (src/detail);
-  // each level its own material, for its own share of the pixels
-  const D = detailOf(asset);
-  const meshes = D.levels.map((l) => { if (l.impostor) return impostorOf(geometryOf(asset), U, l.views); const m = new THREE.Mesh(geometryOf(asset, l), materialFor(U)); m.renderOrder = 1; return m; });
-  const lod = new Detailed(asset, meshes, U);
-  lod.position.set(at.x, heightAt(at.x, at.z) - 0.03, at.z);
-  lod.rotation.y = at.yaw || 0;
-  lod.name = asset.id;
-  scene.add(lod);
-  if (at.solid !== false) addSolid(solidOf(asset), at);   // the walker and the camera cannot pass it
-  return lod;
 }
 
 /** A picture of a scattered rock, for the library's list: a rough, lumpy stone in its own colour. */

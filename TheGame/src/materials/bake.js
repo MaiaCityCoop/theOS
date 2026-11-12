@@ -1,89 +1,54 @@
-// The world's materials (materials/*.js), painted once at start by the GPU into tileable textures:
-// albedo (gamma 2) + height in A, and normal + roughness in A.
-import * as THREE from 'three';
+// The world's materials (materials/*.js), painted once at the start by the GPU into two texture arrays, one layer per
+// material: albedo (gamma 2) + height in A, normal + roughness in N. A shader binds the two arrays whatever the number
+// of materials, and picks a material by its layer: tex.a(id, uv), tex.n(id, uv).
+import * as THREE from 'three/webgpu';
+import { Fn, vec2, vec3, vec4, uv, float, sqrt, clamp, normalize, texture } from 'three/tsl';
 import { MATERIALS } from '../../materials/index.js';
 
-const SIZE = 1024;
+const SIZE = 1024, LEVELS = Math.log2(SIZE) + 1;
 
-const COMMON = /* glsl */ `
-uint hI(ivec2 c, uint s){
-  uint h = uint(c.x) * 0x9E3779B1u ^ uint(c.y) * 0x85EBCA77u ^ s * 0xC2B2AE3Du;
-  h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12; h *= 0x297A2D39u; h ^= h >> 15; return h;
-}
-float h1(vec2 c, vec2 per, uint s){ return float(hI(ivec2(mod(c, per)), s) >> 8) * (1.0 / 16777216.0); }
-vec2 h2(vec2 c, vec2 per, uint s){ return vec2(h1(c, per, s), h1(c, per, s + 77u)); }
-float pn(vec2 p, vec2 per, uint s){
-  vec2 i = floor(p), f = p - i; vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
-  return mix(mix(h1(i, per, s), h1(i + vec2(1, 0), per, s), u.x),
-             mix(h1(i + vec2(0, 1), per, s), h1(i + vec2(1, 1), per, s), u.x), u.y);
-}
-float pfbm(vec2 uv, float per, uint s, int oct){
-  float a = 0.5, v = 0.0, n = 0.0;
-  for (int i = 0; i < oct; i++) { v += a * pn(uv * per, vec2(per), s + uint(i)); n += a; per *= 2.0; a *= 0.5; }
-  return v / n;
-}
-// F1, F2, the cell's hash
-vec3 pvor(vec2 p, float per, uint s){
-  vec2 i = floor(p), f = p - i; float d1 = 9.0, d2 = 9.0, id = 0.0;
-  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
-    vec2 o = vec2(x, y), c = i + o; float d = length(o + h2(c, vec2(per), s) - f);
-    if (d < d1) { d2 = d1; d1 = d; id = h1(c, vec2(per), s + 13u); } else if (d < d2) d2 = d;
-  }
-  return vec3(d1, d2, id);
-}
-float fibre(vec2 q, vec2 per, uint s){ return smoothstep(0.66, 0.84, pn(q, per, s)); }
-// pebbles of one size: returns dome height, sets the pebble's hash
-float pebbles(vec2 uv, float per, uint s, float share, out float id){
-  vec3 v = pvor(uv * per, per, s); id = v.z;
-  float r = v.z < share ? 0.22 + 0.25 * fract(v.z * 37.0) : 0.0;
-  float t = clamp(1.0 - v.x / max(r, 1e-4), 0.0, 1.0);
-  return r > 0.0 ? sqrt(t * (2.0 - t)) : 0.0;
-}
-`;
-
-// one material's tile, painted: its albedo (gamma 2) and height, or its normal and roughness
+// one material's tile, painted: its albedo (gamma 2) and height, or its normal and roughness. The writer turns the rows
+// over: three reads a target's rows the other way up (src/scatter/ground.js), so the tile reads back exactly as painted.
 function program(m, normalPass) {
-  return new THREE.ShaderMaterial({
-    depthTest: false, depthWrite: false,
-    vertexShader: `out vec2 vUv; void main(){ vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
-    fragmentShader: `in vec2 vUv;\n${COMMON}
-void mat(vec2 uv, out float h, out vec3 col, out float rough){
-${m.paint}
-}
-void main(){
-  float h, r; vec3 c; mat(vUv, h, c, r);
-#if ${normalPass ? 1 : 0}
-  float e = 1.0 / ${SIZE}.0, hx, hy; vec3 c2; float r2;
-  mat(vUv + vec2(e, 0.0), hx, c2, r2); mat(vUv + vec2(0.0, e), hy, c2, r2);
-  vec3 n = normalize(vec3((h - hx) / e, (h - hy) / e, 1.0 / ${m.bump.toFixed(4)}));
-  gl_FragColor = vec4(n * 0.5 + 0.5, r);
-#else
-  gl_FragColor = vec4(sqrt(clamp(c, 0.0, 1.0)), clamp(h, 0.0, 1.0));
-#endif
-}`,
+  const frag = Fn(() => {
+    const p = vec2(uv().x, float(1).sub(uv().y)), M = m.paint(p);
+    if (!normalPass) return vec4(sqrt(clamp(M.col, 0, 1)), clamp(M.h, 0, 1));
+    const e = 1 / SIZE, hx = m.paint(p.add(vec2(e, 0))).h, hy = m.paint(p.add(vec2(0, e))).h;
+    return vec4(normalize(vec3(M.h.sub(hx).div(e), M.h.sub(hy).div(e), 1 / m.bump)).mul(0.5).add(0.5), M.rough);
   });
+  const mat = new THREE.NodeMaterial(); mat.vertexNode = vec4(uv().mul(2).sub(1), 0, 1); mat.fragmentNode = frag(); mat.depthTest = mat.depthWrite = false;
+  return mat;
 }
 
-/** Bakes every material of the library (materials/index.js), in its order; returns { a: [albedo…], n: [normal…], of(id) }. */
+/** Bakes every material of the library (materials/index.js), in its order. Returns the arrays and how to read them:
+    { arrays, layer(id), a(id, uv) and n(id, uv) as nodes (with .grad(dx, dy) as on any texture) }. */
 export function bakeTextures(renderer) {
-  const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
-  quad.frustumCulled = false;
-  const out = { a: [], n: [] };
-  for (const m of MATERIALS) for (const pass of ['a', 'n']) {
-    const rt = new THREE.WebGLRenderTarget(SIZE, SIZE, {
-      depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter,
-      wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, anisotropy: aniso, colorSpace: THREE.NoColorSpace,
-    });
-    quad.material = program(m, pass === 'n');
-    renderer.setRenderTarget(rt);
-    renderer.render(quad, cam);
-    quad.material.dispose();
-    out[pass].push(rt.texture); (out.rt ||= []).push(rt);   // the targets too, for a page that reads them back (spike.html)
-  }
-  renderer.setRenderTarget(null);
-  quad.geometry.dispose();
-  out.of = (id) => { const i = MATERIALS.findIndex((m) => m.id === id); return { a: out.a[i], n: out.n[i] }; };   // a material's two textures, by its id
-  return out;
+  const N = MATERIALS.length, aniso = 8;
+  const array = () => {
+    const rt = new THREE.RenderTarget(SIZE, SIZE, { depth: N, depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
+    Object.assign(rt.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, anisotropy: aniso });
+    renderer.initRenderTarget(rt); return rt;
+  };
+  const A = array(), Nn = array();
+  const tmp = new THREE.RenderTarget(SIZE, SIZE, { depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
+  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false;
+  const prev = renderer.getRenderTarget(), box = new THREE.Box2(), at = new THREE.Vector3();
+  MATERIALS.forEach((m, i) => {
+    for (const [dst, normalPass] of [[A, false], [Nn, true]]) {
+      quad.material = program(m, normalPass);
+      renderer.setRenderTarget(tmp); renderer.render(quad, cam); renderer.setRenderTarget(prev);   // its mipmaps are made as the pass ends
+      for (let l = 0; l < LEVELS; l++) { const s = SIZE >> l; box.min.set(0, 0); box.max.set(s, s); at.set(0, 0, i); renderer.copyTextureToTexture(tmp.texture, dst.texture, box, at, l, l); }
+      quad.material.dispose();
+    }
+  });
+  tmp.dispose(); quad.geometry.dispose();
+  const layer = (id) => { const i = MATERIALS.findIndex((m) => m.id === id); if (i < 0) throw new Error(`no material "${id}"`); return i; };
+  const tA = texture(A.texture), tN = texture(Nn.texture);
+  return {
+    arrays: [A, Nn], layer, ids: MATERIALS.map((m) => m.id),
+    /** a material's albedo + height at uv (a node) */
+    a: (id, p) => tA.sample(p).depth(layer(id)),
+    /** its normal + roughness at uv */
+    n: (id, p) => tN.sample(p).depth(layer(id)),
+  };
 }

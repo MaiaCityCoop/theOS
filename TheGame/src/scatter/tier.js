@@ -1,31 +1,29 @@
-// Scatter: what stands on the land (blades, stones, boulders), a tier at a time. A tier is one
-// instanced draw call: its instances are the cells of the patches the camera's frustum touches
-// inside the tier's band of distances, chosen anew each frame. A patch is only a number pair in a
-// uniform array; what stands in a cell is hashed in the vertex shader. So blades stand where the
-// lens looks and nowhere else, and choosing them builds nothing.
-import * as THREE from 'three';
+// Scatter: what stands on the land (blades, stones, boulders), a tier at a time. A tier is one instanced draw call: its
+// instances are the cells of the patches the camera's frustum touches inside the tier's band of distances, chosen anew
+// each frame. A patch is only a number pair in a uniform array; what stands in a cell is hashed in the vertex stage, so
+// blades stand where the lens looks and nowhere else, and choosing them builds nothing. A cell that holds nothing is
+// sent off screen (offScreen) before any of its work is done.
+import * as THREE from 'three/webgpu';
+import { uint, int, ivec2, vec4, uniformArray, instanceIndex, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { boxIn } from '../core/frustum.js';
 
-export const MAXP = 384;                 // patches a tier can draw at once
-// GLSL: the cell an instance stands for: which patch of the list, which cell of the patch
-export const CELL_GLSL = /* glsl */ `
-uniform float uCell; uniform int uP; uniform vec2 uPatch[${MAXP}];
-ivec2 instanceCell(){
-  int pp = uP * uP, pid = gl_InstanceID / pp, b = gl_InstanceID - pid * pp;
-  return ivec2(uPatch[pid]) + ivec2(b % uP, b / uP);
-}
-`;
+export const MAXP = 384;   // patches a tier can draw at once
+
+/** where a vertex that should not be drawn goes */
+export const offScreen = () => vec4(2, 2, 2, 1);
+/** a world point to the clip space of whichever camera draws it (the eye's, or the shadow's) */
+export const clipOf = (w) => cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(w, 1));
 
 export class Tier {
-  /** cell: metres per cell; P: cells per patch side; near/far: the band, in metres as a 68° lens sees them */
+  /** cell: metres per cell; P: cells per patch side; near/far: the band, in metres as a 68° lens sees them;
+      material(cellNode): the tier's node material, given the cell each instance stands for */
   constructor(scene, geometry, material, { cell, P, near = 0, far, order = 0 }) {
     this.P = P; this.S = cell * P; this.near = Math.max(0, near); this.far = far; this.n = 0; this.over = false;
-    this.list = new Float32Array(MAXP * 2);
-    material.uniforms.uCell = { value: cell }; material.uniforms.uP = { value: P }; material.uniforms.uPatch = { value: this.list };
-    geometry.instanceCount = 0;
-    this.geometry = geometry;
-    this.mesh = new THREE.Mesh(geometry, material);
-    this.mesh.frustumCulled = false; this.mesh.renderOrder = order;
+    this.list = Array.from({ length: MAXP }, () => new THREE.Vector2());
+    const patches = uniformArray(this.list, 'vec2'), pp = uint(P * P), pid = instanceIndex.div(pp), b = int(instanceIndex.sub(pid.mul(pp)));
+    this.cell = ivec2(patches.element(pid)).add(ivec2(b.mod(P), b.div(P)));   // which patch of the list, which cell of the patch
+    this.geometry = geometry; geometry.instanceCount = 0;
+    this.mesh = new THREE.Mesh(geometry, material(this.cell)); this.mesh.frustumCulled = false; this.mesh.renderOrder = order;
     scene.add(this.mesh);
   }
   /** s: how many times further than the 68° lens this lens sees a thing at the same size; h0: the ground under the camera */
@@ -43,10 +41,10 @@ export class Tier {
         const yb = 0.32 * Math.sqrt(nd) + 0.2 * S + 6;         // the land is gentle: it cannot be further off than this
         if (!boxIn(x0, x1, h0 - yb, h0 + yb, z0, z1)) continue;
         if (n === MAXP) { this.over = true; continue; }
-        list[n * 2] = i * P; list[n * 2 + 1] = j * P; n++;
+        list[n].set(i * P, j * P); n++;
       }
     }
     this.n = n; this.geometry.instanceCount = n * P * P; this.mesh.visible = n > 0;
   }
-  warm() { this.geometry.instanceCount = this.P * this.P; this.mesh.visible = true; }   // one patch, so the program and buffers exist before the first frame
+  warm() { this.geometry.instanceCount = this.P * this.P; this.mesh.visible = true; }   // one patch, so the pipeline exists before the first frame
 }
