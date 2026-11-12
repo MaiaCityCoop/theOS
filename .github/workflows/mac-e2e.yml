@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: mac-e2e-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   mac-e2e:
     runs-on: ubuntu-latest
