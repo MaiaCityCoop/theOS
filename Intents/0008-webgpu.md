@@ -611,6 +611,55 @@ shadows and the grass.
   builds its crown with its own code, not the kit's `crown()`; the oak's leaves do not show their pale undersides
   in the wind; the WebGL 2 fallback still not looked at.
 
+### 2026-11-12, nothing pops: far trees, a forest's floor, the view from high up (14:05)
+
+- **Asked:** the clouds do not move; the leaves tremble oddly even without wind; from far away and from high up it
+  looks wrong (a render bug); trees appear and drop out in the distance and on drone shots: a better way than hiding
+  them, even lower detail far off, far smoother changes of level; the ground under the oaks and pines does not look real.
+- **Found:**
+  - The clouds drifted by the wind's strength only: not at all in a calm. Leaves fluttered at a fixed size, each corner
+    of a card by itself. The sky's dome stood a hair before the far plane: all land past 10 km was behind it.
+  - A tree was dropped whole below 16 px (some 500 m): everything at one distance at once as a drone climbs. Between two
+    levels a tree changed over whole, by a share fixed when its cell was packed (two tiers pack at different moments).
+  - Past the shadow map (60 m at eye level) a forest's floor lay in full sun: a pale plain with trees on it. Its grass was
+    straw-coloured, its litter several times brighter than the grass beside it.
+  - From 4 km up the land ended in a stepped edge 24 km out, a darker band of the dome under it; no clouds from above
+    their layer.
+  - The heaviest view (a walk in the forest) is the ground's own texture reads, filtered eight taps along the slope.
+    Trees and grass are not what costs there: switched off, the frame's GPU time stays the same.
+- **Delivered:**
+  - Trees: two farthest levels made by the kit from each tree's nearest mesh (assets/kit/tree.js `farOf`: its crown one
+    body round its leaves on a post, 36 triangles; then a speck of 8), drawn down to 3 px, over two kilometres off (px
+    260, 80, 34, 18, 7, 3). Each vertex reckons the tree's size on screen every frame: between levels the finer one's
+    sprigs shrink to their feet one by one (a hash of the card's foot, a new attribute `root`) as the coarser one's grow
+    from theirs, the wood changing over half way; the last level sinks into the ground (assets/kinds.js `sink`). A cell
+    keeps its tree a margin either side of its band, as far as the camera moves before the cells are packed again.
+  - The floor: past where the trees' shadows are drawn the land dims its floor under the stand's groves
+    (src/terrain/material.js; src/world/shadow.js `BOX`, the kit's `wide`). Each kind of tree names its `litter`, laid
+    where it leads (src/world/stand.js `kindsOf`; noise.nodes.js `groveAt`, `leadAt`: a stand's noises asked in one
+    place by the trees, the land and the biome). A new material, oak litter (materials/oaklitter.js); the pine needles
+    darker and rustier; the forest's grass green, most of it in the glades (`grass.coverAt`).
+  - From high up: the air is whole by where the land ends (`uLandEnd`); below the horizon the dome keeps the horizon's
+    colour; a weather condition may say what of it lies in the air between the eye and a point (`air`): the clouds, seen
+    from above; the far canopy's crowns go over into their mean past 2 km (no speckle to shimmer).
+  - The ground's textures filtered four taps (colours) and two (relief), not eight.
+  - Earlier in the round: the clouds drift in a calm too; a sprig swings as one from its foot, still in a calm; the dome on
+    the far plane itself; the governor reads the share of late frames and a trimmed mean.
+  - The dashboard (OS): a welcome card for the loose title (name, citizens today, a sunny invite button), the day on
+    the Stories card, a new picture of the game.
+- **Good:** no errors in WebKit on the library, a film and the game. A 32 s drone flight with the governor free: 239 to
+  241 frames per 4 s while climbing, the pixel ratio rising from 1.1 to 1.6. A frame's GPU time at 1440 x 817, 1.5
+  pixels a point: a walk in the forest 23.1 ms before the filtering, 18.4 after; a walk in the meadow 15.8, then 14.6.
+  The floor's shade and litter cost 0.6 ms.
+- **Broke / not there yet:** a walk in the forest is still over 16.7 ms at 1.5 pixels a point (the governor holds it
+  near 1.1 to 1.25 there; dropping into the forest from a flight it runs 50 to 56 fps for a few seconds until it has
+  stepped down). Samuel's Safari not read this round: his game tab was not open. From high up the far fields (dryland,
+  meadow) are angular: their rules are value noise; reshaping them moves the forest's edges near the tent, and the
+  city's plots (intent 0009) read the same rules: not done, his call. No undergrowth yet. The city's plots are drawn
+  over the clouds. Blades of grass 60 to 110 m off under trees are not dimmed with the floor. To compare with the commit
+  before, I stashed the working tree for three minutes, another session's uncommitted work (intent 0009) with it; it
+  came back whole, and I will not do that again in a shared tree.
+
 ## Trail
 
 | When | Commit | What |
@@ -662,3 +711,8 @@ shadows and the grass.
 | 2026-11-12 | `bb32bbe` | Seams: places as data, the biome picture from the world's recipes, the README's table of plug-ins |
 | 2026-11-12 | `85083f5` | Intent 0008: the seams' record, with the frame rate the log shows |
 | 2026-11-12 | `06912a6` | The holm oak; the stand is the biome's, its kinds in patches; the kit's crown; a calmer governor |
+| 2026-11-12 | `e65e20a` | The sky on the far plane; leaves still in a calm; the clouds drift in a calm; the governor sees every frame a little late |
+| 2026-11-12 | `80f7a00` | Dashboard: a welcome card, the day on the Stories card, a new picture of the game |
+| 2026-11-12 | `0402b88` | Trees: two farthest levels by the kit; sprigs grow and shrink between levels; the last sinks away |
+| 2026-11-12 | `7103261` | The forest's floor: shade past the shadow map, each tree's litter, green grass in the glades |
+| 2026-11-12 | `bcbb58e` | From high up: the land melts into the horizon, clouds from above; the ground's textures filtered 4 and 2 taps |
