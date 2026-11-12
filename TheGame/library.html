@@ -205,7 +205,7 @@ function choose(id, keepSeed) {
 }
 // the Detail tab: every level of detail of the asset, each a button that takes the camera to where that level is drawn
 function bands(a) {   // its levels as the detail engine resolves them (src/detail): each drawn between lo and hi pixels on screen
-  const { levels, cut } = detailOf(a), faces = (l) => (l.impostor ? 2 : l.faces ? l.faces.length : 20 * 4 ** (l.rock || 0));
+  const { levels, cut } = detailOf(a), faces = (l) => (l.impostor ? 2 : l.mesh ? l.mesh.index.length / 3 : l.faces ? l.faces.length : 20 * 4 ** (l.rock || 0));
   const shown = a.placement.at === 'scatter' ? levels.filter((l) => !l.impostor) : levels;   // a scattered asset has no card yet
   return [...shown.map((l) => ({ i: l.i, lo: l.lo, hi: l.hi, faces: faces(l), impostor: l.impostor, views: l.views })), { i: levels.length, lo: 0, hi: cut, faces: 0 }];   // and below the last: nothing drawn
 }

@@ -373,6 +373,25 @@ shadows and the grass.
 - **Broke / not there yet:** a few slow seconds after loading while the trees compile; a card's flat side shows at a
   grazing angle; not checked in Samuel's own Safari; a walker passes through trunks.
 
+### 2026-11-12, the stone pine after the photos (afternoon)
+
+- **Asked:** photos of Pinus pinea as the measure: make this one tree like them.
+- **Found:** against the photos the tree had a short, thick trunk, three heavy limbs and a flat plate of a crown; the
+  real one has a long, slender trunk bending in an S, six thin limbs fanning like an umbrella's ribs, and a dome of
+  rounded puffs with a flat underside, in a full green. A brush painted as one oval reads as a leaf from afar. Stored
+  unindexed, the tree's corners were worked out once per triangle: the frame was bound by its vertices, not its pixels
+  (13.7 ms at a quarter of the pixels).
+- **Delivered:** the pine rebuilt to the photos: an S-bending trunk bare to over half its height, two stems forking into
+  six long, thin limbs bowed upward, branches and twigs, and the needles in rounded puffs over a flattened dome with a
+  ring of them making its flat underside; each card's normal its puff's and the dome's (a puff lit as a ball); a deep,
+  lively green. The tuft repainted as a sprig: five twigs fanning from its foot, each with brushes of paired needles.
+  Middle and far levels fuller with fewer, larger cards; their cut lowered with distance. The mesh indexed (15 500
+  vertices near instead of 29 800); the trees' shadow lookup one tap.
+- **Good:** in the library and from across the river it reads as the photos' tree; WebKit 1000×560 at 16.7 ms a frame,
+  also with 25 cm of snow, overcast and heavy snowfall (the first run after a change still compiles).
+- **Broke / not there yet:** the shadow pass with the trees is about 6 ms; under the crowns the cards' undersides can show;
+  not checked in Samuel's own Safari; a walker passes through trunks.
+
 ## Trail
 
 | When | Commit | What |
@@ -408,4 +427,5 @@ shadows and the grass.
 | 2026-11-12 | `9ffe337` | Clouds without a repeat; their shadow from a map drawn once a frame; snow's pattern from the baked tile; this record |
 | 2026-11-12 | `b9aabb0` | Deeper cloud shadows, softer clouds; falling snow with its own slider; tools/shots.js |
 | 2026-11-12 | `832d280` | Smooth far river edges, no grid in the far meadow; the stone pine, its forest biome and the trees' engine |
-| 2026-11-12 | (this commit) | The stone pine made real: branches, twigs, needle brushes, bark, three levels |
+| 2026-11-12 | `617d3e9` | The stone pine made real: branches, twigs, needle brushes, bark, three levels |
+| 2026-11-12 | (this commit) | The stone pine after the photos: S-trunk, umbrella limbs, a dome of puffs; indexed |

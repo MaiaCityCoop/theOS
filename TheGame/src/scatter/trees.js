@@ -7,7 +7,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf } from '../world/land.nodes.js';
-import { finish, skyLight, weathered, snowLift, cloudAt, detailCut, detailKeep, unlit, windAt } from '../world/light.js';
+import { finish, skyLight, weathered, snowLift, cloudAtVertex, detailCut, detailKeep, unlit, windAt } from '../world/light.js';
 import { PLACES } from '../world/places.js';
 import { recipe } from '../core/registry.js';
 import { geometryOf } from '../../assets/index.js';
@@ -71,7 +71,6 @@ function treeMaterial(tex, row) {
       const flutter = sin(U.uTime.mul(ws.mul(8).add(2.5)).add(lp.x.mul(1.9)).add(lp.z.mul(2.3)).add(lp.y.mul(1.3)).add(B.y)).mul(ws.mul(0.09).add(0.015)).mul(part);
       const w = vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(k.x.add(push.x.mul(flutter)), flutter.mul(0.4), k.y.add(push.y.mul(flutter))));
       let n = turn(attribute('normal', 'vec3'));
-      if (cr) n = mix(n, normalize(turn(lp.sub(vec3(cr[0], cr[1] - 1.6, cr[2])).mul(vec3(1, 2.4, 1)))), part.mul(0.78));   // the needles take the crown's dome
       vN.assign(normalize(n)); vWorld.assign(w); vUv.assign(attribute('uv', 'vec2')); vAo.assign(ao); vPart.assign(part); vShade.assign(B.z.mul(0.24).add(0.88));
       const side = floor(B.w.mul(0.5)); vKeep.assign(vec2(B.w.sub(side.mul(2)), side));
       return clipOf(w);
@@ -80,7 +79,7 @@ function treeMaterial(tex, row) {
       If(detailCut(vKeep), () => { Discard(); });
       const leaf = vPart.greaterThan(0.5), T = vec4(0).toVar();
       // the needles' outline: cut where the tuft is not; far off its mips thin it out, so the cut lowers
-      If(leaf, () => { T.assign(tex.a(M.needles, vUv)); If(T.a.lessThan(mix(0.5, 0.28, smoothstep(25, 220, length(U.uCam.sub(vWorld))))), () => { Discard(); }); });
+      If(leaf, () => { T.assign(tex.a(M.needles, vUv)); If(T.a.lessThan(mix(0.45, 0.16, smoothstep(15, 220, length(U.uCam.sub(vWorld))))), () => { Discard(); }); });   // (far off a mip's needles are fainter: the cut lowers with them, so the crown stays full)
       const out = vec4(0).toVar();
       If(unlit().not(), () => {   // drawn into the shadow map: only its depth (and its cut-out) counts
         const nw = normalize(vN), V = normalize(U.uCam.sub(vWorld)), n = nw.dot(V).lessThan(0).select(nw.negate(), nw);
@@ -88,7 +87,7 @@ function treeMaterial(tex, row) {
         If(leaf, () => { albedo.assign(T.rgb.mul(T.rgb).mul(vShade)); }).Else(() => { const W = tex.a(M.wood, vUv); albedo.assign(W.rgb.mul(W.rgb).mul(mix(0.55, 1, W.a))); });
         const ndl = leaf.select(n.dot(U.uSunDir).add(0.45).div(1.45), n.dot(U.uSunDir)).max(0);   // needles take the light round their edge
         const through = leaf.select(pow(max(V.negate().dot(U.uSunDir), 0), 3).mul(0.55), float(0));   // the sun behind a brush of needles shines through it
-        const sun = U.uSun.mul(cloudAt(vWorld));
+        const sun = U.uSun.mul(cloudAtVertex(vWorld));   // one tap of the shadow map, not twelve: a crown is many layers of cards deep, and its needles' own cut-out is soft enough
         const col = weathered(albedo, n, snowLift(vWorld, row.snow?.clumps ?? 0.3)).mul(skyLight(n).mul(vAo).add(sun.mul(ndl.add(through)).mul(vAo.mul(0.6).add(0.4))));
         out.assign(finish(col, vWorld));
       });
@@ -104,7 +103,7 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
   const a = row.asset, P = a.placement, biome = recipe(P.biome), H = a.size.height, tiers = [], make = treeMaterial(tex, row);
   if (!biome) return tiers;
   for (const Lv of row.detail.levels.filter((l) => !l.impostor)) {
-    const g = geometryOf(a, Lv); g.setIndex([...Array(g.attributes.position.count).keys()]);   // (a tier's draw counts indices)
+    const g = geometryOf(a, Lv); if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]);   // (a tier's draw counts indices)
     const band = { near: uniform(0), far: uniform(1) }, live = (c) => treeIn(c, row, Lv, band, biome);
     const material = (src) => {
       const { m, shape } = make();
