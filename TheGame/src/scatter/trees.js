@@ -28,13 +28,13 @@ const clearAt = (p) => {
 // what stands in a cell: a tree of this level, or nothing; packed into two vec4 (A: x, z, its foot's height, its scale;
 // B: its turn, its sway's phase, its shade, its share of the hand-over between levels and side packed). Done once per
 // tree (src/scatter/tier.js); the cheap test first, as most cells hold none.
-function treeIn(c, row, Lv, band, biome, shape = 0, shapes = 1, all = false) {
+function treeIn(c, row, Lv, band, biome, shapes = 1, all = false) {
   const P = row.asset.placement, H = row.asset.size.height, cx = c.x, cy = c.y;
   const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar();
   const pos = vec2(c).add(0.08).add(vec2(rnd(cx, cy, uint(302)), rnd(cx, cy, uint(303))).mul(0.84)).mul(row.cell), dist = camDist(pos);
-  const mine = shapes > 1 ? floor(rnd(cx, cy, uint(309)).mul(shapes)).equal(float(shape)) : float(1).greaterThan(0);   // which of its shapes stands here
+  const bucket = floor(rnd(cx, cy, uint(309)).mul(shapes));   // which of its shapes stands here
   const range = all ? length(pos.sub(U.uCam.xz)) : dist;   // the shadow's stand-in: metres round the camera, whatever the lens
-  If(range.lessThan(band.far).and(range.greaterThanEqual(band.near)).and(mine), () => {
+  If(range.lessThan(band.far).and(range.greaterThanEqual(band.near)), () => {
     const r0 = rnd(cx, cy, uint(300));
     // groves and glades: a stand is not a plantation (a noise as wide as P.clumps sets how thick it grows here)
     const grove = P.clumps ? smoothstep(0.22, 0.72, vnoise(pos.div(P.clumps), uint(308)).mul(0.7).add(vnoise(pos.div(P.clumps * 0.27), uint(310)).mul(0.3))).mul(1.6) : float(1), dens = grove.mul(P.density);
@@ -51,7 +51,7 @@ function treeIn(c, row, Lv, band, biome, shape = 0, shapes = 1, all = false) {
       });
     });
   });
-  return { alive: alive.greaterThan(0.5), data: [A, B] };
+  return { alive: alive.greaterThan(0.5), data: [A, B], bucket };
 }
 
 // the tree's material: shape(A, B) its vertex from what treeIn packed, swayed by the wind; its wood wrapped in its bark,
@@ -59,7 +59,7 @@ function treeIn(c, row, Lv, band, biome, shape = 0, shapes = 1, all = false) {
 // when the sun is behind them, and rounded over the crown as one dome (a crown of a thousand cards takes the light as a
 // whole, not card by card); `ao` the light that reaches into the crown (assets/stonepine.js)
 function treeMaterial(tex, row) {
-  const a = row.asset, H = a.size.height, sway = (a.wind ?? KINDS[a.kind]?.wind)?.sway ?? 0, cr = a.crown, M = a.materials || {};
+  const a = row.asset, H = a.size.height, sway = (a.wind ?? KINDS[a.kind]?.wind)?.sway ?? 0, M = a.materials || {};
   return () => {
     const vWorld = varyingProperty('vec3', 'tWorld'), vN = varyingProperty('vec3', 'tN'), vUv = varyingProperty('vec2', 'tUv'), vKeep = varyingProperty('vec2', 'tKeep');
     const vAo = varyingProperty('float', 'tAo'), vPart = varyingProperty('float', 'tPart'), vShade = varyingProperty('vec3', 'tShade'), vCn = varyingProperty('vec3', 'tCn');
@@ -85,7 +85,7 @@ function treeMaterial(tex, row) {
       const leaf = vPart.greaterThan(0.5), T = vec4(0).toVar();
       // the needles' outline: cut where the tuft is not; far off its mips thin it out, so the cut lowers
       If(leaf, () => {
-        T.assign(tex.a(M.needles, vUv));
+        T.assign(tex.a(M.leaves ?? M.needles, vUv));
         // a card seen edge-on is a flat sliver, not a brush: the nearer edge-on, the more of it is cut away (not in the shadow map)
         const edge = unlit().select(float(1), abs(normalize(vCn).dot(normalize(U.uCam.sub(vWorld)))));
         If(T.a.lessThan(mix(mix(0.45, 0.16, smoothstep(15, 220, length(U.uCam.sub(vWorld)))), 0.97, smoothstep(0.42, 0.06, edge))), () => { Discard(); });
@@ -108,48 +108,52 @@ function treeMaterial(tex, row) {
   };
 }
 
-/** The assets of kind `tree`: a tier per shape and level of detail, each where a tree of it is the size on screen its kind
+/** The assets of kind `tree`: a tier per level of detail (its shapes buckets of it), each where a tree of it is the size on screen its kind
     asks; and, when its detail names one, a stand-in drawn only into the shadow map (layer 1): every tree round the camera
     at its coarser level, the shade of a crown at a fraction of its finest cards' cost. */
 export function createTrees(scene, tex, ground, row, gpu = false) {
   const a = row.asset, P = a.placement, biome = recipe(P.biome), H = a.size.height, tiers = [], make = treeMaterial(tex, row);
   if (!biome) return tiers;
   const levels = row.detail.levels.filter((l) => !l.impostor), shapes = levels[0]?.meshes?.length ?? 1, SH = a.detail.shadow;
-  const tier = (Lv, v, shadow) => {
-    const g = geometryOf(a, Lv, v); if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]);   // (a tier's draw counts indices)
-    const band = { near: uniform(0), far: uniform(1) }, live = (c) => treeIn(c, row, Lv, band, biome, v, shapes, shadow);
-    const material = (src) => {
+  // a tier per level: its cells worked out once, each tree dropped into its shape's mesh (tier.js: buckets)
+  const tier = (Lv, shadow) => {
+    const geos = Array.from({ length: shapes }, (_, v) => { const g = geometryOf(a, Lv, v); if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]); return g; });   // (a tier's draw counts indices)
+    const band = { near: uniform(0), far: uniform(1) }, live = (c) => treeIn(c, row, Lv, band, biome, shapes, shadow);
+    const material = (src, k) => {
       const { m, shape } = make();
       m.vertexNode = src.read ? Fn(() => shape(src.read(0), src.read(1)))()   // ready-made by the compute pass
-        : Fn(() => { const L = live(src), out = offScreen().toVar(); If(L.alive, () => { out.assign(shape(...L.data)); }); return out; })();   // the fallback: worked out per vertex
+        : Fn(() => { const L = live(src), out = offScreen().toVar(); If(L.alive.and(L.bucket.equal(float(k))), () => { out.assign(shape(...L.data)); }); return out; })();   // the fallback: worked out per vertex
       return m;
     };
     // (the stand-in in small patches: those whose shade cannot reach the view are dropped)
-    const t = new Tier(scene, g, material, { cell: P.cell, P: shadow ? 4 : Lv.P, near: 0, far: 1, order: 1, live, gpu, cap: Math.ceil(MAXP * (shadow ? 16 : Lv.P * Lv.P) * 0.25), slots: 2, ...(shadow ? { cull: SH.reach ?? 20, fixed: SH.far * 2.4 } : {}) });
+    const t = new Tier(scene, geos, material, { cell: P.cell, P: shadow ? 4 : Lv.P, near: 0, far: 1, order: 1, live, gpu, cap: Math.ceil((MAXP * (shadow ? 16 : Lv.P * Lv.P) * 0.4) / shapes), slots: 2, ...(shadow ? { cull: SH.reach ?? 20, fixed: SH.far * 2.4 } : {}) });
     t.band = shadow ? () => { t.near = 0; t.far = SH.far; band.near.value = -1; band.far.value = SH.far * 2.4; }   // (grown with the camera's height by Tier.select's patches)
       : () => {   // the distances where a tree of this level can be, from the largest seen small to the smallest seen large
         const K = pxK(), e = Math.exp(row.detail.fade);
         t.near = Number.isFinite(Lv.hi) ? (H * P.scale[0] * K) / (Lv.hi * e) : 0; t.far = (H * P.scale[1] * K * e) / Lv.lo;
         band.near.value = t.near > 0 ? t.near : -1; band.far.value = t.far;
       };
-    t.band();
-    if (shadow) { t.mesh.layers.set(1); t.trunk = a.trunk?.[v] ?? [0, 0, 0.3]; }   // only the light sees it; and its trees are the ones the walker bumps into (trunk: where it stands at a walker's chest, and its radius, at scale 1)
-    else if (row.detail.casts && !SH && Lv.i === 0) t.mesh.layers.enable(1);   // without a stand-in the near trees cast, as drawn (src/world/shadow.js)
+    t.band(); t.level = Lv.i;
+    if (shadow) { t.meshes.forEach((m) => m.layers.set(1)); t.trunks = a.trunk; }   // only the light sees it; and its trees are the ones the walker bumps into (trunk: each shape's, where it stands at a walker's chest, and its radius, at scale 1)
+    else if (row.detail.casts && !SH && Lv.i === 0) t.meshes.forEach((m) => m.layers.enable(1));   // without a stand-in the near trees cast, as drawn (src/world/shadow.js)
     tiers.push(t);
   };
-  for (const Lv of levels) for (let v = 0; v < shapes; v++) tier(Lv, v, false);
-  if (SH && row.detail.casts) for (let v = 0; v < shapes; v++) tier(SH.meshes ? { mesh: SH.meshes[0], meshes: SH.meshes, P: 4 } : levels[Math.min(SH.level ?? 0, levels.length - 1)], v, true);   // its own shade mesh, or a level
+  for (const Lv of levels) tier(Lv, false);
+  if (SH && row.detail.casts) tier(SH.meshes ? { mesh: SH.meshes[0], meshes: SH.meshes, P: 4 } : levels[Math.min(SH.level ?? 0, levels.length - 1)], true);   // its own shade mesh, or a level
   addEventListener('resize', () => tiers.forEach((t) => t.band()));
   // the trunks as bodies: the stand-in's packing (every tree round the camera) read back each time it is packed anew
-  const own = tiers.filter((t) => t.trunk && t.read);
+  const own = tiers.filter((t) => t.trunks && t.read);
   if (own.length) {
     let busy = false, was = '';
     tiers.solid = (renderer) => {
       const key = own.map((t) => t.key).join('#'); if (busy || key === was) return;
       busy = true; was = key;
-      Promise.all(own.map((t) => t.read(renderer).then(({ count, data: [A, B] }) => {
-        const out = [], [u, w, r] = t.trunk;
-        for (let i = 0; i < count; i++) { const k = i * 4, s = A[k + 3], c = Math.cos(B[k]), n = Math.sin(B[k]); out.push({ x: A[k] + (u * c - w * n) * s, z: A[k + 1] + (u * n + w * c) * s, r: r * s }); }   // turned as the tree is (its shape())
+      Promise.all(own.map((t) => t.read(renderer).then((buckets) => {
+        const out = [];
+        buckets.forEach(({ count, data: [A, B] }, v) => {
+          const [u, w, r] = t.trunks?.[v] ?? [0, 0, 0.3];
+          for (let i = 0; i < count; i++) { const k = i * 4, s = A[k + 3], c = Math.cos(B[k]), n = Math.sin(B[k]); out.push({ x: A[k] + (u * c - w * n) * s, z: A[k + 1] + (u * n + w * c) * s, r: r * s }); }   // turned as the tree is (its shape())
+        });
         return out;
       })))
         .then((lists) => setTrunks(row.uid, lists.flat())).catch(() => {}).finally(() => (busy = false));

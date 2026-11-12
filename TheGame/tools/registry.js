@@ -20,7 +20,9 @@ export function buildRegistry(root) {
       const src = readFileSync(join(abs, f), 'utf8'), uid = src.match(/\buid: '([0-9a-f-]{36})'/)?.[1];
       if (!uid) continue;   // not a recipe (an index, the kinds' defaults)
       if (found[uid]) throw new Error(`uid ${uid} in both ${found[uid].file} and ${dir}/${f}`);
-      found[uid] = { type: src.match(/\btype: '(\w+)'/)?.[1], name: src.match(/\bname: (['"])(.*?)\1/)?.[2], file: `${dir}/${f}`, src };
+      // a kit it builds with (./kit/*.js: the tree kit) is part of what it is: a changed kit gives it a new version too
+      const kits = [...src.matchAll(/from '\.\/(kit\/[\w.-]+\.js)'/g)].map((m) => readFileSync(join(abs, m[1]), 'utf8')).join('\n');
+      found[uid] = { type: src.match(/\btype: '(\w+)'/)?.[1], name: src.match(/\bname: (['"])(.*?)\1/)?.[2], file: `${dir}/${f}`, src: kits ? `${src}\n${kits}` : src };
     }
   }
   for (const [uid, r] of Object.entries(found)) r.uses = [...new Set(r.src.match(UUID) || [])].filter((u) => u !== uid && found[u]).sort();

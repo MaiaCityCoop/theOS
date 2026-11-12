@@ -436,6 +436,26 @@ shadows and the grass.
   8.3 ms, rAF held at 10 to 30 fps in the test window even at the tent), so whole-frame numbers are not comparable to
   the afternoon's; to be checked in Samuel's own Safari. Without WebGPU (no packing to read back) trunks are not solid.
 
+### 2026-11-12, the trees: lighter far off, and a kit for every kind of tree (night)
+
+- **Asked:** finish the trees' optimizing; then make adding a tree, one after another, a matter of one new file,
+  with the whole staying as fast.
+- **Found:** counted, not timed (WebKit's timings swing too much tonight): in the forest the far level drew about
+  1,700 trees at 760 triangles each, 1.19M of the 1.5M tree triangles; and every shape of every level was packed by a
+  compute pass of its own (16 passes over the same cells).
+- **Delivered:** a fourth, farthest level (a trunk, its stems and a dozen great tufts: 84 to 162 triangles) for trees
+  12 to 30 pixels high (kinds.js tree px [260, 75, 30, 12]). Buckets (src/scatter/tier.js): a tier may hold a list of
+  meshes, its cells worked out once and each that holds something dropped into its bucket (its own count, its own
+  indirect draw), so a tree's shapes cost one packing pass per level, not one each. The tree kit (assets/kit/tree.js):
+  the builder, tubes, crossed cards, the vector help, and `tree()`, which makes a tree file's recipe whole (its levels'
+  meshes per shape, its shade, its size from its meshes, its trunks' bodies from the tube made with { body: true }). The
+  stone pine is now its shapes, grow() and shade() and its numbers; the engine reads `materials: { wood, leaves }`. The
+  registry versions a recipe together with the kit it imports (tools/registry.js).
+- **Good:** tree triangles in the forest view from about 1.5M to 0.54M, by the river 0.96M to 0.33M, the picture the
+  same; 5 packing passes for the pines instead of 20; the library shows the pine as before.
+- **Broke / not there yet:** a second kind of tree in the same biome would stand in cells of its own and overlap the
+  first: one cell should hold one tree of whichever kind the biome's mix says (a species table on the biome).
+
 ## Trail
 
 | When | Commit | What |
@@ -475,4 +495,5 @@ shadows and the grass.
 | 2026-11-12 | `c90cf51` | The stone pine after the photos: S-trunk, umbrella limbs, a dome of puffs; indexed |
 | 2026-11-12 | `bd5bc2b` | Loading over a still of the world |
 | 2026-11-12 | `b00d1a1` | Sky only where it shows, one far take, grass colour per vertex, filtered shadows, shorter far grass |
-| 2026-11-12 | (this commit) | Pine forest: four shapes, its own green per tree, no edge-on cards, a light shade mesh for shadows, solid trunks |
+| 2026-11-12 | `4bacbbe` | Pine forest: four shapes, its own green per tree, no edge-on cards, a light shade mesh for shadows, solid trunks |
+| 2026-11-12 | (this commit) | Trees: a farthest level, one packing pass per level for all shapes, the tree kit |

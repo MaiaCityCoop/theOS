@@ -31,29 +31,32 @@ export class Tier {
     this.list = Array.from({ length: MAXP }, () => new THREE.Vector2());
     const patches = uniformArray(this.list, 'vec2'), P2 = uint(P * P);
     const cellOf = (index) => { const pid = index.div(P2), b = int(index.sub(pid.mul(P2))); return ivec2(patches.element(pid)).add(ivec2(b.mod(P), b.div(P))); };   // which patch of the list, which cell of the patch
-    this.geometry = geometry; geometry.instanceCount = 0;
+    // buckets: geometry may be a list (the shapes of one thing): one mesh each, but the cells worked out once, each that
+    // holds something dropped into its bucket (live(...).bucket); material(src, k) is bucket k's
+    const geos = Array.isArray(geometry) ? geometry : [geometry], K = geos.length;
+    this.geometries = geos; this.geometry = geos[0]; geos.forEach((g) => (g.instanceCount = 0));
     if (live && gpu) {
-      const data = Array.from({ length: slots }, () => instancedArray(cap, 'vec4')), count = instancedArray(1, 'uint').toAtomic();
-      const args = new THREE.IndirectStorageBufferAttribute(new Uint32Array([geometry.index.count, 0, 0, 0, 0]), 5), argsNode = storage(args, 'uint', 5);
+      const data = Array.from({ length: slots }, () => instancedArray(cap * K, 'vec4')), count = instancedArray(K, 'uint').toAtomic();
+      const args = geos.map((g) => new THREE.IndirectStorageBufferAttribute(new Uint32Array([g.index.count, 0, 0, 0, 0]), 5)), argsNodes = args.map((a) => storage(a, 'uint', 5));
       this.cand = uniform(0, 'uint');
       this.passes = [
-        Fn(() => { atomicStore(count.element(0), uint(0)); })().compute(1),
+        Fn(() => { for (let k = 0; k < K; k++) atomicStore(count.element(k), uint(0)); })().compute(1),
         Fn(() => {
           If(instanceIndex.lessThan(this.cand), () => {
-            const L = live(cellOf(instanceIndex));
+            const L = live(cellOf(instanceIndex)), b = K > 1 ? uint(L.bucket) : uint(0);
             If(L.alive, () => {
-              const i = atomicAdd(count.element(0), uint(1)).toVar();
-              If(i.lessThan(uint(cap)), () => { L.data.forEach((d, k) => data[k].element(i).assign(d)); });
+              const i = atomicAdd(count.element(b), uint(1)).toVar();
+              If(i.lessThan(uint(cap)), () => { L.data.forEach((d, k) => data[k].element(b.mul(cap).add(i)).assign(d)); });
             });
           });
         })().compute(MAXP * P * P),
-        Fn(() => { argsNode.element(1).assign(min(atomicLoad(count.element(0)), uint(cap))); })().compute(1),
+        Fn(() => { argsNodes.forEach((a, k) => a.element(1).assign(min(atomicLoad(count.element(k)), uint(cap)))); })().compute(1),
       ];
-      geometry.setIndirect(args); geometry.instanceCount = cap; this.data = data; this.args = args;
-      this.mesh = new THREE.Mesh(geometry, material({ read: (k) => data[k].element(instanceIndex) }));
-    } else this.mesh = new THREE.Mesh(geometry, material(cellOf(instanceIndex)));
-    this.mesh.frustumCulled = false; this.mesh.renderOrder = order;
-    scene.add(this.mesh);
+      this.data = data; this.args = args; this.cap = cap;
+      this.meshes = geos.map((g, k) => { g.setIndirect(args[k]); g.instanceCount = cap; return new THREE.Mesh(g, material({ read: (j) => data[j].element(uint(k * cap).add(instanceIndex)) }, k)); });
+    } else this.meshes = geos.map((g, k) => new THREE.Mesh(g, material(cellOf(instanceIndex), k)));
+    this.mesh = this.meshes[0];
+    for (const m of this.meshes) { m.frustumCulled = false; m.renderOrder = order; scene.add(m); }
   }
   /** On WebGPU, after select: pack what stands in this frame's cells. */
   /** On WebGPU, after select: pack what stands in this frame's cells; again only when something it reads has changed: the
@@ -70,10 +73,11 @@ export class Tier {
     renderer.compute(this.passes);
   }
   /** On WebGPU: what the last packing holds, read back to the CPU a moment later (a promise of { count, data: the first
-      slots' vec4s as floats, one array a slot }), for what the CPU must know of where things stand (src/world/trunks.js). */
+      slots' vec4s as floats, one array a slot } a bucket), for what the CPU must know of where things stand (src/world/trunks.js). */
   async read(renderer) {
-    const [n, ...d] = await Promise.all([this.args, ...this.data.map((s) => s.value)].map((b) => renderer.getArrayBufferAsync(b)));
-    return { count: new Uint32Array(n)[1], data: d.map((b) => new Float32Array(b)) };
+    const K = this.args.length, bufs = await Promise.all([...this.args, ...this.data.map((d) => d.value)].map((b) => renderer.getArrayBufferAsync(b)));
+    const f = bufs.slice(K).map((b) => new Float32Array(b));
+    return bufs.slice(0, K).map((b, k) => { const count = Math.min(new Uint32Array(b)[1], this.cap); return { count, data: f.map((x) => x.subarray(k * this.cap * 4, (k * this.cap + count) * 4)) }; });   // per bucket
   }
   /** s: how many times further than the 68° lens this lens sees a thing at the same size; h0: the ground under the camera */
   select(cx, cz, h0, s, dy) {
@@ -94,7 +98,7 @@ export class Tier {
         list[n].set(i * P, j * P); n++;
       }
     }
-    this.n = n; if (!this.passes) this.geometry.instanceCount = n * P * P; this.mesh.visible = n > 0;
+    this.n = n; for (const g of this.geometries) if (!this.passes) g.instanceCount = n * P * P; for (const m of this.meshes) m.visible = n > 0;
   }
-  warm() { if (!this.passes) this.geometry.instanceCount = this.P * this.P; this.mesh.visible = true; }   // one patch, so the pipeline exists before the first frame
+  warm() { for (const g of this.geometries) if (!this.passes) g.instanceCount = this.P * this.P; for (const m of this.meshes) m.visible = true; }   // one patch, so the pipeline exists before the first frame
 }
