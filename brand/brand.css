@@ -173,15 +173,26 @@ body.framed .os-bar.bottom { bottom: 96px; }                          /* inside 
 .os-stat i { height: 5px; box-sizing: border-box; border: 1.5px solid var(--on-glass-2); border-top: 0; }
 .os-stat:empty { display: none; }
 /* the clock, top right: the hour, a slider, Auto (intent 0007); a card there moves under it */
-/* the dials in the top right (the clock, the wind): one pill each, stacked downwards by --row */
-.os-dial { position: fixed; top: calc(var(--edge) + var(--row, 0) * (var(--pill-h) + 8px)); right: var(--edge); z-index: 7; display: flex; align-items: center; gap: 10px; height: var(--pill-h); box-sizing: border-box; padding: 0 6px 0 14px; border-radius: 999px; }
-.os-dial b { font: 500 13px/1 var(--mono); color: var(--on-glass); font-variant-numeric: tabular-nums; min-width: 4.4em; }
-.os-dial { width: 300px; }
-.os-dial input { flex: 1; min-width: 0; accent-color: var(--sun); }
-.os-dial .g-btn { height: 30px; padding: 0 12px; }
-.os-dial:not(:has(button)) { padding-right: 14px; }
-body.has-dials .side { top: calc(var(--edge) + var(--dials, 1) * (var(--pill-h) + 8px) + 2px); max-height: calc(100vh - (var(--dials, 1) + 1) * var(--pill-h) - 60px); }
-@media (max-width: 700px) { .os-dial { width: 240px; } }
+/* the top centre: the page's own nav (.os-top) and the weather pill in one row; the weather opens into a card under it */
+.os-topbar { position: fixed; left: 50%; top: var(--edge); transform: translateX(-50%); z-index: 7; display: flex; align-items: flex-start; gap: 8px; }
+.os-topbar > .os-top { position: static; transform: none; }
+.os-weather { position: relative; }
+.os-weather-pill { display: flex; align-items: center; gap: 8px; height: 30px; box-sizing: border-box; padding: 0 12px 0 13px; border-radius: 999px; border: 0; cursor: pointer; font: 500 11.5px/1 var(--mono); color: var(--on-glass); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.os-topbar > .os-top:not(.os-stat) + .os-weather .os-weather-pill { height: var(--pill-h); }   /* beside a full-height nav, as tall as it */
+.os-weather-pill i { font-style: normal; font-size: 10px; color: var(--on-glass-2); transition: transform .2s; }
+.os-weather-pill[aria-expanded="true"] i { transform: rotate(180deg); }
+.os-weather-card { position: absolute; right: 0; top: calc(100% + 8px); width: 300px; box-sizing: border-box; padding: 12px 14px; border-radius: 16px; display: grid; gap: 10px; }
+.os-weather-card[hidden] { display: none; }
+.os-weather-row { display: grid; grid-template-columns: 5.6em 1fr auto; grid-template-rows: auto auto; column-gap: 10px; row-gap: 3px; align-items: center; }
+.os-weather-row .g-label { grid-column: 1; grid-row: 1; }
+.os-weather-row b { grid-column: 1; grid-row: 2; }
+.os-weather-row input { grid-column: 2; grid-row: 1 / 3; }
+.os-weather-row .g-btn { grid-column: 3; grid-row: 1 / 3; }
+.os-weather-row b { font: 500 13px/1 var(--mono); color: var(--on-glass); font-variant-numeric: tabular-nums; }
+.os-weather-row input { min-width: 0; accent-color: var(--sun); }
+.os-weather-row .g-btn { height: 28px; padding: 0 11px; }
+body.has-weather .os-hint { top: calc(var(--edge) + var(--pill-h) + 12px); }
+@media (max-width: 700px) { .os-weather-card { width: min(300px, calc(100vw - 2 * var(--edge))); right: 50%; transform: translateX(50%); } }
 /* the joystick on touch screens, bottom left above the bottom line (camera/touch.js has its size) */
 .os-stick { position: fixed; z-index: 7; border-radius: 50%; display: grid; place-items: center; touch-action: none; }
 .os-stick i { border-radius: 50%; background: var(--glass-solid); box-shadow: 0 4px 14px rgba(12, 28, 22, .25); transition: transform .06s; }

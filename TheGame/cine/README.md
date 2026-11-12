@@ -60,6 +60,8 @@ A clip also says how it is cut in and how its move behaves at its ends, so that 
 | `ease` | `inout` from rest to rest · `in` from rest, leaves moving · `out` arrives moving, comes to rest · `linear` moving through · `soft` barely eased |
 | `in` | `cut` (default) · `dissolve`: the last frame of the shot before melts into this one · `dip`: through the sky's colour (on the first clip: a fade in) |
 | `inSecs` | the transition's length |
+| `hour` | the shot's time of day (0–24), or `[from, to]` across the shot (a time-lapse); without it the shot keeps the hour it finds |
+| `wind` | the shot's wind, 0 calm to 1 a storm, or `[from, to]` (a gust rising); without it the shot keeps the wind it finds |
 | `out` | `dip` on the last clip fades the film out |
 | `why` | one line on what the cut is for; shown in the timeline view |
 

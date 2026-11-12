@@ -50,7 +50,7 @@ function bladeMaterial(T) {
       const t = positionGeometry.y, s = positionGeometry.x, wd = float(T.w).mul(r1.mul(0.5).add(0.75)).mul(float(1).sub(t.mul(t).mul(0.8)));
       // the wind (src/world/light.js): the gust here, and each blade's own flutter, quicker and wider the harder it blows
       const ws = U.uWind.z, flutter = sin(U.uTime.mul(ws.mul(9).add(3)).add(r1.mul(6.2831853)).add(pos.x.mul(0.7))).mul(ws.mul(0.35).add(0.08));
-      const k0 = windAt(pos).mul(flutter.add(1)).mul(float(1).sub(flower.mul(0.5))), kl = length(k0), k = k0.mul(min(kl, 0.95).div(kl.max(1e-5)));
+      const k0 = windAt(pos).mul(flutter.add(1)).mul(float(1).sub(flower.mul(0.5))), kl = length(k0), k = k0.mul(min(kl, 1.25).div(kl.max(1e-5)));   // in a storm a blade may lie nearly flat
       const kk = k.dot(k), lean = t.mul(t).mul(1.1);
       const up = hgt.mul(t).mul(float(1).sub(bend.mul(0.42).mul(t))).mul(float(1).sub(kk.mul(0.4).mul(t))), fw = hgt.mul(bend).mul(t).mul(t).mul(1.15);   // long blades arc over; pushed, they bow
       const w = vec3(pos.x, A.z, pos.y).add(vec3(side.x, 0, side.y).mul(s.mul(wd))).add(vec3(dir.x.mul(fw).add(k.x.mul(hgt).mul(lean)), up, dir.y.mul(fw).add(k.y.mul(hgt).mul(lean))));

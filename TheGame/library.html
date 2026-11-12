@@ -255,11 +255,13 @@ const orbit = document.getElementById('orbit');
 orbit.onpointerdown = (e) => { spin = false; orbit.setPointerCapture(e.pointerId); orbit.onpointermove = (m) => { yaw -= m.movementX * 0.008; pitch = Math.max(0.06, Math.min(1.35, pitch + m.movementY * 0.006)); }; };
 orbit.onpointerup = () => { orbit.onpointermove = null; };
 orbit.onwheel = (e) => { e.preventDefault(); dist = Math.max(3, Math.min(1500, dist * Math.exp(e.deltaY * 0.001))); };
-function frame() {
+let lastT = 0;
+function frame(now) {
   requestAnimationFrame(frame);
+  const dt = lastT ? Math.min(0.1, (now - lastT) / 1000) : 0; lastT = now;
   // one way for every asset, material and biome: the camera circles it, so the world turns round it, and the key light
   // stays fixed to the camera, so the subject always turns under the same light
-  if (spin) yaw += 0.0025;
+  if (spin) yaw += dt * 0.15;   // by the clock, not the frame: a slow frame does not show as a jerk
   // Rembrandt light: the key 45° to the camera's left and 40° up, wherever the camera is (the sky's day held at 11:00)
   const sy = Math.sin(yaw), cy = Math.cos(yaw), kx = sy - cy, kz = cy + sy, kl = Math.hypot(kx, kz), up = 40 * Math.PI / 180;
   U.uSunDir.value.set((kx / kl) * Math.cos(up), Math.sin(up), (kz / kl) * Math.cos(up));

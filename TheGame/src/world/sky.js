@@ -1,14 +1,14 @@
 // The sun and the sky (intent 0007): one time of day drives the light. From the hour, the date and the latitude
 // (world/sky.js) the sun's and the moon's places; from the sun's height the sky's colours, the sun's light, the sky's
 // light, the haze and the exposure, written to the shading contract's uniforms (src/core/uniforms.js), so every material follows;
-// and a dome round the camera that draws the sky itself, with the sun, the moon and the stars. A clock in the top right
-// corner (a dial, src/core/dial.js) steers it by hand or lets it run.
+// and a dome round the camera that draws the sky itself, with the sun, the moon and the stars. The weather panel
+// (src/ui/weather.js) steers it by hand or lets it run.
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec3, uniform, varying, positionGeometry, normalize, max, mix, pow, smoothstep, step, sin, dot, floor, fract } from 'three/tsl';
 import SKY from '../../world/sky.js';
 import { U } from '../core/uniforms.js';
 import { toScreen } from './light.js';
-import { createDial } from '../core/dial.js';
+import { weatherRow } from '../ui/weather.js';
 import { load, save } from '../core/store.js';
 
 const RAD = Math.PI / 180;
@@ -88,14 +88,14 @@ export function createSky(scene, camera, renderer) {
     const c = L.horizon.map((x) => Math.pow(1 - Math.exp(-x * 1.25 * L.exposure), 1 / 2.2)); renderer.setClearColor(new THREE.Color().setRGB(c[0], c[1], c[2], THREE.LinearSRGBColorSpace));
   }
 
-  // the clock, top right (src/core/dial.js): the hour, a slider, Auto
+  // the hour in the weather panel (src/ui/weather.js): a slider and Auto
   const hhmm = (h) => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.floor((h - Math.floor(h)) * 60)).padStart(2, '0')}`;
-  const dial = createDial({
-    label: 'Time of day', min: 0, max: 24, step: 0.05, value: hour, read: hhmm,
+  const row = weatherRow({
+    label: 'Time', min: 0, max: 24, step: 0.05, value: hour, read: hhmm,
     input: (v) => { hour = v; auto = false; keep('auto', false); keep('hour', hour); apply(); show(); },
     button: { text: 'Auto', click: () => { auto = !auto; keep('auto', auto); show(); } },
   });
-  function show() { dial?.set(hour); dial?.button(auto ? 'Auto · on' : 'Auto', auto); }
+  function show() { row?.set(hour); row?.button(auto ? 'Auto · on' : 'Auto', auto); }
   apply(); show();
   let saved = 0;
   return {

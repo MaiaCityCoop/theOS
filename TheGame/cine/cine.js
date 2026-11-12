@@ -62,7 +62,9 @@ function aim(v) {
 }
 
 // ---- the timeline: clips cut one after the other; inside a clip the camera moves through its keys ----
-// a clip: { name, kind, secs, ease, in, inSecs, out, keys: [{ pos, look, mm, roll }] }
+// a clip: { name, kind, secs, ease, in, inSecs, out, hour, wind, keys: [{ pos, look, mm, roll }] }
+//   hour, wind: the shot's own weather (the hour of the day; the wind, 0 calm to 1 a storm), one value or [from, to]
+//         across the shot (a time-lapse, a gust rising); a shot without them keeps the weather it finds
 //   ease: how the move starts and ends. 'inout' from rest to rest · 'in' from rest, leaves moving ·
 //         'out' arrives moving, comes to rest · 'linear' moving through · 'soft' barely eased
 //   in:   how the clip is cut in. 'cut' (the default) · 'dissolve' (the last frame of the shot before
@@ -76,11 +78,20 @@ function ease(kind, q) {
   return (q3 - 2 * q2 + q) * s0 + (3 * q2 - 2 * q3) + (q3 - q2) * s1;
 }
 const P = [0, 0, 0], L = [0, 0, 0], V = { pos: P, look: L, roll: 0, mm: 35 };
+// the shot's weather, written to the world only when it changes (src/world/sky.js, wind.js)
+const at = (v, q) => (Array.isArray(v) ? v[0] + (v[1] - v[0]) * q : v), shown = { hour: null, wind: null };
+function weather(c, q) {
+  const w = window.__s8; if (!w) return;
+  const h = c.hour != null ? at(c.hour, q) : null, s = c.wind != null ? at(c.wind, q) : null;
+  if (h != null && Math.abs(h - (shown.hour ?? -99)) > 0.005) { shown.hour = h; w.sky?.set(h); }
+  if (s != null && Math.abs(s - (shown.wind ?? -99)) > 0.002) { shown.wind = s; w.wind?.set(s); }
+}
 function evalAt(time) {
   if (!clips.length) return;
   let i = clips.length - 1; while (i > 0 && starts[i] > time) i--;
   const c = clips[i], K = c.keys, n = K.length;
   let q = Math.max(0, Math.min(1, (time - starts[i]) / c.secs));
+  weather(c, q);
   q = ease(c.ease, q);
   if (n === 1) { aim(K[0]); return; }
   const f = q * (n - 1), j = Math.min(Math.floor(f), n - 2), u = f - j;
