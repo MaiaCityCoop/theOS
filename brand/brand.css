@@ -174,11 +174,10 @@ body.framed .os-bar.bottom { bottom: 96px; }                          /* inside 
 .os-stat:empty { display: none; }
 /* the clock, top right: the hour, a slider, Auto (intent 0007); a card there moves under it */
 /* the top centre: the page's own nav (.os-top) and the weather pill in one row; the weather opens into a card under it */
-.os-topbar { position: fixed; left: 50%; top: var(--edge); transform: translateX(-50%); z-index: 7; display: flex; align-items: flex-start; gap: 8px; }
+.os-topbar { position: fixed; left: 50%; top: var(--edge); transform: translateX(-50%); z-index: 7; display: flex; align-items: stretch; gap: 8px; }   /* the weather pill as tall as the nav beside it */
 .os-topbar > .os-top { position: static; transform: none; }
-.os-weather { position: relative; }
-.os-weather-pill { display: flex; align-items: center; gap: 8px; height: 30px; box-sizing: border-box; padding: 0 12px 0 13px; border-radius: 999px; border: 0; cursor: pointer; font: 500 11.5px/1 var(--mono); color: var(--on-glass); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.os-topbar > .os-top:not(.os-stat) + .os-weather .os-weather-pill { height: var(--pill-h); }   /* beside a full-height nav, as tall as it */
+.os-weather { position: relative; display: flex; }
+.os-weather-pill { display: flex; align-items: center; gap: 8px; min-height: 30px; box-sizing: border-box; padding: 0 12px 0 13px; border-radius: 999px; border: 0; cursor: pointer; font: 500 11.5px/1 var(--mono); color: var(--on-glass); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .os-weather-pill i { font-style: normal; font-size: 10px; color: var(--on-glass-2); transition: transform .2s; }
 .os-weather-pill[aria-expanded="true"] i { transform: rotate(180deg); }
 .os-weather-card { position: absolute; right: 0; top: calc(100% + 8px); width: 300px; box-sizing: border-box; padding: 12px 14px; border-radius: 16px; display: grid; gap: 10px; }

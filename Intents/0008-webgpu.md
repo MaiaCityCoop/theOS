@@ -259,6 +259,27 @@ shadows and the grass.
 - **Broke / not there yet:** biomes still known to the terrain by name; materials all baked at start; the wind not
   read yet; the quality pass not started.
 
+### 2026-11-13, speed and quality (overnight)
+
+- **Asked:** film playback choppy, the library's orbit too; everything at 60 fps with no stutter, at the highest detail;
+  the most efficient way to keep correct shadows; one weather panel on every viewer; films set the weather per shot; a
+  harder storm; quality up on every biome, texture and asset.
+- **Found:** the cost was not the shadows (about 2 ms: the map 1.7, its lookups 0.3) but work done for nothing: every
+  grass blade and rock repeated its cell's work in every vertex, for every cell of a patch, empty or not; the ground pass
+  (6.6 ms) drawn every 8 m and twice; the pixel ratio starting at 1.5 and held there by a film. Timings taken in a hidden
+  pane are unreliable (wall clock and timestamps both); the game's own frame time, live, was the measure that held.
+- **Delivered:** on WebGPU, grass and rocks packed by a compute pass (once per cell, only what stands) and drawn
+  indirect (the WebGL 2 fallback keeps the per-vertex path, from the same function); casters skip their light in the
+  shadow pass; stones cast no shadow; the ground pass one pass with two outputs, drawn every 16 m, read back only near
+  the ground; the terrain's biome shares per vertex; the pixel ratio from 1, rising with room. Light: sky light from
+  above and the ground's bounce, sun-lit air, 12-tap soft shadows, all through one finish(). Far land: slow lush and pale
+  fields. Assets: contact shading, mottle, soft and thin surfaces (the tent glows backlit). One weather panel
+  (src/ui/weather.js) at the top centre on the walk, the library and the lenses; a film shot's hour and wind (one value or
+  [from, to]); a harder storm; the library's orbit by the clock.
+- **Good:** 60 fps live at the walk's views; the picture as before where nothing was meant to change.
+- **Broke / not there yet:** not measured on Samuel's screen during a film (the slow-frame log will show it); the
+  materials' own recipes not yet reworked; impostors and the films' depth of field not packed by compute.
+
 ## Trail
 
 | When | Commit | What |
