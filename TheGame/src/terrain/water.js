@@ -7,9 +7,9 @@ import { U } from '../core/uniforms.js';
 import { riverInfo, riverRaw, riverCarve, riverBank, baseB, rnd, WATER_DROP_N } from '../world/land.nodes.js';
 import { haze, toScreen, cloudAt } from '../world/light.js';
 import { gridPoint } from './material.js';
-import { BIOME } from '../../biomes/index.js';
+import { at } from '../world/biomes.js';
 
-const water = BIOME.river, v3 = (c) => vec3(c[0], c[1], c[2]);
+const water = at('water'), v3 = (c) => vec3(c[0], c[1], c[2]);
 
 export function waterMaterial(tex) {
   const wp = gridPoint();
@@ -29,12 +29,12 @@ export function waterMaterial(tex) {
     const drift = fl.mul(speed).add(U.uWind.xy.mul(U.uWind.z.mul(0.9)));
     const o1 = drift.mul(f1.sub(0.5)).mul(3.3), o2 = drift.mul(f2.sub(0.5)).mul(3.3);
     const uA = p.sub(o1).div(water.floor.tile[0]), uB = p.sub(o2).div(water.floor.tile[0]).add(0.43);
-    const nA = tex.n('water', uA).xyz.add(tex.n('water', uA.mul(3.1).add(0.2)).xyz).sub(1), nB = tex.n('water', uB).xyz.add(tex.n('water', uB.mul(3.1).add(0.6)).xyz).sub(1);
+    const nA = tex.n(water.floor.material, uA).xyz.add(tex.n(water.floor.material, uA.mul(3.1).add(0.2)).xyz).sub(1), nB = tex.n(water.floor.material, uB).xyz.add(tex.n(water.floor.material, uB.mul(3.1).add(0.6)).xyz).sub(1);
     const nn = mix(nA.xy, nB.xy, wb), rough = mid.mul(0.3).add(0.16).add(U.uWind.z.mul(U.uWind.z).mul(0.55));   // the wind roughens it: a storm breaks the reflections up
     const n = normalize(vec3(nn.x.mul(rough), 1, nn.y.mul(rough)));
     const V = normalize(U.uCam.sub(vWorld));
     const fres = pow(float(1).sub(max(n.dot(V), 0)), 5).mul(0.98).add(0.02);
-    const ftex = mix(tex.a('water', uA.mul(2)).r, tex.a('water', uB.mul(2)).r, wb);
+    const ftex = mix(tex.a(water.floor.material, uA.mul(2)).r, tex.a(water.floor.material, uB.mul(2)).r, wb);
     const foam = float(1).sub(smoothstep(0, 0.05, depth)).mul(smoothstep(0.15, 0.6, ftex)).mul(0.5);
     const specks = float(0).toVar();
     for (let i = 0; i < 2; i++) {

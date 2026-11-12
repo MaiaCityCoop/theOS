@@ -8,7 +8,7 @@ import { U } from '../core/uniforms.js';
 import { heightAt as heightCPU, SAND } from '../world/land.js';
 import { camDist, riverInfo, heightAt, aridMask, pathN, pathMask, bareMask, outcropMask, tuftMask, bankMask, cutMask, barMask, placeOff, stageAt, grassTint, BIO } from '../world/land.nodes.js';
 import { PLACES } from '../world/places.js';
-import { BIOMES } from '../../biomes/index.js';
+import { BIOMES } from '../world/biomes.js';
 
 const N = 512;   // texels a side; a texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers the blades' reach
 const G = { o: uniform(new THREE.Vector2(1e9, 1e9)), base: uniform(0), texel: uniform(0.5) };

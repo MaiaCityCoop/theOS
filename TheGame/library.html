@@ -64,18 +64,21 @@
 // src/world/places.js), a round of bare ground with the grass around it, the camera circling it. A placed asset
 // stands in the middle; a scattered one lies there as a few of its kind, small to large.
 import * as THREE from 'three/webgpu';
-import { ASSETS, geometryOf, scatterRow, solidOf } from './assets/index.js';
+import { geometryOf, scatterRow, solidOf } from './assets/index.js';
+import { recipes, manifest } from './src/core/registry.js';
+import { BIOMES, at as biomeAt } from './src/world/biomes.js';
 import { place } from './src/world/place.js';
 import { rockSample } from './src/scatter/rocks.js';
 import { detailOf, spanOf, distanceAt } from './src/detail/index.js';
 import { poseAt, heightFor } from './src/camera/rig.js';
 import { STAGE } from './src/world/places.js';
 import { heightAt } from './src/world/land.js';
-import { MATERIALS, MATERIAL } from './materials/index.js';
 import { materialPreview, materialThumb, dioramaThumb, sceneThumb } from './src/materials/preview.js';
-import { BIOMES, BIOME } from './biomes/index.js';
 const q = new URLSearchParams(location.search), cine = window.__cine;
 const hex = (c) => '#' + c.map((v) => Math.round(Math.min(1, v) * 255).toString(16).padStart(2, '0')).join('');
+// every recipe from the registry, by its uid (src/core/registry.js)
+const byUid = (list) => Object.fromEntries(list.map((r) => [r.uid, r]));
+const ASSETS = byUid(recipes('asset')), MATERIALS = recipes('material'), MATERIAL = byUid(MATERIALS), BIOME = byUid(BIOMES);
 const ids = Object.keys(ASSETS), most = (v) => (Array.isArray(v) ? v[1] : v);
 // a card's pieces, as brand.css sets them (.g-card): a header, figures, a label over each value, chips, the file's line
 const num = (v) => +(+v).toFixed(2), cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -85,18 +88,19 @@ const figs = (list, fit) => (list.length ? `<div class="g-figs g-part${fit ? ' f
 const cell = (label, value, wide) => `<div class="g-cell${wide ? ' wide' : ''}"><span class="g-label">${label}</span>${value}</div>`;
 const say = (t) => `<span class="g-name">${t}</span>`;
 const chip = (m) => `<span class="g-chip"><i style="background:${hex(MATERIAL[m].swatch.map(Math.sqrt))}"></i>${MATERIAL[m].name}</span>`;
-const fileOf = (path) => `<footer class="g-part"><span class="g-file">${path}</span></footer>`;
+// a recipe's file and its version (the BLAKE3 hash of what it is, registry.json), its first ten letters
+const fileOf = (r) => `<footer class="g-part"><span class="g-file">TheGame/${manifest[r.uid].file}</span><span class="g-file" title="${manifest[r.uid].version}">version ${manifest[r.uid].version.slice(0, 12)}</span></footer>`;
 // a size as a figure: one number in metres, or a range (in centimetres where it is all under a metre)
 const sizeFig = (v, label) => (Array.isArray(v) ? (v[1] < 1 ? fig(`${num(v[0] * 100)}–${num(v[1] * 100)}`, 'cm', label) : fig(`${num(v[0])}–${num(v[1])}`, 'm', label)) : fig(num(v), 'm', label));
 while (!window.__s8?.U || !window.__s8?.ground || !window.__s8?.sky) await new Promise((r) => setTimeout(r, 50));
 window.__s8.sky.hold(11);   // the library's studio: one day's light, held; the key light follows the camera (frame)
 const { scene, U, ground, tex } = window.__s8;
-ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BIOME.meadow));   // round the stage, the land is all meadow
+ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(biomeAt('land')));   // round the stage, the land is all meadow
 
 // the list: each asset with a small picture of its nearest level
 document.getElementById('list').innerHTML = `<div class="group" data-g="assets">Assets · ${ids.length}</div>` + ids.map((id) => `<button class="item glass flat" data-id="${id}"><canvas width="72" height="72"></canvas><span><b class="g-name">${ASSETS[id].name}</b><small class="g-sub">${ASSETS[id].kind}</small></span></button>`).join('')
-  + `<div class="group" data-g="biomes">Biomes · ${BIOMES.length}</div>` + BIOMES.map((b) => `<button class="item glass flat" data-biome="${b.id}"><canvas width="72" height="72"></canvas><span><b class="g-name">${b.name}</b><small class="g-sub">${b.kind}</small></span></button>`).join('')
-  + `<div class="group" data-g="materials">Materials · ${MATERIALS.length}</div>` + MATERIALS.map((m) => `<button class="item glass flat" data-mat="${m.id}"><canvas width="72" height="72"></canvas><span><b class="g-name">${m.name}</b><small class="g-sub">${m.kind}</small></span></button>`).join('');
+  + `<div class="group" data-g="biomes">Biomes · ${BIOMES.length}</div>` + BIOMES.map((b) => `<button class="item glass flat" data-biome="${b.uid}"><canvas width="72" height="72"></canvas><span><b class="g-name">${b.name}</b><small class="g-sub">${b.kind}</small></span></button>`).join('')
+  + `<div class="group" data-g="materials">Materials · ${MATERIALS.length}</div>` + MATERIALS.map((m) => `<button class="item glass flat" data-mat="${m.uid}"><canvas width="72" height="72"></canvas><span><b class="g-name">${m.name}</b><small class="g-sub">${m.kind}</small></span></button>`).join('');
 for (const b of document.querySelectorAll('.item[data-mat]')) {   // a material's picture: its own baked tile
   materialThumb(window.__s8.renderer, tex, b.dataset.mat, b.querySelector('canvas'));
   b.onclick = () => chooseMaterial(b.dataset.mat);
@@ -127,7 +131,7 @@ for (const b of document.querySelectorAll('.item[data-id]')) {
 // the stage: what stands on it now
 let staged = null, ground0 = heightAt(STAGE.x, STAGE.z), H = 1, yaw = 2.6, pitch = 0.32, dist = 9, spin = true, seed = null;
 let cardTab = 'info', lodAt = null, showBody = false, bodyLines = null;   // showBody: the asset's collision drawn on the stage (intent 0003)   // the asset card's tab; the level of detail being looked at (null: none chosen)
-function clearStage() { ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BIOME.meadow)); if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); staged = null; } }
+function clearStage() { ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(biomeAt('land'))); if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); staged = null; } }
 function stageAsset(a) {
   clearStage();
   if (a.placement.at === 'scatter') {   // a few of its kind, small to large, lying about the middle
@@ -179,7 +183,7 @@ function choose(id, keepSeed) {
     + figs(scat ? [sizeFig(a.size.length, 'Length'), fig(num(a.placement.cell), 'm', 'Apart')] : [sizeFig(a.size.length, 'Footprint'), sizeFig(a.size.height, 'Height')], scat)
     + `<div class="g-cells g-part">${cell('Placed', say(where), true)}${a.look ? cell('Look', `<div class="g-chips">${chip(a.look.material || 'rock')}</div><span class="g-sub" style="white-space:normal">moss ${a.look.moss} · relief ${a.look.relief} · worn ${a.look.smooth} · broken ${a.look.cuts}</span>`, true) : ''}</div>`
     + (seeded ? `<div class="seed g-part"><span class="g-label">Seed</span><b>${seed ?? s0}${seed != null && seed !== s0 ? '' : ' · its own'}</b>${seed != null && seed !== s0 ? '<button class="g-btn quiet" id="seed0">Own</button>' : ''}<button class="g-btn" id="seedR">Random</button></div>` : '')
-    + fileOf(`TheGame/assets/${a.id}.js`));
+    + fileOf(a));
   info.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { const d = dist, p = pitch; cardTab = b.dataset.tab; choose(id, true); dist = d; pitch = p; }));   // a tab changes the card, not the view
   info.querySelectorAll('[data-lod]').forEach((b) => (b.onclick = () => lookAtLevel(a, +b.dataset.lod)));
   const bt = document.getElementById('bodyT'); if (bt) bt.onclick = () => { const d = dist, p = pitch; showBody = !showBody; choose(id, true); dist = d; pitch = p; };
@@ -206,7 +210,7 @@ function detailOf_(a) {
   return `<header><span class="g-label">${a.name} · levels of detail</span><p class="g-text" style="margin-top:8px">Each level by its size on screen; choose one and the camera goes to where it is drawn. On the right, how far that is with the walker's lens on this screen.</p></header>
     ${bodyCell(a)}
     <div class="g-pick g-part">${bands(a).map((b) => `<button data-lod="${b.i}" class="${lodAt === b.i ? 'on' : ''}"><b>${b.impostor ? '◆' : b.faces ? b.i + 1 : '–'}</b><span><span class="g-name">${b.impostor ? `Card · ${b.views * b.views} views` : b.faces ? `${b.faces.toLocaleString('en')} faces` : 'Not drawn'}</span><span class="g-sub">${range(b)}</span></span><span class="g-file">${m(distanceAt(pxAim(b), span(a)))}</span></button>`).join('')}</div>`
-    + fileOf(`TheGame/assets/${a.id}.js`);
+    + fileOf(a);
 }
 // its body, as a line of words and a button to draw it on the stage
 function bodyCell(a) {
@@ -215,7 +219,7 @@ function bodyCell(a) {
 }
 function lookAtLevel(a, i) {
   lodAt = i; const p = Math.max(pitch, 0.25), y = yaw;
-  choose(a.id, true);   // the stage again: a scattered asset's rocks at that level's own detail; a stood one hands over by itself
+  choose(a.uid, true);   // the stage again: a scattered asset's rocks at that level's own detail; a stood one hands over by itself
   dist = at(bands(a)[i], a); pitch = p; yaw = y;
 }
 // a biome: laid over all the land round the stage, the stage's bare round taken away; the river as a pond
@@ -227,7 +231,7 @@ function chooseBiome(id) {
   document.getElementById('info').innerHTML = head('Biome', b.kind, b.name, b.about)
     + figs([b.grass && fig(pct(b.grass.cover), '%', 'Grass'), b.grass && fig(pct(b.grass.height), '%', 'Height'), b.stones && fig(pct(b.stones), '%', 'Stones')].filter(Boolean))
     + `<div class="g-cells g-part">${cell('Laid', say(laid))}${cell('Grass', say(b.grass ? cap([b.grass.tufts && 'in tufts', b.grass.flowers && 'with flowers'].filter(Boolean).join(', ')) || 'Plain' : 'None'))}${cell('Ground', `<div class="g-chips">${[b.floor, b.patches, b.spots, b.slopes].filter(Boolean).map((x) => chip(x.material)).join('')}</div>`, true)}</div>`
-    + fileOf(`TheGame/biomes/${b.id}.js`);
+    + fileOf(b);
   history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}biome=${id}`);
 }
 // a material: a ball of it in the middle of the stage, and the stage's round floor laid in it, lit like the world
@@ -251,7 +255,7 @@ function chooseMaterial(id) {
   document.getElementById('info').innerHTML = head('Material', m.kind, m.name, m.about)
     + figs([fig(1024, 'px', 'Baked'), fig(MATERIALS.indexOf(m), '', 'In the shaders')])
     + `<div class="g-cells g-part">${cell('Used by', say(cap(m.usedBy).replace(/; /g, '<br>')), true)}${cell('Relief', say(`${m.bump} · smaller is deeper`), true)}${cell('Baked as', say('Albedo + height, normal + roughness'), true)}</div>`
-    + fileOf(`TheGame/materials/${m.id}.js`);
+    + fileOf(m);
   history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}material=${id}`);
 }
 const orbit = document.getElementById('orbit');
@@ -272,9 +276,9 @@ function frame() {
 }
 // the sections: the switch over the list, the grid to start from
 const SECTIONS = [
-  { id: 'assets', name: 'Assets', what: 'things made and stood', n: ids.length, open: () => choose(ids[0]), pic: (c) => assetThumb(ASSETS.belltent, c, 1.5) },
-  { id: 'biomes', name: 'Biomes', what: 'what lies and grows', n: BIOMES.length, open: () => chooseBiome(BIOMES[0].id), pic: (c) => dioramaThumb(window.__s8.renderer, tex, c) },
-  { id: 'materials', name: 'Materials', what: 'what it is all made of', n: MATERIALS.length, open: () => chooseMaterial(MATERIALS[0].id), pic: (c) => materialThumb(window.__s8.renderer, tex, 'rock', c) },
+  { id: 'assets', name: 'Assets', what: 'things made and stood', n: ids.length, open: () => choose(ids[0]), pic: (c) => assetThumb(recipes('asset').find((a) => a.placement.at === 'places'), c, 1.5) },
+  { id: 'biomes', name: 'Biomes', what: 'what lies and grows', n: BIOMES.length, open: () => chooseBiome(BIOMES[0].uid), pic: (c) => dioramaThumb(window.__s8.renderer, tex, c) },
+  { id: 'materials', name: 'Materials', what: 'what it is all made of', n: MATERIALS.length, open: () => chooseMaterial(MATERIALS[0].uid), pic: (c) => materialThumb(window.__s8.renderer, tex, MATERIALS.find((m) => m.kind === 'stone'), c) },
 ];
 const list = document.getElementById('list'), grid = document.getElementById('grid');
 function section(id) { list.dataset.sec = id; }

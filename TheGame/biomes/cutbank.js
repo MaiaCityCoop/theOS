@@ -1,12 +1,13 @@
 // Cut bank: bare earth on the outside of the river's bends, where the current eats into the land and leaves a small
-// cliff of soil over deep water. A biome of the world, in the one recipe every biome follows (biomes/index.js).
+// cliff of soil over deep water. A biome of the world, in the one recipe every biome follows (biomes/README.md).
 export default {
-  id: 'cutbank',
+  uid: '57c60389-675b-4f6f-89c9-43c406f845f8',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)
+  type: 'biome',
   name: 'Cut bank',
   kind: 'bare earth',
   about: 'A low cliff of bare earth on the outside of a bend, cut by the current; deep water at its foot, grass hanging over its edge.',
   where: 'cutbank',                                        // laid where the bank is steep, on a bend's outside (cutMask, src/world/land.nodes.js)
-  floor: { material: 'dryearth', tile: [1.6, 2.6] },
+  floor: { material: '082f0183-5d92-4ac8-821c-14408d3ee056' /* dryearth */, tile: [1.6, 2.6] },
   grass: null,
   stones: 0.12,
 };

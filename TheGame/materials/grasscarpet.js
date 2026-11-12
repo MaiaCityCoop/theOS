@@ -1,4 +1,4 @@
-// Grass, from afar: grass seen as a carpet: blades as strokes, light on dark; kept grey, the land tints it. A material of the world, in the one recipe every material follows (materials/index.js):
+// Grass, from afar: grass seen as a carpet: blades as strokes, light on dark; kept grey, the land tints it. A material of the world, in the one recipe every material follows (materials/README.md):
 // what it is, where the world uses it, how deep its relief is, and how it is painted, once, at the start.
 //
 // `paint` is node code (TSL): from uv (0..1, tiling) it returns { h (height 0..1), col (albedo, linear), rough (0..1) },
@@ -6,7 +6,8 @@
 import { float, vec2, vec3, mix, smoothstep, step, fract, sin, abs, max, clamp } from 'three/tsl';
 import { pn, pfbm, pvor, fibre, pebbles } from '../src/materials/paint.js';
 export default {
-  id: 'grasscarpet',
+  uid: '9c444204-47c9-4a6f-bfe3-ba8ab5c8e1c4',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)
+  type: 'material',
   name: "Grass, from afar",
   kind: 'grass',
   about: "Grass seen as a carpet: blades as light strokes on dark, kept grey for the land to tint.",

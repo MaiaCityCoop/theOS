@@ -5,8 +5,13 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, uniform, positionWorld, normalWorld, screenCoordinate, If, Discard, abs, pow, normalize, max, mix, sign, smoothstep, length, atan, sin } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { haze, toScreen, ign } from '../world/light.js';
+import pathM from '../../materials/path.js';
+import carpetM from '../../materials/grasscarpet.js';
+import sandM from '../../materials/sand.js';
+import waterM from '../../materials/water.js';
+import pebbleM from '../../materials/pebble.js';
 
-/** id: the material (tex: src/materials/bake.js); tile: metres one tile covers; own: { tint: [r, g, b], edge: [x, z, r] } —
+/** id: the material, its recipe or uid (tex: src/materials/bake.js); tile: metres one tile covers; own: { tint: [r, g, b], edge: [x, z, r] } —
     edge: a round laid on the land, fading into it over its last metre and a half, its edge frayed. Its `eye` uniform is
     the camera it is lit and hazed for (a picture sets its own). */
 export function materialPreview(tex, id, tile = 2, own = {}) {
@@ -42,12 +47,12 @@ export function materialThumb(renderer, tex, id, canvas) {
 /** The biomes' picture: a round of land cut out, grass on top, earth down its side, a pebble on it, water at one edge. */
 export function dioramaThumb(renderer, tex, canvas) {
   const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 20); cam.position.set(0, 2.15, 3.75); cam.lookAt(0, -0.08, 0);   // the whole round in frame
-  const own = (id, tile, tint) => materialPreview(tex, id, tile, { tint });
-  const earth = own('path', 0.5);
-  const puck = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.88, 0.32, 72, 1, false), [earth, own('grasscarpet', 0.45, [0.42, 0.95, 0.26]), earth]);
-  const sand = new THREE.Mesh(new THREE.CircleGeometry(0.42, 48, 0, Math.PI), own('sand', 0.4)); sand.rotation.x = -Math.PI / 2; sand.position.set(0.18, 0.162, -0.5); sand.scale.set(1, 0.8, 1);
-  const pool = new THREE.Mesh(new THREE.CircleGeometry(0.28, 48, 0, Math.PI), own('water', 0.6, [0.25, 0.4, 0.45])); pool.rotation.x = -Math.PI / 2; pool.position.set(0.18, 0.165, -0.55); pool.scale.set(1, 0.7, 1);
-  const stone = new THREE.Mesh(new THREE.SphereGeometry(0.13, 32, 24), own('pebble', 0.3)); stone.scale.set(1.2, 0.7, 1); stone.position.set(-0.35, 0.2, 0.25);
+  const own = (m, tile, tint) => materialPreview(tex, m, tile, { tint });
+  const earth = own(pathM, 0.5);
+  const puck = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.88, 0.32, 72, 1, false), [earth, own(carpetM, 0.45, [0.42, 0.95, 0.26]), earth]);
+  const sand = new THREE.Mesh(new THREE.CircleGeometry(0.42, 48, 0, Math.PI), own(sandM, 0.4)); sand.rotation.x = -Math.PI / 2; sand.position.set(0.18, 0.162, -0.5); sand.scale.set(1, 0.8, 1);
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(0.28, 48, 0, Math.PI), own(waterM, 0.6, [0.25, 0.4, 0.45])); pool.rotation.x = -Math.PI / 2; pool.position.set(0.18, 0.165, -0.55); pool.scale.set(1, 0.7, 1);
+  const stone = new THREE.Mesh(new THREE.SphereGeometry(0.13, 32, 24), own(pebbleM, 0.3)); stone.scale.set(1.2, 0.7, 1); stone.position.set(-0.35, 0.2, 0.25);
   return sceneThumb(renderer, [puck, sand, pool, stone], canvas, cam);
 }
 /** A thing's picture for a list: `things` round the origin, seen from `cam` (or from `eye` looking at `at`), each lit and

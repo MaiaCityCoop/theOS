@@ -105,7 +105,8 @@ function bell(n, { door = true, open = false, bare = false, flaps = false, ropes
 }
 
 export default {
-  id: 'belltent',
+  uid: '104dde1e-c26e-42fd-9aab-c6612fbe8222',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)
+  type: 'asset',
   name: 'Bell tent',
   kind: 'shelter',
   about: 'A round canvas bell tent on one centre pole, five metres across, guyed out on eight ropes. The first thing that stands in Maia City.',

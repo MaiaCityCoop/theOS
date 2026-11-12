@@ -1,4 +1,4 @@
-// Pebble: worn stone. A material of the world, in the one recipe every material follows (materials/index.js):
+// Pebble: worn stone. A material of the world, in the one recipe every material follows (materials/README.md):
 // what it is, where the world uses it, how deep its relief is, and how it is painted, once, at the start.
 //
 // `paint` is node code (TSL): from uv (0..1, tiling) it returns { h (height 0..1), col (albedo, linear), rough (0..1) },
@@ -6,7 +6,8 @@
 import { float, vec2, vec3, mix, smoothstep, step, fract, sin, abs, max, clamp } from 'three/tsl';
 import { pn, pfbm, pvor, fibre, pebbles } from '../src/materials/paint.js';
 export default {
-  id: 'pebble',
+  uid: 'f4a707ab-dcac-4c3a-a4d6-7a929d0e945e',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)
+  type: 'material',
   name: 'Pebble',
   kind: 'stone',
   about: "Stone worn smooth by water and weather: a fine speckled grain, soft clouds of colour, a pale vein now and then; no cracks.",

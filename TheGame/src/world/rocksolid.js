@@ -5,13 +5,13 @@
 // so now and then a rock stops you that the card left out of a path.
 import { cellRnd as rnd, riverAt, aridAt, outcropAt } from './land.js';
 import { PLACES } from './places.js';
-import { BIOME } from '../../biomes/index.js';
+import { at } from './biomes.js';
 import stone from '../../assets/stone.js';
 import boulder from '../../assets/boulder.js';
 
 const STEP_OVER = 0.3;   // a rock whose top is lower than this is stepped over
 const sstep = (a, b, x) => { let t = (x - a) / (b - a); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
-const LAND = BIOME.meadow.stones, ARID = BIOME.dryland.stones - LAND, BANK = BIOME.riverbank.stones - LAND;
+const LAND = at('land').stones, ARID = at('arid').stones - LAND, BANK = at('bank').stones - LAND;
 const T = PLACES.tent, TR = T?.clear || 2.7;
 const KINDS = [stone, boulder].map((a) => ({ cell: a.placement.cell, big: !!a.placement.outcrops, lo: a.size.length[0], hi: a.size.length[1] }));
 const kept = new Map();

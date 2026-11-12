@@ -1,0 +1,148 @@
+{
+  "104dde1e-c26e-42fd-9aab-c6612fbe8222": {
+    "type": "asset",
+    "name": "Bell tent",
+    "file": "assets/belltent.js",
+    "version": "43f02b00a6ae6923c832b8b5c538a5c6772bfddcfc4520e810ab24b7de83024a",
+    "uses": []
+  },
+  "42345740-c3cc-455a-8017-a97ccdee6df3": {
+    "type": "asset",
+    "name": "Boulders",
+    "file": "assets/boulder.js",
+    "version": "fc214cb548270f0f35148b35ffbcde1de1af5ede55a07102c9bce6fe376647aa",
+    "uses": [
+      "506c509b-300d-42eb-8403-f3969b06b271"
+    ]
+  },
+  "62b01bbe-c92c-4181-b774-45a6af054b12": {
+    "type": "asset",
+    "name": "Stones",
+    "file": "assets/stone.js",
+    "version": "67a7c82ea544d99733f6b3de91908ba5fdfc3ed891dea7c0f7e299a46b3f76aa",
+    "uses": [
+      "f4a707ab-dcac-4c3a-a4d6-7a929d0e945e"
+    ]
+  },
+  "57c60389-675b-4f6f-89c9-43c406f845f8": {
+    "type": "biome",
+    "name": "Cut bank",
+    "file": "biomes/cutbank.js",
+    "version": "23a1bd3e4a2259ea00f05e8c7f0ce459852eb40707cc814397d1793bc81104bc",
+    "uses": [
+      "082f0183-5d92-4ac8-821c-14408d3ee056"
+    ]
+  },
+  "36d9e9fe-93ab-42c7-9e1d-8f32bbe99019": {
+    "type": "biome",
+    "name": "Dry land",
+    "file": "biomes/dryland.js",
+    "version": "4c9a041c3a6921c650feffcebddf2e535de41f8f60c28a98569ffb9c28222c77",
+    "uses": [
+      "082f0183-5d92-4ac8-821c-14408d3ee056",
+      "2f329f07-d2ba-4dc8-a6e3-73053c65e10f"
+    ]
+  },
+  "bf492d59-e40f-4f10-ba3b-b7d19f724c29": {
+    "type": "biome",
+    "name": "Gravel bar",
+    "file": "biomes/gravelbar.js",
+    "version": "c30d45aaa09d1ff86efc7415aefd8d71882bb3eb9d43ae5731146b66bb036341",
+    "uses": [
+      "0db6a039-9f7f-4a58-8137-c3348dfb922e"
+    ]
+  },
+  "32a4de29-d325-415d-85b7-f6e647830234": {
+    "type": "biome",
+    "name": "Meadow",
+    "file": "biomes/meadow.js",
+    "version": "ec4df4224ef4ff75ed78baa58e1273c1d1641088c65d8c59087ea3a8705d528c",
+    "uses": [
+      "0db6a039-9f7f-4a58-8137-c3348dfb922e",
+      "506c509b-300d-42eb-8403-f3969b06b271",
+      "9c444204-47c9-4a6f-bfe3-ba8ab5c8e1c4",
+      "ae3df398-9f52-4a4a-b54f-a2db2eafb0c8"
+    ]
+  },
+  "597e46d1-02b9-47c8-a6ff-598a05c9a080": {
+    "type": "biome",
+    "name": "River",
+    "file": "biomes/river.js",
+    "version": "ad16e46f54f2590d87dd1062b27e7aeb8bb68c8a83f63f15770fb35a5d2a1ffd",
+    "uses": [
+      "83e8d1fa-61a3-41fc-a9f1-882ab8be9fbc"
+    ]
+  },
+  "84588b7e-0680-47ca-9793-409c7359db0c": {
+    "type": "biome",
+    "name": "Riverbank",
+    "file": "biomes/riverbank.js",
+    "version": "a44410a0b62da5320653edc979a1e401c74d0ec5a4ba061cae54b9417b21a528",
+    "uses": [
+      "2f329f07-d2ba-4dc8-a6e3-73053c65e10f"
+    ]
+  },
+  "082f0183-5d92-4ac8-821c-14408d3ee056": {
+    "type": "material",
+    "name": "Dry earth",
+    "file": "materials/dryearth.js",
+    "version": "faf843f801e617b4ab3b5886016d94bab60682da864d971fca94ca363ba76e36",
+    "uses": []
+  },
+  "9c444204-47c9-4a6f-bfe3-ba8ab5c8e1c4": {
+    "type": "material",
+    "name": "Grass, from afar",
+    "file": "materials/grasscarpet.js",
+    "version": "222df0b5f9fa05978001dce7d16fe01bd607dddb56a83d2ee4d0957e8bd8265e",
+    "uses": []
+  },
+  "8bb6dc3b-4919-4351-b31d-8e9873ae151c": {
+    "type": "material",
+    "name": "Land noise",
+    "file": "materials/noise.js",
+    "version": "c9f16c2389e7bc4f85295bad47a246ce7f365b7f22af2cd5c2241851a435bb64",
+    "uses": []
+  },
+  "ae3df398-9f52-4a4a-b54f-a2db2eafb0c8": {
+    "type": "material",
+    "name": "Meadow floor",
+    "file": "materials/meadow.js",
+    "version": "253036ce903508b6c7227b8c23570c96a30aa7634623567b445ea0c0e5d16ec6",
+    "uses": []
+  },
+  "0db6a039-9f7f-4a58-8137-c3348dfb922e": {
+    "type": "material",
+    "name": "Path",
+    "file": "materials/path.js",
+    "version": "9744755ab518719049bbeb1df5a13bb4101b1a16b49e5dfb683f3ebafead0a34",
+    "uses": []
+  },
+  "f4a707ab-dcac-4c3a-a4d6-7a929d0e945e": {
+    "type": "material",
+    "name": "Pebble",
+    "file": "materials/pebble.js",
+    "version": "39de921f8a3701f253d19212364ecbf8036cdc9c5020cdeda41f6502d5aa48fe",
+    "uses": []
+  },
+  "506c509b-300d-42eb-8403-f3969b06b271": {
+    "type": "material",
+    "name": "Rock",
+    "file": "materials/rock.js",
+    "version": "534406c8d44b857fe559cd7b223af9096e30f7c3ad08121c626fddf5d727961c",
+    "uses": []
+  },
+  "2f329f07-d2ba-4dc8-a6e3-73053c65e10f": {
+    "type": "material",
+    "name": "Sand",
+    "file": "materials/sand.js",
+    "version": "865c0d32dd219a31b7db0ce5af8e1f11c160109d0335485aaf55f99fb429d1e0",
+    "uses": []
+  },
+  "83e8d1fa-61a3-41fc-a9f1-882ab8be9fbc": {
+    "type": "material",
+    "name": "Water",
+    "file": "materials/water.js",
+    "version": "a8eaccbac8fea4ec70924fa20f8cbe2e5e1971c7aa4133c1397c06a6ce4d434c",
+    "uses": []
+  }
+}

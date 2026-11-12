@@ -48,7 +48,7 @@ export function place(scene, asset, at) {
   const D = detailOf(asset);
   const meshes = D.levels.map((l) => { if (l.impostor) return impostorOf(geometryOf(asset), l.views); const m = new THREE.Mesh(geometryOf(asset, l), assetMaterial(asset)); m.renderOrder = 1; return m; });
   const lod = new Detailed(asset, meshes);
-  lod.position.set(at.x, heightAt(at.x, at.z) - 0.03, at.z); lod.rotation.y = at.yaw || 0; lod.name = asset.id;
+  lod.position.set(at.x, heightAt(at.x, at.z) - 0.03, at.z); lod.rotation.y = at.yaw || 0; lod.name = asset.name;
   scene.add(lod);
   if (at.solid !== false) addSolid(solidOf(asset), at);   // the walker and the camera cannot pass it
   return lod;

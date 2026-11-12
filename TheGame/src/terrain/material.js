@@ -6,6 +6,7 @@ import { Fn, float, vec2, vec3, attribute, positionGeometry, varying, dFdx, dFdy
 import { U } from '../core/uniforms.js';
 import { camDist, riverInfo, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, tuftMask, bankMask, cutMask, barMask, aridMask, grassTintAB, vnoise, placeOff, stageAt, BIO } from '../world/land.nodes.js';
 import { haze, toScreen, weathered, cloudAt } from '../world/light.js';
+import noise from '../../materials/noise.js';
 
 export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
 
@@ -27,7 +28,7 @@ export function terrainMaterial(tex) {
   const vPth = varying(pathN(wp)), vOut = varying(outcropMask(wp)), vHill = varying(h.sub(baseB(wp)));   // how far this ground stands over the valley's floor
 
   // ---- fragment ----
-  const T = (gr) => ({ id: gr.material, t1: gr.tile[0], t2: gr.tile[1] });
+  const T = (gr) => ({ m: gr.material, t1: gr.tile[0], t2: gr.tile[1] });
   const L = BIO.land, A = BIO.arid;
   const FLOOR = T(L.floor), PATCH = T(L.patches), SLOPE = T(L.slopes), AFLOOR = T(A.floor), ASPOT = T(A.spots), BANK = T(BIO.bank.floor), CUT = T(BIO.cut.floor), BAR = T(BIO.bar.floor);
   const carpet = L.grass.carpet;
@@ -41,7 +42,7 @@ export function terrainMaterial(tex) {
     const mx = dist2.lessThan(140).select(mix(vnoise(p.mul(1 / 5.3), uint(90)), 0.5, smoothstep(50, 140, dist2)), float(0.5));
     const pr = rot(p), prr = rotB(p);
     // the land's colour variation, from the baked cloudy noise
-    const nz = (q) => tex.a('noise', q);
+    const nz = (q) => tex.a(noise, q);
     const macro = nz(prr.mul(1 / 97).add(0.37)).b.sub(0.5).mul(0.16).add(nz(pr.mul(1 / 700)).a.sub(0.5).mul(0.2)).add(nz(p.mul(1 / 4500).add(0.11)).r.sub(0.5).mul(0.18)).add(1);
     const aridV = aridMask(p, dist2);
     const tint = grassTintAB(clamp(nz(p.mul(1 / 150)).r.add(nz(pr.mul(1 / 397)).a).sub(1).mul(0.8).add(0.5), 0, 1), nz(pr.mul(1 / 45)).g, aridV);
@@ -60,8 +61,8 @@ export function terrainMaterial(tex) {
     // two takes of a material, turned and resized, mixed by noise, into the working material M; hblend lays one over it
     const smp = (S) => {
       const p2 = rot(p), dx2 = rot(dx), dy2 = rot(dy);
-      const a1 = tex.a(S.id, p.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1)), a2 = tex.a(S.id, p2.div(S.t2)).grad(dx2.div(S.t2), dy2.div(S.t2));
-      const n1 = tex.n(S.id, p.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1)), n2 = tex.n(S.id, p2.div(S.t2)).grad(dx2.div(S.t2), dy2.div(S.t2));
+      const a1 = tex.a(S.m, p.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1)), a2 = tex.a(S.m, p2.div(S.t2)).grad(dx2.div(S.t2), dy2.div(S.t2));
+      const n1 = tex.n(S.m, p.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1)), n2 = tex.n(S.m, p2.div(S.t2)).grad(dx2.div(S.t2), dy2.div(S.t2));
       const q0 = n2.xy.mul(2).sub(1), q = vec2(q0.x.mul(0.6).add(q0.y.mul(0.8)), q0.x.mul(-0.8).add(q0.y.mul(0.6)));
       const kk = smoothstep(0.35, 0.65, mx.add(a2.a.sub(a1.a).mul(0.3)));
       return { c: mix(a1.rgb.mul(a1.rgb), a2.rgb.mul(a2.rgb), kk), h: mix(a1.a, a2.a, kk), n: mix(n1.xy.mul(2).sub(1), q, kk) };

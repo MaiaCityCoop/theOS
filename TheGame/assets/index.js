@@ -1,6 +1,7 @@
 // The asset library: every made thing in the world, one file each in this folder, all in one recipe:
 //
-//   id, name, kind, about     what it is
+//   uid, type: 'asset'        its stable id (every reference to it is this) and what sort of recipe it is (src/core/registry.js)
+//   name, kind, about         what it is
 //   size                      { length, width, height } in metres; a [min, max] where it varies
 //   colours                   its named colours, [r, g, b]
 //   look                      a rock's look: { material, moss, relief, tint, cuts, smooth } (src/scatter/rocks.js)
@@ -12,19 +13,16 @@
 //                             overhead (src/world/solids.js); in the asset's own frame
 //   placement                 { at: 'places', ... } stood at a named place (src/world/places.js), or
 //                             { at: 'scatter', engine, cell, ... } spread over the land by the scatter engine
+//   wind                      how it moves in the wind, if not as its kind (assets/kinds.js)
 //
-// Here they are listed and built into geometry level by level; src/world/place.js stands them in the world.
+// The registry finds every file here with a uid: a new asset is a new file. Here its levels are built into geometry;
+// src/world/place.js stands it in the world, src/scatter spreads it.
 import * as THREE from 'three/webgpu';
 import { detailOf } from '../src/detail/index.js';
 import KINDS from './kinds.js';
-import belltent from './belltent.js';
-import stone from './stone.js';
-import boulder from './boulder.js';
-
-export const ASSETS = { belltent, stone, boulder };
 
 /** A scattered asset as the row the land's scatter engine (src/scatter) reads. */
-export const scatterRow = (a) => ({ name: a.id, kind: a.placement.engine, outcrops: a.placement.outcrops, cell: a.placement.cell, size: a.size.length, texture: a.placement.texture, shapes: a.placement.shapes, seed: a.placement.seed, look: a.look, detail: detailOf(a) });
+export const scatterRow = (a) => ({ name: a.name, uid: a.uid, kind: a.placement.engine, outcrops: a.placement.outcrops, cell: a.placement.cell, size: a.size.length, texture: a.placement.texture, shapes: a.placement.shapes, seed: a.placement.seed, look: a.look, detail: detailOf(a) });
 /** How many faces a level has. */
 export const facesOf = (l) => (l.faces ? l.faces.length : 20 * 4 ** (l.rock || 0));
 

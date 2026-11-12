@@ -8,6 +8,8 @@ import { rnd, camDist, riverInfo, heightAt, aridMask, outcropMask, grassTint } f
 import { haze, toScreen, weathered, cloudAt, detailCut, detailKeep } from '../world/light.js';
 import { pxK } from '../detail/index.js';
 import { Tier, offScreen, clipOf } from './tier.js';
+import rockMaterial0 from '../../materials/rock.js';
+import meadow from '../../materials/meadow.js';
 
 // ---- shapes ----
 function hash3(x, y, z, s) {
@@ -80,12 +82,12 @@ const rot = (v, a, cs, sn) => v.mul(cs).add(cross(a, v).mul(sn)).add(a.mul(dot(a
 /** A rock's colour, lit: triplanar from its material, moss where it looks up (held back where it is dry), darker where
     it meets the ground. s: { world, n (its geometric normal), tint (the grass round it), arid, ly (its height, -1..1) }. */
 function rockShade(tex, row, s, eye = U.uCam) {
-  const look = row.look || {}, id = look.material || 'rock', moss0 = look.moss ?? 1, relief = look.relief ?? 1.1, tintR = vec3(...(look.tint || [1, 1, 1]));
+  const look = row.look || {}, id = look.material || rockMaterial0.uid, moss0 = look.moss ?? 1, relief = look.relief ?? 1.1, tintR = vec3(...(look.tint || [1, 1, 1]));
   const N0 = normalize(s.n), b0 = pow(abs(N0), vec3(4)), b = b0.div(b0.x.add(b0.y).add(b0.z)), q = s.world.div(row.texture);
   const a = tex.a(id, q.zy).mul(b.x).add(tex.a(id, q.xz).mul(b.y)).add(tex.a(id, q.xy).mul(b.z));
   const tx = tex.n(id, q.zy).xy.mul(2).sub(1), ty = tex.n(id, q.xz).xy.mul(2).sub(1), tz = tex.n(id, q.xy).xy.mul(2).sub(1);
   const n = normalize(N0.add(vec3(0, tx.y, tx.x).mul(b.x).add(vec3(ty.x, 0, ty.y).mul(b.y)).add(vec3(tz.x, tz.y, 0).mul(b.z)).mul(relief)));
-  const mt = tex.a('meadow', q.xz.mul(1.7));
+  const mt = tex.a(meadow, q.xz.mul(1.7));   // the moss: the meadow's floor
   const moss = smoothstep(0.45, 0.8, N0.y.mul(0.75).add(a.a.sub(0.5).mul(0.7)).add(mt.a.sub(0.5).mul(0.5))).mul(float(1).sub(s.arid.mul(0.85))).mul(Math.min(moss0, 1));
   const c1 = mix(a.rgb.mul(a.rgb).mul(tintR), s.tint.mul(0.75).mul(mt.a.add(0.5)), moss.mul(0.9 * Math.min(moss0 * 1.5, 1)));
   const c2 = weathered(c1.mul(mix(0.45, 1, smoothstep(-0.25, 0.35, s.ly))), n);

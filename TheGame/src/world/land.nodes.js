@@ -4,17 +4,13 @@
 // land round its stage.
 import { Fn, float, int, uint, vec2, vec3, vec4, floor, abs, max, clamp, mix, smoothstep, length, sqrt, atan, sin, cos, If } from 'three/tsl';
 import { U } from '../core/uniforms.js';
+import { hashI } from '../core/hash.js';
+export { hashI };
 import { OCT_LAM, OCT_AMP, WATER_DROP, PADS, PAD_FALL, BEND, MEANDER } from './land.js';
-import { BIOMES, at } from '../../biomes/index.js';
+import { BIOMES, at } from './biomes.js';
+import noise from '../../materials/noise.js';
 
 // ---- the hash and the noise ----
-export const hashI = Fn(([cx, cy, s]) => {
-  const h = uint(cx).mul(uint(0x9E3779B1)).bitXor(uint(cy).mul(uint(0x85EBCA77))).bitXor(uint(s).mul(uint(0xC2B2AE3D))).toVar();
-  h.assign(h.bitXor(h.shiftRight(uint(15)))); h.assign(h.mul(uint(0x2C1B3C6D)));
-  h.assign(h.bitXor(h.shiftRight(uint(12)))); h.assign(h.mul(uint(0x297A2D39)));
-  h.assign(h.bitXor(h.shiftRight(uint(15))));
-  return h;
-});
 /** 0..1 from a cell and a seed */
 export const rnd = Fn(([cx, cy, s]) => float(hashI(cx, cy, s).shiftRight(uint(8))).mul(1 / 16777216));
 /** (value, d/dx, d/dy) of smooth value noise at p, seed s */
@@ -136,6 +132,6 @@ export const grassTintAB = Fn(([a, b, ar]) => {
 /** the grass's colour at p, read from the baked land noise (tex: src/materials/bake.js) */
 export const grassTint = (tex, p, ar, level = null) => {
   const pr = vec2(p.x.mul(0.6).sub(p.y.mul(0.8)), p.x.mul(0.8).add(p.y.mul(0.6)));
-  const rd = (q) => (level === null ? tex.a('noise', q) : tex.a('noise', q).level(level));
+  const rd = (q) => (level === null ? tex.a(noise, q) : tex.a(noise, q).level(level));
   return grassTintAB(clamp(rd(p.mul(1 / 150)).r.add(rd(pr.mul(1 / 397)).a).sub(1).mul(0.8).add(0.5), 0, 1), rd(pr.mul(1 / 45)).g, ar);
 };

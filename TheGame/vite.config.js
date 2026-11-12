@@ -2,9 +2,21 @@
 // cine/timelines/<name>.json, so a set of cameras an agent composed can be played back later by name; POST /story-preview keeps a story's picture.
 import { writeFileSync, appendFileSync, mkdirSync, readdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { buildRegistry, FOLDERS } from './tools/registry.js';
+
+const ROOT = import.meta.dirname;
+// the registry's manifest (registry.json, tools/registry.js): made at the start, and again whenever a recipe changes
+const registry = {
+  name: 'registry',
+  buildStart() { buildRegistry(ROOT); },
+  configureServer(server) {
+    buildRegistry(ROOT);
+    server.watcher.on('all', (_, file) => { if (FOLDERS.some((d) => file.startsWith(resolve(ROOT, d) + '/'))) { try { buildRegistry(ROOT); } catch (e) { console.error('[registry]', e.message); } } });
+  },
+};
 
 export default {
-  plugins: [{
+  plugins: [registry, {
     name: 'cine-keep',
     configureServer(server) {
       const B = (server.config.base || '/').replace(/\/$/, '');   // '' on its own, '/game' inside the dashboard's server

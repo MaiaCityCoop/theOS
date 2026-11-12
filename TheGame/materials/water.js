@@ -1,4 +1,4 @@
-// Water: ripples (the albedo pass keeps foam in rgb). A material of the world, in the one recipe every material follows (materials/index.js):
+// Water: ripples (the albedo pass keeps foam in rgb). A material of the world, in the one recipe every material follows (materials/README.md):
 // what it is, where the world uses it, how deep its relief is, and how it is painted, once, at the start.
 //
 // `paint` is node code (TSL): from uv (0..1, tiling) it returns { h (height 0..1), col (albedo, linear), rough (0..1) },
@@ -6,7 +6,8 @@
 import { float, vec2, vec3, mix, smoothstep, step, fract, sin, abs, max, clamp } from 'three/tsl';
 import { pn, pfbm, pvor, fibre, pebbles } from '../src/materials/paint.js';
 export default {
-  id: 'water',
+  uid: '83e8d1fa-61a3-41fc-a9f1-882ab8be9fbc',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)
+  type: 'material',
   name: "Water",
   kind: 'water',
   about: "Ripples, and foam in the albedo: the river's surface.",

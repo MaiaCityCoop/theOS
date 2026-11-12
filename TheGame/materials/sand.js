@@ -1,4 +1,4 @@
-// Sand: grains, soft ripples, a few pebbles. A material of the world, in the one recipe every material follows (materials/index.js):
+// Sand: grains, soft ripples, a few pebbles. A material of the world, in the one recipe every material follows (materials/README.md):
 // what it is, where the world uses it, how deep its relief is, and how it is painted, once, at the start.
 //
 // `paint` is node code (TSL): from uv (0..1, tiling) it returns { h (height 0..1), col (albedo, linear), rough (0..1) },
@@ -6,7 +6,8 @@
 import { float, vec2, vec3, mix, smoothstep, step, fract, sin, abs, max, clamp } from 'three/tsl';
 import { pn, pfbm, pvor, fibre, pebbles } from '../src/materials/paint.js';
 export default {
-  id: 'sand',
+  uid: '2f329f07-d2ba-4dc8-a6e3-73053c65e10f',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)
+  type: 'material',
   name: "Sand",
   kind: 'ground',
   about: "Sand with grains and soft ripples, and a few pebbles.",

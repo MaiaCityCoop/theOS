@@ -1,9 +1,10 @@
 // The world's materials (materials/*.js), painted once at the start by the GPU into two texture arrays, one layer per
 // material: albedo (gamma 2) + height in A, normal + roughness in N. A shader binds the two arrays whatever the number
-// of materials, and picks a material by its layer: tex.a(id, uv), tex.n(id, uv).
+// of materials, and picks a material by its layer: tex.a(material, uv), tex.n(material, uv), the material its recipe
+// (imported) or its uid.
 import * as THREE from 'three/webgpu';
 import { Fn, vec2, vec3, vec4, uv, float, sqrt, clamp, normalize, texture } from 'three/tsl';
-import { MATERIALS } from '../../materials/index.js';
+import { recipes } from '../core/registry.js';
 
 const SIZE = 1024, LEVELS = Math.log2(SIZE) + 1;
 
@@ -20,10 +21,10 @@ function program(m, normalPass) {
   return mat;
 }
 
-/** Bakes every material of the library (materials/index.js), in its order. Returns the arrays and how to read them:
-    { arrays, layer(id), a(id, uv) and n(id, uv) as nodes (with .grad(dx, dy) as on any texture) }. */
+/** Bakes every material in the registry, a layer each. Returns the arrays and how to read them:
+    { arrays, layer(material), a(material, uv) and n(material, uv) as nodes (with .grad(dx, dy) as on any texture) }. */
 export function bakeTextures(renderer) {
-  const N = MATERIALS.length, aniso = 8;
+  const MATERIALS = recipes('material'), N = MATERIALS.length, aniso = 8;
   const array = () => {
     const rt = new THREE.RenderTarget(SIZE, SIZE, { depth: N, depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
     Object.assign(rt.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, anisotropy: aniso });
@@ -42,13 +43,13 @@ export function bakeTextures(renderer) {
     }
   });
   tmp.dispose(); quad.geometry.dispose();
-  const layer = (id) => { const i = MATERIALS.findIndex((m) => m.id === id); if (i < 0) throw new Error(`no material "${id}"`); return i; };
+  const layer = (ref) => { const uid = ref?.uid ?? ref, i = MATERIALS.findIndex((m) => m.uid === uid); if (i < 0) throw new Error(`no material ${uid}`); return i; };
   const tA = texture(A.texture), tN = texture(Nn.texture);
   return {
-    arrays: [A, Nn], layer, ids: MATERIALS.map((m) => m.id),
+    arrays: [A, Nn], layer,
     /** a material's albedo + height at uv (a node) */
-    a: (id, p) => tA.sample(p).depth(layer(id)),
+    a: (m, p) => tA.sample(p).depth(layer(m)),
     /** its normal + roughness at uv */
-    n: (id, p) => tN.sample(p).depth(layer(id)),
+    n: (m, p) => tN.sample(p).depth(layer(m)),
   };
 }

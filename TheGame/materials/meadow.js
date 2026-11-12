@@ -1,4 +1,4 @@
-// Meadow floor: dark soil under a thatch of dead and green strands. A material of the world, in the one recipe every material follows (materials/index.js):
+// Meadow floor: dark soil under a thatch of dead and green strands. A material of the world, in the one recipe every material follows (materials/README.md):
 // what it is, where the world uses it, how deep its relief is, and how it is painted, once, at the start.
 //
 // `paint` is node code (TSL): from uv (0..1, tiling) it returns { h (height 0..1), col (albedo, linear), rough (0..1) },
@@ -6,7 +6,8 @@
 import { float, vec2, vec3, mix, smoothstep, step, fract, sin, abs, max, clamp } from 'three/tsl';
 import { pn, pfbm, pvor, fibre, pebbles } from '../src/materials/paint.js';
 export default {
-  id: 'meadow',
+  uid: 'ae3df398-9f52-4a4a-b54f-a2db2eafb0c8',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)
+  type: 'material',
   name: "Meadow floor",
   kind: 'ground',
   about: "The ground under the grass: dark soil under a thatch of dead and green strands.",

@@ -23,7 +23,7 @@ import { bakeTextures } from './materials/bake.js';
 import { createTerrain } from './terrain/terrain.js';
 import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
-import { ASSETS } from '../assets/index.js';
+import { recipe } from './core/registry.js';
 import { place } from './world/place.js';
 import { PLACES } from './world/places.js';
 import { spawn } from './camera/walk.js';
@@ -64,7 +64,7 @@ const terrain = createTerrain(scene, tex);
 stats.terrain = terrain;
 const scatter = createScatter(scene, tex, ground);
 stats.scatter = scatter;   // for timings and pages that look at it
-for (const at of Object.values(PLACES)) place(scene, ASSETS[at.asset], at);   // what stands at a named place, from the asset library
+for (const at of Object.values(PLACES)) place(scene, recipe(at.asset), at);   // what stands at a named place, from the asset library
 const controls = createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat'));
 const sky = createSky(scene, camera, renderer);
 const wind = createWind();   // which way the air moves and how hard: the grass and the water follow (world/wind.js)

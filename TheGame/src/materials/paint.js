@@ -8,7 +8,7 @@
 //   pebbles(uv, per, seed, share)  domes of one size: (height, the pebble's hash)
 // p, q are vec2 nodes; per a number or [x, y]; seed a whole number.
 import { Fn, float, int, uint, vec2, vec3, floor, fract, length, smoothstep, clamp, sqrt, If } from 'three/tsl';
-import { hashI } from '../world/land.nodes.js';
+import { hashI } from '../core/hash.js';
 
 const per2 = (per) => (Array.isArray(per) ? vec2(per[0], per[1]) : vec2(per, per));
 const h1 = Fn(([c, per, s]) => { const w = c.sub(per.mul(floor(c.div(per)))); return float(hashI(int(w.x), int(w.y), s).shiftRight(uint(8))).mul(1 / 16777216); })
