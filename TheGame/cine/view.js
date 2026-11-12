@@ -22,7 +22,7 @@ function build() {
   for (const c of cine.clips) { const g = groups[groups.length - 1]; if (g && g.act === (c.act || '')) { g.secs += c.secs; g.n++; } else groups.push({ act: c.act || '', secs: c.secs, n: 1 }); }
   acts.innerHTML = groups.map((g) => `<span style="flex:${g.secs};margin-right:${(g.n - 1) * 0}px" data-act="${g.act}">${g.act}</span>`).join('');
   cues.innerHTML = captions.map((c) => `<div class="cue" style="left:${(c.at / cine.duration) * 100}%;width:${(c.for / cine.duration) * 100}%"></div>`).join('');
-  history.replaceState(null, '', (storyId ? `?story=${storyId}` : kept ? `?tl=${kept}` : `?seed=${seed}`) + (q.has('in') ? `&in=${q.get('in')}` : '') + (q.has('embed') ? '&embed' : ''));
+  history.replaceState(null, '', (storyId ? `?story=${storyId}` : kept ? `?tl=${kept}` : `?seed=${seed}`) + (q.has('in') ? `&in=${q.get('in')}` : '') + (q.has('embed') ? '&embed' : '') + (q.has('ch') ? `&ch=${q.get('ch')}` : ''));
 }
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 // While the film plays the governor is held: it settles in the first two seconds, then its dials stay put. Paused, it may move again.
@@ -101,7 +101,7 @@ window.__timeline = { get seed() { return seed; }, set seed(v) { kept = keptClip
 // In a frame (the dashboard's story editor): say what is playing, keep the frame told of the time, and take its
 // play, pause, seek, and a request for one still from the middle of every shot, for the editor's picture track.
 if (parent !== window) {
-  const send = (m) => parent.postMessage({ maia: 1, ...m }, '*');
+  const ch = q.get('ch'), send = (m) => parent.postMessage({ maia: 1, ch, ...m }, '*');   // ch: which of the page's films this is
   const film = () => send({ type: 'film', duration: cine.duration, clips: cine.clips.map((c) => ({ name: c.name, secs: c.secs, act: c.act || '', kind: c.kind })), captions });
   film();
   setInterval(() => send({ type: 'time', t: cine.time, playing: cine.playing }), 80);

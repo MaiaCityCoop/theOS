@@ -110,11 +110,14 @@ export function terrainMaterial(tex) {
     });
 
     const wet = float(1).sub(smoothstep(w.mul(0.9), w.add(2.5), d));
-    const n = normalize(vN.add(vec3(M.n.x, 0, M.n.y).mul(float(1).sub(smoothstep(60, 400, dist2).mul(0.7)))));
+    // depth up close, from the material's own height: what lies low (the gaps between stones, a crack) sits in its
+    // neighbours' shade, and the relief reads deeper; let go with distance, where it would only darken the whole
+    const near = float(1).sub(smoothstep(12, 70, dist2)), cav = mix(1, smoothstep(0.08, 0.5, M.h).mul(0.62).add(0.38), near.mul(float(1).sub(cv.mul(0.6))));
+    const n = normalize(vN.add(vec3(M.n.x, 0, M.n.y).mul(float(1).sub(smoothstep(60, 400, dist2).mul(0.7)).mul(near.mul(0.7).add(1)))));
     // relief: hollows sit in shade, crowns in light; slopes facing the sun lit harder than the plain normal says
     const relief = mix(0.74, 1.1, smoothstep(-6, 16, vHill));
     const s0 = max(n.dot(U.uSunDir), 0), sunl = mix(s0, smoothstep(0.55, 0.95, s0), smoothstep(60, 600, dist2).mul(0.5));
-    const col = weathered(M.c.mul(mix(1, 0.5, wet)).mul(macro).mul(relief), n).mul(skyLight(n).add(U.uSun.mul(cloudAt(vWorld)).mul(sunl)));
+    const col = weathered(M.c.mul(mix(1, 0.5, wet)).mul(macro).mul(relief).mul(cav), n).mul(skyLight(n).add(U.uSun.mul(cloudAt(vWorld)).mul(sunl)));
     const V = normalize(U.uCam.sub(vWorld));
     return finish(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), vWorld);
   });

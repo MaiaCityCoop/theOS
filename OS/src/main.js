@@ -31,7 +31,7 @@ function tab(name) {
   if (name !== 'home') $('heroframe').removeAttribute('src');
   if (name === 'game') { if (!$('frame').getAttribute('src')) $('frame').src = GAME + VIEWS[gameView][1]; } else $('frame').removeAttribute('src');
   const player = document.querySelector('.player iframe');
-  if (player) { if (name === 'stories' && current) { if (!player.getAttribute('src')) player.src = filmOf(current.id); } else player.removeAttribute('src'); }
+  if (player) { if (name === 'stories' && current) { if (!player.getAttribute('src')) player.src = filmOf(current.id) + '&ch=edit'; } else player.removeAttribute('src'); }
   scrollTo(0, 0);
   if (name === 'home') { home.sync?.(); home.draw?.(); }
   if (name === 'city') city();   // the front page's film starts when its window is on screen, not before
@@ -128,7 +128,9 @@ const EDIT = `<div class="edit"><div class="etop"><button class="eplay" aria-lab
   <div class="etracks"><div class="elabs"><span></span><span>T1 · Title</span><span>V1 · Picture</span><span>S1 · Subtitles</span><span>A1 · Voices</span><span>A2 · Music</span></div>
   <div class="elanes"><div class="eruler"></div><div class="elane t"></div><div class="elane v"></div><div class="elane s"></div><div class="elane a"></div><div class="elane m"><span class="eempty">no music yet</span></div><i class="ehead"></i></div></div></div>`;
 let onFilm = null;
-addEventListener('message', (ev) => { const m = ev.data; if (m?.maia && onFilm && ev.source === onFilm.win()) onFilm.take(m); });
+// the editor's film says so in every message (ch, from its address): Safari's message source is not the frame's
+// contentWindow, so the frame cannot be told by identity
+addEventListener('message', (ev) => { const m = ev.data; if (m?.maia && m.ch === 'edit' && onFilm && ev.origin === location.origin) onFilm.take(m); });
 function editor(el, frame, story) {
   const q = (c) => el.querySelector(c), lanes = q('.elanes'), say = (m) => frame.contentWindow?.postMessage({ maia: 1, ...m }, '*');
   let D = 0, clips = [], starts = [], playing = false, asked = false, cur = -1, base = 0, stamp = 0, shownSec = -1;
@@ -145,7 +147,7 @@ function editor(el, frame, story) {
     const sec = Math.floor(t); if (sec !== shownSec) { shownSec = sec; paintClock(sec); } };   // drawn, not written: no text in the page changes while the film plays
   requestAnimationFrame(run);
   const pct = (t) => (D ? (t / D) * 100 : 0);
-  onFilm = { win: () => frame.contentWindow, take(m) {
+  onFilm = { take(m) {
     if (m.type === 'film' && m.duration && !D) {
       D = m.duration; clips = m.clips; starts = []; let T = 0; for (const c of clips) { starts.push(T); T += c.secs; }
       let r = ''; for (let s = 0; s <= D; s += 5) r += `<span style="left:${pct(s)}%">${mm(s)}</span>`; q('.eruler').innerHTML = r;

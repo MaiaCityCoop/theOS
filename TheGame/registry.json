@@ -47,9 +47,9 @@
     "type": "biome",
     "name": "Gravel bar",
     "file": "biomes/gravelbar.js",
-    "version": "eda7174977c144b8fbfa877c45756e8e65fe6f20dfe8453bb269282663b1248b",
+    "version": "6067f3633ee6c7afbeb14fa2f26967cbfe50a096a59c36329b67a874a773fbfa",
     "uses": [
-      "0db6a039-9f7f-4a58-8137-c3348dfb922e"
+      "e1da2cdc-1305-4266-b1db-8c0ca473f438"
     ]
   },
   "32a4de29-d325-415d-85b7-f6e647830234": {
@@ -122,6 +122,13 @@
     "name": "Pebble",
     "file": "materials/pebble.js",
     "version": "e4fd3b5d659e43a482f421816d789ada03edc59c542c72f0a2d3438d528ad9c3",
+    "uses": []
+  },
+  "e1da2cdc-1305-4266-b1db-8c0ca473f438": {
+    "type": "material",
+    "name": "River gravel",
+    "file": "materials/gravel.js",
+    "version": "6a2350fffcaaee9bd3aaa8c332c1a7b29b8c9f3c5641e4259a6b71a7897ab06a",
     "uses": []
   },
   "506c509b-300d-42eb-8403-f3969b06b271": {

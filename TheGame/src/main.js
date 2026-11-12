@@ -12,6 +12,7 @@
 // Drawn by three's WebGPURenderer (WebGL 2 where WebGPU is missing), every material in node code (TSL, intent 0008).
 // Everything is made before the first frame. A frame only moves uniforms and chooses what to draw.
 import * as THREE from 'three/webgpu';
+import { loadingStep, loadingDone } from './ui/loading.js';   // first: the veil is told what is being made
 import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
 import { trackView } from './detail/index.js';
@@ -61,8 +62,10 @@ const governor = createGovernor(renderer);
 stats.governor = governor;   // the film holds it still while it plays
 const boot = (stats.boot = {}), mark = (k) => (boot[k] = Math.round(performance.now() - t0));   // where the start's time goes
 mark('renderer');
+await loadingStep('Painting the ground', 0.12);
 const tex = bakeTextures(renderer);
 mark('bake');
+await loadingStep('Raising the land', 0.3);
 const ground = createGround(renderer, tex);
 useGround(ground);   // the rocks' bodies read their stones from it
 stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage things (the library)
@@ -147,6 +150,7 @@ terrain.all(); scatter.warm();
 const seen = [];
 scene.traverse((o) => { if (o.isMesh) { seen.push(o, o.visible); o.visible = true; } });
 mark('built');
+await loadingStep('Lighting the world', 0.55);
 await renderer.compileAsync(scene, camera);
 mark('compiled');
 renderer.render(scene, camera);
@@ -156,3 +160,4 @@ renderer.render(scene, camera);
 stats.loadMs = performance.now() - t0;
 console.log(`[sandbox 8] ready in ${stats.loadMs.toFixed(0)} ms`, boot);
 requestAnimationFrame(frame);
+requestAnimationFrame(() => requestAnimationFrame(loadingDone));   // the veil goes once the world is on the screen

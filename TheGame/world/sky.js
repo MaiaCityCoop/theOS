@@ -4,7 +4,7 @@
 //   latitude    where Maia City lies (degrees north): how high the sun climbs
 //   day         the date, as the day of the year (1 January = 1): the sun's height through the seasons; the moon's phase
 //   hour        the time of day the game opens at (0 to 24)
-//   speed       in Auto: game hours per real minute (24 = a day in an hour; 1440 = a day in a minute)
+//   speed       in Auto: game hours per real minute (6 = a day in four minutes; 24 = a day in a minute)
 //   auto        whether the day runs on its own when the game opens
 //   keys        the light by the sun's height (degrees; below 0 it has set): the sky overhead and at the horizon, the
 //               sun's light, the light the sky gives (ambient), the glow round the sun, and the exposure; eased between
@@ -13,7 +13,7 @@ export default {
   latitude: 41.2,
   day: 172,
   hour: 10,
-  speed: 24,
+  speed: 6,
   auto: false,
   keys: [
     { alt: -18, zenith: [0.006, 0.009, 0.022], horizon: [0.012, 0.017, 0.032], sun: [0, 0, 0], amb: [0.035, 0.045, 0.075], glow: [0, 0, 0], exposure: 2.6 },

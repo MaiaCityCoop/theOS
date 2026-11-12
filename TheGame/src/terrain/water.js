@@ -2,9 +2,9 @@
 // floor less the drop; its look from the bed's depth under it: clear over a bar, dark under a cut bank; running along the
 // river's flow, two takes half a cycle apart cross-faded, so it runs and never stretches.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, vec2, vec3, vec4, varying, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, sqrt, floor, uint, If, Discard } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, varying, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, sqrt, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { riverInfo, riverRaw, riverCarve, riverBank, baseB, rnd, WATER_DROP_N } from '../world/land.nodes.js';
+import { riverInfo, riverRaw, riverCarve, riverBank, baseB, WATER_DROP_N } from '../world/land.nodes.js';
 import { finish, cloudAt } from '../world/light.js';
 import { gridPoint } from './material.js';
 import { WATER } from '../world/biomes.js';
@@ -35,14 +35,7 @@ export function waterMaterial(tex) {
     const V = normalize(U.uCam.sub(vWorld));
     const fres = pow(float(1).sub(max(n.dot(V), 0)), 5).mul(0.98).add(0.02);
     const ftex = mix(tex.a(water.floor.material, uA.mul(2)).r, tex.a(water.floor.material, uB.mul(2)).r, wb);
-    const foam = float(1).sub(smoothstep(0, 0.05, depth)).mul(smoothstep(0.15, 0.6, ftex)).mul(0.5);
-    const specks = float(0).toVar();
-    for (let i = 0; i < 2; i++) {
-      const q = (i === 0 ? p.sub(o1) : p.sub(o2).add(3.7)).mul(4), c = floor(q), cx = int(c.x), cy = int(c.y);
-      const pt = c.add(0.25).add(vec2(rnd(cx, cy, uint(96)), rnd(cx, cy, uint(97))).mul(0.5));
-      const s = rnd(cx, cy, uint(95)).greaterThan(0.955).select(1, 0).mul(float(1).sub(smoothstep(0.03, 0.1, length(q.sub(pt)))));
-      specks.addAssign(s.mul(i === 0 ? float(1).sub(wb) : wb));
-    }
+    const foam = float(1).sub(smoothstep(0, 0.04, depth)).mul(smoothstep(0.3, 0.7, ftex)).mul(0.35);   // a thin lace where it runs shallow over the bank, nothing on open water
     const body = mix(v3(water.colours.shallow), v3(water.colours.deep), clamp(depth.mul(1.1), 0, 1));
     const skyRef = mix(U.uSky, vec3(U.uSky.dot(vec3(0.333))), 0.4).mul(0.92);
     const sunC = U.uSun.mul(cloudAt(vWorld));
@@ -50,10 +43,9 @@ export function waterMaterial(tex) {
     const spec = pow(max(n.dot(H), 0), 350).mul(2.5).add(pow(max(n.dot(H), 0), 30).mul(0.22).mul(smoothstep(40, 300, wd)));
     const col0 = mix(body.mul(U.uAmb.add(sunC.mul(0.45))), skyRef, clamp(fres.mul(0.9).add(smoothstep(40, 400, wd).mul(0.12)), 0, 1)).add(sunC.mul(spec));
     const col1 = mix(col0, vec3(0.8).mul(U.uAmb.add(sunC.mul(0.5))), foam);
-    const col = mix(col1, vec3(0.5, 0.46, 0.3), specks.mul(0.6));
     const a0 = clamp(depth.mul(1.1).add(0.2), 0, 0.93);
-    const a = max(max(a0, fres.mul(0.75)), max(foam, specks.mul(0.6))).mul(smoothstep(-0.04, 0.02, depth));
-    return vec4(finish(col, vWorld).rgb, a);
+    const a = max(max(a0, fres.mul(0.75)), foam).mul(smoothstep(-0.04, 0.02, depth));
+    return vec4(finish(col1, vWorld).rgb, a);
   });
 
   const m = new THREE.NodeMaterial();

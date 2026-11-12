@@ -18,7 +18,7 @@ export default {
     const bar = max(b.negate(), 0), dd = d.add(edgeJit(p.add(57)).mul(1.4));
     return smoothstep(0.15, 0.6, bar).mul(smoothstep(w.mul(0.4), w.mul(0.85), dd)).mul(float(1).sub(smoothstep(w.mul(bar.mul(0.35).add(0.95)), w.mul(bar.mul(0.5).add(1.2)), dd))).mul(smoothstep(0.35, 0.65, vnoise(p.mul(1 / 9), uint(46)).add(0.25)));
   },
-  floor: { material: '0db6a039-9f7f-4a58-8137-c3348dfb922e' /* path */, tile: [1.4, 2.3] },
+  floor: { material: 'e1da2cdc-1305-4266-b1db-8c0ca473f438' /* river gravel */, tile: [1.6, 2.6] },
   grass: null,
-  stones: 0.6,
+  stones: 1,
 };

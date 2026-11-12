@@ -219,3 +219,24 @@ body.embed #cap.title { top: 20%; }              /* and the title in the upper t
 #cap.note { font: 600 clamp(11px, 1vw, 13px)/1.4 var(--glass-font); letter-spacing: .16em; text-transform: uppercase; color: var(--on-glass-2); }
 #cap.title { bottom: auto; top: 40%; max-width: 86vw; font: 420 clamp(36px, 5.8vw, 86px)/1 var(--serif); font-variation-settings: var(--soft); letter-spacing: -.03em; text-shadow: 0 2px 50px rgba(8, 20, 15, .5), 0 1px 2px rgba(8, 20, 15, .35); }
 #cap.title small { display: block; margin-bottom: 14px; font: 600 11px/1 var(--glass-font); letter-spacing: .16em; text-transform: uppercase; }
+
+/* ---- the world, loading (every page that draws the world: <html class="os-loading">, src/ui/loading.js steps it) ----
+   the land before dawn: night above, the glow of a sun not yet up along the horizon, the mark turning slowly where it
+   will rise, the city's name, and what is being made with a thin line of how far. Pure CSS on html and body, so it is
+   there from the first paint, before any script; it fades into the world's own sky when the first frame is drawn. */
+html.os-loading::before, html.os-loading::after, html.os-loading body::before, html.os-loading body::after { position: fixed; z-index: 99990; pointer-events: none; transition: opacity .9s ease; }
+html.os-loading::before { content: ''; inset: 0;
+  background: radial-gradient(120% 55% at 50% 108%, rgba(255, 196, 120, .55), rgba(242, 181, 68, .18) 38%, transparent 62%),
+    radial-gradient(60% 40% at 50% 46%, rgba(255, 226, 160, .10), transparent 70%),
+    linear-gradient(180deg, #0b1626 0%, #13243b 34%, #2a3f5c 62%, #6b6f7e 82%, #c99a74 96%, #e8b884 100%); }
+html.os-loading::after { content: ''; left: 50%; top: 40%; width: 64px; height: 64px; margin: -32px 0 0 -32px; background: var(--sunmark) center/contain no-repeat;
+  filter: drop-shadow(0 0 18px rgba(255, 210, 120, .55)); animation: os-rise 2.6s ease-in-out infinite alternate, os-turn 24s linear infinite; }
+html.os-loading body::before { content: 'Maia City'; left: 0; right: 0; top: calc(40% + 52px); text-align: center; font: 400 36px/1.1 var(--serif); letter-spacing: -.01em; color: #fbf6ea; text-shadow: 0 2px 24px rgba(10, 20, 35, .5); }
+html.os-loading body::after { content: attr(data-step); left: 50%; top: calc(40% + 112px); width: 220px; margin-left: -110px; padding-bottom: 14px; text-align: center;
+  font: 500 11px/1 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: rgba(251, 246, 234, .72);
+  background: linear-gradient(90deg, #f2b544, #ffe2a0) left bottom / var(--os-load, 4%) 2px no-repeat, linear-gradient(rgba(251, 246, 234, .16), rgba(251, 246, 234, .16)) left bottom / 100% 2px no-repeat;
+  transition: opacity .9s ease, background-size .6s cubic-bezier(.3, .8, .3, 1); }
+html.os-loaded::before, html.os-loaded::after, html.os-loaded body::before, html.os-loaded body::after { opacity: 0; }
+@keyframes os-rise { from { transform: translateY(4px) scale(.96); } to { transform: translateY(-4px) scale(1.04); } }
+@keyframes os-turn { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: reduce) { html.os-loading::after { animation: none; } }
