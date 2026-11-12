@@ -952,3 +952,4 @@ shadows and the grass.
 | 2026-11-12 | `cb35ec5` | A bush's solid body at every level but its nearest |
 | 2026-11-12 | `1c9655e` | A bush's base sprigs the same at every level; fine sprigs only added near by |
 | 2026-11-12 | `c9f335c` | Levels of detail in one place; the contract written (src/detail/README.md) |
+| 2026-11-12 | `5538175` | The scatter by stand: one packing and one draw shader for all a stand's kinds |
