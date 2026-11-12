@@ -9,7 +9,6 @@ export default {
   kind: 'shore',
   about: 'A strip of damp sand and pebbles between the water and the grass, stones washed up along it.',
   laid: 'Along the river',   // where it lies, in words (the library's card)
-  role: 'bank',
   layer: 30,
   river: true,                                             // it lies by the river: in a sandbox with its own river, it keeps to it
   // where it lies (node code): a strip along the water, wider on a bend's inside, narrower under a cut bank, its edge ragged

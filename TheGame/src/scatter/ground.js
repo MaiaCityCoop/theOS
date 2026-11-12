@@ -37,12 +37,28 @@ export function createGround(renderer, tex) {
   const mA = mk(fragA), mB = mk(fragB);
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mA), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); quad.frustumCulled = false;
   const read = (rt, pos) => texture(rt.texture, pos.sub(G.o).div(G.texel).add(0.5).div(N)).level(0);
-  let lastDy = -1, lastS = 0;
+  let lastDy = -1, lastS = 0, cpu = null, reading = false;
+  // the CPU's copy of the ground under the camera (read back after each pass, a moment later): what runs on the CPU and
+  // must agree with what is drawn reads it, the rocks' bodies first (src/world/rocksolid.js)
+  const h2f = (h) => { const e = (h >> 10) & 31, f = h & 1023, sg = h & 32768 ? -1 : 1; return e === 0 ? sg * f * 2 ** -24 : e === 31 ? NaN : sg * (1 + f / 1024) * 2 ** (e - 15); };
+  const readBack = (o, texel, base) => {
+    if (reading) return; reading = true;
+    renderer.readRenderTargetPixelsAsync(rtA, 0, 0, N, N).then((px) => { cpu = { x: o.x, z: o.y, texel, base, px }; }).catch(() => {}).finally(() => (reading = false));
+  };
   return {
     /** height, grass density, grass height (a share of the asset's), stone chance at pos (a node; one filtered read) */
     A: (pos) => { const g = read(rtA, pos); return vec4(g.x.add(G.base), g.y, g.z, g.w); },
     /** the grass's colour at pos, and in w its dryness (a node) */
     tint: (pos) => { const t = read(rtB, pos); return vec4(t.rgb.mul(t.rgb), t.a); },
+    /** What the ground pass says at (x, z), on the CPU: { height, density, grassHeight, stone }, or null where it has not
+        been read yet or does not reach. Rows come back as the backend keeps them (top-down; the pass writes them turned). */
+    at(x, z) {
+      if (!cpu) return null;
+      const i = Math.round((x - cpu.x) / cpu.texel), j = Math.round((z - cpu.z) / cpu.texel);
+      if (i < 0 || j < 0 || i >= N || j >= N) return null;
+      const k = (j * N + i) * 4, v = cpu.px, f = v instanceof Uint16Array ? h2f : (n) => n;
+      return { height: f(v[k]) + cpu.base, density: f(v[k + 1]), grassHeight: f(v[k + 2]), stone: f(v[k + 3]) };
+    },
     /** The library's stage: a round at (x, z), r metres across the middle, laid in a material (its recipe or uid; none:
         the base biome's bare earth) at tile metres a tile; r 0 takes it away. */
     stage(x, z, r, material = null, tile = 2) { U.uStage.value.set(x, z, r); U.uStageGround.value.set(material ? tex.layer(material) : -1, tile); lastS = 0; },
@@ -59,6 +75,7 @@ export function createGround(renderer, tex) {
       quad.material = mA; renderer.setRenderTarget(rtA); renderer.render(quad, cam);
       quad.material = mB; renderer.setRenderTarget(rtB); renderer.render(quad, cam);
       renderer.setRenderTarget(was);
+      readBack(o.clone(), TEXEL, G.base.value);
     },
   };
 }

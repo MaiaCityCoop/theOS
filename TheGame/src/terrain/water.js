@@ -7,9 +7,9 @@ import { U } from '../core/uniforms.js';
 import { riverInfo, riverRaw, riverCarve, riverBank, baseB, rnd, WATER_DROP_N } from '../world/land.nodes.js';
 import { haze, toScreen, cloudAt } from '../world/light.js';
 import { gridPoint } from './material.js';
-import { at } from '../world/biomes.js';
+import { WATER } from '../world/biomes.js';
 
-const water = at('water'), v3 = (c) => vec3(c[0], c[1], c[2]);
+const water = WATER, v3 = (c) => vec3(c[0], c[1], c[2]);
 
 export function waterMaterial(tex) {
   const wp = gridPoint();

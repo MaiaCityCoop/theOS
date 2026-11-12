@@ -32,6 +32,7 @@ import { createPost } from './camera/post.js';
 import { createSky } from './world/sky.js';
 import { createWind } from './world/wind.js';
 import { createShadows } from './world/shadow.js';
+import { useGround } from './world/rocksolid.js';
 
 const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
@@ -62,6 +63,7 @@ mark('renderer');
 const tex = bakeTextures(renderer);
 mark('bake');
 const ground = createGround(renderer, tex);
+useGround(ground);   // the rocks' bodies read their stones from it
 stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage things (the library)
 const terrain = createTerrain(scene, tex);
 stats.terrain = terrain;

@@ -9,7 +9,6 @@ export default {
   kind: 'steppe',
   about: 'Cracked earth with sandy spots, the grass in yellowing tufts, more stones lying about.',
   laid: 'Where the land is dry',   // where it lies, in words (the library's card)
-  role: 'arid',
   layer: 10,                                               // laid in this order, lowest first (src/world/land.nodes.js: biomesAt)
   // where it lies, 0..1 (node code): where the land is dry, a slow noise over kilometres, a finer one let go far off
   where: ({ p, dist }) => smoothstep(0.5, 0.66, vnoise(p.mul(1 / 700), uint(50)).add(vnoise(p.mul(1 / 150), uint(51)).sub(0.5).mul(0.3).mul(float(1).sub(smoothstep(3000, 8000, dist))))),

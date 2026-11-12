@@ -7,7 +7,6 @@ export default {
   kind: 'grassland',
   about: 'Knee-high grass on dark soil, the odd bare patch, a few stones, now and then a white flower.',
   laid: 'Everywhere no other biome is',   // where it lies, in words (the library's card)
-  role: 'land',
   base: true,                                              // the land's own: under every other biome, everywhere
   floor: { material: 'ae3df398-9f52-4a4a-b54f-a2db2eafb0c8' /* meadow */, tile: [2.0, 3.2] },         // the ground: a material (materials/) at two tile sizes in metres
   patches: { material: '0db6a039-9f7f-4a58-8137-c3348dfb922e' /* path */, tile: [2.0, 3.2] },         // bare patches between the grass, and the outcrops' floor

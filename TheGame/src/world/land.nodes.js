@@ -7,13 +7,12 @@ import { U } from '../core/uniforms.js';
 import { hashI, rnd, noised, vnoise, camDist, edgeJit } from './noise.nodes.js';
 export { hashI, rnd, noised, vnoise, camDist, edgeJit };
 import { OCT_LAM, OCT_AMP, WATER_DROP, PADS, PAD_FALL, BEND, MEANDER } from './land.js';
-import { BIOMES } from './biomes.js';
+import { BIOMES, BASE, WATER } from './biomes.js';
 import noise from '../../materials/noise.js';
 
 // ---- the biomes (biomes/*.js, from the registry) and the library's sandbox ----
 // Every biome brings its own rule for where it lies (its `where`, node code) and the order it is laid in (`layer`); the
 // base biome lies under all of them; the water's is drawn as the water. Nothing here knows a biome by name.
-const BASE = BIOMES.find((b) => b.base), WATER = BIOMES.find((b) => b.water);
 const LAID = BIOMES.filter((b) => b.where).sort((a, b) => a.layer - b.layer);
 export { BASE, LAID };
 /** how much of p the library's sandbox covers: round (x, z) of uSand the land is one biome (uSand.w: its number) */

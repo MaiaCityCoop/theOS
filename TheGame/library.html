@@ -66,7 +66,7 @@
 import * as THREE from 'three/webgpu';
 import { geometryOf, scatterRow, solidOf } from './assets/index.js';
 import { recipes, manifest } from './src/core/registry.js';
-import { BIOMES, at as biomeAt } from './src/world/biomes.js';
+import { BIOMES, BASE } from './src/world/biomes.js';
 import { place } from './src/world/place.js';
 import { rockSample } from './src/scatter/rocks.js';
 import { detailOf, spanOf, distanceAt } from './src/detail/index.js';
@@ -95,7 +95,7 @@ const sizeFig = (v, label) => (Array.isArray(v) ? (v[1] < 1 ? fig(`${num(v[0] * 
 while (!window.__s8?.U || !window.__s8?.ground || !window.__s8?.sky) await new Promise((r) => setTimeout(r, 50));
 window.__s8.sky.hold(11);   // the library's studio: one day's light, held; the key light follows the camera (frame)
 const { scene, U, ground, tex } = window.__s8;
-ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(biomeAt('land')));   // round the stage, the land is all meadow
+ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BASE));   // round the stage, the land is all meadow
 
 // the list: each asset with a small picture of its nearest level
 document.getElementById('list').innerHTML = `<div class="group" data-g="assets">Assets · ${ids.length}</div>` + ids.map((id) => `<button class="item glass flat" data-id="${id}"><canvas width="72" height="72"></canvas><span><b class="g-name">${ASSETS[id].name}</b><small class="g-sub">${ASSETS[id].kind}</small></span></button>`).join('')
@@ -131,7 +131,7 @@ for (const b of document.querySelectorAll('.item[data-id]')) {
 // the stage: what stands on it now
 let staged = null, ground0 = heightAt(STAGE.x, STAGE.z), H = 1, yaw = 2.6, pitch = 0.32, dist = 9, spin = true, seed = null;
 let cardTab = 'info', lodAt = null, showBody = false, bodyLines = null;   // showBody: the asset's collision drawn on the stage (intent 0003)   // the asset card's tab; the level of detail being looked at (null: none chosen)
-function clearStage() { ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(biomeAt('land'))); if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); staged = null; } }
+function clearStage() { ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BASE)); if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); staged = null; } }
 function stageAsset(a) {
   clearStage();
   if (a.placement.at === 'scatter') {   // a few of its kind, small to large, lying about the middle

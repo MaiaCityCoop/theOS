@@ -1,30 +1,26 @@
 // The scattered rocks as bodies (intent 0003): the graphics card places them by a hash of their cell (src/scatter/
 // rocks.js); this works the same hash out again on the CPU for the few cells round a point, so the walker and the camera
-// are stopped by the rocks they see, with no list of thousands kept. What the card reads from the ground's texture
-// (the stone chance) is worked out here from the land's own functions; paths, which only the card knows, count as none,
-// so now and then a rock stops you that the card left out of a path.
-import { cellRnd as rnd, riverAt, aridAt, outcropAt } from './land.js';
-import { PLACES } from './places.js';
-import { at } from './biomes.js';
+// are stopped by the rocks they see, with no list of thousands kept. The stone chance a stone's cell is drawn with comes
+// from the ground pass itself, read back to the CPU (src/scatter/ground.js: at): every biome's stones, the paths, the
+// tent's clear floor, exactly as drawn. The boulders (outcrops) need only the land's own functions.
+import { cellRnd as rnd, riverAt, outcropAt } from './land.js';
 import { recipes } from '../core/registry.js';
 
 const STEP_OVER = 0.3;   // a rock whose top is lower than this is stepped over
 const sstep = (a, b, x) => { let t = (x - a) / (b - a); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
-const LAND = at('land').stones, ARID = at('arid').stones - LAND, BANK = at('bank').stones - LAND;
-const T = PLACES.tent, TR = T?.clear || 2.7;
+let ground = null;
+/** The ground pass to read the stones' chance from (src/main.js gives it). */
+export const useGround = (g) => (ground = g);
 const KINDS = recipes('asset').filter((a) => a.placement?.at === 'scatter').map((a) => ({ cell: a.placement.cell, big: !!a.placement.outcrops, lo: a.size.length[0], hi: a.size.length[1] }));
 const kept = new Map();
 
 function rockIn(k, ki, i, j) {
   const key = `${ki}:${i}:${j}`; if (kept.has(key)) return kept.get(key);
+  const x = (i + 0.15 + 0.7 * rnd(i, j, 202)) * k.cell, z = (j + 0.15 + 0.7 * rnd(i, j, 203)) * k.cell, G = k.big ? null : ground?.at(x, z);
+  if (!k.big && !G) return null;   // the ground here not read yet: no body, and nothing kept, so it is asked again
   if (kept.size > 20000) kept.clear();
-  const x = (i + 0.15 + 0.7 * rnd(i, j, 202)) * k.cell, z = (j + 0.15 + 0.7 * rnd(i, j, 203)) * k.cell;
-  const R = riverAt(x, z), oc = outcropAt(x, z); let rock = null, keep;
-  if (k.big) keep = rnd(i, j, 200) <= (0.012 + 0.6 * oc) * sstep(R.w + 2, R.w + 9, R.d);
-  else {
-    const arid = aridAt(x, z), bank = 1 - sstep(R.w * 0.6, R.w + 4, R.d), clearT = T ? sstep(TR - 0.4, TR + 0.3, Math.hypot(x - T.x, z - T.z)) : 1;
-    keep = rnd(i, j, 200) <= clearT * (LAND + ARID * arid + BANK * bank + 0.5 * oc) * 0.7;
-  }
+  const R = riverAt(x, z), oc = outcropAt(x, z); let rock = null;
+  const keep = k.big ? rnd(i, j, 200) <= (0.012 + 0.6 * oc) * sstep(R.w + 2, R.w + 9, R.d) : rnd(i, j, 200) <= G.stone * 0.7;   // as the card keeps them (src/scatter/rocks.js)
   if (keep) {
     const r1 = rnd(i, j, 204), r2 = rnd(i, j, 205), r3 = rnd(i, j, 206), r4 = rnd(i, j, 207);
     const s = k.lo + (k.hi - k.lo) * (r1 * r1 * r1 + (k.big ? oc * 0.25 * r1 : 0));

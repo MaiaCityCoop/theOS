@@ -10,7 +10,6 @@ export default {
   kind: 'bar',
   about: 'A wide, gentle slope of gravel and sand on the inside of a bend, shallow water running over its edge.',
   laid: "On a bend's inside, between the water and the grass",   // where it lies, in words (the library's card)
-  role: 'bar',
   layer: 40,
   river: true,
   mix: 0.75,                                               // its ground a mix over the sand, not a stripe
