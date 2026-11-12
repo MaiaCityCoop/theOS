@@ -235,7 +235,7 @@ html.os-loading body::before { content: 'Maia City'; left: 0; right: 0; top: cal
 html.os-loading body::after { content: attr(data-step); left: 50%; top: calc(40% + 112px); width: 220px; margin-left: -110px; padding-bottom: 14px; text-align: center;
   font: 500 11px/1 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: rgba(251, 246, 234, .72);
   background: linear-gradient(90deg, #f2b544, #ffe2a0) left bottom / var(--os-load, 4%) 2px no-repeat, linear-gradient(rgba(251, 246, 234, .16), rgba(251, 246, 234, .16)) left bottom / 100% 2px no-repeat;
-  transition: opacity .9s ease, background-size .6s cubic-bezier(.3, .8, .3, 1); }
+  transition: opacity .9s ease; }   /* the line jumps: while the world is being made the page has no time to animate it */
 html.os-loaded::before, html.os-loaded::after, html.os-loaded body::before, html.os-loaded body::after { opacity: 0; }
 @keyframes os-rise { from { transform: translateY(4px) scale(.96); } to { transform: translateY(-4px) scale(1.04); } }
 @keyframes os-turn { to { rotate: 360deg; } }

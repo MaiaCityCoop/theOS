@@ -79,12 +79,14 @@ function ease(kind, q) {
 }
 const P = [0, 0, 0], L = [0, 0, 0], V = { pos: P, look: L, roll: 0, mm: 35 };
 // the shot's weather, written to the world only when it changes (src/world/sky.js, wind.js)
-const at = (v, q) => (Array.isArray(v) ? v[0] + (v[1] - v[0]) * q : v), shown = { hour: null, wind: null };
+const at = (v, q) => (Array.isArray(v) ? v[0] + (v[1] - v[0]) * q : v), shown = { hour: null, wind: null, snow: null };
 function weather(c, q) {
   const w = window.__s8; if (!w) return;
   const h = c.hour != null ? at(c.hour, q) : null, s = c.wind != null ? at(c.wind, q) : null;
   if (h != null && Math.abs(h - (shown.hour ?? -99)) > 0.005) { shown.hour = h; w.sky?.set(h); }
   if (s != null && Math.abs(s - (shown.wind ?? -99)) > 0.002) { shown.wind = s; w.wind?.set(s); }
+  const sn = c.snow != null ? at(c.snow, q) : null;   // metres
+  if (sn != null && Math.abs(sn - (shown.snow ?? -99)) > 0.001) { shown.snow = sn; w.snow?.set(sn); }
 }
 function evalAt(time) {
   if (!clips.length) return;

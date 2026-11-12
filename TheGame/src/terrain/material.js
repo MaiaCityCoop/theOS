@@ -7,7 +7,7 @@ import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProper
 import { U } from '../core/uniforms.js';
 import { int } from 'three/tsl';
 import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, BASE, LAID } from '../world/land.nodes.js';
-import { finish, skyLight, weathered, cloudAt } from '../world/light.js';
+import { finish, skyLight, weathered, cloudAt, snowCover, SNOW } from '../world/light.js';
 import noise from '../../materials/noise.js';
 
 export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
@@ -33,14 +33,15 @@ export function terrainMaterial(tex) {
     const wp = gridPoint().toVar(), dist = camDist(wp).toVar(), e = max(0.3, dist.div(96)).toVar();
     const at = (q, near) => { const I = (near ? riverNear(q, near) : riverInfo(q)).toVar(), d = abs(I.x).toVar(); return { I, d, h: heightAt(q, dist, d, I.y, I.z).toVar() }; };
     const C = at(wp), X = at(wp.add(vec2(e, 0)), C.I), Z = at(wp.add(vec2(0, e)), C.I), h = C.h;
-    vWorld.assign(vec3(wp.x, h, wp.y)); vI.assign(C.I); vN.assign(normalize(vec3(h.sub(X.h), e, h.sub(Z.h))));
+    vWorld.assign(vec3(wp.x, h, wp.y)); vI.assign(C.I); vN.assign(normalize(vec3(h.sub(X.h), e, h.sub(Z.h))));   // (vWorld without the snow's depth: the light and the air do not need it)
     vPth.assign(pathN(wp)); vOut.assign(outcropMask(wp)); vHill.assign(h.sub(baseB(wp)));   // how far this ground stands over the valley's floor
     const ctx = { p: wp, dist, d: C.d, w: C.I.y, b: C.I.z }, Lv = biomesAt(ctx, true), lanes = [];
     Lv.shares.forEach(({ b: bio, w }) => { lanes.push(w); if (bio.spots?.where) lanes.push(bio.spots.where(ctx)); });
     while (lanes.length % 4) lanes.push(float(0));
     packs.forEach((v, i) => v.assign(vec4(lanes[i * 4], lanes[i * 4 + 1], lanes[i * 4 + 2], lanes[i * 4 + 3])));
     vGD.assign(vec2(Lv.grassy, Lv.dry));
-    return vec3(wp.x, h, wp.y);
+    // the snow lifts the ground it lies on (not the river's channel): what stands on the land sinks into it as deep
+    return vec3(wp.x, h.add(U.uSnow.mul(smoothstep(C.I.y, C.I.y.add(1.5), C.d))), wp.y);
   });
 
   // ---- fragment ----
@@ -119,11 +120,17 @@ export function terrainMaterial(tex) {
     // depth up close, from the material's own height: what lies low (the gaps between stones, a crack) sits in its
     // neighbours' shade, and the relief reads deeper; let go with distance, where it would only darken the whole
     const near = float(1).sub(smoothstep(12, 70, dist2)), cav = mix(1, smoothstep(0.08, 0.5, M.h).mul(0.62).add(0.38), near.mul(float(1).sub(cv.mul(0.6))));
+    // snow: as deep as uSnow, deeper in drifts and thinner on the rises between; what stands out of the ground (a pebble's
+    // top, the grass's carpet) shows through until it is covered; none on the water. Under it the ground's own relief goes.
+    const drift = U.uSnow.greaterThan(0).select(vnoise(p.mul(1 / 7), uint(93)).mul(0.6).add(vnoise(p.mul(1 / 1.3), uint(94)).mul(0.4)), float(0.5));
+    const lift = M.h.mul(0.025).add(cv.mul(glum).mul(smoothstep(20, 90, dist2).mul(0.14)))   // near, the blades stand on their own: the ground under them is the snow's.add(drift.sub(0.5).mul(U.uSnow.mul(0.8)));
+    const snow = snowCover(vN, lift).mul(smoothstep(w, w.add(1.5), d));
+    M.n.assign(M.n.mul(float(1).sub(snow.mul(0.85))));
     const n = normalize(vN.add(vec3(M.n.x, 0, M.n.y).mul(float(1).sub(smoothstep(60, 400, dist2).mul(0.7)).mul(near.mul(0.7).add(1)))));
     // relief: hollows sit in shade, crowns in light; slopes facing the sun lit harder than the plain normal says
     const relief = mix(0.74, 1.1, smoothstep(-6, 16, vHill));
     const s0 = max(n.dot(U.uSunDir), 0), sunl = mix(s0, smoothstep(0.55, 0.95, s0), smoothstep(60, 600, dist2).mul(0.5));
-    const col = weathered(M.c.mul(mix(1, 0.5, wet)).mul(macro).mul(relief).mul(cav), n).mul(skyLight(n).add(U.uSun.mul(cloudAt(vWorld)).mul(sunl)));
+    const col = weathered(mix(M.c.mul(mix(1, 0.5, wet)).mul(macro).mul(cav), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).mul(skyLight(n).add(U.uSun.mul(cloudAt(vWorld)).mul(sunl)));
     const V = normalize(U.uCam.sub(vWorld));
     return finish(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), vWorld);
   });

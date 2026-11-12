@@ -32,6 +32,7 @@ import { createControls } from './camera/rig.js';   // the one camera, from the 
 import { createPost } from './camera/post.js';
 import { createSky } from './world/sky.js';
 import { createWind } from './world/wind.js';
+import { createSnow } from './world/snow.js';
 import { createShadows } from './world/shadow.js';
 import { useGround } from './world/rocksolid.js';
 
@@ -77,6 +78,7 @@ for (const at of Object.values(PLACES)) place(scene, recipe(at.asset), at);   //
 const controls = createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat'));
 const sky = createSky(scene, camera, renderer);
 const wind = createWind();   // which way the air moves and how hard: the grass and the water follow (world/wind.js)
+stats.snow = createSnow();   // how deep the snow lies (world/light.js: snowCover)
 stats.wind = wind;   // the sun and the sky: one time of day drives the light (intent 0007)
 stats.sky = sky;
 const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)

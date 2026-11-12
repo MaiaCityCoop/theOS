@@ -4,7 +4,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, int, uint, vec2, vec3, vec4, If, min, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { hashI, camDist, BASE } from '../world/land.nodes.js';
-import { finish, skyLight, weathered, cloudAtVertex, cloudAt, windAt } from '../world/light.js';
+import { finish, skyLight, weathered, cloudAtVertex, cloudAt, windAt, SNOW } from '../world/light.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
@@ -37,7 +37,8 @@ function bladeIn(c, asset, T, ground) {
     .mul(dens.mul(0.4).add(0.6)).mul(float(1).sub(smoothstep(T.end * 0.7, T.end, dist)));
   const ang = c2.add(r2.sub(0.5).mul(0.55)).mul(6.2831853), bend = float(0.2).add(r3.mul(0.55)).add(c3.mul(0.35)).mul(float(1).sub(flower.mul(0.7)));
   const base = tint.rgb.mul(float(0.7).add(r3.mul(0.35)).add(c3.mul(0.35))), dried = clamp(tint.a.mul(1.2).add(r2.mul(0.35)).sub(0.25), 0, 1);
-  return { alive: inBand.and(u8(h2, 24).lessThanEqual(dens)), data: [vec4(pos, G.x, hgt), vec4(ang, bend, r1, flower), vec4(base, dried)] };
+  return { alive: inBand.and(u8(h2, 24).lessThanEqual(dens)).and(hgt.greaterThan(U.uSnow.mul(2.5))),   // a blade not much taller than the snow is deep lies bent under it
+    data: [vec4(pos, G.x, hgt), vec4(ang, bend, r1, flower), vec4(base, dried)] };
 }
 
 function bladeMaterial(T) {
@@ -67,7 +68,7 @@ function bladeMaterial(T) {
       const thru = pow(max(V.negate().dot(U.uSunDir), 0), 2).mul(vT);   // light through the blade: the bright yellow-green of a lit meadow
       const sheen = pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 20).mul(0.16).mul(vT);
       const sun = U.uSun.mul(cloudAt(vWorld));
-      const col0 = weathered(vCol, n).mul(skyLight(n).mul(vT.mul(0.45).add(0.55)).add(sun.mul(ndl.mul(ndl).mul(1.1).add(vec3(0.5, 1, 0.22).mul(thru))))).add(sun.mul(sheen));
+      const col0 = weathered(mix(vCol, SNOW, clamp(U.uSnow.mul(4), 0, 0.4).mul(float(1).sub(smoothstep(0.05, 0.5, vT)))), n, 9).mul(skyLight(n).mul(vT.mul(0.45).add(0.55)).add(sun.mul(ndl.mul(ndl).mul(1.1).add(vec3(0.5, 1, 0.22).mul(thru))))).add(sun.mul(sheen));
       const col = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86)).select(vec3(0.92, 0.92, 0.86).mul(skyLight(n).add(U.uSun.mul(0.7))), col0);
       return finish(col, vWorld);
     });

@@ -29,8 +29,14 @@ export const finish = (c, w, eye = U.uCam) => toScreen(airAt(c, w, eye));
 export const skyLight = (n) => U.uAmb.mul(n.y.mul(0.32).add(0.68)).add(U.uSun.mul(U.uSunDir.y.max(0)).mul(vec3(0.09, 0.1, 0.06)).mul(float(0.5).sub(n.y.mul(0.5))));
 /** The picture's exposure and gamma: what every material returns. */
 export const toScreen = Fn(([c]) => vec4(pow(float(1).sub(exp(c.negate().mul(1.25).mul(U.uExposure))), vec3(1 / 2.2)), 1));
-/** A surface under the weather: darker when wet, white where snow settles on what faces up. */
-export const weathered = Fn(([col, n]) => mix(col.mul(float(1).sub(U.uWeather.x.mul(0.35))), vec3(0.85, 0.87, 0.9), U.uWeather.y.mul(smoothstep(0.35, 0.8, n.y))));
+/** How much of a surface the snow covers: it settles on what faces up, as deep as uSnow; what stands `lift` metres out
+    of the ground under it (a pebble's top, a blade's tip) shows through until the snow is deeper than that. */
+export const snowCover = (n, lift = float(0)) => smoothstep(0.3, 0.75, n.y).mul(smoothstep(lift, lift.add(0.012), U.uSnow));
+/** snow's own colour, lit like any surface: white, a little blue in its shade */
+export const SNOW = vec3(0.86, 0.89, 0.94);
+const weatheredF = Fn(([col, n, lift]) => mix(col.mul(float(1).sub(U.uWeather.x.mul(0.35))), SNOW, snowCover(n, lift)));
+/** A surface under the weather: darker when wet, white where snow lies on what faces up (lift: as snowCover). */
+export const weathered = (col, n, lift = 0) => weatheredF(col, n, float(lift));
 
 // a screen noise (interleaved gradient): for the shadow's taps and the hand-over between levels
 export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(52.9829189));

@@ -16,7 +16,7 @@ export function createScatter(scene, tex, ground, renderer) {
     /** Choose, for this frame, the patches each tier draws (after the frustum's planes are set: core/frustum.js). */
     select(cx, cz, h0, lod, dy) {
       for (let i = 0; i < tiers.length; i++) tiers[i].select(cx, cz, h0, lod, dy);
-      const v = (u) => u.value.toArray?.().join(',') ?? u.value, world = `${ground.version}|${lod}|${v(U.uSand)}|${v(U.uStage)}|${v(U.uStageGround)}`;   // what the packing reads besides the cells and the camera
+      const v = (u) => u.value.toArray?.().join(',') ?? u.value, world = `${ground.version}|${lod}|${v(U.uSand)}|${v(U.uStage)}|${v(U.uStageGround)}|${U.uSnow.value}`;   // what the packing reads besides the cells and the camera
       for (const t of tiers) t.run(renderer, world, cx, h0 + dy, cz);
     },
     get over() { for (let i = 0; i < tiers.length; i++) if (tiers[i].over) return true; return false; },
