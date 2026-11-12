@@ -39,12 +39,13 @@ export const outward = (R0, lift) => { const a = R0() * 2 * Math.PI, y = lift + 
 const CHEST = 1.2;   // metres up a trunk where a walker meets it
 
 /** The mesh being built: positions, normals, uv, part (0 wood, 1 leaves, 2 a crown as one solid body: farOf), ao, a
-    card's plane (cn) and its foot (root: what it grows from and shrinks to as two levels hand over), indexed. ao(p): the
+    card's plane (cn), its foot (root: what it grows from and shrinks to as two levels hand over) and how it hands
+    over (hand: see cards), indexed. ao(p): the
     light that reaches the wood at p; barkTile: metres of wood one tile of bark covers; colours: [wood, leaves] for a
     picture without the textures. */
 export function builder({ ao = () => 1, barkTile = 1, colours = [[0.3, 0.22, 0.15], [0.1, 0.18, 0.06]] } = {}) {
-  const b = { position: [], normal: [], uv: [], part: [], ao: [], color: [], cn: [], root: [], index: [], body: null };
-  b.v = (p, n, uv, part, a, cn = [0, 0, 0], root = [0, 0, 0]) => { b.position.push(...p); b.normal.push(...n); b.cn.push(...cn); b.root.push(...root); b.uv.push(...uv); b.part.push(part); b.ao.push(a); b.color.push(...colours[Math.min(part, 1)]); return b.ao.length - 1; };
+  const b = { position: [], normal: [], uv: [], part: [], ao: [], color: [], cn: [], root: [], hand: [], index: [], body: null };
+  b.v = (p, n, uv, part, a, cn = [0, 0, 0], root = [0, 0, 0], hand = [0, 0]) => { b.position.push(...p); b.normal.push(...n); b.cn.push(...cn); b.root.push(...root); b.hand.push(...hand); b.uv.push(...uv); b.part.push(part); b.ao.push(a); b.color.push(...colours[Math.min(part, 1)]); return b.ao.length - 1; };
   b.aoAt = ao; b.barkTile = barkTile;
   return b;
 }
@@ -76,13 +77,17 @@ export function tube(b, pts, rad, sides, { body = false } = {}) {
 }
 
 /** Crossed cards: two cards crossed along dir, their foot at p, s metres long and wide, cut out of the leaves' sprig;
-    light: the normal its light is reckoned with (a crown is lit as the dome it makes, not card by card). */
-export function cards(b, p, dir, s, light, ao, R0) {
+    light: the normal its light is reckoned with (a crown is lit as the dome it makes, not card by card); root: what it
+    grows from and shrinks to as two levels hand over (its foot, unless told: two levels' cards with the same root are
+    one sprig to the eye: src/detail/handover.js); hand: [from, kept] for such a sprig: `from`, the size it comes in at
+    from the finer level (to its own: it takes the finer one's place at that size, then swells; 0: it grows from
+    nothing), `kept`, 1 if the next coarser level has it too (it gives way at once, not shrinking; 0: it folds away). */
+export function cards(b, p, dir, s, light, ao, R0, root = p, hand = [0, 0]) {
   const side0 = norm(cross(dir, Math.abs(dir[1]) < 0.95 ? [0, 1, 0] : [1, 0, 0])), turn = R0() * Math.PI;
   for (const q of [0, Math.PI / 2]) {
     const side = norm(add(mul(side0, Math.cos(turn + q)), mul(cross(dir, side0), Math.sin(turn + q))));
     const w = mul(side, s * 0.5), h = mul(dir, s), c0 = sub(p, w), c1 = add(p, w), c2 = add(c1, h), c3 = add(c0, h), cn = norm(cross(side, dir));
-    const [i0, i1, i2, i3] = [[c0, [0, 0]], [c1, [1, 0]], [c2, [1, 1]], [c3, [0, 1]]].map(([v, uv]) => b.v(v, light, uv, 1, ao, cn, p));
+    const [i0, i1, i2, i3] = [[c0, [0, 0]], [c1, [1, 0]], [c2, [1, 1]], [c3, [0, 1]]].map(([v, uv]) => b.v(v, light, uv, 1, ao, cn, root, hand));
     b.index.push(i0, i1, i2, i0, i2, i3);
   }
 }
@@ -134,27 +139,34 @@ export function crown(b, q, { limbs, puffs, thick = 1, g = 1, girth = [0.11, 0.0
       dome         [from, to], 0 its foot … 1 its top: where on a heap its sprigs stand (a fern: only low, round its foot)
       puffs, count places on it and sprigs at each, per level; size: a sprig's size in metres, per level
       rise         how much a sprig's way favours up over out
-      stems        short stems from its foot */
-export function mound(b, q, { r, h, lobes = 1, ragged = 0.2, dome = [0.1, 1], puffs, count, size, rise = 0.3, stems = 0, R0 }) {
+      stems        short stems from its foot
+      seed         its own number: the same seed, the same bush at every level */
+export function mound(b, q, { r, h, lobes = 1, ragged = 0.2, dome = [0.1, 1], puffs, count, size, rise = 0.3, stems = 0, seed = 1, R0 = rng(seed) }) {
   // (its heaps first, from the same numbers at every level: one outline)
   const heaps = Array.from({ length: lobes }, (_, i) => {
     const a = R0() * 2 * Math.PI, d = i ? r * (0.45 + 0.4 * R0()) : 0, k = i ? 0.5 + 0.35 * R0() : lobes > 1 ? 0.8 : 1;
     return { c: [Math.cos(a) * d, 0, Math.sin(a) * d], r: r * k, h: h * (i ? 0.55 + 0.5 * R0() : 1) };
   });
+  // Every level is the same bush: its sprigs' places are worked out once, each from its own number, and a coarser level
+  // takes the first of them, fewer and larger. So where two levels hand over nothing is swapped for something else: a
+  // sprig both have swells in place (the same root, the same moment: src/detail/handover.js), the others fold away.
+  for (let i = 0; i < puffs[q]; i++) {
+    const Q = rng(seed * 7919 + i * 131 + 17), H = heaps[Math.min(lobes - 1, Math.floor(Q() * lobes))], shoot = Q() < ragged ? 1.15 + 0.3 * Q() : 1;
+    const a = Q() * 2 * Math.PI, u = dome[0] + (dome[1] - dome[0]) * Q() ** 0.7, c = Math.sqrt(Math.max(0, 1 - u * u)), k = (0.5 + 0.5 * Q()) * shoot;
+    const d = [Math.cos(a) * c, u, Math.sin(a) * c], p = add(H.c, [d[0] * H.r * k, d[1] * H.h * 0.75 * k, d[2] * H.r * k]), light = norm([d[0] * 0.6, d[1] * 0.6 + 0.8, d[2] * 0.6]);
+    for (let t = 0; t < count[q]; t++) {
+      const C = rng(seed * 104729 + i * 977 + t * 61 + 5);
+      const dir = norm([d[0] + (C() - 0.5) * 0.7, d[1] + rise, d[2] + (C() - 0.5) * 0.7]), f = (0.75 + 0.5 * C()) * (shoot > 1 ? 1.2 : 1), sz = size[q] * f;
+      // (a coarser level's larger sprig sunk in by what it is larger: the same outline at every level; its root where
+      // the finest one's foot is)
+      const foot = add(p, mul(dir, 0.02 * t)), at = sub(foot, mul(dir, Math.max(0, sz - size[0] * f) * 0.8));
+      const hand = [q ? size[q - 1] / size[q] : 0, q + 1 < puffs.length && i < puffs[q + 1] && t < count[q + 1] ? 1 : 0];
+      cards(b, at, dir, sz, light, Math.max(0.3, (0.45 + 0.55 * Math.min(1, p[1] / Math.max(h * 0.75, 0.1))) * (0.65 + 0.35 * Math.min(1, k))), C, foot, hand);
+    }
+  }
   if (q === 0) for (let i = 0; i < stems; i++) {
     const H = heaps[i % lobes], a = R0() * 2 * Math.PI, e = add(H.c, [Math.cos(a) * H.r * 0.4, H.h * 0.55, Math.sin(a) * H.r * 0.4]), k = Math.max(0.5, h);
     tube(b, [[0, 0, 0], add(mul(e, 0.5), [0, h * 0.1, 0]), e], [0.03 * k, 0.022 * k, 0.012 * k], 3);
-  }
-  for (let i = 0; i < puffs[q]; i++) {
-    const H = heaps[Math.min(lobes - 1, Math.floor(R0() * lobes))], shoot = R0() < ragged ? 1.15 + 0.3 * R0() : 1;
-    const a = R0() * 2 * Math.PI, u = dome[0] + (dome[1] - dome[0]) * R0() ** 0.7, c = Math.sqrt(Math.max(0, 1 - u * u)), k = (0.5 + 0.5 * R0()) * shoot;
-    const d = [Math.cos(a) * c, u, Math.sin(a) * c], p = add(H.c, [d[0] * H.r * k, d[1] * H.h * 0.75 * k, d[2] * H.r * k]), light = norm([d[0] * 0.6, d[1] * 0.6 + 0.8, d[2] * 0.6]);
-    for (let t = 0; t < count[q]; t++) {
-      const dir = norm([d[0] + (R0() - 0.5) * 0.7, d[1] + rise, d[2] + (R0() - 0.5) * 0.7]), sz = size[q] * (0.75 + 0.5 * R0()) * (shoot > 1 ? 1.2 : 1);
-      // (a coarser level's larger sprig sunk in by what it is larger: the same outline at every level)
-      const at = sub(p, mul(dir, Math.max(0, sz - size[0]) * 0.8));
-      cards(b, at, dir, sz, light, Math.max(0.3, (0.45 + 0.55 * Math.min(1, p[1] / Math.max(h * 0.75, 0.1))) * (0.65 + 0.35 * Math.min(1, k))), R0);
-    }
   }
 }
 

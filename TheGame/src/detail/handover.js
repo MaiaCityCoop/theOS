@@ -9,7 +9,7 @@
 //   - its last level sinks into the ground over its last pixels (kinds.js: sink): lower first, then narrower, to nothing.
 // On the GPU as node code (a level's numbers as uniforms: every level of a thing is then one shader), and the same
 // reckoning in JS for what is chosen on the CPU.
-import { float, vec3, uniform, log, max, clamp, mix, smoothstep, fract, sin, sqrt } from 'three/tsl';
+import { float, vec2, vec3, uniform, log, max, clamp, mix, smoothstep, step, fract, sin, sqrt } from 'three/tsl';
 
 /** A level's numbers as uniforms. Lv: { lo, hi, last } (the pixels it is drawn between; whether it is the farthest). */
 export const levelOf = (Lv, fade) => ({ hi: uniform(Number.isFinite(Lv.hi) ? Math.log(Lv.hi) + fade : 1e3), lo: uniform(Math.log(Lv.lo) + fade), px: uniform(Lv.lo), last: uniform(Lv.last ? 1 : 0), fade });
@@ -25,10 +25,15 @@ export const handOver = (px, LU, sink = 0) => {
 
 const WIN = 0.4;   // the share of a hand-over one part takes to grow or shrink
 /** How grown a part is, 0 … 1: its own moment in the hand-over, from a hash of where it is rooted. body (0 or 1): a
-    part that is the thing's one body: the coarser one's there by half way, the finer one's shrinking from then. */
-export const partGrown = (H, root, body = float(0)) => {
+    part that is the thing's one body: the coarser one's there by half way, the finer one's shrinking from then.
+    hand (from, kept): a part two levels share (the same root, so the same moment): the coarser one's comes in at that
+    moment at the finer one's size (`from`, to its own) and swells, the finer one's (`kept`) gives way at that moment:
+    one part to the eye, never two, never none. (0, 0): it grows from nothing and folds away to nothing. */
+export const partGrown = (H, root, body = float(0), hand = vec2(0)) => {
   const at = fract(sin(root.dot(vec3(12.9898, 78.233, 37.719))).mul(43758.5453)).mul(1 - WIN);
-  return mix(smoothstep(at, at.add(WIN), H.u), smoothstep(0, 0.5, H.u), body).mul(float(1).sub(mix(smoothstep(at, at.add(WIN), H.v), smoothstep(0.5, 1, H.v), body)));
+  const come = step(at, H.u).mul(mix(hand.x, 1, smoothstep(at, at.add(WIN), H.u))).max(smoothstep(at, at.add(WIN), H.u));
+  const go = mix(float(1).sub(smoothstep(at, at.add(WIN), H.v)), float(1).sub(step(at, H.v).mul(step(1e-4, H.v))), hand.y);
+  return mix(come, smoothstep(0, 0.5, H.u), body).mul(mix(go, float(1).sub(smoothstep(0.5, 1, H.v)), body));
 };
 
 /** A point of a thing, in its own frame (its foot at 0), as it sinks: lower first, then narrower. */

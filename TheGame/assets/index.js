@@ -32,7 +32,7 @@ export const facesOf = (l) => (l.mesh ? (l.mesh.index ? l.mesh.index.length : l.
 /** A level of detail of an asset as a geometry, coloured per face (the nearest level unless one is named). */
 export function geometryOf(asset, level = asset.detail.levels[0], shape = 0) {
   if (level.mesh) {   // built as a mesh by its own file (a tree): every attribute it made, as it made them; of its shapes (meshes) the one asked
-    const g = new THREE.BufferGeometry(), size = { uv: 2, part: 1, ao: 1 }, M = level.meshes?.[shape] ?? level.mesh;
+    const g = new THREE.BufferGeometry(), size = { uv: 2, part: 1, ao: 1, hand: 2 }, M = level.meshes?.[shape] ?? level.mesh;
     for (const [k, v] of Object.entries(M)) if (Array.isArray(v) && k !== 'index') g.setAttribute(k, new THREE.Float32BufferAttribute(v, size[k] ?? 3));
     if (M.index?.length) g.setIndex(M.index);
     return g;

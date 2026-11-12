@@ -3,7 +3,7 @@
 // Built with the tree kit's mound (assets/kit/tree.js): two shapes, three levels of its own, its farthest the kit's. An
 // asset in the one recipe (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by the trees' engine in the pine
 // forest's understory (biomes/pineforest.js `shrubs`), of which it takes its share.
-import { tree, builder, mound, rng } from './kit/tree.js';
+import { tree, builder, mound } from './kit/tree.js';
 import { mix } from 'three/tsl';
 import { gladeAt } from '../biomes/pineforest.js';
 
@@ -11,7 +11,7 @@ const woodCol = [0.2, 0.15, 0.1], leafCol = [0.07, 0.14, 0.04];   // (for a pict
 // a level of it: q 0 near (its stems, every sprig), 1 further (fewer, larger sprigs), 2 far (a handful); S its shape
 function grow(q, S) {
   const b = builder({ ao: (p) => 0.45 + 0.4 * Math.min(1, p[1] / S.h), barkTile: 0.5, colours: [woodCol, leafCol] });
-  mound(b, q, { r: S.r, h: S.h, lobes: S.lobes, ragged: 0.3, dome: [0, 0.5], puffs: [24, 13, 6], count: [1, 1, 1], size: [1.0, 1.25, 1.45], rise: 0.8, R0: rng(S.seed) });
+  mound(b, q, { r: S.r, h: S.h, lobes: S.lobes, ragged: 0.3, dome: [0, 0.5], puffs: [24, 13, 6], count: [1, 1, 1], size: [1.0, 1.25, 1.45], rise: 0.8, seed: S.seed });
   return b;
 }
 

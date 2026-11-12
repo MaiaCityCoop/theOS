@@ -133,7 +133,7 @@ function treeMaterial(tex, row) {
         // its size on screen now, as its cell reckoned it (its largest side, B.w), and from it the one hand-over
         // (src/detail/handover.js): its sprigs part by part, its wood whole, its last level sinking
         const H = handOver(B.w.mul(PXK).div(max(camDist(A.xy), 1e-3)), LU, row.detail.sink);
-        grown.assign(mix(float(1), partGrown(H, attribute('root', 'vec3'), body), step(0.5, part))); sunk.assign(H.sunk);
+        grown.assign(mix(float(1), partGrown(H, attribute('root', 'vec3'), body, attribute('hand', 'vec2')), step(0.5, part))); sunk.assign(H.sunk);
         shown.assign(H.there.and(part.greaterThan(0.5).or(H.whole)));
       }
       If(shown, () => { clip.assign(stand(A, B, grown, sunk)); });
