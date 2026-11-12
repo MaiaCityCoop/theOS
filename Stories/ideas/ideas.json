@@ -1,0 +1,13 @@
+{
+ "lanes": [
+  "Sky and weather",
+  "The world",
+  "The city and its people",
+  "The camera and the film",
+  "The craft behind it"
+ ],
+ "gathered": {
+  "commit": "ab4258d",
+  "on": "2026-11-12"
+ }
+}
