@@ -163,6 +163,18 @@ Samuel approved the definition on 2026-11-12 ("Approve, start it").
 - **Broke / not there yet:** the night's frame time not fairly measured; touch on the slider not tried; no shadows or
   clouds (out of scope).
 
+### 2026-11-12, wind
+
+- **Asked:** a wind, a slight breeze by default, up to a storm, with a dial at the top like the sun's; its direction free.
+- **Delivered:** the wind (world/wind.js: from 250°, west-south-west; a breeze, 0.2 of a storm, by default; gusts that roll
+  over the land along it, deeper and faster the harder it blows), read by every surface through the shading contract
+  (windAt in src/world/light.js): the grass bends with the gusts and each blade flutters; the water roughens. A Wind dial
+  under the clock (both now one kind of dial, src/core/dial.js) sets it from Calm through Breeze, Wind, Gale to Storm and
+  keeps it.
+- **Good:** the grass lies over in a storm and stirs in a breeze; the dials stack and match.
+- **Broke / not there yet:** the tent's canvas and the rocks' moss do not move; the wind does not yet push the water's
+  flow or the clouds (there are none yet).
+
 ## Trail
 
 | When | Commit | What |

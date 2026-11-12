@@ -30,6 +30,7 @@ import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
 import { createPost } from './camera/post.js';
 import { createSky } from './world/sky.js';
+import { createWind } from './world/wind.js';
 import { createShadows } from './world/shadow.js';
 
 const SKY = 0x9fc2e6, t0 = performance.now();
@@ -65,7 +66,9 @@ const scatter = createScatter(scene, tex, ground);
 stats.scatter = scatter;   // for timings and pages that look at it
 for (const at of Object.values(PLACES)) place(scene, ASSETS[at.asset], at);   // what stands at a named place, from the asset library
 const controls = createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat'));
-const sky = createSky(scene, camera, renderer);   // the sun and the sky: one time of day drives the light (intent 0007)
+const sky = createSky(scene, camera, renderer);
+const wind = createWind();   // which way the air moves and how hard: the grass and the water follow (world/wind.js)
+stats.wind = wind;   // the sun and the sky: one time of day drives the light (intent 0007)
 stats.sky = sky;
 const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)
 stats.shadows = shadows;

@@ -1,10 +1,10 @@
 // Grass: instanced blades. A blade's place, height, bend, colour and dryness are hashed from its cell; its density comes
-// from the ground pass (ground.js). Three rings (assets.js): dense and fine close, sparse and wide far.
+// from the ground pass (ground.js); the wind bends it (windAt) and each blade flutters on its own. Three rings (assets.js): dense and fine close, sparse and wide far.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, If, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, If, min, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { hashI, camDist, BIO } from '../world/land.nodes.js';
-import { haze, toScreen, weathered, cloudAt } from '../world/light.js';
+import { haze, toScreen, weathered, cloudAt, windAt } from '../world/light.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
@@ -41,9 +41,13 @@ function bladeMaterial(asset, T, ground) {
           const ang = c2.add(r2.sub(0.5).mul(0.55)).mul(6.2831853), dir = vec2(cos(ang), sin(ang)), side = vec2(dir.y.negate(), dir.x);
           const t = positionGeometry.y, s = positionGeometry.x, bend = float(0.2).add(r3.mul(0.55)).add(c3.mul(0.35)).mul(float(1).sub(flower.mul(0.7)));
           const wd = float(T.w).mul(r1.mul(0.5).add(0.75)).mul(float(1).sub(t.mul(t).mul(0.8)));
-          const up = hgt.mul(t).mul(float(1).sub(bend.mul(0.42).mul(t))), fw = hgt.mul(bend).mul(t).mul(t).mul(1.15);   // long blades arc over
-          const w = vec3(pos.x, G.x, pos.y).add(vec3(side.x, 0, side.y).mul(s.mul(wd))).add(vec3(dir.x.mul(fw), up, dir.y.mul(fw)));
-          const tg = normalize(vec3(dir.x.mul(2).mul(bend).mul(t), float(1).sub(bend.mul(0.6).mul(t)), dir.y.mul(2).mul(bend).mul(t)));
+          // the wind (src/world/light.js): the gust here, and each blade's own flutter, quicker and wider the harder it blows
+          const ws = U.uWind.z, flutter = sin(U.uTime.mul(ws.mul(9).add(3)).add(r1.mul(6.2831853)).add(pos.x.mul(0.7))).mul(ws.mul(0.35).add(0.08));
+          const k0 = windAt(pos).mul(flutter.add(1)).mul(float(1).sub(flower.mul(0.5))), kl = length(k0), k = k0.mul(min(kl, 0.95).div(kl.max(1e-5)));
+          const kk = k.dot(k), lean = t.mul(t).mul(1.1);
+          const up = hgt.mul(t).mul(float(1).sub(bend.mul(0.42).mul(t))).mul(float(1).sub(kk.mul(0.4).mul(t))), fw = hgt.mul(bend).mul(t).mul(t).mul(1.15);   // long blades arc over; pushed, they bow
+          const w = vec3(pos.x, G.x, pos.y).add(vec3(side.x, 0, side.y).mul(s.mul(wd))).add(vec3(dir.x.mul(fw).add(k.x.mul(hgt).mul(lean)), up, dir.y.mul(fw).add(k.y.mul(hgt).mul(lean))));
+          const tg = normalize(vec3(dir.x.mul(2).mul(bend).mul(t).add(k.x.mul(2.2).mul(t)), float(1).sub(bend.mul(0.6).mul(t)).sub(kk.mul(0.8).mul(t)), dir.y.mul(2).mul(bend).mul(t).add(k.y.mul(2.2).mul(t))));
           const sd = vec3(side.x, 0, side.y);
           vWorld.assign(w); vSide.assign(sd); vN.assign(cross(sd, tg)); vTS.assign(vec3(t, s, flower));
           const base = tint.rgb.mul(float(0.7).add(r3.mul(0.35)).add(c3.mul(0.35)));

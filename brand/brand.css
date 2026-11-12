@@ -173,13 +173,15 @@ body.framed .os-bar.bottom { bottom: 96px; }                          /* inside 
 .os-stat i { height: 5px; box-sizing: border-box; border: 1.5px solid var(--on-glass-2); border-top: 0; }
 .os-stat:empty { display: none; }
 /* the clock, top right: the hour, a slider, Auto (intent 0007); a card there moves under it */
-.os-clock { position: fixed; top: var(--edge); right: var(--edge); z-index: 7; display: flex; align-items: center; gap: 10px; height: var(--pill-h); box-sizing: border-box; padding: 0 6px 0 14px; border-radius: 999px; }
-.os-clock b { font: 500 13px/1 var(--mono); color: var(--on-glass); font-variant-numeric: tabular-nums; min-width: 3.1em; }
-.os-clock input { width: 130px; accent-color: var(--sun); }
-.os-clock .g-btn { height: 30px; padding: 0 12px; }
-body.framed .os-clock { top: var(--edge); }
-body.has-clock .side { top: calc(var(--edge) + var(--pill-h) + 10px); max-height: calc(100vh - 2 * var(--pill-h) - 60px); }
-@media (max-width: 700px) { .os-clock input { width: 90px; } }
+/* the dials in the top right (the clock, the wind): one pill each, stacked downwards by --row */
+.os-dial { position: fixed; top: calc(var(--edge) + var(--row, 0) * (var(--pill-h) + 8px)); right: var(--edge); z-index: 7; display: flex; align-items: center; gap: 10px; height: var(--pill-h); box-sizing: border-box; padding: 0 6px 0 14px; border-radius: 999px; }
+.os-dial b { font: 500 13px/1 var(--mono); color: var(--on-glass); font-variant-numeric: tabular-nums; min-width: 4.4em; }
+.os-dial { width: 300px; }
+.os-dial input { flex: 1; min-width: 0; accent-color: var(--sun); }
+.os-dial .g-btn { height: 30px; padding: 0 12px; }
+.os-dial:not(:has(button)) { padding-right: 14px; }
+body.has-dials .side { top: calc(var(--edge) + var(--dials, 1) * (var(--pill-h) + 8px) + 2px); max-height: calc(100vh - (var(--dials, 1) + 1) * var(--pill-h) - 60px); }
+@media (max-width: 700px) { .os-dial { width: 240px; } }
 /* the joystick on touch screens, bottom left above the bottom line (camera/touch.js has its size) */
 .os-stick { position: fixed; z-index: 7; border-radius: 50%; display: grid; place-items: center; touch-action: none; }
 .os-stick i { border-radius: 50%; background: var(--glass-solid); box-shadow: 0 4px 14px rgba(12, 28, 22, .25); transition: transform .06s; }

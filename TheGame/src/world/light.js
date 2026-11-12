@@ -1,7 +1,7 @@
 // The light every material shares (the shading contract, intent 0002), in TSL: sun, sky light, the air, the weather,
 // the shadow map, the hand-over between levels of detail, and the way to the screen. All its numbers are the shared
 // uniforms (src/core/uniforms.js), which the sky writes by the hour.
-import { Fn, float, vec2, vec3, vec4, If, mix, exp, pow, smoothstep, step, fract, dot, log, max, clamp, screenCoordinate } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, If, mix, exp, pow, smoothstep, step, fract, dot, log, max, clamp, sin, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 
 /** The light's uniforms by their short names. */
@@ -36,6 +36,17 @@ export const shadowAt = Fn(([w]) => {
 });
 /** The share of sunlight that reaches a point (1: all): past the clouds and the storm, and past what casts a shadow. */
 export const cloudAt = Fn(([w]) => float(1).sub(U.uWeather.w.mul(0.6)).mul(shadowAt(w)));
+
+// the wind (src/world/wind.js: uWind = the way it blows to, x and z; strength 0 calm … 1 storm; how fast its gusts
+// travel, m/s): its push at a point on the land, (x, z) per unit of sway. Gusts roll over the land along the wind, a
+// long swell and a shorter, quicker one across it; the harder it blows, the deeper they are and the faster they come.
+const SPACING = 38;
+export const windAt = Fn(([p]) => {
+  const dir = U.uWind.xy, s = U.uWind.z, along = p.dot(dir), across = p.dot(vec2(dir.y.negate(), dir.x)), t = U.uTime.mul(U.uWind.w);
+  const swell = sin(along.sub(t).mul(6.2831853 / SPACING)).mul(0.5).add(0.5), chop = sin(along.mul(2.3).add(across.mul(0.9)).sub(t.mul(1.9)).mul(6.2831853 / SPACING)).mul(0.5).add(0.5);
+  const gust = mix(0.75, 0.25, s).add(swell.mul(mix(0.25, 0.6, s))).add(chop.mul(s).mul(0.3));
+  return dir.mul(s.mul(gust));
+});
 
 // the hand-over between two levels of detail (src/detail): keep.x of the pixels, chosen by one screen noise both sides share
 export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(52.9829189));

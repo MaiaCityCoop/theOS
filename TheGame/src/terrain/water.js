@@ -28,7 +28,7 @@ export function waterMaterial(tex) {
     const o1 = fl.mul(speed).mul(f1.sub(0.5)).mul(3.3), o2 = fl.mul(speed).mul(f2.sub(0.5)).mul(3.3);
     const uA = p.sub(o1).div(water.floor.tile[0]), uB = p.sub(o2).div(water.floor.tile[0]).add(0.43);
     const nA = tex.n('water', uA).xyz.add(tex.n('water', uA.mul(3.1).add(0.2)).xyz).sub(1), nB = tex.n('water', uB).xyz.add(tex.n('water', uB.mul(3.1).add(0.6)).xyz).sub(1);
-    const nn = mix(nA.xy, nB.xy, wb), rough = mid.mul(0.3).add(0.16);
+    const nn = mix(nA.xy, nB.xy, wb), rough = mid.mul(0.3).add(0.16).add(U.uWind.z.mul(U.uWind.z).mul(0.55));   // the wind roughens it: a storm breaks the reflections up
     const n = normalize(vec3(nn.x.mul(rough), 1, nn.y.mul(rough)));
     const V = normalize(U.uCam.sub(vWorld));
     const fres = pow(float(1).sub(max(n.dot(V), 0)), 5).mul(0.98).add(0.02);
