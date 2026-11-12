@@ -14,6 +14,22 @@ import { float, vec2, vec3, uniform, log, max, clamp, mix, smoothstep, step, fra
 /** A level's numbers as uniforms. Lv: { lo, hi, last } (the pixels it is drawn between; whether it is the farthest). */
 export const levelOf = (Lv, fade) => ({ hi: uniform(Number.isFinite(Lv.hi) ? Math.log(Lv.hi) + fade : 1e3), lo: uniform(Math.log(Lv.lo) + fade), px: uniform(Lv.lo), last: uniform(Lv.last ? 1 : 0), fade });
 
+/** How far the camera may move before an engine's cells of P cells of `cell` metres are packed again, and a little: the
+    margin a level's packing keeps a thing either side of its band, so it is there when the camera has moved. */
+export const padOf = (cell, P) => ((cell * P) / 16) * 1.8;
+
+/** A level's band, for an engine that packs what stands in its cells: which things the level's packing holds, and
+    how far it reaches. Its numbers are uniforms too. pad: padOf's (0: none).
+      holds(dist, span)   node: a thing `span` across on screen at one metre (its size times pxK), `dist` away, is this
+                          level's to pack (its band, its hand-over, and the pad)
+      reach(sLo, sHi, K)  [near, far] metres: where a thing between sLo and sHi metres across can be of this level */
+export const bandOf = (Lv, fade, pad = 0) => {
+  const e = Math.exp(fade), B = { pad: uniform(pad), to: uniform(e / Lv.lo), from: uniform(Number.isFinite(Lv.hi) ? 1 / (Lv.hi * e) : 0), margin: pad };
+  B.holds = (dist, span) => dist.lessThan(span.mul(B.to).add(B.pad)).and(dist.greaterThanEqual(span.mul(B.from).sub(B.pad)));
+  B.reach = (sLo, sHi, K) => [Number.isFinite(Lv.hi) ? Math.max(0, (sLo * K) / (Lv.hi * e) - pad) : 0, (sHi * K * e) / Lv.lo + pad];
+  return B;
+};
+
 /** How a level shows at px pixels: u, how far it has come in from the finer level (0: not yet); v, how far it has gone
     out to the coarser (1: gone); sunk, 1 … 0 as its last level sinks; there: anything of it shows; whole: a thing of one
     piece shows. Two levels drawn at once reckon the same shares. sink: its kind's (0: none). */

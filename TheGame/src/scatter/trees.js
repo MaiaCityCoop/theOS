@@ -23,7 +23,7 @@ import { recipe } from '../core/registry.js';
 import { geometryOf, scatterRow } from '../../assets/index.js';
 import { kindOf } from '../../assets/kinds.js';
 import { pxK, sizeOf } from '../detail/index.js';
-import { levelOf, handOver, partGrown, sinkInto } from '../detail/handover.js';
+import { levelOf, bandOf, padOf, handOver, partGrown, sinkInto } from '../detail/handover.js';
 import { Tier, offScreen, clipOf, MAXP } from './tier.js';
 import { inView } from './view.js';
 import { setTrunks } from '../world/trunks.js';
@@ -93,7 +93,7 @@ function treeIn(c, row, Lv, band, biome, ST, shapes = 1, all = false, slice = [0
         // A stand that says its `size` changes level as one: every plant of it as if it were that size, small or large,
         // so its levels change at the same distances for all (not bush by bush at every depth at once)
         const size = ST.size ? float(ST.size) : h.mul(wide), span = size.mul(PXK), yes = float(1).greaterThan(0);
-        const within = all ? yes : dist.lessThan(span.mul(band.to).add(band.pad)).and(dist.greaterThanEqual(span.mul(band.from).sub(band.pad)));
+        const within = all ? yes : band.holds(dist, span);
         If(within, () => {
           A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(0.15), s));
           B.assign(vec4(rnd(cx, cy, h0(305)).mul(6.2831853), rnd(cx, cy, h0(306)).mul(6.2831853), rnd(cx, cy, h0(307)), size));
@@ -215,8 +215,9 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
     const geos = Array.from({ length: shapes }, (_, v) => { const g = geometryOf(a, Lv, v); if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]); return g; });   // (a tier's draw counts indices)
     // margin: metres a tree is kept either side of its level's band, so it is there when the camera has moved (the
     // cells are worked out again every sixteenth of a patch)
-    const pad = shadow ? 0 : ((ST.cell * Lv.P) / 16) * 1.8, e = Math.exp(row.detail.fade), reach = (a.size.length / 2) * P.scale[1] + (ST.cell * Lv.P) / 16 + 2;
-    const band = { near: uniform(0), far: uniform(1), margin: pad, pad: uniform(pad), to: uniform(shadow ? 0 : e / Lv.lo), from: uniform(shadow || !Number.isFinite(Lv.hi) ? 0 : 1 / (Lv.hi * e)) }, live = (c) => treeIn(c, row, Lv, band, biome, ST, shapes, shadow, slice, shadow ? null : { r: uniform(reach), high: hHi });   // r: its crown's reach, and how far the camera may move before the packing is made again
+    const reach = (a.size.length / 2) * P.scale[1] + (ST.cell * Lv.P) / 16 + 2;
+    // (its level's band: src/detail/handover.js; the shadow's stand-in has none: every tree round the camera)
+    const band = { near: uniform(0), far: uniform(1), ...(shadow ? {} : bandOf(Lv, row.detail.fade, padOf(ST.cell, Lv.P))) }, live = (c) => treeIn(c, row, Lv, band, biome, ST, shapes, shadow, slice, shadow ? null : { r: uniform(reach), high: hHi });   // r: its crown's reach, and how far the camera may move before the packing is made again
     let one = null;   // (packed by compute: one material for all its buckets)
     const material = (src, k) => {
       if (src.readAt && one) return one;
@@ -230,8 +231,7 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
     const t = new Tier(scene, geos, material, { cell: ST.cell, P: shadow ? 4 : Lv.P, near: 0, far: 1, order: 1, live, gpu, cap: Math.ceil(Math.min(240000, MAXP * (shadow ? 16 : Lv.P * Lv.P) * 0.4) / shapes), slots: 2, ...(shadow ? { cull: SH.reach ?? 20, fixed: SH.far * (SH.wide ?? 2.4) } : {}) });
     t.band = shadow ? () => { t.near = 0; t.far = SH.far; band.near.value = -1; band.far.value = SH.far * (SH.wide ?? 2.4); }   // (grown with the camera's height by Tier.select's patches)
       : () => {   // the distances where a tree of this level can be, from the largest seen small to the smallest seen large
-        const K = pxK(), e = Math.exp(row.detail.fade);
-        t.near = Number.isFinite(Lv.hi) ? Math.max(0, (hLo * K) / (Lv.hi * e) - band.margin) : 0; t.far = (hHi * K * e) / Lv.lo + band.margin;
+        [t.near, t.far] = band.reach(hLo, hHi, pxK());
         band.near.value = t.near > 0 ? t.near : -1; band.far.value = t.far;
       };
     t.band(); t.level = Lv.i; t.viewKeyed = !shadow;

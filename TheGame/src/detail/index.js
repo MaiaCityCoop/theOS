@@ -1,10 +1,10 @@
-// The detail engine (intent 0002): one way for every asset to choose its level of detail, by its size on screen, with
-// a hand-over between levels so none pops (handover.js: the one way it is drawn, for everything). It holds no number of any asset: each asset's file keeps its own
-// `detail` block (its levels, near to far, and any px or fade of its own), and assets/kinds.js the defaults by kind.
-//
-// A level i is drawn while the asset is between lo (its px) and hi (the level before's px) pixels tall on screen.
-// Around each boundary both levels draw, each keeping its share of the pixels by the same screen noise, so together
-// they cover every pixel once (detailKeep and detailCut in src/world/light.js).
+// The detail engine (intent 0002): one way for every asset to choose its level of detail, whatever it is. It holds no
+// number of any asset: an asset's file keeps its own `detail` block (its levels, near to far), assets/kinds.js the
+// defaults of its kind (px, measure, fade, sink). Read README.md here before writing an engine or a new kind of asset.
+//   - here: what is measured (sizeOf), through which lens (pxK), an asset's levels resolved (detailOf), and a placed
+//     asset's levels as one object (Detailed);
+//   - handover.js: how a level comes and goes, for every engine, on the GPU and in JS;
+//   - impostor.js: a placed asset's far card.
 import * as THREE from 'three/webgpu';
 import { U } from '../core/uniforms.js';
 import { kindRule } from '../../assets/kinds.js';
@@ -30,14 +30,6 @@ export function detailOf(a) {
   if (imp) levels.push({ impostor: true, views: imp.views ?? 8, i: levels.length, lo: imp.px });
   levels.forEach((l, i) => (l.hi = i ? levels[i - 1].lo : Infinity));
   return { levels, fade, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: d.casts ?? kindRule(a, 'casts') ?? true, sink: d.sink ?? kindRule(a, 'sink') ?? 0 };
-}
-
-/** How much of a level shows at px pixels: [share kept, side] (side 0: it is the finer side of a hand-over). */
-export function keepOf(px, lo, hi, f) {
-  const L = Math.log(Math.max(px, 1e-6)), c = (u) => Math.min(1, Math.max(0, u));
-  if (hi !== Infinity && L > Math.log(hi) - f) return [1 - c((L - Math.log(hi) + f) / (2 * f)), 0];
-  if (L < Math.log(lo) + f) return [c((L - Math.log(lo) + f) / (2 * f)), 1];
-  return [1, 0];
 }
 
 /** Where a size on screen is reached: metres away, for a thing of span metres, as the walker's lens sees it. */

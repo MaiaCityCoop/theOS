@@ -143,13 +143,3 @@ export const cloudAtOne = Fn(([w]) => sunDim().mul(cloudShade(w)).mul(shadowAtOn
 /** the same, its shadow looked up in a vertex stage */
 export const cloudAtVertex = Fn(([w]) => sunDim().mul(cloudShade(w)).mul(shadowAtVertex(w)));
 
-// the hand-over between two levels of detail (src/detail): keep.x of the pixels, chosen by one screen noise both sides share
-/** true where this level gives the pixel up to the other side of a hand-over */
-export const detailCut = (keep) => { const n = ign(screenCoordinate.xy); return keep.y.greaterThan(0.5).select(float(1).sub(n), n).greaterThanEqual(keep.x); };
-/** How much of a level shows at px pixels (the GPU's keepOf): (share kept, side). lo, hi, f: numbers of the asset's file. */
-export const detailKeep = (px, lo, hi, f) => {
-  const L = log(max(px, 1e-6)), lh = Math.log(hi), ll = Math.log(lo);
-  const kHi = vec2(float(1).sub(clamp(L.sub(lh - f).div(2 * f), 0, 1)), 0), kLo = vec2(clamp(L.sub(ll - f).div(2 * f), 0, 1), 1);
-  const lower = L.lessThan(ll + f).select(kLo, vec2(1, 0));
-  return Number.isFinite(hi) && hi < 1e8 ? L.greaterThan(lh - f).select(kHi, lower) : lower;
-};
