@@ -106,3 +106,5 @@ changelog line; several ideas have no words of Samuel's yet. The page was looked
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-12 | `8d3e5d5` | the ideas, their tool and their skill (the old day-2 film's files, already staged for the rename to the scene test-gate, went in with it) |
+| 2026-11-12 | `94f59ee` | the ideas' page in the dashboard (it shares the dashboard's files with the arcs) |
