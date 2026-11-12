@@ -51,6 +51,12 @@ export const riverInfo = Fn(([p]) => {
   const sd = R.x.div(gl).sub(w.mul(0.25).mul(bend));
   return vec4(sd, w, bend.mul(sd.greaterThanEqual(0).select(1, -1)), bend);
 });
+/** riverInfo at q close by p, whose info is I: the distance to the channel worked out again, its width and bend kept
+    (they change over tens of metres; a vertex's neighbours for its normal are half a metre off) */
+export const riverNear = Fn(([q, I]) => {
+  const R = riverRaw(q), sd = R.x.div(max(length(R.yz), 2e-4)).sub(I.y.mul(0.25).mul(I.w));
+  return vec4(sd, I.y, I.w.mul(sd.greaterThanEqual(0).select(1, -1)), I.w);
+});
 export const riverCarve = Fn(([d, w, b]) => {
   const cut = max(b, 0), bar = max(b.negate(), 0), D = clamp(float(9).div(w), 0.75, 1.7).mul(1.2);
   return D.mul(float(1).sub(smoothstep(w.mul(cut.mul(0.4).add(0.55).sub(bar.mul(0.35))), w.mul(float(1.1).sub(cut.mul(0.06)).add(bar.mul(0.25))), d)));
@@ -92,8 +98,8 @@ export const stageAt = (p) => U.uStage.z.greaterThan(0).select(float(1).sub(smoo
 /** What the biomes make of a point. ctx: { p, dist, d, w, b } (d, w, b: the river here, riverInfo). Returns each laid
     biome's share, lowest layer first, and what they add up to: the grass's cover (all ground, and among the grassy
     biomes only), its height (a share of the grass asset's own), the dryness, and the chance of a stone. */
-export function biomesAt(ctx) {
-  const shares = LAID.map((b) => ({ b, w: placed(b, clamp(b.where(ctx), 0, 1), ctx.p) }));
+export function biomesAt(ctx, vars = false) {   // vars: inside a Fn, each share kept in a variable, worked out once
+  const shares = LAID.map((b) => { const w = placed(b, clamp(b.where(ctx), 0, 1), ctx.p); return { b, w: vars ? w.toVar() : w }; });
   let cover = float(1), grassy = float(1), height = float(1), dry = float(0), stones = float(BASE.stones);
   const tufts = ctx.dist.lessThan(900).select(mix(tuftMask(ctx.p), 0.5, smoothstep(350, 900, ctx.dist)), float(0.5));   // grass in tufts, let go far off
   for (const { b, w } of shares) {

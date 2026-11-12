@@ -47,6 +47,7 @@ export function createGround(renderer, tex) {
     renderer.readRenderTargetPixelsAsync(rt, 0, 0, N, N, 0).then((px) => { cpu = { x: o.x, z: o.y, texel, base, px }; }).catch(() => {}).finally(() => (reading = false));
   };
   return {
+    version: 0,
     /** height, grass density, grass height (a share of the asset's), stone chance at pos (a node; one filtered read) */
     A: (pos) => { const g = read(tA, pos); return vec4(g.x.add(G.base), g.y, g.z, g.w); },
     /** the grass's colour at pos, and in w its dryness (a node) */
@@ -75,7 +76,7 @@ export function createGround(renderer, tex) {
       if (dy > 160 * s && lastDy > 160 * s && s === lastS) return;
       o.set(ox, oz); lastDy = dy; lastS = s; G.texel.value = TEXEL; G.base.value = Math.round(heightCPU(ox + (N * TEXEL) / 2, oz + (N * TEXEL) / 2));
       const was = renderer.getRenderTarget();
-      renderer.setRenderTarget(rt); renderer.render(quad, cam); renderer.setRenderTarget(was);
+      renderer.setRenderTarget(rt); renderer.render(quad, cam); renderer.setRenderTarget(was); this.version++;   // what reads the map knows it is new
       if (dy < 30) readBack(o.clone(), TEXEL, G.base.value);   // only a walker near the ground needs the CPU's copy (the rocks' bodies)
     },
   };

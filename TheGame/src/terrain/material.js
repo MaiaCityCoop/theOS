@@ -3,10 +3,10 @@
 // says (biomes/*.js: where), in its layer's order, each material two takes mixed by noise so nothing tiles, the higher
 // one winning at a seam; lit by the shading contract.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varying, dFdx, dFdy, If, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { int } from 'three/tsl';
-import { camDist, riverInfo, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, BASE } from '../world/land.nodes.js';
+import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, BASE, LAID } from '../world/land.nodes.js';
 import { finish, skyLight, weathered, cloudAt } from '../world/light.js';
 import noise from '../../materials/noise.js';
 
@@ -20,22 +20,28 @@ export function gridPoint() {
 }
 
 export function terrainMaterial(tex) {
-  // ---- vertex: the land's height and normal ----
-  const wp = gridPoint(), dist = camDist(wp);
-  const I = riverInfo(wp), h = heightAt(wp, dist, abs(I.x), I.y, I.z), e = max(0.3, dist.div(96));
-  const px = wp.add(vec2(e, 0)), pz = wp.add(vec2(0, e)), Ix = riverInfo(px), Iz = riverInfo(pz);
-  const hx = heightAt(px, dist, abs(Ix.x), Ix.y, Ix.z), hz = heightAt(pz, dist, abs(Iz.x), Iz.y, Iz.z);
-  const world = vec3(wp.x, h, wp.y);
-  const vWorld = varying(world), vI = varying(I), vN = varying(normalize(vec3(h.sub(hx), e, h.sub(hz))));
-  const vPth = varying(pathN(wp)), vOut = varying(outcropMask(wp)), vHill = varying(h.sub(baseB(wp)));   // how far this ground stands over the valley's floor
-  // every biome's share, worked out per vertex (half a metre apart near by; a biome's edge varies over metres, not
-  // pixels) and handed on in vec4s: its share, then its spots' where it has them; and the grass's cover and the dryness
-  const Lv = biomesAt({ p: wp, dist, d: abs(I.x), w: I.y, b: I.z });
-  const ctxV = { p: wp, dist, d: abs(I.x), w: I.y, b: I.z }, lanes = [];
-  const shareLane = Lv.shares.map(({ b, w }) => { lanes.push(w); const at = lanes.length - 1; if (b.spots?.where) lanes.push(b.spots.where(ctxV)); return at; });
-  while (lanes.length % 4) lanes.push(float(0));
-  const packs = []; for (let i = 0; i < lanes.length; i += 4) packs.push(varying(vec4(lanes[i], lanes[i + 1], lanes[i + 2], lanes[i + 3])));
-  const lane = (i) => packs[i >> 2].element(i & 3), vGD = varying(vec2(Lv.grassy, Lv.dry));
+  // ---- vertex: the land's height and normal, the river here, every biome's share ----
+  // one Fn, every value worked out once into a variable and handed on by name: an expression used twice would otherwise be
+  // written out twice, the river three times over at every use, which a browser's shader compiler need not fold back
+  const vWorld = varyingProperty('vec3', 'tWorld'), vI = varyingProperty('vec4', 'tI'), vN = varyingProperty('vec3', 'tN');
+  const vPth = varyingProperty('vec3', 'tPth'), vOut = varyingProperty('float', 'tOut'), vHill = varyingProperty('float', 'tHill'), vGD = varyingProperty('vec2', 'tGD');
+  // every biome's share (half a metre apart near by; a biome's edge varies over metres, not pixels) in vec4 lanes: its
+  // share, then its spots' where it has them
+  const shareLane = []; let nl = 0; for (const bio of LAID) { shareLane.push(nl); nl += bio.spots?.where ? 2 : 1; }
+  const packs = [...Array(Math.ceil(nl / 4))].map((_, i) => varyingProperty('vec4', `tLane${i}`)), lane = (i) => packs[i >> 2].element(i & 3);
+  const vertex = Fn(() => {
+    const wp = gridPoint().toVar(), dist = camDist(wp).toVar(), e = max(0.3, dist.div(96)).toVar();
+    const at = (q, near) => { const I = (near ? riverNear(q, near) : riverInfo(q)).toVar(), d = abs(I.x).toVar(); return { I, d, h: heightAt(q, dist, d, I.y, I.z).toVar() }; };
+    const C = at(wp), X = at(wp.add(vec2(e, 0)), C.I), Z = at(wp.add(vec2(0, e)), C.I), h = C.h;
+    vWorld.assign(vec3(wp.x, h, wp.y)); vI.assign(C.I); vN.assign(normalize(vec3(h.sub(X.h), e, h.sub(Z.h))));
+    vPth.assign(pathN(wp)); vOut.assign(outcropMask(wp)); vHill.assign(h.sub(baseB(wp)));   // how far this ground stands over the valley's floor
+    const ctx = { p: wp, dist, d: C.d, w: C.I.y, b: C.I.z }, Lv = biomesAt(ctx, true), lanes = [];
+    Lv.shares.forEach(({ b: bio, w }) => { lanes.push(w); if (bio.spots?.where) lanes.push(bio.spots.where(ctx)); });
+    while (lanes.length % 4) lanes.push(float(0));
+    packs.forEach((v, i) => v.assign(vec4(lanes[i * 4], lanes[i * 4 + 1], lanes[i * 4 + 2], lanes[i * 4 + 3])));
+    vGD.assign(vec2(Lv.grassy, Lv.dry));
+    return vec3(wp.x, h, wp.y);
+  });
 
   // ---- fragment ----
   const T = (gr) => ({ m: gr.material, t1: gr.tile[0], t2: gr.tile[1] });
@@ -53,7 +59,7 @@ export function terrainMaterial(tex) {
     const nz = (q) => tex.a(noise, q);
     const macro = nz(prr.mul(1 / 97).add(0.37)).b.sub(0.5).mul(0.16).add(nz(pr.mul(1 / 700)).a.sub(0.5).mul(0.2)).add(nz(p.mul(1 / 4500).add(0.11)).r.sub(0.5).mul(0.18)).add(1);
     const d = abs(vI.x), w = vI.y, b = vI.z;
-    const L = { shares: Lv.shares.map(({ b: bio }, k) => ({ b: bio, w: lane(shareLane[k]), spots: bio.spots?.where ? lane(shareLane[k] + 1) : null })), grassy: vGD.x, dry: vGD.y };   // every biome's share here, from the vertices
+    const L = { shares: LAID.map((bio, k) => ({ b: bio, w: lane(shareLane[k]), spots: bio.spots?.where ? lane(shareLane[k] + 1) : null })), grassy: vGD.x, dry: vGD.y };   // every biome's share here, from the vertices
     const tint = grassTint(tex, p, L.dry);
     // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up
     const g1 = tex.a(carpet, p.div(1.6)), g2 = tex.a(carpet, pr.div(9.6)), g3 = tex.a(carpet, prr.div(57));
@@ -122,6 +128,6 @@ export function terrainMaterial(tex) {
     return finish(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), vWorld);
   });
 
-  const m = new THREE.NodeMaterial(); m.positionNode = world; m.fragmentNode = frag();
+  const m = new THREE.NodeMaterial(); m.positionNode = vertex(); m.fragmentNode = frag();
   return m;
 }
