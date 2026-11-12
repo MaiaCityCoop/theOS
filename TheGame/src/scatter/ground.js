@@ -43,8 +43,9 @@ export function createGround(renderer, tex) {
     A: (pos) => { const g = read(rtA, pos); return vec4(g.x.add(G.base), g.y, g.z, g.w); },
     /** the grass's colour at pos, and in w its dryness (a node) */
     tint: (pos) => { const t = read(rtB, pos); return vec4(t.rgb.mul(t.rgb), t.a); },
-    /** The library's stage: a round of bare ground at (x, z), r metres across the middle; r 0 takes it away. */
-    stage(x, z, r) { U.uStage.value.set(x, z, r); lastS = 0; },
+    /** The library's stage: a round at (x, z), r metres across the middle, laid in a material (its recipe or uid; none:
+        the base biome's bare earth) at tile metres a tile; r 0 takes it away. */
+    stage(x, z, r, material = null, tile = 2) { U.uStage.value.set(x, z, r); U.uStageGround.value.set(material ? tex.layer(material) : -1, tile); lastS = 0; },
     /** The library's sandbox: round (x, z) the land is all one biome (its number in biomes/); no arguments: off. */
     sandbox(x = 0, z = 0, biome = -1) { U.uSand.value.set(x, z, biome < 0 ? 0 : 1, biome); Object.assign(SAND, { on: biome >= 0, x, z, river: !!BIOMES[biome]?.water }); lastS = 0; },
     /** s: the lens factor; drawn again when the camera has walked 16 texels, or the lens changed */

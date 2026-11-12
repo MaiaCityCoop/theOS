@@ -7,12 +7,13 @@ import { uniform, texture } from 'three/tsl';
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
 const placeholder = new THREE.DepthTexture(1, 1);   // the shadow map until src/world/shadow.js gives the real one
 
-/** The one set, for node code that reads it directly (src/gpu/*). */
+/** The one set, for node code that reads it directly. */
 export const U = {
   uCam: uniform(v3(0, 0, 0)), uDy: uniform(0), uLodInv: uniform(1), uTime: uniform(0),
   uSunDir: uniform(v3(0.5, 0.78, 0.36).normalize()), uSun: uniform(v3(1.75, 1.66, 1.5)), uAmb: uniform(v3(0.5, 0.56, 0.66)),
-  uSand: uniform(new THREE.Vector4(0, 0, 0, 0)),   // the library's sandbox (land.tsl.js): off
+  uSand: uniform(new THREE.Vector4(0, 0, 0, 0)),   // the library's sandbox (src/world/land.nodes.js): off
   uStage: uniform(v3(0, 0, 0)),                    // the library's stage: (x, z, radius), radius 0: none
+  uStageGround: uniform(new THREE.Vector2(-1, 2)),  // the ground laid on it: (a material's layer, -1 the base biome's bare earth; metres a tile)
   // the shading contract (intent 0002): the measure of size on screen, the wind, the weather, the clouds
   uPxK: uniform(1), uWind: uniform(new THREE.Vector4(1, 0, 0, 0)), uWeather: uniform(new THREE.Vector4(0, 0, 0, 0)), uClouds: uniform(0),
   uAirH: uniform(0), uAirScale: uniform(1200),     // the height fog: the camera's height above the ground, the air's thinning

@@ -2,28 +2,22 @@
 // projections blended by the normal, so a ball and a slab both read true), lit like the world. And the library's small
 // pictures, drawn once by the world's renderer into 2D canvases.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, uniform, positionWorld, normalWorld, screenCoordinate, If, Discard, abs, pow, normalize, max, mix, sign, smoothstep, length, atan, sin } from 'three/tsl';
+import { Fn, float, vec3, uniform, positionWorld, normalWorld, abs, pow, normalize, max, mix, sign, length } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { haze, toScreen, ign } from '../world/light.js';
+import { haze, toScreen } from '../world/light.js';
 import pathM from '../../materials/path.js';
 import carpetM from '../../materials/grasscarpet.js';
 import sandM from '../../materials/sand.js';
 import waterM from '../../materials/water.js';
 import pebbleM from '../../materials/pebble.js';
 
-/** id: the material, its recipe or uid (tex: src/materials/bake.js); tile: metres one tile covers; own: { tint: [r, g, b], edge: [x, z, r] } —
-    edge: a round laid on the land, fading into it over its last metre and a half, its edge frayed. Its `eye` uniform is
-    the camera it is lit and hazed for (a picture sets its own). */
+/** id: the material, its recipe or uid (tex: src/materials/bake.js); tile: metres one tile covers; own: { tint: [r, g, b] }.
+    Its `eye` uniform is the camera it is lit and hazed for (a picture sets its own). */
 export function materialPreview(tex, id, tile = 2, own = {}) {
-  const eye = uniform(U.uCam.value), tint = vec3(...(own.tint || [1, 1, 1])), edge = own.edge;
+  const eye = uniform(U.uCam.value), tint = vec3(...(own.tint || [1, 1, 1]));
   const m = new THREE.NodeMaterial(); m.eye = eye;
   m.fragmentNode = Fn(() => {
     const w = positionWorld, A = (q) => tex.a(id, q), Nn = (q) => tex.n(id, q);
-    if (edge) {
-      const q = w.xz.sub(vec2(edge[0], edge[1])), an = atan(q.y, q.x);
-      const dd = length(q).add(sin(an.mul(9).add(1.3)).mul(0.45)).add(sin(an.mul(23).add(0.4)).mul(0.25)).add(A(w.xz.div(tile)).a.sub(0.5).mul(0.3));
-      If(ign(screenCoordinate.xy).greaterThan(float(1).sub(smoothstep(edge[2] - 1.6, edge[2] + 0.1, dd))), () => { Discard(); });
-    }
     const n = normalize(normalWorld), b0 = pow(abs(n), vec3(4)), b = b0.div(b0.x.add(b0.y).add(b0.z));
     const px = w.zy.div(tile), py = w.xz.div(tile), pz = w.xy.div(tile);
     const a = A(px).rgb.mul(b.x).add(A(py).rgb.mul(b.y)).add(A(pz).rgb.mul(b.z));

@@ -5,6 +5,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, attribute, positionGeometry, varying, dFdx, dFdy, If, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
+import { int } from 'three/tsl';
 import { camDist, riverInfo, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTintAB, vnoise, placeOff, stageAt, biomesAt, BASE } from '../world/land.nodes.js';
 import { haze, toScreen, weathered, cloudAt } from '../world/light.js';
 import noise from '../../materials/noise.js';
@@ -53,7 +54,7 @@ export function terrainMaterial(tex) {
     const gq0 = gn2.xy.mul(2).sub(1), gq = vec2(gq0.x.mul(0.6).add(gq0.y.mul(0.8)), gq0.x.mul(-0.8).add(gq0.y.mul(0.6)));
     const gnrm = mix(gn1.xy.mul(2).sub(1), gq, gk).mul(float(1).sub(gk2.mul(0.7)));
     const path = placeOff(p, pathMask(vPth)).mul(float(1).sub(smoothstep(70, 220, dist2)));   // a path is a thing of the near ground
-    const bare = max(dist2.lessThan(160).select(bareMask(p).mul(float(1).sub(smoothstep(100, 160, dist2))), float(0)), stageAt(p));   // and the library's stage: bare, dry earth
+    const stage = stageAt(p), bare = max(dist2.lessThan(160).select(bareMask(p).mul(float(1).sub(smoothstep(100, 160, dist2))), float(0)), stage);   // the library's stage is bare of grass
 
     // two takes of a material, turned and resized, mixed by noise, into the working material M; blend lays one over it
     const smp = (S) => {
@@ -79,7 +80,7 @@ export function terrainMaterial(tex) {
     // the grassy biomes first, then the base's bare patches; over them the grass's carpet; then the base's paths, and the
     // biomes nothing grows on (and the base's rock on its slopes) in their layers' order
     for (const { b: bio, w: wt } of L.shares) if (bio.grass) lay(bio, wt.mul(bio.mix ?? 1));
-    const bd = max(bare.mul(float(1).sub(L.dry)), vOut.mul(0.25));
+    const bd = max(bare.sub(stage).max(0).mul(float(1).sub(L.dry)), vOut.mul(0.25));
     If(bd.greaterThan(0.003), () => blend(M, smp(PATCH), bd));
     const cv = float(1).sub(bare).mul(L.grassy).mul(smoothstep(4, 60, dist2).mul(0.18).add(0.82));   // where the blades end, nothing shows
     M.c.assign(mix(M.c, tint.rgb.mul(glum.mul(1.05).add(0.32)).mul(mix(0.5, 1, smoothstep(3, 70, dist2))), cv)); M.n.assign(mix(M.n, gnrm.mul(1.4), cv)); M.h.assign(mix(M.h, glum, cv));
@@ -92,6 +93,12 @@ export function terrainMaterial(tex) {
       lay(bio, wt.mul(bio.mix ?? 1));
     }
     if (!sloped) If(steep.greaterThan(0.003), () => blend(M, smp(SLOPE), steep));
+    // the library's stage: its own ground laid into the land like any other, its frayed edge blended by height (uStageGround:
+    // a material's layer and tile; -1: the base biome's bare earth)
+    If(stage.greaterThan(0.003), () => {
+      const g = U.uStageGround, layer = g.x.lessThan(0).select(float(tex.layer(PATCH.m)), g.x);
+      blend(M, smp({ m: int(layer), t1: g.y, t2: g.y.mul(1.6) }), stage);
+    });
 
     const wet = float(1).sub(smoothstep(w.mul(0.9), w.add(2.5), d));
     const n = normalize(vN.add(vec3(M.n.x, 0, M.n.y).mul(float(1).sub(smoothstep(60, 400, dist2).mul(0.7)))));

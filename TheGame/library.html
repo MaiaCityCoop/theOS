@@ -234,20 +234,13 @@ function chooseBiome(id) {
     + fileOf(b);
   history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}biome=${id}`);
 }
-// a material: a ball of it in the middle of the stage, and the stage's round floor laid in it, lit like the world
-const floorGeo = (() => {   // the stage's round, following the land under it
-  const g = new THREE.CircleGeometry(STAGE.r + 0.2, 96, 0, Math.PI * 2); g.rotateX(-Math.PI / 2);
-  const p = g.attributes.position; for (let i = 0; i < p.count; i++) { const x = STAGE.x + p.getX(i), z = STAGE.z + p.getZ(i); p.setXYZ(i, x, heightAt(x, z) + 0.05, z); }
-  g.computeVertexNormals(); return g;
-})();
+// a material: a ball of it in the middle of the stage, and the stage's round laid in it, into the land like any ground
 const ballGeo = new THREE.SphereGeometry(1.1, 128, 96);
 function chooseMaterial(id) {
   const m = MATERIAL[id]; clearStage(); staged = new THREE.Group();
   const mat = materialPreview(tex, id, 2), y = heightAt(STAGE.x, STAGE.z);
-  const fmat = materialPreview(tex, id, 2, { edge: [STAGE.x, STAGE.z, STAGE.r + 0.2] }); fmat.polygonOffset = true;   // its edge fades into the grass fmat.polygonOffsetFactor = -4; fmat.polygonOffsetUnits = -8;   // the floor always wins over the land under it
-  const ball = new THREE.Mesh(ballGeo, mat), floor = new THREE.Mesh(floorGeo, fmat);
-  ball.position.set(STAGE.x, y + 1.15, STAGE.z);
-  for (const o of [ball, floor]) { o.renderOrder = 1; o.frustumCulled = false; staged.add(o); }
+  ground.stage(STAGE.x, STAGE.z, STAGE.r + 0.2, id, 2);
+  const ball = new THREE.Mesh(ballGeo, mat); ball.position.set(STAGE.x, y + 1.15, STAGE.z); ball.renderOrder = 1; ball.frustumCulled = false; staged.add(ball);
   staged.traverse = (f) => f(staged);   // its geometries are shared: nothing to free when it goes
   scene.add(staged);
   H = 1.3; dist = 9.5; pitch = 0.5; spin = true;

@@ -48,8 +48,8 @@ export function bakeTextures(renderer) {
   return {
     arrays: [A, Nn], layer,
     /** a material's albedo + height at uv (a node) */
-    a: (m, p) => tA.sample(p).depth(layer(m)),
+    a: (m, p) => tA.sample(p).depth(m?.isNode ? m : layer(m)),   // (m: a recipe, a uid, or a layer as a node)
     /** its normal + roughness at uv */
-    n: (m, p) => tN.sample(p).depth(layer(m)),
+    n: (m, p) => tN.sample(p).depth(m?.isNode ? m : layer(m)),
   };
 }
