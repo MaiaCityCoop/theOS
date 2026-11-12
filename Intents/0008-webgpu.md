@@ -852,6 +852,21 @@ shadows and the grass.
   grow in among the base); at 140 m its sprigs give way to a body. The shrubs 185 to 193 thousand triangles in a forest
   view. The kit's `core` is left in the kit, unused.
 
+### 2026-11-12, the levels of detail in one place, written down (18:50)
+
+- **Asked:** keep the bushes as they are for now; have the whole of it as one generic pattern, the one truth, for any
+  asset to come: thousands of them, one optimised way.
+- **Delivered:** what was still twice: a level's band and the pad for the camera's movement, in both engines, now
+  `bandOf` and `padOf` in src/detail/handover.js; the old dither (`detailKeep`, `detailCut`, `keepOf`) removed; the
+  kit's `core`, unused, removed. The contract: src/detail/README.md (what an asset says, the rule and where each part
+  of it lives, who uses it, what a new asset or engine must do).
+- **Good:** the same picture and the same counts as before (749 thousand tree triangles, 193 thousand of shrubs in the
+  forest walk); no errors but the dev server's socket.
+- **Broke / not there yet:** the rule is one; the cost is per kind. Each scattered kind has its own tiers (a packing
+  shader and a draw shader a level): some 0.2 s of the start and a few draw calls each. Ten kinds: a start of five
+  seconds. A thousand: not as it is built. That needs tiers a stand, its kinds as buckets, their sprigs in one atlas:
+  the next piece of work, and his to call. The grass is not on the pattern (rings of blades, no levels of a thing).
+
 ## Trail
 
 | When | Commit | What |
@@ -919,3 +934,4 @@ shadows and the grass.
 | 2026-11-12 | `41413bd` | A bush's coarser levels repeat the sprig, leaves their own size |
 | 2026-11-12 | `cb35ec5` | A bush's solid body at every level but its nearest |
 | 2026-11-12 | `1c9655e` | A bush's base sprigs the same at every level; fine sprigs only added near by |
+| 2026-11-12 | `c9f335c` | Levels of detail in one place; the contract written (src/detail/README.md) |
