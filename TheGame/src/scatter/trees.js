@@ -6,6 +6,7 @@
 // Nothing that stands in a stand appears or drops out at once, whatever it is (a tree, a bush, a fern: any asset this
 // engine places gets all of it, none of it written in the asset's file):
 //   - its size on screen is measured as its kind says (its largest side; a tree's height), by each vertex, this frame;
+//     or, where its stand says a `size`, as that for every plant of the stand: the stand changes level as one;
 //   - between two levels both are drawn: the finer level's sprigs shrink to their feet one by one as the coarser one's
 //     grow from theirs;
 //   - its last level (the kit's: one body) sinks into the ground over its last pixels (kinds.js: sink);
@@ -41,7 +42,7 @@ const clearAt = (p) => {
     what the biome leaves out, the tree's own placement gives (a tree that stands alone in a biome with no stand of its own). */
 export const standOf = (asset, biome = recipe(asset.placement.biome)) => {
   const P = asset.placement, B = biome?.[P.stand ?? 'trees'] || {};
-  return { cell: B.cell ?? P.cell ?? 10, density: B.density ?? P.density ?? 1, clumps: B.clumps ?? P.clumps ?? 0, patches: B.patches ?? 0, age: P.age ?? B.age ?? null, seed: B.seed ?? P.seed ?? 300, where: B.where ?? null };
+  return { cell: B.cell ?? P.cell ?? 10, density: B.density ?? P.density ?? 1, clumps: B.clumps ?? P.clumps ?? 0, patches: B.patches ?? 0, age: P.age ?? B.age ?? null, seed: B.seed ?? P.seed ?? 300, where: B.where ?? null, size: B.size ?? null };
 };
 
 // what stands in a cell: a tree of this level, or nothing; packed into two vec4 (A: x, z, its foot's height, its scale;
@@ -89,7 +90,9 @@ function treeIn(c, row, Lv, band, biome, ST, shapes = 1, all = false, slice = [0
         // say each frame (treeMaterial). (The shadow's stand-in: every tree in its band)
         // (the level's numbers as uniforms: band.to, band.from, band.pad, so every level of a kind is one shader)
         // (its size on screen by what its kind measures it by, src/detail sizeOf: a bush is low and wide, its largest side counts. `wide`: that to its height)
-        const size = h.mul(wide), span = size.mul(PXK), yes = float(1).greaterThan(0);
+        // A stand that says its `size` changes level as one: every plant of it as if it were that size, small or large,
+        // so its levels change at the same distances for all (not bush by bush at every depth at once)
+        const size = ST.size ? float(ST.size) : h.mul(wide), span = size.mul(PXK), yes = float(1).greaterThan(0);
         const within = all ? yes : dist.lessThan(span.mul(band.to).add(band.pad)).and(dist.greaterThanEqual(span.mul(band.from).sub(band.pad)));
         If(within, () => {
           A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(0.15), s));
@@ -205,7 +208,8 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
   // its share of its biome's cells: every kind of tree that grows there, in the order of their uids, each its share
   const slice = kindsOf(P.biome, P.stand).find((k) => k.asset.uid === a.uid)?.slice ?? [0, 1];
   // the heights a tree of it can have: its youngest and its oldest (by its growth), or its scale's
-  const G = a.growth, wide = sizeOf(a) / H, hLo = (G ? G.stages[0].hFrom * P.scale[0] : H * P.scale[0]) * wide, hHi = (G ? Math.max(...a.heights) * (G.stages.at(-1).hTo / G.stages.at(-1).h) * P.scale[1] : H * P.scale[1]) * wide;
+  const G = a.growth, wide = sizeOf(a) / H, hLo0 = (G ? G.stages[0].hFrom * P.scale[0] : H * P.scale[0]) * wide, hHi0 = (G ? Math.max(...a.heights) * (G.stages.at(-1).hTo / G.stages.at(-1).h) * P.scale[1] : H * P.scale[1]) * wide;
+  const hLo = ST.size ?? hLo0, hHi = ST.size ?? hHi0;
   // a tier per level: its cells worked out once, each tree dropped into its shape's mesh (tier.js: buckets)
   const tier = (Lv, shadow) => {
     const geos = Array.from({ length: shapes }, (_, v) => { const g = geometryOf(a, Lv, v); if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]); return g; });   // (a tier's draw counts indices)

@@ -172,8 +172,10 @@ export function terrainMaterial(tex) {
       // its colour comes in where its plants go out: they are drawn while their largest side is more than their last
       // level's pixels (the same rule, by the lens and the window: src/detail), the largest to `last` metres, most of
       // them gone by two thirds of that; without such plants, its own from/to
-      const cutPx = A ? detailOf(A).cut : 0, last = cutPx ? U.uPxK.mul((sizeOf(A) * (A.placement.scale?.[1] ?? 1)) / cutPx) : null;
-      const fade = last ? smoothstep(last.mul(0.3), last.mul(0.68), dist2) : smoothstep(CV.from, CV.to, dist2);
+      const cutPx = A ? detailOf(A).cut : 0, last = cutPx ? U.uPxK.mul((P.size ?? sizeOf(A) * (A.placement.scale?.[1] ?? 1)) / cutPx) : null;
+      // (a stand that changes level as one, its `size`: its colour is on the land well before its plants sink, from
+      // where they are still whole, so their sinking changes nothing one sees)
+      const fade = last ? (P.size ? smoothstep(last.mul(0.12), last.mul(0.5), dist2) : smoothstep(last.mul(0.3), last.mul(0.68), dist2)) : smoothstep(CV.from, CV.to, dist2);
       // where its shadows are no longer drawn: past the map's box, or past the trees' stand-in in it
       const SH = A?.detail?.shadow, reach = SH ? min(U.uAirH.mul(BOX.grow).add(BOX.min), SH.far * (SH.wide ?? 2.4)) : null;
       const dim = reach ? smoothstep(reach.mul(0.8), reach, length(p.sub(U.uCam.xz))) : float(0);

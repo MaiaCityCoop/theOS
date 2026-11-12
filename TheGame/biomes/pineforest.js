@@ -24,14 +24,21 @@ export default {
   floor: { material: '795da1c3-9cfe-4c4e-88c7-a58ce86444d4' /* pine needles */, tile: [2.2, 3.5] },
   // green grass in tufts: most of it in the glades, little in the shade of the groves (coverAt: place by place, by the
   // stand's own noise; cover: on the whole, for the library's card)
-  grass: { cover: 0.3, coverAt: ({ p }) => mix(0.9, 0.1, clamp(groveAt(p, TREES).mul(0.8), 0, 1)), tufts: true, height: 0.6, flowers: false },
+  // (under the crowns none to speak of: a blade here and there over the whole floor reads as a sprinkle, not as grass;
+  // it comes in where the stand thins, and stands thick in the glades)
+  grass: { cover: 0.3, coverAt: ({ p }) => mix(0.9, 0.015, smoothstep(0.12, 0.55, groveAt(p, TREES).mul(0.8))), tufts: true, height: 0.6, flowers: false },
   stones: 0.15,
   trees: TREES,
+  // what lies on its floor (assets whose placement.stand is `litter`: fallen branches, cushions of moss), a stand of its
+  // own, read the same way: something every couple of metres, in drifts, more of one or the other in patches
+  // size: the stand changes level as one, every piece as if it were this many metres across
+  litter: { cell: 1.7, density: 0.85, clumps: 11, patches: 6, seed: 760, size: 2 },
   // its understory: the shrubs that grow here (assets whose placement.stand is `shrubs`), a stand of their own, read the
   // same way: thickets `clumps` metres across, one kind leading in patches
   // Thick, as a Mediterranean pine wood's is: a bush every three metres in its thickets, bushes merging, open litter
   // between them; where the holm oaks lead (the first share of the stand's kinds: deep shade) only a quarter of it
-  shrubs: { cell: 3, density: 0.9, clumps: 24, patches: 26, seed: 520,
+  // size: the stand changes level as one, every bush as if it were this many metres across
+  shrubs: { cell: 3, density: 0.9, clumps: 24, patches: 26, seed: 520, size: 3.5,
     // far off, where its bushes have sunk away, the floor wears their colour (fill: a bush covers most of its cell;
     // grain: a bush to a tree)
     cover: { colour: [0.06, 0.1, 0.04], fill: 0.85, grain: 0.3 },

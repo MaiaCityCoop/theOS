@@ -1,15 +1,15 @@
 // Mastic (Pistacia lentiscus): the dense, dark evergreen bush under Mediterranean pines and oaks, a rounded mound to a
 // man's height. It borrows the holm oak's sprig (small leathery leaves), lighter and yellower.
-// Built with the tree kit's mound (assets/kit/tree.js): two shapes, two levels of its own, its farthest the kit's. An
+// Built with the tree kit's mound (assets/kit/tree.js): two shapes, three levels of its own, its farthest the kit's. An
 // asset in the one recipe (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by the trees' engine in the pine
 // forest's understory (biomes/pineforest.js `shrubs`), of which it takes its share.
 import { tree, builder, mound, rng } from './kit/tree.js';
 
 const woodCol = [0.15, 0.13, 0.11], leafCol = [0.04, 0.075, 0.03];   // (for a picture without the textures)
-// a level of it: q 0 near (its stems, every sprig), 1 further (fewer, larger sprigs); S its shape
+// a level of it: q 0 near (its stems, every sprig), 1 further (fewer, larger sprigs), 2 far (a handful); S its shape
 function grow(q, S) {
   const b = builder({ ao: (p) => 0.45 + 0.4 * Math.min(1, p[1] / S.h), barkTile: 0.5, colours: [woodCol, leafCol] });
-  mound(b, q, { r: S.r, h: S.h, lobes: S.lobes, ragged: 0.22, puffs: [56, 19], count: [3, 2], size: [0.5, 0.95], rise: 0.3, stems: 6, R0: rng(S.seed) });
+  mound(b, q, { r: S.r, h: S.h, lobes: S.lobes, ragged: 0.22, puffs: [56, 19, 6], count: [3, 2, 1], size: [0.5, 0.95, 1.7], rise: 0.3, stems: 6, R0: rng(S.seed) });
   return b;
 }
 
@@ -25,7 +25,7 @@ export default tree({
   shapes: [{ r: 1.5, h: 1.75, lobes: 3, seed: 611 }, { r: 1.15, h: 1.25, lobes: 2, seed: 612 }],
   grow,
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
-  levels: [{ P: 4 }, { P: 8 }],
+  levels: [{ P: 4 }, { P: 8 }, { P: 16 }],
   // (its farthest, one body, darker than its sprigs' tops: a bush is mostly its own shade)
   far: { P: 32, shade: 0.72, speck: false, sides: 4, shoulder: false, trunk: false },
   // where it grows: the pine forest's understory, of which it takes its share
