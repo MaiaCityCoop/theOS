@@ -11,6 +11,9 @@
 // groves, the ages, the same for every kind of tree that grows there); share, its part of that stand's cells (one tree a
 // cell: a mix); scale, one tree's own size about its age's height; seed, its shapes' (another seed: other trees of its kind).
 //
+// levels: one { P } for each level its file draws (P: cells per patch side); after them the kit adds its two farthest
+// by itself, made from its nearest: its crown as one body on a post (36 triangles), then a speck (8) (farOf;
+// `far: { P, sides, shade }` to tune them, `far: false` for none).
 // grow(q, shape, i) builds level q (0 nearest) of a shape (a stage's form, or shapes[i]) with builder()/tube()/cards(), or
 // crown() for its limbs and foliage as most trees share them, and returns the builder;
 // shade(shape, i), if given, the light mesh the shadow map is drawn from (else none of its levels cast, but the nearest);
@@ -31,12 +34,13 @@ export const outward = (R0, lift) => { const a = R0() * 2 * Math.PI, y = lift + 
 
 const CHEST = 1.2;   // metres up a trunk where a walker meets it
 
-/** The mesh being built: positions, normals, uv, part (0 wood, 1 leaves), ao, a card's plane (cn), indexed. ao(p): the
+/** The mesh being built: positions, normals, uv, part (0 wood, 1 leaves, 2 a crown as one solid body: farOf), ao, a
+    card's plane (cn) and its foot (root: what it grows from and shrinks to as two levels hand over), indexed. ao(p): the
     light that reaches the wood at p; barkTile: metres of wood one tile of bark covers; colours: [wood, leaves] for a
     picture without the textures. */
 export function builder({ ao = () => 1, barkTile = 1, colours = [[0.3, 0.22, 0.15], [0.1, 0.18, 0.06]] } = {}) {
-  const b = { position: [], normal: [], uv: [], part: [], ao: [], color: [], cn: [], index: [], body: null };
-  b.v = (p, n, uv, part, a, cn = [0, 0, 0]) => { b.position.push(...p); b.normal.push(...n); b.cn.push(...cn); b.uv.push(...uv); b.part.push(part); b.ao.push(a); b.color.push(...colours[part]); return b.ao.length - 1; };
+  const b = { position: [], normal: [], uv: [], part: [], ao: [], color: [], cn: [], root: [], index: [], body: null };
+  b.v = (p, n, uv, part, a, cn = [0, 0, 0], root = [0, 0, 0]) => { b.position.push(...p); b.normal.push(...n); b.cn.push(...cn); b.root.push(...root); b.uv.push(...uv); b.part.push(part); b.ao.push(a); b.color.push(...colours[Math.min(part, 1)]); return b.ao.length - 1; };
   b.aoAt = ao; b.barkTile = barkTile;
   return b;
 }
@@ -74,7 +78,7 @@ export function cards(b, p, dir, s, light, ao, R0) {
   for (const q of [0, Math.PI / 2]) {
     const side = norm(add(mul(side0, Math.cos(turn + q)), mul(cross(dir, side0), Math.sin(turn + q))));
     const w = mul(side, s * 0.5), h = mul(dir, s), c0 = sub(p, w), c1 = add(p, w), c2 = add(c1, h), c3 = add(c0, h), cn = norm(cross(side, dir));
-    const [i0, i1, i2, i3] = [[c0, [0, 0]], [c1, [1, 0]], [c2, [1, 1]], [c3, [0, 1]]].map(([v, uv]) => b.v(v, light, uv, 1, ao, cn));
+    const [i0, i1, i2, i3] = [[c0, [0, 0]], [c1, [1, 0]], [c2, [1, 1]], [c3, [0, 1]]].map(([v, uv]) => b.v(v, light, uv, 1, ao, cn, p));
     b.index.push(i0, i1, i2, i0, i2, i3);
   }
 }
@@ -117,6 +121,59 @@ export function crown(b, q, { limbs, puffs, thick = 1, g = 1, girth = [0.11, 0.0
   });
 }
 
+const pct = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(sorted.length * q)))];
+const mean = (a) => a.reduce((t, x) => t + x, 0) / Math.max(1, a.length);
+
+/** A tree far off, made from its nearest mesh, so no tree file draws it: its crown one closed body round its leaves
+    (part 2: solid, no sprig cut out of it), as wide each way as they reach, lit as they are (their own normals and
+    shade, averaged); its trunk a three-sided post from its foot into the crown. Thirty-six triangles: a tree a dozen
+    pixels high; or, as a speck (four sides, no shoulder, no trunk), eight: a tree of a few pixels.
+    sides: corners round the crown; shoulder: a ring between its widest and its top (a rounded crown, not a pointed
+    one); trunk: its post; shade: how much darker than its outer leaves (a crown of cards shows its own depths). */
+export function farOf(m, { sides = 6, shade = 0.85, shoulder: round = true, trunk = true } = {}) {
+  const N = m.part.length, X = (i) => m.position[i * 3], Y = (i) => m.position[i * 3 + 1], Z = (i) => m.position[i * 3 + 2];
+  const leaf = [], wood = [];
+  for (let i = 0; i < N; i++) (m.part[i] > 0.5 ? leaf : wood).push(i);
+  const col = (i, d) => (i == null ? d : [m.color[i * 3], m.color[i * 3 + 1], m.color[i * 3 + 2]]), wAo = wood.length ? mean(wood.map((i) => m.ao[i])) : 1;
+  const b = builder({ ao: () => wAo, colours: [col(wood[0], [0.3, 0.22, 0.15]), col(leaf[0], [0.1, 0.18, 0.06])] });
+  let top = [0, wood.reduce((t, i) => Math.max(t, Y(i)), 0), 0];
+  if (leaf.length) {
+    const ys = leaf.map(Y).sort((a, c) => a - c), y0 = pct(ys, 0.04), y1 = pct(ys, 0.985), cx = mean(leaf.map(X)), cz = mean(leaf.map(Z));
+    const rOf = (i) => Math.hypot(X(i) - cx, Z(i) - cz), secOf = (i) => Math.floor((Math.atan2(Z(i) - cz, X(i) - cx) / (2 * Math.PI) + 1) * sides) % sides;
+    const rAll = pct(leaf.map(rOf).sort((a, c) => a - c), 0.85), bySec = Array.from({ length: sides }, () => []);
+    for (const i of leaf) bySec[secOf(i)].push(i);
+    // how far its leaves reach, each way (evened a little with the ways beside it)
+    let r = bySec.map((s) => (s.length > 8 ? pct(s.map(rOf).sort((a, c) => a - c), 0.85) : rAll));
+    r = r.map((x, k) => 0.5 * x + 0.25 * (r[(k + 1) % sides] + r[(k + sides - 1) % sides]));
+    // where it is widest (an umbrella's rim is its underside, a round crown's its middle), and its shoulder above
+    const outer = leaf.filter((i) => rOf(i) > 0.7 * rAll), yw = Math.min(y0 + 0.6 * (y1 - y0), Math.max(y0 + 0.08 * (y1 - y0), outer.length ? mean(outer.map(Y)) : (y0 + y1) / 2)), ysh = yw + 0.68 * (y1 - yw);
+    const C = [cx, (yw + y1) / 2, cz];
+    // what a corner of it is lit with: its leaves' own normals and shade there, averaged
+    const lit = (set) => {
+      const s = set.length >= 4 ? set : leaf, n = s.reduce((t, i) => add(t, [m.normal[i * 3], m.normal[i * 3 + 1], m.normal[i * 3 + 2]]), [0, 0, 0]);
+      return { n: len(n) > 1e-6 ? norm(n) : [0, 1, 0], ao: mean(s.map((i) => m.ao[i])) * shade };
+    };
+    const put = (p, L, uv) => b.v(p, L.n, uv, 2, L.ao, L.n, C);
+    const dirs = Array.from({ length: sides }, (_, k) => { const a = ((k + 0.5) / sides) * 2 * Math.PI; return [Math.cos(a), Math.sin(a)]; });
+    const wide = dirs.map(([c, s], k) => put([cx + c * r[k], yw, cz + s * r[k]], lit(bySec[k].filter((i) => rOf(i) > 0.6 * r[k])), [k / sides, 0.3]));
+    const shoulder = round ? dirs.map(([c, s], k) => put([cx + c * r[k] * 0.72, ysh, cz + s * r[k] * 0.72], lit(bySec[k].filter((i) => Y(i) > (yw + ysh) / 2)), [k / sides, 0.7])) : wide;
+    // (without a shoulder its top a little lower: a cone as full as the dome it stands for)
+    const apex = put([cx, round ? y1 : ysh + 0.5 * (y1 - ysh), cz], lit(leaf.filter((i) => Y(i) > ysh)), [0.5, 1]), under = put([cx, y0, cz], lit(leaf.filter((i) => Y(i) < yw)), [0.5, 0]);
+    for (let k = 0; k < sides; k++) {
+      const j = (k + 1) % sides;
+      if (round) b.index.push(wide[k], shoulder[k], shoulder[j], wide[k], shoulder[j], wide[j]);
+      b.index.push(shoulder[k], apex, shoulder[j], under, wide[k], wide[j]);
+    }
+    top = [cx, yw * 0.6 + y0 * 0.4, cz];
+  }
+  if (wood.length && trunk) {
+    const low = wood.reduce((t, i) => Math.min(t, Y(i)), Infinity), foot = wood.filter((i) => Y(i) <= low + Math.max(0.5, 0.12 * (top[1] - low)));
+    const fx = mean(foot.map(X)), fz = mean(foot.map(Z)), rf = Math.max(0.04, mean(foot.map((i) => Math.hypot(X(i) - fx, Z(i) - fz))));
+    tube(b, [[fx, low, fz], top], [rf, rf * 0.6], 3);
+  }
+  return b;
+}
+
 // the box round every shape's nearest mesh: the tree's size
 const boundsOf = (meshes) => {
   let x = 0, z = 0, y = 0;
@@ -146,11 +203,14 @@ function stagesOf(G, seed) {
     growth, its shapes are its stages of growth (and their variants), and a tree in the world is as old as its stand says
     (placement.age, src/scatter/trees.js). */
 export function tree(recipe) {
-  const { shapes: own = [{}], growth, grow, shade, levels, shadow = {}, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
+  const { shapes: own = [{}], growth, grow, shade, levels, shadow = {}, far = {}, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
   const G = growth ? stagesOf(growth, seed) : null, shapes = G ? G.shapes : own;
   const built = levels.map((L, q) => { const meshes = shapes.map((s, i) => grow(q, s, i)); return { mesh: meshes[0], meshes, P: L.P }; });
   const shades = shade ? shapes.map((s, i) => shade(s, i)) : null;
   const near = built[0].meshes;
+  // after the levels its file draws, its two farthest, made here from its nearest (farOf): a crown as one body on a
+  // post, then a speck; `far: false`: none
+  if (far) for (const o of [far, { ...far, sides: 4, shoulder: false, trunk: false }]) { const meshes = near.map((m) => farOf(m, o)); built.push({ mesh: meshes[0], meshes, P: far.P ?? 64, far: true }); }
   return {
     ...rest,
     size: rest.size ?? boundsOf(near),

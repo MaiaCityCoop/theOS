@@ -24,7 +24,7 @@ export function detailOf(a) {
   const imp = d.impostor ?? kindRule(a, 'impostor');   // after the meshes: one card (src/detail/impostor.js)
   if (imp) levels.push({ impostor: true, views: imp.views ?? 8, i: levels.length, lo: imp.px });
   levels.forEach((l, i) => (l.hi = i ? levels[i - 1].lo : Infinity));
-  return { levels, fade, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: d.casts ?? kindRule(a, 'casts') ?? true };
+  return { levels, fade, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: d.casts ?? kindRule(a, 'casts') ?? true, sink: d.sink ?? kindRule(a, 'sink') ?? 0 };
 }
 
 /** How much of a level shows at px pixels: [share kept, side] (side 0: it is the finer side of a hand-over). */

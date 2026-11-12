@@ -26,7 +26,7 @@
     "type": "asset",
     "name": "Holm oak",
     "file": "assets/holmoak.js",
-    "version": "874353cf41c6c99ba71820b0b19c3e7268dab62c3cb5025a9d0a23f58f2a43c8",
+    "version": "874581c8a3962ec519e5eb0c519865d49f159ced07268a1c232b551fdf60ca85",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "c4cbd29b-9dd2-494d-913b-9a80c40ab8e6",
@@ -37,7 +37,7 @@
     "type": "asset",
     "name": "Stone pine",
     "file": "assets/stonepine.js",
-    "version": "5c9fdfaf4812cb7ae0a01ced372b9845cfcbbe84e6d8e60e09f4531b7fa0e035",
+    "version": "4d7fa28a9423ed7f9dd8b0f61fda3fbe9626eb41fa772b238a8fee3e93fa7eaa",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
