@@ -2,9 +2,10 @@
 // asset shares, chosen each frame by its size on screen with a hand-over between them (src/detail), its far card
 // (impostor), its shadow, and its body for the walker and the camera.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec3, vec4, uniform, varying, attribute, positionLocal, positionWorld, normalLocal, normalWorld, modelWorldMatrix, modelWorldMatrixInverse, frontFacing, normalize, max, length, smoothstep, sin, If, Discard } from 'three/tsl';
+import { Fn, float, vec3, vec4, uniform, varying, attribute, positionLocal, positionWorld, normalLocal, normalWorld, modelWorldMatrix, modelWorldMatrixInverse, frontFacing, normalize, max, length, smoothstep, sin, pow, uint, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { finish, skyLight, weathered, cloudAt, detailCut, windAt, unlit } from './light.js';
+import { vnoise } from './noise.nodes.js';
 import { heightAt } from './land.js';
 import { addSolid } from './solids.js';
 import { detailOf, Detailed, most } from '../detail/index.js';
@@ -27,8 +28,12 @@ function swayOf(asset) {
   return p.add(along.add(normalLocal.mul(flap)).mul(hold));
 }
 
+/** How an asset's faces take the light: its own `surface`, else its kind's (assets/kinds.js). */
+export const surfaceOf = (asset) => ({ wrap: 0, through: 0, ...(KINDS[asset?.kind]?.surface || {}), ...(asset?.surface || {}) });
+
 /** The material every asset shares: its own colours (per face), lit by the sun and the sky, hazed like the land, moving
-    in the wind as its recipe says. Its `keep` is this level's share of the pixels in a hand-over (src/detail). */
+    in the wind as its recipe says; darker where it meets the ground, faintly mottled, soft or thin as its surface says.
+    Its `keep` is this level's share of the pixels in a hand-over (src/detail). */
 export function assetMaterial(asset) {
   const keep = uniform(new THREE.Vector2(1, 0)), vCol = varying(attribute('color', 'vec3'));
   const m = new THREE.NodeMaterial(); m.side = THREE.DoubleSide; m.keep = keep;
@@ -37,8 +42,13 @@ export function assetMaterial(asset) {
     If(detailCut(keep), () => { Discard(); });
     const out = vec4(0).toVar();
     If(unlit().not(), () => {   // drawn into the shadow map, only its depth counts: no light
-      const n = normalize(frontFacing.select(normalWorld, normalWorld.negate())), ndl = max(n.dot(U.uSunDir), 0);
-      const col = weathered(vCol, n).mul(skyLight(n).add(U.uSun.mul(cloudAt(positionWorld)).mul(ndl.mul(0.8).add(0.2))));
+      const n = normalize(frontFacing.select(normalWorld, normalWorld.negate())), S = surfaceOf(asset), w = positionWorld;
+      const ndl = n.dot(U.uSunDir).add(S.wrap).div(1 + S.wrap).max(0);   // soft things take the light round their edge
+      const through = pow(max(normalize(w.sub(U.uCam)).dot(U.uSunDir), 0), 3).mul(S.through).mul(max(n.dot(U.uSunDir).negate(), 0).mul(0.6).add(0.4));   // the sun behind a thin thing shines through it
+      const ground = smoothstep(0, 0.7, positionLocal.y).mul(0.4).add(0.6);   // darker where it meets the ground
+      const mottle = vnoise(w.xz.mul(1.3).add(w.y), uint(301)).sub(0.5).mul(0.12).add(1);   // no face quite one even colour
+      const sun = U.uSun.mul(cloudAt(w));
+      const col = weathered(vCol.mul(mottle), n).mul(skyLight(n).mul(ground).add(sun.mul(ndl.mul(0.8).add(0.2)))).add(vCol.mul(sun).mul(through));
         out.assign(finish(col, positionWorld));
     });
     return out;
