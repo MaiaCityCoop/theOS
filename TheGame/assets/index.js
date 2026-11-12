@@ -22,7 +22,9 @@ import { detailOf } from '../src/detail/index.js';
 import KINDS from './kinds.js';
 
 /** A scattered asset as the row the land's scatter engine (src/scatter) reads. */
-export const scatterRow = (a) => ({ name: a.name, uid: a.uid, kind: a.placement.engine, outcrops: a.placement.outcrops, cell: a.placement.cell, size: a.size.length, texture: a.placement.texture, shapes: a.placement.shapes, seed: a.placement.seed, look: a.look, detail: detailOf(a) });
+/** How an asset holds snow: its own `snow`, else its kind's, else the default (kinds.js). */
+export const snowOf = (a) => ({ ...KINDS.default.snow, ...(KINDS[a?.kind]?.snow || {}), ...(a?.snow || {}) });
+export const scatterRow = (a) => ({ snow: snowOf(a), name: a.name, uid: a.uid, kind: a.placement.engine, outcrops: a.placement.outcrops, cell: a.placement.cell, size: a.size.length, texture: a.placement.texture, shapes: a.placement.shapes, seed: a.placement.seed, look: a.look, detail: detailOf(a) });
 /** How many faces a level has. */
 export const facesOf = (l) => (l.faces ? l.faces.length : 20 * 4 ** (l.rock || 0));
 

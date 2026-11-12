@@ -1,8 +1,9 @@
 // The light every material shares (the shading contract, intent 0002), in TSL: sun, sky light, the air, the weather,
 // the shadow map, the hand-over between levels of detail, and the way to the screen. All its numbers are the shared
 // uniforms (src/core/uniforms.js), which the sky writes by the hour.
-import { Fn, float, vec2, vec3, vec4, If, mix, exp, pow, smoothstep, step, fract, dot, log, max, clamp, sin, cos, length, normalize, screenCoordinate } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, If, mix, exp, pow, smoothstep, step, fract, dot, log, max, clamp, sin, cos, length, normalize, screenCoordinate, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
+import { vnoise } from './noise.nodes.js';
 
 /** The light's uniforms by their short names. */
 export const LIGHT = {
@@ -37,6 +38,9 @@ export const SNOW = vec3(0.86, 0.89, 0.94);
 const weatheredF = Fn(([col, n, lift]) => mix(col.mul(float(1).sub(U.uWeather.x.mul(0.35))), SNOW, snowCover(n, lift)));
 /** A surface under the weather: darker when wet, white where snow lies on what faces up (lift: as snowCover). */
 export const weathered = (col, n, lift = 0) => weatheredF(col, n, float(lift));
+/** how high, at w, the snow must lie before it covers a thing whose snow is `clumps` metres uneven (its kind's or its own
+    `snow`, assets/kinds.js): in clumps where it held, bare between, the same pattern at every level of detail */
+export const snowLift = (w, clumps) => vnoise(w.xz.mul(2.3).add(w.y.mul(1.7)), uint(302)).mul(0.7).add(vnoise(w.xz.mul(7).add(w.y.mul(5)), uint(303)).mul(0.3)).mul(clumps);
 
 // a screen noise (interleaved gradient): for the shadow's taps and the hand-over between levels
 export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(52.9829189));

@@ -6,7 +6,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, uniform, varyingProperty, positionGeometry, attribute, normalLocal, frontFacing, modelWorldMatrix, cameraProjectionMatrix, cameraViewMatrix, texture, normalize, cross, abs, max, clamp, floor, length, sqrt, mat3, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { finish, skyLight, weathered, cloudAt, detailCut, unlit } from '../world/light.js';
+import { finish, skyLight, weathered, snowLift, cloudAt, detailCut, unlit } from '../world/light.js';
 
 let renderer = null;
 /** The game's renderer bakes the atlases (set once by src/main.js). */
@@ -54,7 +54,7 @@ function bake(geo, n) {
 
 /** An asset's impostor as a mesh: one card, the view nearest the camera, lit live. geo: its nearest level. Its `keep`
     is its share of the pixels in a hand-over (src/detail). */
-export function impostorOf(geo, n = 8) {
+export function impostorOf(geo, n = 8, snow = { clumps: 0.08 }) {   // snow: how the asset holds it (assets/kinds.js)
   const key = `${n}:${hashOf(geo)}`;
   if (!kept.has(key)) kept.set(key, bake(geo, n));
   const A = kept.get(key), N = n, keep = uniform(new THREE.Vector2(1, 0));
@@ -82,7 +82,7 @@ export function impostorOf(geo, n = 8) {
     const out = vec4(0).toVar();
     If(unlit().not(), () => {   // drawn into the shadow map, only its outline counts: no light
       const n = normalize(mat3(vM0, vM1, vM2).mul(texture(A.normal, uv).xyz.mul(2).sub(1)));
-      const col = weathered(a.rgb.mul(a.rgb), n).mul(skyLight(n).add(U.uSun.mul(cloudAt(vWorld)).mul(max(n.dot(U.uSunDir), 0).mul(0.8).add(0.2))));   // as the asset's own material lights it
+      const col = weathered(a.rgb.mul(a.rgb), n, snowLift(vWorld, snow.clumps)).mul(skyLight(n).add(U.uSun.mul(cloudAt(vWorld)).mul(max(n.dot(U.uSunDir), 0).mul(0.8).add(0.2))));   // as the asset's own material lights it
         out.assign(finish(col, vWorld));
     });
     return out;
