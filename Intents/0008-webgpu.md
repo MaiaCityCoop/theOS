@@ -838,6 +838,20 @@ shadows and the grass.
   from a cause I could reason out, not from seeing what he sees. The shrubs 143 to 159 thousand triangles in a forest
   view. The bracken still thins with distance.
 
+### 2026-11-12, a bush that does not change (18:35)
+
+- **Asked:** still popping: he believes they change sizes and colours as one walks.
+- **Found:** he is right, and it is the design: between levels sprigs grew and shrank (sizes), the dark body inside
+  showed more or less (colour), and the floor under the thickets turned green from 50 m (colour).
+- **Delivered:** the kit's `mound` in two parts: a base of a few large sprigs (the sprig's picture repeated, leaves
+  their own size) that is the same card for card at every level, and fine sprigs at the nearest level only, added over
+  it. Two levels a bush, then its body from 140 m (a bush under 20 px). No body inside a bush. The stand's colour on
+  the land only from 200 m, where bushes are bodies about to sink.
+- **Good:** no errors (but the dev server's own socket); stills: a bush reads the same at 10 and at 60 m.
+- **Broke / not there yet:** not judged in motion by me. Near by a bush gains its fine sprigs between 16 and 21 m (they
+  grow in among the base); at 140 m its sprigs give way to a body. The shrubs 185 to 193 thousand triangles in a forest
+  view. The kit's `core` is left in the kit, unused.
+
 ## Trail
 
 | When | Commit | What |
@@ -904,3 +918,4 @@ shadows and the grass.
 | 2026-11-12 | `45da420` | A bush the same at every level: sprigs shared between levels swell in place |
 | 2026-11-12 | `41413bd` | A bush's coarser levels repeat the sprig, leaves their own size |
 | 2026-11-12 | `cb35ec5` | A bush's solid body at every level but its nearest |
+| 2026-11-12 | `1c9655e` | A bush's base sprigs the same at every level; fine sprigs only added near by |
