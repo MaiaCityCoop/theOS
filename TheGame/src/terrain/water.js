@@ -25,7 +25,9 @@ export function waterMaterial(tex) {
     const fl = normalize(vec2(vG.y.negate(), vG.x).add(1e-9));
     const mid = clamp(float(1).sub(d.div(w)), 0, 1), speed = sqrt(mid).mul(0.9).add(0.25);
     const t = U.uTime.mul(0.3), f1 = fract(t), f2 = fract(t.add(0.5)), wb = abs(f1.mul(2).sub(1));
-    const o1 = fl.mul(speed).mul(f1.sub(0.5)).mul(3.3), o2 = fl.mul(speed).mul(f2.sub(0.5)).mul(3.3);
+    // the surface runs with the river, and the wind drags it its own way: the harder it blows, the more its ripples go with the wind
+    const drift = fl.mul(speed).add(U.uWind.xy.mul(U.uWind.z.mul(0.9)));
+    const o1 = drift.mul(f1.sub(0.5)).mul(3.3), o2 = drift.mul(f2.sub(0.5)).mul(3.3);
     const uA = p.sub(o1).div(water.floor.tile[0]), uB = p.sub(o2).div(water.floor.tile[0]).add(0.43);
     const nA = tex.n('water', uA).xyz.add(tex.n('water', uA.mul(3.1).add(0.2)).xyz).sub(1), nB = tex.n('water', uB).xyz.add(tex.n('water', uB.mul(3.1).add(0.6)).xyz).sub(1);
     const nn = mix(nA.xy, nB.xy, wb), rough = mid.mul(0.3).add(0.16).add(U.uWind.z.mul(U.uWind.z).mul(0.55));   // the wind roughens it: a storm breaks the reflections up
