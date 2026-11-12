@@ -7,7 +7,7 @@
 //   names       what the dial calls a strength, from that strength up
 export default {
   from: 250,
-  strength: 0.2,
+  strength: 0.05,
   gust: { spacing: 38, calm: 3, storm: 22 },
   names: [[0, 'Calm'], [0.08, 'Breeze'], [0.35, 'Wind'], [0.65, 'Gale'], [0.85, 'Storm']],
 };

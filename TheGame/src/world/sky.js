@@ -1,5 +1,6 @@
-// The sun and the sky (intent 0007): one time of day drives the light. From the hour, the date and the latitude
-// (world/sky.js) the sun's and the moon's places; from the sun's height the sky's colours, the sun's light, the sky's
+// The sun and the sky (intent 0007): one time of day drives the light. From the hour and the date (the clock's:
+// world/clock.js) and the latitude (world/sky.js) the sun's and the moon's places; from the sun's height the sky's
+// colours, the sun's light, the sky's
 // light, the haze and the exposure, written to the shading contract's uniforms (src/core/uniforms.js), so every material follows;
 // and a dome round the camera that draws the sky itself, in layers (the sun, the moon, the stars: src/world/sky/*.js;
 // the clouds: the weather's). The weather panel
@@ -7,6 +8,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, varying, positionGeometry, normalize, max, mix, pow, smoothstep, vec4, cameraProjectionMatrix, cameraViewMatrix, modelWorldMatrix } from 'three/tsl';
 import SKY from '../../world/sky.js';
+import CLOCK from '../../world/clock.js';   // the date, the hour the game opens at, how fast a day runs: set there, nowhere else
 import { U } from '../core/uniforms.js';
 import { toScreen } from './light.js';
 import { D } from './sky/dome.js';
@@ -73,12 +75,12 @@ function dome(camera) {
 
 export function createSky(scene, camera, renderer) {
   const keep = (k, v) => save('sky.' + k, v), kept = (k, d) => load('sky.' + k, d);
-  let hour = kept('hour', SKY.hour), auto = kept('auto', SKY.auto), shown = -1;
+  let hour = kept('hour', CLOCK.hour), auto = kept('auto', CLOCK.auto), shown = -1;
   scene.add(dome(camera));
   const v3 = (u, a) => u.value.set(a[0], a[1], a[2]);
 
   function apply() {
-    const sun = sunAt(hour, SKY.day, SKY.latitude), moon = moonAt(hour, SKY.day, SKY.latitude), L = lightAt(sun.alt / RAD);
+    const sun = sunAt(hour, CLOCK.day, SKY.latitude), moon = moonAt(hour, CLOCK.day, SKY.latitude), L = lightAt(sun.alt / RAD);
     // the light: the sun's by day; as it sets, the moon's takes over (its light by its phase and height)
     const w = Math.min(1, Math.max(0, (sun.alt / RAD + 8) / 6)), ws = w * w * (3 - 2 * w), moonUp = Math.max(0, Math.sin(moon.alt)) * Math.sin(Math.PI * moon.phase);
     const dir = new THREE.Vector3().copy(moon.dir).lerp(sun.dir, ws); if (dir.y < 0.02) dir.y = 0.02; dir.normalize();
@@ -90,7 +92,7 @@ export function createSky(scene, camera, renderer) {
     U.uExposure.value = L.exposure;
     v3(D.zenith, L.zenith); v3(D.horizon, L.horizon); v3(D.glow, L.glow); v3(D.sunL, L.sun); D.sunD.value.copy(sun.dir); D.moonD.value.copy(moon.dir);
     D.dark.value = 1 - Math.min(1, Math.max(0, (sun.alt / RAD + 14) / 12)); D.phase.value = moon.phase;
-    for (const B of BODIES) B.update?.({ hour, day: SKY.day, latitude: SKY.latitude, sun, moon, light: L });   // a body with uniforms of its own
+    for (const B of BODIES) B.update?.({ hour, day: CLOCK.day, latitude: SKY.latitude, sun, moon, light: L });   // a body with uniforms of its own
     const c = L.horizon.map((x) => Math.pow(1 - Math.exp(-x * 1.25 * L.exposure), 1 / 2.2)); renderer.setClearColor(new THREE.Color().setRGB(c[0], c[1], c[2], THREE.LinearSRGBColorSpace));
   }
 
@@ -110,7 +112,7 @@ export function createSky(scene, camera, renderer) {
     /** Hold the day at an hour, Auto off, without keeping it (the library's studio light). */
     hold(h) { hour = ((h % 24) + 24) % 24; auto = false; apply(); show(); },
     update(dt) {
-      if (auto) { hour = (hour + (dt * SKY.speed) / 60) % 24; if ((saved += dt) > 5) { saved = 0; keep('hour', hour); } }
+      if (auto) { hour = (hour + (dt * CLOCK.speed) / 60) % 24; if ((saved += dt) > 5) { saved = 0; keep('hour', hour); } }
       if (hour !== shown) { shown = hour; apply(); if (auto) show(); }
     },
   };

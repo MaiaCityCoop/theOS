@@ -1,20 +1,13 @@
-// The sun and the sky (intent 0007): one time of day drives the light. Change a number here and the day changes;
-// the code (src/world/sky.js) holds none. The world's north is -z, its east +x.
+// The sun and the sky (intent 0007): one time of day drives the light. Change a number here and the day's light changes;
+// the code (src/world/sky.js) holds none. The world's north is -z, its east +x. The time itself (the date, the hour the
+// game opens at, how fast a day runs) is the clock's: world/clock.js.
 //
 //   latitude    where Maia City lies (degrees north): how high the sun climbs
-//   day         the date, as the day of the year (1 January = 1): the sun's height through the seasons; the moon's phase
-//   hour        the time of day the game opens at (0 to 24)
-//   speed       in Auto: game hours per real minute (6 = a day in four minutes; 24 = a day in a minute)
-//   auto        whether the day runs on its own when the game opens
 //   keys        the light by the sun's height (degrees; below 0 it has set): the sky overhead and at the horizon, the
 //               sun's light, the light the sky gives (ambient), the glow round the sun, and the exposure; eased between
 //   moon        its light at full, its size; stars: how many show and how bright, by how dark the sky is
 export default {
   latitude: 41.2,
-  day: 172,
-  hour: 10,
-  speed: 6,
-  auto: false,
   keys: [
     { alt: -18, zenith: [0.006, 0.009, 0.022], horizon: [0.012, 0.017, 0.032], sun: [0, 0, 0], amb: [0.035, 0.045, 0.075], glow: [0, 0, 0], exposure: 2.6 },
     { alt: -8, zenith: [0.02, 0.035, 0.09], horizon: [0.08, 0.09, 0.16], sun: [0, 0, 0], amb: [0.08, 0.1, 0.17], glow: [0.12, 0.07, 0.09], exposure: 1.8 },
