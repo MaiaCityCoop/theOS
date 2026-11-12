@@ -9,7 +9,7 @@
 import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, pow, smoothstep, step, fract, dot, log, max, clamp, length, normalize, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { lane } from './weather/lanes.js';
-import { surfaceHooks } from './weather/index.js';
+import { surfaceHooks, airHooks } from './weather/index.js';
 import { cloudShade } from './weather/clouds.js';
 
 export { snowDepth, snowCover, snowDrift, snowLift, snowLiftAtVertex, SNOW } from './weather/snow.js';
@@ -38,8 +38,15 @@ export const haze = Fn(([c, dist]) => mix(U.uHazeCol, c, exp(dist.negate().mul(U
 export const airOf = (w, eye = U.uCam) => {
   const d = w.sub(eye), dist = length(d), towards = max(normalize(d).dot(U.uSunDir), 0);
   const glow = U.uSun.mul(pow(towards, 6).mul(0.22).add(pow(towards, 40).mul(0.25))).mul(U.uSunDir.y.max(0).mul(-1).add(1).mul(0.6).add(0.4));
-  const k = exp(dist.negate().mul(U.uHaze).mul(airMean(U.uAirH)).mul(lane.fog.mul(40).add(1)));
-  return { k, col: U.uHazeCol.add(glow) };
+  // (and by where the land is no longer drawn it is all air: from high up the land's end is not an edge against the sky)
+  let k = exp(dist.negate().mul(U.uHaze).mul(airMean(U.uAirH)).mul(lane.fog.mul(40).add(1))).mul(float(1).sub(smoothstep(U.uLandEnd.mul(0.55), U.uLandEnd.mul(0.94), dist)));
+  let col = U.uHazeCol.add(glow);
+  // what of the weather lies in the air between (the clouds, from above them): it hides a share of the surface, lit its own way
+  for (const c of airHooks()) {
+    const V = c.air({ eye, w, dist }), k2 = k.mul(float(1).sub(V.a));
+    col = V.col.mul(V.a).mul(k).add(col.mul(float(1).sub(k))).div(max(float(1).sub(k2), 1e-4)); k = k2;
+  }
+  return { k, col };
 };
 const airAt = Fn(([c, w, eye]) => { const A = airOf(w, eye); return mix(A.col, c, A.k); });
 /** The end of every material: its colour seen through the air from the eye, to the screen. */

@@ -180,7 +180,9 @@ export function terrainMaterial(tex) {
         const n = nz(p.div(23).add(0.7)).r.mul(0.35).add(nz(prr.div(31.7).add(0.2)).g.mul(0.35)).add(nz(pr.div(9.3)).g.mul(0.3));   // (takes at scales with no whole ratio: no grid of crowns)
         const under = smoothstep(float(1.08).sub(cover.mul(0.75)), float(1.22).sub(cover.mul(0.75)), n.add(cover.mul(0.45)));   // where a crown is, as many as cover says
         // (darker than a crown's own colour: a crown seen from afar is mostly its own shade)
-        const crown = vec3(...bio.canopy.colour).mul(n.mul(0.6).add(0.42)), k = fade.mul(smoothstep(0, 0.15, cover)), top = k.mul(under);
+        // (from very far a crown is smaller than a pixel: the pattern goes over into its mean, no speckle to shimmer)
+        const mean = smoothstep(2000, 7000, dist2), crown = vec3(...bio.canopy.colour).mul(mix(n, 0.5, mean).mul(0.6).add(0.42));
+        const k = fade.mul(smoothstep(0, 0.15, cover)), top = k.mul(mix(under, smoothstep(0.1, 0.95, cover), mean));
         M.c.assign(mix(M.c, crown, top)); M.n.assign(M.n.mul(float(1).sub(top))); M.h.assign(mix(M.h, under, k));
         // the floor between the crowns in their shade (the crowns themselves in the light)
         shade.assign(max(shade, dim.mul(cover).mul(n.mul(0.9).add(0.3)).min(0.85).mul(float(1).sub(top))));

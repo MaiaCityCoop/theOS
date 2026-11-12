@@ -31,6 +31,9 @@ const values = Object.fromEntries(CONDITIONS.map((c) => [c.id, c.start ?? c.rang
 /** What the conditions do to a surface, and draw into the sky: asked for when a material is built, not before. */
 export const surfaceHooks = () => CONDITIONS.filter((c) => c.surface);
 export const skyHooks = () => CONDITIONS.filter((c) => c.sky).map((c) => ({ id: c.id, order: c.skyOrder ?? 50, draw: c.sky }));
+/** What of the conditions lies in the air between the eye and a point (a condition's `air({ eye, w, dist })` -> { a: how
+    much it hides, 0..1; col: its own light }): the clouds, seen from above them. Read by the light's air (light.js: airOf). */
+export const airHooks = () => CONDITIONS.filter((c) => c.air);
 /** The values that change what stands on the land, as a key (the scatter packs again when it changes). */
 export const weatherKey = () => CONDITIONS.filter((c) => c.packs).map((c) => values[c.id]).join(',');
 

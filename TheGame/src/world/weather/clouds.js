@@ -1,7 +1,8 @@
 // The clouds (world/clouds.js): one layer at CLOUDS.height, a field of cumulus that drifts with the wind, covering as much
 // of the sky as its value says. All that is the clouds' own is here: their field, their shadow on all below (a small
 // map drawn once a frame, read by every surface through the light's contract: cloudShade), and how the sky's dome draws
-// them (its `sky`). A weather condition (index.js): the panel sets the cover; a film may set it per shot.
+// them (its `sky`), or, from above their layer, every surface below (its `air`). A weather condition (index.js): the panel
+// sets the cover; a film may set it per shot.
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, uv, positionGeometry, If, mix, exp, pow, max, smoothstep } from 'three/tsl';
 import CLOUDS from '../../../world/clouds.js';
@@ -87,6 +88,20 @@ export default {
     U.uCloudOff.value.x -= w.x * v * dt; U.uCloudOff.value.y -= w.y * v * dt;   // the field moves with the wind: its sampling point against it
   },
   before(camera, groundY, c, { map }) { map.render(camera, groundY); },
+  // seen from above their layer the clouds lie between the eye and the land: where the line of sight to a point crosses
+  // the layer, as much cloud as the field holds there (from a small mip: soft, and readable in a vertex stage too), its
+  // top white in the sun; thin just over the layer, whole from a few hundred metres up
+  air({ eye, w }) {
+    const a = float(0).toVar(), col = vec3(0).toVar();
+    If(U.uClouds.greaterThan(0.005).and(eye.y.greaterThan(CLOUD_H)).and(w.y.lessThan(CLOUD_H)), () => {
+      const C = cloudUV(mix(eye.xz, w.xz, eye.y.sub(CLOUD_H).div(eye.y.sub(w.y))));
+      // (its billows fray the edge, as in the sky; its heaps brightest, its thin edges greyer and half see-through)
+      const d = cover(mix(billows(C.a).level(2).r, billows(C.b).level(2).r, 0.45).add(C.region).add(billows(C.a.mul(3.7).add(0.31)).level(2).g.sub(0.5).mul(0.14)), [0.14, 0.3]);
+      a.assign(smoothstep(0.02, 0.7, d).mul(0.96).mul(smoothstep(0, 250, eye.y.sub(CLOUD_H))));
+      col.assign(U.uAmb.mul(mix(0.8, 1.05, d)).add(U.uSun.mul(mix(0.5, 0.95, smoothstep(0.15, 0.95, d)))));
+    });
+    return { a, col };
+  },
   // in the sky's dome (src/world/sky.js), over the sun, the moon and the stars: the view's ray up to their layer; lit from
   // the sun's side, darker where they are thick and where more cloud stands between them and the sun, a bright rim near
   // the sun; thinning into the haze towards the horizon

@@ -58,7 +58,8 @@ function dome(camera) {
   mat.fragmentNode = Fn(() => {
     const v = normalize(vDir), y = v.y;
     const col = mix(D.horizon, D.zenith, pow(max(y, 0), 0.55)).toVar();                                   // the sky from the horizon up
-    col.assign(y.lessThan(0).select(D.horizon.mul(mix(1, 0.75, smoothstep(0, -0.3, y))), col));          // below the horizon: what the far land hides
+    // (below the horizon the horizon's own colour: the far land melts into it (light.js: airOf), so from high up, where
+    // the land ends below the horizon, there is no band of another colour between them)
     const s = max(v.dot(D.sunD), 0);
     for (const L of layers()) L.draw({ v, y, s, col, D, horizon: D.horizon });
     return toScreen(col);

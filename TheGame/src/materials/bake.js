@@ -24,13 +24,16 @@ function program(m, normalPass) {
 /** Bakes every material in the registry, a layer each. Returns the arrays and how to read them:
     { arrays, layer(material), a(material, uv) and n(material, uv) as nodes (with .grad(dx, dy) as on any texture) }. */
 export function bakeTextures(renderer) {
-  const MATERIALS = recipes('material'), N = MATERIALS.length, aniso = 8;
-  const array = () => {
+  // seen at a low angle a texture is filtered along the slope, several taps a read: four for the colours, two for the
+  // relief (its blur is not seen), not eight for both: at eye level the ground is most of the picture and its reads most
+  // of a frame's time (a walk in the forest: 23 ms at eight, 19 at four and two, at one and a half pixels a point)
+  const MATERIALS = recipes('material'), N = MATERIALS.length;
+  const array = (aniso) => {
     const rt = new THREE.RenderTarget(SIZE, SIZE, { depth: N, depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
     Object.assign(rt.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, anisotropy: aniso });
     renderer.initRenderTarget(rt); return rt;
   };
-  const A = array(), Nn = array();
+  const A = array(4), Nn = array(2);
   const tmp = new THREE.RenderTarget(SIZE, SIZE, { depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
   const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false;
   const prev = renderer.getRenderTarget(), box = new THREE.Box2(), at = new THREE.Vector3();

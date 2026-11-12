@@ -4,6 +4,7 @@
 import * as THREE from 'three/webgpu';
 import { HMIN, HMAX, heightAt, riverAt } from '../world/land.js';
 import { boxIn } from '../core/frustum.js';
+import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, R0 } from './material.js';
 import { waterMaterial } from './water.js';
 
@@ -88,6 +89,7 @@ export function createTerrain(scene, tex) {
       cx = camera.position.x; cz = camera.position.z; dy2 = uDy * uDy; inv2 = lodInv * lodInv;
       land.n = water.n = 0;
       const top = LEVELS - 1, R = Math.min(range[top] / lodInv, camera.far);
+      U.uLandEnd.value = R;
       const i0 = Math.floor((cx - R) / TOP), i1 = Math.floor((cx + R) / TOP), j0 = Math.floor((cz - R) / TOP), j1 = Math.floor((cz + R) / TOP);
       for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) select(i * TOP, j * TOP, TOP, top);
       push(land); push(water);
