@@ -19,11 +19,11 @@
     "type": "asset",
     "name": "Bracken",
     "file": "assets/bracken.js",
-    "version": "c2a8f9a398f29ca422e0981d16d847de6e7f5d4be010e94e8883cc1065ef432b",
+    "version": "393c5806e693a696ae2b8ca95992cd0bf676a3221ccf75e14aa87814b40487fb",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
-      "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
-      "f0cd9e72-612d-4f2e-9790-0ef5f7257742"
+      "6042540e-d4ea-4a07-8bd9-d8465f5635b9",
+      "bf97f33b-56bd-4df4-89ba-949e77ce8c27"
     ]
   },
   "eb8f406f-1035-4921-ba42-10f05efab6ed": {
@@ -37,7 +37,7 @@
     "type": "asset",
     "name": "Holm oak",
     "file": "assets/holmoak.js",
-    "version": "d367b0c2ea3eac2e1575280f99ee1f30bcf47033987fb3a78921746df2ad4500",
+    "version": "9efa18876d02bfd1d622ec182a598723c2fba19bd0af4fc102a7e1546ab49e67",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "c4cbd29b-9dd2-494d-913b-9a80c40ab8e6",
@@ -49,7 +49,7 @@
     "type": "asset",
     "name": "Mastic",
     "file": "assets/mastic.js",
-    "version": "bdc943bc2ca9180e4b42ffa5b04bba8c77e81f06a616e4be773471720a8fb614",
+    "version": "4423d7c49da2da92f11c9c9f6b12154ab00907131912b5acacd97701794aec17",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "c4cbd29b-9dd2-494d-913b-9a80c40ab8e6",
@@ -60,10 +60,10 @@
     "type": "asset",
     "name": "Rockrose",
     "file": "assets/rockrose.js",
-    "version": "0cef268b7ca90ef89001936cce3028750bb5041b7e73fac4da01d739d89df77f",
+    "version": "8dd61e07389bf3ec1df224c9224bc99e3c71ab39e2bf687d730bfb4a2a00d82f",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
-      "c4cbd29b-9dd2-494d-913b-9a80c40ab8e6",
+      "4cdde33c-5114-41e7-badf-e9f69fcf42f5",
       "fb5ce908-7437-45b6-879f-154de32d12b9"
     ]
   },
@@ -71,7 +71,7 @@
     "type": "asset",
     "name": "Stone pine",
     "file": "assets/stonepine.js",
-    "version": "e735459d32fee322c5b68b9870c3c7d4587288ffd56ef9644ab52ce4486ba027",
+    "version": "8829dc9123b568abc7e43893b00bf3185b7d5199f855665d1ff5bcab34c8a43e",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
@@ -131,7 +131,7 @@
     "type": "biome",
     "name": "Pine forest",
     "file": "biomes/pineforest.js",
-    "version": "b5b9ef2f9197e50c1c4c795789195f4fe9aac1625c3138fe4029f25b3ec0a936",
+    "version": "517d6af5e84883c194848b9eda7c4d41c26183b41fde476ed65f30a768932da4",
     "uses": [
       "795da1c3-9cfe-4c4e-88c7-a58ce86444d4"
     ]
@@ -153,6 +153,13 @@
     "uses": [
       "2f329f07-d2ba-4dc8-a6e3-73053c65e10f"
     ]
+  },
+  "6042540e-d4ea-4a07-8bd9-d8465f5635b9": {
+    "type": "material",
+    "name": "Bracken frond",
+    "file": "materials/brackenfrond.js",
+    "version": "eb482a960f50e4244a82465557d42cf23b0dfb598af7f68dc1fc7415517b9e11",
+    "uses": []
   },
   "1d8b0f79-8bab-44df-bae4-50f950fe0775": {
     "type": "material",
@@ -257,6 +264,13 @@
     "name": "Rock",
     "file": "materials/rock.js",
     "version": "49de0cc3761457e1d4cc60b9a321fa9b21d453e23ade3cd6f558ca46976249b9",
+    "uses": []
+  },
+  "4cdde33c-5114-41e7-badf-e9f69fcf42f5": {
+    "type": "material",
+    "name": "Rockrose sprig",
+    "file": "materials/rockroseleaf.js",
+    "version": "3ae87a1514aa14b39a4003da836d9dd53655bf326f9d13e26bd264ab77e433ed",
     "uses": []
   },
   "2f329f07-d2ba-4dc8-a6e3-73053c65e10f": {

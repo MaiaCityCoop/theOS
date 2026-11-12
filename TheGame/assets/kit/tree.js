@@ -10,6 +10,7 @@
 // litter { material, tile }: what it drops: the ground under it where it leads in its stand (the land lays it).
 // A shrub is built the same way (kind `shrub`: assets/kinds.js), and stands in its biome's understory: placement.stand
 // names which of the biome's stands it joins (`shrubs`; a tree's, unnamed, is `trees`).
+// placement.where({ p }): where in its stand it likes to grow, 0..1 (node code), if not everywhere.
 // placement { biome, share, scale, lean, seed }: its biome, whose stand it joins (the biome's `trees`: the cells, the
 // groves, the ages, the same for every kind of tree that grows there); share, its part of that stand's cells (one tree a
 // cell: a mix); scale, one tree's own size about its age's height; seed, its shapes' (another seed: other trees of its kind).

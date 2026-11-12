@@ -36,7 +36,7 @@ const clearAt = (p) => {
     what the biome leaves out, the tree's own placement gives (a tree that stands alone in a biome with no stand of its own). */
 export const standOf = (asset, biome = recipe(asset.placement.biome)) => {
   const P = asset.placement, B = biome?.[P.stand ?? 'trees'] || {};
-  return { cell: B.cell ?? P.cell ?? 10, density: B.density ?? P.density ?? 1, clumps: B.clumps ?? P.clumps ?? 0, patches: B.patches ?? 0, age: P.age ?? B.age ?? null, seed: B.seed ?? P.seed ?? 300 };
+  return { cell: B.cell ?? P.cell ?? 10, density: B.density ?? P.density ?? 1, clumps: B.clumps ?? P.clumps ?? 0, patches: B.patches ?? 0, age: P.age ?? B.age ?? null, seed: B.seed ?? P.seed ?? 300, where: B.where ?? null };
 };
 
 // what stands in a cell: a tree of this level, or nothing; packed into two vec4 (A: x, z, its foot's height, its scale;
@@ -58,7 +58,10 @@ function treeIn(c, row, Lv, band, biome, ST, shapes = 1, all = false, slice = [0
    If(slice[0] > 0 || slice[1] < 1 ? lead.greaterThanEqual(slice[0]).and(lead.lessThan(slice[1])) : float(1).greaterThan(0), () => {
     const r0 = rnd(cx, cy, h0(300));
     // groves and glades: a stand is not a plantation (a noise as wide as its clumps sets how thick it grows here)
-    const grove = groveAt(pos, ST), dens = grove.mul(ST.density);
+    // (and where the stand itself, and this kind of it, like to grow: their `where`, 0..1 at a place, if they say:
+    // an understory thin in deep shade, a fern in the glades)
+    const likes = [ST.where, P.where].filter(Boolean).reduce((k, f) => k.mul(f({ p: pos })), float(1));
+    const grove = groveAt(pos, ST), dens = grove.mul(ST.density).mul(likes);
     If(r0.lessThan(shareOf(biome, { p: pos, dist, d: float(1e5), w: float(1), b: float(0) }).mul(dens)), () => {   // its stands, as if far from the river
       const I = riverInfo(pos), d = abs(I.x), w = I.y;
       If(r0.lessThan(shareOf(biome, { p: pos, dist, d, w, b: I.z }).mul(dens).mul(clearAt(pos))), () => {

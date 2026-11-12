@@ -1,7 +1,7 @@
 // Pine forest: stone pines in loose stands over a floor of their needles. A biome of the world, in the one recipe every
 // biome follows (biomes/README.md); its trees are an asset of their own (assets/stonepine.js) that grows where this lies.
 import { float, uint, smoothstep, mix, clamp } from 'three/tsl';
-import { vnoise, groveAt, bent, turned, second } from '../src/world/noise.nodes.js';
+import { vnoise, groveAt, leadAt, bent, turned, second } from '../src/world/noise.nodes.js';
 
 // its stand of trees, the same for every kind that grows here (an asset's placement.biome; each takes its `share` of
 // the cells: src/scatter/trees.js): one tree at most in a cell of `cell` metres, as many as `density` says, in groves
@@ -29,8 +29,12 @@ export default {
   trees: TREES,
   // its understory: the shrubs that grow here (assets whose placement.stand is `shrubs`), a stand of their own, read the
   // same way: thickets `clumps` metres across, one kind leading in patches
-  shrubs: { cell: 6, density: 0.55, clumps: 26, patches: 34, seed: 520 },
+  // Thick, as a Mediterranean pine wood's is: a bush every three metres in its thickets, bushes merging, open litter
+  // between them; where the holm oaks lead (the first share of the stand's kinds: deep shade) only a quarter of it
+  shrubs: { cell: 3, density: 0.9, clumps: 24, patches: 26, seed: 520, where: ({ p }) => mix(0.25, 1, smoothstep(0.24, 0.38, leadAt(p, TREES).mul(0.7).add(0.15))) },
   // far off, past where its trees are drawn, the land under it takes the colour of their crowns, in its stand's groves
   // (src/terrain/material.js); from/to (metres): only if no tree of it says where its trees end
   canopy: { colour: [0.05, 0.085, 0.035], from: 650, to: 1000 },
 };
+/** How open the wood is at p, 0 under its groves … 1 in its glades: for what grows by the light (a shrub's placement.where). */
+export const gladeAt = (p) => float(1).sub(clamp(groveAt(p, TREES).mul(0.8), 0, 1));
