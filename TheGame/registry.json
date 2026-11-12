@@ -82,6 +82,13 @@
       "2f329f07-d2ba-4dc8-a6e3-73053c65e10f"
     ]
   },
+  "1d8b0f79-8bab-44df-bae4-50f950fe0775": {
+    "type": "material",
+    "name": "Cloud field",
+    "file": "materials/clouds.js",
+    "version": "ecab1a78ce85a9580ed29975eb4484c4164a69b8df455347932b390d6603db67",
+    "uses": []
+  },
   "082f0183-5d92-4ac8-821c-14408d3ee056": {
     "type": "material",
     "name": "Dry earth",

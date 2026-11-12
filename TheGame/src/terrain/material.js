@@ -122,7 +122,7 @@ export function terrainMaterial(tex) {
     const near = float(1).sub(smoothstep(12, 70, dist2)), cav = mix(1, smoothstep(0.08, 0.5, M.h).mul(0.62).add(0.38), near.mul(float(1).sub(cv.mul(0.6))));
     // snow: as deep as uSnow, deeper in drifts and thinner on the rises between; what stands out of the ground (a pebble's
     // top, the grass's carpet) shows through until it is covered; none on the water. Under it the ground's own relief goes.
-    const drift = U.uSnow.greaterThan(0).select(vnoise(p.mul(1 / 7), uint(93)).mul(0.6).add(vnoise(p.mul(1 / 1.3), uint(94)).mul(0.4)), float(0.5));
+    const drift = float(0.5).toVar(); If(U.uSnow.greaterThan(0.001), () => { drift.assign(vnoise(p.mul(1 / 7), uint(93)).mul(0.6).add(vnoise(p.mul(1 / 1.3), uint(94)).mul(0.4))); });   // only while snow lies
     const lift = M.h.mul(0.025).add(cv.mul(glum).mul(smoothstep(20, 90, dist2).mul(0.14)))   // near, the blades stand on their own: the ground under them is the snow's.add(drift.sub(0.5).mul(U.uSnow.mul(0.8)));
     const snow = snowCover(vN, lift).mul(smoothstep(w, w.add(1.5), d)).mul(float(1).sub(roofAt(p)));   // none under a roof
     M.n.assign(M.n.mul(float(1).sub(snow.mul(0.85))));

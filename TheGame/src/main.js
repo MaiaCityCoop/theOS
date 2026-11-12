@@ -33,6 +33,8 @@ import { createPost } from './camera/post.js';
 import { createSky } from './world/sky.js';
 import { createWind } from './world/wind.js';
 import { createSnow } from './world/snow.js';
+import { createClouds } from './world/clouds.js';
+import { useCloudTexture } from './world/light.js';
 import { createShadows } from './world/shadow.js';
 import { useGround } from './world/rocksolid.js';
 
@@ -65,6 +67,7 @@ const boot = (stats.boot = {}), mark = (k) => (boot[k] = Math.round(performance.
 mark('renderer');
 await loadingStep('Painting the ground', 0.12);
 const tex = bakeTextures(renderer);
+useCloudTexture(tex);   // the cloud layer reads its field from the baked tile (world/light.js)
 mark('bake');
 await loadingStep('Raising the land', 0.3);
 const ground = createGround(renderer, tex);
@@ -79,6 +82,7 @@ const controls = createControls(camera, canvas, document.getElementById('msg'), 
 const sky = createSky(scene, camera, renderer);
 const wind = createWind();   // which way the air moves and how hard: the grass and the water follow (world/wind.js)
 stats.snow = createSnow();   // how deep the snow lies (world/light.js: snowCover)
+const clouds = (stats.clouds = createClouds());   // the cloud layer: in the sky, and its shadow on all below
 stats.wind = wind;   // the sun and the sky: one time of day drives the light (intent 0007)
 stats.sky = sky;
 const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)
@@ -93,7 +97,7 @@ const projScreen = new THREE.Matrix4();
 const parts = { ctl: 0, ground: 0, terrain: 0, scatter: 0, draw: 0 };   // where a frame's time went, for the hitch log
 function choose(dt) {
   let t = performance.now(), u;
-  controls.update(dt); sky.update(dt);
+  controls.update(dt); sky.update(dt); clouds.update(dt);
   const p = camera.position, dy = (U.uDy.value = Math.max(0, p.y - heightAt(p.x, p.z) - 2, HMIN - p.y));   // how high above the ground here: lifted, the grass and stones see it far off (intent 0003)
   U.uAirH.value = Math.max(0, p.y - heightAt(p.x, p.z));   // the height fog thins along a line of sight from up here (src/world/light.js)
   camera.updateMatrixWorld();

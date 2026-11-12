@@ -4,6 +4,8 @@
 import { Fn, float, vec2, vec3, vec4, If, mix, exp, pow, smoothstep, step, fract, dot, log, max, clamp, sin, cos, length, normalize, screenCoordinate, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { vnoise } from './noise.nodes.js';
+import CLOUDS from '../../world/clouds.js';
+import cloudMat from '../../materials/clouds.js';
 
 /** The light's uniforms by their short names. */
 export const LIGHT = {
@@ -40,7 +42,9 @@ const weatheredF = Fn(([col, n, lift]) => mix(col.mul(float(1).sub(U.uWeather.x.
 export const weathered = (col, n, lift = 0) => weatheredF(col, n, float(lift));
 /** how high, at w, the snow must lie before it covers a thing whose snow is `clumps` metres uneven (its kind's or its own
     `snow`, assets/kinds.js): in clumps where it held, bare between, the same pattern at every level of detail */
-export const snowLift = (w, clumps) => vnoise(w.xz.mul(2.3).add(w.y.mul(1.7)), uint(302)).mul(0.7).add(vnoise(w.xz.mul(7).add(w.y.mul(5)), uint(303)).mul(0.3)).mul(clumps);
+const snowLiftF = (w, clumps) => vnoise(w.xz.mul(2.3).add(w.y.mul(1.7)), uint(302)).mul(0.7).add(vnoise(w.xz.mul(7).add(w.y.mul(5)), uint(303)).mul(0.3)).mul(clumps);
+const snowLiftN = Fn(([w, clumps]) => { const l = float(9).toVar(); If(U.uSnow.greaterThan(0.001), () => { l.assign(snowLiftF(w, clumps)); }); return l; });   // worked out only while snow lies
+export const snowLift = (w, clumps) => snowLiftN(w, float(clumps));
 
 // a screen noise (interleaved gradient): for the shadow's taps and the hand-over between levels
 export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(52.9829189));
@@ -78,10 +82,37 @@ export const shadowAtVertex = Fn(([w]) => {
 });
 /** true while the casters are drawn into the shadow map: a caster's fragment does no light then (only its depth counts) */
 export const unlit = () => U.uShadowPass.greaterThan(0.5);
+// the clouds (world/clouds.js): one layer at CLOUDS.height, a field of cumulus that drifts with the wind (uCloudOff),
+// covering as much of the sky as uClouds says. detail: its finer octaves, for the sky up close; a shadow needs none.
+export const CLOUD_H = CLOUDS.height;
+let cloudTex = null;
+/** the baked materials (src/materials/bake.js), for the cloud field's tile: set once at the start, before any material is built */
+export const useCloudTexture = (tex) => { cloudTex = tex; };
+export const cloudField = (xz, detail = false) => {
+  const q = xz.add(U.uCloudOff).div(CLOUDS.size);
+  // its masses, on a far larger swell of the same tile turned (so the tile's repeat is not seen across the sky), and close
+  // up their billows (the albedo pass keeps a channel as its root: the tile painted them squared)
+  let n = cloudTex.a(cloudMat, q).r.mul(0.78).add(cloudTex.a(cloudMat, vec2(q.y, q.x.negate()).mul(0.23).add(0.6)).r.mul(0.22));
+  if (detail) n = n.add(cloudTex.a(cloudMat, q.mul(3.7).add(0.31)).g.sub(0.5).mul(0.22));   // the billows only fray the edge
+  const th = mix(0.8, 0, U.uClouds);   // the cover: how much of the field lies over the line
+  return smoothstep(th.sub(0.1), th.add(0.22), n.sub(0.5).mul(2.1).add(0.5));   // (the painted field is soft: stretched to the full range)
+};
+/** the clouds' shadow at w: the layer looked up along the way to the sun (1: in the sun) */
+export const cloudShade = Fn(([w]) => {
+  const r = float(1).toVar();
+  If(U.uClouds.greaterThan(0.005), () => {   // looked up only while there are clouds
+    const s = U.uSunDir, k = float(CLOUD_H).sub(w.y).div(max(s.y, 0.08));
+    // one fetch from a small mip of the tile: a cloud's shadow is soft and wide, and a tiny mip is always in the cache
+    const q = w.xz.add(s.xz.mul(k)).add(U.uCloudOff).div(CLOUDS.size), th = mix(0.8, 0, U.uClouds);
+    const n = cloudTex.a(cloudMat, q).level(4).r.sub(0.5).mul(2.1).add(0.5);
+    r.assign(float(1).sub(smoothstep(th.sub(0.14), th.add(0.24), n).mul(0.82)));
+  });
+  return r;
+});
 /** The share of sunlight that reaches a point (1: all): past the clouds and the storm, and past what casts a shadow. */
-export const cloudAt = Fn(([w]) => float(1).sub(U.uWeather.w.mul(0.6)).mul(shadowAt(w)));
+export const cloudAt = Fn(([w]) => float(1).sub(U.uWeather.w.mul(0.6)).mul(cloudShade(w)).mul(shadowAt(w)));
 /** the same, its shadow looked up in a vertex stage */
-export const cloudAtVertex = Fn(([w]) => float(1).sub(U.uWeather.w.mul(0.6)).mul(shadowAtVertex(w)));
+export const cloudAtVertex = Fn(([w]) => float(1).sub(U.uWeather.w.mul(0.6)).mul(cloudShade(w)).mul(shadowAtVertex(w)));
 
 // the wind (src/world/wind.js: uWind = the way it blows to, x and z; strength 0 calm … 1 storm; how fast its gusts
 // travel, m/s): its push at a point on the land, (x, z) per unit of sway. Gusts roll over the land along the wind, a

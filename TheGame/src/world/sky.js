@@ -4,10 +4,10 @@
 // and a dome round the camera that draws the sky itself, with the sun, the moon and the stars. The weather panel
 // (src/ui/weather.js) steers it by hand or lets it run.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec3, uniform, varying, positionGeometry, normalize, max, mix, pow, smoothstep, step, sin, dot, floor, fract } from 'three/tsl';
+import { Fn, float, vec3, uniform, varying, positionGeometry, normalize, max, mix, pow, smoothstep, step, sin, dot, floor, fract, exp } from 'three/tsl';
 import SKY from '../../world/sky.js';
 import { U } from '../core/uniforms.js';
-import { toScreen } from './light.js';
+import { toScreen, cloudField, CLOUD_H } from './light.js';
 import { weatherRow } from '../ui/weather.js';
 import { load, save } from '../core/store.js';
 
@@ -59,6 +59,16 @@ function dome(camera) {
     const c = floor(v.mul(260)), q = fract(v.mul(260)).sub(0.5);                                           // the stars, as the sky darkens
     const star = step(1 - SKY.stars.count, h3(c)).mul(smoothstep(0.22, 0, q.length())).mul(h3(c.add(7)).mul(0.6).add(0.4));
     col.addAssign(vec3(0.85, 0.9, 1).mul(star).mul(SKY.stars.bright).mul(D.dark).mul(smoothstep(0, 0.15, y)).mul(step(0, y)));
+    // the clouds (light.js: cloudField): the view's ray up to their layer; lit from the sun's side, darker where they are
+    // thick and where more cloud stands between them and the sun, a bright rim near the sun; thinning into the haze
+    // towards the horizon; the sun, the moon and the stars behind them
+    const t = float(CLOUD_H).sub(U.uCam.y).div(max(y, 0.015)), xz = U.uCam.xz.add(v.xz.mul(t));
+    const d = cloudField(xz, true), toward = cloudField(xz.add(U.uSunDir.xz.mul(700)));
+    const thick = smoothstep(0.25, 1, d), lit = mix(1, 0.25, thick.mul(0.6).add(toward.mul(0.4)));   // seen from below: grey where deep, bright at the thin edges
+    const rim = U.uSun.mul(pow(s, 6).mul(d.mul(float(1).sub(d)).mul(3.2)));
+    const far = float(1).sub(exp(t.negate().div(26000)));
+    const cc = mix(U.uAmb.mul(mix(1.1, 0.62, thick)).add(U.uSun.mul(lit).mul(0.8)).add(rim), D.horizon, far.mul(0.85));
+    col.assign(mix(col, cc, smoothstep(0.03, 0.55, d).mul(smoothstep(0, 0.05, y)).mul(float(1).sub(far.mul(0.55)))));
     return toScreen(col);
   })();
   const m = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), mat);

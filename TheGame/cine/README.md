@@ -63,6 +63,7 @@ A clip also says how it is cut in and how its move behaves at its ends, so that 
 | `hour` | the shot's time of day (0–24), or `[from, to]` across the shot (a time-lapse); without it the shot keeps the hour it finds |
 | `wind` | the shot's wind, 0 calm to 1 a storm, or `[from, to]` (a gust rising); without it the shot keeps the wind it finds |
 | `snow` | how deep the snow lies on the shot's land, metres (0.05: 5 cm), or `[from, to]` (snow falling through the shot); without it the shot keeps the snow it finds |
+| `clouds` | how much of the shot's sky the clouds cover, 0 clear to 1 overcast, or `[from, to]` (a sky clearing or closing); without it the shot keeps the clouds it finds |
 | `out` | `dip` on the last clip fades the film out |
 | `why` | one line on what the cut is for; shown in the timeline view |
 

@@ -15,7 +15,7 @@ export const U = {
   uStage: uniform(v3(0, 0, 0)),                    // the library's stage: (x, z, radius), radius 0: none
   uStageGround: uniform(new THREE.Vector2(-1, 2)),  // the ground laid on it: (a material's layer, -1 the base biome's bare earth; metres a tile)
   // the shading contract (intent 0002): the measure of size on screen, the wind, the weather, the clouds
-  uPxK: uniform(1), uWind: uniform(new THREE.Vector4(1, 0, 0, 0)), uWeather: uniform(new THREE.Vector4(0, 0, 0, 0)), uClouds: uniform(0),
+  uPxK: uniform(1), uWind: uniform(new THREE.Vector4(1, 0, 0, 0)), uWeather: uniform(new THREE.Vector4(0, 0, 0, 0)), uClouds: uniform(0), uCloudOff: uniform(new THREE.Vector2(0, 0)),   // the clouds' cover and how far they have drifted (src/world/clouds.js)
   uAirH: uniform(0), uAirScale: uniform(1200),     // the height fog: the camera's height above the ground, the air's thinning
   uExposure: uniform(1),                           // the picture's exposure (the sky sets it by the hour)
   uSnow: uniform(0),                               // how deep the snow lies, metres (src/world/snow.js)
