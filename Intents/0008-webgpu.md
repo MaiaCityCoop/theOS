@@ -695,6 +695,26 @@ shadows and the grass.
   tuft, each tinted; up close the bracken is a fan of needle strokes, not a frond. The frame's time with them not
   measured: several pages of the game shared the GPU at the time.
 
+### 2026-11-12, the understory after a real wood (15:45)
+
+- **Asked:** the shrubs far denser, placed as in a natural wood, and looking real; look at photos of such woods first.
+- **Found:** in a photo of a Mediterranean pine wood the undergrowth is nearly continuous where light reaches the floor:
+  bushes knee to chest high, of every size, merging into masses, lighter and yellower than the crowns; bare litter
+  under the densest shade and in the gaps between thickets. (One photo looked at closely; two more searches gave no
+  pictures in time.)
+- **Delivered:** the understory's cells three metres, not six, thick in thickets (biomes/pineforest.js `shrubs`), a
+  quarter as thick where the holm oaks lead; a stand and a kind may say where they like to grow (`where`, node code:
+  src/scatter/trees.js): rockrose in the glades and at the edge, bracken mostly where the wood opens (the biome's
+  `gladeAt`). Two sprigs painted: a fern's frond (materials/brackenfrond.js: a stalk, leaflets in pairs, lobed) and a
+  rockrose's (materials/rockroseleaf.js: soft grey-green leaves, a white flower here and there). Fuller bushes, sizes
+  from 0.4 to 1.35 of their own; the mastic lighter.
+- **Good:** no errors in WebKit; a page of the game opened in Samuel's Safari: 227 to 241 frames per 4 s, the pixel
+  ratio rising to 1.75. In a forest view 1,300 to 2,000 shrubs, 33 to 46 thousand triangles, beside the trees' 750.
+- **Broke / not there yet:** the mastic still wears the holm oak's leaves; bushes are mounds of crossed cards, not yet
+  the ragged, leaning shapes of the photo, and they do not close into one mass; far off a bush is one pale body on the
+  floor; the game took 18 s to load once in my test browser while other pages shared the GPU (6 to 9 s alone before
+  the shrubs): not measured alone since.
+
 ## Trail
 
 | When | Commit | What |
@@ -753,3 +773,4 @@ shadows and the grass.
 | 2026-11-12 | `bcbb58e` | From high up: the land melts into the horizon, clouds from above; the ground's textures filtered 4 and 2 taps |
 | 2026-11-12 | `4ddb352` | The biomes' outlines bent off the noise's grid; held at the tent; the same in JS |
 | 2026-11-12 | `aaf4dca` | Undergrowth: the kind shrub, the understory stand, mastic, rockrose, bracken |
+| 2026-11-12 | `254e700` | The understory after a real wood: thickets, placed by the light; a fern's frond and a rockrose's sprig |
