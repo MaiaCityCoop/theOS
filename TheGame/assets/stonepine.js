@@ -66,7 +66,7 @@ const outward = (R0, lift) => { const a = R0() * 2 * Math.PI, y = lift + (1 - li
 function pine(q) {
   const b = builder(), R0 = rng(11), S = [12, 7, 5][q], s2 = [8, 5, 4][q];
   // the trunk: flared at its foot, bending in a slow S as it climbs to the fork
-  const trunk = Array.from({ length: 10 }, (_, i) => { const t = i / 9; return [FORK[0] * t + Math.sin(t * Math.PI * 1.3) * 0.55, FORK[1] * t, FORK[2] * t + Math.sin(t * Math.PI * 0.9) * 0.25]; });
+  const trunk = Array.from({ length: 10 }, (_, i) => { const t = i / 9; return [FORK[0] * t + Math.sin(t * Math.PI) * 0.5, FORK[1] * t, FORK[2] * t + Math.sin(t * Math.PI * 2) * 0.2]; });   // (the S comes back to the fork: its stems start where it ends)
   tube(b, trunk, trunk.map((_, i) => { const t = i / 9; return 0.24 + 0.12 * (1 - t) + 0.2 * Math.max(0, 1 - t * 7) ** 2; }), S);
   if (q === 0) for (const [y, a] of [[3.6, 0.6], [4.9, 2.9], [6.1, 4.8]]) {   // the stubs of limbs it shed long ago
     const at = trunk[Math.round((y / FORK[1]) * 9)], d = norm([Math.cos(a), 0.3, Math.sin(a)]);
