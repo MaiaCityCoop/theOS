@@ -970,3 +970,4 @@ shadows and the grass.
 | 2026-11-12 | `1c9655e` | A bush's base sprigs the same at every level; fine sprigs only added near by |
 | 2026-11-12 | `c9f335c` | Levels of detail in one place; the contract written (src/detail/README.md) |
 | 2026-11-12 | `5538175` | The scatter by stand: one packing and one draw shader for all a stand's kinds |
+| 2026-11-12 | `ea1d05a` | A kit's meshes built once, kept in the browser by the recipe's version |
