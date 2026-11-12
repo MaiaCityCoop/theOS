@@ -2,9 +2,9 @@
 // asset shares, chosen each frame by its size on screen with a hand-over between them (src/detail), its far card
 // (impostor), its shadow, and its body for the walker and the camera.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec3, vec4, uniform, varying, attribute, positionLocal, positionWorld, normalLocal, normalWorld, modelWorldMatrix, modelWorldMatrixInverse, frontFacing, normalize, max, length, smoothstep, sin, pow, uint, If, Discard } from 'three/tsl';
+import { Fn, float, vec3, vec4, uniform, varying, attribute, positionLocal, positionWorld, normalLocal, normalWorld, modelWorldMatrix, modelWorldMatrixInverse, normalize, max, clamp, length, smoothstep, sin, pow, uint, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { finish, skyLight, weathered, cloudAt, detailCut, windAt, unlit } from './light.js';
+import { finish, skyLight, weathered, snowCover, cloudAt, detailCut, windAt, unlit } from './light.js';
 import { vnoise } from './noise.nodes.js';
 import { heightAt } from './land.js';
 import { addSolid } from './solids.js';
@@ -42,13 +42,17 @@ export function assetMaterial(asset) {
     If(detailCut(keep), () => { Discard(); });
     const out = vec4(0).toVar();
     If(unlit().not(), () => {   // drawn into the shadow map, only its depth counts: no light
-      const n = normalize(frontFacing.select(normalWorld, normalWorld.negate())), S = surfaceOf(asset), w = positionWorld;
+      const w = positionWorld, nw = normalize(normalWorld), n = nw.dot(U.uCam.sub(w)).lessThan(0).select(nw.negate(), nw), S = surfaceOf(asset);   // the face's side towards the eye (a face's winding is not to be trusted)
       const ndl = n.dot(U.uSunDir).add(S.wrap).div(1 + S.wrap).max(0);   // soft things take the light round their edge
       const through = pow(max(normalize(w.sub(U.uCam)).dot(U.uSunDir), 0), 3).mul(S.through).mul(max(n.dot(U.uSunDir).negate(), 0).mul(0.6).add(0.4));   // the sun behind a thin thing shines through it
       const ground = smoothstep(0, 0.7, positionLocal.y).mul(0.4).add(0.6);   // darker where it meets the ground
       const mottle = vnoise(w.xz.mul(1.3).add(w.y), uint(301)).sub(0.5).mul(0.12).add(1);   // no face quite one even colour
       const sun = U.uSun.mul(cloudAt(w));
-      const col = weathered(vCol.mul(mottle), n).mul(skyLight(n).mul(ground).add(sun.mul(ndl.mul(0.8).add(0.2)))).add(vCol.mul(sun).mul(through));
+      // snow lies on what faces up in clumps, where it held, slid off between them (so it reads even on pale canvas); the
+      // cloth under it darker, damp
+      const lump = vnoise(w.xz.mul(2.3).add(w.y.mul(1.7)), uint(302)).mul(0.7).add(vnoise(w.xz.mul(7).add(w.y.mul(5)), uint(303)).mul(0.3));
+      const damp = float(1).sub(clamp(U.uSnow.mul(1.5), 0, 0.18));
+      const col = weathered(vCol.mul(mottle).mul(damp), n, lump.mul(0.22)).mul(skyLight(n).mul(ground).add(sun.mul(ndl.mul(0.8).add(0.2)))).add(vCol.mul(sun).mul(through).mul(float(1).sub(snowCover(n, lump.mul(0.22)))));   // snow on it: no light comes through
         out.assign(finish(col, positionWorld));
     });
     return out;

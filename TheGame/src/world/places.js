@@ -2,7 +2,7 @@
 // asset in the library (assets/index.js), which builds it; here is only where it stands and which way it faces.
 // The first one is where the city begins: one tent on the meadow by the river.
 export const PLACES = {
-  tent: { asset: '104dde1e-c26e-42fd-9aab-c6612fbe8222' /* the bell tent */, x: -1262.6, z: 631.0, yaw: 0.1, clear: 3.2 },   // clear: metres round it where no grass grows   // on the stretch the stories are told on; its door looks up the river
+  tent: { asset: '104dde1e-c26e-42fd-9aab-c6612fbe8222' /* the bell tent */, x: -1262.6, z: 631.0, yaw: 0.1, clear: 3.2, roofed: 2.45 },   // clear: metres round it where no grass grows; roofed: metres round it under its roof (no snow falls there)   // on the stretch the stories are told on; its door looks up the river
 };
 
 // The library's stage: one fixed, flat spot in the meadow, far from the river, where the asset library shows every

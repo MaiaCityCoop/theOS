@@ -6,7 +6,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { int } from 'three/tsl';
-import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, BASE, LAID } from '../world/land.nodes.js';
+import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, roofAt, BASE, LAID } from '../world/land.nodes.js';
 import { finish, skyLight, weathered, cloudAt, snowCover, SNOW } from '../world/light.js';
 import noise from '../../materials/noise.js';
 
@@ -41,7 +41,7 @@ export function terrainMaterial(tex) {
     packs.forEach((v, i) => v.assign(vec4(lanes[i * 4], lanes[i * 4 + 1], lanes[i * 4 + 2], lanes[i * 4 + 3])));
     vGD.assign(vec2(Lv.grassy, Lv.dry));
     // the snow lifts the ground it lies on (not the river's channel): what stands on the land sinks into it as deep
-    return vec3(wp.x, h.add(U.uSnow.mul(smoothstep(C.I.y, C.I.y.add(1.5), C.d))), wp.y);
+    return vec3(wp.x, h.add(U.uSnow.mul(smoothstep(C.I.y, C.I.y.add(1.5), C.d)).mul(float(1).sub(roofAt(wp)))), wp.y);
   });
 
   // ---- fragment ----
@@ -124,7 +124,7 @@ export function terrainMaterial(tex) {
     // top, the grass's carpet) shows through until it is covered; none on the water. Under it the ground's own relief goes.
     const drift = U.uSnow.greaterThan(0).select(vnoise(p.mul(1 / 7), uint(93)).mul(0.6).add(vnoise(p.mul(1 / 1.3), uint(94)).mul(0.4)), float(0.5));
     const lift = M.h.mul(0.025).add(cv.mul(glum).mul(smoothstep(20, 90, dist2).mul(0.14)))   // near, the blades stand on their own: the ground under them is the snow's.add(drift.sub(0.5).mul(U.uSnow.mul(0.8)));
-    const snow = snowCover(vN, lift).mul(smoothstep(w, w.add(1.5), d));
+    const snow = snowCover(vN, lift).mul(smoothstep(w, w.add(1.5), d)).mul(float(1).sub(roofAt(p)));   // none under a roof
     M.n.assign(M.n.mul(float(1).sub(snow.mul(0.85))));
     const n = normalize(vN.add(vec3(M.n.x, 0, M.n.y).mul(float(1).sub(smoothstep(60, 400, dist2).mul(0.7)).mul(near.mul(0.7).add(1)))));
     // relief: hollows sit in shade, crowns in light; slopes facing the sun lit harder than the plain normal says

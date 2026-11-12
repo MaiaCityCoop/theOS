@@ -8,6 +8,7 @@ import { hashI, rnd, noised, vnoise, camDist, edgeJit } from './noise.nodes.js';
 export { hashI, rnd, noised, vnoise, camDist, edgeJit };
 import { OCT_LAM, OCT_AMP, WATER_DROP, PADS, PAD_FALL, BEND, MEANDER } from './land.js';
 import { BIOMES, BASE, WATER } from './biomes.js';
+import { PLACES } from './places.js';
 import noise from '../../materials/noise.js';
 
 // ---- the biomes (biomes/*.js, from the registry) and the library's sandbox ----
@@ -24,6 +25,8 @@ const riverSand = () => (WATER ? sandIs(WATER).greaterThan(0.5) : float(0).great
 const placed = (b, natural, p) => { const s = mix(natural, sandIs(b), sandW(p)); return b.river ? riverSand().select(natural, s) : s; };
 /** paths, bare patches, outcrops (the base biome's own): none in a sandbox */
 export const placeOff = (p, natural) => natural.mul(float(1).sub(sandW(p)));
+/** 1 under a roof of what stands at a place (places.js: roofed), 0 in the open: where no snow falls */
+export const roofAt = (p) => Object.values(PLACES).filter((P) => P.roofed).reduce((a, P) => max(a, float(1).sub(smoothstep(P.roofed - 0.15, P.roofed + 0.1, length(p.sub(vec2(P.x, P.z)))))), float(0));
 
 // ---- the river: the world's, or in the river's sandbox its own, meandering ----
 const riverWorld = Fn(([p]) => {
