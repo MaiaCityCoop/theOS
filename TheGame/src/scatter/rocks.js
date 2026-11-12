@@ -38,7 +38,7 @@ function icosphere(detail) {
   return { v, f };
 }
 // look: { cuts (0..1, how many flat faces are broken off it), smooth (0..1, how worn round it is) }
-function rockGeometry(detail, seed, look = {}) {
+export function rockGeometry(detail, seed, look = {}) {
   const { v, f } = icosphere(detail), n = v.length / 3, sm = 1 - 0.75 * (look.smooth ?? 0);
   const cuts = [];
   for (let k = 0; k < Math.round(7 * (look.cuts ?? 1)); k++) {

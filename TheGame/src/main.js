@@ -57,6 +57,7 @@ stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage t
 const terrain = createTerrain(scene, U, tex);
 stats.terrain = terrain;
 const scatter = createScatter(scene, U, tex);
+stats.scatter = scatter;   // for timings and pages that look at it
 for (const at of Object.values(PLACES)) place(scene, U, ASSETS[at.asset], at);   // what stands at a named place, from the asset library
 const controls = createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat'));
 const sky = createSky(scene, camera, U, renderer);   // the sun and the sky: one time of day drives the light (intent 0007)

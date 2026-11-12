@@ -38,6 +38,8 @@ import { MATERIALS } from './materials/index.js';
 import { riverAt } from './src/world/land.js';
 import { createControls } from './src/camera/rig.js';
 import { spawn } from './src/camera/walk.js';
+import { createScatter } from './src/gpu/scatter.tsl.js';
+import { setPlanes } from './src/core/frustum.js';
 const out = document.getElementById('out'), q = new URLSearchParams(location.search);
 const say = (t) => (out.textContent = t);
 
@@ -88,6 +90,8 @@ const wmesh = new THREE.Mesh(wgeo, waterMaterial(tex)); wmesh.frustumCulled = fa
 let wcount = 0;
 // what stands at a named place (the tent), from the asset library
 const placed = Object.values(PLACES).map((at) => placeAsset(scene, ASSETS[at.asset], at));
+// the grass and the rocks (src/gpu/scatter.tsl.js), on the ground pass under the camera
+const scatter = createScatter(scene, renderer, tex);
 const LEVELS = 10, S0 = 8, TOP = S0 * 2 ** (LEVELS - 1), range2 = []; for (let i = 0; i < LEVELS; i++) range2.push((R0 * 2 ** i) ** 2);
 const fr = new THREE.Frustum(), box = new THREE.Box3(), pm = new THREE.Matrix4();
 let cx = 0, cz = 0, dy2 = 0, count = 0;
@@ -113,10 +117,11 @@ function frameFor() {
   geo.instanceCount = count; aNode.clearUpdateRanges(); aNode.addUpdateRange(0, count * 4); aNode.needsUpdate = true;
   wgeo.instanceCount = wcount; wNode.clearUpdateRanges(); wNode.addUpdateRange(0, wcount * 4); wNode.needsUpdate = true; wmesh.visible = wcount > 0;
   for (const a of placed) a.update(camera);
+  setPlanes(pm); scatter.update(cx, cz, g, dy);
 }
 /** Stand the camera as the game's rig would: a point, a heading, a height. */
 function view(x, z, yaw, h) { const P = poseAt(x, z, yaw, h, -0.05); camera.position.set(...P.pos); camera.rotation.order = 'YXZ'; camera.rotation.set(P.pitch, P.yaw, 0); camera.fov = P.fov; camera.updateProjectionMatrix(); }
-window.__spike = { renderer, scene, camera, view, frameFor, light, backend, nodes: () => count };
+window.__spike = { renderer, scene, camera, view, frameFor, light, backend, nodes: () => count, scatter };
 
 // the views the definition names, and a timing of each: n frames drawn back to back, then wait for the card to finish
 const VIEWS = [
@@ -143,7 +148,7 @@ function loop(t) {
   const dt = Math.min(0.1, (t - last) / 1000); last = t; WATER.time.value = t / 1000;
   if (driven) controls.update(dt);
   frameFor(); renderer.render(scene, camera);
-  if (t - shown > 500) { shown = t; say(`${backend} · terrain, water, sky, tent · ${count} + ${wcount} nodes · ${innerWidth}×${innerHeight}`); }
+  if (t - shown > 500) { shown = t; say(`${backend} · terrain, water, sky, tent, grass, rocks · ${count} + ${wcount} nodes · ${(scatter.instances / 1e6).toFixed(2)} M instances · ${innerWidth}×${innerHeight}`); }
 }
 requestAnimationFrame(loop);
 </script>

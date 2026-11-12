@@ -11,7 +11,7 @@ export const L = {   // the land's uniforms: where the camera is, the lens's mea
 };
 
 // ---- the hash and the noise (land.glsl.js: hashI, rnd, noised, vnoise) ----
-const hashI = Fn(([cx, cy, s]) => {
+export const hashI = Fn(([cx, cy, s]) => {
   const h = uint(cx).mul(uint(0x9E3779B1)).bitXor(uint(cy).mul(uint(0x85EBCA77))).bitXor(uint(s).mul(uint(0xC2B2AE3D))).toVar();
   h.assign(h.bitXor(h.shiftRight(uint(15)))); h.assign(h.mul(uint(0x2C1B3C6D)));
   h.assign(h.bitXor(h.shiftRight(uint(12)))); h.assign(h.mul(uint(0x297A2D39)));

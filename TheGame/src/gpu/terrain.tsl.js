@@ -19,7 +19,7 @@ const airMean = Fn(([h]) => { const k = h.div(LIGHT.airScale); return k.lessThan
 export const haze = Fn(([c, dist]) => mix(LIGHT.hazeCol, c, exp(dist.negate().mul(LIGHT.haze).mul(airMean(LIGHT.airH)).mul(LIGHT.weather.z.mul(40).add(1)))));
 export const toScreen = Fn(([c]) => vec4(pow(float(1).sub(exp(c.negate().mul(1.25).mul(LIGHT.exposure))), vec3(1 / 2.2)), 1));
 export const weathered = Fn(([col, n]) => mix(col.mul(float(1).sub(LIGHT.weather.x.mul(0.35))), vec3(0.85, 0.87, 0.9), LIGHT.weather.y.mul(smoothstep(0.35, 0.8, n.y))));
-const cloudAt = () => float(1).sub(LIGHT.weather.w.mul(0.6));
+export const cloudAt = () => float(1).sub(LIGHT.weather.w.mul(0.6));
 
 export const GRID = 16, R0 = 48;
 
