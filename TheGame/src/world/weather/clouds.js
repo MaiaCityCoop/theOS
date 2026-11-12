@@ -92,7 +92,7 @@ export default {
   // the sun; thinning into the haze towards the horizon
   skyOrder: 40,
   sky({ v, y, s, col, horizon }) {
-    If(U.uClouds.greaterThan(0.005).and(y.greaterThan(-0.02)), () => {   // (none to work out on a clear sky, or below the horizon)
+    If(U.uClouds.greaterThan(0.005).and(y.greaterThan(-0.02)).and(U.uCam.y.lessThan(CLOUD_H - 20)), () => {   // (none to work out on a clear sky, below the horizon, or from above their layer)
       const t = float(CLOUD_H).sub(U.uCam.y).div(max(y, 0.015)), xz = U.uCam.xz.add(v.xz.mul(t));
       // how much cloud stands between this one and the sun: read from the clouds' shadow map where it reaches (one fetch:
       // its value is the light that comes through), else this cloud's own thickness

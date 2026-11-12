@@ -7,7 +7,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf } from '../world/land.nodes.js';
-import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, detailKeep, unlit, windAt, windStrength } from '../world/light.js';
+import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, detailKeep, unlit, windAt, windDir, windStrength } from '../world/light.js';
 import { PLACES } from '../../world/places.js';
 import { recipe, recipes } from '../core/registry.js';
 import { geometryOf, scatterRow } from '../../assets/index.js';
@@ -102,12 +102,13 @@ function treeMaterial(tex, row) {
     const shape = (A, B) => {
       const s = A.w, cs = cos(B.x), sn = sin(B.x), turn = (v) => vec3(v.x.mul(cs).sub(v.z.mul(sn)), v.y, v.x.mul(sn).add(v.z.mul(cs)));
       const lean = vec2(cos(B.y), sin(B.y)).mul(B.z.sub(0.5).mul(2 * (a.placement.lean ?? 0))), lp = positionGeometry.add(vec3(lean.x, 0, lean.y).mul(positionGeometry.y)), up = clamp(lp.y.div(Hk), 0, 1);   // each leans its own way
-      // the wind: the crown sways, the foot stays (the push grows with height squared), a slow sway of its own; and the
-      // needles' brushes flutter, quicker and wider the harder it blows
+      // the wind: the crown sways, the foot stays (the push grows with height squared), a slow sway of its own (hardly any
+      // in a calm); and its sprigs swing in the wind, each as one from its foot, its tip most (a card's corners share its
+      // plane, cn: one phase a card; uv.y: 0 at its foot), quicker and wider the harder it blows. In a calm they are still
       const push = windAt(A.xy), ws = windStrength;
-      const kk = push.mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(U.uTime.mul(0.9).add(B.y)), cos(U.uTime.mul(0.7).add(B.y))).mul(up.mul(up).mul(0.05).mul(s)));
-      const flutter = sin(U.uTime.mul(ws.mul(8).add(2.5)).add(lp.x.mul(1.9)).add(lp.z.mul(2.3)).add(lp.y.mul(1.3)).add(B.y)).mul(ws.mul(0.09).add(0.015)).mul(part).mul(F.flutter);
-      const w = vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(kk.x.add(push.x.mul(flutter)), flutter.mul(0.4), kk.y.add(push.y.mul(flutter)))).toVar();
+      const kk = push.mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(U.uTime.mul(0.9).add(B.y)), cos(U.uTime.mul(0.7).add(B.y))).mul(up.mul(up).mul(ws.mul(0.05).add(0.008)).mul(s)));
+      const cardN = attribute('cn', 'vec3'), flutter = sin(U.uTime.mul(ws.mul(5).add(1.6)).add(cardN.dot(vec3(12.9, 78.2, 37.7))).add(B.y)).mul(ws.mul(0.14)).mul(part).mul(attribute('uv', 'vec2').y).mul(F.flutter);
+      const w = vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(kk.x.add(windDir.x.mul(flutter)), flutter.mul(0.4), kk.y.add(windDir.y.mul(flutter)))).toVar();
       vUv.assign(attribute('uv', 'vec2')); vPart.assign(part);
       const side = floor(B.w.mul(0.5)); vKeep.assign(vec2(B.w.sub(side.mul(2)), side));
       const toEye = U.uCam.sub(w), far = length(toEye), V = toEye.div(max(far, 1e-3));

@@ -50,9 +50,11 @@ const layers = () => [...BODIES, ...skyHooks()].sort((a, b) => (a.order ?? 50) -
 function dome(camera) {
   const vDir = varying(positionGeometry);
   // drawn after the land, on the far plane, with the depth test: only where nothing stands is the sky worked out (drawn
-  // first under everything, its clouds were worked out for every pixel the land then covered)
+  // first under everything, its clouds were worked out for every pixel the land then covered). On the far plane to the
+  // last bit of a float (0.9999999): a hair nearer (0.99999) it stood before all land farther than ten kilometres,
+  // and from high up the land ended there in a ragged edge
   const mat = new THREE.NodeMaterial(); mat.side = THREE.BackSide; mat.depthWrite = false; mat.depthTest = true;
-  mat.vertexNode = Fn(() => { const c = cameraProjectionMatrix.mul(cameraViewMatrix).mul(modelWorldMatrix.mul(vec4(positionGeometry, 1))); return vec4(c.xy, c.w.mul(0.99999), c.w); })();
+  mat.vertexNode = Fn(() => { const c = cameraProjectionMatrix.mul(cameraViewMatrix).mul(modelWorldMatrix.mul(vec4(positionGeometry, 1))); return vec4(c.xy, c.w.mul(0.9999999), c.w); })();
   mat.fragmentNode = Fn(() => {
     const v = normalize(vDir), y = v.y;
     const col = mix(D.horizon, D.zenith, pow(max(y, 0), 0.55)).toVar();                                   // the sky from the horizon up
