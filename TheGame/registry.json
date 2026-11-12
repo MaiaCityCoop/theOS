@@ -10,7 +10,7 @@
     "type": "asset",
     "name": "Boulders",
     "file": "assets/boulder.js",
-    "version": "fc214cb548270f0f35148b35ffbcde1de1af5ede55a07102c9bce6fe376647aa",
+    "version": "7be3a5d88239b60a58aa03be2dd6617af22a0ba6712cfeb3e5661de5e87e3c62",
     "uses": [
       "506c509b-300d-42eb-8403-f3969b06b271"
     ]
@@ -19,7 +19,7 @@
     "type": "asset",
     "name": "Stones",
     "file": "assets/stone.js",
-    "version": "d68fbfc95a7b8404eafad3348148cb303b269b0fa5c56c10cd00d0d859b59dcf",
+    "version": "99f907b3219d5607d141cc5bd108877e7706ea67f61420a6fa2be7d5b8065f74",
     "uses": [
       "f4a707ab-dcac-4c3a-a4d6-7a929d0e945e"
     ]
@@ -28,7 +28,7 @@
     "type": "biome",
     "name": "Cut bank",
     "file": "biomes/cutbank.js",
-    "version": "4157039fa781bec97c4c838c59ff3f3ee9f887487c50b96191d172be323e27e8",
+    "version": "11d681344be226a0d0baf035eb267c45ea1d04fef925583399d0fec427e8e0d4",
     "uses": [
       "082f0183-5d92-4ac8-821c-14408d3ee056"
     ]
@@ -37,7 +37,7 @@
     "type": "biome",
     "name": "Dry land",
     "file": "biomes/dryland.js",
-    "version": "62bb90acec5dc7fa2c81282d0a91475e935292498eaffd6ee6043c05bd51f18d",
+    "version": "a4baad879ce148134b5b11337b290854e60ef9227f7d33af0a9c5f1d3de13698",
     "uses": [
       "082f0183-5d92-4ac8-821c-14408d3ee056",
       "2f329f07-d2ba-4dc8-a6e3-73053c65e10f"
@@ -47,7 +47,7 @@
     "type": "biome",
     "name": "Gravel bar",
     "file": "biomes/gravelbar.js",
-    "version": "0bf7e7781a77d327050908541d509495522d0e5d5f1b3d80a4a1da6f868a2a1d",
+    "version": "eda7174977c144b8fbfa877c45756e8e65fe6f20dfe8453bb269282663b1248b",
     "uses": [
       "0db6a039-9f7f-4a58-8137-c3348dfb922e"
     ]
@@ -56,7 +56,7 @@
     "type": "biome",
     "name": "Meadow",
     "file": "biomes/meadow.js",
-    "version": "88dce8f81267e0e0010356684137af1b9b8368069362b0aa46f1167ecff85d96",
+    "version": "eedd172a115cfc0ec1d783b07b2b2275bce080619073705f697f4144fea14597",
     "uses": [
       "0db6a039-9f7f-4a58-8137-c3348dfb922e",
       "506c509b-300d-42eb-8403-f3969b06b271",
@@ -68,7 +68,7 @@
     "type": "biome",
     "name": "River",
     "file": "biomes/river.js",
-    "version": "15fe9ac83bfe91ac093978ca2fe8a6d17c5505355220af8147db4c54b8e819a3",
+    "version": "73c3ffcbe5550d5eaf36367b7e3476fe40ffccbc90c60f128ea0819f3d50faf8",
     "uses": [
       "83e8d1fa-61a3-41fc-a9f1-882ab8be9fbc"
     ]
@@ -77,7 +77,7 @@
     "type": "biome",
     "name": "Riverbank",
     "file": "biomes/riverbank.js",
-    "version": "5bb3c03d23af2e1fcbe7537cf0149912be9a49ac686d0d35060c44e29f9fb5c3",
+    "version": "68aac0bc68caeb6744a48a92b30d0bcd3b968108ecf29b58f0ae2fe1b2521ec2",
     "uses": [
       "2f329f07-d2ba-4dc8-a6e3-73053c65e10f"
     ]
@@ -86,63 +86,63 @@
     "type": "material",
     "name": "Dry earth",
     "file": "materials/dryearth.js",
-    "version": "faf843f801e617b4ab3b5886016d94bab60682da864d971fca94ca363ba76e36",
+    "version": "78a9a56fae770ca49f0bf95fec2b81a65d9a6f8e082f8b22401975df6ffd4ddc",
     "uses": []
   },
   "9c444204-47c9-4a6f-bfe3-ba8ab5c8e1c4": {
     "type": "material",
     "name": "Grass, from afar",
     "file": "materials/grasscarpet.js",
-    "version": "222df0b5f9fa05978001dce7d16fe01bd607dddb56a83d2ee4d0957e8bd8265e",
+    "version": "c79cc2546341e13899d0e212323361655d21662f72bac0ad8725afb88fa10a8e",
     "uses": []
   },
   "8bb6dc3b-4919-4351-b31d-8e9873ae151c": {
     "type": "material",
     "name": "Land noise",
     "file": "materials/noise.js",
-    "version": "c9f16c2389e7bc4f85295bad47a246ce7f365b7f22af2cd5c2241851a435bb64",
+    "version": "5156044fbd23f694036ee54294321d766cc393377696a3f22ad91145510b242d",
     "uses": []
   },
   "ae3df398-9f52-4a4a-b54f-a2db2eafb0c8": {
     "type": "material",
     "name": "Meadow floor",
     "file": "materials/meadow.js",
-    "version": "253036ce903508b6c7227b8c23570c96a30aa7634623567b445ea0c0e5d16ec6",
+    "version": "83a31b1803d15136a5bc71afd420067fa580ddda5bbec07992c09b3390cf4d7a",
     "uses": []
   },
   "0db6a039-9f7f-4a58-8137-c3348dfb922e": {
     "type": "material",
     "name": "Path",
     "file": "materials/path.js",
-    "version": "9744755ab518719049bbeb1df5a13bb4101b1a16b49e5dfb683f3ebafead0a34",
+    "version": "b8964ef8bb5d21bd46b5efff4150897f2093beae82465cbe24755a361f619231",
     "uses": []
   },
   "f4a707ab-dcac-4c3a-a4d6-7a929d0e945e": {
     "type": "material",
     "name": "Pebble",
     "file": "materials/pebble.js",
-    "version": "39de921f8a3701f253d19212364ecbf8036cdc9c5020cdeda41f6502d5aa48fe",
+    "version": "e4fd3b5d659e43a482f421816d789ada03edc59c542c72f0a2d3438d528ad9c3",
     "uses": []
   },
   "506c509b-300d-42eb-8403-f3969b06b271": {
     "type": "material",
     "name": "Rock",
     "file": "materials/rock.js",
-    "version": "534406c8d44b857fe559cd7b223af9096e30f7c3ad08121c626fddf5d727961c",
+    "version": "8fd03eadadbb6b12825734e95b1f04e510411d67e6d29dd8efbfa09ac92d67ca",
     "uses": []
   },
   "2f329f07-d2ba-4dc8-a6e3-73053c65e10f": {
     "type": "material",
     "name": "Sand",
     "file": "materials/sand.js",
-    "version": "865c0d32dd219a31b7db0ce5af8e1f11c160109d0335485aaf55f99fb429d1e0",
+    "version": "91fc37dce847910f09f9f3e600c65820323774272f5cccc8b2236201876353be",
     "uses": []
   },
   "83e8d1fa-61a3-41fc-a9f1-882ab8be9fbc": {
     "type": "material",
     "name": "Water",
     "file": "materials/water.js",
-    "version": "a8eaccbac8fea4ec70924fa20f8cbe2e5e1971c7aa4133c1397c06a6ce4d434c",
+    "version": "d349f8b646d16853da3ea1dce73ef23f081567c6e004f2029f3e462a542346b8",
     "uses": []
   }
 }

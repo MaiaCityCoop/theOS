@@ -5,7 +5,11 @@
 //   pfbm(uv, per, seed, oct)    its octaves, 0..1
 //   pvor(p, per, seed)          cells: (distance to the nearest point, to the second, the nearest cell's hash)
 //   fibre(q, per, seed)         thin strands
-//   pebbles(uv, per, seed, share)  domes of one size: (height, the pebble's hash)
+//   pridge(uv, per, seed, oct)  ridged octaves (sharp crests), 0..1
+//   warp(uv, per, seed, amt)    a tiling push, to bend what is painted with it (± amt/2 in the noise's own cells)
+//   cracks(uv, per, seed, amt)  cells bent by a warp: (the edge's closeness: 0 on the crack, the cell's hash)
+//   pebbles(uv, per, seed, share, wob)  domes, bent out of round by wob: (height, the pebble's hash, the ground's
+//                               shade round it: 1 where it touches)
 // p, q are vec2 nodes; per a number or [x, y]; seed a whole number.
 import { Fn, float, int, uint, vec2, vec3, floor, fract, length, smoothstep, clamp, sqrt, If } from 'three/tsl';
 import { hashI } from '../core/hash.js';
@@ -39,8 +43,23 @@ export const pvor = (p, per, s) => pvorF(p, per2(per), uint(s));
 
 export const fibre = (q, per, s) => smoothstep(0.66, 0.84, pn(q, per, s));
 
-export function pebbles(uv, per, s, share) {
-  const v = pvor(uv.mul(per), per, s), r = v.z.lessThan(share).select(fract(v.z.mul(37)).mul(0.25).add(0.22), float(0));
+export function pridge(uv, per, s, oct) {
+  let a = 0.5, v = float(0), n = 0, P = per, w = float(1);
+  for (let i = 0; i < oct; i++) { const r = float(1).sub(pn(uv.mul(P), P, s + i).mul(2).sub(1).abs()), k = r.mul(r).mul(w); v = v.add(k.mul(a)); w = clamp(k.mul(1.6), 0.25, 1); n += a; P *= 2; a *= 0.5; }
+  return v.div(n);
+}
+
+export const warp = (uv, per, s, amt) => vec2(pn(uv.mul(per), per, s), pn(uv.mul(per), per, s + 1)).sub(0.5).mul(amt);
+
+export function cracks(uv, per, s, amt) {
+  const v = pvor(uv.mul(per).add(warp(uv, per, s + 40, amt)), per, s);
+  return vec2(v.y.sub(v.x), v.z);
+}
+
+export function pebbles(uv, per, s, share, wob = 0) {
+  const q = wob ? uv.mul(per).add(warp(uv, per * 2, s + 50, wob)) : uv.mul(per);
+  const v = pvor(q, per, s), r = v.z.lessThan(share).select(fract(v.z.mul(37)).mul(0.25).add(0.22), float(0));
   const t = clamp(float(1).sub(v.x.div(r.max(1e-4))), 0, 1);
-  return vec2(r.greaterThan(0).select(sqrt(t.mul(float(2).sub(t))), float(0)), v.z);
+  const shade = r.greaterThan(0).select(smoothstep(r.mul(1.7), r.mul(0.9), v.x), float(0));
+  return vec3(r.greaterThan(0).select(sqrt(t.mul(float(2).sub(t))), float(0)), v.z, shade);
 }
