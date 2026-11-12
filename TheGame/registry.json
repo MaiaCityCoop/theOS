@@ -19,9 +19,11 @@
     "type": "asset",
     "name": "Stone pine",
     "file": "assets/stonepine.js",
-    "version": "03db275d632e389c83b2b7b1cc44cb6b1089c1ac73b84b22b7c85813ced22e4a",
+    "version": "334a7d82fb8a0cac417feae5ed4d36c3d46a065fb3a051a2c22957399b74b6d6",
     "uses": [
-      "170e8df4-254e-4df2-95e2-c584380cf14b"
+      "170e8df4-254e-4df2-95e2-c584380cf14b",
+      "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
+      "f0cd9e72-612d-4f2e-9790-0ef5f7257742"
     ]
   },
   "62b01bbe-c92c-4181-b774-45a6af054b12": {
@@ -149,11 +151,25 @@
     "version": "e4fd3b5d659e43a482f421816d789ada03edc59c542c72f0a2d3438d528ad9c3",
     "uses": []
   },
+  "bf97f33b-56bd-4df4-89ba-949e77ce8c27": {
+    "type": "material",
+    "name": "Pine bark",
+    "file": "materials/pinebark.js",
+    "version": "496e3c85cec534f1dfb1b6e43173192e4740bd2921a201d008760548bd2d64d7",
+    "uses": []
+  },
   "795da1c3-9cfe-4c4e-88c7-a58ce86444d4": {
     "type": "material",
     "name": "Pine needles",
     "file": "materials/pineneedles.js",
     "version": "c0038f903054d9d725da629ed6b6b16955b8ebfc37b946211677e01137044add",
+    "uses": []
+  },
+  "f0cd9e72-612d-4f2e-9790-0ef5f7257742": {
+    "type": "material",
+    "name": "Pine tuft",
+    "file": "materials/pinetuft.js",
+    "version": "abe9b699027b9194d9a5f9f7b2279623c84410e59655b1d12eb331fc399aa2d9",
     "uses": []
   },
   "e1da2cdc-1305-4266-b1db-8c0ca473f438": {

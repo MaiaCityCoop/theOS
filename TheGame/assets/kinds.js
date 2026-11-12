@@ -18,7 +18,7 @@
 //             (0..1, light shining through a thin one when the sun is behind it) }
 export default {
   default: { px: [200, 60, 20, 6], fade: 0.15, impostor: { px: 1.5, views: 8 }, solid: { box: true }, casts: true, snow: { clumps: 0.08 } },
-  tree: { px: [150, 40, 10], fade: 0.15, impostor: false, solid: { post: 0.03 }, casts: true, snow: { clumps: 0.3 }, wind: { sway: 0.35 } },   // a 12 m pine: its finest to about 70 m, the last to about a kilometre; then its biome's canopy colours the land
+  tree: { px: [260, 75, 14], fade: 0.15, impostor: false, solid: { post: 0.03 }, casts: true, snow: { clumps: 0.3 }, wind: { sway: 0.35 } },   // a 12 m pine: its finest to about 70 m, the last to about a kilometre; then its biome's canopy colours the land
   rock: { px: [60, 15, 6, 3], fade: 0.15, solid: { post: 0.4 }, casts: true, snow: { clumps: 0.05 } },   // stone holds it evenly, a little drifted          // a rock of a metre leaves its finest level 10 m away
   shelter: { px: [170, 45, 15, 5], fade: 0.15, impostor: { px: 1.5, views: 8 }, casts: true, wind: { billow: 0.09, flap: 0.025 }, surface: { wrap: 0.35, through: 0.45 }, snow: { clumps: 0.22 } },   // canvas: snow slides off it in sheets, clumps hold   // canvas: soft, and thin enough to glow   // a tent of nine metres: its finest to 30 m, a card from a kilometre to three and a half
 };

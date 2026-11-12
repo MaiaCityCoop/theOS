@@ -51,35 +51,45 @@ function treeIn(c, row, Lv, band, biome) {
   return { alive: alive.greaterThan(0.5), data: [A, B] };
 }
 
-// the tree's material: shape(A, B) its vertex from what treeIn packed, swayed by the wind; lit like any asset, its crown
-// rounded as one dome (a parasol of needles takes the light as a whole, not facet by facet)
-function treeMaterial(row) {
-  const a = row.asset, H = a.size.height, sway = (a.wind ?? KINDS[a.kind]?.wind)?.sway ?? 0, cr = a.crown;
+// the tree's material: shape(A, B) its vertex from what treeIn packed, swayed by the wind; its wood wrapped in its bark,
+// its needles cut out of the painted tuft (also in the shadow map: the shadow under a pine is dappled), lit through
+// when the sun is behind them, and rounded over the crown as one dome (a crown of a thousand cards takes the light as a
+// whole, not card by card); `ao` the light that reaches into the crown (assets/stonepine.js)
+function treeMaterial(tex, row) {
+  const a = row.asset, H = a.size.height, sway = (a.wind ?? KINDS[a.kind]?.wind)?.sway ?? 0, cr = a.crown, M = a.materials || {};
   return () => {
-    const vWorld = varyingProperty('vec3', 'tWorld'), vN = varyingProperty('vec3', 'tN'), vCol = varyingProperty('vec3', 'tCol'), vKeep = varyingProperty('vec2', 'tKeep'), vAo = varyingProperty('float', 'tAo');
+    const vWorld = varyingProperty('vec3', 'tWorld'), vN = varyingProperty('vec3', 'tN'), vUv = varyingProperty('vec2', 'tUv'), vKeep = varyingProperty('vec2', 'tKeep');
+    const vAo = varyingProperty('float', 'tAo'), vPart = varyingProperty('float', 'tPart'), vShade = varyingProperty('float', 'tShade');
+    const part = attribute('part', 'float'), ao = attribute('ao', 'float');
     const shape = (A, B) => {
       const s = A.w, cs = cos(B.x), sn = sin(B.x), turn = (v) => vec3(v.x.mul(cs).sub(v.z.mul(sn)), v.y, v.x.mul(sn).add(v.z.mul(cs)));
       const lean = vec2(cos(B.y), sin(B.y)).mul(B.z.sub(0.5).mul(2 * (a.placement.lean ?? 0))), lp = positionGeometry.add(vec3(lean.x, 0, lean.y).mul(positionGeometry.y)), up = clamp(lp.y.div(H), 0, 1);   // each leans its own way
-      // the wind: the crown sways, the foot stays (the push grows with height squared), and a slow sway of its own
-      const k = windAt(A.xy).mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(U.uTime.mul(0.9).add(B.y)), cos(U.uTime.mul(0.7).add(B.y))).mul(up.mul(up).mul(0.05).mul(s)));
-      const w = vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(k.x, 0, k.y));
+      // the wind: the crown sways, the foot stays (the push grows with height squared), a slow sway of its own; and the
+      // needles' brushes flutter, quicker and wider the harder it blows
+      const push = windAt(A.xy), ws = U.uWind.z;
+      const k = push.mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(U.uTime.mul(0.9).add(B.y)), cos(U.uTime.mul(0.7).add(B.y))).mul(up.mul(up).mul(0.05).mul(s)));
+      const flutter = sin(U.uTime.mul(ws.mul(8).add(2.5)).add(lp.x.mul(1.9)).add(lp.z.mul(2.3)).add(lp.y.mul(1.3)).add(B.y)).mul(ws.mul(0.09).add(0.015)).mul(part);
+      const w = vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(k.x.add(push.x.mul(flutter)), flutter.mul(0.4), k.y.add(push.y.mul(flutter))));
       let n = turn(attribute('normal', 'vec3'));
-      if (cr) {
-        const inCrown = smoothstep(cr[1] - 2.2, cr[1] - 1.2, lp.y), dome = turn(lp.sub(vec3(cr[0], cr[1] - 1.5, cr[2])).mul(vec3(1, 2.6, 1)));
-        n = mix(n, normalize(dome), inCrown.mul(0.7));
-        vAo.assign(mix(0.55, 1, smoothstep(cr[1] - 2.5, cr[1] - 1.2, lp.y)));   // the trunk under the crown in its shade
-      } else vAo.assign(1);
-      vN.assign(normalize(n)); vWorld.assign(w); vCol.assign(attribute('color', 'vec3').mul(B.z.mul(0.3).add(0.85)));
+      if (cr) n = mix(n, normalize(turn(lp.sub(vec3(cr[0], cr[1] - 1.6, cr[2])).mul(vec3(1, 2.4, 1)))), part.mul(0.78));   // the needles take the crown's dome
+      vN.assign(normalize(n)); vWorld.assign(w); vUv.assign(attribute('uv', 'vec2')); vAo.assign(ao); vPart.assign(part); vShade.assign(B.z.mul(0.24).add(0.88));
       const side = floor(B.w.mul(0.5)); vKeep.assign(vec2(B.w.sub(side.mul(2)), side));
       return clipOf(w);
     };
     const frag = Fn(() => {
       If(detailCut(vKeep), () => { Discard(); });
+      const leaf = vPart.greaterThan(0.5), T = vec4(0).toVar();
+      // the needles' outline: cut where the tuft is not; far off its mips thin it out, so the cut lowers
+      If(leaf, () => { T.assign(tex.a(M.needles, vUv)); If(T.a.lessThan(mix(0.5, 0.28, smoothstep(25, 220, length(U.uCam.sub(vWorld))))), () => { Discard(); }); });
       const out = vec4(0).toVar();
-      If(unlit().not(), () => {   // drawn into the shadow map: only its depth counts
-        const nw = normalize(vN), n = nw.dot(U.uCam.sub(vWorld)).lessThan(0).select(nw.negate(), nw);
-        const ndl = n.dot(U.uSunDir).add(0.3).div(1.3).max(0);   // needles take the light round their edge
-        const col = weathered(vCol, n, snowLift(vWorld, row.snow?.clumps ?? 0.3)).mul(skyLight(n).mul(vAo).add(U.uSun.mul(cloudAt(vWorld)).mul(ndl).mul(vAo.mul(0.4).add(0.6))));
+      If(unlit().not(), () => {   // drawn into the shadow map: only its depth (and its cut-out) counts
+        const nw = normalize(vN), V = normalize(U.uCam.sub(vWorld)), n = nw.dot(V).lessThan(0).select(nw.negate(), nw);
+        const albedo = vec3(0).toVar();   // its bark (darker in its fissures) or its needles: only the one it is read
+        If(leaf, () => { albedo.assign(T.rgb.mul(T.rgb).mul(vShade)); }).Else(() => { const W = tex.a(M.wood, vUv); albedo.assign(W.rgb.mul(W.rgb).mul(mix(0.55, 1, W.a))); });
+        const ndl = leaf.select(n.dot(U.uSunDir).add(0.45).div(1.45), n.dot(U.uSunDir)).max(0);   // needles take the light round their edge
+        const through = leaf.select(pow(max(V.negate().dot(U.uSunDir), 0), 3).mul(0.55), float(0));   // the sun behind a brush of needles shines through it
+        const sun = U.uSun.mul(cloudAt(vWorld));
+        const col = weathered(albedo, n, snowLift(vWorld, row.snow?.clumps ?? 0.3)).mul(skyLight(n).mul(vAo).add(sun.mul(ndl.add(through)).mul(vAo.mul(0.6).add(0.4))));
         out.assign(finish(col, vWorld));
       });
       return out;
@@ -91,7 +101,7 @@ function treeMaterial(row) {
 
 /** The assets of kind `tree`: a tier per level of detail, each where a tree of it is the size on screen its kind asks. */
 export function createTrees(scene, tex, ground, row, gpu = false) {
-  const a = row.asset, P = a.placement, biome = recipe(P.biome), H = a.size.height, tiers = [], make = treeMaterial(row);
+  const a = row.asset, P = a.placement, biome = recipe(P.biome), H = a.size.height, tiers = [], make = treeMaterial(tex, row);
   if (!biome) return tiers;
   for (const Lv of row.detail.levels.filter((l) => !l.impostor)) {
     const g = geometryOf(a, Lv); g.setIndex([...Array(g.attributes.position.count).keys()]);   // (a tier's draw counts indices)
@@ -108,8 +118,18 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
       t.near = Number.isFinite(Lv.hi) ? (H * P.scale[0] * K) / (Lv.hi * e) : 0; t.far = (H * P.scale[1] * K * e) / Lv.lo;
       band.near.value = t.near > 0 ? t.near : -1; band.far.value = t.far;
     };
-    t.band(); if (row.detail.casts && t.near < 250) t.mesh.layers.enable(1); tiers.push(t);   // trees cast shadows, as drawn (src/world/shadow.js); the far level not: the shadow map does not reach it
+    t.band(); if (row.detail.casts && Lv.i === 0) t.mesh.layers.enable(1); tiers.push(t);   // the near trees cast shadows, as drawn (src/world/shadow.js); further off a crown of cut-out cards drawn twice costs more than its shadow shows
   }
   addEventListener('resize', () => tiers.forEach((t) => t.band()));
   return tiers;
+}
+
+/** One tree on its own, in the trees' own material (its bark, its needles, its wind), for the asset library's stage and
+    list: level `level`, its foot at (x, y, z), scale s. */
+export function treeSample(tex, row, level = 0, x = 0, y = 0, z = 0, s = 1) {
+  const g = geometryOf(row.asset, row.detail.levels[Math.min(level, row.detail.levels.length - 1)]);
+  const { m, shape } = treeMaterial(tex, row)();
+  m.vertexNode = Fn(() => shape(vec4(x, z, y, s), vec4(0.4, 1.3, 0.5, 1)))();   // turned a little, its own shade, the whole of its level
+  const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = 1; mesh.layers.enable(1);
+  return mesh;
 }

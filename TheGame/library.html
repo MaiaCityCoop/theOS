@@ -69,6 +69,7 @@ import { recipes, manifest } from './src/core/registry.js';
 import { BIOMES, BASE } from './src/world/biomes.js';
 import { place } from './src/world/place.js';
 import { rockSample } from './src/scatter/rocks.js';
+import { treeSample } from './src/scatter/trees.js';
 import { detailOf, spanOf, distanceAt, most } from './src/detail/index.js';
 import { poseAt, heightFor } from './src/camera/rig.js';
 import { STAGE } from './src/world/places.js';
@@ -119,6 +120,11 @@ for (const b of document.querySelectorAll('.item[data-biome]')) {   // a biome's
   materialThumb(window.__s8.renderer, tex, BIOME[b.dataset.biome].floor.material, b.querySelector('canvas'));
   b.onclick = () => chooseBiome(b.dataset.biome);
 }
+// a tree's picture: its nearest level in its own material, whole
+function treeThumb(a, canvas) {
+  const h = most(a.size.height);
+  sceneThumb(window.__s8.renderer, [treeSample(tex, scatterRow(a), 0)], canvas, [h * 1.1, h * 0.7, h * 1.5], [0, h * 0.5, 0]);
+}
 // a scattered rock's picture: the largest of its kind in the world's own material (its look: pebble or rock, its moss), as on the stage
 function rockThumb(a, canvas) {
   const s = most(a.size.length), m = rockSample(tex, scatterRow(a), a.detail.levels[0].rock, 0); m.scale.set(s, s * 0.8, s);
@@ -126,7 +132,7 @@ function rockThumb(a, canvas) {
 }
 for (const b of document.querySelectorAll('.item[data-id]')) {
   const a = ASSETS[b.dataset.id];
-  if (rocky(a)) rockThumb(a, b.querySelector('canvas')); else assetThumb(a, b.querySelector('canvas'));
+  if (rocky(a)) rockThumb(a, b.querySelector('canvas')); else if (a.placement.engine === 'trees') treeThumb(a, b.querySelector('canvas')); else assetThumb(a, b.querySelector('canvas'));
   b.onclick = () => choose(b.dataset.id);
 }
 
@@ -144,6 +150,8 @@ function stageAsset(a) {
       m.scale.set(s, s * 0.8, s); m.renderOrder = 1; m.position.set(x, heightAt(x, z) - s * 0.25, z); m.rotation.y = t * 1.7; staged.add(m);   // drawn after the ground, as the world's own things are
     }
     scene.add(staged);
+  } else if (a.placement.engine === 'trees') {   // a tree: one, at the level being looked at, in the trees' own material
+    staged = treeSample(tex, scatterRow(a), lodAt ?? 0, STAGE.x, heightAt(STAGE.x, STAGE.z) - 0.1, STAGE.z, 1); scene.add(staged);
   } else staged = place(scene, a, { x: STAGE.x, z: STAGE.z, yaw: 0.6, solid: false });
   drawBody(a);
 }

@@ -352,6 +352,27 @@ shadows and the grass.
 - **Broke / not there yet:** not checked in Samuel's own Safari; a walker passes through trees (no solid yet); the
   crowns are low-poly up close; one tree species so far.
 
+### 2026-11-12, one realistic tree (afternoon)
+
+- **Asked:** a real tree, with branches and needles and proper levels of detail, not blocks: ten times the realism; this
+  one pine first, made perfect, one species.
+- **Found:** a crown of cut-out cards turns off the GPU's early depth test and is drawn again for the shadow map; the
+  middle level, drawn for hundreds of trees, cost most. The first seconds after loading are slower while the trees'
+  pipelines compile; timed after them, WebKit holds 60 fps.
+- **Delivered:** the stone pine built as a mesh per level (assets/stonepine.js): a flared, bending trunk, shed-limb
+  stubs, three limbs forking into branches and twigs (tubes carried along their curves without twisting, wrapped in
+  bark a whole number of times round), and at the twigs' ends crossed cards of needle brushes, about 1600 of them near,
+  a dense flat-topped dome; light reaching into the crown baked per vertex (ao). Pine bark (materials/pinebark.js: tall
+  reddish plates, grey fissures of changing width, flaking layers) and the pine tuft (materials/pinetuft.js: a twig with
+  eight brushes of paired needles, its height the cut-out). The trees' shader: bark on the wood, needles cut out (in the
+  shadow map too: a dappled shadow), lit through from behind, rounded over the crown's dome, brushes fluttering with the
+  wind; only the texture its part needs is read. Levels: near to about 40 m (11 000 triangles), middle to about 180 m
+  (fewer, larger brushes), far to about a kilometre (a few big ones), then the canopy colour; only the near ones cast.
+  geometryOf takes a mesh; the library stages and pictures a tree in its own material (treeSample).
+- **Good:** WebKit 1000×560 at 16.7 ms a frame among the pines, standing, walking, running, and in snow and snowfall.
+- **Broke / not there yet:** a few slow seconds after loading while the trees compile; a card's flat side shows at a
+  grazing angle; not checked in Samuel's own Safari; a walker passes through trunks.
+
 ## Trail
 
 | When | Commit | What |
@@ -386,4 +407,5 @@ shadows and the grass.
 | 2026-11-12 | `338f9d6` | Clouds: one cumulus layer that drifts with the wind, in the sky and as shadows on all below |
 | 2026-11-12 | `9ffe337` | Clouds without a repeat; their shadow from a map drawn once a frame; snow's pattern from the baked tile; this record |
 | 2026-11-12 | `b9aabb0` | Deeper cloud shadows, softer clouds; falling snow with its own slider; tools/shots.js |
-| 2026-11-12 | (this commit) | Smooth far river edges, no grid in the far meadow; the stone pine, its forest biome and the trees' engine |
+| 2026-11-12 | `832d280` | Smooth far river edges, no grid in the far meadow; the stone pine, its forest biome and the trees' engine |
+| 2026-11-12 | (this commit) | The stone pine made real: branches, twigs, needle brushes, bark, three levels |
