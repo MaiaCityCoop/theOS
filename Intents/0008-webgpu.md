@@ -312,6 +312,21 @@ shadows and the grass.
   from high up over the pale dry land; low evening clouds stretch overhead; no falling snow; the ground's stones are
   still flat texture up close (parallax set aside, "good enough").
 
+### 2026-11-12, the open points (late morning)
+
+- **Asked:** clouds as a weather slider too; how the clouds' repeat was broken up; and solve the open points.
+- **Found:** the Clouds row was already there (Time, Wind, Snow, Clouds). The cloud shadows were right but weak from
+  high up (haze, pale dry land); a cloud also hides part of the sky's light. The evening's streaks went with the old
+  field. A plain geometry with an instanceCount draws one instance on WebGPU: an instanced one is needed. TSL's mod
+  keeps the sign. The lenses page holds a still: its picture does not change with the weather until the camera moves.
+- **Delivered:** cloud shadows deeper (0.9) and the sky's light under a cloud dimmer on the ground; cloud edges softer
+  with fewer flecks. Falling snow (world/snowfall.js, src/world/snowfall.js): up to 40 000 flakes in an 18 m box of air
+  that follows the camera, falling, carried by the wind, fluttering, never smaller than a pixel or two, thickening the
+  air; its own Snowfall row in the weather panel and `snowfall` per film shot. tools/shots.js for stills.
+- **Good:** WebKit 1000×560 at 16.7 ms a frame with heavy snowfall, 25 cm of snow and overcast; clear to scattered too.
+- **Broke / not there yet:** not checked in Samuel's own Safari; the far land's blocky river edges and the far grass's
+  repeat are still there (the land map, next); no forest yet.
+
 ## Trail
 
 | When | Commit | What |
@@ -344,4 +359,5 @@ shadows and the grass.
 | 2026-11-12 | `86d5ad8` | Snow round the tent: on its roof in clumps, none under it, grass bowed and pale under deep snow |
 | 2026-11-12 | `e6918d9` | Snow per asset from its config: kinds.js snow { clumps }, an asset's own roofed |
 | 2026-11-12 | `338f9d6` | Clouds: one cumulus layer that drifts with the wind, in the sky and as shadows on all below |
-| 2026-11-12 | (this commit) | Clouds without a repeat; their shadow from a map drawn once a frame; snow's pattern from the baked tile; this record |
+| 2026-11-12 | `9ffe337` | Clouds without a repeat; their shadow from a map drawn once a frame; snow's pattern from the baked tile; this record |
+| 2026-11-12 | (this commit) | Deeper cloud shadows, softer clouds; falling snow with its own slider; tools/shots.js |

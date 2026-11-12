@@ -20,6 +20,7 @@ export const U = {
   uAirH: uniform(0), uAirScale: uniform(1200),     // the height fog: the camera's height above the ground, the air's thinning
   uExposure: uniform(1),                           // the picture's exposure (the sky sets it by the hour)
   uSnow: uniform(0),                               // how deep the snow lies, metres (src/world/snow.js)
+  uSnowFall: uniform(0),                           // how much snow is falling, 0 … 1 (src/world/snowfall.js)
   tShadow: texture(placeholder), uShadowM: uniform(new THREE.Matrix4()), uShadowOn: uniform(0), uShadowTexel: uniform(1 / 2048), uShadowPass: uniform(0),   // the shadow map (src/world/shadow.js)
   uSky: uniform(v3(0.4, 0.55, 0.7)), uHaze: uniform(1 / 6500), uHazeCol: uniform(v3(0.6, 0.7, 0.8)),
 };

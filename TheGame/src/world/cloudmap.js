@@ -17,6 +17,7 @@ export function createCloudMap(renderer) {
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); quad.frustumCulled = false;
   U.tCloudMap.value = rt.texture;
   return {
+    rt,
     /** Draw this frame's map: centred where the sun's line from the ground under the camera meets the layer. */
     render(camera, groundY) {
       if (U.uClouds.value < 0.005) return;   // no clouds: nothing reads it

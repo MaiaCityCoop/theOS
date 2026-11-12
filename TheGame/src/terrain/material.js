@@ -7,7 +7,7 @@ import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProper
 import { U } from '../core/uniforms.js';
 import { int } from 'three/tsl';
 import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, roofAt, BASE, LAID } from '../world/land.nodes.js';
-import { finish, skyLight, weathered, cloudAt, snowCover, snowDrift, SNOW } from '../world/light.js';
+import { finish, skyLight, weathered, cloudAt, cloudShade, snowCover, snowDrift, SNOW } from '../world/light.js';
 import noise from '../../materials/noise.js';
 
 export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
@@ -130,7 +130,7 @@ export function terrainMaterial(tex) {
     // relief: hollows sit in shade, crowns in light; slopes facing the sun lit harder than the plain normal says
     const relief = mix(0.74, 1.1, smoothstep(-6, 16, vHill));
     const s0 = max(n.dot(U.uSunDir), 0), sunl = mix(s0, smoothstep(0.55, 0.95, s0), smoothstep(60, 600, dist2).mul(0.5));
-    const col = weathered(mix(M.c.mul(mix(1, 0.5, wet)).mul(macro).mul(cav), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).mul(skyLight(n).add(U.uSun.mul(cloudAt(vWorld)).mul(sunl)));
+    const col = weathered(mix(M.c.mul(mix(1, 0.5, wet)).mul(macro).mul(cav), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).mul(skyLight(n).mul(cloudShade(vWorld).mul(0.3).add(0.7)).add(U.uSun.mul(cloudAt(vWorld)).mul(sunl)));   // under a cloud the sky is dimmer too
     const V = normalize(U.uCam.sub(vWorld));
     return finish(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), vWorld);
   });

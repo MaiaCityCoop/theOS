@@ -33,6 +33,7 @@ import { createPost } from './camera/post.js';
 import { createSky } from './world/sky.js';
 import { createWind } from './world/wind.js';
 import { createSnow } from './world/snow.js';
+import { createSnowfall } from './world/snowfall.js';
 import { createClouds } from './world/clouds.js';
 import { createCloudMap } from './world/cloudmap.js';
 import { useCloudTexture } from './world/light.js';
@@ -83,8 +84,9 @@ const controls = createControls(camera, canvas, document.getElementById('msg'), 
 const sky = createSky(scene, camera, renderer);
 const wind = createWind();   // which way the air moves and how hard: the grass and the water follow (world/wind.js)
 stats.snow = createSnow();   // how deep the snow lies (world/light.js: snowCover)
+stats.snowfall = createSnowfall(scene);   // and the snow falling round the camera
 const clouds = (stats.clouds = createClouds());   // the cloud layer: in the sky, and its shadow on all below
-const cloudMap = createCloudMap(renderer);   // its shadow, drawn once a frame for every surface to read
+const cloudMap = (stats.cloudMap = createCloudMap(renderer));   // its shadow, drawn once a frame for every surface to read
 stats.wind = wind;   // the sun and the sky: one time of day drives the light (intent 0007)
 stats.sky = sky;
 const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)

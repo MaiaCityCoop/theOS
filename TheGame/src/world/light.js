@@ -106,14 +106,14 @@ const cover = (n, soft) => { const th = mix(0.8, 0, U.uClouds); return smoothste
 export const cloudField = (xz, detail = false) => {
   const C = cloudUV(xz);
   let n = mix(cloudTex.a(cloudMat, C.a).r, cloudTex.a(cloudMat, C.b).r, 0.45).add(C.region);
-  if (detail) n = n.add(cloudTex.a(cloudMat, C.a.mul(3.7).add(0.31)).g.sub(0.5).mul(0.22));   // close up, the billows fray the edge
-  return cover(n, [0.1, 0.22]);
+  if (detail) n = n.add(cloudTex.a(cloudMat, C.a.mul(3.7).add(0.31)).g.sub(0.5).mul(0.12));   // close up, the billows fray the edge (a little: more breaks a cloud into flecks)
+  return cover(n, [0.14, 0.26]);
 };
 /** the clouds' shadow at a point q of their layer (1: none): the field from a small mip of the tile, a shadow being soft and
     wide; what src/world/cloudmap.js draws into its map once a frame */
 export const cloudLayerShade = (q) => {
   const C = cloudUV(q), n = mix(cloudTex.a(cloudMat, C.a).level(4).r, cloudTex.a(cloudMat, C.b).level(4).r, 0.45).add(C.region);
-  return float(1).sub(cover(n, [0.14, 0.24]).mul(0.82));
+  return float(1).sub(cover(n, [0.14, 0.24]).mul(0.9));
 };
 /** the clouds' shadow at w: the layer looked up along the way to the sun, read from the map drawn this frame round the
     camera (uCloudMap: its corner, its size; one fetch); beyond it the clouds' mean */
