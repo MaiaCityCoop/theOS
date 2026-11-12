@@ -19,7 +19,7 @@
     "type": "asset",
     "name": "Stones",
     "file": "assets/stone.js",
-    "version": "67a7c82ea544d99733f6b3de91908ba5fdfc3ed891dea7c0f7e299a46b3f76aa",
+    "version": "d68fbfc95a7b8404eafad3348148cb303b269b0fa5c56c10cd00d0d859b59dcf",
     "uses": [
       "f4a707ab-dcac-4c3a-a4d6-7a929d0e945e"
     ]

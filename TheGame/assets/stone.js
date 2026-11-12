@@ -13,6 +13,6 @@ export default {
   look: { material: 'f4a707ab-dcac-4c3a-a4d6-7a929d0e945e' /* pebble */, moss: 0.12, relief: 0.6, tint: [0.92, 0.9, 0.87], cuts: 0.3, smooth: 0.85 },
   // rock: how often its icosphere is divided (2 round, 0 a rough twenty-sided stone); P: cells per patch side
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, rock (assets/kinds.js)
-  detail: { levels: [{ rock: 2, P: 8 }, { rock: 1, P: 16 }, { rock: 0, P: 32 }] },
+  detail: { levels: [{ rock: 2, P: 8 }, { rock: 1, P: 16 }, { rock: 0, P: 32 }], casts: false },   // too small for a shadow worth drawing them twice
   placement: { at: 'scatter', engine: 'rocks', cell: 2.2, outcrops: false, texture: 1.1, shapes: 1, seed: 200 },
 };

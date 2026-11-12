@@ -35,8 +35,9 @@ export function createShadows(renderer) {
       off.set(-(snap.x - Math.round(snap.x / texel) * texel), -(snap.y - Math.round(snap.y / texel) * texel), 0).applyQuaternion(cam.quaternion);
       cam.position.add(off); cam.updateMatrixWorld();
       const rt = rts[turn], prev = renderer.getRenderTarget(), a = renderer.getClearAlpha(); renderer.getClearColor(c);
-      U.uShadowOn.value = 0;   // the casters need no shadow of their own while they are drawn
+      U.uShadowOn.value = 0; U.uShadowPass.value = 1;   // the casters need no light of their own while they are drawn: only their depth (light.js: unlit)
       renderer.setRenderTarget(rt); renderer.render(scene, cam); renderer.setRenderTarget(prev); renderer.setClearColor(c, a);
+      U.uShadowPass.value = 0;
       U.tShadow.value = rt.depthTexture; turn ^= 1;
       U.uShadowM.value.multiplyMatrices(toMap, cam.projectionMatrix).multiply(cam.matrixWorldInverse);
       U.uShadowTexel.value = 1 / S; U.uShadowOn.value = 1;

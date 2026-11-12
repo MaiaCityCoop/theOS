@@ -4,7 +4,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec3, vec4, uniform, varying, attribute, positionLocal, positionWorld, normalLocal, normalWorld, modelWorldMatrix, modelWorldMatrixInverse, frontFacing, normalize, max, length, smoothstep, sin, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { haze, toScreen, weathered, cloudAt, detailCut, windAt } from './light.js';
+import { finish, skyLight, weathered, cloudAt, detailCut, windAt, unlit } from './light.js';
 import { heightAt } from './land.js';
 import { addSolid } from './solids.js';
 import { detailOf, Detailed, most } from '../detail/index.js';
@@ -35,9 +35,13 @@ export function assetMaterial(asset) {
   const sway = asset && swayOf(asset); if (sway) m.positionNode = sway;
   m.fragmentNode = Fn(() => {
     If(detailCut(keep), () => { Discard(); });
-    const n = normalize(frontFacing.select(normalWorld, normalWorld.negate())), ndl = max(n.dot(U.uSunDir), 0);
-    const col = weathered(vCol, n).mul(U.uAmb.add(U.uSun.mul(cloudAt(positionWorld)).mul(ndl.mul(0.8).add(0.2))));
-    return toScreen(haze(col, length(U.uCam.sub(positionWorld))));
+    const out = vec4(0).toVar();
+    If(unlit().not(), () => {   // drawn into the shadow map, only its depth counts: no light
+      const n = normalize(frontFacing.select(normalWorld, normalWorld.negate())), ndl = max(n.dot(U.uSunDir), 0);
+      const col = weathered(vCol, n).mul(skyLight(n).add(U.uSun.mul(cloudAt(positionWorld)).mul(ndl.mul(0.8).add(0.2))));
+        out.assign(finish(col, positionWorld));
+    });
+    return out;
   })();
   return m;
 }

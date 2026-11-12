@@ -6,13 +6,14 @@ import { createRocks } from './rocks.js';
 
 const KINDS = { grass: createGrass, rocks: createRocks };
 
-export function createScatter(scene, tex, ground) {
+export function createScatter(scene, tex, ground, renderer) {
+  const gpu = !!renderer?.backend?.isWebGPUBackend;   // compute-packed tiers where WebGPU is (tier.js)
   const tiers = [];
-  for (const asset of ASSETS) for (const t of KINDS[asset.kind](scene, tex, ground, asset)) { t.asset = asset.name; tiers.push(t); }
+  for (const asset of ASSETS) for (const t of KINDS[asset.kind](scene, tex, ground, asset, gpu)) { t.asset = asset.name; tiers.push(t); }
   return {
     tiers,
     /** Choose, for this frame, the patches each tier draws (after the frustum's planes are set: core/frustum.js). */
-    select(cx, cz, h0, lod, dy) { for (let i = 0; i < tiers.length; i++) tiers[i].select(cx, cz, h0, lod, dy); },
+    select(cx, cz, h0, lod, dy) { for (let i = 0; i < tiers.length; i++) tiers[i].select(cx, cz, h0, lod, dy); for (const t of tiers) t.run(renderer); },
     get over() { for (let i = 0; i < tiers.length; i++) if (tiers[i].over) return true; return false; },
     get instances() { let n = 0; for (const t of tiers) n += t.geometry.instanceCount; return n; },
     warm() { for (const t of tiers) t.warm(); },

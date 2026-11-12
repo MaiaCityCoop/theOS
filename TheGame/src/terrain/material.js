@@ -7,7 +7,7 @@ import { Fn, float, vec2, vec3, attribute, positionGeometry, varying, dFdx, dFdy
 import { U } from '../core/uniforms.js';
 import { int } from 'three/tsl';
 import { camDist, riverInfo, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, BASE } from '../world/land.nodes.js';
-import { haze, toScreen, weathered, cloudAt } from '../world/light.js';
+import { finish, skyLight, weathered, cloudAt } from '../world/light.js';
 import noise from '../../materials/noise.js';
 
 export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
@@ -105,9 +105,9 @@ export function terrainMaterial(tex) {
     // relief: hollows sit in shade, crowns in light; slopes facing the sun lit harder than the plain normal says
     const relief = mix(0.74, 1.1, smoothstep(-6, 16, vHill));
     const s0 = max(n.dot(U.uSunDir), 0), sunl = mix(s0, smoothstep(0.55, 0.95, s0), smoothstep(60, 600, dist2).mul(0.5));
-    const col = weathered(M.c.mul(mix(1, 0.5, wet)).mul(macro).mul(relief), n).mul(U.uAmb.add(U.uSun.mul(cloudAt(vWorld)).mul(sunl)));
+    const col = weathered(M.c.mul(mix(1, 0.5, wet)).mul(macro).mul(relief), n).mul(skyLight(n).add(U.uSun.mul(cloudAt(vWorld)).mul(sunl)));
     const V = normalize(U.uCam.sub(vWorld));
-    return toScreen(haze(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), rdist));
+    return finish(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), vWorld);
   });
 
   const m = new THREE.NodeMaterial(); m.positionNode = world; m.fragmentNode = frag();

@@ -36,7 +36,8 @@ import { useGround } from './world/rocksolid.js';
 
 const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
-const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, powerPreference: 'high-performance', forceWebGL: new URLSearchParams(location.search).has('webgl') });
+const params = new URLSearchParams(location.search);
+const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, powerPreference: 'high-performance', forceWebGL: params.has('webgl'), trackTimestamp: params.has('gputime') });   // ?gputime: the GPU's own time per pass (tools/bench.js)
 await renderer.init();
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // every material makes its colours for the screen itself (toScreen)
 renderer.setSize(innerWidth, innerHeight, false);
@@ -67,7 +68,7 @@ useGround(ground);   // the rocks' bodies read their stones from it
 stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage things (the library)
 const terrain = createTerrain(scene, tex);
 stats.terrain = terrain;
-const scatter = createScatter(scene, tex, ground);
+const scatter = createScatter(scene, tex, ground, renderer);
 stats.scatter = scatter;   // for timings and pages that look at it
 for (const at of Object.values(PLACES)) place(scene, recipe(at.asset), at);   // what stands at a named place, from the asset library
 const controls = createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat'));

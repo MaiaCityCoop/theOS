@@ -5,7 +5,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, int, vec2, vec3, vec4, varying, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, sqrt, floor, uint, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { riverInfo, riverRaw, riverCarve, riverBank, baseB, rnd, WATER_DROP_N } from '../world/land.nodes.js';
-import { haze, toScreen, cloudAt } from '../world/light.js';
+import { finish, cloudAt } from '../world/light.js';
 import { gridPoint } from './material.js';
 import { WATER } from '../world/biomes.js';
 
@@ -53,7 +53,7 @@ export function waterMaterial(tex) {
     const col = mix(col1, vec3(0.5, 0.46, 0.3), specks.mul(0.6));
     const a0 = clamp(depth.mul(1.1).add(0.2), 0, 0.93);
     const a = max(max(a0, fres.mul(0.75)), max(foam, specks.mul(0.6))).mul(smoothstep(-0.04, 0.02, depth));
-    return vec4(toScreen(haze(col, wd)).rgb, a);
+    return vec4(finish(col, vWorld).rgb, a);
   });
 
   const m = new THREE.NodeMaterial();

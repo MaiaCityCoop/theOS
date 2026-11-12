@@ -4,7 +4,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec3, uniform, positionWorld, normalWorld, abs, pow, normalize, max, mix, sign, length } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { haze, toScreen } from '../world/light.js';
+import { finish, skyLight } from '../world/light.js';
 import pathM from '../../materials/path.js';
 import carpetM from '../../materials/grasscarpet.js';
 import sandM from '../../materials/sand.js';
@@ -27,8 +27,8 @@ export function materialPreview(tex, id, tile = 2, own = {}) {
     const rough = nx.a.mul(b.x).add(ny.a.mul(b.y)).add(nz.a.mul(b.z));
     const V = normalize(eye.sub(w)), H = normalize(V.add(U.uSunDir)), ndl = max(bn.dot(U.uSunDir), 0);
     const spec = pow(max(bn.dot(H), 0), mix(60, 6, rough)).mul(float(1).sub(rough)).mul(0.5);
-    const col = a.mul(a).mul(tint).mul(U.uAmb.add(U.uSun.mul(ndl.mul(0.85).add(0.15)))).add(U.uSun.mul(spec).mul(ndl));
-    return toScreen(haze(col, length(eye.sub(w))));
+    const col = a.mul(a).mul(tint).mul(skyLight(bn).add(U.uSun.mul(ndl.mul(0.85).add(0.15)))).add(U.uSun.mul(spec).mul(ndl));
+    return finish(col, w, eye);
   })();
   return m;
 }

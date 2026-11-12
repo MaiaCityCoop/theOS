@@ -12,7 +12,7 @@
 export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 16 } = {}) {
   const REF = 1 / Math.tan((refFov * Math.PI) / 360);
   const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2), DPR_MIN = Math.min(1, DPR_MAX);   // under 1 the picture only blurs
-  let dpr = Math.min(DPR_MAX, 1.5), resize = false, ceiling = DPR_MAX, ceilingAt = 0;
+  let dpr = DPR_MIN, resize = false, ceiling = DPR_MAX, ceilingAt = 0;
   let cap = startCap, zoom = 1, lod = 1, ema = 16.7, calm = 0, at = 0;
   let held = false, hot = 0, downAt = -1e9;   // a film playing: no turning of the dials, so its frames come out even (it plays the same every time, too)
   renderer.setPixelRatio(dpr);
