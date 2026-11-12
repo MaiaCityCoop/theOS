@@ -820,6 +820,24 @@ shadows and the grass.
 - **Broke / not there yet:** not judged in motion by me. The trees' coarser levels still stretch their tufts (seen
   from 35 m on, far less plain). His walk in the wood ran 50 to 57 fps while he recorded it.
 
+### 2026-11-12, a bush's body at every level (18:20)
+
+- **Asked:** walking forward, bushes still pop one after another out of thin air: the levels' whole design is not well
+  chosen.
+- **Found:** checked first that no bush in view is missing from the level that should draw it (a check written for
+  it: every bush round the camera against every level's packing; none missing in view, standing still). So it is the
+  levels themselves: a level was only fewer, larger cards. At 70 to 200 m a bush was five or six cards one sees
+  through, at 16 to 70 m a third of its sprigs: it thickened threefold at 70 m and again at 18. That is a bush coming
+  out of thin air, however smoothly each sprig grows.
+- **Delivered:** the kit's `core`: a plant that says it carries one solid body (its far body, 0.62 of its size, dark as
+  a bush's own shade) inside its sprigs at every level but its nearest. Its mass and outline are there from where it
+  rises out of the ground; a level only refines the sprigs standing out of it. The mastic and the rockrose have it;
+  the bracken, a fern, has not.
+- **Good:** no errors in WebKit; his game tab loaded it in Safari. Stills: bushes far off read as solid as near.
+- **Broke / not there yet:** not judged in motion by me; this is the fourth change against the same complaint, each
+  from a cause I could reason out, not from seeing what he sees. The shrubs 143 to 159 thousand triangles in a forest
+  view. The bracken still thins with distance.
+
 ## Trail
 
 | When | Commit | What |
@@ -885,3 +903,4 @@ shadows and the grass.
 | 2026-11-12 | `bdefbaf` | A stand changes level as one; a bush's in-between level; the stand's colour on the land early |
 | 2026-11-12 | `45da420` | A bush the same at every level: sprigs shared between levels swell in place |
 | 2026-11-12 | `41413bd` | A bush's coarser levels repeat the sprig, leaves their own size |
+| 2026-11-12 | `cb35ec5` | A bush's solid body at every level but its nearest |
