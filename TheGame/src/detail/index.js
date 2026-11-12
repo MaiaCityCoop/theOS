@@ -9,7 +9,8 @@ import * as THREE from 'three/webgpu';
 import { U } from '../core/uniforms.js';
 import KINDS from '../../assets/kinds.js';
 
-const most = (v) => (Array.isArray(v) ? v[1] : v);
+/** the larger end of a size that varies ([min, max]), or the size */
+export const most = (v) => (Array.isArray(v) ? v[1] : v);
 /** The asset's largest side in metres: what its size on screen is measured by. */
 export const spanOf = (a) => Math.max(most(a.size.length), most(a.size.width ?? 0), most(a.size.height ?? 0));
 

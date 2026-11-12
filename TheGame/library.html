@@ -69,7 +69,7 @@ import { recipes, manifest } from './src/core/registry.js';
 import { BIOMES, BASE } from './src/world/biomes.js';
 import { place } from './src/world/place.js';
 import { rockSample } from './src/scatter/rocks.js';
-import { detailOf, spanOf, distanceAt } from './src/detail/index.js';
+import { detailOf, spanOf, distanceAt, most } from './src/detail/index.js';
 import { poseAt, heightFor } from './src/camera/rig.js';
 import { STAGE } from './src/world/places.js';
 import { heightAt } from './src/world/land.js';
@@ -79,7 +79,7 @@ const hex = (c) => '#' + c.map((v) => Math.round(Math.min(1, v) * 255).toString(
 // every recipe from the registry, by its uid (src/core/registry.js)
 const byUid = (list) => Object.fromEntries(list.map((r) => [r.uid, r]));
 const ASSETS = byUid(recipes('asset')), MATERIALS = recipes('material'), MATERIAL = byUid(MATERIALS), BIOME = byUid(BIOMES);
-const ids = Object.keys(ASSETS), most = (v) => (Array.isArray(v) ? v[1] : v);
+const ids = Object.keys(ASSETS);
 // a card's pieces, as brand.css sets them (.g-card): a header, figures, a label over each value, chips, the file's line
 const num = (v) => +(+v).toFixed(2), cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const head = (what, kind, name, about) => `<header><span class="g-label">${what} · ${kind}</span><h2 class="g-title big">${name}</h2><p class="g-text">${about || ''}</p></header>`;

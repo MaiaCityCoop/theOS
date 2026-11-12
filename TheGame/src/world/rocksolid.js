@@ -3,11 +3,10 @@
 // are stopped by the rocks they see, with no list of thousands kept. The stone chance a stone's cell is drawn with comes
 // from the ground pass itself, read back to the CPU (src/scatter/ground.js: at): every biome's stones, the paths, the
 // tent's clear floor, exactly as drawn. The boulders (outcrops) need only the land's own functions.
-import { cellRnd as rnd, riverAt, outcropAt } from './land.js';
+import { cellRnd as rnd, riverAt, outcropAt, sstep } from './land.js';
 import { recipes } from '../core/registry.js';
 
 const STEP_OVER = 0.3;   // a rock whose top is lower than this is stepped over
-const sstep = (a, b, x) => { let t = (x - a) / (b - a); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
 let ground = null;
 /** The ground pass to read the stones' chance from (src/main.js gives it). */
 export const useGround = (g) => (ground = g);

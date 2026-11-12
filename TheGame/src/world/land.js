@@ -15,7 +15,7 @@ function hashI(x, y, s) {
   return h >>> 0;
 }
 const rnd = (x, y, s) => (hashI(x, y, s) >>> 8) / 16777216;
-const sstep = (a, b, x) => { let t = (x - a) / (b - a); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
+export const sstep = (a, b, x) => { let t = (x - a) / (b - a); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
 
 let gx = 0, gy = 0; // noised's gradient
 function noised(px, py, s) {

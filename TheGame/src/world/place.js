@@ -7,12 +7,11 @@ import { U } from '../core/uniforms.js';
 import { haze, toScreen, weathered, cloudAt, detailCut, windAt } from './light.js';
 import { heightAt } from './land.js';
 import { addSolid } from './solids.js';
-import { detailOf, Detailed } from '../detail/index.js';
+import { detailOf, Detailed, most } from '../detail/index.js';
 import { impostorOf } from '../detail/impostor.js';
 import { geometryOf, solidOf } from '../../assets/index.js';
 import KINDS from '../../assets/kinds.js';
 
-const most = (v) => (Array.isArray(v) ? v[1] : v);
 /** How an asset moves in the wind: its own `wind` block, else its kind's (assets/kinds.js); null: it does not move. */
 export const windOf = (asset) => asset.wind ?? KINDS[asset.kind]?.wind ?? null;
 

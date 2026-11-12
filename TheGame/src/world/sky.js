@@ -9,6 +9,7 @@ import SKY from '../../world/sky.js';
 import { U } from '../core/uniforms.js';
 import { toScreen } from './light.js';
 import { createDial } from '../core/dial.js';
+import { load, save } from '../core/store.js';
 
 const RAD = Math.PI / 180;
 
@@ -66,8 +67,7 @@ function dome(camera) {
 }
 
 export function createSky(scene, camera, renderer) {
-  const keep = (k, v) => { try { localStorage.setItem('maia.sky.' + k, JSON.stringify(v)); } catch {} };
-  const kept = (k, d) => { try { const v = JSON.parse(localStorage.getItem('maia.sky.' + k)); return v ?? d; } catch { return d; } };
+  const keep = (k, v) => save('sky.' + k, v), kept = (k, d) => load('sky.' + k, d);
   let hour = kept('hour', SKY.hour), auto = kept('auto', SKY.auto), shown = -1;
   scene.add(dome(camera));
   const v3 = (u, a) => u.value.set(a[0], a[1], a[2]);

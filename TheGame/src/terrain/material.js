@@ -6,7 +6,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, attribute, positionGeometry, varying, dFdx, dFdy, If, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { int } from 'three/tsl';
-import { camDist, riverInfo, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTintAB, vnoise, placeOff, stageAt, biomesAt, BASE } from '../world/land.nodes.js';
+import { camDist, riverInfo, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, BASE } from '../world/land.nodes.js';
 import { haze, toScreen, weathered, cloudAt } from '../world/light.js';
 import noise from '../../materials/noise.js';
 
@@ -45,7 +45,7 @@ export function terrainMaterial(tex) {
     const nz = (q) => tex.a(noise, q);
     const macro = nz(prr.mul(1 / 97).add(0.37)).b.sub(0.5).mul(0.16).add(nz(pr.mul(1 / 700)).a.sub(0.5).mul(0.2)).add(nz(p.mul(1 / 4500).add(0.11)).r.sub(0.5).mul(0.18)).add(1);
     const d = abs(vI.x), w = vI.y, b = vI.z, L = biomesAt({ p, dist: dist2, d, w, b });   // every biome's share here
-    const tint = grassTintAB(clamp(nz(p.mul(1 / 150)).r.add(nz(pr.mul(1 / 397)).a).sub(1).mul(0.8).add(0.5), 0, 1), nz(pr.mul(1 / 45)).g, L.dry);
+    const tint = grassTint(tex, p, L.dry);
     // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up
     const g1 = tex.a(carpet, p.div(1.6)), g2 = tex.a(carpet, pr.div(9.6)), g3 = tex.a(carpet, prr.div(57));
     const gn1 = tex.n(carpet, p.div(1.6)), gn2 = tex.n(carpet, pr.div(9.6));
