@@ -715,6 +715,26 @@ shadows and the grass.
   floor; the game took 18 s to load once in my test browser while other pages shared the GPU (6 to 9 s alone before
   the shrubs): not measured alone since.
 
+### 2026-11-12, ragged bushes; the start back to five seconds (16:05)
+
+- **Asked:** the bushes more natural (ragged, merging); the start at five seconds at most, 60 fps still the hard gate.
+- **Found:** the start had grown to 8.5 to 9.9 s from the address to the first frame (6.4 to 7.2 s of it the game's own):
+  0.6 s baking the textures, 2.4 to 3.2 s the scatter's packing shaders on their first run (36 tiers, 75 to 135 ms
+  each: twice as many as in the morning, by the far levels and the shrubs), 2.2 to 3.1 s compiling 146 draw shaders
+  (one a shape a tier), some 2 s loading modules. Two tiers whose shader text is the same cost the GPU one compile.
+- **Delivered:** a bush is several heaps beside one another with shoots standing out (the kit's `mound`: `lobes`,
+  `ragged`), wider, so neighbours run together; the bracken a colony. One material for every shape of a tier (which
+  shape, it learns per mesh), and a level's numbers as uniforms in the draw shader and the packing shader: the draw
+  shaders' compile 2.2 s to 1.0. A shrub's farthest is its body alone (three tiers a kind, not four). Marks for where
+  the start's time goes (`__s8.boot`).
+- **Good:** in WebKit, the machine quiet: 5.0 to 5.3 s from the address to the first frame, 3.5 s of it the game's own
+  (bake 0.5, packing shaders 1.9, draw shaders 1.0). No errors on the library, a film, the game.
+- **Broke / not there yet:** not seen in Samuel's Safari: his display was asleep, a page there draws nothing. The
+  packing shaders are still 1.9 s: uniforms did not make the GPU share them (three keeps a pipeline a tier), and
+  three's `compileComputeAsync` was several times slower here; fewer tiers (one a stand, not one a kind) is the next
+  step. Frame time with the fuller bushes not measured (the GPU shared at the time); counted before the heaps: 33 to
+  46 thousand triangles of shrubs in a forest view.
+
 ## Trail
 
 | When | Commit | What |
@@ -774,3 +794,4 @@ shadows and the grass.
 | 2026-11-12 | `4ddb352` | The biomes' outlines bent off the noise's grid; held at the tent; the same in JS |
 | 2026-11-12 | `aaf4dca` | Undergrowth: the kind shrub, the understory stand, mastic, rockrose, bracken |
 | 2026-11-12 | `254e700` | The understory after a real wood: thickets, placed by the light; a fern's frond and a rockrose's sprig |
+| 2026-11-12 | `1610cf4` | Bushes in heaps, ragged; one material a tier, levels as uniforms: the start from 8.5 to 5 s |
