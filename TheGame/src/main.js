@@ -132,9 +132,8 @@ function frame(now) {
   renderer.info.reset();
   governor.begin();
   const c0 = performance.now();
-  choose(Math.min(ms, 100) / 1000);
-  hud.cpu(performance.now() - c0);
-  const d0 = performance.now(); draw(); parts.draw = performance.now() - d0;
+  // (a film's footage fills the picture, cine/media.js: the world under it is neither chosen nor drawn, the GPU is the video's)
+  if (!stats.covered) { choose(Math.min(ms, 100) / 1000); hud.cpu(performance.now() - c0); const d0 = performance.now(); draw(); parts.draw = performance.now() - d0; }
   governor.end(ms, now, scatter.over);
   hitch(ms, now);
   hud.frame(ms, now, controls.band !== 'eye' ? `  ${controls.band} ${Math.round(controls.height)} m` : '');

@@ -1,0 +1,756 @@
+{
+ "schema": "scene/1",
+ "id": "test-gate",
+ "title": "Test gate: one tent on a green meadow",
+ "format": "16:9",
+ "fps": 60,
+ "source": {
+  "note": "The first film made in the game (the story of intent 0001, once told as day 2): a test of the camera, the captions and the timeline. A scene now, no story.",
+  "preview": {
+   "pos": [
+    -1246.6,
+    16,
+    611
+   ],
+   "look": [
+    -1271.6,
+    -6.8,
+    636
+   ],
+   "mm": 28
+  }
+ },
+ "tracks": [
+  {
+   "id": "shots",
+   "kind": "shots",
+   "clips": [
+    {
+     "id": "s1",
+     "name": "From the sky",
+     "at": 0,
+     "duration": 7.5,
+     "frame": "0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+     "transition": "cut",
+     "camera": "Opens out of the sky and tilts down: first the horizon, then the river the film will follow. Leaves moving.",
+     "world": {
+      "keys": [
+       {
+        "pos": [
+         -1387.9,
+         90.36,
+         95.68
+        ],
+        "look": [
+         -1323.89,
+         54.3,
+         520.06
+        ],
+        "mm": 28
+       },
+       {
+        "pos": [
+         -1380.72,
+         65.19,
+         155.24
+        ],
+        "look": [
+         -1350.25,
+         -5.24,
+         413.43
+        ],
+        "mm": 28
+       },
+       {
+        "pos": [
+         -1372.34,
+         33.08,
+         224.74
+        ],
+        "look": [
+         -1358.06,
+         -5.09,
+         347.91
+        ],
+        "mm": 28
+       }
+      ],
+      "ease": "in",
+      "kind": "wide",
+      "act": "arrive",
+      "hour": 16,
+      "in": "dip",
+      "inSecs": 1.6
+     }
+    },
+    {
+     "id": "s2",
+     "name": "Down the river",
+     "at": 7.5,
+     "duration": 11.6,
+     "frame": "7c3e5a126ff046cd12f123e1dfd9002936a4084abf900a19a3e237ff838ca000",
+     "transition": "cut",
+     "camera": "Cut on motion, and on contrast: from high and slow to low and fast along the same line. Rises and slows over the place we stop at.",
+     "world": {
+      "keys": [
+       {
+        "pos": [
+         -1362.76,
+         -2.82,
+         304.16
+        ],
+        "look": [
+         -1355.81,
+         -4.63,
+         369.79
+        ],
+        "mm": 28,
+        "roll": 5.592234515803358
+       },
+       {
+        "pos": [
+         -1357.89,
+         -2.77,
+         325.77
+        ],
+        "look": [
+         -1353.29,
+         -4.51,
+         391.65
+        ],
+        "mm": 28,
+        "roll": 5.001135847541248
+       },
+       {
+        "pos": [
+         -1354.7,
+         -2.54,
+         347.57
+        ],
+        "look": [
+         -1350.25,
+         -4.4,
+         413.43
+        ],
+        "mm": 28,
+        "roll": 1.6749407507795255
+       },
+       {
+        "pos": [
+         -1353.54,
+         -2.12,
+         369.55
+        ],
+        "look": [
+         -1346.47,
+         -4.31,
+         435.09
+        ],
+        "mm": 28,
+        "roll": -1.9913419948268378
+       },
+       {
+        "pos": [
+         -1353.49,
+         -1.53,
+         391.67
+        ],
+        "look": [
+         -1341.85,
+         -4.22,
+         456.59
+        ],
+        "mm": 28,
+        "roll": -3.8064082955580645
+       },
+       {
+        "pos": [
+         -1352.62,
+         -0.77,
+         413.8
+        ],
+        "look": [
+         -1336.42,
+         -4.15,
+         477.9
+        ],
+        "mm": 28,
+        "roll": -3.0920912950205355
+       },
+       {
+        "pos": [
+         -1348.59,
+         0.15,
+         435.5
+        ],
+        "look": [
+         -1330.35,
+         -4.09,
+         499.04
+        ],
+        "mm": 28,
+        "roll": -0.8382464945967751
+       },
+       {
+        "pos": [
+         -1343.1,
+         1.24,
+         456.88
+        ],
+        "look": [
+         -1323.89,
+         -4.04,
+         520.06
+        ],
+        "mm": 28,
+        "roll": 1.2352833778465222
+       },
+       {
+        "pos": [
+         -1336.2,
+         2.5,
+         477.83
+        ],
+        "look": [
+         -1317.3,
+         -4,
+         541.05
+        ],
+        "mm": 28,
+        "roll": 1.9358393440629733
+       },
+       {
+        "pos": [
+         -1328.81,
+         3.92,
+         498.57
+        ],
+        "look": [
+         -1310.79,
+         -3.97,
+         562.07
+        ],
+        "mm": 28,
+        "roll": 1.2818983621324207
+       },
+       {
+        "pos": [
+         -1321.98,
+         5.52,
+         519.47
+        ],
+        "look": [
+         -1304.69,
+         -3.95,
+         583.19
+        ],
+        "mm": 28,
+        "roll": 0.2228899141002476
+       },
+       {
+        "pos": [
+         -1316.17,
+         7.29,
+         540.7
+        ],
+        "look": [
+         -1299.79,
+         -3.94,
+         604.6
+        ],
+        "mm": 28,
+        "roll": -0.272010555444685
+       },
+       {
+        "pos": [
+         -1311.13,
+         9.23,
+         562.17
+        ],
+        "look": [
+         -1296.61,
+         -3.94,
+         626.31
+        ],
+        "mm": 28,
+        "roll": 0
+       }
+      ],
+      "ease": "out",
+      "kind": "drone",
+      "act": "arrive",
+      "hour": 16.4,
+      "in": "cut"
+     }
+    },
+    {
+     "id": "s3",
+     "name": "The river going by",
+     "at": 19.1,
+     "duration": 5.6,
+     "frame": "be12ee494adffe3a78ee167855793d9b52a14bda5f955801238073940ceb0ca8",
+     "transition": "cut",
+     "camera": "Dissolve: the flight has come to rest, time passes, we are standing on the bank. Travel keeps the flight's direction; the look turns across the water.",
+     "world": {
+      "keys": [
+       {
+        "pos": [
+         -1292.87,
+         -4.05,
+         574.9
+        ],
+        "look": [
+         -1316.1,
+         -4.83,
+         585.18
+        ],
+        "mm": 40
+       },
+       {
+        "pos": [
+         -1291.08,
+         -4.16,
+         581.67
+        ],
+        "look": [
+         -1314.31,
+         -4.95,
+         591.94
+        ],
+        "mm": 40
+       }
+      ],
+      "ease": "in",
+      "kind": "medium",
+      "act": "look",
+      "hour": 16.8,
+      "in": "dissolve",
+      "inSecs": 1.2
+     }
+    },
+    {
+     "id": "s4",
+     "name": "Where the water meets the sand",
+     "at": 24.7,
+     "duration": 5.7,
+     "frame": "a3924d14ab6191df2cc7fd27a3841a96e3bd678b0084c276d3f8af8be7b28e7e",
+     "transition": "cut",
+     "camera": "A cut in on the same axis, on the move: same look across, same direction of travel, 35 to 85 mm. Comes to rest on the waterline.",
+     "world": {
+      "keys": [
+       {
+        "pos": [
+         -1294.53,
+         -5.48,
+         583.2
+        ],
+        "look": [
+         -1294.59,
+         -6.21,
+         589.31
+        ],
+        "mm": 100
+       },
+       {
+        "pos": [
+         -1293.87,
+         -5.56,
+         585.71
+        ],
+        "look": [
+         -1294.08,
+         -6.22,
+         591.25
+        ],
+        "mm": 100
+       }
+      ],
+      "ease": "out",
+      "kind": "close",
+      "act": "look",
+      "hour": 16.9,
+      "in": "cut"
+     }
+    },
+    {
+     "id": "s5",
+     "name": "Among the blades",
+     "at": 30.4,
+     "duration": 6.2,
+     "frame": "c18f267d6be22c641ae38300486dc1211dbeac8587370c2367d7c68b84be7f8e",
+     "transition": "cut",
+     "camera": "Dissolve to the other thing the land is made of. Contrast: the longest lens to the widest, eye in the grass. Pushes on and tilts up to the sky.",
+     "world": {
+      "keys": [
+       {
+        "pos": [
+         -1263.84,
+         -6.63,
+         619.93
+        ],
+        "look": [
+         -1262.92,
+         -6.02,
+         628.88
+        ],
+        "mm": 28,
+        "roll": 9
+       },
+       {
+        "pos": [
+         -1263.53,
+         -6.57,
+         622.92
+        ],
+        "look": [
+         -1262.71,
+         -4.54,
+         630.87
+        ],
+        "mm": 28,
+        "roll": 4
+       },
+       {
+        "pos": [
+         -1263.29,
+         -6.37,
+         625.3
+        ],
+        "look": [
+         -1262.82,
+         2.07,
+         629.88
+        ],
+        "mm": 28,
+        "roll": 0
+       }
+      ],
+      "ease": "in",
+      "kind": "low angle",
+      "act": "look",
+      "hour": 17,
+      "in": "dissolve",
+      "inSecs": 1.2
+     }
+    },
+    {
+     "id": "s6",
+     "name": "Lifting off",
+     "at": 36.6,
+     "duration": 7.5,
+     "frame": "4cfdf3d00654753f2777bc03e47e2027e3e347f6d03a8b9506c665b71dddfc14",
+     "transition": "cut",
+     "camera": "Cut on motion: the tilt up becomes a climb, from the same spot. The view turns over and the river slides into frame; slows at the top.",
+     "world": {
+      "keys": [
+       {
+        "pos": [
+         -1263.29,
+         2.13,
+         625.3
+        ],
+        "look": [
+         -1263.2,
+         -6.88,
+         626.1
+        ],
+        "mm": 35,
+        "roll": 0
+       },
+       {
+        "pos": [
+         -1263.29,
+         31.13,
+         625.3
+        ],
+        "look": [
+         -1275.12,
+         -6.25,
+         627.52
+        ],
+        "mm": 35,
+        "roll": 12
+       },
+       {
+        "pos": [
+         -1263.29,
+         75.13,
+         625.3
+        ],
+        "look": [
+         -1291.82,
+         -7.5,
+         628.83
+        ],
+        "mm": 35,
+        "roll": 22
+       }
+      ],
+      "ease": "out",
+      "kind": "top down",
+      "act": "leave",
+      "hour": 17.2,
+      "in": "cut"
+     }
+    },
+    {
+     "id": "s7",
+     "name": "Back to the water",
+     "at": 44.1,
+     "duration": 5.8,
+     "frame": "938973df5ae29bc10bf49039965a52b9b86c7ecadbe672973f7affa54a2e33e3",
+     "transition": "cut",
+     "camera": "Dissolve from the height back to the ground, further on: low over the meadow, gathering speed towards the river.",
+     "world": {
+      "keys": [
+       {
+        "pos": [
+         -1216.44,
+         -11.41,
+         691.95
+        ],
+        "look": [
+         -1302.29,
+         -6.51,
+         711.6
+        ],
+        "mm": 60
+       },
+       {
+        "pos": [
+         -1272.03,
+         -6,
+         696.54
+        ],
+        "look": [
+         -1304.68,
+         -6.59,
+         725.39
+        ],
+        "mm": 60
+       }
+      ],
+      "ease": "in",
+      "kind": "glide",
+      "act": "leave",
+      "hour": 17.5,
+      "in": "dissolve",
+      "inSecs": 1.4
+     }
+    },
+    {
+     "id": "s8",
+     "name": "Leaving",
+     "at": 49.9,
+     "duration": 9.3,
+     "frame": "41424ab50f4bcb1e3206986c601bd1ba5f08e89b53154c286a7f3a52741b4880",
+     "transition": "cut",
+     "camera": "Cut on motion: the glide carries over the bank and up. The opening run backwards: river, then land, then sky; widens to 28 mm, comes to rest, fades to the sky.",
+     "world": {
+      "keys": [
+       {
+        "pos": [
+         -1282.74,
+         -5.03,
+         699.76
+        ],
+        "look": [
+         -1305.71,
+         -6.63,
+         731.3
+        ],
+        "mm": 40
+       },
+       {
+        "pos": [
+         -1301.27,
+         2.03,
+         705.68
+        ],
+        "look": [
+         -1317.3,
+         -5.21,
+         755.07
+        ],
+        "mm": 35
+       },
+       {
+        "pos": [
+         -1305.11,
+         33.14,
+         694.87
+        ],
+        "look": [
+         -1330.32,
+         4.61,
+         796.86
+        ],
+        "mm": 28
+       },
+       {
+        "pos": [
+         -1304.85,
+         89.38,
+         660.41
+        ],
+        "look": [
+         -1349.62,
+         61.99,
+         915.3
+        ],
+        "mm": 28
+       }
+      ],
+      "ease": "out",
+      "kind": "crane",
+      "act": "leave",
+      "hour": 17.7,
+      "in": "cut",
+      "out": "dip"
+     }
+    }
+   ]
+  },
+  {
+   "id": "captions",
+   "kind": "captions",
+   "clips": [
+    {
+     "id": "c1",
+     "at": 0.8,
+     "duration": 3.2,
+     "kind": "title",
+     "text": "It all starts with one tent on a green meadow",
+     "over": "Maia City · Day 2"
+    },
+    {
+     "id": "c2",
+     "at": 4.4,
+     "duration": 3.2,
+     "kind": "samuel",
+     "text": "It all starts with a green meadow and one tent."
+    },
+    {
+     "id": "c3",
+     "at": 8,
+     "duration": 2.8,
+     "kind": "maia",
+     "text": "I looked for the meadow. There was none."
+    },
+    {
+     "id": "c4",
+     "at": 11.2,
+     "duration": 2.2,
+     "kind": "samuel",
+     "text": "First we need a world."
+    },
+    {
+     "id": "c5",
+     "at": 13.8,
+     "duration": 2.6,
+     "kind": "maia",
+     "text": "So I made one. Land that never ends, and one river."
+    },
+    {
+     "id": "c6",
+     "at": 16.7,
+     "duration": 2.3,
+     "kind": "maia",
+     "text": "No trees. No sun. No shadows. Not yet."
+    },
+    {
+     "id": "c7",
+     "at": 19.4,
+     "duration": 2.8,
+     "kind": "maia",
+     "text": "My first grass was too slow to walk through."
+    },
+    {
+     "id": "c8",
+     "at": 22.5,
+     "duration": 2,
+     "kind": "maia",
+     "text": "I made it fast."
+    },
+    {
+     "id": "c9",
+     "at": 24.9,
+     "duration": 3.1,
+     "kind": "samuel",
+     "text": "The grass is still super blocky, can you see?"
+    },
+    {
+     "id": "c10",
+     "at": 28.3,
+     "duration": 1.9,
+     "kind": "maia",
+     "text": "You were right. I fixed the wrong thing first."
+    },
+    {
+     "id": "c11",
+     "at": 30.7,
+     "duration": 2.9,
+     "kind": "maia",
+     "text": "Then the meadow was a meadow. And I put up your tent."
+    },
+    {
+     "id": "c12",
+     "at": 33.9,
+     "duration": 2.4,
+     "kind": "maia",
+     "text": "One tent. Nobody in it yet."
+    },
+    {
+     "id": "c13",
+     "at": 36.9,
+     "duration": 4.1,
+     "kind": "samuel",
+     "text": "The vision, the city, the game: everything grows as we do, with citizens."
+    },
+    {
+     "id": "c14",
+     "at": 41.3,
+     "duration": 2.6,
+     "kind": "maia",
+     "text": "Then it grows from here."
+    },
+    {
+     "id": "c15",
+     "at": 44.4,
+     "duration": 2.6,
+     "kind": "maia",
+     "text": "There is no city on this land."
+    },
+    {
+     "id": "c16",
+     "at": 47.3,
+     "duration": 2.4,
+     "kind": "maia",
+     "text": "There is a meadow, a river and a tent."
+    },
+    {
+     "id": "c17",
+     "at": 50.3,
+     "duration": 3.1,
+     "kind": "samuel",
+     "text": "This is day one. Today I am alone."
+    },
+    {
+     "id": "c18",
+     "at": 53.7,
+     "duration": 2.3,
+     "kind": "samuel",
+     "text": "Tomorrow we will see."
+    },
+    {
+     "id": "c19",
+     "at": 56.4,
+     "duration": 2.3,
+     "kind": "maia",
+     "text": "Tomorrow I am here too."
+    }
+   ]
+  }
+ ],
+ "duration": 59.2
+}

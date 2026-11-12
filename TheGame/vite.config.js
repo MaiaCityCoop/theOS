@@ -37,7 +37,7 @@ export default {
         res.setHeader('content-type', 'application/json');
         if (url === '/list') {
           let ids = [];
-          try { ids = readdirSync(dir).filter((d) => existsSync(resolve(dir, d, 'timeline.json'))).sort().map((d) => ({ id: d, title: JSON.parse(readFileSync(resolve(dir, d, 'timeline.json'), 'utf8')).title || d })); } catch {}
+          try { ids = readdirSync(dir).filter((d) => existsSync(resolve(dir, d, 'timeline.json')) || existsSync(resolve(dir, d, 'arc.json'))).sort().map((d) => { const f = ['timeline.json', 'arc.json'].map((n) => resolve(dir, d, n)).find(existsSync), j = JSON.parse(readFileSync(f, 'utf8')); let h = {}; try { h = JSON.parse(readFileSync(resolve(dir, d, 'hook.json'), 'utf8')); } catch {} return { id: d, title: h.title || j.title || d, day: j.day ?? null, inGame: j.inGame ?? null }; }); } catch {}   // (a day's story may stand as an arc alone: its day and its citizens are there)
           res.end(JSON.stringify(ids)); return;
         }
         const m = url.match(/^\/([a-z0-9][a-z0-9-]*)\/timeline\.json$/);

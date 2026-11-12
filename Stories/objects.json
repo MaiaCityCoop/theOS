@@ -1,0 +1,118 @@
+{
+ "0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de": {
+  "type": "image/jpeg",
+  "bytes": 18405
+ },
+ "2cf8dcbc44fd656a9c38f9e0906b0ebcbdf7d565bc9c9edce9076c8d6d1e69b5": {
+  "type": "image/jpeg",
+  "bytes": 149310,
+  "as": "frame",
+  "from": "https://play.maia.city/api/files/"
+ },
+ "2f6240ebb7a7e453647e9d927f85796b521dc68010ff02a3dc0aee67bbeb4d17": {
+  "type": "video/mp4",
+  "bytes": 3953730,
+  "as": "video",
+  "from": "https://play.maia.city/api/files/"
+ },
+ "41424ab50f4bcb1e3206986c601bd1ba5f08e89b53154c286a7f3a52741b4880": {
+  "type": "image/jpeg",
+  "bytes": 18804
+ },
+ "4cfdf3d00654753f2777bc03e47e2027e3e347f6d03a8b9506c665b71dddfc14": {
+  "type": "image/jpeg",
+  "bytes": 18391
+ },
+ "60f8108e10311afcaed7fc12ae1698cc26d672540ceec63b05aad30afb964704": {
+  "type": "video/mp4",
+  "bytes": 4685934,
+  "as": "video",
+  "from": "https://play.maia.city/api/files/"
+ },
+ "65bdff942f80957d1c3865d7a1b2be3bca81e2b65290780fbef96960d73fc388": {
+  "type": "image/jpeg",
+  "bytes": 247769,
+  "as": "frame",
+  "from": "https://play.maia.city/api/files/"
+ },
+ "71d21fc0e88f9585f1551fde94823fd81706be3148b8e0df2eb8668dfc74ed2c": {
+  "type": "audio/mpeg",
+  "bytes": 81546,
+  "as": "audio",
+  "from": "https://play.maia.city/api/files/"
+ },
+ "769f1c20949006e4a36c4e990ae06f7fdc26bfe4ed3f25374d32569404693db6": {
+  "type": "video/mp4",
+  "bytes": 4675389,
+  "as": "video",
+  "from": "https://play.maia.city/api/files/"
+ },
+ "7c3e5a126ff046cd12f123e1dfd9002936a4084abf900a19a3e237ff838ca000": {
+  "type": "image/jpeg",
+  "bytes": 17317
+ },
+ "893eef1d3d12c0c441f774e1751c4182542ad026c7070b394600635dd4193f4a": {
+  "type": "image/jpeg",
+  "bytes": 131106,
+  "as": "frame",
+  "from": "https://play.maia.city/api/files/"
+ },
+ "9115286e1e6eb92759f315a0d54b2a3a751835441e2a2d978eaf7f30b145218a": {
+  "type": "audio/mpeg",
+  "bytes": 302855,
+  "as": "audio",
+  "from": "https://play.maia.city/api/files/"
+ },
+ "938973df5ae29bc10bf49039965a52b9b86c7ecadbe672973f7affa54a2e33e3": {
+  "type": "image/jpeg",
+  "bytes": 14458
+ },
+ "a11ffb2620a8845151dc72b356dcb28404f35c3930ad2539e4d8335d29a5b197": {
+  "type": "image/jpeg",
+  "bytes": 139790,
+  "as": "frame",
+  "from": "https://play.maia.city/api/files/"
+ },
+ "a3924d14ab6191df2cc7fd27a3841a96e3bd678b0084c276d3f8af8be7b28e7e": {
+  "type": "image/jpeg",
+  "bytes": 9299
+ },
+ "ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f": {
+  "type": "image/jpeg",
+  "bytes": 128259,
+  "as": "frame",
+  "from": "https://play.maia.city/api/files/"
+ },
+ "be12ee494adffe3a78ee167855793d9b52a14bda5f955801238073940ceb0ca8": {
+  "type": "image/jpeg",
+  "bytes": 10076
+ },
+ "c18f267d6be22c641ae38300486dc1211dbeac8587370c2367d7c68b84be7f8e": {
+  "type": "image/jpeg",
+  "bytes": 13279
+ },
+ "d43af20b61afc619a9cfce5142a3bc95fc302ef2d034849ff9133a6b756dbdf7": {
+  "type": "audio/mpeg",
+  "bytes": 525418,
+  "as": "audio",
+  "from": "https://play.maia.city/api/files/"
+ },
+ "e2e89f5c6b1367eb52492fa915dcda7c1208747789ad2cac5f20c62d9cc33487": {
+  "type": "image/jpeg",
+  "bytes": 175300,
+  "as": "frame",
+  "from": "https://play.maia.city/api/files/"
+ },
+ "ee6b19779af38a5d95d05f139b78db88f3e93b751bbb4287067fb1216d262ea4": {
+  "type": "image/jpeg",
+  "bytes": 170839,
+  "as": "frame",
+  "from": "https://play.maia.city/api/files/"
+ },
+ "f41695d25b165d21d9b68f4597f11d74954175bf6646cc9fec12ca43d146e953": {
+  "type": "audio/mpeg",
+  "bytes": 73394,
+  "as": "audio",
+  "from": "https://play.maia.city/api/files/"
+ }
+}

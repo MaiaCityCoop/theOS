@@ -1,0 +1,263 @@
+{
+ "schema": "scene/1",
+ "id": "trailer",
+ "title": "This is the story of how one million humans build a hundred times better way of living",
+ "format": "1:1",
+ "fps": 30,
+ "source": {
+  "play": "25fa4cdd-a71a-4d31-aba7-53833b266975",
+  "version": "5a8cd0ad41b79b1f7ec6e8e551f863b4ef4bcef637de30c8321f7e9983f90e57",
+  "number": 31,
+  "files": "https://play.maia.city/api/files/",
+  "note": "Maia City play, the trailer every film linked; its version 31 of 2026-11-05"
+ },
+ "tracks": [
+  {
+   "id": "shots",
+   "kind": "shots",
+   "clips": [
+    {
+     "at": 0,
+     "id": "flyover-dawn",
+     "frame": "ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f",
+     "video": "769f1c20949006e4a36c4e990ae06f7fdc26bfe4ed3f25374d32569404693db6",
+     "camera": "the one continuous drone take: over the mountain crest past the old tree, out of black, the whole city and the river below",
+     "duration": 2.85,
+     "video_in": 0,
+     "transition": "from black 0.7, cut",
+     "description": "The fly-over starts under a huge old tree on the crest of a mountain at the city's edge, the low sun breaking through it; below, the nearest village: its tower at the centre and the master dome beside it, smaller, the large domes round them, stone paths, the river with a footbridge; more villages, each round its tower, in the morning mist toward the mountains."
+    },
+    {
+     "at": 2.85,
+     "id": "million",
+     "frame": "ee6b19779af38a5d95d05f139b78db88f3e93b751bbb4287067fb1216d262ea4",
+     "video": "769f1c20949006e4a36c4e990ae06f7fdc26bfe4ed3f25374d32569404693db6",
+     "camera": "the same take: over the crest's edge, one smooth descent over the city and the river down to the treetops of the food forest",
+     "duration": 2.69,
+     "video_in": 2.85,
+     "transition": "cut",
+     "description": "Low over the busy heart of a village: a wide stone plaza along the river full of people, a market under a dome's arcade, and beyond them the village's tower beside the great master dome, a third wider at its foot and two and a half times as tall. No cars."
+    },
+    {
+     "at": 5.54,
+     "id": "arch",
+     "frame": "893eef1d3d12c0c441f774e1751c4182542ad026c7070b394600635dd4193f4a",
+     "video": "769f1c20949006e4a36c4e990ae06f7fdc26bfe4ed3f25374d32569404693db6",
+     "camera": "the same take: low across the ring terrace of a dome (the flat top of its stone arcade, a living room open to the sky), then through a round stone arch",
+     "duration": 2.15,
+     "video_in": 5.54,
+     "transition": "cut",
+     "description": "Samuel walks away from us along a flagstone path through a round limestone arch toward the great master dome, alone in the arch in the morning haze; the one arch shot of the film."
+    },
+    {
+     "at": 7.69,
+     "id": "face",
+     "frame": "a11ffb2620a8845151dc72b356dcb28404f35c3930ad2539e4d8335d29a5b197",
+     "video": "769f1c20949006e4a36c4e990ae06f7fdc26bfe4ed3f25374d32569404693db6",
+     "camera": "the same take: inside, by the spring, Samuel walking toward us on a dry stone path, then close on his face gazing slightly upward",
+     "duration": 2.16,
+     "video_in": 7.69,
+     "transition": "cut",
+     "description": "Samuel's face in warm rim light, looking up at something huge with quiet wonder and a small smile; the dome's lattice and the forest soft behind him."
+    },
+    {
+     "at": 9.85,
+     "id": "inside",
+     "frame": "65bdff942f80957d1c3865d7a1b2be3bca81e2b65290780fbef96960d73fc388",
+     "video": "60f8108e10311afcaed7fc12ae1698cc26d672540ceec63b05aad30afb964704",
+     "camera": "the take carries straight on from shot 4: Samuel lifts his face up into the camera and opens his arms wide; the camera begins to rise straight up",
+     "duration": 2.15,
+     "video_in": 0,
+     "transition": "cut",
+     "description": "Inside the great master dome: Samuel walks toward us through the food forest under the glass lattice, people eating together at long wooden tables beside a stream; beyond the glass, outside, the village tower rises over the gallery."
+    },
+    {
+     "at": 12,
+     "id": "tower",
+     "frame": "2cf8dcbc44fd656a9c38f9e0906b0ebcbdf7d565bc9c9edce9076c8d6d1e69b5",
+     "video": "60f8108e10311afcaed7fc12ae1698cc26d672540ceec63b05aad30afb964704",
+     "camera": "the same take: a vertical crane straight up, looking down through the dome's round opening at Samuel in the middle, looking up into the lens with his arms wide",
+     "duration": 2.7,
+     "video_in": 2.15,
+     "transition": "cut",
+     "description": "From the forest floor straight up a village's tower: its ring of limestone arches, its great glass foot rising like a dome and sweeping up into its tapering body and broad round crown, the sun flaring past its edge."
+    },
+    {
+     "at": 14.7,
+     "id": "game",
+     "frame": "e2e89f5c6b1367eb52492fa915dcda7c1208747789ad2cac5f20c62d9cc33487",
+     "video": "2f6240ebb7a7e453647e9d927f85796b521dc68010ff02a3dc0aee67bbeb4d17",
+     "camera": "cut on \"First in a game\": a fast drone flight over the game's world map, deep low-poly jungle between the villages, that morphs in the same flight into the real city: glass domes on stone arcades in a jungle of a food forest, the glass bell towers, sun flares from the low sun, then the blue hour; the lights come on in every dome and the flight goes on at full speed over them, blending to black 2 s after the lights came on",
+     "duration": 8.33,
+     "video_in": 0,
+     "transition": "cut, to black 1.2",
+     "description": "Over Samuel's shoulder: the master dome as it is in the game on his glass tablet, a single clear pane, and the real one in the same place behind it, its village's tower beside it, plainly bigger."
+    }
+   ]
+  },
+  {
+   "id": "voice",
+   "kind": "voice",
+   "clips": [
+    {
+     "at": 1.25,
+     "id": "t1",
+     "who": "SAMUEL",
+     "cues": [
+      {
+       "at": 0,
+       "text": "This is the story of how"
+      },
+      {
+       "at": 2.1,
+       "text": "one million humans build"
+      },
+      {
+       "at": 4.25,
+       "em": true,
+       "text": "100x"
+      },
+      {
+       "at": 5.15,
+       "text": "better way of living."
+      },
+      {
+       "at": 7.6,
+       "text": "Our own solarpunk city,"
+      },
+      {
+       "at": 10.1,
+       "text": "from the ground up."
+      }
+     ],
+     "gain": 0.3,
+     "line": "This is the story of how one million humans build a hundred times better way of living. Our own solarpunk city, from the ground up.",
+     "audio": "9115286e1e6eb92759f315a0d54b2a3a751835441e2a2d978eaf7f30b145218a",
+     "duration": 12.64
+    },
+    {
+     "at": 14.42,
+     "id": "t2",
+     "who": "SAMUEL",
+     "gain": 0.2,
+     "line": "First in a game, then for real.",
+     "audio": "71d21fc0e88f9585f1551fde94823fd81706be3148b8e0df2eb8668dfc74ed2c",
+     "duration": 3.42
+    }
+   ]
+  },
+  {
+   "id": "notes",
+   "kind": "notes",
+   "clips": [
+    {
+     "at": 0,
+     "id": "n1",
+     "mood": "↑↑",
+     "pace": "Music-locked montage, 1.5–2 s cuts, speeding up",
+     "sound": "The trailer, the same in every film (its own story): Samuel's \"This is the story...\" in a breath of soft open air, its own theme (cinematic, hopeful, friendly; D major, about 105 bpm) swelling in under \"...of how one million humans\" and rising through the line, held back under \"First in a game, then for real.\", its big chord right after \"real.\" and ringing out under \"Maia, can you...\"",
+     "breath": 2,
+     "camera": "Montage: IN THE GAME (teal) and FOR REAL (gold), Samuel montaged into the real city; on screen \"100x\" alone and large while he says \"a hundred times\"",
+     "emotion": "Hope",
+     "section": "TRAILER",
+     "duration": 17.82,
+     "retention": "Purpose"
+    }
+   ]
+  },
+  {
+   "id": "music",
+   "gain": 3,
+   "kind": "music",
+   "clips": [
+    {
+     "at": 0,
+     "eq": [
+      {
+       "f": 3000,
+       "q": 0.8,
+       "gain": -3,
+       "type": "peaking"
+      }
+     ],
+     "id": "m-trailer",
+     "gain": -14.1,
+     "keys": [
+      [
+       0,
+       12
+      ],
+      [
+       1,
+       12
+      ],
+      [
+       1.5,
+       4
+      ],
+      [
+       1.77,
+       0
+      ],
+      [
+       2.07,
+       0
+      ],
+      [
+       2.37,
+       -1
+      ],
+      [
+       14.12,
+       -1
+      ],
+      [
+       14.52,
+       -4
+      ],
+      [
+       17.22,
+       -4
+      ],
+      [
+       17.57,
+       2
+      ],
+      [
+       18.92,
+       2
+      ],
+      [
+       19.72,
+       0
+      ],
+      [
+       21.49,
+       0
+      ]
+     ],
+     "audio": "d43af20b61afc619a9cfce5142a3bc95fc302ef2d034849ff9133a6b756dbdf7",
+     "fade_in": 0.3,
+     "audio_in": 0.4,
+     "duration": 21.49,
+     "fade_out": 1
+    }
+   ]
+  },
+  {
+   "id": "effects",
+   "kind": "sfx",
+   "clips": [
+    {
+     "at": 17.34,
+     "id": "f-arrival",
+     "gain": -10.7,
+     "audio": "f41695d25b165d21d9b68f4597f11d74954175bf6646cc9fec12ca43d146e953",
+     "duration": 3.03,
+     "fade_out": 1.2
+    }
+   ]
+  }
+ ],
+ "duration": 23.03
+}

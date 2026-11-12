@@ -2,11 +2,14 @@
 // stretch per shot, its acts named under it; a sun is the playhead; play, and scrub by the line.
 // What it shows is the virtual camera moving through the real world as it plays; nothing is rendered ahead.
 import { trailer, floor } from './trailer.js';
+import { createMedia, shotsOf } from './media.js';   // a scene's footage and sound, on this film's clock
 
 const cine = window.__cine, q = new URLSearchParams(location.search), BASE = import.meta.env.BASE_URL.replace(/\/$/, '');   // '/game' inside the dashboard's server
 let seed = +(q.get('seed') || 1);
 const storyId = q.get('story');             // ?story=<id>: an intent's story, ../Stories/<id>/timeline.json: its camera and its captions
-let kept = storyId ? null : q.get('tl') || (q.has('seed') ? null : 'river-story'), keptClips = null, captions = [], story = null;   // ?tl=<name>: a kept timeline, cine/timelines/<name>.json, played as it was set
+const sceneId = q.get('scene');            // ?scene=<id>: a scene (Stories/scenes/<id>/scene.json): world shots, footage, sound and captions on one timeline
+let media = null, scene = null;
+let kept = storyId || sceneId ? null : q.get('tl') || (q.has('seed') ? null : 'river-story'), keptClips = null, captions = [], story = null;   // ?tl=<name>: a kept timeline, cine/timelines/<name>.json, played as it was set
 
 const $ = (id) => document.getElementById(id);
 const track = $('track'), segs = $('segs'), cues = $('cues'), head = $('head'), acts = $('acts'), btn = $('play');
@@ -22,7 +25,7 @@ function build() {
   for (const c of cine.clips) { const g = groups[groups.length - 1]; if (g && g.act === (c.act || '')) { g.secs += c.secs; g.n++; } else groups.push({ act: c.act || '', secs: c.secs, n: 1 }); }
   acts.innerHTML = groups.map((g) => `<span style="flex:${g.secs};margin-right:${(g.n - 1) * 0}px" data-act="${g.act}">${g.act}</span>`).join('');
   cues.innerHTML = captions.map((c) => `<div class="cue" style="left:${(c.at / cine.duration) * 100}%;width:${(c.for / cine.duration) * 100}%"></div>`).join('');
-  history.replaceState(null, '', (storyId ? `?story=${storyId}` : kept ? `?tl=${kept}` : `?seed=${seed}`) + (q.has('in') ? `&in=${q.get('in')}` : '') + (q.has('embed') ? '&embed' : '') + (q.has('ch') ? `&ch=${q.get('ch')}` : ''));
+  history.replaceState(null, '', (storyId ? `?story=${storyId}` : sceneId ? `?scene=${sceneId}` : kept ? `?tl=${kept}` : `?seed=${seed}`) + (q.has('in') ? `&in=${q.get('in')}` : '') + (q.has('embed') ? '&embed' : '') + (q.has('ch') ? `&ch=${q.get('ch')}` : ''));
 }
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 // While the film plays the governor is held: it settles in the first two seconds, then its dials stay put. Paused, it may move again.
@@ -33,7 +36,7 @@ const embedded = document.body.classList.contains('embed');   // as a picture: i
 function tick() {
   requestAnimationFrame(tick); hold();
   const d = cine.duration || 1, t = cine.time;
-  caption(t);
+  caption(t); media?.update(t, cine.playing);
   if (embedded) return;   // nothing else on this page is seen: no work, no garbage, every frame
   head.style.left = (t / d) * 100 + '%';
   let i = cine.clips.length - 1; while (i > 0 && cine.starts[i] > t) i--;
@@ -66,7 +69,7 @@ let shown = null;
 function caption(t) {
   let c = null; for (const k of captions) if (t >= k.at && t < k.at + k.for) c = k;
   if (c !== shown) {
-    shown = c; cap.className = c ? 'on ' + c.kind : '';
+    shown = c; cap.className = c ? 'on ' + c.kind + (c.em ? ' em' : '') : '';
     if (c) { cap.textContent = c.text; if (c.kind === 'title' && c.over) cap.insertAdjacentHTML('afterbegin', `<small>${c.over}</small>`); cap.dataset.who = { samuel: 'Samuel', maia: 'Maia' }[c.kind] || ''; }
   }
   if (c) { const o = Math.min(1, (t - c.at) / (c.kind === 'title' ? 0.8 : 0.18), (c.at + c.for - t) / (c.kind === 'title' ? 0.8 : 0.18)).toFixed(2); if (o !== lastCap) { lastCap = o; cap.style.opacity = o; } }   // a subtitle comes and goes at once; a title breathes. Written only when it changes
@@ -74,6 +77,20 @@ function caption(t) {
 if (storyId) {
   story = await fetch(`${BASE}/story/${storyId}/timeline.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
   if (story) { keptClips = story.clips; captions = story.captions || []; document.title = `${story.title} · story`; }
+}
+if (sceneId) {
+  scene = window.__scene ?? (await fetch(`/api/scenes/${sceneId}/scene.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null));   // (cine/film.js has it already)
+  if (scene) {
+    // its shots as the camera's clips: a world shot brings its own keys; over footage the camera holds where it last stood
+    let stand = { pos: [-1246.6, 16, 611.0], look: [-1271.6, -6.8, 636.0], mm: 28 };
+    keptClips = shotsOf(scene).map((s) => { const K = s.world?.keys; if (K?.length) stand = K[K.length - 1]; const W = s.world || {}; return { name: s.name || s.id, kind: W.kind || (s.world ? 'world' : s.video ? 'footage' : 'still'), act: W.act || (s.world ? 'world' : 'footage'), secs: +(s.end - s.at).toFixed(3), ease: W.ease || 'linear', in: W.in || 'cut', ...(W.inSecs != null ? { inSecs: W.inSecs } : {}), ...(W.out ? { out: W.out } : {}), ...(W.hour != null ? { hour: W.hour } : {}), why: s.camera || '', still: s.frame ? `/api/objects/${s.frame}` : null, keys: K?.length ? K : [stand, stand] }; });
+    // what is said, as subtitles: a voice's cues each until the next, or its one line for its whole length
+    for (const t of scene.tracks.filter((x) => x.kind === 'voice')) for (const c of t.clips) { const kind = { SAMUEL: 'samuel', MAIA: 'maia' }[String(c.who).toUpperCase()] || 'note';
+      if (c.cues?.length) c.cues.forEach((u, i) => captions.push({ at: c.at + u.at, for: (c.cues[i + 1]?.at ?? c.duration) - u.at, kind, text: u.text, em: !!u.em })); else captions.push({ at: c.at, for: c.duration, kind, text: c.line }); }
+    // and what is written over the picture as it is (a track of kind `captions`: a title, a note, a line not spoken)
+    for (const t of scene.tracks.filter((x) => x.kind === 'captions')) for (const c of t.clips) captions.push({ at: c.at, for: c.duration, kind: c.kind, text: c.text, ...(c.over ? { over: c.over } : {}) });
+    captions.sort((a, b) => a.at - b.at); media = createMedia(scene); document.title = `${scene.title} · scene`;
+  }
 }
 if (kept) keptClips = await fetch(`${BASE}/cine/timelines/${kept}.json`).then((r) => r.json()).catch(() => { kept = null; return null; });
 build(); cine.play(); tick();
@@ -96,13 +113,13 @@ async function preview() {
   const res = await fetch(`${BASE}/story-preview?id=${storyId}`, { method: 'POST', body: c.toDataURL('image/jpeg', 0.86) });
   build(); cine.play(); return res.text();
 }
-window.__timeline = { get seed() { return seed; }, set seed(v) { kept = keptClips = null; seed = v; build(); }, keep, preview };
+window.__timeline = { get media() { return media; }, get seed() { return seed; }, set seed(v) { kept = keptClips = null; seed = v; build(); }, keep, preview };
 
 // In a frame (the dashboard's story editor): say what is playing, keep the frame told of the time, and take its
 // play, pause, seek, and a request for one still from the middle of every shot, for the editor's picture track.
 if (parent !== window) {
   const ch = q.get('ch'), send = (m) => parent.postMessage({ maia: 1, ch, ...m }, '*');   // ch: which of the page's films this is
-  const film = () => send({ type: 'film', duration: cine.duration, clips: cine.clips.map((c) => ({ name: c.name, secs: c.secs, act: c.act || '', kind: c.kind })), captions });
+  const film = () => send({ type: 'film', duration: cine.duration, clips: cine.clips.map((c) => ({ name: c.name, secs: c.secs, act: c.act || '', kind: c.kind, still: c.still || null })), captions, sound: media?.sounds ?? null });
   film();
   setInterval(() => send({ type: 'time', t: cine.time, playing: cine.playing }), 80);
   let busy = false;
@@ -110,6 +127,7 @@ if (parent !== window) {
     const m = ev.data || {}; if (!m.maia) return;
     if (m.cmd === 'play') cine.play(); if (m.cmd === 'pause') cine.pause(); if (m.cmd === 'seek') cine.seek(m.t); if (m.cmd === 'film') film();
     if (m.cmd === 'preview') send({ type: 'preview', ok: await preview().then(() => true, () => false) });
+    if (m.cmd === 'thumbs' && scene) { cine.clips.forEach((c, i) => c.still && send({ type: 'thumb', i, src: c.still })); return; }   // a scene's footage has its stills
     if (m.cmd === 'thumbs' && !busy) {
       busy = true; const was = cine.playing, at = cine.time; cine.pause();
       for (let i = 0; i < cine.clips.length; i++) {

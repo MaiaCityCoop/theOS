@@ -183,11 +183,11 @@ export function createCity({ scene, camera, canvas, renderer }) {
     } else label.hidden = true;
   };
 
-  // the citizens living in the city today: the latest story's count (Stories/*/timeline.json, inGame), all in the first village
+  // the citizens living in the city today: the highest count any day's story names (Stories/*/arc.json or timeline.json, inGame), all in the first village
   (async () => {
     try {
-      const base = import.meta.env.BASE_URL, list = await fetch(base + 'story/list').then((r) => r.json()), last = list[list.length - 1];
-      if (last) citizens = (await fetch(`${base}story/${last.id}/timeline.json`).then((r) => r.json())).inGame ?? 0;
+      const list = await fetch(import.meta.env.BASE_URL + 'story/list').then((r) => r.json());
+      citizens = Math.max(0, ...list.map((s) => s.inGame ?? 0));   // the latest day's count (each day's story says its own: its arc's or its film's `inGame`)
     } catch {}
     card?.refresh();
   })();

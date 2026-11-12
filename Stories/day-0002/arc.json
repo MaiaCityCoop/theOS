@@ -1,0 +1,309 @@
+{
+ "day": 2,
+ "promise": "By the end, a world that only knew one calm noon has a storm, a night and a first snow, and the tent still stands.",
+ "next": "day-0003",
+ "sections": [
+  {
+   "id": "hook",
+   "kind": "hook",
+   "title": "Does it hold?",
+   "idea": "wind",
+   "minutes": 0.5,
+   "setting": "Where day 1 ended: the tent at dusk, the canvas pulling at its pegs",
+   "emotion": "Dread",
+   "feeling": "Braced, small",
+   "pace": "medium",
+   "dynamic": "tense",
+   "colour": {
+    "name": "Dark slate",
+    "hex": "#4a5568"
+   },
+   "music": "The low drone of day 1's end, rising",
+   "question": "A world that has only ever known one calm noon: what happens when the weather comes?",
+   "release": "None: the question is left open",
+   "tension": {
+    "in": 6,
+    "peak": 8,
+    "out": 8
+   },
+   "beats": [
+    {
+     "at": 0.5,
+     "level": 7,
+     "note": "The pegs strain"
+    },
+    {
+     "at": 0.95,
+     "level": 8,
+     "note": "Cut on the question"
+    }
+   ],
+   "gate": "Dread to hope, dark to bright: the gust cuts to the trailer's flight and its rising theme",
+   "charge": "down"
+  },
+  {
+   "id": "trailer",
+   "kind": "trailer",
+   "title": "The trailer",
+   "idea": "",
+   "minutes": 0.4,
+   "setting": "One drone take over the real city to Samuel with his arms wide, then the game's map turning into the city",
+   "emotion": "Hope",
+   "feeling": "Lifted, friendly, growing",
+   "pace": "fast",
+   "dynamic": "majestic",
+   "colour": {
+    "name": "Game teal into real gold",
+    "hex": "#2aa39a"
+   },
+   "music": "Its own theme: cinematic, hopeful, friendly; D major, about 105 bpm; one big chord at the end",
+   "question": "One million humans, a hundred times better way of living: how?",
+   "release": "First in a game, then for real: the big chord, the lights come on",
+   "tension": {
+    "in": 7,
+    "peak": 9,
+    "out": 5
+   },
+   "beats": [
+    {
+     "at": 0.3,
+     "level": 8,
+     "note": "A tree that fails"
+    },
+    {
+     "at": 0.7,
+     "level": 9,
+     "note": "The storm"
+    },
+    {
+     "at": 0.98,
+     "level": 5,
+     "note": "Cut to black"
+    }
+   ],
+   "gate": "Flight to crouching, sky to soil: from the widest, fastest pictures to the smallest and slowest, a hand's width of ground",
+   "scene": "trailer",
+   "charge": "up"
+  },
+  {
+   "id": "the-floor",
+   "kind": "scene",
+   "title": "The quiet before",
+   "idea": "forest-floor",
+   "minutes": 2,
+   "setting": "Low over the forest floor, eye level with the needles",
+   "emotion": "Foreboding",
+   "feeling": "Quiet, close, something in the air",
+   "pace": "slow",
+   "dynamic": "intimate",
+   "colour": {
+    "name": "Rust and moss",
+    "hex": "#8a4b2a"
+   },
+   "music": "A single guitar, room tone, birds",
+   "question": "Why does the ground still look like a print?",
+   "release": "Needles with depth, moss, a fallen branch: it has things lying on it",
+   "tension": {
+    "in": 2,
+    "peak": 5,
+    "out": 1
+   },
+   "beats": [
+    {
+     "at": 0.3,
+     "level": 4,
+     "note": "A flat mat"
+    },
+    {
+     "at": 0.55,
+     "level": 5,
+     "note": "Cones like loaves, twigs like noodles"
+    },
+    {
+     "at": 0.9,
+     "level": 1,
+     "note": "Moss in the shade"
+    }
+   ],
+   "gate": "Hush to chatter, brown to green, still to moving: from the silent floor up into the bushes, where it gets lively",
+   "charge": "down"
+  },
+  {
+   "id": "the-thicket",
+   "kind": "scene",
+   "title": "What grows under the pines",
+   "idea": "undergrowth",
+   "minutes": 3,
+   "setting": "Knee-deep in the understory: mastic, rockrose, fern",
+   "emotion": "Delight",
+   "feeling": "Light, curious, a little mischievous",
+   "pace": "medium",
+   "dynamic": "playful",
+   "colour": {
+    "name": "Fresh leaf green",
+    "hex": "#6fae5a"
+   },
+   "music": "Pizzicato, a clarinet, birds",
+   "question": "Why is a forest empty under its own trees?",
+   "release": "Thickets you have to push through, fern where the light falls",
+   "tension": {
+    "in": 2,
+    "peak": 6,
+    "out": 2
+   },
+   "beats": [
+    {
+     "at": 0.2,
+     "level": 4,
+     "note": "A bare floor between trunks"
+    },
+    {
+     "at": 0.5,
+     "level": 6,
+     "note": "Bushes like green balls, all alike"
+    },
+    {
+     "at": 0.75,
+     "level": 5,
+     "note": "They pop in and out as you walk"
+    },
+    {
+     "at": 0.92,
+     "level": 2,
+     "note": "A thicket that runs together"
+    }
+   ],
+   "gate": "Play to peril, green to white: the light push through the thicket is torn open by the storm; pizzicato to wind and drums",
+   "charge": "up"
+  },
+  {
+   "id": "the-weather",
+   "kind": "scene",
+   "title": "The storm",
+   "idea": "wind",
+   "minutes": 2.5,
+   "setting": "The open meadow and the tent, in wind, cloud and snow",
+   "emotion": "Fear",
+   "feeling": "Cold, exposed, loud",
+   "pace": "frantic",
+   "dynamic": "hectic",
+   "colour": {
+    "name": "Steel grey and snow white",
+    "hex": "#9fb3c8"
+   },
+   "music": "Wind, percussion, no melody",
+   "question": "Does the tent, and the world, hold in a storm?",
+   "release": "The wind drops. Silence. Is the tent still there?",
+   "tension": {
+    "in": 3,
+    "peak": 10,
+    "out": 2
+   },
+   "beats": [
+    {
+     "at": 0.2,
+     "level": 6,
+     "note": "The breeze becomes a gale"
+    },
+    {
+     "at": 0.5,
+     "level": 10,
+     "note": "Clouds close, snow falls sideways"
+    },
+    {
+     "at": 0.7,
+     "level": 7,
+     "note": "The tent takes no snow: wrong"
+    },
+    {
+     "at": 0.92,
+     "level": 2,
+     "note": "Stillness, white"
+    }
+   ],
+   "gate": "Chaos to stillness, noise to silence: the storm cuts to first light on untouched snow",
+   "charge": "down"
+  },
+  {
+   "id": "relief",
+   "kind": "relief",
+   "title": "The morning after",
+   "idea": "snow",
+   "minutes": 1.5,
+   "setting": "First light after the storm: the meadow under snow, the tent standing, clouds drifting off",
+   "emotion": "Peace",
+   "feeling": "Held, washed clean",
+   "pace": "slow",
+   "dynamic": "calm",
+   "colour": {
+    "name": "Snow white, pale blue",
+    "hex": "#e8f1f8"
+   },
+   "music": "The theme, slow, on strings",
+   "question": "So: what does weather do to a world?",
+   "release": "It makes it a place: the tent held, snow lies on its roof in clumps, the day turns",
+   "tension": {
+    "in": 3,
+    "peak": 5,
+    "out": 1
+   },
+   "beats": [
+    {
+     "at": 0.3,
+     "level": 5,
+     "note": "Is the tent still there?"
+    },
+    {
+     "at": 0.7,
+     "level": 2,
+     "note": "It stands, white"
+    },
+    {
+     "at": 0.95,
+     "level": 1,
+     "note": "The sun on the snow"
+    }
+   ],
+   "gate": "Peace to suspense, white to violet: in the untouched snow, a line of footprints that are not yours",
+   "charge": "up"
+  },
+  {
+   "id": "outro",
+   "kind": "outro",
+   "title": "Footprints",
+   "idea": "the-count",
+   "minutes": 0.5,
+   "setting": "Close on the snow by the tent: a second set of footprints, leading in",
+   "emotion": "Suspense",
+   "feeling": "A held breath, not alone",
+   "pace": "still",
+   "dynamic": "tense",
+   "colour": {
+    "name": "Dusk violet",
+    "hex": "#3b2f5c"
+   },
+   "music": "One held note, no theme",
+   "question": "Who is the second citizen?",
+   "release": "None: the tent's door moves. Tomorrow.",
+   "tension": {
+    "in": 1,
+    "peak": 8,
+    "out": 8
+   },
+   "beats": [
+    {
+     "at": 0.4,
+     "level": 4,
+     "note": "Prints in the snow"
+    },
+    {
+     "at": 0.95,
+     "level": 8,
+     "note": "The door moves; cut"
+    }
+   ],
+   "charge": "down"
+  }
+ ],
+ "inGame": 2
+}

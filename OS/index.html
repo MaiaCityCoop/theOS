@@ -230,7 +230,97 @@
   body.studio #shelfview .cd{box-shadow:0 0 0 1px rgba(251,246,234,.1),0 18px 40px rgba(0,0,0,.35)}
   .shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:clamp(12px,1.4vw,20px)}
   .shelf .cd{aspect-ratio:16/10}
+  .shelf .cd .cs{top:10px;right:12px;left:auto;bottom:auto}   /* the count at the top right: the title and its description have the foot */
+  .shelf .cd .ct small{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:6px;font:400 12.5px/1.4 var(--sans);letter-spacing:0;color:rgba(251,246,234,.75)}   /* a story's description: its intro, where there is room */
+  #shelfview .calhead.sub{margin-top:clamp(26px,3vw,44px)}#shelfview .calhead.sub h2{font-size:clamp(22px,2.2vw,32px)}
+  #sceneshelf{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
   #storyedit{display:none}
+  /* the story ideas under the shelf: lanes of cards at the left, the one opened in the right half. Shown only: they change
+     by Stories/ideas.js. Drawn as the story's timeline is (.edit, .eclip, .ecap): solid navy panels, cards with a fine
+     inset ring (the sun's when chosen), small upper-case labels, chips in the voices' colours */
+  #ideasview{padding-top:clamp(28px,4vw,56px);padding-bottom:140px;color:var(--cream)}
+  #stories.editing #ideasview{display:none}
+  body.studio #stories.on:not(.editing){height:100vh;overflow-y:auto}   /* the shelf and the ideas scroll in the studio's own dark window (its body does not scroll: a film's frame holds still) */
+  #ideasview .calhead h2{color:var(--cream)}#ideasview .calhead p{color:rgba(251,246,234,.6)}
+  #ideas{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start}
+  #ideas.open{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  @media (max-width:900px){#ideas.open{grid-template-columns:minmax(0,1fr)}}
+  .lanes{display:grid;gap:10px;min-width:0}
+  .lane{padding:10px 14px 14px;border-radius:14px;background:#18243c}
+  .lane>h3{display:flex;align-items:center;gap:12px;margin:0 0 9px;height:24px;font:440 17px/1 var(--serif);font-variation-settings:var(--soft);color:rgba(251,246,234,.85)}
+  .lane>h3 small{font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5)}
+  .ideas{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px}
+  .idea{display:grid;gap:6px;align-content:start;text-align:left;font:inherit;color:var(--cream);padding:10px 11px;border:0;border-radius:10px;background:rgba(251,246,234,.05);box-shadow:inset 0 0 0 1.5px rgba(251,246,234,.18);cursor:pointer;transition:box-shadow .15s}
+  .idea:hover{background:rgba(251,246,234,.08)}.idea.on{box-shadow:inset 0 0 0 2px var(--sun)}
+  .idea b{font:500 13.5px/1.15 var(--sans)}
+  .idea>span{font:400 11.5px/1.35 var(--sans);color:rgba(251,246,234,.6)}
+  .idea .row,.ideadoc header{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+  .idea i,.ideadoc i,.idea em,.ideadoc em{font:400 10.5px/20px var(--sans);font-style:normal;font-variant-numeric:tabular-nums;padding:0 8px;border-radius:7px;background:rgba(251,246,234,.16);white-space:nowrap}
+  .idea em,.ideadoc em{margin-left:auto;text-transform:capitalize}
+  .idea em.hooked,.idea em.scripted,.idea em.filmed,.ideadoc em.hooked,.ideadoc em.scripted,.ideadoc em.filmed{background:rgba(242,181,68,.4)}
+  .idea em.told,.ideadoc em.told{background:rgba(95,127,82,.85)}
+  .ideadoc{position:sticky;top:14px;max-height:calc(100vh - 120px);overflow:auto;padding:12px 16px 16px;border-radius:14px;background:#18243c;min-width:0}
+  .ideadoc header{gap:6px;margin-bottom:6px}
+  .ideadoc header b{font:440 22px/1.1 var(--serif);font-variation-settings:var(--soft);margin-right:6px}
+  .ideadoc header button{margin-left:6px;width:26px;height:26px;border:0;border-radius:50%;background:rgba(251,246,234,.1);color:var(--cream);cursor:pointer;font:400 15px/1 var(--sans)}
+  .ideadoc header button:hover{background:rgba(251,246,234,.2)}
+  .ideadoc .hook{margin:0 0 4px;font:400 14px/1.4 var(--sans);color:rgba(251,246,234,.7)}
+  .ideadoc h4{font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5);margin:16px 0 6px}
+  .ideadoc p{margin:0 0 4px;padding:7px 10px;border-radius:7px;background:rgba(251,246,234,.05);font:400 13px/1.45 var(--sans);color:rgba(251,246,234,.88);display:flex;gap:9px;align-items:baseline}
+  .ideadoc p small{flex:none;font:400 10.5px/1 var(--sans);font-variant-numeric:tabular-nums;color:rgba(251,246,234,.45)}
+  .ideadoc .said p{background:rgba(189,91,51,.6);color:var(--cream)}
+  .ideadoc .show p{background:rgba(242,181,68,.22)}
+  .ideadoc p.none{background:none;padding-left:0;color:rgba(251,246,234,.35)}
+  .lane.off>h3{color:rgba(251,246,234,.5)}.lane.off .idea{opacity:.6}
+  /* a story's arc, the studio's first page: the whole story's tension on top, then its sections side by side, each in its
+     colour, with the gateway between two neighbours saying their contrast (drawn as the timeline is: navy panels, small labels) */
+  #storyedit .stagedoc .arc{display:grid;gap:10px;min-width:0}
+  .archead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;padding:2px 4px;color:var(--cream)}
+  .archead h2{font:440 24px/1.1 var(--serif);font-variation-settings:var(--soft);margin:0}
+  .archead p{margin:0;flex:1 1 320px;font:400 13.5px/1.4 var(--sans);color:rgba(251,246,234,.7)}
+  .archead span{font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5)}
+  .arccurve{position:relative;padding:10px 14px 26px;border-radius:14px;background:#18243c}
+  .arccurve svg{display:block;width:100%;height:150px}
+  .arccurve .hi{position:absolute;left:14px;top:8px;font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.4)}
+  .arcmarks{position:absolute;left:14px;right:14px;bottom:6px;height:16px}
+  .arcmarks span{position:absolute;top:0;font:500 10.5px/16px var(--sans);font-variant-numeric:tabular-nums;color:rgba(251,246,234,.6);white-space:nowrap;overflow:hidden;padding-left:4px;box-sizing:border-box}
+  .arcmarks b{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+  .arcrow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding-bottom:10px}
+  .arcsec{flex:0 0 250px;box-sizing:border-box;padding:12px 13px 13px;border-radius:14px;background:#18243c;box-shadow:inset 0 3px 0 var(--c),inset 0 0 0 1.5px rgba(251,246,234,.1);color:var(--cream);display:grid;gap:8px;align-content:start}
+  .arcsec.scene{background:#1b2a45}
+  .arcsec>i.made{background:var(--c);color:#0f1d2c}
+  .arcsec header{display:flex;justify-content:space-between;font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--c)}
+  .arcsec header em{font-style:normal;color:rgba(251,246,234,.5)}
+  .arcsec h3{font:440 19px/1.1 var(--serif);font-variation-settings:var(--soft);margin:0;color:var(--cream)}
+  .arcsec>i{justify-self:start;font:400 10.5px/20px var(--sans);font-style:normal;padding:0 8px;border-radius:7px;background:rgba(251,246,234,.12);color:rgba(251,246,234,.75)}
+  .arcsec dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:5px 10px;margin:2px 0 0}
+  .arcsec dt{font:500 10px/1.5 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.45)}
+  .arcsec dd{margin:0;font:400 12.5px/1.35 var(--sans);color:rgba(251,246,234,.9);text-transform:none}
+  .arcsec dd b{font:500 10px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;margin-left:6px;padding:2px 6px;border-radius:6px;white-space:nowrap}.arcsec dd b.up{background:rgba(242,181,68,.3)}.arcsec dd b.down{background:rgba(127,150,200,.3)}
+  .arcsec dd u{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  .arcsec .tens{display:flex;align-items:center;gap:6px;margin-top:4px}
+  .arcsec .tens b{font:500 12px/22px var(--sans);min-width:22px;text-align:center;border-radius:7px;background:rgba(251,246,234,.12)}
+  .arcsec .tens b.pk{background:var(--c);color:#0f1d2c}
+  .arcsec .tens span{flex:1;height:2px;background:rgba(251,246,234,.2)}
+  .arcsec p{margin:0;padding:7px 9px;border-radius:7px;background:rgba(251,246,234,.05);font:400 12.5px/1.4 var(--sans);color:rgba(251,246,234,.9)}
+  .arcsec p small{display:block;font:500 9.5px/1.6 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.45)}
+  .arcsec ol{margin:0;padding:0;list-style:none;display:grid;gap:3px}
+  .arcsec li{display:flex;gap:8px;align-items:baseline;font:400 11.5px/1.35 var(--sans);color:rgba(251,246,234,.65)}
+  .arcsec li b{flex:none;width:18px;text-align:right;font-weight:500;color:var(--c)}
+  .arcgate{flex:0 0 150px;box-sizing:border-box;padding:0 10px;display:grid;align-content:center;justify-items:center;gap:6px;text-align:center;color:var(--cream)}
+  .arcgate span{font:500 10px/18px var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:0 8px;border-radius:7px;background:rgba(251,246,234,.12);white-space:normal;line-height:1.35;padding:3px 8px}
+  .arcgate i{width:100%;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--a),var(--b))}
+  .arcgate p{margin:0;font:400 11.5px/1.4 var(--sans);color:rgba(251,246,234,.7)}
+  /* a story's hook, the studio's first page: its title, its intro, and the loop it opens (read from the arc) */
+  .hookpage{max-width:980px;margin:0 auto;padding:clamp(18px,3vw,44px) 4px 40px;color:var(--cream);display:grid;gap:10px}
+  .hookpage .lab{font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5);margin-top:22px}
+  .hookpage .lab em{font-style:normal;margin-left:8px;padding:3px 8px;border-radius:7px;background:rgba(251,246,234,.12);color:rgba(251,246,234,.75)}
+  #storyedit .stagedoc .hookpage h2{font:440 clamp(34px,4.6vw,68px)/1.04 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.02em;margin:0;padding:0;border:0;color:var(--cream)}
+  .hookpage .intro{margin:0;padding:18px 20px;border-radius:14px;background:#18243c;font:400 clamp(16px,1.5vw,20px)/1.55 var(--sans);color:rgba(251,246,234,.9)}
+  .hookpage .loop{display:grid;grid-template-columns:minmax(0,1fr) 90px minmax(0,1fr);align-items:center;gap:12px}
+  .hookpage .loop p{margin:0;padding:14px 16px;border-radius:14px;background:#18243c;box-shadow:inset 0 3px 0 var(--c);font:400 15px/1.45 var(--sans);color:rgba(251,246,234,.9)}
+  .hookpage .loop small{display:block;font:500 10px/1.7 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5)}
+  .hookpage .loop i{height:3px;border-radius:3px;background:repeating-linear-gradient(90deg,rgba(251,246,234,.45) 0 6px,transparent 6px 12px)}
   #stories.editing #shelfview{display:none}
   /* the studio: one screen, nothing scrolls but the step viewer. Head on top, the film and the steps beside it, the timeline across the bottom */
   #stories.editing #storyedit{display:grid;position:fixed;inset:0;z-index:2;grid-template-rows:34px minmax(0,1fr);grid-template-columns:minmax(0,1fr);gap:8px;padding:10px clamp(12px,1.4vw,20px) 82px}
@@ -349,7 +439,7 @@
   </div></section>
   <section class="banner poster" id="banner">
     <div class="window" id="window">
-      <iframe id="heroframe" title="The day's story, playing in the game" allow="fullscreen" tabindex="-1"></iframe>
+      <iframe id="heroframe" title="The day's story, playing in the game" allow="fullscreen; autoplay" tabindex="-1"></iframe>
       <div class="board" id="dayboard"></div>
       <div class="shade"></div>
       <div class="hud"><div class="daycard" id="daycard"></div><div class="goals" id="goals"></div></div>
@@ -371,7 +461,7 @@
 </main>
 <main id="city"><div class="tiles" id="tiles"></div></main>
 <main id="intents"><header class="sheethead"><h1>Intents</h1><button class="btn small quiet" data-close>Close</button></header><div class="sheetbody"><div id="board"></div><div id="intentdoc" class="doc"></div></div></main>
-<main id="stories"><section id="shelfview" class="wrap"><header class="calhead"><h2>Stories</h2><p>One a day. Open one to edit its film.</p></header><div class="shelf" id="shelf"></div></section><section id="storyedit"></section></main>
+<main id="stories"><section id="shelfview" class="wrap"><header class="calhead"><h2>Stories</h2><p>One a day. Open one to edit its film.</p></header><div class="shelf" id="shelf"></div><header class="calhead sub"><h2>Scenes</h2><p>Timelines that stand alone. A story is composed of them.</p></header><div class="shelf" id="sceneshelf"></div></section><section id="ideasview" class="wrap"><header class="calhead"><h2>Ideas</h2><p id="ideasnote"></p></header><div id="ideas"></div></section><section id="storyedit"></section></main>
 <button class="sheetx" data-close aria-label="Close"><svg viewBox="0 0 16 16"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
 <main id="game"><div id="gamebar"></div><iframe id="frame" allow="fullscreen; pointer-lock" title="The Game"></iframe></main>
 <script type="module" src="/src/main.js"></script>

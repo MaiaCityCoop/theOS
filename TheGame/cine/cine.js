@@ -84,7 +84,7 @@ const at = (v, q) => (Array.isArray(v) ? v[0] + (v[1] - v[0]) * q : v), shown = 
 function weather(c, q) {
   const w = window.__s8; if (!w) return;
   const h = c.hour != null ? at(c.hour, q) : null;
-  if (h != null && Math.abs(h - (shown.hour ?? -99)) > 0.005) { shown.hour = h; w.sky?.set(h); }
+  if (h != null && w.sky && Math.abs(h - w.sky.hour) > 0.005) w.sky.set(h);   // (against the sky's own hour, not a remembered one: a film that loads before the sky is made would else keep its first shot at the game's hour)
   for (const id of w.weather?.ids ?? []) {
     const v = c[id] != null ? at(c[id], q) : null;
     if (v != null && Math.abs(v - (shown[id] ?? -99)) > 0.001) { shown[id] = v; w.weather.set(id, v); }

@@ -4,7 +4,7 @@ title: Intents, stories, one dashboard
 state: propose
 outcome:
 opened: 2026-11-11
-story: Stories/0001-intents-stories-os/
+story: Stories/scenes/test-gate/   # its film is a scene now (a test of the camera and the timeline), no story of a day
 ---
 
 # 0001 · Intents, stories, one dashboard

@@ -14,9 +14,9 @@ const body = (md) => marked.parse(md.replace(/^---\n[\s\S]*?\n---\n/, ''));   //
 const n = (v) => Math.round(v).toLocaleString('en-US'), pad = (d, w = 4) => String(d).padStart(w, '0');
 const cit = (v) => `${n(v)} citizen${v === 1 ? '' : 's'}`;   // the count is of citizens
 const mm = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-let intents = [], stories = [], me = {}, current = null, gameView = 'walk';   // me: who works here (the dashboard's welcome)
+let intents = [], stories = [], scenes = [], me = {}, current = null, gameView = 'walk';   // me: who works here (the dashboard's welcome)
 const latest = () => stories.filter((s) => s.film).pop();
-const filmOf = (id) => `${GAME}/timeline.html?story=${id}&embed`;
+const filmOf = (id, scene = !!current?.scene && current.id === id) => `${GAME}/timeline.html?${scene ? 'scene' : 'story'}=${id}&embed`;   // a story's film, or a scene's (Stories/scenes/)
 
 // ---- tabs: showing one stops the framed games of the others ----
 function tab(name) {
@@ -27,6 +27,7 @@ function tab(name) {
   document.querySelectorAll('main').forEach((m) => m.classList.toggle('on', m.id === name));
   if (name === 'intents') { $('city').classList.add('on'); city(); }   // the dashboard stays under the sheet
   if (name === 'stories') $('stories').classList.toggle('editing', !!current);
+  if (name === 'stories' && !current) ideas();   // the ideas as they stand now (they change only by their tool)
   document.body.classList.toggle('play', name === 'game');   // the game takes the whole window
   if (name !== 'home') $('heroframe').removeAttribute('src');
   if (name === 'game') { if (!$('frame').getAttribute('src')) $('frame').src = GAME + VIEWS[gameView][1]; } else $('frame').removeAttribute('src');
@@ -85,19 +86,48 @@ async function intent(i) {
 // ---- stories: the film at the top, the telling under it ----
 // ---- stories: first a shelf of them, each with its picture; one opened is the editor, the whole window ----
 function shelf() {
-  $('shelf').innerHTML = stories.filter((s) => s.film).slice().reverse().map((e) => `<button class="cd told" data-id="${e.id}">${pic(e)}<span class="cn">Day ${n(e.day || 1)}${e.secs ? ' · ' + mm(e.secs) : ''}</span>${e.inGame != null ? `<span class="cs"><b>${n(e.inGame)}</b> ${e.inGame === 1 ? 'citizen' : 'citizens'}</span>` : ''}<span class="ct">${e.title}</span></button>`).join('') || '<p class="empty">No stories yet.</p>';
+  $('shelf').innerHTML = stories.filter((s) => s.film || s.arc).slice().reverse().map((e) => `<button class="cd told" data-id="${e.id}">${pic(e)}<span class="cn">Day ${n(e.day || 1)}${e.secs ? ' · ' + mm(e.secs) : e.minutes ? ' · arc, ' + e.minutes + ' min' : ''}</span>${e.inGame != null ? `<span class="cs"><b>${n(e.inGame)}</b> ${e.inGame === 1 ? 'citizen' : 'citizens'}</span>` : ''}<span class="ct">${e.title}${e.intro ? `<small>${e.intro}</small>` : ''}</span></button>`).join('') || '<p class="empty">No stories yet.</p>';
+  // the scenes: timelines that stand alone and that stories contain (Stories/scenes/, made by Stories/scenes.js); one opens in the same studio
+  $('sceneshelf').innerHTML = scenes.map((e) => `<button class="cd told" data-scene="${e.id}">${e.cover ? `<img class="pic" src="/api/objects/${e.cover}" alt="">` : ''}<span class="cn">Scene · ${mm(Math.round(e.duration))}</span><span class="cs"><b>${e.shots}</b> shots</span><span class="ct">${e.title}</span></button>`).join('') || '<p class="empty">No scenes yet.</p>';
   $('shelf').querySelectorAll('.cd').forEach((c) => (c.onclick = () => story(stories.find((s) => s.id === c.dataset.id))));
+  $('sceneshelf').querySelectorAll('.cd').forEach((c) => (c.onclick = () => { const e = scenes.find((x) => x.id === c.dataset.scene); story({ id: e.id, scene: true, film: true, title: e.title, secs: Math.round(e.duration), shots: 0 }); }));
+}
+// ---- the story ideas, under the shelf: what a story could be told about, gathered backwards from the intents' history and
+// clustered in lanes (Stories/ideas/*.md). The page only shows them: an idea is made, moved, merged or put aside by the
+// ideas' tool alone (Stories/ideas.js), so this draws again whenever the stories are opened. One opens in the right half ----
+let ideaOpen = null;
+async function ideas() {
+  const data = await get('/api/ideas').then((r) => r.json()).catch(() => null), box = $('ideas'); if (!data || !box) return;
+  const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+  const live = data.ideas.filter((i) => !i.dismissed), off = data.ideas.filter((i) => i.dismissed);
+  $('ideasnote').innerHTML = `<b>${n(live.length)}</b> to tell, from ${n(new Set(data.ideas.flatMap((i) => i.intents)).size)} intents${data.gathered ? ` · history read up to <b>${esc(data.gathered.commit)}</b>` : ''}`;
+  const chips = (i) => i.intents.map((x) => `<i>${x}</i>`).join('') + `<em class="${i.stage}">${i.stage}</em>`;
+  const card = (i) => `<button class="idea${ideaOpen === i.id ? ' on' : ''}" data-id="${i.id}"><b>${esc(i.title)}</b><span>${esc(i.hook)}</span><span class="row">${chips(i)}</span></button>`;
+  const rows = (list, f) => list.map(f).join('') || '<p class="none">Nothing gathered yet.</p>';
+  // the one opened, in the right half: its points (what a viewer would be told), Samuel's own words, what the world can show
+  const doc = (i) => `<aside class="ideadoc"><header><b>${esc(i.title)}</b>${chips(i)}<button data-do="shut" aria-label="Close">×</button></header><p class="hook none">${esc(i.hook)}</p>
+    <h4>What happened</h4>${rows(i.happened, (x) => `<p><small>${esc(x.intent || '')}</small><span>${esc(x.text)}</span></p>`)}
+    <h4>Samuel's own words</h4><div class="said">${rows(i.words, (x) => `<p><small>${esc(x.intent || '')}</small><span>“${esc(x.text)}”</span></p>`)}</div>
+    <h4>What the world can show</h4><div class="show">${rows(i.shots, (x) => `<p><span>${esc(x)}</span></p>`)}</div></aside>`;
+  const lane = (name, list, cls = '') => (list.length ? `<section class="lane ${cls}"><h3>${esc(name)}<small>${list.length} ${list.length === 1 ? 'idea' : 'ideas'}</small></h3><div class="ideas">${list.map(card).join('')}</div></section>` : '');
+  const open = data.ideas.find((i) => i.id === ideaOpen);
+  box.classList.toggle('open', !!open);
+  box.innerHTML = (`<div class="lanes">${data.lanes.map((l) => lane(l, live.filter((i) => i.lane === l))).join('') + lane('Not for stories', off, 'off')}</div>` + (open ? doc(open) : '')) || '<p class="empty">No ideas gathered yet.</p>';
+  box.querySelectorAll('.idea').forEach((c) => (c.onclick = () => { ideaOpen = ideaOpen === c.dataset.id ? null : c.dataset.id; ideas(); }));
+  box.querySelector('[data-do=shut]')?.addEventListener('click', () => { ideaOpen = null; ideas(); });
 }
 async function story(s, show = true) {
   current = s;
-  const md = await get(`/api/stories/${s.id}/story.md`).then((r) => r.text()), d = $('storyedit');
-  d.innerHTML = `<header class="studiohead"><button class="btn small quiet" data-do="shelf">← Stories</button><h1>${s.title}</h1><span class="chip">Day ${n(s.day || 1)}${s.inGame != null ? ' · ' + (s.inGame === 1 ? '1 citizen' : n(s.inGame) + ' citizens') : ''}</span>${s.film ? '<button class="btn small quiet" data-do="retake" title="Take the preview picture again from the live scene, at the camera the story names">Retake picture</button>' : ''}<button class="btn small quiet" data-do="intent">Its intent</button></header>` +
-    (s.film ? `<div class="editpage"><div class="pstage"><div class="player"><iframe title="${s.title}" allow="fullscreen"></iframe></div></div>${EDIT}</div>` : '') + `<div class="stagedoc"></div><nav class="pages"></nav>`;
+  const md = s.scene ? '' : await get(`/api/stories/${s.id}/story.md`).then((r) => r.text()).catch(() => ''), d = $('storyedit');
+  d.innerHTML = `<header class="studiohead"><button class="btn small quiet" data-do="shelf">← Stories</button><h1>${s.title}</h1><span class="chip">${s.scene ? 'Scene · ' + mm(s.secs) : `Day ${n(s.day || 1)}${s.inGame != null ? ' · ' + (s.inGame === 1 ? '1 citizen' : n(s.inGame) + ' citizens') : ''}`}</span>${s.film ? '<button class="btn small quiet" data-do="retake" title="Take the preview picture again from the live scene, at the camera the story names">Retake picture</button>' : ''}<button class="btn small quiet" data-do="intent">Its intent</button></header>` +
+    (s.film ? `<div class="editpage"><div class="pstage"><div class="player"><iframe title="${s.title}" allow="fullscreen; autoplay"></iframe></div></div>${EDIT}</div>` : '') + `<div class="stagedoc"></div><nav class="pages"></nav>`;
   if (s.film) editor(d.querySelector('.edit'), d.querySelector('.player iframe'), s);
   if (s.film) { const ps = d.querySelector('.pstage'), pl = d.querySelector('.player');   // the film's frame in whole pixels, set only when the window's size changes
     const fit = () => { const w = ps.clientWidth, h = ps.clientHeight; if (!w || !h) return; const W = Math.floor(Math.min(w, h * 16 / 9)); pl.style.width = W + 'px'; pl.style.height = Math.floor(W * 9 / 16) + 'px'; };
     new ResizeObserver(fit).observe(ps); fit(); }
-  pages(d, md, s.film);
+  const arc = s.arc ? await get(`/api/stories/${s.id}/arc.json`).then((r) => r.json()).catch(() => null) : null;
+  const hook = s.hook ? await get(`/api/stories/${s.id}/hook.json`).then((r) => r.json()).catch(() => null) : null;
+  pages(d, md, s.film, arc, hook);
   d.querySelector('[data-do=intent]').onclick = () => { tab('intents'); board(s.id); };
   d.querySelector('[data-do=shelf]').onclick = () => { current = null; tab('stories'); };
   const rt = d.querySelector('[data-do=retake]'); if (rt) rt.onclick = () => { rt.textContent = 'Taking…'; rt.disabled = true; d.querySelector('.player iframe')?.contentWindow?.postMessage({ maia: 1, cmd: 'preview' }, '*'); };
@@ -108,18 +138,61 @@ async function story(s, show = true) {
 // Edit is the film and its timeline; the others are the parts of story.md (its ## sections), hook first ----
 const STEP = [['The hook', 'Hook'], ['The story', 'Story'], ['The film', 'Script'], ['EDIT', 'Edit']];
 const HIDE = ['Open', 'Receipts', 'The series'];   // sections of story.md the studio does not show as pages
-function pages(root, md, film) {
+// ---- a story's arc (Stories/<story>/arc.json, made and changed only by Stories/arc.js): its sections in their order,
+// each with its own setting, feeling, pace, colour and music, the question it opens and its release, and the tension
+// that runs through it; between two sections their gateway, the contrast said in words. The curve on top is the whole
+// story's tension, section by section in its colour. Shown only: no word of the script is here ----
+// ---- a story's hook, the studio's first page (Stories/<story>/hook.json, made and changed only by Stories/hook.js): its
+// title and its intro, the first seconds. Under them, read from the arc, the question the film opens there and where it is
+// answered: the one loop the whole story keeps open. Shown only ----
+function hookView(h, arc) {
+  const esc = (t) => String(t ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]), W = h.title.trim().split(/\s+/).length;
+  const open = arc?.sections.find((s) => s.kind === 'hook'), rel = arc?.sections.find((s) => s.kind === 'relief'), total = arc ? arc.sections.reduce((t, s) => t + s.minutes, 0) : 0;
+  return `<div class="hookpage"><span class="lab">Step 1 · Title <em>${W} words</em></span><h2>${esc(h.title)}</h2>
+    <span class="lab">Intro <em>the first ${h.seconds} seconds</em></span><p class="intro">${esc(h.intro)}</p>
+    ${open && rel ? `<span class="lab">The loop it opens <em>held for ${Math.round(total)} minutes</em></span><div class="loop"><p style="--c:${open.colour.hex}"><small>Opens · 0:00</small>${esc(open.question)}</p><i></i><p style="--c:${rel.colour.hex}"><small>Answered · the relief</small>${esc(rel.release)}</p></div>` : ''}</div>`;
+}
+const KIND = { hook: 'Hook', trailer: 'Trailer', scene: 'Scene', relief: 'The relief', outro: 'Outro' };
+function arcView(a, hook) {
+  const esc = (t) => String(t ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+  const S = a.sections, total = S.reduce((t, s) => t + s.minutes, 0), W = 1000, H = 190, X = (m) => (m / total) * W, Y = (l) => H - 14 - l * 15;
+  const clock = (m) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}`;
+  let at = 0, shortNo = 0; const curve = [], marks = [];
+  for (const [i, s] of S.entries()) {
+    const pts = [[at, s.tension.in], ...(s.beats || []).map((b) => [at + b.at * s.minutes, b.level]), [at + s.minutes, s.tension.out]].sort((p, q) => p[0] - q[0]);
+    const line = pts.map(([m, l]) => `${X(m).toFixed(1)},${Y(l).toFixed(1)}`).join(' ');
+    curve.push(`<polygon points="${X(at).toFixed(1)},${H - 14} ${line} ${X(at + s.minutes).toFixed(1)},${H - 14}" fill="${s.colour.hex}" opacity=".22"/><polyline points="${line}" fill="none" stroke="${s.colour.hex}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`);
+    if (i) curve.push(`<line x1="${X(at)}" y1="6" x2="${X(at)}" y2="${H - 14}" stroke="rgba(251,246,234,.18)" stroke-dasharray="3 4"/>`);
+    marks.push(`<span style="left:${(at / total) * 100}%;width:${(s.minutes / total) * 100}%"><b style="background:${s.colour.hex}"></b>${i + 1}</span>`);
+    at += s.minutes;
+  }
+  const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+  const card = (s, i) => `<article class="arcsec ${s.kind}" style="--c:${s.colour.hex}"><header><span>${String(i + 1).padStart(2, '0')} · ${KIND[s.kind]}${s.kind === 'scene' ? ' ' + ++shortNo : ''}</span><em>${s.minutes} min</em></header><h3>${esc(s.title)}</h3>${s.idea ? `<i>${esc(s.idea)}</i>` : ''}${s.scene ? `<i class="made">its scene: ${esc(s.scene)}</i>` : ''}
+    <dl>${row('Setting', esc(s.setting))}${row('Emotion', `${esc(s.emotion)} <b class="${s.charge}">${s.charge === 'up' ? '▲ lifts' : '▼ weighs'}</b>`)}${row('Feeling', esc(s.feeling))}${row('Pace', esc(s.pace))}${row('Dynamic', esc(s.dynamic))}${row('Colour', `<u style="background:${s.colour.hex}"></u>${esc(s.colour.name)}`)}${row('Music', esc(s.music))}</dl>
+    <div class="tens"><b>${s.tension.in}</b><span></span><b class="pk">${s.tension.peak}</b><span></span><b>${s.tension.out}</b></div>
+    <p><small>Opens</small>${esc(s.question)}</p><p><small>Releases</small>${esc(s.release)}</p>
+    ${(s.beats || []).length ? `<ol>${s.beats.map((b) => `<li><b>${b.level}</b>${esc(b.note)}</li>`).join('')}</ol>` : ''}</article>` +
+    (s.gate ? `<div class="arcgate" style="--a:${s.colour.hex};--b:${S[i + 1].colour.hex}"><span>${esc(S[i].pace)} → ${esc(S[i + 1].pace)}</span><span>${esc(S[i].dynamic)} → ${esc(S[i + 1].dynamic)}</span><span>${esc(S[i].emotion)} ${S[i].charge === 'up' ? '▲' : '▼'} → ${esc(S[i + 1].emotion)} ${S[i + 1].charge === 'up' ? '▲' : '▼'}</span><i></i><p>${esc(s.gate)}</p></div>` : '');
+  return `<div class="arc"><header class="archead"><h2>${esc(hook?.title ?? '')}</h2><p>${esc(a.promise)}</p><span>Day ${a.day} · ${S.filter((s) => s.kind === 'scene').length} scenes · ${clock(total)}</span></header>
+    <div class="arccurve"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${[2, 5, 8].map((l) => `<line x1="0" y1="${Y(l)}" x2="${W}" y2="${Y(l)}" stroke="rgba(251,246,234,.07)"/>`).join('')}${curve.join('')}</svg><div class="arcmarks">${marks.join('')}</div><small class="hi">tension</small></div>
+    <div class="arcrow">${S.map(card).join('')}</div></div>`;
+}
+function pages(root, md, film, arc, hook) {
   const parts = md.replace(/^---\n[\s\S]*?\n---\n/, '').split(/^## /m).slice(1).map((p) => { const nl = p.indexOf('\n'); return { head: p.slice(0, nl).trim(), text: p.slice(nl + 1) }; });
   const tabs = STEP.map(([h, name]) => (h === 'EDIT' ? (film ? { name, edit: true } : null) : { name, part: parts.find((p) => p.head.startsWith(h)) })).filter((t) => t && (t.edit || t.part));
+  if (arc) tabs.unshift({ name: 'Arc', arc });   // step 2: the story's sections and their tension, before any word of it
+  if (hook) tabs.unshift({ name: 'Hook', hook, arc });   // step 1: its title and its intro (Stories/hook.js)
   for (const p of parts) if (!tabs.some((t) => t.part === p) && !HIDE.some((h) => p.head.startsWith(h))) tabs.push({ name: p.head, part: p });
   const bar = root.querySelector('.pages'), stage = root.querySelector('.stagedoc'), frame = root.querySelector('.player iframe');
   bar.innerHTML = `<button class="burger" aria-label="Pages"><i></i><i></i><i></i></button>` + tabs.map((t, i) => `<button class="pg" data-i="${i}">${t.name}</button>`).join('');
   const open = (i) => { const t = tabs[i]; root.dataset.page = t.edit ? 'edit' : 'doc'; bar.classList.remove('open');
     bar.querySelectorAll('.pg').forEach((b) => b.classList.toggle('on', +b.dataset.i === i));
-    if (!t.edit) { stage.innerHTML = `<article class="doc on"><h2>${t.part.head}</h2>${marked.parse(t.part.text)}</article>`; stage.scrollTop = 0; frame?.contentWindow?.postMessage({ maia: 1, cmd: 'pause' }, '*'); } };
+    if (t.hook) { stage.innerHTML = hookView(t.hook, t.arc); stage.scrollTop = 0; frame?.contentWindow?.postMessage({ maia: 1, cmd: 'pause' }, '*'); }
+    else if (t.arc) { stage.innerHTML = arcView(t.arc, hook); stage.scrollTop = 0; frame?.contentWindow?.postMessage({ maia: 1, cmd: 'pause' }, '*'); }
+    else if (!t.edit) { stage.innerHTML = `<article class="doc on"><h2>${t.part.head}</h2>${marked.parse(t.part.text)}</article>`; stage.scrollTop = 0; frame?.contentWindow?.postMessage({ maia: 1, cmd: 'pause' }, '*'); } };
   bar.querySelectorAll('.pg').forEach((b) => (b.onclick = () => open(+b.dataset.i)));
   bar.querySelector('.burger').onclick = () => bar.classList.toggle('open');
-  const first = tabs.findIndex((t) => t.edit); open(first >= 0 ? first : 0);
+  const first = tabs.findIndex((t) => t.edit); open(arc || hook ? 0 : first >= 0 ? first : 0);
 }
 
 // ---- a story's editor: the film above, its timeline under it. A ruler, the picture track (one still per shot,
@@ -151,13 +224,17 @@ function editor(el, frame, story) {
     if (m.type === 'film' && m.duration && !D) {
       D = m.duration; clips = m.clips; starts = []; let T = 0; for (const c of clips) { starts.push(T); T += c.secs; }
       let r = ''; for (let s = 0; s <= D; s += 5) r += `<span style="left:${pct(s)}%">${mm(s)}</span>`; q('.eruler').innerHTML = r;
-      q('.elane.v').innerHTML = clips.map((c, i) => `<div class="eclip" data-i="${i}" style="left:${pct(starts[i])}%;width:calc(${pct(c.secs)}% - 3px)"><span>${c.name}</span></div>`).join('');
+      q('.elane.v').innerHTML = clips.map((c, i) => `<div class="eclip" data-i="${i}" style="left:${pct(starts[i])}%;width:calc(${pct(c.secs)}% - 3px)${c.still ? `;background-image:url(${c.still})` : ''}"><span>${c.name}</span></div>`).join('');
       const caps = m.captions || [], block = (c, cls) => `<div class="${cls} ${c.kind}" style="left:${pct(c.at)}%;width:calc(${pct(c.for)}% - 2px)" title="${c.text.replace(/"/g, '&quot;')}">${c.text}</div>`;
       q('.elane.t').innerHTML = caps.filter((c) => c.kind === 'title').map((c) => block(c, 'ecap')).join('');
       q('.elane.a').innerHTML = caps.filter((c) => c.kind === 'samuel' || c.kind === 'maia').map((c) => block({ ...c, text: (c.kind === 'samuel' ? 'Samuel' : 'Maia') + ' · not recorded' }, 'eaud')).join('');
       q('.elane.s').innerHTML = caps.filter((c) => c.kind !== 'title').map((c) => `<div class="ecap ${c.kind}" style="left:${pct(c.at)}%;width:calc(${pct(c.for)}% - 2px)" title="${c.text.replace(/"/g, '&quot;')}">${c.text}</div>`).join('');
+      // a scene's sounds, each where it lies: its recorded voices, its music and effects
+      if (m.sound) { const bar = (x, t) => `<div class="eaud" style="left:${pct(x.at)}%;width:calc(${pct(x.for)}% - 2px)">${t}</div>`;
+        q('.elane.a').innerHTML = m.sound.filter((x) => x.kind === 'voice').map((x) => bar(x, (x.who ? x.who[0] + x.who.slice(1).toLowerCase() : 'Voice') + ' · recorded')).join('');
+        q('.elane.m').innerHTML = m.sound.filter((x) => x.kind !== 'voice').map((x) => bar(x, x.kind === 'music' ? 'Music' : x.id)).join('') || '<span class="eempty">no music yet</span>'; }
       paintClock(0);
-      if (story?.shots >= clips.length) clips.forEach((c, i) => { q(`.eclip[data-i="${i}"]`).style.backgroundImage = `url(/api/stories/${story.id}/shots/${i}.jpg)`; });   // taken before: no run through the shots
+      if (clips.every((c) => c.still)) {} else if (story?.shots >= clips.length) clips.forEach((c, i) => { q(`.eclip[data-i="${i}"]`).style.backgroundImage = `url(/api/stories/${story.id}/shots/${i}.jpg)`; });   // taken before: no run through the shots
       else if (!asked) { asked = true; say({ cmd: 'thumbs' }); }
     }
     if (m.type === 'preview') { const b = document.querySelector('[data-do=retake]'); if (b) { b.textContent = m.ok ? 'Picture retaken' : 'No preview camera'; b.disabled = false; } }
@@ -169,6 +246,12 @@ function editor(el, frame, story) {
       if (i !== cur) { cur = i; el.querySelectorAll('.eclip').forEach((c) => c.classList.toggle('on', +c.dataset.i === i)); q('.eshot').textContent = clips[i] ? `${i + 1} / ${clips.length} · ${clips[i].name}` : ''; }
     } } };
   q('.eplay').onclick = () => say({ cmd: playing ? 'pause' : 'play' });
+  // the space bar plays and pauses, wherever the studio's focus is (in the film's own frame the film takes it itself)
+  const space = (e) => { if (!el.isConnected) return removeEventListener('keydown', space);
+    if (e.code !== 'Space' || e.repeat || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+    if (!document.body.classList.contains('studio') || $('storyedit').dataset.page !== 'edit') return;
+    e.preventDefault(); say({ cmd: playing ? 'pause' : 'play' }); };
+  addEventListener('keydown', space);
   q('.efull').onclick = () => { frame.parentNode.requestFullscreen?.().catch(() => {}); say({ cmd: 'play' }); };   // the film alone, the whole screen, playing on
   const seek = (ev) => { const r = lanes.getBoundingClientRect(); say({ cmd: 'seek', t: Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * D }); };
   lanes.onpointerdown = (ev) => { lanes.setPointerCapture(ev.pointerId); say({ cmd: 'pause' }); seek(ev); lanes.onpointermove = seek; };
@@ -225,19 +308,21 @@ function home() {
   // the window: the day's story. Its shot from above stands there until its film runs, and the film runs only
   // while the window is on screen: scrolled to, it starts; scrolled away, or on another tab, it stops
   const banner = $('banner'), hero = $('heroframe'); let wait, shown = null, inView = false;
-  const playing = (e) => (hero.getAttribute('src') || '').includes(`story=${e.id}&`);
+  // until a day has its film the trailer stands in the window (a scene: Stories/scenes/trailer), named as what it is
+  const tr = scenes.find((x) => x.id === 'trailer'), stand = !today && tr ? { id: tr.id, scene: true, title: tr.title, secs: Math.round(tr.duration), cover: tr.cover } : null;
+  const playing = (e) => (hero.getAttribute('src') || '').includes(`${e.scene ? 'scene' : 'story'}=${e.id}&`);
   const sync = () => { clearTimeout(wait);
     if (!shown || !inView || !$('home').classList.contains('on')) { hero.removeAttribute('src'); banner.classList.add('poster'); return; }
     if (playing(shown)) return;
     banner.classList.add('poster'); const e = shown;
-    wait = setTimeout(() => { hero.onload = () => { if (playing(e)) banner.classList.remove('poster'); }; hero.src = filmOf(e.id); }, 350); };
+    wait = setTimeout(() => { hero.onload = () => { if (playing(e)) banner.classList.remove('poster'); }; hero.src = filmOf(e.id, !!e.scene); }, 350); };
   // the large play: the day's film from its first frame, the window full screen
   const full = (e) => { clearTimeout(wait); const go = () => { hero.contentWindow?.postMessage({ maia: 1, cmd: 'seek', t: 0 }, '*'); hero.contentWindow?.postMessage({ maia: 1, cmd: 'play' }, '*'); banner.classList.remove('poster'); };
     $('window').requestFullscreen?.().catch(() => {});
-    if (playing(e)) go(); else { hero.onload = () => setTimeout(go, 400); hero.src = filmOf(e.id); } };
-  const show = (e) => { e = e || today; if (!e) return; const j = joined(e);
-    if (e !== shown) { shown = e; $('dayboard').innerHTML = pic(e, j);
-      $('daycard').innerHTML = `<button class="bigplay" aria-label="Play day ${e.day} from the start, full screen"></button><div><span class="label num">Day ${pad(e.day)}${e === today ? ' · today' : ''}</span>
+    if (playing(e)) go(); else { hero.onload = () => setTimeout(go, 400); hero.src = filmOf(e.id, !!e.scene); } };
+  const show = (e) => { e = e || today || stand; if (!e) return; const j = e.scene ? null : joined(e);
+    if (e !== shown) { shown = e; $('dayboard').innerHTML = e.scene ? (e.cover ? `<img class="pic" src="/api/objects/${e.cover}" alt="">` : '') : pic(e, j);
+      $('daycard').innerHTML = `<button class="bigplay" aria-label="Play day ${e.day} from the start, full screen"></button><div><span class="label num">${e.scene ? 'The trailer' : `Day ${pad(e.day)}${e === today ? ' · today' : ''}`}</span>
         <p class="count">${e.inGame != null ? `<span><b>${n(e.inGame)}</b>${e.inGame === 1 ? 'citizen' : 'citizens'}</span>` : ''}${j ? `<span><b>+${n(j)}</b>joined</span>` : ''}${e.secs ? `<span>${mm(e.secs)}</span>` : ''}</p></div>`;
       $('daycard').querySelector('.bigplay').onclick = () => full(e);
       goals(e); }
@@ -289,7 +374,7 @@ function city() {
   $('tiles').querySelectorAll('button.tile').forEach((t) => (t.onclick = () => (t.dataset.lenses !== undefined ? game('lenses') : t.dataset.library !== undefined ? game('library') : t.dataset.go === 'game' ? game('walk') : tab(t.dataset.go))));   // the game's tile always walks, whatever was open last
 }
 
-[intents, stories, me] = await Promise.all([get('/api/intents').then((r) => r.json()), get('/api/stories').then((r) => r.json()).catch(() => []), get('/api/me').then((r) => r.json()).catch(() => ({}))]);
+[intents, stories, me, scenes] = await Promise.all([get('/api/intents').then((r) => r.json()), get('/api/stories').then((r) => r.json()).catch(() => []), get('/api/me').then((r) => r.json()).catch(() => ({})), get('/api/scenes').then((r) => r.json()).catch(() => [])]);
 board(); home();
 shelf();
 game('walk', false); tab(['city', 'intents', 'stories', 'game'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');
