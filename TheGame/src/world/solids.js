@@ -2,6 +2,7 @@
 // stands. One rule for all of them: walls are rounds with gaps (a door), posts are rounds, boxes are boxes, and
 // `ceiling` says how high the room overhead is, so the walker stoops under a low roof.
 import { rocksNear } from './rocksolid.js';
+import { trunksNear } from './trunks.js';
 const BODY = 0.3;   // how wide the walker is, from the middle: a step keeps this far off anything
 const list = [];
 
@@ -67,7 +68,7 @@ export function step(px, pz, x, z, rocks = true) {
     }
     [x, z] = toW(o, u, v);
   }
-  if (rocks) for (const r of rocksNear(x, z, 1.5)) {   // the scattered rocks, as the card places them (src/world/rocksolid.js)
+  if (rocks) for (const r of [...rocksNear(x, z, 1.5), ...trunksNear(x, z, 1.5)]) {   // and the trees' trunks (src/world/trunks.js)   // the scattered rocks, as the card places them (src/world/rocksolid.js)
     const du = x - r.x, dv = z - r.z, d = Math.hypot(du, dv), m = r.r + BODY;
     if (d < m) { const k = m / Math.max(d, 1e-6); x = r.x + du * k; z = r.z + dv * k; }
   }

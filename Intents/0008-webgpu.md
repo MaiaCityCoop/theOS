@@ -414,6 +414,28 @@ shadows and the grass.
 - **Broke / not there yet:** some WebKit runs lock at 30 fps whatever the weather (another GPU user is the likely
   cause: to be checked in Samuel's own Safari with nothing else open); the ground is still the heaviest part.
 
+### 2026-11-12, the pine forest made solid and varied (evening)
+
+- **Asked:** keep optimizing the forest: the cards' flat undersides seen under the crowns, the trees' shadow pass at
+  about 6 ms, the walker passing through the trunks; and what the critique of the forest still found (every tree alike,
+  too small, its crown too even in colour and too light underneath).
+- **Delivered:** four shapes of stone pine (assets/stonepine.js SHAPES: the classic, a taller flatter one, one forked low
+  into three stems, a young one with a short trunk and round crown), a cell picking one; a tier per shape and level
+  (src/scatter/trees.js). Scale 0.6 to 1.45, more young than old; groves from two noises; trees placed nearer their
+  neighbours. Each tree its own green (lighter or darker, warmer or cooler); deep in the crown and under it darker;
+  limbs and branches thinner. A card seen edge-on is cut away (each card carries its own plane, `cn`), so no flat
+  slivers show from below. Shadows: the trees drawn as drawn no longer cast; a shade mesh per shape (trunk, limbs and
+  one crossed pair of cards per puff, a quarter of a level's card area) stands in for every tree within 80 m whose
+  shade can reach the view (Tier: `cull` widened by a shadow's reach, `fixed` metres whatever the lens). Trunks are
+  bodies: the stand-in's packing is read back to the CPU each time it is packed anew (Tier.read, src/world/trunks.js)
+  and solids.js step pushes the walker round them as round the rocks. The forest's edge softer.
+- **Good:** every tree round the walker now shades the ground (before: only the nearest level's); the shadow pass with
+  the trees 1.1 to 2.2 ms in the forest in WebKit (up to about 1.5 ms more than without them; the finest level drawn
+  as the caster cost 6 ms where many stood near); the walker stops 0.8 m from a trunk and slides round it.
+- **Broke / not there yet:** this evening's WebKit timings swing twice as wide as the afternoon's (the sky alone 4.7 to
+  8.3 ms, rAF held at 10 to 30 fps in the test window even at the tent), so whole-frame numbers are not comparable to
+  the afternoon's; to be checked in Samuel's own Safari. Without WebGPU (no packing to read back) trunks are not solid.
+
 ## Trail
 
 | When | Commit | What |
@@ -452,4 +474,5 @@ shadows and the grass.
 | 2026-11-12 | `617d3e9` | The stone pine made real: branches, twigs, needle brushes, bark, three levels |
 | 2026-11-12 | `c90cf51` | The stone pine after the photos: S-trunk, umbrella limbs, a dome of puffs; indexed |
 | 2026-11-12 | `bd5bc2b` | Loading over a still of the world |
-| 2026-11-12 | (this commit) | Sky only where it shows, one far take, grass colour per vertex, filtered shadows, shorter far grass |
+| 2026-11-12 | `b00d1a1` | Sky only where it shows, one far take, grass colour per vertex, filtered shadows, shorter far grass |
+| 2026-11-12 | (this commit) | Pine forest: four shapes, its own green per tree, no edge-on cards, a light shade mesh for shadows, solid trunks |

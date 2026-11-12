@@ -19,7 +19,7 @@
     "type": "asset",
     "name": "Stone pine",
     "file": "assets/stonepine.js",
-    "version": "ee4a05a8a24c4de6e390bd64b437f02befa4677b74e865d8d379f723287d5253",
+    "version": "59c3bdfa5d79eb30f2b7a05d20209a2c82b8e375b5423e04f03d667c108e59c8",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
@@ -79,7 +79,7 @@
     "type": "biome",
     "name": "Pine forest",
     "file": "biomes/pineforest.js",
-    "version": "7b5858843ff56e33b8cfab1a9a10d90b13df10df2a93bbf84bb6e027f1d58f68",
+    "version": "a9ced1d443d2694390b130c6d8f8811ebb11fdd6371feadffa2351fb71286f43",
     "uses": [
       "795da1c3-9cfe-4c4e-88c7-a58ce86444d4"
     ]

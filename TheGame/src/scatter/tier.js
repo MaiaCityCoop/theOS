@@ -21,11 +21,13 @@ export const clipOf = (w) => cameraProjectionMatrix.mul(cameraViewMatrix).mul(ve
 
 export class Tier {
   /** cell: metres per cell; P: cells per patch side; near/far: the band, in metres as a 68° lens sees them.
+      cull: metres the eye's frustum is widened by before a patch outside it is dropped (a shadow's reach), or false to keep
+      every patch; fixed: metres round the camera, whatever the lens.
       Without `live`: material(cellNode) is the tier's node material, given the cell each instance stands for.
       With `live` (and `gpu`, a WebGPU renderer's): live(cellNode) -> { alive, data: [vec4, …] } says what stands in a cell;
       material({ read }) is the material, read(k) its k-th vec4 of `slots`, ready-made; `cap` the most that may stand at once. */
-  constructor(scene, geometry, material, { cell, P, near = 0, far, order = 0, live = null, gpu = false, cap = 0, slots = 0 }) {
-    this.P = P; this.S = cell * P; this.near = Math.max(0, near); this.far = far; this.n = 0; this.over = false;
+  constructor(scene, geometry, material, { cell, P, near = 0, far, order = 0, live = null, gpu = false, cap = 0, slots = 0, cull = 0, fixed = 0 }) {
+    this.cull = cull; this.fixed = fixed; this.P = P; this.S = cell * P; this.near = Math.max(0, near); this.far = far; this.n = 0; this.over = false;
     this.list = Array.from({ length: MAXP }, () => new THREE.Vector2());
     const patches = uniformArray(this.list, 'vec2'), P2 = uint(P * P);
     const cellOf = (index) => { const pid = index.div(P2), b = int(index.sub(pid.mul(P2))); return ivec2(patches.element(pid)).add(ivec2(b.mod(P), b.div(P))); };   // which patch of the list, which cell of the patch
@@ -47,7 +49,7 @@ export class Tier {
         })().compute(MAXP * P * P),
         Fn(() => { argsNode.element(1).assign(min(atomicLoad(count.element(0)), uint(cap))); })().compute(1),
       ];
-      geometry.setIndirect(args); geometry.instanceCount = cap;
+      geometry.setIndirect(args); geometry.instanceCount = cap; this.data = data; this.args = args;
       this.mesh = new THREE.Mesh(geometry, material({ read: (k) => data[k].element(instanceIndex) }));
     } else this.mesh = new THREE.Mesh(geometry, material(cellOf(instanceIndex)));
     this.mesh.frustumCulled = false; this.mesh.renderOrder = order;
@@ -67,8 +69,15 @@ export class Tier {
     const N = n * this.P * this.P; this.cand.value = N; this.passes[1].dispatchSize = Math.max(1, N);
     renderer.compute(this.passes);
   }
+  /** On WebGPU: what the last packing holds, read back to the CPU a moment later (a promise of { count, data: the first
+      slots' vec4s as floats, one array a slot }), for what the CPU must know of where things stand (src/world/trunks.js). */
+  async read(renderer) {
+    const [n, ...d] = await Promise.all([this.args, ...this.data.map((s) => s.value)].map((b) => renderer.getArrayBufferAsync(b)));
+    return { count: new Uint32Array(n)[1], data: d.map((b) => new Float32Array(b)) };
+  }
   /** s: how many times further than the 68° lens this lens sees a thing at the same size; h0: the ground under the camera */
   select(cx, cz, h0, s, dy) {
+    if (this.fixed) s = Math.min(this.fixed, this.far + Math.abs(dy) * 1.2) / this.far;   // fixed: metres round the camera whatever the lens (the shadow map's box), grown with its height, to at most `fixed`
     const { S, P, list } = this, far = this.far * s, far2 = far * far - dy * dy, near2 = this.near * this.near * s * s - dy * dy;
     let n = 0; this.over = false;
     if (far2 > 0) {
@@ -80,7 +89,7 @@ export class Tier {
         const fx = Math.max(cx - x0, x1 - cx), fz = Math.max(cz - z0, z1 - cz);
         if (fx * fx + fz * fz < near2) continue;
         const yb = 0.32 * Math.sqrt(nd) + 0.2 * S + 6;         // the land is gentle: it cannot be further off than this
-        if (!boxIn(x0, x1, h0 - yb, h0 + yb, z0, z1)) continue;
+        const c = this.cull; if (c !== false && !boxIn(x0 - c, x1 + c, h0 - yb, h0 + yb + c, z0 - c, z1 + c)) continue;   // (widened: what is drawn for the light, whose shadow may fall into view)
         if (n === MAXP) { this.over = true; continue; }
         list[n].set(i * P, j * P); n++;
       }

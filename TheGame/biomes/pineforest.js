@@ -13,7 +13,7 @@ export default {
   layer: 20,
   // where it lies, 0..1 (node code): stands of a few hundred metres (a slow noise, pushed by a quicker one so their edges
   // wander), kept off the river's banks
-  where: ({ p, d, w }) => smoothstep(0.62, 0.69, vnoise(p.mul(1 / 1100), uint(80)).add(vnoise(p.mul(1 / 240), uint(81)).sub(0.5).mul(0.3))).mul(smoothstep(w.add(30), w.add(90), d)),
+  where: ({ p, d, w }) => smoothstep(0.6, 0.72, vnoise(p.mul(1 / 1100), uint(80)).add(vnoise(p.mul(1 / 240), uint(81)).sub(0.5).mul(0.3))).mul(smoothstep(w.add(30), w.add(90), d)),
   floor: { material: '795da1c3-9cfe-4c4e-88c7-a58ce86444d4' /* pine needles */, tile: [2.2, 3.5] },
   grass: { cover: 0.25, tufts: true, height: 0.7, colours: { dry: [0.33, 0.28, 0.13] }, flowers: false },   // thin grass in the shade of the pines
   stones: 0.15,

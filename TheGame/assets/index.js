@@ -29,11 +29,11 @@ export const scatterRow = (a) => ({ asset: a, snow: snowOf(a), name: a.name, uid
 export const facesOf = (l) => (l.mesh ? (l.mesh.index ? l.mesh.index.length : l.mesh.position.length) / 3 : l.faces ? l.faces.length : 20 * 4 ** (l.rock || 0));
 
 /** A level of detail of an asset as a geometry, coloured per face (the nearest level unless one is named). */
-export function geometryOf(asset, level = asset.detail.levels[0]) {
-  if (level.mesh) {   // built as a mesh by its own file (a tree): every attribute it made, as it made them
-    const g = new THREE.BufferGeometry(), size = { uv: 2, part: 1, ao: 1 };
-    for (const [k, v] of Object.entries(level.mesh)) if (Array.isArray(v) && k !== 'index') g.setAttribute(k, new THREE.Float32BufferAttribute(v, size[k] ?? 3));
-    if (level.mesh.index?.length) g.setIndex(level.mesh.index);
+export function geometryOf(asset, level = asset.detail.levels[0], shape = 0) {
+  if (level.mesh) {   // built as a mesh by its own file (a tree): every attribute it made, as it made them; of its shapes (meshes) the one asked
+    const g = new THREE.BufferGeometry(), size = { uv: 2, part: 1, ao: 1 }, M = level.meshes?.[shape] ?? level.mesh;
+    for (const [k, v] of Object.entries(M)) if (Array.isArray(v) && k !== 'index') g.setAttribute(k, new THREE.Float32BufferAttribute(v, size[k] ?? 3));
+    if (M.index?.length) g.setIndex(M.index);
     return g;
   }
   const faces = level.faces; if (!faces) return rockPreview(asset, level.rock);
