@@ -43,7 +43,7 @@ import { useGround } from './world/rocksolid.js';
 const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
 const params = new URLSearchParams(location.search);
-const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, powerPreference: 'high-performance', forceWebGL: params.has('webgl'), trackTimestamp: params.has('gputime') });   // ?gputime: the GPU's own time per pass (tools/bench.js)
+const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance', forceWebGL: params.has('webgl'), trackTimestamp: params.has('gputime') });   // alpha false: the canvas is opaque (what is drawn with alpha to coverage, a tree's needles, leaves its alpha in the picture: it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js)
 await renderer.init();
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // every material makes its colours for the screen itself (toScreen)
 renderer.setSize(innerWidth, innerHeight, false);

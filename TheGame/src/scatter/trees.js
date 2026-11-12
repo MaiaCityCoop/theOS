@@ -98,17 +98,25 @@ function treeMaterial(tex, row) {
       return clipOf(w);
     };
     const frag = Fn(() => {
-      If(detailCut(vKeep), () => { Discard(); });
-      const leaf = vPart.greaterThan(0.5), T = vec4(0).toVar();
-      // the needles' outline: cut where the tuft is not; far off its mips thin it out, so the cut lowers
+      // drawn with alpha to coverage (the canvas's multisampling): a needle's outline soft in a pixel, not a screen-door
+      // dither of whole pixels (which a lowered pixel ratio blows up into dots). Between two levels the whole tree changes
+      // over half way through its hand-over (their outlines are one: assets/stonepine.js), not both half there (two
+      // halves of coverage are the same samples: the crown would go half see-through, in a grid)
+      const leaf = vPart.greaterThan(0.5), T = vec4(0).toVar(), alpha = float(1).toVar(), shadow = unlit();
+      If(vKeep.x.lessThan(0.5).or(vKeep.y.greaterThan(0.5).and(vKeep.x.equal(0.5))), () => { Discard(); });
       If(leaf, () => {
         T.assign(tex.a(M.leaves ?? M.needles, vUv));
-        // a card seen edge-on is a flat sliver, not a brush: the nearer edge-on, the more of it is cut away (not in the shadow map)
-        const edge = unlit().select(float(1), abs(normalize(vCn).dot(normalize(U.uCam.sub(vWorld)))));
-        If(T.a.lessThan(mix(mix(0.45, 0.16, smoothstep(15, 220, length(U.uCam.sub(vWorld)))), 0.97, smoothstep(0.42, 0.06, edge))), () => { Discard(); });
-      });   // (far off a mip's needles are fainter: the cut lowers with them, so the crown stays full)
+        const cut = mix(0.45, 0.16, smoothstep(15, 220, length(U.uCam.sub(vWorld))));   // far off a mip's needles are fainter: the cut lowers with them, so the crown stays full
+        If(shadow, () => { If(T.a.lessThan(cut), () => { Discard(); }); })   // the shadow map takes no coverage: cut, as before
+          .Else(() => {
+            // a card seen edge-on is a flat sliver, not a brush: it fades as it turns away
+            const edge = smoothstep(0.06, 0.42, abs(normalize(vCn).dot(normalize(U.uCam.sub(vWorld)))));
+            alpha.assign(smoothstep(cut.sub(0.08), cut.add(0.08), T.a).mul(edge));
+            If(alpha.lessThan(0.04), () => { Discard(); });
+          });
+      });
       const out = vec4(0).toVar();
-      If(unlit().not(), () => {   // drawn into the shadow map: only its depth (and its cut-out) counts
+      If(shadow.not(), () => {   // drawn into the shadow map: only its depth (and its cut-out) counts
         const nw = normalize(vN), V = normalize(U.uCam.sub(vWorld)), n = nw.dot(V).lessThan(0).select(nw.negate(), nw);
         const albedo = vec3(0).toVar();   // its bark (darker in its fissures) or its needles: only the one it is read
         If(leaf, () => { albedo.assign(T.rgb.mul(T.rgb).mul(vShade)); }).Else(() => { const W = tex.a(M.wood, vUv); albedo.assign(W.rgb.mul(W.rgb).mul(mix(0.55, 1, W.a))); });
@@ -116,11 +124,11 @@ function treeMaterial(tex, row) {
         const through = leaf.select(pow(max(V.negate().dot(U.uSunDir), 0), 3).mul(0.55), float(0));   // the sun behind a brush of needles shines through it
         const sun = U.uSun.mul(cloudAtVertex(vWorld));   // one tap of the shadow map, not twelve: a crown is many layers of cards deep, and its needles' own cut-out is soft enough
         const col = weathered(albedo, n, snowLift(vWorld, row.snow?.clumps ?? 0.3)).mul(skyLight(n).mul(vAo.mul(vAo).mul(0.75).add(vAo.mul(0.25))).add(sun.mul(ndl.add(through)).mul(vAo.mul(0.6).add(0.4))));
-        out.assign(finish(col, vWorld));
+        out.assign(vec4(finish(col, vWorld).rgb, alpha));
       });
       return out;
     });
-    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide;
+    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.alphaToCoverage = true;
     return { m, shape };
   };
 }
