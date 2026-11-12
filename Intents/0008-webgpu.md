@@ -772,6 +772,24 @@ shadows and the grass.
   had that file open); the grass keeps its own rings. Samuel's own game tab ran at the pixel ratio's floor (0.6) while
   my test pages shared the GPU: not known what it holds alone. The start's time not measured alone.
 
+### 2026-11-12, a stand changes level as one (16:52)
+
+- **Asked:** the bushes still pop up and down, at different depths at once, right in view: the distancing is not good.
+- **Found:** each bush changed level and sank by its own size on screen, and bushes run from a fern of half a metre to
+  a mastic of six: the changes lay at every depth between 30 and 700 m at once. At 30 to 70 m a bush became its
+  eight-triangle body, far too near. And the land took the stand's colour only from 360 m: where small bushes sank
+  before that, bare litter showed.
+- **Delivered:** a stand may say its `size` (the understory: 3.5 m): every plant of it changes level as if it were that
+  size, so the stand changes at the same distances for all (finest to 15 m, fewer sprigs to 70, a handful to 200, its
+  body sunk away between 250 and 420). A third level of a bush's own (five or six large sprigs) between its cards and
+  its body. The land wears such a stand's colour from 50 m on, whole by 210: the bushes sink over ground already theirs.
+- **Good:** no errors in WebKit; a walk in steps of 7 m: the same bushes in every picture, the undergrowth unbroken.
+  Samuel's own game tab in Safari, my test pages closed: 239 to 241 frames per 4 s, none late, the pixel ratio rising
+  from 0.75 past 1.25. The shrubs 107 to 141 thousand triangles packed in a forest view, as before.
+- **Broke / not there yet:** seen in stills only, not in motion by me: whether it reads as calm while walking is his to
+  say. While my test pages ran beside it his tab fell to 128 to 204 frames per 4 s: my measuring disturbs his picture.
+  The start's time not measured alone (one tier more a kind of shrub).
+
 ## Trail
 
 | When | Commit | What |
@@ -834,3 +852,4 @@ shadows and the grass.
 | 2026-11-12 | `1610cf4` | Bushes in heaps, ragged; one material a tier, levels as uniforms: the start from 8.5 to 5 s |
 | 2026-11-12 | `5974374` | Every stand hands over to the land: size by kind, far bodies, a stand's cover |
 | 2026-11-12 | `58e8563` | One hand-over for everything: rocks, placed assets and their cards as the plants |
+| 2026-11-12 | `bdefbaf` | A stand changes level as one; a bush's in-between level; the stand's colour on the land early |
