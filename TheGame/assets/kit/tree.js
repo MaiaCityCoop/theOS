@@ -3,10 +3,14 @@
 // texture (part 0), leaves or needles as crossed cards cut out of a painted sprig (part 1), each card knowing its own
 // plane (cn: seen edge-on it is cut away, src/scatter/trees.js), every vertex how much light reaches it (ao).
 //
-//   export default tree({ uid, type: 'asset', name, kind: 'tree', materials: { wood, leaves }, shapes, grow, shade,
-//                         levels: [{ P }, …], placement, … })
+//   export default tree({ uid, type: 'asset', name, kind: 'tree', materials: { wood, leaves }, growth, grow, shade,
+//                         levels: [{ P }, …], placement: { …, age }, … })
 //
-// grow(q, shape, i) builds level q (0 nearest) of shapes[i] with builder()/tube()/cards() and returns the builder;
+// growth { years, variants, form(year, v), height(year) }: its stages of growth, by age (or, without it, shapes: a list).
+// placement { biome, share, age: { stand, young, min }, … }: share, its part of its biome's cells among every kind of
+// tree that grows there (one grid of cells for them all, one tree a cell: a mix); age, how old its stands are.
+//
+// grow(q, shape, i) builds level q (0 nearest) of a shape (a stage's form, or shapes[i]) with builder()/tube()/cards() and returns the builder;
 // shade(shape, i), if given, the light mesh the shadow map is drawn from (else none of its levels cast, but the nearest);
 // tree() works out the rest the engine reads: every level's meshes, the shade's, the tree's size, and each shape's trunk
 // as a body (the tube made with { body: true }, where it stands at a walker's chest).
@@ -77,15 +81,38 @@ const boundsOf = (meshes) => {
   return { length: 2 * x, width: 2 * z, height: y };
 };
 
-/** A tree file's recipe made whole: its levels' meshes (one per shape), its shade, its size and its trunks' bodies. */
-export function tree({ shapes = [{}], grow, shade, levels, shadow = {}, ...rest }) {
+/** How a tree grows, worked out from its file's growth { years, variants, form, height }: one shape per stage and variant
+    (form(year, v): its numbers at that age), each stage standing for the ages round it (from its geometric midpoints
+    with the stages either side), a tree between drawn as its stage scaled to its own height (height(year), metres). */
+function stagesOf(G) {
+  const n = G.years.length, shapes = [], stages = [];
+  G.years.forEach((year, i) => {
+    const from = i ? Math.sqrt(G.years[i - 1] * year) : G.min ?? 1, to = i < n - 1 ? Math.sqrt(year * G.years[i + 1]) : G.max ?? 300, k = G.variants?.[i] ?? 1;
+    stages.push({ year, from, to, offset: shapes.length, variants: k, h: G.height(year), hFrom: G.height(from), hTo: G.height(to) });
+    for (let v = 0; v < k; v++) shapes.push({ ...G.form(year, v), year, stage: i, variant: v });
+  });
+  /** a tree of this age: which of the shapes (variant v of its stage) and its scale */
+  const at = (age, v = 0) => {
+    const S = stages.find((x) => age < x.to) ?? stages[n - 1], t = Math.log(Math.max(age, S.from) / S.from) / Math.log(S.to / S.from);
+    return { shape: S.offset + (v % S.variants), s: (S.hFrom + (S.hTo - S.hFrom) * Math.min(1, t)) / S.h, height: G.height(age) };
+  };
+  return { shapes, stages, at };
+}
+
+/** A tree file's recipe made whole: its levels' meshes (one per shape), its shade, its size and its trunks' bodies. With
+    growth, its shapes are its stages of growth (and their variants), and a tree in the world is as old as its stand says
+    (placement.age, src/scatter/trees.js). */
+export function tree({ shapes = [{}], growth, grow, shade, levels, shadow = {}, ...rest }) {
+  const G = growth ? stagesOf(growth) : null; if (G) shapes = G.shapes;
   const built = levels.map((L, q) => { const meshes = shapes.map((s, i) => grow(q, s, i)); return { mesh: meshes[0], meshes, P: L.P }; });
   const shades = shade ? shapes.map((s, i) => shade(s, i)) : null;
   const near = built[0].meshes;
   return {
     ...rest,
     size: rest.size ?? boundsOf(near),
-    trunk: near.map((m) => m.body ?? [0, 0, 0.25]),   // each shape's trunk at a walker's chest: where it stands off its foot, its radius (src/world/trunks.js)
+    trunk: near.map((m) => m.body ?? [0, 0, 0.12]),   // each shape's trunk at a walker's chest: where it stands off its foot, its radius (src/world/trunks.js)
+    heights: near.map((m) => boundsOf([m]).height),   // each shape's own height
+    ...(G ? { growth: { years: growth.years, stages: G.stages, at: G.at, height: growth.height } } : {}),
     // meshes: one per shape (mesh: the first, for a single picture); shadow: drawn into the shadow map for every tree
     // within `far` metres whose shade can reach the view (`reach`: how far a crown's shadow falls)
     detail: { ...(rest.detail || {}), levels: built, ...(shades ? { shadow: { meshes: shades, far: 80, reach: 22, ...shadow } } : {}) },

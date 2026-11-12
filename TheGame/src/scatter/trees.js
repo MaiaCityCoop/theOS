@@ -4,12 +4,12 @@
 // trees that stand are drawn (tier.js). Past the last level the trees are not drawn: their biome's canopy colours the
 // land there (src/terrain/material.js), so a forest to the horizon costs nothing more.
 import * as THREE from 'three/webgpu';
-import { Fn, float, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp } from 'three/tsl';
+import { Fn, float, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf } from '../world/land.nodes.js';
 import { finish, skyLight, weathered, snowLift, cloudAtVertex, detailCut, detailKeep, unlit, windAt } from '../world/light.js';
 import { PLACES } from '../world/places.js';
-import { recipe } from '../core/registry.js';
+import { recipe, recipes } from '../core/registry.js';
 import { geometryOf } from '../../assets/index.js';
 import KINDS from '../../assets/kinds.js';
 import { pxK } from '../detail/index.js';
@@ -26,23 +26,39 @@ const clearAt = (p) => {
 };
 
 // what stands in a cell: a tree of this level, or nothing; packed into two vec4 (A: x, z, its foot's height, its scale;
-// B: its turn, its sway's phase, its shade, its share of the hand-over between levels and side packed). Done once per
-// tree (src/scatter/tier.js); the cheap test first, as most cells hold none.
-function treeIn(c, row, Lv, band, biome, shapes = 1, all = false) {
-  const P = row.asset.placement, H = row.asset.size.height, cx = c.x, cy = c.y;
-  const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar();
+// B: its turn, its sway's phase, its shade, its share of the hand-over between levels and side packed), and which of its
+// shapes (bucket). Done once per tree (src/scatter/tier.js); the cheap tests first, as most cells hold none.
+//   slice: the share of its biome's cells that are this kind's (every kind of tree of a biome on one grid of cells, each
+//          cell one tree of one kind: a mix, not trees standing in each other); growth: its stages by age, the age
+//          from its stand (placement.age), the tree its stage scaled to its own height (assets/kit/tree.js)
+function treeIn(c, row, Lv, band, biome, shapes = 1, all = false, slice = [0, 1]) {
+  const a = row.asset, P = a.placement, GR = a.growth, AG = P.age, cx = c.x, cy = c.y;
+  const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), bucket = float(0).toVar();
   const pos = vec2(c).add(0.08).add(vec2(rnd(cx, cy, uint(302)), rnd(cx, cy, uint(303))).mul(0.84)).mul(row.cell), dist = camDist(pos);
-  const bucket = floor(rnd(cx, cy, uint(309)).mul(shapes));   // which of its shapes stands here
   const range = all ? length(pos.sub(U.uCam.xz)) : dist;   // the shadow's stand-in: metres round the camera, whatever the lens
-  If(range.lessThan(band.far).and(range.greaterThanEqual(band.near)), () => {
+  const kind = rnd(cx, cy, uint(320)), mine = slice[0] > 0 || slice[1] < 1 ? kind.greaterThanEqual(slice[0]).and(kind.lessThan(slice[1])) : float(1).greaterThan(0);   // this kind's cell of the mix
+  If(range.lessThan(band.far).and(range.greaterThanEqual(band.near)).and(mine), () => {
     const r0 = rnd(cx, cy, uint(300));
     // groves and glades: a stand is not a plantation (a noise as wide as P.clumps sets how thick it grows here)
     const grove = P.clumps ? smoothstep(0.22, 0.72, vnoise(pos.div(P.clumps), uint(308)).mul(0.7).add(vnoise(pos.div(P.clumps * 0.27), uint(310)).mul(0.3))).mul(1.6) : float(1), dens = grove.mul(P.density);
     If(r0.lessThan(shareOf(biome, { p: pos, dist, d: float(1e5), w: float(1), b: float(0) }).mul(dens)), () => {   // its stands, as if far from the river
       const I = riverInfo(pos), d = abs(I.x), w = I.y;
       If(r0.lessThan(shareOf(biome, { p: pos, dist, d, w, b: I.z }).mul(dens).mul(clearAt(pos))), () => {
-        const s = mix(P.scale[0], P.scale[1], pow(rnd(cx, cy, uint(304)), 1.3));   // more young than old
-        const keep = all ? vec2(1, 0) : detailKeep(s.mul(H).mul(PXK).div(max(dist, 1e-3)), Lv.lo, Lv.hi, row.detail.fade);   // its size on screen picks the level (the shadow's stand-in: every tree in its band)   // its size on screen picks the level
+        const own = mix(P.scale[0], P.scale[1], rnd(cx, cy, uint(304))), s = float(1).toVar(), h = float(1).toVar();
+        if (GR && AG) {   // as old as its stand: a slow noise gives the stand its age, a few saplings among the old
+          const stand = mix(AG.stand[0], AG.stand[1], vnoise(pos.div((P.clumps || 50) * 2.5), uint(311))), r = rnd(cx, cy, uint(312));
+          const age = rnd(cx, cy, uint(313)).lessThan(AG.young ?? 0).select(mix(AG.min ?? 2, stand.mul(0.45), r), stand.mul(mix(0.65, 1.3, r))).toVar();
+          GR.stages.forEach((S, i) => {
+            const lo = i ? S.from : -1, hi = i < GR.stages.length - 1 ? S.to : 1e9;
+            If(age.greaterThanEqual(lo).and(age.lessThan(hi)), () => {
+              const t = clamp(log(max(age, S.from).div(S.from)).div(Math.log(S.to / S.from)), 0, 1), hh = mix(S.hFrom, S.hTo, t);
+              h.assign(hh.mul(own)); s.assign(hh.div(S.h).mul(own)); bucket.assign(floor(rnd(cx, cy, uint(309)).mul(S.variants)).add(S.offset));
+            });
+          });
+        } else {   // no growth: a shape at random, its size its placement's scale
+          s.assign(mix(P.scale[0], P.scale[1], pow(rnd(cx, cy, uint(304)), 1.3))); h.assign(s.mul(a.size.height)); bucket.assign(floor(rnd(cx, cy, uint(309)).mul(shapes)));
+        }
+        const keep = all ? vec2(1, 0) : detailKeep(h.mul(PXK).div(max(dist, 1e-3)), Lv.lo, Lv.hi, row.detail.fade);   // its size on screen picks the level (the shadow's stand-in: every tree in its band)
         If(keep.x.greaterThan(0), () => {
           A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(0.15), s));
           B.assign(vec4(rnd(cx, cy, uint(305)).mul(6.2831853), rnd(cx, cy, uint(306)).mul(6.2831853), rnd(cx, cy, uint(307)), keep.x.add(keep.y.mul(2))));
@@ -60,13 +76,14 @@ function treeIn(c, row, Lv, band, biome, shapes = 1, all = false) {
 // whole, not card by card); `ao` the light that reaches into the crown (assets/stonepine.js)
 function treeMaterial(tex, row) {
   const a = row.asset, H = a.size.height, sway = (a.wind ?? KINDS[a.kind]?.wind)?.sway ?? 0, M = a.materials || {};
-  return () => {
+  return (k = 0) => {   // k: which of its shapes (its own height: how far up it the wind takes hold)
+    const Hk = a.heights?.[k] ?? H;
     const vWorld = varyingProperty('vec3', 'tWorld'), vN = varyingProperty('vec3', 'tN'), vUv = varyingProperty('vec2', 'tUv'), vKeep = varyingProperty('vec2', 'tKeep');
     const vAo = varyingProperty('float', 'tAo'), vPart = varyingProperty('float', 'tPart'), vShade = varyingProperty('vec3', 'tShade'), vCn = varyingProperty('vec3', 'tCn');
     const part = attribute('part', 'float'), ao = attribute('ao', 'float');
     const shape = (A, B) => {
       const s = A.w, cs = cos(B.x), sn = sin(B.x), turn = (v) => vec3(v.x.mul(cs).sub(v.z.mul(sn)), v.y, v.x.mul(sn).add(v.z.mul(cs)));
-      const lean = vec2(cos(B.y), sin(B.y)).mul(B.z.sub(0.5).mul(2 * (a.placement.lean ?? 0))), lp = positionGeometry.add(vec3(lean.x, 0, lean.y).mul(positionGeometry.y)), up = clamp(lp.y.div(H), 0, 1);   // each leans its own way
+      const lean = vec2(cos(B.y), sin(B.y)).mul(B.z.sub(0.5).mul(2 * (a.placement.lean ?? 0))), lp = positionGeometry.add(vec3(lean.x, 0, lean.y).mul(positionGeometry.y)), up = clamp(lp.y.div(Hk), 0, 1);   // each leans its own way
       // the wind: the crown sways, the foot stays (the push grows with height squared), a slow sway of its own; and the
       // needles' brushes flutter, quicker and wider the harder it blows
       const push = windAt(A.xy), ws = U.uWind.z;
@@ -115,12 +132,19 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
   const a = row.asset, P = a.placement, biome = recipe(P.biome), H = a.size.height, tiers = [], make = treeMaterial(tex, row);
   if (!biome) return tiers;
   const levels = row.detail.levels.filter((l) => !l.impostor), shapes = levels[0]?.meshes?.length ?? 1, SH = a.detail.shadow;
+  // its share of its biome's cells: every kind of tree that grows there, in the order of their uids, each its share
+  const kin = recipes('asset').filter((o) => o.placement?.engine === 'trees' && o.placement.biome === P.biome).sort((x, y) => (x.uid < y.uid ? -1 : 1));
+  const total = Math.max(1, kin.reduce((t, o) => t + (o.placement.share ?? 1), 0)), before = kin.slice(0, kin.findIndex((o) => o.uid === a.uid)).reduce((t, o) => t + (o.placement.share ?? 1), 0);
+  const slice = [before / total, (before + (P.share ?? 1)) / total];
+  if (kin.some((o) => o.placement.cell !== P.cell)) console.warn(`trees of ${biome.name}: one grid of cells for them all, but their cells differ`);
+  // the heights a tree of it can have: its youngest and its oldest (by its growth), or its scale's
+  const G = a.growth, hLo = G ? G.stages[0].hFrom * P.scale[0] : H * P.scale[0], hHi = G ? Math.max(...a.heights) * (G.stages.at(-1).hTo / G.stages.at(-1).h) * P.scale[1] : H * P.scale[1];
   // a tier per level: its cells worked out once, each tree dropped into its shape's mesh (tier.js: buckets)
   const tier = (Lv, shadow) => {
     const geos = Array.from({ length: shapes }, (_, v) => { const g = geometryOf(a, Lv, v); if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]); return g; });   // (a tier's draw counts indices)
-    const band = { near: uniform(0), far: uniform(1) }, live = (c) => treeIn(c, row, Lv, band, biome, shapes, shadow);
+    const band = { near: uniform(0), far: uniform(1) }, live = (c) => treeIn(c, row, Lv, band, biome, shapes, shadow, slice);
     const material = (src, k) => {
-      const { m, shape } = make();
+      const { m, shape } = make(k);
       m.vertexNode = src.read ? Fn(() => shape(src.read(0), src.read(1)))()   // ready-made by the compute pass
         : Fn(() => { const L = live(src), out = offScreen().toVar(); If(L.alive.and(L.bucket.equal(float(k))), () => { out.assign(shape(...L.data)); }); return out; })();   // the fallback: worked out per vertex
       return m;
@@ -130,7 +154,7 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
     t.band = shadow ? () => { t.near = 0; t.far = SH.far; band.near.value = -1; band.far.value = SH.far * 2.4; }   // (grown with the camera's height by Tier.select's patches)
       : () => {   // the distances where a tree of this level can be, from the largest seen small to the smallest seen large
         const K = pxK(), e = Math.exp(row.detail.fade);
-        t.near = Number.isFinite(Lv.hi) ? (H * P.scale[0] * K) / (Lv.hi * e) : 0; t.far = (H * P.scale[1] * K * e) / Lv.lo;
+        t.near = Number.isFinite(Lv.hi) ? (hLo * K) / (Lv.hi * e) : 0; t.far = (hHi * K * e) / Lv.lo;
         band.near.value = t.near > 0 ? t.near : -1; band.far.value = t.far;
       };
     t.band(); t.level = Lv.i;
@@ -166,7 +190,7 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
     list: level `level`, its foot at (x, y, z), scale s, of its shapes the one asked. */
 export function treeSample(tex, row, level = 0, x = 0, y = 0, z = 0, s = 1, form = 0) {
   const g = geometryOf(row.asset, row.detail.levels[Math.min(level, row.detail.levels.length - 1)], form);
-  const { m, shape } = treeMaterial(tex, row)();
+  const { m, shape } = treeMaterial(tex, row)(form);
   m.vertexNode = Fn(() => shape(vec4(x, z, y, s), vec4(0.4, 1.3, 0.5, 1)))();   // turned a little, its own shade, the whole of its level
   const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = 1; mesh.layers.enable(1);
   return mesh;

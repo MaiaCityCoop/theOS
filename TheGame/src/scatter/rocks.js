@@ -102,10 +102,11 @@ const PXK = uniform(pxK()); addEventListener('resize', () => (PXK.value = pxK())
 // the grass's colour round it (for its moss) and its share of the hand-over between levels; packed into four vec4 (A: x,
 // z, its base's height, its size; B: the axis it is turned about, the angle; C: the grass's colour, the dryness; D: its
 // three scales, its share and side packed). Done once per rock (src/scatter/tier.js).
-function rockIn(c, tex, ground, row, Lv, v, band) {
+function rockIn(c, tex, ground, row, Lv, band) {
   const big = !!row.outcrops, fade = row.detail.fade, cx = c.x, cy = c.y;
   const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), C = vec4(0).toVar(), D = vec4(0).toVar();
-  If(floor(rnd(cx, cy, uint(201)).mul(row.shapes)).equal(v), () => {
+  const bucket = floor(rnd(cx, cy, uint(201)).mul(row.shapes));   // which of its shapes lies here
+  {
     const pos = vec2(c).add(0.15).add(vec2(rnd(cx, cy, uint(202)), rnd(cx, cy, uint(203))).mul(0.7)).mul(row.cell), dist = camDist(pos);
     If(dist.lessThan(band.far).and(dist.greaterThanEqual(band.near)), () => {
       const ar = float(0).toVar(), oc = float(0).toVar(), y = float(0).toVar(), tint = vec3(0).toVar(), ok = float(0).toVar(), r0 = rnd(cx, cy, uint(200));
@@ -133,8 +134,8 @@ function rockIn(c, tex, ground, row, Lv, v, band) {
         });
       });
     });
-  });
-  return { alive: alive.greaterThan(0.5), data: [A, B, C, D] };
+  }
+  return { alive: alive.greaterThan(0.5), data: [A, B, C, D], bucket };
 }
 
 // the rock's material: shape(A, B, C, D) its vertex from what rockIn packed, and its light
@@ -169,27 +170,28 @@ export function rockSample(tex, row, detail = 2, shape = 0) {
   const mesh = new THREE.Mesh(plain, m); mesh.layers.enable(1); return mesh;
 }
 
-/** The assets of kind `rocks`: a tier per level of detail and shape. Each level is drawn where a rock of it is the size
+/** The assets of kind `rocks`: a tier per level of detail, its shapes buckets of it. Each level is drawn where a rock of it is the size
     on screen its asset file asks (src/detail); the tier looks only at the cells where that can be, at this screen size. */
 export function createRocks(scene, tex, ground, row, gpu = false) {
   const tiers = [], levels = row.detail.levels.filter((l) => !l.impostor), { fade } = row.detail;
   const span = [2 * row.size[0], 2 * row.size[1] * (row.outcrops ? 1.25 : 1)];   // a rock is an icosphere of radius 1 times its size
   const make = rockMaterial(tex, row);
-  for (let v = 0; v < row.shapes; v++) for (const Lv of levels) {
-    const band = { near: uniform(0), far: uniform(1) }, live = (c) => rockIn(c, tex, ground, row, Lv, v, band);
-    const material = (src) => {
+  for (const Lv of levels) {   // a tier per level, its shapes buckets of it: the cells worked out once (tier.js)
+    const band = { near: uniform(0), far: uniform(1) }, live = (c) => rockIn(c, tex, ground, row, Lv, band);
+    const material = (src, k) => {
       const { m, shape } = make();
       m.vertexNode = src.read ? Fn(() => shape(src.read(0), src.read(1), src.read(2), src.read(3)))()   // ready-made by the compute pass
-        : Fn(() => { const L = live(src), out = offScreen().toVar(); If(L.alive, () => { out.assign(shape(...L.data)); }); return out; })();   // the fallback: worked out here, per vertex
+        : Fn(() => { const L = live(src), out = offScreen().toVar(); If(L.alive.and(L.bucket.equal(float(k))), () => { out.assign(shape(...L.data)); }); return out; })();   // the fallback: worked out here, per vertex
       return m;
     };
-    const t = new Tier(scene, rockGeometry(Lv.rock, row.seed + v * 7, row.look), material, { cell: row.cell, P: Lv.P, near: 0, far: 1, order: 1, live, gpu, cap: Math.ceil(MAXP * Lv.P * Lv.P * 0.3), slots: 4 });
+    const geos = Array.from({ length: row.shapes }, (_, v) => rockGeometry(Lv.rock, row.seed + v * 7, row.look));
+    const t = new Tier(scene, geos, material, { cell: row.cell, P: Lv.P, near: 0, far: 1, order: 1, live, gpu, cap: Math.ceil(MAXP * Lv.P * Lv.P * 0.3), slots: 4 });
     t.band = () => {   // the distances where a rock of this level can be, from the largest seen small to the smallest seen large
       const K = pxK(), e = Math.exp(fade);
       t.near = Number.isFinite(Lv.hi) ? (span[0] * K) / (Lv.hi * e) : 0; t.far = (span[1] * K * e) / Lv.lo;
       band.near.value = t.near > 0 ? t.near : -1; band.far.value = t.far;
     };
-    t.band(); if (row.detail.casts) t.mesh.layers.enable(1); tiers.push(t);   // rocks cast shadows, as drawn (src/world/shadow.js)
+    t.band(); if (row.detail.casts) t.meshes.forEach((m) => m.layers.enable(1)); tiers.push(t);   // rocks cast shadows, as drawn (src/world/shadow.js)
   }
   addEventListener('resize', () => tiers.forEach((t) => t.band()));
   return tiers;

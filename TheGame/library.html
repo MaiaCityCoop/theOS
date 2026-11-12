@@ -123,8 +123,8 @@ for (const b of document.querySelectorAll('.item[data-biome]')) {   // a biome's
 }
 // a tree's picture: its nearest level in its own material, whole
 function treeThumb(a, canvas) {
-  const h = most(a.size.height);
-  sceneThumb(window.__s8.renderer, [treeSample(tex, scatterRow(a), 0)], canvas, [h * 1.1, h * 0.7, h * 1.5], [0, h * 0.5, 0]);
+  const G = a.growth?.at(70), h = G ? G.height : most(a.size.height);   // a tree that grows: at seventy
+  sceneThumb(window.__s8.renderer, [treeSample(tex, scatterRow(a), 0, 0, 0, 0, G?.s ?? 1, G?.shape ?? 0)], canvas, [h * 1.1, h * 0.7, h * 1.5], [0, h * 0.5, 0]);
 }
 // a scattered rock's picture: the largest of its kind in the world's own material (its look: pebble or rock, its moss), as on the stage
 function rockThumb(a, canvas) {
@@ -139,6 +139,7 @@ for (const b of document.querySelectorAll('.item[data-id]')) {
 
 // the stage: what stands on it now
 let staged = null, ground0 = heightAt(STAGE.x, STAGE.z), H = 1, yaw = 2.6, pitch = 0.32, dist = 9, spin = true, seed = null;
+let age = 70, growRow = false;   // a tree that grows: the age it is shown at, or every stage of its growth in a row
 let cardTab = 'info', lodAt = null, showBody = false, bodyLines = null;   // showBody: the asset's collision drawn on the stage (intent 0003)   // the asset card's tab; the level of detail being looked at (null: none chosen)
 function clearStage() { ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BASE)); if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); staged = null; } }
 function stageAsset(a) {
@@ -152,7 +153,14 @@ function stageAsset(a) {
     }
     scene.add(staged);
   } else if (a.placement.engine === 'trees') {   // a tree: one, at the level being looked at, in the trees' own material
-    staged = treeSample(tex, scatterRow(a), lodAt ?? 0, STAGE.x, heightAt(STAGE.x, STAGE.z) - 0.1, STAGE.z, 1); scene.add(staged);
+    const row = scatterRow(a), lv = lodAt ?? 0, G = a.growth;
+    if (G && growRow) {   // its growth: a tree of every stage, youngest to oldest, in a row across the stage
+      staged = new THREE.Group(); const at = G.years.map((y) => G.at(y)), w = at.map((t) => G.height(G.years[at.indexOf(t)]) * 0.55);
+      let x = -w.reduce((s, v) => s + v, 0);
+      at.forEach((t, i) => { x += w[i]; const X = STAGE.x + x, Z = STAGE.z; staged.add(treeSample(tex, row, lv, X, heightAt(X, Z) - 0.1, Z, t.s, t.shape)); x += w[i]; });
+    } else if (G) { const t = G.at(age); staged = treeSample(tex, row, lv, STAGE.x, heightAt(STAGE.x, STAGE.z) - 0.1, STAGE.z, t.s, t.shape); }
+    else staged = treeSample(tex, row, lv, STAGE.x, heightAt(STAGE.x, STAGE.z) - 0.1, STAGE.z, 1);
+    scene.add(staged);
   } else staged = place(scene, a, { x: STAGE.x, z: STAGE.z, yaw: 0.6, solid: false });
   drawBody(a);
 }
@@ -183,6 +191,7 @@ function choose(id, keepSeed) {
   const a = ASSETS[id]; if (!keepSeed) { seed = null; lodAt = null; } stageAsset(a);
   H = rocky(a) ? most(a.size.height) * 0.5 : most(a.size.height);
   dist = rocky(a) ? Math.max(4, most(a.size.length) * 4.5) : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 2.2;
+  if (a.growth) { const h = growRow ? a.growth.height(a.growth.years.at(-1)) : a.growth.at(age).height; H = h; dist = growRow ? a.growth.years.reduce((t, y) => t + a.growth.height(y) * 1.1, 0) * 0.95 : Math.max(5, h * 2.3); }   // framed to the tree at its age, or to the whole row
   pitch = rocky(a) ? 0.55 : 0.32; spin = true;
   document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
   const s0 = a.placement.seed, seeded = s0 != null;
@@ -193,16 +202,31 @@ function choose(id, keepSeed) {
     + (cardTab === 'detail' ? detailOf_(a) : head('Asset', a.kind, a.name, a.about)
     + figs(scat ? [sizeFig(a.size.length, 'Length'), fig(num(a.placement.cell), 'm', 'Apart')] : [sizeFig(a.size.length, 'Footprint'), sizeFig(a.size.height, 'Height')], scat)
     + `<div class="g-cells g-part">${cell('Placed', say(where), true)}${a.look ? cell('Look', `<div class="g-chips">${chip(a.look.material || 'rock')}</div><span class="g-sub" style="white-space:normal">moss ${a.look.moss} · relief ${a.look.relief} · worn ${a.look.smooth} · broken ${a.look.cuts}</span>`, true) : ''}</div>`
+    + (a.growth ? growthCell(a) : '')
     + (seeded ? `<div class="seed g-part"><span class="g-label">Seed</span><b>${seed ?? s0}${seed != null && seed !== s0 ? '' : ' · its own'}</b>${seed != null && seed !== s0 ? '<button class="g-btn quiet" id="seed0">Own</button>' : ''}<button class="g-btn" id="seedR">Random</button></div>` : '')
     + fileOf(a));
   info.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { const d = dist, p = pitch; cardTab = b.dataset.tab; choose(id, true); dist = d; pitch = p; }));   // a tab changes the card, not the view
   info.querySelectorAll('[data-lod]').forEach((b) => (b.onclick = () => lookAtLevel(a, +b.dataset.lod)));
   const bt = document.getElementById('bodyT'); if (bt) bt.onclick = () => { const d = dist, p = pitch; showBody = !showBody; choose(id, true); dist = d; pitch = p; };
+  if (a.growth && cardTab === 'info') {   // its age: the slider, a stage's button, the row of every stage
+    const sl = document.getElementById('ageS'), say = () => (document.getElementById('ageL').textContent = ageText(a));
+    sl.oninput = () => { age = +sl.value; growRow = false; say(); stageAsset(a); const h = a.growth.at(age).height; H = h; dist = Math.max(5, h * 2.3); };
+    info.querySelectorAll('[data-age]').forEach((b) => (b.onclick = () => { age = +b.dataset.age; growRow = false; const d = pitch; choose(id, true); pitch = d; }));
+    document.getElementById('ageRow').onclick = () => { growRow = !growRow; const d = pitch; choose(id, true); pitch = d; };
+  }
   if (seeded && cardTab === 'info') {   // a procedural asset made again from another seed: the same recipe, another of its kind; the file keeps its own
     document.getElementById('seedR').onclick = () => { seed = Math.floor(Math.random() * 100000); choose(id, true); };
     const o = document.getElementById('seed0'); if (o) o.onclick = () => { seed = null; choose(id, true); };
   }
   history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}asset=${id}`);
+}
+// a tree that grows: its age, a slider over its years, a button for each stage of its growth, and its stages in a row
+const ageText = (a) => (growRow ? `Every stage · ${a.growth.years.join(', ')} years` : `${age} year${age === 1 ? '' : 's'} · ${a.growth.at(age).height.toFixed(1)} m high`);
+function growthCell(a) {
+  const G = a.growth;
+  return `<div class="g-cell g-part"><span class="g-label">Growth · by age</span><div class="seed"><b id="ageL" style="font-weight:450">${ageText(a)}</b><button class="g-btn${growRow ? '' : ' quiet'}" id="ageRow">${growRow ? 'One' : 'All'}</button></div>`
+    + `<input id="ageS" type="range" min="${Math.ceil(G.stages[0].from)}" max="${Math.floor(G.stages.at(-1).to)}" value="${age}" style="width:100%;margin:10px 0 6px;accent-color:#e3c27a">`
+    + `<div class="seed" style="gap:6px;flex-wrap:wrap">${G.years.map((y) => `<button class="g-btn${!growRow && age === y ? '' : ' quiet'}" data-age="${y}">${y}</button>`).join('')}</div></div>`;
 }
 // the Detail tab: every level of detail of the asset, each a button that takes the camera to where that level is drawn
 function bands(a) {   // its levels as the detail engine resolves them (src/detail): each drawn between lo and hi pixels on screen

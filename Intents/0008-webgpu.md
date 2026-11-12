@@ -456,6 +456,31 @@ shadows and the grass.
 - **Broke / not there yet:** a second kind of tree in the same biome would stand in cells of its own and overlap the
   first: one cell should hold one tree of whichever kind the biome's mix says (a species table on the biome).
 
+### 2026-11-12, trees that grow by age; a mix of kinds; the trunk into its crown (night)
+
+- **Asked:** every stage of a tree's growth by year in the asset library, the trees of a stand young and old by their
+  real age; the trunk's jump just below the crown; and the open points (a mix of kinds of tree, the rocks packed once).
+- **Found:** the trunk's S came into the fork tilted about 11 degrees while the stems left it upright, from a ring
+  that did not meet theirs. With eight shapes a tier's packing bound eleven storage buffers (WebGPU allows eight): it
+  failed and no tree stood.
+- **Delivered:** growth in the tree kit (assets/kit/tree.js): a tree file gives `growth { years, variants, form(year,
+  v), height(year) }`; the kit makes a shape per stage and variant, each standing for the ages round it, a tree between
+  two stages drawn as its stage scaled to its own height. The stone pine: a bush of 1.6 m at five, an egg of 4.5 m at
+  fifteen, a lifted crown at thirty-five, an umbrella at seventy, 19.5 m and broad at a hundred and fifty
+  (stages 5, 15, 35, 70, 150; two variants of the last three). Its puffs as many as its crown's skin needs (young crowns
+  full, not sparse); a coarser level's brushes sunk into its puffs by the part they are larger, so the levels share an
+  outline (no dotted fringe while they hand over). In the world each stand has an age (placement.age: a slow noise
+  between 30 and 150 years, one tree in six a sapling), each tree its stage and its own height; the level picked by
+  that height on screen, the wind by each shape's own. The trunk a cubic curve that comes into the fork nearly upright;
+  the stems start a little inside it, the way it was going, at its girth. The library: a Growth row for a tree, a
+  slider over its years (its age and height), a button per stage, and All: every stage in a row. Kinds of tree in one
+  biome share its cells: each takes `placement.share` of them (src/scatter/trees.js), one tree a cell. Rocks: one tier
+  per level, its shapes buckets (src/scatter/rocks.js). Tier: one buffer of draw arguments for all its buckets.
+- **Good:** in the forest young and old stand mixed, saplings in the glades; tree triangles 0.6M there (0.54M before:
+  fuller crowns, larger old trees); no errors in WebKit.
+- **Broke / not there yet:** the WebGL 2 fallback (no compute) not looked at with the buckets; a second kind of tree
+  still to be made to try the mix.
+
 ## Trail
 
 | When | Commit | What |
@@ -496,4 +521,5 @@ shadows and the grass.
 | 2026-11-12 | `bd5bc2b` | Loading over a still of the world |
 | 2026-11-12 | `b00d1a1` | Sky only where it shows, one far take, grass colour per vertex, filtered shadows, shorter far grass |
 | 2026-11-12 | `4bacbbe` | Pine forest: four shapes, its own green per tree, no edge-on cards, a light shade mesh for shadows, solid trunks |
-| 2026-11-12 | (this commit) | Trees: a farthest level, one packing pass per level for all shapes, the tree kit |
+| 2026-11-12 | `4bc83ca` | Trees: a farthest level, one packing pass per level for all shapes, the tree kit |
+| 2026-11-12 | (this commit) | Trees grow by age (library: growth by year), a mix of kinds per biome, the trunk into its crown, rocks packed once |

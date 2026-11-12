@@ -37,7 +37,7 @@ export class Tier {
     this.geometries = geos; this.geometry = geos[0]; geos.forEach((g) => (g.instanceCount = 0));
     if (live && gpu) {
       const data = Array.from({ length: slots }, () => instancedArray(cap * K, 'vec4')), count = instancedArray(K, 'uint').toAtomic();
-      const args = geos.map((g) => new THREE.IndirectStorageBufferAttribute(new Uint32Array([g.index.count, 0, 0, 0, 0]), 5)), argsNodes = args.map((a) => storage(a, 'uint', 5));
+      const args = new THREE.IndirectStorageBufferAttribute(new Uint32Array(geos.flatMap((g) => [g.index.count, 0, 0, 0, 0])), 5), argsNode = storage(args, 'uint', 5 * K);   // one buffer of draw arguments, five a bucket (a shader binds few buffers)
       this.cand = uniform(0, 'uint');
       this.passes = [
         Fn(() => { for (let k = 0; k < K; k++) atomicStore(count.element(k), uint(0)); })().compute(1),
@@ -50,10 +50,10 @@ export class Tier {
             });
           });
         })().compute(MAXP * P * P),
-        Fn(() => { argsNodes.forEach((a, k) => a.element(1).assign(min(atomicLoad(count.element(k)), uint(cap)))); })().compute(1),
+        Fn(() => { for (let k = 0; k < K; k++) argsNode.element(k * 5 + 1).assign(min(atomicLoad(count.element(k)), uint(cap))); })().compute(1),
       ];
       this.data = data; this.args = args; this.cap = cap;
-      this.meshes = geos.map((g, k) => { g.setIndirect(args[k]); g.instanceCount = cap; return new THREE.Mesh(g, material({ read: (j) => data[j].element(uint(k * cap).add(instanceIndex)) }, k)); });
+      this.meshes = geos.map((g, k) => { g.setIndirect(args, k * 20); g.instanceCount = cap; return new THREE.Mesh(g, material({ read: (j) => data[j].element(uint(k * cap).add(instanceIndex)) }, k)); });
     } else this.meshes = geos.map((g, k) => new THREE.Mesh(g, material(cellOf(instanceIndex), k)));
     this.mesh = this.meshes[0];
     for (const m of this.meshes) { m.frustumCulled = false; m.renderOrder = order; scene.add(m); }
@@ -75,9 +75,9 @@ export class Tier {
   /** On WebGPU: what the last packing holds, read back to the CPU a moment later (a promise of { count, data: the first
       slots' vec4s as floats, one array a slot } a bucket), for what the CPU must know of where things stand (src/world/trunks.js). */
   async read(renderer) {
-    const K = this.args.length, bufs = await Promise.all([...this.args, ...this.data.map((d) => d.value)].map((b) => renderer.getArrayBufferAsync(b)));
-    const f = bufs.slice(K).map((b) => new Float32Array(b));
-    return bufs.slice(0, K).map((b, k) => { const count = Math.min(new Uint32Array(b)[1], this.cap); return { count, data: f.map((x) => x.subarray(k * this.cap * 4, (k * this.cap + count) * 4)) }; });   // per bucket
+    const K = this.geometries.length, bufs = await Promise.all([this.args, ...this.data.map((d) => d.value)].map((b) => renderer.getArrayBufferAsync(b)));
+    const n = new Uint32Array(bufs[0]), f = bufs.slice(1).map((b) => new Float32Array(b));
+    return Array.from({ length: K }, (_, k) => { const count = Math.min(n[k * 5 + 1], this.cap); return { count, data: f.map((x) => x.subarray(k * this.cap * 4, (k * this.cap + count) * 4)) }; });   // per bucket
   }
   /** s: how many times further than the 68° lens this lens sees a thing at the same size; h0: the ground under the camera */
   select(cx, cz, h0, s, dy) {
