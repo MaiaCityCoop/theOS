@@ -1,15 +1,15 @@
 // Mastic (Pistacia lentiscus): the dense, dark evergreen bush under Mediterranean pines and oaks, a rounded mound to a
 // man's height. It borrows the holm oak's sprig (small leathery leaves), lighter and yellower.
-// Built with the tree kit's mound (assets/kit/tree.js): two shapes, three levels of its own, its farthest the kit's. An
+// Built with the tree kit's mound (assets/kit/tree.js): two shapes, two levels of its own (its base sprigs the same in both), its farthest the kit's. An
 // asset in the one recipe (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by the trees' engine in the pine
 // forest's understory (biomes/pineforest.js `shrubs`), of which it takes its share.
 import { tree, builder, mound } from './kit/tree.js';
 
 const woodCol = [0.15, 0.13, 0.11], leafCol = [0.04, 0.075, 0.03];   // (for a picture without the textures)
-// a level of it: q 0 near (its stems, every sprig), 1 further (fewer, larger sprigs), 2 far (a handful); S its shape
+// a level of it: q 0 near (its stems, its base and its fine sprigs), 1 further (its base alone, unchanged); S its shape
 function grow(q, S) {
   const b = builder({ ao: (p) => 0.45 + 0.4 * Math.min(1, p[1] / S.h), barkTile: 0.5, colours: [woodCol, leafCol] });
-  mound(b, q, { r: S.r, h: S.h, lobes: S.lobes, ragged: 0.22, puffs: [56, 19, 6], count: [3, 2, 1], size: [0.5, 0.95, 1.7], rise: 0.3, stems: 6, seed: S.seed });
+  mound(b, q, { r: S.r, h: S.h, lobes: S.lobes, ragged: 0.22, puffs: [56, 22], count: [3, 1], size: [0.5, 1.15], rise: 0.3, stems: 6, seed: S.seed });
   return b;
 }
 
@@ -24,12 +24,10 @@ export default tree({
   foliage: { wrap: 0.35, through: 0.2, flutter: 0.5, tint: [1.15, 1.25, 0.9] },
   shapes: [{ r: 1.5, h: 1.75, lobes: 3, seed: 611 }, { r: 1.15, h: 1.25, lobes: 2, seed: 612 }],
   grow,
-  // (a solid, leafy body inside its sprigs at every level: its mass is there at any distance)
-  core: 0.62,
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
-  levels: [{ P: 4 }, { P: 8 }, { P: 16 }],
+  levels: [{ P: 4 }, { P: 8 }],
   // (its farthest, one body, darker than its sprigs' tops: a bush is mostly its own shade)
-  far: { P: 32, shade: 0.72, speck: false, sides: 4, shoulder: false, trunk: false },
+  far: { P: 32, shade: 0.85, speck: false, sides: 5, shoulder: true, trunk: false },
   // where it grows: the pine forest's understory, of which it takes its share
   placement: { at: 'scatter', engine: 'trees', stand: 'shrubs', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.35, scale: [0.4, 1.3], lean: 0, seed: 610 },
 });

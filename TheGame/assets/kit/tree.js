@@ -134,14 +134,19 @@ export function crown(b, q, { limbs, puffs, thick = 1, g = 1, girth = [0.11, 0.0
   });
 }
 
-/** A low bush as most shrubs share it: a few short stems from its foot (its nearest level only) and sprigs over them,
-    each sprig a pair of crossed cards standing out of its skin. Not one round mound: several heaps beside one another,
-    each its own reach and height, and a shoot here and there standing out past the rest, so its outline is ragged and
-    bushes that stand close run into one another.
+/** A low bush as most shrubs share it. Not one round mound: several heaps beside one another, each its own reach and
+    height, and a shoot here and there standing out past the rest, so its outline is ragged and bushes that stand close
+    run into one another. Its foliage is in two parts:
+      - its base: a few large sprigs (each the sprig's picture repeated across a larger card, its leaves their own size)
+        that make its whole shape. They are the same at every level: the same places, the same size, the same colour.
+        A bush does not change as one walks up to it;
+      - its fine sprigs: many small ones, at its nearest level only, added over the base (they grow in among it, the
+        base does not move), and a few short stems from its foot.
       r, h         its reach and height, metres (of its largest heap; the others lie within about 1.3 r)
       lobes        how many heaps (1: a single round bush); ragged: the share of its sprigs that stand out as shoots
       dome         [from, to], 0 its foot … 1 its top: where on a heap its sprigs stand (a fern: only low, round its foot)
-      puffs, count places on it and sprigs at each, per level; size: a sprig's size in metres, per level
+      puffs        [places on it at its nearest level, of them the base's]; count: [sprigs at a place, of them the base's]
+      size         [a fine sprig's, a base sprig's], metres
       rise         how much a sprig's way favours up over out
       stems        short stems from its foot
       seed         its own number: the same seed, the same bush at every level */
@@ -151,21 +156,19 @@ export function mound(b, q, { r, h, lobes = 1, ragged = 0.2, dome = [0.1, 1], pu
     const a = R0() * 2 * Math.PI, d = i ? r * (0.45 + 0.4 * R0()) : 0, k = i ? 0.5 + 0.35 * R0() : lobes > 1 ? 0.8 : 1;
     return { c: [Math.cos(a) * d, 0, Math.sin(a) * d], r: r * k, h: h * (i ? 0.55 + 0.5 * R0() : 1) };
   });
-  // Every level is the same bush: its sprigs' places are worked out once, each from its own number, and a coarser level
-  // takes the first of them, fewer and larger. So where two levels hand over nothing is swapped for something else: a
-  // sprig both have swells in place (the same root, the same moment: src/detail/handover.js), the others fold away.
-  for (let i = 0; i < puffs[q]; i++) {
+  const rep = Math.max(1, Math.round(size[1] / size[0]));
+  for (let i = 0; i < (q ? puffs[1] : puffs[0]); i++) {
     const Q = rng(seed * 7919 + i * 131 + 17), H = heaps[Math.min(lobes - 1, Math.floor(Q() * lobes))], shoot = Q() < ragged ? 1.15 + 0.3 * Q() : 1;
     const a = Q() * 2 * Math.PI, u = dome[0] + (dome[1] - dome[0]) * Q() ** 0.7, c = Math.sqrt(Math.max(0, 1 - u * u)), k = (0.5 + 0.5 * Q()) * shoot;
     const d = [Math.cos(a) * c, u, Math.sin(a) * c], p = add(H.c, [d[0] * H.r * k, d[1] * H.h * 0.75 * k, d[2] * H.r * k]), light = norm([d[0] * 0.6, d[1] * 0.6 + 0.8, d[2] * 0.6]);
-    for (let t = 0; t < count[q]; t++) {
-      const C = rng(seed * 104729 + i * 977 + t * 61 + 5);
-      const dir = norm([d[0] + (C() - 0.5) * 0.7, d[1] + rise, d[2] + (C() - 0.5) * 0.7]), f = (0.75 + 0.5 * C()) * (shoot > 1 ? 1.2 : 1), sz = size[q] * f;
-      // (a coarser level's larger sprig sunk in by what it is larger: the same outline at every level; its root where
-      // the finest one's foot is)
-      const foot = add(p, mul(dir, 0.02 * t)), at = sub(foot, mul(dir, Math.max(0, sz - size[0] * f) * 0.8));
-      const hand = [q ? size[q - 1] / size[q] : 0, q + 1 < puffs.length && i < puffs[q + 1] && t < count[q + 1] ? 1 : 0];
-      cards(b, at, dir, sz, light, Math.max(0.3, (0.45 + 0.55 * Math.min(1, p[1] / Math.max(h * 0.75, 0.1))) * (0.65 + 0.35 * Math.min(1, k))), C, foot, hand, Math.max(1, Math.round(size[q] / size[0])));
+    const ao = Math.max(0.3, (0.45 + 0.55 * Math.min(1, p[1] / Math.max(h * 0.75, 0.1))) * (0.65 + 0.35 * Math.min(1, k)));
+    for (let t = 0; t < (q ? count[1] : count[0]); t++) {
+      const C = rng(seed * 104729 + i * 977 + t * 61 + 5), base = i < puffs[1] && t < count[1];
+      const dir = norm([d[0] + (C() - 0.5) * 0.7, d[1] + rise, d[2] + (C() - 0.5) * 0.7]), f = (0.75 + 0.5 * C()) * (shoot > 1 ? 1.2 : 1), foot = add(p, mul(dir, 0.02 * t));
+      // a base sprig: the same card at every level (hand 1, 1: the coarser level's takes the nearer one's place as it
+      // is, at once: nothing to see), sunk into the heap by what it is larger than a fine one; a fine sprig grows in
+      if (base) cards(b, sub(foot, mul(dir, (size[1] - size[0]) * f * 0.8)), dir, size[1] * f, light, ao, C, foot, [1, 1], rep);
+      else cards(b, foot, dir, size[0] * f, light, ao, C, foot);
     }
   }
   if (q === 0) for (let i = 0; i < stems; i++) {
