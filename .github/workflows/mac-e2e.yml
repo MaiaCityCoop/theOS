@@ -1,0 +1,117 @@
+name: Mac E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  mac-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Trigger Mac E2E
+        id: trigger
+        env:
+          MAC_E2E_HMAC: ${{ secrets.MAC_E2E_HMAC }}
+        run: |
+          set -euo pipefail
+          base=https://trigger.aven.ceo
+          body=$(jq -nc \
+            --arg sha "$GITHUB_SHA" \
+            --arg ref "$GITHUB_REF" \
+            --arg test "first-screen" \
+            '{repo:"MaiaCityCoop/theOS",sha:$sha,ref:$ref,test:$test}')
+          ts=$(date +%s)
+          sig=$(printf '%s\n%s\n%s\n%s' "$ts" POST /runs "$body" \
+            | openssl dgst -sha256 -hmac "$MAC_E2E_HMAC" \
+            | awk '{print $NF}')
+          response=$(curl -fsS --max-time 30 \
+            -X POST "$base/runs" \
+            -H 'content-type: application/json' \
+            -H "x-timestamp: $ts" \
+            -H "x-signature: $sig" \
+            --data-binary "$body")
+          echo "$response"
+          run_id=$(jq -r '.run_id' <<<"$response")
+          test -n "$run_id"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Mac E2E
+        id: wait
+        env:
+          MAC_E2E_HMAC: ${{ secrets.MAC_E2E_HMAC }}
+          RUN_ID: ${{ steps.trigger.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          base=https://trigger.aven.ceo
+          path="/runs/$RUN_ID"
+          deadline=$((SECONDS + 1500))
+          while (( SECONDS < deadline )); do
+            ts=$(date +%s)
+            sig=$(printf '%s\n%s\n%s\n' "$ts" GET "$path" \
+              | openssl dgst -sha256 -hmac "$MAC_E2E_HMAC" \
+              | awk '{print $NF}')
+            curl -fsS --max-time 30 \
+              -H "x-timestamp: $ts" \
+              -H "x-signature: $sig" \
+              "$base$path" > run.json
+            state=$(jq -r '.state' run.json)
+            echo "state=$state"
+            case "$state" in
+              passed)
+                echo "state=passed" >> "$GITHUB_OUTPUT"
+                jq . run.json
+                exit 0
+                ;;
+              failed)
+                echo "state=failed" >> "$GITHUB_OUTPUT"
+                jq . run.json
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo "Timed out waiting for Mac E2E" >&2
+          echo "state=timeout" >> "$GITHUB_OUTPUT"
+          exit 1
+
+      - name: Download Mac E2E artifacts
+        if: always()
+        env:
+          MAC_E2E_HMAC: ${{ secrets.MAC_E2E_HMAC }}
+          RUN_ID: ${{ steps.trigger.outputs.run_id }}
+        run: |
+          set -uo pipefail
+          base=https://trigger.aven.ceo
+          for item in log screenshot; do
+            path="/runs/$RUN_ID/$item"
+            ts=$(date +%s)
+            sig=$(printf '%s\n%s\n%s\n' "$ts" GET "$path" \
+              | openssl dgst -sha256 -hmac "$MAC_E2E_HMAC" \
+              | awk '{print $NF}')
+            if [ "$item" = log ]; then
+              out=mac-e2e.log
+            else
+              out=first-screen.png
+            fi
+            curl -fsS --max-time 60 \
+              -H "x-timestamp: $ts" \
+              -H "x-signature: $sig" \
+              "$base$path" -o "$out" || true
+          done
+          ls -l mac-e2e.log first-screen.png 2>/dev/null || true
+
+      - name: Upload Mac E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-e2e-${{ github.sha }}
+          path: |
+            mac-e2e.log
+            first-screen.png
+          if-no-files-found: ignore
