@@ -29,7 +29,7 @@ export default tree({
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
   levels: [{ P: 4 }, { P: 8 }],
   // (its farthest, one body, darker than its sprigs' tops: a bush is mostly its own shade)
-  far: { P: 16, shade: 0.72, speck: false },
+  far: { P: 32, shade: 0.72, speck: false, sides: 4, shoulder: false, trunk: false },
   // where it grows: the pine forest's understory, of which it takes its share
   placement: { at: 'scatter', engine: 'trees', stand: 'shrubs', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.25, scale: [0.5, 1.3], lean: 0,
     // (it wants the sun: the glades and the wood's edge)

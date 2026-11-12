@@ -14,6 +14,10 @@ export const most = (v) => (Array.isArray(v) ? v[1] : v);
 /** The asset's largest side in metres: what its size on screen is measured by. */
 export const spanOf = (a) => Math.max(most(a.size.length), most(a.size.width ?? 0), most(a.size.height ?? 0));
 
+/** What an asset's size on screen is measured by, metres: its largest side, or, for a kind that says `measure: 'height'`
+    (a tree: tall, and its crown's width little to its distance), its height. One answer for every engine and the land. */
+export const sizeOf = (a) => (kindRule(a, 'measure') === 'height' ? most(a.size.height) : spanOf(a));
+
 /** Pixels on screen per metre at one metre away, for the walker's 68° lens on a screen this tall. */
 export const pxK = (h = innerHeight) => h / (2 * Math.tan((68 / 2) * Math.PI / 180));
 

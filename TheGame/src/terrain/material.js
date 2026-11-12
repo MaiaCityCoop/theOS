@@ -6,7 +6,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, screenCoordinate, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { recipes, byRole } from '../core/registry.js';
-import { detailOf } from '../detail/index.js';
+import { detailOf, sizeOf } from '../detail/index.js';
 import { int } from 'three/tsl';
 import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, shareOf, roofAt, groveAt, leadAt, BASE, LAID } from '../world/land.nodes.js';
 import { kindsOf } from '../world/stand.js';
@@ -155,39 +155,43 @@ export function terrainMaterial(tex) {
       lay(bio, wt.mul(bio.mix ?? 1), spots);
     }
     if (!sloped) If(steep.greaterThan(0.003), () => blend(M, smp(SLOPE), steep));
-    // a biome with a stand of trees (its `canopy`), in the same groves and glades its trees stand in (src/world/noise.nodes.js:
-    // groveAt, the trees' own):
-    //   - its floor lies in their shade. Round the camera their shadows are drawn (the shadow map, and in it the trees'
-    //     stand-in: src/world/shadow.js, assets/kit/tree.js); past that the floor is dimmed here, as much as crowns cover
-    //     it, unevenly, so a forest is not a plain in full sun with trees on it;
-    //   - far off, where its trees sink away (kinds.js: sink), the land takes the colour of their crowns, as many as stand
-    //     there. A forest to the horizon, in patches, for nothing.
+    // Every stand of a biome (its trees, its undergrowth: any block of it with cells and a density, src/scatter/trees.js)
+    // hands over to the land where its plants are no longer drawn, in the same groves the plants stand in
+    // (src/world/noise.nodes.js: groveAt): nothing drops out of the picture, whatever is planted.
+    //   - far off, where they sink away (kinds.js: sink), the land takes the stand's colour (its `cover`; the trees' is
+    //     the biome's `canopy`), as much of the ground as the stand covers there;
+    //   - a stand that casts shadows: its floor lies in their shade. Round the camera they are drawn (the shadow map, and
+    //     in it the trees' stand-in: src/world/shadow.js, assets/kit/tree.js); past that the floor is dimmed here, unevenly,
+    //     so a forest is not a plain in full sun with trees on it.
     const shade = float(0).toVar();
-    L.shares.forEach(({ b: bio, w: wt }) => {
-      if (!bio.canopy) return;
-      // its stand, and of what grows there the kind drawn farthest (whatever its engine)
-      const P = bio.trees, A = recipes('asset').filter((o) => o.placement?.biome === bio.uid).sort((x, y) => y.size.height / detailOf(y).cut - x.size.height / detailOf(x).cut)[0];
-      // the crowns' colour comes in where its trees go out: they are drawn while they are taller than their last level's
-      // pixels (the same rule, by the lens and the window: src/detail), the largest to `last` metres, most of them gone
-      // by two thirds of that; without such trees, its own from/to
-      const cutPx = A ? detailOf(A).cut : 0, last = cutPx ? U.uPxK.mul(A.size.height / cutPx) : null;
-      const fade = last ? smoothstep(last.mul(0.3), last.mul(0.68), dist2) : smoothstep(bio.canopy.from, bio.canopy.to, dist2);
-      // where its trees' shadows are no longer drawn: past the map's box, or past the trees' stand-in in it
+    const standsOf = (bio) => Object.entries(bio).filter(([, S]) => S && typeof S === 'object' && S.cell && S.density != null)
+      .map(([key, S]) => ({ key, P: S, CV: S.cover ?? (key === 'trees' ? bio.canopy : null) })).filter((x) => x.CV);
+    L.shares.forEach(({ b: bio, w: wt }) => standsOf(bio).forEach(({ key, P, CV }) => {
+      // of what grows in the stand, the kind drawn farthest
+      const A = kindsOf(bio.uid, key).map((k) => k.asset).sort((x, y) => sizeOf(y) / detailOf(y).cut - sizeOf(x) / detailOf(x).cut)[0];
+      // its colour comes in where its plants go out: they are drawn while their largest side is more than their last
+      // level's pixels (the same rule, by the lens and the window: src/detail), the largest to `last` metres, most of
+      // them gone by two thirds of that; without such plants, its own from/to
+      const cutPx = A ? detailOf(A).cut : 0, last = cutPx ? U.uPxK.mul((sizeOf(A) * (A.placement.scale?.[1] ?? 1)) / cutPx) : null;
+      const fade = last ? smoothstep(last.mul(0.3), last.mul(0.68), dist2) : smoothstep(CV.from, CV.to, dist2);
+      // where its shadows are no longer drawn: past the map's box, or past the trees' stand-in in it
       const SH = A?.detail?.shadow, reach = SH ? min(U.uAirH.mul(BOX.grow).add(BOX.min), SH.far * (SH.wide ?? 2.4)) : null;
-      const dim = reach ? smoothstep(reach.mul(0.8), reach, length(p.sub(U.uCam.xz))) : fade;
+      const dim = reach ? smoothstep(reach.mul(0.8), reach, length(p.sub(U.uCam.xz))) : float(0);
+      // fill: how much of a cell one of its plants covers (a tree crowns some 2.4 cells); grain: its plants' size to a tree's
+      const g = CV.grain ?? 1, likes = P.where ? P.where({ p }) : float(1);
       If(wt.mul(max(fade, dim)).greaterThan(0.003), () => {
-        const cover = clamp(wt.mul(groves.get(bio) ?? groveAt(p, P)).mul((P?.density ?? 1) * 2.4), 0, 1);   // the ground under crowns: a tree a cell crowns some 2.4 cells
-        const n = nz(p.div(23).add(0.7)).r.mul(0.35).add(nz(prr.div(31.7).add(0.2)).g.mul(0.35)).add(nz(pr.div(9.3)).g.mul(0.3));   // (takes at scales with no whole ratio: no grid of crowns)
-        const under = smoothstep(float(1.08).sub(cover.mul(0.75)), float(1.22).sub(cover.mul(0.75)), n.add(cover.mul(0.45)));   // where a crown is, as many as cover says
-        // (darker than a crown's own colour: a crown seen from afar is mostly its own shade)
-        // (from very far a crown is smaller than a pixel: the pattern goes over into its mean, no speckle to shimmer)
-        const mean = smoothstep(2000, 7000, dist2), crown = vec3(...bio.canopy.colour).mul(mix(n, 0.5, mean).mul(0.6).add(0.42));
+        const cover = clamp(wt.mul(key === 'trees' ? groves.get(bio) ?? groveAt(p, P) : groveAt(p, P)).mul(likes).mul((P.density ?? 1) * (CV.fill ?? 2.4)), 0, 1);
+        const n = nz(p.div(23 * g).add(0.7)).r.mul(0.35).add(nz(prr.div(31.7 * g).add(0.2)).g.mul(0.35)).add(nz(pr.div(9.3 * g)).g.mul(0.3));   // (takes at scales with no whole ratio: no grid of crowns)
+        const under = smoothstep(float(1.08).sub(cover.mul(0.75)), float(1.22).sub(cover.mul(0.75)), n.add(cover.mul(0.45)));   // where a plant is, as many as cover says
+        // (darker than a crown's own colour: seen from afar it is mostly its own shade)
+        // (from very far a plant is smaller than a pixel: the pattern goes over into its mean, no speckle to shimmer)
+        const mean = smoothstep(2000 * g, 7000 * g, dist2), crown = vec3(...CV.colour).mul(mix(n, 0.5, mean).mul(0.6).add(0.42));
         const k = fade.mul(smoothstep(0, 0.15, cover)), top = k.mul(mix(under, smoothstep(0.1, 0.95, cover), mean));
         M.c.assign(mix(M.c, crown, top)); M.n.assign(M.n.mul(float(1).sub(top))); M.h.assign(mix(M.h, under, k));
         // the floor between the crowns in their shade (the crowns themselves in the light)
-        shade.assign(max(shade, dim.mul(cover).mul(n.mul(0.9).add(0.3)).min(0.85).mul(float(1).sub(top))));
+        if (reach) shade.assign(max(shade, dim.mul(cover).mul(n.mul(0.9).add(0.3)).min(0.85).mul(float(1).sub(top))));
       });
-    });
+    }));
     // the library's stage: its own ground laid into the land like any other, its frayed edge blended by height (uStageGround:
     // a material's layer and tile; -1: the base biome's bare earth)
     If(stage.greaterThan(0.003), () => {

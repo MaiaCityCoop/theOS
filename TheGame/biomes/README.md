@@ -19,7 +19,7 @@ What lies and grows on each kind of land: one file each in this folder, each a r
 | `stones` | how many stones lie on it: the chance of one in a stone's cell |
 | `colours` | its own colours where it needs them (the river's) |
 | `trees` | its stand of trees, the same for every kind of tree that grows there (a tree's file names the biome, its `share` of the stand's cells, and its `litter`, the ground under it where it leads: `assets/kit/tree.js`): `{ cell (metres: one tree at most in each), density, clumps (metres across its groves and glades), patches (metres across the places where one kind or another leads), age: { stand: [years, years], young, min }, seed }` |
-| `shrubs` | its understory, a second stand read the same way as `trees` (cells, density, clumps, patches, seed): a shrub's file names it (`placement.stand: 'shrubs'`) |
+| `shrubs` | its understory, a second stand read the same way as `trees` (cells, density, clumps, patches, seed): a shrub's file names it (`placement.stand: 'shrubs'`). Any stand may say `where({ p })` (where it likes to grow) and `cover: { colour, fill, grain }`: far off, where its plants have sunk away, the land wears that colour as thick as the stand grows (`fill`: how much of a cell one plant covers; `grain`: its plants' size to a tree's). So nothing planted in a stand ever drops out of the picture |
 | `canopy` | a biome with a stand: past where its trees' shadows are drawn its floor is dimmed under its groves, and far off, where its trees sink away, its land takes the colour of their crowns: `{ colour, from, to }` (from/to in metres only where no tree of it says where its trees end) |
 
 A new biome is a new file: the terrain, the grass, the stones and the library take it from the registry, laid where its

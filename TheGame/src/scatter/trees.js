@@ -3,10 +3,14 @@
 // tree of it is the size on screen its kind asks (assets/kinds.js), and on WebGPU packed by a compute pass, so only the
 // trees that stand are drawn (tier.js).
 //
-// Nothing of a tree appears or drops out at once. Between two levels both are drawn, and each vertex works out the
-// tree's size on screen as it is this frame: the finer level's sprigs shrink to their feet one by one as the coarser
-// one's grow from theirs. Its last level (the kit's: a crown as one body) sinks into the ground over its last pixels
-// (kinds.js: sink), where its biome's canopy has coloured the land (src/terrain/material.js): a forest to the horizon.
+// Nothing that stands in a stand appears or drops out at once, whatever it is (a tree, a bush, a fern: any asset this
+// engine places gets all of it, none of it written in the asset's file):
+//   - its size on screen is measured as its kind says (its largest side; a tree's height), by each vertex, this frame;
+//   - between two levels both are drawn: the finer level's sprigs shrink to their feet one by one as the coarser one's
+//     grow from theirs;
+//   - its last level (the kit's: one body) sinks into the ground over its last pixels (kinds.js: sink);
+//   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
+//     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
 import { Fn, float, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, sqrt, fract, step } from 'three/tsl';
 import { U } from '../core/uniforms.js';
@@ -17,7 +21,7 @@ import { PLACES } from '../../world/places.js';
 import { recipe } from '../core/registry.js';
 import { geometryOf, scatterRow } from '../../assets/index.js';
 import { kindOf } from '../../assets/kinds.js';
-import { pxK } from '../detail/index.js';
+import { pxK, sizeOf } from '../detail/index.js';
 import { Tier, offScreen, clipOf, MAXP } from './tier.js';
 import { inView } from './view.js';
 import { setTrunks } from '../world/trunks.js';
@@ -40,13 +44,13 @@ export const standOf = (asset, biome = recipe(asset.placement.biome)) => {
 };
 
 // what stands in a cell: a tree of this level, or nothing; packed into two vec4 (A: x, z, its foot's height, its scale;
-// B: its turn, its sway's phase, its shade, its height in metres), and which of its shapes (bucket). Done once per tree (src/scatter/tier.js); the cheap tests first, as most cells hold none.
+// B: its turn, its sway's phase, its shade, its size in metres: its largest side), and which of its shapes (bucket). Done once per tree (src/scatter/tier.js); the cheap tests first, as most cells hold none.
 //   ST: its stand (standOf): the cells, the groves, the ages are the biome's, the same for every kind that grows there;
 //   slice: the share of those cells that are this kind's (each cell one tree of one kind: a mix, not trees standing in
 //          each other), a kind leading in patches (ST.patches metres across), not sprinkled evenly;
 //   growth: its stages by age, the age its stand's, the tree its stage scaled to its own height (assets/kit/tree.js)
 function treeIn(c, row, Lv, band, biome, ST, shapes = 1, all = false, slice = [0, 1], seen = null) {
-  const a = row.asset, P = a.placement, GR = a.growth, AG = ST.age, cx = c.x, cy = c.y, K = ST.seed - 300, h0 = (k) => uint(k + K);   // the stand's seed moves every hash: another seed, another stand (a tree's own seed is its shapes')
+  const a = row.asset, P = a.placement, GR = a.growth, AG = ST.age, wide = sizeOf(a) / a.size.height, cx = c.x, cy = c.y, K = ST.seed - 300, h0 = (k) => uint(k + K);   // the stand's seed moves every hash: another seed, another stand (a tree's own seed is its shapes')
   const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), bucket = float(0).toVar();
   const pos = vec2(c).add(0.08).add(vec2(rnd(cx, cy, h0(302)), rnd(cx, cy, h0(303))).mul(0.84)).mul(ST.cell), dist = camDist(pos);
   const range = all ? length(pos.sub(U.uCam.xz)) : dist;   // the shadow's stand-in: metres round the camera, whatever the lens
@@ -83,11 +87,12 @@ function treeIn(c, row, Lv, band, biome, ST, shapes = 1, all = false, slice = [0
         // far as the camera may move before the cells are worked out again (band.margin). What of it shows, its vertices
         // say each frame (treeMaterial). (The shadow's stand-in: every tree in its band)
         // (the level's numbers as uniforms: band.to, band.from, band.pad, so every level of a kind is one shader)
-        const span = h.mul(PXK), yes = float(1).greaterThan(0);
+        // (its size on screen by what its kind measures it by, src/detail sizeOf: a bush is low and wide, its largest side counts. `wide`: that to its height)
+        const size = h.mul(wide), span = size.mul(PXK), yes = float(1).greaterThan(0);
         const within = all ? yes : dist.lessThan(span.mul(band.to).add(band.pad)).and(dist.greaterThanEqual(span.mul(band.from).sub(band.pad)));
         If(within, () => {
           A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(0.15), s));
-          B.assign(vec4(rnd(cx, cy, h0(305)).mul(6.2831853), rnd(cx, cy, h0(306)).mul(6.2831853), rnd(cx, cy, h0(307)), h));
+          B.assign(vec4(rnd(cx, cy, h0(305)).mul(6.2831853), rnd(cx, cy, h0(306)).mul(6.2831853), rnd(cx, cy, h0(307)), size));
           alive.assign(1);
         });
       });
@@ -121,7 +126,7 @@ function treeMaterial(tex, row) {
     const shape = (A, B) => {
       const clip = offScreen().toVar(), shown = float(1).greaterThan(0).toVar(), grown = float(1).toVar(), sunk = float(1).toVar();
       if (Lv) {
-        // its size on screen now, as its cell reckoned it (its height, B.w): u, how far it has come in from the finer
+        // its size on screen now, as its cell reckoned it (its largest side, B.w): u, how far it has come in from the finer
         // level (0: not yet); v, how far it has gone out to the coarser one (1: gone). Two levels drawn at once reckon
         // the same share. Each sprig has its own moment in it (a hash of its foot): the finer level's shrink to their
         // feet one after another, the coarser one's grow from theirs; the wood changes over half way, as one.
@@ -207,7 +212,7 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
   // its share of its biome's cells: every kind of tree that grows there, in the order of their uids, each its share
   const slice = kindsOf(P.biome, P.stand).find((k) => k.asset.uid === a.uid)?.slice ?? [0, 1];
   // the heights a tree of it can have: its youngest and its oldest (by its growth), or its scale's
-  const G = a.growth, hLo = G ? G.stages[0].hFrom * P.scale[0] : H * P.scale[0], hHi = G ? Math.max(...a.heights) * (G.stages.at(-1).hTo / G.stages.at(-1).h) * P.scale[1] : H * P.scale[1];
+  const G = a.growth, wide = sizeOf(a) / H, hLo = (G ? G.stages[0].hFrom * P.scale[0] : H * P.scale[0]) * wide, hHi = (G ? Math.max(...a.heights) * (G.stages.at(-1).hTo / G.stages.at(-1).h) * P.scale[1] : H * P.scale[1]) * wide;
   // a tier per level: its cells worked out once, each tree dropped into its shape's mesh (tier.js: buckets)
   const tier = (Lv, shadow) => {
     const geos = Array.from({ length: shapes }, (_, v) => { const g = geometryOf(a, Lv, v); if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]); return g; });   // (a tier's draw counts indices)

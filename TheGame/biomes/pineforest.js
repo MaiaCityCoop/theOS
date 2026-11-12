@@ -31,7 +31,11 @@ export default {
   // same way: thickets `clumps` metres across, one kind leading in patches
   // Thick, as a Mediterranean pine wood's is: a bush every three metres in its thickets, bushes merging, open litter
   // between them; where the holm oaks lead (the first share of the stand's kinds: deep shade) only a quarter of it
-  shrubs: { cell: 3, density: 0.9, clumps: 24, patches: 26, seed: 520, where: ({ p }) => mix(0.25, 1, smoothstep(0.24, 0.38, leadAt(p, TREES).mul(0.7).add(0.15))) },
+  shrubs: { cell: 3, density: 0.9, clumps: 24, patches: 26, seed: 520,
+    // far off, where its bushes have sunk away, the floor wears their colour (fill: a bush covers most of its cell;
+    // grain: a bush to a tree)
+    cover: { colour: [0.06, 0.1, 0.04], fill: 0.85, grain: 0.3 },
+    where: ({ p }) => mix(0.25, 1, smoothstep(0.24, 0.38, leadAt(p, TREES).mul(0.7).add(0.15))) },
   // far off, past where its trees are drawn, the land under it takes the colour of their crowns, in its stand's groves
   // (src/terrain/material.js); from/to (metres): only if no tree of it says where its trees end
   canopy: { colour: [0.05, 0.085, 0.035], from: 650, to: 1000 },
