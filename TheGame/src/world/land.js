@@ -1,4 +1,5 @@
 import { PLACES } from '../../world/places.js';
+import OUTLINES from '../../world/outlines.js';
 // The land, as one function of (x, z): the same integer-hash noise in JS (the walker's feet)
 // and as node code (land.nodes.js, the GPU's ground). Every constant the two share is written once, here.
 
@@ -113,8 +114,24 @@ export function heightAt(x, z) {
   return h;
 }
 
+// ---- the biomes' outlines (world/outlines.js), in JS as src/world/noise.nodes.js has them on the GPU, constant for constant ----
+const OL = OUTLINES, HOME = PLACES[OL.home];
+const push = (x, z) => [(vnoise(x / OL.bend.size, z / OL.bend.size, 97) - 0.5) * 2 * OL.bend.by, (vnoise(x / OL.bend.size, z / OL.bend.size, 98) - 0.5) * 2 * OL.bend.by];
+/** the push at home: taken off every place's, so home itself is not moved */
+export const BENT0 = push(HOME.x, HOME.z);
+/** a place as the biomes' rules read it: [x, z] */
+export const bentAt = (x, z) => { const w = push(x, z); return [x + w[0] - BENT0[0], z + w[1] - BENT0[1]]; };
+const turnAt = (x, z, k = 1) => { const a = OL.turn[k - 1], cs = Math.cos(a), sn = Math.sin(a), dx = x - HOME.x, dz = z - HOME.z; return [HOME.x + dx * cs - dz * sn, HOME.z + dx * sn + dz * cs]; };
+const secondAt = (x, z) => OL.second * sstep(OL.keep[0], OL.keep[1], Math.hypot(x - HOME.x, z - HOME.z));
+/** how dry the land is at (x, z), 0..1: the dry land's rule (biomes/dryland.js) */
 export function aridAt(x, z) {
-  return sstep(0.50, 0.66, vnoise(x / 700, z / 700, 50) + 0.3 * (vnoise(x / 150, z / 150, 51) - 0.5));
+  const [bx, bz] = bentAt(x, z), [tx, tz] = turnAt(bx, bz), [ux, uz] = turnAt(bx, bz, 2);
+  return sstep(0.50, 0.66, vnoise(bx / 700, bz / 700, 50) + secondAt(x, z) * (vnoise(ux / 330, uz / 330, 54) - 0.5) + 0.3 * (vnoise(tx / 150, tz / 150, 51) - 0.5));
+}
+/** how much pine forest stands at (x, z), 0..1: the pine forest's rule (biomes/pineforest.js) without the river's part */
+export function woodAt(x, z) {
+  const [bx, bz] = bentAt(x, z), [tx, tz] = turnAt(bx, bz), [ux, uz] = turnAt(bx, bz, 2);
+  return sstep(0.6, 0.72, vnoise(bx / 1100, bz / 1100, 80) + secondAt(x, z) * (vnoise(ux / 520, uz / 520, 84) - 0.5) + 0.3 * (vnoise(tx / 240, tz / 240, 81) - 0.5));
 }
 
 // what the rocks' shader hashes, for those who must know where a boulder stands

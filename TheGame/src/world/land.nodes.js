@@ -4,8 +4,8 @@
 // all the land round its stage.
 import { Fn, float, int, uint, vec2, vec3, vec4, floor, abs, max, clamp, mix, smoothstep, length, sqrt, atan, sin, cos, If } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt } from './noise.nodes.js';
-export { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt };
+import { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second } from './noise.nodes.js';
+export { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second };
 import { OCT_LAM, OCT_AMP, WATER_DROP, PADS, PAD_FALL, BEND, MEANDER } from './land.js';
 import { BIOMES, BASE, WATER } from './biomes.js';
 import { PLACES } from '../../world/places.js';
@@ -111,17 +111,31 @@ export const stageAt = (p) => U.uStage.z.greaterThan(0).select(float(1).sub(smoo
     biome's share, lowest layer first, and what they add up to: the grass's cover (all ground, and among the grassy
     biomes only), its height (a share of the grass asset's own), the dryness, and the chance of a stone. */
 export function biomesAt(ctx, vars = false) {   // vars: inside a Fn, each share kept in a variable, worked out once
-  const shares = LAID.map((b) => { const w = placed(b, clamp(b.where(ctx), 0, 1), ctx.p); return { b, w: vars ? w.toVar() : w }; });
-  let cover = float(1), grassy = float(1), height = float(1), dry = float(0), stones = float(BASE.stones);
+  // (the place as the rules read it, bent: worked out once for all of them; world/outlines.js)
+  const B = bent(ctx.p), at = { ...ctx, B: vars ? B.toVar() : B };
+  const shares = LAID.map((b) => { const w = placed(b, clamp(b.where(at), 0, 1), ctx.p); return { b, w: vars ? w.toVar() : w }; });
+  let cover = float(1), height = float(1), stones = float(BASE.stones);
   const tufts = ctx.dist.lessThan(900).select(mix(tuftMask(ctx.p), 0.5, smoothstep(350, 900, ctx.dist)), float(0.5));   // grass in tufts, let go far off
   for (const { b, w } of shares) {
-    // (its cover a number, or told place by place: coverAt, node code)
-    const g = b.grass, cv = g ? (g.coverAt ? g.coverAt(ctx) : float(g.cover)) : null, c = g ? (g.tufts ? tufts.mul(cv) : cv) : float(0);
-    cover = mix(cover, c, w); stones = mix(stones, b.stones ?? BASE.stones, w);
-    if (g) { grassy = mix(grassy, c, w); height = mix(height, g.height ?? 1, w); if (g.colours?.dry) dry = mix(dry, 1, w); }
+    const g = b.grass;
+    cover = mix(cover, g ? coverOf(g, ctx, tufts) : float(0), w); stones = mix(stones, b.stones ?? BASE.stones, w);
+    if (g) height = mix(height, g.height ?? 1, w);
   }
-  return { shares, cover, grassy, height, dry, stones };
+  return { shares, cover, ...grassFrom(shares, ctx, tufts), height, stones };
 }
+// a biome's grass cover at a place: a number, or told place by place (coverAt, node code); in tufts where it says so
+const coverOf = (g, ctx, tufts) => { const cv = g.coverAt ? g.coverAt(ctx) : float(g.cover); return g.tufts ? tufts.mul(cv) : cv; };
+/** From the biomes' shares at a place: the grass's cover among the grassy biomes, and how dry it is. tufts: the tufts' mask there;
+    lazy (inside a Fn): a biome's cover worked out only where the biome lies. */
+export const grassFrom = (shares, ctx, tufts, lazy = false) => {
+  let grassy = lazy ? float(1).toVar() : float(1), dry = float(0);
+  for (const { b, w } of shares) {
+    const g = b.grass; if (!g) continue;
+    if (lazy) If(w.greaterThan(0.003), () => { grassy.assign(mix(grassy, coverOf(g, ctx, tufts), w)); }); else grassy = mix(grassy, coverOf(g, ctx, tufts), w);
+    if (g.colours?.dry) dry = mix(dry, 1, w);
+  }
+  return { grassy, dry };
+};
 /** the biomes at p, the river worked out here */
 export const biomesHere = (p, dist) => { const I = riverInfo(p); return biomesAt({ p, dist, d: abs(I.x), w: I.y, b: I.z }); };
 
@@ -135,7 +149,11 @@ export const grassTintAB = Fn(([a, b, dry]) => {
 });
 /** the grass's colour at p, read from the baked land noise (tex: src/materials/bake.js). Over it, slow fields a kilometre
     or two across, some lusher and darker, some paler and drier, so the far land is not one even green. */
-export const grassTint = (tex, p, dry, level = null) => {
+export const grassTint = (tex, p, dry, level = null) => grassTintF(tex, p, dry, level).tint;
+// how a slow field (-0.5 lush … 0.5 pale) colours the grass
+const fieldOn = (field) => vec3(1, 1, 1).add(vec3(0.1, 0.04, -0.14).mul(field).mul(2)).mul(float(1).sub(field.mul(-0.16)));
+/** grassTint, and the slow field it read: { tint, field } */
+export const grassTintF = (tex, p, dry, level = null) => {
   const pr = vec2(p.x.mul(0.6).sub(p.y.mul(0.8)), p.x.mul(0.8).add(p.y.mul(0.6)));
   const rd = (q) => (level === null ? tex.a(noise, q) : tex.a(noise, q).level(level));
   // the tile repeats: each read is two takes, turned and at scales with no whole ratio, blended by a slow mask, so no
@@ -144,5 +162,5 @@ export const grassTint = (tex, p, dry, level = null) => {
   const two = (a, b) => clamp(mix(a, b, mix(0.3, 0.7, k)).sub(0.5).mul(1.4).add(0.5), 0, 1);   // always both, in a slowly changing share (mixed, they lose contrast: given back)
   const t = grassTintAB(clamp(two(rd(p.mul(1 / 150)).r, rd(pq.mul(1 / 211).add(0.53)).r).add(rd(pr.mul(1 / 397)).a).sub(1).mul(0.8).add(0.5), 0, 1), two(rd(pr.mul(1 / 45)).g, rd(pq.mul(1 / 63.6).add(0.29)).g), dry);
   const field = smoothstep(0.3, 0.7, rd(pr.mul(1 / 1900).add(0.41)).b).sub(0.5);   // -0.5 lush … 0.5 pale
-  return vec4(t.rgb.mul(vec3(1, 1, 1).add(vec3(0.1, 0.04, -0.14).mul(field).mul(2))).mul(float(1).sub(field.mul(-0.16))), t.a);
+  return { tint: vec4(t.rgb.mul(fieldOn(field)), t.a), field };
 };

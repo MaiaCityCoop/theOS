@@ -1,7 +1,7 @@
 // Pine forest: stone pines in loose stands over a floor of their needles. A biome of the world, in the one recipe every
 // biome follows (biomes/README.md); its trees are an asset of their own (assets/stonepine.js) that grows where this lies.
 import { float, uint, smoothstep, mix, clamp } from 'three/tsl';
-import { vnoise, groveAt } from '../src/world/noise.nodes.js';
+import { vnoise, groveAt, bent, turned, second } from '../src/world/noise.nodes.js';
 
 // its stand of trees, the same for every kind that grows here (an asset's placement.biome; each takes its `share` of
 // the cells: src/scatter/trees.js): one tree at most in a cell of `cell` metres, as many as `density` says, in groves
@@ -18,8 +18,9 @@ export default {
   laid: 'In stands over the higher, drier ground, away from the river',
   layer: 20,
   // where it lies, 0..1 (node code): stands of a few hundred metres (a slow noise, pushed by a quicker one so their edges
-  // wander), kept off the river's banks
-  where: ({ p, d, w }) => smoothstep(0.6, 0.72, vnoise(p.mul(1 / 1100), uint(80)).add(vnoise(p.mul(1 / 240), uint(81)).sub(0.5).mul(0.3))).mul(smoothstep(w.add(30), w.add(90), d)),
+  // wander), kept off the river's banks. It reads its place bent (B), with a second swell far from home and its quicker
+  // noise turned, so its stands are not blocks along the noise's grid (world/outlines.js; in JS: src/world/land.js woodAt)
+  where: ({ p, d, w, B = bent(p) }) => smoothstep(0.6, 0.72, vnoise(B.div(1100), uint(80)).add(vnoise(turned(B, 2).div(520), uint(84)).sub(0.5).mul(second(p))).add(vnoise(turned(B).div(240), uint(81)).sub(0.5).mul(0.3))).mul(smoothstep(w.add(30), w.add(90), d)),
   floor: { material: '795da1c3-9cfe-4c4e-88c7-a58ce86444d4' /* pine needles */, tile: [2.2, 3.5] },
   // green grass in tufts: most of it in the glades, little in the shade of the groves (coverAt: place by place, by the
   // stand's own noise; cover: on the whole, for the library's card)

@@ -9,7 +9,7 @@
 // city needs (people / perVillage), and its people share them by their real area.
 import CITY from '../../world/city.js';
 import { PLACES } from '../../world/places.js';
-import { riverAt, riverRaw, heightAt, aridAt, outcropAt, noiseAt, cellRnd, sstep } from '../world/land.js';
+import { riverAt, riverRaw, heightAt, aridAt, woodAt, outcropAt, noiseAt, cellRnd, sstep } from '../world/land.js';
 
 const SQ3 = Math.sqrt(3);
 export const PLOTS = Math.round(CITY.people / CITY.perVillage);   // 898 villages
@@ -121,7 +121,7 @@ function landOf(P, S) {
   for (let z = z0 + step / 2, row = 0; z < z1; z += step * (SQ3 / 2), row++) for (let x = x0 + (row % 2 ? step : step / 2); x < x1; x += step) {
     if (!inside(P, x, z)) continue;
     const v = riverAt(x, z), d = v.d, w = v.w, h = heightAt(x, z);
-    const forest = sstep(0.6, 0.72, noiseAt(x / 1100, z / 1100, 80) + (noiseAt(x / 240, z / 240, 81) - 0.5) * 0.3) * sstep(w + 30, w + 90, d);   // biomes/pineforest.js's rule
+    const forest = woodAt(x, z) * sstep(w + 30, w + 90, d);   // biomes/pineforest.js's rule (src/world/land.js: woodAt)
     if (d < w + 120) c.shore++; else if (forest > 0.5) c.forest++; else if (aridAt(x, z) > 0.5) c.dry++; else c.meadow++;
     rock += outcropAt(x, z) > 0.5 ? 1 : 0; lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
   }

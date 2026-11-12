@@ -7,7 +7,7 @@ What lies and grows on each kind of land: one file each in this folder, each a r
 | --- | --- |
 | `uid`, `type: 'biome'` | its stable id and what sort of recipe it is |
 | `name`, `kind`, `about` | what it is (`kind`: one word, the list's line under its name) |
-| `where({ p, dist, d, w, b })` | where it lies, 0..1: node code (TSL) with the noises of `src/world/noise.nodes.js`; `p` the point, `dist` the lens's distance to it, `d`, `w`, `b` the river there (how far from its middle, its half-width, which bank: > 0 a bend's outside) |
+| `where({ p, dist, d, w, b })` | where it lies, 0..1: node code (TSL) with the noises of `src/world/noise.nodes.js`; `p` the point, `dist` the lens's distance to it, `d`, `w`, `b` the river there (how far from its middle, its half-width, which bank: > 0 a bend's outside), `B` the point bent (`world/outlines.js`): a rule built on a slow noise reads `B`, not `p`, and turns its finer noises (`turned`), so it does not come out in blocks along the noise's grid; its mirror in JS, if anything asks in JS, in `src/world/land.js` |
 | `layer` | the order biomes are laid in, lowest first; one with grass is laid under the grass's carpet, one without over it |
 | `base: true` | the land's own: under every other biome, everywhere; its `patches` (bare patches, paths) and `slopes` (with their own `layer`) |
 | `water: true` | the water itself, drawn over the river's bed; `river: true`: it lies by the river (in the river's own sandbox it keeps to that river) |

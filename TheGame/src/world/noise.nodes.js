@@ -1,8 +1,12 @@
 // The land's noises on the GPU (node code): what the land's functions (land.nodes.js) and the biomes' rules
-// (biomes/*.js: where) are built from. No world in here, so any recipe may use it.
-import { Fn, float, int, uint, vec2, vec3, floor, sqrt, smoothstep } from 'three/tsl';
+// (biomes/*.js: where) are built from. No biome in here, so any recipe may use it (of the world only its numbers:
+// world/outlines.js, a stand's).
+import { Fn, float, int, uint, vec2, vec3, floor, sqrt, smoothstep, length } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { hashI } from '../core/hash.js';
+import OUTLINES from '../../world/outlines.js';
+import { PLACES } from '../../world/places.js';
+import { BENT0 } from './land.js';
 export { hashI };
 
 /** 0..1 from a cell and a seed */
@@ -34,3 +38,13 @@ export const groveAt = (p, T) => {
 };
 /** Which kind of tree leads at p, 0..1 (a slow noise `patches` metres across; a kind leads where it falls in its slice). */
 export const leadAt = (p, T) => (T?.patches ? smoothstep(0.25, 0.75, vnoise(p.div(T.patches), uint(322 + (T.seed ?? 300) - 300))) : float(0.5));
+
+// ---- the biomes' outlines (world/outlines.js): how a rule reads its place, so forests and dry land do not come out in
+// blocks along the noise's grid. src/world/land.js has the same in JS (the walker, the films, the city's plots) ----
+const OL = OUTLINES, HOME = vec2(PLACES[OL.home].x, PLACES[OL.home].z);
+/** A place as a biome's rule reads it: pushed aside by a slow noise, not at all at home. */
+export const bent = Fn(([p]) => { const q = p.div(OL.bend.size); return p.add(vec2(vnoise(q, uint(97)), vnoise(q, uint(98))).sub(0.5).mul(2 * OL.bend.by)).sub(vec2(BENT0[0], BENT0[1])); });
+/** A place turned about home, off the noise's grid (k: which of the two turned frames). */
+export const turned = (q, k = 1) => { const a = OL.turn[k - 1], cs = Math.cos(a), sn = Math.sin(a), d = q.sub(HOME); return vec2(d.x.mul(cs).sub(d.y.mul(sn)), d.x.mul(sn).add(d.y.mul(cs))).add(HOME); };
+/** How much a rule's second swell counts at p: none round home (the land there lies as it did), all of it far off. */
+export const second = (p) => smoothstep(OL.keep[0], OL.keep[1], length(p.sub(HOME))).mul(OL.second);

@@ -26,7 +26,7 @@
     "type": "asset",
     "name": "Holm oak",
     "file": "assets/holmoak.js",
-    "version": "16f55286468b766314fd344aa5d2fc9642162b8e40214861df6fe53aa27e36d7",
+    "version": "c5d49d549d8ccc30e1eb0f3bf5e0fab35157f2a8ef5d12cf16acbfc83b81abde",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "c4cbd29b-9dd2-494d-913b-9a80c40ab8e6",
@@ -38,7 +38,7 @@
     "type": "asset",
     "name": "Stone pine",
     "file": "assets/stonepine.js",
-    "version": "71d7c2e521014775f4e65d0c541345ca48d2f0b353416056ec1b7fc68ef29066",
+    "version": "9ecc2a97a7f13ef8d3a96ff7856b0e9411e301288b1d13524ac91891f2b6d35f",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
@@ -67,7 +67,7 @@
     "type": "biome",
     "name": "Dry land",
     "file": "biomes/dryland.js",
-    "version": "a4baad879ce148134b5b11337b290854e60ef9227f7d33af0a9c5f1d3de13698",
+    "version": "fb467d9933353a57c39341065831a0f26beda0e8116af0a847aa0a99c736645b",
     "uses": [
       "082f0183-5d92-4ac8-821c-14408d3ee056",
       "2f329f07-d2ba-4dc8-a6e3-73053c65e10f"
@@ -98,7 +98,7 @@
     "type": "biome",
     "name": "Pine forest",
     "file": "biomes/pineforest.js",
-    "version": "697ecf683a41da7509f06fb2f17b7c69ad6609b78734c22be670a81c666d6515",
+    "version": "e87f13ea7b1cb91721af6950240a69fc7b1e62db3d046c63ca2a1549c2e3bd1e",
     "uses": [
       "795da1c3-9cfe-4c4e-88c7-a58ce86444d4"
     ]
