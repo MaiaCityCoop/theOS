@@ -50,7 +50,7 @@ function sandRiver(x, z) {
   river.d = Math.abs(river.r) / Math.max(gl, 2e-4);
 }
 // the river's raw field: r (0 on the stream's line) and its gradient, the world's or the sandbox's
-function riverRaw(x, z) {
+export function riverRaw(x, z) {
   const n1 = noised(x / 1600, z / 1600, 40), g1x = gx, g1y = gy;
   const n2 = noised(x / 330 + 17.3, z / 330 + 17.3, 41);
   river.r = (n1 - 0.5) + 0.28 * (n2 - 0.5);
@@ -119,4 +119,6 @@ export function aridAt(x, z) {
 
 // what the rocks' shader hashes, for those who must know where a boulder stands
 export const cellRnd = rnd;
+// the land's value noise itself, for those who read a biome's rule in JS (the city's plots, src/city/plan.js)
+export const noiseAt = vnoise;
 export function outcropAt(x, z) { return sstep(0.60, 0.72, vnoise(x / 230, z / 230, 74)); }

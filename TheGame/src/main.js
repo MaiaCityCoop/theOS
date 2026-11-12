@@ -36,6 +36,7 @@ import { useBackend } from './world/light.js';
 import { useTiles } from './world/tile.js';
 import { createShadows } from './world/shadow.js';
 import { useGround } from './world/rocksolid.js';
+import { createCity } from './city/index.js';   // the city's plots over the land, seen from above (world/city.js)
 
 const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
@@ -89,6 +90,7 @@ const shadows = createShadows(renderer);   // the casters' shadows, read by ever
 stats.shadows = shadows;
 stats.controls = controls;
 const post = createPost(renderer, SKY);
+const city = (stats.city = createCity({ scene, camera, canvas, renderer }));
 const hud = createHud(document.getElementById('hud'), renderer, camera, governor, stats);
 spawn(controls);
 
@@ -102,6 +104,7 @@ function choose(dt) {
   U.uAirH.value = Math.max(0, p.y - heightAt(p.x, p.z));   // the height fog thins along a line of sight from up here (src/world/light.js)
   camera.updateMatrixWorld();
   setPlanes(projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  city.update();
   const lod = governor.detail(camera);
   U.uLodInv.value = 1 / lod;
   u = performance.now(); parts.ctl = u - t; t = u;

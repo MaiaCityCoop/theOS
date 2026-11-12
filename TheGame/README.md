@@ -26,6 +26,7 @@ the files named here.
 | `src/scatter/` | What stands on the land: every asset placed `at: 'scatter'`, drawn by its engine (`grass.js`, `rocks.js`, `trees.js`; `index.js` finds them). `tier.js` draws a tier as instanced calls over the patches the view touches, packed by a compute pass; `view.js` drops what stands outside the view; `ground.js` is the map of the ground the tiers read. | a new plant, rock or tree: a file in `assets/`; a new sort of thing: an engine module here |
 | `src/detail/` | Levels of detail by size on screen (`index.js`), and far cards (`impostor.js`). | an asset's own `detail` block |
 | `src/camera/` | The one camera (`rig.js`), the walker (`walk.js`), touch (`touch.js`), and the lens's picture (`post.js`: depth of field, the glass). | a new post effect in the lens's pass |
+| `src/city/` | The city's plots over the land, seen from above (intent 0009): the plan on the real land (`plan.js`, run in `plan.worker.js`), drawn and picked (`index.js`), a village's card (`card.js`). Its numbers in `world/city.js`. | a number in `world/city.js` |
 | `cine/` | The virtual camera, outside the game: it needs only `window.__s8.camera` and `src/world/land.js`. Lenses, timelines, the composer, the bench. | see `cine/README.md` |
 
 Drawn by three's `WebGPURenderer` (WebGL 2 where WebGPU is missing; `?webgl` forces it). Every material is node
