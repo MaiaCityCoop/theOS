@@ -6,6 +6,7 @@
 //     id,
 //     row?(asset) -> row,                      what it reads of an asset, over the common row (assets/index.js: scatterRow)
 //     create(scene, tex, ground, row, gpu) -> tiers,   its tiers (tier.js); tiers.solid: what reads its packing back as bodies
+//     createAll?(scene, tex, ground, rows, gpu) -> tiers,   instead of create: all its assets at once (they share tiers)
 //     // for the asset library (library.html), each as the engine sees fit:
 //     thumb?(tex, row) -> { things, eye, look },       its picture for the list
 //     stage?(tex, row, { x, z, heightAt, ground, level, seed, … }) -> Object3D,   how it stands on the stage
@@ -27,9 +28,15 @@ export const rowOf = (asset) => engineOf(asset)?.row?.(asset) ?? scatterRow(asse
 export function createScatter(scene, tex, ground, renderer, camera = null) {
   const gpu = !!renderer?.backend?.isWebGPUBackend;   // compute-packed tiers where WebGPU is (tier.js)
   const tiers = [], solid = [];
+  const take = (made, name) => { if (made.solid) solid.push(made.solid); for (const t of made) { t.asset ??= name; tiers.push(t); } };   // solid: what reads its packing back as bodies (trees.js)
+  const rows = new Map();   // each engine's assets
   for (const a of recipes('asset').filter((r) => r.placement?.at === 'scatter')) {
-    const E = engineOf(a), asset = rowOf(a); if (!E) { console.warn(`no scatter engine '${a.placement.engine}' (${a.name})`); continue; }
-    const made = E.create(scene, tex, ground, asset, gpu); if (made.solid) solid.push(made.solid); for (const t of made) { t.asset = asset.name; tiers.push(t); } }   // solid: what reads its packing back as bodies (trees.js)
+    const E = engineOf(a); if (!E) { console.warn(`no scatter engine '${a.placement.engine}' (${a.name})`); continue; }
+    if (!rows.has(E)) rows.set(E, []); rows.get(E).push(rowOf(a));
+  }
+  // an engine makes its tiers asset by asset (create), or all of its assets at once (createAll: what shares tiers, as
+  // the kinds of one stand do: trees.js)
+  for (const [E, list] of rows) { if (E.createAll) take(E.createAll(scene, tex, ground, list, gpu), E.id); else for (const row of list) take(E.create(scene, tex, ground, row, gpu), row.name); }
   return {
     tiers,
     /** Choose, for this frame, the patches each tier draws (after the frustum's planes are set: core/frustum.js). */

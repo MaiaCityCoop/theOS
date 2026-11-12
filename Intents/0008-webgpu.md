@@ -867,6 +867,23 @@ shadows and the grass.
   seconds. A thousand: not as it is built. That needs tiers a stand, its kinds as buckets, their sprigs in one atlas:
   the next piece of work, and his to call. The grass is not on the pattern (rings of blades, no levels of a thing).
 
+### 2026-11-12, a stand is one thing to the engine (20:25)
+
+- **Asked:** "Yes, rebuild": the scatter so that its cost is a stand's, not an asset kind's.
+- **Delivered:** src/scatter/trees.js made over. `groupsOf`: every kind of one stand of one biome is one group. One tier a
+  level for the group (`createStands`): its cells are worked out once for all its kinds (`plantIn`: the common tests
+  once, a kind's few lines for its size and shape), each plant dropped into its kind's and shape's mesh. One material
+  for all of it (`plantMaterial`): what a kind is (bark, leaves, wind, light, tint) a mesh says as numbers (`wear`),
+  the textures being layers of one array already; so every kind, shape and level is one draw shader. The scatter's
+  index takes an engine's assets all at once (`createAll`). The contract: src/detail/README.md, "What a kind costs".
+- **Good:** seven kinds in three stands: 12 tiers of plants where there were 27 (22 in all with the rocks and the grass). The same picture and the same counts (the
+  forest walk: 749.9 thousand tree triangles, 193.9 thousand of shrubs; from 45 m: 840.8 and 185.4). The start 4.5 to
+  4.6 s where it was 5.0 to 5.3 with five kinds. Real Safari: 16.7 ms a frame. No errors but the dev server's socket.
+- **Broke / not there yet:** a tree's meshes are built at every start (0.3 s a tree kind, a few ms a shrub): the next
+  wall before a thousand trees. A draw call and a slice of buffer a shape and level, in view or not. The rocks and
+  the grass keep their own engines. The WebGL 2 fallback draws no plants, and did not before this (checked against
+  the engine as it was); a shortcut tried there (one material for its meshes) changed nothing and was taken out.
+
 ## Trail
 
 | When | Commit | What |

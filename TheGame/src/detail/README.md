@@ -41,10 +41,26 @@ A new tree, bush or rock is a file in `assets/`: its kind gives it all of the ab
 `assets/kinds.js`. A new engine must ask `sizeOf`, `detailOf`, `levelOf`/`bandOf` and `handOver`: it may not carry a
 distance, a pixel threshold or a fade of its own.
 
-## What this does not yet give: many kinds at once
+## What a kind costs
 
-The rule is one, but the cost is per kind. Every scattered kind of asset has its own tiers: one packing shader and one
-draw shader a level (three to seven), each some hundred milliseconds of the start and a few draw calls a frame. Ten
-kinds are fine (the start is five seconds); a thousand are not. For that the tiers must be a stand's, not a kind's:
-one packing for every kind of a stand, its kinds as buckets, and their sprigs in one atlas so a level is one draw
-shader. Nothing in the rule above changes for that; `src/scatter/tier.js` and the engines do.
+A stand is one thing to the engine, however many kinds grow in it (`src/scatter/trees.js`):
+
+| | per stand and level | per kind |
+| --- | --- | --- |
+| packing (compute) | one pass: where the cell is, whether it is seen, the groves, the land, the river, the ground | a few lines: its size, its shape |
+| draw shader | one for every stand, kind, shape and level | none: a mesh says its kind as numbers (`wear`: bark, leaves, wind, light, tint) |
+| draw calls | | one a shape and level |
+| the start | | building its meshes: a shrub a few milliseconds, a tree of eight shapes about 0.3 s |
+
+Kinds share a stand's tiers when their levels are the same make (the same pixels and patches: their kind's and the
+kit's); a kind made otherwise is a group of its own in the same cells (`groupsOf`).
+
+## What this does not yet give
+
+- **A tree's meshes are built at every start**, on the main thread (about 0.3 s a tree kind): a thousand shrubs are a
+  few seconds, a thousand trees are not possible. They must be built once and kept (baked to a file, or built off the
+  main thread as its stand comes near).
+- **A draw call and a slice of the packing's buffer a shape and level**, whether a plant of it stands in view or not:
+  fine for tens of kinds a stand, not for hundreds. For that the packing must sort into one buffer (count, then place).
+- **The rocks and the grass have their own engines** (`rocks.js`, `grass.js`): the same rule, not the same tiers.
+- **The WebGL 2 fallback draws no plants** (seen 2026-11-12, and so before this): its packing per vertex gives none.
