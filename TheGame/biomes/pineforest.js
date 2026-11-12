@@ -27,6 +27,9 @@ export default {
   grass: { cover: 0.3, coverAt: ({ p }) => mix(0.9, 0.1, clamp(groveAt(p, TREES).mul(0.8), 0, 1)), tufts: true, height: 0.6, flowers: false },
   stones: 0.15,
   trees: TREES,
+  // its understory: the shrubs that grow here (assets whose placement.stand is `shrubs`), a stand of their own, read the
+  // same way: thickets `clumps` metres across, one kind leading in patches
+  shrubs: { cell: 6, density: 0.55, clumps: 26, patches: 34, seed: 520 },
   // far off, past where its trees are drawn, the land under it takes the colour of their crowns, in its stand's groves
   // (src/terrain/material.js); from/to (metres): only if no tree of it says where its trees end
   canopy: { colour: [0.05, 0.085, 0.035], from: 650, to: 1000 },

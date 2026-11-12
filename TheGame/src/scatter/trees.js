@@ -160,7 +160,7 @@ function treeMaterial(tex, row) {
         const L = skyLight(n).mul(ao.mul(ao).mul(0.75).add(ao.mul(0.25))).add(U.uSun.mul(cloudAtVertex(w)).mul(ndl.add(through)).mul(ao.mul(0.6).add(0.4)));
         const W = weatherOn(n, snowLiftAtVertex(w, clumps)), air = airOf(w);   // what the weather does to it (wet, its snow in clumps), and the air before it
         // each tree its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
-        const tint = leaf.select(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.y.mul(1.1631).fract()).mul(B.z.mul(0.3).add(0.84)), vec3(1));
+        const tint = leaf.select(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.y.mul(1.1631).fract()).mul(B.z.mul(0.3).add(0.84)).mul(vec3(...(F.tint ?? [1, 1, 1]))), vec3(1));
         vMul.assign(L.mul(tint).mul(W.keep).mul(air.k));
         vAdd.assign(W.add.mul(L).mul(air.k).add(air.col.mul(float(1).sub(air.k))));
       });

@@ -15,6 +15,17 @@
       "506c509b-300d-42eb-8403-f3969b06b271"
     ]
   },
+  "ad7f7215-acb8-4a37-9287-f32d100b826f": {
+    "type": "asset",
+    "name": "Bracken",
+    "file": "assets/bracken.js",
+    "version": "c2a8f9a398f29ca422e0981d16d847de6e7f5d4be010e94e8883cc1065ef432b",
+    "uses": [
+      "170e8df4-254e-4df2-95e2-c584380cf14b",
+      "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
+      "f0cd9e72-612d-4f2e-9790-0ef5f7257742"
+    ]
+  },
   "eb8f406f-1035-4921-ba42-10f05efab6ed": {
     "type": "asset",
     "name": "Grass",
@@ -26,7 +37,7 @@
     "type": "asset",
     "name": "Holm oak",
     "file": "assets/holmoak.js",
-    "version": "c5d49d549d8ccc30e1eb0f3bf5e0fab35157f2a8ef5d12cf16acbfc83b81abde",
+    "version": "d367b0c2ea3eac2e1575280f99ee1f30bcf47033987fb3a78921746df2ad4500",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "c4cbd29b-9dd2-494d-913b-9a80c40ab8e6",
@@ -34,11 +45,33 @@
       "fb5ce908-7437-45b6-879f-154de32d12b9"
     ]
   },
+  "1f69dea0-43f9-4fc0-9e41-90d76324e265": {
+    "type": "asset",
+    "name": "Mastic",
+    "file": "assets/mastic.js",
+    "version": "bdc943bc2ca9180e4b42ffa5b04bba8c77e81f06a616e4be773471720a8fb614",
+    "uses": [
+      "170e8df4-254e-4df2-95e2-c584380cf14b",
+      "c4cbd29b-9dd2-494d-913b-9a80c40ab8e6",
+      "fb5ce908-7437-45b6-879f-154de32d12b9"
+    ]
+  },
+  "6d38d178-4510-4dcc-8178-eaa461e75367": {
+    "type": "asset",
+    "name": "Rockrose",
+    "file": "assets/rockrose.js",
+    "version": "0cef268b7ca90ef89001936cce3028750bb5041b7e73fac4da01d739d89df77f",
+    "uses": [
+      "170e8df4-254e-4df2-95e2-c584380cf14b",
+      "c4cbd29b-9dd2-494d-913b-9a80c40ab8e6",
+      "fb5ce908-7437-45b6-879f-154de32d12b9"
+    ]
+  },
   "e4f1685f-2db4-41a6-89df-e818cb470fdd": {
     "type": "asset",
     "name": "Stone pine",
     "file": "assets/stonepine.js",
-    "version": "9ecc2a97a7f13ef8d3a96ff7856b0e9411e301288b1d13524ac91891f2b6d35f",
+    "version": "e735459d32fee322c5b68b9870c3c7d4587288ffd56ef9644ab52ce4486ba027",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
@@ -98,7 +131,7 @@
     "type": "biome",
     "name": "Pine forest",
     "file": "biomes/pineforest.js",
-    "version": "e87f13ea7b1cb91721af6950240a69fc7b1e62db3d046c63ca2a1549c2e3bd1e",
+    "version": "b5b9ef2f9197e50c1c4c795789195f4fe9aac1625c3138fe4029f25b3ec0a936",
     "uses": [
       "795da1c3-9cfe-4c4e-88c7-a58ce86444d4"
     ]

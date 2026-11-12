@@ -8,6 +8,8 @@
 //
 // growth { years, variants, form(year, v), height(year) }: its stages of growth, by age (or, without it, shapes: a list).
 // litter { material, tile }: what it drops: the ground under it where it leads in its stand (the land lays it).
+// A shrub is built the same way (kind `shrub`: assets/kinds.js), and stands in its biome's understory: placement.stand
+// names which of the biome's stands it joins (`shrubs`; a tree's, unnamed, is `trees`).
 // placement { biome, share, scale, lean, seed }: its biome, whose stand it joins (the biome's `trees`: the cells, the
 // groves, the ages, the same for every kind of tree that grows there); share, its part of that stand's cells (one tree a
 // cell: a mix); scale, one tree's own size about its age's height; seed, its shapes' (another seed: other trees of its kind).
@@ -16,7 +18,7 @@
 // by itself, made from its nearest: its crown as one body on a post (36 triangles), then a speck (8) (farOf;
 // `far: { P, sides, shade }` to tune them, `far: false` for none).
 // grow(q, shape, i) builds level q (0 nearest) of a shape (a stage's form, or shapes[i]) with builder()/tube()/cards(), or
-// crown() for its limbs and foliage as most trees share them, and returns the builder;
+// crown() for its limbs and foliage as most trees share them, or mound() for a low bush, and returns the builder;
 // shade(shape, i), if given, the light mesh the shadow map is drawn from (else none of its levels cast, but the nearest);
 // tree() works out the rest the engine reads: every level's meshes, the shade's, the tree's size, and each shape's trunk
 // as a body (the tube made with { body: true }, where it stands at a walker's chest).
@@ -120,6 +122,30 @@ export function crown(b, q, { limbs, puffs, thick = 1, g = 1, girth = [0.11, 0.0
       }
     }
   });
+}
+
+/** A low bush as most shrubs share it: a few short stems from its foot (its nearest level only) and a mound of sprigs
+    over them, each sprig a pair of crossed cards standing out of the mound's skin.
+      r, h         the mound's reach and height, metres
+      dome         [from, to], 0 its foot … 1 its top: where on the mound its sprigs stand (a fern: only low, round its foot)
+      puffs, count places on the mound and sprigs at each, per level; size: a sprig's size in metres, per level
+      rise         how much a sprig's way favours up over out
+      stems        short stems from its foot */
+export function mound(b, q, { r, h, dome = [0.1, 1], puffs, count, size, rise = 0.3, stems = 0, R0 }) {
+  if (q === 0) for (let i = 0; i < stems; i++) {
+    const a = R0() * 2 * Math.PI, e = [Math.cos(a) * r * 0.45, h * 0.55, Math.sin(a) * r * 0.45], k = Math.max(0.5, h);
+    tube(b, [[0, 0, 0], add(mul(e, 0.5), [0, h * 0.12, 0]), e], [0.03 * k, 0.022 * k, 0.012 * k], 3);
+  }
+  for (let i = 0; i < puffs[q]; i++) {
+    const a = R0() * 2 * Math.PI, u = dome[0] + (dome[1] - dome[0]) * R0() ** 0.7, c = Math.sqrt(Math.max(0, 1 - u * u)), k = 0.6 + 0.4 * R0();
+    const d = [Math.cos(a) * c, u, Math.sin(a) * c], p = [d[0] * r * k, d[1] * h * 0.75 * k, d[2] * r * k], light = norm([d[0] * 0.6, d[1] * 0.6 + 0.8, d[2] * 0.6]);
+    for (let t = 0; t < count[q]; t++) {
+      const dir = norm([d[0] + (R0() - 0.5) * 0.5, d[1] + rise, d[2] + (R0() - 0.5) * 0.5]), sz = size[q] * (0.8 + 0.4 * R0());
+      // (a coarser level's larger sprig sunk in by what it is larger: the same outline at every level)
+      const at = sub(p, mul(dir, Math.max(0, sz - size[0]) * 0.8));
+      cards(b, at, dir, sz, light, Math.max(0.3, (0.45 + 0.55 * Math.min(1, p[1] / Math.max(h * 0.75, 0.1))) * (0.7 + 0.3 * k)), R0);
+    }
+  }
 }
 
 const pct = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(sorted.length * q)))];
