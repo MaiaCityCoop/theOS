@@ -735,6 +735,28 @@ shadows and the grass.
   step. Frame time with the fuller bushes not measured (the GPU shared at the time); counted before the heaps: 33 to
   46 thousand triangles of shrubs in a forest view.
 
+### 2026-11-12, what the trees have, for everything planted (16:30)
+
+- **Asked:** the bushes appear and disappear as one walks, as the trees once did: solve it once, generally, so any
+  asset to come has it solved too. And: the camera's lens is the one truth for it?
+- **Found:** a bush went through the trees' own hand-over and sinking, but its size on screen was its height, and a
+  bush is low and wide: it was handed to its far body at some 20 m and had sunk away by 60 to 180, in plain sight. And
+  only the trees had what hides the end: drawn out to kilometres, and the land wearing their colour past that.
+- **Delivered:** one measure, `sizeOf(asset)` (src/detail): its largest side, or its height where its kind says
+  `measure: 'height'` (a tree); the trees' engine and the land ask it. A shrub's far body is eight triangles and is
+  drawn until it has sunk at 3 px (a bush three metres across: some 600 m). The land's far canopy made general: every
+  stand of a biome with a `cover` (its colour, how much of a cell a plant fills, its grain) is laid on the land where
+  its plants have sunk, as thick as the stand grows there and where it likes to grow; the trees' `canopy` is their
+  stand's cover; the floor's shade stays the casting stand's. So a new kind of plant in a stand needs none of this
+  written: its kind's pixels, and its stand's cover.
+- **Good:** a walk through the wood in steps of 14 m: the undergrowth unbroken into the distance in every picture. No
+  errors in WebKit; a page of the game in Samuel's Safari 231 to 240 frames per 4 s, the pixel ratio rising. The
+  trees' triangles as before (749 and 838 thousand packed in two forest views).
+- **Broke / not there yet:** the shrubs are now 127 to 163 thousand triangles in a forest view (46 before): most of it
+  ten to twelve thousand far bodies. The one rule is when a level changes (pixels through the lens, by kind); how it
+  changes is still two ways: what stands in a stand grows, shrinks and sinks; rocks and placed assets swap in a dither.
+  The start's time not measured again alone.
+
 ## Trail
 
 | When | Commit | What |
@@ -795,3 +817,4 @@ shadows and the grass.
 | 2026-11-12 | `aaf4dca` | Undergrowth: the kind shrub, the understory stand, mastic, rockrose, bracken |
 | 2026-11-12 | `254e700` | The understory after a real wood: thickets, placed by the light; a fern's frond and a rockrose's sprig |
 | 2026-11-12 | `1610cf4` | Bushes in heaps, ragged; one material a tier, levels as uniforms: the start from 8.5 to 5 s |
+| 2026-11-12 | `5974374` | Every stand hands over to the land: size by kind, far bodies, a stand's cover |
