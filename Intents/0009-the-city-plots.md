@@ -121,3 +121,4 @@ Asked for outright; built straight away (the skill's rule: no surprise in the de
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-12 | `cd66edf` | the plan, the overlay, the card, opening villages, the film's hours |
+| 2026-11-12 | `ce323df` | the plots under the clouds |
