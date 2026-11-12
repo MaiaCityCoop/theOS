@@ -4,8 +4,9 @@ import { U } from '../core/uniforms.js';
 import { ASSETS } from './assets.js';
 import { createGrass } from './grass.js';
 import { createRocks } from './rocks.js';
+import { createTrees } from './trees.js';
 
-const KINDS = { grass: createGrass, rocks: createRocks };
+const KINDS = { grass: createGrass, rocks: createRocks, trees: createTrees };
 
 export function createScatter(scene, tex, ground, renderer) {
   const gpu = !!renderer?.backend?.isWebGPUBackend;   // compute-packed tiers where WebGPU is (tier.js)

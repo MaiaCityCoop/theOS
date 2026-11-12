@@ -6,7 +6,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { int } from 'three/tsl';
-import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, roofAt, BASE, LAID } from '../world/land.nodes.js';
+import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, shareOf, roofAt, BASE, LAID } from '../world/land.nodes.js';
 import { finish, skyLight, weathered, cloudAt, cloudShade, snowCover, snowDrift, SNOW } from '../world/light.js';
 import noise from '../../materials/noise.js';
 
@@ -60,10 +60,20 @@ export function terrainMaterial(tex) {
     const nz = (q) => tex.a(noise, q);
     const macro = nz(prr.mul(1 / 97).add(0.37)).b.sub(0.5).mul(0.16).add(nz(pr.mul(1 / 700)).a.sub(0.5).mul(0.2)).add(nz(p.mul(1 / 4500).add(0.11)).r.sub(0.5).mul(0.18)).add(1);
     const d = abs(vI.x), w = vI.y, b = vI.z;
-    const L = { shares: LAID.map((bio, k) => ({ b: bio, w: lane(shareLane[k]), spots: bio.spots?.where ? lane(shareLane[k] + 1) : null })), grassy: vGD.x, dry: vGD.y };   // every biome's share here, from the vertices
+    // every biome's share here, from the vertices; but a river's biome (a bank, a bar) is worked out again here, per pixel,
+    // from the river's distance (smooth across a cell): far off a cell is wider than a bank, and a share blended across its
+    // corners would give the bank a sawtooth edge. Only where its corners hold some of it: elsewhere it costs nothing.
+    const rctx = { p, dist: dist2, d, w, b };
+    const shareAt = (bio, k) => {
+      const v = lane(shareLane[k]); if (!bio.river) return v;
+      const s = float(0).toVar(); If(v.greaterThan(0.0005), () => { s.assign(shareOf(bio, rctx)); }); return s;
+    };
+    const L = { shares: LAID.map((bio, k) => ({ b: bio, w: shareAt(bio, k), spots: bio.spots?.where ? lane(shareLane[k] + 1) : null })), grassy: vGD.x, dry: vGD.y };
     const tint = grassTint(tex, p, L.dry);
     // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up
-    const g1 = tex.a(carpet, p.div(1.6)), g2 = tex.a(carpet, pr.div(9.6)), g3 = tex.a(carpet, prr.div(57));
+    // (the far take is two, turned and at scales with no whole ratio, blended by a slow mask: no grid of the same tufts from high up)
+    const g1 = tex.a(carpet, p.div(1.6)), g2 = tex.a(carpet, pr.div(9.6)), gk3 = smoothstep(0.35, 0.65, nz(pr.mul(1 / 431).add(0.61)).g);
+    const g3 = mix(tex.a(carpet, prr.div(57)), tex.a(carpet, rot(prr).div(80.6).add(0.37)), gk3);
     const gn1 = tex.n(carpet, p.div(1.6)), gn2 = tex.n(carpet, pr.div(9.6));
     const gk = smoothstep(25, 110, dist2), gk2 = smoothstep(300, 1400, dist2);
     const glum = mix(mix(g1.a, g2.a, gk), mix(g2.a, g3.a, 0.6), gk2);
@@ -109,6 +119,16 @@ export function terrainMaterial(tex) {
       lay(bio, wt.mul(bio.mix ?? 1), spots);
     }
     if (!sloped) If(steep.greaterThan(0.003), () => blend(M, smp(SLOPE), steep));
+    // far off, past where a biome's trees are drawn, its land takes the colour of their crowns (its `canopy`), in crowns
+    // of its own: a forest to the horizon for nothing
+    L.shares.forEach(({ b: bio, w: wt }) => {
+      if (!bio.canopy) return;
+      const cw = wt.mul(smoothstep(bio.canopy.from, bio.canopy.to, dist2));
+      If(cw.greaterThan(0.003), () => {
+        const crowns = smoothstep(0.35, 0.75, nz(p.div(23).add(0.7)).r.mul(0.35).add(nz(prr.div(31.7).add(0.2)).g.mul(0.35)).add(nz(pr.div(9.3)).g.mul(0.3)));   // (takes at scales with no whole ratio: no grid of crowns)
+        M.c.assign(mix(M.c, vec3(...bio.canopy.colour).mul(crowns.mul(0.7).add(0.55)), cw)); M.n.assign(M.n.mul(float(1).sub(cw))); M.h.assign(mix(M.h, crowns, cw));
+      });
+    });
     // the library's stage: its own ground laid into the land like any other, its frayed edge blended by height (uStageGround:
     // a material's layer and tile; -1: the base biome's bare earth)
     If(stage.greaterThan(0.003), () => {

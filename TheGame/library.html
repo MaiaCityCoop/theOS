@@ -106,11 +106,13 @@ for (const b of document.querySelectorAll('.item[data-mat]')) {   // a material'
   b.onclick = () => chooseMaterial(b.dataset.mat);
 }
 // an asset's picture: its nearest level, lit, on nothing
+// a scattered rock is drawn by the rocks' engine (its own icospheres and material); every other asset, a tree among them, by its own faces
+const rocky = (a) => a.placement.engine === 'rocks';
 function assetThumb(a, canvas, near = 1) {
   const sun = new THREE.DirectionalLight(0xfff1d6, 2.2); sun.position.set(4, 7, 3);
   const things = [new THREE.HemisphereLight(0xdbe9ff, 0x4a5a3a, 1.4), sun, new THREE.Mesh(geometryOf(a), new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.9 }))];
-  const d = (a.placement.at === 'scatter' ? 2.2 : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 1.9) / near;
-  const cam = new THREE.PerspectiveCamera(32, 1, 0.05, 100); cam.position.set(d * 0.7, d * 0.55, -d * 0.7); cam.lookAt(0, (a.placement.at === 'scatter' ? 0.5 : most(a.size.height)) * 0.4, 0);
+  const d = (rocky(a) ? 2.2 : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 1.9) / near;
+  const cam = new THREE.PerspectiveCamera(32, 1, 0.05, 100); cam.position.set(d * 0.7, d * 0.55, -d * 0.7); cam.lookAt(0, (rocky(a) ? 0.5 : most(a.size.height)) * 0.4, 0);
   sceneThumb(window.__s8.renderer, things, canvas, cam);
 }
 for (const b of document.querySelectorAll('.item[data-biome]')) {   // a biome's picture: a ball of its ground
@@ -124,7 +126,7 @@ function rockThumb(a, canvas) {
 }
 for (const b of document.querySelectorAll('.item[data-id]')) {
   const a = ASSETS[b.dataset.id];
-  if (a.placement.at === 'scatter') rockThumb(a, b.querySelector('canvas')); else assetThumb(a, b.querySelector('canvas'));
+  if (rocky(a)) rockThumb(a, b.querySelector('canvas')); else assetThumb(a, b.querySelector('canvas'));
   b.onclick = () => choose(b.dataset.id);
 }
 
@@ -134,7 +136,7 @@ let cardTab = 'info', lodAt = null, showBody = false, bodyLines = null;   // sho
 function clearStage() { ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BASE)); if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); staged = null; } }
 function stageAsset(a) {
   clearStage();
-  if (a.placement.at === 'scatter') {   // a few of its kind, small to large, lying about the middle
+  if (rocky(a)) {   // a few of its kind, small to large, lying about the middle
     staged = new THREE.Group(); const row = { ...scatterRow(a), seed: seed ?? a.placement.seed }, [lo, hi] = a.size.length;
     for (let i = 0; i < 7; i++) {
       const k = i / 6, s = lo + (hi - lo) * k ** 1.6, t = i * 2.4, rr = i ? (hi * 0.7 + 0.4) * Math.sqrt(i) * 0.55 : 0;
@@ -160,7 +162,7 @@ function drawBody(a) {
     }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); return geo;
   };
-  const yaw = a.placement.at === 'scatter' ? 0 : 0.6, c = Math.cos(yaw), n = Math.sin(yaw), W = (u, v) => [u * c + v * n, -u * n + v * c];   // as place() turns it
+  const yaw = rocky(a) ? 0 : 0.6, c = Math.cos(yaw), n = Math.sin(yaw), W = (u, v) => [u * c + v * n, -u * n + v * c];   // as place() turns it
   const ring = (cx, cz, r, gaps = []) => { const out = []; for (let i = 0; i <= 96; i++) { const t = (i / 96) * Math.PI * 2; if (gaps.some(([m, h]) => Math.abs(Math.atan2(Math.sin(t - m), Math.cos(t - m))) < h)) { if (out.length > 1) g.add(new THREE.Mesh(pts(out.splice(0)), mat)); out.length = 0; continue; } out.push(W(cx + Math.cos(t) * r, cz + Math.sin(t) * r)); } if (out.length > 1) g.add(new THREE.Mesh(pts(out), mat)); };
   for (const w of s.walls || []) ring(0, 0, w.round, w.gaps);
   for (const p of s.posts || []) ring(p.x, p.z, p.r);
@@ -170,12 +172,12 @@ function drawBody(a) {
 }
 function choose(id, keepSeed) {
   const a = ASSETS[id]; if (!keepSeed) { seed = null; lodAt = null; } stageAsset(a);
-  H = a.placement.at === 'scatter' ? most(a.size.height) * 0.5 : most(a.size.height);
-  dist = a.placement.at === 'scatter' ? Math.max(4, most(a.size.length) * 4.5) : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 2.2;
-  pitch = a.placement.at === 'scatter' ? 0.55 : 0.32; spin = true;
+  H = rocky(a) ? most(a.size.height) * 0.5 : most(a.size.height);
+  dist = rocky(a) ? Math.max(4, most(a.size.length) * 4.5) : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 2.2;
+  pitch = rocky(a) ? 0.55 : 0.32; spin = true;
   document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
   const s0 = a.placement.seed, seeded = s0 != null;
-  const scat = a.placement.at === 'scatter', where = scat ? `Scattered over ${a.placement.outcrops ? 'the outcrops' : 'all the land'}` : 'Stood at a named place';
+  const scat = a.placement.at === 'scatter', where = scat ? (a.placement.biome ? `Scattered where the ${(BIOME[a.placement.biome]?.name || 'its biome').toLowerCase()} lies` : `Scattered over ${a.placement.outcrops ? 'the outcrops' : 'all the land'}`) : 'Stood at a named place';
   // what a person reads: what it is, how large, where it stands (its colours and its levels of detail are the file's)
   const info = document.getElementById('info');
   info.innerHTML = `<div class="g-tabs"><button data-tab="info" class="${cardTab === 'info' ? 'on' : ''}">Info</button><button data-tab="detail" class="${cardTab === 'detail' ? 'on' : ''}">Detail</button></div>`
@@ -199,8 +201,8 @@ function bands(a) {   // its levels as the detail engine resolves them (src/deta
   const shown = a.placement.at === 'scatter' ? levels.filter((l) => !l.impostor) : levels;   // a scattered asset has no card yet
   return [...shown.map((l) => ({ i: l.i, lo: l.lo, hi: l.hi, faces: faces(l), impostor: l.impostor, views: l.views })), { i: levels.length, lo: 0, hi: cut, faces: 0 }];   // and below the last: nothing drawn
 }
-const span = (a) => (a.placement.at === 'scatter' ? 2 * most(a.size.length) : spanOf(a));   // a scattered rock: an icosphere of radius 1 times its size
-const near0 = (a) => (a.placement.at === 'scatter' ? Math.max(4, most(a.size.length) * 4.5) : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 2.2);   // the close look
+const span = (a) => (rocky(a) ? 2 * most(a.size.length) : spanOf(a));   // a scattered rock: an icosphere of radius 1 times its size
+const near0 = (a) => (rocky(a) ? Math.max(4, most(a.size.length) * 4.5) : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 2.2);   // the close look
 const pxAim = (b) => (b.hi === Infinity ? b.lo * 3 : b.lo === 0 ? b.hi / 2.5 : Math.sqrt(b.lo * b.hi));   // well inside its band
 // where the camera stands to see a band: by size on screen, as the engine measures it (the lens and the governor count)
 const at = (b, a) => (b.hi === Infinity ? Math.min(near0(a), (span(a) * U.uPxK.value) / (b.lo * 1.5 * U.uLodInv.value)) : (span(a) * U.uPxK.value) / (pxAim(b) * U.uLodInv.value));

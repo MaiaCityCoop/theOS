@@ -15,6 +15,15 @@
       "506c509b-300d-42eb-8403-f3969b06b271"
     ]
   },
+  "e4f1685f-2db4-41a6-89df-e818cb470fdd": {
+    "type": "asset",
+    "name": "Stone pine",
+    "file": "assets/stonepine.js",
+    "version": "03db275d632e389c83b2b7b1cc44cb6b1089c1ac73b84b22b7c85813ced22e4a",
+    "uses": [
+      "170e8df4-254e-4df2-95e2-c584380cf14b"
+    ]
+  },
   "62b01bbe-c92c-4181-b774-45a6af054b12": {
     "type": "asset",
     "name": "Stones",
@@ -62,6 +71,15 @@
       "506c509b-300d-42eb-8403-f3969b06b271",
       "9c444204-47c9-4a6f-bfe3-ba8ab5c8e1c4",
       "ae3df398-9f52-4a4a-b54f-a2db2eafb0c8"
+    ]
+  },
+  "170e8df4-254e-4df2-95e2-c584380cf14b": {
+    "type": "biome",
+    "name": "Pine forest",
+    "file": "biomes/pineforest.js",
+    "version": "7b5858843ff56e33b8cfab1a9a10d90b13df10df2a93bbf84bb6e027f1d58f68",
+    "uses": [
+      "795da1c3-9cfe-4c4e-88c7-a58ce86444d4"
     ]
   },
   "597e46d1-02b9-47c8-a6ff-598a05c9a080": {
@@ -129,6 +147,13 @@
     "name": "Pebble",
     "file": "materials/pebble.js",
     "version": "e4fd3b5d659e43a482f421816d789ada03edc59c542c72f0a2d3438d528ad9c3",
+    "uses": []
+  },
+  "795da1c3-9cfe-4c4e-88c7-a58ce86444d4": {
+    "type": "material",
+    "name": "Pine needles",
+    "file": "materials/pineneedles.js",
+    "version": "c0038f903054d9d725da629ed6b6b16955b8ebfc37b946211677e01137044add",
     "uses": []
   },
   "e1da2cdc-1305-4266-b1db-8c0ca473f438": {

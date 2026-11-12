@@ -25,6 +25,8 @@ const riverSand = () => (WATER ? sandIs(WATER).greaterThan(0.5) : float(0).great
 // the river in the river's sandbox)
 const placed = (b, natural, p) => { const s = mix(natural, sandIs(b), sandW(p)); return b.river ? riverSand().select(natural, s) : s; };
 /** paths, bare patches, outcrops (the base biome's own): none in a sandbox */
+/** one biome's share at a point (ctx as biomesAt's): its rule, placed (the library's sandbox) */
+export const shareOf = (b, ctx) => placed(b, clamp(b.where(ctx), 0, 1), ctx.p);
 export const placeOff = (p, natural) => natural.mul(float(1).sub(sandW(p)));
 /** 1 under the roof of what stands at a place (its asset's `roofed`), 0 in the open: where no snow falls */
 export const roofAt = (p) => Object.values(PLACES).map((P) => [P, recipe(P.asset)?.roofed]).filter(([, r]) => r).reduce((a, [P, r]) => max(a, float(1).sub(smoothstep(r - 0.15, r + 0.1, length(p.sub(vec2(P.x, P.z)))))), float(0));
@@ -93,8 +95,14 @@ export const groundAt = (p, dist) => { const I = riverInfo(p); return heightAt(p
 // ---- what grows where ----
 export const pathN = Fn(([p]) => { const n = noised(p.mul(1 / 260).add(5.1), uint(60)); return vec3(n.x, n.yz.mul(1 / 260)); });
 export const pathMask = Fn(([P]) => float(1).sub(smoothstep(0.45, 0.95, abs(P.x.sub(0.5)).div(max(length(P.yz), 1e-3)))));
-export const bareMask = Fn(([p]) => placeOff(p, smoothstep(0.6, 0.7, vnoise(p.mul(1 / 8), uint(70)).mul(0.7).add(vnoise(p.mul(1 / 2.1).add(4.4), uint(71)).mul(0.3)))));
-export const tuftMask = Fn(([p]) => smoothstep(0.45, 0.7, vnoise(p.mul(1 / 28), uint(72))));
+export const bareMask = Fn(([p]) => { const q = p.mul(1 / 8); return placeOff(p, smoothstep(0.6, 0.7, vnoise(q.add(vec2(vnoise(q.mul(0.31), uint(78)), vnoise(q.mul(0.31).add(2.9), uint(79))).sub(0.5).mul(1.6)), uint(70)).mul(0.7).add(vnoise(p.mul(1 / 2.1).add(4.4), uint(71)).mul(0.3)))); });   // pushed about: no grid of patches
+// (value noise puts its blobs on a grid: from high up, one grid of them reads as rows; pushed about by a slower noise, and
+// with a second, turned and at a scale with no whole ratio, the tufts lie anyhow)
+export const tuftMask = Fn(([p]) => {
+  const q = p.mul(1 / 28), push = vec2(vnoise(q.mul(0.37), uint(75)), vnoise(q.mul(0.37).add(5.3), uint(76))).sub(0.5).mul(1.8);
+  const r = vec2(p.x.mul(0.8).add(p.y.mul(0.6)), p.y.mul(0.8).sub(p.x.mul(0.6))).mul(1 / 17.3);
+  return smoothstep(0.45, 0.7, vnoise(q.add(push), uint(72)).mul(0.65).add(vnoise(r, uint(77)).mul(0.35)));
+});
 export const outcropMask = Fn(([p]) => placeOff(p, smoothstep(0.6, 0.72, vnoise(p.mul(1 / 230), uint(74)))));
 /** the library's stage: 1 on its round of bare, dry earth, 0 off it */
 export const stageAt = (p) => U.uStage.z.greaterThan(0).select(float(1).sub(smoothstep(U.uStage.z.sub(0.9), U.uStage.z.add(0.9), length(p.sub(U.uStage.xy)).add(edgeJit(p).mul(0.8)))), float(0));
@@ -129,7 +137,11 @@ export const grassTintAB = Fn(([a, b, dry]) => {
 export const grassTint = (tex, p, dry, level = null) => {
   const pr = vec2(p.x.mul(0.6).sub(p.y.mul(0.8)), p.x.mul(0.8).add(p.y.mul(0.6)));
   const rd = (q) => (level === null ? tex.a(noise, q) : tex.a(noise, q).level(level));
-  const t = grassTintAB(clamp(rd(p.mul(1 / 150)).r.add(rd(pr.mul(1 / 397)).a).sub(1).mul(0.8).add(0.5), 0, 1), rd(pr.mul(1 / 45)).g, dry);
+  // the tile repeats: each read is two takes, turned and at scales with no whole ratio, blended by a slow mask, so no
+  // stretch of meadow is the same as another (seen from high up, a single take shows as a grid of the same blotches)
+  const pq = vec2(p.x.mul(0.94).add(p.y.mul(0.342)), p.y.mul(0.94).sub(p.x.mul(0.342))), k = smoothstep(0.3, 0.7, rd(pq.mul(1 / 613).add(0.17)).a);
+  const two = (a, b) => clamp(mix(a, b, mix(0.3, 0.7, k)).sub(0.5).mul(1.4).add(0.5), 0, 1);   // always both, in a slowly changing share (mixed, they lose contrast: given back)
+  const t = grassTintAB(clamp(two(rd(p.mul(1 / 150)).r, rd(pq.mul(1 / 211).add(0.53)).r).add(rd(pr.mul(1 / 397)).a).sub(1).mul(0.8).add(0.5), 0, 1), two(rd(pr.mul(1 / 45)).g, rd(pq.mul(1 / 63.6).add(0.29)).g), dry);
   const field = smoothstep(0.3, 0.7, rd(pr.mul(1 / 1900).add(0.41)).b).sub(0.5);   // -0.5 lush … 0.5 pale
   return vec4(t.rgb.mul(vec3(1, 1, 1).add(vec3(0.1, 0.04, -0.14).mul(field).mul(2))).mul(float(1).sub(field.mul(-0.16))), t.a);
 };

@@ -23,9 +23,11 @@ function swayOf(asset) {
   const H = most(asset.size.height), Rr = most(asset.size.length) / 2, p = positionLocal;
   const hold = smoothstep(0.02, 0.45, p.y.div(H)).mul(float(1).sub(smoothstep(0.8, 1, p.y.div(H)).mul(0.8))).mul(smoothstep(0.08, 0.55, length(p.xz).div(Rr)));
   const w = modelWorldMatrix.mul(vec4(p, 1)).xyz, push = windAt(w.xz), s = U.uWind.z;
-  const along = modelWorldMatrixInverse.mul(vec4(push.x, 0, push.y, 0)).xyz.mul(W.billow);
-  const flap = sin(U.uTime.mul(s.mul(10).add(4)).add(p.y.mul(3.1)).add(p.x.mul(1.7)).add(p.z.mul(2.3))).mul(s).mul(W.flap);   // (no angle round the middle: at the pole's tip it has none)
-  return p.add(along.add(normalLocal.mul(flap)).mul(hold));
+  const along = modelWorldMatrixInverse.mul(vec4(push.x, 0, push.y, 0)).xyz;
+  const flap = sin(U.uTime.mul(s.mul(10).add(4)).add(p.y.mul(3.1)).add(p.x.mul(1.7)).add(p.z.mul(2.3))).mul(s).mul(W.flap ?? 0);   // (no angle round the middle: at the pole's tip it has none)
+  // sway: a tree's crown pushed downwind, the more the higher (the foot stays), as the trees' engine sways it (src/scatter/trees.js)
+  const up = p.y.div(H).clamp(0, 1), sway = along.mul(up.mul(up).mul(W.sway ?? 0));
+  return p.add(along.mul(W.billow ?? 0).add(normalLocal.mul(flap)).mul(hold)).add(sway);
 }
 
 /** How an asset's faces take the light: its own `surface`, else its kind's (assets/kinds.js). */

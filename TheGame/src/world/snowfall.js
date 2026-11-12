@@ -16,7 +16,7 @@ const nameOf = (a) => FALL.names.filter(([at]) => a >= at).at(-1)[1];
 export function createSnowfall(scene) {
   const N = FALL.flakes, B = FALL.box, g = new THREE.InstancedBufferGeometry().copy(new THREE.PlaneGeometry(1, 1)); g.instanceCount = N;   // (an instanced geometry: a plain one draws one)
   const m = new THREE.NodeMaterial(); m.transparent = true; m.depthWrite = false;
-  const i = instanceIndex.toInt(), vWorld = varyingProperty('vec3', 'fWorld'), r = (s) => rnd(i, i.mul(7).add(13), uint(s));
+  const i = instanceIndex.toInt(), vCol = varyingProperty('vec3', 'fCol'), r = (s) => rnd(i, i.mul(7).add(13), uint(s));
   // where it is now: hashed in the box, fallen and carried since the start, wrapped round the camera
   const world = Fn(() => {
     const t = U.uTime, w = U.uWind, speed = float(FALL.fall).mul(r(701).mul(0.6).add(0.7));
@@ -29,8 +29,9 @@ export function createSnowfall(scene) {
   m.vertexNode = Fn(() => {
     const out = vec4(2, 2, 2, 1).toVar();   // off screen: past the share that falls
     If(float(i).lessThan(U.uSnowFall.mul(N)), () => {
-      vWorld.assign(world); const v = cameraViewMatrix.mul(vec4(world, 1));
-      const s = max(size, v.z.negate().mul(0.0035));   // never smaller than a pixel or two: far flakes are specks, not nothing
+      vCol.assign(finish(SNOW.mul(skyLight(vec3(0, 1, 0)).add(U.uSun.mul(0.4))), world).rgb);   // a flake's light and haze, once per flake: its pixels only draw its dot
+      const v = cameraViewMatrix.mul(vec4(world, 1));
+      const s = max(size, v.z.negate().mul(0.0035)).min(v.z.negate().mul(0.05));   // (and never a blot over the lens)   // never smaller than a pixel or two: far flakes are specks, not nothing
       out.assign(cameraProjectionMatrix.mul(vec4(v.xy.add(positionGeometry.xy.mul(s)), v.z, 1)));
     });
     return out;
@@ -38,7 +39,7 @@ export function createSnowfall(scene) {
   m.fragmentNode = Fn(() => {
     const a = smoothstep(0.5, 0.15, length(uv().sub(0.5)));
     If(a.lessThan(0.02), () => { Discard(); });
-    return vec4(finish(SNOW.mul(skyLight(vec3(0, 1, 0)).add(U.uSun.mul(0.4))), vWorld).rgb, a.mul(0.9));
+    return vec4(vCol, a.mul(0.9));
   })();
   const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = 5; mesh.visible = false; scene.add(mesh);
   const set = (a) => { U.uSnowFall.value = Math.min(1, Math.max(0, a)); mesh.visible = U.uSnowFall.value > 0.005; U.uWeather.value.z = U.uSnowFall.value * FALL.haze; };

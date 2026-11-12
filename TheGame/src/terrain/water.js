@@ -2,11 +2,11 @@
 // floor less the drop; its look from the bed's depth under it: clear over a bar, dark under a cut bank; running along the
 // river's flow, two takes half a cycle apart cross-faded, so it runs and never stretches.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, varying, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, sqrt, If, Discard } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, varying, attribute, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, sqrt, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { riverInfo, riverRaw, riverCarve, riverBank, baseB, WATER_DROP_N } from '../world/land.nodes.js';
 import { finish, cloudAt } from '../world/light.js';
-import { gridPoint } from './material.js';
+import { gridPoint, GRID } from './material.js';
 import { WATER } from '../world/biomes.js';
 
 const water = WATER, v3 = (c) => vec3(c[0], c[1], c[2]);
@@ -49,7 +49,12 @@ export function waterMaterial(tex) {
   });
 
   const m = new THREE.NodeMaterial();
-  m.positionNode = world; m.fragmentNode = frag();
+  // far off, a grid cell is wider than the river: the ground between its corners stands over the water in blocks. So the
+  // surface is drawn pulled towards the eye by up to half a cell (none near by), and wins; its outline is the river's own
+  // distance, smooth across the cell (the fragment's discard), not the ground's corners
+  const cell = attribute('aNode', 'vec4').z.div(GRID), toEye = U.uCam.sub(world);
+  const lift = smoothstep(4, 24, cell).mul(min(cell.mul(0.5), length(toEye).mul(0.04)));
+  m.positionNode = world.add(normalize(toEye).mul(lift)); m.fragmentNode = frag();
   m.transparent = true; m.depthWrite = false; m.polygonOffset = true; m.polygonOffsetFactor = -1; m.polygonOffsetUnits = -4;   // far off the depth buffer cannot tell water from its bed: the water wins
   return m;
 }

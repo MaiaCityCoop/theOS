@@ -202,6 +202,7 @@ shadows and the grass.
 - [x] Step 2: every material ported, no GLSL left
 - [ ] Step 3: ground texture and scatter as compute; collision from the card
 - [ ] Step 4: post pass, films, library, lenses checked
+- [ ] Trees: a walker cannot pass them (solid); more species
 
 ## Changelog
 
@@ -327,6 +328,30 @@ shadows and the grass.
 - **Broke / not there yet:** not checked in Samuel's own Safari; the far land's blocky river edges and the far grass's
   repeat are still there (the land map, next); no forest yet.
 
+### 2026-11-12, the far land and a pine forest (midday)
+
+- **Asked:** all three: the far river's blocky edges, the far grass's repeating pattern, and a Mediterranean pine
+  forest as a new asset and biome, with forest patches that stay fast.
+- **Found:** two things made the blocks. Far off a terrain cell is wider than the river, so bank ground between its
+  corners stood over the water; and a river biome's share, blended per vertex across a 30 m cell, gave the bank a
+  sawtooth edge. The pale blotches from high up were the grass's colour read from the land-noise tile every 45 m (a
+  single take showing in most places), not the grass texture. A placed asset's sway read billow and flap only: a tree
+  without them drew nothing. The snowfall's light per pixel tipped WebKit over once the forest was there.
+- **Delivered:** far water pulled towards the eye by up to half a cell (its outline the river's own distance); the
+  river's biomes worked out per pixel where their corners hold any (shareOf); the grass's colour, the far grass
+  texture and the canopy each two takes, turned and at scales with no whole ratio, always blended; tufts and bare
+  patches pushed off their value-noise grid. The stone pine (assets/stonepine.js: a leaning trunk forking into limbs
+  under a broad, flat crown of needle clumps; three levels), the tree kind (kinds.js: lean, sway, snow clumps, shadow),
+  the trees' engine (src/scatter/trees.js: compute-packed like the rocks, a tier per level, groves and glades, no tree
+  in a place's clearing or on the stage, the far level casting no shadow), pine needles (materials/pineneedles.js),
+  the pine forest biome (biomes/pineforest.js) with its `canopy`: past the last tree level its land takes the crowns'
+  colour, so a forest to the horizon costs nothing. The library stages a tree as a built asset; a placed asset's sway
+  takes `sway` too. Flakes lit once per flake, never a blot over the lens.
+- **Good:** WebKit 1000×560 at 16.7 ms a frame with the forest, clear and in the heaviest snowfall with 25 cm of snow
+  and overcast; the river's edge from above runs smooth; the meadow no longer shows a grid.
+- **Broke / not there yet:** not checked in Samuel's own Safari; a walker passes through trees (no solid yet); the
+  crowns are low-poly up close; one tree species so far.
+
 ## Trail
 
 | When | Commit | What |
@@ -360,4 +385,5 @@ shadows and the grass.
 | 2026-11-12 | `e6918d9` | Snow per asset from its config: kinds.js snow { clumps }, an asset's own roofed |
 | 2026-11-12 | `338f9d6` | Clouds: one cumulus layer that drifts with the wind, in the sky and as shadows on all below |
 | 2026-11-12 | `9ffe337` | Clouds without a repeat; their shadow from a map drawn once a frame; snow's pattern from the baked tile; this record |
-| 2026-11-12 | (this commit) | Deeper cloud shadows, softer clouds; falling snow with its own slider; tools/shots.js |
+| 2026-11-12 | `b9aabb0` | Deeper cloud shadows, softer clouds; falling snow with its own slider; tools/shots.js |
+| 2026-11-12 | (this commit) | Smooth far river edges, no grid in the far meadow; the stone pine, its forest biome and the trees' engine |

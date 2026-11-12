@@ -7,7 +7,7 @@
 //   haze       how much the falling snow thickens the air at the heaviest (the weather's fog)
 //   names      what the panel calls an amount, from that amount up
 export default {
-  flakes: 40000,
+  flakes: 32000,
   box: 18,
   fall: 1.1,
   size: [0.02, 0.045],
