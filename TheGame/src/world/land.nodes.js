@@ -114,9 +114,12 @@ export const grassTintAB = Fn(([a, b, dry]) => {
   const d = clamp(dry.mul(0.9).add(smoothstep(0.6, 1, b.mul(0.6).add(a.mul(0.4))).mul(0.28)), 0, 1);
   return vec4(mix(c, v3(DRY), d), d);
 });
-/** the grass's colour at p, read from the baked land noise (tex: src/materials/bake.js) */
+/** the grass's colour at p, read from the baked land noise (tex: src/materials/bake.js). Over it, slow fields a kilometre
+    or two across, some lusher and darker, some paler and drier, so the far land is not one even green. */
 export const grassTint = (tex, p, dry, level = null) => {
   const pr = vec2(p.x.mul(0.6).sub(p.y.mul(0.8)), p.x.mul(0.8).add(p.y.mul(0.6)));
   const rd = (q) => (level === null ? tex.a(noise, q) : tex.a(noise, q).level(level));
-  return grassTintAB(clamp(rd(p.mul(1 / 150)).r.add(rd(pr.mul(1 / 397)).a).sub(1).mul(0.8).add(0.5), 0, 1), rd(pr.mul(1 / 45)).g, dry);
+  const t = grassTintAB(clamp(rd(p.mul(1 / 150)).r.add(rd(pr.mul(1 / 397)).a).sub(1).mul(0.8).add(0.5), 0, 1), rd(pr.mul(1 / 45)).g, dry);
+  const field = smoothstep(0.3, 0.7, rd(pr.mul(1 / 1900).add(0.41)).b).sub(0.5);   // -0.5 lush … 0.5 pale
+  return vec4(t.rgb.mul(vec3(1, 1, 1).add(vec3(0.1, 0.04, -0.14).mul(field).mul(2))).mul(float(1).sub(field.mul(-0.16))), t.a);
 };
