@@ -884,6 +884,23 @@ shadows and the grass.
   the grass keep their own engines. The WebGL 2 fallback draws no plants, and did not before this (checked against
   the engine as it was); a shortcut tried there (one material for its meshes) changed nothing and was taken out.
 
+### 2026-11-12, meshes built once and kept (21:15)
+
+- **Asked:** "Yes, keep meshes": a tree's meshes built once and kept, so a start no longer pays for each tree kind.
+- **Delivered:** the kit's `tree()` makes its meshes when first asked for, not when its file is read, and hands them
+  on as typed arrays (half the memory; the GPU's buffers take them as they are: assets/index.js `geometryOf`).
+  src/core/meshes.js keeps them in the browser (IndexedDB), each under its recipe's uid, seed and version
+  (registry.json): a start reads them back while the renderer starts; a changed recipe (or kit) is another version,
+  built anew, the old one dropped. A tree grown again from another seed (the library) is not kept.
+- **Good:** two trees were 1.2 s of the start (549 and 682 ms in WebKit). Now a first start 4.1 s, every later one
+  3.5 s (was 4.5), nothing built. The same picture and counts. A record made stale by hand: that one kind rebuilt,
+  kept again, the stale one gone. The library's ages and Random as before.
+- **Broke / not there yet:** the first make read the store under a write lock and waited for it: Playwright's WebKit
+  passed, real Safari (several game tabs open, all reloading at once) sat on the loading veil, from about 20:55 to
+  21:07. Now read without a lock, both questions asked at once, and the start gives up on the store after 600 ms and
+  builds. Real Safari: frames at 16.7 ms six seconds after the probe. Still: a first start builds everything on the
+  main thread; every start reads every kind's meshes whole.
+
 ## Trail
 
 | When | Commit | What |

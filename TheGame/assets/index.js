@@ -33,8 +33,9 @@ export const facesOf = (l) => (l.mesh ? (l.mesh.index ? l.mesh.index.length : l.
 export function geometryOf(asset, level = asset.detail.levels[0], shape = 0) {
   if (level.mesh) {   // built as a mesh by its own file (a tree): every attribute it made, as it made them; of its shapes (meshes) the one asked
     const g = new THREE.BufferGeometry(), size = { uv: 2, part: 1, ao: 1, hand: 2 }, M = level.meshes?.[shape] ?? level.mesh;
-    for (const [k, v] of Object.entries(M)) if (Array.isArray(v) && k !== 'index') g.setAttribute(k, new THREE.Float32BufferAttribute(v, size[k] ?? 3));
-    if (M.index?.length) g.setIndex(M.index);
+    // (the kit hands typed arrays: taken as they are, not copied; a list of numbers is copied into one)
+    for (const [k, v] of Object.entries(M)) if (k !== 'index' && k !== 'body' && (Array.isArray(v) || ArrayBuffer.isView(v))) g.setAttribute(k, v instanceof Float32Array ? new THREE.BufferAttribute(v, size[k] ?? 3) : new THREE.Float32BufferAttribute(v, size[k] ?? 3));
+    if (M.index?.length) g.setIndex(ArrayBuffer.isView(M.index) ? new THREE.BufferAttribute(M.index, 1) : M.index);
     return g;
   }
   const faces = level.faces; if (!faces) return rockPreview(asset, level.rock);

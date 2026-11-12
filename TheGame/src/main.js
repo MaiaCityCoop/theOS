@@ -25,6 +25,7 @@ import { createTerrain } from './terrain/terrain.js';
 import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
 import { recipe } from './core/registry.js';
+import { primeMeshes, keepMeshes } from './core/meshes.js';
 import { place } from './world/place.js';
 import { PLACES } from '../world/places.js';
 import { spawn } from './camera/walk.js';
@@ -42,7 +43,9 @@ const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
 const params = new URLSearchParams(location.search);
 const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance', forceWebGL: params.has('webgl'), trackTimestamp: params.has('gputime') });   // alpha false: the canvas is opaque (what is drawn with alpha to coverage, a tree's needles, leaves its alpha in the picture: it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js)
+const keptMeshes = primeMeshes();   // the meshes built before, read back while the renderer starts (src/core/meshes.js)
 await renderer.init();
+const meshesKept = await keptMeshes;
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // every material makes its colours for the screen itself (toScreen)
 renderer.setSize(innerWidth, innerHeight, false);
 renderer.setClearColor(SKY);
@@ -58,7 +61,7 @@ addEventListener('resize', () => {   // only a real change of size rebuilds the 
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight, false);
 });
 
-const stats = (window.__s8 = { renderer, camera, scene });
+const stats = (window.__s8 = { renderer, camera, scene, meshes: { kept: meshesKept, built: 0 } });
 const U = createUniforms(camera, SKY);
 trackView(); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
 const governor = createGovernor(renderer);
@@ -175,6 +178,7 @@ for (let i = 0; i < seen.length; i += 2) seen[i].visible = seen[i + 1];
 choose(0);
 renderer.render(scene, camera);
 stats.loadMs = performance.now() - t0;
+setTimeout(() => keepMeshes().then((n) => (stats.meshes.built = n)), 2500);   // what was built anew this time, kept for the next start
 console.log(`[sandbox 8] ready in ${stats.loadMs.toFixed(0)} ms`, boot);
 requestAnimationFrame(frame);
 requestAnimationFrame(() => requestAnimationFrame(loadingDone));   // the veil goes once the world is on the screen

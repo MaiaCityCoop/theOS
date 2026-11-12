@@ -50,16 +50,16 @@ A stand is one thing to the engine, however many kinds grow in it (`src/scatter/
 | packing (compute) | one pass: where the cell is, whether it is seen, the groves, the land, the river, the ground | a few lines: its size, its shape |
 | draw shader | one for every stand, kind, shape and level | none: a mesh says its kind as numbers (`wear`: bark, leaves, wind, light, tint) |
 | draw calls | | one a shape and level |
-| the start | | building its meshes: a shrub a few milliseconds, a tree of eight shapes about 0.3 s |
+| the start | | its meshes: built once (a shrub a few milliseconds, a tree of eight shapes half a second), then kept in the browser and read back (`src/core/meshes.js`) |
 
 Kinds share a stand's tiers when their levels are the same make (the same pixels and patches: their kind's and the
 kit's); a kind made otherwise is a group of its own in the same cells (`groupsOf`).
 
 ## What this does not yet give
 
-- **A tree's meshes are built at every start**, on the main thread (about 0.3 s a tree kind): a thousand shrubs are a
-  few seconds, a thousand trees are not possible. They must be built once and kept (baked to a file, or built off the
-  main thread as its stand comes near).
+- **A first start still builds every kind's meshes**, on the main thread (a fresh browser, a changed recipe). And every
+  start holds every kind's meshes whole, read in one go (35 MB for two trees and five shrubs): a thousand trees would be
+  gigabytes. For that a kind's near levels must come when its stand comes near, built off the main thread.
 - **A draw call and a slice of the packing's buffer a shape and level**, whether a plant of it stands in view or not:
   fine for tens of kinds a stand, not for hundreds. For that the packing must sort into one buffer (count, then place).
 - **The rocks and the grass have their own engines** (`rocks.js`, `grass.js`): the same rule, not the same tiers.
