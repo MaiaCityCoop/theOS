@@ -4,16 +4,14 @@
 // shot's `snowfall`). Falling snow thickens the air a little (uWeather.z). Nothing is drawn while none falls.
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, uv, instanceIndex, varyingProperty, positionGeometry, cameraViewMatrix, cameraProjectionMatrix, sin, floor, max, length, smoothstep, If, Discard, uint } from 'three/tsl';
-import FALL from '../../world/snowfall.js';
-import { U } from '../core/uniforms.js';
-import { rnd } from './noise.nodes.js';
-import { finish, skyLight, SNOW } from './light.js';
-import { weatherRow } from '../ui/weather.js';
-import { load, save } from '../core/store.js';
+import FALL from '../../../world/snowfall.js';
+import { U } from '../../core/uniforms.js';
+import { rnd } from '../noise.nodes.js';
+import { finish, skyLight, SNOW } from '../light.js';
 
 const nameOf = (a) => FALL.names.filter(([at]) => a >= at).at(-1)[1];
 
-export function createSnowfall(scene) {
+function flakes(scene) {
   const N = FALL.flakes, B = FALL.box, g = new THREE.InstancedBufferGeometry().copy(new THREE.PlaneGeometry(1, 1)); g.instanceCount = N;   // (an instanced geometry: a plain one draws one)
   const m = new THREE.NodeMaterial(); m.transparent = true; m.depthWrite = false;
   const i = instanceIndex.toInt(), vCol = varyingProperty('vec3', 'fCol'), r = (s) => rnd(i, i.mul(7).add(13), uint(s));
@@ -42,12 +40,13 @@ export function createSnowfall(scene) {
     return vec4(vCol, a.mul(0.9));
   })();
   const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = 5; mesh.visible = false; scene.add(mesh);
-  const set = (a) => { U.uSnowFall.value = Math.min(1, Math.max(0, a)); mesh.visible = U.uSnowFall.value > 0.005; U.uWeather.value.z = U.uSnowFall.value * FALL.haze; };
-  set(load('snowfall', 0));
-  const row = weatherRow({ label: 'Snowfall', min: 0, max: 1, step: 0.01, value: U.uSnowFall.value, read: nameOf, input: (a) => { set(a); save('snowfall', U.uSnowFall.value); } });
-  return {
-    get amount() { return U.uSnowFall.value; },
-    /** 0 none … 1 heavy (a film may set it per shot) */
-    set(a) { set(a); row?.set(U.uSnowFall.value); },
-  };
+  return mesh;
 }
+
+/** A weather condition (src/world/weather/index.js): how much snow falls, 0 none … 1 heavy; its flakes round the camera. */
+export default {
+  id: 'snowfall', label: 'Snowfall', order: 30, range: [0, 1, 0.01], start: 0,
+  read: nameOf,
+  init: ({ scene }) => ({ mesh: flakes(scene) }),
+  apply(a, { mesh }) { U.uSnowFall.value = a; mesh.visible = a > 0.005; U.uWeather.value.z = a * FALL.haze; },   // falling snow thickens the air a little
+};

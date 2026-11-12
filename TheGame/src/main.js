@@ -31,12 +31,9 @@ import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
 import { createPost } from './camera/post.js';
 import { createSky } from './world/sky.js';
-import { createWind } from './world/wind.js';
-import { createSnow } from './world/snow.js';
-import { createSnowfall } from './world/snowfall.js';
-import { createClouds } from './world/clouds.js';
+import { createWeather } from './world/weather/index.js';
 import { createCloudMap } from './world/cloudmap.js';
-import { useCloudTexture } from './world/light.js';
+import { useCloudTexture, useBackend } from './world/light.js';
 import { createShadows } from './world/shadow.js';
 import { useGround } from './world/rocksolid.js';
 
@@ -70,6 +67,7 @@ mark('renderer');
 await loadingStep('Painting the ground', 0.12);
 const tex = bakeTextures(renderer);
 useCloudTexture(tex);   // the cloud layer reads its field from the baked tile (world/light.js)
+useBackend(renderer);   // and what is lit per corner (a tree) reads the shadow map's texels only where the backend can
 mark('bake');
 await loadingStep('Raising the land', 0.3);
 const ground = createGround(renderer, tex);
@@ -77,18 +75,17 @@ useGround(ground);   // the rocks' bodies read their stones from it
 stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage things (the library)
 const terrain = createTerrain(scene, tex);
 stats.terrain = terrain;
-const scatter = createScatter(scene, tex, ground, renderer);
+const scatter = createScatter(scene, tex, ground, renderer, camera);
 stats.scatter = scatter;   // for timings and pages that look at it
 for (const at of Object.values(PLACES)) place(scene, recipe(at.asset), at);   // what stands at a named place, from the asset library
 const controls = createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat'));
 const sky = createSky(scene, camera, renderer);
-const wind = createWind();   // which way the air moves and how hard: the grass and the water follow (world/wind.js)
-stats.snow = createSnow();   // how deep the snow lies (world/light.js: snowCover)
-stats.snowfall = createSnowfall(scene);   // and the snow falling round the camera
-const clouds = (stats.clouds = createClouds());   // the cloud layer: in the sky, and its shadow on all below
+// the weather: every condition a plug-in (src/world/weather/*.js: the wind, the snow, the snow falling, the clouds),
+// each on the panel, kept, and set by a film's shot by its id; stats[id] for the pages and tools that look at one
+const weather = (stats.weather = createWeather({ scene, renderer, camera }));
+for (const id of weather.ids) stats[id] = weather[id];
 const cloudMap = (stats.cloudMap = createCloudMap(renderer));   // its shadow, drawn once a frame for every surface to read
-stats.wind = wind;   // the sun and the sky: one time of day drives the light (intent 0007)
-stats.sky = sky;
+stats.sky = sky;   // the sun and the sky: one time of day drives the light (intent 0007)
 const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)
 stats.shadows = shadows;
 stats.controls = controls;
@@ -101,7 +98,7 @@ const projScreen = new THREE.Matrix4();
 const parts = { ctl: 0, ground: 0, terrain: 0, scatter: 0, draw: 0 };   // where a frame's time went, for the hitch log
 function choose(dt) {
   let t = performance.now(), u;
-  controls.update(dt); sky.update(dt); clouds.update(dt);
+  controls.update(dt); sky.update(dt); weather.update(dt);
   const p = camera.position, dy = (U.uDy.value = Math.max(0, p.y - heightAt(p.x, p.z) - 2, HMIN - p.y));   // how high above the ground here: lifted, the grass and stones see it far off (intent 0003)
   U.uAirH.value = Math.max(0, p.y - heightAt(p.x, p.z));   // the height fog thins along a line of sight from up here (src/world/light.js)
   camera.updateMatrixWorld();
@@ -139,8 +136,11 @@ function frame(now) {
 }
 
 // ---- the hitch log (dev only): every frame over 24 ms, with where its time went, sent to the dev server every
-// few seconds (TheGame/.perf/hitches.jsonl), to find what makes the picture stop ----
+// few seconds (TheGame/.perf/hitches.jsonl), to find what makes the picture stop. Each post says which tab it is (an id
+// made at its load, its browser, its page), how many frames it drew since the last, and where the governor's dials stand:
+// the frame rate a person's own browser really holds, read from the file ----
 const HITCH = 24, hitches = []; let frames = 0, sentAt = 0;
+const TAB = { id: Math.random().toString(36).slice(2, 8), ua: /Chrome\//.test(navigator.userAgent) ? 'Chrome' : /Safari\//.test(navigator.userAgent) ? 'Safari' : 'other', page: location.pathname + location.search };
 function hitch(ms, now) {
   frames++;
   if (ms > HITCH && frames > 30) {
@@ -150,7 +150,7 @@ function hitch(ms, now) {
   }
   if (import.meta.env.DEV && now - sentAt > 4000 && (hitches.length || frames > 0)) {
     sentAt = now;
-    const body = JSON.stringify({ at: Math.round(now), frames, hitches: hitches.splice(0) }); frames = 0;
+    const body = JSON.stringify({ at: Math.round(now), clock: new Date().toTimeString().slice(0, 8), ...TAB, hidden: document.hidden, size: [innerWidth, innerHeight], dpr: governor.dpr, lod: +governor.lod.toFixed(2), ms: +governor.ms.toFixed(1), late: +governor.late.toFixed(2), tris: renderer.info.render.triangles, frames, hitches: hitches.splice(0) }); frames = 0;
     fetch(import.meta.env.BASE_URL + 'perf-log', { method: 'POST', body }).catch(() => {});
   }
 }

@@ -17,6 +17,7 @@ export default {
   floor: { material: '795da1c3-9cfe-4c4e-88c7-a58ce86444d4' /* pine needles */, tile: [2.2, 3.5] },
   grass: { cover: 0.25, tufts: true, height: 0.7, colours: { dry: [0.33, 0.28, 0.13] }, flowers: false },   // thin grass in the shade of the pines
   stones: 0.15,
-  // far off, past where its trees are drawn, the land under it takes the colour of their crowns (src/terrain/material.js)
+  // far off, past where its trees are drawn, the land under it takes the colour of their crowns, in their groves
+  // (src/terrain/material.js); from/to (metres): only if no tree of it says where its trees end
   canopy: { colour: [0.05, 0.085, 0.035], from: 650, to: 1000 },
 };

@@ -196,3 +196,6 @@ export function createRocks(scene, tex, ground, row, gpu = false) {
   addEventListener('resize', () => tiers.forEach((t) => t.band()));
   return tiers;
 }
+
+/** A scatter engine (src/scatter/index.js finds it): what an asset's placement.engine 'rocks' names. */
+export const engine = { id: 'rocks', create: createRocks };

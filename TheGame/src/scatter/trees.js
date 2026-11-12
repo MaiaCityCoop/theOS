@@ -7,13 +7,14 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf } from '../world/land.nodes.js';
-import { finish, skyLight, weathered, snowLift, cloudAtVertex, detailCut, detailKeep, unlit, windAt } from '../world/light.js';
+import { toScreen, airOf, skyLight, snowCover, snowLiftAtVertex, SNOW, cloudAtVertex, detailKeep, unlit, windAt } from '../world/light.js';
 import { PLACES } from '../world/places.js';
 import { recipe, recipes } from '../core/registry.js';
 import { geometryOf } from '../../assets/index.js';
 import KINDS from '../../assets/kinds.js';
 import { pxK } from '../detail/index.js';
 import { Tier, offScreen, clipOf, MAXP } from './tier.js';
+import { inView } from './view.js';
 import { setTrunks } from '../world/trunks.js';
 
 const PXK = uniform(pxK()); addEventListener('resize', () => (PXK.value = pxK()));
@@ -31,13 +32,14 @@ const clearAt = (p) => {
 //   slice: the share of its biome's cells that are this kind's (every kind of tree of a biome on one grid of cells, each
 //          cell one tree of one kind: a mix, not trees standing in each other); growth: its stages by age, the age
 //          from its stand (placement.age), the tree its stage scaled to its own height (assets/kit/tree.js)
-function treeIn(c, row, Lv, band, biome, shapes = 1, all = false, slice = [0, 1]) {
+function treeIn(c, row, Lv, band, biome, shapes = 1, all = false, slice = [0, 1], seen = null) {
   const a = row.asset, P = a.placement, GR = a.growth, AG = P.age, cx = c.x, cy = c.y, K = (P.seed ?? 300) - 300, h0 = (k) => uint(k + K);   // its seed moves every hash: another seed, another stand
   const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), bucket = float(0).toVar();
   const pos = vec2(c).add(0.08).add(vec2(rnd(cx, cy, h0(302)), rnd(cx, cy, h0(303))).mul(0.84)).mul(row.cell), dist = camDist(pos);
   const range = all ? length(pos.sub(U.uCam.xz)) : dist;   // the shadow's stand-in: metres round the camera, whatever the lens
   const kind = rnd(cx, cy, uint(320)), mine = slice[0] > 0 || slice[1] < 1 ? kind.greaterThanEqual(slice[0]).and(kind.lessThan(slice[1])) : float(1).greaterThan(0);   // this kind's cell of the mix (one hash for every kind of the biome, whatever their seeds: one tree a cell)
-  If(range.lessThan(band.far).and(range.greaterThanEqual(band.near)).and(mine), () => {
+  const there = range.lessThan(band.far).and(range.greaterThanEqual(band.near)).and(mine);
+  If(seen ? there.and(inView(pos, seen.r, seen.high)) : there, () => {   // (and in the eye's view: not the shadow's stand-in, whose shade may fall into it)
     const r0 = rnd(cx, cy, h0(300));
     // groves and glades: a stand is not a plantation (a noise as wide as P.clumps sets how thick it grows here)
     const grove = P.clumps ? smoothstep(0.22, 0.72, vnoise(pos.div(P.clumps), h0(308)).mul(0.7).add(vnoise(pos.div(P.clumps * 0.27), h0(310)).mul(0.3))).mul(1.6) : float(1), dens = grove.mul(P.density);
@@ -75,11 +77,14 @@ function treeIn(c, row, Lv, band, biome, shapes = 1, all = false, slice = [0, 1]
 // when the sun is behind them, and rounded over the crown as one dome (a crown of a thousand cards takes the light as a
 // whole, not card by card); `ao` the light that reaches into the crown (assets/stonepine.js)
 function treeMaterial(tex, row) {
-  const a = row.asset, H = a.size.height, sway = (a.wind ?? KINDS[a.kind]?.wind)?.sway ?? 0, M = a.materials || {};
+  const a = row.asset, H = a.size.height, sway = (a.wind ?? KINDS[a.kind]?.wind)?.sway ?? 0, M = a.materials || {}, clumps = row.snow?.clumps ?? 0.3;
   return (k = 0) => {   // k: which of its shapes (its own height: how far up it the wind takes hold)
     const Hk = a.heights?.[k] ?? H;
-    const vWorld = varyingProperty('vec3', 'tWorld'), vN = varyingProperty('vec3', 'tN'), vUv = varyingProperty('vec2', 'tUv'), vKeep = varyingProperty('vec2', 'tKeep');
-    const vAo = varyingProperty('float', 'tAo'), vPart = varyingProperty('float', 'tPart'), vShade = varyingProperty('vec3', 'tShade'), vCn = varyingProperty('vec3', 'tCn');
+    // what a pixel needs: where on its texture, and the light, the snow and the air already worked out at its corners
+    // (vMul: what its texture's colour is multiplied by; vAdd: what is added: the snow on it, the air before it), so a
+    // pixel reads its texture and is done. A crown is many cards deep: its pixels are many more than its corners.
+    const vUv = varyingProperty('vec2', 'tUv'), vKeep = varyingProperty('vec2', 'tKeep'), vMul = varyingProperty('vec3', 'tMul'), vAdd = varyingProperty('vec3', 'tAdd');
+    const vPart = varyingProperty('float', 'tPart'), vCut = varyingProperty('vec2', 'tCut');   // vCut: the needles' cut, and how far a card is from edge-on
     const part = attribute('part', 'float'), ao = attribute('ao', 'float');
     const shape = (A, B) => {
       const s = A.w, cs = cos(B.x), sn = sin(B.x), turn = (v) => vec3(v.x.mul(cs).sub(v.z.mul(sn)), v.y, v.x.mul(sn).add(v.z.mul(cs)));
@@ -87,14 +92,30 @@ function treeMaterial(tex, row) {
       // the wind: the crown sways, the foot stays (the push grows with height squared), a slow sway of its own; and the
       // needles' brushes flutter, quicker and wider the harder it blows
       const push = windAt(A.xy), ws = U.uWind.z;
-      const k = push.mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(U.uTime.mul(0.9).add(B.y)), cos(U.uTime.mul(0.7).add(B.y))).mul(up.mul(up).mul(0.05).mul(s)));
+      const kk = push.mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(U.uTime.mul(0.9).add(B.y)), cos(U.uTime.mul(0.7).add(B.y))).mul(up.mul(up).mul(0.05).mul(s)));
       const flutter = sin(U.uTime.mul(ws.mul(8).add(2.5)).add(lp.x.mul(1.9)).add(lp.z.mul(2.3)).add(lp.y.mul(1.3)).add(B.y)).mul(ws.mul(0.09).add(0.015)).mul(part);
-      const w = vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(k.x.add(push.x.mul(flutter)), flutter.mul(0.4), k.y.add(push.y.mul(flutter))));
-      let n = turn(attribute('normal', 'vec3'));
-      vN.assign(normalize(n)); vWorld.assign(w); vUv.assign(attribute('uv', 'vec2')); vAo.assign(ao); vPart.assign(part); vCn.assign(turn(attribute('cn', 'vec3')));
-      // each tree its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
-      vShade.assign(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.y.mul(1.1631).fract()).mul(B.z.mul(0.3).add(0.84)));
+      const w = vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(kk.x.add(push.x.mul(flutter)), flutter.mul(0.4), kk.y.add(push.y.mul(flutter)))).toVar();
+      vUv.assign(attribute('uv', 'vec2')); vPart.assign(part);
       const side = floor(B.w.mul(0.5)); vKeep.assign(vec2(B.w.sub(side.mul(2)), side));
+      const toEye = U.uCam.sub(w), far = length(toEye), V = toEye.div(max(far, 1e-3));
+      // the needles' outline: far off a mip's needles are fainter, so the cut lowers with them and the crown stays full;
+      // a card seen edge-on is a flat sliver, not a brush: it fades as it turns away
+      vCut.assign(vec2(mix(0.45, 0.16, smoothstep(15, 220, far)), smoothstep(0.06, 0.42, abs(normalize(turn(attribute('cn', 'vec3'))).dot(V)))));
+      vMul.assign(vec3(0)); vAdd.assign(vec3(0));
+      If(unlit().not(), () => {   // (drawn into the shadow map, only its depth and its cut-out count)
+        // its light: the sky's and the sun's on the dome its crown makes (a crown of a thousand cards takes the light as a
+        // whole, not card by card), through its needles when the sun is behind them, less of both deep in the crown
+        // (ao); one tap of the shadow map at each corner; its snow; the air before it
+        const leaf = part.greaterThan(0.5), n0 = normalize(turn(attribute('normal', 'vec3'))), n = n0.dot(V).lessThan(0).select(n0.negate(), n0);
+        const ndl = leaf.select(n.dot(U.uSunDir).add(0.45).div(1.45), n.dot(U.uSunDir)).max(0);   // needles take the light round their edge
+        const through = leaf.select(pow(max(V.negate().dot(U.uSunDir), 0), 3).mul(0.55), float(0));   // the sun behind a brush of needles shines through it
+        const L = skyLight(n).mul(ao.mul(ao).mul(0.75).add(ao.mul(0.25))).add(U.uSun.mul(cloudAtVertex(w)).mul(ndl.add(through)).mul(ao.mul(0.6).add(0.4)));
+        const snow = snowCover(n, snowLiftAtVertex(w, clumps)), air = airOf(w);
+        // each tree its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
+        const tint = leaf.select(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.y.mul(1.1631).fract()).mul(B.z.mul(0.3).add(0.84)), vec3(1));
+        vMul.assign(L.mul(tint).mul(float(1).sub(U.uWeather.x.mul(0.35))).mul(float(1).sub(snow)).mul(air.k));   // (darker when wet: light.js weathered)
+        vAdd.assign(SNOW.mul(L).mul(snow).mul(air.k).add(air.col.mul(float(1).sub(air.k))));
+      });
       return clipOf(w);
     };
     const frag = Fn(() => {
@@ -102,30 +123,15 @@ function treeMaterial(tex, row) {
       // dither of whole pixels (which a lowered pixel ratio blows up into dots). Between two levels the whole tree changes
       // over half way through its hand-over (their outlines are one: assets/stonepine.js), not both half there (two
       // halves of coverage are the same samples: the crown would go half see-through, in a grid)
-      const leaf = vPart.greaterThan(0.5), T = vec4(0).toVar(), alpha = float(1).toVar(), shadow = unlit();
+      const leaf = vPart.greaterThan(0.5), T = vec4(1).toVar(), alpha = float(1).toVar(), shadow = unlit();
       If(vKeep.x.lessThan(0.5).or(vKeep.y.greaterThan(0.5).and(vKeep.x.equal(0.5))), () => { Discard(); });
       If(leaf, () => {
         T.assign(tex.a(M.leaves ?? M.needles, vUv));
-        const cut = mix(0.45, 0.16, smoothstep(15, 220, length(U.uCam.sub(vWorld))));   // far off a mip's needles are fainter: the cut lowers with them, so the crown stays full
-        If(shadow, () => { If(T.a.lessThan(cut), () => { Discard(); }); })   // the shadow map takes no coverage: cut, as before
-          .Else(() => {
-            // a card seen edge-on is a flat sliver, not a brush: it fades as it turns away
-            const edge = smoothstep(0.06, 0.42, abs(normalize(vCn).dot(normalize(U.uCam.sub(vWorld)))));
-            alpha.assign(smoothstep(cut.sub(0.08), cut.add(0.08), T.a).mul(edge));
-            If(alpha.lessThan(0.04), () => { Discard(); });
-          });
-      });
+        If(shadow, () => { If(T.a.lessThan(vCut.x), () => { Discard(); }); })   // the shadow map takes no coverage: cut
+          .Else(() => { alpha.assign(smoothstep(vCut.x.sub(0.08), vCut.x.add(0.08), T.a).mul(vCut.y)); If(alpha.lessThan(0.04), () => { Discard(); }); });
+      }).ElseIf(shadow.not(), () => { const W = tex.a(M.wood, vUv); T.assign(vec4(W.rgb.mul(mix(0.74, 1, W.a)), 1)); });   // its bark, darker in its fissures (0.74 squared: 0.55)
       const out = vec4(0).toVar();
-      If(shadow.not(), () => {   // drawn into the shadow map: only its depth (and its cut-out) counts
-        const nw = normalize(vN), V = normalize(U.uCam.sub(vWorld)), n = nw.dot(V).lessThan(0).select(nw.negate(), nw);
-        const albedo = vec3(0).toVar();   // its bark (darker in its fissures) or its needles: only the one it is read
-        If(leaf, () => { albedo.assign(T.rgb.mul(T.rgb).mul(vShade)); }).Else(() => { const W = tex.a(M.wood, vUv); albedo.assign(W.rgb.mul(W.rgb).mul(mix(0.55, 1, W.a))); });
-        const ndl = leaf.select(n.dot(U.uSunDir).add(0.45).div(1.45), n.dot(U.uSunDir)).max(0);   // needles take the light round their edge
-        const through = leaf.select(pow(max(V.negate().dot(U.uSunDir), 0), 3).mul(0.55), float(0));   // the sun behind a brush of needles shines through it
-        const sun = U.uSun.mul(cloudAtVertex(vWorld));   // one tap of the shadow map, not twelve: a crown is many layers of cards deep, and its needles' own cut-out is soft enough
-        const col = weathered(albedo, n, snowLift(vWorld, row.snow?.clumps ?? 0.3)).mul(skyLight(n).mul(vAo.mul(vAo).mul(0.75).add(vAo.mul(0.25))).add(sun.mul(ndl.add(through)).mul(vAo.mul(0.6).add(0.4))));
-        out.assign(vec4(finish(col, vWorld).rgb, alpha));
-      });
+      If(shadow.not(), () => { out.assign(vec4(toScreen(T.rgb.mul(T.rgb).mul(vMul).add(vAdd)).rgb, alpha)); });
       return out;
     });
     const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.alphaToCoverage = true;
@@ -150,7 +156,7 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
   // a tier per level: its cells worked out once, each tree dropped into its shape's mesh (tier.js: buckets)
   const tier = (Lv, shadow) => {
     const geos = Array.from({ length: shapes }, (_, v) => { const g = geometryOf(a, Lv, v); if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]); return g; });   // (a tier's draw counts indices)
-    const band = { near: uniform(0), far: uniform(1) }, live = (c) => treeIn(c, row, Lv, band, biome, shapes, shadow, slice);
+    const band = { near: uniform(0), far: uniform(1) }, live = (c) => treeIn(c, row, Lv, band, biome, shapes, shadow, slice, shadow ? null : { r: (a.size.length / 2) * P.scale[1] + (P.cell * Lv.P) / 16 + 2, high: hHi });   // r: its crown's reach, and how far the camera may move before the packing is made again
     const material = (src, k) => {
       const { m, shape } = make(k);
       m.vertexNode = src.read ? Fn(() => shape(src.read(0), src.read(1)))()   // ready-made by the compute pass
@@ -165,7 +171,7 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
         t.near = Number.isFinite(Lv.hi) ? (hLo * K) / (Lv.hi * e) : 0; t.far = (hHi * K * e) / Lv.lo;
         band.near.value = t.near > 0 ? t.near : -1; band.far.value = t.far;
       };
-    t.band(); t.level = Lv.i;
+    t.band(); t.level = Lv.i; t.viewKeyed = !shadow;
     if (shadow) { t.meshes.forEach((m) => m.layers.set(1)); t.trunks = a.trunk; }   // only the light sees it; and its trees are the ones the walker bumps into (trunk: each shape's, where it stands at a walker's chest, and its radius, at scale 1)
     else if (row.detail.casts && !SH && Lv.i === 0) t.meshes.forEach((m) => m.layers.enable(1));   // without a stand-in the near trees cast, as drawn (src/world/shadow.js)
     tiers.push(t);
@@ -203,3 +209,6 @@ export function treeSample(tex, row, level = 0, x = 0, y = 0, z = 0, s = 1, form
   const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = 1; mesh.layers.enable(1);
   return mesh;
 }
+
+/** A scatter engine (src/scatter/index.js finds it): what an asset's placement.engine 'trees' names. */
+export const engine = { id: 'trees', create: createTrees };

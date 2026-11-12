@@ -313,7 +313,7 @@ shadows and the grass.
   from high up over the pale dry land; low evening clouds stretch overhead; no falling snow; the ground's stones are
   still flat texture up close (parallax set aside, "good enough").
 
-### 2026-11-12, the open points (late morning)
+### 2026-11-12, the open points (about 09:00)
 
 - **Asked:** clouds as a weather slider too; how the clouds' repeat was broken up; and solve the open points.
 - **Found:** the Clouds row was already there (Time, Wind, Snow, Clouds). The cloud shadows were right but weak from
@@ -328,7 +328,7 @@ shadows and the grass.
 - **Broke / not there yet:** not checked in Samuel's own Safari; the far land's blocky river edges and the far grass's
   repeat are still there (the land map, next); no forest yet.
 
-### 2026-11-12, the far land and a pine forest (midday)
+### 2026-11-12, the far land and a pine forest (09:26)
 
 - **Asked:** all three: the far river's blocky edges, the far grass's repeating pattern, and a Mediterranean pine
   forest as a new asset and biome, with forest patches that stay fast.
@@ -352,7 +352,7 @@ shadows and the grass.
 - **Broke / not there yet:** not checked in Samuel's own Safari; a walker passes through trees (no solid yet); the
   crowns are low-poly up close; one tree species so far.
 
-### 2026-11-12, one realistic tree (afternoon)
+### 2026-11-12, one realistic tree (09:37)
 
 - **Asked:** a real tree, with branches and needles and proper levels of detail, not blocks: ten times the realism; this
   one pine first, made perfect, one species.
@@ -373,7 +373,7 @@ shadows and the grass.
 - **Broke / not there yet:** a few slow seconds after loading while the trees compile; a card's flat side shows at a
   grazing angle; not checked in Samuel's own Safari; a walker passes through trunks.
 
-### 2026-11-12, the stone pine after the photos (afternoon)
+### 2026-11-12, the stone pine after the photos (09:55)
 
 - **Asked:** photos of Pinus pinea as the measure: make this one tree like them.
 - **Found:** against the photos the tree had a short, thick trunk, three heavy limbs and a flat plate of a crown; the
@@ -392,7 +392,7 @@ shadows and the grass.
 - **Broke / not there yet:** the shadow pass with the trees is about 6 ms; under the crowns the cards' undersides can show;
   not checked in Samuel's own Safari; a walker passes through trunks.
 
-### 2026-11-12, loading stills; performance and quality across the world (afternoon)
+### 2026-11-12, loading stills; performance and quality across the world (10:13)
 
 - **Asked:** loading screens over stills of the world with the tent, seen through; then, after the forest, more speed
   and more quality across every asset, biome, the weather and the distances.
@@ -414,7 +414,7 @@ shadows and the grass.
 - **Broke / not there yet:** some WebKit runs lock at 30 fps whatever the weather (another GPU user is the likely
   cause: to be checked in Samuel's own Safari with nothing else open); the ground is still the heaviest part.
 
-### 2026-11-12, the pine forest made solid and varied (evening)
+### 2026-11-12, the pine forest made solid and varied (10:33)
 
 - **Asked:** keep optimizing the forest: the cards' flat undersides seen under the crowns, the trees' shadow pass at
   about 6 ms, the walker passing through the trunks; and what the critique of the forest still found (every tree alike,
@@ -432,15 +432,15 @@ shadows and the grass.
 - **Good:** every tree round the walker now shades the ground (before: only the nearest level's); the shadow pass with
   the trees 1.1 to 2.2 ms in the forest in WebKit (up to about 1.5 ms more than without them; the finest level drawn
   as the caster cost 6 ms where many stood near); the walker stops 0.8 m from a trunk and slides round it.
-- **Broke / not there yet:** this evening's WebKit timings swing twice as wide as the afternoon's (the sky alone 4.7 to
+- **Broke / not there yet:** this hour's WebKit timings swing twice as wide as the earlier ones' (the sky alone 4.7 to
   8.3 ms, rAF held at 10 to 30 fps in the test window even at the tent), so whole-frame numbers are not comparable to
-  the afternoon's; to be checked in Samuel's own Safari. Without WebGPU (no packing to read back) trunks are not solid.
+  the earlier ones; to be checked in Samuel's own Safari. Without WebGPU (no packing to read back) trunks are not solid.
 
-### 2026-11-12, the trees: lighter far off, and a kit for every kind of tree (night)
+### 2026-11-12, the trees: lighter far off, and a kit for every kind of tree (10:44)
 
 - **Asked:** finish the trees' optimizing; then make adding a tree, one after another, a matter of one new file,
   with the whole staying as fast.
-- **Found:** counted, not timed (WebKit's timings swing too much tonight): in the forest the far level drew about
+- **Found:** counted, not timed (WebKit's timings swing too much now): in the forest the far level drew about
   1,700 trees at 760 triangles each, 1.19M of the 1.5M tree triangles; and every shape of every level was packed by a
   compute pass of its own (16 passes over the same cells).
 - **Delivered:** a fourth, farthest level (a trunk, its stems and a dozen great tufts: 84 to 162 triangles) for trees
@@ -456,7 +456,7 @@ shadows and the grass.
 - **Broke / not there yet:** a second kind of tree in the same biome would stand in cells of its own and overlap the
   first: one cell should hold one tree of whichever kind the biome's mix says (a species table on the biome).
 
-### 2026-11-12, trees that grow by age; a mix of kinds; the trunk into its crown (night)
+### 2026-11-12, trees that grow by age; a mix of kinds; the trunk into its crown (10:56)
 
 - **Asked:** every stage of a tree's growth by year in the asset library, the trees of a stand young and old by their
   real age; the trunk's jump just below the crown; and the open points (a mix of kinds of tree, the rocks packed once).
@@ -481,7 +481,7 @@ shadows and the grass.
 - **Broke / not there yet:** the WebGL 2 fallback (no compute) not looked at with the buckets; a second kind of tree
   still to be made to try the mix.
 
-### 2026-11-12, the forest to the horizon (night)
+### 2026-11-12, the forest to the horizon (10:59)
 
 - **Asked:** forest patches in the far distance, seen from high up.
 - **Found:** past where its trees are drawn the pine forest's land took one even, pale dotted colour over all of the
@@ -491,6 +491,61 @@ shadows and the grass.
   crown seen from afar is mostly its own shade), the floor between them in their shade.
 - **Good:** from 90 m and from 400 m up, stands and glades carry on from the drawn trees to the horizon, at no cost
   where there is no forest (the work only where the biome lies, past where its trees end).
+
+### 2026-11-12, plug-ins for the weather and the engines; clean crowns; trees lit per corner, only those in view; the governor by late frames (11:40)
+
+(The times of day in the headings above had been guessed; they are now the commits' own clock.)
+
+- **Asked:** does a tree's variety follow its file and its seed; 60 fps a hard gate, realism the soft one; every
+  moving piece (weather, assets, textures, sun, sky) a plug-in behind a clean interface; the speckled crowns
+  (screenshots); a round on 60 fps, the trees' levels of detail and quality; are the levels by the lens, and is only
+  what is in view drawn.
+- **Found:**
+  - A tree's shapes and its stand came from fixed seeds, not its placement's `seed`.
+  - The timings swung because the GPU was shared all along: Samuel's Safari tab with the game, my test browsers and
+    the pane, each slowing the others; the hitch log could not tell their posts apart.
+  - The governor went by the mean frame time: between 16.9 and 18.6 ms it neither stepped down nor came back up
+    (Samuel's walk at ratio 0.60 and 58 fps); a first version by late frames let 13 to 19 % be late (52 fps).
+  - The crowns: the dithered hand-over between levels and the needles' hard cut, blown up into dots by a low pixel
+    ratio. With alpha to coverage the needles' alpha went into an alpha canvas (milky crowns in the films), and two
+    levels half there are the same samples (a grid through the crown).
+  - A comparison read of the shadow map cannot be made in a vertex stage (three gives `undefined`): shadowAtVertex
+    had never run in one.
+  - About half the trees in the patches that touch the view stand outside it; a tree's pixels are many times its
+    corners (a crown is many cards deep, cut-outs are not hidden by what is in front).
+  - The audit of the seams: materials, biomes and assets are plug-ins already; a new weather condition took 8 to 12
+    files; the scatter engines were a list kept by hand, the far canopy named the trees' engine.
+- **Delivered:**
+  - Seed: a tree file's `placement.seed` moves its shapes (the kit hands it to `form`) and its stand (every hash of
+    the trees' engine, the far canopy's groves with it); `regrow(seed)` for the library's Random.
+  - Weather as plug-ins (src/world/weather/*.js: wind, snow, snowfall, clouds; index.js finds them): each
+    `{ id, label, order, range, start, read, init?, apply, update? }`; the panel's rows, the store, a film's shot
+    (`{ [id]: value | [from, to] }`) and tools/shots.js take whatever conditions there are.
+  - Scatter engines found by themselves (each module exports `engine = { id, create }`); the far canopy asks for
+    what grows in groves in the biome, whatever its engine, and comes in where those trees end (the same pixel rule).
+  - Crowns: needles and leaves drawn with alpha to coverage (soft in a pixel), a card fading as it turns edge-on,
+    the whole tree changing level half way through its hand-over; the canvas opaque.
+  - Trees lit per corner (src/scatter/trees.js): sky, sun, shadow (the map's texel read and compared: light.js
+    shadowAtVertex), snow and air worked out in the vertex stage (light.js airOf), a pixel only reads its texture.
+  - Only what is in view: each tree tested against the eye's view before it is packed (src/scatter/view.js), the
+    packing made again as the camera turns; levels at 260, 80, 34 and 16 px, trees ending at 16 px where the
+    canopy takes over.
+  - Grass: one sample of the shadow map (a blade is too thin for a soft edge). Ground: grass carpet sizes read only
+    where they show, the clouds' shade read once.
+  - Governor (src/core/governor.js): by the share of frames later than 20 ms; down above 8 % (two looks), up under
+    2 %; below ratio 1 down to 0.6 as the last dial; a step down in pixels kept only if it bought frames; nothing
+    decided in a page's first four seconds.
+  - The hitch log says which tab (id, browser, page, size), its frames per four seconds and the dials: the frame
+    rate a person's own browser holds, read from the file. tools/bench.js: forest views, a budget, `parts()`.
+- **Good:** tree triangles, same three views in WebKit: 580k to 314k (forest, eye level), 361k to 146k (river
+  bank), 374k to 124k (120 m up); Samuel's Safari on the film page 241 frames per 4 s, none late (the log); the game,
+  the library and the film page load without errors in WebKit.
+- **Broke / not there yet:** Samuel's walk in Safari with the new governor not yet seen in the log (only the film
+  page so far); whole-frame GPU times still not comparable while browsers share the GPU; the WebGL 2 fallback not
+  looked at (there a tree takes no cast shadow); a level change is a small pop, not a fade. Of the audit still open:
+  named weather lanes in the light's contract (materials read uSnow and uWind by name), one resolver for a kind's
+  defaults and the grass as a recipe, the sky's bodies and the light's file split by owner, the library asking an
+  engine for its pictures.
 
 ## Trail
 
@@ -534,4 +589,7 @@ shadows and the grass.
 | 2026-11-12 | `4bacbbe` | Pine forest: four shapes, its own green per tree, no edge-on cards, a light shade mesh for shadows, solid trunks |
 | 2026-11-12 | `4bc83ca` | Trees: a farthest level, one packing pass per level for all shapes, the tree kit |
 | 2026-11-12 | `e925c57` | Trees grow by age (library: growth by year), a mix of kinds per biome, the trunk into its crown, rocks packed once |
-| 2026-11-12 | (this commit) | The far forest in groves and glades to the horizon |
+| 2026-11-12 | `d06ed58` | The far forest in groves and glades to the horizon |
+| 2026-11-12 | `7d49fcf` | Seed drives tree shapes and stands; a floor for the governor; lighter ground; bench with forest views |
+| 2026-11-12 | `66d5fb6` | Tree crowns without speckles: alpha to coverage, levels changing over whole, an opaque canvas |
+| 2026-11-12 | (this commit) | Weather and scatter engines as plug-ins; trees lit per corner and only in view; the governor by late frames; the log by tab |

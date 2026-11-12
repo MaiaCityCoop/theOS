@@ -78,19 +78,17 @@ function ease(kind, q) {
   return (q3 - 2 * q2 + q) * s0 + (3 * q2 - 2 * q3) + (q3 - q2) * s1;
 }
 const P = [0, 0, 0], L = [0, 0, 0], V = { pos: P, look: L, roll: 0, mm: 35 };
-// the shot's weather, written to the world only when it changes (src/world/sky.js, wind.js)
-const at = (v, q) => (Array.isArray(v) ? v[0] + (v[1] - v[0]) * q : v), shown = { hour: null, wind: null, snow: null, clouds: null, snowfall: null };
+// the shot's hour and weather, written to the world only when they change: the hour (src/world/sky.js), and every weather
+// condition by its id, whichever there are (src/world/weather/*.js); a shot gives a value or [from, to] over the shot
+const at = (v, q) => (Array.isArray(v) ? v[0] + (v[1] - v[0]) * q : v), shown = {};
 function weather(c, q) {
   const w = window.__s8; if (!w) return;
-  const h = c.hour != null ? at(c.hour, q) : null, s = c.wind != null ? at(c.wind, q) : null;
+  const h = c.hour != null ? at(c.hour, q) : null;
   if (h != null && Math.abs(h - (shown.hour ?? -99)) > 0.005) { shown.hour = h; w.sky?.set(h); }
-  if (s != null && Math.abs(s - (shown.wind ?? -99)) > 0.002) { shown.wind = s; w.wind?.set(s); }
-  const sn = c.snow != null ? at(c.snow, q) : null;   // metres
-  if (sn != null && Math.abs(sn - (shown.snow ?? -99)) > 0.001) { shown.snow = sn; w.snow?.set(sn); }
-  const cl = c.clouds != null ? at(c.clouds, q) : null;   // 0 clear … 1 overcast
-  if (cl != null && Math.abs(cl - (shown.clouds ?? -99)) > 0.002) { shown.clouds = cl; w.clouds?.set(cl); }
-  const sf = c.snowfall != null ? at(c.snowfall, q) : null;   // 0 none … 1 heavy
-  if (sf != null && Math.abs(sf - (shown.snowfall ?? -99)) > 0.002) { shown.snowfall = sf; w.snowfall?.set(sf); }
+  for (const id of w.weather?.ids ?? []) {
+    const v = c[id] != null ? at(c[id], q) : null;
+    if (v != null && Math.abs(v - (shown[id] ?? -99)) > 0.001) { shown[id] = v; w.weather.set(id, v); }
+  }
 }
 function evalAt(time) {
   if (!clips.length) return;

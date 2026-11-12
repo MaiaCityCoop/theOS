@@ -4,7 +4,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, int, uint, vec2, vec3, vec4, If, min, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { hashI, camDist, BASE } from '../world/land.nodes.js';
-import { finish, skyLight, weathered, cloudAtVertex, cloudAt, windAt, SNOW } from '../world/light.js';
+import { finish, skyLight, weathered, cloudAtOne, windAt, SNOW } from '../world/light.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
@@ -68,7 +68,7 @@ function bladeMaterial(T) {
       const ndl = n.dot(U.uSunDir).mul(0.5).add(0.5), V = normalize(U.uCam.sub(vWorld));
       const thru = pow(max(V.negate().dot(U.uSunDir), 0), 2).mul(vT);   // light through the blade: the bright yellow-green of a lit meadow
       const sheen = pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 20).mul(0.16).mul(vT);
-      const sun = U.uSun.mul(cloudAt(vWorld));
+      const sun = U.uSun.mul(cloudAtOne(vWorld));   // one sample of the shadow map: a blade is too thin for a soft edge to show
       const onIt = max(clamp(U.uSnow.mul(4), 0, 0.4).mul(float(1).sub(smoothstep(0.05, 0.5, vT))), clamp(U.uSnow.mul(2.5), 0, 0.6).mul(smoothstep(0.3, 0.8, n0.y.abs())).mul(smoothstep(0.3, 0.8, vT)));   // snow at the foot, and lying on what bows over
       const col0 = weathered(mix(vCol, SNOW, onIt), n, 9).mul(skyLight(n).mul(vT.mul(0.45).add(0.55)).add(sun.mul(ndl.mul(ndl).mul(1.1).add(vec3(0.5, 1, 0.22).mul(thru))))).add(sun.mul(sheen));
       const col = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86)).select(vec3(0.92, 0.92, 0.86).mul(skyLight(n).add(U.uSun.mul(0.7))), col0);
@@ -94,3 +94,6 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
     return new Tier(scene, blade(T.segs), material, { cell: T.cell, P: T.P, near: T.near - T.nearFade, far: T.far, order: 0, live, gpu, cap, slots: 3 });
   });
 }
+
+/** A scatter engine (src/scatter/index.js finds it): what an asset's placement.engine 'grass' names. */
+export const engine = { id: 'grass', create: createGrass };

@@ -65,6 +65,7 @@ A clip also says how it is cut in and how its move behaves at its ends, so that 
 | `snow` | how deep the snow lies on the shot's land, metres (0.05: 5 cm), or `[from, to]` (snow falling through the shot); without it the shot keeps the snow it finds |
 | `clouds` | how much of the shot's sky the clouds cover, 0 clear to 1 overcast, or `[from, to]` (a sky clearing or closing); without it the shot keeps the clouds it finds |
 | `snowfall` | how much snow falls in the shot, 0 none to 1 heavy, or `[from, to]` (snow setting in or easing off); without it the shot keeps what it finds |
+| *any condition's id* | every weather condition is a plug-in (`src/world/weather/*.js`): a shot sets any of them by its `id`, a value or `[from, to]`, in its own `range`; the four above are today's |
 | `out` | `dip` on the last clip fades the film out |
 | `why` | one line on what the cut is for; shown in the timeline view |
 

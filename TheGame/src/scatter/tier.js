@@ -62,11 +62,12 @@ export class Tier {
   /** On WebGPU, after select: pack what stands in this frame's cells; again only when something it reads has changed: the
       cells, the world's state (`world`: the ground's map, the lens, the stage), or the camera by more than a sixteenth of a
       patch (what stands thins with distance: a step that small is not seen). Standing still, the packing is kept. */
-  run(renderer, world = '', cx = 0, cy = 0, cz = 0) {
+  run(renderer, world = '', cx = 0, cy = 0, cz = 0, view = '') {
     if (!this.passes) return;
     const q = Math.max(0.25, this.S / 16), { list, n } = this;
     let key = `${world}|${n}|${this.near}|${this.far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}`;
     for (let i = 0; i < n; i++) key += `|${list[i].x},${list[i].y}`;
+    if (this.viewKeyed) key += `|${view}`;   // what it packs is tested against the view one by one (index.js: inView)
     if (key === this.key) return;
     this.key = key;
     const N = n * this.P * this.P; this.cand.value = N; this.passes[1].dispatchSize = Math.max(1, N);

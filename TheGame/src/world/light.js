@@ -1,15 +1,17 @@
 // The light every material shares (the shading contract, intent 0002), in TSL: sun, sky light, the air, the weather,
 // the shadow map, the hand-over between levels of detail, and the way to the screen. All its numbers are the shared
 // uniforms (src/core/uniforms.js), which the sky writes by the hour.
-import { Fn, float, vec2, vec3, vec4, If, mix, exp, pow, smoothstep, step, fract, dot, log, max, clamp, sin, cos, length, normalize, screenCoordinate, uint } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, pow, smoothstep, step, fract, dot, log, max, clamp, sin, cos, length, normalize, screenCoordinate, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { vnoise } from './noise.nodes.js';
 import CLOUDS from '../../world/clouds.js';
 import cloudMat from '../../materials/clouds.js';
 
-let cloudTex = null;
+let cloudTex = null, texelReads = true;
 /** the baked materials (src/materials/bake.js), for the baked tile the clouds and the snow read (materials/clouds.js): set once at the start, before any material is built */
 export const useCloudTexture = (tex) => { cloudTex = tex; };
+/** which backend draws (before any material is built): only WebGPU reads the shadow map's own texels in a vertex stage (shadowAtVertex); on the WebGL 2 fallback what is lit per corner takes no cast shadow */
+export const useBackend = (renderer) => { texelReads = !!renderer?.backend?.isWebGPUBackend; };
 
 /** The light's uniforms by their short names. */
 export const LIGHT = {
@@ -23,12 +25,16 @@ const airMean = Fn(([h]) => { const k = h.div(max(U.uAirScale, 1)); return k.les
 export const haze = Fn(([c, dist]) => mix(U.uHazeCol, c, exp(dist.negate().mul(U.uHaze).mul(airMean(U.uAirH)).mul(U.uWeather.z.mul(40).add(1)))));
 // the air lit by the sun: looking towards it, the haze glows warm (light scattered forward by the air), away from it
 // it keeps the horizon's colour; the more air in the line of sight, the more of it
-const airAt = Fn(([c, w, eye]) => {
+/** The air between the eye and w, as its two parts: k, how much of a surface's colour comes through, and col, the air's
+    own light. A material that lights itself per vertex (a tree: src/scatter/trees.js) carries them to its pixels;
+    airAt mixes them. */
+export const airOf = (w, eye = U.uCam) => {
   const d = w.sub(eye), dist = length(d), towards = max(normalize(d).dot(U.uSunDir), 0);
   const glow = U.uSun.mul(pow(towards, 6).mul(0.22).add(pow(towards, 40).mul(0.25))).mul(U.uSunDir.y.max(0).mul(-1).add(1).mul(0.6).add(0.4));
   const k = exp(dist.negate().mul(U.uHaze).mul(airMean(U.uAirH)).mul(U.uWeather.z.mul(40).add(1)));
-  return mix(U.uHazeCol.add(glow), c, k);
-});
+  return { k, col: U.uHazeCol.add(glow) };
+};
+const airAt = Fn(([c, w, eye]) => { const A = airOf(w, eye); return mix(A.col, c, A.k); });
 /** The end of every material: its colour seen through the air from the eye, to the screen. */
 export const finish = (c, w, eye = U.uCam) => toScreen(airAt(c, w, eye));
 /** The sky's light on a surface facing n: most from above, less on what faces sideways, and a little bounced up off the
@@ -51,6 +57,9 @@ export const weathered = (col, n, lift = 0) => weatheredF(col, n, float(lift));
 const snowLiftF = (w, clumps) => cloudTex.a(cloudMat, w.xz.mul(0.37).add(w.y.mul(0.29))).g.sub(0.5).mul(2.4).add(0.5).clamp(0, 1).mul(clumps);   // one fetch from the baked billows (a tile, not noise worked out per pixel)
 const snowLiftN = Fn(([w, clumps]) => { const l = float(9).toVar(); If(U.uSnow.greaterThan(0.001), () => { l.assign(snowLiftF(w, clumps)); }); return l; });   // worked out only while snow lies
 export const snowLift = (w, clumps) => snowLiftN(w, float(clumps));
+/** the same in a vertex stage (a texture is read there at a level it is told: the tile's own) */
+const snowLiftV = Fn(([w, clumps]) => { const l = float(9).toVar(); If(U.uSnow.greaterThan(0.001), () => { l.assign(cloudTex.a(cloudMat, w.xz.mul(0.37).add(w.y.mul(0.29))).level(0).g.sub(0.5).mul(2.4).add(0.5).clamp(0, 1).mul(clumps)); }); return l; });
+export const snowLiftAtVertex = (w, clumps) => snowLiftV(w, float(clumps));
 
 // a screen noise (interleaved gradient): for the shadow's taps and the hand-over between levels
 export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(52.9829189));
@@ -75,15 +84,28 @@ const shadowOf = (w, turn) => {
   return r;
 };
 export const shadowAt = Fn(([w]) => shadowOf(w, ign(screenCoordinate.xy)));
-/** the same in a vertex stage, one tap (a blade of grass is a few pixels: its shadow need not be soft, and its vertices are
-    many more than its pixels) */
-export const shadowAtVertex = Fn(([w]) => {
+/** the same with one sample (the GPU still filters it over 2 x 2 texels): for what is too thin for a soft edge to show (a
+    blade of grass), a quarter of the reads */
+export const shadowAtOne = Fn(([w]) => {
   const r = float(1).toVar();
   If(U.uShadowOn.greaterThan(0.5), () => {
     const s = U.uShadowM.mul(vec4(w, 1)), q = s.xyz.div(s.w);
     If(q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(1)).and(q.y.lessThan(1)).and(q.z.lessThan(1)), () => {
       const e = smoothstep(0, 0.08, q.xy).mul(smoothstep(1, 0.92, q.xy));
       r.assign(mix(1, U.tShadow.sample(q.xy).level(0).compare(q.z.sub(0.0004)), e.x.mul(e.y)));
+    });
+  });
+  return r;
+});
+/** the same in a vertex stage (a tree's corners: src/scatter/trees.js): no comparison is to be had there, so the map's own
+    texel is read and compared here; one texel, unfiltered (what is lit per corner is soft between its corners) */
+export const shadowAtVertex = Fn(([w]) => {
+  const r = float(1).toVar();
+  if (texelReads) If(U.uShadowOn.greaterThan(0.5), () => {
+    const s = U.uShadowM.mul(vec4(w, 1)), q = s.xyz.div(s.w);
+    If(q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(1)).and(q.y.lessThan(1)).and(q.z.lessThan(1)), () => {
+      const e = smoothstep(0, 0.08, q.xy).mul(smoothstep(1, 0.92, q.xy)), depth = float(U.tShadow.load(ivec2(q.xy.div(U.uShadowTexel))));
+      r.assign(mix(1, step(q.z.sub(0.0008), depth), e.x.mul(e.y)));   // lit where nothing nearer the light was drawn there
     });
   });
   return r;
@@ -130,6 +152,8 @@ export const cloudShade = Fn(([w]) => {
 });
 /** The share of sunlight that reaches a point (1: all): past the clouds and the storm, and past what casts a shadow. */
 export const cloudAt = Fn(([w]) => float(1).sub(U.uWeather.w.mul(0.6)).mul(cloudShade(w)).mul(shadowAt(w)));
+/** the same, its shadow from one sample (shadowAtOne) */
+export const cloudAtOne = Fn(([w]) => float(1).sub(U.uWeather.w.mul(0.6)).mul(cloudShade(w)).mul(shadowAtOne(w)));
 /** the same, its shadow looked up in a vertex stage */
 export const cloudAtVertex = Fn(([w]) => float(1).sub(U.uWeather.w.mul(0.6)).mul(cloudShade(w)).mul(shadowAtVertex(w)));
 

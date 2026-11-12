@@ -6,9 +6,10 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, screenCoordinate, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { recipes } from '../core/registry.js';
+import { detailOf } from '../detail/index.js';
 import { int } from 'three/tsl';
 import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, shareOf, roofAt, BASE, LAID } from '../world/land.nodes.js';
-import { finish, ign, skyLight, weathered, cloudAt, cloudShade, snowCover, snowDrift, SNOW } from '../world/light.js';
+import { finish, ign, skyLight, weathered, shadowAt, cloudShade, snowCover, snowDrift, SNOW } from '../world/light.js';
 import noise from '../../materials/noise.js';
 
 export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
@@ -143,9 +144,12 @@ export function terrainMaterial(tex) {
     // crowns as many as stand there, the floor between them in their shade. A forest to the horizon, in patches, for nothing
     L.shares.forEach(({ b: bio, w: wt }) => {
       if (!bio.canopy) return;
-      const fade = smoothstep(bio.canopy.from, bio.canopy.to, dist2);
+      const A = recipes('asset').find((o) => o.placement?.biome === bio.uid && o.placement.clumps), P = A?.placement, cl = P?.clumps;   // what grows in groves where it lies (whatever its engine)
+      // it comes in where its trees go out: they are drawn while they are taller than their last level's pixels (the
+      // same rule, by the lens and the window: src/detail), the largest to `last` metres; without such trees, its own from/to
+      const cutPx = A ? detailOf(A).cut : 0, last = cutPx ? U.uPxK.mul(A.size.height / cutPx) : null;
+      const fade = last ? smoothstep(last.mul(0.42), last.mul(0.85), dist2) : smoothstep(bio.canopy.from, bio.canopy.to, dist2);
       If(wt.mul(fade).greaterThan(0.003), () => {
-        const P = recipes('asset').find((o) => o.placement?.engine === 'trees' && o.placement.biome === bio.uid)?.placement, cl = P?.clumps;
         const K = (P?.seed ?? 300) - 300, grove = cl ? smoothstep(0.22, 0.72, vnoise(p.div(cl), uint(308 + K)).mul(0.7).add(vnoise(p.div(cl * 0.27), uint(310 + K)).mul(0.3))).mul(1.6) : float(1);   // (its seed's groves, as its trees')
         const cover = clamp(wt.mul(grove).mul((P?.density ?? 1) * 2.4), 0, 1);   // the ground under crowns: a tree a cell crowns some 2.4 cells
         const n = nz(p.div(23).add(0.7)).r.mul(0.35).add(nz(prr.div(31.7).add(0.2)).g.mul(0.35)).add(nz(pr.div(9.3)).g.mul(0.3));   // (takes at scales with no whole ratio: no grid of crowns)
@@ -176,7 +180,8 @@ export function terrainMaterial(tex) {
     // relief: hollows sit in shade, crowns in light; slopes facing the sun lit harder than the plain normal says
     const relief = mix(0.74, 1.1, smoothstep(-6, 16, vHill));
     const s0 = max(n.dot(U.uSunDir), 0), sunl = mix(s0, smoothstep(0.55, 0.95, s0), smoothstep(60, 600, dist2).mul(0.5));
-    const col = weathered(mix(M.c.mul(mix(1, 0.5, wet)).mul(macro).mul(cav), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).mul(skyLight(n).mul(cloudShade(vWorld).mul(0.3).add(0.7)).add(U.uSun.mul(cloudAt(vWorld)).mul(sunl)));   // under a cloud the sky is dimmer too
+    const cs = cloudShade(vWorld).toVar();
+    const col = weathered(mix(M.c.mul(mix(1, 0.5, wet)).mul(macro).mul(cav), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).mul(skyLight(n).mul(cs.mul(0.3).add(0.7)).add(U.uSun.mul(cs).mul(float(1).sub(U.uWeather.w.mul(0.6))).mul(shadowAt(vWorld)).mul(sunl)));   // under a cloud the sky is dimmer too (the clouds' shade read once: light.js cloudAt is these three)
     const V = normalize(U.uCam.sub(vWorld));
     return finish(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), vWorld);
   });
