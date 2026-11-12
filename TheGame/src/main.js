@@ -74,10 +74,13 @@ await loadingStep('Raising the land', 0.3);
 const ground = createGround(renderer, tex);
 useGround(ground);   // the rocks' bodies read their stones from it
 stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage things (the library)
+mark('ground');
 const terrain = createTerrain(scene, tex);
+mark('terrain');
 stats.terrain = terrain;
 const scatter = createScatter(scene, tex, ground, renderer, camera);
 stats.scatter = scatter;   // for timings and pages that look at it
+mark('scatter');
 for (const at of Object.values(PLACES)) place(scene, recipe(at.asset), at);   // what stands at a named place, from the asset library
 const controls = createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat'));
 const sky = createSky(scene, camera, renderer);
@@ -158,7 +161,9 @@ function hitch(ms, now) {
 }
 
 // ---- before the first frame: compile every material, draw everything once ----
+mark('world');
 choose(0);
+mark('chosen');
 terrain.all(); scatter.warm();
 const seen = [];
 scene.traverse((o) => { if (o.isMesh) { seen.push(o, o.visible); o.visible = true; } });

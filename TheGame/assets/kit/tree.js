@@ -17,7 +17,7 @@
 //
 // levels: one { P } for each level its file draws (P: cells per patch side); after them the kit adds its two farthest
 // by itself, made from its nearest: its crown as one body on a post (36 triangles), then a speck (8) (farOf;
-// `far: { P, sides, shade }` to tune them, `far: false` for none).
+// `far: { P, sides, shade }` to tune them, `speck: false` for the body alone, `far: false` for none).
 // grow(q, shape, i) builds level q (0 nearest) of a shape (a stage's form, or shapes[i]) with builder()/tube()/cards(), or
 // crown() for its limbs and foliage as most trees share them, or mound() for a low bush, and returns the builder;
 // shade(shape, i), if given, the light mesh the shadow map is drawn from (else none of its levels cast, but the nearest);
@@ -125,26 +125,35 @@ export function crown(b, q, { limbs, puffs, thick = 1, g = 1, girth = [0.11, 0.0
   });
 }
 
-/** A low bush as most shrubs share it: a few short stems from its foot (its nearest level only) and a mound of sprigs
-    over them, each sprig a pair of crossed cards standing out of the mound's skin.
-      r, h         the mound's reach and height, metres
-      dome         [from, to], 0 its foot … 1 its top: where on the mound its sprigs stand (a fern: only low, round its foot)
-      puffs, count places on the mound and sprigs at each, per level; size: a sprig's size in metres, per level
+/** A low bush as most shrubs share it: a few short stems from its foot (its nearest level only) and sprigs over them,
+    each sprig a pair of crossed cards standing out of its skin. Not one round mound: several heaps beside one another,
+    each its own reach and height, and a shoot here and there standing out past the rest, so its outline is ragged and
+    bushes that stand close run into one another.
+      r, h         its reach and height, metres (of its largest heap; the others lie within about 1.3 r)
+      lobes        how many heaps (1: a single round bush); ragged: the share of its sprigs that stand out as shoots
+      dome         [from, to], 0 its foot … 1 its top: where on a heap its sprigs stand (a fern: only low, round its foot)
+      puffs, count places on it and sprigs at each, per level; size: a sprig's size in metres, per level
       rise         how much a sprig's way favours up over out
       stems        short stems from its foot */
-export function mound(b, q, { r, h, dome = [0.1, 1], puffs, count, size, rise = 0.3, stems = 0, R0 }) {
+export function mound(b, q, { r, h, lobes = 1, ragged = 0.2, dome = [0.1, 1], puffs, count, size, rise = 0.3, stems = 0, R0 }) {
+  // (its heaps first, from the same numbers at every level: one outline)
+  const heaps = Array.from({ length: lobes }, (_, i) => {
+    const a = R0() * 2 * Math.PI, d = i ? r * (0.45 + 0.4 * R0()) : 0, k = i ? 0.5 + 0.35 * R0() : lobes > 1 ? 0.8 : 1;
+    return { c: [Math.cos(a) * d, 0, Math.sin(a) * d], r: r * k, h: h * (i ? 0.55 + 0.5 * R0() : 1) };
+  });
   if (q === 0) for (let i = 0; i < stems; i++) {
-    const a = R0() * 2 * Math.PI, e = [Math.cos(a) * r * 0.45, h * 0.55, Math.sin(a) * r * 0.45], k = Math.max(0.5, h);
-    tube(b, [[0, 0, 0], add(mul(e, 0.5), [0, h * 0.12, 0]), e], [0.03 * k, 0.022 * k, 0.012 * k], 3);
+    const H = heaps[i % lobes], a = R0() * 2 * Math.PI, e = add(H.c, [Math.cos(a) * H.r * 0.4, H.h * 0.55, Math.sin(a) * H.r * 0.4]), k = Math.max(0.5, h);
+    tube(b, [[0, 0, 0], add(mul(e, 0.5), [0, h * 0.1, 0]), e], [0.03 * k, 0.022 * k, 0.012 * k], 3);
   }
   for (let i = 0; i < puffs[q]; i++) {
-    const a = R0() * 2 * Math.PI, u = dome[0] + (dome[1] - dome[0]) * R0() ** 0.7, c = Math.sqrt(Math.max(0, 1 - u * u)), k = 0.6 + 0.4 * R0();
-    const d = [Math.cos(a) * c, u, Math.sin(a) * c], p = [d[0] * r * k, d[1] * h * 0.75 * k, d[2] * r * k], light = norm([d[0] * 0.6, d[1] * 0.6 + 0.8, d[2] * 0.6]);
+    const H = heaps[Math.min(lobes - 1, Math.floor(R0() * lobes))], shoot = R0() < ragged ? 1.15 + 0.3 * R0() : 1;
+    const a = R0() * 2 * Math.PI, u = dome[0] + (dome[1] - dome[0]) * R0() ** 0.7, c = Math.sqrt(Math.max(0, 1 - u * u)), k = (0.5 + 0.5 * R0()) * shoot;
+    const d = [Math.cos(a) * c, u, Math.sin(a) * c], p = add(H.c, [d[0] * H.r * k, d[1] * H.h * 0.75 * k, d[2] * H.r * k]), light = norm([d[0] * 0.6, d[1] * 0.6 + 0.8, d[2] * 0.6]);
     for (let t = 0; t < count[q]; t++) {
-      const dir = norm([d[0] + (R0() - 0.5) * 0.5, d[1] + rise, d[2] + (R0() - 0.5) * 0.5]), sz = size[q] * (0.8 + 0.4 * R0());
+      const dir = norm([d[0] + (R0() - 0.5) * 0.7, d[1] + rise, d[2] + (R0() - 0.5) * 0.7]), sz = size[q] * (0.75 + 0.5 * R0()) * (shoot > 1 ? 1.2 : 1);
       // (a coarser level's larger sprig sunk in by what it is larger: the same outline at every level)
       const at = sub(p, mul(dir, Math.max(0, sz - size[0]) * 0.8));
-      cards(b, at, dir, sz, light, Math.max(0.3, (0.45 + 0.55 * Math.min(1, p[1] / Math.max(h * 0.75, 0.1))) * (0.7 + 0.3 * k)), R0);
+      cards(b, at, dir, sz, light, Math.max(0.3, (0.45 + 0.55 * Math.min(1, p[1] / Math.max(h * 0.75, 0.1))) * (0.65 + 0.35 * Math.min(1, k))), R0);
     }
   }
 }
@@ -238,7 +247,7 @@ export function tree(recipe) {
   const near = built[0].meshes;
   // after the levels its file draws, its two farthest, made here from its nearest (farOf): a crown as one body on a
   // post, then a speck; `far: false`: none
-  if (far) for (const o of [far, { ...far, sides: 4, shoulder: false, trunk: false }]) { const meshes = near.map((m) => farOf(m, o)); built.push({ mesh: meshes[0], meshes, P: far.P ?? 64, far: true }); }
+  if (far) for (const o of [far, ...(far.speck === false ? [] : [{ ...far, sides: 4, shoulder: false, trunk: false }])]) { const meshes = near.map((m) => farOf(m, o)); built.push({ mesh: meshes[0], meshes, P: far.P ?? 64, far: true }); }
   return {
     ...rest,
     size: rest.size ?? boundsOf(near),

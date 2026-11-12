@@ -51,7 +51,7 @@ function treeIn(c, row, Lv, band, biome, ST, shapes = 1, all = false, slice = [0
   const pos = vec2(c).add(0.08).add(vec2(rnd(cx, cy, h0(302)), rnd(cx, cy, h0(303))).mul(0.84)).mul(ST.cell), dist = camDist(pos);
   const range = all ? length(pos.sub(U.uCam.xz)) : dist;   // the shadow's stand-in: metres round the camera, whatever the lens
   const there = range.lessThan(band.far).and(range.greaterThanEqual(band.near));
-  If(seen ? there.and(inView(pos, seen.r, seen.high)) : there, () => {   // (and in the eye's view: not the shadow's stand-in, whose shade may fall into it)
+  If(seen ? there.and(inView(pos, seen.r, seen.high)) : there, () => {   // (seen.r: a uniform, its level's)   // (and in the eye's view: not the shadow's stand-in, whose shade may fall into it)
    // which kind of tree this cell is, the same answer for every kind of the stand: a slow noise (a kind leads here, another
    // there) and the cell's own hash; this kind's if it falls in its slice
    const lead = ST.patches ? leadAt(vec2(c).add(0.5).mul(ST.cell), ST).mul(0.7).add(rnd(cx, cy, h0(320)).mul(0.3)).min(0.9999) : rnd(cx, cy, h0(320));
@@ -82,8 +82,9 @@ function treeIn(c, row, Lv, band, biome, ST, shapes = 1, all = false, slice = [0
         // of this level while it is the size on screen the level asks, and a little either side: its hand-over, and as
         // far as the camera may move before the cells are worked out again (band.margin). What of it shows, its vertices
         // say each frame (treeMaterial). (The shadow's stand-in: every tree in its band)
-        const span = h.mul(PXK), e = Math.exp(row.detail.fade), yes = float(1).greaterThan(0);
-        const within = all ? yes : dist.lessThan(span.mul(e / Lv.lo).add(band.margin)).and(Number.isFinite(Lv.hi) ? dist.greaterThanEqual(span.div(Lv.hi * e).sub(band.margin)) : yes);
+        // (the level's numbers as uniforms: band.to, band.from, band.pad, so every level of a kind is one shader)
+        const span = h.mul(PXK), yes = float(1).greaterThan(0);
+        const within = all ? yes : dist.lessThan(span.mul(band.to).add(band.pad)).and(dist.greaterThanEqual(span.mul(band.from).sub(band.pad)));
         If(within, () => {
           A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(0.15), s));
           B.assign(vec4(rnd(cx, cy, h0(305)).mul(6.2831853), rnd(cx, cy, h0(306)).mul(6.2831853), rnd(cx, cy, h0(307)), h));
@@ -104,8 +105,12 @@ function treeMaterial(tex, row) {
   const a = row.asset, H = a.size.height, sway = kindOf(a, 'wind')?.sway ?? 0, M = a.materials || {}, clumps = row.snow.clumps, F = { wrap: 0.45, through: 0.55, flutter: 1, ...kindOf(a, 'foliage') };   // F: how its leaves take the light and the wind (its own `foliage` over its kind's)
   // k: which of its shapes (its own height: how far up it the wind takes hold); Lv: the level it is drawn as ({ lo, hi,
   // last }: the pixels it is drawn between, and whether it is the farthest), or none (the library's, the shadow's: whole)
-  return (k = 0, Lv = null) => {
-    const Hk = a.heights?.[k] ?? H;
+  // One material serves every bucket of a tier: which shape it draws it learns per mesh (mesh.userData: hk its height,
+  // slot where its trees lie in the tier's buffer), and its level's numbers are uniforms, so every level of a kind is
+  // one shader to the GPU, compiled once.
+  return (Lv = null) => {
+    const Hk = uniform(H).onObjectUpdate(({ object }) => object?.userData?.hk ?? H), slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0);
+    const f = row.detail.fade, LU = Lv && { hi: uniform(Number.isFinite(Lv.hi) ? Math.log(Lv.hi) + f : 1e3), lo: uniform(Math.log(Lv.lo) + f), px: uniform(Lv.lo), last: uniform(Lv.last ? 1 : 0) };
     // what a pixel needs: where on its texture, and the light, the snow and the air already worked out at its corners
     // (vMul: what its texture's colour is multiplied by; vAdd: what is added: the snow on it, the air before it), so a
     // pixel reads its texture and is done. A crown is many cards deep: its pixels are many more than its corners.
@@ -120,15 +125,14 @@ function treeMaterial(tex, row) {
         // level (0: not yet); v, how far it has gone out to the coarser one (1: gone). Two levels drawn at once reckon
         // the same share. Each sprig has its own moment in it (a hash of its foot): the finer level's shrink to their
         // feet one after another, the coarser one's grow from theirs; the wood changes over half way, as one.
-        const px = B.w.mul(PXK).div(max(camDist(A.xy), 1e-3)), L = log(max(px, 1e-6)), f = row.detail.fade, WIN = 0.4;
-        const u = Number.isFinite(Lv.hi) ? clamp(float(Math.log(Lv.hi) + f).sub(L).div(2 * f), 0, 1) : float(1);
-        const v = Lv.last ? float(0) : clamp(float(Math.log(Lv.lo) + f).sub(L).div(2 * f), 0, 1);
+        const px = B.w.mul(PXK).div(max(camDist(A.xy), 1e-3)), L = log(max(px, 1e-6)), WIN = 0.4;
+        const u = clamp(LU.hi.sub(L).div(2 * f), 0, 1), v = clamp(LU.lo.sub(L).div(2 * f), 0, 1).mul(float(1).sub(LU.last));
         const at = fract(sin(attribute('root', 'vec3').dot(vec3(12.9898, 78.233, 37.719))).mul(43758.5453)).mul(1 - WIN);
         // (a crown that is one body: the coarser one's there by half way, the finer one's shrinking from then)
         const come = mix(smoothstep(at, at.add(WIN), u), smoothstep(0, 0.5, u), body), go = float(1).sub(mix(smoothstep(at, at.add(WIN), v), smoothstep(0.5, 1, v), body));
         grown.assign(mix(float(1), come.mul(go), step(0.5, part)));
         // its last level sinks into the ground over its last pixels: lower first, then narrower, to nothing
-        if (Lv.last && row.detail.sink > 1) sunk.assign(smoothstep(Lv.lo, Lv.lo * row.detail.sink, px));
+        if (row.detail.sink > 1) sunk.assign(mix(float(1), smoothstep(LU.px, LU.px.mul(row.detail.sink), px), LU.last));
         shown.assign(u.greaterThan(0).and(v.lessThan(1)).and(sunk.greaterThan(0)).and(part.greaterThan(0.5).or(u.greaterThanEqual(0.5).and(v.lessThan(0.5)))));
       }
       If(shown, () => { clip.assign(stand(A, B, grown, sunk)); });
@@ -139,11 +143,12 @@ function treeMaterial(tex, row) {
       // (a sprig grown from its foot, the crown's body from its middle; the whole tree sunk)
       const wide = sqrt(sunk), g0 = Lv ? mix(attribute('root', 'vec3'), positionGeometry, grown).mul(vec3(wide, sunk, wide)) : positionGeometry;
       const lean = vec2(cos(B.y), sin(B.y)).mul(B.z.sub(0.5).mul(2 * (a.placement.lean ?? 0))), lp = g0.add(vec3(lean.x, 0, lean.y).mul(g0.y)), up = clamp(lp.y.div(Hk), 0, 1);   // each leans its own way
-      // the wind: the crown sways, the foot stays (the push grows with height squared), a slow sway of its own (hardly any
-      // in a calm); and its sprigs swing in the wind, each as one from its foot, its tip most (a card's corners share its
-      // plane, cn: one phase a card; uv.y: 0 at its foot), quicker and wider the harder it blows. In a calm they are still
+      // the wind: the crown sways, the foot stays (the push grows with height squared), a slow sway of its own (from a
+      // breeze up); and its sprigs swing in the wind, each as one from its foot, its tip most (a card's corners share its
+      // plane, cn: one phase a card; uv.y: 0 at its foot), quicker and wider the harder it blows. In a calm all of it is
+      // still: a sway of millimetres is no motion to the eye, only leaves' edges creeping by parts of a pixel (a shimmer)
       const push = windAt(A.xy), ws = windStrength;
-      const kk = push.mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(U.uTime.mul(0.9).add(B.y)), cos(U.uTime.mul(0.7).add(B.y))).mul(up.mul(up).mul(ws.mul(0.05).add(0.008)).mul(s)));
+      const kk = push.mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(U.uTime.mul(0.9).add(B.y)), cos(U.uTime.mul(0.7).add(B.y))).mul(up.mul(up).mul(ws.mul(0.05).add(smoothstep(0, 0.08, ws).mul(0.008))).mul(s)));
       const cardN = attribute('cn', 'vec3'), flutter = sin(U.uTime.mul(ws.mul(5).add(1.6)).add(cardN.dot(vec3(12.9, 78.2, 37.7))).add(B.y)).mul(ws.mul(0.14)).mul(card).mul(attribute('uv', 'vec2').y).mul(F.flutter);
       const w = vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(kk.x.add(windDir.x.mul(flutter)), flutter.mul(0.4), kk.y.add(windDir.y.mul(flutter)))).toVar();
       vUv.assign(attribute('uv', 'vec2')); vPart.assign(part);
@@ -187,7 +192,7 @@ function treeMaterial(tex, row) {
       return out;
     });
     const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.alphaToCoverage = true;
-    return { m, shape };
+    return { m, shape, slot };
   };
 }
 
@@ -208,11 +213,15 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
     const geos = Array.from({ length: shapes }, (_, v) => { const g = geometryOf(a, Lv, v); if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]); return g; });   // (a tier's draw counts indices)
     // margin: metres a tree is kept either side of its level's band, so it is there when the camera has moved (the
     // cells are worked out again every sixteenth of a patch)
-    const band = { near: uniform(0), far: uniform(1), margin: shadow ? 0 : ((ST.cell * Lv.P) / 16) * 1.8 }, live = (c) => treeIn(c, row, Lv, band, biome, ST, shapes, shadow, slice, shadow ? null : { r: (a.size.length / 2) * P.scale[1] + (ST.cell * Lv.P) / 16 + 2, high: hHi });   // r: its crown's reach, and how far the camera may move before the packing is made again
+    const pad = shadow ? 0 : ((ST.cell * Lv.P) / 16) * 1.8, e = Math.exp(row.detail.fade), reach = (a.size.length / 2) * P.scale[1] + (ST.cell * Lv.P) / 16 + 2;
+    const band = { near: uniform(0), far: uniform(1), margin: pad, pad: uniform(pad), to: uniform(shadow ? 0 : e / Lv.lo), from: uniform(shadow || !Number.isFinite(Lv.hi) ? 0 : 1 / (Lv.hi * e)) }, live = (c) => treeIn(c, row, Lv, band, biome, ST, shapes, shadow, slice, shadow ? null : { r: uniform(reach), high: hHi });   // r: its crown's reach, and how far the camera may move before the packing is made again
+    let one = null;   // (packed by compute: one material for all its buckets)
     const material = (src, k) => {
-      const { m, shape } = make(k, shadow ? null : { lo: Lv.lo, hi: Lv.hi, last: Lv.i === levels.length - 1 });
-      m.vertexNode = src.read ? Fn(() => shape(src.read(0), src.read(1)))()   // ready-made by the compute pass
+      if (src.readAt && one) return one;
+      const { m, shape, slot } = make(shadow ? null : { lo: Lv.lo, hi: Lv.hi, last: Lv.i === levels.length - 1 });
+      m.vertexNode = src.readAt ? Fn(() => shape(src.readAt(0, slot), src.readAt(1, slot)))()   // ready-made by the compute pass
         : Fn(() => { const L = live(src), out = offScreen().toVar(); If(L.alive.and(L.bucket.equal(float(k))), () => { out.assign(shape(...L.data)); }); return out; })();   // the fallback: worked out per vertex
+      if (src.readAt) one = m;
       return m;
     };
     // (the stand-in in small patches: those whose shade cannot reach the view are dropped)
@@ -224,6 +233,7 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
         band.near.value = t.near > 0 ? t.near : -1; band.far.value = t.far;
       };
     t.band(); t.level = Lv.i; t.viewKeyed = !shadow;
+    t.meshes.forEach((m, v) => (m.userData.hk = a.heights?.[v] ?? H));
     if (shadow) { t.meshes.forEach((m) => m.layers.set(1)); t.trunks = a.trunk; }   // only the light sees it; and its trees are the ones the walker bumps into (trunk: each shape's, where it stands at a walker's chest, and its radius, at scale 1)
     else if (row.detail.casts && !SH && Lv.i === 0) t.meshes.forEach((m) => m.layers.enable(1));   // without a stand-in the near trees cast, as drawn (src/world/shadow.js)
     tiers.push(t);
@@ -256,9 +266,9 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
     list: level `level`, its foot at (x, y, z), scale s, of its shapes the one asked. */
 export function treeSample(tex, row, level = 0, x = 0, y = 0, z = 0, s = 1, form = 0) {
   const g = geometryOf(row.asset, row.detail.levels[Math.min(level, row.detail.levels.length - 1)], form);
-  const { m, shape } = treeMaterial(tex, row)(form);
+  const { m, shape } = treeMaterial(tex, row)();
   m.vertexNode = Fn(() => shape(vec4(x, z, y, s), vec4(0.4, 1.3, 0.5, 1)))();   // turned a little, its own shade, the whole of its level
-  const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = 1; mesh.layers.enable(1);
+  const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = 1; mesh.layers.enable(1); mesh.userData.hk = row.asset.heights?.[form] ?? row.asset.size.height;
   return mesh;
 }
 

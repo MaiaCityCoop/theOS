@@ -29,8 +29,10 @@ export class Tier {
   constructor(scene, geometry, material, { cell, P, near = 0, far, order = 0, live = null, gpu = false, cap = 0, slots = 0, cull = 0, fixed = 0 }) {
     this.cull = cull; this.fixed = fixed; this.P = P; this.S = cell * P; this.near = Math.max(0, near); this.far = far; this.n = 0; this.over = false;
     this.list = Array.from({ length: MAXP }, () => new THREE.Vector2());
-    const patches = uniformArray(this.list, 'vec2'), P2 = uint(P * P);
-    const cellOf = (index) => { const pid = index.div(P2), b = int(index.sub(pid.mul(P2))); return ivec2(patches.element(pid)).add(ivec2(b.mod(P), b.div(P))); };   // which patch of the list, which cell of the patch
+    // (its numbers as uniforms, not written into its code: two tiers that differ only in them, the levels of one thing,
+    // are then one shader to the GPU, compiled once: src/scatter/trees.js)
+    const patches = uniformArray(this.list, 'vec2'), P2 = uniform(P * P, 'uint'), uP = uniform(P, 'int'), uCap = uniform(cap, 'uint');
+    const cellOf = (index) => { const pid = index.div(P2), b = int(index.sub(pid.mul(P2))); return ivec2(patches.element(pid)).add(ivec2(b.mod(uP), b.div(uP))); };   // which patch of the list, which cell of the patch
     // buckets: geometry may be a list (the shapes of one thing): one mesh each, but the cells worked out once, each that
     // holds something dropped into its bucket (live(...).bucket); material(src, k) is bucket k's
     const geos = Array.isArray(geometry) ? geometry : [geometry], K = geos.length;
@@ -46,14 +48,15 @@ export class Tier {
             const L = live(cellOf(instanceIndex)), b = K > 1 ? uint(L.bucket) : uint(0);
             If(L.alive, () => {
               const i = atomicAdd(count.element(b), uint(1)).toVar();
-              If(i.lessThan(uint(cap)), () => { L.data.forEach((d, k) => data[k].element(b.mul(cap).add(i)).assign(d)); });
+              If(i.lessThan(uCap), () => { L.data.forEach((d, k) => data[k].element(b.mul(uCap).add(i)).assign(d)); });
             });
           });
         })().compute(MAXP * P * P),
-        Fn(() => { for (let k = 0; k < K; k++) argsNode.element(k * 5 + 1).assign(min(atomicLoad(count.element(k)), uint(cap))); })().compute(1),
+        Fn(() => { for (let k = 0; k < K; k++) argsNode.element(k * 5 + 1).assign(min(atomicLoad(count.element(k)), uCap)); })().compute(1),
       ];
       this.data = data; this.args = args; this.cap = cap;
-      this.meshes = geos.map((g, k) => { g.setIndirect(args, k * 20); g.instanceCount = cap; return new THREE.Mesh(g, material({ read: (j) => data[j].element(uint(k * cap).add(instanceIndex)) }, k)); });
+      // (readAt: read from a place in the buffer a material is told per mesh, mesh.userData.slot: one material for every bucket)
+      this.meshes = geos.map((g, k) => { g.setIndirect(args, k * 20); g.instanceCount = cap; const m = new THREE.Mesh(g, material({ read: (j) => data[j].element(uint(k * cap).add(instanceIndex)), readAt: (j, slot) => data[j].element(slot.add(instanceIndex)) }, k)); m.userData.slot = k * cap; return m; });
     } else this.meshes = geos.map((g, k) => new THREE.Mesh(g, material(cellOf(instanceIndex), k)));
     this.mesh = this.meshes[0];
     for (const m of this.meshes) { m.frustumCulled = false; m.renderOrder = order; scene.add(m); }
