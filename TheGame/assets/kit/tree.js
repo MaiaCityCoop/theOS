@@ -8,6 +8,8 @@
 //
 // growth { years, variants, form(year, v), height(year) }: its stages of growth, by age (or, without it, shapes: a list).
 // litter { material, tile }: what it drops: the ground under it where it leads in its stand (the land lays it).
+// core: a number (0.8): a solid body of that share of its size inside its sprigs at every level (see tree()): for what
+// is seen changing level near by (a bush).
 // A shrub is built the same way (kind `shrub`: assets/kinds.js), and stands in its biome's understory: placement.stand
 // names which of the biome's stands it joins (`shrubs`; a tree's, unnamed, is `trees`).
 // placement.where({ p }): where in its stand it likes to grow, 0..1 (node code), if not everywhere.
@@ -253,12 +255,31 @@ function stagesOf(G, seed) {
 /** A tree file's recipe made whole: its levels' meshes (one per shape), its shade, its size and its trunks' bodies. With
     growth, its shapes are its stages of growth (and their variants), and a tree in the world is as old as its stand says
     (placement.age, src/scatter/trees.js). */
+// one mesh laid into another (the builder's lists joined), scaled by k about c
+const laid = (m, add_, k = 1, c = [0, 0, 0]) => {
+  const n0 = m.part.length;
+  for (const key of Object.keys(m)) if (Array.isArray(m[key]) && key !== 'index' && key !== 'body' && Array.isArray(add_[key])) m[key].push(...add_[key]);
+  for (let i = n0 * 3; i < m.position.length; i += 3) for (let a = 0; a < 3; a++) m.position[i + a] = c[a] + (m.position[i + a] - c[a]) * k;
+  m.index.push(...add_.index.map((i) => i + n0));
+  return m;
+};
+
 export function tree(recipe) {
-  const { shapes: own = [{}], growth, grow, shade, levels, shadow = {}, far = {}, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
+  const { shapes: own = [{}], growth, grow, shade, levels, shadow = {}, far = {}, core = 0, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
   const G = growth ? stagesOf(growth, seed) : null, shapes = G ? G.shapes : own;
   const built = levels.map((L, q) => { const meshes = shapes.map((s, i) => grow(q, s, i)); return { mesh: meshes[0], meshes, P: L.P }; });
   const shades = shade ? shapes.map((s, i) => shade(s, i)) : null;
   const near = built[0].meshes;
+  // core: a plant near enough to be seen change level (a bush) carries one solid, leafy body inside its sprigs at every
+  // level but its nearest, the same one (its far body, `core` of its size): its mass and its outline are there at any distance, and a
+  // level only refines the sprigs standing out of it. Without it a coarser level is a handful of cards one sees
+  // through, and the bush thickens out of thin air as one walks up to it.
+  if (core) {
+    // (dark: it is the bush's own shade under its sprigs, not a second skin)
+    const cores = near.map((m) => farOf(m, { ...(typeof far === 'object' ? far : {}), sides: 6, shoulder: true, trunk: false, shade: 0.42 }));
+    // (not in its nearest level: there its sprigs are thick enough, and one would look down on the body)
+    for (const L of built.slice(1)) L.meshes.forEach((m, i) => laid(m, cores[i], core, cores[i].root.slice(0, 3)));
+  }
   // after the levels its file draws, its two farthest, made here from its nearest (farOf): a crown as one body on a
   // post, then a speck; `far: false`: none
   if (far) for (const o of [far, ...(far.speck === false ? [] : [{ ...far, sides: 4, shoulder: false, trunk: false }])]) { const meshes = near.map((m) => farOf(m, o)); built.push({ mesh: meshes[0], meshes, P: far.P ?? 64, far: true }); }

@@ -24,6 +24,8 @@ export default tree({
   foliage: { wrap: 0.35, through: 0.2, flutter: 0.5, tint: [1.15, 1.25, 0.9] },
   shapes: [{ r: 1.5, h: 1.75, lobes: 3, seed: 611 }, { r: 1.15, h: 1.25, lobes: 2, seed: 612 }],
   grow,
+  // (a solid, leafy body inside its sprigs at every level: its mass is there at any distance)
+  core: 0.62,
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
   levels: [{ P: 4 }, { P: 8 }, { P: 16 }],
   // (its farthest, one body, darker than its sprigs' tops: a bush is mostly its own shade)
