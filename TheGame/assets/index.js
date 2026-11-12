@@ -21,10 +21,11 @@ import * as THREE from 'three/webgpu';
 import { detailOf } from '../src/detail/index.js';
 import { kindOf, kindRule } from './kinds.js';
 
-/** A scattered asset as the row the land's scatter engine (src/scatter) reads. */
 /** How an asset holds snow: its own `snow`, else its kind's, else the default (kinds.js). */
 export const snowOf = (a) => kindOf(a, 'snow');
-export const scatterRow = (a) => ({ asset: a, snow: snowOf(a), name: a.name, uid: a.uid, kind: a.placement.engine, outcrops: a.placement.outcrops, cell: a.placement.cell, size: a.size.length, texture: a.placement.texture, shapes: a.placement.shapes, seed: a.placement.seed, look: a.look, detail: detailOf(a) });
+/** A scattered asset as the row every scatter engine (src/scatter) reads: the asset, its engine, what its kind gives it.
+    What only one engine reads of it, that engine adds itself (its `row`: src/scatter/index.js). */
+export const scatterRow = (a) => ({ asset: a, name: a.name, uid: a.uid, kind: a.placement.engine, cell: a.placement.cell, seed: a.placement.seed, snow: snowOf(a), detail: detailOf(a) });
 /** How many faces a level has. */
 export const facesOf = (l) => (l.mesh ? (l.mesh.index ? l.mesh.index.length : l.mesh.position.length) / 3 : l.faces ? l.faces.length : 20 * 4 ** (l.rock || 0));
 
@@ -51,6 +52,7 @@ export function geometryOf(asset, level = asset.detail.levels[0], shape = 0) {
 export function solidOf(asset) {
   if (asset.solid) return asset.solid;
   const k = kindRule(asset, 'solid'), m = (v) => (Array.isArray(v) ? v[1] : v);
+  if (!k) return {};   // a kind with nothing solid (grass)
   const L = m(asset.size.length), W = m(asset.size.width ?? asset.size.length);
   if (k.post) return { posts: [{ x: 0, z: 0, r: Math.max(L, W) * k.post }] };
   return { boxes: [{ x: 0, z: 0, w: L, d: W }] };   // (a ceiling, a function of where you stand, only an asset of its own can say)

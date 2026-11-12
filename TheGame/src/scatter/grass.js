@@ -1,11 +1,13 @@
 // Grass: instanced blades. A blade's place, height, bend, colour and dryness are hashed from its cell; its density comes
-// from the ground pass (ground.js); the wind bends it (windAt) and each blade flutters on its own. Three rings (assets.js): dense and fine close, sparse and wide far.
+// from the ground pass (ground.js); the wind bends it (windAt) and each blade flutters on its own. Three rings (the grass's
+// own file, assets/grass.js: its tiers): dense and fine close, sparse and wide far.
 import * as THREE from 'three/webgpu';
 import { Fn, float, int, uint, vec2, vec3, vec4, If, min, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { hashI, camDist, BASE } from '../world/land.nodes.js';
 import { finish, skyLight, weathered, cloudAtOne, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
 import { Tier, offScreen, clipOf } from './tier.js';
+import { scatterRow } from '../../assets/index.js';
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
 
@@ -95,5 +97,26 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
   });
 }
 
+// a tuft for the library's list: a few dozen blades as plain strips in the meadow's greens (a picture, not the engine's own)
+function tuft(height) {
+  const pos = [], col = [], R = (i) => { const x = Math.sin(i * 127.1) * 43758.5453; return x - Math.floor(x); };
+  for (let i = 0; i < 70; i++) {
+    const a = R(i) * 6.283, r = Math.sqrt(R(i + 0.5)) * 0.22, x = Math.cos(a) * r, z = Math.sin(a) * r, h = height * (0.45 + 0.6 * R(i + 0.25)), lean = (R(i + 0.75) - 0.5) * 0.5, tw = R(i + 0.1) * 6.283;
+    const sx = Math.cos(tw) * 0.012, sz = Math.sin(tw) * 0.012, tx = x + Math.cos(a) * lean * h, tz = z + Math.sin(a) * lean * h, g = 0.5 + 0.5 * R(i + 0.33);
+    pos.push(x - sx, 0, z - sz, x + sx, 0, z + sz, tx, h, tz);
+    col.push(0.05 * g, 0.13 * g, 0.03 * g, 0.05 * g, 0.13 * g, 0.03 * g, 0.2 * g, 0.42 * g, 0.1 * g);
+  }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+}
+
 /** A scatter engine (src/scatter/index.js finds it): what an asset's placement.engine 'grass' names. */
-export const engine = { id: 'grass', create: createGrass };
+export const engine = {
+  id: 'grass',
+  row: (a) => ({ ...scatterRow(a), height: a.height, tiers: a.tiers }),   // its blade's height and its rings, over the common row
+  create: createGrass,
+  // the library: a tuft for the list; on the stage the meadow itself, grown over the bare round
+  thumb: (tex, row) => ({ things: [tuft(row.height)], eye: [0.55, 0.42, 0.75], look: [0, row.height * 0.42, 0] }),
+  stage(tex, row, { x, z, ground }) { ground.stage(x, z, 0); return new THREE.Group(); },
+  frame: (a) => ({ height: a.height, dist: 4.2, pitch: 0.3, span: a.height }),
+};

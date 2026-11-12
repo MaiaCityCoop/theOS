@@ -10,7 +10,7 @@ import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf } from '../world/lan
 import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, detailKeep, unlit, windAt, windStrength } from '../world/light.js';
 import { PLACES } from '../world/places.js';
 import { recipe, recipes } from '../core/registry.js';
-import { geometryOf } from '../../assets/index.js';
+import { geometryOf, scatterRow } from '../../assets/index.js';
 import { kindOf } from '../../assets/kinds.js';
 import { pxK } from '../detail/index.js';
 import { Tier, offScreen, clipOf, MAXP } from './tier.js';
@@ -210,5 +210,27 @@ export function treeSample(tex, row, level = 0, x = 0, y = 0, z = 0, s = 1, form
   return mesh;
 }
 
+const REGROWN = {};   // a tree grown again from another seed, kept (the library's Random)
 /** A scatter engine (src/scatter/index.js finds it): what an asset's placement.engine 'trees' names. */
-export const engine = { id: 'trees', create: createTrees };
+export const engine = {
+  id: 'trees',
+  create: createTrees,
+  // the library: a tree of seventy for the list; on the stage one at an age (its growth: assets/kit/tree.js), or every
+  // stage of its growth in a row, youngest to oldest; from another seed, the same kind grown again
+  thumb(tex, row) {
+    const a = row.asset, G = a.growth?.at(70), h = G ? G.height : a.size.height;
+    return { things: [treeSample(tex, row, 0, 0, 0, 0, G?.s ?? 1, G?.shape ?? 0)], eye: [h * 1.1, h * 0.7, h * 1.5], look: [0, h * 0.5, 0] };
+  },
+  stage(tex, row0, { x, z, heightAt, level = 0, seed = null, age = 70, all = false }) {
+    const a0 = row0.asset, a = seed != null && a0.regrow ? (REGROWN[`${a0.uid}:${seed}`] ??= a0.regrow(seed)) : a0, row = a === a0 ? row0 : scatterRow(a), G = a.growth;
+    const one = (X, Z, t) => treeSample(tex, row, level, X, heightAt(X, Z) - 0.1, Z, t?.s ?? 1, t?.shape ?? 0);
+    if (!G || !all) return one(x, z, G ? G.at(age) : null);
+    const g = new THREE.Group(), w = G.years.map((y) => G.height(y) * 0.55); let u = -w.reduce((s, v) => s + v, 0);
+    G.years.forEach((y, i) => { u += w[i]; g.add(one(x + u, z, G.at(y))); u += w[i]; });
+    return g;
+  },
+  frame(a, { age = 70, all = false } = {}) {
+    const G = a.growth, h = !G ? a.size.height : all ? G.height(G.years.at(-1)) : G.at(age).height;
+    return { height: h, dist: G && all ? G.years.reduce((t, y) => t + G.height(y) * 1.1, 0) * 1.35 : Math.max(5, h * 2.3), pitch: 0.32, span: h };
+  },
+};

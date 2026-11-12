@@ -15,6 +15,7 @@ export default {
   type: 'material',
   name: "Meadow floor",
   kind: 'ground',
+  role: 'moss',   // the part it plays for the engine (src/core/registry.js: byRole)
   about: "The ground under the grass: dark soil under a thatch of bent strands, dead and green, with leaf litter and moss.",
   usedBy: "the terrain where grass grows; the moss on rocks",
   swatch: [0.07, 0.09, 0.04],

@@ -1,19 +1,34 @@
-// All that stands on the land: every asset of the table (assets.js), drawn by its engine, as one list of tiers. A new kind
-// of scattered thing is a module here that exports `engine = { id, create(scene, tex, ground, row, gpu) -> tiers }`
-// (tiers.solid: what reads its packing back as bodies); it is found here by itself, and an asset names it by its id
-// (placement.engine).
+// All that stands on the land: every asset placed `at: 'scatter'` (assets/*.js: the grass, a stone, a tree), drawn by its
+// engine, as one list of tiers. A new kind of scattered thing is a module here that exports its engine; it is found
+// here by itself, and an asset names it by its id (placement.engine).
+//
+//   export const engine = {
+//     id,
+//     row?(asset) -> row,                      what it reads of an asset, over the common row (assets/index.js: scatterRow)
+//     create(scene, tex, ground, row, gpu) -> tiers,   its tiers (tier.js); tiers.solid: what reads its packing back as bodies
+//     // for the asset library (library.html), each as the engine sees fit:
+//     thumb?(tex, row) -> { things, eye, look },       its picture for the list
+//     stage?(tex, row, { x, z, heightAt, ground, level, seed, … }) -> Object3D,   how it stands on the stage
+//     frame?(asset, opts) -> { height, dist, pitch, span },   how the camera frames it there
+//   }
 import { U } from '../core/uniforms.js';
 import { setView } from './view.js';
 import { weatherKey } from '../world/weather/index.js';
-import { ASSETS } from './assets.js';
+import { recipes } from '../core/registry.js';
+import { scatterRow } from '../../assets/index.js';
 
 const FOUND = import.meta.glob(['./*.js', '!./index.js'], { eager: true });   // (whole modules: a named import would fail where a module has none)
 export const ENGINES = Object.fromEntries(Object.values(FOUND).map((m) => m.engine).filter(Boolean).map((e) => [e.id, e]));
 
+/** An asset's engine, and the row it reads of it. */
+export const engineOf = (asset) => (asset?.placement?.at === 'scatter' ? ENGINES[asset.placement.engine] : null) ?? null;
+export const rowOf = (asset) => engineOf(asset)?.row?.(asset) ?? scatterRow(asset);
+
 export function createScatter(scene, tex, ground, renderer, camera = null) {
   const gpu = !!renderer?.backend?.isWebGPUBackend;   // compute-packed tiers where WebGPU is (tier.js)
   const tiers = [], solid = [];
-  for (const asset of ASSETS) { const E = ENGINES[asset.kind]; if (!E) { console.warn(`no scatter engine '${asset.kind}' (${asset.name})`); continue; }
+  for (const a of recipes('asset').filter((r) => r.placement?.at === 'scatter')) {
+    const E = engineOf(a), asset = rowOf(a); if (!E) { console.warn(`no scatter engine '${a.placement.engine}' (${a.name})`); continue; }
     const made = E.create(scene, tex, ground, asset, gpu); if (made.solid) solid.push(made.solid); for (const t of made) { t.asset = asset.name; tiers.push(t); } }   // solid: what reads its packing back as bodies (trees.js)
   return {
     tiers,

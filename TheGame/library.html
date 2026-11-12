@@ -65,12 +65,11 @@
 // src/world/places.js), a round of bare ground with the grass around it, the camera circling it. A placed asset
 // stands in the middle; a scattered one lies there as a few of its kind, small to large.
 import * as THREE from 'three/webgpu';
-import { geometryOf, scatterRow, solidOf } from './assets/index.js';
+import { geometryOf, solidOf } from './assets/index.js';
 import { recipes, manifest } from './src/core/registry.js';
 import { BIOMES, BASE } from './src/world/biomes.js';
 import { place } from './src/world/place.js';
-import { rockSample } from './src/scatter/rocks.js';
-import { treeSample } from './src/scatter/trees.js';
+import { engineOf, rowOf } from './src/scatter/index.js';
 import { detailOf, spanOf, distanceAt, most } from './src/detail/index.js';
 import { poseAt, heightFor } from './src/camera/rig.js';
 import { STAGE } from './src/world/places.js';
@@ -107,62 +106,40 @@ for (const b of document.querySelectorAll('.item[data-mat]')) {   // a material'
   materialThumb(window.__s8.renderer, tex, b.dataset.mat, b.querySelector('canvas'));
   b.onclick = () => chooseMaterial(b.dataset.mat);
 }
-// an asset's picture: its nearest level, lit, on nothing
-// a scattered rock is drawn by the rocks' engine (its own icospheres and material); every other asset, a tree among them, by its own faces
-const rocky = (a) => a.placement.engine === 'rocks';
-function assetThumb(a, canvas, near = 1) {
+// an asset's picture: a scattered one's as its engine draws it (src/scatter: a rock in the world's own stone, a tree in its
+// bark and needles, a tuft of grass), any other by its own faces: its nearest level, lit, on nothing
+function assetThumb(a, canvas) {
+  const E = engineOf(a);
+  if (E?.thumb) { const t = E.thumb(tex, rowOf(a)); return sceneThumb(window.__s8.renderer, t.things, canvas, t.eye, t.look); }
+  if (!a.detail?.levels?.length) return;
   const sun = new THREE.DirectionalLight(0xfff1d6, 2.2); sun.position.set(4, 7, 3);
   const things = [new THREE.HemisphereLight(0xdbe9ff, 0x4a5a3a, 1.4), sun, new THREE.Mesh(geometryOf(a), new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.9 }))];
-  const d = (rocky(a) ? 2.2 : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 1.9) / near;
-  const cam = new THREE.PerspectiveCamera(32, 1, 0.05, 100); cam.position.set(d * 0.7, d * 0.55, -d * 0.7); cam.lookAt(0, (rocky(a) ? 0.5 : most(a.size.height)) * 0.4, 0);
+  const d = Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 1.9;
+  const cam = new THREE.PerspectiveCamera(32, 1, 0.05, 100); cam.position.set(d * 0.7, d * 0.55, -d * 0.7); cam.lookAt(0, most(a.size.height) * 0.4, 0);
   sceneThumb(window.__s8.renderer, things, canvas, cam);
 }
 for (const b of document.querySelectorAll('.item[data-biome]')) {   // a biome's picture: a ball of its ground
   materialThumb(window.__s8.renderer, tex, BIOME[b.dataset.biome].floor.material, b.querySelector('canvas'));
   b.onclick = () => chooseBiome(b.dataset.biome);
 }
-// a tree's picture: its nearest level in its own material, whole
-function treeThumb(a, canvas) {
-  const G = a.growth?.at(70), h = G ? G.height : most(a.size.height);   // a tree that grows: at seventy
-  sceneThumb(window.__s8.renderer, [treeSample(tex, scatterRow(a), 0, 0, 0, 0, G?.s ?? 1, G?.shape ?? 0)], canvas, [h * 1.1, h * 0.7, h * 1.5], [0, h * 0.5, 0]);
-}
-// a scattered rock's picture: the largest of its kind in the world's own material (its look: pebble or rock, its moss), as on the stage
-function rockThumb(a, canvas) {
-  const s = most(a.size.length), m = rockSample(tex, scatterRow(a), a.detail.levels[0].rock, 0); m.scale.set(s, s * 0.8, s);
-  sceneThumb(window.__s8.renderer, [m], canvas, [s * 2.1, s * 2.0, s * 3.3], [0, -s * 0.05, 0]);
-}
 for (const b of document.querySelectorAll('.item[data-id]')) {
   const a = ASSETS[b.dataset.id];
-  if (rocky(a)) rockThumb(a, b.querySelector('canvas')); else if (a.placement.engine === 'trees') treeThumb(a, b.querySelector('canvas')); else assetThumb(a, b.querySelector('canvas'));
+  assetThumb(a, b.querySelector('canvas'));
   b.onclick = () => choose(b.dataset.id);
 }
 
+// how the camera frames an asset on the stage: as its engine says (a rock from above and near, a tree by its age), else by its size
+const frameOf = (a) => engineOf(a)?.frame?.(a, { age, all: growRow }) ?? { height: most(a.size.height), dist: Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 2.2, pitch: 0.32, span: spanOf(a) };
 // the stage: what stands on it now
 let staged = null, ground0 = heightAt(STAGE.x, STAGE.z), H = 1, yaw = 2.6, pitch = 0.32, dist = 9, spin = true, seed = null;
-let age = 70, growRow = false; const regrown = {};   // a tree that grows: the age it is shown at, or every stage of its growth in a row
+let age = 70, growRow = false;   // a tree that grows: the age it is shown at, or every stage of its growth in a row
 let cardTab = 'info', lodAt = null, showBody = false, bodyLines = null;   // showBody: the asset's collision drawn on the stage (intent 0003)   // the asset card's tab; the level of detail being looked at (null: none chosen)
 function clearStage() { ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BASE)); if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); staged = null; } }
 function stageAsset(a) {
   clearStage();
-  if (rocky(a)) {   // a few of its kind, small to large, lying about the middle
-    staged = new THREE.Group(); const row = { ...scatterRow(a), seed: seed ?? a.placement.seed }, [lo, hi] = a.size.length;
-    for (let i = 0; i < 7; i++) {
-      const k = i / 6, s = lo + (hi - lo) * k ** 1.6, t = i * 2.4, rr = i ? (hi * 0.7 + 0.4) * Math.sqrt(i) * 0.55 : 0;
-      const m = rockSample(tex, row, a.detail.levels[Math.min(lodAt ?? 0, a.detail.levels.length - 1)].rock, i % 3), x = STAGE.x + Math.cos(t) * rr, z = STAGE.z + Math.sin(t) * rr;   // the world's own rock: its texture, its moss
-      m.scale.set(s, s * 0.8, s); m.renderOrder = 1; m.position.set(x, heightAt(x, z) - s * 0.25, z); m.rotation.y = t * 1.7; staged.add(m);   // drawn after the ground, as the world's own things are
-    }
-    scene.add(staged);
-  } else if (a.placement.engine === 'trees') {   // a tree: one, at the level being looked at, in the trees' own material
-    const A = seed != null && a.regrow ? (regrown[`${a.uid}:${seed}`] ??= a.regrow(seed)) : a;   // another seed: the same kind grown again, other shapes
-    const row = scatterRow(A), lv = lodAt ?? 0, G = A.growth;
-    if (G && growRow) {   // its growth: a tree of every stage, youngest to oldest, in a row across the stage
-      staged = new THREE.Group(); const at = G.years.map((y) => G.at(y)), w = at.map((t) => G.height(G.years[at.indexOf(t)]) * 0.55);
-      let x = -w.reduce((s, v) => s + v, 0);
-      at.forEach((t, i) => { x += w[i]; const X = STAGE.x + x, Z = STAGE.z; staged.add(treeSample(tex, row, lv, X, heightAt(X, Z) - 0.1, Z, t.s, t.shape)); x += w[i]; });
-    } else if (G) { const t = G.at(age); staged = treeSample(tex, row, lv, STAGE.x, heightAt(STAGE.x, STAGE.z) - 0.1, STAGE.z, t.s, t.shape); }
-    else staged = treeSample(tex, row, lv, STAGE.x, heightAt(STAGE.x, STAGE.z) - 0.1, STAGE.z, 1);
-    scene.add(staged);
-  } else staged = place(scene, a, { x: STAGE.x, z: STAGE.z, yaw: 0.6, solid: false });
+  const E = engineOf(a);   // a scattered asset stands as its engine shows it (a few rocks small to large, a tree at an age, the meadow itself)
+  if (E?.stage) { staged = E.stage(tex, rowOf(a), { x: STAGE.x, z: STAGE.z, heightAt, ground, level: lodAt ?? 0, seed, age, all: growRow }); scene.add(staged); }
+  else staged = place(scene, a, { x: STAGE.x, z: STAGE.z, yaw: 0.6, solid: false });
   drawBody(a);
 }
 // an asset's body as lines on the ground: its walls (with their doors left open), posts and boxes, from its file or its kind
@@ -180,7 +157,7 @@ function drawBody(a) {
     }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); return geo;
   };
-  const yaw = rocky(a) ? 0 : 0.6, c = Math.cos(yaw), n = Math.sin(yaw), W = (u, v) => [u * c + v * n, -u * n + v * c];   // as place() turns it
+  const yaw = engineOf(a) ? 0 : 0.6, c = Math.cos(yaw), n = Math.sin(yaw), W = (u, v) => [u * c + v * n, -u * n + v * c];   // as place() turns it
   const ring = (cx, cz, r, gaps = []) => { const out = []; for (let i = 0; i <= 96; i++) { const t = (i / 96) * Math.PI * 2; if (gaps.some(([m, h]) => Math.abs(Math.atan2(Math.sin(t - m), Math.cos(t - m))) < h)) { if (out.length > 1) g.add(new THREE.Mesh(pts(out.splice(0)), mat)); out.length = 0; continue; } out.push(W(cx + Math.cos(t) * r, cz + Math.sin(t) * r)); } if (out.length > 1) g.add(new THREE.Mesh(pts(out), mat)); };
   for (const w of s.walls || []) ring(0, 0, w.round, w.gaps);
   for (const p of s.posts || []) ring(p.x, p.z, p.r);
@@ -190,10 +167,8 @@ function drawBody(a) {
 }
 function choose(id, keepSeed) {
   const a = ASSETS[id]; if (!keepSeed) { seed = null; lodAt = null; } stageAsset(a);
-  H = rocky(a) ? most(a.size.height) * 0.5 : most(a.size.height);
-  dist = rocky(a) ? Math.max(4, most(a.size.length) * 4.5) : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 2.2;
-  if (a.growth) { const h = growRow ? a.growth.height(a.growth.years.at(-1)) : a.growth.at(age).height; H = h; dist = growRow ? a.growth.years.reduce((t, y) => t + a.growth.height(y) * 1.1, 0) * 0.95 : Math.max(5, h * 2.3); }   // framed to the tree at its age, or to the whole row
-  pitch = rocky(a) ? 0.55 : 0.32; spin = true;
+  const F = frameOf(a); H = F.height; dist = F.dist;
+  pitch = F.pitch; spin = true;
   document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
   const s0 = a.placement.seed, seeded = s0 != null;
   const scat = a.placement.at === 'scatter', where = scat ? (a.placement.biome ? `Scattered where the ${(BIOME[a.placement.biome]?.name || 'its biome').toLowerCase()} lies` : `Scattered over ${a.placement.outcrops ? 'the outcrops' : 'all the land'}`) : 'Stood at a named place';
@@ -201,7 +176,7 @@ function choose(id, keepSeed) {
   const info = document.getElementById('info');
   info.innerHTML = `<div class="g-tabs"><button data-tab="info" class="${cardTab === 'info' ? 'on' : ''}">Info</button><button data-tab="detail" class="${cardTab === 'detail' ? 'on' : ''}">Detail</button></div>`
     + (cardTab === 'detail' ? detailOf_(a) : head('Asset', a.kind, a.name, a.about)
-    + figs(scat ? [sizeFig(a.size.length, 'Length'), fig(num(a.placement.cell), 'm', 'Apart')] : [sizeFig(a.size.length, 'Footprint'), sizeFig(a.size.height, 'Height')], scat)
+    + figs(scat ? [sizeFig(a.size.length, 'Length'), a.placement.cell != null ? fig(num(a.placement.cell), 'm', 'Apart') : sizeFig(a.size.height, 'Height')] : [sizeFig(a.size.length, 'Footprint'), sizeFig(a.size.height, 'Height')], scat)
     + `<div class="g-cells g-part">${cell('Placed', say(where), true)}${a.look ? cell('Look', `<div class="g-chips">${chip(a.look.material || 'rock')}</div><span class="g-sub" style="white-space:normal">moss ${a.look.moss} · relief ${a.look.relief} · worn ${a.look.smooth} · broken ${a.look.cuts}</span>`, true) : ''}</div>`
     + (a.growth ? growthCell(a) : '')
     + (seeded ? `<div class="seed g-part"><span class="g-label">Seed</span><b>${seed ?? s0}${seed != null && seed !== s0 ? '' : ' · its own'}</b>${seed != null && seed !== s0 ? '<button class="g-btn quiet" id="seed0">Own</button>' : ''}<button class="g-btn" id="seedR">Random</button></div>` : '')
@@ -211,7 +186,7 @@ function choose(id, keepSeed) {
   const bt = document.getElementById('bodyT'); if (bt) bt.onclick = () => { const d = dist, p = pitch; showBody = !showBody; choose(id, true); dist = d; pitch = p; };
   if (a.growth && cardTab === 'info') {   // its age: the slider, a stage's button, the row of every stage
     const sl = document.getElementById('ageS'), say = () => (document.getElementById('ageL').textContent = ageText(a));
-    sl.oninput = () => { age = +sl.value; growRow = false; say(); stageAsset(a); const h = a.growth.at(age).height; H = h; dist = Math.max(5, h * 2.3); };
+    sl.oninput = () => { age = +sl.value; growRow = false; say(); stageAsset(a); const F = frameOf(a); H = F.height; dist = F.dist; };
     info.querySelectorAll('[data-age]').forEach((b) => (b.onclick = () => { age = +b.dataset.age; growRow = false; const d = pitch; choose(id, true); pitch = d; }));
     document.getElementById('ageRow').onclick = () => { growRow = !growRow; const d = pitch; choose(id, true); pitch = d; };
   }
@@ -235,8 +210,8 @@ function bands(a) {   // its levels as the detail engine resolves them (src/deta
   const shown = a.placement.at === 'scatter' ? levels.filter((l) => !l.impostor) : levels;   // a scattered asset has no card yet
   return [...shown.map((l) => ({ i: l.i, lo: l.lo, hi: l.hi, faces: faces(l), impostor: l.impostor, views: l.views })), { i: levels.length, lo: 0, hi: cut, faces: 0 }];   // and below the last: nothing drawn
 }
-const span = (a) => (rocky(a) ? 2 * most(a.size.length) : spanOf(a));   // a scattered rock: an icosphere of radius 1 times its size
-const near0 = (a) => (rocky(a) ? Math.max(4, most(a.size.length) * 4.5) : Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 2.2);   // the close look
+const span = (a) => frameOf(a).span;   // what its size on screen is measured by
+const near0 = (a) => frameOf(a).dist;   // the close look
 const pxAim = (b) => (b.hi === Infinity ? b.lo * 3 : b.lo === 0 ? b.hi / 2.5 : Math.sqrt(b.lo * b.hi));   // well inside its band
 // where the camera stands to see a band: by size on screen, as the engine measures it (the lens and the governor count)
 const at = (b, a) => (b.hi === Infinity ? Math.min(near0(a), (span(a) * U.uPxK.value) / (b.lo * 1.5 * U.uLodInv.value)) : (span(a) * U.uPxK.value) / (pxAim(b) * U.uLodInv.value));

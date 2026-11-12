@@ -6,10 +6,10 @@ import { Fn, float, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute,
 import { U } from '../core/uniforms.js';
 import { rnd, camDist, riverInfo, heightAt, outcropMask, grassTint, biomesAt } from '../world/land.nodes.js';
 import { finish, skyLight, weathered, snowLift, cloudAt, detailCut, detailKeep, unlit } from '../world/light.js';
-import { pxK } from '../detail/index.js';
 import { Tier, offScreen, clipOf, MAXP } from './tier.js';
-import rockMaterial0 from '../../materials/rock.js';
-import meadow from '../../materials/meadow.js';
+import { byRole } from '../core/registry.js';
+import { scatterRow } from '../../assets/index.js';
+import { pxK, most } from '../detail/index.js';
 
 // ---- shapes ----
 function hash3(x, y, z, s) {
@@ -82,12 +82,12 @@ const rot = (v, a, cs, sn) => v.mul(cs).add(cross(a, v).mul(sn)).add(a.mul(dot(a
 /** A rock's colour, lit: triplanar from its material, moss where it looks up (held back where it is dry), darker where
     it meets the ground. s: { world, n (its geometric normal), tint (the grass round it), arid, ly (its height, -1..1) }. */
 function rockShade(tex, row, s, eye = U.uCam) {
-  const look = row.look || {}, id = look.material || rockMaterial0.uid, moss0 = look.moss ?? 1, relief = look.relief ?? 1.1, tintR = vec3(...(look.tint || [1, 1, 1]));
+  const look = row.look || {}, id = look.material || byRole('rock').uid, moss0 = look.moss ?? 1, relief = look.relief ?? 1.1, tintR = vec3(...(look.tint || [1, 1, 1]));
   const N0 = normalize(s.n), b0 = pow(abs(N0), vec3(4)), b = b0.div(b0.x.add(b0.y).add(b0.z)), q = s.world.div(row.texture);
   const a = tex.a(id, q.zy).mul(b.x).add(tex.a(id, q.xz).mul(b.y)).add(tex.a(id, q.xy).mul(b.z));
   const tx = tex.n(id, q.zy).xy.mul(2).sub(1), ty = tex.n(id, q.xz).xy.mul(2).sub(1), tz = tex.n(id, q.xy).xy.mul(2).sub(1);
   const n = normalize(N0.add(vec3(0, tx.y, tx.x).mul(b.x).add(vec3(ty.x, 0, ty.y).mul(b.y)).add(vec3(tz.x, tz.y, 0).mul(b.z)).mul(relief)));
-  const mt = tex.a(meadow, q.xz.mul(1.7));   // the moss: the meadow's floor
+  const mt = tex.a(byRole('moss'), q.xz.mul(1.7));   // the moss: the material that plays it (the meadow's floor)
   const moss = smoothstep(0.45, 0.8, N0.y.mul(0.75).add(a.a.sub(0.5).mul(0.7)).add(mt.a.sub(0.5).mul(0.5))).mul(float(1).sub(s.arid.mul(0.85))).mul(Math.min(moss0, 1));
   const c1 = mix(a.rgb.mul(a.rgb).mul(tintR), s.tint.mul(0.75).mul(mt.a.add(0.5)), moss.mul(0.9 * Math.min(moss0 * 1.5, 1)));
   const c2 = weathered(c1.mul(mix(0.45, 1, smoothstep(-0.25, 0.35, s.ly))), n, snowLift(s.world, row.snow.clumps));   // as its kind holds snow (assets/kinds.js)
@@ -198,4 +198,24 @@ export function createRocks(scene, tex, ground, row, gpu = false) {
 }
 
 /** A scatter engine (src/scatter/index.js finds it): what an asset's placement.engine 'rocks' names. */
-export const engine = { id: 'rocks', create: createRocks };
+export const engine = {
+  id: 'rocks',
+  // what it reads of a rock's file, over the common row: where it lies (outcrops), its sizes, its shapes, its look
+  row: (a) => ({ ...scatterRow(a), outcrops: a.placement.outcrops, size: a.size.length, texture: a.placement.texture, shapes: a.placement.shapes, look: a.look }),
+  create: createRocks,
+  // the library: the largest of its kind for the list; on the stage a few, small to large, lying about the middle
+  thumb(tex, row) {
+    const a = row.asset, s = most(a.size.length), m = rockSample(tex, row, a.detail.levels[0].rock, 0); m.scale.set(s, s * 0.8, s);
+    return { things: [m], eye: [s * 2.1, s * 2.0, s * 3.3], look: [0, -s * 0.05, 0] };
+  },
+  stage(tex, row0, { x, z, heightAt, level = 0, seed = null }) {
+    const a = row0.asset, row = { ...row0, seed: seed ?? a.placement.seed }, [lo, hi] = a.size.length, g = new THREE.Group();
+    for (let i = 0; i < 7; i++) {
+      const k = i / 6, s = lo + (hi - lo) * k ** 1.6, t = i * 2.4, rr = i ? (hi * 0.7 + 0.4) * Math.sqrt(i) * 0.55 : 0;
+      const m = rockSample(tex, row, a.detail.levels[Math.min(level, a.detail.levels.length - 1)].rock, i % 3), X = x + Math.cos(t) * rr, Z = z + Math.sin(t) * rr;   // the world's own rock: its texture, its moss
+      m.scale.set(s, s * 0.8, s); m.renderOrder = 1; m.position.set(X, heightAt(X, Z) - s * 0.25, Z); m.rotation.y = t * 1.7; g.add(m);   // drawn after the ground, as the world's own things are
+    }
+    return g;
+  },
+  frame: (a) => ({ height: most(a.size.height) * 0.5, dist: Math.max(4, most(a.size.length) * 4.5), pitch: 0.55, span: 2 * most(a.size.length) }),   // (a rock is an icosphere of radius 1 times its size)
+};
