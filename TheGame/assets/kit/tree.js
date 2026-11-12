@@ -7,6 +7,7 @@
 //                         levels: [{ P }, …], placement: { biome, share, … }, … })
 //
 // growth { years, variants, form(year, v), height(year) }: its stages of growth, by age (or, without it, shapes: a list).
+// litter { material, tile }: what it drops: the ground under it where it leads in its stand (the land lays it).
 // placement { biome, share, scale, lean, seed }: its biome, whose stand it joins (the biome's `trees`: the cells, the
 // groves, the ages, the same for every kind of tree that grows there); share, its part of that stand's cells (one tree a
 // cell: a mix); scale, one tree's own size about its age's height; seed, its shapes' (another seed: other trees of its kind).
@@ -220,7 +221,8 @@ export function tree(recipe) {
     /** the same kind of tree grown from another seed: other shapes, other places (the library's Random) */
     regrow: (s) => tree({ ...recipe, placement: { ...recipe.placement, seed: s } }),
     // meshes: one per shape (mesh: the first, for a single picture); shadow: drawn into the shadow map for every tree
-    // within `far` metres whose shade can reach the view (`reach`: how far a crown's shadow falls)
-    detail: { ...(rest.detail || {}), levels: built, ...(shades ? { shadow: { meshes: shades, far: 80, reach: 22, ...shadow } } : {}) },
+    // within `far` metres (from high up, up to `wide` times that) whose shade can reach the view (`reach`: how far a
+    // crown's shadow falls); past them the land dims its floor under the stand by itself (src/terrain/material.js)
+    detail: { ...(rest.detail || {}), levels: built, ...(shades ? { shadow: { meshes: shades, far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) },
   };
 }

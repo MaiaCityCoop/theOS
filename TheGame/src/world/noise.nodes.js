@@ -1,6 +1,6 @@
 // The land's noises on the GPU (node code): what the land's functions (land.nodes.js) and the biomes' rules
 // (biomes/*.js: where) are built from. No world in here, so any recipe may use it.
-import { Fn, float, int, uint, vec2, vec3, floor, sqrt } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, floor, sqrt, smoothstep } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { hashI } from '../core/hash.js';
 export { hashI };
@@ -23,3 +23,14 @@ export const vnoise = Fn(([p, s]) => {
 export const camDist = Fn(([p]) => { const d = p.sub(U.uCam.xz); return sqrt(d.dot(d).add(U.uDy.mul(U.uDy))).mul(U.uLodInv); });
 /** a ragged edge: -1.5..1.5, for a mask's border not to run smooth */
 export const edgeJit = Fn(([p]) => vnoise(p.mul(1 / 6), uint(44)).sub(0.5).mul(2).add(vnoise(p.mul(1 / 1.7), uint(45)).sub(0.5)));
+
+// ---- a stand of trees (a biome's `trees`: { clumps, patches, seed }): its noises, asked by everything that must agree on
+// where its trees stand: their cells (src/scatter/trees.js), the land's far canopy, its floor's shade and litter
+// (src/terrain/material.js), a biome's own grass (biomes/pineforest.js) ----
+/** How thick the stand grows at p, 0..1.6: its groves and glades (a noise as wide as its `clumps`, moved by its seed). */
+export const groveAt = (p, T) => {
+  const K = (T?.seed ?? 300) - 300;
+  return T?.clumps ? smoothstep(0.22, 0.72, vnoise(p.div(T.clumps), uint(308 + K)).mul(0.7).add(vnoise(p.div(T.clumps * 0.27), uint(310 + K)).mul(0.3))).mul(1.6) : float(1);
+};
+/** Which kind of tree leads at p, 0..1 (a slow noise `patches` metres across; a kind leads where it falls in its slice). */
+export const leadAt = (p, T) => (T?.patches ? smoothstep(0.25, 0.75, vnoise(p.div(T.patches), uint(322 + (T.seed ?? 300) - 300))) : float(0.5));

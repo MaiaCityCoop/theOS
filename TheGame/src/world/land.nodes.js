@@ -4,8 +4,8 @@
 // all the land round its stage.
 import { Fn, float, int, uint, vec2, vec3, vec4, floor, abs, max, clamp, mix, smoothstep, length, sqrt, atan, sin, cos, If } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { hashI, rnd, noised, vnoise, camDist, edgeJit } from './noise.nodes.js';
-export { hashI, rnd, noised, vnoise, camDist, edgeJit };
+import { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt } from './noise.nodes.js';
+export { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt };
 import { OCT_LAM, OCT_AMP, WATER_DROP, PADS, PAD_FALL, BEND, MEANDER } from './land.js';
 import { BIOMES, BASE, WATER } from './biomes.js';
 import { PLACES } from '../../world/places.js';
@@ -115,7 +115,8 @@ export function biomesAt(ctx, vars = false) {   // vars: inside a Fn, each share
   let cover = float(1), grassy = float(1), height = float(1), dry = float(0), stones = float(BASE.stones);
   const tufts = ctx.dist.lessThan(900).select(mix(tuftMask(ctx.p), 0.5, smoothstep(350, 900, ctx.dist)), float(0.5));   // grass in tufts, let go far off
   for (const { b, w } of shares) {
-    const g = b.grass, c = g ? (g.tufts ? tufts.mul(g.cover) : float(g.cover)) : float(0);
+    // (its cover a number, or told place by place: coverAt, node code)
+    const g = b.grass, cv = g ? (g.coverAt ? g.coverAt(ctx) : float(g.cover)) : null, c = g ? (g.tufts ? tufts.mul(cv) : cv) : float(0);
     cover = mix(cover, c, w); stones = mix(stones, b.stones ?? BASE.stones, w);
     if (g) { grassy = mix(grassy, c, w); height = mix(height, g.height ?? 1, w); if (g.colours?.dry) dry = mix(dry, 1, w); }
   }

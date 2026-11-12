@@ -10,10 +10,11 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, sqrt, fract, step } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf } from '../world/land.nodes.js';
+import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt } from '../world/land.nodes.js';
+import { kindsOf } from '../world/stand.js';
 import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, unlit, windAt, windDir, windStrength } from '../world/light.js';
 import { PLACES } from '../../world/places.js';
-import { recipe, recipes } from '../core/registry.js';
+import { recipe } from '../core/registry.js';
 import { geometryOf, scatterRow } from '../../assets/index.js';
 import { kindOf } from '../../assets/kinds.js';
 import { pxK } from '../detail/index.js';
@@ -34,7 +35,7 @@ const clearAt = (p) => {
     for every kind, how thick it grows, its groves, the patches where one kind or another leads, its ages, its seed);
     what the biome leaves out, the tree's own placement gives (a tree that stands alone in a biome with no stand of its own). */
 export const standOf = (asset, biome = recipe(asset.placement.biome)) => {
-  const P = asset.placement, B = biome?.trees || {};
+  const P = asset.placement, B = biome?.[P.stand ?? 'trees'] || {};
   return { cell: B.cell ?? P.cell ?? 10, density: B.density ?? P.density ?? 1, clumps: B.clumps ?? P.clumps ?? 0, patches: B.patches ?? 0, age: P.age ?? B.age ?? null, seed: B.seed ?? P.seed ?? 300 };
 };
 
@@ -53,11 +54,11 @@ function treeIn(c, row, Lv, band, biome, ST, shapes = 1, all = false, slice = [0
   If(seen ? there.and(inView(pos, seen.r, seen.high)) : there, () => {   // (and in the eye's view: not the shadow's stand-in, whose shade may fall into it)
    // which kind of tree this cell is, the same answer for every kind of the stand: a slow noise (a kind leads here, another
    // there) and the cell's own hash; this kind's if it falls in its slice
-   const lead = ST.patches ? smoothstep(0.25, 0.75, vnoise(vec2(c).add(0.5).mul(ST.cell / ST.patches), h0(322))).mul(0.7).add(rnd(cx, cy, h0(320)).mul(0.3)).min(0.9999) : rnd(cx, cy, h0(320));
+   const lead = ST.patches ? leadAt(vec2(c).add(0.5).mul(ST.cell), ST).mul(0.7).add(rnd(cx, cy, h0(320)).mul(0.3)).min(0.9999) : rnd(cx, cy, h0(320));
    If(slice[0] > 0 || slice[1] < 1 ? lead.greaterThanEqual(slice[0]).and(lead.lessThan(slice[1])) : float(1).greaterThan(0), () => {
     const r0 = rnd(cx, cy, h0(300));
     // groves and glades: a stand is not a plantation (a noise as wide as its clumps sets how thick it grows here)
-    const grove = ST.clumps ? smoothstep(0.22, 0.72, vnoise(pos.div(ST.clumps), h0(308)).mul(0.7).add(vnoise(pos.div(ST.clumps * 0.27), h0(310)).mul(0.3))).mul(1.6) : float(1), dens = grove.mul(ST.density);
+    const grove = groveAt(pos, ST), dens = grove.mul(ST.density);
     If(r0.lessThan(shareOf(biome, { p: pos, dist, d: float(1e5), w: float(1), b: float(0) }).mul(dens)), () => {   // its stands, as if far from the river
       const I = riverInfo(pos), d = abs(I.x), w = I.y;
       If(r0.lessThan(shareOf(biome, { p: pos, dist, d, w, b: I.z }).mul(dens).mul(clearAt(pos))), () => {
@@ -196,9 +197,7 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
   const ST = standOf(a, biome);
   const levels = row.detail.levels.filter((l) => !l.impostor), shapes = levels[0]?.meshes?.length ?? 1, SH = a.detail.shadow;
   // its share of its biome's cells: every kind of tree that grows there, in the order of their uids, each its share
-  const kin = recipes('asset').filter((o) => o.placement?.engine === 'trees' && o.placement.biome === P.biome).sort((x, y) => (x.uid < y.uid ? -1 : 1));
-  const total = Math.max(1, kin.reduce((t, o) => t + (o.placement.share ?? 1), 0)), before = kin.slice(0, kin.findIndex((o) => o.uid === a.uid)).reduce((t, o) => t + (o.placement.share ?? 1), 0);
-  const slice = [before / total, (before + (P.share ?? 1)) / total];
+  const slice = kindsOf(P.biome, P.stand).find((k) => k.asset.uid === a.uid)?.slice ?? [0, 1];
   // the heights a tree of it can have: its youngest and its oldest (by its growth), or its scale's
   const G = a.growth, hLo = G ? G.stages[0].hFrom * P.scale[0] : H * P.scale[0], hHi = G ? Math.max(...a.heights) * (G.stages.at(-1).hTo / G.stages.at(-1).h) * P.scale[1] : H * P.scale[1];
   // a tier per level: its cells worked out once, each tree dropped into its shape's mesh (tier.js: buckets)
@@ -214,8 +213,8 @@ export function createTrees(scene, tex, ground, row, gpu = false) {
       return m;
     };
     // (the stand-in in small patches: those whose shade cannot reach the view are dropped)
-    const t = new Tier(scene, geos, material, { cell: ST.cell, P: shadow ? 4 : Lv.P, near: 0, far: 1, order: 1, live, gpu, cap: Math.ceil(Math.min(240000, MAXP * (shadow ? 16 : Lv.P * Lv.P) * 0.4) / shapes), slots: 2, ...(shadow ? { cull: SH.reach ?? 20, fixed: SH.far * 2.4 } : {}) });
-    t.band = shadow ? () => { t.near = 0; t.far = SH.far; band.near.value = -1; band.far.value = SH.far * 2.4; }   // (grown with the camera's height by Tier.select's patches)
+    const t = new Tier(scene, geos, material, { cell: ST.cell, P: shadow ? 4 : Lv.P, near: 0, far: 1, order: 1, live, gpu, cap: Math.ceil(Math.min(240000, MAXP * (shadow ? 16 : Lv.P * Lv.P) * 0.4) / shapes), slots: 2, ...(shadow ? { cull: SH.reach ?? 20, fixed: SH.far * (SH.wide ?? 2.4) } : {}) });
+    t.band = shadow ? () => { t.near = 0; t.far = SH.far; band.near.value = -1; band.far.value = SH.far * (SH.wide ?? 2.4); }   // (grown with the camera's height by Tier.select's patches)
       : () => {   // the distances where a tree of this level can be, from the largest seen small to the smallest seen large
         const K = pxK(), e = Math.exp(row.detail.fade);
         t.near = Number.isFinite(Lv.hi) ? Math.max(0, (hLo * K) / (Lv.hi * e) - band.margin) : 0; t.far = (hHi * K * e) / Lv.lo + band.margin;

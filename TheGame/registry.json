@@ -26,10 +26,11 @@
     "type": "asset",
     "name": "Holm oak",
     "file": "assets/holmoak.js",
-    "version": "874581c8a3962ec519e5eb0c519865d49f159ced07268a1c232b551fdf60ca85",
+    "version": "16f55286468b766314fd344aa5d2fc9642162b8e40214861df6fe53aa27e36d7",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "c4cbd29b-9dd2-494d-913b-9a80c40ab8e6",
+      "d269b213-283d-4f8f-92b0-66b57ac2e8b6",
       "fb5ce908-7437-45b6-879f-154de32d12b9"
     ]
   },
@@ -37,7 +38,7 @@
     "type": "asset",
     "name": "Stone pine",
     "file": "assets/stonepine.js",
-    "version": "4d7fa28a9423ed7f9dd8b0f61fda3fbe9626eb41fa772b238a8fee3e93fa7eaa",
+    "version": "71d7c2e521014775f4e65d0c541345ca48d2f0b353416056ec1b7fc68ef29066",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
@@ -97,7 +98,7 @@
     "type": "biome",
     "name": "Pine forest",
     "file": "biomes/pineforest.js",
-    "version": "8bca99addc60289281162ffd6ead32cd7878bf4b853f5aa9739da72afff4bc69",
+    "version": "697ecf683a41da7509f06fb2f17b7c69ad6609b78734c22be670a81c666d6515",
     "uses": [
       "795da1c3-9cfe-4c4e-88c7-a58ce86444d4"
     ]
@@ -169,6 +170,13 @@
     "version": "7ecdeed24019f89833f4aee85e62193e90e4f6642ee39527f3e9bd153f8738ca",
     "uses": []
   },
+  "d269b213-283d-4f8f-92b0-66b57ac2e8b6": {
+    "type": "material",
+    "name": "Oak litter",
+    "file": "materials/oaklitter.js",
+    "version": "4bf0877d3444a80d2669c0b16e20c073361d7a9606d07785b81891d28c2e9e55",
+    "uses": []
+  },
   "0db6a039-9f7f-4a58-8137-c3348dfb922e": {
     "type": "material",
     "name": "Path",
@@ -194,7 +202,7 @@
     "type": "material",
     "name": "Pine needles",
     "file": "materials/pineneedles.js",
-    "version": "c0038f903054d9d725da629ed6b6b16955b8ebfc37b946211677e01137044add",
+    "version": "0bfaec0b5f19105927949ebf247d654e1a30641682f3f90deb85abe7e94ed2a9",
     "uses": []
   },
   "f0cd9e72-612d-4f2e-9790-0ef5f7257742": {

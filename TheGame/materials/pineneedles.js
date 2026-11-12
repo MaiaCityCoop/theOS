@@ -11,7 +11,7 @@ export default {
   type: 'material',
   name: 'Pine needles',
   kind: 'ground',
-  about: "A pine forest's floor: fallen needles, rusty and grey, crossing every way over dark earth, with bark flakes and the odd cone.",
+  about: "A pine forest's floor: fallen needles, rusty, and a greyed brown where they have lain longest, crossing every way over dark earth, with bark flakes and the odd cone.",
   usedBy: 'the floor of the pine forest',
   swatch: [0.3, 0.2, 0.12],
   bump: 0.018,   // how deep its relief reads in the normals: larger is flatter
@@ -21,12 +21,13 @@ export default {
     let h = soil.mul(0.25).add(grain.mul(0.05));
     // bark flakes: small plates of the trees' bark
     const flake = pebbles(uv, 29, 4, 0.18, 0.9);
-    col = mix(col.mul(float(1).sub(flake.z.mul(0.3))), mix(vec3(0.24, 0.15, 0.09), vec3(0.36, 0.25, 0.16), flake.y), smoothstep(0.05, 0.2, flake.x)); h = max(h, flake.x.mul(0.35));
+    col = mix(col.mul(float(1).sub(flake.z.mul(0.3))), mix(vec3(0.2, 0.13, 0.08), vec3(0.3, 0.2, 0.13), flake.y), smoothstep(0.05, 0.2, flake.x)); h = max(h, flake.x.mul(0.35));
     LAYERS.forEach(([[a, b], along, across], i) => {
       const q0 = uv.add(warp(uv, 9, 40 + i, 0.04)), q = vec2(q0.x.mul(a).add(q0.y.mul(b)), q0.x.mul(-b).add(q0.y.mul(a)));
       const f = fibre(q.mul(vec2(along, across)), [along, across], 10 + i), up = (i + 1) / LAYERS.length;
       const tone = pn(q.mul(vec2(along * 2, 4)), [along * 2, 4], 60 + i);
-      const needle = mix(mix(vec3(0.42, 0.22, 0.09), vec3(0.3, 0.17, 0.08), tone), vec3(0.36, 0.33, 0.28), smoothstep(0.55, 0.8, drift.add(tone.mul(0.3))));   // rust, and grey where they have lain longest
+      // rust, and a greyed brown where they have lain longest (as dark as litter is: a forest's floor is not straw)
+      const needle = mix(mix(vec3(0.37, 0.2, 0.085), vec3(0.27, 0.155, 0.075), tone), vec3(0.25, 0.215, 0.17), smoothstep(0.6, 0.85, drift.add(tone.mul(0.3))));
       col = mix(col, needle.mul(0.55 + 0.45 * up), f.mul(0.9)); h = max(h, f.mul(0.3 + 0.5 * up));
     });
     // a cone now and then

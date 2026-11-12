@@ -9,6 +9,9 @@ import { U } from '../core/uniforms.js';
 
 export const CASTS = 1;   // the layer of what casts a shadow
 const S = 2048;           // the map's texels a side
+/** The map's box round the camera, half its side in metres: `min` on the ground, `grow` more for every metre the camera is
+    up, `max` at most (the land reads it too: where no shadow is drawn, a stand's floor is dimmed by itself). */
+export const BOX = { min: 60, grow: 1.2, max: 900 };
 
 export function createShadows(renderer) {
   const map = () => { const rt = new THREE.RenderTarget(S, S, { count: 0, depthBuffer: true }); rt.depthTexture = new THREE.DepthTexture(S, S); rt.depthTexture.type = THREE.UnsignedIntType; rt.depthTexture.compareFunction = THREE.LessEqualCompare; rt.depthTexture.minFilter = rt.depthTexture.magFilter = THREE.LinearFilter; return rt; };   // read with a comparison sampler: filtered PCF (src/world/light.js)
@@ -26,7 +29,7 @@ export function createShadows(renderer) {
     render(scene, camera, groundY) {
       const L = U.uSunDir.value, sun = U.uSun.value;
       if (L.y < 0.03 || sun.x + sun.y + sun.z < 0.02) { U.uShadowOn.value = 0; return; }   // no light to cast by
-      const h = Math.max(0, camera.position.y - groundY), half = Math.min(900, 60 + h * 1.2), texel = (2 * half) / S;
+      const h = Math.max(0, camera.position.y - groundY), half = Math.min(BOX.max, BOX.min + h * BOX.grow), texel = (2 * half) / S;
       cam.left = -half; cam.right = half; cam.top = half; cam.bottom = -half; cam.near = 1; cam.far = 600 + half; cam.updateProjectionMatrix();
       // the box's middle on the ground under the camera, held to whole texels in the light's view so the edges do not crawl
       up.set(Math.abs(L.y) > 0.99 ? 1 : 0, Math.abs(L.y) > 0.99 ? 0 : 1, 0); target.set(camera.position.x, groundY, camera.position.z);

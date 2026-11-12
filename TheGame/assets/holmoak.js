@@ -94,6 +94,8 @@ export default tree({
   // its stages of growth, by age (years), and how many variants of each; a tree in the world is as old as its stand says
   growth: { years: [6, 18, 40, 90, 200], variants: [1, 1, 2, 2, 2], form, height, min: 2, max: 400 },
   grow: oak, shade,
+  // what it drops: the ground under it where it leads in its stand (the land lays it: src/terrain/material.js)
+  litter: { material: 'd269b213-283d-4f8f-92b0-66b57ac2e8b6' /* oak litter */, tile: [1.9, 3.1] },
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, tree (assets/kinds.js); P: cells per patch side
   levels: [{ P: 4 }, { P: 8 }, { P: 16 }, { P: 32 }],
   // where it grows: the pine forest's stand (its cells, its groves, its ages: biomes/pineforest.js `trees`), of which it

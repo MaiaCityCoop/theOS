@@ -3,12 +3,14 @@
 // says (biomes/*.js: where), in its layer's order, each material two takes mixed by noise so nothing tiles, the higher
 // one winning at a seam; lit by the shading contract.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, screenCoordinate, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, screenCoordinate, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { recipes, byRole } from '../core/registry.js';
 import { detailOf } from '../detail/index.js';
 import { int } from 'three/tsl';
-import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, shareOf, roofAt, BASE, LAID } from '../world/land.nodes.js';
+import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, shareOf, roofAt, groveAt, leadAt, BASE, LAID } from '../world/land.nodes.js';
+import { kindsOf } from '../world/stand.js';
+import { BOX } from '../world/shadow.js';
 import { finish, ign, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
 
@@ -117,10 +119,24 @@ export function terrainMaterial(tex) {
       const k0 = clamp(t.sub(0.5).mul(3).add(0.5).add(Bm.h.sub(Mm.h).mul(0.8)), 0, 1), k = k0.mul(k0).mul(float(3).sub(k0.mul(2)));
       Mm.c.assign(mix(Mm.c, Bm.c, k)); Mm.h.assign(mix(Mm.h, Bm.h, k)); Mm.n.assign(mix(Mm.n, Bm.n, k));
     };
-    const lay = (bio, wt, sp) => If(wt.greaterThan(0.003), () => {   // a biome's ground, with its spots in it, laid over what is there
-      if (!sp) return blend(M, smp(T(bio.floor)), wt);
+    // what each kind of tree drops (its `litter`: assets/kit/tree.js), if not the biome's own floor: laid where that kind
+    // leads in the biome's stand (its slice of the stand's slow noise, as its trees are placed), under its groves
+    const drops = (bio) => (bio.trees ? kindsOf(bio.uid).filter((k) => k.asset.litter && k.asset.litter.material !== bio.floor.material) : []);
+    // (how thick a biome's stand grows here: worked out once where the biome lies, for its litter and for its canopy below)
+    const groves = new Map(LAID.filter((bio) => bio.trees).map((bio) => [bio, float(0).toVar()]));
+    const lay = (bio, wt, sp) => If(wt.greaterThan(0.003), () => {   // a biome's ground, with its spots and its trees' litter in it, laid over what is there
+      const fallen = drops(bio);
+      if (groves.has(bio)) groves.get(bio).assign(groveAt(p, bio.trees));
+      if (!sp && !fallen.length) return blend(M, smp(T(bio.floor)), wt);
       const C = own(T(bio.floor));
-      If(sp.greaterThan(0.003), () => blend(C, smp(T(bio.spots)), sp));
+      if (sp) If(sp.greaterThan(0.003), () => blend(C, smp(T(bio.spots)), sp));
+      if (fallen.length) {
+        const lead = leadAt(p, bio.trees).mul(0.7).add(0.15), thick = smoothstep(0.1, 0.6, groves.get(bio));
+        for (const { asset, slice: [a, b] } of fallen) {
+          const k = (a > 0 ? smoothstep(a - 0.06, a + 0.06, lead) : float(1)).mul(b < 1 ? float(1).sub(smoothstep(b - 0.06, b + 0.06, lead)) : float(1)).mul(thick).toVar();
+          If(k.greaterThan(0.003), () => blend(C, smp(T(asset.litter)), k));
+        }
+      }
       blend(M, C, wt);
     });
     // the grassy biomes first, then the base's bare patches; over them the grass's carpet; then the base's paths, and the
@@ -139,24 +155,35 @@ export function terrainMaterial(tex) {
       lay(bio, wt.mul(bio.mix ?? 1), spots);
     }
     if (!sloped) If(steep.greaterThan(0.003), () => blend(M, smp(SLOPE), steep));
-    // far off, past where a biome's trees are drawn, its land takes the colour of their crowns (its `canopy`): in the same
-    // groves and glades its trees stand in (its stand's clumps and density, its `trees`: the same noise as src/scatter/trees.js),
-    // crowns as many as stand there, the floor between them in their shade. A forest to the horizon, in patches, for nothing
+    // a biome with a stand of trees (its `canopy`), in the same groves and glades its trees stand in (src/world/noise.nodes.js:
+    // groveAt, the trees' own):
+    //   - its floor lies in their shade. Round the camera their shadows are drawn (the shadow map, and in it the trees'
+    //     stand-in: src/world/shadow.js, assets/kit/tree.js); past that the floor is dimmed here, as much as crowns cover
+    //     it, unevenly, so a forest is not a plain in full sun with trees on it;
+    //   - far off, where its trees sink away (kinds.js: sink), the land takes the colour of their crowns, as many as stand
+    //     there. A forest to the horizon, in patches, for nothing.
+    const shade = float(0).toVar();
     L.shares.forEach(({ b: bio, w: wt }) => {
       if (!bio.canopy) return;
-      const P = bio.trees, cl = P?.clumps, A = recipes('asset').filter((o) => o.placement?.biome === bio.uid).sort((x, y) => y.size.height / detailOf(y).cut - x.size.height / detailOf(x).cut)[0];   // its stand, and of what grows there the kind drawn farthest (whatever its engine)
-      // it comes in where its trees go out: they are drawn while they are taller than their last level's pixels (the
-      // same rule, by the lens and the window: src/detail), the largest to `last` metres; without such trees, its own from/to
+      // its stand, and of what grows there the kind drawn farthest (whatever its engine)
+      const P = bio.trees, A = recipes('asset').filter((o) => o.placement?.biome === bio.uid).sort((x, y) => y.size.height / detailOf(y).cut - x.size.height / detailOf(x).cut)[0];
+      // the crowns' colour comes in where its trees go out: they are drawn while they are taller than their last level's
+      // pixels (the same rule, by the lens and the window: src/detail), the largest to `last` metres, most of them gone
+      // by two thirds of that; without such trees, its own from/to
       const cutPx = A ? detailOf(A).cut : 0, last = cutPx ? U.uPxK.mul(A.size.height / cutPx) : null;
-      const fade = last ? smoothstep(last.mul(0.42), last.mul(0.85), dist2) : smoothstep(bio.canopy.from, bio.canopy.to, dist2);
-      If(wt.mul(fade).greaterThan(0.003), () => {
-        const K = (P?.seed ?? 300) - 300, grove = cl ? smoothstep(0.22, 0.72, vnoise(p.div(cl), uint(308 + K)).mul(0.7).add(vnoise(p.div(cl * 0.27), uint(310 + K)).mul(0.3))).mul(1.6) : float(1);   // (its seed's groves, as its trees')
-        const cover = clamp(wt.mul(grove).mul((P?.density ?? 1) * 2.4), 0, 1);   // the ground under crowns: a tree a cell crowns some 2.4 cells
+      const fade = last ? smoothstep(last.mul(0.3), last.mul(0.68), dist2) : smoothstep(bio.canopy.from, bio.canopy.to, dist2);
+      // where its trees' shadows are no longer drawn: past the map's box, or past the trees' stand-in in it
+      const SH = A?.detail?.shadow, reach = SH ? min(U.uAirH.mul(BOX.grow).add(BOX.min), SH.far * (SH.wide ?? 2.4)) : null;
+      const dim = reach ? smoothstep(reach.mul(0.8), reach, length(p.sub(U.uCam.xz))) : fade;
+      If(wt.mul(max(fade, dim)).greaterThan(0.003), () => {
+        const cover = clamp(wt.mul(groves.get(bio) ?? groveAt(p, P)).mul((P?.density ?? 1) * 2.4), 0, 1);   // the ground under crowns: a tree a cell crowns some 2.4 cells
         const n = nz(p.div(23).add(0.7)).r.mul(0.35).add(nz(prr.div(31.7).add(0.2)).g.mul(0.35)).add(nz(pr.div(9.3)).g.mul(0.3));   // (takes at scales with no whole ratio: no grid of crowns)
         const under = smoothstep(float(1.08).sub(cover.mul(0.75)), float(1.22).sub(cover.mul(0.75)), n.add(cover.mul(0.45)));   // where a crown is, as many as cover says
-        const crown = vec3(...bio.canopy.colour).mul(n.mul(0.6).add(0.42)), floor = M.c.mul(mix(1, 0.45, cover));   // (darker than a crown's own colour: a crown seen from afar is mostly its own shade)   // the crowns lit unevenly; the floor between them in their shade
-        const k = fade.mul(smoothstep(0, 0.15, cover));
-        M.c.assign(mix(M.c, mix(floor, crown, under), k)); M.n.assign(M.n.mul(float(1).sub(k.mul(under)))); M.h.assign(mix(M.h, under, k));
+        // (darker than a crown's own colour: a crown seen from afar is mostly its own shade)
+        const crown = vec3(...bio.canopy.colour).mul(n.mul(0.6).add(0.42)), k = fade.mul(smoothstep(0, 0.15, cover)), top = k.mul(under);
+        M.c.assign(mix(M.c, crown, top)); M.n.assign(M.n.mul(float(1).sub(top))); M.h.assign(mix(M.h, under, k));
+        // the floor between the crowns in their shade (the crowns themselves in the light)
+        shade.assign(max(shade, dim.mul(cover).mul(n.mul(0.9).add(0.3)).min(0.85).mul(float(1).sub(top))));
       });
     });
     // the library's stage: its own ground laid into the land like any other, its frayed edge blended by height (uStageGround:
@@ -182,7 +209,7 @@ export function terrainMaterial(tex) {
     const relief = mix(0.74, 1.1, smoothstep(-6, 16, vHill));
     const s0 = max(n.dot(U.uSunDir), 0), sunl = mix(s0, smoothstep(0.55, 0.95, s0), smoothstep(60, 600, dist2).mul(0.5));
     const cs = cloudShade(vWorld).toVar();
-    const col = weathered(mix(M.c.mul(mix(1, 0.5, wet)).mul(macro).mul(cav), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).mul(skyLight(n).mul(cs.mul(0.3).add(0.7)).add(U.uSun.mul(cs).mul(sunDim()).mul(shadowAt(vWorld)).mul(sunl)));   // under a cloud the sky is dimmer too (the clouds' shade read once: light.js cloudAt is these three)
+    const col = weathered(mix(M.c.mul(mix(1, 0.5, wet)).mul(macro).mul(cav), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).mul(skyLight(n).mul(cs.mul(0.3).add(0.7)).mul(float(1).sub(shade.mul(0.35))).add(U.uSun.mul(cs).mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)).mul(sunl)));   // under a cloud the sky is dimmer too (the clouds' shade read once: light.js cloudAt is these three)
     const V = normalize(U.uCam.sub(vWorld));
     return finish(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), vWorld);
   });
