@@ -5,7 +5,8 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, positionWorld, normalWorld, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cross, dot, cos, sin } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, camDist, riverInfo, heightAt, outcropMask, grassTint, biomesAt } from '../world/land.nodes.js';
-import { finish, skyLight, weathered, snowLift, cloudAt, detailCut, detailKeep, unlit } from '../world/light.js';
+import { finish, skyLight, weathered, snowLift, cloudAt, unlit } from '../world/light.js';
+import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { Tier, offScreen, clipOf, MAXP } from './tier.js';
 import { byRole } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
@@ -99,9 +100,9 @@ function rockShade(tex, row, s, eye = U.uCam) {
 const PXK = uniform(pxK()); addEventListener('resize', () => (PXK.value = pxK()));
 
 // what lies in a cell: a rock of this shape and level, or nothing. Its place, the ground under it, its size, its turn,
-// the grass's colour round it (for its moss) and its share of the hand-over between levels; packed into four vec4 (A: x,
+// the grass's colour round it (for its moss); packed into four vec4 (A: x,
 // z, its base's height, its size; B: the axis it is turned about, the angle; C: the grass's colour, the dryness; D: its
-// three scales, its share and side packed). Done once per rock (src/scatter/tier.js).
+// three scales, its size across). Done once per rock (src/scatter/tier.js).
 function rockIn(c, tex, ground, row, Lv, band) {
   const big = !!row.outcrops, fade = row.detail.fade, cx = c.x, cy = c.y;
   const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), C = vec4(0).toVar(), D = vec4(0).toVar();
@@ -125,11 +126,14 @@ function rockIn(c, tex, ground, row, Lv, band) {
       If(ok.greaterThan(0.5), () => {
         const r1 = rnd(cx, cy, uint(204)), r2 = rnd(cx, cy, uint(205)), r3 = rnd(cx, cy, uint(206)), r4 = rnd(cx, cy, uint(207));
         const s = mix(row.size[0], row.size[1], r1.mul(r1).mul(r1).add(oc.mul(big ? 0.25 : 0).mul(r1)));
-        const keep = detailKeep(s.mul(2).mul(PXK).div(max(dist, 1e-3)), Lv.lo, Lv.hi, fade);   // its size on screen picks the level, with a hand-over
-        If(keep.x.greaterThan(0), () => {
+        // of this level while it is the size on screen the level asks, and a little either side: its hand-over, and as far
+        // as the camera may move before the cells are worked out again (band.pad). What of it shows, its vertices say
+        // each frame (src/detail/handover.js)
+        const span = s.mul(2).mul(PXK);
+        If(dist.lessThan(span.mul(band.to).add(band.pad)).and(dist.greaterThanEqual(span.mul(band.from).sub(band.pad))), () => {
           const ax = normalize(vec3(rnd(cx, cy, uint(208)), rnd(cx, cy, uint(209)), rnd(cx, cy, uint(210))).sub(0.5).add(1e-4));
           A.assign(vec4(pos, y.sub(s.mul(0.22)), s)); B.assign(vec4(ax, rnd(cx, cy, uint(211)).mul(6.2831853))); C.assign(vec4(tint, ar));
-          D.assign(vec4(vec3(r2.mul(0.5).add(0.8), r3.mul(0.4).add(0.55), r4.mul(0.5).add(0.8)).mul(s), keep.x.add(keep.y.mul(2))));
+          D.assign(vec4(vec3(r2.mul(0.5).add(0.8), r3.mul(0.4).add(0.55), r4.mul(0.5).add(0.8)).mul(s), s.mul(2)));
           alive.assign(1);
         });
       });
@@ -140,16 +144,24 @@ function rockIn(c, tex, ground, row, Lv, band) {
 
 // the rock's material: shape(A, B, C, D) its vertex from what rockIn packed, and its light
 function rockMaterial(tex, row) {
-  return () => {
-    const vWorld = varyingProperty('vec3', 'vWorld'), vN = varyingProperty('vec3', 'vN'), vTint = varyingProperty('vec3', 'vTint'), vAL = varyingProperty('vec2', 'vAL'), vKeep = varyingProperty('vec2', 'vKeep');
+  // Lv: the level it is drawn as ({ lo, hi, last }), its numbers uniforms; none: whole (the library's)
+  return (Lv = null) => {
+    const vWorld = varyingProperty('vec3', 'vWorld'), vN = varyingProperty('vec3', 'vN'), vTint = varyingProperty('vec3', 'vTint'), vAL = varyingProperty('vec2', 'vAL');
+    const LU = Lv && levelOf(Lv, row.detail.fade);
     const shape = (A, B, C, D) => {
-      const scl = D.xyz, ax = B.xyz, cs = cos(B.w), sn = sin(B.w), l = rot(positionGeometry.mul(scl), ax, cs, sn), side = floor(D.w.mul(0.5));
-      const w = vec3(A.x, A.z, A.y).add(l);
-      vN.assign(rot(normalize(attribute('normal', 'vec3').div(scl)), ax, cs, sn)); vWorld.assign(w); vTint.assign(C.rgb); vAL.assign(vec2(C.w, l.y.div(A.w))); vKeep.assign(vec2(D.w.sub(side.mul(2)), side));
-      return clipOf(w);
+      const clip = offScreen().toVar();
+      // the one hand-over (src/detail/handover.js): a rock is of one piece, its levels one outline: it changes over whole,
+      // half way; its last level sinks into the ground
+      const H = Lv ? handOver(D.w.mul(PXK).div(max(camDist(A.xy), 1e-3)), LU, row.detail.sink) : null;
+      If(H ? H.there.and(H.whole) : float(1).greaterThan(0), () => {
+        const scl = D.xyz, ax = B.xyz, cs = cos(B.w), sn = sin(B.w), l0 = rot(positionGeometry.mul(scl), ax, cs, sn), l = H ? sinkInto(l0, H.sunk) : l0;
+        const w = vec3(A.x, A.z, A.y).add(l);
+        vN.assign(rot(normalize(attribute('normal', 'vec3').div(scl)), ax, cs, sn)); vWorld.assign(w); vTint.assign(C.rgb); vAL.assign(vec2(C.w, l.y.div(A.w)));
+        clip.assign(clipOf(w));
+      });
+      return clip;
     };
     const frag = Fn(() => {
-      If(detailCut(vKeep), () => { Discard(); });   // its share of a hand-over between levels
       const out = vec4(0).toVar();
       If(unlit().not(), () => { out.assign(rockShade(tex, row, { world: vWorld, n: vN, tint: vTint, arid: vAL.x, ly: vAL.y })); });   // drawn into the shadow map: only its depth counts
       return out;
@@ -177,9 +189,10 @@ export function createRocks(scene, tex, ground, row, gpu = false) {
   const span = [2 * row.size[0], 2 * row.size[1] * (row.outcrops ? 1.25 : 1)];   // a rock is an icosphere of radius 1 times its size
   const make = rockMaterial(tex, row);
   for (const Lv of levels) {   // a tier per level, its shapes buckets of it: the cells worked out once (tier.js)
-    const band = { near: uniform(0), far: uniform(1) }, live = (c) => rockIn(c, tex, ground, row, Lv, band);
+    const pad = ((row.cell * Lv.P) / 16) * 1.8, e = Math.exp(fade);
+    const band = { near: uniform(0), far: uniform(1), pad: uniform(pad), to: uniform(e / Lv.lo), from: uniform(Number.isFinite(Lv.hi) ? 1 / (Lv.hi * e) : 0) }, live = (c) => rockIn(c, tex, ground, row, Lv, band);
     const material = (src, k) => {
-      const { m, shape } = make();
+      const { m, shape } = make({ lo: Lv.lo, hi: Lv.hi, last: Lv.i === levels.length - 1 });
       m.vertexNode = src.read ? Fn(() => shape(src.read(0), src.read(1), src.read(2), src.read(3)))()   // ready-made by the compute pass
         : Fn(() => { const L = live(src), out = offScreen().toVar(); If(L.alive.and(L.bucket.equal(float(k))), () => { out.assign(shape(...L.data)); }); return out; })();   // the fallback: worked out here, per vertex
       return m;
@@ -188,7 +201,7 @@ export function createRocks(scene, tex, ground, row, gpu = false) {
     const t = new Tier(scene, geos, material, { cell: row.cell, P: Lv.P, near: 0, far: 1, order: 1, live, gpu, cap: Math.ceil(MAXP * Lv.P * Lv.P * 0.3), slots: 4 });
     t.band = () => {   // the distances where a rock of this level can be, from the largest seen small to the smallest seen large
       const K = pxK(), e = Math.exp(fade);
-      t.near = Number.isFinite(Lv.hi) ? (span[0] * K) / (Lv.hi * e) : 0; t.far = (span[1] * K * e) / Lv.lo;
+      t.near = Number.isFinite(Lv.hi) ? Math.max(0, (span[0] * K) / (Lv.hi * e) - pad) : 0; t.far = (span[1] * K * e) / Lv.lo + pad;
       band.near.value = t.near > 0 ? t.near : -1; band.far.value = t.far;
     };
     t.band(); if (row.detail.casts) t.meshes.forEach((m) => m.layers.enable(1)); tiers.push(t);   // rocks cast shadows, as drawn (src/world/shadow.js)

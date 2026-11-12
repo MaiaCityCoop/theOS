@@ -1,5 +1,5 @@
 // The detail engine (intent 0002): one way for every asset to choose its level of detail, by its size on screen, with
-// a dithered hand-over between levels so none pops. It holds no number of any asset: each asset's file keeps its own
+// a hand-over between levels so none pops (handover.js: the one way it is drawn, for everything). It holds no number of any asset: each asset's file keeps its own
 // `detail` block (its levels, near to far, and any px or fade of its own), and assets/kinds.js the defaults by kind.
 //
 // A level i is drawn while the asset is between lo (its px) and hi (the level before's px) pixels tall on screen.
@@ -8,6 +8,7 @@
 import * as THREE from 'three/webgpu';
 import { U } from '../core/uniforms.js';
 import { kindRule } from '../../assets/kinds.js';
+import { handOverAt } from './handover.js';
 
 /** the larger end of a size that varies ([min, max]), or the size */
 export const most = (v) => (Array.isArray(v) ? v[1] : v);
@@ -64,9 +65,10 @@ export class Detailed extends THREE.LOD {
     const px = (this.px = (this.span * U.uPxK.value) / (d * U.uLodInv.value));   // the lens and the detail governor count, as for the scatter
     const { levels, fade } = this.d; let shown = -1;
     for (let i = 0; i < levels.length; i++) {
-      const [keep, side] = keepOf(px, levels[i].lo, levels[i].hi, fade), m = this.meshes[i];
-      m.visible = keep > 0; m.material.keep.value.set(keep, side);
-      if (keep > 0 && shown < 0) shown = i;
+      // the one hand-over (handover.js): a made thing is of one piece: it changes over whole, half way; its last level sinks
+      const H = handOverAt(px, levels[i].lo, levels[i].hi, fade, i === levels.length - 1, this.d.sink), m = this.meshes[i];
+      m.visible = H.whole; m.material.sunk.value = H.sunk;
+      if (H.whole && shown < 0) shown = i;
     }
     this.level = shown;   // the finest level drawing now (-1: none)
   }

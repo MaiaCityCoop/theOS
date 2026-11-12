@@ -22,6 +22,7 @@ import { recipe } from '../core/registry.js';
 import { geometryOf, scatterRow } from '../../assets/index.js';
 import { kindOf } from '../../assets/kinds.js';
 import { pxK, sizeOf } from '../detail/index.js';
+import { levelOf, handOver, partGrown, sinkInto } from '../detail/handover.js';
 import { Tier, offScreen, clipOf, MAXP } from './tier.js';
 import { inView } from './view.js';
 import { setTrunks } from '../world/trunks.js';
@@ -115,7 +116,7 @@ function treeMaterial(tex, row) {
   // one shader to the GPU, compiled once.
   return (Lv = null) => {
     const Hk = uniform(H).onObjectUpdate(({ object }) => object?.userData?.hk ?? H), slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0);
-    const f = row.detail.fade, LU = Lv && { hi: uniform(Number.isFinite(Lv.hi) ? Math.log(Lv.hi) + f : 1e3), lo: uniform(Math.log(Lv.lo) + f), px: uniform(Lv.lo), last: uniform(Lv.last ? 1 : 0) };
+    const LU = Lv && levelOf(Lv, row.detail.fade);
     // what a pixel needs: where on its texture, and the light, the snow and the air already worked out at its corners
     // (vMul: what its texture's colour is multiplied by; vAdd: what is added: the snow on it, the air before it), so a
     // pixel reads its texture and is done. A crown is many cards deep: its pixels are many more than its corners.
@@ -126,19 +127,11 @@ function treeMaterial(tex, row) {
     const shape = (A, B) => {
       const clip = offScreen().toVar(), shown = float(1).greaterThan(0).toVar(), grown = float(1).toVar(), sunk = float(1).toVar();
       if (Lv) {
-        // its size on screen now, as its cell reckoned it (its largest side, B.w): u, how far it has come in from the finer
-        // level (0: not yet); v, how far it has gone out to the coarser one (1: gone). Two levels drawn at once reckon
-        // the same share. Each sprig has its own moment in it (a hash of its foot): the finer level's shrink to their
-        // feet one after another, the coarser one's grow from theirs; the wood changes over half way, as one.
-        const px = B.w.mul(PXK).div(max(camDist(A.xy), 1e-3)), L = log(max(px, 1e-6)), WIN = 0.4;
-        const u = clamp(LU.hi.sub(L).div(2 * f), 0, 1), v = clamp(LU.lo.sub(L).div(2 * f), 0, 1).mul(float(1).sub(LU.last));
-        const at = fract(sin(attribute('root', 'vec3').dot(vec3(12.9898, 78.233, 37.719))).mul(43758.5453)).mul(1 - WIN);
-        // (a crown that is one body: the coarser one's there by half way, the finer one's shrinking from then)
-        const come = mix(smoothstep(at, at.add(WIN), u), smoothstep(0, 0.5, u), body), go = float(1).sub(mix(smoothstep(at, at.add(WIN), v), smoothstep(0.5, 1, v), body));
-        grown.assign(mix(float(1), come.mul(go), step(0.5, part)));
-        // its last level sinks into the ground over its last pixels: lower first, then narrower, to nothing
-        if (row.detail.sink > 1) sunk.assign(mix(float(1), smoothstep(LU.px, LU.px.mul(row.detail.sink), px), LU.last));
-        shown.assign(u.greaterThan(0).and(v.lessThan(1)).and(sunk.greaterThan(0)).and(part.greaterThan(0.5).or(u.greaterThanEqual(0.5).and(v.lessThan(0.5)))));
+        // its size on screen now, as its cell reckoned it (its largest side, B.w), and from it the one hand-over
+        // (src/detail/handover.js): its sprigs part by part, its wood whole, its last level sinking
+        const H = handOver(B.w.mul(PXK).div(max(camDist(A.xy), 1e-3)), LU, row.detail.sink);
+        grown.assign(mix(float(1), partGrown(H, attribute('root', 'vec3'), body), step(0.5, part))); sunk.assign(H.sunk);
+        shown.assign(H.there.and(part.greaterThan(0.5).or(H.whole)));
       }
       If(shown, () => { clip.assign(stand(A, B, grown, sunk)); });
       return clip;
@@ -146,7 +139,7 @@ function treeMaterial(tex, row) {
     const stand = (A, B, grown, sunk) => {
       const s = A.w, cs = cos(B.x), sn = sin(B.x), turn = (v) => vec3(v.x.mul(cs).sub(v.z.mul(sn)), v.y, v.x.mul(sn).add(v.z.mul(cs)));
       // (a sprig grown from its foot, the crown's body from its middle; the whole tree sunk)
-      const wide = sqrt(sunk), g0 = Lv ? mix(attribute('root', 'vec3'), positionGeometry, grown).mul(vec3(wide, sunk, wide)) : positionGeometry;
+      const g0 = Lv ? sinkInto(mix(attribute('root', 'vec3'), positionGeometry, grown), sunk) : positionGeometry;
       const lean = vec2(cos(B.y), sin(B.y)).mul(B.z.sub(0.5).mul(2 * (a.placement.lean ?? 0))), lp = g0.add(vec3(lean.x, 0, lean.y).mul(g0.y)), up = clamp(lp.y.div(Hk), 0, 1);   // each leans its own way
       // the wind: the crown sways, the foot stays (the push grows with height squared), a slow sway of its own (from a
       // breeze up); and its sprigs swing in the wind, each as one from its foot, its tip most (a card's corners share its

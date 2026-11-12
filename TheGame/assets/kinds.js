@@ -12,8 +12,9 @@
 //   casts     whether it casts a shadow (src/world/shadow.js): every level, card included, casts as drawn, so a new asset's
 //             shadow is its own shape at the level the eye sees; an asset may say `casts: false` in its `detail` block
 //   measure  what its size on screen is measured by: its largest side, or 'height' (src/detail/index.js: sizeOf)
-//   fade   half the width of the hand-over between two levels, on a log scale (.15: from 14 % above to 14 % below)
-//   sink   a tree's way out (src/scatter/trees.js): below `sink` times its last level's pixels it sinks into the ground,
+//   fade   half the width of the hand-over between two levels, on a log scale (.15: from 14 % above to 14 % below);
+//          how it is drawn, for every kind: src/detail/handover.js
+//   sink   everything's way out (src/detail/handover.js): below `sink` times its last level's pixels it sinks into the ground,
 //          gone at the last pixel, where its biome's canopy has coloured the land; nothing drops out of the picture
 //   wind   how it moves in the wind (src/world/place.js): { billow, flap } in metres at a storm; it is held still at the
 //          ground and along its middle (a pole, a trunk) and moves most halfway up and out; none where a kind does not move
@@ -26,7 +27,7 @@
 //   surface   how its faces take the light (src/world/place.js): { wrap (0..1, light wrapping round a soft thing), through
 //             (0..1, light shining through a thin one when the sun is behind it) }
 const KINDS = {
-  default: { px: [200, 60, 20, 6], fade: 0.15, impostor: { px: 1.5, views: 8 }, solid: { box: true }, casts: true, snow: { clumps: 0.08 }, surface: { wrap: 0, through: 0 } },
+  default: { px: [200, 60, 20, 6], fade: 0.15, sink: 1.7, impostor: { px: 1.5, views: 8 }, solid: { box: true }, casts: true, snow: { clumps: 0.08 }, surface: { wrap: 0, through: 0 } },
   tree: { px: [260, 80, 34, 18, 7, 3], measure: 'height', fade: 0.1, sink: 1.7, impostor: false, solid: { post: 0.03 }, casts: true, snow: { clumps: 0.3 }, wind: { sway: 0.35 }, foliage: { wrap: 0.45, through: 0.55, flutter: 1 } },   // a 12 m pine: its finest to about 30 m, its farthest (the kit's: a crown as one body, then a speck of eight triangles) to over two kilometres; then its biome's canopy colours the land
   shrub: { px: [140, 30, 3], fade: 0.1, sink: 1.7, impostor: false, solid: false, casts: false, snow: { clumps: 0.2 }, wind: { sway: 0.15 }, foliage: { wrap: 0.4, through: 0.3, flutter: 0.6 } },   // a bush three metres across: its finest to 13 m, its body from 60 m, sunk away by 600, where the land wears its stand's colour; walked through, no shadow of its own
   grass: { impostor: false, solid: false, casts: false },   // blades: drawn in rings by the grass's engine (its own tiers), nothing a walker cannot pass

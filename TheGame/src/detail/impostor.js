@@ -6,7 +6,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, uniform, varyingProperty, positionGeometry, attribute, normalLocal, frontFacing, modelWorldMatrix, cameraProjectionMatrix, cameraViewMatrix, texture, normalize, cross, abs, max, clamp, floor, length, sqrt, mat3, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { finish, skyLight, weathered, snowLift, cloudAt, detailCut, unlit } from '../world/light.js';
+import { finish, skyLight, weathered, snowLift, cloudAt, unlit } from '../world/light.js';
 
 let renderer = null;
 /** The game's renderer bakes the atlases (set once by src/main.js). */
@@ -57,10 +57,10 @@ function bake(geo, n) {
 export function impostorOf(geo, n = 8, snow = { clumps: 0.08 }) {   // snow: how the asset holds it (assets/kinds.js)
   const key = `${n}:${hashOf(geo)}`;
   if (!kept.has(key)) kept.set(key, bake(geo, n));
-  const A = kept.get(key), N = n, keep = uniform(new THREE.Vector2(1, 0));
+  const A = kept.get(key), N = n, sunk = uniform(1);
   const vUV = varyingProperty('vec2', 'vUV'), vWorld = varyingProperty('vec3', 'vWorld'), vCell = varyingProperty('vec2', 'vCell');
   const vM0 = varyingProperty('vec3', 'vM0'), vM1 = varyingProperty('vec3', 'vM1'), vM2 = varyingProperty('vec3', 'vM2');
-  const m = new THREE.NodeMaterial(); m.side = THREE.DoubleSide; m.keep = keep;
+  const m = new THREE.NodeMaterial(); m.side = THREE.DoubleSide; m.sunk = sunk;
   m.vertexNode = Fn(() => {
     const C = modelWorldMatrix.mul(vec4(A.centre.x, A.centre.y, A.centre.z, 1)).xyz;
     const M = mat3(modelWorldMatrix[0].xyz, modelWorldMatrix[1].xyz, modelWorldMatrix[2].xyz);
@@ -71,12 +71,12 @@ export function impostorOf(geo, n = 8, snow = { clumps: 0.08 }) {   // snow: how
     const c = cell.add(0.5).div(N).mul(2).sub(1), p = vec2(c.x.add(c.y), c.x.sub(c.y)).mul(0.5);
     const D = normalize(M.mul(normalize(vec3(p.x, max(float(1).sub(abs(p.x)).sub(abs(p.y)), 1e-4), p.y))));                              // the view the card shows
     const R = normalize(cross(vec3(0, 1, 0), D)), Up = cross(D, R);
-    const w = C.add(R.mul(positionGeometry.x).add(Up.mul(positionGeometry.y)).mul(A.radius));
+    // (the card sinks from its foot as its thing's last level does: src/detail/handover.js)
+    const w = C.add(R.mul(positionGeometry.x.mul(sunk.sqrt())).add(Up.mul(positionGeometry.y.add(1).mul(sunk).sub(1))).mul(A.radius));
     vUV.assign(positionGeometry.xy.mul(0.5).add(0.5)); vWorld.assign(w);
     return cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(w, 1));
   })();
   m.fragmentNode = Fn(() => {
-    If(detailCut(keep), () => { Discard(); });
     const t = clamp(vUV, 0.02, 0.98), uv = vec2(vCell.x.add(t.x), vCell.y.add(float(1).sub(t.y))).div(N);   // a target's viewport counts its rows from the top, and reads them turned (src/scatter/ground.js)
     const a = texture(A.albedo, uv); If(a.a.lessThan(0.5), () => { Discard(); });
     const out = vec4(0).toVar();

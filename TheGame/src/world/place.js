@@ -4,7 +4,8 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec3, vec4, uniform, varying, attribute, positionLocal, positionWorld, normalLocal, normalWorld, modelWorldMatrix, modelWorldMatrixInverse, normalize, max, clamp, length, smoothstep, sin, pow, uint, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { finish, skyLight, weathered, snowCover, snowLift, snowDepth, cloudAt, detailCut, windAt, windStrength, unlit } from './light.js';
+import { finish, skyLight, weathered, snowCover, snowLift, snowDepth, cloudAt, windAt, windStrength, unlit } from './light.js';
+import { sinkInto } from '../detail/handover.js';
 import { vnoise } from './noise.nodes.js';
 import { heightAt } from './land.js';
 import { addSolid } from './solids.js';
@@ -35,13 +36,13 @@ export const surfaceOf = (asset) => kindOf(asset, 'surface');
 
 /** The material every asset shares: its own colours (per face), lit by the sun and the sky, hazed like the land, moving
     in the wind as its recipe says; darker where it meets the ground, faintly mottled, soft or thin as its surface says.
-    Its `keep` is this level's share of the pixels in a hand-over (src/detail). */
+    Its `sunk` is how far its last level has sunk away (src/detail/handover.js). */
 export function assetMaterial(asset) {
-  const keep = uniform(new THREE.Vector2(1, 0)), vCol = varying(attribute('color', 'vec3'));
-  const m = new THREE.NodeMaterial(); m.side = THREE.DoubleSide; m.keep = keep;
-  const sway = asset && swayOf(asset); if (sway) m.positionNode = sway;
+  const sunk = uniform(1), vCol = varying(attribute('color', 'vec3'));
+  const m = new THREE.NodeMaterial(); m.side = THREE.DoubleSide; m.sunk = sunk;
+  // (its last level sinks into the ground over its last pixels: src/detail/handover.js)
+  m.positionNode = sinkInto((asset && swayOf(asset)) || positionLocal, sunk);
   m.fragmentNode = Fn(() => {
-    If(detailCut(keep), () => { Discard(); });
     const out = vec4(0).toVar();
     If(unlit().not(), () => {   // drawn into the shadow map, only its depth counts: no light
       const w = positionWorld, nw = normalize(normalWorld), n = nw.dot(U.uCam.sub(w)).lessThan(0).select(nw.negate(), nw), S = surfaceOf(asset);   // the face's side towards the eye (a face's winding is not to be trusted)
