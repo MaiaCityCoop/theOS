@@ -3,7 +3,7 @@
 // says (biomes/*.js: where), in its layer's order, each material two takes mixed by noise so nothing tiles, the higher
 // one winning at a seam; lit by the shading contract.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, attribute, positionGeometry, varying, dFdx, dFdy, If, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varying, dFdx, dFdy, If, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { int } from 'three/tsl';
 import { camDist, riverInfo, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, BASE } from '../world/land.nodes.js';
@@ -28,6 +28,14 @@ export function terrainMaterial(tex) {
   const world = vec3(wp.x, h, wp.y);
   const vWorld = varying(world), vI = varying(I), vN = varying(normalize(vec3(h.sub(hx), e, h.sub(hz))));
   const vPth = varying(pathN(wp)), vOut = varying(outcropMask(wp)), vHill = varying(h.sub(baseB(wp)));   // how far this ground stands over the valley's floor
+  // every biome's share, worked out per vertex (half a metre apart near by; a biome's edge varies over metres, not
+  // pixels) and handed on in vec4s: its share, then its spots' where it has them; and the grass's cover and the dryness
+  const Lv = biomesAt({ p: wp, dist, d: abs(I.x), w: I.y, b: I.z });
+  const ctxV = { p: wp, dist, d: abs(I.x), w: I.y, b: I.z }, lanes = [];
+  const shareLane = Lv.shares.map(({ b, w }) => { lanes.push(w); const at = lanes.length - 1; if (b.spots?.where) lanes.push(b.spots.where(ctxV)); return at; });
+  while (lanes.length % 4) lanes.push(float(0));
+  const packs = []; for (let i = 0; i < lanes.length; i += 4) packs.push(varying(vec4(lanes[i], lanes[i + 1], lanes[i + 2], lanes[i + 3])));
+  const lane = (i) => packs[i >> 2].element(i & 3), vGD = varying(vec2(Lv.grassy, Lv.dry));
 
   // ---- fragment ----
   const T = (gr) => ({ m: gr.material, t1: gr.tile[0], t2: gr.tile[1] });
@@ -44,7 +52,8 @@ export function terrainMaterial(tex) {
     // the land's colour variation, from the baked cloudy noise
     const nz = (q) => tex.a(noise, q);
     const macro = nz(prr.mul(1 / 97).add(0.37)).b.sub(0.5).mul(0.16).add(nz(pr.mul(1 / 700)).a.sub(0.5).mul(0.2)).add(nz(p.mul(1 / 4500).add(0.11)).r.sub(0.5).mul(0.18)).add(1);
-    const d = abs(vI.x), w = vI.y, b = vI.z, L = biomesAt({ p, dist: dist2, d, w, b });   // every biome's share here
+    const d = abs(vI.x), w = vI.y, b = vI.z;
+    const L = { shares: Lv.shares.map(({ b: bio }, k) => ({ b: bio, w: lane(shareLane[k]), spots: bio.spots?.where ? lane(shareLane[k] + 1) : null })), grassy: vGD.x, dry: vGD.y };   // every biome's share here, from the vertices
     const tint = grassTint(tex, p, L.dry);
     // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up
     const g1 = tex.a(carpet, p.div(1.6)), g2 = tex.a(carpet, pr.div(9.6)), g3 = tex.a(carpet, prr.div(57));
@@ -71,15 +80,15 @@ export function terrainMaterial(tex) {
       const k0 = clamp(t.sub(0.5).mul(3).add(0.5).add(Bm.h.sub(Mm.h).mul(0.8)), 0, 1), k = k0.mul(k0).mul(float(3).sub(k0.mul(2)));
       Mm.c.assign(mix(Mm.c, Bm.c, k)); Mm.h.assign(mix(Mm.h, Bm.h, k)); Mm.n.assign(mix(Mm.n, Bm.n, k));
     };
-    const lay = (bio, wt) => If(wt.greaterThan(0.003), () => {   // a biome's ground, with its spots in it, laid over what is there
-      if (!bio.spots) return blend(M, smp(T(bio.floor)), wt);
-      const C = own(T(bio.floor)), sp = bio.spots.where({ p, dist: dist2, d, w, b });
+    const lay = (bio, wt, sp) => If(wt.greaterThan(0.003), () => {   // a biome's ground, with its spots in it, laid over what is there
+      if (!sp) return blend(M, smp(T(bio.floor)), wt);
+      const C = own(T(bio.floor));
       If(sp.greaterThan(0.003), () => blend(C, smp(T(bio.spots)), sp));
       blend(M, C, wt);
     });
     // the grassy biomes first, then the base's bare patches; over them the grass's carpet; then the base's paths, and the
     // biomes nothing grows on (and the base's rock on its slopes) in their layers' order
-    for (const { b: bio, w: wt } of L.shares) if (bio.grass) lay(bio, wt.mul(bio.mix ?? 1));
+    for (const { b: bio, w: wt, spots } of L.shares) if (bio.grass) lay(bio, wt.mul(bio.mix ?? 1), spots);
     const bd = max(bare.sub(stage).max(0).mul(float(1).sub(L.dry)), vOut.mul(0.25));
     If(bd.greaterThan(0.003), () => blend(M, smp(PATCH), bd));
     const cv = float(1).sub(bare).mul(L.grassy).mul(smoothstep(4, 60, dist2).mul(0.18).add(0.82));   // where the blades end, nothing shows
@@ -87,10 +96,10 @@ export function terrainMaterial(tex) {
     If(path.greaterThan(0.003), () => blend(M, smp(PATCH), path));
     const steep = smoothstep(0.8, 0.68, vN.y), slopeAt = BASE.slopes?.layer ?? Infinity;
     let sloped = !SLOPE;
-    for (const { b: bio, w: wt } of L.shares) {
+    for (const { b: bio, w: wt, spots } of L.shares) {
       if (bio.grass) continue;
       if (!sloped && bio.layer > slopeAt) { sloped = true; If(steep.greaterThan(0.003), () => blend(M, smp(SLOPE), steep)); }
-      lay(bio, wt.mul(bio.mix ?? 1));
+      lay(bio, wt.mul(bio.mix ?? 1), spots);
     }
     if (!sloped) If(steep.greaterThan(0.003), () => blend(M, smp(SLOPE), steep));
     // the library's stage: its own ground laid into the land like any other, its frayed edge blended by height (uStageGround:
