@@ -681,6 +681,20 @@ shadows and the grass.
   ragged now, no longer rectangular. From now on a change to a shader is opened in the real Safari before it is
   committed (`open -a Safari` on a page of the game, then its frames in the hitch log).
 
+### 2026-11-12, undergrowth: three shrubs (15:40)
+
+- **Asked:** simple, cheap shrubs, each its own asset.
+- **Delivered:** a kind `shrub` (assets/kinds.js: its finest to some 10 m, gone by a few hundred; walked through, no
+  shadow of its own); the kit's `mound()` (a few stems, a mound of sprigs); a biome's understory as a second stand
+  (biomes/pineforest.js `shrubs`; a shrub's `placement.stand`), read by the trees' engine as it reads `trees`;
+  `foliage.tint` for a plant that borrows another's sprig. Three files: mastic (a dark dome to a man's height),
+  rockrose (a low grey-green mound), bracken (fronds arching from one foot). Their farthest levels are the kit's.
+- **Good:** no errors in WebKit; the library opens in Samuel's Safari with them. In a forest view some 400 to 700
+  shrubs, 9 to 10 thousand triangles, beside the trees' 750 thousand.
+- **Broke / not there yet:** no sprig of their own: mastic and rockrose wear the holm oak's leaves, bracken the pine's
+  tuft, each tinted; up close the bracken is a fan of needle strokes, not a frond. The frame's time with them not
+  measured: several pages of the game shared the GPU at the time.
+
 ## Trail
 
 | When | Commit | What |
@@ -738,3 +752,4 @@ shadows and the grass.
 | 2026-11-12 | `7103261` | The forest's floor: shade past the shadow map, each tree's litter, green grass in the glades |
 | 2026-11-12 | `bcbb58e` | From high up: the land melts into the horizon, clouds from above; the ground's textures filtered 4 and 2 taps |
 | 2026-11-12 | `4ddb352` | The biomes' outlines bent off the noise's grid; held at the tent; the same in JS |
+| 2026-11-12 | `aaf4dca` | Undergrowth: the kind shrub, the understory stand, mastic, rockrose, bracken |
