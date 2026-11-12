@@ -806,6 +806,20 @@ shadows and the grass.
 - **Broke / not there yet:** not seen in motion by me. The trees' crowns still draw each level's puffs at places of
   their own (the kit's `crown`, the pine's own code): the same fault, less seen on a dense crown.
 
+### 2026-11-12, leaves their own size at every level (17:44)
+
+- **Asked:** (a recording, now readable) it is still popping; aren't those discs moss?
+- **Found:** in his frames, 15 a second: a bush 10 to 20 m off changes its foliage as he nears it, leaves two to three
+  times too large giving way to small ones. A coarser level's card was the same sprig picture stretched over a larger
+  card: giant leaves, on every bush in a ring round the walker. (The flat green discs at his feet are moss on stones,
+  as he said: I had taken them for bushes' far bodies, wrongly.)
+- **Delivered:** a card may repeat its sprig's picture (the kit's `cards`: `rep`); a bush's coarser levels repeat it as
+  many times as the card is larger, so leaves keep their size at every level.
+- **Good:** stills at 15 to 40 m: the bushes' foliage as fine as near by. His film page in Safari on this code: 240
+  frames per 4 s, the pixel ratio rising to 1.9.
+- **Broke / not there yet:** not judged in motion by me. The trees' coarser levels still stretch their tufts (seen
+  from 35 m on, far less plain). His walk in the wood ran 50 to 57 fps while he recorded it.
+
 ## Trail
 
 | When | Commit | What |
@@ -870,3 +884,4 @@ shadows and the grass.
 | 2026-11-12 | `58e8563` | One hand-over for everything: rocks, placed assets and their cards as the plants |
 | 2026-11-12 | `bdefbaf` | A stand changes level as one; a bush's in-between level; the stand's colour on the land early |
 | 2026-11-12 | `45da420` | A bush the same at every level: sprigs shared between levels swell in place |
+| 2026-11-12 | `41413bd` | A bush's coarser levels repeat the sprig, leaves their own size |
