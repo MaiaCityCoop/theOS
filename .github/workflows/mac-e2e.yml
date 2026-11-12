@@ -1,5 +1,7 @@
 name: TheGame E2E
 
+# The Mac runs install, build and the browser test inside a disposable Tart VM.
+
 on:
   workflow_dispatch:
   push:
