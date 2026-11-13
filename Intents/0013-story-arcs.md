@@ -267,3 +267,4 @@ gateways are wider than a screen). The front page's calendar now finds a story a
 | --- | --- | --- |
 | 2026-11-12 | `94f59ee` | hook, arc, scenes, their tools and skills; the trailer as a scene; the one player; days 1 and 2; the front page |
 | 2026-11-12 | `8d3e5d5` | the old day-2 film moved to `Stories/scenes/test-gate` (staged earlier, it went in with the ideas' commit) |
+| 2026-11-13 | `50126a0` | the arc cut to the viewer's journey (from, emotion, how, to); day 1 reframed round solarpunk; titles 6 to 13 words |
