@@ -3,7 +3,7 @@
 // `ceiling` says how high the room overhead is, so the walker stoops under a low roof.
 import { rocksNear } from './rocksolid.js';
 import { trunksNear } from './trunks.js';
-import { roundsNear } from './bodies.js';
+import { pushOut } from './bodies.js';
 const BODY = 0.3;   // how wide the walker is, from the middle: a step keeps this far off anything
 const list = [];
 
@@ -42,8 +42,22 @@ export function clear(x0, z0, x1, z1) {
   return 1;
 }
 
-/** A step from (px, pz) to (x, z): where it really ends, kept out of every solid. */
+/** A step from (px, pz) to (x, z): where it really ends, kept out of every solid. Stopped short by something (a
+    walker's step, not a line of sight), it is tried again a little to either side, and the one that gets further the
+    way that was asked is taken: a walker held against a rock or between two bushes goes round, as feet do. */
 export function step(px, pz, x, z, rocks = true) {
+  const [qx, qz] = stepOnce(px, pz, x, z, rocks), wx = x - px, wz = z - pz, want = Math.hypot(wx, wz);
+  if (!rocks || want < 1e-4) return [qx, qz];
+  const made = ((qx - px) * wx + (qz - pz) * wz) / want;
+  if (made > want * 0.35) return [qx, qz];
+  let best = [qx, qz], most = made;
+  for (const a of [0.9, -0.9, 1.5, -1.5]) {   // (half a right angle to either side, then nearly square: along what stops it)
+    const c = Math.cos(a), n = Math.sin(a), [rx, rz] = stepOnce(px, pz, px + wx * c - wz * n, pz + wx * n + wz * c, rocks), m = ((rx - px) * wx + (rz - pz) * wz) / want + Math.hypot(rx - px, rz - pz) * 0.25;   // (what gets on counts, and a little what moves at all: out of a corner)
+    if (m > most + 1e-4) { most = m; best = [rx, rz]; }
+  }
+  return best;
+}
+function stepOnce(px, pz, x, z, rocks = true) {
   for (const o of list) {
     let [u0, v0] = toL(o, px, pz), [u, v] = toL(o, x, z);
     if (Math.hypot(u, v) > 40) continue;
@@ -69,7 +83,8 @@ export function step(px, pz, x, z, rocks = true) {
     }
     [x, z] = toW(o, u, v);
   }
-  if (rocks) for (const r of [...rocksNear(x, z, 1.5), ...trunksNear(x, z, 1.5), ...roundsNear(x, z, 1.5)]) {   // (and whatever else says it is solid: src/world/bodies.js)   // and the trees' trunks (src/world/trunks.js)   // the scattered rocks, as the card places them (src/world/rocksolid.js)
+  if (rocks) [x, z] = pushOut(x, z, BODY);   // whatever says it is solid, each shape by its own outline (src/world/bodies.js)
+  if (rocks) for (const r of [...rocksNear(x, z, 1.5), ...trunksNear(x, z, 1.5)]) {   // and the trees' trunks (src/world/trunks.js)   // the scattered rocks, as the card places them (src/world/rocksolid.js)
     const du = x - r.x, dv = z - r.z, d = Math.hypot(du, dv), m = r.r + BODY;
     if (d < m) { const k = m / Math.max(d, 1e-6); x = r.x + du * k; z = r.z + dv * k; }
   }

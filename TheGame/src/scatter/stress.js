@@ -655,9 +655,9 @@ export function createStress(scene, renderer, tex) {
   };
   // ---- what of it is solid (src/world/bodies.js): the things round a point, each with its kind's box and shapes (its
   // family's, beside its recipe: assets/zoo). Where they stand is reckoned here as the GPU reckons it (standsAt,
-  // moverAtJS); a mover's shapes move with its bones. They stop the walker only with `?stress&solid` (a plot is a
-  // thicket: a thing every metre and a half); a ray finds them always. `?stress&bounds` draws them ----
-  const Q = new URLSearchParams(location.search), SOLID = Q.has('solid'), BOUNDS = Q.has('bounds');
+  // moverAtJS); a mover's shapes move with its bones. They stop the walker (`?stress&ghost`: they do not; a plot is a
+  // thicket, a thing every metre and a half); a ray finds them always. `?stress&bounds` draws them ----
+  const Q = new URLSearchParams(location.search), SOLID = !Q.has('ghost'), BOUNDS = Q.has('bounds');
   const stood = new Map();
   addBodies((x, z, reach) => {
     const out = [], t = U.uTime.value;

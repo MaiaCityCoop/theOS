@@ -1220,7 +1220,7 @@ For the 4K gate the land is most of a frame (hidden, a frame is 2.5 ms; with it,
   ground), not to shave the layers further.
 - **Also today:** the follow cam (intent 0015) taken out on Samuel's word, the camera as before (`ffede8a`).
 
-### 2026-11-13, the clouds are bodies (21:25)
+### 2026-11-13, the clouds are bodies (21:15)
 
 Samuel: the cloud formations should be three-dimensional; they were a flat plane.
 
@@ -1236,6 +1236,22 @@ Samuel: the cloud formations should be three-dimensional; they were a flat plane
   no bands); the shadow map's edge drew a straight line across the sky (it fades out now).
 - **Not there yet:** from above their layer they are still a flat sheet (the `air` of the condition), and their
   shadow on the land is the flat field's. Not seen in real Safari yet.
+
+### 2026-11-13, what is solid stops the walker, each shape by its own outline (21:24)
+
+Samuel: ensure the collisions are solved (he had asked whether they were in the stress world: they were there, but
+only on asking).
+
+- **Each shape by its own outline** (`src/world/bodies.js`: pushOut): the walker's round is pushed out of a ball by
+  the ball's round at the walker's height, along a capsule's length, by a box's sides (it slides along a wall), out
+  of a mesh by its round. What ends under the knee (55 cm) is stepped over.
+- **Going round** (`src/world/solids.js`: step): a step stopped short is tried again to either side, and the one
+  that gets further the way that was asked is taken: a walker held against something goes round it, as feet do.
+- **On in the stress world** (`?stress&ghost`: off). A plot there is a thicket, a thing every metre and a half:
+  five walks of 60 m, straight ahead with nothing steering: three made 57 to 60 m, two ended in a pocket after 10
+  and 20 m. Before the stepping-over and the going-round: one of five got through.
+- **Not there:** what moves does not avoid what stands or each other (their rounds are a function of the clock);
+  the placed assets' walls, the rocks and the trunks still have their own descriptions. Not walked in real Safari yet.
 
 ## Trail
 

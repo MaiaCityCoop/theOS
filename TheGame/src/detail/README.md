@@ -173,8 +173,9 @@ thing's own family beside its meshes. Who places things says where they stand (`
 `bodiesNear` (the bodies round a point, each with its box and shapes), `roundsNear` (what stops the walker:
 `src/world/solids.js`), `hit` (the first body a ray meets), `outline` (their boxes and shapes as lines). The stand
 says where its 898 million stand and where its movers are by the same reckoning as the GPU, for the cells round the
-point only; a creature's capsules move with its bones. `?stress&bounds` draws them; `?stress&solid` lets them stop
-the walker. The placed assets' walls, the rocks and the trunks still have their own descriptions (`solids.js`): they
+point only; a creature's capsules move with its bones. They stop the walker, each shape by its own outline
+(`pushOut`: a box's sides, a capsule's length; what ends under the knee is stepped over), and a step stopped short
+goes round (`solids.js`). `?stress&bounds` draws them; `?stress&ghost` walks through them. The placed assets' walls, the rocks and the trunks still have their own descriptions (`solids.js`): they
 come onto this one as they become families.
 
 **Memory (the game must run on 8 GB).** What only the GPU reads lives on the GPU only (`src/core/gpu.js`): the
