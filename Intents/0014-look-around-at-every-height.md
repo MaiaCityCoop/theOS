@@ -96,3 +96,4 @@ its views by 3°). Not checked on a phone.
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-13 | `5d44df5` | Drag tilts at every height, no pointer lock, tilt fades on a long zoom |
