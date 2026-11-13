@@ -1,5 +1,5 @@
 // Fingers for the one camera (intent 0003): a joystick at the bottom left walks or moves it; one finger elsewhere turns
-// it (and at eye level looks up and down); two fingers pinch it up and down and turn it. The numbers are in
+// it (and tilts it up and down, at every height); two fingers pinch it up and down and turn it. The numbers are in
 // camera/touch.js. It hands the rig the same things the keys and the mouse do: a move, a turn and look, a change of height.
 import TOUCH from '../../camera/touch.js';
 

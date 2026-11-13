@@ -3,7 +3,7 @@
 //
 //   stick   the joystick, in the bottom left corner above the bottom line: its size, its knob, how far in from the corner, the share of its reach that does
 //           nothing (so a resting thumb does not walk), and Shift's run when pushed past `run` of its reach
-//   look    one finger anywhere else: radians per pixel dragged (turning, and at eye level looking up and down)
+//   look    one finger anywhere else: radians per pixel dragged (turning, and tilting up and down at every height)
 //   pinch   two fingers: spreading them brings the camera down, pinching takes it up; `speed` is how much height (its
 //           logarithm) per doubling of the spread; turning the two fingers turns the camera
 export default {
