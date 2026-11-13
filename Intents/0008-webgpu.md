@@ -1237,7 +1237,7 @@ Samuel: the cloud formations should be three-dimensional; they were a flat plane
 - **Not there yet:** from above their layer they are still a flat sheet (the `air` of the condition), and their
   shadow on the land is the flat field's. Not seen in real Safari yet.
 
-### 2026-11-13, what is solid stops the walker, each shape by its own outline (21:24)
+### 2026-11-13, what is solid stops the walker, each shape by its own outline (21:22)
 
 Samuel: ensure the collisions are solved (he had asked whether they were in the stress world: they were there, but
 only on asking).
