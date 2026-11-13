@@ -917,8 +917,12 @@ shadows and the grass.
   1.2 ms across the field from a corner, 0.3 ms from 2600 m. Frame times the same with the stand on and hidden; the
   mean 16.7 ms while walking, running and flying. The start half a second longer (4.4 to 4.7 s against 3.9 to 4.4).
   80 MB of heap. No kind costs a draw call, a buffer or a shader.
-- **Broke / not there yet:** real Safari has not been read: Samuel was at the Mac and the probe tabs never drew (four
-  tries; its graphics process idle, not stuck). What is under a pixel is not drawn (140 000 to 180 000 of the million
+- **Real Safari (Samuel's own tab, 13:25 to 13:28, walking and flying, the governor free):** 59.2 frames a second over
+  8564 frames; 240 frames in a typical four seconds, two of 36 such spans under 57 fps (54.5 the slowest); the pixel
+  ratio 1 to 2, mostly 1.125 to 1.375: where the plain world stood that morning. 0.56 % of frames over 24 ms; ten
+  stalls over 50 ms (233 ms the longest), some at the governor's changes of pixel ratio, some as a full mesh came.
+- **Broke / not there yet:** my own probe tabs never drew while Samuel was at the Mac (five tries; the graphics process
+  idle, not stuck). What is under a pixel is not drawn (140 000 to 180 000 of the million
   are a pixel or more at once): drawing every one (`?stress=all`, 920 000 to 964 000 in view) costs 8 to 9 ms, over
   the gate from a low angle in the test browser. Streaming still makes 1 to 2 % of frames late while travelling
   (single frames of 25 to 40 ms). The trees, rocks and grass are not on the heap; the test's levels are sampled, not

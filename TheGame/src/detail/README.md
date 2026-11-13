@@ -72,6 +72,8 @@ on four kilometres of land. It is drawn the way every kind should come to be dra
 Measured 2026-11-13 (M1, Playwright WebKit, 1440 × 779, pixel ratio 1; the GPU's own time with the stand on and hidden
 by turns): 4.3 ms a frame walking among them (140 000 drawn, 1.5 million triangles), 3.2 ms at 45 m, 1.7 ms at 300 m,
 0.3 ms from 2600 m. Travelling (walking, running, flying low) the mean frame stays 16.7 ms.
+In Samuel's Safari, walking and flying for two and a half minutes: 59.2 frames a second at a pixel ratio of 1 to 2
+(as the plain world), 0.56 % of frames late, ten stalls over 50 ms.
 
 What the test found:
 - **What is under a pixel is not drawn.** Of the million about 140 000 to 180 000 are a pixel or more at once on this
