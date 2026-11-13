@@ -1018,6 +1018,26 @@ shadows and the grass.
   of textures, 25 MB for the movers. A part's level is its own size's, so a walker's legs change level before its
   body; parts do not cast a stand-in shadow, they cast as drawn. Real Safari not read.
 
+### 2026-11-13, the ten-thousand build read and mended (16:45)
+
+- **Read in real Safari (Samuel's tab, 16:25 to 16:27, the ten-thousand build):** 27 to 40 frames a second near the
+  ground, 17 % of frames late, the pixel ratio at the governor's floor (0.6: a soft picture); about 7 ms of script in a
+  late frame: the GPU, not the page. Samuel: the frame rate is not stable, assets flicker, some can be seen through,
+  and the resolution falls.
+- **Why, and what was done:**
+  - *Seen through:* along a sharp fold a mesh's triangles were turned the wrong way (told by the shape's own faces
+    against its middle) and culled: holes. Now told on the ball the shape is pulled from. And a thing the camera walks
+    into draws back from it.
+  - *Unsteady:* every turn of the camera had the far tiers fold up to a million lattice cells onto their plot's shape
+    again. Now a plot's places are folded once when it comes near and kept (16 bits each way a cell, 4 MB a plot,
+    eight plots). A mover's parts other than its body are looked for only in the plots within 350 m. The workers'
+    queue counted a level's room for every mesh asked (thousands of times 2048 slots): once a feed now.
+  - *Flicker:* a kind's mean colour was a guess until its texture came, then changed for every one of that kind at
+    once. The texture is now painted to the mean its look says.
+- **Broke / not there yet:** not read in real Safari after these. A duplicate name of mine stopped every game page
+  from loading for about three minutes (16:31 to 16:34). The test browser could not time anything: Samuel's tab was
+  drawing the heavy build beside it (a plain frame 27 ms, a start 15 s).
+
 ## Trail
 
 | When | Commit | What |

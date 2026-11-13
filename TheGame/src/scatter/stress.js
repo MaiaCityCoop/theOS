@@ -49,8 +49,8 @@ import { RIGS, PARTS, RIG_ROWS, rigRows, rigShares } from '../../assets/kit/rigs
 import CITY from '../../world/city.js';
 
 const KINDS = 10000, SIDE = 1000, MSIDE = 100, GROUP = KINDS / SIDE;   // ten thousand kinds; a plot's lattice: a thousand cells a side, one asset in each (GROUP rows of it hold every kind once: a hundred of every kind a plot); its movers' lattice: ten thousand
-const PLOTS = Math.round(CITY.people / CITY.perVillage), RAYS = 64, ROW = 4 + RAYS + RAYS + 1, BITS = 11, TAU = Math.PI * 2;   // a plot's row: its middle (x, z), its mean reach, its things' scale, then how far its edge is in RAYS directions, then the directions that cut its land into RAYS equal shares; BITS: a cell's number holds its plot above them
-const SMIN = 0.25, SMAX = 2.2, MMAX = 6, MFAR = 1400, CELL = 1.4, FIT = 1.5, FADE = 0.02, SINK = 1.6, FULL = 129, FULLN = -1;   // an asset's largest side, metres (a mover's up to MMAX, seen as far as MFAR); CELL: a lattice cell's side, about; FIT: the cell's side a kind's own size is meant for; FULL: the most squares an edge a full mesh has
+const PLOTS = Math.round(CITY.people / CITY.perVillage), RAYS = 64, ROW = 4 + RAYS + RAYS + 1 + 2, FAR_AT = ROW - 2, KEPT_AT = ROW - 1, KEPT = 8, BITS = 11, TAU = Math.PI * 2;   // a plot's row: its middle (x, z), its mean reach, its things' scale, then how far its edge is in RAYS directions, then the directions that cut its land into RAYS equal shares, its longest reach, and where its places are kept (KEPT plots' at once; -1: not kept); BITS: a cell's number holds its plot above them
+const SMIN = 0.25, SMAX = 2.2, MMAX = 6, MFAR = 1400, PARTFAR = 350, CELL = 1.4, FIT = 1.5, FADE = 0.02, SINK = 1.6, FULL = 129, FULLN = -1;   // an asset's largest side, metres (a mover's up to MMAX, seen as far as MFAR); CELL: a lattice cell's side, about; FIT: the cell's side a kind's own size is meant for; FULL: the most squares an edge a full mesh has
 const GROW = 1.5, RELIEF = 90, SKIN = 128, SKINPX = 28;   // GROW: seconds a level that came late takes to grow out of the coarser one; RELIEF: the size on screen from which its textures' relief is read; SKIN: a kind's own texture, pixels a side; SKINPX: the size on screen from which a thing wears it (under that: its mean colour)
 // its levels, finest first. n: squares along an edge (FULLN: the kind's full mesh; under that: its dot); px: the size on
 // screen it is drawn down to; P: its tier's cells a patch (a block of a plot's lattice: it divides 1000); slots: how many
@@ -157,6 +157,27 @@ export function createStress(scene, renderer, tex) {
   };
   // a cell's number: its plot above BITS bits, its place in the plot's lattice under them
   const plotOfCell = (c) => c.x.shiftRight(int(BITS)), inPlot = (c) => c.x.bitAnd(int((1 << BITS) - 1));
+  // where a plot's million stand, kept for the KEPT plots nearest the camera: folding the lattice onto a plot's shape
+  // is the costly part of placing a thing (a square root, two turns, six reads), and a tier asks it of up to a million
+  // cells each time the camera turns. So it is asked once for a plot that comes near (keepPass: a million cells, one pass),
+  // and kept as two numbers of 16 bits a cell (its place in the plot's own square, to 5 cm): 4 MB a plot
+  const kept = storage(new THREE.StorageBufferAttribute(new Uint32Array(KEPT * SIDE * SIDE), 1), 'uint', KEPT * SIDE * SIDE), fillPlot = uniform(0, 'uint'), fillSlot = uniform(0, 'uint');
+  const keepPass = Fn(() => {
+    const i = int(instanceIndex.mod(uint(SIDE))), j = int(instanceIndex.div(uint(SIDE))), base = fillPlot.mul(uint(ROW)), cx = int(fillPlot).shiftLeft(int(BITS)).add(i);
+    const d = place(base, float(i).add(rnd(cx, j, uint(905)).mul(0.7).add(0.15)), float(j).add(rnd(cx, j, uint(906)).mul(0.7).add(0.15))).sub(middle(base)).div(PT.element(base.add(uint(FAR_AT)))).mul(0.5).add(0.5).clamp(0, 1).mul(65535);
+    kept.element(fillSlot.mul(uint(SIDE * SIDE)).add(instanceIndex)).assign(uint(d.x).bitOr(uint(d.y).shiftLeft(uint(16))));
+  })().compute(SIDE * SIDE);
+  const slots = { who: new Int32Array(KEPT).fill(-1), version: 0 };
+  // each frame: the KEPT plots nearest are kept; one that is not yet is given a slot (a free one, or the farthest's) and filled
+  const keepNear = (cx, cz) => {
+    const near = PL.map((p) => [Math.hypot(p.x - cx, p.z - cz) - p.most, p]).sort((a, b) => a[0] - b[0]).slice(0, KEPT).map((x) => x[1]), p = near.find((q) => q.slot == null);
+    if (!p) return;
+    let at = slots.who.indexOf(-1); if (at < 0) at = slots.who.findIndex((i) => !near.includes(PL[i]));
+    if (at < 0) return;
+    if (slots.who[at] >= 0) { const o = PL[slots.who[at]]; o.slot = null; plotRows.array[o.i * ROW + KEPT_AT] = -1; plotRows.addUpdateRange(o.i * ROW + KEPT_AT, 1); }
+    slots.who[at] = p.i; p.slot = at; plotRows.array[p.i * ROW + KEPT_AT] = at; plotRows.addUpdateRange(p.i * ROW + KEPT_AT, 1); plotRows.needsUpdate = true;
+    fillPlot.value = p.i; fillSlot.value = at; renderer.compute(keepPass); slots.version++;
+  };
 
   const H = createHeap(KINDS, LEVELS.map((l) => { const n = l.n === FULLN ? FULL : l.n; return { idx: trisOf(n) * 3, verts: vertsOf(n), slots: l.slots }; }));
   const LO = uniformArray(LEVELS.map((l) => l.px));
@@ -283,7 +304,9 @@ export function createStress(scene, renderer, tex) {
           // the wind: its top sways, its foot stays (as a tree's: src/scatter/trees.js), as far as its look says
           const up = clamp(v.p.y, 0, 1), ws = windStrength, bend = up.mul(up).mul(A.w).mul(B.z);
           const kk = windAt(A.xy).mul(bend).add(vec2(sin(U.uTime.mul(0.9).add(B.w)), cos(U.uTime.mul(0.7).add(B.w))).mul(bend).mul(ws.mul(0.4).add(smoothstep(0, 0.08, ws).mul(0.06))));
-          const w = vec3(A.x, A.z, A.y).add(rest).add(vec3(kk.x, 0, kk.y));
+          // (and a thing the camera walks into draws back from it: seen from inside it would be seen through)
+          const out = smoothstep(A.w.mul(0.5), A.w.mul(1.1), length(U.uCam.sub(vec3(A.x, A.z.add(A.w.mul(0.4)), A.y)))).max(whole);
+          const w = vec3(A.x, A.z, A.y).add(rest.mul(out)).add(vec3(kk.x, 0, kk.y));
           vA.assign(vec4(w, v.mask)); vB.assign(vec4(turn(parts ? laid(v.n) : v.n), v.shade)); vC.assign(vec4(rest, B.y));
           clip.assign(clipOf(w));
         });
@@ -311,8 +334,10 @@ export function createStress(scene, renderer, tex) {
     const lv = uniform(i, 'uint'), under = uniform(Math.max(0, i - 1), 'uint'), stands = uniform(i ? 1 : 0), all = uniform(shadow ? 1 : 0);
     const live = (c) => {
       const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), plot = plotOfCell(c), ci = inPlot(c), cj = c.y, base = uint(plot).mul(uint(ROW)), h = (s) => rnd(c.x, c.y, uint(s)), whole = all.greaterThan(0.5);
-      const pos = place(base, float(ci).add(h(905).mul(0.7).add(0.15)), float(cj).add(h(906).mul(0.7).add(0.15))), dist = camDist(pos), range = mix(dist, length(pos.sub(U.uCam.xz)), all);
-      If(range.lessThan(band.far).and(range.greaterThanEqual(band.near)).and(whole.or(inView(pos, round, SMAX))), () => {
+      // (where it stands: kept for its plot, above; a plot not kept yet has nothing to show)
+      const slot = PT.element(base.add(uint(KEPT_AT))), u = kept.element(uint(slot.max(0)).mul(uint(SIDE * SIDE)).add(uint(cj.mul(int(SIDE)).add(ci))));
+      const pos = middle(base).add(vec2(float(u.bitAnd(uint(0xffff))), float(u.shiftRight(uint(16)))).div(65535).mul(2).sub(1).mul(PT.element(base.add(uint(FAR_AT))))), dist = camDist(pos), range = mix(dist, length(pos.sub(U.uCam.xz)), all);
+      If(slot.greaterThan(-0.5).and(range.lessThan(band.far)).and(range.greaterThanEqual(band.near)).and(whole.or(inView(pos, round, SMAX))), () => {
         // its kind: its group of rows holds every kind once (groupOf, above)
         const g = cj.div(int(GROUP)), r4 = int(floor(rnd(plot, g, uint(902)).mul(4))), a = int(floor(rnd(plot, g, uint(901)).mul(KINDS / 10))).mul(10).add(1).add(r4.mul(2)).add(r4.greaterThanEqual(2).select(int(2), int(0)));
         const kind = uint(ci.add(cj.mod(int(GROUP)).mul(int(SIDE))).mul(a).add(int(floor(rnd(plot, g, uint(904)).mul(KINDS)))).mod(int(KINDS))), size = clamp(lookOf(kind, 3).w.mul(h(903).mul(0.4).add(0.8)).mul(PT.element(base.add(uint(3)))), SMIN, SMAX), span = size.mul(PXK);
@@ -355,7 +380,7 @@ export function createStress(scene, renderer, tex) {
     T.band(); T.level = i; T.viewKeyed = !shadow; T.asset = shadow ? 'Stress: shadows' : `Stress: level ${i}`;
     T.mesh.renderOrder = 1 + i * 0.01;   // the fine levels first: they are the near ones, and what is behind them need not be shaded
     if (shadow) T.mesh.layers.set(1);
-    const run = T.run.bind(T); T.run = (r, world, ...a) => run(r, `${world}|${PL.length}|${H.versions[i]}|${i && !shadow ? H.versions[i - 1] : 0}`, ...a);   // packed again when the heap has changed at its level, or the next finer (which it stands in for)
+    const run = T.run.bind(T); T.run = (r, world, ...a) => run(r, `${world}|${slots.version}|${H.versions[i]}|${i && !shadow ? H.versions[i - 1] : 0}`, ...a);   // packed again when the heap has changed at its level, or the next finer (which it stands in for)
     tiers.push(T);
     return T;
   };
@@ -414,7 +439,8 @@ export function createStress(scene, renderer, tex) {
     T.band = () => { T.near = 0; T.far = MFAR; }; T.movers = true; T.viewKeyed = true; T.asset = 'Stress: movers';
     T.select = (cx, cz, h0, s, dy) => {   // its patches: every part of every mover of each plot near (a patch a part: its ten thousand)
       const far2 = T.far * T.far * s * s - dy * dy; let n = 0;
-      if (far2 > 0) for (const p of plotsNear(cx, cz, h0, Math.sqrt(far2), MMAX)) for (let q = 0; q < PARTS && n < MAXP; q++) T.list[n++].set((p.i << BITS) + q * MSIDE, 0);
+      // (a mover's first part, its body, as far as movers are seen; its other parts only in the plots close by: they are small)
+      if (far2 > 0) for (const p of plotsNear(cx, cz, h0, Math.sqrt(far2), MMAX)) { const close = Math.hypot(p.x - cx, p.z - cz) - p.most < PARTFAR; for (let q = 0; q < (close ? PARTS : 1) && n < MAXP; q++) T.list[n++].set((p.i << BITS) + q * MSIDE, 0); }
       T.n = n; for (const m of T.meshes) m.visible = n > 0;
     };
     T.meshes.forEach((m, k) => { if (k < L - 1) m.layers.enable(1); m.renderOrder = 1.005 + k * 0.01; });   // they cast their shadows as drawn; near ones drawn first
@@ -447,11 +473,12 @@ export function createStress(scene, renderer, tex) {
   // what is asked of the workers: a few at a time, the next as one comes back; of a level no more than it has room for
   let queue = []; const asked = new Int32Array(L);
   const feed = () => {
+    const rooms = new Int32Array(L).fill(-1), roomOf = (l) => (rooms[l] < 0 ? (rooms[l] = H.room(l, round)) : rooms[l]);   // (how many a level can take in: counted once a feed, not for every one asked)
     while (busy < 6 && queue.length) {
       const batch = [];   // (the small levels a dozen a message, the large ones one)
       while (queue.length && batch.length < (batch.length && batch[0].l >= 3 ? 12 : 1)) {
         const q = queue[0], id = q.k * L + q.l; if (batch.length && q.l < 3) break;
-        queue.shift(); if (pending.has(id) || H.has(q.k, q.l) || H.room(q.l, round) <= asked[q.l]) continue;
+        queue.shift(); if (pending.has(id) || H.has(q.k, q.l) || roomOf(q.l) <= asked[q.l]) continue;
         pending.add(id); asked[q.l]++; batch.push(q);
       }
       if (!batch.length) continue;
@@ -477,7 +504,7 @@ export function createStress(scene, renderer, tex) {
     const dev = renderer.backend.device, gpu = renderer.backend.get(skinRT.texture).texture;
     S.levels.forEach((data, m) => { const n = SKIN >> m; dev.queue.writeTexture({ texture: gpu, mipLevel: m, origin: { x: 0, y: 0, z: at } }, data, { bytesPerRow: n * 4, rowsPerImage: n }, { width: n, height: n, depthOrArrayLayers: 1 }); });
     skins.who[at] = k; skins.slot[k] = at; skins.used[at] = round;
-    look.set(S.mean, k * 20); look[k * 20 + 9] = at; look[k * 20 + 16] = U.uTime.value; lookRows.addUpdateRange(k * 20, 20); lookRows.needsUpdate = true; stats.skins++;
+    look[k * 20 + 9] = at; look[k * 20 + 16] = U.uTime.value; lookRows.addUpdateRange(k * 20, 20); lookRows.needsUpdate = true; stats.skins++;
     return true;
   };
   // what the CPU knows of what stands near: a block of a plot's lattice (BL cells a side) worked out when first looked
@@ -497,10 +524,11 @@ export function createStress(scene, renderer, tex) {
   const pump = () => {
     if (!PL.length) {   // the city's plan has come: its plots, to the GPU
       const cp = window.__s8?.city?.plots; if (!cp?.length) return;
-      cp.slice(0, PLOTS).forEach((c, i) => { const p = plotOf(c, i); PL.push(p); plotRows.array.set([p.x, p.z, p.mean, p.k, ...p.R, ...p.TH], i * ROW); });
-      plotRows.needsUpdate = true;
+      cp.slice(0, PLOTS).forEach((c, i) => { const p = plotOf(c, i); PL.push(p); plotRows.array.set([p.x, p.z, p.mean, p.k, ...p.R, ...p.TH, p.most, -1], i * ROW); });
+      plotRows.addUpdateRange(0, plotRows.array.length); plotRows.needsUpdate = true;   // (all of it: a later change of one number must not be the only thing sent)
     }
     if (coarse < 0 && window.__s8?.loadMs) fill();
+    keepNear(U.uCam.value.x, U.uCam.value.z);
     const now = performance.now(), cam = U.uCam.value, dy = U.uDy.value, inv = U.uLodInv.value, K = pxK(), key = `${inv.toFixed(2)}|${K.toFixed(0)}`;
     if (API.pause) return;
     const dt = Math.max(1e-3, (now - lt) / 1000), v = Math.hypot(cam.x - lx, cam.y - ly, cam.z - lz) / dt; lx = cam.x; ly = cam.y; lz = cam.z; lt = now;

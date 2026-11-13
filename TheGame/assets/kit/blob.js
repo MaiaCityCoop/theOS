@@ -118,9 +118,12 @@ function build(K, n, own = false) {
     where[nv * 3] = f; where[nv * 3 + 1] = i; where[nv * 3 + 2] = j;
     return (at[q] = nv++);
   };
-  const tri = (a, b, c) => {   // wound to face outwards
-    const ax = pos[a * 3], ay = pos[a * 3 + 1], az = pos[a * 3 + 2], ux = pos[b * 3] - ax, uy = pos[b * 3 + 1] - ay, uz = pos[b * 3 + 2] - az, vx = pos[c * 3] - ax, vy = pos[c * 3 + 1] - ay, vz = pos[c * 3 + 2] - az;
-    const out = (uy * vz - uz * vy) * dir[a * 3] + (uz * vx - ux * vz) * dir[a * 3 + 1] + (ux * vy - uy * vx) * dir[a * 3 + 2] >= 0;
+  // wound to face outwards: told on the ball it was pulled from (its three directions), not on the shape: stretching,
+  // tapering and twisting keep a face's side, but along a sharp fold the shape's own faces no longer look outwards from
+  // its middle, and a triangle told by that was turned the wrong way (a hole to look through)
+  const tri = (a, b, c) => {
+    const ax = dir[a * 3], ay = dir[a * 3 + 1], az = dir[a * 3 + 2], ux = dir[b * 3] - ax, uy = dir[b * 3 + 1] - ay, uz = dir[b * 3 + 2] - az, vx = dir[c * 3] - ax, vy = dir[c * 3 + 1] - ay, vz = dir[c * 3 + 2] - az;
+    const out = (uy * vz - uz * vy) * ax + (uz * vx - ux * vz) * ay + (ux * vy - uy * vx) * az >= 0;
     index[ni++] = a; index[ni++] = out ? b : c; index[ni++] = out ? c : b;
   };
   for (let f = 0; f < 6; f++) for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
@@ -210,6 +213,9 @@ export function blobSkin(k, size = 128) {
     for (let c = 0; c < 3; c++) { const col = Math.min(1, Math.max(0, ((K.c1[c] + (K.c2[c] - K.c1[c]) * t) * (1 - acc) + c3[c] * (kind === 1 ? 0.25 : 1) * acc) * g)); out[o + c] = Math.round(col * 255); mean[c] += col * col; }   // (kept as its square root: K's tints are that already)
     out[o + 3] = Math.round(Math.min(1, Math.max(0, h)) * 255);
   }
+  // its mean made the one its look says (blobLook: known before it is painted): a thing far off wears that mean, and
+  // must not change colour when its texture comes
+  for (let c = 0; c < 3; c++) { const want = (K.c1[c] * K.c1[c] + K.c2[c] * K.c2[c]) / 2, g = Math.sqrt(want / Math.max(1e-6, mean[c] / (size * size))); for (let o = c; o < out.length; o += 4) out[o] = Math.min(255, Math.round(out[o] * g)); }
   const levels = [out];
   for (let n = size >> 1; n >= 1; n >>= 1) {   // its smaller copies: four pixels to one
     const a = levels.at(-1), b = new Uint8Array(n * n * 4), w = n * 2;
