@@ -929,6 +929,31 @@ shadows and the grass.
   simplified from a drawn mesh. The test window itself was noisy today (8 GB, 3 GB of it in swap): only turns within
   one page are compared.
 
+### 2026-11-13, the stress assets given looks, and levels that turn into each other (15:10)
+
+- **Asked:** how many shaders there are now, and what a game like GTA needs; textures, wind and snow on each asset,
+  with as many shaders as such a game needs; and the levels "pop completely random", near, middle and far: they should
+  change smoothly, as reference games do it.
+- **Delivered:** each of the thousand kinds has a look (assets/kit/blob.js `blobLook`: two of the world's textures laid
+  on from three sides, two tints, relief when large on screen, how it shines, sways and holds snow) and one of twelve
+  shading models (matte, glossy, metal, leafy, glowing, wet, velvet, iridescent, chalk, brushed, wax, overgrown). A look
+  is a row of numbers read by the pixel, a model a branch of the one shader: still eight draw calls. Levels: every
+  vertex is kept twice, as it is and where it lies on the next coarser mesh; over a level's last pixels it moves from
+  one to the other, so the change of level is the same shape to the pixel (geomorphing; no dither). A fine mesh that
+  comes late grows out of the coarser one over half a second, one level after another. The tetrahedron is gone; the
+  dot has a small shader of its own. src/detail/README.md says all of it.
+- **Good (Playwright WebKit, M1, 1440 × 779, pixel ratio 1, GPU time on and hidden by turns):** 5.4 ms walking among
+  them (was 4.3 with plain colours; 8.5 before the reads were trimmed), 2.2 ms at 45 m, 1.1 ms at 300 m. A late mesh
+  now changes 5 to 12 % of the picture a frame, where at once it changed 42 to 75 % in one. The start 4.4 to 4.6 s
+  against 3.9 to 4.1. Snow lies on them, they sway in a gale.
+- **Counted:** the plain game compiles 16 vertex and 14 fragment programs, 21 draw pipelines; the stand adds two. GTA V:
+  about 1900 draw calls for a frame's G-buffer (Courrèges 2015); its shader count I did not find, hundreds by memory.
+- **Broke / not there yet:** real Safari not read with the materials on. A change of level between two that are both
+  there I could not measure: two stills seconds apart differ more by the clouds and the light than by any level, with
+  the morph on or off. Twelve models are branches of one shader, not twelve shaders: separate shaders would be
+  separate draw calls. Textures are the world's twenty, not a thousand of their own. A slip of mine left the stress
+  page broken for about three minutes (a dropped line; only with `?stress`).
+
 ## Trail
 
 | When | Commit | What |
@@ -1000,3 +1025,4 @@ shadows and the grass.
 | 2026-11-12 | `5538175` | The scatter by stand: one packing and one draw shader for all a stand's kinds |
 | 2026-11-12 | `ea1d05a` | A kit's meshes built once, kept in the browser by the recipe's version |
 | 2026-11-13 | `24b8d9b` | The stress stand: a thousand kinds, a million placed, one heap, nine draw calls |
+| 2026-11-13 | `f5de32a` | The stress assets: looks, twelve shading models, levels that morph into each other |
