@@ -1053,8 +1053,14 @@ shadows and the grass.
   put in at most (hundreds at once were a frame lost); three new blocks of a plot a look; the wind only on what sways.
 - **Snow:** to 50 cm (src/world/weather/snow.js). On a thing it now lies as deep as on the ground: what faces up is
   lifted by the snow's depth, as a mound, and is snow all through; a mover carries a third of it.
-- **Broke / not there yet:** none of this read in real Safari yet. The resolution: nothing done to the governor; it
-  comes back only if the cost has come down enough.
+- **Real Safari after it (Samuel's tab, 16:55 to 16:57, near the ground, 5966 frames):** the flicker is gone
+  ("flicker is solved"). The resolution is back: the pixel ratio rose from 1 to 1.9 in the first minute at 56 to 60
+  frames a second, then stood at 1.4 to 1.75 while the frame rate fell to 47 to 57 (55.0 over all, 17 of 27 spans under
+  57 fps; 2.5 % of frames late, one stall of 252 ms). With the same build an older tab held 58 to 60 at a ratio of 0.6.
+  So the stand now leaves room for pixels, and the governor takes more of it than the gate allows and gives it back
+  slowly.
+- **Broke / not there yet:** the gate is not held at the pixel ratio the governor chooses near the ground (55, not 60).
+  Nothing was done to the governor.
 
 ## Trail
 
