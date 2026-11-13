@@ -26,7 +26,8 @@
 //                             says what a bone is); without: nothing in it moves by itself
 //     fullTris?(i)            how many triangles its full mesh has (for the readout)
 //     roams?: [{ name, share, speed: [from, to] (m/s), size: [from, to] (m), ring (it keeps to the roads), fly: [from,
-//               to] (metres over the ground), stride (of its size, a radian of its gait), first, count }]
+//               to] (metres over the ground), stride (of its size, a radian of its gait), girth (how wide it is
+//               round, of its size: 0.22 unless said), first, count }]
 //                             its herds: how its kinds move about (kinds first … first + count of it are one herd; share:
 //                             how many of a place's movers are of it). Without: its kinds stand.
 //   }
@@ -65,12 +66,25 @@ export function bodyOf(k) {
   BODIES.set(k, (B = { box, shapes }));
   return B;
 }
+/** A kind's footprint where its family names its colliders: { r, top } of its own size (the widest of what is solid
+    of it, and how high that stands); null: it names none (its coarse mesh says). */
+export const footOf = (k) => {
+  const E = of(k), S = E.F.collidersOf?.(k - E.first); if (!S) return null;
+  let r = 0, top = 0;
+  for (const s of S) {
+    if (s.pass) continue;
+    if (s.shape === 'sphere') { r = Math.max(r, Math.hypot(s.at[0], s.at[2]) + s.r); top = Math.max(top, s.at[1] + s.r); }
+    else if (s.shape === 'capsule') { r = Math.max(r, Math.hypot(s.a[0], s.a[2]) + s.r, Math.hypot(s.b[0], s.b[2]) + s.r); top = Math.max(top, s.a[1] + s.r, s.b[1] + s.r); }
+    else if (s.shape === 'box') { r = Math.max(r, Math.hypot(Math.abs(s.at[0]) + s.half[0], Math.abs(s.at[2]) + s.half[2])); top = Math.max(top, s.at[1] + s.half[1]); }
+  }
+  return { r, top };
+};
 export const fullTris = (k) => { const E = of(k); return E.F.fullTris?.(k - E.first) ?? 0; };
 /** Every herd of every family that roams: its numbers, `first` the number of its first kind, `upTo` where its share
     of a place's movers ends (0 … 1: a number under a herd's upTo and not under the one before's is of it). */
 export const HERDS = (() => {
   const all = FAMILIES.filter((E) => E.roams).flatMap((E) => E.F.roams.map((R) => ({ ...R, family: E.id, first: E.first + R.first }))), total = all.reduce((s, R) => s + R.share, 0); let at = 0;
-  return all.map((R) => ({ ...R, ring: !!R.ring, fly: R.fly ?? [0, 0], upTo: (at += R.share / total) }));
+  return all.map((R) => ({ ...R, ring: !!R.ring, fly: R.fly ?? [0, 0], girth: R.girth ?? 0.22, upTo: (at += R.share / total) }));   // (girth: how wide it is round, of its size: what it keeps clear of things)
 })();
 const REV = 1;   // (raised by hand when a kit changes what it makes in a way the samples below would not show)
 /** What the families make, as a word: a few kinds' coarse meshes of each, a small texture, a skeleton, read into one

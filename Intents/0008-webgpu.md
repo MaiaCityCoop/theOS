@@ -1275,6 +1275,29 @@ For the 4K gate: the land's layers laid once into maps round the camera and read
   (the near 30 m are nine tenths of the land's pixels at eye level); the last ring blended into the per-pixel layers
   over its whole width; then its strips checked while moving, which was not done.
 
+### 2026-11-13, what moves keeps clear of what stands, and of each other (22:08)
+
+Samuel: the assets and the travelling walkers have no collision control: "they crash each other and other assets".
+(His own walking was checked first with the real controls: it is stopped and turned aside, 20 to 31 m in ten
+seconds through the stand where 32 are walked with `?ghost`.)
+
+- **Roads kept clear.** A plot's three ring roads are no longer stood on: the lattice is folded so that nothing falls
+  within 6 m of them (what would is set on their verges, which stand the thicker; a plot still holds its million, a
+  hundred of every kind). What keeps to the roads drives each way on its own side, the quick further from the
+  middle than the slow, so they pass beside each other.
+- **Walkers step round what stands.** Before the movers are packed, each of the nearest plots' movers that walks
+  (not on a road, not in the air, within 260 m) is pushed out of the rounds of what stands in the 25 cells round it
+  (a kind's round and height are in its look now: its family's colliders, else its hull's corners); what ends under
+  35 cm is stepped over. Nothing is remembered: where it is pushed to is a function of where its round has it.
+- **And apart from each other:** each writes its place into a grid; packed, it looks into the nine cells round it and
+  is pushed half way out of each mover it finds.
+- **The same in JS** for the movers near the walker, so what he meets is where it is drawn.
+- **Counted (test browser, the packed movers read back, five looks, 45 walkers within 110 m each):** standing in
+  something: 23 % before, 3 % now (those left are wedged between things closer together than they are wide). Two
+  movers in each other: none found before or after at this density, so that part is not shown by a number.
+- **Not there:** what drives does not give way to what walks across its road, nor one vehicle to a slower one in
+  its own lane; nothing plans a way, so a walker in a thicket narrower than itself is still in something.
+
 ## Trail
 
 | When | Commit | What |
