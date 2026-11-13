@@ -959,6 +959,27 @@ shadows and the grass.
   separate draw calls. Textures are the world's twenty, not a thousand of their own. A slip of mine left the stress
   page broken for about three minutes (a dropped line; only with `?stress`).
 
+### 2026-11-13, a million in every village plot, and ten thousand that move (15:35)
+
+- **Asked:** "next test fill up every village plot we have with 1 million assets", and "make 10k in each village move
+  in different speeds, aka robots and humans and transport systems walking / moving": stand-ins for the vehicles,
+  animals, people, NPCs and AIs to come.
+- **Delivered:** the stress stand now fills the city: each of the 898 plots holds exactly a million (a thousand of
+  each kind, counted) and ten thousand movers: 898 million standing, 8.98 million moving. Nothing of where they stand
+  is kept: a plot is 133 numbers, its million a lattice of 1000 by 1000 folded onto its shape share for share, worked
+  out on the GPU for the cells a tier looks at. A mover's place is a function of the clock: 55 % people (0.8 to
+  1.8 m/s), 20 % robots (2.5 to 5), 15 % animals (0.4 to 6.4), 10 % transports (8 to 20 m/s, round their plot's ring
+  roads); the others wander round a home. One tier packs them every frame and drops each into its level's draw. Things
+  stand smaller in a small plot, so every plot's million fit (0.25 to 2.2 m; a mover up to 6 m).
+- **Good:** 99.9 to 100 % of what stands and of what moves lies inside its plot's outline (six plots sampled); 9 990 of
+  10 000 movers moved in a second, 3 m/s on average. In view walking: about as many as on the first stand (135 000)
+  plus 3 900 movers. From 2000 m nothing of it is drawn: all under a pixel, the plots' own lines show.
+- **Broke / not there yet:** no clean cost: Samuel's tab was drawing beside every run. With it: 10.6 ms of GPU walking
+  in the first village (the first stand: 5.4 alone), 2.0 at 45 m, 1.6 at 300 m. The start 5.4 s against 4.2 (two more
+  packing shaders with the land in them): over five seconds in the test browser. Movers do not avoid each other or
+  what stands, and walk through the river. For twenty minutes I read a covered window's three frames a second as the
+  stand's cost: a window behind another is throttled, whatever it draws. Real Safari not read.
+
 ## Trail
 
 | When | Commit | What |
@@ -1031,3 +1052,4 @@ shadows and the grass.
 | 2026-11-12 | `ea1d05a` | A kit's meshes built once, kept in the browser by the recipe's version |
 | 2026-11-13 | `24b8d9b` | The stress stand: a thousand kinds, a million placed, one heap, nine draw calls |
 | 2026-11-13 | `f5de32a` | The stress assets: looks, twelve shading models, levels that morph into each other |
+| 2026-11-13 | `55b582c` | The stress stand over the city: a million in each of 898 plots, ten thousand movers a plot |
