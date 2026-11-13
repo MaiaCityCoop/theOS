@@ -1279,3 +1279,4 @@ pixels inside and scaled up when a view is heavy.
 | 2026-11-13 | `9577816` | Kinds as plug-in families (blobs, fronds, creatures) on one contract; creatures on skeletons; cut-out leaves; a vertex of 16 bytes; memory on the GPU only with a readout; coarse meshes kept between starts; the governor's pixels |
 | 2026-11-13 | `59ca5f6` | Read in real Safari (58.4 fps, pixels at the floor for dropped frames); the governor mended; a frame's work in the hitch log |
 | 2026-11-13 | `3b0debe` | Boxes and colliders in the family contract; src/world/bodies.js (bodies near, walker's rounds, ray hits, outlines) |
+| 2026-11-13 | `fb8c3ef` | The screen at its own resolution always; the world drawn inside at the governor's ratio and scaled up (src/core/screen.js) |
