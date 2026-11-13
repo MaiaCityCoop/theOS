@@ -70,8 +70,8 @@ the walk-behind camera auto-follows?"
 
 | 5 | passed | at eye level a click on a "ten legs" 9 m off followed it; facing it, a click in the middle followed the first on that line (a runner, nearer) |
 
-**Known gaps:** the crosshair (shown only with the mouse held) not seen: the app's browser pane does not hold the
-mouse for a scripted click. Check it by hand: click in POV, aim at a creature, the dot becomes a ring.
+**Known gaps:** none left: the crosshair, which the app's browser pane could not show (it does not hold the mouse
+for a scripted click), was checked by hand by Samuel: "it works now".
 
 ## Story
 
@@ -85,7 +85,7 @@ mouse for a scripted click. Check it by hand: click in POV, aim at a creature, t
 - [x] Let go by keys and Esc
 - [x] Click a city plot (check 4)
 - [x] Pick in POV, at the crosshair (check 5)
-- [ ] See the crosshair light over a creature, by hand
+- [x] See the crosshair light over a creature, by hand (Samuel, 2026-11-13: "it works now")
 
 ## Changelog
 
