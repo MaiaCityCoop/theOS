@@ -68,7 +68,6 @@ import { addBodies, bodiesNear, outline } from '../world/bodies.js';
 import { bodyOf } from '../../assets/zoo/index.js';
 import { moved } from '../../assets/kit/bones.js';
 import CITY from '../../world/city.js';
-import { addMovers, offLine } from '../world/movers.js';
 
 const KINDS = 10000, SIDE = 1000, MSIDE = 100, GROUP = KINDS / SIDE;   // a plot's ten thousand places for a kind (given to the STAND kinds that stand: the zoo's; ALL: with those that roam); a plot's lattice: a thousand cells a side, one asset in each (GROUP rows of it hold every kind once: a hundred of every kind a plot); its movers' lattice: ten thousand
 const PLOTS = Math.round(CITY.people / CITY.perVillage), RAYS = 64, ROW = 4 + RAYS + RAYS + 1 + 2, FAR_AT = ROW - 2, KEPT_AT = ROW - 1, KEPT = 8, BITS = 11, TAU = Math.PI * 2;   // a plot's row: its middle (x, z), its mean reach, its things' scale, then how far its edge is in RAYS directions, then the directions that cut its land into RAYS equal shares, its longest reach, and where its places are kept (KEPT plots' at once; -1: not kept); BITS: a cell's number holds its plot above them
@@ -680,29 +679,6 @@ export function createStress(scene, renderer, tex) {
   }, { stops: SOLID });
   let outlinedAt = 0;
   tiers.solid = () => { pump(); if (BOUNDS && performance.now() - outlinedAt > 120) { outlinedAt = performance.now(); outline(scene, bodiesNear(U.uCam.value.x, U.uCam.value.z, 14)); } };
-
-  // its herds may be followed (intent 0015, src/world/movers.js): the first mover along a line of sight, by the same
-  // reckoning as the GPU's (moverAtJS, on the clock the shader reads; its middle half its size over the ground), facing
-  // the way it goes. Only plots the line passes near, within MFAR, are looked through
-  if (HERDS.length) addMovers((o, d, k) => {
-    const t = U.uTime.value, flat = Math.hypot(d[0], d[2]) || 1e-9; let best = null;
-    for (const p of PL) {
-      const [along, off] = offLine([o[0], 0, o[2]], [d[0] / flat, 0, d[2] / flat], p.x, 0, p.z);
-      if (along < -p.most - 100 || along > MFAR + p.most || off > p.most + 100) continue;
-      while (moversOf(p).length < MSIDE * MSIDE);
-      for (const m of p.movers) {
-        const [mx, mz] = moverAtJS(p, m, t), [a, e] = offLine(o, d, mx, heightAt(mx, mz) + m.s * 0.5, mz);
-        if (a > 0 && a < MFAR && e < Math.max(m.s * 0.6, a * k) && (!best || a < best.d)) best = { d: a, p, m };
-      }
-    }
-    if (!best) return null;
-    const { p, m } = best; let yaw = null;
-    return { d: best.d, name: m.rig, at() {
-      const t = U.uTime.value, [x0, z0] = moverAtJS(p, m, t), [x1, z1] = moverAtJS(p, m, t + 0.25);
-      if (Math.hypot(x1 - x0, z1 - z0) > 1e-4) yaw = Math.atan2(-(x1 - x0), -(z1 - z0));   // (the rig looks along -sin, -cos of its yaw)
-      return { x: x0, z: z0, yaw };
-    } };
-  });
 
   // for looking at it (window.__stress): how many stand in a plot and of how many kinds; what each level holds and draws now
   const API = (window.__stress = {

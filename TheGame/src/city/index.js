@@ -13,7 +13,6 @@ import { heightAt, sstep } from '../world/land.js';
 import { inside } from './plan.js';
 import { load, save } from '../core/store.js';
 import { createCard } from './card.js';
-import { groundAt as groundUnder } from '../world/pick.js';
 
 // a plot's colours by its state (display values, as every material here writes them: src/world/light.js): line, wash
 const LOOK = {
@@ -116,7 +115,16 @@ export function createCity({ scene, camera, canvas, renderer }) {
   }
 
   // ---- picking: the point of the ground under the pointer, and the plot it lies in ----
-  const groundAt = (cx, cy) => groundUnder(camera, canvas, cx, cy);   // (src/world/pick.js)
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  function groundAt(cx, cy) {
+    const r = canvas.getBoundingClientRect(); ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera); const o = ray.ray.origin, d = ray.ray.direction;
+    let t0 = 0, t = 0;
+    for (let i = 0; i < 400 && t < 40000; i++) { t0 = t; t += Math.max(15, t * 0.02); if (o.y + d.y * t < heightAt(o.x + d.x * t, o.z + d.z * t)) break; }
+    if (t >= 40000) return null;
+    for (let i = 0; i < 12; i++) { const m = (t0 + t) / 2; if (o.y + d.y * m < heightAt(o.x + d.x * m, o.z + d.z * m)) t = m; else t0 = m; }
+    return [o.x + d.x * t, o.z + d.z * t];
+  }
   const ring2 = [];
   function plotAt(x, z) {
     const S = api.spacing || 2000;

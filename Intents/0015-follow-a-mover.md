@@ -111,3 +111,13 @@ for a scripted click), was checked by hand by Samuel: "it works now".
 | --- | --- | --- |
 | 2026-11-13 | `64ca23a` | Follow a mover from behind; movers registry; shared ground pick |
 | 2026-11-13 | `6aa7ee7` | Pick along the line of sight; POV picks at a crosshair |
+
+### 2026-11-13, taken out again (21:05)
+
+Samuel: "remove the follow cam again, this is weird, and recover the previous cam control". The two code commits
+(`64ca23a`, `6aa7ee7`) are reversed: `src/camera/rig.js`, `camera/rig.js` and `src/city/index.js` are as they were
+before them, `src/world/movers.js` and `src/world/pick.js` are gone, the stress stand no longer says where its
+movers are for a click. Done from the session of intent 0008. (Before that, one of that session's deploys had written
+an older `stress.js` over this intent's second commit: a click then built nine million movers and the page froze;
+that was put right at 20:25, see intent 0008.)
+

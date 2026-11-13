@@ -22,10 +22,6 @@ export default {
   climb: 0.75,         // on foot: the steepest ground walked up (metres up per metre on); steeper stops you, as a cut bank does
   stepUp: 0.25,        // a rise lower than this is stepped up whatever its slope (a kerb, a root)
   tilt: { up: 1.2, down: -1.5, drag: 0.0022, fade: 0.5 },
-  // following a mover (intent 0015): a click on something that moves hangs the camera behind it. h: the height it
-  // comes to (metres; scrolling still changes it), come: how fast it gets there, turn: how fast it swings round behind
-  // the mover as it turns (both per second), reach: how many pixels off a click may be and still mean it
-  follow: { h: 8, come: 1.5, turn: 2.2, reach: 28 },
   keys: [
     { h: 1.7, band: 'eye', pitch: null, fov: 68, speed: 3.2, run: 9, orbit: 0, lock: true },
     { h: 5, band: 'street', pitch: -0.32, fov: 64, speed: 7, run: 20, orbit: 1, lock: true },
