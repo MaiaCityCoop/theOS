@@ -1113,3 +1113,4 @@ shadows and the grass.
 | 2026-11-13 | `55b582c` | The stress stand over the city: a million in each of 898 plots, ten thousand movers a plot |
 | 2026-11-13 | `0293934` | The plots near the ground: fewer reads a pixel, near levels first, lighter far levels |
 | 2026-11-13 | `4d22a1e` | Ten thousand kinds with their own textures; movers as rigs of parts; hand-overs over the whole range |
+| 2026-11-13 | `f07ca95` | The ten-thousand build mended: holes, unsteady frames, colour flicker |
