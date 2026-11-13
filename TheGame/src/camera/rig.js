@@ -1,7 +1,7 @@
 // The game's one camera (intent 0003): a rig hung over a point on the ground, driven by one value, its height. At
 // the walker's eyes it is first person (walk, look, go in at doors); higher up it hangs back from that point and looks
-// down at it, a city-builder's camera (move, turn); at the top, the whole city. At every height a drag looks around,
-// the mouse never held (intent 0014): the height sets where the camera stands and how it looks when left alone, the
+// down at it, a city-builder's camera (move, turn); at the top, the whole city. At every height it looks around
+// (intent 0014): held mouse in POV (camera/rig.js: lock), a drag above it; the height sets where the camera stands and how it looks when left alone, the
 // drag tilts the view from there. Every number of how it behaves at a
 // height is in camera/rig.js; here only the mechanics. Walls, rocks and the ground stop it (src/world/solids.js).
 import RIG from '../../camera/rig.js';
@@ -17,7 +17,7 @@ export function at(h) {
   while (i < K.length - 2 && L > Math.log(K[i + 1].h)) i++;
   const a = K[i], b = K[i + 1], t = ease(Math.min(1, Math.max(0, (L - Math.log(a.h)) / (Math.log(b.h) - Math.log(a.h)))));
   const mix = (k) => a[k] + (b[k] - a[k]) * t;
-  return { band: t < 0.5 ? a.band : b.band, pitch: a.pitch === null ? (b.pitch ?? 0) : mix('pitch'), free: a.pitch === null ? 1 - t : 0, fov: mix('fov'), speed: mix('speed'), run: mix('run'), orbit: mix('orbit') };
+  return { band: t < 0.5 ? a.band : b.band, lock: t < 0.5 ? a.lock : b.lock, pitch: a.pitch === null ? (b.pitch ?? 0) : mix('pitch'), free: a.pitch === null ? 1 - t : 0, fov: mix('fov'), speed: mix('speed'), run: mix('run'), orbit: mix('orbit') };
 }
 
 /** The height's own pitch (where it looks when left alone: ahead at eye level, down from above), and the pitch with a
@@ -59,18 +59,22 @@ const fmt = (m) => (m >= 1000 ? `${+(m / 1000).toFixed(m >= 10000 ? 0 : 1)} km` 
 
 export function createControls(camera, canvas, msg, stat) {
   const keys = new Set();
-  let yaw = 0, look = -0.08, L = L0, drag = false;
+  let yaw = 0, look = -0.08, L = L0, locked = false, drag = false;
   const pivot = { x: 0, z: 0 };
-  const hints = { eye: 'Drag to look · WASD · Shift runs · scroll out to rise', street: 'Drag to look · WASD · scroll in to walk, out to rise', town: 'Drag to look around · WASD moves · Q E turn · scroll in and out', skyline: 'Drag to look around · WASD moves · scroll in to come down' };
+  const hints = { eye: 'Click to look · WASD · Shift runs · scroll out to rise', street: 'Click to look · WASD · scroll in to walk, out to rise', town: 'Drag to look around · WASD moves · Q E turn · scroll in and out', skyline: 'Drag to look around · WASD moves · scroll in to come down' };
   let band = 'eye'; msg.textContent = hints.eye;
   addEventListener('keydown', (e) => { keys.add(e.code); if (e.code === 'Space') e.preventDefault(); });
   addEventListener('keyup', (e) => keys.delete(e.code));
   addEventListener('blur', () => keys.clear());
-  // a drag looks around at every height, the mouse never held: left and right turns, up and down tilts
-  canvas.addEventListener('mousedown', (e) => { if (e.button === 0) drag = true; });
+  // looking around at every height: in POV the mouse is held (a click takes it), above it a drag; left and right turns, up and down tilts
+  let lockHere = true;
+  const take = () => { if (!locked && lockHere) { try { const r = canvas.requestPointerLock?.(); r?.catch?.(() => {}); } catch {} } };   // only in a band that holds the mouse (camera/rig.js: lock)
+  canvas.addEventListener('mousedown', (e) => { if (e.button === 0) drag = true; take(); });
+  addEventListener('keydown', (e) => { if (/^(Key[WASDQE]|Arrow)/.test(e.code)) take(); });   // coming back down, a click or a key takes it again (a scroll cannot: the browser asks for a click or a key)
   addEventListener('mouseup', () => { drag = false; });
+  document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; msg.textContent = locked ? '' : hints[band]; });
   document.addEventListener('mousemove', (e) => {
-    if (!drag) return;
+    if (!locked && !drag) return;
     yaw -= e.movementX * RIG.tilt.drag; look -= e.movementY * RIG.tilt.drag;
   });
   // fingers: the same move, turn and look, and height, from a joystick, a drag and a pinch (src/camera/touch.js)
@@ -102,7 +106,8 @@ export function createControls(camera, canvas, msg, stat) {
       if (glide) { glide.t = Math.min(1, glide.t + dt * 1.6); const k = glide.t * glide.t * (3 - 2 * glide.t); pivot.x += (glide.x - pivot.x) * k; pivot.z += (glide.z - pivot.z) * k; if (glide.t >= 1) glide = null; }
       if (h < 2) fromAbove = false;
       hPrev = h;
-      if (v.band !== band) { band = v.band; msg.textContent = hints[band] || ''; }
+      if (v.band !== band) { band = v.band; if (!locked) msg.textContent = hints[band] || ''; }
+      if (v.lock !== lockHere) { lockHere = v.lock; if (!lockHere && locked) document.exitPointerLock?.(); }   // up in town the mouse is free again
       // the tilt: kept through a small change of height, eased back to the height's own over a long one; never past the bounds
       look *= Math.exp(-RIG.tilt.fade * Math.abs(L - LPrev)); LPrev = L;
       look = Math.max(RIG.tilt.down - own(v), Math.min(RIG.tilt.up - own(v), look));
