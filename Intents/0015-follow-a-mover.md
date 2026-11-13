@@ -22,8 +22,10 @@ the walk-behind camera auto-follows?"
    it: its point becomes the mover's, it swings round behind it as it turns and comes down to a follow height.
 2. It follows until a move key, Esc, or a click on bare ground; the wheel still changes its height, a drag still
    looks around (intent 0014). The line under the pill says what it follows and how to let go.
-3. One registry of what moves (`src/world/movers.js`): a source adds how to find its mover nearest a point; the
-   stress stand's herds are the first. One way of finding the ground under the pointer (`src/world/pick.js`), shared
+3. One registry of what moves (`src/world/movers.js`): a source adds how to find the first of its movers along a
+   line of sight; the stress stand's herds are the first.
+5. In POV, the mouse held, a click picks what is under a crosshair in the middle of the screen; the crosshair shows
+   only while the mouse is held and lights when something under it can be followed. One way of finding the ground under the pointer (`src/world/pick.js`), shared
    with the city's plots.
 4. Its numbers in `TheGame/camera/rig.js` (`follow`).
 
@@ -35,11 +37,11 @@ the walk-behind camera auto-follows?"
 | 2 | Letting go | W, then Esc: following none, the band's hint back |
 | 3 | The hint holds through a band change | following from town to street: the line still says Following |
 | 4 | The city's plots still pick | the game without `?stress`: a click on a plot opens its card |
+| 5 | Picking in POV | `?stress` at eye level, 9 m from a creature: a click on it, and a click in the screen's middle facing it, both follow |
 
 **Out of scope**
 
-- Following in POV with the mouse held (a click there takes the mouse); characters other than the stress stand's
-  herds (none move in the world yet).
+- Characters other than the stress stand's herds (none move in the world yet).
 
 ## Build
 
@@ -66,7 +68,10 @@ the walk-behind camera auto-follows?"
 | 3 | passed | at 15 m the line still read "Following ten legs · WASD or Esc lets go" |
 | 4 | passed | the game without `?stress`, 2.5 km up: a click on the map opened Vision Village's card |
 
-**Known gaps:** with a mouse that is held (eye, street) a click does not pick: rise to town to pick.
+| 5 | passed | at eye level a click on a "ten legs" 9 m off followed it; facing it, a click in the middle followed the first on that line (a runner, nearer) |
+
+**Known gaps:** the crosshair (shown only with the mouse held) not seen: the app's browser pane does not hold the
+mouse for a scripted click. Check it by hand: click in POV, aim at a creature, the dot becomes a ring.
 
 ## Story
 
@@ -79,6 +84,8 @@ the walk-behind camera auto-follows?"
 - [x] Follow from behind
 - [x] Let go by keys and Esc
 - [x] Click a city plot (check 4)
+- [x] Pick in POV, at the crosshair (check 5)
+- [ ] See the crosshair light over a creature, by hand
 
 ## Changelog
 
@@ -88,6 +95,15 @@ the walk-behind camera auto-follows?"
 - **Delivered:** click to follow, Esc or a move key to let go; one registry of movers, one ground pick.
 - **Good:** the mover stays dead ahead as it walks; nothing of the movers kept, all reckoned from the clock.
 - **Broke / not there yet:** the follow line was overwritten at a band change on the first try; fixed with one hint.
+
+### 2026-11-13 (2)
+
+- **Asked:** "in POV mode the mouse is captured, so we can't select a moving asset, right?"
+- **Delivered:** picking along the line of sight instead of the ground point under the pointer (a creature seen
+  ahead at eye level was missed: the line meets the ground behind it); in POV a click picks at a crosshair in the
+  middle, which lights over something to follow.
+- **Good:** one pick for both: the pointer's line where the mouse is free, the middle's where it is held.
+- **Broke / not there yet:** the crosshair not seen in the pane (no held mouse there).
 
 ## Trail
 

@@ -8,8 +8,8 @@ import RIG from '../../camera/rig.js';
 import { heightAt } from '../world/land.js';
 import { step, ceilingAt, clear, within } from '../world/solids.js';
 import { createTouch } from './touch.js';
-import { groundAt } from '../world/pick.js';
-import { nearestMover } from '../world/movers.js';
+import { Raycaster, Vector2 } from 'three/webgpu';
+import { moverOnLine } from '../world/movers.js';
 
 const L0 = Math.log(RIG.eye), L1 = Math.log(RIG.top);
 const ease = (t) => t * t * (3 - 2 * t);
@@ -92,26 +92,41 @@ export function createControls(camera, canvas, msg, stat) {
     e.preventDefault(); Lwant = null;
     L = Math.max(L0, Math.min(L1, L + e.deltaY * RIG.wheel * (e.deltaMode ? 30 : 1)));
   }, { passive: false });
-  // following (intent 0015): a click (not a drag) on something that moves, where the mouse is free, hangs the camera
-  // behind it; it follows until a move key, Esc or a click on the bare ground. A click that finds a mover is the
-  // follow's alone (the city's plots under it are not picked)
+  // following (intent 0015): a click (not a drag) on something that moves hangs the camera behind it: where the mouse
+  // is free, what is under the pointer; in POV, the mouse held, what is under the crosshair in the middle (it lights
+  // when something there can be followed). It follows until a move key, Esc or a click on the bare ground. A click
+  // that finds a mover is the follow's alone (the city's plots under it are not picked)
   const follow = (m) => {
     following = m;
     if (m) { Lwant = Math.log(Math.min(RIG.top, Math.max(RIG.eye, RIG.follow.h))); look = 0; }
     hint();
   };
   function letGo() { following = null; Lwant = null; hint(); }
+  const ray = new Raycaster(), ndc = new Vector2();
+  /** The mover on the line of sight through a point of the screen (the middle when the mouse is held), or null. */
+  const moverAt = (cx, cy) => {
+    const r = canvas.getBoundingClientRect();
+    ndc.set(locked ? 0 : ((cx - r.left) / r.width) * 2 - 1, locked ? 0 : -((cy - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera); const o = ray.ray.origin, d = ray.ray.direction;
+    return moverOnLine([o.x, o.y, o.z], [d.x, d.y, d.z], (RIG.follow.reach * 2 * Math.tan((camera.fov * Math.PI) / 360)) / innerHeight);   // (the reach in pixels, as metres a metre off)
+  };
   let press = null;
-  canvas.addEventListener('pointerdown', (e) => { press = !locked && e.button === 0 ? { x: e.clientX, y: e.clientY, t: performance.now() } : null; }, true);
+  canvas.addEventListener('pointerdown', (e) => { press = e.button === 0 ? { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0, held: locked } : null; }, true);
+  document.addEventListener('mousemove', (e) => { if (press) press.moved += Math.hypot(e.movementX, e.movementY); });
   canvas.addEventListener('pointerup', (e) => {
-    if (!press || Math.hypot(e.clientX - press.x, e.clientY - press.y) > 5 || performance.now() - press.t > 500) return;   // a click, not a drag that turns the view
-    press = null;
-    const g = groundAt(camera, canvas, e.clientX, e.clientY); if (!g) return;
-    const d = Math.hypot(camera.position.x - g[0], camera.position.y - heightAt(g[0], g[1]), camera.position.z - g[1]);
-    const r = Math.max(1.5, RIG.follow.reach * (2 * d * Math.tan((camera.fov * Math.PI) / 360)) / innerHeight);   // the reach in pixels, as metres there
-    const m = nearestMover(g[0], g[1], r);
-    if (m) { follow(m); e.stopImmediatePropagation(); } else if (following) letGo();
+    // a click, not a drag that turns the view (held, the pointer stays put: what the mouse moved counts)
+    if (!press || Math.hypot(e.clientX - press.x, e.clientY - press.y) > 5 || press.moved > 8 || performance.now() - press.t > 500) return;
+    const held = press.held; press = null;
+    const m = moverAt(e.clientX, e.clientY);
+    if (m) { follow(m); e.stopImmediatePropagation(); } else if (following && !held) letGo();
   }, true);
+  // the crosshair: only while the mouse is held; lit when what is under it can be followed (looked for a few times a second)
+  const cross = document.createElement('div'); cross.className = 'rig-cross'; cross.hidden = true; document.body.append(cross);
+  const crossStyle = document.createElement('style');
+  crossStyle.textContent = `.rig-cross{position:fixed;left:50%;top:50%;z-index:3;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:rgba(255,255,255,.75);box-shadow:0 0 0 1px rgba(12,28,22,.35);pointer-events:none;transition:all .15s}
+  .rig-cross.on{width:18px;height:18px;margin:-9px 0 0 -9px;background:transparent;border:2px solid #fff}`;
+  document.head.append(crossStyle);
+  let aimAt = 0;
   camera.rotation.order = 'YXZ';
   let eyeY = null, hPrev = RIG.eye, fromAbove = false, shown = '', glide = null, backNow = 0, LPrev = L;
   return {
@@ -136,6 +151,8 @@ export function createControls(camera, canvas, msg, stat) {
       if (h < 2) fromAbove = false;
       hPrev = h;
       if (v.band !== band) { band = v.band; hint(); }
+      cross.hidden = !locked;
+      if (locked && performance.now() - aimAt > 200) { aimAt = performance.now(); cross.classList.toggle('on', !!moverAt(0, 0)); }
       if (v.lock !== lockHere) { lockHere = v.lock; if (!lockHere && locked) document.exitPointerLock?.(); }   // up in town the mouse is free again
       // the tilt: kept through a small change of height, eased back to the height's own over a long one; never past the bounds
       look *= Math.exp(-RIG.tilt.fade * Math.abs(L - LPrev)); LPrev = L;
