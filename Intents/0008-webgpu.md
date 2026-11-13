@@ -1176,6 +1176,29 @@ Samuel: three hard gates now: 4K resolution all the time, 60 frames a second, 8 
 - **Not done in this time:** the 4K output (render inside, upscale to the screen's own resolution): designed, not
   built.
 
+### 2026-11-13, the screen keeps all its own pixels: the world drawn inside, laid on it (20:45)
+
+Samuel chose it for the 4K gate: the picture always at the screen's full resolution; the world may be drawn at fewer
+pixels inside and scaled up when a view is heavy.
+
+- **Two sizes** (`src/core/screen.js`): the canvas stands at the screen's own pixel ratio and never below (4K on a 4K
+  screen; his window: 2880 by 1558). The world is drawn into a target at the inside's ratio (the governor's dial,
+  which no longer touches the canvas) and laid on the screen through Catmull-Rom, nine reads a pixel; at the same
+  size it is a copy. The lens's blur (`src/camera/post.js`) draws at the inside's size too.
+- **The canvas is no longer multisampled:** the target is, and drops its samples when the pass ends (resolved, then
+  forgotten). A canvas keeps every sample of every frame: four times its pixels for the colour and again for depth.
+- **Seen (test browser, a screen of ratio 2):** the canvas 2400 by 1400 at every inside ratio; stills at 2, 1 and 0.6
+  inside: 2 crisp, 1 a little softer and clean, 0.6 visibly coarse; colours the same. Every page loads; the stand
+  and the lens page draw.
+- **Cost:** an empty frame (the target and the copy alone) 2.7 ms at any inside ratio, where the canvas alone was 1.1
+  at a ratio of 1 and 2.9 at 2. Frames as the page sees them: both builds the same at inside ratios 1, 1.5 and 2 (33
+  ms in the test browser), the new once 16.7 at 1 where the old did not reach it. The summed times of the passes read
+  16 ms higher for the new build at a ratio of 2: two passes a frame are counted over each other there; the frame
+  intervals do not show it.
+- **Not known yet:** what his Safari holds: the inside's ratio the governor settles at, and whether it looks sharper
+  to him than the browser's own scaling did.
+- **Next for the gate:** the land's shader (most of a frame); then a sharpening pass if the low ratios look soft.
+
 ## Trail
 
 | When | Commit | What |

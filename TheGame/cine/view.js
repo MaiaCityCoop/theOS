@@ -108,7 +108,7 @@ async function preview() {
   const k = { pos: story.preview.pos, look: story.preview.look, mm: story.preview.mm || 28 };
   cine.load([{ name: 'preview', kind: 'wide', secs: 30, ease: 'inout', keys: [k, k] }]); cine.seek(5); cine.play();
   await new Promise((r) => setTimeout(r, 3000)); cine.pause();
-  const { renderer, scene, camera } = window.__s8, g = renderer.domElement; renderer.render(scene, camera);
+  const { renderer, scene, camera, screen } = window.__s8, g = renderer.domElement; screen ? screen.render(scene, camera) : renderer.render(scene, camera);   // (through the inside's target, as a frame is: src/core/screen.js)
   const c = document.createElement('canvas'); c.width = 1600; c.height = Math.round((1600 * g.height) / g.width); c.getContext('2d').drawImage(g, 0, 0, c.width, c.height);
   const res = await fetch(`${BASE}/story-preview?id=${storyId}`, { method: 'POST', body: c.toDataURL('image/jpeg', 0.86) });
   build(); cine.play(); return res.text();
@@ -133,8 +133,8 @@ if (parent !== window) {
       for (let i = 0; i < cine.clips.length; i++) {
         cine.seek(cine.starts[i] + cine.clips[i].secs * 0.5); cine.play();      // the picture is only drawn while it runs
         await new Promise((r) => setTimeout(r, 300)); cine.pause();   // a moment, so the ground has filled in
-        const { renderer, scene, camera } = window.__s8, g = renderer.domElement;
-        renderer.render(scene, camera);                       // drawn now and copied in the same moment, before the browser clears it
+        const { renderer, scene, camera, screen } = window.__s8, g = renderer.domElement;
+        screen ? screen.render(scene, camera) : renderer.render(scene, camera);                       // drawn now and copied in the same moment, before the browser clears it
         const c = document.createElement('canvas'); c.width = 360; c.height = Math.round((360 * g.height) / g.width);
         c.getContext('2d').drawImage(g, 0, 0, c.width, c.height); const src = c.toDataURL('image/jpeg', 0.75); send({ type: 'thumb', i, src });
         if (storyId) fetch(`${BASE}/story-shot?id=${storyId}&i=${i}`, { method: 'POST', body: src }).catch(() => {});   // kept with the story: taken once

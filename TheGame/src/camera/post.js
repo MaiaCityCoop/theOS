@@ -6,7 +6,7 @@ import { Fn, float, vec2, vec3, vec4, uv, uniform, texture, If, min, abs, max, s
 
 const TAPS = 28;
 
-export function createPost(renderer, skyHex) {
+export function createPost(renderer, skyHex, screen = null) {   // screen: the picture's two sizes (src/core/screen.js): the world is drawn at the inside's, the lens's blur lays it on the screen
   let rt = null;
   // the sky's colour as plain numbers: into a target, three writes a clear colour unconverted
   const sky = new THREE.Color().setRGB(((skyHex >> 16) & 255) / 255, ((skyHex >> 8) & 255) / 255, (skyHex & 255) / 255, THREE.LinearSRGBColorSpace), keep = new THREE.Color();
@@ -41,7 +41,7 @@ export function createPost(renderer, skyHex) {
   return {
     /** dof: { focus (m), mm, N, aspect (the picture's shape), barrel } */
     render(scene, camera, dof) {
-      renderer.getDrawingBufferSize(size);
+      if (screen) screen.size(size); else renderer.getDrawingBufferSize(size);
       if (!rt || rt.width !== size.x || rt.height !== size.y) {
         rt?.dispose();
         rt = new THREE.RenderTarget(size.x, size.y, { samples: 4, depthTexture: new THREE.DepthTexture(size.x, size.y), minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });

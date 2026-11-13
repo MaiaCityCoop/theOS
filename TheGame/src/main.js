@@ -33,6 +33,7 @@ import { PLACES } from '../world/places.js';
 import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
 import { createPost } from './camera/post.js';
+import { createScreen } from './core/screen.js';
 import { createSky } from './world/sky.js';
 import { createWeather } from './world/weather/index.js';
 import { useBackend } from './world/light.js';
@@ -46,7 +47,7 @@ const canvas = document.getElementById('c');
 const params = new URLSearchParams(location.search);
 // (the stress stand keeps its kinds' own textures in one array of many layers: more than a device gives unasked; src/scatter/stress.js)
 const layers = params.has('stress') ? Math.min(2048, (await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits?.maxTextureArrayLayers ?? 256) : 256;
-const renderer = new THREE.WebGPURenderer({ canvas, antialias: !params.has('noaa'), alpha: false, powerPreference: 'high-performance', forceWebGL: params.has('webgl'), trackTimestamp: params.has('gputime'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (what is drawn with alpha to coverage, a tree's needles, leaves its alpha in the picture: it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); ?noaa: no multisampling (to measure what it costs at a high pixel ratio)
+const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: params.has('webgl'), trackTimestamp: params.has('gputime'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (what is drawn with alpha to coverage, a tree's needles, leaves its alpha in the picture: it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); the canvas itself is not multisampled: the world is drawn into a multisampled target and laid on it (src/core/screen.js); ?noaa: that target without multisampling, to measure what it costs
 const keptMeshes = primeMeshes();   // the meshes built before, read back while the renderer starts (src/core/meshes.js)
 await renderer.init();
 if (!params.has('fat')) useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js); ?fat: twice, as three keeps it, to compare
@@ -69,7 +70,9 @@ addEventListener('resize', () => {   // only a real change of size rebuilds the 
 const stats = (window.__s8 = { renderer, camera, scene, meshes: { kept: meshesKept, built: 0 } });
 const U = createUniforms(camera, SKY);
 trackView(); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
-const governor = createGovernor(renderer);
+// (the screen keeps all its own pixels; the governor's pixel dial is the inside's: src/core/screen.js)
+const screen = (stats.screen = createScreen(renderer, SKY, { samples: params.has('noaa') ? 0 : 4, store: params.has('msstore') }));
+const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
 stats.governor = governor;   // the film holds it still while it plays
 const boot = (stats.boot = {}), mark = (k) => (boot[k] = Math.round(performance.now() - t0));   // where the start's time goes
 mark('renderer');
@@ -100,7 +103,7 @@ stats.sky = sky;   // the sun and the sky: one time of day drives the light (int
 const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)
 stats.shadows = shadows;
 stats.controls = controls;
-const post = createPost(renderer, SKY);
+const post = createPost(renderer, SKY, screen);
 const city = (stats.city = createCity({ scene, camera, canvas, renderer }));
 const hud = createHud(document.getElementById('hud'), renderer, camera, governor, stats);
 spawn(controls);
@@ -130,7 +133,7 @@ function draw() {
   const dof = camera.userData.dof;   // the virtual camera brings a lens with it: its picture is drawn through it
   const gy = heightAt(camera.position.x, camera.position.z);
   weather.before(camera, gy); shadows.render(scene, camera, gy);   // (what a condition draws before the picture: the clouds' shadow map)
-  if (dof && dof.on) post.render(scene, camera, dof); else renderer.render(scene, camera);
+  if (dof && dof.on) post.render(scene, camera, dof); else screen.render(scene, camera);
 }
 let last = 0;
 function frame(now) {
@@ -162,7 +165,7 @@ function hitch(ms, now) {
   }
   if (import.meta.env.DEV && now - sentAt > 4000 && (hitches.length || frames > 0)) {
     sentAt = now;
-    const body = JSON.stringify({ at: Math.round(now), clock: new Date().toTimeString().slice(0, 8), ...TAB, hidden: document.hidden, size: [innerWidth, innerHeight], cam: [...camera.position.toArray(), ...camera.getWorldDirection(new THREE.Vector3()).toArray()].map((v) => +v.toFixed(2)), mid: +governor.mid.toFixed(1), dpr: governor.dpr, lod: +governor.lod.toFixed(2), ms: +governor.ms.toFixed(1), late: +governor.late.toFixed(2), tris: renderer.info.render.triangles, frames, hitches: hitches.splice(0) }); frames = 0;
+    const body = JSON.stringify({ at: Math.round(now), clock: new Date().toTimeString().slice(0, 8), ...TAB, hidden: document.hidden, size: [innerWidth, innerHeight], cam: [...camera.position.toArray(), ...camera.getWorldDirection(new THREE.Vector3()).toArray()].map((v) => +v.toFixed(2)), mid: +governor.mid.toFixed(1), out: screen.out, dpr: governor.dpr, lod: +governor.lod.toFixed(2), ms: +governor.ms.toFixed(1), late: +governor.late.toFixed(2), tris: renderer.info.render.triangles, frames, hitches: hitches.splice(0) }); frames = 0;
     fetch(import.meta.env.BASE_URL + 'perf-log', { method: 'POST', body }).catch(() => {});
   }
 }
@@ -178,10 +181,10 @@ mark('built');
 await loadingStep('Lighting the world', 0.55);
 await renderer.compileAsync(scene, camera);
 mark('compiled');
-renderer.render(scene, camera);
+screen.render(scene, camera);   // (through the inside's target: its pipelines are the ones a frame uses)
 for (let i = 0; i < seen.length; i += 2) seen[i].visible = seen[i + 1];
 choose(0);
-renderer.render(scene, camera);
+screen.render(scene, camera);
 stats.loadMs = performance.now() - t0;
 setTimeout(() => keepMeshes().then((n) => (stats.meshes.built = n)), 2500);   // what was built anew this time, kept for the next start
 console.log(`[sandbox 8] ready in ${stats.loadMs.toFixed(0)} ms`, boot);

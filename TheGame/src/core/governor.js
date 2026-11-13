@@ -6,8 +6,9 @@
 // stretch costs about that many times the blades, so the stretch is capped, and the cap moves
 // with the frame time: `lod` is what the world is drawn with.
 //
-// Pixels. The canvas's pixel ratio, between 1 and the screen's; and below 1, the last dial, down to FLOOR: the picture
-// a little soft, but never slower than 60 frames a second. 60 fps is the hard gate, the picture's detail the soft one.
+// Pixels. The pixel ratio the world is drawn at (in the game: inside, then laid on the screen at the screen's own
+// resolution, which is never given up: src/core/screen.js), between 1 and the screen's; and below 1, the last dial,
+// down to FLOOR: the picture a little soft, but never slower than 60 frames a second. 60 fps is the hard gate, the picture's detail the soft one.
 //
 // What it goes by, since its last look: the share of frames that missed 60 fps by far (longer than SLOW ms), and the
 // mean of all its frames but the worst (MEAN ms: a screen that shows a frame whenever it is ready runs every frame a
@@ -29,7 +30,7 @@
 // dropped now and then is none of these: read in Samuel's Safari on 2026-11-13, a walk dropped one frame in sixteen
 // at a ratio of 1 and just as many at 0.625 (the cause was not the pixels), and the ratio had gone to the floor for
 // them and stayed there. And the way back up to the screen's own points allows a dropped frame or two a look.
-export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 16 } = {}) {
+export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 16, apply = (r) => renderer.setPixelRatio(r) } = {}) {   // apply: what takes the pixel ratio it decides (the game: the inside's, src/core/screen.js; the screen keeps its own)
   const REF = 1 / Math.tan((refFov * Math.PI) / 360);
   const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2), DPR_MIN = Math.min(1, DPR_MAX), FLOOR = 0.6;   // DPR_MIN: where it starts and comes back to first; FLOOR: how soft it may go to hold 60 fps
   const SLOW = 20, LATE = 0.08, ROOM = 0.02, MEAN = 17.5, WARM = 4000, MOST = 0.35, STREAK = 6, EASY = 0.05;   // a frame longer than SLOW (ms) missed 60 fps by far; the shares of such frames that are too many, and few enough to try more; the mean frame (ms) that is under 57 fps; ms after the start before the first look
@@ -40,10 +41,10 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
   let born = -1, n = 0, late = 0, share = 0, sum = 0, worst = 0, mean = 16.7;   // frames since the last look, how many of them late, that share; their times' sum and the worst, the mean without it   // frames since the last look, how many of them late, and that share
   let trial = null, noPixels = 0, wait = 15000;   // a step down in pixels on trial; until noPixels none is tried (wait: how long, longer each time one fails)
   let held = false, hot = 0, downAt = -1e9;   // a film playing: no turning of the dials, so its frames come out even (it plays the same every time, too)
-  renderer.setPixelRatio(dpr);
+  apply(dpr);
   return {
     /** Before drawing: a change of pixel ratio empties the canvas, so it is made only here. */
-    begin() { if (resize) { renderer.setPixelRatio(dpr); resize = false; } },
+    begin() { if (resize) { apply(dpr); resize = false; } },
     /** The detail factor for this camera, this frame. */
     detail(camera) { zoom = Math.max(1, camera.projectionMatrix.elements[5] / REF); lod = Math.min(zoom, cap); return lod; },
     /** After drawing: the frame's time, and whether a tier ran out of patches. */
