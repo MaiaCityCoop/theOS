@@ -1,20 +1,23 @@
 // A test asset by its number (the stress stand: src/scatter/stress.js): a shape nobody drew, grown from a seed: a ball
-// pulled into lobes, spikes and folds, stretched, tapered and twisted, in two colours of its own. Each kind is its own
-// mesh of 50 000 to 200 000 triangles, and that same shape again at every coarser level of the ladder, down to a
-// tetrahedron: what any asset must bring to be drawn by the heap (src/scatter/heap.js). Plain JS, no three: it runs in a
-// worker (src/scatter/blob.worker.js).
+// pulled into lobes, spikes and folds, stretched, tapered and twisted, with a look of its own (blobLook: two textures,
+// two tints, how it shines, how it sways, how it holds snow). Each kind is its own mesh of 50 000 to 200 000 triangles,
+// and that same shape again at every coarser level of the ladder, down to a cube: what any asset must bring to be drawn
+// by the heap (src/scatter/heap.js). Plain JS, no three: it runs in a worker (src/scatter/blob.worker.js).
 //
-//   blobMesh(k, n) -> { index: Uint32Array (3 a triangle), verts: Uint32Array (4 a vertex) }
-//     n: the squares along a cube's edge the ball is cut into (12 n² triangles); 0: a tetrahedron
-//        -2: its dot, one triangle in its mean colour (what draws it turns it to the eye: src/scatter/stress.js)
-//     a vertex, packed: [x | y << 16], [z], [normal, octahedral: u | v << 16], [r | g << 8 | b << 16]; its place in its
-//     own frame (its foot at 0, its largest side 1) as 16 bits over -1 … 1
+//   blobMesh(k, n, m) -> { index: Uint32Array (3 a triangle), verts: Uint32Array (8 a vertex) }
+//     n: the squares along a cube's edge the ball is cut into (12 n² triangles); under 0: its dot, one triangle
+//     m: the next coarser level's n (0: none). Every vertex is packed twice: as it is, and as it lies on level m's
+//        mesh (its place there, that mesh's normal, pattern and shade at that place). Drawn part way between the two,
+//        level n turns into level m with nothing to see when the one takes over from the other (geomorphing).
+//     a vertex, packed: [x | y << 16], [z | pattern << 16 | shade << 24], [normal, octahedral: u | v << 16], [0]; its
+//     place in its own frame (its foot at 0, its largest side 1) as 16 bits over -1 … 1; pattern: 0 its first
+//     texture and tint … 255 its second
 
 export const SEED = 9001;
 /** squares along an edge of kind k's full mesh: 65 … 129, so 50 700 … 199 692 triangles */
 export const fullOf = (k) => 65 + Math.floor(rnd(k, 1) * 65);
 /** triangles and vertices of a level */
-export const trisOf = (n) => (n > 0 ? 12 * n * n : n ? 1 : 4), vertsOf = (n) => (n > 0 ? 6 * n * n + 2 : n ? 3 : 4);   // (n < 0: its dot, one triangle)
+export const trisOf = (n) => (n > 0 ? 12 * n * n : 1), vertsOf = (n) => (n > 0 ? 6 * n * n + 2 : 3);   // (n < 0: its dot, one triangle)
 
 function hash3(x, y, z, s) {
   let h = Math.imul(x, 0x9E3779B1) ^ Math.imul(y, 0x85EBCA77) ^ Math.imul(z, 0xC2B2AE3D) ^ Math.imul(s, 0x27D4EB2F);
@@ -86,44 +89,44 @@ function dirOf(f, i, j, n) {
   const l = Math.hypot(D[0], D[1], D[2]); D[0] /= l; D[1] /= l; D[2] /= l;
   return D;
 }
-const TETRA = [[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]].map((v) => v.map((x) => x / Math.sqrt(3)));
 // a coarse body drawn through a round thing's surface looks smaller than it: swollen to cover as much of the screen
-const SWELL = { 0: 1.6, 1: 1.24, 2: 1.07, 4: 1.02 };
+const SWELL = { 1: 1.24, 2: 1.07, 4: 1.02 };
+
+/** How many ways of taking the light there are (src/scatter/stress.js: its shading models). */
+export const MODELS = 12;
+/** What kind k looks like: which shading model, its two tints, which two of the world's textures (0 … 1: the stand picks
+    from those it has) and how large they lie on it (metres a tile), how it shines, how far it sways in the wind (0: it
+    stands stiff), how uneven its snow lies (metres), how it glows, how much light passes through it. */
+export function blobLook(k) {
+  const K = kindOf(k), r = (i) => rnd(k, i);
+  return { model: Math.floor(r(30) * MODELS), c1: K.c1, c2: K.c2, texA: r(31), texB: r(32), scale: 0.6 + 1.8 * r(33), gloss: r(34), sway: r(35) < 0.4 ? 0 : 0.02 + 0.1 * r(36), snow: 0.02 + 0.1 * r(37), glow: 0.4 + 1.2 * r(38), through: 0.3 + 0.6 * r(39) };
+}
 
 let LATTICE = null;   // (which vertex a cube's lattice point is, kept between meshes)
-/** Kind k's mesh at level n. */
-export function blobMesh(k, n) {
-  if (n < 0) {   // its dot: three corners in the mean of its two colours
-    const K = kindOf(k), b8 = (v) => Math.max(0, Math.min(255, Math.round(v * 255))), c = [0, 1, 2].map((i) => b8(((K.c1[i] + K.c2[i]) / 2) * 0.85)), verts = new Uint32Array(12);
-    for (let i = 0; i < 3; i++) { verts[i * 4] = 32768 | (45875 << 16); verts[i * 4 + 1] = 32768; verts[i * 4 + 2] = 32768 | (65535 << 16); verts[i * 4 + 3] = c[0] | (c[1] << 8) | (c[2] << 16); }
-    return { index: new Uint32Array([0, 1, 2]), verts };
-  }
-  const K = kindOf(k), V = vertsOf(n), T = trisOf(n), N1 = n + 1;
-  const pos = new Float32Array(V * 3), dir = new Float32Array(V * 3), rad = new Float32Array(V), index = new Uint32Array(T * 3);
+// kind K's mesh at level n, unpacked: its corners in its own frame, their normals, pattern and shade; `at` the vertex at
+// a lattice point (own: a lattice of its own, for a mesh another is measured against)
+function build(K, n, own = false) {
+  const V = vertsOf(n), T = trisOf(n), N1 = n + 1, size = N1 * N1 * N1;
+  const pos = new Float32Array(V * 3), dir = new Float32Array(V * 3), rad = new Float32Array(V), index = new Uint32Array(T * 3), where = new Uint16Array(V * 3);
+  if (!own && (!LATTICE || LATTICE.length < size)) LATTICE = new Int32Array(size);
+  const at = own ? new Int32Array(size) : LATTICE, L = [0, 0, 0];
+  const key = (f, i, j) => { const a = f >> 1; L[a] = f & 1 ? 0 : n; L[(a + 1) % 3] = i; L[(a + 2) % 3] = j; return L[0] + N1 * (L[1] + N1 * L[2]); };
   let nv = 0, ni = 0;
-  const add = (d) => { dir[nv * 3] = d[0]; dir[nv * 3 + 1] = d[1]; dir[nv * 3 + 2] = d[2]; rad[nv] = surface(K, n || 0.7, d[0], d[1], d[2], pos, nv * 3); return nv++; };
+  for (let f = 0; f < 6; f++) for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) at[key(f, i, j)] = -1;   // a face's corners, shared with its neighbours
+  const id = (f, i, j) => {
+    const q = key(f, i, j); if (at[q] >= 0) return at[q];
+    const d = dirOf(f, i, j, n); dir[nv * 3] = d[0]; dir[nv * 3 + 1] = d[1]; dir[nv * 3 + 2] = d[2]; rad[nv] = surface(K, n, d[0], d[1], d[2], pos, nv * 3);
+    where[nv * 3] = f; where[nv * 3 + 1] = i; where[nv * 3 + 2] = j;
+    return (at[q] = nv++);
+  };
   const tri = (a, b, c) => {   // wound to face outwards
     const ax = pos[a * 3], ay = pos[a * 3 + 1], az = pos[a * 3 + 2], ux = pos[b * 3] - ax, uy = pos[b * 3 + 1] - ay, uz = pos[b * 3 + 2] - az, vx = pos[c * 3] - ax, vy = pos[c * 3 + 1] - ay, vz = pos[c * 3 + 2] - az;
     const out = (uy * vz - uz * vy) * dir[a * 3] + (uz * vx - ux * vz) * dir[a * 3 + 1] + (ux * vy - uy * vx) * dir[a * 3 + 2] >= 0;
     index[ni++] = a; index[ni++] = out ? b : c; index[ni++] = out ? c : b;
   };
-  if (!n) { for (const d of TETRA) add(d); tri(0, 1, 2); tri(0, 2, 3); tri(0, 3, 1); tri(1, 3, 2); }
-  else {
-    const size = N1 * N1 * N1; if (!LATTICE || LATTICE.length < size) LATTICE = new Int32Array(size);
-    const at = LATTICE, L = [0, 0, 0];
-    for (let f = 0; f < 6; f++) for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {   // a face's corners, shared with its neighbours
-      const a = f >> 1; L[a] = f & 1 ? 0 : n; L[(a + 1) % 3] = i; L[(a + 2) % 3] = j;
-      at[L[0] + N1 * (L[1] + N1 * L[2])] = -1;
-    }
-    const id = (f, i, j) => {
-      const a = f >> 1; L[a] = f & 1 ? 0 : n; L[(a + 1) % 3] = i; L[(a + 2) % 3] = j;
-      const key = L[0] + N1 * (L[1] + N1 * L[2]);
-      return at[key] >= 0 ? at[key] : (at[key] = add(dirOf(f, i, j, n)));
-    };
-    for (let f = 0; f < 6; f++) for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-      const a = id(f, i, j), b = id(f, i + 1, j), c = id(f, i + 1, j + 1), d = id(f, i, j + 1);
-      tri(a, b, c); tri(a, c, d);
-    }
+  for (let f = 0; f < 6; f++) for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const a = id(f, i, j), b = id(f, i + 1, j), c = id(f, i + 1, j + 1), d = id(f, i, j + 1);
+    tri(a, b, c); tri(a, c, d);
   }
   // into its own frame
   const B = K.box, sw = SWELL[n] ?? 1, cy = 0.5 / B.k;
@@ -139,20 +142,43 @@ export function blobMesh(k, n) {
     const x = uy * vz - uz * vy, y = uz * vx - ux * vz, z = ux * vy - uy * vx;
     nor[a] += x; nor[a + 1] += y; nor[a + 2] += z; nor[b] += x; nor[b + 1] += y; nor[b + 2] += z; nor[c] += x; nor[c + 1] += y; nor[c + 2] += z;
   }
-  // packed
-  const verts = new Uint32Array(V * 4), q = (v) => Math.max(0, Math.min(65535, Math.round((v * 0.5 + 0.5) * 65535))), wc = carry(n || 0.7, K.fc), b8 = (v) => Math.max(0, Math.min(255, Math.round(v * 255)));
+  // its pattern (where its second texture and tint show: in patches, or bands up it; a level too coarse for them wears
+  // their mean) and its shade (darker in its folds)
+  const mask = new Float32Array(V), shade = new Float32Array(V), wc = K.stripes ? carry(n, K.stripes / 3) : carry(n, K.fc);
   for (let i = 0; i < V; i++) {
-    const o = i * 3; let x = nor[o], y = nor[o + 1], z = nor[o + 2]; const l = Math.hypot(x, y, z) || 1; x /= l; y /= l; z /= l;
-    const m = Math.abs(x) + Math.abs(y) + Math.abs(z); let u = x / m, v = y / m;   // octahedral
-    if (z < 0) { const u0 = u; u = (1 - Math.abs(v)) * (u0 >= 0 ? 1 : -1); v = (1 - Math.abs(u0)) * (v >= 0 ? 1 : -1); }
-    // its colour: its two, in patches (or bands up it), darker in its folds; a level too coarse for the patches wears their mean
+    const o = i * 3, l = Math.hypot(nor[o], nor[o + 1], nor[o + 2]) || 1; nor[o] /= l; nor[o + 1] /= l; nor[o + 2] /= l;
     const dx = dir[o], dy = dir[o + 1], dz = dir[o + 2];
     let t = K.stripes ? 0.5 + 0.5 * Math.sin(dy * K.stripes + noise3(dx * 2, dy * 2, dz * 2, K.s + 5) * 3) : noise3(dx * K.fc, dy * K.fc + 1, dz * K.fc, K.s + 4);
-    t = Math.min(1, Math.max(0, (t - 0.42) / 0.16)); t = 0.5 + (t * t * (3 - 2 * t) - 0.5) * (K.stripes ? carry(n || 0.7, K.stripes / 3) : wc);
-    const sh = Math.min(1.1, Math.max(0.55, 0.8 + 0.6 * (rad[i] - 1)));
-    const j = i * 4;
-    verts[j] = q(pos[o]) | (q(pos[o + 1]) << 16); verts[j + 1] = q(pos[o + 2]); verts[j + 2] = q(u) | (q(v) << 16);
-    verts[j + 3] = b8((K.c1[0] + (K.c2[0] - K.c1[0]) * t) * sh) | (b8((K.c1[1] + (K.c2[1] - K.c1[1]) * t) * sh) << 8) | (b8((K.c1[2] + (K.c2[2] - K.c1[2]) * t) * sh) << 16);
+    t = Math.min(1, Math.max(0, (t - 0.42) / 0.16)); mask[i] = 0.5 + (t * t * (3 - 2 * t) - 0.5) * wc;
+    shade[i] = Math.min(1, Math.max(0.5, 0.8 + 0.6 * (rad[i] - 1)));
   }
-  return { index, verts };
+  return { n, V, pos, nor, mask, shade, index, where, at, key };
+}
+
+const q16 = (v) => Math.max(0, Math.min(65535, Math.round((v * 0.5 + 0.5) * 65535))), b8 = (v) => Math.max(0, Math.min(255, Math.round(v * 255)));
+function pack(out, o, x, y, z, nx, ny, nz, mask, shade) {
+  const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+  const m = Math.abs(nx) + Math.abs(ny) + Math.abs(nz); let u = nx / m, v = ny / m;   // octahedral
+  if (nz < 0) { const u0 = u; u = (1 - Math.abs(v)) * (u0 >= 0 ? 1 : -1); v = (1 - Math.abs(u0)) * (v >= 0 ? 1 : -1); }
+  out[o] = (q16(x) | (q16(y) << 16)) >>> 0; out[o + 1] = (q16(z) | (b8(mask) << 16) | (b8(shade) << 24)) >>> 0; out[o + 2] = (q16(u) | (q16(v) << 16)) >>> 0; out[o + 3] = 0;
+}
+
+/** Kind k's mesh at level n, each vertex also as it lies on level m's mesh (m: 0, none: as it is). */
+export function blobMesh(k, n, m = 0) {
+  const K = kindOf(k);
+  if (n < 0) {   // its dot: three corners (what draws it turns it to the eye and takes its colour from its look)
+    const verts = new Uint32Array(24); for (let i = 0; i < 6; i++) pack(verts, i * 4, 0, 0.4, 0, 0, 1, 0, 0.5, 0.85);
+    return { index: new Uint32Array([0, 1, 2]), verts };
+  }
+  const C = m ? build(K, m, true) : null, F = build(K, n), verts = new Uint32Array(F.V * 8), P = F.pos, N = F.nor;
+  for (let v = 0; v < F.V; v++) {
+    const o = v * 3; pack(verts, v * 8, P[o], P[o + 1], P[o + 2], N[o], N[o + 1], N[o + 2], F.mask[v], F.shade[v]);
+    if (!C) { verts.copyWithin(v * 8 + 4, v * 8, v * 8 + 4); continue; }
+    // where it lies on the coarser mesh: in which of its squares, and of the square's two triangles (cut a to c)
+    const f = F.where[o], u = (F.where[o + 1] * m) / n, w = (F.where[o + 2] * m) / n, ci = Math.min(m - 1, Math.floor(u)), cj = Math.min(m - 1, Math.floor(w)), s = u - ci, t = w - cj;
+    const a = C.at[C.key(f, ci, cj)], c = C.at[C.key(f, ci + 1, cj + 1)], e = s >= t ? C.at[C.key(f, ci + 1, cj)] : C.at[C.key(f, ci, cj + 1)];
+    const wa = 1 - Math.max(s, t), wc = Math.min(s, t), we = 1 - wa - wc, mix = (A, i) => A[a * 3 + i] * wa + A[c * 3 + i] * wc + A[e * 3 + i] * we;
+    pack(verts, v * 8 + 4, mix(C.pos, 0), mix(C.pos, 1), mix(C.pos, 2), mix(C.nor, 0), mix(C.nor, 1), mix(C.nor, 2), C.mask[a] * wa + C.mask[c] * wc + C.mask[e] * we, C.shade[a] * wa + C.shade[c] * wc + C.shade[e] * we);
+  }
+  return { index: F.index, verts };
 }

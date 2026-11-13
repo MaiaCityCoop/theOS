@@ -12,9 +12,12 @@
 //
 //   createHeap(kinds, [{ idx, verts, slots? }, …])   levels finest first: the most indices and vertices a kind has at it;
 //                                                     slots: how many kinds' it holds at once (none: every kind's)
-//   a vertex: four uint (assets/kit/blob.js says how they are packed); an index: a vertex of its own mesh
+//   a vertex: twice four uint (assets/kit/blob.js says how they are packed): as it is, and as it lies on the next
+//   coarser level's mesh, so a level can turn into the next before that takes over (heapVertex's `t`);
+//   an index: a vertex of its own mesh
+//   The table also says when a level came (`came`): what draws it lets it grow out of the coarser one from then.
 import * as THREE from 'three/webgpu';
-import { storage, uint, float, vec2, vec3, normalize, abs, max } from 'three/tsl';
+import { storage, uint, float, vec2, vec3, normalize, abs, max, mix } from 'three/tsl';
 
 export function createHeap(kinds, levels) {
   const L = levels.length; let iAt = 0, vAt = 0;
@@ -22,14 +25,14 @@ export function createHeap(kinds, levels) {
     const n = l.slots || kinds, p = { idx: l.idx, verts: l.verts, n, own: !l.slots, i0: iAt, v0: vAt, who: new Int32Array(n).fill(-1), used: new Float64Array(n), slot: new Int32Array(kinds).fill(-1) };
     iAt += n * l.idx; vAt += n * l.verts; return p;
   });
-  const index = new THREE.StorageBufferAttribute(new Uint32Array(iAt), 1), verts = new THREE.StorageBufferAttribute(new Uint32Array(vAt * 4), 4), table = new THREE.StorageBufferAttribute(new Uint32Array(kinds * L * 4), 4);
-  const T = table.array, mask = new Uint32Array(kinds);
+  const index = new THREE.StorageBufferAttribute(new Uint32Array(iAt), 1), verts = new THREE.StorageBufferAttribute(new Uint32Array(vAt * 8), 4), table = new THREE.StorageBufferAttribute(new Uint32Array(kinds * L * 4), 4);
+  const T = table.array, mask = new Uint32Array(kinds), came = new Uint32Array(kinds * L);   // came: when a kind's level was put in, sixteenths of a second
   const row = (k, l) => (k * L + l) * 4;
-  const masked = (k) => { for (let l = 0; l < L; l++) T[row(k, l) + 3] = mask[k]; table.addUpdateRange(row(k, 0), L * 4); table.needsUpdate = true; };
+  const masked = (k) => { for (let l = 0; l < L; l++) T[row(k, l) + 3] = (mask[k] | (came[k * L + l] << 12)) >>> 0; table.addUpdateRange(row(k, 0), L * 4); table.needsUpdate = true; };
   const H = {
-    kinds, L, pools, version: 0, versions: new Uint32Array(L), bytes: (iAt + vAt * 4 + kinds * L * 4) * 4,
-    // as nodes: a level's row of a kind (first index, first vertex, indices, which levels of the kind are there)
-    index: storage(index, 'uint', iAt), verts: storage(verts, 'uvec4', vAt), table: storage(table, 'uvec4', kinds * L),
+    kinds, L, pools, version: 0, versions: new Uint32Array(L), bytes: (iAt + vAt * 8 + kinds * L * 4) * 4,
+    // as nodes: a level's row of a kind (first index, first vertex, indices, which levels of the kind are there and when this one came)
+    index: storage(index, 'uint', iAt), verts: storage(verts, 'uvec4', vAt * 2), table: storage(table, 'uvec4', kinds * L),
     has: (k, l) => pools[l].slot[k] >= 0,
     /** A kind's level is wanted now (it is not put out while it is). */
     touch(k, l, now) { const s = pools[l].slot[k]; if (s >= 0) pools[l].used[s] = now; },
@@ -37,8 +40,9 @@ export function createHeap(kinds, levels) {
         any count that grows, a clock or a round of asking). */
     room(l, since) { const p = pools[l]; if (p.own) return kinds; let n = 0; for (let s = 0; s < p.n; s++) if (p.who[s] < 0 || p.used[s] < since) n++; return n; },
     /** Put a kind's level in: mesh { index, verts } (blob.js), into a free slot or the one longest unwanted (not wanted
-        since `since`). False: no slot to be had (every one is wanted). */
-    put(k, l, mesh, now, since = now) {
+        since `since`). time: the clock's seconds now (what draws it grows it in from then). False: no slot to be had
+        (every one is wanted). */
+    put(k, l, mesh, now, since = now, time = 0) {
       const p = pools[l]; let s = p.slot[k];
       if (s < 0) {
         if (p.own) s = k;
@@ -46,12 +50,12 @@ export function createHeap(kinds, levels) {
         if (s < 0) return false;
         if (p.who[s] >= 0) H.drop(p.who[s], l);
       }
-      if (mesh.index.length > p.idx || mesh.verts.length > p.verts * 4) throw new Error(`heap: kind ${k} level ${l} is larger than its slot`);
+      if (mesh.index.length > p.idx || mesh.verts.length > p.verts * 8) throw new Error(`heap: kind ${k} level ${l} is larger than its slot`);
       const i0 = p.i0 + s * p.idx, v0 = p.v0 + s * p.verts;
       index.array.set(mesh.index, i0); index.addUpdateRange(i0, mesh.index.length); index.needsUpdate = true;
-      verts.array.set(mesh.verts, v0 * 4); verts.addUpdateRange(v0 * 4, mesh.verts.length); verts.needsUpdate = true;
-      p.who[s] = k; p.slot[k] = s; p.used[s] = now;
-      const r = row(k, l); T[r] = i0; T[r + 1] = v0; T[r + 2] = mesh.index.length;
+      verts.array.set(mesh.verts, v0 * 8); verts.addUpdateRange(v0 * 8, mesh.verts.length); verts.needsUpdate = true;
+      p.who[s] = k; p.slot[k] = s; p.used[s] = now; came[k * L + l] = Math.min(0xfffff, Math.round(time * 16));
+      const r = row(k, l); T[r] = i0; T[r + 1] = v0 * 2; T[r + 2] = mesh.index.length;
       mask[k] |= 1 << l; masked(k); H.version++; H.versions[l]++;
       return true;
     },
@@ -69,6 +73,11 @@ export function createHeap(kinds, levels) {
 /** A level's row of a kind, as a node (in a compute pass or a vertex stage). */
 export const heapRow = (H, kind, level) => H.table.element(kind.mul(uint(H.L)).add(level));
 
+/** Which of a kind's levels are there, from its row (a uint node: a bit a level). */
+export const heldOf = (R) => R.w.bitAnd(uint(0xfff));
+/** How long ago, seconds, a row's level came (now: the clock's seconds, a node). */
+export const sinceCame = (R, now) => now.sub(float(R.w.shiftRight(uint(12))).div(16)).max(0);
+
 /** True where, of a kind whose levels there are `mask`, level `level` is the one to draw when level `want` is asked for:
     the finest that is there and no finer than asked. (uint nodes) */
 export const effective = (mask, want, level) => {
@@ -76,13 +85,17 @@ export const effective = (mask, want, level) => {
   return want.lessThanEqual(level).and(mask.shiftRight(want.min(level)).bitAnd(uint(2).shiftLeft(d).sub(uint(1))).equal(uint(1).shiftLeft(d)));
 };
 
-/** The vertex a draw is at (its vertex index `vid`) of the mesh a row names: { ok, p (its place, in the mesh's own frame),
-    n (its normal), c (its colour) }. ok: the mesh has such a vertex (a draw is as long as its level's longest mesh). */
-export const heapVertex = (H, R, vid) => {
-  const v = H.verts.element(R.y.add(H.index.element(R.x.add(vid.min(R.z.max(uint(1)).sub(uint(1)))))));
+// a packed vertex unpacked: its place in the mesh's own frame, its normal, its pattern and its shade
+const unpacked = (v) => {
   const u16 = (x) => float(x.bitAnd(uint(0xffff))).div(65535).mul(2).sub(1), hi = (x) => u16(x.shiftRight(uint(16)));
-  const e = vec2(u16(v.z), hi(v.z)), nz = float(1).sub(abs(e.x)).sub(abs(e.y)), t = max(nz.negate(), 0);
-  const n = normalize(vec3(e.x.add(e.x.greaterThanEqual(0).select(t.negate(), t)), e.y.add(e.y.greaterThanEqual(0).select(t.negate(), t)), nz));
-  const b8 = (s) => float(v.w.shiftRight(uint(s)).bitAnd(uint(255))).div(255);
-  return { ok: vid.lessThan(R.z), p: vec3(u16(v.x), hi(v.x), u16(v.y)), n, c: vec3(b8(0), b8(8), b8(16)) };
+  const e = vec2(u16(v.z), hi(v.z)), nz = float(1).sub(abs(e.x)).sub(abs(e.y)), k = max(nz.negate(), 0);
+  const n = vec3(e.x.add(e.x.greaterThanEqual(0).select(k.negate(), k)), e.y.add(e.y.greaterThanEqual(0).select(k.negate(), k)), nz);
+  return { p: vec3(u16(v.x), hi(v.x), u16(v.y)), n, mask: float(v.y.shiftRight(uint(16)).bitAnd(uint(255))).div(255), shade: float(v.y.shiftRight(uint(24))).div(255) };
+};
+/** The vertex a draw is at (its vertex index `vid`) of the mesh a row names, t of the way (0 … 1) to where it lies on the
+    next coarser level's mesh: { p (its place, in the mesh's own frame), n (its normal), mask, shade }. (Only where the
+    mesh has such a vertex: vid under R.z; a draw is as long as its level's longest mesh.) */
+export const heapVertex = (H, R, vid, t) => {
+  const at = R.y.add(H.index.element(R.x.add(vid.min(R.z.max(uint(1)).sub(uint(1))))).mul(uint(2))), a = unpacked(H.verts.element(at)), b = unpacked(H.verts.element(at.add(uint(1))));
+  return { p: mix(a.p, b.p, t), n: normalize(mix(a.n, b.n, t)), mask: mix(a.mask, b.mask, t), shade: mix(a.shade, b.shade, t) };
 };

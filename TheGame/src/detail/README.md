@@ -63,33 +63,53 @@ on four kilometres of land. It is drawn the way every kind should come to be dra
 
 | | cost | per kind |
 | --- | --- | --- |
-| draw calls | one a level (nine), whatever the kinds | none: a draw reads its vertices from the heap by the kind's number |
-| draw shader | one | none |
-| always held | its coarse levels (768 triangles down to one) | 20 KB |
-| held while near | its full mesh and two under it, in a few slots a level, built in workers | 1 to 4 MB, 245 KB, 62 KB, put out when the camera has gone |
+| draw calls | one a level (eight), whatever the kinds | none: a draw reads its vertices from the heap by the kind's number |
+| draw shaders | two: the meshes', the dots' | none |
+| its look | a row of numbers (two textures, two tints, a shading model, gloss, sway, snow) read by its pixels | 64 bytes |
+| shading models | a branch each in the one shader (twelve in the test: matte, glossy, metal, leafy, glowing, wet, …) | none |
+| always held | its coarse levels (768 triangles down to twelve) | 29 KB |
+| held while near | its full mesh and two under it, in a few slots a level, built in workers | 2 to 6 MB, 344 KB, 86 KB, put out when the camera has gone |
 | the start | half a second more | nothing built on the main thread |
 
+Nothing of it changes at once (the answer to levels popping at every distance):
+- **A level turns into the next coarser one before that takes over.** Every vertex is kept twice: as it is, and where
+  it lies on the coarser mesh (with that mesh's normal there). Over a level's last pixels it moves from the one to the
+  other (`heapVertex`), so the two are the same shape when they change. No dither, no two levels drawn at once.
+- **A fine level that comes late grows out of the coarser one** the same way, over half a second, and one level after
+  another, never two at once (measured: 5 to 12 % of the picture changing a frame, against 42 to 75 % in one frame).
+- **Its textures are read at every level**: the mipmaps make a far thing its textures' mean, so its colour does not
+  jump either; under 12 pixels it reads that mean itself.
+- A level is chosen by size on screen, so a large thing keeps its detail further off than a small one beside it: that
+  is right, and with the above it no longer shows.
+
 Measured 2026-11-13 (M1, Playwright WebKit, 1440 × 779, pixel ratio 1; the GPU's own time with the stand on and hidden
-by turns): 4.3 ms a frame walking among them (140 000 drawn, 1.5 million triangles), 3.2 ms at 45 m, 1.7 ms at 300 m,
-0.3 ms from 2600 m. Travelling (walking, running, flying low) the mean frame stays 16.7 ms.
-In Samuel's Safari, walking and flying for two and a half minutes: 59.2 frames a second at a pixel ratio of 1 to 2
-(as the plain world), 0.56 % of frames late, ten stalls over 50 ms.
+by turns), with textures, relief, wind, snow and the twelve models: 5.4 ms a frame walking among them (135 000 drawn,
+1.5 million triangles), 2.2 ms at 45 m, 1.1 ms at 300 m, 0.1 ms across the field, nothing from 2600 m. (With plain
+colours it was 4.3 ms walking.) In Samuel's Safari, before the materials: 59.2 frames a second at a pixel ratio of 1
+to 2, as the plain world.
 
 What the test found:
-- **What is under a pixel is not drawn.** Of the million about 140 000 to 180 000 are a pixel or more at once on this
-  screen. Drawing every one (`?stress=all`: down to a fifth of a pixel, 920 000 to 964 000 in view) costs 8 to 9 ms:
-  about 9 ns a thing however few its triangles (a dot of one triangle no less than a tetrahedron). The M1 bins every
-  triangle into its screen tiles; a million tiny ones in a band at the horizon is its limit. Beyond a pixel a stand must
-  be the land's colour, as the forests are.
-- **Streaming must know the camera's speed.** Asked for by distance alone, flying low built a hundred meshes a second
-  that were passed before they came (13 % of frames late). Asked for only where the camera will still be (0.35 s
-  ahead), 1 to 2 %.
-- **A mesh that comes must not repack everything**: only its own level and the next coarser one (`heap.versions`).
+- **What is under a pixel is not drawn.** Of the million about 135 000 to 180 000 are a pixel or more at once on this
+  screen. Drawing every one (`?stress=all`) cost 8 to 9 ms: about 9 ns a thing however few its triangles. Beyond a
+  pixel a stand must be the land's colour, as the forests are.
+- **A small thing's cost is its corners' shader, not its pixels'.** The dot in the meshes' shader cost three times
+  what it costs in a small shader of its own, though its branch was never taken. So: few shaders, but the far level
+  its own.
+- **A pixel must read only what it shows**: the texture its pattern shows there, the relief only when large on screen.
+- **Streaming must know the camera's speed**, and a mesh that comes must not repack everything (`heap.versions`).
+
+How many shaders: the plain game compiles 16 vertex and 14 fragment programs (21 draw pipelines); the stress stand adds
+two. A game like GTA V draws a frame in about 1900 draw calls and has shader templates in the hundreds, with tens of
+thousands of materials on them: there too a material is numbers and textures on a shared shader, not a shader of its
+own. What a browser cannot pay is the draw calls, so here models are branches and looks are rows.
 
 ## What this does not yet give
 
-- **The trees, the rocks and the grass are not on the heap yet**: they keep a draw call a shape and level. The heap
-  takes meshes of one material (a colour a vertex); a tree's bark, leaves and wind are the next step.
+- **The trees, the rocks and the grass are not on the heap yet**: they keep a draw call a shape and level. The heap's
+  meshes are whole bodies; a tree's cut-out leaves (two-sided, alpha to coverage) need a second pipeline on it.
+- **Textures are the world's twenty**, two a kind, tinted: a thousand kinds with textures of their own would be
+  gigabytes and must stream as the fine meshes do.
+- **Real Safari has not been read with the materials on.**
 - **The test's assets are generated**, each level sampled from its shape. A drawn asset needs its levels cut by a
   simplifier, and comes from a file: the heap's side of that (`put`) is the same.
 
