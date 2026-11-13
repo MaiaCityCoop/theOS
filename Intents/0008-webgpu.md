@@ -1132,3 +1132,4 @@ shadows and the grass.
 | 2026-11-13 | `0293934` | The plots near the ground: fewer reads a pixel, near levels first, lighter far levels |
 | 2026-11-13 | `4d22a1e` | Ten thousand kinds with their own textures; movers as rigs of parts; hand-overs over the whole range |
 | 2026-11-13 | `f07ca95` | The ten-thousand build mended: holes, unsteady frames, colour flicker |
+| 2026-11-13 | `f5cfbdc` | The flicker (a mesh put in after the frame was packed); full meshes as long as they are; snow on things, to 50 cm |
