@@ -1336,3 +1336,4 @@ only on asking).
 | 2026-11-13 | `fb8c3ef` | The screen at its own resolution always; the world drawn inside at the governor's ratio and scaled up (src/core/screen.js) |
 | 2026-11-13 | `5e7745d` | The land's shader reads only what shows (7 % of a frame at a ratio of 2; the picture the same) |
 | 2026-11-13 | `f27393a` | The clouds as bodies with feet, tops and flanks (ten steps through their layer) |
+| 2026-11-13 | `d422f9a` | The walker stopped by every solid shape's own outline, going round what stops it; on in the stress world |
