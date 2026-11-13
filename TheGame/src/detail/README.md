@@ -101,6 +101,8 @@ The plots, measured the same way but with Samuel's own tab drawing beside it (so
 village (135 000 drawn, 2.4 million triangles, 3 900 movers), 2.0 ms at 45 m, 1.6 ms at 300 m, nothing from 2000 m (all
 of it under a pixel). The start 5.4 s against 4.2: over the five seconds, in the slower browser. Checked: 99.9 % of what
 stands and of what moves lies inside its plot's outline; a plot's lattice covers 92 to 94 % of its land.
+In Samuel's Safari: 58.7 frames a second from higher up at a pixel ratio of 2; near the ground 55.8, with spans of 47
+to 56 until the governor had the ratio down to 0.75: among them the plots do not yet hold the gate.
 
 What the test found:
 - **A covered window tells nothing.** A browser window behind another draws three to twelve frames a second whatever

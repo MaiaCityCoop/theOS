@@ -978,7 +978,12 @@ shadows and the grass.
   in the first village (the first stand: 5.4 alone), 2.0 at 45 m, 1.6 at 300 m. The start 5.4 s against 4.2 (two more
   packing shaders with the land in them): over five seconds in the test browser. Movers do not avoid each other or
   what stands, and walk through the river. For twenty minutes I read a covered window's three frames a second as the
-  stand's cost: a window behind another is throttled, whatever it draws. Real Safari not read.
+  stand's cost: a window behind another is throttled, whatever it draws.
+- **Real Safari (Samuel's tab, 15:34 to 15:43, 28 951 frames; "it looks good"):** from higher up 58.7 frames a second
+  at a pixel ratio of 2. Near the ground it does not hold the gate: 55.8 on average, nine of 22 four-second spans
+  under 57 fps (47 to 56 for the first half minute, one span at 26), until the governor had the pixel ratio down from
+  1 to 0.75; and again 48 to 54 when he came back down from above with the ratio still at 1.5 to 1.75. 1.3 % of
+  frames late; some with 15 ms in the scatter's own code (a plot's ten thousand movers reckoned for the first time).
 
 ## Trail
 
