@@ -1301,3 +1301,4 @@ For the 4K gate the land is most of a frame (hidden, a frame is 2.5 ms; with it,
 | 2026-11-13 | `59ca5f6` | Read in real Safari (58.4 fps, pixels at the floor for dropped frames); the governor mended; a frame's work in the hitch log |
 | 2026-11-13 | `3b0debe` | Boxes and colliders in the family contract; src/world/bodies.js (bodies near, walker's rounds, ray hits, outlines) |
 | 2026-11-13 | `fb8c3ef` | The screen at its own resolution always; the world drawn inside at the governor's ratio and scaled up (src/core/screen.js) |
+| 2026-11-13 | `5e7745d` | The land's shader reads only what shows (7 % of a frame at a ratio of 2; the picture the same) |
