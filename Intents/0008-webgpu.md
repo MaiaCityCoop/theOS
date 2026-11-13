@@ -1038,6 +1038,24 @@ shadows and the grass.
   from loading for about three minutes (16:31 to 16:34). The test browser could not time anything: Samuel's tab was
   drawing the heavy build beside it (a plain frame 27 ms, a start 15 s).
 
+### 2026-11-13, flicker found, the full meshes cut, snow that lies on things (16:53)
+
+- **Read in real Safari (Samuel's tab, 16:45 to 16:47, after the mending):** 55.8 frames a second near the ground (50
+  to 60; it was 27 to 40), 5 % of frames late (was 17 %). But the pixel ratio at the floor, 0.6, and no better for it:
+  what is left is not the pixels' cost. Samuel: "it looks already way better"; but things that move flicker every few
+  seconds, and standing things flicker as the camera moves (gone for one to five frames); the snow does not grow on
+  things; and he wants 50 cm of it.
+- **The flicker:** a mesh that came (or went) was put into the heap after the frame's tiers had packed: that frame was
+  packed by the old table and drawn by the new one, and every thing of that kind was drawn by neither level. Now what
+  has come is put in before the tiers pack (the first tier's select).
+- **Cut:** the full meshes are a draw a slot of the heap, each as long as its mesh (they were one draw as long as the
+  longest, 200 000 triangles' worth for every one), and from 400 pixels (was 320); two dozen small meshes a frame are
+  put in at most (hundreds at once were a frame lost); three new blocks of a plot a look; the wind only on what sways.
+- **Snow:** to 50 cm (src/world/weather/snow.js). On a thing it now lies as deep as on the ground: what faces up is
+  lifted by the snow's depth, as a mound, and is snow all through; a mover carries a third of it.
+- **Broke / not there yet:** none of this read in real Safari yet. The resolution: nothing done to the governor; it
+  comes back only if the cost has come down enough.
+
 ## Trail
 
 | When | Commit | What |

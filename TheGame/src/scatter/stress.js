@@ -36,7 +36,7 @@ import { Fn, If, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, vary
 import { U } from '../core/uniforms.js';
 import { camDist, groundAt, rnd } from '../world/land.nodes.js';
 import { cellRnd } from '../world/land.js';
-import { finish, skyLight, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, windAt, windStrength } from '../world/light.js';
+import { finish, skyLight, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
 import { pxK } from '../detail/index.js';
 import { bandOf, padOf } from '../detail/handover.js';
 import { boxIn } from '../core/frustum.js';
@@ -56,7 +56,7 @@ const GROW = 1.5, RELIEF = 90, SKIN = 128, SKINPX = 28;   // GROW: seconds a lev
 // screen it is drawn down to; P: its tier's cells a patch (a block of a plot's lattice: it divides 1000); slots: how many
 // kinds' the heap holds at once (none: every kind's); cap: the most of it drawn at once
 const LEVELS = [
-  { n: FULLN, px: 320, P: 2, slots: 8, cap: 64 },
+  { n: FULLN, px: 400, P: 2, slots: 8, cap: 64 },
   { n: 32, px: 128, P: 4, slots: 48, cap: 256 },
   { n: 16, px: 64, P: 4, slots: 320, cap: 1024 },
   { n: 8, px: 32, P: 8, slots: 768, cap: 4096 },
@@ -201,7 +201,7 @@ export function createStress(scene, renderer, tex) {
   const skinTex = texture(skinRT.texture), skins = { who: new Int32Array(SKINS).fill(-1), used: new Float64Array(SKINS), slot: new Int32Array(KINDS).fill(-1) };
   // what a pixel is given: where it is and its pattern; its normal and its shade; where it is on the thing (metres from
   // its foot, at rest) and its kind; how large the thing is on screen
-  const vA = varyingProperty('vec4', 'sA'), vB = varyingProperty('vec4', 'sB'), vC = varyingProperty('vec4', 'sC'), vPx = varyingProperty('float', 'sPx');
+  const vA = varyingProperty('vec4', 'sA'), vB = varyingProperty('vec4', 'sB'), vC = varyingProperty('vec4', 'sC'), vPx = varyingProperty('float', 'sPx'), vSnow = varyingProperty('float', 'sSnow');
 
   // a thing's colour at a pixel, lit: its own texture laid on it from the sides (it stays on it as it stands); the relief
   // of one of the world's textures when it is large on screen; the snow on it; then its model's way of taking
@@ -227,7 +227,7 @@ export function createStress(scene, renderer, tex) {
       n.assign(normalize(N0.add(vec3(0, x.y, x.x).mul(b.x).add(vec3(y.x, 0, y.y).mul(b.y)).add(vec3(z.x, z.y, 0).mul(b.z)).mul(smoothstep(RELIEF, RELIEF * 2, vPx)))));
       rough.assign(t1.a.mul(b.x).add(t2.a.mul(b.y)).add(t3.a.mul(b.z)));
     });
-    const W = weatherOn(n, snowLift(w, M3.x)), bare = own.mul(vB.w), col = bare.mul(W.keep).add(W.add).toVar();
+    const W = weatherOn(n, snowLift(w, M3.x)), bare = own.mul(vB.w), col = mix(bare.mul(W.keep).add(W.add), SNOW, smoothstep(0.03, 0.14, vSnow)).toVar();   // (where the snow has lifted it, it is snow all through: its sides too)
     // the light: the sky's, and the sun's through the clouds and the shadow map
     const sunK = cloudAtOne(w);
     const V = normalize(U.uCam.sub(w)), S = U.uSunDir, sun = U.uSun.mul(sunK), sky = skyLight(n), ndl = max(n.dot(S), 0), Hf = normalize(V.add(S)), ndh = max(n.dot(Hf), 0), nv = max(n.dot(V), 0);
@@ -303,11 +303,15 @@ export function createStress(scene, renderer, tex) {
           const k = whole.greaterThan(0.5).select(float(SHADE.shrink), float(1)), rest = turn((parts ? laid(vec3(v.p.x.div(wd), v.p.y.sub(C.w).mul(C.z), v.p.z.div(wd))) : v.p.sub(vec3(0, 0.4, 0)).mul(k).add(vec3(0, 0.4, 0))).mul(A.w));
           // the wind: its top sways, its foot stays (as a tree's: src/scatter/trees.js), as far as its look says
           const up = clamp(v.p.y, 0, 1), ws = windStrength, bend = up.mul(up).mul(A.w).mul(B.z);
-          const kk = windAt(A.xy).mul(bend).add(vec2(sin(U.uTime.mul(0.9).add(B.w)), cos(U.uTime.mul(0.7).add(B.w))).mul(bend).mul(ws.mul(0.4).add(smoothstep(0, 0.08, ws).mul(0.06))));
+          const kk = vec2(0).toVar(); If(B.z.greaterThan(0), () => { kk.assign(windAt(A.xy).mul(bend).add(vec2(sin(U.uTime.mul(0.9).add(B.w)), cos(U.uTime.mul(0.7).add(B.w))).mul(bend).mul(ws.mul(0.4).add(smoothstep(0, 0.08, ws).mul(0.06))))); });   // (only what sways)
           // (and a thing the camera walks into draws back from it: seen from inside it would be seen through)
           const out = smoothstep(A.w.mul(0.5), A.w.mul(1.1), length(U.uCam.sub(vec3(A.x, A.z.add(A.w.mul(0.4)), A.y)))).max(whole);
-          const w = vec3(A.x, A.z, A.y).add(rest.mul(out)).add(vec3(kk.x, 0, kk.y));
-          vA.assign(vec4(w, v.mask)); vB.assign(vec4(turn(parts ? laid(v.n) : v.n), v.shade)); vC.assign(vec4(rest, B.y));
+          // the snow lies on it as deep as on the ground: what of it faces up is lifted by the snow's depth (a mover
+          // shakes most of it off)
+          // (as a mound: most where it faces straight up, thinning down its sides; no deeper than the thing can carry)
+          const nw = turn(parts ? laid(v.n) : v.n), snow = snowDepth.min(A.w.mul(0.7)).mul(smoothstep(-0.25, 0.8, nw.y)).mul(parts ? 0.3 : 1);
+          const w = vec3(A.x, A.z, A.y).add(rest.mul(out)).add(vec3(kk.x, snow.mul(out), kk.y)); vSnow.assign(snow);
+          vA.assign(vec4(w, v.mask)); vB.assign(vec4(nw, v.shade)); vC.assign(vec4(rest, B.y));
           clip.assign(clipOf(w));
         });
       }
@@ -330,10 +334,14 @@ export function createStress(scene, renderer, tex) {
   const tier = (i, shadow = false) => {
     const Lv = { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity }, P = shadow ? 8 : LEVELS[i].P;
     const band = { near: uniform(0), far: uniform(1), ...bandOf(Lv, FADE, padOf(CELL, P)) }, round = uniform(SMAX / 2 + (CELL * P) / 16 + 2);
+    // the full meshes are a draw a slot of the heap, each as long as the mesh that lies in it (set when it is put in:
+    // arrive, below): a full mesh is 50 000 to 200 000 triangles, and one draw as long as the longest for all of them
+    // worked out 200 000 for each
+    const perSlot = i === 0 && !shadow;
     // (its level and whether it is the shadow's as numbers: every tier's packing is one piece of code, compiled once)
     const lv = uniform(i, 'uint'), under = uniform(Math.max(0, i - 1), 'uint'), stands = uniform(i ? 1 : 0), all = uniform(shadow ? 1 : 0);
     const live = (c) => {
-      const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), plot = plotOfCell(c), ci = inPlot(c), cj = c.y, base = uint(plot).mul(uint(ROW)), h = (s) => rnd(c.x, c.y, uint(s)), whole = all.greaterThan(0.5);
+      const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), bucket = float(0).toVar(), plot = plotOfCell(c), ci = inPlot(c), cj = c.y, base = uint(plot).mul(uint(ROW)), h = (s) => rnd(c.x, c.y, uint(s)), whole = all.greaterThan(0.5);
       // (where it stands: kept for its plot, above; a plot not kept yet has nothing to show)
       const slot = PT.element(base.add(uint(KEPT_AT))), u = kept.element(uint(slot.max(0)).mul(uint(SIDE * SIDE)).add(uint(cj.mul(int(SIDE)).add(ci))));
       const pos = middle(base).add(vec2(float(u.bitAnd(uint(0xffff))), float(u.shiftRight(uint(16)))).div(65535).mul(2).sub(1).mul(PT.element(base.add(uint(FAR_AT))))), dist = camDist(pos), range = mix(dist, length(pos.sub(U.uCam.xz)), all);
@@ -348,12 +356,13 @@ export function createStress(scene, renderer, tex) {
         If(has.and(whole.or(dist.lessThan(span.mul(band.to).add(band.pad)).and(near))), () => {
           A.assign(vec4(pos, groundAt(pos, float(0)).sub(size.mul(0.06)), size));
           B.assign(vec4(h(907).mul(TAU), float(kind), lookOf(kind, 2).w, h(908).mul(TAU)));   // (its turn, its kind, how far it sways, its sway's phase)
+          if (perSlot) bucket.assign(float(R.x.sub(uint(H.pools[0].i0)).div(uint(H.pools[0].idx))));   // (the full meshes: which of the heap's slots its kind's lies in)
           alive.assign(1);
         });
       });
-      return { alive: alive.greaterThan(0.5), data: [A, B] };
+      return { alive: alive.greaterThan(0.5), data: [A, B], bucket };
     };
-    const T = new Tier(scene, drawOf(i), (src) => (i === L - 1 && !shadow ? dot(src) : meshOf(src, i, shadow)), { cell: CELL, P, near: 0, far: 1, order: 1, live, gpu: true, cap: shadow ? 8192 : LEVELS[i].cap, slots: 2 });
+    const T = new Tier(scene, perSlot ? Array.from({ length: LEVELS[0].slots }, () => drawOf(0)) : drawOf(i), (src) => (i === L - 1 && !shadow ? dot(src) : meshOf(src, i, shadow)), { cell: CELL, P, near: 0, far: 1, order: 1, live, gpu: true, cap: shadow ? 8192 : LEVELS[i].cap, slots: 2 });
     T.band = shadow ? () => { T.near = 0; T.far = SHADE.far; band.near.value = -1; band.far.value = SHADE.far * SHADE.wide; }
       : () => {
         [T.near, T.far] = band.reach(SMIN, SMAX, pxK()); if (i <= STREAMED) T.near = 0;   // (a level may stand in for the finer ones, right up to the camera)
@@ -378,7 +387,7 @@ export function createStress(scene, renderer, tex) {
       T.n = n; for (const m of T.meshes) m.visible = n > 0;
     };
     T.band(); T.level = i; T.viewKeyed = !shadow; T.asset = shadow ? 'Stress: shadows' : `Stress: level ${i}`;
-    T.mesh.renderOrder = 1 + i * 0.01;   // the fine levels first: they are the near ones, and what is behind them need not be shaded
+    for (const m of T.meshes) m.renderOrder = 1 + i * 0.01;   // the fine levels first: they are the near ones, and what is behind them need not be shaded
     if (shadow) T.mesh.layers.set(1);
     const run = T.run.bind(T); T.run = (r, world, ...a) => run(r, `${world}|${slots.version}|${H.versions[i]}|${i && !shadow ? H.versions[i - 1] : 0}`, ...a);   // packed again when the heap has changed at its level, or the next finer (which it stands in for)
     tiers.push(T);
@@ -509,9 +518,10 @@ export function createStress(scene, renderer, tex) {
   };
   // what the CPU knows of what stands near: a block of a plot's lattice (BL cells a side) worked out when first looked
   // at, a few kept; and a plot's movers' own numbers
-  const BL = 32, blocks = new Map();
+  const BL = 32, blocks = new Map(); let built = 0;
   const blockOf = (p, bi, bj) => {
     const key = (p.i * 64 + bi) * 64 + bj; let b = blocks.get(key); if (b) return b;
+    if (built++ >= 3) return null;   // (three new blocks a look: the rest at the next)
     b = { X: new Float32Array(BL * BL), Z: new Float32Array(BL * BL), S: new Float32Array(BL * BL), K: new Uint16Array(BL * BL) };
     for (let j = 0, n = 0; j < BL; j++) for (let i = 0; i < BL; i++, n++) { const ci = bi * BL + i, cj = bj * BL + j; if (ci >= SIDE || cj >= SIDE) { b.S[n] = 0; continue; } const o = standsAt(p, ci, cj, sizes); b.X[n] = o.x; b.Z[n] = o.z; b.S[n] = o.s; b.K[n] = o.k; }
     if (blocks.size > 96) blocks.delete(blocks.keys().next().value);
@@ -519,7 +529,25 @@ export function createStress(scene, renderer, tex) {
   };
   // (a plot's ten thousand reckoned a part each time it is asked for: all at once is a frame lost)
   const moversOf = (p) => { const M = (p.movers ||= []); for (let n = 0; n < 1500 && M.length < MSIDE * MSIDE; n++) M.push(moverOf(p, M.length % MSIDE, Math.floor(M.length / MSIDE))); return M; };
-  // each frame: put in what the workers have built; and, when the camera has moved, ask for the fine levels of what now
+  // what the workers have built, put in: before the frame's tiers pack (the first tier's select: below), not after. Put in
+  // after, a frame packed by the old table would be drawn by the new one, and every thing of that kind was gone for
+  // that frame: a flicker each time a mesh came or went. A frame sends the GPU one full mesh at most, and two dozen
+  // small ones; and a level waits until the next coarser one has come and grown: each grows out of the one before it
+  const arrive = () => {
+    const now = performance.now();
+    for (let sent = 0, puts = 0, n = done.length; n > 0 && sent < 700000 && puts < 24; n--) {
+      const d = done.shift(), id = d.k * L + d.l;
+      if (d.l < 2 && wantAt[id] >= round - 1 && (pending.has(id + 1) || now - putAt[id + 1] < GROW * 1000)) { done.push(d); continue; }
+      pending.delete(id); asked[d.l]--; if (wantAt[id] < round - 1) continue;
+      sent += d.mesh.index.length; puts++;
+      if (H.put(d.k, d.l, d.mesh, round, round, U.uTime.value)) {
+        stats.put++; putAt[id] = now;
+        if (!d.l) { const T0 = tiers[0], at = H.pools[0].slot[d.k] * 5; T0.args.array[at] = d.mesh.index.length; T0.args.addUpdateRange(at, 1); T0.args.needsUpdate = true; }   // (its slot's draw: as long as it)
+      }
+    }
+  };
+  { const first = tiers[0].select; tiers[0].select = (...a) => { arrive(); return first(...a); }; }
+  // each frame: when the camera has moved, ask for the fine levels of what now
   // stands or passes near (coarser first: quick to build, and something to draw meanwhile), nearest first
   const pump = () => {
     if (!PL.length) {   // the city's plan has come: its plots, to the GPU
@@ -531,16 +559,9 @@ export function createStress(scene, renderer, tex) {
     keepNear(U.uCam.value.x, U.uCam.value.z);
     const now = performance.now(), cam = U.uCam.value, dy = U.uDy.value, inv = U.uLodInv.value, K = pxK(), key = `${inv.toFixed(2)}|${K.toFixed(0)}`;
     if (API.pause) return;
+    built = 0;
     const dt = Math.max(1e-3, (now - lt) / 1000), v = Math.hypot(cam.x - lx, cam.y - ly, cam.z - lz) / dt; lx = cam.x; ly = cam.y; lz = cam.z; lt = now;
     speed += (Math.min(v, 300) - speed) * Math.min(1, dt * 4);
-    // (a frame sends the GPU one full mesh at most, or many small ones; and a level waits until the next coarser one has
-    // come and grown: each grows out of the one before it, one after another, never two at once)
-    for (let sent = 0, n = done.length; n > 0 && sent < 700000; n--) {
-      const d = done.shift(), id = d.k * L + d.l;
-      if (d.l < 2 && wantAt[id] >= round - 1 && (pending.has(id + 1) || now - putAt[id + 1] < GROW * 1000)) { done.push(d); continue; }
-      pending.delete(id); asked[d.l]--; if (wantAt[id] < round - 1) continue;
-      sent += d.mesh.index.length; if (H.put(d.k, d.l, d.mesh, round, round, U.uTime.value)) { stats.put++; putAt[id] = now; }
-    }
     for (let n = 0; n < 6 && skinDone.length; n++) { const d = skinDone.shift(); skinPending.delete(d.k); if (skinAt[d.k] >= round - 1) skinPut(d.k, d.S); }   // (a few textures a frame)
     if (Math.hypot(cam.x - sx, cam.z - sz) < 0.7 && key === sk && now - scanAt < 300) return;
     sx = cam.x; sz = cam.z; sk = key; scanAt = now; round++;
@@ -562,7 +583,7 @@ export function createStress(scene, renderer, tex) {
       if (off < Rs && ahead < Rs) {   // what stands: the blocks of its lattice round the camera's own lattice point
         const [fi, fj] = toLattice(p, cam.x, cam.z), rl = Rs / p.narrow + 1, nb = Math.ceil(SIDE / BL);
         for (let bj = Math.max(0, Math.floor((fj - rl) / BL)); bj <= Math.min(nb - 1, Math.floor((fj + rl) / BL)); bj++) for (let bi = Math.max(0, Math.floor((fi - rl) / BL)); bi <= Math.min(nb - 1, Math.floor((fi + rl) / BL)); bi++) {
-          const b = blockOf(p, bi, bj);
+          const b = blockOf(p, bi, bj); if (!b) continue;
           for (let n = 0; n < BL * BL; n++) { if (!b.S[n]) continue; const d = Math.hypot(b.X[n] - cam.x, b.Z[n] - cam.z, dy); if (d < Rs) wants(b.K[n], b.S[n], d, 0); }
         }
       }
@@ -589,8 +610,8 @@ export function createStress(scene, renderer, tex) {
       for (const T of tiers) {
         const B = await T.read(renderer);
         if (T.movers) { out.push({ tier: T.asset, packed: B.reduce((x, b) => x + b.count, 0), tris: B.reduce((x, b, l) => x + b.count * trisOf(LEVELS[l].n === FULLN ? 113 : LEVELS[l].n), 0), byLevel: B.map((b) => b.count), patches: T.n, over: T.over }); continue; }
-        const [{ count, data }] = B, full = LEVELS[T.level].n === FULLN; let tris = 0;
-        if (full) for (let j = 0; j < count; j++) tris += trisOf(fullOf(data[1][j * 4 + 1])); else tris = count * trisOf(LEVELS[T.level].n);
+        const full = LEVELS[T.level].n === FULLN, count = B.reduce((x, b) => x + b.count, 0); let tris = 0;
+        if (full) for (const b of B) for (let j = 0; j < b.count; j++) tris += trisOf(fullOf(b.data[1][j * 4 + 1])); else tris = count * trisOf(LEVELS[T.level].n);
         out.push({ tier: T.asset, packed: count, tris, patches: T.n, over: T.over });
       }
       return { tiers: out, held: H.held(), skinsHeld: skins.who.filter((x) => x >= 0).length, pending: pending.size, ...stats, heapMB: +(H.bytes / 1048576).toFixed(1) };

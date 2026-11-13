@@ -1,12 +1,12 @@
 // The snow: how deep it lies (metres), and all that is the snow's own in the light: it settles on what faces up, the
 // ground rises under it and what stands sinks in, the grass shorter than it is buried. A weather condition
 // (index.js); the light's contract (src/world/light.js) hands its nodes on to the materials. The weather panel sets
-// it, from none to 30 cm, and keeps it; a film may set it per shot.
+// it, from none to 50 cm, and keeps it; a film may set it per shot.
 import { Fn, float, vec3, If, smoothstep } from 'three/tsl';
 import { U } from '../../core/uniforms.js';
 import { tile } from '../tile.js';
 
-const MAX = 0.3, read = (m) => (m < 0.0025 ? 'No snow' : `Snow ${Math.round(m * 100)} cm`);
+const MAX = 0.5, read = (m) => (m < 0.0025 ? 'No snow' : `Snow ${Math.round(m * 100)} cm`);
 
 /** how deep it lies, metres */
 export const snowDepth = U.uSnow;
