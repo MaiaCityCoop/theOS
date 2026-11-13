@@ -93,3 +93,4 @@ the walk-behind camera auto-follows?"
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-13 | `64ca23a` | Follow a mover from behind; movers registry; shared ground pick |
