@@ -959,7 +959,7 @@ shadows and the grass.
   separate draw calls. Textures are the world's twenty, not a thousand of their own. A slip of mine left the stress
   page broken for about three minutes (a dropped line; only with `?stress`).
 
-### 2026-11-13, a million in every village plot, and ten thousand that move (15:35)
+### 2026-11-13, a million in every village plot, and ten thousand that move (15:30)
 
 - **Asked:** "next test fill up every village plot we have with 1 million assets", and "make 10k in each village move
   in different speeds, aka robots and humans and transport systems walking / moving": stand-ins for the vehicles,
