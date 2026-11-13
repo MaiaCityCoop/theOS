@@ -47,7 +47,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, If, Discard, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, storage, texture, instanceIndex, vertexIndex, cameraViewMatrix, dFdx, dFdy, cos, sin, atan, abs, max, pow, mix, sqrt, floor, cross, reflect, length, normalize, smoothstep, clamp } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { camDist, groundAt, rnd } from '../world/land.nodes.js';
-import { cellRnd } from '../world/land.js';
+import { cellRnd, heightAt } from '../world/land.js';
 import { finish, skyLight, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
 import { pxK } from '../detail/index.js';
 import { bandOf, padOf } from '../detail/handover.js';
@@ -64,6 +64,9 @@ import { recipes } from '../core/registry.js';
 import { gpuStorage, note } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { did } from '../core/work.js';
+import { addBodies, bodiesNear, outline } from '../world/bodies.js';
+import { bodyOf } from '../../assets/zoo/index.js';
+import { moved } from '../../assets/kit/bones.js';
 import CITY from '../../world/city.js';
 import { addMovers } from '../world/movers.js';
 
@@ -126,15 +129,16 @@ const standsAt = (p, i, j, sizes) => {
 const moverOf = (p, i, j) => {
   const c = (p.i << BITS) + i, h = (s) => cellRnd(c, j, s), cl = h(921), h2 = h(922), h3 = h(923), h4 = h(924), h5 = h(925), h6 = h(926);
   let r = 0; while (r < HERDS.length - 1 && cl >= HERDS[r].upTo) r++;
-  const G = HERDS[r], v = G.speed[0] + (G.speed[1] - G.speed[0]) * h2, s = G.size[0] + (G.size[1] - G.size[0]) * h3, M = { rig: G.name, T: !!G.ring, v, s, k: G.first + Math.min(G.count - 1, Math.floor(h(940) * G.count)) };
+  const G = HERDS[r], v = G.speed[0] + (G.speed[1] - G.speed[0]) * h2, s = G.size[0] + (G.size[1] - G.size[0]) * h3, M = { rig: G.name, T: !!G.ring, v, s, k: G.first + Math.min(G.count - 1, Math.floor(h(940) * G.count)), fly: G.fly[0] + (G.fly[1] - G.fly[0]) * h4, ph: h5 * TAU, pace: Math.max(1, Math.floor(v / (s * G.stride) / ((TAU * 20) / WRAP) + 0.5)) * ((TAU * 20) / WRAP), g0: h6 * TAU * 20 };
   if (G.ring) return Object.assign(M, { rho: 0.3 + 0.25 * Math.floor(h4 * 3) + (h6 - 0.5) * 0.012, dir: h5 < 0.5 ? 1 : -1, th0: h6 * TAU });
   const th0 = h5 * TAU, rho0 = Math.sqrt(h4) * 0.8, R0 = reachOf(p, th0), a = 15 + 60 * h6, w1 = v / a;
   return Object.assign(M, { hx: p.x + Math.cos(th0) * R0 * rho0, hz: p.z + Math.sin(th0) * R0 * rho0, a, w1, w2: w1 * (0.6 + 0.5 * h3), p1: h2 * TAU * 7, p2: h6 * TAU * 13 });
 };
-/** Where a mover is at t seconds: [x, z]. */
+/** Where a mover is at t seconds: [x, z, the way it faces]. */
 const moverAtJS = (p, M, t) => {
-  if (M.T) { const th = M.th0 + (M.dir * M.v * t) / (p.mean * M.rho), R = reachOf(p, th); return [p.x + Math.cos(th) * R * M.rho, p.z + Math.sin(th) * R * M.rho]; }
-  return [M.hx + M.a * Math.sin(M.w1 * t + M.p1), M.hz + 0.7 * M.a * Math.sin(M.w2 * t + M.p2)];
+  if (M.T) { const th = M.th0 + (M.dir * M.v * t) / (p.mean * M.rho), R = reachOf(p, th); return [p.x + Math.cos(th) * R * M.rho, p.z + Math.sin(th) * R * M.rho, th + (M.dir * Math.PI) / 2]; }
+  const e1 = M.w1 * t + M.p1, e2 = M.w2 * t + M.p2;
+  return [M.hx + M.a * Math.sin(e1), M.hz + 0.7 * M.a * Math.sin(e2), Math.atan2(Math.cos(e2) * 0.7 * M.w2, Math.cos(e1) * M.w1)];
 };
 // a plot as the stand keeps it: its number, a point inside it, and how far its edge is from there in RAYS directions
 // (a ray from the point to the outline, a little short of it: what the lattice is folded onto, all of it inside the plot)
@@ -602,6 +606,7 @@ export function createStress(scene, renderer, tex) {
   // each frame: when the camera has moved, ask for the fine levels of what now
   // stands or passes near (coarser first: quick to build, and something to draw meanwhile), nearest first
   let tick = 0;
+  const nearMovers = [];   // (the movers within sixty metres of the camera: kept by each look, for what asks where they are)
   const pump = () => {
     if (!PL.length) {   // the city's plan has come: its plots, to the GPU
       const cp = window.__s8?.city?.plots; if (!cp?.length) return;
@@ -634,6 +639,7 @@ export function createStress(scene, renderer, tex) {
         else if (then > LEVELS[l].px) { wantAt[k * L + l] = round; if (!pending.has(k * L + l)) asks.push({ k, l, px }); }
       }
     };
+    nearMovers.length = 0;
     for (const p of PL) {
       const off = Math.hypot(p.x - cam.x, p.z - cam.z) - p.most; if (off > Rm) continue;
       if (off < Rs && ahead < Rs) {   // what stands: the blocks of its lattice round the camera's own lattice point
@@ -643,12 +649,37 @@ export function createStress(scene, renderer, tex) {
           for (let n = 0; n < BL * BL; n++) { if (!b.S[n]) continue; const d = Math.hypot(b.X[n] - cam.x, b.Z[n] - cam.z, dy); if (d < Rs) wants(b.K[n], b.S[n], d, 0); }
         }
       }
-      if (HERDS.length) for (const M of moversOf(p)) { const [x, z] = moverAtJS(p, M, t), d = Math.hypot(x - cam.x, z - cam.z, dy); if (d < reachOfSize(M.s)) wants(M.k, M.s, d, M.v * 0.35); }   // what passes
+      if (HERDS.length) for (const M of moversOf(p)) { const [x, z] = moverAtJS(p, M, t), d = Math.hypot(x - cam.x, z - cam.z, dy); if (d < 60) nearMovers.push({ p, M }); if (d < reachOfSize(M.s)) wants(M.k, M.s, d, M.v * 0.35); }   // what passes
     }
     queue = asks.sort((p, q) => q.l - p.l || q.px - p.px); feed();
     skinAsks.length = 0; for (const [, k] of want.sort((a, b) => b[0] - a[0])) skinAsks.push(k); skinFeed();
   };
-  tiers.solid = pump;
+  // ---- what of it is solid (src/world/bodies.js): the things round a point, each with its kind's box and shapes (its
+  // family's, beside its recipe: assets/zoo). Where they stand is reckoned here as the GPU reckons it (standsAt,
+  // moverAtJS); a mover's shapes move with its bones. They stop the walker only with `?stress&solid` (a plot is a
+  // thicket: a thing every metre and a half); a ray finds them always. `?stress&bounds` draws them ----
+  const Q = new URLSearchParams(location.search), SOLID = Q.has('solid'), BOUNDS = Q.has('bounds');
+  const stood = new Map();
+  addBodies((x, z, reach) => {
+    const out = [], t = U.uTime.value;
+    for (const p of PL) {
+      if (Math.hypot(p.x - x, p.z - z) - p.most > reach) continue;
+      const [fi, fj] = toLattice(p, x, z), rl = Math.ceil((reach + SMAX) / p.narrow) + 1;
+      for (let j = Math.max(0, Math.floor(fj - rl)); j <= Math.min(SIDE - 1, Math.floor(fj + rl)); j++) for (let i = Math.max(0, Math.floor(fi - rl)); i <= Math.min(SIDE - 1, Math.floor(fi + rl)); i++) {
+        const id = (p.i * SIDE + j) * SIDE + i; let o = stood.get(id);   // (what stands in a cell stands there for good: reckoned once, kept)
+        if (!o) { const st = standsAt(p, i, j, sizes); o = { id, x: st.x, z: st.z, y: heightAt(st.x, st.z) - st.s * 0.06, up: 0, yaw: cellRnd((p.i << BITS) + i, j, 907) * TAU, s: st.s, kind: st.k, body: bodyOf(st.k) }; if (stood.size > 40000) stood.clear(); stood.set(id, o); }
+        if (Math.hypot(o.x - x, o.z - z) <= reach + o.s) out.push(o);
+      }
+    }
+    nearMovers.forEach(({ p, M }, n) => {
+      const [mx, mz, yaw] = moverAtJS(p, M, t); if (Math.hypot(mx - x, mz - z) > reach + M.s) return;
+      const up = M.fly * (Math.sin(t * 0.4 + M.ph) * 0.15 + 1), g = M.pace * (t % WRAP) + M.g0, rows = boneRows.array.subarray((M.k - STAND) * BONES * 12, (M.k - STAND + 1) * BONES * 12);
+      out.push({ id: -1 - n, x: mx, z: mz, y: heightAt(mx, mz) + up, up, yaw, s: M.s, kind: M.k, body: bodyOf(M.k), pose: (bone, q, o) => moved(rows, bone, g, q, o) });
+    });
+    return out;
+  }, { stops: SOLID });
+  let outlinedAt = 0;
+  tiers.solid = () => { pump(); if (BOUNDS && performance.now() - outlinedAt > 120) { outlinedAt = performance.now(); outline(scene, bodiesNear(U.uCam.value.x, U.uCam.value.z, 14)); } };
 
   // its herds may be followed (intent 0015, src/world/movers.js): the mover nearest a clicked point, by the same reckoning
   // as the GPU's (moverAtJS, on the clock the shader reads), facing the way it goes

@@ -147,6 +147,7 @@ itself, that keeps one contract (`assets/zoo/index.js` writes it out):
 | `skinOf(i, size)` | its own texture |
 | `lookOf(i)` | plain numbers: its shading model, tints, relief, gloss, sway, snow, size, whether it is cut out as leaves |
 | `bonesOf(i)` | its skeleton (sixteen bones, three rows of numbers each), where it has one |
+| `boundsOf(i)`, `collidersOf(i)` | its box, and what of it is solid, as shapes in its own frame: sphere, capsule, box, mesh; a shape may move with a bone, or be passed through (leaves). A family that says nothing still has both: its coarse mesh is its collider |
 | `roams` | its herds: pace, size, whether they keep to the roads or fly, their stride; without it its kinds stand |
 
 Three families today, each a stand-in for what a real asset will ask of the engine:
@@ -166,6 +167,15 @@ The other plug points, each a file found by itself: a **shading model** (`src/sh
 the one shader), a **material** of the world (`materials/*.js`), a **biome** (`biomes/*.js`), a **scatter engine**
 (`src/scatter/*.js`), an **asset** of the library (`assets/*.js`). The engine under them: the heap (`heap.js`), the
 vertex's 16 bytes, the ladder, the tiers, the recipes' worker and the keeper.
+
+**What is solid** (`src/world/bodies.js`): one description for a rock, a tree, a house, a car, an animal, said by the
+thing's own family beside its meshes. Who places things says where they stand (`addBodies`); who needs to know asks:
+`bodiesNear` (the bodies round a point, each with its box and shapes), `roundsNear` (what stops the walker:
+`src/world/solids.js`), `hit` (the first body a ray meets), `outline` (their boxes and shapes as lines). The stand
+says where its 898 million stand and where its movers are by the same reckoning as the GPU, for the cells round the
+point only; a creature's capsules move with its bones. `?stress&bounds` draws them; `?stress&solid` lets them stop
+the walker. The placed assets' walls, the rocks and the trunks still have their own descriptions (`solids.js`): they
+come onto this one as they become families.
 
 **Memory (the game must run on 8 GB).** What only the GPU reads lives on the GPU only (`src/core/gpu.js`): the
 heap's meshes, the near plots' places, what every tier packs. Every pool says what it holds, and the readout shows

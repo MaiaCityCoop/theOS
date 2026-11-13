@@ -1121,6 +1121,29 @@ biome or a texture can come from a contribution, the render engine generic.
   (1.7 million cells a frame): it is not what drops frames.
 - **Not there yet:** what drops a frame in sixteen while walking is not found; the next reading has the work log.
 
+### 2026-11-13, every kind has a box and colliders, said beside its recipe (19:24)
+
+Samuel: proper bounding box and mesh collider patterns, fully generic, one interface for every asset (a car, a
+robot, an animal, a house, a tree), colocated with its procedural code.
+
+- **In the contract** (`assets/zoo/index.js`): `boundsOf(i)` and `collidersOf(i)`: its box, and what of it is solid
+  as shapes in its own frame (sphere, capsule, box, mesh; a shape may move with a bone, or be passed through). A
+  family that says nothing still has both: its coarse mesh is its collider (`bodyOf`). The blobs say nothing (a mesh
+  each); the creatures a capsule a limb, on its bone; the fronds a solid core and leaves that are passed through.
+- **One place that knows what is solid** (`src/world/bodies.js`): who places things says where they stand, who needs
+  to know asks: the bodies round a point, what stops the walker, the first body a ray meets, their outlines as lines.
+  The walker's step asks it (`src/world/solids.js`).
+- **The stand** says where its things stand by the GPU's own reckoning, for the cells round a point only; a mover's
+  shapes move with its bones (`assets/kit/bones.js`: the vertex stage's reckoning in JS).
+- **Seen (test browser):** 280 bodies within 12 m; of 280 rays aimed at them 200 met the body aimed at, 80 one nearer,
+  none missed; 40 of 40 from above; a ray 0.5 ms; a walk of 10 m straight ahead was turned aside (8 m made good) with
+  `?stress&solid`. Without it nothing is asked and nothing costs.
+- **Read in real Safari meanwhile (19:05 to 19:08):** the ratio held 1 for the first minute of walking (57 to 60
+  frames a second); then, standing at another spot, 51 to 53 at 1 and 57 at 0.75: there the picture itself is too
+  heavy. Measured since: leaves cost at most 3 ms a frame in the test browser, the bodies 5, the movers 3. The log
+  now says where the camera stands, to stand there again.
+- **Not there yet:** the placed assets' walls, the rocks and the trunks keep their own descriptions.
+
 ## Trail
 
 | When | Commit | What |

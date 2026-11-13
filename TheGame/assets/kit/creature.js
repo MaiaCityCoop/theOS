@@ -244,6 +244,9 @@ export function creatureMesh(c, l) {
   }
   return { index: F.index, verts };
 }
+/** What of creature c is solid: a capsule a tube, each moving with its tube's bone; and its box at rest. */
+export const creatureColliders = (c) => madeOf(c).tubes.map((t) => { const r = Math.max(t.r0, t.r1) * Math.min(1.4, Math.max(1, t.flat)) * 0.85, e = t.wheel ? 0 : Math.min(0.4, r / t.len); return { shape: 'capsule', a: t.a.map((x, i) => x + t.d[i] * e), b: t.a.map((x, i) => x + t.d[i] * (1 - e)), r, bone: t.bone }; });
+export const creatureBounds = (c) => { const H = madeOf(c).hull; return { min: [-H.e[0] / 0.9, 0, -H.e[2] / 0.9], max: [H.e[0] / 0.9, H.y * 2, H.e[2] / 0.9] }; };
 /** Creature c's bones, as the GPU reads them (three rows of four a bone; what it has no bone for stays still). */
 export function creatureBones(c) {
   const G = madeOf(c), out = new Float32Array(BONES * 12);

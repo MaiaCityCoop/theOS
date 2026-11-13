@@ -1,6 +1,7 @@
 // A family of the zoo (index.js): eight thousand shapes nobody drew (assets/kit/blob.js), each a full mesh of 50 000 to
 // 200 000 triangles, a texture and a look of its own. They stand. A test herd: stand-ins for the rocks, trunks and
 // buildings to come.
+// It names no colliders: each kind's coarse mesh is its collider, that mesh's box its box (index.js: bodyOf).
 import { blobMesh, blobLook, blobSkin, fullOf } from '../kit/blob.js';
 
 const COUNT = 8000;

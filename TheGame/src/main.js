@@ -162,7 +162,7 @@ function hitch(ms, now) {
   }
   if (import.meta.env.DEV && now - sentAt > 4000 && (hitches.length || frames > 0)) {
     sentAt = now;
-    const body = JSON.stringify({ at: Math.round(now), clock: new Date().toTimeString().slice(0, 8), ...TAB, hidden: document.hidden, size: [innerWidth, innerHeight], dpr: governor.dpr, lod: +governor.lod.toFixed(2), ms: +governor.ms.toFixed(1), late: +governor.late.toFixed(2), tris: renderer.info.render.triangles, frames, hitches: hitches.splice(0) }); frames = 0;
+    const body = JSON.stringify({ at: Math.round(now), clock: new Date().toTimeString().slice(0, 8), ...TAB, hidden: document.hidden, size: [innerWidth, innerHeight], cam: [...camera.position.toArray(), ...camera.getWorldDirection(new THREE.Vector3()).toArray()].map((v) => +v.toFixed(2)), mid: +governor.mid.toFixed(1), dpr: governor.dpr, lod: +governor.lod.toFixed(2), ms: +governor.ms.toFixed(1), late: +governor.late.toFixed(2), tris: renderer.info.render.triangles, frames, hitches: hitches.splice(0) }); frames = 0;
     fetch(import.meta.env.BASE_URL + 'perf-log', { method: 'POST', body }).catch(() => {});
   }
 }

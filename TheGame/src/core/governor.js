@@ -94,6 +94,6 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
     },
     /** Hold the dials where they are (true), or let them move again (false). */
     hold(on) { held = !!on; },
-    get ms() { return ema; }, get late() { return share; }, get dpr() { return dpr; }, get lod() { return lod; }, get zoom() { return zoom; }, get cap() { return cap; },
+    get ms() { return ema; }, get late() { return share; }, get mid() { return mid; }, get dpr() { return dpr; }, get lod() { return lod; }, get zoom() { return zoom; }, get cap() { return cap; },
   };
 }

@@ -17,6 +17,11 @@
 //                             world's textures it takes its relief from), scale (metres a tile), gloss, sway (how far it
 //                             bends in the wind; 0: stiff), snow, glow, through, size (its largest side, metres),
 //                             leaf (cut out as a leaf of so many lobes; 0 or none: solid) }
+//     boundsOf?(i)            its box in its own frame (its foot at 0, its largest side 1): { min: [x, y, z], max }
+//     collidersOf?(i)         what of it is solid, as shapes in its own frame (src/world/bodies.js says them: sphere,
+//                             capsule, box, mesh; `bone`: it moves with that bone; `pass`: leaves, not solid).
+//                             Without these two its coarse mesh is its collider and that mesh's box its box: every
+//                             kind has both, whatever it is (bodyOf, below)
 //     bonesOf?(i)             its skeleton: Float32Array, BONES bones of three rows of four (assets/kit/creature.js
 //                             says what a bone is); without: nothing in it moves by itself
 //     fullTris?(i)            how many triangles its full mesh has (for the readout)
@@ -29,6 +34,9 @@
 // What a family makes is the same on every machine at every start: it is made in a worker
 // (src/scatter/recipes.worker.js) and kept in the browser under the zoo's fingerprint (src/core/kept.js), so a second
 // start builds nothing. Plain JS, no three: the worker reads it and the page reads it.
+import { unpackSolid } from '../kit/solid.js';
+import { LADDER } from '../kit/ladder.js';
+
 const FOUND = import.meta.glob(['./*.js', '!./index.js'], { eager: true, import: 'default' });
 /** The families: what stands first, then what roams, each by its id; `first`: the number of its first kind. */
 export const FAMILIES = (() => {
@@ -42,6 +50,21 @@ export const meshOf = (k, l) => { const E = of(k); return E.F.meshOf(k - E.first
 export const skinOf = (k, size) => { const E = of(k); return E.F.skinOf(k - E.first, size); };
 export const lookOf = (k) => { const E = of(k); return E.F.lookOf(k - E.first); };
 export const bonesOf = (k) => { const E = of(k); return E.F.bonesOf?.(k - E.first) ?? null; };
+const HULL = LADDER.findIndex((L) => L.n > 0 && L.n <= 2), BODIES = new Map();   // HULL: the level a kind's collider is taken from where its family names none
+/** What of kind k is solid, and its box, in its own frame: { box: { min, max }, shapes: [...] } (src/world/bodies.js).
+    Its family's (boundsOf, collidersOf); where it says nothing, its mesh at the hull's level. */
+export function bodyOf(k) {
+  let B = BODIES.get(k); if (B) return B;
+  const E = of(k), i = k - E.first; let shapes = E.F.collidersOf?.(i), box = E.F.boundsOf?.(i);
+  if (!shapes || !box) {
+    const m = E.F.meshOf(i, HULL), n = m.verts.length / 4, verts = new Float32Array(n * 3), min = [1e9, 1e9, 1e9], max = [-1e9, -1e9, -1e9];
+    for (let v = 0; v < n; v++) { const p = unpackSolid(m.verts, v * 4, 0).p; for (let a = 0; a < 3; a++) { verts[v * 3 + a] = p[a]; if (p[a] < min[a]) min[a] = p[a]; if (p[a] > max[a]) max[a] = p[a]; } }
+    shapes ||= [{ shape: 'mesh', verts, index: m.index }]; box ||= { min, max };
+  }
+  if (BODIES.size > 6000) BODIES.clear();
+  BODIES.set(k, (B = { box, shapes }));
+  return B;
+}
 export const fullTris = (k) => { const E = of(k); return E.F.fullTris?.(k - E.first) ?? 0; };
 /** Every herd of every family that roams: its numbers, `first` the number of its first kind, `upTo` where its share
     of a place's movers ends (0 … 1: a number under a herd's upTo and not under the one before's is of it). */
