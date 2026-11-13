@@ -213,6 +213,53 @@ gateways are wider than a screen). The front page's calendar now finds a story a
   the hook first), the placeholder `story.md` files are gone, a story is listed by its hook or its arc. The shelf's
   cards show the title large and the intro under it in two lines, the count moved to the top right; the studio's head
   and the arc's page show the same title; the game's story list too.
+- **Asked (later):** day 1 rethought, more meta: why at all. When a machine is 1000x smarter than the best human
+  genius, we build a city: a positive outlook against the internet's dystopian story; the resolution is "building a
+  city becomes possible", first in the game, then for real; this was one day, imagine a year; humanity's true potential.
+- **Delivered:** day 1's hook ("When AI is 1000x smarter than any genius, we build a city.": the doom headlines, then
+  one tent) and its arc reframed round it: the vision is now "Why a city" (the wager: one person, one AI, one day), the
+  river and the tree are its proof and its limit (it fails, a human eye corrects it), the relief is "This was one day"
+  (what is a year, what is 5,423 days: building a city has become possible). Order, lengths and day 2 unchanged.
+- **Asked (later):** the title as "When AGI is 1000x smarter than any human genius - we build a city."; what the
+  "Why a city" scene's own arc is; and every story and every scene must say the viewer's change from a state A to a
+  state B (feeling, knowledge, wisdom, entertainment), each stated clearly.
+- **Delivered:** an arc says the viewer's change for the whole (`viewer: { from, to }`) and for every section
+  (`viewer: { from, turn, to }`); the tool refuses an arc without them, or a section that leaves the viewer where it
+  found them. Written for days 1 and 2; the Arc page shows A and B under the title and A, the turn and B at the top of
+  every card; the rule is in the `story-arc` skill. The title set as asked: it is 13 words, so a title is now 6 to 13
+  (a dash alone is no word). "Why a city" has its own six beats (what AGI lets us build; a city as the hardest thing
+  humans make; the hard part made cheap; a city is where a life is decided; the doubt; the wager of one day): the
+  reasoning in them is a first draft for Samuel to correct.
+- **Asked (later):** it is not so much about the city as about the 100x better way of living; the core theme is the
+  food forest, permaculture, co-location: a new way of organising the primitives of our life, in a new world. But in
+  the game a world has to be built before the first plant can be planted.
+- **Delivered:** day 1's arc turned to that: scene 1 is "A hundred times better" (the primitives of a life pulled
+  apart, grown together again round a food forest; the catch: a game has nothing to plant in), the river and the tree
+  are the water and the forest a plant needs, the relief ends on a world ready for its first plant. Title unchanged.
+  Then, as asked: the why is the wish to live in nature, solarpunk made a plan; scene 1 names that wish as the viewer's own.
+  And the hook: the intro to solarpunk; with AGI 1000x it stops being a dream and becomes reality (intro, promise, hook section and relief say so).
+  The intro ends on "Here is how we start: first in a game, then for real", then the tent.
+- **Asked (later):** every scene is a dialogue between a human and Maia (avenMAIA): Samuel wishes, describes his
+  intents and gives feedback, Maia builds the game, he iterates on idea and taste, she builds again; a short intro
+  after the trailer ("Hey Maia, tell us how this will all start"); a scene's picture is the human to the camera,
+  sometimes short generated vision shots of the future city (5 to 10 s), and mainly the live game through the timeline
+  engine; and the viewer of day 1 has zero background (not solarpunk, not the vision): educate them.
+- **Delivered:** three more things an arc says, checked by the tool, shown on the Arc page and written into the
+  `story-arc` skill: a section's `dialogue` (turns of human and Maia; a scene has four at least and the human opens),
+  its `picture` (shares of world, camera, vision, footage; the world is the largest over a story) and what it `teaches`
+  a stranger (wanted on day 1 for the hook and every scene). Written for day 1 (scene 1 opens on "Hey Maia…"; AGI,
+  solarpunk, food forest, permaculture, Maia and the numbers are each explained where they first appear) and, dialogue
+  and picture, for day 2. The intro after the trailer is scene 1's opening turn, not a section of its own.
+- **Asked (later):** "Hey Maia" is always part of its scene, never standalone; do not start with actual shots yet; the
+  arc outgrew its purpose and is way over-engineered: back to the fundamentals, the viewer's emotional journey and its
+  transitions in as compact and simple primitives as possible, every section super tight, the whole story in one look.
+- **Delivered:** the arc cut to its primitives. A story says where the viewer arrives (`from`); a section says its
+  emotion and charge, its tension, what moves the viewer (`how`) and the state it leaves them in (`to`, the next one's
+  start), each one line of 90 characters at most. Gone from the arc and its tool: setting, feeling, pace, dynamic,
+  colour, music, question, release, beats, gateways, promise, the picture's shares, the dialogue's turns, the teaches
+  lists. Kept as rules: the order, ten minutes, the charge turning at every section. The Arc page is one row of small
+  cards under the journey's line (up where it lifts, down where it weighs) and fits one screen; the Hook page shows
+  where the viewer arrives and where the relief leaves them. Days 1 and 2 rewritten so; the `story-arc` skill too.
 
 ## Trail
 

@@ -138,44 +138,33 @@ async function story(s, show = true) {
 // Edit is the film and its timeline; the others are the parts of story.md (its ## sections), hook first ----
 const STEP = [['The hook', 'Hook'], ['The story', 'Story'], ['The film', 'Script'], ['EDIT', 'Edit']];
 const HIDE = ['Open', 'Receipts', 'The series'];   // sections of story.md the studio does not show as pages
-// ---- a story's arc (Stories/<story>/arc.json, made and changed only by Stories/arc.js): its sections in their order,
-// each with its own setting, feeling, pace, colour and music, the question it opens and its release, and the tension
-// that runs through it; between two sections their gateway, the contrast said in words. The curve on top is the whole
-// story's tension, section by section in its colour. Shown only: no word of the script is here ----
+// ---- a story's arc (Stories/<story>/arc.json, made and changed only by Stories/arc.js): the viewer's journey in one
+// look. A card a section in one row (the first: the state the viewer arrives in), each with its emotion, what moves the
+// viewer and the state it leaves them in; over them the journey as one line, up where it lifts, down where it weighs.
+// Shown only ----
 // ---- a story's hook, the studio's first page (Stories/<story>/hook.json, made and changed only by Stories/hook.js): its
-// title and its intro, the first seconds. Under them, read from the arc, the question the film opens there and where it is
-// answered: the one loop the whole story keeps open. Shown only ----
+// title and its intro, the first seconds. Under them, read from the arc, the state the viewer arrives in and the one the
+// relief leaves them in. Shown only ----
 function hookView(h, arc) {
   const esc = (t) => String(t ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]), W = h.title.trim().split(/\s+/).length;
   const open = arc?.sections.find((s) => s.kind === 'hook'), rel = arc?.sections.find((s) => s.kind === 'relief'), total = arc ? arc.sections.reduce((t, s) => t + s.minutes, 0) : 0;
   return `<div class="hookpage"><span class="lab">Step 1 · Title <em>${W} words</em></span><h2>${esc(h.title)}</h2>
     <span class="lab">Intro <em>the first ${h.seconds} seconds</em></span><p class="intro">${esc(h.intro)}</p>
-    ${open && rel ? `<span class="lab">The loop it opens <em>held for ${Math.round(total)} minutes</em></span><div class="loop"><p style="--c:${open.colour.hex}"><small>Opens · 0:00</small>${esc(open.question)}</p><i></i><p style="--c:${rel.colour.hex}"><small>Answered · the relief</small>${esc(rel.release)}</p></div>` : ''}</div>`;
+    ${open && rel ? `<span class="lab">The viewer's journey <em>${Math.round(total)} minutes</em></span><div class="loop"><p style="--c:#6f9bd8"><small>Arrives</small>${esc(arc.from)}</p><i></i><p style="--c:#f2b544"><small>After the relief</small>${esc(rel.to)}</p></div>` : ''}</div>`;
 }
-const KIND = { hook: 'Hook', trailer: 'Trailer', scene: 'Scene', relief: 'The relief', outro: 'Outro' };
+const KIND = { hook: 'Hook', trailer: 'Trailer', scene: 'Scene', relief: 'Relief', outro: 'Outro' };
 function arcView(a, hook) {
   const esc = (t) => String(t ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
-  const S = a.sections, total = S.reduce((t, s) => t + s.minutes, 0), W = 1000, H = 190, X = (m) => (m / total) * W, Y = (l) => H - 14 - l * 15;
-  const clock = (m) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}`;
-  let at = 0, shortNo = 0; const curve = [], marks = [];
-  for (const [i, s] of S.entries()) {
-    const pts = [[at, s.tension.in], ...(s.beats || []).map((b) => [at + b.at * s.minutes, b.level]), [at + s.minutes, s.tension.out]].sort((p, q) => p[0] - q[0]);
-    const line = pts.map(([m, l]) => `${X(m).toFixed(1)},${Y(l).toFixed(1)}`).join(' ');
-    curve.push(`<polygon points="${X(at).toFixed(1)},${H - 14} ${line} ${X(at + s.minutes).toFixed(1)},${H - 14}" fill="${s.colour.hex}" opacity=".22"/><polyline points="${line}" fill="none" stroke="${s.colour.hex}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`);
-    if (i) curve.push(`<line x1="${X(at)}" y1="6" x2="${X(at)}" y2="${H - 14}" stroke="rgba(251,246,234,.18)" stroke-dasharray="3 4"/>`);
-    marks.push(`<span style="left:${(at / total) * 100}%;width:${(s.minutes / total) * 100}%"><b style="background:${s.colour.hex}"></b>${i + 1}</span>`);
-    at += s.minutes;
-  }
-  const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
-  const card = (s, i) => `<article class="arcsec ${s.kind}" style="--c:${s.colour.hex}"><header><span>${String(i + 1).padStart(2, '0')} · ${KIND[s.kind]}${s.kind === 'scene' ? ' ' + ++shortNo : ''}</span><em>${s.minutes} min</em></header><h3>${esc(s.title)}</h3>${s.idea ? `<i>${esc(s.idea)}</i>` : ''}${s.scene ? `<i class="made">its scene: ${esc(s.scene)}</i>` : ''}
-    <dl>${row('Setting', esc(s.setting))}${row('Emotion', `${esc(s.emotion)} <b class="${s.charge}">${s.charge === 'up' ? '▲ lifts' : '▼ weighs'}</b>`)}${row('Feeling', esc(s.feeling))}${row('Pace', esc(s.pace))}${row('Dynamic', esc(s.dynamic))}${row('Colour', `<u style="background:${s.colour.hex}"></u>${esc(s.colour.name)}`)}${row('Music', esc(s.music))}</dl>
-    <div class="tens"><b>${s.tension.in}</b><span></span><b class="pk">${s.tension.peak}</b><span></span><b>${s.tension.out}</b></div>
-    <p><small>Opens</small>${esc(s.question)}</p><p><small>Releases</small>${esc(s.release)}</p>
-    ${(s.beats || []).length ? `<ol>${s.beats.map((b) => `<li><b>${b.level}</b>${esc(b.note)}</li>`).join('')}</ol>` : ''}</article>` +
-    (s.gate ? `<div class="arcgate" style="--a:${s.colour.hex};--b:${S[i + 1].colour.hex}"><span>${esc(S[i].pace)} → ${esc(S[i + 1].pace)}</span><span>${esc(S[i].dynamic)} → ${esc(S[i + 1].dynamic)}</span><span>${esc(S[i].emotion)} ${S[i].charge === 'up' ? '▲' : '▼'} → ${esc(S[i + 1].emotion)} ${S[i + 1].charge === 'up' ? '▲' : '▼'}</span><i></i><p>${esc(s.gate)}</p></div>` : '');
-  return `<div class="arc"><header class="archead"><h2>${esc(hook?.title ?? '')}</h2><p>${esc(a.promise)}</p><span>Day ${a.day} · ${S.filter((s) => s.kind === 'scene').length} scenes · ${clock(total)}</span></header>
-    <div class="arccurve"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${[2, 5, 8].map((l) => `<line x1="0" y1="${Y(l)}" x2="${W}" y2="${Y(l)}" stroke="rgba(251,246,234,.07)"/>`).join('')}${curve.join('')}</svg><div class="arcmarks">${marks.join('')}</div><small class="hi">tension</small></div>
-    <div class="arcrow">${S.map(card).join('')}</div></div>`;
+  const S = a.sections, n = S.length, total = S.reduce((t, s) => t + s.minutes, 0), clock = (m) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}`;
+  // the journey as one line: a column a section (the first is where the viewer arrives), up where it lifts, down where it weighs
+  const W = 100 * (n + 1), H = 120, X = (i) => 100 * i + 50, Y = (v) => H / 2 - v * 5, P = [[X(0), Y(0)], ...S.map((s, i) => [X(i + 1), Y((s.charge === 'up' ? 1 : -1) * s.tension)])];
+  const path = P.map(([x, y], i) => (i ? `C${(P[i - 1][0] + x) / 2},${P[i - 1][1]} ${(P[i - 1][0] + x) / 2},${y} ${x},${y}` : `M${x},${y}`)).join(' ');
+  let no = 0;
+  const card = (s, i) => `<article class="${s.charge}"><header>${String(i + 1).padStart(2, '0')} · ${KIND[s.kind]}${s.kind === 'scene' ? ' ' + ++no : ''}<em>${s.minutes} min</em></header><h3>${esc(s.title)}</h3><b>${esc(s.emotion)} ${s.charge === 'up' ? '▲' : '▼'}</b><p>${esc(s.how)}</p><p class="to">${esc(s.to)}</p></article>`;
+  return `<div class="arc"><header class="archead"><h2>${esc(hook?.title ?? '')}</h2><span>Day ${a.day} · ${clock(total)}</span></header>
+    <div class="arcgrid" style="--n:${n + 1}"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}"/><path d="${path}"/></svg>
+    <div class="arcdots">${P.map(([, y], i) => `<i class="${i ? S[i - 1].charge : ''}" style="top:${(y / H) * 100}%"></i>`).join('')}</div>
+    <article class="from"><header>The viewer arrives</header><p class="to">${esc(a.from)}</p></article>${S.map(card).join('')}</div></div>`;
 }
 function pages(root, md, film, arc, hook) {
   const parts = md.replace(/^---\n[\s\S]*?\n---\n/, '').split(/^## /m).slice(1).map((p) => { const nl = p.indexOf('\n'); return { head: p.slice(0, nl).trim(), text: p.slice(nl + 1) }; });

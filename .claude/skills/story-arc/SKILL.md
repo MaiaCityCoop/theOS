@@ -1,77 +1,49 @@
 ---
 name: story-arc
-description: A story's arc in TheOS (Stories/<story>/arc.json): its sections, their contrasts and the tension through them, before any script. Use whenever Samuel wants to structure a story or a day's film, lay out its hook, trailer, shorts, relief and outro, set or change a section's emotion, pace, colour, music or tension, talks about contrast between scenes, gateways or transitions, the tension curve, or asks to turn ideas into a story. Every change is a call of `bun Stories/arc.js`; the studio's Arc page only shows it.
+description: A story's arc in TheOS (Stories/<story>/arc.json): the viewer's emotional journey through it, a section at a time, before any shot or word. Use whenever Samuel wants to structure a story or a day's film, lay out its hook, trailer, scenes, relief and outro, set or change what a section makes the viewer feel, what moves them or the state it leaves them in, talks about the emotional journey, the roller coaster, the viewer's transformation or state A to state B, or asks to turn ideas into a story. Every change is a call of `bun Stories/arc.js`; the studio's Arc page only shows it.
 ---
 
 # Story arc
 
-Step 2 of a story, after its hook (`story-hook`).
+Step 2 of a story, after its hook (`story-hook`). The arc is the viewer's journey and nothing else: where they
+arrive, and for each section what they feel, what moves them, and the state it leaves them in. The whole story has to
+read in one look. Shots, sound, settings, lines and dialogue are not the arc's; they come with the scenes
+(`story-scenes`).
 
-**A scene is a short**: one timeline that stands alone and that other timelines contain. A story is composed of
-scenes, and one scene may play in many stories (the trailer is a scene).
+## The primitives
 
-A story is one long film of ten minutes (YouTube long form, cinematic), made of **sections**, each one scene:
+```
+arc      { day, from, sections, next, inGame }      from: the state the viewer arrives in
+section  { id, kind, title, minutes,
+           emotion, charge, tension,                 one word; up (lifts) or down (weighs); 0 to 10
+           how,                                      what in it moves the viewer
+           to,                                       the state it leaves them in: the next section's start
+           scene }                                   its scene, once made
+```
 
-1. **Hook**: the question the whole film answers. It is left open.
-2. **Trailer**: everything that is coming, fast.
-3. **Scenes**, at least three, one to three minutes each. The first is the vision: Samuel on what Maia City is, before
-   the film turns to how the world was built.
-4. **The relief**: the hook's promise kept, the big release.
-5. **Outro**: a cliffhanger for the next day.
+Every line (`from`, `how`, `to`, `title`) is 90 characters at most. If a state needs more, it is two states.
 
-The arc says what each section *feels* like and how the tension runs. It holds **no script, no lines, no content**:
-those come later (the `story-loop`, `sandbox-script` and `writer` skills). An arc is made from ideas on the board
-(the `story-ideas` skill): a section names the idea it is built on.
+## The rules (the tool refuses anything else)
 
-## The three rules
+1. **Only the tool changes an arc**: `bun Stories/arc.js put|show|set`. The page (Stories → the story → Arc) only shows.
+2. **The order**: hook, trailer, scenes (three at least, one to three minutes each), relief, outro. Ten minutes in
+   all (10 to 11); a scene too many belongs to the next day.
+3. **A roller coaster**: the charge turns at every section, and neighbours never carry the same emotion. The hook
+   weighs (an open question), the relief lifts (the hook's promise kept), the outro weighs again (a cliffhanger the
+   next day's hook picks up).
 
-1. **Only the tool changes an arc**: `bun Stories/arc.js put|show|set` (its head lists the fields). Never edit
-   `arc.json` by hand: the tool refuses an arc that breaks the rules below.
-2. **The page only shows**: Stories → the story → Arc, the studio's first page.
-3. **Neighbours are opposites, in every sense: an emotional roller coaster at every gateway.** Two neighbouring
-   sections never share their pace, their dynamic, their colour, their emotion, or their emotion's **charge**: `up`
-   (it lifts: hope, belonging, delight, awe, triumph, peace) or `down` (it weighs: doubt, longing, frustration, fear,
-   unease). So hope cannot be followed by belonging, nor majestic by majestic: the charge turns at every gateway. The
-   tool refuses anything else. (The hook is `down`, an open question, and the relief `up`, so a story has an odd number
-   of sections.)
-4. **Ten minutes.** The whole is 10 to 11 minutes. A scene that would make it longer belongs to the next day's story.
-5. **The outro is a cliffhanger** for the next day: it opens a question and leaves it open (it ends higher than it
-   began); the next day's hook picks it up.
+## Writing one
 
-## A section
+- **Start from the viewer, not from what was built.** On day 1 they are a stranger with no background: no word of ours
+  means anything to them yet. `from` says that state plainly.
+- **A state is what the viewer would say or feel** ("a real plan with a face, but better how?"), never what the film
+  shows. `how` is the one thing in the section that moves them there.
+- **Each `to` must differ from the state before it.** A section that leaves the viewer where it found them goes.
+- **Read the `to` lines top to bottom**: they alone must tell the story.
+- **Every scene is a dialogue between the human and Maia** (avenMAIA): he wishes and gives feedback, she builds, he
+  turns idea and taste over, she builds again. "Hey Maia, …" is always the opening of a scene, never a section of its
+  own. The arc only hints at it in `how`; the turns are written with the scene.
+- Do not plan shots here. Which pictures (the live game, the human to the camera, generated visions) is the scenes'
+  step.
 
-| Field | What it is |
-| --- | --- |
-| `id`, `kind`, `title`, `idea`, `minutes` | which section, what it is called, the idea it draws on, how long |
-| `scene` | its scene, once it is made (a folder of `Stories/scenes/`): the page marks the section as made |
-| `setting` | where it plays: its own place, unlike its neighbours' |
-| `emotion`, `charge`, `feeling` | the one emotion it carries, whether that lifts (`up`) or weighs (`down`), and how it feels in the body |
-| `pace` | the cutting: still, slow, medium, fast, frantic |
-| `dynamic` | its energy: calm, playful, tense, hectic, majestic, intimate |
-| `colour` | `{ name, hex }`: its own palette, by which the page draws it |
-| `music` | what is heard |
-| `question` | the pressing question it opens (its tension) |
-| `release` | how that tension is released at its end |
-| `tension` | `{ in, peak, out }`, 0 to 10: before, at its height, after |
-| `beats` | `[{ at: 0..1, level, note }]`: the small challenges and failures on its way (labels, not lines) |
-| `gate` | its gateway into the next: the contrast, said in words ("calm to storm: …") |
-
-## A scene stands alone
-
-Each scene is also cut out and posted by itself, so it is a whole story in small: it opens its own question, runs
-into trouble (its beats: a first try that fails, a second), peaks, and is released before it ends. The tool refuses a
-scene whose peak is not above both its start and its end. Small intros and calls to action for the posted scenes are
-templates added later; they are not in the arc.
-
-## Making one
-
-1. Pick the ideas (`bun Stories/ideas.js list`); for each scene one idea, and from its story points the question and
-   the failures (they become `question`, `release` and `beats`).
-2. Order them for contrast, not for chronology: after a loud one a quiet one, after wide a close one, after warm cold.
-3. For every gateway write the contrast as a pair: what ends and what begins.
-4. Check the whole: the tension curve should climb in waves to the last short and fall in the relief; the hook's
-   question is answered in the relief and nowhere before.
-5. `put`, then tell Samuel the order and the contrasts in a few lines; he reads the page.
-
-The scenes themselves, their media and their player: the `story-scenes` skill. The step before this one, the title
-and the intro: `story-hook`. The whole of it: `storytelling`.
+Then tell Samuel the journey in a few lines; he reads the page. The whole pipeline: `storytelling`.

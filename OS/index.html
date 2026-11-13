@@ -277,40 +277,24 @@
   #storyedit .stagedoc .arc{display:grid;gap:10px;min-width:0}
   .archead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;padding:2px 4px;color:var(--cream)}
   .archead h2{font:440 24px/1.1 var(--serif);font-variation-settings:var(--soft);margin:0}
-  .archead p{margin:0;flex:1 1 320px;font:400 13.5px/1.4 var(--sans);color:rgba(251,246,234,.7)}
   .archead span{font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5)}
-  .arccurve{position:relative;padding:10px 14px 26px;border-radius:14px;background:#18243c}
-  .arccurve svg{display:block;width:100%;height:150px}
-  .arccurve .hi{position:absolute;left:14px;top:8px;font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.4)}
-  .arcmarks{position:absolute;left:14px;right:14px;bottom:6px;height:16px}
-  .arcmarks span{position:absolute;top:0;font:500 10.5px/16px var(--sans);font-variant-numeric:tabular-nums;color:rgba(251,246,234,.6);white-space:nowrap;overflow:hidden;padding-left:4px;box-sizing:border-box}
-  .arcmarks b{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
-  .arcrow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding-bottom:10px}
-  .arcsec{flex:0 0 250px;box-sizing:border-box;padding:12px 13px 13px;border-radius:14px;background:#18243c;box-shadow:inset 0 3px 0 var(--c),inset 0 0 0 1.5px rgba(251,246,234,.1);color:var(--cream);display:grid;gap:8px;align-content:start}
-  .arcsec.scene{background:#1b2a45}
-  .arcsec>i.made{background:var(--c);color:#0f1d2c}
-  .arcsec header{display:flex;justify-content:space-between;font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--c)}
-  .arcsec header em{font-style:normal;color:rgba(251,246,234,.5)}
-  .arcsec h3{font:440 19px/1.1 var(--serif);font-variation-settings:var(--soft);margin:0;color:var(--cream)}
-  .arcsec>i{justify-self:start;font:400 10.5px/20px var(--sans);font-style:normal;padding:0 8px;border-radius:7px;background:rgba(251,246,234,.12);color:rgba(251,246,234,.75)}
-  .arcsec dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:5px 10px;margin:2px 0 0}
-  .arcsec dt{font:500 10px/1.5 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.45)}
-  .arcsec dd{margin:0;font:400 12.5px/1.35 var(--sans);color:rgba(251,246,234,.9);text-transform:none}
-  .arcsec dd b{font:500 10px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;margin-left:6px;padding:2px 6px;border-radius:6px;white-space:nowrap}.arcsec dd b.up{background:rgba(242,181,68,.3)}.arcsec dd b.down{background:rgba(127,150,200,.3)}
-  .arcsec dd u{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
-  .arcsec .tens{display:flex;align-items:center;gap:6px;margin-top:4px}
-  .arcsec .tens b{font:500 12px/22px var(--sans);min-width:22px;text-align:center;border-radius:7px;background:rgba(251,246,234,.12)}
-  .arcsec .tens b.pk{background:var(--c);color:#0f1d2c}
-  .arcsec .tens span{flex:1;height:2px;background:rgba(251,246,234,.2)}
-  .arcsec p{margin:0;padding:7px 9px;border-radius:7px;background:rgba(251,246,234,.05);font:400 12.5px/1.4 var(--sans);color:rgba(251,246,234,.9)}
-  .arcsec p small{display:block;font:500 9.5px/1.6 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.45)}
-  .arcsec ol{margin:0;padding:0;list-style:none;display:grid;gap:3px}
-  .arcsec li{display:flex;gap:8px;align-items:baseline;font:400 11.5px/1.35 var(--sans);color:rgba(251,246,234,.65)}
-  .arcsec li b{flex:none;width:18px;text-align:right;font-weight:500;color:var(--c)}
-  .arcgate{flex:0 0 150px;box-sizing:border-box;padding:0 10px;display:grid;align-content:center;justify-items:center;gap:6px;text-align:center;color:var(--cream)}
-  .arcgate span{font:500 10px/18px var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:0 8px;border-radius:7px;background:rgba(251,246,234,.12);white-space:normal;line-height:1.35;padding:3px 8px}
-  .arcgate i{width:100%;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--a),var(--b))}
-  .arcgate p{margin:0;font:400 11.5px/1.4 var(--sans);color:rgba(251,246,234,.7)}
+  .arcgrid{position:relative;display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:8px;padding-top:128px}
+  .arcgrid svg{position:absolute;left:0;top:0;width:100%;height:120px;overflow:visible}
+  .arcgrid svg line{stroke:rgba(251,246,234,.14);stroke-dasharray:3 5;vector-effect:non-scaling-stroke}
+  .arcgrid svg path{fill:none;stroke:rgba(251,246,234,.75);stroke-width:2.5;vector-effect:non-scaling-stroke}
+  .arcdots{position:absolute;left:0;top:0;width:100%;height:120px;display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:8px}
+  .arcdots i{position:relative;justify-self:center;width:12px;height:12px;margin-top:-6px;border-radius:50%;background:rgba(251,246,234,.6)}
+  .arcgrid .up,.arcdots .up{--c:#f2b544} .arcgrid .down,.arcdots .down{--c:#6f9bd8}
+  .arcdots i.up,.arcdots i.down{background:var(--c)}
+  .arcgrid article{box-sizing:border-box;min-width:0;padding:11px 12px 12px;border-radius:14px;background:#182640;border-top:3px solid var(--c,rgba(251,246,234,.4));display:grid;gap:7px;align-content:start;color:var(--cream)}
+  .arcgrid article header{display:flex;justify-content:space-between;font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5)}
+  .arcgrid article header em{font-style:normal}
+  .arcgrid article h3{font:440 18px/1.12 var(--serif);font-variation-settings:var(--soft);margin:0}
+  .arcgrid article b{font:500 11px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--c)}
+  .arcgrid article p{margin:0;font:400 12.5px/1.4 var(--sans);color:rgba(251,246,234,.62)}
+  .arcgrid article p.to{padding:8px 9px;border-radius:8px;background:rgba(251,246,234,.07);color:rgba(251,246,234,.95)}
+  .arcgrid article p.to::before{content:'→ ';color:var(--c,rgba(251,246,234,.5))}
+  .arcgrid article.from p.to::before{content:''}
   /* a story's hook, the studio's first page: its title, its intro, and the loop it opens (read from the arc) */
   .hookpage{max-width:980px;margin:0 auto;padding:clamp(18px,3vw,44px) 4px 40px;color:var(--cream);display:grid;gap:10px}
   .hookpage .lab{font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5);margin-top:22px}

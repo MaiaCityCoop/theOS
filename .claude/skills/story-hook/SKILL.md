@@ -1,13 +1,13 @@
 ---
 name: story-hook
-description: A story's hook in TheOS (Stories/<story>/hook.json), step 1 of making a story, before its arc. Use whenever Samuel wants a story's title, its intro, its opening, its first seconds or its hook made, sharpened, made bolder or changed, or says a title is too tame. Two things only, a title of 6 to 12 words and the intro described (20 seconds at most), each pushed as far as it stays true. Every change is a call of `bun Stories/hook.js`; the studio's Hook page only shows it.
+description: A story's hook in TheOS (Stories/<story>/hook.json), step 1 of making a story, before its arc. Use whenever Samuel wants a story's title, its intro, its opening, its first seconds or its hook made, sharpened, made bolder or changed, or says a title is too tame. Two things only, a title of 6 to 13 words and the intro described (20 seconds at most), each pushed as far as it stays true. Every change is a call of `bun Stories/hook.js`; the studio's Hook page only shows it.
 ---
 
 # Story hook
 
 Step 1 of a story. Before anything else is decided, two things are:
 
-1. **The title**, 6 to 12 words.
+1. **The title**, 6 to 13 words.
 2. **The intro**, the first 15 to 20 seconds, *described*: what is seen and what is claimed, in order. Not a script,
    no lines to read.
 
@@ -42,7 +42,7 @@ explained, "…yes, actually"? Only the first is bait; only the second is boring
 ## The three rules
 
 1. **Only the tool changes a hook**: `bun Stories/hook.js put <story>` (whole: `{ title, intro, seconds }`),
-   `set <story> title=… intro=… seconds=…`, `show <story>`. It refuses a title outside 6 to 12 words and an intro over
+   `set <story> title=… intro=… seconds=…`, `show <story>`. It refuses a title outside 6 to 13 words and an intro over
    20 seconds.
 2. **The page only shows**: Stories → the story → Hook, the studio's first page, before Arc.
 3. **Samuel's words stay his.** The intro is a description. If it quotes him, the quote is his own (from an intent or

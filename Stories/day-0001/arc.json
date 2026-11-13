@@ -1,307 +1,84 @@
 {
  "day": 1,
- "promise": "By the end, an empty screen has become a living land, and you see where a city for 1.3 million people will stand.",
+ "from": "A stranger: AGI means dark headlines; solarpunk is a word they have never heard",
  "sections": [
   {
    "id": "hook",
    "kind": "hook",
-   "title": "One tent, one question",
-   "idea": "the-count",
+   "title": "Everyone tells you how it ends",
    "minutes": 0.5,
-   "setting": "Black, then a single tent on an empty meadow",
-   "emotion": "Doubt",
-   "feeling": "A held breath: can this be true?",
-   "pace": "still",
-   "dynamic": "intimate",
-   "colour": {
-    "name": "Night black to first gold",
-    "hex": "#c9973a"
-   },
-   "music": "Silence, one low note swelling",
-   "question": "Can a city for 1.3 million people start from one tent and an empty screen?",
-   "release": "None: the question is left open",
-   "tension": {
-    "in": 2,
-    "peak": 7,
-    "out": 7
-   },
-   "beats": [
-    {
-     "at": 0.5,
-     "level": 4,
-     "note": "The number lands"
-    },
-    {
-     "at": 0.95,
-     "level": 7,
-     "note": "Cut on the question"
-    }
-   ],
-   "gate": "Stillness to speed: one held image and silence break into a montage that quickens with its music",
-   "charge": "down"
+   "emotion": "Dread",
+   "charge": "down",
+   "tension": 7,
+   "how": "The dark story said out loud, then the green one: with AGI it becomes real",
+   "to": "Stopped. Sceptical, but they want it to be true"
   },
   {
    "id": "trailer",
    "kind": "trailer",
    "title": "The trailer",
-   "idea": "",
    "minutes": 0.4,
-   "setting": "One drone take over the real city to Samuel with his arms wide, then the game's map turning into the city",
    "emotion": "Hope",
-   "feeling": "Lifted, friendly, growing",
-   "pace": "fast",
-   "dynamic": "majestic",
-   "colour": {
-    "name": "Game teal into real gold",
-    "hex": "#2aa39a"
-   },
-   "music": "Its own theme: cinematic, hopeful, friendly; D major, about 105 bpm; one big chord at the end",
-   "question": "One million humans, a hundred times better way of living: how?",
-   "release": "First in a game, then for real: the big chord, the lights come on",
-   "tension": {
-    "in": 7,
-    "peak": 9,
-    "out": 5
-   },
-   "beats": [
-    {
-     "at": 0.3,
-     "level": 8,
-     "note": "A tree that fails"
-    },
-    {
-     "at": 0.7,
-     "level": 9,
-     "note": "The storm"
-    },
-    {
-     "at": 0.98,
-     "level": 5,
-     "note": "Cut to black"
-    }
-   ],
-   "gate": "Flight to standing still, promise to person: the montage ends on its big chord and one voice begins, slowly, over the empty land",
-   "scene": "trailer",
-   "charge": "up"
+   "charge": "up",
+   "tension": 8,
+   "how": "The real place, the person, the game's map turning into the city",
+   "to": "It is a real plan with a face. But better how?",
+   "scene": "trailer"
   },
   {
    "id": "the-vision",
    "kind": "scene",
-   "title": "The vision",
-   "idea": "the-citys-plots",
+   "title": "A hundred times better",
    "minutes": 2.5,
-   "setting": "Samuel alone above the empty land, the city's 898 plots laid over it",
    "emotion": "Longing",
-   "feeling": "Warm, close, serious",
-   "pace": "slow",
-   "dynamic": "intimate",
-   "colour": {
-    "name": "Warm cream and sun gold",
-    "hex": "#f2b544"
-   },
-   "music": "Slow piano, wide room",
-   "question": "Why would anyone build a city from nothing, and for whom?",
-   "release": "One village is named and opened: Vision Village, round one tent",
-   "tension": {
-    "in": 3,
-    "peak": 6,
-    "out": 2
-   },
-   "beats": [
-    {
-     "at": 0.25,
-     "level": 4,
-     "note": "The size of it: 5,423 days"
-    },
-    {
-     "at": 0.6,
-     "level": 6,
-     "note": "The doubt: it is only one person and one tent"
-    },
-    {
-     "at": 0.9,
-     "level": 2,
-     "note": "The first village gets its name"
-    }
-   ],
-   "gate": "Sky to ground, plan to mud, voice to hands: from one quiet voice high above down to the water's edge, from speaking to trying",
-   "charge": "down"
+   "charge": "down",
+   "tension": 5,
+   "how": "Hey Maia, how does it start? The wish to live in nature, round a food forest",
+   "to": "The wish is theirs too. But a game has nothing to plant in yet"
   },
   {
    "id": "the-river",
    "kind": "scene",
-   "title": "A river that is a ditch",
-   "idea": "water-and-river",
+   "title": "Ask for a river",
    "minutes": 2,
-   "setting": "At the water's edge, feet on the sand",
    "emotion": "Delight",
-   "feeling": "Light, tinkering",
-   "pace": "medium",
-   "dynamic": "playful",
-   "colour": {
-    "name": "River teal",
-    "hex": "#3f9ea3"
-   },
-   "music": "Plucked strings, water sounds",
-   "question": "Why does the river look like a ditch?",
-   "release": "It bends, cuts a bank, lays a gravel bar: it reads as a river",
-   "tension": {
-    "in": 2,
-    "peak": 6,
-    "out": 2
-   },
-   "beats": [
-    {
-     "at": 0.2,
-     "level": 4,
-     "note": "One even width: wrong"
-    },
-    {
-     "at": 0.5,
-     "level": 6,
-     "note": "Banks with hard lines: still wrong"
-    },
-    {
-     "at": 0.85,
-     "level": 2,
-     "note": "The first bend that looks real"
-    }
-   ],
-   "gate": "Play to pressure: easy tinkering by the water turns into a fight with one stubborn tree, flowing shots to hard cuts",
-   "charge": "up"
+   "charge": "up",
+   "tension": 6,
+   "how": "He asks for water, Maia builds a ditch; he says why; it becomes a river",
+   "to": "Surprised: this is quick, and it works"
   },
   {
    "id": "the-tree",
    "kind": "scene",
    "title": "The tree that failed",
-   "idea": "trees-and-forest",
    "minutes": 3,
-   "setting": "One pine, alone, against photos of the real one",
    "emotion": "Frustration",
-   "feeling": "Tight, stubborn, a little comic",
-   "pace": "fast",
-   "dynamic": "tense",
-   "colour": {
-    "name": "Pine green on dark",
-    "hex": "#2f6b45"
-   },
-   "music": "Staccato strings, stops and restarts",
-   "question": "Can a tree made of numbers ever look like the photo?",
-   "release": "The umbrella crown stands; then a whole forest of every age",
-   "tension": {
-    "in": 3,
-    "peak": 9,
-    "out": 3
-   },
-   "beats": [
-    {
-     "at": 0.15,
-     "level": 5,
-     "note": "Blocks, not a tree"
-    },
-    {
-     "at": 0.4,
-     "level": 7,
-     "note": "A short trunk and a flat plate"
-    },
-    {
-     "at": 0.65,
-     "level": 9,
-     "note": "Every tree alike; the leaves flicker"
-    },
-    {
-     "at": 0.9,
-     "level": 3,
-     "note": "The forest to the horizon"
-    }
-   ],
-   "gate": "Fight to flight, tight to wide: hard cuts on one stubborn tree open into one unbroken rise; the staccato stops, the theme begins",
-   "charge": "down"
+   "charge": "down",
+   "tension": 9,
+   "how": "Maia fails the pine three times; only his eye on a photo gets it right",
+   "to": "It is not magic: it takes both. They trust it more"
   },
   {
    "id": "relief",
    "kind": "relief",
-   "title": "The rise",
-   "idea": "one-camera",
+   "title": "This was one day",
    "minutes": 1.5,
-   "setting": "One unbroken move from the forest floor up through the clouds to three kilometres",
-   "emotion": "Triumph",
-   "feeling": "Lift, release, pride",
-   "pace": "medium",
-   "dynamic": "majestic",
-   "colour": {
-    "name": "Morning gold on white cloud",
-    "hex": "#ffe3a0"
-   },
-   "music": "The hook's low note returns as a full theme",
-   "question": "So: did an empty screen become a world?",
-   "release": "Yes. And from up here the plots appear: this is where the city goes",
-   "tension": {
-    "in": 4,
-    "peak": 8,
-    "out": 1
-   },
-   "beats": [
-    {
-     "at": 0.3,
-     "level": 6,
-     "note": "Up through the crowns, over the river and the forest"
-    },
-    {
-     "at": 0.6,
-     "level": 8,
-     "note": "Through the cloud layer"
-    },
-    {
-     "at": 0.9,
-     "level": 1,
-     "note": "The plots come in over the land"
-    }
-   ],
-   "gate": "Triumph to unease, gold to slate: from the widest view of the film down to one tent, and the light goes; the theme breaks off",
-   "charge": "up"
+   "emotion": "Awe",
+   "charge": "up",
+   "tension": 10,
+   "how": "One rise from the forest floor to the clouds: all of it made today",
+   "to": "If this is one day, the dream is buildable. Ready for the first plant"
   },
   {
    "id": "outro",
    "kind": "outro",
    "title": "The first gust",
-   "idea": "wind",
    "minutes": 0.5,
-   "setting": "The tent at dusk; the canvas begins to move, clouds close over the last light",
    "emotion": "Unease",
-   "feeling": "A chill, something coming",
-   "pace": "still",
-   "dynamic": "tense",
-   "colour": {
-    "name": "Slate dusk, one warm light",
-    "hex": "#27456b"
-   },
-   "music": "The theme breaks off; wind, one low drone",
-   "question": "A storm is coming. Does one tent hold?",
-   "release": "None: cut to black on the first gust. Tomorrow.",
-   "tension": {
-    "in": 1,
-    "peak": 7,
-    "out": 7
-   },
-   "beats": [
-    {
-     "at": 0.3,
-     "level": 2,
-     "note": "One citizen, one tent, all quiet"
-    },
-    {
-     "at": 0.7,
-     "level": 5,
-     "note": "The canvas moves"
-    },
-    {
-     "at": 0.95,
-     "level": 7,
-     "note": "Cut on the gust"
-    }
-   ],
-   "charge": "down"
+   "charge": "down",
+   "tension": 7,
+   "how": "The light goes; the tent's canvas begins to move",
+   "to": "They have to know if the tent holds. Back tomorrow"
   }
  ],
  "next": "day-0002",

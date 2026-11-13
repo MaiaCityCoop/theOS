@@ -14,8 +14,8 @@ stand alone as a short.
 | Step | What is decided | Kept in | Tool | Skill |
 | --- | --- | --- | --- | --- |
 | 0 · Ideas | what could be told: topics gathered backwards from what was built | `Stories/ideas/` | `bun Stories/ideas.js` | `story-ideas` |
-| 1 · Hook | the title (6 to 12 words) and the intro (20 s at most) | `Stories/<story>/hook.json` | `bun Stories/hook.js` | `story-hook` |
-| 2 · Arc | the sections, their contrasts, the tension through them | `Stories/<story>/arc.json` | `bun Stories/arc.js` | `story-arc` |
+| 1 · Hook | the title (6 to 13 words) and the intro (20 s at most) | `Stories/<story>/hook.json` | `bun Stories/hook.js` | `story-hook` |
+| 2 · Arc | the viewer's journey: per section its emotion, what moves them, the state it leaves them in | `Stories/<story>/arc.json` | `bun Stories/arc.js` | `story-arc` |
 | 3 · Scenes | each section as a timeline of its own: world shots, footage, sound | `Stories/scenes/`, `Stories/objects/` | `bun Stories/scenes.js` | `story-scenes` |
 
 Still to come, in this order: each scene's own script (the `sandbox-script` and `writer` skills), its film, and the
