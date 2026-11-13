@@ -109,7 +109,8 @@ own. What a browser cannot pay is the draw calls, so here models are branches an
   meshes are whole bodies; a tree's cut-out leaves (two-sided, alpha to coverage) need a second pipeline on it.
 - **Textures are the world's twenty**, two a kind, tinted: a thousand kinds with textures of their own would be
   gigabytes and must stream as the fine meshes do.
-- **Real Safari has not been read with the materials on.**
+- **In real Safari the materials cost pixels**: 59 frames a second, but the pixel ratio down to 0.75 walking among
+  them (1.1 to 1.4 with plain colours), and 1.6 % of frames late.
 - **The test's assets are generated**, each level sampled from its shape. A drawn asset needs its levels cut by a
   simplifier, and comes from a file: the heap's side of that (`put`) is the same.
 

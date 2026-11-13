@@ -948,7 +948,12 @@ shadows and the grass.
   against 3.9 to 4.1. Snow lies on them, they sway in a gale.
 - **Counted:** the plain game compiles 16 vertex and 14 fragment programs, 21 draw pipelines; the stand adds two. GTA V:
   about 1900 draw calls for a frame's G-buffer (Courrèges 2015); its shader count I did not find, hundreds by memory.
-- **Broke / not there yet:** real Safari not read with the materials on. A change of level between two that are both
+- **Real Safari with the materials on (Samuel's tab, 14:59 to 15:02):** 59.0 frames a second over 8296 frames, three
+  of 35 four-second spans under 57 fps (55 the slowest). The governor paid for it in pixels: the ratio went from 1 down
+  to 0.75 while he walked among them and back up to 1.6 after (with plain colours it stood at 1.1 to 1.4). 1.6 % of
+  frames late, most of them one frame of 24 to 33 ms; fifteen stalls over 50 ms (324 ms the longest). Samuel: "its way
+  better now".
+- **Broke / not there yet:** A change of level between two that are both
   there I could not measure: two stills seconds apart differ more by the clouds and the light than by any level, with
   the morph on or off. Twelve models are branches of one shader, not twelve shaders: separate shaders would be
   separate draw calls. Textures are the world's twenty, not a thousand of their own. A slip of mine left the stress
