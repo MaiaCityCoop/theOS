@@ -110,3 +110,4 @@ mouse for a scripted click. Check it by hand: click in POV, aim at a creature, t
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-13 | `64ca23a` | Follow a mover from behind; movers registry; shared ground pick |
+| 2026-11-13 | `6aa7ee7` | Pick along the line of sight; POV picks at a crosshair |
