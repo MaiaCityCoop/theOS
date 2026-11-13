@@ -94,6 +94,7 @@ export class Tier {
         const x0 = i * S, z0 = j * S, x1 = x0 + S, z1 = z0 + S;
         const nx = cx < x0 ? x0 - cx : cx > x1 ? cx - x1 : 0, nz = cz < z0 ? z0 - cz : cz > z1 ? cz - z1 : 0, nd = nx * nx + nz * nz;
         if (nd > far2) continue;
+        const B = this.bounds; if (B && (x1 <= B[0] || x0 >= B[2] || z1 <= B[1] || z0 >= B[3])) continue;   // (bounds: a stand that ends: [x0, z0, x1, z1], set by its engine)
         const fx = Math.max(cx - x0, x1 - cx), fz = Math.max(cz - z0, z1 - cz);
         if (fx * fx + fz * fz < near2) continue;
         const yb = 0.32 * Math.sqrt(nd) + 0.2 * S + 6;         // the land is gentle: it cannot be further off than this

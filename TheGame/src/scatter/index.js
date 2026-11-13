@@ -7,6 +7,7 @@
 //     row?(asset) -> row,                      what it reads of an asset, over the common row (assets/index.js: scatterRow)
 //     create(scene, tex, ground, row, gpu) -> tiers,   its tiers (tier.js); tiers.solid: what reads its packing back as bodies
 //     createAll?(scene, tex, ground, rows, gpu) -> tiers,   instead of create: all its assets at once (they share tiers)
+//     createOwn?(scene, tex, ground, gpu, renderer) -> tiers,   what it places of its own, no asset of the library (stress.js)
 //     // for the asset library (library.html), each as the engine sees fit:
 //     thumb?(tex, row) -> { things, eye, look },       its picture for the list
 //     stage?(tex, row, { x, z, heightAt, ground, level, seed, … }) -> Object3D,   how it stands on the stage
@@ -18,7 +19,7 @@ import { weatherKey } from '../world/weather/index.js';
 import { recipes } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 
-const FOUND = import.meta.glob(['./*.js', '!./index.js'], { eager: true });   // (whole modules: a named import would fail where a module has none)
+const FOUND = import.meta.glob(['./*.js', '!./index.js', '!./*.worker.js'], { eager: true });   // (whole modules: a named import would fail where a module has none)
 export const ENGINES = Object.fromEntries(Object.values(FOUND).map((m) => m.engine).filter(Boolean).map((e) => [e.id, e]));
 
 /** An asset's engine, and the row it reads of it. */
@@ -37,6 +38,7 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
   // an engine makes its tiers asset by asset (create), or all of its assets at once (createAll: what shares tiers, as
   // the kinds of one stand do: trees.js)
   for (const [E, list] of rows) { if (E.createAll) take(E.createAll(scene, tex, ground, list, gpu), E.id); else for (const row of list) take(E.create(scene, tex, ground, row, gpu), row.name); }
+  for (const E of Object.values(ENGINES)) if (E.createOwn) take(E.createOwn(scene, tex, ground, gpu, renderer), E.id);   // what an engine places of its own
   return {
     tiers,
     /** Choose, for this frame, the patches each tier draws (after the frustum's planes are set: core/frustum.js). */

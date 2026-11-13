@@ -55,12 +55,44 @@ A stand is one thing to the engine, however many kinds grow in it (`src/scatter/
 Kinds share a stand's tiers when their levels are the same make (the same pixels and patches: their kind's and the
 kit's); a kind made otherwise is a group of its own in the same cells (`groupsOf`).
 
+## The heap: what a thousand kinds cost
+
+The stress stand (`src/scatter/stress.js`, only with `?stress` in the address) is the test of that: a thousand kinds of
+generated asset (`assets/kit/blob.js`: each its own mesh of 50 000 to 200 000 triangles), a thousand of each, a million
+on four kilometres of land. It is drawn the way every kind should come to be drawn (`src/scatter/heap.js`):
+
+| | cost | per kind |
+| --- | --- | --- |
+| draw calls | one a level (nine), whatever the kinds | none: a draw reads its vertices from the heap by the kind's number |
+| draw shader | one | none |
+| always held | its coarse levels (768 triangles down to one) | 20 KB |
+| held while near | its full mesh and two under it, in a few slots a level, built in workers | 1 to 4 MB, 245 KB, 62 KB, put out when the camera has gone |
+| the start | half a second more | nothing built on the main thread |
+
+Measured 2026-11-13 (M1, Playwright WebKit, 1440 × 779, pixel ratio 1; the GPU's own time with the stand on and hidden
+by turns): 4.3 ms a frame walking among them (140 000 drawn, 1.5 million triangles), 3.2 ms at 45 m, 1.7 ms at 300 m,
+0.3 ms from 2600 m. Travelling (walking, running, flying low) the mean frame stays 16.7 ms.
+
+What the test found:
+- **What is under a pixel is not drawn.** Of the million about 140 000 to 180 000 are a pixel or more at once on this
+  screen. Drawing every one (`?stress=all`: down to a fifth of a pixel, 920 000 to 964 000 in view) costs 8 to 9 ms:
+  about 9 ns a thing however few its triangles (a dot of one triangle no less than a tetrahedron). The M1 bins every
+  triangle into its screen tiles; a million tiny ones in a band at the horizon is its limit. Beyond a pixel a stand must
+  be the land's colour, as the forests are.
+- **Streaming must know the camera's speed.** Asked for by distance alone, flying low built a hundred meshes a second
+  that were passed before they came (13 % of frames late). Asked for only where the camera will still be (0.35 s
+  ahead), 1 to 2 %.
+- **A mesh that comes must not repack everything**: only its own level and the next coarser one (`heap.versions`).
+
 ## What this does not yet give
 
-- **A first start still builds every kind's meshes**, on the main thread (a fresh browser, a changed recipe). And every
-  start holds every kind's meshes whole, read in one go (35 MB for two trees and five shrubs): a thousand trees would be
-  gigabytes. For that a kind's near levels must come when its stand comes near, built off the main thread.
-- **A draw call and a slice of the packing's buffer a shape and level**, whether a plant of it stands in view or not:
-  fine for tens of kinds a stand, not for hundreds. For that the packing must sort into one buffer (count, then place).
+- **The trees, the rocks and the grass are not on the heap yet**: they keep a draw call a shape and level. The heap
+  takes meshes of one material (a colour a vertex); a tree's bark, leaves and wind are the next step.
+- **The test's assets are generated**, each level sampled from its shape. A drawn asset needs its levels cut by a
+  simplifier, and comes from a file: the heap's side of that (`put`) is the same.
+
+- **A tree's first start still builds its meshes on the main thread**, and every start holds them whole (35 MB for two
+  trees and five shrubs), with a draw call and a slice of the packing's buffer a shape and level: fine for tens of
+  kinds a stand, not for hundreds. The heap above is the way out, once it takes a tree's material.
 - **The rocks and the grass have their own engines** (`rocks.js`, `grass.js`): the same rule, not the same tiers.
 - **The WebGL 2 fallback draws no plants** (seen 2026-11-12, and so before this): its packing per vertex gives none.
