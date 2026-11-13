@@ -1383,3 +1383,4 @@ seconds through the stand where 32 are walked with `?ghost`.)
 | 2026-11-13 | `f27393a` | The clouds as bodies with feet, tops and flanks (ten steps through their layer) |
 | 2026-11-13 | `d422f9a` | The walker stopped by every solid shape's own outline, going round what stops it; on in the stress world |
 | 2026-11-13 | `7f1dda3` | The ground's cache (maps round the camera), a sixth less of a frame; off unless ?groundcache: not yet the same picture |
+| 2026-11-13 | `7e560ed` | Roads kept clear and driven in lanes; walkers step round what stands (23 % in something before, 3 % now) and apart from each other |
