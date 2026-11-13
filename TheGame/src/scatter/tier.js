@@ -11,6 +11,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, If, uint, int, ivec2, vec4, uniform, uniformArray, instancedArray, storage, atomicAdd, atomicStore, atomicLoad, min, instanceIndex, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { boxIn } from '../core/frustum.js';
+import { gpuStorage, more } from '../core/gpu.js';
 
 export const MAXP = 384;   // patches a tier can draw at once
 
@@ -38,7 +39,8 @@ export class Tier {
     const geos = Array.isArray(geometry) ? geometry : [geometry], K = geos.length;
     this.geometries = geos; this.geometry = geos[0]; geos.forEach((g) => (g.instanceCount = 0));
     if (live && gpu) {
-      const data = Array.from({ length: slots }, () => instancedArray(cap * K, 'vec4')), count = instancedArray(K, 'uint').toAtomic();
+      // (what it packs lives on the GPU only: the GPU writes it and the GPU reads it; src/core/gpu.js)
+      const data = Array.from({ length: slots }, () => { const b = gpuStorage('vec4', cap * K, null, true); more('tiers: what stands, packed', b.bytes, b.lean ? 0 : b.bytes); return b.node; }), count = instancedArray(K, 'uint').toAtomic();
       const args = new THREE.IndirectStorageBufferAttribute(new Uint32Array(geos.flatMap((g) => [g.index.count, 0, 0, 0, 0])), 5), argsNode = storage(args, 'uint', 5 * K);   // one buffer of draw arguments, five a bucket (a shader binds few buffers)
       this.cand = uniform(0, 'uint');
       this.passes = [

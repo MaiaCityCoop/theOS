@@ -1062,6 +1062,42 @@ shadows and the grass.
 - **Broke / not there yet:** the gate is not held at the pixel ratio the governor chooses near the ground (55, not 60).
   Nothing was done to the governor.
 
+### 2026-11-13, kinds as plug-in families: skeletons, leaves, a vertex of 16 bytes, memory on the GPU only (18:44)
+
+Samuel: implement all four steps toward the real scenario in one go; assets stay procedural (no glTF, no downloaded
+models), the game must run on 8 GB; and, while it was built: the whole architecture pluggable, so that an asset, a
+biome or a texture can come from a contribution, the render engine generic.
+
+- **One contract, families that plug in.** A kind comes from a family: one file in `assets/zoo/`, found by itself
+  (meshes at every level, texture, look, skeleton, herds). The stand knows none by name. Three today: blobs (8 000),
+  fronds (2 000), creatures (1 000 in ten herds). The shading models are files too (`src/shading/*.js`, twelve).
+- **A vertex is 16 bytes** (was 32): its place, normal, shade, its way to the next coarser level's mesh, two bones
+  and a weight; one read a vertex where there were two.
+- **Memory.** The heap's meshes, the near plots' places and every tier's packing live on the GPU only
+  (`src/core/gpu.js`: the buffer is handed to three before it would make its own). Every pool says what it holds; the
+  readout shows the sum. Plain game: 328 MB on the GPU, nothing beside it (89 MB of page memory gone). With the
+  stand: 578 MB and 2 MB beside it (its meshes 94 MB once; they were 131 MB twice).
+- **Creatures on skeletons.** A mover is ONE mesh of tubes round a generated skeleton (was up to twelve rigid
+  parts), 50 000 to 200 000 triangles at full, every vertex bound to two of sixteen bones; the vertex stage moves it
+  by the mover's stride. Its coarse levels are its hull; its limbs come to rest as it turns into it.
+- **Leaves.** The fronds: thousands of leaf cards a plant, cut out in the pixel stage from where on its card a pixel
+  is, both sides drawn, a draw of their own a level so the bodies keep their early depth test.
+- **Kept between starts.** The eleven thousand kinds' coarse meshes (14 MB) are kept in the browser under the
+  recipes' fingerprint and read back at the next start (seen: the second start built none of them).
+- **The governor.** Pixels over the screen's own points are given back at the first slow look, as many as the frame
+  was too long by; a ratio found too much is not tried again for 45 s, longer each time; they are tried half as often.
+- **Measured (test browser, the same server, pixel ratio 1, by turns, GPU time):** a frame with the stand at 45 m up
+  22.5 ms before, 20.2 ms now; the stand's own share there 4.5 to 4.8 ms before, 2.7 to 3.1 now; at 300 m 0.9 to 1.1
+  before, 0.7 now. Shaders: one more vertex program, two more pixel programs, two more pipelines. Load: no
+  difference that three runs each could show (the machine was busy: 9 to 25 s for both).
+- **Broke on the way:** the keeper's read lost against its own timeout while the page started (now the stand waits
+  for it a moment into the first frames); a wheel cut coarsely was two cones (its rings now lie on its edges at every
+  level). A copy of the game served on another port read 8 ms a frame slower than the live one for the same code:
+  builds are compared on the same server only.
+- **Not there yet:** not read in real Safari (it needs a reload of his tab). The trees, shrubs, rocks and grass are
+  not families yet: the heap can draw them now, moving them is the next step. The fine meshes and textures near the
+  camera are still made at every start.
+
 ## Trail
 
 | When | Commit | What |

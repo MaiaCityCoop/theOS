@@ -17,11 +17,17 @@
 // trial: if it bought no frames (the pixels were not what was slow) it is taken back, and none tried again for a while
 // (longer each time). Room again (hardly a frame late, under ROOM): pixels first, then the cap. Nothing is decided
 // while the page is still starting.
+//
+// Pixels over the screen's own points (a ratio above 1) are a luxury, and the first thing given back: at the first look
+// that is too slow, and as many as the frame was too long by (not a step at a time, and not on trial: fewer of them
+// is always right). Whether they fit can only be found by trying (a screen shows no more than its 60 frames, however
+// much room there is), so they are tried slowly, and a ratio found too much is not tried again for a while: longer
+// each time it fails again.
 export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 16 } = {}) {
   const REF = 1 / Math.tan((refFov * Math.PI) / 360);
   const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2), DPR_MIN = Math.min(1, DPR_MAX), FLOOR = 0.6;   // DPR_MIN: where it starts and comes back to first; FLOOR: how soft it may go to hold 60 fps
   const SLOW = 20, LATE = 0.08, ROOM = 0.02, MEAN = 17.5, WARM = 4000;   // a frame longer than SLOW (ms) missed 60 fps by far; the shares of such frames that are too many, and few enough to try more; the mean frame (ms) that is under 57 fps; ms after the start before the first look
-  let dpr = DPR_MIN, resize = false, ceiling = DPR_MAX, ceilingAt = 0;
+  let dpr = DPR_MIN, resize = false, ceiling = DPR_MAX, ceilingAt = 0, hold = 45000;   // ceiling: the ratio not gone over for `hold` ms from ceilingAt
   let cap = startCap, zoom = 1, lod = 1, ema = 16.7, calm = 0, at = 0;
   let born = -1, n = 0, late = 0, share = 0, sum = 0, worst = 0, mean = 16.7;   // frames since the last look, how many of them late, that share; their times' sum and the worst, the mean without it   // frames since the last look, how many of them late, and that share
   let trial = null, noPixels = 0, wait = 15000;   // a step down in pixels on trial; until noPixels none is tried (wait: how long, longer each time one fails)
@@ -52,7 +58,15 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
       // and by a small step. Every change makes the world choose its patches anew, which itself costs a frame.
       const slow = share > LATE || mean > MEAN || over, urgent = share > 0.4 || mean > 22 || over;
       if (next !== dpr) calm = hot = 0;   // (a step taken back this look: nothing more)
-      else if (slow) {
+      else if ((share > LATE || mean > MEAN) && dpr > DPR_MIN) {
+        // pixels over the screen's own: given back at once, as many as the frame is too long by (its cost goes with
+        // their number, the ratio's square)
+        calm = hot = 0; downAt = now;
+        const f = Math.sqrt(Math.min(0.95, Math.max(0.6, 16.2 / Math.max(mean, share > 0.4 ? 21 : 17.6))));
+        next = Math.max(DPR_MIN, Math.min(dpr - 0.125, Math.floor(dpr * f * 8) / 8));
+        hold = now - ceilingAt < hold + 30000 ? Math.min(300000, hold * 2) : 45000;   // too much again soon after it was last tried: longer before the next try
+        ceiling = next; ceilingAt = now;
+      } else if (slow) {
         calm = 0;
         if (++hot >= (urgent ? 2 : 3)) {   // (two looks even when far too slow: a jump of the view, a film's cut, is a burst of late frames, not a slow picture)
           hot = 0; downAt = now;
@@ -64,9 +78,9 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
         }
       } else if (share <= ROOM && mean < MEAN - 0.4) {
         hot = 0;
-        if (++calm >= 4 && now - downAt > 8000) { calm = 0; if (dpr < Math.min(DPR_MAX, ceiling)) next = Math.min(DPR_MAX, ceiling, dpr + 0.125); else if (cap < zoom) cap = Math.min(maxCap, cap * 1.12); }
+        if (++calm >= (dpr >= DPR_MIN ? 8 : 4) && now - downAt > 8000) { calm = 0; if (dpr < Math.min(DPR_MAX, ceiling)) next = Math.min(DPR_MAX, ceiling, dpr + 0.125); else if (cap < zoom) cap = Math.min(maxCap, cap * 1.12); }
       } else { calm = 0; hot = 0; }
-      if (now - ceilingAt > 45000) ceiling = DPR_MAX;   // what was too much is not tried again for a while
+      if (now - ceilingAt > hold) ceiling = DPR_MAX;   // what was too much is not tried again for a while
       if (next !== dpr) { dpr = next; resize = true; n = late = sum = worst = 0; }
     },
     /** Hold the dials where they are (true), or let them move again (false). */

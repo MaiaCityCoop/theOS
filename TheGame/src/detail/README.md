@@ -132,24 +132,60 @@ own. What a browser cannot pay is the draw calls, so here models are branches an
   given to the kinds that are large enough on screen to show it (from 28 pixels), fading in when it comes; under that
   and until then a kind wears its texture's mean colour, which is what the mipmaps make of it anyway. All ten thousand
   at once would be 870 MB; the pool is 89. Needs more array layers than a device gives unasked (`src/main.js`).
-- **A mover is a rig** (`assets/kit/rigs.js`: a table of numbers): up to twelve parts, each a kind of its own, set on
-  the mover and moved as its rig says: legs and arms swing in step, wheels turn with the way gone, wings beat, the
-  links of a tail or a snake are where the head was a moment before. Ten rigs: walker, runner, four legs, ten legs,
-  rover, transport, cycle, dragon, bird, snake. Every part of every mover near is worked out on the GPU each frame
-  from the clock: still no mover has a state.
 - **A level turns into the next over the whole of its range**, not its last third, and a mesh that comes late grows in
   over a second and a half: a thing is never still between two levels, and never jumps.
 
+### Families: what plugs in, and what the engine knows
+
+Nothing of the engine knows a kind by name. A kind comes from a **family**: one file in `assets/zoo/`, found there by
+itself, that keeps one contract (`assets/zoo/index.js` writes it out):
+
+| a family gives | what it is |
+| --- | --- |
+| `count` | how many kinds it brings |
+| `meshOf(i, l)` | kind i's mesh at level l of the ladder (`assets/kit/ladder.js`), every vertex 16 bytes (`assets/kit/solid.js`): its place, normal and shade, where it lies on the next coarser level's mesh, the two bones that move it |
+| `skinOf(i, size)` | its own texture |
+| `lookOf(i)` | plain numbers: its shading model, tints, relief, gloss, sway, snow, size, whether it is cut out as leaves |
+| `bonesOf(i)` | its skeleton (sixteen bones, three rows of numbers each), where it has one |
+| `roams` | its herds: pace, size, whether they keep to the roads or fly, their stride; without it its kinds stand |
+
+Three families today, each a stand-in for what a real asset will ask of the engine:
+
+- **blobs** (8 000 kinds, `assets/kit/blob.js`): whole bodies of 50 000 to 200 000 triangles.
+- **fronds** (2 000 kinds, `assets/kit/frond.js`): plants of thousands of leaf cards, cut out as leaves in the pixel
+  stage from where on its card a pixel is (no texture is needed, so it is cut out at any distance), drawn from both
+  sides, swaying. At a coarser level there are fewer cards, each wider; those that go thin away while those that stay
+  widen. What is cut out is a draw of its own a level (another state of the pipeline, a branch that drops pixels):
+  the bodies' pixels keep their early depth test.
+- **creatures** (1 000 kinds in ten herds, `assets/kit/creature.js`): each ONE mesh on a skeleton nobody rigged: a
+  rig is a few lines that set out bones and lay tubes round them. Every vertex is bound to two bones; the vertex
+  stage moves it by the mover's stride, which is a function of the clock. No mover has a state, and the CPU does
+  nothing for a leg that swings.
+
+The other plug points, each a file found by itself: a **shading model** (`src/shading/*.js`: `lit(c)`, a branch of
+the one shader), a **material** of the world (`materials/*.js`), a **biome** (`biomes/*.js`), a **scatter engine**
+(`src/scatter/*.js`), an **asset** of the library (`assets/*.js`). The engine under them: the heap (`heap.js`), the
+vertex's 16 bytes, the ladder, the tiers, the recipes' worker and the keeper.
+
+**Memory (the game must run on 8 GB).** What only the GPU reads lives on the GPU only (`src/core/gpu.js`): the
+heap's meshes, the near plots' places, what every tier packs. Every pool says what it holds, and the readout shows
+the sum (`held`; `window.__memory()` lists it). 2026-11-13: the plain game 328 MB on the GPU and nothing beside it
+(its tiers' buffers were held twice: 89 MB of page memory gone); with the stand 578 MB and 2 MB beside it (the
+stand's meshes 94 MB once, where they were 131 MB twice). What the workers make at a first start (eleven thousand
+kinds' coarse meshes) is kept in the browser under the recipes' fingerprint (`src/core/kept.js`) and read back at
+the next.
+
 ## What this does not yet give
 
-- **The trees, the rocks and the grass are not on the heap yet**: they keep a draw call a shape and level. The heap's
-  meshes are whole bodies; a tree's cut-out leaves (two-sided, alpha to coverage) need a second pipeline on it.
+- **The trees, the rocks and the grass are not on the heap yet**: they keep a draw call a shape and level. The heap
+  now draws cut-out, two-sided leaves (the fronds), so nothing of the engine is missing for them: each must become a
+  family that keeps the contract (its vertices in 16 bytes, its levels with their places on the next).
 - **Textures are the world's twenty**, two a kind, tinted: a thousand kinds with textures of their own would be
   gigabytes and must stream as the fine meshes do.
 - **In real Safari the materials cost pixels**: 59 frames a second, but the pixel ratio down to 0.75 walking among
   them (1.1 to 1.4 with plain colours), and 1.6 % of frames late.
-- **The test's assets are generated**, each level sampled from its shape. A drawn asset needs its levels cut by a
-  simplifier, and comes from a file: the heap's side of that (`put`) is the same.
+- **Only the coarse levels are kept between starts**: the fine meshes and textures of what stands near the camera
+  are made again by the workers at every start (a second or two until all of them are there).
 
 - **A tree's first start still builds its meshes on the main thread**, and every start holds them whole (35 MB for two
   trees and five shrubs), with a draw call and a slice of the packing's buffer a shape and level: fine for tens of

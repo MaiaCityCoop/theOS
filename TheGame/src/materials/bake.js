@@ -5,6 +5,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, vec2, vec3, vec4, uv, float, sqrt, clamp, normalize, texture } from 'three/tsl';
 import { recipes } from '../core/registry.js';
+import { note } from '../core/gpu.js';
 
 const SIZE = 1024, LEVELS = Math.log2(SIZE) + 1;
 
@@ -34,6 +35,7 @@ export function bakeTextures(renderer) {
     renderer.initRenderTarget(rt); return rt;
   };
   const A = array(4), Nn = array(2);
+  note("the world's textures (two arrays, a layer a material)", Math.round(2 * N * SIZE * SIZE * 4 * 4 / 3), 0);
   const tmp = new THREE.RenderTarget(SIZE, SIZE, { depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
   const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false;
   const prev = renderer.getRenderTarget(), box = new THREE.Box2(), at = new THREE.Vector3();

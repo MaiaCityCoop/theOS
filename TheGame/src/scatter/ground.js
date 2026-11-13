@@ -5,6 +5,7 @@
 import * as THREE from 'three/webgpu';
 import { float, vec2, vec3, vec4, uv, uniform, texture, mrt, positionGeometry, abs, length, mix, smoothstep, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
+import { note } from '../core/gpu.js';
 import { heightAt as heightCPU, SAND } from '../world/land.js';
 import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt } from '../world/land.nodes.js';
 import { PLACES } from '../../world/places.js';
@@ -19,7 +20,7 @@ const clearOf = (pos) => Object.values(PLACES).filter((p) => p.clear).reduce((k,
 export function createGround(renderer, tex) {
   const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false };
   // one pass, two outputs (MRT): the ground (height, grass, its height, stones) and the grass's colour (and its dryness)
-  const rt = new THREE.RenderTarget(N, N, { ...opts, type: THREE.HalfFloatType, count: 2 });
+  const rt = new THREE.RenderTarget(N, N, { ...opts, type: THREE.HalfFloatType, count: 2 }); note('the ground round the camera (two maps)', 2 * N * N * 8, 0);
   rt.textures[0].name = 'ground'; rt.textures[1].name = 'tint';
   const tA = rt.textures[0], tB = rt.textures[1];
   // the texel's centre, in metres; three's node reads turn a target's rows the other way up, so the writer turns them too

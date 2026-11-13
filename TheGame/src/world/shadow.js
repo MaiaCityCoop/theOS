@@ -6,6 +6,7 @@
 // drawn into and read in the same pass).
 import * as THREE from 'three/webgpu';
 import { U } from '../core/uniforms.js';
+import { note } from '../core/gpu.js';
 
 export const CASTS = 1;   // the layer of what casts a shadow
 const S = 2048;           // the map's texels a side
@@ -15,7 +16,7 @@ export const BOX = { min: 60, grow: 1.2, max: 900 };
 
 export function createShadows(renderer) {
   const map = () => { const rt = new THREE.RenderTarget(S, S, { count: 0, depthBuffer: true }); rt.depthTexture = new THREE.DepthTexture(S, S); rt.depthTexture.type = THREE.UnsignedIntType; rt.depthTexture.compareFunction = THREE.LessEqualCompare; rt.depthTexture.minFilter = rt.depthTexture.magFilter = THREE.LinearFilter; return rt; };   // read with a comparison sampler: filtered PCF (src/world/light.js)
-  const rts = [map(), map()]; let turn = 0;
+  const rts = [map(), map()]; let turn = 0; note('shadow maps', 2 * S * S * 4, 0);
   U.tShadow.value = rts[1].depthTexture;
   const cam = new THREE.OrthographicCamera(-60, 60, 60, -60, 1, 900); cam.layers.set(CASTS); cam.userData.shadow = true;
   // from the light's clip space to the map's (u, v, depth): v turned (three reads a target's rows the other way up), depth
