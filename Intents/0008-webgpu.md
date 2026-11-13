@@ -1159,6 +1159,23 @@ Samuel: three hard gates now: 4K resolution all the time, 60 frames a second, 8 
   taken beside his own tab and scatter by 10 ms).
 - **Nothing changed for it yet:** the governor may still go under the screen's own resolution.
 
+### 2026-11-13, a freeze of my own making: another session's file written over (20:28)
+
+- **Samuel, from 19:40:** "broken and freezing": smooth while watching, frozen at the first click or key. His tab's
+  process held 4.9 GB; the Mac was 10 GB into swap; frames stalled for up to 17 seconds.
+- **What it was:** I staged files in a folder and deployed the whole folder each time. Another session (intent 0015:
+  click a mover to follow it) changed `src/scatter/stress.js` meanwhile and committed it; my next deploy, of one
+  unrelated file, wrote my older copy back over theirs in the working tree. The new caller (`src/world/movers.js`:
+  a line of sight) then met the old provider (a clicked point): its distances were not numbers, no plot was skipped,
+  and every click built all ten thousand movers of all 898 plots: nine million objects.
+- **How it was found:** the same commits in a copy of their own did not do it; only the live tree did. `git status`
+  showed the file differing from HEAD. (Forty minutes went to suspecting my own new code first.)
+- **Mended:** the committed file put back (20:25). Click and walk on the live server: the page stays at 450 MB (it
+  went to 2.5 GB), and answers. My deploy now takes named files only and refuses a file that changed in the live
+  tree since it was staged.
+- **Not done in this time:** the 4K output (render inside, upscale to the screen's own resolution): designed, not
+  built.
+
 ## Trail
 
 | When | Commit | What |
