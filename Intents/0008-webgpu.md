@@ -1220,6 +1220,23 @@ For the 4K gate the land is most of a frame (hidden, a frame is 2.5 ms; with it,
   ground), not to shave the layers further.
 - **Also today:** the follow cam (intent 0015) taken out on Samuel's word, the camera as before (`ffede8a`).
 
+### 2026-11-13, the clouds are bodies (21:25)
+
+Samuel: the cloud formations should be three-dimensional; they were a flat plane.
+
+- **What they are now** (`src/world/weather/clouds.js`, numbers in `world/clouds.js`: lift, thick, steps): each cloud
+  stands on a foot (up to a quarter higher in some parts of the sky than in others) and rises as far as it is dense:
+  a thin shred lies flat, a dense heap towers up to 750 m. The sky's ray is walked through the layer in ten steps; at
+  each: how much cloud there is at that height, what light reaches it (its tops in the sun, its depths in their own
+  shade, the flank turned to the sun brighter than the other, less under another cloud) and how much of what lies
+  behind still shows. Higher up a cloud leans with the wind and its billows stand out further.
+- **Seen (test browser):** five skies (covers 0.35 to 0.85, three hours): heaps with lit tops, grey bellies and
+  flanks, one before another; an overcast sky a heavy ceiling with gaps. 60 frames a second there at every one.
+- **Broke on the way:** a dither between the steps drew a hatch across every cloud (taken out: ten even steps show
+  no bands); the shadow map's edge drew a straight line across the sky (it fades out now).
+- **Not there yet:** from above their layer they are still a flat sheet (the `air` of the condition), and their
+  shadow on the land is the flat field's. Not seen in real Safari yet.
+
 ## Trail
 
 | When | Commit | What |

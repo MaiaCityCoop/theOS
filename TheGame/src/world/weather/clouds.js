@@ -1,10 +1,10 @@
-// The clouds (world/clouds.js): one layer at CLOUDS.height, a field of cumulus that drifts with the wind, covering as much
-// of the sky as its value says. All that is the clouds' own is here: their field, their shadow on all below (a small
+// The clouds (world/clouds.js): a layer of cumulus from CLOUDS.height up, each cloud a body as tall as it is dense, a
+// field that drifts with the wind, covering as much of the sky as its value says. All that is the clouds' own is here: their field, their shadow on all below (a small
 // map drawn once a frame, read by every surface through the light's contract: cloudShade), and how the sky's dome draws
 // them (its `sky`), or, from above their layer, every surface below (its `air`). A weather condition (index.js): the panel
 // sets the cover; a film may set it per shot.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, uv, positionGeometry, If, mix, exp, pow, max, smoothstep } from 'three/tsl';
+import { Fn, Loop, float, vec2, vec3, vec4, uv, positionGeometry, If, mix, exp, pow, max, min, log2, clamp, smoothstep } from 'three/tsl';
 import CLOUDS from '../../../world/clouds.js';
 import { U } from '../../core/uniforms.js';
 import { tile } from '../tile.js';
@@ -23,7 +23,7 @@ const cloudUV = (xz) => {
   const p = xz.add(U.uCloudOff).div(CLOUDS.size), slow = billows(p.mul(0.29).add(0.71)).level(7);
   const off = slow.rg.sub(0.5).mul(3.2);
   const b = vec2(p.x.mul(0.786).sub(p.y.mul(0.618)), p.x.mul(0.618).add(p.y.mul(0.786))).mul(1.414).add(off.yx).add(0.37);
-  return { p, a: p.add(off), b, region: billows(p.mul(0.11).add(3.1)).level(8).r.sub(0.5).mul(0.25) };
+  return { p, a: p.add(off), b, region: billows(p.mul(0.11).add(3.1)).level(8).r.sub(0.5).mul(0.25), high: slow.b };   // (high: 0 … 1, how much higher their feet lie here)
 };
 // (the painted field, two takes mixed, is soft: stretched to the full range)
 const cover = (n, soft) => { const th = mix(0.8, 0, U.uClouds); return smoothstep(th.sub(soft[0]), th.add(soft[1]), n.sub(0.5).mul(2.9).add(0.5)); };
@@ -102,23 +102,52 @@ export default {
     });
     return { a, col };
   },
-  // in the sky's dome (src/world/sky.js), over the sun, the moon and the stars: the view's ray up to their layer; lit from
-  // the sun's side, darker where they are thick and where more cloud stands between them and the sun, a bright rim near
-  // the sun; thinning into the haze towards the horizon
+  // in the sky's dome (src/world/sky.js), over the sun, the moon and the stars. The clouds are bodies: each stands on a
+  // foot (higher in some parts of the sky than in others) and rises as far as it is dense: a thin shred lies flat, a
+  // dense heap towers (CLOUDS.thick). The view's ray is walked through their layer from its foot to its top in a few
+  // steps; at each, how much cloud there is at that height, what light reaches it (its tops in the sun, its depths
+  // and what lies under a heap in their shade, the side turned to the sun brighter than the other), and how much of
+  // what lies behind still shows. So a cloud has a lit top, a grey belly and a flank, and hides what is behind it.
   skyOrder: 40,
   sky({ v, y, s, col, horizon }) {
     If(U.uClouds.greaterThan(0.005).and(y.greaterThan(-0.02)).and(U.uCam.y.lessThan(CLOUD_H - 20)), () => {   // (none to work out on a clear sky, below the horizon, or from above their layer)
-      const t = float(CLOUD_H).sub(U.uCam.y).div(max(y, 0.015)), xz = U.uCam.xz.add(v.xz.mul(t));
-      // how much cloud stands between this one and the sun: read from the clouds' shadow map where it reaches (one fetch:
-      // its value is the light that comes through), else this cloud's own thickness
-      const d = cloudField(xz, true), m = xz.add(U.uSunDir.xz.mul(700)).sub(U.uCloudMap.xy).div(U.uCloudMap.z);
-      const inMap = m.x.greaterThan(0).and(m.y.greaterThan(0)).and(m.x.lessThan(1)).and(m.y.lessThan(1));
-      const toward = inMap.select(float(1).sub(U.tCloudMap.sample(m).level(0).r).div(0.9), d);
-      const thick = smoothstep(0.25, 1, d), lit = mix(1, 0.25, thick.mul(0.6).add(toward.mul(0.4)));   // seen from below: grey where deep, bright at the thin edges
-      const rim = U.uSun.mul(pow(s, 6).mul(d.mul(float(1).sub(d)).mul(3.2)));
+      const N = CLOUDS.steps, yy = max(y, 0.015), t00 = float(CLOUD_H).sub(U.uCam.y).div(yy), xz00 = U.uCam.xz.add(v.xz.mul(t00));
+      // the field's slow parts once, where the ray meets the layer's lowest foot; the foot here, and the ray's way through
+      const C = cloudUV(xz00), foot = float(CLOUD_H).mul(C.high.mul(CLOUDS.lift).add(1)), t = foot.sub(U.uCam.y).div(yy), span = float(CLOUDS.thick).div(yy);
+      const d0 = v.xz.mul(t.sub(t00)).div(CLOUDS.size), dA = v.xz.mul(span).div(CLOUDS.size).div(N), rot = (q) => vec2(q.x.mul(0.786).sub(q.y.mul(0.618)), q.x.mul(0.618).add(q.y.mul(0.786))).mul(1.414);
+      const a0 = C.a.add(d0), b0 = C.b.add(rot(d0)), dB = rot(dA);
+      // (how coarse a read may be: a pixel's width up there, more along the ray where it grazes the layer)
+      const lod = clamp(log2(t.div(U.uPxK).div(yy).div(CLOUDS.size).mul(1024)), 0, 7);
+      const at = (ua, ub) => cover(mix(billows(ua).level(lod).r, billows(ub).level(lod).r, 0.45).add(C.region).add(fray), [0.14, 0.26]);
+      const mid = N * 0.35, fray = billows(a0.add(dA.mul(mid)).mul(3.7).add(0.31)).level(lod).g.sub(0.5).mul(0.12);   // (their frayed edge, once a ray)
+      // the side turned to the sun: more cloud a little way towards it than here, and this side is the shaded one
+      const sun = U.uSunDir.xz.mul(170 / CLOUDS.size), here = at(a0.add(dA.mul(mid)), b0.add(dB.mul(mid))), there = at(a0.add(dA.mul(mid)).add(sun), b0.add(dB.mul(mid)).add(rot(sun)));
+      const flank = clamp(here.sub(there).mul(2.6).add(0.5), 0, 1);
+      // how much cloud stands between these and the sun: the clouds' shadow map where it reaches (one fetch)
+      // (the map fading out towards its edge: a straight line across the sky showed where it ended)
+      const m = xz00.add(U.uSunDir.xz.mul(700)).sub(U.uCloudMap.xy).div(U.uCloudMap.z), mc = clamp(m, 0, 1), edge = smoothstep(0, 0.1, mc).mul(smoothstep(1, 0.9, mc));
+      const toward = mix(here, float(1).sub(U.tCloudMap.sample(mc).level(0).r).div(0.9), edge.x.mul(edge.y));
+      // (higher up a cloud leans with the wind and its billows stand out further: the field is read a little aside and with
+      // a finer take whose place changes with the height, so a heap's flank is not its foot's outline drawn upwards)
+      const lean = U.uWind.xy.mul(U.uWind.z.mul(0.5).add(0.25)).mul(260 / CLOUDS.size);
+      const T = float(1).toVar(), L = vec3(0).toVar(), dense = min(float(1).div(yy), 5).mul(5 / N);
+      Loop(N, ({ i }) => {
+        const k = float(i).add(0.5), h = k.div(N), ua = a0.add(dA.mul(k)).add(lean.mul(h)), puff = billows(ua.mul(2.3).add(vec2(h.mul(0.41), h.mul(0.23)))).level(max(lod.sub(1), 0)).b.sub(0.5).mul(h.mul(0.3).add(0.06));
+        const d = clamp(at(ua, b0.add(dB.mul(k)).add(rot(lean.mul(h)))).add(puff), 0, 1);
+        // only what is dense reaches high: a shred ends at its foot, a heap's core at the layer's top
+        const body = d.sub(pow(h, 1.15).mul(0.86)), rho = smoothstep(0, 0.3, body);
+        If(rho.greaterThan(0.002), () => {
+          const a = float(1).sub(exp(rho.mul(dense).negate()));
+          // its light: more the higher in the cloud, less the deeper under its own top; the sun's by its flank and by what stands before it
+          const deep = clamp(body.mul(1.6), 0, 1).mul(float(1).sub(h)), lit = mix(0.34, 1.12, h).mul(mix(1, 0.5, deep)).mul(mix(0.5, 1.18, flank)).mul(mix(1, 0.4, toward.mul(float(1).sub(h.mul(0.6)))));
+          L.addAssign(U.uAmb.mul(mix(0.6, 1.12, h)).add(U.uSun.mul(lit).mul(0.82)).mul(T.mul(a)));
+          T.mulAssign(float(1).sub(a));
+        });
+      });
+      const A = float(1).sub(T), rim = U.uSun.mul(pow(s, 6).mul(A.mul(float(1).sub(A)).mul(3.2)));
       const far = float(1).sub(exp(t.negate().div(26000)));
-      const cc = mix(U.uAmb.mul(mix(1.1, 0.62, thick)).add(U.uSun.mul(lit).mul(0.8)).add(rim), horizon, far.mul(0.85));
-      col.assign(mix(col, cc, smoothstep(0.03, 0.55, d).mul(smoothstep(0, 0.05, y)).mul(float(1).sub(far.mul(0.55)))));
+      const cc = mix(L.div(max(A, 1e-3)).add(rim), horizon, far.mul(0.85));
+      col.assign(mix(col, cc, A.mul(smoothstep(0, 0.05, y)).mul(float(1).sub(far.mul(0.55)))));
     });
   },
 };
