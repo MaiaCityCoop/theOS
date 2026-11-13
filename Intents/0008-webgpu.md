@@ -1199,3 +1199,4 @@ biome or a texture can come from a contribution, the render engine generic.
 | 2026-11-13 | `f07ca95` | The ten-thousand build mended: holes, unsteady frames, colour flicker |
 | 2026-11-13 | `f5cfbdc` | The flicker (a mesh put in after the frame was packed); full meshes as long as they are; snow on things, to 50 cm |
 | 2026-11-13 | `9577816` | Kinds as plug-in families (blobs, fronds, creatures) on one contract; creatures on skeletons; cut-out leaves; a vertex of 16 bytes; memory on the GPU only with a readout; coarse meshes kept between starts; the governor's pixels |
+| 2026-11-13 | `59ca5f6` | Read in real Safari (58.4 fps, pixels at the floor for dropped frames); the governor mended; a frame's work in the hitch log |
