@@ -1121,7 +1121,7 @@ biome or a texture can come from a contribution, the render engine generic.
   (1.7 million cells a frame): it is not what drops frames.
 - **Not there yet:** what drops a frame in sixteen while walking is not found; the next reading has the work log.
 
-### 2026-11-13, every kind has a box and colliders, said beside its recipe (19:24)
+### 2026-11-13, every kind has a box and colliders, said beside its recipe (19:21)
 
 Samuel: proper bounding box and mesh collider patterns, fully generic, one interface for every asset (a car, a
 robot, an animal, a house, a tree), colocated with its procedural code.
@@ -1143,6 +1143,21 @@ robot, an animal, a house, a tree), colocated with its procedural code.
   heavy. Measured since: leaves cost at most 3 ms a frame in the test browser, the bodies 5, the movers 3. The log
   now says where the camera stands, to stand there again.
 - **Not there yet:** the placed assets' walls, the rocks and the trunks keep their own descriptions.
+
+### 2026-11-13, a third hard gate: 4K; where a frame's time goes today (19:40)
+
+Samuel: three hard gates now: 4K resolution all the time, 60 frames a second, 8 GB; the highest realism they allow.
+
+- **Measured (test browser, GPU time of the passes; his Safari is about twice as fast):** the plain game at his
+  window's size costs 17 to 19 ms a frame at a pixel ratio of 1 (1.1 megapixels), 23 at 1.5, 29 to 33 at 2 (4.5
+  megapixels, his screen's own). Part by part at a ratio of 1, walking: the land and the sky 15 to 16 ms, the plants
+  6, the rocks 3, the shadow pass 2, the grass next to nothing. Of the land and the sky, one object is all but 2 ms:
+  the land (hidden, a frame is 2.5 ms at a ratio of 1 and 3.3 at 2).
+- **So:** his window at its screen's own resolution is about at the limit today (14 to 17 ms in his Safari, by that
+  reckoning); true 4K (8.3 megapixels) would be 20 to 25 ms. The way to the gate is the land's shader first.
+- **Not known:** what multisampling costs at a high ratio (`?noaa` now switches it off to measure; the readings were
+  taken beside his own tab and scatter by 10 ms).
+- **Nothing changed for it yet:** the governor may still go under the screen's own resolution.
 
 ## Trail
 
