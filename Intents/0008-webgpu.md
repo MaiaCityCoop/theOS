@@ -1319,3 +1319,4 @@ Samuel: the cloud formations should be three-dimensional; they were a flat plane
 | 2026-11-13 | `3b0debe` | Boxes and colliders in the family contract; src/world/bodies.js (bodies near, walker's rounds, ray hits, outlines) |
 | 2026-11-13 | `fb8c3ef` | The screen at its own resolution always; the world drawn inside at the governor's ratio and scaled up (src/core/screen.js) |
 | 2026-11-13 | `5e7745d` | The land's shader reads only what shows (7 % of a frame at a ratio of 2; the picture the same) |
+| 2026-11-13 | `f27393a` | The clouds as bodies with feet, tops and flanks (ten steps through their layer) |
