@@ -148,7 +148,7 @@ itself, that keeps one contract (`assets/zoo/index.js` writes it out):
 | `lookOf(i)` | plain numbers: its shading model, tints, relief, gloss, sway, snow, size, whether it is cut out as leaves |
 | `bonesOf(i)` | its skeleton (sixteen bones, three rows of numbers each), where it has one |
 | `boundsOf(i)`, `collidersOf(i)` | its box, and what of it is solid, as shapes in its own frame: sphere, capsule, box, mesh; a shape may move with a bone, or be passed through (leaves). A family that says nothing still has both: its coarse mesh is its collider |
-| `roams` | its herds: pace, size, whether they keep to the roads or fly, their stride; without it its kinds stand |
+| `roams` | its herds: pace, size, girth, whether they keep to the roads or fly, their stride; without it its kinds stand |
 
 Three families today, each a stand-in for what a real asset will ask of the engine:
 
@@ -177,6 +177,13 @@ point only; a creature's capsules move with its bones. They stop the walker, eac
 (`pushOut`: a box's sides, a capsule's length; what ends under the knee is stepped over), and a step stopped short
 goes round (`solids.js`). `?stress&bounds` draws them; `?stress&ghost` walks through them. The placed assets' walls, the rocks and the trunks still have their own descriptions (`solids.js`): they
 come onto this one as they become families.
+
+**What moves keeps clear** (`src/scatter/stress.js`), by the same description, and with nothing remembered: a
+plot's roads are stood on by nothing and driven each way on its own side; each frame the GPU pushes every near
+walker out of the rounds of what stands in the cells round it (a kind's round and height are two numbers of its
+look, from its family's colliders or its hull), and half way out of any mover beside it (a grid the movers write
+themselves into). A herd's `girth` is how wide its movers are. `?stress&crash` turns it off, to count against.
+What drives does not yet give way, and nothing plans a way through a thicket.
 
 **Memory (the game must run on 8 GB).** What only the GPU reads lives on the GPU only (`src/core/gpu.js`): the
 heap's meshes, the near plots' places, what every tier packs. Every pool says what it holds, and the readout shows
