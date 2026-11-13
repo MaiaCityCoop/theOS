@@ -1359,3 +1359,4 @@ For the 4K gate: the land's layers laid once into maps round the camera and read
 | 2026-11-13 | `5e7745d` | The land's shader reads only what shows (7 % of a frame at a ratio of 2; the picture the same) |
 | 2026-11-13 | `f27393a` | The clouds as bodies with feet, tops and flanks (ten steps through their layer) |
 | 2026-11-13 | `d422f9a` | The walker stopped by every solid shape's own outline, going round what stops it; on in the stress world |
+| 2026-11-13 | `7f1dda3` | The ground's cache (maps round the camera), a sixth less of a frame; off unless ?groundcache: not yet the same picture |
