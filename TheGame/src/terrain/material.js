@@ -59,7 +59,7 @@ export function terrainMaterial(tex) {
     const p = vWorld.xz, dx = dFdx(p), dy = dFdy(p);
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     // every noise is let go before it is finer than a pixel: far away it would only shimmer
-    const mx = dist2.lessThan(140).select(mix(vnoise(p.mul(1 / 5.3), uint(90)), 0.5, smoothstep(50, 140, dist2)), float(0.5));
+    const mx = float(0.5).toVar(); If(dist2.lessThan(140), () => { mx.assign(mix(vnoise(p.mul(1 / 5.3), uint(90)), 0.5, smoothstep(50, 140, dist2))); });   // (worked out only where it is read: a choice between two values works both out)
     const pr = rot(p), prr = rotB(p);
     // the land's colour variation, from the baked cloudy noise
     const nz = (q) => tex.a(noise, q);
@@ -80,10 +80,12 @@ export function terrainMaterial(tex) {
     // (each size read only where it shows: the blades' within 110 m, the drifts' past 300; in a branch a texture is read
     // with its gradients given, as a shader may not work them out there)
     const gk = smoothstep(25, 110, dist2), gk2 = smoothstep(300, 1400, dist2), dpr = rot(dx), dpr2 = rot(dy), dqx = rotB(dx), dqy = rotB(dy);
-    const g2 = tex.a(carpet, pr.div(9.6)), gn2 = tex.n(carpet, pr.div(9.6));
+    // (and none of it where no grass grows: a biome of bare ground, a beach: its four to seven reads were made for nothing there)
+    const grows = L.grassy.greaterThan(0.002), g2 = vec4(0.5).toVar(), gn2 = vec4(0.5).toVar();
+    If(grows, () => { g2.assign(tex.a(carpet, pr.div(9.6)).grad(dpr.div(9.6), dpr2.div(9.6))); gn2.assign(tex.n(carpet, pr.div(9.6)).grad(dpr.div(9.6), dpr2.div(9.6))); });
     const g1a = float(0).toVar(), gn1 = vec2(0).toVar(), g3a = float(0).toVar();
-    If(gk.lessThan(1), () => { g1a.assign(tex.a(carpet, p.div(1.6)).grad(dx.div(1.6), dy.div(1.6)).a); gn1.assign(tex.n(carpet, p.div(1.6)).grad(dx.div(1.6), dy.div(1.6)).xy.mul(2).sub(1)); });
-    If(gk2.greaterThan(0), () => {
+    If(grows.and(gk.lessThan(1)), () => { g1a.assign(tex.a(carpet, p.div(1.6)).grad(dx.div(1.6), dy.div(1.6)).a); gn1.assign(tex.n(carpet, p.div(1.6)).grad(dx.div(1.6), dy.div(1.6)).xy.mul(2).sub(1)); });
+    If(grows.and(gk2.greaterThan(0)), () => {
       const gk3 = smoothstep(0.35, 0.65, tex.a(noise, pr.mul(1 / 431).add(0.61)).grad(dpr.mul(1 / 431), dpr2.mul(1 / 431)).g);
       g3a.assign(mix(tex.a(carpet, prr.div(57)).grad(dqx.div(57), dqy.div(57)).a, tex.a(carpet, rot(prr).div(80.6).add(0.37)).grad(rot(dqx).div(80.6), rot(dqy).div(80.6)).a, gk3));
     });
@@ -91,7 +93,7 @@ export function terrainMaterial(tex) {
     const gq0 = gn2.xy.mul(2).sub(1), gq = vec2(gq0.x.mul(0.6).add(gq0.y.mul(0.8)), gq0.x.mul(-0.8).add(gq0.y.mul(0.6)));
     const gnrm = mix(gn1, gq, gk).mul(float(1).sub(gk2.mul(0.7)));
     const path = placeOff(p, pathMask(vPth)).mul(float(1).sub(smoothstep(70, 220, dist2)));   // a path is a thing of the near ground
-    const stage = stageAt(p), bare = max(dist2.lessThan(160).select(bareMask(p).mul(float(1).sub(smoothstep(100, 160, dist2))), float(0)), stage);   // the library's stage is bare of grass
+    const stage = stageAt(p), bare0 = float(0).toVar(); If(dist2.lessThan(160), () => { bare0.assign(bareMask(p).mul(float(1).sub(smoothstep(100, 160, dist2)))); }); const bare = max(bare0, stage);   // the library's stage is bare of grass
 
     // two takes of a material, turned and resized, mixed by noise, into the working material M; blend lays one over it
     // (far off one take is enough: its repeat is lost in the distance; the hand-over dithered, so it shows no line)
@@ -101,20 +103,29 @@ export function terrainMaterial(tex) {
     const wob = vec2(0).toVar();
     If(dist2.greaterThan(200), () => { wob.assign(vec2(tex.a(noise, p.mul(1 / 131)).grad(dx.mul(1 / 131), dy.mul(1 / 131)).g, tex.a(noise, pr.mul(1 / 157).add(0.3)).grad(dpr.mul(1 / 157), dpr2.mul(1 / 157)).b).sub(0.5).mul(smoothstep(200, 320, dist2).mul(9))); });
     const pw = p.add(wob);
+    // (its colour and height from both takes, blended; its relief from one, the take that shows more there: two fields
+    // of the same grain do not blend into anything a third read is worth, and where one hands over to the other is a
+    // winding line through a soft change of colour: three reads a material where there were four)
+    const p2 = rot(p), dx2 = rot(dx), dy2 = rot(dy);
     const smp = (S) => {
-      const a1 = tex.a(S.m, pw.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1)), n1 = tex.n(S.m, pw.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1));
-      const c = a1.rgb.mul(a1.rgb).toVar(), h = a1.a.toVar(), n = n1.xy.mul(2).sub(1).toVar();
+      const a1 = tex.a(S.m, pw.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1));
+      const c = a1.rgb.mul(a1.rgb).toVar(), h = a1.a.toVar(), n = vec2(0).toVar(), second = float(0).toVar();
       If(twoTakes, () => {
-        const p2 = rot(p), dx2 = rot(dx), dy2 = rot(dy);
-        const a2 = tex.a(S.m, p2.div(S.t2)).grad(dx2.div(S.t2), dy2.div(S.t2)), n2 = tex.n(S.m, p2.div(S.t2)).grad(dx2.div(S.t2), dy2.div(S.t2));
-        const q0 = n2.xy.mul(2).sub(1), q = vec2(q0.x.mul(0.6).add(q0.y.mul(0.8)), q0.x.mul(-0.8).add(q0.y.mul(0.6)));
+        const a2 = tex.a(S.m, p2.div(S.t2)).grad(dx2.div(S.t2), dy2.div(S.t2));
         const kk = smoothstep(0.35, 0.65, mx.add(a2.a.sub(a1.a).mul(0.3)));
-        c.assign(mix(c, a2.rgb.mul(a2.rgb), kk)); h.assign(mix(h, a2.a, kk)); n.assign(mix(n, q, kk));
+        c.assign(mix(c, a2.rgb.mul(a2.rgb), kk)); h.assign(mix(h, a2.a, kk)); second.assign(kk);
       });
+      If(second.greaterThan(0.5), () => { const q0 = tex.n(S.m, p2.div(S.t2)).grad(dx2.div(S.t2), dy2.div(S.t2)).xy.mul(2).sub(1); n.assign(vec2(q0.x.mul(0.6).add(q0.y.mul(0.8)), q0.x.mul(-0.8).add(q0.y.mul(0.6)))); })
+        .Else(() => { n.assign(tex.n(S.m, pw.div(S.t1)).grad(dx.div(S.t1), dy.div(S.t1)).xy.mul(2).sub(1)); });
       return { c, h, n };
     };
     const own = (S) => { const s0 = smp(S); return { c: s0.c.toVar(), h: s0.h.toVar(), n: s0.n.toVar() }; };
-    const M = own(FLOOR);
+    // The base's floor lies under everything; where one grassy biome's share is all but whole, that biome's ground
+    // covers it entirely whatever their heights (blend, below: from a share of 0.934 the higher-wins seam is past), and
+    // the floor's reads were made for nothing: over most of the land.
+    const covered = float(0).toVar(); for (const { b: bio, w: wt } of L.shares) if (bio.grass) covered.assign(max(covered, wt.mul(bio.mix ?? 1)));
+    const M = { c: vec3(0.5).toVar(), h: float(0.5).toVar(), n: vec2(0).toVar() };
+    If(covered.lessThan(0.934), () => { const s0 = smp(FLOOR); M.c.assign(s0.c); M.h.assign(s0.h); M.n.assign(s0.n); });
     const blend = (Mm, Bm, t) => {   // the higher material wins at the seam
       const k0 = clamp(t.sub(0.5).mul(3).add(0.5).add(Bm.h.sub(Mm.h).mul(0.8)), 0, 1), k = k0.mul(k0).mul(float(3).sub(k0.mul(2)));
       Mm.c.assign(mix(Mm.c, Bm.c, k)); Mm.h.assign(mix(Mm.h, Bm.h, k)); Mm.n.assign(mix(Mm.n, Bm.n, k));

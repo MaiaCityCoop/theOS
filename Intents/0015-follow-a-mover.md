@@ -112,7 +112,7 @@ for a scripted click), was checked by hand by Samuel: "it works now".
 | 2026-11-13 | `64ca23a` | Follow a mover from behind; movers registry; shared ground pick |
 | 2026-11-13 | `6aa7ee7` | Pick along the line of sight; POV picks at a crosshair |
 
-### 2026-11-13, taken out again (21:05)
+### 2026-11-13, taken out again (20:57)
 
 Samuel: "remove the follow cam again, this is weird, and recover the previous cam control". The two code commits
 (`64ca23a`, `6aa7ee7`) are reversed: `src/camera/rig.js`, `camera/rig.js` and `src/city/index.js` are as they were

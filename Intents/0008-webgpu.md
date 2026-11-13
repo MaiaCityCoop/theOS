@@ -1199,6 +1199,27 @@ pixels inside and scaled up when a view is heavy.
   to him than the browser's own scaling did.
 - **Next for the gate:** the land's shader (most of a frame); then a sharpening pass if the low ratios look soft.
 
+### 2026-11-13, the land's shader: what shows is read, nothing else (21:08)
+
+For the 4K gate the land is most of a frame (hidden, a frame is 2.5 ms; with it, 17 to 19 at a pixel ratio of 1).
+
+- **Measured by parts** (switches in a copy, the land and the sky only, a ratio of 2; the readings scattered by 15 ms
+  beside Samuel's own tab, so only the large ones count): with a plain colour for the land a frame is 6.6 ms; the
+  biomes' grounds laid over each other are about half of the land's pixels' cost, the second take of every material a
+  few ms, the shadow's four reads and the clouds' one next to nothing.
+- **Cut, the picture the same:** the base's floor is read only where it shows (where one grassy biome's share is all
+  but whole it is covered entirely, over most of the land: three reads); the grass's carpet only where grass grows;
+  a material's relief from one take, the one that shows more there (three reads a material, not four); the mixing
+  noise and the bare patches' mask only as far as they are used (a choice between two values worked both out).
+- **Checked:** four views, the land and the sky only, old against new pixel by pixel: a mean difference of 0.02 to
+  0.09 of 255, next to no pixel off by more than 8.
+- **Gained:** 2 to 4 ms of 35 a frame at a ratio of 2 in the test browser (the pages asked by turns, their order
+  turned about each round; without that the page asked second read 7 ms slower whichever it was).
+- **Not there:** that is 7 %, not the half the gate needs. What is left is the layers themselves, a dozen and more
+  reads a pixel. The way out is to lay them once into a map round the camera and read that (a virtual texture of the
+  ground), not to shave the layers further.
+- **Also today:** the follow cam (intent 0015) taken out on Samuel's word, the camera as before (`ffede8a`).
+
 ## Trail
 
 | When | Commit | What |
