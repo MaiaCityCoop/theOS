@@ -1072,3 +1072,4 @@ shadows and the grass.
 | 2026-11-13 | `24b8d9b` | The stress stand: a thousand kinds, a million placed, one heap, nine draw calls |
 | 2026-11-13 | `f5de32a` | The stress assets: looks, twelve shading models, levels that morph into each other |
 | 2026-11-13 | `55b582c` | The stress stand over the city: a million in each of 898 plots, ten thousand movers a plot |
+| 2026-11-13 | `0293934` | The plots near the ground: fewer reads a pixel, near levels first, lighter far levels |
