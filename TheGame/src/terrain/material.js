@@ -12,6 +12,7 @@ import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMa
 import { kindsOf } from '../world/stand.js';
 import { BOX } from '../world/shadow.js';
 import { finish, ign, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
+const REACH = Math.min(1e6, ...LAID.flatMap((bio) => Object.entries(bio).filter(([, S]) => S && typeof S === 'object' && S.cell && S.density != null).map(([key]) => { const SH = kindsOf(bio.uid, key).map((k) => k.asset).sort((x, y) => sizeOf(y) / detailOf(y).cut - sizeOf(x) / detailOf(x).cut)[0]?.detail?.shadow; return SH ? SH.far * (SH.wide ?? 2.4) : 1e6; })));   // the nearest a stand's shadows end (their stand-in's reach)
 const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
 
 export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
@@ -23,7 +24,7 @@ export function gridPoint() {
   return node.xy.add(g.sub(fract(g.mul(0.5)).mul(2).mul(k)).mul(cell));
 }
 
-export function terrainMaterial(tex) {
+export function terrainMaterial(tex, cache = null) {   // cache: the ground laid once (src/terrain/groundcache.js), or none: every pixel lays its own
   // ---- vertex: the land's height and normal, the river here, every biome's share ----
   // one Fn, every value worked out once into a variable and handed on by name: an expression used twice would otherwise be
   // written out twice, the river three times over at every use, which a browser's shader compiler need not fold back
@@ -55,31 +56,26 @@ export function terrainMaterial(tex) {
   const rot = (q) => vec2(q.x.mul(0.6).sub(q.y.mul(0.8)), q.x.mul(0.8).add(q.y.mul(0.6)));
   const rotB = (q) => vec2(q.x.mul(0.8).add(q.y.mul(0.6)), q.x.mul(-0.6).add(q.y.mul(0.8)));
 
-  const frag = Fn(() => {
-    const p = vWorld.xz, dx = dFdx(p), dy = dFdy(p);
-    const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
-    // every noise is let go before it is finer than a pixel: far away it would only shimmer
+  // ---- the ground's layers at a point, laid over each other (the costly part of a pixel of land): what the pixels
+  // hand it (compose is called in the fragment), or what a point of the ground's cache works out for itself
+  // (src/terrain/groundcache.js). I: the point p and how far apart its neighbours are (dx, dy), how far off it is seen
+  // (dist2), the river there (d, w, b), the biomes' shares (L), the grass's tint, how steep the land is (ny), the paths
+  // (pth), the outcrops (out), whether a material's second take is read (twoTakes), and how far a stand's floor is
+  // dimmed where its shadows are no longer drawn (far(reach)) ----
+  const compose = (I) => {
+    const { p, dx, dy, dist2, d, w, b, L, tint } = I;
     const mx = float(0.5).toVar(); If(dist2.lessThan(140), () => { mx.assign(mix(vnoise(p.mul(1 / 5.3), uint(90)), 0.5, smoothstep(50, 140, dist2))); });   // (worked out only where it is read: a choice between two values works both out)
     const pr = rot(p), prr = rotB(p);
     // the land's colour variation, from the baked cloudy noise
-    const nz = (q) => tex.a(noise, q);
-    const macro = nz(prr.mul(1 / 97).add(0.37)).b.sub(0.5).mul(0.16).add(nz(pr.mul(1 / 700)).a.sub(0.5).mul(0.2)).add(nz(p.mul(1 / 4500).add(0.11)).r.sub(0.5).mul(0.18)).add(1);
-    const d = abs(vI.x), w = vI.y, b = vI.z;
-    // every biome's share here, from the vertices; but a river's biome (a bank, a bar) is worked out again here, per pixel,
-    // from the river's distance (smooth across a cell): far off a cell is wider than a bank, and a share blended across its
-    // corners would give the bank a sawtooth edge. Only where its corners hold some of it: elsewhere it costs nothing.
-    const rctx = { p, dist: dist2, d, w, b };
-    const shareAt = (bio, k) => {
-      const v = lane(shareLane[k]); if (!bio.river) return v;
-      const s = float(0).toVar(); If(v.greaterThan(0.0005), () => { s.assign(shareOf(bio, rctx)); }); return s;
-    };
-    const L = { shares: LAID.map((bio, k) => ({ b: bio, w: shareAt(bio, k), spots: bio.spots?.where ? lane(shareLane[k] + 1) : null })), grassy: vGD.x, dry: vGD.y };
-    const tint = vTint;
+    // (each read told how far apart its neighbours are: in the fragment that is what the GPU would work out itself;
+    // a point of the ground's cache has no neighbour across the cache's seam)
+    const dpr = rot(dx), dpr2 = rot(dy), dqx = rotB(dx), dqy = rotB(dy), nz = (q, gx, gy, k) => tex.a(noise, q).grad(gx.mul(k), gy.mul(k));
+    const macro = nz(prr.mul(1 / 97).add(0.37), dqx, dqy, 1 / 97).b.sub(0.5).mul(0.16).add(nz(pr.mul(1 / 700), dpr, dpr2, 1 / 700).a.sub(0.5).mul(0.2)).add(nz(p.mul(1 / 4500).add(0.11), dx, dy, 1 / 4500).r.sub(0.5).mul(0.18)).add(1);
     // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up
     // (the far take is two, turned and at scales with no whole ratio, blended by a slow mask: no grid of the same tufts from high up)
     // (each size read only where it shows: the blades' within 110 m, the drifts' past 300; in a branch a texture is read
     // with its gradients given, as a shader may not work them out there)
-    const gk = smoothstep(25, 110, dist2), gk2 = smoothstep(300, 1400, dist2), dpr = rot(dx), dpr2 = rot(dy), dqx = rotB(dx), dqy = rotB(dy);
+    const gk = smoothstep(25, 110, dist2), gk2 = smoothstep(300, 1400, dist2);
     // (and none of it where no grass grows: a biome of bare ground, a beach: its four to seven reads were made for nothing there)
     const grows = L.grassy.greaterThan(0.002), g2 = vec4(0.5).toVar(), gn2 = vec4(0.5).toVar();
     If(grows, () => { g2.assign(tex.a(carpet, pr.div(9.6)).grad(dpr.div(9.6), dpr2.div(9.6))); gn2.assign(tex.n(carpet, pr.div(9.6)).grad(dpr.div(9.6), dpr2.div(9.6))); });
@@ -92,12 +88,12 @@ export function terrainMaterial(tex) {
     const glum = mix(mix(g1a, g2.a, gk), mix(g2.a, g3a, 0.6), gk2);
     const gq0 = gn2.xy.mul(2).sub(1), gq = vec2(gq0.x.mul(0.6).add(gq0.y.mul(0.8)), gq0.x.mul(-0.8).add(gq0.y.mul(0.6)));
     const gnrm = mix(gn1, gq, gk).mul(float(1).sub(gk2.mul(0.7)));
-    const path = placeOff(p, pathMask(vPth)).mul(float(1).sub(smoothstep(70, 220, dist2)));   // a path is a thing of the near ground
+    const path = placeOff(p, pathMask(I.pth)).mul(float(1).sub(smoothstep(70, 220, dist2)));   // a path is a thing of the near ground
     const stage = stageAt(p), bare0 = float(0).toVar(); If(dist2.lessThan(160), () => { bare0.assign(bareMask(p).mul(float(1).sub(smoothstep(100, 160, dist2)))); }); const bare = max(bare0, stage);   // the library's stage is bare of grass
 
     // two takes of a material, turned and resized, mixed by noise, into the working material M; blend lays one over it
     // (far off one take is enough: its repeat is lost in the distance; the hand-over dithered, so it shows no line)
-    const twoTakes = dist2.lessThan(ign(screenCoordinate.xy).mul(80).add(240));
+    const twoTakes = I.twoTakes;
     // ... but a single take's repeat would show from high up as a grid: it is pushed about by a slow noise (metres, over
     // hundreds of metres), so no two tiles lie the same (near by, where both takes are read, the push is let go)
     const wob = vec2(0).toVar();
@@ -153,12 +149,12 @@ export function terrainMaterial(tex) {
     // the grassy biomes first, then the base's bare patches; over them the grass's carpet; then the base's paths, and the
     // biomes nothing grows on (and the base's rock on its slopes) in their layers' order
     for (const { b: bio, w: wt, spots } of L.shares) if (bio.grass) lay(bio, wt.mul(bio.mix ?? 1), spots);
-    const bd = max(bare.sub(stage).max(0).mul(float(1).sub(L.dry)), vOut.mul(0.25));
+    const bd = max(bare.sub(stage).max(0).mul(float(1).sub(L.dry)), I.out.mul(0.25));
     If(bd.greaterThan(0.003), () => blend(M, smp(PATCH), bd));
     const cv = float(1).sub(bare).mul(L.grassy).mul(smoothstep(4, 60, dist2).mul(0.18).add(0.82));   // where the blades end, nothing shows
     M.c.assign(mix(M.c, tint.rgb.mul(glum.mul(1.05).add(0.32)).mul(mix(0.5, 1, smoothstep(3, 70, dist2))), cv)); M.n.assign(mix(M.n, gnrm.mul(1.4), cv)); M.h.assign(mix(M.h, glum, cv));
     If(path.greaterThan(0.003), () => blend(M, smp(PATCH), path));
-    const steep = smoothstep(0.8, 0.68, vN.y), slopeAt = BASE.slopes?.layer ?? Infinity;
+    const steep = smoothstep(0.8, 0.68, I.ny), slopeAt = BASE.slopes?.layer ?? Infinity;
     let sloped = !SLOPE;
     for (const { b: bio, w: wt, spots } of L.shares) {
       if (bio.grass) continue;
@@ -189,12 +185,12 @@ export function terrainMaterial(tex) {
       const fade = last ? (P.size ? smoothstep(last.mul(0.45), last.mul(0.8), dist2) : smoothstep(last.mul(0.3), last.mul(0.68), dist2)) : smoothstep(CV.from, CV.to, dist2);
       // where its shadows are no longer drawn: past the map's box, or past the trees' stand-in in it
       const SH = A?.detail?.shadow, reach = SH ? min(U.uAirH.mul(BOX.grow).add(BOX.min), SH.far * (SH.wide ?? 2.4)) : null;
-      const dim = reach ? smoothstep(reach.mul(0.8), reach, length(p.sub(U.uCam.xz))) : float(0);
+      const dim = reach ? I.far(reach) : float(0);
       // fill: how much of a cell one of its plants covers (a tree crowns some 2.4 cells); grain: its plants' size to a tree's
       const g = CV.grain ?? 1, likes = P.where ? P.where({ p }) : float(1);
       If(wt.mul(max(fade, dim)).greaterThan(0.003), () => {
         const cover = clamp(wt.mul(key === 'trees' ? groves.get(bio) ?? groveAt(p, P) : groveAt(p, P)).mul(likes).mul((P.density ?? 1) * (CV.fill ?? 2.4)), 0, 1);
-        const n = nz(p.div(23 * g).add(0.7)).r.mul(0.35).add(nz(prr.div(31.7 * g).add(0.2)).g.mul(0.35)).add(nz(pr.div(9.3 * g)).g.mul(0.3));   // (takes at scales with no whole ratio: no grid of crowns)
+        const n = nz(p.div(23 * g).add(0.7), dx, dy, 1 / (23 * g)).r.mul(0.35).add(nz(prr.div(31.7 * g).add(0.2), dqx, dqy, 1 / (31.7 * g)).g.mul(0.35)).add(nz(pr.div(9.3 * g), dpr, dpr2, 1 / (9.3 * g)).g.mul(0.3));   // (takes at scales with no whole ratio: no grid of crowns)
         const under = smoothstep(float(1.08).sub(cover.mul(0.75)), float(1.22).sub(cover.mul(0.75)), n.add(cover.mul(0.45)));   // where a plant is, as many as cover says
         // (darker than a crown's own colour: seen from afar it is mostly its own shade)
         // (from very far a plant is smaller than a pixel: the pattern goes over into its mean, no speckle to shimmer)
@@ -212,6 +208,51 @@ export function terrainMaterial(tex) {
       blend(M, smp({ m: int(layer), t1: g.y, t2: g.y.mul(1.6) }), stage);
     });
 
+    return { c: M.c, h: M.h, n: M.n, cv, glum, shade, macro };
+  };
+
+  // ---- for the ground's cache: at a point, what the vertices hand the pixels (the river, the land's steepness, the
+  // biomes' shares, the grass's tint, the paths), worked out there; then its layers, packed into the cache's two targets ----
+  if (cache) {
+    const at = (p, texel, D) => {
+      const I = riverInfo(p).toVar(), d = abs(I.x).toVar(), e = float(0.3), hOf = (q) => { const J = riverNear(q, I).toVar(); return heightAt(q, D, abs(J.x), J.y, J.z); };
+      const h0 = heightAt(p, D, d, I.y, I.z).toVar(), ny = normalize(vec3(h0.sub(hOf(p.add(vec2(e, 0)))), e, h0.sub(hOf(p.add(vec2(0, e)))))).y;
+      const ctx = { p, dist: D, d, w: I.y, b: I.z }, Lv = biomesAt(ctx, true);
+      const L = { shares: Lv.shares.map(({ b: bio, w }) => ({ b: bio, w, spots: bio.spots?.where ? bio.spots.where(ctx) : null })), grassy: Lv.grassy, dry: Lv.dry };
+      return compose({ p, dx: vec2(texel, 0), dy: vec2(0, texel), dist2: D, d, w: I.y, b: I.z, L, tint: grassTint(tex, p, Lv.dry, 1), ny, pth: pathN(p), out: outcropMask(p), twoTakes: D.lessThan(240), far: () => float(1) });
+    };
+    cache.setPacks(
+      Fn(([p, texel, D]) => { const X = at(p, texel, D); return vec4(clamp(X.c.mul(X.macro), 0, 1).sqrt(), X.h); }),
+      Fn(([p, texel, D]) => { const X = at(p, texel, D); return vec4(X.n.mul(0.5).add(0.5), X.cv, X.shade); }));
+  }
+  const frag = Fn(() => {
+    const p = vWorld.xz, dx = dFdx(p), dy = dFdy(p);
+    const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
+    // every noise is let go before it is finer than a pixel: far away it would only shimmer
+    const d = abs(vI.x), w = vI.y, b = vI.z;
+    // every biome's share here, from the vertices; but a river's biome (a bank, a bar) is worked out again here, per pixel,
+    // from the river's distance (smooth across a cell): far off a cell is wider than a bank, and a share blended across its
+    // corners would give the bank a sawtooth edge. Only where its corners hold some of it: elsewhere it costs nothing.
+    const rctx = { p, dist: dist2, d, w, b };
+    const shareAt = (bio, k) => {
+      const v = lane(shareLane[k]); if (!bio.river) return v;
+      const s = float(0).toVar(); If(v.greaterThan(0.0005), () => { s.assign(shareOf(bio, rctx)); }); return s;
+    };
+    const L = { shares: LAID.map((bio, k) => ({ b: bio, w: shareAt(bio, k), spots: bio.spots?.where ? lane(shareLane[k] + 1) : null })), grassy: vGD.x, dry: vGD.y };
+    const tint = vTint;
+    // the layers here: read from the ground's cache where it reaches (src/terrain/groundcache.js), laid here beyond it
+    // (and where the two meet, both, blended)
+    const R = { c: vec3(0).toVar(), h: float(0).toVar(), n: vec2(0).toVar(), cv: float(0).toVar(), glum: float(0).toVar(), shade: float(0).toVar() };
+    const far = (reach) => smoothstep(reach.mul(0.8), reach, length(p.sub(U.uCam.xz)));
+    const laid = () => compose({ p, dx, dy, dist2, d, w, b, L, tint, ny: vN.y, pth: vPth, out: vOut, twoTakes: dist2.lessThan(ign(screenCoordinate.xy).mul(80).add(240)), far });
+    if (!cache) { const X = laid(); R.c.assign(X.c.mul(X.macro)); R.h.assign(X.h); R.n.assign(X.n); R.cv.assign(X.cv); R.glum.assign(X.glum); R.shade.assign(X.shade); }
+    else {
+      const K = cache.lookup(p, dx, dy);
+      // (the cache holds the shade a stand's floor may lie in; how much of it shows, by how far the shadows are drawn, is worked out here)
+      If(K.w.greaterThan(0.001), () => { R.c.assign(K.c); R.h.assign(K.h); R.n.assign(K.n); R.cv.assign(K.cv); R.glum.assign(K.h); R.shade.assign(K.shade.mul(far(min(U.uAirH.mul(BOX.grow).add(BOX.min), REACH)))); });
+      If(K.w.lessThan(0.999), () => { const X = laid(); R.c.assign(mix(X.c.mul(X.macro), R.c, K.w)); R.h.assign(mix(X.h, R.h, K.w)); R.n.assign(mix(X.n, R.n, K.w)); R.cv.assign(mix(X.cv, R.cv, K.w)); R.glum.assign(mix(X.glum, R.glum, K.w)); R.shade.assign(mix(X.shade, R.shade, K.w)); });
+    }
+    const M = { c: R.c, h: R.h, n: R.n }, cv = R.cv, glum = R.glum, shade = R.shade, macro = float(1);
     const wet = float(1).sub(smoothstep(w.mul(0.9), w.add(2.5), d));
     // depth up close, from the material's own height: what lies low (the gaps between stones, a crack) sits in its
     // neighbours' shade, and the relief reads deeper; let go with distance, where it would only darken the whole

@@ -1253,6 +1253,28 @@ only on asking).
 - **Not there:** what moves does not avoid what stands or each other (their rounds are a function of the clock);
   the placed assets' walls, the rocks and the trunks still have their own descriptions. Not walked in real Safari yet.
 
+### 2026-11-13, the ground laid once: built, measured, not yet the same picture; off unless asked (21:44)
+
+For the 4K gate: the land's layers laid once into maps round the camera and read from there.
+
+- **Built** (`src/terrain/groundcache.js`; `src/terrain/material.js` split into laying the layers, `compose`, and
+  lighting them): six maps of 2048 texels, each twice as wide as the one before (8 m to 256 m), each a torus, so a
+  walk lays only the strips that come into reach; two targets a map (colour and height; relief, the grass's cover, a
+  stand's shade); a map laid for the distance it is seen from; a pixel reads the finest map that reaches it, blended
+  into the next, and beyond the last the layers are laid per pixel as before. 208 MB.
+- **Measured (test browser, the walk's view, by turns, five rounds):** a frame 24.9 ms without it, 20.4 with it at a
+  pixel ratio of 1; 38.2 and 31.6 at 2: a sixth less. (By the usual halving for his Safari that is 19 to 16 ms at
+  his screen's own resolution: the side of 60 frames a second it has to be on.)
+- **Not the same picture yet:** between about 10 and 60 m the ground is softer than laid per pixel (a map's texel is
+  1.25 pixels wide there at a ratio of 1, and the laying itself filters once more), and where the last map hands over
+  there is a band of another green (a map shows what is seen at its own distance over its whole ring). Old against
+  new: a mean difference of 1.1 to 1.4 of 255 near the ground, 2 % of pixels off by more than 8.
+- **So:** it is in the tree, switched off: only with `?groundcache`. Without it the picture is the one before to 0.02
+  of 255 (the split changed nothing), and nothing of its 208 MB is held.
+- **What it needs:** maps that grow by half, not double (texels finer than a pixel everywhere), reaching less far
+  (the near 30 m are nine tenths of the land's pixels at eye level); the last ring blended into the per-pixel layers
+  over its whole width; then its strips checked while moving, which was not done.
+
 ## Trail
 
 | When | Commit | What |

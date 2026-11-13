@@ -132,6 +132,7 @@ function choose(dt) {
 function draw() {
   const dof = camera.userData.dof;   // the virtual camera brings a lens with it: its picture is drawn through it
   const gy = heightAt(camera.position.x, camera.position.z);
+  terrain.cache?.update(renderer, camera, `${innerHeight}|${U.uSand.value.toArray()}`);   // the ground's layers laid where the camera has come (src/terrain/groundcache.js)
   weather.before(camera, gy); shadows.render(scene, camera, gy);   // (what a condition draws before the picture: the clouds' shadow map)
   if (dof && dof.on) post.render(scene, camera, dof); else screen.render(scene, camera);
 }
@@ -181,6 +182,7 @@ mark('built');
 await loadingStep('Lighting the world', 0.55);
 await renderer.compileAsync(scene, camera);
 mark('compiled');
+terrain.cache?.update(renderer, camera, `${innerHeight}|${U.uSand.value.toArray()}`);   // (its first laying, and its shaders, while the page still starts)
 screen.render(scene, camera);   // (through the inside's target: its pipelines are the ones a frame uses)
 for (let i = 0; i < seen.length; i += 2) seen[i].visible = seen[i + 1];
 choose(0);
