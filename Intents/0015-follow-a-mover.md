@@ -64,9 +64,9 @@ the walk-behind camera auto-follows?"
 | 1 | passed | clicked a "ten legs" at 35 m: after 1.5 to 6 s the mover straight ahead (1.00) every time, the height 26 → 15 m on its way to 8 |
 | 2 | passed | W: following none; Esc: following none, the town hint back |
 | 3 | passed | at 15 m the line still read "Following ten legs · WASD or Esc lets go" |
-| 4 | not run | the city's click path now goes through the shared `groundAt`, same code moved; not clicked by hand |
+| 4 | passed | the game without `?stress`, 2.5 km up: a click on the map opened Vision Village's card |
 
-**Known gaps:** check 4 by hand. With a mouse that is held (eye, street) a click does not pick: rise to town to pick.
+**Known gaps:** with a mouse that is held (eye, street) a click does not pick: rise to town to pick.
 
 ## Story
 
@@ -78,7 +78,7 @@ the walk-behind camera auto-follows?"
 
 - [x] Follow from behind
 - [x] Let go by keys and Esc
-- [ ] Click a city plot by hand (check 4)
+- [x] Click a city plot (check 4)
 
 ## Changelog
 
