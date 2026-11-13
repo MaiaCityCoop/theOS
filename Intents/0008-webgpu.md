@@ -901,6 +901,30 @@ shadows and the grass.
   builds. Real Safari: frames at 16.7 ms six seconds after the probe. Still: a first start builds everything on the
   main thread; every start reads every kind's meshes whole.
 
+### 2026-11-13, the stress test: a thousand kinds, a million placed (13:25)
+
+- **Asked:** "create 1000 different random generated assets … each 50k-200k and place randomly 1 million, 1000 of each
+  asset in the world … and then we need a hard gate of 60fps": if the architecture holds that, it is good; else not.
+- **Delivered:** the stress stand, only with `?stress` in the address (src/scatter/stress.js). A thousand kinds grown
+  from seeds (assets/kit/blob.js: 50 700 to 199 692 triangles each, 115.7 million in all), one in every cell of four
+  kilometres of land round the tent: exactly a thousand of each, a million. Every kind's meshes lie in one heap on the
+  GPU (src/scatter/heap.js): a level of every kind is one draw call, its vertices read by the kind's number. Nine
+  levels, nine draw calls, one shader. Each kind's coarse levels are always there (20 KB a kind); its full mesh and the
+  two under it are built in workers when the camera comes near and put out when it has gone; until one has come, the
+  next coarser is drawn. src/detail/README.md: "The heap: what a thousand kinds cost".
+- **Good (Playwright WebKit on the M1, 1440 × 779, pixel ratio 1; the GPU's own time, the stand on and hidden by
+  turns):** 4.3 ms a frame walking among them (140 000 drawn, 1.5 million triangles), 3.2 ms at 45 m, 1.7 ms at 300 m,
+  1.2 ms across the field from a corner, 0.3 ms from 2600 m. Frame times the same with the stand on and hidden; the
+  mean 16.7 ms while walking, running and flying. The start half a second longer (4.4 to 4.7 s against 3.9 to 4.4).
+  80 MB of heap. No kind costs a draw call, a buffer or a shader.
+- **Broke / not there yet:** real Safari has not been read: Samuel was at the Mac and the probe tabs never drew (four
+  tries; its graphics process idle, not stuck). What is under a pixel is not drawn (140 000 to 180 000 of the million
+  are a pixel or more at once): drawing every one (`?stress=all`, 920 000 to 964 000 in view) costs 8 to 9 ms, over
+  the gate from a low angle in the test browser. Streaming still makes 1 to 2 % of frames late while travelling
+  (single frames of 25 to 40 ms). The trees, rocks and grass are not on the heap; the test's levels are sampled, not
+  simplified from a drawn mesh. The test window itself was noisy today (8 GB, 3 GB of it in swap): only turns within
+  one page are compared.
+
 ## Trail
 
 | When | Commit | What |
@@ -971,3 +995,4 @@ shadows and the grass.
 | 2026-11-12 | `c9f335c` | Levels of detail in one place; the contract written (src/detail/README.md) |
 | 2026-11-12 | `5538175` | The scatter by stand: one packing and one draw shader for all a stand's kinds |
 | 2026-11-12 | `ea1d05a` | A kit's meshes built once, kept in the browser by the recipe's version |
+| 2026-11-13 | `24b8d9b` | The stress stand: a thousand kinds, a million placed, one heap, nine draw calls |
