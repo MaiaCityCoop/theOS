@@ -58,12 +58,20 @@ kit's); a kind made otherwise is a group of its own in the same cells (`groupsOf
 ## The heap: what a thousand kinds cost
 
 The stress stand (`src/scatter/stress.js`, only with `?stress` in the address) is the test of that: a thousand kinds of
-generated asset (`assets/kit/blob.js`: each its own mesh of 50 000 to 200 000 triangles), a thousand of each, a million
-on four kilometres of land. It is drawn the way every kind should come to be drawn (`src/scatter/heap.js`):
+generated asset (`assets/kit/blob.js`: each its own mesh of 50 000 to 200 000 triangles). Every one of the city's 898
+village plots holds a million of them, a thousand of each kind, and ten thousand more that move (people, robots,
+animals, transports, each at its own pace): 898 million standing, nine million moving. It is drawn the way every kind
+should come to be drawn (`src/scatter/heap.js`):
+
+| | cost | |
+| --- | --- | --- |
+| where they stand | nothing kept: a plot is 133 numbers (its middle, its edge in 64 directions, the directions that cut its land into equal shares); its million are a lattice of 1000 by 1000 folded onto that shape, worked out on the GPU for the cells a tier looks at | 532 bytes a plot, whatever stands in it |
+| where a mover is | a function of the clock (its round, its pace), worked out every frame for the plots near: no mover has a state | one packing a frame for all of them |
+| the world's size | nothing: only the plots near the camera are looked at | |
 
 | | cost | per kind |
 | --- | --- | --- |
-| draw calls | one a level (eight), whatever the kinds | none: a draw reads its vertices from the heap by the kind's number |
+| draw calls | one a level (eight), and eight for the movers, whatever the kinds | none: a draw reads its vertices from the heap by the kind's number |
 | draw shaders | two: the meshes', the dots' | none |
 | its look | a row of numbers (two textures, two tints, a shading model, gloss, sway, snow) read by its pixels | 64 bytes |
 | shading models | a branch each in the one shader (twelve in the test: matte, glossy, metal, leafy, glowing, wet, …) | none |
@@ -82,13 +90,23 @@ Nothing of it changes at once (the answer to levels popping at every distance):
 - A level is chosen by size on screen, so a large thing keeps its detail further off than a small one beside it: that
   is right, and with the above it no longer shows.
 
-Measured 2026-11-13 (M1, Playwright WebKit, 1440 × 779, pixel ratio 1; the GPU's own time with the stand on and hidden
-by turns), with textures, relief, wind, snow and the twelve models: 5.4 ms a frame walking among them (135 000 drawn,
+Measured 2026-11-13 on the first stand (a million on one square of four kilometres; M1, Playwright WebKit, 1440 × 779,
+pixel ratio 1; the GPU's own time with the stand on and hidden by turns), with textures, relief, wind, snow and the
+twelve models: 5.4 ms a frame walking among them (135 000 drawn,
 1.5 million triangles), 2.2 ms at 45 m, 1.1 ms at 300 m, 0.1 ms across the field, nothing from 2600 m. (With plain
 colours it was 4.3 ms walking.) In Samuel's Safari, before the materials: 59.2 frames a second at a pixel ratio of 1
 to 2, as the plain world.
 
+The plots, measured the same way but with Samuel's own tab drawing beside it (so too high): 10.6 ms walking in the first
+village (135 000 drawn, 2.4 million triangles, 3 900 movers), 2.0 ms at 45 m, 1.6 ms at 300 m, nothing from 2000 m (all
+of it under a pixel). The start 5.4 s against 4.2: over the five seconds, in the slower browser. Checked: 99.9 % of what
+stands and of what moves lies inside its plot's outline; a plot's lattice covers 92 to 94 % of its land.
+
 What the test found:
+- **A covered window tells nothing.** A browser window behind another draws three to twelve frames a second whatever
+  it holds: frame counts mean something only for a window in front. The GPU's own time (`?gputime`) does not care.
+- **A plot's shape must be folded share for share.** Folded by direction alone, a plot cut short by the river held six
+  times as many to the square metre on that side as on its long side.
 - **What is under a pixel is not drawn.** Of the million about 135 000 to 180 000 are a pixel or more at once on this
   screen. Drawing every one (`?stress=all`) cost 8 to 9 ms: about 9 ns a thing however few its triangles. Beyond a
   pixel a stand must be the land's colour, as the forests are.
