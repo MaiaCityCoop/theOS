@@ -49,24 +49,24 @@ import CITY from '../../world/city.js';
 
 const KINDS = 1000, SIDE = 1000, MSIDE = 100;   // a thousand kinds; a plot's lattice: a thousand cells a side, one asset in each (a thousand of every kind); its movers' lattice: ten thousand
 const PLOTS = Math.round(CITY.people / CITY.perVillage), RAYS = 64, ROW = 4 + RAYS + RAYS + 1, BITS = 11, TAU = Math.PI * 2;   // a plot's row: its middle (x, z), its mean reach, its things' scale, then how far its edge is in RAYS directions, then the directions that cut its land into RAYS equal shares; BITS: a cell's number holds its plot above them
-const SMIN = 0.25, SMAX = 2.2, MMAX = 6, MFAR = 1800, CELL = 1.4, FIT = 1.5, FADE = 0.02, SINK = 1.6, FULL = 129, FULLN = -1;   // an asset's largest side, metres (a mover's up to MMAX, seen as far as MFAR); CELL: a lattice cell's side, about; FIT: the cell's side a kind's own size is meant for; FULL: the most squares an edge a full mesh has
+const SMIN = 0.25, SMAX = 2.2, MMAX = 6, MFAR = 1400, CELL = 1.4, FIT = 1.5, FADE = 0.02, SINK = 1.6, FULL = 129, FULLN = -1;   // an asset's largest side, metres (a mover's up to MMAX, seen as far as MFAR); CELL: a lattice cell's side, about; FIT: the cell's side a kind's own size is meant for; FULL: the most squares an edge a full mesh has
 const MORPH = 1.6, GROW = 0.5, RELIEF = 90, FARPX = 12;   // MORPH: a level turns into the next coarser over its last pixels, from this many times its end; GROW: seconds a level that came late takes to grow out of the coarser one; RELIEF: the size on screen from which its textures' relief is read; FARPX: under it a thing wears its textures' mean
 // its levels, finest first. n: squares along an edge (FULLN: the kind's full mesh; under that: its dot); px: the size on
 // screen it is drawn down to; P: its tier's cells a patch (a block of a plot's lattice: it divides 1000); slots: how many
 // kinds' the heap holds at once (none: every kind's); cap: the most of it drawn at once
 const LEVELS = [
-  { n: FULLN, px: 256, P: 2, slots: 8, cap: 64 },
+  { n: FULLN, px: 320, P: 2, slots: 8, cap: 64 },
   { n: 32, px: 128, P: 4, slots: 48, cap: 256 },
   { n: 16, px: 64, P: 4, slots: 320, cap: 1024 },
   { n: 8, px: 32, P: 8, cap: 4096 },
   { n: 4, px: 16, P: 10, cap: 16384 },
   { n: 2, px: 8, P: 20, cap: 65536 },
-  { n: 1, px: 3, P: 50, cap: 131072 },
-  { n: -2, px: 1, P: 100, cap: 524288 },   // its dot: one triangle, turned to the eye
+  { n: 1, px: 4, P: 50, cap: 131072 },
+  { n: -2, px: 1.15, P: 100, cap: 524288 },   // its dot: one triangle, turned to the eye
 ];
 const L = LEVELS.length, STREAMED = LEVELS.filter((l) => l.slots).length, MCAP = 65536;   // MCAP: the most movers of one level drawn at once
 const nOf = (k, l) => (LEVELS[l].n === FULLN ? fullOf(k) : LEVELS[l].n), coarserOf = (l) => (l + 1 < L && LEVELS[l + 1].n > 0 ? LEVELS[l + 1].n : 0);   // a level's squares an edge, and the next coarser mesh's (0: none: a cube turns into nothing)
-const SHADE = { level: 4, far: 30, wide: 1.5, reach: 12, shrink: 0.85 };   // what casts their shadows: a coarse level of each round the camera, a little smaller than the thing (so it does not shade itself)
+const SHADE = { level: 5, far: 30, wide: 1.5, reach: 12, shrink: 0.85 };   // what casts their shadows: a coarse level of each round the camera, a little smaller than the thing (so it does not shade itself)
 
 const SMOOTH = uniform(1);   // 1: levels turn into each other; 0: they change at once (window.__stress.smooth: to see the difference)
 const PXK = uniform(pxK()); addEventListener('resize', () => (PXK.value = pxK()));
@@ -179,7 +179,12 @@ export function createStress(scene, renderer, tex) {
     const N0 = normalize(vB.xyz), q = vC.xyz.div(M1.w), b0 = pow(abs(N0), vec3(4)), b = b0.div(b0.x.add(b0.y).add(b0.z));
     // (how fast its texture runs across the screen, asked once here: a read inside a branch that asks it itself makes the
     // GPU work out every branch for every pixel)
-    const gx = dFdx(q), gy = dFdy(q), sides = (read) => read(q.zy, gx.zy, gy.zy).mul(b.x).add(read(q.xz, gx.xz, gy.xz).mul(b.y)).add(read(q.xy, gx.xy, gy.xy).mul(b.z));
+    const gx = dFdx(q), gy = dFdy(q);
+    // (a texture is read from two sides, not three: the two its face is turned towards; the third's share is nothing
+    // where it would be dropped, so nothing jumps)
+    const an = abs(N0), least = an.x.min(an.y).min(an.z), wt = an.sub(least).max(0), w2 = wt.mul(wt), dx = an.x.lessThanEqual(an.y).and(an.x.lessThanEqual(an.z)), dz = dx.not().and(an.z.lessThan(an.y));
+    const p1 = dx.select(q.xz, q.zy), g1x = dx.select(gx.xz, gx.zy), g1y = dx.select(gy.xz, gy.zy), k1 = dx.select(w2.y, w2.x).add(1e-5), p2 = dz.select(q.xz, q.xy), g2x = dz.select(gx.xz, gx.xy), g2y = dz.select(gy.xz, gy.xy), k2 = dz.select(w2.y, w2.z).add(1e-5);
+    const sides = (read) => read(p1, g1x, g1y).mul(k1).add(read(p2, g2x, g2y).mul(k2)).div(k1.add(k2));
     // (a pixel reads only the texture its pattern shows there: both only along the pattern's edges)
     const m = smoothstep(0.35, 0.65, vA.w), c1 = vec3(0).toVar(), c2 = vec3(0).toVar();
     // (and a thing of a few pixels reads its textures' mean, one small read each: what the mipmaps would give it anyway)
@@ -335,6 +340,7 @@ export function createStress(scene, renderer, tex) {
       T.n = n; for (const m of T.meshes) m.visible = n > 0;
     };
     T.band(); T.level = i; T.viewKeyed = !shadow; T.asset = shadow ? 'Stress: shadows' : `Stress: level ${i}`;
+    T.mesh.renderOrder = 1 + i * 0.01;   // the fine levels first: they are the near ones, and what is behind them need not be shaded
     if (shadow) T.mesh.layers.set(1);
     const run = T.run.bind(T); T.run = (r, world, ...a) => run(r, `${world}|${PL.length}|${H.versions[i]}|${i && !shadow ? H.versions[i - 1] : 0}`, ...a);   // packed again when the heap has changed at its level, or the next finer (which it stands in for)
     tiers.push(T);
@@ -387,7 +393,7 @@ export function createStress(scene, renderer, tex) {
       if (far2 > 0) for (const p of plotsNear(cx, cz, h0, Math.sqrt(far2), MMAX)) if (n < MAXP) T.list[n++].set(p.i << BITS, 0);
       T.n = n; for (const m of T.meshes) m.visible = n > 0;
     };
-    T.meshes.forEach((m, k) => { if (k < L - 1) m.layers.enable(1); });   // they cast their shadows as drawn
+    T.meshes.forEach((m, k) => { if (k < L - 1) m.layers.enable(1); m.renderOrder = 1.005 + k * 0.01; });   // they cast their shadows as drawn; near ones drawn first
     let frame = 0; const run = T.run.bind(T); T.run = (r, world, ...a) => run(r, `${world}|${frame++}`, ...a);   // packed every frame: they move
     tiers.push(T);
   }
@@ -427,7 +433,8 @@ export function createStress(scene, renderer, tex) {
     if (blocks.size > 96) blocks.delete(blocks.keys().next().value);
     blocks.set(key, b); return b;
   };
-  const moversOf = (p) => (p.movers ||= Array.from({ length: MSIDE * MSIDE }, (_, m) => moverOf(p, m % MSIDE, Math.floor(m / MSIDE))));
+  // (a plot's ten thousand reckoned a part each time it is asked for: all at once is a frame lost)
+  const moversOf = (p) => { const M = (p.movers ||= []); for (let n = 0; n < 1500 && M.length < MSIDE * MSIDE; n++) M.push(moverOf(p, M.length % MSIDE, Math.floor(M.length / MSIDE))); return M; };
   // each frame: put in what the workers have built; and, when the camera has moved, ask for the fine levels of what now
   // stands or passes near (coarser first: quick to build, and something to draw meanwhile), nearest first
   const pump = () => {
@@ -481,7 +488,8 @@ export function createStress(scene, renderer, tex) {
   const API = (window.__stress = {
     heap: H, tiers, stats, levels: LEVELS, plots: PL, sizes, pause: false, smooth: SMOOTH,
     standsAt: (pi, i, j) => standsAt(PL[pi], i, j, sizes), toLand: (pi, fi, fj) => toLand(PL[pi], fi, fj), toLattice: (pi, x, z) => toLattice(PL[pi], x, z),
-    movers: (pi, t = U.uTime.value) => moversOf(PL[pi]).map((M) => { const [x, z] = moverAtJS(PL[pi], M, t); return { x, z, k: M.k, s: M.s, v: M.v, transport: M.T }; }),
+    movers: (pi, t = U.uTime.value) => { while (moversOf(PL[pi]).length < MSIDE * MSIDE); return API.moversNow(pi, t); },
+    moversNow: (pi, t) => moversOf(PL[pi]).map((M) => { const [x, z] = moverAtJS(PL[pi], M, t); return { x, z, k: M.k, s: M.s, v: M.v, transport: M.T }; }),
     /** A plot counted, cell by cell: how many stand in it, of how many kinds, the fewest and the most of a kind; and the world's sums. */
     census(pi = 0) {
       const p = PL[pi], n = new Uint32Array(KINDS); for (let j = 0; j < SIDE; j++) { const [a, b] = rowOf(p, j); for (let i = 0; i < SIDE; i++) n[(i * a + b) % KINDS]++; }

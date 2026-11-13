@@ -985,6 +985,20 @@ shadows and the grass.
   1 to 0.75; and again 48 to 54 when he came back down from above with the ratio still at 1.5 to 1.75. 1.3 % of
   frames late; some with 15 ms in the scatter's own code (a plot's ten thousand movers reckoned for the first time).
 
+### 2026-11-13, the plots' cost near the ground cut (16:00)
+
+- **Asked:** "Yes, fix it": the plots did not hold 60 frames a second near the ground in Samuel's Safari (55.8).
+- **Delivered:** what a pixel and a frame pay, trimmed: a texture is read from the two sides its face is turned to,
+  not three; the fine levels are drawn first (they are the near ones: what stands behind is not shaded); the full mesh
+  from 320 pixels on, not 256 (five of them in view, not eight); a thing is a cube from 4 pixels, a dot under that, and
+  gone under 1.15; the shadows' stand-in is the 48-triangle level; movers are looked for to 1400 m; a plot's ten
+  thousand movers are reckoned for the CPU 1500 at a time, not all in one frame.
+- **Good:** in the test browser, with Samuel's tab drawing beside it both times: 5.0 ms of GPU walking in the first
+  village where it was 10.6, 0.8 at 300 m where it was 1.6. The same picture.
+- **Broke / not there yet:** every number here was taken beside another page drawing at full size: they swing by two
+  milliseconds a run (at 45 m this run read 3.8, the last 2.0). No part of the stand stands out as the cost: each is
+  about a millisecond. Real Safari not read after the change.
+
 ## Trail
 
 | When | Commit | What |
