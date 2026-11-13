@@ -8,6 +8,8 @@ import RIG from '../../camera/rig.js';
 import { heightAt } from '../world/land.js';
 import { step, ceilingAt, clear, within } from '../world/solids.js';
 import { createTouch } from './touch.js';
+import { groundAt } from '../world/pick.js';
+import { nearestMover } from '../world/movers.js';
 
 const L0 = Math.log(RIG.eye), L1 = Math.log(RIG.top);
 const ease = (t) => t * t * (3 - 2 * t);
@@ -60,11 +62,15 @@ const fmt = (m) => (m >= 1000 ? `${+(m / 1000).toFixed(m >= 10000 ? 0 : 1)} km` 
 export function createControls(camera, canvas, msg, stat) {
   const keys = new Set();
   let yaw = 0, look = -0.08, L = L0, locked = false, drag = false;
+  let following = null, Lwant = null;   // the mover followed (src/world/movers.js) and the height the camera comes to behind it
   const pivot = { x: 0, z: 0 };
   const hints = { eye: 'Click to look · WASD · Shift runs · scroll out to rise', street: 'Click to look · WASD · scroll in to walk, out to rise', town: 'Drag to look around · WASD moves · Q E turn · scroll in and out', skyline: 'Drag to look around · WASD moves · scroll in to come down' };
-  let band = 'eye'; msg.textContent = hints.eye;
+  let band = 'eye';
+  const hint = () => { msg.textContent = following ? `Following ${following.name || 'it'} · WASD or Esc lets go` : locked ? '' : hints[band] || ''; };   // the line under the pill: what the camera does now
+  hint();
   addEventListener('keydown', (e) => { keys.add(e.code); if (e.code === 'Space') e.preventDefault(); });
   addEventListener('keyup', (e) => keys.delete(e.code));
+  addEventListener('keydown', (e) => { if (e.code === 'Escape' && following) letGo(); });
   addEventListener('blur', () => keys.clear());
   // looking around at every height: in POV the mouse is held (a click takes it), above it a drag; left and right turns, up and down tilts
   let lockHere = true;
@@ -72,7 +78,7 @@ export function createControls(camera, canvas, msg, stat) {
   canvas.addEventListener('mousedown', (e) => { if (e.button === 0) drag = true; take(); });
   addEventListener('keydown', (e) => { if (/^(Key[WASDQE]|Arrow)/.test(e.code)) take(); });   // coming back down, a click or a key takes it again (a scroll cannot: the browser asks for a click or a key)
   addEventListener('mouseup', () => { drag = false; });
-  document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; msg.textContent = locked ? '' : hints[band]; });
+  document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; hint(); });
   document.addEventListener('mousemove', (e) => {
     if (!locked && !drag) return;
     yaw -= e.movementX * RIG.tilt.drag; look -= e.movementY * RIG.tilt.drag;
@@ -80,18 +86,41 @@ export function createControls(camera, canvas, msg, stat) {
   // fingers: the same move, turn and look, and height, from a joystick, a drag and a pinch (src/camera/touch.js)
   const touch = createTouch(canvas, {
     look: (dyaw, dlook, turnOnly) => { yaw -= dyaw; if (!turnOnly) look -= dlook; },
-    height: (dL) => { L = Math.max(L0, Math.min(L1, L + dL)); },
+    height: (dL) => { Lwant = null; L = Math.max(L0, Math.min(L1, L + dL)); },
   }).move;
   canvas.addEventListener('wheel', (e) => {   // the one zoom: the height, from the eyes to the city
-    e.preventDefault();
+    e.preventDefault(); Lwant = null;
     L = Math.max(L0, Math.min(L1, L + e.deltaY * RIG.wheel * (e.deltaMode ? 30 : 1)));
   }, { passive: false });
+  // following (intent 0015): a click (not a drag) on something that moves, where the mouse is free, hangs the camera
+  // behind it; it follows until a move key, Esc or a click on the bare ground. A click that finds a mover is the
+  // follow's alone (the city's plots under it are not picked)
+  const follow = (m) => {
+    following = m;
+    if (m) { Lwant = Math.log(Math.min(RIG.top, Math.max(RIG.eye, RIG.follow.h))); look = 0; }
+    hint();
+  };
+  function letGo() { following = null; Lwant = null; hint(); }
+  let press = null;
+  canvas.addEventListener('pointerdown', (e) => { press = !locked && e.button === 0 ? { x: e.clientX, y: e.clientY, t: performance.now() } : null; }, true);
+  canvas.addEventListener('pointerup', (e) => {
+    if (!press || Math.hypot(e.clientX - press.x, e.clientY - press.y) > 5 || performance.now() - press.t > 500) return;   // a click, not a drag that turns the view
+    press = null;
+    const g = groundAt(camera, canvas, e.clientX, e.clientY); if (!g) return;
+    const d = Math.hypot(camera.position.x - g[0], camera.position.y - heightAt(g[0], g[1]), camera.position.z - g[1]);
+    const r = Math.max(1.5, RIG.follow.reach * (2 * d * Math.tan((camera.fov * Math.PI) / 360)) / innerHeight);   // the reach in pixels, as metres there
+    const m = nearestMover(g[0], g[1], r);
+    if (m) { follow(m); e.stopImmediatePropagation(); } else if (following) letGo();
+  }, true);
   camera.rotation.order = 'YXZ';
   let eyeY = null, hPrev = RIG.eye, fromAbove = false, shown = '', glide = null, backNow = 0, LPrev = L;
   return {
     get fly() { return band !== 'eye'; },
     get band() { return band; },
     get height() { return Math.exp(L); },
+    /** The mover followed (src/world/movers.js), or null; set it to follow one, null to let go. */
+    get following() { return following; },
+    set following(m) { if (m) follow(m); else letGo(); },
     set height(h) { L = Math.max(L0, Math.min(L1, Math.log(h))); },
     place(x, z, facing) { pivot.x = x; pivot.z = z; yaw = facing; L = L0; eyeY = null; },
     update(dt) {
@@ -106,7 +135,7 @@ export function createControls(camera, canvas, msg, stat) {
       if (glide) { glide.t = Math.min(1, glide.t + dt * 1.6); const k = glide.t * glide.t * (3 - 2 * glide.t); pivot.x += (glide.x - pivot.x) * k; pivot.z += (glide.z - pivot.z) * k; if (glide.t >= 1) glide = null; }
       if (h < 2) fromAbove = false;
       hPrev = h;
-      if (v.band !== band) { band = v.band; if (!locked) msg.textContent = hints[band] || ''; }
+      if (v.band !== band) { band = v.band; hint(); }
       if (v.lock !== lockHere) { lockHere = v.lock; if (!lockHere && locked) document.exitPointerLock?.(); }   // up in town the mouse is free again
       // the tilt: kept through a small change of height, eased back to the height's own over a long one; never past the bounds
       look *= Math.exp(-RIG.tilt.fade * Math.abs(L - LPrev)); LPrev = L;
@@ -116,6 +145,17 @@ export function createControls(camera, canvas, msg, stat) {
       let s = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
       f = Math.max(-1, Math.min(1, f + touch.y)); s = Math.max(-1, Math.min(1, s + touch.x));   // the joystick adds its push
       yaw += ((keys.has('KeyQ') ? 1 : 0) - (keys.has('KeyE') ? 1 : 0)) * 1.4 * dt;
+      // following: the point is the mover's, the camera swings round behind it and comes to its height; a move key lets go
+      if (following && (f || s)) letGo();
+      if (following) {
+        const o = following.at();
+        if (!o) letGo();
+        else {
+          pivot.x = o.x; pivot.z = o.z; glide = null;
+          if (o.yaw != null) yaw += Math.atan2(Math.sin(o.yaw - yaw), Math.cos(o.yaw - yaw)) * Math.min(1, dt * RIG.follow.turn);
+          if (Lwant != null) { L += (Lwant - L) * Math.min(1, dt * RIG.follow.come); if (Math.abs(Lwant - L) < 0.005) Lwant = null; }
+        }
+      }
       const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') || touch.run ? v.run : v.speed, n = Math.max(1, Math.hypot(f, s)) > 1 ? 1 / Math.hypot(f, s) : 1, sy = Math.sin(yaw), cy = Math.cos(yaw);
       const nx = pivot.x + (-sy * f + cy * s) * speed * n * dt, nz = pivot.z + (-cy * f - sy * s) * speed * n * dt;
       if (h < 4) {   // on foot: walls and rocks stop you, and ground too steep to walk up (camera/rig.js: climb); along it you slide
