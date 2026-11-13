@@ -12,6 +12,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, If, uint, int, ivec2, vec4, uniform, uniformArray, instancedArray, storage, atomicAdd, atomicStore, atomicLoad, min, instanceIndex, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { boxIn } from '../core/frustum.js';
 import { gpuStorage, more } from '../core/gpu.js';
+import { did } from '../core/work.js';
 
 export const MAXP = 384;   // patches a tier can draw at once
 
@@ -70,13 +71,16 @@ export class Tier {
   run(renderer, world = '', cx = 0, cy = 0, cz = 0, view = '') {
     if (!this.passes) return;
     const q = Math.max(0.25, this.S / 16), { list, n } = this;
-    let key = `${world}|${n}|${this.near}|${this.far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}`;
-    for (let i = 0; i < n; i++) key += `|${list[i].x},${list[i].y}`;
+    // (its patches read into two numbers, not written out one by one: a string of hundreds of them a tier a frame was
+    // a megabyte of litter every few frames for the browser to sweep up)
+    let h1 = 0x811c9dc5, h2 = 0x9e3779b9;
+    for (let i = 0; i < n; i++) { const x = list[i].x | 0, y = list[i].y | 0; h1 = Math.imul(h1 ^ x, 0x01000193); h1 = Math.imul(h1 ^ y, 0x01000193); h2 = Math.imul((h2 << 5) ^ (h2 >>> 27) ^ x, 0x85ebca6b) + y | 0; }
+    let key = `${world}|${n}|${this.near}|${this.far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}|${h1}|${h2}`;
     if (this.viewKeyed) key += `|${view}`;   // what it packs is tested against the view one by one (index.js: inView)
     if (key === this.key) return;
     this.key = key;
     const N = n * this.P * this.P; this.cand.value = N; this.passes[1].dispatchSize = Math.max(1, N);
-    renderer.compute(this.passes);
+    renderer.compute(this.passes); did('packs'); did('kcells', Math.round(N / 1000));
   }
   /** On WebGPU: what the last packing holds, read back to the CPU a moment later (a promise of { count, data: the first
       slots' vec4s as floats, one array a slot } a bucket), for what the CPU must know of where things stand (src/world/trunks.js). */

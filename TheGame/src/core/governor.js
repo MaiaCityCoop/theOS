@@ -18,17 +18,25 @@
 // (longer each time). Room again (hardly a frame late, under ROOM): pixels first, then the cap. Nothing is decided
 // while the page is still starting.
 //
-// Pixels over the screen's own points (a ratio above 1) are a luxury, and the first thing given back: at the first look
-// that is too slow, and as many as the frame was too long by (not a step at a time, and not on trial: fewer of them
-// is always right). Whether they fit can only be found by trying (a screen shows no more than its 60 frames, however
-// much room there is), so they are tried slowly, and a ratio found too much is not tried again for a while: longer
-// each time it fails again.
+// Pixels over the screen's own points (a ratio above 1) are a luxury, and the first thing given back: a step at the
+// first look that is too slow, not on trial (fewer of them is always right). Whether they fit can only be found by
+// trying (a screen shows no more than its 60 frames, however much room there is): a ratio that proves too much right
+// after it was tried is left alone for a while, longer each time; one that had held and then grew slow (the picture
+// got heavier) is tried again soon.
+//
+// Under the screen's own points pixels are given up only for what fewer pixels can mend: the usual frame too long
+// (the middle one of a look, MEAN ms), most frames late, or frames late look after look (STREAK of them). A frame
+// dropped now and then is none of these: read in Samuel's Safari on 2026-11-13, a walk dropped one frame in sixteen
+// at a ratio of 1 and just as many at 0.625 (the cause was not the pixels), and the ratio had gone to the floor for
+// them and stayed there. And the way back up to the screen's own points allows a dropped frame or two a look.
 export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 16 } = {}) {
   const REF = 1 / Math.tan((refFov * Math.PI) / 360);
   const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2), DPR_MIN = Math.min(1, DPR_MAX), FLOOR = 0.6;   // DPR_MIN: where it starts and comes back to first; FLOOR: how soft it may go to hold 60 fps
-  const SLOW = 20, LATE = 0.08, ROOM = 0.02, MEAN = 17.5, WARM = 4000;   // a frame longer than SLOW (ms) missed 60 fps by far; the shares of such frames that are too many, and few enough to try more; the mean frame (ms) that is under 57 fps; ms after the start before the first look
+  const SLOW = 20, LATE = 0.08, ROOM = 0.02, MEAN = 17.5, WARM = 4000, MOST = 0.35, STREAK = 6, EASY = 0.05;   // a frame longer than SLOW (ms) missed 60 fps by far; the shares of such frames that are too many, and few enough to try more; the mean frame (ms) that is under 57 fps; ms after the start before the first look
   let dpr = DPR_MIN, resize = false, ceiling = DPR_MAX, ceilingAt = 0, hold = 45000;   // ceiling: the ratio not gone over for `hold` ms from ceilingAt
+  let upAt = -1e9, probe = 45000, probeAt = -1e9;   // when the ratio was last raised; how long a ratio that proved too much right after is left alone (longer each time), and when one last did
   let cap = startCap, zoom = 1, lod = 1, ema = 16.7, calm = 0, at = 0;
+  const times = new Float32Array(160); let tn = 0, mid = 16.7, streak = 0;   // a look's frame times, the middle one of them, and how many looks running had too many late frames
   let born = -1, n = 0, late = 0, share = 0, sum = 0, worst = 0, mean = 16.7;   // frames since the last look, how many of them late, that share; their times' sum and the worst, the mean without it   // frames since the last look, how many of them late, and that share
   let trial = null, noPixels = 0, wait = 15000;   // a step down in pixels on trial; until noPixels none is tried (wait: how long, longer each time one fails)
   let held = false, hot = 0, downAt = -1e9;   // a film playing: no turning of the dials, so its frames come out even (it plays the same every time, too)
@@ -40,48 +48,49 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
     detail(camera) { zoom = Math.max(1, camera.projectionMatrix.elements[5] / REF); lod = Math.min(zoom, cap); return lod; },
     /** After drawing: the frame's time, and whether a tier ran out of patches. */
     end(ms, now, over) {
-      if (ms < 250) { ema += (ms - ema) * 0.08; n++; sum += ms; if (ms > worst) worst = ms; if (ms > SLOW) late++; }   // a longer gap is the browser holding the page back, not the picture's cost
+      if (ms < 250) { ema += (ms - ema) * 0.08; n++; sum += ms; if (ms > worst) worst = ms; if (ms > SLOW) late++; if (tn < times.length) times[tn++] = ms; }   // a longer gap is the browser holding the page back, not the picture's cost
       if (born < 0) born = now;
-      if (document.hidden || held || now - born < WARM) { n = late = sum = worst = 0; return; }   // (a page starting compiles and fills: its slow frames say nothing of the picture's cost)
+      if (document.hidden || held || now - born < WARM) { n = late = sum = worst = tn = 0; return; }   // (a page starting compiles and fills: its slow frames say nothing of the picture's cost)
       if (now - at < 700) return;
-      at = now; share = n ? late / n : 0; mean = n > 2 ? (sum - worst) / (n - 1) : 16.7; n = late = sum = worst = 0;
+      at = now; share = n ? late / n : 0; mean = n > 2 ? (sum - worst) / (n - 1) : 16.7; mid = tn > 4 ? times.subarray(0, tn).sort()[tn >> 1] : 16.7; streak = share > LATE ? streak + 1 : 0; n = late = sum = worst = tn = 0;
       let next = dpr;
       // a step down in pixels, looked at again: kept only if it bought frames
       // (taken back when what was slow, the late frames or every frame a little, is as slow as before)
       if (trial && now >= trial.at) {
-        if ((trial.share > LATE && share > LATE / 2 && share > trial.share * 0.7) || (trial.mean > MEAN && mean > MEAN && mean > trial.mean - 0.5)) { next = trial.from; ceiling = Math.max(ceiling, next); noPixels = now + wait; wait = Math.min(120000, wait * 2); }
+        if ((trial.share > LATE && share > LATE / 2 && share > trial.share * 0.7) || (trial.mean > MEAN && mid > MEAN && mid > trial.mean - 0.5)) { next = trial.from; ceiling = Math.max(ceiling, next); noPixels = now + wait; wait = Math.min(120000, wait * 2); }
         else wait = 15000;
         trial = null;
       }
       // Calm, so the picture does not change its detail every second: down only when it stays too slow (two looks
       // in a row) or is far too slow; up only after about three seconds of room, never soon after a step down,
       // and by a small step. Every change makes the world choose its patches anew, which itself costs a frame.
-      const slow = share > LATE || mean > MEAN || over, urgent = share > 0.4 || mean > 22 || over;
+      // (dragging: what fewer pixels or less detail can mend; a frame dropped now and then is not)
+      const dragging = mid > MEAN || share > MOST || streak >= STREAK, slow = dragging || over, urgent = share > 0.4 || mid > 22 || over;
       if (next !== dpr) calm = hot = 0;   // (a step taken back this look: nothing more)
       else if ((share > LATE || mean > MEAN) && dpr > DPR_MIN) {
-        // pixels over the screen's own: given back at once, as many as the frame is too long by (its cost goes with
-        // their number, the ratio's square)
+        // pixels over the screen's own: given back at once, a step a look (two when most frames are late). Slow right
+        // after a step up: that step was too much, and is left alone for a while, longer each time. Slow at a ratio
+        // that had held: the picture got heavier (a walk into a thicker stand, a burst of new things), tried again soon
         calm = hot = 0; downAt = now;
-        const f = Math.sqrt(Math.min(0.95, Math.max(0.6, 16.2 / Math.max(mean, share > 0.4 ? 21 : 17.6))));
-        next = Math.max(DPR_MIN, Math.min(dpr - 0.125, Math.floor(dpr * f * 8) / 8));
-        hold = now - ceilingAt < hold + 30000 ? Math.min(300000, hold * 2) : 45000;   // too much again soon after it was last tried: longer before the next try
+        next = Math.max(DPR_MIN, dpr - (share > 0.4 ? 0.25 : 0.125));
+        if (now - upAt < 4000) { probe = now - probeAt < probe + 30000 ? Math.min(300000, probe * 2) : 45000; probeAt = now; hold = probe; } else hold = 10000;
         ceiling = next; ceilingAt = now;
       } else if (slow) {
         calm = 0;
         if (++hot >= (urgent ? 2 : 3)) {   // (two looks even when far too slow: a jump of the view, a film's cut, is a burst of late frames, not a slow picture)
           hot = 0; downAt = now;
           if (lod > 1.05) cap = Math.max(1, lod * (urgent ? 0.7 : 0.87));
-          else if ((share > LATE || mean > MEAN) && dpr > FLOOR && now > noPixels && !trial) {
-            next = Math.max(FLOOR, dpr - (urgent ? 0.25 : 0.125)); ceiling = Math.max(FLOOR, next); ceilingAt = now;
-            trial = { from: dpr, share, mean, at: now + 1300 };   // two looks on (the first holds the resize's own slow frame)
+          else if (dragging && dpr > FLOOR && now > noPixels && !trial) {
+            next = Math.max(FLOOR, dpr - (urgent ? 0.25 : 0.125)); ceiling = Math.max(FLOOR, next); ceilingAt = now; hold = 45000;
+            trial = { from: dpr, share, mean: mid, at: now + 1300 };   // two looks on (the first holds the resize's own slow frame)
           }
         }
-      } else if (share <= ROOM && mean < MEAN - 0.4) {
+      } else if (share <= EASY && mid < MEAN - 0.4) {   // (room: the usual frame in time, a dropped frame or two a look allowed)
         hot = 0;
-        if (++calm >= (dpr >= DPR_MIN ? 8 : 4) && now - downAt > 8000) { calm = 0; if (dpr < Math.min(DPR_MAX, ceiling)) next = Math.min(DPR_MAX, ceiling, dpr + 0.125); else if (cap < zoom) cap = Math.min(maxCap, cap * 1.12); }
+        if (++calm >= (dpr >= DPR_MIN ? 6 : 4) && now - downAt > 8000) { calm = 0; if (dpr < Math.min(DPR_MAX, ceiling)) { next = Math.min(DPR_MAX, ceiling, dpr + 0.125); upAt = now; } else if (cap < zoom) cap = Math.min(maxCap, cap * 1.12); }
       } else { calm = 0; hot = 0; }
       if (now - ceilingAt > hold) ceiling = DPR_MAX;   // what was too much is not tried again for a while
-      if (next !== dpr) { dpr = next; resize = true; n = late = sum = worst = 0; }
+      if (next !== dpr) { dpr = next; resize = true; n = late = sum = worst = tn = 0; }
     },
     /** Hold the dials where they are (true), or let them move again (false). */
     hold(on) { held = !!on; },

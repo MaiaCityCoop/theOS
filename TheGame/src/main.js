@@ -21,6 +21,7 @@ import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
 import { createHud } from './core/hud.js';
 import { useGPU } from './core/gpu.js';
+import { taken } from './core/work.js';
 import { bakeTextures } from './materials/bake.js';
 import { createTerrain } from './terrain/terrain.js';
 import { createGround } from './scatter/ground.js';
@@ -153,11 +154,11 @@ function frame(now) {
 const HITCH = 24, hitches = []; let frames = 0, sentAt = 0;
 const TAB = { id: Math.random().toString(36).slice(2, 8), ua: /Chrome\//.test(navigator.userAgent) ? 'Chrome' : /Safari\//.test(navigator.userAgent) ? 'Safari' : 'other', page: location.pathname + location.search };
 function hitch(ms, now) {
-  frames++;
+  frames++; const work = taken();   // (what the frame did besides drawing: src/core/work.js)
   if (ms > HITCH && frames > 30) {
     const r = renderer.info.render, c = window.__cine, f = (v) => +v.toFixed(2);
     hitches.push({ at: Math.round(now), ms: f(ms), ctl: f(parts.ctl), ground: f(parts.ground), terrain: f(parts.terrain), scatter: f(parts.scatter), draw: f(parts.draw),
-      lod: f(governor.lod), cap: f(governor.cap), dpr: governor.dpr, resizes, w: innerWidth, h: innerHeight, tris: r.triangles, calls: r.drawCalls ?? r.calls, film: c?.clips?.length ? f(c.time) : null, playing: !!c?.playing, page: location.pathname + location.search });
+      lod: f(governor.lod), cap: f(governor.cap), dpr: governor.dpr, resizes, w: innerWidth, h: innerHeight, tris: r.triangles, calls: r.drawCalls ?? r.calls, film: c?.clips?.length ? f(c.time) : null, playing: !!c?.playing, page: location.pathname + location.search, ...(Object.keys(work).length ? { work } : {}) });
   }
   if (import.meta.env.DEV && now - sentAt > 4000 && (hitches.length || frames > 0)) {
     sentAt = now;

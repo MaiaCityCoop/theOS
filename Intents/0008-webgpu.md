@@ -1098,6 +1098,29 @@ biome or a texture can come from a contribution, the render engine generic.
   not families yet: the heap can draw them now, moving them is the next step. The fine meshes and textures near the
   camera are still made at every start.
 
+### 2026-11-13, read in real Safari: more frames, and pixels given up for nothing; the governor mended (19:05)
+
+- **Read (Samuel's tab, 18:47 to 18:54, walking, then standing):** 58.4 frames a second (55.6 and 55.9 in the two
+  sessions before), 6.4 % of frames late (11 to 12 %), 47 long frames a minute (151 to 161). But the pixel ratio fell
+  from 1 to 0.625 within 45 seconds and stayed there for five minutes; when he stood still it rose to 1.25 at 60
+  frames a second within 20 seconds.
+- **Why:** the long frames are single dropped frames (258 of 364 between 24 and 32 ms). The game's own work in them
+  is 7 ms of 33; the rest is outside it. They came as often at 0.625 as at 1: not the pixels' cost. The governor took
+  any look with more than 8 % of frames late for slowness, gave up pixels for it, and its way back up asked for looks
+  with hardly a late frame, which a walk never gives.
+- **Mended (src/core/governor.js):** under the screen's own points pixels are given up only for what fewer pixels can
+  mend: the middle frame of a look too long, most frames late, or frames late six looks running. The way back up
+  allows a dropped frame or two a look. Over 1: a step back at once; a ratio that failed right after it was tried is
+  left alone for 45 s and longer each time, one that had held and then grew slow is tried again after 10 s. Played
+  through made-up sessions: the walk that fell to 0.75 and 0.625 now holds 1; standing with room holds 1.25.
+- **To find what drops the frames:** a frame's work is written into the hitch log (src/core/work.js: meshes put,
+  kilobytes sent, textures, scans, plots folded, packings and their cells). Fewer sent a frame (a dozen meshes or one
+  full one, three textures). A tier's patches are read into two numbers for its key, not written out as a string of
+  hundreds each frame.
+- **Measured (test browser, GPU time):** packing costs 0.4 ms a frame standing, 0.7 turning, 1.3 walking and turning
+  (1.7 million cells a frame): it is not what drops frames.
+- **Not there yet:** what drops a frame in sixteen while walking is not found; the next reading has the work log.
+
 ## Trail
 
 | When | Commit | What |

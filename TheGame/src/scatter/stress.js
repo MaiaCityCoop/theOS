@@ -63,6 +63,7 @@ import { MODELS, modelOf } from '../shading/index.js';
 import { recipes } from '../core/registry.js';
 import { gpuStorage, note } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
+import { did } from '../core/work.js';
 import CITY from '../../world/city.js';
 
 const KINDS = 10000, SIDE = 1000, MSIDE = 100, GROUP = KINDS / SIDE;   // a plot's ten thousand places for a kind (given to the STAND kinds that stand: the zoo's; ALL: with those that roam); a plot's lattice: a thousand cells a side, one asset in each (GROUP rows of it hold every kind once: a hundred of every kind a plot); its movers' lattice: ten thousand
@@ -193,7 +194,7 @@ export function createStress(scene, renderer, tex) {
     if (at < 0) return;
     if (slots.who[at] >= 0) { const o = PL[slots.who[at]]; o.slot = null; plotRows.array[o.i * ROW + KEPT_AT] = -1; plotRows.addUpdateRange(o.i * ROW + KEPT_AT, 1); }
     slots.who[at] = p.i; p.slot = at; plotRows.array[p.i * ROW + KEPT_AT] = at; plotRows.addUpdateRange(p.i * ROW + KEPT_AT, 1); plotRows.needsUpdate = true;
-    fillPlot.value = p.i; fillSlot.value = at; renderer.compute(keepPass); slots.version++;
+    fillPlot.value = p.i; fillSlot.value = at; renderer.compute(keepPass); slots.version++; did('plot');
   };
 
   const H = createHeap({ kinds: ALL, name: 'stand: meshes', levels: LEVELS.map((l, i) => { const r = roomOf(i); return { idx: r.tris * 3, elems: r.verts, slots: l.slots, one: l.n === DOTN }; }) });
@@ -581,17 +582,17 @@ export function createStress(scene, renderer, tex) {
   const moversOf = (p) => { const M = (p.movers ||= []); for (let n = 0; n < 1500 && M.length < MSIDE * MSIDE; n++) M.push(moverOf(p, M.length % MSIDE, Math.floor(M.length / MSIDE))); return M; };
   // what the workers have built, put in: before the frame's tiers pack (the first tier's select: below), not after. Put in
   // after, a frame packed by the old table would be drawn by the new one, and every thing of that kind was gone for
-  // that frame: a flicker each time a mesh came or went. A frame sends the GPU one full mesh at most, and two dozen
-  // small ones; and a level waits until the next coarser one has come and grown: each grows out of the one before it
+  // that frame: a flicker each time a mesh came or went. A frame sends the GPU one full mesh at most, or a dozen
+  // small ones (under a megabyte); and a level waits until the next coarser one has come and grown: each grows out of the one before it
   const arrive = () => {
     const now = performance.now();
-    for (let sent = 0, puts = 0, n = done.length; n > 0 && sent < 700000 && puts < 24; n--) {
+    for (let sent = 0, puts = 0, n = done.length; n > 0 && sent < 220000 && puts < 12; n--) {
       const d = done.shift(), id = d.k * L + d.l;
       if (d.l < 2 && wantAt[id] >= round - 1 && (pending.has(id + 1) || now - putAt[id + 1] < GROW * 1000)) { done.push(d); continue; }
       pending.delete(id); asked[d.l]--; if (wantAt[id] < round - 1) continue;
       sent += d.mesh.index.length; puts++;
       if (H.put(d.k, d.l, d.mesh, round, round, U.uTime.value)) {
-        stats.put++; putAt[id] = now;
+        stats.put++; putAt[id] = now; did('meshes'); did('kB', Math.round((d.mesh.index.byteLength + d.mesh.verts.byteLength) / 1024));
         if (!d.l) { const T0 = tiers[0]; for (const at of [H.pools[0].slot[d.k] * 5, (H.pools[0].slot[d.k] + LEVELS[0].slots) * 5]) { T0.args.array[at] = d.mesh.index.length; T0.args.addUpdateRange(at, 1); } T0.args.needsUpdate = true; }   // (its slot's draw: as long as it)
       }
     }
@@ -616,9 +617,9 @@ export function createStress(scene, renderer, tex) {
     built = 0;
     const dt = Math.max(1e-3, (now - lt) / 1000), v = Math.hypot(cam.x - lx, cam.y - ly, cam.z - lz) / dt; lx = cam.x; ly = cam.y; lz = cam.z; lt = now;
     speed += (Math.min(v, 300) - speed) * Math.min(1, dt * 4);
-    for (let n = 0; n < 6 && skinDone.length; n++) { const d = skinDone.shift(); skinPending.delete(d.k); if (skinAt[d.k] >= round - 1) skinPut(d.k, d.S); }   // (a few textures a frame)
+    for (let n = 0; n < 3 && skinDone.length; n++) { const d = skinDone.shift(); skinPending.delete(d.k); if (skinAt[d.k] >= round - 1 && skinPut(d.k, d.S)) { did('skins'); did('kB', 87); } }   // (a few textures a frame)
     if (Math.hypot(cam.x - sx, cam.z - sz) < 0.7 && key === sk && now - scanAt < 300) return;
-    sx = cam.x; sz = cam.z; sk = key; scanAt = now; round++;
+    sx = cam.x; sz = cam.z; sk = key; scanAt = now; round++; did('scan');
     // as far as the coarsest of the fine levels is asked for (and a fifth): of what stands, and of the largest mover
     const lo = LEVELS[STREAMED - 1].px, reachOfSize = (s) => (s * K * 1.2) / (lo * inv), Rs = reachOfSize(SMAX), Rm = reachOfSize(MMAX), asks = [], want = [], ahead = speed * 0.35, t = U.uTime.value;
     if (Rm <= dy) { queue = []; return; }
