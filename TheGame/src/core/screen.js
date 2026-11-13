@@ -15,9 +15,7 @@ export function createScreen(renderer, skyHex, { samples = 4, store = false } = 
   const OUT = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(OUT);
   let inside = OUT, rt = null;
-  const css = new THREE.Vector2(), size = new THREE.Vector2(), keep = new THREE.Color();
-  // the sky's colour as plain numbers: into a target, three writes a clear colour unconverted (as src/camera/post.js)
-  const sky = new THREE.Color().setRGB(((skyHex >> 16) & 255) / 255, ((skyHex >> 8) & 255) / 255, (skyHex & 255) / 255, THREE.LinearSRGBColorSpace);
+  const css = new THREE.Vector2(), size = new THREE.Vector2();
   const tC = texture(new THREE.Texture()), uSize = uniform(new THREE.Vector2(1, 1)), uSame = uniform(1);
   const mat = new THREE.NodeMaterial(); mat.depthTest = mat.depthWrite = false;
   mat.vertexNode = vec4(uv().mul(2).sub(1), 0, 1);
@@ -58,9 +56,9 @@ export function createScreen(renderer, skyHex, { samples = 4, store = false } = 
         tC.value = rt.texture; uSize.value.copy(size); note('the picture inside (its target)', size.x * size.y * 4, 0);
       }
       uSame.value = inside >= OUT - 1e-3 ? 1 : 0;
-      renderer.getClearColor(keep); renderer.setClearColor(sky);
+      // (cleared to the renderer's own clear colour: the sky sets it to the hour's horizon as plain numbers, which a
+      // target takes as they are: src/world/sky.js)
       renderer.setRenderTarget(rt); renderer.render(scene, camera); renderer.setRenderTarget(null);
-      renderer.setClearColor(keep);
       renderer.render(quad, cam);
     },
   };
