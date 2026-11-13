@@ -51,7 +51,6 @@ function kindOf(k) {
     box: null,
   };
   KIND.set(k, K);
-  K.box = boxOf(K);
   return K;
 }
 // how much of a ripple of frequency f a mesh of n squares an edge can carry: all of it, or none (a coarse level is the
@@ -94,12 +93,12 @@ const SWELL = { 1: 1.24, 2: 1.07, 4: 1.02 };
 
 /** How many ways of taking the light there are (src/scatter/stress.js: its shading models). */
 export const MODELS = 12;
-/** What kind k looks like: which shading model, its two tints, which two of the world's textures (0 … 1: the stand picks
-    from those it has) and how large they lie on it (metres a tile), how it shines, how far it sways in the wind (0: it
+/** What kind k looks like: which shading model, its two tints (and about the mean of its own texture, blobSkin, before
+    that has come), which two of the world's textures (0 … 1: the stand picks from those it has) and how large they lie on it (metres a tile), how it shines, how far it sways in the wind (0: it
     stands stiff), how uneven its snow lies (metres), how it glows, how much light passes through it. */
 export function blobLook(k) {
   const K = kindOf(k), r = (i) => rnd(k, i);
-  return { model: Math.floor(r(30) * MODELS), c1: K.c1, c2: K.c2, texA: r(31), texB: r(32), scale: 0.6 + 1.8 * r(33), gloss: r(34), sway: r(35) < 0.4 ? 0 : 0.02 + 0.1 * r(36), snow: 0.02 + 0.1 * r(37), glow: 0.4 + 1.2 * r(38), through: 0.3 + 0.6 * r(39) };
+  return { model: Math.floor(r(30) * MODELS), c1: K.c1, c2: K.c2, mean: K.c1.map((c, i) => (c * c + K.c2[i] * K.c2[i]) / 2), texA: r(31), texB: r(32), scale: 0.6 + 1.8 * r(33), gloss: r(34), sway: r(35) < 0.4 ? 0 : 0.02 + 0.1 * r(36), snow: 0.02 + 0.1 * r(37), glow: 0.4 + 1.2 * r(38), through: 0.3 + 0.6 * r(39) };
 }
 
 let LATTICE = null;   // (which vertex a cube's lattice point is, kept between meshes)
@@ -129,7 +128,7 @@ function build(K, n, own = false) {
     tri(a, b, c); tri(a, c, d);
   }
   // into its own frame
-  const B = K.box, sw = SWELL[n] ?? 1, cy = 0.5 / B.k;
+  const B = (K.box ||= boxOf(K)), sw = SWELL[n] ?? 1, cy = 0.5 / B.k;   // (its frame measured when its first mesh is made, not when it is only looked up)
   for (let i = 0; i < V; i++) {
     const o = i * 3;
     pos[o] = (pos[o] - B.x) * sw * B.k; pos[o + 1] = ((pos[o + 1] - B.y - cy) * sw + cy) * B.k; pos[o + 2] = (pos[o + 2] - B.z) * sw * B.k;
@@ -181,4 +180,41 @@ export function blobMesh(k, n, m = 0) {
     pack(verts, v * 8 + 4, mix(C.pos, 0), mix(C.pos, 1), mix(C.pos, 2), mix(C.nor, 0), mix(C.nor, 1), mix(C.nor, 2), C.mask[a] * wa + C.mask[c] * wc + C.mask[e] * we, C.shade[a] * wa + C.shade[c] * wc + C.shade[e] * we);
   }
   return { index: F.index, verts };
+}
+
+// ---- a kind's own texture: a tile nobody painted, of its two tints and a third, one of six patterns; it repeats without
+// a seam (its noise is laid on a ring) ----
+function tileNoise(x, y, per, s) {   // value noise that repeats every `per` cells
+  const ix = Math.floor(x), iy = Math.floor(y); let fx = x - ix, fy = y - iy; fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+  const w = (v) => ((v % per) + per) % per, a = hash3(w(ix), w(iy), 7, s), b = hash3(w(ix + 1), w(iy), 7, s), c = hash3(w(ix), w(iy + 1), 7, s), d = hash3(w(ix + 1), w(iy + 1), 7, s);
+  return a + (b - a) * fx + (c + (d - c) * fx - a - (b - a) * fx) * fy;
+}
+const fbm = (u, v, per, s) => 0.55 * tileNoise(u * per, v * per, per, s) + 0.3 * tileNoise(u * per * 2, v * per * 2, per * 2, s + 1) + 0.15 * tileNoise(u * per * 4, v * per * 4, per * 4, s + 2);
+/** Kind k's own texture, `size` pixels a side: { levels: [Uint8Array (r, g, b, height; colours as their square roots, as
+    the world's textures keep them), … down to one pixel], mean: its mean colour [r, g, b] }. */
+export function blobSkin(k, size = 128) {
+  const K = kindOf(k), r = (i) => rnd(k, i), kind = Math.floor(r(40) * 6), per = 3 + Math.floor(r(41) * 4), s = K.s + 50, c3 = hsv((r(42) + 0.33) % 1, 0.5 + 0.4 * r(43), 0.3 + 0.6 * r(44)), turn = r(45) * 6.2831853, cells = 3 + Math.floor(r(46) * 5);
+  const out = new Uint8Array(size * size * 4), mean = [0, 0, 0];
+  for (let y = 0, o = 0; y < size; y++) for (let x = 0; x < size; x++, o += 4) {
+    const u = x / size, v = y / size, n = fbm(u, v, per, s), m = fbm(u + 0.37, v + 0.61, per, s + 9); let t, acc = 0, h;
+    if (kind === 0) { t = 0.5 + 0.5 * Math.sin((n * 3 + u * Math.round(Math.cos(turn) * 3) + v * Math.round(Math.sin(turn) * 3)) * 6.2831853); h = t; }   // marble: bands bent by the noise
+    else if (kind === 1) {   // cells: each its own shade, dark seams between
+      let d1 = 9, d2 = 9, id = 0; const gx = u * cells, gy = v * cells, cx = Math.floor(gx), cy = Math.floor(gy);
+      for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const qx = ((cx + i) % cells + cells) % cells, qy = ((cy + j) % cells + cells) % cells, px = cx + i + hash3(qx, qy, 1, s), py = cy + j + hash3(qx, qy, 2, s), d = Math.hypot(gx - px, gy - py); if (d < d1) { d2 = d1; d1 = d; id = hash3(qx, qy, 3, s); } else if (d < d2) d2 = d; }
+      t = id; acc = d2 - d1 < 0.06 ? 1 : 0; h = Math.min(1, (d2 - d1) * 3);
+    } else if (kind === 2) { t = Math.abs(((u * cells + n * 0.8) % 1) - 0.5) * 2 > 0.5 ? 1 : 0; h = 0.3 + 0.5 * t + 0.2 * m; }   // stripes, wavering
+    else if (kind === 3) { t = n > 0.55 ? 1 : 0; acc = m > 0.68 ? 1 : 0; h = n; }   // spots, and a few of the third colour
+    else if (kind === 4) { const gy = v * cells * 2, row = Math.floor(gy), gx = u * cells + (row % 2) * 0.5, fx = gx - Math.floor(gx), fy = gy - row, d = Math.hypot(fx - 0.5, fy - 1) ; t = hash3(Math.floor(gx) % cells, row % (cells * 2), 4, s); acc = d > 0.62 && fy < 0.5 ? 1 : 0; h = 1 - fy * 0.6; }   // scales in rows
+    else { t = Math.min(1, Math.max(0, (n - 0.3) * 2.5)); acc = m > 0.72 ? 0.6 : 0; h = n; }   // clouded
+    const g = 0.82 + 0.36 * (m - 0.5);
+    for (let c = 0; c < 3; c++) { const col = Math.min(1, Math.max(0, ((K.c1[c] + (K.c2[c] - K.c1[c]) * t) * (1 - acc) + c3[c] * (kind === 1 ? 0.25 : 1) * acc) * g)); out[o + c] = Math.round(col * 255); mean[c] += col * col; }   // (kept as its square root: K's tints are that already)
+    out[o + 3] = Math.round(Math.min(1, Math.max(0, h)) * 255);
+  }
+  const levels = [out];
+  for (let n = size >> 1; n >= 1; n >>= 1) {   // its smaller copies: four pixels to one
+    const a = levels.at(-1), b = new Uint8Array(n * n * 4), w = n * 2;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) for (let c = 0; c < 4; c++) b[(y * n + x) * 4 + c] = (a[(y * 2 * w + x * 2) * 4 + c] + a[(y * 2 * w + x * 2 + 1) * 4 + c] + a[((y * 2 + 1) * w + x * 2) * 4 + c] + a[((y * 2 + 1) * w + x * 2 + 1) * 4 + c] + 2) >> 2;
+    levels.push(b);
+  }
+  return { levels, mean: mean.map((v) => v / (size * size)) };
 }

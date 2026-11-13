@@ -123,6 +123,23 @@ two. A game like GTA V draws a frame in about 1900 draw calls and has shader tem
 thousands of materials on them: there too a material is numbers and textures on a shared shader, not a shader of its
 own. What a browser cannot pay is the draw calls, so here models are branches and looks are rows.
 
+### Ten thousand kinds, a texture each, and movers made of parts
+
+- **Kinds: 10 000.** Each plot holds every kind exactly a hundred times. Only a kind's two coarsest meshes and its dot
+  are always held (2 KB a kind); every finer level is a slot in a pool, filled for the kinds near (2048, 768, 320, 48
+  and 8 slots, finest last).
+- **A texture of its own each** (`blobSkin`: 128 pixels a side, painted in a worker): one layer of an array of 1024,
+  given to the kinds that are large enough on screen to show it (from 28 pixels), fading in when it comes; under that
+  and until then a kind wears its texture's mean colour, which is what the mipmaps make of it anyway. All ten thousand
+  at once would be 870 MB; the pool is 89. Needs more array layers than a device gives unasked (`src/main.js`).
+- **A mover is a rig** (`assets/kit/rigs.js`: a table of numbers): up to twelve parts, each a kind of its own, set on
+  the mover and moved as its rig says: legs and arms swing in step, wheels turn with the way gone, wings beat, the
+  links of a tail or a snake are where the head was a moment before. Ten rigs: walker, runner, four legs, ten legs,
+  rover, transport, cycle, dragon, bird, snake. Every part of every mover near is worked out on the GPU each frame
+  from the clock: still no mover has a state.
+- **A level turns into the next over the whole of its range**, not its last third, and a mesh that comes late grows in
+  over a second and a half: a thing is never still between two levels, and never jumps.
+
 ## What this does not yet give
 
 - **The trees, the rocks and the grass are not on the heap yet**: they keep a draw call a shape and level. The heap's

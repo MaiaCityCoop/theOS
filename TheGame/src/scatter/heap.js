@@ -28,7 +28,7 @@ export function createHeap(kinds, levels) {
   const index = new THREE.StorageBufferAttribute(new Uint32Array(iAt), 1), verts = new THREE.StorageBufferAttribute(new Uint32Array(vAt * 8), 4), table = new THREE.StorageBufferAttribute(new Uint32Array(kinds * L * 4), 4);
   const T = table.array, mask = new Uint32Array(kinds), came = new Uint32Array(kinds * L);   // came: when a kind's level was put in, sixteenths of a second
   const row = (k, l) => (k * L + l) * 4;
-  const masked = (k) => { for (let l = 0; l < L; l++) T[row(k, l) + 3] = (mask[k] | (came[k * L + l] << 12)) >>> 0; table.addUpdateRange(row(k, 0), L * 4); table.needsUpdate = true; };
+  const masked = (k, quiet) => { for (let l = 0; l < L; l++) T[row(k, l) + 3] = (mask[k] | (came[k * L + l] << 12)) >>> 0; if (!quiet) { table.addUpdateRange(row(k, 0), L * 4); table.needsUpdate = true; } };
   const H = {
     kinds, L, pools, version: 0, versions: new Uint32Array(L), bytes: (iAt + vAt * 8 + kinds * L * 4) * 4,
     // as nodes: a level's row of a kind (first index, first vertex, indices, which levels of the kind are there and when this one came)
@@ -42,7 +42,7 @@ export function createHeap(kinds, levels) {
     /** Put a kind's level in: mesh { index, verts } (blob.js), into a free slot or the one longest unwanted (not wanted
         since `since`). time: the clock's seconds now (what draws it grows it in from then). False: no slot to be had
         (every one is wanted). */
-    put(k, l, mesh, now, since = now, time = 0) {
+    put(k, l, mesh, now, since = now, time = 0, quiet = false) {
       const p = pools[l]; let s = p.slot[k];
       if (s < 0) {
         if (p.own) s = k;
@@ -52,12 +52,18 @@ export function createHeap(kinds, levels) {
       }
       if (mesh.index.length > p.idx || mesh.verts.length > p.verts * 8) throw new Error(`heap: kind ${k} level ${l} is larger than its slot`);
       const i0 = p.i0 + s * p.idx, v0 = p.v0 + s * p.verts;
-      index.array.set(mesh.index, i0); index.addUpdateRange(i0, mesh.index.length); index.needsUpdate = true;
-      verts.array.set(mesh.verts, v0 * 8); verts.addUpdateRange(v0 * 8, mesh.verts.length); verts.needsUpdate = true;
+      index.array.set(mesh.index, i0); verts.array.set(mesh.verts, v0 * 8);
+      if (!quiet) { index.addUpdateRange(i0, mesh.index.length); index.needsUpdate = true; verts.addUpdateRange(v0 * 8, mesh.verts.length); verts.needsUpdate = true; }
       p.who[s] = k; p.slot[k] = s; p.used[s] = now; came[k * L + l] = Math.min(0xfffff, Math.round(time * 16));
       const r = row(k, l); T[r] = i0; T[r + 1] = v0 * 2; T[r + 2] = mesh.index.length;
-      mask[k] |= 1 << l; masked(k); H.version++; H.versions[l]++;
+      mask[k] |= 1 << l; masked(k, quiet); H.version++; H.versions[l]++;
       return true;
+    },
+    /** Send the GPU what was put in quietly (put's last argument: many at once, sent as one piece): kinds k0 … k0 + n of
+        the levels every kind has its own of. */
+    sync(k0, n) {
+      for (const p of pools) if (p.own) { index.addUpdateRange(p.i0 + k0 * p.idx, n * p.idx); verts.addUpdateRange((p.v0 + k0 * p.verts) * 8, n * p.verts * 8); }
+      table.addUpdateRange(row(k0, 0), n * L * 4); index.needsUpdate = verts.needsUpdate = table.needsUpdate = true;
     },
     /** Put a kind's level out. */
     drop(k, l) {

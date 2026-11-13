@@ -32,7 +32,7 @@
 //   - its textures are read at every level (the GPU's mipmaps make a far thing its textures' mean), its relief fades in
 //     with its size; its last level is a dot of that mean, sinking away under a pixel.
 import * as THREE from 'three/webgpu';
-import { Fn, If, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, storage, instanceIndex, vertexIndex, cameraViewMatrix, dFdx, dFdy, cos, sin, atan, abs, max, pow, mix, sqrt, floor, cross, reflect, length, normalize, smoothstep, clamp } from 'three/tsl';
+import { Fn, If, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, storage, texture, instanceIndex, vertexIndex, cameraViewMatrix, dFdx, dFdy, cos, sin, atan, abs, max, pow, mix, sqrt, floor, cross, reflect, length, normalize, smoothstep, clamp } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { camDist, groundAt, rnd } from '../world/land.nodes.js';
 import { cellRnd } from '../world/land.js';
@@ -43,14 +43,15 @@ import { boxIn } from '../core/frustum.js';
 import { Tier, offScreen, clipOf, MAXP } from './tier.js';
 import { inView } from './view.js';
 import { createHeap, heapRow, heapVertex, heldOf, sinceCame, effective } from './heap.js';
-import { fullOf, trisOf, vertsOf, blobLook, MODELS } from '../../assets/kit/blob.js';
+import { fullOf, trisOf, vertsOf, blobLook, blobMesh, MODELS } from '../../assets/kit/blob.js';
 import { recipes } from '../core/registry.js';
+import { RIGS, PARTS, RIG_ROWS, rigRows, rigShares } from '../../assets/kit/rigs.js';
 import CITY from '../../world/city.js';
 
-const KINDS = 1000, SIDE = 1000, MSIDE = 100;   // a thousand kinds; a plot's lattice: a thousand cells a side, one asset in each (a thousand of every kind); its movers' lattice: ten thousand
+const KINDS = 10000, SIDE = 1000, MSIDE = 100, GROUP = KINDS / SIDE;   // ten thousand kinds; a plot's lattice: a thousand cells a side, one asset in each (GROUP rows of it hold every kind once: a hundred of every kind a plot); its movers' lattice: ten thousand
 const PLOTS = Math.round(CITY.people / CITY.perVillage), RAYS = 64, ROW = 4 + RAYS + RAYS + 1, BITS = 11, TAU = Math.PI * 2;   // a plot's row: its middle (x, z), its mean reach, its things' scale, then how far its edge is in RAYS directions, then the directions that cut its land into RAYS equal shares; BITS: a cell's number holds its plot above them
 const SMIN = 0.25, SMAX = 2.2, MMAX = 6, MFAR = 1400, CELL = 1.4, FIT = 1.5, FADE = 0.02, SINK = 1.6, FULL = 129, FULLN = -1;   // an asset's largest side, metres (a mover's up to MMAX, seen as far as MFAR); CELL: a lattice cell's side, about; FIT: the cell's side a kind's own size is meant for; FULL: the most squares an edge a full mesh has
-const MORPH = 1.6, GROW = 0.5, RELIEF = 90, FARPX = 12;   // MORPH: a level turns into the next coarser over its last pixels, from this many times its end; GROW: seconds a level that came late takes to grow out of the coarser one; RELIEF: the size on screen from which its textures' relief is read; FARPX: under it a thing wears its textures' mean
+const GROW = 1.5, RELIEF = 90, SKIN = 128, SKINPX = 28;   // GROW: seconds a level that came late takes to grow out of the coarser one; RELIEF: the size on screen from which its textures' relief is read; SKIN: a kind's own texture, pixels a side; SKINPX: the size on screen from which a thing wears it (under that: its mean colour)
 // its levels, finest first. n: squares along an edge (FULLN: the kind's full mesh; under that: its dot); px: the size on
 // screen it is drawn down to; P: its tier's cells a patch (a block of a plot's lattice: it divides 1000); slots: how many
 // kinds' the heap holds at once (none: every kind's); cap: the most of it drawn at once
@@ -58,8 +59,8 @@ const LEVELS = [
   { n: FULLN, px: 320, P: 2, slots: 8, cap: 64 },
   { n: 32, px: 128, P: 4, slots: 48, cap: 256 },
   { n: 16, px: 64, P: 4, slots: 320, cap: 1024 },
-  { n: 8, px: 32, P: 8, cap: 4096 },
-  { n: 4, px: 16, P: 10, cap: 16384 },
+  { n: 8, px: 32, P: 8, slots: 768, cap: 4096 },
+  { n: 4, px: 16, P: 10, slots: 2048, cap: 16384 },
   { n: 2, px: 8, P: 20, cap: 65536 },
   { n: 1, px: 4, P: 50, cap: 131072 },
   { n: -2, px: 1.15, P: 100, cap: 524288 },   // its dot: one triangle, turned to the eye
@@ -89,24 +90,27 @@ const shareOf = (p, th) => { let lo = 0, hi = RAYS; while (hi - lo > 1) { const 
 const toLand = (p, fi, fj) => { const [dx, dz] = diskOf((fi / SIDE) * 2 - 1, (fj / SIDE) * 2 - 1), th = turnOf(p, Math.atan2(dz, dx) / TAU), r = Math.hypot(dx, dz) * reachOf(p, th); return [p.x + Math.cos(th) * r, p.z + Math.sin(th) * r]; };
 /** And the lattice point of a place on the land (outside the plot: beyond 0 … 1000). */
 const toLattice = (p, x, z) => { const dx = x - p.x, dz = z - p.z, th = ((Math.atan2(dz, dx) % TAU) + TAU) % TAU; let phi = shareOf(p, th) * TAU; if (phi > Math.PI) phi -= TAU; const [a, b] = squareOf(Math.hypot(dx, dz) / reachOf(p, th), phi); return [((a + 1) / 2) * SIDE, ((b + 1) / 2) * SIDE]; };
-// a row of a plot's lattice holds every kind once: cell i of row j is kind (i·a + b) mod 1000, a with no factor in
-// common with 1000 (it ends in 1, 3, 7 or 9), a and b the row's own
-const rowOf = (p, j) => { const r4 = Math.floor(cellRnd(p.i, j, 902) * 4); return [Math.floor(cellRnd(p.i, j, 901) * 100) * 10 + 1 + 2 * r4 + (r4 >= 2 ? 2 : 0), Math.floor(cellRnd(p.i, j, 904) * KINDS)]; };
+// GROUP rows of a plot's lattice hold every kind once: the n-th cell of a group (its rows end to end) is kind
+// (n·a + b) mod KINDS, a with no factor in common with KINDS (it ends in 1, 3, 7 or 9), a and b the group's own
+const groupOf = (p, g) => { const r4 = Math.floor(cellRnd(p.i, g, 902) * 4); return [Math.floor(cellRnd(p.i, g, 901) * (KINDS / 10)) * 10 + 1 + 2 * r4 + (r4 >= 2 ? 2 : 0), Math.floor(cellRnd(p.i, g, 904) * KINDS)]; };
+const kindAt = (p, i, j) => { const [a, b] = groupOf(p, Math.floor(j / GROUP)); return ((i + SIDE * (j % GROUP)) * a + b) % KINDS; };
 /** What stands in cell (i, j) of plot p: { x, z, k (its kind), s (its size) }. */
 const standsAt = (p, i, j, sizes) => {
-  const c = (p.i << BITS) + i, [x, z] = toLand(p, i + 0.15 + 0.7 * cellRnd(c, j, 905), j + 0.15 + 0.7 * cellRnd(c, j, 906)), [a, b] = rowOf(p, j), k = (i * a + b) % KINDS;
+  const c = (p.i << BITS) + i, [x, z] = toLand(p, i + 0.15 + 0.7 * cellRnd(c, j, 905), j + 0.15 + 0.7 * cellRnd(c, j, 906)), k = kindAt(p, i, j);
   return { x, z, k, s: Math.min(SMAX, Math.max(SMIN, sizes[k] * (0.8 + 0.4 * cellRnd(c, j, 903)) * p.k)) };
 };
-// a mover's own numbers, from its hash: what it is (a person, a robot, an animal, a transport), its pace (m/s), its size,
-// its kind, and its round: a transport's a ring road of its plot (which ring, which way, where it started); the others'
-// a wander round a home (how far, how the two swings beat)
+// a mover's own numbers, from its hash: which rig it is (assets/kit/rigs.js: a walker, a rover, a dragon, …), its pace
+// (m/s), its size, its parts' kinds and sizes, and its round: a rig that keeps to the roads goes round one of its
+// plot's ring roads (which ring, which way, where it started); the others wander round a home (how far, how the two
+// swings beat)
+const SHARES = rigShares();
 const moverOf = (p, i, j) => {
   const c = (p.i << BITS) + i, h = (s) => cellRnd(c, j, s), cl = h(921), h2 = h(922), h3 = h(923), h4 = h(924), h5 = h(925), h6 = h(926);
-  const T = cl >= 0.9, A = !T && cl >= 0.75, R = !T && !A && cl >= 0.55;
-  const v = T ? 8 + 12 * h2 : A ? 0.4 + 6 * h2 * h2 : R ? 2.5 + 2.5 * h2 : 0.8 + h2, s = T ? 3 + 3 * h3 : A ? 0.4 + 1.2 * h3 : R ? 1 + 1.4 * h3 : 1.5 + 0.4 * h3;
-  if (T) return { T, v, s, k: Math.floor(h(927) * KINDS), rho: 0.3 + 0.25 * Math.floor(h4 * 3) + (h6 - 0.5) * 0.012, dir: h5 < 0.5 ? 1 : -1, th0: h6 * TAU };
+  let r = 0; while (r < RIGS.length - 1 && cl >= SHARES[r]) r++;
+  const G = RIGS[r], v = G.speed[0] + (G.speed[1] - G.speed[0]) * h2, s = G.size[0] + (G.size[1] - G.size[0]) * h3, M = { rig: G.name, T: !!G.ring, v, s, parts: G.parts.map((P, n) => [Math.floor(h(940 + n) * KINDS), s * P.size]) };
+  if (G.ring) return Object.assign(M, { rho: 0.3 + 0.25 * Math.floor(h4 * 3) + (h6 - 0.5) * 0.012, dir: h5 < 0.5 ? 1 : -1, th0: h6 * TAU });
   const th0 = h5 * TAU, rho0 = Math.sqrt(h4) * 0.8, R0 = reachOf(p, th0), a = 15 + 60 * h6, w1 = v / a;
-  return { T, v, s, k: Math.floor(h(927) * KINDS), hx: p.x + Math.cos(th0) * R0 * rho0, hz: p.z + Math.sin(th0) * R0 * rho0, a, w1, w2: w1 * (0.6 + 0.5 * h3), p1: h2 * TAU * 7, p2: h6 * TAU * 13 };
+  return Object.assign(M, { hx: p.x + Math.cos(th0) * R0 * rho0, hz: p.z + Math.sin(th0) * R0 * rho0, a, w1, w2: w1 * (0.6 + 0.5 * h3), p1: h2 * TAU * 7, p2: h6 * TAU * 13 });
 };
 /** Where a mover is at t seconds: [x, z]. */
 const moverAtJS = (p, M, t) => {
@@ -156,23 +160,30 @@ export function createStress(scene, renderer, tex) {
 
   const H = createHeap(KINDS, LEVELS.map((l) => { const n = l.n === FULLN ? FULL : l.n; return { idx: trisOf(n) * 3, verts: vertsOf(n), slots: l.slots }; }));
   const LO = uniformArray(LEVELS.map((l) => l.px));
-  // every kind's look, four rows of numbers a kind: [first tint, model], [second tint, metres a tile of its textures],
-  // [first texture's layer, second's, gloss, sway], [how uneven its snow lies, glow, light through it, its size]. Its textures:
-  // two of the world's that tile (the ground's, the barks, the stones: src/materials)
-  const LAYERS = recipes('material').filter((m) => ['ground', 'bark', 'stone', 'grass'].includes(m.kind)).map((m) => tex.layer(m)), look = new Float32Array(KINDS * 16);
+  // every kind's look, five rows of numbers a kind: [its own texture's mean colour, model], [its second tint, metres a
+  // tile of its textures], [the layer of the world's texture it takes its relief from, the layer its own texture lies in
+  // (none: -1), gloss, sway], [how uneven its snow lies, glow, light through it, its size], [when its own texture came]
+  const LAYERS = recipes('material').filter((m) => ['ground', 'bark', 'stone', 'grass'].includes(m.kind)).map((m) => tex.layer(m)), look = new Float32Array(KINDS * 20);
   let seed = 0x9E3779B9; const rand = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const sizes = Float32Array.from({ length: KINDS }, () => 0.42 + 1.2 * rand() ** 2);   // a kind's largest side, metres
   for (let k = 0; k < KINDS; k++) {
-    const B = blobLook(k), a = Math.floor(B.texA * LAYERS.length), b = (a + 1 + Math.floor(B.texB * (LAYERS.length - 1))) % LAYERS.length;
-    look.set([B.c1[0] * 1.7, B.c1[1] * 1.7, B.c1[2] * 1.7, B.model, B.c2[0] * 1.7, B.c2[1] * 1.7, B.c2[2] * 1.7, B.scale, LAYERS[a], LAYERS[b], B.gloss, B.sway, B.snow, B.glow, B.through, sizes[k]], k * 16);
+    const B = blobLook(k);
+    look.set([B.mean[0], B.mean[1], B.mean[2], B.model, B.c2[0] * 1.7, B.c2[1] * 1.7, B.c2[2] * 1.7, B.scale, LAYERS[Math.floor(B.texA * LAYERS.length)], -1, B.gloss, B.sway, B.snow, B.glow, B.through, sizes[k], -100, 0, 0, 0], k * 20);
   }
-  const mats = storage(new THREE.StorageBufferAttribute(look, 4), 'vec4', KINDS * 4), lookOf = (kind, j) => mats.element(kind.mul(uint(4)).add(uint(j)));
+  const lookRows = new THREE.StorageBufferAttribute(look, 4), mats = storage(lookRows, 'vec4', KINDS * 5), lookOf = (kind, j) => mats.element(kind.mul(uint(5)).add(uint(j)));
+  // every kind's own texture (assets/kit/blob.js: blobSkin), SKIN pixels a side: a layer of one array texture for each
+  // kind that is large enough on screen to show it, painted in a worker when it comes near, its layer given to another
+  // when it has gone (as the fine meshes are: the pump, below). Ten thousand at once would be 870 MB; these are 89.
+  const SKINS = Math.min(1024, renderer.backend.device?.limits?.maxTextureArrayLayers ?? 256);
+  const skinRT = new THREE.RenderTarget(SKIN, SKIN, { depth: SKINS, depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
+  Object.assign(skinRT.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, anisotropy: 2 }); renderer.initRenderTarget(skinRT);
+  const skinTex = texture(skinRT.texture), skins = { who: new Int32Array(SKINS).fill(-1), used: new Float64Array(SKINS), slot: new Int32Array(KINDS).fill(-1) };
   // what a pixel is given: where it is and its pattern; its normal and its shade; where it is on the thing (metres from
   // its foot, at rest) and its kind; how large the thing is on screen
   const vA = varyingProperty('vec4', 'sA'), vB = varyingProperty('vec4', 'sB'), vC = varyingProperty('vec4', 'sC'), vPx = varyingProperty('float', 'sPx');
 
-  // a thing's colour at a pixel, lit: its two textures laid on it from three sides (they stay on it as it stands), mixed
-  // by its pattern and tinted; their relief when it is large on screen; the snow on it; then its model's way of taking
+  // a thing's colour at a pixel, lit: its own texture laid on it from the sides (it stays on it as it stands); the relief
+  // of one of the world's textures when it is large on screen; the snow on it; then its model's way of taking
   // the light. One piece of code for every kind and level: what differs is read from its look.
   const shade = () => {
     const kind = uint(vC.w.add(0.5)), M0 = lookOf(kind, 0), M1 = lookOf(kind, 1), M2 = lookOf(kind, 2), M3 = lookOf(kind, 3), w = vA.xyz;
@@ -185,19 +196,17 @@ export function createStress(scene, renderer, tex) {
     const an = abs(N0), least = an.x.min(an.y).min(an.z), wt = an.sub(least).max(0), w2 = wt.mul(wt), dx = an.x.lessThanEqual(an.y).and(an.x.lessThanEqual(an.z)), dz = dx.not().and(an.z.lessThan(an.y));
     const p1 = dx.select(q.xz, q.zy), g1x = dx.select(gx.xz, gx.zy), g1y = dx.select(gy.xz, gy.zy), k1 = dx.select(w2.y, w2.x).add(1e-5), p2 = dz.select(q.xz, q.xy), g2x = dz.select(gx.xz, gx.xy), g2y = dz.select(gy.xz, gy.xy), k2 = dz.select(w2.y, w2.z).add(1e-5);
     const sides = (read) => read(p1, g1x, g1y).mul(k1).add(read(p2, g2x, g2y).mul(k2)).div(k1.add(k2));
-    // (a pixel reads only the texture its pattern shows there: both only along the pattern's edges)
-    const m = smoothstep(0.35, 0.65, vA.w), c1 = vec3(0).toVar(), c2 = vec3(0).toVar();
-    // (and a thing of a few pixels reads its textures' mean, one small read each: what the mipmaps would give it anyway)
-    const far = vPx.lessThan(FARPX), mean = (layer) => tex.a(layer, vec2(0.5)).level(8), once = (layer) => { const a = vec4(0).toVar(); If(far, () => { a.assign(mean(layer)); }).Else(() => { a.assign(sides((p, dx, dy) => tex.a(layer, p).grad(dx, dy))); }); return a; };
-    If(m.lessThan(0.995), () => { const a = once(M2.x); c1.assign(a.rgb.mul(a.rgb).mul(M0.rgb)); });
-    If(m.greaterThan(0.005), () => { const a = once(M2.y); c2.assign(a.rgb.mul(a.rgb).mul(M1.rgb)); });
+    // its colour: its own texture where it is large enough to show and has come (faded in by its size, and from when it
+    // came); else, and under that, the texture's mean: what the mipmaps would make of it anyway
+    const m = smoothstep(0.35, 0.65, vA.w), M4 = lookOf(kind, 4), own = M0.rgb.toVar(), worn = smoothstep(SKINPX * 0.85, SKINPX * 1.6, vPx).mul(smoothstep(0, GROW * 2, U.uTime.sub(M4.x)));
+    If(M2.y.greaterThan(-0.5).and(worn.greaterThan(0.004)), () => { const a = sides((p, dx, dy) => skinTex.sample(p).depth(M2.y).grad(dx, dy)); own.assign(mix(M0.rgb, a.rgb.mul(a.rgb), worn)); });
     const n = N0.toVar(), rough = float(0.7).toVar();
     If(vPx.greaterThan(RELIEF), () => {   // (its relief: only where it is large enough to show, faded in)
       const t1 = tex.n(M2.x, q.zy).grad(gx.zy, gy.zy), t2 = tex.n(M2.x, q.xz).grad(gx.xz, gy.xz), t3 = tex.n(M2.x, q.xy).grad(gx.xy, gy.xy), x = t1.xy.mul(2).sub(1), y = t2.xy.mul(2).sub(1), z = t3.xy.mul(2).sub(1);
       n.assign(normalize(N0.add(vec3(0, x.y, x.x).mul(b.x).add(vec3(y.x, 0, y.y).mul(b.y)).add(vec3(z.x, z.y, 0).mul(b.z)).mul(smoothstep(RELIEF, RELIEF * 2, vPx)))));
       rough.assign(t1.a.mul(b.x).add(t2.a.mul(b.y)).add(t3.a.mul(b.z)));
     });
-    const W = weatherOn(n, snowLift(w, M3.x)), bare = mix(c1, c2, m).mul(vB.w), col = bare.mul(W.keep).add(W.add).toVar();
+    const W = weatherOn(n, snowLift(w, M3.x)), bare = own.mul(vB.w), col = bare.mul(W.keep).add(W.add).toVar();
     // the light: the sky's, and the sun's through the clouds and the shadow map
     const sunK = cloudAtOne(w);
     const V = normalize(U.uCam.sub(w)), S = U.uSunDir, sun = U.uSun.mul(sunK), sky = skyLight(n), ndl = max(n.dot(S), 0), Hf = normalize(V.add(S)), ndh = max(n.dot(Hf), 0), nv = max(n.dot(V), 0);
@@ -221,7 +230,7 @@ export function createStress(scene, renderer, tex) {
 
   const SLOT = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0);   // where a mesh's things lie in its tier's packing, told by the mesh: every level's and every bucket's material is then one shader
   // its last level, a dot: a pixel or two of it, so one triangle turned to the eye, as large on screen as the thing, in
-  // the mean of its textures and tints, plainly lit, sinking away under a pixel. A small shader of its own: a million
+  // its texture's mean colour, plainly lit, sinking away under a pixel. A small shader of its own: a million
   // of them are a million times its corners' work, and they read nothing of the heap.
   const vDot = varyingProperty('vec4', 'sDot');
   const dot = (src) => {
@@ -240,9 +249,8 @@ export function createStress(scene, renderer, tex) {
     m.fragmentNode = Fn(() => {
       const out = vec4(0).toVar();
       If(unlit().not(), () => {
-        const kind = uint(vDot.w.add(0.5)), M0 = lookOf(kind, 0), M1 = lookOf(kind, 1), M2 = lookOf(kind, 2), M3 = lookOf(kind, 3), w = vDot.xyz, n = normalize(normalize(U.uCam.sub(w)).add(vec3(0, 1, 0)));
-        const mean = (layer) => { const a = tex.a(layer, vec2(0.5)).level(8); return a.rgb.mul(a.rgb); }, W = weatherOn(n, M3.x.mul(0.5));
-        const col = mean(M2.x).mul(M0.rgb).add(mean(M2.y).mul(M1.rgb)).mul(0.5 * 0.85).mul(W.keep).add(W.add);
+        const kind = uint(vDot.w.add(0.5)), M0 = lookOf(kind, 0), M3 = lookOf(kind, 3), w = vDot.xyz, n = normalize(normalize(U.uCam.sub(w)).add(vec3(0, 1, 0)));
+        const W = weatherOn(n, M3.x.mul(0.5)), col = M0.rgb.mul(0.85).mul(W.keep).add(W.add);
         out.assign(finish(col.mul(skyLight(n).add(U.uSun.mul(sunDim()).mul(cloudShade(w)).mul(max(n.dot(U.uSunDir), 0)))), w));
       });
       return out;
@@ -252,8 +260,8 @@ export function createStress(scene, renderer, tex) {
 
   const tiers = [];
   // the one material of every mesh level: level i's (shadow: the whole of it, a little smaller, for the light only)
-  const meshOf = (src, i, shadow = false) => {
-    const lv = uniform(i, 'uint'), whole = uniform(shadow ? 1 : 0), lo = uniform(LEVELS[i].px), morphs = uniform(coarserOf(i) ? 1 : 0), m = new THREE.NodeMaterial();   // its level as numbers: every level is one shader
+  const meshOf = (src, i, shadow = false, parts = false) => {
+    const lv = uniform(i, 'uint'), whole = uniform(shadow ? 1 : 0), lo = uniform(LEVELS[i].px), top = uniform(i ? LEVELS[i - 1].px : LEVELS[0].px * 2), morphs = uniform(coarserOf(i) ? 1 : 0), m = new THREE.NodeMaterial();   // its level as numbers: every level is one shader
     m.vertexNode = Fn(() => {
       const A = src.readAt(0, SLOT), B = src.readAt(1, SLOT), clip = offScreen().toVar();
       const px = A.w.mul(PXK).div(max(camDist(A.xy), 1e-3));   // its size on screen now
@@ -264,14 +272,19 @@ export function createStress(scene, renderer, tex) {
         for (let j = 0; j < L - 1; j++) want.addAssign(px.lessThanEqual(LO.element(j)).select(uint(1), uint(0)));
         If(vertexIndex.lessThan(R.z).and(whole.greaterThan(0.5).or(effective(heldOf(R), want, lv))), () => {
           // how far it has turned into the next coarser mesh: over its last pixels, and backwards from when it came
-          const t = float(1).sub(whole).mul(SMOOTH).mul(max(morphs.mul(float(1).sub(smoothstep(lo, lo.mul(MORPH), px))), float(1).sub(smoothstep(0, GROW, sinceCame(R, U.uTime)))));
+          // (over the whole of its range, top to bottom: it is never still and never jumps)
+          const t = float(1).sub(whole).mul(SMOOTH).mul(max(morphs.mul(float(1).sub(smoothstep(lo, top, px))), float(1).sub(smoothstep(0, GROW, sinceCame(R, U.uTime)))));
           const v = heapVertex(H, R, vertexIndex, t), cs = cos(B.x), sn = sin(B.x), turn = (p) => vec3(p.x.mul(cs).sub(p.z.mul(sn)), p.y, p.x.mul(sn).add(p.z.mul(cs)));
-          const k = whole.greaterThan(0.5).select(float(SHADE.shrink), float(1)), rest = turn(v.p.sub(vec3(0, 0.4, 0)).mul(k).add(vec3(0, 0.4, 0)).mul(A.w));
+          // a mover's part: made longer or flatter, held at its pivot, laid and moved as its rig says (C: its pitch about
+          // the mover's side, its roll about the mover's way, its stretch, its pivot), then set on the mover
+          const C = parts ? src.readAt(2, SLOT) : null, wd = parts ? C.z.sqrt() : null, cp = parts ? cos(C.x) : null, sp = parts ? sin(C.x) : null, cr = parts ? cos(C.y) : null, sr = parts ? sin(C.y) : null;
+          const laid = (q) => { const y1 = q.y.mul(cr).sub(q.z.mul(sr)); return vec3(q.x.mul(cp).sub(y1.mul(sp)), q.x.mul(sp).add(y1.mul(cp)), q.y.mul(sr).add(q.z.mul(cr))); };
+          const k = whole.greaterThan(0.5).select(float(SHADE.shrink), float(1)), rest = turn((parts ? laid(vec3(v.p.x.div(wd), v.p.y.sub(C.w).mul(C.z), v.p.z.div(wd))) : v.p.sub(vec3(0, 0.4, 0)).mul(k).add(vec3(0, 0.4, 0))).mul(A.w));
           // the wind: its top sways, its foot stays (as a tree's: src/scatter/trees.js), as far as its look says
           const up = clamp(v.p.y, 0, 1), ws = windStrength, bend = up.mul(up).mul(A.w).mul(B.z);
           const kk = windAt(A.xy).mul(bend).add(vec2(sin(U.uTime.mul(0.9).add(B.w)), cos(U.uTime.mul(0.7).add(B.w))).mul(bend).mul(ws.mul(0.4).add(smoothstep(0, 0.08, ws).mul(0.06))));
           const w = vec3(A.x, A.z, A.y).add(rest).add(vec3(kk.x, 0, kk.y));
-          vA.assign(vec4(w, v.mask)); vB.assign(vec4(turn(v.n), v.shade)); vC.assign(vec4(rest, B.y));
+          vA.assign(vec4(w, v.mask)); vB.assign(vec4(turn(parts ? laid(v.n) : v.n), v.shade)); vC.assign(vec4(rest, B.y));
           clip.assign(clipOf(w));
         });
       }
@@ -300,9 +313,9 @@ export function createStress(scene, renderer, tex) {
       const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), plot = plotOfCell(c), ci = inPlot(c), cj = c.y, base = uint(plot).mul(uint(ROW)), h = (s) => rnd(c.x, c.y, uint(s)), whole = all.greaterThan(0.5);
       const pos = place(base, float(ci).add(h(905).mul(0.7).add(0.15)), float(cj).add(h(906).mul(0.7).add(0.15))), dist = camDist(pos), range = mix(dist, length(pos.sub(U.uCam.xz)), all);
       If(range.lessThan(band.far).and(range.greaterThanEqual(band.near)).and(whole.or(inView(pos, round, SMAX))), () => {
-        // its kind: its row holds every kind once (rowOf, above)
-        const r4 = int(floor(rnd(plot, cj, uint(902)).mul(4))), a = int(floor(rnd(plot, cj, uint(901)).mul(100))).mul(10).add(1).add(r4.mul(2)).add(r4.greaterThanEqual(2).select(int(2), int(0)));
-        const kind = uint(ci.mul(a).add(int(floor(rnd(plot, cj, uint(904)).mul(KINDS)))).mod(int(KINDS))), size = clamp(lookOf(kind, 3).w.mul(h(903).mul(0.4).add(0.8)).mul(PT.element(base.add(uint(3)))), SMIN, SMAX), span = size.mul(PXK);
+        // its kind: its group of rows holds every kind once (groupOf, above)
+        const g = cj.div(int(GROUP)), r4 = int(floor(rnd(plot, g, uint(902)).mul(4))), a = int(floor(rnd(plot, g, uint(901)).mul(KINDS / 10))).mul(10).add(1).add(r4.mul(2)).add(r4.greaterThanEqual(2).select(int(2), int(0)));
+        const kind = uint(ci.add(cj.mod(int(GROUP)).mul(int(SIDE))).mul(a).add(int(floor(rnd(plot, g, uint(904)).mul(KINDS)))).mod(int(KINDS))), size = clamp(lookOf(kind, 3).w.mul(h(903).mul(0.4).add(0.8)).mul(PT.element(base.add(uint(3)))), SMIN, SMAX), span = size.mul(PXK);
         // of this level: it is there (heap.js), and the thing is the size on screen the level is drawn at, or larger
         // while its next finer level has not come
         const R = heapRow(H, kind, lv), has = R.z.greaterThan(uint(0));
@@ -349,48 +362,59 @@ export function createStress(scene, renderer, tex) {
   for (let i = 0; i < L; i++) tier(i);
   tier(SHADE.level, true);
 
-  // ---- the movers: ten thousand a plot, each where its round has brought it by now. One tier, packed every frame; each
-  // mover dropped into the draw of the level its size on screen asks for (the finest of it that is there) ----
-  // where mover (mx, my) of a plot is at t, which way it faces, its size, its kind (the same in JS above: moverOf, moverAtJS)
-  const moverAt = (base, mx, my, t) => {
-    const h = (s) => rnd(mx, my, uint(s)), cl = h(921), h2 = h(922), h3 = h(923), h4 = h(924), h5 = h(925), h6 = h(926);
-    const isT = cl.greaterThanEqual(0.9), isA = cl.greaterThanEqual(0.75), isR = cl.greaterThanEqual(0.55);
-    const v = isT.select(h2.mul(12).add(8), isA.select(h2.mul(h2).mul(6).add(0.4), isR.select(h2.mul(2.5).add(2.5), h2.add(0.8))));
-    const size = isT.select(h3.mul(3).add(3), isA.select(h3.mul(1.2).add(0.4), isR.select(h3.mul(1.4).add(1), h3.mul(0.4).add(1.5))));
-    const pos = vec2(0).toVar(), yaw = float(0).toVar();
-    If(isT, () => {   // a transport: round one of its plot's ring roads, one way or the other
-      const rho = floor(h4.mul(3)).mul(0.25).add(0.3).add(h6.sub(0.5).mul(0.012)), dir = h5.lessThan(0.5).select(float(1), float(-1)), th = h6.mul(TAU).add(dir.mul(v).mul(t).div(PT.element(base.add(uint(2))).mul(rho)));
-      pos.assign(middle(base).add(vec2(cos(th), sin(th)).mul(reach(base, th)).mul(rho))); yaw.assign(th.add(dir.mul(Math.PI / 2)));
-    }).Else(() => {   // the others: a wander round a home, two swings that never quite repeat
-      const th0 = h5.mul(TAU), home = middle(base).add(vec2(cos(th0), sin(th0)).mul(reach(base, th0)).mul(sqrt(h4).mul(0.8))), a = h6.mul(60).add(15), w1 = v.div(a), w2 = w1.mul(h3.mul(0.5).add(0.6)), e1 = w1.mul(t).add(h2.mul(TAU * 7)), e2 = w2.mul(t).add(h6.mul(TAU * 13));
-      pos.assign(home.add(vec2(sin(e1), sin(e2).mul(0.7)).mul(a))); yaw.assign(atan(cos(e2).mul(0.7).mul(w2), cos(e1).mul(w1)));
-    });
-    return { pos, yaw, size, kind: uint(floor(h(927).mul(KINDS))) };
-  };
+  // ---- the movers: ten thousand a plot, each a rig of parts (assets/kit/rigs.js), each part where the mover's round and
+  // its own move have brought it by now. One tier, packed every frame; each part dropped into the draw of the level its
+  // size on screen asks for (the finest of it that is there) ----
+  const rigs = storage(new THREE.StorageBufferAttribute(rigRows(), 4), 'vec4', RIGS.length * RIG_ROWS), rigRow = (rig, n) => rigs.element(rig.mul(uint(RIG_ROWS)).add(n)), SH = uniformArray(SHARES);
   {
     const far = uniform(MFAR), round = uniform(MMAX);
     const live = (c) => {
-      const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), bucket = float(L - 1).toVar(), base = uint(plotOfCell(c)).mul(uint(ROW));
-      const M = moverAt(base, c.x, c.y, U.uTime), dist = camDist(M.pos);
-      If(dist.lessThan(far).and(inView(M.pos, round, MMAX)), () => {
-        const px = M.size.mul(PXK).div(max(dist, 1e-3));
-        If(px.greaterThan(LEVELS[L - 1].px), () => {
-          // the level its size asks for; drawn at the finest that is there and no finer than that
-          const want = uint(0).toVar(), held = heldOf(heapRow(H, M.kind, uint(L - 1))), at = uint(L - 1).toVar();
-          for (let j = 0; j < L - 1; j++) want.addAssign(px.lessThanEqual(LO.element(j)).select(uint(1), uint(0)));
-          for (let l = L - 2; l >= 0; l--) If(want.lessThanEqual(uint(l)).and(held.shiftRight(uint(l)).bitAnd(uint(1)).equal(uint(1))), () => { at.assign(uint(l)); });
-          A.assign(vec4(M.pos, groundAt(M.pos, float(0)).sub(M.size.mul(0.02)), M.size));
-          B.assign(vec4(M.yaw, float(M.kind), 0, 0));
-          bucket.assign(float(at)); alive.assign(1);
+      const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), C = vec4(0, 0, 1, 0).toVar(), bucket = float(L - 1).toVar(), plot = plotOfCell(c), base = uint(plot).mul(uint(ROW));
+      // which mover of the plot, which of its parts; its rig (the same in JS above: moverOf)
+      const low = inPlot(c), part = uint(low.div(int(MSIDE))), mx = plot.shiftLeft(int(BITS)).add(low.mod(int(MSIDE))), my = c.y, h = (s) => rnd(mx, my, uint(s)), cl = h(921), rig = uint(0).toVar();
+      for (let r = 0; r < RIGS.length - 1; r++) rig.addAssign(cl.greaterThanEqual(SH.element(r)).select(uint(1), uint(0)));
+      const P0 = rigRow(rig, part.mul(uint(3)).add(uint(2)));
+      If(P0.w.greaterThan(0), () => {   // (the rig has such a part)
+        const I0 = rigRow(rig, uint(0)), I1 = rigRow(rig, uint(1)), P1 = rigRow(rig, part.mul(uint(3)).add(uint(3))), P2 = rigRow(rig, part.mul(uint(3)).add(uint(4)));
+        const h2 = h(922), h3 = h(923), h4 = h(924), h5 = h(925), h6 = h(926), v = mix(I0.x, I0.y, h2), S = mix(I0.z, I0.w, h3), move = P1.z, chain = move.greaterThan(3.5);
+        // a link of a chain is where the mover was a while ago: its own clock runs that far behind
+        const t = U.uTime.sub(chain.select(P1.w.mul(S).div(v.max(0.3)), float(0))), pos = vec2(0).toVar(), yaw = float(0).toVar();
+        If(I1.x.greaterThan(0.5), () => {   // on the roads: round one of its plot's ring roads, one way or the other
+          const rho = floor(h4.mul(3)).mul(0.25).add(0.3).add(h6.sub(0.5).mul(0.012)), dir = h5.lessThan(0.5).select(float(1), float(-1)), th = h6.mul(TAU).add(dir.mul(v).mul(t).div(PT.element(base.add(uint(2))).mul(rho)));
+          pos.assign(middle(base).add(vec2(cos(th), sin(th)).mul(reach(base, th)).mul(rho))); yaw.assign(th.add(dir.mul(Math.PI / 2)));
+        }).Else(() => {   // the others: a wander round a home, two swings that never quite repeat
+          const th0 = h5.mul(TAU), home = middle(base).add(vec2(cos(th0), sin(th0)).mul(reach(base, th0)).mul(sqrt(h4).mul(0.8))), a = h6.mul(60).add(15), w1 = v.div(a), w2 = w1.mul(h3.mul(0.5).add(0.6)), e1 = w1.mul(t).add(h2.mul(TAU * 7)), e2 = w2.mul(t).add(h6.mul(TAU * 13));
+          pos.assign(home.add(vec2(sin(e1), sin(e2).mul(0.7)).mul(a))); yaw.assign(atan(cos(e2).mul(0.7).mul(w2), cos(e1).mul(w1)));
+        });
+        // the part on the mover: its place from the mover's foot (forward, up, sideways), and its move: g, the mover's
+        // stride (how far it has come, in strides)
+        const g = t.mul(v).div(S.mul(0.3)), fwd = vec2(cos(yaw), sin(yaw)), side = vec2(sin(yaw).negate(), cos(yaw));
+        const at = pos.add(fwd.mul(chain.select(float(0), P0.x.mul(S)))).add(side.mul(P0.z.mul(S).add(chain.select(P2.x.mul(S).mul(sin(g.mul(0.5).add(P2.y))), float(0))))), size = S.mul(P0.w), dist = camDist(at);
+        If(dist.lessThan(far).and(inView(at, round, MMAX)), () => {
+          const px = size.mul(PXK).div(max(dist, 1e-3));
+          If(px.greaterThan(LEVELS[L - 1].px), () => {
+            const kind = uint(floor(rnd(mx, my, uint(940).add(part)).mul(KINDS)));
+            // the level its size asks for; drawn at the finest that is there and no finer than that
+            const want = uint(0).toVar(), held = heldOf(heapRow(H, kind, uint(L - 1))), lvl = uint(L - 1).toVar();
+            for (let j = 0; j < L - 1; j++) want.addAssign(px.lessThanEqual(LO.element(j)).select(uint(1), uint(0)));
+            for (let l = L - 2; l >= 0; l--) If(want.lessThanEqual(uint(l)).and(held.shiftRight(uint(l)).bitAnd(uint(1)).equal(uint(1))), () => { lvl.assign(uint(l)); });
+            // (what flies: so high over the ground, rising and falling a little)
+            const up = mix(I1.y, I1.z, h4).mul(sin(t.mul(0.4).add(h5.mul(TAU))).mul(0.15).add(1));
+            A.assign(vec4(at, groundAt(at, float(0)).add(up).add(P0.y.mul(S)), size));
+            B.assign(vec4(yaw, float(kind), 0, 0));
+            C.assign(vec4(P2.z.add(move.greaterThan(0.5).and(move.lessThan(1.5)).select(P1.w.mul(sin(g.add(P2.x))), float(0))).add(move.greaterThan(1.5).and(move.lessThan(2.5)).select(g.mul(P1.w), float(0))),
+              P2.w.add(move.greaterThan(2.5).and(move.lessThan(3.5)).select(P1.w.mul(sin(t.mul(P2.x).mul(20).add(P2.y))), float(0))), P1.x, P1.y));
+            bucket.assign(float(lvl)); alive.assign(1);
+          });
         });
       });
-      return { alive: alive.greaterThan(0.5), data: [A, B], bucket };
+      return { alive: alive.greaterThan(0.5), data: [A, B, C], bucket };
     };
-    const T = new Tier(scene, LEVELS.map((_, i) => drawOf(i)), (src, k) => (k === L - 1 ? dot(src) : meshOf(src, k)), { cell: CELL * 10, P: MSIDE, near: 0, far: MFAR, order: 1, live, gpu: true, cap: MCAP, slots: 2 });
+    const T = new Tier(scene, LEVELS.map((_, i) => drawOf(i)), (src, k) => (k === L - 1 ? dot(src) : meshOf(src, k, false, true)), { cell: CELL * 10, P: MSIDE, near: 0, far: MFAR, order: 1, live, gpu: true, cap: MCAP, slots: 3 });
     T.band = () => { T.near = 0; T.far = MFAR; }; T.movers = true; T.viewKeyed = true; T.asset = 'Stress: movers';
-    T.select = (cx, cz, h0, s, dy) => {   // its patches: the whole of each plot near (its ten thousand)
+    T.select = (cx, cz, h0, s, dy) => {   // its patches: every part of every mover of each plot near (a patch a part: its ten thousand)
       const far2 = T.far * T.far * s * s - dy * dy; let n = 0;
-      if (far2 > 0) for (const p of plotsNear(cx, cz, h0, Math.sqrt(far2), MMAX)) if (n < MAXP) T.list[n++].set(p.i << BITS, 0);
+      if (far2 > 0) for (const p of plotsNear(cx, cz, h0, Math.sqrt(far2), MMAX)) for (let q = 0; q < PARTS && n < MAXP; q++) T.list[n++].set((p.i << BITS) + q * MSIDE, 0);
       T.n = n; for (const m of T.meshes) m.visible = n > 0;
     };
     T.meshes.forEach((m, k) => { if (k < L - 1) m.layers.enable(1); m.renderOrder = 1.005 + k * 0.01; });   // they cast their shadows as drawn; near ones drawn first
@@ -404,24 +428,57 @@ export function createStress(scene, renderer, tex) {
   let nextId = 0, turn = 0, busy = 0;
   const ask = (jobs) => new Promise((res) => { const id = nextId++; waiting.set(id, res); workers[turn++ % workers.length].postMessage({ id, jobs }); });
   for (const w of workers) w.onmessage = ({ data }) => { waiting.get(data.id)(data.out); waiting.delete(data.id); };
-  const stats = { coarseMs: 0, built: 0, put: 0, full: 0 }, t0 = performance.now();
-  let coarse = 0;
-  for (let k = 0; k < KINDS; k += 40) {
-    const jobs = []; for (let j = k; j < Math.min(KINDS, k + 40); j++) for (let l = STREAMED; l < L; l++) jobs.push([j, l]);
-    ask(jobs.map(([j, l]) => [j, LEVELS[l].n, coarserOf(l)])).then((out) => { out.forEach((mesh, n) => H.put(jobs[n][0], jobs[n][1], mesh, 0)); coarse += 40; if (coarse >= KINDS) stats.coarseMs = Math.round(performance.now() - t0); });
-  }
+  const stats = { coarseMs: 0, built: 0, put: 0, full: 0, skins: 0 }, t0 = performance.now();
+  // every kind's dot is there from the start (it is the same three corners for all); its two coarse meshes are built in
+  // the workers once the first frames are drawn (a start that builds ten thousand kinds beside it is a slow start)
+  { const dotMesh = blobMesh(0, LEVELS[L - 1].n); for (let k = 0; k < KINDS; k++) H.put(k, L - 1, dotMesh, 0, 0, 0, true); H.sync(0, KINDS); }
+  let coarse = -1;
+  const fill = () => {
+    coarse = 0;
+    for (let k = 0; k < KINDS; k += 100) {   // (a hundred kinds a message, sent to the GPU as one piece)
+      const jobs = []; for (let j = k; j < k + 100; j++) for (let l = STREAMED; l < L - 1; l++) jobs.push([j, l]);
+      ask(jobs.map(([j, l]) => [j, LEVELS[l].n, coarserOf(l)])).then((out) => { out.forEach((mesh, n) => H.put(jobs[n][0], jobs[n][1], mesh, 0, 0, 0, true)); H.sync(k, 100); coarse += 100; if (coarse >= KINDS) stats.coarseMs = Math.round(performance.now() - t0); });
+    }
+  };
   const putAt = new Float64Array(KINDS * L).fill(-1e9);   // when a kind's level was put in (the page's clock, ms)
+  const skinAt = new Int32Array(KINDS);   // the round a kind's own texture was last wanted in
   const wantAt = new Int32Array(KINDS * L); let speed = 0, lx = 0, ly = 0, lz = 0, lt = 0;   // wantAt: the round a kind's level was last wanted in; speed: the camera's, metres a second
   const pending = new Set(); let scanAt = -1e9, sx = 1e9, sz = 1e9, sk = '', round = 1;   // round: each look at what stands near; a level wanted in the last one is not put out
   // what is asked of the workers: a few at a time, the next as one comes back; of a level no more than it has room for
   let queue = []; const asked = new Int32Array(L);
   const feed = () => {
     while (busy < 6 && queue.length) {
-      const { k, l } = queue.shift(), id = k * L + l;
-      if (pending.has(id) || H.has(k, l) || H.room(l, round) <= asked[l]) continue;
-      pending.add(id); busy++; asked[l]++;
-      ask([[k, nOf(k, l), coarserOf(l)]]).then(([mesh]) => { busy--; stats.built++; if (!l) stats.full++; done.push({ k, l, mesh }); feed(); });
+      const batch = [];   // (the small levels a dozen a message, the large ones one)
+      while (queue.length && batch.length < (batch.length && batch[0].l >= 3 ? 12 : 1)) {
+        const q = queue[0], id = q.k * L + q.l; if (batch.length && q.l < 3) break;
+        queue.shift(); if (pending.has(id) || H.has(q.k, q.l) || H.room(q.l, round) <= asked[q.l]) continue;
+        pending.add(id); asked[q.l]++; batch.push(q);
+      }
+      if (!batch.length) continue;
+      busy++;
+      ask(batch.map(({ k, l }) => [k, nOf(k, l), coarserOf(l)])).then((out) => { busy--; out.forEach((mesh, n) => { stats.built++; if (!batch[n].l) stats.full++; done.push({ k: batch[n].k, l: batch[n].l, mesh }); }); feed(); });
     }
+  };
+  // a kind's own texture: asked of the workers like a mesh; when it has come, written into a layer of the array (a free
+  // one, or the one longest unwanted) and its look told where it lies, when it came and its true mean colour
+  const skinAsks = [], skinDone = [], skinPending = new Set(); let skinBusy = 0;
+  const skinFeed = () => {
+    while (skinBusy < 3 && skinAsks.length) {
+      const ks = []; let room = 0; for (let i = 0; i < SKINS; i++) if (skins.who[i] < 0 || skins.used[i] < round) room++;
+      while (skinAsks.length && ks.length < 4) { const k = skinAsks.shift(); if (skinPending.has(k) || skins.slot[k] >= 0 || room <= skinPending.size) continue; skinPending.add(k); ks.push(k); }
+      if (!ks.length) continue;
+      skinBusy++; ask(ks.map((k) => ['skin', k, SKIN])).then((out) => { skinBusy--; out.forEach((S, n) => skinDone.push({ k: ks[n], S })); skinFeed(); });
+    }
+  };
+  const skinPut = (k, S) => {
+    let at = -1, old = Infinity; for (let i = 0; i < SKINS; i++) { if (skins.who[i] < 0) { at = i; break; } if (skins.used[i] < round && skins.used[i] < old) { old = skins.used[i]; at = i; } }
+    if (at < 0) return false;
+    if (skins.who[at] >= 0) { const o = skins.who[at]; skins.slot[o] = -1; look[o * 20 + 9] = -1; lookRows.addUpdateRange(o * 20 + 8, 4); }
+    const dev = renderer.backend.device, gpu = renderer.backend.get(skinRT.texture).texture;
+    S.levels.forEach((data, m) => { const n = SKIN >> m; dev.queue.writeTexture({ texture: gpu, mipLevel: m, origin: { x: 0, y: 0, z: at } }, data, { bytesPerRow: n * 4, rowsPerImage: n }, { width: n, height: n, depthOrArrayLayers: 1 }); });
+    skins.who[at] = k; skins.slot[k] = at; skins.used[at] = round;
+    look.set(S.mean, k * 20); look[k * 20 + 9] = at; look[k * 20 + 16] = U.uTime.value; lookRows.addUpdateRange(k * 20, 20); lookRows.needsUpdate = true; stats.skins++;
+    return true;
   };
   // what the CPU knows of what stands near: a block of a plot's lattice (BL cells a side) worked out when first looked
   // at, a few kept; and a plot's movers' own numbers
@@ -443,6 +500,7 @@ export function createStress(scene, renderer, tex) {
       cp.slice(0, PLOTS).forEach((c, i) => { const p = plotOf(c, i); PL.push(p); plotRows.array.set([p.x, p.z, p.mean, p.k, ...p.R, ...p.TH], i * ROW); });
       plotRows.needsUpdate = true;
     }
+    if (coarse < 0 && window.__s8?.loadMs) fill();
     const now = performance.now(), cam = U.uCam.value, dy = U.uDy.value, inv = U.uLodInv.value, K = pxK(), key = `${inv.toFixed(2)}|${K.toFixed(0)}`;
     if (API.pause) return;
     const dt = Math.max(1e-3, (now - lt) / 1000), v = Math.hypot(cam.x - lx, cam.y - ly, cam.z - lz) / dt; lx = cam.x; ly = cam.y; lz = cam.z; lt = now;
@@ -451,19 +509,21 @@ export function createStress(scene, renderer, tex) {
     // come and grown: each grows out of the one before it, one after another, never two at once)
     for (let sent = 0, n = done.length; n > 0 && sent < 700000; n--) {
       const d = done.shift(), id = d.k * L + d.l;
-      if (d.l < STREAMED - 1 && wantAt[id] >= round - 1 && (pending.has(id + 1) || now - putAt[id + 1] < GROW * 1000)) { done.push(d); continue; }
+      if (d.l < 2 && wantAt[id] >= round - 1 && (pending.has(id + 1) || now - putAt[id + 1] < GROW * 1000)) { done.push(d); continue; }
       pending.delete(id); asked[d.l]--; if (wantAt[id] < round - 1) continue;
       sent += d.mesh.index.length; if (H.put(d.k, d.l, d.mesh, round, round, U.uTime.value)) { stats.put++; putAt[id] = now; }
     }
+    for (let n = 0; n < 6 && skinDone.length; n++) { const d = skinDone.shift(); skinPending.delete(d.k); if (skinAt[d.k] >= round - 1) skinPut(d.k, d.S); }   // (a few textures a frame)
     if (Math.hypot(cam.x - sx, cam.z - sz) < 0.7 && key === sk && now - scanAt < 300) return;
     sx = cam.x; sz = cam.z; sk = key; scanAt = now; round++;
     // as far as the coarsest of the fine levels is asked for (and a fifth): of what stands, and of the largest mover
-    const lo = LEVELS[STREAMED - 1].px, reachOfSize = (s) => (s * K * 1.2) / (lo * inv), Rs = reachOfSize(SMAX), Rm = reachOfSize(MMAX), asks = [], ahead = speed * 0.35, t = U.uTime.value;
+    const lo = LEVELS[STREAMED - 1].px, reachOfSize = (s) => (s * K * 1.2) / (lo * inv), Rs = reachOfSize(SMAX), Rm = reachOfSize(MMAX), asks = [], want = [], ahead = speed * 0.35, t = U.uTime.value;
     if (Rm <= dy) { queue = []; return; }
     // a thing s metres large, d metres off: its size on screen now, and as it will be when a mesh asked for now has come
     // (`ahead`: the camera travelling, and the thing itself: a fine level that will have been passed by then is not asked for)
     const wants = (k, s, d, own) => {
       const px = (s * K * 1.2) / Math.max(1e-3, d * inv), then = (s * K * 1.2) / ((d + ahead + own) * inv);
+      if (px > SKINPX) { skinAt[k] = round; if (skins.slot[k] >= 0) skins.used[skins.slot[k]] = round; else if (then > SKINPX && !skinPending.has(k)) want.push([px, k]); }
       for (let l = STREAMED - 1; l >= 0 && px > LEVELS[l].px; l--) {
         if (H.has(k, l)) { H.touch(k, l, round); wantAt[k * L + l] = round; }
         else if (then > LEVELS[l].px) { wantAt[k * L + l] = round; if (!pending.has(k * L + l)) asks.push({ k, l, px }); }
@@ -478,9 +538,10 @@ export function createStress(scene, renderer, tex) {
           for (let n = 0; n < BL * BL; n++) { if (!b.S[n]) continue; const d = Math.hypot(b.X[n] - cam.x, b.Z[n] - cam.z, dy); if (d < Rs) wants(b.K[n], b.S[n], d, 0); }
         }
       }
-      for (const M of moversOf(p)) { const [x, z] = moverAtJS(p, M, t), d = Math.hypot(x - cam.x, z - cam.z, dy); if (d < reachOfSize(M.s)) wants(M.k, M.s, d, M.v * 0.35); }   // what passes
+      for (const M of moversOf(p)) { const [x, z] = moverAtJS(p, M, t), d = Math.hypot(x - cam.x, z - cam.z, dy); if (d < reachOfSize(M.s)) for (const [k, s] of M.parts) wants(k, s, d, M.v * 0.35); }   // what passes: each of its parts
     }
     queue = asks.sort((p, q) => q.l - p.l || q.px - p.px); feed();
+    skinAsks.length = 0; for (const [, k] of want.sort((a, b) => b[0] - a[0])) skinAsks.push(k); skinFeed();
   };
   tiers.solid = pump;
 
@@ -489,10 +550,10 @@ export function createStress(scene, renderer, tex) {
     heap: H, tiers, stats, levels: LEVELS, plots: PL, sizes, pause: false, smooth: SMOOTH,
     standsAt: (pi, i, j) => standsAt(PL[pi], i, j, sizes), toLand: (pi, fi, fj) => toLand(PL[pi], fi, fj), toLattice: (pi, x, z) => toLattice(PL[pi], x, z),
     movers: (pi, t = U.uTime.value) => { while (moversOf(PL[pi]).length < MSIDE * MSIDE); return API.moversNow(pi, t); },
-    moversNow: (pi, t) => moversOf(PL[pi]).map((M) => { const [x, z] = moverAtJS(PL[pi], M, t); return { x, z, k: M.k, s: M.s, v: M.v, transport: M.T }; }),
+    moversNow: (pi, t) => moversOf(PL[pi]).map((M) => { const [x, z] = moverAtJS(PL[pi], M, t); return { x, z, rig: M.rig, s: M.s, v: M.v, parts: M.parts.length }; }),
     /** A plot counted, cell by cell: how many stand in it, of how many kinds, the fewest and the most of a kind; and the world's sums. */
     census(pi = 0) {
-      const p = PL[pi], n = new Uint32Array(KINDS); for (let j = 0; j < SIDE; j++) { const [a, b] = rowOf(p, j); for (let i = 0; i < SIDE; i++) n[(i * a + b) % KINDS]++; }
+      const p = PL[pi], n = new Uint32Array(KINDS); for (let j = 0; j < SIDE; j++) for (let i = 0; i < SIDE; i++) n[kindAt(p, i, j)]++;
       return { plot: p.id, stand: n.reduce((x, y) => x + y, 0), kinds: n.filter(Boolean).length, least: Math.min(...n), most: Math.max(...n), movers: MSIDE * MSIDE, plots: PL.length, standing: PL.length * SIDE * SIDE, moving: PL.length * MSIDE * MSIDE };
     },
     async counts() {
@@ -504,7 +565,7 @@ export function createStress(scene, renderer, tex) {
         if (full) for (let j = 0; j < count; j++) tris += trisOf(fullOf(data[1][j * 4 + 1])); else tris = count * trisOf(LEVELS[T.level].n);
         out.push({ tier: T.asset, packed: count, tris, patches: T.n, over: T.over });
       }
-      return { tiers: out, held: H.held(), pending: pending.size, ...stats, heapMB: +(H.bytes / 1048576).toFixed(1) };
+      return { tiers: out, held: H.held(), skinsHeld: skins.who.filter((x) => x >= 0).length, pending: pending.size, ...stats, heapMB: +(H.bytes / 1048576).toFixed(1) };
     },
   });
   return tiers;

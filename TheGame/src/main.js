@@ -42,7 +42,9 @@ import { createCity } from './city/index.js';   // the city's plots over the lan
 const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
 const params = new URLSearchParams(location.search);
-const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance', forceWebGL: params.has('webgl'), trackTimestamp: params.has('gputime') });   // alpha false: the canvas is opaque (what is drawn with alpha to coverage, a tree's needles, leaves its alpha in the picture: it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js)
+// (the stress stand keeps its kinds' own textures in one array of many layers: more than a device gives unasked; src/scatter/stress.js)
+const layers = params.has('stress') ? Math.min(2048, (await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits?.maxTextureArrayLayers ?? 256) : 256;
+const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance', forceWebGL: params.has('webgl'), trackTimestamp: params.has('gputime'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (what is drawn with alpha to coverage, a tree's needles, leaves its alpha in the picture: it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js)
 const keptMeshes = primeMeshes();   // the meshes built before, read back while the renderer starts (src/core/meshes.js)
 await renderer.init();
 const meshesKept = await keptMeshes;

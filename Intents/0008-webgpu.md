@@ -999,6 +999,25 @@ shadows and the grass.
   milliseconds a run (at 45 m this run read 3.8, the last 2.0). No part of the stand stands out as the cost: each is
   about a millisecond. Real Safari not read after the change.
 
+### 2026-11-13, ten thousand kinds with a texture each, movers of moving parts, longer hand-overs (16:22)
+
+- **Asked:** "go to 10.000 different asset kinds each with their unique texture"; the movers given "random
+  transportation parts, like wheels, or walking legs 2 or 4 or 10 … flying around as well, dragon like shapes, snakes"
+  (triangle counts matter, not looks); and the morphing between levels "still quite abrupt": over a far longer stretch.
+- **Delivered:** 10 000 kinds: every plot holds each exactly a hundred times (counted). Each has a texture of its own,
+  painted in a worker and held in one layer of an array of 1024 for the kinds near enough to show it; the rest wear its
+  mean colour. Only the two coarsest meshes and the dot of every kind are always held; the five finer levels are pools.
+  A mover is a rig of up to twelve parts (assets/kit/rigs.js: walker, runner, four legs, ten legs, rover, transport,
+  cycle, dragon, bird, snake), each part a kind of its own, swung, spun, flapped or trailed by the clock on the GPU. A
+  level now turns into the next over the whole of its range, and a late mesh grows in over 1.5 s (was 0.5).
+- **Good:** it runs and looks right in the test browser: 740 to 770 textures held round the camera, 2 900 meshes built
+  on the way there, about 7 000 mover parts packed a frame; birds and dragons in the air, their wings and tails moving.
+- **Broke / not there yet:** nothing here is measured that I trust: Samuel's tab drew beside every run and the machine
+  was loaded (a plain start read 7 to 9.5 s, where it is 4). With that: 1.5 to 3.8 ms of GPU over the plain world. The
+  start is surely over five seconds in the test browser. Memory is up: 130 MB of meshes held twice (GPU and page), 89 MB
+  of textures, 25 MB for the movers. A part's level is its own size's, so a walker's legs change level before its
+  body; parts do not cast a stand-in shadow, they cast as drawn. Real Safari not read.
+
 ## Trail
 
 | When | Commit | What |
