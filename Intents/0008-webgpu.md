@@ -929,7 +929,7 @@ shadows and the grass.
   simplified from a drawn mesh. The test window itself was noisy today (8 GB, 3 GB of it in swap): only turns within
   one page are compared.
 
-### 2026-11-13, the stress assets given looks, and levels that turn into each other (15:10)
+### 2026-11-13, the stress assets given looks, and levels that turn into each other (14:10)
 
 - **Asked:** how many shaders there are now, and what a game like GTA needs; textures, wind and snow on each asset,
   with as many shaders as such a game needs; and the levels "pop completely random", near, middle and far: they should
