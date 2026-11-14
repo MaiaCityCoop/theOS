@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
-# Prepares an Ubuntu 24.04 or 26.04 LTS host to serve the game, or brings one up to date. Run it from your own
-# machine with root SSH access to the host; it is safe to run again (TheGame/deploy/README.md):
+# Prepares an Ubuntu 24.04 or 26.04 LTS host to serve the website and the game, or brings one up to date. Run it from
+# your own machine with root SSH access to the host; it is safe to run again (deploy/README.md):
 #   deploy/setup-host.sh root@<host> <environment.json> <deploy-key.pub>
 # It installs Caddy from Caddy's own apt repository, creates the `deploy` user whose key can only run
-# /usr/local/bin/maia-deploy, writes /etc/caddy/Caddyfile for the environment's host name, and turns on the firewall.
+# /usr/local/bin/maia-deploy, writes /etc/caddy/Caddyfile for the environment's two host names, and turns on the firewall.
 set -euo pipefail
 target=${1:?Usage: $0 root@<host> <environment.json> <deploy-key.pub>}
 environment=${2:?Usage: $0 root@<host> <environment.json> <deploy-key.pub>}
 key_file=${3:?Usage: $0 root@<host> <environment.json> <deploy-key.pub>}
 here=$(cd "$(dirname "$0")" && pwd)
-site_host=$(jq -er '.Origin | select(test("^https://[a-z0-9.-]+$")) | sub("^https://"; "")' "$environment")
+name() { jq -er --arg k "$1" '.[$k] | select(test("^https://[a-z0-9.-]+$")) | sub("^https://"; "")' "$environment"; }
+website_host=$(name Website)
+game_host=$(name Game)
 key=$(head -n 1 "$key_file")
 [[ "$key" =~ ^ssh-ed25519\ [A-Za-z0-9+/=]+(\ .*)?$ ]] || { echo "$key_file is not an ssh-ed25519 public key." >&2; exit 1; }
 
 payload=$(mktemp -d)
 trap 'rm -rf "$payload"' EXIT
 cp "$here/deploy.sh" "$payload/maia-deploy"
-sed "s/@SITE_HOST@/$site_host/" "$here/Caddyfile" >"$payload/Caddyfile"
-printf '%s\n' "$site_host" >"$payload/host"
+sed "s/@WEBSITE_HOST@/$website_host/g; s/@GAME_HOST@/$game_host/g" "$here/Caddyfile" >"$payload/Caddyfile"
+printf 'website=%s\ngame=%s\n' "$website_host" "$game_host" >"$payload/hosts"
 printf 'command="/usr/local/bin/maia-deploy",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty %s\n' \
 	"$key" >"$payload/authorized_keys"
 
@@ -52,12 +54,15 @@ install -d -o deploy -g deploy -m 700 /home/deploy/.ssh
 install -o deploy -g deploy -m 600 "$incoming/authorized_keys" /home/deploy/.ssh/authorized_keys
 install -o root -g root -m 755 "$incoming/maia-deploy" /usr/local/bin/maia-deploy
 install -d -o deploy -g deploy -m 755 /srv/maia-city /srv/maia-city/releases
-install -o root -g root -m 644 "$incoming/host" /srv/maia-city/host
+install -o root -g root -m 644 "$incoming/hosts" /srv/maia-city/hosts
+rm -f /srv/maia-city/host
 if [ ! -e /srv/maia-city/current ]; then
 	# Until the first deploy, a page that says so.
-	install -d -o deploy -g deploy -m 755 /srv/maia-city/releases/empty
-	printf '<!doctype html><title>Maia City</title><p>Nothing is deployed here yet.</p>\n' >/srv/maia-city/releases/empty/index.html
-	chown deploy:deploy /srv/maia-city/releases/empty/index.html
+	for site in website game; do
+		install -d -o deploy -g deploy -m 755 /srv/maia-city/releases/empty/$site
+		printf '<!doctype html><title>Maia City</title><p>Nothing is deployed here yet.</p>\n' >/srv/maia-city/releases/empty/$site/index.html
+	done
+	chown -R deploy:deploy /srv/maia-city/releases/empty
 	ln -s /srv/maia-city/releases/empty /srv/maia-city/current
 	chown -h deploy:deploy /srv/maia-city/current
 fi
@@ -82,8 +87,8 @@ for rule in 22/tcp 80/tcp 443/tcp 443/udp; do ufw allow "$rule" >/dev/null; done
 ufw --force enable >/dev/null
 systemctl enable --now unattended-upgrades >/dev/null 2>&1
 
-echo "Host ready: $(caddy version | cut -d' ' -f1), serving $(cat /srv/maia-city/host) from $(readlink /srv/maia-city/current)"
+echo "Host ready: $(caddy version | cut -d' ' -f1), serving $(tr '\n' ' ' </srv/maia-city/hosts)from $(readlink /srv/maia-city/current)"
 REMOTE
 
-tar -C "$payload" -cf - setup.sh maia-deploy Caddyfile host authorized_keys | ssh -o BatchMode=yes "$target" \
+tar -C "$payload" -cf - setup.sh maia-deploy Caddyfile hosts authorized_keys | ssh -o BatchMode=yes "$target" \
 	'set -e; d=$(mktemp -d); trap "rm -rf \"$d\"" EXIT; tar -x -C "$d" -f -; bash "$d/setup.sh" "$d" </dev/null'

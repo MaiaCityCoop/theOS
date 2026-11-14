@@ -15,14 +15,15 @@ import { session, forget, startTrip, heard } from './session.js';
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const ROLE = { traveler: 'Traveler', citizen: 'Citizen' };
 
-// the tab itself: inside the dashboard (a frame of this origin) the whole tab goes to aven.id and comes back, as
-// aven.id's page may not be framed; a frame of another origin can only send itself
-function tab() { try { if (window.top !== window && window.top.location.origin === location.origin) return window.top; } catch {} return window; }
+// The whole tab goes to aven.id, as aven.id's page may not be framed. Inside the dashboard on this origin it comes back
+// to the dashboard's page. Inside the website on another origin (next.maia.city framing play.next.maia.city) it comes
+// back to the game on its own, at the page the frame showed: the website's page is not this origin's to return to.
+function home() { try { if (window.top.location.origin === location.origin) return window.top; } catch {} return window; }
 
 async function signIn() {
   const issuer = ACCOUNT.issuer, meta = await discover(issuer);
-  const state = random(), nonce = random(), verifier = random(), top = tab();
-  const back = returnPath(top.location.pathname + top.location.search + top.location.hash, location.origin, { fallback: ACCOUNT.home, callback: ACCOUNT.redirectUri });
+  const state = random(), nonce = random(), verifier = random(), top = window.top, here = home();
+  const back = returnPath(here.location.pathname + here.location.search + here.location.hash, location.origin, { fallback: ACCOUNT.home, callback: ACCOUNT.redirectUri });
   startTrip({ state, nonce, verifier, issuer, redirectUri: ACCOUNT.redirectUri, back });
   const url = new URL(meta.authorization_endpoint);
   for (const [k, v] of Object.entries({ response_type: 'code', client_id: ACCOUNT.clientId, redirect_uri: ACCOUNT.redirectUri, scope: ACCOUNT.scope,

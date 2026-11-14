@@ -5,3 +5,6 @@ document, and the game framed to walk in or to play a story's film. It only read
 `../Intents` and `../Stories` are the one source.
 
 `bun run dev` at the repository's root starts it on http://localhost:5180, with the game on 5173.
+
+`bun run build` makes the deployed website (`dist/`): the dashboard with every `/api` answer written as a file
+(`deploy/README.md`). The game it frames is at `VITE_GAME`, e.g. `https://play.next.maia.city`.

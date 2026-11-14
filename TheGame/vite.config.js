@@ -1,8 +1,9 @@
 // The dev server serves the intents' stories (../Stories) and keeps timelines: POST /cine/keep?name=<name> with a timeline's JSON writes
 // cine/timelines/<name>.json, so a set of cameras an agent composed can be played back later by name; POST /story-preview keeps a story's picture.
-import { writeFileSync, appendFileSync, mkdirSync, readdirSync, readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { writeFileSync, appendFileSync, mkdirSync, readdirSync, readFileSync, existsSync, cpSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
 import { buildRegistry, FOLDERS } from './tools/registry.js';
+import { listScenes, sceneFile } from '../Stories/scenes.js';
 
 const ROOT = import.meta.dirname;
 // the registry's manifest (registry.json, tools/registry.js): made at the start, and again whenever a recipe changes
@@ -15,16 +16,44 @@ const registry = {
   },
 };
 
+// What the dev server answers from the repository, read the same way for a build: the stories that have a film or an
+// arc (../Stories), and the kept timelines' names (cine/timelines).
+const STORIES = resolve(ROOT, '../Stories'), TIMELINES = resolve(ROOT, 'cine/timelines');
+const storyList = () => {
+  try { return readdirSync(STORIES).filter((d) => existsSync(resolve(STORIES, d, 'timeline.json')) || existsSync(resolve(STORIES, d, 'arc.json'))).sort().map((d) => { const f = ['timeline.json', 'arc.json'].map((n) => resolve(STORIES, d, n)).find(existsSync), j = JSON.parse(readFileSync(f, 'utf8')); let h = {}; try { h = JSON.parse(readFileSync(resolve(STORIES, d, 'hook.json'), 'utf8')); } catch {} return { id: d, title: h.title || j.title || d, day: j.day ?? null, inGame: j.inGame ?? null }; }); } catch { return []; }   // (a day's story may stand as an arc alone: its day and its citizens are there)
+};
+const timelineNames = () => { try { return readdirSync(TIMELINES).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).sort(); } catch { return []; } };
+
+// The deployed game has no server: a build writes those answers as files beside the pages, with the brand (../brand)
+// and the scenes (../Stories/scenes). A scene's media (Stories/objects/) is not in git, so a build has none.
+// Caddy serves them as they are (deploy/Caddyfile).
+const publish = {
+  name: 'publish',
+  apply: 'build',
+  writeBundle(options) {
+    const out = options.dir, put = (path, body) => { const f = resolve(out, path); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, body); };
+    cpSync(resolve(ROOT, '../brand'), resolve(out, 'brand'), { recursive: true });
+    const stories = storyList();
+    put('story/list', JSON.stringify(stories));
+    for (const { id } of stories) if (existsSync(resolve(STORIES, id, 'timeline.json'))) put(`story/${id}/timeline.json`, readFileSync(resolve(STORIES, id, 'timeline.json')));
+    const names = timelineNames();
+    put('cine/list', JSON.stringify(names));
+    for (const n of names) put(`cine/timelines/${n}.json`, readFileSync(resolve(TIMELINES, n + '.json')));
+    // the scenes a film page plays (cine/film.js, cine/view.js), at the path the website's server answers them on
+    for (const { id } of listScenes()) put(`api/scenes/${id}/scene.json`, readFileSync(sceneFile(id)));
+  },
+};
+
 export default {
-  // the pages a build makes: the game, and the way back from aven.id (src/account/callback.js)
-  build: { rolldownOptions: { input: { index: resolve(ROOT, 'index.html'), callback: resolve(ROOT, 'callback.html') } } },
-  plugins: [registry, {
+  // the pages a build makes: the game, the way back from aven.id (src/account/callback.js), and the views the website frames:
+  // a story's film (timeline.html), the lenses and the library
+  build: { rolldownOptions: { input: Object.fromEntries(['index', 'callback', 'timeline', 'lenses', 'library'].map((n) => [n, resolve(ROOT, n + '.html')])) } },
+  plugins: [registry, publish, {
     name: 'cine-keep',
     configureServer(server) {
       const B = (server.config.base || '/').replace(/\/$/, '');   // '' on its own, '/game' inside the dashboard's server
       server.middlewares.use(B + '/cine/list', (req, res) => { // the kept timelines' names
-        let names = [];
-        try { names = readdirSync(resolve(server.config.root, 'cine/timelines')).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).sort(); } catch {}
+        const names = timelineNames();
         res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(names));
       });
       // the brand, one file for every page of TheOS: ../brand
@@ -38,9 +67,7 @@ export default {
         const dir = resolve(server.config.root, '../Stories'), url = new URL(req.url, 'http://x').pathname;
         res.setHeader('content-type', 'application/json');
         if (url === '/list') {
-          let ids = [];
-          try { ids = readdirSync(dir).filter((d) => existsSync(resolve(dir, d, 'timeline.json')) || existsSync(resolve(dir, d, 'arc.json'))).sort().map((d) => { const f = ['timeline.json', 'arc.json'].map((n) => resolve(dir, d, n)).find(existsSync), j = JSON.parse(readFileSync(f, 'utf8')); let h = {}; try { h = JSON.parse(readFileSync(resolve(dir, d, 'hook.json'), 'utf8')); } catch {} return { id: d, title: h.title || j.title || d, day: j.day ?? null, inGame: j.inGame ?? null }; }); } catch {}   // (a day's story may stand as an arc alone: its day and its citizens are there)
-          res.end(JSON.stringify(ids)); return;
+          res.end(JSON.stringify(storyList())); return;
         }
         const m = url.match(/^\/([a-z0-9][a-z0-9-]*)\/timeline\.json$/);
         if (!m || !existsSync(resolve(dir, m[1], 'timeline.json'))) { res.statusCode = 404; res.end('{}'); return; }
