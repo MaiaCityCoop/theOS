@@ -43,11 +43,15 @@ export function geometryOf(asset, level = asset.detail.levels[0], shape = 0) {
     return g;
   }
   const faces = level.faces; if (!faces) return rockPreview(asset, level.rock);
-  const pos = [], col = [];
-  for (const [p0, p1, p2, c] of faces) for (const v of [p0, p1, p2]) { pos.push(...v); col.push(...c); }
+  // a face is [corner, corner, corner, colour] and, where the asset names what it is made of (`materials`), the name
+  // of the one this face wears: carried as `part`, its place in that list, and worn by the shader (src/world/place.js)
+  const parts = asset.materials ? Object.keys(asset.materials) : null;
+  const pos = [], col = [], part = [];
+  for (const [p0, p1, p2, c, m] of faces) for (const v of [p0, p1, p2]) { pos.push(...v); col.push(...c); if (parts) part.push(Math.max(0, parts.indexOf(m ?? parts[0]))); }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  if (parts) g.setAttribute('part', new THREE.Float32BufferAttribute(part, 1));
   g.computeVertexNormals();
   return g;
 }

@@ -41,8 +41,13 @@
     "type": "asset",
     "name": "Fire pit",
     "file": "assets/firepit.js",
-    "version": "cdd87481d13ebc4abd8b20edb9ebb0c0d7cfe3870b942456b0262b4aea05952f",
-    "uses": []
+    "version": "f7f36b733375ecf5274d1399b124ac6a8cc18bf85cc989e7cf8d034b5dcab368",
+    "uses": [
+      "506c509b-300d-42eb-8403-f3969b06b271",
+      "5e888d71-827c-4efc-8d13-50717c7f1dc8",
+      "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
+      "c0092c17-16c9-4470-b98e-b030175d561b"
+    ]
   },
   "dea9b8e4-28a7-4b88-b32e-ee498eb7a862": {
     "type": "asset",
@@ -294,6 +299,13 @@
     "version": "496e3c85cec534f1dfb1b6e43173192e4740bd2921a201d008760548bd2d64d7",
     "uses": []
   },
+  "5e888d71-827c-4efc-8d13-50717c7f1dc8": {
+    "type": "material",
+    "name": "Pine log end",
+    "file": "materials/logend.js",
+    "version": "0235c243562c76fc4f47076a230a9aecdfdff7d82df454c5932f408928e7ebcc",
+    "uses": []
+  },
   "795da1c3-9cfe-4c4e-88c7-a58ce86444d4": {
     "type": "material",
     "name": "Pine needles",
@@ -355,6 +367,13 @@
     "name": "Water",
     "file": "materials/water.js",
     "version": "d349f8b646d16853da3ea1dce73ef23f081567c6e004f2029f3e462a542346b8",
+    "uses": []
+  },
+  "c0092c17-16c9-4470-b98e-b030175d561b": {
+    "type": "material",
+    "name": "Wood ash",
+    "file": "materials/woodash.js",
+    "version": "ec3c1207e0b76b8c0a203e32cc0b89b7a731779a4805800ec30c7943cb9a1eb8",
     "uses": []
   }
 }
