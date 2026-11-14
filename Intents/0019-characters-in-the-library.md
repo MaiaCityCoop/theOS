@@ -1,7 +1,7 @@
 ---
 id: "0019"
 title: A person in the library, in clothes that read as cloth, on a skeleton of their own
-state: build           # idea | define | build | propose | story | archived
+state: propose          # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-14
 story:
@@ -93,7 +93,28 @@ Asked outright and without surprise, so built straight away (the skill's rule).
 
 ## Propose
 
-_Filled when everything is built._
+**Delivered:** `library.html` has a fourth section, Characters (its grid card shows the person), with the Settler
+(`characters/settler.js`, kit `characters/kit/human.js`) and three new materials. Merged to main at Samuel's word.
+
+**Checks, as they were** (headless Chrome against this worktree's game server, 5174; screenshots in the session
+notes folder, `0019-shots/`)
+
+| # | Result | Evidence |
+| --- | --- | --- |
+| 1 | passed | `1-grid.png`: Assets, Biomes, Characters, Materials; the Characters card shows the person |
+| 2 | passed | `2-idle.png`, `5-walk.png`: the Settler on the stage, idle; walking round it |
+| 3 | partly | `3-close.png`, `4-wave.png`: shirt with collar, placket, buttons, rolled cuffs, belt and buckle, shoes; the weave reads only faintly at this distance, and the denim reads pale grey-blue, not indigo (see gaps) |
+| 4 | passed | `4-wave.png`: the right arm up, turned to the eye; by script: the right hand rises 1.07 m in Wave |
+| 5 | passed | `6-bones.png`: the skeleton drawn over the walking body; the card says 20 bones |
+| 6 | passed | no console errors in either headless run (grid; idle → close → wave → walk → bones) |
+
+**Known gaps:**
+- The trousers come out pale: the denim's indigo does not show (maybe its tile is not painted into the pool and the
+  stand-in is read, or the sheen and sky light wash it out). To look at first.
+- The arm tubes' top caps stand above the shoulders like pads; the shoulders want a wider trunk there and a lower,
+  shorter cap on the arm.
+- The weave is fine-scaled (threads of 3–4 mm): it shows close up, hardly from the library's usual distance.
+- Not looked at in the OS's own page (5180/game/library.html): that port is the main checkout's.
 
 ## Story
 
@@ -107,7 +128,8 @@ _Filled when everything is built._
 - [x] The human kit: skeleton, skin, moves
 - [x] The character recipe and the registry
 - [x] The library's Characters section and card, with its picture in the grid
-- [ ] Checks 1–6, with screenshots
+- [x] Checks 1–6, with screenshots
+- [ ] Denim reads indigo; shoulders without pads
 
 ## Changelog
 
