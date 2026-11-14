@@ -1449,6 +1449,32 @@ and the frame rate is not always stable.
   frames are busy (a notch a look, two when nearly all are) and tries none till it has passed: in a made-up flight
   it is at 1.0 five seconds in, where it stayed at 1.5 to 1.6, and back up twenty seconds after. Not seen by him yet.
 
+### 2026-11-14, where a frame of the stand goes, measured part by part (08:55)
+
+Samuel: "ok, try to push it further", then: he is already very happy with it, and "you need to ensure realism for
+grass and ground stays high". Nothing of the picture was changed in this round; what it found is for the next.
+
+- **How it was measured.** Switching a part off does not say what it costs: what it hid is drawn in its place (the
+  land hides the water and the sky, the things hide the land), and the sums came out wrong three times. So the land
+  and the sky were given a flat colour in place of their shaders (shape and depth kept), and the tiers switched off
+  over that. The GPU's time a frame in the test browser at 2880 by 1558, no multisampling, his Safari's tab running
+  beside it (the shares hold, the milliseconds are the test browser's).
+- **At an inside ratio of 1** (17.5 ms): the stand's things 5.0 (29 %), what is left with nothing drawn 3.6 (20 %: the
+  passes themselves, the picture laid on the screen), the land's pixels 2.9 (17 %), the game's trees 2.2 (13 %), the
+  sky with its clouds 1.7 (10 %), shrubs and litter 0.9, the shadows' pass 0.8, the movers 0.4, the grass 0.1.
+  **At 2** (29.1 ms): the land's pixels 11.2 (38 %), the sky 5.3 (18 %), all the rest 13 to 15 as before.
+- **So two things decide it.** Up to about 1.5 the frame is mostly not pixels: 13 ms of it stay whatever the ratio,
+  the stand's things the largest part. They are few triangles (0.25 M) but every corner of every triangle is worked
+  out by itself (the heap is read by the corner's number: three a triangle, none shared), so a ball of 6n² + 2
+  corners costs 36n² of them: some five million a frame. From 1.5 to the screen's own 2 it is the land's pixels.
+- **Tried and not kept:** the clouds' march reads the field thirty times a pixel of sky; the reads that cannot count
+  (a step holds cloud only where the field is denser than its height asks) were left out: the same picture to the
+  last bit (0 of 4.5 million pixels differ, the sky held still), but only 0.7 ms a frame (2 to 3 %): the reads are
+  from small mips and cheap, the arithmetic is the cost. Not worth another branch in a shader every page compiles.
+- **What would move it:** the stand's balls (eight kinds in ten) drawn by a shared index a level, their corners worked
+  out once each: about half the stand's 5 ms; and the land's pixels, where the ground and the grass must stay as
+  they are (the cached ground was softer and was declined on 2026-11-13).
+
 ## Trail
 
 | When | Commit | What |
