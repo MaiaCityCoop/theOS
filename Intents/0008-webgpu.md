@@ -1927,6 +1927,31 @@ ring like rivers can't exist, and replace them with little lakes instead".
   on a slope would tilt as the river does (none found so far); a ring larger than 4 km² or reaching past the 16 km
   square stays a river until the camera comes near enough.
 
+### 2026-11-14, reeds in a lake's shallows; the start the lakes had slowed (21:39)
+
+Samuel: "Lake shores and reeds".
+
+- **A lake's shore** is the ring's outer bank: the river's own, deep at the old ring's line, shoaling over half its
+  half-width to the bank, the riverbank's sand and stones along it. Not changed.
+- **Reeds** (`materials/reedclump.js`, `assets/reeds.js`, `assets/zoo/reeds.js`): a new painting, a clump of common
+  reed (38 tall narrow leaves, each bending its own way, green below and yellowing to the tips; feathery plumes,
+  purple-brown to straw, over the seven tallest), and an asset of crossed cards of it standing round a foot (three
+  shapes, 1.7 to 2.4 m, two levels of its own and the kit's farthest), swaying more than a bush (`wind.sway` 0.35).
+- **Where they grow**: a stand of the riverbank biome (`reeds`), a clump every metre or so in beds; two numbers a stand
+  may now say, read by the plants' placing (`src/scatter/trees.js`): `lakes` (only round a lake: `nearLake`, within 40
+  m of one) and `shore` (only so far from the channel's middle, in the river's half-widths: from 0.42, where the water
+  shoals, to 1.28, just up the bank). A stand of a biome that lies by the river is no longer looked at first as if far
+  from it (which let nothing of such a stand grow).
+- **Looked at** (two lakes of some 250 m, from the bank at eye height and from 55 m up): beds of reeds in the shallows
+  round the shore, plumes over them, gaps where the beds thin; the first try was a thin, broken line with pale plumes
+  too large (pampas, not reed): the beds made wider and denser, the plumes smaller and darker. 1 900 clumps packed by
+  a lake. No error on any page; the library lists the reeds (120, 212 and 310 faces).
+- **The start had grown slower**: the lakes' first look waited for its worker to start (some 0.4 s): it is now made on
+  the page (some 40 ms; the worker takes the later ones); and every read of the river looked through a loop of 32
+  lakes that the GPU's compiler writes out in full, in every shader that reads the river: it now loops as many times
+  as there are lakes (a number it does not know when it compiles). Measured against the build from before tonight's rounds while his own tab drew (both read slow, 4.7 to 11 s, and swing): some 1.2 s longer before these two; a reading with the GPU free is still to be taken.
+- **Not done:** reeds along the river itself (the riverbank stays bare sand, as it was); lily pads, a lake's own birds.
+
 ## Trail
 
 | When | Commit | What |
@@ -2030,3 +2055,5 @@ ring like rivers can't exist, and replace them with little lakes instead".
 | 2026-11-14 | `005ab49` | The land's shaders hold the biomes round the camera, eight at most (each biome's rule looked at in a pass of its own, the shaders compiled aside when the eight change): a biome more no longer makes the land's shader larger; seven today, the same picture |
 | 2026-11-14 | `c83e89e` | The trees' finest level for the few nearest: every sprig laid out as its twigs, each a card of a whole twig's own painting (two new materials); streamed into six slots, grown in by the clock: a near crown is twigs with sky between them |
 | 2026-11-14 | `8864fe9` | No river runs in a ring: what a ring of river closes round is a lake, found round the camera in a worker, the nearest 32 to the CPU's and the GPU's land; its water still |
+| 2026-11-14 | `80f3616` | Reeds in a lake's shallows: a painting of a reed clump, a reeds asset, a stand of the riverbank that grows only round a lake and only in its shallow margin |
+| 2026-11-14 | `cfa2678` | The lakes' first look made on the page, not in a worker that must start; the river's lake loop as long as there are lakes: a faster start |
