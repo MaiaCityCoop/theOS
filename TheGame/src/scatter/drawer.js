@@ -147,7 +147,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     If(vPx.greaterThan(RELIEF), () => {   // (its relief: only where it is large enough to show, faded in)
       const t1 = tex.n(M2.x, q.zy).grad(gx.zy, gy.zy), t2 = tex.n(M2.x, q.xz).grad(gx.xz, gy.xz), t3 = tex.n(M2.x, q.xy).grad(gx.xy, gy.xy), x = t1.xy.mul(2).sub(1), y = t2.xy.mul(2).sub(1), z = t3.xy.mul(2).sub(1);
       n.assign(normalize(N0.add(vec3(0, x.y, x.x).mul(b.x).add(vec3(y.x, 0, y.y).mul(b.y)).add(vec3(z.x, z.y, 0).mul(b.z)).mul(GROUND ? smoothstep(RELIEF, RELIEF * 2, vPx).mul(M5.z) : smoothstep(RELIEF, RELIEF * 2, vPx)))));
-      rough.assign(t1.a.mul(b.x).add(t2.a.mul(b.y)).add(t3.a.mul(b.z)));
+      rough.assign(tex.r(M2.x, q.zy, gx.zy, gy.zy).mul(b.x).add(tex.r(M2.x, q.xz, gx.xz, gy.xz).mul(b.y)).add(tex.r(M2.x, q.xy, gx.xy, gy.xy).mul(b.z)));
     });
     // (where the snow has lifted it, it is snow all through, its sides too: a small thing is buried whole. What stands
     // in the ground, a rock taller than the snow is deep, keeps the snow where it settles, on what of it faces up: its

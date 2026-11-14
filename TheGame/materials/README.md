@@ -13,6 +13,9 @@ Every texture the world is drawn with: one file each in this folder, each a reci
 | `role` | optional: a part the engine asks for by name, not by file (`src/core/registry.js`: `byRole`): `'noise'` (the land's cloudy noise), `'billows'` (the clouds' field, the snow's clumps), `'rock'` (a rock's stone when its file names none), `'moss'` (what grows on a rock). Another file with that role takes the part over |
 | `paint(uv)` | node code (TSL) that paints one tile of it from `uv` (0..1, tiling) and returns `{ h, col, rough }`, with the tiling noises of `src/materials/paint.js` |
 
-`src/materials/bake.js` bakes every material into one layer of two texture arrays (albedo + height, normal +
-roughness) at the start; a shader reads one by its recipe or uid: `tex.a(material, uv)`. Its version (registry.json)
-is the BLAKE3 hash of its file.
+`src/materials/bake.js` bakes every material at the start, a layer in each of three texture arrays: its albedo and
+height, its relief (the normal's x and y), its roughness. A shader reads one by its recipe or uid:
+`tex.a(material, uv)`, `tex.n(material, uv)`, `tex.r(material, uv)`. Where the GPU has block compression (every
+desktop) a tile is packed into blocks as it is painted, by the GPU itself, nothing downloaded: a material takes
+3 MB of its memory there where it took 11. A material of kind `noise` is read as numbers, not seen, and is kept as
+painted beside. Its version (registry.json) is the BLAKE3 hash of its file.

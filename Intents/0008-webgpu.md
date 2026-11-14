@@ -1773,6 +1773,62 @@ The realism the plants' move to the heap was for. A first try; it is not in the 
   241 frames in every four seconds, none late, the inside ratio rising from 1 to 1.6 and holding at 1.5. The build
   with the rocks alone, read the same way at 18:35, held 58 to 59 a second at 1.1 to 1.4.
 
+### 2026-11-14, the materials kept compressed on the GPU, packed there as they are painted (19:56)
+
+Samuel: "Yes, textures next" (to the materials being the game's largest holding: twenty of them, 11 MB each, held
+always). Its first half: what one material costs. Which materials are held at all (painted when something near
+wears them) is the half that follows, on this.
+
+- **What a material was:** two layers of 1024 by 1024 texels with their mips, four bytes a texel (albedo and
+  height; normal and roughness): 10.7 MB. Nineteen of them: 202.7 of the 385 MB the game holds on the GPU.
+- **What it is now:** blocks of 4 by 4 texels in the GPU's own compressed formats (BC: every desktop GPU has them,
+  Safari's WebGPU offers them here and three asks for them), read as fast as before, a quarter of the bytes.
+  Three arrays, a layer a material in each (`src/materials/bake.js`): **A** (BC3) its colours four steps between
+  two a block keeps, its height eight steps between two of its own; **N** (BC5) the normal's x and its y, each
+  eight steps between two of its own (z is not kept: no read took it); **R** (BC4, at half the size) the
+  roughness. 2.8 MB a material.
+- **Nothing compressed is downloaded.** A material stays a file that paints itself. Its painted tile is packed
+  by a compute pass of ours (`blocksOf`): a block an instance, every mip level in the one pass (87 383 blocks),
+  written to a buffer and copied from the buffer into its layer's levels, all on the GPU. Two dispatches a
+  material, one shader (54 KB) and one compute pipeline more at the start.
+- **The first layout was wrong, and measured so.** Both arrays as BC3, the normal's y and the roughness sharing
+  the colours' four steps: the relief came back at 27 to 31 dB along y against 45 along x, one direction of every
+  bump coarser than the other. BC5 is the format made for normals; the roughness then needs a place of its own,
+  and at half size it costs 0.17 MB a material.
+- **What is read as numbers is not compressed:** the noise the land is laid by and the billows the clouds and the
+  snow are made from (materials of kind `noise`) lie as painted in a small array of their own; four steps a block
+  would be steps in the land.
+- **For the readers:** `tex.a(material, uv)` as before; `tex.n(material, uv)` is the relief (`.xy`);
+  `tex.r(material, uv)` is new, the roughness (the drawer's relief, the library's ball). The land's shader is
+  untouched; the water reads `.xy` where it read `.xyz` and used two.
+- **Texel for texel against the uncompressed** (every material, the finest level, both baked in one page and
+  read back): colours 1.1 to 3.3 of 255 off on average (33.5 to 44.8 dB, 40.4 over all), height 0.02 to 1.7
+  (51.5 dB), the normal's x and y 0.03 to 5.1 (45.5 and 45.8 dB; the largest in pine needles, whose relief turns
+  within a block), roughness exact where it is level and within 2 of 255 in the two materials where it is not.
+- **The picture, against the same build uncompressed** (`?rawtex`; 2880 by 1558, the clock, clouds and sun held):
+  the start 0.43 of 255 on average, the wood's edge 0.67, inside the wood 0.94, up into a crown 0.62, by the
+  outcrop 0.23, along the river 0.11 to 0.24. At full size, side by side (sand under grass, the far wood across
+  the water, a stone at the bank, bracken, blades): nothing to tell them apart; what differs is single pixels at
+  the leaves' cut edges and noise of one or two levels.
+- **Cost, by the clock** (test window, 2880 by 1558, his tab quiet, the start, the wood's edge, the outcrop, two
+  rounds): 9.83 to 9.93 ms a frame against 10.5 to 10.6 uncompressed at an inside ratio of 1; 12.1 to 12.2
+  against 12.6 to 12.7 at 1.5: half a millisecond less, the reads touching a quarter of the memory. The start
+  2.87 to 2.98 s against 2.95 to 3.27.
+- **Held:** the materials 64.5 MB where they were 202.7; the game 247 MB on the GPU where it was 385 (1200 by
+  700), 323 where it was 461 (2880 by 1558).
+- **Where a GPU has no BC** (the WebGL 2 fallback; phones) the materials are kept as painted, as before;
+  `?rawtex` is that path on any GPU, to measure against.
+- **Real Safari** (his own tab on the game, loaded at 19:55 on this build, none of my tests running): frames from
+  the first post, 241 in every four seconds from its 24th second on, late in one post of ten (0.13), the inside
+  ratio rising from 1 to 1.375 within its first 53 seconds.
+- **Not built:** a finer fit of a block's two colours (tried offline on the painted tiles: half a decibel);
+  blocks for GPUs without BC (ETC2, ASTC); the two noise tiles are 10.7 MB of the 64.5.
+- **Not done:** the half that follows: a material painted when something near wears it, into one of a set number
+  of layers, so that a hundred materials cost what thirty do. Its one piece every read would pass through, a
+  table from a material to the layer it lies in, was tried on the test copy: 10.0 to 10.3 ms a frame with it,
+  9.9 to 10.3 without: it costs nothing. What it waits for is a world to test it on: today every material is
+  worn within sight of the start (seven biomes round one river), so none could ever be put away.
+
 ## Trail
 
 | When | Commit | What |

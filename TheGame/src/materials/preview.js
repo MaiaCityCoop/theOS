@@ -21,7 +21,7 @@ export function materialPreview(tex, id, tile = 2, own = {}) {
     const nx = Nn(px), ny = Nn(py), nz = Nn(pz), dx = nx.xy.mul(2).sub(1), dy = ny.xy.mul(2).sub(1), dz = nz.xy.mul(2).sub(1);
     // each projection's relief, turned onto the surface (whiteout blend)
     const bn = normalize(vec3(0, dx.y, dx.x).mul(b.x).mul(sign(n.x)).add(vec3(dy.x, 0, dy.y).mul(b.y).mul(sign(n.y))).add(vec3(dz.x, dz.y, 0).mul(b.z).mul(sign(n.z))).add(n));
-    const rough = nx.a.mul(b.x).add(ny.a.mul(b.y)).add(nz.a.mul(b.z));
+    const rough = tex.r(id, px).mul(b.x).add(tex.r(id, py).mul(b.y)).add(tex.r(id, pz).mul(b.z));
     const V = normalize(eye.sub(w)), H = normalize(V.add(U.uSunDir)), ndl = max(bn.dot(U.uSunDir), 0);
     const spec = pow(max(bn.dot(H), 0), mix(60, 6, rough)).mul(float(1).sub(rough)).mul(0.5);
     const col = a.mul(a).mul(tint).mul(skyLight(bn).add(U.uSun.mul(ndl.mul(0.85).add(0.15)))).add(U.uSun.mul(spec).mul(ndl));
