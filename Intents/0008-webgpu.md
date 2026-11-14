@@ -1589,6 +1589,35 @@ thetc?", "one ssot", "the best peromaonace eveyrhwere".
   the reference than at 1.25 (not understood). What moves by itself is as sharp as one frame, no sharper.
   `tools/bench.js` still draws the world by itself (it measures, it is no view).
 
+### 2026-11-14, where a frame goes, by the clock (15:10)
+
+Samuel, having reloaded: "its great now and works eprelcty"; the lens's depth of field stays on. Nothing of the game
+was changed in this round. The breakdown of 08:55 was by summed pass timestamps (its shares of the parts hold, its
+milliseconds were about twice too high, and "what is left with nothing drawn" held the passes' phantom time), so it
+was taken again by the clock: frames drawn back to back, a part at a time given a flat colour (the land, the sky) or
+hidden over the flat land and sky, in the test window at 2880 by 1558 while Samuel was away from the Mac (with his
+tab drawing in front the same run gave parts under nought and sums of three frames: thrown away).
+
+| | meadow, ratio 1 | meadow, 1.5 | across the stand, 1.5 |
+| --- | --- | --- | --- |
+| a frame | 11.6 ms | 13.7 ms | 13.9 ms |
+| the land's pixels | 4.1 (36 %) | 4.8 (35 %) | 3.1 (23 %) |
+| the passes, with nothing shown and the land and sky flat | 2.1 (18 %) | 2.4 (18 %) | 2.4 (18 %) |
+| the trees | 1.6 (14 %) | 1.6 (12 %) | 1.7 (12 %) |
+| the stand's meshes | 1.2 (10 %) | 0.7 (5 %) | 3.1 (22 %) |
+| the sky and clouds | 0.9 (7 %) | 1.5 (11 %) | 0.9 (6 %) |
+| the movers | 1.0 (8 %) | 0.5 (3 %) | 0.9 (6 %) |
+| shrubs and litter, grass, rocks, the rest | 0.7 | 0.7 | 0.9 |
+
+- **The land's pixels are the largest part at every view**, and hardly grow with the inside's ratio (the finer the
+  textures are read against the inside's pixels, the dearer each pixel: at a ratio of 1 they are read twice as fine).
+- **Tried and not kept:** less filtering of the ground's textures along shallow angles (four reads for the colours
+  and two for the relief are what it has; two and one, one and one), in the thought that frames built over time
+  filter along the slope by themselves. One and one saved 0.2 to 0.65 ms a frame: not worth the ground's look.
+- **So no cheap large saving is left.** What remains is each about a millisecond (the sky at a quarter of its
+  pixels over time; the trees; the stand's leaf cards and movers), or it is the land itself, whose cached form was
+  declined for its softness.
+
 ## Trail
 
 | When | Commit | What |
