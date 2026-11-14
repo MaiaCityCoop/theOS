@@ -140,7 +140,7 @@ function body(M) {
   chains.push({ part: PART.trunk, S: 72, caps: [0.05, 0.05], pts: [
     pt([0, leg - 0.055, 0], 0.08 * ch, 0.07, 'hips'), pt([0, leg + 0.01, 0], 0.162 * ch, 0.11, 'hips'), pt([0, leg + 0.085, 0], 0.168 * ch, 0.113, 'hips'),
     pt([0, M.waist, 0.004], 0.145 * ch, 0.1, 'spine'), pt([0, leg + 0.25, 0.008], 0.15 * ch, 0.106, 'spine'), pt([0, M.chestY, 0.012], 0.162 * ch, 0.115, 'chest'),
-    pt([0, H * 0.79, 0.004], 0.165 * ch, 0.108, 'chest'), pt([0, H * 0.815, -0.004], 0.125 * ch, 0.082, 'chest'), pt([0, M.neckY, 0], 0.052, 0.054, 'neck'),
+    pt([0, H * 0.79, 0.004], 0.172 * ch, 0.108, 'chest'), pt([0, H * 0.812, -0.004], 0.168 * ch, 0.09, 'chest'), pt([0, H * 0.826, -0.004], 0.1, 0.07, 'chest'),   // (the shoulders: broad to the arm, then sloping in to the neck) pt([0, M.neckY, 0], 0.052, 0.054, 'neck'),
     pt([0, H * 0.862, 0.004], 0.05, 0.052, 'neck'), pt([0, H * 0.877, 0.016], 0.062 * hd, 0.072 * hd, 'head'), pt([0, H * 0.9, 0.014], 0.074 * hd, 0.09 * hd, 'head'),
     pt([0, H * 0.94, 0.008], 0.08 * hd, 0.098 * hd, 'head'), pt([0, H - 0.05, 0.002], 0.068 * hd, 0.082 * hd, 'head')],
     push: (p) => {
@@ -151,8 +151,8 @@ function body(M) {
     } });
   for (const [s, sg] of [['L', 1], ['R', -1]]) {
     const S0 = J['upperArm.' + s], E = J['foreArm.' + s], W = J['hand.' + s], Hp = J['thigh.' + s], K = J['shin.' + s], A = J['foot.' + s];
-    chains.push({ part: PART.arm, S: 44, caps: [0.05, 0.03], pts: [
-      pt([S0[0] - sg * 0.02, S0[1] + 0.02, S0[2]], 0.056 * st, 0.056 * st, 'clavicle.' + s), pt(S0, 0.058 * st, 0.056 * st, 'upperArm.' + s), pt(lerp(S0, E, 0.5), 0.054 * st, 0.052 * st, 'upperArm.' + s),
+    chains.push({ part: PART.arm, S: 44, caps: [0.026, 0.03], pts: [
+      pt([S0[0] - sg * 0.03, S0[1] - 0.004, S0[2]], 0.05 * st, 0.05 * st, 'clavicle.' + s), pt([S0[0], S0[1] - 0.03, S0[2]], 0.054 * st, 0.053 * st, 'upperArm.' + s), pt(lerp(S0, E, 0.5), 0.054 * st, 0.052 * st, 'upperArm.' + s),
       pt(lerp(S0, E, 0.88), 0.047 * st, 0.046 * st, 'upperArm.' + s), pt(lerp(E, W, 0.12), 0.045 * st, 0.044 * st, 'foreArm.' + s), pt(lerp(E, W, 0.25), 0.044 * st, 0.042 * st, 'foreArm.' + s),
       pt(lerp(E, W, 0.6), 0.037 * st, 0.034 * st, 'foreArm.' + s), pt(lerp(E, W, 0.97), 0.027 * st, 0.024 * st, 'foreArm.' + s)],
       push: (p) => (p[1] > M.cuffY ? drape(p, 0.006) + (p[1] < M.cuffY + 0.035 ? 0.005 : 0) : 0) });   // the sleeve's drape, its rolled cuff

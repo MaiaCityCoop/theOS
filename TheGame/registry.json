@@ -212,7 +212,7 @@
     "type": "character",
     "name": "Settler",
     "file": "characters/settler.js",
-    "version": "99c0bcb34851344a3ea37698a8e20b03a24b8e3ccb39ea411ebab3ce6215b62b",
+    "version": "e691e01e81d72f45632f2cceb4a5cf8056e75a7a4be9063a080c3f7a68eccd04",
     "uses": [
       "3cb68f1f-a92d-4adf-bb8e-838abf352389",
       "5f430c04-8942-442c-ac6a-b5c958cc887a",
@@ -237,7 +237,7 @@
     "type": "material",
     "name": "Denim twill",
     "file": "materials/denimtwill.js",
-    "version": "ea58c34db579087bb3060177a63185aac9588d348e76f4a4de9190c4926685bc",
+    "version": "186319b4275746fb7520ef2c9fe0a4cfc9fa83af624c632c3b23803cf5ee1a1a",
     "uses": []
   },
   "082f0183-5d92-4ac8-821c-14408d3ee056": {
