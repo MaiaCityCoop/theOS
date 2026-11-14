@@ -1,13 +1,13 @@
 ---
 id: "0022"
-title: A StressTest tile beside the Lenses
+title: A Magic Wonder tile (the stress test) beside the Lenses
 state: build            # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-14
 story:
 ---
 
-# 0022 · A StressTest tile beside the Lenses
+# 0022 · A Magic Wonder tile (the stress test) beside the Lenses
 
 ## Idea
 
@@ -25,7 +25,7 @@ Asked for outright; the definition holds no surprise, so built straight away.
    the Lenses tile, in the Lenses tile's look (label, heading, one line, the go arrow), side by
    side at phone width too.
 2. Clicking it opens the game with `?stress&in=os` in the dashboard's game frame; the frame's bar
-   names it "Stress test" beside Walk, Lenses and Library.
+   names it "Magic Wonder" beside Walk, Lenses and Library.
 
 **Checks**
 
@@ -69,6 +69,8 @@ Asked for outright; the definition holds no surprise, so built straight away.
 - **Delivered:** the tile and the framed view.
 - **Good:** —
 - **Broke / not there yet:** not yet seen in a browser (waiting for the shared GPU).
+- **Asked:** name the stress test page "Magic Wonder".
+- **Delivered:** the tile's heading and the frame bar's button read "Magic Wonder"; the address stays `?stress`.
 
 ## Trail
 

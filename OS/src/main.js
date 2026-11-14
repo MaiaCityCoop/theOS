@@ -114,7 +114,7 @@ addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h.s
 legal('');   // the links at the foot are drawn once, whatever is open
 
 // ---- the game, framed: to walk, or to look through the lenses ----
-const VIEWS = { walk: ['Walk the world', '/?in=os'], lenses: ['Lenses', '/lenses.html?in=os'], stress: ['Stress test', '/?stress&in=os'], library: ['Library', '/library.html?in=os'] };
+const VIEWS = { walk: ['Walk the world', '/?in=os'], lenses: ['Lenses', '/lenses.html?in=os'], stress: ['Magic Wonder', '/?stress&in=os'], library: ['Library', '/library.html?in=os'] };
 function game(view, show = true) {
   gameView = view;
   $('gamebar').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button class="${k === view ? 'on' : ''}" data-v="${k}">${v[0]}</button>`).join('') + `<span class="label">${GAME.replace('http://', '')}</span>`;
@@ -485,7 +485,7 @@ function city() {
   $('tiles').insertAdjacentHTML('beforeend', `<button class="tile" data-library><span class="label">Library</span><h2>Assets</h2><p>Every made thing that stands in the world, one file each. Turn them, read what they are.</p><div class="foot"><span class="go"></span></div></button>`);
   $('tiles').insertAdjacentHTML('beforeend', `<button class="tile dark pair" data-lenses><span class="label">Debug &amp; performance</span><h2>Lenses</h2><p>The world through nine film lenses, with the frame time, draw calls and triangles: where it runs smooth and where it does not.</p><div class="foot"><span class="go"></span></div></button>`);
   // beside the lenses, the engine's own test: the world with every plot filled (898 million standing, nine million moving; TheGame/src/scatter/stress.js)
-  $('tiles').insertAdjacentHTML('beforeend', `<button class="tile dark pair" data-stress><span class="label">Debug &amp; performance</span><h2>StressTest</h2><p>The world with every plot full: 898 million things standing and nine million moving. How far the engine goes.</p><div class="foot"><span class="go"></span></div></button>`);
+  $('tiles').insertAdjacentHTML('beforeend', `<button class="tile dark pair" data-stress><span class="label">Debug &amp; performance</span><h2>Magic Wonder</h2><p>The world with every plot full: 898 million things standing and nine million moving. How far the engine goes.</p><div class="foot"><span class="go"></span></div></button>`);
   $('tiles').querySelectorAll('button.tile').forEach((t) => (t.onclick = () => (t.dataset.lenses !== undefined ? game('lenses') : t.dataset.stress !== undefined ? game('stress') : t.dataset.library !== undefined ? game('library') : t.dataset.go === 'game' ? game('walk') : tab(t.dataset.go))));   // the game's tile always walks, whatever was open last
 }
 
