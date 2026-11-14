@@ -1,10 +1,16 @@
-// The world's materials (materials/*.js), painted once at the start by the GPU, a layer a material in arrays every
-// shader binds whatever the number of materials: tex.a(material, uv) its albedo (gamma 2) and height, tex.n(material,
-// uv) its relief (the normal's x and y), tex.r(material, uv) its roughness. The material: its recipe (imported) or
-// its uid, or its layer as a node.
+// The world's materials (materials/*.js), painted by the GPU when the world first wears them, a layer each in arrays
+// every shader binds whatever the number of materials: tex.a(material, uv) its albedo (gamma 2) and height, tex.n(material,
+// uv) its relief (the normal's x and y), tex.r(material, uv) its roughness. The material: its recipe (imported) or its
+// uid, or its number (tex.layer) as a node.
+//
+// A pool, not one layer a material of the library: the library may hold thousands, the world wears a few dozen. A
+// material is painted when something wears it (what a biome or an asset names: painted at the start; anything else
+// the moment it is asked for), into a free layer of the pool, and a table every read goes through says which layer
+// it lies in (until it is painted: layer 0, a plain stand-in). Held by the world, it stays; asked for by a page
+// (the library's pictures), it may give its layer up to the next, the longest unasked first.
 //
 // Where the GPU has block compression (BC: every desktop; `?rawtex` leaves it off, to measure against) a material is
-// kept compressed: 3 MB where it was 11, and no slower to read. Nothing compressed is downloaded: each painted tile
+// kept compressed: 2.8 MB where it was 11, and no slower to read. Nothing compressed is downloaded: each painted tile
 // is packed into blocks here, by a compute pass of our own (blocksOf), and copied into its layer on the GPU. A block
 // is 4 by 4 texels:
 //   A  (BC3, 16 bytes)  its colours four steps between two it keeps (5:6:5 bits); the height eight steps between
@@ -14,9 +20,9 @@
 //   R  (BC4, 8 bytes)   the roughness, eight steps, at half the size (it is level in most materials)
 // What is read as numbers, not seen (the noise the land is laid by, the billows the clouds and the snow are made
 // from: materials of kind `noise`), is read as painted from a small array of its own: four steps a block would be
-// steps in the land.
+// steps in the land. Those are always there.
 import * as THREE from 'three/webgpu';
-import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, uniform, sqrt, clamp, normalize, texture, instancedArray, instanceIndex, min, max, mix, dot, round, select } from 'three/tsl';
+import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, uniform, sqrt, clamp, normalize, texture, instancedArray, instanceIndex, min, max, mix, dot, round, select, uniformArray, int, renderGroup } from 'three/tsl';
 import { recipes } from '../core/registry.js';
 import { note } from '../core/gpu.js';
 
@@ -91,16 +97,41 @@ function blocksOf(src, out, outR) {
   return { pass, normals };
 }
 
-/** Bakes every material in the registry, a layer each. Returns how to read them (each a node, as any texture's: with
-    .grad(dx, dy), .level()): { layer(material), a(material, uv): its albedo and height, n(material, uv): its relief
-    (.xy: the normal's x and y, each 0 … 1), r(material, uv, dx?, dy?): its roughness (a number; dx, dy: how fast uv
-    runs across the screen, where the read needs telling: inside a branch), packed: whether they are kept compressed }.
-    raw: as painted, uncompressed (what a GPU without the formats gets). */
-export function bakeTextures(renderer, raw = new URLSearchParams(location.search).has('rawtex')) {
+// Every material of the library, numbered (a material's number is its place here: tex.layer)
+const ALL = recipes('material'), NUM = new Map(ALL.map((m, i) => [m.uid, i]));
+/** The materials the world wears: every material a biome or an asset names (by its uid or its recipe, anywhere in its
+    file), and those playing a part the engine asks for (a `role`). What only the library holds is not among them. */
+export function usedMaterials() {
+  const out = new Set(), seen = new Set();
+  const visit = (v, depth) => {
+    if (v == null || depth > 10) return;
+    if (typeof v === 'string') { if (NUM.has(v)) out.add(v); return; }
+    if (typeof v !== 'object' || v.isNode || seen.has(v) || ArrayBuffer.isView(v)) return;
+    seen.add(v);
+    if (v.type === 'material' && v.uid) { out.add(v.uid); return; }
+    // (its own values only: a getter may build a mesh to answer, as a tree's size does)
+    for (const d of Object.values(Object.getOwnPropertyDescriptors(v))) if ('value' in d) visit(d.value, depth + 1);
+  };
+  for (const r of [...recipes('biome'), ...recipes('asset')]) visit(r, 0);
+  for (const m of ALL) if (m.role) out.add(m.uid);
+  return ALL.filter((m) => out.has(m.uid));
+}
+
+/** The world's textures. Returns how to read them (each a node, as any texture's: with .grad(dx, dy), .level()):
+    { layer(material): its number, a(material, uv): its albedo and height, n(material, uv): its relief (.xy: the
+    normal's x and y, each 0 … 1), r(material, uv, dx?, dy?): its roughness (a number; dx, dy: how fast uv runs across
+    the screen, where the read needs telling: inside a branch), want(material, hold?): paint it now if it is not
+    there (hold: keep it until release(material)), flush(): paint what reads asked for while shaders were built
+    (each frame), used: the materials the world wears, capacity: layers in the pool, packed: whether they are kept
+    compressed }.
+    opts: raw (as painted, uncompressed: what a GPU without the formats gets), spare (layers beyond what the world
+    wears, for what is asked for besides: the library's pictures). */
+export function bakeTextures(renderer, { raw = new URLSearchParams(location.search).has('rawtex'), spare = 6 } = {}) {
   // seen at a low angle a texture is filtered along the slope, several taps a read: four for the colours, two for the
   // relief (its blur is not seen), not eight for both: at eye level the ground is most of the picture and its reads most
   // of a frame's time (a walk in the forest: 23 ms at eight, 19 at four and two, at one and a half pixels a point)
-  const MATERIALS = recipes('material'), N = MATERIALS.length, DATA = MATERIALS.map((m, i) => (m.kind === 'noise' ? i : -1)).filter((i) => i >= 0);
+  const USED = usedMaterials(), DATA = USED.filter((m) => m.kind === 'noise'), SEEN = USED.filter((m) => m.kind !== 'noise');
+  const ROOM_OF = ALL.filter((m) => m.kind !== 'noise').length, CAP = 1 + Math.min(ROOM_OF, SEEN.length + spare);   // (layer 0: the stand-in)
   const dev = renderer.backend.device, PACKED = !raw && !!dev?.features?.has('texture-compression-bc');
   const array = (aniso, depth) => {
     const rt = new THREE.RenderTarget(SIZE, SIZE, { depth, depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
@@ -108,51 +139,87 @@ export function bakeTextures(renderer, raw = new URLSearchParams(location.search
     renderer.initRenderTarget(rt); return rt.texture;
   };
   // (compressed: an array of blocks, `bytes` a block, its finest level the tile's level `from`; every level there
-  // from the start, empty, filled below)
+  // from the start, empty, filled as materials are painted)
   const blocksArray = (format, bytes, aniso, from = 0) => {
-    const sides = SIDES.slice(from), size = SIZE >> from, zero = new Uint8Array(N * sides[0] * sides[0] * bytes), mips = sides.map((b, l) => ({ data: zero.subarray(0, N * b * b * bytes), width: size >> l, height: size >> l }));
-    const t = new THREE.CompressedArrayTexture(mips, size, size, N, format, THREE.UnsignedByteType);
+    const sides = SIDES.slice(from), size = SIZE >> from, zero = new Uint8Array(CAP * sides[0] * sides[0] * bytes), mips = sides.map((b, l) => ({ data: zero.subarray(0, CAP * b * b * bytes), width: size >> l, height: size >> l }));
+    const t = new THREE.CompressedArrayTexture(mips, size, size, CAP, format, THREE.UnsignedByteType);
     Object.assign(t, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, anisotropy: aniso, colorSpace: THREE.NoColorSpace, generateMipmaps: false, needsUpdate: true });
     renderer.initTexture(t); for (const m of mips) m.data = new Uint8Array(0);   // (sent once, empty; the page keeps none of it)
     return t;
   };
-  const A = PACKED ? blocksArray(THREE.RGBA_S3TC_DXT5_Format, 16, 4) : array(4, N), Nn = PACKED ? blocksArray(THREE.RED_GREEN_RGTC2_Format, 16, 2) : array(2, N);
-  const Rr = PACKED ? blocksArray(THREE.RED_RGTC1_Format, 8, 2, 1) : null, Dd = PACKED && DATA.length ? array(4, DATA.length) : null;
-  note("the world's textures (arrays, a layer a material)", Math.round((PACKED ? (2 + 1 / 8) * N + 4 * DATA.length : 8 * N) * SIZE * SIZE * 4 / 3), 0);
-  const tmp = new THREE.RenderTarget(SIZE, SIZE, { depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
-  Object.assign(tmp.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping });
-  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false;
-  const prev = renderer.getRenderTarget(), box = new THREE.Box2(), at = new THREE.Vector3();
-  const copy = (dst, i) => { for (let l = 0; l < LEVELS; l++) { const s = SIZE >> l; box.min.set(0, 0); box.max.set(s, s); at.set(0, 0, i); renderer.copyTextureToTexture(tmp.texture, dst, box, at, l, l); } };
-  // (the painted tile into blocks, then each level's blocks into its layer's level: buffer to texture, on the GPU)
-  const blocks = PACKED ? instancedArray(ROOM + 2048, 'uvec4') : null, blocksR = PACKED ? instancedArray(ROOM + 2048, 'uvec2') : null, enc = PACKED ? blocksOf(texture(tmp.texture), blocks, blocksR) : null;
+  const A = PACKED ? blocksArray(THREE.RGBA_S3TC_DXT5_Format, 16, 4) : array(4, CAP), Nn = PACKED ? blocksArray(THREE.RED_GREEN_RGTC2_Format, 16, 2) : array(2, CAP);
+  const Rr = PACKED ? blocksArray(THREE.RED_RGTC1_Format, 8, 2, 1) : null, Dd = DATA.length ? array(4, DATA.length) : null;
+  note("the world's textures (a pool of layers, and the numbers' own)", Math.round((PACKED ? (2 + 1 / 8) * CAP : 8 * CAP) * SIZE * SIZE * 4 / 3 + DATA.length * SIZE * SIZE * 16 / 3), 0);
+
+  // the painter: a target the tile is painted into, and (compressed) the pass that packs it and its buffers; made when
+  // there is something to paint, let go a while after the last
+  let P = null, idle = 0;
+  const painter = () => {
+    clearTimeout(idle); idle = setTimeout(() => { if (!P) return; P.tmp.dispose(); P.quad.geometry.dispose(); if (P.enc) { P.enc.pass.dispose(); for (const x of [P.blocks, P.blocksR]) renderer._attributes?.delete(x.value); } P = null; }, 4000);
+    if (P) return P;
+    const tmp = new THREE.RenderTarget(SIZE, SIZE, { depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
+    Object.assign(tmp.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping });
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false;
+    const blocks = PACKED ? instancedArray(ROOM + 2048, 'uvec4') : null, blocksR = PACKED ? instancedArray(ROOM + 2048, 'uvec2') : null;
+    return (P = { tmp, quad, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), blocks, blocksR, enc: PACKED ? blocksOf(texture(tmp.texture), blocks, blocksR) : null });
+  };
+  const box = new THREE.Box2(), at = new THREE.Vector3();
+  const copy = (dst, i) => { for (let l = 0; l < LEVELS; l++) { const s = SIZE >> l; box.min.set(0, 0); box.max.set(s, s); at.set(0, 0, i); renderer.copyTextureToTexture(P.tmp.texture, dst, box, at, l, l); } };
   const pack = (i, normalPass) => {
-    enc.normals.value = normalPass ? 1 : 0; renderer.compute(enc.pass);
+    P.enc.normals.value = normalPass ? 1 : 0; renderer.compute(P.enc.pass);
     const e = dev.createCommandEncoder(), gpu = (x) => renderer.backend.get(x), to = gpu(normalPass ? Nn : A).texture;
     for (let l = 0; l < LEVELS; l++) {
       const size = { width: SIDES[l] * 4, height: SIDES[l] * 4, depthOrArrayLayers: 1 };
-      e.copyBufferToTexture({ buffer: gpu(blocks.value).buffer, offset: AT[l] * 16, bytesPerRow: STRIDES[l] * 16, rowsPerImage: SIDES[l] }, { texture: to, mipLevel: l, origin: { x: 0, y: 0, z: i } }, size);
-      if (normalPass && l > 0) e.copyBufferToTexture({ buffer: gpu(blocksR.value).buffer, offset: AT[l] * 8, bytesPerRow: STRIDES[l] * 8, rowsPerImage: SIDES[l] }, { texture: gpu(Rr).texture, mipLevel: l - 1, origin: { x: 0, y: 0, z: i } }, size);
+      e.copyBufferToTexture({ buffer: gpu(P.blocks.value).buffer, offset: AT[l] * 16, bytesPerRow: STRIDES[l] * 16, rowsPerImage: SIDES[l] }, { texture: to, mipLevel: l, origin: { x: 0, y: 0, z: i } }, size);
+      if (normalPass && l > 0) e.copyBufferToTexture({ buffer: gpu(P.blocksR.value).buffer, offset: AT[l] * 8, bytesPerRow: STRIDES[l] * 8, rowsPerImage: SIDES[l] }, { texture: gpu(Rr).texture, mipLevel: l - 1, origin: { x: 0, y: 0, z: i } }, size);
     }
     dev.queue.submit([e.finish()]);
   };
-  MATERIALS.forEach((m, i) => {
-    for (const normalPass of [false, true]) {
-      quad.material = program(m, normalPass);
-      renderer.setRenderTarget(tmp); renderer.render(quad, cam); renderer.setRenderTarget(prev);   // its mipmaps are made as the pass ends
-      if (!PACKED) copy(normalPass ? Nn : A, i);
-      else { pack(i, normalPass); if (!normalPass && DATA.includes(i)) copy(Dd, DATA.indexOf(i)); }   // (what is read as numbers: as painted too, in its own array)
-      quad.material.dispose();
+  // a material painted into a layer (data: into its own array, as painted)
+  const STANDIN = { uid: 'stand-in', bump: 1, paint: () => ({ h: float(0.5), col: vec3(0.25), rough: float(0.8) }) };
+  const paintInto = (m, i, data = false) => {
+    painter(); const prev = renderer.getRenderTarget();
+    for (const normalPass of data ? [false] : [false, true]) {
+      P.quad.material = program(m, normalPass);
+      renderer.setRenderTarget(P.tmp); renderer.render(P.quad, P.cam); renderer.setRenderTarget(prev);   // its mipmaps are made as the pass ends
+      if (data) copy(Dd, i); else if (PACKED) pack(i, normalPass); else copy(normalPass ? Nn : A, i);
+      P.quad.material.dispose();
     }
-  });
-  if (PACKED) { enc.pass.dispose(); for (const x of [blocks, blocksR]) renderer._attributes?.delete(x.value); }   // (the packer's own buffers: done with)
-  tmp.dispose(); quad.geometry.dispose();
-  const index = (ref) => { const uid = ref?.uid ?? ref, i = MATERIALS.findIndex((m) => m.uid === uid); if (i < 0) throw new Error(`no material ${uid}`); return i; };
-  const tA = texture(A), tN = texture(Nn), tR = Rr ? texture(Rr) : null, tD = Dd ? texture(Dd) : null, layer = (m) => (m?.isNode ? m : index(m));   // (m: a recipe, a uid, or a layer as a node)
+  };
+
+  // the table: a material's number to the layer it lies in, four to a row (0: not there, read the stand-in)
+  const rows = Array.from({ length: Math.max(1, Math.ceil(ALL.length / 4)) }, () => new THREE.Vector4()), TABLE = uniformArray(rows, 'vec4').setGroup(renderGroup);   // (sent once a frame, not once a draw)
+  const where = new Int32Array(ALL.length).fill(0), owner = new Int32Array(CAP).fill(-1), held = new Uint8Array(ALL.length), asked = new Float64Array(CAP), wanted = new Set();
+  const setLayer = (k, layer) => { where[k] = layer; rows[k >> 2].setComponent(k & 3, layer); };
+  const numberOf = (ref) => { const uid = ref?.uid ?? ref, k = NUM.get(uid); if (k === undefined) throw new Error(`no material ${uid}`); return k; };
+  const isData = (k) => ALL[k].kind === 'noise';
+  const place = (k) => {   // a free layer, or the one asked for longest ago that nothing holds
+    let best = -1;
+    for (let i = 1; i < CAP; i++) { if (owner[i] < 0) { best = i; break; } if (!held[owner[i]] && (best < 0 || asked[i] < asked[best])) best = i; }
+    if (best < 0) { console.warn(`[textures] the pool's ${CAP - 1} layers are all held: ${ALL[k].name} is drawn as the stand-in (raise 'spare')`); return 0; }
+    if (owner[best] >= 0) setLayer(owner[best], 0);
+    owner[best] = k; setLayer(k, best); paintInto(ALL[k], best); return best;
+  };
+  /** a material there now (painted if it is not): its layer. hold: kept until release() */
+  const want = (ref, hold = false) => {
+    const k = numberOf(ref); if (isData(k)) return -1;
+    if (hold) held[k] = 1;
+    const layer = where[k] || place(k); if (layer) asked[layer] = performance.now(); return layer;
+  };
+  const release = (ref) => { held[numberOf(ref)] = 0; };
+  const flush = () => { if (!wanted.size) return; const list = [...wanted]; wanted.clear(); for (const k of list) if (!where[k]) want(ALL[k], true); };
+
+  paintInto(STANDIN, 0);
+  DATA.forEach((m, i) => paintInto(m, i, true));
+  for (const m of SEEN) want(m, true);   // what the world wears: painted now, held
+  const index = (ref) => { const k = numberOf(ref); if (!isData(k) && !where[k]) wanted.add(k); return k; };   // (asked for while a shader is built: painted at the next flush)
+  const tA = texture(A), tN = texture(Nn), tR = Rr ? texture(Rr) : null, tD = Dd ? texture(Dd) : null;
+  const layer = (m) => { const k = m?.isNode ? int(m) : index(m); return TABLE.element(m?.isNode ? k.div(4) : int(k >> 2)).element(m?.isNode ? k.mod(4) : int(k & 3)); };   // (m: a recipe, a uid, or a material's number as a node)
+  const data = (m) => (!m?.isNode && tD && isData(numberOf(m)) ? DATA.indexOf(ALL[numberOf(m)]) : -1);
   return {
-    layer: index, packed: PACKED,
+    layer: index, want, release, flush, used: USED, capacity: CAP - 1, packed: PACKED,
     /** a material's albedo + height at uv */
-    a: (m, p) => (!m?.isNode && tD && DATA.includes(index(m)) ? tD.sample(p).depth(DATA.indexOf(index(m))) : tA.sample(p).depth(layer(m))),
+    a: (m, p) => (data(m) >= 0 ? tD.sample(p).depth(data(m)) : tA.sample(p).depth(layer(m))),
     /** its relief at uv: .xy the normal's x and y */
     n: (m, p) => tN.sample(p).depth(layer(m)),
     /** its roughness at uv */

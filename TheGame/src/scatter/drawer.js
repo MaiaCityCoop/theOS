@@ -51,7 +51,7 @@ import { solidOf } from './solid.js';
 import { LADDER, FULLN, DOTN, roomOf, underOf, trisOf, vertsOf } from '../../assets/kit/ladder.js';
 import { dotMesh, BONES } from '../../assets/kit/solid.js';
 import { MODELS, modelOf } from '../shading/index.js';
-import { recipes, byRole } from '../core/registry.js';
+import { byRole } from '../core/registry.js';
 import { bandOf, padOf } from '../detail/handover.js';
 import { pxK } from '../detail/index.js';
 import { note } from '../core/gpu.js';
@@ -87,7 +87,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // (none: -1), gloss, sway], [how uneven its snow lies, glow, light through it, its size], [when its own texture came,
   // the lobes of its leaves (0: it is solid)], [the layer of the world's material it wears (none: -1; its mean colour
   // is then the tint it is given), how much grows over it, how strong its relief is, how much of its size lies in the ground]
-  const LAYERS = recipes('material').filter((m) => ['ground', 'bark', 'stone', 'grass'].includes(m.kind)).map((m) => tex.layer(m)), look = new Float32Array(Math.max(1, NL) * LOOK), MOSS = GROUND ? byRole('moss') : null;   // (MOSS: the material that plays what grows over a thing)
+  const LAYERS = tex.used.filter((m) => ['ground', 'bark', 'stone', 'grass'].includes(m.kind)).map((m) => tex.layer(m)), look = new Float32Array(Math.max(1, NL) * LOOK), MOSS = GROUND ? byRole('moss') : null;   // (MOSS: the material that plays what grows over a thing)
   for (let k = 0; k < NL; k++) {
     const B = lookOfKind(k), worn = B.material ? tex.layer(B.material) : -1;
     look.set([B.mean[0], B.mean[1], B.mean[2], modelOf(B.model), B.c2[0] * 1.7, B.c2[1] * 1.7, B.c2[2] * 1.7, B.scale, worn >= 0 ? worn : LAYERS[Math.min(LAYERS.length - 1, Math.floor(B.relief * LAYERS.length))], -1, B.gloss, B.sway, B.snow, B.glow, B.through, B.size ?? 1, -100, B.leaf ?? 0, 0, 0, worn, B.cover ?? 0, B.bump ?? 1, B.sunk ?? 0], k * LOOK);

@@ -102,8 +102,13 @@ ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES
 document.getElementById('list').innerHTML = `<div class="group" data-g="assets">Assets · ${ids.length}</div>` + ids.map((id) => `<button class="item glass flat" data-id="${id}"><canvas width="72" height="72"></canvas><span><b class="g-name">${ASSETS[id].name}</b><small class="g-sub">${ASSETS[id].kind}</small></span></button>`).join('')
   + `<div class="group" data-g="biomes">Biomes · ${BIOMES.length}</div>` + BIOMES.map((b) => `<button class="item glass flat" data-biome="${b.uid}"><canvas width="72" height="72"></canvas><span><b class="g-name">${b.name}</b><small class="g-sub">${b.kind}</small></span></button>`).join('')
   + `<div class="group" data-g="materials">Materials · ${MATERIALS.length}</div>` + MATERIALS.map((m) => `<button class="item glass flat" data-mat="${m.uid}"><canvas width="72" height="72"></canvas><span><b class="g-name">${m.name}</b><small class="g-sub">${m.kind}</small></span></button>`).join('');
+// a list's pictures are made when they scroll into sight, a few a frame: a library of thousands opens at once, and a
+// material only the library holds is painted only when its picture is wanted (src/materials/bake.js)
+const queue = [], lazy = new IntersectionObserver((seen) => { for (const e of seen) if (e.isIntersecting) { lazy.unobserve(e.target); queue.push(e.target); } });
+const pictures = new Map(), later = (b, make) => { pictures.set(b, make); lazy.observe(b); };
+(function work() { const t = performance.now(); while (queue.length && performance.now() - t < 12) { const b = queue.shift(); pictures.get(b)?.(); pictures.delete(b); } requestAnimationFrame(work); })();
 for (const b of document.querySelectorAll('.item[data-mat]')) {   // a material's picture: its own baked tile
-  materialThumb(window.__s8.renderer, tex, b.dataset.mat, b.querySelector('canvas'));
+  later(b, () => materialThumb(window.__s8.renderer, tex, b.dataset.mat, b.querySelector('canvas')));
   b.onclick = () => chooseMaterial(b.dataset.mat);
 }
 // an asset's picture: a scattered one's as its engine draws it (src/scatter: a rock in the world's own stone, a tree in its
@@ -119,12 +124,12 @@ function assetThumb(a, canvas) {
   sceneThumb(window.__s8.renderer, things, canvas, cam);
 }
 for (const b of document.querySelectorAll('.item[data-biome]')) {   // a biome's picture: a ball of its ground
-  materialThumb(window.__s8.renderer, tex, BIOME[b.dataset.biome].floor.material, b.querySelector('canvas'));
+  later(b, () => materialThumb(window.__s8.renderer, tex, BIOME[b.dataset.biome].floor.material, b.querySelector('canvas')));
   b.onclick = () => chooseBiome(b.dataset.biome);
 }
 for (const b of document.querySelectorAll('.item[data-id]')) {
   const a = ASSETS[b.dataset.id];
-  assetThumb(a, b.querySelector('canvas'));
+  later(b, () => assetThumb(a, b.querySelector('canvas')));
   b.onclick = () => choose(b.dataset.id);
 }
 
@@ -247,8 +252,11 @@ function chooseBiome(id) {
 }
 // a material: a ball of it in the middle of the stage, and the stage's round laid in it, into the land like any ground
 const ballGeo = new THREE.SphereGeometry(1.1, 128, 96);
+let heldMat = null;   // (the staged material is held in the pool while it stands: the list's pictures may not take its layer)
 function chooseMaterial(id) {
   const m = MATERIAL[id]; clearStage(); staged = new THREE.Group();
+  if (heldMat && heldMat !== id && !tex.used.some((u) => u.uid === heldMat)) tex.release(heldMat);
+  tex.want(id, true); heldMat = id;
   const mat = materialPreview(tex, id, 2), y = heightAt(STAGE.x, STAGE.z);
   ground.stage(STAGE.x, STAGE.z, STAGE.r + 0.2, id, 2);
   const ball = new THREE.Mesh(ballGeo, mat); ball.position.set(STAGE.x, y + 1.15, STAGE.z); ball.renderOrder = 1; ball.frustumCulled = false; staged.add(ball);
@@ -258,7 +266,7 @@ function chooseMaterial(id) {
   document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', b.dataset.mat === id));
   document.getElementById('info').innerHTML = head('Material', m.kind, m.name, m.about)
     + figs([fig(1024, 'px', 'Baked'), fig(MATERIALS.indexOf(m), '', 'In the shaders')])
-    + `<div class="g-cells g-part">${cell('Used by', say(cap(m.usedBy).replace(/; /g, '<br>')), true)}${cell('Relief', say(`${m.bump} · smaller is deeper`), true)}${cell('Baked as', say('Albedo + height, normal + roughness'), true)}</div>`
+    + `<div class="g-cells g-part">${cell('Used by', say(cap(m.usedBy).replace(/; /g, '<br>')), true)}${cell('Relief', say(`${m.bump} · smaller is deeper`), true)}${cell('Baked as', say(`Albedo + height, relief, roughness${tex.packed ? ', compressed on the GPU' : ''}; painted when worn`), true)}</div>`
     + fileOf(m);
   history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}material=${id}`);
 }

@@ -11,6 +11,7 @@ import { BIOMES, BASE, WATER } from '../world/biomes.js';
 /** id: the material, its recipe or uid (tex: src/materials/bake.js); tile: metres one tile covers; own: { tint: [r, g, b] }.
     Its `eye` uniform is the camera it is lit and hazed for (a picture sets its own). */
 export function materialPreview(tex, id, tile = 2, own = {}) {
+  tex.want(id);   // (painted now, if the world does not wear it)
   const eye = uniform(U.uCam.value), tint = vec3(...(own.tint || [1, 1, 1]));
   const m = new THREE.NodeMaterial(); m.eye = eye;
   m.fragmentNode = Fn(() => {

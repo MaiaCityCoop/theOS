@@ -80,7 +80,7 @@ stats.governor = governor;   // the film holds it still while it plays
 const boot = (stats.boot = {}), mark = (k) => (boot[k] = Math.round(performance.now() - t0));   // where the start's time goes
 mark('renderer');
 await loadingStep('Painting the ground', 0.12);
-const tex = bakeTextures(renderer);
+const tex = bakeTextures(renderer, { spare: /library/.test(location.pathname) ? 8 : 1 });   // (the library's pictures ask for materials the world may not wear)
 useTiles(tex);   // node code that reads a baked tile by itself (the clouds' field, the snow's clumps: src/world/tile.js)
 useBackend(renderer);   // and what is lit per corner (a tree) reads the shadow map's texels only where the backend can
 mark('bake');
@@ -142,6 +142,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const ms = last ? now - last : 16.7; last = now;
   U.uTime.value = (now - t0) / 1000;
+  tex.flush();   // (materials asked for since the last frame: src/materials/bake.js)
   renderer.info.reset();
   governor.begin();
   const c0 = performance.now();
@@ -182,6 +183,7 @@ scene.traverse((o) => { if (o.isMesh) { seen.push(o, o.visible); o.visible = tru
 mark('built');
 await loadingStep('Lighting the world', 0.55);
 await renderer.compileAsync(scene, camera);
+tex.flush();   // (a material a shader asked for that no biome or asset names: painted before the first frame)
 mark('compiled');
 terrain.cache?.update(renderer, camera, `${innerHeight}|${U.uSand.value.toArray()}`);   // (its first laying, and its shaders, while the page still starts)
 screen.render(scene, camera);   // (through the inside's target: its pipelines are the ones a frame uses)
