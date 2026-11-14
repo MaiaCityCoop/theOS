@@ -17,6 +17,8 @@
 // draw's own index, each vertex read by its number and worked out once (the GPU works a vertex out once however many
 // triangles meet in it), where a draw that looks every corner up in the heap works out every corner of every triangle:
 // six times a ball's vertices. Nobody says which kinds are balls: a family whose meshes happen to be are drawn so.
+// A level counts how many of the meshes it holds are of its shape (pools[l].shaped): what draws it need not make the
+// draw that would find none.
 //
 // What draws a level must be told when the heap has changed (versions: a count a level, raised when a kind's level is
 // put in or out): a level's draw depends on that level and the next finer one only.
@@ -38,7 +40,7 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
   const shaped = (p, idx, o, n) => { const S = p.shape; if (!S || n !== S.length) return 0; for (let i = 0; i < n; i++) if (idx[o + i] !== S[i]) return 0; return SHAPED; };
   const pools = levels.map((l) => {
     const n = l.one ? 1 : l.slots || kinds, own = !l.slots && !l.one;
-    const p = { idx: l.idx, elems: l.elems, n, own, one: !!l.one, shape: l.shape || null, i0: iAt, e0: eAt, held: 0, who: own || l.one ? null : new Int32Array(n).fill(-1), used: own || l.one ? null : new Float64Array(n), slot: own || l.one ? null : new Int32Array(kinds).fill(-1) };
+    const p = { idx: l.idx, elems: l.elems, n, own, one: !!l.one, shape: l.shape || null, i0: iAt, e0: eAt, held: 0, shaped: 0, who: own || l.one ? null : new Int32Array(n).fill(-1), used: own || l.one ? null : new Float64Array(n), slot: own || l.one ? null : new Int32Array(kinds).fill(-1) };
     iAt += n * l.idx; eAt += n * l.elems; return p;
   });
   const index = gpuStorage('uint', iAt, `${name}: corners`), elems = gpuStorage('uvec4', eAt, `${name}: vertices`), table = new THREE.StorageBufferAttribute(new Uint32Array(kinds * L * 4), 4);
@@ -71,9 +73,11 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
       const i0 = p.i0 + s * p.idx, e0 = p.e0 + s * p.elems;
       index.write(i0, mesh.index); elems.write(e0 * 4, mesh.verts);
       if (!p.own) { p.who[s] = k; p.slot[k] = s; p.used[s] = now; }
-      if (!H.has(k, l)) p.held++;
+      const r = row(k, l), is = shaped(p, mesh.index, 0, mesh.index.length);
+      if (!H.has(k, l)) p.held++; else if (T[r + 2] >= SHAPED) p.shaped--;
+      if (is) p.shaped++;
       came[k * L + l] = Math.min(0xfffff, Math.round(time * 16));
-      const r = row(k, l); T[r] = i0; T[r + 1] = e0; T[r + 2] = (mesh.index.length | shaped(p, mesh.index, 0, mesh.index.length)) >>> 0;
+      T[r] = i0; T[r + 1] = e0; T[r + 2] = (mesh.index.length | is) >>> 0;
       mask[k] |= 1 << l; masked(k); H.version++; H.versions[l]++;
       return true;
     },
@@ -83,7 +87,7 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
     putBlock(l, k0, n, corners, verts, counts) {
       const p = pools[l]; if (!p.own) throw new Error('heap: putBlock is for a level every kind has its own of');
       index.write(p.i0 + k0 * p.idx, corners); elems.write((p.e0 + k0 * p.elems) * 4, verts);
-      for (let j = 0; j < n; j++) { const k = k0 + j, r = row(k, l); if (!H.has(k, l)) p.held++; T[r] = p.i0 + k * p.idx; T[r + 1] = p.e0 + k * p.elems; T[r + 2] = (counts[j] | shaped(p, corners, j * p.idx, counts[j])) >>> 0; mask[k] |= 1 << l; masked(k, true); }
+      for (let j = 0; j < n; j++) { const k = k0 + j, r = row(k, l), is = shaped(p, corners, j * p.idx, counts[j]); if (!H.has(k, l)) p.held++; else if (T[r + 2] >= SHAPED) p.shaped--; if (is) p.shaped++; T[r] = p.i0 + k * p.idx; T[r + 1] = p.e0 + k * p.elems; T[r + 2] = (counts[j] | is) >>> 0; mask[k] |= 1 << l; masked(k, true); }
       table.addUpdateRange(row(k0, 0), n * L * 4); table.needsUpdate = true; H.version++; H.versions[l]++;
     },
     /** One mesh for every kind's level l (a level made `one`). */
@@ -95,6 +99,7 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
     /** Put a kind's level out (a pooled level). */
     drop(k, l) {
       const p = pools[l], s = p.slot ? p.slot[k] : -1; if (s < 0) return;
+      if (T[row(k, l) + 2] >= SHAPED) p.shaped--;
       p.who[s] = -1; p.slot[k] = -1; p.held--; T[row(k, l) + 2] = 0; mask[k] &= ~(1 << l); masked(k); H.version++; H.versions[l]++;
     },
     /** How many kinds' levels are in, level by level. */

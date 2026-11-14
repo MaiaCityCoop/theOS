@@ -10,7 +10,7 @@
     "type": "asset",
     "name": "Boulders",
     "file": "assets/boulder.js",
-    "version": "dd739c0f7ad27d7848f0c4518a5bfec0c9f21c5e832e6edb6936523655db5228",
+    "version": "139ff71e35be4a0a16bdac9176384db93cc94aec58fcda629d519dc91d207e4f",
     "uses": [
       "506c509b-300d-42eb-8403-f3969b06b271"
     ]
@@ -104,7 +104,7 @@
     "type": "asset",
     "name": "Stones",
     "file": "assets/stone.js",
-    "version": "99f907b3219d5607d141cc5bd108877e7706ea67f61420a6fa2be7d5b8065f74",
+    "version": "ad7e7447132b93b3f2540c221ad43507f34792f510a12d32b79cae773b426a00",
     "uses": [
       "f4a707ab-dcac-4c3a-a4d6-7a929d0e945e"
     ]

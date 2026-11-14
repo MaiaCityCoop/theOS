@@ -53,11 +53,10 @@ import { U } from '../core/uniforms.js';
 import { camDist, groundAt, rnd } from '../world/land.nodes.js';
 import { cellRnd, heightAt } from '../world/land.js';
 import { pxK } from '../detail/index.js';
-import { padOf, bandOf } from '../detail/handover.js';
 import { boxIn } from '../core/frustum.js';
 import { Tier, MAXP } from './tier.js';
 import { inView } from './view.js';
-import { heapRow, heldOf, shapedOf } from './heap.js';
+import { heapRow, heldOf } from './heap.js';
 import { createDrawer } from './drawer.js';
 import { LADDER, FULLN, trisOf } from '../../assets/kit/ladder.js';
 import { STAND, MOVING, KINDS as ALL, FAMILIES, HERDS, lookOf as lookOfKind, fullTris, fingerprint } from '../../assets/zoo/index.js';
@@ -405,58 +404,35 @@ export function createStress(scene, renderer, tex) {
 
   // how it is drawn: the one drawer (src/scatter/drawer.js): the heap of every kind's meshes, their looks and textures,
   // the levels' materials and draws, and what streams them in. Here only where things stand and move.
-  const D = createDrawer(scene, renderer, tex, { LEVELS, SHADE, SMOOTH, PXK, ghost: GHOST, corners: CORNERS, zoo: { ALL, STAND, MOVING, lookOfKind, fingerprint } });
-  const { H, LO, lookOf, sizes, skins, boneRows, meshOf, dot, drawOf, drawShaped, shapeOf, ask, stats, pending } = D;
+  const D = createDrawer(scene, renderer, tex, { name: 'stand', LEVELS, SHADE, SMOOTH, PXK, ghost: GHOST, corners: CORNERS, zoo: { first: 0, ALL, STAND, MOVING, lookOfKind, fingerprint } });
+  const { H, LO, lookOf, sizes, skins, boneRows, meshOf, dot, drawOf, ask, stats, pending } = D;
 
   const tiers = [];
   // the plots a tier may draw from: those whose land comes within `far` of the camera, and into its view
   const plotsNear = (cx, cz, h0, far, cull) => PL.filter((p) => { const d = Math.hypot(p.x - cx, p.z - cz) - p.most; return d < far && (cull === false || boxIn(p.x - p.most - cull, p.x + p.most + cull, h0 - 400, h0 + 400, p.z - p.most - cull, p.z + p.most + cull)); });
 
   // a tier: level i of every kind; shadow: all of it round the camera, whatever its size on screen, for the light only.
-  // Its patches are blocks of P by P cells of a plot's lattice: chosen each frame from the plots near (select, below)
+  // The drawer's (drawer.js: tier): it tests whether a thing is of the level and drops it into the level's draws; here
+  // only where a thing stands. Its patches are blocks of P by P cells of a plot's lattice: chosen each frame from the
+  // plots near (select, below)
   const tier = (i, shadow = false) => {
-    const Lv = { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity }, P = shadow ? 8 : LEVELS[i].P;
-    const band = { near: uniform(0), far: uniform(1), ...bandOf(Lv, FADE, padOf(CELL, P)) }, round = uniform(SMAX / 2 + (CELL * P) / 16 + 2);
-    // the full meshes are a draw a slot of the heap, each as long as the mesh that lies in it (set when it is put in:
-    // arrive, below): a full mesh is 50 000 to 200 000 triangles, and one draw as long as the longest for all of them
-    // worked out 200 000 for each
-    const perSlot = i === 0 && !shadow;
-    // (and what is cut out as leaves has a draw of its own at the levels it is cards: another state of the pipeline)
-    const leafy = !shadow && i < HULL, K0 = perSlot ? LEVELS[0].slots : 1;
-    // (and what is of the level's own shape, a ball of the ladder's, the last draw: by the level's list of corners)
-    const KS = shapeOf[i] ? (leafy ? K0 * 2 : 1) : -1;
-    // (its level and whether it is the shadow's as numbers: every tier's packing is one piece of code, compiled once)
-    const lv = uniform(i, 'uint'), under = uniform(Math.max(0, i - 1), 'uint'), stands = uniform(i ? 1 : 0), all = uniform(shadow ? 1 : 0);
-    const live = (c) => {
-      const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), bucket = float(0).toVar(), plot = plotOfCell(c), ci = inPlot(c), cj = c.y, base = uint(plot).mul(uint(ROW)), h = (s) => rnd(c.x, c.y, uint(s)), whole = all.greaterThan(0.5);
+    const P = shadow ? 8 : LEVELS[i].P, round = uniform(SMAX / 2 + (CELL * P) / 16 + 2);
+    const place = (c, { band, whole, all }, found) => {
+      const plot = plotOfCell(c), ci = inPlot(c), cj = c.y, base = uint(plot).mul(uint(ROW)), h = (s) => rnd(c.x, c.y, uint(s));
       // (where it stands: kept for its plot, above; a plot not kept yet has nothing to show)
       const slot = PT.element(base.add(uint(KEPT_AT))), u = kept.element(uint(slot.max(0)).mul(uint(SIDE * SIDE)).add(uint(cj.mul(int(SIDE)).add(ci))));
       const pos = middle(base).add(vec2(float(u.bitAnd(uint(0xffff))), float(u.shiftRight(uint(16)))).div(65535).mul(2).sub(1).mul(PT.element(base.add(uint(FAR_AT))))), dist = camDist(pos), range = mix(dist, length(pos.sub(U.uCam.xz)), all);
       If(slot.greaterThan(-0.5).and(range.lessThan(band.far)).and(range.greaterThanEqual(band.near)).and(whole.or(inView(pos, round, SMAX))), () => {
         // its kind: its group of rows holds every kind once (groupOf, above)
         const g = cj.div(int(GROUP)), r4 = int(floor(rnd(plot, g, uint(902)).mul(4))), a = int(floor(rnd(plot, g, uint(901)).mul(KINDS / 10))).mul(10).add(1).add(r4.mul(2)).add(r4.greaterThanEqual(2).select(int(2), int(0)));
-        const kind = uint(ci.add(cj.mod(int(GROUP)).mul(int(SIDE))).mul(a).add(int(floor(rnd(plot, g, uint(904)).mul(KINDS)))).mod(int(KINDS)).add(plot.mul(int(OFF))).mod(int(STAND))), size = clamp(lookOf(kind, 3).w.mul(h(903).mul(0.4).add(0.8)).mul(PT.element(base.add(uint(3)))), SMIN, SMAX), span = size.mul(PXK);
-        // of this level: it is there (heap.js), and the thing is the size on screen the level is drawn at, or larger
-        // while its next finer level has not come
-        const R = heapRow(H, kind, lv), has = R.z.greaterThan(uint(0));
-        const near = dist.greaterThanEqual(span.mul(band.from).sub(band.pad)).or(stands.greaterThan(0.5).and(R.w.shiftRight(under).bitAnd(uint(1)).equal(uint(0))));
-        If(has.and(whole.or(dist.lessThan(span.mul(band.to).add(band.pad)).and(near))), () => {
+        const kind = uint(ci.add(cj.mod(int(GROUP)).mul(int(SIDE))).mul(a).add(int(floor(rnd(plot, g, uint(904)).mul(KINDS)))).mod(int(KINDS)).add(plot.mul(int(OFF))).mod(int(STAND))), size = clamp(lookOf(kind, 3).w.mul(h(903).mul(0.4).add(0.8)).mul(PT.element(base.add(uint(3)))), SMIN, SMAX);
+        found(kind, size, dist, (A, B) => {
           A.assign(vec4(pos, groundAt(pos, float(0)).sub(size.mul(0.06)), size));
           B.assign(vec4(h(907).mul(TAU), float(kind), lookOf(kind, 2).w, h(908).mul(TAU)));   // (its turn, its kind, how far it sways, its sway's phase)
-          if (perSlot) bucket.assign(float(R.x.sub(uint(H.pools[0].i0)).div(uint(H.pools[0].idx))));   // (the full meshes: which of the heap's slots its kind's lies in)
-          if (leafy) bucket.addAssign(lookOf(kind, 4).y.greaterThan(0.5).select(float(K0), float(0)));
-          if (KS >= 0) If(shapedOf(R), () => { bucket.assign(float(KS)); });
-          alive.assign(1);
         });
       });
-      return { alive: alive.greaterThan(0.5), data: [A, B], bucket };
     };
-    const T = new Tier(scene, [...Array.from({ length: leafy ? K0 * 2 : 1 }, () => drawOf(i)), ...(KS >= 0 ? [drawShaped(i)] : [])], (src, k = 0) => (i === L - 1 && !shadow ? dot(src) : meshOf(src, i, shadow, false, leafy && k >= K0 && k !== KS, k === KS)), { cell: CELL, P, near: 0, far: 1, order: 1, live, gpu: true, cap: shadow ? 8192 : LEVELS[i].cap, slots: 2 });
-    T.band = shadow ? () => { T.near = 0; T.far = SHADE.far; band.near.value = -1; band.far.value = SHADE.far * SHADE.wide; }
-      : () => {
-        [T.near, T.far] = band.reach(SMIN, SMAX, pxK()); if (i <= STREAMED) T.near = 0;   // (a level may stand in for the finer ones, right up to the camera)
-        band.near.value = T.near > 0 ? T.near : -1; band.far.value = T.far;
-      };
+    const T = D.tier(i, { cell: CELL, P, cap: shadow ? 8192 : LEVELS[i].cap, sizes: [SMIN, SMAX], place, shadow, fade: FADE });
     // its patches: of each plot near, the blocks of its lattice that lie in the tier's band of distances and in view
     // (where a block lies: its middle through toLand; a block near the camera is found by the camera's own lattice point)
     // (where a block's middle lies on the land: folded once, kept; a tier asks it of thousands of blocks a frame)
@@ -482,10 +458,8 @@ export function createStress(scene, renderer, tex) {
       }
       T.n = n; for (const m of T.meshes) m.visible = n > 0;
     };
-    T.band(); T.level = i; T.shaped = KS; T.viewKeyed = !shadow; T.asset = shadow ? 'Stress: shadows' : `Stress: level ${i}`;
-    for (const m of T.meshes) m.renderOrder = 1 + i * 0.01;   // the fine levels first: they are the near ones, and what is behind them need not be shaded
-    if (shadow) for (const m of T.meshes) m.layers.set(1);
-    const run = T.run.bind(T); T.run = (r, world, ...a) => run(r, `${world}|${slots.version}|${H.versions[i]}|${i && !shadow ? H.versions[i - 1] : 0}`, ...a);   // packed again when the heap has changed at its level, or the next finer (which it stands in for)
+    T.viewKeyed = !shadow; T.asset = shadow ? 'Stress: shadows' : `Stress: level ${i}`;
+    const run = T.run.bind(T); T.run = (r, world, ...a) => run(r, `${world}|${slots.version}`, ...a);   // packed again when other plots' places are kept (and when the heap has changed: the drawer's)
     tiers.push(T);
     return T;
   };
@@ -591,7 +565,6 @@ export function createStress(scene, renderer, tex) {
   };
   // (a plot's ten thousand reckoned a part each time it is asked for: all at once is a frame lost)
   const moversOf = (p) => { const M = (p.movers ||= []); for (let n = 0; n < 1500 && M.length < MSIDE * MSIDE; n++) M.push(moverOf(p, M.length % MSIDE, Math.floor(M.length / MSIDE))); return M; };
-  { const first = tiers[0].select; tiers[0].select = (...a) => { D.arrive(tiers[0]); return first(...a); }; }   // (what the workers have built is put in before the frame's tiers pack: drawer.js)
   // each frame: when the camera has moved, ask for the fine levels of what now
   // stands or passes near (coarser first: quick to build, and something to draw meanwhile), nearest first
   let tick = 0;

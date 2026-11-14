@@ -5,8 +5,8 @@
 //   export const engine = {
 //     id,
 //     row?(asset) -> row,                      what it reads of an asset, over the common row (assets/index.js: scatterRow)
-//     create(scene, tex, ground, row, gpu) -> tiers,   its tiers (tier.js); tiers.solid: what reads its packing back as bodies
-//     createAll?(scene, tex, ground, rows, gpu) -> tiers,   instead of create: all its assets at once (they share tiers)
+//     create(scene, tex, ground, row, gpu, renderer) -> tiers,   its tiers (tier.js); tiers.solid: what it does each frame once they are packed (reads its packing back as bodies, asks for meshes)
+//     createAll?(scene, tex, ground, rows, gpu, renderer) -> tiers,   instead of create: all its assets at once (they share tiers, or a drawer)
 //     createOwn?(scene, tex, ground, gpu, renderer) -> tiers,   what it places of its own, no asset of the library (stress.js)
 //     // for the asset library (library.html), each as the engine sees fit:
 //     thumb?(tex, row) -> { things, eye, look },       its picture for the list
@@ -38,7 +38,7 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
   }
   // an engine makes its tiers asset by asset (create), or all of its assets at once (createAll: what shares tiers, as
   // the kinds of one stand do: trees.js)
-  for (const [E, list] of rows) { if (E.createAll) take(E.createAll(scene, tex, ground, list, gpu), E.id); else for (const row of list) take(E.create(scene, tex, ground, row, gpu), row.name); }
+  for (const [E, list] of rows) { if (E.createAll) take(E.createAll(scene, tex, ground, list, gpu, renderer), E.id); else for (const row of list) take(E.create(scene, tex, ground, row, gpu, renderer), row.name); }
   for (const E of Object.values(ENGINES)) if (E.createOwn) take(E.createOwn(scene, tex, ground, gpu, renderer), E.id);   // what an engine places of its own
   return {
     tiers,

@@ -10,8 +10,9 @@ export default {
   colours: { stone: [0.5, 0.49, 0.45], moss: [0.33, 0.42, 0.24] },
   // big, broken and old: every face it lost still sharp, moss over all that looks up
   look: { material: '506c509b-300d-42eb-8403-f3969b06b271' /* rock */, moss: 1, relief: 1.1, tint: [1, 1, 1], cuts: 1, smooth: 0 },
-  // its levels of detail, near to far (src/detail); a boulder ends its levels sooner on screen than its kind does,
-  // so it is not drawn past about a kilometre, as before
-  detail: { px: [100, 25, 10, 5.5], levels: [{ rock: 3, P: 4 }, { rock: 2, P: 8 }, { rock: 1, P: 16 }, { rock: 0, P: 32 }] },
-  placement: { at: 'scatter', engine: 'rocks', cell: 20, outcrops: true, texture: 3.0, shapes: 1, seed: 100 },
+  // its levels of detail are the ladder's (assets/kit/ladder.js), as for all the heap draws: a full mesh of so many
+  // squares an edge (12 n² triangles) where it fills the screen, down to a dot that sinks away under a pixel
+  detail: { ladder: 96 },
+  // shapes: how many different boulders there are (each a kind of the heap: assets/zoo/boulders.js), from its seed
+  placement: { at: 'scatter', engine: 'rocks', cell: 20, outcrops: true, texture: 3.0, shapes: 12, seed: 100 },
 };

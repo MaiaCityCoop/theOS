@@ -29,7 +29,7 @@ every distance with it.
 | What | Engine | How |
 | --- | --- | --- |
 | trees, bushes, ferns: anything in a stand | `src/scatter/trees.js` | per vertex, each frame: `handOver` + `partGrown` + `sinkInto`; packing by `bandOf` |
-| rocks | `src/scatter/rocks.js` | per vertex: `handOver` (`whole`) + `sinkInto`; packing by `bandOf` |
+| rocks, and whatever else the heap holds | `src/scatter/drawer.js` (the rocks placed by `rocks.js`) | the ladder's eight levels (`assets/kit/ladder.js`), each vertex moving to its place on the next coarser mesh over a level's last pixels; an asset may end sooner (`detail.end`), shrinking away |
 | what stands at a place (a tent), and its far card | `index.js` `Detailed`, `src/world/place.js`, `impostor.js` | on the CPU: `handOverAt`, the material's `sunk` |
 | the land's colour where a stand has sunk | `src/terrain/material.js` | `sizeOf`, `detailOf().cut`, the stand's `cover` |
 
@@ -124,6 +124,15 @@ What the test found:
   clock (frames drawn back to back); the picture is the same (`?stress&corners` draws the old way, to measure against).
 - **A pixel must read only what it shows**: the texture its pattern shows there, the relief only when large on screen.
 - **Streaming must know the camera's speed**, and a mesh that comes must not repack everything (`heap.versions`).
+- **A tier's packing shader is built for every tier, however alike they are.** The rocks first had a tier a level, as
+  the stand has: fifteen, and the start took 1.6 s longer, each tier building its own packing code (the boulders' is
+  90 KB: the land's height, the biome and the grass's colour are in it). A placer of few cells takes one tier for
+  every level instead (`drawer.tierAll`): each thing is dropped into its level's draw as it is packed, and packed
+  again when the camera has moved half a metre; one material draws every level, its level told by each mesh. The
+  start is then as before (3.2 s), with fewer packing pipelines than the old rocks made (51 against 66). A tier a
+  level stays for the stand's millions, too many to look at again as the camera moves.
+- **A draw the heap holds nothing for is not made**, nor its shader built: a slot no full mesh lies in, the level's
+  own list where no kind is of its shape, the corners looked up where every kind is (`heap.pools[l].shaped`).
 
 How many shaders: the plain game compiles 16 vertex and 14 fragment programs (21 draw pipelines); the stress stand adds
 two. A game like GTA V draws a frame in about 1900 draw calls and has shader templates in the hundreds, with tens of
@@ -151,8 +160,9 @@ itself, that keeps one contract (`assets/zoo/index.js` writes it out):
 | --- | --- |
 | `count` | how many kinds it brings |
 | `meshOf(i, l)` | kind i's mesh at level l of the ladder (`assets/kit/ladder.js`), every vertex 16 bytes (`assets/kit/solid.js`): its place, normal and shade, where it lies on the next coarser level's mesh, the two bones that move it |
-| `skinOf(i, size)` | its own texture |
-| `lookOf(i)` | plain numbers: its shading model, tints, relief, gloss, sway, snow, size, whether it is cut out as leaves |
+| `skinOf(i, size)` | its own texture; without one it wears a material of the world (its look's `material`) |
+| `lookOf(i)` | plain numbers: its shading model, tints, relief, gloss, sway, snow, size, whether it is cut out as leaves; and for what wears the world: its material, how much grows over it (`cover`: a rock's moss, in the colour of the ground round it), how strong its relief is, how deep it lies in the ground |
+| `placed` | the engine of the world that places its kinds (`'rocks'`); without it a test herd, which only the stress stand draws |
 | `bonesOf(i)` | its skeleton (sixteen bones, three rows of numbers each), where it has one |
 | `boundsOf(i)`, `collidersOf(i)` | its box, and what of it is solid, as shapes in its own frame: sphere, capsule, box, mesh; a shape may move with a bone, or be passed through (leaves). A family that says nothing still has both: its coarse mesh is its collider |
 | `roams` | its herds: pace, size, how high they fly, their stride; without it its kinds stand. What roams keeps to the ways, in a lane as wide as its colliders say |
@@ -236,13 +246,14 @@ frame by the filter alone): to measure against.
 
 ## What this does not yet give
 
-- **The trees, the rocks and the grass are not on the one drawer yet** (`src/scatter/drawer.js`: the heap, the
-  looks, the one shader, the levels' draws and what streams them, lifted out of the stress stand on 2026-11-14 so
-  that they can be). They keep engines of their own: a draw call a shape and level, a material each. The way there,
-  a stage at a time: the rocks first (solids, as the stand's balls are: a family of the zoo, the world's rock
-  texture for their colour, a shading model for their moss with the grass's colour round them as a third row of the
-  packing); then what grows (a vertex of its own make: its place on its sprig's painting, its part, its sprig's
-  foot; the plants' material as the drawer's second).
+- **The trees and the grass are not on the one drawer yet** (`src/scatter/drawer.js`: the heap, the looks, the one
+  shader, the levels' draws and what streams them). The rocks are, since 2026-11-14: a rock asset's shapes are a
+  family of the zoo (`assets/zoo/boulders.js`, `stones.js`: three lines each; the shapes are `assets/kit/rock.js`'s),
+  `rocks.js` says only where they lie. What grows is the next stage: a vertex of its own make (its place on its
+  sprig's painting, its part, its sprig's foot), the plants' material as the drawer's second.
+- **The library's own rock and tree are lit by small materials of their own** (`rockSample`, `treeSample`: a list's
+  picture is taken by another camera, and the drawer lights for the game's). The rock's shape there is the world's;
+  its light is not yet the drawer's.
 - **Textures are the world's twenty**, two a kind, tinted: a thousand kinds with textures of their own would be
   gigabytes and must stream as the fine meshes do.
 - **In real Safari the materials cost pixels**: 59 frames a second, but the pixel ratio down to 0.75 walking among
@@ -253,5 +264,6 @@ frame by the filter alone): to measure against.
 - **A tree's first start still builds its meshes on the main thread**, and every start holds them whole (35 MB for two
   trees and five shrubs), with a draw call and a slice of the packing's buffer a shape and level: fine for tens of
   kinds a stand, not for hundreds. The heap above is the way out, once it takes a tree's material.
-- **The rocks and the grass have their own engines** (`rocks.js`, `grass.js`): the same rule, not the same tiers.
+- **The grass has its own engine** (`grass.js`): the same rule, not the same tiers.
 - **The WebGL 2 fallback draws no plants** (seen 2026-11-12, and so before this): its packing per vertex gives none.
+  Nor rocks, since they are drawn from the heap (storage buffers and compute): there none is drawn and none is a body.

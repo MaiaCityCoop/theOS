@@ -1638,6 +1638,65 @@ building or a car will take). The first stage of it; nothing of the picture chan
   vertex is of another make (its place on its sprig's painting, its part, its sprig's foot): the plants' material
   as the drawer's second. Each stage checked against the picture of the one before.
 
+### 2026-11-14, the world's rocks drawn by the one drawer (17:22)
+
+Samuel: "Yes, the rocks". The second stage of the one drawing path: the boulders and the stones are kinds of the
+heap, drawn by `src/scatter/drawer.js` as the stand's things are; the rocks' own shader and their icospheres are gone
+from the world.
+
+- **What a rock is.** `assets/kit/rock.js` makes an asset's shapes (its look's `cuts` and `smooth`, from its seed) at
+  every level of the ladder: a full mesh of 110 592 triangles with lumps and pits only the fine levels carry, then
+  12 288, 3 072, 768, 192, 48, a cube, a dot. Every vertex knows its place on the next coarser mesh (none further
+  than the ladder's `delta`: tested for all 24 shapes, none cut short) and how dark it is where it meets the ground.
+  A full mesh takes a worker 24 ms. An asset's shapes come to the zoo by a family file of three lines
+  (`assets/zoo/boulders.js`, `stones.js`), found by itself; twelve shapes an asset where there was one (how it is
+  squashed and tipped is the shape's now; its turn and its size are each rock's).
+- **What the drawer learned, as numbers of any kind's look, not as rock code**: `material` (it wears one of the
+  world's materials, read at every size, a far one its mean by the mipmaps), `cover` (what grows over it where it
+  faces up, in the colour of the ground round it: a tier then packs a third row), `bump`, `sunk`. A drawer says
+  when it is made what its kinds may be (`skins: 0`, `ground`, `soft`, `relief`, `full`), so the stand's shader
+  carries none of it: across the stand 26 of 3.4 million pixels differ from the build before, every tier packs
+  the same counts.
+- **Whose kinds are whose.** A family says `placed: 'rocks'`; the test herds are numbered first as before (what the
+  browser kept for the stand stays good), a drawer takes a range of kinds, one set of workers serves every drawer,
+  each drawer's coarse meshes are kept under its own name (a second start reads the rocks' back).
+- **Two ways to place by the drawer.** `tier(level, …)`: a tier a level, lifted out of the stand with its level test
+  and its draws (the stand's millions cannot be looked at again as the camera moves). `tierAll(…)`: one tier for
+  every level, each thing dropped into its level's draw as it is packed, packed again when the camera has moved
+  half a metre; one material draws every level, its level told by each mesh. The rocks first had a tier a level,
+  fifteen: the start took 1.6 s longer (3.3 to 4.9 s), each tier building its own packing shader, the boulders'
+  90 KB of it. With one tier an asset the start is 3.2 to 3.4 s, as before, and makes 51 packing pipelines where
+  the old rocks made 66.
+- **A draw the heap holds nothing for is not made**, nor its shader built (a slot no full mesh lies in, a level's
+  own list where no kind has its shape). A tier's draws may each have a cap of their own (`tier.js`): the rocks'
+  near levels hold a few, the farthest thousands.
+- **The picture, against the build before** (the same spots, the clock, clouds and sun held): the same places, the
+  same law of sizes, the same stone, moss and lichen; each rock another shape than it was. From above a field of
+  boulders and stones reads the same. What differs on purpose: a rock turns into its next level instead of
+  changing over whole; the stones end at six pixels as before (`detail.end`) but shrink away over their last pixels
+  instead of dropping out; a boulder is no longer gone at a kilometre: it sinks away as a dot under a pixel (some
+  3 400 of them in view, to seven kilometres); by a boulder its full mesh comes in. Under 60 cm of snow the first
+  try turned a boulder white all over (the stand's rule: a small thing is buried whole); what stands in the ground
+  now keeps the snow where it settles, its sides bare, as before.
+- **Bodies.** The CPU's reckoning (`src/world/rocksolid.js`) takes a rock's reach and height from its shape
+  (`rockBody`): of 467 rocks the GPU packed near the camera, 464 lie where the CPU says, to a tenth of a
+  millimetre, the same size and shape (three stones at the edge of the ground map's read-back, as before).
+- **Cost, by the clock** (test window, 2880 by 1558, two like servers, the start view and beside an outcrop): 12.1
+  to 12.4 ms a frame against 12.0 to 12.2 at an inside ratio of 1; 14.3 to 14.5 against 14.1 to 14.4 at 1.5: a
+  tenth of a millisecond, inside what the measure tells apart. GPU memory 367 to 373 MB (the heap's 24 shapes, six
+  slots for full meshes).
+- **The library** lists a rock's levels as the ladder's, with their true counts (one rule for every sort of level:
+  `facesOf`), and shows the kit's shapes on its stage. Its sample is still lit by a small material of its own
+  (a list's picture is taken by another camera): the last of the old rock shader, to go when the library draws
+  by the drawer.
+- **The WebGL 2 fallback draws no rocks** (the heap is storage buffers and compute), as it draws no plants; none is
+  a body there either.
+- **Real Safari: not read yet.** Samuel was in Safari himself while this was tested, so no probe tab was opened in
+  it; asked whether to wait for that, he said to deploy. The stand's shader, of the same make and size, runs there at
+  60 fps; the rocks' first frames in his Safari are still to be read from the hitch log.
+- **Not done:** the library's rock and tree by the drawer; the movers' tier is still the stand's own (it is the
+  same idea as `tierAll`); a dot does not take the moss of what it was.
+
 ## Trail
 
 | When | Commit | What |

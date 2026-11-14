@@ -9,6 +9,7 @@ import * as THREE from 'three/webgpu';
 import { U } from '../core/uniforms.js';
 import { kindRule } from '../../assets/kinds.js';
 import { handOverAt } from './handover.js';
+import { LADDER, FULLN, DOTN } from '../../assets/kit/ladder.js';
 
 /** the larger end of a size that varies ([min, max]), or the size */
 export const most = (v) => (Array.isArray(v) ? v[1] : v);
@@ -22,10 +23,15 @@ export const sizeOf = (a) => (kindRule(a, 'measure') === 'height' ? most(a.size.
 /** Pixels on screen per metre at one metre away, for the walker's 68° lens on a screen this tall. */
 export const pxK = (h = innerHeight) => h / (2 * Math.tan((68 / 2) * Math.PI / 180));
 
-/** An asset's levels of detail, resolved: its own `detail` block over its kind's defaults. */
+/** An asset's levels of detail, resolved: its own `detail` block over its kind's defaults. An asset whose shapes are
+    kinds of the heap (src/scatter/heap.js: a rock) says `ladder` instead of levels: its levels are the ladder's
+    (assets/kit/ladder.js), as every such kind's, a ball of so many squares an edge each (`ball`; `ladder`: how many its
+    full mesh has), the last a dot; `end`: the size on screen it is drawn down to, where that is sooner than the
+    ladder's end (a small thing that would be lost in the grass: it shrinks away over its last pixels). */
 export function detailOf(a) {
   const d = a.detail || {}, px = d.px || kindRule(a, 'px'), fade = d.fade ?? kindRule(a, 'fade');
-  const levels = (d.levels || []).map((l, i) => ({ ...l, i, lo: l.px ?? px[Math.min(i, px.length - 1)] }));
+  const own = d.ladder ? LADDER.filter((l, i) => !d.end || !i || LADDER[i - 1].px > d.end).map((l) => ({ ball: l.n === FULLN ? d.ladder : l.n === DOTN ? 0 : l.n, px: Math.max(l.px, d.end ?? 0) })) : d.levels || [];
+  const levels = own.map((l, i) => ({ ...l, i, lo: l.px ?? px[Math.min(i, px.length - 1)] }));
   const imp = d.impostor ?? kindRule(a, 'impostor');   // after the meshes: one card (src/detail/impostor.js)
   if (imp) levels.push({ impostor: true, views: imp.views ?? 8, i: levels.length, lo: imp.px });
   levels.forEach((l, i) => (l.hi = i ? levels[i - 1].lo : Infinity));

@@ -27,13 +27,14 @@ export class Tier {
       every patch; fixed: metres round the camera, whatever the lens.
       Without `live`: material(cellNode) is the tier's node material, given the cell each instance stands for.
       With `live` (and `gpu`, a WebGPU renderer's): live(cellNode) -> { alive, data: [vec4, …] } says what stands in a cell;
-      material({ read }) is the material, read(k) its k-th vec4 of `slots`, ready-made; `cap` the most that may stand at once. */
+      material({ read }) is the material, read(k) its k-th vec4 of `slots`, ready-made; `cap` the most that may stand at once
+      (a number: of each bucket; or a list, a cap a bucket: where one bucket holds thousands and the others a few). */
   constructor(scene, geometry, material, { cell, P, near = 0, far, order = 0, live = null, gpu = false, cap = 0, slots = 0, cull = 0, fixed = 0 }) {
     this.cull = cull; this.fixed = fixed; this.P = P; this.S = cell * P; this.near = Math.max(0, near); this.far = far; this.n = 0; this.over = false;
     this.list = Array.from({ length: MAXP }, () => new THREE.Vector2());
     // (its numbers as uniforms, not written into its code: two tiers that differ only in them, the levels of one thing,
     // are then one shader to the GPU, compiled once: src/scatter/trees.js)
-    const patches = uniformArray(this.list, 'vec2'), P2 = uniform(P * P, 'uint'), uP = uniform(P, 'int'), uCap = uniform(cap, 'uint');
+    const own = Array.isArray(cap), patches = uniformArray(this.list, 'vec2'), P2 = uniform(P * P, 'uint'), uP = uniform(P, 'int'), uCap = uniform(own ? 0 : cap, 'uint');
     const cellOf = (index) => { const pid = index.div(P2), b = int(index.sub(pid.mul(P2))); return ivec2(patches.element(pid)).add(ivec2(b.mod(uP), b.div(uP))); };   // which patch of the list, which cell of the patch
     // buckets: geometry may be a list (the shapes of one thing): one mesh each, but the cells worked out once, each that
     // holds something dropped into its bucket (live(...).bucket); material(src, k) is bucket k's
@@ -41,7 +42,9 @@ export class Tier {
     this.geometries = geos; this.geometry = geos[0]; geos.forEach((g) => (g.instanceCount = 0));
     if (live && gpu) {
       // (what it packs lives on the GPU only: the GPU writes it and the GPU reads it; src/core/gpu.js)
-      const data = Array.from({ length: slots }, () => { const b = gpuStorage('vec4', cap * K, null, true); more('tiers: what stands, packed', b.bytes, b.lean ? 0 : b.bytes); return b.node; }), count = instancedArray(K, 'uint').toAtomic();
+      // (caps, offs: each bucket's cap and where its things begin in the buffers; one cap for all: bucket k's at k times it)
+      const caps = own ? cap : geos.map(() => cap), offs = caps.map((_, k) => caps.slice(0, k).reduce((a, c) => a + c, 0)), total = caps.reduce((a, c) => a + c, 0), capN = own ? uniformArray(caps) : null, offN = own ? uniformArray(offs) : null;
+      const data = Array.from({ length: slots }, () => { const b = gpuStorage('vec4', total, null, true); more('tiers: what stands, packed', b.bytes, b.lean ? 0 : b.bytes); return b.node; }), count = instancedArray(K, 'uint').toAtomic();
       const args = new THREE.IndirectStorageBufferAttribute(new Uint32Array(geos.flatMap((g) => [g.index.count, 0, 0, 0, 0])), 5), argsNode = storage(args, 'uint', 5 * K);   // one buffer of draw arguments, five a bucket (a shader binds few buffers)
       this.cand = uniform(0, 'uint');
       this.passes = [
@@ -51,15 +54,16 @@ export class Tier {
             const L = live(cellOf(instanceIndex)), b = K > 1 ? uint(L.bucket) : uint(0);
             If(L.alive, () => {
               const i = atomicAdd(count.element(b), uint(1)).toVar();
-              If(i.lessThan(uCap), () => { L.data.forEach((d, k) => data[k].element(b.mul(uCap).add(i)).assign(d)); });
+              if (own) If(i.lessThan(uint(capN.element(b))), () => { L.data.forEach((d, k) => data[k].element(uint(offN.element(b)).add(i)).assign(d)); });
+              else If(i.lessThan(uCap), () => { L.data.forEach((d, k) => data[k].element(b.mul(uCap).add(i)).assign(d)); });
             });
           });
         })().compute(MAXP * P * P),
-        Fn(() => { for (let k = 0; k < K; k++) argsNode.element(k * 5 + 1).assign(min(atomicLoad(count.element(k)), uCap)); })().compute(1),
+        Fn(() => { for (let k = 0; k < K; k++) argsNode.element(k * 5 + 1).assign(min(atomicLoad(count.element(k)), own ? uint(caps[k]) : uCap)); })().compute(1),
       ];
-      this.data = data; this.args = args; this.cap = cap;
+      this.data = data; this.args = args; this.caps = caps; this.offs = offs;
       // (readAt: read from a place in the buffer a material is told per mesh, mesh.userData.slot: one material for every bucket)
-      this.meshes = geos.map((g, k) => { g.setIndirect(args, k * 20); g.instanceCount = cap; const m = new THREE.Mesh(g, material({ read: (j) => data[j].element(uint(k * cap).add(instanceIndex)), readAt: (j, slot) => data[j].element(slot.add(instanceIndex)) }, k)); m.userData.slot = k * cap; return m; });
+      this.meshes = geos.map((g, k) => { g.setIndirect(args, k * 20); g.instanceCount = caps[k]; const m = new THREE.Mesh(g, material({ read: (j) => data[j].element(uint(offs[k]).add(instanceIndex)), readAt: (j, slot) => data[j].element(slot.add(instanceIndex)) }, k)); m.userData.slot = offs[k]; return m; });
     } else this.meshes = geos.map((g, k) => new THREE.Mesh(g, material(cellOf(instanceIndex), k)));
     this.mesh = this.meshes[0];
     for (const m of this.meshes) { m.frustumCulled = false; m.renderOrder = order; scene.add(m); }
@@ -70,7 +74,7 @@ export class Tier {
       patch (what stands thins with distance: a step that small is not seen). Standing still, the packing is kept. */
   run(renderer, world = '', cx = 0, cy = 0, cz = 0, view = '') {
     if (!this.passes) return;
-    const q = Math.max(0.25, this.S / 16), { list, n } = this;
+    const q = this.step || Math.max(0.25, this.S / 16), { list, n } = this;   // (step: a tier that says itself how far the camera may move before it packs again)
     // (its patches read into two numbers, not written out one by one: a string of hundreds of them a tier a frame was
     // a megabyte of litter every few frames for the browser to sweep up)
     let h1 = 0x811c9dc5, h2 = 0x9e3779b9;
@@ -87,7 +91,7 @@ export class Tier {
   async read(renderer) {
     const K = this.geometries.length, bufs = await Promise.all([this.args, ...this.data.map((d) => d.value)].map((b) => renderer.getArrayBufferAsync(b)));
     const n = new Uint32Array(bufs[0]), f = bufs.slice(1).map((b) => new Float32Array(b));
-    return Array.from({ length: K }, (_, k) => { const count = Math.min(n[k * 5 + 1], this.cap); return { count, data: f.map((x) => x.subarray(k * this.cap * 4, (k * this.cap + count) * 4)) }; });   // per bucket
+    return Array.from({ length: K }, (_, k) => { const count = Math.min(n[k * 5 + 1], this.caps[k]); return { count, data: f.map((x) => x.subarray(this.offs[k] * 4, (this.offs[k] + count) * 4)) }; });   // per bucket
   }
   /** s: how many times further than the 68° lens this lens sees a thing at the same size; h0: the ground under the camera */
   select(cx, cz, h0, s, dy) {

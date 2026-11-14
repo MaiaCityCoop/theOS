@@ -4,9 +4,11 @@
 //   name, kind, about         what it is
 //   size                      { length, width, height } in metres; a [min, max] where it varies
 //   colours                   its named colours, [r, g, b]
-//   look                      a rock's look: { material, moss, relief, tint, cuts, smooth } (src/scatter/rocks.js)
+//   look                      a rock's look: { material, moss, relief, tint, cuts, smooth } (assets/kit/rock.js)
 //   detail                    its levels of detail, near to far: { levels: [shape, ...], px?, fade? } (src/detail, intent
 //                             0002); where each level ends on screen comes from its kind (assets/kinds.js) unless it says.
+//                             What is drawn from the heap (a rock) says { ladder } instead: its levels are the ladder's
+//                             (assets/kit/ladder.js).
 //                             A shape is `faces` ([corner, corner, corner, colour], ...) or `rock` (a rough rock of an
 //                             icosphere divided that often), with `P` for scattered ones
 //   solid                     what a walker cannot pass: walls (rounds with gaps), posts, boxes, and the ceiling
@@ -27,7 +29,7 @@ export const snowOf = (a) => kindOf(a, 'snow');
     What only one engine reads of it, that engine adds itself (its `row`: src/scatter/index.js). */
 export const scatterRow = (a) => ({ asset: a, name: a.name, uid: a.uid, kind: a.placement.engine, cell: a.placement.cell, seed: a.placement.seed, snow: snowOf(a), detail: detailOf(a) });
 /** How many faces a level has. */
-export const facesOf = (l) => (l.mesh ? (l.mesh.index ? l.mesh.index.length : l.mesh.position.length) / 3 : l.faces ? l.faces.length : 20 * 4 ** (l.rock || 0));
+export const facesOf = (l) => (l.mesh ? (l.mesh.index ? l.mesh.index.length : l.mesh.position.length) / 3 : l.faces ? l.faces.length : l.ball != null ? (l.ball ? 12 * l.ball * l.ball : 1) : 20 * 4 ** (l.rock || 0));   // (ball: a level of the ladder, a ball of so many squares an edge; none: its dot)
 
 /** A level of detail of an asset as a geometry, coloured per face (the nearest level unless one is named). */
 export function geometryOf(asset, level = asset.detail.levels[0], shape = 0) {
