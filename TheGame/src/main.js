@@ -121,7 +121,7 @@ spawn(controls);
 if (slots.many) { const first = await slots.look(camera.position.x, camera.position.z); if (first) { await ground.biomes(first, true); await terrain.biomes(first, renderer, camera, null, true); } }   // (the biomes round where the walk starts: before anything is compiled)
 // the lakes round the camera (src/world/lakes.js: no river runs in a ring; what it rings round is water): found before the first frame
 const lakes = (stats.lakes = createLakes()); let lakesSeen = 0;
-await lakes.look(camera.position.x, camera.position.z);
+lakes.lookHere(camera.position.x, camera.position.z);
 const newBiomes = (next) => Promise.all([ground.biomes(next), terrain.biomes(next, renderer, camera, screen.target)]);
 
 // ---- a frame: place the camera, choose what to draw, draw ----

@@ -2,7 +2,7 @@
 // worker, at the start and again whenever the camera has gone AGAIN metres from where they were last looked for; the
 // CPU's land (LAKES) and the GPU's (land.nodes.js: setLakes) take them together, and what reads the ground is told
 // (changed()).
-import { LAKES } from './land.js';
+import { LAKES, findLakes } from './land.js';
 import { setLakes } from './land.nodes.js';
 
 const AGAIN = 2000;
@@ -17,6 +17,8 @@ export function createLakes() {
   return {
     /** the lakes round (x, z), looked for now (the start waits for them) */
     look,
+    /** the same, here on the page's thread: some 40 ms, less than a worker takes to start (the first, before the first frame) */
+    lookHere(x, z) { LAKES.length = 0; LAKES.push(...findLakes(x, z)); setLakes(LAKES); version++; at = { x, z }; return LAKES; },
     /** each frame: looked for again once the camera has gone far enough */
     update(camera) { const p = camera.position; if (!busy && (!at || Math.hypot(p.x - at.x, p.z - at.z) > AGAIN)) look(p.x, p.z); },
     get version() { return version; },

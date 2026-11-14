@@ -2,7 +2,7 @@
 // draw is the ground the walker stands on. Every material that needs the land (terrain, water, grass, rocks, the ground
 // pass) builds from these. The biomes (biomes/*.js) bring their own rules; the library's sandbox lays one biome over
 // all the land round its stage.
-import { Fn, float, int, uint, vec2, vec3, vec4, floor, abs, max, clamp, mix, smoothstep, length, sqrt, atan, sin, cos, If, Loop, uniformArray, renderGroup } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, floor, abs, max, clamp, mix, smoothstep, length, sqrt, atan, sin, cos, If, Loop, uniformArray, uniform, renderGroup } from 'three/tsl';
 import { Vector4 } from 'three/webgpu';
 import { U } from '../core/uniforms.js';
 import { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second } from './noise.nodes.js';
@@ -51,19 +51,21 @@ export const riverRaw = Fn(([p]) => {
 });
 // ---- the lakes (src/world/land.js: what a ring of river closes round is water): their middles, how far they reach,
 // the sign of the river's field inside, as the CPU found them (setLakes; none: radius 0) ----
-const LAKE = uniformArray(Array.from({ length: LAKE_MAX }, () => new Vector4(0, 0, 0, 0)), 'vec4').setGroup(renderGroup);
+// (looked through as many as there are, a number the loop does not know when it is compiled: a loop of a fixed 32 is
+// written out 32 times over by the GPU's compiler, in every shader that reads the river: a slower start)
+const LAKE = uniformArray(Array.from({ length: LAKE_MAX }, () => new Vector4(0, 0, 0, 0)), 'vec4').setGroup(renderGroup), LAKES_N = uniform(0, 'int').setGroup(renderGroup);
 /** the lakes the CPU found, to the GPU */
-export const setLakes = (list) => { for (let i = 0; i < LAKE_MAX; i++) { const L = list[i]; LAKE.array[i].set(L?.x ?? 0, L?.z ?? 0, L?.r ?? 0, L?.s ?? 0); } };
+export const setLakes = (list) => { for (let i = 0; i < LAKE_MAX; i++) { const L = list[i]; LAKE.array[i].set(L?.x ?? 0, L?.z ?? 0, L?.r ?? 0, L?.s ?? 0); } LAKES_N.value = Math.min(LAKE_MAX, list.length); };
 /** 1 where p, the river's raw field there r, lies in a lake */
 const inLake = (p, r0) => {
   const k = float(0).toVar(), r = float(r0).toVar(), q = vec2(p).toVar();   // (held: written out once, not again inside the loop)
-  Loop(LAKE_MAX, ({ i }) => { const L = LAKE.element(i); If(length(q.sub(L.xy)).lessThan(L.z).and(r.mul(L.w).greaterThanEqual(0)), () => { k.assign(1); }); });
+  Loop({ start: int(0), end: LAKES_N }, ({ i }) => { const L = LAKE.element(i); If(length(q.sub(L.xy)).lessThan(L.z).and(r.mul(L.w).greaterThanEqual(0)), () => { k.assign(1); }); });
   return k;
 };
 /** 1 within `margin` metres round a lake (what grows on its shore: src/scatter/trees.js), 0 elsewhere */
 export const nearLake = (p, margin = 40) => {
   const k = float(0).toVar(), q = vec2(p).toVar();
-  Loop(LAKE_MAX, ({ i }) => { const L = LAKE.element(i); If(L.z.greaterThan(0).and(length(q.sub(L.xy)).lessThan(L.z.add(margin))), () => { k.assign(1); }); });
+  Loop({ start: int(0), end: LAKES_N }, ({ i }) => { const L = LAKE.element(i); If(length(q.sub(L.xy)).lessThan(L.z.add(margin)), () => { k.assign(1); }); });
   return k;
 };
 /** 1 in a lake, 0 elsewhere (its water stands still: src/terrain/water.js) */
