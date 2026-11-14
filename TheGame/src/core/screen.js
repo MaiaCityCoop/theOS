@@ -28,6 +28,8 @@ export function createScreen(renderer, { temporal, lens = null }) {
   return {
     out: OUT, size: sizeOf,
     get inside() { return inside; },
+    /** The target the world is drawn into (what a material compiled aside is compiled for). */
+    get target() { return rts[turn] ?? rts[1 - turn] ?? null; },
     /** The inside's pixel ratio: no more than the screen's own. */
     set(r) { inside = Math.min(OUT, Math.max(0.25, r)); },
     /** Draw the world as this camera sees it, onto the canvas. */

@@ -10,7 +10,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, If, float, uint, vec2, vec3, vec4, uniform, attribute, positionWorld, normalWorld, abs, max, mix, floor, smoothstep, pow, normalize } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { rnd, camDist, riverInfo, heightAt, outcropMask, grassTint, biomesAt } from '../world/land.nodes.js';
+import { rnd, camDist, riverInfo, heightAt, outcropMask, grassTint, dryAt } from '../world/land.nodes.js';
 import { offWays } from '../world/ways.js';
 import { finish, skyLight, weathered, snowLift, cloudAt } from '../world/light.js';
 import { byRole } from '../core/registry.js';
@@ -64,7 +64,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
         found(kind, size, dist, (A, B, G) => {
           const sunk = size.mul(lookOf(kind, 5).w);   // (how deep it lies: its look's)
           if (big) {   // an outcrop: the land worked out here (the ground's map does not reach so far)
-            const d = abs(I.x), w = I.y, dry = biomesAt({ p: pos, dist, d, w, b: I.z }).dry;
+            const d = abs(I.x), w = I.y, dry = dryAt({ p: pos, dist, d, w, b: I.z });
             A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(sunk), size)); G.assign(vec4(grassTint(tex, pos, dry, 0).rgb, dry));
           } else { A.assign(vec4(pos, GA.x.sub(sunk), size)); G.assign(ground.tint(pos)); }
           B.assign(vec4(rnd(cx, cy, uint(211)).mul(6.2831853), float(kind), 0, 0));   // (its turn, its kind; it does not sway)

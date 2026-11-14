@@ -41,7 +41,8 @@ import { useBackend } from './world/light.js';
 import { useTiles } from './world/tile.js';
 import { createShadows } from './world/shadow.js';
 import { useGround } from './world/rocksolid.js';
-import { createCity } from './city/index.js';   // the city's plots over the land, seen from above (world/city.js)
+import { createCity } from './city/index.js';
+import { createBiomeSlots } from './world/slots.js';   // the city's plots over the land, seen from above (world/city.js)
 
 const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
@@ -90,11 +91,13 @@ useTiles(tex);   // node code that reads a baked tile by itself (the clouds' fie
 useBackend(renderer);   // and what is lit per corner (a tree) reads the shadow map's texels only where the backend can
 mark('bake');
 await loadingStep('Raising the land', 0.3);
-const ground = createGround(renderer, tex);
+// the biomes the land's shaders hold: those round the camera (src/world/slots.js; all of them while they are few)
+const slots = (stats.slots = createBiomeSlots(renderer));
+const ground = createGround(renderer, tex, slots.list());
 useGround(ground);   // the rocks' bodies read their stones from it
 stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage things (the library)
 mark('ground');
-const terrain = createTerrain(scene, tex);
+const terrain = createTerrain(scene, tex, slots.list());
 mark('terrain');
 stats.terrain = terrain;
 const scatter = createScatter(scene, tex, ground, renderer, camera);
@@ -114,6 +117,8 @@ stats.controls = controls;
 const city = (stats.city = createCity({ scene, camera, canvas, renderer }));
 const hud = createHud(document.getElementById('hud'), renderer, camera, governor, stats);
 spawn(controls);
+if (slots.many) { const first = await slots.look(camera.position.x, camera.position.z); if (first) { await ground.biomes(first, true); await terrain.biomes(first, renderer, camera, null, true); } }   // (the biomes round where the walk starts: before anything is compiled)
+const newBiomes = (next) => Promise.all([ground.biomes(next), terrain.biomes(next, renderer, camera, screen.target)]);
 
 // ---- a frame: place the camera, choose what to draw, draw ----
 const projScreen = new THREE.Matrix4();
@@ -148,6 +153,7 @@ function frame(now) {
   const ms = last ? now - last : 16.7; last = now;
   U.uTime.value = (now - t0) / 1000;
   tex.flush();   // (materials asked for since the last frame: src/materials/bake.js)
+  slots.update(camera, newBiomes);   // (the biomes round the camera: their shaders compiled aside when they change)
   renderer.info.reset();
   governor.begin();
   const c0 = performance.now();

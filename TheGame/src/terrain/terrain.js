@@ -8,6 +8,7 @@ import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, R0 } from './material.js';
 import { createGroundCache } from './groundcache.js';
 import { waterMaterial } from './water.js';
+import { LAID } from '../world/land.nodes.js';
 
 const S0 = 8;               // a level-0 node's side, metres (0.5 m quads)
 const LEVELS = 10;          // the top level reaches R0 * 2^9 = 24.6 km
@@ -26,7 +27,7 @@ function gridGeometry() {
   return { pos: new THREE.BufferAttribute(pos, 3), idx: new THREE.BufferAttribute(idx, 1) };
 }
 
-export function createTerrain(scene, tex) {
+export function createTerrain(scene, tex, list = LAID) {   // list: the biomes the land lays (src/world/slots.js)
   const { pos, idx } = gridGeometry();
   const make = (cap) => {
     const g = new THREE.InstancedBufferGeometry();
@@ -41,7 +42,7 @@ export function createTerrain(scene, tex) {
   // (the ground laid once round the camera, read by the land's pixels: src/terrain/groundcache.js. Not yet the picture
   // every pixel lays for itself: softer between 10 and 60 m, and a band where it hands over; so only with ?groundcache)
   const cache = new URLSearchParams(location.search).has('groundcache') ? createGroundCache() : null;
-  const landMat = terrainMaterial(tex, cache), waterMat = waterMaterial(tex);
+  const landMat = terrainMaterial(tex, cache, list), waterMat = waterMaterial(tex);
   const landMesh = new THREE.Mesh(land.g, landMat), waterMesh = new THREE.Mesh(water.g, waterMat);
   landMesh.frustumCulled = waterMesh.frustumCulled = false;
   landMesh.renderOrder = 10; // after the grass and the rocks: they are in front, the depth test spares the ground's shader
@@ -89,6 +90,13 @@ export function createTerrain(scene, tex) {
   }
   return {
     landMesh, waterMesh, cache,
+    /** The land for another list of biomes (the slots' have changed): its material made and compiled aside, for the
+        target the world is drawn into, then taken. now: taken at once (before the start compiles everything). */
+    async biomes(next, renderer, camera, target = null, now = false) {
+      const m = terrainMaterial(tex, cache, next);
+      if (!now) { const was = renderer.getRenderTarget(), q = new THREE.Mesh(land.g, m); q.frustumCulled = false; renderer.setRenderTarget(target); const done = renderer.compileAsync(q, camera, scene).catch(() => {}); renderer.setRenderTarget(was); await done; }
+      landMesh.material.dispose(); landMesh.material = m;
+    },
     update(camera, uDy, lodInv) {
       cx = camera.position.x; cz = camera.position.z; dy2 = uDy * uDy; inv2 = lodInv * lodInv;
       land.n = water.n = 0;

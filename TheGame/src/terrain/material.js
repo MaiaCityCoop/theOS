@@ -24,7 +24,7 @@ export function gridPoint() {
   return node.xy.add(g.sub(fract(g.mul(0.5)).mul(2).mul(k)).mul(cell));
 }
 
-export function terrainMaterial(tex, cache = null) {   // cache: the ground laid once (src/terrain/groundcache.js), or none: every pixel lays its own
+export function terrainMaterial(tex, cache = null, list = LAID) {   // cache: the ground laid once (src/terrain/groundcache.js), or none: every pixel lays its own; list: the biomes it lays (src/world/slots.js: those round the camera)
   // ---- vertex: the land's height and normal, the river here, every biome's share ----
   // one Fn, every value worked out once into a variable and handed on by name: an expression used twice would otherwise be
   // written out twice, the river three times over at every use, which a browser's shader compiler need not fold back
@@ -32,7 +32,7 @@ export function terrainMaterial(tex, cache = null) {   // cache: the ground laid
   const vPth = varyingProperty('vec3', 'tPth'), vOut = varyingProperty('float', 'tOut'), vHill = varyingProperty('float', 'tHill'), vGD = varyingProperty('vec2', 'tGD'), vTint = varyingProperty('vec4', 'tTint');
   // every biome's share (half a metre apart near by; a biome's edge varies over metres, not pixels) in vec4 lanes: its
   // share, then its spots' where it has them
-  const shareLane = []; let nl = 0; for (const bio of LAID) { shareLane.push(nl); nl += bio.spots?.where ? 2 : 1; }
+  const shareLane = []; let nl = 0; for (const bio of list) { shareLane.push(nl); nl += bio.spots?.where ? 2 : 1; }
   const packs = [...Array(Math.ceil(nl / 4))].map((_, i) => varyingProperty('vec4', `tLane${i}`)), lane = (i) => packs[i >> 2].element(i & 3);
   const vertex = Fn(() => {
     const wp = gridPoint().toVar(), dist = camDist(wp).toVar(), e = max(0.3, dist.div(96)).toVar();
@@ -40,7 +40,7 @@ export function terrainMaterial(tex, cache = null) {   // cache: the ground laid
     const C = at(wp), X = at(wp.add(vec2(e, 0)), C.I), Z = at(wp.add(vec2(0, e)), C.I), h = C.h;
     vWorld.assign(vec3(wp.x, h, wp.y)); vI.assign(C.I); vN.assign(normalize(vec3(h.sub(X.h), e, h.sub(Z.h))));   // (vWorld without the snow's depth: the light and the air do not need it)
     vPth.assign(pathN(wp)); vOut.assign(outcropMask(wp)); vHill.assign(h.sub(baseB(wp)));   // how far this ground stands over the valley's floor
-    const ctx = { p: wp, dist, d: C.d, w: C.I.y, b: C.I.z }, Lv = biomesAt(ctx, true), lanes = [];
+    const ctx = { p: wp, dist, d: C.d, w: C.I.y, b: C.I.z }, Lv = biomesAt(ctx, true, list), lanes = [];
     Lv.shares.forEach(({ b: bio, w }) => { lanes.push(w); if (bio.spots?.where) lanes.push(bio.spots.where(ctx)); });
     while (lanes.length % 4) lanes.push(float(0));
     packs.forEach((v, i) => v.assign(vec4(lanes[i * 4], lanes[i * 4 + 1], lanes[i * 4 + 2], lanes[i * 4 + 3])));
@@ -130,7 +130,7 @@ export function terrainMaterial(tex, cache = null) {   // cache: the ground laid
     // leads in the biome's stand (its slice of the stand's slow noise, as its trees are placed), under its groves
     const drops = (bio) => (bio.trees ? kindsOf(bio.uid).filter((k) => k.asset.litter && k.asset.litter.material !== bio.floor.material) : []);
     // (how thick a biome's stand grows here: worked out once where the biome lies, for its litter and for its canopy below)
-    const groves = new Map(LAID.filter((bio) => bio.trees).map((bio) => [bio, float(0).toVar()]));
+    const groves = new Map(list.filter((bio) => bio.trees).map((bio) => [bio, float(0).toVar()]));
     const lay = (bio, wt, sp) => If(wt.greaterThan(0.003), () => {   // a biome's ground, with its spots and its trees' litter in it, laid over what is there
       const fallen = drops(bio);
       if (groves.has(bio)) groves.get(bio).assign(groveAt(p, bio.trees));
@@ -217,7 +217,7 @@ export function terrainMaterial(tex, cache = null) {   // cache: the ground laid
     const at = (p, texel, D) => {
       const I = riverInfo(p).toVar(), d = abs(I.x).toVar(), e = float(0.3), hOf = (q) => { const J = riverNear(q, I).toVar(); return heightAt(q, D, abs(J.x), J.y, J.z); };
       const h0 = heightAt(p, D, d, I.y, I.z).toVar(), ny = normalize(vec3(h0.sub(hOf(p.add(vec2(e, 0)))), e, h0.sub(hOf(p.add(vec2(0, e)))))).y;
-      const ctx = { p, dist: D, d, w: I.y, b: I.z }, Lv = biomesAt(ctx, true);
+      const ctx = { p, dist: D, d, w: I.y, b: I.z }, Lv = biomesAt(ctx, true, list);
       const L = { shares: Lv.shares.map(({ b: bio, w }) => ({ b: bio, w, spots: bio.spots?.where ? bio.spots.where(ctx) : null })), grassy: Lv.grassy, dry: Lv.dry };
       return compose({ p, dx: vec2(texel, 0), dy: vec2(0, texel), dist2: D, d, w: I.y, b: I.z, L, tint: grassTint(tex, p, Lv.dry, 1), ny, pth: pathN(p), out: outcropMask(p), twoTakes: D.lessThan(240), far: () => float(1) });
     };
@@ -238,7 +238,7 @@ export function terrainMaterial(tex, cache = null) {   // cache: the ground laid
       const v = lane(shareLane[k]); if (!bio.river) return v;
       const s = float(0).toVar(); If(v.greaterThan(0.0005), () => { s.assign(shareOf(bio, rctx)); }); return s;
     };
-    const L = { shares: LAID.map((bio, k) => ({ b: bio, w: shareAt(bio, k), spots: bio.spots?.where ? lane(shareLane[k] + 1) : null })), grassy: vGD.x, dry: vGD.y };
+    const L = { shares: list.map((bio, k) => ({ b: bio, w: shareAt(bio, k), spots: bio.spots?.where ? lane(shareLane[k] + 1) : null })), grassy: vGD.x, dry: vGD.y };
     const tint = vTint;
     // the layers here: read from the ground's cache where it reaches (src/terrain/groundcache.js), laid here beyond it
     // (and where the two meet, both, blended)

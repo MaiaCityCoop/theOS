@@ -7,7 +7,7 @@ import { float, vec2, vec3, vec4, uv, uniform, texture, mrt, positionGeometry, a
 import { U } from '../core/uniforms.js';
 import { note } from '../core/gpu.js';
 import { heightAt as heightCPU, SAND } from '../world/land.js';
-import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt } from '../world/land.nodes.js';
+import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt, LAID } from '../world/land.nodes.js';
 import { PLACES } from '../../world/places.js';
 import { offWays, waysVersion } from '../world/ways.js';
 import { BIOMES } from '../world/biomes.js';
@@ -18,7 +18,7 @@ const G = { o: uniform(new THREE.Vector2(1e9, 1e9)), base: uniform(0), texel: un
 // what stands at a named place keeps its floor clear (its `clear`, metres round it): 1 where grass and stones may be
 const clearOf = (pos) => Object.values(PLACES).filter((p) => p.clear).reduce((k, p) => k.mul(smoothstep(p.clear - 0.4, p.clear + 0.3, length(pos.sub(vec2(p.x, p.z))))), float(1));
 
-export function createGround(renderer, tex) {
+export function createGround(renderer, tex, list = LAID) {
   const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false };
   // one pass, two outputs (MRT): the ground (height, grass, its height, stones) and the grass's colour (and its dryness)
   const rt = new THREE.RenderTarget(N, N, { ...opts, type: THREE.HalfFloatType, count: 2 }); note('the ground round the camera (two maps)', 2 * N * N * 8, 0);
@@ -26,19 +26,23 @@ export function createGround(renderer, tex) {
   const tA = rt.textures[0], tB = rt.textures[1];
   // the texel's centre, in metres; three's node reads turn a target's rows the other way up, so the writer turns them too
   const posOf = () => G.o.add(vec2(uv().x, float(1).sub(uv().y)).mul(N).sub(0.5).mul(G.texel));
-  // (plain shared nodes, not a function: three works a shared node out once, and hands the two to the two targets)
-  const pos = posOf(), I = riverInfo(pos), w = I.y, d = abs(I.x), b = I.z, dist = camDist(pos);
-  const L = biomesAt({ p: pos, dist, d, w, b });   // every biome's share here: their grass, its height, their stones, the dryness
-  const path = placeOff(pos, pathMask(pathN(pos))), oc = outcropMask(pos), stage = stageAt(pos), keep = offWays(clearOf(pos).mul(float(1).sub(stage)), pos, 1);   // (and no grass or stone on a way: src/world/ways.js)
-  const dens = float(1).sub(path).mul(float(1).sub(bareMask(pos))).mul(float(1).sub(oc.mul(0.25))).mul(L.cover).mul(keep);
-  const stone = keep.mul(L.stones.add(oc.mul(0.5))).mul(float(1).sub(path.mul(0.8)));
-  const t = grassTint(tex, pos, L.dry, 0);
-  const mat = new THREE.NodeMaterial(); mat.vertexNode = vec4(positionGeometry.xy, 0, 1); mat.colorNode = vec4(0); mat.depthTest = mat.depthWrite = false;
-  mat.mrtNode = mrt({
-    ground: vec4(heightAt(pos, dist, d, w, b).sub(G.base), dens, L.height, stone),   // heights from a base near by: a half float keeps the centimetre
-    tint: vec4(sqrt(mix(t.rgb, vec3(0.30, 0.24, 0.15), stage)), t.a),   // the stage: dry, bare earth
-  });
-  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); quad.frustumCulled = false;
+  // the pass's material, for a list of biomes (the slots': those round the camera, src/world/slots.js)
+  const build = (list) => {
+    // (plain shared nodes, not a function: three works a shared node out once, and hands the two to the two targets)
+    const pos = posOf(), I = riverInfo(pos), w = I.y, d = abs(I.x), b = I.z, dist = camDist(pos);
+    const L = biomesAt({ p: pos, dist, d, w, b }, false, list);   // every biome's share here: their grass, its height, their stones, the dryness
+    const path = placeOff(pos, pathMask(pathN(pos))), oc = outcropMask(pos), stage = stageAt(pos), keep = offWays(clearOf(pos).mul(float(1).sub(stage)), pos, 1);   // (and no grass or stone on a way: src/world/ways.js)
+    const dens = float(1).sub(path).mul(float(1).sub(bareMask(pos))).mul(float(1).sub(oc.mul(0.25))).mul(L.cover).mul(keep);
+    const stone = keep.mul(L.stones.add(oc.mul(0.5))).mul(float(1).sub(path.mul(0.8)));
+    const t = grassTint(tex, pos, L.dry, 0);
+    const mat = new THREE.NodeMaterial(); mat.vertexNode = vec4(positionGeometry.xy, 0, 1); mat.colorNode = vec4(0); mat.depthTest = mat.depthWrite = false;
+    mat.mrtNode = mrt({
+      ground: vec4(heightAt(pos, dist, d, w, b).sub(G.base), dens, L.height, stone),   // heights from a base near by: a half float keeps the centimetre
+      tint: vec4(sqrt(mix(t.rgb, vec3(0.30, 0.24, 0.15), stage)), t.a),   // the stage: dry, bare earth
+    });
+    return mat;
+  };
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), build(list)), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); quad.frustumCulled = false;
   const read = (t, pos) => texture(t, pos.sub(G.o).div(G.texel).add(0.5).div(N)).level(0);
   let lastDy = -1, lastS = 0, lastW = 0, cpu = null, reading = false;
   // the CPU's copy of the ground under the camera (read back after each pass, a moment later): what runs on the CPU and
@@ -68,6 +72,13 @@ export function createGround(renderer, tex) {
     stage(x, z, r, material = null, tile = 2) { U.uStage.value.set(x, z, r); U.uStageGround.value.set(material ? tex.layer(material) : -1, tile); lastS = 0; },
     /** The library's sandbox: round (x, z) the land is all one biome (its number in biomes/); no arguments: off. */
     sandbox(x = 0, z = 0, biome = -1) { U.uSand.value.set(x, z, biome < 0 ? 0 : 1, biome); Object.assign(SAND, { on: biome >= 0, x, z, river: !!BIOMES[biome]?.water }); lastS = 0; },
+    /** Its pass for another list of biomes (the slots' have changed): compiled aside, then taken, and drawn again.
+        now: taken at once (before the start compiles everything). */
+    async biomes(next, now = false) {
+      const m = build(next);
+      if (!now) { const was = renderer.getRenderTarget(), q = new THREE.Mesh(quad.geometry, m); q.frustumCulled = false; renderer.setRenderTarget(rt); const done = renderer.compileAsync(q, cam).catch(() => {}); renderer.setRenderTarget(was); await done; }   // (for its own target: the pipeline it is drawn with)
+      quad.material.dispose(); quad.material = m; lastS = 0;
+    },
     /** s: the lens factor; drawn again when the camera has walked 16 texels, or the lens changed */
     update(cx, cz, dy, s = 1) {
       // drawn again when the camera has walked 32 texels (16 m: the blades reach 105 m of the map's 128), when it has

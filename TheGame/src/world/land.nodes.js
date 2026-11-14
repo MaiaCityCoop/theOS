@@ -109,11 +109,12 @@ export const stageAt = (p) => U.uStage.z.greaterThan(0).select(float(1).sub(smoo
 
 /** What the biomes make of a point. ctx: { p, dist, d, w, b } (d, w, b: the river here, riverInfo). Returns each laid
     biome's share, lowest layer first, and what they add up to: the grass's cover (all ground, and among the grassy
-    biomes only), its height (a share of the grass asset's own), the dryness, and the chance of a stone. */
-export function biomesAt(ctx, vars = false) {   // vars: inside a Fn, each share kept in a variable, worked out once
+    biomes only), its height (a share of the grass asset's own), the dryness, and the chance of a stone. list: the
+    biomes worked out (the slots' biomes: those round the camera, src/world/slots.js; none named: every biome laid). */
+export function biomesAt(ctx, vars = false, list = LAID) {   // vars: inside a Fn, each share kept in a variable, worked out once
   // (the place as the rules read it, bent: worked out once for all of them; world/outlines.js)
   const B = bent(ctx.p), at = { ...ctx, B: vars ? B.toVar() : B };
-  const shares = LAID.map((b) => { const w = placed(b, clamp(b.where(at), 0, 1), ctx.p); return { b, w: vars ? w.toVar() : w }; });
+  const shares = list.map((b) => { const w = placed(b, clamp(b.where(at), 0, 1), ctx.p); return { b, w: vars ? w.toVar() : w }; });
   let cover = float(1), height = float(1), stones = float(BASE.stones);
   const tufts = ctx.dist.lessThan(900).select(mix(tuftMask(ctx.p), 0.5, smoothstep(350, 900, ctx.dist)), float(0.5));   // grass in tufts, let go far off
   for (const { b, w } of shares) {
@@ -136,6 +137,9 @@ export const grassFrom = (shares, ctx, tufts, lazy = false) => {
   }
   return { grassy, dry };
 };
+/** How dry the land is at a point (ctx as biomesAt's): only the biomes that make it so (a grass that says its `dry`
+    colour) are worked out, not every biome: what reads only this (an outcrop far off) does not grow with the biomes. */
+export const dryAt = (ctx) => LAID.filter((b) => b.grass?.colours?.dry).reduce((dry, b) => mix(dry, 1, shareOf(b, ctx)), float(0));
 /** the biomes at p, the river worked out here */
 export const biomesHere = (p, dist) => { const I = riverInfo(p); return biomesAt({ p, dist, d: abs(I.x), w: I.y, b: I.z }); };
 
