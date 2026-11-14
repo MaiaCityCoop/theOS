@@ -74,9 +74,10 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
         if (p.who[s] >= 0) H.drop(p.who[s], l);
       }
       const roomI = p.io ? p.io[s + 1] - p.io[s] : p.idx, roomE = p.eo ? p.eo[s + 1] - p.eo[s] : p.elems;
-      if (mesh.index.length > roomI || mesh.verts.length > roomE * 4) throw new Error(`heap: kind ${k} level ${l} is larger than its place`);
+      if ((p.idx && mesh.index.length > roomI) || mesh.verts.length > roomE * 4) throw new Error(`heap: kind ${k} level ${l} is larger than its place`);   // (idx 0: its corners are not kept here)
       const i0 = p.i0 + (p.io ? p.io[s] : s * p.idx), e0 = p.e0 + (p.eo ? p.eo[s] : s * p.elems);
-      index.write(i0, mesh.index); elems.write(e0 * 4, mesh.verts);
+      if (p.idx) index.write(i0, mesh.index);
+      elems.write(e0 * 4, mesh.verts);
       if (!p.own) { p.who[s] = k; p.slot[k] = s; p.used[s] = now; }
       const r = row(k, l), is = shaped(p, mesh.index, 0, mesh.index.length), count = mesh.count ?? mesh.index.length;   // (count: its corners, or what its make counts by: a plant's vertices)
       if (!H.has(k, l)) p.held++; else if (T[r + 2] >= SHAPED) p.shaped--;

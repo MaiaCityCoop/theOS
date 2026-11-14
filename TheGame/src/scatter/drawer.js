@@ -371,7 +371,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       sent += d.mesh.draw ?? d.mesh.index.length; puts++;
       if (H.put(d.k, d.l, d.mesh, round, round, U.uTime.value)) {
         stats.put++; putAt[id] = now; did('meshes'); did('kB', Math.round((d.mesh.index.byteLength + d.mesh.verts.byteLength) / 1024));
-        if (!d.l) for (const T0 of fulls) { for (const at of T0.slotArgs(H.pools[0].slot[d.k])) { T0.args.array[at] = d.mesh.draw ?? d.mesh.index.length; T0.args.addUpdateRange(at, 1); } T0.args.needsUpdate = true; }   // (its slot's draw: as long as it)
+        if (!d.l) for (const T0 of fulls) { for (const at of T0.slotArgs(H.pools[0].slot[d.k])) { T0.args.array[at] = d.mesh.draw ?? d.mesh.index.length; T0.args.addUpdateRange(at, 1); } T0.args.needsUpdate = true; if (MAKE) T0.geometries[H.pools[0].slot[d.k]].setIndex(new THREE.BufferAttribute(d.mesh.index, 1)); }   // (another make's: its corners are the slot's draw's own list)   // (its slot's draw: as long as it)
       }
     }
   };
@@ -430,7 +430,8 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // the full meshes are a draw a slot of the heap, each as long as the mesh that lies in it (set when it is put in:
     // arrive, above): a full mesh is 50 000 to 200 000 triangles, and one draw as long as the longest for all of them
     // worked out 200 000 for each
-    const byKind = !!MAKE?.byKind, perSlot = !byKind && i === 0 && !shadow && !!LEVELS[0].slots;   // (byKind: a draw a kind, another make's; perSlot only where its finest level is one of slots)
+    // (perSlot only where its finest level is one of slots; byKind: a draw a kind, another make's, at the levels every kind has its own of)
+    const perSlot = i === 0 && !shadow && !!LEVELS[0].slots, byKind = !!MAKE?.byKind && !perSlot;   // (byKind: a draw a kind, another make's; perSlot only where its finest level is one of slots)
     // (and what is cut out as leaves has a draw of its own at the levels it is cards: another state of the pipeline)
     const leafy = LEAVES && !shadow && i < HULL, K0 = perSlot ? LEVELS[0].slots : 1;
     // (and what is of the level's own shape, a ball of the ladder's, the last draw: by the level's list of corners)
