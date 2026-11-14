@@ -1,10 +1,10 @@
 // The registry: every recipe of the world (a material, a biome, a made thing) by its stable uid, as one plug-in kind of
-// thing. Each recipe is one file that holds all it needs (materials/, biomes/, assets/); the world asks the registry for
+// thing. Each recipe is one file that holds all it needs (materials/, biomes/, assets/, characters/); the world asks the registry for
 // them by uid and by type, never by a list kept by hand. registry.json (tools/registry.js) holds each one's version: the
 // BLAKE3 hash of its source and of the versions of what it uses.
 import manifest from '../../registry.json';
 
-const files = import.meta.glob(['../../materials/*.js', '../../biomes/*.js', '../../assets/*.js', '!../../assets/index.js'], { eager: true, import: 'default' });
+const files = import.meta.glob(['../../materials/*.js', '../../biomes/*.js', '../../assets/*.js', '../../characters/*.js', '!../../assets/index.js'], { eager: true, import: 'default' });
 const BY = {};
 // (a library of thousands of files: one without a uid, or two with the same, is said, not passed over or written over in silence)
 for (const [file, r] of Object.entries(files)) {

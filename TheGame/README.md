@@ -6,6 +6,7 @@ shoot it with. `bun run dev` in this folder, then http://localhost:5173.
 - `/` walk the world (click, W A S D, Shift runs, F flies)
 - `/timeline.html` a kept film of camera moves, played live in the world; `?story=<id>` plays an intent's story (`../Stories/<id>/timeline.json`) with its captions
 - `/lenses.html` the lens bench: the live world through each lens of the kit
+- `/callback` the way back from aven.id after signing in (`callback.html`; see Signing in, below)
 
 Work on it is tracked as intents (`../Intents/`). `LENS-REVIEW.md` is what is still wrong in the
 picture and the plan against it. `cine/README.md` is the virtual camera's manual.
@@ -27,6 +28,7 @@ the files named here.
 | `src/detail/` | Levels of detail by size on screen (`index.js`), and far cards (`impostor.js`). | an asset's own `detail` block |
 | `src/camera/` | The one camera (`rig.js`), the walker (`walk.js`), touch (`touch.js`), and the lens (`post.js`: depth of field and the glass, two stages of the one way to the screen, `src/core/screen.js`). | a new stage of the lens |
 | `src/city/` | The city's plots over the land, seen from above (intent 0009): the plan on the real land (`plan.js`, run in `plan.worker.js`), drawn and picked (`index.js`), a village's card (`card.js`). Its numbers in `world/city.js`. | a number in `world/city.js` |
+| `src/account/` | Signing in with aven.id, and who is signed in (intent 0016): the numbers (`config.js`: the issuer, the client, the redirect, how long a session lasts), the protocol and the ID token's check (`oidc.js`, nothing of the page in it: `tools/account-check.js` runs it under bun), what is kept in the tab (`session.js`), the pill at the top right (`index.js`, loaded by its own script: it neither waits for the world nor holds it up), the way back (`callback.js`). Nothing else reads it but through `session()`. | a number in `config.js` |
 | `cine/` | The virtual camera, outside the game: it needs only `window.__game.camera` and `src/world/land.js`. Lenses, timelines, the composer, the bench. | see `cine/README.md` |
 
 Drawn by three's `WebGPURenderer` (WebGL 2 where WebGPU is missing; `?webgl` forces it). Every material is node
@@ -35,6 +37,55 @@ hand-written shader text in the game.
 
 `src/main.js` only wires these and runs the frame: place the camera, let the governor name the
 detail, choose what to draw (ground map, terrain nodes, scatter patches), draw.
+
+## Signing in
+
+The game signs people in with **aven.id** (OpenID Connect; the person signs in there with a passkey). It is a public
+client, `maia-city`, using the authorization code with PKCE (S256), all of it in the browser, WebCrypto and fetch only:
+
+1. A click on *Sign in with aven.id* (top right) reads aven.id's description (`/.well-known/openid-configuration`; its
+   `issuer` must be exactly the one asked for), makes a state, a nonce and a PKCE verifier (32 random bytes each), keeps
+   them and the path the person is on in `sessionStorage` for the round trip only, and sends the tab to aven.id's
+   `authorization_endpoint` (`response_type=code`, `scope=openid profile email roles`, the S256 challenge). Inside the
+   dashboard the whole tab goes, not the frame, and comes back to the dashboard.
+2. aven.id sends the person back to the redirect URI, `<origin><base>callback` (`https://maia.city/callback`;
+   `/game/callback` inside the dashboard), `callback.html`. It checks the state, takes an `error` as a refusal,
+   exchanges the code at the `token_endpoint` (a form POST with the verifier, no secret), and clears the round trip.
+3. The ID token is checked here before anything in it is believed (`oidc.js`, `verifyIdToken`): the header's `alg`
+   must be `ES256` (anything else, `none` too, is refused); the key is the issuer's (`jwks_uri`) EC P-256 key named
+   by `kid`; the signature (r and s side by side, 64 bytes, as JWS and WebCrypto both write it) must hold; then `iss`,
+   `aud` (the game, and `azp` the game where there are several or `azp` is given), `exp` and `iat` within a minute
+   (and issued in the last ten), the nonce, a `sub`, and `amr` must include `passkey`.
+4. What is kept: `{ sub, email, name, roles, issuer, expiresAt }` in `sessionStorage` (`maia.account`), never the
+   tokens; then back to where the person started (a path on this origin only; anything else goes to the game).
+
+**The two roles.** Every aven.id account is a **traveler** (free). A paid aven.id subscription makes a **citizen**
+(later, citizens reach an MCP server). aven.id says which in the ID token as `aven_roles` (`["traveler"]` or
+`["traveler", "citizen"]`) when the scope `roles` is asked for; that claim is not there yet, and where it is missing
+the person is a traveler. A traveler's card links to their aven.id account to become a citizen (`<issuer>/`).
+
+**Browser-only.** The game runs in the person's own browser, so the role decides only what the game *shows*: anyone
+can change what their browser believes. Nothing that must really hold may rest on it: the MCP server, and anything
+else that matters, checks the person's own token on its own server.
+
+**How long.** A session lasts 12 hours, or until the tab is closed, not the ID token's 5 minutes: the game keeps no
+token to show anyone, only who signed in, and that decides only what it shows; a day's play should not ask for the
+passkey again. A role changed at aven.id shows at the next sign-in. *Sign out* forgets the session in this tab
+(aven.id has no end-session endpoint; the person's sign-in at aven.id itself stays as it is).
+
+**Config** (`src/account/config.js`, the one place): the issuer is `https://aven.id`; another (next, or aven-dotnet
+running here) by `VITE_AVEN_ISSUER` at build time, or by `?issuer=<url>` in the address, taken only when the game is
+served from this machine (https, or http for an issuer on this machine). The client `maia-city` must be registered at
+the issuer with each redirect URI it is used from (`https://maia.city/callback`; for development
+`http://localhost:5173/callback` and `http://localhost:5180/game/callback`), and aven.id must answer the discovery,
+the keys and the token endpoint to this origin (CORS). The host serving the built game must answer `/callback` with
+`callback.html` (the dev server does).
+
+**When it does not work** it says so plainly on the pill's card (couldn't reach aven.id, refused, could not be
+checked) and the game plays on; when aven.id cannot be reached at all, the game is as it was without it.
+
+`bun tools/account-check.js` checks the reckoning: PKCE (RFC 7636's own example), reading a token, ES256 against a key
+made there and every way a token must be refused, the roles, the way back.
 
 ## Plug-ins: a new thing is a new file
 

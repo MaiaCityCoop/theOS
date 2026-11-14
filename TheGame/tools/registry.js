@@ -1,4 +1,4 @@
-// The registry's manifest (registry.json): every recipe in materials/, biomes/ and assets/ by its stable uid, with its
+// The registry's manifest (registry.json): every recipe in materials/, biomes/, assets/ and characters/ by its stable uid, with its
 // type, its name, its file, the recipes it uses, and its version: the BLAKE3 hash of its source and of the versions of
 // what it uses, so a changed material gives every biome and asset that lays it a new version too. A version never
 // changes once made; a uid never changes at all. Run on its own (`bun tools/registry.js`) or by the dev server on
@@ -8,7 +8,7 @@ import { resolve, join } from 'node:path';
 import { blake3 } from '@noble/hashes/blake3.js';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 
-export const FOLDERS = ['materials', 'biomes', 'assets'];
+export const FOLDERS = ['materials', 'biomes', 'assets', 'characters'];
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/g;
 
 /** Read every recipe under root, version it, and write registry.json if anything changed. Returns the manifest. */

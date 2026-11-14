@@ -27,17 +27,17 @@
   #toLib:hover{background:var(--glass-hover)}
   #grid.on ~ #toLib, #grid.on ~ #info, body:has(#grid.on) #list{display:none}   /* choosing a section: nothing else on screen */
   #list[data-sec] .item, #list[data-sec] .group{display:none}
-  #list[data-sec="assets"] .item[data-id], #list[data-sec="biomes"] .item[data-biome], #list[data-sec="materials"] .item[data-mat]{display:flex}
-  #list[data-sec="assets"] .group[data-g="assets"], #list[data-sec="biomes"] .group[data-g="biomes"], #list[data-sec="materials"] .group[data-g="materials"]{display:block}   /* the section's name and count over its list */
+  #list[data-sec="assets"] .item[data-id], #list[data-sec="biomes"] .item[data-biome], #list[data-sec="materials"] .item[data-mat], #list[data-sec="characters"] .item[data-char]{display:flex}
+  #list[data-sec="assets"] .group[data-g="assets"], #list[data-sec="biomes"] .group[data-g="biomes"], #list[data-sec="materials"] .group[data-g="materials"], #list[data-sec="characters"] .group[data-g="characters"]{display:block}   /* the section's name and count over its list */
   #grid{position:fixed;inset:0;z-index:6;display:none;place-items:center;background:rgba(15,29,44,.28);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
   #grid.on{display:grid}
-  #grid .cards{display:grid;grid-template-columns:repeat(3,minmax(0,200px));gap:16px;padding:16px}
+  #grid .cards{display:grid;grid-template-columns:repeat(4,minmax(0,200px));gap:16px;padding:16px}
   #grid h1{grid-column:1/-1;margin:0 0 4px;font:440 30px/1.1 var(--serif);font-variation-settings:var(--soft);color:var(--cream);text-align:center;text-shadow:0 1px 8px rgba(0,0,0,.35)}
   #grid button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 14px 18px;border-radius:24px;cursor:pointer;color:var(--forest);font:inherit;transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
   #grid button:hover{transform:translateY(-3px)}
   #grid canvas{width:112px;height:112px;filter:drop-shadow(0 6px 10px rgba(12,28,22,.3))}
   #grid .g-title{margin:0}
-  @media (max-width:760px){#grid .cards{grid-template-columns:1fr 1fr}}
+  @media (max-width:960px){#grid .cards{grid-template-columns:1fr 1fr}}
   .group{font:600 10.5px/1 var(--glass-font);letter-spacing:.16em;text-transform:uppercase;color:var(--on-glass-3);text-shadow:0 1px 3px rgba(0,0,0,.45);margin:6px 0 4px 10px}
   .item canvas{width:36px;height:36px;flex:none;filter:drop-shadow(0 2px 3px rgba(12,28,22,.25))}
   .item .g-sub{text-transform:capitalize}.item span{min-width:0;flex:1}
@@ -65,6 +65,7 @@
 // world/places.js), a round of bare ground with the grass around it, the camera circling it. A placed asset
 // stands in the middle; a scattered one lies there as a few of its kind, small to large.
 import * as THREE from 'three/webgpu';
+import { uniform } from 'three/tsl';
 import { geometryOf, solidOf, facesOf } from './assets/index.js';
 import { recipes, manifest } from './src/core/registry.js';
 import { BIOMES, BASE } from './src/world/biomes.js';
@@ -81,6 +82,7 @@ const hex = (c) => '#' + c.map((v) => Math.round(Math.min(1, v) * 255).toString(
 const byUid = (list) => Object.fromEntries(list.map((r) => [r.uid, r]));
 const ASSETS = byUid(recipes('asset')), MATERIALS = recipes('material'), MATERIAL = byUid(MATERIALS), BIOME = byUid(BIOMES);
 const ids = Object.keys(ASSETS);
+const CHARS = recipes('character'), CHAR = byUid(CHARS);   // the people (characters/*.js): each made by its own kit
 // a card's pieces, as brand.css sets them (.g-card): a header, figures, a label over each value, chips, the file's line
 const num = (v) => +(+v).toFixed(2), cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const head = (what, kind, name, about) => `<header><span class="g-label">${what} · ${kind}</span><h2 class="g-title big">${name}</h2><p class="g-text">${about || ''}</p></header>`;
@@ -101,6 +103,7 @@ ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES
 // the list: each asset with a small picture of its nearest level
 document.getElementById('list').innerHTML = `<div class="group" data-g="assets">Assets · ${ids.length}</div>` + ids.map((id) => `<button class="item glass flat" data-id="${id}"><canvas width="72" height="72"></canvas><span><b class="g-name">${ASSETS[id].name}</b><small class="g-sub">${ASSETS[id].kind}</small></span></button>`).join('')
   + `<div class="group" data-g="biomes">Biomes · ${BIOMES.length}</div>` + BIOMES.map((b) => `<button class="item glass flat" data-biome="${b.uid}"><canvas width="72" height="72"></canvas><span><b class="g-name">${b.name}</b><small class="g-sub">${b.kind}</small></span></button>`).join('')
+  + `<div class="group" data-g="characters">Characters · ${CHARS.length}</div>` + CHARS.map((c) => `<button class="item glass flat" data-char="${c.uid}"><canvas width="72" height="72"></canvas><span><b class="g-name">${c.name}</b><small class="g-sub">${c.kind}</small></span></button>`).join('')
   + `<div class="group" data-g="materials">Materials · ${MATERIALS.length}</div>` + MATERIALS.map((m) => `<button class="item glass flat" data-mat="${m.uid}"><canvas width="72" height="72"></canvas><span><b class="g-name">${m.name}</b><small class="g-sub">${m.kind}</small></span></button>`).join('');
 // a list's pictures are made when they scroll into sight, a few a frame: a library of thousands opens at once, and a
 // material only the library holds is painted only when its picture is wanted (src/materials/bake.js)
@@ -123,6 +126,17 @@ function assetThumb(a, canvas) {
   const cam = new THREE.PerspectiveCamera(32, 1, 0.05, 100); cam.position.set(d * 0.7, d * 0.55, -d * 0.7); cam.lookAt(0, most(a.size.height) * 0.4, 0);
   sceneThumb(window.__game.renderer, things, canvas, cam);
 }
+// a person's picture: built anew (its own material, lit for the picture's eye), posed at ease, seen from the front
+function charThumb(c, canvas, wide) {
+  const P = c.make(tex, { eye: uniform(new THREE.Vector3()) }); P.step(0.5); P.object.position.set(0, 0, 0); P.object.rotation.y = 0.35; P.object.updateMatrixWorld(true);   // (in the middle of the picture, not on its walk's round)
+  const h = P.height, cam = new THREE.PerspectiveCamera(wide ? 26 : 22, 1, 0.05, 50), d = h * (wide ? 3 : 1.35);
+  cam.position.set(d * 0.45, wide ? h * 0.62 : h * 0.86, d * 0.89); cam.lookAt(0, wide ? h * 0.5 : h * 0.82, 0);
+  sceneThumb(window.__game.renderer, [P.object], canvas, cam);
+}
+for (const b of document.querySelectorAll('.item[data-char]')) {   // a person's picture: them, standing at ease
+  later(b, () => charThumb(CHAR[b.dataset.char], b.querySelector('canvas')));
+  b.onclick = () => chooseCharacter(b.dataset.char);
+}
 for (const b of document.querySelectorAll('.item[data-biome]')) {   // a biome's picture: a ball of its ground
   later(b, () => materialThumb(window.__game.renderer, tex, BIOME[b.dataset.biome].floor.material, b.querySelector('canvas')));
   b.onclick = () => chooseBiome(b.dataset.biome);
@@ -139,7 +153,7 @@ const frameOf = (a) => engineOf(a)?.frame?.(a, { age, all: growRow }) ?? { heigh
 let staged = null, ground0 = heightAt(STAGE.x, STAGE.z), H = 1, yaw = 2.6, pitch = 0.32, dist = 9, spin = true, seed = null;
 let age = 70, growRow = false;   // a tree that grows: the age it is shown at, or every stage of its growth in a row
 let cardTab = 'info', lodAt = null, showBody = false, bodyLines = null;   // showBody: the asset's collision drawn on the stage (intent 0003)   // the asset card's tab; the level of detail being looked at (null: none chosen)
-function clearStage() { ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BASE)); if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); staged = null; } }
+function clearStage() { ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BASE)); if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); staged = null; } person = null; if (boneLines) { scene.remove(boneLines); boneLines = null; } }
 function stageAsset(a) {
   clearStage();
   const E = engineOf(a);   // a scattered asset stands as its engine shows it (a few rocks small to large, a tree at an age, the meadow itself)
@@ -250,6 +264,34 @@ function chooseBiome(id) {
     + fileOf(b);
   history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}biome=${id}`);
 }
+// a person: standing in the middle of the stage, moving as the card says (a walk goes round it); their skeleton
+// drawn over them if asked. Made once and kept: choosing again or changing the move does not make them again.
+let person = null, boneLines = null, showBones = false;
+const people = new Map();
+function chooseCharacter(id, keep) {
+  const c = CHAR[id]; if (!keep || !person) {
+    clearStage();
+    let P = people.get(id); if (!P) people.set(id, (P = c.make(tex)));
+    staged = new THREE.Group(); staged.position.set(STAGE.x, heightAt(STAGE.x, STAGE.z), STAGE.z); staged.add(P.object);
+    staged.traverse = (f) => f(staged);   // (kept to be shown again: nothing to free when it goes)
+    scene.add(staged); person = P; if (q.get('move')) P.setMove(q.get('move')); P.step(0);
+    H = P.height * 1.25; dist = 4.2; pitch = 0.2; spin = true;
+  }
+  const P = person;
+  if (boneLines) { scene.remove(boneLines); boneLines = null; }
+  if (showBones) { boneLines = new THREE.SkeletonHelper(P.bones.root); boneLines.material.depthTest = false; boneLines.material.transparent = true; boneLines.renderOrder = 9; scene.add(boneLines); }
+  document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', b.dataset.char === id));
+  const M = P.measures, mats = [c.wears.shirt.material, c.wears.trousers.material, c.wears.hair.material];
+  document.getElementById('info').innerHTML = head('Character', c.kind, c.name, c.about)
+    + figs([fig(num(P.height), 'm', 'Height'), fig(P.bonesCount, '', 'Bones'), fig(Math.round(P.faces / 1000), 'k', 'Faces')])
+    + `<div class="g-cell g-part"><span class="g-label">Moves · rigged</span><div class="g-pick" style="margin-top:6px">${P.moves.map((m) => `<button data-move="${m.id}" class="${P.move === m.id ? 'on' : ''}"><b>${m.name[0]}</b><span><span class="g-name">${m.name}</span><span class="g-sub" style="white-space:normal">${m.about}</span></span></button>`).join('')}</div></div>`
+    + `<div class="g-cell g-part"><span class="g-label">Skeleton · ${P.bonesCount} bones, skinned</span><div class="seed"><b style="font-weight:450">hips, spine, chest, neck, head; arms, hands, legs, feet</b><button class="g-btn${showBones ? '' : ' quiet'}" id="bonesT">${showBones ? 'Hide' : 'Show'}</button></div></div>`
+    + `<div class="g-cells g-part">${cell('Wears', `<div class="g-chips">${mats.map(chip).join('')}</div>`, true)}${cell('Made from', say(`The stress stand's ${c.from.rig}, kind ${c.from.kind}: its legs, build, head and lean`), true)}</div>`
+    + fileOf(c);
+  document.querySelectorAll('[data-move]').forEach((b) => (b.onclick = () => { P.setMove(b.dataset.move); chooseCharacter(id, true); }));
+  document.getElementById('bonesT').onclick = () => { showBones = !showBones; chooseCharacter(id, true); };
+  history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}character=${id}&move=${P.move}`);
+}
 // a material: a ball of it in the middle of the stage, and the stage's round laid in it, into the land like any ground
 const ballGeo = new THREE.SphereGeometry(1.1, 128, 96);
 let heldMat = null;   // (the staged material is held in the pool while it stands: the list's pictures may not take its layer)
@@ -275,23 +317,28 @@ orbit.onpointerdown = (e) => { spin = false; orbit.setPointerCapture(e.pointerId
 orbit.onpointerup = () => { orbit.onpointermove = null; };
 orbit.onwheel = (e) => { e.preventDefault(); dist = Math.max(3, Math.min(1500, dist * Math.exp(e.deltaY * 0.001))); };
 let lastT = 0;
+const mid = [STAGE.x, STAGE.z], whereNow = new THREE.Vector3();
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = lastT ? Math.min(0.1, (now - lastT) / 1000) : 0; lastT = now;
   // one way for every asset, material and biome: the camera circles it, so the world turns round it, and the key light
   // stays fixed to the camera, so the subject always turns under the same light
   if (spin) yaw += dt * 0.15;   // by the clock, not the frame: a slow frame does not show as a jerk
+  if (person) { const e = U.uCam.value; person.step(dt, { x: e.x - STAGE.x, z: e.z - STAGE.z }); }   // a person moves on the same clock, turned to the eye when it waves
   // Rembrandt light: the key 45° to the camera's left and 40° up, wherever the camera is (the sky's day held at 11:00)
   const sy = Math.sin(yaw), cy = Math.cos(yaw), kx = sy - cy, kz = cy + sy, kl = Math.hypot(kx, kz), up = 40 * Math.PI / 180;
   U.uSunDir.value.set((kx / kl) * Math.cos(up), Math.sin(up), (kz / kl) * Math.cos(up));
+  // what the camera circles: the stage's middle, or a person where they are now (eased, so a walk is followed smoothly)
+  if (person) { const w = person.object.getWorldPosition(whereNow), k = Math.min(1, dt * 3); mid[0] += (w.x - mid[0]) * k; mid[1] += (w.z - mid[1]) * k; } else { mid[0] = STAGE.x; mid[1] = STAGE.z; }
   const ty = ground0 + H * 0.45, c = Math.cos(pitch);
-  const p = poseAt(STAGE.x, STAGE.z, yaw, heightFor(STAGE.x, STAGE.z, yaw, dist));   // the game's one camera, held over the stage at this distance (intent 0003)
-  cine.take({ pos: p.pos, look: [STAGE.x, ty, STAGE.z], mm: 35 });
+  const p = poseAt(mid[0], mid[1], yaw, heightFor(mid[0], mid[1], yaw, dist));   // the game's one camera, held over the stage at this distance (intent 0003)
+  cine.take({ pos: p.pos, look: [mid[0], ty, mid[1]], mm: 35 });
 }
 // the sections: the switch over the list, the grid to start from
 const SECTIONS = [
   { id: 'assets', name: 'Assets', what: 'things made and stood', n: ids.length, open: () => choose(ids[0]), pic: (c) => assetThumb(recipes('asset').find((a) => a.placement.at === 'places'), c, 1.5) },
   { id: 'biomes', name: 'Biomes', what: 'what lies and grows', n: BIOMES.length, open: () => chooseBiome(BIOMES[0].uid), pic: (c) => dioramaThumb(window.__game.renderer, tex, c) },
+  { id: 'characters', name: 'Characters', what: 'who will live here', n: CHARS.length, open: () => chooseCharacter(CHARS[0].uid), pic: (c) => charThumb(CHARS[0], c, true) },
   { id: 'materials', name: 'Materials', what: 'what it is all made of', n: MATERIALS.length, open: () => chooseMaterial(MATERIALS[0].uid), pic: (c) => materialThumb(window.__game.renderer, tex, MATERIALS.find((m) => m.kind === 'stone'), c) },
 ];
 const list = document.getElementById('list'), grid = document.getElementById('grid');
@@ -303,9 +350,9 @@ for (const sct of SECTIONS) {
 }
 document.getElementById('toLib').onclick = () => grid.classList.add('on');   // back to the library's sections
 grid.onclick = (e) => { if (e.target === grid) grid.classList.remove('on'); };
-section(q.get('biome') ? 'biomes' : q.get('material') ? 'materials' : 'assets');
-if (!q.get('asset') && !q.get('biome') && !q.get('material')) grid.classList.add('on');   // the library opens on its sections
-if (BIOME[q.get('biome')]) chooseBiome(q.get('biome')); else if (MATERIAL[q.get('material')]) chooseMaterial(q.get('material')); else choose(ASSETS[q.get('asset')] ? q.get('asset') : ids[0]);
+section(q.get('biome') ? 'biomes' : q.get('material') ? 'materials' : q.get('character') ? 'characters' : 'assets');
+if (!q.get('asset') && !q.get('biome') && !q.get('material') && !q.get('character')) grid.classList.add('on');   // the library opens on its sections
+if (CHAR[q.get('character')]) chooseCharacter(q.get('character')); else if (BIOME[q.get('biome')]) chooseBiome(q.get('biome')); else if (MATERIAL[q.get('material')]) chooseMaterial(q.get('material')); else choose(ASSETS[q.get('asset')] ? q.get('asset') : ids[0]);
 requestAnimationFrame(frame);
 </script>
 </body>
