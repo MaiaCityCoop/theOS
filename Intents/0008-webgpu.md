@@ -1769,6 +1769,9 @@ The realism the plants' move to the heap was for. A first try; it is not in the 
   Samuel asked about: twenty of them are 220 of the game's 373 MB), then the twigs' own paintings, on what was
   built here (set aside whole, outside the repository).
 - **Stays as it is:** the build of 18:37 (the plants in the heap, the same picture).
+- **Real Safari, the plain game on that build** (a tab of his Safari, read at 18:52 with none of my tests running):
+  241 frames in every four seconds, none late, the inside ratio rising from 1 to 1.6 and holding at 1.5. The build
+  with the rocks alone, read the same way at 18:35, held 58 to 59 a second at 1.1 to 1.4.
 
 ## Trail
 
