@@ -71,7 +71,7 @@ Asked outright, with no surprise in it: built straight away.
 
 - [x] Workflows, `deploy/` and docs
 - [x] Host set up, a release deployed and checked from here
-- [ ] GitHub environment `next`: deploy key, host key, host, site URL
+- [x] GitHub environment `next`: deploy key, host key, host, site URL (deploys only from `main`)
 - [ ] The Game workflow green on the pull request
 - [ ] Merged, then a Deploy game run on `main`
 - [ ] maia.city's DNS at 46.225.44.193, then https://maia.city checked and a real sign-in against next.aven.id
@@ -97,3 +97,4 @@ Asked outright, with no surprise in it: built straight away.
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-14 | `305a617` | The two workflows, `TheGame/deploy/` and its README |
