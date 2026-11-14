@@ -70,6 +70,10 @@ export default {
       { faces: fire(1, 4, { bed: false }) },
     ],
   },
+  // in the world it is drawn as light, not as these faces (src/world/fire.js, intent 0018): its coals, its flames, its
+  // sparks and its smoke, and its light on what stands round it. The faces below are only its picture in the library.
+  // width, height: the flames' (metres); bed: the coals' radius; sparks: how many; smoke: how thick; strength: its light
+  fire: { width: 0.9, height: 1.05, bed: 0.4, sparks: 48, smoke: 0.7, strength: 1.0 },
   placement: { at: 'places' },
   solid: {},   // you can walk into a fire. Whether you should is your own business
 };
