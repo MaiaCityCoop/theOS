@@ -7,12 +7,14 @@ import { U } from '../core/uniforms.js';
 import { finish, skyLight, weathered, snowCover, snowLift, snowDepth, cloudAt, windAt, windStrength, unlit } from './light.js';
 import { sinkInto } from '../detail/handover.js';
 import { vnoise } from './noise.nodes.js';
+import { layerOf, wrap } from './tile.js';
 import { heightAt } from './land.js';
 import { addSolid } from './solids.js';
 import { detailOf, Detailed, most } from '../detail/index.js';
 import { impostorOf } from '../detail/impostor.js';
 import { geometryOf, solidOf, snowOf } from '../../assets/index.js';
 import { kindOf } from '../../assets/kinds.js';
+import { lightFire, fireLight } from './fire.js';
 
 /** How an asset moves in the wind: its own `wind` block, else its kind's (assets/kinds.js); null: it does not move. */
 export const windOf = (asset) => kindOf(asset, 'wind');
@@ -34,28 +36,50 @@ function swayOf(asset) {
 /** How an asset's faces take the light: its own `surface`, else its kind's (assets/kinds.js). */
 export const surfaceOf = (asset) => kindOf(asset, 'surface');
 
+/** The materials an asset is made of, if it names any ({ part: material }): each face of it wears the one it names
+    (assets/index.js), wrapped round it from three sides (src/world/tile.js), and the face's own colour is then a tint
+    on that material (1 leaves it as it is) rather than its whole colour. It may also say `texture`, the metres a tile
+    of them spans, and `relief`, how deep their bumps read. An asset that names none is its face colours alone. */
+const madeOf = (asset) => (asset?.materials ? Object.values(asset.materials) : null);
+
 /** The material every asset shares: its own colours (per face), lit by the sun and the sky, hazed like the land, moving
     in the wind as its recipe says; darker where it meets the ground, faintly mottled, soft or thin as its surface says.
+    Where it names what it is made of, a real material is wrapped round it and its colours tint that.
     Its `sunk` is how far its last level has sunk away (src/detail/handover.js). */
 export function assetMaterial(asset) {
   const sunk = uniform(1), vCol = varying(attribute('color', 'vec3'));
+  // what it is made of: its materials' numbers in the library, and which of them this face wears
+  const MATS = madeOf(asset), NOS = MATS?.map((u) => layerOf(u));
+  const vPart = MATS && MATS.length > 1 ? varying(attribute('part', 'float')) : null;
+  const TEX = asset?.texture ?? 1;   // metres a tile of its materials spans
   const m = new THREE.NodeMaterial(); m.side = THREE.DoubleSide; m.sunk = sunk;
   // (its last level sinks into the ground over its last pixels: src/detail/handover.js)
   m.positionNode = sinkInto((asset && swayOf(asset)) || positionLocal, sunk);
   m.fragmentNode = Fn(() => {
     const out = vec4(0).toVar();
     If(unlit().not(), () => {   // drawn into the shadow map, only its depth counts: no light
-      const w = positionWorld, nw = normalize(normalWorld), n = nw.dot(U.uCam.sub(w)).lessThan(0).select(nw.negate(), nw), S = surfaceOf(asset);   // the face's side towards the eye (a face's winding is not to be trusted)
+      const w = positionWorld, nw = normalize(normalWorld), n0 = nw.dot(U.uCam.sub(w)).lessThan(0).select(nw.negate(), nw), S = surfaceOf(asset);   // the face's side towards the eye (a face's winding is not to be trusted)
+      // the material this face wears, wrapped round the shape: its grain, and its bumps folded into the face's normal
+      let skin = null;
+      if (NOS) {
+        let no = float(NOS[0]); if (vPart) for (let i = 1; i < NOS.length; i++) no = vPart.greaterThan(i - 0.5).select(float(NOS[i]), no);
+        skin = wrap(no, w.div(TEX), n0, asset.relief ?? 1);
+      }
+      const n = skin ? skin.n : n0;
       const ndl = n.dot(U.uSunDir).add(S.wrap).div(1 + S.wrap).max(0);   // soft things take the light round their edge
       const through = pow(max(normalize(w.sub(U.uCam)).dot(U.uSunDir), 0), 3).mul(S.through).mul(max(n.dot(U.uSunDir).negate(), 0).mul(0.6).add(0.4));   // the sun behind a thin thing shines through it
       const ground = smoothstep(0, 0.7, positionLocal.y).mul(0.4).add(0.6);   // darker where it meets the ground
       const mottle = vnoise(w.xz.mul(1.3).add(w.y), uint(301)).sub(0.5).mul(0.12).add(1);   // no face quite one even colour
       const sun = U.uSun.mul(cloudAt(w));
+      // its colour: the material's own, tinted by the face (1 leaves the material as it is), or the face's colour
+      // alone where the asset names no material, faintly mottled as it always was
+      const own = skin ? skin.col.mul(skin.col).mul(vCol) : vCol.mul(mottle);
       // snow lies on what faces up in clumps, where it held, slid off between them (so it reads even on pale canvas); the
       // cloth under it darker, damp
       const lift = snowLift(w, snowOf(asset).clumps);   // as its kind holds snow (assets/kinds.js)
       const damp = float(1).sub(clamp(snowDepth.mul(1.5), 0, 0.18));
-      const col = weathered(vCol.mul(mottle).mul(damp), n, lift).mul(skyLight(n).mul(ground).add(sun.mul(ndl.mul(0.8).add(0.2)))).add(vCol.mul(sun).mul(through).mul(float(1).sub(snowCover(n, lift))));   // snow on it: no light comes through
+      // (and the fire's, where one burns near: src/world/fire.js)
+      const col = weathered(own.mul(damp), n, lift).mul(skyLight(n).mul(ground).add(sun.mul(ndl.mul(0.8).add(0.2))).add(fireLight(w, n))).add(own.mul(sun).mul(through).mul(float(1).sub(snowCover(n, lift))));   // snow on it: no light comes through
         out.assign(finish(col, positionWorld));
     });
     return out;
@@ -65,6 +89,7 @@ export function assetMaterial(asset) {
 
 /** Stand an asset at a place ({ x, z, yaw, solid }), on the ground there. */
 export function place(scene, asset, at) {
+  if (asset.fire) return lightFire(scene, asset, at);   // a fire is light, not a mesh (src/world/fire.js)
   const D = detailOf(asset);
   const meshes = D.levels.map((l) => { if (l.impostor) return impostorOf(geometryOf(asset), l.views, snowOf(asset)); const m = new THREE.Mesh(geometryOf(asset, l), assetMaterial(asset)); m.renderOrder = 1; return m; });
   const lod = new Detailed(asset, meshes);

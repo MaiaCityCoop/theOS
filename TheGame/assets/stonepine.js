@@ -8,6 +8,7 @@
 // (assets/index.js), scattered by the trees' engine (src/scatter/trees.js) where the pine forest lies (biomes/
 // pineforest.js). Units are metres; a shape is a stage of its growth at its own height; the origin is the foot of its trunk.
 import { tree, builder, tube, cards, outward, rng, add, sub, mul, norm, lerp, bez } from './kit/tree.js';
+import SPRIG from '../materials/pinetuft.twigs.js';
 
 // how it grows: a stone pine of five is a bush of a metre and a half, a ball of needles from the ground; at fifteen an
 // egg of four metres on a short trunk; from about thirty it lifts its crown, the lower limbs shed, the trunk forks; at
@@ -131,6 +132,9 @@ export default tree({
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, tree (assets/kinds.js); P: cells per patch side
   levels: [{ P: 4, most: [19700, 12480] }, { P: 8, most: [4100, 2600] }, { P: 16, most: [1200, 928] }, { P: 32, most: [330, 182] }],   // most: the most vertices and triangles a shape of it has at that level (its place in the heap: src/scatter/heap.js; a recipe that grows past it is told so)
   shadow: { most: [488, 318] },   // (its shade's)
+  // its finest level, for the few nearest (larger on screen than px): every sprig a spray of its twigs, each a card of
+  // one whole twig's painting (assets/kit/tree.js: splayOf)
+  fine: { px: 600, sprig: SPRIG, twig: '8c41d228-0e3e-4fd6-b47c-9ee7929ae713' /* pine twig */, most: [50000, 28000] },
   // where it grows: the pine forest's stand (its cells, its groves, its ages: biomes/pineforest.js `trees`), of which it
   // takes its share; scale: one tree's own size about its age's height; lean: how far a trunk may lean; seed: its shapes'
   placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.7, scale: [0.93, 1.07], lean: 0.1, seed: 300 },

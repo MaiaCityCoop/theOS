@@ -8,9 +8,10 @@
 // can be as many and as small as a real sprig's at no more work than nine.
 import { float, vec2, vec3, mix, smoothstep, max, abs, sin, cos, pow, clamp, floor, fract, dot, length, atan } from 'three/tsl';
 import { pn } from '../src/materials/paint.js';
+import SPRIG from './holmoakleaf.twigs.js';
 
 const N = 24;   // cells across the card: a leaf is about two of them long (a fourteenth of the card)
-const TWIGS = [[-0.75, 0.42], [-0.42, 0.6], [-0.12, 0.74], [0.18, 0.72], [0.46, 0.58], [0.78, 0.4]], BOW = 0.2;   // its twigs: their angle from upright, their length; each bows outward
+const TWIGS = SPRIG.twigs, BOW = SPRIG.bow;   // (its numbers apart: holmoakleaf.twigs.js; a tree's finest level lays each twig out as a card of its own by them)   // its twigs: their angle from upright, their length; each bows outward
 const hash = (c, k) => fract(sin(dot(c, vec2(127.1, 311.7)).add(k * 17.3)).mul(43758.5453));   // a cell's own number, 0..1 (k: which)
 
 export default {
@@ -23,7 +24,7 @@ export default {
   swatch: [0.06, 0.1, 0.045],
   bump: 0.05,
   paint: (uv) => {
-    const foot = vec2(0.5, 0.03);
+    const foot = vec2(...SPRIG.foot);
     // the fan's outline: how far it reaches from its foot each way (uneven, less to the sides); a leaf whose middle lies
     // within it is there whole
     const inFan = (p) => {

@@ -16,14 +16,20 @@
 // cell: a mix); scale, one tree's own size about its age's height; seed, its shapes' (another seed: other trees of its kind).
 //
 // levels: one { P } for each level its file draws (P: cells per patch side); after them the kit adds its two farthest
-// by itself, made from its nearest: its crown as one body on a post (36 triangles), then a speck (8) (farOf;
+// by itself, made from its nearest: its crown as one body on a post (30 triangles), then a speck (8) (farOf;
 // `far: { P, sides, shade }` to tune them, `speck: false` for the body alone, `far: false` for none).
+// fine { px, sprig, twig, most }: before them, its finest, made from its nearest too (splayOf): every sprig laid out
+// as its painting's twigs, a spray, each twig a card of its own painting (twig: a material of one whole twig), for a
+// tree larger on screen than px (the few nearest: its mesh comes when a tree is that near); sprig: its leaves'
+// paintings as numbers (materials/*.twigs.js).
 // grow(q, shape, i) builds level q (0 nearest) of a shape (a stage's form, or shapes[i]) with builder()/tube()/cards(), or
 // crown() for its limbs and foliage as most trees share them, or mound() for a low bush, and returns the builder;
 // shade(shape, i), if given, the light mesh the shadow map is drawn from (else none of its levels cast, but the nearest);
 // tree() works out the rest the engine reads: its levels, its size, and each shape's trunk as a body (the tube made
 // with { body: true }, where it stands at a walker's chest); its meshes are made where they are asked for, never when
 // its file is read (a worker reads this file too: plain JS, nothing of the page in it).
+
+import { kindRule } from '../kinds.js';
 
 // ---- small vector help ----
 export const add = (a, b) => a.map((x, i) => x + b[i]), sub = (a, b) => a.map((x, i) => x - b[i]), mul = (a, s) => a.map((x) => x * s);
@@ -45,8 +51,9 @@ const CHEST = 1.2;   // metres up a trunk where a walker meets it
     light that reaches the wood at p; barkTile: metres of wood one tile of bark covers; colours: [wood, leaves] for a
     picture without the textures. */
 export function builder({ ao = () => 1, barkTile = 1, colours = [[0.3, 0.22, 0.15], [0.1, 0.18, 0.06]] } = {}) {
-  const b = { position: [], normal: [], uv: [], part: [], ao: [], color: [], cn: [], root: [], hand: [], index: [], body: null };
-  b.v = (p, n, uv, part, a, cn = [0, 0, 0], root = [0, 0, 0], hand = [0, 0]) => { b.position.push(...p); b.normal.push(...n); b.cn.push(...cn); b.root.push(...root); b.hand.push(...hand); b.uv.push(...uv); b.part.push(part); b.ao.push(a); b.color.push(...colours[Math.min(part, 1)]); return b.ao.length - 1; };
+  const b = { position: [], normal: [], uv: [], part: [], ao: [], color: [], cn: [], root: [], hand: [], twig: [], index: [], body: null };
+  // (twig: 1 where a card wears the painting of one twig, its plant's `fine.twig`, not its sprig: splayOf)
+  b.v = (p, n, uv, part, a, cn = [0, 0, 0], root = [0, 0, 0], hand = [0, 0], twig = 0) => { b.position.push(...p); b.normal.push(...n); b.cn.push(...cn); b.root.push(...root); b.hand.push(...hand); b.uv.push(...uv); b.part.push(part); b.ao.push(a); b.twig.push(twig); b.color.push(...colours[Math.min(part, 1)]); return b.ao.length - 1; };
   b.aoAt = ao; b.barkTile = barkTile;
   return b;
 }
@@ -176,6 +183,43 @@ export function mound(b, q, { r, h, lobes = 1, ragged = 0.2, dome = [0.1, 1], pu
   }
 }
 
+/** A plant's finest level, made from its nearest (as farOf makes its farthest): every sprig (a pair of crossed cards,
+    the whole spray painted on each) laid out as its painting's twigs: a card a twig, each the painting of ONE twig,
+    whole (its plant's `fine.twig`: nothing beside it on the card, so none cuts through another's leaves), the twigs
+    standing round the sprig's own way as a spray's do, each as long as its twig in the spray, its leaves the size they
+    were. The sprig is no longer two flat sheets. S: the paintings as numbers ({ twigs: [[angle from upright, length],
+    …], reach, twig: { foot, length, half } }: materials/*.twigs.js). Its wood, and whatever is no such sprig (a card
+    whose painting is repeated: a bush's base), stay as they are; a twig's card keeps its sprig's foot as its root, so
+    the sprig hands over to the next level's as one. */
+export function splayOf(m, S, seed = 1) {
+  const b = builder(), n = m.part.length, idx = m.index, V = (a, i) => [a[i * 3], a[i * 3 + 1], a[i * 3 + 2]], map = new Int32Array(n).fill(-1);
+  b.body = m.body ?? null;
+  const copy = (i) => (map[i] >= 0 ? map[i] : (map[i] = b.v(V(m.position, i), V(m.normal, i), [m.uv[i * 2], m.uv[i * 2 + 1]], m.part[i], m.ao[i], V(m.cn, i), V(m.root, i), [m.hand[i * 2], m.hand[i * 2 + 1]], m.twig?.[i] ?? 0)));
+  // a sprig as cards() lays it: two quads on eight vertices one after another, the whole painting on each, handed over as one
+  const sprigAt = (t) => { const a = idx[t]; if (m.part[a] !== 1 || t + 12 > idx.length || m.hand[a * 2] > 0.5 || m.uv[(a + 2) * 2] !== 1 || m.uv[(a + 2) * 2 + 1] !== 1) return false; for (let q = 0; q < 2; q++) { const o = t + q * 6, v = a + q * 4; if (idx[o] !== v || idx[o + 1] !== v + 1 || idx[o + 2] !== v + 2 || idx[o + 3] !== v || idx[o + 4] !== v + 2 || idx[o + 5] !== v + 3) return false; } return true; };
+  const T = S.twig, u0 = T.foot[0] - T.half, u1 = T.foot[0] + T.half;   // (the part of the twig's painting a card shows: all of it)
+  for (let t = 0; t < idx.length;) {
+    if (!sprigAt(t)) { b.index.push(copy(idx[t]), copy(idx[t + 1]), copy(idx[t + 2])); t += 3; continue; }
+    const a = idx[t], c0 = V(m.position, a), c1 = V(m.position, a + 1), c3 = V(m.position, a + 3), p = lerp(c0, c1, 0.5), h = sub(c3, c0), s = len(h), dir = mul(h, 1 / (s || 1));
+    const e1 = norm(sub(c1, c0)), e2 = cross(dir, e1), light = V(m.normal, a), root = V(m.root, a), R = rng(seed * 7919 + a * 31 + 5), phi0 = R() * 2 * Math.PI;
+    S.twigs.forEach(([ang, L], j) => {
+      // where it stands: as far from the sprig's way as on the painting, round it by the golden angle (no two twigs one
+      // behind another), turned a little about itself
+      const phi = phi0 + j * 2.39996 + (R() - 0.5) * 0.6, pol = Math.abs(ang) * (0.8 + 0.5 * R()) + 0.08, rad = add(mul(e1, Math.cos(phi)), mul(e2, Math.sin(phi)));
+      const axis = norm(add(mul(dir, Math.cos(pol)), mul(rad, Math.sin(pol)))), w0 = norm(cross(dir, axis)), roll = (R() - 0.5) * 1.0, w = norm(add(mul(w0, Math.cos(roll)), mul(cross(axis, w0), Math.sin(roll))));
+      // its card: the twig's painting stretched so its twig is as long as this twig is in the spray (L of the sprig's
+      // card), its foot on the sprig's foot; as wide as the painting's leaves reach, in the painting's own proportion
+      const k = (L * s) / T.length, lo = -T.foot[1] * k, hi = (1 - T.foot[1]) * k, half = T.half * k;
+      let cn = norm(cross(w, axis)); if (dot(cn, light) < 0) cn = mul(cn, -1);
+      const nrm = norm(add(mul(light, 0.8), mul(cn, 0.3))), ao = Math.min(1, m.ao[a] * (0.85 + 0.3 * R()));   // lit mostly as the crown is, a little as its own card faces
+      const q = [[lo, -half, u0, 0], [lo, half, u1, 0], [hi, half, u1, 1], [hi, -half, u0, 1]].map(([al, ac, u, v]) => b.v(add(p, add(mul(axis, al), mul(w, ac))), nrm, [u, v], 1, ao, cn, root, [0, 0], 1));
+      b.index.push(q[0], q[1], q[2], q[0], q[2], q[3]);
+    });
+    t += 12;
+  }
+  return b;
+}
+
 const pct = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(sorted.length * q)))];
 const mean = (a) => a.reduce((t, x) => t + x, 0) / Math.max(1, a.length);
 
@@ -259,7 +303,7 @@ function stagesOf(G, seed) {
     earlier start and is handed in (src/core/outlines.js reads it from where it is kept, by the recipe's version);
     `made`, what was measured anew this time, for it to keep. A few numbers a tree. */
 export const OUTLINES = { kept: new Map(), made: new Map() };
-const FLOATS = ['position', 'normal', 'uv', 'part', 'ao', 'color', 'cn', 'root', 'hand'];
+const FLOATS = ['position', 'normal', 'uv', 'part', 'ao', 'color', 'cn', 'root', 'hand', 'twig'];
 // a built mesh as it is handed on: its attributes as typed arrays (what the GPU takes as they are), its trunk's body;
 // nothing of the builder left on it
 const packed = (m) => ({ ...Object.fromEntries(FLOATS.filter((k) => m[k]?.length).map((k) => [k, new Float32Array(m[k])])), index: new Uint32Array(m.index), body: m.body ?? null });
@@ -272,17 +316,20 @@ const packed = (m) => ({ ...Object.fromEntries(FLOATS.filter((k) => m[k]?.length
     What the page must know at once (size, heights, trunk) is measured once on its nearest level and kept as a few
     numbers (OUTLINES). */
 export function tree(recipe) {
-  const { shapes: own = [{}], growth, grow, shade, levels, shadow = {}, far = {}, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
+  const { shapes: own = [{}], growth, grow, shade, levels, shadow = {}, far = {}, fine = null, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
   const G = growth ? stagesOf(growth, seed) : null, shapes = G ? G.shapes : own;
   // after the levels its file draws, its two farthest, made from its nearest (farOf): a crown as one body on a post,
   // then a speck; `far: false`: none
   const fars = far ? [far, ...(far.speck === false ? [] : [{ ...far, sides: 4, shoulder: false, trunk: false }])] : [];
   const farMost = ({ sides = 6, shoulder = true, trunk = true }) => [sides * (shoulder ? 2 : 1) + 2 + (trunk ? 8 : 0), sides * (shoulder ? 4 : 2) + (trunk ? 6 : 0)];   // (a far body's vertices and triangles: its crown's rings, top and underside, its post: farOf)
-  const specs = [...levels.map((L) => ({ ...L })), ...fars.map((o) => ({ P: far.P ?? 64, far: true, most: farMost(o) }))];
+  // before them, where its file says `fine`, its finest (splayOf). Its levels then say where each ends on screen
+  // themselves (its kind's sizes are for the levels its file draws and the kit's farthest: one more in front must not shift them)
+  const f = fine ? 1 : 0, kpx = fine ? rest.detail?.px ?? kindRule(rest, 'px') : null, pxAt = (i) => (kpx ? { px: kpx[Math.min(i, kpx.length - 1)] } : {});
+  const specs = [...(fine ? [{ P: fine.P ?? 2, px: fine.px, most: fine.most, fine: true }] : []), ...levels.map((L, i) => ({ ...L, ...pxAt(i) })), ...fars.map((o, j) => ({ P: far.P ?? 64, far: true, most: farMost(o), ...pxAt(levels.length + j) }))];
   // (the last few made are kept as the builder left them: a far level is made from its shape's nearest)
   const memo = new Map(), once = (key, make) => { let m = memo.get(key); if (!m) { if (memo.size >= 6) memo.delete(memo.keys().next().value); memo.set(key, (m = make())); } return m; };
   /** Shape `shape` at level `level`, as the builder made it (its attributes lists of numbers). */
-  const rawAt = (level, shape) => once(`${level}:${shape}`, () => (level < levels.length ? grow(level, shapes[shape], shape) : farOf(rawAt(0, shape), fars[level - levels.length])));
+  const rawAt = (level, shape) => once(`${level}:${shape}`, () => (fine && level === 0 ? splayOf(rawAt(1, shape), fine.sprig, seed + shape) : level - f < levels.length ? grow(level - f, shapes[shape], shape) : farOf(rawAt(f, shape), fars[level - f - levels.length])));
   const id = `${rest.uid}:${seed}`; let outline = null, detail = null;
   const measured = () => {
     if (!outline) {
@@ -297,6 +344,7 @@ export function tree(recipe) {
   };
   const out = {
     ...rest,
+    ...(fine ? { fine: { px: fine.px, twig: fine.twig } } : {}),   // (what its finest level wears: the plants' material reads it, the textures find it)
     ...(G ? { growth: { years: growth.years, stages: G.stages, at: G.at, height: growth.height } } : {}),
     /** how many shapes it has, and how many levels (its file's and the kit's two farthest) */
     shapeCount: shapes.length, levelCount: specs.length,

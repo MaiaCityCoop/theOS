@@ -3,10 +3,11 @@
 // texture: the card's whole picture, its height the cut-out (what is not needle or twig is not drawn; src/scatter/trees.js).
 import { float, vec2, vec3, mix, smoothstep, max, abs, atan, fract, length, clamp } from 'three/tsl';
 import { pn } from '../src/materials/paint.js';
+import SPRIG from './pinetuft.twigs.js';
 
 // the sprig: twigs fanning up from the card's foot (their angle from upright, their length), and along each the brushes of
 // needles: where (along the twig), how far their needles reach, how many go round
-const TWIGS = [[-0.62, 0.5], [-0.3, 0.72], [0.0, 0.86], [0.28, 0.76], [0.58, 0.54]];
+const TWIGS = SPRIG.twigs;   // (its numbers apart: pinetuft.twigs.js; a tree's finest level lays each twig out as a card of its own by them)
 const BRUSHES = [[0.3, 0.13, 48], [0.46, 0.16, 54], [0.62, 0.18, 58], [0.78, 0.19, 60], [0.93, 0.16, 56]];
 
 export default {
@@ -19,7 +20,7 @@ export default {
   swatch: [0.16, 0.25, 0.1],
   bump: 0.05,
   paint: (uv) => {
-    const foot = vec2(0.5, 0.04);
+    const foot = vec2(...SPRIG.foot);
     let twig = float(0), a = float(0), tip = float(0);
     TWIGS.forEach(([ang, L], j) => {
       const dir = vec2(Math.sin(ang), Math.cos(ang)), d = uv.sub(foot), along = d.dot(dir), off = d.x.mul(dir.y).sub(d.y.mul(dir.x)).sub(along.mul(along).mul(0.25 * Math.sign(ang || 1)));   // the twig, bowing outward

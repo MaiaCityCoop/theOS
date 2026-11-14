@@ -2,11 +2,12 @@
 // draw is the ground the walker stands on. Every material that needs the land (terrain, water, grass, rocks, the ground
 // pass) builds from these. The biomes (biomes/*.js) bring their own rules; the library's sandbox lays one biome over
 // all the land round its stage.
-import { Fn, float, int, uint, vec2, vec3, vec4, floor, abs, max, clamp, mix, smoothstep, length, sqrt, atan, sin, cos, If } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, floor, abs, max, clamp, mix, smoothstep, length, sqrt, atan, sin, cos, If, Loop, uniformArray, uniform, renderGroup } from 'three/tsl';
+import { Vector4 } from 'three/webgpu';
 import { U } from '../core/uniforms.js';
 import { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second } from './noise.nodes.js';
 export { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second };
-import { OCT_LAM, OCT_AMP, WATER_DROP, PADS, PAD_FALL, BEND, MEANDER } from './land.js';
+import { OCT_LAM, OCT_AMP, WATER_DROP, PADS, PAD_FALL, BEND, MEANDER, LAKE_MAX } from './land.js';
 import { BIOMES, BASE, WATER } from './biomes.js';
 import { PLACES } from '../../world/places.js';
 import { recipe, byRole } from '../core/registry.js';
@@ -48,20 +49,45 @@ export const riverRaw = Fn(([p]) => {
   });
   return R;
 });
+// ---- the lakes (src/world/land.js: what a ring of river closes round is water): their middles, how far they reach,
+// the sign of the river's field inside, as the CPU found them (setLakes; none: radius 0) ----
+// (looked through as many as there are, a number the loop does not know when it is compiled: a loop of a fixed 32 is
+// written out 32 times over by the GPU's compiler, in every shader that reads the river: a slower start)
+const LAKE = uniformArray(Array.from({ length: LAKE_MAX }, () => new Vector4(0, 0, 0, 0)), 'vec4').setGroup(renderGroup), LAKES_N = uniform(0, 'int').setGroup(renderGroup);
+/** the lakes the CPU found, to the GPU */
+export const setLakes = (list) => { for (let i = 0; i < LAKE_MAX; i++) { const L = list[i]; LAKE.array[i].set(L?.x ?? 0, L?.z ?? 0, L?.r ?? 0, L?.s ?? 0); } LAKES_N.value = Math.min(LAKE_MAX, list.length); };
+/** 1 where p, the river's raw field there r, lies in a lake */
+const inLake = (p, r0) => {
+  const k = float(0).toVar(), r = float(r0).toVar(), q = vec2(p).toVar();   // (held: written out once, not again inside the loop)
+  Loop({ start: int(0), end: LAKES_N }, ({ i }) => { const L = LAKE.element(i); If(length(q.sub(L.xy)).lessThan(L.z).and(r.mul(L.w).greaterThanEqual(0)), () => { k.assign(1); }); });
+  return k;
+};
+/** 1 within `margin` metres round a lake (what grows on its shore: src/scatter/trees.js), 0 elsewhere */
+export const nearLake = (p, margin = 40) => {
+  const k = float(0).toVar(), q = vec2(p).toVar();
+  Loop({ start: int(0), end: LAKES_N }, ({ i }) => { const L = LAKE.element(i); If(length(q.sub(L.xy)).lessThan(L.z.add(margin)), () => { k.assign(1); }); });
+  return k;
+};
+/** 1 in a lake, 0 elsewhere (its water stands still: src/terrain/water.js) */
+export const lakeAt = Fn(([p]) => inLake(p, riverRaw(p).x));
 /** (signed distance from the channel's middle, half-width, which bank: > 0 a bend's outside, the bend) */
 export const riverInfo = Fn(([p]) => {
-  const R = riverRaw(p), gl = max(length(R.yz), 2e-4), t = vec2(R.z.negate(), R.y).div(gl);
+  const R = riverRaw(p).toVar(), gl = max(length(R.yz), 2e-4), t = vec2(R.z.negate(), R.y).div(gl);
   const A = riverRaw(p.add(t.mul(20))), Bk = riverRaw(p.sub(t.mul(20)));
   const dt0 = atan(A.z, A.y).sub(atan(Bk.z, Bk.y)), dt = atan(sin(dt0), cos(dt0)), bend = clamp(dt.div(40).mul(BEND), -1, 1);
   const w = float(4.5).add(smoothstep(0.25, 0.75, vnoise(p.mul(1 / 90), uint(42))).mul(3.5)).add(abs(bend).mul(7)).mul(vnoise(p.mul(1 / 14), uint(43)).mul(0.28).add(0.86));
-  const sd = R.x.div(gl).sub(w.mul(0.25).mul(bend));
-  return vec4(sd, w, bend.mul(sd.greaterThanEqual(0).select(1, -1)), bend);
+  // (inside a lake: the channel's middle all over. Its numbers held first: a choice between two values that both
+  // work them out would write the river out twice over)
+  const W = w.toVar(), Bd = bend.toVar(), sd = R.x.div(gl).sub(W.mul(0.25).mul(Bd)).toVar(), out = vec4(sd, W, Bd.mul(sd.greaterThanEqual(0).select(1, -1)), Bd).toVar();
+  If(inLake(p, R.x).greaterThan(0.5), () => { out.assign(vec4(0, W, 0, 0)); });
+  return out;
 });
 /** riverInfo at q close by p, whose info is I: the distance to the channel worked out again, its width and bend kept
     (they change over tens of metres; a vertex's neighbours for its normal are half a metre off) */
 export const riverNear = Fn(([q, I]) => {
-  const R = riverRaw(q), sd = R.x.div(max(length(R.yz), 2e-4)).sub(I.y.mul(0.25).mul(I.w));
-  return vec4(sd, I.y, I.w.mul(sd.greaterThanEqual(0).select(1, -1)), I.w);
+  const R = riverRaw(q).toVar(), sd = R.x.div(max(length(R.yz), 2e-4)).sub(I.y.mul(0.25).mul(I.w)).toVar(), out = vec4(sd, I.y, I.w.mul(sd.greaterThanEqual(0).select(1, -1)), I.w).toVar();
+  If(inLake(q, R.x).greaterThan(0.5), () => { out.assign(vec4(0, I.y, 0, 0)); });
+  return out;
 });
 export const riverCarve = Fn(([d, w, b]) => {
   const cut = max(b, 0), bar = max(b.negate(), 0), D = clamp(float(9).div(w), 0.75, 1.7).mul(1.2);

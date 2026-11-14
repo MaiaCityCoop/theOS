@@ -4,7 +4,8 @@
 // It only reads the repository and frames the game. Only one framed game runs at a time.
 import { marked } from 'marked';
 
-const GAME = import.meta.env.VITE_GAME || '/game';   // the game, served by this same server under /game (OS/vite.config.js)
+const GAME = import.meta.env.VITE_GAME || '/game';
+   // the game, served by this same server under /game (OS/vite.config.js)
 const STATES = ['idea', 'define', 'build', 'propose', 'story', 'archived'];
 const DAYS = 5423, NOTED = { 1: { title: 'The decision', inGame: 1 } };   // days that have a name and a count but no film yet: day 1, Samuel alone
 const DAYS_ = DAYS;   // the days; the humans, 1,346,269 (the 31st Fibonacci number), stand in the page's title
@@ -22,12 +23,12 @@ const filmOf = (id, scene = !!current?.scene && current.id === id) => `${GAME}/t
 function tab(name) {
   document.body.classList.toggle('sheet', name === 'intents');   // the intents open as a sheet over the dashboard
   document.body.classList.toggle('studio', name === 'stories');   // the stories, their shelf and their editor: dark, TheOS blue
-  document.body.classList.toggle('admin', name !== 'home');   // inside: the bottom pill; the front page has none
+  document.body.classList.toggle('admin', name !== 'home' && name !== 'legal' && name !== 'join');   // inside: the bottom pill; the front page has none
   if (location.hash.slice(1) !== (name === 'home' ? '' : name)) history.replaceState(null, '', name === 'home' ? location.pathname : '#' + name);
   document.querySelectorAll('main').forEach((m) => m.classList.toggle('on', m.id === name));
   if (name === 'intents') { $('city').classList.add('on'); city(); }   // the dashboard stays under the sheet
   if (name === 'stories') $('stories').classList.toggle('editing', !!current);
-  if (name === 'stories' && !current) ideas();   // the ideas as they stand now (they change only by their tool)
+  if (name === 'stories' && !current) { bible(); ideas(); }   // the bible and the ideas as they stand now (both change only by their tools)
   document.body.classList.toggle('play', name === 'game');   // the game takes the whole window
   if (name !== 'home') $('heroframe').removeAttribute('src');
   if (name === 'game') { if (!$('frame').getAttribute('src')) $('frame').src = GAME + VIEWS[gameView][1]; } else $('frame').removeAttribute('src');
@@ -41,9 +42,76 @@ $('homebtn').onclick = () => tab(location.hash === '#intents' ? 'city' : 'intent
 $('back').onclick = () => tab('city');   // home: the dashboard
 $('badge').onclick = () => tab('home');
 document.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => tab('city')));
-$('visit').onclick = () => tab('city');
-addEventListener('hashchange', () => tab(location.hash.slice(1) || 'home'));
-document.querySelector('header.site .mark').onclick = (e) => { e.preventDefault(); tab('home'); };
+// the pill's button is the shortcut for people who are already in: their dashboard, from which the world is one tile
+$('visit').onclick = (e) => { e.preventDefault(); tab('city'); };
+if ($('joinsignin')) $('joinsignin').onclick = (e) => { e.preventDefault(); tab('city'); };
+if ($('joinplay')) $('joinplay').onclick = (e) => { e.preventDefault(); game('walk'); };
+if ($('joinnow')) $('joinnow').onclick = () => { $('signup').scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => $('joinmail').focus(), 500); };
+
+// ---- what a village unlocks as it fills: a count of villagers and the thing it puts in their hands. The pictures are
+// placeholders until each asset is built and can be shot in the game ----
+const LEVELS = [
+  [1, 'Your first tent, on open ground. One settler, one shelter, and the fire in front of it.'],
+  [2, 'A second tent beside the first. From here nothing is decided alone.'],
+  [3, 'A third tent. Three settlers is a camp, and a camp can split the work.'],
+  [5, 'The first glamping dome: a shell you can stand up in, warm through the night, with the first beds that are not on the ground.'],
+  [8, 'A second dome, and the sanitary container: running water, showers and a proper washroom for the camp.'],
+  [13, 'Another dome, and the kitchen container. The camp stops eating out of tins and starts cooking together.'],
+  [21, 'More domes, and the workshop and store container. Tools, spares and somewhere dry to keep them, so the village can repair its own things.'],
+  [34, 'More domes, and the technical container: power, solar, batteries and the servers. From here the village runs on what it makes.'],
+];
+if ($('levels')) $('levels').innerHTML = LEVELS.map(([n_, text]) => `<li>
+    <div class="ph"><span>Picture to come</span></div>
+    <div class="who"><b>${n(n_)}</b><span>${n_ === 1 ? 'villager' : 'villagers'}</span></div>
+    <p>${text}</p>
+  </li>`).join('') + `<li class="soon">
+    <div class="ph"><span>Coming soon</span></div>
+    <div class="who"><b>55+</b><span>villagers</span></div>
+    <p>The milestones past the technical container are not set yet. They are decided with the villages that get there.</p>
+  </li>`;
+if ($('mailform')) $('mailform').onsubmit = (e) => {   // the sign-up itself is play's; until it is wired, the page says so rather than pretending
+  e.preventDefault();
+  $('joinnote').innerHTML = 'Thank you. Sign-up is not wired up yet, so nothing was sent. <a href="#game" data-do="walk">Walk into the world</a> meanwhile.';
+  $('joinnote').querySelector('[data-do=walk]').onclick = (ev) => { ev.preventDefault(); game('walk'); };
+};
+addEventListener('hashchange', () => { if (location.hash.slice(1).startsWith('legal/')) return; tab(location.hash.slice(1) || 'home'); });
+document.querySelector('header.site .logo')?.addEventListener('click', (e) => { e.preventDefault(); tab('home'); });
+if ($('homelink')) $('homelink').onclick = (e) => { e.preventDefault(); tab('home'); };
+
+// ---- the channels, brought over from maia.city: the same four, in the header as marks and at the foot of the front
+// page as cards. One list, drawn in both places ----
+const SOCIALS = [
+  { id: 'youtube', label: 'YouTube', handle: '@MaiaCityCoop', href: 'https://www.youtube.com/@MaiaCityCoop', d: 'M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .6 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .4-4.8 31 31 0 0 0-.4-4.8ZM9.7 15V9l5.8 3-5.8 3Z' },
+  { id: 'x', label: 'X', handle: '@MaiaCityCoop', href: 'https://x.com/MaiaCityCoop', d: 'M17.8 2.5h3.3l-7.2 8.2 8.5 10.8h-6.6l-5.2-6.6-5.9 6.6H1.4l7.7-8.8L1 2.5h6.8l4.7 6 5.3-6Zm-1.2 17h1.8L7 4.3H5.1l11.5 15.2Z' },
+  { id: 'instagram', label: 'Instagram', handle: '@MaiaCityCoop', href: 'https://instagram.com/MaiaCityCoop', d: 'M12 2.2c3.2 0 3.6 0 4.8.1 3.2.1 4.8 1.7 4.9 4.9.1 1.3.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 3.2-1.7 4.8-4.9 4.9-1.3.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-3.3-.1-4.8-1.7-4.9-4.9C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.8C2.4 3.9 3.9 2.4 7.2 2.3c1.2-.1 1.6-.1 4.8-.1ZM12 0C8.7 0 8.3 0 7.1.1 2.7.3.3 2.7.1 7.1 0 8.3 0 8.7 0 12s0 3.7.1 4.9c.2 4.4 2.6 6.8 7 7 1.2.1 1.6.1 4.9.1s3.7 0 4.9-.1c4.4-.2 6.8-2.6 7-7 .1-1.2.1-1.6.1-4.9s0-3.7-.1-4.9c-.2-4.4-2.6-6.8-7-7C15.7 0 15.3 0 12 0Zm0 5.8a6.2 6.2 0 1 0 0 12.4 6.2 6.2 0 0 0 0-12.4ZM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm6.4-11.8a1.4 1.4 0 1 0 0 2.9 1.4 1.4 0 0 0 0-2.9Z' },
+  { id: 'linkedin', label: 'LinkedIn', handle: '@MaiaCityCoop', href: 'https://www.linkedin.com/company/MaiaCityCoop/', d: 'M20.4 20.5h-3.6v-5.6c0-1.3 0-3-1.8-3s-2.1 1.4-2.1 2.9v5.7H9.3V9h3.4v1.6h.1a3.7 3.7 0 0 1 3.4-1.9c3.6 0 4.3 2.4 4.3 5.5v6.3ZM5.3 7.4a2.1 2.1 0 1 1 0-4.1 2.1 2.1 0 0 1 0 4.1Zm1.8 13.1H3.6V9h3.5v11.5ZM22.2 0H1.8C.8 0 0 .8 0 1.7v20.6c0 .9.8 1.7 1.8 1.7h20.4c1 0 1.8-.8 1.8-1.7V1.7C24 .8 23.2 0 22.2 0Z' },
+];
+const mark = (s, size) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="${s.d}"/></svg>`;
+const out = (s) => `href="${s.href}" target="_blank" rel="noopener"`;
+if ($('socials')) $('socials').innerHTML = SOCIALS.map((s) => `<a ${out(s)} title="${s.label} · ${s.handle}" aria-label="${s.label}">${mark(s, 18)}</a>`).join('');
+if ($('channels')) $('channels').innerHTML = SOCIALS.map((s) => `<a ${out(s)}><i>${mark(s, 22)}</i><span class="who"><b>${s.label}</b><span>${s.handle}</span></span></a>`).join('');
+if ($('playnow')) $('playnow').onclick = () => { tab('join'); };   // the button that follows the whole scroll: the way in
+if ($('playlink')) $('playlink').onclick = (e) => { e.preventDefault(); game('walk'); };
+
+// ---- the legal pages, ported from maia.city as they stand (OS/src/legal/): each a document of sections and blocks,
+// opened from the foot of the front page and read in its own window ----
+const LEG = { slug: null };
+const legEsc = (t) => String(t ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+const block = (b) => (Array.isArray(b.items)
+  ? `<ul>${b.items.map((i) => `<li>${legEsc(i)}</li>`).join('')}</ul>`
+  : `<p>${b.lead ? `<b>${legEsc(b.lead)}</b>` : ''}${b.lines.map(legEsc).join('<br>')}</p>`);
+async function legal(path) {
+  const { LEGAL_DOCUMENTS, LEGAL_LINKS } = await import('./legal/index.js');
+  if ($('legalnav') && !$('legalnav').children.length)
+    $('legalnav').innerHTML = LEGAL_LINKS.map((l) => `<a href="#legal${l.href.replace(/\/$/, '')}">${legEsc(l.label)}</a>`).join('');
+  const doc = LEGAL_DOCUMENTS.find((d) => d.path.replace(/\/$/, '') === '/' + path) || LEGAL_DOCUMENTS[0];
+  LEG.slug = path;
+  $('legaldoc').innerHTML = `<button class="back" data-do="home">← Maia City</button><h1>${legEsc(doc.title)}</h1>` +
+    doc.sections.map((s) => (s.title ? `<h${s.level || 2}>${legEsc(s.title)}</h${s.level || 2}>` : '') + s.blocks.map(block).join('')).join('');
+  $('legaldoc').querySelector('[data-do=home]').onclick = () => tab('home');
+}
+addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h.startsWith('legal/')) { legal(h.slice(6)); tab('legal'); } });
+legal('');   // the links at the foot are drawn once, whatever is open
 
 // ---- the game, framed: to walk, or to look through the lenses ----
 const VIEWS = { walk: ['Walk the world', '/?in=os'], lenses: ['Lenses', '/lenses.html?in=os'], library: ['Library', '/library.html?in=os'] };
@@ -116,6 +184,62 @@ async function ideas() {
   box.querySelectorAll('.idea').forEach((c) => (c.onclick = () => { ideaOpen = ideaOpen === c.dataset.id ? null : c.dataset.id; ideas(); }));
   box.querySelector('[data-do=shut]')?.addEventListener('click', () => { ideaOpen = null; ideas(); });
 }
+// ---- the bible (../Bible): the serial's spine, over the shelf. The premise and what stands against it, the ladder of
+// Fibonacci steps in paying citizens, and every character, arc, system, place, term and episode as a document.
+// The page only shows it: the bible is changed by the story CLI alone, so this draws again whenever the stories open ----
+let bibleOpen = null;
+const esc = (t) => String(t ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+const eur = (v) => (v >= 1e6 ? '€' + (v / 1e6).toFixed(v >= 1e8 ? 0 : 1) + 'M' : v >= 1e4 ? '€' + Math.round(v / 1e3) + 'k' : '€' + n(v));
+const fib = (() => { const o = []; let a = 1, b = 1; while (a <= 1346269) { if (!o.includes(a)) o.push(a); [a, b] = [b, a + b]; } return o; })();   // the 30 steps, 1 to 1,346,269: the count and the day's euros are one number
+const gist = (md) => { const p = md.split('\n').find((l) => l.trim() && !/^(#|>|\||-\s|\*\s|\d+\.\s|---|\*\*Open)/.test(l.trim())) || ''; const t = p.replace(/\*\*|\*|\[|\]\([^)]*\)|`/g, '').trim(); return t.length > 110 ? t.slice(0, 109).replace(/\s\S*$/, '') + '…' : t; };
+
+async function bible() {
+  const box = $('bible'); if (!box) return;
+  const b = await get('/api/bible').then((r) => r.json()).catch(() => null);
+  if (!b) { box.innerHTML = '<p class="empty">No bible yet.</p>'; $('biblenote').textContent = ''; return; }
+  const f = b.story.front, kinds = [
+    ['Episodes', 'chapters', b.chapters, (x) => `${x.front.date || ''}${x.front.hook ? ' · ' + x.front.hook : ''}`],
+    ['Characters', 'characters', b.characters, (x) => x.front.role || ''],
+    ['Arcs', 'arcs', b.arcs, (x) => `${x.front.type || ''}${x.front.status ? ' · ' + x.front.status : ''}`],
+    ['Systems', 'systems', b.systems, (x) => x.front.type || ''],
+    ['Places', 'locations', b.locations, (x) => `${x.front.type || ''}${x.front.status ? ' · ' + x.front.status : ''}`],
+    ['Glossary', 'terms', b.terms, (x) => x.front.category || ''],
+  ];
+  const all = kinds.flatMap(([, k, list]) => list.map((x) => ({ ...x, kind: k })))
+    .concat([{ kind: 'index', id: 'bible', front: { title: 'The bible' }, body: b.story.body }, { kind: 'index', id: 'plot', front: { title: 'The plot' }, body: b.plot },
+      { kind: 'index', id: 'world', front: { title: 'The world' }, body: b.world }, { kind: 'index', id: 'timeline', front: { title: 'The timeline' }, body: b.timeline }]);
+  const key = (x) => x.kind + '/' + x.id;
+  const open = all.find((x) => key(x) === bibleOpen);
+  $('biblenote').innerHTML = `<b>${esc(f.title || 'Maia City')}</b> · ${esc(f.form || '')} · ${n(b.chapters.length)} of ${n(DAYS)} episodes · ${n(b.characters.length + b.arcs.length + b.systems.length + b.locations.length + b.terms.length)} entries`;
+
+  // the three stakes, as the bible's own Notes section states them
+  const stakes = [...b.story.body.matchAll(/^- \*\*(External|Relational|Internal)\.?\*\*\s*([\s\S]*?)(?=\n- \*\*|\n\n|\n#)/gm)]
+    .map((m) => `<div><b>${m[1]}</b>${esc(m[2].replace(/\s+/g, ' ').trim())}</div>`).join('');
+
+  const step = (c, i) => `<i class="${i < 12 ? 'game' : i === 12 ? 'hinge' : ''}" title="Step ${i + 1}: ${n(c)} paying citizens, €${n(c)} a day${i < 12 ? ' · in the game' : i === 12 ? ' · the hinge: the first real dome' : ''}"><u>Step ${i + 1}</u><b>${n(c)}</b><u>${eur(c * 365)}/yr</u></i>`;
+  const card = (x, sub) => `<button class="idea${bibleOpen === key(x) ? ' on' : ''}" data-k="${key(x)}"><b>${esc(x.front.name || x.front.term || x.front.title || x.id)}</b><span>${esc(gist(x.body))}</span>${sub ? `<span class="row"><em>${esc(sub)}</em></span>` : ''}</button>`;
+  const lane = (name, k, list, sub) => (list.length ? `<section class="lane"><h3>${name}<small>${list.length}</small></h3><div class="ideas">${list.map((x) => card({ ...x, kind: k }, sub(x))).join('')}</div></section>` : '');
+
+  const left = `<div class="lanes">
+    <div class="spine">
+      <p class="prem">${esc(f.premise || '')}</p>
+      ${f['counter-premise'] ? `<p class="anti"><b>And against it</b>${esc(f['counter-premise'])}</p>` : ''}
+      ${f['season-goal'] ? `<p class="goal"><b>This season</b>${esc(f['season-goal'])}</p>` : ''}
+      ${stakes ? `<div class="stakes">${stakes}</div>` : ''}
+      <div><h3 style="font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5);margin:4px 0 7px">The ladder · a euro a day, so the count is the day's revenue</h3><div class="ladder">${fib.map(step).join('')}</div></div>
+    </div>
+    ${lane('The bible', 'index', all.filter((x) => x.kind === 'index'), () => 'index')}
+    ${kinds.map(([name, k, list, sub]) => lane(name, k, list, sub)).join('')}
+  </div>`;
+  const doc = (x) => `<aside class="bdoc"><header><b>${esc(x.front.name || x.front.term || x.front.title || x.id)}</b>${x.front.type || x.front.role || x.front.category ? `<i>${esc(x.front.type || x.front.role || x.front.category)}</i>` : ''}<button data-do="shut" aria-label="Close">×</button></header>` +
+    (x.kind === 'chapters' ? `<div class="md prose">${marked.parse(x.text || '')}</div><h4 style="font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.45);margin:22px 0 8px">Its outline</h4><div class="md">${marked.parse(x.outline || '')}</div>`
+      : `<div class="md">${marked.parse(x.body || '')}</div>`) + '</aside>';
+  box.classList.toggle('open', !!open);
+  box.innerHTML = left + (open ? doc(open) : '');
+  box.querySelectorAll('.idea').forEach((c) => (c.onclick = () => { bibleOpen = bibleOpen === c.dataset.k ? null : c.dataset.k; bible(); }));
+  box.querySelector('[data-do=shut]')?.addEventListener('click', () => { bibleOpen = null; bible(); });
+}
+
 async function story(s, show = true) {
   current = s;
   const md = s.scene ? '' : await get(`/api/stories/${s.id}/story.md`).then((r) => r.text()).catch(() => ''), d = $('storyedit');
@@ -289,8 +413,8 @@ function home() {
   const days = stories.filter((s) => s.film).map((s, i) => ({ ...s, day: s.day || i + 1 })), today = days[days.length - 1], told = days.length, T = today ? today.day : 0;
   const joined = (e) => { const i = days.indexOf(e); return e.inGame == null ? null : e.inGame - (i ? days[i - 1].inGame || 0 : NOTED[e.day - 1]?.inGame || 0); };
   const count = (e) => (e && e.inGame != null ? n(e.inGame) : '–');
-  $('h-day').textContent = today ? n(T) : '–';
-  $('travel').onclick = () => tab('city');
+  $('h-day').textContent = n(Math.max(1, T));   // the last day that has its film; before the first one, day 1
+  $('travel')?.addEventListener('click', () => tab('city'));
 
   // the day's challenge: its few goals, the next one lit
   const goals = (e) => { $('goals').innerHTML = e?.goals?.length ? `<span class="g-label">Day ${e.day}</span>` + (() => { const next = e.goals.findIndex((g) => !g[1]); return e.goals.map((g, i) => `<p class="${g[1] ? 'done' : i === next ? 'now' : ''}">${g[0]}</p>`).join(''); })() : ''; };
@@ -311,7 +435,7 @@ function home() {
     if (playing(e)) go(); else { hero.onload = () => setTimeout(go, 400); hero.src = filmOf(e.id, !!e.scene); } };
   const show = (e) => { e = e || today || stand; if (!e) return; const j = e.scene ? null : joined(e);
     if (e !== shown) { shown = e; $('dayboard').innerHTML = e.scene ? (e.cover ? `<img class="pic" src="/api/objects/${e.cover}" alt="">` : '') : pic(e, j);
-      $('daycard').innerHTML = `<button class="bigplay" aria-label="Play day ${e.day} from the start, full screen"></button><div><span class="label num">${e.scene ? 'The trailer' : `Day ${pad(e.day)}${e === today ? ' · today' : ''}`}</span>
+      $('daycard').innerHTML = `<button class="bigplay" aria-label="Play day ${e.day} from the start, full screen"></button><div><span class="label num">${e.scene ? `The trailer · Day ${pad(1)}` : `Day ${pad(e.day)}${e === today ? ' · today' : ''}`}</span>
         <p class="count">${e.inGame != null ? `<span><b>${n(e.inGame)}</b>${e.inGame === 1 ? 'citizen' : 'citizens'}</span>` : ''}${j ? `<span><b>+${n(j)}</b>joined</span>` : ''}${e.secs ? `<span>${mm(e.secs)}</span>` : ''}</p></div>`;
       $('daycard').querySelector('.bigplay').onclick = () => full(e);
       goals(e); }
@@ -366,4 +490,4 @@ function city() {
 [intents, stories, me, scenes] = await Promise.all([get('/api/intents').then((r) => r.json()), get('/api/stories').then((r) => r.json()).catch(() => []), get('/api/me').then((r) => r.json()).catch(() => ({})), get('/api/scenes').then((r) => r.json()).catch(() => [])]);
 board(); home();
 shelf();
-game('walk', false); tab(['city', 'intents', 'stories', 'game'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');
+game('walk', false); tab(['city', 'intents', 'stories', 'game', 'join'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');

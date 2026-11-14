@@ -43,12 +43,26 @@ export function geometryOf(asset, level = asset.detail.levels[0], shape = 0) {
     return g;
   }
   const faces = level.faces; if (!faces) return rockPreview(asset, level.rock);
-  const pos = [], col = [];
-  for (const [p0, p1, p2, c] of faces) for (const v of [p0, p1, p2]) { pos.push(...v); col.push(...c); }
+  // a face is [corner, corner, corner, colour] and, where the asset names what it is made of (`materials`), the name
+  // of the one this face wears: carried as `part`, its place in that list, and worn by the shader (src/world/place.js)
+  const parts = asset.materials ? Object.keys(asset.materials) : null;
+  // A face may also carry a colour per corner ([c0, c1, c2] for its colour) and a normal per corner (a sixth entry,
+  // [n0, n1, n2]): a rounded thing (a river stone) shaded smooth across its faces rather than flat on each.
+  const pos = [], col = [], part = [], nor = [], e1 = [0, 0, 0], e2 = [0, 0, 0];
+  for (const [p0, p1, p2, c, m, ns] of faces) {
+    let fn = null;
+    if (!ns) {   // a flat face: its own normal at every corner
+      for (let a = 0; a < 3; a++) { e1[a] = p1[a] - p0[a]; e2[a] = p2[a] - p0[a]; }
+      const x = e1[1] * e2[2] - e1[2] * e2[1], y = e1[2] * e2[0] - e1[0] * e2[2], z = e1[0] * e2[1] - e1[1] * e2[0], l = Math.hypot(x, y, z) || 1;
+      fn = [x / l, y / l, z / l];
+    }
+    [p0, p1, p2].forEach((v, k) => { pos.push(...v); col.push(...(Array.isArray(c[0]) ? c[k] : c)); nor.push(...(ns ? ns[k] : fn)); if (parts) part.push(Math.max(0, parts.indexOf(m ?? parts[0]))); });
+  }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.computeVertexNormals();
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  if (parts) g.setAttribute('part', new THREE.Float32BufferAttribute(part, 1));
   return g;
 }
 

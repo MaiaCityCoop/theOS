@@ -10,8 +10,9 @@
 //   1   z (16) | normal u (8) | v (8)    (GRID: the same at every level, so a sprig's foot is the same number in
 //                                        both of two levels that hand over); the normal it is lit with, octahedral
 //   2   u (16) | v (16)                  where on its bark or its sprig's painting, in 1024ths, from -16 to 48 tiles
-//   3   ao (8) | part (2) | hand (2) | – | card u (8) | v (8)     the light that reaches it; 0 wood, 1 a sprig's
-//                                        card, 2 a crown as one body; how it hands over (from, kept); its card's plane
+//   3   ao (8) | part (2) | hand (2) | twig (1) | – | card u (8) | v (8)     the light that reaches it; 0 wood, 1 a
+//                                        sprig's card, 2 a crown as one body; how it hands over (from, kept); whether
+//                                        its card wears the painting of one twig (its finest level); its card's plane
 //   4   root x (16) | y (16)             what it grows from and shrinks to as two levels hand over
 //   5   root z (16)
 //   6, 7   free
@@ -38,7 +39,7 @@ export function packPlant(m) {
     out[o + 1] = (g16(P[p + 2], -GRID.xz, GRID.xz) | (OU << 16) | (OV << 24)) >>> 0;
     out[o + 2] = (Math.max(0, Math.min(65535, Math.round((UV[v * 2] + UV0) * UVK))) | (Math.max(0, Math.min(65535, Math.round((UV[v * 2 + 1] + UV0) * UVK))) << 16)) >>> 0;
     oct8(CN[p], CN[p + 1], CN[p + 2]);
-    out[o + 3] = (Math.max(0, Math.min(255, Math.round(m.ao[v] * 255))) | ((m.part[v] & 3) << 8) | ((HD[v * 2] > 0.5 ? 1 : 0) << 10) | ((HD[v * 2 + 1] > 0.5 ? 1 : 0) << 11) | (OU << 16) | (OV << 24)) >>> 0;
+    out[o + 3] = (Math.max(0, Math.min(255, Math.round(m.ao[v] * 255))) | ((m.part[v] & 3) << 8) | ((HD[v * 2] > 0.5 ? 1 : 0) << 10) | ((HD[v * 2 + 1] > 0.5 ? 1 : 0) << 11) | ((m.twig?.[v] > 0.5 ? 1 : 0) << 12) | (OU << 16) | (OV << 24)) >>> 0;
     out[o + 4] = (g16(RT[p], -GRID.xz, GRID.xz) | (g16(RT[p + 1], GRID.y0, GRID.y1) << 16)) >>> 0;
     out[o + 5] = g16(RT[p + 2], -GRID.xz, GRID.xz);
   }
