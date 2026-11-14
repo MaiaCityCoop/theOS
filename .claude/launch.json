@@ -2,6 +2,15 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "theos",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 5180
+    },
+    {
       "name": "brand-drafts",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
