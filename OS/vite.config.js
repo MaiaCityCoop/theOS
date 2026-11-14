@@ -45,6 +45,7 @@ const publish = {
     put('api/intents/index.json', JSON.stringify(intents));
     for (const { file } of intents) copy(resolve(INTENTS, file), `api/intents/${file}`);
     put('api/ideas/index.json', JSON.stringify(readIdeas()));
+    put('api/bible/index.json', JSON.stringify(readBible(ROOT)));   // the serial's bible (../Bible), as the dashboard reads it
     const scenes = listScenes();
     put('api/scenes/index.json', JSON.stringify(scenes));
     for (const { id } of scenes) copy(sceneFile(id), `api/scenes/${id}/scene.json`);
