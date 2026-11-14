@@ -16,6 +16,8 @@ const registry = {
 };
 
 export default {
+  // the pages a build makes: the game, and the way back from aven.id (src/account/callback.js)
+  build: { rolldownOptions: { input: { index: resolve(ROOT, 'index.html'), callback: resolve(ROOT, 'callback.html') } } },
   plugins: [registry, {
     name: 'cine-keep',
     configureServer(server) {

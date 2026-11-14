@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Maia City · signing in</title>
+<link rel="icon" href="/brand/MaiaCity.svg">
+<link rel="stylesheet" href="/brand/brand.css">
+<style>
+  /* the way back from aven.id (src/account/callback.js): on the brand's paper, a moment, then back to the game */
+  html,body{margin:0;height:100%;background:var(--paper,#f7f0e3);color:var(--forest,#1f3a2c)}
+  body{display:grid;place-content:center;justify-items:center;gap:22px;font-family:var(--sans,sans-serif)}
+  .sun::before{width:30px;height:30px;margin:0;vertical-align:0;animation:turn 12s linear infinite}
+  @keyframes turn{to{rotate:360deg}}
+  @media (prefers-reduced-motion:reduce){.sun::before{animation:none}}
+</style>
+</head>
+<body>
+<span class="mark">Maia City</span>
+<span class="sun" aria-hidden="true"></span>
+<p class="label" id="line" role="status">Signing in with aven.id</p>
+<noscript><p>Signing in needs JavaScript. <a href="./">Back to the game</a></p></noscript>
+<script type="module" src="/src/account/callback.js"></script>
+</body>
+</html>
