@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "bunx --bun vite --port 5180 --strictPort --host localhost",
-    "lan": "bunx --bun vite --port 5180 --strictPort --host"
+    "lan": "bunx --bun vite --port 5180 --strictPort --host",
+    "build": "bunx --bun vite build"
   },
   "dependencies": {
     "marked": "^18.2.0"

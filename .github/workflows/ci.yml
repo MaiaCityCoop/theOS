@@ -1,0 +1,51 @@
+name: CI
+
+# Checks and builds the website (OS/) and the game (TheGame/) for every change to them. On main, it also deploys to
+# `next` when the repository variable AUTO_DEPLOY_NEXT is "true" (deploy/README.md).
+on:
+  push:
+    branches: [main]
+    paths: [OS/**, TheGame/**, Intents/**, Stories/**, Bible/**, brand/**, deploy/**, .github/workflows/**]
+  pull_request:
+    paths: [OS/**, TheGame/**, Intents/**, Stories/**, Bible/**, brand/**, deploy/**, .github/workflows/**]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - name: Install
+        run: |
+          (cd TheGame && bun install --frozen-lockfile)
+          (cd OS && bun install --frozen-lockfile)
+      - name: Sign-in checks
+        working-directory: TheGame
+        run: bun tools/account-check.js
+      - name: Build both sites for next
+        run: deploy/bundle.sh deploy/environments/next.json "$GITHUB_SHA" "$RUNNER_TEMP/release.tar"
+      - name: Shell scripts parse
+        run: |
+          bash -n deploy/bundle.sh deploy/setup-host.sh
+          sh -n deploy/deploy.sh
+
+  next:
+    needs: check
+    if: github.event_name == 'push' && vars.AUTO_DEPLOY_NEXT == 'true'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: next
+      commit: ${{ github.sha }}
+    secrets: inherit

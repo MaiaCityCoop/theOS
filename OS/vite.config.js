@@ -1,7 +1,7 @@
 // OS reads the repository as it is: the intents (../Intents/*.md), the stories (../Stories/*) and the story ideas (../Stories/ideas/*.md).
 // Nothing is copied or cached: the files are the one source.
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readdirSync, readFileSync, existsSync, writeFileSync, mkdirSync, cpSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
 import { execSync } from 'node:child_process';
 import { createServer } from 'vite';
 import { readIdeas } from '../Stories/ideas.js';
@@ -14,8 +14,52 @@ const front = (text) => { // the few "key: value" lines between the first two --
   return out;
 };
 
+const ROOT = resolve(import.meta.dirname, '..'), INTENTS = resolve(ROOT, 'Intents'), STORIES = resolve(ROOT, 'Stories');
+// the intents as a board reads them: each file's front matter
+const intentList = () => readdirSync(INTENTS).filter((f) => /^\d{4}-.*\.md$/.test(f)).sort().map((f) => ({ file: f, slug: f.slice(0, -3), ...front(readFileSync(resolve(INTENTS, f), 'utf8')) }));
+// the stories, each shortly
+const storyList = () => {
+  try { return readdirSync(STORIES).filter((d) => ['hook.json', 'arc.json', 'story.md'].some((n) => existsSync(resolve(STORIES, d, n)))).sort().map((d) => {
+    // a story's film also says which day it is, how many humans were in the game that day, and the day's goals
+    let t = {}; try { t = JSON.parse(readFileSync(resolve(STORIES, d, 'timeline.json'), 'utf8')); } catch {}
+    let a = {}; try { a = JSON.parse(readFileSync(resolve(STORIES, d, 'arc.json'), 'utf8')); } catch {}
+    let h = {}; try { h = JSON.parse(readFileSync(resolve(STORIES, d, 'hook.json'), 'utf8')); } catch {}   // its arc, if it has one (Stories/arc.js): a story may stand as an arc alone, before its film
+    return { id: d, film: Array.isArray(t.clips), title: h.title || d, intro: h.intro || '',   // a story's one title and its description: its hook's (Stories/hook.js)
+      day: t.day ?? a.day, arc: Array.isArray(a.sections), hook: existsSync(resolve(STORIES, d, 'hook.json')), minutes: Array.isArray(a.sections) ? a.sections.reduce((n, x) => n + x.minutes, 0) : null, inGame: t.inGame ?? a.inGame, goals: t.goals, preview: existsSync(resolve(STORIES, d, 'preview.jpg')), shots: (() => { try { return readdirSync(resolve(STORIES, d, 'shots')).filter((f) => f.endsWith('.jpg')).length; } catch { return 0; } })(), secs: Array.isArray(t.clips) ? Math.round(t.clips.reduce((a, c) => a + (c.secs || 0), 0)) : undefined };
+  }); } catch { return []; }
+};
+
+// The deployed website has no server: a build writes what /api answers as files (a list as <path>/index.json, as a
+// list's path is also the folder of its items), with the brand (../brand). Caddy serves them as they are
+// (deploy/Caddyfile). /api/me names no one (a host has no repository author: the welcome has no name), and a scene's
+// media (Stories/objects/) is not in git, so a build has none.
+const publish = {
+  name: 'publish',
+  apply: 'build',
+  writeBundle(options) {
+    const out = options.dir, put = (path, body) => { const f = resolve(out, path); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, body); };
+    const copy = (from, path) => { if (existsSync(from)) put(path, readFileSync(from)); };
+    cpSync(resolve(ROOT, 'brand'), resolve(out, 'brand'), { recursive: true });
+    put('api/me/index.json', JSON.stringify({ name: '' }));
+    const intents = intentList();
+    put('api/intents/index.json', JSON.stringify(intents));
+    for (const { file } of intents) copy(resolve(INTENTS, file), `api/intents/${file}`);
+    put('api/ideas/index.json', JSON.stringify(readIdeas()));
+    put('api/bible/index.json', JSON.stringify(readBible(ROOT)));   // the serial's bible (../Bible), as the dashboard reads it
+    const scenes = listScenes();
+    put('api/scenes/index.json', JSON.stringify(scenes));
+    for (const { id } of scenes) copy(sceneFile(id), `api/scenes/${id}/scene.json`);
+    const stories = storyList();
+    put('api/stories/index.json', JSON.stringify(stories));
+    for (const { id } of stories) {
+      for (const n of ['story.md', 'timeline.json', 'arc.json', 'hook.json', 'preview.jpg']) copy(resolve(STORIES, id, n), `api/stories/${id}/${n}`);
+      try { for (const f of readdirSync(resolve(STORIES, id, 'shots')).filter((f) => /^\d{1,3}\.jpg$/.test(f))) copy(resolve(STORIES, id, 'shots', f), `api/stories/${id}/shots/${f}`); } catch {}
+    }
+  },
+};
+
 export default {
-  plugins: [{
+  plugins: [publish, {
     name: 'os-repository',
     async configureServer(server) {
       // one server for all of TheOS: the game's own Vite runs inside this one, under /game/, with its own config
@@ -37,7 +81,7 @@ export default {
         // who works here: the first name of the repository's own author (git config), for the dashboard's welcome
         if (url === '/me') { let name = ''; try { name = execSync('git config user.name', { cwd: root, encoding: 'utf8' }).trim().split(/\s+/)[0]; } catch {} return json(res, { name }); }
         if (url === '/intents') {
-          const list = readdirSync(intents).filter((f) => /^\d{4}-.*\.md$/.test(f)).sort().map((f) => ({ file: f, slug: f.slice(0, -3), ...front(readFileSync(resolve(intents, f), 'utf8')) }));
+          const list = intentList();
           return json(res, list);
         }
         if ((m = url.match(/^\/intents\/(\d{4}-[a-z0-9-]+\.md)$/))) return text(res, resolve(intents, m[1]));
@@ -55,15 +99,7 @@ export default {
           res.statusCode = 206; res.setHeader('content-range', `bytes ${from}-${to}/${all.length}`); return res.end(all.subarray(from, to + 1));
         }
         if (url === '/stories') {
-          let list = [];
-          try { list = readdirSync(stories).filter((d) => ['hook.json', 'arc.json', 'story.md'].some((n) => existsSync(resolve(stories, d, n)))).sort().map((d) => {
-            // a story's film also says which day it is, how many humans were in the game that day, and the day's goals
-            let t = {}; try { t = JSON.parse(readFileSync(resolve(stories, d, 'timeline.json'), 'utf8')); } catch {}
-            let a = {}; try { a = JSON.parse(readFileSync(resolve(stories, d, 'arc.json'), 'utf8')); } catch {}
-            let h = {}; try { h = JSON.parse(readFileSync(resolve(stories, d, 'hook.json'), 'utf8')); } catch {}   // its arc, if it has one (Stories/arc.js): a story may stand as an arc alone, before its film
-            return { id: d, film: Array.isArray(t.clips), title: h.title || d, intro: h.intro || '',   // a story's one title and its description: its hook's (Stories/hook.js)
-              day: t.day ?? a.day, arc: Array.isArray(a.sections), hook: existsSync(resolve(stories, d, 'hook.json')), minutes: Array.isArray(a.sections) ? a.sections.reduce((n, x) => n + x.minutes, 0) : null, inGame: t.inGame ?? a.inGame, goals: t.goals, preview: existsSync(resolve(stories, d, 'preview.jpg')), shots: (() => { try { return readdirSync(resolve(stories, d, 'shots')).filter((f) => f.endsWith('.jpg')).length; } catch { return 0; } })(), secs: Array.isArray(t.clips) ? Math.round(t.clips.reduce((a, c) => a + (c.secs || 0), 0)) : undefined };
-          }); } catch {}
+          const list = storyList();
           return json(res, list);
         }
         if ((m = url.match(/^\/stories\/([a-z0-9][a-z0-9-]*)\/(story\.md|timeline\.json|arc\.json|hook\.json)$/))) return text(res, resolve(stories, m[1], m[2]));
