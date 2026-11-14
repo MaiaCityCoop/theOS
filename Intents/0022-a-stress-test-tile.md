@@ -1,7 +1,7 @@
 ---
 id: "0022"
 title: A Magic Wonder tile (the stress test) beside the Lenses
-state: build            # idea | define | build | propose | story | archived
+state: propose           # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-14
 story:
@@ -50,6 +50,22 @@ Asked for outright; the definition holds no surprise, so built straight away.
 
 ## Propose
 
+**Delivered:** the Magic Wonder tile (the stress test) beside Lenses on the OS dashboard; it opens
+`/?stress&in=os` in the dashboard's game frame. On main.
+
+**Checks, as they were**
+
+| # | Result | Evidence |
+| --- | --- | --- |
+| 1 | passed | at 1440 px Assets, Lenses and Magic Wonder stand in one row (each 438 px wide, top 580); in a ~460 px pane Lenses and Magic Wonder share a row (208 px each) |
+| 2 | passed | the click sets the frame's `src` to `http://localhost:5174/?stress&in=os`; the world shows the zoo's coloured kinds in the plots, HUD 60 fps, 10 draws, 0.30 M tris |
+| 3 | failed, not from this work | the stress stand logs `Compute pipeline creation failed: The number of uniform buffers (13) in the Compute stage exceeds the maximum per-stage limit (12)` and then invalid-pipeline errors every frame. The same happens with `/?stress` opened alone; the plain walk (`/?in=os`) logs none |
+
+**Known gaps:** the stress stand's compute pipeline above (one of its compute shaders binds 13
+uniform buffers, one over the limit), so it likely draws far fewer than its 898 million; the OS
+production build fails on a pre-existing `(max-width:700px){.channels…}` line missing `@media` in
+`OS/index.html`.
+
 ## Story
 
 ## Archived
@@ -59,7 +75,8 @@ Asked for outright; the definition holds no surprise, so built straight away.
 ## Todo
 
 - [x] The tile, the view, the click
-- [ ] Screenshots of the row and of the opened stress test (after the GPU is clear)
+- [x] Screenshots of the row and of the opened stress test (after the GPU is clear)
+- [ ] The stress stand's compute pipeline: 13 uniform buffers, limit 12 (a separate fix)
 
 ## Changelog
 
@@ -71,6 +88,13 @@ Asked for outright; the definition holds no surprise, so built straight away.
 - **Broke / not there yet:** not yet seen in a browser (waiting for the shared GPU).
 - **Asked:** name the stress test page "Magic Wonder".
 - **Delivered:** the tile's heading and the frame bar's button read "Magic Wonder"; the address stays `?stress`.
+
+### 2026-11-14 (later)
+
+- **Asked:** merge into main and push; then the screenshots once the GPU was clear.
+- **Delivered:** on main; the row and the opened Magic Wonder seen in the browser.
+- **Good:** the row holds at desktop and phone width; the click opens the stress world in the frame.
+- **Broke / not there yet:** the stress stand's own compute pipeline error (not this tile's).
 
 ## Trail
 
