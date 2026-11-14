@@ -95,7 +95,7 @@ export function herdRooms() {
     return { fore, side, top };
   });
 }
-const REV = 1;   // (raised by hand when a kit changes what it makes in a way the samples below would not show)
+const REV = 2;   // (raised by hand when a kit changes what it makes in a way the samples below would not show)
 /** What the families make, as a word: a few kinds' coarse meshes of each, a small texture, a skeleton, read into one
     number. A recipe changed, it is another word, and what the browser kept under the old one is not read. */
 export function fingerprint() {

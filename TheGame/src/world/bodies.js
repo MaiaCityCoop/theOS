@@ -6,7 +6,8 @@
 //   its shapes   [{ shape: 'sphere', at, r } | { shape: 'capsule', a, b, r } | { shape: 'box', at, half }
 //                 | { shape: 'mesh', verts: Float32Array, index }, …]
 //                each may say  bone: n  (it moves with that bone of the skeleton: a leg's capsule swings with the leg)
-//                and  pass: true  (it is not solid: leaves; it is still found by a ray)
+//                and  pass: true  (it is not solid: leaves. A walker brushes through its outer half and goes round
+//                its middle, where it stands higher than his knee; it is still found by a ray)
 //   A recipe that says nothing still has both: its coarse mesh is its collider, that mesh's box its box.
 //
 // A BODY is such a thing standing somewhere: { id, x, y, z, yaw, s (metres its largest side), up (metres its foot is
@@ -15,7 +16,8 @@
 //
 //   bodiesNear(x, z, reach)   the bodies round a point
 //   pushOut(x, z, r)          where a walker r metres round may stand: pushed out of every solid shape near, each by
-//                             its own outline at the walker's height (a ball's round, a limb's length, a box's sides)
+//                             its own outline at the walker's height (a ball's round, a limb's length, a box's sides).
+//                             He goes round what stands; nothing is drawn back to let him through
 //   roundsNear(x, z, reach)   the solid shapes as plain rounds on the ground { x, z, r } (for what only needs to know roughly)
 //   hit(from, dir, far)       the first body a ray meets: { t (metres), body, shape, at: [x, y, z] }
 //   outline(scene, bodies)    their boxes and shapes drawn as lines (to see that they sit where the things are)
@@ -37,8 +39,8 @@ export function toWorld(b, p, out = [0, 0, 0]) {
   return out;
 }
 const posed = (b, S, p, out) => (S.bone != null && b.pose ? b.pose(S.bone, p, out) : ((out[0] = p[0]), (out[1] = p[1]), (out[2] = p[2]), out));
-// a mesh's round, seen from above: its middle and how far its corners reach (a little inside: it stops you where you see it)
-const roundOf = (S) => (S.round ||= (() => { let x = 0, z = 0, y = 0, r = 0; const n = S.verts.length / 3; for (let i = 0; i < n; i++) { x += S.verts[i * 3] / n; y += S.verts[i * 3 + 1] / n; z += S.verts[i * 3 + 2] / n; } for (let i = 0; i < n; i++) r = Math.max(r, Math.hypot(S.verts[i * 3] - x, S.verts[i * 3 + 2] - z)); return { at: [x, y, z], r: r * 0.75, top: Math.max(...Array.from({ length: n }, (_, i) => S.verts[i * 3 + 1])) }; })());   // (top: how high it stands)
+// a mesh's round, seen from above: its middle and how far its corners reach (a little inside: its corners are its furthest)
+const roundOf = (S) => (S.round ||= (() => { let x = 0, z = 0, y = 0, r = 0; const n = S.verts.length / 3; for (let i = 0; i < n; i++) { x += S.verts[i * 3] / n; y += S.verts[i * 3 + 1] / n; z += S.verts[i * 3 + 2] / n; } for (let i = 0; i < n; i++) r = Math.max(r, Math.hypot(S.verts[i * 3] - x, S.verts[i * 3 + 2] - z)); return { at: [x, y, z], r: r * 0.9, top: Math.max(...Array.from({ length: n }, (_, i) => S.verts[i * 3 + 1])) }; })());   // (top: how high it stands)
 
 const A = [0, 0, 0], B = [0, 0, 0], W = [0, 0, 0];
 /** What stops a walker round (x, z): each solid shape between knee and head as a round on the ground. */
@@ -58,22 +60,22 @@ export function roundsNear(x, z, reach, low = 0.3, tall = 1.8) {
     it: [x, z] where it may stand. Each shape by its own outline in that band of heights: a ball by its round there, a
     capsule along its length, a box by its sides (it slides along a wall), a mesh by its round. Twice over, so what
     one shape pushes into another is pushed out again. */
-export function pushOut(x, z, r = 0.3, low = 0.55, tall = 1.8) {   // (low: what ends under the knee is stepped over)
+export function pushOut(x, z, r = 0.3, low = 0.3, tall = 1.8, knee = 0.55) {   // (low: what ends under the shin is stepped over; knee: what is passed through (leaves) stops him only where it stands higher than this, and only its inner half)
   for (let pass = 0; pass < 2; pass++) for (const b of bodiesNear(x, z, r + 3, true)) {
-    const c = Math.cos(b.yaw), s = Math.sin(b.yaw), dx = x - b.x, dz = z - b.z, R = r / b.s, lo = (low - b.up) / b.s, hi = (tall - b.up) / b.s;   // the walker in the body's own frame
+    const c = Math.cos(b.yaw), s = Math.sin(b.yaw), dx = x - b.x, dz = z - b.z, R = r / b.s, lo0 = (low - b.up) / b.s, lo1 = (knee - b.up) / b.s, hi = (tall - b.up) / b.s;   // the walker in the body's own frame
     let px = (dx * c + dz * s) / b.s, pz = (-dx * s + dz * c) / b.s, moved = false;
     const round = (cx, cz, rr) => { const ux = px - cx, uz = pz - cz, d = Math.hypot(ux, uz), m = rr + R; if (d < m) { const k = m / Math.max(d, 1e-6); px = cx + (d < 1e-6 ? m : ux * k); pz = cz + uz * k; moved = true; } };
     for (const S of b.body.shapes) {
-      if (S.pass) continue;
-      if (S.shape === 'sphere') { const off = Math.max(lo - S.at[1], S.at[1] - hi, 0); if (off < S.r) round(S.at[0], S.at[2], Math.sqrt(S.r * S.r - off * off)); }   // (its round at the band's height nearest its middle)
+      const lo = S.pass ? lo1 : lo0, k = S.pass ? 0.5 : 1;
+      if (S.shape === 'sphere') { const off = Math.max(lo - S.at[1], S.at[1] - hi, 0); if (off < S.r) round(S.at[0], S.at[2], Math.sqrt(S.r * S.r - off * off) * k); }   // (its round at the band's height nearest its middle)
       else if (S.shape === 'capsule') {
         posed(b, S, S.a, A); posed(b, S, S.b, B); if (Math.min(A[1], B[1]) - S.r > hi || Math.max(A[1], B[1]) + S.r < lo) continue;
-        const ex = B[0] - A[0], ez = B[2] - A[2], ee = ex * ex + ez * ez, t = ee > 1e-9 ? Math.min(1, Math.max(0, ((px - A[0]) * ex + (pz - A[2]) * ez) / ee)) : 0; round(A[0] + ex * t, A[2] + ez * t, S.r);
+        const ex = B[0] - A[0], ez = B[2] - A[2], ee = ex * ex + ez * ez, t = ee > 1e-9 ? Math.min(1, Math.max(0, ((px - A[0]) * ex + (pz - A[2]) * ez) / ee)) : 0; round(A[0] + ex * t, A[2] + ez * t, S.r * k);
       } else if (S.shape === 'box') {
         if (S.at[1] - S.half[1] > hi || S.at[1] + S.half[1] < lo) continue;
-        const ux = px - S.at[0], uz = pz - S.at[2], hx = S.half[0] + R, hz = S.half[2] + R;
+        const ux = px - S.at[0], uz = pz - S.at[2], hx = S.half[0] * k + R, hz = S.half[2] * k + R;
         if (Math.abs(ux) < hx && Math.abs(uz) < hz) { if (hx - Math.abs(ux) < hz - Math.abs(uz)) px = S.at[0] + Math.sign(ux || 1) * hx; else pz = S.at[2] + Math.sign(uz || 1) * hz; moved = true; }
-      } else if (S.shape === 'mesh') { const Q = roundOf(S); if (Q.top > lo) round(Q.at[0], Q.at[2], Q.r); }   // (a mesh that ends under the knee is stepped over)
+      } else if (S.shape === 'mesh') { const Q = roundOf(S); if (Q.top > lo) round(Q.at[0], Q.at[2], Q.r * k); }   // (a mesh that ends under the shin is stepped over)
     }
     if (moved) { x = b.x + (px * c - pz * s) * b.s; z = b.z + (px * s + pz * c) * b.s; }
   }

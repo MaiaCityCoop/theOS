@@ -29,13 +29,15 @@
 // (the middle one of a look, MEAN ms), most frames late, or frames late look after look (STREAK of them). A frame
 // dropped now and then is none of these: read in Samuel's Safari on 2026-11-13, a walk dropped one frame in sixteen
 // at a ratio of 1 and just as many at 0.625 (the cause was not the pixels), and the ratio had gone to the floor for
-// them and stayed there. And the way back up to the screen's own points allows a dropped frame or two a look.
+// them and stayed there. And the way back up to the screen's own points allows a dropped frame or two a look, and is
+// tried ten seconds after a step down (read on 2026-11-14: his picture sat under the screen's points in half his rows,
+// a minute at a time after something else had used the GPU for seconds).
 export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 16, apply = (r) => renderer.setPixelRatio(r) } = {}) {   // apply: what takes the pixel ratio it decides (the game: the inside's, src/core/screen.js; the screen keeps its own)
   const REF = 1 / Math.tan((refFov * Math.PI) / 360);
   const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2), DPR_MIN = Math.min(1, DPR_MAX), FLOOR = 0.6;   // DPR_MIN: where it starts and comes back to first; FLOOR: how soft it may go to hold 60 fps
   const SLOW = 20, LATE = 0.08, ROOM = 0.02, MEAN = 17.5, WARM = 4000, MOST = 0.35, STREAK = 6, EASY = 0.05;   // a frame longer than SLOW (ms) missed 60 fps by far; the shares of such frames that are too many, and few enough to try more; the mean frame (ms) that is under 57 fps; ms after the start before the first look
   let dpr = DPR_MIN, resize = false, ceiling = DPR_MAX, ceilingAt = 0, hold = 45000;   // ceiling: the ratio not gone over for `hold` ms from ceilingAt
-  let upAt = -1e9, probe = 45000, probeAt = -1e9;   // when the ratio was last raised; how long a ratio that proved too much right after is left alone (longer each time), and when one last did
+  let upAt = -1e9, probe = 45000, probeAt = -1e9, low = 10000;   // (low: how long a ratio under the screen's own points is not gone over again after a step down: short, longer each time the way back up proved too much)   // when the ratio was last raised; how long a ratio that proved too much right after is left alone (longer each time), and when one last did
   let cap = startCap, zoom = 1, lod = 1, ema = 16.7, calm = 0, at = 0;
   const times = new Float32Array(160); let tn = 0, mid = 16.7, streak = 0;   // a look's frame times, the middle one of them, and how many looks running had too many late frames
   let born = -1, n = 0, late = 0, share = 0, sum = 0, worst = 0, mean = 16.7;   // frames since the last look, how many of them late, that share; their times' sum and the worst, the mean without it   // frames since the last look, how many of them late, and that share
@@ -82,7 +84,12 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
           hot = 0; downAt = now;
           if (lod > 1.05) cap = Math.max(1, lod * (urgent ? 0.7 : 0.87));
           else if (dragging && dpr > FLOOR && now > noPixels && !trial) {
-            next = Math.max(FLOOR, dpr - (urgent ? 0.25 : 0.125)); ceiling = Math.max(FLOOR, next); ceilingAt = now; hold = 45000;
+            // (under the screen's own points the picture is soft, so the way back is tried soon: ten seconds on. Slow
+            // again right after a step up: that step was too much here, and is left alone twice as long each time, up to
+            // two minutes. So what took the GPU for a while (another program, another tab) costs the sharpness seconds,
+            // not a minute, and a heavy place does not swing between two ratios)
+            low = now - upAt < 6000 ? Math.min(120000, low * 2) : 10000;
+            next = Math.max(FLOOR, dpr - (urgent ? 0.25 : 0.125)); ceiling = Math.max(FLOOR, next); ceilingAt = now; hold = low;
             trial = { from: dpr, share, mean: mid, at: now + 1300 };   // two looks on (the first holds the resize's own slow frame)
           }
         }

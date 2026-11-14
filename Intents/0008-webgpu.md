@@ -1361,6 +1361,43 @@ find its way through the thicket. He chose trails over free steering, and kept t
 - **Not there:** the trails are winding paths, not a maze each mover finds its own way through; a mover goes round
   its own plot only; within a lane nobody overtakes.
 
+### 2026-11-14, a thousand body plans, nothing drawn back from the walker, and the inside's way back up (06:39)
+
+Samuel: the variety of what moves is very low since it is rigged ("increase that to 100x"); standing things still
+hide or sink into the ground when he comes near or gets on top of them, where he should be led round them; and
+"ensure the 4K gate is working properly".
+
+- **A body plan a kind** (`assets/kit/creature.js`). The ten rigs were ten shapes in a hundred near-copies each.
+  Now a rig's counts are its kind's own (two or three pairs of legs, three to six, two to four axles, two to five
+  links of a tail, six to twelve of a snake, one or two pairs of wings, arms or none), its proportions range
+  widely, and parts grow on it by its own numbers (`grow`: horns, crests, snouts, collars, ears that flick, humps,
+  spikes, pods, masts, tails that swing, a second pair of arms), sized by how stout it is, as far as its sixteen
+  bones and its coarsest cut (98 corners) hold. 625 builds among the thousand kinds (there were 10), each of its
+  own shape; every level of every kind within its room. The lanes take their widths from the new bodies by
+  themselves (`herdRooms`); what flies keeps over the tallest that drives under it.
+- **Nothing drawn back from the walker.** A thing used to draw back from the eye within 1.1 of its size of its
+  middle: a 2 m thing began to sink 2 m off, long before he touched it, and a wide low one vanished under him as
+  he stepped over. Now it draws back only from an eye inside its middle and under its top (a flying camera,
+  `?ghost`), where no walker comes: he is led round what stands (`pushOut`: a mesh's round at nine tenths of its
+  corners' reach, was three quarters; only what ends under the shin, 0.3 m, is stepped over, was the knee; a
+  plant's leaves stop him at their inner half where they stand over his knee, so he brushes through its edge and
+  goes round its middle). With the real controls through the thicket, four ways, ten seconds each: nothing drawn
+  back in any of 600 looks (the rule before: in up to 9 of 150); 15 to 20 m walked where 32 are with `?ghost`.
+- **The 4K gate, read in his Safari** (462 rows since the screen was built): the screen's own ratio in every one
+  (2880 by 1634 on his window), so the output holds. The inside did not: under the screen's points in 56 % of his
+  rows, at the floor (0.6) in 12 %, much of it while my test browsers used the same GPU, and then for a minute
+  after they had stopped (a step down held its ceiling 45 s). The governor now tries the way back up ten seconds
+  after a step down, and leaves it twice as long each time it proves too much right away (to two minutes). Made-up
+  sessions: a GPU taken by another for 20 s three times: 51 % of the time under the screen's points before, 7 %
+  now, as many frames late; a heavy place and the plain walks as before.
+- **Counted:** 24 whole plots with the new bodies: of 10,000 movers a plot none in another, of 46,000 sampled none
+  in a thing; drawn movers at four spots: none in another, a thing, a trunk or the walker. His Safari on this
+  build, nothing of mine running (2880 by 1634): 56 to 60 fps, 0 to 5 % of frames late, the inside at 1.25 to
+  1.375 of the screen's points standing.
+- **Not there:** the inside at the screen's full ratio (2.0): four times the pixels of 1.0, out of reach at 60 fps
+  with today's land shader; walking through the thicket is slower now (it is a thicket; the ways are free); a first
+  start after this builds every kind's coarse meshes anew (the recipes changed) and keeps them.
+
 ## Trail
 
 | When | Commit | What |

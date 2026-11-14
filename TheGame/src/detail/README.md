@@ -161,7 +161,10 @@ Three families today, each a stand-in for what a real asset will ask of the engi
 - **creatures** (1 000 kinds in ten herds, `assets/kit/creature.js`): each ONE mesh on a skeleton nobody rigged: a
   rig is a few lines that set out bones and lay tubes round them. Every vertex is bound to two bones; the vertex
   stage moves it by the mover's stride, which is a function of the clock. No mover has a state, and the CPU does
-  nothing for a leg that swings.
+  nothing for a leg that swings. Every kind is its own body plan: how many legs, wheels, links or wings its rig has
+  is the kind's own, and parts grow on it by its own numbers (horns, crests, snouts, collars, ears, humps, spikes,
+  pods, masts, tails, a second pair of arms), sized by how stout it is, as far as its sixteen bones and its
+  coarsest mesh hold. 625 builds among the thousand, no two kinds of one shape.
 
 The other plug points, each a file found by itself: a **shading model** (`src/shading/*.js`: `lit(c)`, a branch of
 the one shader), a **material** of the world (`materials/*.js`), a **biome** (`biomes/*.js`), a **scatter engine**
@@ -174,8 +177,10 @@ thing's own family beside its meshes. Who places things says where they stand (`
 `src/world/solids.js`), `hit` (the first body a ray meets), `outline` (their boxes and shapes as lines). The stand
 says where its 898 million stand and where its movers are by the same reckoning as the GPU, for the cells round the
 point only; a creature's capsules move with its bones. They stop the walker, each shape by its own outline
-(`pushOut`: a box's sides, a capsule's length; what ends under the knee is stepped over), and a step stopped short
-goes round (`solids.js`). `?stress&bounds` draws them; `?stress&ghost` walks through them. The placed assets' walls, the rocks and the trunks still have their own descriptions (`solids.js`): they
+(`pushOut`: a box's sides, a capsule's length; what ends under the shin is stepped over; what is passed through,
+leaves, stops him at its inner half where it stands higher than his knee), and a step stopped short goes round
+(`solids.js`). Nothing is drawn back to let him through: a thing draws back only from an eye inside its middle and
+under its top, where a walker never comes (a flying camera, `?ghost`). `?stress&bounds` draws them; `?stress&ghost` walks through them. The placed assets' walls, the rocks and the trunks still have their own descriptions (`solids.js`): they
 come onto this one as they become families.
 
 **The ways** (`src/world/ways.js`): the ground kept free for what moves. Who lays ways says where they run (one
@@ -184,12 +189,15 @@ keeps off: the stand's lattice is folded off them, a tree keeps off by its own c
 by their place. What moves keeps to its way. So nothing that moves meets what stands, by how the world is laid
 out and not by looking each frame: it holds at any distance and costs a frame nothing.
 
-**The lanes** (`src/scatter/stress.js`): how what moves keeps clear of what moves. Each herd has a lane on every
-second way of a plot, as wide as its widest mover as it moves (`herdRooms` in the zoo: its colliders carried by
-its bones over a stride; nobody says how wide a thing is). The quickest go in the middle, each side its own way
-round, what flies in the air over the way. Every mover has a place of its own in its lane and goes at the lane's
-pace, swaying along it by less than the room to the next: none comes up with another. Where a plot is too small
-for that its movers are smaller, as its things are. No way crosses another yet, so nobody turns off or overtakes.
+**Roads, trails and lanes** (`src/scatter/stress.js`): how what moves keeps clear of what moves. Every other way
+of a plot is a road (herds that say `road`; what flies goes over them, no lower than the tallest that drives), the
+ways between are trails that wind through the thicket (all the rest). Herds of one kind of way whose paces can
+meet go in one file, mixed, each mover a place of its own in it, a length and a quarter of its herd's longest
+apart; a lane is as wide as its widest mover as it moves (`herdRooms` in the zoo: its colliders carried by its
+bones over a stride; nobody says how wide a thing is) and as much wider as its way may turn. Each lane has its own
+pace, the quickest in the middle, each side its own way round: nobody comes up with another. A mover the walker
+stands before steps aside of him and back (the detour: a function of where he is, the same in JS). Where a plot
+is too small its movers are smaller, as its things are. No way crosses another yet: nobody turns off or overtakes.
 
 **Memory (the game must run on 8 GB).** What only the GPU reads lives on the GPU only (`src/core/gpu.js`): the
 heap's meshes, the near plots' places, what every tier packs. Every pool says what it holds, and the readout shows

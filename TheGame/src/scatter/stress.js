@@ -183,7 +183,9 @@ function layOut(rooms) {
     Gp.starts = [0, ...le.map((x) => Math.round((MSIDE * (acc += x)) / tot))]; Gp.le = le;
     while (Gp.lanes.length < LANES) { Gp.lanes.push({ k: 0, off: 0, dir: 1 }); Gp.le.push(1); Gp.starts.push(MSIDE); }
   }
-  return { WR: Math.max(half.road, half.air), WT: half.trail, herds: H, groups, cols };
+  // (what flies goes over the roads: no lower than the tallest that drives there, and a little)
+  const airLow = (Math.max(0, ...H.filter((Y) => Y.way === 'road').map((Y) => Y.top * HERDS[Y.h].size[1])) + 0.8) / 0.85;
+  return { WR: Math.max(half.road, half.air), WT: half.trail, herds: H, groups, cols, airLow };
 }
 // GROUP rows of a plot's lattice hold every kind once: the n-th cell of a group (its rows end to end) is kind
 // (n·a + b) mod KINDS, a with no factor in common with KINDS (it ends in 1, 3, 7 or 9), a and b the group's own
@@ -203,7 +205,7 @@ const moverOf = (p, i, j) => {
   const G = HERDS[r], Y = LAY.herds[r], C = LAY.cols[i], Gp = LAY.groups[C.g]; let l = 0; while (l < LANES - 1 && j >= Gp.starts[l + 1]) l++;
   const La = Gp.lanes[l], n = Math.max(1, Gp.starts[l + 1] - Gp.starts[l]), Ln = (WAY0 + La.k * WAYD) * p.Lc;
   const v = (Gp.lo + (Gp.hi - Gp.lo) * cellRnd(p.i, C.g * 16 + l, 931)) * p.q, s = (G.size[0] + (G.size[1] - G.size[0]) * h3) * p.q;
-  return { rig: G.name, herd: r, v, s, k: G.first + Math.min(G.count - 1, Math.floor(h(940) * G.count)), fly: (G.fly[0] + (G.fly[1] - G.fly[0]) * h4) * p.q, ph: h5 * TAU, pace: Math.max(1, Math.floor(v / (s * G.stride) / ((TAU * 20) / WRAP) + 0.5)) * ((TAU * 20) / WRAP), g0: h6 * TAU * 20, stride: G.stride,
+  return { rig: G.name, herd: r, v, s, k: G.first + Math.min(G.count - 1, Math.floor(h(940) * G.count)), fly: (Y.air ? Math.max(LAY.airLow, G.fly[0] + (G.fly[1] - G.fly[0]) * h4) : 0) * p.q, ph: h5 * TAU, pace: Math.max(1, Math.floor(v / (s * G.stride) / ((TAU * 20) / WRAP) + 0.5)) * ((TAU * 20) / WRAP), g0: h6 * TAU * 20, stride: G.stride,
     ring: La.k, Ln, dir: La.dir, u0: (j - Gp.starts[l] + C.off / Gp.span) / n, o: La.off * p.q, du: ((s * Y.fore) / Ln) * La.dir, side: Y.side, air: Y.air };
 };
 // The detour: a mover the walker stands before (on the ground, within its length and a little ahead or behind, across
@@ -486,9 +488,10 @@ export function createStress(scene, renderer, tex) {
             const up = clamp(p0.y, 0, 1), ws = windStrength, bend = up.mul(up).mul(A.w).mul(B.z);
             If(B.z.greaterThan(0), () => { kk.assign(windAt(A.xy).mul(bend).add(vec2(sin(U.uTime.mul(0.9).add(B.w)), cos(U.uTime.mul(0.7).add(B.w))).mul(bend).mul(ws.mul(0.4).add(smoothstep(0, 0.08, ws).mul(0.06))))); });   // (only what sways)
           }
-          // (and a thing the camera walks into draws back from it: seen from inside it would be seen through)
-          // (not a mover: it steps round the walker, the detour)
-          const out = moving ? float(1) : smoothstep(A.w.mul(0.5), A.w.mul(1.1), length(U.uCam.sub(vec3(A.x, A.z.add(A.w.mul(0.4)), A.y)))).max(whole);
+          // (a thing the eye is inside of draws back from it: seen from inside it would be seen through. Only then: the eye
+          // under its top and within its middle, where no walker comes, who goes round it (src/world/bodies.js: pushOut);
+          // a camera that flies, or walks through things (`?ghost`), may. Not a mover: it steps round the walker, the detour)
+          const out = moving ? float(1) : U.uCam.y.lessThan(A.z.add(A.w.mul(1.1))).select(smoothstep(A.w.mul(0.2), A.w.mul(0.4), length(U.uCam.xz.sub(A.xy))), float(1)).max(whole);
           // the snow lies on it as deep as on the ground: what of it faces up is lifted by the snow's depth, as a mound
           // (most where it faces straight up, thinning down its sides; no deeper than the thing can carry; a mover
           // shakes most of it off)
@@ -595,8 +598,9 @@ export function createStress(scene, renderer, tex) {
   // (a herd, as the GPU reads it: [-, -, its size from … to], [how wide it is as it moves (of its size, half), how high it flies from … to, its stride], [its first kind, how many kinds, how long it is as it moves (of its size), -];
   // a column of the plot's movers: [its group, its place in the group's file (metres)]; a group: [its pace from … to, its file's length, -]; its lanes: [its way, how far out of its middle, which way round, its first rep])
   const rigRows = HERDS.flatMap((G) => [new THREE.Vector4(0, 0, G.size[0], G.size[1]), new THREE.Vector4(0.5, G.fly[0], G.fly[1], G.stride), new THREE.Vector4(G.first, G.count, 1, 0)]), colRows = Array.from({ length: MSIDE }, () => new THREE.Vector4()), grpRows = Array.from({ length: 8 }, () => new THREE.Vector4()), laneRows = Array.from({ length: 8 * LANES }, () => new THREE.Vector4());
-  const RIG = HERDS.length ? uniformArray(rigRows, 'vec4') : null, COLS = HERDS.length ? uniformArray(colRows, 'vec4') : null, GRP = HERDS.length ? uniformArray(grpRows, 'vec4') : null, LANE = HERDS.length ? uniformArray(laneRows, 'vec4') : null, SH = HERDS.length ? uniformArray(HERDS.map((G) => G.upTo)) : null, strideT = uniform(0);
+  const RIG = HERDS.length ? uniformArray(rigRows, 'vec4') : null, COLS = HERDS.length ? uniformArray(colRows, 'vec4') : null, GRP = HERDS.length ? uniformArray(grpRows, 'vec4') : null, LANE = HERDS.length ? uniformArray(laneRows, 'vec4') : null, SH = HERDS.length ? uniformArray(HERDS.map((G) => G.upTo)) : null, strideT = uniform(0), airLow = uniform(0);
   const laid = (Y) => {
+    airLow.value = Y.airLow;
     if (Y.groups.length > 8) throw new Error('stress: more than eight groups of movers');
     LAY = Y; Y.herds.forEach((H, h) => { rigRows[h * 3 + 1].x = H.side; rigRows[h * 3 + 2].z = 2 * H.fore; });
     Y.cols.forEach((C, i) => colRows[i].set(C.g, C.off, 0, 0));
@@ -641,7 +645,7 @@ export function createStress(scene, renderer, tex) {
           for (let j = 0; j < L - 1; j++) want.addAssign(px.lessThanEqual(LO.element(j)).select(uint(1), uint(0)));
           for (let l = L - 2; l >= 0; l--) If(want.lessThanEqual(uint(l)).and(held.shiftRight(uint(l)).bitAnd(uint(1)).equal(uint(1))), () => { lvl.assign(uint(l)); });
           // (what flies: so high over the ground, rising and falling a little)
-          const up = mix(I1.y, I1.z, h4).mul(q).mul(sin(t.mul(0.4).add(h5.mul(TAU))).mul(0.15).add(1));
+          const up = I1.z.greaterThan(0.01).select(max(mix(I1.y, I1.z, h4), airLow), float(0)).mul(q).mul(sin(t.mul(0.4).add(h5.mul(TAU))).mul(0.15).add(1));   // (no lower than the tallest that drives under it)
           // its stride: how far it has come, in radians of its gait (its herd's stride: that much of its size a radian). From a
           // clock that begins again every WRAP seconds (a stride counted from the page's start would lose its
           // fineness in an hour); its pace is made to fit that clock, so no leg jumps when it does

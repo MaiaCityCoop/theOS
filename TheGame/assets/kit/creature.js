@@ -17,6 +17,8 @@
 //   type 3  turns about its axis through its pivot:  g · rate                               a wheel
 // and after its own move its parent's (one level: a shin goes with its thigh).
 // A creature's coarse levels are one body (a hull: a ball its size); its tubes melt into that as it shrinks.
+// Every kind is its own body plan: its rig's counts are its own (legs, wheels, links, wings), and parts grow on it as
+// its numbers say (grow: horns, crests, ears, humps, spikes, tails, arms). A thousand kinds, a thousand plans.
 import { LADDER, FULLN, DOTN, roomOf, underOf } from './ladder.js';
 import { packSolid, dotMesh, BONES } from './solid.js';
 import { ball, onBall, faceOf, ballMesh, normalsOf, hash3, noise3, SWELL } from './blob.js';
@@ -35,95 +37,132 @@ const limb = (bones, tubes, hip, knee, foot, rad, o) => {
 const wheel = (bones, tubes, x, z, r, w) => { const sg = Math.sign(z) || 1; bones.push(B([x, r, z], { type: 3, rate: -STRIDE / r })); tubes.push(T([x, r, z - sg * w], [x, r, z + sg * w], r, r, { bone: bones.length - 1, blend: 0, lumps: 0, wheel: true })); };
 
 /** The rigs. share: how many of a plot's movers are of it; speed (m/s) and size (m): from … to; road: it keeps
-    to the roads (else to the trails); fly: metres over the ground, from … to; make(r): its bones and tubes (r(i): its kind's own
-    numbers, 0 … 1), set out forward along x, up along y, about a unit large. */
+    to the roads (else to the trails); fly: metres over the ground, from … to; make(r): its bones and tubes (r(i): its
+    kind's own numbers, 0 … 1), set out forward along x, up along y, about a unit large, and where on it the parts may
+    grow (grow, below: head, back, rear, the bones they hang on). How many legs, wheels, links, wings a rig has is its
+    kind's own too: no two kinds of a rig are one body plan. */
 export const RIGS = [
-  { name: 'walker', share: 30, speed: [0.8, 1.8], size: [1.5, 1.9], make(r) {   // on two legs, its arms swinging against them
-    const leg = 0.46 + 0.08 * r(1), w = 0.07 + 0.03 * r(2), tr = 0.11 + 0.05 * r(3), sh = leg + 0.34 + 0.06 * r(4), bones = [B([0, 0, 0])], tubes = [];
+  { name: 'walker', share: 30, speed: [0.8, 1.8], size: [1.5, 1.9], make(r) {   // on two legs, its arms (if any) swinging against them
+    const leg = 0.36 + 0.22 * r(1), w = 0.06 + 0.06 * r(2), tr = 0.08 + 0.1 * r(3), sh = leg + 0.26 + 0.18 * r(4), lean = 0.12 * (r(6) - 0.3), bones = [B([0, 0, 0])], tubes = [];
     bones.push(B([0, leg, 0], { type: 2, axis: [0, 1, 0], amp: 0.012, rate: 2 }));
-    tubes.push(T([0, leg - 0.14, 0], [0, sh + 0.07, 0], tr * 0.8, tr, { flat: 1.5, bone: 1 }));
-    bones.push(B([0, sh + 0.05, 0], { type: 1, axis: [0, 1, 0], amp: 0.2, rate: 0.5, parent: 1 }));
-    tubes.push(T([0, sh + 0.02, 0], [0, sh + 0.2, 0], 0.075, 0.07, { bone: 2, from: 1, blend: 0.2 }));
+    tubes.push(T([0, leg - 0.14, 0], [lean, sh + 0.07, 0], tr * (0.6 + 0.5 * r(7)), tr, { flat: 1 + r(8), bone: 1 }));
+    bones.push(B([lean, sh + 0.05, 0], { type: 1, axis: [0, 1, 0], amp: 0.2, rate: 0.5, parent: 1 }));
+    const hs = 0.05 + 0.06 * r(9); tubes.push(T([lean, sh + 0.02, 0], [lean + 0.03 * r(10), sh + 0.08 + 2 * hs, 0], hs * 1.1, hs, { bone: 2, from: 1, blend: 0.2, flat: 0.7 + 0.6 * r(11) }));
+    const arms = r(5) < 0.12 ? 0 : 1;
     for (const [s, ph] of [[1, 0], [-1, PI]]) {
-      limb(bones, tubes, [0, leg + 0.05, s * w], [0.01, leg * 0.52, s * w], [0.03, 0, s * w], 0.055, { amp: 0.55, phase: ph, bend: -0.5, parent: 1, from: 1 });
-      limb(bones, tubes, [0, sh + 0.02, s * tr * 1.3], [0, sh - 0.2, s * (tr * 1.5 + 0.03)], [0.04, sh - 0.4, s * (tr * 1.5 + 0.03)], 0.038, { amp: 0.45, phase: ph + PI, bend: 0.5, parent: 1, from: 1 });
+      limb(bones, tubes, [0, leg + 0.05, s * w], [0.01, leg * 0.52, s * w], [0.03, 0, s * w], 0.04 + 0.03 * r(12), { amp: 0.55, phase: ph, bend: -0.5, parent: 1, from: 1 });
+      if (arms) limb(bones, tubes, [lean, sh + 0.02, s * tr * 1.3], [lean, sh - 0.2, s * (tr * 1.5 + 0.03)], [lean + 0.04, sh - 0.2 - 0.24 * (0.6 + 0.6 * r(13)), s * (tr * 1.5 + 0.03)], 0.03 + 0.02 * r(14), { amp: 0.45, phase: ph + PI, bend: 0.5, parent: 1, from: 1 });
     }
-    return { bones, tubes };
+    return { bones, tubes, body: 1, head: [lean, sh + 0.1 + 2 * hs, 0], headBone: 2, back: [lean - tr * 0.9, sh - 0.1, 0], rear: [-tr * 0.7, leg, 0], side: tr * 1.2, arms: [lean, sh - 0.05, tr] };
   } },
   { name: 'runner', share: 8, speed: [2.5, 5], size: [1, 2.4], make(r) {   // a robot: a small body on two long legs, leaning into its run
-    const leg = 0.62 + 0.1 * r(1), w = 0.1 + 0.04 * r(2), bones = [B([0, 0, 0])], tubes = [];
+    const leg = 0.5 + 0.25 * r(1), w = 0.08 + 0.06 * r(2), bones = [B([0, 0, 0])], tubes = [], bl = 0.16 + 0.2 * r(5);
     bones.push(B([0, leg, 0], { type: 2, axis: [0, 1, 0], amp: 0.02, rate: 2 }));
-    tubes.push(T([-0.1, leg, 0], [0.16, leg + 0.1, 0], 0.13 + 0.05 * r(3), 0.1, { flat: 1.2, bone: 1 }));
-    bones.push(B([0.14, leg + 0.14, 0], { type: 1, axis: [0, 1, 0], amp: 0.5, rate: 0.3, parent: 1 }));
-    tubes.push(T([0.12, leg + 0.12, 0], [0.2, leg + 0.3, 0], 0.03, 0.05, { bone: 2, from: 1 }));
-    for (const [s, ph] of [[1, 0], [-1, PI]]) limb(bones, tubes, [0, leg, s * w], [-0.08, leg * 0.5, s * w], [0.06, 0, s * w], 0.05, { amp: 0.85, phase: ph, bend: 0.7, parent: 1, from: 1 });
-    return { bones, tubes };
+    tubes.push(T([-bl * 0.6, leg, 0], [bl, leg + 0.1 * r(6), 0], 0.1 + 0.08 * r(3), 0.07 + 0.05 * r(7), { flat: 0.8 + 0.8 * r(8), bone: 1 }));
+    bones.push(B([bl, leg + 0.14, 0], { type: 1, axis: [0, 1, 0], amp: 0.5, rate: 0.3, parent: 1 }));
+    tubes.push(T([bl - 0.02, leg + 0.12, 0], [bl + 0.06, leg + 0.2 + 0.15 * r(9), 0], 0.03, 0.04 + 0.03 * r(10), { bone: 2, from: 1 }));
+    for (const [s, ph] of [[1, 0], [-1, PI]]) limb(bones, tubes, [0, leg, s * w], [-0.08 - 0.06 * r(11), leg * 0.5, s * w], [0.06, 0, s * w], 0.035 + 0.03 * r(12), { amp: 0.85, phase: ph, bend: 0.7, parent: 1, from: 1 });
+    return { bones, tubes, body: 1, head: [bl + 0.06, leg + 0.22 + 0.15 * r(9), 0], headBone: 2, back: [0, leg + 0.1, 0], rear: [-bl * 0.6, leg, 0], side: 0.1, arms: [0.05, leg + 0.05, 0.1] };
   } },
-  { name: 'four legs', share: 12, speed: [0.4, 6.4], size: [0.5, 1.7], make(r) {   // an animal: a body along its way, a head that nods, a tail that wags
-    const h = 0.42 + 0.14 * r(1), len = 0.5 + 0.2 * r(2), br = 0.11 + 0.06 * r(3), w = br * 0.7, bones = [B([0, 0, 0])], tubes = [];
+  { name: 'four legs', share: 12, speed: [0.4, 6.4], size: [0.5, 1.7], make(r) {   // an animal on two or three pairs: a body along its way, a head that nods, a tail that wags
+    const h = 0.3 + 0.3 * r(1), len = 0.4 + 0.35 * r(2), br = 0.08 + 0.1 * r(3), w = br * 0.7, pairs = r(5) < 0.3 ? 3 : 2, neck = 0.1 + 0.3 * r(6), bones = [B([0, 0, 0])], tubes = [];
     bones.push(B([0, h, 0], { type: 2, axis: [0, 1, 0], amp: 0.01, rate: 2 }));
-    tubes.push(T([-len / 2, h, 0], [len / 2, h + 0.03, 0], br, br * 0.9, { bone: 1, flat: 0.85 }));
+    tubes.push(T([-len / 2, h, 0], [len / 2, h + 0.03, 0], br, br * (0.6 + 0.5 * r(7)), { bone: 1, flat: 0.7 + 0.5 * r(8) }));
     bones.push(B([len / 2, h + 0.05, 0], { type: 1, amp: 0.12, parent: 1 }));
-    tubes.push(T([len / 2 - 0.03, h + 0.04, 0], [len / 2 + 0.2, h + 0.2 * r(4) + 0.08, 0], br * 0.6, br * 0.5, { bone: 2, from: 1 }));
+    const hd = [len / 2 + neck * 0.7, h + neck * (0.2 + 0.8 * r(4)) + 0.04, 0];
+    tubes.push(T([len / 2 - 0.03, h + 0.04, 0], hd, br * 0.6, br * (0.35 + 0.4 * r(9)), { bone: 2, from: 1 }));
     bones.push(B([-len / 2, h + 0.02, 0], { type: 1, axis: [0, 1, 0], amp: 0.5, rate: 1.3, parent: 1 }));
-    tubes.push(T([-len / 2 + 0.02, h + 0.02, 0], [-len / 2 - 0.28, h - 0.05, 0], br * 0.3, br * 0.1, { bone: 3, from: 1 }));
-    for (const [f, s, ph] of [[1, 1, 0], [1, -1, PI], [-1, 1, PI], [-1, -1, 0]]) limb(bones, tubes, [f * len * 0.38, h - 0.02, s * w], [f * len * 0.38 + 0.02, h * 0.5, s * w], [f * len * 0.38, 0, s * w], br * 0.33, { amp: 0.45, phase: ph, bend: f > 0 ? -0.4 : 0.4, parent: 1, from: 1 });
-    return { bones, tubes };
+    tubes.push(T([-len / 2 + 0.02, h + 0.02, 0], [-len / 2 - 0.1 - 0.35 * r(10), h - 0.1 + 0.25 * r(11), 0], br * 0.3, br * 0.1, { bone: 3, from: 1 }));
+    for (let p = 0; p < pairs; p++) { const x = len * 0.38 * (1 - (2 * p) / (pairs - 1)); for (const s of [1, -1]) limb(bones, tubes, [x, h - 0.02, s * w], [x + 0.02, h * 0.5, s * w], [x, 0, s * w], br * (0.25 + 0.15 * r(12)), { amp: 0.45, phase: (p % 2 ? PI : 0) + (s > 0 ? 0 : PI), bend: x > 0 ? -0.4 : 0.4, parent: 1, from: 1 }); }
+    return { bones, tubes, body: 1, head: hd, headBone: 2, back: [0, h + br * 0.8, 0], side: br };
   } },
-  { name: 'ten legs', share: 6, speed: [0.5, 3], size: [0.8, 2.2], make(r) {   // a long body in two halves that sway, on five pairs, each a step behind the last
-    const h = 0.2 + 0.1 * r(1), len = 0.9, br = 0.07 + 0.04 * r(2), bones = [B([0, 0, 0])], tubes = [];
+  { name: 'ten legs', share: 6, speed: [0.5, 3], size: [0.8, 2.2], make(r) {   // a long body in two halves that sway, on three to six pairs, each a step behind the last
+    const h = 0.12 + 0.18 * r(1), len = 0.9, br = 0.05 + 0.07 * r(2), pairs = 3 + Math.floor(r(5) * 4), reach = 0.08 + 0.12 * r(6), bones = [B([0, 0, 0])], tubes = [];
     bones.push(B([0.2, h, 0], { type: 2, amp: 0.02 }), B([-0.2, h, 0], { type: 2, amp: 0.02, phase: 1.6 }));
-    tubes.push(T([0, h, 0], [len / 2, h, 0], br, br * 0.8, { bone: 1, from: 2, blend: 0.5 }), T([-len / 2, h, 0], [0, h, 0], br * 0.6, br, { bone: 2 }));
+    tubes.push(T([0, h, 0], [len / 2, h, 0], br, br * 0.8, { bone: 1, from: 2, blend: 0.5, flat: 0.6 + 0.6 * r(7) }), T([-len / 2, h, 0], [0, h, 0], br * (0.4 + 0.5 * r(8)), br, { bone: 2, flat: 0.6 + 0.6 * r(7) }));
     bones.push(B([len / 2, h, 0], { type: 1, axis: [0, 1, 0], amp: 0.25, rate: 0.5, parent: 1 }));
     tubes.push(T([len / 2 - 0.02, h, 0], [len / 2 + 0.14, h + 0.02, 0], br * 0.9, br * 0.6, { bone: 3, from: 1 }));
-    for (let n = 0; n < 5; n++) for (const s of [1, -1]) {
-      const x = len * 0.4 - n * len * 0.2, par = x > 0 ? 1 : 2;
-      bones.push(B([x, h, s * br * 0.8], { type: 1, amp: 0.5, phase: n * 1.2 + (s > 0 ? 0 : PI), parent: par }));
-      tubes.push(T([x, h, s * br * 0.8], [x + 0.02, 0, s * (br + 0.12)], br * 0.28, br * 0.12, { bone: bones.length - 1, from: par }));
+    for (let n = 0; n < pairs; n++) for (const s of [1, -1]) {
+      const x = len * 0.4 - (n * len * 0.8) / (pairs - 1), par = x > 0 ? 1 : 2;
+      bones.push(B([x, h, s * br * 0.8], { type: 1, amp: 0.5, phase: n * (6 / pairs) + (s > 0 ? 0 : PI), parent: par }));
+      tubes.push(T([x, h, s * br * 0.8], [x + 0.02, 0, s * (br + reach)], br * 0.28, br * 0.12, { bone: bones.length - 1, from: par }));
     }
-    return { bones, tubes };
+    return { bones, tubes, body: 1, head: [len / 2 + 0.14, h + 0.02, 0], headBone: 3, back: [0.1, h + br * 0.7, 0], side: br };
   } },
-  { name: 'rover', share: 10, speed: [2, 6], size: [0.8, 2], make(r) {   // a robot on four wheels, a mast that looks about
-    const wr = 0.11 + 0.05 * r(1), len = 0.6 + 0.2 * r(2), hw = 0.2 + 0.08 * r(3), bh = wr + 0.1, bones = [B([0, 0, 0])], tubes = [];
-    tubes.push(T([-len / 2, bh + 0.06, 0], [len / 2, bh + 0.06, 0], 0.11 + 0.04 * r(4), 0.1, { flat: 1.7, lumps: 0.03 }));
-    for (const f of [1, -1]) for (const s of [1, -1]) wheel(bones, tubes, f * len * 0.36, s * hw, wr, 0.035);
+  { name: 'rover', share: 10, speed: [2, 6], size: [0.8, 2], make(r) {   // a robot on two or three pairs of wheels, a mast that looks about
+    const wr = 0.08 + 0.08 * r(1), len = 0.5 + 0.35 * r(2), hw = 0.16 + 0.14 * r(3), bh = wr + 0.06 + 0.1 * r(5), axles = r(6) < 0.35 ? 3 : 2, bones = [B([0, 0, 0])], tubes = [];
+    tubes.push(T([-len / 2, bh + 0.06, 0], [len / 2, bh + 0.06, 0], 0.08 + 0.08 * r(4), 0.07 + 0.06 * r(7), { flat: 1.2 + r(8), lumps: 0.03 }));
+    for (let n = 0; n < axles; n++) for (const s of [1, -1]) wheel(bones, tubes, len * 0.36 * (1 - (2 * n) / (axles - 1)), s * hw, wr, 0.025 + 0.03 * r(9));
+    const mast = 0.2 + 0.4 * r(10);
     bones.push(B([0.1, bh + 0.16, 0], { type: 1, axis: [0, 1, 0], amp: 1.2, rate: 0.2 }));
-    tubes.push(T([0.1, bh + 0.12, 0], [0.16, bh + 0.5, 0], 0.03, 0.045, { bone: bones.length - 1, from: 0 }));
-    return { bones, tubes };
+    tubes.push(T([0.1, bh + 0.12, 0], [0.16, bh + 0.1 + mast, 0], 0.03, 0.03 + 0.04 * r(11), { bone: bones.length - 1, from: 0 }));
+    return { bones, tubes, body: 0, head: [0.16, bh + 0.12 + mast, 0], headBone: bones.length - 1, back: [-0.1, bh + 0.15, 0], side: 0.1 };
   } },
-  { name: 'transport', share: 9, road: true, speed: [8, 20], size: [3, 6], make(r) {   // a long body on six wheels, a cab
-    const wr = 0.07 + 0.03 * r(1), hw = 0.13 + 0.04 * r(2), bh = wr * 2 + 0.11, bones = [B([0, 0, 0])], tubes = [];
-    tubes.push(T([-0.5, bh, 0], [0.34, bh, 0], 0.13 + 0.03 * r(3), 0.13, { flat: 1.15, lumps: 0.02 }), T([0.3, bh - 0.04, 0], [0.5, bh - 0.06, 0], 0.1, 0.09, { flat: 1.3, lumps: 0.02 }));
-    for (const x of [0.36, 0, -0.36]) for (const s of [1, -1]) wheel(bones, tubes, x, s * hw, wr, 0.03);
-    return { bones, tubes };
+  { name: 'transport', share: 9, road: true, speed: [8, 20], size: [3, 6], make(r) {   // a long body on two to four axles, a cab
+    const wr = 0.05 + 0.05 * r(1), hw = 0.11 + 0.07 * r(2), bh = wr * 2 + 0.08 + 0.08 * r(5), axles = 2 + Math.floor(r(6) * 3), bones = [B([0, 0, 0])], tubes = [];
+    tubes.push(T([-0.5, bh, 0], [0.3 - 0.1 * r(7), bh, 0], 0.1 + 0.07 * r(3), 0.1 + 0.07 * r(8), { flat: 0.9 + 0.6 * r(9), lumps: 0.02 }), T([0.3, bh - 0.04, 0], [0.5, bh - 0.06, 0], 0.08 + 0.04 * r(10), 0.07 + 0.04 * r(11), { flat: 1 + 0.6 * r(12), lumps: 0.02 }));
+    for (let n = 0; n < axles; n++) for (const s of [1, -1]) wheel(bones, tubes, 0.38 - (n * 0.76) / (axles - 1), s * hw, wr, 0.025);
+    return { bones, tubes, body: 0, head: [0.45, bh + 0.06, 0], back: [-0.1, bh + 0.12, 0], side: hw };
   } },
-  { name: 'cycle', share: 5, road: true, speed: [4, 9], size: [1.4, 2], make(r) {   // two wheels in line, a rider leaning over them
-    const wr = 0.2 + 0.04 * r(1), bones = [B([0, 0, 0])], tubes = [];
-    wheel(bones, tubes, 0.32, 0.0001, wr, 0.025); wheel(bones, tubes, -0.32, 0.0001, wr, 0.025);
-    tubes.push(T([-0.32, wr, 0], [0.32, wr + 0.1, 0], 0.03, 0.03, { lumps: 0 }), T([-0.08, wr + 0.08, 0], [0.06, wr + 0.5, 0], 0.1, 0.11, { flat: 0.7 }), T([0.07, wr + 0.5, 0], [0.12, wr + 0.68, 0], 0.07, 0.065));
-    return { bones, tubes };
+  { name: 'cycle', share: 5, road: true, speed: [4, 9], size: [1.4, 2], make(r) {   // two or three wheels in line, a rider leaning over them
+    const wr = 0.14 + 0.1 * r(1), n = r(5) < 0.2 ? 3 : 2, bones = [B([0, 0, 0])], tubes = [], lean = 0.15 * r(6);
+    for (let k = 0; k < n; k++) wheel(bones, tubes, 0.32 - (k * 0.64) / (n - 1), 0.0001, wr, 0.02 + 0.015 * r(7));
+    tubes.push(T([-0.32, wr, 0], [0.32, wr + 0.1, 0], 0.03, 0.03, { lumps: 0 }), T([-0.08, wr + 0.08, 0], [0.06 + lean, wr + 0.45 + 0.1 * r(8), 0], 0.08 + 0.05 * r(9), 0.09 + 0.04 * r(10), { flat: 0.5 + 0.5 * r(11) }), T([0.07 + lean, wr + 0.5, 0], [0.12 + lean, wr + 0.68, 0], 0.07, 0.065));
+    return { bones, tubes, body: 0, head: [0.12 + lean, wr + 0.72, 0], back: [-0.02, wr + 0.35, 0], side: 0.08 };
   } },
-  { name: 'dragon', share: 6, speed: [8, 16], size: [3, 6], fly: [10, 45], make(r) {   // a flying thing: wings of two parts beating, a tail of links waving behind it
-    const br = 0.07 + 0.03 * r(1), span = 0.42 + 0.1 * r(2), bones = [B([0, 0, 0])], tubes = [];
-    tubes.push(T([-0.16, 0.5, 0], [0.2, 0.5, 0], br, br * 0.9, { flat: 0.9 }));
+  { name: 'dragon', share: 6, speed: [8, 16], size: [3, 6], fly: [10, 45], make(r) {   // a flying thing: wings of two parts beating, a tail of two to five links waving behind it
+    const br = 0.05 + 0.06 * r(1), span = 0.32 + 0.22 * r(2), links = 2 + Math.floor(r(5) * 4), bones = [B([0, 0, 0])], tubes = [];
+    tubes.push(T([-0.16, 0.5, 0], [0.2, 0.5, 0], br, br * (0.6 + 0.5 * r(6)), { flat: 0.6 + 0.6 * r(7) }));
     bones.push(B([0.2, 0.5, 0], { type: 1, amp: 0.2, rate: 0.5 }));
-    tubes.push(T([0.17, 0.5, 0], [0.42, 0.56, 0], br * 0.6, br * 0.45, { bone: 1, from: 0 }));
-    for (const s of [1, -1]) limb(bones, tubes, [0.06, 0.52, s * br * 0.6], [0.0, 0.54, s * span * 0.55], [-0.08, 0.5, s * span], 0.11, { axis: [1, 0, 0], amp: -s * 0.6, rate: 0.5, bend: -s * 0.25, phase: 0, flat: 0.12, tip: 0.5 });
-    for (let n = 0; n < 4; n++) { bones.push(B([-0.16 - n * 0.09, 0.5, 0], { type: 2, amp: 0.012 + n * 0.008, rate: 0.5, phase: -n * 0.8 })); tubes.push(T([-0.14 - n * 0.09, 0.5, 0], [-0.25 - n * 0.09, 0.5, 0], br * (0.7 - n * 0.14), br * (0.56 - n * 0.14), { bone: bones.length - 1, from: n ? bones.length - 2 : 0, blend: 0.5 })); }
-    return { bones, tubes };
+    tubes.push(T([0.17, 0.5, 0], [0.32 + 0.15 * r(8), 0.52 + 0.08 * r(9), 0], br * 0.6, br * 0.45, { bone: 1, from: 0 }));
+    for (const s of [1, -1]) limb(bones, tubes, [0.06, 0.52, s * br * 0.6], [0.0, 0.54, s * span * 0.55], [-0.08 - 0.1 * r(10), 0.5, s * span], 0.09 + 0.06 * r(11), { axis: [1, 0, 0], amp: -s * 0.6, rate: 0.5, bend: -s * 0.25, phase: 0, flat: 0.12, tip: 0.3 + 0.4 * r(12) });
+    const step = 0.36 / links;
+    for (let n = 0; n < links; n++) { bones.push(B([-0.16 - n * step, 0.5, 0], { type: 2, amp: 0.012 + n * 0.008, rate: 0.5, phase: -n * 0.8 })); tubes.push(T([-0.14 - n * step, 0.5, 0], [-0.16 - (n + 1) * step, 0.5, 0], br * (0.7 - (n * 0.5) / links), br * (0.6 - (n * 0.5) / links), { bone: bones.length - 1, from: n ? bones.length - 2 : 0, blend: 0.5 })); }
+    return { bones, tubes, body: 0, head: [0.32 + 0.15 * r(8), 0.54 + 0.08 * r(9), 0], headBone: 1, back: [0, 0.5 + br * 0.8, 0], side: br };
   } },
-  { name: 'bird', share: 7, speed: [5, 14], size: [0.4, 1.2], fly: [4, 30], make(r) {
-    const br = 0.09 + 0.03 * r(1), span = 0.4 + 0.1 * r(2), bones = [B([0, 0, 0])], tubes = [];
-    tubes.push(T([-0.2, 0.5, 0], [0.22, 0.52, 0], br * 0.7, br, { flat: 0.9 }), T([-0.36, 0.5, 0], [-0.16, 0.5, 0], 0.07, 0.05, { flat: 0.15 }));
-    for (const s of [1, -1]) { bones.push(B([0.04, 0.52, s * br * 0.5], { type: 1, axis: [1, 0, 0], amp: -s * 0.9, rate: 0.25 })); tubes.push(T([0.04, 0.52, s * br * 0.4], [-0.02, 0.52, s * span], 0.12, 0.05, { bone: bones.length - 1, from: 0, flat: 0.12 })); }
-    return { bones, tubes };
+  { name: 'bird', share: 7, speed: [5, 14], size: [0.4, 1.2], fly: [4, 30], make(r) {   // one or two pairs of wings beating, a fan of a tail
+    const br = 0.06 + 0.06 * r(1), span = 0.3 + 0.2 * r(2), pairs = r(5) < 0.25 ? 2 : 1, bones = [B([0, 0, 0])], tubes = [];
+    tubes.push(T([-0.2, 0.5, 0], [0.22, 0.52, 0], br * 0.7, br, { flat: 0.7 + 0.5 * r(6) }), T([-0.36 - 0.1 * r(7), 0.5, 0], [-0.16, 0.5, 0], 0.05 + 0.05 * r(8), 0.05, { flat: 0.15 }));
+    for (let p = 0; p < pairs; p++) for (const s of [1, -1]) { const x = 0.04 - p * 0.16, sp = span * (1 - p * 0.35); bones.push(B([x, 0.52, s * br * 0.5], { type: 1, axis: [1, 0, 0], amp: -s * 0.9, rate: 0.25, phase: p * 1.2 })); tubes.push(T([x, 0.52, s * br * 0.4], [x - 0.06, 0.52, s * sp], 0.08 + 0.06 * r(9), 0.03 + 0.03 * r(10), { bone: bones.length - 1, from: 0, flat: 0.12 })); }
+    return { bones, tubes, body: 0, head: [0.24, 0.53, 0], back: [0, 0.5 + br * 0.8, 0], side: br };
   } },
-  { name: 'snake', share: 7, speed: [0.5, 3], size: [1.5, 5], make(r) {   // a head and ten links, each a little behind the last in its wave
-    const br = 0.035 + 0.02 * r(1), bones = [B([0, 0, 0])], tubes = [];
-    for (let n = 0; n < 10; n++) { bones.push(B([0.4 - n * 0.09, br, 0], { type: 2, amp: 0.045, phase: -n * 0.75 })); tubes.push(T([0.47 - n * 0.09, br, 0], [0.36 - n * 0.09, br, 0], br * (n ? 1 : 1.3), br * (n === 9 ? 0.3 : 1), { bone: n + 1, from: n ? n : n + 1, blend: 0.6, lumps: 0.03 })); }
-    return { bones, tubes };
+  { name: 'snake', share: 7, speed: [0.5, 3], size: [1.5, 5], make(r) {   // a head and six to twelve links, each a little behind the last in its wave
+    const br = 0.025 + 0.03 * r(1), links = 6 + Math.floor(r(5) * 7), step = 0.9 / links, bones = [B([0, 0, 0])], tubes = [];
+    for (let n = 0; n < links; n++) { bones.push(B([0.4 - n * step, br, 0], { type: 2, amp: 0.045, phase: (-n * 7.5) / links })); tubes.push(T([0.4 + step * 0.8 - n * step, br, 0], [0.4 - step * 0.2 - n * step, br, 0], br * (n ? 1 : 1 + 0.6 * r(6)), br * (n === links - 1 ? 0.3 : 1), { bone: n + 1, from: n ? n : n + 1, blend: 0.6, lumps: 0.03 })); }
+    return { bones, tubes, body: 1, head: [0.4 + step * 0.8, br * 1.5, 0], headBone: 1, back: [0.4 - step, br * 1.8, 0], side: br };
   } },
 ];
+const add = (p, q) => [p[0] + q[0], p[1] + q[1], p[2] + q[2]];
+// The parts that may grow on any body, each by its kind's own numbers (from 30 on): what stands still on it rides
+// on its body's (or its head's) bone; what moves (ears, a tail, a second pair of arms) has bones of its own, while
+// the sixteen last. So a kind's body plan is its rig and the parts it grew: no two the same.
+function grow(P, r) {
+  const { bones, tubes } = P, body = P.body ?? 0, hb = P.headBone ?? body, w = P.side ?? 0.1, u = Math.min(1.3, Math.max(0.4, w / 0.1));   // (u: its parts as large as its body is stout: a thin thing's ears are small)
+  // (left: how many more tubes its coarsest cut still holds: level n = 4 has 98 corners, a tube takes five at the least, a wheel eight)
+  const room = () => BONES - bones.length, left = () => Math.floor((96 - tubes.reduce((n, t) => n + (t.wheel ? 8 : 5), 0)) / 5), on = (i, p, need = 1) => r(i) < p && left() >= need;
+  const at = (O, x, y, z) => [O[0] + x * u, O[1] + y * u, O[2] + z * u];
+  if (P.head) {
+    const H = P.head;
+    if (on(30, 0.5, 2)) { const up = 0.05 + 0.13 * r(31), out = 0.02 + 0.06 * r(32), fw = 0.06 * (r(33) - 0.5); for (const s of [1, -1]) tubes.push(T(at(H, 0, -0.02, s * 0.025), at(H, fw, up, s * out), (0.012 + 0.012 * r(34)) * u, 0.004 * u, { bone: hb, lumps: 0 })); }   // horns, feelers
+    if (on(35, 0.35)) tubes.push(T(at(H, 0.02, -0.01, 0), at(H, -0.08 - 0.08 * r(36), 0.04 + 0.05 * r(37), 0), (0.02 + 0.03 * r(38)) * u, 0.008 * u, { bone: hb, flat: 0.25 }));   // a crest
+    if (on(39, 0.3)) tubes.push(T(at(H, 0, -0.03, 0), at(H, 0.05 + 0.07 * r(40), -0.05, 0), (0.02 + 0.015 * r(41)) * u, 0.006 * u, { bone: hb, lumps: 0 }));   // a beak, a snout, a horn ahead
+    if (on(73, 0.25)) tubes.push(T(at(H, -0.03, -0.05, 0), at(H, 0.01, -0.07, 0), (0.03 + 0.03 * r(74)) * u, (0.035 + 0.03 * r(75)) * u, { bone: hb, flat: 1.3 + 0.7 * r(76), lumps: 0 }));   // a collar, a ruff, a visor
+    if (on(42, 0.35, 2) && room() >= 2) for (const s of [1, -1]) { bones.push(B(at(H, 0, 0, s * 0.03), { type: 1, axis: [1, 0, 0], amp: s * (0.2 + 0.3 * r(43)), rate: 0.6, parent: hb })); tubes.push(T(at(H, 0, 0, s * 0.03), at(H, -0.02, 0.04 + 0.05 * r(44), s * (0.06 + 0.05 * r(45))), 0.025 * u, 0.008 * u, { bone: bones.length - 1, from: hb, flat: 0.3 })); }   // ears
+  }
+  if (P.back) {
+    const K = P.back;
+    if (on(46, 0.45)) tubes.push(T(at(K, -0.05 - 0.05 * r(47), 0.01, 0), at(K, 0.05 + 0.05 * r(48), 0.02, 0), (0.04 + 0.05 * r(49)) * u, (0.035 + 0.045 * r(50)) * u, { bone: body, flat: 0.8 + 0.6 * r(51) }));   // a hump, a pack, a load
+    if (on(52, 0.4)) { const n = Math.min(left(), 2 + Math.floor(r(53) * 4)), hi = 0.03 + 0.06 * r(54); for (let k = 0; k < n; k++) { const x = (k - (n - 1) / 2) * 0.05; tubes.push(T(at(K, x, 0, 0), at(K, x - 0.015, hi, 0), 0.012 * u, 0.003 * u, { bone: body, lumps: 0 })); } }   // spikes, fins
+    if (on(64, 0.35, 2)) { const out = w * (0.85 + 0.35 * r(65)), ln = 0.05 + 0.07 * r(66), rr = (0.02 + 0.025 * r(67)) * u, dn = -0.03 - 0.05 * r(68); for (const s of [1, -1]) tubes.push(T([K[0] - ln * u, K[1] + dn * u, s * out], [K[0] + ln * u, K[1] + dn * u, s * out], rr, rr * (0.5 + 0.5 * r(69)), { bone: body, flat: 0.6 + 0.6 * r(72) })); }   // pods at its sides: panniers, tanks, engines, stub wings
+    if (on(55, 0.25, 2)) { const hi = 0.08 + 0.12 * r(56); tubes.push(T(at(K, 0, 0.01, 0), at(K, 0, hi, 0), 0.01 * u, 0.01 * u, { bone: body, lumps: 0 }), T(at(K, 0, hi, 0), at(K, 0.01, hi + 0.035, 0), 0.025 * u, 0.025 * u, { bone: body, lumps: 0 })); }   // a mast with a lamp, a flag
+  }
+  if (P.rear && on(57, 0.6) && room() >= 1) {   // a tail of one to three links, each swinging a little behind the last
+    let from = P.rear, par = body; const n = Math.min(room(), left(), 1 + Math.floor(r(58) * 3)), lw = (0.025 + 0.03 * r(59)) * u, dir = [-(0.08 + 0.1 * r(60)), -0.04 + 0.1 * r(61), 0];
+    for (let k = 0; k < n; k++) { bones.push(B(from, { type: 1, axis: [0, 1, 0], amp: 0.3 + 0.2 * k, rate: 1.1, phase: -k * 0.8, parent: par })); const to = add(from, dir); tubes.push(T(from, to, lw * (1 - k * 0.25), lw * (0.75 - k * 0.25), { bone: bones.length - 1, from: par, blend: 0.4 })); par = bones.length - 1; from = to; }
+  }
+  if (P.arms && on(62, 0.3, 4) && room() >= 4) { const [x, y, z] = P.arms; for (const [s, ph] of [[1, PI / 2], [-1, -PI / 2]]) limb(bones, tubes, [x, y, s * z * 1.2], [x + 0.05, y - 0.12, s * (z * 1.4 + 0.03)], [x + 0.1, y - 0.24, s * (z * 1.4 + 0.03)], 0.025, { amp: 0.35, phase: ph, bend: 0.6, parent: body, from: body }); }   // a second pair of arms
+  return P;
+}
 /** The rig of creature c, and where the rigs' shares end (0 … 1: a number under SHARES[r] and not under SHARES[r - 1] is rig r). */
 export const rigOf = (c) => Math.floor(c / VARIANTS);
 export const SHARES = (() => { const total = RIGS.reduce((t, R) => t + R.share, 0); let at = 0; return RIGS.map((R) => (at += R.share / total)); })();
@@ -142,7 +181,9 @@ const framed = (tubes, into, k) => tubes.map((t, n) => {
 });
 function madeOf(c) {
   let G = MADE.get(c); if (G) return G;
-  const R = RIGS[rigOf(c)], { bones, tubes } = R.make((i) => hash3(c, i, 3, 4242)), seed = 77 + c * 31;
+  const R = RIGS[rigOf(c)], r = (i) => hash3(c, i, 3, 4242), { bones, tubes: raw0 } = grow(R.make(r), r), seed = 77 + c * 31;
+  // (its own build: stouter or slighter, smoother or lumpier, all over)
+  const stout = 0.75 + 0.55 * r(70), lumpy = 0.3 + 1.7 * r(71), tubes = raw0.map((t) => ({ ...t, r0: t.r0 * (t.wheel ? 1 : stout), r1: t.r1 * (t.wheel ? 1 : stout), lumps: (t.lumps ?? 0.08) * lumpy }));
   if (bones.length > BONES) throw new Error(`creature: rig ${R.name} has more than ${BONES} bones`);
   // its size: measured on its tubes as they are laid out (smooth: their lumps are a hundredth of it)
   const raw = { seed, tubes: framed(tubes.map((t) => ({ ...t, lumps: 0 })), (q) => q, 1) }, lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9], p = [0, 0, 0];
