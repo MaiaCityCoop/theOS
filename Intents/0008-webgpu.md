@@ -1334,6 +1334,8 @@ A plot's things stand 1.4 m apart and a mover is up to 6 m long: there was no ro
 - **Not there:** no way crosses another, so nobody turns off and nobody overtakes in its lane; a mover goes round
   its own plot and nowhere else; it does not stop for the walker, who is stopped by it; a way is bare ground, not a
   built road; after hours a quick mover's place loses fineness (a clock of seconds in a float).
+- **Seen by Samuel** in his Safari, standing at a way (asked whether the movers keep clear now): "Ja, passt."
+  His tab over a hundred seconds, 632 m walked: 58 fps in the mean, 51 at the least, 7 % of frames late (60 fps standing).
 
 ## Trail
 
