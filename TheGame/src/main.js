@@ -42,7 +42,8 @@ import { useTiles } from './world/tile.js';
 import { createShadows } from './world/shadow.js';
 import { useGround } from './world/rocksolid.js';
 import { createCity } from './city/index.js';
-import { createBiomeSlots } from './world/slots.js';   // the city's plots over the land, seen from above (world/city.js)
+import { createBiomeSlots } from './world/slots.js';
+import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
 
 const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
@@ -118,6 +119,9 @@ const city = (stats.city = createCity({ scene, camera, canvas, renderer }));
 const hud = createHud(document.getElementById('hud'), renderer, camera, governor, stats);
 spawn(controls);
 if (slots.many) { const first = await slots.look(camera.position.x, camera.position.z); if (first) { await ground.biomes(first, true); await terrain.biomes(first, renderer, camera, null, true); } }   // (the biomes round where the walk starts: before anything is compiled)
+// the lakes round the camera (src/world/lakes.js: no river runs in a ring; what it rings round is water): found before the first frame
+const lakes = (stats.lakes = createLakes()); let lakesSeen = 0;
+await lakes.look(camera.position.x, camera.position.z);
 const newBiomes = (next) => Promise.all([ground.biomes(next), terrain.biomes(next, renderer, camera, screen.target)]);
 
 // ---- a frame: place the camera, choose what to draw, draw ----
@@ -154,6 +158,7 @@ function frame(now) {
   U.uTime.value = (now - t0) / 1000;
   tex.flush();   // (materials asked for since the last frame: src/materials/bake.js)
   slots.update(camera, newBiomes);   // (the biomes round the camera: their shaders compiled aside when they change)
+  lakes.update(camera); if (lakes.version !== lakesSeen) { lakesSeen = lakes.version; ground.refresh(); }   // (new lakes: the ground under the camera drawn again)
   renderer.info.reset();
   governor.begin();
   const c0 = performance.now();

@@ -4,7 +4,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, varying, attribute, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, sqrt, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { riverInfo, riverRaw, riverCarve, riverBank, baseB, WATER_DROP_N } from '../world/land.nodes.js';
+import { riverInfo, riverRaw, riverCarve, riverBank, baseB, WATER_DROP_N, lakeAt } from '../world/land.nodes.js';
 import { finish, cloudAt, windDir, windStrength } from '../world/light.js';
 import { gridPoint, GRID } from './material.js';
 import { WATER } from '../world/biomes.js';
@@ -15,7 +15,7 @@ export function waterMaterial(tex) {
   const wp = gridPoint();
   const I = riverInfo(wp);   // (signed distance, half-width, bank side)
   const world = vec3(wp.x, baseB(wp).sub(WATER_DROP_N), wp.y);
-  const vWorld = varying(world), vI = varying(I), vG = varying(riverRaw(wp).yz);   // the river's field's gradient: the flow is along it, turned a quarter
+  const vWorld = varying(world), vI = varying(I), vG = varying(riverRaw(wp).yz), vLake = varying(lakeAt(wp));   // (in a lake the water stands)   // the river's field's gradient: the flow is along it, turned a quarter
 
   const frag = Fn(() => {
     const d = abs(vI.x), w = vI.y, b = vI.z;
@@ -23,7 +23,7 @@ export function waterMaterial(tex) {
     const p = vWorld.xz;
     const depth = riverCarve(d, w, b).sub(riverBank(d, w, b)).sub(WATER_DROP_N);
     const fl = normalize(vec2(vG.y.negate(), vG.x).add(1e-9));
-    const mid = clamp(float(1).sub(d.div(w)), 0, 1), speed = sqrt(mid).mul(0.9).add(0.25);
+    const mid = clamp(float(1).sub(d.div(w)), 0, 1), speed = sqrt(mid).mul(0.9).add(0.25).mul(float(1).sub(vLake.mul(0.92)));   // (a lake's water stands: only the wind moves it)
     const t = U.uTime.mul(0.3), f1 = fract(t), f2 = fract(t.add(0.5)), wb = abs(f1.mul(2).sub(1));
     // the surface runs with the river, and the wind drags it its own way: the harder it blows, the more its ripples go with the wind
     const drift = fl.mul(speed).add(windDir.mul(windStrength.mul(0.9)));

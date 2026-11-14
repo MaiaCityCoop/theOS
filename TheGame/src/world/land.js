@@ -72,7 +72,46 @@ export function riverAt(x, z) {
   const w = (4.5 + 3.5 * sstep(0.25, 0.75, vnoise(x / 90, z / 90, 42)) + 7 * Math.abs(bend)) * (0.86 + 0.28 * vnoise(x / 14, z / 14, 43));   // half-width, 4 to 17 m; ragged every few metres
   const sd = r / gl - 0.25 * w * bend;   // signed distance from the channel's middle, shifted to the bend's outside
   river.r = sd * gl; river.gx = rx; river.gz = rz; river.d = Math.abs(sd); river.w = w; river.b = bend * (sd >= 0 ? 1 : -1);
+  if (LAKES.length && lakeIn(x, z, r)) { river.r = 0; river.d = 0; river.b = 0; }   // (inside a ring: the lake's water, as deep as the channel's middle)
   return river;
+}
+
+// ---- the lakes: the river's line closes round on itself here and there (a ring of river round a patch of land: what a
+// field of noise does wherever it has a small hill or dip near its zero). No river runs in a ring: what it rings round is
+// water, a lake, its shore the ring's outer bank. Found round the camera, in a worker (src/world/lakes.worker.js: every
+// patch of the field's one sign that the other sign closes round, smaller than LAKE_MOST), the nearest LAKE_MAX kept;
+// each { x, z, r, s }: its middle, how far it reaches, the sign of the river's field inside it. The same on the GPU
+// (land.nodes.js: inLake). A lake's floor is the channel's middle all over, its water the river's: flat, as the valley's floor is.
+export const LAKE_MAX = 32, LAKE_STEP = 40, LAKE_HALF = 8000, LAKE_MOST = 2500;   // LAKE_MOST: cells of LAKE_STEP, the largest a lake may be (4 km²)
+export const LAKES = [];
+/** whether (x, z), where the river's raw field is r, lies inside a lake */
+export function lakeIn(x, z, r) {
+  for (const L of LAKES) { const dx = x - L.x, dz = z - L.z; if (dx * dx + dz * dz < L.r * L.r && (r >= 0 ? 1 : -1) === L.s) return true; }
+  return false;
+}
+/** The lakes round (cx, cz): every patch of the river field's one sign that the other sign closes round within the
+    square looked at, LAKE_STEP metres a cell, nearest first. */
+export function findLakes(cx, cz) {
+  const N = Math.round((2 * LAKE_HALF) / LAKE_STEP), S = new Int8Array(N * N), at = (i) => (i - N / 2) * LAKE_STEP;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) S[j * N + i] = riverRaw(cx + at(i), cz + at(j))[0] >= 0 ? 1 : -1;
+  const lab = new Int32Array(N * N).fill(-1), q = new Int32Array(N * N), out = [];
+  for (let s = 0; s < N * N; s++) {
+    if (lab[s] >= 0) continue;
+    let h = 0, t = 0, n = 0, sx = 0, sz = 0, edge = false; const first = t; q[t++] = s; lab[s] = s;
+    while (h < t) {
+      const c = q[h++], i = c % N, j = (c / N) | 0; n++; sx += i; sz += j;
+      if (i === 0 || j === 0 || i === N - 1 || j === N - 1) edge = true;
+      if (i > 0 && lab[c - 1] < 0 && S[c - 1] === S[s]) { lab[c - 1] = s; q[t++] = c - 1; }
+      if (i < N - 1 && lab[c + 1] < 0 && S[c + 1] === S[s]) { lab[c + 1] = s; q[t++] = c + 1; }
+      if (j > 0 && lab[c - N] < 0 && S[c - N] === S[s]) { lab[c - N] = s; q[t++] = c - N; }
+      if (j < N - 1 && lab[c + N] < 0 && S[c + N] === S[s]) { lab[c + N] = s; q[t++] = c + N; }
+    }
+    if (edge || n > LAKE_MOST) continue;
+    const mx = sx / n, mz = sz / n; let far = 0;
+    for (let k = first; k < t; k++) { const c = q[k], dx = (c % N) - mx, dz = ((c / N) | 0) - mz; far = Math.max(far, dx * dx + dz * dz); }
+    out.push({ x: cx + at(mx), z: cz + at(mz), r: (Math.sqrt(far) + 1.5) * LAKE_STEP, s: S[s] });
+  }
+  return out.sort((a, b) => Math.hypot(a.x - cx, a.z - cz) - Math.hypot(b.x - cx, b.z - cz)).slice(0, LAKE_MAX);
 }
 /** How deep the river cuts at d from its middle (narrow is deeper; a cut bank drops sharply, a bar slopes gently). */
 export function riverCarve(d, w, b) {

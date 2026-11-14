@@ -79,6 +79,8 @@ export function createGround(renderer, tex, list = LAID) {
       if (!now) { const was = renderer.getRenderTarget(), q = new THREE.Mesh(quad.geometry, m); q.frustumCulled = false; renderer.setRenderTarget(rt); const done = renderer.compileAsync(q, cam).catch(() => {}); renderer.setRenderTarget(was); await done; }   // (for its own target: the pipeline it is drawn with)
       quad.material.dispose(); quad.material = m; lastS = 0;
     },
+    /** Drawn again at the next update (the land under it changed: the lakes, src/world/lakes.js). */
+    refresh() { lastS = 0; },
     /** s: the lens factor; drawn again when the camera has walked 16 texels, or the lens changed */
     update(cx, cz, dy, s = 1) {
       // drawn again when the camera has walked 32 texels (16 m: the blades reach 105 m of the map's 128), when it has
