@@ -37,14 +37,20 @@ Asked outright; the definition holds no surprise.
 
 ## Build
 
-- **The code did not get slower.** Headless Chrome (WebGPU on the Mac's GPU), 1440×817 at 2×, the tent spawn,
-  inside ratio held at 1, the governor held; A and B by turns (2026-11-14, 23:2x):
+- **The code got a little heavier, not twice as heavy.** Headless Chrome (WebGPU on the Mac's GPU), 1440×817 at
+  2×, the tent spawn, inside ratio held at 1, the governor held; each build on its own port at 127.0.0.1, told
+  apart by its triangles (main draws the fire pit: 318 182, `34defe7` 291 440); the GPU's load before each run:
 
-  | build | live fps | p95 ms | worst ms | a frame back to back |
+  | build | GPU busy | live fps | worst ms | a frame back to back |
   | --- | --- | --- | --- | --- |
-  | `34defe7` (19:57: Safari held 60 at an inside ratio of 1.6) | 60.0 / 60.0 | 16.7 / 16.7 | 16.8 / 16.8 | 11.63 / 11.95 ms |
-  | `b4a10e3` origin/main (the fire pit merged) | 60.0 / 60.0 | 16.8 / 16.8 | 16.8 / 16.8 | 11.93 / 11.32 ms |
-  | `b4a10e3` `?stress` | 60.0 | 16.7 | 16.8 | 13.61 ms |
+  | `34defe7` (19:57: Safari held 60 at an inside ratio of 1.6), quiet | 77–92 %* | 60.0 (four runs) | 16.8 | 11.3–11.95 ms |
+  | `b4a10e3` origin/main, quieter | 81–88 % | 52.6 / 56.9 | 33.4 | 13.51 / 13.46 ms |
+  | by turns, loaded: `b4a10e3` / `34defe7` | 86–88 % | 44.5 / 52.0, 43.6 / 47.2 | 166 / 83, 67 / 50 | 15.01 / 13.64, 17.40 / 16.37 ms |
+  | `b4a10e3` `?stress`, loaded | 87 % | 39.8 | 117 | 18.87 ms |
+
+  (*the four runs first written down as main's were `34defe7`'s: a dev server of this intent's, left running,
+  answered for both; told apart afterwards by their triangles.) Main costs about 1.2–1.8 ms a frame more than the
+  19:57 build (tonight's reeds, twigs, lakes and fire pit together), and stays under the 16.7 ms of 60 fps.
 
 - **What took the frames: other browsers drawing the game on the same GPU at the same time.** Measured with them
   running, the same main read 19.7 ms, then 37–59 ms a frame (31.7 fps, then 14 fps live), and the GPU stood at
@@ -67,13 +73,14 @@ Asked outright; the definition holds no surprise.
 
 ## Propose
 
-**Delivered:** the cause, measured. No code changed: main is not slower than the build that held 60.
+**Delivered:** the cause, measured. No code changed: main costs 1.2–1.8 ms a frame more than the build that held
+60, and is under the frame's budget on its own.
 
 **Checks, as they were**
 
 | # | Result | Evidence |
 | --- | --- | --- |
-| 1 | passed | main and `34defe7` both 60.0 fps live, worst 16.8 ms, 11.3–11.9 ms a frame back to back, by turns (table above) |
+| 1 | passed, with a gap | `34defe7` 11.3–11.95 ms, main 13.5 ms a frame back to back (table above); main's own runs were never on a fully quiet GPU (81–88 % busy before them), so its 60 fps alone is inferred from 13.5 ms, not seen |
 | 2 | passed | his slow minutes line up with other tabs drawing the game; alone he held 60 at a ratio up to 2 |
 
 **For Samuel to choose** (the fix lies outside the code as it is):
@@ -105,10 +112,11 @@ times swing with whatever else the Mac's GPU does.
 ### 2026-11-14
 
 - **Asked:** why the game is at 30 fps where it held 60, and back to 60.
-- **Delivered:** measured at the tent in Samuel's window size: main holds 60 alone, as the 19:57 build does; the
-  slow minutes are minutes when agents' browsers drew the game on the same GPU.
+- **Delivered:** measured at the tent in Samuel's window size: main 13.5 ms a frame, the 19:57 build 11.3–11.95;
+  the slow minutes are minutes when agents' browsers drew the game on the same GPU.
 - **Good:** his own hitch log told it minute by minute once read against every other tab's.
-- **Broke / not there yet:** the first bisect measured the other tabs, not the commits; no fix in code yet, it is
+- **Broke / not there yet:** the first bisect measured the other tabs, not the commits; a dev server left running
+  answered for main with the old build (caught by the triangles, the table put right); no fix in code yet, it is
   his choice.
 
 ## Trail
