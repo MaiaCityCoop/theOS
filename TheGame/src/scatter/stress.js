@@ -328,11 +328,18 @@ const reach = (base, th) => { const t = th.div(TAU).add(1).fract().mul(RAYS), i0
 const middle = (base) => vec2(PT.element(base), PT.element(base.add(uint(1))));
 // the stand's ways, said to the world (src/world/ways.js): a place is on a way where, in one of the NEARW plots nearest
 // the camera, it lies within the lanes' half width of one of the plot's rings (and so many metres more: margin)
-const NEARV = Array.from({ length: NEARW }, () => new THREE.Vector4(-1, 0, 0, 0)), nearW = uniformArray(NEARV, 'vec4');
+// (all of it one array of rows on the GPU, not four: a shader stage binds at most twelve uniform buffers, and every pass
+// that asks the ways (the tiers' packing of rocks, trees, the ground) also reads the land's, the lakes' and its own; four
+// arrays here took the packing of the stand past twelve and nothing drew. The rows: the NEARW nearest plots, then the
+// rings' first rows, their second rows, the 64 of the nearest-ring table)
+const AT_RING = NEARW, AT_RING2 = NEARW + MAXW, AT_LUT = NEARW + 2 * MAXW;
+const wayRows = Array.from({ length: AT_LUT + 64 }, (_, i) => new THREE.Vector4(i < AT_RING ? -1 : i < AT_RING2 ? 9 : 0, 0, 0, 0)), WAYU = uniformArray(wayRows, 'vec4');
+const NEARV = wayRows.slice(0, AT_RING), nearW = { element: (i) => WAYU.element(i) };
 // the rings as the GPU reads them (filled when the lanes are laid out): [its share of the reach, half its lanes' width
 // (metres), how far it winds, how many times round], [whose winding it shares, its room to its neighbours]; the ring
 // nearest each sixty-fourth of the reach; how many rings there are
-const ringRows = Array.from({ length: MAXW }, () => new THREE.Vector4(9, 0, 0, 0)), ringRows2 = Array.from({ length: MAXW }, () => new THREE.Vector4()), RINGU = uniformArray(ringRows, 'vec4'), RINGU2 = uniformArray(ringRows2, 'vec4'), lutRows = new Array(64).fill(0), LUTU = uniformArray(lutRows), nWays = uniform(1);
+const ringRows = wayRows.slice(AT_RING, AT_RING2), ringRows2 = wayRows.slice(AT_RING2, AT_LUT), lutRows = wayRows.slice(AT_LUT), nWays = uniform(1);
+const RINGU = { element: (k) => WAYU.element(uint(k).add(uint(AT_RING))) }, RINGU2 = { element: (k) => WAYU.element(uint(k).add(uint(AT_RING2))) }, LUTU = { element: (i) => WAYU.element(uint(i).add(uint(AT_LUT))).x };
 const nearKN = (r) => LUTU.element(uint(clamp(floor(r.mul(64)), 0, 63))), candK = (k0, dk) => clamp(k0.add(dk), 0, nWays.sub(1));
 // half the width way k (a float) is kept clear in a plot, metres: its row says (plotOf: p.clrs)
 const clrN = (base, k) => PT.element(base.add(uint(CLRS_AT)).add(uint(k)));
@@ -481,7 +488,7 @@ export function createStress(scene, renderer, tex) {
     if (Y.rings.length > MAXW) throw new Error('stress: more than ' + MAXW + ' ways');
     RING = Y.rings; nWays.value = Math.max(1, RING.length);
     RING.forEach((G, k) => { ringRows[k].set(G.rho, G.W, G.MA, G.MN); ringRows2[k].set(G.bundle, 0, 0, 0); });
-    for (let i = 0; i < 64; i++) { let best = 0; RING.forEach((G, k) => { if (Math.abs(G.rho - (i + 0.5) / 64) < Math.abs(RING[best].rho - (i + 0.5) / 64)) best = k; }); LUT[i] = best; lutRows[i] = best; }
+    for (let i = 0; i < 64; i++) { let best = 0; RING.forEach((G, k) => { if (Math.abs(G.rho - (i + 0.5) / 64) < Math.abs(RING[best].rho - (i + 0.5) / 64)) best = k; }); LUT[i] = best; lutRows[i].x = best; }
     Y.cols.forEach((C, i) => colRows[i].set(C.g, C.off, 0, 0));
     Y.groups.forEach((Gp, g) => { grpRows[g].set(Gp.lo, Gp.hi, Gp.span, 0); Gp.lanes.forEach((La, l) => laneRows[g * LANES + l].set(La.k, La.off, La.dir, Gp.starts[l])); });
   };
