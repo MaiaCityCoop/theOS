@@ -236,9 +236,13 @@ frame by the filter alone): to measure against.
 
 ## What this does not yet give
 
-- **The trees, the rocks and the grass are not on the heap yet**: they keep a draw call a shape and level. The heap
-  now draws cut-out, two-sided leaves (the fronds), so nothing of the engine is missing for them: each must become a
-  family that keeps the contract (its vertices in 16 bytes, its levels with their places on the next).
+- **The trees, the rocks and the grass are not on the one drawer yet** (`src/scatter/drawer.js`: the heap, the
+  looks, the one shader, the levels' draws and what streams them, lifted out of the stress stand on 2026-11-14 so
+  that they can be). They keep engines of their own: a draw call a shape and level, a material each. The way there,
+  a stage at a time: the rocks first (solids, as the stand's balls are: a family of the zoo, the world's rock
+  texture for their colour, a shading model for their moss with the grass's colour round them as a third row of the
+  packing); then what grows (a vertex of its own make: its place on its sprig's painting, its part, its sprig's
+  foot; the plants' material as the drawer's second).
 - **Textures are the world's twenty**, two a kind, tinted: a thousand kinds with textures of their own would be
   gigabytes and must stream as the fine meshes do.
 - **In real Safari the materials cost pixels**: 59 frames a second, but the pixel ratio down to 0.75 walking among

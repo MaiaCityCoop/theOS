@@ -1618,6 +1618,26 @@ tab drawing in front the same run gave parts under nought and sums of three fram
   pixels over time; the trees; the stand's leaf cards and movers), or it is the land itself, whose cached form was
   declined for its softness.
 
+### 2026-11-14, the one drawer lifted out of the stress stand (15:42)
+
+Samuel, asked which next: "One drawing path" (the trees and the rocks drawn as everything else is, the path a
+building or a car will take). The first stage of it; nothing of the picture changes.
+
+- **What was one file is two.** `src/scatter/stress.js` held both where its things stand and move (a plot's lattice,
+  its ways and lanes, its movers' rounds) and how any kind is drawn (the heap, the looks, the kinds' own textures,
+  the one shader and its models, a level's draws, the workers and what streams the fine meshes in). The drawing is
+  now `src/scatter/drawer.js` (createDrawer: 346 lines), the placing stays (695 of 970): who places says where
+  things are and what is near (`near(…).wants(kind, size, distance)`), the drawer asks for the meshes and textures.
+  Moved by its lines, not written again.
+- **The same picture**: with nothing shifted and nothing kept (`?notaau`, where a frame comes out the same every
+  time) the stills at three places differ from the build before only where the page's own readout lies and by a
+  few movers. Walking through the stand its fine meshes and textures come and go as before (every slot of every
+  level filled, 3 620 meshes put in), its bodies are found, its bounds are drawn, every page loads.
+- **The stages ahead.** The rocks (solids as the stand's balls are: a family of their own, the world's rock texture
+  for their colour, their moss a shading model that takes the grass's colour round them); then what grows, whose
+  vertex is of another make (its place on its sprig's painting, its part, its sprig's foot): the plants' material
+  as the drawer's second. Each stage checked against the picture of the one before.
+
 ## Trail
 
 | When | Commit | What |
