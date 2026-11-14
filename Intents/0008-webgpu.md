@@ -1531,3 +1531,4 @@ and the frame rate is not always stable.
 | 2026-11-14 | `a7db517` | The ways and the lanes: nothing stands where things move, every mover has a place in a lane; by true shapes none in another, in a thing or in a trunk |
 | 2026-11-14 | `34e68b6` | Roads for vehicles, winding trails for the rest; mixed rigs, a pace per lane; movers step round the walker |
 | 2026-11-14 | `6b56480` | A body plan a kind of mover (625 builds of 1,000); nothing drawn back from the walker; the inside ratio recovers in seconds |
+| 2026-11-14 | `ef73c0e` | Trails one file wide (3 roads, 13 trails); nothing drawn back from the walker; governor by the last seconds, busy frames left out; no multisampling on a dense screen |
