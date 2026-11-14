@@ -46,6 +46,7 @@ it was built straight away.
 
 | # | Check | How |
 | --- | --- | --- |
+| 2026-11-14 | `497c9e2` | Sign in with aven.id: `src/account/`, `callback.html`, the pill, `tools/account-check.js`, the README |
 | 1 | The pure parts hold | `bun tools/account-check.js` in TheGame: PKCE (RFC 7636 appendix B), parsing, ES256 with a key made there, and refusal of a wrong key, a DER signature, `none`/`HS256`/`EdDSA`, wrong iss/aud/nonce/exp, no passkey `amr`; the way-back check |
 | 2 | It builds, with the callback page | `bun run build` in TheGame: `dist/callback.html` beside `dist/index.html` |
 | 3 | The whole round trip in a browser | Chromium against a stand-in OIDC provider on localhost (`?issuer=`): signed in as traveler and citizen, the refusals said, nothing of the tokens kept |
@@ -98,6 +99,7 @@ it was built straight away.
 
 | # | Result | Evidence |
 | --- | --- | --- |
+| 2026-11-14 | `497c9e2` | Sign in with aven.id: `src/account/`, `callback.html`, the pill, `tools/account-check.js`, the README |
 | 1 | passed | `bun tools/account-check.js`: 67 passed, 0 failed. Each of four checks taken out of `oidc.js` in turn (alg, amr, nonce, signature) made it fail (5, 1, 2, 2 failed) |
 | 2 | passed | `bun run build`: `dist/index.html`, `dist/callback.html`, `assets/callback-*.js` |
 | 3 | passed | headless Chromium (Playwright) against a stand-in provider on `localhost:5199`, the game's dev server on 5175 (5173 was taken by another project's server), the world left out of the page for this run: 22 of 22. Authorize sent `response_type=code`, `client_id=maia-city`, `scope=openid profile email roles`, S256, state and nonce of 43 characters; the token request a form POST with a 43-character verifier; back on `/?issuer=…&x=1#here` as "Ada Lovelace · Traveler", then "Citizen", and no `aven_roles` read as Traveler; `sessionStorage` held `maia.account` alone, no token; nothing in `localStorage`. Refused and said: `access_denied` ("cancelled"), a token signed by another key ("its signature does not hold"), `amr` without passkey, a state not ours, the callback opened with no sign-in begun, an unreachable issuer ("Couldn't reach localhost:5198."); a bad `?issuer=` fell back to `https://aven.id` |
@@ -153,3 +155,4 @@ it was built straight away.
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-14 | `497c9e2` | Sign in with aven.id: `src/account/`, `callback.html`, the pill, `tools/account-check.js`, the README |
