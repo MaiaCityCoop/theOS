@@ -114,7 +114,7 @@ addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h.s
 legal('');   // the links at the foot are drawn once, whatever is open
 
 // ---- the game, framed: to walk, or to look through the lenses ----
-const VIEWS = { walk: ['Walk the world', '/?in=os'], lenses: ['Lenses', '/lenses.html?in=os'], library: ['Library', '/library.html?in=os'] };
+const VIEWS = { walk: ['Walk the world', '/?in=os'], lenses: ['Lenses', '/lenses.html?in=os'], stress: ['Stress test', '/?stress&in=os'], library: ['Library', '/library.html?in=os'] };
 function game(view, show = true) {
   gameView = view;
   $('gamebar').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button class="${k === view ? 'on' : ''}" data-v="${k}">${v[0]}</button>`).join('') + `<span class="label">${GAME.replace('http://', '')}</span>`;
@@ -469,7 +469,7 @@ function home() {
   home.today = today; home.joined = joined;
 }
 
-// ---- inside: the city's dashboard. A few tiles: the game, the stories, the lenses (the intents open from the pill's star) ----
+// ---- inside: the city's dashboard. A few tiles: the game, the stories, the lenses and the stress test (the intents open from the pill's star) ----
 function city() {
   const today = home.today;
   const count = today?.inGame, day = today ? `Day ${n(today.day)} of ${n(DAYS)}` : '';
@@ -483,8 +483,10 @@ function city() {
     try { if (navigator.share) await navigator.share({ title: 'Maia City', text: 'Come and see Maia City grow, one day at a time.', url }); else { await navigator.clipboard.writeText(url); say('Link copied'); } } catch {}
   };
   $('tiles').insertAdjacentHTML('beforeend', `<button class="tile" data-library><span class="label">Library</span><h2>Assets</h2><p>Every made thing that stands in the world, one file each. Turn them, read what they are.</p><div class="foot"><span class="go"></span></div></button>`);
-  $('tiles').insertAdjacentHTML('beforeend', `<button class="tile wide dark" data-lenses><span class="label">Debug &amp; performance</span><h2>Lenses</h2><p>The world through nine film lenses, with the frame time, draw calls and triangles: where it runs smooth and where it does not.</p><div class="foot"><span class="go"></span></div></button>`);
-  $('tiles').querySelectorAll('button.tile').forEach((t) => (t.onclick = () => (t.dataset.lenses !== undefined ? game('lenses') : t.dataset.library !== undefined ? game('library') : t.dataset.go === 'game' ? game('walk') : tab(t.dataset.go))));   // the game's tile always walks, whatever was open last
+  $('tiles').insertAdjacentHTML('beforeend', `<button class="tile dark pair" data-lenses><span class="label">Debug &amp; performance</span><h2>Lenses</h2><p>The world through nine film lenses, with the frame time, draw calls and triangles: where it runs smooth and where it does not.</p><div class="foot"><span class="go"></span></div></button>`);
+  // beside the lenses, the engine's own test: the world with every plot filled (898 million standing, nine million moving; TheGame/src/scatter/stress.js)
+  $('tiles').insertAdjacentHTML('beforeend', `<button class="tile dark pair" data-stress><span class="label">Debug &amp; performance</span><h2>StressTest</h2><p>The world with every plot full: 898 million things standing and nine million moving. How far the engine goes.</p><div class="foot"><span class="go"></span></div></button>`);
+  $('tiles').querySelectorAll('button.tile').forEach((t) => (t.onclick = () => (t.dataset.lenses !== undefined ? game('lenses') : t.dataset.stress !== undefined ? game('stress') : t.dataset.library !== undefined ? game('library') : t.dataset.go === 'game' ? game('walk') : tab(t.dataset.go))));   // the game's tile always walks, whatever was open last
 }
 
 [intents, stories, me, scenes] = await Promise.all([get('/api/intents').then((r) => r.json()), get('/api/stories').then((r) => r.json()).catch(() => []), get('/api/me').then((r) => r.json()).catch(() => ({})), get('/api/scenes').then((r) => r.json()).catch(() => [])]);
