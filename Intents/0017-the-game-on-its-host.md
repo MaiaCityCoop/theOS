@@ -141,3 +141,4 @@ Asked outright, with no surprise in it: built straight away.
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-14 | `305a617` | The two workflows, `TheGame/deploy/` and its README |
+| 2026-11-14 | `fa910d8` | The website and the game apart: both builds, `deploy/` at the root, two Caddy sites |
