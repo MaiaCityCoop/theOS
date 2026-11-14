@@ -1441,6 +1441,13 @@ and the frame rate is not always stable.
 - **Not seen in his Safari yet:** the last two changes (busy frames not counted; the look by lanes). **Not there:**
   60 fps steady while walking (new kinds' meshes still come in bursts as he goes); the inside at the screen's full
   ratio everywhere; movers that leave their plot, cross a way or overtake.
+- **Seen by Samuel** on all of it (reloaded, 08:16): "Reloaded, better", then "60 is quite stable now! well done".
+  His tab over two minutes: standing 56 to 60 fps with the inside at 1.1 to 1.4 of the screen's points; walking 52
+  to 59 at 1.0 to 1.5; never under the screen's points (it had been in 56 % of his rows that morning). One dip left
+  in his rows: on a fast flight (15 to 40 m/s) the inside had climbed to 1.6 while the stand took things in, and
+  the frames fell to 43 to 48 a second. The governor now gives the pixels over the screen's points back while most
+  frames are busy (a notch a look, two when nearly all are) and tries none till it has passed: in a made-up flight
+  it is at 1.0 five seconds in, where it stayed at 1.5 to 1.6, and back up twenty seconds after. Not seen by him yet.
 
 ## Trail
 

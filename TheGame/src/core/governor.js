@@ -41,7 +41,7 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
   let cap = startCap, zoom = 1, lod = 1, ema = 16.7, calm = 0, at = 0;
   const times = new Float32Array(160); let tn = 0, mid = 16.7, streak = 0, midAvg = 16.7, lateAvg = 0;   // (midAvg, lateAvg: the middle frame and the late share over the last few seconds: what one look hides when frames lie at the edge of 60)   // a look's frame times, the middle one of them, and how many looks running had too many late frames
   let born = -1, n = 0, late = 0, share = 0, sum = 0, worst = 0, mean = 16.7;   // frames since the last look, how many of them late, that share; their times' sum and the worst, the mean without it   // frames since the last look, how many of them late, and that share
-  let trial = null, noPixels = 0, wait = 15000;   // a step down in pixels on trial; until noPixels none is tried (wait: how long, longer each time one fails)
+  let nb = 0, trial = null, noPixels = 0, wait = 15000;   // (nb: frames since the last look that were busy with something besides drawing)   // a step down in pixels on trial; until noPixels none is tried (wait: how long, longer each time one fails)
   let held = false, hot = 0, downAt = -1e9;   // a film playing: no turning of the dials, so its frames come out even (it plays the same every time, too)
   apply(dpr);
   return {
@@ -53,10 +53,12 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
     end(ms, now, over, busy = false) {
       // (a frame that packed tiers again or put meshes on the GPU is long for that, not for its pixels: not counted. Read
       // in his Safari on 2026-11-14: a walk took the ratio from 1 to 0.625 and was no smoother for it)
+      if (busy && ms < 250) nb++;
       if (ms < 250 && !busy) { ema += (ms - ema) * 0.08; n++; sum += ms; if (ms > worst) worst = ms; if (ms > SLOW) late++; if (tn < times.length) times[tn++] = ms; }   // a longer gap is the browser holding the page back, not the picture's cost
       if (born < 0) born = now;
       if (document.hidden || held || now - born < WARM) { n = late = sum = worst = tn = 0; return; }   // (a page starting compiles and fills: its slow frames say nothing of the picture's cost)
       if (now - at < 700 || (n < 8 && now - at < 3000)) return;   // (a look needs frames to go by: while most are busy, a longer one)
+      const busyShare = nb / Math.max(1, n + nb); nb = 0;   // how much of the look the stand was taking things in (the camera travelling)
       at = now; share = n ? late / n : 0; mean = n > 2 ? (sum - worst) / (n - 1) : 16.7; mid = tn > 4 ? times.subarray(0, tn).sort()[tn >> 1] : 16.7; streak = share > LATE ? streak + 1 : 0; n = late = sum = worst = tn = 0;
       midAvg += (mid - midAvg) * 0.25; lateAvg += (share - lateAvg) * 0.25; if (trial) { trial.n++; trial.lates += share; trial.mids += mid; }
       let next = dpr;
@@ -77,6 +79,11 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
       // 2026-11-14, forty seconds at 48 to 56 fps with the ratio never moved, no three looks running being slow)
       const edge = midAvg > MEAN - 0.3 || (lateAvg > 0.15 && midAvg > 17), dragging = mid > MEAN || share > MOST || streak >= STREAK || edge, slow = dragging || over, urgent = share > 0.4 || mid > 22 || over;
       if (next !== dpr) calm = hot = 0;   // (a step taken back this look: nothing more)
+      // Travelling: most frames busy with what comes into view. Pixels over the screen's own points are a luxury then:
+      // given back a notch a look (two when nearly every frame is busy), and none tried, till it has passed. (Read in
+      // his Safari on 2026-11-14: the ratio had climbed to 1.6 on a fast flight and the frames fell to 43 a second.)
+      else if (busyShare > 0.5 && dpr > DPR_MIN) { next = Math.max(DPR_MIN, dpr - (busyShare > 0.75 ? 0.25 : 0.125)); calm = hot = 0; downAt = now; }
+      else if (busyShare > 0.25 && !(mid > MEAN || share > MOST)) { calm = 0; hot = 0; }   // (some of it: nothing tried, nothing given up)
       else if ((share > LATE || mean > MEAN) && dpr > DPR_MIN) {
         // pixels over the screen's own: given back at once, a step a look (two when most frames are late). Slow right
         // after a step up: that step was too much, and is left alone for a while, longer each time. Slow at a ratio
