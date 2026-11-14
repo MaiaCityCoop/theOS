@@ -1337,6 +1337,30 @@ A plot's things stand 1.4 m apart and a mover is up to 6 m long: there was no ro
 - **Seen by Samuel** in his Safari, standing at a way (asked whether the movers keep clear now): "Ja, passt."
   His tab over a hundred seconds, 632 m walked: 58 fps in the mean, 51 at the least, 7 % of frames late (60 fps standing).
 
+### 2026-11-14, roads for what drives, winding trails for the rest, and room made for the walker (06:13)
+
+Samuel, after the ways: the rigs' variety and their different speeds were lost; a mover he stood in front of sank
+into the ground and grew again once past; and only what drives should keep to the roads, the rest go off-road and
+find its way through the thicket. He chose trails over free steering, and kept the 4K gate.
+
+- **Roads and trails.** Of a plot's eight rings, four are roads (transports and cycles; dragons and birds fly over
+  them), four are trails between them, winding through the thicket (gently: no steeper than 0.3 from the ring). A
+  family's herd says `road: true` to keep to the roads; otherwise it keeps to the trails.
+- **Mixed again.** Herds whose paces can meet go in one file (walkers, four legs, ten legs, snakes; runners and
+  rovers; birds and dragons), spread through it, each with its own stride. Every lane has its own pace; the lane
+  beside it another. Within a lane one pace, so nobody overtakes.
+- **The detour.** A mover the walker stands before steps aside of him, as far as it must, and back once past; the
+  same in JS, so what stops him is where it is drawn. A mover is no longer drawn back into the ground near the camera.
+- **A lane's room** is widened for the steepest turn of its way (a trail's winding on top of the plot's shape): with
+  lanes set square to the path, things came into them (the fold keeps things off by the radius); with a steeper
+  winding, two rovers met.
+- **Counted by true shapes:** 30 whole plots (movers at 0.32 to full size), none in another, none of 46,000 sampled
+  in a thing; drawn movers at five spots and standing in each trail lane: none in another, a thing, a trunk or the
+  walker. Frame: no difference to the build before (test browser). His Safari after reloading: "Reloaded, looks
+  right"; 58 fps in the mean, 48 at the least, 6 % of frames late.
+- **Not there:** the trails are winding paths, not a maze each mover finds its own way through; a mover goes round
+  its own plot only; within a lane nobody overtakes.
+
 ## Trail
 
 | When | Commit | What |

@@ -25,8 +25,8 @@
 //     bonesOf?(i)             its skeleton: Float32Array, BONES bones of three rows of four (assets/kit/creature.js
 //                             says what a bone is); without: nothing in it moves by itself
 //     fullTris?(i)            how many triangles its full mesh has (for the readout)
-//     roams?: [{ name, share, speed: [from, to] (m/s), size: [from, to] (m), fly: [from, to] (metres over the
-//               ground), stride (of its size, a radian of its gait), first, count }]
+//     roams?: [{ name, share, speed: [from, to] (m/s), size: [from, to] (m), road (it keeps to the roads; else to
+//               the trails), fly: [from, to] (metres over the ground), stride (of its size, a radian of its gait), first, count }]
 //                             its herds: how its kinds move about (kinds first … first + count of it are one herd; share:
 //                             how many of a place's movers are of it). Without: its kinds stand. What moves keeps to
 //                             the ways (src/world/ways.js), each herd in a lane as wide as its colliders say (herdRooms).
@@ -72,7 +72,7 @@ export const fullTris = (k) => { const E = of(k); return E.F.fullTris?.(k - E.fi
     of a place's movers ends (0 … 1: a number under a herd's upTo and not under the one before's is of it). */
 export const HERDS = (() => {
   const all = FAMILIES.filter((E) => E.roams).flatMap((E) => E.F.roams.map((R) => ({ ...R, family: E.id, first: E.first + R.first }))), total = all.reduce((s, R) => s + R.share, 0); let at = 0;
-  return all.map((R) => ({ ...R, fly: R.fly ?? [0, 0], upTo: (at += R.share / total) }));
+  return all.map((R) => ({ ...R, road: !!R.road, fly: R.fly ?? [0, 0], upTo: (at += R.share / total) }));
 })();
 /** How much room each herd's movers take as they move, of their own size: [{ fore, side, top }], the furthest any
     collider of any of its kinds reaches along its way (to either end), across it (to either side) and up, carried by
