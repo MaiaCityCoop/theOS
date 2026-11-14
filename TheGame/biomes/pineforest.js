@@ -46,6 +46,8 @@ export default {
   // far off, past where its trees are drawn, the land under it takes the colour of their crowns, in its stand's groves
   // (src/terrain/material.js); from/to (metres): only if no tree of it says where its trees end
   canopy: { colour: [0.05, 0.085, 0.035], from: 650, to: 1000 },
+  // what a plant's placement may name to say where in the wood it likes to grow (its `where`: src/world/stand.js)
+  fields: { glade: (p) => gladeAt(p) },
 };
 /** How open the wood is at p, 0 under its groves … 1 in its glades: for what grows by the light (a shrub's placement.where). */
 export const gladeAt = (p) => float(1).sub(clamp(groveAt(p, TREES).mul(0.8), 0, 1));

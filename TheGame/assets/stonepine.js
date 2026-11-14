@@ -129,7 +129,8 @@ export default tree({
   growth: { years: [5, 15, 35, 70, 150], variants: [1, 1, 2, 2, 2], form, height, min: 2, max: 220 },
   grow: pine, shade,
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, tree (assets/kinds.js); P: cells per patch side
-  levels: [{ P: 4 }, { P: 8 }, { P: 16 }, { P: 32 }],
+  levels: [{ P: 4, most: [19700, 12480] }, { P: 8, most: [4100, 2600] }, { P: 16, most: [1200, 928] }, { P: 32, most: [330, 182] }],   // most: the most vertices and triangles a shape of it has at that level (its place in the heap: src/scatter/heap.js; a recipe that grows past it is told so)
+  shadow: { most: [488, 318] },   // (its shade's)
   // where it grows: the pine forest's stand (its cells, its groves, its ages: biomes/pineforest.js `trees`), of which it
   // takes its share; scale: one tree's own size about its age's height; lean: how far a trunk may lean; seed: its shapes'
   placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.7, scale: [0.93, 1.07], lean: 0.1, seed: 300 },

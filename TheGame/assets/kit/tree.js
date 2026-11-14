@@ -21,8 +21,9 @@
 // grow(q, shape, i) builds level q (0 nearest) of a shape (a stage's form, or shapes[i]) with builder()/tube()/cards(), or
 // crown() for its limbs and foliage as most trees share them, or mound() for a low bush, and returns the builder;
 // shade(shape, i), if given, the light mesh the shadow map is drawn from (else none of its levels cast, but the nearest);
-// tree() works out the rest the engine reads: every level's meshes, the shade's, the tree's size, and each shape's trunk
-// as a body (the tube made with { body: true }, where it stands at a walker's chest).
+// tree() works out the rest the engine reads: its levels, its size, and each shape's trunk as a body (the tube made
+// with { body: true }, where it stands at a walker's chest); its meshes are made where they are asked for, never when
+// its file is read (a worker reads this file too: plain JS, nothing of the page in it).
 
 // ---- small vector help ----
 export const add = (a, b) => a.map((x, i) => x + b[i]), sub = (a, b) => a.map((x, i) => x - b[i]), mul = (a, s) => a.map((x) => x * s);
@@ -253,52 +254,67 @@ function stagesOf(G, seed) {
   return { shapes, stages, at };
 }
 
-/** What the kit has made, by what it is (a recipe's uid and seed): `kept`, what was made before and is handed in
-    (src/core/meshes.js reads it from where it is kept, by the recipe's version); `made`, what was made anew this
-    time, for it to keep. */
-export const MESHES = { kept: new Map(), made: new Map() };
+/** What the page must know of a tree at once, before any of its meshes is made (its size, each shape's height and
+    trunk: measured on its nearest level), by what it is (a recipe's uid and seed): `kept`, what was measured at an
+    earlier start and is handed in (src/core/outlines.js reads it from where it is kept, by the recipe's version);
+    `made`, what was measured anew this time, for it to keep. A few numbers a tree. */
+export const OUTLINES = { kept: new Map(), made: new Map() };
 const FLOATS = ['position', 'normal', 'uv', 'part', 'ao', 'color', 'cn', 'root', 'hand'];
-// a built mesh as it is handed on and kept: its attributes as typed arrays (half the memory of a list of numbers, and
-// what the GPU takes as they are), its trunk's body; nothing of the builder left on it
+// a built mesh as it is handed on: its attributes as typed arrays (what the GPU takes as they are), its trunk's body;
+// nothing of the builder left on it
 const packed = (m) => ({ ...Object.fromEntries(FLOATS.filter((k) => m[k]?.length).map((k) => [k, new Float32Array(m[k])])), index: new Uint32Array(m.index), body: m.body ?? null });
 
-/** A tree file's recipe made whole: its levels' meshes (one per shape), its shade, its size and its trunks' bodies. With
-    growth, its shapes are its stages of growth (and their variants), and a tree in the world is as old as its stand says
-    (placement.age, src/scatter/trees.js).
-    Its meshes are made when first asked for (its `detail`, its `size`, its `heights`, its `trunk`), not when its file
-    is read: once, and then kept (MESHES), so a start reads them back and builds none. keep: false for a tree that is
-    not the file's own (grown again from another seed). */
-export function tree(recipe, keep = true) {
+/** A tree file's recipe made whole. With growth, its shapes are its stages of growth (and their variants), and a tree
+    in the world is as old as its stand says (placement.age, src/scatter/trees.js).
+    Nothing of it is built when its file is read, and in the game none of its meshes is ever on the page: they are
+    made shape by shape and level by level where they are asked for (rawAt: by its family in the recipes' workers,
+    assets/kit/plant.js; meshAt: by the library, for a plant on its stage) and live on the GPU (src/scatter/heap.js).
+    What the page must know at once (size, heights, trunk) is measured once on its nearest level and kept as a few
+    numbers (OUTLINES). */
+export function tree(recipe) {
   const { shapes: own = [{}], growth, grow, shade, levels, shadow = {}, far = {}, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
   const G = growth ? stagesOf(growth, seed) : null, shapes = G ? G.shapes : own;
-  const make = () => {
-    const built = levels.map((L, q) => ({ meshes: shapes.map((s, i) => grow(q, s, i)), P: L.P }));
-    const shades = shade ? shapes.map((s, i) => shade(s, i)) : null;
-    const near = built[0].meshes;
-    // after the levels its file draws, its two farthest, made here from its nearest (farOf): a crown as one body on a
-    // post, then a speck; `far: false`: none
-    if (far) for (const o of [far, ...(far.speck === false ? [] : [{ ...far, sides: 4, shoulder: false, trunk: false }])]) built.push({ meshes: near.map((m) => farOf(m, o)), P: far.P ?? 64, far: true });
-    return {
-      levels: built.map((L) => ({ ...L, meshes: L.meshes.map(packed) })), shades: shades?.map(packed) ?? null,
-      size: boundsOf(near),
-      trunk: near.map((m) => m.body ?? [0, 0, 0.12]),   // each shape's trunk at a walker's chest: where it stands off its foot, its radius (src/world/trunks.js)
-      heights: near.map((m) => boundsOf([m]).height),   // each shape's own height
-    };
+  // after the levels its file draws, its two farthest, made from its nearest (farOf): a crown as one body on a post,
+  // then a speck; `far: false`: none
+  const fars = far ? [far, ...(far.speck === false ? [] : [{ ...far, sides: 4, shoulder: false, trunk: false }])] : [];
+  const farMost = ({ sides = 6, shoulder = true, trunk = true }) => [sides * (shoulder ? 2 : 1) + 2 + (trunk ? 8 : 0), sides * (shoulder ? 4 : 2) + (trunk ? 6 : 0)];   // (a far body's vertices and triangles: its crown's rings, top and underside, its post: farOf)
+  const specs = [...levels.map((L) => ({ ...L })), ...fars.map((o) => ({ P: far.P ?? 64, far: true, most: farMost(o) }))];
+  // (the last few made are kept as the builder left them: a far level is made from its shape's nearest)
+  const memo = new Map(), once = (key, make) => { let m = memo.get(key); if (!m) { if (memo.size >= 6) memo.delete(memo.keys().next().value); memo.set(key, (m = make())); } return m; };
+  /** Shape `shape` at level `level`, as the builder made it (its attributes lists of numbers). */
+  const rawAt = (level, shape) => once(`${level}:${shape}`, () => (level < levels.length ? grow(level, shapes[shape], shape) : farOf(rawAt(0, shape), fars[level - levels.length])));
+  const id = `${rest.uid}:${seed}`; let outline = null, detail = null;
+  const measured = () => {
+    if (!outline) {
+      outline = OUTLINES.kept.get(id);
+      if (!outline) {
+        const near = shapes.map((s, i) => grow(0, s, i));
+        outline = { size: boundsOf(near), trunk: near.map((m) => m.body ?? [0, 0, 0.12]), heights: near.map((m) => boundsOf([m]).height) };   // trunk: each shape's at a walker's chest: where it stands off its foot, its radius (src/world/trunks.js)
+        OUTLINES.made.set(id, outline);
+      }
+    }
+    return outline;
   };
-  const id = `${rest.uid}:${seed}`; let memo = null, detail = null;
-  const made = () => { if (!memo) { memo = keep ? MESHES.kept.get(id) : null; if (!memo) { memo = make(); if (keep) MESHES.made.set(id, memo); } } return memo; };
   const out = {
     ...rest,
     ...(G ? { growth: { years: growth.years, stages: G.stages, at: G.at, height: growth.height } } : {}),
+    /** how many shapes it has, and how many levels (its file's and the kit's two farthest) */
+    shapeCount: shapes.length, levelCount: specs.length,
+    rawAt,
+    /** its shade's mesh for a shape (what the shadow map is drawn from), as the builder made it; none: it has no shade of its own */
+    shadeRaw: shade ? (shape) => shade(shapes[shape], shape) : null,
+    /** shape `shape` at level `level` as typed arrays (a plain geometry's: the library's stage) */
+    meshAt: (level, shape = 0) => packed(rawAt(Math.min(level, specs.length - 1), Math.min(shape, shapes.length - 1))),
     /** the same kind of tree grown from another seed: other shapes, other places (the library's Random) */
-    regrow: (s) => tree({ ...recipe, placement: { ...recipe.placement, seed: s } }, false),
+    regrow: (s) => tree({ ...recipe, placement: { ...recipe.placement, seed: s } }),
   };
   const lazy = (get) => ({ enumerable: true, configurable: true, get });
   return Object.defineProperties(out, {
-    size: lazy(() => rest.size ?? made().size), trunk: lazy(() => made().trunk), heights: lazy(() => made().heights),
-    // meshes: one per shape (mesh: the first, for a single picture); shadow: drawn into the shadow map for every tree
-    // within `far` metres (from high up, up to `wide` times that) whose shade can reach the view (`reach`: how far a
-    // crown's shadow falls); past them the land dims its floor under the stand by itself (src/terrain/material.js)
-    detail: lazy(() => (detail ??= { ...(rest.detail || {}), levels: made().levels.map((L) => ({ mesh: L.meshes[0], ...L })), ...(made().shades ? { shadow: { meshes: made().shades, far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) })),
+    size: lazy(() => rest.size ?? measured().size), trunk: lazy(() => measured().trunk), heights: lazy(() => measured().heights),
+    // its levels as numbers only (P: cells a patch's side; most: the most vertices and triangles a shape of it has there, its file says;
+    // tris(): counted when asked); shadow: it is drawn into the shadow map by its shade, for every tree within `far`
+    // metres (from high up, up to `wide` times that) whose shade can reach the view (`reach`: how far a crown's shadow
+    // falls); past them the land dims its floor under the stand by itself (src/terrain/material.js)
+    detail: lazy(() => (detail ??= { ...(rest.detail || {}), levels: specs.map((L, i) => ({ ...L, tris: () => rawAt(i, 0).index.length / 3 })), ...(shade ? { shadow: { far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) })),
   });
 }

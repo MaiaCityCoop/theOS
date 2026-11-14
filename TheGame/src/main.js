@@ -11,6 +11,7 @@
 //
 // Drawn by three's WebGPURenderer (WebGL 2 where WebGPU is missing), every material in node code (TSL, intent 0008).
 // Everything is made before the first frame. A frame only moves uniforms and chooses what to draw.
+import { outlinesKept, keepOutlines } from './core/outlines.js';   // (first: what was measured of the plants at an earlier start is read back before any file asks a plant's size)
 import * as THREE from 'three/webgpu';
 import { loadingStep, loadingDone } from './ui/loading.js';   // first: the veil is told what is being made
 import { HMIN, heightAt } from './world/land.js';
@@ -27,7 +28,6 @@ import { createTerrain } from './terrain/terrain.js';
 import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
 import { recipe } from './core/registry.js';
-import { primeMeshes, keepMeshes } from './core/meshes.js';
 import { place } from './world/place.js';
 import { PLACES } from '../world/places.js';
 import { spawn } from './camera/walk.js';
@@ -49,10 +49,8 @@ const params = new URLSearchParams(location.search);
 // (the stress stand keeps its kinds' own textures in one array of many layers: more than a device gives unasked; src/scatter/stress.js)
 const layers = params.has('stress') ? Math.min(2048, (await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits?.maxTextureArrayLayers ?? 256) : 256;
 const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: params.has('webgl'), trackTimestamp: params.has('gputime'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (a pixel's fourth number is not how see-through it is: it says how still the thing is, src/world/light.js stillness; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
-const keptMeshes = primeMeshes();   // the meshes built before, read back while the renderer starts (src/core/meshes.js)
 await renderer.init();
 if (!params.has('fat')) useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js); ?fat: twice, as three keeps it, to compare
-const meshesKept = await keptMeshes;
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // every material makes its colours for the screen itself (toScreen)
 renderer.setSize(innerWidth, innerHeight, false);
 renderer.setClearColor(SKY);
@@ -68,7 +66,7 @@ addEventListener('resize', () => {   // only a real change of size rebuilds the 
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight, false);
 });
 
-const stats = (window.__s8 = { renderer, camera, scene, meshes: { kept: meshesKept, built: 0 } });
+const stats = (window.__s8 = { renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 } });
 const U = createUniforms(camera, SKY);
 trackView(); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
 // The one way to the screen, for every view (src/core/screen.js): the world drawn at the inside's pixels (the governor's
@@ -191,7 +189,7 @@ for (let i = 0; i < seen.length; i += 2) seen[i].visible = seen[i + 1];
 choose(0);
 screen.render(scene, camera);
 stats.loadMs = performance.now() - t0;
-setTimeout(() => keepMeshes().then((n) => (stats.meshes.built = n)), 2500);   // what was built anew this time, kept for the next start
+setTimeout(() => (stats.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start
 console.log(`[sandbox 8] ready in ${stats.loadMs.toFixed(0)} ms`, boot);
 requestAnimationFrame(frame);
 requestAnimationFrame(() => requestAnimationFrame(loadingDone));   // the veil goes once the world is on the screen

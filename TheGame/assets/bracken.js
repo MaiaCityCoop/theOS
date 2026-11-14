@@ -4,8 +4,6 @@
 // asset in the one recipe (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by the trees' engine in the pine
 // forest's understory (biomes/pineforest.js `shrubs`), of which it takes its share.
 import { tree, builder, mound } from './kit/tree.js';
-import { mix } from 'three/tsl';
-import { gladeAt } from '../biomes/pineforest.js';
 
 const woodCol = [0.2, 0.15, 0.1], leafCol = [0.07, 0.14, 0.04];   // (for a picture without the textures)
 // a level of it: q 0 near (its stems, its base and its fine sprigs), 1 further (its base alone, unchanged); S its shape
@@ -27,11 +25,12 @@ export default tree({
   shapes: [{ r: 0.55, h: 0.55, lobes: 4, seed: 631 }, { r: 0.4, h: 0.45, lobes: 3, seed: 632 }],
   grow,
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
-  levels: [{ P: 4 }, { P: 8 }],
+  levels: [{ P: 4, most: [208, 104] }, { P: 8, most: [96, 48] }],   // most: the most vertices and triangles a shape of it has at that level (its place in the heap: src/scatter/heap.js; a recipe that grows past it is told so)
   // (its farthest, one body, darker than its sprigs' tops: a bush is mostly its own shade)
   far: { P: 32, shade: 0.85, speck: false, sides: 5, shoulder: true, trunk: false },
   // where it grows: the pine forest's understory, of which it takes its share
   placement: { at: 'scatter', engine: 'trees', stand: 'shrubs', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.4, scale: [0.55, 1.35], lean: 0,
     // (most of it where the wood opens, some in the half shade)
-    where: ({ p }) => mix(0.4, 1, gladeAt(p)), seed: 630 },
+    // (where: how much of it grows where its biome's field `glade` is 0, and where it is 1: src/world/stand.js whereOf)
+    where: { field: 'glade', from: 0.4, to: 1 }, seed: 630 },
 });

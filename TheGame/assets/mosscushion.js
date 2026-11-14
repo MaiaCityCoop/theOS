@@ -5,8 +5,6 @@
 // (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by the trees' engine in the pine forest's litter
 // (biomes/pineforest.js `litter`), more of it in the shade.
 import { tree, builder, rng, norm } from './kit/tree.js';
-import { mix } from 'three/tsl';
-import { gladeAt } from '../biomes/pineforest.js';
 
 const woodCol = [0.1, 0.16, 0.05], leafCol = [0.1, 0.16, 0.05];   // (for a picture without the textures)
 const FOOT = 0.15;   // what stands in a stand is set this deep into the ground (src/scatter/trees.js): its skirt goes down that far
@@ -45,9 +43,9 @@ export default tree({
   shapes: [{ r: 0.42, h: 0.13, domes: 3, seed: 721 }, { r: 0.28, h: 0.09, domes: 2, seed: 722 }],
   grow,
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
-  levels: [{ P: 4 }, { P: 8 }],
+  levels: [{ P: 4, most: [178, 260] }, { P: 8, most: [68, 78] }],   // most: the most vertices and triangles a shape of it has at that level (its place in the heap: src/scatter/heap.js; a recipe that grows past it is told so)
   far: false,
   // where it lies: the pine forest's litter, of which it takes its share; most of it in the shade of the groves
   placement: { at: 'scatter', engine: 'trees', stand: 'litter', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.4, scale: [0.8, 1.25], lean: 0,
-    where: ({ p }) => mix(1, 0.25, gladeAt(p)), seed: 720 },
+    where: { field: 'glade', from: 1, to: 0.25 }, seed: 720 },
 });

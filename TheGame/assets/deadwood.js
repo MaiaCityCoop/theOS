@@ -38,7 +38,7 @@ export default tree({
   shapes: [{ len: 2.9, r: 0.075, bow: 0.3, lift: 0.14, twigs: 6, seed: 711 }, { len: 1.8, r: 0.05, bow: 0.16, lift: 0.07, twigs: 4, seed: 712 }, { len: 1.1, r: 0.034, bow: 0.07, lift: 0.03, twigs: 3, seed: 713 }],
   grow,
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
-  levels: [{ P: 4 }, { P: 8 }],
+  levels: [{ P: 4, most: [150, 182] }, { P: 8, most: [56, 58] }],   // most: the most vertices and triangles a shape of it has at that level (its place in the heap: src/scatter/heap.js; a recipe that grows past it is told so)
   far: false,
   // where it lies: the pine forest's litter, of which it takes its share
   placement: { at: 'scatter', engine: 'trees', stand: 'litter', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.6, scale: [0.85, 1.15], lean: 0, seed: 710 },

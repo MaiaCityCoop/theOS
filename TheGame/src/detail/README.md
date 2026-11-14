@@ -28,7 +28,7 @@ every distance with it.
 
 | What | Engine | How |
 | --- | --- | --- |
-| trees, bushes, ferns: anything in a stand | `src/scatter/trees.js` | per vertex, each frame: `handOver` + `partGrown` + `sinkInto`; packing by `bandOf` |
+| trees, bushes, ferns: anything in a stand | `src/scatter/trees.js`, drawn by `src/scatter/drawer.js` | per vertex, each frame: `handOver` + `partGrown` + `sinkInto`; packing by the drawer's tier (`bandOf`) |
 | rocks, and whatever else the heap holds | `src/scatter/drawer.js` (the rocks placed by `rocks.js`) | the ladder's eight levels (`assets/kit/ladder.js`), each vertex moving to its place on the next coarser mesh over a level's last pixels; an asset may end sooner (`detail.end`), shrinking away |
 | what stands at a place (a tent), and its far card | `index.js` `Detailed`, `src/world/place.js`, `impostor.js` | on the CPU: `handOverAt`, the material's `sunk` |
 | the land's colour where a stand has sunk | `src/terrain/material.js` | `sizeOf`, `detailOf().cut`, the stand's `cover` |
@@ -48,9 +48,10 @@ A stand is one thing to the engine, however many kinds grow in it (`src/scatter/
 | | per stand and level | per kind |
 | --- | --- | --- |
 | packing (compute) | one pass: where the cell is, whether it is seen, the groves, the land, the river, the ground | a few lines: its size, its shape |
-| draw shader | one for every stand, kind, shape and level | none: a mesh says its kind as numbers (`wear`: bark, leaves, wind, light, tint) |
-| draw calls | | one a shape and level |
-| the start | | its meshes: built once (a shrub a few milliseconds, a tree of eight shapes half a second), then kept in the browser and read back (`src/core/meshes.js`) |
+| draw shader | one for every stand, kind, shape and level | none: a kind is a row of numbers (`numbersOf`: bark, leaves, wind, light, tint) |
+| draw calls | | one a shape and level (its corners the draw's own list) |
+| memory | a heap of every shape's vertices at every level, on the GPU only (`heap.js`), 32 bytes a vertex | its meshes' bytes; nothing on the page |
+| the start | | its meshes: made once in the recipes' workers (a tree of eight shapes a quarter to half a second, off the page's thread), then kept in the browser and read back (`src/core/kept.js`); the few numbers the page needs at once (its size, each shape's height and trunk) kept apart (`src/core/outlines.js`) |
 
 Kinds share a stand's tiers when their levels are the same make (the same pixels and patches: their kind's and the
 kit's); a kind made otherwise is a group of its own in the same cells (`groupsOf`).
@@ -246,11 +247,19 @@ frame by the filter alone): to measure against.
 
 ## What this does not yet give
 
-- **The trees and the grass are not on the one drawer yet** (`src/scatter/drawer.js`: the heap, the looks, the one
-  shader, the levels' draws and what streams them). The rocks are, since 2026-11-14: a rock asset's shapes are a
-  family of the zoo (`assets/zoo/boulders.js`, `stones.js`: three lines each; the shapes are `assets/kit/rock.js`'s),
-  `rocks.js` says only where they lie. What grows is the next stage: a vertex of its own make (its place on its
-  sprig's painting, its part, its sprig's foot), the plants' material as the drawer's second.
+- **The grass is not on the one drawer yet** (`src/scatter/drawer.js`: the heap, the levels' draws and what fills
+  and streams them). The rocks and the plants are, since 2026-11-14. A rock asset's shapes are a family of the zoo
+  (`assets/zoo/boulders.js`, `stones.js`; the shapes are `assets/kit/rock.js`'s), `rocks.js` says only where they
+  lie. A plant asset's shapes are a family too (`assets/zoo/holmoaks.js` and six more; `assets/kit/plant.js` packs
+  what the tree kit builds), drawn by the drawer's second make of vertex: the plants' own material (its light worked
+  out at its corners, a pixel reads one texture: a crown is many cards deep, and the solids' shader a pixel would
+  cost the frame), two elements a vertex, its levels and their rooms its own, not the ladder's.
+- **A plant is still a draw a shape and level**, as before it came to the heap: its meshes are uneven (a young oak
+  3 000 triangles, an old one 22 000) and their vertices shared between triangles. One draw as long as the largest
+  for all, by quads (the first try), ran 4.2 million vertices a frame in the wood where its plants have 1.5 million,
+  and cost 0.5 to 1 ms. So each shape's corners are its draw's own index, and a vertex is worked out once.
+- **A plant's place in the heap is as large as its stand's largest shape** (the heap's places are of one size a
+  level): 24 MB for the wood's sixteen tree shapes, whose own sizes add up to 15.
 - **The library's own rock and tree are lit by small materials of their own** (`rockSample`, `treeSample`: a list's
   picture is taken by another camera, and the drawer lights for the game's). The rock's shape there is the world's;
   its light is not yet the drawer's.
@@ -261,9 +270,11 @@ frame by the filter alone): to measure against.
 - **Only the coarse levels are kept between starts**: the fine meshes and textures of what stands near the camera
   are made again by the workers at every start (a second or two until all of them are there).
 
-- **A tree's first start still builds its meshes on the main thread**, and every start holds them whole (35 MB for two
-  trees and five shrubs), with a draw call and a slice of the packing's buffer a shape and level: fine for tens of
-  kinds a stand, not for hundreds. The heap above is the way out, once it takes a tree's material.
+- **A stand's packing keeps a slice of its buffers for every shape and level** (44 MB for the wood's trees): fine for
+  tens of kinds a stand, not for hundreds.
+- **A first start measures each plant's outline on the page's thread** (its nearest meshes built once for their size,
+  height and trunk: half a second for the two trees), and has one long frame when the workers' meshes come in (93 ms
+  in the test window); later starts read both back and have neither.
 - **The grass has its own engine** (`grass.js`): the same rule, not the same tiers.
 - **The WebGL 2 fallback draws no plants** (seen 2026-11-12, and so before this): its packing per vertex gives none.
   Nor rocks, since they are drawn from the heap (storage buffers and compute): there none is drawn and none is a body.

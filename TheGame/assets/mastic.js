@@ -25,7 +25,7 @@ export default tree({
   shapes: [{ r: 1.5, h: 1.75, lobes: 3, seed: 611 }, { r: 1.15, h: 1.25, lobes: 2, seed: 612 }],
   grow,
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
-  levels: [{ P: 4 }, { P: 8 }],
+  levels: [{ P: 4, most: [1530, 804] }, { P: 8, most: [190, 96] }],   // most: the most vertices and triangles a shape of it has at that level (its place in the heap: src/scatter/heap.js; a recipe that grows past it is told so)
   // (its farthest, one body, darker than its sprigs' tops: a bush is mostly its own shade)
   far: { P: 32, shade: 0.85, speck: false, sides: 5, shoulder: true, trunk: false },
   // where it grows: the pine forest's understory, of which it takes its share

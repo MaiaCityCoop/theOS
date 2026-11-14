@@ -97,7 +97,8 @@ export default tree({
   // what it drops: the ground under it where it leads in its stand (the land lays it: src/terrain/material.js)
   litter: { material: 'd269b213-283d-4f8f-92b0-66b57ac2e8b6' /* oak litter */, tile: [1.9, 3.1] },
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, tree (assets/kinds.js); P: cells per patch side
-  levels: [{ P: 4 }, { P: 8 }, { P: 16 }, { P: 32 }],
+  levels: [{ P: 4, most: [36500, 23800] }, { P: 8, most: [7700, 4520] }, { P: 16, most: [1970, 1260] }, { P: 32, most: [480, 248] }],   // most: the most vertices and triangles a shape of it has at that level (its place in the heap: src/scatter/heap.js; a recipe that grows past it is told so)
+  shadow: { most: [870, 492] },   // (its shade's)
   // where it grows: the pine forest's stand (its cells, its groves, its ages: biomes/pineforest.js `trees`), of which it
   // takes its share; scale: one tree's own size about its age's height; lean: how far a trunk may lean; seed: its shapes'
   placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.3, scale: [0.9, 1.1], lean: 0.06, seed: 410 },

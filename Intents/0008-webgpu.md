@@ -1697,6 +1697,55 @@ from the world.
 - **Not done:** the library's rock and tree by the drawer; the movers' tier is still the stand's own (it is the
   same idea as `tierAll`); a dot does not take the moss of what it was.
 
+### 2026-11-14, the plants' meshes in the heap, made in the workers; the same picture (18:37)
+
+Samuel, after the rocks: "deplyo now and conoteune wiht trees and shubrs.. while incierase the acutal realism while you
+upgrade". The upgrade first (this entry: nothing of the picture changes), the realism on it next.
+
+- **Real Safari, the rocks.** A tab of his Safari on the build with the rocks on the drawer, read with none of my
+  tests running: 231 to 236 frames in four seconds (58 to 59 a second) at an inside ratio of 1.1 to 1.4. No hang.
+  (His own `?stress` tab between 18:24 and 18:29 read 51 a second at a ratio of 0.6: my test windows were drawing
+  beside it the whole time. Not a reading of the game; a reminder to keep tests off while he has it open.)
+- **What a plant is now.** Every shape of every plant at every level lies in a heap on the GPU, as the rocks' shapes
+  do: a drawer a stand (`src/scatter/trees.js` on `drawer.js`: the wood's trees, its shrubs, its litter), a family of
+  the zoo a plant asset (`assets/zoo/holmoaks.js` and six more, three lines each), its meshes made by the tree kit
+  in the recipes' workers and packed (`assets/kit/plant.js`: 32 bytes a vertex where the kit's own arrays are 92;
+  places to a millimetre on a fixed grid, so a sprig's foot is the same number in both of two levels that hand
+  over). The drawer learned a second make of vertex (`make`): the plants' own material, its levels and their rooms
+  its own, a draw a shape. No mesh of a plant is on the page any more (35 MB of arrays, and `src/core/meshes.js`
+  that kept 20 MB of them in the browser, are gone); what the page must know at once (a plant's size, each shape's
+  height and trunk) is a few numbers kept in the browser (`src/core/outlines.js`).
+- **The plants keep their own material** and it is the same code: its light worked out at its corners, a pixel
+  reads one texture. A crown is many cards deep; the solids' shader, which lights each pixel, would cost the frame.
+  It is fed from the heap (the world) or from a mesh's own attributes (the library's plant).
+- **One draw a level for every shape, tried and dropped.** Laid out as quads with one list of corners for all, the
+  plants' draws ran 4.2 million vertices a frame inside the wood, of which 2.8 million were a plant's own (a vertex
+  no longer shared between triangles: a far body 84 where it has 22) and 1.3 million lay past a small shape's end
+  in a draw as long as the largest: 0.5 to 1 ms a frame more at an inside ratio of 1, nothing more at 1.5 (so:
+  corners, not pixels). Each shape now keeps its own list of corners as its draw's index: a draw a shape and level,
+  as before, a vertex worked out once.
+- **The picture** (the same three places in the wood, `?notaau`, clock, clouds and sun held): the same trees, shrubs,
+  trunks and light; 0.6 to 1.7 of 255 mean difference, all of it in trees caught between two levels, whose sprigs
+  come in at other moments than before (a sprig's moment is drawn from its foot's place, now rounded to a
+  millimetre): another mix of the same two levels, not another tree.
+- **Cost, by the clock** (test window, 2880 by 1558, two like servers): at the wood's edge 11.0 to 11.1 ms a frame
+  where the build before took 12.2 to 12.6; inside the wood 10.8 to 11.1 against 12.2 to 12.4; at an inside ratio of
+  1.5, 12.8 to 12.9 against 13.9 to 14.6. A vertex read as two elements of one buffer where it was nine attributes.
+- **The start.** A first start makes the meshes in the workers (the two trees' sixteen shapes in a quarter to half
+  a second, off the page's thread) and has one long frame when they come in (93 ms); a later start reads them and
+  the outlines back and has none (the build before: up to 120 ms). 3.0 to 3.4 s to the first picture, as before.
+  The trunks are bodies as before (read back from the shadows' stand-in), the library lists and stages a plant
+  (its meshes made when asked for), every page loads, the stress stand and the rocks are as they were.
+- **Three asset files made plain.** Bracken, rockrose and moss cushion said where they like to grow as node code,
+  which a worker cannot read: now numbers (`where: { field: 'glade', from, to }`), the biome gives the field
+  (`biomes/pineforest.js: fields`; `src/world/stand.js: whereOf`).
+- **Real Safari, this build.** His own tab, reloaded by him (`?stress`), my tests off: it draws; standing still 220
+  to 235 frames in four seconds at an inside ratio of 1 to 1.1; walking through the stand 185 to 211. The plain
+  game on this build is not read yet.
+- **Not done:** a plant's place in the heap is as large as its stand's largest shape (24 MB for sixteen tree shapes
+  whose own sizes add up to 15); a stand's packing keeps a slice of its buffers for every shape and level (44 MB
+  for the trees, as before); the realism (a finer nearest level, more shapes), which is what this was for.
+
 ## Trail
 
 | When | Commit | What |
