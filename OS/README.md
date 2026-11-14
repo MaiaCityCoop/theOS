@@ -27,3 +27,6 @@ under `/game/` — not at the old play. `VITE_GAME` points it at a game served s
 ```
 VITE_GAME=http://localhost:5174 bun run dev
 ```
+
+`bun run build` makes the deployed website (`dist/`): the dashboard with every `/api` answer written as a file
+(`deploy/README.md`). The game it frames is at `VITE_GAME`, e.g. `https://play.next.maia.city`.
