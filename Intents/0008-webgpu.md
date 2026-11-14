@@ -1448,3 +1448,4 @@ find its way through the thicket. He chose trails over free steering, and kept t
 | 2026-11-13 | `7f1dda3` | The ground's cache (maps round the camera), a sixth less of a frame; off unless ?groundcache: not yet the same picture |
 | 2026-11-13 | `7e560ed` | Roads kept clear and driven in lanes; walkers step round what stands (23 % in something before, 3 % now) and apart from each other |
 | 2026-11-14 | `a7db517` | The ways and the lanes: nothing stands where things move, every mover has a place in a lane; by true shapes none in another, in a thing or in a trunk |
+| 2026-11-14 | `34e68b6` | Roads for vehicles, winding trails for the rest; mixed rigs, a pace per lane; movers step round the walker |
