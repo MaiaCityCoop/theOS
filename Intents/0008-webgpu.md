@@ -1890,6 +1890,43 @@ What hung Safari's GPU on 2026-11-12 was a land shader grown too large.
   high up, the ninth would be missing); the trees' stands still each read their own biome (one each: they do not
   grow); materials given up when no biome near wears them.
 
+### 2026-11-14, the trees' finest level with whole twigs; lakes where the river ran in rings (21:08)
+
+Samuel: "Finest tree level"; and while it was built, with a picture of a ring of river seen from above: "ensure that
+ring like rivers can't exist, and replace them with little lakes instead".
+
+- **Two new paintings, one twig each** (`materials/pinetwig.js`, `materials/holmoaktwig.js`): a stone pine's twig
+  with its brushes of paired needles, a holm oak's twig with its leaves, alone and whole on the card, nothing beside
+  them. Their numbers (foot, length, how far either side they reach) lie with their sprigs' in the plain files the
+  workers read (`materials/*.twigs.js`). Two materials more: 5.6 MB.
+- **The finest level** (`assets/kit/tree.js: splayOf`): every sprig of a tree's nearest level laid out as its
+  painting's twigs, standing round the sprig's way as a spray's do, each twig a card of the whole twig painting, as
+  long as that twig is in the spray, its leaves the size they were. What failed at 18:50 (cards cut out of the spray's
+  painting: straight edges through the neighbours' needles, or a mushy blur) is gone: no card shows anything but its
+  own twig. The machinery is the one built then, brought back on today's files: made in the workers when a tree is
+  larger on screen than 600 pixels, held in six slots of the trees' heap, grown in from the next level by the clock
+  over a second and a half, sprig by sprig; until it comes the next level stands in. A tree says what its finest level
+  wears (`fine.twig`); a vertex says whether its card wears the twig (a bit of the plant's packed vertex); the plants'
+  numbers have a fourth row (the twig's layer). The pages' textures find the twigs by themselves.
+- **Looked at** (up into a stone pine's crown, beside it at eye height; the clock held only once the trees had grown
+  in): the near crown is twigs in depth, brushes with the sky between them, where it was flat fans; the trees beyond
+  as before. 23 MB more on the GPU (the slots and the two paintings); no error on any page.
+- **Lakes** (`src/world/land.js: findLakes`, `src/world/lakes.js`): the river is the line where a field of noise
+  crosses zero, and wherever that field has a small hill or dip near zero its line closes round on itself: a ring of
+  river round a patch of land. No river runs in a ring: what a ring closes round is now a lake, its shore the ring's
+  outer bank. A worker looks over 16 km square round the camera, a cell every 40 m (some 30 ms, off the page's
+  thread), for every patch of the field's one sign that the other sign closes round, up to 4 km²; the 32 nearest go
+  to the CPU's land (the walker's feet) and the GPU's (a uniform array: `inLake`); again when the camera has gone two
+  kilometres. Inside a lake the river's numbers say "the channel's middle": its floor is the channel's, its water the
+  river's (the valley's floor less 20 cm: flat), standing still but for the wind. Round the start: 32 lakes, 90 m to
+  900 m across, where there were rings.
+- **A lesson about TSL, paid for once:** a choice between two values (`select`) whose values are worked out in
+  statements writes both out in full: the first lakes made the land's largest shader 573 KB (from 385; what hung Safari
+  on 2026-11-12 was a shader grown too large). Worked out into variables first and chosen by an `If`: 389 KB.
+- **Not done:** a lake has no reeds or shore of its own (the river's banks); its water level is the river's, so a lake
+  on a slope would tilt as the river does (none found so far); a ring larger than 4 km² or reaching past the 16 km
+  square stays a river until the camera comes near enough.
+
 ## Trail
 
 | When | Commit | What |
@@ -1991,3 +2028,5 @@ What hung Safari's GPU on 2026-11-12 was a land shader grown too large.
 | 2026-11-14 | `4876cdc` | The heap's places as large as each kind's own mesh: the trees' meshes 17.9 MB where they took 23.2 |
 | 2026-11-14 | `b6cd67b` | Loud, not silent: a recipe without a uid or with another's is told and passed over; a missing material drawn as the stand-in; the largest shader told at start (385 KB, the land's) |
 | 2026-11-14 | `005ab49` | The land's shaders hold the biomes round the camera, eight at most (each biome's rule looked at in a pass of its own, the shaders compiled aside when the eight change): a biome more no longer makes the land's shader larger; seven today, the same picture |
+| 2026-11-14 | `c83e89e` | The trees' finest level for the few nearest: every sprig laid out as its twigs, each a card of a whole twig's own painting (two new materials); streamed into six slots, grown in by the clock: a near crown is twigs with sky between them |
+| 2026-11-14 | `8864fe9` | No river runs in a ring: what a ring of river closes round is a lake, found round the camera in a worker, the nearest 32 to the CPU's and the GPU's land; its water still |
