@@ -136,6 +136,10 @@ export function ball(n, at, own = false) {
   }
   return { n, V, pos, nor: normalsOf(pos, index, V), shade, index, where, at: lat, key };
 }
+/** The corners of a ball of n squares an edge (three a triangle, the numbers of its vertices): the same for every ball
+    of that n whatever its surface, a triangle's side being told on the ball and not on the shape (above). The level's
+    own shape: what has it can be drawn by one list of corners for all (src/scatter/heap.js). */
+export const ballCorners = (n) => ball(n, (x, y, z, out, o) => { out[o] = x; out[o + 1] = y; out[o + 2] = z; return 1; }, true).index;
 /** Each corner's normal: the mean of its faces'. */
 export function normalsOf(pos, index, V) {
   const nor = new Float32Array(V * 3);

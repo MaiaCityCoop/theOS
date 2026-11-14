@@ -71,7 +71,7 @@ should come to be drawn (`src/scatter/heap.js`):
 
 | | cost | per kind |
 | --- | --- | --- |
-| draw calls | one a level (eight), and eight for the movers, whatever the kinds | none: a draw reads its vertices from the heap by the kind's number |
+| draw calls | one a level (eight), one more for what has the level's own shape, and eight for the movers, whatever the kinds | none: a draw reads its vertices from the heap by the kind's number |
 | draw shaders | two: the meshes', the dots' | none |
 | its look | a row of numbers (two textures, two tints, a shading model, gloss, sway, snow) read by its pixels | 64 bytes |
 | shading models | a branch each in the one shader (twelve in the test: matte, glossy, metal, leafy, glowing, wet, …) | none |
@@ -115,6 +115,13 @@ What the test found:
 - **A small thing's cost is its corners' shader, not its pixels'.** The dot in the meshes' shader cost three times
   what it costs in a small shader of its own, though its branch was never taken. So: few shaders, but the far level
   its own.
+- **A vertex looked up by its corner is worked out six times.** A draw that reads every corner's vertex from the heap
+  by the corner's number gives the GPU nothing to share: 36n² corners for a ball of 6n² + 2 vertices. So a level has
+  a shape of its own (the ladder's ball: `ballCorners`), the heap marks every mesh whose corners are exactly that list
+  (`shapedOf`), and those are drawn by the list itself, their vertices read by their numbers, each worked out once.
+  Nobody says which kinds are balls: a family whose meshes are is drawn so (eight kinds in ten today, and every
+  kind at its two coarsest meshes). Across the stand at an inside ratio of 1 the GPU's time fell from 16.7 to 14.9 ms
+  a frame; the picture is the same (`?stress&corners` draws the old way, to measure against).
 - **A pixel must read only what it shows**: the texture its pattern shows there, the relief only when large on screen.
 - **Streaming must know the camera's speed**, and a mesh that comes must not repack everything (`heap.versions`).
 

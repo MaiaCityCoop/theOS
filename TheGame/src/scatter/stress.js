@@ -58,7 +58,8 @@ import { bandOf, padOf } from '../detail/handover.js';
 import { boxIn } from '../core/frustum.js';
 import { Tier, offScreen, clipOf, MAXP } from './tier.js';
 import { inView } from './view.js';
-import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective } from './heap.js';
+import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective, cornersOf, shapedOf } from './heap.js';
+import { ballCorners } from '../../assets/kit/blob.js';
 import { solidOf } from './solid.js';
 import { LADDER, FULLN, DOTN, trisOf, roomOf, underOf } from '../../assets/kit/ladder.js';
 import { STAND, MOVING, KINDS as ALL, FAMILIES, HERDS, lookOf as lookOfKind, fullTris, fingerprint } from '../../assets/zoo/index.js';
@@ -325,6 +326,7 @@ function plotOf(cp, i) {
 
 // the plots, as the GPU reads them: a row each (ROW numbers), filled when the city's plan has come (src/city: made in a
 // worker at the start). Kept here, not in the stand: what else places things reads the ways from them (below)
+const CORNERS = new URLSearchParams(location.search).has('corners');   // (`?corners`: every corner of every triangle looked up and worked out by itself, as before 2026-11-14: to measure against)
 const STRESS = new URLSearchParams(location.search).has('stress'), GHOST = new URLSearchParams(location.search).has('ghost');   // (GHOST: the walker walks through things)
 const plotRows = new THREE.StorageBufferAttribute(new Float32Array(STRESS ? PLOTS * ROW : ROW), 1), PT = storage(plotRows, 'float', STRESS ? PLOTS * ROW : ROW), PL = [];
 const reach = (base, th) => { const t = th.div(TAU).add(1).fract().mul(RAYS), i0 = floor(t), a = uint(i0).min(uint(RAYS - 1)); return mix(PT.element(base.add(uint(4)).add(a)), PT.element(base.add(uint(4)).add(a.add(uint(1)).mod(uint(RAYS)))), t.sub(i0)); };
@@ -405,7 +407,7 @@ export function createStress(scene, renderer, tex) {
     fillPlot.value = p.i; fillSlot.value = at; renderer.compute(keepPass); slots.version++; did('plot');
   };
 
-  const H = createHeap({ kinds: ALL, name: 'stand: meshes', levels: LEVELS.map((l, i) => { const r = roomOf(i); return { idx: r.tris * 3, elems: r.verts, slots: l.slots, one: l.n === DOTN }; }) });
+  const H = createHeap({ kinds: ALL, name: 'stand: meshes', levels: LEVELS.map((l, i) => { const r = roomOf(i); return { idx: r.tris * 3, elems: r.verts, slots: l.slots, one: l.n === DOTN, shape: !CORNERS && l.n > 0 ? ballCorners(l.n) : null }; }) });   // (shape: a level's ball, the ladder's: what is one is drawn by its one list of corners)
   const LO = uniformArray(LEVELS.map((l) => l.px));
   // every kind's look, five rows of numbers a kind: [its own texture's mean colour, model], [its second tint, metres a
   // tile of its textures], [the layer of the world's texture it takes its relief from, the layer its own texture lies in
@@ -519,7 +521,8 @@ export function createStress(scene, renderer, tex) {
   };
   // the one material of every mesh level: level i's (shadow: the whole of it, a little smaller, for the light only;
   // moving: a mover's, on its skeleton; foliage: leaf cards, cut out, seen from both sides)
-  const meshOf = (src, i, shadow = false, moving = false, foliage = false) => {
+  // (shared: drawn by the level's own list of corners, its vertices read by their numbers: what is of the level's shape)
+  const meshOf = (src, i, shadow = false, moving = false, foliage = false, shared = false) => {
     const lv = uniform(i, 'uint'), whole = uniform(shadow ? 1 : 0), lo = uniform(LEVELS[i].px), top = uniform(i ? LEVELS[i - 1].px : LEVELS[0].px * 2), morphs = uniform(underOf(i) ? 1 : 0), delta = uniform(LADDER[i].delta), still = uniform(i + 1 === HULL ? 1 : 0), m = new THREE.NodeMaterial();   // its level as numbers: every level is one shader
     const limbs = moving && i < HULL;   // (a mover's coarse levels are its hull: no bone moves it)
     if (foliage) m.side = THREE.DoubleSide;
@@ -531,11 +534,11 @@ export function createStress(scene, renderer, tex) {
         // a mesh of the heap: the level its size asks for, and whether this one is drawn for it (heap.js: effective)
         const R = heapRow(H, uint(B.y), lv).toVar(), want = uint(0).toVar();
         for (let j = 0; j < L - 1; j++) want.addAssign(px.lessThanEqual(LO.element(j)).select(uint(1), uint(0)));
-        If(vertexIndex.lessThan(R.z).and(whole.greaterThan(0.5).or(effective(heldOf(R), want, lv))), () => {
+        If(vertexIndex.lessThan(cornersOf(R)).and(whole.greaterThan(0.5).or(effective(heldOf(R), want, lv))), () => {
           // how far it has turned into the next coarser mesh: over its last pixels, and backwards from when it came
           // (over the whole of its range, top to bottom: it is never still and never jumps)
           const t = float(1).sub(whole).mul(SMOOTH).mul(max(morphs.mul(float(1).sub(smoothstep(lo, top, px))), float(1).sub(smoothstep(0, GROW, sinceCame(R, U.uTime))))).toVar();
-          const v = solidOf(heapElem(H, R, vertexIndex).toVar(), t, delta), cs = cos(B.x), sn = sin(B.x), turn = (p) => vec3(p.x.mul(cs).sub(p.z.mul(sn)), p.y, p.x.mul(sn).add(p.z.mul(cs)));
+          const v = solidOf((shared ? H.elems.element(R.y.add(vertexIndex)) : heapElem(H, R, vertexIndex)).toVar(), t, delta), cs = cos(B.x), sn = sin(B.x), turn = (p) => vec3(p.x.mul(cs).sub(p.z.mul(sn)), p.y, p.x.mul(sn).add(p.z.mul(cs)));
           const p0 = vec3(v.p).toVar(), n0 = vec3(v.n).toVar(), P = vec3(p0).toVar(), N = vec3(n0).toVar();
           if (limbs) {
             // on its skeleton: moved by its two bones, each as much as the vertex is bound to it
@@ -580,6 +583,9 @@ export function createStress(scene, renderer, tex) {
   };
   const indexOf = LEVELS.map((l, i) => new THREE.BufferAttribute(Uint32Array.from({ length: roomOf(i).tris * 3 }, (_, j) => j), 1));   // (a draw as long as the level's longest mesh: its vertices are read from the heap by their number)
   const drawOf = (i) => { const g = new THREE.InstancedBufferGeometry(); g.setIndex(indexOf[i]); return g; };
+  // (and a draw by the level's own list of corners, for what is of its shape: a vertex is then worked out once, not once
+  // for every triangle that meets in it)
+  const shapeOf = LEVELS.map((l, i) => (H.pools[i].shape ? new THREE.BufferAttribute(H.pools[i].shape, 1) : null)), drawShaped = (i) => { const g = new THREE.InstancedBufferGeometry(); g.setIndex(shapeOf[i]); return g; };
   // the plots a tier may draw from: those whose land comes within `far` of the camera, and into its view
   const plotsNear = (cx, cz, h0, far, cull) => PL.filter((p) => { const d = Math.hypot(p.x - cx, p.z - cz) - p.most; return d < far && (cull === false || boxIn(p.x - p.most - cull, p.x + p.most + cull, h0 - 400, h0 + 400, p.z - p.most - cull, p.z + p.most + cull)); });
 
@@ -594,6 +600,8 @@ export function createStress(scene, renderer, tex) {
     const perSlot = i === 0 && !shadow;
     // (and what is cut out as leaves has a draw of its own at the levels it is cards: another state of the pipeline)
     const leafy = !shadow && i < HULL, K0 = perSlot ? LEVELS[0].slots : 1;
+    // (and what is of the level's own shape, a ball of the ladder's, the last draw: by the level's list of corners)
+    const KS = shapeOf[i] ? (leafy ? K0 * 2 : 1) : -1;
     // (its level and whether it is the shadow's as numbers: every tier's packing is one piece of code, compiled once)
     const lv = uniform(i, 'uint'), under = uniform(Math.max(0, i - 1), 'uint'), stands = uniform(i ? 1 : 0), all = uniform(shadow ? 1 : 0);
     const live = (c) => {
@@ -614,12 +622,13 @@ export function createStress(scene, renderer, tex) {
           B.assign(vec4(h(907).mul(TAU), float(kind), lookOf(kind, 2).w, h(908).mul(TAU)));   // (its turn, its kind, how far it sways, its sway's phase)
           if (perSlot) bucket.assign(float(R.x.sub(uint(H.pools[0].i0)).div(uint(H.pools[0].idx))));   // (the full meshes: which of the heap's slots its kind's lies in)
           if (leafy) bucket.addAssign(lookOf(kind, 4).y.greaterThan(0.5).select(float(K0), float(0)));
+          if (KS >= 0) If(shapedOf(R), () => { bucket.assign(float(KS)); });
           alive.assign(1);
         });
       });
       return { alive: alive.greaterThan(0.5), data: [A, B], bucket };
     };
-    const T = new Tier(scene, leafy ? Array.from({ length: K0 * 2 }, () => drawOf(i)) : drawOf(i), (src, k = 0) => (i === L - 1 && !shadow ? dot(src) : meshOf(src, i, shadow, false, leafy && k >= K0)), { cell: CELL, P, near: 0, far: 1, order: 1, live, gpu: true, cap: shadow ? 8192 : LEVELS[i].cap, slots: 2 });
+    const T = new Tier(scene, [...Array.from({ length: leafy ? K0 * 2 : 1 }, () => drawOf(i)), ...(KS >= 0 ? [drawShaped(i)] : [])], (src, k = 0) => (i === L - 1 && !shadow ? dot(src) : meshOf(src, i, shadow, false, leafy && k >= K0 && k !== KS, k === KS)), { cell: CELL, P, near: 0, far: 1, order: 1, live, gpu: true, cap: shadow ? 8192 : LEVELS[i].cap, slots: 2 });
     T.band = shadow ? () => { T.near = 0; T.far = SHADE.far; band.near.value = -1; band.far.value = SHADE.far * SHADE.wide; }
       : () => {
         [T.near, T.far] = band.reach(SMIN, SMAX, pxK()); if (i <= STREAMED) T.near = 0;   // (a level may stand in for the finer ones, right up to the camera)
@@ -650,9 +659,9 @@ export function createStress(scene, renderer, tex) {
       }
       T.n = n; for (const m of T.meshes) m.visible = n > 0;
     };
-    T.band(); T.level = i; T.viewKeyed = !shadow; T.asset = shadow ? 'Stress: shadows' : `Stress: level ${i}`;
+    T.band(); T.level = i; T.shaped = KS; T.viewKeyed = !shadow; T.asset = shadow ? 'Stress: shadows' : `Stress: level ${i}`;
     for (const m of T.meshes) m.renderOrder = 1 + i * 0.01;   // the fine levels first: they are the near ones, and what is behind them need not be shaded
-    if (shadow) T.mesh.layers.set(1);
+    if (shadow) for (const m of T.meshes) m.layers.set(1);
     const run = T.run.bind(T); T.run = (r, world, ...a) => run(r, `${world}|${slots.version}|${H.versions[i]}|${i && !shadow ? H.versions[i - 1] : 0}`, ...a);   // packed again when the heap has changed at its level, or the next finer (which it stands in for)
     tiers.push(T);
     return T;
@@ -946,7 +955,7 @@ export function createStress(scene, renderer, tex) {
         if (T.movers) { out.push({ tier: T.asset, packed: B.reduce((x, b) => x + b.count, 0), tris: B.reduce((x, b, l) => x + b.count * (LEVELS[l].n === FULLN ? 125000 : trisOf(LEVELS[l].n)), 0), byLevel: B.map((b) => b.count), patches: T.n, over: T.over }); continue; }
         const full = LEVELS[T.level].n === FULLN, count = B.reduce((x, b) => x + b.count, 0); let tris = 0;
         if (full) for (const b of B) for (let j = 0; j < b.count; j++) tris += fullTris(b.data[1][j * 4 + 1]); else tris = count * trisOf(LEVELS[T.level].n);
-        out.push({ tier: T.asset, packed: count, tris, patches: T.n, over: T.over });
+        out.push({ tier: T.asset, packed: count, tris, patches: T.n, over: T.over, shaped: T.shaped >= 0 ? B[T.shaped].count : 0 });
       }
       return { tiers: out, held: H.held(), skinsHeld: skins.who.filter((x) => x >= 0).length, pending: pending.size, ...stats, heapMB: +(H.bytes / 1048576).toFixed(1) };
     },

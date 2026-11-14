@@ -1529,6 +1529,27 @@ and the look is his to judge.
   little farther from the reference than at 1.25 (not understood yet). The lens's own pass (depth of field) and the
   WebGL fallback keep the filter.
 
+### 2026-11-14, a vertex worked out once: the stand's balls drawn by one list of corners (12:57)
+
+Step two of the same going ahead. Nothing of the picture changes.
+
+- **What it was.** The heap's draw reads every corner's vertex by the corner's number (so that one draw draws every
+  kind, each with its own triangles), and so the GPU worked out every corner of every triangle by itself: 36n²
+  corners for a ball of 6n² + 2 vertices, six times over.
+- **What it is.** A level has a shape of its own: the ladder's ball of that level, whose list of corners is the same
+  for every ball whatever its surface (`ballCorners`, `assets/kit/blob.js`). The heap marks every mesh put in whose
+  corners are exactly that list (a bit in its row: `shapedOf`), and the stand drops what is marked into a draw of
+  its own a level: drawn by the list itself, its vertices read by their numbers, each worked out once. Nobody says
+  which kinds are balls: a family whose meshes are is drawn so, another as before.
+- **Measured** (the test window at 2880 by 1558, an inside ratio of 1, a view across the stand, the game's own
+  frames stopped and only the world drawn): the GPU's time 16.7 ms a frame before, 14.9 after (11 %). What went
+  through the new draw there: every thing at the two coarsest meshes (2 233 and 8 872) and at the shadows' level
+  (2 624), and three in four at the finer ones (the rest are leaf cards). The picture is the same as drawn the old
+  way (`?stress&corners`) to within what two starts of one build differ by (a few movers). His Safari holds 60
+  frames a second with it.
+- **Not done.** The movers are drawn the old way (their hulls are balls too: 0.4 ms of the frame in all). The dots
+  (a triangle each, a hundred thousand of them) and the leaf cards are as before.
+
 ## Trail
 
 | When | Commit | What |

@@ -12,11 +12,18 @@
 //     next coarser level is drawn in its place (the table's mask says which levels of a kind are there: effective);
 //   - one mesh for every kind (`one`: the dot).
 //
+// A level may have a shape of its own (`shape`: a list of corners, the ladder's ball of that level). A mesh put in
+// whose corners are exactly that list is marked (shapedOf): every such mesh can be drawn by ONE list of corners, the
+// draw's own index, each vertex read by its number and worked out once (the GPU works a vertex out once however many
+// triangles meet in it), where a draw that looks every corner up in the heap works out every corner of every triangle:
+// six times a ball's vertices. Nobody says which kinds are balls: a family whose meshes happen to be are drawn so.
+//
 // What draws a level must be told when the heap has changed (versions: a count a level, raised when a kind's level is
 // put in or out): a level's draw depends on that level and the next finer one only.
 //
-//   createHeap({ kinds, name, levels: [{ idx, elems, slots?, one? }, …] })   levels finest first: the most corners
-//                         and elements a kind has at it; slots: how many kinds' it holds at once (none: every kind's)
+//   createHeap({ kinds, name, levels: [{ idx, elems, slots?, one?, shape? }, …] })   levels finest first: the most corners
+//                         and elements a kind has at it; slots: how many kinds' it holds at once (none: every kind's);
+//                         shape: the level's own list of corners (a Uint32Array), or none
 //   an element: four numbers of 32 bits, 16 bytes; a vertex is one of them (a solid: assets/kit/solid.js) or several
 //   (what draws it knows: heapElem's `per`); a corner: the number of a vertex of its own mesh
 //   The table also says when a level came (`came`): what draws it lets it grow out of the coarser one from then.
@@ -24,11 +31,14 @@ import * as THREE from 'three/webgpu';
 import { storage, uint, float } from 'three/tsl';
 import { gpuStorage, note } from '../core/gpu.js';
 
+const SHAPED = 0x80000000;   // in a row's count of corners: the mesh is of its level's own shape
 export function createHeap({ kinds, levels, name = 'heap' }) {
   const L = levels.length; let iAt = 0, eAt = 0;
+  // whether n corners from `o` of `idx` are exactly a pool's own shape
+  const shaped = (p, idx, o, n) => { const S = p.shape; if (!S || n !== S.length) return 0; for (let i = 0; i < n; i++) if (idx[o + i] !== S[i]) return 0; return SHAPED; };
   const pools = levels.map((l) => {
     const n = l.one ? 1 : l.slots || kinds, own = !l.slots && !l.one;
-    const p = { idx: l.idx, elems: l.elems, n, own, one: !!l.one, i0: iAt, e0: eAt, held: 0, who: own || l.one ? null : new Int32Array(n).fill(-1), used: own || l.one ? null : new Float64Array(n), slot: own || l.one ? null : new Int32Array(kinds).fill(-1) };
+    const p = { idx: l.idx, elems: l.elems, n, own, one: !!l.one, shape: l.shape || null, i0: iAt, e0: eAt, held: 0, who: own || l.one ? null : new Int32Array(n).fill(-1), used: own || l.one ? null : new Float64Array(n), slot: own || l.one ? null : new Int32Array(kinds).fill(-1) };
     iAt += n * l.idx; eAt += n * l.elems; return p;
   });
   const index = gpuStorage('uint', iAt, `${name}: corners`), elems = gpuStorage('uvec4', eAt, `${name}: vertices`), table = new THREE.StorageBufferAttribute(new Uint32Array(kinds * L * 4), 4);
@@ -38,8 +48,8 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
   const masked = (k, quiet) => { for (let l = 0; l < L; l++) T[row(k, l) + 3] = (mask[k] | (came[k * L + l] << 12)) >>> 0; if (!quiet) { table.addUpdateRange(row(k, 0), L * 4); table.needsUpdate = true; } };
   const H = {
     kinds, L, pools, version: 0, versions: new Uint32Array(L), bytes: index.bytes + elems.bytes + table.array.byteLength,
-    // as nodes: its corners, its elements, and a level's row of a kind (first corner, first element, corners, which
-    // levels of the kind are there and when this one came)
+    // as nodes: its corners, its elements, and a level's row of a kind (first corner, first element, corners (and
+    // whether it is of the level's shape: cornersOf, shapedOf), which levels of the kind are there and when this one came)
     index: index.node, elems: elems.node, table: storage(table, 'uvec4', kinds * L),
     has: (k, l) => ((mask[k] >> l) & 1) === 1,
     /** A kind's level is wanted now (it is not put out while it is). */
@@ -63,7 +73,7 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
       if (!p.own) { p.who[s] = k; p.slot[k] = s; p.used[s] = now; }
       if (!H.has(k, l)) p.held++;
       came[k * L + l] = Math.min(0xfffff, Math.round(time * 16));
-      const r = row(k, l); T[r] = i0; T[r + 1] = e0; T[r + 2] = mesh.index.length;
+      const r = row(k, l); T[r] = i0; T[r + 1] = e0; T[r + 2] = (mesh.index.length | shaped(p, mesh.index, 0, mesh.index.length)) >>> 0;
       mask[k] |= 1 << l; masked(k); H.version++; H.versions[l]++;
       return true;
     },
@@ -73,7 +83,7 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
     putBlock(l, k0, n, corners, verts, counts) {
       const p = pools[l]; if (!p.own) throw new Error('heap: putBlock is for a level every kind has its own of');
       index.write(p.i0 + k0 * p.idx, corners); elems.write((p.e0 + k0 * p.elems) * 4, verts);
-      for (let j = 0; j < n; j++) { const k = k0 + j, r = row(k, l); if (!H.has(k, l)) p.held++; T[r] = p.i0 + k * p.idx; T[r + 1] = p.e0 + k * p.elems; T[r + 2] = counts[j]; mask[k] |= 1 << l; masked(k, true); }
+      for (let j = 0; j < n; j++) { const k = k0 + j, r = row(k, l); if (!H.has(k, l)) p.held++; T[r] = p.i0 + k * p.idx; T[r + 1] = p.e0 + k * p.elems; T[r + 2] = (counts[j] | shaped(p, corners, j * p.idx, counts[j])) >>> 0; mask[k] |= 1 << l; masked(k, true); }
       table.addUpdateRange(row(k0, 0), n * L * 4); table.needsUpdate = true; H.version++; H.versions[l]++;
     },
     /** One mesh for every kind's level l (a level made `one`). */
@@ -96,6 +106,9 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
 /** A level's row of a kind, as a node (in a compute pass or a vertex stage). */
 export const heapRow = (H, kind, level) => H.table.element(kind.mul(uint(H.L)).add(level));
 
+/** How many corners a row's mesh has; and whether it is of its level's own shape (drawn by the level's list of corners,
+    its vertices read by their numbers: no corner looked up). */
+export const cornersOf = (R) => R.z.bitAnd(uint(0x7fffffff)), shapedOf = (R) => R.z.greaterThanEqual(uint(SHAPED));
 /** Which of a kind's levels are there, from its row (a uint node: a bit a level). */
 export const heldOf = (R) => R.w.bitAnd(uint(0xfff));
 /** How long ago, seconds, a row's level came (now: the clock's seconds, a node). */
