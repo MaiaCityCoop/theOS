@@ -1862,6 +1862,34 @@ change was checked once: the pages load without an error, one still against the 
   packing room by each shape's share (44 MB of the trees'); the grass on the one drawer; blocks for phones (ETC2,
   ASTC).
 
+### 2026-11-14, the land's shaders hold the biomes round the camera, not every biome (20:38)
+
+Samuel: "Land for many biomes". Every biome is a file with node code of its own (where it lies, its spots, its grass's
+cover); the land's shaders held all of them: each biome more made the land's vertex and pixel shaders larger, and
+handed one more share from vertex to pixel (a GPU allows sixteen such lanes of four; tens of biomes would pass it).
+What hung Safari's GPU on 2026-11-12 was a land shader grown too large.
+
+- **Slots** (`src/world/slots.js`): the land, its ground pass and their shares are built for eight biomes at most:
+  those that lie round the camera. Each biome's rule is looked at in a small compute pass of its own (its rule only:
+  none grows with the others) at 385 points round the camera (sixteen rings from 20 m to 22 km); a biome's score is its
+  largest share there, the nearer the more it counts. The eight best are laid, in their layers' order; a newcomer
+  comes in to a free slot, or when it is at least 1.3 times the weakest laid one, and one laid goes when it lies
+  nowhere round the camera any more (no flicking at an edge). A look every one and a half seconds.
+- **When the eight change** the land's and the ground pass's new shaders are compiled aside, each for the target it is
+  drawn into, and then taken (`terrain.biomes`, `ground.biomes`): no frame waits. At the start the first look is made
+  where the walk begins, before anything is compiled. The library's sandbox biome is always laid.
+- **An outcrop's dryness** (the rocks' packing) reads only the biomes that make the land dry (`dryAt`), not every
+  biome's rule.
+- **Seven biomes today, eight slots:** nothing of this runs, every biome is laid, the same picture (the start and the
+  outcrop: 136 and 2008 of 3.4 million pixels differ, at most by 36 of 255).
+- **Seen at work with three slots** (`?slots=3`): at the start pine forest, riverbank, gravel bar; four kilometres off
+  dry land, pine forest, riverbank, its cracked earth and yellowing tufts laid; back at the start the first three
+  again; no error. The land's shader with three biomes 364 KB, with seven 385 KB: a biome is some 5 KB of it; at
+  forty it would have been about 560 KB, now it stays at eight's.
+- **Not done:** a biome beyond the eight is drawn as the base biome until it is near enough to be laid (far off, from
+  high up, the ninth would be missing); the trees' stands still each read their own biome (one each: they do not
+  grow); materials given up when no biome near wears them.
+
 ## Trail
 
 | When | Commit | What |
@@ -1962,3 +1990,4 @@ change was checked once: the pages load without an error, one still against the 
 | 2026-11-14 | `27beb3b` | Materials painted when the world wears them, into a pool of layers read through a table; the library's pictures made as they scroll into sight: a library of thousands of materials costs nothing until something wears one |
 | 2026-11-14 | `4876cdc` | The heap's places as large as each kind's own mesh: the trees' meshes 17.9 MB where they took 23.2 |
 | 2026-11-14 | `b6cd67b` | Loud, not silent: a recipe without a uid or with another's is told and passed over; a missing material drawn as the stand-in; the largest shader told at start (385 KB, the land's) |
+| 2026-11-14 | `005ab49` | The land's shaders hold the biomes round the camera, eight at most (each biome's rule looked at in a pass of its own, the shaders compiled aside when the eight change): a biome more no longer makes the land's shader larger; seven today, the same picture |
