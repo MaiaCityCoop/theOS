@@ -17,7 +17,8 @@ export default {
     const drift = pfbm(uv, 4, 51, 4), fine = pn(uv.mul(170), 170, 52);
     const grey = mix(vec3(0.33, 0.32, 0.31), vec3(0.74, 0.73, 0.71), drift.mul(0.75).add(fine.mul(0.25)));
     // charcoal: small lumps sat in it, and the flecks of it ground into the powder
-    const lump = pebbles(uv, 11, 53, 0.3, 0.5), fleck = smoothstep(0.74, 0.86, pvor(uv.mul(60), 60, 54).z);
+    // (few and small: a bed of ash with lumps sat here and there in it, not a spotted hide; intent 0018)
+    const lump = pebbles(uv, 17, 53, 0.11, 0.6), fleck = smoothstep(0.8, 0.9, pvor(uv.mul(90), 90, 54).z);
     const char = smoothstep(0.02, 0.3, lump.x);
     const col = mix(mix(grey, vec3(0.1, 0.095, 0.09), fleck.mul(0.5)), mix(vec3(0.055, 0.05, 0.05), vec3(0.14, 0.12, 0.11), lump.y), char.mul(0.9));
     const h = float(0.5).add(drift.mul(0.2)).add(lump.x.mul(0.3)).add(fine.mul(0.06));

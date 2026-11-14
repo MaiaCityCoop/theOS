@@ -14,6 +14,7 @@ import { detailOf, Detailed, most } from '../detail/index.js';
 import { impostorOf } from '../detail/impostor.js';
 import { geometryOf, solidOf, snowOf } from '../../assets/index.js';
 import { kindOf } from '../../assets/kinds.js';
+import { lightFire, fireLight } from './fire.js';
 
 /** How an asset moves in the wind: its own `wind` block, else its kind's (assets/kinds.js); null: it does not move. */
 export const windOf = (asset) => kindOf(asset, 'wind');
@@ -77,7 +78,8 @@ export function assetMaterial(asset) {
       // cloth under it darker, damp
       const lift = snowLift(w, snowOf(asset).clumps);   // as its kind holds snow (assets/kinds.js)
       const damp = float(1).sub(clamp(snowDepth.mul(1.5), 0, 0.18));
-      const col = weathered(own.mul(damp), n, lift).mul(skyLight(n).mul(ground).add(sun.mul(ndl.mul(0.8).add(0.2)))).add(own.mul(sun).mul(through).mul(float(1).sub(snowCover(n, lift))));   // snow on it: no light comes through
+      // (and the fire's, where one burns near: src/world/fire.js)
+      const col = weathered(own.mul(damp), n, lift).mul(skyLight(n).mul(ground).add(sun.mul(ndl.mul(0.8).add(0.2))).add(fireLight(w, n))).add(own.mul(sun).mul(through).mul(float(1).sub(snowCover(n, lift))));   // snow on it: no light comes through
         out.assign(finish(col, positionWorld));
     });
     return out;
@@ -87,6 +89,7 @@ export function assetMaterial(asset) {
 
 /** Stand an asset at a place ({ x, z, yaw, solid }), on the ground there. */
 export function place(scene, asset, at) {
+  if (asset.fire) return lightFire(scene, asset, at);   // a fire is light, not a mesh (src/world/fire.js)
   const D = detailOf(asset);
   const meshes = D.levels.map((l) => { if (l.impostor) return impostorOf(geometryOf(asset), l.views, snowOf(asset)); const m = new THREE.Mesh(geometryOf(asset, l), assetMaterial(asset)); m.renderOrder = 1; return m; });
   const lod = new Detailed(asset, meshes);

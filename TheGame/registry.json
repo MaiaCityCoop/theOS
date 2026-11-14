@@ -41,19 +41,19 @@
     "type": "asset",
     "name": "Fire pit",
     "file": "assets/firepit.js",
-    "version": "f7f36b733375ecf5274d1399b124ac6a8cc18bf85cc989e7cf8d034b5dcab368",
+    "version": "cd8134dc5ae1aecfeb4a388f18f262808afee156c9bcdb0405804feb852291b8",
     "uses": [
-      "506c509b-300d-42eb-8403-f3969b06b271",
       "5e888d71-827c-4efc-8d13-50717c7f1dc8",
       "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
-      "c0092c17-16c9-4470-b98e-b030175d561b"
+      "c0092c17-16c9-4470-b98e-b030175d561b",
+      "f4a707ab-dcac-4c3a-a4d6-7a929d0e945e"
     ]
   },
   "dea9b8e4-28a7-4b88-b32e-ee498eb7a862": {
     "type": "asset",
     "name": "Flame",
     "file": "assets/flame.js",
-    "version": "57eec84c061ace86cd1d8c17271f4e12acd3d7dbc04e3ccafe9a05f60ffaca6d",
+    "version": "ea946f6facedb82bdbb25f1c89f422e90d3739c9601933c7c6c119f2443b68c1",
     "uses": []
   },
   "eb8f406f-1035-4921-ba42-10f05efab6ed": {
@@ -373,7 +373,7 @@
     "type": "material",
     "name": "Wood ash",
     "file": "materials/woodash.js",
-    "version": "ec3c1207e0b76b8c0a203e32cc0b89b7a731779a4805800ec30c7943cb9a1eb8",
+    "version": "3f002984bca28ac7133db2338a557c6a796e93e1af3be208ece8922037c74698",
     "uses": []
   }
 }
