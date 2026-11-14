@@ -20,4 +20,8 @@ export default {
   floor: { material: '2f329f07-d2ba-4dc8-a6e3-73053c65e10f' /* sand */, tile: [2.0, 3.2] },
   grass: null,                                             // nothing grows on it
   stones: 0.52,
+  // its reeds (assets whose placement.stand is `reeds`): a clump every metre or two, in beds, only where it rings a lake
+  // (lakes) and only in the shallow margin, from where the water shoals to just up the bank (shore: of the river's
+  // half-width from the channel's middle: src/scatter/trees.js); the stand changes level as one (size, metres)
+  reeds: { cell: 1.2, density: 1, clumps: 14, patches: 0, seed: 880, size: 2.2, lakes: true, shore: [0.42, 1.28] },
 };

@@ -37,6 +37,13 @@
       "fb5ce908-7437-45b6-879f-154de32d12b9"
     ]
   },
+  "23566c8c-0864-4278-a2f7-a3e072300223": {
+    "type": "asset",
+    "name": "Fire pit",
+    "file": "assets/firepit.js",
+    "version": "4832ed4e6db1ff917712c3975f54a96df75f92f6a2103f47292cc60a50f1b2e4",
+    "uses": []
+  },
   "eb8f406f-1035-4921-ba42-10f05efab6ed": {
     "type": "asset",
     "name": "Grass",
@@ -76,6 +83,17 @@
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "ae3df398-9f52-4a4a-b54f-a2db2eafb0c8",
+      "bf97f33b-56bd-4df4-89ba-949e77ce8c27"
+    ]
+  },
+  "ea2b55d0-a99a-4444-841b-772cc86e10b6": {
+    "type": "asset",
+    "name": "Reeds",
+    "file": "assets/reeds.js",
+    "version": "d3c2bd504eab76bcf8e7b129a170602c0632b984689a6005cbfdd7764647d934",
+    "uses": [
+      "307376d9-da36-4388-8c5a-8cfb308ee312",
+      "84588b7e-0680-47ca-9793-409c7359db0c",
       "bf97f33b-56bd-4df4-89ba-949e77ce8c27"
     ]
   },
@@ -173,7 +191,7 @@
     "type": "biome",
     "name": "Riverbank",
     "file": "biomes/riverbank.js",
-    "version": "68aac0bc68caeb6744a48a92b30d0bcd3b968108ecf29b58f0ae2fe1b2521ec2",
+    "version": "4de990b8097210964b7a15c32456e6386190ee44ed52c3f48a6e17f4a7ddc20c",
     "uses": [
       "2f329f07-d2ba-4dc8-a6e3-73053c65e10f"
     ]
@@ -288,6 +306,13 @@
     "name": "Pine twig",
     "file": "materials/pinetwig.js",
     "version": "a4ad772123e49dde25ab6be39280bce402b506eb67d29ba968ada0db53863b0b",
+    "uses": []
+  },
+  "307376d9-da36-4388-8c5a-8cfb308ee312": {
+    "type": "material",
+    "name": "Reed clump",
+    "file": "materials/reedclump.js",
+    "version": "731e49e7265e5cc505cc17bdd5beb03c075bafff3f4af67ec15430d881f4f8b8",
     "uses": []
   },
   "e1da2cdc-1305-4266-b1db-8c0ca473f438": {

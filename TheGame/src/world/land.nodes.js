@@ -60,6 +60,12 @@ const inLake = (p, r0) => {
   Loop(LAKE_MAX, ({ i }) => { const L = LAKE.element(i); If(length(q.sub(L.xy)).lessThan(L.z).and(r.mul(L.w).greaterThanEqual(0)), () => { k.assign(1); }); });
   return k;
 };
+/** 1 within `margin` metres round a lake (what grows on its shore: src/scatter/trees.js), 0 elsewhere */
+export const nearLake = (p, margin = 40) => {
+  const k = float(0).toVar(), q = vec2(p).toVar();
+  Loop(LAKE_MAX, ({ i }) => { const L = LAKE.element(i); If(L.z.greaterThan(0).and(length(q.sub(L.xy)).lessThan(L.z.add(margin))), () => { k.assign(1); }); });
+  return k;
+};
 /** 1 in a lake, 0 elsewhere (its water stands still: src/terrain/water.js) */
 export const lakeAt = Fn(([p]) => inLake(p, riverRaw(p).x));
 /** (signed distance from the channel's middle, half-width, which bank: > 0 a bend's outside, the bend) */

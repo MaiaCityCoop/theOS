@@ -31,7 +31,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, storage, vertexIndex, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, sqrt, fract, step } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt } from '../world/land.nodes.js';
+import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt, nearLake } from '../world/land.nodes.js';
 import { kindsOf, whereOf } from '../world/stand.js';
 import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, unlit, windAt, windDir, windStrength, stillness } from '../world/light.js';
 import { PLACES } from '../../world/places.js';
@@ -64,7 +64,7 @@ const clearAt = (p) => {
     what the biome leaves out, the tree's own placement gives (a tree that stands alone in a biome with no stand of its own). */
 export const standOf = (asset, biome = recipe(asset.placement.biome)) => {
   const P = asset.placement, B = biome?.[P.stand ?? 'trees'] || {};
-  return { cell: B.cell ?? P.cell ?? 10, density: B.density ?? P.density ?? 1, clumps: B.clumps ?? P.clumps ?? 0, patches: B.patches ?? 0, age: P.age ?? B.age ?? null, seed: B.seed ?? P.seed ?? 300, where: B.where ?? null, size: B.size ?? null };
+  return { cell: B.cell ?? P.cell ?? 10, density: B.density ?? P.density ?? 1, clumps: B.clumps ?? P.clumps ?? 0, patches: B.patches ?? 0, age: P.age ?? B.age ?? null, seed: B.seed ?? P.seed ?? 300, where: B.where ?? null, size: B.size ?? null, shore: B.shore ?? null, lakes: !!B.lakes };
 };
 
 // what stands in a cell: a plant, or nothing. Where one stands, `found` is told (the drawer's: drawer.js tier): which
@@ -99,9 +99,13 @@ function plantIn(c, G, band, all, seen, found) {
     kinds.forEach((Kd, i) => { const f = whereOf(Kd.asset); if (f) If(k.equal(i), () => { own.assign(f({ p: pos })); }); });
     const likes = ST.where ? ST.where({ p: pos }).mul(own) : own;
     const grove = groveAt(pos, ST), dens = grove.mul(ST.density).mul(likes);
-    If(r0.lessThan(shareOf(biome, { p: pos, dist, d: float(1e5), w: float(1), b: float(0) }).mul(dens)), () => {   // its stands, as if far from the river
+    // (a stand that keeps to a lake: only round one; one of a biome by the river is not looked at as if far from it)
+    const coarse = biome.river ? dens : shareOf(biome, { p: pos, dist, d: float(1e5), w: float(1), b: float(0) }).mul(dens);
+    If(r0.lessThan(ST.lakes ? coarse.mul(nearLake(pos)) : coarse), () => {   // its stands, as if far from the river
       const I = riverInfo(pos), d = abs(I.x), w = I.y;
-      If(r0.lessThan(shareOf(biome, { p: pos, dist, d, w, b: I.z }).mul(dens).mul(clearAt(pos))), () => {
+      // (a stand that keeps to the shore: only so far from the channel's middle, in its half-widths: the reeds' shallows)
+      const shore = ST.shore ? smoothstep(ST.shore[0] - 0.08, ST.shore[0] + 0.08, d.div(w)).mul(float(1).sub(smoothstep(ST.shore[1] - 0.1, ST.shore[1] + 0.1, d.div(w)))) : float(1);
+      If(r0.lessThan(shareOf(biome, { p: pos, dist, d, w, b: I.z }).mul(dens).mul(clearAt(pos)).mul(shore)), () => {
         const s = float(1).toVar(), h = float(1).toVar(), across = float(1).toVar(), out = float(0).toVar();
         // the kind's own: how large this one is, and which of its shapes
         kinds.forEach((Kd, i) => { If(k.equal(i), () => {
