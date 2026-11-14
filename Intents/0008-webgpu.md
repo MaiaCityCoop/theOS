@@ -1486,3 +1486,4 @@ hide or sink into the ground when he comes near or gets on top of them, where he
 | 2026-11-13 | `7e560ed` | Roads kept clear and driven in lanes; walkers step round what stands (23 % in something before, 3 % now) and apart from each other |
 | 2026-11-14 | `a7db517` | The ways and the lanes: nothing stands where things move, every mover has a place in a lane; by true shapes none in another, in a thing or in a trunk |
 | 2026-11-14 | `34e68b6` | Roads for vehicles, winding trails for the rest; mixed rigs, a pace per lane; movers step round the walker |
+| 2026-11-14 | `6b56480` | A body plan a kind of mover (625 builds of 1,000); nothing drawn back from the walker; the inside ratio recovers in seconds |
