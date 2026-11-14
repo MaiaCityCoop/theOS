@@ -7,6 +7,12 @@ export const PLACES = {
   flame: { asset: 'dea9b8e4-28a7-4b88-b32e-ee498eb7a862' /* the fire burning on it */, x: -1263.3, z: 624.4, yaw: 0.6 },   // its own asset, on the same spot: only the fire moves in the wind, the stones and the seats stand still
 };
 
+/** The places that keep the ground round them clear, and how far (their `clear`, in metres): what the grass, the
+    trees and the land's level pads all read (src/scatter/ground.js, src/scatter/trees.js, src/world/land.js). A
+    place with no `clear` of its own clears nothing and stands in whatever is there — the flame over the fire stands
+    in the fire's own clearing — so every reader must take the places from here and not from PLACES. */
+export const CLEARINGS = Object.values(PLACES).filter((p) => p.clear);
+
 // The library's stage: one fixed, flat spot in the meadow, far from the river, where the asset library shows every
 // asset on a round of bare ground with the grass around it (library.html). Nothing stands there in the world itself.
 export const STAGE = { x: -1161.4, z: -137.4, r: 7 };

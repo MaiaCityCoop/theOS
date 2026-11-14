@@ -34,7 +34,7 @@ import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt, nearLake } from '../world/land.nodes.js';
 import { kindsOf, whereOf } from '../world/stand.js';
 import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, unlit, windAt, windDir, windStrength, stillness } from '../world/light.js';
-import { PLACES } from '../../world/places.js';
+import { CLEARINGS } from '../../world/places.js';
 import { recipe, versionOf } from '../core/registry.js';
 import { geometryOf, scatterRow } from '../../assets/index.js';
 import { kindOf } from '../../assets/kinds.js';
@@ -55,7 +55,7 @@ const GROW = 1.5, SLOTS = 6;   // GROW: seconds a finest level that has just com
 // 1 where a tree may stand, 0 within what stands at a place (its clearing) or on the library's stage
 const clearAt = (p) => {
   let c = float(1);
-  for (const P of Object.values(PLACES)) c = c.mul(smoothstep(P.clear + 2, P.clear + 6, length(p.sub(vec2(P.x, P.z)))));
+  for (const P of CLEARINGS) c = c.mul(smoothstep(P.clear + 2, P.clear + 6, length(p.sub(vec2(P.x, P.z)))));
   return c.mul(U.uStage.z.greaterThan(0).select(smoothstep(U.uStage.z.add(1), U.uStage.z.add(5), length(p.sub(U.uStage.xy))), float(1)));
 };
 

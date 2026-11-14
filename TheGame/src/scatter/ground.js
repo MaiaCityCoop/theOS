@@ -8,7 +8,7 @@ import { U } from '../core/uniforms.js';
 import { note } from '../core/gpu.js';
 import { heightAt as heightCPU, SAND } from '../world/land.js';
 import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt, LAID } from '../world/land.nodes.js';
-import { PLACES } from '../../world/places.js';
+import { CLEARINGS } from '../../world/places.js';
 import { offWays, waysVersion } from '../world/ways.js';
 import { BIOMES } from '../world/biomes.js';
 
@@ -16,7 +16,7 @@ const N = 512;   // texels a side; a texel is 0.5 m to the 68° lens and grows w
 const G = { o: uniform(new THREE.Vector2(1e9, 1e9)), base: uniform(0), texel: uniform(0.5) };
 
 // what stands at a named place keeps its floor clear (its `clear`, metres round it): 1 where grass and stones may be
-const clearOf = (pos) => Object.values(PLACES).filter((p) => p.clear).reduce((k, p) => k.mul(smoothstep(p.clear - 0.4, p.clear + 0.3, length(pos.sub(vec2(p.x, p.z))))), float(1));
+const clearOf = (pos) => CLEARINGS.reduce((k, p) => k.mul(smoothstep(p.clear - 0.4, p.clear + 0.3, length(pos.sub(vec2(p.x, p.z))))), float(1));
 
 export function createGround(renderer, tex, list = LAID) {
   const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false };

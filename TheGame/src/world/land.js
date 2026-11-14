@@ -1,4 +1,4 @@
-import { PLACES } from '../../world/places.js';
+import { CLEARINGS, PLACES } from '../../world/places.js';
 import OUTLINES from '../../world/outlines.js';
 // The land, as one function of (x, z): the same integer-hash noise in JS (the walker's feet)
 // and as node code (land.nodes.js, the GPU's ground). Every constant the two share is written once, here.
@@ -145,7 +145,7 @@ export function naturalAt(x, z) {
 // land is flat at the height under its middle, and it meets the land again over PAD_FALL metres. The GPU's land is
 // written with the same pads (land.nodes.js), so the walker's ground is the drawn ground.
 export const PAD_FALL = 3;
-export const PADS = Object.values(PLACES).map((p) => ({ x: p.x, z: p.z, r: p.clear || 3, h: naturalAt(p.x, p.z) }));
+export const PADS = CLEARINGS.map((p) => ({ x: p.x, z: p.z, r: p.clear, h: naturalAt(p.x, p.z) }));
 /** The ground's height under (x, z), at full detail (what the GPU draws under the camera): the land, levelled under what stands. */
 export function heightAt(x, z) {
   let h = naturalAt(x, z);
