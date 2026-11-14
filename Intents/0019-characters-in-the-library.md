@@ -149,3 +149,6 @@ notes folder, `0019-shots/`)
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-14 | `c625294` | The Settler, the human kit, linen, denim, hair, the Characters section |
+| 2026-11-14 | `68b556e` | origin/main (b4a10e3, the fire pit) merged in |
+| 2026-11-14 | `aabedad` | Propose: the checks as they were, the gaps |
