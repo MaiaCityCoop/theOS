@@ -1746,6 +1746,30 @@ upgrade". The upgrade first (this entry: nothing of the picture changes), the re
   whose own sizes add up to 15); a stand's packing keeps a slice of its buffers for every shape and level (44 MB
   for the trees, as before); the realism (a finer nearest level, more shapes), which is what this was for.
 
+### 2026-11-14, a finest level for the trees: built, looked at, not kept (18:50)
+
+The realism the plants' move to the heap was for. A first try; it is not in the game.
+
+- **What was built.** A level in front of a tree's nearest, made from it as the kit makes the farthest (`splayOf`):
+  every sprig (two crossed cards, each the whole painting of a spray) laid out as the painting's twigs, a narrow
+  card a twig, the twigs standing round the sprig's own way as a spray's do, each card its own strip of the
+  painting, so the leaves stay the size they are and the sprig is no longer two flat sheets. For a tree larger on
+  screen than 600 pixels (the few nearest): its mesh made in the workers when it comes that near, kept in six slots
+  of the stand's heap, handed over to and from the next level by the clock from when it came, sprig by sprig, as
+  two levels hand over by size. All of that worked at the first run: two shapes' meshes made and put in, five
+  trees drawn by it, no error.
+- **Why it is not kept.** Looking up into a pine's crown from under it, against the build as it is:
+  a strip cut along one twig cuts straight through the needle fans of the twigs beside it: shards with straight
+  edges, worse than the flat fans they replace. Letting the needles thin away toward a strip's sides (the cut
+  raised there to all of the painting's height) takes the straight edges away and leaves a soft, blurred crown:
+  not better either. The painting is one spray; its twigs overlap, and no cutting of it gives whole twigs.
+- **What a finest level needs** is a painting of one twig, whole, with nothing beside it to cut. A material is
+  11 MB on the GPU today, held always: two more for a level that shows on five trees is the wrong trade, and the
+  six slots are 26 MB besides. So the order is: the materials painted when something near wears them (the stage
+  Samuel asked about: twenty of them are 220 of the game's 373 MB), then the twigs' own paintings, on what was
+  built here (set aside whole, outside the repository).
+- **Stays as it is:** the build of 18:37 (the plants in the heap, the same picture).
+
 ## Trail
 
 | When | Commit | What |
