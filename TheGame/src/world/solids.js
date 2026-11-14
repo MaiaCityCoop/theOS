@@ -44,18 +44,26 @@ export function clear(x0, z0, x1, z1) {
 
 /** A step from (px, pz) to (x, z): where it really ends, kept out of every solid. Stopped short by something (a
     walker's step, not a line of sight), it is tried again a little to either side, and the one that gets further the
-    way that was asked is taken: a walker held against a rock or between two bushes goes round, as feet do. */
+    way that was asked is taken: a walker held against a rock or between two bushes goes round, as feet do. Where
+    nothing gets him on (a pocket among things), he goes along what holds him and a little back, out of it, to the
+    side he last took (kept for a moment: he does not swing to and fro). No step is longer than the one asked. */
+let side = 1, sideAt = -1e9;
 export function step(px, pz, x, z, rocks = true) {
-  const [qx, qz] = stepOnce(px, pz, x, z, rocks), wx = x - px, wz = z - pz, want = Math.hypot(wx, wz);
-  if (!rocks || want < 1e-4) return [qx, qz];
-  const made = ((qx - px) * wx + (qz - pz) * wz) / want;
-  if (made > want * 0.35) return [qx, qz];
-  let best = [qx, qz], most = made;
+  const wx = x - px, wz = z - pz, want = Math.hypot(wx, wz), held = (r) => { const m = Math.hypot(r[0] - px, r[1] - pz); return m > want ? [px + ((r[0] - px) * want) / m, pz + ((r[1] - pz) * want) / m] : r; };   // (pushed out of a thing it may land further on than it stepped: no faster than he walks)
+  const q = stepOnce(px, pz, x, z, rocks);
+  if (!rocks || want < 1e-4) return q;
+  const on = (r) => ((r[0] - px) * wx + (r[1] - pz) * wz) / want, turned = (a) => { const c = Math.cos(a), n = Math.sin(a); return stepOnce(px, pz, px + wx * c - wz * n, pz + wx * n + wz * c, rocks); }, made = on(q);
+  if (made > want * 0.35) return held(q);
+  let best = q, most = made;
   for (const a of [0.9, -0.9, 1.5, -1.5]) {   // (half a right angle to either side, then nearly square: along what stops it)
-    const c = Math.cos(a), n = Math.sin(a), [rx, rz] = stepOnce(px, pz, px + wx * c - wz * n, pz + wx * n + wz * c, rocks), m = ((rx - px) * wx + (rz - pz) * wz) / want + Math.hypot(rx - px, rz - pz) * 0.25;   // (what gets on counts, and a little what moves at all: out of a corner)
-    if (m > most + 1e-4) { most = m; best = [rx, rz]; }
+    const r = turned(a), m = on(r) + Math.hypot(r[0] - px, r[1] - pz) * 0.25;   // (what gets on counts, and a little what moves at all: out of a corner)
+    if (m > most + 1e-4) { most = m; best = r; }
   }
-  return best;
+  if (most < want * 0.2) {   // a pocket: out of it sideways and back
+    const now = performance.now(); if (now - sideAt > 2000) side = Math.hypot(...turned(1.9).map((v, i) => v - (i ? pz : px))) >= Math.hypot(...turned(-1.9).map((v, i) => v - (i ? pz : px))) ? 1 : -1;
+    for (const sg of [side, -side]) for (const a of [1.9, 2.4]) { const r = turned(a * sg); if (Math.hypot(r[0] - px, r[1] - pz) > want * 0.6) { side = sg; sideAt = now; return held(r); } }
+  }
+  return held(best);
 }
 function stepOnce(px, pz, x, z, rocks = true) {
   for (const o of list) {

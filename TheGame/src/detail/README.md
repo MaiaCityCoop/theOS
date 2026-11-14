@@ -179,8 +179,9 @@ says where its 898 million stand and where its movers are by the same reckoning 
 point only; a creature's capsules move with its bones. They stop the walker, each shape by its own outline
 (`pushOut`: a box's sides, a capsule's length; what ends under the shin is stepped over; what is passed through,
 leaves, stops him at its inner half where it stands higher than his knee), and a step stopped short goes round
-(`solids.js`). Nothing is drawn back to let him through: a thing draws back only from an eye inside its middle and
-under its top, where a walker never comes (a flying camera, `?ghost`). `?stress&bounds` draws them; `?stress&ghost` walks through them. The placed assets' walls, the rocks and the trunks still have their own descriptions (`solids.js`): they
+(`solids.js`): along what holds him, and out of a pocket a little back, the side he took kept for a moment; no
+step longer than he walks. Nothing is drawn back to let him through (only where he walks through things, `?ghost`,
+a thing draws back from an eye inside it). `?stress&bounds` draws them; `?stress&ghost` walks through them. The placed assets' walls, the rocks and the trunks still have their own descriptions (`solids.js`): they
 come onto this one as they become families.
 
 **The ways** (`src/world/ways.js`): the ground kept free for what moves. Who lays ways says where they run (one
@@ -189,15 +190,18 @@ keeps off: the stand's lattice is folded off them, a tree keeps off by its own c
 by their place. What moves keeps to its way. So nothing that moves meets what stands, by how the world is laid
 out and not by looking each frame: it holds at any distance and costs a frame nothing.
 
-**Roads, trails and lanes** (`src/scatter/stress.js`): how what moves keeps clear of what moves. Every other way
-of a plot is a road (herds that say `road`; what flies goes over them, no lower than the tallest that drives), the
-ways between are trails that wind through the thicket (all the rest). Herds of one kind of way whose paces can
-meet go in one file, mixed, each mover a place of its own in it, a length and a quarter of its herd's longest
-apart; a lane is as wide as its widest mover as it moves (`herdRooms` in the zoo: its colliders carried by its
-bones over a stride; nobody says how wide a thing is) and as much wider as its way may turn. Each lane has its own
-pace, the quickest in the middle, each side its own way round: nobody comes up with another. A mover the walker
-stands before steps aside of him and back (the detour: a function of where he is, the same in JS). Where a plot
-is too small its movers are smaller, as its things are. No way crosses another yet: nobody turns off or overtakes.
+**Roads, trails and lanes** (`src/scatter/stress.js`): how what moves keeps clear of what moves. A plot's ways are
+a table of rings, laid out with the lanes: three roads (herds that say `road`, a lane each way, the quickest in the
+middle; what flies goes over them, no lower than the tallest that drives), and thirteen trails in bundles inside,
+between and outside the roads, each one file wide and winding through the thicket with its bundle (all the rest).
+Herds of one kind of way whose paces can meet go in one file, mixed, each mover a place of its own in it, a length
+and a quarter of its herd's longest apart; a lane is as wide as its widest mover as it moves (`herdRooms` in the
+zoo: its colliders carried by its bones over a stride; nobody says how wide a thing is). A trail is one lane of one
+group, the next trail going the other way; each lane has its own pace: nobody comes up with another. A mover the
+walker stands before steps aside of him and back (the detour: a function of where he is, the same in JS). Where a
+plot is too small its movers are smaller, as its things are. No way crosses another yet: nobody turns off or
+overtakes. What asks which movers are near a place looks at the lanes that pass near and the stretch passing now
+(`moversNear`), not at all ten thousand.
 
 **Memory (the game must run on 8 GB).** What only the GPU reads lives on the GPU only (`src/core/gpu.js`): the
 heap's meshes, the near plots' places, what every tier packs. Every pool says what it holds, and the readout shows

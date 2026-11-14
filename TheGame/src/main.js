@@ -21,7 +21,7 @@ import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
 import { createHud } from './core/hud.js';
 import { useGPU } from './core/gpu.js';
-import { taken } from './core/work.js';
+import { taken, busy } from './core/work.js';
 import { bakeTextures } from './materials/bake.js';
 import { createTerrain } from './terrain/terrain.js';
 import { createGround } from './scatter/ground.js';
@@ -71,7 +71,9 @@ const stats = (window.__s8 = { renderer, camera, scene, meshes: { kept: meshesKe
 const U = createUniforms(camera, SKY);
 trackView(); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
 // (the screen keeps all its own pixels; the governor's pixel dial is the inside's: src/core/screen.js)
-const screen = (stats.screen = createScreen(renderer, SKY, { samples: params.has('noaa') ? 0 : 4, store: params.has('msstore') }));
+// (multisampling only on a screen of single pixels: on a dense one (two device pixels a point) the samples' cost buys a
+// third more pixels each way instead, measured 2026-11-14, and the pixels themselves are fine enough. `?aa`, `?noaa`: either way)
+const screen = (stats.screen = createScreen(renderer, SKY, { samples: params.has('noaa') ? 0 : params.has('aa') ? 4 : (window.devicePixelRatio || 1) >= 2 ? 0 : 4, store: params.has('msstore') }));
 const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
 stats.governor = governor;   // the film holds it still while it plays
 const boot = (stats.boot = {}), mark = (k) => (boot[k] = Math.round(performance.now() - t0));   // where the start's time goes
@@ -136,7 +138,7 @@ function draw() {
   weather.before(camera, gy); shadows.render(scene, camera, gy);   // (what a condition draws before the picture: the clouds' shadow map)
   if (dof && dof.on) post.render(scene, camera, dof); else screen.render(scene, camera);
 }
-let last = 0;
+let last = 0, wasBusy = false;
 function frame(now) {
   requestAnimationFrame(frame);
   const ms = last ? now - last : 16.7; last = now;
@@ -146,7 +148,7 @@ function frame(now) {
   const c0 = performance.now();
   // (a film's footage fills the picture, cine/media.js: the world under it is neither chosen nor drawn, the GPU is the video's)
   if (!stats.covered) { choose(Math.min(ms, 100) / 1000); hud.cpu(performance.now() - c0); const d0 = performance.now(); draw(); parts.draw = performance.now() - d0; }
-  governor.end(ms, now, scatter.over);
+  governor.end(ms, now, scatter.over, wasBusy); wasBusy = busy();   // (the time since the last frame is that frame's: what it did besides drawing is told with it)
   hitch(ms, now);
   hud.frame(ms, now, controls.band !== 'eye' ? `  ${controls.band} ${Math.round(controls.height)} m` : '');
 }

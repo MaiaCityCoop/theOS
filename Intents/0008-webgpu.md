@@ -1398,6 +1398,50 @@ hide or sink into the ground when he comes near or gets on top of them, where he
   with today's land shader; walking through the thicket is slower now (it is a thicket; the ways are free); a first
   start after this builds every kind's coarse meshes anew (the recipes changed) and keeps them.
 
+### 2026-11-14, narrow trails, nothing drawn back at all, and what the late frames were late for (08:14)
+
+Samuel, after reloading: things still disappear when he walks towards them; the frame rate is not stable at 60; and
+"I don't see any trails between the roads. They all walk solely on the roads … navigating through the maze of
+things." Later: "you did an amazing job, it looks good now", and: he still believes there are resolution issues,
+and the frame rate is not always stable.
+
+- **Things that disappeared.** The draw-back's zone was sized by a thing's largest side, so a tall slender thing
+  still sank as he reached it. It is gone for the walker altogether (`?ghost` alone keeps it: there the eye can be
+  inside a thing). The walker out of a pocket: where nothing gets him on he goes along what holds him and a little
+  back, the side kept for a moment, no step longer than he walks: four ways through the thicket 17 to 30 m in ten
+  seconds, none stuck (one had been: 4 m).
+- **A suspicion that was wrong, noted so it is not chased again.** That a level of detail lets a thing go before the
+  finer one has it: a test that read the tiers one after another while the walker walked showed 3 things in 100
+  drawn by no level. Read standing still, every thing in the picture within 10 m is drawn; and a "missing" one,
+  looked at again at once, was in its level. The test raced the walker, the stand was right. (The lattice's
+  windows too: the fold moves a thing by no more than half a way's width, which they allow for.)
+- **Trails one file wide.** The four "trails" were 12 to 17 m wide, a lane each way for two groups: roads in all but
+  name. Now a plot's ways are a table of rings laid out with the lanes: three roads (what drives, each way; what
+  flies over them) and thirteen trails in bundles inside, between and outside the roads, each one lane of one group
+  (ten of the slow file, three of the quick), kept clear about 5 m, winding 6 m to either side with its bundle, the
+  next trail going the other way round. Each way's cleared width is reckoned plot by plot and kept in the plot's row.
+- **The late frames.** (1) Where frames lay at the edge of 60 the governor waited for three slow looks running and
+  hovered at 48 to 56 fps: it now goes by the last seconds' middle frame and late share too, and judges a step
+  down in pixels by several looks. (2) A frame that packed tiers again, put meshes on the GPU or looked what stands
+  near is not counted against the pixels: a walk had taken the ratio from 1 to 0.625 and was no smoother for it.
+  (3) That look itself: it asked every one of a plot's ten thousand movers where it is, three times a second, the
+  more slowly since the rings are a table; now it looks at the lanes that pass near and the stretch passing now
+  (the same movers found: 409,457 of 409,457 at 240 places and times; a third looked at), and a ring's winding is
+  asked only of what stands near the ring.
+- **Multisampling off on a dense screen** (two device pixels a point; `?aa` and `?noaa` either way). The GPU's time a
+  frame in the test browser, 2880 by 1558: with samples 26.7 ms at an inside ratio of 1, 27.5 at 1.25, 58.6 at 2;
+  without 22.6 at 1, 29.8 at 1.5, 40.2 at 2. What the samples cost buys a third more pixels each way, and at
+  the same cost the picture without them is the crisper one (cuts of both looked at).
+- **Counted:** 24 whole plots: of 10,000 movers a plot none in another, of 46,000 sampled none in a thing; drawn
+  movers at five spots: none in another or in a trunk (one snake 7 cm, one walker 15 cm into a thing beside a
+  trail as they stepped round a camera standing in their lane).
+- **His Safari** (2880 by 1558): on the trails, with samples: 53 to 59 fps over 364 m walked, 7 % of frames late,
+  the inside between 0.75 and 1. Without samples: 52 to 60 walking, the inside at 1 to 1.125, then down to 0.625
+  during the walk: that was before busy frames were left out of the count.
+- **Not seen in his Safari yet:** the last two changes (busy frames not counted; the look by lanes). **Not there:**
+  60 fps steady while walking (new kinds' meshes still come in bursts as he goes); the inside at the screen's full
+  ratio everywhere; movers that leave their plot, cross a way or overtake.
+
 ## Trail
 
 | When | Commit | What |

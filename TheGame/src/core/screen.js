@@ -3,7 +3,8 @@
 // inside, a pixel ratio of its own (the governor's dial: src/core/governor.js), drawn into a target and laid on the
 // screen through a filter that keeps edges crisp (Catmull-Rom: nine reads a pixel); at the same size it is a copy.
 //
-// The world is always drawn into the target, never straight onto the canvas. The target is multisampled and told to
+// The world is always drawn into the target, never straight onto the canvas. On a screen of single pixels the target is
+// multisampled (on a dense screen it is not: src/main.js says why) and told to
 // drop its samples when the pass ends (they are resolved, then forgotten: on a tiled GPU they never leave the tile,
 // and need no memory of their own); a canvas keeps every sample of every frame (three stores them: four times the
 // picture's pixels for the colour and again for the depth), so the canvas itself is not multisampled.
