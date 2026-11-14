@@ -123,3 +123,5 @@ times swing with whatever else the Mac's GPU does.
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-14 | `3395f32` | the cause measured: other browsers drawing the game on the same GPU |
+| 2026-11-14 | `ef18dc9` | main and the 19:57 build told apart by their triangles, the table put right |

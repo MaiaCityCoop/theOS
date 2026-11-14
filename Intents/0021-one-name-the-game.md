@@ -78,3 +78,5 @@ Asked outright; the definition holds no surprise.
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-14 | `0180904` | the name and the handle (`window.__game`) |
+| 2026-11-14 | `252d457` | origin/main brought in, its new `__s8` reads renamed |
