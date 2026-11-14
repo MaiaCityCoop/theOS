@@ -2,6 +2,9 @@
 // ratio (4K on a 4K screen) and never below: a hard gate (2026-11-13). What is drawn of the world may be fewer: the
 // inside, a pixel ratio of its own (the governor's dial: src/core/governor.js), drawn into a target and laid on the
 // screen through a filter that keeps edges crisp (Catmull-Rom: nine reads a pixel); at the same size it is a copy.
+// Or, on trial (`?taau`), not laid on by a filter at all: the screen's picture is built over time from the inside's
+// frames, each drawn a part of a pixel aside from the last (src/core/temporal.js); the inside is then two targets by
+// turns, each with its depth (the frame before's depth says what has changed place).
 //
 // The world is always drawn into the target, never straight onto the canvas. On a screen of single pixels the target is
 // multisampled (on a dense screen it is not: src/main.js says why) and told to
@@ -12,10 +15,11 @@ import * as THREE from 'three/webgpu';
 import { Fn, If, float, vec2, vec3, vec4, uv, uniform, texture, floor, max } from 'three/tsl';
 import { note } from './gpu.js';
 
-export function createScreen(renderer, skyHex, { samples = 4, store = false } = {}) {   // store: keep the samples after the pass, as a canvas does (to measure what dropping them saves)
+export function createScreen(renderer, skyHex, { samples = 4, store = false, temporal = null } = {}) {   // store: keep the samples after the pass, as a canvas does (to measure what dropping them saves); temporal: the picture built over time (src/core/temporal.js), in place of the filter
   const OUT = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(OUT);
   let inside = OUT, rt = null;
+  const rts = [null, null]; let turn = 0;   // (built over time: two targets by turns, each with its depth: the frame before's is read while this one's is drawn)
   const css = new THREE.Vector2(), size = new THREE.Vector2();
   const tC = texture(new THREE.Texture()), uSize = uniform(new THREE.Vector2(1, 1)), uSame = uniform(1);
   const mat = new THREE.NodeMaterial(); mat.depthTest = mat.depthWrite = false;
@@ -50,6 +54,18 @@ export function createScreen(renderer, skyHex, { samples = 4, store = false } = 
     /** Draw the world: into the inside's target, then onto the screen. */
     render(scene, camera) {
       sizeOf(size);
+      if (temporal) {
+        let now = rts[turn]; const was = rts[1 - turn];
+        if (!now || now.width !== size.x || now.height !== size.y) {
+          now?.depthTexture?.dispose(); now?.dispose();
+          now = rts[turn] = new THREE.RenderTarget(size.x, size.y, { samples: 0, depthTexture: new THREE.DepthTexture(size.x, size.y), minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });
+          note(`the picture inside (target ${turn + 1} of two, with its depth)`, size.x * size.y * 8, 0);
+        }
+        temporal.begin(camera, size.x, size.y);
+        renderer.setRenderTarget(now); renderer.render(scene, camera); renderer.setRenderTarget(null);
+        temporal.end(camera); temporal.resolve(now, was); turn = 1 - turn;
+        return;
+      }
       if (!rt || rt.width !== size.x || rt.height !== size.y) {
         rt?.dispose();
         rt = new THREE.RenderTarget(size.x, size.y, { samples, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false, resolveDepthBuffer: false });

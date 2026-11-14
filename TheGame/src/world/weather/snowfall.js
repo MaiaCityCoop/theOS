@@ -8,12 +8,16 @@ import FALL from '../../../world/snowfall.js';
 import { U } from '../../core/uniforms.js';
 import { rnd } from '../noise.nodes.js';
 import { finish, skyLight, SNOW } from '../light.js';
+import { TEMPORAL } from '../../core/temporal.js';
 
 const nameOf = (a) => FALL.names.filter(([at]) => a >= at).at(-1)[1];
 
 function flakes(scene) {
   const N = FALL.flakes, B = FALL.box, g = new THREE.InstancedBufferGeometry().copy(new THREE.PlaneGeometry(1, 1)); g.instanceCount = N;   // (an instanced geometry: a plain one draws one)
   const m = new THREE.NodeMaterial(); m.transparent = true; m.depthWrite = false;
+  // (the picture built over time, src/core/temporal.js: a flake moves by itself, and says so as everything that does: the
+  // fourth number of its pixels lowered by as much as it covers them)
+  if (TEMPORAL) Object.assign(m, { blending: THREE.CustomBlending, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor });
   const i = instanceIndex.toInt(), vCol = varyingProperty('vec3', 'fCol'), r = (s) => rnd(i, i.mul(7).add(13), uint(s));
   // where it is now: hashed in the box, fallen and carried since the start, wrapped round the camera
   const world = Fn(() => {

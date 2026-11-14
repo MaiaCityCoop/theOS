@@ -22,6 +22,8 @@ export const U = {
   uLandEnd: uniform(24000),                        // how far the land is drawn, metres from the eye (src/terrain/terrain.js): the air hides it by then
   uExposure: uniform(1),                           // the picture's exposure (the sky sets it by the hour)
   uSnow: uniform(0),                               // how deep the snow lies, metres (src/world/snow.js)
+  uFine: uniform(1),                               // how much finer than the inside's pixels textures are read (built over time: src/core/temporal.js)
+  uMark: uniform(0),                               // what moves by itself marks its pixels by it (src/world/light.js: stillness; set by src/core/temporal.js)
   uSnowFall: uniform(0),                           // how much snow is falling, 0 … 1 (src/world/snowfall.js)
   tShadow: texture(placeholder), uShadowM: uniform(new THREE.Matrix4()), uShadowOn: uniform(0), uShadowTexel: uniform(1 / 2048), uShadowPass: uniform(0),   // the shadow map (src/world/shadow.js)
   uSky: uniform(v3(0.4, 0.55, 0.7)), uHaze: uniform(1 / 6500), uHazeCol: uniform(v3(0.6, 0.7, 0.8)),

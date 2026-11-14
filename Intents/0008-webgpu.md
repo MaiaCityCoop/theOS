@@ -1475,6 +1475,60 @@ grass and ground stays high". Nothing of the picture was changed in this round; 
   out once each: about half the stand's 5 ms; and the land's pixels, where the ground and the grass must stay as
   they are (the cached ground was softer and was declined on 2026-11-13).
 
+### 2026-11-14, the picture built over time, on trial (12:46)
+
+Samuel asked what the best architecture for all the gates is (assets that describe, an engine that compiles, a frame
+whose cost follows the screen and not the world; what does not change every frame not worked out every frame), then:
+"Does this still increase overall quality and realism? If yes go ahead and improve one step at a time". Step one:
+the screen's picture built over time (`?taau`, `src/core/temporal.js`). **Not the default**: it changes the look,
+and the look is his to judge.
+
+- **What it is.** Each frame is drawn at the inside's pixels a part of a pixel aside from the last (32 places by
+  turns). The screen's picture is kept: a pixel takes a frame's pixels in by how near they fell to it, and keeps
+  the rest from where its point lay a frame ago (the camera's movement and the pixel's depth; the depth at the
+  pixel's own place: a neighbour's put the kept picture a third of a pixel off every frame and smeared the ground
+  under a walk). The kept colour is pulled into the range of the frame's pixels round it and trusted less the
+  farther it was pulled; nothing is kept where the depth says another thing stood there.
+- **What moves by itself says so.** The first make smeared a gale's grass to a green mush and let movers show
+  through. No rule on the screen can tell a blade that moved from a blade drawn finer, so the thing says it: the
+  fourth number of its pixels is how still it is (`stillness`, `src/world/light.js`): a mover none, a blade, a
+  crown or a thing of the stand by how far it swings in the wind now (pixels a frame at its distance), a falling
+  flake by its blending. Little is kept there: it is as sharp as today, and not sharper.
+- **Textures as fine as the screen's pixels would read them** (the ground, the stand's things): what that leaves
+  crawling in one frame, the frames together take in.
+- **Measured against the picture built at the screen's own pixels** (the same place, the clock, the clouds and the
+  sun held: cloud shadows wandering between stills had made the first sweep worthless; the mean difference of 255,
+  lower is nearer). Stood still, the camera travelling forward at 3.3 m/s (the frame it stops on held on screen):
+
+  | inside ratio | plain, stood | plain, forward | over time, stood | over time, forward |
+  | --- | --- | --- | --- | --- |
+  | 0.75 | | | 2.7 | 4.5 |
+  | 1.0 | 4.3 | 4.4 | 1.6 | 3.4 |
+  | 1.25 | 3.5 | 3.6 | 1.7 | 2.8 |
+  | 1.5 | 3.0 | 3.1 | 2.0 | 2.7 |
+  | 1.75 | 2.7 | 2.8 | 1.1 | 1.8 |
+  | 2.0 | 3.0 | 3.0 | | |
+
+  Sideways and turning as forward. From frame to frame (the clock stepped a sixtieth): pixels that jump by more than
+  24 of 255 in a gale 1.8 % (plain 6.2 %), among movers 0.15 % (0.42 %), in a calm 0.06 % (0.12 %).
+- **What it costs.** The first make cost five times the filter it replaces: a screen pixel's arithmetic is paid 4.5
+  million times a frame, and a texture read by number (checked against the texture's size each time) is slower than
+  one read by place. Now three passes: the look at the inside's pixels (the way back, how much may be kept, the
+  range: five colour reads and five depths), the build at the screen's (two reads of the look, five of the frame,
+  one of the kept picture where nothing moved, else five), a copy. About twice the filter's cost. In his Safari at
+  the start place, 2880 by 1558, both at 60 frames a second: plain settles at an inside ratio of 1.4 to 1.5 and
+  climbed to 2.0 once; over time at 1.4 to 1.6. So it costs about a quarter to a third of a step of the ratio, and
+  at the ratio it can afford it is nearer the reference than plain at the ratio plain can afford (the table), but
+  for a walk at the lowest ratios, where they are level. 440 MB on the GPU in the plain game, where plain holds
+  331 MB (the kept picture, twice, in half floats: 72 MB of it).
+- **Without `?taau` nothing changes**: the stills of the staged build and the live one differ in no pixel of the
+  world, and no shader has changed (what marks its pixels does so only with it).
+- **Not done.** It is not the default. What moves by itself is not followed (no place a frame ago for a mover or a
+  blade): it gains nothing. The trees' and the rocks' textures are not read finer. Its edges are not firmed on the
+  way to the canvas (it costs as much again as the look, and the scores did not ask for it). At 1.5 it stands a
+  little farther from the reference than at 1.25 (not understood yet). The lens's own pass (depth of field) and the
+  WebGL fallback keep the filter.
+
 ## Trail
 
 | When | Commit | What |

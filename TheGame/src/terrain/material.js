@@ -5,6 +5,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, screenCoordinate, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
+import { TEMPORAL } from '../core/temporal.js';
 import { recipes, byRole } from '../core/registry.js';
 import { detailOf, sizeOf } from '../detail/index.js';
 import { int } from 'three/tsl';
@@ -226,7 +227,7 @@ export function terrainMaterial(tex, cache = null) {   // cache: the ground laid
       Fn(([p, texel, D]) => { const X = at(p, texel, D); return vec4(X.n.mul(0.5).add(0.5), X.cv, X.shade); }));
   }
   const frag = Fn(() => {
-    const p = vWorld.xz, dx = dFdx(p), dy = dFdy(p);
+    const p = vWorld.xz, dx = TEMPORAL ? dFdx(p).mul(U.uFine) : dFdx(p), dy = TEMPORAL ? dFdy(p).mul(U.uFine) : dFdy(p);   // (built over time, src/core/temporal.js: the ground read as finely as the screen's own pixels would)
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     // every noise is let go before it is finer than a pixel: far away it would only shimmer
     const d = abs(vI.x), w = vI.y, b = vI.z;

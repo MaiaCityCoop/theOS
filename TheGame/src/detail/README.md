@@ -211,6 +211,18 @@ stand's meshes 94 MB once, where they were 131 MB twice). What the workers make 
 kinds' coarse meshes) is kept in the browser under the recipes' fingerprint (`src/core/kept.js`) and read back at
 the next.
 
+**The picture built over time** (`src/core/temporal.js`; on trial: `?taau`). The world is drawn at the inside's
+pixels, each frame a part of a pixel aside from the last, and the screen's picture is kept from frame to frame: a
+screen pixel takes a frame's pixels in by how near they fell to it and keeps the rest from where its point lay a
+frame ago (found by the camera's own movement and the pixel's depth). Standing still it is the picture drawn at the
+screen's own pixels with its edges smoothed; textures are read as finely as the screen's pixels would read them
+(`U.uFine`: the ground, the stand's things). What moves by itself cannot be followed, so **it says so**: the fourth
+number of its pixels is how still it is (`stillness(amount, where)` in `src/world/light.js`: a mover 0, a blade or
+a crown by how far it swings in the wind now, a flake by its own blending), and little is kept there: it is as
+sharp as before, not smeared. A new kind that moves by itself keeps this rule, or it leaves a trail. Three passes
+(the look at the inside's pixels; the build and the copy at the screen's): what a screen pixel does is paid four and
+a half million times a frame, so the arithmetic lives in the look.
+
 ## What this does not yet give
 
 - **The trees, the rocks and the grass are not on the heap yet**: they keep a draw call a shape and level. The heap

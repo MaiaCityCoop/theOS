@@ -34,6 +34,7 @@ import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
 import { createPost } from './camera/post.js';
 import { createScreen } from './core/screen.js';
+import { createTemporal, TEMPORAL } from './core/temporal.js';
 import { createSky } from './world/sky.js';
 import { createWeather } from './world/weather/index.js';
 import { useBackend } from './world/light.js';
@@ -73,7 +74,9 @@ trackView(); setImpostorRenderer(renderer);   // the measure of size on screen f
 // (the screen keeps all its own pixels; the governor's pixel dial is the inside's: src/core/screen.js)
 // (multisampling only on a screen of single pixels: on a dense one (two device pixels a point) the samples' cost buys a
 // third more pixels each way instead, measured 2026-11-14, and the pixels themselves are fine enough. `?aa`, `?noaa`: either way)
-const screen = (stats.screen = createScreen(renderer, SKY, { samples: params.has('noaa') ? 0 : params.has('aa') ? 4 : (window.devicePixelRatio || 1) >= 2 ? 0 : 4, store: params.has('msstore') }));
+// (`?taau`, on trial: the screen's picture built over time from the inside's frames, each drawn a part of a pixel aside: src/core/temporal.js)
+const temporal = (stats.temporal = TEMPORAL && renderer.backend.isWebGPUBackend ? createTemporal(renderer) : null);
+const screen = (stats.screen = createScreen(renderer, SKY, { samples: temporal || params.has('noaa') ? 0 : params.has('aa') ? 4 : (window.devicePixelRatio || 1) >= 2 ? 0 : 4, store: params.has('msstore'), temporal }));
 const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
 stats.governor = governor;   // the film holds it still while it plays
 const boot = (stats.boot = {}), mark = (k) => (boot[k] = Math.round(performance.now() - t0));   // where the start's time goes

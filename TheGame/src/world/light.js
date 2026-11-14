@@ -51,6 +51,10 @@ export const airOf = (w, eye = U.uCam) => {
 const airAt = Fn(([c, w, eye]) => { const A = airOf(w, eye); return mix(A.col, c, A.k); });
 /** The end of every material: its colour seen through the air from the eye, to the screen. */
 export const finish = (c, w, eye = U.uCam) => toScreen(airAt(c, w, eye));
+/** What moves by itself says so in its pixel's fourth number: 1 still … 0 moving, for the picture built over time
+    (src/core/temporal.js: such a pixel keeps little of the frames before, as its place then is not known). amount: how
+    far the point swings, metres for a unit of the wind's push; w: where it is. */
+export const stillness = (amount, w) => float(1).sub(clamp(amount.mul(U.uMark).div(max(length(U.uCam.sub(w)), 0.5)), 0, 1));
 /** The sky's light on a surface facing n: most from above, less on what faces sideways, and a little bounced up off the
     sunlit ground onto what faces down. */
 export const skyLight = (n) => U.uAmb.mul(n.y.mul(0.32).add(0.68)).add(U.uSun.mul(U.uSunDir.y.max(0)).mul(vec3(0.09, 0.1, 0.06)).mul(float(0.5).sub(n.y.mul(0.5))));
