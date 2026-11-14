@@ -302,7 +302,10 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // the stand's levels as the drawer takes them: where each ends on screen (its kinds': assets/kinds.js) and the room
     // a shape of any of its kinds needs there (their files say: `most`, its vertices and triangles)
     const roomOf = (get) => ({ verts: Math.max(1, ...G.kinds.map((Kd) => get(Kd)?.[0] ?? 0)), tris: Math.max(1, ...G.kinds.map((Kd) => get(Kd)?.[1] ?? 0)) });
-    const LEVELS = [...G.kinds[0].levels.map((l, i) => ({ px: l.lo, room: roomOf((Kd) => Kd.levels[i].most) })), ...(SHL >= 0 ? [{ px: 1e-3, room: roomOf((Kd) => Kd.asset.detail.shadow?.most) }] : [])];
+    // (and each shape's own, by its kind's file: a heap place as large as its own, not the largest kind's)
+    const shapeKd = []; for (const Kd of G.kinds) for (let v = 0; v < Kd.shapes; v++) shapeKd[Kd.offset + v] = Kd;
+    const roomsOf = (get) => shapeKd.map((Kd) => ({ verts: Math.max(1, get(Kd)?.[0] ?? 0), tris: Math.max(1, get(Kd)?.[1] ?? 0) }));
+    const LEVELS = [...G.kinds[0].levels.map((l, i) => ({ px: l.lo, room: roomOf((Kd) => Kd.levels[i].most), rooms: roomsOf((Kd) => Kd.levels[i].most) })), ...(SHL >= 0 ? [{ px: 1e-3, room: roomOf((Kd) => Kd.asset.detail.shadow?.most), rooms: roomsOf((Kd) => Kd.asset.detail.shadow?.most) }] : [])];
     // what each of the stand's shapes is to the material (numbersOf), three rows of four a shape: [how tall, its tint],
     // [its wind], [its leaves]; and the zoo's number of each (its family's first, and of its shapes one)
     const numbers = new Float32Array(G.meshes * 12), KINDS = [];

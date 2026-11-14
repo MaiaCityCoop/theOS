@@ -23,10 +23,11 @@
 // What draws a level must be told when the heap has changed (versions: a count a level, raised when a kind's level is
 // put in or out): a level's draw depends on that level and the next finer one only.
 //
-//   createHeap({ kinds, name, levels: [{ idx, elems, slots?, one?, shape? }, …] })   levels finest first: the most corners
+//   createHeap({ kinds, name, levels: [{ idx, elems, slots?, one?, shape?, sizes? }, …] })   levels finest first: the most corners
 //                         and elements a kind has at it (idx 0: a make that keeps its corners itself, each mesh's
 //                         as its draw's own list: a plant; a row's count is then what the mesh says, its vertices); slots: how many kinds' it holds at once (none: every kind's);
-//                         shape: the level's own list of corners (a Uint32Array), or none
+//                         shape: the level's own list of corners (a Uint32Array), or none; sizes: { idx, elems } (lists a
+//                         kind long) where a level's kinds differ in size: each kind's place as large as its own, not the largest
 //   an element: four numbers of 32 bits, 16 bytes; a vertex is one of them (a solid: assets/kit/solid.js) or several
 //   (what draws it knows: heapElem's `per`); a corner: the number of a vertex of its own mesh
 //   The table also says when a level came (`came`): what draws it lets it grow out of the coarser one from then.
@@ -41,8 +42,10 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
   const shaped = (p, idx, o, n) => { const S = p.shape; if (!S || n !== S.length) return 0; for (let i = 0; i < n; i++) if (idx[o + i] !== S[i]) return 0; return SHAPED; };
   const pools = levels.map((l) => {
     const n = l.one ? 1 : l.slots || kinds, own = !l.slots && !l.one;
-    const p = { idx: l.idx, elems: l.elems, n, own, one: !!l.one, shape: l.shape || null, i0: iAt, e0: eAt, held: 0, shaped: 0, who: own || l.one ? null : new Int32Array(n).fill(-1), used: own || l.one ? null : new Float64Array(n), slot: own || l.one ? null : new Int32Array(kinds).fill(-1) };
-    iAt += n * l.idx; eAt += n * l.elems; return p;
+    const sz = own && l.sizes ? l.sizes : null, at = (list) => { const o = new Uint32Array(n + 1); for (let k = 0; k < n; k++) o[k + 1] = o[k] + list[k]; return o; };
+    const io = sz ? at(sz.idx) : null, eo = sz ? at(sz.elems) : null;   // (where each kind's place begins, and its size: the next one's start)
+    const p = { idx: l.idx, elems: l.elems, io, eo, n, own, one: !!l.one, shape: l.shape || null, i0: iAt, e0: eAt, held: 0, shaped: 0, who: own || l.one ? null : new Int32Array(n).fill(-1), used: own || l.one ? null : new Float64Array(n), slot: own || l.one ? null : new Int32Array(kinds).fill(-1) };
+    iAt += io ? io[n] : n * l.idx; eAt += eo ? eo[n] : n * l.elems; return p;
   });
   const index = gpuStorage('uint', Math.max(4, iAt), `${name}: corners`), elems = gpuStorage('uvec4', eAt, `${name}: vertices`), table = new THREE.StorageBufferAttribute(new Uint32Array(kinds * L * 4), 4);
   note(`${name}: table`, table.array.byteLength, table.array.byteLength);
@@ -70,8 +73,9 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
         if (s < 0) return false;
         if (p.who[s] >= 0) H.drop(p.who[s], l);
       }
-      if (mesh.index.length > p.idx || mesh.verts.length > p.elems * 4) throw new Error(`heap: kind ${k} level ${l} is larger than its place`);
-      const i0 = p.i0 + s * p.idx, e0 = p.e0 + s * p.elems;
+      const roomI = p.io ? p.io[s + 1] - p.io[s] : p.idx, roomE = p.eo ? p.eo[s + 1] - p.eo[s] : p.elems;
+      if (mesh.index.length > roomI || mesh.verts.length > roomE * 4) throw new Error(`heap: kind ${k} level ${l} is larger than its place`);
+      const i0 = p.i0 + (p.io ? p.io[s] : s * p.idx), e0 = p.e0 + (p.eo ? p.eo[s] : s * p.elems);
       index.write(i0, mesh.index); elems.write(e0 * 4, mesh.verts);
       if (!p.own) { p.who[s] = k; p.slot[k] = s; p.used[s] = now; }
       const r = row(k, l), is = shaped(p, mesh.index, 0, mesh.index.length), count = mesh.count ?? mesh.index.length;   // (count: its corners, or what its make counts by: a plant's vertices)
@@ -87,9 +91,16 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
         each has. Two pieces to the GPU, whatever n. */
     putBlock(l, k0, n, corners, verts, counts) {
       const p = pools[l]; if (!p.own) throw new Error('heap: putBlock is for a level every kind has its own of');
-      if (corners.length) index.write(p.i0 + k0 * p.idx, corners);   // (none: a make that keeps its corners itself)
-      elems.write((p.e0 + k0 * p.elems) * 4, verts);
-      for (let j = 0; j < n; j++) { const k = k0 + j, r = row(k, l), is = shaped(p, corners, j * p.idx, counts[j]); if (!H.has(k, l)) p.held++; else if (T[r + 2] >= SHAPED) p.shaped--; if (is) p.shaped++; T[r] = p.i0 + k * p.idx; T[r + 1] = p.e0 + k * p.elems; T[r + 2] = (counts[j] | is) >>> 0; mask[k] |= 1 << l; masked(k, true); }
+      if (p.io) for (let j = 0; j < n; j++) {   // (places of their own sizes: kind by kind, each its own part of the block)
+        const k = k0 + j, ri = p.io[k + 1] - p.io[k], re = p.eo[k + 1] - p.eo[k];
+        if (counts[j] > (ri || re)) throw new Error(`heap: kind ${k} level ${l} is larger than its place (${counts[j]} in ${ri || re})`);
+        if (corners.length && ri) index.write(p.i0 + p.io[k], corners.subarray(j * p.idx, j * p.idx + ri));
+        elems.write((p.e0 + p.eo[k]) * 4, verts.subarray(j * p.elems * 4, (j * p.elems + re) * 4));
+      } else {
+        if (corners.length) index.write(p.i0 + k0 * p.idx, corners);   // (none: a make that keeps its corners itself)
+        elems.write((p.e0 + k0 * p.elems) * 4, verts);
+      }
+      for (let j = 0; j < n; j++) { const k = k0 + j, r = row(k, l), is = shaped(p, corners, j * p.idx, counts[j]); if (!H.has(k, l)) p.held++; else if (T[r + 2] >= SHAPED) p.shaped--; if (is) p.shaped++; T[r] = p.i0 + (p.io ? p.io[k] : k * p.idx); T[r + 1] = p.e0 + (p.eo ? p.eo[k] : k * p.elems); T[r + 2] = (counts[j] | is) >>> 0; mask[k] |= 1 << l; masked(k, true); }
       table.addUpdateRange(row(k0, 0), n * L * 4); table.needsUpdate = true; H.version++; H.versions[l]++;
     },
     /** One mesh for every kind's level l (a level made `one`). */
