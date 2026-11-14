@@ -25,11 +25,11 @@
 //     bonesOf?(i)             its skeleton: Float32Array, BONES bones of three rows of four (assets/kit/creature.js
 //                             says what a bone is); without: nothing in it moves by itself
 //     fullTris?(i)            how many triangles its full mesh has (for the readout)
-//     roams?: [{ name, share, speed: [from, to] (m/s), size: [from, to] (m), ring (it keeps to the roads), fly: [from,
-//               to] (metres over the ground), stride (of its size, a radian of its gait), girth (how wide it is
-//               round, of its size: 0.22 unless said), first, count }]
+//     roams?: [{ name, share, speed: [from, to] (m/s), size: [from, to] (m), fly: [from, to] (metres over the
+//               ground), stride (of its size, a radian of its gait), first, count }]
 //                             its herds: how its kinds move about (kinds first … first + count of it are one herd; share:
-//                             how many of a place's movers are of it). Without: its kinds stand.
+//                             how many of a place's movers are of it). Without: its kinds stand. What moves keeps to
+//                             the ways (src/world/ways.js), each herd in a lane as wide as its colliders say (herdRooms).
 //   }
 //
 // What a family makes is the same on every machine at every start: it is made in a worker
@@ -37,6 +37,7 @@
 // start builds nothing. Plain JS, no three: the worker reads it and the page reads it.
 import { unpackSolid } from '../kit/solid.js';
 import { LADDER } from '../kit/ladder.js';
+import { moved } from '../kit/bones.js';
 
 const FOUND = import.meta.glob(['./*.js', '!./index.js'], { eager: true, import: 'default' });
 /** The families: what stands first, then what roams, each by its id; `first`: the number of its first kind. */
@@ -66,26 +67,34 @@ export function bodyOf(k) {
   BODIES.set(k, (B = { box, shapes }));
   return B;
 }
-/** A kind's footprint where its family names its colliders: { r, top } of its own size (the widest of what is solid
-    of it, and how high that stands); null: it names none (its coarse mesh says). */
-export const footOf = (k) => {
-  const E = of(k), S = E.F.collidersOf?.(k - E.first); if (!S) return null;
-  let r = 0, top = 0;
-  for (const s of S) {
-    if (s.pass) continue;
-    if (s.shape === 'sphere') { r = Math.max(r, Math.hypot(s.at[0], s.at[2]) + s.r); top = Math.max(top, s.at[1] + s.r); }
-    else if (s.shape === 'capsule') { r = Math.max(r, Math.hypot(s.a[0], s.a[2]) + s.r, Math.hypot(s.b[0], s.b[2]) + s.r); top = Math.max(top, s.a[1] + s.r, s.b[1] + s.r); }
-    else if (s.shape === 'box') { r = Math.max(r, Math.hypot(Math.abs(s.at[0]) + s.half[0], Math.abs(s.at[2]) + s.half[2])); top = Math.max(top, s.at[1] + s.half[1]); }
-  }
-  return { r, top };
-};
 export const fullTris = (k) => { const E = of(k); return E.F.fullTris?.(k - E.first) ?? 0; };
 /** Every herd of every family that roams: its numbers, `first` the number of its first kind, `upTo` where its share
     of a place's movers ends (0 … 1: a number under a herd's upTo and not under the one before's is of it). */
 export const HERDS = (() => {
   const all = FAMILIES.filter((E) => E.roams).flatMap((E) => E.F.roams.map((R) => ({ ...R, family: E.id, first: E.first + R.first }))), total = all.reduce((s, R) => s + R.share, 0); let at = 0;
-  return all.map((R) => ({ ...R, ring: !!R.ring, fly: R.fly ?? [0, 0], girth: R.girth ?? 0.22, upTo: (at += R.share / total) }));   // (girth: how wide it is round, of its size: what it keeps clear of things)
+  return all.map((R) => ({ ...R, fly: R.fly ?? [0, 0], upTo: (at += R.share / total) }));
 })();
+/** How much room each herd's movers take as they move, of their own size: [{ fore, side, top }], the furthest any
+    collider of any of its kinds reaches along its way (to either end), across it (to either side) and up, carried by
+    its bones over a stride (assets/kit/bones.js); its box at rest where its colliders are a mesh. What lays the ways
+    sizes its lanes by it: no one says by hand how wide a thing is. (A few hundred thousand points: asked of the worker.) */
+export function herdRooms() {
+  const o = [0, 0, 0];
+  return HERDS.map((G) => {
+    let fore = 0, side = 0, top = 0;
+    const take = (p, r) => { fore = Math.max(fore, Math.abs(p[0]) + r); side = Math.max(side, Math.abs(p[2]) + r); top = Math.max(top, p[1] + r); };
+    for (let k = G.first; k < G.first + G.count; k++) {
+      const B = bodyOf(k), rows = bonesOf(k);
+      take([Math.max(Math.abs(B.box.min[0]), Math.abs(B.box.max[0])), B.box.max[1], Math.max(Math.abs(B.box.min[2]), Math.abs(B.box.max[2]))], 0);
+      for (const s of B.shapes) {
+        const pts = s.shape === 'sphere' ? [s.at] : s.shape === 'capsule' ? [s.a, s.b] : s.shape === 'box' ? [-1, 1].flatMap((x) => [-1, 1].flatMap((y) => [-1, 1].map((z) => [s.at[0] + x * s.half[0], s.at[1] + y * s.half[1], s.at[2] + z * s.half[2]]))) : null;
+        if (!pts || s.pass) continue;
+        for (let ph = 0; ph < 16; ph++) for (const q of pts) take(rows && s.bone != null ? moved(rows, s.bone, (ph / 16) * Math.PI * 4, q, o) : q, s.r ?? 0);
+      }
+    }
+    return { fore, side, top };
+  });
+}
 const REV = 1;   // (raised by hand when a kit changes what it makes in a way the samples below would not show)
 /** What the families make, as a word: a few kinds' coarse meshes of each, a small texture, a skeleton, read into one
     number. A recipe changed, it is another word, and what the browser kept under the old one is not read. */

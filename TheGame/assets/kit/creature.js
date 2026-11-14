@@ -8,7 +8,7 @@
 //                                             as any kind of the heap (assets/zoo/index.js; its family: assets/zoo/creatures.js)
 //   creatureBones(c)    -> Float32Array        its BONES bones, three rows of four a bone:
 //                                             [pivot x, y, z, parent], [axis x, y, z, type], [amp, rate, phase, base]
-//   RIGS                the kinds of mover: how fast, how large, whether it keeps to the roads, how high it flies
+//   RIGS                the kinds of mover: how fast, how large, how high it flies
 //
 // A bone (src/scatter/stress.js moves it, on the GPU, by the mover's stride g, radians):
 //   type 0  still
@@ -34,8 +34,8 @@ const limb = (bones, tubes, hip, knee, foot, rad, o) => {
 // a wheel: a short wide tube across the way, turning as far as the mover has gone
 const wheel = (bones, tubes, x, z, r, w) => { const sg = Math.sign(z) || 1; bones.push(B([x, r, z], { type: 3, rate: -STRIDE / r })); tubes.push(T([x, r, z - sg * w], [x, r, z + sg * w], r, r, { bone: bones.length - 1, blend: 0, lumps: 0, wheel: true })); };
 
-/** The rigs. share: how many of a plot's movers are of it; speed (m/s) and size (m): from … to; ring: it keeps to its
-    plot's ring roads; fly: metres over the ground, from … to; make(r): its bones and tubes (r(i): its kind's own
+/** The rigs. share: how many of a plot's movers are of it; speed (m/s) and size (m): from … to; fly: metres
+    over the ground, from … to; make(r): its bones and tubes (r(i): its kind's own
     numbers, 0 … 1), set out forward along x, up along y, about a unit large. */
 export const RIGS = [
   { name: 'walker', share: 30, speed: [0.8, 1.8], size: [1.5, 1.9], make(r) {   // on two legs, its arms swinging against them
@@ -91,13 +91,13 @@ export const RIGS = [
     tubes.push(T([0.1, bh + 0.12, 0], [0.16, bh + 0.5, 0], 0.03, 0.045, { bone: bones.length - 1, from: 0 }));
     return { bones, tubes };
   } },
-  { name: 'transport', share: 9, ring: true, speed: [8, 20], size: [3, 6], make(r) {   // a long body on six wheels, a cab
+  { name: 'transport', share: 9, speed: [8, 20], size: [3, 6], make(r) {   // a long body on six wheels, a cab
     const wr = 0.07 + 0.03 * r(1), hw = 0.13 + 0.04 * r(2), bh = wr * 2 + 0.11, bones = [B([0, 0, 0])], tubes = [];
     tubes.push(T([-0.5, bh, 0], [0.34, bh, 0], 0.13 + 0.03 * r(3), 0.13, { flat: 1.15, lumps: 0.02 }), T([0.3, bh - 0.04, 0], [0.5, bh - 0.06, 0], 0.1, 0.09, { flat: 1.3, lumps: 0.02 }));
     for (const x of [0.36, 0, -0.36]) for (const s of [1, -1]) wheel(bones, tubes, x, s * hw, wr, 0.03);
     return { bones, tubes };
   } },
-  { name: 'cycle', share: 5, ring: true, speed: [4, 9], size: [1.4, 2], make(r) {   // two wheels in line, a rider leaning over them
+  { name: 'cycle', share: 5, speed: [4, 9], size: [1.4, 2], make(r) {   // two wheels in line, a rider leaning over them
     const wr = 0.2 + 0.04 * r(1), bones = [B([0, 0, 0])], tubes = [];
     wheel(bones, tubes, 0.32, 0.0001, wr, 0.025); wheel(bones, tubes, -0.32, 0.0001, wr, 0.025);
     tubes.push(T([-0.32, wr, 0], [0.32, wr + 0.1, 0], 0.03, 0.03, { lumps: 0 }), T([-0.08, wr + 0.08, 0], [0.06, wr + 0.5, 0], 0.1, 0.11, { flat: 0.7 }), T([0.07, wr + 0.5, 0], [0.12, wr + 0.68, 0], 0.07, 0.065));

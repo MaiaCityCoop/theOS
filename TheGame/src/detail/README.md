@@ -148,7 +148,7 @@ itself, that keeps one contract (`assets/zoo/index.js` writes it out):
 | `lookOf(i)` | plain numbers: its shading model, tints, relief, gloss, sway, snow, size, whether it is cut out as leaves |
 | `bonesOf(i)` | its skeleton (sixteen bones, three rows of numbers each), where it has one |
 | `boundsOf(i)`, `collidersOf(i)` | its box, and what of it is solid, as shapes in its own frame: sphere, capsule, box, mesh; a shape may move with a bone, or be passed through (leaves). A family that says nothing still has both: its coarse mesh is its collider |
-| `roams` | its herds: pace, size, girth, whether they keep to the roads or fly, their stride; without it its kinds stand |
+| `roams` | its herds: pace, size, how high they fly, their stride; without it its kinds stand. What roams keeps to the ways, in a lane as wide as its colliders say |
 
 Three families today, each a stand-in for what a real asset will ask of the engine:
 
@@ -165,7 +165,7 @@ Three families today, each a stand-in for what a real asset will ask of the engi
 
 The other plug points, each a file found by itself: a **shading model** (`src/shading/*.js`: `lit(c)`, a branch of
 the one shader), a **material** of the world (`materials/*.js`), a **biome** (`biomes/*.js`), a **scatter engine**
-(`src/scatter/*.js`), an **asset** of the library (`assets/*.js`). The engine under them: the heap (`heap.js`), the
+(`src/scatter/*.js`), an **asset** of the library (`assets/*.js`), a layer of **ways** (`src/world/ways.js`: where things move, and so where nothing stands). The engine under them: the heap (`heap.js`), the
 vertex's 16 bytes, the ladder, the tiers, the recipes' worker and the keeper.
 
 **What is solid** (`src/world/bodies.js`): one description for a rock, a tree, a house, a car, an animal, said by the
@@ -178,12 +178,18 @@ point only; a creature's capsules move with its bones. They stop the walker, eac
 goes round (`solids.js`). `?stress&bounds` draws them; `?stress&ghost` walks through them. The placed assets' walls, the rocks and the trunks still have their own descriptions (`solids.js`): they
 come onto this one as they become families.
 
-**What moves keeps clear** (`src/scatter/stress.js`), by the same description, and with nothing remembered: a
-plot's roads are stood on by nothing and driven each way on its own side; each frame the GPU pushes every near
-walker out of the rounds of what stands in the cells round it (a kind's round and height are two numbers of its
-look, from its family's colliders or its hull), and half way out of any mover beside it (a grid the movers write
-themselves into). A herd's `girth` is how wide its movers are. `?stress&crash` turns it off, to count against.
-What drives does not yet give way, and nothing plans a way through a thicket.
+**The ways** (`src/world/ways.js`): the ground kept free for what moves. Who lays ways says where they run (one
+answer, as a node for the GPU and in JS: `addWays`); who places what stands asks (`offWays`, `wayAt`, `onWay`) and
+keeps off: the stand's lattice is folded off them, a tree keeps off by its own crown, boulders, stones and grass
+by their place. What moves keeps to its way. So nothing that moves meets what stands, by how the world is laid
+out and not by looking each frame: it holds at any distance and costs a frame nothing.
+
+**The lanes** (`src/scatter/stress.js`): how what moves keeps clear of what moves. Each herd has a lane on every
+second way of a plot, as wide as its widest mover as it moves (`herdRooms` in the zoo: its colliders carried by
+its bones over a stride; nobody says how wide a thing is). The quickest go in the middle, each side its own way
+round, what flies in the air over the way. Every mover has a place of its own in its lane and goes at the lane's
+pace, swaying along it by less than the room to the next: none comes up with another. Where a plot is too small
+for that its movers are smaller, as its things are. No way crosses another yet, so nobody turns off or overtakes.
 
 **Memory (the game must run on 8 GB).** What only the GPU reads lives on the GPU only (`src/core/gpu.js`): the
 heap's meshes, the near plots' places, what every tier packs. Every pool says what it holds, and the readout shows

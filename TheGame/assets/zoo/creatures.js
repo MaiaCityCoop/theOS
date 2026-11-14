@@ -10,5 +10,5 @@ export default {
   id: 'creatures', count: RIGS.length * VARIANTS, meshOf: creatureMesh, bonesOf: creatureBones, fullTris,
   collidersOf: creatureColliders, boundsOf: creatureBounds,   // (a capsule a limb, moving with its bone)
   skinOf: (i, size) => blobSkin(SKIN + i, size), lookOf: (i) => ({ ...blobLook(SKIN + i), sway: 0, size: 1 }),
-  roams: RIGS.map((R, r) => ({ name: R.name, share: R.share, speed: R.speed, size: R.size, ring: !!R.ring, fly: R.fly ?? [0, 0], stride: STRIDE, first: r * VARIANTS, count: VARIANTS })),
+  roams: RIGS.map((R, r) => ({ name: R.name, share: R.share, speed: R.speed, size: R.size, fly: R.fly ?? [0, 0], stride: STRIDE, first: r * VARIANTS, count: VARIANTS })),
 };

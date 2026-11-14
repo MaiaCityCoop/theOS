@@ -9,6 +9,7 @@ import { note } from '../core/gpu.js';
 import { heightAt as heightCPU, SAND } from '../world/land.js';
 import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt } from '../world/land.nodes.js';
 import { PLACES } from '../../world/places.js';
+import { offWays, waysVersion } from '../world/ways.js';
 import { BIOMES } from '../world/biomes.js';
 
 const N = 512;   // texels a side; a texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers the blades' reach
@@ -28,7 +29,7 @@ export function createGround(renderer, tex) {
   // (plain shared nodes, not a function: three works a shared node out once, and hands the two to the two targets)
   const pos = posOf(), I = riverInfo(pos), w = I.y, d = abs(I.x), b = I.z, dist = camDist(pos);
   const L = biomesAt({ p: pos, dist, d, w, b });   // every biome's share here: their grass, its height, their stones, the dryness
-  const path = placeOff(pos, pathMask(pathN(pos))), oc = outcropMask(pos), stage = stageAt(pos), keep = clearOf(pos).mul(float(1).sub(stage));
+  const path = placeOff(pos, pathMask(pathN(pos))), oc = outcropMask(pos), stage = stageAt(pos), keep = offWays(clearOf(pos).mul(float(1).sub(stage)), pos, 1);   // (and no grass or stone on a way: src/world/ways.js)
   const dens = float(1).sub(path).mul(float(1).sub(bareMask(pos))).mul(float(1).sub(oc.mul(0.25))).mul(L.cover).mul(keep);
   const stone = keep.mul(L.stones.add(oc.mul(0.5))).mul(float(1).sub(path.mul(0.8)));
   const t = grassTint(tex, pos, L.dry, 0);
@@ -39,7 +40,7 @@ export function createGround(renderer, tex) {
   });
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); quad.frustumCulled = false;
   const read = (t, pos) => texture(t, pos.sub(G.o).div(G.texel).add(0.5).div(N)).level(0);
-  let lastDy = -1, lastS = 0, cpu = null, reading = false;
+  let lastDy = -1, lastS = 0, lastW = 0, cpu = null, reading = false;
   // the CPU's copy of the ground under the camera (read back after each pass, a moment later): what runs on the CPU and
   // must agree with what is drawn reads it, the rocks' bodies first (src/world/rocksolid.js)
   const h2f = (h) => { const e = (h >> 10) & 31, f = h & 1023, sg = h & 32768 ? -1 : 1; return e === 0 ? sg * f * 2 ** -24 : e === 31 ? NaN : sg * (1 + f / 1024) * 2 ** (e - 15); };
@@ -73,9 +74,10 @@ export function createGround(renderer, tex) {
       // risen or sunk by a quarter of its height, or when the lens changed; not at all too high up for anything to read it
       const TEXEL = 0.5 * s, SNAP = 32 * TEXEL, o = G.o.value;
       const ox = Math.round(cx / SNAP) * SNAP - (N * TEXEL) / 2, oz = Math.round(cz / SNAP) * SNAP - (N * TEXEL) / 2;
-      if (ox === o.x && oz === o.y && Math.abs(dy - lastDy) < Math.max(4, lastDy * 0.25) && s === lastS) return;
-      if (dy > 160 * s && lastDy > 160 * s && s === lastS) return;
-      o.set(ox, oz); lastDy = dy; lastS = s; G.texel.value = TEXEL; G.base.value = Math.round(heightCPU(ox + (N * TEXEL) / 2, oz + (N * TEXEL) / 2));
+      const wv = waysVersion();   // (and when the ways are others than they were)
+      if (ox === o.x && oz === o.y && Math.abs(dy - lastDy) < Math.max(4, lastDy * 0.25) && s === lastS && wv === lastW) return;
+      if (dy > 160 * s && lastDy > 160 * s && s === lastS && wv === lastW) return;
+      o.set(ox, oz); lastDy = dy; lastS = s; lastW = wv; G.texel.value = TEXEL; G.base.value = Math.round(heightCPU(ox + (N * TEXEL) / 2, oz + (N * TEXEL) / 2));
       const was = renderer.getRenderTarget();
       renderer.setRenderTarget(rt); renderer.render(quad, cam); renderer.setRenderTarget(was); this.version++;   // what reads the map knows it is new
       if (dy < 30) readBack(o.clone(), TEXEL, G.base.value);   // only a walker near the ground needs the CPU's copy (the rocks' bodies)

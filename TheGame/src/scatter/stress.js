@@ -14,9 +14,12 @@
 // How so many are placed and drawn:
 //   - nothing of where they stand is kept. A plot is a row of numbers (its middle, how far its edge is in 64
 //     directions); its million are a lattice of 1000 by 1000 cells folded onto that shape, worked out on the GPU for the
-//     cells a tier looks at (place). So a plot costs 272 bytes, and the world's size costs nothing;
-//   - where a mover is is a function of the clock (its round, its pace: moverAt), worked out afresh every frame for the
-//     plots near the camera: no mover has a state to keep;
+//     cells a tier looks at (place). So a plot costs under a kilobyte, and the world's size costs nothing;
+//   - where a mover is is a function of the clock (its lane on one of its plot's ways, its place in it, its lane's
+//     pace: nominal), worked out afresh every frame for the plots near the camera: no mover has a state to keep;
+//   - nothing stands on the ways (the lattice is folded off them; what else places things asks src/world/ways.js) and
+//     every mover has a lane and a place in it of its own (the lanes, below): none meets a thing or another, by how
+//     the plot is laid out;
 //   - a tier a level packs the ones of its level that are in view (tier.js), its patches blocks of a plot's lattice;
 //     the movers are one tier, packed every frame, each dropped into its level's draw;
 //   - every kind's meshes lie in one heap (heap.js): a level of every kind is one draw call, its vertices read from the
@@ -44,7 +47,7 @@
 //   - its textures are read at every level (the GPU's mipmaps make a far thing its textures' mean), its relief fades in
 //     with its size; its last level is a dot of that mean, sinking away under a pixel.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Loop, Discard, float, int, uint, ivec2, vec2, vec3, vec4, instancedArray, atomicStore, atomicLoad, uniform, uniformArray, varyingProperty, storage, texture, instanceIndex, vertexIndex, cameraViewMatrix, dFdx, dFdy, cos, sin, atan, abs, max, min, pow, mix, sqrt, floor, cross, reflect, length, normalize, smoothstep, clamp } from 'three/tsl';
+import { Fn, If, Loop, Discard, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, storage, texture, instanceIndex, vertexIndex, cameraViewMatrix, dFdx, dFdy, cos, sin, atan, abs, max, min, pow, mix, sqrt, floor, cross, reflect, length, normalize, smoothstep, clamp } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { camDist, groundAt, rnd } from '../world/land.nodes.js';
 import { cellRnd, heightAt } from '../world/land.js';
@@ -65,12 +68,13 @@ import { gpuStorage, note } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { did } from '../core/work.js';
 import { addBodies, bodiesNear, outline } from '../world/bodies.js';
-import { bodyOf, footOf } from '../../assets/zoo/index.js';
+import { bodyOf } from '../../assets/zoo/index.js';
+import { addWays, waysChanged } from '../world/ways.js';
 import { moved } from '../../assets/kit/bones.js';
 import CITY from '../../world/city.js';
 
 const KINDS = 10000, SIDE = 1000, MSIDE = 100, GROUP = KINDS / SIDE;   // a plot's ten thousand places for a kind (given to the STAND kinds that stand: the zoo's; ALL: with those that roam); a plot's lattice: a thousand cells a side, one asset in each (GROUP rows of it hold every kind once: a hundred of every kind a plot); its movers' lattice: ten thousand
-const PLOTS = Math.round(CITY.people / CITY.perVillage), RAYS = 64, ROW = 4 + RAYS + RAYS + 1 + 2, FAR_AT = ROW - 2, KEPT_AT = ROW - 1, KEPT = 8, BITS = 11, TAU = Math.PI * 2;   // a plot's row: its middle (x, z), its mean reach, its things' scale, then how far its edge is in RAYS directions, then the directions that cut its land into RAYS equal shares, its longest reach, and where its places are kept (KEPT plots' at once; -1: not kept); BITS: a cell's number holds its plot above them
+const PLOTS = Math.round(CITY.people / CITY.perVillage), RAYS = 64, PH_AT = 4 + RAYS + RAYS + 1, Q_AT = PH_AT + RAYS + 1, LC_AT = Q_AT + 1, CLR_AT = Q_AT + 2, WQ_AT = Q_AT + 3, ROW = WQ_AT + 3, FAR_AT = ROW - 2, KEPT_AT = ROW - 1, KEPT = 8, BITS = 11, TAU = Math.PI * 2;   // a plot's row: its middle (x, z), its mean reach, its things' scale, then how far its edge is in RAYS directions, then the directions that cut its land into RAYS equal shares, the directions at every RAYS-th of the way round it (PH_AT), its movers' scale, how long it is round, half the width of its ways with and without their verges (Q_AT …), its longest reach, and where its places are kept (KEPT plots' at once; -1: not kept); BITS: a cell's number holds its plot above them
 const SMIN = 0.25, SMAX = 2.2, MMAX = 6, MFAR = 1400, CELL = 1.4, FIT = 1.5, FADE = 0.02, SINK = 1.6;   // an asset's largest side, metres (a mover's up to MMAX, seen as far as MFAR); CELL: a lattice cell's side, about; FIT: the cell's side a kind's own size is meant for
 const GROW = 1.5, RELIEF = 90, SKIN = 128, SKINPX = 28;   // GROW: seconds a level that came late takes to grow out of the coarser one; RELIEF: the size on screen from which its textures' relief is read; SKIN: a kind's own texture, pixels a side; SKINPX: the size on screen from which a thing wears it (under that: its mean colour)
 // its levels, finest first: the ladder's (assets/kit/ladder.js: n, a level's mesh; px, the size on screen it is drawn
@@ -87,7 +91,7 @@ const LEVELS = [
   { P: 100, cap: 524288 },   // its dot: one triangle, turned to the eye
 ].map((l, i) => ({ n: LADDER[i].n, px: LADDER[i].px, ...l }));
 const L = LEVELS.length, STREAMED = LEVELS.filter((l) => l.slots).length, MCAP = 65536;   // MCAP: the most movers of one level drawn at once
-const HULL = LEVELS.findIndex((l) => l.n > 0 && l.n <= 2), WRAP = 512, STEP = 0.35;   // HULL: the first level at which a mover is its hull, nothing of it moving (creature.js); WRAP: seconds after which the movers' stride clock begins again; STEP: what stands lower than this (metres) a mover steps over
+const HULL = LEVELS.findIndex((l) => l.n > 0 && l.n <= 2), WRAP = 512;   // HULL: the first level at which a mover is its hull, nothing of it moving (creature.js); WRAP: seconds after which the movers' stride clock begins again
 const SHADE = { level: 5, far: 30, wide: 1.5, reach: 12, shrink: 0.85 };   // what casts their shadows: a coarse level of each round the camera, a little smaller than the thing (so it does not shade itself)
 
 const OFF = STAND > KINDS ? 7919 : 0;   // a plot's places are given to the kinds that stand in turn (place n: kind n, round again where there are fewer kinds); where there are more kinds than places each plot begins further along: another ten thousand of them
@@ -108,16 +112,56 @@ const reachOf = (p, th) => { const t = ((th / TAU) % 1 + 1) % 1 * RAYS, i0 = Mat
 // directions that cut it into RAYS equal shares), so as many stand in a narrow corner of it as in a wide one, for its size
 const turnOf = (p, f) => { const t = (((f % 1) + 1) % 1) * RAYS, i0 = Math.min(RAYS - 1, Math.floor(t)); return p.TH[i0] + (p.TH[i0 + 1] - p.TH[i0]) * (t - i0); };
 const shareOf = (p, th) => { let lo = 0, hi = RAYS; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (p.TH[m] <= th) lo = m; else hi = m; } return (lo + (th - p.TH[lo]) / Math.max(1e-9, p.TH[lo + 1] - p.TH[lo])) / RAYS; };
-// The roads: three rings round a plot's middle (at these shares of its reach), ROADW metres to either side, kept clear
-// of what stands: the lattice is folded so that nothing falls on them (offRoad: what would is set on their verges,
-// which stand the thicker for it; onRoad: the way back). What keeps to the roads drives there, each way on its own side.
-const ROADS = [0.3, 0.55, 0.8], ROADW = 6, wOf = (p) => Math.min(0.035, ROADW / p.mean);
-const offRoad = (r, w) => { for (const c of ROADS) { const d = r - c, a = Math.abs(d); if (a < 3 * w) return c + (d < 0 ? -1 : 1) * (w + (a * 2) / 3); } return r; };
-const onRoad = (r, w) => { for (const c of ROADS) { const d = r - c, a = Math.abs(d); if (a < 3 * w) return c + (d < 0 ? -1 : 1) * Math.max(0, a - w) * 1.5; } return r; };
+// The ways (src/world/ways.js): WAYS rings round a plot's middle, at even shares of its reach, kept clear of what
+// stands: the lattice is folded so that nothing falls on them (offWay: what would is set on their verges, which stand
+// the thicker for it; backOn: the way back). A way is as wide as the lanes it carries (the lanes, below; p.clr: half
+// of that and the room of what stands beside it, metres). What moves keeps to the ways, and to nothing else.
+//   WAY0, WAYD   the first ring, and from one to the next, of the plot's reach
+//   GROUPS       the kinds of way: a herd goes on one kind, every GROUPS-th ring (RINGS of them)
+//   ZONE         how far to either side of a way, of its half width, what stands is moved aside
+//   SKEW         no ring turns further from the round than this (the tangent of that angle: plotOf evens the reach)
+//   NEARW        of so many plots near the camera the ways are told to what else places things
+const WAYS = 8, WAY0 = 0.15, WAYD = 0.105, GROUPS = 2, RINGS = WAYS / GROUPS, ZONE = 2.5, SKEW = 0.8, NEARW = 12;
+const ringOf = (r) => WAY0 + Math.min(WAYS - 1, Math.max(0, Math.round((r - WAY0) / WAYD))) * WAYD;
+const offWay = (r, w) => { const c = ringOf(r), d = r - c, a = Math.abs(d); return a < ZONE * w ? c + (d < 0 ? -1 : 1) * (w + (a * (ZONE - 1)) / ZONE) : r; };
+const backOn = (r, w) => { const c = ringOf(r), d = r - c, a = Math.abs(d); return a < ZONE * w ? c + (d < 0 ? -1 : 1) * Math.max(0, a - w) * (ZONE / (ZONE - 1)) : r; };
 /** Where a point of plot p's lattice (fi, fj: 0 … 1000 each way) lies on the land. */
-const toLand = (p, fi, fj) => { const [dx, dz] = diskOf((fi / SIDE) * 2 - 1, (fj / SIDE) * 2 - 1), th = turnOf(p, Math.atan2(dz, dx) / TAU), r = offRoad(Math.hypot(dx, dz), wOf(p)) * reachOf(p, th); return [p.x + Math.cos(th) * r, p.z + Math.sin(th) * r]; };
+const toLand = (p, fi, fj) => { const [dx, dz] = diskOf((fi / SIDE) * 2 - 1, (fj / SIDE) * 2 - 1), th = turnOf(p, Math.atan2(dz, dx) / TAU), R = reachOf(p, th), r = offWay(Math.hypot(dx, dz), p.clr / R) * R; return [p.x + Math.cos(th) * r, p.z + Math.sin(th) * r]; };
 /** And the lattice point of a place on the land (outside the plot: beyond 0 … 1000). */
-const toLattice = (p, x, z) => { const dx = x - p.x, dz = z - p.z, th = ((Math.atan2(dz, dx) % TAU) + TAU) % TAU; let phi = shareOf(p, th) * TAU; if (phi > Math.PI) phi -= TAU; const [a, b] = squareOf(onRoad(Math.hypot(dx, dz) / reachOf(p, th), wOf(p)), phi); return [((a + 1) / 2) * SIDE, ((b + 1) / 2) * SIDE]; };
+const toLattice = (p, x, z) => { const dx = x - p.x, dz = z - p.z, th = ((Math.atan2(dz, dx) % TAU) + TAU) % TAU, R = reachOf(p, th); let phi = shareOf(p, th) * TAU; if (phi > Math.PI) phi -= TAU; const [a, b] = squareOf(backOn(Math.hypot(dx, dz) / R, p.clr / R), phi); return [((a + 1) / 2) * SIDE, ((b + 1) / 2) * SIDE]; };
+/** Where share u (0 … 1 round) of the ring at rho of plot p's reach lies, o metres further out (the same on the GPU: wayPos). */
+const wayAtJS = (p, rho, o, u) => { const t = (((u % 1) + 1) % 1) * RAYS, i0 = Math.min(RAYS - 1, Math.floor(t)), th = p.PH[i0] + (p.PH[i0 + 1] - p.PH[i0]) * (t - i0), r = reachOf(p, th) * rho + o; return [p.x + Math.cos(th) * r, p.z + Math.sin(th) * r]; };
+
+// The lanes. Each herd has a lane of its own on every GROUPS-th way of a plot (the herds are dealt onto the kinds of
+// way so that the ways come out as wide as each other), as wide as its widest mover as it moves (the zoo's herdRooms:
+// its colliders carried by its bones over a stride) and a little. Across a way the quickest go in the middle, the
+// slower to either side; each side goes its own way round, and the next way of the kind is laid out the other way
+// about. What flies has its lanes in the air over the way. A herd's movers are dealt onto its ways by the ways'
+// lengths (as many to a metre on each), each with a place of its own in its lane; all of a lane go at the lane's pace,
+// so none comes up with the one before it. So no mover meets another, and (the ways being clear) none meets what
+// stands: by how the plot is laid out, not by looking, at any distance and for nothing a frame.
+let LAY = null;   // { W: half a way's width, metres; herds: [{ off, group, d0, col0, n, starts, len, fore, side, slack, … }] }, when the zoo's rooms have come
+function layOut(rooms) {
+  const cosS = 1 / Math.hypot(1, SKEW);   // (lanes lie a number of metres further out from the middle: where a ring turns from the round they are that much closer)
+  const H = HERDS.map((G, h) => { const R = rooms[h] ?? { fore: 0.5, side: 0.5, top: 1 }, len = 2 * R.fore * G.size[1], wid = 2 * R.side * G.size[1], pad = 0.2 + 0.06 * len; return { h, name: G.name, fore: R.fore, side: R.side, top: R.top, len, wid, slack: pad * 0.8, lane: wid / cosS + 2 * pad, air: G.fly[1] > 0 ? 1 : 0, fast: G.speed[1], off: 0, group: 0, d0: 1, col0: 0, n: 0, rhoSum: 1, starts: new Float32Array(RINGS + 1) }; });
+  // dealt onto the kinds of way: the widest first, each to the kind that is the narrower so far (what flies by itself: it has the air over the way)
+  const width = [new Float64Array(GROUPS), new Float64Array(GROUPS)];
+  for (const air of [0, 1]) for (const Y of H.filter((Y) => Y.air === air).sort((a, b) => b.lane - a.lane)) { let g = 0; for (let i = 1; i < GROUPS; i++) if (width[air][i] < width[air][g]) g = i; Y.group = g; width[air][g] += Y.lane; }
+  // across a way: the quickest in the middle, the slower to either side in turn; each side its own way round
+  for (const air of [0, 1]) for (let g = 0; g < GROUPS; g++) {
+    const row = []; H.filter((Y) => Y.air === air && Y.group === g).sort((a, b) => b.fast - a.fast).forEach((Y, i) => (i % 2 ? row.push(Y) : row.unshift(Y)));
+    let at = -width[air][g] / 2; for (const Y of row) { Y.off = at + Y.lane / 2; at += Y.lane; Y.d0 = Y.off > 0 ? -1 : 1; }
+  }
+  // a herd's share of a plot's movers: so many columns of their lattice; its movers onto its ways by their lengths
+  const cols = new Int32Array(HERDS.length), col0 = new Int32Array(HERDS.length).fill(-1);
+  for (let i = 0; i < MSIDE; i++) { let r = 0; while (r < HERDS.length - 1 && (i + 0.5) / MSIDE >= HERDS[r].upTo) r++; if (col0[r] < 0) col0[r] = i; cols[r]++; }
+  for (const Y of H) {
+    Y.col0 = Math.max(0, col0[Y.h]); Y.n = cols[Y.h] * MSIDE;
+    const rho = Array.from({ length: RINGS }, (_, k) => WAY0 + (Y.group + k * GROUPS) * WAYD); Y.rhoSum = rho.reduce((a, b) => a + b, 0);
+    let acc = 0; rho.forEach((r, k) => { acc += r; Y.starts[k + 1] = Math.round((Y.n * acc) / Y.rhoSum); });
+  }
+  return { W: H.length ? Math.max(...width[0], ...width[1]) / 2 : 0, herds: H };
+}
 // GROUP rows of a plot's lattice hold every kind once: the n-th cell of a group (its rows end to end) is kind
 // (n·a + b) mod KINDS, a with no factor in common with KINDS (it ends in 1, 3, 7 or 9), a and b the group's own
 const groupOf = (p, g) => { const r4 = Math.floor(cellRnd(p.i, g, 902) * 4); return [Math.floor(cellRnd(p.i, g, 901) * (KINDS / 10)) * 10 + 1 + 2 * r4 + (r4 >= 2 ? 2 : 0), Math.floor(cellRnd(p.i, g, 904) * KINDS)]; };
@@ -127,25 +171,22 @@ const standsAt = (p, i, j, sizes) => {
   const c = (p.i << BITS) + i, [x, z] = toLand(p, i + 0.15 + 0.7 * cellRnd(c, j, 905), j + 0.15 + 0.7 * cellRnd(c, j, 906)), k = kindAt(p, i, j);
   return { x, z, k, s: Math.min(SMAX, Math.max(SMIN, sizes[k] * (0.8 + 0.4 * cellRnd(c, j, 903)) * p.k)) };
 };
-// a mover's own numbers, from its hash: which herd it is of (the zoo's: a family that roams says its herds) and
-// which of the herd's kinds, its pace (m/s), its size, and its round: a herd that keeps to the roads goes round one of
-// its plot's ring roads (which ring, which way, where it started); the others wander round a home (how far, how the
-// two swings beat)
+// a mover's own numbers: which herd it is of (its column of the plot's movers: a herd has as many columns as its
+// share), of which of the herd's kinds, its size; its way and its place in its lane (its number among its herd's),
+// the lane's pace, which way round; how far it sways along its lane (never as far as the one before or behind it)
 const moverOf = (p, i, j) => {
-  const c = (p.i << BITS) + i, h = (s) => cellRnd(c, j, s), cl = h(921), h2 = h(922), h3 = h(923), h4 = h(924), h5 = h(925), h6 = h(926);
-  let r = 0; while (r < HERDS.length - 1 && cl >= HERDS[r].upTo) r++;
-  const G = HERDS[r], v = G.speed[0] + (G.speed[1] - G.speed[0]) * h2, s = G.size[0] + (G.size[1] - G.size[0]) * h3, M = { rig: G.name, T: !!G.ring, v, s, k: G.first + Math.min(G.count - 1, Math.floor(h(940) * G.count)), fly: G.fly[0] + (G.fly[1] - G.fly[0]) * h4, ph: h5 * TAU, pace: Math.max(1, Math.floor(v / (s * G.stride) / ((TAU * 20) / WRAP) + 0.5)) * ((TAU * 20) / WRAP), g0: h6 * TAU * 20, girth: G.girth };
-  // (on a road: each way on its own side of it, the quick further out from its middle than the slow: they pass beside each other)
-  if (G.ring) return Object.assign(M, { rho: 0.3 + 0.25 * Math.floor(h4 * 3) + (h5 < 0.5 ? 1 : -1) * wOf(p) * (0.2 + 0.5 * h2), dir: h5 < 0.5 ? 1 : -1, th0: h6 * TAU });
-  const th0 = h5 * TAU, rho0 = Math.sqrt(h4) * 0.8, R0 = reachOf(p, th0), a = 15 + 60 * h6, w1 = v / a;
-  return Object.assign(M, { hx: p.x + Math.cos(th0) * R0 * rho0, hz: p.z + Math.sin(th0) * R0 * rho0, a, w1, w2: w1 * (0.6 + 0.5 * h3), p1: h2 * TAU * 7, p2: h6 * TAU * 13 });
+  const c = (p.i << BITS) + i, h = (s) => cellRnd(c, j, s), h2 = h(922), h3 = h(923), h4 = h(924), h5 = h(925), h6 = h(926);
+  let r = 0; while (r < HERDS.length - 1 && (i + 0.5) / MSIDE >= HERDS[r].upTo) r++;
+  const G = HERDS[r], Y = LAY.herds[r], m = (i - Y.col0) * MSIDE + j; let k = 0; while (k < RINGS - 1 && m >= Y.starts[k + 1]) k++;
+  const ring = Y.group + k * GROUPS, rho = WAY0 + ring * WAYD, sg = k % 2 ? -1 : 1, n = Math.max(1, Y.starts[k + 1] - Y.starts[k]), Ln = rho * p.Lc;
+  const v = (G.speed[0] + (G.speed[1] - G.speed[0]) * cellRnd(p.i, r * 16 + ring, 931)) * p.q, s = (G.size[0] + (G.size[1] - G.size[0]) * h3) * p.q, A = Math.min(3 * p.q, Math.max(0, (Ln / n - 1.25 * Y.len * p.q) * 0.4));
+  return { rig: G.name, herd: r, v, s, k: G.first + Math.min(G.count - 1, Math.floor(h(940) * G.count)), fly: (G.fly[0] + (G.fly[1] - G.fly[0]) * h4) * p.q, ph: h5 * TAU, pace: Math.max(1, Math.floor(v / (s * G.stride) / ((TAU * 20) / WRAP) + 0.5)) * ((TAU * 20) / WRAP), g0: h6 * TAU * 20, stride: G.stride,
+    ring, rho, Ln, dir: sg * Y.d0, u0: (m - Y.starts[k] + 0.5) / n, A, w: (0.3 * v) / Math.max(A, 0.25 * p.q), p2: h2 * TAU, o: (Y.off * sg + (h4 * 2 - 1) * Y.slack) * p.q, du: ((s * Y.fore) / Ln) * sg * Y.d0 };
 };
-/** Where a mover is at t seconds: [x, z, the way it faces]. */
-const moverAtJS = (p, M, t) => {
-  if (M.T) { const th = M.th0 + (M.dir * M.v * t) / (p.mean * M.rho), R = reachOf(p, th); return [p.x + Math.cos(th) * R * M.rho, p.z + Math.sin(th) * R * M.rho, th + (M.dir * Math.PI) / 2]; }
-  const e1 = M.w1 * t + M.p1, e2 = M.w2 * t + M.p2;
-  return [M.hx + M.a * Math.sin(e1), M.hz + 0.7 * M.a * Math.sin(e2), Math.atan2(Math.cos(e2) * 0.7 * M.w2, Math.cos(e1) * M.w1)];
-};
+/** Where a mover is at t seconds: [x, z, the way it faces, how far its swaying has it along]. Its two ends on its lane, its middle between them. */
+const moverAtJS = (p, M, t) => { const wob = M.A * Math.sin(t * M.w + M.p2), u = M.u0 + (M.dir * (M.v * t + wob)) / M.Ln, a = wayAtJS(p, M.rho, M.o, u - M.du), b = wayAtJS(p, M.rho, M.o, u + M.du); return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, Math.atan2(b[1] - a[1], b[0] - a[0]), wob]; };
+/** Its place only, to the bend of its lane: for what asks how far off it is. */
+const moverNearJS = (p, M, t) => wayAtJS(p, M.rho, M.o, M.u0 + (M.dir * (M.v * t + M.A * Math.sin(t * M.w + M.p2))) / M.Ln);
 // a plot as the stand keeps it: its number, a point inside it, and how far its edge is from there in RAYS directions
 // (a ray from the point to the outline, a little short of it: what the lattice is folded onto, all of it inside the plot)
 function plotOf(cp, i) {
@@ -157,48 +198,77 @@ function plotOf(cp, i) {
     }
     return best;
   };
-  const p = { i, id: cp.id, x: cp.x, z: cp.z, R: new Float32Array(RAYS), TH: new Float32Array(RAYS + 1) }; let mean = 0, most = 0, least = Infinity;
-  for (let r = 0; r < RAYS; r++) { const t = hit(p.x, p.z, (r / RAYS) * TAU), R = Math.max(30, (Number.isFinite(t) ? t : 30) * 0.97); p.R[r] = R; mean += R / RAYS; most = Math.max(most, R); least = Math.min(least, R); }
+  const p = { i, id: cp.id, x: cp.x, z: cp.z, R: new Float32Array(RAYS), TH: new Float32Array(RAYS + 1), PH: new Float32Array(RAYS + 1) }; let mean = 0, most = 0, least = Infinity;
+  const raw = Array.from({ length: RAYS }, (_, r) => { const t = hit(p.x, p.z, (r / RAYS) * TAU); return Math.log(Math.max(30, (Number.isFinite(t) ? t : 30) * 0.97)); });
+  // its reach made even, so that a ring round its middle is a way a long thing can follow: it turns no further from
+  // the round than SKEW (each ray no longer than its neighbours allow), it has no corner (smoothed over nine rays),
+  // and it is drawn in until all of it lies inside the plot again
+  const lg = raw.slice(), c = SKEW * (TAU / RAYS);
+  for (let r = 1; r < 2 * RAYS; r++) lg[r % RAYS] = Math.min(lg[r % RAYS], lg[(r - 1) % RAYS] + c);
+  for (let r = 2 * RAYS - 1; r > 0; r--) lg[(r - 1) % RAYS] = Math.min(lg[(r - 1) % RAYS], lg[r % RAYS] + c);
+  const sm = lg.map((_, r) => { let t = 0; for (let d = -4; d <= 4; d++) t += lg[(r + d + RAYS) % RAYS] * (5 - Math.abs(d)); return t / 25; }), drawn = Math.min(0, ...sm.map((v, r) => raw[r] - v));
+  for (let r = 0; r < RAYS; r++) { const R = Math.exp(sm[r] + drawn); p.R[r] = R; mean += R / RAYS; most = Math.max(most, R); least = Math.min(least, R); }
+  // how long it is round (its reach's own ring; a ring at a share of the reach is that share of it), and the
+  // directions at every RAYS-th of the way round: what goes round a ring at an even pace asks them (PH)
+  const seg = Array.from(p.R, (R, r) => { const a = (r / RAYS) * TAU, b = ((r + 1) / RAYS) * TAU, R1 = p.R[(r + 1) % RAYS]; return Math.hypot(R1 * Math.cos(b) - R * Math.cos(a), R1 * Math.sin(b) - R * Math.sin(a)); }), Lc = seg.reduce((x, y) => x + y, 0);
+  for (let m = 1, r = 0, sum = 0; m < RAYS; m++) { const want = (m / RAYS) * Lc; while (sum + seg[r] < want) sum += seg[r++]; p.PH[m] = ((r + (want - sum) / seg[r]) / RAYS) * TAU; }
+  p.PH[RAYS] = TAU;
   // its land's shares by direction: the slice between two rays, summed round, then the directions at every 1/RAYS of it
   const slice = Array.from(p.R, (R, r) => (R * R + p.R[(r + 1) % RAYS] ** 2) / 4 * (TAU / RAYS)), area = slice.reduce((x, y) => x + y, 0);
   for (let m = 1, r = 0, sum = 0; m < RAYS; m++) { const want = (m / RAYS) * area; while (sum + slice[r] < want) sum += slice[r++]; p.TH[m] = ((r + (want - sum) / slice[r]) / RAYS) * TAU; }
   p.TH[RAYS] = TAU;
   // (cell: a lattice cell's side; narrow, wide: its shortest and longest side, where the plot's reach is unlike its
   // mean; k: how much smaller or larger than their own size its things stand, so a small plot's million fit as a large one's do)
-  const cell = Math.sqrt(area / (SIDE * SIDE)), rms = Math.sqrt((2 * area) / TAU);
-  return Object.assign(p, { mean, most, least, area, cell, narrow: cell * Math.min(least / rms, rms / most), wide: cell * Math.max(most / rms, rms / least), k: cell / FIT });
+  const cell = Math.sqrt(area / (SIDE * SIDE)), rms = Math.sqrt((2 * area) / TAU), k = cell / FIT;
+  // its ways: half as wide as the lanes (LAY.W) and the room of what stands beside them (half the largest thing, and a
+  // hand); q: how much smaller than their own size its movers are, where the plot is too small for them: its ways
+  // must fit between each other where it is narrowest, and each lane must hold its movers a length and a quarter apart
+  const verge = Math.max(SMIN, SMAX * Math.min(1, 1.2 * k)) / 2 + 0.4, room = (WAYD * least) / (2 * ZONE);
+  let q = LAY.W > 0 ? Math.min(1, (room - verge) / LAY.W) : 1; for (const Y of LAY.herds) if (Y.n) q = Math.min(q, (Lc * Y.rhoSum) / Y.n / (1.25 * Y.len));
+  q = Math.max(0.02, q);
+  return Object.assign(p, { mean, most, least, area, cell, narrow: cell * Math.min(least / rms, rms / most), wide: cell * Math.max(most / rms, rms / least), k, Lc, q, wq: LAY.W > 0 ? LAY.W * q : -1e6, clr: LAY.W > 0 ? Math.min(LAY.W * q + verge, room * 0.98) : 0 });
 }
 
+// the plots, as the GPU reads them: a row each (ROW numbers), filled when the city's plan has come (src/city: made in a
+// worker at the start). Kept here, not in the stand: what else places things reads the ways from them (below)
+const STRESS = new URLSearchParams(location.search).has('stress');
+const plotRows = new THREE.StorageBufferAttribute(new Float32Array(STRESS ? PLOTS * ROW : ROW), 1), PT = storage(plotRows, 'float', STRESS ? PLOTS * ROW : ROW), PL = [];
+const reach = (base, th) => { const t = th.div(TAU).add(1).fract().mul(RAYS), i0 = floor(t), a = uint(i0).min(uint(RAYS - 1)); return mix(PT.element(base.add(uint(4)).add(a)), PT.element(base.add(uint(4)).add(a.add(uint(1)).mod(uint(RAYS)))), t.sub(i0)); };
+const middle = (base) => vec2(PT.element(base), PT.element(base.add(uint(1))));
+// the stand's ways, said to the world (src/world/ways.js): a place is on a way where, in one of the NEARW plots nearest
+// the camera, it lies within the lanes' half width of one of the plot's rings (and so many metres more: margin)
+const NEARV = Array.from({ length: NEARW }, () => new THREE.Vector4(-1, 0, 0, 0)), nearW = uniformArray(NEARV, 'vec4');
+if (STRESS) addWays({
+  node: Fn(([p, margin]) => {
+    const on = float(0).toVar();
+    Loop(NEARW, ({ i }) => {
+      const pi = nearW.element(i).x;
+      If(pi.greaterThan(-0.5), () => {
+        const base = uint(pi).mul(uint(ROW)), dq = p.sub(middle(base)), l = length(dq);
+        If(l.lessThan(PT.element(base.add(uint(FAR_AT)))), () => {
+          const R = reach(base, atan(dq.y, dq.x)), rr = l.div(R), ring = clamp(floor(rr.sub(WAY0).div(WAYD).add(0.5)), 0, WAYS - 1).mul(WAYD).add(WAY0);
+          If(abs(rr.sub(ring)).mul(R).lessThan(PT.element(base.add(uint(WQ_AT))).add(margin)), () => { on.assign(1); });
+        });
+      });
+    });
+    return on;
+  }),
+  at: (x, z, margin = 0) => { for (const p of PL) { const dx = x - p.x, dz = z - p.z, l = Math.hypot(dx, dz); if (l >= p.most) continue; const R = reachOf(p, Math.atan2(dz, dx)), rr = l / R; if (Math.abs(rr - ringOf(rr)) * R < p.wq + margin) return true; } return false; },
+});
+
 export function createStress(scene, renderer, tex) {
-  // the plots, as the GPU reads them: a row each (ROW numbers: its middle, its mean reach, then its edge in RAYS
-  // directions), filled when the city's plan has come (src/city: made in a worker at the start)
-  const plotRows = new THREE.StorageBufferAttribute(new Float32Array(PLOTS * ROW), 1), PT = storage(plotRows, 'float', PLOTS * ROW), PL = [];
-  const reach = (base, th) => { const t = th.div(TAU).add(1).fract().mul(RAYS), i0 = floor(t), a = uint(i0).min(uint(RAYS - 1)); return mix(PT.element(base.add(uint(4)).add(a)), PT.element(base.add(uint(4)).add(a.add(uint(1)).mod(uint(RAYS)))), t.sub(i0)); };
-  const middle = (base) => vec2(PT.element(base), PT.element(base.add(uint(1))));
   // a point of a plot's lattice (fi, fj: 0 … 1000 each way) on the land: the square onto a disc, area for area, the disc
-  // onto the plot's shape (the same in JS above: toLand)
-  // the roads (ROADS, above), as the GPU reckons them: how wide one is of the plot's reach; a share of the reach set off a road, and back
-  const roadW = (base) => min(float(ROADW).div(PT.element(base.add(uint(2)))), 0.035);
-  const offRoadN = (r, w) => { const out = float(r).toVar(); for (const c of ROADS) { const d = r.sub(c), a = abs(d); If(a.lessThan(w.mul(3)), () => { out.assign(d.lessThan(0).select(float(-1), float(1)).mul(w.add(a.mul(2 / 3))).add(c)); }); } return out; };
-  const onRoadN = (r, w) => { const out = float(r).toVar(); for (const c of ROADS) { const d = r.sub(c), a = abs(d); If(a.lessThan(w.mul(3)), () => { out.assign(d.lessThan(0).select(float(-1), float(1)).mul(max(a.sub(w), 0).mul(1.5)).add(c)); }); } return out; };
+  // onto the plot's shape, what would fall on a way set aside onto its verge (the same in JS above: toLand, offWay)
+  const offWayN = (r, w) => { const c = clamp(floor(r.sub(WAY0).div(WAYD).add(0.5)), 0, WAYS - 1).mul(WAYD).add(WAY0), d = r.sub(c), a = abs(d); return a.lessThan(w.mul(ZONE)).select(d.lessThan(0).select(float(-1), float(1)).mul(w.add(a.mul((ZONE - 1) / ZONE))).add(c), r); };
   const place = (base, fi, fj) => {
     const u = fi.div(SIDE).mul(2).sub(1), v = fj.div(SIDE).mul(2).sub(1), big = abs(u).greaterThan(abs(v)), r = big.select(u, v), num = big.select(v, u), den = r.add(r.greaterThanEqual(0).select(float(1e-6), float(-1e-6)));
     const q = num.div(den).mul(Math.PI / 4), phi = big.select(q, float(Math.PI / 2).sub(q)), d = vec2(cos(phi), sin(phi)).mul(r);
     // (the disc's angle a share of the plot's land: the direction at that share, from its row)
-    const t = atan(d.y, d.x).div(TAU).add(1).fract().mul(RAYS), i0 = floor(t), at = base.add(uint(4 + RAYS)).add(uint(i0).min(uint(RAYS - 1))), th = mix(PT.element(at), PT.element(at.add(uint(1))), t.sub(i0));
-    return middle(base).add(vec2(cos(th), sin(th)).mul(offRoadN(length(d), roadW(base))).mul(reach(base, th)));
+    const t = atan(d.y, d.x).div(TAU).add(1).fract().mul(RAYS), i0 = floor(t), at = base.add(uint(4 + RAYS)).add(uint(i0).min(uint(RAYS - 1))), th = mix(PT.element(at), PT.element(at.add(uint(1))), t.sub(i0)).toVar(), R = reach(base, th).toVar();
+    return middle(base).add(vec2(cos(th), sin(th)).mul(offWayN(length(d), PT.element(base.add(uint(CLR_AT))).div(R))).mul(R));
   };
-  // the lattice point of a place on the land (the fold the other way; the same in JS above: toLattice): its direction's
-  // share of the plot's land (found by halving in the row's directions), its share of the reach set back on the road
-  const latticeOf = (base, pos) => {
-    const dq = pos.sub(middle(base)), th = atan(dq.y, dq.x).add(TAU).mod(TAU), lo = uint(0).toVar(), hi = uint(RAYS).toVar(), row = base.add(uint(4 + RAYS));
-    Loop(6, () => { const m = lo.add(hi).shiftRight(uint(1)); If(PT.element(row.add(m)).lessThanEqual(th), () => { lo.assign(m); }).Else(() => { hi.assign(m); }); });
-    const t0 = PT.element(row.add(lo)), t1 = PT.element(row.add(lo).add(uint(1))), phi0 = float(lo).add(th.sub(t0).div(max(t1.sub(t0), 1e-9))).div(RAYS).mul(TAU), phi1 = phi0.greaterThan(Math.PI).select(phi0.sub(TAU), phi0);
-    const rho = onRoadN(length(dq).div(reach(base, th)), roadW(base)), q = Math.PI / 4, phi = phi1.lessThan(-q).select(phi1.add(TAU), phi1), ab = vec2(0).toVar();
-    If(phi.lessThan(q), () => { ab.assign(vec2(rho, phi.mul(rho).div(q))); }).ElseIf(phi.lessThan(3 * q), () => { ab.assign(vec2(phi.sub(2 * q).mul(rho).div(q).negate(), rho)); })
-      .ElseIf(phi.lessThan(5 * q), () => { ab.assign(vec2(rho.negate(), phi.sub(4 * q).mul(rho).div(q).negate())); }).Else(() => { ab.assign(vec2(phi.sub(6 * q).mul(rho).div(q), rho.negate())); });
-    return ab.add(1).mul(SIDE / 2);
-  };
+  // where share u (0 … 1 round) of the ring at rho of a plot's reach lies, o metres further out (the same in JS: wayAtJS)
+  const wayPos = (base, rho, o, u) => { const t = u.fract().mul(RAYS), i0 = floor(t), at = base.add(uint(PH_AT)).add(uint(i0).min(uint(RAYS - 1))), th = mix(PT.element(at), PT.element(at.add(uint(1))), t.sub(i0)).toVar(); return middle(base).add(vec2(cos(th), sin(th)).mul(reach(base, th).mul(rho).add(o))); };
   // a cell's number: its plot above BITS bits, its place in the plot's lattice under them
   const plotOfCell = (c) => c.x.shiftRight(int(BITS)), inPlot = (c) => c.x.bitAnd(int((1 << BITS) - 1));
   // where a plot's million stand, kept for the KEPT plots nearest the camera: folding the lattice onto a plot's shape
@@ -211,10 +281,12 @@ export function createStress(scene, renderer, tex) {
     const d = place(base, float(i).add(rnd(cx, j, uint(905)).mul(0.7).add(0.15)), float(j).add(rnd(cx, j, uint(906)).mul(0.7).add(0.15))).sub(middle(base)).div(PT.element(base.add(uint(FAR_AT)))).mul(0.5).add(0.5).clamp(0, 1).mul(65535);
     kept.element(fillSlot.mul(uint(SIDE * SIDE)).add(instanceIndex)).assign(uint(d.x).bitOr(uint(d.y).shiftLeft(uint(16))));
   })().compute(SIDE * SIDE);
-  const slots = { who: new Int32Array(KEPT).fill(-1), version: 0 };
+  const slots = { who: new Int32Array(KEPT).fill(-1), version: 0 }; let nearKey = '';
   // each frame: the KEPT plots nearest are kept; one that is not yet is given a slot (a free one, or the farthest's) and filled
   const keepNear = (cx, cz) => {
-    const near = PL.map((p) => [Math.hypot(p.x - cx, p.z - cz) - p.most, p]).sort((a, b) => a[0] - b[0]).slice(0, KEPT).map((x) => x[1]), p = near.find((q) => q.slot == null);
+    const order = PL.map((p) => [Math.hypot(p.x - cx, p.z - cz) - p.most, p]).sort((a, b) => a[0] - b[0]), near = order.slice(0, KEPT).map((x) => x[1]), p = near.find((q) => q.slot == null);
+    // (the ways of the NEARW nearest, told to what else places things: src/world/ways.js; other plots than before: it places again)
+    const key = order.slice(0, NEARW).map((x) => x[1].i).sort((a, b) => a - b).join(); if (key !== nearKey) { nearKey = key; NEARV.forEach((v, n) => (v.x = order[n] ? order[n][1].i : -1)); waysChanged(); }
     if (!p) return;
     let at = slots.who.indexOf(-1); if (at < 0) at = slots.who.findIndex((i) => !near.includes(PL[i]));
     if (at < 0) return;
@@ -227,11 +299,11 @@ export function createStress(scene, renderer, tex) {
   const LO = uniformArray(LEVELS.map((l) => l.px));
   // every kind's look, five rows of numbers a kind: [its own texture's mean colour, model], [its second tint, metres a
   // tile of its textures], [the layer of the world's texture it takes its relief from, the layer its own texture lies in
-  // (none: -1), gloss, sway], [how uneven its snow lies, glow, light through it, its size], [when its own texture came, the lobes of its leaves (0: it is solid), how wide its round is and how high it stands (of its size: what a mover keeps clear of)]
+  // (none: -1), gloss, sway], [how uneven its snow lies, glow, light through it, its size], [when its own texture came, the lobes of its leaves (0: it is solid)]
   const LAYERS = recipes('material').filter((m) => ['ground', 'bark', 'stone', 'grass'].includes(m.kind)).map((m) => tex.layer(m)), look = new Float32Array(ALL * 20);
   for (let k = 0; k < ALL; k++) {
     const B = lookOfKind(k);
-    look.set([B.mean[0], B.mean[1], B.mean[2], modelOf(B.model), B.c2[0] * 1.7, B.c2[1] * 1.7, B.c2[2] * 1.7, B.scale, LAYERS[Math.min(LAYERS.length - 1, Math.floor(B.relief * LAYERS.length))], -1, B.gloss, B.sway, B.snow, B.glow, B.through, B.size ?? 1, -100, B.leaf ?? 0, 0.3, 1], k * 20);
+    look.set([B.mean[0], B.mean[1], B.mean[2], modelOf(B.model), B.c2[0] * 1.7, B.c2[1] * 1.7, B.c2[2] * 1.7, B.scale, LAYERS[Math.min(LAYERS.length - 1, Math.floor(B.relief * LAYERS.length))], -1, B.gloss, B.sway, B.snow, B.glow, B.through, B.size ?? 1, -100, B.leaf ?? 0, 0, 0], k * 20);
   }
   const sizes = Float32Array.from({ length: STAND }, (_, k) => look[k * 20 + 15]);   // a standing kind's largest side, metres (its look's)
   const lookRows = new THREE.StorageBufferAttribute(look, 4), mats = storage(lookRows, 'vec4', ALL * 5), lookOf = (kind, j) => mats.element(kind.mul(uint(5)).add(uint(j)));
@@ -320,30 +392,6 @@ export function createStress(scene, renderer, tex) {
     return m;
   };
 
-  // ---- what moves keeps clear of what stands: what stands in a cell of a plot whose places are kept (where, how wide
-  // its round, how high: the tiers' own reckoning, below), and a mover R metres round pushed out of the twenty-five cells
-  // round it. Nothing is remembered: where it is pushed to is a function of where its round would have it, so as that
-  // moves on it goes round the thing ----
-  const thingAt = (plot, base, slot, ci, cj) => {
-    const u = kept.element(uint(slot).mul(uint(SIDE * SIDE)).add(uint(cj.mul(int(SIDE)).add(ci)))), pos = middle(base).add(vec2(float(u.bitAnd(uint(0xffff))), float(u.shiftRight(uint(16)))).div(65535).mul(2).sub(1).mul(PT.element(base.add(uint(FAR_AT)))));
-    const g = cj.div(int(GROUP)), r4 = int(floor(rnd(plot, g, uint(902)).mul(4))), a = int(floor(rnd(plot, g, uint(901)).mul(KINDS / 10))).mul(10).add(1).add(r4.mul(2)).add(r4.greaterThanEqual(2).select(int(2), int(0)));
-    const kind = uint(ci.add(cj.mod(int(GROUP)).mul(int(SIDE))).mul(a).add(int(floor(rnd(plot, g, uint(904)).mul(KINDS)))).mod(int(KINDS)).add(plot.mul(int(OFF))).mod(int(STAND)));
-    const size = clamp(lookOf(kind, 3).w.mul(rnd(plot.shiftLeft(int(BITS)).add(ci), cj, uint(903)).mul(0.4).add(0.8)).mul(PT.element(base.add(uint(3)))), SMIN, SMAX), F = lookOf(kind, 4);
-    return { pos, r: F.z.mul(size), top: F.w.mul(size) };
-  };
-  const stepRound = (plot, base, pos, R) => {
-    const out = vec2(pos).toVar(), slot = PT.element(base.add(uint(KEPT_AT)));
-    If(slot.greaterThan(-0.5), () => {
-      const f = latticeOf(base, pos), i0 = int(floor(f.x)), j0 = int(floor(f.y));
-      If(i0.greaterThanEqual(int(2)).and(j0.greaterThanEqual(int(2))).and(i0.lessThan(int(SIDE - 2))).and(j0.lessThan(int(SIDE - 2))), () => {
-        Loop(25, ({ i }) => {   // (five cells by five: a large thing reaches over from two cells off)
-          const Th = thingAt(plot, base, slot, i0.add(int(i).mod(int(5))).sub(int(2)), j0.add(int(i).div(int(5))).sub(int(2))), d = out.sub(Th.pos), l = length(d), m = Th.r.add(R);
-          If(Th.top.greaterThan(STEP).and(l.lessThan(m)), () => { out.addAssign(d.div(max(l, 1e-3)).mul(m.sub(l))); });   // (what ends under its knee it steps over)
-        });
-      });
-    });
-    return out;
-  };
   const tiers = [];
   // a point of a mover and its normal as bone `bone` of its skeleton has moved them (the kind's bones begin at `base`;
   // g: the mover's stride; creature.js says what a bone is): swung or turned about its pivot, or shifted; then the
@@ -471,11 +519,11 @@ export function createStress(scene, renderer, tex) {
     T.select = (cx, cz, h0, s, dy) => {
       const far0 = shadow ? Math.min(SHADE.far * SHADE.wide, T.far + Math.abs(dy) * 1.2) : T.far * s, far2 = far0 * far0 - dy * dy, near2 = T.near * T.near * s * s - dy * dy, list = T.list; let n = 0; T.over = false;
       if (far2 > 0) for (const p of plotsNear(cx, cz, h0, Math.sqrt(far2), shadow ? false : 0)) {
-        const far = Math.sqrt(far2), [fi, fj] = toLattice(p, cx, cz), rl = (far + 2 * ROADW) / p.narrow + P, nb = SIDE / P, rad0 = P * p.wide * 0.8, wr = wOf(p), pad = (P / SIDE) * 1.5;
+        const far = Math.sqrt(far2), [fi, fj] = toLattice(p, cx, cz), rl = (far + 2 * p.clr) / p.narrow + P, nb = SIDE / P, rad0 = P * p.wide * 0.8, wr = (ZONE * p.clr) / p.least, pad = (P / SIDE) * 1.5;
         const i0 = Math.max(0, Math.floor((fi - rl) / P)), i1 = Math.min(nb - 1, Math.floor((fi + rl) / P)), j0 = Math.max(0, Math.floor((fj - rl) / P)), j1 = Math.min(nb - 1, Math.floor((fj + rl) / P));
         for (let bj = j0; bj <= j1; bj++) for (let bi = i0; bi <= i1; bi++) {
-          // (a block that lies across a road reaches over it: its cells stand on both verges)
-          const ring = Math.max(Math.abs((2 * (bi + 0.5) * P) / SIDE - 1), Math.abs((2 * (bj + 0.5) * P) / SIDE - 1)), rad = rad0 + (ROADS.some((c) => Math.abs(ring - c) < 3 * wr + pad) ? 2.6 * ROADW : 0);
+          // (a block that lies across a way reaches over it: its cells stand on both verges)
+          const ring = Math.max(Math.abs((2 * (bi + 0.5) * P) / SIDE - 1), Math.abs((2 * (bj + 0.5) * P) / SIDE - 1)), rad = rad0 + (Math.abs(ring - ringOf(ring)) < wr + pad ? 2.2 * p.clr : 0);
           const [x, z] = middleOf(p, bi, bj), d = Math.hypot(x - cx, z - cz);
           if (d - rad > far || (near2 > 0 && d + rad < Math.sqrt(near2))) continue;
           const yb = 0.32 * d + 0.2 * rad + 8, c = shadow ? SHADE.reach : 0;
@@ -499,52 +547,37 @@ export function createStress(scene, renderer, tex) {
   // ---- the movers: ten thousand a plot, each ONE mesh of its kind on a skeleton (assets/kit/creature.js), where its
   // round has brought it by now, its stride as far as it has come. One tier, packed every frame; each mover dropped
   // into the draw of the level its size on screen asks for (the finest of it that is there) ----
-  // (a herd, as the GPU reads it: [its pace from … to, its size from … to], [on the roads, how high it flies from … to, its stride], [its first kind, how many kinds, how wide it is round (of its size)])
-  const RIG = HERDS.length ? uniformArray(HERDS.flatMap((G) => [new THREE.Vector4(G.speed[0], G.speed[1], G.size[0], G.size[1]), new THREE.Vector4(G.ring ? 1 : 0, G.fly[0], G.fly[1], G.stride), new THREE.Vector4(G.first, G.count, G.girth, 0)]), 'vec4') : null, SH = HERDS.length ? uniformArray(HERDS.map((G) => G.upTo)) : null, strideT = uniform(0);
+  // (a herd, as the GPU reads it: [its pace from … to, its size from … to], [-, how high it flies from … to, its stride], [its first kind, how many kinds, how long it is as it moves (of its size), how far aside of its lane's middle it may go (metres)]; its lane: [how far out from its way's middle, which kind of way, which way round, its first column of the plot's movers]; and where its movers' places on each of its ways begin)
+  const rigRows = HERDS.flatMap((G) => [new THREE.Vector4(G.speed[0], G.speed[1], G.size[0], G.size[1]), new THREE.Vector4(0, G.fly[0], G.fly[1], G.stride), new THREE.Vector4(G.first, G.count, 1, 0)]), laneRows = HERDS.map(() => new THREE.Vector4()), slotRows = HERDS.map(() => new THREE.Vector4());
+  const RIG = HERDS.length ? uniformArray(rigRows, 'vec4') : null, LANE = HERDS.length ? uniformArray(laneRows, 'vec4') : null, SLOTS = HERDS.length ? uniformArray(slotRows, 'vec4') : null, SH = HERDS.length ? uniformArray(HERDS.map((G) => G.upTo)) : null, strideT = uniform(0);
+  if (RINGS !== 4) throw new Error('stress: a herd has four ways (its places on them are kept as four numbers)');
+  const laid = (Y) => { LAY = Y; Y.herds.forEach((H, h) => { rigRows[h * 3 + 2].z = 2 * H.fore; rigRows[h * 3 + 2].w = H.slack; laneRows[h].set(H.off, H.group, H.d0, H.col0); slotRows[h].set(H.starts[1], H.starts[2], H.starts[3], H.starts[4]); }); };
   if (HERDS.length) {
     const far = uniform(MFAR), round = uniform(MMAX);
-    // where a mover's round has it now (and all that says what it is): the same in JS above (moverOf, moverAtJS)
+    // where a mover is now (and all that says what it is): the same in JS above (moverOf, moverAtJS)
     const nominal = (c) => {
-      const plot = plotOfCell(c), base = uint(plot).mul(uint(ROW));
-      // which herd it is of
-      const mx = c.x, my = c.y, h = (s) => rnd(mx, my, uint(s)), cl = h(921), rig = uint(0).toVar();
+      const plot = plotOfCell(c), base = uint(plot).mul(uint(ROW)), col = inPlot(c), mx = c.x, my = c.y, h = (s) => rnd(mx, my, uint(s));
+      // which herd it is of: its column of the plot's movers
+      const cl = float(col).add(0.5).div(MSIDE), rig = uint(0).toVar();
       for (let r = 0; r < HERDS.length - 1; r++) rig.addAssign(cl.greaterThanEqual(SH.element(r)).select(uint(1), uint(0)));
-      const I0 = RIG.element(rig.mul(uint(3))), I1 = RIG.element(rig.mul(uint(3)).add(uint(1))), I2 = RIG.element(rig.mul(uint(3)).add(uint(2)));
-      const h2 = h(922), h3 = h(923), h4 = h(924), h5 = h(925), h6 = h(926), v = mix(I0.x, I0.y, h2), S = mix(I0.z, I0.w, h3), t = U.uTime, pos = vec2(0).toVar(), yaw = float(0).toVar();
-      If(I1.x.greaterThan(0.5), () => {   // on the roads: round one of its plot's ring roads, one way or the other
-        // (each way on its own side of the road, the quick further from its middle than the slow)
-        const dir = h5.lessThan(0.5).select(float(1), float(-1)), rho = floor(h4.mul(3)).mul(0.25).add(0.3).add(dir.mul(roadW(base)).mul(h2.mul(0.5).add(0.2))), th = h6.mul(TAU).add(dir.mul(v).mul(t).div(PT.element(base.add(uint(2))).mul(rho)));
-        pos.assign(middle(base).add(vec2(cos(th), sin(th)).mul(reach(base, th)).mul(rho))); yaw.assign(th.add(dir.mul(Math.PI / 2)));
-      }).Else(() => {   // the others: a wander round a home, two swings that never quite repeat
-        const th0 = h5.mul(TAU), home = middle(base).add(vec2(cos(th0), sin(th0)).mul(reach(base, th0)).mul(sqrt(h4).mul(0.8))), a = h6.mul(60).add(15), w1 = v.div(a), w2 = w1.mul(h3.mul(0.5).add(0.6)), e1 = w1.mul(t).add(h2.mul(TAU * 7)), e2 = w2.mul(t).add(h6.mul(TAU * 13));
-        pos.assign(home.add(vec2(sin(e1), sin(e2).mul(0.7)).mul(a))); yaw.assign(atan(cos(e2).mul(0.7).mul(w2), cos(e1).mul(w1)));
-      });
-      return { plot, base, h, h2, h3, h4, h5, h6, v, S, t, pos, yaw, I0, I1, I2 };
+      const I0 = RIG.element(rig.mul(uint(3))), I1 = RIG.element(rig.mul(uint(3)).add(uint(1))), I2 = RIG.element(rig.mul(uint(3)).add(uint(2))), Y = LANE.element(rig), ST = SLOTS.element(rig);
+      const q = PT.element(base.add(uint(Q_AT))), Lc = PT.element(base.add(uint(LC_AT))), h2 = h(922), h3 = h(923), h4 = h(924), h5 = h(925), h6 = h(926), t = U.uTime;
+      // its number among its herd's; which of the herd's ways that is (as many to a metre on each), and its place in its lane there
+      const m = float(col.sub(int(Y.w))).mul(MSIDE).add(float(my)), k = float(0).toVar();
+      for (const at of [ST.x, ST.y, ST.z]) k.addAssign(m.greaterThanEqual(at).select(float(1), float(0)));
+      const s0 = k.lessThan(0.5).select(float(0), k.lessThan(1.5).select(ST.x, k.lessThan(2.5).select(ST.y, ST.z))), s1 = k.lessThan(0.5).select(ST.x, k.lessThan(1.5).select(ST.y, k.lessThan(2.5).select(ST.z, ST.w))), n = s1.sub(s0).max(1);
+      const ring = Y.y.add(k.mul(GROUPS)), rho = ring.mul(WAYD).add(WAY0), sg = k.mod(2).lessThan(0.5).select(float(1), float(-1)), dir = sg.mul(Y.z), Ln = rho.mul(Lc);
+      // its lane's pace (one for all that go in it), its own size; how far it sways along its lane: less than the room between it and the next
+      const v = mix(I0.x, I0.y, rnd(plot, int(rig).mul(int(16)).add(int(ring.add(0.5))), uint(931))).mul(q), S = mix(I0.z, I0.w, h3).mul(q);
+      const A = Ln.div(n).sub(I2.z.mul(I0.w).mul(q).mul(1.25)).mul(0.4).clamp(0, q.mul(3)), wob = A.mul(sin(t.mul(v.mul(0.3).div(max(A, q.mul(0.25)))).add(h2.mul(TAU))));
+      const u = m.sub(s0).add(0.5).div(n).add(dir.mul(v.mul(t).add(wob)).div(Ln)), du = S.mul(I2.z).mul(0.5).div(Ln).mul(dir), o = Y.x.mul(sg).add(h4.mul(2).sub(1).mul(I2.w)).mul(q);
+      // (its two ends on its lane, its middle between them: a long thing follows the bend)
+      const a = wayPos(base, rho, o, u.sub(du)).toVar(), b = wayPos(base, rho, o, u.add(du)).toVar();
+      return { plot, base, h, h2, h3, h4, h5, h6, v, S, t, q, wob, pos: a.add(b).mul(0.5), yaw: atan(b.y.sub(a.y), b.x.sub(a.x)), I0, I1, I2 };
     };
-    // The movers of the plots nearest the camera (the first NOM of this frame's) keep clear of what stands and of each
-    // other. Before they are packed (before, below), each one's place is worked out, stepped round what stands, and
-    // written down (nom: where, how wide), and its number set in a grid of cells GCELL metres wide (the last to
-    // write a cell is the one found there). When it is packed, it reads its own place back, looks into the nine
-    // cells round it and is pushed half the way out of each mover it finds there (the other half is the other's).
-    const NOM = KEPT * MSIDE * MSIDE, GRID = 1 << 17, GCELL = 2.5, AVOID = 260, nom = gpuStorage('vec4', NOM, 'stand: where the near movers are').node, grid = instancedArray(GRID, 'uint').toAtomic(), uNear = uniform(0, 'uint'), uAvoid = uniform(new URLSearchParams(location.search).has('crash') ? 0 : 1);
-    const cellOfGrid = (q) => { const g = ivec2(floor(q.div(GCELL))); return uint(g.x.mul(int(73856093)).bitXor(g.y.mul(int(19349663)))).bitAnd(uint(GRID - 1)); };
     const live = (c) => {
       const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), bucket = float(L - 1).toVar();
-      const { plot, base, h, h2, h3, h4, h5, h6, v, S, t, pos, yaw, I0, I1, I2 } = nominal(c);
-      If(instanceIndex.lessThan(uNear), () => {
-        const me = nom.element(instanceIndex).toVar(); pos.assign(me.xy);
-        If(me.w.greaterThan(0.5), () => {
-          const push = vec2(0).toVar();
-          Loop(9, ({ i }) => {
-            const j = atomicLoad(grid.element(cellOfGrid(me.xy.add(vec2(float(int(i).mod(int(3))).sub(1), float(int(i).div(int(3))).sub(1)).mul(GCELL)))));
-            If(j.greaterThan(uint(0)).and(j.notEqual(instanceIndex.add(uint(1)))), () => {
-              const o = nom.element(j.sub(uint(1))), d = me.xy.sub(o.xy), l = length(d), m = me.z.add(o.z);
-              If(l.lessThan(m).and(l.greaterThan(1e-4)), () => { push.addAssign(d.div(l).mul(m.sub(l).mul(0.5))); });
-            });
-          });
-          pos.addAssign(push);
-        });
-      });
+      const { h, h4, h5, h6, v, S, t, q, wob, pos: at, yaw, I1, I2 } = nominal(c), pos = vec2(at).toVar();
       const dist = camDist(pos);
       If(dist.lessThan(far).and(inView(pos, round, MMAX)), () => {
         const px = S.mul(PXK).div(max(dist, 1e-3));
@@ -555,13 +588,14 @@ export function createStress(scene, renderer, tex) {
           for (let j = 0; j < L - 1; j++) want.addAssign(px.lessThanEqual(LO.element(j)).select(uint(1), uint(0)));
           for (let l = L - 2; l >= 0; l--) If(want.lessThanEqual(uint(l)).and(held.shiftRight(uint(l)).bitAnd(uint(1)).equal(uint(1))), () => { lvl.assign(uint(l)); });
           // (what flies: so high over the ground, rising and falling a little)
-          const up = mix(I1.y, I1.z, h4).mul(sin(t.mul(0.4).add(h5.mul(TAU))).mul(0.15).add(1));
+          const up = mix(I1.y, I1.z, h4).mul(q).mul(sin(t.mul(0.4).add(h5.mul(TAU))).mul(0.15).add(1));
           // its stride: how far it has come, in radians of its gait (its herd's stride: that much of its size a radian). From a
           // clock that begins again every WRAP seconds (a stride counted from the page's start would lose its
-          // fineness in an hour); its pace is made to fit that clock, so no leg jumps when it does
-          const q = (TAU * 20) / WRAP, pace = floor(v.div(S.mul(I1.w)).div(q).add(0.5)).max(1).mul(q);
+          // fineness in an hour); its pace is made to fit that clock, so no leg jumps when it does. (And as far as it
+          // has swayed along its lane: its feet do not slide.)
+          const step = (TAU * 20) / WRAP, pace = floor(v.div(S.mul(I1.w)).div(step).add(0.5)).max(1).mul(step);
           A.assign(vec4(pos, groundAt(pos, float(0)).add(up), S));
-          B.assign(vec4(yaw, float(kind), pace.mul(strideT).add(h6.mul(TAU * 20)), 0));
+          B.assign(vec4(yaw, float(kind), pace.mul(strideT).add(h6.mul(TAU * 20)).add(wob.div(S.mul(I1.w))), 0));
           bucket.assign(float(lvl)); alive.assign(1);
         });
       });
@@ -569,28 +603,13 @@ export function createStress(scene, renderer, tex) {
     };
     const T = new Tier(scene, LEVELS.map((_, i) => drawOf(i)), (src, k) => (k === L - 1 ? dot(src) : meshOf(src, k, false, true)), { cell: CELL * 10, P: MSIDE, near: 0, far: MFAR, order: 1, live, gpu: true, cap: MCAP, slots: 2 });
     T.band = () => { T.near = 0; T.far = MFAR; }; T.movers = true; T.viewKeyed = true; T.asset = 'Stress: movers';
-    // before the packing: the grid wiped, then each near mover's place worked out, stepped round what stands, written down
-    const patches2 = uniformArray(T.list, 'vec2'), cellOf2 = (index) => { const pid = index.div(uint(MSIDE * MSIDE)), b = int(index.sub(pid.mul(uint(MSIDE * MSIDE)))); return ivec2(patches2.element(pid)).add(ivec2(b.mod(int(MSIDE)), b.div(int(MSIDE)))); };
-    const wipe = Fn(() => { atomicStore(grid.element(instanceIndex), uint(0)); })().compute(GRID);
-    const before = Fn(() => {
-      If(instanceIndex.lessThan(uNear), () => {
-        const N0 = nominal(cellOf2(instanceIndex)), R = N0.S.mul(N0.I2.z), q = vec2(N0.pos).toVar(), walks = float(0).toVar();
-        // (what walks: not on a road, not in the air; near enough for it to be seen)
-        If(uAvoid.greaterThan(0.5).and(N0.I1.x.lessThan(0.5)).and(N0.I1.z.lessThan(0.5)).and(camDist(N0.pos).lessThan(AVOID)), () => {
-          q.assign(stepRound(N0.plot, N0.base, N0.pos, R)); walks.assign(1);
-          atomicStore(grid.element(cellOfGrid(q)), instanceIndex.add(uint(1)));
-        });
-        nom.element(instanceIndex).assign(vec4(q, R, walks));
-      });
-    })().compute(NOM);
     T.select = (cx, cz, h0, s, dy) => {   // its patches: each plot near, its ten thousand
       const far2 = T.far * T.far * s * s - dy * dy; let n = 0; strideT.value = U.uTime.value % WRAP;
-      // (the nearest first: the first of them are the ones that keep clear of things)
-      if (far2 > 0) for (const p of plotsNear(cx, cz, h0, Math.sqrt(far2), MMAX).sort((a, b) => Math.hypot(a.x - cx, a.z - cz) - a.most - (Math.hypot(b.x - cx, b.z - cz) - b.most))) if (n < MAXP) T.list[n++].set(p.i << BITS, 0);
-      T.n = n; for (const m of T.meshes) m.visible = n > 0; uNear.value = Math.min(NOM, n * MSIDE * MSIDE);
+      if (far2 > 0) for (const p of plotsNear(cx, cz, h0, Math.sqrt(far2), MMAX)) if (n < MAXP) T.list[n++].set(p.i << BITS, 0);
+      T.n = n; for (const m of T.meshes) m.visible = n > 0;
     };
     T.meshes.forEach((m, k) => { if (k < L - 1) m.layers.enable(1); m.renderOrder = 1.005 + k * 0.01; });   // they cast their shadows as drawn; near ones drawn first
-    let frame = 0; const run = T.run.bind(T); T.run = (r, world, ...a) => { if (T.n) r.compute([wipe, before]); return run(r, `${world}|${frame++}`, ...a); };   // packed every frame: they move
+    let frame = 0; const run = T.run.bind(T); T.run = (r, world, ...a) => run(r, `${world}|${frame++}`, ...a);   // packed every frame: they move
     tiers.push(T);
   }
   addEventListener('resize', () => tiers.forEach((T) => T.band()));
@@ -609,18 +628,8 @@ export function createStress(scene, renderer, tex) {
   H.putAll(L - 1, dotMesh());
   const OWN = []; for (let l = STREAMED; l < L - 1; l++) OWN.push([l, H.pools[l].idx, H.pools[l].elems]);
   if (MOVING) ask([['bones', STAND, MOVING]]).then(([rows]) => { boneRows.array.set(rows); boneRows.needsUpdate = true; });
-  // how wide a kind stands and how high (its look's last two numbers: what a mover keeps clear of): its family's
-  // colliders where it names them, else its hull's corners as they come (level HULL of the blocks below)
-  const feet = (l, k0, n, verts) => {
-    if (l !== HULL) return; const E = H.pools[l].elems;
-    for (let j = 0, k = k0; j < n && k < STAND; j++, k++) {
-      const F = footOf(k); let r = 0, top = 0;
-      if (F) ({ r, top } = F);
-      else { for (let v = 0; v < E; v++) { const o = (j * E + v) * 4; r = Math.max(r, Math.hypot(((verts[o] & 65535) / 65535) * 2 - 1, ((verts[o + 1] & 65535) / 65535) * 2 - 1)); top = Math.max(top, ((verts[o] >>> 16) / 65535) * 2 - 1); } r *= 0.75; }
-      look[k * 20 + 18] = r; look[k * 20 + 19] = top;
-    }
-    lookRows.addUpdateRange(k0 * 20, n * 20); lookRows.needsUpdate = true;
-  };
+  // (how much room each herd's movers take as they move: the lanes are laid out by it, and the plots after them)
+  if (MOVING) ask([['rooms']]).then(([rooms]) => laid(layOut(rooms))); else laid(layOut([]));
   const FP = fingerprint(); let coarse = -1, keptOwn = null, loadedAt = 0;
   keptGet(FP, 'own').then((rec) => { keptOwn = Array.isArray(rec) && rec.length === OWN.length && rec.every((b, n) => b.l === OWN[n][0] && b.counts?.length === ALL && b.corners?.length === ALL * OWN[n][1]) ? rec : false; });
   const fill = () => {
@@ -628,7 +637,7 @@ export function createStress(scene, renderer, tex) {
     const all = OWN.map(([l, idx, elems]) => ({ l, corners: new Uint32Array(ALL * idx), verts: new Uint32Array(ALL * elems * 4), counts: new Uint32Array(ALL) }));
     for (let k = 0; k < ALL; k += 100) {   // (a hundred kinds a message, sent to the GPU as one piece a level)
       ask([['own', k, 100, OWN]]).then(([blocks]) => {
-        blocks.forEach((b, n) => { H.putBlock(b.l, k, 100, b.corners, b.verts, b.counts); feet(b.l, k, 100, b.verts); all[n].corners.set(b.corners, k * OWN[n][1]); all[n].verts.set(b.verts, k * OWN[n][2] * 4); all[n].counts.set(b.counts, k); });
+        blocks.forEach((b, n) => { H.putBlock(b.l, k, 100, b.corners, b.verts, b.counts); all[n].corners.set(b.corners, k * OWN[n][1]); all[n].verts.set(b.verts, k * OWN[n][2] * 4); all[n].counts.set(b.counts, k); });
         coarse += 100; if (coarse >= ALL) { stats.coarseMs = Math.round(performance.now() - t0); keptPut(FP, 'own', all); }
       });
     }
@@ -711,12 +720,12 @@ export function createStress(scene, renderer, tex) {
   const nearMovers = [];   // (the movers within sixty metres of the camera: kept by each look, for what asks where they are)
   const pump = () => {
     if (!PL.length) {   // the city's plan has come: its plots, to the GPU
-      const cp = window.__s8?.city?.plots; if (!cp?.length) return;
-      cp.slice(0, PLOTS).forEach((c, i) => { const p = plotOf(c, i); PL.push(p); plotRows.array.set([p.x, p.z, p.mean, p.k, ...p.R, ...p.TH, p.most, -1], i * ROW); });
+      const cp = window.__s8?.city?.plots; if (!cp?.length || !LAY) return;
+      cp.slice(0, PLOTS).forEach((c, i) => { const p = plotOf(c, i); PL.push(p); plotRows.array.set([p.x, p.z, p.mean, p.k, ...p.R, ...p.TH, ...p.PH, p.q, p.Lc, p.clr, p.wq, p.most, -1], i * ROW); });
       plotRows.addUpdateRange(0, plotRows.array.length); plotRows.needsUpdate = true;   // (all of it: a later change of one number must not be the only thing sent)
     }
     if (coarse < 0) {
-      if (keptOwn) { for (const b of keptOwn) { H.putBlock(b.l, 0, ALL, b.corners, b.verts, b.counts); feet(b.l, 0, ALL, b.verts); } coarse = ALL; keptOwn = false; stats.kept = true; stats.coarseMs = Math.round(performance.now() - t0); }
+      if (keptOwn) { for (const b of keptOwn) H.putBlock(b.l, 0, ALL, b.corners, b.verts, b.counts); coarse = ALL; keptOwn = false; stats.kept = true; stats.coarseMs = Math.round(performance.now() - t0); }
       else if (window.__s8?.loadMs) { loadedAt ||= performance.now(); if (keptOwn === false || performance.now() - loadedAt > 1500) fill(); }   // (the browser's answer is waited for a moment into the first frames: a busy start holds it back)
     }
     if (!(tick++ & 3)) keepNear(U.uCam.value.x, U.uCam.value.z);   // (which plots are near changes slowly: asked every fourth frame)
@@ -751,7 +760,7 @@ export function createStress(scene, renderer, tex) {
           for (let n = 0; n < BL * BL; n++) { if (!b.S[n]) continue; const d = Math.hypot(b.X[n] - cam.x, b.Z[n] - cam.z, dy); if (d < Rs) wants(b.K[n], b.S[n], d, 0); }
         }
       }
-      if (HERDS.length) for (const M of moversOf(p)) { const [x, z] = moverAtJS(p, M, t), d = Math.hypot(x - cam.x, z - cam.z, dy); if (d < 60) nearMovers.push({ p, M }); if (d < reachOfSize(M.s)) wants(M.k, M.s, d, M.v * 0.35); }   // what passes
+      if (HERDS.length) for (const M of moversOf(p)) { const [x, z] = moverNearJS(p, M, t), d = Math.hypot(x - cam.x, z - cam.z, dy); if (d < 60) nearMovers.push({ p, M }); if (d < reachOfSize(M.s)) wants(M.k, M.s, d, M.v * 0.35); }   // what passes
     }
     queue = asks.sort((p, q) => q.l - p.l || q.px - p.px); feed();
     skinAsks.length = 0; for (const [, k] of want.sort((a, b) => b[0] - a[0])) skinAsks.push(k); skinFeed();
@@ -759,15 +768,9 @@ export function createStress(scene, renderer, tex) {
   // ---- what of it is solid (src/world/bodies.js): the things round a point, each with its kind's box and shapes (its
   // family's, beside its recipe: assets/zoo). Where they stand is reckoned here as the GPU reckons it (standsAt,
   // moverAtJS); a mover's shapes move with its bones. They stop the walker (`?stress&ghost`: they do not; a plot is a
-  // thicket, a thing every metre and a half); a ray finds them always. `?stress&bounds` draws them ----
+  // thicket, a thing every metre and a half, but for its ways); a ray finds them always. `?stress&bounds` draws them ----
   const Q = new URLSearchParams(location.search), SOLID = !Q.has('ghost'), BOUNDS = Q.has('bounds');
   const stood = new Map();
-  // (the same stepping round as the GPU's: stepRound)
-  const stepRoundJS = (p, x, z, R) => {
-    const [fi, fj] = toLattice(p, x, z), i0 = Math.floor(fi), j0 = Math.floor(fj); if (i0 < 2 || j0 < 2 || i0 >= SIDE - 2 || j0 >= SIDE - 2) return [x, z];
-    for (let n = 0; n < 25; n++) { const o = standsAt(p, i0 + (n % 5) - 2, j0 + Math.floor(n / 5) - 2, sizes), dx = x - o.x, dz = z - o.z, l = Math.hypot(dx, dz), m = look[o.k * 20 + 18] * o.s + R; if (look[o.k * 20 + 19] * o.s > STEP && l < m) { const k = (m - l) / Math.max(l, 1e-3); x += dx * k; z += dz * k; } }
-    return [x, z];
-  };
   addBodies((x, z, reach) => {
     const out = [], t = U.uTime.value;
     for (const p of PL) {
@@ -780,9 +783,8 @@ export function createStress(scene, renderer, tex) {
       }
     }
     nearMovers.forEach(({ p, M }, n) => {
-      let [mx, mz, yaw] = moverAtJS(p, M, t); if (Math.hypot(mx - x, mz - z) > reach + M.s + 2) return;
-      if (!M.T && !M.fly) [mx, mz] = stepRoundJS(p, mx, mz, M.s * M.girth);
-      const up = M.fly * (Math.sin(t * 0.4 + M.ph) * 0.15 + 1), g = M.pace * (t % WRAP) + M.g0, rows = boneRows.array.subarray((M.k - STAND) * BONES * 12, (M.k - STAND + 1) * BONES * 12);
+      const [mx, mz, yaw, wob] = moverAtJS(p, M, t); if (Math.hypot(mx - x, mz - z) > reach + M.s + 2) return;
+      const up = M.fly * (Math.sin(t * 0.4 + M.ph) * 0.15 + 1), g = M.pace * (t % WRAP) + M.g0 + wob / (M.s * M.stride), rows = boneRows.array.subarray((M.k - STAND) * BONES * 12, (M.k - STAND + 1) * BONES * 12);
       out.push({ id: -1 - n, x: mx, z: mz, y: heightAt(mx, mz) + up, up, yaw, s: M.s, kind: M.k, body: bodyOf(M.k), pose: (bone, q, o) => moved(rows, bone, g, q, o) });
     });
     return out;
@@ -793,9 +795,11 @@ export function createStress(scene, renderer, tex) {
   // for looking at it (window.__stress): how many stand in a plot and of how many kinds; what each level holds and draws now
   const API = (window.__stress = {
     heap: H, tiers, stats, levels: LEVELS, plots: PL, sizes, pause: false, smooth: SMOOTH, fingerprint: FP, families: FAMILIES.map((E) => ({ id: E.id, first: E.first, count: E.count, roams: E.roams })), herds: HERDS, models: MODELS.map((M) => M.id),
-    standsAt: (pi, i, j) => standsAt(PL[pi], i, j, sizes), foot: (k) => [look[k * 20 + 18], look[k * 20 + 19]], toLand: (pi, fi, fj) => toLand(PL[pi], fi, fj), toLattice: (pi, x, z) => toLattice(PL[pi], x, z),
+    standsAt: (pi, i, j) => standsAt(PL[pi], i, j, sizes), boxOf: (k) => bodyOf(k).box, lay: () => LAY, way: (pi, rho, o, u) => wayAtJS(PL[pi], rho, o, u), ways: { WAYS, WAY0, WAYD, GROUPS, ZONE }, toLand: (pi, fi, fj) => toLand(PL[pi], fi, fj), toLattice: (pi, x, z) => toLattice(PL[pi], x, z),
     movers: (pi, t = U.uTime.value) => { while (moversOf(PL[pi]).length < MSIDE * MSIDE); return API.moversNow(pi, t); },
-    moversNow: (pi, t) => moversOf(PL[pi]).map((M) => { const [x, z] = moverAtJS(PL[pi], M, t); return { x, z, rig: M.rig, s: M.s, v: M.v, kind: M.k }; }),
+    moversNow: (pi, t) => moversOf(PL[pi]).map((M) => { const [x, z, yaw] = moverAtJS(PL[pi], M, t); return { x, z, yaw, rig: M.rig, herd: M.herd, ring: M.ring, s: M.s, v: M.v, kind: M.k, fly: M.fly }; }),
+    /** The plot a place lies in (its number), or -1. */
+    plotAt: (x, z) => { for (const p of PL) { const dx = x - p.x, dz = z - p.z, l = Math.hypot(dx, dz); if (l < p.most && l < reachOf(p, Math.atan2(dz, dx))) return p.i; } return -1; },
     /** A plot counted, cell by cell: how many stand in it, of how many kinds, the fewest and the most of a kind; and the world's sums. */
     census(pi = 0) {
       const p = PL[pi], n = new Uint32Array(STAND); for (let j = 0; j < SIDE; j++) for (let i = 0; i < SIDE; i++) n[kindAt(p, i, j)]++;

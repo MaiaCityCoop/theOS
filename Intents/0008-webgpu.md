@@ -1298,6 +1298,43 @@ seconds through the stand where 32 are walked with `?ghost`.)
 - **Not there:** what drives does not give way to what walks across its road, nor one vehicle to a slower one in
   its own lane; nothing plans a way, so a walker in a thicket narrower than itself is still in something.
 
+### 2026-11-14, the ways: nothing stands where things move, and every mover has its lane (05:32)
+
+Samuel, after reloading: "They still walk through each other and through other still assets which don't move, so
+overall collision didn't work. So collision rules are not being applied." He was right, and the count of the entry
+before this one is withdrawn: it tested rounds of my choosing (a kind's foot, a mover's girth), not what is seen.
+A plot's things stand 1.4 m apart and a mover is up to 6 m long: there was no room to step round anything.
+
+- **The ways (`src/world/ways.js`, a new plug point).** The ground kept free for what moves. Who lays ways says
+  where they run (one answer, as a node for the GPU and in JS); who places what stands asks and keeps off. The stand
+  lays eight rings round each plot's middle. Its own million are folded off them (they stand on the verges); the
+  game's trees keep off by their own crown (nothing of a tree reaches over a way), its boulders, stones and grass
+  too, so a way shows as bare ground. Without `?stress` no ways are laid and every shader is the one it was.
+- **The lanes.** Each herd has a lane of its own on every second way, as wide as its widest mover as it moves: that
+  is measured, not said (`herdRooms` in the zoo: a kind's colliders carried by its bones over a stride; `girth` and
+  `ring` are gone from a family's contract). The quickest go in the middle of a way, each side goes its own way
+  round, what flies has the air over it. A herd's movers are dealt onto its ways by the ways' lengths, each with a
+  place of its own in its lane; a lane goes at one pace, and a mover sways along it by less than the room to the
+  next. So none comes up with another and none meets what stands: by how a plot is laid out, at any distance.
+- **A plot's reach made even**, so a ring round its middle is a way a long thing can follow (no sharper turn than
+  39 degrees from the round, no corner), and its length round kept, so what goes round keeps its pace.
+- **Small plots have smaller movers** (as they have smaller things): where the ways would not fit between each
+  other, or a lane would not hold its movers a length and a quarter apart. One plot in seven; half size or less: few.
+- **Gone:** the stepping round each frame and the movers' grid (two compute passes a frame, a buffer, a kind's
+  foot in its look), `?stress&crash`.
+- **Counted by true shapes** (a mover: a box as long and wide as its herd's room as it moves; a thing: a round as
+  wide as its own box; trunks and rocks as the walker meets them). What is drawn, read back, at four spots (1,200 to
+  2,200 movers within 220 m, 110 to 350 of them against 13,000 to 42,000 things and 48 to 87 trunks): none in
+  another, none in a thing, none in a trunk. In JS, which agrees with what is drawn to the millimetre: six whole
+  plots (movers at 0.31 to full size), four moments each: of 10,000 movers none in another, of 1,900 a plot none
+  in a thing. A plot still holds its million, a hundred of every kind.
+- **The frame:** in the test browser nothing to measure between the builds (the GPU's 21 to 24 ms either way at
+  2880 by 1558, his tab running beside it). His Safari, opened by me after the deploy (1440 by 779, drawn at
+  2880 by 1558, inside ratio 1): 60 fps, 0 to 5 % of frames late. With the stand 583 MB held, the plain game 331.
+- **Not there:** no way crosses another, so nobody turns off and nobody overtakes in its lane; a mover goes round
+  its own plot and nowhere else; it does not stop for the walker, who is stopped by it; a way is bare ground, not a
+  built road; after hours a quick mover's place loses fineness (a clock of seconds in a float).
+
 ## Trail
 
 | When | Commit | What |

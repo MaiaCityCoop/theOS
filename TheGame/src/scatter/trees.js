@@ -30,11 +30,12 @@ import { PLACES } from '../../world/places.js';
 import { recipe } from '../core/registry.js';
 import { geometryOf, scatterRow } from '../../assets/index.js';
 import { kindOf } from '../../assets/kinds.js';
-import { pxK, sizeOf } from '../detail/index.js';
+import { pxK, sizeOf, most } from '../detail/index.js';
 import { levelOf, bandOf, padOf, handOver, partGrown, sinkInto } from '../detail/handover.js';
 import { Tier, offScreen, clipOf, MAXP } from './tier.js';
 import { inView } from './view.js';
 import { setTrunks } from '../world/trunks.js';
+import { wayAt } from '../world/ways.js';
 
 const PXK = uniform(pxK()); addEventListener('resize', () => (PXK.value = pxK()));
 
@@ -87,7 +88,7 @@ function plantIn(c, G, band, all = false, seen = null) {
     If(r0.lessThan(shareOf(biome, { p: pos, dist, d: float(1e5), w: float(1), b: float(0) }).mul(dens)), () => {   // its stands, as if far from the river
       const I = riverInfo(pos), d = abs(I.x), w = I.y;
       If(r0.lessThan(shareOf(biome, { p: pos, dist, d, w, b: I.z }).mul(dens).mul(clearAt(pos))), () => {
-        const s = float(1).toVar(), h = float(1).toVar(), across = float(1).toVar();
+        const s = float(1).toVar(), h = float(1).toVar(), across = float(1).toVar(), out = float(0).toVar();
         // the kind's own: how large this one is, and which of its shapes
         kinds.forEach((Kd, i) => { If(k.equal(i), () => {
           const a = Kd.asset, P = a.placement, GR = a.growth, AG = Kd.age;
@@ -105,6 +106,7 @@ function plantIn(c, G, band, all = false, seen = null) {
           } else {   // no growth: a shape at random, its size its placement's scale
             s.assign(mix(P.scale[0], P.scale[1], pow(rnd(cx, cy, h0(304)), 1.3))); h.assign(s.mul(a.size.height)); bucket.assign(floor(rnd(cx, cy, h0(309)).mul(Kd.shapes)).add(Kd.offset));
           }
+          out.assign(h.mul(Kd.spread));   // (how far it reaches out from its foot: half its kind's span, at its height)
           across.assign(h.mul(Kd.wide));   // (its size on screen by what its kind measures it by, src/detail sizeOf: a bush is low and wide, its largest side counts. `wide`: that to its height)
         }); });
         // of this level while it is the size on screen the level asks, and a little either side: its hand-over, and as
@@ -114,8 +116,10 @@ function plantIn(c, G, band, all = false, seen = null) {
         // A stand that says its `size` changes level as one: every plant of it as if it were that size, small or large,
         // so its levels change at the same distances for all (not bush by bush at every depth at once)
         const size = ST.size ? float(ST.size) : across, span = size.mul(PXK), yes = float(1).greaterThan(0);
-        const within = all ? yes : band.holds(dist, span);
-        If(within, () => {
+        // (and nothing of it reaches over a way: what moves there, on the ground or over it, meets no plant. src/world/ways.js;
+        // where none are laid the shader is the one it was)
+        const within = all ? yes : band.holds(dist, span), way = wayAt(pos, out.add(0.5));
+        If(way ? within.and(way.lessThan(0.5)) : within, () => {
           A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(0.15), s));
           B.assign(vec4(rnd(cx, cy, h0(305)).mul(6.2831853), rnd(cx, cy, h0(306)).mul(6.2831853), rnd(cx, cy, h0(307)), size));
           alive.assign(1);
@@ -250,7 +254,7 @@ export function groupsOf(rows) {
     // the sizes a plant of it can have: its youngest and its oldest (by its growth), or its scale's
     const H = a.size.height, GR = a.growth, wide = sizeOf(a) / H;
     const lo = (GR ? GR.stages[0].hFrom * P.scale[0] : H * P.scale[0]) * wide, hi = (GR ? Math.max(...a.heights) * (GR.stages.at(-1).hTo / GR.stages.at(-1).h) * P.scale[1] : H * P.scale[1]) * wide;
-    by.get(key).kinds.push({ row, asset: a, levels, shapes: levels[0]?.meshes?.length ?? 1, wide, age: ST.age, lo, hi, round: (a.size.length / 2) * P.scale[1],
+    by.get(key).kinds.push({ row, asset: a, levels, shapes: levels[0]?.meshes?.length ?? 1, wide, spread: Math.max(most(a.size.length), most(a.size.width ?? 0)) / (2 * H), age: ST.age, lo, hi, round: (a.size.length / 2) * P.scale[1],
       slice: kindsOf(P.biome, P.stand).find((k) => k.asset.uid === a.uid)?.slice ?? [0, 1] });   // its share of its stand's cells: every kind that grows there, in the order of their uids
   }
   return [...by.values()].map((G) => offsets({ ...G, kinds: G.kinds.sort((x, y) => (x.asset.uid < y.asset.uid ? -1 : 1)) }));

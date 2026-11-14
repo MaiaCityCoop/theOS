@@ -5,6 +5,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, positionWorld, normalWorld, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cross, dot, cos, sin } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, camDist, riverInfo, heightAt, outcropMask, grassTint, biomesAt } from '../world/land.nodes.js';
+import { offWays } from '../world/ways.js';
 import { finish, skyLight, weathered, snowLift, cloudAt, unlit } from '../world/light.js';
 import { levelOf, bandOf, padOf, handOver, sinkInto } from '../detail/handover.js';
 import { Tier, offScreen, clipOf, MAXP } from './tier.js';
@@ -115,7 +116,7 @@ function rockIn(c, tex, ground, row, Lv, band) {
         oc.assign(outcropMask(pos));
         If(r0.lessThanEqual(oc.mul(0.6).add(0.012)), () => {   // the cheap test first: most cells hold no rock
           const I = riverInfo(pos), w = I.y, d = abs(I.x);
-          If(r0.lessThanEqual(oc.mul(0.6).add(0.012).mul(smoothstep(w.add(2), w.add(9), d))), () => {
+          If(r0.lessThanEqual(offWays(oc.mul(0.6).add(0.012).mul(smoothstep(w.add(2), w.add(9), d)), pos, 3)), () => {   // (none on a way: src/world/ways.js)
             ar.assign(biomesAt({ p: pos, dist, d, w, b: I.z }).dry); y.assign(heightAt(pos, dist, d, w, I.z)); tint.assign(grassTint(tex, pos, ar, 0).rgb); ok.assign(1);
           });
         });
