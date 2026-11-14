@@ -116,3 +116,4 @@ every facet flat, so they read as crystals, not stones.
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-14 | `39f3ce0` | The shader fire and its light, river stones, the ash bed, round logs |
