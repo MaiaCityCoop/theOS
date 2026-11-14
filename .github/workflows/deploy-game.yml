@@ -1,0 +1,78 @@
+name: Deploy game
+
+# Builds TheGame at a commit on main for one environment and installs it on that environment's host over SSH.
+# Started by hand, or by the Game workflow after a push to main when AUTO_DEPLOY_NEXT is "true".
+# Rolling back is deploying an earlier commit. TheGame/deploy/README.md lists the secrets and variables.
+on:
+  workflow_call:
+    inputs:
+      environment: { type: string, required: true }
+      commit: { type: string, required: true }
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [next]
+        required: true
+      commit:
+        description: Full commit SHA on main
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-game-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ vars.SITE_URL }}
+    defaults:
+      run:
+        working-directory: TheGame
+    steps:
+      - name: Check inputs
+        working-directory: .
+        env:
+          TARGET: ${{ inputs.environment }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          [[ "$TARGET" =~ ^next$ ]] || { echo "::error::Unknown environment"; exit 1; }
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Use a full commit SHA"; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: The commit is on main
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          git merge-base --is-ancestor "$COMMIT" origin/main \
+            || { echo "::error::$COMMIT is not on main"; exit 1; }
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - name: Build the release archive
+        env:
+          TARGET: ${{ inputs.environment }}
+          COMMIT: ${{ inputs.commit }}
+        run: deploy/bundle.sh "deploy/environments/$TARGET.json" "$COMMIT" "$RUNNER_TEMP/game.tar"
+      - name: Deploy over SSH
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_HOST_KEY: ${{ vars.DEPLOY_HOST_KEY }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s %s\n' "$DEPLOY_HOST" "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "deploy@$DEPLOY_HOST" deploy < "$RUNNER_TEMP/game.tar"
+          rm -f ~/.ssh/deploy "$RUNNER_TEMP/game.tar"
