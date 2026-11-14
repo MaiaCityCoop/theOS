@@ -73,3 +73,4 @@ Asked for outright; built straight away.
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-14 | `26ad60d` | the stand's ways in one uniform array |
