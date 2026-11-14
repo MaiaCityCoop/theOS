@@ -1,7 +1,7 @@
 ---
 id: "0023"
 title: Magic Wonder (the stress world) loads again
-state: build            # idea | define | build | propose | story | archived
+state: propose           # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-14
 story:
@@ -49,6 +49,17 @@ Asked for outright; built straight away.
 
 ## Propose
 
+**Delivered:** the stand's ways in one uniform array; on main (`26ad60d`).
+
+**Checks, as they were**
+
+| # | Result | Evidence |
+| --- | --- | --- |
+| 1 | passed | Samuel, after the push: "working" |
+| 2 | not run by the agent | the normal world's passes do not read the stand's ways; not opened in a browser by the agent (the GPU was being measured) |
+
+**Known gaps:** the consoles not read by the agent.
+
 ## Story
 
 ## Archived
@@ -58,7 +69,7 @@ Asked for outright; built straight away.
 ## Todo
 
 - [x] Pack the stand's ways arrays into one
-- [ ] See `/?stress` and `/` in the browser, consoles clean (after the GPU is clear)
+- [x] `/?stress` seen working (Samuel)
 
 ## Changelog
 
@@ -68,6 +79,9 @@ Asked for outright; built straight away.
 - **Delivered:** the cause traced to a uniform-buffer count over WebGPU's limit; the stand's ways packed into one array.
 - **Good:** —
 - **Broke / not there yet:** not yet seen in the browser.
+
+- **Asked:** merge and push to main.
+- **Delivered:** on main; Samuel: "working".
 
 ## Trail
 
