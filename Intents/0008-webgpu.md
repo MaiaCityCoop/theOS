@@ -1641,3 +1641,4 @@ Step two of the same going ahead. Nothing of the picture changes.
 | 2026-11-14 | `6b56480` | A body plan a kind of mover (625 builds of 1,000); nothing drawn back from the walker; the inside ratio recovers in seconds |
 | 2026-11-14 | `ef73c0e` | Trails one file wide (3 roads, 13 trails); nothing drawn back from the walker; governor by the last seconds, busy frames left out; no multisampling on a dense screen |
 | 2026-11-14 | `e5b5329` | The picture built over time, on trial (`?taau`): nearer the picture at the screen's own pixels than the filter at every ratio stood still, level or better moving; movers, wind and snow not smeared; a quarter to a third of a step of the inside ratio in his Safari at 60 fps |
+| 2026-11-14 | `d9f3bc7` | The stand's balls drawn by one list of corners a level, each vertex worked out once: 16.7 to 14.9 ms a frame across the stand, the same picture |
