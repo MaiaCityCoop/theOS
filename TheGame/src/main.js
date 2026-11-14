@@ -80,6 +80,11 @@ stats.governor = governor;   // the film holds it still while it plays
 const boot = (stats.boot = {}), mark = (k) => (boot[k] = Math.round(performance.now() - t0));   // where the start's time goes
 mark('renderer');
 await loadingStep('Painting the ground', 0.12);
+// (dev: the largest shader the start compiles, said with the start's marks: the land's grows with every biome, and a
+// shader too large hangs Safari's GPU process; a warning well before that)
+const SHADER = { most: 0, label: '' };
+if (import.meta.env.DEV && renderer.backend.device) { const dev = renderer.backend.device, make = dev.createShaderModule.bind(dev); dev.createShaderModule = (d) => { const n = d.code?.length ?? 0; if (n > SHADER.most) { SHADER.most = n; SHADER.label = d.label ?? ''; } if (n > 600e3) console.warn(`a shader of ${Math.round(n / 1e3)} KB (${d.label ?? ''}): near what hangs Safari's GPU; the land's grows with every biome`); return make(d); }; }
+stats.shader = SHADER;
 const tex = bakeTextures(renderer, { spare: /library/.test(location.pathname) ? 8 : 1 });   // (the library's pictures ask for materials the world may not wear)
 useTiles(tex);   // node code that reads a baked tile by itself (the clouds' field, the snow's clumps: src/world/tile.js)
 useBackend(renderer);   // and what is lit per corner (a tree) reads the shadow map's texels only where the backend can
@@ -192,6 +197,6 @@ choose(0);
 screen.render(scene, camera);
 stats.loadMs = performance.now() - t0;
 setTimeout(() => (stats.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start
-console.log(`[sandbox 8] ready in ${stats.loadMs.toFixed(0)} ms`, boot);
+console.log(`[sandbox 8] ready in ${stats.loadMs.toFixed(0)} ms; the largest shader ${Math.round(SHADER.most / 1e3)} KB`, boot);
 requestAnimationFrame(frame);
 requestAnimationFrame(() => requestAnimationFrame(loadingDone));   // the veil goes once the world is on the screen

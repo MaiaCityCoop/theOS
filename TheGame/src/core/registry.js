@@ -6,7 +6,12 @@ import manifest from '../../registry.json';
 
 const files = import.meta.glob(['../../materials/*.js', '../../biomes/*.js', '../../assets/*.js', '!../../assets/index.js'], { eager: true, import: 'default' });
 const BY = {};
-for (const r of Object.values(files)) if (r?.uid) BY[r.uid] = r;
+// (a library of thousands of files: one without a uid, or two with the same, is said, not passed over or written over in silence)
+for (const [file, r] of Object.entries(files)) {
+  if (!r || typeof r !== 'object' || !r.uid) { if (r?.type) console.warn(`registry: ${file.replace(/^(\.\.\/)+/, '')} has no uid: not in the world`); continue; }
+  if (BY[r.uid]) { console.warn(`registry: ${file.replace(/^(\.\.\/)+/, '')} has the uid of '${BY[r.uid].name}': the first is kept`); continue; }
+  BY[r.uid] = r;
+}
 const order = Object.keys(manifest);   // by type, then name
 const ranked = (a, b) => order.indexOf(a.uid) - order.indexOf(b.uid);
 

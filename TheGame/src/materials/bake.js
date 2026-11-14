@@ -191,8 +191,8 @@ export function bakeTextures(renderer, { raw = new URLSearchParams(location.sear
   const rows = Array.from({ length: Math.max(1, Math.ceil(ALL.length / 4)) }, () => new THREE.Vector4()), TABLE = uniformArray(rows, 'vec4').setGroup(renderGroup);   // (sent once a frame, not once a draw)
   const where = new Int32Array(ALL.length).fill(0), owner = new Int32Array(CAP).fill(-1), held = new Uint8Array(ALL.length), asked = new Float64Array(CAP), wanted = new Set();
   const setLayer = (k, layer) => { where[k] = layer; rows[k >> 2].setComponent(k & 3, layer); };
-  const numberOf = (ref) => { const uid = ref?.uid ?? ref, k = NUM.get(uid); if (k === undefined) throw new Error(`no material ${uid}`); return k; };
-  const isData = (k) => ALL[k].kind === 'noise';
+  const missing = new Set(), numberOf = (ref) => { const uid = ref?.uid ?? ref, k = NUM.get(uid); if (k !== undefined) return k; if (!missing.has(uid)) { missing.add(uid); console.warn(`[textures] no material ${uid}: drawn as the stand-in`); } return -1; };   // (a file naming a material that is not there: a grey stand-in, not a world that does not start)
+  const isData = (k) => k >= 0 && ALL[k].kind === 'noise';
   const place = (k) => {   // a free layer, or the one asked for longest ago that nothing holds
     let best = -1;
     for (let i = 1; i < CAP; i++) { if (owner[i] < 0) { best = i; break; } if (!held[owner[i]] && (best < 0 || asked[i] < asked[best])) best = i; }
@@ -202,20 +202,20 @@ export function bakeTextures(renderer, { raw = new URLSearchParams(location.sear
   };
   /** a material there now (painted if it is not): its layer. hold: kept until release() */
   const want = (ref, hold = false) => {
-    const k = numberOf(ref); if (isData(k)) return -1;
+    const k = numberOf(ref); if (k < 0) return 0; if (isData(k)) return -1;
     if (hold) held[k] = 1;
     const layer = where[k] || place(k); if (layer) asked[layer] = performance.now(); return layer;
   };
-  const release = (ref) => { held[numberOf(ref)] = 0; };
+  const release = (ref) => { const k = numberOf(ref); if (k >= 0) held[k] = 0; };
   const flush = () => { if (!wanted.size) return; const list = [...wanted]; wanted.clear(); for (const k of list) if (!where[k]) want(ALL[k], true); };
 
   paintInto(STANDIN, 0);
   DATA.forEach((m, i) => paintInto(m, i, true));
   for (const m of SEEN) want(m, true);   // what the world wears: painted now, held
-  const index = (ref) => { const k = numberOf(ref); if (!isData(k) && !where[k]) wanted.add(k); return k; };   // (asked for while a shader is built: painted at the next flush)
+  const index = (ref) => { const k = numberOf(ref); if (k >= 0 && !isData(k) && !where[k]) wanted.add(k); return k; };   // (asked for while a shader is built: painted at the next flush)
   const tA = texture(A), tN = texture(Nn), tR = Rr ? texture(Rr) : null, tD = Dd ? texture(Dd) : null;
-  const layer = (m) => { const k = m?.isNode ? int(m) : index(m); return TABLE.element(m?.isNode ? k.div(4) : int(k >> 2)).element(m?.isNode ? k.mod(4) : int(k & 3)); };   // (m: a recipe, a uid, or a material's number as a node)
-  const data = (m) => (!m?.isNode && tD && isData(numberOf(m)) ? DATA.indexOf(ALL[numberOf(m)]) : -1);
+  const layer = (m) => { const k = m?.isNode ? int(m) : index(m); if (k === -1) return float(0); return TABLE.element(m?.isNode ? k.div(4) : int(k >> 2)).element(m?.isNode ? k.mod(4) : int(k & 3)); };   // (m: a recipe, a uid, or a material's number as a node)
+  const data = (m) => { if (m?.isNode || !tD) return -1; const k = numberOf(m); return isData(k) ? DATA.indexOf(ALL[k]) : -1; };
   return {
     layer: index, want, release, flush, used: USED, capacity: CAP - 1, packed: PACKED,
     /** a material's albedo + height at uv */
