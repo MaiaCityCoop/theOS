@@ -3,7 +3,8 @@
 #   deploy/bundle.sh <environment.json> <commit> <output.tar>
 # Run from the repository's root after `bun install --frozen-lockfile` in OS/ and TheGame/. The environment names
 # both origins and the aven.id issuer the game signs in with: the game reads VITE_AVEN_ISSUER at build time
-# (src/account/config.js), and the website frames the game at VITE_GAME (OS/src/main.js).
+# (src/account/config.js) and VITE_OS for its way back (cine/menu.js), and the website frames the game at VITE_GAME
+# (OS/src/main.js).
 set -euo pipefail
 environment=${1:?Usage: $0 <environment.json> <commit> <output.tar>}
 commit=${2:?Usage: $0 <environment.json> <commit> <output.tar>}
@@ -20,8 +21,10 @@ trap 'rm -rf "$pack"' EXIT
 version() { jq -n --arg commit "$commit" --arg website "$website" --arg game "$game" --arg issuer "$issuer" \
 	'{commit: $commit, website: $website, game: $game, issuer: $issuer}'; }
 
-(cd "$root/TheGame" && rm -rf dist && VITE_AVEN_ISSUER="$issuer" bun run build)
+# The game's pill (TheGame/cine/menu.js) leads back to the website at VITE_OS.
+(cd "$root/TheGame" && rm -rf dist && VITE_AVEN_ISSUER="$issuer" VITE_OS="$website" bun run build)
 grep -rqF "$issuer" "$root/TheGame/dist/assets" || { echo "The game's build does not name the issuer $issuer." >&2; exit 1; }
+grep -rqF "$website" "$root/TheGame/dist/assets" || { echo "The game's build does not lead back to the website at $website." >&2; exit 1; }
 (cd "$root/OS" && rm -rf dist && VITE_GAME="$game" bun run build)
 grep -rqF "$game" "$root/OS/dist/assets" || { echo "The website's build does not name the game at $game." >&2; exit 1; }
 
