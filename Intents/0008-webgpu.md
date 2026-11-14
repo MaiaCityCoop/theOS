@@ -1830,6 +1830,38 @@ wears them) is the half that follows, on this.
   9.9 to 10.3 without: it costs nothing. What it waits for is a world to test it on: today every material is
   worn within sight of the start (seven biomes round one river), so none could ever be put away.
 
+### 2026-11-14, ready for a library of thousands: materials painted when worn, places by size, loud failures (20:25)
+
+Samuel: "just execute everything that you believe makes the system more resilient, faster and better quality and more
+scalable … in preparation for massive upgrade of our library over the next months to thousands of textures, assets
+and tens of more biomes", the fastest way, without comparison rounds ("i just visually check once after"). Each
+change was checked once: the pages load without an error, one still against the live game.
+
+- **Materials painted when the world wears them** (`src/materials/bake.js`). A pool of layers, not a layer for every
+  material of the library: what a biome or an asset names (found in their files by itself), and what plays a part,
+  is painted at the start; anything else the moment something asks for it, into a free layer or the one asked for
+  longest ago that nothing holds. Every read goes through a table, a material's number to its layer (sent once a
+  frame; it cost nothing by the clock in the textures' round); not there yet: layer 0, a plain stand-in. A
+  thousand materials in the library cost nothing until something wears one. The game keeps one spare layer, the
+  library eight. The picture: 22 of 3.4 million pixels differ from the build before.
+- **The library's pictures are made as they scroll into sight**, a few a frame: a list of thousands opens at once,
+  and a material only the library holds is painted only when its picture is wanted. The staged material is held
+  while it stands.
+- **A heap place as large as its kind's own mesh** (`src/scatter/heap.js`: a level may give each kind's size): a
+  stone pine's shapes no longer take a holm oak's room. The trees' meshes 17.9 MB where they took 23.2; the same
+  picture (up into a crown: 0.03 of 255).
+- **Failing loudly, not silently**, for a library of thousands of files: a recipe that says its type but has no
+  uid, or has another's uid, is told and passed over (the first is kept: before, the second wrote over it); a
+  material a file names that is not there is drawn as the stand-in with a warning (before, the start stopped).
+- **The largest shader is watched**: told with the start's marks, and warned of past 600 KB. Today it is the land's
+  fragment shader, 385 KB, and it grows with every biome: what hung Safari's GPU on 2026-11-12 was a land shader
+  grown too large.
+- **Not done (each a round of its own):** the land drawn from a map of biomes and a table of their numbers instead
+  of a shader that holds every biome's code (what keeps the land's shader one size for tens of biomes); materials
+  given up when no biome near the camera wears them (with tens of biomes the pool would hold them all); the tiers'
+  packing room by each shape's share (44 MB of the trees'); the grass on the one drawer; blocks for phones (ETC2,
+  ASTC).
+
 ## Trail
 
 | When | Commit | What |
@@ -1927,3 +1959,6 @@ wears them) is the half that follows, on this.
 | 2026-11-14 | `37515d7` | The world's rocks drawn by the one drawer: a rock's shapes kinds of the heap at the ladder's eight levels (a full mesh of 110 592 triangles to a dot), the world's material and the moss numbers of a kind's look, one tier an asset; the same look, 12.1 ms a frame where it was 12.0, the same start; real Safari not read yet |
 | 2026-11-14 | `3ef1aac` | The plants' meshes in the heap, made in the workers, none on the page (35 MB gone); their own material fed from the heap, a draw a shape; the same picture; 11.0 ms a frame at the wood's edge where it was 12.4; real Safari: the rocks build 58 to 59 a second at a ratio of 1.1 to 1.4 |
 | 2026-11-14 | `34defe7` | The world's materials kept compressed on the GPU, packed there by a compute pass of our own as they are painted (BC3 colours and height, BC5 the normal, BC4 the roughness at half size; nothing downloaded): 65 MB where they were 203, the game 247 where it was 385; 9.9 ms a frame where it was 10.5; the same picture (0.1 to 0.9 of 255 across seven views); real Safari 60 frames a second |
+| 2026-11-14 | `27beb3b` | Materials painted when the world wears them, into a pool of layers read through a table; the library's pictures made as they scroll into sight: a library of thousands of materials costs nothing until something wears one |
+| 2026-11-14 | `4876cdc` | The heap's places as large as each kind's own mesh: the trees' meshes 17.9 MB where they took 23.2 |
+| 2026-11-14 | `b6cd67b` | Loud, not silent: a recipe without a uid or with another's is told and passed over; a missing material drawn as the stand-in; the largest shader told at start (385 KB, the land's) |
