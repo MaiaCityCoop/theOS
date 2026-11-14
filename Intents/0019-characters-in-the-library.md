@@ -129,7 +129,7 @@ notes folder, `0019-shots/`)
 - [x] The character recipe and the registry
 - [x] The library's Characters section and card, with its picture in the grid
 - [x] Checks 1–6, with screenshots
-- [ ] Denim reads indigo; shoulders without pads
+- [x] Denim reads indigo; shoulders without pads (07663bb; merged without a new screenshot, at Samuel's word)
 
 ## Changelog
 
@@ -145,6 +145,15 @@ notes folder, `0019-shots/`)
   a name clash (`at`) stopped the page once (fixed); the grid's picture was a sliver (the person stood 1.5 m off the
   picture's middle: fixed). Numbered 0017 at first; 0017 was taken by another branch, so this is 0019.
 
+### 2026-11-14 (2)
+
+- **Asked:** fix the pale denim and the shoulder pads; then merge it directly.
+- **Delivered:** the denim's warp packed close so the ecru weft only peeps between (about a quarter where it shows,
+  and half hidden then), a deeper indigo; the trunk broad to the arm at the shoulder and sloping in to the neck, the
+  arm's tube starting lower with a short cap.
+- **Broke / not there yet:** not seen on screen: the headless screenshots were stopped twice for the frame-rate
+  session's quiet windows, and Samuel asked to merge before they ran.
+
 ## Trail
 
 | When | Commit | What |
@@ -152,3 +161,4 @@ notes folder, `0019-shots/`)
 | 2026-11-14 | `c625294` | The Settler, the human kit, linen, denim, hair, the Characters section |
 | 2026-11-14 | `68b556e` | origin/main (b4a10e3, the fire pit) merged in |
 | 2026-11-14 | `aabedad` | Propose: the checks as they were, the gaps |
+| 2026-11-14 | `07663bb` | Denim indigo, shoulders without pads |
