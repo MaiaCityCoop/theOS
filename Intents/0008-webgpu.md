@@ -1550,6 +1550,45 @@ Step two of the same going ahead. Nothing of the picture changes.
 - **Not done.** The movers are drawn the old way (their hulls are balls too: 0.4 ms of the frame in all). The dots
   (a triangle each, a hundred thousand of them) and the leaf cards are as before.
 
+### 2026-11-14, one way to the screen for every view; the picture built over time by default (13:52)
+
+Samuel, having looked: "Yes, make it default". And while it was being made the default beside the old filter and the
+lens's own pass: "shoudnt we ahve one stnadnaeizd methods indestad of mutltiple? acroos all our views incl lens
+thetc?", "one ssot", "the best peromaonace eveyrhwere".
+
+- **One way** (`src/core/screen.js`): the frame (the world at the inside's pixels, a part of a pixel aside each
+  frame), the lens where the camera brings one, the build (the screen's picture kept and built: `temporal.js`), the
+  show (a copy, firmed a little; or through the lens's glass). Every view goes through it: the walker's, the
+  virtual camera's, a film's, a still taken for a story, the library, the lens bench, and the fallback without
+  WebGPU. The filter and the lens's own multisampled pass are gone, with their switches (`?aa`, `?noaa`,
+  `?msstore`, `?taau`); no target is multisampled anywhere. `?notaau` runs the same passes with nothing shifted
+  and nothing kept (one frame spread by the filter): to measure against.
+- **No material has a switch of its own.** What moves by itself marks its pixels while the world is drawn for the
+  picture (`U.uMarks`), and only then: a tree in a library thumbnail keeps its coverage as ever.
+- **The lens had not been drawn since 2026-11-11.** In `cine/cine.js` a comment set in the middle of a line had
+  swallowed the two statements after it (the barrel, and the lens handed to the camera): for three days no view had
+  depth of field, and nobody saw, because it was a way of its own. It is back, as two stages of the one way: the
+  blur before the build (at half the inside's size each way: the frame made small with the nearest distance of
+  each four pixels, blurred by twenty-four reads turned a little every frame, and brought back pixel by pixel from
+  the half-size pixels that lie as far off), the glass at the show. `?nodof` (or `__cine.dof = false`): without.
+- **What it costs, by the clock.** The costs in the two entries before were sums of the GPU's pass timestamps, and
+  those overstate every extra pass by about three milliseconds: the temporal pass was never five times the filter,
+  and the lens "cost" 9.7 ms whether it read twenty-eight times a pixel or not at all. Timed as frames drawn back
+  to back until the GPU has done them (the test window, 2880 by 1558, across the stand), at an inside ratio of 1
+  and of 1.5: the filter before 11.1 and 12.5 ms a frame; the one way 13.5 and 15.7 (its three passes with nothing
+  kept 11.9 and 13.5; the finer texture reads 0.9 and 0.4 of the rest; the firming nothing). The lens 0.2 and
+  0.6 ms more (as one full-size pass of twenty-eight reads: 1.2 and 2.2). And step two by the clock: 15.3 ms a
+  frame with every corner worked out, 13.0 by the level's list (15 %).
+- **The picture** (against the one built at the screen's own pixels, the mean difference of 255): stood still 1.6
+  at a ratio of 1 and 2.1 at 1.5, where the filter read 4.3 and 3.0; travelling forward 3.4 and 2.8 against 4.4
+  and 3.1.
+- **His Safari**: the plain view 60 frames a second. Through a 50 mm lens over the stand 60 frames a second at an
+  inside ratio of 1.1 to 1.25 (the build before held 1.6 there, with no lens drawn and the old filter).
+- **Not done, and to know.** Films have their depth of field again, which they had not had for three days. The
+  lens's far blur is a little softer than the old pass's was. At 1.5 the dense grass stands a little farther from
+  the reference than at 1.25 (not understood). What moves by itself is as sharp as one frame, no sharper.
+  `tools/bench.js` still draws the world by itself (it measures, it is no view).
+
 ## Trail
 
 | When | Commit | What |

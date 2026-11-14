@@ -52,7 +52,6 @@ import { U } from '../core/uniforms.js';
 import { camDist, groundAt, rnd } from '../world/land.nodes.js';
 import { cellRnd, heightAt } from '../world/land.js';
 import { finish, stillness, skyLight, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
-import { TEMPORAL } from '../core/temporal.js';
 import { pxK } from '../detail/index.js';
 import { bandOf, padOf } from '../detail/handover.js';
 import { boxIn } from '../core/frustum.js';
@@ -445,7 +444,7 @@ export function createStress(scene, renderer, tex) {
     const N0 = normalize(vB.xyz), Nq = normalize(vN), q = vC.xyz.div(M1.w), b0 = pow(abs(Nq), vec3(4)), b = b0.div(b0.x.add(b0.y).add(b0.z));
     // (how fast its texture runs across the screen, asked once here: a read inside a branch that asks it itself makes the
     // GPU work out every branch for every pixel)
-    const gx = TEMPORAL ? dFdx(q).mul(U.uFine) : dFdx(q), gy = TEMPORAL ? dFdy(q).mul(U.uFine) : dFdy(q);   // (built over time: as finely as the screen's own pixels would)
+    const gx = dFdx(q).mul(U.uFine), gy = dFdy(q).mul(U.uFine);   // (built over time: as finely as the screen's own pixels would)
     // (a texture is read from two sides, not three: the two its face is turned towards; the third's share is nothing
     // where it would be dropped, so nothing jumps)
     const an = abs(Nq), least = an.x.min(an.y).min(an.z), wt = an.sub(least).max(0), w2 = wt.mul(wt), dx = an.x.lessThanEqual(an.y).and(an.x.lessThanEqual(an.z)), dz = dx.not().and(an.z.lessThan(an.y));
@@ -566,7 +565,7 @@ export function createStress(scene, renderer, tex) {
           const w = vec3(A.x, A.z, A.y).add(rest.mul(out)).add(vec3(kk.x, snow.mul(out), kk.y)); vSnow.assign(snow);
           // (its texture lies on it as it stands; on a mover as it is at rest, in its own frame: it must not swim over
           // a leg that swings)
-          vA.assign(vec4(w, TEMPORAL ? swing : 0)); vB.assign(vec4(nw, v.shade)); vC.assign(vec4(moving ? p0.mul(A.w) : rest, B.y)); vN.assign(moving ? n0 : nw);
+          vA.assign(vec4(w, swing)); vB.assign(vec4(nw, v.shade)); vC.assign(vec4(moving ? p0.mul(A.w) : rest, B.y)); vN.assign(moving ? n0 : nw);
           if (foliage) vUV.assign(vec2(float(v.a).div(15), float(v.b).mul(16).add(v.w.mul(15)).div(255)));   // (where on its card: assets/kit/frond.js)
           clip.assign(clipOf(w));
         });
@@ -576,7 +575,7 @@ export function createStress(scene, renderer, tex) {
     m.fragmentNode = Fn(() => {
       const out = vec4(0).toVar();
       // (built over time, src/core/temporal.js: a mover says in its pixels that it moves, a thing that sways how still it is)
-      If(unlit().not(), () => { out.assign(TEMPORAL ? vec4(shade(foliage).rgb, moving ? float(0) : stillness(vA.w, vA.xyz)) : shade(foliage)); });   // (into the shadow map: only its depth)
+      If(unlit().not(), () => { out.assign(vec4(shade(foliage).rgb, moving ? float(1).sub(U.uMarks) : stillness(vA.w, vA.xyz))); });   // (into the shadow map: only its depth)
       return out;
     })();
     return m;

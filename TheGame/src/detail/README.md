@@ -120,8 +120,8 @@ What the test found:
   a shape of its own (the ladder's ball: `ballCorners`), the heap marks every mesh whose corners are exactly that list
   (`shapedOf`), and those are drawn by the list itself, their vertices read by their numbers, each worked out once.
   Nobody says which kinds are balls: a family whose meshes are is drawn so (eight kinds in ten today, and every
-  kind at its two coarsest meshes). Across the stand at an inside ratio of 1 the GPU's time fell from 16.7 to 14.9 ms
-  a frame; the picture is the same (`?stress&corners` draws the old way, to measure against).
+  kind at its two coarsest meshes). Across the stand at an inside ratio of 1 a frame fell from 15.3 to 13.0 ms by the
+  clock (frames drawn back to back); the picture is the same (`?stress&corners` draws the old way, to measure against).
 - **A pixel must read only what it shows**: the texture its pattern shows there, the relief only when large on screen.
 - **Streaming must know the camera's speed**, and a mesh that comes must not repack everything (`heap.versions`).
 
@@ -218,17 +218,21 @@ stand's meshes 94 MB once, where they were 131 MB twice). What the workers make 
 kinds' coarse meshes) is kept in the browser under the recipes' fingerprint (`src/core/kept.js`) and read back at
 the next.
 
-**The picture built over time** (`src/core/temporal.js`; on trial: `?taau`). The world is drawn at the inside's
-pixels, each frame a part of a pixel aside from the last, and the screen's picture is kept from frame to frame: a
-screen pixel takes a frame's pixels in by how near they fell to it and keeps the rest from where its point lay a
-frame ago (found by the camera's own movement and the pixel's depth). Standing still it is the picture drawn at the
-screen's own pixels with its edges smoothed; textures are read as finely as the screen's pixels would read them
-(`U.uFine`: the ground, the stand's things). What moves by itself cannot be followed, so **it says so**: the fourth
-number of its pixels is how still it is (`stillness(amount, where)` in `src/world/light.js`: a mover 0, a blade or
-a crown by how far it swings in the wind now, a flake by its own blending), and little is kept there: it is as
-sharp as before, not smeared. A new kind that moves by itself keeps this rule, or it leaves a trail. Three passes
-(the look at the inside's pixels; the build and the copy at the screen's): what a screen pixel does is paid four and
-a half million times a frame, so the arithmetic lives in the look.
+**The one way to the screen** (`src/core/screen.js`). Every view's picture reaches the canvas the same way: the
+walker's, the virtual camera's through its lens, a film's, a still taken for a story. The world is drawn at the
+inside's pixels, each frame a part of a pixel aside from the last; where the camera brings a lens the frame is
+blurred by it (`src/camera/post.js`); and the screen's picture is kept from frame to frame and built from those
+frames (`src/core/temporal.js`): a screen pixel takes a frame's pixels in by how near they fell to it and keeps the
+rest from where its point lay a frame ago (found by the camera's own movement and the pixel's depth). Standing still
+it is the picture drawn at the screen's own pixels with its edges smoothed; no target is multisampled anywhere, and
+textures are read as finely as the screen's pixels would read them (`U.uFine`: the ground, the stand's things).
+What moves by itself cannot be followed, so **it says so**: the fourth number of its pixels is how still it is
+(`stillness(amount, where)` in `src/world/light.js`: a mover 0, a blade or a crown by how far it swings in the wind
+now, a flake by its own blending), and little is kept there: it is as sharp as one frame, not smeared. A new kind
+that moves by itself keeps this rule, or it leaves a trail. Three passes after the world's (the look at the inside's
+pixels; the build and the show at the screen's): what a screen pixel does is paid four and a half million times a
+frame, so the arithmetic lives in the look. `?notaau` shifts and keeps nothing (the same passes then spread one
+frame by the filter alone): to measure against.
 
 ## What this does not yet give
 

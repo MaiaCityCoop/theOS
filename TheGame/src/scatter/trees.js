@@ -26,7 +26,6 @@ import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt } from '../world/land.nodes.js';
 import { kindsOf } from '../world/stand.js';
 import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, unlit, windAt, windDir, windStrength, stillness } from '../world/light.js';
-import { TEMPORAL } from '../core/temporal.js';
 import { PLACES } from '../../world/places.js';
 import { recipe } from '../core/registry.js';
 import { geometryOf, scatterRow } from '../../assets/index.js';
@@ -197,7 +196,7 @@ function plantMaterial(tex, D) {
       const cardN = attribute('cn', 'vec3'), flutter = sin(U.uTime.mul(ws.mul(5).add(1.6)).add(cardN.dot(vec3(12.9, 78.2, 37.7))).add(B.y)).mul(ws.mul(0.14)).mul(card).mul(attribute('uv', 'vec2').y.min(1)).mul(flutters);
       const w = vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(kk.x.add(windDir.x.mul(flutter)), flutter.mul(0.4), kk.y.add(windDir.y.mul(flutter)))).toVar();
       vUv.assign(attribute('uv', 'vec2')); vPart.assign(part);
-      if (TEMPORAL) vStill.assign(stillness(up.mul(up).mul(sway).mul(s).add(card.mul(attribute('uv', 'vec2').y.min(1)).mul(flutters).mul(0.8)), w));   // (its crown's sway, and a sprig's own swing)
+      vStill.assign(stillness(up.mul(up).mul(sway).mul(s).add(card.mul(attribute('uv', 'vec2').y.min(1)).mul(flutters).mul(0.8)), w));   // (its crown's sway, and a sprig's own swing)
       const toEye = U.uCam.sub(w), far = length(toEye), V = toEye.div(max(far, 1e-3));
       // the needles' outline: far off a mip's needles are fainter, so the cut lowers with them and the crown stays full;
       // a card seen edge-on is a flat sliver, not a brush: it fades as it turns away
@@ -221,7 +220,8 @@ function plantMaterial(tex, D) {
       return clipOf(w);
     };
     const frag = Fn(() => {
-      // drawn with alpha to coverage (the canvas's multisampling): a needle's outline soft in a pixel, not a screen-door
+      // drawn with alpha to coverage where its target is multisampled (a library's thumbnail; the game's own picture is
+      // not: its edges are smoothed as it is built over time, src/core/temporal.js): a needle's outline soft in a pixel, not a screen-door
       // dither of whole pixels (which a lowered pixel ratio blows up into dots). Two levels are never both half there
       // (two halves of coverage are the same samples: a crown half see-through, in a grid): their hand-over is their
       // sprigs' sizes, in the vertex stage. A crown as one body (part 2) is whole, no sprig cut out of it
@@ -234,10 +234,10 @@ function plantMaterial(tex, D) {
           .Else(() => { alpha.assign(max(smoothstep(vCut.x.sub(0.08), vCut.x.add(0.08), T.a), whole).mul(vCut.y)); If(alpha.lessThan(0.04), () => { Discard(); }); });
       }).ElseIf(shadow.not(), () => { const W = tex.a(Lf.w, vUv); T.assign(vec4(W.rgb.mul(mix(0.74, 1, W.a)), 1)); });   // its bark, darker in its fissures (0.74 squared: 0.55)
       const out = vec4(0).toVar();
-      If(shadow.not(), () => { out.assign(vec4(toScreen(T.rgb.mul(T.rgb).mul(vMul).add(vAdd)).rgb, TEMPORAL ? vStill : alpha)); });   // (built over time there is no multisampling to take the coverage: the fourth number says how still it is)
+      If(shadow.not(), () => { out.assign(vec4(toScreen(T.rgb.mul(T.rgb).mul(vMul).add(vAdd)).rgb, mix(alpha, vStill, U.uMarks))); });   // (drawn for the picture built over time there is no multisampling to take the coverage: the fourth number says how still it is; through the lens it is the coverage, as ever)
       return out;
     });
-    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.alphaToCoverage = !TEMPORAL;
+    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.alphaToCoverage = true;
     return { m, shape, slot };
   };
 }

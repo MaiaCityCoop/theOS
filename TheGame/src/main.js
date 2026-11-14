@@ -32,9 +32,9 @@ import { place } from './world/place.js';
 import { PLACES } from '../world/places.js';
 import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
-import { createPost } from './camera/post.js';
+import { createLens } from './camera/post.js';
 import { createScreen } from './core/screen.js';
-import { createTemporal, TEMPORAL } from './core/temporal.js';
+import { createTemporal } from './core/temporal.js';
 import { createSky } from './world/sky.js';
 import { createWeather } from './world/weather/index.js';
 import { useBackend } from './world/light.js';
@@ -48,7 +48,7 @@ const canvas = document.getElementById('c');
 const params = new URLSearchParams(location.search);
 // (the stress stand keeps its kinds' own textures in one array of many layers: more than a device gives unasked; src/scatter/stress.js)
 const layers = params.has('stress') ? Math.min(2048, (await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits?.maxTextureArrayLayers ?? 256) : 256;
-const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: params.has('webgl'), trackTimestamp: params.has('gputime'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (what is drawn with alpha to coverage, a tree's needles, leaves its alpha in the picture: it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); the canvas itself is not multisampled: the world is drawn into a multisampled target and laid on it (src/core/screen.js); ?noaa: that target without multisampling, to measure what it costs
+const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: params.has('webgl'), trackTimestamp: params.has('gputime'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (a pixel's fourth number is not how see-through it is: it says how still the thing is, src/world/light.js stillness; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
 const keptMeshes = primeMeshes();   // the meshes built before, read back while the renderer starts (src/core/meshes.js)
 await renderer.init();
 if (!params.has('fat')) useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js); ?fat: twice, as three keeps it, to compare
@@ -71,12 +71,12 @@ addEventListener('resize', () => {   // only a real change of size rebuilds the 
 const stats = (window.__s8 = { renderer, camera, scene, meshes: { kept: meshesKept, built: 0 } });
 const U = createUniforms(camera, SKY);
 trackView(); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
-// (the screen keeps all its own pixels; the governor's pixel dial is the inside's: src/core/screen.js)
-// (multisampling only on a screen of single pixels: on a dense one (two device pixels a point) the samples' cost buys a
-// third more pixels each way instead, measured 2026-11-14, and the pixels themselves are fine enough. `?aa`, `?noaa`: either way)
-// (`?taau`, on trial: the screen's picture built over time from the inside's frames, each drawn a part of a pixel aside: src/core/temporal.js)
-const temporal = (stats.temporal = TEMPORAL && renderer.backend.isWebGPUBackend ? createTemporal(renderer) : null);
-const screen = (stats.screen = createScreen(renderer, SKY, { samples: temporal || params.has('noaa') ? 0 : params.has('aa') ? 4 : (window.devicePixelRatio || 1) >= 2 ? 0 : 4, store: params.has('msstore'), temporal }));
+// The one way to the screen, for every view (src/core/screen.js): the world drawn at the inside's pixels (the governor's
+// dial; the screen keeps all its own), through the lens where the camera brings one (src/camera/post.js), and the
+// screen's picture built over time from those frames (src/core/temporal.js). `?notaau`: nothing shifted, nothing kept
+// (one frame spread by the filter: to measure against).
+const temporal = (stats.temporal = createTemporal(renderer, { off: params.has('notaau') }));
+const screen = (stats.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
 const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
 stats.governor = governor;   // the film holds it still while it plays
 const boot = (stats.boot = {}), mark = (k) => (boot[k] = Math.round(performance.now() - t0));   // where the start's time goes
@@ -108,7 +108,6 @@ stats.sky = sky;   // the sun and the sky: one time of day drives the light (int
 const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)
 stats.shadows = shadows;
 stats.controls = controls;
-const post = createPost(renderer, SKY, screen);
 const city = (stats.city = createCity({ scene, camera, canvas, renderer }));
 const hud = createHud(document.getElementById('hud'), renderer, camera, governor, stats);
 spawn(controls);
@@ -135,11 +134,10 @@ function choose(dt) {
   parts.scatter = performance.now() - t;
 }
 function draw() {
-  const dof = camera.userData.dof;   // the virtual camera brings a lens with it: its picture is drawn through it
   const gy = heightAt(camera.position.x, camera.position.z);
   terrain.cache?.update(renderer, camera, `${innerHeight}|${U.uSand.value.toArray()}`);   // the ground's layers laid where the camera has come (src/terrain/groundcache.js)
   weather.before(camera, gy); shadows.render(scene, camera, gy);   // (what a condition draws before the picture: the clouds' shadow map)
-  if (dof && dof.on) post.render(scene, camera, dof); else screen.render(scene, camera);
+  screen.render(scene, camera);   // (through its lens, where the camera brings one)
 }
 let last = 0, wasBusy = false;
 function frame(now) {

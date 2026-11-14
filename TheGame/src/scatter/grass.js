@@ -6,7 +6,6 @@ import { Fn, float, int, uint, vec2, vec3, vec4, If, min, varyingProperty, posit
 import { U } from '../core/uniforms.js';
 import { hashI, camDist, BASE } from '../world/land.nodes.js';
 import { finish, stillness, skyLight, weathered, cloudAtOne, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
-import { TEMPORAL } from '../core/temporal.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
 
@@ -75,7 +74,7 @@ function bladeMaterial(T) {
       const onIt = max(clamp(snowDepth.mul(4), 0, 0.4).mul(float(1).sub(smoothstep(0.05, 0.5, vT))), clamp(snowDepth.mul(2.5), 0, 0.6).mul(smoothstep(0.3, 0.8, n0.y.abs())).mul(smoothstep(0.3, 0.8, vT)));   // snow at the foot, and lying on what bows over
       const col0 = weathered(mix(vCol, SNOW, onIt), n, 9).mul(skyLight(n).mul(vT.mul(0.45).add(0.55)).add(sun.mul(ndl.mul(ndl).mul(1.1).add(vec3(0.5, 1, 0.22).mul(thru))))).add(sun.mul(sheen));
       const col = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86)).select(vec3(0.92, 0.92, 0.86).mul(skyLight(n).add(U.uSun.mul(0.7))), col0);
-      return TEMPORAL ? vec4(finish(col, vWorld).rgb, stillness(vT.mul(vT).mul(0.7), vWorld)) : finish(col, vWorld);   // (a blade's tip in the wind moves by itself)
+      return vec4(finish(col, vWorld).rgb, stillness(vT.mul(vT).mul(0.7), vWorld));   // (a blade's tip in the wind moves by itself, and says so: src/core/temporal.js)
     });
     const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide;
     return { m, shape };

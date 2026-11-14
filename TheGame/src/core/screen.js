@@ -1,82 +1,52 @@
-// The picture's two sizes. The screen is always given all its own pixels: the canvas stands at the screen's own pixel
-// ratio (4K on a 4K screen) and never below: a hard gate (2026-11-13). What is drawn of the world may be fewer: the
-// inside, a pixel ratio of its own (the governor's dial: src/core/governor.js), drawn into a target and laid on the
-// screen through a filter that keeps edges crisp (Catmull-Rom: nine reads a pixel); at the same size it is a copy.
-// Or, on trial (`?taau`), not laid on by a filter at all: the screen's picture is built over time from the inside's
-// frames, each drawn a part of a pixel aside from the last (src/core/temporal.js); the inside is then two targets by
-// turns, each with its depth (the frame before's depth says what has changed place).
+// The one way a picture reaches the screen: every view's (the walker's eyes, the virtual camera with its lens, a
+// film, a still taken for a story), since 2026-11-14. Nothing else draws the world onto the canvas.
 //
-// The world is always drawn into the target, never straight onto the canvas. On a screen of single pixels the target is
-// multisampled (on a dense screen it is not: src/main.js says why) and told to
-// drop its samples when the pass ends (they are resolved, then forgotten: on a tiled GPU they never leave the tile,
-// and need no memory of their own); a canvas keeps every sample of every frame (three stores them: four times the
-// picture's pixels for the colour and again for the depth), so the canvas itself is not multisampled.
+// The screen is always given all its own pixels: the canvas stands at the screen's own pixel ratio (4K on a 4K screen)
+// and never below: a hard gate (2026-11-13). What is drawn of the world may be fewer: the inside, a pixel ratio of its
+// own (the governor's dial: src/core/governor.js).
+//
+//   the frame   the world drawn at the inside's pixels into a target with its depth, a part of a pixel aside from the
+//               last frame (two targets by turns: the frame before's depth says what has changed place)
+//   the lens    where the camera brings one (camera.userData.dof, the virtual camera's: src/camera/post.js): the
+//               frame blurred by how far each pixel lies from the plane of focus
+//   the build   the screen's picture kept from frame to frame and built from them (src/core/temporal.js): at the
+//               screen's own pixels, its edges smooth; no target is multisampled anywhere
+//   the show    onto the canvas: a copy, or through the lens's glass
+//
+// `?notaau`: nothing shifted and nothing kept (the same passes then spread one frame by the filter alone): to measure
+// against.
 import * as THREE from 'three/webgpu';
-import { Fn, If, float, vec2, vec3, vec4, uv, uniform, texture, floor, max } from 'three/tsl';
 import { note } from './gpu.js';
 
-export function createScreen(renderer, skyHex, { samples = 4, store = false, temporal = null } = {}) {   // store: keep the samples after the pass, as a canvas does (to measure what dropping them saves); temporal: the picture built over time (src/core/temporal.js), in place of the filter
+export function createScreen(renderer, { temporal, lens = null }) {
   const OUT = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(OUT);
-  let inside = OUT, rt = null;
-  const rts = [null, null]; let turn = 0;   // (built over time: two targets by turns, each with its depth: the frame before's is read while this one's is drawn)
-  const css = new THREE.Vector2(), size = new THREE.Vector2();
-  const tC = texture(new THREE.Texture()), uSize = uniform(new THREE.Vector2(1, 1)), uSame = uniform(1);
-  const mat = new THREE.NodeMaterial(); mat.depthTest = mat.depthWrite = false;
-  mat.vertexNode = vec4(uv().mul(2).sub(1), 0, 1);
-  mat.fragmentNode = Fn(() => {
-    const p = vec2(uv().x, float(1).sub(uv().y)), out = vec3(0).toVar();   // (a target reads with its rows turned)
-    If(uSame.greaterThan(0.5), () => { out.assign(tC.sample(p).level(0).rgb); })
-      .Else(() => {
-        // Catmull-Rom over four by four of the inside's pixels, as nine reads (each of the middle two rows and columns
-        // read between its pixels, where the filter's own weights put it): sharper than the plain blend, no ringing to
-        // speak of; what falls under nought is cut
-        const sp = p.mul(uSize), t1 = floor(sp.sub(0.5)).add(0.5), f = sp.sub(t1);
-        const w0 = f.mul(f.mul(float(1).sub(f.mul(0.5))).sub(0.5)), w1 = f.mul(f).mul(f.mul(1.5).sub(2.5)).add(1), w2 = f.mul(f.mul(float(2).sub(f.mul(1.5))).add(0.5)), w3 = f.mul(f).mul(f.mul(0.5).sub(0.5));
-        const w12 = w1.add(w2), t0 = t1.sub(1).div(uSize), t3 = t1.add(2).div(uSize), t12 = t1.add(w2.div(w12)).div(uSize);
-        const S = (x, y) => tC.sample(vec2(x, y)).level(0).rgb;
-        const sum = S(t0.x, t0.y).mul(w0.x.mul(w0.y)).add(S(t12.x, t0.y).mul(w12.x.mul(w0.y))).add(S(t3.x, t0.y).mul(w3.x.mul(w0.y)))
-          .add(S(t0.x, t12.y).mul(w0.x.mul(w12.y))).add(S(t12.x, t12.y).mul(w12.x.mul(w12.y))).add(S(t3.x, t12.y).mul(w3.x.mul(w12.y)))
-          .add(S(t0.x, t3.y).mul(w0.x.mul(w3.y))).add(S(t12.x, t3.y).mul(w12.x.mul(w3.y))).add(S(t3.x, t3.y).mul(w3.x.mul(w3.y)));
-        out.assign(max(sum, 0));
-      });
-    return vec4(out, 1);
-  })();
-  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  quad.frustumCulled = false;
-  /** The inside's size in pixels (what a pass that draws the world into a target of its own makes it: src/camera/post.js). */
+  let inside = OUT, turn = 0;
+  const css = new THREE.Vector2(), size = new THREE.Vector2(), rts = [null, null];
+  /** The inside's size in pixels. */
   const sizeOf = (v) => { renderer.getSize(css); return v.set(Math.max(1, Math.round(css.x * inside)), Math.max(1, Math.round(css.y * inside))); };
   return {
     out: OUT, size: sizeOf,
     get inside() { return inside; },
     /** The inside's pixel ratio: no more than the screen's own. */
     set(r) { inside = Math.min(OUT, Math.max(0.25, r)); },
-    /** Draw the world: into the inside's target, then onto the screen. */
+    /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
       sizeOf(size);
-      if (temporal) {
-        let now = rts[turn]; const was = rts[1 - turn];
-        if (!now || now.width !== size.x || now.height !== size.y) {
-          now?.depthTexture?.dispose(); now?.dispose();
-          now = rts[turn] = new THREE.RenderTarget(size.x, size.y, { samples: 0, depthTexture: new THREE.DepthTexture(size.x, size.y), minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });
-          note(`the picture inside (target ${turn + 1} of two, with its depth)`, size.x * size.y * 8, 0);
-        }
-        temporal.begin(camera, size.x, size.y);
-        renderer.setRenderTarget(now); renderer.render(scene, camera); renderer.setRenderTarget(null);
-        temporal.end(camera); temporal.resolve(now, was); turn = 1 - turn;
-        return;
+      let now = rts[turn]; const was = rts[1 - turn];
+      if (!now || now.width !== size.x || now.height !== size.y) {
+        now?.depthTexture?.dispose(); now?.dispose();
+        now = rts[turn] = new THREE.RenderTarget(size.x, size.y, { samples: 0, depthTexture: new THREE.DepthTexture(size.x, size.y), minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });
+        note(`the picture inside (target ${turn + 1} of two, with its depth)`, size.x * size.y * 8, 0);
       }
-      if (!rt || rt.width !== size.x || rt.height !== size.y) {
-        rt?.dispose();
-        rt = new THREE.RenderTarget(size.x, size.y, { samples, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false, resolveDepthBuffer: false });
-        if (!store) { rt.storeMultisampledColorBuffer = false; rt.storeMultisampledDepthBuffer = false; }   // (resolved, then forgotten)
-        tC.value = rt.texture; uSize.value.copy(size); note('the picture inside (its target)', size.x * size.y * 4, 0);
-      }
-      uSame.value = inside >= OUT - 1e-3 ? 1 : 0;
       // (cleared to the renderer's own clear colour: the sky sets it to the hour's horizon as plain numbers, which a
       // target takes as they are: src/world/sky.js)
-      renderer.setRenderTarget(rt); renderer.render(scene, camera); renderer.setRenderTarget(null);
-      renderer.render(quad, cam);
+      temporal.begin(camera, size.x, size.y);
+      renderer.setRenderTarget(now); renderer.render(scene, camera); renderer.setRenderTarget(null);
+      temporal.end(camera);
+      const dof = camera.userData.dof;   // the virtual camera brings a lens with it: its picture is drawn through it
+      temporal.resolve(now, was, lens && dof && dof.on ? lens.blur(now, camera, dof) : null);
+      turn = 1 - turn;
     },
   };
 }

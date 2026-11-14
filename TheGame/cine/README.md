@@ -110,8 +110,12 @@ a bare `mm` between 28 and 180 is a zoom position between them.
   it looks at (`look`), so a move that follows a subject pulls focus by itself; `focus` (metres)
   sets it by hand. The blur is the thin lens's circle of confusion for that focal length, focus
   and distance, drawn as an upright oval, twice as tall as wide, as anamorphic glass gives.
-  It is drawn by the game (`src/post.js`) only while the virtual camera holds the picture; the
-  walk view has none. `__cine.dof = false` turns it off.
+  It is drawn by the game only while the virtual camera holds the picture (the walk view has
+  none), as a stage of the one way every picture reaches the screen (`src/camera/post.js`,
+  `src/core/screen.js`): the blur at the inside's pixels, before the screen's picture is built
+  from the frame; the glass (barrel, the corners' light) as it is laid on the canvas.
+  `__cine.dof = false` (or `?nodof`) turns it off. (From 2026-11-11 to 2026-11-14 no lens was
+  drawn at all: the line that hands it to the camera had been swallowed by a comment.)
 - Not modelled: flares, breathing, distortion.
 
 ## The lens bench

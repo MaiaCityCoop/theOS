@@ -1,11 +1,10 @@
-// The picture built over time (`?taau`: on trial, 2026-11-14). Drawn at fewer pixels than the screen has (the inside:
+// The picture built over time: how every view's picture reaches the screen (src/core/screen.js), since 2026-11-14. Drawn at fewer pixels than the screen has (the inside:
 // src/core/screen.js), one frame can only be spread over the screen's pixels: soft, and what is finer than its pixels
 // crawls. So every frame is drawn a part of a pixel aside from the last (the camera's window shifted: thirty-two
 // places by turns), and the screen's picture is kept from frame to frame: each of its pixels takes this frame's
 // pixels in by how near they fell to it, and keeps the rest from where the same point of the world lay on the screen a
 // frame ago. Standing still, every screen pixel has been drawn at its own place within a few frames: the screen's own
-// sharpness from a part of its pixels a frame, and its edges smooth (as the multisampling made them: a dense screen
-// has none, src/main.js).
+// sharpness from a part of its pixels a frame, and its edges smooth (no target is multisampled any more).
 //
 // Where a point lay a frame ago is found by the camera's own movement alone (the pixel's depth, through the two
 // frames' matrices): right for all that stands. What moves by itself is not followed, and is caught three ways. It says
@@ -17,36 +16,41 @@
 // The kept picture carries, beside its colour, how much it is built from (its fourth number): a pixel newly seen takes
 // the frame's own colour at once and is sharp a few frames on; one long seen changes slowly, and is steady.
 //
+// `?notaau` (to measure against): nothing shifted and nothing kept, so the same passes show one frame spread over
+// the screen's pixels by the filter alone, as before.
+//
+// What it costs, by the clock (frames drawn back to back, 2026-11-14; the GPU's own pass timestamps, summed, overstate
+// every extra pass by milliseconds and misled a day's work): its three passes about a millisecond a frame over the
+// one filter pass they replace, the finer texture reads most of another, the firming nothing to speak of.
+//
 // Three passes after the world's. The look (at the inside's pixels, the fewest): for each of the frame's pixels the way
 // back to where it lay, how much may be kept there, and the range of colour round it. The build (at the screen's pixels,
 // so it does as little as can be: a screen pixel's arithmetic is paid four and a half million times): the frame's
-// colour and the kept one read, pulled, blended. The show: onto the canvas, its edges a little firmer.
+// colour and the kept one read, pulled, blended. The show: onto the canvas (a copy; or through the glass of the
+// virtual camera's lens, whose blur came before the look: src/camera/post.js).
 import * as THREE from 'three/webgpu';
-import { Fn, If, float, ivec2, vec2, vec3, vec4, uv, uniform, texture, property, outputStruct, max, min, abs, floor, fract, clamp, mix, length } from 'three/tsl';
+import { Fn, If, float, ivec2, vec2, vec3, vec4, uv, uniform, texture, property, outputStruct, max, min, abs, floor, fract, clamp, mix, length, dot, smoothstep } from 'three/tsl';
 import { note } from './gpu.js';
 import { U } from './uniforms.js';
-
-/** Whether the picture is built over time: what moves by itself then says so in its pixels (src/world/light.js: stillness). */
-const Q = new URLSearchParams(globalThis.location?.search ?? '');
-export const TEMPORAL = Q.has('taau') && !Q.has('webgl') && !!globalThis.navigator?.gpu;   // (WebGPU only: the fallback keeps the filter)
 
 const halton = (i, b) => { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; };
 const PLACES = Array.from({ length: 32 }, (_, i) => [halton(i + 1, 2) - 0.5, halton(i + 1, 3) - 0.5]);   // parts of a pixel, evenly spread whatever their number
 
-export function createTemporal(renderer) {
+/** off: nothing shifted and nothing kept (`?notaau`: one frame, spread by the filter). */
+export function createTemporal(renderer, { off = false } = {}) {
   // sigma: how wide a screen pixel takes the frame's pixels in (screen pixels); most: how many frames' worth a pixel is
   // built from at most (moving: while it crosses the screen at `fast` pixels a frame or more, where what is kept blurs
   // by being moved); short: how much a pixel that moves by itself keeps; still: the pixels a frame a point may move by
   // itself and still be all of that; range: the kept colour's leeway, in spreads of the nine pixels (tight: while it
   // crosses the screen fast); pull: how fast trust falls with what was pulled; gap: the share by which depths must
   // differ to be another thing; bare: what a pixel with nothing kept takes of the frame anyway; sharp: how much firmer
-  // its edges are drawn onto the canvas, 0 … 1 (0: a plain copy; firming costs as much again as the look: measured 2026-11-14); fine: how far textures are read as finely as the screen's own pixels
+  // its edges are drawn onto the canvas, 0 … 1 (0: a plain copy); fine: how far textures are read as finely as the screen's own pixels
   // would (0: as the inside's … 1); stale: not drawn for so long (ms), what is kept is dropped
   // (tried on one path each, stood still, forward, sideways and turning, against the picture built at the screen's own
   // pixels, 2026-11-14: these are the nearest to it)
-  const K = { sigma: 0.45, most: 5, moving: 1, fast: 6, short: 0.5, still: 0.3, range: 1.6, tight: 1, pull: 5, gap: 0.05, bare: 0.05, sharp: 0, fine: 1, stale: 250 };
+  const K = { sigma: 0.45, most: 5, moving: 1, fast: 6, short: 0.5, still: 0.3, range: 1.6, tight: 1, pull: 5, gap: 0.05, bare: 0.05, sharp: 0.25, fine: 1, stale: 250 };
   const DIALS = ['most', 'moving', 'fast', 'short', 'range', 'tight', 'pull', 'gap', 'bare', 'sharp'];
-  const u = { jit: uniform(new THREE.Vector2()), inSize: uniform(new THREE.Vector2(1, 1)), outSize: uniform(new THREE.Vector2(1, 1)), toWas: uniform(new THREE.Matrix4()), toNow: uniform(new THREE.Matrix4()), kept: uniform(0), wasOk: uniform(0), kn: uniform(1), ...Object.fromEntries(DIALS.map((n) => [n, uniform(K[n])])) };
+  const u = { jit: uniform(new THREE.Vector2()), inSize: uniform(new THREE.Vector2(1, 1)), outSize: uniform(new THREE.Vector2(1, 1)), toWas: uniform(new THREE.Matrix4()), toNow: uniform(new THREE.Matrix4()), kept: uniform(0), wasOk: uniform(0), kn: uniform(1), barrel: uniform(0), picH: uniform(1), dim: uniform(0), ...Object.fromEntries(DIALS.map((n) => [n, uniform(K[n])])) };
   const tC = texture(new THREE.Texture()), tD = texture(new THREE.DepthTexture(1, 1)), tDW = texture(new THREE.DepthTexture(1, 1)), tH = texture(new THREE.Texture()), tP = texture(new THREE.Texture()), tG = texture(new THREE.Texture()), tB = texture(new THREE.Texture());
   const at = () => vec2(uv().x, float(1).sub(uv().y));   // (a target reads with its rows turned: src/core/screen.js)
   const quadOf = (m) => { m.depthTest = m.depthWrite = false; m.vertexNode = vec4(uv().mul(2).sub(1), 0, 1); const q = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), m); q.frustumCulled = false; return q; };
@@ -128,6 +132,13 @@ export function createTemporal(renderer) {
     return vec4(n.add(w).add(o).add(d).mul(lobe).add(e).div(lobe.mul(4).add(1)), 1);
   }));
   const copy = flat(Fn(() => vec4(tP.sample(at()).level(0).rgb, 1)));
+  // through the glass of the virtual camera's lens (src/camera/post.js says its numbers): straight lines near the frame's
+  // edge bow outward a little (barrel, mostly across), and a little light is lost toward the corners
+  const glassed = flat(Fn(() => {
+    const v0 = at(), wide = vec2(2, float(2).div(u.picH)), qq = v0.sub(0.5).mul(wide), r2 = qq.x.mul(qq.x).add(qq.y.mul(qq.y).mul(0.35));
+    const p = v0.sub(0.5).mul(u.barrel.mul(r2).add(1)).div(u.barrel.mul(1.35).add(1)).add(0.5), e = p.sub(0.5).mul(wide);
+    return vec4(tP.sample(p).level(0).rgb.mul(float(1).sub(smoothstep(0.55, 1.45, dot(e, e)).mul(u.dim))), 1);
+  }));
 
   const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), size = new THREE.Vector2();
   const proj = new THREE.Matrix4(), projInv = new THREE.Matrix4(), view = new THREE.Matrix4(), world = new THREE.Matrix4(), projWas = new THREE.Matrix4(), viewWas = new THREE.Matrix4(), rel = new THREE.Matrix4();
@@ -142,21 +153,22 @@ export function createTemporal(renderer) {
     /** Before the world is drawn into a target of w by h: the camera's window shifted by this frame's part of a pixel. */
     begin(camera, w, h) {
       proj.copy(camera.projectionMatrix); projInv.copy(camera.projectionMatrixInverse); view.copy(camera.matrixWorldInverse); world.copy(camera.matrixWorld);
-      const [jx, jy] = PLACES[(k = (k + 1) % PLACES.length)];
-      u.jit.value.set(jx, jy); camera.setViewOffset(w, h, jx, jy, w, h);
+      const [jx, jy] = off ? [0, 0] : PLACES[(k = (k + 1) % PLACES.length)];
+      u.jit.value.set(jx, jy); if (!off) camera.setViewOffset(w, h, jx, jy, w, h); U.uMarks.value = 1;
       // how fast the wind moves what sways, as screen pixels a frame for a metre of swing at a metre from the eye, over
       // what counts as still: its gusts' depth and how fast they pass (src/world/weather/wind.js)
       const W = U.uWind.value, rate = W.z * (0.25 + 0.35 * W.z) * ((2 * Math.PI * W.w) / 38) * (1 + 0.6 * W.z * W.z);
       U.uMark.value = (rate * camera.projectionMatrix.elements[5] * renderer.getDrawingBufferSize(size).y * 0.5) / (60 * K.still);
       // textures read as finely as the screen's pixels would read them, not the inside's: what that leaves crawling in one
       // frame, the frames together take in (src/terrain/material.js, src/scatter/stress.js)
-      U.uFine.value = 1 + (Math.min(1, w / size.x) - 1) * K.fine;
+      U.uFine.value = off ? 1 : 1 + (Math.min(1, w / size.x) - 1) * K.fine;
     },
-    /** After it: the camera as it was. */
-    end(camera) { camera.clearViewOffset(); },
+    /** After it: the camera as it was, and nothing marked or read finer by what is drawn otherwise (the lens's own pass). */
+    end(camera) { if (!off) camera.clearViewOffset(); U.uMarks.value = 0; U.uMark.value = 0; U.uFine.value = 1; },
     /** The screen's picture from the frame just drawn (`now`: its colour and depth) and what is kept (`was`: the
-        frame before's target, for its depth; none at the first), laid on the canvas. */
-    resolve(now, was) {
+        frame before's target, for its depth; none at the first), laid on the canvas. through: what the lens made of
+        the frame ({ colour: its colour blurred, glass: { barrel, picH, dim } }: src/camera/post.js), or none. */
+    resolve(now, was, through = null) {
       renderer.getDrawingBufferSize(size);
       for (let i = 0; i < 2; i++) if (!hist[i] || hist[i].width !== size.x || hist[i].height !== size.y) {
         hist[i]?.dispose(); fresh = true; hist[i] = new THREE.RenderTarget(size.x, size.y, opts);
@@ -171,11 +183,13 @@ export function createTemporal(renderer) {
       // taken out before anything is rounded (the two views' product is their difference)
       rel.multiplyMatrices(viewWas, world); u.toWas.value.multiplyMatrices(projWas, rel).multiply(projInv); u.toNow.value.copy(u.toWas.value).invert();
       u.inSize.value.set(now.width, now.height); u.outSize.value.copy(size); u.kn.value = 1 / (2 * K.sigma * K.sigma);
-      u.kept.value = fresh ? 0 : 1; u.wasOk.value = was && !fresh ? 1 : 0;
-      tC.value = now.texture; tD.value = now.depthTexture; tDW.value = (was ?? now).depthTexture; tH.value = hist[1 - turn].texture;
+      u.kept.value = fresh || off ? 0 : 1; u.wasOk.value = was && !fresh ? 1 : 0;
+      tC.value = through ? through.colour : now.texture; tD.value = now.depthTexture; tDW.value = (was ?? now).depthTexture; tH.value = hist[1 - turn].texture;
       renderer.setRenderTarget(guide); renderer.render(look, cam);
       renderer.setRenderTarget(hist[turn]); renderer.render(build, cam); renderer.setRenderTarget(null);
-      tP.value = hist[turn].texture; renderer.render(K.sharp > 0 ? firm : copy, cam);
+      tP.value = hist[turn].texture;
+      if (through?.glass) { u.barrel.value = through.glass.barrel; u.picH.value = through.glass.picH; u.dim.value = through.glass.dim; }
+      renderer.render(through?.glass ? glassed : K.sharp > 0 ? firm : copy, cam);
       turn = 1 - turn; fresh = false; projWas.copy(proj); viewWas.copy(view);
     },
   };
