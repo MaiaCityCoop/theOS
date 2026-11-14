@@ -4,7 +4,7 @@
 export async function sheet({ tile = 2, only } = {}) {
   const R = performance.getEntriesByType('resource').map((e) => e.name), mod = (re) => import(R.filter((n) => re.test(n)).at(-1));
   const THREE = await mod(/three_webgpu\.js/), T = await mod(/three_tsl\.js/), { sceneThumb } = await mod(/materials\/preview\.js/), { recipes } = await mod(/core\/registry\.js/);
-  const { renderer, tex } = window.__s8, M = recipes('material').filter((m) => !only || only.includes(m.name)), n = Math.ceil(Math.sqrt(M.length));
+  const { renderer, tex } = window.__game, M = recipes('material').filter((m) => !only || only.includes(m.name)), n = Math.ceil(Math.sqrt(M.length));
   const L = T.normalize(T.vec3(-0.5, 0.6, 0.65));
   const things = M.map((m, i) => {
     const q = T.uv().mul(tile), A = tex.a(m, q), N = T.normalize(tex.n(m, q).xyz.mul(2).sub(1)), mat = new THREE.MeshBasicNodeMaterial();

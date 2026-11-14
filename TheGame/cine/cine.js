@@ -1,7 +1,7 @@
 // The virtual camera: a film camera inside the world, driven by an agent, not by hand. No keys, no
 // readouts: only `window.__cine`. It holds the game's camera wherever it is told (any place, any
 // angle, an anamorphic prime from 28 to 180 mm, framed 16 : 9) and plays a timeline of shots live in the real world.
-// It needs nothing of the game but `window.__s8.camera`, so the same file shoots every stage of
+// It needs nothing of the game but `window.__game.camera`, so the same file shoots every stage of
 // the build (cine/README.md).
 
 import { LENSES, ANAMORPHIC } from './lenses.js';
@@ -83,7 +83,7 @@ const P = [0, 0, 0], L = [0, 0, 0], V = { pos: P, look: L, roll: 0, mm: 35 };
 // condition by its id, whichever there are (src/world/weather/*.js); a shot gives a value or [from, to] over the shot
 const at = (v, q) => (Array.isArray(v) ? v[0] + (v[1] - v[0]) * q : v), shown = {};
 function weather(c, q) {
-  const w = window.__s8; if (!w) return;
+  const w = window.__game; if (!w) return;
   const h = c.hour != null ? at(c.hour, q) : null;
   if (h != null && w.sky && Math.abs(h - w.sky.hour) > 0.005) w.sky.set(h);   // (against the sky's own hour, not a remembered one: a film that loads before the sky is made would else keep its first shot at the game's hour)
   for (const id of w.weather?.ids ?? []) {
@@ -113,7 +113,7 @@ const cr = (a, b, c, d, t) => 0.5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * 
 
 // ---- each frame: before the game draws, and right after ----
 function pre(now) {
-  if (!cam) { cam = window.__s8?.camera; if (!cam) return; while (pending.length) pending.shift()(); }
+  if (!cam) { cam = window.__game?.camera; if (!cam) return; while (pending.length) pending.shift()(); }
   const dt = Math.min((now - last) / 1000, 0.1); last = now;
   if (!on) return;
   if (playing) {
@@ -151,18 +151,18 @@ function transitions() {
 const grabs = [];
 function post() {
   while (grabs.length) {
-    const [w, r] = grabs.shift(), g = window.__s8.renderer.domElement, c = document.createElement('canvas');
+    const [w, r] = grabs.shift(), g = window.__game.renderer.domElement, c = document.createElement('canvas');
     c.width = w; c.height = Math.round((w * g.height) / g.width); c.getContext('2d').drawImage(g, 0, 0, c.width, c.height); r(c);
   }
   if (playing && clips.length) { // the shot's last frames are kept, to melt into the next
     const i = clipAt(t), n = clips[i + 1];
     if (n?.in === 'dissolve' && starts[i + 1] - t < 0.05) {
-      const g = window.__s8.renderer.domElement, w = Math.min(g.width, 1600), h = Math.round((w * g.height) / g.width);
+      const g = window.__game.renderer.domElement, w = Math.min(g.width, 1600), h = Math.round((w * g.height) / g.width);
       if (frost.width !== w || frost.height !== h) { frost.width = w; frost.height = h; }
       fctx.drawImage(g, 0, 0, w, h); frozenFor = i + 1;
     }
   }
-  while (stills.length) stills.shift()(window.__s8.renderer.domElement.toDataURL('image/png'));
+  while (stills.length) stills.shift()(window.__game.renderer.domElement.toDataURL('image/png'));
 }
 const ready = (fn) => (cam ? fn() : pending.push(fn));
 
@@ -170,11 +170,11 @@ function record(v) {
   if (!v) { rec?.stop(); return; }
   const type = ['video/mp4;codecs=avc1', 'video/webm;codecs=vp9', 'video/webm'].find((x) => window.MediaRecorder?.isTypeSupported(x));
   if (!type) throw new Error('this browser records no video');
-  const chunks = [], r = new MediaRecorder(window.__s8.renderer.domElement.captureStream(60), { mimeType: type, videoBitsPerSecond: 40e6 });
+  const chunks = [], r = new MediaRecorder(window.__game.renderer.domElement.captureStream(60), { mimeType: type, videoBitsPerSecond: 40e6 });
   r.ondataavailable = (e) => e.data.size && chunks.push(e.data);
   r.onstop = () => {
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(chunks, { type }));
-    a.download = `sandbox8-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.${type.includes('mp4') ? 'mp4' : 'webm'}`; a.click(); rec = null;
+    a.download = `maiacity-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.${type.includes('mp4') ? 'mp4' : 'webm'}`; a.click(); rec = null;
   };
   r.start(); rec = r;
 }
@@ -189,7 +189,7 @@ const api = (window.__cine = {
   distortion: 0.045,    // barrel at 28 mm, falling away with focal length; this glass is known for having very little
   dipColor: '#9fc2e6',  // what a 'dip' passes through: the sky
   /** Hold the camera at a view: { pos, look | yaw, pitch, roll, mm }. */
-  take(view) { if (view?.height != null && view.at) view = { ...view, ...shotAt(view) }; if (view?.hour != null) window.__s8?.sky?.set(view.hour); /* a shot may set the hour (intent 0007) */ ready(() => { lock(); playing = false; aim(view); apply(); }); },
+  take(view) { if (view?.height != null && view.at) view = { ...view, ...shotAt(view) }; if (view?.hour != null) window.__game?.sky?.set(view.hour); /* a shot may set the hour (intent 0007) */ ready(() => { lock(); playing = false; aim(view); apply(); }); },
   /** Give the camera back to the walker. */
   release() { ready(unlock); },
   /** Load a timeline of clips; the camera stands on its first frame. */

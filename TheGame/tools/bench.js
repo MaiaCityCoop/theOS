@@ -13,7 +13,7 @@ export const VIEWS = [
     browser's own work (16.7 ms a frame in all). */
 export const BUDGET = 12;
 export async function bench({ ratio = 1.5, frames = 60 } = {}) {
-  const s = window.__s8, { renderer, camera, U } = s, R = performance.getEntriesByType('resource').map((e) => e.name);
+  const s = window.__game, { renderer, camera, U } = s, R = performance.getEntriesByType('resource').map((e) => e.name);
   const mod = (part) => import(R.filter((n) => n.includes(part)).at(-1));
   const { poseAt } = await mod('src/camera/rig.js'), { setPlanes } = await mod('src/core/frustum.js'), { heightAt } = await mod('src/world/land.js');
   const fin = async () => { if (renderer.backend.isWebGPUBackend) await renderer.backend.device.queue.onSubmittedWorkDone(); else { const gl = renderer.backend.gl; gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)); } };
@@ -41,7 +41,7 @@ export async function bench({ ratio = 1.5, frames = 60 } = {}) {
     scattered thing, the placed assets), the shadow pass and the clouds' map on their own; parts' shares are what count,
     the whole swings with whatever else the GPU is doing. */
 export async function parts(view = VIEWS[0], { ratio = 1, frames = 30 } = {}) {
-  const s = window.__s8, { renderer, camera, U, scene } = s, R = performance.getEntriesByType('resource').map((e) => e.name);
+  const s = window.__game, { renderer, camera, U, scene } = s, R = performance.getEntriesByType('resource').map((e) => e.name);
   const mod = (part) => import(R.filter((n) => n.includes(part)).at(-1));
   const { poseAt } = await mod('src/camera/rig.js'), { setPlanes } = await mod('src/core/frustum.js'), { heightAt } = await mod('src/world/land.js');
   const pm = camera.projectionMatrix.clone(), was = renderer.getPixelRatio(); renderer.setPixelRatio(ratio); s.governor.hold(true);

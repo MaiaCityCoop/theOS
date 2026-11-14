@@ -1,6 +1,6 @@
 # TheGame
 
-Sandbox 8: one endless procedural land, drawn at 60 fps in a browser, and a virtual film camera to
+Maia City, the game: one endless procedural land, drawn at 60 fps in a browser, and a virtual film camera to
 shoot it with. `bun run dev` in this folder, then http://localhost:5173.
 
 - `/` walk the world (click, W A S D, Shift runs, F flies)
@@ -27,7 +27,7 @@ the files named here.
 | `src/detail/` | Levels of detail by size on screen (`index.js`), and far cards (`impostor.js`). | an asset's own `detail` block |
 | `src/camera/` | The one camera (`rig.js`), the walker (`walk.js`), touch (`touch.js`), and the lens (`post.js`: depth of field and the glass, two stages of the one way to the screen, `src/core/screen.js`). | a new stage of the lens |
 | `src/city/` | The city's plots over the land, seen from above (intent 0009): the plan on the real land (`plan.js`, run in `plan.worker.js`), drawn and picked (`index.js`), a village's card (`card.js`). Its numbers in `world/city.js`. | a number in `world/city.js` |
-| `cine/` | The virtual camera, outside the game: it needs only `window.__s8.camera` and `src/world/land.js`. Lenses, timelines, the composer, the bench. | see `cine/README.md` |
+| `cine/` | The virtual camera, outside the game: it needs only `window.__game.camera` and `src/world/land.js`. Lenses, timelines, the composer, the bench. | see `cine/README.md` |
 
 Drawn by three's `WebGPURenderer` (WebGL 2 where WebGPU is missing; `?webgl` forces it). Every material is node
 code (TSL, `three/tsl`): three writes WGSL for WebGPU and GLSL for the fallback from the same nodes. There is no

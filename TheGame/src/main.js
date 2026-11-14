@@ -1,4 +1,4 @@
-// Sandbox 8: one endless land. This file only wires the parts and runs the frame.
+// The game: one endless land. This file only wires the parts and runs the frame.
 //
 //   world/      the land as functions: in JS for the walker's feet (land.js), as nodes for the GPU (land.nodes.js);
 //               the light every material shares (light.js), the sky, the shadows, the places and what stands there
@@ -68,7 +68,7 @@ addEventListener('resize', () => {   // only a real change of size rebuilds the 
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight, false);
 });
 
-const stats = (window.__s8 = { renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 } });
+const stats = (window.__game = { renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 } });
 const U = createUniforms(camera, SKY);
 trackView(); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
 // The one way to the screen, for every view (src/core/screen.js): the world drawn at the inside's pixels (the governor's
@@ -208,6 +208,6 @@ choose(0);
 screen.render(scene, camera);
 stats.loadMs = performance.now() - t0;
 setTimeout(() => (stats.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start
-console.log(`[sandbox 8] ready in ${stats.loadMs.toFixed(0)} ms; the largest shader ${Math.round(SHADER.most / 1e3)} KB`, boot);
+console.log(`[the game] ready in ${stats.loadMs.toFixed(0)} ms; the largest shader ${Math.round(SHADER.most / 1e3)} KB`, boot);
 requestAnimationFrame(frame);
 requestAnimationFrame(() => requestAnimationFrame(loadingDone));   // the veil goes once the world is on the screen

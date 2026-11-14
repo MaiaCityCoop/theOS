@@ -4,7 +4,7 @@
 | --- | --- |
 | [`Intents/`](Intents/README.md) | Every piece of work: one Markdown document each, work package and changelog in one, from idea to archived |
 | [`Stories/`](Stories/README.md) | A story per proposed intent, with its film for the in-game camera |
-| [`TheGame/`](TheGame/README.md) | Sandbox 8: one endless procedural land in the browser, and the virtual film camera |
+| [`TheGame/`](TheGame/README.md) | The game: one endless procedural land in the browser, and the virtual film camera |
 | [`OS/`](OS/README.md) | The dashboard over the three, and the front page |
 | `brand/` | `brand.css`: the one look of every page |
 

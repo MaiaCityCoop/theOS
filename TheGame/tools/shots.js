@@ -16,6 +16,6 @@ export async function around({ at = TENT, deg = 0, r = 11, mm = 35, up = 1.7, ho
   window.__cine.take({ pos: [x, heightAt(x, z) + up, z], look: [at[0], heightAt(at[0], at[1]) + lookUp, at[1]], mm, hour });
 }
 export function weather(values = {}) {
-  const w = window.__s8.weather;
+  const w = window.__game.weather;
   for (const [id, v] of Object.entries(values)) if (v != null) w.set(id, v);
 }

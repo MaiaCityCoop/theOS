@@ -571,7 +571,7 @@ export function createStress(scene, renderer, tex) {
   const nearMovers = [];   // (the movers within sixty metres of the camera: kept by each look, for what asks where they are)
   const pump = () => {
     if (!PL.length) {   // the city's plan has come: its plots, to the GPU
-      const cp = window.__s8?.city?.plots; if (!cp?.length || !LAY) return;
+      const cp = window.__game?.city?.plots; if (!cp?.length || !LAY) return;
       cp.slice(0, PLOTS).forEach((c, i) => { const p = plotOf(c, i); PL.push(p); plotRows.array.set([p.x, p.z, p.mean, p.k, ...p.R, ...p.TH, ...p.PH, p.q, p.Lc, p.verge, p.least, 0, 0, ...p.clrs, p.most, -1], i * ROW); });
       plotRows.addUpdateRange(0, plotRows.array.length); plotRows.needsUpdate = true;   // (all of it: a later change of one number must not be the only thing sent)
     }

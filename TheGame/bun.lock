@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "sandbox-8",
+      "name": "maiacity-game",
       "dependencies": {
         "three": "0.187.0",
       },

@@ -379,7 +379,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const start = () => {
     if (coarse < 0) {
       if (keptOwn) { keptOwn.forEach((b, j) => blockIn(b, 0, ALL, OWN[j][1])); coarse = ALL; keptOwn = false; stats.kept = true; stats.coarseMs = Math.round(performance.now() - t0); }
-      else if (EAGER || window.__s8?.loadMs) { loadedAt ||= performance.now(); if (keptOwn === false || performance.now() - loadedAt > 1500) fill(); }   // (the browser's answer is waited for a moment into the first frames: a busy start holds it back)
+      else if (EAGER || window.__game?.loadMs) { loadedAt ||= performance.now(); if (keptOwn === false || performance.now() - loadedAt > 1500) fill(); }   // (the browser's answer is waited for a moment into the first frames: a busy start holds it back)
     }
   };
   // each frame: a few of the textures that have come, into their layers

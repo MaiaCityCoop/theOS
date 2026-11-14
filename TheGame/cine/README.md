@@ -1,6 +1,6 @@
 # The virtual camera
 
-A film camera inside Sandbox 8's world, **driven by an agent, not by hand**: no keys, no readouts.
+A film camera inside the game's world, **driven by an agent, not by hand**: no keys, no readouts.
 The agent sets cameras (a place, where it looks, a lens) and strings them into a timeline of shots;
 the timeline then plays **live in the real world**: nothing is rendered ahead, the camera simply
 moves through the land as it is. It is made for the devlog: at every stage of the build the same
@@ -159,7 +159,7 @@ cut a before/after from.
     bash TheGame/cine/at.sh <commit> [port]
 
 checks that commit out beside the repository (never in the tree being worked in), lays
-today's `cine/` and `timeline.html` over it, and serves it (port 5174 unless told). The commits are in the trails of the intents (`../Intents/`). The camera needs nothing of the game but `window.__s8.camera`, and the trailer
+today's `cine/` and `timeline.html` over it, and serves it (port 5174 unless told). The commits are in the trails of the intents (`../Intents/`). The camera needs nothing of the game but `window.__game.camera`, and the trailer
 only `src/world.js`, so both work on every commit since the first.
 
 ## What it does not do yet

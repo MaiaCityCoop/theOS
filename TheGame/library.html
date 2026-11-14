@@ -93,9 +93,9 @@ const chip = (m) => `<span class="g-chip"><i style="background:${hex(MATERIAL[m]
 const fileOf = (r) => `<footer class="g-part"><span class="g-file">TheGame/${manifest[r.uid].file}</span><span class="g-file" title="${manifest[r.uid].version}">version ${manifest[r.uid].version.slice(0, 12)}</span></footer>`;
 // a size as a figure: one number in metres, or a range (in centimetres where it is all under a metre)
 const sizeFig = (v, label) => (Array.isArray(v) ? (v[1] < 1 ? fig(`${num(v[0] * 100)}–${num(v[1] * 100)}`, 'cm', label) : fig(`${num(v[0])}–${num(v[1])}`, 'm', label)) : fig(num(v), 'm', label));
-while (!window.__s8?.U || !window.__s8?.ground || !window.__s8?.sky) await new Promise((r) => setTimeout(r, 50));
-window.__s8.sky.hold(11);   // the library's studio: one day's light, held; the key light follows the camera (frame)
-const { scene, U, ground, tex } = window.__s8;
+while (!window.__game?.U || !window.__game?.ground || !window.__game?.sky) await new Promise((r) => setTimeout(r, 50));
+window.__game.sky.hold(11);   // the library's studio: one day's light, held; the key light follows the camera (frame)
+const { scene, U, ground, tex } = window.__game;
 ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BASE));   // round the stage, the land is all meadow
 
 // the list: each asset with a small picture of its nearest level
@@ -108,23 +108,23 @@ const queue = [], lazy = new IntersectionObserver((seen) => { for (const e of se
 const pictures = new Map(), later = (b, make) => { pictures.set(b, make); lazy.observe(b); };
 (function work() { const t = performance.now(); while (queue.length && performance.now() - t < 12) { const b = queue.shift(); pictures.get(b)?.(); pictures.delete(b); } requestAnimationFrame(work); })();
 for (const b of document.querySelectorAll('.item[data-mat]')) {   // a material's picture: its own baked tile
-  later(b, () => materialThumb(window.__s8.renderer, tex, b.dataset.mat, b.querySelector('canvas')));
+  later(b, () => materialThumb(window.__game.renderer, tex, b.dataset.mat, b.querySelector('canvas')));
   b.onclick = () => chooseMaterial(b.dataset.mat);
 }
 // an asset's picture: a scattered one's as its engine draws it (src/scatter: a rock in the world's own stone, a tree in its
 // bark and needles, a tuft of grass), any other by its own faces: its nearest level, lit, on nothing
 function assetThumb(a, canvas) {
   const E = engineOf(a);
-  if (E?.thumb) { const t = E.thumb(tex, rowOf(a)); return sceneThumb(window.__s8.renderer, t.things, canvas, t.eye, t.look); }
+  if (E?.thumb) { const t = E.thumb(tex, rowOf(a)); return sceneThumb(window.__game.renderer, t.things, canvas, t.eye, t.look); }
   if (!a.detail?.levels?.length) return;
   const sun = new THREE.DirectionalLight(0xfff1d6, 2.2); sun.position.set(4, 7, 3);
   const things = [new THREE.HemisphereLight(0xdbe9ff, 0x4a5a3a, 1.4), sun, new THREE.Mesh(geometryOf(a), new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.9 }))];
   const d = Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 1.9;
   const cam = new THREE.PerspectiveCamera(32, 1, 0.05, 100); cam.position.set(d * 0.7, d * 0.55, -d * 0.7); cam.lookAt(0, most(a.size.height) * 0.4, 0);
-  sceneThumb(window.__s8.renderer, things, canvas, cam);
+  sceneThumb(window.__game.renderer, things, canvas, cam);
 }
 for (const b of document.querySelectorAll('.item[data-biome]')) {   // a biome's picture: a ball of its ground
-  later(b, () => materialThumb(window.__s8.renderer, tex, BIOME[b.dataset.biome].floor.material, b.querySelector('canvas')));
+  later(b, () => materialThumb(window.__game.renderer, tex, BIOME[b.dataset.biome].floor.material, b.querySelector('canvas')));
   b.onclick = () => chooseBiome(b.dataset.biome);
 }
 for (const b of document.querySelectorAll('.item[data-id]')) {
@@ -291,8 +291,8 @@ function frame(now) {
 // the sections: the switch over the list, the grid to start from
 const SECTIONS = [
   { id: 'assets', name: 'Assets', what: 'things made and stood', n: ids.length, open: () => choose(ids[0]), pic: (c) => assetThumb(recipes('asset').find((a) => a.placement.at === 'places'), c, 1.5) },
-  { id: 'biomes', name: 'Biomes', what: 'what lies and grows', n: BIOMES.length, open: () => chooseBiome(BIOMES[0].uid), pic: (c) => dioramaThumb(window.__s8.renderer, tex, c) },
-  { id: 'materials', name: 'Materials', what: 'what it is all made of', n: MATERIALS.length, open: () => chooseMaterial(MATERIALS[0].uid), pic: (c) => materialThumb(window.__s8.renderer, tex, MATERIALS.find((m) => m.kind === 'stone'), c) },
+  { id: 'biomes', name: 'Biomes', what: 'what lies and grows', n: BIOMES.length, open: () => chooseBiome(BIOMES[0].uid), pic: (c) => dioramaThumb(window.__game.renderer, tex, c) },
+  { id: 'materials', name: 'Materials', what: 'what it is all made of', n: MATERIALS.length, open: () => chooseMaterial(MATERIALS[0].uid), pic: (c) => materialThumb(window.__game.renderer, tex, MATERIALS.find((m) => m.kind === 'stone'), c) },
 ];
 const list = document.getElementById('list'), grid = document.getElementById('grid');
 function section(id) { list.dataset.sec = id; }
