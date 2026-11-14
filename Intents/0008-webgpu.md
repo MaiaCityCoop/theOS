@@ -1819,8 +1819,9 @@ wears them) is the half that follows, on this.
 - **Where a GPU has no BC** (the WebGL 2 fallback; phones) the materials are kept as painted, as before;
   `?rawtex` is that path on any GPU, to measure against.
 - **Real Safari** (his own tab on the game, loaded at 19:55 on this build, none of my tests running): frames from
-  the first post, 241 in every four seconds from its 24th second on, late in one post of ten (0.13), the inside
-  ratio rising from 1 to 1.375 within its first 53 seconds.
+  the first post, 236 to 241 in every four seconds from its 24th second on, late in three posts of seventeen,
+  the inside ratio rising from 1 to 1.875 and holding at 1.625 to 1.75 (the start view; the build before held
+  1.5 there).
 - **Not built:** a finer fit of a block's two colours (tried offline on the painted tiles: half a decibel);
   blocks for GPUs without BC (ETC2, ASTC); the two noise tiles are 10.7 MB of the 64.5.
 - **Not done:** the half that follows: a material painted when something near wears it, into one of a set number
