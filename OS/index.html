@@ -8,9 +8,10 @@
 <link rel="stylesheet" href="/brand/brand.css">
 <style>
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;background:var(--paper);color:var(--forest);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+  html{height:100%}
+  body{margin:0;min-height:100%;background:var(--paper);color:var(--forest);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
   .num{font-variant-numeric:tabular-nums}
-  header.site{position:sticky;top:0;z-index:5;display:flex;align-items:center;height:76px;padding:0 clamp(18px,3vw,44px);background:rgba(247,240,227,.9);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+  header.site{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;max-width:1120px;margin-inline:auto;padding:calc(14px + env(safe-area-inset-top,0px)) clamp(20px,4vw,60px) 0;pointer-events:none}
   header.site .visit{margin-left:auto;height:46px;font-size:15px;padding-left:22px}
   header.site .visit i{width:34px;height:34px}
   body.admin header.site .visit{display:none}
@@ -21,7 +22,7 @@
   nav.admin .back{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;cursor:pointer;color:var(--on-glass);font:500 10.5px/1 var(--sans);letter-spacing:.06em;padding:0 6px}
   nav.admin .back svg{width:22px;height:20px}
   nav.admin .back:hover{opacity:.75}
-  nav.admin .home{width:56px;height:56px;margin:-6px 0;border-radius:50%;border:0;cursor:pointer;background:var(--navy) url('/brand/star.svg') center/33px no-repeat;box-shadow:0 0 0 3px rgba(242,181,68,.5),0 14px 34px rgba(12,28,22,.35);transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+  nav.admin .home{width:56px;height:56px;margin:-6px 0;border-radius:50%;border:0;cursor:pointer;background:var(--navy) url('/brand/star.svg') center/33px no-repeat;box-shadow:0 0 0 3px rgba(242,181,68,.5),0 14px 34px rgba(12,24,38,.35);transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
   nav.admin .home:hover{transform:scale(1.05)}
   nav.admin .badge{width:34px;height:30px;border:0;cursor:pointer;background:var(--glass-solid);color:var(--glass-solid-ink);font:700 12px/1 var(--sans);letter-spacing:.02em;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
   /* a view inside opens as a sheet over the dashboard, with its name and Close */
@@ -30,11 +31,11 @@
   .sheethead button{margin-left:auto}
   .sheetbody{flex:1;min-height:0;display:flex}
   #stories.on{display:block;min-height:100vh}
-  #intents.on{display:flex;flex-direction:column;position:fixed;left:14px;right:14px;top:14px;bottom:84px;z-index:7;min-height:0;border-radius:34px;background:var(--paper);box-shadow:0 30px 80px rgba(12,28,22,.25);overflow:hidden;padding-bottom:0}
+  #intents.on{display:flex;flex-direction:column;position:fixed;left:14px;right:14px;top:14px;bottom:84px;z-index:7;min-height:0;border-radius:34px;background:var(--paper);box-shadow:0 30px 80px rgba(12,24,38,.25);overflow:hidden;padding-bottom:0}
   /* a sheet open: the pill steps aside; a small half-round x hangs from the sheet's bottom edge, centred */
   body.sheet nav.admin{display:none}
   body.sheet #intents.on{bottom:46px}
-  .sheetx{display:none;position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:9;width:72px;height:36px;border:0;border-radius:0 0 36px 36px;background:var(--paper);box-shadow:0 10px 22px rgba(12,28,22,.18);cursor:pointer;color:var(--navy)}
+  .sheetx{display:none;position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:9;width:72px;height:36px;border:0;border-radius:0 0 36px 36px;background:var(--paper);box-shadow:0 10px 22px rgba(12,24,38,.18);cursor:pointer;color:var(--navy)}
   .sheetx svg{width:16px;height:16px;margin-top:-6px}
   .sheetx:hover{color:var(--clay)}
   body.sheet .sheetx{display:block}
@@ -48,20 +49,20 @@
   /* inside, one header: the name and the day, nothing twice */
   body.admin header.site{display:none}
   .tiles{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:clamp(12px,1.4vw,20px)}
-  .tile{position:relative;grid-column:span 4;min-height:250px;border:0;border-radius:32px;padding:26px;background:var(--cream);color:var(--forest);text-align:left;font:inherit;cursor:pointer;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(31,58,44,.06);transition:transform .3s cubic-bezier(.3,1.4,.5,1),box-shadow .2s}
-  .tile:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(31,58,44,.14)}
+  .tile{position:relative;grid-column:span 4;min-height:250px;border:0;border-radius:32px;padding:26px;background:var(--cream);color:var(--forest);text-align:left;font:inherit;cursor:pointer;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(23,54,85,.06);transition:transform .3s cubic-bezier(.3,1.4,.5,1),box-shadow .2s}
+  .tile:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(23,54,85,.14)}
   .tile.big{grid-column:span 8;min-height:420px;color:var(--cream)}
   .tile.dark{background:var(--forest);color:var(--cream)}.tile.dark .foot b{color:var(--sun)}
   .tile.wide{grid-column:span 8;min-height:180px}
   .tile.welcome{grid-column:span 12;min-height:0;flex-direction:row;align-items:center;flex-wrap:wrap;gap:12px clamp(14px,2vw,26px);padding:16px 18px 16px 20px;cursor:default}
-  .tile.welcome:hover{transform:none;box-shadow:0 2px 12px rgba(31,58,44,.06)}
+  .tile.welcome:hover{transform:none;box-shadow:0 2px 12px rgba(23,54,85,.06)}
   .tile.welcome .mark{font-size:0;gap:0}.tile.welcome .mark::before{width:46px;height:46px;border-radius:14px}
   .tile.welcome h2{margin:0;font-size:clamp(22px,2.3vw,34px)}
   .tile.welcome p{margin:0 0 0 auto;font:400 16px/1.2 var(--sans);opacity:1;color:var(--forest2)}.tile.welcome p b{font:420 26px/1 var(--serif);font-variation-settings:var(--soft);color:var(--clay);margin:0 4px}
   .tile.welcome .btn{flex:none;white-space:nowrap}
   @media (max-width:700px){.tile.welcome h2,.tile.welcome p{flex-basis:100%;margin-left:0}}
   .tile.big svg,.tile.big .pic{position:absolute;inset:0;width:100%;height:100%}
-  .tile.big::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(14,28,20,.75),rgba(14,28,20,0) 55%)}
+  .tile.big::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(14,26,40,.75),rgba(14,26,40,0) 55%)}
   .tile>*{position:relative;z-index:1}
   .tile .label{color:inherit;opacity:.75}
   .tile h2{font:420 clamp(28px,2.8vw,44px)/1.02 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.025em;margin:12px 0 10px}
@@ -71,9 +72,11 @@
   .tile.big .foot b{color:var(--sun)}
   .tile .go:not(.btn){margin-left:auto;width:42px;height:42px;border-radius:50%;background:var(--sun) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8h9.4M8.6 3.8 12.8 8l-4.2 4.2' fill='none' stroke='%231f3a2c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat}
   .tile .rows{margin-top:8px}.tile .rows div{padding:9px 0;border-top:1.5px solid var(--sand);font:440 17px/1.25 var(--serif);font-variation-settings:var(--soft)}
-  main{display:none;min-height:calc(100% - 76px)}
+  main{display:none;min-height:calc(100dvh - 76px)}
   main.on{display:block}
-  .wrap{padding-left:clamp(20px,4vw,60px);padding-right:clamp(20px,4vw,60px)}
+  /* the page reads in one column; only the day's film (.banner) and the game run the full width */
+  .wrap{max-width:1120px;margin-inline:auto;padding-left:clamp(20px,4vw,60px);padding-right:clamp(20px,4vw,60px)}
+  .hero>div{max-width:1120px;margin-inline:auto}
 
   /* ---- home: first the words, alone and centred. Under them the day's film in a round window, which
      plays only while it is on screen, and under it the days, row by row (5423 of them)
@@ -81,23 +84,215 @@
      brings that day's story into the window. ---- */
   .hero{min-height:calc(100vh - 76px - 120px);display:grid;place-items:center;text-align:center;padding:clamp(36px,7vh,90px) clamp(20px,4vw,60px) clamp(40px,8vh,100px)}
   .hero h1{font:420 clamp(38px,6.2vw,96px)/1.01 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.035em;margin:0 auto 26px;max-width:13em;text-wrap:balance}
-  .hero h1 b{font-weight:560;color:var(--clay);font-variant-numeric:tabular-nums}
+  .hero h1 b{font-weight:560;color:var(--sun);font-variant-numeric:tabular-nums}
   .hero h1 span{white-space:nowrap}
-  .hero h1 b{color:var(--clay);font-weight:560}
-  .hero .sub{display:inline-block;margin:4px 0 26px;padding:16px 34px 17px;border-radius:999px;background:var(--sun);color:var(--forest);font:520 clamp(26px,3vw,44px)/1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.02em;box-shadow:0 12px 34px rgba(242,181,68,.45);transform:rotate(-2deg)}
+  .hero h1 b{color:var(--sun);font-weight:560}
+  .hero .sub{display:inline-block;margin:4px 0 26px;padding:16px 34px 17px;border-radius:999px;background:var(--clay);color:var(--cream);font:520 clamp(26px,3vw,44px)/1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.02em;box-shadow:0 12px 34px rgba(79,157,52,.4);transform:rotate(-2deg)}
   /* why: the case for coming, and the one call */
-  .why{padding-bottom:clamp(40px,6vw,90px)}
+  /* full width, like the day's film: the panel runs edge to edge and its words sit in the page's column */
+  .why{padding:0 clamp(8px,1vw,14px) clamp(40px,6vw,90px)}
+  .whyin>.eyebrow,.whyin>h2,.whyin>.lede,.whyin>.pillars,.whyin>.close,.whyin>.btn{position:relative;z-index:1}
+  .whyin .pillars{max-width:1180px;margin-left:auto;margin-right:auto}
   .whyin{border-radius:clamp(30px,3.6vw,52px);background:var(--forest);color:var(--cream);padding:clamp(40px,7vw,110px) clamp(24px,6vw,100px);text-align:center;position:relative;overflow:hidden}
   .whyin::before{content:'';position:absolute;right:-90px;top:-90px;width:300px;height:300px;background:var(--sunmark) center/contain no-repeat;opacity:.18}
   .whyin .eyebrow{margin:0 0 18px;font:500 14px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--sun)}
   .whyin h2{font:420 clamp(36px,5vw,76px)/1.02 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.035em;margin:0 auto 20px;max-width:14em}
   .whyin .lede{font:400 clamp(17px,1.5vw,21px)/1.55 var(--sans);color:rgba(251,246,234,.8);max-width:40em;margin:0 auto clamp(36px,5vw,64px)}
-  .pillars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(12px,1.6vw,22px);text-align:left;margin-bottom:clamp(36px,5vw,64px)}
+  .pillars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(12px,1.6vw,22px);text-align:center;margin-bottom:clamp(36px,5vw,64px)}
   .pillars div{padding:clamp(22px,2.4vw,32px);border-radius:28px;background:rgba(251,246,234,.08);border:1px solid rgba(251,246,234,.14)}
-  .pillars b{display:block;font:460 clamp(22px,2vw,28px)/1.1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.015em;color:var(--sun);margin-bottom:10px}
+  .pillars b{display:block;font:460 clamp(22px,2vw,28px)/1.1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.015em;color:#62bd43;margin-bottom:10px}   /* the brand green, lifted so it reads on the navy */
   .pillars p{margin:0;color:rgba(251,246,234,.82);font-size:16px;line-height:1.55}
-  .whyin .close{font:380 italic clamp(22px,2.4vw,34px)/1.25 var(--serif);font-variation-settings:var(--soft);margin:0 0 30px}
+  .whyin .close{max-width:22em;margin:0 auto 30px;font:380 italic clamp(22px,2.4vw,34px)/1.25 var(--serif);font-variation-settings:var(--soft)}
   .whyin .btn{height:60px;font-size:17px;padding-left:30px}
+
+  /* ---- brought over from maia.city: the channels in the header, the laboratory, the manifesto, Follow the build, and the Play button that sits at the bottom of every scroll ---- */
+  /* the pill along the top, as on maia.city: the round logo flush in its left end, the pages, then the channels */
+  /* one pill: the round logo flush in its left end, the channels centred, the way in at its right end */
+  header.site .pill{flex:1;display:flex;align-items:center;gap:.5rem;padding:.45rem .45rem .45rem 0;border-radius:999px;background:#e7decd;box-shadow:0 6px 24px rgba(23,54,85,.06);pointer-events:auto}
+  header.site .pill .logo{display:flex;align-items:center;gap:.7rem;align-self:stretch;margin:-.45rem auto -.45rem 0;font:400 1.3rem/1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.02em;text-decoration:none;white-space:nowrap;color:var(--forest)}
+  header.site .pill .logo img{width:3.4rem;height:3.4rem;border-radius:50%}
+  header.site .socials{display:flex;align-items:center;gap:.25rem;margin-right:auto}
+  header.site .socials a{display:grid;place-items:center;width:2.3rem;height:2.3rem;border-radius:50%;color:var(--navy);transition:color .15s,background .15s}
+  header.site .socials a:hover{color:var(--navy);background:var(--cream)}
+  header.site .visit{flex:none;margin-left:.5rem}
+  @media (max-width:860px){header.site .visit{display:none}}
+  @media (max-width:520px){header.site .socials{gap:0}header.site .socials a{width:2rem;height:2rem}}
+
+  .lab{padding-bottom:clamp(40px,6vw,90px)}
+  .labin{max-width:56em;margin:0 auto;text-align:center}
+  .labin .eyebrow{margin:0 0 18px;font:500 14px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--clay)}
+  .labin h2{font:420 clamp(30px,4.2vw,58px)/1.06 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.03em;margin:0 auto 24px;max-width:15em;color:var(--forest)}
+  .labin .lede{font:400 clamp(16px,1.4vw,19px)/1.65 var(--sans);color:var(--forest2);max-width:38em;margin:0 auto 18px}
+  .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(12px,1.6vw,22px);margin-top:clamp(32px,4vw,52px);text-align:left}
+  .stats div{padding:clamp(20px,2.2vw,30px);border-radius:28px;background:var(--cream);border:1px solid var(--sand2)}
+  .stats b{display:block;font:460 clamp(28px,3.4vw,46px)/1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.025em;font-variant-numeric:tabular-nums;color:var(--clay);margin-bottom:8px}
+  .stats span{font:400 15px/1.5 var(--sans);color:var(--forest2)}
+
+  /* the manifesto, set as it was on maia.city: a headline spread, chapters hung off a gutter with a drop cap,
+     a pull quote between rules, the "We see" refrain, a crescendo whose lines grow as they build, and the creed */
+  .manifesto{padding-bottom:clamp(40px,6vw,90px)}
+  .manin{--gutter:11rem;max-width:62em;margin:0 auto;color:var(--forest)}
+  .spread{padding:clamp(36px,4vw,64px) 0 clamp(32px,3.5vw,56px);border-bottom:1px solid var(--forest)}
+  .kicker{display:flex;align-items:center;gap:1rem;margin:0 0 2rem;font:500 .72rem/1 var(--sans);letter-spacing:.22em;text-transform:uppercase;color:var(--forest2)}
+  .kicker::after{content:'';flex:1;height:1px;background:var(--sand2)}
+  .headline{display:flex;flex-direction:column;gap:.1em;margin:0;font:400 clamp(2.6rem,8.2vw,6.6rem)/.98 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.035em}
+  .headline .survive{font-weight:300;color:var(--forest2)}
+  .headline .thrive{font-weight:600}
+  .headline mark{padding:0 .06em;background:linear-gradient(transparent 62%,var(--sun) 62%,var(--sun) 90%,transparent 90%);color:inherit}
+  .chapter{display:grid;grid-template-columns:var(--gutter) minmax(0,1fr);gap:2.5rem;padding-block:clamp(32px,3.5vw,56px);border-bottom:1px solid var(--sand2)}
+  .marker{display:flex;flex-direction:column;gap:.6rem;margin:0;font:300 3rem/1 var(--serif);font-variation-settings:var(--soft);color:var(--clay)}
+  .marker span{font:500 .7rem/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+  .chapter .text{max-width:40rem}
+  .chapter .text p{margin:0 0 1.25rem;font:400 clamp(1.15rem,1.9vw,1.4rem)/1.6 var(--sans);color:var(--forest2)}
+  .dropcap::first-letter{float:left;margin:.06em .12em 0 0;font-family:var(--serif);font-size:4.4em;font-weight:600;line-height:.8;color:var(--forest)}
+  .chapter .text .turn{margin:2rem 0 0;font:400 clamp(1.7rem,3.4vw,2.5rem)/1.15 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.02em;color:var(--forest)}
+  .pull{margin:0;padding-block:clamp(44px,4.5vw,72px);border-bottom:1px solid var(--forest);text-align:center}
+  .pull p{max-width:20ch;margin:0 auto;font:400 clamp(2.1rem,5.6vw,4.4rem)/1.04 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.03em;text-wrap:balance;color:var(--forest)}
+  .pull footer{display:inline-block;margin-top:1.75rem;padding:.5rem 1.1rem;border-radius:999px;background:var(--sun);font:500 .95rem/1.4 var(--sans);color:var(--forest)}
+  .visions{margin:0;padding:0;list-style:none}
+  .visions li{padding-block:1.4rem;border-top:1px solid var(--sand2);font:400 clamp(1.3rem,2.5vw,1.85rem)/1.3 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.015em;color:var(--forest)}
+  .visions li:first-child{padding-top:0;border-top:0}
+  .see{margin-right:.25em;font-weight:600;color:var(--clay)}
+  .crescendo{display:flex;flex-direction:column;gap:1.1rem;margin:0;padding:0;list-style:none}
+  .crescendo li{font-family:var(--serif);font-variation-settings:var(--soft);font-size:calc(clamp(1.2rem,2.2vw,1.55rem) * (1 + var(--step) * .2));line-height:1.12;letter-spacing:-.025em;text-wrap:balance;color:var(--forest)}
+  .verb{font-weight:600}
+  .contrast{display:flex;flex-direction:column;align-items:center;gap:.5rem;margin:0;padding-block:clamp(48px,5vw,80px);border-bottom:1px solid var(--sand2);text-align:center}
+  .contrast .less{font:400 clamp(1rem,2vw,1.3rem)/1.4 var(--sans);letter-spacing:.04em;color:var(--muted)}
+  .contrast .more{font:600 clamp(3.2rem,11vw,8.5rem)/.95 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.045em;color:var(--forest)}
+  .close{max-width:52rem;margin:0 auto;padding:clamp(44px,4.5vw,72px) 0 1rem;text-align:center}
+  .lead-in{max-width:36rem;margin:0 auto;font:400 clamp(1.1rem,1.8vw,1.3rem)/1.6 var(--sans);color:var(--forest2)}
+  .creed{margin:1.5rem 0 0;font:400 clamp(2rem,5vw,3.8rem)/1.08 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.03em;text-wrap:balance;color:var(--forest)}
+  .signature{display:inline-flex;align-items:center;gap:.7rem;margin:2.5rem 0 0;font:500 .95rem/1 var(--sans);color:var(--forest2)}
+  .signature img{width:2.4rem;height:2.4rem;border-radius:50%;object-fit:cover}
+  @media (max-width:760px){.manin{--gutter:auto}.chapter{grid-template-columns:1fr;gap:1.25rem}.marker{flex-direction:row;align-items:baseline;gap:.9rem}}
+
+  .follow{padding-bottom:clamp(24px,3vw,40px)}
+  .followin{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:clamp(24px,4vw,56px);border-radius:clamp(30px,3.6vw,52px);background:var(--navy);color:var(--cream);padding:clamp(34px,5vw,64px) clamp(24px,4vw,64px)}
+  .followin .eyebrow{margin:0 0 14px;font:500 13px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--sun)}
+  .followin h2{font:420 clamp(28px,3.6vw,46px)/1.08 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.03em;margin:0;max-width:13em}
+  .channels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  /* the foot: the wordmark, the line, and the legal pages */
+  .sitefoot{padding-bottom:clamp(100px,10vw,160px)}
+  .footbase{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:10px 24px;padding:clamp(22px,3vw,34px) 4px}
+  .footlogo{font:400 1.35rem/1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.02em;text-decoration:none;color:var(--forest)}
+  .footlogo b{font-weight:600}
+  .footbase span{font:400 15px/1.4 var(--sans);color:var(--forest2)}
+  .legal{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 26px;padding:clamp(16px,2vw,24px) 0 0;border-top:1px solid var(--sand2)}
+  .legal a{font:500 .72rem/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;text-decoration:none;color:var(--forest2)}
+  .legal a:hover{color:var(--forest)}
+  /* ---- the way in (#join): the two roles, the flow, the first days, the real game's stills, and the sign-up ---- */
+  #join{padding-bottom:clamp(100px,10vw,160px)}
+  .joinhead{padding-top:clamp(40px,7vw,96px);text-align:center;max-width:46em}
+  .joinhead .eyebrow{margin:0 0 18px;font:500 13px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--clay)}
+  .joinhead h1{margin:0 0 20px;font:420 clamp(34px,5.6vw,72px)/1.04 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.035em;color:var(--forest)}
+  .joinhead .lede{margin:0 auto;max-width:34em;font:400 clamp(16px,1.5vw,20px)/1.6 var(--sans);color:var(--forest2)}
+  .roles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(12px,1.6vw,22px);padding-top:clamp(32px,4vw,56px)}
+  .role{padding:clamp(24px,2.8vw,38px);border-radius:28px;background:var(--cream);border:1px solid var(--sand2)}
+  .role.on{background:var(--navy);border-color:transparent;color:var(--cream)}
+  .rtag{display:inline-block;margin:0 0 14px;padding:6px 14px;border-radius:999px;background:var(--sand);font:500 12px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--forest2)}
+  .role.on .rtag{background:var(--sun);color:var(--forest)}
+  .role h2{margin:0 0 12px;font:460 clamp(26px,2.6vw,36px)/1.1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.02em;color:var(--forest)}
+  .role.on h2{color:var(--cream)}
+  .role>p{margin:0 0 18px;font:400 16px/1.6 var(--sans);color:var(--forest2)}
+  .role.on>p{color:rgba(251,246,234,.82)}
+  .role ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+  .role li{position:relative;padding-left:24px;font:400 15px/1.5 var(--sans);color:var(--forest2)}
+  .role.on li{color:rgba(251,246,234,.9)}
+  .role li::before{content:'';position:absolute;left:0;top:.5em;width:9px;height:9px;border-radius:50%;background:var(--clay)}
+  .role.on li::before{background:var(--sun)}
+  .flow{padding-top:clamp(44px,6vw,86px)}
+  .flow .eyebrow{margin:0 0 20px;font:500 13px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--clay)}
+  .steps{counter-reset:s;margin:0;padding:0;list-style:none;display:grid;gap:0}
+  .steps li{counter-increment:s;position:relative;padding:clamp(20px,2.4vw,30px) 0 clamp(20px,2.4vw,30px) clamp(54px,6vw,86px);border-top:1px solid var(--sand2);font:400 clamp(16px,1.5vw,19px)/1.6 var(--sans);color:var(--forest2)}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:clamp(18px,2.2vw,28px);font:420 clamp(28px,3.4vw,44px)/1 var(--serif);font-variation-settings:var(--soft);color:var(--clay)}
+  .steps b{color:var(--forest);font-weight:520}
+  .first{padding-top:clamp(44px,6vw,86px)}
+  .first .eyebrow{margin:0 0 16px;font:500 13px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--clay)}
+  .first h2{margin:0 0 clamp(26px,3vw,40px);max-width:16em;font:420 clamp(28px,4vw,52px)/1.08 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.03em;color:var(--forest)}
+  .tasks{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:clamp(12px,1.6vw,22px)}
+  .tasks div{position:relative;padding:clamp(22px,2.4vw,32px);border-radius:28px;background:var(--cream);border:1px solid var(--sand2)}
+  .tasks b{display:block;margin-bottom:10px;font:460 clamp(20px,1.9vw,25px)/1.15 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.015em;color:var(--clay)}
+  .tasks p{margin:0;font:400 15.5px/1.6 var(--sans);color:var(--forest2)}
+  .tasks .soon{background:none}
+  .tasks .soon span{display:inline-block;margin-top:14px;padding:5px 12px;border-radius:999px;background:var(--sand);font:500 11px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .levels{padding-top:clamp(44px,6vw,86px)}
+  .levels .eyebrow{margin:0 0 16px;font:500 13px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--clay)}
+  .levels h2{margin:0 0 14px;max-width:17em;font:420 clamp(26px,3.6vw,46px)/1.1 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.03em;color:var(--forest)}
+  .levels .lede{margin:0 0 clamp(26px,3vw,40px);max-width:38em;font:400 16px/1.6 var(--sans);color:var(--forest2)}
+  .lvl{counter-reset:none;margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:clamp(10px,1.4vw,18px)}
+  .lvl li{display:grid;align-content:start;border-radius:24px;overflow:hidden;background:var(--cream);border:1px solid var(--sand2)}
+  .lvl .ph{position:relative;aspect-ratio:4/3;display:grid;place-items:center;background:repeating-linear-gradient(135deg,var(--sand) 0 10px,var(--sand2) 10px 20px);color:var(--muted)}
+  .lvl .ph span{font:500 10.5px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;background:var(--cream);padding:6px 12px;border-radius:999px}
+  .lvl .who{display:flex;align-items:baseline;gap:8px;padding:16px 18px 2px}
+  .lvl .who b{font:460 clamp(26px,2.4vw,34px)/1 var(--serif);font-variation-settings:var(--soft);font-variant-numeric:tabular-nums;color:var(--clay)}
+  .lvl .who span{font:500 11px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .lvl p{margin:0;padding:6px 18px 18px;font:400 15.5px/1.55 var(--sans);color:var(--forest2)}
+  .lvl li.soon{background:none}
+  .lvl li.soon .ph{background:none;box-shadow:inset 0 0 0 1px var(--sand2);aspect-ratio:16/7}
+  .lvl li.soon .who b{color:var(--forest2)}
+  .shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr));gap:clamp(10px,1.2vw,16px);padding:clamp(44px,6vw,86px) clamp(8px,1vw,14px) 0}
+  .shots figure{margin:0}
+  .shots img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:22px;background:var(--sand)}
+  .shots figcaption{padding:10px 4px 0;font:400 14px/1.5 var(--sans);color:var(--muted)}
+  .shots figure.ph{display:grid}
+  .shots figure.ph>span{aspect-ratio:16/10;display:grid;place-items:center;border-radius:22px;background:repeating-linear-gradient(135deg,var(--sand) 0 10px,var(--sand2) 10px 20px);font:500 10.5px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  .shots figure.ph>span::before{content:'Picture to come';background:var(--cream);padding:6px 12px;border-radius:999px}
+  .shots figure.ph>span{font-size:0}
+  /* the three windows on 2042, above the vision: what the city looks like once it stands */
+  .vista{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(10px,1.2vw,16px);padding:clamp(28px,4vw,56px) 0 clamp(28px,4vw,52px)}
+  .vista figure{margin:0;display:grid}
+  .vista figure>span{aspect-ratio:4/3;display:grid;place-items:center;border-radius:22px;background:repeating-linear-gradient(135deg,var(--sand) 0 10px,var(--sand2) 10px 20px)}
+  .vista figure>span::before{content:'Picture to come';font:500 10.5px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--muted);background:var(--cream);padding:6px 12px;border-radius:999px}
+  .vista figcaption{padding:10px 4px 0;font:400 14px/1.5 var(--sans);color:var(--muted)}
+  @media (max-width:700px){.vista{grid-template-columns:1fr}}
+  .signup{padding-top:clamp(44px,6vw,86px)}
+  .signupin{border-radius:clamp(30px,3.6vw,52px);background:var(--forest);color:var(--cream);padding:clamp(34px,5vw,70px) clamp(24px,4vw,64px);text-align:center}
+  .signupin .eyebrow{margin:0 0 14px;font:500 13px/1 var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--sun)}
+  .signupin h2{margin:0 0 10px;font:420 clamp(28px,3.6vw,48px)/1.08 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.03em}
+  .signupin>p{margin:0 0 clamp(22px,2.6vw,32px);font:400 16px/1.6 var(--sans);color:rgba(251,246,234,.8)}
+  .mailform{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+  .mailform input{flex:1 1 18rem;max-width:24rem;height:56px;padding:0 22px;border:0;border-radius:999px;background:rgba(251,246,234,.1);box-shadow:inset 0 0 0 1.5px rgba(251,246,234,.24);color:var(--cream);font:400 16px/1 var(--sans)}
+  .mailform input::placeholder{color:rgba(251,246,234,.45)}
+  .mailform input:focus{outline:2px solid var(--sun);outline-offset:2px}
+  .mailform .btn{height:56px}
+  .signupin .note{margin:clamp(18px,2vw,26px) 0 0;font:400 14.5px/1.5 var(--sans);color:rgba(251,246,234,.6)}
+  .signupin .note a{color:var(--sun)}
+  @media (max-width:720px){.roles{grid-template-columns:1fr}}
+
+  /* the legal pages, ported from maia.city: one document, read as a document */
+  #legal{padding:clamp(40px,6vw,90px) 0 clamp(100px,10vw,160px)}
+  .legaldoc{max-width:46em;margin:0 auto;color:var(--forest2)}
+  .legaldoc .back{display:inline-flex;align-items:center;gap:8px;margin-bottom:clamp(20px,3vw,34px);font:500 .72rem/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;text-decoration:none;color:var(--forest2);background:none;border:0;cursor:pointer;padding:0}
+  .legaldoc .back:hover{color:var(--forest)}
+  .legaldoc h1{font:420 clamp(32px,5vw,56px)/1.06 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.03em;margin:0 0 clamp(24px,3vw,40px);color:var(--forest)}
+  .legaldoc h2{font:460 clamp(22px,2.4vw,30px)/1.2 var(--serif);font-variation-settings:var(--soft);margin:clamp(30px,3.5vw,48px) 0 14px;color:var(--forest)}
+  .legaldoc h3{font:500 clamp(17px,1.7vw,20px)/1.3 var(--sans);margin:26px 0 10px;color:var(--forest)}
+  .legaldoc h4,.legaldoc h5{font:500 15px/1.4 var(--sans);margin:20px 0 8px;color:var(--forest)}
+  .legaldoc p{margin:0 0 14px;font:400 16px/1.7 var(--sans)}
+  .legaldoc p b{display:block;font-weight:520;color:var(--forest)}
+  .legaldoc ul{margin:0 0 14px;padding-left:20px}
+  .legaldoc li{margin:0 0 7px;font:400 16px/1.7 var(--sans)}
+  .channels a{display:flex;align-items:center;gap:14px;padding:16px 20px;border-radius:20px;background:rgba(251,246,234,.08);color:var(--cream);text-decoration:none;transition:background .15s}
+  .channels a:hover{background:rgba(251,246,234,.16)}
+  .channels i{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--cream);color:var(--navy)}
+  .channels .who{display:block;min-width:0}
+  .channels b{display:block;font:500 17px/1.2 var(--sans)}
+  .channels .who span{display:block;font:400 14px/1.3 var(--sans);color:rgba(251,246,234,.6)}
+  @media (max-width:860px){.followin{grid-template-columns:1fr}}
+   (max-width:700px){.channels{grid-template-columns:1fr}}
+
+  .playfloat,.joinfloat{position:fixed;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:20;display:flex;justify-content:center;pointer-events:none}
+  body.admin .playfloat,body.play .playfloat,body:has(#join.on) .playfloat{display:none}
+  .joinfloat{display:none}
+  body:has(#join.on) .joinfloat{display:flex}   /* the way in has its own: sign up, all the way down the page */
+  .playbtn{pointer-events:auto;height:58px;font-size:16px;padding-left:28px;box-shadow:0 12px 34px rgba(242,181,68,.45)}
+  /* the deck, set as a magazine standfirst: the pill and the line beside it on one baseline, the day under a hairline */
+  .hero .deck{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:clamp(14px,2vw,28px);margin:clamp(6px,1vw,14px) 0 clamp(22px,3vw,38px)}
+  .hero .deck .sub{margin:0}
+  .hero .when{margin:0;text-align:left;font:420 clamp(19px,2vw,29px)/1.14 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.015em;color:var(--clay)}
+  .hero .msg{position:relative;padding-top:clamp(20px,2.6vw,32px)}
+  .hero .msg::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:clamp(80px,10vw,140px);height:1px;background:var(--sand2)}
+  @media (max-width:520px){.hero .when{text-align:center}}
   .msg{font:380 italic clamp(21px,2.3vw,34px)/1.2 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.012em;color:var(--forest2);margin:0}
   .msg b{font-style:normal;font-weight:520;color:var(--clay)}
   .acts{display:flex;justify-content:center}
@@ -109,19 +304,19 @@
   .btn.sunny.go i{background-color:var(--forest);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8h9.4M8.6 3.8 12.8 8l-4.2 4.2' fill='none' stroke='%23fbf6ea' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
 
   .banner{height:calc(100vh - 96px);min-height:560px;display:flex;flex-direction:column;padding:0 clamp(8px,1vw,14px)}
-  .window{position:relative;flex:1;min-height:0;overflow:hidden;border-radius:clamp(26px,3.2vw,46px);color:var(--cream);transform:translateZ(0);background:#20362a}
+  .window{position:relative;flex:1;min-height:0;overflow:hidden;border-radius:clamp(26px,3.2vw,46px);color:var(--cream);transform:translateZ(0);background:#1d3350}
   .window iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
   .board{position:absolute;inset:0;opacity:0;transition:opacity .4s;pointer-events:none}      /* the day's shot from above: what stands in the window until its film runs */
   .board svg,.board .pic{position:absolute;inset:0;width:100%;height:100%;display:block}
   .banner.poster .board{opacity:1}
-  .shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(140deg,rgba(14,28,20,.58) 0%,rgba(14,28,20,0) 44%)}
-  .hud{position:absolute;inset:0;pointer-events:none;text-shadow:0 1px 3px rgba(10,24,16,.4)}
+  .shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(140deg,rgba(14,26,40,.58) 0%,rgba(14,26,40,0) 44%)}
+  .hud{position:absolute;inset:0;pointer-events:none;text-shadow:0 1px 3px rgba(10,22,34,.4)}
   .hud>*{pointer-events:auto}
   /* bottom centre: one large play (from the start, full screen), and the day's figures beside it; the title is the film's own */
   .daycard{position:absolute;left:50%;transform:translateX(-50%);bottom:clamp(84px,13vh,130px);display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
   .daycard .count{justify-content:center}
-  .bigplay{flex:none;width:clamp(72px,6.4vw,96px);height:clamp(72px,6.4vw,96px);border-radius:50%;border:0;cursor:pointer;background:var(--sun) var(--playmark) 56% 50%/32% no-repeat;box-shadow:0 0 0 10px rgba(242,181,68,.22),0 14px 40px rgba(10,24,16,.35);transition:transform .3s cubic-bezier(.3,1.6,.5,1),box-shadow .3s}
-  .bigplay:hover{transform:scale(1.07);box-shadow:0 0 0 16px rgba(242,181,68,.2),0 18px 48px rgba(10,24,16,.4)}
+  .bigplay{flex:none;width:clamp(72px,6.4vw,96px);height:clamp(72px,6.4vw,96px);border-radius:50%;border:0;cursor:pointer;background:var(--sun) var(--playmark) 56% 50%/32% no-repeat;box-shadow:0 0 0 10px rgba(242,181,68,.22),0 14px 40px rgba(10,22,34,.35);transition:transform .3s cubic-bezier(.3,1.6,.5,1),box-shadow .3s}
+  .bigplay:hover{transform:scale(1.07);box-shadow:0 0 0 16px rgba(242,181,68,.2),0 18px 48px rgba(10,22,34,.4)}
   .daycard .label{color:inherit;opacity:.85;display:block;margin:4px 0 10px}
   .window:fullscreen{border-radius:0}.window:fullscreen .hud,.window:fullscreen .shade,.window:fullscreen .board{display:none}
   .daycard .count{margin:0;display:flex;gap:8px;flex-wrap:wrap}
@@ -150,9 +345,9 @@
   .r1 .cd{border-radius:14px}.r2 .cd{border-radius:8px;aspect-ratio:1}
   .cd svg,.cd .pic{position:absolute;inset:0;width:100%;height:100%}
   .pic{object-fit:cover;display:block}
-  .cd.told{cursor:pointer;color:var(--cream);background:#20362a}
+  .cd.told{cursor:pointer;color:var(--cream);background:#1d3350}
   .cd.told:hover{transform:translateY(-3px)}
-  .cd.told::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(14,28,20,.78),rgba(14,28,20,0) 60%)}
+  .cd.told::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(14,26,40,.78),rgba(14,26,40,0) 60%)}
   .cd.today{box-shadow:0 0 0 3px var(--sun)}
   .cd>span{position:absolute;z-index:1}
   .cn{left:14px;top:12px;font:500 12px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase}
@@ -161,7 +356,7 @@
   .cs{left:14px;bottom:clamp(44px,3.6vw,56px);font:400 12.5px/1 var(--sans);padding:6px 10px;border-radius:999px;background:rgba(251,246,234,.16);border:1px solid rgba(251,246,234,.3)}
   .cs b{color:var(--sun);font-weight:600}
   .cd:not(.told) .ct{color:var(--muted);font:400 13px/1.2 var(--sans)}
-  .cd.noted .cs{color:var(--forest2);background:rgba(31,58,44,.06);border-color:rgba(31,58,44,.12)}.cd.noted .cs b{color:var(--clay)}
+  .cd.noted .cs{color:var(--forest2);background:rgba(23,54,85,.06);border-color:rgba(23,54,85,.12)}.cd.noted .cs b{color:var(--clay)}
   .cd.noted .ct{color:var(--forest);font:440 clamp(15px,1.3vw,19px)/1.15 var(--serif);font-variation-settings:var(--soft)}
   .cal canvas{display:block;width:100%;cursor:crosshair;margin-top:4px}
   .cal .tip{position:absolute;top:0;transform:translateX(-50%);padding:10px 15px;border-radius:999px;background:var(--forest);color:var(--cream);font:400 13px/1.2 var(--sans);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:2}
@@ -178,11 +373,11 @@
   .col .none{margin:2px 4px;color:var(--muted);font-size:15px}
   .col.fold{flex:0 0 58px;min-width:58px;padding:16px 0;align-items:center}
   .col.fold h2{writing-mode:vertical-rl;margin:0;gap:12px}.col.fold h2 i{writing-mode:horizontal-tb}.col.fold h2 u,.col.fold .none,.col.fold .card{display:none}
-  .card{padding:16px 18px 16px;margin-bottom:10px;border-radius:20px;background:#fffdf7;border-left:4px solid var(--sand2);cursor:pointer;font:500 16px/1.3 var(--sans);color:var(--forest);box-shadow:0 3px 12px rgba(31,58,44,.07);transition:transform .25s cubic-bezier(.3,1.6,.5,1),box-shadow .2s}
-  .card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(31,58,44,.13)}
-  .card.on{border-left-color:var(--sun);box-shadow:0 0 0 2px var(--forest),0 10px 24px rgba(31,58,44,.13)}
+  .card{padding:16px 18px 16px;margin-bottom:10px;border-radius:20px;background:#fffdf7;border-left:4px solid var(--sand2);cursor:pointer;font:500 16px/1.3 var(--sans);color:var(--forest);box-shadow:0 3px 12px rgba(23,54,85,.07);transition:transform .25s cubic-bezier(.3,1.6,.5,1),box-shadow .2s}
+  .card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(23,54,85,.13)}
+  .card.on{border-left-color:var(--sun);box-shadow:0 0 0 2px var(--forest),0 10px 24px rgba(23,54,85,.13)}
   .card b{display:block;font:500 11px/1 var(--sans);letter-spacing:.12em;color:var(--muted);margin-bottom:8px}
-  .card i{display:inline-block;margin-top:12px;font:500 12px/1 var(--sans);font-style:normal;color:var(--clay);background:rgba(189,91,51,.12);padding:6px 10px;border-radius:999px}
+  .card i{display:inline-block;margin-top:12px;font:500 12px/1 var(--sans);font-style:normal;color:var(--clay);background:rgba(79,157,52,.12);padding:6px 10px;border-radius:999px}
   .card .meta{display:flex;align-items:center;gap:8px;margin-top:12px;font:400 13px/1 var(--sans);color:var(--muted)}
   .card .meta em{width:24px;height:24px;border-radius:50%;background:var(--clay);color:#fff;font:600 11px/24px var(--sans);font-style:normal;text-align:center}
   .card.rejected{opacity:.5}
@@ -202,7 +397,7 @@
   body.admin .tile.dark{background:var(--navy)}body.admin .btn.sunny{color:var(--navy)}body.admin .btn.sunny.go i{background-color:var(--navy)}
 
   /* a document */
-  .doc{width:min(52vw,820px);margin:14px clamp(8px,1vw,14px) 14px 4px;background:var(--cream);border-radius:34px;overflow:auto;padding:0 clamp(26px,3.6vw,56px) 100px;display:none;box-shadow:0 10px 40px rgba(31,58,44,.08)}
+  .doc{width:min(52vw,820px);margin:14px clamp(8px,1vw,14px) 14px 4px;background:var(--cream);border-radius:34px;overflow:auto;padding:0 clamp(26px,3.6vw,56px) 100px;display:none;box-shadow:0 10px 40px rgba(23,54,85,.08)}
   .doc.on{display:block}
   .doc h1{font:420 clamp(34px,3.4vw,50px)/1.04 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.03em;margin:30px 0 18px}
   .doc h2{font:460 26px/1.2 var(--serif);font-variation-settings:var(--soft);letter-spacing:-.015em;margin:52px 0 12px;padding-top:26px;border-top:1.5px solid var(--sand)}
@@ -268,10 +463,50 @@
   .ideadoc h4{font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5);margin:16px 0 6px}
   .ideadoc p{margin:0 0 4px;padding:7px 10px;border-radius:7px;background:rgba(251,246,234,.05);font:400 13px/1.45 var(--sans);color:rgba(251,246,234,.88);display:flex;gap:9px;align-items:baseline}
   .ideadoc p small{flex:none;font:400 10.5px/1 var(--sans);font-variant-numeric:tabular-nums;color:rgba(251,246,234,.45)}
-  .ideadoc .said p{background:rgba(189,91,51,.6);color:var(--cream)}
+  .ideadoc .said p{background:rgba(79,157,52,.6);color:var(--cream)}
   .ideadoc .show p{background:rgba(242,181,68,.22)}
   .ideadoc p.none{background:none;padding-left:0;color:rgba(251,246,234,.35)}
   .lane.off>h3{color:rgba(251,246,234,.5)}.lane.off .idea{opacity:.6}
+  /* ---- the bible (../Bible): the serial's spine, read from its markdown. The page only shows it; the story CLI alone changes it ---- */
+  #bibleview{padding-top:clamp(28px,4vw,56px);padding-bottom:140px;color:var(--cream)}
+  #stories.editing #bibleview{display:none}
+  #bibleview .calhead h2{color:var(--cream)}#bibleview .calhead p{color:rgba(251,246,234,.6)}
+  #bible{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start}
+  #bible.open{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  @media (max-width:900px){#bible.open{grid-template-columns:minmax(0,1fr)}}
+  .spine{padding:16px 18px 18px;border-radius:14px;background:#18243c;display:grid;gap:12px}
+  .spine .prem{margin:0;font:440 clamp(19px,2vw,25px)/1.25 var(--serif);font-variation-settings:var(--soft);color:var(--cream)}
+  .spine .anti{margin:0;padding:9px 12px;border-radius:9px;background:rgba(79,157,52,.5);font:400 14px/1.4 var(--sans);color:var(--cream)}
+  .spine .anti b,.spine .goal b{display:block;font:500 9.5px/1.6 var(--sans);letter-spacing:.09em;text-transform:uppercase;opacity:.7}
+  .spine .goal{margin:0;padding:9px 12px;border-radius:9px;background:rgba(242,181,68,.22);font:400 14px/1.4 var(--sans)}
+  .stakes{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px}
+  .stakes div{padding:9px 11px;border-radius:9px;background:rgba(251,246,234,.05);font:400 12.5px/1.4 var(--sans);color:rgba(251,246,234,.85)}
+  .stakes div b{display:block;font:500 9.5px/1.6 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:rgba(251,246,234,.5)}
+  .ladder{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:4px}
+  .ladder i{font-style:normal;display:grid;gap:1px;padding:7px 8px;border-radius:8px;background:rgba(251,246,234,.05);font:400 11px/1.3 var(--sans);color:rgba(251,246,234,.55);font-variant-numeric:tabular-nums}
+  .ladder i b{font:500 13px/1.2 var(--sans);color:var(--cream)}
+  .ladder i.game{background:rgba(95,127,82,.35)}.ladder i.hinge{background:rgba(242,181,68,.4)}.ladder i.hinge b{color:var(--cream)}
+  .ladder i u{text-decoration:none;font:400 9.5px/1.3 var(--sans);opacity:.6}
+  .bdoc{position:sticky;top:14px;max-height:calc(100vh - 120px);overflow:auto;padding:12px 18px 18px;border-radius:14px;background:#18243c;min-width:0;color:var(--cream)}
+  .bdoc header{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+  .bdoc header b{font:440 22px/1.1 var(--serif);font-variation-settings:var(--soft);margin-right:6px}
+  .bdoc header button{margin-left:auto;width:26px;height:26px;border:0;border-radius:50%;background:rgba(251,246,234,.1);color:var(--cream);cursor:pointer;font:400 15px/1 var(--sans)}
+  .bdoc header button:hover{background:rgba(251,246,234,.2)}
+  .bdoc .md{font:400 14.5px/1.6 var(--sans);color:rgba(251,246,234,.86)}
+  .bdoc .md h1,.bdoc .md h2{font:440 21px/1.2 var(--serif);font-variation-settings:var(--soft);color:var(--cream);margin:20px 0 8px}
+  .bdoc .md h3,.bdoc .md h4{font:500 11px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5);margin:18px 0 6px}
+  .bdoc .md p,.bdoc .md li{margin:0 0 9px}.bdoc .md ul,.bdoc .md ol{margin:0 0 9px;padding-left:20px}
+  .bdoc .md strong{color:var(--cream)}
+  .bdoc .md a{color:var(--sun)}
+  .bdoc .md em{color:rgba(251,246,234,.7)}
+  .bdoc .md table{width:100%;border-collapse:collapse;margin:0 0 12px;font:400 12px/1.4 var(--sans);font-variant-numeric:tabular-nums}
+  .bdoc .md th{text-align:left;font:500 9.5px/1.6 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5);padding:4px 7px;border-bottom:1px solid rgba(251,246,234,.15)}
+  .bdoc .md td{padding:5px 7px;border-bottom:1px solid rgba(251,246,234,.07);vertical-align:top}
+  .bdoc .md blockquote{margin:0 0 10px;padding:8px 12px;border-radius:8px;background:rgba(251,246,234,.05)}
+  .bdoc .md code{font:400 12.5px/1.4 ui-monospace,monospace;background:rgba(251,246,234,.09);padding:1px 5px;border-radius:5px}
+  .bdoc .md hr{border:0;border-top:1px solid rgba(251,246,234,.12);margin:16px 0}
+  .bdoc .prose{font:400 16px/1.7 var(--serif);font-variation-settings:var(--soft)}
+  .bdoc .prose p{margin:0 0 14px}
   /* a story's arc, the studio's first page: the whole story's tension on top, then its sections side by side, each in its
      colour, with the gateway between two neighbours saying their contrast (drawn as the timeline is: navy panels, small labels) */
   #storyedit .stagedoc .arc{display:grid;gap:10px;min-width:0}
@@ -357,7 +592,7 @@
     .pages.open .pg{display:block}
     .pages.open{padding-bottom:5px}.pages.open .burger{order:9}
   }
-  .player{position:relative;aspect-ratio:16/9;width:100%;margin:4px 0 0;border-radius:30px 30px 10px 10px;overflow:hidden;background:#20362a;transform:translateZ(0)}
+  .player{position:relative;aspect-ratio:16/9;width:100%;margin:4px 0 0;border-radius:30px 30px 10px 10px;overflow:hidden;background:#1d3350;transform:translateZ(0)}
   /* the story's editor: under the picture, never over it */
   .edit{margin:4px 0 10px;padding:10px 14px 12px;border-radius:10px 10px 30px 30px;background:var(--forest);color:var(--cream);box-shadow:var(--shadow)}
   .etop{display:flex;align-items:center;gap:12px;margin-bottom:8px}
@@ -377,12 +612,12 @@
   .eruler{position:relative;border-bottom:1px solid rgba(251,246,234,.16)}
   .eruler span{position:absolute;top:2px;font:500 10.5px/1 var(--sans);font-variant-numeric:tabular-nums;color:rgba(251,246,234,.5);padding-left:4px;border-left:1px solid rgba(251,246,234,.25);height:16px}
   .elane{position:relative}
-  .eclip{position:absolute;top:0;bottom:0;border-radius:10px;overflow:hidden;background:#2f4c3c center/cover no-repeat;box-shadow:inset 0 0 0 1.5px rgba(251,246,234,.18);transition:box-shadow .15s}
-  .eclip::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(14,28,20,.7),rgba(14,28,20,0) 55%)}
+  .eclip{position:absolute;top:0;bottom:0;border-radius:10px;overflow:hidden;background:#2a4259 center/cover no-repeat;box-shadow:inset 0 0 0 1.5px rgba(251,246,234,.18);transition:box-shadow .15s}
+  .eclip::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(14,26,40,.7),rgba(14,26,40,0) 55%)}
   .eclip span{position:absolute;left:8px;right:6px;bottom:7px;z-index:1;font:500 11.5px/1.15 var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .eclip.on{box-shadow:inset 0 0 0 2px var(--sun)}
   .ecap,.eaud{position:absolute;top:1px;bottom:1px;border-radius:7px;padding:0 8px;font:400 10.5px/20px var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(251,246,234,.16)}
-  .ecap.samuel{background:rgba(189,91,51,.6)}.ecap.maia{background:rgba(95,127,82,.85)}.ecap.note,.ecap.title{background:rgba(242,181,68,.4)}
+  .ecap.samuel{background:rgba(79,157,52,.6)}.ecap.maia{background:rgba(95,127,82,.85)}.ecap.note,.ecap.title{background:rgba(242,181,68,.4)}
   .eaud{background:repeating-linear-gradient(90deg,rgba(127,176,200,.28) 0 2px,rgba(127,176,200,.12) 2px 5px);color:rgba(251,246,234,.6);box-shadow:inset 0 0 0 1px rgba(127,176,200,.35)}
   .eempty{position:absolute;left:8px;top:0;font:400 10.5px/22px var(--sans);color:rgba(251,246,234,.35)}
   .elane{background:rgba(251,246,234,.03);border-radius:6px}.elane.v{background:none}
@@ -410,15 +645,21 @@
 </head>
 <body>
 <header class="site">
-  <a class="mark" href="#">Maia City</a>
-  <button class="btn go visit" id="visit">Visit Maia City<i></i></button>
+  <nav class="pill">
+    <a class="logo" href="#"><img src="/brand/maiacity-logo.png" alt="" width="128" height="128">Maia City</a>
+    <span class="socials" id="socials"></span>
+    <a class="btn go visit" id="visit" href="#game">Sign in<i></i></a>   <!-- the shortcut for people already in: straight into the world -->
+  </nav>
 </header>
 <nav class="admin" id="adminnav"><button class="back" id="back" aria-label="Home, the dashboard"><svg viewBox="0 0 24 22"><path d="M3 10.5 12 3l9 7.5M5.5 8.5V19h4.5v-5.5h4V19h4.5V8.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="home" id="homebtn" aria-label="Intents"></button><button class="badge" id="badge" title="Maia City, the front page">MC</button></nav>
 <main id="home" class="on">
   <section class="hero"><div>
     <p class="eyebrow">This is the story of how</p>
     <h1><b>1.3 million</b> humans build their own solarpunk city.</h1>
-    <p class="sub">In 16 years.</p>
+    <div class="deck">
+      <p class="sub">In 16 years.</p>
+      <p class="when">First in game,<br>then in real.</p>
+    </div>
     <p class="msg">Welcome to <b>Day <span id="h-day">–</span></b> of 5,423.</p>
   </div></section>
   <section class="banner poster" id="banner">
@@ -430,22 +671,183 @@
     </div>
   </section>
   <section class="cal wrap" id="cal"></section>
-  <section class="why wrap"><div class="whyin">
-    <p class="eyebrow">Why</p>
-    <h2>Imagine we could start clean.</h2>
-    <p class="lede">No old city to fix, no old rules to work around. A meadow, a river, and every choice still open.</p>
+  <section class="vista wrap">
+    <figure><span></span><figcaption>The domes, grown together into a quarter.</figcaption></figure>
+    <figure><span></span><figcaption>The food forest between them, in fruit.</figcaption></figure>
+    <figure><span></span><figcaption>The city from above, and the river it stands on.</figcaption></figure>
+  </section>
+  <section class="why"><div class="whyin">
+    <p class="eyebrow">2042</p>
+    <h2>Wake up in the city you own.</h2>
+    <p class="lede">Light through a dome that is also a greenhouse. Breakfast three steps from where you slept, still on the plant. Outside, a city of 1.3 million that sounds like a forest, because everything that moves runs beneath it. What you pay each month goes into co-ops you hold a share of, so it comes back as the roof over your head, the food in the ground and the factory that made them both. Nobody here is working to stay alive. What people do instead is the largest thing they are each capable of, in small teams, on the problems worth cracking.</p>
     <div class="pillars">
-      <div><b>Work you choose</b><p>Machines carry the work nobody wants. People spend their days on what they love, and on each other.</p></div>
-      <div><b>Wealth that stays</b><p>What the city makes belongs to the people who build it. Every citizen owns a share of the whole.</p></div>
       <div><b>A forest you can eat</b><p>Food grows where we live: fruit, nuts and greens one step from every door, a forest that feeds us.</p></div>
+      <div><b>Wealth that stays</b><p>What the city makes belongs to the people who build it. Every citizen owns a share of the whole.</p></div>
+      <div><b>Your full potential</b><p>Nobody sells their hours to stay alive. What is left is the thing you would have chosen anyway — and nothing here lets you settle for the small version of it.</p></div>
     </div>
-    <p class="close">A hundred times better way to live. First in game, then in real.</p>
-    <button class="btn go light" id="travel">Travel to Maia City now<i></i></button>
+  </div></section>
+
+  <!-- ---- what the game is for, brought over from maia.city: a laboratory you play, and the one milestone it is aiming at ---- -->
+  <section class="lab wrap"><div class="labin">
+    <p class="eyebrow">The game</p>
+    <h2>Not another city builder. A civilisation-scale brick builder for a new generation of sovereign cities.</h2>
+    <p class="lede">Think of maiaCITY as a research laboratory you can play. Every village built in it tests one of the building blocks a new civilisation needs: how we grow our food, share our energy, own what we build and decide together. We try them in the game, long before a single real brick is laid.</p>
+  </div></section>
+
+  <!-- ---- the manifesto, compact: the old blueprint, the vision, build it, and the creed ---- -->
+  <section class="manifesto wrap"><article class="manin">
+    <!-- the spread: the one claim, set as a magazine cover -->
+    <section class="spread">
+      <p class="kicker"><span>Manifesto</span></p>
+      <h2 class="headline">
+        <span class="survive">We were never built to survive.</span>
+        <span class="thrive">We were built to <mark>thrive.</mark></span>
+      </h2>
+    </section>
+
+    <!-- each chapter hangs off a gutter: its numeral at the left, its text in the column -->
+    <section class="chapter">
+      <p class="marker">I<span>The old blueprint</span></p>
+      <div class="text">
+        <p class="dropcap">For generations we have been handed a blueprint drawn for scarcity. Get through the month. Compete for what is left. Rent our own lives back, one invoice at a time.</p>
+        <p>That blueprint is running out. Not in fire — in the quiet way a thing ends once nobody believes in it any more.</p>
+        <p class="turn">And the next one will not draw itself.</p>
+      </div>
+    </section>
+
+    <blockquote class="pull">
+      <p>We are far more capable than we have ever been allowed to believe.</p>
+    </blockquote>
+
+    <section class="chapter">
+      <p class="marker">II<span>The vision</span></p>
+      <ul class="visions">
+        <li><span class="see">We see</span> a million founders uniting behind one vision, and discovering what humans have always been able to do the moment they stop competing for scraps.</li>
+        <li><span class="see">We see</span> a child growing up who never once hears that this is just the way things are.</li>
+        <li><span class="see">We see</span> the elders of a village teaching what they know to the people who will outlive them, and being needed again.</li>
+        <li><span class="see">We see</span> a place built for humans to flourish in. A place where what we build together, we own together, and abundance is no rumour from somewhere else, just what people working in flow naturally produce.</li>
+        <li><span class="see">We see</span> work that feels like purpose, and days that feel like life.</li>
+      </ul>
+    </section>
+
+    <!-- the crescendo: every line a size larger than the one before it -->
+    <section class="chapter">
+      <p class="marker">III<span>Build it</span></p>
+      <ol class="crescendo">
+        <li style="--step:0"><span class="verb">So build it</span> in the fields, where the soil comes back.</li>
+        <li style="--step:1"><span class="verb">Build it</span> in the workshops, where the machines are ours to repair.</li>
+        <li style="--step:2"><span class="verb">Build it</span> in the kitchens, where fifty people sit down to eat together.</li>
+        <li style="--step:3"><span class="verb">Build it</span> in every person who has felt, for years, that there must be more than this.</li>
+      </ol>
+    </section>
+
+    <p class="contrast">
+      <span class="less">Not 100x more stuff.</span>
+      <span class="more">100x more life.</span>
+    </p>
+
+    <footer class="close">
+      <p class="lead-in">And on the day a million founders stand inside what they built, they will know what we know deep in our hearts for sure:</p>
+      <p class="creed">when we unite in vision, the impossible becomes possible.</p>
+      <p class="signature"><img src="/brand/samuel.jpg" alt="" width="1542" height="1542" loading="lazy" decoding="async"><span>Samuel Andert</span></p>
+    </footer>
+  </article></section>
+
+  <!-- ---- follow the build: the four channels, as on maia.city ---- -->
+  <section class="follow wrap"><div class="followin">
+    <div class="pitch">
+      <p class="eyebrow">Follow the build</p>
+      <h2>Follow along and watch Maia City come to life.</h2>
+    </div>
+    <div class="channels" id="channels"></div>
+  </div></section>
+  <footer class="sitefoot wrap">
+    <div class="footbase">
+      <a class="footlogo" href="#">maia<b>CITY</b></a>
+      <span>We were never built to survive. We were built to thrive.</span>
+    </div>
+    <nav class="legal" id="legalnav" aria-label="Legal"></nav>
+  </footer>
+</main>
+<div class="playfloat" id="playfloat"><button class="btn go sunny playbtn" id="playnow">Visit Maia City<i></i></button></div>
+<div class="joinfloat" id="joinfloat"><button class="btn go sunny playbtn" id="joinnow">Sign up free<i></i></button></div>
+<!-- the way in: what you become, what it costs, and what you do on your first day in the world -->
+<main id="join">
+  <section class="joinhead wrap">
+    <p class="eyebrow">The way in</p>
+    <h1>Walk in as a traveler.<br>Stay as a citizen.</h1>
+    <p class="lede">Maia City is open to walk around from the day you sign up. Living in it is something a village has to invite you into.</p>
+  </section>
+
+  <section class="roles wrap">
+    <div class="role">
+      <p class="rtag">Free</p>
+      <h2>Traveler</h2>
+      <p>Sign up with your e-mail and the world opens. Walk the valley, look into the villages, watch what people are building and decide where you would want to live.</p>
+      <ul><li>Walk anywhere in the world</li><li>Watch the villages grow</li><li>Apply to the one you want</li></ul>
+    </div>
+    <div class="role on">
+      <p class="rtag">€1 a month</p>
+      <h2>Citizen</h2>
+      <p>A village votes you in, you take up your citizenship, and you get your own character, your own tent and a share of everything the village builds from there.</p>
+      <ul><li>Your own character and tent</li><li>Build the settlement with your village</li><li>A vote on what gets built next</li></ul>
+    </div>
+  </section>
+
+  <section class="flow wrap">
+    <p class="eyebrow">How it goes</p>
+    <ol class="steps">
+      <li><b>Sign up as a traveler.</b> An e-mail address, nothing else. The world opens straight away and costs nothing.</li>
+      <li><b>Walk around and find your village.</b> Every village is being built by real people. Look at what they have made and how they live, then apply to the one you want to belong to.</li>
+      <li><b>The village decides.</b> Citizenship is theirs to give, not ours. When they vote you in, a notification arrives: your citizenship is waiting for you.</li>
+      <li><b>Take up your citizenship.</b> One euro a month. You get your character, your tent and your share, and your village is waiting.</li>
+    </ol>
+  </section>
+
+  <section class="first wrap">
+    <p class="eyebrow">Your first days</p>
+    <h2>It starts in a tent, on open ground.</h2>
+    <div class="tasks">
+      <div><b>Build the first settlement</b><p>You and your fellow settlers put up the first co-living domes — each one a greenhouse too, with a food forest growing inside it, so the place that shelters you also feeds you.</p></div>
+      <div><b>Stop needing the lorries</b><p>At the start everything is trucked in. Plant the food forest, grow what you eat, and work the village off its deliveries one at a time — then past self-sufficiency, until it exports more than it brings in. That is the whole game.</p></div>
+      <div><b>Decide together</b><p>It all starts in your own tent. What goes up next, which plants go in the ground, where the water runs: the village decides it, and you have a voice in it from your first day.</p></div>
+      <div class="soon"><b>Invest in the co-ops</b><p>Hold a share of the things the village runs on, and of the challenges it takes on.</p><span>Coming soon</span></div>
+    </div>
+  </section>
+
+  <section class="levels wrap">
+    <p class="eyebrow">What your village unlocks</p>
+    <h2>Every villager who joins opens the next thing you can build.</h2>
+    <p class="lede">A village grows by the people in it. Each step below is a count of villagers, and what reaching it puts in your hands. The pictures come as each one is built.</p>
+    <ol class="lvl" id="levels"></ol>
+  </section>
+
+  <section class="shots">
+    <figure><img src="/brand/loading/tent-morning.jpg" alt="A tent on open ground at first light" loading="lazy"><figcaption>Day one: your tent, and the ground around it.</figcaption></figure>
+    <figure><img src="/brand/loading/tent-midday.jpg" alt="The same ground in full daylight" loading="lazy"><figcaption>The valley, walked at midday.</figcaption></figure>
+    <figure><img src="/brand/loading/tent-pines.jpg" alt="A tent among pines" loading="lazy"><figcaption>Every village picks its own ground.</figcaption></figure>
+    <figure><img src="/brand/loading/tent-evening.jpg" alt="The camp at dusk" loading="lazy"><figcaption>Evening, and what to build tomorrow.</figcaption></figure>
+    <figure><img src="/brand/loading/tent-snow.jpg" alt="The camp under snow" loading="lazy"><figcaption>Winter comes. The domes have to hold.</figcaption></figure>
+    <figure><img src="/brand/game.jpg" alt="The valley from above" loading="lazy"><figcaption>The valley from the air.</figcaption></figure>
+    <figure class="ph"><span>Picture to come</span><figcaption>The whole settlement from above, once it is one.</figcaption></figure>
+    <figure class="ph"><span>Picture to come</span><figcaption>The village and its containers, under a thin sky.</figcaption></figure>
+  </section>
+
+  <section class="signup wrap" id="signup"><div class="signupin">
+    <p class="eyebrow">Free, and open now</p>
+    <h2>Sign up as a traveler.</h2>
+    <p>No card, no invite. An e-mail, and the world opens.</p>
+    <form class="mailform" id="mailform">
+      <input type="email" id="joinmail" placeholder="you@example.com" aria-label="Your e-mail" required>
+      <button class="btn go sunny" type="submit">Walk in<i></i></button>
+    </form>
+    <p class="note" id="joinnote">Already a citizen? <a href="#game" id="joinsignin">Sign in and walk into the world</a>.</p>
   </div></section>
 </main>
+<main id="legal"><section class="wrap"><article class="legaldoc" id="legaldoc"></article></section></main>
 <main id="city"><div class="tiles" id="tiles"></div></main>
 <main id="intents"><header class="sheethead"><h1>Intents</h1><button class="btn small quiet" data-close>Close</button></header><div class="sheetbody"><div id="board"></div><div id="intentdoc" class="doc"></div></div></main>
-<main id="stories"><section id="shelfview" class="wrap"><header class="calhead"><h2>Stories</h2><p>One a day. Open one to edit its film.</p></header><div class="shelf" id="shelf"></div><header class="calhead sub"><h2>Scenes</h2><p>Timelines that stand alone. A story is composed of them.</p></header><div class="shelf" id="sceneshelf"></div></section><section id="ideasview" class="wrap"><header class="calhead"><h2>Ideas</h2><p id="ideasnote"></p></header><div id="ideas"></div></section><section id="storyedit"></section></main>
+<main id="stories"><section id="shelfview" class="wrap"><header class="calhead"><h2>Stories</h2><p>One a day. Open one to edit its film.</p></header><div class="shelf" id="shelf"></div><header class="calhead sub"><h2>Scenes</h2><p>Timelines that stand alone. A story is composed of them.</p></header><div class="shelf" id="sceneshelf"></div></section><section id="bibleview" class="wrap"><header class="calhead"><h2>The Bible</h2><p id="biblenote"></p></header><div id="bible"></div></section><section id="ideasview" class="wrap"><header class="calhead"><h2>Ideas</h2><p id="ideasnote"></p></header><div id="ideas"></div></section><section id="storyedit"></section></main>
 <button class="sheetx" data-close aria-label="Close"><svg viewBox="0 0 16 16"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
 <main id="game"><div id="gamebar"></div><iframe id="frame" allow="fullscreen; pointer-lock" title="The Game"></iframe></main>
 <script type="module" src="/src/main.js"></script>

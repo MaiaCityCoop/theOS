@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 import { createServer } from 'vite';
 import { readIdeas } from '../Stories/ideas.js';
+import { readBible } from './bible.js';   // the story bible (../Bible), the serial's spine: read as it stands, changed only by the story CLI
 import { listScenes, sceneFile, objectPath, objectType } from '../Stories/scenes.js';   // the scenes (timelines that stand alone) and their media, named by hash   // the story ideas (Stories/ideas/*.md), read as they are; changed only by that tool
 
 const front = (text) => { // the few "key: value" lines between the first two ---
@@ -41,6 +42,7 @@ export default {
         }
         if ((m = url.match(/^\/intents\/(\d{4}-[a-z0-9-]+\.md)$/))) return text(res, resolve(intents, m[1]));
         if (url === '/ideas') return json(res, readIdeas());   // what a story could be told about, lane by lane (the Stories page's Ideas: shown, never changed there)
+        if (url === '/bible') return json(res, readBible(root));   // the serial's bible (../Bible): its premise, its ladder, its characters, arcs, world and episodes
         if (url === '/scenes') return json(res, listScenes());
         if ((m = url.match(/^\/scenes\/([a-z0-9][a-z0-9-]*)\/scene\.json$/))) return text(res, sceneFile(m[1]));
         // a scene's media by its hash (Stories/objects/, not kept in git); a part of it when a player asks for a range
