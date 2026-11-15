@@ -1,10 +1,13 @@
 // The way back from aven.id (callback.html, the client's redirect URI): the code it sends is exchanged for an ID token
 // here, the token is checked in this browser (src/account/oidc.js: verifyIdToken), and who signed in is kept for the
-// game (src/account/session.js); then back to where the person was. Whatever goes wrong is said to the game, which
-// shows it, and the person is sent back all the same: a sign-in that did not work leaves the game as it was.
+// game (src/account/session.js); the same token, once, opens the person's session with the game's API (src/account/api.js),
+// which checks it again on its own server. Then back to where the person was. Whatever goes wrong is said to the game,
+// which shows it, and the person is sent back all the same: a sign-in that did not work leaves the game as it was, and
+// one the API could not take still signs in (the person's page, me.html, says so).
 import { ACCOUNT } from './config.js';
 import { AccountError, discover, exchange, keys, verifyIdToken, rolesOf, returnPath } from './oidc.js';
 import { endTrip, keep, say } from './session.js';
+import { openSession } from './api.js';
 
 const line = document.getElementById('line');
 const q = new URLSearchParams(location.search);
@@ -24,7 +27,9 @@ async function finish() {
   line.textContent = 'Checking who you are';
   const idToken = await exchange(meta, { code, redirectUri: trip.redirectUri, clientId: ACCOUNT.clientId, verifier: trip.verifier, issuer: trip.issuer });
   const claims = await verifyIdToken(idToken, { jwks: await keys(meta, trip.issuer), issuer: trip.issuer, clientId: ACCOUNT.clientId, nonce: trip.nonce });
-  keep(claims, rolesOf(claims), trip.issuer);   // the token itself goes no further than this function
+  keep(claims, rolesOf(claims), trip.issuer);
+  line.textContent = 'Opening your session';
+  await openSession(idToken);   // the token itself goes no further than the game's own API
 }
 
 finish()

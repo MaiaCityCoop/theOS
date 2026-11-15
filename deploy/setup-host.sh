@@ -2,8 +2,10 @@
 # Prepares an Ubuntu 24.04 or 26.04 LTS host to serve the website and the game, or brings one up to date. Run it from
 # your own machine with root SSH access to the host; it is safe to run again (deploy/README.md):
 #   deploy/setup-host.sh root@<host> <environment.json> <deploy-key.pub>
-# It installs Caddy from Caddy's own apt repository, creates the `deploy` user whose key can only run
-# /usr/local/bin/maia-deploy, writes /etc/caddy/Caddyfile for the environment's two host names, and turns on the firewall.
+# It installs Caddy from Caddy's own apt repository and Docker from Ubuntu's, creates the `deploy` user whose key can only
+# run /usr/local/bin/maia-deploy (and that user may run only /usr/local/bin/maia-api-up as root), writes
+# /etc/caddy/Caddyfile for the environment's two host names and /etc/maia-city/ for the game's API, and turns on the
+# firewall.
 set -euo pipefail
 target=${1:?Usage: $0 root@<host> <environment.json> <deploy-key.pub>}
 environment=${2:?Usage: $0 root@<host> <environment.json> <deploy-key.pub>}
@@ -12,12 +14,17 @@ here=$(cd "$(dirname "$0")" && pwd)
 name() { jq -er --arg k "$1" '.[$k] | select(test("^https://[a-z0-9.-]+$")) | sub("^https://"; "")' "$environment"; }
 website_host=$(name Website)
 game_host=$(name Game)
+issuer=$(jq -er '.Issuer | select(test("^https://[a-z0-9.-]+$"))' "$environment")
 key=$(head -n 1 "$key_file")
 [[ "$key" =~ ^ssh-ed25519\ [A-Za-z0-9+/=]+(\ .*)?$ ]] || { echo "$key_file is not an ssh-ed25519 public key." >&2; exit 1; }
 
 payload=$(mktemp -d)
 trap 'rm -rf "$payload"' EXIT
 cp "$here/deploy.sh" "$payload/maia-deploy"
+cp "$here/api-up.sh" "$payload/maia-api-up"
+cp "$here/compose.yml" "$payload/compose.yml"
+printf 'ISSUER=%s\nORIGINS=https://%s\n' "$issuer" "$game_host" >"$payload/api.env"
+printf 'deploy ALL=(root) NOPASSWD: /usr/local/bin/maia-api-up\n' >"$payload/sudoers"
 sed "s/@WEBSITE_HOST@/$website_host/g; s/@GAME_HOST@/$game_host/g" "$here/Caddyfile" >"$payload/Caddyfile"
 printf 'website=%s\ngame=%s\n' "$website_host" "$game_host" >"$payload/hosts"
 printf 'command="/usr/local/bin/maia-deploy",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty %s\n' \
@@ -47,12 +54,32 @@ echo 'deb [signed-by=/etc/apt/keyrings/caddy-stable.gpg] https://dl.cloudsmith.i
 apt-get update -qq
 apt-get install -y -qq caddy >/dev/null
 
+# Docker from Ubuntu's own archive, for the game's API and its Postgres (deploy/compose.yml). The ports it publishes
+# are on 127.0.0.1 only, so ufw's rules below are not bypassed.
+apt-get install -y -qq docker.io docker-compose-v2 sudo openssl >/dev/null
+systemctl enable --now docker >/dev/null 2>&1
+
 # The deploy user owns only the releases; Caddy reads them.
 id deploy >/dev/null 2>&1 || useradd --create-home --shell /bin/sh deploy
 passwd -l deploy >/dev/null
 install -d -o deploy -g deploy -m 700 /home/deploy/.ssh
 install -o deploy -g deploy -m 600 "$incoming/authorized_keys" /home/deploy/.ssh/authorized_keys
 install -o root -g root -m 755 "$incoming/maia-deploy" /usr/local/bin/maia-deploy
+install -o root -g root -m 755 "$incoming/maia-api-up" /usr/local/bin/maia-api-up
+visudo -cqf "$incoming/sudoers"
+install -o root -g root -m 440 "$incoming/sudoers" /etc/sudoers.d/maia-deploy
+
+# The API's settings: only root reads them. The database password is made once and kept; the rest follows the
+# environment each time.
+install -d -o root -g root -m 755 /etc/maia-city
+install -o root -g root -m 644 "$incoming/compose.yml" /etc/maia-city/compose.yml
+password=$(sed -n 's/^POSTGRES_PASSWORD=//p' /etc/maia-city/api.env 2>/dev/null || true)
+[ -n "$password" ] || password=$(openssl rand -hex 32)
+umask 077
+{ printf 'POSTGRES_PASSWORD=%s\n' "$password"; cat "$incoming/api.env"; } >/etc/maia-city/api.env.new
+mv /etc/maia-city/api.env.new /etc/maia-city/api.env
+chmod 600 /etc/maia-city/api.env
+umask 022
 install -d -o deploy -g deploy -m 755 /srv/maia-city /srv/maia-city/releases
 install -o root -g root -m 644 "$incoming/hosts" /srv/maia-city/hosts
 rm -f /srv/maia-city/host
@@ -90,5 +117,5 @@ systemctl enable --now unattended-upgrades >/dev/null 2>&1
 echo "Host ready: $(caddy version | cut -d' ' -f1), serving $(tr '\n' ' ' </srv/maia-city/hosts)from $(readlink /srv/maia-city/current)"
 REMOTE
 
-tar -C "$payload" -cf - setup.sh maia-deploy Caddyfile hosts authorized_keys | ssh -o BatchMode=yes "$target" \
+tar -C "$payload" -cf - setup.sh maia-deploy maia-api-up compose.yml api.env sudoers Caddyfile hosts authorized_keys | ssh -o BatchMode=yes "$target" \
 	'set -e; d=$(mktemp -d); trap "rm -rf \"$d\"" EXIT; tar -x -C "$d" -f -; bash "$d/setup.sh" "$d" </dev/null'

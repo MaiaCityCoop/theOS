@@ -2,10 +2,12 @@
 # Installed on the host as /usr/local/bin/maia-deploy and bound to the deploy key in
 # ~deploy/.ssh/authorized_keys (command="..."), so that key can run nothing else.
 #
-# Standard input is a tar archive holding website/ (OS/dist) and game/ (TheGame/dist), each with version.json at its
-# root, made by bundle.sh. The script checks the archive, unpacks it as /srv/maia-city/releases/<commit>-<time>,
-# switches /srv/maia-city/current to it (both sites at once), checks that Caddy serves both, and keeps the last few
-# releases. Rolling back is deploying an earlier commit.
+# Standard input is a tar archive holding website/ (OS/dist), game/ (TheGame/dist) and api/ (the API's source), each
+# with version.json at its root, made by bundle.sh. The script checks the archive, unpacks it as
+# /srv/maia-city/releases/<commit>-<time>, has root build and start that release's API (sudo maia-api-up, the one
+# command this user may run as root), switches /srv/maia-city/current to it (both sites at once), checks that Caddy
+# serves both sites and the new API, and keeps the last few releases. Anything that fails puts the last release back.
+# Rolling back is deploying an earlier commit.
 set -eu
 umask 022
 root=${MAIA_ROOT:-/srv/maia-city}
@@ -26,16 +28,17 @@ if [ "$(wc -c <"$stage/archive.tar")" -gt "$max_bytes" ]; then
 	echo "The archive is larger than $max_bytes bytes." >&2
 	exit 2
 fi
-# Only plain files and directories, under website/ or game/, and no way out of the release directory.
+# Only plain files and directories, under website/, game/ or api/, and no way out of the release directory.
 if tar -tvf "$stage/archive.tar" | grep -qv '^[-d]' \
 	|| tar -tf "$stage/archive.tar" | grep -qE '(^/|(^|/)\.\.(/|$))' \
-	|| tar -tf "$stage/archive.tar" | grep -qvE '^(\./)?(website|game)(/|$)'; then
-	echo "The archive may only hold plain files and directories under website/ and game/." >&2
+	|| tar -tf "$stage/archive.tar" | grep -qvE '^(\./)?(website|game|api)(/|$)'; then
+	echo "The archive may only hold plain files and directories under website/, game/ and api/." >&2
 	exit 2
 fi
 mkdir "$stage/release"
 tar -x -C "$stage/release" --no-same-owner --no-same-permissions -f "$stage/archive.tar"
-for file in website/index.html website/version.json game/index.html game/callback.html game/version.json; do
+for file in website/index.html website/version.json game/index.html game/callback.html game/version.json \
+	api/Dockerfile api/src/server.js api/version.json; do
 	if [ ! -f "$stage/release/$file" ]; then
 		echo "The archive is missing $file." >&2
 		exit 2
@@ -43,8 +46,8 @@ for file in website/index.html website/version.json game/index.html game/callbac
 done
 commit_of() { sed -n 's/.*"commit": *"\([0-9a-f]\{40\}\)".*/\1/p' "$stage/release/$1/version.json" | head -n 1; }
 commit=$(commit_of website)
-if [ -z "$commit" ] || [ "$(commit_of game)" != "$commit" ]; then
-	echo "version.json must name the same full commit SHA for both sites." >&2
+if [ -z "$commit" ] || [ "$(commit_of game)" != "$commit" ] || [ "$(commit_of api)" != "$commit" ]; then
+	echo "version.json must name the same full commit SHA for both sites and the API." >&2
 	exit 2
 fi
 chmod -R u=rwX,go=rX "$stage/release"
@@ -53,18 +56,31 @@ chmod -R u=rwX,go=rX "$stage/release"
 release="$root/releases/$commit-$(date +%s)"
 mv "$stage/release" "$release"
 previous=$(readlink "$root/current" 2>/dev/null || true)
+# The API of the release that was served, started again (if it had one).
+api_back() {
+	if [ -n "$previous" ] && [ -f "$previous/api/Dockerfile" ]; then
+		sudo -n /usr/local/bin/maia-api-up "$(basename "$previous")" >&2 || echo "The previous API did not come back up either." >&2
+	fi
+}
+if ! sudo -n /usr/local/bin/maia-api-up "$(basename "$release")"; then
+	echo "The new API did not start; the last release stays." >&2
+	api_back
+	exit 1
+fi
 ln -sfn "$release" "$root/.current.new"
 mv -T "$root/.current.new" "$root/current"
 
 # The local listeners serve the same roots as the public sites, so this proves Caddy serves the new release.
 served() { curl -fsS --max-time 5 "http://127.0.0.1:$1/$2" 2>/dev/null; }
 if ! served 8081 version.json | grep -q "$commit" || ! served 8081 index.html >/dev/null || ! served 8081 api/intents >/dev/null \
-	|| ! served 8082 version.json | grep -q "$commit" || ! served 8082 index.html >/dev/null || ! served 8082 callback >/dev/null; then
-	echo "Caddy does not serve the new release; switching back." >&2
+	|| ! served 8082 version.json | grep -q "$commit" || ! served 8082 index.html >/dev/null || ! served 8082 callback >/dev/null \
+	|| ! served 8082 api/health | grep -q "$commit"; then
+	echo "Caddy does not serve the new release and its API; switching back." >&2
 	if [ -n "$previous" ] && [ -d "$previous" ]; then
 		ln -sfn "$previous" "$root/.current.new"
 		mv -T "$root/.current.new" "$root/current"
 	fi
+	api_back
 	exit 1
 fi
 

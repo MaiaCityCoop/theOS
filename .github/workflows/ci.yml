@@ -1,13 +1,14 @@
 name: CI
 
-# Checks and builds the website (OS/) and the game (TheGame/) for every change to them. On main, it also deploys to
-# `next` when the repository variable AUTO_DEPLOY_NEXT is "true" (deploy/README.md).
+# Checks and builds the website (OS/) and the game (TheGame/), and tests the game's API (API/) on Postgres, for every
+# change to them. On main, it also deploys to `next` when the repository variable AUTO_DEPLOY_NEXT is "true"
+# (deploy/README.md).
 on:
   push:
     branches: [main]
-    paths: [OS/**, TheGame/**, Intents/**, Stories/**, Bible/**, brand/**, deploy/**, .github/workflows/**]
+    paths: [OS/**, TheGame/**, API/**, Intents/**, Stories/**, Bible/**, brand/**, deploy/**, .github/workflows/**]
   pull_request:
-    paths: [OS/**, TheGame/**, Intents/**, Stories/**, Bible/**, brand/**, deploy/**, .github/workflows/**]
+    paths: [OS/**, TheGame/**, API/**, Intents/**, Stories/**, Bible/**, brand/**, deploy/**, .github/workflows/**]
 
 permissions:
   contents: read
@@ -20,6 +21,14 @@ jobs:
   check:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18.7-alpine@sha256:75dcac3dfb1cd01ca3536910bbc84128759362f8b118bf8c55b38a94f68f3b73
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 2s --health-retries 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -34,12 +43,18 @@ jobs:
       - name: Sign-in checks
         working-directory: TheGame
         run: bun tools/account-check.js
+      - name: API tests
+        working-directory: API
+        env:
+          DATABASE_URL: postgres://postgres:ci@127.0.0.1:5432/postgres
+        run: bun test
       - name: Build both sites for next
         run: deploy/bundle.sh deploy/environments/next.json "$GITHUB_SHA" "$RUNNER_TEMP/release.tar"
       - name: Shell scripts parse
         run: |
           bash -n deploy/bundle.sh deploy/setup-host.sh
           sh -n deploy/deploy.sh
+          sh -n deploy/api-up.sh
 
   next:
     needs: check
