@@ -100,8 +100,9 @@
   --glass-solid-ink: var(--navy);                 /* and what is written on it */
   --pill-h: 44px;   /* every pill at the bottom, border included: the nav pill's wings, the library's Back, the studio's pages; never another height */
   --side-w: 236px;  /* the library's two sides, the list and the card, one width */
-  --edge: 14px;     /* every game screen keeps its overlays this far from the window's edge */
-  --edge-b: 18px;   /* and from the bottom, where the pill is */
+  --edge: max(14px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));   /* every game screen keeps its overlays this far from the window's edge, and out of a phone's notch */
+  --edge-t: calc(14px + env(safe-area-inset-top, 0px));      /* and from the top, under a phone's status bar (the picture goes on behind it: viewport-fit=cover) */
+  --edge-b: calc(18px + env(safe-area-inset-bottom, 0px));   /* and from the bottom, where the pill is, above a phone's home bar */
   /* the words on glass: always light, no shadow */
   --glass-font: var(--sans);
   --on-glass: #ffffff;                            /* titles and names, values */
@@ -166,9 +167,9 @@ body.framed .os-bar.bottom { bottom: 96px; }                          /* inside 
 
 /* every game screen, one layout: top left the list (or nothing), top centre the screen's nav (the lenses) or its hint,
    top right the card; bottom left Back, bottom centre the pill, bottom right the readout */
-.os-top { position: fixed; left: 50%; top: var(--edge); transform: translateX(-50%); z-index: 6; max-width: calc(100vw - 2 * var(--side-w) - 4 * var(--edge)); }
-.os-hint { position: fixed; left: 50%; top: calc(var(--edge) + 8px); transform: translateX(-50%); z-index: 2; white-space: nowrap; pointer-events: none; max-width: calc(100vw - 2 * var(--side-w) - 4 * var(--edge)); overflow: hidden; text-overflow: ellipsis; }
-.os-top + .os-hint { top: calc(var(--edge) + var(--pill-h) + 12px); }   /* under the nav, where there is one */
+.os-top { position: fixed; left: 50%; top: var(--edge-t); transform: translateX(-50%); z-index: 6; max-width: calc(100vw - 2 * var(--side-w) - 4 * var(--edge)); }
+.os-hint { position: fixed; left: 50%; top: calc(var(--edge-t) + 8px); transform: translateX(-50%); z-index: 2; white-space: nowrap; pointer-events: none; max-width: calc(100vw - 2 * var(--side-w) - 4 * var(--edge)); overflow: hidden; text-overflow: ellipsis; }
+.os-top + .os-hint { top: calc(var(--edge-t) + var(--pill-h) + 12px); }   /* under the nav, where there is one */
 /* the stat pill at the top centre: small figures about the view (the height, its band, a scale bar); more stats join it */
 .os-stat { display: flex; align-items: center; gap: 9px; height: 30px; box-sizing: border-box; padding: 0 13px; border-radius: 999px; font: 400 11px/1 var(--mono); color: var(--on-glass-2); white-space: nowrap; pointer-events: none; }
 .os-stat b { font: 500 11.5px/1 var(--mono); color: var(--on-glass); }
@@ -176,7 +177,7 @@ body.framed .os-bar.bottom { bottom: 96px; }                          /* inside 
 .os-stat:empty { display: none; }
 /* the clock, top right: the hour, a slider, Auto (intent 0007); a card there moves under it */
 /* the top centre: the page's own nav (.os-top) and the weather pill in one row; the weather opens into a card under it */
-.os-topbar { position: fixed; left: 50%; top: var(--edge); transform: translateX(-50%); z-index: 7; display: flex; align-items: stretch; gap: 8px; }   /* the weather pill as tall as the nav beside it */
+.os-topbar { position: fixed; left: 50%; top: var(--edge-t); transform: translateX(-50%); z-index: 7; display: flex; align-items: stretch; gap: 8px; }   /* the weather pill as tall as the nav beside it */
 .os-topbar > .os-top { position: static; transform: none; }
 .os-weather { position: relative; display: flex; }
 .os-weather-pill { display: flex; align-items: center; gap: 8px; min-height: 30px; box-sizing: border-box; padding: 0 12px 0 13px; border-radius: 999px; border: 0; cursor: pointer; font: 500 11.5px/1 var(--mono); color: var(--on-glass); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -192,14 +193,14 @@ body.framed .os-bar.bottom { bottom: 96px; }                          /* inside 
 .os-weather-row b { font: 500 13px/1 var(--mono); color: var(--on-glass); font-variant-numeric: tabular-nums; }
 .os-weather-row input { min-width: 0; accent-color: var(--sun); }
 .os-weather-row .g-btn { height: 28px; padding: 0 11px; }
-body.has-weather .os-hint { top: calc(var(--edge) + var(--pill-h) + 12px); }
+body.has-weather .os-hint { top: calc(var(--edge-t) + var(--pill-h) + 12px); }
 @media (max-width: 700px) { .os-weather-card { width: min(300px, calc(100vw - 2 * var(--edge))); right: 50%; transform: translateX(50%); } }
 /* the joystick on touch screens, bottom left above the bottom line (camera/touch.js has its size) */
 .os-stick { position: fixed; z-index: 7; border-radius: 50%; display: grid; place-items: center; touch-action: none; }
 .os-stick i { border-radius: 50%; background: var(--glass-solid); box-shadow: 0 4px 14px rgba(12, 24, 38, .25); transition: transform .06s; }
 body.embed .os-stick { display: none; }
 @media (max-width: 1100px) { #hud { display: none; } }   /* on a phone or tablet the developer's readout would cover the pill */   /* as a picture: none; inside the dashboard it is the game, so it stays */
-.os-stat + .os-hint { top: calc(var(--edge) + 30px + 10px); }
+.os-stat + .os-hint { top: calc(var(--edge-t) + 30px + 10px); }
 /* the readout: small, out of the way */
 #hud { position: fixed; right: var(--edge); bottom: var(--edge-b); top: auto; left: auto; z-index: 5; padding: 10px 14px; border-radius: 18px; white-space: pre; pointer-events: none; font: 400 10.5px/1.55 var(--mono); color: var(--on-glass-2); }
 

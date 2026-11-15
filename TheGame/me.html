@@ -2,7 +2,7 @@
 <html lang="en" class="os-loading">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Maia City · your person</title>
 <link rel="icon" href="/brand/MaiaCity.svg">
 <link rel="stylesheet" href="/brand/brand.css">
@@ -16,7 +16,7 @@
   #msg{display:none}
   #hud{display:none!important}
   #orbit{position:fixed;inset:0;z-index:1;cursor:grab;touch-action:none}#orbit:active{cursor:grabbing}
-  .side{position:fixed;top:calc(var(--edge) + 46px);right:var(--edge);z-index:3;max-height:calc(100vh - 160px);overflow:auto;color:var(--forest)}   /* under the account's pill; its parts: brand.css (.g-card) */
+  .side{position:fixed;top:calc(var(--edge-t) + 46px);right:var(--edge);z-index:3;max-height:calc(100dvh - 160px - var(--edge-t) - var(--edge-b));overflow:auto;color:var(--forest)}   /* under the account's pill; its parts: brand.css (.g-card) */
   body.framed .side{top:132px}
   .row{display:flex;align-items:center;gap:8px;margin-top:7px;font:500 12.5px/1 var(--glass-font)}
   .row b{flex:1;font-variant-numeric:tabular-nums;font-weight:550;color:var(--on-glass)}

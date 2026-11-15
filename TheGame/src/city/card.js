@@ -12,7 +12,7 @@ export function createCard({ city, open, citizens, stateOf, openPlot, close }) {
   el.className = 'city-card glass'; el.hidden = true; el.setAttribute('aria-label', 'Village');
   document.body.append(el);
   const style = document.createElement('style');
-  style.textContent = `.city-card{position:fixed;left:var(--edge);top:calc(var(--edge) + 48px);z-index:7;width:272px;box-sizing:border-box;padding:16px 16px 14px;border-radius:var(--radius,22px);display:grid;gap:13px;max-height:calc(100vh - 2 * var(--edge) - 120px);overflow:auto}
+  style.textContent = `.city-card{position:fixed;left:var(--edge);top:calc(var(--edge-t) + 48px);z-index:7;width:272px;box-sizing:border-box;padding:16px 16px 14px;border-radius:var(--radius,22px);display:grid;gap:13px;max-height:calc(100vh - 2 * var(--edge) - 120px);overflow:auto}
   .city-card[hidden]{display:none}
   .city-card header{display:grid;grid-template-columns:1fr auto;align-items:start;gap:8px}
   .city-card header .g-title{margin-top:7px}

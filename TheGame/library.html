@@ -2,7 +2,7 @@
 <html lang="en" class="os-loading">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Maia City · library</title>
 <link rel="icon" href="/brand/MaiaCity.svg">
 <link rel="stylesheet" href="/brand/brand.css">
@@ -16,7 +16,7 @@
   #hud{display:none!important}
   #orbit{position:fixed;inset:0;z-index:1;cursor:grab;touch-action:none}#orbit:active{cursor:grabbing}
   /* the glass of every side, card and button: brand.css (.glass) */
-  #list{position:fixed;left:var(--edge);top:var(--edge);z-index:3;display:flex;flex-direction:column;gap:6px;width:var(--side-w);max-height:calc(100vh - 90px);overflow:auto}
+  #list{position:fixed;left:var(--edge);top:var(--edge-t);z-index:3;display:flex;flex-direction:column;gap:6px;width:var(--side-w);max-height:calc(100dvh - 90px - var(--edge-t) - var(--edge-b));overflow:auto}
   .item{position:relative;display:flex;align-items:center;gap:10px;width:100%;min-height:50px;color:var(--forest);text-align:left;padding:6px 12px 6px 7px;border-radius:18px;cursor:pointer;font:inherit}
   .item:hover{background:var(--glass-hover)}
   .item.on{background:var(--glass-on)}
@@ -41,7 +41,7 @@
   .group{font:600 10.5px/1 var(--glass-font);letter-spacing:.16em;text-transform:uppercase;color:var(--on-glass-3);text-shadow:0 1px 3px rgba(0,0,0,.45);margin:6px 0 4px 10px}
   .item canvas{width:36px;height:36px;flex:none;filter:drop-shadow(0 2px 3px rgba(12,28,22,.25))}
   .item .g-sub{text-transform:capitalize}.item span{min-width:0;flex:1}
-  .side{position:fixed;top:var(--edge);right:var(--edge);z-index:3;max-height:calc(100vh - 110px);overflow:auto;color:var(--forest)}   /* its width, padding and parts: brand.css (.g-card) */
+  .side{position:fixed;top:var(--edge-t);right:var(--edge);z-index:3;max-height:calc(100dvh - 110px - var(--edge-t) - var(--edge-b));overflow:auto;color:var(--forest)}   /* its width, padding and parts: brand.css (.g-card) */
   /* the words on the sides and cards: brand.css (.g-label, .g-title, .g-text, .g-fig, .g-cell, .g-chip, .g-file) */
   .seed{display:flex;align-items:center;gap:8px;font:500 12.5px/1 var(--glass-font)}.seed b{font-variant-numeric:tabular-nums;font-weight:550;color:var(--on-glass);flex:1}
     @media (max-width:760px){.side.right{display:none}#list{width:170px}}
