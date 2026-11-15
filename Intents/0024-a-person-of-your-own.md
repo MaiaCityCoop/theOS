@@ -174,3 +174,5 @@ Asked outright, with no surprise in the definition, so built straight away.
 | 2026-11-15 | `7e8e049` | "Already one? Sign in again" for a traveler; the changelog of the deploy and the purchase |
 | 2026-11-15 | `20ca12e` | The role from aven.id's roles back channel, asked again on coming back; the button replaced |
 | 2026-11-15 | `2b21fce` | Only aven.id's `unknown_account` ends sessions, not any 404 |
+| 2026-11-15 | `221fc4b` | Bald among the hair; the changelog of the deploy to next |
+| 2026-11-15 | `e6bd216` | A change to `compose.yml` or `maia-api-up` needs the host setup again |
