@@ -42,6 +42,7 @@ import { useBackend } from './world/light.js';
 import { useTiles } from './world/tile.js';
 import { createShadows } from './world/shadow.js';
 import { useGround } from './world/rocksolid.js';
+import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
 import { createBiomeSlots } from './world/slots.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
@@ -70,6 +71,7 @@ addEventListener('resize', () => {   // only a real change of size rebuilds the 
 });
 
 const stats = (window.__game = { renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 } });
+const bounds = params.has('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
 const U = createUniforms(camera, SKY);
 trackView(); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
 // The one way to the screen, for every view (src/core/screen.js): the world drawn at the inside's pixels (the governor's
@@ -145,6 +147,7 @@ function choose(dt) {
   terrain.update(camera, dy, 1 / lod);
   u = performance.now(); parts.terrain = u - t; t = u;
   scatter.select(p.x, p.z, heightAt(p.x, p.z), lod, dy);
+  bounds?.(p.x, p.z);
   parts.scatter = performance.now() - t;
 }
 function draw() {

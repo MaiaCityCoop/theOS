@@ -9,10 +9,10 @@ import { sinkInto } from '../detail/handover.js';
 import { vnoise } from './noise.nodes.js';
 import { layerOf, wrap } from './tile.js';
 import { heightAt } from './land.js';
-import { addSolid } from './solids.js';
+import { addBody } from './bodies.js';
 import { detailOf, Detailed, most } from '../detail/index.js';
 import { impostorOf } from '../detail/impostor.js';
-import { geometryOf, solidOf, snowOf } from '../../assets/index.js';
+import { geometryOf, bodyOfAsset, snowOf } from '../../assets/index.js';
 import { kindOf } from '../../assets/kinds.js';
 import { lightFire, fireLight } from './fire.js';
 
@@ -95,6 +95,10 @@ export function place(scene, asset, at) {
   const lod = new Detailed(asset, meshes);
   lod.position.set(at.x, heightAt(at.x, at.z) - 0.03, at.z); lod.rotation.y = at.yaw || 0; lod.name = asset.name;
   scene.add(lod);
-  if (at.solid !== false) addSolid(solidOf(asset), at);   // the walker and the camera cannot pass it
+  // the walker and the camera cannot pass it: its body (its own solid block, else its kind's from its size) in the one
+  // collision engine of every world (src/world/bodies.js). Its turn is three's about y, the other way round from the
+  // engine's (a body's yaw is what the GPU turns what it draws by)
+  const body = at.solid === false ? null : bodyOfAsset(asset);
+  if (body && (body.shapes.length || body.ceiling)) addBody({ id: `placed:${asset.uid}:${at.x}:${at.z}`, x: at.x, z: at.z, y: lod.position.y, up: -0.03, yaw: -(at.yaw || 0), s: 1, kind: asset.uid, body });
   return lod;
 }

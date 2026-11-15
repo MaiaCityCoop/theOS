@@ -40,17 +40,17 @@ import { geometryOf, scatterRow } from '../../assets/index.js';
 import { kindOf } from '../../assets/kinds.js';
 import { pxK, sizeOf, most } from '../detail/index.js';
 import { levelOf, handOver, partGrown, sinkInto } from '../detail/handover.js';
-import { offScreen, clipOf, MAXP } from './tier.js';
+import { offScreen, clipOf, MAXP, Tier } from './tier.js';
 import { createDrawer } from './drawer.js';
 import { heapRow, sinceCame } from './heap.js';
 import { plantOf } from './plantvert.js';
-import { placedBy } from '../../assets/zoo/index.js';
+import { placedBy, bodyOf } from '../../assets/zoo/index.js';
 import { inView } from './view.js';
-import { setTrunks } from '../world/trunks.js';
-import { wayAt } from '../world/ways.js';
+import { addBodies, bodyGrid, topOf, wanted } from '../world/bodies.js';
+import { wayAt, waysVersion } from '../world/ways.js';
 
 const PXK = uniform(pxK()); addEventListener('resize', () => (PXK.value = pxK()));
-const GROW = 1.5, SLOTS = 6;   // GROW: seconds a finest level that has just come takes to grow out of the next (its sprigs one after another); SLOTS: of how many shapes a stand holds the finest meshes at once
+const GROW = 1.5, SLOTS = 6, FOOT = 0.15;   // GROW: seconds a finest level that has just come takes to grow out of the next (its sprigs one after another); SLOTS: of how many shapes a stand holds the finest meshes at once; FOOT: how deep a plant's foot is set into the ground
 
 // 1 where a tree may stand, 0 within what stands at a place (its clearing) or on the library's stage
 const clearAt = (p) => {
@@ -82,7 +82,7 @@ function plantIn(c, G, band, all, seen, found) {
   const { ST, biome, kinds } = G, cx = c.x, cy = c.y, K = ST.seed - 300, h0 = (k) => uint(k + K);   // the stand's seed moves every hash: another seed, another stand (a kind's own seed is its shapes')
   const which = float(0).toVar();   // which of the stand's shapes it is (a kind's first, and of its shapes one)
   const pos = vec2(c).add(0.08).add(vec2(rnd(cx, cy, h0(302)), rnd(cx, cy, h0(303))).mul(0.84)).mul(ST.cell), dist = camDist(pos);
-  const range = all ? length(pos.sub(U.uCam.xz)) : dist;   // the shadow's stand-in: metres round the camera, whatever the lens
+  const range = all ? length(pos.sub(band.at ?? U.uCam.xz)) : dist;   // the shadow's stand-in: metres round the camera, whatever the lens (what is solid: round where it is asked for, band.at)
   const there = range.lessThan(band.far).and(range.greaterThanEqual(band.near));
   If(seen ? there.and(inView(pos, seen.r, seen.high)) : there, () => {   // (seen.r: a uniform, its level's)   // (and in the eye's view: not the shadow's stand-in, whose shade may fall into it)
    // which kind this cell is, one answer for the whole stand: a slow noise (a kind leads here, another there) and the
@@ -134,7 +134,7 @@ function plantIn(c, G, band, all, seen, found) {
         // so its levels change at the same distances for all (not bush by bush at every depth at once)
         const size = ST.size ? float(ST.size) : across, way = wayAt(pos, out.add(0.5));
         const stands = () => found(uint(which), size, dist, (A, B) => {
-          A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(0.15), s));
+          A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(FOOT), s));
           B.assign(vec4(rnd(cx, cy, h0(305)).mul(6.2831853), rnd(cx, cy, h0(306)).mul(6.2831853), which.add(rnd(cx, cy, h0(307)).mul(0.999)), size));
         });
         // (and nothing of it reaches over a way: what moves there, on the ground or over it, meets no plant. src/world/ways.js;
@@ -347,6 +347,10 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
       zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 2|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
     });
     drawers.push(D);
+    // what of it is solid (src/world/bodies.js): every plant of the stand round the walker, whatever its kind and size
+    // (standBodies); a stand none of whose plants can stop a walker (what lies lower than his shin, leaves lower than
+    // his knee) packs none
+    if (G.kinds.some((Kd) => Array.from({ length: Kd.shapes }, (_, v) => bodyOf(KINDS[Kd.offset + v])).some((B) => B.shapes.some((S) => topOf(S) * Kd.asset.placement.scale[1] - FOOT > (S.pass ? 0.55 : 0.3))))) solids.push(standBodies(G, KINDS, ground, renderer));
     // a tier: its cells worked out once for every kind in it, each plant that is of its level packed into its shape's
     // draw. g: the group it packs (the stand's, or of its kinds those that cast)
     const tier = (i, g, shadow = false) => {
@@ -367,26 +371,18 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     if (SHL >= 0) {
       // the stand-in: every casting tree round the camera, its shade drawn for the light only
       const t = tier(SHL, { ...G, kinds: casting }, true);
-      // … and its trees are the ones the walker bumps into (trunk: each shape's, where it stands at a walker's chest,
-      // and its radius, at scale 1): the stand-in's packing read back each time it is packed anew
-      const trunks = new Array(G.meshes).fill(null); for (const Kd of casting) for (let v = 0; v < Kd.shapes; v++) trunks[Kd.offset + v] = Kd.asset.trunk?.[v] ?? null;
-      // (and, where the stand has a finest level, they are the plants whose finest meshes are asked for as they come near)
+      // … and, where the stand has a finest level, its plants are those whose finest meshes are asked for as they come
+      // near: the stand-in's packing read back each time it is packed anew
       let near = [];
-      if (trunks.some(Boolean) || FINE) {
+      if (FINE) {
         let busy = false, was = '';
         solids.push((renderer) => {
           if (busy || t.key === was) return;
           busy = true; was = t.key;
           t.read(renderer).then((buckets) => {
-            const out = [], seen = [];
-            for (const { count, data: [A, B] } of buckets) for (let i = 0; i < count; i++) {
-              const k = i * 4, kind = Math.floor(B[k + 2]), T = trunks[kind];
-              seen.push({ x: A[k], z: A[k + 1], kind, size: B[k + 3] });
-              if (!T) continue;
-              const [u, w, r] = T, s = A[k + 3], c = Math.cos(B[k]), n = Math.sin(B[k]);
-              out.push({ x: A[k] + (u * c - w * n) * s, z: A[k + 1] + (u * n + w * c) * s, r: r * s });   // turned as the tree is (its shape())
-            }
-            near = seen; setTrunks(G.key, out);
+            const seen = [];
+            for (const { count, data: [A, B] } of buckets) for (let i = 0; i < count; i++) { const k = i * 4; seen.push({ x: A[k], z: A[k + 1], kind: Math.floor(B[k + 2]), size: B[k + 3] }); }
+            near = seen;
           }).catch(() => {}).finally(() => (busy = false));
         });
       }
@@ -407,11 +403,51 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     }
   }
   addEventListener('resize', () => tiers.forEach((t) => t.band()));
-  // each frame: the stands' meshes until they are in (read back from the browser, or made by the workers); the trunks
+  // each frame: the stands' meshes until they are in (read back from the browser, or made by the workers); what is solid
   tiers.solid = (renderer) => { for (const D of drawers) D.start(); for (const f of solids) f(renderer); };
   // for looking at it (window.__plants): how many plants each tier packs now, what the heaps hold
   window.__plants = { drawers, tiers, async counts() { const out = []; for (const t of tiers) { const B = await t.read(renderer); out.push(`${t.asset} ${t.level}: ${B.reduce((x, b) => x + b.count, 0)}`); } return { tiers: out, held: drawers.map((D) => D.H.held().join(',')), coarseMs: drawers.map((D) => D.stats.coarseMs), kept: drawers.map((D) => D.stats.kept) }; } };
   return tiers;
+}
+
+// What of a stand is solid (intent 0027): its plants round the walker as bodies of the one collision engine. A packing
+// of its own, round where bodies are asked for (the walker, src/world/bodies.js wanted; else the camera) whatever the
+// lens looks at, of every kind of the stand and every size, by the stand's own reckoning (plantIn: what is drawn is what
+// stops), drawn by nothing; read back to the CPU each time it is packed anew (two metres on), each plant then its kind's
+// body (its family's colliders: assets/kit/plant.js, by its kind's rule: a tree its trunk, a shrub its leaves), kept by
+// the cells it stands in. Its packing is compiled aside (it holds up neither the start nor a frame) and packs from when it
+// is ready. Without WebGPU nothing of a stand is drawn, and nothing of it is solid.
+const REACH = 24;   // metres round the walker within which a stand's plants are bodies
+const NOWHERE = { add() {} };   // (the packing's mesh is in no scene: it draws nothing)
+function standBodies(G, KINDS, ground, renderer) {
+  const { ST } = G, P = Math.max(1, Math.round(12 / ST.cell)), n = Math.ceil((2 * REACH) / (ST.cell * P)) + 2, at = uniform(new THREE.Vector2()), band = { near: uniform(-1), far: uniform(REACH), at };
+  const live = (c) => {
+    const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar();
+    plantIn(c, G, band, true, null, (which, size, dist, fill) => { fill(A, B); alive.assign(1); });
+    return { alive: alive.greaterThan(0.5), data: [A, B] };
+  };
+  const g = new THREE.BufferGeometry(); g.setIndex([0, 0, 0]); g.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+  const T = new Tier(NOWHERE, g, () => new THREE.NodeMaterial(), { cell: ST.cell, P, near: 0, far: REACH, live, gpu: true, cap: Math.min(65536, n * n * P * P), slots: 2, cull: false, fixed: REACH });
+  T.step = 2;
+  const grid = bodyGrid(Math.max(4, ST.cell)), tag = G.key.slice(0, 48);
+  addBodies(grid.near);
+  let busy = false, was = '', warned = false, ready = false;
+  renderer.compileComputeAsync(T.passes).catch(() => {}).finally(() => (ready = true));
+  return (renderer) => {
+    if (!ready) return;
+    const cam = U.uCam.value, walker = performance.now() - wanted.at < 1000, x = walker ? wanted.x : cam.x, z = walker ? wanted.z : cam.z, v = (u) => u.value.toArray?.().join(',') ?? u.value;
+    at.value.set(x, z); T.select(x, z, 0, 1, 0);   // (round a point on the ground, whatever the camera's height)
+    T.run(renderer, `${ground.version}|${v(U.uSand)}|${v(U.uStage)}|${waysVersion()}`, x, 0, z);
+    if (busy || !T.key || T.key === was) return;
+    busy = true; was = T.key;
+    T.read(renderer).then(([{ count, data: [A, B] }]) => {
+      grid.clear();
+      for (let i = 0; i < count; i++) {
+        const k = i * 4, kind = KINDS[Math.floor(B[k + 2])], body = bodyOf(kind);
+        if (body.shapes.length) grid.put({ id: `${tag}:${Math.round(A[k] * 8)}:${Math.round(A[k + 1] * 8)}`, x: A[k], z: A[k + 1], y: A[k + 2], up: -FOOT, yaw: B[k], s: A[k + 3], kind, body });
+      }
+    }).catch((e) => { was = ''; if (!warned) { warned = true; console.warn(`plants: what stands round the walker could not be read back (${G.name}): it is not solid`, e); } }).finally(() => (busy = false));
+  };
 }
 
 /** One plant on its own, in the stands' material (its bark, its leaves, its wind), for the asset library's stage and

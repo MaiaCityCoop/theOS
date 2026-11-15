@@ -48,6 +48,7 @@ import { Tier, offScreen, clipOf } from './tier.js';
 import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective, cornersOf, shapedOf } from './heap.js';
 import { ballCorners } from '../../assets/kit/blob.js';
 import { solidOf } from './solid.js';
+import { GHOST as GHOSTING } from '../world/bodies.js';   // (`?ghost`: the walker passes through everything, in every world, and what he is inside draws back from his eye)
 import { LADDER, FULLN, DOTN, roomOf, underOf, trisOf, vertsOf } from '../../assets/kit/ladder.js';
 import { dotMesh, BONES } from '../../assets/kit/solid.js';
 import { MODELS, modelOf } from '../shading/index.js';
@@ -73,7 +74,7 @@ const pool = () => (POOL ||= (() => {
     skins, ground, soft, relief: what its kinds may be (above); full: the most squares an edge a full mesh of its kinds
     has (none: the ladder's most: a slot of the heap is as large as that); zoo: its kinds ({ first (the zoo's number
     of its first kind), ALL, STAND, MOVING, lookOfKind (of its k-th kind), fingerprint }: assets/zoo). */
-export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHADE, SMOOTH, PXK, ghost: GHOST = false, corners: CORNERS = false, skins: SKINSMAX = 1024, ground: GROUND = false, soft: SOFT = false, relief: RELIEF = 90, full: FULLMOST = 0, make: MAKE = null, zoo: { first = 0, kinds: KINDS = null, ALL, STAND = ALL, MOVING = 0, lookOfKind, fingerprint } }) {
+export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHADE, SMOOTH, PXK, ghost: GHOST = GHOSTING, corners: CORNERS = false, skins: SKINSMAX = 1024, ground: GROUND = false, soft: SOFT = false, relief: RELIEF = 90, full: FULLMOST = 0, make: MAKE = null, zoo: { first = 0, kinds: KINDS = null, ALL, STAND = ALL, MOVING = 0, lookOfKind, fingerprint } }) {
   // MAKE: another make of vertex than the solids' ({ per: elements a vertex, byKind: a draw a kind, material(src,
   // level, shadow): its material }): no looks, no textures of its own, no dot.
   // KINDS: the zoo's numbers of its kinds, where they are not one after another from `first`

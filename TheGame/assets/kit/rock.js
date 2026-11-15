@@ -16,7 +16,7 @@
 import { LADDER, FULLN, DOTN, underOf } from './ladder.js';
 import { ball, ballMesh, hash3, noise3, SWELL } from './blob.js';
 import { dotMesh } from './solid.js';
-import { kindOf } from '../kinds.js';
+import { kindOf, kindRule, shapesOf } from '../kinds.js';
 
 /** squares along an edge of a rock's full mesh (12 n² triangles) */
 export const FULL_ROCK = 96;
@@ -67,7 +67,7 @@ function measure(S) {
   const span = Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]), mx = (lo[0] + hi[0]) / 2, mz = (lo[2] + hi[2]) / 2; let rad = 0;
   for (let v = 0; v < F.V; v++) rad = Math.max(rad, Math.hypot(F.pos[v * 3] - mx, F.pos[v * 3 + 2] - mz));
   S.box = { x: mx, y: lo[1], z: mz, k: 1 / span };
-  S.body = { span, sunk: (BURIED - lo[1]) / span, rad, top: hi[1] - BURIED };
+  S.body = { span, sunk: (BURIED - lo[1]) / span, rad, top: hi[1] - BURIED, frame: { min: [(lo[0] - mx) / span, 0, (lo[2] - mz) / span], max: [(hi[0] - mx) / span, (hi[1] - lo[1]) / span, (hi[2] - mz) / span] } };   // (frame: its box in the frame it is drawn in)
   return S;
 }
 // shape S's surface at level n in its own frame: what ball() asks (out: the point; returns its shade: darker where it
@@ -89,7 +89,8 @@ export function rockMesh(asset, v, l) {
   return ballMesh((q) => rockAt(S, q), n === FULLN ? FULL_ROCK : n, underOf(l), LADDER[l].delta);
 }
 /** What who places shape v must know, for a rock of size 1: { span (its largest side), sunk (how much of that lies
-    under the ground), rad (how far it reaches from its middle, level), top (how high it stands over the ground) }. */
+    under the ground), rad (how far it reaches from its middle, level), top (how high it stands over the ground),
+    frame (its box in the frame it is drawn in: its foot at 0, its largest side 1) }. */
 export const rockBody = (asset, v) => measure(shapeOf(asset, v)).body;
 
 /** A rock asset's shapes as a family of the zoo (assets/zoo/index.js): `id` its name there. The engine that places
@@ -103,4 +104,8 @@ export const rockFamily = (id, asset) => ({
     return { model: 'glossy', mean: L.tint ?? [1, 1, 1], c2: [0, 0, 0], material: L.material ?? null, cover: L.moss ?? 1, bump: L.relief ?? 1.1, relief: 0, scale: asset.placement.texture ?? 2, gloss: 0.2, sway: 0, snow: kindOf(asset, 'snow')?.clumps ?? 0.05, glow: 0, through: 0, size: B.span, sunk: B.sunk };
   },
   fullTris: () => 12 * FULL_ROCK * FULL_ROCK,
+  // what of it is solid, and its box (src/world/bodies.js), in the frame it is drawn in: its kind's rule (assets/kinds.js:
+  // a rock its round, a little inside its outline (it lies half buried, and stops you where you see it), up to its top)
+  boundsOf: (i) => rockBody(asset, i).frame,
+  collidersOf: (i) => { const B = rockBody(asset, i), F = B.frame; return shapesOf(kindRule(asset, 'solid'), { height: F.max[1], length: F.max[0] - F.min[0], width: F.max[2] - F.min[2], round: { r: (B.rad / B.span) * 0.7, top: F.max[1] } }); },
 });
