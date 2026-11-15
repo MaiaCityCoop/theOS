@@ -84,6 +84,7 @@ export class Tier {
       patch (what stands thins with distance: a step that small is not seen). Standing still, the packing is kept. */
   run(renderer, world = '', cx = 0, cy = 0, cz = 0, view = '') {
     if (!this.passes) return;
+    if (!this.n && this.empty) return;   // (nothing chosen, and nothing left packed from before: no pass to make it nought again)
     const q = this.step || Math.max(0.25, this.S / 16), { list, n } = this;   // (step: a tier that says itself how far the camera may move before it packs again)
     // (its patches read into two numbers, not written out one by one: a string of hundreds of them a tier a frame was
     // a megabyte of litter every few frames for the browser to sweep up)
@@ -95,7 +96,7 @@ export class Tier {
     if (key === this.key) return;
     this.key = key;
     const N = n * this.P * this.P; this.cand.value = N; this.passes[1].dispatchSize = Math.max(1, N);
-    renderer.compute(this.passes); did('packs'); did('kcells', Math.round(N / 1000));
+    renderer.compute(this.passes); did('packs'); did('kcells', Math.round(N / 1000)); this.empty = !n;
   }
   /** On WebGPU: what the last packing holds, read back to the CPU a moment later (a promise of { count, data: the first
       slots' vec4s as floats, one array a slot } a bucket), for what the CPU must know of where things stand (src/scatter/trees.js:

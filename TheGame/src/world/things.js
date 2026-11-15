@@ -16,10 +16,10 @@
 //   things.set(id, { gone, grow, tint, wear })   (merged with what it was; as it was again: cleared)
 //   things.get(id), things.clear(id), things.all(), things.pick([from, dir]) -> the id the eye looks at, or null
 // Kept in the page only: saving it, and sharing it between people, is the API's (not yet).
-import { uint, float, vec3, uniform, If } from 'three/tsl';
+import { uint, float, vec3, uniform, If, Loop, Break } from 'three/tsl';
 import { gpuStorage } from '../core/gpu.js';
 
-const BITS = 18, CAP = 1 << BITS, MASK = CAP - 1, PROBE = 8, MOST = CAP * 0.6;   // the table: 2^18 entries of 16 bytes (4 MB); a key is found within PROBE steps; MOST: the most entries it holds
+const BITS = 18, CAP = 1 << BITS, MASK = CAP - 1, PROBE = 32, MOST = CAP * 0.6;   // the table: 2^18 entries of 16 bytes (4 MB); a key lies within PROBE steps of its own place (a look-up stops at the first empty one: one or two steps, mostly); MOST: the most entries it holds
 
 /** A placer's name as a number (what its things' keys are woven with). */
 export const nameKey = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193); return h >>> 0; };
@@ -60,7 +60,7 @@ export const things = {
     const key = was?.key ?? keyOf(o.placer, o.a, o.b);
     if (!was && byId.size >= MOST) { console.warn(`things: the store holds ${MOST} changed things; '${id}' is not changed`); return false; }
     byId.set(id, { key, S });
-    if (!putIn(key, S)) { remake(); if (slotOf(key, false) < 0) console.warn(`things: no room for '${id}' on the GPU`); }
+    if (!putIn(key, S)) console.warn(`things: no room for '${id}' on the GPU (its ${PROBE} places taken)`);
     COUNT.value = byId.size; version++; return true;
   },
   get: (id) => byId.get(id)?.S ?? null,
@@ -93,7 +93,11 @@ export const stateAt = (key) => {
   gpu ||= gpuStorage('uvec4', CAP, 'things: what was done to single things');
   const T = gpu.node, y = uint(0).toVar(), w = uint(0).toVar(), found = uint(0).toVar();
   If(COUNT.greaterThan(uint(0)), () => {
-    for (let p = 0; p < PROBE; p++) { const e = T.element(key.add(uint(p)).bitAnd(uint(MASK))); If(e.x.equal(key), () => { found.assign(1); y.assign(e.y); w.assign(e.w); }); }
+    Loop(PROBE, ({ i }) => {
+      const e = T.element(key.add(uint(i)).bitAnd(uint(MASK))).toVar();
+      If(e.x.equal(key), () => { found.assign(1); y.assign(e.y); w.assign(e.w); Break(); });
+      If(e.x.equal(uint(0)), () => { Break(); });   // (an empty place: the key is not in the table)
+    });
   });
   const c = (s) => { const v = float(y.shiftRight(uint(s)).bitAnd(uint(255))).div(255); return v.mul(v).mul(2); }, is = found.equal(uint(1));
   return { gone: is.and(w.bitAnd(uint(1)).equal(uint(1))), grow: is.select(float(w.shiftRight(uint(16))).div(4096), float(1)), tint: is.select(vec3(c(0), c(8), c(16)), vec3(1)), wear: is.select(float(y.shiftRight(uint(24))).div(255), float(0)) };
