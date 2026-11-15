@@ -135,9 +135,12 @@ function rockShade(tex, row, s, eye = U.uCam) {
   return finish(col, s.world, eye);
 }
 const GEOS = new Map();
-// shape v of an asset at a level of the ladder, as a plain geometry (in its own frame: its foot at 0, its largest side 1)
+// shape v of an asset at a level of the ladder, as a plain geometry (in its own frame: its foot at 0, its largest side 1);
+// from its seed, so another seed is another rock. The last few dozen kept (what stood on the stage is freed by the
+// library when it goes; one kept here is sent to the GPU again when it is shown again)
 function rockGeometry(asset, v, l) {
-  const key = `${asset.uid}:${v}:${l}`; let g = GEOS.get(key); if (g) return g;
+  const key = `${asset.uid}:${asset.placement.seed}:${v}:${l}`; let g = GEOS.get(key); if (g) return g;
+  if (GEOS.size >= 32) GEOS.delete(GEOS.keys().next().value);
   const m = rockMesh(asset, v, l), n = m.verts.length / 4, pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), shade = new Float32Array(n);
   for (let i = 0; i < n; i++) { const u = unpackSolid(m.verts, i * 4, 0); pos.set(u.p, i * 3); nor.set(u.n, i * 3); shade[i] = u.shade; }
   g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setAttribute('shade', new THREE.BufferAttribute(shade, 1)); g.setIndex(new THREE.BufferAttribute(m.index, 1));
@@ -152,19 +155,22 @@ export function rockSample(tex, row, level = 1, shape = 0) {
   const mesh = new THREE.Mesh(rockGeometry(row.asset, shape, Math.min(Math.max(level, 0), L - 2)), m); mesh.layers.enable(1); return mesh;
 }
 
+// what it reads of a rock's file, over the common row: where it lies (outcrops), its sizes, its look
+const rockRow = (a) => ({ ...scatterRow(a), outcrops: a.placement.outcrops, size: a.size.length, texture: a.placement.texture, shapes: a.placement.shapes, look: a.look });
 /** A scatter engine (src/scatter/index.js finds it): what an asset's placement.engine 'rocks' names. */
 export const engine = {
   id: 'rocks',
-  // what it reads of a rock's file, over the common row: where it lies (outcrops), its sizes, its look
-  row: (a) => ({ ...scatterRow(a), outcrops: a.placement.outcrops, size: a.size.length, texture: a.placement.texture, shapes: a.placement.shapes, look: a.look }),
+  row: rockRow,
   createAll: createRocks,
-  // the library: the largest of its kind for the list; on the stage a few, small to large, lying about the middle
+  // the library: the largest of its kind for the list; on the stage a few, small to large, lying about the middle, from
+  // another seed (its Random) other rocks of the same recipe
   thumb(tex, row) {
     const a = row.asset, s = most(a.size.length), B = rockBody(a, 0), side = s * B.span, m = rockSample(tex, row, 1, 0); m.scale.setScalar(side); m.position.y = -side * 0.4;
     return { things: [m], eye: [s * 2.1, s * 2.0, s * 3.3], look: [0, -s * 0.05, 0] };
   },
-  stage(tex, row, { x, z, heightAt: hAt, level = 0 }) {
-    const a = row.asset, [lo, hi] = a.size.length, g = new THREE.Group(), shapes = a.placement.shapes ?? 1;
+  stage(tex, row0, { x, z, heightAt: hAt, level = 0, seed = null }) {
+    const a0 = row0.asset, a = seed == null || seed === a0.placement.seed ? a0 : { ...a0, placement: { ...a0.placement, seed } }, row = a === a0 ? row0 : rockRow(a);
+    const [lo, hi] = a.size.length, g = new THREE.Group(), shapes = a.placement.shapes ?? 1;
     for (let i = 0; i < 7; i++) {
       const k = i / 6, s = lo + (hi - lo) * k ** 1.6, t = i * 2.4, rr = i ? (hi * 0.7 + 0.4) * Math.sqrt(i) * 0.55 : 0, B = rockBody(a, i % shapes), side = s * B.span;
       const m = rockSample(tex, row, level, i % shapes), X = x + Math.cos(t) * rr, Z = z + Math.sin(t) * rr;   // as the world lays it: so much of it in the ground

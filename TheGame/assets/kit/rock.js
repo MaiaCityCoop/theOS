@@ -27,10 +27,11 @@ export const BURIED = 0.22;
 const carry = (n, f) => Math.min(1, Math.max(0, (n / (3.14 * f) - 0.5) * 2));
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-// shape v of an asset: its numbers, from the asset's seed
+// shape v of an asset: its numbers, from the asset's seed (another seed, as the library's Random gives: another shape)
 const SHAPES = new Map();
 function shapeOf(asset, v) {
-  const key = `${asset.uid}:${v}`; let S = SHAPES.get(key); if (S) return S;
+  const key = `${asset.uid}:${asset.placement.seed}:${v}`; let S = SHAPES.get(key); if (S) return S;
+  if (SHAPES.size > 512) SHAPES.clear();   // (a library pressed for seed after seed keeps no more than a few hundred)
   const look = asset.look ?? {}, seed = asset.placement.seed + v * 7, h = (i) => hash3(i, 9, v, seed), cuts = [];
   for (let k = 0; k < Math.round(7 * (look.cuts ?? 1)); k++) {   // the faces it lost: each a plane, so far from its middle
     const x = hash3(k, 1, 0, seed) - 0.5, y = hash3(k, 2, 0, seed) - 0.5, z = hash3(k, 3, 0, seed) - 0.5, l = Math.hypot(x, y, z) || 1;

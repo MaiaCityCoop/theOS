@@ -36,9 +36,17 @@ export function geometryOf(asset, level = asset.detail.levels[0], shape = 0) {
   // (a plant's meshes are made when asked for, shape by shape: assets/kit/tree.js meshAt; only the library asks here)
   const made = !level.mesh && asset.meshAt ? asset.meshAt(level.i ?? Math.max(0, asset.detail.levels.indexOf(level)), shape) : null;
   if (level.mesh || made) {   // built as a mesh by its own file (a tree): every attribute it made, as it made them; of its shapes (meshes) the one asked
-    const g = new THREE.BufferGeometry(), size = { uv: 2, part: 1, ao: 1, hand: 2 }, M = made ?? level.meshes?.[shape] ?? level.mesh;
-    // (the kit hands typed arrays: taken as they are, not copied; a list of numbers is copied into one)
-    for (const [k, v] of Object.entries(M)) if (k !== 'index' && k !== 'body' && (Array.isArray(v) || ArrayBuffer.isView(v))) g.setAttribute(k, v instanceof Float32Array ? new THREE.BufferAttribute(v, size[k] ?? 3) : new THREE.Float32BufferAttribute(v, size[k] ?? 3));
+    const g = new THREE.BufferGeometry(), M = made ?? level.meshes?.[shape] ?? level.mesh, V = M.position.length / 3;
+    // (the kit hands typed arrays: taken as they are, not copied; a list of numbers is copied into one). Each attribute
+    // as long a run a vertex as its length says, never by a list kept here: the kit's `twig`, one number a vertex, was
+    // read as three when the list did not know it, its buffer a third too short for the mesh's corners, and WebGPU
+    // may drop such a draw whole: the library drew no tree and no shrub (intent 0025)
+    for (const [k, v] of Object.entries(M)) {
+      if (k === 'index' || k === 'body' || !(Array.isArray(v) || ArrayBuffer.isView(v))) continue;
+      const n = v.length / V;
+      if (!Number.isInteger(n) || n < 1 || n > 4) { console.warn(`${asset.name}: its mesh's '${k}' is ${v.length} numbers for ${V} corners: left out`); continue; }
+      g.setAttribute(k, v instanceof Float32Array ? new THREE.BufferAttribute(v, n) : new THREE.Float32BufferAttribute(v, n));
+    }
     if (M.index?.length) g.setIndex(ArrayBuffer.isView(M.index) ? new THREE.BufferAttribute(M.index, 1) : M.index);
     return g;
   }
