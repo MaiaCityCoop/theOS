@@ -76,6 +76,13 @@ Samuel asked for this directly and the definition holds no surprise, so it was b
 - **Good:** It is one place in brand.css, so every screen follows.
 - **Broke / not there yet:** Not seen on a real iPhone yet.
 
+### 2026-11-15, onto next
+
+- **Asked:** "Allow auto merge so the CI to next runs." next.maia.city deploys from main only, so checks 1 and 2 need the merge first.
+- **Delivered:** PR #6 marked ready for review and set to merge into main once CI passes. CI's `next` job then deploys main, when `AUTO_DEPLOY_NEXT` is on.
+- **Good:** CI `check` was green and the PR merged cleanly with main before this entry.
+- **Broke / not there yet:** Still not seen on a real iPhone. That is Samuel's check on next.
+
 ## Trail
 
 | When | Commit | What |
