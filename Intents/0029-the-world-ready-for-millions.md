@@ -1,7 +1,7 @@
 ---
 id: "0029"
 title: The world ready for millions
-state: build           # idea | define | build | propose | story | archived
+state: propose         # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-15
 story:
@@ -150,13 +150,61 @@ the drawer's dot, because a card baked for each kind does not scale to thousands
   plants', so their kinds are numbered two later (a rock pair's kind is 11020 here, 11018 on main). What the browser
   keeps of the rocks is filed under a fingerprint that holds those numbers, so their coarse meshes are made once more
   at the next start. The plants' kept meshes are filed by their recipes' versions and are read back as before.
+- **What the checks found, fixed on the way.**
+  - The store's GPU table gave some of 100 000 keys no place within eight steps, and made the whole table again for
+    each. A key now lies within 32 places, and a look-up stops at the first empty one (`8498e0c`).
+  - A tier with nothing to pack now makes no pass. The list's ten tiers had repacked nothing each time the view turned
+    (`8498e0c`).
+  - The store's copy of its table on the page is made with the first change, not at the start: 4 MB (`98800e9`).
+- **Merged with main's 0026** (the start twice as fast, `906f816`). Its `scatter.compile()` compiles every tier's packing
+  passes side by side before the first packing; the list's tiers are among them. The named places are stood in the
+  list after it.
 - **Ids are said, not kept.** A place is 37 bytes on the page. Its id (`placed:<asset>:<x>:<z>`) and its thing's
   (`placed:<cx>:<cz>`, its spot to the centimetre) are made when asked, and taking a place out finds it by its spot
   in the list's order. Keeping a string and a map entry per place was about 150 MB at a million.
 
 ## Propose
 
-_Filled when everything is built. Then stop: the human decides._
+**Delivered** (draft PR #14, https://github.com/MaiaCityCoop/theOS/pull/14, branch `fix/generic-collision-all-worlds`, merged with main 5bf670c):
+
+- **What stands at a spot of its own is one list, drawn by the one drawer** (`src/scatter/placed.js`). The tent and
+  the fire pit stand in it; a city's buildings will.
+  - A made thing is a kind of the heap at its own levels (`assets/kit/made.js`, `assets/zoo/made.js`).
+  - It keeps its own look.
+  - Its far end is the drawer's dot.
+  - `?many=N` stands N more.
+- **A thing's own state** (`src/world/things.js`): gone and grow for every placer; tint and wear for the made things.
+  `things.pick()` names what the eye looks at.
+- **A thing's own seed**: its kind's textures move on it, and every shading model gets `c.seed`.
+- A tier's rows for a thing lie in one buffer. A tier with nothing to pack makes no pass.
+
+**Checks, as they were.** The final round ran the merged head against main 5bf670c: Chromium, WebGPU on SwiftShader,
+the harness of intent 0027. Rounds one and two ran before the merge, against main 1ce722e, and gave the same results.
+
+| # | Result | Evidence |
+| --- | --- | --- |
+| 1 | passed | Nine stills: the tent from 4, 15, 60, 300 and 1 000 m; the fire pit from 3 and 12 m; a rock pair; a rock up close. Against main, the mean difference is at most 0.13 of 255, and at most 0.24 % of pixels differ by more than 8; the rock up close differs on 0.61 % (check 6). What differs is the sky, the clouds' shadows and grass blades. At 1 000 m the tent is a dot about 3 px wide where main had its card; no difference shows. A level a draw (`?bylevel`) gives the same stills |
+| 2 | passed | Eleven walks with the real keys: four trees, two shrubs, two rocks, the tent's wall, its door, the fire pit's seat. Ten closest approaches are the same as main's; one tree's differs by 2 mm (0.411 against 0.409; main gave 0.411 in round one). The tent's wall holds at 2.75 m, its door lets through to 0.35 m, the seat holds at 0.54 m |
+| 3 | passed | 2 places: start 18.0 s, frame median 31.1 ms, packing 2.79 ms, heap 82 MB. 1 000 002 places: start 17.5 s (standing them takes 1.4 s), frame median 32.7 ms, packing 3.24 ms, heap 133 MB, 4 643 packed in view. Round one: 1 002 / 100 002 / 1 000 002 places gave packing 3.98 / 3.45 / 3.52 ms, flat |
+| 4 | passed | A tree, a rock (the walks' 1.41 m one) and the tent were each made gone, changed and cleared, and walked into each time with the game's own step. **Tree:** closest 0.59 m before, 0.01 (walked through) gone, 0.73 grown 1.5×, 0.59 cleared. **Rock:** 0.80, 0.01, 1.19 grown 1.8×, 0.80. **Tent:** 2.75 at its wall, 0.01, 2.75 tinted (1.35, 0.55, 0.45) and worn 0.6, 2.75. **Stills, clock held:** gone changes 26.5 %, 2.3 % and 2.0 % of pixels; cleared, 0.16 %, 0.05 % and 1.9 % (the tent's are the clouds: they keep their own clock). `things.pick()` named the rock and the tent; the tree's ray passed over its trunk |
+| 5 | passed | 100 000 changed things put in in 0.37 s, every key placed. Frame median 34 ms (33 with the store empty), packing 3.59 ms (3.17), heap 104 MB (78 empty; it was 82 while the table's page copy was made at the start: `98800e9`). Round one found keys with no room in eight steps, and a table made again for each (2.7 s): fixed in `8498e0c` |
+| 6 | passed | The walks' 1.41 m rock up close: its stone's grain lies elsewhere than on main, with the same colour and brightness (0.61 % of pixels). A boulder in the 1 000 m still shows the same |
+| 7 | passed, one cost | **Normal world.** In the forest, two runs each, alternating: frame median 31.1 and 32.5 ms against main's 32.9 and 30.5; packing 2.30 and 2.89 ms against 2.43 and 2.68; start 17.5 and 15.4 s against 16.3 and 15.7. By the tent: frame median 31.1 ms against 34.6. **Stress world.** Walks made good 6.89 / 7.44 / 12.57 m against 6.86 / 7.44 / 12.48, with the same bodies within 6 m (98 / 66 / 106). Frame 491 ms against 557, packing 9.0 against 9.2, step 3.5 against 3.2 ms. **The cost:** the stress world's start, 32.1 and 34.7 s against 30.9 and 30.3: its shaders are a little larger (the state look-up, the seed), and SwiftShader compiles slowly. **Also:** the asset library loads with no error. Storage buffers per stage peak at 5 (compute) and 4 (vertex) in the normal world, and 7 in the stress world, as on main |
+| 8 | passed | `vite build` |
+
+**Known gaps:**
+
+- Checked on SwiftShader only. Not yet seen in Samuel's Safari or on a real GPU.
+- A thing's state lives in the page: nothing saves it or shares it between people yet (an intent of the API).
+- Plants, rocks and the stress world's things can be gone or grown, not tinted or worn. A made thing's dot does not
+  take its tint.
+- The list's room is set at the start: four thousand places, plus `?many`. A change sorts the whole list again.
+- A made kind per citizen's own house (millions of kinds) would need every level streamed.
+- The library shows a placed asset as before (its own page, intent 0025).
+- The rocks' kept meshes are made once more at the next start (the zoo's numbers moved by two).
+- No story folder. A timeline needs the day and that day's humans in the game, counted, which this session cannot
+  count. Stories are told by day now (`Stories/day-NNNN`, the storytelling skills); this work is ready to be one
+  day's part.
 
 ## Story
 
@@ -174,8 +222,8 @@ _accepted or rejected, the date, the reason in a line._
 - [x] A thing's own state (store, GPU table, every placer, bodies, pick)
 - [x] A thing's own look from its seed
 - [x] Docs (`src/detail/README.md`, the drawer's and the tier's headers, the shading contract)
-- [ ] Checks 1 to 8
-- [ ] Commit, trail, push, draft PR
+- [x] Checks 1 to 8 (three rounds; the last on the merged head against main 5bf670c)
+- [x] Commit, trail, push, draft PR (#14)
 - [ ] Samuel: the tent and the fire pit in Safari on a real GPU, near and far (only SwiftShader has seen them)
 
 ## Changelog
@@ -188,9 +236,37 @@ _One entry per request cycle, newest last._
   their own dynamic procedural textures, and then: "Please ensure our world is ready."
 - **Delivered:** the idea and the definition above. Building.
 
+### 2026-11-15, built and checked
+
+- **Delivered:**
+  - What stands at a spot of its own is one list, drawn by the one drawer. The tent and the fire pit stand in it and
+    look as on main.
+  - A thing's own state (gone, grow; tint and wear for made things), read by every placer's packing and every body.
+  - A thing's own seed for the heap's solids and the shading models.
+  - Draft PR #14.
+- **Good:**
+  - The stills match main within 0.13 of 255, and every walk comes as close as on main.
+  - A million places pack what is in view (about 4 600) at the same cost as two.
+  - The stress world walks as before and draws faster.
+  - The tier's one buffer of rows freed a binding in every pass.
+- **Broke on the way, fixed:**
+  - The fire pit's meshes first came 37 s late, queued behind the plants' in the workers; a small make now makes its
+    coarse levels on the page.
+  - The store's table had no room for some keys at 100 000, and made itself again for each (`8498e0c`).
+  - The list's tiers made empty passes as the view turned (`8498e0c`).
+  - The test views needed care: the first rock pair lay under the river, and a frozen clock keeps late leaves from
+    growing in.
+- **Not there yet:**
+  - Not seen on a real GPU or in Safari.
+  - The state is not saved.
+  - Tint and wear are for made things only.
+  - The stress world's start is 2 to 4 s longer on SwiftShader (its shaders a little larger).
+
 ## Trail
 
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-15 | `d802ff5` | Placed things through the one drawer (the list, the made things' kit, family and material, the drawer's dot for a make); a thing's own state (the store, every placer, bodies); a thing's own seed; a tier's rows in one buffer; docs |
 | 2026-11-15 | `8498e0c` | The store finds a key in up to 32 places, stopping at an empty one (check 5 found keys with no room in 8); a tier with nothing to pack makes no pass |
+| 2026-11-15 | `906f816` | Merged main 5bf670c (0026): `main.js` both kept, the list's tiers among those `scatter.compile()` compiles |
+| 2026-11-15 | `98800e9` | The store's table on the page made with the first change (4 MB less where nothing changed) |
