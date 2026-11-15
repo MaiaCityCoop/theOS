@@ -37,17 +37,18 @@ export const idOf = (placer, a, b) => `${placer}:${a}:${b}`;
 export const ofId = (id) => { const p = String(id).split(':'); return p.length < 3 ? null : { placer: p.slice(0, -2).join(':'), a: +p.at(-2), b: +p.at(-1) }; };
 
 // ---- the store: by id on the page, by key on the GPU ----
-const byId = new Map(), table = new Uint32Array(CAP * 4);   // (an entry: its key, its tint and wear, -, its flags and growth)
+const byId = new Map(); let table = null;   // (the table's copy on the page, made with the first change: an entry its key, its tint and wear, -, its flags and growth)
 let gpu = null, low = Infinity, high = -1, version = 0;
 const COUNT = uniform(0, 'uint');   // (none: no packing looks anything up)
 const c8 = (v) => Math.max(0, Math.min(255, Math.round(Math.sqrt(Math.max(0, Math.min(2, v)) / 2) * 255)));
 const pack = (S) => [(c8(S.tint[0]) | (c8(S.tint[1]) << 8) | (c8(S.tint[2]) << 16) | (Math.round(Math.max(0, Math.min(1, S.wear)) * 255) << 24)) >>> 0, 0, ((S.gone ? 1 : 0) | (Math.max(0, Math.min(65535, Math.round(S.grow * 4096))) << 16)) >>> 0];
 const dirty = (i) => { low = Math.min(low, i); high = Math.max(high, i); };
 // a key's place: its own, or the next free within PROBE (false: none, the table is too full round it)
-const slotOf = (key, free) => { for (let p = 0; p < PROBE; p++) { const i = (key + p) & MASK; if (table[i * 4] === key || (free && table[i * 4] === 0)) return i; } return -1; };
+const own = () => (table ||= new Uint32Array(CAP * 4));
+const slotOf = (key, free) => { own(); for (let p = 0; p < PROBE; p++) { const i = (key + p) & MASK; if (table[i * 4] === key || (free && table[i * 4] === 0)) return i; } return -1; };
 const putIn = (key, S) => { const i = slotOf(key, true); if (i < 0) return false; table.set([key, ...pack(S)], i * 4); dirty(i); return true; };
 // (a key taken out: the table made again from the store, so no other key is left past a gap it could not be found over)
-const remake = () => { table.fill(0); for (const e of byId.values()) putIn(e.key, e.S); low = 0; high = CAP - 1; };
+const remake = () => { own().fill(0); for (const e of byId.values()) putIn(e.key, e.S); low = 0; high = CAP - 1; };
 const plain = (S) => !S.gone && S.grow === 1 && S.wear === 0 && S.tint.every((v) => v === 1);
 
 export const things = {
