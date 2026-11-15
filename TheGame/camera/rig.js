@@ -10,6 +10,8 @@
 //   speed   metres a second the keys move it; run: with Shift
 //   orbit   0: the camera is the walker's eyes; 1: it hangs back from a point on the ground it looks at
 //   lock    the mouse is held for looking (pointer lock) in this band, POV; elsewhere it is a free pointer, to point and pick
+//   walk    the point the camera hangs over is a walker on the ground in this band (his eyes, or the follow view behind
+//           him): what is solid stops him, and ground too steep to walk up; elsewhere it moves freely over the city
 //
 // At every height the view looks around (intent 0014): where the mouse is held by moving it, elsewhere by a drag; left
 // and right turns, up and down tilts the view away from the height's own pitch. `tilt` says how far: up and down the bounds of the pitch (radians), drag
@@ -23,10 +25,10 @@ export default {
   stepUp: 0.25,        // a rise lower than this is stepped up whatever its slope (a kerb, a root)
   tilt: { up: 1.2, down: -1.5, drag: 0.0022, fade: 0.5 },
   keys: [
-    { h: 1.7, band: 'eye', pitch: null, fov: 68, speed: 3.2, run: 9, orbit: 0, lock: true },
-    { h: 5, band: 'street', pitch: -0.32, fov: 64, speed: 7, run: 20, orbit: 1, lock: true },
-    { h: 40, band: 'town', pitch: -0.62, fov: 54, speed: 40, run: 120, orbit: 1, lock: false },
-    { h: 800, band: 'skyline', pitch: -0.9, fov: 44, speed: 500, run: 1500, orbit: 1, lock: false },
-    { h: 12000, band: 'skyline', pitch: -1.05, fov: 40, speed: 6000, run: 18000, orbit: 1, lock: false },
+    { h: 1.7, band: 'eye', pitch: null, fov: 68, speed: 3.2, run: 9, orbit: 0, lock: true, walk: true },
+    { h: 5, band: 'street', pitch: -0.32, fov: 64, speed: 7, run: 20, orbit: 1, lock: true, walk: true },
+    { h: 40, band: 'town', pitch: -0.62, fov: 54, speed: 40, run: 120, orbit: 1, lock: false, walk: false },
+    { h: 800, band: 'skyline', pitch: -0.9, fov: 44, speed: 500, run: 1500, orbit: 1, lock: false, walk: false },
+    { h: 12000, band: 'skyline', pitch: -1.05, fov: 40, speed: 6000, run: 18000, orbit: 1, lock: false, walk: false },
   ],
 };

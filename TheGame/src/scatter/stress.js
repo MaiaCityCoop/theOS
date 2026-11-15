@@ -64,7 +64,7 @@ import { BONES } from '../../assets/kit/solid.js';
 import { MODELS } from '../shading/index.js';
 import { gpuStorage } from '../core/gpu.js';
 import { did } from '../core/work.js';
-import { addBodies, bodiesNear, outline } from '../world/bodies.js';
+import { addBodies } from '../world/bodies.js';
 import { bodyOf } from '../../assets/zoo/index.js';
 import { addWays, waysChanged } from '../world/ways.js';
 import { moved } from '../../assets/kit/bones.js';
@@ -614,9 +614,9 @@ export function createStress(scene, renderer, tex) {
   };
   // ---- what of it is solid (src/world/bodies.js): the things round a point, each with its kind's box and shapes (its
   // family's, beside its recipe: assets/zoo). Where they stand is reckoned here as the GPU reckons it (standsAt,
-  // moverAtJS); a mover's shapes move with its bones. They stop the walker (`?stress&ghost`: they do not; a plot is a
-  // thicket, a thing every metre and a half, but for its ways); a ray finds them always. `?stress&bounds` draws them ----
-  const Q = new URLSearchParams(location.search), SOLID = !GHOST, BOUNDS = Q.has('bounds');
+  // moverAtJS); a mover's shapes move with its bones. They stop the walker as everything solid of every world does (a
+  // plot is a thicket, a thing every metre and a half, but for its ways; `?ghost`: nothing stops him); a ray finds them
+  // always. `?bounds` draws them, as it draws every body round the camera ----
   const stood = new Map();
   addBodies((x, z, reach) => {
     const out = [], t = U.uTime.value;
@@ -635,9 +635,8 @@ export function createStress(scene, renderer, tex) {
       out.push({ id: -1 - n, x: mx, z: mz, y: heightAt(mx, mz) + up, up, yaw, s: M.s, kind: M.k, body: bodyOf(M.k), pose: (bone, q, o) => moved(rows, bone, g, q, o) });
     });
     return out;
-  }, { stops: SOLID });
-  let outlinedAt = 0;
-  tiers.solid = () => { pump(); if (BOUNDS && performance.now() - outlinedAt > 120) { outlinedAt = performance.now(); outline(scene, bodiesNear(U.uCam.value.x, U.uCam.value.z, 14)); } };
+  });
+  tiers.solid = () => pump();
 
   // for looking at it (window.__stress): how many stand in a plot and of how many kinds; what each level holds and draws now
   const API = (window.__stress = {

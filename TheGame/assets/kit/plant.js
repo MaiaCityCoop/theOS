@@ -19,6 +19,8 @@
 //
 //   packPlant(mesh) -> { index: its corners, verts: Uint32Array, count: how many vertices }   what a family hands on
 //   plantFamily(id, asset)   a plant asset's shapes as a family of the zoo (assets/zoo/index.js)
+import { kindRule, shapesOf } from '../kinds.js';
+
 export const GRID = { xz: 40, y0: -2, y1: 78 }, UVK = 1024, UV0 = 16;   // x and z over -40 … 40 m, y over -2 … 78 m, 16 bits each (1.2 mm); uv in 1024ths, from -16
 const g16 = (v, lo, hi) => Math.max(0, Math.min(65535, Math.round(((v - lo) / (hi - lo)) * 65535)));
 let OU = 0, OV = 0;
@@ -62,4 +64,11 @@ export function unpackPlant(verts, i) {
 export const plantFamily = (id, asset) => ({
   id, placed: 'trees', asset: asset.uid, count: asset.shapeCount, levels: asset.levelCount + (asset.shadeRaw ? 1 : 0),
   meshOf: (i, l) => packPlant(l < asset.levelCount ? asset.rawAt(l, i) : asset.shadeRaw(i)),
+  // what of a shape is solid, and its box (src/world/bodies.js), in metres of its own frame at scale 1: its kind's rule
+  // (assets/kinds.js: a tree its trunk, a shrub its leaves) made from what the tree kit measured of it (its height, its
+  // trunk where a walker meets it) and its asset's footprint at that height
+  boundsOf: (i) => { const d = dimsOf(asset, i), x = Math.max(d.length, d.width) / 2; return { min: [-x, 0, -x], max: [x, d.height, x] }; },
+  collidersOf: (i) => shapesOf(kindRule(asset, 'solid'), dimsOf(asset, i)),
 });
+const most = (v) => (Array.isArray(v) ? v[1] : v);
+const dimsOf = (asset, i) => { const H = most(asset.size.height), h = asset.heights?.[i] ?? H, k = h / H; return { height: h, length: most(asset.size.length) * k, width: most(asset.size.width ?? asset.size.length) * k, trunk: asset.trunk?.[i] ?? null }; };

@@ -12,7 +12,9 @@
 //                             A shape is `faces` ([corner, corner, corner, colour], ...) or `rock` (a rough rock of an
 //                             icosphere divided that often), with `P` for scattered ones
 //   solid                     what a walker cannot pass: walls (rounds with gaps), posts, boxes, and the ceiling
-//                             overhead (src/world/solids.js); in the asset's own frame
+//                             overhead; in the asset's own frame. Without it, its kind's rule made from its size
+//                             (assets/kinds.js). The one collision engine takes it as a body (bodyOfAsset:
+//                             src/world/bodies.js)
 //   placement                 { at: 'places', ... } stood at a named place (world/places.js), or
 //                             { at: 'scatter', engine, cell, ... } spread over the land by the scatter engine
 //   wind                      how it moves in the wind, if not as its kind (assets/kinds.js)
@@ -21,7 +23,7 @@
 // src/world/place.js stands it in the world, src/scatter spreads it.
 import * as THREE from 'three/webgpu';
 import { detailOf } from '../src/detail/index.js';
-import { kindOf, kindRule } from './kinds.js';
+import { kindOf, kindRule, shapesOf } from './kinds.js';
 
 /** How an asset holds snow: its own `snow`, else its kind's, else the default (kinds.js). */
 export const snowOf = (a) => kindOf(a, 'snow');
@@ -82,7 +84,28 @@ export function solidOf(asset) {
   if (!k) return {};   // a kind with nothing solid (grass)
   const L = m(asset.size.length), W = m(asset.size.width ?? asset.size.length);
   if (k.post) return { posts: [{ x: 0, z: 0, r: Math.max(L, W) * k.post }] };
-  return { boxes: [{ x: 0, z: 0, w: L, d: W }] };   // (a ceiling, a function of where you stand, only an asset of its own can say)
+  if (k.box) return { boxes: [{ x: 0, z: 0, w: L, d: W }] };   // (a ceiling, a function of where you stand, only an asset of its own can say)
+  return {};   // (leaves: nothing a walker cannot pass, only what he is led round: bodyOfAsset)
+}
+
+/** An asset that stands at a place as the one collision engine takes it (src/world/bodies.js: its box and shapes in
+    metres of its own frame, its foot at 0): its own `solid` block made into shapes (a wall a round wall with its
+    doors, a post a round and a box its footprint, each as tall as the asset, turned as the block says; its ceiling and
+    how it is left), else its kind's rule made from its size and what its kit measured (assets/kinds.js shapesOf). */
+export function bodyOfAsset(asset) {
+  const m = (v) => (Array.isArray(v) ? v[1] : v), H = Math.max(0.5, m(asset.size?.height ?? 2)), L = m(asset.size?.length ?? 1), W = m(asset.size?.width ?? asset.size?.length ?? 1), S = asset.solid;
+  const shapes = S ? [
+    ...(S.walls || []).map((w) => ({ shape: 'wall', at: [w.x ?? 0, w.z ?? 0], r: w.round, gaps: w.gaps || [], top: H })),
+    ...(S.posts || []).map((p) => ({ shape: 'capsule', a: [p.x, 0, p.z], b: [p.x, Math.max(0, H - p.r), p.z], r: p.r })),
+    ...(S.boxes || []).map((b) => ({ shape: 'box', at: [b.x, H / 2, b.z], half: [b.w / 2, H / 2, b.d / 2], ...(b.a ? { turn: b.a } : {}) })),
+  ] : shapesOf(kindRule(asset, 'solid'), { height: H, length: L, width: W, trunk: asset.trunk?.[0] ?? null });
+  // its box: its size, and wherever a shape of it reaches further
+  let x = L / 2, z = W / 2;
+  for (const s of shapes) {
+    const [cx, cz, r] = s.shape === 'wall' ? [s.at[0], s.at[1], s.r] : s.shape === 'capsule' ? [s.a[0], s.a[2], s.r] : s.shape === 'box' ? [s.at[0], s.at[2], Math.hypot(s.half[0], s.half[2])] : [s.at[0], s.at[2], s.r];
+    x = Math.max(x, Math.abs(cx) + r); z = Math.max(z, Math.abs(cz) + r);
+  }
+  return { box: { min: [-x, 0, -z], max: [x, H, z] }, shapes, ...(S?.ceiling ? { ceiling: S.ceiling } : {}), ...(S?.leave ? { leave: S.leave } : {}) };
 }
 
 /** A picture of a scattered rock, for the library's list: a rough, lumpy stone in its own colour. */

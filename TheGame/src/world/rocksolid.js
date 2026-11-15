@@ -1,19 +1,22 @@
-// The scattered rocks as bodies (intent 0003): the graphics card places them by a hash of their cell (src/scatter/
+// The scattered rocks as bodies (intents 0003, 0027): the graphics card places them by a hash of their cell (src/scatter/
 // rocks.js); this works the same hash out again on the CPU for the few cells round a point, so the walker and the camera
 // are stopped by the rocks they see, with no list of thousands kept. The stone chance a stone's cell is drawn with comes
 // from the ground pass itself, read back to the CPU (src/scatter/ground.js: at): every biome's stones, the paths, the
-// tent's clear floor, exactly as drawn. The boulders (outcrops) need only the land's own functions. How far a rock
-// reaches and how high it stands is its shape's (assets/kit/rock.js: rockBody), as it is drawn.
-import { cellRnd as rnd, riverAt, outcropAt, sstep } from './land.js';
+// tent's clear floor, exactly as drawn. The boulders (outcrops) need only the land's own functions. What of a rock is
+// solid is its kind's (its family's colliders: assets/kit/rock.js, from the shape as it is drawn); it is one of the
+// bodies of the one collision engine (src/world/bodies.js), as everything solid in every world is.
+import { cellRnd as rnd, riverAt, outcropAt, sstep, heightAt } from './land.js';
 import { recipes } from '../core/registry.js';
 import { onWay, waysVersion } from './ways.js';
 import { rockBody } from '../../assets/kit/rock.js';
+import { placedBy, bodyOf } from '../../assets/zoo/index.js';
+import { addBodies } from './bodies.js';
 
-const STEP_OVER = 0.3;   // a rock whose top is lower than this is stepped over
 let ground = null;
 /** The ground pass to read the stones' chance from (src/main.js gives it). */
 export const useGround = (g) => (ground = g);
-const KINDS = recipes('asset').filter((a) => a.placement?.engine === 'rocks').map((a) => ({ asset: a, uid: a.uid, cell: a.placement.cell, big: !!a.placement.outcrops, lo: a.size.length[0], hi: a.size.length[1], shapes: a.placement.shapes ?? 1 }));
+const Z = placedBy('rocks'), TAU = Math.PI * 2;   // (the zoo's number of a rock asset's first shape: its family's)
+const KINDS = recipes('asset').filter((a) => a.placement?.engine === 'rocks').map((a) => ({ asset: a, uid: a.uid, cell: a.placement.cell, big: !!a.placement.outcrops, lo: a.size.length[0], hi: a.size.length[1], shapes: a.placement.shapes ?? 1, zoo: Z.first + (Z.families.find((F) => F.F.asset === a.uid)?.first ?? 0) }));
 const kept = new Map(); let ways = 0, drawn = null;
 /** Which rock assets are drawn (their uids: src/scatter/rocks.js says): only what is seen is a body. */
 export const rocksDrawn = (uids) => { drawn = new Set(uids); kept.clear(); };
@@ -28,7 +31,7 @@ function rockIn(k, ki, i, j) {
   if (keep) {
     // its size, and which of its asset's shapes it is (the same two hashes as the card's); that shape's reach and height
     const r1 = rnd(i, j, 204), s = k.lo + (k.hi - k.lo) * (r1 * r1 * r1 + (k.big ? oc * 0.25 * r1 : 0)), v = Math.min(k.shapes - 1, Math.floor(rnd(i, j, 201) * k.shapes)), B = rockBody(k.asset, v);
-    rock = { x, z, s, v, uid: k.uid, side: s * B.span, r: s * B.rad * 0.7, solid: s * B.top > STEP_OVER };   // (r: a little inside its outline: it is half buried, and stops you where you see it)
+    rock = { x, z, s, v, uid: k.uid, side: s * B.span, key, kind: k.zoo + v, sunk: B.sunk, yaw: rnd(i, j, 211) * TAU };   // (its turn: the card's, src/scatter/rocks.js)
   }
   kept.set(key, rock); return rock;
 }
@@ -44,9 +47,7 @@ const each = (x, z, reach, fn) => {
     asset), side (its largest side, metres) }) for each within reach metres, and a few beyond. */
 export const rocksAround = (x, z, reach, fn) => each(x, z, reach, (r) => { if (Math.hypot(r.x - x, r.z - z) < reach + r.side) fn(r); });
 
-/** The rocks within reach metres of (x, z) that a walker cannot step over: rounds { x, z, r }. */
-export function rocksNear(x, z, reach = 3) {
-  const out = [];
-  each(x, z, reach, (r) => { if (r.solid && Math.hypot(r.x - x, r.z - z) < reach + r.r) out.push(r); });
-  return out;
-}
+// every rock round a point as a body: drawn where it lies, its foot as deep in the ground as the card sets it, turned
+// as the card turns it, its size its largest side (the frame its family's colliders are in)
+const bodyIn = (r) => (r.body ||= { id: `rock:${r.key}`, x: r.x, z: r.z, y: heightAt(r.x, r.z) - r.side * r.sunk, up: -r.side * r.sunk, yaw: r.yaw, s: r.side, kind: r.kind, body: bodyOf(r.kind) });
+addBodies((x, z, reach) => { const out = []; each(x, z, reach, (r) => { if (Math.hypot(r.x - x, r.z - z) < reach + r.side) out.push(bodyIn(r)); }); return out; });
