@@ -577,6 +577,7 @@ export function createStress(scene, renderer, tex) {
     built = 0;
     D.skinsIn();
     const N = D.scan(); if (!N) return;
+    did('scan');   // (a look at its millions near: a busy frame, its length not counted by the governor)
     // as far as the coarsest of the fine levels is asked for (and a fifth): of what stands, and of the largest mover
     const ahead = N.ahead, t = U.uTime.value, reachOfSize = N.reach, wants = N.wants, Rs = reachOfSize(SMAX), Rm = reachOfSize(MMAX);
     if (Rm <= dy) { N.none(); return; }

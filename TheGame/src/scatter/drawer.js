@@ -450,7 +450,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     const dt = Math.max(1e-3, (now - lt) / 1000), v = Math.hypot(cam.x - lx, cam.y - ly, cam.z - lz) / dt; lx = cam.x; ly = cam.y; lz = cam.z; lt = now;
     speed += (Math.min(v, 300) - speed) * Math.min(1, dt * 4);   // (metres a second, smoothed)
     if (Math.hypot(cam.x - sx, cam.z - sz) < 0.7 && key === sk && now - scanAt < 300) return null;
-    sx = cam.x; sz = cam.z; sk = key; scanAt = now; did('scan');
+    sx = cam.x; sz = cam.z; sk = key; scanAt = now;   // (its placer says whether a look makes the frame busy: src/core/work.js)
     const ahead = speed * 0.35, N = near(K, inv, ahead); N.ahead = ahead; return N;
   };
   // a look at what stands or passes near (K: the lens's pixels a metre, inv: the detail governor's, ahead: how far the
