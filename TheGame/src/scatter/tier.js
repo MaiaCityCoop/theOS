@@ -28,14 +28,21 @@ export class Tier {
       Without `live`: material(cellNode) is the tier's node material, given the cell each instance stands for.
       With `live` (and `gpu`, a WebGPU renderer's): live(cellNode) -> { alive, data: [vec4, …] } says what stands in a cell;
       material({ read }) is the material, read(k) its k-th vec4 of `slots`, ready-made; `cap` the most that may stand at once
-      (a number: of each bucket; or a list, a cap a bucket: where one bucket holds thousands and the others a few). */
-  constructor(scene, geometry, material, { cell, P, near = 0, far, order = 0, live = null, gpu = false, cap = 0, slots = 0, cull = 0, fixed = 0 }) {
+      (a number: of each bucket; or a list, a cap a bucket: where one bucket holds thousands and the others a few).
+      spans: a tier of a list (src/scatter/placed.js: what is placed one by one, kept in the order of where it stands):
+      spans(i, j) says which runs of the list patch (i, j) holds, [[start, count], …] (each count at most P × P; none:
+      nothing stands there). Each run is a patch of its own to the packing, the nearest first where there are more than
+      it can take; live is then also told which run a cell is of and which of its places ({ pid, b, span: (start,
+      count) }). */
+  constructor(scene, geometry, material, { cell, P, near = 0, far, order = 0, live = null, gpu = false, cap = 0, slots = 0, cull = 0, fixed = 0, spans = null }) {
     this.cull = cull; this.fixed = fixed; this.P = P; this.S = cell * P; this.near = Math.max(0, near); this.far = far; this.n = 0; this.over = false;
     this.list = Array.from({ length: MAXP }, () => new THREE.Vector2());
+    this.spans = spans; this.runs = spans ? Array.from({ length: MAXP }, () => new THREE.Vector2()) : null; this.found = [];
     // (its numbers as uniforms, not written into its code: two tiers that differ only in them, the levels of one thing,
     // are then one shader to the GPU, compiled once: src/scatter/trees.js)
-    const own = Array.isArray(cap), patches = uniformArray(this.list, 'vec2'), P2 = uniform(P * P, 'uint'), uP = uniform(P, 'int'), uCap = uniform(own ? 0 : cap, 'uint');
-    const cellOf = (index) => { const pid = index.div(P2), b = int(index.sub(pid.mul(P2))); return ivec2(patches.element(pid)).add(ivec2(b.mod(uP), b.div(uP))); };   // which patch of the list, which cell of the patch
+    const own = Array.isArray(cap), patches = uniformArray(this.list, 'vec2'), P2 = uniform(P * P, 'uint'), uP = uniform(P, 'int'), uCap = uniform(own ? 0 : cap, 'uint'), runs = spans ? uniformArray(this.runs, 'vec2') : null;
+    const partOf = (index) => { const pid = index.div(P2), b = int(index.sub(pid.mul(P2))); return { pid, b, cell: ivec2(patches.element(pid)).add(ivec2(b.mod(uP), b.div(uP))), span: runs ? runs.element(pid) : null }; };   // which patch of the list, which cell of the patch (and of a list's tier, which run)
+    const cellOf = (index) => partOf(index).cell;
     // buckets: geometry may be a list (the shapes of one thing): one mesh each, but the cells worked out once, each that
     // holds something dropped into its bucket (live(...).bucket); material(src, k) is bucket k's
     const geos = Array.isArray(geometry) ? geometry : [geometry], K = geos.length;
@@ -44,26 +51,29 @@ export class Tier {
       // (what it packs lives on the GPU only: the GPU writes it and the GPU reads it; src/core/gpu.js)
       // (caps, offs: each bucket's cap and where its things begin in the buffers; one cap for all: bucket k's at k times it)
       const caps = own ? cap : geos.map(() => cap), offs = caps.map((_, k) => caps.slice(0, k).reduce((a, c) => a + c, 0)), total = caps.reduce((a, c) => a + c, 0), capN = own ? uniformArray(caps) : null, offN = own ? uniformArray(offs) : null;
-      const data = Array.from({ length: slots }, () => { const b = gpuStorage('vec4', total, null, true); more('tiers: what stands, packed', b.bytes, b.lean ? 0 : b.bytes); return b.node; }), count = instancedArray(K, 'uint').toAtomic();
+      // (a thing's rows side by side in one buffer, `slots` of them: one buffer to bind, not one a row; a pass binds at
+      // most eight, src/world/things.js reads one more)
+      const buf = gpuStorage('vec4', Math.max(1, total * slots), null, true), data = buf.node, count = instancedArray(K, 'uint').toAtomic(), S = uint(slots);
+      more('tiers: what stands, packed', buf.bytes, buf.lean ? 0 : buf.bytes);
       const args = new THREE.IndirectStorageBufferAttribute(new Uint32Array(geos.flatMap((g) => [g.index.count, 0, 0, 0, 0])), 5), argsNode = storage(args, 'uint', 5 * K);   // one buffer of draw arguments, five a bucket (a shader binds few buffers)
       this.cand = uniform(0, 'uint');
       this.passes = [
         Fn(() => { for (let k = 0; k < K; k++) atomicStore(count.element(k), uint(0)); })().compute(1),
         Fn(() => {
           If(instanceIndex.lessThan(this.cand), () => {
-            const L = live(cellOf(instanceIndex)), b = K > 1 ? uint(L.bucket) : uint(0);
+            const Q = partOf(instanceIndex), L = live(Q.cell, Q), b = K > 1 ? uint(L.bucket) : uint(0);
             If(L.alive, () => {
               const i = atomicAdd(count.element(b), uint(1)).toVar();
-              if (own) If(i.lessThan(uint(capN.element(b))), () => { L.data.forEach((d, k) => data[k].element(uint(offN.element(b)).add(i)).assign(d)); });
-              else If(i.lessThan(uCap), () => { L.data.forEach((d, k) => data[k].element(b.mul(uCap).add(i)).assign(d)); });
+              if (own) If(i.lessThan(uint(capN.element(b))), () => { const at = uint(offN.element(b)).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
+              else If(i.lessThan(uCap), () => { const at = b.mul(uCap).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
             });
           });
         })().compute(MAXP * P * P),
         Fn(() => { for (let k = 0; k < K; k++) argsNode.element(k * 5 + 1).assign(min(atomicLoad(count.element(k)), own ? uint(caps[k]) : uCap)); })().compute(1),
       ];
-      this.data = data; this.args = args; this.caps = caps; this.offs = offs;
+      this.data = data; this.slots = slots; this.args = args; this.caps = caps; this.offs = offs;
       // (readAt: read from a place in the buffer a material is told per mesh, mesh.userData.slot: one material for every bucket)
-      this.meshes = geos.map((g, k) => { g.setIndirect(args, k * 20); g.instanceCount = caps[k]; const m = new THREE.Mesh(g, material({ read: (j) => data[j].element(uint(offs[k]).add(instanceIndex)), readAt: (j, slot) => data[j].element(slot.add(instanceIndex)) }, k)); m.userData.slot = offs[k]; return m; });
+      this.meshes = geos.map((g, k) => { g.setIndirect(args, k * 20); g.instanceCount = caps[k]; const m = new THREE.Mesh(g, material({ read: (j) => data.element(uint(offs[k]).add(instanceIndex).mul(S).add(uint(j))), readAt: (j, slot) => data.element(slot.add(instanceIndex).mul(S).add(uint(j))) }, k)); m.userData.slot = offs[k]; return m; });
     } else this.meshes = geos.map((g, k) => new THREE.Mesh(g, material(cellOf(instanceIndex), k)));
     this.mesh = this.meshes[0];
     for (const m of this.meshes) { m.frustumCulled = false; m.renderOrder = order; scene.add(m); }
@@ -79,6 +89,7 @@ export class Tier {
     // a megabyte of litter every few frames for the browser to sweep up)
     let h1 = 0x811c9dc5, h2 = 0x9e3779b9;
     for (let i = 0; i < n; i++) { const x = list[i].x | 0, y = list[i].y | 0; h1 = Math.imul(h1 ^ x, 0x01000193); h1 = Math.imul(h1 ^ y, 0x01000193); h2 = Math.imul((h2 << 5) ^ (h2 >>> 27) ^ x, 0x85ebca6b) + y | 0; }
+    if (this.runs) for (let i = 0; i < n; i++) { const a = this.runs[i].x | 0, b = this.runs[i].y | 0; h1 = Math.imul(h1 ^ a, 0x01000193); h2 = Math.imul((h2 << 5) ^ (h2 >>> 27) ^ b, 0x85ebca6b) + a | 0; }   // (a list's runs: the same patch may hold other places now)
     let key = `${world}|${n}|${this.near}|${this.far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}|${h1}|${h2}`;
     if (this.viewKeyed) key += `|${view}`;   // what it packs is tested against the view one by one (index.js: inView)
     if (key === this.key) return;
@@ -87,11 +98,17 @@ export class Tier {
     renderer.compute(this.passes); did('packs'); did('kcells', Math.round(N / 1000));
   }
   /** On WebGPU: what the last packing holds, read back to the CPU a moment later (a promise of { count, data: the first
-      slots' vec4s as floats, one array a slot } a bucket), for what the CPU must know of where things stand (src/world/trunks.js). */
+      slots' vec4s as floats, one array a slot } a bucket), for what the CPU must know of where things stand (src/scatter/trees.js:
+      what of a stand is solid round the walker). */
   async read(renderer) {
-    const K = this.geometries.length, bufs = await Promise.all([this.args, ...this.data.map((d) => d.value)].map((b) => renderer.getArrayBufferAsync(b)));
-    const n = new Uint32Array(bufs[0]), f = bufs.slice(1).map((b) => new Float32Array(b));
-    return Array.from({ length: K }, (_, k) => { const count = Math.min(n[k * 5 + 1], this.caps[k]); return { count, data: f.map((x) => x.subarray(this.offs[k] * 4, (this.offs[k] + count) * 4)) }; });   // per bucket
+    const K = this.geometries.length, S = this.slots, [a, d] = await Promise.all([this.args, this.data.value].map((b) => renderer.getArrayBufferAsync(b)));
+    const n = new Uint32Array(a), f = new Float32Array(d);
+    // per bucket: its count, and each of its rows as one array (four numbers a thing)
+    return Array.from({ length: K }, (_, k) => {
+      const count = Math.min(n[k * 5 + 1], this.caps[k]), rows = Array.from({ length: S }, () => new Float32Array(count * 4));
+      for (let i = 0; i < count; i++) for (let j = 0; j < S; j++) { const o = ((this.offs[k] + i) * S + j) * 4; rows[j].set(f.subarray(o, o + 4), i * 4); }
+      return { count, data: rows };
+    });
   }
   /** s: how many times further than the 68° lens this lens sees a thing at the same size; h0: the ground under the camera */
   select(cx, cz, h0, s, dy) {
@@ -109,9 +126,16 @@ export class Tier {
         if (fx * fx + fz * fz < near2) continue;
         const yb = 0.32 * Math.sqrt(nd) + 0.2 * S + 6;         // the land is gentle: it cannot be further off than this
         const c = this.cull; if (c !== false && !boxIn(x0 - c, x1 + c, h0 - yb, h0 + yb + c, z0 - c, z1 + c)) continue;   // (widened: what is drawn for the light, whose shadow may fall into view)
+        if (this.spans) { const r = this.spans(i, j); if (r?.length) this.found.push({ nd, i, j, r }); continue; }   // (a list's: its runs, below)
         if (n === MAXP) { this.over = true; continue; }
         list[n].set(i * P, j * P); n++;
       }
+    }
+    if (this.spans) {
+      // a list's runs, the nearest patch's first: where there are more than the packing can take, the farthest go
+      const F = this.found.sort((a, b) => a.nd - b.nd);
+      for (const f of F) for (const [start, count] of f.r) { if (n === MAXP) { this.over = true; break; } list[n].set(f.i * P, f.j * P); this.runs[n].set(start, count); n++; }
+      F.length = 0;
     }
     this.n = n; for (const g of this.geometries) if (!this.passes) g.instanceCount = n * P * P; for (const m of this.meshes) m.visible = n > 0;
   }

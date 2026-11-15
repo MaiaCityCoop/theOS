@@ -19,6 +19,7 @@ import { weatherKey } from '../world/weather/index.js';
 import { recipes } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { waysVersion } from '../world/ways.js';
+import { flushThings, thingsVersion } from '../world/things.js';
 
 const FOUND = import.meta.glob(['./*.js', '!./index.js', '!./*.worker.js'], { eager: true });   // (whole modules: a named import would fail where a module has none)
 export const ENGINES = Object.fromEntries(Object.values(FOUND).map((m) => m.engine).filter(Boolean).map((e) => [e.id, e]));
@@ -46,7 +47,8 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
     select(cx, cz, h0, lod, dy) {
       for (let i = 0; i < tiers.length; i++) tiers[i].select(cx, cz, h0, lod, dy);
       const view = camera ? setView(camera) : '';   // the eye's view, for what is tested against it one by one (view.js)
-      const v = (u) => u.value.toArray?.().join(',') ?? u.value, world = `${ground.version}|${lod}|${v(U.uSand)}|${v(U.uStage)}|${v(U.uStageGround)}|${weatherKey()}|${waysVersion()}`;   // what the packing reads besides the cells and the camera
+      flushThings();   // (what was done to single things since the last frame, to the GPU before anything packs: src/world/things.js)
+      const v = (u) => u.value.toArray?.().join(',') ?? u.value, world = `${ground.version}|${lod}|${v(U.uSand)}|${v(U.uStage)}|${v(U.uStageGround)}|${weatherKey()}|${waysVersion()}|${thingsVersion()}`;   // what the packing reads besides the cells and the camera
       for (const t of tiers) t.run(renderer, world, cx, h0 + dy, cz, view);
       for (const f of solid) f(renderer);
     },

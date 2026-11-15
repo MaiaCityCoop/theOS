@@ -40,6 +40,7 @@
 //
 // `?ghost` in the address: nothing stops the walker, in every world (what is solid is still found by a ray).
 import * as THREE from 'three/webgpu';
+import { things } from './things.js';
 
 export const GHOST = typeof location !== 'undefined' && new URLSearchParams(location.search).has('ghost');
 const providers = [];
@@ -51,7 +52,11 @@ export function addBodies(near, { stops = true, rooms = false } = {}) { provider
 export function bodiesNear(x, z, reach, stopping = false, rooms = false) {
   const out = [];
   if (stopping && GHOST) return out;
-  for (const P of providers) if ((!stopping || P.stops) && (!rooms || P.rooms)) for (const b of P.near(x, z, reach)) out.push(b);
+  for (const P of providers) if ((!stopping || P.stops) && (!rooms || P.rooms)) for (const b of P.near(x, z, reach)) {
+    // (a thing's own state, src/world/things.js: what is gone is not there, what grew is as large as it has grown)
+    const S = b.thing && things.size ? things.get(b.thing) : null;
+    if (!S) out.push(b); else if (!S.gone) out.push(S.grow === 1 ? b : { ...b, s: b.s * S.grow, up: b.up * S.grow });
+  }
   return out;
 }
 /** How far a body reaches from where it stands, level, in metres (its box's farthest corner). */

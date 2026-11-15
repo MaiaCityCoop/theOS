@@ -4,16 +4,20 @@
 // shader whose shading models are branches (src/shading); the fine levels and the textures come as things come near,
 // made by the kinds' recipes in workers and kept in the browser.
 //
-// Who places things says where they stand and what is near; the drawer makes the tiers they are drawn by. Two place
-// by it today, each with a drawer of its own kinds: the stress stand (src/scatter/stress.js: a plot's lattice and its
-// lanes, the test herds) and the world's rocks (src/scatter/rocks.js):
-//   createDrawer(scene, renderer, tex, { name, LEVELS, SHADE, SMOOTH, PXK, ghost, skins, ground, soft, relief, zoo }) ->
-//     tier(level, { cell, P, cap, sizes, place, shadow, casts, far }) -> that level's tier (tier.js) for a placer:
+// Who places things says where they stand and what is near; the drawer makes the tiers they are drawn by. Four place
+// by it today, each with drawers of its own kinds: the stress stand (src/scatter/stress.js: a plot's lattice and its
+// lanes, the test herds), the world's rocks (src/scatter/rocks.js), its plants (src/scatter/trees.js) and the list of
+// what stands at a spot of its own (src/scatter/placed.js: the tent, the fire pit; a city's buildings; intent 0029).
+// Every thing it packs may have a state of its own (src/world/things.js: gone, grown; tinted and worn where a drawer is
+// made with `state`), looked up by its placer's name and its cell (`thing`) or a key its placer gives, and a seed of its
+// own (B.w) its look may differ by:
+//   createDrawer(scene, renderer, tex, { name, LEVELS, SHADE, SMOOTH, PXK, ghost, skins, ground, soft, relief, make, state, zoo }) ->
+//     tier(level, { cell, P, cap, sizes, place, shadow, casts, far, thing }) -> that level's tier (tier.js) for a placer:
 //                               `place` is the placer's node code for a cell (where a thing stands in it, of which
 //                               kind, how large); the drawer tests whether it is of the level and drops it into the
 //                               level's draws. A tier a level: for a placer of millions (the stand), whose cells
 //                               are too many to look at again as the camera moves
-//     tierAll({ cell, P, cap, sizes, place, casts, far, last }) -> one tier for every level: each thing dropped
+//     tierAll({ cell, P, cap, sizes, place, casts, far, last, thing }) -> one tier for every level: each thing dropped
 //                               into the draw of the level its size asks for, packed again whenever the camera has
 //                               moved half a metre. For a placer of few cells (the rocks): one packing shader, not eight
 //     H, LO, lookOf(kind, row), look, lookRows, sizes     the heap, the levels' pixels, a kind's look, as nodes and as numbers
@@ -31,16 +35,17 @@
 // ground (its kinds may wear a material of the world and be grown over in the colour of the ground round them: a tier
 // then packs a third row, that colour and how dry the land is there), soft (the shadows that fall on it are read
 // softly: large, still things), relief (the size on screen from which a thing's relief is read).
-// A second make of vertex has none of the above at all: `make` (the plants': src/scatter/trees.js) brings its own
-// material, its vertices so many elements each; the drawer keeps their meshes, fills and streams them, and makes
-// their tiers, as for any kind. Its LEVELS say their own sizes on screen and their own rooms (not the ladder's). A
+// A second make of vertex has none of the above at all: `make` (the plants': src/scatter/trees.js; the made things':
+// src/scatter/placed.js) brings its own material, its vertices so many elements each; the drawer keeps their meshes,
+// fills and streams them, and makes their tiers, as for any kind; where it asks (`dot`), its last level is the dot.
+// Its LEVELS say their own sizes on screen and their own rooms (not the ladder's). A
 // make may ask for a draw a kind (`byKind`): each mesh's own list of corners is then that draw's index, a vertex
 // shared by several triangles worked out once and no draw longer than its mesh: what a plant's uneven meshes need
 // (one draw as long as the largest for all ran four million vertices a frame in the wood where its plants have one
 // and a half).
 // It was the stress stand's own until 2026-11-14: lifted out that day, and the world's rocks drawn by it since.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Discard, float, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, storage, texture, vertexIndex, cameraViewMatrix, dFdx, dFdy, cos, sin, abs, max, pow, mix, cross, length, normalize, smoothstep, clamp } from 'three/tsl';
+import { Fn, If, Discard, float, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, storage, texture, vertexIndex, cameraViewMatrix, dFdx, dFdy, cos, sin, abs, max, pow, mix, cross, length, normalize, smoothstep, clamp, fract } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { camDist } from '../world/land.nodes.js';
 import { finish, stillness, skyLight, cloudAt, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
@@ -58,6 +63,7 @@ import { pxK } from '../detail/index.js';
 import { note } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { did } from '../core/work.js';
+import { stateAt, keyN, nameKey } from '../world/things.js';
 
 const GROW = 1.5, SKIN = 128, SKINPX = 28, SINK = 1.6, LOOK = 24;   // GROW: seconds a level that came late takes to grow out of the coarser one; SKIN: a kind's own texture, pixels a side; SKINPX: the size on screen from which a thing wears it; SINK: how far under its last pixels a dot sinks away; LOOK: a kind's look, numbers (six rows of four)
 // the recipes' workers (recipes.worker.js): one set for every drawer, made when the first asks
@@ -74,14 +80,18 @@ const pool = () => (POOL ||= (() => {
     skins, ground, soft, relief: what its kinds may be (above); full: the most squares an edge a full mesh of its kinds
     has (none: the ladder's most: a slot of the heap is as large as that); zoo: its kinds ({ first (the zoo's number
     of its first kind), ALL, STAND, MOVING, lookOfKind (of its k-th kind), fingerprint }: assets/zoo). */
-export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHADE, SMOOTH, PXK, ghost: GHOST = GHOSTING, corners: CORNERS = false, skins: SKINSMAX = 1024, ground: GROUND = false, soft: SOFT = false, relief: RELIEF = 90, full: FULLMOST = 0, make: MAKE = null, zoo: { first = 0, kinds: KINDS = null, ALL, STAND = ALL, MOVING = 0, lookOfKind, fingerprint } }) {
-  // MAKE: another make of vertex than the solids' ({ per: elements a vertex, byKind: a draw a kind, material(src,
-  // level, shadow): its material }): no looks, no textures of its own, no dot.
+export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHADE, SMOOTH, PXK, ghost: GHOST = GHOSTING, corners: CORNERS = false, skins: SKINSMAX = 1024, ground: GROUND = false, soft: SOFT = false, relief: RELIEF = 90, full: FULLMOST = 0, make: MAKE = null, state: STATE = false, zoo: { first = 0, kinds: KINDS = null, ALL, STAND = ALL, MOVING = 0, lookOfKind, fingerprint } }) {
+  // MAKE: another make of vertex than the solids' ({ per: elements a vertex, byKind: a draw a kind, flat: its meshes'
+  // corners are their vertices in order (none shared), so where it is not drawn a kind a draw, one draw a level as long
+  // as its room serves every kind, material(src, level, shadow): its material, dot: its last level is the drawer's
+  // dot, here(OWN): it makes its coarse levels itself }): no looks, no textures of its own; a dot only where it says
+  // (its kinds' looks then say the dot's colour: a made thing's, src/scatter/placed.js).
   // KINDS: the zoo's numbers of its kinds, where they are not one after another from `first`
-  const SOLID = !MAKE, NL = SOLID ? ALL : 0, kindNo = (k) => (KINDS ? KINDS[k] : first + k);
-  const L = LEVELS.length, STREAMED = LEVELS.filter((l) => l.slots).length, HULL = LEVELS.findIndex((l) => l.n > 0 && l.n <= 2), ROWS = GROUND ? 3 : 2;   // ROWS: what a tier packs of a thing, rows of four
+  const SOLID = !MAKE, DOT = SOLID || !!MAKE?.dot, NL = DOT ? ALL : 0, kindNo = (k) => (KINDS ? KINDS[k] : first + k);
+  const WORN = GROUND || (!SOLID && DOT);   // (its dot is the mean of the world's material its kind wears, in its tint)
+  const L = LEVELS.length, STREAMED = LEVELS.filter((l) => l.slots).length, HULL = LEVELS.findIndex((l) => l.n > 0 && l.n <= 2), ROWS = (GROUND ? 3 : 2) + (STATE ? 1 : 0), SR = ROWS - 1;   // ROWS: what a tier packs of a thing, rows of four; SR: where a drawer made with `state` packs the thing's own (its tint, its wear: src/world/things.js)
   const room = (i) => LEVELS[i].room ?? (FULLMOST && LEVELS[i].n === FULLN ? { tris: trisOf(FULLMOST), verts: vertsOf(FULLMOST) } : roomOf(i));   // the most a level's mesh may be (a level's own, or the ladder's)
-  const H = createHeap({ kinds: ALL, name: `${name}: meshes`, levels: LEVELS.map((l, i) => { const r = room(i); return MAKE ? { idx: 0, elems: r.verts * MAKE.per, slots: l.slots, sizes: l.rooms && !l.slots ? { idx: new Uint32Array(ALL), elems: Uint32Array.from(l.rooms, (x) => x.verts * MAKE.per) } : null } : { idx: r.tris * 3, elems: r.verts, slots: l.slots, one: l.n === DOTN, shape: !CORNERS && l.n > 0 ? ballCorners(l.n) : null }; }) });   // (shape: a level's ball, the ladder's: what is one is drawn by its one list of corners)
+  const H = createHeap({ kinds: ALL, name: `${name}: meshes`, levels: LEVELS.map((l, i) => { const r = room(i); return MAKE ? (DOT && i === L - 1 ? { idx: 3, elems: 3, one: true } : { idx: 0, elems: r.verts * MAKE.per, slots: l.slots, sizes: l.rooms && !l.slots ? { idx: new Uint32Array(ALL), elems: Uint32Array.from(l.rooms, (x) => x.verts * MAKE.per) } : null }) : { idx: r.tris * 3, elems: r.verts, slots: l.slots, one: l.n === DOTN, shape: !CORNERS && l.n > 0 ? ballCorners(l.n) : null }; }) });   // (shape: a level's ball, the ladder's: what is one is drawn by its one list of corners; another make's dot: one mesh for all)
   const LO = uniformArray(LEVELS.map((l) => l.px));
   // every kind's look, six rows of numbers a kind: [its own texture's mean colour, model], [its second tint, metres a
   // tile of its textures], [the layer of the world's texture it takes its relief from, the layer its own texture lies in
@@ -91,7 +101,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const LAYERS = tex.used.filter((m) => ['ground', 'bark', 'stone', 'grass'].includes(m.kind)).map((m) => tex.layer(m)), look = new Float32Array(Math.max(1, NL) * LOOK), MOSS = GROUND ? byRole('moss') : null;   // (MOSS: the material that plays what grows over a thing)
   for (let k = 0; k < NL; k++) {
     const B = lookOfKind(k), worn = B.material ? tex.layer(B.material) : -1;
-    look.set([B.mean[0], B.mean[1], B.mean[2], modelOf(B.model), B.c2[0] * 1.7, B.c2[1] * 1.7, B.c2[2] * 1.7, B.scale, worn >= 0 ? worn : LAYERS[Math.min(LAYERS.length - 1, Math.floor(B.relief * LAYERS.length))], -1, B.gloss, B.sway, B.snow, B.glow, B.through, B.size ?? 1, -100, B.leaf ?? 0, 0, 0, worn, B.cover ?? 0, B.bump ?? 1, B.sunk ?? 0], k * LOOK);
+    look.set([B.mean[0], B.mean[1], B.mean[2], modelOf(B.model), B.c2[0] * 1.7, B.c2[1] * 1.7, B.c2[2] * 1.7, B.scale, worn >= 0 ? worn : LAYERS[Math.min(LAYERS.length - 1, Math.floor(B.relief * LAYERS.length))], -1, B.gloss, B.sway, B.snow, B.glow, B.through, B.size ?? 1, -100, B.leaf ?? 0, B.dot?.[0] ?? 0, B.dot?.[1] ?? 0, worn, B.cover ?? 0, B.bump ?? 1, B.sunk ?? 0], k * LOOK);
   }
   const sizes = Float32Array.from({ length: SOLID ? STAND : 0 }, (_, k) => look[k * LOOK + 15]), LEAVES = Array.from({ length: NL }, (_, k) => look[k * LOOK + 17]).some((x) => x > 0.5);   // a standing kind's largest side, metres (its look's); LEAVES: some kind is cut out as leaves
   const lookRows = new THREE.StorageBufferAttribute(look, 4), mats = storage(lookRows, 'vec4', Math.max(1, NL) * (LOOK / 4)), lookOf = (kind, j) => mats.element(kind.mul(uint(LOOK / 4)).add(uint(j)));
@@ -108,7 +118,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const boneRows = new THREE.StorageBufferAttribute(new Float32Array(Math.max(1, MOVING) * BONES * 12), 4), BONE = storage(boneRows, 'vec4', Math.max(1, MOVING) * BONES * 3);
   // what a pixel is given: where it is and its pattern; its normal and its shade; where it is on the thing (metres from
   // its foot, at rest) and its kind; how large the thing is on screen
-  const vA = varyingProperty('vec4', 'sA'), vB = varyingProperty('vec4', 'sB'), vC = varyingProperty('vec4', 'sC'), vPx = varyingProperty('float', 'sPx'), vSnow = varyingProperty('float', 'sSnow'), vN = varyingProperty('vec3', 'sN'), vUV = varyingProperty('vec2', 'sUV'), vG = varyingProperty('vec4', 'sG');   // (sN: the normal its texture is laid on by: the thing's own, at rest, for what moves; sUV: where on its leaf card a pixel is; sG: the colour of what grows on the ground round it, and how dry the land is there)
+  const vA = varyingProperty('vec4', 'sA'), vB = varyingProperty('vec4', 'sB'), vC = varyingProperty('vec4', 'sC'), vPx = varyingProperty('float', 'sPx'), vSnow = varyingProperty('float', 'sSnow'), vSeed = varyingProperty('float', 'sSeed'), vN = varyingProperty('vec3', 'sN'), vUV = varyingProperty('vec2', 'sUV'), vG = varyingProperty('vec4', 'sG');   // (sN: the normal its texture is laid on by: the thing's own, at rest, for what moves; sUV: where on its leaf card a pixel is; sG: the colour of what grows on the ground round it, and how dry the land is there)
 
   // a thing's colour at a pixel, lit: its own texture laid on it from the sides (it stays on it as it stands); the relief
   // of one of the world's textures when it is large on screen; the snow on it; then its model's way of taking
@@ -118,7 +128,9 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // a leaf card (assets/kit/frond.js): what lies outside the leaf is not drawn, before anything is read for it. The
     // leaf: lobes along the card, each widest at its middle, the whole narrowing to its tip
     if (foliage) { const lobes = lookOf(kind, 4).y, wide = abs(sin(vUV.y.mul(lobes).mul(Math.PI))).mul(0.8).add(0.2).mul(float(1).sub(vUV.y.mul(vUV.y).mul(0.6))); Discard(abs(vUV.x.mul(2).sub(1)).greaterThan(wide)); }
-    const N0 = normalize(vB.xyz), Nq = normalize(vN), q = vC.xyz.div(M1.w), b0 = pow(abs(Nq), vec3(4)), b = b0.div(b0.x.add(b0.y).add(b0.z));
+    // (its seed, 0 … 1: its kind's textures lie on it moved by so many tiles, so no two things of a kind wear the same
+    // pattern; and its model is handed it, for a look of its own)
+    const seed = vSeed, N0 = normalize(vB.xyz), Nq = normalize(vN), q = vC.xyz.div(M1.w).add(vec3(seed, fract(seed.mul(7.13)), fract(seed.mul(3.71))).mul(13)), b0 = pow(abs(Nq), vec3(4)), b = b0.div(b0.x.add(b0.y).add(b0.z));
     // (how fast its texture runs across the screen, asked once here: a read inside a branch that asks it itself makes the
     // GPU work out every branch for every pixel)
     const gx = dFdx(q).mul(U.uFine), gy = dFdy(q).mul(U.uFine);   // (built over time: as finely as the screen's own pixels would)
@@ -160,7 +172,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     const shine = M2.z.mul(float(1).sub(rough.mul(0.6))).mul(W.keep), gloss = GROUND ? shine.mul(float(1).sub(grown)) : shine, back = max(V.negate().dot(S), 0), plain = col.mul(sky.add(sun.mul(ndl)));   // (what is grown over does not shine)
     const lit = vec3(0).toVar(), model = M0.w;
     // its model: how it takes the light (src/shading/*.js: each a file there, a branch here)
-    const C = { colour: col, plain, tint: M0.rgb, second: M1.rgb, normal: n, eye: V, toSun: S, half: Hf, sun, sky, skyLight, ndl, ndh, nv, back, gloss, glow: M3.y, through: M3.z, height: m, bare: W.keep, phase: vC.w, time: U.uTime };
+    const C = { colour: col, plain, tint: M0.rgb, second: M1.rgb, normal: n, eye: V, toSun: S, half: Hf, sun, sky, skyLight, ndl, ndh, nv, back, gloss, glow: M3.y, through: M3.z, height: m, bare: W.keep, phase: vC.w, seed, time: U.uTime };
     if (MODELS.length === 1) lit.assign(MODELS[0].lit(C));
     else { let chain = null; MODELS.forEach((M, i) => { const body = () => { lit.assign(M.lit(C)); }; chain = !chain ? If(model.lessThan(0.5), body) : i < MODELS.length - 1 ? chain.ElseIf(model.lessThan(i + 0.5), body) : chain.Else(body); }); }
     return finish(lit, w);
@@ -177,8 +189,10 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       const A = src.readAt(0, SLOT), B = src.readAt(1, SLOT), clip = offScreen().toVar(), px = A.w.mul(PXK).div(max(camDist(A.xy), 1e-3)), sunk = smoothstep(LEVELS[L - 1].px, LEVELS[L - 1].px * SINK, px);
       If(px.lessThanEqual(LO.element(L - 2)).and(sunk.greaterThan(0)), () => {
         const V = cameraViewMatrix, right = vec3(V.element(0).x, V.element(1).x, V.element(2).x), up = vec3(V.element(0).y, V.element(1).y, V.element(2).y);
-        const r = A.w.mul(0.5).mul(sunk), j = float(vertexIndex);
-        const w = vec3(A.x, A.z.add(A.w.mul(0.35)), A.y).add(right.mul(j.lessThan(0.5).select(float(-1), j.lessThan(1.5).select(float(1), float(0)))).mul(r)).add(up.mul(j.greaterThan(1.5).select(float(1.3), float(-0.5))).mul(r));
+        // (how wide it is and how high its middle stands, of its size: its look's (a made thing's own outline), else a ball's)
+        const M4 = lookOf(uint(B.y.add(0.5)), 4), wide = M4.z.greaterThan(0).select(M4.z, float(0.5)), mid = M4.z.greaterThan(0).select(M4.w, float(0.35));
+        const r = A.w.mul(wide).mul(sunk), j = float(vertexIndex);
+        const w = vec3(A.x, A.z.add(A.w.mul(mid)), A.y).add(right.mul(j.lessThan(0.5).select(float(-1), j.lessThan(1.5).select(float(1), float(0)))).mul(r)).add(up.mul(j.greaterThan(1.5).select(float(1.3), float(-0.5))).mul(r));
         vDot.assign(vec4(w, B.y));
         clip.assign(clipOf(w));
       });
@@ -189,7 +203,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       If(unlit().not(), () => {
         const kind = uint(vDot.w.add(0.5)), M0 = lookOf(kind, 0), M3 = lookOf(kind, 3), w = vDot.xyz, n = normalize(normalize(U.uCam.sub(w)).add(vec3(0, 1, 0)));
         let base = M0.rgb;   // (what wears a material of the world: that material's mean, the last of its mipmaps, in its tint)
-        if (GROUND) { const M5 = lookOf(kind, 5), t = tex.a(M5.x.max(0), vec2(0.5)).level(10); base = M5.x.greaterThan(-0.5).select(t.rgb.mul(t.rgb).mul(M0.rgb), M0.rgb); }
+        if (WORN) { const M5 = lookOf(kind, 5), t = tex.a(M5.x.max(0), vec2(0.5)).level(10); base = M5.x.greaterThan(-0.5).select(t.rgb.mul(t.rgb).mul(M0.rgb), M0.rgb); }
         const W = weatherOn(n, M3.x.mul(0.5)), col = base.mul(0.85).mul(W.keep).add(W.add);
         out.assign(finish(col.mul(skyLight(n).add(U.uSun.mul(sunDim()).mul(cloudShade(w)).mul(max(n.dot(U.uSunDir), 0)))), w));
       });
@@ -261,7 +275,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
           const w = vec3(A.x, A.z, A.y).add(rest.mul(out)).add(vec3(kk.x, snow.mul(out), kk.y)); vSnow.assign(snow);
           // (its texture lies on it as it stands; on a mover as it is at rest, in its own frame: it must not swim over
           // a leg that swings)
-          vA.assign(vec4(w, swing)); vB.assign(vec4(nw, v.shade)); vC.assign(vec4(moving ? p0.mul(A.w) : rest, B.y)); vN.assign(moving ? n0 : nw);
+          vA.assign(vec4(w, swing)); vB.assign(vec4(nw, v.shade)); vC.assign(vec4(moving ? p0.mul(A.w) : rest, B.y)); vN.assign(moving ? n0 : nw); vSeed.assign(fract(B.w.mul(0.1591549)));
           if (GROUND) vG.assign(src.readAt(2, SLOT));
           if (foliage) vUV.assign(vec2(float(v.a).div(15), float(v.b).mul(16).add(v.w.mul(15)).div(255)));   // (where on its card: assets/kit/frond.js)
           clip.assign(clipOf(w));
@@ -277,7 +291,9 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     })();
     return m;
   };
-  const indexOf = LEVELS.map((l, i) => (MAKE ? null : new THREE.BufferAttribute(Uint32Array.from({ length: room(i).tris * 3 }, (_, j) => j), 1)));   // (a draw as long as the level's longest mesh: its vertices are read from the heap by their number)
+  // (a draw as long as the level's longest mesh: its vertices are read from the heap by their number; a flat make's: its
+  // room's vertices, read by their numbers)
+  const indexOf = LEVELS.map((l, i) => (MAKE ? (MAKE.flat && !(DOT && i === L - 1) ? new THREE.BufferAttribute(Uint32Array.from({ length: room(i).verts }, (_, j) => j), 1) : null) : new THREE.BufferAttribute(Uint32Array.from({ length: room(i).tris * 3 }, (_, j) => j), 1)));
   const drawOf = (i) => { const g = new THREE.InstancedBufferGeometry(); g.setIndex(indexOf[i] ?? new THREE.BufferAttribute(new Uint32Array(3), 1)); return g; };   // (another make's: its own list, set when its mesh has come: blockIn)
   // (and a draw by the level's own list of corners, for what is of its shape: a vertex is then worked out once, not once
   // for every triangle that meets in it)
@@ -290,8 +306,8 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // the browser where an earlier start kept them (src/core/kept.js: one piece, under the recipes' fingerprint); else
   // they are built in the workers once the first frames are drawn (a start that builds eleven thousand kinds beside
   // it is a slow start), and kept for the next
-  if (SOLID) H.putAll(L - 1, dotMesh());
-  const OWN = []; for (let l = STREAMED; l < L - (SOLID ? 1 : 0); l++) OWN.push([l, MAKE ? room(l).tris * 3 : H.pools[l].idx, H.pools[l].elems]);   // (a make without a dot: its last level is every kind's own too)
+  if (DOT) H.putAll(L - 1, dotMesh());
+  const OWN = []; for (let l = STREAMED; l < L - (DOT ? 1 : 0); l++) OWN.push([l, MAKE ? room(l).tris * 3 : H.pools[l].idx, H.pools[l].elems]);   // (a make without a dot: its last level is every kind's own too)
   if (MOVING) ask([['bones', first + STAND, MOVING]]).then(([rows]) => { boneRows.array.set(rows); boneRows.needsUpdate = true; });
   const FP = fingerprint(), KEPT = name === 'stand' ? 'own' : `own: ${name}`, EAGER = ALL <= 256; let coarse = -1, keptOwn = null, loadedAt = 0;   // (EAGER: a few kinds are read back or built as soon as the browser has answered, not after the first frames: they are there when the first picture is)
   keptGet(FP, KEPT).then((rec) => { keptOwn = Array.isArray(rec) && rec.length === OWN.length && rec.every((b, n) => b.l === OWN[n][0] && b.counts?.length === ALL && b.draws?.length === ALL && b.corners?.length === ALL * OWN[n][1]) ? rec : false; if (EAGER) start(); });
@@ -308,6 +324,9 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   };
   const fill = () => {
     coarse = 0;
+    // (a make of a few small kinds may make its coarse levels itself, here, as the workers would (MAKE.here(OWN): the
+    // blocks): they are there for the first picture, not behind the workers' queue of everything else the start asks)
+    if (MAKE?.here) { const blocks = MAKE.here(OWN); blocks.forEach((b, j) => blockIn(b, 0, ALL, OWN[j][1])); coarse = ALL; stats.coarseMs = Math.round(performance.now() - t0); keptPut(FP, KEPT, blocks); return; }
     const all = OWN.map(([l, idx, elems]) => ({ l, corners: new Uint32Array(ALL * idx), verts: new Uint32Array(ALL * elems * 4), counts: new Uint32Array(ALL), draws: new Uint32Array(ALL) }));
     for (let k = 0; k < ALL; k += 100) {   // (a hundred kinds a message, sent to the GPU as one piece a level)
       const n = Math.min(100, ALL - k);
@@ -420,45 +439,57 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       as its size is seen); shadow: all that is near whatever its size, a little smaller, for the light only; casts: it
       casts its shadows as it is drawn.
       place(c, at, found): the placer's node code for cell c. Where a thing stands in it, it calls (once, inside
-      whatever it tests first) found(kind, size, dist, fill): its kind (a uint node, the drawer's k-th), its size
+      whatever it tests first) found(kind, size, dist, fill, key?): its kind (a uint node, the drawer's k-th), its size
       (metres) and how far it is from the eye (camDist of its place); fill(A, B, G) then writes its rows, only for a
       thing that is of this level: A (x, z, the height of its foot, its size), B (its turn, its kind, how far it sways,
-      its sway's phase), and G where the drawer was made with `ground` (the colour of what grows round it, how dry the
-      land is there). at: { band (near, far: uniforms, the distances this level's things lie between), whole (true
+      its seed: a number of its own, 0 … 2π, its sway's phase where it sways), and G where the drawer was made with
+      `ground` (the colour of what grows round it, how dry the land is there). key: the thing's own key where its cell
+      does not name it (src/world/things.js: a list's place); `thing` (the tier's option) the placer's name otherwise. at: { band (near, far: uniforms, the distances this level's things lie between), whole (true
       where all that is near is drawn: the shadow's), all (that as a number) }. */
-  const tier = (i, { cell, P, cap, sizes, place, shadow = false, casts = false, fade = 0.02, far = Infinity, extra = {} }) => {   // (extra: more of the tier's own options: tier.js)
+  // A thing's own state (src/world/things.js), in a packing: what is gone is not packed, what grew is packed larger, and
+  // a drawer made with `state` packs its tint and its wear. Its key: what the placer says (found's fifth: a list's), else
+  // its placer's name (`thing`) and its cell (one thing a cell). `go` packs it.
+  const asItIs = (TH, c, key, rows, go) => {
+    if (!TH && !key) { if (STATE) rows[SR].assign(vec4(1, 1, 1, 0)); go(); return; }
+    const S = stateAt(key ?? keyN(TH, c.x, c.y));
+    If(S.gone.not(), () => { rows[0].assign(vec4(rows[0].xyz, rows[0].w.mul(S.grow))); if (STATE) rows[SR].assign(vec4(S.tint, S.wear)); go(); });
+  };
+  const thingOf = (thing) => (thing == null ? null : uniform(typeof thing === 'number' ? thing : nameKey(thing), 'uint'));
+  const tier = (i, { cell, P, cap, sizes, place, shadow = false, casts = false, fade = 0.02, far = Infinity, thing = null, extra = {} }) => {   // (thing: its placer's name, for a thing's own state; extra: more of the tier's own options: tier.js)
     const Lv = { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity }, band = { near: uniform(0), far: uniform(1), ...bandOf(Lv, fade, padOf(cell, P)) };
     // the full meshes are a draw a slot of the heap, each as long as the mesh that lies in it (set when it is put in:
     // arrive, above): a full mesh is 50 000 to 200 000 triangles, and one draw as long as the longest for all of them
     // worked out 200 000 for each
     // (perSlot only where its finest level is one of slots; byKind: a draw a kind, another make's, at the levels every kind has its own of)
-    const perSlot = i === 0 && !shadow && !!LEVELS[0].slots, byKind = !!MAKE?.byKind && !perSlot;   // (byKind: a draw a kind, another make's; perSlot only where its finest level is one of slots)
+    const isDot = DOT && i === L - 1, perSlot = i === 0 && !shadow && !!LEVELS[0].slots, byKind = !!MAKE?.byKind && !perSlot && !isDot;   // (byKind: a draw a kind, another make's; perSlot only where its finest level is one of slots; the dot one draw for all)
     // (and what is cut out as leaves has a draw of its own at the levels it is cards: another state of the pipeline)
     const leafy = LEAVES && !shadow && i < HULL, K0 = perSlot ? LEVELS[0].slots : 1;
     // (and what is of the level's own shape, a ball of the ladder's, the last draw: by the level's list of corners)
     const KS = shapeOf[i] ? (leafy ? K0 * 2 : K0) : -1;
     // (its level and whether it is the shadow's as numbers: every tier's packing is one piece of code, compiled once)
-    const lv = uniform(i, 'uint'), under = uniform(Math.max(0, i - 1), 'uint'), stands = uniform(i ? 1 : 0), all = uniform(shadow ? 1 : 0);
-    const live = (c) => {
+    const lv = uniform(i, 'uint'), under = uniform(Math.max(0, i - 1), 'uint'), stands = uniform(i ? 1 : 0), all = uniform(shadow ? 1 : 0), TH = thingOf(thing);
+    const live = (c, part = {}) => {
       const alive = float(0).toVar(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar()), bucket = float(0).toVar(), whole = all.greaterThan(0.5);
-      place(c, { band, whole, all }, (kind, size, dist, fill) => {
+      place(c, { band, whole, all, ...part }, (kind, size, dist, fill, key = null) => {
         // of this level: it is there (heap.js), and the thing is the size on screen the level is drawn at, or larger
         // while its next finer level has not come
         const span = size.mul(PXK), R = heapRow(H, kind, lv), has = R.z.greaterThan(uint(0));
         const near = dist.greaterThanEqual(span.mul(band.from).sub(band.pad)).or(stands.greaterThan(0.5).and(R.w.shiftRight(under).bitAnd(uint(1)).equal(uint(0))));
         If(has.and(whole.or(dist.lessThan(span.mul(band.to).add(band.pad)).and(near))), () => {
           fill(...rows);
-          if (byKind) bucket.assign(float(kind));   // (its kind's own draw)
-          if (perSlot) bucket.assign(float(R.y.sub(uint(H.pools[0].e0)).div(uint(H.pools[0].elems))));   // (the full meshes: which of the heap's slots its kind's lies in)
-          if (leafy) bucket.addAssign(lookOf(kind, 4).y.greaterThan(0.5).select(float(K0), float(0)));
-          if (KS >= 0) If(shapedOf(R), () => { bucket.assign(float(KS)); });
-          alive.assign(1);
+          asItIs(TH, c, key, rows, () => {
+            if (byKind) bucket.assign(float(kind));   // (its kind's own draw)
+            if (perSlot) bucket.assign(float(R.y.sub(uint(H.pools[0].e0)).div(uint(H.pools[0].elems))));   // (the full meshes: which of the heap's slots its kind's lies in)
+            if (leafy) bucket.addAssign(lookOf(kind, 4).y.greaterThan(0.5).select(float(K0), float(0)));
+            if (KS >= 0) If(shapedOf(R), () => { bucket.assign(float(KS)); });
+            alive.assign(1);
+          });
         });
       });
       return { alive: alive.greaterThan(0.5), data: rows, bucket };
     };
     let own = null;   // (another make's material: one for every draw of the tier)
-    const T = new Tier(scene, [...Array.from({ length: byKind ? ALL : leafy ? K0 * 2 : K0 }, () => drawOf(i)), ...(KS >= 0 ? [drawShaped(i)] : [])], (src, k = 0) => (MAKE ? (own ||= MAKE.material(src, i, shadow)) : i === L - 1 && !shadow ? dot(src) : meshOf(src, i, shadow, false, leafy && k >= K0 && k !== KS, k === KS)), { cell, P, near: 0, far: 1, order: 1, live, gpu: true, cap, slots: ROWS, ...extra });
+    const T = new Tier(scene, [...Array.from({ length: byKind ? ALL : leafy ? K0 * 2 : K0 }, () => drawOf(i)), ...(KS >= 0 ? [drawShaped(i)] : [])], (src, k = 0) => (isDot && !shadow ? dot(src) : MAKE ? (own ||= MAKE.material(src, i, shadow)) : meshOf(src, i, shadow, false, leafy && k >= K0 && k !== KS, k === KS)), { cell, P, near: 0, far: 1, order: 1, live, gpu: true, cap, slots: ROWS, ...extra });
     T.band = shadow ? () => { T.near = 0; T.far = SHADE.far; band.near.value = -1; band.far.value = SHADE.far * SHADE.wide; }
       : () => {
         [T.near, T.far] = band.reach(sizes[0], sizes[1], pxK()); if (i <= STREAMED) T.near = 0;   // (a level may stand in for the finer ones, right up to the camera)
@@ -467,7 +498,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     T.band(); T.level = i; T.shaped = KS;
     for (const m of T.meshes) m.renderOrder = 1 + i * 0.01;   // the fine levels first: they are the near ones, and what is behind them need not be shaded
     if (shadow) for (const m of T.meshes) m.layers.set(1);
-    else if (casts && (MAKE || i < L - 1)) for (const m of T.meshes) m.layers.enable(1);   // (as drawn: src/world/shadow.js; a dot casts none)
+    else if (casts && !isDot) for (const m of T.meshes) m.layers.enable(1);   // (as drawn: src/world/shadow.js; a dot casts none)
     if (perSlot) { T.slotArgs = (s) => (leafy ? [s * 5, (s + K0) * 5] : [s * 5]); fulls.push(T); }   // (where a slot's draws keep their length)
     // packed again when the heap has changed at its level, or the next finer (which it stands in for); and what the
     // workers have built is put in as the first of the drawer's tiers comes to pack: before any of them does.
@@ -489,8 +520,8 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       coarser level's shape already and stays that, so a level taken a moment late is not seen. cell, P, cap, sizes,
       place, casts, far: as tier() (cap: of its farthest level; the nearer ones hold a quarter as many each); last: the
       last level its things have (they end before the ladder does). */
-  const tierAll = ({ cell, P, cap, sizes, place, casts = false, far = Infinity, last = L - 1, step = 0.5 }) => {
-    const band = { near: uniform(-1), far: uniform(1) }, K0 = LEVELS[0].slots || 1, hp0 = H.pools[0];
+  const tierAll = ({ cell, P, cap, sizes, place, casts = false, far = Infinity, last = L - 1, step = 0.5, thing = null }) => {
+    const band = { near: uniform(-1), far: uniform(1) }, K0 = LEVELS[0].slots || 1, hp0 = H.pools[0], TH = thingOf(thing);
     // its draws: a slot of the heap's each for the full meshes; of every other mesh level the corners looked up and,
     // where the level has a shape of its own, that list; the dot
     const draws = Array.from({ length: K0 }, (_, s) => ({ level: 0, slot: s }));
@@ -498,9 +529,9 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     if (last === L - 1) draws.push({ level: L - 1, dot: true });
     const at = (f) => uniformArray(LEVELS.map((_, i) => Math.max(0, draws.findIndex((d) => d.level === i && f(d)))));
     const PLAIN = at((d) => !d.shared), SHARED = at((d) => d.shared), END = last === L - 1 ? LEVELS[L - 1].px : 0.3;   // (END: the size on screen under which nothing of it is drawn)
-    const live = (c) => {
+    const live = (c, part = {}) => {
       const alive = float(0).toVar(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar()), bucket = float(0).toVar();
-      place(c, { band, whole: all0.greaterThan(0.5), all: all0 }, (kind, size, dist, fill) => {
+      place(c, { band, whole: all0.greaterThan(0.5), all: all0, ...part }, (kind, size, dist, fill, key = null) => {
         const px = size.mul(PXK).div(max(dist, 1e-3));
         If(px.greaterThan(END), () => {
           // the level its size asks for; drawn at the finest that is there and no finer than that
@@ -510,8 +541,10 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
           const R = heapRow(H, kind, lvl).toVar();
           If(R.z.greaterThan(uint(0)), () => {
             fill(...rows);
-            bucket.assign(lvl.equal(uint(0)).select(float(R.y.sub(uint(hp0.e0)).div(uint(hp0.elems))), shapedOf(R).select(SHARED.element(lvl), PLAIN.element(lvl))));
-            alive.assign(1);
+            asItIs(TH, c, key, rows, () => {
+              bucket.assign(lvl.equal(uint(0)).select(float(R.y.sub(uint(hp0.e0)).div(uint(hp0.elems))), shapedOf(R).select(SHARED.element(lvl), PLAIN.element(lvl))));
+              alive.assign(1);
+            });
           });
         });
       });
