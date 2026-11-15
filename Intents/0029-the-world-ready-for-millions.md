@@ -234,6 +234,63 @@ and the definition holds no surprise beyond the decisions named in it, so it is 
   (`placed:<cx>:<cz>`, its spot to the centimetre) are made when asked, and taking a place out finds it by its spot
   in the list's order. Keeping a string and a map entry per place was about 150 MB at a million.
 
+**Round two: one of everything** (deliverables 9 to 17)
+
+- **One module for each concept** (`b032a39`).
+  - The hashes are in `src/core/hash.js`: the land's `hashI`, `hash4`, `rnd`, `fmix`, FNV-1a and mulberry32. Their GPU
+    twin, `hash.nodes.js`, reads its constants from there. They are bit for bit the copies they replace (checked over
+    200 000 inputs). The fire pit and its flame keep their own older stream (`lcg`), in the same module, so they
+    stand as they always have.
+  - The kit's vectors and the smooth step are in `assets/kit/math.js` (the smooth step was in seven places).
+  - A vertex's codecs are in `assets/kit/pack.js` and `src/scatter/unpack.js` (octahedral normals, 16-bit places,
+    square-root colours).
+  - An asset's size (`most`, `spanOf`, `sizeOf`) is in `assets/kinds.js`, beside the kinds' rule it measures by.
+  - A packed thing's rows and their helpers are in `src/scatter/row.js` (see the contract below).
+  - A made thing's sway and light are in `src/world/made.nodes.js`, for the list and for `place.js` alike.
+  - One lens: every engine reads `U.uPxK`, and `tier.js` has one resize handler for every tier. The list's tiers had
+    none, so their reach went stale when the window changed.
+  - One look round for the fine levels: the drawer's `scan()`, which three engines had copied.
+  - The game's address flags are read in `src/core/flags.js`. The film player (`cine/`) reads its own address.
+- **The made things fold their normals as the others do**, over z, so all three makes share one codec. Their meshes'
+  bits changed, so their fingerprint is `made 2` and the browser makes them once more. Every other family of the zoo
+  is bit for bit as before, checked through the zoo itself in both trees.
+- **A species is one file.** `assets/zoo/scattered.js` makes a family of every asset the trees' or the rocks' engine
+  scatters, named after its file in the plural. The ten seven-line family files are gone. The zoo numbers every kind
+  as before (checked: the same families, numbers and fingerprints).
+- **The registry follows a recipe's kits through their imports, and the shared dice** (`tools/registry.js`). The dice
+  moved out of the tree kit, and a recipe's version would otherwise not change with them. The kits changed in this
+  round, so every plant's version is new, and the plants' kept meshes are made once more at the next start. The rocks'
+  are filed by what they make, which is unchanged, so they are kept.
+- **One table of a kind's numbers** (`b686b6d`). The drawer's look rows are the table: a kind's look, then its make's
+  own rows (`numOf`). The plants' and the made things' own buffers are gone. A made kind's snow and its largest side
+  are read once, from its look. The tent's dot had held 0.1 of snow while its body held 0.22; both now take 0.22,
+  from its kind's rule.
+- **One way to pack a thing** (`src/scatter/row.js`): A is its place, its foot and its size in metres; B is its turn,
+  its kind, its motion and its seed. The plants follow it now:
+  - their size in metres is what their kind measures them by;
+  - their scale is that size over their shape's size at scale 1 (`sizeAtOne`);
+  - their seed carries their shade, as it always was (the shade times 2π), so they lean and tint as before.
+- **A level in a few draws.** A make's level is drawn a kind a draw while its kinds are few (32 or fewer). With more,
+  it is drawn a class of size a draw: a power of two of triangles, each thing drawn at most twice as long as its own
+  mesh. A plant's corners are then kept in the heap and looked up, and a made thing's need none. `?byclass` forces
+  the classes, and `?bylevel` is gone.
+- **Movers are the drawer's.** The drawer's one tier of every level takes `moving`: packed every frame, drawn on its
+  bones, with its level read from the mesh. A vertex now follows its bone's chain up to four links (`CHAIN`). Two had
+  let a shin part from its thigh as the body bobbed, and a tail's links swing apart. The stress world's movers use
+  that tier instead of their own.
+- **What turned out different.**
+  - The movers' packing, now the drawer's, bound 13 and then 14 uniform buffers, where WebGPU allows 12 to a stage,
+    and the stress world drew no movers. A tier's caps and offsets are now one array of pairs, and the one tier's
+    levels and draws one array; it binds 12.
+  - A class's draw was at first a power of two of corners, not of triangles, so its last triangle could be cut.
+- **Herds** (`src/scatter/herds.js`): `?herds=N` creatures roam the meadow round the tent, each on a round of its
+  own at its herd's pace. A creature's path is a row of numbers worked out once and read by both the GPU (drawn) and
+  the CPU (solid), so the two never disagree. Each is a thing (`herds:i:0`). On the first try, `inView` was handed a
+  node where it does sums in JS, and the world did not load.
+- **Legacy out.** 24 unused imports in 17 files, five dead exports, the stress world's leftover constants (from
+  before the drawer was lifted out of it), the icosphere rock and its preview, a level's own mesh, and ten comments
+  that named files that had moved.
+
 ## Propose
 
 **Delivered** (draft PR #14, https://github.com/MaiaCityCoop/theOS/pull/14, branch `fix/generic-collision-all-worlds`, merged with main 5bf670c):
@@ -353,3 +410,6 @@ _One entry per request cycle, newest last._
 | 2026-11-15 | `906f816` | Merged main 5bf670c (0026): `main.js` both kept, the list's tiers among those `scatter.compile()` compiles |
 | 2026-11-15 | `98800e9` | The store's table on the page made with the first change (4 MB less where nothing changed) |
 | 2026-11-15 | `80798ce` | PR #14 merged into main (deployed to next) |
+| 2026-11-15 | `b032a39` | One of each concept: the shared hashes, the kit's arithmetic, a vertex's codecs, an asset's size, one lens, one resize handler, one look round, the address flags, a made thing's shading; a species is one file; the registry follows kits; legacy out |
+| 2026-11-15 | `b686b6d` | One table of a kind's numbers; one way to pack a thing (the plants too); a level in a few draws (`?byclass`); movers on the drawer's one tier, bone chains of four; the stress world's movers on it; `?herds=N`; the concepts in the docs |
+| 2026-11-15 | `cca7a77` | The one table of a kind's numbers never smaller than one vec4 |
