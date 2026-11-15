@@ -133,3 +133,4 @@ Asked outright, with no surprise in the definition, so built straight away.
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-15 | `5c496ed` | The API, its stack and deploy, the session after sign-in, `me.html` |
+| 2026-11-15 | `7e8e049` | "Already one? Sign in again" for a traveler; the changelog of the deploy and the purchase |
