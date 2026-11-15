@@ -80,3 +80,4 @@ Samuel asked for this directly and the definition holds no surprise, so it was b
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-15 | `a6d9f31` | viewport-fit=cover and safe-area edge tokens |
