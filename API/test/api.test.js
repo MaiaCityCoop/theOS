@@ -71,7 +71,7 @@ describe("aven.id's roles back channel", () => {
   });
   test('an account aven.id does not have is gone; anything else is not known', async () => {
     expect(await rolesReader(ISSUER, CLIENT, 'x', { fetch: answer(404, { error: 'unknown_account' }) })(SUB)).toEqual({ gone: true });
-    for (const [status, body] of [[503, { error: 'temporarily_unavailable' }], [401, { error: 'invalid_client' }], [200, { sub: 'someone-else', aven_roles: [] }], [200, { sub: SUB }]])
+    for (const [status, body] of [[404, { status: 404 }], [503, { error: 'temporarily_unavailable' }], [401, { error: 'invalid_client' }], [200, { sub: 'someone-else', aven_roles: [] }], [200, { sub: SUB }]])
       expect(await rolesReader(ISSUER, CLIENT, 'x', { fetch: answer(status, body) })(SUB)).toBeNull();
     expect(await rolesReader(ISSUER, CLIENT, 'x', { fetch: async () => { throw new Error('down'); } })(SUB)).toBeNull();
   });
