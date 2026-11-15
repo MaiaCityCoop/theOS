@@ -283,6 +283,11 @@ and the definition holds no surprise beyond the decisions named in it, so it is 
     and the stress world drew no movers. A tier's caps and offsets are now one array of pairs, and the one tier's
     levels and draws one array; it binds 12.
   - A class's draw was at first a power of two of corners, not of triangles, so its last triangle could be cut.
+  - The drawer's one look round first marked every frame it looked in as busy, as the stress world's had. The
+    governor leaves a busy frame's length out of what it sets the detail by, and the plants' and rocks' drawers
+    now looked too, so it left out many frames, the slow ones among them. By the tent this branch's slowest frames
+    were longer than main's in four of five runs (the 95th percentile 149 to 271 ms against 95 to 169). Only the
+    stress world marks its looks now, as on main (`d013a3b`).
 - **Herds** (`src/scatter/herds.js`): `?herds=N` creatures roam the meadow round the tent, each on a round of its
   own at its herd's pace. A creature's path is a row of numbers worked out once and read by both the GPU (drawn) and
   the CPU (solid), so the two never disagree. Each is a thing (`herds:i:0`). On the first try, `inView` was handed a
@@ -413,3 +418,4 @@ _One entry per request cycle, newest last._
 | 2026-11-15 | `b032a39` | One of each concept: the shared hashes, the kit's arithmetic, a vertex's codecs, an asset's size, one lens, one resize handler, one look round, the address flags, a made thing's shading; a species is one file; the registry follows kits; legacy out |
 | 2026-11-15 | `b686b6d` | One table of a kind's numbers; one way to pack a thing (the plants too); a level in a few draws (`?byclass`); movers on the drawer's one tier, bone chains of four; the stress world's movers on it; `?herds=N`; the concepts in the docs |
 | 2026-11-15 | `cca7a77` | The one table of a kind's numbers never smaller than one vec4 |
+| 2026-11-15 | `d013a3b` | Only the stress world's looks round make a frame busy, as on main (found by the tent's slowest frames) |
