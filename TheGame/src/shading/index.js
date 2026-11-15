@@ -18,6 +18,7 @@
 //       c.glow, c.through    its look's: how it glows, how much light passes through it
 //       c.height   its own texture's height there (0 … 1)      c.bare     how much of it is free of snow (0 … 1)
 //       c.phase    a number of its own (its kind's)            c.time     the clock, seconds
+//       c.seed     the thing's own number (0 … 1): what one thing of a kind may differ by from another (intent 0029)
 //   }
 const FOUND = import.meta.glob(['./*.js', '!./index.js'], { eager: true, import: 'default' });
 export const MODELS = Object.values(FOUND).filter((M) => M?.id && M.lit).sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || (a.id < b.id ? -1 : 1));

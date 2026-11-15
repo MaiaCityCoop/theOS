@@ -28,3 +28,14 @@ export function wrap(m, p, N0, relief = 1) {
   const n = normalize(N0.add(vec3(0, tx.y, tx.x).mul(b.x).add(vec3(ty.x, 0, ty.y).mul(b.y)).add(vec3(tz.x, tz.y, 0).mul(b.z)).mul(relief)));
   return { col: a.rgb, height: a.a, n };
 }
+/** The same, read with the gradients given (gx, gy: how fast p runs across the screen, dFdx and dFdy of it, asked
+    outside any branch): what may be read inside a branch whose way differs pixel by pixel (src/scatter/placed.js: a
+    face that names no material reads none). */
+export function wrapGrad(m, p, gx, gy, N0, relief = 1) {
+  const b0 = pow(abs(N0), vec3(4)), b = b0.div(b0.x.add(b0.y).add(b0.z));
+  const r = (f, uv, x, y) => tex[f](m, uv).grad(x, y);
+  const a = r('a', p.zy, gx.zy, gy.zy).mul(b.x).add(r('a', p.xz, gx.xz, gy.xz).mul(b.y)).add(r('a', p.xy, gx.xy, gy.xy).mul(b.z));
+  const tx = r('n', p.zy, gx.zy, gy.zy).xy.mul(2).sub(1), ty = r('n', p.xz, gx.xz, gy.xz).xy.mul(2).sub(1), tz = r('n', p.xy, gx.xy, gy.xy).xy.mul(2).sub(1);
+  const n = normalize(N0.add(vec3(0, tx.y, tx.x).mul(b.x).add(vec3(ty.x, 0, ty.y).mul(b.y)).add(vec3(tz.x, tz.y, 0).mul(b.z)).mul(relief)));
+  return { col: a.rgb, height: a.a, n };
+}

@@ -67,7 +67,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
             const d = abs(I.x), w = I.y, dry = dryAt({ p: pos, dist, d, w, b: I.z });
             A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(sunk), size)); G.assign(vec4(grassTint(tex, pos, dry, 0).rgb, dry));
           } else { A.assign(vec4(pos, GA.x.sub(sunk), size)); G.assign(ground.tint(pos)); }
-          B.assign(vec4(rnd(cx, cy, uint(211)).mul(6.2831853), float(kind), 0, 0));   // (its turn, its kind; it does not sway)
+          B.assign(vec4(rnd(cx, cy, uint(211)).mul(6.2831853), float(kind), 0, rnd(cx, cy, uint(212)).mul(6.2831853)));   // (its turn, its kind; it does not sway; its seed: drawer.js)
         });
       };
       If(dist.lessThan(band.far).and(dist.greaterThanEqual(band.near)), () => {
@@ -86,7 +86,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
     const last = LEVELS.findIndex((l, i) => i === L - 1 || l.px <= end);
     // (its patches: about five to its reach, so the tier looks at a few dozen, whatever the lens; cap: the most of it in one draw)
     const farAt = Math.min(reach, (sizes[1] * pxK(Math.max(innerHeight, 1400))) / Math.max(end, LEVELS[last].px)), P = Math.min(64, Math.max(2, 2 ** Math.ceil(Math.log2(farAt / (row.cell * 5)))));
-    const T = D.tierAll({ cell: row.cell, P, cap: big ? 16384 : 4096, sizes, place, casts: row.detail.casts, far: reach, last });
+    const T = D.tierAll({ cell: row.cell, P, cap: big ? 16384 : 4096, sizes, place, casts: row.detail.casts, far: reach, last, thing: `rocks:${row.uid}` });   // (thing: a rock's own state, its asset and its cell: src/world/things.js)
     T.asset = row.name; tiers.push(T);
   }
   addEventListener('resize', () => { PXK.value = pxK(); tiers.forEach((T) => T.band()); });

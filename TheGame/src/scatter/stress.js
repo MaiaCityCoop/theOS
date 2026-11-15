@@ -65,6 +65,7 @@ import { MODELS } from '../shading/index.js';
 import { gpuStorage } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { addBodies } from '../world/bodies.js';
+import { idOf } from '../world/things.js';
 import { bodyOf } from '../../assets/zoo/index.js';
 import { addWays, waysChanged } from '../world/ways.js';
 import { moved } from '../../assets/kit/bones.js';
@@ -439,7 +440,7 @@ export function createStress(scene, renderer, tex) {
         });
       });
     };
-    const T = D.tier(i, { cell: CELL, P, cap: shadow ? 8192 : LEVELS[i].cap, sizes: [SMIN, SMAX], place, shadow, fade: FADE });
+    const T = D.tier(i, { cell: CELL, P, cap: shadow ? 8192 : LEVELS[i].cap, sizes: [SMIN, SMAX], place, shadow, fade: FADE, thing: 'stand' });   // (thing: a thing's own state, by its cell of its plot's lattice: src/world/things.js)
     // its patches: of each plot near, the blocks of its lattice that lie in the tier's band of distances and in view
     // (where a block lies: its middle through toLand; a block near the camera is found by the camera's own lattice point)
     // (where a block's middle lies on the land: folded once, kept; a tier asks it of thousands of blocks a frame)
@@ -537,7 +538,7 @@ export function createStress(scene, renderer, tex) {
           // fineness in an hour); its pace is made to fit that clock, so no leg jumps when it does
           const step = (TAU * 20) / WRAP, pace = floor(v.div(S.mul(I1.w)).div(step).add(0.5)).max(1).mul(step);
           A.assign(vec4(pos, groundAt(pos, float(0)).add(up), S));
-          B.assign(vec4(yaw, float(kind), pace.mul(strideT).add(h6.mul(TAU * 20)), 0));
+          B.assign(vec4(yaw, float(kind), pace.mul(strideT).add(h6.mul(TAU * 20)), h5.mul(TAU)));   // (its seed: drawer.js)
           bucket.assign(float(lvl)); alive.assign(1);
         });
       });
@@ -625,7 +626,7 @@ export function createStress(scene, renderer, tex) {
       const [fi, fj] = toLattice(p, x, z), rl = Math.ceil((reach + SMAX + p.clrMax) / p.narrow) + 1;
       for (let j = Math.max(0, Math.floor(fj - rl)); j <= Math.min(SIDE - 1, Math.floor(fj + rl)); j++) for (let i = Math.max(0, Math.floor(fi - rl)); i <= Math.min(SIDE - 1, Math.floor(fi + rl)); i++) {
         const id = (p.i * SIDE + j) * SIDE + i; let o = stood.get(id);   // (what stands in a cell stands there for good: reckoned once, kept)
-        if (!o) { const st = standsAt(p, i, j, sizes); o = { id, x: st.x, z: st.z, y: heightAt(st.x, st.z) - st.s * 0.06, up: 0, yaw: cellRnd((p.i << BITS) + i, j, 907) * TAU, s: st.s, kind: st.k, body: bodyOf(st.k) }; if (stood.size > 40000) stood.clear(); stood.set(id, o); }
+        if (!o) { const st = standsAt(p, i, j, sizes); o = { id, thing: idOf('stand', (p.i << BITS) + i, j), x: st.x, z: st.z, y: heightAt(st.x, st.z) - st.s * 0.06, up: 0, yaw: cellRnd((p.i << BITS) + i, j, 907) * TAU, s: st.s, kind: st.k, body: bodyOf(st.k) }; if (stood.size > 40000) stood.clear(); stood.set(id, o); }
         if (Math.hypot(o.x - x, o.z - z) <= reach + o.s) out.push(o);
       }
     }

@@ -11,6 +11,7 @@ import { onWay, waysVersion } from './ways.js';
 import { rockBody } from '../../assets/kit/rock.js';
 import { placedBy, bodyOf } from '../../assets/zoo/index.js';
 import { addBodies } from './bodies.js';
+import { idOf } from './things.js';
 
 let ground = null;
 /** The ground pass to read the stones' chance from (src/main.js gives it). */
@@ -31,7 +32,7 @@ function rockIn(k, ki, i, j) {
   if (keep) {
     // its size, and which of its asset's shapes it is (the same two hashes as the card's); that shape's reach and height
     const r1 = rnd(i, j, 204), s = k.lo + (k.hi - k.lo) * (r1 * r1 * r1 + (k.big ? oc * 0.25 * r1 : 0)), v = Math.min(k.shapes - 1, Math.floor(rnd(i, j, 201) * k.shapes)), B = rockBody(k.asset, v);
-    rock = { x, z, s, v, uid: k.uid, side: s * B.span, key, kind: k.zoo + v, sunk: B.sunk, yaw: rnd(i, j, 211) * TAU };   // (its turn: the card's, src/scatter/rocks.js)
+    rock = { x, z, s, v, uid: k.uid, side: s * B.span, key, thing: idOf(`rocks:${k.uid}`, i, j), kind: k.zoo + v, sunk: B.sunk, yaw: rnd(i, j, 211) * TAU };   // (its turn: the card's, src/scatter/rocks.js; thing: its asset and its cell, as the GPU keys it: src/world/things.js)
   }
   kept.set(key, rock); return rock;
 }
@@ -49,5 +50,5 @@ export const rocksAround = (x, z, reach, fn) => each(x, z, reach, (r) => { if (M
 
 // every rock round a point as a body: drawn where it lies, its foot as deep in the ground as the card sets it, turned
 // as the card turns it, its size its largest side (the frame its family's colliders are in)
-const bodyIn = (r) => (r.body ||= { id: `rock:${r.key}`, x: r.x, z: r.z, y: heightAt(r.x, r.z) - r.side * r.sunk, up: -r.side * r.sunk, yaw: r.yaw, s: r.side, kind: r.kind, body: bodyOf(r.kind) });
+const bodyIn = (r) => (r.body ||= { id: `rock:${r.key}`, thing: r.thing, x: r.x, z: r.z, y: heightAt(r.x, r.z) - r.side * r.sunk, up: -r.side * r.sunk, yaw: r.yaw, s: r.side, kind: r.kind, body: bodyOf(r.kind) });
 addBodies((x, z, reach) => { const out = []; each(x, z, reach, (r) => { if (Math.hypot(r.x - x, r.z - z) < reach + r.side) out.push(bodyIn(r)); }); return out; });

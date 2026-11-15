@@ -29,6 +29,7 @@ import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
 import { recipe } from './core/registry.js';
 import { place } from './world/place.js';
+import { stand } from './scatter/placed.js';   // what stands at a spot of its own, drawn by the one drawer (intent 0029)
 import { PLACES } from '../world/places.js';
 import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
@@ -112,7 +113,7 @@ const scatter = createScatter(scene, tex, ground, renderer, camera);
 stats.scatter = scatter;   // for timings and pages that look at it
 mark('scatter');
 const packing = scatter.compile();   // the tiers' packing passes, side by side with the textures' (they read no target)
-for (const at of Object.values(PLACES)) place(scene, recipe(at.asset), at);   // what stands at a named place, from the asset library
+for (const at of Object.values(PLACES)) { const a = recipe(at.asset); if (!stand(a, at)) place(scene, a, at); }   // what stands at a named place, from the asset library: in the one list (src/scatter/placed.js), else on its own (a fire's light; no WebGPU)
 const controls = createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat'));
 const sky = createSky(scene, camera, renderer);
 // the weather: every condition a plug-in (src/world/weather/*.js: the wind, the snow, the snow falling, the clouds),

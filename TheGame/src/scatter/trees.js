@@ -47,6 +47,7 @@ import { plantOf } from './plantvert.js';
 import { placedBy, bodyOf } from '../../assets/zoo/index.js';
 import { inView } from './view.js';
 import { addBodies, bodyGrid, topOf, wanted } from '../world/bodies.js';
+import { idOf } from '../world/things.js';
 import { wayAt, waysVersion } from '../world/ways.js';
 
 const PXK = uniform(pxK()); addEventListener('resize', () => (PXK.value = pxK()));
@@ -361,7 +362,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
       const t = D.tier(i, {
         cell: ST.cell, P, cap: FINE && !i && !shadow ? 64 : Math.ceil(Math.min(240000, MAXP * P * P * 0.4) / Math.min(...g.kinds.map((k) => k.shapes))), sizes: [sLo, sHi], fade: G.fade, shadow,
         casts: !shadow && i === 0 && g.kinds.some((Kd) => Kd.row.detail.casts && !Kd.asset.detail.shadow),   // without a stand-in the near ones cast, as drawn (src/world/shadow.js)
-        place: (c, { band }, found) => plantIn(c, g, band, shadow, seen, found),
+        place: (c, { band }, found) => plantIn(c, g, band, shadow, seen, found), thing: `plants:${G.name}`,   // (a plant's own state: its stand and its cell, src/world/things.js)
         extra: shadow ? { cull: SH.reach, fixed: SH.far * SH.wide } : {},   // (the stand-in in small patches: those whose shade cannot reach the view are dropped)
       });
       t.viewKeyed = !shadow; t.asset = G.name; tiers.push(t);
@@ -444,7 +445,7 @@ function standBodies(G, KINDS, ground, renderer) {
       grid.clear();
       for (let i = 0; i < count; i++) {
         const k = i * 4, kind = KINDS[Math.floor(B[k + 2])], body = bodyOf(kind);
-        if (body.shapes.some((S) => !S.pass || !S.from || topOf(S) * A[k + 3] - FOOT >= S.from)) grid.put({ id: `${tag}:${Math.round(A[k] * 8)}:${Math.round(A[k + 1] * 8)}`, x: A[k], z: A[k + 1], y: A[k + 2], up: -FOOT, yaw: B[k], s: A[k + 3], kind, body });
+        if (body.shapes.some((S) => !S.pass || !S.from || topOf(S) * A[k + 3] - FOOT >= S.from)) grid.put({ id: `${tag}:${Math.round(A[k] * 8)}:${Math.round(A[k + 1] * 8)}`, thing: idOf(`plants:${G.name}`, Math.floor(A[k] / G.ST.cell), Math.floor(A[k + 1] / G.ST.cell)), x: A[k], z: A[k + 1], y: A[k + 2], up: -FOOT, yaw: B[k], s: A[k + 3], kind, body });   // (thing: its stand and the cell it stands in)
       }
     }).catch((e) => { was = ''; if (!warned) { warned = true; console.warn(`plants: what stands round the walker could not be read back (${G.name}): it is not solid`, e); } }).finally(() => (busy = false));
   };

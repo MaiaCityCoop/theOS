@@ -30,7 +30,8 @@ every distance with it.
 | --- | --- | --- |
 | trees, bushes, ferns: anything in a stand | `src/scatter/trees.js`, drawn by `src/scatter/drawer.js` | per vertex, each frame: `handOver` + `partGrown` + `sinkInto`; packing by the drawer's tier (`bandOf`) |
 | rocks, and whatever else the heap holds | `src/scatter/drawer.js` (the rocks placed by `rocks.js`) | the ladder's eight levels (`assets/kit/ladder.js`), each vertex moving to its place on the next coarser mesh over a level's last pixels; an asset may end sooner (`detail.end`), shrinking away |
-| what stands at a place (a tent), and its far card | `index.js` `Detailed`, `src/world/place.js`, `impostor.js` | on the CPU: `handOverAt`, the material's `sunk` |
+| what stands at a spot of its own (a tent, a fire pit, later a house): a list of a few or of millions | `src/scatter/placed.js`, drawn by `src/scatter/drawer.js` (intent 0029) | per vertex, each frame: `handOver` (of one piece: whole, half way), `sinkInto`; packing by the drawer's tier over the list's runs; its last level the drawer's dot |
+| the same in the library's stage, and where there is no WebGPU | `index.js` `Detailed`, `src/world/place.js`, `impostor.js` | on the CPU: `handOverAt`, the material's `sunk` |
 | the land's colour where a stand has sunk | `src/terrain/material.js` | `sizeOf`, `detailOf().cut`, the stand's `cover` |
 
 Not on it: the grass (`src/scatter/grass.js`): rings of blades by the lens's distance, no levels of a thing.
@@ -199,8 +200,11 @@ point only; a creature's capsules move with its bones. They stop the walker, eac
 leaves, stops him at its inner half where it stands higher than his knee), and a step stopped short goes round
 (`solids.js`): along what holds him, and out of a pocket a little back, the side he took kept for a moment; no
 step longer than he walks. Nothing is drawn back to let him through (only where he walks through things, `?ghost`,
-a thing draws back from an eye inside it). `?stress&bounds` draws them; `?stress&ghost` walks through them. The placed assets' walls, the rocks and the trunks still have their own descriptions (`solids.js`): they
-come onto this one as they become families.
+a thing draws back from an eye inside it). `?bounds` draws them and `?ghost` walks through them, in every world. Every
+placer says its things to this one engine (intent 0027): the stand; each stand of plants (its packing round the
+walker, read back); the rocks (their hash worked out again on the CPU); and the list of what stands at a spot of its
+own (`src/scatter/placed.js`, found by the same order the GPU draws it by). A body carries its thing's id (`thing`):
+a thing that is gone (`src/world/things.js`) is not solid, one that grew is as large as it grew.
 
 **The ways** (`src/world/ways.js`): the ground kept free for what moves. Who lays ways says where they run (one
 answer, as a node for the GPU and in JS: `addWays`); who places what stands asks (`offWays`, `wayAt`, `onWay`) and
@@ -245,6 +249,29 @@ pixels; the build and the show at the screen's): what a screen pixel does is pai
 frame, so the arithmetic lives in the look. `?notaau` shifts and keeps nothing (the same passes then spread one
 frame by the filter alone): to measure against.
 
+## A thing of its own: placed in numbers, its own state, its own look (intent 0029)
+
+The stress stand was made to find the ways of drawing a world of millions; these bring the last of them to the
+world itself.
+
+- **What stands at a spot of its own is a list** (`src/scatter/placed.js`). A made thing (`assets/kit/made.js`: an
+  asset that stands at places, of faces) is a kind of the heap at its own levels (`assets/zoo/made.js`), drawn by
+  the drawer's other make of vertex (16 bytes a vertex: its place in its box, its normal, its colour, the material
+  its face wears), with its own material (`src/world/place.js`'s light, wind, snow and fire, reading the heap). A
+  place is two rows of numbers on the GPU, the list kept in the order of where its places stand (a 32-metre
+  square's number on a Z-shaped walk): an aligned square of 2^k of them is one run, found by two searches. A level's
+  tier looks at the squares of its band in view, each square its runs (`tier.js`: `spans`), so a list costs what is
+  near and in view, not its length (`?many=N` stands N more round the meadow). Its far card is the drawer's dot: a
+  card a kind (11 MB) does not scale to thousands of kinds.
+- **A thing's own state** (`src/world/things.js`): `gone`, `grow`, and where its drawer carries it (`state`: the made
+  things) `tint` and `wear`. A sparse table on the GPU every packing reads (nothing is looked up while it is empty);
+  a thing is named by its placer and its cell (one thing a cell), or a list's place by its spot. `things.pick()`
+  names what the eye looks at; its body carries the same id.
+- **A thing's own seed** (B.w of a drawer's packing, 0 … 2π): the solids' shader lays its kind's textures on it moved
+  by it, and every shading model is handed it (`c.seed`), so no two things of a kind need look alike.
+- A tier's rows for a thing lie side by side in one buffer (`tier.js`), so a pass binds one buffer for them, not one
+  a row: WebGPU gives a stage eight, and the store's table is one more.
+
 ## What this does not yet give
 
 - **The grass is not on the one drawer yet** (`src/scatter/drawer.js`: the heap, the levels' draws and what fills
@@ -272,6 +299,14 @@ frame by the filter alone): to measure against.
 
 - **A stand's packing keeps a slice of its buffers for every shape and level** (44 MB for the wood's trees): fine for
   tens of kinds a stand, not for hundreds.
+- **A made thing is a draw a kind and level** (as a plant): fine for the hundreds of kinds a city's buildings may be,
+  not for many thousands (those would want the ladder's rooms: a draw a level).
+- **A thing's state lives in the page only** (intent 0029): nothing saves it or shares it between people yet; a
+  plant, a rock and the stand's things can be gone or grown, not tinted or worn (their drawers carry no row of state:
+  one more row a thing is memory every thing pays for); a made thing's dot is its mean colour, not its tint.
+- **The list's room is set when the world starts** (four thousand places and as many as `?many` asks): more is said
+  and not stood. A change puts the whole list in order again and sends it to the GPU (a million: a moment).
+- **The library shows a placed asset as before** (`Detailed`, its far card): its stage is its own page's.
 - **A first start measures each plant's outline on the page's thread** (its nearest meshes built once for their size,
   height and trunk: half a second for the two trees), and has one long frame when the workers' meshes come in (93 ms
   in the test window); later starts read both back and have neither.
