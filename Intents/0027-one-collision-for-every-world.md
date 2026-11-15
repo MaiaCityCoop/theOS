@@ -11,9 +11,9 @@ story:
 
 ## Idea
 
-Samuel: in the normal world he can still walk through trees. The stress world (Magic Wonder, `?stress`) was where
+Samuel: in the normal world the walker still goes through trees. The stress world (Magic Wonder, `?stress`) was where
 bounding boxes and collision were to be solved generically: every placed thing gets its collision from its own
-geometry or bounds. His two questions: was it fully generic, and was everything from the stress test ported into the
+geometry or bounds. Samuel's two questions: was it fully generic, and was everything from the stress test ported into the
 normal world?
 
 Asked: find out exactly how collision works in the stress world and in the normal world, and answer both questions
@@ -195,7 +195,7 @@ his middle came to the thing's middle (trees, shrubs, rocks: the drawn foot; the
   tent's bed and chests show as columns through its roof with `?bounds`; for walking it is as before).
 - The library's Body row still shows a placed asset's own block, not the scattered kinds' bodies (0025 has the
   library).
-- No story folder spawned: Samuel's own words for his lines in a story are not in this session.
+- No story folder spawned: a story's lines for Samuel must be Samuel's own words, and none are in this session.
 
 ## Story
 
@@ -213,7 +213,7 @@ his middle came to the thing's middle (trees, shrubs, rocks: the drawn foot; the
 - [x] The follow view stops the walker (`walk` a band's number)
 - [x] Checks 1 to 7, before and after
 - [x] Push, draft PR
-- [ ] Samuel: walk into the forest in his own Safari, at his eyes and in the follow view; accept or send back
+- [ ] Samuel: walk into the forest in Samuel's own Safari, at eye level and in the follow view; accept or send back
 - [ ] The tent's own block could say how high its bed and chests are (they are as tall as the tent now)
 
 ## Changelog
