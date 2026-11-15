@@ -1,7 +1,9 @@
 // The dev server serves the intents' stories (../Stories) and keeps timelines: POST /cine/keep?name=<name> with a timeline's JSON writes
 // cine/timelines/<name>.json, so a set of cameras an agent composed can be played back later by name; POST /story-preview keeps a story's picture.
-import { writeFileSync, appendFileSync, mkdirSync, readdirSync, readFileSync, existsSync, cpSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { writeFileSync, appendFileSync, mkdirSync, readdirSync, readFileSync, existsSync, cpSync, statSync } from 'node:fs';
+import { resolve, dirname, join, extname } from 'node:path';
+import { createHash } from 'node:crypto';
+import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib';
 import { buildRegistry, FOLDERS } from './tools/registry.js';
 import { listScenes, sceneFile } from '../Stories/scenes.js';
 
@@ -27,9 +29,18 @@ const timelineNames = () => { try { return readdirSync(TIMELINES).filter((f) => 
 // The deployed game has no server: a build writes those answers as files beside the pages, with the brand (../brand)
 // and the scenes (../Stories/scenes). A scene's media (Stories/objects/) is not in git, so a build has none.
 // Caddy serves them as they are (deploy/Caddyfile).
+// Two things for the start (intent 0026): the brand's files a page names are asked for by their content (?v=, the start
+// of their hash), so the host keeps them for good like the scripts, and a second visit asks for none of them; and every
+// file that compresses is written compressed beside itself as well (brotli at its best, .br), which the host sends
+// where it is accepted, a fifth less than what it compresses as it sends.
+const BRAND = resolve(ROOT, '../brand'), versionOf = (f) => createHash('sha256').update(readFileSync(resolve(BRAND, f))).digest('hex').slice(0, 10);
+const SQUEEZE = new Set(['.js', '.css', '.html', '.json', '.svg']);
+const squeeze = (dir) => { for (const n of readdirSync(dir)) { const f = join(dir, n), st = statSync(f); if (st.isDirectory()) squeeze(f); else if (SQUEEZE.has(extname(n)) && st.size >= 1024) writeFileSync(f + '.br', brotliCompressSync(readFileSync(f), { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 11, [zlibConstants.BROTLI_PARAM_SIZE_HINT]: st.size } })); } };
 const publish = {
   name: 'publish',
   apply: 'build',
+  transformIndexHtml(html) { return html.replace(/(["'])\/brand\/(brand\.css|loading\.js|MaiaCity\.svg)\1/g, (m, q, f) => `${q}/brand/${f}?v=${versionOf(f)}${q}`); },
+  closeBundle() { squeeze(resolve(ROOT, 'dist')); },
   writeBundle(options) {
     const out = options.dir, put = (path, body) => { const f = resolve(out, path); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, body); };
     cpSync(resolve(ROOT, '../brand'), resolve(out, 'brand'), { recursive: true });
@@ -44,11 +55,38 @@ const publish = {
   },
 };
 
+// The dev server sends what compresses compressed (gzip, where the browser takes it): its modules come with their source
+// maps written into them, three times their size, 17.6 MB in all for one start, which a phone on the dev server
+// (`bun run lan`) fetches over the air (intent 0026). Each answer is compressed once, kept by its ETag.
+const squeezeDev = {
+  name: 'squeeze-dev',
+  apply: 'serve',
+  configureServer(server) {
+    const kept = new Map(), TYPES = /javascript|css|json|html|svg/;
+    server.middlewares.use((req, res, next) => {
+      if (!/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return next();
+      const end = res.end;
+      res.end = function (chunk, ...rest) {
+        res.end = end;
+        if ((typeof chunk === 'string' || chunk instanceof Uint8Array) && chunk.length >= 1024 && res.statusCode === 200 && !res.headersSent && !res.getHeader('content-encoding') && TYPES.test(String(res.getHeader('content-type') || ''))) {
+          const key = res.getHeader('etag') && `${req.url}|${res.getHeader('etag')}`;
+          let gz = key && kept.get(key);
+          if (!gz) { gz = gzipSync(chunk, { level: 4 }); if (key) { if (kept.size > 3000) kept.delete(kept.keys().next().value); kept.set(key, gz); } }
+          res.setHeader('Content-Encoding', 'gzip'); res.setHeader('Vary', 'Accept-Encoding'); res.setHeader('Content-Length', gz.length);
+          return end.call(this, gz, ...rest.filter((x) => typeof x === 'function'));
+        }
+        return end.call(this, chunk, ...rest);
+      };
+      next();
+    });
+  },
+};
+
 export default {
   // the pages a build makes: the game, the way back from aven.id (src/account/callback.js), and the views the website frames:
   // a story's film (timeline.html), the lenses and the library
   build: { rolldownOptions: { input: Object.fromEntries(['index', 'callback', 'timeline', 'lenses', 'library', 'me'].map((n) => [n, resolve(ROOT, n + '.html')])) } },
-  plugins: [registry, publish, {
+  plugins: [registry, publish, squeezeDev, {
     name: 'cine-keep',
     configureServer(server) {
       const B = (server.config.base || '/').replace(/\/$/, '');   // '' on its own, '/game' inside the dashboard's server

@@ -55,5 +55,9 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
     get over() { for (let i = 0; i < tiers.length; i++) if (tiers[i].over) return true; return false; },
     get instances() { let n = 0; for (const t of tiers) n += t.geometry.instanceCount; return n; },
     warm() { for (const t of tiers) t.warm(); },
+    /** Every tier's packing passes compiled side by side, before the first packing (a promise): they read no target, so
+        this may run beside anything. Compiled as each tier first packed, one after another, the GPU did nothing else
+        meanwhile (63 passes, 8 s of a start of 35 without a GPU, 2026-11-15). */
+    compile() { const passes = tiers.flatMap((t) => t.passes ?? []); return passes.length ? renderer.compileComputeAsync(passes) : Promise.resolve(); },
   };
 }
