@@ -3,7 +3,8 @@
 // keeps the state of the compile it is working through in the renderer itself, so two compiles at once can trip over
 // each other. So every compile before the first frame, and the city's whenever its plan comes, goes through here: in
 // turn, each with its own target set for as long as it runs. Inside one compile the GPU compiles side by side all the
-// same (three keeps up to sixteen in flight); what packs (compute) reads no target and compiles beside any of these.
+// same (three keeps up to sixteen in flight); what packs (compute) reads no target and compiles beside any of these,
+// each of its shaders once (shareComputeCompiles).
 
 let last = Promise.resolve();
 
@@ -14,6 +15,28 @@ export function inTurn(fn) {
   const done = last.then(fn, fn);   // (in turn, whether the one before it went well or not)
   last = done.catch(() => {});
   return done;
+}
+
+/** A compute pipeline asked for while another of the same shader is being compiled waits for that one, and is then
+    asked for itself: the browser keeps a compiled pipeline by what it is made of and gives it again at once. three makes
+    a pipeline for every compute node whatever its code (the tiers' 63 packing passes are 26 shaders), and asked for side
+    by side each was compiled in full (2026-11-15: ten of them again shaders of 120 to 150 KB). On the renderer's
+    device, once. */
+export function shareComputeCompiles(renderer) {
+  const dev = renderer.backend?.device;
+  if (!dev?.createComputePipelineAsync || dev.__sharing) return;
+  dev.__sharing = true;
+  const make = dev.createComputePipelineAsync, going = new WeakMap();   // a shader module: the compile of it running
+  dev.createComputePipelineAsync = function (d) {
+    const m = d?.compute?.module, first = m && going.get(m);
+    if (first) {
+      const copy = { label: d.label, layout: d.layout, compute: d.compute };   // (three empties the descriptor it hands over once this returns)
+      return first.then(() => make.call(this, copy), () => make.call(this, copy));
+    }
+    const p = make.call(this, d);
+    if (m) { going.set(m, p); const done = () => { if (going.get(m) === p) going.delete(m); }; p.then(done, done); }
+    return p;
+  };
 }
 
 /** Compile what `camera` sees of `object` (a scene, or a part of one standing in `scene`) for `target` (a render
