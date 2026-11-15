@@ -123,6 +123,26 @@ function game(view, show = true) {
   if (show) tab('game');
 }
 
+// ---- the game's frame on a phone: the safe area it is not given (an iframe has none; brand.css --safe-*), told when it
+// asks, loads or the window turns; and the picture's colours at its top and bottom edges, which it tells, for Safari to
+// paint its bars with (the frame's background and two thin strips: index.html #game .edge) ----
+const safeProbe = document.createElement('i');
+safeProbe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding:var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l)';
+document.body.append(safeProbe);
+function tellSafe() {
+  const w = $('frame').contentWindow; if (!w || !$('frame').getAttribute('src')) return;
+  const c = getComputedStyle(safeProbe), px = (v) => Math.round(parseFloat(v) || 0);
+  w.postMessage({ maia: 1, cmd: 'safe', t: px(c.paddingTop), r: px(c.paddingRight), b: px(c.paddingBottom), l: px(c.paddingLeft) }, '*');
+}
+$('frame').addEventListener('load', tellSafe);
+addEventListener('resize', tellSafe);
+addEventListener('message', (ev) => {
+  const m = ev.data; if (!m?.maia || ev.source !== $('frame').contentWindow) return;
+  if (m.cmd === 'safe?') tellSafe();
+  const colour = (c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
+  if (m.cmd === 'edges' && colour(m.top) && colour(m.bottom)) { $('game').style.setProperty('--game-t', m.top); $('game').style.setProperty('--game-b', m.bottom); }
+});
+
 // ---- intents: a board by state ----
 function board(open, fresh) {
   // the list is read again each time the board opens, so a new intent or a changed state shows without a reload

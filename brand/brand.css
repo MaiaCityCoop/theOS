@@ -100,9 +100,16 @@
   --glass-solid-ink: var(--navy);                 /* and what is written on it */
   --pill-h: 44px;   /* every pill at the bottom, border included: the nav pill's wings, the library's Back, the studio's pages; never another height */
   --side-w: 236px;  /* the library's two sides, the list and the card, one width */
-  --edge: max(14px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));   /* every game screen keeps its overlays this far from the window's edge, and out of a phone's notch */
-  --edge-t: calc(14px + env(safe-area-inset-top, 0px));      /* and from the top, under a phone's status bar (the picture goes on behind it: viewport-fit=cover) */
-  --edge-b: calc(18px + env(safe-area-inset-bottom, 0px));   /* and from the bottom, where the pill is, above a phone's home bar */
+  /* a phone's safe area: what its status bar, notch and home bar cover, where the page is drawn under them
+     (viewport-fit=cover; as a web app on the home screen, the status bar's black-translucent). An iframe is not given
+     it, so a page framed in the dashboard is told the dashboard's and sets these on its <html> (cine/menu.js) */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --edge: max(14px, var(--safe-l), var(--safe-r));   /* every game screen keeps its overlays this far from the window's edge, and out of a phone's notch */
+  --edge-t: max(14px, var(--safe-t));   /* and from the top: on a phone, just under its status bar */
+  --edge-b: max(18px, var(--safe-b));   /* and from the bottom, where the pill is: on a phone, on the home bar's line, not 18px above it */
   /* the words on glass: always light, no shadow */
   --glass-font: var(--sans);
   --on-glass: #ffffff;                            /* titles and names, values */
@@ -178,7 +185,12 @@ body.framed .os-bar.bottom { bottom: 96px; }                          /* inside 
 /* the clock, top right: the hour, a slider, Auto (intent 0007); a card there moves under it */
 /* the top centre: the page's own nav (.os-top) and the weather pill in one row; the weather opens into a card under it */
 .os-topbar { position: fixed; left: 50%; top: var(--edge-t); transform: translateX(-50%); z-index: 7; display: flex; align-items: stretch; gap: 8px; }   /* the weather pill as tall as the nav beside it */
-.os-topbar > .os-top { position: static; transform: none; }
+.os-topbar > .os-top { position: static; transform: none; max-width: none; }   /* in the row it is as wide as it needs (the side columns' limit went below nothing on a phone: the stat shrank to a dot and its figures ran over the weather) */
+@media (max-width: 700px) {   /* on a phone, two rows: the weather, then the page's nav (or the stat) under it; the hint under both */
+  .os-topbar { flex-direction: column; align-items: center; gap: 6px; }
+  .os-topbar > .os-weather { order: -1; }
+  body.has-weather:has(.os-topbar > .os-top:not(:empty)) .os-hint { top: calc(var(--edge-t) + 30px + 6px + var(--pill-h) + 12px); }
+}
 .os-weather { position: relative; display: flex; }
 .os-weather-pill { display: flex; align-items: center; gap: 8px; min-height: 30px; box-sizing: border-box; padding: 0 12px 0 13px; border-radius: 999px; border: 0; cursor: pointer; font: 500 11.5px/1 var(--mono); color: var(--on-glass); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .os-weather-pill i { font-style: normal; font-size: 10px; color: var(--on-glass-2); transition: transform .2s; }
@@ -195,6 +207,13 @@ body.framed .os-bar.bottom { bottom: 96px; }                          /* inside 
 .os-weather-row .g-btn { height: 28px; padding: 0 11px; }
 body.has-weather .os-hint { top: calc(var(--edge-t) + var(--pill-h) + 12px); }
 @media (max-width: 700px) { .os-weather-card { width: min(300px, calc(100vw - 2 * var(--edge))); right: 50%; transform: translateX(50%); } }
+/* the picture's colours at a phone browser's edges (TheGame/src/ui/edges.js sets them): Safari paints its status bar
+   and its toolbar with the colour of the fixed thing at that edge of the page; a thin strip at each gives them the sky's
+   at the top and the ground's at the bottom. Not in a web app on the home screen: there the picture goes under them */
+.os-edge { display: none; position: fixed; left: 0; right: 0; height: 4px; z-index: 1; pointer-events: none; }
+.os-edge.t { top: 0; background: var(--os-edge-t, transparent); }
+.os-edge.b { bottom: 0; background: var(--os-edge-b, transparent); }
+@media (display-mode: browser) and (pointer: coarse) { .os-edge { display: block; } }
 /* the joystick on touch screens, bottom left above the bottom line (camera/touch.js has its size) */
 .os-stick { position: fixed; z-index: 7; border-radius: 50%; display: grid; place-items: center; touch-action: none; }
 .os-stick i { border-radius: 50%; background: var(--glass-solid); box-shadow: 0 4px 14px rgba(12, 24, 38, .25); transition: transform .06s; }

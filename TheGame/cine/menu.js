@@ -4,6 +4,15 @@
 const qs = new URLSearchParams(location.search);
 if (qs.has('embed')) document.body.classList.add('embed');
 if (qs.get('in') === 'os') document.body.classList.add('framed');
+// Framed, a phone's safe area is the dashboard's to tell (an iframe is not given it): what its status bar and home bar
+// cover, so the overlays keep clear of them while the picture goes on under them (brand.css --safe-*)
+if (parent !== window) {
+  addEventListener('message', (ev) => {
+    const m = ev.data; if (ev.source !== parent || !m?.maia || m.cmd !== 'safe') return;
+    for (const k of ['t', 'r', 'b', 'l']) if (Number.isFinite(m[k]) && m[k] >= 0 && m[k] < 200) document.documentElement.style.setProperty(`--safe-${k}`, `${m[k]}px`);
+  });
+  parent.postMessage({ maia: 1, cmd: 'safe?' }, '*');
+}
 document.getElementById('hud')?.classList.add('glass');
 const OS = import.meta.env.VITE_OS || (import.meta.env.BASE_URL === '/game/' ? '' : `http://${location.hostname}:5180`);   // one server: the dashboard is this origin's root
 const bar = document.createElement('nav');

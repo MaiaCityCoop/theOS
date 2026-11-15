@@ -34,6 +34,7 @@ import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
 import { createLens } from './camera/post.js';
 import { createScreen } from './core/screen.js';
+import { followEdges } from './ui/edges.js';   // the picture's colours for a phone browser's bars
 import { createTemporal } from './core/temporal.js';
 import { createSky } from './world/sky.js';
 import { createWeather } from './world/weather/index.js';
@@ -77,6 +78,7 @@ trackView(); setImpostorRenderer(renderer);   // the measure of size on screen f
 // (one frame spread by the filter: to measure against).
 const temporal = (stats.temporal = createTemporal(renderer, { off: params.has('notaau') }));
 const screen = (stats.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
+const edges = followEdges(renderer, screen);
 const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
 stats.governor = governor;   // the film holds it still while it plays
 const boot = (stats.boot = {}), mark = (k) => (boot[k] = Math.round(performance.now() - t0));   // where the start's time goes
@@ -150,6 +152,7 @@ function draw() {
   terrain.cache?.update(renderer, camera, `${innerHeight}|${U.uSand.value.toArray()}`);   // the ground's layers laid where the camera has come (src/terrain/groundcache.js)
   weather.before(camera, gy); shadows.render(scene, camera, gy);   // (what a condition draws before the picture: the clouds' shadow map)
   screen.render(scene, camera);   // (through its lens, where the camera brings one)
+  edges();   // (now and then: its top and bottom rows, for a phone browser's bars: src/ui/edges.js)
 }
 let last = 0, wasBusy = false;
 function frame(now) {
