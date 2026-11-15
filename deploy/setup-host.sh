@@ -69,14 +69,15 @@ install -o root -g root -m 755 "$incoming/maia-api-up" /usr/local/bin/maia-api-u
 visudo -cqf "$incoming/sudoers"
 install -o root -g root -m 440 "$incoming/sudoers" /etc/sudoers.d/maia-deploy
 
-# The API's settings: only root reads them. The database password is made once and kept; the rest follows the
-# environment each time.
+# The API's settings: only root reads them. The database password is made once and kept, and so is the secret for
+# aven.id's roles back channel once it has been put there (deploy/README.md); the rest follows the environment.
 install -d -o root -g root -m 755 /etc/maia-city
 install -o root -g root -m 644 "$incoming/compose.yml" /etc/maia-city/compose.yml
 password=$(sed -n 's/^POSTGRES_PASSWORD=//p' /etc/maia-city/api.env 2>/dev/null || true)
 [ -n "$password" ] || password=$(openssl rand -hex 32)
+roles_secret=$(sed -n 's/^AVEN_ROLES_SECRET=//p' /etc/maia-city/api.env 2>/dev/null || true)
 umask 077
-{ printf 'POSTGRES_PASSWORD=%s\n' "$password"; cat "$incoming/api.env"; } >/etc/maia-city/api.env.new
+{ printf 'POSTGRES_PASSWORD=%s\n' "$password"; [ -z "$roles_secret" ] || printf 'AVEN_ROLES_SECRET=%s\n' "$roles_secret"; cat "$incoming/api.env"; } >/etc/maia-city/api.env.new
 mv /etc/maia-city/api.env.new /etc/maia-city/api.env
 chmod 600 /etc/maia-city/api.env
 umask 022

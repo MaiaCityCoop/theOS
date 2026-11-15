@@ -23,8 +23,15 @@ a day's play. Instead the game hands the API its ID token once, right after sign
 
 Each ID token opens one session at most, standing in for the nonce, which only the tab that signed in knows.
 
-A person is a citizen when the ID token that opened the session had the `citizen` role (`aven_roles`). A
-subscription begun or ended at aven.id shows at the next sign-in, the same as in the game.
+A person is first a citizen when the ID token that opened the session had the `citizen` role (`aven_roles`). After
+that, the API asks aven.id's roles back channel (`src/roles.js`, `GET <issuer>/oauth2/roles?sub=`) whenever its last
+answer is more than 30 seconds old (`ROLES_MAX_AGE_SECONDS`).
+
+- It asks with the client id and `AVEN_ROLES_SECRET` as Basic credentials. aven.id holds only the secret's SHA-256.
+- A citizenship bought or ended at aven.id shows in moments, without signing in again. The game asks again when its
+  tab comes back into view.
+- If aven.id can't answer, what was known stands. An account aven.id no longer has ends its sessions.
+- Without the secret, roles change only at the next sign-in.
 
 Every call that changes something must come from the game's origin (`ORIGINS`) as `application/json`, and the cookie
 is `SameSite=Strict`, so another site's page can't act for a signed-in browser.

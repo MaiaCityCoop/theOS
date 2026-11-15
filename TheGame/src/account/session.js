@@ -29,6 +29,9 @@ export function keep(claims, roles, issuer) {
 /** Signing out is forgetting, and ending the API's session (src/account/api.js): aven.id has no end-session endpoint,
  * and its own sign-in stays its own. */
 export const forget = () => { write(KEY, null); closeSession(); };
+/** The roles as the game's API says them now (src/account/api.js, which asks aven.id): a citizenship bought or ended
+ * after signing in. */
+export function setRoles(roles) { const s = read(KEY); if (s) write(KEY, { ...s, roles }); }
 
 export const startTrip = (trip) => write(TRIP, { ...trip, at: Date.now() });
 /** The round trip, read once: it is cleared as it is read, whatever comes of it. */

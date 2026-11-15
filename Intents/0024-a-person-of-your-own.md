@@ -86,9 +86,10 @@ Asked outright, with no surprise in the definition, so built straight away.
 - [x] Compose, `maia-api-up`, the deploy's rollback, Caddy, the host setup, CI with Postgres
 - [x] The game: session after sign-in, "Your person", `me.html`
 - [x] Checked here: tests, and a browser as citizen, traveler and signed out
-- [ ] CI green on the pull request
-- [ ] The host set up again (Docker, `/etc/maia-city`), merged, deployed to next
-- [ ] A real sign-in on play.next.maia.city, then a person kept
+- [x] CI green on the pull request
+- [x] The host set up again (Docker, `/etc/maia-city`), merged, deployed to next
+- [x] Citizenship sold on next (aven.id Market, Polar sandbox), and bought
+- [ ] A real sign-in as a citizen on play.next.maia.city, then a person kept
 
 ## Changelog
 
@@ -111,8 +112,44 @@ Asked outright, with no surprise in the definition, so built straight away.
   - Blond read almost white and was toned down.
   - A real sign-in has not been tried: next.aven.id sends `maia-city` only to play.next.maia.city.
 
+### 2026-11-15, later
+
+- **Asked:** go (merge and deploy); then create the citizen product in the Polar sandbox: one euro a day, billed
+  monthly, tax inclusive.
+- **Delivered:**
+  - PR #3 merged and deployed to next (Deploy run 43664619486). `/api/health` named de16641; signed out, `/api/me`
+    answered 401; another origin 403, a made-up token 401; 8083 and 5432 closed from outside; both containers
+    healthy, the API as 1000:1000 on a read-only filesystem with no capabilities.
+  - The Polar sandbox product "Maia City citizen", EUR 30.00 a month, tax inclusive, added to aven.id's Market on
+    next (jaensen/aven-dotnet#13). Polar first refused the checkout ("You already have an active subscription"):
+    the organization allowed one subscription per customer, and Daniel has avenCEO. Allowing several fixed it.
+- **Good:** Daniel bought citizenship on next; Polar shows it active and Market took both webhooks (202).
+- **Broke / not there yet:** the game still said traveler: a role is read at sign-in, and the game's session (and
+  the API's) predated the subscription. A "sign in again" button was tried first; Daniel: "signing out and in again
+  is not a good ux. The game must be able to handle that."
+
+### 2026-11-15, the role without signing in again
+
+- **Asked:** the game must notice a citizenship bought after signing in by itself.
+- **Delivered:**
+  - aven.id gained a roles back channel (jaensen/aven-dotnet#15): `GET /oauth2/roles?sub=` with the client id and a
+    roles secret, of which aven.id holds only the SHA-256.
+  - The API asks it whenever its answer is older than 30 seconds (`API/src/roles.js`, migration 0002), for
+    `GET /api/me` and for keeping an avatar. A citizenship that ends stops the keeping the same way.
+  - The game takes the role in its pill and on `me` from the API, and asks again when its tab comes back into
+    view. "Become a citizen" opens aven.id in another tab, so coming back is that moment.
+  - The secret is in `/etc/maia-city/api.env` on the next host; `deploy/setup-host.sh` keeps it.
+- **Good:** `bun test` in `API/`: 30 passed. The new tests cover a citizenship that is bought (shown within 30
+  seconds, without a new sign-in), one that ends (403 on keeping), aven.id not answering (what is known stands) and
+  an account that is gone (its sessions end). aven.id's own test drives its back channel through payment, outage
+  and refund.
+- **Broke / not there yet:** to be seen on next once both are deployed.
+
 ## Trail
 
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-15 | `5c496ed` | The API, its stack and deploy, the session after sign-in, `me.html` |
+| 2026-11-15 | `7e8e049` | "Already one? Sign in again" for a traveler; the changelog of the deploy and the purchase |
+| 2026-11-15 | `20ca12e` | The role from aven.id's roles back channel, asked again on coming back; the button replaced |
+| 2026-11-15 | `2b21fce` | Only aven.id's `unknown_account` ends sessions, not any 404 |

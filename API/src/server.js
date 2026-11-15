@@ -8,8 +8,9 @@
 //   PUT    /api/me/avatar    { avatar }     keeps the avatar (avatar.js); only a citizen may. 200 { avatar }, 400, 401, 403
 //   GET    /api/health                     200 { ok: true, commit } when Postgres answers (commit: version.json's, or null)
 //
-// Whether a person is a citizen is what their ID token said when the session opened; a subscription begun or ended at
-// aven.id shows at their next sign-in (the game's own session lasts as long: TheGame/src/account/config.js).
+// Whether a person is a citizen is first what their ID token said when the session opened, then what aven.id's roles
+// back channel says (roles.js), asked again whenever that answer is older than ROLES_MAX_AGE_SECONDS (30): a
+// citizenship bought or ended at aven.id shows within moments, without signing in again.
 // A request that changes something must come from the game's origin (ORIGINS) as JSON, so no other site's page can
 // make a signed-in browser do it; the cookie is SameSite=Strict besides.
 import { SQL } from 'bun';
@@ -17,6 +18,7 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { avatarOf } from './avatar.js';
 import { TokenError, keysOf, verifyIdToken } from './token.js';
+import { rolesReader } from './roles.js';
 
 const enc = new TextEncoder();
 const hex = (bytes) => Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, '0')).join('');
@@ -41,7 +43,7 @@ export async function migrate(sql, dir = join(import.meta.dir, '../migrations'))
 }
 
 /** The request handler. keyFor: the issuer's keys (token.js keysOf); origins: where the game is served from. */
-export function api({ sql, keyFor, issuer, clientId, origins, commit = null, sessionHours = 12, cookieName = '__Host-maia-session', secure = true, now = () => Date.now() }) {
+export function api({ sql, keyFor, issuer, clientId, origins, commit = null, rolesOf = null, rolesMaxAge = 30e3, sessionHours = 12, cookieName = '__Host-maia-session', secure = true, now = () => Date.now() }) {
   const json = (status, body, headers = {}) => new Response(body === null ? null : JSON.stringify(body), { status,
     headers: { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', ...(body === null ? {} : { 'content-type': 'application/json' }), ...headers } });
   const fail = (status, error, headers) => json(status, { error }, headers);
@@ -56,8 +58,19 @@ export function api({ sql, keyFor, issuer, clientId, origins, commit = null, ses
   async function sessionOf(req) {
     const t = tokenIn(req);
     if (!t) return null;
-    const [s] = await sql`SELECT sub, name, citizen FROM sessions WHERE token_hash = ${await sha256(t)} AND expires_at > now()`;
-    return s ? { ...s, sub: String(s.sub) } : null;
+    const [s] = await sql`SELECT sub, name, citizen, roles_checked_at FROM sessions WHERE token_hash = ${await sha256(t)} AND expires_at > now()`;
+    if (!s) return null;
+    const out = { sub: String(s.sub), name: s.name, citizen: s.citizen };
+    // the citizenship as aven.id says it now, once the last answer is old; the same for all of this person's sessions
+    if (rolesOf && now() - new Date(s.roles_checked_at).getTime() > rolesMaxAge) {
+      const r = await rolesOf(out.sub);
+      if (r?.gone) { await sql`DELETE FROM sessions WHERE sub = ${out.sub}`; return null; }
+      if (r?.roles) {
+        out.citizen = r.roles.includes('citizen');
+        await sql`UPDATE sessions SET citizen = ${out.citizen}, roles_checked_at = ${new Date(now())} WHERE sub = ${out.sub}`;
+      }
+    }
+    return out;
   }
   // a change: from the game's own page, as JSON (a form from another site can send neither)
   const fromGame = (req) => origins.includes(req.headers.get('origin') || '');
@@ -86,7 +99,7 @@ export function api({ sql, keyFor, issuer, clientId, origins, commit = null, ses
       const t = token(), until = new Date(now() + sessionHours * 3600e3), old = tokenIn(req);
       await sql.begin(async (tx) => {
         if (old) await tx`DELETE FROM sessions WHERE token_hash = ${await sha256(old)}`;
-        await tx`INSERT INTO sessions (token_hash, sub, name, citizen, expires_at) VALUES (${await sha256(t)}, ${claims.sub}, ${name}, ${citizen}, ${until})`;
+        await tx`INSERT INTO sessions (token_hash, sub, name, citizen, expires_at, roles_checked_at) VALUES (${await sha256(t)}, ${claims.sub}, ${name}, ${citizen}, ${until}, ${new Date(now())})`;
         await tx`DELETE FROM sessions WHERE expires_at < now()`;
         await tx`DELETE FROM used_id_tokens WHERE expires_at < now()`;
       });
@@ -140,7 +153,10 @@ if (import.meta.main) {
   }
   // the release's commit (deploy/bundle.sh writes version.json beside src/), so a deploy can tell this API from the last
   const commit = (await Bun.file(join(import.meta.dir, '../version.json')).json().catch(() => null))?.commit ?? null;
-  const handle = api({ sql, issuer, keyFor: keysOf(issuer), clientId: process.env.CLIENT_ID || 'maia-city', commit,
+  const clientId = process.env.CLIENT_ID || 'maia-city';
+  const rolesOf = rolesReader(issuer, clientId, process.env.AVEN_ROLES_SECRET || '');
+  if (!rolesOf) console.warn('AVEN_ROLES_SECRET is not set: a citizenship shows only at the next sign-in.');
+  const handle = api({ sql, issuer, keyFor: keysOf(issuer), clientId, commit, rolesOf, rolesMaxAge: +(process.env.ROLES_MAX_AGE_SECONDS || 30) * 1000,
     origins: need('ORIGINS').split(',').map((s) => s.trim()).filter(Boolean),
     sessionHours: +(process.env.SESSION_HOURS || 12), secure: process.env.INSECURE_COOKIE !== '1',
     cookieName: process.env.INSECURE_COOKIE === '1' ? 'maia-session' : '__Host-maia-session' });

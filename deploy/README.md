@@ -50,7 +50,13 @@ Two things are missing from both builds:
     and reaches out only for aven.id's keys.
   - A deploy can't change this file, so it can't change what the API may touch.
 - **`/etc/maia-city/api.env`** (root only) holds the database password, made once by the host setup, plus the
-  issuer and the game's origin.
+  issuer and the game's origin. It also holds `AVEN_ROLES_SECRET`, so the API can ask aven.id for a person's current
+  roles (`API/src/roles.js`). Put it there once:
+  - make it with `openssl rand -hex 32`, and add `AVEN_ROLES_SECRET=<it>` to the file;
+  - give aven.id its SHA-256 (`printf %s <it> | sha256sum`) as `maia-city`'s `RolesSecretSha256`;
+  - the host setup keeps it from then on.
+
+  Without it, a citizenship bought at aven.id shows only at the next sign-in.
 - **`/usr/local/bin/maia-api-up <release>`** (`deploy/api-up.sh`) builds one release's API image and starts it.
   It waits until the API and Postgres are healthy, then removes the images of releases no longer kept. It is the
   only command the `deploy` user may run as root.
