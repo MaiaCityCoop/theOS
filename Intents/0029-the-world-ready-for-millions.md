@@ -1,7 +1,7 @@
 ---
 id: "0029"
 title: The world ready for millions
-state: propose         # idea | define | build | propose | story | archived
+state: build           # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-15
 story:
@@ -32,6 +32,15 @@ Samuel:
 
 > This was always the stress test's target intention to preorder everything for scaling. Please ensure our world is
 > ready.
+
+Then, with the first answer delivered (draft PR #14), Samuel:
+
+> Use this also to SSOT und DRY simplifications, consolidations removing legacy and duplicated code, standardizing
+> concepts etc!!! Do you see what I mean? While [preserving] for higher quality and future [scalability]. Ensure the
+> pattern is [scalable, however,] and would support actual animals, characters and hundreds of detailed trees like
+> bananas, palm, mangos, avocados, paprika etc. Ensure the architecture is ready and SSOT best performance.
+
+(The words in brackets are a reading of what was typed: "preosribg", "dcskeablility", "scaii look waver".)
 
 ## Define
 
@@ -88,6 +97,68 @@ the drawer's dot, because a card baked for each kind does not scale to thousands
 - Grass on the drawer; the plants' light and wind on the shading models.
 - How the library shows a placed asset (intent 0025's page): it keeps its own staging.
 - The fire's flame: it is a light, not a mesh.
+
+**The second definition: one of everything** (after Samuel's second words above). A survey of the game found the
+same idea written several ways. It found a hash in up to seven copies, three tables of a kind's numbers, three
+encodings of a normal, and made things shaded twice (once by this intent's own first build). It also found ten zoo
+files of seven lines each, rows packed differently by each placer, and dead code. Samuel asked for this work outright,
+and the definition holds no surprise beyond the decisions named in it, so it is built straight away.
+
+**Deliverables**
+
+9. **One of each concept, said once.**
+   - Each of these lives in one module and is imported everywhere: the hashes (fmix, FNV-1a, mulberry32), the
+     encodings of a vertex (octahedral normals, 16-bit places, colours as square roots), the small helpers (`sstep`,
+     `most`, the largest side) and a packed thing's node helpers (its turn, its size on screen, its face towards the
+     eye).
+   - There is one lens uniform (`U.uPxK`) and one resize handler for every tier (the list's tiers had none).
+   - One module reads the engine's address flags.
+10. **One shading for made things.** `src/world/place.js` (the library's stage, no WebGPU) and the list's material
+    share the same sway and light.
+11. **One table of a kind's numbers.**
+    - The drawer keeps it for every make: the solids' looks, the plants' numbers and the made things' numbers.
+    - A made kind has one row of each number, not two that disagree (the tent's snow was 0.1 in one and 0.22 in the
+      other).
+12. **One way to pack a thing.** Every placer packs A = (x, z, its foot, its size in metres) and B = (its turn, its
+    kind, its motion, its seed). Its motion is its sway, its stride, or its sway's phase. The plants follow it too
+    (they broke it in every slot).
+13. **A species is one file.**
+    - The zoo finds the plants and the rocks by their engine, as it finds the made things.
+    - The ten seven-line family files are removed, with their families' names kept, so the browser's kept meshes stay
+      good.
+14. **A level drawn in a few draws, however many kinds.**
+    - Where a group has many kinds, a level of a plant or a made thing is drawn in a few draws by the size of its
+      meshes (classes of twice the corners), not a draw a kind.
+    - While the kinds are few it stays a draw a kind, as fast as now.
+    - `?byclass` forces the classes, to measure. It replaces `?bylevel`.
+15. **Movers are the drawer's.**
+    - The drawer's one-tier packing draws movers too, packed every frame.
+    - A mover's skeleton follows a bone's chain up to four links, so a leg's shin moves with its thigh.
+    - The stress world's movers use this packing instead of their own tier.
+    - A herd placer for the world: `?herds=N` lets N of the zoo's creatures roam the meadow, drawn, solid, and with a
+      state of their own.
+16. **Legacy taken out.** The dead exports, locals and imports go, as do the asset paths no asset uses (the icosphere
+    rock and its preview, a level's own mesh) and the comments that point at files that moved.
+17. **The docs say the concepts once**: kind, make, drawer, placer, thing and level, each with its one module.
+
+**Checks**
+
+| # | Check | How |
+| --- | --- | --- |
+| 9–13, 16 | Nothing looks or walks differently | stills of the forest, the tent, the fire pit and the rocks against this branch's first head and main; the eleven walks |
+| 14 | A level in a few draws | the forest's draws counted, a draw a kind and `?byclass`; `?byclass` stills against a draw a kind; frame time |
+| 15 | Movers | the stress world's walks and frame against main; `?herds=200`: stills of creatures in the meadow, a walk into one, and one made gone |
+| all | Speed | the normal world's start and frame times against main, alternating; `vite build` |
+
+**Out of scope, said with the reasons**
+
+- **The world's material pool for hundreds of species' own textures.** A material is a 1 024² layer, 2.8 MB packed,
+  and the pool holds what the world wears. Three textures for each of 300 species would be 2.5 GB, so it needs its
+  own intent: smaller textures per species, streamed by what is near.
+- **The citizens' avatars on the drawer.** `characters/kit/human.js` is a three.js skinned mesh of 20 bones, posed on
+  the page. The drawer's movers take 16 bones (after this work, chains of four), enough for a humanoid. Bringing the
+  avatar to it is its own work.
+- The library's own staging (intent 0025's page) and the WebGL fallback keep their paths.
 
 ## Build
 
@@ -262,6 +333,17 @@ _One entry per request cycle, newest last._
   - Tint and wear are for made things only.
   - The stress world's start is 2 to 4 s longer on SwiftShader (its shaders a little larger).
 
+### 2026-11-15 (2), back to build: one of everything
+
+- **Asked:** Samuel: use this work also for single sources of truth and DRY: consolidate, remove legacy and duplicated
+  code, standardize the concepts, keep it fast and scalable, and make sure the pattern carries real animals,
+  characters and hundreds of detailed tree species (banana, palm, mango, avocado, paprika).
+- **Delivered:** the intent goes back to Build; the second definition follows a survey of what is duplicated, legacy
+  or inconsistent.
+- **Meanwhile:** PR #14 was merged into main (`80798ce`) at 20:32 and went to next at 20:33, on the head that had
+  passed the final round. The word to hold it reached the parent session after the merge. This round is built on the
+  same branch, restarted from main, for a new PR.
+
 ## Trail
 
 | When | Commit | What |
@@ -270,3 +352,4 @@ _One entry per request cycle, newest last._
 | 2026-11-15 | `8498e0c` | The store finds a key in up to 32 places, stopping at an empty one (check 5 found keys with no room in 8); a tier with nothing to pack makes no pass |
 | 2026-11-15 | `906f816` | Merged main 5bf670c (0026): `main.js` both kept, the list's tiers among those `scatter.compile()` compiles |
 | 2026-11-15 | `98800e9` | The store's table on the page made with the first change (4 MB less where nothing changed) |
+| 2026-11-15 | `80798ce` | PR #14 merged into main (deployed to next) |
