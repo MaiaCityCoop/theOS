@@ -176,8 +176,28 @@ Screenshots in the session's scratchpad, `shots/`.)
   SwiftShader drew nothing, so all of it was seen through the WebGL fallback. The coals never draw (a comment in
   `fire.js` swallows their spread): found, left to 0018. PR #6 merged into main meanwhile; rebased onto it.
 
+### 2026-11-15 (2)
+
+- **Asked:** (the session that hands out the work, for Samuel) main moved again (PR #7): merge it in, not rebase,
+  and run the browser checks again; then, PR #8 merged, finish them against main.
+- **Delivered:** PR #7 merged into the branch (`cadc8f8`, no conflict: this work's lines in `library.html` are all in
+  its script). PR #8 merged into main as `7b17433` (by Samuel's account, 16:30), CI green there, and the Deploy
+  workflow ran on it at 16:31 and succeeded (to next, the handing-out session says). `cadc8f8` holds the same files as `7b17433`, so the checks run on it are
+  main's. All five passed again (WebGL fallback, as before): the 14 assets standing on the stage with their pictures
+  (`merged-sheet.png`), none with a fire after the Flame; Random changed Boulders, Stones, Mastic and Holm oak and Own
+  gave each back; with the Flame two fires, each at its own place, the light at the stage, after it only the tent's,
+  the light back there; two rounds of every asset left 12 scene children, 39 geometries, 56 programs and 61 KB of
+  uniform buffers both times; the game's own page has its one fire at the tent; no console errors but SwiftShader's
+  own driver warning.
+- **Good:** nothing changed by the merge.
+- **Broke / not there yet:** still not seen in Safari; it is on next now for Samuel to open. Putting the branch back on
+  main by force was refused here, so it took main by a merge instead (`c55dd4b`).
+
 ## Trail
 
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-15 | `386638e` | Every attribute by its length; seeds for rocks and bushes; each fire at its own place; the stage freed |
+| 2026-11-15 | `cadc8f8` | origin/main (`5572523`, PR #7) merged in |
+| 2026-11-15 | `7b17433` | PR #8 merged into main (deployed to next) |
+| 2026-11-15 | `c55dd4b` | origin/main (`7b17433`) merged back in, for this record |
