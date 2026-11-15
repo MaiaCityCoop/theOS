@@ -162,6 +162,15 @@ Asked for outright, with the requirements spelled out; the definition holds no s
   one before (without that no read-back ever came back). For the walks the picture itself is not drawn (SwiftShader
   needs seconds for it); everything else of a frame is the game's own.
 
+- (after the merge, Samuel) **Shrubs are walked through.** Asked: "Shrubs should be walkthrough right?" The shrub kind's
+  rule is `solid: false` again (`assets/kinds.js`), as before this intent: bracken, dead wood, mastic, moss cushion,
+  reeds and rockrose give no body; trees keep their trunks, rocks their round, the tent, the fire pit and the flame
+  their own `solid`. A stand of shrubs alone now packs nothing solid (`trees.js`: a stand whose kinds give no shape
+  that stops a walker packs none); in a stand with trees the shrubs are read back and left out. The `{ leaves: true }`
+  rule stays in `shapesOf`, no kind's. Check 4 (into a shrub: not straight through) no longer stands: Samuel's call.
+  The stress world's own plants (the zoo's fronds) keep their colliders from intent 0008: leaves passed through, a
+  stem core below the knee.
+
 ## Propose
 
 **Delivered:** one collision engine for every world (`src/world/bodies.js`), every placer registering its bodies by
@@ -262,6 +271,17 @@ his middle came to the thing's middle (trees, shrubs, rocks: the drawn foot; the
 - **Good:** nothing changed by the merge.
 - **Broke / not there yet:** still not seen in Safari; it is on next now for Samuel to walk into the forest, at eye
   level and in the follow view.
+
+### 2026-11-15 (3), shrubs walked through
+
+- **Asked:** "Shrubs should be walkthrough right?" (Samuel, after #9 was on next)
+- **Delivered:** the shrub kind's `solid: false` again: every shrub walked through, everything else as #9 left it.
+  Checked through the placers' own functions (`kindRule`, `shapesOf`) for all 14 assets: the six shrubs give nothing,
+  the two trees a trunk, the two rocks their round, the tent, fire pit and flame their own `solid`, the grass nothing.
+  `registry.json` unchanged (`kinds.js` is no recipe and no kit).
+- **Good:** one line of the kinds' rules: every world follows it.
+- **Broke / not there yet:** check 4 is Samuel's to drop, and dropped. Not walked in a browser here (the change is the
+  rule the engine reads; the stands' packing skips what gives no shape).
 
 ## Trail
 
