@@ -93,9 +93,9 @@ says which commit the API runs.
 
 - **Paths:** `/callback` serves `callback.html` and `/api/stories` serves `api/stories/index.json`. Anything that is
   not a file gets a 404, never a page.
-- **Caching:** `/assets/*` is cached as immutable, since Vite names those files by content hash. So is anything asked
-  for with `?v=`: the game's build names the brand's files its pages load by their content that way (`brand.css`,
-  `loading.js`, the icon). Everything else is `no-cache`.
+- **Caching:** `/assets/*` is cached as immutable, since Vite names those files by content hash. So is a file of
+  `/brand/*` asked for with `?v=`: the game's build names the brand's files its pages load by their content that way
+  (`brand.css`, `loading.js`, the icon). Everything else is `no-cache`.
 - **Compression:** the game's build writes every file that compresses a second time beside itself, as brotli at its
   best (`.br`); Caddy sends that where the browser accepts it, and compresses everything else as it sends it.
 - **Framing:** the website may frame only itself. The game may be framed by itself and the website.

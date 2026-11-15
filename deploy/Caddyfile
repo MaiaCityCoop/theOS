@@ -37,7 +37,10 @@
 	@hashed path /assets/*
 	header @hashed Cache-Control "public, max-age=31536000, immutable"
 	# Nor do the brand's files a page asks for by their content (?v=: TheGame/vite.config.js).
-	@versioned query v=*
+	@versioned {
+		path /brand/*
+		query v=*
+	}
 	header @versioned Cache-Control "public, max-age=31536000, immutable"
 	header ?Cache-Control "no-cache"
 }
