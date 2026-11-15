@@ -36,14 +36,17 @@ function measures(kind, H) {
     cuffY: elbowY - 0.075, hemY: 0.105 };
 }
 
-/** Where the hair grows on the head: 0 … 1, from a point at rest (the same rule on the CPU and in the shader). */
+/** Where the hair grows on the head: 0 … 1, from a point at rest (the same rule on the CPU and in the shader); nowhere
+ * on a bald head (M.bald: a recipe that wears no hair). */
 function hairJS(M, x, y, z) {
+  if (M.bald) return 0;
   const dz = z - 0.008, l = Math.hypot(x, dz) || 1, fz = dz / l, a = Math.atan2(x, dz);
   const s = (e0, e1, v) => { const t = Math.min(1, Math.max(0, (v - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
   const line = M.H * 0.885 + (M.H * 0.958 - M.H * 0.885) * s(-0.3, 0.75, fz) + 0.005 * Math.sin(a * 14);
   return y < M.H * 0.86 ? 0 : s(line - 0.004, line + 0.004, y);
 }
 const hairTSL = (M, P) => {
+  if (M.bald) return float(0);
   const dz = P.z.sub(0.008), l = max(length(vec2(P.x, dz)), 1e-4), fz = dz.div(l), a = atan(P.x, dz);
   const line = mix(float(M.H * 0.885), float(M.H * 0.958), smoothstep(-0.3, 0.75, fz)).add(sin(a.mul(14)).mul(0.005));
   return smoothstep(line.sub(0.004), line.add(0.004), P.y).mul(step(M.H * 0.86, P.y));
@@ -303,7 +306,7 @@ function materialOf(tex, M, look, eye) {
 
 /** A person, built from recipe (characters/*.js): its walker kind, its height, what it wears. */
 export function humanOf(tex, R, { eye = uniform(U.uCam.value) } = {}) {
-  const M = measures(R.from.kind, R.height), { J, PARENT, NAMES, chains } = body(M);
+  const W = R.wears, M = { ...measures(R.from.kind, R.height), bald: !W.hair }, { J, PARENT, NAMES, chains } = body(M);
   const out = { pos: [], nor: [], rest: [], ctr: [], part: [], uv: [], sk: [], sw: [], index: [] };
   for (const c of chains) chain(M, c, out);
   const geo = new THREE.BufferGeometry();
@@ -313,9 +316,9 @@ export function humanOf(tex, R, { eye = uniform(U.uCam.value) } = {}) {
   geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(out.sk, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(out.sw, 4));
   geo.setIndex(out.pos.length / 3 > 65535 ? new THREE.Uint32BufferAttribute(out.index, 1) : new THREE.Uint16BufferAttribute(out.index, 1));
   geo.computeBoundingSphere();
-  const W = R.wears;
-  for (const x of [W.shirt.material, W.trousers.material, W.hair.material]) tex.want(x, true);
-  const look = { linen: W.shirt.material, denim: W.trousers.material, hair: W.hair.material, dye: W.shirt.dye, hairTint: W.hair.tint, skin: W.skin, leather: W.shoes, lip: [0.78, 0.55, 0.55], sheen: [0.9, 0.9, 0.9] };
+  for (const x of [W.shirt.material, W.trousers.material, W.hair?.material].filter(Boolean)) tex.want(x, true);
+  // bald: the shader still reads a hair tile, so it reads the linen's, and wears it nowhere
+  const look = { linen: W.shirt.material, denim: W.trousers.material, hair: W.hair?.material ?? W.shirt.material, dye: W.shirt.dye, hairTint: W.hair?.tint ?? [1, 1, 1], skin: W.skin, leather: W.shoes, lip: [0.78, 0.55, 0.55], sheen: [0.9, 0.9, 0.9] };
   const mat = materialOf(tex, M, look, eye);
   // the skeleton: each bone at its joint, its place its parent's offset
   const bones = {}; for (const nm of NAMES) { const b = new THREE.Bone(); b.name = nm; bones[nm] = b; }

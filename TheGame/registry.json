@@ -212,7 +212,7 @@
     "type": "character",
     "name": "Settler",
     "file": "characters/settler.js",
-    "version": "e691e01e81d72f45632f2cceb4a5cf8056e75a7a4be9063a080c3f7a68eccd04",
+    "version": "02c4d988d065c33b0c3005723dbc7cdfff0b2bfed5e54c9150cf2d398eacdb10",
     "uses": [
       "3cb68f1f-a92d-4adf-bb8e-838abf352389",
       "5f430c04-8942-442c-ac6a-b5c958cc887a",

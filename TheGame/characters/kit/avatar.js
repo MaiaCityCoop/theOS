@@ -6,7 +6,8 @@
 //     body    the walker kind the body's proportions come from (its legs, build, head and lean), 0 … 999
 //     height  metres, 1.55 … 1.95
 //     skin    linear albedo, each channel 0 … 1
-//     hair    the tint over the hair material, each channel 0 … 3 (the material is dark brown; above 1 lightens it)
+//     hair    the tint over the hair material, each channel 0 … 3 (the material is dark brown; above 1 lightens it),
+//             or null: bald
 //     shirt   the dye of the linen shirt, each channel 0 … 1 (1, 1, 1: undyed)
 //     shoes   the leather of the shoes and the belt, linear, each channel 0 … 1
 
@@ -24,6 +25,7 @@ export function avatarOf(v) {
   const out = { body: v.body, height: round(v.height) };
   for (const k of COLOURS) {
     const c = v[k];
+    if (k === 'hair' && c === null) { out.hair = null; continue; }
     if (!Array.isArray(c) || c.length !== 3 || !c.every((x) => inRange(x, LIMITS[k]))) return null;
     out[k] = c.map(round);
   }
@@ -40,6 +42,7 @@ export const CHOICES = {
   hair: [
     { name: 'Black', v: [0.32, 0.3, 0.3] }, { name: 'Dark brown', v: [0.85, 0.82, 0.8] }, { name: 'Chestnut', v: [1.45, 1.1, 0.85] },
     { name: 'Auburn', v: [2.1, 1.05, 0.6] }, { name: 'Blond', v: [2.3, 1.8, 1.15] }, { name: 'Grey', v: [2.4, 2.4, 2.5] },
+    { name: 'Bald', v: null },
   ],
   shirt: [
     { name: 'Undyed', v: [1, 1, 1] }, { name: 'Sage', v: [0.62, 0.78, 0.6] }, { name: 'Clay', v: [0.86, 0.5, 0.36] },
@@ -68,5 +71,5 @@ export function personOf(avatar, base, name = 'You') {
   if (!a) throw new Error('not an avatar');
   const W = base.wears;
   return { ...base, name, about: 'A person of your own.', from: { rig: 'walker', kind: a.body }, height: a.height,
-    wears: { shirt: { ...W.shirt, dye: a.shirt }, trousers: W.trousers, hair: { ...W.hair, tint: a.hair }, skin: a.skin, shoes: a.shoes } };
+    wears: { shirt: { ...W.shirt, dye: a.shirt }, trousers: W.trousers, hair: a.hair && { ...W.hair, tint: a.hair }, skin: a.skin, shoes: a.shoes } };
 }

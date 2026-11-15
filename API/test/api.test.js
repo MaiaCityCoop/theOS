@@ -52,7 +52,8 @@ describe('the avatar', () => {
   test('the game and the API keep the same rules', () => {
     expect(GAME_LIMITS).toEqual(API_LIMITS);
     const samples = [AVATAR, { ...AVATAR, body: 1000 }, { ...AVATAR, body: 2.5 }, { ...AVATAR, height: 2.4 }, { ...AVATAR, hair: [3.1, 0, 0] }, { ...AVATAR, skin: [1, 1] },
-      { ...AVATAR, extra: 1 }, { ...AVATAR, shoes: ['0', 0, 0] }, null, [], 'x', ...Array.from({ length: 50 }, (_, i) => randomAvatar(() => ((i * 7919) % 101) / 101))];
+      { ...AVATAR, extra: 1 }, { ...AVATAR, shoes: ['0', 0, 0] }, { ...AVATAR, hair: null }, { ...AVATAR, hair: [] },
+      { ...AVATAR, hair: undefined }, { ...AVATAR, skin: null }, null, [], 'x', ...Array.from({ length: 50 }, (_, i) => randomAvatar(() => ((i * 7919) % 101) / 101))];
     for (const s of samples) expect(gameAvatarOf(s)).toEqual(apiAvatarOf(s));
   });
   test('every choice the page offers is one the API takes', () => {
@@ -112,6 +113,11 @@ describe.skipIf(!url)('the API on Postgres', () => {
     expect((await call('PUT', '/api/me/avatar', { cookie, body: { avatar: { ...AVATAR, body: 3 } } })).status).toBe(200);
     expect((await (await call('GET', '/api/me', { cookie })).json()).avatar.body).toBe(3);   // kept again, not twice
   });
+  test('a bald person is kept bald', async () => {
+    const { cookie } = await signIn({ sub: '7b0c2f8e-0000-4000-8000-000000000003' });
+    expect((await call('PUT', '/api/me/avatar', { cookie, body: { avatar: { ...AVATAR, hair: null } } })).status).toBe(200);
+    expect((await (await call('GET', '/api/me', { cookie })).json()).avatar).toEqual({ ...AVATAR, hair: null });
+  });
   test('a traveler cannot make one', async () => {
     const { cookie, body } = await signIn({ sub: '7b0c2f8e-0000-4000-8000-000000000002', aven_roles: [] });
     expect(body.citizen).toBe(false);
@@ -139,7 +145,7 @@ describe.skipIf(!url)('the API on Postgres', () => {
   });
   test('what is not an avatar is not kept', async () => {
     const { cookie } = await signIn();
-    for (const avatar of [{ ...AVATAR, height: 3 }, { ...AVATAR, mesh: 'x' }, 'x', null]) expect((await call('PUT', '/api/me/avatar', { cookie, body: { avatar } })).status).toBe(400);
+    for (const avatar of [{ ...AVATAR, height: 3 }, { ...AVATAR, mesh: 'x' }, { ...AVATAR, hair: 'none' }, { ...AVATAR, skin: null }, 'x', null]) expect((await call('PUT', '/api/me/avatar', { cookie, body: { avatar } })).status).toBe(400);
   });
   test('signing out ends the session', async () => {
     const { cookie } = await signIn();

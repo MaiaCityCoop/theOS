@@ -6,7 +6,8 @@
 //     body    the walker kind the body's proportions come from (its legs, build, head and lean), 0 … 999
 //     height  metres, 1.55 … 1.95
 //     skin    linear albedo, each channel 0 … 1
-//     hair    the tint over the hair material, each channel 0 … 3 (the material is dark brown; above 1 lightens it)
+//     hair    the tint over the hair material, each channel 0 … 3 (the material is dark brown; above 1 lightens it),
+//             or null: bald
 //     shirt   the dye of the linen shirt, each channel 0 … 1 (1, 1, 1: undyed)
 //     shoes   the leather of the shoes and the belt, linear, each channel 0 … 1
 
@@ -25,6 +26,7 @@ export function avatarOf(v) {
   const out = { body: v.body, height: round(v.height) };
   for (const k of COLOURS) {
     const c = v[k];
+    if (k === 'hair' && c === null) { out.hair = null; continue; }
     if (!Array.isArray(c) || c.length !== 3 || !c.every((x) => inRange(x, LIMITS[k]))) return null;
     out[k] = c.map(round);
   }
