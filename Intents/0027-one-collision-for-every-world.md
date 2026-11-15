@@ -289,3 +289,4 @@ his middle came to the thing's middle (trees, shrubs, rocks: the drawn foot; the
 | --- | --- | --- |
 | 2026-11-15 | `3e06bdf` | One collision for every world: the engine, every placer's bodies, the kinds' rules, the follow view, `?bounds` and `?ghost` everywhere; `trunks.js` gone |
 | 2026-11-15 | `2916d3b` | PR #9 merged into main (deployed to next) |
+| 2026-11-15 | `296a150` | Shrubs walked through again: the shrub kind's `solid: false` |
