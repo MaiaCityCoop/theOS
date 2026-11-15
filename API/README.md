@@ -39,7 +39,7 @@ is `SameSite=Strict`, so another site's page can't act for a signed-in browser.
 ## The avatar
 
 The avatar holds only the human kit's own numbers: body, height, skin, hair, shirt dye and shoes, each in a range
-(`src/avatar.js`). The game builds the person from them (`TheGame/characters/kit/avatar.js`, the same rules;
+(`src/avatar.js`). Hair may be `null`: bald. The game builds the person from them (`TheGame/characters/kit/avatar.js`, the same rules;
 `test/api.test.js` checks that the two agree).
 
 ## Running it here

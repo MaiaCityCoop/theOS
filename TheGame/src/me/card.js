@@ -12,7 +12,9 @@ const card = document.getElementById('me');
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 // what a choice looks like on screen: linear, times the material it tints where it tints one, made sRGB (roughly)
 const hex = (c) => '#' + c.map((v) => Math.round(Math.sqrt(Math.min(1, Math.max(0, v))) * 255).toString(16).padStart(2, '0')).join('');
-const LOOK = { skin: (v) => v, shoes: (v) => v, hair: (v) => v.map((x, i) => x * TINTED.hair[i]), shirt: (v) => v.map((x, i) => x * TINTED.shirt[i]) };
+// (bald, hair null, looks like the person's own skin)
+const LOOK = { skin: (v) => v, shoes: (v) => v, hair: (v) => v ? v.map((x, i) => x * TINTED.hair[i]) : avatar.skin, shirt: (v) => v.map((x, i) => x * TINTED.shirt[i]) };
+const NONE = 'linear-gradient(135deg, transparent 45%, rgba(40, 30, 25, .55) 45% 55%, transparent 55%)';   // a stroke across: none of it
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const MOVES = [{ id: 'idle', name: 'Idle' }, { id: 'walk', name: 'Walk' }, { id: 'wave', name: 'Wave' }];   // the kit's moves (characters/kit/human.js)
 const LABEL = { skin: 'Skin', hair: 'Hair', shirt: 'Shirt · linen, dyed', shoes: 'Shoes and belt · leather' };
@@ -45,7 +47,7 @@ async function ask() {
   render(); show();
 }
 
-const swatches = (k) => `<div class="sw" role="radiogroup" aria-label="${k}">${CHOICES[k].map((c, i) => `<button type="button" role="radio" aria-checked="${same(c.v, avatar[k])}" class="${same(c.v, avatar[k]) ? 'on' : ''}" data-k="${k}" data-i="${i}" title="${c.name}" aria-label="${c.name}" style="background:${hex(LOOK[k](c.v))}"></button>`).join('')}</div>`;
+const swatches = (k) => `<div class="sw" role="radiogroup" aria-label="${k}">${CHOICES[k].map((c, i) => `<button type="button" role="radio" aria-checked="${same(c.v, avatar[k])}" class="${same(c.v, avatar[k]) ? 'on' : ''}" data-k="${k}" data-i="${i}" title="${c.name}" aria-label="${c.name}" style="background:${c.v === null ? NONE + ', ' : ''}${hex(LOOK[k](c.v))}"></button>`).join('')}</div>`;
 const nameOf = (k) => CHOICES[k].find((c) => same(c.v, avatar[k]))?.name ?? 'Your own';
 
 function render() {

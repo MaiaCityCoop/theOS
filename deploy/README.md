@@ -105,7 +105,9 @@ says which commit the API runs.
 The game signs in by sending the whole tab to aven.id, because aven.id's pages can't be framed. When the website
 frames it from another origin, the person comes back to the game on its own name.
 
-A change to the Caddyfile reaches the host by running the host setup again, not by a deploy.
+A change to the Caddyfile, to `deploy/compose.yml` or to `deploy/api-up.sh` reaches the host by running the host
+setup again, not by a deploy: a deploy brings only the release, and these are installed as root. Run the setup
+before deploying a commit that needs them, as a new variable in `compose.yml` does.
 
 ## Setting up a host
 

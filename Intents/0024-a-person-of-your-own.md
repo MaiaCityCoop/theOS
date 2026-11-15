@@ -145,6 +145,27 @@ Asked outright, with no surprise in the definition, so built straight away.
   and refund.
 - **Broke / not there yet:** to be seen on next once both are deployed.
 
+### 2026-11-15, deployed; and bald
+
+- **Asked:** go, merge all three when green; then: Add a "no-hair" or "bald" option.
+- **Delivered:**
+  - theOS #4 (8dbee19) deployed to next; aven.id's back channel (jaensen/aven-dotnet#15) and the product's link
+    (jaensen/aven-dotnet#14) merged and deployed.
+  - "Bald" among the hair: the avatar's `hair` may be `null` (both `avatarOf`), and the human kit draws no hair for
+    a recipe that wears none. Its swatch is the person's skin with a stroke across. Avatars already kept stay as
+    they are.
+- **Good:**
+  - On next, the API asked aven.id's back channel with its secret and was answered (`404 unknown_account` for a
+    made-up account; a wrong secret, `401`).
+  - `bun test` in `API/`: 31 passed, a bald person kept bald among them. `tools/account-check.js`: 67 passed.
+  - Here, on the GPU: Bald chosen, kept, and `GET /api/me` answered `"hair": null`; the person stood bald on the
+    stage, close up a clean scalp.
+- **Broke / not there yet:**
+  - The first deploy left the API without its roles secret: the host's `/etc/maia-city/compose.yml` predated the
+    variable, and a deploy does not bring that file. Main's was installed on the host by hand and the API brought up
+    again; `deploy/README.md` now says such a change needs the host setup first.
+  - Bald's swatch first looked just like Grey; the stroke tells them apart.
+
 ## Trail
 
 | When | Commit | What |
@@ -153,3 +174,5 @@ Asked outright, with no surprise in the definition, so built straight away.
 | 2026-11-15 | `7e8e049` | "Already one? Sign in again" for a traveler; the changelog of the deploy and the purchase |
 | 2026-11-15 | `20ca12e` | The role from aven.id's roles back channel, asked again on coming back; the button replaced |
 | 2026-11-15 | `2b21fce` | Only aven.id's `unknown_account` ends sessions, not any 404 |
+| 2026-11-15 | `221fc4b` | Bald among the hair; the changelog of the deploy to next |
+| 2026-11-15 | `e6bd216` | A change to `compose.yml` or `maia-api-up` needs the host setup again |
