@@ -18,8 +18,9 @@ import { Fn, float, vec2, uint, uniform, instancedArray, instanceIndex, cos, sin
 import { LAID, riverInfo, shareOf } from './land.nodes.js';
 import { BIOMES } from './biomes.js';
 import { U } from '../core/uniforms.js';
+import { flagNum } from '../core/flags.js';
 
-export const SLOTS = Math.max(1, +(new URLSearchParams(location.search).get('slots') ?? 8));
+export const SLOTS = Math.max(1, flagNum('slots', 8));
 const RINGS = 16, DIRS = 24, NS = RINGS * DIRS + 1, EVERY = 1500, KEEP = 1.3;   // EVERY: ms between looks; KEEP: how much better a newcomer must be
 const radius = (ring) => (ring >= RINGS ? 0 : 20 * 1.6 ** ring);
 const weight = (r) => 1 / (1 + r / 1500);

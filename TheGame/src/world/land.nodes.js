@@ -1,8 +1,8 @@
-// The land on the GPU: world/land.js's functions as node functions (TSL), constant for constant, so what the shaders
+// The land on the GPU: land.js's functions as node functions (TSL), constant for constant, so what the shaders
 // draw is the ground the walker stands on. Every material that needs the land (terrain, water, grass, rocks, the ground
 // pass) builds from these. The biomes (biomes/*.js) bring their own rules; the library's sandbox lays one biome over
 // all the land round its stage.
-import { Fn, float, int, uint, vec2, vec3, vec4, floor, abs, max, clamp, mix, smoothstep, length, sqrt, atan, sin, cos, If, Loop, uniformArray, uniform, renderGroup } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, abs, max, clamp, mix, smoothstep, length, atan, sin, cos, If, Loop, uniformArray, uniform, renderGroup } from 'three/tsl';
 import { Vector4 } from 'three/webgpu';
 import { U } from '../core/uniforms.js';
 import { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second } from './noise.nodes.js';
@@ -166,8 +166,6 @@ export const grassFrom = (shares, ctx, tufts, lazy = false) => {
 /** How dry the land is at a point (ctx as biomesAt's): only the biomes that make it so (a grass that says its `dry`
     colour) are worked out, not every biome: what reads only this (an outcrop far off) does not grow with the biomes. */
 export const dryAt = (ctx) => LAID.filter((b) => b.grass?.colours?.dry).reduce((dry, b) => mix(dry, 1, shareOf(b, ctx)), float(0));
-/** the biomes at p, the river worked out here */
-export const biomesHere = (p, dist) => { const I = riverInfo(p); return biomesAt({ p, dist, d: abs(I.x), w: I.y, b: I.z }); };
 
 // the grass's colour, from the base biome's own numbers: a and b two of the land's cloudy noises, dry the dryness
 const v3 = (c) => vec3(c[0], c[1], c[2]), G = BASE.grass, DRY = G.colours.dry ?? LAID.find((b) => b.grass?.colours?.dry)?.grass.colours.dry ?? G.colours.b;

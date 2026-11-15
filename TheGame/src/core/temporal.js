@@ -29,7 +29,7 @@
 // colour and the kept one read, pulled, blended. The show: onto the canvas (a copy; or through the glass of the
 // virtual camera's lens, whose blur came before the look: src/camera/post.js).
 import * as THREE from 'three/webgpu';
-import { Fn, If, float, ivec2, vec2, vec3, vec4, uv, uniform, texture, property, outputStruct, max, min, abs, floor, fract, clamp, mix, length, dot, smoothstep } from 'three/tsl';
+import { Fn, If, float, vec2, vec3, vec4, uv, uniform, texture, property, outputStruct, max, min, abs, floor, fract, clamp, mix, length, dot, smoothstep } from 'three/tsl';
 import { note } from './gpu.js';
 import { U } from './uniforms.js';
 

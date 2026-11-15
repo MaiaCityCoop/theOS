@@ -1,4 +1,4 @@
-// Snow falling. Change a number here and the world's snowfall changes; the code (src/world/snowfall.js) holds none.
+// Snow falling. Change a number here and the world's snowfall changes; the code (src/world/weather/snowfall.js) holds none.
 //
 //   flakes     how many fall round the camera at the heaviest
 //   box        the side of the box of air round the camera they fall in, metres (it moves with the camera)

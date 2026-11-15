@@ -11,7 +11,7 @@
 // Every thing it packs may have a state of its own (src/world/things.js: gone, grown; tinted and worn where a drawer is
 // made with `state`), looked up by its placer's name and its cell (`thing`) or a key its placer gives, and a seed of its
 // own (B.w) its look may differ by:
-//   createDrawer(scene, renderer, tex, { name, LEVELS, SHADE, SMOOTH, PXK, ghost, skins, ground, soft, relief, make, state, zoo }) ->
+//   createDrawer(scene, renderer, tex, { name, LEVELS, SHADE, SMOOTH, ghost, skins, ground, soft, relief, make, state, zoo }) ->
 //     tier(level, { cell, P, cap, sizes, place, shadow, casts, far, thing }) -> that level's tier (tier.js) for a placer:
 //                               `place` is the placer's node code for a cell (where a thing stands in it, of which
 //                               kind, how large); the drawer tests whether it is of the level and drops it into the
@@ -26,9 +26,11 @@
 //     ask(jobs)                 the recipes' workers (one set for every drawer)
 //     start()                   each frame until the coarse levels are in (read back from the browser, or built)
 //     skinsIn()                 each frame: the textures that have come, into their layers
-//     near(K, inv, ahead) -> { reach(size), wants(kind, size, distance, own), none(), done() }
-//                               a look at what stands or passes near: ask for the levels and textures it is large
+//     scan(extra) -> null, or { reach(size), wants(kind, size, distance, own), none(), done(), ahead }
+//                               once a frame: a look at what stands or passes near, when the camera has moved (or
+//                               the lens, the governor or `extra`): ask for the levels and textures it is large
 //                               enough on screen for now, and will still be when they have come
+//     near(K, inv, ahead)       the same look, asked for outright
 //     stats, pending, skins, boneRows (the movers' skeletons, as numbers), fingerprint
 // What a drawer's kinds may be is said when it is made, so a drawer whose kinds need none of it carries none of it in
 // its shader: skins (how many kinds' own textures it holds at once; 0: none, its kinds wear the world's materials),
@@ -75,12 +77,12 @@ const pool = () => (POOL ||= (() => {
 })());
 
 /** name: its own (the ledger's, and what the browser keeps its coarse meshes under); LEVELS: the levels, finest first
-    (the ladder's n and px, and of each: slots); SHADE: what casts the shadows (its shrink); SMOOTH, PXK: uniforms
-    (whether levels turn into each other; the lens's pixels a metre); ghost: a thing draws back from an eye inside it;
+    (the ladder's n and px, and of each: slots); SHADE: what casts the shadows (its shrink); SMOOTH: a uniform
+    (whether levels turn into each other; the lens is the world's one, U.uPxK); ghost: a thing draws back from an eye inside it;
     skins, ground, soft, relief: what its kinds may be (above); full: the most squares an edge a full mesh of its kinds
     has (none: the ladder's most: a slot of the heap is as large as that); zoo: its kinds ({ first (the zoo's number
     of its first kind), ALL, STAND, MOVING, lookOfKind (of its k-th kind), fingerprint }: assets/zoo). */
-export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHADE, SMOOTH, PXK, ghost: GHOST = GHOSTING, corners: CORNERS = false, skins: SKINSMAX = 1024, ground: GROUND = false, soft: SOFT = false, relief: RELIEF = 90, full: FULLMOST = 0, make: MAKE = null, state: STATE = false, zoo: { first = 0, kinds: KINDS = null, ALL, STAND = ALL, MOVING = 0, lookOfKind, fingerprint } }) {
+export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHADE, SMOOTH, ghost: GHOST = GHOSTING, corners: CORNERS = false, skins: SKINSMAX = 1024, ground: GROUND = false, soft: SOFT = false, relief: RELIEF = 90, full: FULLMOST = 0, make: MAKE = null, state: STATE = false, zoo: { first = 0, kinds: KINDS = null, ALL, STAND = ALL, MOVING = 0, lookOfKind, fingerprint } }) {
   // MAKE: another make of vertex than the solids' ({ per: elements a vertex, byKind: a draw a kind, flat: its meshes'
   // corners are their vertices in order (none shared), so where it is not drawn a kind a draw, one draw a level as long
   // as its room serves every kind, material(src, level, shadow): its material, dot: its last level is the drawer's
@@ -186,7 +188,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const dot = (src) => {
     const m = new THREE.NodeMaterial();
     m.vertexNode = Fn(() => {
-      const A = src.readAt(0, SLOT), B = src.readAt(1, SLOT), clip = offScreen().toVar(), px = A.w.mul(PXK).div(max(camDist(A.xy), 1e-3)), sunk = smoothstep(LEVELS[L - 1].px, LEVELS[L - 1].px * SINK, px);
+      const A = src.readAt(0, SLOT), B = src.readAt(1, SLOT), clip = offScreen().toVar(), px = A.w.mul(U.uPxK).div(max(camDist(A.xy), 1e-3)), sunk = smoothstep(LEVELS[L - 1].px, LEVELS[L - 1].px * SINK, px);
       If(px.lessThanEqual(LO.element(L - 2)).and(sunk.greaterThan(0)), () => {
         const V = cameraViewMatrix, right = vec3(V.element(0).x, V.element(1).x, V.element(2).x), up = vec3(V.element(0).y, V.element(1).y, V.element(2).y);
         // (how wide it is and how high its middle stands, of its size: its look's (a made thing's own outline), else a ball's)
@@ -237,7 +239,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     if (foliage) m.side = THREE.DoubleSide;
     m.vertexNode = Fn(() => {
       const A = src.readAt(0, SLOT), B = src.readAt(1, SLOT), clip = offScreen().toVar();
-      const px = A.w.mul(PXK).div(max(camDist(A.xy), 1e-3));   // its size on screen now
+      const px = A.w.mul(U.uPxK).div(max(camDist(A.xy), 1e-3));   // its size on screen now
       vPx.assign(px);
       {
         // a mesh of the heap: the level its size asks for, and whether this one is drawn for it (heap.js: effective)
@@ -406,6 +408,18 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const skinsIn = () => {
     for (let n = 0; n < 3 && skinDone.length; n++) { const d = skinDone.shift(); skinPending.delete(d.k); if (skinAt[d.k] >= round - 1 && skinPut(d.k, d.S)) { did('skins'); did('kB', 87); } }   // (a few textures a frame)
   };
+  // once a frame, for its placer's look at what is near: null while nothing calls for a new look (the camera has moved
+  // less than 0.7 m, the lens, the detail governor and `extra` are as they were, and it looked less than 0.3 s ago),
+  // else a look (near, below) with `ahead`: how far the camera travels while a mesh is made, by its speed
+  let sx = 1e9, sz = 1e9, sk = '', scanAt = -1e9, speed = 0, lx = 0, ly = 0, lz = 0, lt = 0;
+  const scan = (extra = '') => {
+    const now = performance.now(), cam = U.uCam.value, inv = U.uLodInv.value, K = pxK(), key = `${inv.toFixed(2)}|${K.toFixed(0)}|${extra}`;
+    const dt = Math.max(1e-3, (now - lt) / 1000), v = Math.hypot(cam.x - lx, cam.y - ly, cam.z - lz) / dt; lx = cam.x; ly = cam.y; lz = cam.z; lt = now;
+    speed += (Math.min(v, 300) - speed) * Math.min(1, dt * 4);   // (metres a second, smoothed)
+    if (Math.hypot(cam.x - sx, cam.z - sz) < 0.7 && key === sk && now - scanAt < 300) return null;
+    sx = cam.x; sz = cam.z; sk = key; scanAt = now; did('scan');
+    const ahead = speed * 0.35, N = near(K, inv, ahead); N.ahead = ahead; return N;
+  };
   // a look at what stands or passes near (K: the lens's pixels a metre, inv: the detail governor's, ahead: how far the
   // camera travels while a mesh is made)
   const near = (K, inv, ahead) => {
@@ -473,7 +487,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       place(c, { band, whole, all, ...part }, (kind, size, dist, fill, key = null) => {
         // of this level: it is there (heap.js), and the thing is the size on screen the level is drawn at, or larger
         // while its next finer level has not come
-        const span = size.mul(PXK), R = heapRow(H, kind, lv), has = R.z.greaterThan(uint(0));
+        const span = size.mul(U.uPxK), R = heapRow(H, kind, lv), has = R.z.greaterThan(uint(0));
         const near = dist.greaterThanEqual(span.mul(band.from).sub(band.pad)).or(stands.greaterThan(0.5).and(R.w.shiftRight(under).bitAnd(uint(1)).equal(uint(0))));
         If(has.and(whole.or(dist.lessThan(span.mul(band.to).add(band.pad)).and(near))), () => {
           fill(...rows);
@@ -532,7 +546,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     const live = (c, part = {}) => {
       const alive = float(0).toVar(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar()), bucket = float(0).toVar();
       place(c, { band, whole: all0.greaterThan(0.5), all: all0, ...part }, (kind, size, dist, fill, key = null) => {
-        const px = size.mul(PXK).div(max(dist, 1e-3));
+        const px = size.mul(U.uPxK).div(max(dist, 1e-3));
         If(px.greaterThan(END), () => {
           // the level its size asks for; drawn at the finest that is there and no finer than that
           const want = uint(0).toVar(), held = heldOf(heapRow(H, kind, uint(L - 1))), lvl = uint(last).toVar();
@@ -567,5 +581,5 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     made.push(T);
     return T;
   };
-  return { H, LO, L, STREAMED, HULL, kindNo, lookOf, look, lookRows, sizes, skins, boneRows, fingerprint: FP, tier, tierAll, meshOf, dot, drawOf, drawShaped, shapeOf, ask, stats, pending, start, skinsIn, near };
+  return { H, LO, L, STREAMED, HULL, kindNo, lookOf, look, lookRows, sizes, skins, boneRows, fingerprint: FP, tier, tierAll, meshOf, dot, drawOf, drawShaped, shapeOf, ask, stats, pending, start, skinsIn, scan, near };
 }

@@ -1,6 +1,6 @@
 // Dry land: where the land is dry. A biome of the world, in the one recipe every biome follows (biomes/README.md).
-import { float, uint, max, smoothstep } from 'three/tsl';
-import { vnoise, edgeJit, bent, turned, second } from '../src/world/noise.nodes.js';
+import { float, uint, smoothstep } from 'three/tsl';
+import { vnoise, bent, turned, second } from '../src/world/noise.nodes.js';
 
 export default {
   uid: '36d9e9fe-93ab-42c7-9e1d-8f32bbe99019',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)

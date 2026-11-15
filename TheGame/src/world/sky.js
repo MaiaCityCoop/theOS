@@ -6,7 +6,7 @@
 // the clouds: the weather's). The weather panel
 // (src/ui/weather.js) steers it by hand or lets it run.
 import * as THREE from 'three/webgpu';
-import { Fn, varying, positionGeometry, normalize, max, mix, pow, smoothstep, vec4, cameraProjectionMatrix, cameraViewMatrix, modelWorldMatrix } from 'three/tsl';
+import { Fn, varying, positionGeometry, normalize, max, mix, pow, vec4, cameraProjectionMatrix, cameraViewMatrix, modelWorldMatrix } from 'three/tsl';
 import SKY from '../../world/sky.js';
 import CLOCK from '../../world/clock.js';   // the date, the hour the game opens at, how fast a day runs: set there, nowhere else
 import { U } from '../core/uniforms.js';

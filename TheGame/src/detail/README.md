@@ -276,9 +276,9 @@ world itself.
 
 - **The grass is not on the one drawer yet** (`src/scatter/drawer.js`: the heap, the levels' draws and what fills
   and streams them). The rocks and the plants are, since 2026-11-14. A rock asset's shapes are a family of the zoo
-  (`assets/zoo/boulders.js`, `stones.js`; the shapes are `assets/kit/rock.js`'s), `rocks.js` says only where they
-  lie. A plant asset's shapes are a family too (`assets/zoo/holmoaks.js` and six more; `assets/kit/plant.js` packs
-  what the tree kit builds), drawn by the drawer's second make of vertex: the plants' own material (its light worked
+  (`assets/zoo/scattered.js` makes one of every rock asset; the shapes are `assets/kit/rock.js`'s), `rocks.js` says
+  only where they lie. A plant asset's shapes are a family too (made by `scattered.js` as well; `assets/kit/plant.js`
+  packs what the tree kit builds), drawn by the drawer's second make of vertex: the plants' own material (its light worked
   out at its corners, a pixel reads one texture: a crown is many cards deep, and the solids' shader a pixel would
   cost the frame), two elements a vertex, its levels and their rooms its own, not the ladder's.
 - **A plant is still a draw a shape and level**, as before it came to the heap: its meshes are uneven (a young oak

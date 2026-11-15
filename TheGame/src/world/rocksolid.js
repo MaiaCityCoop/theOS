@@ -5,7 +5,9 @@
 // tent's clear floor, exactly as drawn. The boulders (outcrops) need only the land's own functions. What of a rock is
 // solid is its kind's (its family's colliders: assets/kit/rock.js, from the shape as it is drawn); it is one of the
 // bodies of the one collision engine (src/world/bodies.js), as everything solid in every world is.
-import { cellRnd as rnd, riverAt, outcropAt, sstep, heightAt } from './land.js';
+import { riverAt, outcropAt, heightAt } from './land.js';
+import { rnd } from '../core/hash.js';
+import { sstep } from '../../assets/kit/math.js';
 import { recipes } from '../core/registry.js';
 import { onWay, waysVersion } from './ways.js';
 import { rockBody } from '../../assets/kit/rock.js';

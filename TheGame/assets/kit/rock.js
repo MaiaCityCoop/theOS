@@ -16,6 +16,7 @@
 import { LADDER, FULLN, DOTN, underOf } from './ladder.js';
 import { ball, ballMesh, hash3, noise3, SWELL } from './blob.js';
 import { dotMesh } from './solid.js';
+import { sstep } from './math.js';
 import { kindOf, kindRule, shapesOf } from '../kinds.js';
 
 /** squares along an edge of a rock's full mesh (12 n² triangles) */
@@ -25,7 +26,6 @@ export const BURIED = 0.22;
 // how much of a ripple of frequency f a mesh of n squares an edge can carry (as blob.js: a coarse level is the same
 // shape, smoother: no ripple it cannot draw)
 const carry = (n, f) => Math.min(1, Math.max(0, (n / (3.14 * f) - 0.5) * 2));
-const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // shape v of an asset: its numbers, from the asset's seed (another seed, as the library's Random gives: another shape)
 const SHAPES = new Map();

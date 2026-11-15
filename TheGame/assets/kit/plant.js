@@ -19,16 +19,13 @@
 //
 //   packPlant(mesh) -> { index: its corners, verts: Uint32Array, count: how many vertices }   what a family hands on
 //   plantFamily(id, asset)   a plant asset's shapes as a family of the zoo (assets/zoo/index.js)
-import { kindRule, shapesOf } from '../kinds.js';
+import { kindRule, shapesOf, most } from '../kinds.js';
+import { held, sn, q16, oct, OCT } from './pack.js';
 
 export const GRID = { xz: 40, y0: -2, y1: 78 }, UVK = 1024, UV0 = 16;   // x and z over -40 … 40 m, y over -2 … 78 m, 16 bits each (1.2 mm); uv in 1024ths, from -16
-const g16 = (v, lo, hi) => Math.max(0, Math.min(65535, Math.round(((v - lo) / (hi - lo)) * 65535)));
+const gx = (v) => q16(v, -GRID.xz, 2 * GRID.xz), gy = (v) => q16(v, GRID.y0, GRID.y1 - GRID.y0);   // (a place in the grid, 16 bits)
 let OU = 0, OV = 0;
-const oct8 = (x, y, z) => {   // a direction as two numbers of 8 bits (octahedral)
-  const l = Math.hypot(x, y, z) || 1, m = (Math.abs(x) + Math.abs(y) + Math.abs(z)) / l || 1; let u = x / l / m, v = y / l / m;
-  if (z < 0) { const u0 = u; u = (1 - Math.abs(v)) * (u0 >= 0 ? 1 : -1); v = (1 - Math.abs(u0)) * (v >= 0 ? 1 : -1); }
-  OU = Math.max(0, Math.min(255, Math.round((u * 0.5 + 0.5) * 255))); OV = Math.max(0, Math.min(255, Math.round((v * 0.5 + 0.5) * 255)));
-};
+const oct8 = (x, y, z) => { oct(x, y, z); OU = sn(OCT[0], 255); OV = sn(OCT[1], 255); };   // (a direction as two numbers of 8 bits)
 
 /** A mesh of the tree kit (as its builder left it, or as typed arrays) as the heap takes it: every vertex packed,
     its triangles' corners as they are. */
@@ -36,25 +33,16 @@ export function packPlant(m) {
   const P = m.position, N = m.normal, UV = m.uv, CN = m.cn, RT = m.root, HD = m.hand, n = m.part.length, out = new Uint32Array(n * 8);
   for (let v = 0; v < n; v++) {
     const o = v * 8, p = v * 3;
-    out[o] = (g16(P[p], -GRID.xz, GRID.xz) | (g16(P[p + 1], GRID.y0, GRID.y1) << 16)) >>> 0;
+    out[o] = (gx(P[p]) | (gy(P[p + 1]) << 16)) >>> 0;
     oct8(N[p], N[p + 1], N[p + 2]);
-    out[o + 1] = (g16(P[p + 2], -GRID.xz, GRID.xz) | (OU << 16) | (OV << 24)) >>> 0;
-    out[o + 2] = (Math.max(0, Math.min(65535, Math.round((UV[v * 2] + UV0) * UVK))) | (Math.max(0, Math.min(65535, Math.round((UV[v * 2 + 1] + UV0) * UVK))) << 16)) >>> 0;
+    out[o + 1] = (gx(P[p + 2]) | (OU << 16) | (OV << 24)) >>> 0;
+    out[o + 2] = (held((UV[v * 2] + UV0) * UVK, 65535) | (held((UV[v * 2 + 1] + UV0) * UVK, 65535) << 16)) >>> 0;
     oct8(CN[p], CN[p + 1], CN[p + 2]);
-    out[o + 3] = (Math.max(0, Math.min(255, Math.round(m.ao[v] * 255))) | ((m.part[v] & 3) << 8) | ((HD[v * 2] > 0.5 ? 1 : 0) << 10) | ((HD[v * 2 + 1] > 0.5 ? 1 : 0) << 11) | ((m.twig?.[v] > 0.5 ? 1 : 0) << 12) | (OU << 16) | (OV << 24)) >>> 0;
-    out[o + 4] = (g16(RT[p], -GRID.xz, GRID.xz) | (g16(RT[p + 1], GRID.y0, GRID.y1) << 16)) >>> 0;
-    out[o + 5] = g16(RT[p + 2], -GRID.xz, GRID.xz);
+    out[o + 3] = (held(m.ao[v] * 255, 255) | ((m.part[v] & 3) << 8) | ((HD[v * 2] > 0.5 ? 1 : 0) << 10) | ((HD[v * 2 + 1] > 0.5 ? 1 : 0) << 11) | ((m.twig?.[v] > 0.5 ? 1 : 0) << 12) | (OU << 16) | (OV << 24)) >>> 0;
+    out[o + 4] = (gx(RT[p]) | (gy(RT[p + 1]) << 16)) >>> 0;
+    out[o + 5] = gx(RT[p + 2]);
   }
   return { index: Uint32Array.from(m.index), verts: out, count: n };   // (count: its vertices)
-}
-/** The same read back in JS (for tests): vertex i of packed `verts`: { p, n, uv, ao, part, hand, cn, root }. */
-export function unpackPlant(verts, i) {
-  const o = i * 8, f = (q, lo, hi) => lo + (q / 65535) * (hi - lo), un = (a, b) => { const u = (a / 255) * 2 - 1, w = (b / 255) * 2 - 1, z = 1 - Math.abs(u) - Math.abs(w), k = Math.max(-z, 0), x = u + (u >= 0 ? -k : k), y = w + (w >= 0 ? -k : k), l = Math.hypot(x, y, z) || 1; return [x / l, y / l, z / l]; };
-  return {
-    p: [f(verts[o] & 65535, -GRID.xz, GRID.xz), f(verts[o] >>> 16, GRID.y0, GRID.y1), f(verts[o + 1] & 65535, -GRID.xz, GRID.xz)], n: un((verts[o + 1] >>> 16) & 255, verts[o + 1] >>> 24),
-    uv: [(verts[o + 2] & 65535) / UVK - UV0, (verts[o + 2] >>> 16) / UVK - UV0], ao: (verts[o + 3] & 255) / 255, part: (verts[o + 3] >>> 8) & 3, hand: [(verts[o + 3] >>> 10) & 1, (verts[o + 3] >>> 11) & 1], cn: un((verts[o + 3] >>> 16) & 255, verts[o + 3] >>> 24),
-    root: [f(verts[o + 4] & 65535, -GRID.xz, GRID.xz), f(verts[o + 4] >>> 16, GRID.y0, GRID.y1), f(verts[o + 5] & 65535, -GRID.xz, GRID.xz)],
-  };
 }
 
 /** A plant asset's shapes (assets/*.js made by the tree kit's tree()) as a family of the zoo (assets/zoo/index.js):
@@ -70,5 +58,4 @@ export const plantFamily = (id, asset) => ({
   boundsOf: (i) => { const d = dimsOf(asset, i), x = Math.max(d.length, d.width) / 2; return { min: [-x, 0, -x], max: [x, d.height, x] }; },
   collidersOf: (i) => shapesOf(kindRule(asset, 'solid'), dimsOf(asset, i)),
 });
-const most = (v) => (Array.isArray(v) ? v[1] : v);
 const dimsOf = (asset, i) => { const H = most(asset.size.height), h = asset.heights?.[i] ?? H, k = h / H; return { height: h, length: most(asset.size.length) * k, width: most(asset.size.width ?? asset.size.length) * k, trunk: asset.trunk?.[i] ?? null }; };

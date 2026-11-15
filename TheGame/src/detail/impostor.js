@@ -4,9 +4,10 @@
 // the sun, the sky, the weather, the clouds' shadow, the air, and the hand-over between levels (src/world/light.js). Nothing
 // of the light is baked. Atlases are kept by the hash of the asset's recipe, so one is baked once per recipe.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, uniform, varyingProperty, positionGeometry, attribute, normalLocal, frontFacing, modelWorldMatrix, cameraProjectionMatrix, cameraViewMatrix, texture, normalize, cross, abs, max, clamp, floor, length, sqrt, mat3, If, Discard } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, uniform, varyingProperty, positionGeometry, attribute, normalLocal, frontFacing, modelWorldMatrix, cameraProjectionMatrix, cameraViewMatrix, texture, normalize, cross, abs, max, clamp, floor, sqrt, mat3, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { finish, skyLight, weathered, snowLift, cloudAt, unlit } from '../world/light.js';
+import { FNV, fnv } from '../core/hash.js';
 
 let renderer = null;
 /** The game's renderer bakes the atlases (set once by src/main.js). */
@@ -18,10 +19,10 @@ if (import.meta.env.DEV) window.__impostors = kept;   // to look into, while dev
 
 // a recipe's hash: its geometry's numbers, so a changed recipe bakes again
 function hashOf(geo) {
-  let h = 2166136261 >>> 0; const a = geo.attributes.position.array, c = geo.attributes.color?.array || [];
-  for (let i = 0; i < a.length; i += 7) h = Math.imul(h ^ Math.round(a[i] * 1000), 16777619) >>> 0;
-  for (let i = 0; i < c.length; i += 11) h = Math.imul(h ^ Math.round(c[i] * 1000), 16777619) >>> 0;
-  return `${a.length}:${h.toString(36)}`;
+  let h = FNV; const a = geo.attributes.position.array, c = geo.attributes.color?.array || [];
+  for (let i = 0; i < a.length; i += 7) h = fnv(h, Math.round(a[i] * 1000));
+  for (let i = 0; i < c.length; i += 11) h = fnv(h, Math.round(c[i] * 1000));
+  return `${a.length}:${(h >>> 0).toString(36)}`;
 }
 
 // a direction on the half-sphere above for a point of the square [-1, 1]² (and back)

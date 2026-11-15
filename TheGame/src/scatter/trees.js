@@ -29,7 +29,7 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, storage, vertexIndex, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, sqrt, fract, step } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, storage, vertexIndex, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, fract, step } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt, nearLake } from '../world/land.nodes.js';
 import { kindsOf, whereOf } from '../world/stand.js';
@@ -37,8 +37,7 @@ import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, 
 import { CLEARINGS } from '../../world/places.js';
 import { recipe, versionOf } from '../core/registry.js';
 import { geometryOf, scatterRow } from '../../assets/index.js';
-import { kindOf } from '../../assets/kinds.js';
-import { pxK, sizeOf, most } from '../detail/index.js';
+import { kindOf, sizeOf, most } from '../../assets/kinds.js';
 import { levelOf, handOver, partGrown, sinkInto } from '../detail/handover.js';
 import { offScreen, clipOf, MAXP, Tier } from './tier.js';
 import { createDrawer } from './drawer.js';
@@ -50,7 +49,6 @@ import { addBodies, bodyGrid, topOf, wanted } from '../world/bodies.js';
 import { idOf } from '../world/things.js';
 import { wayAt, waysVersion } from '../world/ways.js';
 
-const PXK = uniform(pxK()); addEventListener('resize', () => (PXK.value = pxK()));
 const GROW = 1.5, SLOTS = 6, FOOT = 0.15;   // GROW: seconds a finest level that has just come takes to grow out of the next (its sprigs one after another); SLOTS: of how many shapes a stand holds the finest meshes at once; FOOT: how deep a plant's foot is set into the ground
 
 // 1 where a tree may stand, 0 within what stands at a place (its clearing) or on the library's stage
@@ -197,7 +195,7 @@ function plantMaterial(tex, D) {
         if (Lv) {
           // its size on screen now, as its cell reckoned it (its largest side, B.w), and from it the one hand-over
           // (src/detail/handover.js): its sprigs part by part, its wood whole, its last level sinking
-          let H = handOver(B.w.mul(PXK).div(max(camDist(A.xy), 1e-3)), LU, D.sink);
+          let H = handOver(B.w.mul(U.uPxK).div(max(camDist(A.xy), 1e-3)), LU, D.sink);
           if (feed?.streamed) {
             // its finest level comes when a plant is near (its mesh is made then): until it is there the next level
             // stands in for it whole, and from when it came the two hand over by the clock, sprig by sprig, as two
@@ -342,7 +340,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
       };
     };
     const D = createDrawer(scene, renderer, tex, {
-      name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1), PXK,
+      name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1),
       make: { per: 2, byKind: true, material: (src, i, shadow) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, last: i === n - 1 }, feedOf(i)); m.vertexNode = Fn(() => shape(src.readAt(0, slot), src.readAt(1, slot)))(); return m; } },
       // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
       zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 2|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
@@ -389,21 +387,15 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
       }
       if (FINE) {
         // when the camera has moved: the finest meshes of the shapes that stand near enough for them, asked of the drawer
-        let sx = 1e9, sz = 1e9, sk = '', scanAt = -1e9, speed = 0, lx = 0, ly = 0, lz = 0, lt = 0;
         solids.push(() => {
-          const now = performance.now(), cam = U.uCam.value, dy = U.uDy.value, inv = U.uLodInv.value, K = pxK(), key = `${inv.toFixed(2)}|${K.toFixed(0)}|${near.length}`;
-          const dt = Math.max(1e-3, (now - lt) / 1000), v = Math.hypot(cam.x - lx, cam.y - ly, cam.z - lz) / dt; lx = cam.x; ly = cam.y; lz = cam.z; lt = now;
-          speed += (Math.min(v, 300) - speed) * Math.min(1, dt * 4);
-          if (Math.hypot(cam.x - sx, cam.z - sz) < 0.7 && key === sk && now - scanAt < 300) return;
-          sx = cam.x; sz = cam.z; sk = key; scanAt = now;
-          const N = D.near(K, inv, speed * 0.35);
+          const N = D.scan(near.length); if (!N) return;
+          const cam = U.uCam.value, dy = U.uDy.value;
           for (const p of near) N.wants(p.kind, p.size, Math.hypot(p.x - cam.x, p.z - cam.z, dy), 0);
           N.done();
         });
       }
     }
   }
-  addEventListener('resize', () => tiers.forEach((t) => t.band()));
   // each frame: the stands' meshes until they are in (read back from the browser, or made by the workers); what is solid
   tiers.solid = (renderer) => { for (const D of drawers) D.start(); for (const f of solids) f(renderer); };
   // for looking at it (window.__plants): how many plants each tier packs now, what the heaps hold

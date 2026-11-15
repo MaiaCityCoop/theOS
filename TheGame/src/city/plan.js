@@ -9,7 +9,9 @@
 // city needs (people / perVillage), and its people share them by their real area.
 import CITY from '../../world/city.js';
 import { PLACES } from '../../world/places.js';
-import { riverAt, riverRaw, heightAt, aridAt, woodAt, outcropAt, noiseAt, cellRnd, sstep } from '../world/land.js';
+import { riverAt, riverRaw, heightAt, aridAt, woodAt, outcropAt, noiseAt } from '../world/land.js';
+import { rnd } from '../core/hash.js';
+import { sstep } from '../../assets/kit/math.js';
 
 const SQ3 = Math.sqrt(3);
 export const PLOTS = Math.round(CITY.people / CITY.perVillage);   // 898 villages
@@ -102,8 +104,8 @@ function lattice(S, rings) {
   const key = (q, r) => q * 4096 + r;
   for (let q = -rings; q <= rings; q++) for (let r = -rings; r <= rings; r++) {
     const ring = Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r));
-    if (ring > rings || (ring > 1 && cellRnd(q, r, sd + 2) < CITY.skip)) continue;
-    let x = core.x + S * (q + r / 2) + (ring ? (cellRnd(q, r, sd) - 0.5) * 0.36 * S : 0), z = core.z + S * r * (SQ3 / 2) + (ring ? (cellRnd(q, r, sd + 1) - 0.5) * 0.36 * S : 0);
+    if (ring > rings || (ring > 1 && rnd(q, r, sd + 2) < CITY.skip)) continue;
+    let x = core.x + S * (q + r / 2) + (ring ? (rnd(q, r, sd) - 0.5) * 0.36 * S : 0), z = core.z + S * r * (SQ3 / 2) + (ring ? (rnd(q, r, sd + 1) - 0.5) * 0.36 * S : 0);
     const v = riverAt(x, z), want = 0.34 * S;   // a grid point by a river moves away from it, so the river runs nearer the plots' edges
     if (v.d < want) { const g = Math.hypot(v.gx, v.gz) || 1, sg = Math.sign(v.r || 1), m = want - v.d; x += (sg * v.gx / g) * m; z += (sg * v.gz / g) * m; }
     if (!ring) { const dx = x - core.x, dz = z - core.z, l = Math.hypot(dx, dz), lim = 0.3 * S; if (l > lim) { x = core.x + (dx / l) * lim; z = core.z + (dz / l) * lim; } }   // the first village keeps the tent

@@ -3,7 +3,7 @@
 // drifts with the wind (uWind) and flutters; how many of them fall is uSnowFall (the weather panel's Snowfall row, a film
 // shot's `snowfall`). Falling snow thickens the air a little (its `lanes`: fog). Nothing is drawn while none falls.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, uv, instanceIndex, varyingProperty, positionGeometry, cameraViewMatrix, cameraProjectionMatrix, sin, floor, max, length, smoothstep, If, Discard, uint } from 'three/tsl';
+import { Fn, float, vec3, vec4, uv, instanceIndex, varyingProperty, positionGeometry, cameraViewMatrix, cameraProjectionMatrix, sin, floor, max, length, smoothstep, If, Discard, uint } from 'three/tsl';
 import FALL from '../../../world/snowfall.js';
 import { U } from '../../core/uniforms.js';
 import { rnd } from '../noise.nodes.js';

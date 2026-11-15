@@ -3,10 +3,11 @@
 // says (biomes/*.js: where), in its layer's order, each material two takes mixed by noise so nothing tiles, the higher
 // one winning at a seam; lit by the shading contract.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, screenCoordinate, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, step, uint } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, screenCoordinate, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, exp2, uint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { recipes, byRole } from '../core/registry.js';
-import { detailOf, sizeOf } from '../detail/index.js';
+import { byRole } from '../core/registry.js';
+import { detailOf } from '../detail/index.js';
+import { sizeOf } from '../../assets/kinds.js';
 import { int } from 'three/tsl';
 import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, shareOf, roofAt, groveAt, leadAt, BASE, LAID } from '../world/land.nodes.js';
 import { kindsOf } from '../world/stand.js';

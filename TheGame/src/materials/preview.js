@@ -2,7 +2,7 @@
 // projections blended by the normal, so a ball and a slab both read true), lit like the world. And the library's small
 // pictures, drawn once by the world's renderer into 2D canvases.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec3, uniform, positionWorld, normalWorld, abs, pow, normalize, max, mix, sign, length } from 'three/tsl';
+import { Fn, float, vec3, uniform, positionWorld, normalWorld, abs, pow, normalize, max, mix, sign } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { finish, skyLight } from '../world/light.js';
 import { recipes } from '../core/registry.js';

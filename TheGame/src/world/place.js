@@ -2,19 +2,18 @@
 // asset shares, chosen each frame by its size on screen with a hand-over between them (src/detail), its far card
 // (impostor), its shadow, and its body for the walker and the camera.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec3, vec4, uniform, varying, attribute, positionLocal, positionWorld, normalLocal, normalWorld, modelWorldMatrix, modelWorldMatrixInverse, normalize, max, clamp, length, smoothstep, sin, pow, uint, If, Discard } from 'three/tsl';
-import { U } from '../core/uniforms.js';
-import { finish, skyLight, weathered, snowCover, snowLift, snowDepth, cloudAt, windAt, windStrength, unlit } from './light.js';
+import { Fn, float, vec3, vec4, uniform, varying, attribute, positionLocal, positionWorld, normalLocal, normalWorld, modelWorldMatrix, modelWorldMatrixInverse, normalize, If } from 'three/tsl';
+import { windAt, windStrength, unlit } from './light.js';
 import { sinkInto } from '../detail/handover.js';
-import { vnoise } from './noise.nodes.js';
 import { layerOf, wrap } from './tile.js';
 import { heightAt } from './land.js';
 import { addBody } from './bodies.js';
-import { detailOf, Detailed, most } from '../detail/index.js';
+import { detailOf, Detailed } from '../detail/index.js';
+import { most, kindOf } from '../../assets/kinds.js';
 import { impostorOf } from '../detail/impostor.js';
 import { geometryOf, bodyOfAsset, snowOf } from '../../assets/index.js';
-import { kindOf } from '../../assets/kinds.js';
-import { lightFire, fireLight } from './fire.js';
+import { lightFire } from './fire.js';
+import { swayed, facing, mottled, madeLit } from './made.nodes.js';
 
 /** How an asset moves in the wind: its own `wind` block, else its kind's (assets/kinds.js); null: it does not move. */
 export const windOf = (asset) => kindOf(asset, 'wind');
@@ -23,14 +22,8 @@ export const windOf = (asset) => kindOf(asset, 'wind');
 // held still at the ground and along its middle, moving most halfway up and out (assets/kinds.js: wind)
 function swayOf(asset) {
   const W = windOf(asset); if (!W) return null;
-  const H = most(asset.size.height), Rr = most(asset.size.length) / 2, p = positionLocal;
-  const hold = smoothstep(0.02, 0.45, p.y.div(H)).mul(float(1).sub(smoothstep(0.8, 1, p.y.div(H)).mul(0.8))).mul(smoothstep(0.08, 0.55, length(p.xz).div(Rr)));
-  const w = modelWorldMatrix.mul(vec4(p, 1)).xyz, push = windAt(w.xz), s = windStrength;
-  const along = modelWorldMatrixInverse.mul(vec4(push.x, 0, push.y, 0)).xyz;
-  const flap = sin(U.uTime.mul(s.mul(10).add(4)).add(p.y.mul(3.1)).add(p.x.mul(1.7)).add(p.z.mul(2.3))).mul(s).mul(W.flap ?? 0);   // (no angle round the middle: at the pole's tip it has none)
-  // sway: a tree's crown pushed downwind, the more the higher (the foot stays), as the trees' engine sways it (src/scatter/trees.js)
-  const up = p.y.div(H).clamp(0, 1), sway = along.mul(up.mul(up).mul(W.sway ?? 0));
-  return p.add(along.mul(W.billow ?? 0).add(normalLocal.mul(flap)).mul(hold)).add(sway);
+  const p = positionLocal, w = modelWorldMatrix.mul(vec4(p, 1)).xyz, push = windAt(w.xz), along = modelWorldMatrixInverse.mul(vec4(push.x, 0, push.y, 0)).xyz;
+  return swayed(p, normalLocal, { H: most(asset.size.height), R: most(asset.size.length) / 2, billow: W.billow ?? 0, flap: W.flap ?? 0, sway: W.sway ?? 0 }, along, windStrength);
 }
 
 /** How an asset's faces take the light: its own `surface`, else its kind's (assets/kinds.js). */
@@ -58,7 +51,7 @@ export function assetMaterial(asset) {
   m.fragmentNode = Fn(() => {
     const out = vec4(0).toVar();
     If(unlit().not(), () => {   // drawn into the shadow map, only its depth counts: no light
-      const w = positionWorld, nw = normalize(normalWorld), n0 = nw.dot(U.uCam.sub(w)).lessThan(0).select(nw.negate(), nw), S = surfaceOf(asset);   // the face's side towards the eye (a face's winding is not to be trusted)
+      const w = positionWorld, n0 = facing(normalize(normalWorld), w), S = surfaceOf(asset);   // (the face's side towards the eye)
       // the material this face wears, wrapped round the shape: its grain, and its bumps folded into the face's normal
       let skin = null;
       if (NOS) {
@@ -66,21 +59,10 @@ export function assetMaterial(asset) {
         skin = wrap(no, w.div(TEX), n0, asset.relief ?? 1);
       }
       const n = skin ? skin.n : n0;
-      const ndl = n.dot(U.uSunDir).add(S.wrap).div(1 + S.wrap).max(0);   // soft things take the light round their edge
-      const through = pow(max(normalize(w.sub(U.uCam)).dot(U.uSunDir), 0), 3).mul(S.through).mul(max(n.dot(U.uSunDir).negate(), 0).mul(0.6).add(0.4));   // the sun behind a thin thing shines through it
-      const ground = smoothstep(0, 0.7, positionLocal.y).mul(0.4).add(0.6);   // darker where it meets the ground
-      const mottle = vnoise(w.xz.mul(1.3).add(w.y), uint(301)).sub(0.5).mul(0.12).add(1);   // no face quite one even colour
-      const sun = U.uSun.mul(cloudAt(w));
       // its colour: the material's own, tinted by the face (1 leaves the material as it is), or the face's colour
       // alone where the asset names no material, faintly mottled as it always was
-      const own = skin ? skin.col.mul(skin.col).mul(vCol) : vCol.mul(mottle);
-      // snow lies on what faces up in clumps, where it held, slid off between them (so it reads even on pale canvas); the
-      // cloth under it darker, damp
-      const lift = snowLift(w, snowOf(asset).clumps);   // as its kind holds snow (assets/kinds.js)
-      const damp = float(1).sub(clamp(snowDepth.mul(1.5), 0, 0.18));
-      // (and the fire's, where one burns near: src/world/fire.js)
-      const col = weathered(own.mul(damp), n, lift).mul(skyLight(n).mul(ground).add(sun.mul(ndl.mul(0.8).add(0.2))).add(fireLight(w, n))).add(own.mul(sun).mul(through).mul(float(1).sub(snowCover(n, lift))));   // snow on it: no light comes through
-        out.assign(finish(col, positionWorld));
+      const own = skin ? skin.col.mul(skin.col).mul(vCol) : mottled(vCol, w);
+      out.assign(madeLit(own, n, w, positionLocal.y, { wrap: S.wrap, through: S.through, clumps: snowOf(asset).clumps }));
     });
     return out;
   })();

@@ -3,8 +3,9 @@
 // wide, medium, close, a few unusual angles, a drone flight. Nothing is rendered ahead: the
 // timeline only moves the virtual camera through the real world.
 import * as W from '/src/world/land.js';
+import { rnd, rng } from '/src/core/hash.js';
+import { sstep as st } from '/assets/kit/math.js';
 
-function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
 // a point of the river's line, with its tangent, its normal and its half-width
 function onRiver(x, z) {
@@ -61,13 +62,13 @@ function stretch(seed) {
 
 // where the boulders stand: the rocks' shader hashes this; the same hashes here
 function boulders(cx, cz, R) {
-  const out = [], C = 20, st = (a, b, x) => { let t = (x - a) / (b - a); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
+  const out = [], C = 20;
   if (!W.outcropAt) return out;
   for (let iz = Math.floor((cz - R) / C); iz <= (cz + R) / C; iz++) for (let ix = Math.floor((cx - R) / C); ix <= (cx + R) / C; ix++) {
-    const x = (ix + 0.15 + 0.7 * W.cellRnd(ix, iz, 202)) * C, z = (iz + 0.15 + 0.7 * W.cellRnd(ix, iz, 203)) * C;
+    const x = (ix + 0.15 + 0.7 * rnd(ix, iz, 202)) * C, z = (iz + 0.15 + 0.7 * rnd(ix, iz, 203)) * C;
     const oc = W.outcropAt(x, z), rv = W.riverAt(x, z), d = rv.d, w = rv.w;
-    if (W.cellRnd(ix, iz, 200) > (0.012 + 0.6 * oc) * st(w + 2, w + 9, d)) continue;
-    const r1 = W.cellRnd(ix, iz, 204), s = 0.7 + 3.5 * (r1 * r1 * r1 + oc * 0.25 * r1);
+    if (rnd(ix, iz, 200) > (0.012 + 0.6 * oc) * st(w + 2, w + 9, d)) continue;
+    const r1 = rnd(ix, iz, 204), s = 0.7 + 3.5 * (r1 * r1 * r1 + oc * 0.25 * r1);
     out.push({ x, z, s, y: W.heightAt(x, z) + 0.08 * s });
   }
   return out;

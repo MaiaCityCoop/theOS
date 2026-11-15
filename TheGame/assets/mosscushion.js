@@ -4,7 +4,9 @@
 // skin the moss the rocks wear; two shapes, two levels of its own, none farther. An asset in the one recipe
 // (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by the trees' engine in the pine forest's litter
 // (biomes/pineforest.js `litter`), more of it in the shade.
-import { tree, builder, rng, norm } from './kit/tree.js';
+import { tree, builder } from './kit/tree.js';
+import { norm } from './kit/math.js';
+import { rng } from '../src/core/hash.js';
 
 const woodCol = [0.1, 0.16, 0.05], leafCol = [0.1, 0.16, 0.05];   // (for a picture without the textures)
 const FOOT = 0.15;   // what stands in a stand is set this deep into the ground (src/scatter/trees.js): its skirt goes down that far

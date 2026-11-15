@@ -4,7 +4,7 @@
 // fan of six such twigs; this is one alone, nothing beside it, so a card of it can stand anywhere without cutting
 // through another's leaves: what a holm oak's finest level is made of (assets/kit/tree.js: splayOf). Not a tiling
 // texture: its height the cut-out. The leaves as the sprig's are: a grid of cells, a leaf to a cell, nine looked at.
-import { float, vec2, vec3, mix, smoothstep, max, abs, sin, cos, pow, clamp, floor, fract, dot, length, atan } from 'three/tsl';
+import { float, vec2, vec3, mix, smoothstep, max, abs, sin, cos, pow, clamp, floor, fract, dot, atan } from 'three/tsl';
 import { pn } from '../src/materials/paint.js';
 import SPRIG from './holmoakleaf.twigs.js';
 

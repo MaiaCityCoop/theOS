@@ -7,7 +7,9 @@
 // normal its puff's and the dome's (so a puff is lit as a ball: bright on top, dark under). An asset in the one recipe
 // (assets/index.js), scattered by the trees' engine (src/scatter/trees.js) where the pine forest lies (biomes/
 // pineforest.js). Units are metres; a shape is a stage of its growth at its own height; the origin is the foot of its trunk.
-import { tree, builder, tube, cards, outward, rng, add, sub, mul, norm, lerp, bez } from './kit/tree.js';
+import { tree, builder, tube, cards, outward } from './kit/tree.js';
+import { add, sub, mul, norm, lerp, bez, sstep } from './kit/math.js';
+import { rng } from '../src/core/hash.js';
 import SPRIG from '../materials/pinetuft.twigs.js';
 
 // how it grows: a stone pine of five is a bush of a metre and a half, a ball of needles from the ground; at fifteen an
@@ -15,7 +17,6 @@ import SPRIG from '../materials/pinetuft.twigs.js';
 // seventy a tall bare trunk under an umbrella; at a hundred and fifty twenty metres, its dome broad and flat. Its height
 // by age (metres), and its numbers at an age: where the trunk forks (and how its S bends), its crown's flat underside,
 // its dome's height and reach, how its limbs branch (stems from the fork, limbs from each stem). v: one of its variants.
-const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const height = (year) => 20 * (1 - Math.exp(-year / 55)) ** 1.1;
 function form(year, v, seed = 300) {
   const R0 = rng(seed * 7919 + v * 31 + year * 7), H = height(year), old = sstep(10, 90, year), side = v % 2 ? -1 : 1;

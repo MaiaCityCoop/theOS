@@ -3,7 +3,9 @@
 // Built with the tree kit (assets/kit/tree.js): tubes only, no foliage; three shapes, two levels of its own, none
 // farther (a stick is gone before it is a pixel wide). An asset in the one recipe (assets/index.js), of kind `shrub`
 // (assets/kinds.js), scattered by the trees' engine in the pine forest's litter (biomes/pineforest.js `litter`).
-import { tree, builder, tube, rng, add, mul, norm, cross } from './kit/tree.js';
+import { tree, builder, tube } from './kit/tree.js';
+import { add, mul, norm, cross } from './kit/math.js';
+import { rng } from '../src/core/hash.js';
 
 const woodCol = [0.2, 0.17, 0.14], leafCol = [0.2, 0.17, 0.14];   // (for a picture without the textures)
 const FOOT = 0.15;   // what stands in a stand is set this deep into the ground (src/scatter/trees.js): a thing that lies on it is built that much higher

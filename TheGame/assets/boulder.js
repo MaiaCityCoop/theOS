@@ -13,6 +13,6 @@ export default {
   // its levels of detail are the ladder's (assets/kit/ladder.js), as for all the heap draws: a full mesh of so many
   // squares an edge (12 n² triangles) where it fills the screen, down to a dot that sinks away under a pixel
   detail: { ladder: 96 },
-  // shapes: how many different boulders there are (each a kind of the heap: assets/zoo/boulders.js), from its seed
+  // shapes: how many different boulders there are (each a kind of the heap: assets/zoo/scattered.js), from its seed
   placement: { at: 'scatter', engine: 'rocks', cell: 20, outcrops: true, texture: 3.0, shapes: 12, seed: 100 },
 };

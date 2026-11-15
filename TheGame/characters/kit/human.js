@@ -18,7 +18,7 @@
 // nose), a ring every 8 mm, the weave of the cloth running along them so it never seams. What is worn where is
 // told in the fragment stage from each point's place at rest (shirt, belt, trousers, shoes, skin, hair).
 import * as THREE from 'three/webgpu';
-import { Fn, attribute, uv, positionWorld, normalWorld, uniform, float, vec2, vec3, normalize, max, min, pow, mix, smoothstep, clamp, abs, dFdx, dFdy, cross, dot, inverseSqrt, sin, cos, fract, length, sqrt, step, atan, sign, mx_noise_float } from 'three/tsl';
+import { Fn, attribute, uv, positionWorld, normalWorld, uniform, float, vec2, vec3, normalize, max, pow, mix, smoothstep, clamp, abs, dFdx, dFdy, cross, dot, inverseSqrt, sin, cos, fract, length, sqrt, step, atan, sign, mx_noise_float } from 'three/tsl';
 import { U } from '../../src/core/uniforms.js';
 import { finish, skyLight } from '../../src/world/light.js';
 import { hash3, noise3 } from '../../assets/kit/blob.js';

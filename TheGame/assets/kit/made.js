@@ -8,11 +8,14 @@
 //   x   where it is across and up: two 16-bit shares of its box (the box of all its levels: madeBox)
 //   y   where it is along, a share of its box; the material its face wears (`part`: its place in the asset's
 //       `materials`, 0 where it names none), 8 bits; 8 bits spare
-//   z   its colour (the face's, or its corner's), each channel the square root of half of it in 8 bits (a tint over a
-//       material may be over 1; dark colours keep their steps); 8 bits spare
-//   w   its normal, two 16-bit numbers of its octahedral map
+//   z   its colour (the face's, or its corner's), each channel in 8 bits as the square root of half of it (pack.js: c8);
+//       8 bits spare
+//   w   its normal, two 16-bit numbers of its octahedral map (assets/kit/pack.js: oct, as every make's)
 // A corner is a vertex of its own: a face's three corners are three vertices (most faces are flat, their corners'
 // normals their own).
+
+import { q16, c8, sn, oct, OCT } from './pack.js';
+import { spanOf } from '../kinds.js';
 
 /** Whether an asset is a made thing the list placer draws: it stands at a spot of its own (`placement.at: 'places'`),
     is not a fire (a light: src/world/fire.js), and every level of it is faces. */
@@ -31,14 +34,7 @@ export function madeBox(a) {
   return B;
 }
 
-const q16 = (v, lo, ext) => Math.max(0, Math.min(65535, Math.round(((v - lo) / ext) * 65535)));
-const c8 = (v) => Math.max(0, Math.min(255, Math.round(Math.sqrt(Math.max(0, Math.min(2, v)) / 2) * 255)));
-const oct16 = (x, y, z) => {
-  const s = Math.abs(x) + Math.abs(y) + Math.abs(z) || 1; let u = x / s, v = z / s;   // (the map's square is its x and z: y up is its middle)
-  if (y < 0) { const pu = u, pv = v; u = (1 - Math.abs(pv)) * (pu >= 0 ? 1 : -1); v = (1 - Math.abs(pu)) * (pv >= 0 ? 1 : -1); }
-  const e = (t) => Math.max(0, Math.min(65535, Math.round((t * 0.5 + 0.5) * 65535)));
-  return (e(u) | (e(v) << 16)) >>> 0;
-};
+const oct16 = (x, y, z) => { oct(x, y, z); return (sn(OCT[0], 65535) | (sn(OCT[1], 65535) << 16)) >>> 0; };
 
 /** How many vertices and triangles level l of a made asset has (its room in the heap). */
 export const madeRoom = (a, l) => ({ verts: a.detail.levels[l].faces.length * 3, tris: a.detail.levels[l].faces.length });
@@ -68,8 +64,6 @@ export function madeMesh(a, l) {
   return { index, verts, count: n };
 }
 
-/** The largest side of a made asset as it stands (its size: what its size on screen is measured by). */
-const spanOf = (a) => { const m = (v) => (Array.isArray(v) ? v[1] : v); return Math.max(m(a.size.length), m(a.size.width ?? 0), m(a.size.height ?? 0)); };
 
 /** Its look, as the drawer takes a kind's (assets/zoo/index.js: lookOf), for its dot: its mean colour (its faces' by
     their area, at its finest level) or, where it is mostly of one of the world's materials, that material and the mean

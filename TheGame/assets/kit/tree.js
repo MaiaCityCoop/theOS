@@ -30,16 +30,9 @@
 // its file is read (a worker reads this file too: plain JS, nothing of the page in it).
 
 import { kindRule } from '../kinds.js';
+import { add, sub, mul, dot, len, norm, cross, lerp, bez } from './math.js';
+import { rng } from '../../src/core/hash.js';
 
-// ---- small vector help ----
-export const add = (a, b) => a.map((x, i) => x + b[i]), sub = (a, b) => a.map((x, i) => x - b[i]), mul = (a, s) => a.map((x) => x * s);
-export const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math.hypot(...a), norm = (a) => mul(a, 1 / (len(a) || 1));
-export const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-export const lerp = (a, b, t) => add(a, mul(sub(b, a), t));
-/** a curved limb through a, bent towards c, to b: n + 1 points */
-export const bez = (a, c, b, n) => Array.from({ length: n + 1 }, (_, i) => { const t = i / n; return add(add(mul(a, (1 - t) ** 2), mul(c, 2 * t * (1 - t))), mul(b, t * t)); });
-/** a seeded random 0..1 */
-export const rng = (s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 /** a way picked at random on the upper side of a ball (more up than down as lift nears 1) */
 export const outward = (R0, lift) => { const a = R0() * 2 * Math.PI, y = lift + (1 - lift) * R0() * 2 - (1 - lift), r = Math.sqrt(Math.max(0, 1 - y * y)); return [Math.cos(a) * r, y, Math.sin(a) * r]; };
 
@@ -336,7 +329,7 @@ export function tree(recipe) {
       outline = OUTLINES.kept.get(id);
       if (!outline) {
         const near = shapes.map((s, i) => grow(0, s, i));
-        outline = { size: boundsOf(near), trunk: near.map((m) => m.body ?? [0, 0, 0.12]), heights: near.map((m) => boundsOf([m]).height) };   // trunk: each shape's at a walker's chest: where it stands off its foot, its radius (src/world/trunks.js)
+        outline = { size: boundsOf(near), trunk: near.map((m) => m.body ?? [0, 0, 0.12]), heights: near.map((m) => boundsOf([m]).height) };   // trunk: each shape's at a walker's chest: where it stands off its foot, its radius (assets/kinds.js: shapesOf, a tree's trunk)
         OUTLINES.made.set(id, outline);
       }
     }

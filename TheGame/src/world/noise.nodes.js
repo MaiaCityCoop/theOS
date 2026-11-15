@@ -3,7 +3,7 @@
 // world/outlines.js, a stand's).
 import { Fn, float, int, uint, vec2, vec3, floor, sqrt, smoothstep, length } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { hashI } from '../core/hash.js';
+import { hashI } from '../core/hash.nodes.js';
 import OUTLINES from '../../world/outlines.js';
 import { PLACES } from '../../world/places.js';
 import { BENT0 } from './land.js';

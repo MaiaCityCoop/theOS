@@ -17,7 +17,7 @@
 // What moves by itself says so to the picture built over time (src/core/temporal.js): the fourth number of the pixels
 // it covers is lowered by as much as it covers them, as falling snow does (src/world/weather/snowfall.js).
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, uv, uniform, instanceIndex, varyingProperty, positionGeometry, cameraViewMatrix, cameraProjectionMatrix, sin, fract, floor, max, min, mix, abs, pow, length, normalize, smoothstep, clamp, uint, If, Discard } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, uv, uniform, instanceIndex, varyingProperty, positionGeometry, cameraViewMatrix, cameraProjectionMatrix, sin, fract, max, mix, abs, pow, length, smoothstep, clamp, uint, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { vnoise, rnd } from './noise.nodes.js';
 import { finish, skyLight, windAt } from './light.js';
