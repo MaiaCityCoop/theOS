@@ -39,7 +39,7 @@ function build() {
   document.body.append(el);
   const style = document.createElement('style');
   style.textContent = `.account{position:fixed;right:var(--edge);top:var(--edge-t);z-index:7;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
-  body.framed .account{top:88px}   /* inside the dashboard: under its own header, whose Visit button stands at the right */
+  body.framed .account{top:calc(88px + var(--safe-t))}   /* inside the dashboard: under its own header, whose Visit button stands at the right (and under a phone's status bar) */
   body.embed .account{display:none}
   .account-pill{display:flex;align-items:center;gap:8px;height:30px;box-sizing:border-box;padding:0 13px;border-radius:999px;cursor:pointer;font:550 12px/1 var(--glass-font);color:var(--on-glass);white-space:nowrap}
   .account-pill:hover{box-shadow:var(--glass-shadow),inset 0 0 0 99px var(--glass-hover)}
