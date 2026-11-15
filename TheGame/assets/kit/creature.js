@@ -15,7 +15,8 @@
 //   type 1  swings about its axis through its pivot:  base + amp · sin(g · rate + phase)     a leg, an arm, a wing, a tail
 //   type 2  shifts along its axis:                   amp · sin(g · rate + phase)            a body's bob, a snake's wave
 //   type 3  turns about its axis through its pivot:  g · rate                               a wheel
-// and after its own move its parent's (one level: a shin goes with its thigh).
+// and after its own move those of the bones it hangs on, up its chain (four: a shin goes with its thigh, the thigh with
+// the body; assets/kit/bones.js CHAIN).
 // A creature's coarse levels are one body (a hull: a ball its size); its tubes melt into that as it shrinks.
 // Every kind is its own body plan: its rig's counts are its own (legs, wheels, links, wings), and parts grow on it as
 // its numbers say (grow: horns, crests, ears, humps, spikes, tails, arms). A thousand kinds, a thousand plans.

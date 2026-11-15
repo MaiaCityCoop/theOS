@@ -57,7 +57,7 @@ export class Tier {
     if (live && gpu) {
       // (what it packs lives on the GPU only: the GPU writes it and the GPU reads it; src/core/gpu.js)
       // (caps, offs: each bucket's cap and where its things begin in the buffers; one cap for all: bucket k's at k times it)
-      const caps = own ? cap : geos.map(() => cap), offs = caps.map((_, k) => caps.slice(0, k).reduce((a, c) => a + c, 0)), total = caps.reduce((a, c) => a + c, 0), capN = own ? uniformArray(caps) : null, offN = own ? uniformArray(offs) : null;
+      const caps = own ? cap : geos.map(() => cap), offs = caps.map((_, k) => caps.slice(0, k).reduce((a, c) => a + c, 0)), total = caps.reduce((a, c) => a + c, 0), capOff = own ? uniformArray(caps.map((c, k) => new THREE.Vector2(c, offs[k])), 'vec2') : null;   // (a bucket's cap and where its things begin, as one array: a stage has twelve uniform buffers)
       // (a thing's rows side by side in one buffer, `slots` of them: one buffer to bind, not one a row; a pass binds at
       // most eight, src/world/things.js reads one more)
       const buf = gpuStorage('vec4', Math.max(1, total * slots), null, true), data = buf.node, count = instancedArray(K, 'uint').toAtomic(), S = uint(slots);
@@ -71,7 +71,7 @@ export class Tier {
             const Q = partOf(instanceIndex), L = live(Q.cell, Q), b = K > 1 ? uint(L.bucket) : uint(0);
             If(L.alive, () => {
               const i = atomicAdd(count.element(b), uint(1)).toVar();
-              if (own) If(i.lessThan(uint(capN.element(b))), () => { const at = uint(offN.element(b)).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
+              if (own) If(i.lessThan(uint(capOff.element(b).x)), () => { const at = uint(capOff.element(b).y).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
               else If(i.lessThan(uCap), () => { const at = b.mul(uCap).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
             });
           });

@@ -15,7 +15,7 @@ file says what it is; none of what follows is written in it.
 
 | Question | Answer | Where |
 | --- | --- | --- |
-| How large is it on screen? | `sizeOf(asset)` metres, times the lens's pixels a metre, over its distance through the lens | `index.js` (`sizeOf`, `pxK`), `U.uPxK`, `U.uLodInv` |
+| How large is it on screen? | `sizeOf(asset)` metres, times the lens's pixels a metre, over its distance through the lens | `assets/kinds.js` (`sizeOf`), `index.js` (`pxK`), `U.uPxK` (one for every engine; a packed thing's: `src/scatter/row.js` `pxOf`), `U.uLodInv` |
 | Which level is that? | its kind's `px`, resolved | `index.js` `detailOf` |
 | How does a level come and go? | parts one by one (`partGrown`), one piece whole at half way (`whole`), the last level sinking (`sunk`, `sinkInto`) | `handover.js` `handOver` |
 | Which things does a level's packing hold? | its band, its hand-over, and a pad for the camera's movement | `handover.js` `bandOf`, `padOf` |
@@ -31,7 +31,8 @@ every distance with it.
 | trees, bushes, ferns: anything in a stand | `src/scatter/trees.js`, drawn by `src/scatter/drawer.js` | per vertex, each frame: `handOver` + `partGrown` + `sinkInto`; packing by the drawer's tier (`bandOf`) |
 | rocks, and whatever else the heap holds | `src/scatter/drawer.js` (the rocks placed by `rocks.js`) | the ladder's eight levels (`assets/kit/ladder.js`), each vertex moving to its place on the next coarser mesh over a level's last pixels; an asset may end sooner (`detail.end`), shrinking away |
 | what stands at a spot of its own (a tent, a fire pit, later a house): a list of a few or of millions | `src/scatter/placed.js`, drawn by `src/scatter/drawer.js` (intent 0029) | per vertex, each frame: `handOver` (of one piece: whole, half way), `sinkInto`; packing by the drawer's tier over the list's runs; its last level the drawer's dot |
-| the same in the library's stage, and where there is no WebGPU | `index.js` `Detailed`, `src/world/place.js`, `impostor.js` | on the CPU: `handOverAt`, the material's `sunk` |
+| what moves (the stress stand's movers, the herds of `?herds=N`) | `src/scatter/stress.js`, `src/scatter/herds.js`, drawn by `src/scatter/drawer.js` | the drawer's one tier of every level, packed every frame: the level its size asks for, on its skeleton until its hull |
+| the same in the library's stage, and where there is no WebGPU | `index.js` `Detailed`, `src/world/place.js` (its light and wind: `src/world/made.nodes.js`, the list's too), `impostor.js` | on the CPU: `handOverAt`, the material's `sunk` |
 | the land's colour where a stand has sunk | `src/terrain/material.js` | `sizeOf`, `detailOf().cut`, the stand's `cover` |
 
 Not on it: the grass (`src/scatter/grass.js`): rings of blades by the lens's distance, no levels of a thing.
@@ -272,6 +273,33 @@ world itself.
 - A tier's rows for a thing lie side by side in one buffer (`tier.js`), so a pass binds one buffer for them, not one
   a row: WebGPU gives a stage eight, and the store's table is one more.
 
+## The concepts, each said once (intent 0029, round two)
+
+Every concept below lives in one module and is imported wherever it is needed; nothing keeps a copy.
+
+| Concept | What it is | Its module |
+| --- | --- | --- |
+| kind | a thing's shape, look and rules: what the zoo numbers and the heap holds a mesh of at every level | `assets/zoo/index.js` (every kind, numbered); `assets/kinds.js` (a kind's rules, an asset's size: `sizeOf`) |
+| make | how a kind's vertex is packed and drawn: the solids' (16 bytes, the ladder's levels), the plants' (32 bytes), the made things' (16 bytes; both of their own levels) | `assets/kit/solid.js`, `plant.js`, `made.js` (packed), `src/scatter/solid.js`, `plantvert.js`, `madevert.js` (unpacked); the codecs they share: `assets/kit/pack.js`, `src/scatter/unpack.js` |
+| drawer | the heap of every kind's meshes, the one table of a kind's numbers (its look, then its make's own: `numOf`), the tiers and their draws, what streams them in | `src/scatter/drawer.js` (with `heap.js`, `tier.js`) |
+| placer | where things stand and move: hashed cells (the rocks, the plants, the stand), a list (`placed.js`), paths (`herds.js`) | `src/scatter/*.js`; every one packs a thing the same two rows: `src/scatter/row.js` |
+| thing | one thing of the world: its key (its placer and two numbers), its body's id, its state, its seed | `src/world/things.js`, `src/world/bodies.js` |
+| level | a kind's mesh for a size on screen, the hand-over between two, the lens they are measured through (`U.uPxK`, kept by `trackView`) | `src/detail` (`index.js`, `handover.js`); the solids' ladder: `assets/kit/ladder.js` |
+| hash | every number from a seed: the land's noise, a recipe's dice, a thing's key, a fingerprint | `src/core/hash.js` (`hash.nodes.js` on the GPU, the same constants) |
+| flag | the address's switches (`?stress`, `?ghost`, `?many`, `?herds`, `?byclass`, …) | `src/core/flags.js` |
+
+What a new thing of the world is, then:
+
+- **A new species** (a banana, a palm, a mango, an avocado, a paprika): its asset file (`assets/<name>.js`, built with
+  the tree kit, `assets/kit/tree.js`) and its materials. The zoo makes it a family by itself
+  (`assets/zoo/scattered.js`: one for every asset an engine scatters), its stand's drawer draws it, and a stand of
+  more than 32 shapes is drawn by the size of their meshes: a level is a few draws however many species stand in it.
+- **A building**: its asset file of faces, stood at its spot (`world/places.js`, or `stand()` of
+  `src/scatter/placed.js`), drawn by the list, by the size of the meshes once a group has more than 32 kinds.
+- **An animal**: a kind with a skeleton (`assets/kit/creature.js`: up to sixteen bones, each moving a vertex with the
+  bones it hangs on, four of a chain). A placer packs its stride's clock as its motion and lays its path; the drawer's
+  one tier of every level packs it every frame and draws it on its bones (`herds.js` is the example: `?herds=200`).
+
 ## What this does not yet give
 
 - **The grass is not on the one drawer yet** (`src/scatter/drawer.js`: the heap, the levels' draws and what fills
@@ -281,10 +309,12 @@ world itself.
   packs what the tree kit builds), drawn by the drawer's second make of vertex: the plants' own material (its light worked
   out at its corners, a pixel reads one texture: a crown is many cards deep, and the solids' shader a pixel would
   cost the frame), two elements a vertex, its levels and their rooms its own, not the ladder's.
-- **A plant is still a draw a shape and level**, as before it came to the heap: its meshes are uneven (a young oak
-  3 000 triangles, an old one 22 000) and their vertices shared between triangles. One draw as long as the largest
-  for all, by quads (the first try), ran 4.2 million vertices a frame in the wood where its plants have 1.5 million,
-  and cost 0.5 to 1 ms. So each shape's corners are its draw's own index, and a vertex is worked out once.
+- **A stand of a few shapes is a draw a shape and level**: its meshes are uneven (a young oak 3 000 triangles, an old
+  one 22 000) and their vertices shared between triangles. One draw as long as the largest for all, by quads (the
+  first try), ran 4.2 million vertices a frame in the wood where its plants have 1.5 million, and cost 0.5 to 1 ms.
+  So each shape's corners are its draw's own index, and a vertex is worked out once. Of more than 32 shapes (or with
+  `?byclass`) a level is a draw a class of size (intent 0029): each plant's corners are looked up in the heap, and
+  drawn at most twice as long as its own.
 - **A plant's place in the heap is as large as its stand's largest shape** (the heap's places are of one size a
   level): 24 MB for the wood's sixteen tree shapes, whose own sizes add up to 15.
 - **The library's own rock and tree are lit by small materials of their own** (`rockSample`, `treeSample`: a list's
@@ -297,10 +327,12 @@ world itself.
 - **Only the coarse levels are kept between starts**: the fine meshes and textures of what stands near the camera
   are made again by the workers at every start (a second or two until all of them are there).
 
-- **A stand's packing keeps a slice of its buffers for every shape and level** (44 MB for the wood's trees): fine for
-  tens of kinds a stand, not for hundreds.
-- **A made thing is a draw a kind and level** (as a plant): fine for the hundreds of kinds a city's buildings may be,
-  not for many thousands (those would want the ladder's rooms: a draw a level).
+- **A stand's packing keeps a slice of its buffers for every draw of a level** (44 MB for the wood's trees, a draw a
+  shape): of many shapes, a slice a class of size.
+- **The world's materials are a pool of 1 024² layers** (2.8 MB each, packed): what hundreds of species would wear of
+  their own (three textures each for 300 species: 2.5 GB) needs smaller textures a species, streamed by what is near.
+- **The citizens' avatars are not on the drawer** (`characters/kit/human.js`: a three.js skinned mesh of 20 bones,
+  posed on the page). The drawer's movers take sixteen bones in chains of four: enough for a body, not yet brought.
 - **A thing's state lives in the page only** (intent 0029): nothing saves it or shares it between people yet; a
   plant, a rock and the stand's things can be gone or grown, not tinted or worn (their drawers carry no row of state:
   one more row a thing is memory every thing pays for); a made thing's dot is its mean colour, not its tint.

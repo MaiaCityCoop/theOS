@@ -15,7 +15,7 @@
 // normals their own).
 
 import { q16, c8, sn, oct, OCT } from './pack.js';
-import { spanOf } from '../kinds.js';
+import { spanOf, kindOf } from '../kinds.js';
 
 /** Whether an asset is a made thing the list placer draws: it stands at a spot of its own (`placement.at: 'places'`),
     is not a fire (a light: src/world/fire.js), and every level of it is faces. */
@@ -81,7 +81,7 @@ export function madeLook(a) {
   const mean = sum.map((v) => v / (area || 1));
   let material, tint = mean;
   if (parts) { let best = null; for (const [key, P] of byPart) if (!best || P.area > best.P.area) best = { key, P }; material = a.materials[best.key]; tint = best.P.sum.map((v) => v / (best.P.area || 1)); }
-  return { model: 'matte', mean: tint, c2: tint, material, relief: 0, scale: 1, gloss: 0, sway: 0, snow: a.snow?.clumps ?? 0.1, glow: 0, through: 0, size: 1, leaf: 0, dot: dotOf(a) };
+  return { model: 'matte', mean: tint, c2: tint, material, relief: 0, scale: 1, gloss: 0, sway: 0, snow: kindOf(a, 'snow').clumps, glow: 0, through: 0, size: spanOf(a), leaf: 0, dot: dotOf(a) };   // (its snow as its kind holds it: assets/kinds.js, the same its faces are drawn with)
 }
 
 /** Its dot's outline (madeLook): its coarsest level seen from four sides, each laid on a grid; the mean of what it

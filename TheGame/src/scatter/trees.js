@@ -29,7 +29,7 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, storage, vertexIndex, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, fract, step } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, step } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt, nearLake } from '../world/land.nodes.js';
 import { kindsOf, whereOf } from '../world/stand.js';
@@ -48,6 +48,7 @@ import { inView } from './view.js';
 import { addBodies, bodyGrid, topOf, wanted } from '../world/bodies.js';
 import { idOf } from '../world/things.js';
 import { wayAt, waysVersion } from '../world/ways.js';
+import { pxOf, turnOf, seedOf } from './row.js';
 
 const GROW = 1.5, SLOTS = 6, FOOT = 0.15;   // GROW: seconds a finest level that has just come takes to grow out of the next (its sprigs one after another); SLOTS: of how many shapes a stand holds the finest meshes at once; FOOT: how deep a plant's foot is set into the ground
 
@@ -68,9 +69,10 @@ export const standOf = (asset, biome = recipe(asset.placement.biome)) => {
 
 // what stands in a cell: a plant, or nothing. Where one stands, `found` is told (the drawer's: drawer.js tier): which
 // it is (its kind's, and of its kind's shapes one: its number among the stand's), how large, how far; the drawer says
-// whether it is of the tier's level, and it is then packed into two vec4 (A: x, z, its foot's height, its scale; B: its
-// turn, its sway's phase, which it is and its shade (the whole number and what follows it), its size in metres: its
-// largest side). Done once per cell for the whole stand (src/scatter/tier.js); the cheap tests first, as most cells hold none.
+// whether it is of the tier's level, and it is then packed into two vec4 as every placer packs a thing (row.js: A: x, z,
+// its foot's height, its size in metres as its kind measures it; B: its turn, which it is, its sway's phase, its seed,
+// which is its shade too); its scale is its size over its shape's at scale 1 (sizeAtOne). Done once per cell for the
+// whole stand (src/scatter/tier.js); the cheap tests first, as most cells hold none.
 //   G: the stand's group (groupsOf): its stand (the cells, the groves, the patches: the biome's, the same for every kind
 //      that grows there) and its kinds, each with its slice of those cells (each cell one plant of one kind: a mix, not
 //      plants standing in each other; a kind leading in patches, ST.patches metres across, not sprinkled evenly);
@@ -117,7 +119,7 @@ function plantIn(c, G, band, all, seen, found) {
               const lo = j ? S.from : -1, hi = j < GR.stages.length - 1 ? S.to : 1e9;
               If(age.greaterThanEqual(lo).and(age.lessThan(hi)), () => {
                 const t = clamp(log(max(age, S.from).div(S.from)).div(Math.log(S.to / S.from)), 0, 1), hh = mix(S.hFrom, S.hTo, t);
-                h.assign(hh.mul(own)); s.assign(hh.div(S.h).mul(own)); which.assign(floor(rnd(cx, cy, h0(309)).mul(S.variants)).add(S.offset + Kd.offset));
+                h.assign(hh.mul(own)); which.assign(floor(rnd(cx, cy, h0(309)).mul(S.variants)).add(S.offset + Kd.offset));
               });
             });
           } else {   // no growth: a shape at random, its size its placement's scale
@@ -133,8 +135,8 @@ function plantIn(c, G, band, all, seen, found) {
         // so its levels change at the same distances for all (not bush by bush at every depth at once)
         const size = ST.size ? float(ST.size) : across, way = wayAt(pos, out.add(0.5));
         const stands = () => found(uint(which), size, dist, (A, B) => {
-          A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(FOOT), s));
-          B.assign(vec4(rnd(cx, cy, h0(305)).mul(6.2831853), rnd(cx, cy, h0(306)).mul(6.2831853), which.add(rnd(cx, cy, h0(307)).mul(0.999)), size));
+          A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(FOOT), across));   // (where it stands, its foot, its size in metres)
+          B.assign(vec4(rnd(cx, cy, h0(305)).mul(6.2831853), which, rnd(cx, cy, h0(306)).mul(6.2831853), rnd(cx, cy, h0(307)).mul(0.999 * 6.2831853)));   // (its turn, its kind, its sway's phase, its seed: its shade, as it always was)
         });
         // (and nothing of it reaches over a way: what moves there, on the ground or over it, meets no plant. src/world/ways.js;
         // where none are laid the shader is the one it was)
@@ -149,14 +151,18 @@ function plantIn(c, G, band, all, seen, found) {
 // wind (how far it sways, how far it may lean, how much its leaves flutter, how its snow clumps); leaf (how far the
 // light reaches round its leaves, how much shines through, and the layers of its leaves' and its wood's textures:
 // src/materials/bake.js); tint, its leaves' own colour. A kind is these numbers: no shader of its own.
+/** How large shape `shape` of a plant asset is at scale 1, metres, as its size on screen is measured (sizeOf: a tree's
+    height, a bush's largest side): its stage's height where it grows by its stand's age (assets/kit/tree.js: growth;
+    `staged`), else its asset's, by the kind's measure. A plant's packed size (A.w) over this is its scale. */
+export const sizeAtOne = (a, shape = 0, staged = true) => { const H = a.size.height, S = staged && a.growth?.stages?.find((x) => shape >= x.offset && shape < x.offset + x.variants); return (S ? S.h : H) * (sizeOf(a) / H); };
 const numbersOf = (tex, row, shape = 0) => {
   const a = row.asset, M = a.materials || {}, F = { wrap: 0.45, through: 0.55, flutter: 1, ...kindOf(a, 'foliage') };   // (its own `foliage` over its kind's)
-  return { hk: a.heights?.[shape] ?? a.size.height, wind: [kindOf(a, 'wind')?.sway ?? 0, a.placement.lean ?? 0, F.flutter, row.snow.clumps], leaf: [F.wrap, F.through, tex.layer(M.leaves ?? M.needles ?? M.wood), tex.layer(M.wood ?? M.leaves ?? M.needles)], twig: tex.layer(a.fine?.twig ?? M.leaves ?? M.needles ?? M.wood), tint: F.tint ?? [1, 1, 1] };
+  return { hk: a.heights?.[shape] ?? a.size.height, ks: sizeAtOne(a, shape), wind: [kindOf(a, 'wind')?.sway ?? 0, a.placement.lean ?? 0, F.flutter, row.snow.clumps], leaf: [F.wrap, F.through, tex.layer(M.leaves ?? M.needles ?? M.wood), tex.layer(M.wood ?? M.leaves ?? M.needles)], twig: tex.layer(a.fine?.twig ?? M.leaves ?? M.needles ?? M.wood), tint: F.tint ?? [1, 1, 1] };
 };
 // (the library's plant, a mesh of its own: the same numbers on the mesh, its userData)
 const wear = (mesh, tex, row, shape = 0) => {
   const N = numbersOf(tex, row, shape);
-  Object.assign(mesh.userData, { hk: N.hk, wind: new THREE.Vector4(...N.wind), leaf: new THREE.Vector4(...N.leaf), twig: N.twig, tint: new THREE.Vector3(...N.tint) });
+  Object.assign(mesh.userData, { hk: N.hk, ks: N.ks, wind: new THREE.Vector4(...N.wind), leaf: new THREE.Vector4(...N.leaf), twig: N.twig, tint: new THREE.Vector3(...N.tint) });
   return mesh;
 };
 const ofMesh = (key, start, type) => uniform(start, type).onObjectUpdate(({ object }) => object?.userData?.[key]);
@@ -176,8 +182,8 @@ function plantMaterial(tex, D) {
   // plant: its attributes, its numbers on the mesh).
   return (Lv = null, feed = null) => {
     const slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0);
-    const own = feed ? null : { Hk: ofMesh('hk', 1, 'float'), Wd: ofMesh('wind', new THREE.Vector4(0, 0, 1, 0.3)), Lf: ofMesh('leaf', new THREE.Vector4(0.45, 0.55, 0, 0)), Tw: ofMesh('twig', 0, 'float'), Tn: ofMesh('tint', new THREE.Vector3(1, 1, 1)) };
-    const vertexOf = (B) => (feed ? feed.vertex(B) : { position: positionGeometry, normal: attribute('normal', 'vec3'), uv: attribute('uv', 'vec2'), part: attribute('part', 'float'), ao: attribute('ao', 'float'), cn: attribute('cn', 'vec3'), root: attribute('root', 'vec3'), hand: attribute('hand', 'vec2'), twig: attribute('twig', 'float'), shade: B.z, ...own });
+    const own = feed ? null : { Hk: ofMesh('hk', 1, 'float'), Ks: ofMesh('ks', 1, 'float'), Wd: ofMesh('wind', new THREE.Vector4(0, 0, 1, 0.3)), Lf: ofMesh('leaf', new THREE.Vector4(0.45, 0.55, 0, 0)), Tw: ofMesh('twig', 0, 'float'), Tn: ofMesh('tint', new THREE.Vector3(1, 1, 1)) };
+    const vertexOf = (B) => (feed ? feed.vertex(B) : { position: positionGeometry, normal: attribute('normal', 'vec3'), uv: attribute('uv', 'vec2'), part: attribute('part', 'float'), ao: attribute('ao', 'float'), cn: attribute('cn', 'vec3'), root: attribute('root', 'vec3'), hand: attribute('hand', 'vec2'), twig: attribute('twig', 'float'), shade: seedOf(B), ...own });
     const LU = Lv && levelOf(Lv, D.fade);
     // what a pixel needs: where on its texture, and the light, the snow and the air already worked out at its corners
     // (vMul: what its texture's colour is multiplied by; vAdd: what is added: the snow on it, the air before it), so a
@@ -193,9 +199,9 @@ function plantMaterial(tex, D) {
         const V = vertexOf(B), part = V.part, body = step(1.5, part);
         const shown = float(1).greaterThan(0).toVar(), grown = float(1).toVar(), sunk = float(1).toVar();
         if (Lv) {
-          // its size on screen now, as its cell reckoned it (its largest side, B.w), and from it the one hand-over
+          // its size on screen now (its size, A.w; a stand that says its `size`, that), and from it the one hand-over
           // (src/detail/handover.js): its sprigs part by part, its wood whole, its last level sinking
-          let H = handOver(B.w.mul(U.uPxK).div(max(camDist(A.xy), 1e-3)), LU, D.sink);
+          let H = handOver(pxOf(D.ST?.size ? float(D.ST.size) : A.w, A.xy), LU, D.sink);
           if (feed?.streamed) {
             // its finest level comes when a plant is near (its mesh is made then): until it is there the next level
             // stands in for it whole, and from when it came the two hand over by the clock, sprig by sprig, as two
@@ -207,24 +213,24 @@ function plantMaterial(tex, D) {
           grown.assign(mix(float(1), partGrown(H, V.root, body, V.hand), step(0.5, part))); sunk.assign(H.sunk);
           shown.assign(H.there.and(part.greaterThan(0.5).or(H.whole)));
         }
-        If(shown, () => { clip.assign(stand(A, B, V, grown, sunk)); });
+        If(V.drawn ? shown.and(V.drawn) : shown, () => { clip.assign(stand(A, B, V, grown, sunk)); });   // (drawn: the draw's corner is one of its mesh's)
       };
       drawn();
       return clip;
     };
     const stand = (A, B, V, grown, sunk) => {
       const part = V.part, ao = V.ao, card = float(1).sub(abs(part.sub(1))), body = step(1.5, part), Hk = V.Hk, sway = V.Wd.x, leans = V.Wd.y, flutters = V.Wd.z, clumps = V.Wd.w, wrap = V.Lf.x, shines = V.Lf.y, Tn = V.Tn;
-      const s = A.w, cs = cos(B.x), sn = sin(B.x), turn = (v) => vec3(v.x.mul(cs).sub(v.z.mul(sn)), v.y, v.x.mul(sn).add(v.z.mul(cs)));
+      const s = A.w.div(V.Ks), { turn } = turnOf(B.x);   // (s: its scale, its size over its kind's at scale 1)
       // (a sprig grown from its foot, the crown's body from its middle; the whole plant sunk)
       const g0 = Lv ? sinkInto(mix(V.root, V.position, grown), sunk) : V.position;
-      const lean = vec2(cos(B.y), sin(B.y)).mul(V.shade.sub(0.5).mul(leans.mul(2))), lp = g0.add(vec3(lean.x, 0, lean.y).mul(g0.y)), up = clamp(lp.y.div(Hk), 0, 1);   // each leans its own way
+      const lean = vec2(cos(B.z), sin(B.z)).mul(V.shade.sub(0.5).mul(leans.mul(2))), lp = g0.add(vec3(lean.x, 0, lean.y).mul(g0.y)), up = clamp(lp.y.div(Hk), 0, 1);   // each leans its own way
       // the wind: the crown sways, the foot stays (the push grows with height squared), a slow sway of its own (from a
       // breeze up); and its sprigs swing in the wind, each as one from its foot, its tip most (a card's corners share its
       // plane, cn: one phase a card; uv.y: 0 at its foot), quicker and wider the harder it blows. In a calm all of it is
       // still: a sway of millimetres is no motion to the eye, only leaves' edges creeping by parts of a pixel (a shimmer)
       const push = windAt(A.xy), ws = windStrength;
-      const kk = push.mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(U.uTime.mul(0.9).add(B.y)), cos(U.uTime.mul(0.7).add(B.y))).mul(up.mul(up).mul(ws.mul(0.05).add(smoothstep(0, 0.08, ws).mul(0.008))).mul(s)));
-      const cardN = V.cn, flutter = sin(U.uTime.mul(ws.mul(5).add(1.6)).add(cardN.dot(vec3(12.9, 78.2, 37.7))).add(B.y)).mul(ws.mul(0.14)).mul(card).mul(V.uv.y.min(1)).mul(flutters);
+      const kk = push.mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(U.uTime.mul(0.9).add(B.z)), cos(U.uTime.mul(0.7).add(B.z))).mul(up.mul(up).mul(ws.mul(0.05).add(smoothstep(0, 0.08, ws).mul(0.008))).mul(s)));
+      const cardN = V.cn, flutter = sin(U.uTime.mul(ws.mul(5).add(1.6)).add(cardN.dot(vec3(12.9, 78.2, 37.7))).add(B.z)).mul(ws.mul(0.14)).mul(card).mul(V.uv.y.min(1)).mul(flutters);
       const w = vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(kk.x.add(windDir.x.mul(flutter)), flutter.mul(0.4), kk.y.add(windDir.y.mul(flutter)))).toVar();
       vUv.assign(V.uv); vPart.assign(part); vLay.assign(vec2(V.twig.greaterThan(0.5).select(V.Tw, V.Lf.z), V.Lf.w));   // (a card of its finest level wears the painting of one twig)
       vStill.assign(stillness(up.mul(up).mul(sway).mul(s).add(card.mul(V.uv.y.min(1)).mul(flutters).mul(0.8)), w));   // (its crown's sway, and a sprig's own swing)
@@ -244,7 +250,7 @@ function plantMaterial(tex, D) {
         const L = skyLight(n).mul(ao.mul(ao).mul(0.75).add(ao.mul(0.25))).add(U.uSun.mul(cloudAtVertex(w)).mul(ndl.add(through)).mul(ao.mul(0.6).add(0.4)));
         const W = weatherOn(n, snowLiftAtVertex(w, clumps)), air = airOf(w);   // what the weather does to it (wet, its snow in clumps), and the air before it
         // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
-        const tint = leaf.select(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.y.mul(1.1631).fract()).mul(V.shade.mul(0.3).add(0.84)).mul(Tn), vec3(1));
+        const tint = leaf.select(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(V.shade.mul(0.3).add(0.84)).mul(Tn), vec3(1));
         vMul.assign(L.mul(tint).mul(W.keep).mul(air.k));
         vAdd.assign(W.add.mul(L).mul(air.k).add(air.col.mul(float(1).sub(air.k))));
       });
@@ -320,28 +326,30 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // (FINE: its first level is a finest that comes only for the plants that are near, into a few slots: assets/kit/tree.js `fine`)
     const FINE = G.kinds.every((Kd) => Kd.levels[0].fine);
     const LEVELS = [...G.kinds[0].levels.map((l, i) => ({ px: l.lo, room: roomOf((Kd) => Kd.levels[i].most), rooms: roomsOf((Kd) => Kd.levels[i].most), ...(FINE && !i ? { slots: SLOTS } : {}) })), ...(SHL >= 0 ? [{ px: 1e-3, room: roomOf((Kd) => Kd.asset.detail.shadow?.most), rooms: roomsOf((Kd) => Kd.asset.detail.shadow?.most) }] : [])];
-    // what each of the stand's shapes is to the material (numbersOf), four rows of four a shape: [how tall, its tint],
-    // [its wind], [its leaves], [its twig's painting]; and the zoo's number of each (its family's first, and of its shapes one)
+    // what each of the stand's shapes is to the material (numbersOf), four rows of four a shape, in the drawer's one
+    // table of a kind's numbers (numOf): [how tall, its tint], [its wind], [its leaves], [its twig's painting, its size at
+    // scale 1 (its packed size over this is its scale)]; and the
+    // zoo's number of each (its family's first, and of its shapes one)
     const numbers = new Float32Array(G.meshes * 16), KINDS = [];
-    for (const Kd of G.kinds) for (let v = 0; v < Kd.shapes; v++) { const N = numbersOf(tex, Kd.row, v); numbers.set([N.hk, ...N.tint, ...N.wind, ...N.leaf, N.twig, 0, 0, 0], (Kd.offset + v) * 16); KINDS.push(Z.first + famOf(Kd.asset.uid).first + v); }
-    const KR = storage(new THREE.StorageBufferAttribute(numbers, 4), 'vec4', G.meshes * 4);
-    // a vertex of the draw as the material takes it: of the plant's own mesh at heap level `lv` (which it is: B.z's
-    // whole number; what follows it: its shade), unpacked, with its kind's numbers
-    const feedOf = (lv) => {
+    for (const Kd of G.kinds) for (let v = 0; v < Kd.shapes; v++) { const N = numbersOf(tex, Kd.row, v); numbers.set([N.hk, ...N.tint, ...N.wind, ...N.leaf, N.twig, sizeAtOne(Kd.asset, v, !!(Kd.asset.growth && Kd.age)), 0, 0], (Kd.offset + v) * 16); KINDS.push(Z.first + famOf(Kd.asset.uid).first + v); }
+    G.KS = Float32Array.from({ length: G.meshes }, (_, j) => numbers[j * 16 + 13]);   // (each shape's size at scale 1, as the GPU reads it: what its bodies are scaled by)
+    // a vertex of the draw as the material takes it: of the plant's own mesh at heap level `lv` (which it is: B.y; its
+    // shade: its seed, B.w), unpacked, with its kind's numbers
+    const feedOf = (lv, at) => {   // (at: where the draw's vertex lies, the drawer's: drawer.js atOf)
       const level = uniform(lv, 'uint');
       return {
         vertex: (B) => {
-          const kind = uint(floor(B.z)), k = kind.mul(uint(4)), at = heapRow(D.H, kind, level).y.add(vertexIndex.mul(uint(2))), r0 = KR.element(k).toVar();
-          return { ...plantOf(D.H.elems.element(at).toVar(), D.H.elems.element(at.add(uint(1))).toVar()), Hk: r0.x, Tn: r0.yzw, Wd: KR.element(k.add(uint(1))).toVar(), Lf: KR.element(k.add(uint(2))).toVar(), Tw: KR.element(k.add(uint(3))).x, shade: fract(B.z) };
+          const kind = uint(B.y.add(0.5)), R = heapRow(D.H, kind, level).toVar(), P = at(R), e = R.y.add(P.vertex.mul(uint(2))), r0 = D.numOf(kind, 0).toVar(), r3 = D.numOf(kind, 3).toVar();
+          return { ...plantOf(D.H.elems.element(e).toVar(), D.H.elems.element(e.add(uint(1))).toVar()), Hk: r0.x, Tn: r0.yzw, Wd: D.numOf(kind, 1).toVar(), Lf: D.numOf(kind, 2).toVar(), Tw: r3.x, Ks: r3.y, shade: seedOf(B), drawn: P.drawn };
         },
         level: lv,
         // (the stand's finest level, of this plant's shape: whether it is there, and how far it has grown in since it came)
-        streamed: FINE && lv < 2 ? (B) => { const R0 = heapRow(D.H, uint(floor(B.z)), uint(0)).toVar(); return { held: R0.z.greaterThan(uint(0)), grown: smoothstep(0, GROW, sinceCame(R0, U.uTime)) }; } : null,
+        streamed: FINE && lv < 2 ? (B) => { const R0 = heapRow(D.H, uint(B.y.add(0.5)), uint(0)).toVar(); return { held: R0.z.greaterThan(uint(0)), grown: smoothstep(0, GROW, sinceCame(R0, U.uTime)) }; } : null,
       };
     };
     const D = createDrawer(scene, renderer, tex, {
       name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1),
-      make: { per: 2, byKind: true, material: (src, i, shadow) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, last: i === n - 1 }, feedOf(i)); m.vertexNode = Fn(() => shape(src.readAt(0, slot), src.readAt(1, slot)))(); return m; } },
+      make: { per: 2, numbers: { rows: 4, of: (k) => numbers.subarray(k * 16, k * 16 + 16) }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, last: i === n - 1 }, feedOf(i, at)); m.vertexNode = Fn(() => shape(src.readAt(0, slot), src.readAt(1, slot)))(); return m; } },
       // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
       zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 2|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
     });
@@ -380,7 +388,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
           busy = true; was = t.key;
           t.read(renderer).then((buckets) => {
             const seen = [];
-            for (const { count, data: [A, B] } of buckets) for (let i = 0; i < count; i++) { const k = i * 4; seen.push({ x: A[k], z: A[k + 1], kind: Math.floor(B[k + 2]), size: B[k + 3] }); }
+            for (const { count, data: [A, B] } of buckets) for (let i = 0; i < count; i++) { const k = i * 4; seen.push({ x: A[k], z: A[k + 1], kind: Math.round(B[k + 1]), size: G.ST.size ?? A[k + 3] }); }
             near = seen;
           }).catch(() => {}).finally(() => (busy = false));
         });
@@ -436,8 +444,8 @@ function standBodies(G, KINDS, ground, renderer) {
     T.read(renderer).then(([{ count, data: [A, B] }]) => {
       grid.clear();
       for (let i = 0; i < count; i++) {
-        const k = i * 4, kind = KINDS[Math.floor(B[k + 2])], body = bodyOf(kind);
-        if (body.shapes.some((S) => !S.pass || !S.from || topOf(S) * A[k + 3] - FOOT >= S.from)) grid.put({ id: `${tag}:${Math.round(A[k] * 8)}:${Math.round(A[k + 1] * 8)}`, thing: idOf(`plants:${G.name}`, Math.floor(A[k] / G.ST.cell), Math.floor(A[k + 1] / G.ST.cell)), x: A[k], z: A[k + 1], y: A[k + 2], up: -FOOT, yaw: B[k], s: A[k + 3], kind, body });   // (thing: its stand and the cell it stands in)
+        const k = i * 4, j = Math.round(B[k + 1]), kind = KINDS[j], body = bodyOf(kind), s = A[k + 3] / G.KS[j];   // (s: its scale)
+        if (body.shapes.some((S) => !S.pass || !S.from || topOf(S) * s - FOOT >= S.from)) grid.put({ id: `${tag}:${Math.round(A[k] * 8)}:${Math.round(A[k + 1] * 8)}`, thing: idOf(`plants:${G.name}`, Math.floor(A[k] / G.ST.cell), Math.floor(A[k + 1] / G.ST.cell)), x: A[k], z: A[k + 1], y: A[k + 2], up: -FOOT, yaw: B[k], s, kind, body });   // (thing: its stand and the cell it stands in)
       }
     }).catch((e) => { was = ''; if (!warned) { warned = true; console.warn(`plants: what stands round the walker could not be read back (${G.name}): it is not solid`, e); } }).finally(() => (busy = false));
   };
@@ -448,7 +456,7 @@ function standBodies(G, KINDS, ground, renderer) {
 export function treeSample(tex, row, level = 0, x = 0, y = 0, z = 0, s = 1, form = 0) {
   const g = geometryOf(row.asset, row.detail.levels[Math.min(level, row.detail.levels.length - 1)], form);
   const { m, shape } = plantMaterial(tex, row.detail)();   // (a mesh of its own, not the heap's: the library's)
-  m.vertexNode = Fn(() => shape(vec4(x, z, y, s), vec4(0.4, 1.3, 0.5, 1)))();   // turned a little, its own shade, the whole of its level
+  m.vertexNode = Fn(() => shape(vec4(x, z, y, s * sizeAtOne(row.asset, form)), vec4(0.4, 0, 1.3, Math.PI)))();   // turned a little, its shade the middle one, the whole of its level
   const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = 1; mesh.layers.enable(1);
   return wear(mesh, tex, row, form);
 }

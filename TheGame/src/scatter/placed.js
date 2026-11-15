@@ -18,8 +18,7 @@
 // stand(asset, at) puts a place in (src/main.js: world/places.js); `?many=N` stands N more round the meadow, to measure
 // (the list's room is set at the start: as many as `many` asks, and four thousand besides).
 import * as THREE from 'three/webgpu';
-import { Fn, If, float, uint, vec3, vec4, uniform, varyingProperty, vertexIndex, storage, normalize, max, mix, sin, cos, fract, dFdx, dFdy } from 'three/tsl';
-import { U } from '../core/uniforms.js';
+import { Fn, If, float, uint, vec3, vec4, uniform, varyingProperty, normalize, mix, fract, dFdx, dFdy } from 'three/tsl';
 import { camDist } from '../world/land.nodes.js';
 import { heightAt } from '../world/land.js';
 import { windAt, windStrength, unlit } from '../world/light.js';
@@ -27,25 +26,25 @@ import { layerOf, wrapGrad } from '../world/tile.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { pxK, detailOf } from '../detail/index.js';
 import { spanOf, most, kindOf } from '../../assets/kinds.js';
-import { bodyOfAsset, snowOf } from '../../assets/index.js';
+import { bodyOfAsset } from '../../assets/index.js';
 import { placedBy } from '../../assets/zoo/index.js';
 import { madeBox, madeRoom, madeMesh } from '../../assets/kit/made.js';
 import { versionOf } from '../core/registry.js';
 import { madeOf } from './madevert.js';
 import { createDrawer } from './drawer.js';
-import { heapRow, cornersOf } from './heap.js';
+import { heapRow } from './heap.js';
 import { offScreen, clipOf } from './tier.js';
 import { inView } from './view.js';
 import { gpuStorage, note } from '../core/gpu.js';
 import { addBodies, reachOf } from '../world/bodies.js';
 import { keyOf, idOf } from '../world/things.js';
 import { HX, fmix } from '../core/hash.js';
-import { flag, flagNum } from '../core/flags.js';
+import { flagNum } from '../core/flags.js';
 import { swayed, facing, mottled, madeLit } from '../world/made.nodes.js';
+import { pxOf, turnOf } from './row.js';
 
-const BUCKET = 32, P = 32, OFF = 32768, MOST = 2097152, NUMS = 6;   // BUCKET: the squares the list is ordered by, metres; P: a run is at most P × P places; OFF: the squares' numbers from -OFF; MOST: places a group can hold (2^21); NUMS: rows of four a kind's numbers
+const BUCKET = 32, P = 32, OFF = 32768, MOST = 2097152, NUMS = 5;   // BUCKET: the squares the list is ordered by, metres; P: a run is at most P × P places; OFF: the squares' numbers from -OFF; MOST: places a group can hold (2^21); NUMS: rows of four a kind's own numbers (in the drawer's table: numOf)
 const MANY = Math.max(0, Math.floor(flagNum('many', 0)));   // `?many=N`: N more places round the meadow, to measure
-const BYKIND = 32, BYLEVEL = flag('bylevel');   // a group of up to BYKIND kinds is drawn a kind a draw (no vertex worked out for nothing); more, a level a draw (a city of many kinds: the draws are the levels, not the kinds); `?bylevel`: so whatever their number, to measure
 
 // a square's number on the Z-shaped walk: its two numbers' bits woven
 const spread = (x) => { x &= 0xffff; x = (x | (x << 8)) & 0x00ff00ff; x = (x | (x << 4)) & 0x0f0f0f0f; x = (x | (x << 2)) & 0x33333333; return (x | (x << 1)) & 0x55555555; };
@@ -62,22 +61,24 @@ export const unstand = (id) => LIST?.unstand(id) ?? false;
 
 /** The made things' material, for a level of a group's drawer: a thing's vertex from the heap, its place from its tier's
     packing (A: x, z, the height of its foot, its size; B: its turn, its kind, -, its seed; S: its own state, a tint and
-    how worn it is: src/world/things.js), its kind's numbers (NUM: NUMS rows a kind), and from there what
-    src/world/place.js does for a thing of its own. Lv: its level ({ lo, hi, last }), fade and sink its kinds'. */
-function madeMaterial(D, NUM, src, lv, Lv, fade, sink) {
+    how worn it is: src/world/things.js), its kind's numbers (the drawer's table: its look, and NUMS rows of its own),
+    and from there what src/world/made.nodes.js does for every made thing. Lv: its level ({ lo, hi, last }), fade and
+    sink its kinds'. */
+function madeMaterial(D, src, lv, Lv, fade, sink, at) {
   const slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0), level = uniform(lv, 'uint'), LU = levelOf(Lv, fade);
   const vW = varyingProperty('vec3', 'mW'), vN = varyingProperty('vec3', 'mN'), vC = varyingProperty('vec3', 'mC'), vY = varyingProperty('float', 'mY'), vK = varyingProperty('vec3', 'mK');   // (vK: its kind, the material its face wears, how worn it is)
   const m = new THREE.NodeMaterial(); m.side = THREE.DoubleSide;
   m.vertexNode = Fn(() => {
     const A = src.readAt(0, slot), B = src.readAt(1, slot), S = src.readAt(2, slot), clip = offScreen().toVar();
-    const kind = uint(B.y.add(0.5)), k = kind.mul(uint(NUMS)), N0 = NUM.element(k).toVar(), N1 = NUM.element(k.add(uint(1))).toVar(), N2 = NUM.element(k.add(uint(2))).toVar();
+    const kind = uint(B.y.add(0.5)), N0 = D.numOf(kind, 0).toVar(), N1 = D.numOf(kind, 1).toVar(), N2 = D.numOf(kind, 2).toVar(), span = D.lookOf(kind, 3).w;   // (span: its largest side, its look's)
     // its size on screen, and the one hand-over (src/detail/handover.js): a made thing is of one piece, it changes over
     // whole, half way; its last level sinks, where no dot follows it
-    const H = handOver(A.w.mul(U.uPxK).div(max(camDist(A.xy), 1e-3)), LU, sink);
+    const H = handOver(pxOf(A.w, A.xy), LU, sink);
     const R = heapRow(D.H, kind, level).toVar();
-    If(H.whole.and(vertexIndex.lessThan(cornersOf(R))), () => {   // (a level a draw: the draw is as long as its longest kind's)
-      const V = madeOf(D.H.elems.element(R.y.add(vertexIndex)), N0.xyz, N1.xyz), p = V.position;
-      const s = A.w.div(N2.w), cs = cos(B.x), sn = sin(B.x), turn = (v) => vec3(v.x.mul(cs).sub(v.z.mul(sn)), v.y, v.x.mul(sn).add(v.z.mul(cs))), unturn = (v) => vec3(v.x.mul(cs).add(v.z.mul(sn)), v.y, v.z.mul(cs).sub(v.x.mul(sn)));
+    const on = at(R);   // (where the draw's vertex lies, and whether it is one of the mesh's: drawer.js atOf)
+    If(H.whole.and(on.drawn), () => {
+      const V = madeOf(D.H.elems.element(R.y.add(on.vertex)), N0.xyz, N1.xyz), p = V.position;
+      const s = A.w.div(span), { turn, unturn } = turnOf(B.x);
       // its sway in the wind, in its own frame (src/world/made.nodes.js)
       const foot = vec3(A.x, A.z, A.y), push = windAt(foot.xz.add(turn(p).xz.mul(s))), along = unturn(vec3(push.x, 0, push.y));
       const q = sinkInto(swayed(p, V.normal, { H: N0.w, R: N1.w, billow: N2.x, flap: N2.y, sway: N2.z }, along, windStrength), H.sunk);
@@ -90,7 +91,7 @@ function madeMaterial(D, NUM, src, lv, Lv, fade, sink) {
   m.fragmentNode = Fn(() => {
     const out = vec4(0).toVar();
     If(unlit().not(), () => {   // (drawn into the shadow map, only its depth counts: no light)
-      const k = uint(vK.x.add(0.5)).mul(uint(NUMS)), N3 = NUM.element(k.add(uint(3))), N4 = NUM.element(k.add(uint(4))), N5 = NUM.element(k.add(uint(5))), part = vK.y;
+      const kind = uint(vK.x.add(0.5)), N3 = D.numOf(kind, 3), N4 = D.numOf(kind, 4), snow = D.lookOf(kind, 3).x, part = vK.y;
       const w = vW, n0 = facing(normalize(vN), w).toVar();   // (the face's side towards the eye)
       // what it is made of: the world's material its face names (its kind's: up to four), wrapped round it from three
       // sides; where it names none, its colours alone, faintly mottled (as src/world/place.js)
@@ -99,7 +100,7 @@ function madeMaterial(D, NUM, src, lv, Lv, fade, sink) {
       If(made, () => { const S = wrapGrad(no, q, gx, gy, n0, N3.w); sc.assign(S.col); n.assign(S.n); });
       // (worn: darker and greyer, as a thing left out for years)
       const own0 = made.select(sc.mul(sc).mul(vC), mottled(vC, w)), own = mix(own0, vec3(own0.dot(vec3(0.3, 0.5, 0.2))).mul(0.62), vK.z.mul(0.85));
-      out.assign(madeLit(own, n, w, vY, { wrap: N3.x, through: N3.y, clumps: N5.x }));
+      out.assign(madeLit(own, n, w, vY, { wrap: N3.x, through: N3.y, clumps: snow }));
     });
     return out;
   })();
@@ -112,16 +113,15 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
   // its levels: the kinds' own, each kind's mesh in a place of its own size; where they had a far card, the drawer's dot
   const LEVELS = meshes.map((l, i) => { const rooms = kinds.map((Kd) => madeRoom(Kd.asset, i)); return { px: l.lo, room: { verts: Math.max(1, ...rooms.map((r) => r.verts)), tris: Math.max(1, ...rooms.map((r) => r.tris)) }, rooms }; });
   if (card) LEVELS.push({ px: card.lo });
-  // each kind's numbers (NUMS rows of four): [its box's least corner, its height], [its box's size, its half length],
-  // [its wind: billow, flap, sway; its largest side], [its surface: wrap, through; metres a tile of its materials, their
-  // relief], [the layers of its materials (none: -1)], [how its snow lies in clumps]
-  const numbers = new Float32Array(n * NUMS * 4);
-  kinds.forEach(({ asset: a }, k) => {
-    const B = madeBox(a), W = kindOf(a, 'wind') ?? {}, S = kindOf(a, 'surface') ?? {}, M = a.materials ? Object.values(a.materials).map((u) => layerOf(u)) : [];
+  // each kind's own numbers (NUMS rows of four, after its look in the drawer's one table): [its box's least corner, its
+  // height], [its box's size, its half length], [its wind: billow, flap, sway], [its surface: wrap, through; metres a
+  // tile of its materials, their relief], [the layers of its materials (none: -1)]; how its snow lies and its largest
+  // side are its look's (assets/kit/made.js: madeLook)
+  const numbersOf = (k) => {
+    const a = kinds[k].asset, B = madeBox(a), W = kindOf(a, 'wind') ?? {}, S = kindOf(a, 'surface') ?? {}, M = a.materials ? Object.values(a.materials).map((u) => layerOf(u)) : [];
     if (M.length > 4) console.warn(`placed: '${a.name}' names ${M.length} materials; its faces wear the first four`);
-    numbers.set([...B.min, most(a.size.height), ...B.ext, most(a.size.length) / 2, W.billow ?? 0, W.flap ?? 0, W.sway ?? 0, spanOf(a), S.wrap ?? 0, S.through ?? 0, a.texture ?? 1, a.relief ?? 1, M[0] ?? -1, M[1] ?? -1, M[2] ?? -1, M[3] ?? -1, snowOf(a).clumps ?? 0.08, 0, 0, 0], k * NUMS * 4);
-  });
-  const NUM = storage(new THREE.StorageBufferAttribute(numbers, 4), 'vec4', n * NUMS);
+    return [...B.min, most(a.size.height), ...B.ext, most(a.size.length) / 2, W.billow ?? 0, W.flap ?? 0, W.sway ?? 0, 0, S.wrap ?? 0, S.through ?? 0, a.texture ?? 1, a.relief ?? 1, M[0] ?? -1, M[1] ?? -1, M[2] ?? -1, M[3] ?? -1];
+  };
   const KINDS = kinds.map((Kd) => Kd.zoo), fade = D0.fade, sink = D0.sink;
   // (its kinds' coarse levels made here, as the recipes' worker makes a block (recipes.worker.js: 'own'), where they are
   // few and small: a few hundred thousand faces are a few tens of milliseconds, and they are there for the first picture)
@@ -133,7 +133,7 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
   });
   const D = createDrawer(scene, renderer, tex, {
     name: `made: ${name}`, LEVELS, SHADE: { shrink: 1, far: 30, wide: 1.5 }, SMOOTH: uniform(1), state: true,
-    make: { per: 1, byKind: n <= BYKIND && !BYLEVEL, flat: true, dot: !!card, material: (src, i) => madeMaterial(D, NUM, src, i, { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity, last: !card && i === ML - 1 }, fade, sink), here: FEW ? here : null },
+    make: { per: 1, flat: true, dot: !!card, numbers: { rows: NUMS, of: numbersOf }, material: (src, i, shadow, at) => madeMaterial(D, src, i, { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity, last: !card && i === ML - 1 }, fade, sink, at), here: FEW ? here : null },
     // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
     zoo: { kinds: KINDS, ALL: n, lookOfKind: (k) => kinds[k].look, fingerprint: () => `made 2|${kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room?.verts}:${l.room?.tris}`).join()}` },
   });
