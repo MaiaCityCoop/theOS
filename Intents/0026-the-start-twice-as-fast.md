@@ -183,9 +183,9 @@ with a GPU that part is the driver's, and much shorter; how much, only the phone
 
 ## Propose
 
-**Delivered:** the start, on branch `perf/faster-startup` (draft PR against main), rebased onto main as it is now
-(`1ce722e`). On the main it started from, medians: the production build 2.45× faster to playable on the desktop
-(37.6 → 15.4 s) and 1.96× on the phone (46.7 → 23.8 s); the dev server 2.21× and 2.70×. The textures are painted once
+**Delivered:** the start, on branch `perf/faster-startup` (draft PR #13 against main), rebased onto main as it is now
+(`1ce722e`). On the main it started from, medians: the production build 2.45× faster to playable on the desktop (37.6
+→ 15.4 s) and 1.96× on the phone (46.7 → 23.8 s); the dev server 2.21× and 2.70×. The textures are painted once
 (`src/materials/bake.js`); every pass is compiled once, before it is drawn, side by side, for its own target, and a
 compute shader once however many passes run it (`src/core/compile.js`); the host keeps the brand's files and sends the
 scripts as brotli (`TheGame/vite.config.js`, `deploy/Caddyfile`); the dev server compresses. The story:
@@ -227,7 +227,7 @@ scripts as brotli (`TheGame/vite.config.js`, `deploy/Caddyfile`); the dev server
 - [x] Fixes built
 - [x] Measured again; the picture compared
 - [x] Cache headers on the host
-- [ ] Draft PR with the table
+- [x] Draft PR with the table
 
 ## Changelog
 
@@ -253,3 +253,8 @@ _One entry per request cycle, newest last._
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-15 | `4c0a0ea` | The start compiles every pass once, side by side, for the target it is drawn into; a texture is painted once |
+| 2026-11-15 | `31abbcf` | The host keeps the brand's files by their content and sends the scripts as brotli; the dev server compresses |
+| 2026-11-15 | `e6701a1` | A compute shader is compiled once, however many passes run it |
+| 2026-11-15 | `26d9813` | The host keeps for good only the brand's own files asked for by their content |
+| 2026-11-15 | `8ff45c0` | Intent 0026 proposed: the measurements, the checks, the gaps; its story spawned |
