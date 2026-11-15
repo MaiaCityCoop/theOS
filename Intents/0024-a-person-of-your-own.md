@@ -115,3 +115,4 @@ Asked outright, with no surprise in the definition, so built straight away.
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-15 | `5c496ed` | The API, its stack and deploy, the session after sign-in, `me.html` |
