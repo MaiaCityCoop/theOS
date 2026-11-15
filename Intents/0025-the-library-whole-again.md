@@ -153,7 +153,7 @@ Screenshots in the session's scratchpad, `shots/`.)
 - [x] The seed for rocks, trees and shrubs
 - [x] Switching frees what stood: the fire first, then every asset
 - [x] Checks 1–5 in Chromium (WebGL), with screenshots
-- [ ] Draft PR against main
+- [x] Draft PR against main: https://github.com/MaiaCityCoop/theOS/pull/8
 - [ ] Seen in Safari on a GPU: the trees and shrubs back in the library (Samuel)
 - [ ] The coals (0018): the comment that swallows their spread
 
@@ -166,7 +166,8 @@ Screenshots in the session's scratchpad, `shots/`.)
 - **Delivered:** the causes found and fixed: the tree kit's `twig` read at the wrong size since `c83e89e` (every
   tree and shrub's mesh short of a buffer: a draw WebGPU may drop); the rocks' stage without its seed since
   `37515d7`, and the bushes' own shape seeds that Random never moved; one fire position for every fire, so the world's
-  own fire burned on the stage once the Flame was chosen. The library frees all that leaves its stage.
+  own fire burned on the stage once the Flame was chosen. The library frees all that leaves its stage. Draft PR
+  #8 against main.
 - **Good:** seen in Chromium (WebGL): on main, Random left the rocks and the mastic as they were, and once the Flame had
   been chosen the world's fire drew at the stage under whatever came next (seen in the Grass, Mastic, Stones, Reeds
   and Moss cushion shots); on the branch every seeded asset changes and comes back, the fire goes, and two
