@@ -353,8 +353,11 @@ export function tree(recipe) {
     shadeRaw: shade ? (shape) => shade(shapes[shape], shape) : null,
     /** shape `shape` at level `level` as typed arrays (a plain geometry's: the library's stage) */
     meshAt: (level, shape = 0) => packed(rawAt(Math.min(level, specs.length - 1), Math.min(shape, shapes.length - 1))),
-    /** the same kind of tree grown from another seed: other shapes, other places (the library's Random) */
-    regrow: (s) => tree({ ...recipe, placement: { ...recipe.placement, seed: s } }),
+    /** the same kind of tree grown from another seed: other shapes, other places (the library's Random). A shape of its
+        file's that carries a seed of its own (a bush's mound, a branch: no growth to grow it from the placement's seed)
+        is grown from that seed moved as far as the placement's was, so a bush is another bush too; its own seed gives
+        it back as it was (intent 0025) */
+    regrow: (s) => tree({ ...recipe, ...(recipe.shapes ? { shapes: recipe.shapes.map((S) => (S.seed == null ? S : { ...S, seed: S.seed + (s - seed) * 7919 })) } : {}), placement: { ...recipe.placement, seed: s } }),
   };
   const lazy = (get) => ({ enumerable: true, configurable: true, get });
   return Object.defineProperties(out, {

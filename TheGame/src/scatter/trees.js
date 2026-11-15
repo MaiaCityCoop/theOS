@@ -424,7 +424,9 @@ export function treeSample(tex, row, level = 0, x = 0, y = 0, z = 0, s = 1, form
   return wear(mesh, tex, row, form);
 }
 
-const REGROWN = {};   // a tree grown again from another seed, kept (the library's Random)
+// a tree grown again from another seed (the library's Random): the last few kept, each holding a few of its meshes
+const REGROWN = new Map();
+const regrown = (a0, seed) => { const k = `${a0.uid}:${seed}`; let a = REGROWN.get(k); if (!a) { if (REGROWN.size >= 4) REGROWN.delete(REGROWN.keys().next().value); REGROWN.set(k, (a = a0.regrow(seed))); } return a; };
 /** A scatter engine (src/scatter/index.js finds it): what an asset's placement.engine 'trees' names. */
 export const engine = {
   id: 'trees',
@@ -437,7 +439,7 @@ export const engine = {
     return { things: [treeSample(tex, row, 0, 0, 0, 0, G?.s ?? 1, G?.shape ?? 0)], eye: [h * 1.1, h * 0.7, h * 1.5], look: [0, h * 0.5, 0] };
   },
   stage(tex, row0, { x, z, heightAt, level = 0, seed = null, age = 70, all = false }) {
-    const a0 = row0.asset, a = seed != null && a0.regrow ? (REGROWN[`${a0.uid}:${seed}`] ??= a0.regrow(seed)) : a0, row = a === a0 ? row0 : scatterRow(a), G = a.growth;
+    const a0 = row0.asset, a = seed != null && seed !== a0.placement.seed && a0.regrow ? regrown(a0, seed) : a0, row = a === a0 ? row0 : scatterRow(a), G = a.growth;
     const one = (X, Z, t) => treeSample(tex, row, level, X, heightAt(X, Z) - 0.1, Z, t?.s ?? 1, t?.shape ?? 0);
     if (!G || !all) return one(x, z, G ? G.at(age) : null);
     const g = new THREE.Group(), w = G.years.map((y) => G.height(y) * 0.55); let u = -w.reduce((s, v) => s + v, 0);

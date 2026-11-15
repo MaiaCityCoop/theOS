@@ -154,7 +154,27 @@ const frameOf = (a) => engineOf(a)?.frame?.(a, { age, all: growRow }) ?? { heigh
 let staged = null, ground0 = heightAt(STAGE.x, STAGE.z), H = 1, yaw = 2.6, pitch = 0.32, dist = 9, spin = true, seed = null;
 let age = 70, growRow = false;   // a tree that grows: the age it is shown at, or every stage of its growth in a row
 let cardTab = 'info', lodAt = null, showBody = false, bodyLines = null;   // showBody: the asset's collision drawn on the stage (intent 0003)   // the asset card's tab; the level of detail being looked at (null: none chosen)
-function clearStage() { ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BASE)); if (staged) { scene.remove(staged); staged.traverse((o) => o.geometry?.dispose()); staged = null; } person = null; if (boneLines) { scene.remove(boneLines); boneLines = null; } }
+// Off the stage (intent 0025): what stood there taken out of the scene and freed, so nothing of it is drawn, lit or kept
+// after it. Out of the scene, a fire gives its light back to the world's own (src/world/fire.js); then every part of it
+// is freed, its geometry and material with it, unless it is shared and says so (userData.kept: a person shown again, the
+// materials' ball). Answers null, for what held it.
+function free(o) {
+  if (!o) return null;
+  o.removeFromParent();
+  if (o.userData.kept) return null;
+  o.traverse((m) => {
+    if (m.geometry && !m.geometry.userData.kept) m.geometry.dispose();
+    for (const x of [m.material ?? []].flat()) x.dispose();
+    m.dispose();   // (what the renderer made for the object itself; a skeleton's lines free their own with it)
+  });
+  return null;
+}
+function clearStage() {
+  ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BASE));
+  staged = free(staged); person = null; boneLines = free(boneLines); bodyLines = free(bodyLines);
+  if (heldMat && !tex.used.some((u) => u.uid === heldMat)) tex.release(heldMat);   // (a material held while it stood: the pool's again)
+  heldMat = null;
+}
 function stageAsset(a) {
   clearStage();
   const E = engineOf(a);   // a scattered asset stands as its engine shows it (a few rocks small to large, a tree at an age, the meadow itself)
@@ -164,7 +184,7 @@ function stageAsset(a) {
 }
 // an asset's body as lines on the ground: its walls (with their doors left open), posts and boxes, from its file or its kind
 function drawBody(a) {
-  if (bodyLines) { scene.remove(bodyLines); bodyLines.traverse((o) => o.geometry?.dispose()); bodyLines = null; }
+  bodyLines = free(bodyLines);
   if (!showBody) return;
   const s = solidOf(a), g = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color: 0xffd27a, depthTest: false, transparent: true, opacity: 0.95, side: THREE.DoubleSide });
   const y = (x, z) => heightAt(STAGE.x + x, STAGE.z + z) + 0.08;
@@ -274,12 +294,12 @@ function chooseCharacter(id, keep) {
     clearStage();
     let P = people.get(id); if (!P) people.set(id, (P = c.make(tex)));
     staged = new THREE.Group(); staged.position.set(STAGE.x, heightAt(STAGE.x, STAGE.z), STAGE.z); staged.add(P.object);
-    staged.traverse = (f) => f(staged);   // (kept to be shown again: nothing to free when it goes)
+    staged.userData.kept = true;   // (kept to be shown again: nothing to free when it goes)
     scene.add(staged); person = P; if (q.get('move')) P.setMove(q.get('move')); P.step(0);
     H = P.height * 1.25; dist = 4.2; pitch = 0.2; spin = true;
   }
   const P = person;
-  if (boneLines) { scene.remove(boneLines); boneLines = null; }
+  boneLines = free(boneLines);
   if (showBones) { boneLines = new THREE.SkeletonHelper(P.bones.root); boneLines.material.depthTest = false; boneLines.material.transparent = true; boneLines.renderOrder = 9; scene.add(boneLines); }
   document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', b.dataset.char === id));
   const M = P.measures, mats = [c.wears.shirt.material, c.wears.trousers.material, c.wears.hair.material];
@@ -294,16 +314,14 @@ function chooseCharacter(id, keep) {
   history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}character=${id}&move=${P.move}`);
 }
 // a material: a ball of it in the middle of the stage, and the stage's round laid in it, into the land like any ground
-const ballGeo = new THREE.SphereGeometry(1.1, 128, 96);
-let heldMat = null;   // (the staged material is held in the pool while it stands: the list's pictures may not take its layer)
+const ballGeo = new THREE.SphereGeometry(1.1, 128, 96); ballGeo.userData.kept = true;   // (one ball for every material: kept when its material goes)
+let heldMat = null;   // (the staged material is held in the pool while it stands: the list's pictures may not take its layer; given back when it goes: clearStage)
 function chooseMaterial(id) {
   const m = MATERIAL[id]; clearStage(); staged = new THREE.Group();
-  if (heldMat && heldMat !== id && !tex.used.some((u) => u.uid === heldMat)) tex.release(heldMat);
   tex.want(id, true); heldMat = id;
   const mat = materialPreview(tex, id, 2), y = heightAt(STAGE.x, STAGE.z);
   ground.stage(STAGE.x, STAGE.z, STAGE.r + 0.2, id, 2);
   const ball = new THREE.Mesh(ballGeo, mat); ball.position.set(STAGE.x, y + 1.15, STAGE.z); ball.renderOrder = 1; ball.frustumCulled = false; staged.add(ball);
-  staged.traverse = (f) => f(staged);   // its geometries are shared: nothing to free when it goes
   scene.add(staged);
   H = 1.3; dist = 9.5; pitch = 0.5; spin = true;
   document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', b.dataset.mat === id));

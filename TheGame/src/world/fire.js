@@ -10,7 +10,9 @@
 //   the smoke   a thin grey column over it, rising, widening, bent over by the wind
 //
 // The fire lights what stands near it (`fireLight`, read by every placed asset's material: src/world/place.js), warm
-// and flickering, the more the nearer. One fire for now: the one in front of the tent (world/places.js).
+// and flickering, the more the nearer. One fire's light for now: the one lit last of those burning (the world's, in
+// front of the tent: world/places.js; the library's, while its stage shows one). Each fire draws at its own place;
+// a fire burns while it is in the scene, and taken out its light goes back to the one before it (intent 0025).
 //
 // What moves by itself says so to the picture built over time (src/core/temporal.js): the fourth number of the pixels
 // it covers is lowered by as much as it covers them, as falling snow does (src/world/weather/snowfall.js).
@@ -21,9 +23,12 @@ import { vnoise, rnd } from './noise.nodes.js';
 import { finish, skyLight, windAt } from './light.js';
 import { heightAt } from './land.js';
 
-/** Where the fire is ((x, y, z) of its middle, a little over the coals) and how strongly it lights what is round it
-    (w: 0 none). */
+/** Where the fire whose light the world takes is ((x, y, z) of its middle, a little over the coals) and how strongly
+    it lights what is round it (w: 0 none): the last lit of the fires burning. */
 export const uFire = uniform(new THREE.Vector4(0, -1e4, 0, 0));
+// the fires burning (each its place and strength, as uFire holds them), in the order they were lit
+const burning = [];
+const lightLast = () => { const f = burning.at(-1); if (f) uFire.value.copy(f); else uFire.value.set(0, -1e4, 0, 0); };
 // how the fire's light flickers: a few unrelated beats, never repeating soon; ~0.75 … 1.15
 const flicker = () => {
   const t = U.uTime;
@@ -67,7 +72,7 @@ const clipOf = (w) => cameraProjectionMatrix.mul(cameraViewMatrix.mul(vec4(w, 1)
 function flames(F) {
   const m = over(new THREE.NodeMaterial()), k = instanceIndex.toFloat(), vW = varyingProperty('vec3', 'fW'), vK = varyingProperty('float', 'fK');
   m.vertexNode = Fn(() => {
-    const at = uFire.xyz.sub(vec3(0, 0.34, 0));   // the coals
+    const at = F.at.xyz.sub(vec3(0, 0.34, 0));   // the coals
     const toEye = U.uCam.sub(at).mul(vec3(1, 0, 1)), dEye = toEye.div(max(length(toEye), 1e-3));
     // the sheets one behind the other along the line of sight, and a little aside; the middle one widest
     const c = at.add(dEye.mul(k.sub(1).mul(0.13))).add(vec3(dEye.z, 0, dEye.x.negate()).mul(k.sub(1).mul(0.06)));
@@ -106,7 +111,7 @@ function flames(F) {
 function coals(F) {
   const m = over(new THREE.NodeMaterial()), vW = varyingProperty('vec3', 'cW');
   m.vertexNode = Fn(() => {
-    const p = uFire.xyz.sub(vec3(0, 0.4 - 0.03 - 0.112, 0))   // (just over the ash's heaped middle: assets/firepit.js ashAt).add(vec3(positionGeometry.x, 0, positionGeometry.y).mul(F.bed * 2));
+    const p = F.at.xyz.sub(vec3(0, 0.4 - 0.03 - 0.112, 0))   // (just over the ash's heaped middle: assets/firepit.js ashAt).add(vec3(positionGeometry.x, 0, positionGeometry.y).mul(F.bed * 2));
     vW.assign(p); return clipOf(p);
   })();
   m.fragmentNode = Fn(() => {
@@ -133,7 +138,7 @@ function sparks(F) {
   const vCol = varyingProperty('vec3', 'sCol'), vA = varyingProperty('float', 'sA');
   m.vertexNode = Fn(() => {
     const t = U.uTime, life = r(681).mul(1.6).add(0.9), age = fract(t.div(life).add(r(682)));   // 0 thrown off … 1 gone
-    const at = uFire.xyz.sub(vec3(0, 0.3, 0)), a0 = r(683).mul(6.2831853), d0 = r(684).mul(F.bed * 0.7);
+    const at = F.at.xyz.sub(vec3(0, 0.3, 0)), a0 = r(683).mul(6.2831853), d0 = r(684).mul(F.bed * 0.7);
     const rise = age.mul(r(685).mul(1.8).add(1.0)).sub(age.mul(age).mul(0.3));
     const push = windAt(at.xz), drift = vec3(push.x, 0, push.y).mul(age.mul(age).mul(2.2));
     const wob = vec3(sin(t.mul(r(686).mul(4).add(3)).add(a0)), 0, sin(t.mul(r(687).mul(4).add(3)).add(a0.mul(1.7)))).mul(age.mul(0.12));
@@ -155,7 +160,7 @@ function sparks(F) {
 function smoke(F) {
   const m = over(new THREE.NodeMaterial()), vW = varyingProperty('vec3', 'kW'), k = instanceIndex.toFloat(), vK = varyingProperty('float', 'kK');
   m.vertexNode = Fn(() => {
-    const at = uFire.xyz.add(vec3(0, 0.5, 0)), push = windAt(at.xz), bend = vec3(push.x, 0, push.y).mul(2.6);   // (from over the flames' tips)
+    const at = F.at.xyz.add(vec3(0, 0.5, 0)), push = windAt(at.xz), bend = vec3(push.x, 0, push.y).mul(2.6);   // (from over the flames' tips)
     const toEye = U.uCam.sub(at).mul(vec3(1, 0, 1)), dEye = toEye.div(max(length(toEye), 1e-3));
     const c = at.add(dEye.mul(k.sub(0.5).mul(0.3)));
     // wider the higher: the sheet's corners spread out as they rise
@@ -173,7 +178,7 @@ function smoke(F) {
     const dens = clamp(plume.mul(roll.mul(0.9).add(fine.mul(0.5)).sub(0.45)).mul(1.6), 0, 1).mul(F.smoke);
     If(dens.lessThan(0.004), () => { Discard(); });
     // pale grey smoke, lit from above by the sky and the sun, a little warmer low down where the fire lights it
-    const lit = vec3(0.55, 0.55, 0.56).mul(skyLight(vec3(0, 1, 0)).add(U.uSun.mul(0.55))).add(FIRE_RGB.mul(uFire.w).mul(smoothstep(0.3, 0.0, y)).mul(0.15));
+    const lit = vec3(0.55, 0.55, 0.56).mul(skyLight(vec3(0, 1, 0)).add(U.uSun.mul(0.55))).add(FIRE_RGB.mul(F.at.w).mul(smoothstep(0.3, 0.0, y)).mul(0.15));
     const col = finish(lit, vW);
     out.assign(vec4(col.rgb.mul(dens), dens));
     return out;
@@ -182,12 +187,16 @@ function smoke(F) {
 }
 
 /** Stand a fire asset ({ fire: { … } }: assets/flame.js) at a place ({ x, z }): its coals, flames, sparks and smoke, and
-    its light on what stands round it. */
+    its light on what stands round it. Its draws read its own place (F.at), never another fire's. It burns while it is
+    in the scene: put in, its light is the world's; taken out, the light goes back to the fire lit before it, or out. */
 export function lightFire(scene, asset, at) {
   const F = { width: 0.9, height: 1.05, bed: 0.4, sparks: 48, spark: 0.016, smoke: 0.55, smokeW: 0.55, smokeH: 3.0, strength: 1.0, ...asset.fire };
-  uFire.value.set(at.x, heightAt(at.x, at.z) - 0.03 + 0.4, at.z, F.strength);
-  const g = new THREE.Group(); g.name = asset.name; g.userData.fire = uFire;   // (for pages and tools that look at it)
+  const here = new THREE.Vector4(at.x, heightAt(at.x, at.z) - 0.03 + 0.4, at.z, F.strength);
+  F.at = uniform(here);
+  const g = new THREE.Group(); g.name = asset.name; g.userData.fire = F.at;   // (for pages and tools that look at it)
   g.add(coals(F), flames(F), smoke(F), sparks(F));
+  g.addEventListener('added', () => { if (!burning.includes(here)) burning.push(here); lightLast(); });
+  g.addEventListener('removed', () => { const i = burning.indexOf(here); if (i >= 0) burning.splice(i, 1); lightLast(); });
   scene.add(g);
   return g;
 }
