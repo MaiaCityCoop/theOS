@@ -166,8 +166,8 @@ Asked for outright, with the requirements spelled out; the definition holds no s
 
 **Delivered:** one collision engine for every world (`src/world/bodies.js`), every placer registering its bodies by
 cells from what is measured of the thing and its kind's rule; the follow view stopping the walker; `?bounds` and
-`?ghost` in every world. On the branch `fix/generic-collision-all-worlds`: draft pull request
-[#9](https://github.com/MaiaCityCoop/theOS/pull/9) against main.
+`?ghost` in every world. Pull request [#9](https://github.com/MaiaCityCoop/theOS/pull/9), merged into main as
+`2916d3b` and deployed to next (the Deploy workflow on it succeeded, 17:21).
 
 **How it was checked:** headless Chromium (Playwright) with WebGPU on SwiftShader, the game's own dev server; the
 same runs on main's code (a second checkout, port 5174) and on this branch (5173). The walker is put 3 m before a
@@ -244,8 +244,28 @@ his middle came to the thing's middle (trees, shrubs, rocks: the drawn foot; the
   phone edges, four of the same files): merged without a conflict, the merged game seen again (83 bodies in the
   forest, no console errors). Not seen in Samuel's Safari.
 
+### 2026-11-15 (2)
+
+- **Asked:** (the session that hands out the work, for Samuel) main moved three times while this was built (PRs #6,
+  #7, #8): take it by a merge, not a rebase, and run the collision checks again on what is merged; then record that
+  run here.
+- **Delivered:** the branch had taken main (`7b17433`, PR #8 with the library's changes to `trees.js`, `rocks.js`,
+  `assets/index.js` and `assets/kit/rock.js`) before its first commit, no conflict, so its head `62f3978` was main's
+  and this work together. The checks run again on `62f3978`, the same harness: at eye level all eleven pushes as in
+  Propose to the centimetre (the four trees 0.344 / 0.587 / 0.633 / 0.536 m from their feet, at their trunks' radius
+  and his 0.3 m exactly: 0.411 / 0.612 / 0.684 / 0.574; the shrubs 0.862 / 1.806; the rocks 0.795 / 0.767; the
+  tent's wall 2.75, in by its door round the pole at 0.35; the seat 0.54); in the follow view every tree turned him
+  aside, at 8 m and at 12 m (the nearest frames 0.5 to 1.2 m off a trunk's foot: his path is sampled once a frame,
+  0.6 m apart at that height's speed); the stress world loaded (898 plots, 70.9 s, no console errors) and three
+  walks of 4 s made good 6.86 / 7.44 / 12.51 m of a free 13.7. CI green on `62f3978`. PR #9 merged into main as
+  `2916d3b`; CI green there, and the Deploy workflow ran on it at 17:21 and succeeded.
+- **Good:** nothing changed by the merge.
+- **Broke / not there yet:** still not seen in Safari; it is on next now for Samuel to walk into the forest, at eye
+  level and in the follow view.
+
 ## Trail
 
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-15 | `3e06bdf` | One collision for every world: the engine, every placer's bodies, the kinds' rules, the follow view, `?bounds` and `?ghost` everywhere; `trunks.js` gone |
+| 2026-11-15 | `2916d3b` | PR #9 merged into main (deployed to next) |
