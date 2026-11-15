@@ -46,6 +46,7 @@ import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
 import { createBiomeSlots } from './world/slots.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
+import { inTurn } from './core/compile.js';
 
 const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
@@ -91,7 +92,7 @@ await loadingStep('Painting the ground', 0.12);
 const SHADER = { most: 0, label: '' };
 if (import.meta.env.DEV && renderer.backend.device) { const dev = renderer.backend.device, make = dev.createShaderModule.bind(dev); dev.createShaderModule = (d) => { const n = d.code?.length ?? 0; if (n > SHADER.most) { SHADER.most = n; SHADER.label = d.label ?? ''; } if (n > 600e3) console.warn(`a shader of ${Math.round(n / 1e3)} KB (${d.label ?? ''}): near what hangs Safari's GPU; the land's grows with every biome`); return make(d); }; }
 stats.shader = SHADER;
-const tex = bakeTextures(renderer, { spare: /library/.test(location.pathname) ? 8 : 1 });   // (the library's pictures ask for materials the world may not wear)
+const tex = bakeTextures(renderer, { spare: /library/.test(location.pathname) ? 8 : 1 });   // (the library's pictures ask for materials the world may not wear; the start's are compiled side by side and painted while the world is made: tex.ready)
 useTiles(tex);   // node code that reads a baked tile by itself (the clouds' field, the snow's clumps: src/world/tile.js)
 useBackend(renderer);   // and what is lit per corner (a tree) reads the shadow map's texels only where the backend can
 mark('bake');
@@ -100,6 +101,7 @@ await loadingStep('Raising the land', 0.3);
 const slots = (stats.slots = createBiomeSlots(renderer));
 const ground = createGround(renderer, tex, slots.list());
 useGround(ground);   // the rocks' bodies read their stones from it
+const groundPass = ground.compile();   // its pass, for its own maps: in turn, after the textures' (src/core/compile.js)
 stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage things (the library)
 mark('ground');
 const terrain = createTerrain(scene, tex, slots.list());
@@ -108,6 +110,7 @@ stats.terrain = terrain;
 const scatter = createScatter(scene, tex, ground, renderer, camera);
 stats.scatter = scatter;   // for timings and pages that look at it
 mark('scatter');
+const packing = scatter.compile();   // the tiers' packing passes, side by side with the textures' (they read no target)
 for (const at of Object.values(PLACES)) place(scene, recipe(at.asset), at);   // what stands at a named place, from the asset library
 const controls = createControls(camera, canvas, document.getElementById('msg'), document.getElementById('stat'));
 const sky = createSky(scene, camera, renderer);
@@ -119,7 +122,7 @@ stats.sky = sky;   // the sun and the sky: one time of day drives the light (int
 const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)
 stats.shadows = shadows;
 stats.controls = controls;
-const city = (stats.city = createCity({ scene, camera, canvas, renderer }));
+const city = (stats.city = createCity({ scene, camera, canvas, renderer, compile: (o) => screen.compile(o, camera, scene) }));   // (compiled for the target the world is drawn into)
 const hud = createHud(document.getElementById('hud'), renderer, camera, governor, stats);
 spawn(controls);
 if (slots.many) { const first = await slots.look(camera.position.x, camera.position.z); if (first) { await ground.biomes(first, true); await terrain.biomes(first, renderer, camera, null, true); } }   // (the biomes round where the walk starts: before anything is compiled)
@@ -196,15 +199,23 @@ function hitch(ms, now) {
 }
 
 // ---- before the first frame: compile every material, draw everything once ----
+// Every pass is compiled before it is first drawn, side by side (a GPU that can compiles them in parallel), not one at
+// a time as each is first drawn: a pass compiled as it is drawn holds up everything the GPU is asked after it, the
+// page's own uploads too. One compile at a time for a target (three builds a material for the target in place); what
+// packs reads no target, so its passes compile beside the rest (`packing`, above).
 mark('world');
-choose(0);
+await tex.ready;   // the textures painted (their passes compiled side by side since they were asked for)
+mark('painted');
+await groundPass; await packing;
+await inTurn(() => choose(0));   // (not while something else compiles: src/core/compile.js)
 mark('chosen');
 terrain.all(); scatter.warm();
 const seen = [];
 scene.traverse((o) => { if (o.isMesh) { seen.push(o, o.visible); o.visible = true; } });
 mark('built');
 await loadingStep('Lighting the world', 0.55);
-await renderer.compileAsync(scene, camera);
+await screen.compile(scene, camera);   // every material, for the target the world is drawn into (src/core/screen.js)
+await shadows.compile(scene, camera, heightAt(camera.position.x, camera.position.z));   // and every caster, for the shadow map
 tex.flush();   // (a material a shader asked for that no biome or asset names: painted before the first frame)
 mark('compiled');
 terrain.cache?.update(renderer, camera, `${innerHeight}|${U.uSand.value.toArray()}`);   // (its first laying, and its shaders, while the page still starts)

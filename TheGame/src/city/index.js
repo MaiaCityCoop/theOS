@@ -23,7 +23,7 @@ const LOOK = {
 const PICKED_WASH = 0.24, HOVER_WASH = 0.07;
 
 /** The city's plots: { update(), plots } — update() after the camera is placed, each frame. */
-export function createCity({ scene, camera, canvas, renderer }) {
+export function createCity({ scene, camera, canvas, renderer, compile = (o) => renderer.compileAsync(o, camera, scene) }) {   // compile: how a part of the scene is compiled for the target it is drawn into (main.js: the screen's, in turn)
   const page = location.pathname.replace(/.*\//, '');
   const here = (page === '' || page === 'index.html') && !new URLSearchParams(location.search).has('embed');   // the walk only: not the film, the lenses, the library
   const api = { plots: [], update() {}, ready: false };
@@ -84,7 +84,7 @@ export function createCity({ scene, camera, canvas, renderer }) {
     lineGeo.attributes.aCol.needsUpdate = washGeo.attributes.aCol.needsUpdate = true;
     card = createCard({ city: { ...city, plots }, open, citizens: () => citizens, stateOf, openPlot, close: () => pick(null) });
     // compiled now, while nothing shows, so the first look from above does not wait for it
-    group.visible = true; renderer.compileAsync(group, camera, scene).catch(() => {}).finally(() => { api.ready = true; });
+    group.visible = true; compile(group).catch(() => {}).finally(() => { api.ready = true; });
     label.hidden = true;
   }
 
