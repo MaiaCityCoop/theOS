@@ -170,3 +170,4 @@ for Safari's bars; the stat and the weather in two rows on a phone.
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-15 | `a6d9f31` | viewport-fit=cover and safe-area edge tokens |
+| 2026-11-15 | `e806905` | black-translucent, safe area told to the frame, Safari's bars in the picture's colours, stat and weather apart on a phone |
