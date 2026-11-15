@@ -92,7 +92,7 @@ export function createAccount() {
     card.innerHTML = `<div><span class="g-label">Signed in with aven.id</span><span class="g-name" style="margin-top:9px">${esc(who)}</span>${s.email && s.email !== who ? `<span class="g-sub">${esc(s.email)}</span>` : ''}</div>
       <span class="g-chip"><i class="dot${citizen ? ' citizen' : ''}"></i>${role}</span>
       ${citizen ? '' : `<div class="g-part acts"><p class="g-text">A citizen is an aven.id subscription.</p><a class="g-btn" href="${esc(s.issuer.replace(/\/$/, ''))}/" target="_top">Become a citizen</a></div>`}
-      <div class="g-part acts"><button type="button" class="g-btn quiet" data-do="out">Sign out</button></div>`;
+      <div class="g-part acts">${/\/me(\.html)?$/.test(location.pathname) ? '' : `<a class="g-btn${citizen ? '' : ' quiet'}" href="${import.meta.env.BASE_URL}me${location.search.includes('in=os') ? '?in=os' : ''}">Your person</a>`}<button type="button" class="g-btn quiet" data-do="out">Sign out</button></div>`;
   }
 
   ui.pill.addEventListener('click', () => {

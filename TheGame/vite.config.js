@@ -47,11 +47,27 @@ const publish = {
 export default {
   // the pages a build makes: the game, the way back from aven.id (src/account/callback.js), and the views the website frames:
   // a story's film (timeline.html), the lenses and the library
-  build: { rolldownOptions: { input: Object.fromEntries(['index', 'callback', 'timeline', 'lenses', 'library'].map((n) => [n, resolve(ROOT, n + '.html')])) } },
+  build: { rolldownOptions: { input: Object.fromEntries(['index', 'callback', 'timeline', 'lenses', 'library', 'me'].map((n) => [n, resolve(ROOT, n + '.html')])) } },
   plugins: [registry, publish, {
     name: 'cine-keep',
     configureServer(server) {
       const B = (server.config.base || '/').replace(/\/$/, '');   // '' on its own, '/game' inside the dashboard's server
+      // the game's API (../API, intent 0024) at the paths Caddy gives it when deployed: handed on to MAIA_API (an API run
+      // on this machine, e.g. `bun src/server.js` in API/ with INSECURE_COOKIE=1), the cookie and the origin with it
+      const API = process.env.MAIA_API || 'http://127.0.0.1:8083', apiPath = new RegExp(`^${B}/api/(session|me)(/|\\?|$)`);
+      server.middlewares.use(async (req, res, next) => {
+        if (!apiPath.test(req.url)) return next();
+        const chunks = []; for await (const c of req) chunks.push(c);
+        const pass = (k) => (req.headers[k] ? { [k]: req.headers[k] } : {});
+        try {
+          const r = await fetch(API + req.url.slice(B.length), { method: req.method, redirect: 'manual', headers: { ...pass('cookie'), ...pass('origin'), ...pass('content-type'), ...pass('accept') },
+            body: ['GET', 'HEAD'].includes(req.method) ? undefined : Buffer.concat(chunks) });
+          res.statusCode = r.status;
+          for (const k of ['content-type', 'cache-control', 'retry-after']) if (r.headers.get(k)) res.setHeader(k, r.headers.get(k));
+          if (r.headers.getSetCookie().length) res.setHeader('set-cookie', r.headers.getSetCookie());
+          res.end(Buffer.from(await r.arrayBuffer()));
+        } catch { res.statusCode = 502; res.setHeader('content-type', 'application/json'); res.end('{"error":"api_unreachable"}'); }
+      });
       server.middlewares.use(B + '/cine/list', (req, res) => { // the kept timelines' names
         const names = timelineNames();
         res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(names));

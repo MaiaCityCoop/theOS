@@ -1,0 +1,72 @@
+# The game's API (API/) and its Postgres on the environment's host. setup-host.sh installs this file as
+# /etc/maia-city/compose.yml, owned by root, and writes /etc/maia-city/api.env (the database password, the issuer, the
+# game's origin); maia-api-up (deploy/api-up.sh) builds the API from one release and starts it. A deploy cannot change
+# this file: what the API may touch is set here, not in the release.
+#
+#   - Postgres is on a network of its own with no way out, and nothing outside reaches it.
+#   - The API answers on 127.0.0.1:8083 only, for Caddy (deploy/Caddyfile); it runs as an unprivileged user, on a
+#     read-only filesystem, with no capabilities, and reaches out only to read aven.id's keys.
+name: maia-city
+
+x-logs: &logs
+  driver: local
+  options: { max-size: 10m, max-file: "3" }
+
+services:
+  db:
+    image: postgres:18.7-alpine@sha256:75dcac3dfb1cd01ca3536910bbc84128759362f8b118bf8c55b38a94f68f3b73
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: maia
+      POSTGRES_DB: maia
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in /etc/maia-city/api.env}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    networks: [db]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, pg_isready, -U, maia, -d, maia]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *logs
+
+  api:
+    build:
+      context: /srv/maia-city/releases/${RELEASE:?maia-api-up names the release}/api
+    image: maia-city-api:${RELEASE}
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://maia:${POSTGRES_PASSWORD}@db:5432/maia
+      ISSUER: ${ISSUER:?set in /etc/maia-city/api.env}
+      ORIGINS: ${ORIGINS:?set in /etc/maia-city/api.env}
+      CLIENT_ID: maia-city
+      SESSION_HOURS: "12"
+      PORT: "3000"
+      BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0"   # the filesystem is read-only: no cache to write
+    user: "1000:1000"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 256m
+    ports:
+      - 127.0.0.1:8083:3000
+    networks: [db, out]
+    healthcheck:
+      test: [CMD, bun, -e, "fetch('http://127.0.0.1:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *logs
+
+networks:
+  db:
+    internal: true
+  out: {}
+
+volumes:
+  pgdata: {}

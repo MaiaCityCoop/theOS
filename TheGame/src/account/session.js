@@ -8,6 +8,7 @@
 //
 // A frame of the same origin in the same tab (the game inside the dashboard) reads the same storage as the tab.
 import { ACCOUNT } from './config.js';
+import { closeSession } from './api.js';
 
 const KEY = 'maia.account', TRIP = KEY + '.trip', SAID = KEY + '.said';
 const read = (k) => { try { return JSON.parse(sessionStorage.getItem(k)); } catch { return null; } };
@@ -25,8 +26,9 @@ export function keep(claims, roles, issuer) {
   write(KEY, s);
   return s;
 }
-/** Signing out is forgetting: aven.id has no end-session endpoint, and its own sign-in stays its own. */
-export const forget = () => write(KEY, null);
+/** Signing out is forgetting, and ending the API's session (src/account/api.js): aven.id has no end-session endpoint,
+ * and its own sign-in stays its own. */
+export const forget = () => { write(KEY, null); closeSession(); };
 
 export const startTrip = (trip) => write(TRIP, { ...trip, at: Date.now() });
 /** The round trip, read once: it is cleared as it is read, whatever comes of it. */

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" class="os-loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maia City · your person</title>
+<link rel="icon" href="/brand/MaiaCity.svg">
+<link rel="stylesheet" href="/brand/brand.css">
+<script src="/brand/loading.js"></script>
+<style>
+  /* Your person (intent 0024): the library's stage (world/places.js, STAGE) with you on it, and the card to make
+     yourself with: the human kit's own body, height, skin, hair, shirt and shoes (characters/kit/avatar.js). A citizen
+     keeps it with the game's API (src/account/api.js); a traveler sees who they could be. */
+  html,body{margin:0;height:100%;background:#0f1d2c;overflow:hidden;font:14px/1.45 var(--sans);color:var(--cream)}
+  canvas#c{display:block;width:100vw;height:100vh;pointer-events:none}
+  #msg{display:none}
+  #hud{display:none!important}
+  #orbit{position:fixed;inset:0;z-index:1;cursor:grab;touch-action:none}#orbit:active{cursor:grabbing}
+  .side{position:fixed;top:calc(var(--edge) + 46px);right:var(--edge);z-index:3;max-height:calc(100vh - 160px);overflow:auto;color:var(--forest)}   /* under the account's pill; its parts: brand.css (.g-card) */
+  body.framed .side{top:132px}
+  .row{display:flex;align-items:center;gap:8px;margin-top:7px;font:500 12.5px/1 var(--glass-font)}
+  .row b{flex:1;font-variant-numeric:tabular-nums;font-weight:550;color:var(--on-glass)}
+  .step{width:28px;height:28px;border-radius:50%;border:0;cursor:pointer;background:rgba(255,255,255,.1);color:var(--on-glass);font:600 15px/1 var(--glass-font)}
+  .step:hover{background:var(--glass-hover)}
+  input[type=range]{width:100%;margin:9px 0 2px;accent-color:#e3c27a}
+  .sw{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+  .sw button{width:26px;height:26px;border-radius:50%;border:0;padding:0;cursor:pointer;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.3)}
+  .sw button.on{box-shadow:0 0 0 2px var(--sun),inset 0 0 0 1.5px rgba(0,0,0,.25)}
+  .sw button:focus-visible,.step:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
+  .moves{display:flex;gap:6px;margin-top:8px}
+  .moves button.on{background:var(--glass-on)}
+  .acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+  .acts a.g-btn{text-decoration:none}
+  .said{min-height:1.2em}
+  .locked .ctl{opacity:.42;pointer-events:none}
+  @media (max-width:760px){.side{left:var(--edge);right:var(--edge);top:auto;bottom:calc(var(--edge-b) + 56px);max-height:46vh}}
+</style>
+</head>
+<body data-step="Waking the land">
+<canvas id="c"></canvas>
+<div id="hud">loading…</div>
+<div id="msg"></div>
+<div id="orbit"></div>
+<aside class="side glass g-card" id="me" aria-live="polite"><header><span class="g-label">Your person</span><h2 class="g-title big">Asking who you are…</h2></header></aside>
+<span class="hint os-hint g-hint">Drag to circle · wheel to come closer</span>
+<script type="module" src="/cine/cine.js"></script>
+<script type="module" src="/cine/menu.js"></script>
+<script type="module" src="/src/account/index.js"></script>
+<script type="module" src="/src/me/card.js"></script>
+<script type="module" src="/src/me/stage.js"></script>
+</body>
+</html>

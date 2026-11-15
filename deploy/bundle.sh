@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds the website (OS/) and the game (TheGame/) for one environment and packs the archive deploy.sh installs:
+# Builds the website (OS/) and the game (TheGame/) for one environment and packs the archive deploy.sh installs, with
+# the game's API (API/) as source for the host to build (deploy/api-up.sh):
 #   deploy/bundle.sh <environment.json> <commit> <output.tar>
 # Run from the repository's root after `bun install --frozen-lockfile` in OS/ and TheGame/. The environment names
 # both origins and the aven.id issuer the game signs in with: the game reads VITE_AVEN_ISSUER at build time
@@ -30,6 +31,9 @@ grep -rqF "$game" "$root/OS/dist/assets" || { echo "The website's build does not
 
 cp -R "$root/TheGame/dist" "$pack/game"
 cp -R "$root/OS/dist" "$pack/website"
+mkdir "$pack/api"
+cp -R "$root/API/Dockerfile" "$root/API/.dockerignore" "$root/API/package.json" "$root/API/src" "$root/API/migrations" "$pack/api/"
 version >"$pack/game/version.json"
 version >"$pack/website/version.json"
-tar -C "$pack" --owner=0 --group=0 --numeric-owner -cf "$output" website game
+version >"$pack/api/version.json"
+tar -C "$pack" --owner=0 --group=0 --numeric-owner -cf "$output" website game api
