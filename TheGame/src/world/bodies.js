@@ -8,7 +8,8 @@
 //                 | { shape: 'mesh', verts: Float32Array, index } | { shape: 'wall', at?: [x, z], r, gaps, top? }, …]
 //                each may say  bone: n  (it moves with that bone of the skeleton: a leg's capsule swings with the leg)
 //                and  pass: true  (it is not solid: leaves. A walker brushes through its outer half and goes round
-//                its middle, where it stands higher than his knee; it is still found by a ray). A box may be turned
+//                its middle, where it stands higher than his knee; it is still found by a ray), from: m  (with pass:
+//                only where the thing stands m metres tall or more; smaller, it is walked through). A box may be turned
 //                about its middle (turn, radians). A wall is a round wall (a tent's, a round house's) with doors: gaps
 //                [[the door's middle, as an angle of the thing's own frame, half its width]]; a walker stays on the side
 //                of it he came from, and goes through only at a door
@@ -128,6 +129,7 @@ export function pushOut(x, z, r = 0.3, low = 0.3, tall = 1.8, knee = 0.55, from 
     if (Math.hypot(px, pz) * b.s > (b.reach ??= reachOf(b)) * 1.5 + r) continue;   // (out of its reach altogether: well past its box, as a mesh's round or a limb on its skeleton may reach a little out of it)
     const round = (cx, cz, rr) => { const ux = px - cx, uz = pz - cz, d = Math.hypot(ux, uz), m = rr + R; if (d < m) { const k = m / Math.max(d, 1e-6); px = cx + (d < 1e-6 ? m : ux * k); pz = cz + uz * k; moved = true; } };
     for (const S of b.body.shapes) {
+      if (S.pass && S.from && b.up + topOf(S) * b.s < S.from) continue;   // (leaves of a plant smaller than its kind's line: walked through)
       const lo = S.pass ? lo1 : lo0, k = S.pass ? 0.5 : 1;
       if (S.shape === 'sphere') { const off = Math.max(lo - S.at[1], S.at[1] - hi, 0); if (off < S.r) round(S.at[0], S.at[2], Math.sqrt(S.r * S.r - off * off) * k); }   // (its round at the band's height nearest its middle)
       else if (S.shape === 'capsule') {
