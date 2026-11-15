@@ -166,7 +166,8 @@ Asked for outright, with the requirements spelled out; the definition holds no s
 
 **Delivered:** one collision engine for every world (`src/world/bodies.js`), every placer registering its bodies by
 cells from what is measured of the thing and its kind's rule; the follow view stopping the walker; `?bounds` and
-`?ghost` in every world. On the branch `fix/generic-collision-all-worlds`, a draft pull request against main.
+`?ghost` in every world. On the branch `fix/generic-collision-all-worlds`: draft pull request
+[#9](https://github.com/MaiaCityCoop/theOS/pull/9) against main.
 
 **How it was checked:** headless Chromium (Playwright) with WebGPU on SwiftShader, the game's own dev server; the
 same runs on main's code (a second checkout, port 5174) and on this branch (5173). The walker is put 3 m before a
