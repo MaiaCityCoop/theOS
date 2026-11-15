@@ -91,7 +91,7 @@ export function createAccount() {
     pill.innerHTML = `<span class="who long">${esc(who)}</span><span class="role">${role}</span><i aria-hidden="true">▾</i>`;
     card.innerHTML = `<div><span class="g-label">Signed in with aven.id</span><span class="g-name" style="margin-top:9px">${esc(who)}</span>${s.email && s.email !== who ? `<span class="g-sub">${esc(s.email)}</span>` : ''}</div>
       <span class="g-chip"><i class="dot${citizen ? ' citizen' : ''}"></i>${role}</span>
-      ${citizen ? '' : `<div class="g-part acts"><p class="g-text">A citizen is an aven.id subscription.</p><a class="g-btn" href="${esc(s.issuer.replace(/\/$/, ''))}/" target="_top">Become a citizen</a></div>`}
+      ${citizen ? '' : `<div class="g-part acts"><p class="g-text">A citizen is an aven.id subscription.</p><a class="g-btn" href="${esc(s.issuer.replace(/\/$/, ''))}/" target="_top">Become a citizen</a><button type="button" class="g-btn quiet" data-do="again">Already one? Sign in again</button></div>`}
       <div class="g-part acts">${/\/me(\.html)?$/.test(location.pathname) ? '' : `<a class="g-btn${citizen ? '' : ' quiet'}" href="${import.meta.env.BASE_URL}me${location.search.includes('in=os') ? '?in=os' : ''}">Your person</a>`}<button type="button" class="g-btn quiet" data-do="out">Sign out</button></div>`;
   }
 
@@ -104,6 +104,7 @@ export function createAccount() {
     const b = e.target.closest('[data-do]'); if (!b) return;
     if (b.dataset.do === 'out') { forget(); ui.open(false); render(); ui.pill.focus(); }
     if (b.dataset.do === 'in') go();
+    if (b.dataset.do === 'again') { forget(); go(); }   // a role is read at sign-in: a traveler who just subscribed signs in once more
     if (b.dataset.do === 'close') { message = ''; render(); }
   });
   async function go() {

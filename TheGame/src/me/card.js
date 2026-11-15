@@ -23,7 +23,7 @@ const HEAD = {
   loading: ['Your person', 'Asking who you are…', ''],
   out: ['Your person', 'Make your person', 'Sign in with aven.id to make the one you will be in the city.'],
   again: ['Your person', 'Sign in once more', 'You are signed in here, but the game could not open your session. Sign in again and your person can be kept.'],
-  traveler: ['Your person · Traveler', 'Who you could be', 'Your own person is for citizens. This is someone you could be: become a citizen at aven.id and make them yours.'],
+  traveler: ['Your person · Traveler', 'Who you could be', 'Your own person is for citizens. This is someone you could be: become a citizen at aven.id and make them yours. Just became one? Sign in again so the game knows.'],
   citizen: ['Your person · Citizen', '', 'Your body, your height, your skin and hair, the dye of your shirt and the leather of your shoes. The city knows you by them.'],
   down: ['Your person', 'Your person waits', 'The game’s server cannot be reached right now, so your person cannot be shown or kept. Try again in a moment.'],
 };
@@ -49,7 +49,7 @@ function render() {
   card.classList.toggle('locked', !can);
   card.innerHTML = `<header><span class="g-label">${label}</span><h2 class="g-title big">${title}</h2><p class="g-text">${text}</p></header>`
     + (mode === 'out' || mode === 'again' ? `<div class="g-part acts"><button type="button" class="g-btn" data-do="in">Sign in with aven.id</button></div>` : '')
-    + (mode === 'traveler' ? `<div class="g-part acts"><a class="g-btn" href="${esc(ACCOUNT.issuer.replace(/\/$/, ''))}/" target="_top">Become a citizen</a><button type="button" class="g-btn quiet" data-do="another">Someone else</button></div>` : '')
+    + (mode === 'traveler' ? `<div class="g-part acts"><a class="g-btn" href="${esc(ACCOUNT.issuer.replace(/\/$/, ''))}/" target="_top">Become a citizen</a><button type="button" class="g-btn quiet" data-do="in">Already one? Sign in again</button><button type="button" class="g-btn quiet" data-do="another">Someone else</button></div>` : '')
     + (controls ? `<div class="g-cell g-part ctl"><span class="g-label">Body</span><div class="row"><button type="button" class="step" data-do="body-" aria-label="The body before">‹</button><b>Body ${avatar.body + 1} of ${LIMITS.body[1] + 1}</b><button type="button" class="step" data-do="body+" aria-label="The next body">›</button></div></div>`
       + `<div class="g-cell g-part ctl"><span class="g-label">Height · ${avatar.height.toFixed(2)} m</span><input type="range" id="height" min="${HEIGHTS.min}" max="${HEIGHTS.max}" step="${HEIGHTS.step}" value="${avatar.height}" aria-label="Height in metres"></div>`
       + Object.keys(LABEL).map((k) => `<div class="g-cell g-part ctl"><span class="g-label">${LABEL[k]} · ${nameOf(k)}</span>${swatches(k)}</div>`).join('')

@@ -86,9 +86,10 @@ Asked outright, with no surprise in the definition, so built straight away.
 - [x] Compose, `maia-api-up`, the deploy's rollback, Caddy, the host setup, CI with Postgres
 - [x] The game: session after sign-in, "Your person", `me.html`
 - [x] Checked here: tests, and a browser as citizen, traveler and signed out
-- [ ] CI green on the pull request
-- [ ] The host set up again (Docker, `/etc/maia-city`), merged, deployed to next
-- [ ] A real sign-in on play.next.maia.city, then a person kept
+- [x] CI green on the pull request
+- [x] The host set up again (Docker, `/etc/maia-city`), merged, deployed to next
+- [x] Citizenship sold on next (aven.id Market, Polar sandbox), and bought
+- [ ] A real sign-in as a citizen on play.next.maia.city, then a person kept
 
 ## Changelog
 
@@ -110,6 +111,22 @@ Asked outright, with no surprise in the definition, so built straight away.
   - The card waited for the world until the stage loaded it itself (Build).
   - Blond read almost white and was toned down.
   - A real sign-in has not been tried: next.aven.id sends `maia-city` only to play.next.maia.city.
+
+### 2026-11-15, later
+
+- **Asked:** go (merge and deploy); then create the citizen product in the Polar sandbox: one euro a day, billed
+  monthly, tax inclusive.
+- **Delivered:**
+  - PR #3 merged and deployed to next (Deploy run 43664619486). `/api/health` named de16641; signed out, `/api/me`
+    answered 401; another origin 403, a made-up token 401; 8083 and 5432 closed from outside; both containers
+    healthy, the API as 1000:1000 on a read-only filesystem with no capabilities.
+  - The Polar sandbox product "Maia City citizen", EUR 30.00 a month, tax inclusive, added to aven.id's Market on
+    next (jaensen/aven-dotnet#13). Polar first refused the checkout ("You already have an active subscription"):
+    the organization allowed one subscription per customer, and Daniel has avenCEO. Allowing several fixed it.
+  - "Already one? Sign in again" for a traveler, in the account card and on `me`.
+- **Good:** Daniel bought citizenship on next; Polar shows it active and Market took both webhooks (202).
+- **Broke / not there yet:** the game still said traveler: a role is read at sign-in, and the game's session (and
+  the API's) predated the subscription. Signing out and in again reads it; the new button says so.
 
 ## Trail
 
