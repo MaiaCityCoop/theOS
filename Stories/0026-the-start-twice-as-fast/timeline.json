@@ -1,0 +1,76 @@
+{
+  "intent": "0026",
+  "title": "The start, twice as fast",
+  "day": null,
+  "inGame": null,
+  "goals": [
+    ["The start measured: the dev server and the production build, a desktop and a slowed phone", true],
+    ["The first playable frame in half the time on a desktop", true],
+    ["The same on a slowed phone (1.96 times faster: not quite)", false],
+    ["The same picture, the same play", true],
+    ["The host keeps what does not change", true]
+  ],
+  "preview": {"pos": [-1264.0, -5.37, 617.07], "look": [-1262.6, -6.0, 631.0], "mm": 35},
+  "clips": [
+    {
+      "name": "The veil lifts", "kind": "wide", "secs": 9, "ease": "in", "in": "dip", "inSecs": 1.4,
+      "why": "what the start ends in: the walker's first view, the tent ahead; leaves moving",
+      "keys": [
+        {"pos": [-1264.0, -5.37, 617.07], "look": [-1262.6, -6.0, 631.0], "mm": 35},
+        {"pos": [-1263.85, -5.4, 618.6], "look": [-1262.6, -6.0, 631.0], "mm": 35}
+      ]
+    },
+    {
+      "name": "Among the blades", "kind": "low angle", "secs": 10, "ease": "linear", "in": "cut",
+      "why": "cut on motion, down among the grass the painted textures cover: what the time went into",
+      "keys": [
+        {"pos": [-1265.6, -6.45, 617.6], "look": [-1263.3, -6.3, 624.4], "mm": 28, "roll": 6},
+        {"pos": [-1264.9, -6.45, 619.9], "look": [-1263.0, -6.1, 627.0], "mm": 28, "roll": 3},
+        {"pos": [-1264.3, -6.4, 622.0], "look": [-1262.6, -5.6, 631.0], "mm": 28, "roll": 0}
+      ]
+    },
+    {
+      "name": "The tent, close", "kind": "medium", "secs": 9, "ease": "inout", "in": "dissolve", "inSecs": 1.0,
+      "why": "the one tent, round its side: the same picture as before the change",
+      "keys": [
+        {"pos": [-1257.4, -5.2, 626.6], "look": [-1262.6, -5.6, 631.0], "mm": 40},
+        {"pos": [-1256.6, -5.2, 630.8], "look": [-1262.6, -5.6, 631.0], "mm": 40},
+        {"pos": [-1257.2, -5.2, 635.0], "look": [-1262.6, -5.6, 631.0], "mm": 40}
+      ]
+    },
+    {
+      "name": "Lifting off", "kind": "top down", "secs": 10, "ease": "in", "in": "dissolve", "inSecs": 1.0,
+      "why": "straight up from the tent: the start done, the land opening out",
+      "keys": [
+        {"pos": [-1263.29, 2.13, 625.3], "look": [-1263.2, -6.88, 626.1], "mm": 35, "roll": 0},
+        {"pos": [-1263.29, 24.13, 625.3], "look": [-1272.12, -6.25, 627.52], "mm": 35, "roll": 8},
+        {"pos": [-1263.29, 52.13, 625.3], "look": [-1286.82, -7.5, 628.83], "mm": 35, "roll": 16}
+      ]
+    },
+    {
+      "name": "Leaving", "kind": "crane", "secs": 9, "ease": "out", "in": "cut", "out": "dip",
+      "why": "cut on motion, the climb going on, back from the meadow; fades to the sky",
+      "keys": [
+        {"pos": [-1263.29, 58.0, 622.0], "look": [-1286.82, -7.5, 628.83], "mm": 35},
+        {"pos": [-1258.0, 72.0, 596.0], "look": [-1270.0, -6.5, 640.0], "mm": 28},
+        {"pos": [-1252.0, 86.0, 566.0], "look": [-1268.0, 0.0, 660.0], "mm": 28}
+      ]
+    }
+  ],
+  "captions": [
+    {"at": 0.6, "for": 3.6, "kind": "title", "over": "The start, twice as fast", "text": "Thirty-seven seconds to a meadow"},
+    {"at": 4.8, "for": 3.0, "kind": "samuel", "text": "The game's initial loading time is quite bad."},
+    {"at": 8.2, "for": 3.0, "kind": "maia", "text": "I timed it first. Thirty-seven seconds."},
+    {"at": 11.4, "for": 2.8, "kind": "maia", "text": "On a slowed phone, forty-seven."},
+    {"at": 14.6, "for": 3.4, "kind": "maia", "text": "The GPU compiled one pass at a time, as each was first drawn."},
+    {"at": 18.2, "for": 2.6, "kind": "maia", "text": "Everything else waited. The page too."},
+    {"at": 21.2, "for": 3.2, "kind": "maia", "text": "Every material was compiled twice."},
+    {"at": 24.6, "for": 3.0, "kind": "maia", "text": "Every texture was painted four times over."},
+    {"at": 28.0, "for": 2.4, "kind": "samuel", "text": "Twice as fast."},
+    {"at": 30.8, "for": 3.6, "kind": "maia", "text": "Now each is compiled once, side by side, for where it is drawn."},
+    {"at": 34.8, "for": 2.6, "kind": "maia", "text": "A texture is painted once."},
+    {"at": 37.8, "for": 3.2, "kind": "maia", "text": "Fifteen seconds now, on the desktop."},
+    {"at": 41.2, "for": 3.2, "kind": "maia", "text": "On the phone, twenty-four. Almost half."},
+    {"at": 44.6, "for": 2.4, "kind": "note", "text": "Measured without a GPU. The iPhone's own numbers are still to come."}
+  ]
+}

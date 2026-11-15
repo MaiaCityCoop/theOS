@@ -6,6 +6,7 @@ import * as THREE from 'three/webgpu';
 import { float, vec2, vec3, vec4, uv, uniform, texture, mrt, positionGeometry, abs, length, mix, smoothstep, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { note } from '../core/gpu.js';
+import { compileFor } from '../core/compile.js';
 import { heightAt as heightCPU, SAND } from '../world/land.js';
 import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt, LAID } from '../world/land.nodes.js';
 import { CLEARINGS } from '../../world/places.js';
@@ -81,6 +82,8 @@ export function createGround(renderer, tex, list = LAID) {
     },
     /** Drawn again at the next update (the land under it changed: the lakes, src/world/lakes.js). */
     refresh() { lastS = 0; },
+    /** Its pass compiled for its own two maps, before it is first drawn, in turn (src/core/compile.js; a promise). */
+    compile() { return compileFor(renderer, rt, quad, cam); },
     /** s: the lens factor; drawn again when the camera has walked 16 texels, or the lens changed */
     update(cx, cz, dy, s = 1) {
       // drawn again when the camera has walked 32 texels (16 m: the blades reach 105 m of the map's 128), when it has

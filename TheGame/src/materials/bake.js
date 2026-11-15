@@ -22,23 +22,41 @@
 // from: materials of kind `noise`), is read as painted from a small array of its own: four steps a block would be
 // steps in the land. Those are always there.
 import * as THREE from 'three/webgpu';
-import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, uniform, sqrt, clamp, normalize, texture, instancedArray, instanceIndex, min, max, mix, dot, round, select, uniformArray, int, renderGroup } from 'three/tsl';
+import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, ivec2, uniform, sqrt, clamp, normalize, texture, textureLoad, property, outputStruct, instancedArray, instanceIndex, min, max, mix, dot, round, select, uniformArray, int, renderGroup } from 'three/tsl';
 import { recipes } from '../core/registry.js';
 import { note } from '../core/gpu.js';
+import { compileFor, inTurn } from '../core/compile.js';
 
 const SIZE = 1024, LEVELS = Math.log2(SIZE) + 1;
 
-// one material's tile, painted: its albedo (gamma 2) and height, or its normal and roughness. The writer turns the rows
-// over: three reads a target's rows the other way up (src/scatter/ground.js), so the tile reads back exactly as painted.
-function program(m, normalPass) {
+// one material's tile, painted once, into two targets: its albedo (gamma 2) and height as the tile keeps them, and the
+// height as it was worked out with the roughness (32-bit floats), which the relief is taken from (below). The writer
+// turns the rows over: three reads a target's rows the other way up (src/scatter/ground.js), so the tile reads back
+// exactly as painted.
+function program(m) {
+  const raw = property('vec4', 'raw');
   const frag = Fn(() => {
     const p = vec2(uv().x, float(1).sub(uv().y)), M = m.paint(p);
-    if (!normalPass) return vec4(sqrt(clamp(M.col, 0, 1)), clamp(M.h, 0, 1));
-    const e = 1 / SIZE, hx = m.paint(p.add(vec2(e, 0))).h, hy = m.paint(p.add(vec2(0, e))).h;
-    return vec4(normalize(vec3(M.h.sub(hx).div(e), M.h.sub(hy).div(e), 1 / m.bump)).mul(0.5).add(0.5), M.rough);
+    raw.assign(vec4(M.h, M.rough, 0, 1));
+    return vec4(sqrt(clamp(M.col, 0, 1)), clamp(M.h, 0, 1));
+  });
+  const mat = new THREE.NodeMaterial(); mat.vertexNode = vec4(uv().mul(2).sub(1), 0, 1); mat.fragmentNode = outputStruct(frag(), raw); mat.depthTest = mat.depthWrite = false;
+  return mat;
+}
+// The relief of a painted tile, one program for every material: the normal by the height's steps to the next texel
+// across and the next down (the tile tiles: past its last texel lies its first), the roughness beside it. The same
+// numbers as painting the material twice more a texel over (its height there), which each material's own pass did until
+// 2026-11-15: twice the code to compile a material, and four times the painting. src: the heights' target; bumpInv:
+// one over the material's bump.
+function reliefProgram(src) {
+  const bumpInv = uniform(1), e = 1 / SIZE;
+  const frag = Fn(() => {
+    const q = ivec2(vec2(uv().x, float(1).sub(uv().y)).mul(SIZE)), at = (dx, dy) => textureLoad(src, ivec2(q.x.add(dx).bitAnd(SIZE - 1), q.y.add(dy).bitAnd(SIZE - 1)));   // (the texel the painter wrote here: its rows turned as it turns them)
+    const c = at(0, 0).toVar(), h = c.x, hx = at(1, 0).x, hy = at(0, 1).x;
+    return vec4(normalize(vec3(h.sub(hx).div(e), h.sub(hy).div(e), bumpInv)).mul(0.5).add(0.5), c.y);
   });
   const mat = new THREE.NodeMaterial(); mat.vertexNode = vec4(uv().mul(2).sub(1), 0, 1); mat.fragmentNode = frag(); mat.depthTest = mat.depthWrite = false;
-  return mat;
+  return { mat, bumpInv };
 }
 
 // A tile's blocks, level by level: how many a side, and where each level lies in the buffers they are written to (rows
@@ -123,7 +141,7 @@ export function usedMaterials() {
     the screen, where the read needs telling: inside a branch), want(material, hold?): paint it now if it is not
     there (hold: keep it until release(material)), flush(): paint what reads asked for while shaders were built
     (each frame), used: the materials the world wears, capacity: layers in the pool, packed: whether they are kept
-    compressed }.
+    compressed, ready: a promise, the start's materials painted (they are compiled side by side meanwhile) }.
     opts: raw (as painted, uncompressed: what a GPU without the formats gets), spare (layers beyond what the world
     wears, for what is asked for besides: the library's pictures). */
 export function bakeTextures(renderer, { raw = new URLSearchParams(location.search).has('rawtex'), spare = 6 } = {}) {
@@ -153,15 +171,20 @@ export function bakeTextures(renderer, { raw = new URLSearchParams(location.sear
 
   // the painter: a target the tile is painted into, and (compressed) the pass that packs it and its buffers; made when
   // there is something to paint, let go a while after the last
-  let P = null, idle = 0;
+  let P = null, idle = 0, busy = 0;   // busy: the start's materials are being compiled for this painter's tile (paintAll)
   const painter = () => {
-    clearTimeout(idle); idle = setTimeout(() => { if (!P) return; P.tmp.dispose(); P.quad.geometry.dispose(); if (P.enc) { P.enc.pass.dispose(); for (const x of [P.blocks, P.blocksR]) renderer._attributes?.delete(x.value); } P = null; }, 4000);
+    clearTimeout(idle); idle = setTimeout(() => { if (!P || busy) return; P.tmp.dispose(); P.raw.dispose(); P.relief.mat.dispose(); P.quad.geometry.dispose(); if (P.enc) { P.enc.pass.dispose(); for (const x of [P.blocks, P.blocksR]) renderer._attributes?.delete(x.value); } P = null; }, 4000);
     if (P) return P;
     const tmp = new THREE.RenderTarget(SIZE, SIZE, { depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
     Object.assign(tmp.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping });
+    // what a material is painted into: its tile (as `tmp` keeps it, without mipmaps), and its heights and roughness
+    const raw = new THREE.RenderTarget(SIZE, SIZE, { count: 2, depthBuffer: false, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, colorSpace: THREE.NoColorSpace });
+    Object.assign(raw.textures[1], { type: THREE.FloatType, format: THREE.RGFormat });
+    renderer.initRenderTarget(tmp); renderer.initRenderTarget(raw);   // (made as targets now: `tmp` is copied into before anything is drawn into it)
     const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false;
+    const relief = reliefProgram(raw.textures[1]), reliefQuad = new THREE.Mesh(quad.geometry, relief.mat); reliefQuad.frustumCulled = false;
     const blocks = PACKED ? instancedArray(ROOM + 2048, 'uvec4') : null, blocksR = PACKED ? instancedArray(ROOM + 2048, 'uvec2') : null;
-    return (P = { tmp, quad, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), blocks, blocksR, enc: PACKED ? blocksOf(texture(tmp.texture), blocks, blocksR) : null });
+    return (P = { tmp, raw, quad, relief, reliefQuad, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), blocks, blocksR, enc: PACKED ? blocksOf(texture(tmp.texture), blocks, blocksR) : null });
   };
   const box = new THREE.Box2(), at = new THREE.Vector3();
   const copy = (dst, i) => { for (let l = 0; l < LEVELS; l++) { const s = SIZE >> l; box.min.set(0, 0); box.max.set(s, s); at.set(0, 0, i); renderer.copyTextureToTexture(P.tmp.texture, dst, box, at, l, l); } };
@@ -177,14 +200,33 @@ export function bakeTextures(renderer, { raw = new URLSearchParams(location.sear
   };
   // a material painted into a layer (data: into its own array, as painted)
   const STANDIN = { uid: 'stand-in', bump: 1, paint: () => ({ h: float(0.5), col: vec3(0.25), rough: float(0.8) }) };
-  const paintInto = (m, i, data = false) => {
-    painter(); const prev = renderer.getRenderTarget();
-    for (const normalPass of data ? [false] : [false, true]) {
-      P.quad.material = program(m, normalPass);
-      renderer.setRenderTarget(P.tmp); renderer.render(P.quad, P.cam); renderer.setRenderTarget(prev);   // its mipmaps are made as the pass ends
-      if (data) copy(Dd, i); else if (PACKED) pack(i, normalPass); else copy(normalPass ? Nn : A, i);
-      P.quad.material.dispose();
+  // its tile painted once (quad: its program's), its albedo copied into the tile that is packed (its mipmaps are made
+  // as it is copied); then its relief, from the heights, into the same tile (its mipmaps made as the pass ends)
+  const draw = (quad, m, i, data) => {
+    const prev = renderer.getRenderTarget();
+    renderer.setRenderTarget(P.raw); renderer.render(quad, P.cam); renderer.setRenderTarget(prev);
+    renderer.copyTextureToTexture(P.raw.textures[0], P.tmp.texture);
+    if (data) copy(Dd, i); else if (PACKED) pack(i, false); else copy(A, i);
+    if (!data) {
+      P.relief.bumpInv.value = 1 / m.bump;
+      renderer.setRenderTarget(P.tmp); renderer.render(P.reliefQuad, P.cam); renderer.setRenderTarget(prev);
+      if (PACKED) pack(i, true); else copy(Nn, i);
     }
+    quad.material.dispose();
+  };
+  const paintInto = (m, i, data = false) => { painter(); P.quad.material = program(m); draw(P.quad, m, i, data); };
+  // The start's materials, painted together: every program is built first and all of them are compiled side by side for
+  // the targets they are painted into (a GPU that can compiles them in parallel, and the page goes on with the world
+  // meanwhile), then each is painted as above. One at a time, each pass was compiled the moment it was first drawn,
+  // one after another, and everything the GPU was asked after it waited (2026-11-15: 48 passes, 22 s of a start of 35
+  // in a browser without a GPU). jobs: [material, layer, data].
+  const paintAll = (jobs) => {
+    painter(); busy++; const quads = [], all = new THREE.Group();
+    for (const [m, i, data] of jobs) { const q = new THREE.Mesh(P.quad.geometry, program(m)); q.frustumCulled = false; all.add(q); quads.push([q, m, i, data]); }
+    // (each for its own target, in turn: src/core/compile.js; the packing beside them; then the painting, in its turn too)
+    const packing = P.enc ? renderer.compileComputeAsync(P.enc.pass) : null;
+    for (const [target, what] of [[P.raw, all], [P.tmp, P.reliefQuad]]) compileFor(renderer, target, what, P.cam).catch(() => {});
+    return inTurn(async () => { await packing; painter(); for (const [q, m, i, data] of quads) draw(q, m, i, data); }).finally(() => { busy--; });
   };
 
   // the table: a material's number to the layer it lies in, four to a row (0: not there, read the stand-in)
@@ -193,13 +235,14 @@ export function bakeTextures(renderer, { raw = new URLSearchParams(location.sear
   const setLayer = (k, layer) => { where[k] = layer; rows[k >> 2].setComponent(k & 3, layer); };
   const missing = new Set(), numberOf = (ref) => { const uid = ref?.uid ?? ref, k = NUM.get(uid); if (k !== undefined) return k; if (!missing.has(uid)) { missing.add(uid); console.warn(`[textures] no material ${uid}: drawn as the stand-in`); } return -1; };   // (a file naming a material that is not there: a grey stand-in, not a world that does not start)
   const isData = (k) => k >= 0 && ALL[k].kind === 'noise';
-  const place = (k) => {   // a free layer, or the one asked for longest ago that nothing holds
+  const take = (k) => {   // a free layer, or the one asked for longest ago that nothing holds
     let best = -1;
     for (let i = 1; i < CAP; i++) { if (owner[i] < 0) { best = i; break; } if (!held[owner[i]] && (best < 0 || asked[i] < asked[best])) best = i; }
     if (best < 0) { console.warn(`[textures] the pool's ${CAP - 1} layers are all held: ${ALL[k].name} is drawn as the stand-in (raise 'spare')`); return 0; }
     if (owner[best] >= 0) setLayer(owner[best], 0);
-    owner[best] = k; setLayer(k, best); paintInto(ALL[k], best); return best;
+    owner[best] = k; setLayer(k, best); return best;
   };
+  const place = (k) => { const layer = take(k); if (layer) paintInto(ALL[k], layer); return layer; };
   /** a material there now (painted if it is not): its layer. hold: kept until release() */
   const want = (ref, hold = false) => {
     const k = numberOf(ref); if (k < 0) return 0; if (isData(k)) return -1;
@@ -209,15 +252,19 @@ export function bakeTextures(renderer, { raw = new URLSearchParams(location.sear
   const release = (ref) => { const k = numberOf(ref); if (k >= 0) held[k] = 0; };
   const flush = () => { if (!wanted.size) return; const list = [...wanted]; wanted.clear(); for (const k of list) if (!where[k]) want(ALL[k], true); };
 
-  paintInto(STANDIN, 0);
-  DATA.forEach((m, i) => paintInto(m, i, true));
-  for (const m of SEEN) want(m, true);   // what the world wears: painted now, held
+  // the stand-in, the numbers' own, and what the world wears (held): their layers taken now, all painted together; the
+  // world reads none of them before `ready`
+  const jobs = [[STANDIN, 0, false], ...DATA.map((m, i) => [m, i, true])];
+  for (const m of SEEN) { const k = numberOf(m); if (k < 0 || where[k]) continue; held[k] = 1; const layer = take(k); if (layer) { asked[layer] = performance.now(); jobs.push([ALL[k], layer, false]); } }
+  const ready = paintAll(jobs);
   const index = (ref) => { const k = numberOf(ref); if (k >= 0 && !isData(k) && !where[k]) wanted.add(k); return k; };   // (asked for while a shader is built: painted at the next flush)
   const tA = texture(A), tN = texture(Nn), tR = Rr ? texture(Rr) : null, tD = Dd ? texture(Dd) : null;
   const layer = (m) => { const k = m?.isNode ? int(m) : index(m); if (k === -1) return float(0); return TABLE.element(m?.isNode ? k.div(4) : int(k >> 2)).element(m?.isNode ? k.mod(4) : int(k & 3)); };   // (m: a recipe, a uid, or a material's number as a node)
   const data = (m) => { if (m?.isNode || !tD) return -1; const k = numberOf(m); return isData(k) ? DATA.indexOf(ALL[k]) : -1; };
   return {
     layer: index, want, release, flush, used: USED, capacity: CAP - 1, packed: PACKED,
+    /** a promise: the start's materials painted (nothing that reads them may be drawn before) */
+    ready,
     /** a material's albedo + height at uv */
     a: (m, p) => (data(m) >= 0 ? tD.sample(p).depth(data(m)) : tA.sample(p).depth(layer(m))),
     /** its relief at uv: .xy the normal's x and y */

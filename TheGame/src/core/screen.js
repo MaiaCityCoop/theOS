@@ -17,6 +17,7 @@
 // against.
 import * as THREE from 'three/webgpu';
 import { note } from './gpu.js';
+import { compileFor } from './compile.js';
 
 export function createScreen(renderer, { temporal, lens = null }) {
   const OUT = Math.min(window.devicePixelRatio || 1, 2);
@@ -25,6 +26,17 @@ export function createScreen(renderer, { temporal, lens = null }) {
   const css = new THREE.Vector2(), size = new THREE.Vector2(), rts = [null, null];
   /** The inside's size in pixels. */
   const sizeOf = (v) => { renderer.getSize(css); return v.set(Math.max(1, Math.round(css.x * inside)), Math.max(1, Math.round(css.y * inside))); };
+  /** This turn's target, made (again) at the inside's size. */
+  const targetNow = () => {
+    sizeOf(size);
+    let now = rts[turn];
+    if (!now || now.width !== size.x || now.height !== size.y) {
+      now?.depthTexture?.dispose(); now?.dispose();
+      now = rts[turn] = new THREE.RenderTarget(size.x, size.y, { samples: 0, depthTexture: new THREE.DepthTexture(size.x, size.y), minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });
+      note(`the picture inside (target ${turn + 1} of two, with its depth)`, size.x * size.y * 8, 0);
+    }
+    return now;
+  };
   return {
     out: OUT, size: sizeOf,
     get inside() { return inside; },
@@ -32,15 +44,14 @@ export function createScreen(renderer, { temporal, lens = null }) {
     get target() { return rts[turn] ?? rts[1 - turn] ?? null; },
     /** The inside's pixel ratio: no more than the screen's own. */
     set(r) { inside = Math.min(OUT, Math.max(0.25, r)); },
+    /** Compile what this camera sees of `object` (the scene, or a part of it standing in `scene`) for the target the
+        world is drawn into: the pipelines a frame draws with, compiled side by side, in turn (src/core/compile.js; a
+        promise). Compiled for the canvas instead, as the start did until 2026-11-15, every material was compiled twice:
+        the canvas's pipelines are not the target's, and the target's were compiled as the first frames drew. */
+    compile(object, camera, scene = null) { return compileFor(renderer, targetNow, object, camera, scene); },
     /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
-      sizeOf(size);
-      let now = rts[turn]; const was = rts[1 - turn];
-      if (!now || now.width !== size.x || now.height !== size.y) {
-        now?.depthTexture?.dispose(); now?.dispose();
-        now = rts[turn] = new THREE.RenderTarget(size.x, size.y, { samples: 0, depthTexture: new THREE.DepthTexture(size.x, size.y), minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });
-        note(`the picture inside (target ${turn + 1} of two, with its depth)`, size.x * size.y * 8, 0);
-      }
+      const now = targetNow(), was = rts[1 - turn];
       // (cleared to the renderer's own clear colour: the sky sets it to the hour's horizon as plain numbers, which a
       // target takes as they are: src/world/sky.js)
       temporal.begin(camera, size.x, size.y);

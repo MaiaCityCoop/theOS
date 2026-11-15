@@ -5,10 +5,13 @@
 
 (files) {
 	# /callback is callback.html, /api/stories is api/stories/index.json (a list whose path is also its items' folder);
-	# anything else that is not a file is a 404, never a page.
+	# anything else that is not a file is a 404, never a page. What the build also wrote compressed beside itself
+	# (.br: the game's, TheGame/vite.config.js) is sent so where the browser takes it.
 	handle {
 		try_files {path} {path}.html {path}/index.json
-		file_server
+		file_server {
+			precompressed br
+		}
 	}
 }
 
@@ -33,6 +36,12 @@
 	# Vite names these by content hash, so they never change.
 	@hashed path /assets/*
 	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	# Nor do the brand's files a page asks for by their content (?v=: TheGame/vite.config.js).
+	@versioned {
+		path /brand/*
+		query v=*
+	}
+	header @versioned Cache-Control "public, max-age=31536000, immutable"
 	header ?Cache-Control "no-cache"
 }
 
