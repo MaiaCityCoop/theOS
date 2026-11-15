@@ -123,10 +123,27 @@ Asked outright, with no surprise in the definition, so built straight away.
   - The Polar sandbox product "Maia City citizen", EUR 30.00 a month, tax inclusive, added to aven.id's Market on
     next (jaensen/aven-dotnet#13). Polar first refused the checkout ("You already have an active subscription"):
     the organization allowed one subscription per customer, and Daniel has avenCEO. Allowing several fixed it.
-  - "Already one? Sign in again" for a traveler, in the account card and on `me`.
 - **Good:** Daniel bought citizenship on next; Polar shows it active and Market took both webhooks (202).
 - **Broke / not there yet:** the game still said traveler: a role is read at sign-in, and the game's session (and
-  the API's) predated the subscription. Signing out and in again reads it; the new button says so.
+  the API's) predated the subscription. A "sign in again" button was tried first; Daniel: "signing out and in again
+  is not a good ux. The game must be able to handle that."
+
+### 2026-11-15, the role without signing in again
+
+- **Asked:** the game must notice a citizenship bought after signing in by itself.
+- **Delivered:**
+  - aven.id gained a roles back channel (jaensen/aven-dotnet#15): `GET /oauth2/roles?sub=` with the client id and a
+    roles secret, of which aven.id holds only the SHA-256.
+  - The API asks it whenever its answer is older than 30 seconds (`API/src/roles.js`, migration 0002), for
+    `GET /api/me` and for keeping an avatar. A citizenship that ends stops the keeping the same way.
+  - The game takes the role in its pill and on `me` from the API, and asks again when its tab comes back into
+    view. "Become a citizen" opens aven.id in another tab, so coming back is that moment.
+  - The secret is in `/etc/maia-city/api.env` on the next host; `deploy/setup-host.sh` keeps it.
+- **Good:** `bun test` in `API/`: 30 passed. The new tests cover a citizenship that is bought (shown within 30
+  seconds, without a new sign-in), one that ends (403 on keeping), aven.id not answering (what is known stands) and
+  an account that is gone (its sessions end). aven.id's own test drives its back channel through payment, outage
+  and refund.
+- **Broke / not there yet:** to be seen on next once both are deployed.
 
 ## Trail
 

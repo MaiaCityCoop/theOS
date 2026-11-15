@@ -10,7 +10,8 @@
 // What the role changes is only what the game shows: the game runs in the person's own browser.
 import { ACCOUNT } from './config.js';
 import { AccountError, random, challengeOf, discover, returnPath } from './oidc.js';
-import { session, forget, startTrip, heard } from './session.js';
+import { session, forget, startTrip, heard, setRoles } from './session.js';
+import { whoAmI } from './api.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const ROLE = { traveler: 'Traveler', citizen: 'Citizen' };
@@ -91,7 +92,7 @@ export function createAccount() {
     pill.innerHTML = `<span class="who long">${esc(who)}</span><span class="role">${role}</span><i aria-hidden="true">▾</i>`;
     card.innerHTML = `<div><span class="g-label">Signed in with aven.id</span><span class="g-name" style="margin-top:9px">${esc(who)}</span>${s.email && s.email !== who ? `<span class="g-sub">${esc(s.email)}</span>` : ''}</div>
       <span class="g-chip"><i class="dot${citizen ? ' citizen' : ''}"></i>${role}</span>
-      ${citizen ? '' : `<div class="g-part acts"><p class="g-text">A citizen is an aven.id subscription.</p><a class="g-btn" href="${esc(s.issuer.replace(/\/$/, ''))}/" target="_top">Become a citizen</a><button type="button" class="g-btn quiet" data-do="again">Already one? Sign in again</button></div>`}
+      ${citizen ? '' : `<div class="g-part acts"><p class="g-text">A citizen is an aven.id subscription.</p><a class="g-btn" href="${esc(s.issuer.replace(/\/$/, ''))}/" target="_blank" rel="noopener">Become a citizen</a></div>`}
       <div class="g-part acts">${/\/me(\.html)?$/.test(location.pathname) ? '' : `<a class="g-btn${citizen ? '' : ' quiet'}" href="${import.meta.env.BASE_URL}me${location.search.includes('in=os') ? '?in=os' : ''}">Your person</a>`}<button type="button" class="g-btn quiet" data-do="out">Sign out</button></div>`;
   }
 
@@ -104,7 +105,6 @@ export function createAccount() {
     const b = e.target.closest('[data-do]'); if (!b) return;
     if (b.dataset.do === 'out') { forget(); ui.open(false); render(); ui.pill.focus(); }
     if (b.dataset.do === 'in') go();
-    if (b.dataset.do === 'again') { forget(); go(); }   // a role is read at sign-in: a traveler who just subscribed signs in once more
     if (b.dataset.do === 'close') { message = ''; render(); }
   });
   async function go() {
@@ -112,6 +112,21 @@ export function createAccount() {
     try { await signIn(); }   // (the tab leaves for aven.id; if it does not, it is because of what is caught here)
     catch (e) { busy = false; message = e instanceof AccountError ? e.message : `The sign-in could not start (${e?.message || e}).`; render(); }
   }
+  // The role as the game's API says it now (it asks aven.id): "Become a citizen" opens aven.id in another tab, and
+  // coming back to this one shows the citizenship bought there, without signing in again.
+  let asked = 0;
+  async function recheck() {
+    const s = session();
+    if (busy || !s || Date.now() - asked < 5000) return;
+    asked = Date.now();
+    const r = await whoAmI();
+    if (!r.ok || r.body?.sub !== s.sub || typeof r.body.citizen !== 'boolean') return;
+    const roles = r.body.citizen ? ['traveler', 'citizen'] : ['traveler'];
+    if (roles.join() !== s.roles.join()) { setRoles(roles); render(); }
+  }
+  addEventListener('focus', recheck);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) recheck(); });
+  recheck();
   // a session that ends while the game runs: the pill says so at the next look
   setInterval(() => { if (!busy && !session() && ui.pill.hasAttribute('aria-haspopup')) render(); }, 60e3);
   // back from aven.id's page without signing in (the browser's Back, the page kept as it was): no longer signing in

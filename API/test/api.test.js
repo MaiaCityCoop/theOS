@@ -5,6 +5,7 @@ import { SQL } from 'bun';
 import { api, migrate } from '../src/server.js';
 import { verifyIdToken, keysOf, TokenError } from '../src/token.js';
 import { avatarOf as apiAvatarOf, LIMITS as API_LIMITS } from '../src/avatar.js';
+import { rolesReader } from '../src/roles.js';
 import { avatarOf as gameAvatarOf, LIMITS as GAME_LIMITS, CHOICES, randomAvatar } from '../../TheGame/characters/kit/avatar.js';
 
 const ISSUER = 'https://id.test', CLIENT = 'maia-city', GAME = 'https://play.test';
@@ -59,13 +60,31 @@ describe('the avatar', () => {
   });
 });
 
+describe("aven.id's roles back channel", () => {
+  const answer = (status, body) => async (url, init) => { answer.seen = { url, auth: init.headers.authorization }; return new Response(JSON.stringify(body), { status }); };
+  const SUB = '7b0c2f8e-0000-4000-8000-000000000001';
+  test('asks with the client id and secret as Basic credentials', async () => {
+    const read = rolesReader('https://id.test/', 'maia-city', 's3cret:+/', { fetch: answer(200, { sub: SUB, aven_roles: ['citizen'] }) });
+    expect(await read(SUB)).toEqual({ roles: ['citizen'] });
+    expect(answer.seen.url).toBe(`https://id.test/oauth2/roles?sub=${SUB}`);
+    expect(atob(answer.seen.auth.replace('Basic ', ''))).toBe('maia-city:s3cret%3A%2B%2F');
+  });
+  test('an account aven.id does not have is gone; anything else is not known', async () => {
+    expect(await rolesReader(ISSUER, CLIENT, 'x', { fetch: answer(404, { error: 'unknown_account' }) })(SUB)).toEqual({ gone: true });
+    for (const [status, body] of [[503, { error: 'temporarily_unavailable' }], [401, { error: 'invalid_client' }], [200, { sub: 'someone-else', aven_roles: [] }], [200, { sub: SUB }]])
+      expect(await rolesReader(ISSUER, CLIENT, 'x', { fetch: answer(status, body) })(SUB)).toBeNull();
+    expect(await rolesReader(ISSUER, CLIENT, 'x', { fetch: async () => { throw new Error('down'); } })(SUB)).toBeNull();
+  });
+  test('without a secret there is no back channel', () => expect(rolesReader(ISSUER, CLIENT, '')).toBeNull());
+});
+
 const url = process.env.DATABASE_URL;
 describe.skipIf(!url)('the API on Postgres', () => {
   let sql, handle;
   beforeAll(async () => {
     sql = new SQL(url);
     await sql.unsafe('DROP TABLE IF EXISTS sessions, used_id_tokens, avatars, schema_migrations');
-    expect(await migrate(sql)).toEqual(['0001-sessions-and-avatars.sql']);
+    expect(await migrate(sql)).toEqual(['0001-sessions-and-avatars.sql', '0002-roles-checked-at.sql']);
     expect(await migrate(sql)).toEqual([]);   // once only
     handle = api({ sql, keyFor, issuer: ISSUER, clientId: CLIENT, origins: [GAME] });
   });
@@ -134,6 +153,27 @@ describe.skipIf(!url)('the API on Postgres', () => {
     const { cookie } = await signIn();
     await sql`UPDATE sessions SET expires_at = now() - interval '1 second'`;
     expect((await call('GET', '/api/me', { cookie })).status).toBe(401);
+  });
+  test("a citizenship bought or ended at aven.id shows without signing in again", async () => {
+    let clock = Date.now(), said = { roles: [] }, asked = 0;
+    const live = api({ sql, keyFor, issuer: ISSUER, clientId: CLIENT, origins: [GAME], now: () => clock, rolesOf: async () => { asked++; return said; } });
+    const go = (method, path, opts = {}) => live(new Request(`${GAME}${path}`, { method, headers: { origin: GAME, cookie: opts.cookie, ...(opts.body ? { 'content-type': 'application/json' } : {}) }, body: opts.body ? JSON.stringify(opts.body) : undefined }));
+    const sub = '7b0c2f8e-0000-4000-8000-0000000000c1';
+    const res = await go('POST', '/api/session', { body: { id_token: await idToken({ sub, aven_roles: [] }) } });
+    const cookie = res.headers.get('set-cookie').split(';')[0];
+    expect((await (await go('GET', '/api/me', { cookie })).json()).citizen).toBe(false);
+    expect(asked).toBe(0);   // the token's own answer is fresh
+    said = { roles: ['citizen'] }; clock += 31e3;
+    expect((await (await go('GET', '/api/me', { cookie })).json()).citizen).toBe(true);
+    expect((await go('PUT', '/api/me/avatar', { cookie, body: { avatar: AVATAR } })).status).toBe(200);
+    expect(asked).toBe(1);   // asked once, then the answer is fresh again
+    said = null; clock += 31e3;   // aven.id cannot say: what is known stands
+    expect((await (await go('GET', '/api/me', { cookie })).json()).citizen).toBe(true);
+    said = { roles: [] }; clock += 31e3;   // ended
+    expect((await go('PUT', '/api/me/avatar', { cookie, body: { avatar: AVATAR } })).status).toBe(403);
+    said = { gone: true }; clock += 31e3;   // the account is no more
+    expect((await go('GET', '/api/me', { cookie })).status).toBe(401);
+    expect((await sql`SELECT count(*)::int AS n FROM sessions WHERE sub = ${sub}`)[0].n).toBe(0);
   });
   test('unknown paths and methods', async () => {
     expect((await call('GET', '/api/nothing')).status).toBe(404);

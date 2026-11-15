@@ -42,6 +42,8 @@ services:
       DATABASE_URL: postgres://maia:${POSTGRES_PASSWORD}@db:5432/maia
       ISSUER: ${ISSUER:?set in /etc/maia-city/api.env}
       ORIGINS: ${ORIGINS:?set in /etc/maia-city/api.env}
+      # aven.id's roles back channel (API/src/roles.js); aven.id holds its SHA-256 as maia-city's RolesSecretSha256
+      AVEN_ROLES_SECRET: ${AVEN_ROLES_SECRET:-}
       CLIENT_ID: maia-city
       SESSION_HOURS: "12"
       PORT: "3000"
