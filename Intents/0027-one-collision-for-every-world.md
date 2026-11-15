@@ -170,6 +170,12 @@ Asked for outright, with the requirements spelled out; the definition holds no s
   rule stays in `shapesOf`, no kind's. Check 4 (into a shrub: not straight through) no longer stands: Samuel's call.
   The stress world's own plants (the zoo's fronds) keep their colliders from intent 0008: leaves passed through, a
   stem core below the knee.
+- (then, Samuel) **By their size.** "Depending on the shrub size": a shrub is walked through where it stands under
+  `SHRUB_FROM` (1.5 m, about a walker's shoulder: its own height times its scale), and brushed through at its edge and
+  led round its middle where it stands taller, as #9 had it. The shrub rule is `{ leaves: true, from: SHRUB_FROM }`;
+  the leaves' shapes carry `from`; the engine (`pushOut`) passes a plant whose top stands under it; a stand packs bodies
+  only where a kind can reach the line, and keeps only the plants that do. So moss cushion and dead wood are always
+  walked through, rockrose and bracken up to about 1.5 m, mastic when small; reeds (1.6 m and up) and big bushes stop.
 
 ## Propose
 
@@ -282,6 +288,19 @@ his middle came to the thing's middle (trees, shrubs, rocks: the drawn foot; the
 - **Good:** one line of the kinds' rules: every world follows it.
 - **Broke / not there yet:** check 4 is Samuel's to drop, and dropped. Not walked in a browser here (the change is the
   rule the engine reads; the stands' packing skips what gives no shape).
+
+### 2026-11-15 (4), shrubs by their size
+
+- **Asked:** "Depending on the shrub size" (Samuel, on (3) while its PR was in CI).
+- **Delivered:** `SHRUB_FROM = 1.5` in `assets/kinds.js` and the rule `{ leaves: true, from }`; `pushOut` passes leaves
+  of a plant standing under its `from`; the stands pack and keep only plants that can reach it. Run through the game's
+  own `pushOut` with each shrub's shapes, a walker set down in its middle at its smallest, middle and largest scale:
+  moss cushion (0.07 / 0.14 / 0.20 m) and dead wood (0.24 / 0.30 / 0.37 m) through at every size; rockrose through
+  at 0.49 and 1.00 m, stopped at 1.51; bracken through at 0.79 and 1.47, stopped at 2.15; mastic through at 0.66,
+  stopped at 1.58 and 2.49; reeds stopped at 1.63, 2.19, 2.74; a holm oak and a boulder stopped at every size.
+  `vite build` passes; `account-check` 67 passed.
+- **Good:** one number to move, if 1.5 m is the wrong line.
+- **Broke / not there yet:** not walked in a browser here; the reeds (lake shallows, 1.6 m and up) always stop now.
 
 ## Trail
 

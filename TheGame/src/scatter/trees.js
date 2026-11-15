@@ -350,7 +350,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // what of it is solid (src/world/bodies.js): every plant of the stand round the walker, whatever its kind and size
     // (standBodies); a stand none of whose plants can stop a walker (what lies lower than his shin, leaves lower than
     // his knee) packs none
-    if (G.kinds.some((Kd) => Array.from({ length: Kd.shapes }, (_, v) => bodyOf(KINDS[Kd.offset + v])).some((B) => B.shapes.some((S) => topOf(S) * Kd.asset.placement.scale[1] - FOOT > (S.pass ? 0.55 : 0.3))))) solids.push(standBodies(G, KINDS, ground, renderer));
+    if (G.kinds.some((Kd) => Array.from({ length: Kd.shapes }, (_, v) => bodyOf(KINDS[Kd.offset + v])).some((B) => B.shapes.some((S) => topOf(S) * Kd.asset.placement.scale[1] - FOOT > (S.pass ? Math.max(0.55, S.from ?? 0) : 0.3))))) solids.push(standBodies(G, KINDS, ground, renderer));
     // a tier: its cells worked out once for every kind in it, each plant that is of its level packed into its shape's
     // draw. g: the group it packs (the stand's, or of its kinds those that cast)
     const tier = (i, g, shadow = false) => {
@@ -444,7 +444,7 @@ function standBodies(G, KINDS, ground, renderer) {
       grid.clear();
       for (let i = 0; i < count; i++) {
         const k = i * 4, kind = KINDS[Math.floor(B[k + 2])], body = bodyOf(kind);
-        if (body.shapes.length) grid.put({ id: `${tag}:${Math.round(A[k] * 8)}:${Math.round(A[k + 1] * 8)}`, x: A[k], z: A[k + 1], y: A[k + 2], up: -FOOT, yaw: B[k], s: A[k + 3], kind, body });
+        if (body.shapes.some((S) => !S.pass || !S.from || topOf(S) * A[k + 3] - FOOT >= S.from)) grid.put({ id: `${tag}:${Math.round(A[k] * 8)}:${Math.round(A[k + 1] * 8)}`, x: A[k], z: A[k + 1], y: A[k + 2], up: -FOOT, yaw: B[k], s: A[k + 3], kind, body });
       }
     }).catch((e) => { was = ''; if (!warned) { warned = true; console.warn(`plants: what stands round the walker could not be read back (${G.name}): it is not solid`, e); } }).finally(() => (busy = false));
   };
