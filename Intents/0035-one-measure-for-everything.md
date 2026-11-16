@@ -371,3 +371,9 @@ It ends when the film plays in the game: not yet seen played.
 | 2026-11-16 | `4ba3170` | built: the Build section, the changelog |
 | 2026-11-16 | `9a3f76e` | proposed: every check with its result, the run's table, the gates; the story spawned |
 | 2026-11-16 | `7a339cc` | Samuel's yes: the intent to Story, its story's beats |
+| 2026-11-16 | `a30d693` | every rock drawn at its size, every tree at its height by age, at the source |
+| 2026-11-16 | `66bf7bc` | back to Build for the rocks and the trees |
+| 2026-11-16 | `00e9823` | the story: Samuel's answer on the rocks |
+| 2026-11-16 | `8ce45de` | each asset's measure next to it, read against the world's one scale |
+| 2026-11-16 | `064db73` | each measure next to its thing, in Build, the changelog and the story |
+| 2026-11-16 | `fbf56d6` | proposed again: every check of the second round |
