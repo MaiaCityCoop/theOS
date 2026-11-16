@@ -1,87 +1,104 @@
 ---
 id: "0031"
-title: What is not photoreal yet
+title: What is not photoreal yet in a person
 state: idea               # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-16
 story:
 ---
 
-# 0031 · What is not photoreal yet
+# 0031 · What is not photoreal yet in a person
 
 ## Idea
 
 > Also tell me everything that is not photorealistic now. So we have the inventory of stuff we need to fix.
+> […] The inventory was about all the non realistic traits of the human body!
+> Isn't it possible to push procedurally generated code to full realism?
 
-Samuel wants the game to look like a photograph. Below is everything that does not, as it stands on 2026-11-16, read in
-the code and seen in screenshots (Chromium on a software GPU; nothing here was judged on a real GPU or an iPhone). Each
-line says what it is now and what a photograph has instead. Grouped by part, the largest gaps first in each group. Each
-group is a candidate intent of its own; what is taken up, and in which order, is Samuel's to say.
+Samuel wants the person to look and move like a photographed human, and asks whether code that generates the person can
+get there. Below: every trait of the person (`characters/kit/human.js`, `characters/settler.js`) that is not like a real
+body, as the code stands on 2026-11-16, each with where it lives; then the answer to the question.
 
-### People (`characters/kit/human.js`)
+### Form (the mesh: `body()`, `chain()`)
 
-1. The body is tubes swept along 20 bones (74k faces), not a sculpted or scanned body: no real anatomy in the face, the
-   hands or the shoulders.
-2. The eyes, brows, lips and hair are painted on the one surface by the shader, not modelled: no eyeballs, no wet
-   cornea, no hair with volume or strands.
-3. The clothes are colour regions of the skin, not garments: no folds that hang, no seams, no thickness.
-4. The moves are hand-written sine curves (walk, idle, wave), blended as angles; the feet slide while walking and do not
-   meet a slope; nothing moves by itself (hair, cloth), the face never blinks or looks at anything.
-5. One person; no faces or bodies that differ.
+1. The body is seven kinds of tube (trunk with head, arms, hands, legs, feet, ears, nose), each ring an ellipse: no
+   anatomy in its sections. No collarbones, shoulder blades, chest, buttocks, kneecaps, ankle bones, calf or forearm
+   muscles; the same smooth sausage from every side.
+2. The tubes meet by passing through each other at the shoulders, hips and neck, where a body flows from one part
+   into the next.
+3. The hands are mittens: one tube each, no fingers, no thumb, no knuckles, no nails.
+4. The head is the top of the trunk's tube: no skull shape, jaw, chin, cheekbones or brow ridge. The eye sockets are
+   dents 4 mm deep, there are no eyelids, the mouth is not an opening, there are no teeth or tongue.
+5. The ears are two little tubes and the nose one: no cartilage, nostrils or folds.
+6. The feet are one shoe-shaped tube with its sole pressed flat; there is no foot inside, no toes.
+7. Everyone has the same face. A person differs only by five numbers (leg length, build, head size, stoutness, lean)
+   and height: no age, no sex differences in the body, no fat or muscle where people differ.
 
-### Made things (`assets/belltent.js`, `firepit.js`, `flame.js`, `deadwood.js`)
+### Skin and face (the shader: `materialOf()`)
 
-6. Built from flat faces coloured face by face: the tent is a clean cone and a straight wall, its canvas never sags,
-   wrinkles, stains or shows its seams; the stumps round the fire are plain cylinders.
-7. Few materials of their own and little wear: no dirt where they meet the ground, no weathering.
-8. The fire's light falls on placed things only (`src/world/fire.js` fireLight), not on the ground, the grass or a person;
-   it throws no flicker into the shadows and no smoke rises.
+8. The skin is one colour per person with 6% noise, a warmth on the cheeks and pores as noise in the normals: no
+   freckles, moles, veins, redness on knuckles, elbows and knees, no shine where skin is oily, no hairs.
+9. Light through the skin is a tint where it turns from the light (wrap and reddening), not light scattered by the
+   skin's thickness: ears and fingertips never glow red against the sun.
+10. The eyes are painted on the surface: a white ellipse and a dark disc. No eyeball, no iris pattern or colour, no
+    pupil, no wet cornea that catches the light, no eyelashes, no tear line.
+11. The brows are painted lines, the lips a band of colour.
 
-### Ground (`src/terrain`, `materials/*`)
+### Hair (`hairJS`, `hairTSL`)
 
-9. The pebbles read as flat cut-outs: evenly lit, chalky, no shade between them where they touch (Samuel's screenshot of
-   the ground looking down, 2026-11-16).
-10. The ground has no relief of its own up close (no displacement): stones and clods are colour and normals on a flat
-    surface.
-11. A baked material repeats (1024 px tiles): from above, the pattern can show.
-12. Paths, litter and the edges between grounds are blends, not things lying there (twigs, leaves, footprints, ruts).
+12. The hair is the head's surface raised 13 to 19 mm where hair grows, with a hair texture on it: no strands, no
+    silhouette against the sky, no parting, no stray hairs, and it never moves.
 
-### Plants (`assets/kit/tree.js`, `src/scatter/trees.js`, `src/scatter/grass.js`)
+### Clothes (the same mesh and shader)
 
-13. Leaves and needles are crossed cards cut out of a painted sprig: up close the cards and their cut edges show.
-14. Far away a crown becomes one solid body and then a speck: the hand-over can show as a change of shape and colour.
-15. The grass is blades of one kind, shade and density per ring: no flowers, no seed heads, no mixed species, no dry or
-    trodden patches beyond its dryness value.
-16. Few species: two trees, a few shrubs, reeds, bracken.
+13. The shirt, trousers, belt and shoes are colour regions of the skin's one surface, not garments: the cloth has no
+    thickness, nothing hangs away from the body, the collar does not stand, nothing can come off.
+14. The folds are a pattern in the light (normals), not shape; they do not follow the pose, and the cloth never moves
+    on its own.
 
-### Light and shadow (`src/world/light.js`, `src/world/shadow.js`)
+### Skeleton and skinning (`body()`, `humanOf()`)
 
-17. One shadow map, 2048 texels, round the camera: no cascades, so shadows are soft or gone further off, and small
-    things (pebbles, blades, fingers) cast none of their own.
-18. No ambient occlusion: nothing darkens where things meet (a stone on the ground, a foot on the path, the inside of the
-    tent), so things look laid on rather than standing in.
-19. The sky's light is a formula of the facing (most from above, a little bounced from the ground), not light that
-    bounces: no colour bleeding, the inside of the tent no darker than it would be.
-20. No reflections but the water's of the sky: nothing glossy shows what is round it.
+15. Twenty bones: no fingers, toes, jaw, eyes, eyelids, no twist bones in the forearms and thighs, two bones for the
+    whole spine.
+16. Each point follows at most two bones, blended straight: elbows, knees and shoulders thin and fold like a tube
+    when bent, a twisted wrist pinches, no muscle swells, no skin slides over the bones.
 
-### Water (`src/terrain/water.js`, `materials/water.js`)
+### Movement (`MOVES`, `step()`)
 
-21. The river reflects the sky only, not its banks, trees or the tent; no refraction of the bed, no caustics, no foam
-    where it breaks, no wet edge on the bank.
+17. Three moves (walk, idle, wave), each written as sine curves: no captured motion, no variation from one step to the
+    next, no person who moves differently from another.
+18. The moves are blended by mixing angles, which can twist a joint the long way round between two poses.
+19. The feet are kept on the ground by lowering the hips only: they slide while walking, do not meet a slope or a
+    step, and the body turns on the spot by spinning, not by stepping round.
+20. No walk that speeds up into a run, no stopping, starting, turning or standing up.
+21. The face never moves: no blinking, no looking at things with the eyes, no mouth or expression; the head looks about
+    on a slow curve, not at anything.
+22. Nothing moves by itself: hair, cloth, the belly with the breath, flesh with each step.
 
-### Sky and air (`src/world/sky*`, `src/world/weather/*`)
+### In the light (`materialOf()`, `src/world/light.js`, `src/world/shadow.js`)
 
-22. The sky is a dome of colour by the sun's height; the clouds are one layer of a baked tile, not volumes: no light
-    shining through their edges, no shafts of light.
-23. The air is one haze by distance: no mist in the hollows, no light scattered towards the sun.
-24. Rain does not exist yet (the weather has wind, clouds, snow).
+23. The person never takes a shadow: the material does not read the shadow map or the clouds' shade (every other
+    material does, through `cloudAt`), so they stay sunlit under a tree, under a cloud and inside the tent, and an arm
+    never shades the body.
+24. The person casts no shadow: they are not on the casters' layer, so nothing darkens on the ground under them.
+25. No shade where parts touch (between the arm and the body, under the chin, between the legs) beyond the cloth
+    textures' own.
 
-### The picture (`src/core/screen.js`, `src/core/temporal.js`, `src/camera/post.js`)
+### Can code alone get there?
 
-25. No bloom: the sun, the fire and bright sky do not glow over what is near them.
-26. No motion blur; depth of field only in the virtual camera (films), not when walking.
-27. Exposure follows the hour, not what the eye looks at: walking into the tent's shade it stays as bright as outside.
-28. On phones the governor draws the world at fewer pixels than the screen: softer than a photograph.
+Yes, as far as how it is made: "generated by code" is a way of authoring, not a limit on detail. A body can be built in
+code from anatomy (bones as landmarks, muscles and fat as volumes, the skin as the surface over them), skin can be lit
+by scattering through its thickness, eyes and hair can be grown, cloth can be cut from patterns and hung, and movement
+can be made by physics and foot placement rather than by hand-written curves. Film and game studios generate much of
+this procedurally today (hair grooms, skin detail, cloth, gaits).
+
+What code cannot make up is how real people are: proportions, the shape of faces, the way a body moves. That knowledge
+has to come from measurements, and it can be taken in as numbers rather than as someone else's 3D models: public
+anthropometric surveys (body measures by age, sex and build: the US Army's ANSUR II is in the public domain), and
+measured motion (gait cycles, joint angle curves). With those numbers in the code, a generated person can go a long way
+towards realistic. The last steps, a face that holds up to a close-up and motion that never looks wrong, are the
+hardest anywhere, and the cost on a phone (scattering skin, strands of hair) needs levels of detail as everything else
+has.
 
 ## Define
 
@@ -97,7 +114,7 @@ group is a candidate intent of its own; what is taken up, and in which order, is
 
 ## Todo
 
-- [ ] Samuel picks which groups to take up first (each its own intent)
+- [ ] Samuel picks which groups to take up first, and whether real measurements (as numbers) may come in
 
 ## Changelog
 
@@ -107,6 +124,13 @@ group is a candidate intent of its own; what is taken up, and in which order, is
 - **Delivered:** the inventory above, 28 points in 8 groups, from the code and the screenshots of the day.
 - **Good:** Each point names the file it lives in.
 - **Broke / not there yet:** Judged on a software GPU and by reading the code, not on a real GPU or an iPhone; some points may look better there than here.
+
+### 2026-11-16 (2)
+
+- **Asked:** "Isn't it possible to push procedurally generated code to full realism? The inventory was about all the non realistic traits of the human body!"
+- **Delivered:** the inventory redone for the person only: 25 points in 7 groups (form, skin and face, hair, clothes, skeleton and skinning, movement, light), read in `characters/kit/human.js`; and the answer on code alone. The first list, the whole world, is replaced.
+- **Good:** Found on the way: the person never takes or casts a shadow (points 23, 24).
+- **Broke / not there yet:** The first answer covered the whole world, not the person Samuel asked about.
 
 ## Trail
 
