@@ -172,3 +172,4 @@ on the one below, each looked at alone before the next:
 | 2026-11-16 | `97ae830` | a first body from blended solids, turned down; the field and the tables it reads |
 | 2026-11-16 | `db7eddc` | a second body, muscles as strands with no bones under them, set aside |
 | 2026-11-16 | `73af01a` | the skeleton, a first pass: every bone in its shape, from the spine to the skull |
+| 2026-11-16 | `8710b71` | the skeleton: the eyes' sockets from their rims back, a stronger brow, the foot's bones as blocks |
