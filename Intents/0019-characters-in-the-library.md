@@ -161,6 +161,13 @@ notes folder, `0019-shots/`)
 - **Good:** Seen in Chromium at 1280×800: the Settler in the middle, face on.
 - **Broke / not there yet:** On a phone the library's picture is a wide band with black above and below (as before this change), which cuts the feet. Not seen on Samuel's phone.
 
+### 2026-11-16 (2)
+
+- **Asked:** "The first frame should start centered but it should continue to circle like on all other assets in the library."
+- **Delivered:** the first frame stays as before (from the front, centred, facing the camera); from there the camera circles, as for every other subject.
+- **Good:** A one-word change (`spin`).
+- **Broke / not there yet:** Not seen on Samuel's screen yet.
+
 ## Trail
 
 | When | Commit | What |
@@ -170,3 +177,4 @@ notes folder, `0019-shots/`)
 | 2026-11-14 | `aabedad` | Propose: the checks as they were, the gaps |
 | 2026-11-14 | `07663bb` | Denim indigo, shoulders without pads |
 | 2026-11-16 | `743ccac` | a person framed from the front, centred, facing the camera, held |
+| 2026-11-16 | `b840d14` | the first frame from the front, then circling |
