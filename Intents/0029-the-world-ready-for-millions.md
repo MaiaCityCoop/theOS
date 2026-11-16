@@ -1,7 +1,7 @@
 ---
 id: "0029"
 title: The world ready for millions
-state: build           # idea | define | build | propose | story | archived
+state: propose         # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-15
 story:
@@ -339,6 +339,57 @@ the harness of intent 0027. Rounds one and two ran before the merge, against mai
   count. Stories are told by day now (`Stories/day-NNNN`, the storytelling skills); this work is ready to be one
   day's part.
 
+**Round two: one of everything** (draft PR #15, https://github.com/MaiaCityCoop/theOS/pull/15, the same branch, from
+main `80798ce`):
+
+- **One module for each concept**, imported wherever it is needed: the hashes (`src/core/hash.js`, `hash.nodes.js`),
+  the kit's arithmetic (`assets/kit/math.js`), a vertex's codecs (`assets/kit/pack.js`, `src/scatter/unpack.js`), an
+  asset's size (`assets/kinds.js`), how a thing is packed (`src/scatter/row.js`), a made thing's shading
+  (`src/world/made.nodes.js`), one lens and one resize handler, one look round for fine meshes, the address flags
+  (`src/core/flags.js`), and one table of a kind's numbers (the drawer's).
+- **A species is one file** (`assets/zoo/scattered.js`). The ten family files are gone, and their ids are kept.
+- **A level in a few draws, however many kinds**: by kind while they are 32 or fewer, by size class beyond that, and
+  with `?byclass`.
+- **Movers are the drawer's**, on bone chains of four, the stress world's included. **Herds**: `?herds=N`.
+- **Legacy out**, and the concepts said once in `src/detail/README.md`, with what a new species, building and animal
+  is.
+
+**Checks, as they were.** The final round ran the code of `b686b6d` against main `80798ce`, one test at a time:
+Chromium, WebGPU on SwiftShader, the harness of intent 0027. Main's stills and walks stand for this branch's first
+head too: round one's head `3f2540f` and main have the same tree. Two code commits followed. `cca7a77` sets a floor to
+the table's size that no drawer reaches. `d013a3b` came from what the round found by the tent (the last row): the
+tent, the forest and the stress world were timed again with it, against main again. The times by class and with the
+herds are from before it.
+
+| # | Result | Evidence |
+| --- | --- | --- |
+| 9–13, 16 | passed | **Stills**: twelve, the tent from 4, 15, 60, 300 and 1 000 m, the fire pit from 3 and 12 m, the forest close and wide, the shrubs, a rock up close and a rock pair. Against main, the mean difference is at most 0.02 of 255 and under 0.01 % of pixels differ by more than 8 (a few single pixels, at most 43 apart). **Walks**: the eleven, to the same trees, shrubs, rocks, tent and fire pit as main's (the same places); each comes as close as on main within 2 mm, and all pass. One shrub is named 7.3 m where main's run named it 3.5 m: main's row held its stand's size, the new one holds the plant's own. **Kits**: every family of the zoo makes the same bits as before, except the made things' (their normals' fold), and the zoo numbers every kind as before. **State** (round one's check 4 again): the tree, the rock and the tent go, are walked through, change and come back as in round one (0.59 / 0.01 / 0.73 / 0.59 m, 0.80 / 0.01 / 1.19 / 0.80 m, 2.75 / 0.01 / 2.75 / 2.75 m) |
+| 14 | passed | **Draws** in the forest: by kind as main's (174 meshes, the trees' 112); by class 48 (trees 11, shrubs 6, litter 3, reeds 3). **By class against by kind**: in all twelve stills the mean difference is at most 0.01 of 255, and under 0.01 % of pixels differ by more than 8 (at most 45 apart). **Frame time** in the forest, before `d013a3b`: by class 31.5 ms median, by kind 33.3 and 31.8 ms. The start is longer by class, 19.3 s against 16.1 and 15.9 (one run by class): the time goes before the first frame is painted (13.0 s against 9.4 and 8.8), not into the scatter's compiling (4.1 s against 4.6 and 4.5) |
+| 15 | passed | **Herds** (`?herds=200`): 200 creatures round the tent, 106 packed in the near view and 37 in the wide one. A 4.1 m creature's body has 13 shapes, and the walker stops 1.11 m from its middle. Made gone, it is not drawn (1.21 % of pixels change, where it was) and is walked through; cleared, it is back, and only the clouds differ (they keep their own clock). With them the frame's median is 51.4 ms by the tent, before `d013a3b`. **The stress world** (`?stress`), its movers packed by the drawer's tier: its walks make good 6.79, 7.42 and 12.59 m against main's 6.86, 7.50 and 12.31, past the same bodies within 6 m (98, 66 and 106). Two runs each, alternating, the first before `d013a3b` and the second after it: frame medians 190.6 and 200.9 ms against main's 232.6 and 187.8 (the 95th percentile 1 641 and 1 916 against 1 883 and 1 650); packing 7.4 and 7.1 ms against 6.9 and 6.4; the step 0.8 ms on both; the start 28.6 and 30.2 s against 28.9 and 30.3 |
+| all | passed, with one finding | **By the tent**, five runs each, alternating: the medians were close (29.9 to 34.2 ms against 30.3 to 32.7), but this branch's slowest frames were longer in four of five pairs (the 95th percentile 149 to 271 ms against 95 to 169). The drawer's one look round marked every frame it looked in as busy, so the governor left those frames out of what it sets the detail by; on main only the stress world's looks did. Fixed (`d013a3b`), three runs each: medians 31.4, 31.9 and 30.0 ms against main's 30.3, 30.2 and 31.3; the 95th percentile 134, 181 and 161 ms against 103, 154 and 156; the start 14.4 to 15.3 s against 14.3 to 14.7. **The forest**, after the fix, two runs each: medians 32.2 and 31.1 ms against 30.1 and 31.0; the start 14.3 and 14.8 s against 14.8 and 14.5. `vite build` passes; CI, which builds the game, is green on `61e023d` |
+
+**Known gaps:**
+
+- Seen on SwiftShader only: not in Safari, nor on a real GPU.
+- By the tent, after the fix, this branch's slowest frames were still a little longer than main's in each of three
+  pairs (the 95th percentile 134 to 181 ms against 103 to 156), with medians within 1.7 ms of main's. Not found why.
+- The start by class is 3.2 to 3.4 s longer than by kind, before the first frame is painted (one run). Not found
+  why.
+- The stress world's packing took 0.5 and 0.7 ms more than main's in its two pairs.
+- The default world still draws a kind a draw: its stands have 16 shapes or fewer, under the threshold of 32.
+  Classes come in by themselves past it; until then only `?byclass` shows them.
+- The stress movers' packing binds exactly the 12 uniform buffers a stage allows (it had 14 until two arrays were
+  folded): one more array there needs another fold.
+- The herds walk their rounds through each other, the tent and the trees: a placer to show the pattern, not a herd's
+  real paths, which would keep to the ways as the stress world's lanes do.
+- At the next start the plants' kept meshes are made once more (their kits changed, so their versions did), and the
+  made things' too (`made 2`). The rocks' are kept.
+- `b9d6157`, the commit of the second definition, also holds the first moves of `b032a39` (the ten family files out,
+  `src/core/hash.js` renamed to `hash.nodes.js`): the game is checked out from `b032a39` on.
+- Out of scope, as defined: the world's material pool for hundreds of species' own textures, and the citizens'
+  avatars on the drawer.
+- No story folder, as in round one: stories are told by day now.
+
 ## Story
 
 _Filled after the human's yes._
@@ -358,6 +409,14 @@ _accepted or rejected, the date, the reason in a line._
 - [x] Checks 1 to 8 (three rounds; the last on the merged head against main 5bf670c)
 - [x] Commit, trail, push, draft PR (#14)
 - [ ] Samuel: the tent and the fire pit in Safari on a real GPU, near and far (only SwiftShader has seen them)
+- [x] Round two: one module for each concept, a species one file, legacy out (`b032a39`)
+- [x] Round two: one table of a kind's numbers, one way to pack a thing, a level in a few draws, movers on the
+      drawer, herds, the docs (`b686b6d`)
+- [x] Round two's checks (the final round on `b686b6d`; the times again on `d013a3b`)
+- [x] Commit, trail, push, draft PR (#15)
+- [ ] Samuel: round two in Safari on a real GPU: the forest, `?byclass`, `?herds=200`
+- [ ] Why the tent's slowest frames are still a little longer than main's after `d013a3b`
+- [ ] Why the start is longer by class, before the first frame is painted
 
 ## Changelog
 
@@ -406,6 +465,40 @@ _One entry per request cycle, newest last._
   passed the final round. The word to hold it reached the parent session after the merge. This round is built on the
   same branch, restarted from main, for a new PR.
 
+### 2026-11-16, round two built and checked
+
+- **Delivered:**
+  - One module for each concept, imported wherever it is needed: the hashes, the kit's arithmetic, a vertex's
+    codecs, an asset's size, how a thing is packed, a made thing's shading, the lens, the look round, the address
+    flags and a kind's numbers.
+  - A species is one file; the ten family files are gone, their ids kept.
+  - A level in a few draws: by size class past 32 kinds, and with `?byclass`.
+  - Movers on the drawer's one tier, on bone chains of four; the stress world's movers on it; `?herds=N`.
+  - Legacy out, and the concepts said once in `src/detail/README.md`.
+  - Draft PR #15.
+- **Good:**
+  - The twelve stills match main's within 0.02 of 255, and the eleven walks come as close as on main within 2 mm.
+  - In the forest the trees take 11 draws by class where they take 112 by kind, and the stills match.
+  - 200 creatures roam round the tent, are solid, and can be made gone and brought back.
+  - The stress world walks as on main, past the same bodies.
+  - Every family of the zoo makes the same bits as before, except the made things'.
+- **Broke on the way, fixed:**
+  - The plants' shade moved on 0.25 % of pixels when their seed lost its ×0.999; the seed carries it again.
+  - With `?herds` the world did not load at first: `inView` was handed a node where it does sums in JS.
+  - The stress world's movers, packed by the drawer's tier, bound 13 and then 14 uniform buffers, over a stage's
+    12, and were not drawn; two pairs of arrays became one each, and it binds 12.
+  - A class's draw counted corners, not triangles, so its last triangle could be cut.
+  - The walk harness read the plants' old rows and walked to other targets; it reads the new ones, and the walks
+    match main's.
+  - The drawer's look round marked every frame it looked in as busy, so the governor left them out, and by the tent
+    the slowest frames were longer in four of five pairs; only the stress world marks its looks now (`d013a3b`).
+- **Not there yet:**
+  - Not seen on a real GPU or in Safari.
+  - By the tent the slowest frames are still a little longer than main's (the 95th percentile 134 to 181 ms against
+    103 to 156); not found why.
+  - The start by class is 3.2 to 3.4 s longer, before the first frame is painted; not found why.
+  - At the next start the plants' and the made things' kept meshes are made again.
+
 ## Trail
 
 | When | Commit | What |
@@ -415,6 +508,7 @@ _One entry per request cycle, newest last._
 | 2026-11-15 | `906f816` | Merged main 5bf670c (0026): `main.js` both kept, the list's tiers among those `scatter.compile()` compiles |
 | 2026-11-15 | `98800e9` | The store's table on the page made with the first change (4 MB less where nothing changed) |
 | 2026-11-15 | `80798ce` | PR #14 merged into main (deployed to next) |
+| 2026-11-15 | `b9d6157` | The second definition; the commit also holds the first moves of `b032a39` (the ten family files out, `src/core/hash.js` renamed to `hash.nodes.js`), so the game is checked out from `b032a39` on |
 | 2026-11-15 | `b032a39` | One of each concept: the shared hashes, the kit's arithmetic, a vertex's codecs, an asset's size, one lens, one resize handler, one look round, the address flags, a made thing's shading; a species is one file; the registry follows kits; legacy out |
 | 2026-11-15 | `b686b6d` | One table of a kind's numbers; one way to pack a thing (the plants too); a level in a few draws (`?byclass`); movers on the drawer's one tier, bone chains of four; the stress world's movers on it; `?herds=N`; the concepts in the docs |
 | 2026-11-15 | `cca7a77` | The one table of a kind's numbers never smaller than one vec4 |
