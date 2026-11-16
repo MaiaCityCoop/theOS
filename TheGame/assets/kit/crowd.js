@@ -77,6 +77,11 @@ export const CROWD = {
   STOPS: 1 - sqrt(1 - 0.45),         // how much of the light one triangle of a card stops (a sprig of two crossed cards: 45 %), where cover is reckoned
   PIC: 64,         // … in pictures of this many pixels a side, from thirteen sides
 };
+/** Whether the plants are drawn by this kit (`?lod=new`, set by src/scatter/trees.js before anything is built, and handed
+    to the recipes' workers), and the two numbers that set what a plant costs: at today's levels' sizes on screen a
+    card of CARD pixels (the research's 15) submits two to four times today's level at the top of its band, so 24 is
+    taken, and the far body comes no sooner than the cards' enlarging must stop (KMAX). `?card=` and `?kmax=` change them. */
+export const LOD = { on: false, CARD: 24, KMAX: 8 };
 /** Where each of a shape's sixteen numbers lies in `meta`: P0, E, where the far body begins and has taken over (pixels),
     the crown's middle (three), how many cards, where the classes 1, 2 and 3 begin (three pairs: the share of the
     parts before it, the share of the cards' area before it), the size it was built for (metres), how many parts. */
@@ -249,11 +254,14 @@ function skinAt(Q, J, mid, x, y, z) {
     kind's: a tree's height, a bush's largest side; not said: its largest side). Whatever else is said takes the place
     of CROWD's number of that name (to try another): `E` said is taken, not measured; `order: 'alike'` is one order over
     all sizes with no classes; `tip: 'corner'` a part's single outermost corner. */
-export function crowd(m, opts = {}) {
-  const K = { ...CROWD, ...opts }, P = m.position, I = m.index, n = m.part.length, R = m.root, UV = m.uv;
+/** What every reckoning of a shape begins with: its pieces (the triangles that share corners), its card parts (the
+    cards of one root), and where a card is CARD pixels on screen (P0). Cheap: no picture is taken (budgetOf reads
+    it at a start, crowd builds on it). */
+function headOf(m, K) {
+  const P = m.position, I = m.index, n = m.part.length, R = m.root;
   const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity], mean = [0, 0, 0];
   for (let p = 0; p < n * 3; p += 3) for (let a = 0; a < 3; a++) { const x = P[p + a]; if (x < lo[a]) lo[a] = x; if (x > hi[a]) hi[a] = x; mean[a] += x / n; }
-  const size = opts.size ?? max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
+  const size = K.size ?? max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
   let far = 0; for (let p = 0; p < n * 3; p += 3) far = max(far, (P[p] - mean[0]) ** 2 + (P[p + 1] - mean[1]) ** 2 + (P[p + 2] - mean[2]) ** 2);
   const frame = { c: mean, r: sqrt(far) * 1.1 || 1 };   // (what its cover is reckoned in: all of it, and a little round it)
 
@@ -282,6 +290,26 @@ export function crowd(m, opts = {}) {
     partOf[q] = p;
   }
   if (N === 1 && cardPieces >= 2 * K.LEAST) { N = 0; for (let q = 0; q < nP; q++) if (cardP(q)) partOf[q] = N++; }   // (a mesh whose cards carry no roots: every card a part of its own)
+  let cardS = 0, cardN = 0, most = 0; { const c = new Uint32Array(N), a = new Float64Array(N); for (let q = 0; q < nP; q++) if (partOf[q] >= 0) { c[partOf[q]]++; a[partOf[q]] += pArea[q]; } for (let p = 0; p < N; p++) { cardS += sqrt(a[p] / c[p]) * c[p]; cardN += c[p]; most = max(most, c[p]); } }
+  // P0: where a card (the square its area makes, the crowd's mean) is CARD pixels on screen; a thing of no cards: where it is itself
+  const P0 = (K.CARD * size) / (cardPieces ? cardS / cardPieces : size);
+  return { lo, hi, mean, size, frame, up, find, name, pOf, nP, pTris, pVerts, pArea, tris, verts, cardP, quadP, partOf, N, cardPieces, P0, most };
+}
+
+/** What a shape may submit at most at each of the sizes on screen `his` (pixels; Infinity: all of it), without
+    building it: a level's room in the heap (src/scatter/trees.js). -> [{ verts, tris }] (its two first vertices are its
+    numbers: levelOf) */
+export function budgetOf(m, opts = {}, his = [Infinity]) {
+  const K = { ...CROWD, ...opts }, H = headOf(m, K);
+  let sv = 0, st = 0, quads = 0;
+  for (let q = 0; q < H.nP; q++) { const v = H.pVerts[q + 1] - H.pVerts[q], t = H.pTris[q + 1] - H.pTris[q]; if (H.partOf[q] >= 0 && H.quadP(q)) quads++; else { sv += v; st += t; } }
+  const bodies = K.HULLS.reduce((s, [a, b]) => [s[0] + a * b + 2, s[1] + 2 * a * b], [8, 6]);   // (every far body and the post)
+  return his.map((hi) => { const share = H.N ? min(1, shareAt(hi * K.WIN, H.P0, K.A)) : 0, cards = min(quads, ceil(share * H.N) * H.most); return { verts: 2 + cards * 4 + sv + bodies[0], tris: cards * 2 + st + bodies[1] }; });
+}
+
+export function crowd(m, opts = {}) {
+  const K = { ...CROWD, ...opts }, P = m.position, I = m.index, n = m.part.length, R = m.root, UV = m.uv;
+  const Hd = headOf(m, K), { lo, hi, mean, size, frame, up, find, name, pOf, nP, pTris, pVerts, pArea, tris, verts, cardP, quadP, partOf, cardPieces, P0 } = Hd; let N = Hd.N;
   // the crowd's middle and how far it spreads along each axis: the crown's own proportions, in which "outermost" and the far bodies are reckoned
   const mid = [0, 0, 0], sd = [0, 0, 0]; let nC = 0;
   for (let q = 0; q < nP; q++) if (partOf[q] >= 0) for (let i = pVerts[q]; i < pVerts[q + 1]; i++) { const v = verts[i] * 3; mid[0] += P[v]; mid[1] += P[v + 1]; mid[2] += P[v + 2]; nC++; }
@@ -307,11 +335,9 @@ export function crowd(m, opts = {}) {
   }
 
   // ---- the order, and each part's go ----
-  let amax = 0, atot = 0, cardS = 0; for (let p = 0; p < N; p++) { amax = max(amax, area[p]); atot += area[p]; cardS += sqrt(area[p] / (pp[p + 1] - pp[p])) * (pp[p + 1] - pp[p]); }
+  let amax = 0, atot = 0; for (let p = 0; p < N; p++) { amax = max(amax, area[p]); atot += area[p]; }
   const cls = Uint8Array.from({ length: N }, (_, p) => (K.order === 'alike' ? 0 : min(K.CLASSES - 1, floor(log2(amax / area[p]) + 1e-6))));
   const order = turnsOf(X, Y, Z, cls, mid), meta = new Float32Array(16), classes = [];
-  // P0: where a card (the square its area makes, the crowd's mean) is CARD pixels on screen; a thing of no cards: where it is itself
-  const P0 = (K.CARD * size) / (cardPieces ? cardS / cardPieces : size);
   { let s = 0, a = 0, at = 0; for (let c = 1; c < 4; c++) { while (at < N && cls[order[at]] < c) { s++; a += area[order[at++]]; } classes.push([N ? s / N : 1, atot ? a / atot : 1]); meta.set(classes[c - 1], META.CLASSES + (c - 1) * 2); } }
   // how much of its pictures the plant covers, and its cards by themselves
   const stop = Float32Array.from({ length: n }, (_, v) => (m.part[v] === 1 ? K.STOPS : 1)), [cover, coverCards] = N ? coverOf(P, n, I, stop, frame, K.PIC, Uint8Array.from({ length: n }, (_, v) => (m.part[v] === 1 ? 1 : 0))) : [0, 0];
@@ -460,5 +486,53 @@ export function crowd(m, opts = {}) {
     return G;
   }
   meta[META.HI] = hull.hi; meta[META.LO] = hull.lo; meta[META.CARDS] = cards;
-  return { count, cards, parts: N, solids: listed.length, ...out, ...S, index, steps, turns, meta, P0, E, A: K.A, size, mid: bm, spread: bs, classes, hull, cover: N ? cover : 0, hulls, post };
+  return { count, cards, parts: N, solids: listed.length, ...out, ...S, index, steps, turns, meta, P0, E, A: K.A, KMAX: K.KMAX, size, mid: bm, spread: bs, classes, hull, cover: N ? cover : 0, hulls, post };
+}
+
+// ---- a shape as the engine draws it between two sizes on screen ----
+/** Where each of a level's sixteen numbers lies (levelOf: `rule`): what the one rule reads of its shape. X: under how many
+    pixels the wood has given way to the post (half way through the far body's coming). */
+export const RULE = { P0: 0, E: 1, HI: 2, LO: 3, CLASSES: 4, A: 10, X: 11, KMAX: 12 };
+/** What a shape submits to be drawn anywhere between lo and hi pixels (hi: Infinity, every size above lo): its first
+    cards in turn order, its solids not yet gone, the far bodies and the post where they show; every vertex as the kit
+    made it (position normal uv part ao cn root hand twig) and, a vertex, what the rule moves it by:
+      go     the size on screen under which its part is gone (0: never by itself)
+      tip    the point a card is enlarged about (a solid's: its foot)
+      tipUv  from its place on its card's painting to the tip's
+      to     a far body's corner: its place on the next coarser (the post's: its own middle line)
+      body   0 none, 1 2 3 the far bodies finest first, 4 the post
+    and `rule`, its shape's sixteen numbers (RULE). The same shape at two levels is the same thing at the size where
+    they meet: the coarser one holds a first share of what the finer one holds, and the rest is gone there. */
+export function levelOf(S, lo = 0, hi = Infinity, K = CROWD) {
+  const HI = S.hull.hi, LO = S.hull.lo, X = HI > 0 ? sqrt(HI * LO) : 0, far = HI > 0;
+  let t = 0; while (t < S.parts && S.turns.go[t] < hi) t++;
+  const nc = t < S.parts ? S.turns.cards[t] : S.cards;
+  let i = 0; if (!far || hi > X) while (i < S.solids && S.steps.go[i] < hi) i++;
+  const sv = i ? S.steps.verts[i - 1] : 0, sc = i ? S.steps.corners[i - 1] : 0;
+  const meets = (a, b) => far && max(a, lo) < min(b, hi, HI);   // (a body shows between a and b pixels, and under HI)
+  const T0 = K.TURN[0][1], T1 = K.TURN[1][1], bodies = [];
+  if (meets(T0, Infinity)) bodies.push([S.hulls[0], 1]);
+  if (meets(T1, T0)) bodies.push([S.hulls[1], 2]);
+  if (meets(0, T1)) bodies.push([S.hulls[2], 3]);
+  if (S.post && meets(T1, X)) bodies.push([S.post, 4]);
+  const count = nc * 4 + sv + bodies.reduce((s, [B]) => s + B.count, 0);
+  const out = { count, position: new Float32Array(count * 3), normal: new Float32Array(count * 3), uv: new Float32Array(count * 2), part: new Float32Array(count), ao: new Float32Array(count), cn: new Float32Array(count * 3), root: new Float32Array(count * 3), hand: new Float32Array(count * 2), twig: new Float32Array(count),
+    go: new Float32Array(count), tip: new Float32Array(count * 3), tipUv: new Float32Array(count * 2), to: new Float32Array(count * 3), body: new Float32Array(count) };
+  // the cards and the solids: as the shape holds them, the solids moved down to where the cards end
+  const copy = (from, n, to) => {
+    for (const [k, w] of [['position', 3], ['normal', 3], ['uv', 2], ['part', 1], ['ao', 1], ['cn', 3], ['root', 3], ['hand', 2], ['twig', 1], ['go', 1], ['tip', 3], ['tipUv', 2]]) if (S[k]) out[k].set(S[k].subarray(from * w, (from + n) * w), to * w);
+  };
+  copy(0, nc * 4, 0); copy(S.cards * 4, sv, nc * 4);
+  const index = [];
+  for (let c = 0; c < nc; c++) index.push(4 * c, 4 * c + 1, 4 * c + 2, 4 * c, 4 * c + 2, 4 * c + 3);
+  const shift = (S.cards - nc) * 4; for (let j = 0; j < sc; j++) index.push(S.index[j] - shift);
+  let o = nc * 4 + sv;
+  for (const [B, code] of bodies) {
+    out.position.set(B.position, o * 3); out.normal.set(B.normal, o * 3); out.uv.set(B.uv, o * 2); out.ao.set(B.ao, o); out.to.set(B.to, o * 3);
+    for (let v = 0; v < B.count; v++) { out.part[o + v] = code === 4 ? 0 : B.part; out.body[o + v] = code; out.root.set(code === 4 ? B.position.subarray(v * 3, v * 3 + 3) : S.mid, (o + v) * 3); }
+    for (const x of B.index) index.push(x + o);
+    o += B.count;
+  }
+  const rule = new Float32Array(16); rule[RULE.P0] = S.P0; rule[RULE.E] = S.E; rule[RULE.HI] = HI; rule[RULE.LO] = LO; rule.set(S.meta.subarray(META.CLASSES, META.CLASSES + 6), RULE.CLASSES); rule[RULE.A] = S.A; rule[RULE.X] = X; rule[RULE.KMAX] = S.KMAX;
+  return { ...out, index: Uint32Array.from(index), rule };
 }

@@ -30,6 +30,8 @@
 // its file is read (a worker reads this file too: plain JS, nothing of the page in it).
 
 import { kindRule } from '../kinds.js';
+import { LOD, budgetOf } from './crowd.js';
+import { bandsOf, shapeSize, crowdLevel } from './plant.js';
 import { add, sub, mul, dot, len, norm, cross, lerp, bez } from './math.js';
 import { rng } from '../../src/core/hash.js';
 
@@ -354,6 +356,17 @@ export function tree(recipe) {
     rawAt,
     /** its shade's mesh for a shape (what the shadow map is drawn from), as the builder made it; none: it has no shade of its own */
     shadeRaw: shade ? (shape) => shade(shapes[shape], shape) : null,
+    /** Under `?lod=new` (assets/kit/crowd.js): the room each shape's levels need in the heap, [shape][level] { verts,
+        tris } (its splay's: none), reckoned from its nearest level without building it, and kept with its outline */
+    crowdRooms() {
+      const o = measured(), key = `${LOD.CARD}:${LOD.KMAX}`;
+      if (o.crowd?.key !== key) {
+        const B = bandsOf(out), his = B.map(([, hi], l) => (l === f ? Infinity : hi));
+        o.crowd = { key, rooms: shapes.map((s, i) => { const R = budgetOf(rawAt(f, i), { size: shapeSize(out, i), CARD: LOD.CARD, KMAX: LOD.KMAX }, his); return R.map((r, l) => (crowdLevel(out, l) ? [r.verts, r.tris] : null)); }) };
+        OUTLINES.made.set(id, o);
+      }
+      return o.crowd.rooms;
+    },
     /** shape `shape` at level `level` as typed arrays (a plain geometry's: the library's stage) */
     meshAt: (level, shape = 0) => packed(rawAt(Math.min(level, specs.length - 1), Math.min(shape, shapes.length - 1))),
     /** the same kind of tree grown from another seed: other shapes, other places (the library's Random). A shape of its

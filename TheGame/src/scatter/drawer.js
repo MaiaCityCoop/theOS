@@ -58,6 +58,7 @@ import { Tier, offScreen, clipOf } from './tier.js';
 import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective, cornersOf, shapedOf } from './heap.js';
 import { ballCorners } from '../../assets/kit/blob.js';
 import { solidOf } from './solid.js';
+import { LOD } from '../../assets/kit/crowd.js';   // (how the plants' levels are made, told to the recipes' workers)
 import { GHOST as GHOSTING } from '../world/bodies.js';   // (`?ghost`: the walker passes through everything, in every world, and what he is inside draws back from his eye)
 import { LADDER, FULLN, DOTN, roomOf, underOf, trisOf, vertsOf } from '../../assets/kit/ladder.js';
 import { dotMesh, BONES } from '../../assets/kit/solid.js';
@@ -83,7 +84,7 @@ const CLASSIX = []; const classIndex = (c) => (CLASSIX[c] ||= new THREE.BufferAt
 let POOL = null;
 const pool = () => (POOL ||= (() => {
   const workers = Array.from({ length: 3 }, () => new Worker(new URL('./recipes.worker.js', import.meta.url), { type: 'module' })), waiting = new Map(); let nextId = 0, turn = 0;
-  for (const w of workers) w.onmessage = ({ data }) => { waiting.get(data.id)(data.out); waiting.delete(data.id); };
+  for (const w of workers) { w.onmessage = ({ data }) => { waiting.get(data.id)?.(data.out); waiting.delete(data.id); }; w.postMessage({ id: -1, jobs: [['lod', { ...LOD }]] }); }   // (first, how the plants' levels are made: assets/kit/crowd.js, `?lod=new`)
   return (jobs) => new Promise((res) => { const id = nextId++; waiting.set(id, res); workers[turn++ % workers.length].postMessage({ id, jobs }); });
 })());
 

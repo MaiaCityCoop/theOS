@@ -29,7 +29,7 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, exp, step } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, exp, exp2, step, uintBitsToFloat } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt, nearLake } from '../world/land.nodes.js';
 import { kindsOf, whereOf } from '../world/stand.js';
@@ -49,6 +49,63 @@ import { addBodies, bodyGrid, topOf, wanted } from '../world/bodies.js';
 import { idOf } from '../world/things.js';
 import { wayAt, waysVersion } from '../world/ways.js';
 import { pxOf, turnOf, seedOf } from './row.js';
+import { LOD, CROWD, levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
+import { crowdLevel, crowdOf, bandsOf, GRID, TIPUV, GOQ } from '../../assets/kit/plant.js';
+import { flagText, flagNum } from '../core/flags.js';
+import { bits, lo16, hi16, sn8 } from './unpack.js';
+
+// `?lod=new` (intent 0033): every plant's levels but its finest splay are a first share of one build of its nearest
+// level by the crowd kit (assets/kit/crowd.js), and the one rule moves each vertex by its size on screen, smoothly: a
+// crowd's parts go one by one and those that stay grow, the wood thins, the far bodies grow out of the crown and turn
+// into each other. Its levels are only where its parts lie in the heap: two levels at the size where they meet draw the
+// same. `?card=` and `?kmax=` set its two numbers. Without the flag the plants are as they were.
+if (flagText('lod') === 'new') Object.assign(LOD, { on: true, CARD: flagNum('card', LOD.CARD), KMAX: flagNum('kmax', LOD.KMAX) });
+// SPREAD: how much more of its painting an enlarged card shows (1: all of it, its leaves as large as ever; 0: its
+// painting enlarged with it, as today's coarser levels draw larger sprigs). Seen from afar a card shows its painting
+// mipped, and a painting shown many times over is mipped to a blur its cut-out passes everywhere: the card is then a
+// solid patch. So 0 until the cut-out is reckoned by how much of the card is leaves (`?spread=` to try).
+const SPREAD = flagNum('spread', 0);
+const SX = (2 * GRID.xz) / 65535, SY = (GRID.y1 - GRID.y0) / 65535;
+/** A crowd level's vertex: what the rule moves it by, from the elements a plant's vertex is (assets/kit/plant.js), and
+    its shape's sixteen numbers from the four elements before its vertices (h0: the first). */
+const crowdOfElems = (e0, e1, rule) => {
+  const tip = vec3(lo16(e1.z).mul(SX).sub(GRID.xz), hi16(e1.z).mul(SY).add(GRID.y0), lo16(e1.w).mul(SX).sub(GRID.xz)).toVar();   // (a far body's corner: its place on the next coarser)
+  return { body: float(bits(e0.w, 13, 7)).toVar(), tipUv: vec2(sn8(e1.y, 16), sn8(e1.y, 24)).mul(TIPUV).toVar(), tip, to: tip, go: hi16(e1.w).greaterThan(0).select(exp2(hi16(e1.w).div(GOQ).sub(8)), float(0)).toVar(), rule };
+};
+const asFloats = (u) => vec4(uintBitsToFloat(u.x), uintBitsToFloat(u.y), uintBitsToFloat(u.z), uintBitsToFloat(u.w));
+const smooth01 = (t) => { const c = clamp(t, 0, 1); return c.mul(c).mul(float(3).sub(c.mul(2))); };
+/** The one rule (assets/kit/crowd.js, the same in JS there): where a crowd level's vertex lies and what of its painting
+    it wears at px pixels, and whether it shows. V: the vertex (position, root, uv, part) with C, what the rule moves it by
+    (crowdOfElems; rule: its shape's numbers, four vec4). hand: how far a part has grown in from the splay of its sprigs
+    (1: wholly); whole: whether the wood is the splay's or this level's. */
+function crowdRule(px, V, C, hand = float(1), whole = null) {
+  const [r0, r1, r2, r3] = C.rule, P0 = r0.x, E = r0.y, HI = r0.z, LO = r0.w, A = r2.z, X = r2.w, KMAX = r3.x;
+  const share = min(float(1), pow(max(px, 0).div(P0), A));
+  // the share of the cards' area that share is (the largest come first): straight between its classes' bounds
+  const seg = (s0, a0, s1, a1) => a0.add(a1.sub(a0).mul(clamp(share.sub(s0).div(max(s1.sub(s0), 1e-6)), 0, 1)));
+  const area = share.lessThanEqual(r1.x).select(seg(float(0), float(0), r1.x, r1.y), share.lessThanEqual(r1.z).select(seg(r1.x, r1.y, r1.z, r1.w), share.lessThanEqual(r2.x).select(seg(r1.z, r1.w, r2.x, r2.y), seg(r2.x, r2.y, float(1), float(1)))));
+  const k = min(KMAX, pow(max(area, 1e-9), E.negate()));
+  const g = C.go.greaterThan(0).select(smooth01(px.div(max(C.go, 1e-6)).sub(1).div(CROWD.GROW - 1)), float(1));
+  const h = HI.greaterThan(0).select(smooth01(log(HI.div(max(px, 1e-6))).div(log(HI.div(LO)))), float(0));
+  const turned = (i) => smooth01(log(float(CROWD.TURN[i][0]).div(max(px, 1e-6))).div(Math.log(CROWD.TURN[i][0] / CROWD.TURN[i][1])));
+  const card = V.part.greaterThan(0.5).and(V.part.lessThan(1.5)).and(C.body.lessThan(0.5)), body = C.body.greaterThan(0.5), post = C.body.greaterThan(3.5);
+  const pos = V.position.toVar(), uv = V.uv.toVar(), shown = float(1).greaterThan(0).toVar();
+  If(card, () => {
+    const grown = g.mul(hand), at = (p) => C.tip.add(p.sub(C.tip).mul(k));
+    pos.assign(mix(at(V.root), at(V.position), grown)); uv.assign(V.uv.add(C.tipUv.mul(float(1).sub(pow(k, SPREAD))))); shown.assign(grown.greaterThan(0));
+  }).ElseIf(post, () => {
+    pos.assign(mix(V.position, C.to, turned(1))); shown.assign(px.lessThan(HI).and(px.greaterThan(CROWD.TURN[1][1])).and(h.greaterThanEqual(0.5)));
+  }).ElseIf(body, () => {
+    const b = C.body.sub(1), turn = b.lessThan(0.5).select(turned(0), b.lessThan(1.5).select(turned(1), float(0)));
+    pos.assign(mix(V.root, mix(V.position, C.to, turn), h));
+    const T0 = CROWD.TURN[0][1], T1 = CROWD.TURN[1][1], range = b.lessThan(0.5).select(px.greaterThan(T0), b.lessThan(1.5).select(px.greaterThan(T1).and(px.lessThanEqual(T0)), px.lessThanEqual(T1)));
+    shown.assign(px.lessThan(HI).and(range).and(h.greaterThan(0)));
+  }).Else(() => {   // (the wood: a thin piece shrinks to its foot; all of it gives way to the post half way into the far body)
+    const wood = C.go.lessThanEqual(0).or(g.greaterThan(0)).and(h.lessThan(0.5));
+    pos.assign(mix(V.root, V.position, g)); shown.assign(whole ? wood.and(whole) : wood);
+  });
+  return { pos, uv, shown };
+}
 
 export const GROW = 1.5, SLOTS = 6, FOOT = 0.15;   // GROW: seconds a finest level that has just come takes to grow out of the next (its sprigs one after another); SLOTS: of how many shapes a stand holds the finest meshes at once; FOOT: how deep a plant's foot is set into the ground
 
@@ -191,8 +248,9 @@ function plantMaterial(tex, D) {
   return (Lv = null, feed = null, px = null) => {
     const slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0);
     const own = feed ? null : { Hk: ofMesh('hk', 1, 'float'), Ks: ofMesh('ks', 1, 'float'), Wd: ofMesh('wind', new THREE.Vector4(0, 0, 1, 0.3)), Lf: ofMesh('leaf', new THREE.Vector4(0.45, 0.55, 0, 0)), Tw: ofMesh('twig', 0, 'float'), Tn: ofMesh('tint', new THREE.Vector3(1, 1, 1)) };
-    const vertexOf = (B) => (feed ? feed.vertex(B) : { position: positionGeometry, normal: attribute('normal', 'vec3'), uv: attribute('uv', 'vec2'), part: attribute('part', 'float'), ao: attribute('ao', 'float'), cn: attribute('cn', 'vec3'), root: attribute('root', 'vec3'), hand: attribute('hand', 'vec2'), twig: attribute('twig', 'float'), shade: seedOf(B), ...own });
-    const LU = Lv && levelOf(Lv, D.fade);
+    const crowdOwn = !feed && Lv?.crowd ? { go: attribute('go', 'float'), tip: attribute('tip', 'vec3'), tipUv: attribute('tipUv', 'vec2'), to: attribute('to', 'vec3'), body: attribute('body', 'float'), rule: [0, 1, 2, 3].map((j) => ofMesh(`rule${j}`, new THREE.Vector4(), 'vec4')) } : null;
+    const vertexOf = (B) => (feed ? feed.vertex(B) : { position: positionGeometry, normal: attribute('normal', 'vec3'), uv: attribute('uv', 'vec2'), part: attribute('part', 'float'), ao: attribute('ao', 'float'), cn: attribute('cn', 'vec3'), root: attribute('root', 'vec3'), hand: attribute('hand', 'vec2'), twig: attribute('twig', 'float'), shade: seedOf(B), ...own, ...(crowdOwn ? { crowd: crowdOwn } : {}) });
+    const LU = Lv && levelOf(Lv, D.fade), LC = Lv?.crowd ? { lo: uniform(Lv.lo), hi: uniform(Number.isFinite(Lv.hi) ? Lv.hi : 1e9) } : null;   // (a crowd's level: its sizes as they are, uniforms: every level one shader)
     // what a pixel needs: where on its texture, and the light, the snow and the air already worked out at its corners
     // (vMul: what its texture's colour is multiplied by; vAdd: what is added: the snow on it, the air before it), so a
     // pixel reads its texture and is done. A crown is many cards deep: its pixels are many more than its corners.
@@ -217,6 +275,18 @@ function plantMaterial(tex, D) {
             const S = feed.streamed(B), late = float(1).sub(S.grown);
             const u = feed.level === 1 ? S.held.select(max(H.u, late), float(1)) : H.u, v = feed.level === 0 ? max(H.v, late) : H.v;
             H = { u, v, sunk: H.sunk, there: u.greaterThan(0).and(v.lessThan(1)).and(H.sunk.greaterThan(0)), whole: u.greaterThanEqual(0.5).and(v.lessThan(0.5)) };
+          }
+          if (Lv.crowd) {
+            // a crowd's level (`?lod=new`): drawn only between its own sizes on screen, hard (the level beside it draws the same
+            // there); its finest from the splay of its sprigs as two levels hand over, its last sinking. Its rule reckons a
+            // plant by its own size on screen (a stand that changes level as one: its size, at most)
+            const own = px ?? pxOf(A.w, A.xy), at = px ?? pxOf(D.ST?.size ? float(D.ST.size) : A.w, A.xy), pxR = min(own, at);
+            const above = Lv.first ? H.u.greaterThan(0) : at.lessThan(LC.hi), below = Lv.last ? H.sunk.greaterThan(0) : at.greaterThanEqual(LC.lo);
+            const hand = Lv.first && Lv.splay ? partGrown({ ...H, v: float(0) }, V.root, float(0), V.hand) : float(1);
+            const R = crowdRule(pxR, V, V.crowd, hand, Lv.first && Lv.splay ? H.u.greaterThanEqual(0.5) : null);
+            const show = above.and(below).and(R.shown);
+            If(V.drawn ? show.and(V.drawn) : show, () => { clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos, uv: R.uv }, float(1), H.sunk)); });
+            return;
           }
           grown.assign(mix(float(1), partGrown(H, V.root, body, V.hand), step(0.5, part))); sunk.assign(H.sunk);
           shown.assign(H.there.and(part.greaterThan(0.5).or(H.whole)));
@@ -333,7 +403,10 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     const roomsOf = (get) => shapeKd.map((Kd) => ({ verts: Math.max(1, get(Kd)?.[0] ?? 0), tris: Math.max(1, get(Kd)?.[1] ?? 0) }));
     // (FINE: its first level is a finest that comes only for the plants that are near, into a few slots: assets/kit/tree.js `fine`)
     const FINE = G.kinds.every((Kd) => Kd.levels[0].fine);
-    const LEVELS = [...G.kinds[0].levels.map((l, i) => ({ px: l.lo, room: roomOf((Kd) => Kd.levels[i].most), rooms: roomsOf((Kd) => Kd.levels[i].most), ...(FINE && !i ? { slots: SLOTS } : {}) })), ...(SHL >= 0 ? [{ px: 1e-3, room: roomOf((Kd) => Kd.asset.detail.shadow?.most), rooms: roomsOf((Kd) => Kd.asset.detail.shadow?.most) }] : [])];
+    // (`?lod=new`: a level of the crowd kit's is as large as its first share of the shape: its kind's file says nothing of it, assets/kit/tree.js crowdRooms)
+    const CROWDED = G.kinds[0].levels.map((l, i) => LOD.on && crowdLevel(G.kinds[0].asset, i)), crowdRoom = (v, i) => { const Kd = shapeKd[v]; return Kd.asset.crowdRooms()[v - Kd.offset][i]; };
+    const roomAt = (i) => (CROWDED[i] ? { room: { verts: Math.max(1, ...shapeKd.map((_, v) => crowdRoom(v, i)[0])), tris: Math.max(1, ...shapeKd.map((_, v) => crowdRoom(v, i)[1])) }, rooms: shapeKd.map((_, v) => ({ verts: crowdRoom(v, i)[0], tris: crowdRoom(v, i)[1] })) } : { room: roomOf((Kd) => Kd.levels[i].most), rooms: roomsOf((Kd) => Kd.levels[i].most) });
+    const LEVELS = [...G.kinds[0].levels.map((l, i) => ({ px: l.lo, ...roomAt(i), ...(FINE && !i ? { slots: SLOTS } : {}) })), ...(SHL >= 0 ? [{ px: 1e-3, room: roomOf((Kd) => Kd.asset.detail.shadow?.most), rooms: roomsOf((Kd) => Kd.asset.detail.shadow?.most) }] : [])];
     // what each of the stand's shapes is to the material (numbersOf), four rows of four a shape, in the drawer's one
     // table of a kind's numbers (numOf): [how tall, its tint], [its wind], [its leaves], [its twig's painting, its size at
     // scale 1 (its packed size over this is its scale)]; and the
@@ -348,7 +421,10 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
       return {
         vertex: (B) => {
           const kind = uint(B.y.add(0.5)), R = heapRow(D.H, kind, level).toVar(), P = at(R), e = R.y.add(P.vertex.mul(uint(2))), r0 = D.numOf(kind, 0).toVar(), r3 = D.numOf(kind, 3).toVar();
-          return { ...plantOf(D.H.elems.element(e).toVar(), D.H.elems.element(e.add(uint(1))).toVar()), Hk: r0.x, Tn: r0.yzw, Wd: D.numOf(kind, 1).toVar(), Lf: D.numOf(kind, 2).toVar(), Tw: r3.x, Ks: r3.y, shade: seedOf(B), drawn: P.drawn };
+          const e0 = D.H.elems.element(e).toVar(), e1 = D.H.elems.element(e.add(uint(1))).toVar();
+          // (a crowd's level: its shape's numbers in the four elements before its vertices)
+          const crowd = CROWDED[lv] ? { crowd: crowdOfElems(e0, e1, [0, 1, 2, 3].map((j) => asFloats(D.H.elems.element(R.y.add(uint(j)))).toVar())) } : {};
+          return { ...plantOf(e0, e1), Hk: r0.x, Tn: r0.yzw, Wd: D.numOf(kind, 1).toVar(), Lf: D.numOf(kind, 2).toVar(), Tw: r3.x, Ks: r3.y, shade: seedOf(B), drawn: P.drawn, ...crowd };
         },
         level: lv,
         // (the stand's finest level, of this plant's shape: whether it is there, and how far it has grown in since it came)
@@ -357,9 +433,9 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     };
     const D = createDrawer(scene, renderer, tex, {
       name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1),
-      make: { per: 2, numbers: { rows: 4, of: (k) => numbers.subarray(k * 16, k * 16 + 16) }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, last: i === n - 1 }, feedOf(i, at)); m.vertexNode = Fn(() => shape(src.readAt(0, slot), src.readAt(1, slot)))(); return m; } },
+      make: { per: 2, numbers: { rows: 4, of: (k) => numbers.subarray(k * 16, k * 16 + 16) }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, last: i === n - 1, ...(CROWDED[i] ? { crowd: true, first: i === CROWDED.indexOf(true), splay: FINE } : {}) }, feedOf(i, at)); m.vertexNode = Fn(() => shape(src.readAt(0, slot), src.readAt(1, slot)))(); return m; } },
       // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
-      zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 2|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
+      zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 2${LOD.on ? ` crowd ${LOD.CARD}:${LOD.KMAX}` : ''}|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
     });
     drawers.push(D);
     // what of it is solid (src/world/bodies.js): every plant of the stand round the walker, whatever its kind and size
@@ -478,10 +554,26 @@ function standBodies(G, KINDS, ground, renderer) {
     node (pixels): it is then drawn as the game draws that level at that size, its hand-over and its sinking with it
     (the measure's: tools/stick.js); none: the whole of its level. */
 export function treeSample(tex, row, level = 0, x = 0, y = 0, z = 0, s = 1, form = 0, px = null) {
+  if (LOD.on && row.asset.crowdRooms) return crowdSample(tex, row, x, y, z, s, form, px);
   const n = row.detail.levels.length, L = row.detail.levels[Math.min(level, n - 1)], g = geometryOf(row.asset, L, form);
   const { m, shape } = plantMaterial(tex, row.detail)(px && { lo: L.lo, hi: L.hi, last: L.i === n - 1 }, null, px);   // (a mesh of its own, not the heap's: the library's)
   m.vertexNode = Fn(() => shape(vec4(x, z, y, s * sizeAtOne(row.asset, form)), vec4(0.4, 0, 1.3, Math.PI)))();   // turned a little, its shade the middle one, the whole of its level
   const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = 1; mesh.layers.enable(1);
+  return wear(mesh, tex, row, form);
+}
+
+/** `?lod=new`: the same plant as the crowd kit draws it, every size on screen from one mesh (its whole crowd, the far
+    bodies and the post with it), the one rule moving it by its size on screen as the camera comes and goes; its last
+    sizes sinking as its farthest level does. Built on the page (a tenth of a second and more for a tree). */
+function crowdSample(tex, row, x, y, z, s, form, px) {
+  const a = row.asset, S = crowdOf(a, form), M = crowdLevelOf(S, 0, Infinity), g = new THREE.BufferGeometry();
+  for (const [k, w] of [['position', 3], ['normal', 3], ['uv', 2], ['part', 1], ['ao', 1], ['cn', 3], ['root', 3], ['hand', 2], ['twig', 1], ['go', 1], ['tip', 3], ['tipUv', 2], ['to', 3], ['body', 1]]) g.setAttribute(k, new THREE.BufferAttribute(M[k], w));
+  g.setIndex(new THREE.BufferAttribute(M.index, 1));
+  const B = bandsOf(a), lo = B.at(-1)[0];
+  const { m, shape } = plantMaterial(tex, row.detail)({ lo, hi: Infinity, last: true, crowd: true, first: true, splay: false }, null, px);
+  m.vertexNode = Fn(() => shape(vec4(x, z, y, s * sizeAtOne(a, form)), vec4(0.4, 0, 1.3, Math.PI)))();
+  const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = 1; mesh.layers.enable(1);
+  for (let j = 0; j < 4; j++) mesh.userData[`rule${j}`] = new THREE.Vector4(...M.rule.subarray(j * 4, j * 4 + 4));
   return wear(mesh, tex, row, form);
 }
 
