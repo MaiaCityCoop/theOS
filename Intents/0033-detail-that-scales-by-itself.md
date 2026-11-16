@@ -572,6 +572,28 @@ one made of ten thousand repeated parts, each part built once.
 Begun 2026-11-16, after Samuel's approval, with stage 1 (the stick, the builder, and the plants on them). Main was
 merged in first: it had gained intents 0034 (the walker's lens, at define) and 0035 (one measure for everything).
 
+### Stage 1: how it is laid into the engine
+
+Decided after the plants' whole path was read against the definition (trees.js, drawer.js, tier.js, the tree kit):
+
+- **Runs of cards, not levels.** A level today is a mesh in the heap, a tier in the packing and a draw a shape. Levels
+  made by the builder in halves would have tripled the trees' draws; in quarters they submit twice the cards needed.
+  Instead a shape has one mesh with its cards in the builder's order, and a plant is packed as many runs of sixteen
+  cards as its size on screen asks for. One draw serves every shape, and what is submitted is what is shown.
+- **A part carries when it goes.** Every card keeps the size on screen under which it is gone and the point it is
+  enlarged about, in the vertex's free bits: a vertex stays 32 bytes.
+- **The wood is not folded in stage 1.** Thin twigs go by their width on screen; thick wood keeps its tessellation
+  until stage 2 brings folding. `meshoptimizer` does not come in yet.
+- **What stays written, for now**: the close-up splay of a sprig into twig cards near the eye (the kit's, from 600 px,
+  as today), and `shade()`, the hand-made body a plant casts its shadow with. The second is a level by another name
+  and is on the todo.
+- **Order of work**: counters and today's numbers; the measure in the library, today's levels read first; the builder
+  as a module; the rule in the library only, held to the measure before the drawer is touched; then the drawer; then
+  the switch; then the tables deleted.
+
+How it is checked here: headless Chromium with WebGPU on SwiftShader, a GPU done by the CPU. Pictures and counts are
+real; times only compare. GPU time, Safari and the iPhone are Samuel's to read.
+
 ## Propose
 
 ## Story
@@ -592,6 +614,13 @@ merged in first: it had gained intents 0034 (the walker's lens, at define) and 0
       the canvas at the screen's own ratio. The stress world's numbers in the repository are of 2026-11-13. The second
       report lists nine measurements in order; its first five need nothing of the new method
 - [ ] Stage 1: the stick, the builder, and the plants on them
+  - [ ] counters, and today's numbers written down
+  - [ ] the measure in the library; today's levels read
+  - [ ] the builder as a module (`assets/kit/crowd.js`)
+  - [ ] the rule in the library only, held to the measure
+  - [ ] the drawer: runs of cards, the hull's ring
+  - [ ] the switch in the world; the tables and the kinds' pixel sizes deleted
+  - [ ] `shade()`, the hand-made body for the shadow, replaced by the builder's
 - [ ] Stage 2: solids
 - [ ] Stage 3: made things, and thin loose parts
 - [ ] Stage 4: movers
