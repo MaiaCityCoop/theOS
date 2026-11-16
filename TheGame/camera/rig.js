@@ -6,7 +6,8 @@
 //   h       metres above the ground
 //   band    the name shown for it
 //   pitch   how far it looks down at this height when left alone (radians); null at eye level, where it looks ahead
-//   fov     the lens: the picture's height in degrees
+//   mm      the lens: a focal length of the film camera's kit (cine/lenses.js: the Master Anamorphics, the same glass
+//           the films see through), framed 16 : 9; between keys it zooms, evenly in stops (intent 0034)
 //   speed   metres a second the keys move it; run: with Shift
 //   orbit   0: the camera is the walker's eyes; 1: it hangs back from a point on the ground it looks at
 //   lock    the mouse is held for looking (pointer lock) in this band, POV; elsewhere it is a free pointer, to point and pick
@@ -26,11 +27,13 @@ export default {
   climb: 0.75,         // on foot: the steepest ground walked up (metres up per metre on); steeper stops you, as a cut bank does
   stepUp: 0.25,        // a rise lower than this is stepped up whatever its slope (a kerb, a root)
   tilt: { up: 1.2, down: -1.5, drag: 0.0022, fade: 0.5 },
+  glass: 1,            // how much of the film camera's glass the walker looks through (its barrel and the light lost at the
+                       // corners: src/core/temporal.js); 0: none. ?glass= tries another
   keys: [
-    { h: WALKER.eye, band: 'eye', pitch: null, fov: 68, speed: 3.2, run: 9, orbit: 0, lock: true },
-    { h: 5, band: 'street', pitch: -0.32, fov: 64, speed: 7, run: 20, orbit: 1, lock: true },
-    { h: 40, band: 'town', pitch: -0.62, fov: 54, speed: 40, run: 120, orbit: 1, lock: false },
-    { h: 800, band: 'skyline', pitch: -0.9, fov: 44, speed: 500, run: 1500, orbit: 1, lock: false },
-    { h: 12000, band: 'skyline', pitch: -1.05, fov: 40, speed: 6000, run: 18000, orbit: 1, lock: false },
+    { h: WALKER.eye, band: 'eye', pitch: null, mm: 28, speed: 3.2, run: 9, orbit: 0, lock: true },        // the kit's widest: the anamorphic walk
+    { h: 5, band: 'street', pitch: -0.32, mm: 35, speed: 7, run: 20, orbit: 1, lock: true },
+    { h: 40, band: 'town', pitch: -0.62, mm: 40, speed: 40, run: 120, orbit: 1, lock: false },
+    { h: 800, band: 'skyline', pitch: -0.9, mm: 50, speed: 500, run: 1500, orbit: 1, lock: false },      // a long lens over the city: the aerial look
+    { h: 12000, band: 'skyline', pitch: -1.05, mm: 50, speed: 6000, run: 18000, orbit: 1, lock: false },
   ],
 };
