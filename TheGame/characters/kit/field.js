@@ -78,7 +78,7 @@ const smax = (a, b, k) => -smin(-a, -b, k);
 // and its record holds where they start and how many there are.
 const REC = 84, OP = { add: 0, sub: 1, and: 2 }, KNOTS = 12;
 function write(P, at, o) {
-  const s = o.s; P[at] = OP[o.op]; P[at + 1] = s.t; P[at + 2] = o.k; P.set(s.lo, at + 3); P.set(s.hi, at + 6); const q = at + 9;
+  const s = o.s; P[at] = OP[o.op ?? 'add']; P[at + 1] = s.t; P[at + 2] = o.k; P.set(s.lo, at + 3); P.set(s.hi, at + 6); const q = at + 9;
   switch (s.t) {
     case 0: P.set(s.c, q); P[q + 3] = s.r; break;
     case 1: P.set(s.c, q); P.set(s.r, q + 3); P.set(s.R, q + 6); break;
@@ -160,10 +160,12 @@ function distR(P, r, x, y, z) {
       const bw = P[q + 15] + (P[q + 16] - P[q + 15]) * tc, bd = P[q + 17] + (P[q + 18] - P[q + 17]) * tc;
       const rw = bw + (P[q + 13] - bw) * pr, rd = bd + (P[q + 14] - bd) * pr, off = P[q + 21] * 4 * tc * (1 - tc);
       const cx = dx - P[q + 3] * tc * L - P[q + 9] * off, cy = dy - P[q + 4] * tc * L - P[q + 10] * off, cz = dz - P[q + 5] * tc * L - P[q + 11] * off;
-      const X = (cx * P[q + 6] + cy * P[q + 7] + cz * P[q + 8]) / rw, Y = (cx * P[q + 9] + cy * P[q + 10] + cz * P[q + 11]) / rd;
-      const dc = (Math.sqrt(X * X + Y * Y) - 1) * (rw < rd ? rw : rd), ax = t < 0 ? -s : t > 1 ? s - L : 0;
-      if (ax <= 0) return dc;
-      return dc > 0 ? Math.sqrt(dc * dc + ax * ax) : ax;
+      // (its section an ellipse; past either end a rounded cap as long as the section is narrow: one ellipsoid's measure)
+      const X = cx * P[q + 6] + cy * P[q + 7] + cz * P[q + 8], Y = cx * P[q + 9] + cy * P[q + 10] + cz * P[q + 11];
+      const rc = rw < rd ? rw : rd, ax = t < 0 ? -s : t > 1 ? s - L : 0;
+      const u1 = X / rw, v1 = Y / rd, w1 = ax / rc, k0 = Math.sqrt(u1 * u1 + v1 * v1 + w1 * w1);
+      const u2 = u1 / rw, v2 = v1 / rd, w2 = w1 / rc, k1 = Math.sqrt(u2 * u2 + v2 * v2 + w2 * w2);
+      return k1 < 1e-12 ? -rc : (k0 * (k0 - 1)) / k1;
     }
   }
   return 1e9;
