@@ -3,11 +3,13 @@
 // wedged between them, the coccyx under it, the disc between the pubic bones.
 //
 // A man's, standing: the front upper spines and the front of the pubic bones in one upright plane, the sacrum's base
-// tilted 40° forwards, the brim of the basin about 57° from level. Measures (Gray's Anatomy, 1918, figs. 235 and 241;
-// White, Black & Folkens, "Human Osteology"; the hip joint against the spines after Seidel et al. 1995, J. Biomech. 28):
-// across the crests 0.285, between the front upper spines 0.235, from the crest's top to the seat bone's foot 0.215,
-// from front upper spine to back upper spine 0.165, the brim 0.13 wide and 0.12 from the promontory to the pubis, the
-// sacrum 0.11 across its wings and 0.10 long, the arch under the pubis about 65°.
+// tilted 40° forwards, the brim of the basin about 57° from level. Measures (Gray's Anatomy, 1918, figs. 95-97, 235,
+// 241; White, Black & Folkens, "Human Osteology"; where the hip joint lies behind and below the front upper spines after
+// Seidel et al. 1995, J. Biomech. 28): across the crests 0.287, between the front upper spines 0.238, from the crest's
+// top to the seat bone's foot 0.214, from front upper spine to back upper spine 0.17, the brim 0.13 wide and 0.12 from
+// the promontory to the pubis, the sacrum 0.112 across its wings and 0.10 long, between the ischia's spines 0.098, the
+// arch under the pubis about 65°. The back upper spines lie level with the sacrum's second piece, a little below the
+// front ones.
 import { add, sub, mul, dot, norm, cross, spline } from './kit.js';
 import { JOINTS } from './rig.js';
 
@@ -54,8 +56,8 @@ function sacrum(K) {
   K.and(K.plane(up, J[0]), 0.003);
   K.and(K.plane(down(LEAN[4]), add(J[5], mul(down(LEAN[4]), 0.0005))), 0.002);
   // its sides, slanting, where the hip bones hold it: the ear-shaped faces of the joints stand a little proud of them
-  K.both(() => K.and(K.plane(SI.n, add(SI.p, mul(SI.n, -0.0042))), 0.004));
-  K.both(() => K.put(K.plate(add(SI.p, mul(SI.n, -0.0062)), [SI.back, SI.up], EAR, { tc: 0.005, te: 0.002, ramp: 0.003, smooth: 3 }), 0.002));
+  K.both(() => K.and(K.plane(SI.n, add(SI.p, mul(SI.n, -0.003))), 0.004));
+  K.both(() => K.put(K.plate(add(SI.p, mul(SI.n, -0.0062)), [SI.back, SI.up], EAR, { tc: 0.005, te: 0.0015, ramp: 0.006, smooth: 3 }), 0.004));
   // the wings beside the body, hollowed a little on top
   K.both(() => K.cut(K.egg(add(add(J[0], mul(up, 0.0085)), add([0.046, 0, 0], mul(back0, 0.003))), [0.0165, 0.0115, 0.03], [[1, 0, 0], up]), 0.007));
   // the two processes that hold the last vertebra of the loins from behind, either side of the canal's mouth
@@ -64,8 +66,6 @@ function sacrum(K) {
     K.put(K.egg(add(add(J[0], mul(back0, 0.0305)), add([0.0245, 0, 0], mul(up, 0.0045))), [0.0085, 0.0115, 0.0075], [[1, 0, 0.35], up]), 0.005);
     K.cut(K.egg(add(add(J[0], mul(back0, 0.0385)), add([0.0205, 0, 0], mul(up, 0.0095))), [0.0062, 0.0072, 0.0032], [[1, 0, -0.55], up]), 0.002);   // its facet, facing back and in
   });
-  // the first body's own face, a low oval standing on the base
-  K.put(K.egg(add(add(J[0], mul(back0, 0.001)), mul(up, -0.0012)), [0.0248, 0.003, 0.015], [[1, 0, 0], up]), 0.003);
   // down its back: the crest of the grown-together spines (a ridge with three knobs), the low knobs of the grown-together
   // joints beside it, the outer row beyond the holes
   K.put(K.group(spline([0.3, 1, 2, 3, 3.6].map((i) => [...spot(i, 0, -back(i)), 0.0028, 0.0026]), 4).map((q, n, P) => n ? { op: 'add', k: K.s(0.0008), s: K.strand(P[n - 1], q, { w: 0.0028, d: 0.0026, t0: [0.0028, 0.0026], t1: [0.0028, 0.0026], out: [0, 0.5, -1] }) } : null).filter(Boolean)), 0.004);
@@ -102,7 +102,7 @@ const SI = { n: norm([0.92, -0.2, -0.3]), p: [0.052, 0.985, -0.045] };
 // … and on it the ear-shaped face each bone meets the other by, drawn in the plane (back along it, up along it): its long
 // limb running back, its short one up, the hollow of the ear behind and above
 SI.back = norm(sub([0, 0, -1], mul(SI.n, -SI.n[2]))); SI.up = cross(SI.n, SI.back);
-const EAR = [[-0.0100, 0.0195], [0.0061, 0.0340], [0.017, 0.030], [0.022, 0.018], [0.020, 0.008], [0.026, 0.0], [0.034, -0.010], [0.0339, -0.0171], [0.029, -0.0255], [0.0236, -0.0195], [0.016, -0.009], [0.0095, 0.0005], [-0.001, 0.010]];
+const EAR = [[-0.0100, 0.0195], [0.0061, 0.0340], [0.017, 0.030], [0.022, 0.018], [0.020, 0.008], [0.026, 0.0], [0.032, -0.008], [0.0315, -0.0145], [0.027, -0.021], [0.0225, -0.017], [0.016, -0.009], [0.0095, 0.0005], [-0.001, 0.010]];
 
 function coccyx(K) {
   K.bone('coccyx', 'hips');
@@ -131,11 +131,9 @@ const LOWER = sheet([0.0319, 0.8941, 0.036], [-0.7992, 0, 0.6011], [0.2672, 0.89
 // the wall of the true pelvis inside the socket, from the brim's line down to the ischium's spine and the seat bone
 const INNER = sheet([0.0548, 0.9264, -0.0158], [0.0327, 0, 0.9995], [0.1253, 0.9921, -0.0041], [-2.9118, -0.9999, -0.1093]);
 const WALL = [[0.060, 0.972, -0.032], [0.0635, 0.955, -0.004], [0.062, 0.938, 0.022], [0.056, 0.915, 0.010], [0.054, 0.892, -0.006], [0.052, 0.868, -0.018], [0.050, 0.880, -0.040], [0.054, 0.897, -0.047], [0.056, 0.912, -0.044], [0.058, 0.940, -0.040], [0.062, 0.956, -0.040]];
-// the crest from the front upper spine over the top to the back upper spine: [x, y, z, half its height, half its thickness]
-const CREST = [
-  [0.116, 1.001, 0.052, 0.0058, 0.0058], [0.1275, 1.021, 0.036, 0.006, 0.0066], [0.1345, 1.043, 0.012, 0.007, 0.0092], [0.135, 1.0585, -0.010, 0.0066, 0.0076],
-  [0.127, 1.0655, -0.030, 0.0064, 0.007], [0.108, 1.0605, -0.056, 0.0066, 0.0078], [0.085, 1.040, -0.076, 0.007, 0.0092], [0.063, 1.012, -0.087, 0.007, 0.0098], [0.047, 0.988, -0.091, 0.006, 0.008],
-];
+// the crest from the front upper spine over the top (its knob the widest of the pelvis, its top level with the fourth
+// vertebra of the loins) to the back upper spine
+const CREST = [[0.116, 1.001, 0.052], [0.1275, 1.021, 0.036], [0.1345, 1.043, 0.012], [0.135, 1.0585, -0.010], [0.127, 1.0655, -0.030], [0.108, 1.0605, -0.056], [0.085, 1.040, -0.076], [0.063, 1.012, -0.087], [0.047, 0.988, -0.091]];
 // the rest of the wing's edge: the back lower spine, the great notch, its root in the body, the front lower spine
 const EDGE = [[0.050, 0.966, -0.086], [0.058, 0.960, -0.062], [0.066, 0.956, -0.038], [0.080, 0.946, -0.012], [0.094, 0.946, 0.016], [0.100, 0.966, 0.038], [0.106, 0.984, 0.046]];
 // the plate of pubis and ischium, round its edge: the pubic bone's top by the middle, its knob, the brim's line up to the
@@ -152,13 +150,6 @@ const HOLE = [
 // the pubic bone's body by the middle: its middle, half its width, height and thickness, tilted (its top forwards)
 const PUBIS = { c: [0.0135, 0.8885, 0.0440], r: [0.0105, 0.0205, 0.0078], R: [[1, 0, 0], [0, 0.878, 0.479]] };
 
-/** A band along a curve as one solid: pts [x, y, z, half its width, half its depth], its depth facing `out`. */
-function band(K, pts, out, n = 6) {
-  const P = spline(pts, n), ops = [];
-  for (let i = 0; i < P.length - 1; i++) { const a = P[i], b = P[i + 1], w = (a[3] + b[3]) / 2, d = (a[4] + b[4]) / 2; ops.push({ op: 'add', k: K.s(0.0008), s: K.strand(a, b, { w, d, t0: [w, d], t1: [w, d], out }) }); }
-  return K.group(ops);
-}
-
 function hip(K, side) {
   K.bone('hip.' + side, 'hips');
   const A = JOINTS['thigh.L'], NA = norm([0.676, -0.676, 0.292]);   // the socket's middle, the way it faces (out, down, forwards)
@@ -169,27 +160,27 @@ function hip(K, side) {
   const rim = CREST.map(WING.flat), mid = rim.reduce((a, q) => [a[0] + q[0] / rim.length, a[1] + q[1] / rim.length - 0.03 / rim.length], [0, 0]);
   const inner = rim.map((q, i) => { const a = rim[Math.max(0, i - 1)], b = rim[Math.min(rim.length - 1, i + 1)], t = [b[0] - a[0], b[1] - a[1]], l = Math.hypot(...t), nn = [-t[1] / l, t[0] / l], sg = (mid[0] - q[0]) * nn[0] + (mid[1] - q[1]) * nn[1] > 0 ? 1 : -1; return [q[0] + nn[0] * sg * 0.0125, q[1] + nn[1] * sg * 0.0125]; });
   K.put(K.plate(WING.c, [WING.u, WING.v], rim.concat(inner.reverse()), { tc: 0.0068, te: 0.0068, bend: WING.bend, smooth: 3 }), 0.006);
-  K.put(K.egg(add(WING.on(CREST[0]), [0.0012, -0.003, 0.0006]), [0.0056, 0.0085, 0.0058], [[1, 0, 0], [0.2, 1, 0.3]]), 0.005);                     // the front upper spine
-  K.put(K.egg(add(WING.on(CREST[2]), mul(WING.n, -0.0022)), [0.006, 0.0072, 0.0125], [WING.n, WING.v]), 0.009);      // the crest's knob, its widest
-  K.put(K.egg(add(WING.on(CREST[8]), [0.001, -0.002, 0.003]), [0.007, 0.0085, 0.006]), 0.004);                         // the back upper spine
-  K.put(K.egg(add(WING.on(EDGE[0]), [0, 0.001, -0.001]), [0.0055, 0.0065, 0.0055]), 0.004);                         // the back lower spine
-  K.put(K.egg([0.100, 0.966, 0.038], [0.0064, 0.0105, 0.0072], [[1, 0, 0], [0.1, 1, 0.35]]), 0.008);               // the front lower spine
+  K.put(K.egg(add(WING.on(CREST[0]), [0.0012, -0.003, 0.0006]), [0.0056, 0.0085, 0.0058], [[1, 0, 0], [0.2, 1, 0.3]]), 0.005);   // the front upper spine
+  K.put(K.egg(add(WING.on(CREST[2]), mul(WING.n, -0.0022)), [0.006, 0.0072, 0.0125], [WING.n, WING.v]), 0.009);                  // the crest's knob
+  K.put(K.egg(add(WING.on(CREST[8]), [0.001, -0.002, 0.003]), [0.007, 0.0085, 0.006]), 0.004);                                   // the back upper spine
+  K.put(K.egg(add(WING.on(EDGE[0]), [0, 0.001, -0.001]), [0.0055, 0.0065, 0.0055]), 0.004);                                      // the back lower spine
+  K.put(K.egg([0.100, 0.966, 0.038], [0.0064, 0.0105, 0.0072], [[1, 0, 0], [0.1, 1, 0.35]]), 0.008);                             // the front lower spine
   // behind, the thick of it against the sacrum: the same sheet made very thick inwards (its outer half taken off, so
   // the wing's outer face stays as it is), cut flat a little short of the joint's plane, and sloped off forwards in one
-  // plane to the wing's hollow; on its flat the ear-shaped face of the joint stands just proud
+  // plane to the wing's hollow; on its flat the ear-shaped face of the joint stands a hair proud
   const post = [CREST[4], CREST[5], CREST[6], CREST[7], CREST[8], EDGE[0], EDGE[1], EDGE[2]].map(WING.flat).concat([[-0.006, -0.050], [0.030, -0.040], [0.036, 0.0], [0.030, 0.050], [0.012, 0.074]]);
   const slope = norm(cross(sub([0.060, 0.970, -0.031], [0.062, 1.010, -0.028]), sub([0.104, 1.0, 0.006], [0.062, 1.010, -0.028])));
   const roof = norm(cross(sub([0.110, 1.012, 0.002], [0.060, 1.020, -0.040]), sub([0.094, 1.056, -0.054], [0.060, 1.020, -0.040])));   // above the joint it slopes away, up to the crest and forwards to the wing
   K.put(K.group([{ op: 'add', k: 0, s: K.plate(WING.c, [WING.u, WING.v], post, { tc: 0.05, te: 0.05, bend: WING.bend, smooth: 3 }) },
     { op: 'sub', k: K.s(0.001), s: K.plate(add(WING.c, mul(WING.n, -0.062)), [WING.u, WING.v], [[-0.16, -0.11], [0.09, -0.11], [0.09, 0.14], [-0.16, 0.14]], { tc: 0.06, te: 0.06, bend: WING.bend }) },
-    { op: 'and', k: K.s(0.004), s: K.plane(mul(SI.n, -1), add(SI.p, mul(SI.n, 0.004))) },
+    { op: 'and', k: K.s(0.004), s: K.plane(mul(SI.n, -1), add(SI.p, mul(SI.n, 0.003))) },
     { op: 'and', k: K.s(0.006), s: K.plane(slope, [0.062, 1.010, -0.028]) },
     { op: 'and', k: K.s(0.008), s: K.plane(roof, [0.060, 1.020, -0.040]) },
     { op: 'sub', k: K.s(0.004), s: K.ball(add([0.0872, 0.996, -0.0084], mul(slope, 0.065)), 0.07) }]), 0.004);   // (the slope hollowed: the back of the wing's hollow)
-  K.put(K.plate(add(SI.p, mul(SI.n, 0.0070)), [SI.back, SI.up], EAR, { tc: 0.0058, te: 0.002, ramp: 0.003, smooth: 3 }), 0.003);
-  // the body over the socket
+  K.put(K.plate(add(SI.p, mul(SI.n, 0.0070)), [SI.back, SI.up], EAR, { tc: 0.0058, te: 0.0015, ramp: 0.006, smooth: 3 }), 0.005);
+  // the body over the socket (the brim's line down its inside to the pubis is the edge the inner wall makes with the
+  // wing's hollow)
   K.put(K.egg([0.090, 0.948, -0.002], [0.017, 0.016, 0.034], [[1, 0, 0.12], [0, 1, 0]]), 0.012);
-  // (the brim's line down its inside to the pubis is the edge the inner wall makes with the wing's hollow)
   // the socket's cup: a shell round the thigh's ball, open out, down and forwards; what holds it behind and in front
   K.put(K.group([{ op: 'add', k: 0, s: K.ball(add(A, mul(NA, -0.0045)), 0.0325) }, { op: 'and', k: K.s(0.003), s: K.plane(NA, add(A, mul(NA, -0.0012))) }, { op: 'and', k: K.s(0.004), s: K.plane(INNER.n, add(INNER.c, mul(INNER.n, -0.002))) }]), 0.007);
   K.put(K.egg([0.074, 0.930, -0.0265], [0.016, 0.034, 0.011]), 0.008);

@@ -41,16 +41,31 @@ export function bladeFrame(S = JOINTS['upperArm.L'], turn = BLADE_TURN) {
 const BLADE_C = [-0.052, -0.022], BLADE_BEND = [2.3, 0.75, 0], BLADE_Z0 = -0.0075;
 export const bladeZ = (x, y) => BLADE_Z0 + BLADE_BEND[0] * (x - BLADE_C[0]) ** 2 + BLADE_BEND[1] * (y - BLADE_C[1]) ** 2;
 
+// where things are on these bones, in their own frames (the bones below and the rig's joints read the same numbers)
+const AC = [0.0165, 0.0445, 0.0085];          // the collarbone's outer end on the acromion, in the blade's frame
+const HINGE = [1, 0.1, 0];                    // the elbow's hinge in the humerus' frame, its inner end a little lower
+const RADIAL_HEAD = [0.0165, -0.0158, 0.0045];                    // the middle of the radius' head, in the forearm's frame
+const ulnarHead = (L) => [0.002, -L + 0.0078, -0.018];           // the middle of the ulna's head (L: elbow to wrist)
+
+/** The left arm's own frames, standing: the blade's; the humerus' (from the elbow, y up to the middle of its ball, x
+ *  outwards along the elbow, z forwards); the forearm's (from the elbow, y up, the wrist at -Lf, x outwards, z forwards). */
+function armFrames() {
+  const S = JOINTS['upperArm.L'], E = JOINTS['foreArm.L'], W = JOINTS['hand.L'];
+  const hy = norm(sub(S, E)), hx = norm(sub([1, 0, 0], mul(hy, hy[0]))), fy = norm(sub(E, W)), fx = norm(sub([1, 0, 0], mul(fy, fy[0])));
+  return { B: bladeFrame(S), H: frameAt(E, hx, hy, cross(hx, hy)), Lh: Math.hypot(...sub(S, E)), F: frameAt(E, fx, fy, cross(fx, fy)), Lf: Math.hypot(...sub(E, W)) };
+}
+/** The points of the left arm a rig turns its bones about: where the collarbone meets the acromion, the elbow's hinge,
+ *  the middles of the radius' head and of the ulna's (the forearm turns about the line through them). */
+export function armPoints() {
+  const { B, H, F, Lf } = armFrames();
+  return { ac: B.p(...AC), elbowAxis: H.d(...HINGE), radialHead: F.p(...RADIAL_HEAD), ulnarHead: F.p(...ulnarHead(Lf)) };
+}
+
 export function arm(K) {
   K.pair((side) => {
-    const S = JOINTS['upperArm.L'], E = JOINTS['foreArm.L'], W = JOINTS['hand.L'], C0 = JOINTS['clavicle.L'];
-    const B = bladeFrame(S);
+    const { B, H, Lh, F, Lf } = armFrames();
     scapula(K, side, B);
-    clavicle(K, side, B, C0);
-    // the humerus' frame: from the elbow, y up to the middle of its ball, x outwards (along the elbow's hinge), z forwards
-    const hy = norm(sub(S, E)), hx = norm(sub([1, 0, 0], mul(hy, hy[0]))), H = frameAt(E, hx, hy, cross(hx, hy)), Lh = Math.hypot(...sub(S, E));
-    // the forearm's: from the elbow, y up (the wrist at -Lf), x outwards, z forwards
-    const fy = norm(sub(E, W)), fx = norm(sub([1, 0, 0], mul(fy, fy[0]))), F = frameAt(E, fx, fy, cross(fx, fy)), Lf = Math.hypot(...sub(E, W));
+    clavicle(K, side, B, JOINTS['clavicle.L']);
     humerus(K, side, H, Lh);
     forearm(K, side, H, F, Lf);
   });
@@ -107,7 +122,7 @@ function scapula(K, side, B) {
 // outer third back; thick and three-sided at the breastbone, round in the middle, flat at the shoulder ────────────────
 function clavicle(K, side, B, C0) {
   K.bone('clavicle.' + side, 'clavicle.' + side);
-  const end = B.p(0.0165, 0.0445, 0.0085);   // on the acromion's inner edge, near its front
+  const end = B.p(...AC);   // on the acromion's inner edge, near its front
   // [above, below, front, back, up, forwards, how square in front, behind] at twelve places along it
   const kn = [[0.0118, 0.0125, 0.0105, 0.0105, 0, 0.001, 2.4, 2.4], [0.0098, 0.0102, 0.0092, 0.0092, 0.0005, 0.0045, 2.2, 2.2], [0.0078, 0.008, 0.0075, 0.0075, 0.001, 0.0085, 2, 2], [0.0067, 0.0069, 0.0067, 0.0067, 0.0015, 0.0115, 2, 2],
     [0.0062, 0.0064, 0.0063, 0.0063, 0.002, 0.0125, 2, 2], [0.006, 0.0061, 0.0062, 0.0062, 0.002, 0.0105, 2, 2], [0.0058, 0.006, 0.0066, 0.0066, 0.002, 0.0055, 2, 2], [0.0056, 0.0058, 0.0076, 0.0076, 0.0015, -0.002, 2.1, 2.1],
@@ -128,11 +143,11 @@ function humerus(K, side, H, L) {
   K.bone('humerus.' + side, 'upperArm.' + side);
   // the shaft: [inwards, outwards, front, back, …] at sixteen places from the foot of the elbow's flare (flat and wide
   // between the epicondyles, bent a little forwards) up to under the ball: three-sided below, round above
-  const kn = [[0.019, 0.0185, 0.0085, 0.0085, 0, 0.003, 2, 2.2], [0.0296, 0.0248, 0.0075, 0.008, 0, 0.0008, 1.8, 2.5], [0.0172, 0.0166, 0.0085, 0.0084, 0, 0, 1.7, 2.5], [0.0132, 0.013, 0.0096, 0.0092, 0, 0, 1.7, 2.4],
+  const kn = [[0.019, 0.0185, 0.0085, 0.0052, 0, 0.003, 2, 2.2], [0.0296, 0.0248, 0.0075, 0.008, 0, 0.0008, 1.8, 2.5], [0.0172, 0.0166, 0.0085, 0.0084, 0, 0, 1.7, 2.5], [0.0132, 0.013, 0.0096, 0.0092, 0, 0, 1.7, 2.4],
     [0.0118, 0.0118, 0.0103, 0.0098, 0, 0, 1.7, 2.4], [0.011, 0.0111, 0.0109, 0.0103, 0, 0, 1.8, 2.3], [0.0106, 0.0108, 0.0112, 0.0107, 0, 0, 1.9, 2.2], [0.0104, 0.011, 0.0114, 0.011, 0, 0, 2, 2.2],
     [0.0105, 0.0116, 0.0115, 0.0112, 0, 0, 2, 2.1], [0.0106, 0.0115, 0.0115, 0.0113, 0, 0, 2, 2], [0.0109, 0.0112, 0.0116, 0.0114, 0, 0, 2, 2], [0.0113, 0.0113, 0.0118, 0.0116, 0, 0, 2, 2],
     [0.012, 0.0118, 0.0122, 0.012, 0, 0, 2, 2], [0.013, 0.0127, 0.013, 0.0128, 0, 0, 2, 2], [0.0152, 0.015, 0.015, 0.015, 0.0005, 0, 2, 2], [0.0178, 0.0174, 0.0165, 0.0168, 0.001, 0, 2, 2]];
-  K.put(K.loft(H.p(0, -0.004, -0.004), H.p(0.009, L - 0.012, 0.002), kn, { out: H.z, caps: 0.4 }), 0.003);
+  K.put(K.loft(H.p(0, -0.001, -0.004), H.p(0.009, L - 0.012, 0.002), kn, { out: H.z, caps: 0.4 }), 0.003);
   // the ball, and the shallow groove round its foot (the anatomical neck)
   const ax = H.d(-0.62, 0.7, -0.36);
   K.put(K.ball(H.p(0, L, 0), HEAD_R), 0.004);
@@ -152,7 +167,7 @@ function humerus(K, side, H, L) {
   K.put(K.egg(H.p(0.0245, 0.0108, -0.0042), [0.0058, 0.008, 0.007]), 0.005);
   // the spool the ulna hinges on (trochlea): round the hinge, waisted, its inner rim the larger; the ball beside it for
   // the radius (capitulum), on the front and underside only
-  const tx = H.d(1, 0.1, 0), tc = H.p(-0.0075, 0, 0.002), tp = (x) => add(tc, mul(tx, x));
+  const tx = H.d(...HINGE), tc = H.p(-0.0075, 0, 0.002), tp = (x) => add(tc, mul(tx, x));
   K.put(K.loft(tp(-0.0125), tp(0.0122), [[0.0098, 0.0098, 0.0098], [0.0128, 0.0128, 0.0128], [0.0114, 0.0114, 0.0114], [0.0092, 0.0092, 0.0092], [0.0086, 0.0086, 0.0086], [0.0094, 0.0094, 0.0094], [0.0106, 0.0106, 0.0106], [0.0096, 0.0096, 0.0096]], { out: H.z, caps: 0.3 }), 0.0025);
   K.put(K.ball(H.p(0.0162, -0.0008, 0.0048), 0.0098), 0.0025);
   // the pits: in front for the ulna's beak and the radius' head, behind (deep) for the elbow's point
@@ -166,7 +181,7 @@ function humerus(K, side, H, L) {
 // tuberosity; the shaft bowed away from the ulna with a sharp edge towards it; the wide lower end with its styloid, the
 // knob on its back, the notch for the ulna's head) ───────────────────────────────────────────────────────────────────
 function forearm(K, side, H, F, L) {
-  const troch = H.p(-0.0075, 0, 0.002), rHead = F.p(0.0165, -0.0158, 0.0045), uHead = F.p(0.002, -L + 0.0078, -0.018);
+  const troch = H.p(-0.0075, 0, 0.002), rHead = F.p(...RADIAL_HEAD), uHead = F.p(...ulnarHead(L));
   K.bone('ulna.' + side, 'foreArm.' + side);
   // the upper end: the olecranon behind and above the spool (the elbow's point, its top rough and blunt), the beak
   // (coronoid) forwards under it
@@ -180,7 +195,7 @@ function forearm(K, side, H, F, L) {
     [0.005, 0.005, 0.0052, 0.005, 0, 0, 2, 2], [0.0056, 0.0056, 0.0058, 0.0056, 0, 0, 2, 2]];
   K.put(K.loft(F.p(-0.0078, -0.012, -0.0135), F.p(0.002, -L + 0.014, -0.018), kn, { out: F.x, caps: 0.5 }), 0.004);
   // the notch for the spool, cut round the hinge; the small notch on its outer side for the radius' head
-  K.cut(K.egg(troch, [0.03, 0.0122, 0.0122], [H.d(1, 0.1, 0), H.y]), 0.0015);
+  K.cut(K.egg(troch, [0.03, 0.0122, 0.0122], [H.d(...HINGE), H.y]), 0.0015);
   K.cut(K.ball(rHead, 0.0122), 0.001);
   // the head at the wrist and its styloid, behind and inside
   K.put(K.egg(uHead, [0.0082, 0.0068, 0.0084]), 0.003);
@@ -188,8 +203,8 @@ function forearm(K, side, H, F, L) {
 
   K.bone('radius.' + side, 'foreArmTwist.' + side);
   // the head: a thick disc, its top dished for the humerus' small ball; the neck under it
-  K.put(K.loft(F.p(0.0165, -0.0108, 0.0045), F.p(0.0163, -0.0212, 0.0046), [[0.0106, 0.0106, 0.0106], [0.0117, 0.0117, 0.0117], [0.0117, 0.0117, 0.0117], [0.0104, 0.0104, 0.0104]], { out: F.z, caps: 0.22 }), 0.0015);
-  K.cut(K.ball(F.p(0.0165, -0.0108 + 0.0165, 0.0045), 0.0182), 0.001);
+  K.put(K.loft(F.p(RADIAL_HEAD[0], -0.0108, RADIAL_HEAD[2]), F.p(0.0163, -0.0212, 0.0046), [[0.0106, 0.0106, 0.0106], [0.0117, 0.0117, 0.0117], [0.0117, 0.0117, 0.0117], [0.0104, 0.0104, 0.0104]], { out: F.z, caps: 0.22 }), 0.0015);
+  K.cut(K.ball(F.p(RADIAL_HEAD[0], -0.0108 + 0.0165, RADIAL_HEAD[2]), 0.0182), 0.001);
   // the shaft: [outwards (the wrist's back), inwards (the palm's side), front (the thumb's side), back (to the ulna), …]
   // at sixteen places from the neck to past the wrist: bowed forwards and outwards, away from the ulna, its edge
   // towards the ulna sharp; then widening to the wrist, flat towards the palm

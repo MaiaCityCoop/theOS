@@ -165,7 +165,7 @@ correctly"; "ensure the skull is correct".**
   which): the foot's bones, the wrist's, the vertebrae's small joints, the hip's and shoulder's sockets fit round
   their neighbours. Checked by asking every bone's points how deep they lie in every other bone: standing, nothing
   passes through anything by more than 1.5 mm.
-- **The rig** (`skeleton/pose.js`): a joint where each pair of bones really meets, 86 of them: one for every vertebra
+- **The rig** (`skeleton/pose.js`): a joint where each pair of bones really meets, 90 of them: one for every vertebra
   (at the disc under it), the atlas turning on the axis' peg and the skull nodding in the atlas' cups, the jaw's hinge
   through its two heads, the collarbone on the breastbone, the blade on the collarbone, the shoulder, the elbow's
   hinge, the radius turning about the ulna (the forearm's twist), the wrist, each finger joint, the hip, the knee,
@@ -179,10 +179,14 @@ correctly"; "ensure the skull is correct".**
 - **The measures that moved.** The arm's joints: the elbow 3 cm higher and the wrist 1 cm (the humerus had come out
   37 cm, a man's is 34), the shoulder 14 mm further back (so the blade lies on the ribs at its own angle); the
   fingers 15% longer and the palm shorter (the hand is 19 cm to the middle finger's tip).
+  The pelvis: its front upper spines and the pubis' front stand 58 mm before the hip joints (not 68 to 72, which would
+  have left the pelvis too shallow from the promontory to the pubis), its back upper spines level with the sacrum's
+  second piece.
 - **Not there yet.** The bones are not in the game: they are seen in stills drawn outside it (a camera of my own:
   soft shadows, the shade of hollows from the field, a bone's mottling). No fine relief yet (muscle lines, grooves,
   most small holes); the wrist's bones are rounded blocks, the skull's base is simplified. A loft cut flat at its end
-  can leave holes in the surface near it (the regions round or cut their ends to avoid it): to be found. In the
+  can leave holes in the surface near it (the regions round or cut their ends to avoid it), and the hip bones' and
+  the sacrum's surfaces have a few edges shared by more than two triangles (thin places): both to be found. In the
   rig the breastbone follows one vertebra (so a bent chest pulls the ribs' front ends off it), the ribs do not yet
   rise with a breath, and the thumb's part in a fist is rough.
 
@@ -200,7 +204,7 @@ correctly"; "ensure the skull is correct".**
   - [x] a first attempt from blended solids (turned down)
   - [x] a second, muscles as strands without the bones under them (set aside)
   - [ ] the bones, each a piece of its own in its true shape, against Gray's plates (the skull laid over its plates), neighbours fitted round one another: all regions in; the pelvis and the arm's refit to its new measures still being finished
-  - [ ] the skeleton rigged where its bones really meet (86 joints, moves held within a body's ranges): seen walking; the arm to be checked again after its refit
+  - [ ] the skeleton rigged where its bones really meet (90 joints, moves held within a body's ranges): seen walking; the arm to be checked again after its refit
   - [ ] Samuel's word on the skeleton; fine relief
   - [ ] muscles from origin to insertion, a skin over them
   - [ ] the face from the skull up; hands; feet

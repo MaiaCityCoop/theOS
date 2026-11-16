@@ -89,9 +89,9 @@ export function hand(K) {
         for (const g of [1, -1]) K.put(K.egg(add(b, mul(across, g * 0.0026 * s)), [0.0036 * s, 0.0037 * s, 0.0028 * s], [up, u]), 0.0012);
       } else {
         // the last one: a broad base, a shaft narrowing, then its flat tuft, the whole ending at the finger's tip
-        const o = norm(sub(up, mul(u, dot(up, u)))), kn = [[0.006, 0.004, 0.0046], [0.005, 0.0034, 0.0036], [0.004, 0.0029, 0.0027], [0.0034, 0.0026, 0.0023], [0.0031, 0.0023, 0.0021], [0.0034, 0.0021, 0.0021], [0.0043, 0.002, 0.0022], [0.0042, 0.0019, 0.0021]]
+        const o = norm(sub(up, mul(u, dot(up, u)))), kn = [[0.006, 0.004, 0.0046], [0.005, 0.0034, 0.0036], [0.004, 0.0029, 0.0027], [0.0034, 0.0026, 0.0023], [0.0031, 0.0023, 0.0021], [0.0034, 0.0021, 0.0021], [0.0043, 0.0021, 0.0023], [0.0036, 0.002, 0.0021]]
           .map(([w, d, p]) => [w * s, w * s, d * s, p * s, 0, 0, 2.3, 2.8]);
-        K.put(K.loft(add(a, mul(u, prevR * 0.45)), add(b, mul(u, -0.0011 * s)), kn, { out: o, caps: 0.6 }), 0.0015);
+        K.put(K.loft(add(a, mul(u, prevR * 0.45 + 0.002 * s)), add(b, mul(u, -0.002 * s)), kn, { out: o, caps: 1 }), 0.0015);
       }
       K.cut(K.egg(a, [prevR + 0.0005, prevR + 0.0005, prevR * 1.5], [up, u]), 0.0008);                      // the base's hollow
     };
