@@ -677,3 +677,4 @@ one made of ten thousand repeated parts, each part built once.
 | 2026-11-16 | `db23cde` | the research report of the first round |
 | 2026-11-16 | `8c8bbb2` | Samuel's third message in the idea; four notes of the second research round, read from the originals |
 | 2026-11-16 | `5544fd6` | the third and fourth messages worked in: one builder told nothing and one stick, tried on five assets, with its note, outputs and pictures; the zoom and the stress world as they are; the definition anew, six stages and eleven checks; what the originals say |
+| 2026-11-16 | `d0817c7` | the second research report; the intent held to its cautions; the stress world's own last record written as it stands |
