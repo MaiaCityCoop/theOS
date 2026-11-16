@@ -1,80 +1,209 @@
-// The skeleton's skull (intent 0033). A first pass, written before the kit (./kit.js): to be rebuilt bone by bone.
-import { ball, egg, rod, box, strand, frame, group, plane } from '../field.js';
-import * as K0 from './kit.js';
-import { PART, JOINTS } from './rig.js';
-const add = K0.add, sub = K0.sub, mul = K0.mul, dot = K0.dot, norm = K0.norm, lerp = K0.lerp, cross = K0.cross, spline = K0.spline;
+// The skeleton's skull (intent 0033): the cranium (the braincase and the face grown into one bone), the lower jaw on
+// its hinge, thirty-two teeth each in its socket, the hyoid under the jaw.
+//
+// Its points are written in the skull's own millimetres: from the middle between the two ear canals (the porion's
+// level), x to the left, y up, z forwards, the head upright (the Frankfurt plane level: ear canals and the lower rims
+// of the eye sockets at one height). Measures: the two plates of Gray's Anatomy (1918), fig. 188 (from the side) and
+// fig. 190 (from the front), read on a grid and scaled by the skull's own length (185 mm, glabella to the back) and
+// the face's height (120 mm, nasion to the chin's foot); they agree with craniometry's means for a man (Howells 1973,
+// "Cranial variation in man": length 185, breadth 143, cheekbones 132, upper face 70, eye socket 39 × 34, nose's
+// opening 25 × 51; jaw's angles 100 apart).
+import { PART } from './rig.js';
+import { norm, cross, add, sub, mul, lerp, spline } from './kit.js';
+
+const SK = [0, 1.66, -0.012];   // the middle between the ear canals, in the reference man
+const at = (x, y, z) => [x / 1000, SK[1] + y / 1000, SK[2] + z / 1000];
+const mm = (...v) => v.map((q) => q / 1000);
 
 export function skull(K) {
-  const { put, along } = K.legacy('skull');
-  SKULL_SUB.length = 0; skullOld(K.X, put, along, K.s);
-  for (const [bone, s, k] of SKULL_SUB) put(bone, s, k, PART.bone, 'sub');
+  cranium(K);
+  mandible(K);
+  teeth(K);
+  hyoid(K);
 }
 
-const SKULL_SUB = [];
-// ── the skull: the vault (forehead, crown, the back of the head, the temples' hollows); the face under its front half
-// (the sockets of the eyes and the nose's opening cut into it, the bridge of the nose, the cheekbones and their arches
-// back to the ears, the upper jaw with the ridge that holds its teeth, the palate); the lower jaw on its own bone (its
-// body round to the chin, its branches up to the hinges before the ears); thirty-two teeth. Points from craniometry's
-// means for a man (Howells 1973, "Cranial variation in man"; Farkas 1994), as remembered, measured from the middle
-// between the ear canals with the head upright (y up, z forwards) ──────────────────────────────────────────────────
-const SK = [0, 1.66, -0.012];   // the middle between the ear canals (the reference man)
-function skullOld(X, put, along, s) {
-  const h = 'head', j = 'jaw', P = (x, y, z) => X([SK[0] + x, SK[1] + y, SK[2] + z]), E = (c, r, R) => egg(P(...c), r.map(s), R);
-  const Ls = (pts) => pts.map(([x, y, z]) => [SK[0] + x, SK[1] + y, SK[2] + z]);
-  const cut = (sol, k) => SKULL_SUB.push(['head', sol, k]);
-  // the vault: long and a little wider behind; the forehead rising from the brows; the back of the head and its bump
-  put(h, E([0, 0.05, -0.022], [0.071, 0.079, 0.082]), 0.004);   // the crown and the sides, widest behind
-  put(h, E([0, 0.056, 0.036], [0.054, 0.066, 0.062]), 0.03);     // the forehead, narrower
-  put(h, E([0, 0.03, -0.062], [0.064, 0.05, 0.04]), 0.016);
-  put(h, E([0, 0.002, -0.092], [0.013, 0.007, 0.006]), 0.005);
-  // the face: the mass under and between the eyes' sockets, the upper jaw below; the brows' bone over them
-  put(h, E([0, 0.01, 0.034], [0.055, 0.042, 0.036]), 0.01);    // behind the sockets: their walls are carved from it
-  put(h, E([0, 0.012, 0.076], [0.0125, 0.026, 0.02]), 0.008);  // the bridge between the eyes
-  put(h, E([0, -0.027, 0.062], [0.04, 0.024, 0.029]), 0.01);   // the upper jaw, ending at the ridge of its teeth
-  put(h, E([0, 0.043, 0.084], [0.046, 0.011, 0.018]), 0.01);   // the brows' bone, over the sockets
-  put(h, E([0, 0.036, 0.096], [0.016, 0.009, 0.008]), 0.008);   // the glabella between them
-  for (const sg of [1, -1]) {
-    // each socket's rim, a rounded square facing forwards and out, thick above (the brow), thinner below
-    const C = [sg * 0.033, 0.016, 0.075], N = norm([sg * 0.34, -0.08, 1]), U = norm(cross([0, 1, 0], N)), V = cross(N, U);
-    const ring = []; for (let i = 0; i <= 16; i++) { const a = (i / 16) * 2 * Math.PI, c = Math.cos(a), sn = Math.sin(a), q = (v) => Math.sign(v) * Math.pow(Math.abs(v), 0.86);
-      ring.push(add(C, add(mul(U, q(c) * 0.0215), mul(V, q(sn) * 0.0185)))); }
-    for (let i = 0; i < 16; i++) {
-      const a = ring[i], b = ring[i + 1], up = (dot(sub(lerp(a, b, 0.5), C), V) + 0.0185) / 0.037, w = 0.0042 + 0.0032 * up, d = 0.0042 + 0.002 * up;
-      put(h, strand(P(...a), P(...b), { w: s(w), d: s(d), t0: [s(w), s(d)], t1: [s(w), s(d)], out: norm(add(N, mul(norm(sub(lerp(a, b, 0.5), C)), 0.6))) }), 0.004);
+// ── the cranium ──────────────────────────────────────────────────────────────────────────────────────────────────────
+// The braincase, level by level from its base to the crown: [height, half-width, how far its front and its back lie
+// from where it is widest, where that is (z), how square its front and back are seen from above]. The crown closes as
+// a dome over its upper 64 mm (the same dome gives the breadth seen from the front and the profile seen from the
+// side); under the brows (below 34 mm) the front of the braincase lies behind the face, and under the ears' level it
+// narrows to a point in front (the space where the jaw's branches and their muscles lie).
+const BRAINCASE = [
+  [-27, 50, 50, 39, -16, 1, 2], [-14.8, 54, 62, 40, -18, 1, 2], [-2.7, 60.5, 72, 51.5, -20, 1.6, 2], [9.5, 64.5, 80, 55, -22, 2.4, 2],
+  [21.7, 68, 86, 54.5, -24, 2.5, 2], [33.8, 70.6, 130, 55, -24, 2.6, 2], [46, 72.3, 130.5, 54, -24, 2.5, 2], [58.2, 72.3, 127, 51.5, -24, 2.5, 2],
+  [70.3, 72, 123.6, 49.4, -22, 2.4, 2], [82.5, 72, 118.5, 50.4, -18, 2.3, 2], [94.7, 72, 109.7, 52.3, -12, 2.15, 2], [106.8, 72, 97, 54.5, -6, 2, 2], [119, 72, 90, 55, -2, 2, 2],
+];
+// The face, level by level from the brow down to the ridge of the upper teeth: [height, half-width, front, back (from
+// where it is widest), where that is (z), how square its front is seen from above]. Its front passes through the rims
+// of the eye sockets (the brow's edge furthest forward, the outer rim furthest back), the cheekbones' faces, the upper
+// jaw's; the sockets and the nose's opening are cut into it.
+const FACE = [
+  [38, 53, 38, 22, 66, 2], [26.3, 52.5, 31, 24, 68, 2], [14.6, 52, 27, 24, 70, 2], [2.9, 55, 34, 16, 62, 1.6],
+  [-8.9, 53, 42, 12, 58, 1.5], [-20.6, 40, 46, 13, 60, 1.9], [-32.3, 33.5, 44, 12, 62, 2.2], [-44, 32.5, 43, 12, 64, 2.2],
+];
+
+function cranium(K) {
+  K.bone('cranium', 'head');
+  const E = (c, r, R) => K.egg(at(...c), mm(...r), R);
+  const S = (a, b, o) => K.strand(at(...a), at(...b), { ...o, w: o.w / 1000, d: o.d / 1000, t0: o.t0 && mm(...o.t0), t1: o.t1 && mm(...o.t1), bend: (o.bend ?? 0) / 1000 });
+  const loft = (a, b, knots, o) => K.loft(at(...a), at(...b), knots.map((k) => [...mm(...k.slice(0, 6)), k[6] ?? 2, k[7] ?? k[6] ?? 2]), { ...o, round: o.round && mm(...o.round) });
+  const put = (sol, k) => K.put(sol, k / 1000), cut = (sol, k) => K.cut(sol, k / 1000);
+
+  // the braincase
+  put(loft([0, -27, 0], [0, 119, 0], BRAINCASE.map(([, W, rf, rb, cw, nf, nb]) => [W, W, rf, rb, 0, cw, nf, nb]), { out: [0, 0, 1], round: [12, 64] }), 0);
+  put(E([0, 3, -74.5], [11, 6, 3]), 8);                                       // the bump at the back (the inion)
+  // the face (its foot rises towards the back, as the row of teeth does)
+  put(K.group([
+    { op: 'add', k: 0, s: loft([0, 38, 0], [0, -44, 0], FACE.map(([, W, rf, rb, cw, nf]) => [W, W, rf, rb, 0, cw, nf, 2.6]), { out: [0, 0, 1], round: [9, 0] }) },
+    { op: 'and', k: 0.002, s: K.plane([0, -1, -0.13], at(0, -44.3, 107)) },
+  ]), 7);
+  // the brow: the glabella, the two arches over the inner halves of the sockets, the root of the nose
+  put(E([0, 37, 102], [13, 9, 7]), 7);
+  K.both(() => put(E([20, 40.5, 97.5], [15, 6.5, 6.5], [[1, 0.18, -0.25], [0, 1, 0]]), 7));
+  put(E([0, 28, 93], [11, 9, 8.5]), 5);
+  // the bony nose: a tent from the brow down, its ridge the two nasal bones running forwards to their tip, its sides
+  // the upper jaw's branches sloping back to the sockets and the cheeks (the opening is cut into it below the tip)
+  put(loft([0, 24.5, 94], [0, -7, 103], [[8.5, 8.5, 7.3, 6, 0, 0, 1.3, 2], [10.5, 10.5, 12.5, 7, 0, 0, 1.25, 2], [13, 13, 18, 8, 0, 0, 1.2, 2], [14.5, 14.5, 18.5, 8, 0, 0, 1.2, 2], [15.5, 15.5, 17, 8, 0, 0, 1.3, 2]], { out: [0, 0.275, 0.962] }), 4);
+
+  // the temples: the wing of bone that joins each socket's outer wall to the braincase, hollowed a little behind the rim
+  K.both(() => { put(E([41, 12, 50], [9, 20, 12]), 7); cut(E([61.5, 8, 56], [14.5, 19, 13.5]), 5); });
+  // the arch from each cheekbone back to above the ear (bowed outwards, thickening to its root), the knob the jaw's
+  // head rides onto, the mastoid behind the ear, the styloid's spike, the condyle that rides on the atlas
+  K.both(() => {
+    put(loft([52, -6, 62], [59.5, 1.5, -6], [[6.4, 6.4, 3.4, 3.4, 0, 0], [5, 5, 2.5, 2.5, 0.3, 6.5], [4.3, 4.3, 2.2, 2.2, 0.8, 10.5], [4, 4, 2.2, 2.2, 1, 11], [4.2, 4.2, 2.4, 2.4, 0.8, 8.5], [5, 5, 3, 3, 0.3, 4], [6, 6, 4, 4, 0, 0]], { out: [1, 0, 0], caps: 0.6 }), 5);
+    put(E([54, -3.5, 23], [9, 4, 6]), 3);
+    put(E([52, -17, -11], [7.5, 13, 9.5], [[1, 0.1, 0], [-0.1, 1, 0.12]]), 7);
+    put(E([50.5, -27, -9], [5, 7, 6]), 5);
+    put(K.rod(at(41, -12, 1), at(35, -35, 11), 0.0019, 0.0009), 1.5);
+    put(E([17, -28.5, -8], [6, 5.5, 11.5], [[0.94, 0, 0.34], [0, 1, 0]]), 3);
+  });
+
+  // the eye sockets: each a four-sided funnel from its rim back to its point, its inner wall running straight back,
+  // its outer wall slanting in to meet it; its outer corner a little lower than its inner
+  K.both(() => {
+    cut(loft([33.8, 16.3, 98.9], [14, 12, 40], [[20, 19, 18.5, 18], [18.5, 17.4, 17, 16.5], [15, 18.5, 18.5, 17.5], [11.5, 16, 15.5, 14.5], [8, 12.5, 11.5, 10.5], [4.5, 8, 7.5, 7], [1.8, 2.5, 2.5, 2.5]].map((k) => [...k, 0, 0, 2.6, 2.6]), { out: [-0.2, 1, 0] }), 1.8);
+    put(S([49.6, 2, 76], [50.6, 26, 75.5], { w: 5.4, d: 2.8, t0: [6.2, 3.4], t1: [5.2, 2.8], out: [1, 0, 0.3] }), 4);   // its outer rim, thick
+  });
+  // the nose's opening, pear-shaped, and the cavity behind it; the hollow of the palate inside the arch of the teeth
+  cut(loft([0, -14, 126], [0, -14, 62], [[12.5, 12.5, 25, 10.5, 0, 0, 1.5, 2.6], [12.5, 12.5, 25, 10.5, 0, 0, 1.5, 2.6], [12.8, 12.8, 26, 11.5, 0, 0, 1.5, 2.6], [12.8, 12.8, 26, 11.5, 0, 0, 1.5, 2.6]], { out: [0, 1, 0] }), 1.6);
+  cut(E([0, -47, 72], [23, 15, 31]), 4);
+  // the great hole in the base, the ear canals, the pits for the jaw's heads, the hollows over the canines' roots, the
+  // small holes under the sockets and the notches in the brow's edge
+  cut(E([0, -31, -13], [14.5, 9, 17.5]), 3);
+  K.both(() => {
+    cut(K.rod(at(68, -4.5, 0.5), at(44, -2, 3), 0.0043, 0.0036), 1.5);
+    cut(E([50, -0.5, 14], [11.5, 6, 7.5]), 3);
+    cut(E([27, -15, 95], [8, 9, 4.5]), 5);
+    cut(E([28.5, -6.5, 91.5], [1.8, 2.4, 4]), 1);
+    cut(E([24.5, 33.6, 99.5], [2, 1.7, 4]), 1);
+  });
+  // (after the opening is cut) the spine under it, the wall between the nostrils and the scrolls on the side walls
+  put(S([0, -23, 103], [0, -19.5, 111], { w: 1.8, d: 1.6, t0: [3, 2.4], t1: [0.7, 0.6], out: [0, 1, 0] }), 2);
+  put(K.box(at(0.6, -7, 86), mm(0.9, 17, 15), 0.0006), 1.5);
+  K.both(() => {
+    put(E([9.5, -15, 88], [3.6, 5, 15]), 2.5);
+    put(E([6.5, 0, 84], [2.4, 6.5, 12]), 2);
+    put(E([19.5, -33, 100], [3.2, 9, 2.4]), 4);                                 // the ridge over the canine's root
+    // the wings of bone behind the upper jaw, down from the skull's base
+    put(K.box(at(24, -22, 43), mm(1.3, 15, 7.5), 0.0012, [[0.9, 0, 0.42], [0, 1, 0]]), 2.5);
+    put(K.box(at(13.5, -23, 43), mm(1.2, 15, 6), 0.001), 2.5);
+  });
+}
+
+// ── the lower jaw ────────────────────────────────────────────────────────────────────────────────────────────────────
+// The arch of each row of teeth, seen from above, from the middle back: [x, z]; each tooth stands where the ones
+// before it end (their lengths along the row), so neighbours touch.
+const ARCH = {
+  U: [[0, 105.5], [8.5, 103.5], [16.5, 99], [21.5, 92.5], [24.5, 85.5], [27, 77], [29, 67], [30.5, 57], [31, 48]],
+  L: [[0, 102.3], [6.5, 101], [12.5, 98], [17.5, 93], [21, 86.5], [24, 78], [26.6, 68], [28.8, 58], [30, 48]],
+};
+/** Where the teeth meet, at z: the row rises towards the back (ten degrees). */
+const bite = (z) => -53.6 + (107 - z) * 0.178;
+
+function mandible(K) {
+  K.bone('mandible', 'jaw');
+  const E = (c, r, R) => K.egg(at(...c), mm(...r), R);
+  const S = (a, b, o) => K.strand(at(...a), at(...b), { ...o, w: o.w / 1000, d: o.d / 1000, t0: o.t0 && mm(...o.t0), t1: o.t1 && mm(...o.t1), bend: (o.bend ?? 0) / 1000 });
+  const put = (sol, k) => K.put(sol, k / 1000), cut = (sol, k) => K.cut(sol, k / 1000);
+  // the body: a tall band round the arch from each branch to the chin, thicker along its foot; its top the ridge that
+  // holds the teeth. Its middle line, seen from above: [x, z]
+  const mid = [[0, 97.5], [10, 96], [19, 91.5], [25.5, 83], [30.5, 72], [35.5, 60], [41.5, 49], [46, 40]];
+  const top = (z) => -62.4 + (101 - z) * 0.236, foot = (z) => -93.5 + (97 - z) * 0.346;
+  K.both(() => {
+    const pts = spline(mid.map(([x, z]) => [x, (top(z) + foot(z)) / 2, z]), 3);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1], m = lerp(a, b, 0.5), h = (top(m[2]) - foot(m[2])) / 2, t = norm([b[0] - a[0], 0, b[2] - a[2]]), out = [t[2], 0, -t[0]];
+      put(S(a, b, { w: h, d: 5.6, t0: [(top(a[2]) - foot(a[2])) / 2, 5.6], t1: [(top(b[2]) - foot(b[2])) / 2, 5.6], out }), 3);
+      // its foot, rounder and thicker than the ridge above
+      put(S([a[0], foot(a[2]) + 6.5, a[2]], [b[0], foot(b[2]) + 6.5, b[2]], { w: 6.2, d: 6.6, t0: [6.2, 6.6], t1: [6.2, 6.6], out }), 4);
     }
-    SKULL_SUB.push(['head', box(P(...add(C, mul(N, -0.022))), [s(0.0085), s(0.0058), s(0.012)], s(0.0108), frame(U, V)), 0.003]);   // the socket, from its rim back
-    SKULL_SUB.push(['head', egg(P(...add(C, mul(N, -0.04))), [s(0.012), s(0.011), s(0.016)], frame(U, V)), 0.006]);   // narrowing to its back
-    put(h, E([sg * 0.049, -0.013, 0.062], [0.017, 0.016, 0.012], frame([1, 0, -sg * 0.55], [0, 1, 0])), 0.006);   // the cheekbone
-    along(h, Ls([[sg * 0.058, -0.01, 0.05], [sg * 0.066, -0.007, 0.026], [sg * 0.066, -0.003, 0.004]]), 0.006, 0.003, 0.005, 0.003, () => [sg, 0, 0], 0.003);   // its arch back to the ear
-    put(h, E([sg * 0.055, -0.03, -0.022], [0.008, 0.013, 0.01]), 0.004);                                       // the mastoid
-    cut(E([sg * 0.079, 0.014, 0.034], [0.02, 0.04, 0.04]), 0.018);                                          // the temple's hollow behind the socket's rim
-    cut(E([sg * 0.066, 0.0, -0.004], [0.0065, 0.0045, 0.006]), 0.002);                                         // the ear's canal
-    cut(E([sg * 0.022, -0.03, 0.094], [0.011, 0.011, 0.008]), 0.008);                                          // the hollow over the canine
-  }
-  // the nose: the opening (pear-shaped, wider below) and the cavity behind it; its two small bones over the top
-  cut(E([0, -0.012, 0.095], [0.0095, 0.017, 0.02]), 0.003);
-  cut(E([0, -0.025, 0.095], [0.0125, 0.0085, 0.02]), 0.003);
-  cut(E([0, -0.014, 0.066], [0.012, 0.022, 0.03]), 0.004);
-  put(h, strand(P(0, 0.024, 0.097), P(0, 0.003, 0.106), { w: s(0.007), d: s(0.0025), t0: [s(0.0055), s(0.003)], t1: [s(0.008), s(0.0018)], out: [0, 0.4, 1] }), 0.004);
-  put(h, E([0, -0.049, 0.052], [0.022, 0.004, 0.022]), 0.004);   // the palate, inside the arch of the teeth
-  // the lower jaw: a tall plate from each angle round to the chin, a ridge on top for its teeth; its branch up to the
-  // hinge before the ear; the coronoid up under the arch
-  for (const sg of [1, -1]) {
-    along(j, Ls([[sg * 0.048, -0.068, -0.002], [sg * 0.044, -0.082, 0.034], [sg * 0.03, -0.09, 0.066], [sg * 0.006, -0.096, 0.088]]), 0.012, 0.0045, 0.0155, 0.0055, (p) => norm([p[0] - SK[0], 0, p[2] - SK[2] - 0.035]), 0.004);
-    along(j, Ls([[sg * 0.048, -0.068, -0.002], [sg * 0.05, -0.04, 0.002], [sg * 0.052, -0.016, 0.006]]), 0.012, 0.003, 0.008, 0.003, () => [sg, 0, 0], 0.003);
-    put(j, E([sg * 0.052, -0.008, 0.008], [0.0095, 0.0055, 0.0055]), 0.002);
-    along(j, Ls([[sg * 0.048, -0.04, 0.022], [sg * 0.047, -0.024, 0.028], [sg * 0.046, -0.012, 0.03]]), 0.006, 0.0022, 0.002, 0.0018, () => [sg, 0, 0], 0.003);
-  }
-  put(j, E([0, -0.1, 0.088], [0.016, 0.009, 0.007]), 0.006);                                                   // the chin's point
-  // the teeth: incisors, canine, two premolars, three molars a side, above and below, each turned along the arch
-  const TEETH = [[0.004, 0.094, 0.0042, 0.0105, 0.0032], [0.012, 0.09, 0.0035, 0.0095, 0.003], [0.019, 0.083, 0.004, 0.011, 0.0042], [0.023, 0.073, 0.0036, 0.0085, 0.0045],
-    [0.025, 0.065, 0.0036, 0.0082, 0.0045], [0.027, 0.054, 0.0052, 0.0075, 0.0052], [0.029, 0.043, 0.005, 0.007, 0.005], [0.03, 0.033, 0.0045, 0.0065, 0.0048]];
-  for (const [bone, gum, dir, back] of [['head', -0.055, -1, 0], ['jaw', -0.077, 1, 0.002]]) {
-    for (const sg of [1, -1]) TEETH.forEach(([x, z, w, tall, d], i) => {
-      const nx = TEETH[Math.min(TEETH.length - 1, i + 1)], pv = TEETH[Math.max(0, i - 1)], tan = norm([sg * (nx[0] - pv[0]) || sg, 0, nx[1] - pv[1] || -0.001]);
-      const c = P(sg * (x - back * 0.25), gum + dir * tall * 0.5, z - back);
-      put(bone, box(c, [s(w * 0.85), s(tall * 0.5), s(d * 0.85)], s(0.0013), frame(tan, [0, 1, 0])), 0.0008, PART.teeth);
+    // the branch: a blade up from the angle, its head on a neck behind, the coronoid's point in front, the notch between
+    put(K.plate(at(48, -35, 26), [[-0.13, 0, 0.99], [0.02, 1, 0]], [[-16, 30], [-12.5, 32.3], [-8.5, 31.5], [-6.5, 26], [-3, 19], [3, 16], [9, 19.5], [13, 24], [16, 20], [16.5, 8], [17, -4], [21, -14], [28, -19], [28, -44], [10, -37.5], [-8, -31], [-14.5, -27], [-15.5, -14], [-14.5, 2], [-14, 16], [-15.5, 24]].map(([u, v]) => mm(u, v)),
+      { tc: 0.0026, te: 0.0031, ramp: 0.008, smooth: 2 }), 4);
+    put(E([50, -6.8, 15], [10, 4.6, 4.6], [[0.96, 0, -0.27], [0, 1, 0]]), 3);    // its head, long across
+    put(E([43.5, -57, 54], [3.4, 9, 9], [[1, 0, 0.35], [0, 1, -0.5]]), 6);      // where its front edge runs down onto the body
+    put(E([49.5, -60, 16.5], [3.2, 9, 8]), 5);                                  // the angle, turned a little outwards
+    cut(E([25.5, -74.5, 86.5], [1.5, 1.5, 3], [[1, 0, 0.6], [0, 1, 0]]), 0.8);  // the small hole below the premolars
+    put(E([11, -88.5, 98.5], [6, 4.5, 4.5]), 5);                                // the chin's corner
+  });
+  put(E([0, -85, 99.5], [9, 8, 5.5]), 6);                                       // the chin
+  cut(E([0, -73, 104.5], [14, 6, 3.2]), 5);                                     // the hollow between the chin and the teeth
+}
+
+// ── the teeth ────────────────────────────────────────────────────────────────────────────────────────────────────────
+// A side's eight teeth, from the middle back: [how long along the row, how thick across it, the crown's height, kind]
+// (kind: 0 a cutting tooth, 1 the canine, 2 a premolar, 3 a molar). Wheeler's "Dental anatomy" means, as remembered.
+const TEETH = {
+  U: [[8.6, 7, 10.8, 0], [6.6, 6.2, 9.6, 0], [7.6, 8, 10.4, 1], [7, 9, 8.2, 2], [6.6, 9, 7.6, 2], [10.2, 11.2, 7.2, 3], [9.6, 11, 7, 3], [8.6, 10.2, 6.5, 3]],
+  L: [[5.3, 6, 9, 0], [5.9, 6.4, 9.4, 0], [6.9, 7.6, 10.8, 1], [7, 7.8, 8.4, 2], [7.2, 8.2, 8, 2], [11, 10.3, 7.5, 3], [10.5, 10, 7, 3], [10, 9.6, 6.8, 3]],
+};
+
+function teeth(K) {
+  for (const [jaw, rig, dir] of [['U', 'head', -1], ['L', 'jaw', 1]]) {
+    // the arch as a fine line, and how far along it each point is
+    const line = spline(ARCH[jaw].map(([x, z]) => [x, 0, z]), 8), far = [0];
+    for (let i = 1; i < line.length; i++) far.push(far[i - 1] + Math.hypot(line[i][0] - line[i - 1][0], line[i][2] - line[i - 1][2]));
+    const where = (d) => { let i = 1; while (i < line.length - 1 && far[i] < d) i++; const t = (d - far[i - 1]) / (far[i] - far[i - 1]), p = lerp(line[i - 1], line[i], t), g = norm(sub(line[i], line[i - 1])); return { x: p[0], z: p[2], t: g }; };
+    let gone = 0; const row = TEETH[jaw].map(([len]) => { const w = where(gone + len / 2); gone += len; return w; });
+    K.pair((side) => {
+      row.forEach(({ x, z, t }, i) => {
+        const [len, thick, tall, kind] = TEETH[jaw][i];
+        K.bone(`tooth.${jaw}${i + 1}.${side}`, rig, PART.teeth);
+        // the tooth's own frame: along the row (t, backwards), outwards across it (o); its long axis from the root to
+        // the edge (the front teeth lean forwards)
+        const o = norm([-t[2], 0, t[0]]);
+        const lean = kind < 2 ? (jaw === 'U' ? 0.36 : 0.24) : kind === 2 ? 0.08 : 0.03, ax = norm([o[0] * Math.sin(lean), dir * Math.cos(lean), o[2] * Math.sin(lean)]);
+        // where the crown ends: the cutting teeth of the upper row overlap the lower's
+        const edgeY = bite(z) + (kind < 2 ? (jaw === 'U' ? -1.6 : 1.2) : 0), neck = [x, edgeY - dir * tall, z], h = tall / 1000, L = len / 2000, T = thick / 2000;
+        const base = add(at(...neck), mul(ax, -0.006)), tip = add(at(...neck), mul(ax, h));   // 6 mm of root in the bone
+        const sec = (f, wl, wt, n = 2.6) => [L * wl, L * wl, T * wt, T * wt * f, 0, 0, n, n];
+        if (kind === 0) {
+          // a cutting tooth: round at the neck, widest near its edge, there thinned to a blade
+          K.put(K.loft(base, tip, [sec(1, 0.6, 0.72), sec(1, 0.74, 0.94), sec(0.95, 0.96, 0.88), sec(0.8, 1.03, 0.56), sec(0.7, 1, 0.2)], { out: o, caps: 0.5 }), 0.0003);
+        } else if (kind === 1) {
+          // the canine: stout, its edge drawn to a point
+          K.put(K.loft(base, tip, [sec(1, 0.62, 0.7), sec(1, 0.8, 0.94), sec(1, 1, 1), sec(0.9, 0.86, 0.8), sec(0.8, 0.34, 0.36)], { out: o, round: [0, 0.0022] }), 0.0003);
+        } else {
+          // a grinding tooth: a rounded block, bulging below its top; its cusps, the furrow between them
+          K.put(K.loft(base, tip, [sec(1, 0.7, 0.66, 2.4), sec(1, 0.86, 0.84, 2.6), sec(1, 1, 1, 2.8), sec(1, 0.94, 0.9, 3)], { out: o, round: [0, 0.0016] }), 0.0003);
+          const up = mul(ax, 1), side1 = cross(ax, o), cusp = (a, b, r, lift) => K.put(K.ball(add(add(tip, mul(side1, a * L)), add(mul(o, b * T), mul(up, lift))), r), 0.0009);
+          if (kind === 2) { cusp(0, 0.42, 0.0021, -0.0013); cusp(0, -0.45, 0.0019, -0.0017); }
+          else for (const [a, b] of [[0.45, 0.45], [-0.45, 0.45], [0.45, -0.45], [-0.45, -0.45]]) cusp(a, b, 0.0024, -0.0017);
+          K.cut(K.rod(add(add(tip, mul(side1, -0.8 * L)), mul(up, 0.0003)), add(add(tip, mul(side1, 0.8 * L)), mul(up, 0.0003)), 0.0008), 0.0006);
+          if (kind === 3) K.cut(K.rod(add(add(tip, mul(o, -0.7 * T)), mul(up, 0.0003)), add(add(tip, mul(o, 0.7 * T)), mul(up, 0.0003)), 0.0007), 0.0006);
+        }
+      });
     });
-    along(bone, Ls([[0.03, gum - dir * 0.004, 0.03], [0.028, gum - dir * 0.004, 0.06], [0.018, gum - dir * 0.004, 0.083], [0, gum - dir * 0.004, 0.093], [-0.018, gum - dir * 0.004, 0.083], [-0.028, gum - dir * 0.004, 0.06], [-0.03, gum - dir * 0.004, 0.03]].map(([x, y, z]) => [x, y, z - back])), 0.0065, 0.0055, 0.0065, 0.0055, (p) => norm([p[0] - SK[0], 0, p[2] - SK[2] - 0.05]), 0.004);
   }
+}
+
+// ── the hyoid: the small horseshoe under the jaw, held by muscles alone ─────────────────────────────────────────────
+function hyoid(K) {
+  K.bone('hyoid', 'neck2');
+  const S = (a, b, o) => K.strand(at(...a), at(...b), { ...o, w: o.w / 1000, d: o.d / 1000, t0: o.t0 && mm(...o.t0), t1: o.t1 && mm(...o.t1) });
+  K.put(S([-10, -85, 27], [10, -85, 27], { w: 5, d: 2.2, t0: [4.4, 2.2], t1: [4.4, 2.2], out: [0, 0, 1] }), 0.002);
+  K.both(() => {
+    K.put(S([9, -85, 27], [20, -79, -1], { w: 1.9, d: 1.6, t0: [2.6, 2], t1: [1.3, 1.2], out: [1, 0, 0] }), 0.002);
+    K.put(S([10, -82, 26], [12, -76, 23], { w: 1.1, d: 1, out: [1, 0, 0] }), 0.001);
+  });
 }

@@ -47,8 +47,9 @@ export const strand = (a, b, { w, d, t0 = [w * 0.25, d * 0.25], t1 = [w * 0.25, 
  *  u × v) and to the back, where its middle sits off the axis (along v, along the front), and how square it is in front
  *  and behind (2 an ellipse, more a box, less a ridge). Short forms: [w, front, back] and [w, front, back, cv, n].
  *  The section between knots is a smooth curve through them. caps: how long its rounded ends are, in half-sections
- *  (0: cut flat, to be rounded by what it blends into). */
-export const loft = (a, b, knots, { v = [1, 0, 0], out = null, caps = 0 } = {}) => {
+ *  (0: cut flat, to be rounded by what it blends into); round: [at a, at b], metres from each end over which the section
+ *  closes to a point as a dome does (a skull's crown, a bone's rounded head). */
+export const loft = (a, b, knots, { v = [1, 0, 0], out = null, caps = 0, round = [0, 0] } = {}) => {
   let u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]; const L = Math.hypot(...u) || 1e-6; u = u.map((c) => c / L);
   let vv = out ? [out[1] * u[2] - out[2] * u[1], out[2] * u[0] - out[0] * u[2], out[0] * u[1] - out[1] * u[0]] : [...v];
   const dv = vv[0] * u[0] + vv[1] * u[1] + vv[2] * u[2]; vv = [vv[0] - u[0] * dv, vv[1] - u[1] * dv, vv[2] - u[2] * dv]; const lv = Math.hypot(...vv) || 1; vv = vv.map((c) => c / lv);
@@ -57,7 +58,7 @@ export const loft = (a, b, knots, { v = [1, 0, 0], out = null, caps = 0 } = {}) 
   const e = Math.max(...K.map((k) => Math.hypot(Math.max(k[0], k[1]) + Math.abs(k[4]), Math.max(k[2], k[3]) + Math.abs(k[5])))) * 1.05;
   const ce = caps * Math.max(Math.min(K[0][0], K[0][1], K[0][2], K[0][3]), Math.min(K.at(-1)[0], K.at(-1)[1], K.at(-1)[2], K.at(-1)[3]));
   const lo = [0, 1, 2].map((i) => Math.min(a[i], b[i]) - e - ce), hi = [0, 1, 2].map((i) => Math.max(a[i], b[i]) + e + ce);
-  return { t: 8, a, b, u, v: vv, w: ww, L, K, caps, lo, hi };
+  return { t: 8, a, b, u, v: vv, w: ww, L, K, caps, round, lo, hi };
 };
 /** The loft's older name and knots: [half-width, front, back, shift along v, squareness]. */
 export const tube = loft;
@@ -113,8 +114,8 @@ function write(P, at, o) {
     case 3: P.set(s.c, q); P.set(s.h, q + 3); P[q + 6] = s.rr; P.set(s.R, q + 7); break;
     case 4: P.set(s.c, q); P[q + 3] = s.R0; P[q + 4] = s.r; P.set(s.R, q + 5); break;
     case 5: P.set(s.n, q); P[q + 3] = s.d; break;
-    case 8: P.set(s.a, q); P.set(s.u, q + 3); P.set(s.v, q + 6); P.set(s.w, q + 9); P[q + 12] = s.L; P[q + 13] = s.K.length; P[q + 14] = s.caps;
-      if (s.K.length > KNOTS) throw new Error('a loft has at most ' + KNOTS + ' knots'); s.K.forEach((k, i) => P.set(k, q + 15 + i * KW)); break;
+    case 8: P.set(s.a, q); P.set(s.u, q + 3); P.set(s.v, q + 6); P.set(s.w, q + 9); P[q + 12] = s.L; P[q + 13] = s.K.length; P[q + 14] = s.caps; P[q + 15] = s.round[0]; P[q + 16] = s.round[1];
+      if (s.K.length > KNOTS) throw new Error('a loft has at most ' + KNOTS + ' knots'); s.K.forEach((k, i) => P.set(k, q + 17 + i * KW)); break;
     case 9: P.set(s.c, q); P.set(s.R, q + 3); P[q + 12] = s.tc; P[q + 13] = s.te; P[q + 14] = s.ramp; P.set(s.bend, q + 15); P[q + 18] = s.pts.length;
       s.pts.forEach((p, i) => { P[q + 19 + i * 2] = p[0]; P[q + 20 + i * 2] = p[1]; }); break;
     case 7: P.set(s.a, q); P.set(s.u, q + 3); P.set(s.v, q + 6); P.set(s.w, q + 9); P[q + 12] = s.L; P[q + 13] = s.W; P[q + 14] = s.D;
@@ -166,9 +167,9 @@ function distR(P, r, x, y, z) {
     case 5: return P[q] * x + P[q + 1] * y + P[q + 2] * z + P[q + 3];
     case 6: { let f = 1e9; const a = P[q], n = P[q + 1]; for (let i = 0; i < n; i++) f = step(P, (a + i) * REC, f, x, y, z); return f; }
     case 8: {   // a loft: its section at the point's place along the axis, a curve through the knots
-      const dx = x - P[q], dy = y - P[q + 1], dz = z - P[q + 2], L = P[q + 12], N = P[q + 13], cap = P[q + 14];
+      const dx = x - P[q], dy = y - P[q + 1], dz = z - P[q + 2], L = P[q + 12], N = P[q + 13], cap = P[q + 14], r0 = P[q + 15], r1 = P[q + 16];
       const s = dx * P[q + 3] + dy * P[q + 4] + dz * P[q + 5], t = s / L, tc = t < 0 ? 0 : t > 1 ? 1 : t;
-      const f = tc * (N - 1), i = f >= N - 1 ? N - 2 : Math.floor(f), xx = f - i, x2 = xx * xx, x3 = x2 * xx, kb = q + 15;
+      const f = tc * (N - 1), i = f >= N - 1 ? N - 2 : Math.floor(f), xx = f - i, x2 = xx * xx, x3 = x2 * xx, kb = q + 17;
       const k0 = kb + (i > 0 ? i - 1 : 0) * KW, k1 = kb + i * KW, k2 = kb + (i + 1) * KW, k3 = kb + (i + 2 < N ? i + 2 : N - 1) * KW;
       const c0 = -0.5 * xx + x2 - 0.5 * x3, c1 = 1 - 2.5 * x2 + 1.5 * x3, c2 = 0.5 * xx + 2 * x2 - 1.5 * x3, c3 = -0.5 * x2 + 0.5 * x3;
       const X = dx * P[q + 6] + dy * P[q + 7] + dz * P[q + 8] - (c0 * P[k0 + 4] + c1 * P[k1 + 4] + c2 * P[k2 + 4] + c3 * P[k3 + 4]);
@@ -177,15 +178,30 @@ function distR(P, r, x, y, z) {
       let rx = c0 * P[k0 + ix] + c1 * P[k1 + ix] + c2 * P[k2 + ix] + c3 * P[k3 + ix], ry = c0 * P[k0 + iy] + c1 * P[k1 + iy] + c2 * P[k2 + iy] + c3 * P[k3 + iy];
       const n = c0 * P[k0 + ie] + c1 * P[k1 + ie] + c2 * P[k2 + ie] + c3 * P[k3 + ie];
       if (rx < 1e-4) rx = 1e-4; if (ry < 1e-4) ry = 1e-4;
+      // how far out of the section the point is (1 on the surface), and how fast that grows across the section (gx, gy)
       const ax0 = (X < 0 ? -X : X) / rx, ay0 = (Y < 0 ? -Y : Y) / ry;
-      let e = n === 2 ? Math.sqrt(ax0 * ax0 + ay0 * ay0) : Math.pow(Math.pow(ax0, n) + Math.pow(ay0, n), 1 / n);
-      // (where the section changes fast along the axis the distance across overstates the true one: damped by the slope)
-      let g = 0; for (let c = 0; c < 6; c++) { const dv = P[k2 + c] - P[k1 + c]; if (dv > g) g = dv; else if (-dv > g) g = -dv; }
-      g *= (N - 1) / L; const damp = 1 / Math.sqrt(1 + g * g), rm = rx < ry ? rx : ry;
-      const ax = t < 0 ? -s : t > 1 ? s - L : 0;
-      if (ax <= 0) return (e - 1) * rm * damp;
-      if (cap > 0) { const rc = rm * cap, w = ax / rc; e = Math.sqrt(e * e + w * w); return (e - 1) * (rm < rc ? rm : rc) * damp; }
-      const dc = (e - 1) * rm * damp;
+      let e, gx, gy, A, B, en;
+      if (n === 2) { A = ax0 * ax0; B = ay0 * ay0; e = Math.sqrt(A + B); en = e > 1e-7 ? 1 / e : 0; gx = (ax0 * en) / rx; gy = (ay0 * en) / ry; }
+      else { A = Math.pow(ax0, n); B = Math.pow(ay0, n); e = Math.pow(A + B, 1 / n); en = e > 1e-7 ? Math.pow(e, 1 - n) : 0; gx = ax0 > 0 ? (en * A) / (ax0 * rx) : 0; gy = ay0 > 0 ? (en * B) / (ay0 * ry) : 0; }
+      // … and along the axis, where the section changes (the knots' own slopes there)
+      let gs = 0;
+      if (t > 0 && t < 1) {
+        const m = (N - 1) / L, d0 = (-0.5 + 2 * xx - 1.5 * x2) * m, d1 = (-5 * xx + 4.5 * x2) * m, d2 = (0.5 + 4 * xx - 4.5 * x2) * m, d3 = (-xx + 1.5 * x2) * m;
+        const rxp = d0 * P[k0 + ix] + d1 * P[k1 + ix] + d2 * P[k2 + ix] + d3 * P[k3 + ix], ryp = d0 * P[k0 + iy] + d1 * P[k1 + iy] + d2 * P[k2 + iy] + d3 * P[k3 + iy];
+        const cvp = d0 * P[k0 + 4] + d1 * P[k1 + 4] + d2 * P[k2 + 4] + d3 * P[k3 + 4], cwp = d0 * P[k0 + 5] + d1 * P[k1 + 5] + d2 * P[k2 + 5] + d3 * P[k3 + 5];
+        gs = -en * ((A * rxp) / rx + (B * ryp) / ry) - (X > 0 ? gx : -gx) * cvp - (Y > 0 ? gy : -gy) * cwp;
+      }
+      // a rounded end: within r of it (and past it) the section closes as an ellipsoid's does
+      let rd = 0, zeta = 0, zs = 0;
+      if (r0 > 0 && s < r0) { rd = r0; zeta = r0 - s; zs = -1; } else if (r1 > 0 && s > L - r1) { rd = r1; zeta = s - (L - r1); zs = 1; }
+      else if (cap > 0 && (t < 0 || t > 1)) { rd = (rx < ry ? rx : ry) * cap; zeta = t < 0 ? -s : s - L; zs = t < 0 ? -1 : 1; }
+      if (rd > 0) {
+        const zr = zeta / rd, e3 = Math.sqrt(e * e + zr * zr), ga = e * gs + (zs * zr) / rd, gn = Math.sqrt(e * e * (gx * gx + gy * gy) + ga * ga) / e3;
+        return gn > 1e-9 ? (e3 - 1) / gn : -rd;
+      }
+      const gg = gx * gx + gy * gy + gs * gs, dc = gg > 1e-12 ? (e - 1) / Math.sqrt(gg) : -(rx < ry ? rx : ry);   // (on the axis itself: as deep as the section is narrow)
+      if (t >= 0 && t <= 1) return dc;
+      const ax = t < 0 ? -s : s - L;
       return dc > 0 ? Math.sqrt(dc * dc + ax * ax) : ax;
     }
     case 9: {   // a plate: how far from its outline in its own (bent) plane, and from its sheet

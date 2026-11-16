@@ -66,7 +66,7 @@ export function kitOf(X = (p) => p) {
       // mirrored: the front kept (out = the mirrored w), so v runs the other way: its two half-widths change places
       if (sg < 0) kn = kn.map((k) => [k[1], k[0], k[2], k[3], -k[4], k[5], k[6], k[7]]);
       kn = kn.map((k) => [s(k[0]), s(k[1]), s(k[2]), s(k[3]), s(k[4]), s(k[5]), k[6], k[7]]);
-      return F.loft(C(A), C(B), kn, { out: D(w), caps: o.caps ?? 0 });
+      return F.loft(C(A), C(B), kn, { out: D(w), caps: o.caps ?? 0, round: (o.round ?? [0, 0]).map(s) });
     },
     /** as field.plate: R [u axis, v axis] of its plane, the outline in it (metres from c) */
     plate: (c, R, outline, o = {}) => {
