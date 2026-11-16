@@ -114,6 +114,27 @@ notes: the iOS 26.5 Simulator, an iPhone 17 Pro on iOS 27.0):
 | 13 | Both sites build, the five pages with the capable tag | `vite build` for TheGame and OS; the tag in the built HTML |
 | 14 | On Samuel's iPhone: Safari's tab (the bars in the picture's colours, following it) and the web app added again (the picture under the status bar) | next.maia.city and play.next.maia.city after the deploy |
 
+**Back to build a fourth time (2026-11-16, Samuel).** "Do they need actual solid colors or can the bars be also images
+or game screen? If only solid color is possible give it our brand blue. […] What are the thin 4px strips good for? Use no
+tacky workarounds but only clean solutions." Safari's tab paints each bar in one solid colour: WebKit keeps one colour a
+side, and a page that does not scroll is never drawn under the bars. Only the web app on the home screen shows the
+picture under the status bar. So the brand's blue, and nothing else on the page for it.
+
+**Deliverables, fourth time**
+
+9. Safari's tab: both bars the brand's blue (`--navy`, `#173655`), from the page's own background: no strips, no reading
+   of the picture's colours.
+10. The dashboard's game the same: the frame part of the page, the page's background the brand's blue while the game shows.
+
+**Checks, fourth time**
+
+| # | Check | How |
+| --- | --- | --- |
+| 15 | The game in Safari's tab: nothing fixed at the middle of either edge, the page's background `#173655`, while loading and once drawn | Chromium as the iPhone's tab, Safari's rule over the page (check 10's) |
+| 16 | The dashboard, from the front page into the game: the same; the frame the whole window, the page not scrolling; on a computer too | the same at `/` then `#game`, 402×714 touch and 1440×900 |
+| 17 | Both sites build | `vite build` for TheGame and OS |
+| 18 | On Samuel's iPhone: both bars the brand's blue in Safari's tab, the picture under the status bar in the web app added again | next.maia.city and play.next.maia.city after the deploy |
+
 ## Build
 
 - The canvases already use `100vh`, which is the large viewport in iOS Safari. Only `viewport-fit=cover` was missing, so nothing was drawn under the bars.
@@ -142,6 +163,18 @@ notes: the iOS 26.5 Simulator, an iPhone 17 Pro on iOS 27.0):
 - (third) The rule was read in WebKit's source, fetched from GitHub (`raw.githubusercontent.com`); the study's pages and
   WebKit's bug tracker could not be reached from here, its notes on GitHub could.
 
+- (fourth) What Safari can paint there: one colour a side (WebKit `FixedContainerEdges`); a picture only goes under the
+  bars where the page scrolls under them, and the game's pages do not scroll. So the page's background, which Safari
+  takes when nothing fixed stands at an edge's middle, is the brand's blue: `background: var(--navy)` on the game's five
+  pages (`index`, `library`, `lenses`, `me`, `timeline`). The strips, their fade and the reading of the picture's rows
+  every 1.5 s are gone: `src/ui/edges.js` and its three lines in `src/main.js`, `brand.css` `.os-edge`, the dashboard's
+  strips and its `edges` message. `brand.css` keeps the rule in a comment, where the bars are said.
+- (fourth) The dashboard's frame was fixed over the page, the size of the window. For such a layer Safari keeps an edge's
+  colour it already has (WebKit: `preferExistingColor` for a container the size of the viewport), and the front page's
+  sticky header gives the top one: from the front page into the game, the status bar would have kept the front page's
+  colour. The frame is now in the page's flow, the page the window's height (`100dvh`) and not scrolling, its background
+  `--navy` in play (`body.play`): nothing fixed stands at the edges, Safari takes the page's background.
+
 ## Propose
 
 **Delivered, first round:** `viewport-fit=cover` on the 7 pages, and the safe-area-aware `--edge`, `--edge-t` and `--edge-b`, with every top overlay on `--edge-t`.
@@ -154,6 +187,10 @@ for Safari's bars; the stat and the weather in two rows on a phone.
 **Delivered, third time (after Samuel's iPhone, 2026-11-16):** for Safari's tab, the strips Safari really reads: 12px,
 over the veil while loading, made anew with each colour, only in Safari's tab on iOS, in the game and the dashboard; the
 veil's night as the page's background until the game's scripts run. For the web app, `apple-mobile-web-app-capable`.
+
+**Delivered, fourth time (Samuel: a solid colour, the brand's blue, clean):** both bars of Safari's tab the brand's blue,
+from the page's own background, on the game's pages and the dashboard's game; the strips and the reading of the
+picture's colours removed; the dashboard's game part of the page instead of a frame fixed over it.
 
 **Checks, as they were**
 
@@ -172,7 +209,11 @@ veil's night as the page's background until the game's scripts run. For the web 
 | 11 | passed | `html.ios-tab`, the frame at `/game/?in=os`; loading: the hit is the dashboard's strip (`i.edge.t`/`.b`, 402×12, z 2) at both edges, the veil's colours; drawn: made anew with the frame's colours. The page's errors (SVG paths with `NaN`, four 404s: no API here) are the same on main |
 | 12 | passed | computer: no strips in the game or the dashboard; touch with no `navigator.standalone`: none; `navigator.standalone` true: none |
 | 13 | passed | `vite build` passes for both; the tag in `dist/index.html`, `library.html`, `lenses.html`, `me.html` and OS `dist/index.html` |
-| 14 | not run | needs the deploy and Samuel's iPhone; the web app must be removed from the home screen and added again |
+| 14 | not run | it went to next (PR #16, 12:29 UTC) and Samuel asked for the brand's blue instead before trying it |
+| 15 | passed | the game at 402×714 touch: while loading the hit at both edges is the root (the veil, a pseudo-element, is not counted), once drawn the canvas: no fixed element at either edge; the page's background `rgb(23, 54, 85)`; no strips. No page errors |
+| 16 | passed | front page, then `#game`: at both edges the hit is the frame, in the page's flow, nothing fixed up from it; the page's background `rgb(23, 54, 85)`; the page 714 high in a window of 714 (900 in 900 on a computer); the frame at 0,0, 402×714 (1440×900). Screenshots: the game's loading veil in the frame, the dashboard's pill over it, as before |
+| 17 | passed | `vite build` passes for both |
+| 18 | not run | needs the deploy and Samuel's iPhone; the web app must be removed from the home screen and added again |
 
 **Known gaps:**
 
@@ -182,11 +223,11 @@ veil's night as the page's background until the game's scripts run. For the web 
 - iOS keeps the status bar a web app was added with: it has to be removed from the home screen and added again.
 - On iOS versions with WebKit bug 301994 (26.1; reported again on 26.5.2 and iOS 27's betas) the web app's status bar
   stays opaque and the picture starts under it, whatever the page says. The layout holds there (`max(14px, inset)`).
-- In Safari's tab the strips are a 12px band of the edge's colour with a fade, at the top and the bottom of the picture:
-  that is what makes Safari take the colour. Samuel's iOS version is not known; the rule was seen in WebKit's source and
-  on iOS 26.5 and 27.0 by others, not on his phone.
-- Safari may keep a bar's previous colour for a frame or two after a change (seen by others with colours that change on
-  scroll).
+- In Safari's tab the bars are the brand's blue, not the picture: a page that does not scroll is never drawn under them.
+  Samuel's iOS version is not known; the rule was read in WebKit's source and seen on iOS 26.5 and 27.0 by others, not on
+  his phone.
+- Anything wide and fixed added later at the middle of the top or the bottom edge would give Safari its colour instead
+  (said in `brand.css`).
 - The game opened on its own in Safari (play.next.maia.city) sizes its canvas by `100vh` and its picture by `innerHeight`:
   not touched here.
 - The story folder is not spawned yet.
@@ -210,7 +251,10 @@ veil's night as the page's background until the game's scripts run. For the web 
 - [ ] Samuel checks again on his iPhone, as a web app and in Safari (second round: failed)
 - [x] strips Safari reads: 12px, over the veil, made anew with each colour, only in Safari's tab on iOS
 - [x] apple-mobile-web-app-capable for the web app
-- [ ] Samuel checks a third time: Safari's tab, and the web app added to the home screen again
+- [ ] Samuel checks a third time: Safari's tab, and the web app added to the home screen again (not tried: he chose the brand's blue first)
+- [x] the bars the brand's blue from the page's background; strips and colour reading removed
+- [x] the dashboard's game part of the page, not a frame fixed over it
+- [ ] Samuel checks: the brand's blue in Safari's tab, the web app added again
 
 ## Changelog
 
@@ -242,6 +286,13 @@ veil's night as the page's background until the game's scripts run. For the web 
 - **Good:** The rule was read in WebKit's own source, not guessed: why the 4px strips never counted, and why a colour that changes is not read again. The web app's screenshot showed the colours were being read on the iPhone. Checked here with Safari's rule re-implemented over the page, in the game and the dashboard, and that nothing is drawn on a computer, on other phones or in a web app.
 - **Broke / not there yet:** Rounds one and two guessed at how Safari picks its colours, and both guesses were wrong. Not seen on the iPhone yet. The web app has to be added to the home screen again, and on iOS versions with WebKit bug 301994 its status bar stays opaque whatever the page does.
 
+### 2026-11-16, the brand's blue
+
+- **Asked:** "Do they need actual solid colors or can the bars be also images or game screen? If only solid color is possible give it our brand blue. […] What are the thin 4px strips good for? Use no tacky workarounds but only clean solutions."
+- **Delivered:** see Build (fourth): the bars the brand's blue from the page's own background; the strips and the reading of the picture's colours removed; the dashboard's game in the page's flow.
+- **Good:** One CSS value a page instead of strips and a read of the GPU every second and a half. The dashboard's frame turned out to be a layer Safari treats as an overlay (it would have kept the front page's colour); found in WebKit's source before Samuel saw it.
+- **Broke / not there yet:** The 4px strips of round two did nothing for Safari (it ignores anything 10px deep or less) and only showed as thin lines; round three's 12px strips were a band on purpose and are gone now. Not seen on the iPhone yet.
+
 ## Trail
 
 | When | Commit | What |
@@ -249,3 +300,4 @@ veil's night as the page's background until the game's scripts run. For the web 
 | 2026-11-15 | `a6d9f31` | viewport-fit=cover and safe-area edge tokens |
 | 2026-11-15 | `e806905` | black-translucent, safe area told to the frame, Safari's bars in the picture's colours, stat and weather apart on a phone |
 | 2026-11-16 | `e140504` | strips Safari reads (12px, over the veil, made anew, only in Safari's tab on iOS); apple-mobile-web-app-capable |
+| 2026-11-16 | `9bcc81c` | the bars the brand's blue from the page's background; strips and colour reading out; the dashboard's game in the page's flow |

@@ -4,7 +4,7 @@
 import TOUCH from '../../camera/touch.js';
 
 export function createTouch(canvas, { look, height }) {
-  const move = { x: 0, y: 0, run: false };
+  const move = { x: 0, y: 0, run: 0 };   // run: 0 the walk … 1 Shift's run
   let stick = null, el = null, knob = null;
   const pts = new Map();   // the fingers on the picture, not on the stick
   let pinch0 = null;
@@ -15,15 +15,16 @@ export function createTouch(canvas, { look, height }) {
     knob = document.createElement('i'); knob.style.cssText = `width:${S.knob}px;height:${S.knob}px`; el.append(knob); document.body.append(el);
     el.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') return; e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch {} stick = { id: e.pointerId }; drive(e); });
     el.addEventListener('pointermove', (e) => { if (stick?.id === e.pointerId) drive(e); });
-    const up = (e) => { if (stick?.id !== e.pointerId) return; stick = null; move.x = move.y = 0; move.run = false; knob.style.transform = ''; };
+    const up = (e) => { if (stick?.id !== e.pointerId) return; stick = null; move.x = move.y = 0; move.run = 0; knob.style.transform = ''; };
     el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   }
   function drive(e) {
-    const S = TOUCH.stick, r = el.getBoundingClientRect(), R = S.size / 2;
-    let dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R); const d = Math.hypot(dx, dy), k = d > R ? R / d : 1; dx *= k; dy *= k;
-    knob.style.transform = `translate(${dx}px, ${dy}px)`;
-    const m = Math.min(1, d / R), a = m < S.dead ? 0 : (m - S.dead) / (1 - S.dead), n = d || 1;
-    move.x = (dx / n) * a; move.y = (-dy / n) * a; move.run = m > S.run;
+    const S = TOUCH.stick, r = el.getBoundingClientRect(), R = S.size / 2, far = R * (1 + S.run);   // its rim, and how far past it the run is
+    const dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R), d = Math.hypot(dx, dy), n = d || 1, k = d > far ? far / d : 1;
+    knob.style.transform = `translate(${dx * k}px, ${dy * k}px)`;   // under the thumb, out past the rim as far as the run goes
+    const m = Math.min(1, d / R), a = m < S.dead ? 0 : (m - S.dead) / (1 - S.dead);
+    move.x = (dx / n) * a; move.y = (-dy / n) * a;   // inside the rim: as fast as it is pushed, up to the walk
+    move.run = Math.min(1, Math.max(0, (d - R) / (far - R)));   // past it: evenly from the walk (0) to Shift's run (1)
   }
   canvas.style.touchAction = 'none';
   canvas.addEventListener('pointerdown', (e) => {
