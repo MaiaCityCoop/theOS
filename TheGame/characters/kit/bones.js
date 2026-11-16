@@ -34,8 +34,8 @@ const LEG = 0.9;   // from the hip's joint to the sole (m): what a leg let out b
 const few = typeof navigator !== 'undefined' && ((navigator.hardwareConcurrency ?? 4) <= 4 || /Mobi|Android/.test(navigator.userAgent ?? ''));
 const LEVELS = [{ h: 0.008, shade: 0, key: 'skeleton:0' }, { h: few ? 0.0055 : 0.0035, shade: 1, key: 'skeleton:1' }];
 // Under muscles the bones show only here and there (the skull, the joints, the ribs between the muscles): their full
-// fineness is the coarser one, so a body with its muscles costs no more to draw than the skeleton alone.
-const UNDER = [LEVELS[0], few ? LEVELS[1] : { h: 0.0055, shade: 1, key: 'skeleton:h0.0055' }];
+// fineness is a coarser one, so a body with its muscles costs no more to draw than the skeleton alone.
+const UNDER = [LEVELS[0], { h: few ? 0.008 : 0.0055, shade: 1, key: few ? 'skeleton:h0.008' : 'skeleton:h0.0055' }];
 
 // A few workers, each handed the next thing asked as it finishes one; let go when nothing has been asked for a while.
 const POOL = { all: [], free: [], queue: [], idle: 0 };

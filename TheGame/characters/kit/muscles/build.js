@@ -193,7 +193,7 @@ export function musclesOf(bones) {
       }
     }
     // (evened along the strand, so it does not kink where one ring was moved more than the next)
-    for (let pass = 0; pass < 2; pass++) { const was = rings.map((r) => r.shift); for (let r = 1; r < rings.length - 1; r++) { const m2 = mul(add(was[r - 1], was[r + 1]), 0.5); if (len(m2) > len(was[r])) rings[r].shift = mul(add(was[r], m2), 0.5); } }
+    for (let pass = 0; pass < 4; pass++) { const was = rings.map((r) => r.shift); for (let r = 1; r < rings.length - 1; r++) { const m2 = mul(add(was[r - 1], was[r + 1]), 0.5), keep = len(m2) > len(was[r]) ? 0.3 : 0.5; rings[r].shift = add(mul(was[r], keep), mul(m2, 1 - keep)); } }
     lay(rings);
     out.push({ B, keys, P, outs, rings, closed, L, segs });
   }

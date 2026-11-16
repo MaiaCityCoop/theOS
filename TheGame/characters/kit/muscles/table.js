@@ -221,9 +221,9 @@ export const MUSCLES = [
   M('hypothenar', 'Hypothenar muscles: abductor and short flexor of the little finger', 'hand', { vol: 10, layer: 2, bands: 2, t: [0.06, 0.15], src: 'Ho07',
     path: [line('pisiform', 'hamateHook'), line(by('hand.L', 0.222, 0.8, -0.062), by('hand.L', 0.217, 0.8, -0.054)), line(on('little1.L', 0.227, 0.776, -0.06), on('little1.L', 0.223, 0.776, -0.056))] }),
   // ── the hip ──────────────────────────────────────────────────────────────────────────────────────────────────────
-  M('gluteusMaximus', 'Gluteus maximus', 'hip', { vol: 850, layer: 2, bands: 6, sheet: true, t: [0.05, [0.35, 0.3, 0.2, 0.12, 0.08, 0.08]], src: 'H14',
+  M('gluteusMaximus', 'Gluteus maximus', 'hip', { vol: 850, layer: 2, bands: 5, sheet: true, t: [0.05, [0.3, 0.22, 0.14, 0.1, 0.08]], src: 'H14',
     path: [line(at('iliacCrestBack', 0, 0.004, -0.004), at('PSIS', 0, 0, -0.006), at('sacrumBackLat', 0.004, 0, -0.008), by('hips', 0.024, 0.92, -0.085), at('coccyxTip', 0.006, 0, -0.004)),
-      line(by('hips', 0.12, 0.99, -0.1), by('hips', 0.1, 0.92, -0.13), by('hips', 0.06, 0.86, -0.105)),
+      line(by('hips', 0.11, 0.98, -0.095), by('hips', 0.09, 0.91, -0.115), by('hips', 0.06, 0.86, -0.1)),
       line(by('femur.L', 0.175, 0.86, -0.022), by('femur.L', 0.13, 0.8, -0.04)),
       line(by('femur.L', 0.172, 0.82, -0.006), on('femur.L', 0.125, 0.79, -0.02))] }),
   M('gluteusMedius', 'Gluteus medius', 'hip', { vol: 380, layer: 1, bands: 4, sheet: true, t: [0.04, 0.15], src: 'H14',
