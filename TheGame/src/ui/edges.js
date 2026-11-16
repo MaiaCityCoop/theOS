@@ -6,10 +6,11 @@
 // .os-edge) and told to the dashboard that frames it (OS/src/main.js colours its frame and strips the same).
 // As a web app on the home screen there are no bars to paint (the picture goes under the status bar itself), and on a
 // computer none either: nothing is read there.
+import { flagText } from '../core/flags.js';
 const LOADING = { top: '#242e3c', bottom: '#9c8560' };   // the veil's edges (brand.css html.os-loading), as an iPhone shows them
 const EVERY = 1500;   // ms between reads
 const root = document.documentElement;
-const whole = parent === window || new URLSearchParams(location.search).get('in') === 'os';   // the whole window: not a picture in a page (?embed, a film's player)
+const whole = parent === window || flagText('in') === 'os';   // the whole window: not a picture in a page (?embed, a film's player)
 const wanted = whole && matchMedia('(pointer: coarse)').matches && !matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
 
 function apply(top, bottom) {

@@ -63,7 +63,7 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
     /** How many kinds' a level could take in now: its free slots, and those not wanted since `since` (touch's `now`s:
         any count that grows, a clock or a round of asking). */
     room(l, since) { const p = pools[l]; if (!p.slot) return kinds; let n = 0; for (let s = 0; s < p.n; s++) if (p.who[s] < 0 || p.used[s] < since) n++; return n; },
-    /** Put a kind's level in: mesh { index, verts } (what a recipe makes: assets/kit/zoo.js), sent to the GPU at once.
+    /** Put a kind's level in: mesh { index, verts } (what a recipe makes: assets/zoo/index.js), sent to the GPU at once.
         Into the kind's own place, or (a pooled level) a free slot or the one longest unwanted (not wanted since
         `since`). time: the clock's seconds now (what draws it grows it in from then). False: no slot to be had. */
     put(k, l, mesh, now = 0, since = now, time = 0) {

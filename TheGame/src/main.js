@@ -48,15 +48,15 @@ import { createCity } from './city/index.js';
 import { createBiomeSlots } from './world/slots.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
 import { inTurn, shareComputeCompiles } from './core/compile.js';
+import { flag } from './core/flags.js';
 
 const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
-const params = new URLSearchParams(location.search);
 // (the stress stand keeps its kinds' own textures in one array of many layers: more than a device gives unasked; src/scatter/stress.js)
-const layers = params.has('stress') ? Math.min(2048, (await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits?.maxTextureArrayLayers ?? 256) : 256;
-const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: params.has('webgl'), trackTimestamp: params.has('gputime'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (a pixel's fourth number is not how see-through it is: it says how still the thing is, src/world/light.js stillness; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
+const layers = flag('stress') ? Math.min(2048, (await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits?.maxTextureArrayLayers ?? 256) : 256;
+const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (a pixel's fourth number is not how see-through it is: it says how still the thing is, src/world/light.js stillness; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
 await renderer.init();
-if (!params.has('fat')) useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js); ?fat: twice, as three keeps it, to compare
+if (!flag('fat')) useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js); ?fat: twice, as three keeps it, to compare
 shareComputeCompiles(renderer);   // a compute shader compiled once, however many passes run it (src/core/compile.js)
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // every material makes its colours for the screen itself (toScreen)
 renderer.setSize(innerWidth, innerHeight, false);
@@ -74,14 +74,14 @@ addEventListener('resize', () => {   // only a real change of size rebuilds the 
 });
 
 const stats = (window.__game = { renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 } });
-const bounds = params.has('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
+const bounds = flag('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
 const U = createUniforms(camera, SKY);
 trackView(); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
 // The one way to the screen, for every view (src/core/screen.js): the world drawn at the inside's pixels (the governor's
 // dial; the screen keeps all its own), through the lens where the camera brings one (src/camera/post.js), and the
 // screen's picture built over time from those frames (src/core/temporal.js). `?notaau`: nothing shifted, nothing kept
 // (one frame spread by the filter: to measure against).
-const temporal = (stats.temporal = createTemporal(renderer, { off: params.has('notaau') }));
+const temporal = (stats.temporal = createTemporal(renderer, { off: flag('notaau') }));
 const screen = (stats.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
 const edges = followEdges(renderer, screen);
 const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });

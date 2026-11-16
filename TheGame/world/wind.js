@@ -1,4 +1,4 @@
-// The wind. Change a number here and the world's air changes; the code (src/world/wind.js) holds none. North is -z,
+// The wind. Change a number here and the world's air changes; the code (src/world/weather/wind.js) holds none. North is -z,
 // east +x. Every surface that sways reads it through the shading contract (src/world/light.js: windAt).
 //
 //   from        where it blows from, as a compass bearing (degrees: 0 north, 90 east, 270 west)

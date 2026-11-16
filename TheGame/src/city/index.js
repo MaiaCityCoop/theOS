@@ -9,10 +9,12 @@ import { Fn, attribute, positionGeometry, positionWorld, cameraPosition, vec3, f
 import { airOf, CLOUD_H } from '../world/light.js';
 import { U } from '../core/uniforms.js';
 import CITY from '../../world/city.js';
-import { heightAt, sstep } from '../world/land.js';
+import { heightAt } from '../world/land.js';
+import { sstep } from '../../assets/kit/math.js';
 import { inside } from './plan.js';
 import { load, save } from '../core/store.js';
 import { createCard } from './card.js';
+import { flag } from '../core/flags.js';
 
 // a plot's colours by its state (display values, as every material here writes them: src/world/light.js): line, wash
 const LOOK = {
@@ -25,7 +27,7 @@ const PICKED_WASH = 0.24, HOVER_WASH = 0.07;
 /** The city's plots: { update(), plots } — update() after the camera is placed, each frame. */
 export function createCity({ scene, camera, canvas, renderer, compile = (o) => renderer.compileAsync(o, camera, scene) }) {   // compile: how a part of the scene is compiled for the target it is drawn into (main.js: the screen's, in turn)
   const page = location.pathname.replace(/.*\//, '');
-  const here = (page === '' || page === 'index.html') && !new URLSearchParams(location.search).has('embed');   // the walk only: not the film, the lenses, the library
+  const here = (page === '' || page === 'index.html') && !flag('embed');   // the walk only: not the film, the lenses, the library
   const api = { plots: [], update() {}, ready: false };
   if (!here) return api;
 

@@ -16,6 +16,6 @@ export default {
   // squares an edge where a long lens fills the screen with it, down to a cube; under six pixels it has shrunk away
   // (end: a stone that small is lost in the grass round it)
   detail: { ladder: 96, end: 6, casts: false },   // too small for a shadow worth drawing them twice
-  // shapes: how many different stones there are (each a kind of the heap: assets/zoo/stones.js), from its seed
+  // shapes: how many different stones there are (each a kind of the heap: assets/zoo/scattered.js), from its seed
   placement: { at: 'scatter', engine: 'rocks', cell: 2.2, outcrops: false, texture: 1.1, shapes: 12, seed: 200 },
 };

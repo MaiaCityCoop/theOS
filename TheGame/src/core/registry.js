@@ -33,6 +33,4 @@ export function byRole(role) {
 }
 /** A recipe's version: the BLAKE3 hash of what it is (registry.json). */
 export const versionOf = (ref) => manifest[recipe(ref).uid]?.version;
-/** The recipe of a version, if it is the one here. */
-export const byVersion = (hash) => Object.values(BY).find((r) => manifest[r.uid]?.version === hash) || null;
 export { manifest };

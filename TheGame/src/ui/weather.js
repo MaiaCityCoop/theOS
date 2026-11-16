@@ -1,7 +1,8 @@
 // The weather panel: one pill at the top centre (beside the page's own nav, if it has one) that reads the time and the
 // wind, and opens into a card to set them: the hour with Auto, the wind from calm to a storm. Closed by default. The same
 // on every viewer (the walk, the library, the lenses); a film sets its own weather per shot, so it shows none.
-const shown = () => !/timeline\.html$/.test(location.pathname) && !new URLSearchParams(location.search).has('embed');
+import { flag } from '../core/flags.js';
+const shown = () => !/timeline\.html$/.test(location.pathname) && !flag('embed');
 let panel = null;
 
 function build() {

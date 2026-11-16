@@ -1,5 +1,5 @@
 // What recipes made, kept in the browser between starts (IndexedDB), each under a key and the word of what made it (its
-// version: the zoo's fingerprint, assets/kit/zoo.js). A recipe makes the same on every machine at every start, so what
+// version: the zoo's fingerprint, assets/zoo/index.js). A recipe makes the same on every machine at every start, so what
 // it made once need not be made again: the stress stand's eleven thousand kinds' coarse meshes are read back in one
 // piece (14 MB) where they took three workers some seconds. A recipe changed is another word: what was kept is not
 // read, and is replaced when the new is made.

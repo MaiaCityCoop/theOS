@@ -22,10 +22,11 @@
 // from: materials of kind `noise`), is read as painted from a small array of its own: four steps a block would be
 // steps in the land. Those are always there.
 import * as THREE from 'three/webgpu';
-import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, ivec2, uniform, sqrt, clamp, normalize, texture, textureLoad, property, outputStruct, instancedArray, instanceIndex, min, max, mix, dot, round, select, uniformArray, int, renderGroup } from 'three/tsl';
+import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, ivec2, uniform, sqrt, clamp, normalize, texture, textureLoad, property, outputStruct, instancedArray, instanceIndex, min, max, dot, round, select, uniformArray, int, renderGroup } from 'three/tsl';
 import { recipes } from '../core/registry.js';
 import { note } from '../core/gpu.js';
 import { compileFor, inTurn } from '../core/compile.js';
+import { flag } from '../core/flags.js';
 
 const SIZE = 1024, LEVELS = Math.log2(SIZE) + 1;
 
@@ -144,7 +145,7 @@ export function usedMaterials() {
     compressed, ready: a promise, the start's materials painted (they are compiled side by side meanwhile) }.
     opts: raw (as painted, uncompressed: what a GPU without the formats gets), spare (layers beyond what the world
     wears, for what is asked for besides: the library's pictures). */
-export function bakeTextures(renderer, { raw = new URLSearchParams(location.search).has('rawtex'), spare = 6 } = {}) {
+export function bakeTextures(renderer, { raw = flag('rawtex'), spare = 6 } = {}) {
   // seen at a low angle a texture is filtered along the slope, several taps a read: four for the colours, two for the
   // relief (its blur is not seen), not eight for both: at eye level the ground is most of the picture and its reads most
   // of a frame's time (a walk in the forest: 23 ms at eight, 19 at four and two, at one and a half pixels a point)

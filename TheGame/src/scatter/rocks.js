@@ -1,7 +1,7 @@
 // Stones and rock outcrops: where they lie. Which cell holds a rock, which of its asset's shapes, how large, how it is
 // turned: hashed, on the GPU, for the cells a tier looks at. Nothing else of a rock is here:
 //   - its shape at every level is its kit's (assets/kit/rock.js), brought to the heap by its asset's family
-//     (assets/zoo/boulders.js, stones.js: a family a rock asset, found by itself);
+//     (assets/zoo/scattered.js: a family a rock asset, found by itself);
 //   - how it is drawn is the one drawer's (drawer.js), as for everything the heap holds: its level by its size on
 //     screen (the ladder's eight, a full mesh of 110 000 triangles to a dot), each level turning into the next, the
 //     world's material it wears, the moss on what of it faces up, its snow, its light.
@@ -15,7 +15,8 @@ import { offWays } from '../world/ways.js';
 import { finish, skyLight, weathered, snowLift, cloudAt } from '../world/light.js';
 import { byRole } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
-import { pxK, most } from '../detail/index.js';
+import { pxK } from '../detail/index.js';
+import { most } from '../../assets/kinds.js';
 import { createDrawer } from './drawer.js';
 import { LADDER } from '../../assets/kit/ladder.js';
 import { placedBy, lookOf as zooLook, fingerprint } from '../../assets/zoo/index.js';
@@ -39,9 +40,9 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
   rows = gpu ? rows.filter((row) => famOf(row) || console.warn(`rocks: no family of the zoo brings the shapes of '${row.name}' (assets/zoo)`)) : [];
   rocksDrawn(rows.map((row) => row.uid));
   if (!rows.length) return [];
-  const PXK = uniform(pxK()), SMOOTH = uniform(1);
+  const SMOOTH = uniform(1);
   const D = createDrawer(scene, renderer, tex, {
-    name: 'rocks', LEVELS, SHADE, SMOOTH, PXK, skins: 0, ground: true, soft: true, relief: RELIEF, full: FULL_ROCK,
+    name: 'rocks', LEVELS, SHADE, SMOOTH, skins: 0, ground: true, soft: true, relief: RELIEF, full: FULL_ROCK,
     zoo: { first: Z.first, ALL: Z.count, STAND: Z.count, MOVING: 0, lookOfKind: (k) => { const B = zooLook(Z.first + k); return { ...B, material: B.material ?? byRole('rock').uid }; }, fingerprint: () => fingerprint('rocks') },
   });
   const { lookOf } = D, tiers = [], firstOf = new Map(); let sizeMost = 0;
@@ -60,7 +61,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
         // (its size: its asset's times its shape's; a stone shrinks away where the ground's map ends, and whatever
         // ends sooner than the ladder does over its last pixels)
         const full = big ? s.mul(span) : s.mul(span).mul(float(1).sub(smoothstep(REACH * 0.86, REACH, dist)));
-        const size = end ? full.mul(smoothstep(end, end * 1.6, full.mul(PXK).div(max(dist, 1e-3)))) : full;
+        const size = end ? full.mul(smoothstep(end, end * 1.6, full.mul(U.uPxK).div(max(dist, 1e-3)))) : full;
         found(kind, size, dist, (A, B, G) => {
           const sunk = size.mul(lookOf(kind, 5).w);   // (how deep it lies: its look's)
           if (big) {   // an outcrop: the land worked out here (the ground's map does not reach so far)
@@ -89,19 +90,13 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
     const T = D.tierAll({ cell: row.cell, P, cap: big ? 16384 : 4096, sizes, place, casts: row.detail.casts, far: reach, last, thing: `rocks:${row.uid}` });   // (thing: a rock's own state, its asset and its cell: src/world/things.js)
     T.asset = row.name; tiers.push(T);
   }
-  addEventListener('resize', () => { PXK.value = pxK(); tiers.forEach((T) => T.band()); });
   // each frame: the coarse levels until they are in; and, when the camera has moved, the full meshes of the shapes
   // that lie near enough for them (the rocks round the camera, reckoned on the CPU as the GPU places them:
   // src/world/rocksolid.js)
-  let scanAt = -1e9, sx = 1e9, sz = 1e9, sk = '', speed = 0, lx = 0, ly = 0, lz = 0, lt = 0;
   tiers.solid = () => {
     D.start();
-    const now = performance.now(), cam = U.uCam.value, dy = U.uDy.value, inv = U.uLodInv.value, K = pxK(), key = `${inv.toFixed(2)}|${K.toFixed(0)}`;
-    const dt = Math.max(1e-3, (now - lt) / 1000), v = Math.hypot(cam.x - lx, cam.y - ly, cam.z - lz) / dt; lx = cam.x; ly = cam.y; lz = cam.z; lt = now;
-    speed += (Math.min(v, 300) - speed) * Math.min(1, dt * 4);
-    if (Math.hypot(cam.x - sx, cam.z - sz) < 0.7 && key === sk && now - scanAt < 300) return;
-    sx = cam.x; sz = cam.z; sk = key; scanAt = now;
-    const N = D.near(K, inv, speed * 0.35), far = N.reach(sizeMost);
+    const N = D.scan(); if (!N) return;
+    const cam = U.uCam.value, dy = U.uDy.value, far = N.reach(sizeMost);
     if (far <= dy) { N.none(); return; }
     rocksAround(cam.x, cam.z, far, (r) => { if (firstOf.has(r.uid)) N.wants(firstOf.get(r.uid) + r.v, r.side, Math.hypot(r.x - cam.x, r.z - cam.z, dy), 0); });
     N.done();

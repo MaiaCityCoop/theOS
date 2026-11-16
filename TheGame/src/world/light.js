@@ -6,7 +6,7 @@
 // to the shared lanes (wet, fog, dim), and what each does to a surface (`surface`: the snow lying on it). What is one
 // condition's own (the snow's depth, the wind's push, the clouds' shade) is that condition's code, handed on from here,
 // so a material asks the contract and no file but the condition's holds it.
-import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, pow, smoothstep, fract, floor, dot, log, max, clamp, length, normalize, screenCoordinate } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, pow, smoothstep, fract, floor, dot, max, clamp, length, normalize, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { lane } from './weather/lanes.js';
 import { surfaceHooks, airHooks } from './weather/index.js';

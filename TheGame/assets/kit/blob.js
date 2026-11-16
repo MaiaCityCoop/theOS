@@ -12,16 +12,14 @@
 //   ball(n, at, own), onBall(C, …), faceOf(dir): a ball cut as a cube's faces, for any surface (a creature's hull too)
 import { LADDER, FULLN, DOTN, trisOf, vertsOf, underOf } from './ladder.js';
 import { packSolid, dotMesh } from './solid.js';
+import { hash4 } from '../../src/core/hash.js';
 
 export const SEED = 9001;
 /** squares along an edge of kind k's full mesh: 65 … 129, so 50 700 … 199 692 triangles */
 export const fullOf = (k) => 65 + Math.floor(rnd(k, 1) * 65);
 
-export function hash3(x, y, z, s) {
-  let h = Math.imul(x, 0x9E3779B1) ^ Math.imul(y, 0x85EBCA77) ^ Math.imul(z, 0xC2B2AE3D) ^ Math.imul(s, 0x27D4EB2F);
-  h ^= h >>> 15; h = Math.imul(h, 0x2C1B3C6D); h ^= h >>> 12; h = Math.imul(h, 0x297A2D39); h ^= h >>> 15;
-  return (h >>> 8) / 16777216;
-}
+/** A cell in space and a seed as a number 0 … 1 (src/core/hash.js: hash4). */
+export const hash3 = (x, y, z, s) => (hash4(x, y, z, s) >>> 8) / 16777216;
 const rnd = (k, i) => hash3(k, i, 0, SEED);
 export function noise3(x, y, z, s) {
   const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);

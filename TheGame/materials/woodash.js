@@ -1,7 +1,7 @@
 // Wood ash: what is left in a fire pit the morning after. Fine pale grey powder, almost white where it burned
 // hottest, drifted into soft hollows, with black flecks and small broken lumps of charcoal through it. The bed the
 // fire sits on (assets/firepit.js).
-import { float, vec2, vec3, mix, smoothstep } from 'three/tsl';
+import { float, vec3, mix, smoothstep } from 'three/tsl';
 import { pn, pfbm, pvor, pebbles } from '../src/materials/paint.js';
 export default {
   uid: 'c0092c17-16c9-4470-b98e-b030175d561b',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)

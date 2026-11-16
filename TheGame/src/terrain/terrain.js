@@ -9,6 +9,7 @@ import { terrainMaterial, GRID, R0 } from './material.js';
 import { createGroundCache } from './groundcache.js';
 import { waterMaterial } from './water.js';
 import { LAID } from '../world/land.nodes.js';
+import { flag } from '../core/flags.js';
 
 const S0 = 8;               // a level-0 node's side, metres (0.5 m quads)
 const LEVELS = 10;          // the top level reaches R0 * 2^9 = 24.6 km
@@ -41,7 +42,7 @@ export function createTerrain(scene, tex, list = LAID) {   // list: the biomes t
   const land = make(CAP), water = make(WCAP);
   // (the ground laid once round the camera, read by the land's pixels: src/terrain/groundcache.js. Not yet the picture
   // every pixel lays for itself: softer between 10 and 60 m, and a band where it hands over; so only with ?groundcache)
-  const cache = new URLSearchParams(location.search).has('groundcache') ? createGroundCache() : null;
+  const cache = flag('groundcache') ? createGroundCache() : null;
   const landMat = terrainMaterial(tex, cache, list), waterMat = waterMaterial(tex);
   const landMesh = new THREE.Mesh(land.g, landMat), waterMesh = new THREE.Mesh(water.g, waterMat);
   landMesh.frustumCulled = waterMesh.frustumCulled = false;

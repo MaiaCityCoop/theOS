@@ -41,8 +41,9 @@
 // `?ghost` in the address: nothing stops the walker, in every world (what is solid is still found by a ray).
 import * as THREE from 'three/webgpu';
 import { things } from './things.js';
+import { flag } from '../core/flags.js';
 
-export const GHOST = typeof location !== 'undefined' && new URLSearchParams(location.search).has('ghost');
+export const GHOST = flag('ghost');
 const providers = [];
 /** near(x, z, reach) -> bodies: who places things tells where they stand. stops: they stop the walker; rooms: they may
     have walls, doors and a ceiling (what a line of sight, the way in and the room overhead ask: only such placers are). */

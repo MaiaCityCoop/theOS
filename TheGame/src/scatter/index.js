@@ -7,7 +7,7 @@
 //     row?(asset) -> row,                      what it reads of an asset, over the common row (assets/index.js: scatterRow)
 //     create(scene, tex, ground, row, gpu, renderer) -> tiers,   its tiers (tier.js); tiers.solid: what it does each frame once they are packed (reads its packing back as bodies, asks for meshes)
 //     createAll?(scene, tex, ground, rows, gpu, renderer) -> tiers,   instead of create: all its assets at once (they share tiers, or a drawer)
-//     createOwn?(scene, tex, ground, gpu, renderer) -> tiers,   what it places of its own, no asset of the library (stress.js)
+//     createOwn?(scene, tex, ground, gpu, renderer) -> tiers,   what it places of its own, no asset of the library (stress.js, herds.js)
 //     // for the asset library (library.html), each as the engine sees fit:
 //     thumb?(tex, row) -> { things, eye, look },       its picture for the list
 //     stage?(tex, row, { x, z, heightAt, ground, level, seed, … }) -> Object3D,   how it stands on the stage

@@ -1,7 +1,7 @@
 // Cut bank: bare earth on the outside of the river's bends, where the current eats into the land and leaves a small
 // cliff of soil over deep water. A biome of the world, in the one recipe every biome follows (biomes/README.md).
-import { float, uint, max, smoothstep } from 'three/tsl';
-import { vnoise, edgeJit } from '../src/world/noise.nodes.js';
+import { float, max, smoothstep } from 'three/tsl';
+import { edgeJit } from '../src/world/noise.nodes.js';
 
 export default {
   uid: '57c60389-675b-4f6f-89c9-43c406f845f8',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)

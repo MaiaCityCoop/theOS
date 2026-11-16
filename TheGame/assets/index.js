@@ -9,8 +9,8 @@
 //                             0002); where each level ends on screen comes from its kind (assets/kinds.js) unless it says.
 //                             What is drawn from the heap (a rock) says { ladder } instead: its levels are the ladder's
 //                             (assets/kit/ladder.js).
-//                             A shape is `faces` ([corner, corner, corner, colour], ...) or `rock` (a rough rock of an
-//                             icosphere divided that often), with `P` for scattered ones
+//                             A shape is `faces` ([corner, corner, corner, colour], ...); a plant's are made by its kit
+//                             when asked for (assets/kit/tree.js: meshAt), with `P` for scattered ones
 //   solid                     what a walker cannot pass: walls (rounds with gaps), posts, boxes, and the ceiling
 //                             overhead; in the asset's own frame. Without it, its kind's rule made from its size
 //                             (assets/kinds.js). The one collision engine takes it as a body (bodyOfAsset:
@@ -31,14 +31,14 @@ export const snowOf = (a) => kindOf(a, 'snow');
     What only one engine reads of it, that engine adds itself (its `row`: src/scatter/index.js). */
 export const scatterRow = (a) => ({ asset: a, name: a.name, uid: a.uid, kind: a.placement.engine, cell: a.placement.cell, seed: a.placement.seed, snow: snowOf(a), detail: detailOf(a) });
 /** How many faces a level has. */
-export const facesOf = (l) => (typeof l.tris === 'function' ? l.tris() : l.mesh ? (l.mesh.index ? l.mesh.index.length : l.mesh.position.length) / 3 : l.faces ? l.faces.length : l.ball != null ? (l.ball ? 12 * l.ball * l.ball : 1) : 20 * 4 ** (l.rock || 0));   // (ball: a level of the ladder, a ball of so many squares an edge; none: its dot)
+export const facesOf = (l) => (typeof l.tris === 'function' ? l.tris() : l.faces ? l.faces.length : l.ball != null ? (l.ball ? 12 * l.ball * l.ball : 1) : 0);   // (ball: a level of the ladder, a ball of so many squares an edge; none: its dot)
 
 /** A level of detail of an asset as a geometry, coloured per face (the nearest level unless one is named). */
 export function geometryOf(asset, level = asset.detail.levels[0], shape = 0) {
   // (a plant's meshes are made when asked for, shape by shape: assets/kit/tree.js meshAt; only the library asks here)
-  const made = !level.mesh && asset.meshAt ? asset.meshAt(level.i ?? Math.max(0, asset.detail.levels.indexOf(level)), shape) : null;
-  if (level.mesh || made) {   // built as a mesh by its own file (a tree): every attribute it made, as it made them; of its shapes (meshes) the one asked
-    const g = new THREE.BufferGeometry(), M = made ?? level.meshes?.[shape] ?? level.mesh, V = M.position.length / 3;
+  const M = asset.meshAt ? asset.meshAt(level.i ?? Math.max(0, asset.detail.levels.indexOf(level)), shape) : null;
+  if (M) {   // built as a mesh by its kit (a plant): every attribute it made, as it made them; of its shapes the one asked
+    const g = new THREE.BufferGeometry(), V = M.position.length / 3;
     // (the kit hands typed arrays: taken as they are, not copied; a list of numbers is copied into one). Each attribute
     // as long a run a vertex as its length says, never by a list kept here: the kit's `twig`, one number a vertex, was
     // read as three when the list did not know it, its buffer a third too short for the mesh's corners, and WebGPU
@@ -52,7 +52,7 @@ export function geometryOf(asset, level = asset.detail.levels[0], shape = 0) {
     if (M.index?.length) g.setIndex(ArrayBuffer.isView(M.index) ? new THREE.BufferAttribute(M.index, 1) : M.index);
     return g;
   }
-  const faces = level.faces; if (!faces) return rockPreview(asset, level.rock);
+  const faces = level.faces; if (!faces) { console.warn(`${asset.name}: a level of no faces`); return new THREE.BufferGeometry(); }
   // a face is [corner, corner, corner, colour] and, where the asset names what it is made of (`materials`), the name
   // of the one this face wears: carried as `part`, its place in that list, and worn by the shader (src/world/place.js)
   const parts = asset.materials ? Object.keys(asset.materials) : null;
@@ -108,13 +108,3 @@ export function bodyOfAsset(asset) {
   return { box: { min: [-x, 0, -z], max: [x, H, z] }, shapes, ...(S?.ceiling ? { ceiling: S.ceiling } : {}), ...(S?.leave ? { leave: S.leave } : {}) };
 }
 
-/** A picture of a scattered rock, for the library's list: a rough, lumpy stone in its own colour. */
-function rockPreview(asset, detail = 2) {
-  const g = new THREE.IcosahedronGeometry(0.5, detail), p = g.attributes.position, c = [], base = asset.colours?.stone || [0.5, 0.5, 0.5];
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 1 + 0.18 * Math.sin(x * 7.1 + y * 3.3) * Math.cos(z * 5.7 - x * 2.1) + 0.08 * Math.sin(y * 13 + z * 9);
-    p.setXYZ(i, x * k, Math.max(-0.1, y * k * 0.72), z * k); const s = (0.9 + 0.2 * Math.sin(x * 11 + z * 7)) * 0.45; c.push(base[0] * s, base[1] * s, base[2] * s);   // as dark as the world's own stones under the same light
-  }
-  g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3)); g.translate(0, 0.1, 0); g.computeVertexNormals();
-  return g;
-}

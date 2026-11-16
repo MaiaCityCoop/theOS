@@ -13,6 +13,7 @@ import { Fn, If, uint, int, ivec2, vec4, uniform, uniformArray, instancedArray, 
 import { boxIn } from '../core/frustum.js';
 import { gpuStorage, more } from '../core/gpu.js';
 import { did } from '../core/work.js';
+import { FNV, fnv } from '../core/hash.js';
 
 export const MAXP = 384;   // patches a tier can draw at once
 
@@ -20,6 +21,11 @@ export const MAXP = 384;   // patches a tier can draw at once
 export const offScreen = () => vec4(2, 2, 2, 1);
 /** a world point to the clip space of whichever camera draws it (the eye's, or the shadow's) */
 export const clipOf = (w) => cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(w, 1));
+
+// Every tier's band follows the lens: when the window changes, each tier that reckons its band by the lens (its band():
+// the drawer's tiers, src/scatter/drawer.js) reckons it again. One handler for every tier of every placer.
+const ALL = new Set();
+addEventListener('resize', () => { for (const T of ALL) T.band?.(); });
 
 export class Tier {
   /** cell: metres per cell; P: cells per patch side; near/far: the band, in metres as a 68° lens sees them.
@@ -35,6 +41,7 @@ export class Tier {
       it can take; live is then also told which run a cell is of and which of its places ({ pid, b, span: (start,
       count) }). */
   constructor(scene, geometry, material, { cell, P, near = 0, far, order = 0, live = null, gpu = false, cap = 0, slots = 0, cull = 0, fixed = 0, spans = null }) {
+    ALL.add(this);
     this.cull = cull; this.fixed = fixed; this.P = P; this.S = cell * P; this.near = Math.max(0, near); this.far = far; this.n = 0; this.over = false;
     this.list = Array.from({ length: MAXP }, () => new THREE.Vector2());
     this.spans = spans; this.runs = spans ? Array.from({ length: MAXP }, () => new THREE.Vector2()) : null; this.found = [];
@@ -50,7 +57,7 @@ export class Tier {
     if (live && gpu) {
       // (what it packs lives on the GPU only: the GPU writes it and the GPU reads it; src/core/gpu.js)
       // (caps, offs: each bucket's cap and where its things begin in the buffers; one cap for all: bucket k's at k times it)
-      const caps = own ? cap : geos.map(() => cap), offs = caps.map((_, k) => caps.slice(0, k).reduce((a, c) => a + c, 0)), total = caps.reduce((a, c) => a + c, 0), capN = own ? uniformArray(caps) : null, offN = own ? uniformArray(offs) : null;
+      const caps = own ? cap : geos.map(() => cap), offs = caps.map((_, k) => caps.slice(0, k).reduce((a, c) => a + c, 0)), total = caps.reduce((a, c) => a + c, 0), capOff = own ? uniformArray(caps.map((c, k) => new THREE.Vector2(c, offs[k])), 'vec2') : null;   // (a bucket's cap and where its things begin, as one array: a stage has twelve uniform buffers)
       // (a thing's rows side by side in one buffer, `slots` of them: one buffer to bind, not one a row; a pass binds at
       // most eight, src/world/things.js reads one more)
       const buf = gpuStorage('vec4', Math.max(1, total * slots), null, true), data = buf.node, count = instancedArray(K, 'uint').toAtomic(), S = uint(slots);
@@ -64,7 +71,7 @@ export class Tier {
             const Q = partOf(instanceIndex), L = live(Q.cell, Q), b = K > 1 ? uint(L.bucket) : uint(0);
             If(L.alive, () => {
               const i = atomicAdd(count.element(b), uint(1)).toVar();
-              if (own) If(i.lessThan(uint(capN.element(b))), () => { const at = uint(offN.element(b)).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
+              if (own) If(i.lessThan(uint(capOff.element(b).x)), () => { const at = uint(capOff.element(b).y).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
               else If(i.lessThan(uCap), () => { const at = b.mul(uCap).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
             });
           });
@@ -88,9 +95,9 @@ export class Tier {
     const q = this.step || Math.max(0.25, this.S / 16), { list, n } = this;   // (step: a tier that says itself how far the camera may move before it packs again)
     // (its patches read into two numbers, not written out one by one: a string of hundreds of them a tier a frame was
     // a megabyte of litter every few frames for the browser to sweep up)
-    let h1 = 0x811c9dc5, h2 = 0x9e3779b9;
-    for (let i = 0; i < n; i++) { const x = list[i].x | 0, y = list[i].y | 0; h1 = Math.imul(h1 ^ x, 0x01000193); h1 = Math.imul(h1 ^ y, 0x01000193); h2 = Math.imul((h2 << 5) ^ (h2 >>> 27) ^ x, 0x85ebca6b) + y | 0; }
-    if (this.runs) for (let i = 0; i < n; i++) { const a = this.runs[i].x | 0, b = this.runs[i].y | 0; h1 = Math.imul(h1 ^ a, 0x01000193); h2 = Math.imul((h2 << 5) ^ (h2 >>> 27) ^ b, 0x85ebca6b) + a | 0; }   // (a list's runs: the same patch may hold other places now)
+    let h1 = FNV, h2 = 0x9e3779b9;
+    for (let i = 0; i < n; i++) { const x = list[i].x | 0, y = list[i].y | 0; h1 = fnv(fnv(h1, x), y); h2 = Math.imul((h2 << 5) ^ (h2 >>> 27) ^ x, 0x85ebca6b) + y | 0; }
+    if (this.runs) for (let i = 0; i < n; i++) { const a = this.runs[i].x | 0, b = this.runs[i].y | 0; h1 = fnv(h1, a); h2 = Math.imul((h2 << 5) ^ (h2 >>> 27) ^ b, 0x85ebca6b) + a | 0; }   // (a list's runs: the same patch may hold other places now)
     let key = `${world}|${n}|${this.near}|${this.far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}|${h1}|${h2}`;
     if (this.viewKeyed) key += `|${view}`;   // what it packs is tested against the view one by one (index.js: inView)
     if (key === this.key) return;

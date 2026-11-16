@@ -15,13 +15,15 @@
 //   type 1  swings about its axis through its pivot:  base + amp · sin(g · rate + phase)     a leg, an arm, a wing, a tail
 //   type 2  shifts along its axis:                   amp · sin(g · rate + phase)            a body's bob, a snake's wave
 //   type 3  turns about its axis through its pivot:  g · rate                               a wheel
-// and after its own move its parent's (one level: a shin goes with its thigh).
+// and after its own move those of the bones it hangs on, up its chain (four: a shin goes with its thigh, the thigh with
+// the body; assets/kit/bones.js CHAIN).
 // A creature's coarse levels are one body (a hull: a ball its size); its tubes melt into that as it shrinks.
 // Every kind is its own body plan: its rig's counts are its own (legs, wheels, links, wings), and parts grow on it as
 // its numbers say (grow: horns, crests, ears, humps, spikes, tails, arms). A thousand kinds, a thousand plans.
 import { LADDER, FULLN, DOTN, roomOf, underOf } from './ladder.js';
 import { packSolid, dotMesh, BONES } from './solid.js';
 import { ball, onBall, faceOf, ballMesh, normalsOf, hash3, noise3, SWELL } from './blob.js';
+import { add, cross } from './math.js';
 
 export const VARIANTS = 100, STRIDE = 0.13;   // VARIANTS: the kinds of each rig (other proportions, other skins); STRIDE: a mover goes its size times this for one radian of stride
 const PI = Math.PI, TAU = PI * 2;
@@ -132,7 +134,6 @@ export const RIGS = [
     return { bones, tubes, body: 1, head: [0.4 + step * 0.8, br * 1.5, 0], headBone: 1, back: [0.4 - step, br * 1.8, 0], side: br };
   } },
 ];
-const add = (p, q) => [p[0] + q[0], p[1] + q[1], p[2] + q[2]];
 // The parts that may grow on any body, each by its kind's own numbers (from 30 on): what stands still on it rides
 // on its body's (or its head's) bone; what moves (ears, a tail, a second pair of arms) has bones of its own, while
 // the sixteen last. So a kind's body plan is its rig and the parts it grew: no two the same.
@@ -163,14 +164,12 @@ function grow(P, r) {
   if (P.arms && on(62, 0.3, 4) && room() >= 4) { const [x, y, z] = P.arms; for (const [s, ph] of [[1, PI / 2], [-1, -PI / 2]]) limb(bones, tubes, [x, y, s * z * 1.2], [x + 0.05, y - 0.12, s * (z * 1.4 + 0.03)], [x + 0.1, y - 0.24, s * (z * 1.4 + 0.03)], 0.025, { amp: 0.35, phase: ph, bend: 0.6, parent: body, from: body }); }   // a second pair of arms
   return P;
 }
-/** The rig of creature c, and where the rigs' shares end (0 … 1: a number under SHARES[r] and not under SHARES[r - 1] is rig r). */
+/** The rig of creature c. */
 export const rigOf = (c) => Math.floor(c / VARIANTS);
-export const SHARES = (() => { const total = RIGS.reduce((t, R) => t + R.share, 0); let at = 0; return RIGS.map((R) => (at += R.share / total)); })();
 
 // a creature as it is made from: its bones and tubes brought into its own frame (its foot at 0, its middle over 0, its
 // largest side 1), each tube's length, sides and how round it is cut; its hull (the ball its coarse levels are)
 const MADE = new Map();
-const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 // a rig's tubes with their frames (each its length, its way, two ways across it), their ends taken through `into`, their
 // widths times k; cap: how much of a wheel's way from end to end is each of its flat sides
 const framed = (tubes, into, k) => tubes.map((t, n) => {

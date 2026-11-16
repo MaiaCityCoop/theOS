@@ -1,9 +1,8 @@
 // A solid's vertex unpacked on the GPU: what assets/kit/solid.js packs into four numbers of 32 bits (an element of the
 // heap: src/scatter/heap.js), bit for bit the other way.
-import { uint, float, vec3, normalize, abs, max, mix } from 'three/tsl';
+import { uint, float, vec3, normalize, mix } from 'three/tsl';
+import { bits, octDir as oct } from './unpack.js';
 
-const bits = (x, s, m) => x.shiftRight(uint(s)).bitAnd(uint(m));
-const oct = (u, v) => { const z = float(1).sub(abs(u)).sub(abs(v)), k = max(z.negate(), 0); return vec3(u.add(u.greaterThanEqual(0).select(k.negate(), k)), v.add(v.greaterThanEqual(0).select(k.negate(), k)), z); };
 /** Element e (a uvec4 node) as a vertex, t of the way (0 … 1) to where it lies on the next coarser level's mesh (D: the
     level's delta, assets/kit/ladder.js): { p (its place, in the thing's own frame: its foot at 0, its largest side 1),
     n (its normal), shade (0 … 1), a, b (the two bones that move it: uint), w (how much the second does) }. */

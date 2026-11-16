@@ -6,14 +6,15 @@
 // painted sprig (materials/holmoakleaf.js), lit as the ball its crown makes. An asset in the one recipe
 // (assets/index.js), scattered by the trees' engine (src/scatter/trees.js) in the pine forest's stand, of which it takes
 // its share (biomes/pineforest.js). Units are metres; a shape is a stage of its growth at its own height.
-import { tree, builder, tube, cards, crown, rng, add, sub, mul, norm, lerp } from './kit/tree.js';
+import { tree, builder, tube, cards, crown } from './kit/tree.js';
+import { add, sub, mul, norm, lerp, sstep } from './kit/math.js';
+import { rng } from '../src/core/hash.js';
 import SPRIG from '../materials/holmoakleaf.twigs.js';
 
 // how it grows: at six a dense bush a little over a metre; at eighteen a tall bush of four metres, leaves to the ground;
 // at forty a small round tree on a short bole; at ninety fifteen metres, its crown as wide; at two hundred a great dome
 // over twenty metres across. Its height by age (metres), and its numbers at an age: its height, where its crown begins,
 // its crown's reach, how far its crown's widest part lies up it (squat), how many great limbs leave its fork, its lean.
-const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const height = (year) => 21 * (1 - Math.exp(-year / 70)) ** 1.15;
 function form(year, v, seed = 410) {
   const R0 = rng(seed * 7919 + v * 31 + year * 7), H = height(year), old = sstep(12, 110, year), side = v % 2 ? -1 : 1;

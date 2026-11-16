@@ -1,5 +1,6 @@
-// The zoo: every kind of thing the heap draws (src/scatter/heap.js), each brought by a FAMILY: one file in this folder,
-// found here by itself (no list kept by hand). A family is a recipe for many kinds at once (ten thousand test shapes,
+// The zoo: every kind of thing the heap draws (src/scatter/heap.js), each brought by a FAMILY: a file in this folder,
+// found here by itself (no list kept by hand), brings one family or a list of them (scattered.js: one a species the
+// world scatters; made.js: what stands at a spot of its own). A family is a recipe for many kinds at once (ten thousand test shapes,
 // a thousand creatures) or for one (a real tree: its few shapes); nobody modelled its kinds and no file holds them.
 // To add kinds to the world, add a file here that keeps the contract; nothing of the engine changes.
 //
@@ -46,6 +47,7 @@
 import { unpackSolid } from '../kit/solid.js';
 import { LADDER } from '../kit/ladder.js';
 import { moved } from '../kit/bones.js';
+import { FNV, fnv } from '../../src/core/hash.js';
 
 const FOUND = import.meta.glob(['./*.js', '!./index.js'], { eager: true, import: 'default' });
 /** The families: the test herds first (what stands, then what roams), then those an engine of the world places (one
@@ -53,7 +55,7 @@ const FOUND = import.meta.glob(['./*.js', '!./index.js'], { eager: true, import:
 export const FAMILIES = (() => {
   let at = 0;
   const rank = (F) => (F.placed ? 2 : F.roams ? 1 : 0), by = (F) => F.placed ?? '';
-  return Object.values(FOUND).filter((F) => F?.id && F.count > 0).sort((a, b) => rank(a) - rank(b) || (by(a) < by(b) ? -1 : by(a) > by(b) ? 1 : 0) || (a.id < b.id ? -1 : 1)).map((F) => { const E = { F, id: F.id, first: at, count: F.count, roams: !!F.roams, placed: F.placed ?? null }; at += F.count; return E; });
+  return Object.values(FOUND).flat().filter((F) => F?.id && F.count > 0).sort((a, b) => rank(a) - rank(b) || (by(a) < by(b) ? -1 : by(a) > by(b) ? 1 : 0) || (a.id < b.id ? -1 : 1)).map((F) => { const E = { F, id: F.id, first: at, count: F.count, roams: !!F.roams, placed: F.placed ?? null }; at += F.count; return E; });
 })();
 const HERD = FAMILIES.filter((E) => !E.placed);   // the test herds: what the stress stand draws
 export const KINDS = HERD.reduce((n, E) => n + E.count, 0), STAND = HERD.reduce((n, E) => n + (E.roams ? 0 : E.count), 0), MOVING = KINDS - STAND;   // (the test herds' kinds: what stands is numbered 0 … STAND - 1, what moves after it; what the world's engines place is numbered after them)
@@ -61,7 +63,6 @@ export const KINDS = HERD.reduce((n, E) => n + E.count, 0), STAND = HERD.reduce(
     { first (the number of the first), count, families: [{ id, first (among them), count, F }] }. */
 export const placedBy = (engine) => { const Fs = FAMILIES.filter((E) => E.placed === engine), first = Fs[0]?.first ?? 0; return { first, count: Fs.reduce((n, E) => n + E.count, 0), families: Fs.map((E) => ({ id: E.id, first: E.first - first, count: E.count, F: E.F })) }; };
 const of = (k) => { for (const E of FAMILIES) if (k < E.first + E.count) return E; throw new Error(`zoo: no kind ${k}`); };
-export const familyOf = (k) => of(k).id;
 export const meshOf = (k, l) => { const E = of(k); return E.F.meshOf(k - E.first, l); };
 export const skinOf = (k, size) => { const E = of(k); return E.F.skinOf(k - E.first, size); };
 export const lookOf = (k) => { const E = of(k); return E.F.lookOf(k - E.first); };
@@ -114,8 +115,8 @@ const REV = 2;   // (raised by hand when a kit changes what it makes in a way th
     number. A recipe changed, it is another word, and what the browser kept under the old one is not read. engine: of
     the families that engine places (none: of the test herds). */
 export function fingerprint(engine = null) {
-  let h = 0x811c9dc5 ^ REV;
-  const eat = (a) => { for (let i = 0; i < a.length; i++) h = Math.imul(h ^ (a[i] | 0), 0x01000193); };
+  let h = FNV ^ REV;
+  const eat = (a) => { for (let i = 0; i < a.length; i++) h = fnv(h, a[i] | 0); };
   for (const E of FAMILIES) {
     if (E.placed !== engine) continue;
     eat([E.first, E.count, ...E.id].map((c) => (typeof c === 'string' ? c.charCodeAt(0) : c)));

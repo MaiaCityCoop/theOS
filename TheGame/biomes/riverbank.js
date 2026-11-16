@@ -1,6 +1,6 @@
 // Riverbank: the sand along the water. A biome of the world, in the one recipe every biome follows (biomes/README.md).
-import { float, uint, max, smoothstep } from 'three/tsl';
-import { vnoise, edgeJit } from '../src/world/noise.nodes.js';
+import { float, max, smoothstep } from 'three/tsl';
+import { edgeJit } from '../src/world/noise.nodes.js';
 
 export default {
   uid: '84588b7e-0680-47ca-9793-409c7359db0c',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)

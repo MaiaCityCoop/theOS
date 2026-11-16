@@ -18,18 +18,19 @@
 // Kept in the page only: saving it, and sharing it between people, is the API's (not yet).
 import { uint, float, vec3, uniform, If, Loop, Break } from 'three/tsl';
 import { gpuStorage } from '../core/gpu.js';
+import { HX, HY, fmix, fnvOf } from '../core/hash.js';
+import { fmixN } from '../core/hash.nodes.js';
+import { c8 } from '../../assets/kit/pack.js';
 
 const BITS = 18, CAP = 1 << BITS, MASK = CAP - 1, PROBE = 32, MOST = CAP * 0.6;   // the table: 2^18 entries of 16 bytes (4 MB); a key lies within PROBE steps of its own place (a look-up stops at the first empty one: one or two steps, mostly); MOST: the most entries it holds
 
 /** A placer's name as a number (what its things' keys are woven with). */
-export const nameKey = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193); return h >>> 0; };
-const fmix = (h) => { h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); return (h ^ (h >>> 16)) >>> 0; };
+export const nameKey = fnvOf;
 /** A thing's key: its placer (a name, or nameKey's number) and its two whole numbers (never 0). */
-export const keyOf = (placer, a, b) => fmix((Math.imul(a | 0, 0x9e3779b1) ^ Math.imul(b | 0, 0x85ebca77) ^ (typeof placer === 'number' ? placer : nameKey(placer))) >>> 0) || 1;
+export const keyOf = (placer, a, b) => fmix((Math.imul(a | 0, HX) ^ Math.imul(b | 0, HY) ^ (typeof placer === 'number' ? placer : nameKey(placer))) >>> 0) || 1;
 /** The same as a node: h a uint node (the placer's nameKey), a and b int nodes. */
 export const keyN = (h, a, b) => {
-  let k = uint(a).mul(uint(0x9e3779b1)).bitXor(uint(b).mul(uint(0x85ebca77))).bitXor(h);
-  k = k.bitXor(k.shiftRight(uint(16))).mul(uint(0x85ebca6b)); k = k.bitXor(k.shiftRight(uint(13))).mul(uint(0xc2b2ae35)); k = k.bitXor(k.shiftRight(uint(16)));
+  const k = fmixN(uint(a).mul(uint(HX)).bitXor(uint(b).mul(uint(HY))).bitXor(h));
   return k.equal(uint(0)).select(uint(1), k);
 };
 /** A thing's id, and back. */
@@ -40,7 +41,6 @@ export const ofId = (id) => { const p = String(id).split(':'); return p.length <
 const byId = new Map(); let table = null;   // (the table's copy on the page, made with the first change: an entry its key, its tint and wear, -, its flags and growth)
 let gpu = null, low = Infinity, high = -1, version = 0;
 const COUNT = uniform(0, 'uint');   // (none: no packing looks anything up)
-const c8 = (v) => Math.max(0, Math.min(255, Math.round(Math.sqrt(Math.max(0, Math.min(2, v)) / 2) * 255)));
 const pack = (S) => [(c8(S.tint[0]) | (c8(S.tint[1]) << 8) | (c8(S.tint[2]) << 16) | (Math.round(Math.max(0, Math.min(1, S.wear)) * 255) << 24)) >>> 0, 0, ((S.gone ? 1 : 0) | (Math.max(0, Math.min(65535, Math.round(S.grow * 4096))) << 16)) >>> 0];
 const dirty = (i) => { low = Math.min(low, i); high = Math.max(high, i); };
 // a key's place: its own, or the next free within PROBE (false: none, the table is too full round it)

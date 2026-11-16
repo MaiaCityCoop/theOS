@@ -3,7 +3,8 @@
 // Built with the tree kit (assets/kit/tree.js): three shapes, two levels of its own, its farthest the kit's. An asset in
 // the one recipe (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by the trees' engine in the riverbank's
 // reeds (biomes/riverbank.js `reeds`: only in the shallow margin of a lake).
-import { tree, builder, cards, rng } from './kit/tree.js';
+import { tree, builder, cards } from './kit/tree.js';
+import { rng } from '../src/core/hash.js';
 
 const woodCol = [0.3, 0.27, 0.15], leafCol = [0.2, 0.26, 0.1];   // (for a picture without the textures)
 // a level of it: q 0 near (all its cards), 1 further (half of them, each larger); S its shape

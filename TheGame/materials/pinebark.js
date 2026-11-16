@@ -1,6 +1,6 @@
 // Pine bark: a stone pine's trunk, thick plates of reddish bark, tall and narrow, split by deep grey-brown fissures, the
 // plates flaking in layers (materials/README.md). Wrapped round the trees' trunks and limbs (src/scatter/trees.js).
-import { float, vec2, vec3, mix, smoothstep, max } from 'three/tsl';
+import { float, vec2, vec3, mix, smoothstep } from 'three/tsl';
 import { pn, pfbm, pvor, warp } from '../src/materials/paint.js';
 export default {
   uid: 'bf97f33b-56bd-4df4-89ba-949e77ce8c27',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)

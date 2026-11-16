@@ -44,19 +44,18 @@
 //     off than a small one beside it;
 //   - over the last of a level's range every vertex moves to where it lies on the next coarser mesh (its normal, its
 //     pattern and its shade with it: heapVertex), so when the coarser one takes over it is the same shape to the pixel;
-//   - a fine level that comes late grows out of the coarser one the same way, over GROW seconds from when it came;
+//   - a fine level that comes late grows out of the coarser one the same way, over the drawer's GROW seconds from when it came;
 //   - its textures are read at every level (the GPU's mipmaps make a far thing its textures' mean), its relief fades in
 //     with its size; its last level is a dot of that mean, sinking away under a pixel.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Loop, float, int, uint, vec2, vec4, uniform, uniformArray, storage, texture, instanceIndex, cos, sin, atan, abs, max, mix, sqrt, floor, length, normalize, clamp } from 'three/tsl';
+import { Fn, If, Loop, float, int, uint, vec2, vec4, uniform, uniformArray, storage, instanceIndex, cos, sin, atan, abs, max, mix, floor, length, normalize, clamp } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { camDist, groundAt, rnd } from '../world/land.nodes.js';
-import { cellRnd, heightAt } from '../world/land.js';
-import { pxK } from '../detail/index.js';
+import { heightAt } from '../world/land.js';
+import { rnd as cellRnd } from '../core/hash.js';   // (a cell's number 0 … 1 on the CPU, as the GPU's rnd)
 import { boxIn } from '../core/frustum.js';
-import { Tier, MAXP } from './tier.js';
+import { MAXP } from './tier.js';
 import { inView } from './view.js';
-import { heapRow, heldOf } from './heap.js';
 import { createDrawer } from './drawer.js';
 import { LADDER, FULLN, trisOf } from '../../assets/kit/ladder.js';
 import { STAND, MOVING, KINDS as ALL, FAMILIES, HERDS, lookOf as lookOfKind, fullTris, fingerprint } from '../../assets/zoo/index.js';
@@ -70,11 +69,11 @@ import { bodyOf } from '../../assets/zoo/index.js';
 import { addWays, waysChanged } from '../world/ways.js';
 import { moved } from '../../assets/kit/bones.js';
 import CITY from '../../world/city.js';
+import { flag } from '../core/flags.js';
 
 const KINDS = 10000, SIDE = 1000, MSIDE = 100, GROUP = KINDS / SIDE;   // a plot's ten thousand places for a kind (given to the STAND kinds that stand: the zoo's; ALL: with those that roam); a plot's lattice: a thousand cells a side, one asset in each (GROUP rows of it hold every kind once: a hundred of every kind a plot); its movers' lattice: ten thousand
 const PLOTS = Math.round(CITY.people / CITY.perVillage), RAYS = 64, PH_AT = 4 + RAYS + RAYS + 1, Q_AT = PH_AT + RAYS + 1, LC_AT = Q_AT + 1, VERGE_AT = Q_AT + 2, LEAST_AT = Q_AT + 3, CLRS_AT = Q_AT + 6, MAXW = 32, ROW = CLRS_AT + MAXW + 2, FAR_AT = ROW - 2, KEPT_AT = ROW - 1, KEPT = 8, BITS = 11, TAU = Math.PI * 2;   // a plot's row: its middle (x, z), its mean reach, its things' scale, then how far its edge is in RAYS directions, then the directions that cut its land into RAYS equal shares, the directions at every RAYS-th of the way round it (PH_AT), its movers' scale, how long it is round, the room of what stands beside its ways, its shortest reach (Q_AT …), half the width each of its ways is kept clear (CLRS_AT, MAXW of them), its longest reach, and where its places are kept (KEPT plots' at once; -1: not kept); BITS: a cell's number holds its plot above them
-const SMIN = 0.25, SMAX = 2.2, MMAX = 6, MFAR = 1400, CELL = 1.4, FIT = 1.5, FADE = 0.02, SINK = 1.6;   // an asset's largest side, metres (a mover's up to MMAX, seen as far as MFAR); CELL: a lattice cell's side, about; FIT: the cell's side a kind's own size is meant for
-const GROW = 1.5, RELIEF = 90, SKIN = 128, SKINPX = 28;   // GROW: seconds a level that came late takes to grow out of the coarser one; RELIEF: the size on screen from which its textures' relief is read; SKIN: a kind's own texture, pixels a side; SKINPX: the size on screen from which a thing wears it (under that: its mean colour)
+const SMIN = 0.25, SMAX = 2.2, MMAX = 6, MFAR = 1400, CELL = 1.4, FIT = 1.5, FADE = 0.02;   // an asset's largest side, metres (a mover's up to MMAX, seen as far as MFAR); CELL: a lattice cell's side, about; FIT: the cell's side a kind's own size is meant for
 // its levels, finest first: the ladder's (assets/kit/ladder.js: n, a level's mesh; px, the size on screen it is drawn
 // down to), and of each: P, its tier's cells a patch (a block of a plot's lattice: it divides 1000); slots: how many
 // kinds' the heap holds at once (none: every kind's); cap: the most of it drawn at once
@@ -88,13 +87,12 @@ const LEVELS = [
   { P: 50, cap: 131072 },
   { P: 100, cap: 524288 },   // its dot: one triangle, turned to the eye
 ].map((l, i) => ({ n: LADDER[i].n, px: LADDER[i].px, ...l }));
-const L = LEVELS.length, STREAMED = LEVELS.filter((l) => l.slots).length, MCAP = 65536;   // MCAP: the most movers of one level drawn at once
-const HULL = LEVELS.findIndex((l) => l.n > 0 && l.n <= 2), WRAP = 512;   // HULL: the first level at which a mover is its hull, nothing of it moving (creature.js); WRAP: seconds after which the movers' stride clock begins again
+const L = LEVELS.length, MCAP = 65536;   // MCAP: the most movers of one level drawn at once
+const WRAP = 512;   // seconds after which the movers' stride clock begins again
 const SHADE = { level: 5, far: 30, wide: 1.5, reach: 12, shrink: 0.85 };   // what casts their shadows: a coarse level of each round the camera, a little smaller than the thing (so it does not shade itself)
 
 const OFF = STAND > KINDS ? 7919 : 0;   // a plot's places are given to the kinds that stand in turn (place n: kind n, round again where there are fewer kinds); where there are more kinds than places each plot begins further along: another ten thousand of them
 const SMOOTH = uniform(1);   // 1: levels turn into each other; 0: they change at once (window.__stress.smooth: to see the difference)
-const PXK = uniform(pxK()); addEventListener('resize', () => (PXK.value = pxK()));
 
 // ---- a plot's lattice folded onto its shape, in JS (the same reckoning as the GPU's below: place, moverAt), for what the
 // CPU must know: which blocks of it a tier looks at, and which kinds stand or pass near the camera ----
@@ -105,7 +103,6 @@ const squareOf = (rho, th) => {
   if (phi < q) return [rho, (phi * rho) / q]; if (phi < 3 * q) return [(-(phi - 2 * q) * rho) / q, rho];
   if (phi < 5 * q) return [-rho, (-(phi - 4 * q) * rho) / q]; return [((phi - 6 * q) * rho) / q, -rho];
 };
-const reachOfP = (p, th) => reachOf(p, th);
 const reachOf = (p, th) => { const t = ((th / TAU) % 1 + 1) % 1 * RAYS, i0 = Math.floor(t) % RAYS, f = t - Math.floor(t); return p.R[i0] * (1 - f) + p.R[(i0 + 1) % RAYS] * f; };
 // the lattice is folded onto a plot's shape share for share: the disc's angle is a share of the plot's land (TH: the
 // directions that cut it into RAYS equal shares), so as many stand in a narrow corner of it as in a wide one, for its size
@@ -322,8 +319,8 @@ function plotOf(cp, i) {
 
 // the plots, as the GPU reads them: a row each (ROW numbers), filled when the city's plan has come (src/city: made in a
 // worker at the start). Kept here, not in the stand: what else places things reads the ways from them (below)
-const CORNERS = new URLSearchParams(location.search).has('corners');   // (`?corners`: every corner of every triangle looked up and worked out by itself, as before 2026-11-14: to measure against)
-const STRESS = new URLSearchParams(location.search).has('stress'), GHOST = new URLSearchParams(location.search).has('ghost');   // (GHOST: the walker walks through things)
+const CORNERS = flag('corners');   // (`?corners`: every corner of every triangle looked up and worked out by itself, as before 2026-11-14: to measure against)
+const STRESS = flag('stress');
 const plotRows = new THREE.StorageBufferAttribute(new Float32Array(STRESS ? PLOTS * ROW : ROW), 1), PT = storage(plotRows, 'float', STRESS ? PLOTS * ROW : ROW), PL = [];
 const reach = (base, th) => { const t = th.div(TAU).add(1).fract().mul(RAYS), i0 = floor(t), a = uint(i0).min(uint(RAYS - 1)); return mix(PT.element(base.add(uint(4)).add(a)), PT.element(base.add(uint(4)).add(a.add(uint(1)).mod(uint(RAYS)))), t.sub(i0)); };
 const middle = (base) => vec2(PT.element(base), PT.element(base.add(uint(1))));
@@ -412,8 +409,8 @@ export function createStress(scene, renderer, tex) {
 
   // how it is drawn: the one drawer (src/scatter/drawer.js): the heap of every kind's meshes, their looks and textures,
   // the levels' materials and draws, and what streams them in. Here only where things stand and move.
-  const D = createDrawer(scene, renderer, tex, { name: 'stand', LEVELS, SHADE, SMOOTH, PXK, ghost: GHOST, corners: CORNERS, zoo: { first: 0, ALL, STAND, MOVING, lookOfKind, fingerprint } });
-  const { H, LO, lookOf, sizes, skins, boneRows, meshOf, dot, drawOf, ask, stats, pending } = D;
+  const D = createDrawer(scene, renderer, tex, { name: 'stand', LEVELS, SHADE, SMOOTH, corners: CORNERS, zoo: { first: 0, ALL, STAND, MOVING, lookOfKind, fingerprint } });
+  const { H, lookOf, sizes, skins, boneRows, ask, stats, pending } = D;
 
   const tiers = [];
   // the plots a tier may draw from: those whose land comes within `far` of the camera, and into its view
@@ -519,18 +516,14 @@ export function createStress(scene, renderer, tex) {
       });
       return { plot, base, h, h3, h4, h5, h6, v, S, t, q, pos, yaw: atan(tv.y, tv.x), I0, I1, I2 };
     };
-    const live = (c) => {
-      const alive = float(0).toVar(), A = vec4(0).toVar(), B = vec4(0).toVar(), bucket = float(L - 1).toVar();
+    // each mover, as the drawer's one tier of every level packs it (drawer.js tierAll: the level its size asks for, the
+    // finest that is there; packed every frame, drawn on its bones)
+    const place = (c, part, found) => {
       const { h, h4, h5, h6, v, S, t, q, pos: at, yaw, I1, I2 } = nominal(c), pos = vec2(at).toVar();
       const dist = camDist(pos);
       If(dist.lessThan(far).and(inView(pos, round, MMAX)), () => {
-        const px = S.mul(PXK).div(max(dist, 1e-3));
-        If(px.greaterThan(LEVELS[L - 1].px), () => {
-          const kind = uint(I2.x.add(floor(h(940).mul(I2.y)).min(I2.y.sub(1))));
-          // the level its size asks for; drawn at the finest that is there and no finer than that
-          const want = uint(0).toVar(), held = heldOf(heapRow(H, kind, uint(L - 1))), lvl = uint(L - 1).toVar();
-          for (let j = 0; j < L - 1; j++) want.addAssign(px.lessThanEqual(LO.element(j)).select(uint(1), uint(0)));
-          for (let l = L - 2; l >= 0; l--) If(want.lessThanEqual(uint(l)).and(held.shiftRight(uint(l)).bitAnd(uint(1)).equal(uint(1))), () => { lvl.assign(uint(l)); });
+        const kind = uint(I2.x.add(floor(h(940).mul(I2.y)).min(I2.y.sub(1))));
+        found(kind, S, dist, (A, B) => {
           // (what flies: so high over the ground, rising and falling a little)
           const up = I1.z.greaterThan(0.01).select(max(mix(I1.y, I1.z, h4), airLow), float(0)).mul(q).mul(sin(t.mul(0.4).add(h5.mul(TAU))).mul(0.15).add(1));   // (no lower than the tallest that drives under it)
           // its stride: how far it has come, in radians of its gait (its herd's stride: that much of its size a radian). From a
@@ -538,28 +531,22 @@ export function createStress(scene, renderer, tex) {
           // fineness in an hour); its pace is made to fit that clock, so no leg jumps when it does
           const step = (TAU * 20) / WRAP, pace = floor(v.div(S.mul(I1.w)).div(step).add(0.5)).max(1).mul(step);
           A.assign(vec4(pos, groundAt(pos, float(0)).add(up), S));
-          B.assign(vec4(yaw, float(kind), pace.mul(strideT).add(h6.mul(TAU * 20)), h5.mul(TAU)));   // (its seed: drawer.js)
-          bucket.assign(float(lvl)); alive.assign(1);
+          B.assign(vec4(yaw, float(kind), pace.mul(strideT).add(h6.mul(TAU * 20)), h5.mul(TAU)));   // (its turn, its kind, its stride's clock, its seed: row.js)
         });
       });
-      return { alive: alive.greaterThan(0.5), data: [A, B], bucket };
     };
-    const T = new Tier(scene, LEVELS.map((_, i) => drawOf(i)), (src, k) => (k === L - 1 ? dot(src) : meshOf(src, k, false, true)), { cell: CELL * 10, P: MSIDE, near: 0, far: MFAR, order: 1, live, gpu: true, cap: MCAP, slots: 2 });
-    T.band = () => { T.near = 0; T.far = MFAR; }; T.movers = true; T.viewKeyed = true; T.asset = 'Stress: movers';
+    const T = D.tierAll({ cell: CELL * 10, P: MSIDE, cap: MCAP, sizes: [SMIN, MMAX], place, casts: true, far: MFAR, moving: true });
+    T.band = () => { T.near = 0; T.far = MFAR; }; T.viewKeyed = true; T.asset = 'Stress: movers';
     T.select = (cx, cz, h0, s, dy) => {   // its patches: each plot near, its ten thousand
       const far2 = T.far * T.far * s * s - dy * dy; let n = 0; strideT.value = U.uTime.value % WRAP;
       if (far2 > 0) for (const p of plotsNear(cx, cz, h0, Math.sqrt(far2), MMAX)) if (n < MAXP) T.list[n++].set(p.i << BITS, 0);
       T.n = n; for (const m of T.meshes) m.visible = n > 0;
     };
-    T.meshes.forEach((m, k) => { if (k < L - 1) m.layers.enable(1); m.renderOrder = 1.005 + k * 0.01; });   // they cast their shadows as drawn; near ones drawn first
-    let frame = 0; const run = T.run.bind(T); T.run = (r, world, ...a) => run(r, `${world}|${frame++}`, ...a);   // packed every frame: they move
     tiers.push(T);
   }
-  addEventListener('resize', () => tiers.forEach((T) => T.band()));
 
   // (how much room each herd's movers take as they move: the lanes are laid out by it, and the plots after them)
   if (MOVING) ask([['rooms']]).then(([rooms]) => laid(layOut(rooms))); else laid(layOut([]));
-  let speed = 0, lx = 0, ly = 0, lz = 0, lt = 0, scanAt = -1e9, sx = 1e9, sz = 1e9, sk = '';   // speed: the camera's, metres a second; and when and where it last looked at what stands near
   // what the CPU knows of what stands near: a block of a plot's lattice (BL cells a side) worked out when first looked
   // at, a few kept; and a plot's movers' own numbers
   const BL = 32, blocks = new Map(); let built = 0;
@@ -585,16 +572,14 @@ export function createStress(scene, renderer, tex) {
     }
     D.start();
     if (!(tick++ & 3)) keepNear(U.uCam.value.x, U.uCam.value.z);   // (which plots are near changes slowly: asked every fourth frame)
-    const now = performance.now(), cam = U.uCam.value, dy = U.uDy.value, inv = U.uLodInv.value, K = pxK(), key = `${inv.toFixed(2)}|${K.toFixed(0)}`;
+    const cam = U.uCam.value, dy = U.uDy.value;
     if (API.pause) return;
     built = 0;
-    const dt = Math.max(1e-3, (now - lt) / 1000), v = Math.hypot(cam.x - lx, cam.y - ly, cam.z - lz) / dt; lx = cam.x; ly = cam.y; lz = cam.z; lt = now;
-    speed += (Math.min(v, 300) - speed) * Math.min(1, dt * 4);
     D.skinsIn();
-    if (Math.hypot(cam.x - sx, cam.z - sz) < 0.7 && key === sk && now - scanAt < 300) return;
-    sx = cam.x; sz = cam.z; sk = key; scanAt = now; did('scan');
+    const N = D.scan(); if (!N) return;
+    did('scan');   // (a look at its millions near: a busy frame, its length not counted by the governor)
     // as far as the coarsest of the fine levels is asked for (and a fifth): of what stands, and of the largest mover
-    const ahead = speed * 0.35, t = U.uTime.value, N = D.near(K, inv, ahead), reachOfSize = N.reach, wants = N.wants, Rs = reachOfSize(SMAX), Rm = reachOfSize(MMAX);
+    const ahead = N.ahead, t = U.uTime.value, reachOfSize = N.reach, wants = N.wants, Rs = reachOfSize(SMAX), Rm = reachOfSize(MMAX);
     if (Rm <= dy) { N.none(); return; }
     nearMovers.length = 0;
     for (const p of PL) {
@@ -672,5 +657,5 @@ export function createStress(scene, renderer, tex) {
 /** A scatter engine (src/scatter/index.js finds it): it places no asset of the library, only its own, and only when asked. */
 export const engine = {
   id: 'stress',
-  createOwn: (scene, tex, ground, gpu, renderer) => (gpu && new URLSearchParams(location.search).has('stress') ? createStress(scene, renderer, tex) : []),
+  createOwn: (scene, tex, ground, gpu, renderer) => (gpu && STRESS ? createStress(scene, renderer, tex) : []),
 };

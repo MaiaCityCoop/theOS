@@ -9,6 +9,8 @@
 // material can: the stones' worn round bodies, the ridges of the bark, the rings of a sawn end. Units are metres; the
 // origin is the middle of the fire, on the ground.
 import { noise3 } from './kit/blob.js';
+import { lerp } from './kit/math.js';
+import { lcg } from '../src/core/hash.js';
 
 const RING = 0.62, SEAT_R = 1.74, SEAT_H = 0.44, SEAT_W = 0.48;
 
@@ -20,10 +22,8 @@ const coal = [0.13, 0.13, 0.13];
 const bark = [1, 1, 1], charred = [0.1, 0.1, 0.105];
 const wood0 = [0.82, 0.8, 0.77], grain = [0.66, 0.61, 0.56];
 
-const rnd = (s) => () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 /** A tint nudged a little: no two stones, no two ridges quite alike, under the same material. */
 const vary = (c, R, k = 0.07) => { const d = (R() - 0.5) * 2 * k; return [Math.max(0, c[0] + d), Math.max(0, c[1] + d), Math.max(0, c[2] + d)]; };
-const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
 /** A smooth surface from a grid of points P[row][col] and their colours C, shaded smooth across its faces (a normal
     at every corner, the faces round it summed). `poles`: [first, last], which of its first and last rows are one point
@@ -70,7 +70,7 @@ function riverStone(f, x, z, r, h, R, inward, along, N = 16, rows = 8, part = 's
       // soot: how far this point faces the fire, and how low it is
       const face = ((wx - x) * toX + (wz - z) * toZ) / (r * el), low = 1 - Math.min(1, Math.max(0, wy / (h * 0.9)));
       const black = Math.min(1, Math.max(0, (face + 0.4) * 1.1)) * (0.5 + 0.5 * low) * (0.85 + 0.3 * noise3(ux * 3, uy * 3, uz * 3, s + 2));   // (in patches)
-      crow.push(tint ? mix(tint, soot, black * 0.3) : mix(own, soot, Math.min(1, black * 0.95)));
+      crow.push(tint ? lerp(tint, soot, black * 0.3) : lerp(own, soot, Math.min(1, black * 0.95)));
     }
     P.push(row); C.push(crow);
   }
@@ -104,7 +104,7 @@ function wood(f, c0, A, len, r, R, { N = 18, K = 8, caps = [true, true], char = 
       row.push(add3(add3(c0, A, u * len), dir, rr));
       const lit = (plates - 1) * 8;   // the plates catch the light, the splits between them stay dark
       const b0 = [tone[0] * (1 + lit * 0.4), tone[1] * (1 + lit * 0.4), tone[2] * (1 + lit * 0.4)];
-      crow.push(burn > 0 ? mix(b0, mix(charred, [0.08, 0.08, 0.085], noise3(u * 30, ct * 4, st * 4, s + 2)), burn) : b0);
+      crow.push(burn > 0 ? lerp(b0, lerp(charred, [0.08, 0.08, 0.085], noise3(u * 30, ct * 4, st * 4, s + 2)), burn) : b0);
     }
     P.push(row); C.push(crow);
   }
@@ -116,7 +116,7 @@ function wood(f, c0, A, len, r, R, { N = 18, K = 8, caps = [true, true], char = 
     const rings = 4, ring = (k) => k / rings;
     for (let k = 0; k < rings; k++) {
       // heartwood dark in the middle, sapwood pale, and the bark's own band at the rim
-      const col = burnt ? charred : k === rings - 1 ? mix(tone, grain, 0.3) : mix(grain, wood0, ring(k + 0.5) * 1.1);
+      const col = burnt ? charred : k === rings - 1 ? lerp(tone, grain, 0.3) : lerp(grain, wood0, ring(k + 0.5) * 1.1);
       for (let i = 0; i < N; i++) {
         const i1 = (i + 1) % N, pt = (kk, ii) => (kk === 0 ? o : add3(o, add3(P[e][ii], o, -1), ring(kk) * (kk === rings ? 1 : 0.97)));
         const a = pt(k, i), b = pt(k + 1, i), c = pt(k + 1, i1), d = pt(k, i1), cc = vary(col, R, 0.03), part = burnt ? 'bark' : 'sawn';
@@ -158,9 +158,9 @@ function ashBed(f, K, N) {
       row.push([x, h, z]);
       // colour: by how hot it burned there, and lighter on the tops of the drifts, darker in their hollows
       const top = (h - (0.022 + 0.045 * Math.max(0, 1 - u * u))) / 0.03, fleck = noise3(x * 70, z * 70, 2, s + 2);
-      let c = u < 0.3 ? mix(white, pale, u / 0.3) : u < 0.65 ? mix(pale, grey, (u - 0.3) / 0.35) : mix(grey, dark, Math.min(1, (u - 0.65) / 0.25));
-      c = mix(c, top > 0 ? white : dark, Math.min(0.55, Math.abs(top) * 0.5));   // (pale on the drifts' crests, dark in their hollows)
-      c = mix(c, coal, Math.min(1, Math.max(0, fleck - 0.72) * 3.5) * (u > 0.2 ? 0.7 : 0.3));   // charcoal crumbs in it
+      let c = u < 0.3 ? lerp(white, pale, u / 0.3) : u < 0.65 ? lerp(pale, grey, (u - 0.3) / 0.35) : lerp(grey, dark, Math.min(1, (u - 0.65) / 0.25));
+      c = lerp(c, top > 0 ? white : dark, Math.min(0.55, Math.abs(top) * 0.5));   // (pale on the drifts' crests, dark in their hollows)
+      c = lerp(c, coal, Math.min(1, Math.max(0, fleck - 0.72) * 3.5) * (u > 0.2 ? 0.7 : 0.3));   // charcoal crumbs in it
       crow.push(c);
     }
     P.push(row); C.push(crow);
@@ -171,17 +171,17 @@ function ashBed(f, K, N) {
 
 /** The pit at one level: `stones` round the ring, `sides` to every round thing, and what else it carries. */
 function pit(stones, sides, { ash = true, coals = true, logs = true, seats = true, bench = true } = {}) {
-  const f = [], R = rnd(90210), N = sides * 2 + 2;   // (sides round a round thing)
+  const f = [], R = lcg(90210), N = sides * 2 + 2;   // (sides round a round thing)
   if (ash) {
     ashBed(f, Math.max(5, sides * 3), Math.max(12, sides * 7));
     // charcoal in the ash: lumps of it, more towards the middle, and the ends of sticks that did not burn through
     if (coals) for (let k = 0; k < 30; k++) {
-      const C = rnd(3000 + k * 13), t = C() * 2 * Math.PI, d = Math.sqrt(C()) * RING * 0.8, s = 0.022 + C() * C() * 0.07;
+      const C = lcg(3000 + k * 13), t = C() * 2 * Math.PI, d = Math.sqrt(C()) * RING * 0.8, s = 0.022 + C() * C() * 0.07;
       const y0 = ashAt(Math.cos(t) * d, Math.sin(t) * d) + 0.04 - s * 0.3;   // (half sunk in the ash: ashAt)
       riverStone(f, Math.cos(t) * d, Math.sin(t) * d, s, s * 0.9, C, t + Math.PI, C() * 6.3, Math.max(5, sides), Math.max(3, Math.round(sides / 2)), 'ash', coal, y0);
     }
     if (coals) for (let k = 0; k < 4; k++) {   // burnt sticks lying across the coals, their middles gone to charcoal
-      const C = rnd(4000 + k * 7), a = k * 1.7 + C() * 0.5, len = 0.42 + C() * 0.25, r = 0.028 + C() * 0.022, d = RING * 0.12 * k;
+      const C = lcg(4000 + k * 7), a = k * 1.7 + C() * 0.5, len = 0.42 + C() * 0.25, r = 0.028 + C() * 0.022, d = RING * 0.12 * k;
       const ca = Math.cos(a), sa = Math.sin(a), ox = Math.cos(k * 2.3) * d, oz = Math.sin(k * 2.3) * d;
       wood(f, [ox - ca * len / 2, ashAt(ox, oz) + r * 0.4 + k * 0.012, oz - sa * len / 2], [ca, (C() - 0.5) * 0.15, sa], len, r, C, { N: Math.max(6, sides + 1), K: 6, char: 0.85 + C() * 0.15 });
     }
@@ -189,12 +189,12 @@ function pit(stones, sides, { ash = true, coals = true, logs = true, seats = tru
   // the ring itself: river stones laid end to end round it, each its own worn round body, sooted on the inside. Each
   // stone has its own seed, so it is the same stone at every level, only drawn with fewer sides further off
   for (let i = 0; i < stones; i++) {
-    const S = rnd(1000 + i * 17), t = (i / stones) * 2 * Math.PI + (S() - 0.5) * 0.14, d = RING * (1.03 + S() * 0.08);
+    const S = lcg(1000 + i * 17), t = (i / stones) * 2 * Math.PI + (S() - 0.5) * 0.14, d = RING * (1.03 + S() * 0.08);
     riverStone(f, Math.cos(t) * d, Math.sin(t) * d, 0.11 + S() * 0.07, 0.13 + S() * 0.12, S, t + Math.PI, t + Math.PI / 2 + (S() - 0.5) * 0.5, Math.max(5, sides * 2 - 2), Math.max(3, sides - 1));
   }
   if (logs) {   // the wood still to go on, stacked clear of the flame: two side by side, one across them
     const t = 2.25, cx = Math.cos(t) * (RING + 0.5), cz = Math.sin(t) * (RING + 0.5), along = t + Math.PI / 2, ca = Math.cos(along), sa = Math.sin(along);
-    const W = rnd(5000), L = 0.78;
+    const W = lcg(5000), L = 0.78;
     for (const [off, y, turn, r] of [[-0.09, 0.07, 0, 0.068], [0.08, 0.065, 0.06, 0.062], [0.0, 0.19, 0.35, 0.058]]) {
       const a = along + turn, c = Math.cos(a), sn = Math.sin(a), px = cx - sa * off, pz = cz + ca * off;
       wood(f, [px - c * L / 2, y - 0.01, pz - sn * L / 2], [c, 0, sn], L, r, W, { N, K: 6, taper: 0.08 });
@@ -202,11 +202,11 @@ function pit(stones, sides, { ash = true, coals = true, logs = true, seats = tru
   }
   if (seats) for (let i = 0; i < 3; i++) {
     const t = (i / 3) * 2 * Math.PI - 0.5;
-    seat(f, Math.cos(t) * SEAT_R, Math.sin(t) * SEAT_R, (SEAT_W / 2) * (0.92 + R() * 0.16), SEAT_H + (R() - 0.5) * 0.06, N + 4, rnd(6000 + i));
+    seat(f, Math.cos(t) * SEAT_R, Math.sin(t) * SEAT_R, (SEAT_W / 2) * (0.92 + R() * 0.16), SEAT_H + (R() - 0.5) * 0.06, N + 4, lcg(6000 + i));
   }
   if (bench) {   // a pine log lying on the ground to sit on: round, a little sunk in, sawn at both ends
     const a = 2.6 + Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a), cx = Math.cos(2.6) * (SEAT_R + 0.12), cz = Math.sin(2.6) * (SEAT_R + 0.12), L = 1.6, r = 0.2;
-    wood(f, [cx - ca * L / 2, r * 0.86, cz - sa * L / 2], [ca, 0.012, sa], L, r, rnd(7000), { N: N + 6, K: 10, taper: 0.14 });
+    wood(f, [cx - ca * L / 2, r * 0.86, cz - sa * L / 2], [ca, 0.012, sa], L, r, lcg(7000), { N: N + 6, K: 10, taper: 0.14 });
   }
   return f;
 }

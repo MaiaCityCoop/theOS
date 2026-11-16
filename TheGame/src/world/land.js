@@ -1,6 +1,8 @@
 import { CLEARINGS, PLACES } from '../../world/places.js';
 import OUTLINES from '../../world/outlines.js';
-// The land, as one function of (x, z): the same integer-hash noise in JS (the walker's feet)
+import { rnd } from '../core/hash.js';
+import { sstep } from '../../assets/kit/math.js';
+// The land, as one function of (x, z): the same integer-hash noise in JS (the walker's feet; its hash: src/core/hash.js)
 // and as node code (land.nodes.js, the GPU's ground). Every constant the two share is written once, here.
 
 export const OCT_LAM = [700, 300, 140, 65, 30, 14, 6, 2.5];
@@ -8,15 +10,6 @@ export const OCT_AMP = [22, 12, 5.5, 2.4, 1.0, 0.42, 0.16, 0.05];
 export const HMIN = -60, HMAX = 70;
 export const WATER_DROP = 0.2;
 
-function hashI(x, y, s) {
-  let h = Math.imul(x, 0x9E3779B1) ^ Math.imul(y, 0x85EBCA77) ^ Math.imul(s, 0xC2B2AE3D);
-  h ^= h >>> 15; h = Math.imul(h, 0x2C1B3C6D);
-  h ^= h >>> 12; h = Math.imul(h, 0x297A2D39);
-  h ^= h >>> 15;
-  return h >>> 0;
-}
-const rnd = (x, y, s) => (hashI(x, y, s) >>> 8) / 16777216;
-export const sstep = (a, b, x) => { let t = (x - a) / (b - a); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
 
 let gx = 0, gy = 0; // noised's gradient
 function noised(px, py, s) {
@@ -174,7 +167,6 @@ export function woodAt(x, z) {
 }
 
 // what the rocks' shader hashes, for those who must know where a boulder stands
-export const cellRnd = rnd;
 // the land's value noise itself, for those who read a biome's rule in JS (the city's plots, src/city/plan.js)
 export const noiseAt = vnoise;
 export function outcropAt(x, z) { return sstep(0.60, 0.72, vnoise(x / 230, z / 230, 74)); }

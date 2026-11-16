@@ -1,10 +1,10 @@
 // A plant's vertex unpacked on the GPU: what assets/kit/plant.js packs into two elements of the heap (eight numbers of
 // 32 bits: src/scatter/heap.js), bit for bit the other way.
-import { uint, float, vec2, vec3, abs, max, normalize } from 'three/tsl';
+import { uint, float, vec2, vec3, normalize } from 'three/tsl';
+import { lo16 as lo, hi16 as hi, sn8 as b8, octDir } from './unpack.js';
 import { GRID, UVK, UV0 } from '../../assets/kit/plant.js';
 
-const lo = (x) => float(x.bitAnd(uint(0xffff))), hi = (x) => float(x.shiftRight(uint(16))), b8 = (x, s) => float(x.shiftRight(uint(s)).bitAnd(uint(255))).div(255).mul(2).sub(1);
-const oct = (u, v) => { const z = float(1).sub(abs(u)).sub(abs(v)), k = max(z.negate(), 0); return normalize(vec3(u.add(u.greaterThanEqual(0).select(k.negate(), k)), v.add(v.greaterThanEqual(0).select(k.negate(), k)), z)); };
+const oct = (u, v) => normalize(octDir(u, v));
 const SX = (2 * GRID.xz) / 65535, SY = (GRID.y1 - GRID.y0) / 65535;
 /** Elements e0 and e1 (uvec4 nodes) as a plant's vertex: { position (metres in the plant's own frame, its foot at 0),
     normal (what it is lit with), uv, ao, part (0 wood, 1 a sprig's card, 2 a crown as one body), hand (from, kept),

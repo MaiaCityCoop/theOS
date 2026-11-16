@@ -4,10 +4,11 @@
 // the cut-out (what is not reed is not drawn; src/scatter/trees.js). The reeds of a lake's shallows (assets/reeds.js).
 import { float, vec2, vec3, mix, smoothstep, max, abs, clamp, pow } from 'three/tsl';
 import { pn } from '../src/materials/paint.js';
+import { rng } from '../src/core/hash.js';
 
 // its blades as numbers (worked out once here, not per pixel): where its foot is across the card, how tall, how far
 // and which way it bends, how wide at its foot, how light; the tallest carry a plume
-const R = ((s) => () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; })(9113);
+const R = rng(9113);
 const BLADES = Array.from({ length: 38 }, () => ({ x: 0.5 + (R() - 0.5) * 0.42, h: 0.5 + 0.47 * R(), bend: (R() - 0.5) * 0.34, w: 0.005 + 0.007 * R(), tone: 0.75 + 0.5 * R() }))
   .sort((a, b) => b.h - a.h);   // (the tall ones first: the short ones lie in front of them)
 const PLUMES = BLADES.slice(0, 7);

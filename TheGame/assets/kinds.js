@@ -16,7 +16,7 @@
 //             nothing (grass)
 //   casts     whether it casts a shadow (src/world/shadow.js): every level, card included, casts as drawn, so a new asset's
 //             shadow is its own shape at the level the eye sees; an asset may say `casts: false` in its `detail` block
-//   measure  what its size on screen is measured by: its largest side, or 'height' (src/detail/index.js: sizeOf)
+//   measure  what its size on screen is measured by: its largest side, or 'height' (sizeOf, below)
 //   fade   half the width of the hand-over between two levels, on a log scale (.15: from 14 % above to 14 % below);
 //          how it is drawn, for every kind: src/detail/handover.js
 //   sink   everything's way out (src/detail/handover.js): below `sink` times its last level's pixels it sinks into the ground,
@@ -55,6 +55,15 @@ export const kindOf = (asset, field) => {
 /** A rule of an asset's kind that is taken whole, not merged (px, fade, impostor, casts, solid): the kind's, else the
     default's. */
 export const kindRule = (asset, field) => KINDS[asset?.kind]?.[field] ?? KINDS.default[field];
+
+// An asset's size, as every engine, the land and the library measure it:
+/** The larger end of a size that varies ([min, max]), or the size. */
+export const most = (v) => (Array.isArray(v) ? v[1] : v);
+/** The asset's largest side in metres. */
+export const spanOf = (a) => Math.max(most(a.size.length), most(a.size.width ?? 0), most(a.size.height ?? 0));
+/** What its size on screen is measured by, metres: its largest side, or, for a kind that says `measure: 'height'` (a
+    tree: tall, and its crown's width little to its distance), its height. */
+export const sizeOf = (a) => (kindRule(a, 'measure') === 'height' ? most(a.size.height) : spanOf(a));
 
 // What a kind's `solid` rule makes of one thing (src/world/bodies.js says the shapes: in metres of its own frame, its
 // foot at 0), from what is measured of it: its height and its footprint (length, width) and, where its kit measures

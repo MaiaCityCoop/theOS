@@ -6,7 +6,7 @@ import { uniform, texture } from 'three/tsl';
 
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
 const placeholder = Object.assign(new THREE.DepthTexture(1, 1), { compareFunction: THREE.LessEqualCompare });   // the shadow map until src/world/shadow.js gives the real one (read with a comparison sampler as it is)
-const lit = Object.assign(new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1), { needsUpdate: true });   // the clouds' shadow map until src/world/cloudmap.js draws one: all in the sun
+const lit = Object.assign(new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1), { needsUpdate: true });   // the clouds' shadow map until src/world/weather/clouds.js draws one: all in the sun
 
 /** The one set, for node code that reads it directly. */
 export const U = {
@@ -16,16 +16,16 @@ export const U = {
   uStage: uniform(v3(0, 0, 0)),                    // the library's stage: (x, z, radius), radius 0: none
   uStageGround: uniform(new THREE.Vector2(-1, 2)),  // the ground laid on it: (a material's layer, -1 the base biome's bare earth; metres a tile)
   // the shading contract (intent 0002): the measure of size on screen, the wind, the weather, the clouds
-  uPxK: uniform(1), uWind: uniform(new THREE.Vector4(1, 0, 0, 0)), uWeather: uniform(new THREE.Vector4(0, 0, 0, 0)), uClouds: uniform(0), uCloudOff: uniform(new THREE.Vector2(0, 0)), tCloudMap: texture(lit), uCloudMap: uniform(new THREE.Vector3(0, 0, 0)),   // the clouds' cover and how far they have drifted (src/world/clouds.js)
+  uPxK: uniform(1), uWind: uniform(new THREE.Vector4(1, 0, 0, 0)), uWeather: uniform(new THREE.Vector4(0, 0, 0, 0)), uClouds: uniform(0), uCloudOff: uniform(new THREE.Vector2(0, 0)), tCloudMap: texture(lit), uCloudMap: uniform(new THREE.Vector3(0, 0, 0)),   // the clouds' cover and how far they have drifted (src/world/weather/clouds.js)
   uView: uniform(new THREE.Matrix4()), uViewK: uniform(new THREE.Vector3(1, 0, 1.414)),   // the eye's view, for what is dropped outside it before it is drawn (src/scatter/index.js: select)
   uAirH: uniform(0), uAirScale: uniform(1200),     // the height fog: the camera's height above the ground, the air's thinning
   uLandEnd: uniform(24000),                        // how far the land is drawn, metres from the eye (src/terrain/terrain.js): the air hides it by then
   uExposure: uniform(1),                           // the picture's exposure (the sky sets it by the hour)
-  uSnow: uniform(0),                               // how deep the snow lies, metres (src/world/snow.js)
+  uSnow: uniform(0),                               // how deep the snow lies, metres (src/world/weather/snow.js)
   uFine: uniform(1),                               // how much finer than the inside's pixels textures are read (built over time: src/core/temporal.js)
   uMarks: uniform(0),                              // 1 while the world is drawn for the picture built over time: a pixel's fourth number then says how still it is
   uMark: uniform(0),                               // what moves by itself marks its pixels by it (src/world/light.js: stillness; set by src/core/temporal.js)
-  uSnowFall: uniform(0),                           // how much snow is falling, 0 … 1 (src/world/snowfall.js)
+  uSnowFall: uniform(0),                           // how much snow is falling, 0 … 1 (src/world/weather/snowfall.js)
   tShadow: texture(placeholder), uShadowM: uniform(new THREE.Matrix4()), uShadowOn: uniform(0), uShadowTexel: uniform(1 / 2048), uShadowPass: uniform(0),   // the shadow map (src/world/shadow.js)
   uSky: uniform(v3(0.4, 0.55, 0.7)), uHaze: uniform(1 / 6500), uHazeCol: uniform(v3(0.6, 0.7, 0.8)),
 };
