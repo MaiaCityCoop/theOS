@@ -256,7 +256,112 @@ lib?"** It was not there (every still till then was drawn outside the game). Now
   Wave turns the body on the spot with the feet sliding under it, as the Settler's does. A first visit grows the
   quick surface for the list's small picture even if the skeleton is never chosen.
 
+**The muscles (2026-11-16), as Samuel asked: "Body should do muscles next."** The second layer, on the bones, in the
+library beside the Skeleton; the Settler, the game and `me.html` stay on their body.
+
+- **What is there.** A third character, Muscles (`characters/muscles.js`, its own uid and measure): the skeleton with
+  206 muscles on it (103 a side), drawn as 406 strands; the same rig, the same five moves, the same card (its joints,
+  its muscles, its faces).
+- **The table** (`characters/kit/muscles/table.js`): each muscle from its origin to its insertion through the points
+  it passes (over a joint, round a bone), with its volume and how much of it is tendon at each end. The trunk's back
+  (trapezius, latissimus with its white fascia, rhomboids, levator scapulae, erector spinae), the shoulder (deltoid,
+  the rotator cuff, teres major), the chest and belly (pectoralis major and minor, serratus, rectus abdominis with its
+  three tendinous lines, external oblique), the neck (sternocleidomastoid, scalenes, splenius, semispinalis, the hyoid
+  muscles), the face (temporalis, masseter, the scalp's frontal and back bellies and its tendon sheet, the rings round
+  the eye and the mouth, the zygomatics, the levators and depressors of the lips, mentalis, buccinator, nasalis,
+  procerus, corrugator), the arm (biceps' two heads, brachialis, coracobrachialis, triceps' three, anconeus), the
+  forearm (pronator teres, the wrist's and fingers' flexors and extensors with a tendon to each finger, brachioradialis,
+  the thumb's long muscles), the hand (thenar, adductor of the thumb, the dorsal interossei, hypothenar), the hip
+  (the three glutei, tensor fasciae latae, the iliotibial band, psoas, iliacus, pectineus), the thigh (the adductors,
+  gracilis, sartorius, the four quadriceps and the patellar ligament, the hamstrings), the leg (gastrocnemius' two
+  heads, soleus, tibialis anterior and posterior, the long extensors with a tendon to each toe, flexor hallucis, the
+  fibulares) and the foot (extensor digitorum brevis, the abductors of the big and little toes, flexor digitorum
+  brevis). Attachments from Gray's Anatomy (1918), as the bones; the volumes of the legs from Handsfield et al. (2014)
+  and of the arms and shoulders from Holzbaur et al. (2007), **as remembered**, to be checked against the papers; the
+  trunk's and neck's estimated from their cross-sections, the face's from their size on Gray's plates. Each muscle
+  names its source. The man trains: every volume a fifth over the studies' means (`BUILD`, said where it is set).
+- **Where they are fastened** (`characters/kit/muscles/landmarks.js`): 124 points of the bones (the inion, the
+  mastoid, the greater tubercle, the medial epicondyle, the ASIS, the ischial tuberosity, the tibial tuberosity, …),
+  each found on the grown bones as the point of its bone furthest in the direction its name says, and written down
+  once. As a muscle is drawn, its ends are set onto its bone's surface again (down the bone's own field).
+- **Drawn out** (`characters/kit/muscles/build.js`), in the workers that grow the bones, in about 3 s, kept by the
+  browser as the bones are: each strand a curve through its points (Catmull-Rom), with a frame at each place along
+  it; its section an oval, full on its outside, flatter against what it lies on, as large as its share of the volume
+  asks and thinning into its tendons. A broad muscle (the trapezius, the latissimus, the pectoralis, the deltoid, the
+  obliques, the gluteus maximus, …) is one sheet woven between its strands, a point of it a share of the way from one
+  strand's curve to the next: side by side as strands they read as shingles, not as a sheet. Standing, each strand is
+  moved out of the bones and of the layers laid before it (three: on the bone, the middle, under the skin) down the
+  slope of what it is in; how open each point stands (the shade of the hollows between muscles) is found then too.
+- **Moving with the rig** (`characters/kit/muscles/flesh.js`): every frame each strand's points are carried by their
+  joints into a texture (a row a strand) and the shader finds each point of the surface on its curve again; a belly
+  swells as its strand shortens and thins as it lengthens, its section scaled by the square root of how much shorter
+  its fleshy part stands than at rest (its tendons keep their length), so its volume stays what it was; and the
+  strand slides over the bones, carried at its ends and at the points it passes, not glued along its length.
+  Measured on the CPU with the same numbers: bending the elbow, the hip and the knee, the swell runs from 0.72 to 1.34.
+- **The look**: muscle red, darker where its fibres part, a wet sheen; tendon and aponeurosis a pearl white, glossier;
+  fine fibres along each muscle; in the world's light as the bones are.
+- **Levels of detail and cost.** The muscles have 153 000 triangles near and 42 000 far (every other ring and every
+  other point round, the same points), the far level from 7 m. The bones under them stand at a coarser full
+  fineness than the Skeleton's (5.5 mm cells, 637 000 triangles; 8 mm with the shade of their hollows on a phone or
+  a machine of four threads or fewer, about 450 000), so the Muscles character has fewer triangles than the Skeleton
+  at its own fineness: 790 000 against 999 000, and on a four-thread machine about 600 000 against 637 000. Counted,
+  not timed (Propose). The game's start names one more small recipe; the muscles' page code (4.3 kB, 2.1 kB
+  compressed) comes when a body with muscles is first made, their table and builder only in the workers (the
+  workers' script grew to 130 kB).
+- **Only for their own character.** The muscles are laid and drawn when the Muscles character is chosen: not for the
+  list's small picture (which shows its bones) and not in the measuring run (which measures its bones, 1.774 m). The
+  Settler, the Skeleton, the game and `me.html` draw nothing new.
+- **How it was seen.** In stills drawn outside the game (a small rasteriser of my own, the bones' quick surface and
+  the muscles' points, standing and posed with the rig's own numbers and the shader's formulas run on the CPU): front,
+  side and back, the torso, the hips, the legs, the arms, the head; and bent at the elbow, the hip, the knee and the
+  loins. Not in the library: see Propose.
+- **On the way.** Broad muscles first drawn as strands side by side read as shingles and loose ribbons, the front of
+  the trunk as stripes: woven into sheets since. Lifted off what lay under them only along their own outside, some
+  stood 5 to 6 cm off the bone: now moved down the slope of what they are in. The thigh's vasti as thin sheets made
+  the thigh 10 cm deep from the side: now strands of their own. The gluteus maximus as a sheet first crumpled into a
+  shell, then as four strands read as sausages: a sheet again, its points nearer the bone.
+- **Not there yet.** The face's muscles are thin as wires (true to their size, but they read as wires without a skin);
+  the masseter and the temporalis are plates with hard edges; the tops of the thighs bulge out past the hips; the
+  rectus' tendinous lines run in a V, not across; the semitendinosus kinks a little. A muscle's tendons stretch with
+  its belly (only its section keeps the volume, not its tendons' length); its frame and its shade of the hollows are
+  the standing one's; muscles of the same layer may pass into one another, and in a deep bend any may pass into a
+  bone. The volumes are as remembered and not yet checked against the papers.
+
 ## Propose
+
+**This round, the muscles** (branch `aven/0036-muscles`, pull request #28), proposed for Samuel's own look on `next`.
+
+- **What is delivered.** The muscles laid on the skeleton (`TheGame/characters/kit/muscles/`), and a character of
+  the library to see them by, Muscles (`TheGame/characters/muscles.js`): 206 muscles on the skeleton, with its five
+  moves on its rig. Build says what is in it and where its numbers come from.
+- **Where to look.** `library.html`, Characters, Muscles (`library.html?character=7e571b19-a173-474a-b271-65cf86be6c47`):
+  Stand, Walk, Wave, Reach, Every joint; the wheel to come close; "Show" for the rig's lines. The first visit lays the
+  muscles in a few seconds after the bones; the browser keeps them.
+
+**The checks, as they really were**
+
+- *The muscles drawn in the library:* **not seen.** In this container the software GPU (SwiftShader) loses its
+  WebGPU device in the library: on the Muscles page, on the plain Skeleton page, and, on a bare page of my own, with
+  nothing drawn but a plain cube; the coordinating session sees the same on `main` (it is lost as soon as a plant is
+  opened). So the draw is to be checked on `next`, on a real GPU. Seen in the page: the muscles are laid (206 muscles,
+  406 strands, 153 736 triangles near, 42 404 far, in 3.0 s) and the card names them.
+- *The muscles standing and moving:* seen in stills drawn outside the game (Build), with the rig's own pose and the
+  shader's own formulas run on the CPU; a belly's swell ran from 0.72 to 1.34 in a bend of elbow, hip and knee. Not
+  seen moving, by anyone.
+- *Frame time, 60 fps and 4K:* **not measured** (the device is lost before a frame is drawn). What can be said:
+  the Muscles character has fewer triangles than the Skeleton at its own fineness (790 000 against 999 000; about
+  600 000 against 637 000 on a four-thread machine), but its muscles' points are found again each frame in the
+  shader (six to sixteen texture reads a point), which the Skeleton's bones are not: whether it holds 60 fps where
+  the Skeleton does is for `next` to show. The canvas is not touched (its ratio stays the screen's).
+- *Both sites build:* **passed** here (`vite build` in `TheGame` and `OS`); CI's build passed on the PR.
+- *The measuring run:* **passed** (`bun tools/scale.js`: 17 of 17, Muscles 1.774 m by its bones).
+- *Nothing else changes:* the muscles are laid and drawn only for their own character; the Settler, the Skeleton,
+  the game and `me.html` load the same code as before but for one small recipe, and draw nothing new. Not compared
+  by eye.
+
+**Known gaps:** Build, "Not there yet"; no fat and no skin yet; the Settler still on its old body.
+
+**The round before, the skeleton and its rig** (merged in #22):
 
 **This round, delivered** (branch `aven/0033-a-real-body`, pull request #22): the skeleton and its rig, to be looked
 at in the library. Samuel: "Body session should finish its skeleton rigged work and merge it into main"; and, of the
@@ -318,7 +423,10 @@ for his own eyes on `next`, with fewer checks than Define asks.
   - [ ] Samuel's word on the skeleton, from `next`; fine relief; the blade gliding on the ribs, the ribs' breath
   - [ ] the library's close look and a second visit tried by hand; a shadow the bones can cast; levels of detail
   - [ ] this round's story folder
-  - [ ] muscles from origin to insertion, a skin over them
+  - [x] muscles from origin to insertion, carried by the rig, swelling as they shorten (the Muscles character)
+  - [ ] the muscles seen drawn and timed in the library on `next` (not seen here: the software GPU loses its device)
+  - [ ] Samuel's word on the muscles; the volumes checked against the papers; the face, the jaw's and the thighs' shapes
+  - [ ] the fat, then a skin over them
   - [ ] the face from the skull up; hands; feet
 - [ ] Round 2: movement
 - [ ] Round 3: garments and hair
@@ -360,6 +468,16 @@ for his own eyes on `next`, with fewer checks than Define asks.
   proportions, the face, the hands and the clothes were all wrong (Build). Samuel: naked first, no hair, a muscular
   body; the clothes later. A second attempt, muscles as strands over no bones, floated apart (Build). Samuel: the
   bones first, completely correct, then the muscles and the fat, each layer in its own colour.
+- **Asked (night):** "Body should do muscles next." Then, from the coordinator: try the cube, the bare mesh and the
+  full one once more; if even the cube loses the device, stop chasing it, keep the muscles to their own character,
+  and propose it for a look on `next`.
+- **Delivered (night):** the muscles on the skeleton, a character of the library (Build); proposed with the draw unseen.
+- **Good (night):** Woven into sheets, the trunk's broad muscles read as an anatomy figure's; the muscles follow the
+  rig in a bend, and a belly swells as its muscle shortens.
+- **Broke / not there yet (night):** In this container the software GPU loses its WebGPU device in the library, on
+  `main` too: I spent most of an hour on it, my page first reloading under me as I edited files, then flags that lost
+  the device even on the Settler, then a bare page where a plain cube lost it as well. Nothing of the muscles was seen
+  drawn in a browser, and nothing was timed. The volumes are as remembered.
 
 ## Trail
 
@@ -384,3 +502,6 @@ for his own eyes on `next`, with fewer checks than Define asks.
 | 2026-11-16 | `9fdf555` | renumbered from 0033 to 0036; a thin blade drawn with cells half its thickness |
 | 2026-11-16 | `62c0e2b` | main merged in (intents 0034 and 0035) |
 | 2026-11-16 | `1894bba` | the skeleton's own measure; the body's tables read the reference body's shares from the world's scale |
+| 2026-11-16 | `3053481` | the muscles, each from its origin to its insertion on the skeleton, carried by its rig (the Muscles character) |
+| 2026-11-16 | `6c852f0` | the gluteus maximus one sheet; strands lifted down the slope of what they lie in; bones under the muscles coarser on a four-thread machine |
+| 2026-11-16 | `52b090c` | the muscles grown and drawn only for their own character |

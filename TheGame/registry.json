@@ -208,6 +208,13 @@
       "2f329f07-d2ba-4dc8-a6e3-73053c65e10f"
     ]
   },
+  "7e571b19-a173-474a-b271-65cf86be6c47": {
+    "type": "character",
+    "name": "Muscles",
+    "file": "characters/muscles.js",
+    "version": "31bb7c0549266d4db01cebebc3e557da7e7f2a1fafe03bc3d28d3575746d6066",
+    "uses": []
+  },
   "944dc52a-5094-480c-9396-5ceedbbf03b1": {
     "type": "character",
     "name": "Settler",
@@ -223,7 +230,7 @@
     "type": "character",
     "name": "Skeleton",
     "file": "characters/skeleton.js",
-    "version": "08b071211829c875d0104f44d01c971a2fb227de0a08aa1d5761d64f3c9eed58",
+    "version": "7cf15ce46203505a36a5fff35e050ab2d68a4d8d0679622c63c81175c3f72927",
     "uses": []
   },
   "6042540e-d4ea-4a07-8bd9-d8465f5635b9": {

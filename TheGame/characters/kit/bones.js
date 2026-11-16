@@ -7,6 +7,9 @@
 //     grown        kept when the bones stand at their full fineness: they come coarse within a few seconds, then fine
 //                  (both are kept by the browser, so the next visit has them at once)
 //     onGrown      called each time a finer surface is put on (the library draws its card again)
+//     flesh        the muscles over the bones, for a recipe whose layers name them (characters/muscles.js): laid by the
+//                  workers too (./muscles/build.js), carried by the same joints (./muscles/flesh.js); the bones under
+//                  them at their coarser full fineness
 //
 // The bones' own code is not the page's to carry: it runs in the workers that grow them (./skeleton/grow.worker.js),
 // and the rig's part of it comes when a skeleton is first made. So the game, which shows no skeleton, loads none of it.
@@ -29,7 +32,10 @@ const LEG = 0.9;   // from the hip's joint to the sole (m): what a leg let out b
 // Two finenesses: a quick one to stand there at once (no shade of its hollows yet), then the full one. A phone, or a
 // machine of few threads, keeps a coarser full one.
 const few = typeof navigator !== 'undefined' && ((navigator.hardwareConcurrency ?? 4) <= 4 || /Mobi|Android/.test(navigator.userAgent ?? ''));
-const LEVELS = [{ h: 0.008, shade: 0 }, { h: few ? 0.0055 : 0.0035, shade: 1 }];
+const LEVELS = [{ h: 0.008, shade: 0, key: 'skeleton:0' }, { h: few ? 0.0055 : 0.0035, shade: 1, key: 'skeleton:1' }];
+// Under muscles the bones show only here and there (the skull, the joints, the ribs between the muscles): their full
+// fineness is a coarser one, so a body with its muscles costs no more to draw than the skeleton alone.
+const UNDER = [LEVELS[0], { h: few ? 0.008 : 0.0055, shade: 1, key: few ? 'skeleton:h0.008' : 'skeleton:h0.0055' }];
 
 // A few workers, each handed the next thing asked as it finishes one; let go when nothing has been asked for a while.
 const POOL = { all: [], free: [], queue: [], idle: 0 };
@@ -59,14 +65,14 @@ const kept = (mode, fn) => new Promise((res) => {
     r.onsuccess = () => { try { const q = fn(r.result.transaction('surfaces', mode).objectStore('surfaces')); q.onsuccess = () => res(q.result ?? null); q.onerror = () => res(null); } catch { res(null); } };
   } catch { res(null); }
 });
-const HELD = [], SURFACE = [];
-const held = (level) => (HELD[level] ||= Promise.all([about(), kept('readonly', (s) => s.get('skeleton:' + level))]).then(([A, hit]) => (hit && hit.digest === A.digest && hit.h === LEVELS[level].h ? hit : null)));
+const HELD = {}, SURFACE = {};
+const held = (L) => (HELD[L.key] ||= Promise.all([about(), kept('readonly', (s) => s.get(L.key))]).then(([A, hit]) => (hit && hit.digest === A.digest && hit.h === L.h ? hit : null)));
 /** The bones' surface at a level: { pieces, rigs, of, pos, nor, look, tri }: every point with the way it faces, what it
  *  is and how open it stands (look), and the joint that carries it (rigs[of]). */
-function surface(level) {
-  return (SURFACE[level] ||= (async () => {
-    const hit = await held(level); if (hit) return hit;
-    const A = await about(), L = LEVELS[level], parts = await Promise.all(A.order.map((i) => ask({ i, ...L })));
+function surface(L) {
+  return (SURFACE[L.key] ||= (async () => {
+    const hit = await held(L); if (hit) return hit;
+    const A = await about(), parts = await Promise.all(A.order.map((i) => ask({ i, h: L.h, shade: L.shade })));
     let nv = 0, nt = 0, pieces = 0; for (const p of parts) if (!p.none) { nv += p.pos.length / 3; nt += p.tri.length; pieces++; }
     const out = { digest: A.digest, h: L.h, pieces, rigs: [], of: new Uint16Array(nv), pos: new Float32Array(nv * 3), nor: new Float32Array(nv * 3), look: new Float32Array(nv * 2), tri: new Uint32Array(nt) };
     let v0 = 0, t0 = 0;
@@ -78,10 +84,21 @@ function surface(level) {
       for (let t = 0; t < p.tri.length; t += 3) { out.tri[t0 + t] = p.tri[t] + v0; out.tri[t0 + t + 1] = p.tri[t + 2] + v0; out.tri[t0 + t + 2] = p.tri[t + 1] + v0; }   // (turned to face outwards as the GPU counts it: the field's own surface is wound the other way)
       v0 += k; t0 += p.tri.length;
     }
-    kept('readwrite', (s) => s.put(out, 'skeleton:' + level));
+    kept('readwrite', (s) => s.put(out, L.key));
     return out;
   })());
 }
+// The muscles laid on the bones (./muscles/build.js), in a worker, kept by the browser as the bones are; and the page's
+// part of them (./muscles/flesh.js), when a body with muscles is first made.
+let MUSCLED = null, FLESH = null;
+const muscled = () => (MUSCLED ||= (async () => {
+  const [A, hit] = await Promise.all([about(), kept('readonly', (s) => s.get('muscles'))]);
+  if (hit && hit.digest === A.muscles) return hit;
+  const out = { ...(await ask({ muscles: true })).muscles, digest: A.muscles };
+  kept('readwrite', (s) => s.put(out, 'muscles'));
+  return out;
+})());
+const fleshing = () => (FLESH ||= import('./muscles/flesh.js'));
 // The rig's code, when a skeleton is first made (./skeleton/pose.js): its joints, and the turns a move gives them.
 let POSE = null;
 const posing = () => (POSE ||= import('./skeleton/pose.js').then((M) => ({ RIG: M.rigOf(), turnsOf: M.turnsOf, turnOf: M.turnOf })));
@@ -210,7 +227,10 @@ const mixed = (A, B, e) => {
 /** The skeleton, built from its recipe (characters/skeleton.js). quick: only its quick surface (a small picture). */
 export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false } = {}) {
   const object = new THREE.Group(), mat = materialOf(eye), root = new THREE.Bone(); root.name = 'root'; object.add(root);
-  const api = { object, mesh: null, bones: { root }, skeleton: null, material: mat, moves: MOVES.map(({ id, name, about }) => ({ id, name, about })), faces: 0, height: R.height, measures: {}, bonesCount: 0, pieces: 0, level: -1, failed: null, onGrown: null };
+  // (the muscles only for the character itself, not for the list's small picture or the measuring run: nothing else
+  // grows or draws them)
+  const muscles = !quick && !!R.layers?.includes('muscles'), LV = muscles ? UNDER : LEVELS;
+  const api = { object, mesh: null, bones: { root }, skeleton: null, material: mat, moves: MOVES.map(({ id, name, about }) => ({ id, name, about })), boneFaces: 0, height: R.height, measures: {}, bonesCount: 0, pieces: 0, level: -1, failed: null, onGrown: null, flesh: null };
   let K = null, names = [], rest = {}, soles = [];   // the rig once its code is here; its joints' names; where each stands in its parent; where the feet meet the ground
   const rigged = ({ RIG, turnsOf, turnOf }) => {
     // each joint a bone at its place, turned like the world at rest
@@ -244,17 +264,26 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
     S.foot.L.at = S.foot.R.at = -1;
     api.onGrown?.(level);
   };
+  // the muscles, once the rig and the bones stand: laid in a worker, carried by the same joints
+  const flesh = async () => {
+    const [D, F] = await Promise.all([muscled(), fleshing()]);
+    if (api.disposed) return;
+    api.flesh = F.fleshOf(D, { object, bones: api.bones, eye }); object.add(api.flesh.mesh); api.flesh.update();
+    api.onGrown?.(api.level);
+  };
   // the state of its moving (as a person's: ./human.js)
   const footing = () => ({ down: false, at: -1, side: 0, turn: 0, faced: 0, ex: 0, dSide: 0 });   // a foot on the ground: the point of its sole that stands, and what its leg is given to keep it there
   const S = { move: 'stand', from: null, k: 1, t: 0, began: {}, a: 0, yaw: 0, R: R.walkRound ?? 1.5, pace: 0, foot: { L: footing(), R: footing() } };
   const m4 = new THREE.Matrix4(), v = new THREE.Vector3(), q = new THREE.Vector3(), moveOf = (id) => MOVES.find((x) => x.id === id);
   Object.defineProperty(api, 'move', { get: () => S.move });
   // what the card says of it beside its figures: its joints and pieces, and how far its growing is
-  Object.defineProperty(api, 'figures', { get: () => [[api.bonesCount || '…', '', 'Joints'], [api.pieces || '…', '', 'Pieces']] });
-  Object.defineProperty(api, 'note', { get: () => (api.failed ? 'Its bones could not be grown in this browser: ' + api.failed : api.level < 0 ? 'Its bones are being grown in the page: coarse within a few seconds, then fine.' : api.level < LEVELS.length - 1 && !quick ? 'Coarse for now: the fine bones are still growing (the browser keeps them for the next visit).' : null) });
+  Object.defineProperty(api, 'figures', { get: () => muscles ? [[api.bonesCount || '…', '', 'Joints'], [api.flesh?.muscles || '…', '', 'Muscles']] : [[api.bonesCount || '…', '', 'Joints'], [api.pieces || '…', '', 'Pieces']] });
+  Object.defineProperty(api, 'note', { get: () => (api.failed ? 'Its bones could not be grown in this browser: ' + api.failed : api.level < 0 ? 'Its bones are being grown in the page: coarse within a few seconds, then fine.' : muscles && !api.flesh ? 'Its muscles are being laid on its bones, in the page (the browser keeps them for the next visit).' : api.level < LV.length - 1 && !quick ? 'Coarse for now: the fine bones are still growing (the browser keeps them for the next visit).' : null) });
+  // (its faces: the bones' and the muscles' together)
+  Object.defineProperty(api, 'faces', { get: () => api.boneFaces + (api.flesh?.faces ?? 0), set: (v) => { api.boneFaces = v; } });
   api.rigLabel = 'Rig · a joint where two bones meet'; api.rigAbout = 'one to each vertebra, the atlas and the skull; the jaw; collarbone, blade, shoulder, elbow, the radius turning about the ulna, wrist, every finger\'s three; hip, knee and kneecap, ankle, each toe';
   api.setMove = (id) => { if (id === S.move || !moveOf(id)) return; S.from = S.move; S.k = 0; S.move = id; S.began[id] = S.t; };   // (a move runs from its own beginning: every joint in its order, a stride from the heel's strike)
-  api.dispose = () => { api.mesh?.geometry.dispose(); mat.dispose(); };
+  api.dispose = () => { api.disposed = true; api.mesh?.geometry.dispose(); mat.dispose(); api.flesh?.dispose(); };
   api.step = (dt, eyeAt) => {
     S.t += dt; S.k = Math.min(1, S.k + dt / 0.5);
     const e = ease(S.k), mv = moveOf(S.move), from = S.from && e < 1 ? moveOf(S.from) : null, walking = (mv.walks ? e : 0) + (from?.walks ? 1 - e : 0);
@@ -321,13 +350,16 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
     object.position.set(S.R * Math.cos(S.a), 0, S.R * Math.sin(S.a));
     if (mv.face && eyeAt) { const ty = Math.atan2(eyeAt.x - object.position.x, eyeAt.z - object.position.z); S.yaw += Math.atan2(Math.sin(ty - S.yaw), Math.cos(ty - S.yaw)) * Math.min(1, dt * 3); }
     object.rotation.y = S.yaw;
+    // the muscles follow the joints as they now stand; far away, half their rings
+    if (api.flesh) { object.updateMatrixWorld(true); api.flesh.update(); if (eyeAt) api.flesh.level(Math.hypot(eyeAt.x - object.position.x, eyeAt.z - object.position.z)); }
   };
   api.grown = (async () => {
     rigged(await posing());
-    const full = LEVELS.length - 1, hit = quick ? null : await held(full);
-    if (hit) return put(full, hit);
-    put(0, await surface(0));
-    if (!quick) put(full, await surface(full));
+    const full = LV.length - 1, hit = quick ? null : await held(LV[full]);
+    if (hit) put(full, hit); else put(0, await surface(LV[0]));
+    const laid = muscles ? flesh() : null;   // (asked before the fine bones, so the workers lay the muscles first)
+    if (!quick && !hit) put(full, await surface(LV[full]));
+    await laid;
   })().catch((err) => { api.failed = err.message; console.warn('skeleton: its bones could not be grown:', err); api.onGrown?.(-1); });
   return api;
 }
