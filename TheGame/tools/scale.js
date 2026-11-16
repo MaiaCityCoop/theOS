@@ -22,6 +22,8 @@
 //   the grass: one blade, its asset's height times its tuft's share (0.5 to 2.2, src/scatter/grass.js), the middle the
 //     mean share
 //   a person: built (characters/kit/human.js) and measured, feet to the top of the hair
+//   a character that is grown after it is made (the skeleton: characters/kit/bones.js): waited for, then measured the
+//     same way, its quick surface
 // Every level of what is built is measured too: a far level that stands taller or lower than the near one by more
 // than LEVELS is said.
 import './glob.js';
@@ -48,11 +50,13 @@ const facesOf = (faces) => faces.flatMap((f) => [...f[0], ...f[1], ...f[2]]);
 
 /** What the world draws of a recipe: { least, middle, most } metres tall (or across, for rocks), and what was found on
     the way (levels that disagree). */
-function measured(a) {
+async function measured(a) {
   const P = a.placement ?? {}, notes = [];
   if (a.type === 'character') {
     const T = new THREE.Texture(), tex = new Proxy({}, { get: (_, k) => (k === 'want' ? () => {} : () => texture(T)) });
-    let mesh = null; a.make(tex, {}).object.traverse((o) => { if (o.isSkinnedMesh) mesh = o; });
+    const made = a.make(tex, { quick: true }); await made.grown;   // (one grown after it is made says when it stands; its quick surface is enough to measure)
+    let mesh = null; made.object.traverse((o) => { if (o.isSkinnedMesh) mesh = o; });
+    if (!mesh) return { by: 'height', least: 0, middle: 0, most: 0, notes, fails: [`it could not be built here${made.failed ? ': ' + made.failed : ''}`] };
     const B = bounds(mesh.geometry.attributes.position.array), h = B.top - Math.max(0, B.lo[1]);
     return { by: 'height', least: h, middle: h, most: h, notes };
   }
@@ -119,7 +123,7 @@ for (const [uid, m] of Object.entries(manifest)) {
   if (m.type !== 'asset' && m.type !== 'character') continue;
   const a = recipe(uid), S = a.measure;
   if (!S) { miss.push(`${m.name} (${m.file}): no measure in its file`); continue; }
-  const M = measured(a);
+  const M = await measured(a);
   if (!M) { miss.push(`${m.name} (${m.file}): not measurable here`); continue; }
   const want = M.by === 'across' ? S.across : { typical: S.typical, most: S.most }, fails = [...faultsOf(S).map((f) => `its measure: ${f}`), ...(M.fails ?? [])];
   if (M.by === 'across' && S.size) {   // a rock is drawn at its size: its least and most as drawn, its lumps allowed for

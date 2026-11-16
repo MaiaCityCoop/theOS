@@ -212,12 +212,19 @@
     "type": "character",
     "name": "Settler",
     "file": "characters/settler.js",
-    "version": "dce4f1d3d8b328c98ca40f46f6265d942fc391011a0bf73d0d1cecbdf65b42db",
+    "version": "cbe6c29fe6d1c20f55a59e17f3a2ff66df528505c129efad795aae23ac3068c1",
     "uses": [
       "3cb68f1f-a92d-4adf-bb8e-838abf352389",
       "5f430c04-8942-442c-ac6a-b5c958cc887a",
       "60d88699-64f9-4484-9a00-2980f5eeedd5"
     ]
+  },
+  "7b0e2f6c-3a41-4d5e-9c18-5f2a6d0b9e37": {
+    "type": "character",
+    "name": "Skeleton",
+    "file": "characters/skeleton.js",
+    "version": "08b071211829c875d0104f44d01c971a2fb227de0a08aa1d5761d64f3c9eed58",
+    "uses": []
   },
   "6042540e-d4ea-4a07-8bd9-d8465f5635b9": {
     "type": "material",

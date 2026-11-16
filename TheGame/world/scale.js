@@ -23,7 +23,7 @@ export const UNITS = 'metres';
 /** The reference body: the person the rest is measured with, the Settler (characters/settler.js), the library's first
  *  person, and the walker who is you. Its stature, and where on it the eyes, shoulders, hip, knee and ankle are: shares
  *  of stature from Drillis & Contini (1966), as D. A. Winter gives them ("Biomechanics and Motor Control of Human
- *  Movement", 4th ed., 2009, fig. 4.1). One copy: the body's own tables (intent 0033) read these shares from here. */
+ *  Movement", 4th ed., 2009, fig. 4.1). One copy: the body's own tables (intent 0036) read these shares from here. */
 export const PERSON = {
   stature: 1.74,
   shares: { eye: 0.936, shoulder: 0.818, hip: 0.53, knee: 0.285, ankle: 0.039 },
