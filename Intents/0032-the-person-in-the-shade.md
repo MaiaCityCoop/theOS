@@ -127,7 +127,7 @@ Found while building:
 
 ## Propose
 
-**Delivered** (draft pull request, branch `feat/person-shade-shadows`):
+**Delivered** (draft pull request [#23](https://github.com/MaiaCityCoop/theOS/pull/23), branch `feat/person-shade-shadows`):
 
 - The person takes the shade: the shadow map, the clouds' shade, a storm's dim, and the body's own
   (`characters/kit/human.js`, `materialOf`).
@@ -209,3 +209,4 @@ between two frames. Every shader module a page made was hashed, so two builds ca
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-16 | `96c6ade` | the person takes the shade, casts a shadow that meets their feet, and shades themselves where the body meets itself |
+| 2026-11-16 | `d13475a` | the intent opened, built and proposed: its checks, its story (`Stories/0032-the-person-in-the-shade/`) and the trail row above |
