@@ -594,6 +594,41 @@ Decided after the plants' whole path was read against the definition (trees.js, 
 How it is checked here: headless Chromium with WebGPU on SwiftShader, a GPU done by the CPU. Pictures and counts are
 real; times only compare. GPU time, Safari and the iPhone are Samuel's to read.
 
+### Stage 1: the first look, behind `?lod=new` (2026-11-16, second session)
+
+Samuel: "Can't test anything that isn't deployed, so just advance everything you can yourself." So the plants were put
+on the builder in the world and the library behind an address flag, main's look staying the default:
+
+- **`?lod=new`** (and `?card=`, `?kmax=`, `?spread=` to try its numbers). Without it the game is as on main; only the
+  plants' recipe versions change (their kit now imports `crowd.js`), so their meshes are made once more at the next start.
+- **Levels kept as tiers, each a first share of one build.** The "runs of cards" above needs the drawer changed; to be
+  seen sooner, a plant's levels stay what the heap, the packing and the draws know, but each (its finest splay apart) is
+  now `levelOf(crowd, lo, hi)`: the cards whose turn comes before `hi`, the solids not gone there, the far bodies and
+  the post where they show. Every vertex is moved by one rule in the vertex stage (`crowdRule`, `src/scatter/trees.js`),
+  by the plant's own size on screen. Two levels draw the same where they meet, so a plant changes level hard, with no
+  hand-over; a CPU check (every plant asset, every shape, 40 sizes in each band) found nothing the rule shows missing
+  from its level. The splay of the sprigs near the eye hands over to the first level as before.
+- **Packing.** A crowd level carries its shape's sixteen numbers in front of its vertices and, a vertex, go, the tip,
+  the tip's place on the painting and which far body it is, in the vertex's free bits: still 32 bytes. Its rooms in
+  the heap are reckoned without building it (`budgetOf`) and kept with the plant's outline.
+- **Two numbers changed from the probe's.** CARD 24, not 15: at today's level bands 15 submits two to four times
+  today's level at a band's top (a 21 m oak at 260 px: 27 030 vertices where today's level has 6 947). KMAX 8, not
+  5: with 24 the far body would otherwise take over at 60 to 70 px, where today's comes at 18.
+- **The painting enlarged with its card (`?spread=0`).** A card that shows more of its painting as it grows (the
+  definition's "the size of its leaves") is, from afar, a painting repeated many times and mipped to a blur that its
+  cut-out passes everywhere: the crowns were solid patches (seen at 90 m over the pine forest). Until the cut-out is
+  reckoned by how much of a card is leaves, the painting grows with the card, as today's coarser levels draw larger
+  sprigs. So the leaves are larger far off, as today.
+- **The library**: its plant is the whole build, moved by the same rule as the camera comes and goes
+  (`crowdSample`).
+- **What it costs, as built** (Chromium here, WebGPU on SwiftShader): the same plants drawn, but their submitted
+  vertices 2.6 times main's by the tent (trees 759 811 against 296 505; shrubs 114 110 against 36 724) and 1.9 times at
+  the river bend from 26 m (trees 1 081 888 against 575 829). Most of them are folded away by the rule in the vertex
+  stage, before their light is reckoned, but they are read. The bench's frame by the tent (`tools/bench.js`, at ratio
+  1, 640 x 360, three frames, wall time on SwiftShader, one run each): main 9 505 ms, `?lod=new` 10 294 ms, 8 % more.
+  One reading of a software GPU, not a GPU time; the stress world, Safari and the phone were not measured. That is why
+  the default stays main's: it is not shown to be no worse.
+
 ## Propose
 
 ## Story
@@ -614,12 +649,18 @@ real; times only compare. GPU time, Safari and the iPhone are Samuel's to read.
       the canvas at the screen's own ratio. The stress world's numbers in the repository are of 2026-11-13. The second
       report lists nine measurements in order; its first five need nothing of the new method
 - [ ] Stage 1: the stick, the builder, and the plants on them
-  - [ ] counters, and today's numbers written down
+  - [ ] counters, and today's numbers written down (the counters are in: `?draws`, `__plants.submitted()`; numbers
+        so far only the plants' submitted vertices at two views, Build)
   - [ ] the measure in the library; today's levels read
-  - [ ] the builder as a module (`assets/kit/crowd.js`)
-  - [ ] the rule in the library only, held to the measure
+  - [x] the builder as a module (`assets/kit/crowd.js`)
+  - [x] the rule in the library and in the world, behind `?lod=new` (not yet held to the measure)
+  - [ ] Samuel: look at `?lod=new` on next, by the tent, in the pine forest, from 90 m, and in the library
+  - [ ] what is submitted brought down to what shows: a crowd level per half of today's bands, or runs of cards in the
+        drawer; then the frame times by the tent and in the stress world against main
+  - [ ] a card's cut-out reckoned by how much of it is leaves, so a card can show more of its painting (`?spread=1`)
+        without turning solid far off
   - [ ] the drawer: runs of cards, the hull's ring
-  - [ ] the switch in the world; the tables and the kinds' pixel sizes deleted
+  - [ ] the switch in the world (`?lod=new` the default); the tables and the kinds' pixel sizes deleted
   - [ ] `shade()`, the hand-made body for the shadow, replaced by the builder's
 - [ ] Stage 2: solids
 - [ ] Stage 3: made things, and thin loose parts
@@ -700,6 +741,26 @@ real; times only compare. GPU time, Safari and the iPhone are Samuel's to read.
   Samuel's Safari; what it holds today is not known here. Moving vertices inside a hierarchy is half-proven by one probe on one boulder. Nothing was tried on bones.
   How fast the wheel can move the height, the quickest zoom a check must hold, was not measured.
 
+### 2026-11-16 (5)
+
+- **Asked:** (Samuel) "Can't test anything that isn't deployed, so just advance everything you can yourself": stage 1
+  brought to where it can be seen on next, behind a flag, main merged in first, with `bun tools/scale.js` passing.
+- **Delivered:** main merged (the lens, every asset's measure, the person's shadows, the skeleton). The plants on the
+  builder behind `?lod=new`, in the world and in the library: each level a first share of one build of the plant, one
+  rule in the vertex stage moving every vertex by its size on screen, the levels changing hard where they draw the
+  same. The default stays main's.
+- **Good:** It draws, with no error in the console, by the tent, in the pine forest and from 90 m over it, and the holm
+  oak in the library. A check on the CPU over every plant asset, every shape and 40 sizes in each band found nothing the
+  rule shows missing from its level. The same plants are drawn as on main. `bun tools/scale.js`: 16 of 16. The game and
+  the OS build.
+- **Broke / not there yet:** At first the far crowns were solid patches: a card showing more of its painting is, far
+  off, a mipped blur its cut-out passes everywhere; the painting now grows with the card (`?spread=0`), so the leaves
+  grow far off as today. The plants submit 1.9 to 2.6 times main's vertices (most folded away before their light is
+  reckoned), and the bench's frame by the tent took 8 % longer on the software GPU here. Nothing was measured on the stick, in the stress world, in Safari or on a
+  phone; the library's oak at 200 px reads lighter and flatter than main's full level. Container here: headless
+  Chromium's own shell lost its device on the first frame shown; full Chromium with Vulkan on SwiftShader draws, at
+  about 40 s a still. One timing run was cut off by the container's restart.
+
 ## Trail
 
 | When | Commit | What |
@@ -710,3 +771,11 @@ real; times only compare. GPU time, Safari and the iPhone are Samuel's to read.
 | 2026-11-16 | `8c8bbb2` | Samuel's third message in the idea; four notes of the second research round, read from the originals |
 | 2026-11-16 | `5544fd6` | the third and fourth messages worked in: one builder told nothing and one stick, tried on five assets, with its note, outputs and pictures; the zoom and the stress world as they are; the definition anew, six stages and eleven checks; what the originals say |
 | 2026-11-16 | `d0817c7` | the second research report; the intent held to its cautions; the stress world's own last record written as it stands |
+| 2026-11-16 | `67e57e2` | main merged in before the build: intents 0034 and 0035 |
+| 2026-11-16 | `a20dc53` | approved by Samuel; the build begins |
+| 2026-11-16 | `e59e357` | how stage 1 is laid into the engine (Build) |
+| 2026-11-16 | `fb400c2` | work in progress: the counters (`?draws`, `__plants.submitted()`) and the builder as a module |
+| 2026-11-16 | `76c5623` | work in progress: the builder further along |
+| 2026-11-16 | `8df36a7` | main merged in: the lens, every asset's measure, the person's shadows, the skeleton |
+| 2026-11-16 | `788c07c` | the plants on the crowd kit behind `?lod=new`: levels as first shares of one build, the rule in the vertex stage, rooms, the library's plant |
+| 2026-11-16 | `4a880b9` | the library's crowd plant in seven vertex buffers |
