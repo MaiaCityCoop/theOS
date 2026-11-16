@@ -1,4 +1,4 @@
-// The skeleton's bones drawn out as surfaces (intent 0033): each bone out of its own field, with the way its surface
+// The skeleton's bones drawn out as surfaces (intent 0036): each bone out of its own field, with the way its surface
 // faces (the field's slope), what it is made of, and how open each point is to the sky (from the field of all the
 // bones round it: the shade of hollows and of joints). Plain JS, no three: run in a worker (./grow.worker.js) or
 // under node.
@@ -45,8 +45,9 @@ export function unionOf(bones, reach = 0.05) {
 }
 
 /** How fine a bone is drawn for a cell of h: a small bone finer, down to 0.45 h; a bone with a thin blade (the
- *  shoulder blade, the hip bone's wing) with cells smaller than the blade is thick, whatever h is. */
-export const cellOf = (b, h) => { const d = b.hi.map((v, i) => v - b.lo[i]).sort((x, y) => x - y); return Math.min(h, Math.max(h * 0.45, d[0] / 40), Math.max(0.0012, (b.thin ?? Infinity) * 0.7)); };
+ *  shoulder blade, the hip bone's wing) with cells half as large as the blade is thick, whatever h is (a blade lying
+ *  aslant through cells nearer its own thickness came out pricked with holes). */
+export const cellOf = (b, h) => { const d = b.hi.map((v, i) => v - b.lo[i]).sort((x, y) => x - y); return Math.min(h, Math.max(h * 0.45, d[0] / 40), Math.max(0.0012, (b.thin ?? Infinity) * 0.5)); };
 
 /** One bone's surface. union: the field of all the bones (unionOf), for the shade; box: only what lies in it. */
 export function meshOfBone(bones, i, { h = 0.003, shade = 1, union = null, box = null } = {}) {

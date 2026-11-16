@@ -1,5 +1,5 @@
 ---
-id: "0033"
+id: "0036"
 title: A real body, its movement and its clothes
 state: build              # idea | define | build | propose | story | archived
 outcome:
@@ -7,7 +7,7 @@ opened: 2026-11-16
 story:
 ---
 
-# 0033 · A real body, its movement and its clothes
+# 0036 · A real body, its movement and its clothes
 
 ## Idea
 

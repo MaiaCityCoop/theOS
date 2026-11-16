@@ -1,4 +1,4 @@
-// The skeleton's bones grown off the page's own thread (intent 0033): asked for one bone at a fineness, it answers with
+// The skeleton's bones grown off the page's own thread (intent 0036): asked for one bone at a fineness, it answers with
 // that bone's surface (./mesh.js), its numbers handed over, not copied. Asked what there is, it answers with the bones'
 // count, the order to grow them in (the heaviest first) and a digest of their fields and of how they are drawn out:
 // other bones or other rules, another digest (the page keeps a grown surface under it).

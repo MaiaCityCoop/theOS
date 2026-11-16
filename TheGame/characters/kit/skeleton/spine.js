@@ -1,4 +1,4 @@
-// The skeleton's spine (intent 0033): the atlas and the axis, five more vertebrae of the neck, twelve of the chest, five
+// The skeleton's spine (intent 0036): the atlas and the axis, five more vertebrae of the neck, twelve of the chest, five
 // of the loins, and the discs between their bodies. The column is laid from the sacrum's base upwards by each body's
 // height, the disc under it and its lean, so that it curves as it does: forwards in the neck, backwards in the chest,
 // forwards again in the loins; the rig's joints lie in the back third of the bodies they turn. Each vertebra is built in

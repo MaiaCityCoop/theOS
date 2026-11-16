@@ -1,4 +1,4 @@
-// The skeleton's foot (intent 0033): the seven bones of the ankle and the arch (talus, heel bone, navicular, cuboid,
+// The skeleton's foot (intent 0036): the seven bones of the ankle and the arch (talus, heel bone, navicular, cuboid,
 // three cuneiforms), the five long bones to the ball of the foot, the toes' fourteen and the two small bones under the
 // great toe's ball, each a bone of its own, written for the left side (the kit mirrors it). Their forms from Gray's
 // Anatomy (1918), figs. 268 and 269 (the foot from above and from below) and 290 (from its inner side); their sizes the

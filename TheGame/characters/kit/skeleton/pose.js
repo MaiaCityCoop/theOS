@@ -1,4 +1,4 @@
-// The skeleton's rig (intent 0033): a joint where each pair of bones really meets, which bone hangs from which, and
+// The skeleton's rig (intent 0036): a joint where each pair of bones really meets, which bone hangs from which, and
 // the pose: every bone turned about its own joint and carried by the bone it hangs from.
 //
 //   rigOf()              { name: { at: [x, y, z], parent, axis? } }   the joints of the man of reference, standing

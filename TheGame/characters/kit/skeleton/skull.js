@@ -1,4 +1,4 @@
-// The skeleton's skull (intent 0033): the cranium (the braincase and the face grown into one bone), the lower jaw on
+// The skeleton's skull (intent 0036): the cranium (the braincase and the face grown into one bone), the lower jaw on
 // its hinge, thirty-two teeth each in its socket, the hyoid under the jaw.
 //
 // Its points are written in the skull's own millimetres: from the middle between the two ear canals (the porion's

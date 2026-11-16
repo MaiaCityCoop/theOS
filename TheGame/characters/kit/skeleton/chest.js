@@ -1,4 +1,4 @@
-// The skeleton's chest (intent 0033): twelve pairs of ribs, their cartilages, the breastbone. Each rib leaves its
+// The skeleton's chest (intent 0036): twelve pairs of ribs, their cartilages, the breastbone. Each rib leaves its
 // vertebra (its head against the body, its tubercle against the tip of the transverse process), runs back and out to
 // its angle, then round the chest and down to its front end; the upper seven reach the breastbone by their own
 // cartilage, the next three by the cartilage above (the costal arch), the last two end free. Shapes and proportions from

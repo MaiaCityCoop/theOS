@@ -1,4 +1,4 @@
-// The skeleton's shoulder and arm (intent 0033): the collarbone, the shoulder blade, the humerus, the ulna and the
+// The skeleton's shoulder and arm (intent 0036): the collarbone, the shoulder blade, the humerus, the ulna and the
 // radius, each a bone of its own, written once for the left side with the kit (./kit.js). Every bone is laid between the
 // rig's joints (./rig.js: where the collarbone meets the breastbone, the shoulder, the elbow, the wrist), so it follows
 // them if they are moved. Shapes and proportions from Gray's Anatomy (1918), plates 200–213, and its text.

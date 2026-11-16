@@ -1,4 +1,4 @@
-// The body's anatomy (intent 0033): a skeleton's landmarks, the muscles laid from their origin to their insertion over
+// The body's anatomy (intent 0036): a skeleton's landmarks, the muscles laid from their origin to their insertion over
 // it, the bones that show under the skin, a thin skin over all of it. Written for one man, 1.80 m and muscular, in the
 // neutral pose (standing, arms down, palms to the thighs, every bone's frame turned like the world's); a body of other
 // measures is the same anatomy carried to its own (./body.js). Plain numbers: no mesh, no scan.

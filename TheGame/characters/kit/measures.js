@@ -1,4 +1,4 @@
-// What is known of real people, as numbers (intent 0033): the tables the person is grown from (./body.js), each small,
+// What is known of real people, as numbers (intent 0036): the tables the person is grown from (./body.js), each small,
 // on its own and cited, so any of them can be taken out or changed without touching the code that reads it. Nothing
 // here is a shape: no mesh, scan or captured motion of anyone; only measures, as surveys and textbooks publish them.
 //

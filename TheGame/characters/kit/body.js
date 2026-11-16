@@ -1,4 +1,4 @@
-// A body grown from anatomy (intent 0033): the skeleton's landmarks, the muscles laid over it from origin to insertion,
+// A body grown from anatomy (intent 0036): the skeleton's landmarks, the muscles laid over it from origin to insertion,
 // the bones that show and a thin skin over them (./anatomy.js), as one field (./field.js), drawn out as one mesh at
 // every level of detail. Plain JS, no three: the human kit (./human.js) makes it a thing that moves; a tool can run it
 // under node.

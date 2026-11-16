@@ -1,4 +1,4 @@
-// The skeleton on the stage (intent 0033): every bone of the body (./skeleton.js) grown in the page, off its own
+// The skeleton on the stage (intent 0036): every bone of the body (./skeleton.js) grown in the page, off its own
 // thread, drawn as one surface that the rig's joints carry (each point held whole by one joint: bone does not bend),
 // in the world's light; and its moves, made on the rig (./skeleton/pose.js).
 //

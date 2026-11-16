@@ -1,4 +1,4 @@
-// The skeleton's hand (intent 0033): the wrist's eight bones in two rows, the five metacarpals, the fourteen phalanges,
+// The skeleton's hand (intent 0036): the wrist's eight bones in two rows, the five metacarpals, the fourteen phalanges,
 // each a bone of its own, written once for the left hand with the kit (./kit.js). The fingers' bones are laid between
 // the rig's joints (./rig.js, fingerJoints) and follow them if they are moved; the wrist's bones are laid from the
 // wrist joint, the capitate in line with the middle finger. Shapes from Gray's Anatomy (1918), plates 219–234; lengths

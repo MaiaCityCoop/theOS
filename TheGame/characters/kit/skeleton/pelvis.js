@@ -1,4 +1,4 @@
-// The skeleton's pelvis (intent 0033): the two hip bones (each of three grown into one: the ilium's wing with its crest,
+// The skeleton's pelvis (intent 0036): the two hip bones (each of three grown into one: the ilium's wing with its crest,
 // the ischium the seat rests on, the pubis meeting the other in front) round the sockets of the hip joints, the sacrum
 // wedged between them, the coccyx under it, the disc between the pubic bones.
 //

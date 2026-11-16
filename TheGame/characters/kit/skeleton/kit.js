@@ -1,4 +1,4 @@
-// What a part of the skeleton is built with (intent 0033): a bone is begun, then its solids are put, cut and crossed,
+// What a part of the skeleton is built with (intent 0036): a bone is begun, then its solids are put, cut and crossed,
 // every point written for the man of reference and for the left side; the kit carries them to the body being made
 // (K.X, K.s) and mirrors them for the right.
 //

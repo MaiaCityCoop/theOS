@@ -1,4 +1,4 @@
-// The skeleton's rig (intent 0033): where the bones turn, which carries which, for one man of reference, 1.80 m,
+// The skeleton's rig (intent 0036): where the bones turn, which carries which, for one man of reference, 1.80 m,
 // standing in the neutral pose (arms down, palms to the thighs, every frame turned like the world's).
 //
 // Coordinates: metres, from the floor between the feet; x to the person's left, y up, z forwards. Points are written

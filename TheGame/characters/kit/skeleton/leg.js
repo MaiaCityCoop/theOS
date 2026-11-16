@@ -1,4 +1,4 @@
-// The skeleton's leg (intent 0033): the femur, the kneecap, the tibia and the fibula, each a bone of its own, written
+// The skeleton's leg (intent 0036): the femur, the kneecap, the tibia and the fibula, each a bone of its own, written
 // for the left side (the kit mirrors it). Their forms from Gray's Anatomy (1918), figs. 244 and 245 (the femur from the
 // front and from behind), 257 (the tibia from above) and 258 (the tibia and the fibula from the front); their sizes the
 // usual ones of a grown man's bones (White, Black & Folkens, "Human Osteology", 3rd ed.), carried to the rig's joints:

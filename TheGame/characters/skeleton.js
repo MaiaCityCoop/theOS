@@ -1,7 +1,7 @@
 // The skeleton of the library: every bone of a man of 1.80 m, grown from our own code (./kit/skeleton.js: 262 pieces
 // against the plates of Gray's Anatomy, each bone a piece of its own, neighbours fitted round one another) and moved
 // on a rig of ninety joints set where its bones really meet (./kit/skeleton/pose.js). The first of a body's layers
-// (intent 0033): the muscles, the fat and the skin are laid on it. A character is a recipe like any other
+// (intent 0036): the muscles, the fat and the skin are laid on it. A character is a recipe like any other
 // (src/core/registry.js).
 import { skeletonOf, MOVES } from './kit/bones.js';
 
