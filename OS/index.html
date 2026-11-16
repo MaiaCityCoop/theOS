@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">   <!-- as a web app on the home screen: the picture under the status bar too (brand.css --safe-t keeps the overlays clear of it) -->
+<meta name="apple-mobile-web-app-capable" content="yes">   <!-- without it iOS ignores the line above: a web app on the home screen keeps an opaque status bar and starts below it -->
+<meta name="mobile-web-app-capable" content="yes">
 <title>Maia City</title>
 <link rel="icon" href="/brand/MaiaCity.svg">
 <link rel="stylesheet" href="/brand/brand.css">
@@ -630,12 +632,16 @@
   /* the game: the whole window. The header floats over it as glass */
   #game.on{display:block}
   #game iframe{position:fixed;inset:0;width:100%;height:100%;border:0;z-index:1;background:var(--game-t,#242e3c)}
-  /* on a phone's browser Safari paints its status bar and toolbar with the colour of the fixed thing at that edge (the frame):
-     the game tells the picture's own, the sky's at the top and the ground's at the bottom (TheGame/src/ui/edges.js), and a thin
-     strip at each edge carries it; until it does, the loading veil's */
-  #game .edge{display:none;position:fixed;left:0;right:0;height:4px;z-index:2;pointer-events:none}
-  #game .edge.t{top:0;background:var(--game-t,#242e3c)}#game .edge.b{bottom:0;background:var(--game-b,#9c8560)}
-  @media (display-mode:browser) and (pointer:coarse){#game .edge{display:block}}
+  /* in Safari's tab on an iPhone the status bar and the toolbar take the background colour of the fixed element at the
+     middle of each edge, 4px in, if it is about the page's width and more than 10px deep (brand.css .os-edge says how):
+     the game tells the picture's own, the sky's at the top and the ground's at the bottom (TheGame/src/ui/edges.js), and a
+     12px strip at each edge, over the frame, carries it (made anew when it changes: src/main.js); until it does, the
+     loading veil's. html.ios-tab: src/main.js */
+  #game .edge{display:none;position:fixed;left:0;right:0;height:12px;z-index:2;pointer-events:none}
+  #game .edge::after{content:'';position:absolute;left:0;right:0;height:24px}
+  #game .edge.t{top:0;background-color:var(--game-t,#242e3c)}#game .edge.t::after{top:100%;background:linear-gradient(var(--game-t,#242e3c),transparent)}
+  #game .edge.b{bottom:0;background-color:var(--game-b,#9c8560)}#game .edge.b::after{bottom:100%;background:linear-gradient(transparent,var(--game-b,#9c8560))}
+  html.ios-tab #game .edge{display:block}
   /* as a web app on the home screen the page goes on under the status bar (black-translucent) and the home bar: what stands
      at the top or the bottom keeps clear of them (brand.css --safe-*; nothing in a browser's tab, nothing on a computer) */
   #city{padding-top:calc(clamp(20px,3vw,40px) + var(--safe-t))}
