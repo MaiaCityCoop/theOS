@@ -35,7 +35,7 @@ import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt, ne
 import { kindsOf, whereOf } from '../world/stand.js';
 import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, unlit, windAt, windDir, windStrength, stillness } from '../world/light.js';
 import { CLEARINGS } from '../../world/places.js';
-import { recipe, versionOf } from '../core/registry.js';
+import { recipe, recipes, versionOf } from '../core/registry.js';
 import { geometryOf, scatterRow } from '../../assets/index.js';
 import { kindOf, sizeOf, most } from '../../assets/kinds.js';
 import { levelOf, handOver, partGrown, sinkInto } from '../detail/handover.js';
@@ -59,7 +59,7 @@ import { bits, lo16, hi16, sn8 } from './unpack.js';
 // crowd's parts go one by one and those that stay grow, the wood thins, the far bodies grow out of the crown and turn
 // into each other. Its levels are only where its parts lie in the heap: two levels at the size where they meet draw the
 // same. `?card=` and `?kmax=` set its two numbers. Without the flag the plants are as they were.
-if (flagText('lod') === 'new') Object.assign(LOD, { on: true, CARD: flagNum('card', LOD.CARD), KMAX: flagNum('kmax', LOD.KMAX) });
+if (flagText('lod') === 'new') Object.assign(LOD, { on: true, CARD: flagNum('card', LOD.CARD), KMAX: flagNum('kmax', LOD.KMAX), SPLIT: flagNum('split', LOD.SPLIT) });
 // SPREAD: how much more of its painting an enlarged card shows (1: all of it, its leaves as large as ever; 0: its
 // painting enlarged with it, as today's coarser levels draw larger sprigs). Seen from afar a card shows its painting
 // mipped, and a painting shown many times over is mipped to a blur its cut-out passes everywhere: the card is then a
@@ -94,11 +94,11 @@ function crowdRule(px, V, C, hand = float(1), whole = null) {
     const grown = g.mul(hand), at = (p) => C.tip.add(p.sub(C.tip).mul(k));
     pos.assign(mix(at(V.root), at(V.position), grown)); uv.assign(V.uv.add(C.tipUv.mul(float(1).sub(pow(k, SPREAD))))); shown.assign(grown.greaterThan(0));
   }).ElseIf(post, () => {
-    pos.assign(mix(V.position, C.to, turned(1))); shown.assign(px.lessThan(HI).and(px.greaterThan(CROWD.TURN[1][1])).and(h.greaterThanEqual(0.5)));
+    pos.assign(mix(V.position, C.to, turned(1))); shown.assign(px.lessThan(HI).and(px.greaterThanEqual(CROWD.TURN[1][1])).and(h.greaterThanEqual(0.5)));
   }).ElseIf(body, () => {
     const b = C.body.sub(1), turn = b.lessThan(0.5).select(turned(0), b.lessThan(1.5).select(turned(1), float(0)));
     pos.assign(mix(V.root, mix(V.position, C.to, turn), h));
-    const T0 = CROWD.TURN[0][1], T1 = CROWD.TURN[1][1], range = b.lessThan(0.5).select(px.greaterThan(T0), b.lessThan(1.5).select(px.greaterThan(T1).and(px.lessThanEqual(T0)), px.lessThanEqual(T1)));
+    const T0 = CROWD.TURN[0][1], T1 = CROWD.TURN[1][1], range = b.lessThan(0.5).select(px.greaterThanEqual(T0), b.lessThan(1.5).select(px.greaterThanEqual(T1).and(px.lessThan(T0)), px.lessThan(T1)));   // (each from its size up to the next, as a level's band: assets/kit/crowd.js levelOf)
     shown.assign(px.lessThan(HI).and(range).and(h.greaterThan(0)));
   }).Else(() => {   // (the wood: a thin piece shrinks to its foot; all of it gives way to the post half way into the far body)
     const wood = C.go.lessThanEqual(0).or(g.greaterThan(0)).and(h.lessThan(0.5));
@@ -440,7 +440,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
       name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1),
       make: { per: 2, numbers: { rows: 4, of: (k) => numbers.subarray(k * 16, k * 16 + 16) }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, last: i === n - 1, ...(CROWDED[i] ? { crowd: true, first: i === CROWDED.indexOf(true), splay: FINE } : {}) }, feedOf(i, at)); m.vertexNode = Fn(() => shape(src.readAt(0, slot), src.readAt(1, slot)))(); return m; } },
       // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
-      zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 2${LOD.on ? ` crowd ${LOD.CARD}:${LOD.KMAX}` : ''}|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
+      zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 2${LOD.on ? ` crowd ${LOD.CARD}:${LOD.KMAX}:${LOD.SPLIT}` : ''}|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
     });
     drawers.push(D);
     // what of it is solid (src/world/bodies.js): every plant of the stand round the walker, whatever its kind and size
@@ -613,3 +613,9 @@ export const engine = {
     return { height: h, dist: G && all ? G.years.reduce((t, y) => t + G.height(y) * 1.1, 0) * 1.35 : Math.max(5, h * 2.3), pitch: 0.32, span: h };
   },
 };
+
+// `?lod=new`: the size each stand that changes level as one measures its plants by (its biome's `size`: the shrubs'
+// 3.5 m), for every plant asset this engine places, told to the recipes' workers with the flag. A crowd level of such a
+// plant is built for the largest it can be on screen within its band, its own size (assets/kit/plant.js crowdAt), not
+// for the stand's.
+if (LOD.on) LOD.STANDS = Object.fromEntries(recipes('asset').filter((a) => a.placement?.engine === 'trees' && a.placement.biome).flatMap((a) => { try { const z = standOf(a).size; return z ? [[a.uid, z]] : []; } catch { return []; } }));
