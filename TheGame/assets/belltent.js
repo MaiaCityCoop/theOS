@@ -2,12 +2,26 @@
 // guy ropes to pegs all round, a groundsheet. The detailed one of the library: four levels of detail, each its own
 // shape, from every rope and peg up close (and an inside to walk into, through the door) to a plain six-sided cone far away. An asset in the one recipe
 // (assets/index.js). Units are metres; the origin is the middle of its floor; the door faces -z.
-import { BELL_TENT } from '../world/scale.js';
-
-const R = BELL_TENT.diameter / 2, WALL = BELL_TENT.wall, PEAK = BELL_TENT.peak, CAP = BELL_TENT.cap;   // (world/scale.js: a real 5 m bell tent's)
+// What a real one measures, and where that is known from (intent 0035): next to what it is, read against the
+// world's one scale (world/scale.js) and measured against what it draws by `bun tools/scale.js`.
+const MEASURE = {
+  real: 'a 5 m cotton-canvas bell tent on one centre pole',
+  diameter: 5,                       // its round, on the ground
+  wall: 0.62,                        // its short wall, ground to roof
+  peak: 3.0,                         // the roof's point, on the pole
+  cap: 0.18,                         // the pole's top over the peak
+  door: { height: 1.8, width: 1.32 },  // the opening: how high it reaches into the roof, how wide it is at the ground
+  typical: [3.0, 3.3],               // its peak and the pole's cap over it
+  most: 3.4,
+  own: ['cap: the pole\'s top over the canvas'],
+  source: [
+    'makers\' sheets of 5 m bell tents, read 2026-11-16: centre pole 3.0 m (Mountain Warehouse, Stonegate; 3.1 m the Kokoon Deluxe XL); walls about 0.6 m (0.8 m on the XL); doors 1.5 m (Mountain Warehouse Lite), 1.68 m high and 1.32 m wide (Trade Tested 5 m Pro), 1.7 m (Stonegate 500), 1.8 m (Mountain Warehouse polycotton), 2.0 m (Boutique Camping, the Kokoon XL with its taller walls)',
+  ],
+};
+const R = MEASURE.diameter / 2, WALL = MEASURE.wall, PEAK = MEASURE.peak, CAP = MEASURE.cap;
 const canvas = [0.86, 0.82, 0.71], shade = [0.74, 0.69, 0.57], inside = [0.07, 0.06, 0.05], rope = [0.58, 0.5, 0.37], wood = [0.42, 0.31, 0.2], sheet = [0.24, 0.29, 0.22];
 const floorPale = [0.8, 0.76, 0.66], lining = [0.74, 0.55, 0.3], lining2 = [0.66, 0.48, 0.26], rug = [0.55, 0.27, 0.16], rug2 = [0.78, 0.6, 0.32], linen = [0.84, 0.8, 0.7], wool = [0.3, 0.38, 0.29], lamp = [1.0, 0.82, 0.42];
-const DOOR_W = BELL_TENT.door.width / 2 / R, DOOR_H = BELL_TENT.door.height;   // the door: half its width as an angle round the tent, and how high it reaches into the roof
+const DOOR_W = MEASURE.door.width / 2 / R, DOOR_H = MEASURE.door.height;   // the door: half its width as an angle round the tent, and how high it reaches into the roof
 const at = (r, y, t) => [r * Math.cos(t), y, r * Math.sin(t)];
 const coneR = (y) => R * (PEAK - y) / (PEAK - WALL);   // the roof's radius at a height
 const lit = (t) => (Math.cos(t - 0.9) > 0 ? canvas : shade);   // the side towards the sun is lighter
@@ -113,6 +127,7 @@ export default {
   kind: 'shelter',
   roofed: 2.45,   // metres round its middle under its roof: no snow falls there (kinds.js: snow)
   about: 'A round canvas bell tent on one centre pole, five metres across, guyed out on eight ropes. The first thing that stands in Maia City.',
+  measure: MEASURE,
   size: { length: 2 * R * 1.75, width: 2 * R * 1.75, height: PEAK + CAP },
   colours: { canvas, shade, inside, rope, wood, groundsheet: sheet },
   // levels of detail, near to far, each its own shape: up close every rope and peg; then fewer seams; far, a cone

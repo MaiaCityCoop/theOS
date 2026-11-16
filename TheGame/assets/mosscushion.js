@@ -38,6 +38,13 @@ export default tree({
   name: 'Moss cushion',
   kind: 'shrub',
   about: 'A low cushion of moss on the wood’s floor, a few grown together: green where the needles lie thin and the shade keeps the ground damp.',
+  // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
+  measure: {
+    real: 'Leucobryum glaucum, cushion moss: cushions on the wood\'s floor, two or three grown together',
+    typical: [0.05, 0.15],
+    most: 0.3,
+    source: ['Gardenia: cushions 5 to 15 cm high, 20 to 60 cm across; an EOL record: up to 50 × 45 cm and almost 30 cm thick; Minnesota Seasons: up to 13 cm tall and 1 m across'],
+  },
   colours: { wood: woodCol, leaves: leafCol },
   materials: { wood: 'bf97f33b-56bd-4df4-89ba-949e77ce8c27' /* pine bark (it has no wood: the engine asks for one) */, leaves: 'ae3df398-9f52-4a4a-b54f-a2db2eafb0c8' /* the moss the rocks wear */ },
   foliage: { wrap: 0.5, through: 0, flutter: 0, tint: [0.75, 0.95, 0.6] },

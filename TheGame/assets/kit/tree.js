@@ -285,10 +285,18 @@ function stagesOf(G, seed) {
   });
   /** a tree of this age: which of the shapes (variant v of its stage) and its scale */
   const at = (age, v = 0) => {
-    const S = stages.find((x) => age < x.to) ?? stages[n - 1], t = Math.log(Math.max(age, S.from) / S.from) / Math.log(S.to / S.from);
-    return { shape: S.offset + (v % S.variants), s: (S.hFrom + (S.hTo - S.hFrom) * Math.min(1, t)) / S.h, height: G.height(age) };
+    const S = stages.find((x) => age < x.to) ?? stages[n - 1];
+    return { shape: S.offset + (v % S.variants), s: heightIn(S, age) / S.h, height: G.height(age) };
   };
   return { shapes, stages, at };
+}
+/** How tall a tree of this age stands in stage S: its height by age where the stage begins, at its own year and where it
+    ends (hFrom, h, hTo), and between them straight in the logarithms of age and height, as a power of its age (as a
+    young tree grows): within a few hundredths of its height by age (intent 0035; tools/scale.js measures it). The
+    trees' engine works out the same on the graphics card (src/scatter/trees.js). */
+export function heightIn(S, age) {
+  const a = Math.min(Math.max(age, S.from), S.to), low = a < S.year, [a0, a1, h0, h1] = low ? [S.from, S.year, S.hFrom, S.h] : [S.year, S.to, S.h, S.hTo];
+  return a1 > a0 ? Math.exp(Math.log(h0) + (Math.log(h1) - Math.log(h0)) * (Math.log(a / a0) / Math.log(a1 / a0))) : h0;
 }
 
 /** What the page must know of a tree at once, before any of its meshes is made (its size, each shape's height and
@@ -338,7 +346,9 @@ export function tree(recipe) {
   const out = {
     ...rest,
     ...(fine ? { fine: { px: fine.px, twig: fine.twig } } : {}),   // (what its finest level wears: the plants' material reads it, the textures find it)
-    ...(G ? { growth: { years: growth.years, stages: G.stages, at: G.at, height: growth.height } } : {}),
+    // (at: a tree of an age, which shape and its scale; the scale over the shape as built, so it stands exactly as tall
+    // as its height by age says, as the trees' engine draws it: src/scatter/trees.js sizeAtOne)
+    ...(G ? { growth: { years: growth.years, stages: G.stages, height: growth.height, at: (age, v) => { const r = G.at(age, v), S = G.stages.find((x) => r.shape >= x.offset && r.shape < x.offset + x.variants), b = measured().heights[r.shape]; return { ...r, s: b > 0 ? (r.s * S.h) / b : r.s }; } } } : {}),
     /** how many shapes it has, and how many levels (its file's and the kit's two farthest) */
     shapeCount: shapes.length, levelCount: specs.length,
     rawAt,

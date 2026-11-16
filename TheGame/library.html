@@ -80,7 +80,7 @@ import { poseAt, heightFor } from './src/camera/rig.js';
 import { STAGE } from './world/places.js';
 import { heightAt } from './src/world/land.js';
 import { materialPreview, materialThumb, dioramaThumb, sceneThumb } from './src/materials/preview.js';
-import { THINGS, WALKER, PERSON } from './world/scale.js';
+import { WALKER, PERSON } from './world/scale.js';
 const q = new URLSearchParams(location.search), cine = window.__cine;
 const hex = (c) => '#' + c.map((v) => Math.round(Math.min(1, v) * 255).toString(16).padStart(2, '0')).join('');
 // every recipe from the registry, by its uid (src/core/registry.js)
@@ -335,7 +335,7 @@ function chooseLineup() {
   clearStage();
   const all = Object.values(ASSETS), byName = (n) => all.find((a) => a.name === n), with_ = { 'Fire pit': 'Flame' };   // (the flame stands in its pit)
   const order = [...LINEUP.map((n) => (n ? byName(n) : 'person')).filter(Boolean), ...all.filter((a) => !LINEUP.includes(a.name) && a.name !== 'Flame' && engineOf(a)?.id !== 'grass' && a.placement.engine !== 'grass')];
-  const R = (a) => (a === 'person' ? 1.2 : a.placement.engine === 'rocks' ? (most(a.size.length) * 0.7 + 0.4) * 2.7 + most(a.size.length) * 2 : a.placement.engine === 'trees' ? Math.max(1, most(a.size.length) * 0.75) : most(a.size.length));
+  const R = (a) => (a === 'person' ? 1.2 : a.placement.engine === 'rocks' ? (most(a.size.length) * 0.4 + 0.3) * 2.7 + most(a.size.length) : a.placement.engine === 'trees' ? Math.max(1, most(a.size.length) * 0.75) : most(a.size.length));
   const gap = 0.8, wide = order.reduce((t, a) => t + R(a) + gap, -gap), z = STAGE.z, eyes = new THREE.MeshBasicMaterial({ color: 0xf2b544 });
   ground.stage(STAGE.x, STAGE.z, wide / 2 + 4);   // (bare ground under the whole line: no blade in front of what is small)
   let x = STAGE.x - wide / 2;
@@ -354,10 +354,10 @@ function chooseLineup() {
   const p = order.indexOf('person'), at = order.slice(0, p).reduce((t, a) => t + R(a) + gap, 0) + R('person') / 2;   // (the Settler's place on the line)
   lineMid = [STAGE.x - wide / 2 + at, z]; H = 9; dist = 14; pitch = 0.02; yaw = 0; spin = false;
   document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', !!b.dataset.lineup));
-  const real = (u) => THINGS[u]?.typical ? `${THINGS[u].typical.join('–')} m` : THINGS[u]?.across ? `${THINGS[u].across.typical.join('–')} m across` : '';
+  const real = (u) => { const m = ASSETS[u]?.measure; return m?.typical ? `${m.typical.join('–')} m` : m?.across ? `${m.across.typical.join('–')} m across` : ''; };   // (its own measure: intent 0035)
   document.getElementById('info').innerHTML = head('Lineup', 'every asset', 'At their true size', `Every asset of the registry beside the Settler (${PERSON.stature} m), each as the world stands it: a tree at seventy, a bush at its own size, stones and boulders small to large. The gold line is the walker's eyes: yours, ${WALKER.eye} m.`)
     + `<div class="g-cells g-part">${order.map((a) => (a === 'person' ? cell('Settler', say(`${PERSON.stature} m tall`)) : cell(a.name, say(real(a.uid))))).join('')}</div>`
-    + `<footer class="g-part"><span class="g-file">TheGame/world/scale.js</span><span class="g-file">bun tools/scale.js</span></footer>`;
+    + `<footer class="g-part"><span class="g-file">each asset's measure, against TheGame/world/scale.js</span><span class="g-file">bun tools/scale.js</span></footer>`;
   history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}lineup=1`);
 }
 // a material: a ball of it in the middle of the stage, and the stage's round laid in it, into the land like any ground

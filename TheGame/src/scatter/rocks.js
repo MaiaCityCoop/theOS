@@ -47,20 +47,21 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
   });
   const { lookOf } = D, tiers = [], firstOf = new Map(); let sizeMost = 0;
   for (const row of rows) {
-    const F = famOf(row), big = !!row.outcrops, shapes = F.count, spans = Array.from({ length: shapes }, (_, v) => rockBody(row.asset, v).span);
-    // (a rock's size on screen is its largest side's: its asset's size times its shape's span)
-    const sizes = [row.size[0] * Math.min(...spans), row.size[1] * (big ? 1.25 : 1) * Math.max(...spans)], reach = big ? Infinity : REACH, end = row.asset.detail?.end ?? 0;   // (end: the size on screen its asset is drawn down to, where that is sooner than the ladder's end)
+    const F = famOf(row), big = !!row.outcrops, shapes = F.count;
+    // (a rock's size on screen is its largest side's: its size, metres, its asset's, the measure's: world/scale.js)
+    const sizes = [row.size[0], row.size[1]], reach = big ? Infinity : REACH, end = row.asset.detail?.end ?? 0;   // (end: the size on screen its asset is drawn down to, where that is sooner than the ladder's end)
     firstOf.set(row.uid, F.first); sizeMost = Math.max(sizeMost, sizes[1]);
     // what lies in a cell: a rock of one of the asset's shapes, or nothing. The cheap tests first (most cells hold
     // none); the ground under it and the grass round it only for a rock that is of the tier's level (fill)
     const place = (c, { band }, found) => {
       const cx = c.x, cy = c.y, pos = vec2(c).add(0.15).add(vec2(rnd(cx, cy, uint(202)), rnd(cx, cy, uint(203))).mul(0.7)).mul(row.cell), dist = camDist(pos);
       const thing = (oc, I, GA) => {
-        const r1 = rnd(cx, cy, uint(204)), s = mix(row.size[0], row.size[1], r1.mul(r1).mul(r1).add(oc.mul(big ? 0.25 : 0).mul(r1)));
-        const kind = uint(floor(rnd(cx, cy, uint(201)).mul(shapes)).min(shapes - 1)).add(uint(F.first)), span = lookOf(kind, 3).w;
-        // (its size: its asset's times its shape's; a stone shrinks away where the ground's map ends, and whatever
-        // ends sooner than the ladder does over its last pixels)
-        const full = big ? s.mul(span) : s.mul(span).mul(float(1).sub(smoothstep(REACH * 0.86, REACH, dist)));
+        // (its size: its largest side, metres, between its asset's least and most, most rocks small; on an outcrop larger
+        // more often, never past its most: src/world/rocksolid.js works out the same)
+        const r1 = rnd(cx, cy, uint(204)), s = mix(row.size[0], row.size[1], r1.mul(r1).mul(r1).add(oc.mul(big ? 0.25 : 0).mul(r1)).min(1));
+        const kind = uint(floor(rnd(cx, cy, uint(201)).mul(shapes)).min(shapes - 1)).add(uint(F.first));
+        // (a stone shrinks away where the ground's map ends, and whatever ends sooner than the ladder does over its last pixels)
+        const full = big ? s : s.mul(float(1).sub(smoothstep(REACH * 0.86, REACH, dist)));
         const size = end ? full.mul(smoothstep(end, end * 1.6, full.mul(U.uPxK).div(max(dist, 1e-3)))) : full;
         found(kind, size, dist, (A, B, G) => {
           const sunk = size.mul(lookOf(kind, 5).w);   // (how deep it lies: its look's)
@@ -160,18 +161,18 @@ export const engine = {
   // the library: the largest of its kind for the list; on the stage a few, small to large, lying about the middle, from
   // another seed (its Random) other rocks of the same recipe
   thumb(tex, row) {
-    const a = row.asset, s = most(a.size.length), B = rockBody(a, 0), side = s * B.span, m = rockSample(tex, row, 1, 0); m.scale.setScalar(side); m.position.y = -side * 0.4;
-    return { things: [m], eye: [s * 2.1, s * 2.0, s * 3.3], look: [0, -s * 0.05, 0] };
+    const a = row.asset, s = most(a.size.length), m = rockSample(tex, row, 1, 0); m.scale.setScalar(s); m.position.y = -s * 0.4;   // (a rock of size s is s across)
+    return { things: [m], eye: [s * 1.05, s * 1.0, s * 1.65], look: [0, -s * 0.03, 0] };
   },
   stage(tex, row0, { x, z, heightAt: hAt, level = 0, seed = null }) {
     const a0 = row0.asset, a = seed == null || seed === a0.placement.seed ? a0 : { ...a0, placement: { ...a0.placement, seed } }, row = a === a0 ? row0 : rockRow(a);
     const [lo, hi] = a.size.length, g = new THREE.Group(), shapes = a.placement.shapes ?? 1;
     for (let i = 0; i < 7; i++) {
-      const k = i / 6, s = lo + (hi - lo) * k ** 1.6, t = i * 2.4, rr = i ? (hi * 0.7 + 0.4) * Math.sqrt(i) * 0.55 : 0, B = rockBody(a, i % shapes), side = s * B.span;
+      const k = i / 6, s = lo + (hi - lo) * k ** 1.6, t = i * 2.4, rr = i ? (hi * 0.4 + 0.3) * Math.sqrt(i) * 0.55 : 0, B = rockBody(a, i % shapes);
       const m = rockSample(tex, row, level, i % shapes), X = x + Math.cos(t) * rr, Z = z + Math.sin(t) * rr;   // as the world lays it: so much of it in the ground
-      m.scale.setScalar(side); m.renderOrder = 1; m.position.set(X, hAt(X, Z) - B.sunk * side, Z); m.rotation.y = t * 1.7; g.add(m);   // drawn after the ground, as the world's own things are
+      m.scale.setScalar(s); m.renderOrder = 1; m.position.set(X, hAt(X, Z) - B.sunk * s, Z); m.rotation.y = t * 1.7; g.add(m);   // drawn after the ground, as the world's own things are (a rock of size s is s across)
     }
     return g;
   },
-  frame: (a) => ({ height: most(a.size.height) * 0.5, dist: Math.max(4, most(a.size.length) * 4.5), pitch: 0.55, span: 2 * most(a.size.length) }),   // (a rock is about twice its size across)
+  frame: (a) => ({ height: most(a.size.height) * 0.5, dist: Math.max(3, most(a.size.length) * 3.5), pitch: 0.55, span: most(a.size.length) }),   // (a rock is its size across)
 };
