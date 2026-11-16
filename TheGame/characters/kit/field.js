@@ -27,6 +27,34 @@ export const rod = (a, b, ra, rb = ra) => {
 export const box = (c, h, rr = 0, R = I3) => ({ t: 3, c, h, rr, R, ...bounds(c, Math.hypot(...h) + rr) });
 export const ring = (c, R0, r, R = I3) => ({ t: 4, c, R0, r, R, ...bounds(c, R0 + r) });   // round its own y
 export const plane = (n, at) => ({ t: 5, n, d: -(n[0] * at[0] + n[1] * at[1] + n[2] * at[2]), lo: [-1e9, -1e9, -1e9], hi: [1e9, 1e9, 1e9] });
+/** A muscle (or a tendon, a band of fat): from a to b, its section an ellipse `w` wide (across, along v) and `d` deep
+ *  (along u × v, the way it bulges), full in its belly and thinning to its tendons at each end (t0, t1: [wide, deep]);
+ *  belly: where along it it is fullest (0 … 1); full: how square its swell is (1 a sine, less is fuller); bend: how far its
+ *  middle arches out along its depth (metres). */
+export const strand = (a, b, { w, d, t0 = [w * 0.25, d * 0.25], t1 = [w * 0.25, d * 0.25], belly = 0.5, full = 1, bend = 0, v = [1, 0, 0], out = null }) => {
+  let u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]; const L = Math.hypot(...u) || 1e-6; u = u.map((c) => c / L);
+  // out: the way its depth faces (the body's outside where it lies): its width runs across that and its length
+  let vv = out ? [out[1] * u[2] - out[2] * u[1], out[2] * u[0] - out[0] * u[2], out[0] * u[1] - out[1] * u[0]] : [...v]; const dv = vv[0] * u[0] + vv[1] * u[1] + vv[2] * u[2]; vv = [vv[0] - u[0] * dv, vv[1] - u[1] * dv, vv[2] - u[2] * dv]; const lv = Math.hypot(...vv) || 1; vv = vv.map((c) => c / lv);
+  const ww = [u[1] * vv[2] - u[2] * vv[1], u[2] * vv[0] - u[0] * vv[2], u[0] * vv[1] - u[1] * vv[0]];
+  const e = Math.max(w, d, ...t0, ...t1) + Math.abs(bend);
+  const lo = [0, 1, 2].map((i) => Math.min(a[i], b[i]) - e), hi = [0, 1, 2].map((i) => Math.max(a[i], b[i]) + e);
+  return { t: 7, a, b, u, v: vv, w: ww, L, W: w, D: d, t0, t1, q: Math.log(0.5) / Math.log(Math.min(0.95, Math.max(0.05, belly))), p: full, bend, lo, hi, opt: { w, d, t0, t1, belly, full, bend } };
+};
+
+/** A limb or a trunk: an axis from a to b, and its section along it, given at evenly spaced knots: [half-width (along
+ *  v), front (along u × v), back, shift (of the middle along v), squareness (2 an ellipse, more a box)]. The section
+ *  between knots is a smooth curve through them; the ends are cut flat and rounded by what they blend into. */
+export const tube = (a, b, knots, { v = [1, 0, 0], out = null } = {}) => {
+  let u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]; const L = Math.hypot(...u) || 1e-6; u = u.map((c) => c / L);
+  let vv = out ? [out[1] * u[2] - out[2] * u[1], out[2] * u[0] - out[0] * u[2], out[0] * u[1] - out[1] * u[0]] : [...v];
+  const dv = vv[0] * u[0] + vv[1] * u[1] + vv[2] * u[2]; vv = [vv[0] - u[0] * dv, vv[1] - u[1] * dv, vv[2] - u[2] * dv]; const lv = Math.hypot(...vv) || 1; vv = vv.map((c) => c / lv);
+  const ww = [u[1] * vv[2] - u[2] * vv[1], u[2] * vv[0] - u[0] * vv[2], u[0] * vv[1] - u[1] * vv[0]];
+  const K = knots.map((k) => [k[0], k[1], k[2], k[3] ?? 0, k[4] ?? 2]);
+  const e = Math.max(...K.map((k) => Math.max(k[0] + Math.abs(k[3]), k[1], k[2]))) * 1.05;
+  const lo = [0, 1, 2].map((i) => Math.min(a[i], b[i]) - e), hi = [0, 1, 2].map((i) => Math.max(a[i], b[i]) + e);
+  return { t: 8, a, b, u, v: vv, w: ww, L, K, lo, hi };
+};
+
 /** A group: its own ops, blended in order, standing as one solid (lo, hi: its bounds, given or from its adds). */
 export const group = (ops, lo, hi) => {
   if (!lo) { lo = [1e9, 1e9, 1e9]; hi = [-1e9, -1e9, -1e9]; for (const o of ops) if (o.op === 'add') for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], o.s.lo[i] - o.k); hi[i] = Math.max(hi[i], o.s.hi[i] + o.k); } }
@@ -48,7 +76,7 @@ const smax = (a, b, k) => -smin(-a, -b, k);
 // The ops are written into one Float64Array, a record of REC numbers each, and read back in a tight loop (no objects,
 // no shapes to look up): [op, type, k, lo×3, hi×3, …the solid's own numbers]. A group's ops follow the top level's,
 // and its record holds where they start and how many there are.
-const REC = 28, OP = { add: 0, sub: 1, and: 2 };
+const REC = 84, OP = { add: 0, sub: 1, and: 2 }, KNOTS = 12;
 function write(P, at, o) {
   const s = o.s; P[at] = OP[o.op]; P[at + 1] = s.t; P[at + 2] = o.k; P.set(s.lo, at + 3); P.set(s.hi, at + 6); const q = at + 9;
   switch (s.t) {
@@ -58,6 +86,10 @@ function write(P, at, o) {
     case 3: P.set(s.c, q); P.set(s.h, q + 3); P[q + 6] = s.rr; P.set(s.R, q + 7); break;
     case 4: P.set(s.c, q); P[q + 3] = s.R0; P[q + 4] = s.r; P.set(s.R, q + 5); break;
     case 5: P.set(s.n, q); P[q + 3] = s.d; break;
+    case 8: P.set(s.a, q); P.set(s.u, q + 3); P.set(s.v, q + 6); P.set(s.w, q + 9); P[q + 12] = s.L; P[q + 13] = s.K.length;
+      if (s.K.length > KNOTS) throw new Error('a tube has at most ' + KNOTS + ' knots'); s.K.forEach((k, i) => P.set(k, q + 14 + i * 5)); break;
+    case 7: P.set(s.a, q); P.set(s.u, q + 3); P.set(s.v, q + 6); P.set(s.w, q + 9); P[q + 12] = s.L; P[q + 13] = s.W; P[q + 14] = s.D;
+      P[q + 15] = s.t0[0]; P[q + 16] = s.t1[0]; P[q + 17] = s.t0[1]; P[q + 18] = s.t1[1]; P[q + 19] = s.q; P[q + 20] = s.p; P[q + 21] = s.bend; break;
   }
 }
 /** The ops as one program: top-level op i at record i; groups' ops after them. */
@@ -104,6 +136,35 @@ function distR(P, r, x, y, z) {
     }
     case 5: return P[q] * x + P[q + 1] * y + P[q + 2] * z + P[q + 3];
     case 6: { let f = 1e9; const a = P[q], n = P[q + 1]; for (let i = 0; i < n; i++) f = step(P, (a + i) * REC, f, x, y, z); return f; }
+    case 8: {   // a tube: its section at the point's place along the axis, a curve through the knots
+      const dx = x - P[q], dy = y - P[q + 1], dz = z - P[q + 2], L = P[q + 12], N = P[q + 13];
+      const s = dx * P[q + 3] + dy * P[q + 4] + dz * P[q + 5], t = s / L, tc = t < 0 ? 0 : t > 1 ? 1 : t;
+      const f = tc * (N - 1), i = f >= N - 1 ? N - 2 : Math.floor(f), xx = f - i, x2 = xx * xx, x3 = x2 * xx;
+      const k0 = q + 14 + Math.max(0, i - 1) * 5, k1 = q + 14 + i * 5, k2 = q + 14 + (i + 1) * 5, k3 = q + 14 + Math.min(N - 1, i + 2) * 5;
+      const cr = (c) => 0.5 * (2 * P[k1 + c] + (P[k2 + c] - P[k0 + c]) * xx + (2 * P[k0 + c] - 5 * P[k1 + c] + 4 * P[k2 + c] - P[k3 + c]) * x2 + (3 * P[k1 + c] - P[k0 + c] - 3 * P[k2 + c] + P[k3 + c]) * x3);
+      const X0 = dx * P[q + 6] + dy * P[q + 7] + dz * P[q + 8], Y = dx * P[q + 9] + dy * P[q + 10] + dz * P[q + 11];
+      const rw = cr(0), rd = Y > 0 ? cr(1) : cr(2), X = X0 - cr(3), n = cr(4);
+      const ax0 = (X < 0 ? -X : X) / rw, ay0 = (Y < 0 ? -Y : Y) / rd;
+      const e = n === 2 ? Math.sqrt(ax0 * ax0 + ay0 * ay0) : Math.pow(Math.pow(ax0, n) + Math.pow(ay0, n), 1 / n);
+      // (steep changes of the section along the axis: the distance across overstates the true one; damped by the slope)
+      const g = Math.max(Math.abs(P[k2] - P[k1]), Math.abs(P[k2 + 1] - P[k1 + 1]), Math.abs(P[k2 + 2] - P[k1 + 2])) * (N - 1) / L;
+      let dc = ((e - 1) * (rw < rd ? rw : rd)) / Math.sqrt(1 + g * g);
+      const ax = t < 0 ? -s : t > 1 ? s - L : 0;
+      if (ax <= 0) return dc;
+      return dc > 0 ? Math.sqrt(dc * dc + ax * ax) : ax;
+    }
+    case 7: {   // a strand: its section at the nearest point along it, an ellipse swelling in the belly
+      const dx = x - P[q], dy = y - P[q + 1], dz = z - P[q + 2], L = P[q + 12];
+      const s = dx * P[q + 3] + dy * P[q + 4] + dz * P[q + 5], t = s / L, tc = t < 0 ? 0 : t > 1 ? 1 : t;
+      const sw = Math.sin(Math.PI * Math.pow(tc, P[q + 19])), pr = P[q + 20] === 1 ? sw : Math.pow(sw, P[q + 20]);
+      const bw = P[q + 15] + (P[q + 16] - P[q + 15]) * tc, bd = P[q + 17] + (P[q + 18] - P[q + 17]) * tc;
+      const rw = bw + (P[q + 13] - bw) * pr, rd = bd + (P[q + 14] - bd) * pr, off = P[q + 21] * 4 * tc * (1 - tc);
+      const cx = dx - P[q + 3] * tc * L - P[q + 9] * off, cy = dy - P[q + 4] * tc * L - P[q + 10] * off, cz = dz - P[q + 5] * tc * L - P[q + 11] * off;
+      const X = (cx * P[q + 6] + cy * P[q + 7] + cz * P[q + 8]) / rw, Y = (cx * P[q + 9] + cy * P[q + 10] + cz * P[q + 11]) / rd;
+      const dc = (Math.sqrt(X * X + Y * Y) - 1) * (rw < rd ? rw : rd), ax = t < 0 ? -s : t > 1 ? s - L : 0;
+      if (ax <= 0) return dc;
+      return dc > 0 ? Math.sqrt(dc * dc + ax * ax) : ax;
+    }
   }
   return 1e9;
 }
