@@ -1,7 +1,7 @@
 ---
 id: "0033"
 title: Detail that scales by itself, from any asset
-state: idea               # idea | define | build | propose | story | archived
+state: define             # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-16
 story:
@@ -18,14 +18,23 @@ story:
 > Search for the algorithm based solution that can plug any asset as large as it will be in fully detailed view. You
 > see what I mean?
 
+And, when the answer had come:
+
+> It should also ensure to increase the current quality gate while keeping 60 fps and 4K intact.
+> I don't like our current LOD system either: it kind of visually transforms, changes shapes and style, pumps,
+> especially shrubs and tree crowns. This should be 100 % smooth with no visible difference. Do you see what I mean?
+
 Samuel wants an asset's file to hold its full-detail recipe and nothing else: no levels, no pixel sizes. One rule of
-the engine takes it from there down to a pixel, with nothing to see on the way. Below: what is written per asset
-today, the answer, what was measured on our own assets, what exists, what is not known, and what I would build.
+the engine takes it from there down to a pixel, with nothing to see on the way: no swelling, no shrinking, no change
+of shape or style, above all on shrubs and crowns. The picture is to be better than today's, and the gates stay: 60
+frames a second and 4K. Below: what is written per asset today, what Samuel sees today (measured), the answer, what
+was measured on our own assets, what exists and what is not known. What would be built is in the definition.
 
 The research in full, with its sources: `reports/Smooth automatic level of detail.md`. Its notes, and the two scripts
 that made the measurements below with their outputs: `research_notes/Smooth automatic level of detail/` (the scripts:
-`probes/dag.mjs`, `probes/crown.mjs`; what was measured: `probes_on_the_games_own_assets.md`; two pictures of it:
-`probes/out/boulder-four-ways.jpg`, `probes/out/oak-crown-under-each-rule.jpg`).
+`probes/dag.mjs`, `probes/crown.mjs`; what was measured: `probes_on_the_games_own_assets.md`; three pictures of it:
+`probes/out/boulder-four-ways.jpg`, `probes/out/oak-crown-under-each-rule.jpg`,
+`probes/out/today-each-plant-at-each-level.jpg`).
 
 ### What is written per asset today
 
@@ -39,6 +48,44 @@ Intent 0002 gave every asset one rule for *when* a level changes (its size on sc
 | Made things: the tent, the fire pit, later houses | face lists written by hand for each level (`assets/belltent.js`: `bell(32)`, `bell(16)`, `bell(10)`, `bell(6)`) | per kind | none: one frame the one, the next the other |
 
 A level is always chosen for a whole thing. A rock larger than the screen is drawn at its full mesh all round.
+
+### What Samuel sees today, measured
+
+He is right, and it can be counted. Each of a plant's levels as its file draws it, beside its nearest level: how much
+of the picture the crown touches (its outline) and how much it covers, seen from the side (the picture:
+`probes/out/today-each-plant-at-each-level.jpg`).
+
+| Plant | Level, and the height on screen it is drawn at | Triangles | Outline | Cover |
+| --- | --- | --- | --- | --- |
+| Holm oak | nearest, 600 to 260 px | 21,444 | 100 % | 100 % |
+| | level 1, 260 to 80 px | 3,948 | 109 % | 108 % |
+| | level 2, 80 to 34 px | 1,068 | 116 % | 110 % |
+| | level 3, 34 to 18 px | 228 | 127 % | 113 % |
+| | its far body, 18 to 7 px | 30 | 57 % | 63 % |
+| | its speck, 7 to 3 px | 8 | 29 % | 32 % |
+| Stone pine | level 1, 2, 3 | 2,342; 810; 150 | 122 %, 134 %, 124 % | 120 %, 131 %, 116 % |
+| | its far body, its speck | 30; 8 | 53 %, 27 % | 58 %, 29 % |
+| Mastic (a shrub; its largest side) | nearest, over 140 px | 744 | 100 % | 100 % |
+| | level 1, 140 to 16 px | 88 | 84 % | 75 % |
+| | its far body, 16 to 5 px | 20 | 37 % | 49 % |
+
+- **A crown grows by a tenth to a third as it goes to coarser levels, then falls to half and to a quarter.** Walking
+  up to a tree it is the other way round: it swells out of a speck, overshoots, and shrinks to its true size.
+- **Its shape changes**: the pine's umbrella is a ball at level 3 and a flat polygon after it.
+- **Its style changes**: a coarser level has fewer and larger cards, each wearing the same sprig stretched, so its
+  leaves grow (the pine's cards: 1.15, 2.6, 4.4, 6 m).
+- **A shrub loses a quarter of its cover at its first change**: all its fine sprigs go there, 744 triangles to 88.
+
+The hand-over between two levels is soft (both are drawn, sprigs shrink and grow one after another); what it moves
+between are these different shapes. Beside them, the same oak thinned and enlarged by measure (below) held its cover
+at 99 to 101 % and its outline at 100 to 106 % from all its sprigs down to 4 % of them.
+
+### The gates
+
+Three hard gates since 2026-11-13 (intent 0008): the canvas at the screen's own pixels, 4K on a 4K screen
+(`src/core/screen.js`); 60 frames a second; 8 GB. "The highest realism they allow." A level is chosen by the game's
+own pixels (`innerHeight`: `src/detail/index.js`), so on a screen of two pixels to each of them a level's error is
+twice as many of the screen's: detail does not rise with the screen today.
 
 ### The answer
 
@@ -99,6 +146,11 @@ as a worker would call it. One thread of a cloud machine, under Node. **Nothing 
   the most, in pixels). At 400 px: the ladder 0.56 / 4.41; the cut at 1 px 0.14 / 1.10; at 2 px 0.24 / 1.49. At
   128 px: 0.45 / 2.86; 0.19 / 1.02; 0.44 / 2.11. So **at two pixels the cut is about as good as the ladder with 2 to 7
   times fewer triangles**, and at one pixel a good deal better with about as many or half.
+
+- **On a screen of two pixels to each of the game's** (the 4K gate), at 400 of the game's pixels across: the ladder's
+  12,288 triangles are off by 8.8 of the screen's pixels at most (1.1 root mean square); the cut with as many (13,210)
+  by 2.2 (0.28); one screen pixel of error takes 25,734. Where today the full mesh is drawn, a third of it (33,126
+  at 500 px, against 110,592).
 
 **Ten million triangles** (a ball displaced by seven octaves of our noise): built in **25 s** on one thread (a million:
 2.6 s). At 400 px across it is drawn with 55,574 triangles at one pixel of error, 9,638 at four; filling far more than
@@ -163,32 +215,98 @@ So in a browser the aim is an error of one to two pixels with triangles several 
   this session's network rules, and the search budget ran out. The report marks every statement that rests on a
   search extract or on recollection.
 
-### What I would build, and in which order
-
-Each stage its own measurement, as 0002's were. Not begun: this is for Samuel to take up or not.
-
-0. **A measurement that costs a minute**: the open library's live demo in Safari on the Mac and on the iPhone, its
-   frame rate read. It says whether to go on, before anything is built.
-1. **Solids on the hierarchy.** Built in the recipes' worker and kept, as meshes are now. A cluster is one more class
-   of size for the drawer (384 corners). A thing far off takes its one small cluster straight from the packing pass.
-   The ladder and its eight pixel sizes go. Beside it: the walk of 0002's check 2, and triangles and GPU time in the
-   stress stand, before and after.
-2. **Made things.** Corners welded, thin loose parts apart; the face lists written by hand for each level go.
-3. **Plants.** One fixed order of a shape's sprigs, the enlargement found when the asset is made; the wood through the
-   hierarchy. The tables per level go.
-4. **The far end keeps its cover**: the last triangles, the dot, the land's colour.
-5. **Above a pixel**, if a phone needs it: moving vertices inside the hierarchy, with an exact target.
-
-### Samuel's to decide
-
-- Whether to take this up, and from which stage.
-- The open library as it is, or the method in our own drawer. I would build it into the drawer: our solids carry
-  bones, wind, snow, a look per kind and their own packing, and the library draws static meshes with its own
-  materials. It is the reference to read and to measure.
-- Whether `meshoptimizer` may come in as the game's second dependency.
-- Whether the refused pages may be allowed, for a check of what the report marks as not verified.
-
 ## Define
+
+Taken up with Samuel's second message. **Not approved yet: nothing is built before he says so.**
+
+**What done looks like**
+
+1. An asset's file holds its recipe at full detail. No asset and no kind writes a level, a pixel size or a table per
+   level.
+2. From its nearest view to where it sinks into the land a thing keeps its outline, its cover, its colour and the size
+   of its leaves. What changes is under a pixel, or comes one small part at a time. Nothing swells, shrinks or changes
+   shape or style.
+3. The picture is nearer to the full-detail one than today's, and the gates hold: the canvas at the screen's own
+   pixels, 60 frames a second, 8 GB, with no cost hidden behind the governor's dial.
+
+**The shape of it**
+
+- **One measure.** Error in the pixels that are drawn, one number for the whole engine. It is the governor's first
+  dial, under a ceiling, and moves before the pixel ratio does.
+- **A heap of small parts** (sprigs; later grass): one order a shape, fixed once and spread evenly through the crown.
+  The share drawn follows the plant's size on screen. Those that stay are enlarged back into the crown by the measure
+  found when the asset is made, and wear their sprig as large as it was, never stretched. One sprig comes or goes at a
+  time.
+- **A surface** (a rock, a body, canvas, a wall, trunk and limbs): the cluster hierarchy, built from the full mesh in
+  the recipes' worker with `meshoptimizer` and kept between starts, drawn by our own drawer.
+- **The end**: the last sprigs and the last few triangles keep the cover, then the land's colour takes over.
+
+It takes over from intent 0002 what that left to each asset: which levels there are. 0002's one shading for every
+level, its tiles to 10 km and its folding into the ground stay its own.
+
+**Stages, each its own build and measurement.** Plants first: they are what Samuel sees, and nothing in them waits
+for a number we do not have.
+
+*Stage 1: crowns and shrubs.*
+
+1. The thinning rule in the tree kit and the plants' drawer. A plant's file draws its plant once; its `levels`, its
+   `most`, its tables per level and the kinds' pixel sizes for trees and shrubs go.
+2. The far end by the same rule: the solid far body and the speck go; the last sprigs hand over to the land's colour.
+3. A measure in the library: a walk up to a plant that records its outline, its cover and what changes from frame to
+   frame, on the game's own picture (the probes' measures, made in the game).
+
+*Stage 2: solids.* Before it, the number that decides: the open library's demo in Samuel's Safari on the Mac and on
+the iPhone, then the boulders' hierarchy drawn through our drawer and its GPU time read on both.
+
+4. The builder in the recipes' worker (clusters, groups, errors, the tail under one cluster), kept as meshes are.
+5. Clusters in the heap, chosen in the packing pass, drawn by the drawer. A far thing takes its level from its
+   distance alone.
+6. The rocks and the stress stand's bodies moved; the ladder gone for them.
+
+*Stage 3: made things.* 7. The tent and the fire pit from their finest faces alone: corners welded, thin loose parts
+(ropes, pegs) as parts of their own that fade by how much they cover; the face lists written per level go.
+
+*Stage 4: above a pixel*, only if stage 2's number puts a phone above about one and a half pixels of error. 8. Vertices
+moved inside the hierarchy with an exact target (the simplifier's own record of what was folded into what).
+
+*Stage 5: an asset of ten million triangles.* 9. Built in pieces, streamed by groups of clusters; a test asset in the
+stress stand.
+
+**Checks**
+
+| # | Check | How |
+| --- | --- | --- |
+| 1 | No pumping | a recorded walk from 3 km up to 3 m on an oak, a pine and a mastic, at the screen's own pixels: outline and cover, each set against the nearest view's, stay within 5 % down to a crown 20 px tall and within 15 % from there to where it sinks. Today: the oak's outline +27 % then −43 % and −71 %, the pine's +34 % then −47 % and −73 %, the mastic's −16 % then −63 % |
+| 2 | No jump | the same walks, and one over a boulder field and the tent: no frame differs from the one before by more than three times its neighbours' median (0002's check 2) |
+| 3 | No change of shape or style | stills at six distances beside the same thing drawn at full detail with four times the pixels and made small: the difference smaller than today's at every distance. And Samuel walks up to a pine, an oak and a bush in his Safari and sees nothing change |
+| 4 | The gates | the bench's views (`tools/bench.js`, `?gputime`): each stage's GPU time no higher than before it at the same inside ratio. Samuel's Safari: 60 frames a second, the canvas at the screen's own ratio in every row of the log, the governor's dials no lower than before. `window.__memory()` no higher; the start no slower |
+| 5 | Better than today | check 3's difference lower than today's at every distance, at check 4's cost |
+| 6 | A surface is closed and as near as it says | in a test, for every kind built: no edge with one triangle in 100 views (a thing's own rim apart); the drawn triangles no further from the full mesh than the error asked for, measured as the probe measured it |
+| 7 | Nothing written per asset | `grep` finds no level, pixel size or table per level in `assets/*.js` or `assets/kinds.js` for the makes that have moved |
+| 8 | Ten million triangles | the test asset stands in the stress stand, is walked round and into, and checks 2 and 4 hold |
+
+Shown so far, in a model and not in the game: check 1 for the oak (cover within 1 %, outline within 6 % down to 4 %
+of its sprigs); not yet for the pine (cover 113 % from the side and 87 % from above at a tenth of its sprigs: its few
+large sprigs need the even order). Check 6 for the boulder (no crack in 177 views; one pixel asked, 0.9 to 1.1 found
+at most, 1.5 in the tail under one cluster). Checks 2 to 5 and 8 need the game's own picture and a GPU: nothing of them is shown.
+
+**Choices this definition makes** (Samuel may say otherwise)
+
+- Built into our own drawer, not taken as the open library: our solids carry bones, wind, snow, a look per kind and
+  their own packing, and the library draws static meshes with its own materials. It is the reference to read.
+- `meshoptimizer` (MIT, about 300 KB) comes in as the game's second dependency, in the recipes' worker only.
+- "No visible difference" is held to check 3's test: the picture of the thing at its distance against the picture of
+  the full thing made small. Nearer than where a part is under a pixel that can be met closely, not exactly, unless
+  every part is drawn; how closely is what check 3 measures and Samuel's eye decides.
+- What a kind is drawn as on a device's first start, before its hierarchy is built there (0.7 to 0.9 s a kind for a
+  boulder on one thread): the dot and the land's colour, or a coarse mesh from the recipe where a family offers one.
+
+**Out of scope**
+
+- The grass (its own engine), creatures and whatever is on bones (they keep the ladder until the rest is proven).
+- Materials' own levels, tiles to 10 km and folding into the ground (intent 0002).
+- A software drawer of pixel-sized triangles: browsers lack what it needs.
+- New assets, beyond the test asset of stage 5.
 
 ## Build
 
@@ -202,9 +320,15 @@ Each stage its own measurement, as 0002's were. Not begun: this is for Samuel to
 
 ## Todo
 
-- [ ] Samuel: read the answer; say whether to take it up, and from which stage
+- [ ] Samuel: approve or change the definition
 - [ ] Samuel: open the library's live demo in Safari on the Mac and on the iPhone, and say what frame rate it shows
+      (before stage 2)
 - [ ] Samuel: may the refused pages be allowed for a check of the report's marked statements
+- [ ] Stage 1: crowns and shrubs
+- [ ] Stage 2: solids
+- [ ] Stage 3: made things
+- [ ] Stage 4: above a pixel, if stage 2's number asks for it
+- [ ] Stage 5: an asset of ten million triangles
 
 ## Changelog
 
@@ -223,6 +347,21 @@ Each stage its own measurement, as 0002's were. Not begun: this is for Samuel to
   are marked. The open library was read, not run (the session's guard declined running it cut off from the network).
   Moving vertices inside the hierarchy halves the largest jump but does not remove it. An earlier figure of mine, that
   the cut matches the ladder at four pixels of error, was wrong when checked and is corrected to two.
+
+### 2026-11-16 (2)
+
+- **Asked:** that it also raise the picture's quality with the gates of 60 fps and 4K kept; and that nothing be seen
+  as detail changes: the present system "visually transforms, changes shapes and style, pumps, especially shrubs and
+  tree crowns. This should be 100 % smooth with no visible difference."
+- **Delivered:** today's levels of an oak, a pine and two shrubs measured and drawn side by side; the boulder counted
+  for a screen of two pixels to each of the game's; both requirements written in; the definition with its stages and
+  checks, plants first; the research report of the first round.
+- **Good:** What Samuel sees is in the numbers: a crown's outline at 109 to 134 % over its middle levels, then 53 to
+  57 % and 27 to 29 %; a mastic at 75 % of its cover after its first change; leaves that grow with each level. On a 4K
+  screen the cut holds the boulder's worst error to a quarter of the ladder's with as many triangles.
+- **Broke / not there yet:** Nothing of the definition is shown in the game's own picture or on a GPU. The thinning
+  rule meets check 1 for the oak in a model, not yet for the pine. Whether the picture gets better within the gates is
+  not known until stage 1 is built and measured.
 
 ## Trail
 

@@ -119,8 +119,12 @@ if (process.env.EXPORT) {
 }
 
 // 3. beside them: the levels its file writes by hand today (a crown as one solid body, the kit's two farthest, is not
-// cut out: it covers every pixel it lies over)
+// cut out: it covers every pixel it lies over). EXPORT_LEVELS=file: each of them as triangles, for a picture
 console.log('\nthe levels its file writes by hand today, and the kit\'s two farthest:');
+const { kindRule } = await imp(`${GAME}/assets/kinds.js`);
+const pxList = asset.detail?.px || kindRule(asset, 'px'), endOf = (l) => asset.detail.levels[l]?.px ?? pxList[Math.min(l, pxList.length - 1)];   // the size on screen a level is drawn down to
+const LV = [], soupOf = (P, idx, parts, leaf) => { const o = []; for (let t = 0; t < idx.length; t += 3) { if ((parts[idx[t]] > 0.5) !== leaf) continue; for (let k = 0; k < 3; k++) { const v = idx[t + k] * 3; o.push(+P[v].toFixed(3), +P[v + 1].toFixed(3), +P[v + 2].toFixed(3)); } } return o; };
+LV.push({ name: 'its nearest level', from: fine ? endOf(0) : null, to: endOf(fine), tris: index.length / 3, leaf: soupOf(pos, index, part, true), wood: soupOf(pos, index, part, false), solid: false, side: 100, above: 100, oSide: 100, oAbove: 100 });
 for (let l = fine + 1; l < asset.levelCount; l++) {
   const m = raw(l), P = Float32Array.from(m.position), idx = Uint32Array.from(m.index), parts = m.part, n = { wood: 0, leaf: 0 }; let solid = false;
   for (let t = 0; t < idx.length; t += 3) { if (parts[idx[t]] > 0.5) n.leaf++; else n.wood++; if (parts[idx[t]] > 1.5) solid = true; }
@@ -138,4 +142,7 @@ for (let l = fine + 1; l < asset.levelCount; l++) {
   };
   const sd = cov(0), tp = cov(1);
   console.log(`  level ${l - fine}${solid ? ' (one solid body)' : ''}`.padEnd(46) + ` ${String(n.wood).padStart(6)} wood ${String(n.leaf).padStart(6)} leaf tris | cover from the side ${pct(sd.cover, full.side.cover).padStart(6)}, from above ${pct(tp.cover, full.top.cover).padStart(6)} | outline ${pct(sd.outline, full.side.outline).padStart(6)}, ${pct(tp.outline, full.top.outline).padStart(6)}`);
+  const r = (x, of) => Math.round((100 * x) / of);
+  LV.push({ name: solid ? (n.leaf <= 8 ? 'its speck' : 'its far body') : `level ${l - fine}`, from: endOf(l - 1), to: endOf(l), tris: idx.length / 3, leaf: soupOf(P, idx, parts, true), wood: soupOf(P, idx, parts, false), solid, side: r(sd.cover, full.side.cover), above: r(tp.cover, full.top.cover), oSide: r(sd.outline, full.side.outline), oAbove: r(tp.outline, full.top.outline) });
 }
+if (process.env.EXPORT_LEVELS) { const { writeFileSync } = await import('node:fs'); writeFileSync(process.env.EXPORT_LEVELS, JSON.stringify({ name: asset.name, kind: asset.kind, lo, hi, card: A, levels: LV })); }

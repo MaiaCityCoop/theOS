@@ -228,7 +228,65 @@ every 16th vertex of the full mesh lies from what is drawn; between two steps, t
 - "Cover" is a model with an assumed 45 % of a card filled, from two directions; it is not a rendered picture.
 - Build times are from a cloud machine's one core under Node; a phone will be slower, several workers faster.
 
-## Two pictures
+## Results: what today's levels do to a crown and a shrub (measured after Samuel's second message)
+
+Samuel: the present system "visually transforms, changes shapes and style, pumps, especially shrubs and tree crowns".
+The same measure as above, on each of today's levels as its file draws it, beside the plant's nearest level. Outputs:
+`probes/out/crown-holmoak.txt`, `crown-stonepine.txt`, `crown-mastic.txt`, `crown-rockrose.txt`; the picture:
+`probes/out/today-each-plant-at-each-level.jpg`.
+
+| Plant | Level | Drawn at (its height on screen; a shrub: its largest side) | Triangles | Outline, side / above | Cover, side / above |
+| --- | --- | --- | --- | --- | --- |
+| Holm oak | nearest | 600 to 260 px | 21,444 | 100 % / 100 % | 100 % / 100 % |
+| | level 1 | 260 to 80 px | 3,948 | 109 % / 111 % | 108 % / 112 % |
+| | level 2 | 80 to 34 px | 1,068 | 116 % / 114 % | 110 % / 110 % |
+| | level 3 | 34 to 18 px | 228 | 127 % / 103 % | 113 % / 85 % |
+| | far body (one solid) | 18 to 7 px | 30 | 57 % / 70 % | 63 % / 83 % |
+| | speck | 7 to 3 px | 8 | 29 % / 54 % | 32 % / 63 % |
+| Stone pine | nearest | 600 to 260 px | 11,246 | 100 % / 100 % | 100 % / 100 % |
+| | level 1 | 260 to 80 px | 2,342 | 122 % / 105 % | 120 % / 103 % |
+| | level 2 | 80 to 34 px | 810 | 134 % / 99 % | 131 % / 89 % |
+| | level 3 | 34 to 18 px | 150 | 124 % / 91 % | 116 % / 74 % |
+| | far body (one solid) | 18 to 7 px | 30 | 53 % / 61 % | 58 % / 71 % |
+| | speck | 7 to 3 px | 8 | 27 % / 47 % | 29 % / 55 % |
+| Mastic (a shrub) | nearest | over 140 px | 744 | 100 % / 100 % | 100 % / 100 % |
+| | level 1 | 140 to 16 px | 88 | 84 % / 89 % | 75 % / 71 % |
+| | far body (one solid) | 16 to 5 px | 20 | 37 % / 46 % | 49 % / 69 % |
+| Rockrose (a shrub) | level 1 | 140 to 16 px | 64 | 94 % / 87 % | 84 % / 72 % |
+| | far body (one solid) | 16 to 5 px | 20 | 47 % / 60 % | 67 % / 92 % |
+
+- **A crown grows by a tenth to a third as it changes to coarser levels, then falls to about half and then a
+  quarter.** Walking towards a tree it is the other way round: the crown swells from a speck, overshoots, and shrinks
+  to its true size. That is the pumping.
+- **Its shape changes too**: in the picture the pine's umbrella is a ball at level 3 and a flat polygon after it.
+- **A shrub loses a quarter of its cover at its first change** (its fine sprigs go at once, 744 triangles to 88) and
+  about half its outline at the next.
+- The steps in triangles are large: 5.4 times at the oak's first change, 4.8 at the pine's, 8.5 at the mastic's.
+- Beside them, the same oak thinned and enlarged by measure held its cover at 99 to 101 % and its outline at 100 to
+  106 % from all its sprigs down to 4 % of them, one sprig at a time.
+
+Between two levels the game draws both and lets sprigs shrink and grow one after another (`src/detail/handover.js`),
+so nothing appears at once; but what it moves between are these different shapes.
+
+## Results: the same boulder on a screen of two pixels to each of the game's (the 4K gate)
+
+The game measures a thing's size in its own pixels (`innerHeight`, CSS pixels: `src/detail/index.js`), and the canvas
+stands at the screen's own (`src/core/screen.js`): on a screen of ratio 2 a level chosen at "400 px" covers 800 screen
+pixels, and its error is twice as many of them. Output: `probes/out/boulder-screen-of-two.txt`. At 400 of the game's
+pixels across (800 of the screen's), errors in the screen's pixels (root mean square / the most):
+
+| | Triangles | Error |
+| --- | --- | --- |
+| The ladder today | 12,288 | 1.1 / 8.8 |
+| The cut at four screen pixels | 6,340 | 0.48 / 3.0 |
+| The cut at two screen pixels | 13,210 | 0.28 / 2.2 |
+| The cut at one screen pixel | 25,734 | 0.16 / 1.2 |
+
+With the triangles it draws today the boulder's worst error falls to a quarter; one screen pixel of error asks twice
+today's triangles there, and where today the full mesh is drawn (over 400 px) a third to a sixth of them (33,126 at
+500 px and one screen pixel, against 110,592).
+
+## Pictures
 
 - `probes/out/boulder-four-ways.jpg`: the boulder at 400 px and at 128 px across, each pixel true: its full mesh, the
   ladder's level at that size, the cut at one and at two pixels of error; and its middle three times larger with the
@@ -237,6 +295,8 @@ every 16th vertex of the full mesh lies from what is drawn; between two steps, t
   13,210 keeps them.
 - `probes/out/oak-crown-under-each-rule.jpg`: the oak's crown from the side as drawn, after the simplifier, thinned,
   and thinned and enlarged, with each one's cover.
+- `probes/out/today-each-plant-at-each-level.jpg`: the oak, the pine and the mastic at each of today's levels, the
+  same scale, with each level's outline and cover (`EXPORT_LEVELS=<file>` on `crown.mjs`, page `levels.html`).
 
 Both show shape only: one colour, one light, no texture, none of the game's shading (the game's coarse levels also
 wear relief in their textures, which these pictures leave out). Drawn by plain WebGL pages for this research

@@ -14,7 +14,8 @@
 // Switches (environment): TILE=n cluster the full mesh n triangles at a time; MEASURED=1 a group's error is also
 // measured (how far its vertices lie from what is left), not only the simplifier's word; SHOWGROUPS=1 print every
 // group's simplification; WORST=n print the n vertices farthest from each cut measured; DEBUG=1 each level drawn
-// whole: is it closed; NOTRUTH=1 skip the distance measurements.
+// whole: is it closed; NOTRUTH=1 skip the distance measurements; TAU_SCALE=0.5 the three errors halved (a screen of
+// two pixels to each of the game's: its 1, 2 and 4 pixels).
 // Moving vertices inside the hierarchy: MORPH=1 every vertex a group loses keeps where it lies on what the group is
 // simplified to (TO=surface, the nearest point of it; TO=vertex, the nearest kept vertex along the mesh: tried, worse);
 // GROW=k a group's error is at least k times its children's; BAND=m a cluster moves while its parent's error is
@@ -371,11 +372,12 @@ const rimOf = (L) => {
   RIMS.set(L, R); return R;
 };
 const ladderTris = (px) => { const H = ladderInfo || hand; if (!H) return null; for (const L of H) if (px > L.px) return L.tris; return 0; };
+const TS = +(process.env.TAU_SCALE || 1);   // TAU_SCALE=0.5: the three columns are then errors of 0.5, 1 and 2 of these pixels: one, two and four pixels of a screen with two pixels to each of these (a 4K screen's own)
 const SIZES = [4000, 2000, 1200, 800, 500, 400, 300, 200, 128, 90, 64, 32, 16, 8, 4, 2, 1];
 const rows = SIZES.map((px) => {
   const D = K / px, cam = [0, 0.5, -D];   // a thing a unit across is px pixels across from D units away
   const r = { px, ladder: ladderTris(px) };
-  for (const tau of [1, 2, 4]) { const c = cut(cam, tau, TRIS <= 2e6); r[`t${tau}`] = c.tris; r[`v${tau}`] = c.seenTris; r[`open${tau}`] = c.open; r[`pinched${tau}`] = c.pinched; }
+  for (const tau of [1, 2, 4]) { const c = cut(cam, tau * TS, TRIS <= 2e6); r[`t${tau}`] = c.tris; r[`v${tau}`] = c.seenTris; r[`open${tau}`] = c.open; r[`pinched${tau}`] = c.pinched; }
   return r;
 });
 // EXPORT=file: what is drawn at 400 px and at 128 px across (the ladder's level, the cut at one and at two pixels), for a picture
@@ -439,7 +441,7 @@ const truth = [];
 if (hand && !process.env.NOTRUTH) {
   for (let l = 1; l < hand.length; l++) {   // level l takes over at the px where level l - 1 ends: its largest on screen
     const at = hand[l - 1].px, d = deviation(hand[l].P, [hand[l].index]), row = { px: at, ladder: { tris: d.tris, rmsPx: d.rms * at, mostPx: d.most * at } };
-    for (const tau of [1, 2, 4]) { const c = deviation(pos, cutLists([0, 0.5, -K / at], tau)); row[`cut${tau}`] = { tris: c.tris, rmsPx: c.rms * at, mostPx: c.most * at }; }
+    for (const tau of [1, 2, 4]) { const c = deviation(pos, cutLists([0, 0.5, -K / at], tau * TS)); row[`cut${tau}`] = { tris: c.tris, rmsPx: c.rms * at, mostPx: c.most * at }; }
     truth.push(row);
   }
 }
