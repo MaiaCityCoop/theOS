@@ -34,6 +34,14 @@ export default tree({
   name: 'Dead wood',
   kind: 'shrub',
   about: 'A fallen branch on the wood’s floor: grey bark, a few twigs still on it, lying where it came down.',
+  // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
+  measure: {
+    real: 'a fallen branch of a pine, lying on the floor',
+    typical: [0.05, 0.5],
+    most: 0.6,
+    own: ['typical, most: what a fallen branch stands off the ground: no source; its thickness, 7 to 15 cm, is coarse woody debris (pieces over 7.6 cm, the US Forest Service\'s inventory)'],
+    source: ['US Forest Service, Forest Inventory and Analysis: coarse woody debris, pieces 7.6 cm (3 in) and more across'],
+  },
   colours: { wood: woodCol, leaves: leafCol },
   materials: { wood: 'fb5ce908-7437-45b6-879f-154de32d12b9' /* holm oak bark: grey, as wood weathers */, needles: 'f0cd9e72-612d-4f2e-9790-0ef5f7257742' /* pine tuft (it bears none: the engine asks for one) */ },
   wind: { sway: 0 },   // it lies: no wind moves it

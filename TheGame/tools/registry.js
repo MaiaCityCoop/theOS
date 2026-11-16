@@ -11,12 +11,12 @@ import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 export const FOLDERS = ['materials', 'biomes', 'assets', 'characters'];
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/g;
 
-// what a recipe's file builds with, followed through its imports: the kits (a folder `kit/`), the shared dice and the
-// measure of everything (world/scale.js), in the order they are first met
+// what a recipe's file builds with, followed through its imports (those it loads when first wanted and the workers it
+// runs among them): the kits (a folder `kit/`), the shared dice and the world's one scale (world/scale.js), in the
+// order they are first met
 export const SHARED = ['src/core/hash.js', 'world/scale.js'];
-const MEASURES = ['world/scale.js'];   // (its uids are of what it measures, not of what a recipe uses: not read for `uses`)
 function kitsOf(root, file, seen = new Set()) {
-  for (const m of readFileSync(file, 'utf8').matchAll(/(?:from|import)\s*'(\.{1,2}\/[^']+\.js)'/g)) {
+  for (const m of readFileSync(file, 'utf8').matchAll(/(?:from|import|import\(|new URL\()\s*'(\.{1,2}\/[^']+\.js)'/g)) {
     const p = resolve(dirname(file), m[1]), rel = relative(root, p).split(sep).join('/');
     if (seen.has(p) || !existsSync(p) || !(rel.split('/').includes('kit') || SHARED.includes(rel))) continue;
     seen.add(p); kitsOf(root, p, seen);
@@ -34,14 +34,13 @@ export function buildRegistry(root) {
       if (!uid) continue;   // not a recipe (an index, the kinds' defaults)
       if (found[uid]) throw new Error(`uid ${uid} in both ${found[uid].file} and ${dir}/${f}`);
       // a kit it builds with (./kit/*.js: the tree kit, and the kits that kit builds with) is part of what it is, and so
-      // are the shared dice (src/core/hash.js) and the measure (world/scale.js): a changed kit, hash or measure gives it
-      // a new version too
-      const paths = kitsOf(root, join(abs, f)), read = (ps) => ps.map((p) => readFileSync(p, 'utf8')).join('\n'), measure = (p) => MEASURES.includes(relative(root, p).split(sep).join('/'));
-      const kits = read(paths), used = read(paths.filter((p) => !measure(p)));
-      found[uid] = { type: src.match(/\btype: '(\w+)'/)?.[1], name: src.match(/\bname: (['"])(.*?)\1/)?.[2], file: `${dir}/${f}`, src: kits ? `${src}\n${kits}` : src, scan: used ? `${src}\n${used}` : src };
+      // are the shared dice (src/core/hash.js) and the world's scale (world/scale.js): a changed kit, hash or scale gives
+      // it a new version too
+      const kits = kitsOf(root, join(abs, f)).map((p) => readFileSync(p, 'utf8')).join('\n');
+      found[uid] = { type: src.match(/\btype: '(\w+)'/)?.[1], name: src.match(/\bname: (['"])(.*?)\1/)?.[2], file: `${dir}/${f}`, src: kits ? `${src}\n${kits}` : src };
     }
   }
-  for (const [uid, r] of Object.entries(found)) r.uses = [...new Set(r.scan.match(UUID) || [])].filter((u) => u !== uid && found[u]).sort();
+  for (const [uid, r] of Object.entries(found)) r.uses = [...new Set(r.src.match(UUID) || [])].filter((u) => u !== uid && found[u]).sort();
   const version = (uid, seen = new Set()) => {
     const r = found[uid]; if (r.version) return r.version;
     if (seen.has(uid)) throw new Error(`recipes use each other in a ring: ${[...seen, uid].join(' → ')}`);

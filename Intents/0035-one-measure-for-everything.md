@@ -1,7 +1,7 @@
 ---
 id: "0035"
 title: One measure for everything
-state: story              # idea | define | build | propose | story | archived
+state: propose            # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-16
 story: Stories/0035-one-measure-for-everything/
@@ -149,6 +149,50 @@ own, round the stage.
   middling one 2.8 m ("up to four metres"). Set right, every stone and boulder in the world is about half as large,
   and the engine draws the stress world's rocks too: Samuel's choice.
 
+**The rocks and the trees, set right at their source** (the second round: Samuel, through the coordinating session:
+"Stones and boulders should match their actual sizes: SSOT this globally and generatively"):
+
+- **Where the rocks' factor two came from.** The rock kit grows a shape at a size of 1 (its largest side then, its
+  `span`, is 1.8 to 2.6) and draws it in a frame where its largest side is 1; the rocks' engine
+  (`src/scatter/rocks.js`) then scaled a rock by its size *and* its span again, and so did the library's stage and
+  picture and what stops the walker (`src/world/rocksolid.js`, the same factor, so what stopped you matched what you
+  saw); the stress world's stand, which sizes every kind by its look, sized a rock by its span: about 2 m, stone and
+  boulder alike.
+- **Now a rock of size s is s across, everywhere**: the engine, the library, what stops the walker, the stand (a rock
+  kind's size: the size the world draws most of its rocks at, from its asset). An outcrop makes its boulders larger
+  more often, as before, but never past their most (the engine and the walker's bodies alike). The stones' and the
+  boulders' sizes are the measure's (`STONES`, `BOULDERS` in `world/scale.js`): 7 to 55 cm, 0.7 to 4.2 m, as their
+  recipes always said. No engine scales a rock by anything of its own.
+- **Trees had the same kind of drift, twice.** The engine drew a tree at the height its age asks over its stage's
+  height by age, while the shape is built taller than that (its crown's top over its form): saplings stood 14 to 27 %
+  too tall, grown trees 5 to 14 %. Now over the shape's own built height (`sizeAtOne`). And between its stages a tree's
+  height ran straight from where its stage began to where it ended, missing its height by age by up to 31 % (a holm
+  oak of six); now through its stage's own year, straight in the logarithms of age and height (`heightIn` in the tree
+  kit, the same on the graphics card), on the graphics card and in the library alike.
+- **The run measures what is drawn**: rocks built at every level of the ladder and measured in the frame they are
+  drawn in, times their size; what stops the walker against how far the drawn rock reaches over the ground (0.65 to
+  0.76 of it: the kit's 0.7, a little inside its outline, by the same size); a rock's drawn least and most against its
+  own size (its lumps stand up to 6 % over); trees at five ages through every stage, as the engine draws them and as the
+  library stands them, each within 5 % of its height by age or the run fails.
+- **Every asset's geometry is the same to the byte** as on main (`50b42d6`): meshes, solids, sizes. Only how the
+  engines scale what they draw has changed.
+- Found on the way: the ladder's cube (one square an edge, drawn between 4 and 8 pixels) is 25 to
+  30 % narrower than a rock's full mesh, a pixel or two, as it was; the holm oak's finest level stands up to 7 % over
+  its near one.
+
+**Each measure next to its thing** (the third round: Samuel, through the coordinating session: "The size info should
+be always co-located with its asset definitions but measured against the global scale"). Not as the definition said:
+the measure is no longer one file of every thing. Each recipe carries its own (`measure`: what a real one measures,
+its sources, and what it is built from), next to what it is: the tent's, the fire pit's, the flame's, both trees', the
+stones' and the boulders' are built from it; the bushes', the grass's, the moss's and the dead wood's are read beside
+them; the Settler's is in `characters/settler.js`. `TheGame/world/scale.js` is the one scale they are all read
+against: the units, the reference body (the Settler's stature and where on it the eyes, shoulders and knees are: one
+copy, which intent 0033's tables are to read), the walker worked out from it, the tolerances, and the rules a measure
+keeps (`faultsOf`). The run reads every recipe's own measure, holds it to those rules and to what the recipe draws,
+and fails where they disagree or where a recipe has none (tried: the flame's measure taken out, and a mastic's most
+set under its typical: both exit 1). It sets each thing beside the reference body too: a stone pine stands 10.6
+Settlers, the tent 1.83. Every asset's geometry is the same to the byte before and after the move.
+
 **Found, outside this intent** (in the Todo): a tree's youngest stage is built taller than its own height by age
 (a holm oak of 6: 1.51 m against 1.19 m; a stone pine of 5: 1.55 m against 1.36 m), so saplings stand 14 to 27 %
 taller than their age; and a sapling's far levels stand up to 36 % taller than its near one. Speeds are not sizes:
@@ -156,7 +200,32 @@ the walker walks 3.2 m a second, about twice a person's pace.
 
 ## Propose
 
-**Delivered** (branch `feat/lens-and-scale-defined`, pull request #24):
+**Second round, delivered** (branch `feat/rocks-true-size`, pull request #26): the rocks and the trees at their size,
+and each measure next to its thing.
+
+- Every rock drawn at its size, wherever one is drawn (`src/scatter/rocks.js`, the library, what stops the walker:
+  `src/world/rocksolid.js`, the stress world's stand: `assets/kit/rock.js`); the stones' and boulders' sizes their own
+  measures'.
+- Every tree drawn at its height by age (`src/scatter/trees.js` `sizeAtOne`, `assets/kit/tree.js` `heightIn`), on the
+  graphics card and in the library.
+- Each recipe's measure in its own file (`measure`); `TheGame/world/scale.js` the one scale (units, the reference body,
+  the walker, the tolerances, the rules); `bun tools/scale.js` reading every recipe's own measure, the rocks' built
+  meshes at every level, what stops the walker, and every tree at five ages a stage.
+- The story, brought up to it.
+
+**Checks of the second round** (headless Chromium, WebGPU on SwiftShader; main `50b42d6` against this branch):
+
+| # | Check | Result |
+| --- | --- | --- |
+| 1 | Every recipe has its measure, in its own file, keeping the scale's rules | **Passed.** 15 of 15. A recipe without one fails the run ("no measure in its file", the flame's taken out: exit 1), and so does one that breaks the rules (a mastic's most set to 3 m: "its most 3 m is under its typical 4 m", exit 1) |
+| 2 | What is drawn, within its measure | **Passed.** 15 of 15: stones drawn 0.06 to 0.57 m across, a middling one 0.13 m (before: 0.12 to 1.42, 0.29); boulders 0.57 to 4.47 m, a middling one 1.34 m (before: 1.2 to 11.9, 2.8); every tree at five ages a stage within 5 % of its height by age, as the engine draws it and as the library stands it (before: up to 31 % off) |
+| 3 | What stops the walker is the rock he sees | **Passed.** The walker's bodies take the same size the card draws (`side: s`); what stops him reaches 0.65 to 0.76 of how far a stone or boulder is drawn over the ground (the kit's 0.7, a little inside its outline), as before |
+| 4 | Its levels still hand over | **Passed, as before.** Every mesh is the same to the byte; each level is chosen by its size on screen, which now follows the size drawn. A rock's levels stand within a fifth of its full mesh, all but the ladder's cube (drawn under 8 pixels: 25 to 30 % narrower, a pixel or two, as on main) |
+| 5 | Before and after | **Seen.** The lineup from the walker's eyes, 26 m off: boulders from about 10 m across (taller than the tent) to at most 4.5 m, beside the Settler. By the tent: the pines lower (7.8 % of the pixels). The stress world as it starts: 7 %. The pine wood: 24 % (its oaks at their height by age, more sky over them) |
+| 6 | Nothing else changed | **Passed.** Every asset built and hashed on main and here, at every level and shape: the same to the byte, before and after the measures moved into their files |
+| 7 | The gates | **Passed.** The game as it starts by the tent, three runs each: frame medians 2604 to 2610 ms on main, 2536 to 2599 here; 95th percentiles 2700 to 2793 against 2602 to 3051; the GPU's own time of the shadow pass 192 to 205 ms against 170 to 172 (the trees at their height by age cast less), of the picture 2344 to 2415 against 2399 to 2609. The stress world as it starts, two runs each: medians 2646 to 2666 against 2625 to 2657; 95th percentiles 2891 to 2926 against 2885 to 2970. The same draws on both (by the tent 27 in the shadow pass and 170 in the picture; in the stress world 33 and 184). The canvas at the screen's own ratio and the inside at 1 on both. CI (`vite build` of both sites, the run) green on this branch |
+
+**First round, delivered** (branch `feat/lens-and-scale-defined`, pull request #24, merged):
 
 - `TheGame/world/scale.js`: the measure, with its sources.
 - `TheGame/tools/scale.js`: the run, `bun tools/scale.js` (and `tools/glob.js`, Vite's globs for Bun); a step of CI.
@@ -165,7 +234,7 @@ the walker walks 3.2 m a second, about twice a person's pace.
 - The lineup: the library's first asset, `library.html?lineup=1`.
 - The story: [`Stories/0035-one-measure-for-everything`](../Stories/0035-one-measure-for-everything/story.md).
 
-**Checks** (headless Chromium, WebGPU on SwiftShader; main `c8257cd` against this branch):
+**Checks of the first round** (headless Chromium, WebGPU on SwiftShader; main `c8257cd` against that branch):
 
 | # | Check | Result |
 | --- | --- | --- |
@@ -232,9 +301,11 @@ It ends when the film plays in the game: not yet seen played.
 - [x] Samuel: is this what he meant; approve or change the definition ("do make 35")
 - [ ] Agree with intent 0033 where the reference body's numbers live (the same numbers in both for now)
 - [x] Build, check, propose
-- [ ] Samuel: the stones and boulders, drawn about twice their size: set right (halved) or kept
+- [x] Samuel: the stones and boulders, drawn about twice their size: set right (halved) or kept (set right: "match
+  their actual sizes")
 - [ ] The walker's eyes from your own avatar's height, not the reference person's
-- [ ] A sapling's youngest stage built to its own curve; its far levels at its near level's height
+- [x] A sapling drawn at its height by age (drawn over its built height: its youngest stage is still built taller)
+- [ ] A sapling's far levels at its near level's height
 - [ ] Seen on Samuel's iPhone
 
 ## Changelog
@@ -269,6 +340,27 @@ It ends when the film plays in the game: not yet seen played.
 - **Broke / not there yet:** the stones' and boulders' size is still Samuel's to choose; intent 0034 waits for his
   "go"; not seen on a phone; the film not yet seen played.
 
+### 2026-11-16 (4)
+
+- **Asked** (Samuel, through the coordinating session): "Stones and boulders should match their actual sizes: SSOT
+  this globally and generatively." The intent goes back from Story to Build for it.
+- **Delivered:** every rock drawn at its size, everywhere (the engine, the library, what stops the walker, the stress
+  world's stand), its sizes the measure's; trees drawn at their height by age (over their built height, and through
+  each stage's own year); the run measuring the built meshes, the colliders and every tree's age.
+- **Good:** 15 of 15 within their measure; every asset's geometry the same to the byte.
+- **Broke / not there yet:** the stills and the frame times against main were then being taken (in the Propose since).
+
+### 2026-11-16 (5)
+
+- **Asked** (Samuel, through the coordinating session): "The size info should be always co-located with its asset
+  definitions but measured against the global scale."
+- **Delivered:** each recipe's measure in its own file; `world/scale.js` the one scale (units, the reference body, the
+  walker, the tolerances, the rules); the run reading every recipe's own measure against them and against what it
+  draws; the lineup's card reading them too.
+- **Good:** every asset's geometry the same to the byte; a recipe without a measure, or with one that breaks the rules,
+  fails the run; by the tent and in the stress world the frames as on main, the shadow pass cheaper.
+- **Broke / not there yet:** not seen on a phone, in Safari or on a real GPU.
+
 ## Trail
 
 | When | Commit | What |
@@ -279,3 +371,9 @@ It ends when the film plays in the game: not yet seen played.
 | 2026-11-16 | `4ba3170` | built: the Build section, the changelog |
 | 2026-11-16 | `9a3f76e` | proposed: every check with its result, the run's table, the gates; the story spawned |
 | 2026-11-16 | `7a339cc` | Samuel's yes: the intent to Story, its story's beats |
+| 2026-11-16 | `a30d693` | every rock drawn at its size, every tree at its height by age, at the source |
+| 2026-11-16 | `66bf7bc` | back to Build for the rocks and the trees |
+| 2026-11-16 | `00e9823` | the story: Samuel's answer on the rocks |
+| 2026-11-16 | `8ce45de` | each asset's measure next to it, read against the world's one scale |
+| 2026-11-16 | `064db73` | each measure next to its thing, in Build, the changelog and the story |
+| 2026-11-16 | `fbf56d6` | proposed again: every check of the second round |

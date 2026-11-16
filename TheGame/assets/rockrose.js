@@ -19,6 +19,13 @@ export default tree({
   name: 'Rockrose',
   kind: 'shrub',
   about: 'A cistus: a low, grey-green mound to the knee or the hip, in the glades and at the wood’s edge.',
+  // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
+  measure: {
+    real: 'Cistus salviifolius, the sage-leaved rockrose: low, grey-green, white-flowered',
+    typical: [0.3, 1],
+    most: 1,
+    source: ['RHS (Cistus salviifolius): ultimate height 0.5 to 1 m; Easyscape: 0.3 to 0.6 m, now and then 1 m'],
+  },
   colours: { wood: woodCol, leaves: leafCol },
   materials: { wood: 'fb5ce908-7437-45b6-879f-154de32d12b9' /* holm oak bark */, leaves: '4cdde33c-5114-41e7-badf-e9f69fcf42f5' /* rockrose sprig */ },
   foliage: { wrap: 0.45, through: 0.25, flutter: 0.6 },

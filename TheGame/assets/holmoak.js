@@ -10,13 +10,24 @@ import { tree, builder, tube, cards, crown } from './kit/tree.js';
 import { add, sub, mul, norm, lerp, sstep } from './kit/math.js';
 import { rng } from '../src/core/hash.js';
 import SPRIG from '../materials/holmoakleaf.twigs.js';
-import { HOLM_OAK } from '../world/scale.js';
+// What a real one measures, and where that is known from (intent 0035): next to what it is, read against the
+// world's one scale (world/scale.js) and measured against what it draws by `bun tools/scale.js`.
+const MEASURE = {
+  real: 'Quercus ilex, the holm oak',
+  mature: 21,                        // what its height by age comes to (assets/holmoak.js)
+  typical: [12, 25],
+  most: 25,
+  source: [
+    'RHS (Quercus ilex): ultimate height higher than 12 m, in 20 to 50 years',
+    'The Wildlife Trusts: up to 20 m; tree nurseries\' sheets (Deepdale Trees): 20 to 25 m by site and climate',
+  ],
+};
 
 // how it grows: at six a dense bush a little over a metre; at eighteen a tall bush of four metres, leaves to the ground;
 // at forty a small round tree on a short bole; at ninety fifteen metres, its crown as wide; at two hundred a great dome
 // over twenty metres across. Its height by age (metres), and its numbers at an age: its height, where its crown begins,
 // its crown's reach, how far its crown's widest part lies up it (squat), how many great limbs leave its fork, its lean.
-const height = (year) => HOLM_OAK.mature * (1 - Math.exp(-year / 70)) ** 1.15;   // (mature: world/scale.js)
+const height = (year) => MEASURE.mature * (1 - Math.exp(-year / 70)) ** 1.15;   // (mature: its measure's)
 function form(year, v, seed = 410) {
   const R0 = rng(seed * 7919 + v * 31 + year * 7), H = height(year), old = sstep(12, 110, year), side = v % 2 ? -1 : 1;
   return {
@@ -90,6 +101,7 @@ export default tree({
   name: 'Holm oak',
   kind: 'tree',
   about: 'The evergreen oak of the Mediterranean: a short, stout trunk of dark, finely cracked bark, a low fork into heavy spreading limbs, and a broad, dense, rounded crown of small leathery leaves, nearly black from afar.',
+  measure: MEASURE,
   colours: { bark: barkCol, leaves: leafCol },
   materials: { wood: 'fb5ce908-7437-45b6-879f-154de32d12b9' /* holm oak bark */, leaves: 'c4cbd29b-9dd2-494d-913b-9a80c40ab8e6' /* holm oak sprig */ },
   foliage: { wrap: 0.32, through: 0.16, flutter: 0.55 },   // leathery leaves: little light through them, and they tremble less than needles
