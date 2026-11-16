@@ -299,7 +299,9 @@ function chooseCharacter(id, keep) {
     staged = new THREE.Group(); staged.position.set(STAGE.x, heightAt(STAGE.x, STAGE.z), STAGE.z); staged.add(P.object);
     staged.userData.kept = true;   // (kept to be shown again: nothing to free when it goes)
     scene.add(staged); person = P; if (q.get('move')) P.setMove(q.get('move')); P.step(0);
-    H = P.height * 1.25; dist = 4.2; pitch = 0.2; spin = true;
+    // framed from the front, the person in the middle and facing us, held there: no circling (the drag still turns it)
+    H = P.height * 1.25; dist = 4.2; pitch = 0.2; spin = false; yaw = P.object.rotation.y;
+    P.object.getWorldPosition(whereNow); mid[0] = whereNow.x; mid[1] = whereNow.z;
   }
   const P = person;
   boneLines = free(boneLines);
