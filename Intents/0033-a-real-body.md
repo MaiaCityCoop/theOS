@@ -175,10 +175,12 @@ correctly"; "ensure the skull is correct".**
   the atlas, a third of an arm's raise by the blade; each move is held within a body's range (the knee to 150°, the
   jaw to 30°, the loins' twist to 8°: the ranges clinicians measure by, in a table of their own). Seen walking,
   reaching, with the elbow and the knee bent, the forearm turned (the radius crosses the ulna) and a fist; walking,
-  nothing in the legs, the spine or the skull passes through anything by more than 2 mm.
+  nothing in the whole skeleton passes through anything by more than 2 mm; reaching with one elbow bent 100° and a
+  fist, only that elbow does (the ulna's beak 2.8 mm into the humerus).
 - **The measures that moved.** The arm's joints: the elbow 3 cm higher and the wrist 1 cm (the humerus had come out
-  37 cm, a man's is 34), the shoulder 14 mm further back (so the blade lies on the ribs at its own angle); the
-  fingers 15% longer and the palm shorter (the hand is 19 cm to the middle finger's tip).
+  37 cm, a man's is 34), the shoulder 14 mm further back (so the blade lies on the ribs 35° forwards of the frontal
+  plane, its inner border 7.5 cm from the middle); the fingers 15% longer and the palm shorter. As built: humerus
+  343 mm, radius 272, ulna 298, collarbone 157, the hand 190 to the middle finger's tip.
   The pelvis: its front upper spines and the pubis' front stand 58 mm before the hip joints (not 68 to 72, which would
   have left the pelvis too shallow from the promontory to the pubis), its back upper spines level with the sacrum's
   second piece.
@@ -188,7 +190,9 @@ correctly"; "ensure the skull is correct".**
   can leave holes in the surface near it (the regions round or cut their ends to avoid it), and the hip bones' and
   the sacrum's surfaces have a few edges shared by more than two triangles (thin places): both to be found. In the
   rig the breastbone follows one vertebra (so a bent chest pulls the ribs' front ends off it), the ribs do not yet
-  rise with a breath, and the thumb's part in a fist is rough.
+  rise with a breath, the shoulder blade swings on the collarbone's end without yet gliding on the ribs (with the arm
+  raised high its lower corner stands off them), and the thumb's part in a fist is rough. The fingers' middle bones
+  come out some 4 mm long for their shares of a finger's length.
 
 ## Propose
 
@@ -203,9 +207,9 @@ correctly"; "ensure the skull is correct".**
 - [ ] Round 1: the body (naked, no hair, muscular first; clothes later)
   - [x] a first attempt from blended solids (turned down)
   - [x] a second, muscles as strands without the bones under them (set aside)
-  - [ ] the bones, each a piece of its own in its true shape, against Gray's plates (the skull laid over its plates), neighbours fitted round one another: all regions in; the pelvis and the arm's refit to its new measures still being finished
-  - [ ] the skeleton rigged where its bones really meet (90 joints, moves held within a body's ranges): seen walking; the arm to be checked again after its refit
-  - [ ] Samuel's word on the skeleton; fine relief
+  - [x] the bones, each a piece of its own in its true shape, against Gray's plates (the skull laid over its plates), neighbours fitted round one another
+  - [x] the skeleton rigged where its bones really meet (90 joints, moves held within a body's ranges), seen walking and reaching
+  - [ ] Samuel's word on the skeleton; fine relief; the blade gliding on the ribs, the ribs' breath
   - [ ] muscles from origin to insertion, a skin over them
   - [ ] the face from the skull up; hands; feet
 - [ ] Round 2: movement
@@ -249,3 +253,5 @@ correctly"; "ensure the skull is correct".**
 | 2026-11-16 | `8e6cc45` | neighbouring bones fit round one another; the arm's and hand's truer measures; the skull's base |
 | 2026-11-16 | `eb7b2a7` | each toe turns at its own knuckle |
 | 2026-11-16 | `f41bd18` | the rig's moves held within a body's ranges |
+| 2026-11-16 | `9682add` | the pelvis, the arm and the hand rebuilt bone by bone |
+| 2026-11-16 | `5a3de2b` | main merged in (intent 0032) |

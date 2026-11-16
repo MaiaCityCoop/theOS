@@ -13,7 +13,7 @@
 // right), taken z first, then x, then y; or { axis, angle } about a joint's own axis.
 import { JOINTS, FINGERS, fingerJoints } from './rig.js';
 import { VERTEBRAE, vertebraFrame, SACRAL_BASE, ATLAS } from './spine.js';
-import { bladeFrame } from './arm.js';
+import { armPoints } from './arm.js';
 import { toeJoints } from './foot.js';
 
 const SIDES = [['L', 1], ['R', -1]];
@@ -79,15 +79,8 @@ export function rigOf() {
   }
   return R;
 }
-// Points of the left arm and leg the rig's joints are taken from, where the regions' own files lay the bones (./arm.js:
-// the blade's frame and the collarbone's outer end in it; the humerus' and the forearm's frames from the elbow).
-const ARM = (() => {
-  const S = JOINTS['upperArm.L'], E = JOINTS['foreArm.L'], W = JOINTS['hand.L'], B = bladeFrame(S);
-  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-  const hy = nrm(dif(S, E)), hx = nrm(dif([1, 0, 0], hy.map((v) => v * hy[0]))), fy = nrm(dif(E, W)), fx = nrm(dif([1, 0, 0], fy.map((v) => v * fy[0]))), fz = cross(fx, fy), L = Math.hypot(...dif(E, W));
-  const F = (x, y, z) => [0, 1, 2].map((i) => E[i] + fx[i] * x + fy[i] * y + fz[i] * z); void dot;
-  return { ac: B.p(0.0165, 0.0445, 0.0085), elbowAxis: nrm([0, 1, 2].map((i) => hx[i] + 0.1 * hy[i])), radialHead: F(0.0165, -0.0158, 0.0045), ulnarHead: F(0.002, -L + 0.0078, -0.018) };
-})();
+// Points of the left arm and leg the rig's joints are taken from: where the arm's own file lays its bones (./arm.js).
+const ARM = armPoints();
 const LEG = { ankleAxis: [1, -0.14, -0.1] };
 
 function dif(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
