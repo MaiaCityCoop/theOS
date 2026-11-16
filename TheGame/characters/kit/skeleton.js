@@ -363,13 +363,14 @@ function foot(X, put, along, s, sg, M, P, B) {
   // the foot points a little outwards: 7° round the ankle
   const turn = (p) => { const dx = p[0] - a0[0], dz = p[2] - a0[2], c = Math.cos(0.12), sn = Math.sin(0.12); return [a0[0] + dx * c + dz * sn, p[1], a0[2] - dx * sn + dz * c]; };
   const Q = (x, y, z) => X(M(turn([x, y, z])));
-  put(f, egg(Q(0.077, 0.066, -0.012), [s(0.018), s(0.015), s(0.026)]), 0.002);          // the talus
-  put(f, ball(Q(0.07, 0.057, 0.02), s(0.0115)), 0.002);
-  put(f, strand(Q(0.079, 0.046, -0.004), Q(0.075, 0.03, -0.062), { w: s(0.018), d: s(0.02), t1: [s(0.016), s(0.022)], out: [0, 1, 0] }), 0.003);   // the heel bone
-  put(f, egg(Q(0.074, 0.03, -0.066), [s(0.016), s(0.021), s(0.014)]), 0.003);
-  put(f, egg(Q(0.066, 0.056, 0.033), [s(0.014), s(0.01), s(0.008)]), 0.002);          // navicular
-  put(f, egg(Q(0.101, 0.034, 0.03), [s(0.012), s(0.012), s(0.015)]), 0.002);          // cuboid
-  for (const [x, y] of [[0.06, 0.05], [0.075, 0.049], [0.088, 0.044]]) put(f, egg(Q(x, y, 0.05), [s(0.007), s(0.011), s(0.009)]), 0.002);   // cuneiforms
+  const FB = (c, h, rr, yaw = 0, pitch = 0) => box(Q(...c), h.map((v) => s(Math.max(0.001, v - rr * 0.5))), s(rr * 1.5), frame([Math.cos(yaw), 0, -Math.sin(yaw) * sg], [0, Math.cos(pitch), Math.sin(pitch)]));
+  put(f, FB([0.077, 0.064, -0.014], [0.012, 0.009, 0.019], 0.007, 0.15), 0.002);          // the talus, its dome under the shin
+  put(f, ball(Q(0.07, 0.058, 0.018), s(0.0105)), 0.002);                                     // its head, forwards into the navicular
+  put(f, FB([0.077, 0.034, -0.035], [0.013, 0.014, 0.03], 0.009, 0.05, 0.12), 0.003);      // the heel bone, long and deep
+  put(f, FB([0.073, 0.028, -0.062], [0.012, 0.015, 0.01], 0.009), 0.003);                   // its back, the heel itself
+  put(f, FB([0.066, 0.054, 0.033], [0.013, 0.009, 0.006], 0.005, -0.3), 0.002);            // navicular
+  put(f, FB([0.1, 0.033, 0.028], [0.01, 0.011, 0.013], 0.005, 0.2), 0.002);                // cuboid
+  for (const [x, y, w] of [[0.059, 0.048, 0.0075], [0.075, 0.047, 0.006], [0.088, 0.043, 0.0065]]) put(f, FB([x, y, 0.05], [w, 0.011, 0.008], 0.004), 0.002);   // cuneiforms
   const bases = [[0.058, 0.048, 0.06], [0.073, 0.046, 0.064], [0.085, 0.041, 0.064], [0.097, 0.035, 0.058], [0.109, 0.027, 0.046]];
   const heads = [[0.063, 0.017, 0.13], [0.083, 0.015, 0.131], [0.097, 0.014, 0.127], [0.109, 0.013, 0.119], [0.12, 0.012, 0.106]];
   const toes = [[0.034, 0.025], [0.026, 0.017, 0.012], [0.024, 0.015, 0.011], [0.021, 0.013, 0.01], [0.018, 0.011, 0.009]];
@@ -408,17 +409,18 @@ function skull(X, put, along, s) {
   put(h, E([0, 0.012, 0.076], [0.0125, 0.026, 0.02]), 0.008);  // the bridge between the eyes
   put(h, E([0, -0.027, 0.062], [0.04, 0.024, 0.029]), 0.01);   // the upper jaw, ending at the ridge of its teeth
   put(h, E([0, 0.043, 0.084], [0.046, 0.011, 0.018]), 0.01);   // the brows' bone, over the sockets
+  put(h, E([0, 0.036, 0.096], [0.016, 0.009, 0.008]), 0.008);   // the glabella between them
   for (const sg of [1, -1]) {
     // each socket's rim, a rounded square facing forwards and out, thick above (the brow), thinner below
     const C = [sg * 0.033, 0.016, 0.075], N = norm([sg * 0.34, -0.08, 1]), U = norm(cross([0, 1, 0], N)), V = cross(N, U);
-    const ring = []; for (let i = 0; i <= 16; i++) { const a = (i / 16) * 2 * Math.PI, c = Math.cos(a), sn = Math.sin(a), q = (v) => Math.sign(v) * Math.pow(Math.abs(v), 0.7);
+    const ring = []; for (let i = 0; i <= 16; i++) { const a = (i / 16) * 2 * Math.PI, c = Math.cos(a), sn = Math.sin(a), q = (v) => Math.sign(v) * Math.pow(Math.abs(v), 0.86);
       ring.push(add(C, add(mul(U, q(c) * 0.0215), mul(V, q(sn) * 0.0185)))); }
     for (let i = 0; i < 16; i++) {
       const a = ring[i], b = ring[i + 1], up = (dot(sub(lerp(a, b, 0.5), C), V) + 0.0185) / 0.037, w = 0.0042 + 0.0032 * up, d = 0.0042 + 0.002 * up;
       put(h, strand(P(...a), P(...b), { w: s(w), d: s(d), t0: [s(w), s(d)], t1: [s(w), s(d)], out: norm(add(N, mul(norm(sub(lerp(a, b, 0.5), C)), 0.6))) }), 0.004);
     }
-    SKULL_SUB.push(['head', egg(P(...add(C, mul(N, -0.012))), [s(0.0195), s(0.0168), s(0.026)], frame(U, V)), 0.004]);   // the socket, deep
-    SKULL_SUB.push(['head', egg(P(...add(C, mul(N, -0.034))), [s(0.011), s(0.01), s(0.016)], frame(U, V)), 0.006]);
+    SKULL_SUB.push(['head', box(P(...add(C, mul(N, -0.022))), [s(0.0085), s(0.0058), s(0.012)], s(0.0108), frame(U, V)), 0.003]);   // the socket, from its rim back
+    SKULL_SUB.push(['head', egg(P(...add(C, mul(N, -0.04))), [s(0.012), s(0.011), s(0.016)], frame(U, V)), 0.006]);   // narrowing to its back
     put(h, E([sg * 0.049, -0.013, 0.062], [0.017, 0.016, 0.012], frame([1, 0, -sg * 0.55], [0, 1, 0])), 0.006);   // the cheekbone
     along(h, Ls([[sg * 0.058, -0.01, 0.05], [sg * 0.066, -0.007, 0.026], [sg * 0.066, -0.003, 0.004]]), 0.006, 0.003, 0.005, 0.003, () => [sg, 0, 0], 0.003);   // its arch back to the ear
     put(h, E([sg * 0.055, -0.03, -0.022], [0.008, 0.013, 0.01]), 0.004);                                       // the mastoid
