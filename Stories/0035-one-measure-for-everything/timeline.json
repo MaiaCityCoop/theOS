@@ -21,8 +21,8 @@
    true
   ],
   [
-   "Stones and boulders drawn twice their size: Samuel's choice",
-   false
+   "Every rock drawn at its size, every tree at its height by age, everywhere",
+   true
   ]
  ],
  "preview": {
@@ -153,10 +153,10 @@
   {
    "name": "The tent again",
    "kind": "pull back",
-   "secs": 11,
+   "secs": 15,
    "ease": "inout",
    "in": "cut",
-   "why": "back from the tent and up: the stones of the meadow round it, the ones still drawn twice their size",
+   "why": "back from the tent and up: the meadow's stones round it, now drawn at their own size",
    "keys": [
     {
      "pos": [
@@ -251,21 +251,27 @@
   },
   {
    "at": 37.6,
-   "for": 3.2,
-   "kind": "maia",
-   "text": "The stones are drawn twice the size they say."
-  },
-  {
-   "at": 41.0,
    "for": 3.0,
    "kind": "maia",
-   "text": "Halving them is yours to choose."
+   "text": "The stones were drawn twice the size they say."
   },
   {
-   "at": 44.4,
+   "at": 40.8,
+   "for": 3.0,
+   "kind": "samuel",
+   "text": "Stones and boulders should match their actual sizes."
+  },
+  {
+   "at": 44.0,
+   "for": 2.8,
+   "kind": "maia",
+   "text": "Now every rock is its own size. Every tree too."
+  },
+  {
+   "at": 47.2,
    "for": 3.2,
    "kind": "note",
-   "text": "13 of 15 within their measure. Not yet seen on a phone."
+   "text": "15 of 15 within their measure. Not yet seen on a phone."
   }
  ]
 }
