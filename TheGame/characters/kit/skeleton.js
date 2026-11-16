@@ -31,7 +31,7 @@ import { rigBoneOf } from './skeleton/pose.js';
 
 export { PART, JOINTS, PARENT, FINGERS, fingerJoints } from './skeleton/rig.js';
 export { VERTEBRAE } from './skeleton/spine.js';
-export { rigOf, rigBoneOf, poseOf, turnsOf } from './skeleton/pose.js';
+export { rigOf, rigBoneOf, poseOf, turnsOf, turnOf, LIMITS } from './skeleton/pose.js';
 
 const REGIONS = { skull, spine, chest, pelvis, arm, hand, leg, foot };
 

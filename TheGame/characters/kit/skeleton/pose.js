@@ -86,13 +86,16 @@ const LEG = { ankleAxis: [1, -0.14, -0.1] };
 function dif(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
 function nrm(a) { const l = Math.hypot(...a) || 1; return a.map((v) => v / l); }
 const sub = dif, norm = nrm;
+// The upper arm's and the thigh's own lengths (left side, upwards): what each turns about when it is turned in or out.
+const LONG = { arm: nrm(dif(JOINTS['upperArm.L'], JOINTS['foreArm.L'])), thigh: nrm(dif(JOINTS['thigh.L'], JOINTS['shin.L'])) };
 const mulM = (a, b) => [0, 1, 2].flatMap((i) => [0, 1, 2].map((j) => a[i * 3] * b[j] + a[i * 3 + 1] * b[3 + j] + a[i * 3 + 2] * b[6 + j]));
 const apply = (a, p) => [a[0] * p[0] + a[1] * p[1] + a[2] * p[2], a[3] * p[0] + a[4] * p[1] + a[5] * p[2], a[6] * p[0] + a[7] * p[1] + a[8] * p[2]];
 const about = (ax, t) => { const [x, y, z] = norm(ax), c = Math.cos(t), s = Math.sin(t), k = 1 - c; return [c + x * x * k, x * y * k - z * s, x * z * k + y * s, y * x * k + z * s, c + y * y * k, y * z * k - x * s, z * x * k - y * s, z * y * k + x * s, c + z * z * k]; };
-/** A turn as nine numbers. */
+/** A turn as nine numbers (given as three angles [x, y, z], as an angle about the joint's own axis, or as the nine). */
 export function turnOf(t, joint) {
   if (!t) return [1, 0, 0, 0, 1, 0, 0, 0, 1];
   if (!Array.isArray(t)) return about(t.axis ?? joint.axis ?? [1, 0, 0], t.angle);
+  if (t.length === 9) return t;
   return mulM(about([0, 1, 0], t[1]), mulM(about([1, 0, 0], t[0]), about([0, 0, 1], t[2])));
 }
 
@@ -137,8 +140,8 @@ function within(moves) {
 
 /**
  * Turns from plain moves (radians; each side's taken apart, e.g. { 'knee.L': 1.2 }; free: beyond a body's ranges too):
- *   loins, chest, neck: [bend forwards, twist to the left, lean to the right]; head: [nod, turn, tilt] (half of a turn
- *   is the atlas'); jaw: how far it opens
+ *   hips: the pelvis' own turn [x, y, z]; loins, chest, neck: [bend forwards, twist to the left, lean to the right];
+ *   head: [nod, turn, tilt] (half of a turn is the atlas'); jaw: how far it opens
  *   arm.S: [raise forwards, raise sideways, turn the upper arm inwards]; elbow.S; forearm.S (palm turned backwards);
  *   wrist.S: [bend to the palm, to the thumb]; fist.S (0 … 1)
  *   hip.S: [forwards, outwards, turned outwards]; knee.S; ankle.S (toes up); toes.S
@@ -148,15 +151,17 @@ export function turnsOf(moves = {}, { free = false } = {}) {
   for (const [name, s] of Object.entries(SHARE)) { const v = m[name]; if (!v) continue; s.bones.forEach((b, i) => { T[b] = [v[0] * s.flex[i], v[1] * s.twist[i], v[2] * (s.side ?? s.flex.map(() => 1 / s.bones.length))[i]]; }); }
   if (m.head) { T.head = [m.head[0], m.head[1] * 0.1, m.head[2]]; T.C1 = [0, m.head[1] * 0.55, 0]; for (const [b, w] of [['C2', 0.07], ['C3', 0.07], ['C4', 0.07], ['C5', 0.07], ['C6', 0.07]]) T[b] = [(T[b]?.[0] ?? 0), (T[b]?.[1] ?? 0) + m.head[1] * w, (T[b]?.[2] ?? 0)]; }
   if (m.jaw) T.jaw = { angle: m.jaw };
+  if (m.hips) T.hips = m.hips;   // the pelvis itself (a walk turns and tips it)
   for (const [s, g] of SIDES) {
     const B = (n) => n + '.' + s, a = m[B('arm')];
     if (a) {
       // the arm's raise is shared: two thirds in the shoulder's own joint, one third by the blade turning on the chest,
       // the collarbone's outer end rising with it
-      const [fw, sd, tw] = a;
+      const [fw, sd, tw = 0] = a;
       T[B('clavicle')] = [0, -g * fw * 0.08, g * sd * 0.2];
       T[B('scapula')] = [-fw * 0.12, 0, g * sd * 0.14];
-      T[B('upperArm')] = [-fw * 0.8, -g * tw, g * sd * 0.66];
+      // (its own turn is about its own length, wherever the arm is raised to: the raise, then the turn inside it)
+      T[B('upperArm')] = mulM(turnOf([-fw * 0.8, 0, g * sd * 0.66]), about([g * LONG.arm[0], LONG.arm[1], LONG.arm[2]], -g * tw));
     }
     // (a joint with an axis of its own: the right side's axis is the left's mirrored, so its angle runs the other way)
     if (m[B('elbow')]) T[B('foreArm')] = { angle: -g * m[B('elbow')] };
@@ -165,7 +170,7 @@ export function turnsOf(moves = {}, { free = false } = {}) {
     const fist = m[B('fist')];
     if (fist) for (const f of FINGERS) for (let j = 1; j <= 3; j++) T[B(f + j)] = f === 'thumb' ? [fist * [0.25, 0.3, 0.5][j - 1], 0, -g * fist * [0.5, 0.35, 0.5][j - 1]] : [0, 0, -g * fist * [1.45, 1.6, 1.0][j - 1]];
     const h = m[B('hip')];
-    if (h) T[B('thigh')] = [-h[0], g * h[2], g * h[1]];
+    if (h) T[B('thigh')] = mulM(turnOf([-h[0], 0, g * h[1]]), about([g * LONG.thigh[0], LONG.thigh[1], LONG.thigh[2]], g * (h[2] ?? 0)));   // (turned about its own length, as the arm is)
     const k = m[B('knee')];
     // (the kneecap rides round the femur's end, held by its tendon to the shin: it turns less than the shin does, and
     // sinks into the groove between the condyles as the knee bends)

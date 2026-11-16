@@ -11,11 +11,11 @@ import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 export const FOLDERS = ['materials', 'biomes', 'assets', 'characters'];
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/g;
 
-// what a recipe's file builds with, followed through its imports: the kits (a folder `kit/`) and the shared dice, in the
-// order they are first met
+// what a recipe's file builds with, followed through its imports (those it loads when first wanted and the workers it
+// runs among them): the kits (a folder `kit/`) and the shared dice, in the order they are first met
 const SHARED = ['src/core/hash.js'];
 function kitsOf(root, file, seen = new Set()) {
-  for (const m of readFileSync(file, 'utf8').matchAll(/(?:from|import)\s*'(\.{1,2}\/[^']+\.js)'/g)) {
+  for (const m of readFileSync(file, 'utf8').matchAll(/(?:from|import|import\(|new URL\()\s*'(\.{1,2}\/[^']+\.js)'/g)) {
     const p = resolve(dirname(file), m[1]), rel = relative(root, p).split(sep).join('/');
     if (seen.has(p) || !existsSync(p) || !(rel.split('/').includes('kit') || SHARED.includes(rel))) continue;
     seen.add(p); kitsOf(root, p, seen);

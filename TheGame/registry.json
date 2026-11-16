@@ -219,6 +219,13 @@
       "60d88699-64f9-4484-9a00-2980f5eeedd5"
     ]
   },
+  "7b0e2f6c-3a41-4d5e-9c18-5f2a6d0b9e37": {
+    "type": "character",
+    "name": "Skeleton",
+    "file": "characters/skeleton.js",
+    "version": "b3e9de3f07203b96a55cd6d709e3802b4db194f1497c85137d1fb2a5a6130fa5",
+    "uses": []
+  },
   "6042540e-d4ea-4a07-8bd9-d8465f5635b9": {
     "type": "material",
     "name": "Bracken frond",
