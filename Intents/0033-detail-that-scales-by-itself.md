@@ -52,8 +52,7 @@ say, what exists and what is not known. What would be built is in the definition
 
 The research in full, with its sources: `reports/Smooth automatic level of detail.md` (the first round, from search
 extracts for the most part) and `reports/Generic automatic detail of higher quality.md` (the second, from the original
-decks, documentation and code, once Samuel had opened their hosts). **The second report is being written as this
-is committed; its notes are complete.** Their notes, and the scripts that made the
+decks, documentation and code, once Samuel had opened their hosts). Their notes, and the scripts that made the
 measurements below with their outputs: `research_notes/Smooth automatic level of detail/` (the scripts:
 `probes/dag.mjs`, `probes/crown.mjs`; what was measured: `probes_on_the_games_own_assets.md`; three pictures of it:
 `probes/out/boulder-four-ways.jpg`, `probes/out/oak-crown-under-each-rule.jpg`,
@@ -140,9 +139,12 @@ the gates is the pattern any new method has to keep:
   as the camera comes, in pools of a few slots (eight kinds can hold their full mesh at once), put out when it has
   gone.
 
-Measured on it on an M1 (2026-11-13, at 1440 by 779 and a pixel ratio of 1): 10.6 ms of GPU time a frame walking in
-its first village with another tab drawing beside it, for 135,000 things drawn, 2.4 million triangles and 3,900
-movers; 59.2 frames a second in Samuel's Safari.
+Its last written record (`src/detail/README.md`, 2026-11-13, an M1): 10.6 ms of GPU time a frame walking in its
+first village at 1440 by 779 and a pixel ratio of 1, with another tab drawing beside it, for 135,000 things drawn,
+2.4 million triangles and 3,900 movers. In Samuel's Safari: 58.7 frames a second from higher up at a pixel ratio of
+2; near the ground 55.8, "with spans of 47 to 56 until the governor had the ratio down to 0.75: among them the plots
+do not yet hold the gate". **So by its own record the stress world did not hold 60 frames a second near the ground
+three days ago.** What it holds today was not measured for this intent.
 
 **What this asks of the method**, beyond what was written before:
 
@@ -258,7 +260,7 @@ vertex was folded into which, and the open simplifier does not give it.
 
 Samuel's third message asks for two things the first answer did not have: a proof that the picture gets better, and a
 method that needs no word about an asset's kind. Both rest on a measure that can weigh unlike ways of making a thing
-coarser against each other. Nobody publishes one (below). One was written and run on our assets: the note
+coarser against each other. No published builder has one (below). One was written and run on our assets: the note
 `one_stick_for_any_asset.md`, the script `probes/generic.mjs`, both in
 `research_notes/Generic automatic detail of higher quality/`. **Nothing was drawn by the game**: the pictures are
 reckoned in the script, shape and cover only.
@@ -331,17 +333,18 @@ small parts and on levels of detail, WebKit's source and Apple's pages. In full,
   still sets its foliage by hand.
 - **What stops them is the measure.** Every published builder gives a way its error as a length. A length cannot tell
   "moved" from "gone" from "see-through", so ways of unlike kinds cannot be weighed against each other, and someone
-  has to say which asset takes which. None measures cover; none measures a change as a difference between pictures.
-  The stick tried below does. That is the step this intent takes beyond what is published, and it is untried
-  elsewhere.
+  has to say which asset takes which. None of the builders measures cover or chooses by a difference between
+  pictures. Off line it is done: Hasselgren and others fit stand-ins to pictures one asset at a time, and a paper of
+  2004 set the scale of its error by them. The stick tried above brings that into the builder. That is the step this
+  intent takes beyond what is published, with the least outside evidence to lean on.
 - **"Invisible" in Unreal's stands on two legs**: under a pixel of estimated error, and a picture kept from frame to
   frame. The estimate is, in its author's words, "a complete heuristic hack" that "can fail". Nothing moves or
   blends. Named losses: parts that pop in when they arrive late, the far stand-ins that "can sometimes be noticed as
   a pop", flicker of what is under a pixel. Its published times are for about 1400p made up to 4K, not for 4K drawn.
   Hoppe found in 1998 that with vertices moved between levels an error of a few pixels is "nearly imperceptible". No
   cluster system moves vertices. Ours does today, and would.
-- **Crowds of small parts.** Thinning and enlarging is the published rule and ships (the hair of a game of 2024 at 60
-  frames a second; AMD's tree sample, which stops enlarging at five times). Its measured limit: with nine tenths
+- **Crowds of small parts.** Thinning and enlarging is the published rule and ships (the hair of MachineGames'
+  Indiana Jones at 60 frames a second; the tree sample of Kuth and others, which stops enlarging at five times). Its measured limit: with nine tenths
   removed it reaches 14.5 dB where as many quads, each placed to match the picture, reach 23.9 (Hasselgren and
   others, 2021).
   The better way for the far half is a stand-in for a group of parts, shaped by the group's own spread and
@@ -431,8 +434,9 @@ so.**
 - **One stick.** What a way loses is measured alike for all: the group as it is and as it would be, drawn from all
   round at the size on screen it would be used at; how far its outline is off, and how much a small patch differs in
   what it shows. Its light joins the stick with the solids. The same stick measures today's levels: that is how
-  "higher than today" is told. Nobody found measures a change of detail as a difference between pictures; the
-  published builders give each way an error as a length, which cannot tell "moved" from "gone" or "see-through".
+  "higher than today" is told. No published builder chooses by a difference between pictures: each gives a way its
+  error as a length, which cannot tell "moved" from "gone" or "see-through". (Pictures are used that way off line,
+  one asset at a time.)
 - **One rule to draw.** A group is drawn where its own error is under N pixels on screen and its stand-in's is not. N,
   in the pixels that are drawn, is the governor's first dial, under a ceiling; it moves before the pixel ratio does.
   A thing's triangles then follow its size on screen step by small step, not in a few leaps.
@@ -551,6 +555,9 @@ one made of ten thousand repeated parts, each part built once.
   inside and does not hand it out: stage 2 takes it out by a small change to its source, built by us, or reckons it
   afterwards. The probe's rougher places halved the largest jump and did not remove it.
 - Movers come after solids: bones are where Unreal's own version took longest.
+- Where the stress world misses a gate before a stage (its last record says: near the ground, 55.8 frames a second),
+  the stage must still be no worse there. Reaching the gate is then work of its own, named before the stage is
+  proposed, not hidden in it.
 
 **Out of scope**
 
@@ -579,8 +586,8 @@ one made of ten thousand repeated parts, each part built once.
       2026-11-16; the second report is from them)
 - [ ] Before any stage: today's numbers written down as the line to hold (checks 6 and 7): the bench's views and the
       stress world's walk and zoom, GPU time, packing, the slowest frames, memory and start; and Samuel's Safari with
-      the canvas at the screen's own ratio. The stress world's numbers in the repository are of 2026-11-13, at a pixel
-      ratio of 1
+      the canvas at the screen's own ratio. The stress world's numbers in the repository are of 2026-11-13. The second
+      report lists nine measurements in order; its first five need nothing of the new method
 - [ ] Stage 1: the stick, the builder, and the plants on them
 - [ ] Stage 2: solids
 - [ ] Stage 3: made things, and thin loose parts
@@ -626,7 +633,9 @@ one made of ten thousand repeated parts, each part built once.
 - **Asked:** that the quality of the new method be higher, and that it be fully generic, for any kind of future
   asset; and to be asked for the hosts the research needs.
 - **Delivered:** the hosts asked for, and 17 opened by Samuel. A second round of research from the originals, in five
-  threads, with its notes and its report. A script that is one builder told nothing and one stick, run on the
+  threads, with its notes and its report (`reports/Generic automatic detail of higher quality.md`: no published
+  method meets any of the four demands as stated; six parts such a method must have; nine things to measure, in
+  order). A script that is one builder told nothing and one stick, run on the
   boulder, the tent, the oak, the pine and the mastic, with today's levels read on the same stick; its note, its
   outputs and two pictures. The definition written anew: one builder, one stick, "higher than today" a check that
   must pass.
@@ -634,8 +643,7 @@ one made of ten thousand repeated parts, each part built once.
   average and in 20 by outline. With today's triangles spread by size, a patch is off by less over all sizes for
   every plant and the boulder. The far ends keep their size: the oak's 91 and 92 % where today's far body and speck
   are 66 and 42 %. The originals confirmed the first round's main lines and corrected several of its figures. Found:
-  nobody measures a change of detail as a difference between pictures; three.js ships its own cluster drawer since
-  0.187.
+  no published builder chooses by a difference between pictures; three.js ships its own cluster drawer since 0.187.
 - **Broke / not there yet:** "Higher than today" is not shown as its check asks: the builder reads worse than today's
   level at a few sizes (oak 2 of 16, mastic 1 of 14, boulder 1 of 16, tent 4 of 14), and the tent's hand-made first
   level keeps its ropes better. The stick was wrong three times in ways only its pictures showed (the wood made
@@ -656,7 +664,8 @@ one made of ten thousand repeated parts, each part built once.
   and name what arrives late as their visible loss. Read in the stress world's code: eight kinds can hold their full
   mesh at once today; by groups a near thing would hold only what its size on screen asks for.
 - **Broke / not there yet:** None of it is shown. No walk, no zoom and no frame of the stress world was drawn for
-  this. Moving vertices inside a hierarchy is half-proven by one probe on one boulder. Nothing was tried on bones.
+  this. The stress world's own last record (2026-11-13) says it did not hold 60 frames a second near the ground in
+  Samuel's Safari; what it holds today is not known here. Moving vertices inside a hierarchy is half-proven by one probe on one boulder. Nothing was tried on bones.
   How fast the wheel can move the height, the quickest zoom a check must hold, was not measured.
 
 ## Trail
