@@ -1,10 +1,10 @@
 ---
 id: "0035"
 title: One measure for everything
-state: build              # idea | define | build | propose | story | archived
+state: propose            # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-16
-story:
+story: Stories/0035-one-measure-for-everything/
 ---
 
 # 0035 · One measure for everything
@@ -156,6 +156,57 @@ the walker walks 3.2 m a second, about twice a person's pace.
 
 ## Propose
 
+**Delivered** (branch `feat/lens-and-scale-defined`, pull request #24):
+
+- `TheGame/world/scale.js`: the measure, with its sources.
+- `TheGame/tools/scale.js`: the run, `bun tools/scale.js` (and `tools/glob.js`, Vite's globs for Bun); a step of CI.
+- The recipes and the walker reading it, and four things set right: the walker's eyes, the tent's door, the rockrose,
+  the reeds (and the walker's knee, shin and shoulder).
+- The lineup: the library's first asset, `library.html?lineup=1`.
+- The story: [`Stories/0035-one-measure-for-everything`](../Stories/0035-one-measure-for-everything/story.md).
+
+**Checks** (headless Chromium, WebGPU on SwiftShader; main `c8257cd` against this branch):
+
+| # | Check | Result |
+| --- | --- | --- |
+| 1 | Every asset and the person have a source | **Passed.** Every recipe of the registry (14 assets, the Settler) has its measure and its sources; the run's table below. What no source was found for says so (`own`) |
+| 2 | Everything within its tolerance | **Passed, two known out.** 13 of 15 within their measure; the stones and the boulders are out (drawn about twice their size: Build), said in the measure as `known`, shown by every run, not failing it |
+| 3 | A wrong size is caught | **Passed.** Three tries, each put back after: the mastic's scale pushed to 2–3 (a middling bush 4.1 m): exit 1; the camera's eye at 1.7 m again: exit 1; the flame's measure taken out: exit 1 ("no measure") |
+| 4 | The relations, seen | **Passed.** The lineup from the walker's eyes, 14 m off the Settler: the tent, the fire pit with its seats and flame, the Settler, bracken, rockrose, dead wood, moss and stones at their sizes, the gold line on the horizon; and from 76 m back, all of it with the two trees at the ends |
+| 5 | Nothing changed that was right | **Passed.** Every asset built before and after and hashed, at every level and shape: the same to the byte but the tent's three nearer levels and its solid (the door), and the rockrose's and the reeds' placement (their meshes the same). The game as it starts: the camera 1.700 m over the ground on main, 1.629 m here, the door narrower and lower. The pine wood's floor from 1.6 m, the same camera on both: 407 pixels of 518 400 differ by more than 8 in 255 |
+| 6 | The gates | **Passed.** The game as it starts (the walker's view by the tent, 480 × 270, the governor free), three runs each: frame medians 2538 to 2577 ms on main, 2551 to 2571 here; 95th percentiles 2653 to 3043 against 2635 to 2683; the GPU's own time of the picture 2358 to 2427 ms against 2330 to 2358, of the shadow pass 194 to 250 against 189 to 199; the same draws (27 in the shadow pass, 170 in the picture). The canvas at the screen's own ratio and the inside at 1 on both (the governor does not count SwiftShader's frames of seconds). `vite build` of the game and the dashboard: CI's "Build both sites for next" on this branch's head, passed; the run itself, a step of the same CI, passed in 3.6 s. Not timed: the reeds, a quarter taller, by the lakes (no lake in a timed view) |
+
+The run on this branch:
+
+| Thing | By | Drawn: least, middle, most (m) | Real: typical (most) | |
+| --- | --- | --- | --- | --- |
+| Bell tent | height | 3.18 | 3 to 3.3 (3.4) | ✓ |
+| Boulders | across | 1.22, 2.84, 11.94 | 0.512 to 2.048 (8.2) | known out |
+| Bracken | height | 0.79, 1.34, 2.15 | 1 to 2 (5) | ✓ |
+| Dead wood | height | 0.08, 0.19, 0.37 | 0.05 to 0.5 (0.6), its own | ✓ |
+| Fire pit | height | 0.465 | 0.4 to 0.5 (0.6) | ✓ |
+| Flame | height | 0.93 | 0.5 to 1.2 (1.5), its own | ✓ |
+| Grass | height | 0.29, 0.55, 1.28 | 0.3 to 1.2 (1.5) | ✓ |
+| Holm oak | height | 0.16, 20.59, 24.18 | 12 to 25 (25) | ✓ |
+| Mastic | height | 0.45, 1.20, 2.49 | 1 to 4 (8) | ✓ |
+| Moss cushion | height | 0.04, 0.11, 0.20 | 0.05 to 0.15 (0.3) | ✓ |
+| Reeds | height | 1.55, 2.28, 3.41 (before: 1.21, 1.81, 2.75) | 2 to 4 (6) | ✓ |
+| Rockrose | height | 0.36, 0.59, 0.94 (before: 0.41, 0.84, 1.51) | 0.3 to 1 (1) | ✓ |
+| Stone pine | height | 0.33, 19.34, 21.86 | 12 to 20 (25) | ✓ |
+| Stones | across | 0.12, 0.29, 1.42 | 0.064 to 0.256 (1.02) | known out |
+| Settler | height | 1.752 (feet to hair) | 1.6 to 1.8 (2) | ✓ |
+| The walker | eyes | 1.629 (before 1.7) | the person's: 0.936 × 1.74 | ✓ |
+
+**Known gaps**
+
+- The stones and boulders: drawn about twice their recipes' size; Samuel's choice (Build).
+- Not seen on Samuel's iPhone, nor in Safari or on a real GPU.
+- The person's measures are written here with the same sources and numbers as intent 0033's tables, which are not
+  merged yet (`characters/kit/measures.js` on its branch): once they are, one should read the other.
+- The lineup is the library's: a tree at seventy and a bush at its own size, not each at its middle; the reeds, the
+  mastic and the trees are small in the frame that holds them all.
+- A sapling's stages and far levels stand taller than its curve (Build); the walker's pace is not a size.
+
 ## Story
 
 ## Archived
@@ -166,7 +217,7 @@ the walker walks 3.2 m a second, about twice a person's pace.
 
 - [x] Samuel: is this what he meant; approve or change the definition ("do make 35")
 - [ ] Agree with intent 0033 where the reference body's numbers live (the same numbers in both for now)
-- [ ] Build, check, propose (built; the checks being run)
+- [x] Build, check, propose
 - [ ] Samuel: the stones and boulders, drawn about twice their size: set right (halved) or kept
 - [ ] The walker's eyes from your own avatar's height, not the reference person's
 - [ ] A sapling's youngest stage built to its own curve; its far levels at its near level's height
@@ -189,7 +240,7 @@ the walker walks 3.2 m a second, about twice a person's pace.
   sources; the tent, the fire pit, the flame, both trees, the Settler, the camera and what is solid reading it; the run
   (`bun tools/scale.js`), in CI; the lineup in the library; set right: the walker's eyes (1.7 → 1.629 m), the tent's
   door (2.05 → 1.8 m high, 1.76 → 1.32 m wide), the rockrose (to 1.51 → to 0.94 m), the reeds (a middling clump
-  1.81 → 2.28 m), the walker's knee, shin and shoulder.
+  1.81 → 2.28 m), the walker's knee, shin and shoulder. The story.
 - **Good:** every asset and the Settler build in Bun in five and a half seconds; what should not change is the same to
   the byte.
 - **Broke / not there yet:** the stones and boulders are drawn about twice the size their recipes say: found, not set

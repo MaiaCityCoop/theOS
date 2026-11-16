@@ -1,0 +1,271 @@
+{
+ "intent": "0035",
+ "title": "One measure for everything",
+ "day": null,
+ "inGame": null,
+ "goals": [
+  [
+   "One measure: every asset, the walker and the person, each with its sources",
+   true
+  ],
+  [
+   "Every asset built and measured against it, on every change (CI)",
+   true
+  ],
+  [
+   "What was off, set right: the walker's eyes, the tent's door, the rockrose, the reeds",
+   true
+  ],
+  [
+   "The lineup in the library: everything at its true size, beside the Settler",
+   true
+  ],
+  [
+   "Stones and boulders drawn twice their size: Samuel's choice",
+   false
+  ]
+ ],
+ "preview": {
+  "pos": [
+   -1264.0,
+   -5.44,
+   617.07
+  ],
+  "look": [
+   -1262.6,
+   -6.0,
+   631.0
+  ],
+  "mm": 35
+ },
+ "clips": [
+  {
+   "name": "From your eyes",
+   "kind": "wide",
+   "secs": 15,
+   "ease": "in",
+   "in": "dip",
+   "inSecs": 1.4,
+   "hour": 11,
+   "clouds": 0,
+   "why": "the game as it starts, from the walker's eyes, now the person's: 1.63 m over the ground, the tent and its fire ahead",
+   "keys": [
+    {
+     "pos": [
+      -1264.0,
+      -5.44,
+      617.07
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1263.8,
+      -5.45,
+      619.06
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    }
+   ]
+  },
+  {
+   "name": "The door",
+   "kind": "push in",
+   "secs": 12,
+   "ease": "out",
+   "in": "cut",
+   "why": "towards the tent's door, at the walker's eyes: 1.8 m high and 1.32 m wide now, as a real 5 m bell tent's",
+   "keys": [
+    {
+     "pos": [
+      -1263.4,
+      -5.46,
+      623.04
+     ],
+     "look": [
+      -1262.85,
+      -5.98,
+      628.51
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1263.05,
+      -5.46,
+      626.52
+     ],
+     "look": [
+      -1262.85,
+      -5.98,
+      628.51
+     ],
+     "mm": 35
+    }
+   ]
+  },
+  {
+   "name": "The pine wood's floor",
+   "kind": "pan",
+   "secs": 10,
+   "ease": "inout",
+   "in": "cut",
+   "why": "the understory under the stone pines, where the rockroses now stand knee to hip, as their species grows",
+   "keys": [
+    {
+     "pos": [
+      -1374.0,
+      -9.22,
+      622.3
+     ],
+     "look": [
+      -1389.0,
+      -10.89,
+      627.3
+     ],
+     "mm": 28
+    },
+    {
+     "pos": [
+      -1377.0,
+      -9.28,
+      619.3
+     ],
+     "look": [
+      -1391.0,
+      -10.79,
+      629.3
+     ],
+     "mm": 28
+    }
+   ]
+  },
+  {
+   "name": "The tent again",
+   "kind": "pull back",
+   "secs": 11,
+   "ease": "inout",
+   "in": "cut",
+   "why": "back from the tent and up: the stones of the meadow round it, the ones still drawn twice their size",
+   "keys": [
+    {
+     "pos": [
+      -1264.0,
+      -5.44,
+      617.07
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1264.4,
+      -3.07,
+      613.09
+     ],
+     "look": [
+      -1262.6,
+      -6.2,
+      631.0
+     ],
+     "mm": 35
+    }
+   ]
+  }
+ ],
+ "captions": [
+  {
+   "at": 0.6,
+   "for": 3.6,
+   "kind": "title",
+   "over": "One measure for everything",
+   "text": "Everything its own size"
+  },
+  {
+   "at": 4.4,
+   "for": 3.4,
+   "kind": "samuel",
+   "text": "Can you create a universal SSOT scale src for every asset"
+  },
+  {
+   "at": 7.9,
+   "for": 3.2,
+   "kind": "samuel",
+   "text": "to have proper sizing also in relation to each other."
+  },
+  {
+   "at": 11.2,
+   "for": 2.8,
+   "kind": "samuel",
+   "text": "So every asset is measured against its source."
+  },
+  {
+   "at": 15.4,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "Your eyes stood at 1.7 metres: a taller person's."
+  },
+  {
+   "at": 18.6,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "The Settler's are at 1.63. Now so are yours."
+  },
+  {
+   "at": 21.8,
+   "for": 3.2,
+   "kind": "maia",
+   "text": "A 5 m bell tent's door: 1.8 metres. Ours was 2.05."
+  },
+  {
+   "at": 27.4,
+   "for": 2.8,
+   "kind": "maia",
+   "text": "Every bush held to its species."
+  },
+  {
+   "at": 30.4,
+   "for": 3.2,
+   "kind": "maia",
+   "text": "The rockrose grew past a metre. Now knee to hip."
+  },
+  {
+   "at": 33.8,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "Each thing with its source, measured on every change."
+  },
+  {
+   "at": 37.6,
+   "for": 3.2,
+   "kind": "maia",
+   "text": "The stones are drawn twice the size they say."
+  },
+  {
+   "at": 41.0,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "Halving them is yours to choose."
+  },
+  {
+   "at": 44.4,
+   "for": 3.2,
+   "kind": "note",
+   "text": "13 of 15 within their measure. Not yet seen on a phone."
+  }
+ ]
+}
