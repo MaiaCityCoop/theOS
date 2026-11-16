@@ -57,6 +57,12 @@ _A draft: which schedule is Samuel's to choose. Not built before he does._
   × 1.6), wider going up to 16 mm.
 - **C, today's angles kept**, named as the kit's lenses (18 to 33 mm), and the anamorphic look brought to the walker
   another way (the film camera's framing, its barrel distortion).
+- **D, recommended (asked "what makes lens wise sense?"):** wide at the eyes, longer going up, the reverse of A, as
+  today's rig already is: 28 mm at the eyes (the kit's widest: 74° across a desktop), 35 mm over the town and the
+  skyline (about today's 33 mm at the top). 50 mm stays the films' and the close-ups'; 16 mm fits no band. On an
+  upright phone 28 mm shows 22° across against today's 34.5°, so the lens opens wider on a tall screen; and the detail
+  costs about 1.6 times at the eyes unless the governor's ranges are measured again for the new lens. Tried behind
+  `?lens=` first, against the 60 frames a second.
 
 **Deliverables** (whichever is chosen)
 
@@ -91,7 +97,7 @@ _A draft: which schedule is Samuel's to choose. Not built before he does._
 
 ## Todo
 
-- [ ] Samuel chooses A, B or C (or another schedule)
+- [ ] Samuel chooses A, B, C or D (or another schedule); D recommended, "go" builds it
 - [ ] Build, check, propose
 
 ## Changelog
@@ -103,6 +109,14 @@ _A draft: which schedule is Samuel's to choose. Not built before he does._
   show and cost, three schedules to choose from.
 - **Good:** the film kit's lens model gives both in one measure.
 - **Broke / not there yet:** nothing built; Samuel's choice first.
+
+### 2026-11-16 (2)
+
+- **Asked:** "What makes lens wise sense?"
+- **Delivered:** an answer, written into Define as schedule D: 28 mm at the eyes, 35 mm high up, wider on a tall
+  screen, `?lens=` first; 50 mm for the films, 16 mm for no band.
+- **Good:** the film kit's one lens model answers both the picture and the cost.
+- **Broke / not there yet:** nothing built; Samuel's "go" first.
 
 ## Trail
 
