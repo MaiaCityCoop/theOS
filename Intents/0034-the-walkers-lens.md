@@ -108,3 +108,5 @@ _A draft: which schedule is Samuel's to choose. Not built before he does._
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-16 | `58cf67c` | the intent opened and defined: today's lens as focal lengths, three schedules to choose from |
+| 2026-11-16 | `5bb42ef` | two long lines folded |

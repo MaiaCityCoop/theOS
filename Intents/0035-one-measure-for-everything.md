@@ -107,3 +107,5 @@ _A draft for Samuel to approve or change. Not built before._
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-16 | `58cf67c` | the intent opened and defined: every size the code holds and where, one measure with its sources |
+| 2026-11-16 | `5bb42ef` | two long lines folded |
