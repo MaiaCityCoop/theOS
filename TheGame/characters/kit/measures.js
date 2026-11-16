@@ -5,13 +5,17 @@
 // Lengths are millimetres as published, or shares of stature where the source gives shares. A body is made by
 // mixing the female and male columns by the avatar's `sex` (0 … 1), scaling to its height, and moving the result by its
 // age and build (AGE, BUILD).
+import { PERSON } from '../../world/scale.js';
 
 /** Segment lengths as shares of stature (unisex): Drillis & Contini, "Body segment parameters" (1966), as reproduced
- *  in D. A. Winter, "Biomechanics and Motor Control of Human Movement" (4th ed., 2009), fig. 4.1. */
+ *  in D. A. Winter, "Biomechanics and Motor Control of Human Movement" (4th ed., 2009), fig. 4.1. Where the eyes, the
+ *  shoulders, the hip, the knee and the ankle stand is the reference body's (world/scale.js, PERSON.shares: the one
+ *  copy of those five); the rest of the figure's shares are kept here. */
+const { eye, shoulder, hip, knee, ankle } = PERSON.shares;
 export const SEGMENTS = {
   source: 'Drillis & Contini 1966, in Winter 2009, fig. 4.1',
-  eye: 0.936, chin: 0.870, shoulder: 0.818, chest: 0.720, elbow: 0.630, hip: 0.530, wrist: 0.485, fingertip: 0.377,
-  knee: 0.285, ankle: 0.039, upperArm: 0.186, foreArm: 0.146, hand: 0.108, thigh: 0.245, shank: 0.246, foot: 0.152,
+  eye, chin: 0.870, shoulder, chest: 0.720, elbow: 0.630, hip, wrist: 0.485, fingertip: 0.377,
+  knee, ankle, upperArm: 0.186, foreArm: 0.146, hand: 0.108, thigh: 0.245, shank: 0.246, foot: 0.152,
   footBreadth: 0.055, head: 0.130,
 };
 
