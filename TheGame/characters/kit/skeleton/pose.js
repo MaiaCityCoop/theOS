@@ -14,6 +14,7 @@
 import { JOINTS, FINGERS, fingerJoints } from './rig.js';
 import { VERTEBRAE, vertebraFrame, SACRAL_BASE, ATLAS } from './spine.js';
 import { bladeFrame } from './arm.js';
+import { toeJoints } from './foot.js';
 
 const SIDES = [['L', 1], ['R', -1]];
 
@@ -33,7 +34,8 @@ export function rigBoneOf(id) {
   if (/^(scaphoid|lunate|triquetrum|pisiform|trapezium|trapezoid|capitate|hamate|metacarpal[2-5])$/.test(n)) return 'hand' + S;
   if (/^(thumb|index|middle|ring|little)[1-3]$/.test(n)) return n + S;
   if (/^(talus|calcaneus|navicular|cuboid|cuneiform\d|metatarsal\d)$/.test(n)) return 'foot' + S;
-  if (/^(toe\d[abc]|sesamoid\d)$/.test(n)) return 'toes' + S;
+  if (/^toe\d[abc]$/.test(n)) return 'toe' + n[3] + S;
+  if (/^sesamoid\d$/.test(n)) return 'foot' + S;
   return 'hips';
 }
 
@@ -72,7 +74,8 @@ export function rigOf() {
     R[B('shin')] = { at: J('shin'), parent: B('thigh'), axis: [1, 0, 0] };
     R[B('patella')] = { at: J('shin'), parent: B('thigh'), axis: [1, 0, 0] };
     R[B('foot')] = { at: J('foot'), parent: B('shin'), axis: M(LEG.ankleAxis) };
-    R[B('toes')] = { at: J('toes'), parent: B('foot'), axis: M(LEG.toesAxis) };
+    const TJ = toeJoints();   // each toe turns at its own knuckle, about the line across the foot
+    for (let i = 0; i < 5; i++) R[B('toe' + (i + 1))] = { at: M(TJ.at[i]), parent: B('foot'), axis: M(TJ.axis) };
   }
   return R;
 }
@@ -85,7 +88,7 @@ const ARM = (() => {
   const F = (x, y, z) => [0, 1, 2].map((i) => E[i] + fx[i] * x + fy[i] * y + fz[i] * z); void dot;
   return { ac: B.p(0.0165, 0.0445, 0.0085), elbowAxis: nrm([0, 1, 2].map((i) => hx[i] + 0.1 * hy[i])), radialHead: F(0.0165, -0.0158, 0.0045), ulnarHead: F(0.002, -L + 0.0078, -0.018) };
 })();
-const LEG = { ankleAxis: [1, -0.14, -0.1], toesAxis: [1, 0, -0.28] };
+const LEG = { ankleAxis: [1, -0.14, -0.1] };
 
 function dif(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
 function nrm(a) { const l = Math.hypot(...a) || 1; return a.map((v) => v / l); }
@@ -155,7 +158,7 @@ export function turnsOf(m = {}) {
     // sinks into the groove between the condyles as the knee bends)
     if (k) { T[B('shin')] = { angle: k }; T[B('patella')] = { angle: k * 0.62, shift: [0, -0.004 * Math.min(1, k / 1.2), -0.013 * Math.min(1, k / 1.2)] }; }
     if (m[B('ankle')]) T[B('foot')] = { angle: -g * m[B('ankle')] };
-    if (m[B('toes')]) T[B('toes')] = { angle: -g * m[B('toes')] };
+    if (m[B('toes')]) for (let i = 1; i <= 5; i++) T[B('toe' + i)] = { angle: -g * m[B('toes')] };
   }
   return T;
 }

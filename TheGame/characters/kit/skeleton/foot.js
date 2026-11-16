@@ -91,6 +91,10 @@ const MT = [
   [[0.0245, 0.039, 0.068], [0.027, 0.0152, 0.133], [0.0072, 0.0082], [0.004, 0.0044], [0.0056, 0.0064]],
   [[0.037, 0.03, 0.066], [0.041, 0.0148, 0.121], [0.0075, 0.007], [0.0042, 0.0042], [0.0054, 0.006]],
 ];
+/** Where each toe turns: the middle of its metatarsal's head (left foot, the reference man's metres), and the way
+ *  across the foot (the toes' hinge). */
+export const toeJoints = () => ({ at: MT.map(([, h]) => Q(...h)), axis: across() });
+
 function metatarsals(K, side) {
   MT.forEach(([b, h, [bw, bh], [sw, sh], [hw, hh]], i) => {
     K.bone(`metatarsal${i + 1}.${side}`, 'foot.' + side);

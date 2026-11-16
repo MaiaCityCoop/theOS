@@ -2,8 +2,9 @@
 // every point written for the man of reference and for the left side; the kit carries them to the body being made
 // (K.X, K.s) and mirrors them for the right.
 //
-//   K.bone(id, rig, part)      begin a bone: `id` its own name ('femur.L', 'T7', 'tooth.U3.R'), `rig` the rig's bone
-//                              that carries it; every solid after it is part of it, blended only with its own
+//   K.bone(id, rig, part)      begin a bone: `id` its own name ('femur.L', 'T7', 'tooth.U3.R'); every solid after it
+//                              is part of it, blended only with its own (`rig`: the bone of the few-jointed first rig it
+//                              was laid on; the rig that carries it is told from its name: ./pose.js)
 //   K.put(solid, k)            add a solid, blended over k metres;  K.cut(solid, k) carve it out;  K.and(solid, k) keep
 //                              only what lies inside it
 //   K.ball, egg, rod, box, ring, strand, loft, plate, plane, group     the solids of ../field.js, given in the reference
@@ -82,20 +83,6 @@ export function kitOf(X = (p) => p) {
         K.put(K.strand(pts[i], pts[i + 1], { w: (wa + wb) / 2, d: (da + db) / 2, t0: [wa, da], t1: [wb, db], out: typeof out === 'function' ? out(lerp(pts[i], pts[i + 1], 0.5)) : out }), k, part);
       }
       return K;
-    },
-    // (the first pass's bones, written before the kit: solids made by hand, put on a rig bone with no bone of their own)
-    legacy(module) {
-      const at = new Map(), on = (rig) => { if (!at.has(rig)) { const b = { id: `${module}:${rig}`, rig, part: PART.bone, ops: [] }; bones.push(b); at.set(rig, b); } return at.get(rig); };
-      const put = (rig, sol, k, part = PART.bone, op = 'add') => on(rig).ops.push({ op, s: sol, k: k * k1, part });
-      const along = (rig, pts, w0, d0, w1, d1, out, k = 0.0015, part = PART.bone) => {
-        const n = pts.length - 1;
-        for (let i = 0; i < n; i++) {
-          const a = X(pts[i]), b = X(pts[i + 1]), t0 = i / n, t1 = (i + 1) / n;
-          const wa = s(w0 + (w1 - w0) * t0), wb = s(w0 + (w1 - w0) * t1), da = s(d0 + (d1 - d0) * t0), db = s(d0 + (d1 - d0) * t1);
-          put(rig, F.strand(a, b, { w: (wa + wb) / 2, d: (da + db) / 2, t0: [wa, da], t1: [wb, db], out: out(lerp(pts[i], pts[i + 1], 0.5)) }), k, part);
-        }
-      };
-      return { put, along };
     },
   };
   return K;
