@@ -112,3 +112,4 @@ group is a candidate intent of its own; what is taken up, and in which order, is
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-16 | `9a8e050` | the inventory, 28 points in 8 groups |
