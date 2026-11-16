@@ -381,3 +381,4 @@ at most, 1.5 in the tail under one cluster). Checks 2 to 5 and 8 need the game's
 | 2026-11-16 | `a76da9d` | the intent opened with the answer; the research notes; the probes on our boulder, tent, oak and pine, their outputs and two pictures |
 | 2026-11-16 | `4439949` | today's levels of an oak, a pine and two shrubs measured and pictured; the boulder on a 4K screen; the definition, plants first |
 | 2026-11-16 | `db23cde` | the research report of the first round |
+| 2026-11-16 | `8c8bbb2` | Samuel's third message in the idea; four notes of the second research round, read from the originals |
