@@ -1,8 +1,10 @@
 // The measuring run (intent 0035): every asset and character of the registry built as the game builds it, stood as the
-// world stands it, and measured against what a real one measures (world/scale.js). `bun tools/scale.js` prints, for
-// each thing, what the world draws of it (its least, its middle and its most, metres) beside what is real (typical,
-// most) and the source; it fails (exit 1) where anything is out of its range, or where a recipe has no measure. CI
-// runs it. `--json` prints the numbers instead of the table.
+// world stands it, and measured against what a real one measures: its own measure, in its own file (its recipe's
+// `measure`), read against the world's one scale (world/scale.js: its units, its rules, its tolerances, the reference
+// body). `bun tools/scale.js` prints, for each thing, what the world draws of it (its least, its middle and its most,
+// metres, and its middle in the reference body's heights) beside what is real (typical, most) and the source; it fails
+// (exit 1) where a measure breaks the scale's rules, where what is drawn is out of its measure, or where a recipe has no
+// measure. CI runs it. `--json` prints the numbers instead of the table.
 //
 // How a thing is stood as the world stands it:
 //   a plant of a stand (placement.engine 'trees': trees, bushes, what lies on the floor): each shape built at its nearest
@@ -24,7 +26,7 @@
 // than LEVELS is said.
 import './glob.js';
 const { recipe, manifest } = await import('../src/core/registry.js');   // (first, as the game does: the recipes import it back)
-const { THINGS, PERSON, WALKER } = await import('../world/scale.js');
+const { PERSON, WALKER, TOLERANCE, faultsOf } = await import('../world/scale.js');
 const RIG = (await import('../camera/rig.js')).default;
 const { FOOT, sizeAtOne } = await import('../src/scatter/trees.js');
 const { heightIn } = await import('../assets/kit/tree.js');
@@ -35,7 +37,7 @@ const { sizeOf } = await import('../assets/kinds.js');
 const THREE = await import('three/webgpu');
 const { texture } = await import('three/tsl');
 
-const LEVELS = 0.2;   // how far a level may stand from the nearest in height, a share of it
+const LEVELS = TOLERANCE.levels;   // how far a level may stand from the nearest in height, a share of it
 const mix = (a, b, t) => a + (b - a) * t, r3 = (x) => Math.round(x * 1000) / 1000;
 function bounds(pts) {   // pts: a flat array x, y, z, …
   const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
@@ -68,7 +70,7 @@ function measured(a) {
       });
       wide.push(near);
       const C = fam.collidersOf(v)[0], k = C ? C.r / reach : 0;   // its collider's round against the drawn rock's reach over the ground, both of its size
-      if (!(k >= 0.5 && k <= 1.05)) notes.push(`shape ${v}: what stops a walker reaches ${r3(k)} of how far it is drawn over the ground`);
+      if (!(k >= TOLERANCE.round[0] && k <= TOLERANCE.round[1])) notes.push(`shape ${v}: what stops a walker reaches ${r3(k)} of how far it is drawn over the ground`);
       (measured.round ??= []).push(k);
     }
     const [s0, s1] = a.size.length, mean = wide.reduce((s, x) => s + x, 0) / wide.length, out = measured.round.splice(0);
@@ -93,9 +95,9 @@ function measured(a) {
       G.stages.forEach((S) => {
         for (const age of [S.from, Math.sqrt(S.from * S.year), S.year, Math.sqrt(S.year * S.to), Math.min(S.to, 200)]) {
           const want = G.height(age), h = heightIn(S, age);
-          for (const v of of(S)) { const d = drawn(v, h); if (Math.abs(d - want) > 0.05 * want) fails.push(`a tree of ${r3(age)} years (shape ${v}) drawn ${r3(d)} m, its height by age ${r3(want)} m`); }
+          for (const v of of(S)) { const d = drawn(v, h); if (Math.abs(d - want) > TOLERANCE.growth * want) fails.push(`a tree of ${r3(age)} years (shape ${v}) drawn ${r3(d)} m, its height by age ${r3(want)} m`); }
           const t = G.at(age), lib = near[t.shape] * t.s;   // the library's tree of this age (the trees' engine: stage)
-          if (Math.abs(lib - want) > 0.05 * want) fails.push(`the library's tree of ${r3(age)} years ${r3(lib)} m, its height by age ${r3(want)} m`);
+          if (Math.abs(lib - want) > TOLERANCE.growth * want) fails.push(`the library's tree of ${r3(age)} years ${r3(lib)} m, its height by age ${r3(want)} m`);
         }
       });
       return { by: 'height', least: Math.min(...of(first).map((v) => drawn(v, first.hFrom * k0))) - FOOT, middle: Math.max(...of(last).map((v) => drawn(v, last.h))) - FOOT, most: Math.max(...of(last).map((v) => drawn(v, last.hTo * k1))) - FOOT, notes, fails };
@@ -115,14 +117,14 @@ function measured(a) {
 const rows = [], miss = [];
 for (const [uid, m] of Object.entries(manifest)) {
   if (m.type !== 'asset' && m.type !== 'character') continue;
-  const a = recipe(uid), S = THINGS[uid];
-  if (!S) { miss.push(`${m.name} (${m.file}): no measure in world/scale.js`); continue; }
+  const a = recipe(uid), S = a.measure;
+  if (!S) { miss.push(`${m.name} (${m.file}): no measure in its file`); continue; }
   const M = measured(a);
   if (!M) { miss.push(`${m.name} (${m.file}): not measurable here`); continue; }
-  const want = M.by === 'across' ? S.across : { typical: S.typical, most: S.most }, fails = [...(M.fails ?? [])];
+  const want = M.by === 'across' ? S.across : { typical: S.typical, most: S.most }, fails = [...faultsOf(S).map((f) => `its measure: ${f}`), ...(M.fails ?? [])];
   if (M.by === 'across' && S.size) {   // a rock is drawn at its size: its least and most as drawn, its lumps allowed for
-    if (M.least < S.size[0] * 0.8 - 1e-6) fails.push(`its least ${r3(M.least)} m is under its size's least ${S.size[0]} m`);
-    if (M.most > S.size[1] * 1.1 + 1e-6) fails.push(`its most ${r3(M.most)} m is over its size's most ${S.size[1]} m`);
+    if (M.least < S.size[0] * TOLERANCE.lumps[0] - 1e-6) fails.push(`its least ${r3(M.least)} m is under its size's least ${S.size[0]} m`);
+    if (M.most > S.size[1] * TOLERANCE.lumps[1] + 1e-6) fails.push(`its most ${r3(M.most)} m is over its size's most ${S.size[1]} m`);
   }
   if (want.typical && (M.middle < want.typical[0] - 1e-6 || M.middle > want.typical[1] + 1e-6)) fails.push(`its middle ${r3(M.middle)} m is not ${want.typical[0]} to ${want.typical[1]} m`);
   if (want.most != null && M.most > want.most + 1e-6) fails.push(`its most ${r3(M.most)} m is over ${want.most} m`);
@@ -136,9 +138,9 @@ if (Math.abs(RIG.eye - WALKER.eye) > 1e-9 || Math.abs(RIG.keys[0].h - WALKER.eye
 if (process.argv.includes('--json')) console.log(JSON.stringify({ rows, walker, miss, wfails }, null, 2));
 else {
   const pad = (s, n) => String(s).padEnd(n);
-  console.log(`${pad('thing', 16)}${pad('by', 8)}${pad('least', 8)}${pad('middle', 8)}${pad('most', 8)}${pad('real: typical', 15)}${pad('most', 7)}`);
+  console.log(`${pad('thing', 16)}${pad('by', 8)}${pad('least', 8)}${pad('middle', 8)}${pad('most', 8)}${pad('× person', 10)}${pad('real: typical', 15)}${pad('most', 7)}`);
   for (const r of rows) {
-    console.log(`${r.fails.length ? (r.known ? '!' : '✗') : '✓'} ${pad(r.name, 14)}${pad(r.by, 8)}${pad(r.least, 8)}${pad(r.middle, 8)}${pad(r.most, 8)}${pad(r.typical ? r.typical.join(' to ') : '', 15)}${pad(r.mostReal ?? '', 7)}${r.real}`);
+    console.log(`${r.fails.length ? (r.known ? '!' : '✗') : '✓'} ${pad(r.name, 14)}${pad(r.by, 8)}${pad(r.least, 8)}${pad(r.middle, 8)}${pad(r.most, 8)}${pad(r.by === 'height' ? (r.middle / PERSON.stature).toFixed(2) : '', 10)}${pad(r.typical ? r.typical.join(' to ') : '', 15)}${pad(r.mostReal ?? '', 7)}${r.real}`);
     if (r.round) console.log(`    what stops a walker: ${r.round.map(r3).join(' to ')} of how far it is drawn over the ground (its collider, by the same size)`);
     for (const f of r.fails) console.log(`    out: ${f}`);
     if (r.known) console.log(`    known: ${r.known}`);
@@ -149,6 +151,6 @@ else {
   for (const m of miss) console.log(`✗ ${m}`);
   const bad = rows.filter((r) => r.fails.length && !r.known).length + miss.length + wfails.length, known = rows.filter((r) => r.known).length;
   console.log(bad ? `\n${bad} out of measure` : `\n${rows.length - known} of ${rows.length} within their measure`);
-  if (known) console.log(`${known} known out of measure (said in world/scale.js, to be set right): ${rows.filter((r) => r.known).map((r) => r.name).join(', ')}`);
+  if (known) console.log(`${known} known out of measure (said in their measures, to be set right): ${rows.filter((r) => r.known).map((r) => r.name).join(', ')}`);
 }
 process.exit(rows.some((r) => r.fails.length && !r.known) || miss.length || wfails.length ? 1 : 0);

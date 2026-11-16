@@ -25,6 +25,13 @@ export default tree({
   name: 'Reeds',
   kind: 'shrub',
   about: "A clump of common reed in a lake's shallows: tall narrow leaves and stems a man's height and more, feathery plumes over them.",
+  // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
+  measure: {
+    real: 'Phragmites australis, common reed',
+    typical: [2, 4],
+    most: 6,
+    source: ['RHS (Phragmites australis): 2.5 to 4 m; Wikipedia: stems 2 to 6 m, the tallest where summers are hot; native stands lower than the invasive (Invasive Species Centre, Ontario: to 5 m)'],
+  },
   colours: { wood: woodCol, leaves: leafCol },
   materials: { wood: 'bf97f33b-56bd-4df4-89ba-949e77ce8c27' /* pine bark */, leaves: '307376d9-da36-4388-8c5a-8cfb308ee312' /* reed clump */ },
   foliage: { wrap: 0.5, through: 0.7, flutter: 1.2 },
