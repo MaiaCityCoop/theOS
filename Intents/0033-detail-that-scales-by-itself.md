@@ -629,6 +629,42 @@ on the builder in the world and the library behind an address flag, main's look 
   One reading of a software GPU, not a GPU time; the stress world, Safari and the phone were not measured. That is why
   the default stays main's: it is not shown to be no worse.
 
+### Stage 1: what is submitted brought down to what shows (2026-11-16, third session)
+
+Asked by the coordinator after #25 was merged: cut what is submitted down to what shows, time it against main, and
+make it the default when it is at least as fast and looks at least as good.
+
+- **Where it went, read level by level** (`__plants.submitted()` by the tent): most of the excess was in the far
+  levels, not the near ones. At 7 to 18 px a plant submitted 93 vertices where main's far body has 22, at 3 to 7 px 28
+  where main's speck has 6: every far body whose turning touched a band was in its level, with the post, and small
+  shapes (saplings) still had cards there. Then the middle levels, and the shrubs, whose band is 8.75 times wide.
+- **The far body by 18 px at the latest** (`CROWD.FAR`), and the bodies turning at 24 to 18 and 9 to 7 px, where
+  today's tree bands end: a far level now holds one body (12 to 20 vertices; a speck 6). Every body's range is half
+  open, as a level's band (the CPU check found the one size, 18 px exactly, where it was not).
+- **Bands cut where they can hold cards** (`LOD.SPLIT`, 2 by default): a band above FAR is cut into bands no wider
+  than twice. The far bands are not cut: there it only packed plants twice where two levels meet. A plant's levels
+  are now reckoned when asked, not when its file is read: the flag is set after.
+- **A stand that changes level as one** (the shrubs, 3.5 m) tells the workers its size: a level is built for the
+  largest a plant can be by its own size. (For the mastic this changed nothing: it is whole at the top of its band
+  either way; the cut bands did it.)
+- **CARD 30** by default (24 before): the near and middle levels submit about what main's do.
+
+Submitted, all plants, `?lod=new` against main (Chromium here, WebGPU on SwiftShader):
+
+| view | main | before | now |
+| --- | --- | --- | --- |
+| by the tent | 384k | 0.88M to 0.96M | 446k (1.16 x) |
+| river bend, 26 m | 602k | 1.17M | 546k (0.91 x) |
+
+Frame time, the bench's frame (`tools/bench.js`, ratio 1, 640 x 360, three frames, wall time), two pairs run in
+opposite order: by the tent main 8 410 and 8 425 ms, `?lod=new` 8 583 and 8 564 ms (2 % slower); at the river bend
+main 6 781 and 6 903 ms, `?lod=new` 7 065 and 7 125 ms (3 to 4 % slower). Fewer vertices there and still slower: the
+rule's own reading (four elements a vertex for its shape's numbers), and more tiers and draws (the oak 10 levels for
+7, the mastic 6 for 3). Stills beside main: by the tent and in the pine forest about the same; from 90 m the far
+canopy softer and more even than main's, which keeps more of its crowns' detail and gaps.
+
+So it is **not yet the default**: about as fast, not at least as fast, and not shown to look at least as good.
+
 ## Propose
 
 ## Story
@@ -655,8 +691,11 @@ on the builder in the world and the library behind an address flag, main's look 
   - [x] the builder as a module (`assets/kit/crowd.js`)
   - [x] the rule in the library and in the world, behind `?lod=new` (not yet held to the measure)
   - [ ] Samuel: look at `?lod=new` on next, by the tent, in the pine forest, from 90 m, and in the library
-  - [ ] what is submitted brought down to what shows: a crowd level per half of today's bands, or runs of cards in the
-        drawer; then the frame times by the tent and in the stress world against main
+  - [x] what is submitted brought down towards what shows: the far body by 18 px, one body a far level, bands cut
+        where they hold cards, CARD 30 (1.16 x main by the tent, 0.91 x at the river bend)
+  - [ ] the last few per cent: the shape's numbers read once a plant, not once a vertex (or kept in the kinds' table),
+        and fewer tiers; then the frame times again, and in the stress world
+  - [ ] the far canopy from 90 m as detailed as main's (the far body sooner than main's: FAR 18 with CARD 30)
   - [ ] a card's cut-out reckoned by how much of it is leaves, so a card can show more of its painting (`?spread=1`)
         without turning solid far off
   - [ ] the drawer: runs of cards, the hull's ring
@@ -761,6 +800,21 @@ on the builder in the world and the library behind an address flag, main's look 
   Chromium's own shell lost its device on the first frame shown; full Chromium with Vulkan on SwiftShader draws, at
   about 40 s a still. One timing run was cut off by the container's restart.
 
+### 2026-11-16 (6)
+
+- **Asked:** (the coordinator, after #25 was merged and put on next) cut what is submitted down to what shows, time it
+  against main, and make `?lod=new` the default when it is at least as fast and looks at least as good.
+- **Delivered:** the far levels hold one far body each, and the far body takes over by 18 px at the latest; the bands
+  that can hold cards cut into bands no wider than twice; a stand's size told to the workers; CARD 30. On a new branch
+  from main.
+- **Good:** All plants' submitted vertices by the tent from 0.88 to 0.96M down to 446k (main 384k), at the river bend
+  from 1.17M to 546k (main 602k). The CPU check over every plant asset still finds nothing the rule shows missing from
+  its level.
+- **Broke / not there yet:** Still 2 % slower by the tent and 3 to 4 % at the river bend, in two pairs of runs on the
+  software GPU here. From 90 m the far canopy is softer than main's. So the default stays main's. Not measured: GPU
+  time, the stress world, Safari, a phone. One commit message of mine gave the earlier counts wrong (1.03M and 1.13M);
+  it was corrected before any pull request.
+
 ## Trail
 
 | When | Commit | What |
@@ -779,3 +833,4 @@ on the builder in the world and the library behind an address flag, main's look 
 | 2026-11-16 | `8df36a7` | main merged in: the lens, every asset's measure, the person's shadows, the skeleton |
 | 2026-11-16 | `788c07c` | the plants on the crowd kit behind `?lod=new`: levels as first shares of one build, the rule in the vertex stage, rooms, the library's plant |
 | 2026-11-16 | `4a880b9` | the library's crowd plant in seven vertex buffers |
+| 2026-11-16 | `f55b39d` | what the plants submit brought down: one far body a far level by 18 px, bands cut where they hold cards, a stand's size to the workers, CARD 30 |
