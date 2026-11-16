@@ -17,10 +17,14 @@
 // The skin: tubes laid along the body (the trunk and head, each arm, each leg, each foot, each hand, the ears, the
 // nose), a ring every 8 mm, the weave of the cloth running along them so it never seams. What is worn where is
 // told in the fragment stage from each point's place at rest (shirt, belt, trousers, shoes, skin, hair).
+// In the light (intent 0032): the person takes the shade every surface takes (the shadow map, the clouds, a storm's
+// dim: src/world/light.js), casts a shadow of their own (the casters' layer; drawn into the map pulled towards the
+// light, so the shadow meets their feet), and shades themselves where their body meets itself (capsulesOf).
 import * as THREE from 'three/webgpu';
-import { Fn, attribute, uv, positionWorld, normalWorld, uniform, float, vec2, vec3, normalize, max, pow, mix, smoothstep, clamp, abs, dFdx, dFdy, cross, dot, inverseSqrt, sin, cos, fract, length, sqrt, step, atan, sign, mx_noise_float } from 'three/tsl';
+import { Fn, If, Loop, attribute, uv, positionWorld, positionLocal, normalWorld, normalLocal, modelWorldMatrixInverse, uniform, uniformArray, varying, float, vec2, vec3, vec4, normalize, max, min, pow, mix, smoothstep, clamp, abs, dFdx, dFdy, cross, dot, inverseSqrt, sin, cos, fract, length, sqrt, step, atan, sign, mx_noise_float } from 'three/tsl';
 import { U } from '../../src/core/uniforms.js';
-import { finish, skyLight } from '../../src/world/light.js';
+import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull } from '../../src/world/light.js';
+import { CASTS } from '../../src/world/shadow.js';
 import { hash3, noise3 } from '../../assets/kit/blob.js';
 
 const PI = Math.PI, TAU = 2 * PI, TILE = 0.1;   // TILE: metres one tile of a worn material spans (uv is in tiles)
@@ -175,6 +179,62 @@ function body(M) {
   return { J, PARENT, NAMES, chains };
 }
 
+// ── where the body meets itself ────────────────────────────────────────────────────────────────────────────────────
+// Capsules round the bones, each a segment and a radius lying just inside the skin: the trunk as two (its left and
+// right halves, so its width is felt), the neck, the head, and each upper arm, forearm, hand, thigh, shin and foot.
+// Each end is a point at rest held by a bone, and moves with it (placed each step, in the mesh's own frame). The
+// person's own shader reads them at every vertex (occlusionOf): how much of the sky each hides there, and whether one
+// stands between it and the sun.
+function capsulesOf(M, J) {
+  const { H, leg, chest: ch, stout: st, head: hd } = M, C = [];
+  const cap = (ba, pa, bb, pb, r) => C.push({ a: { b: ba, p: pa }, b: { b: bb, p: pb }, r });
+  const lerp = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+  const xo = Math.max(0.035, 0.145 * ch - 0.093);   // the trunk's halves: as far out as its waist allows them
+  for (const s of [1, -1]) cap('hips', [s * xo, leg + 0.07, 0], 'chest', [s * xo, M.chestY + 0.04, 0.01], 0.088);
+  cap('chest', [0, M.neckY - 0.02, 0], 'head', [0, H * 0.875, 0.012], 0.04);
+  cap('head', [0, H * 0.9, 0.014], 'head', [0, H * 0.945, 0.008], 0.066 * hd);
+  for (const s of SIDES) {
+    const S0 = J['upperArm.' + s], E = J['foreArm.' + s], W = J['hand.' + s], Hp = J['thigh.' + s], K = J['shin.' + s], A = J['foot.' + s];
+    cap('upperArm.' + s, [S0[0], S0[1] - 0.03, S0[2]], 'foreArm.' + s, E, 0.043 * st);
+    cap('foreArm.' + s, E, 'foreArm.' + s, lerp(E, W, 0.75), 0.029 * st);
+    cap('hand.' + s, [W[0], W[1] - 0.03, W[2] + 0.004], 'hand.' + s, [W[0], W[1] - 0.11, W[2] + 0.008], 0.014);
+    cap('thigh.' + s, [Hp[0], Hp[1] - 0.04, Hp[2]], 'shin.' + s, K, 0.062 * st);
+    cap('shin.' + s, K, 'shin.' + s, [A[0], 0.13, A[2]], 0.055 * st);
+    cap('foot.' + s, [A[0], 0.055, -0.03], 'foot.' + s, [A[0], 0.04, 0.12], 0.03);
+  }
+  return C;
+}
+
+/** At this vertex (in the vertex stage, skinned, in the mesh's own frame): the share of the sky's light (x) and of the
+    sun's (y) that comes past the person's own body. The sky: each capsule as the sphere of it nearest the point, the
+    light it hides worked out exactly (Quilez's sphere occlusion; his approximation where the sphere stands across the
+    horizon) and doubled for the capsule's length, the shares multiplied. The sun: how near the way to the sun passes
+    each capsule's line, against its radius, with an edge that softens the farther off the capsule is; a capsule whose
+    line lies behind the surface (the limb the point is on, the far side of the body) hides no sun from it. Nothing is
+    worked out in the shadow map's pass. */
+const occlusionOf = (caps, count) => Fn(() => {
+  const res = vec2(1).toVar();
+  If(unlit().not(), () => {
+    const p = positionLocal, N = normalize(normalLocal), L = normalize(modelWorldMatrixInverse.mul(vec4(U.uSunDir, 0)).xyz);
+    const sky = float(1).toVar(), sun = float(1).toVar();
+    Loop(count, ({ i }) => {
+      const A = caps.element(i.mul(2)), a = A.xyz, r = A.w, ba = caps.element(i.mul(2).add(1)).xyz.sub(a), pa = p.sub(a), bb = max(dot(ba, ba), 1e-8);
+      // the sky: the capsule's sphere nearest the point
+      const c = a.add(ba.mul(clamp(dot(pa, ba).div(bb), 0, 1))), d = c.sub(p), l = max(length(d), 1e-4);
+      const nl = dot(N, d).div(l), k = l.div(r), k2 = k.mul(k), across = float(1).sub(k2.mul(nl).mul(nl)), q = nl.mul(k).add(1).div(k2);
+      const occ = across.greaterThan(0.001).select(q.mul(q).mul(0.33), max(nl, 0).div(k2));
+      sky.mulAssign(float(1).sub(clamp(occ.mul(2), 0, 1)));   // (twice the one sphere's: a limb's length hides two to three times as much sky from it as its nearest sphere would)
+      // the sun: the nearest the way to it (p + t L, t > 0) passes the capsule's line, and how far along it that is
+      const bl = dot(ba, L), pl = dot(pa, L), s = clamp(dot(pa, ba).sub(bl.mul(pl)).div(max(bb.sub(bl.mul(bl)), 1e-8)), 0, 1);
+      const on = a.add(ba.mul(s)), t = max(dot(on.sub(p), L), 0), gap = length(p.add(L.mul(t)).sub(on)), soft = t.mul(0.05).add(0.008);
+      const ahead = smoothstep(-0.01, 0.02, dot(N, on.sub(p)));   // (its line in front of the surface: it can stand in the way)
+      sun.mulAssign(mix(1, smoothstep(r.sub(soft), r.add(soft), gap), ahead));
+    });
+    res.assign(vec2(sky, sun));
+  });
+  return res;
+})();
+
 // ── the moves ──────────────────────────────────────────────────────────────────────────────────────────────────
 // Each a pose at time t: angles (x, y, z, radians) for the bones it turns; what it does not name stays at rest.
 // Signs: about x a leg or an arm swings back (+) or forward (−); about z the left limb goes out (+), the right in (+).
@@ -218,85 +278,97 @@ export const MOVES = [
 // The fragment stage: what is worn at this point (from its place at rest), the cloth's own baked tile read along the
 // body's surface and its relief turned onto it, folds where cloth gathers, then the light as each takes it: cloth
 // soft and bright at its edge (a sheen), skin with light passing through it (reddened where it wraps into shadow),
-// hair with a highlight along its strands, leather and brass glossy.
-function materialOf(tex, M, look, eye) {
+// hair with a highlight along its strands, leather and brass glossy. The sun's every part takes the shade (the map's, the
+// clouds', a storm's dim, and the body's own: occlusionOf), the sky's the body's occlusion.
+function materialOf(tex, M, look, eye, caps, count) {
   const { linen, denim, hair } = look;
   const m = new THREE.NodeMaterial(); m.eye = eye;
   const skinLin = vec3(...look.skin), dye = vec3(...look.dye), leather = vec3(...look.leather), lip = vec3(...look.lip);
+  // drawn into the shadow map, pulled towards the light by the map's bias, so the shadow meets the feet (light.js:
+  // casterPull); in the picture, where it is
+  m.positionNode = positionLocal.add(normalize(modelWorldMatrixInverse.mul(vec4(U.uSunDir, 0)).xyz).mul(casterPull().mul(U.uShadowPass)));
+  const body = varying(occlusionOf(caps, count), 'vBodyShade');   // x: the sky's share past the body, y: the sun's
   m.fragmentNode = Fn(() => {
-    const P = attribute('rest', 'vec3'), Cc = attribute('ctr', 'vec3'), part = attribute('part', 'float'), UVt = uv(), w = positionWorld;
-    const D = normalize(P.sub(Cc)), y = P.y, is = (k) => float(1).sub(clamp(abs(part.sub(k)).mul(4), 0, 1));
-    const trunk = is(PART.trunk), arm = is(PART.arm), leg = is(PART.leg), foot = is(PART.foot);
-    const below = (e, soft = 0.0015) => smoothstep(float(e).add(soft), float(e).sub(soft), y), band = (a, b) => below(b).mul(float(1).sub(below(a)));
-    // what is worn where
-    const hairM = hairTSL(M, P).mul(trunk);
-    const neckline = float(M.neckY - 0.012).sub(float(0.055).mul(float(1).sub(smoothstep(0.0, 0.075, abs(P.x)))).mul(smoothstep(0.2, 0.9, D.z)));
-    const beltM = trunk.mul(band(M.waist, M.waist + 0.036));
-    const trousersT = trunk.mul(below(M.waist)), shirtT = trunk.mul(float(1).sub(below(M.waist + 0.036))).mul(smoothstep(neckline.add(0.0015), neckline.sub(0.0015), y));
-    const sleeve = arm.mul(float(1).sub(below(M.cuffY)));
-    const linenM = shirtT.add(sleeve), denimM = trousersT.add(leg), shoeM = foot;
-    const skinM = clamp(float(1).sub(linenM).sub(denimM).sub(beltM).sub(shoeM).sub(hairM), 0, 1);
-    // seams, hems, cuffs, the placket and its buttons, the buckle
-    const sx = sign(P.x), sideT = smoothstep(0.985, 0.998, abs(D.x)).mul(trunk), outL = smoothstep(0.985, 0.998, D.x.mul(sx)).mul(leg), inA = smoothstep(0.975, 0.995, D.x.mul(sx).negate()).mul(arm);
-    const stitch = step(0.45, fract(y.div(0.0065)));
-    const hem = leg.mul(band(M.hemY, M.hemY + 0.026)), hemLine = leg.mul(band(M.hemY + 0.02, M.hemY + 0.024)), cuff = arm.mul(band(M.cuffY, M.cuffY + 0.034)), cuffEdge = arm.mul(band(M.cuffY + 0.029, M.cuffY + 0.034).add(band(M.cuffY, M.cuffY + 0.003)));
-    const collar = shirtT.mul(smoothstep(neckline.sub(0.016), neckline.sub(0.004), y));
-    const placket = shirtT.mul(smoothstep(0.86, 0.93, D.z)).mul(smoothstep(0.014, 0.01, abs(P.x)));
-    const by = fract(y.sub(M.waist + 0.06).div(0.075)), button = placket.mul(smoothstep(0.0062, 0.0048, length(vec2(P.x, by.sub(0.5).mul(0.075))))).mul(step(M.waist + 0.06, y)).mul(step(y, neckline.sub(0.03)));
-    const buckle = beltM.mul(smoothstep(0.9, 0.96, D.z)).mul(smoothstep(0.024, 0.02, abs(P.x)));
-    const sole = foot.mul(below(0.017, 0.002)), laces = foot.mul(smoothstep(0.55, 0.75, D.y)).mul(step(0.0, P.z)).mul(step(P.z, 0.085)).mul(smoothstep(0.35, 0.15, abs(fract(P.z.div(0.017).add(P.x.mul(40))).sub(0.5))));
-    // the face: eyes, brows, lips, a warmth in the cheeks (only where the head faces forward)
-    const front = trunk.mul(smoothstep(0.55, 0.8, D.z)).mul(step(M.H * 0.87, y)).mul(float(1).sub(hairM));
-    const ex = abs(abs(P.x).sub(0.033)), ey = y.sub(M.H * 0.928), eyeD = length(vec2(ex.div(0.011), ey.div(0.0065)));
-    const eyeW = front.mul(smoothstep(1.0, 0.85, eyeD)), iris = front.mul(smoothstep(0.62, 0.5, length(vec2(ex.div(0.0065), ey.div(0.0065)))));
-    const brow = front.mul(smoothstep(0.0035, 0.0015, abs(y.sub(float(M.H * 0.942).add(ex.mul(ex).mul(-6)))))).mul(smoothstep(0.03, 0.02, ex));
-    const lips = front.mul(smoothstep(0.0042, 0.0018, abs(y.sub(M.H * 0.897)))).mul(smoothstep(0.022, 0.016, abs(P.x)));
-    const cheek = front.mul(smoothstep(0.03, 0.0, length(vec2(ex.sub(0.012), y.sub(M.H * 0.912)))));
-    // the tiles, read along the surface (uv in tiles: the weave runs round and along the body)
-    const aL = tex.a(linen, UVt), nL = tex.n(linen, UVt), aD = tex.a(denim, UVt), nD = tex.n(denim, UVt), hv = vec2(UVt.x.mul(1.6), UVt.y.mul(0.6)), aH = tex.a(hair, hv), nH = tex.n(hair, hv);
-    const N0 = normalize(normalWorld);
-    // the surface's ways: round it (T) and along it (B), from the screen's change of uv (no tangents to skin)
-    const frame = (q) => { const dp1 = dFdx(w), dp2 = dFdy(w), d1 = dFdx(q), d2 = dFdy(q), p2 = cross(dp2, N0), p1 = cross(N0, dp1), T = p2.mul(d1.x).add(p1.mul(d2.x)), Bv = p2.mul(d1.y).add(p1.mul(d2.y)), k = inverseSqrt(max(max(dot(T, T), dot(Bv, Bv)), 1e-12)); return [T.mul(k), Bv.mul(k)]; };
-    const [Tt, Bt] = frame(UVt), [, By] = frame(vec2(UVt.x, y)), up = normalize(By);   // up: the way the point's rest height grows (hair falls, folds lie across it)
-    // folds: where cloth gathers, ridges across the limb (a slope along `up`)
-    const kneeBack = leg.mul(float(1).sub(smoothstep(0.0, 0.09, abs(y.sub(M.kneeY))))).mul(smoothstep(0.3, -0.6, D.z));
-    const elbowIn = arm.mul(float(1).sub(smoothstep(0.0, 0.07, abs(y.sub(M.elbowY))))).mul(smoothstep(-0.2, 0.6, D.z)).mul(sleeve);
-    const gather = leg.mul(smoothstep(0.36, M.hemY + 0.03, y)).mul(float(1).sub(hem)).add(kneeBack).add(elbowIn)
-      .add(sleeve.mul(float(1).sub(smoothstep(0.0, 0.1, y.sub(M.cuffY + 0.035)))).mul(float(1).sub(cuff))).add(shirtT.mul(band(M.waist + 0.036, M.waist + 0.11)).mul(0.8))
-      .add(leg.mul(smoothstep(M.leg - 0.16, M.leg - 0.02, y)).mul(0.6)).add(trousersT.mul(0.3));
-    const nz = mx_noise_float(P.mul(vec3(16, 5, 16))), ph = y.mul(TAU / 0.034).add(nz.mul(6)).add(D.x.mul(3)), slope = cos(ph).mul(clamp(gather, 0, 1)).mul(0.5).mul(float(0.6).add(nz.mul(0.4).abs()));
-    // the relief of what is worn, folded onto the surface
-    const rel = (n, k) => n.xy.mul(2).sub(1).mul(k);
-    const rL = rel(nL, 0.9), rD = rel(nD, 0.8), rH = rel(nH, 0.6);
-    const rx = rL.x.mul(linenM).add(rD.x.mul(denimM)).add(rH.x.mul(hairM)), ry = rL.y.mul(linenM).add(rD.y.mul(denimM)).add(rH.y.mul(hairM));
-    const pore = mx_noise_float(P.mul(900)).mul(0.08).mul(skinM), leatherG = mx_noise_float(P.mul(260)).mul(0.12).mul(shoeM.add(beltM));
-    const hemRidge = sin(y.sub(M.hemY).div(0.026).mul(PI)).mul(hem).add(sin(y.sub(M.cuffY).div(0.034).mul(PI)).mul(cuff)).mul(0.25);
-    const n = normalize(N0.add(Tt.mul(rx.add(pore).add(leatherG))).add(Bt.mul(ry.add(pore))).sub(up.mul(slope.add(hemRidge.mul(cos(y.mul(400)))))));
-    // the colour of what is worn (linear: the tiles are gamma 2)
-    const lin = aL.rgb.mul(aL.rgb).mul(dye).mul(mix(float(1), float(0.82), collar.add(cuffEdge).min(1))), den = aD.rgb.mul(aD.rgb).mul(mix(float(1), float(0.85), hem)), hr = aH.rgb.mul(aH.rgb).mul(vec3(...look.hairTint));
-    const mot = mx_noise_float(P.mul(vec3(30, 30, 30))).mul(0.06), sk = skinLin.mul(float(1).add(mot)).mul(mix(vec3(1), vec3(1.12, 0.92, 0.9), cheek.mul(0.6)));
-    const lea = leather.mul(float(0.8).add(mx_noise_float(P.mul(60)).mul(0.2).abs()));
-    let col = lin.mul(linenM).add(den.mul(denimM)).add(hr.mul(hairM)).add(sk.mul(skinM)).add(lea.mul(shoeM.add(beltM)));
-    col = mix(col, vec3(0.1, 0.085, 0.075), sideT.mul(linenM).mul(0.5).add(inA.mul(0.4)).add(placket.mul(0.12)).add(sole.mul(0.95)).add(laces.mul(0.6)));
-    col = mix(col, vec3(0.62, 0.42, 0.16), outL.add(hemLine).mul(stitch).mul(denimM).mul(0.85));   // denim's gold topstitch
-    col = mix(col, vec3(0.62, 0.58, 0.5), button);
-    col = mix(col, vec3(0.62, 0.45, 0.16), buckle);
-    col = mix(col, vec3(0.75, 0.73, 0.7), eyeW); col = mix(col, vec3(0.05, 0.035, 0.025), iris); col = mix(col, hr.mul(0.8), brow); col = mix(col, skinLin.mul(lip), lips.mul(0.7));
-    // the light
-    const cloth = linenM.add(denimM), V = normalize(eye.sub(w)), L = U.uSunDir, Hh = normalize(V.add(L)), ndl = dot(n, L), nv = max(dot(n, V), 0), ndh = max(dot(n, Hh), 0);
-    const wrap = cloth.mul(0.35).add(skinM.mul(0.5)).add(hairM.mul(0.3)), diff = max(ndl.add(wrap).div(wrap.add(1)), 0);
-    const through = mix(vec3(1), vec3(1, 0.5, 0.38), skinM.mul(float(1).sub(clamp(ndl.mul(2.5), 0, 1))));   // light through skin, reddened
-    const ao = mix(float(0.55), float(1), clamp(aL.a.mul(linenM).add(aD.a.mul(denimM)).add(aH.a.mul(hairM)).add(skinM).add(shoeM).add(beltM), 0, 1)).mul(float(1).sub(clamp(gather, 0, 1).mul(0.12)));
-    const sheen = vec3(...look.sheen).mul(dye.mul(linenM).add(vec3(0.5, 0.58, 0.72).mul(denimM))).mul(pow(float(1).sub(nv), 3.5)).mul(skyLight(n).add(U.uSun.mul(max(ndl, 0).mul(0.5).add(0.15)))).mul(0.9);
-    const gloss = (e, k) => pow(ndh, e).mul((e + 8) / (8 * PI)).mul(k);
-    const fres = pow(float(1).sub(nv), 5).mul(0.96).add(0.04);
-    const spec = gloss(28, 0.06).mul(skinM).mul(fres.mul(6)).add(gloss(60, 0.05).mul(skinM.mul(float(0.5).add(mx_noise_float(P.mul(120)).abs()))))
-      .add(gloss(40, 0.08).mul(shoeM.add(beltM))).add(gloss(180, 0.6).mul(buckle)).add(gloss(90, 0.2).mul(button)).add(gloss(6, 0.012).mul(cloth))
-      .add(gloss(120, 0.5).mul(eyeW.add(lips.mul(0.15))));
-    const strand = normalize(up.sub(n.mul(dot(up, n)))), tH = dot(strand, Hh), kk = sqrt(max(float(1).sub(tH.mul(tH)), 0)), tH2 = dot(strand, normalize(Hh.add(n.mul(0.2))));
-    const hairSpec = pow(kk, 90).mul(0.32).add(pow(sqrt(max(float(1).sub(tH2.mul(tH2)), 0)), 22).mul(0.12)).mul(hairM).mul(smoothstep(-0.1, 0.3, ndl));
-    const lit = col.mul(skyLight(n).mul(ao).add(U.uSun.mul(diff).mul(through))).add(U.uSun.mul(spec.mul(max(ndl, 0)))).add(U.uSun.mul(hr.add(0.12)).mul(hairSpec)).add(sheen.mul(ao));
-    return finish(lit, w, eye);
+    const out = vec4(0).toVar();
+    If(unlit().not(), () => {   // (drawn into the shadow map, only its depth counts: no light)
+      const P = attribute('rest', 'vec3'), Cc = attribute('ctr', 'vec3'), part = attribute('part', 'float'), UVt = uv(), w = positionWorld;
+      const D = normalize(P.sub(Cc)), y = P.y, is = (k) => float(1).sub(clamp(abs(part.sub(k)).mul(4), 0, 1));
+      const trunk = is(PART.trunk), arm = is(PART.arm), leg = is(PART.leg), foot = is(PART.foot);
+      const below = (e, soft = 0.0015) => smoothstep(float(e).add(soft), float(e).sub(soft), y), band = (a, b) => below(b).mul(float(1).sub(below(a)));
+      // what is worn where
+      const hairM = hairTSL(M, P).mul(trunk);
+      const neckline = float(M.neckY - 0.012).sub(float(0.055).mul(float(1).sub(smoothstep(0.0, 0.075, abs(P.x)))).mul(smoothstep(0.2, 0.9, D.z)));
+      const beltM = trunk.mul(band(M.waist, M.waist + 0.036));
+      const trousersT = trunk.mul(below(M.waist)), shirtT = trunk.mul(float(1).sub(below(M.waist + 0.036))).mul(smoothstep(neckline.add(0.0015), neckline.sub(0.0015), y));
+      const sleeve = arm.mul(float(1).sub(below(M.cuffY)));
+      const linenM = shirtT.add(sleeve), denimM = trousersT.add(leg), shoeM = foot;
+      const skinM = clamp(float(1).sub(linenM).sub(denimM).sub(beltM).sub(shoeM).sub(hairM), 0, 1);
+      // seams, hems, cuffs, the placket and its buttons, the buckle
+      const sx = sign(P.x), sideT = smoothstep(0.985, 0.998, abs(D.x)).mul(trunk), outL = smoothstep(0.985, 0.998, D.x.mul(sx)).mul(leg), inA = smoothstep(0.975, 0.995, D.x.mul(sx).negate()).mul(arm);
+      const stitch = step(0.45, fract(y.div(0.0065)));
+      const hem = leg.mul(band(M.hemY, M.hemY + 0.026)), hemLine = leg.mul(band(M.hemY + 0.02, M.hemY + 0.024)), cuff = arm.mul(band(M.cuffY, M.cuffY + 0.034)), cuffEdge = arm.mul(band(M.cuffY + 0.029, M.cuffY + 0.034).add(band(M.cuffY, M.cuffY + 0.003)));
+      const collar = shirtT.mul(smoothstep(neckline.sub(0.016), neckline.sub(0.004), y));
+      const placket = shirtT.mul(smoothstep(0.86, 0.93, D.z)).mul(smoothstep(0.014, 0.01, abs(P.x)));
+      const by = fract(y.sub(M.waist + 0.06).div(0.075)), button = placket.mul(smoothstep(0.0062, 0.0048, length(vec2(P.x, by.sub(0.5).mul(0.075))))).mul(step(M.waist + 0.06, y)).mul(step(y, neckline.sub(0.03)));
+      const buckle = beltM.mul(smoothstep(0.9, 0.96, D.z)).mul(smoothstep(0.024, 0.02, abs(P.x)));
+      const sole = foot.mul(below(0.017, 0.002)), laces = foot.mul(smoothstep(0.55, 0.75, D.y)).mul(step(0.0, P.z)).mul(step(P.z, 0.085)).mul(smoothstep(0.35, 0.15, abs(fract(P.z.div(0.017).add(P.x.mul(40))).sub(0.5))));
+      // the face: eyes, brows, lips, a warmth in the cheeks (only where the head faces forward)
+      const front = trunk.mul(smoothstep(0.55, 0.8, D.z)).mul(step(M.H * 0.87, y)).mul(float(1).sub(hairM));
+      const ex = abs(abs(P.x).sub(0.033)), ey = y.sub(M.H * 0.928), eyeD = length(vec2(ex.div(0.011), ey.div(0.0065)));
+      const eyeW = front.mul(smoothstep(1.0, 0.85, eyeD)), iris = front.mul(smoothstep(0.62, 0.5, length(vec2(ex.div(0.0065), ey.div(0.0065)))));
+      const brow = front.mul(smoothstep(0.0035, 0.0015, abs(y.sub(float(M.H * 0.942).add(ex.mul(ex).mul(-6)))))).mul(smoothstep(0.03, 0.02, ex));
+      const lips = front.mul(smoothstep(0.0042, 0.0018, abs(y.sub(M.H * 0.897)))).mul(smoothstep(0.022, 0.016, abs(P.x)));
+      const cheek = front.mul(smoothstep(0.03, 0.0, length(vec2(ex.sub(0.012), y.sub(M.H * 0.912)))));
+      // the tiles, read along the surface (uv in tiles: the weave runs round and along the body)
+      const aL = tex.a(linen, UVt), nL = tex.n(linen, UVt), aD = tex.a(denim, UVt), nD = tex.n(denim, UVt), hv = vec2(UVt.x.mul(1.6), UVt.y.mul(0.6)), aH = tex.a(hair, hv), nH = tex.n(hair, hv);
+      const N0 = normalize(normalWorld);
+      // the surface's ways: round it (T) and along it (B), from the screen's change of uv (no tangents to skin)
+      const frame = (q) => { const dp1 = dFdx(w), dp2 = dFdy(w), d1 = dFdx(q), d2 = dFdy(q), p2 = cross(dp2, N0), p1 = cross(N0, dp1), T = p2.mul(d1.x).add(p1.mul(d2.x)), Bv = p2.mul(d1.y).add(p1.mul(d2.y)), k = inverseSqrt(max(max(dot(T, T), dot(Bv, Bv)), 1e-12)); return [T.mul(k), Bv.mul(k)]; };
+      const [Tt, Bt] = frame(UVt), [, By] = frame(vec2(UVt.x, y)), up = normalize(By);   // up: the way the point's rest height grows (hair falls, folds lie across it)
+      // folds: where cloth gathers, ridges across the limb (a slope along `up`)
+      const kneeBack = leg.mul(float(1).sub(smoothstep(0.0, 0.09, abs(y.sub(M.kneeY))))).mul(smoothstep(0.3, -0.6, D.z));
+      const elbowIn = arm.mul(float(1).sub(smoothstep(0.0, 0.07, abs(y.sub(M.elbowY))))).mul(smoothstep(-0.2, 0.6, D.z)).mul(sleeve);
+      const gather = leg.mul(smoothstep(0.36, M.hemY + 0.03, y)).mul(float(1).sub(hem)).add(kneeBack).add(elbowIn)
+        .add(sleeve.mul(float(1).sub(smoothstep(0.0, 0.1, y.sub(M.cuffY + 0.035)))).mul(float(1).sub(cuff))).add(shirtT.mul(band(M.waist + 0.036, M.waist + 0.11)).mul(0.8))
+        .add(leg.mul(smoothstep(M.leg - 0.16, M.leg - 0.02, y)).mul(0.6)).add(trousersT.mul(0.3));
+      const nz = mx_noise_float(P.mul(vec3(16, 5, 16))), ph = y.mul(TAU / 0.034).add(nz.mul(6)).add(D.x.mul(3)), slope = cos(ph).mul(clamp(gather, 0, 1)).mul(0.5).mul(float(0.6).add(nz.mul(0.4).abs()));
+      // the relief of what is worn, folded onto the surface
+      const rel = (n, k) => n.xy.mul(2).sub(1).mul(k);
+      const rL = rel(nL, 0.9), rD = rel(nD, 0.8), rH = rel(nH, 0.6);
+      const rx = rL.x.mul(linenM).add(rD.x.mul(denimM)).add(rH.x.mul(hairM)), ry = rL.y.mul(linenM).add(rD.y.mul(denimM)).add(rH.y.mul(hairM));
+      const pore = mx_noise_float(P.mul(900)).mul(0.08).mul(skinM), leatherG = mx_noise_float(P.mul(260)).mul(0.12).mul(shoeM.add(beltM));
+      const hemRidge = sin(y.sub(M.hemY).div(0.026).mul(PI)).mul(hem).add(sin(y.sub(M.cuffY).div(0.034).mul(PI)).mul(cuff)).mul(0.25);
+      const n = normalize(N0.add(Tt.mul(rx.add(pore).add(leatherG))).add(Bt.mul(ry.add(pore))).sub(up.mul(slope.add(hemRidge.mul(cos(y.mul(400)))))));
+      // the colour of what is worn (linear: the tiles are gamma 2)
+      const lin = aL.rgb.mul(aL.rgb).mul(dye).mul(mix(float(1), float(0.82), collar.add(cuffEdge).min(1))), den = aD.rgb.mul(aD.rgb).mul(mix(float(1), float(0.85), hem)), hr = aH.rgb.mul(aH.rgb).mul(vec3(...look.hairTint));
+      const mot = mx_noise_float(P.mul(vec3(30, 30, 30))).mul(0.06), sk = skinLin.mul(float(1).add(mot)).mul(mix(vec3(1), vec3(1.12, 0.92, 0.9), cheek.mul(0.6)));
+      const lea = leather.mul(float(0.8).add(mx_noise_float(P.mul(60)).mul(0.2).abs()));
+      let col = lin.mul(linenM).add(den.mul(denimM)).add(hr.mul(hairM)).add(sk.mul(skinM)).add(lea.mul(shoeM.add(beltM)));
+      col = mix(col, vec3(0.1, 0.085, 0.075), sideT.mul(linenM).mul(0.5).add(inA.mul(0.4)).add(placket.mul(0.12)).add(sole.mul(0.95)).add(laces.mul(0.6)));
+      col = mix(col, vec3(0.62, 0.42, 0.16), outL.add(hemLine).mul(stitch).mul(denimM).mul(0.85));   // denim's gold topstitch
+      col = mix(col, vec3(0.62, 0.58, 0.5), button);
+      col = mix(col, vec3(0.62, 0.45, 0.16), buckle);
+      col = mix(col, vec3(0.75, 0.73, 0.7), eyeW); col = mix(col, vec3(0.05, 0.035, 0.025), iris); col = mix(col, hr.mul(0.8), brow); col = mix(col, skinLin.mul(lip), lips.mul(0.7));
+      // the light: the sun as much of it as reaches here (past a storm's sky, the clouds, what casts a shadow, and the
+      // body itself: the nearer of the map's shade and the body's own, which the map is too coarse to hold), the sky's
+      // light as much as the body leaves of it
+      const sun = U.uSun.mul(sunDim().mul(cloudShade(w)).mul(min(shadowAtPulled(w), body.y)));
+      const cloth = linenM.add(denimM), V = normalize(eye.sub(w)), L = U.uSunDir, Hh = normalize(V.add(L)), ndl = dot(n, L), nv = max(dot(n, V), 0), ndh = max(dot(n, Hh), 0);
+      const wrap = cloth.mul(0.35).add(skinM.mul(0.5)).add(hairM.mul(0.3)), diff = max(ndl.add(wrap).div(wrap.add(1)), 0);
+      const through = mix(vec3(1), vec3(1, 0.5, 0.38), skinM.mul(float(1).sub(clamp(ndl.mul(2.5), 0, 1))));   // light through skin, reddened
+      const ao = mix(float(0.55), float(1), clamp(aL.a.mul(linenM).add(aD.a.mul(denimM)).add(aH.a.mul(hairM)).add(skinM).add(shoeM).add(beltM), 0, 1)).mul(float(1).sub(clamp(gather, 0, 1).mul(0.12))).mul(body.x);
+      const sheen = vec3(...look.sheen).mul(dye.mul(linenM).add(vec3(0.5, 0.58, 0.72).mul(denimM))).mul(pow(float(1).sub(nv), 3.5)).mul(skyLight(n).add(sun.mul(max(ndl, 0).mul(0.5).add(0.15)))).mul(0.9);
+      const gloss = (e, k) => pow(ndh, e).mul((e + 8) / (8 * PI)).mul(k);
+      const fres = pow(float(1).sub(nv), 5).mul(0.96).add(0.04);
+      const spec = gloss(28, 0.06).mul(skinM).mul(fres.mul(6)).add(gloss(60, 0.05).mul(skinM.mul(float(0.5).add(mx_noise_float(P.mul(120)).abs()))))
+        .add(gloss(40, 0.08).mul(shoeM.add(beltM))).add(gloss(180, 0.6).mul(buckle)).add(gloss(90, 0.2).mul(button)).add(gloss(6, 0.012).mul(cloth))
+        .add(gloss(120, 0.5).mul(eyeW.add(lips.mul(0.15))));
+      const strand = normalize(up.sub(n.mul(dot(up, n)))), tH = dot(strand, Hh), kk = sqrt(max(float(1).sub(tH.mul(tH)), 0)), tH2 = dot(strand, normalize(Hh.add(n.mul(0.2))));
+      const hairSpec = pow(kk, 90).mul(0.32).add(pow(sqrt(max(float(1).sub(tH2.mul(tH2)), 0)), 22).mul(0.12)).mul(hairM).mul(smoothstep(-0.1, 0.3, ndl));
+      const lit = col.mul(skyLight(n).mul(ao).add(sun.mul(diff).mul(through))).add(sun.mul(spec.mul(max(ndl, 0)))).add(sun.mul(hr.add(0.12)).mul(hairSpec)).add(sheen.mul(ao));
+      out.assign(finish(lit, w, eye));
+    });
+    return out;
   })();
   return m;
 }
@@ -316,13 +388,27 @@ export function humanOf(tex, R, { eye = uniform(U.uCam.value) } = {}) {
   const W = R.wears;
   for (const x of [W.shirt.material, W.trousers.material, W.hair.material]) tex.want(x, true);
   const look = { linen: W.shirt.material, denim: W.trousers.material, hair: W.hair.material, dye: W.shirt.dye, hairTint: W.hair.tint, skin: W.skin, leather: W.shoes, lip: [0.78, 0.55, 0.55], sheen: [0.9, 0.9, 0.9] };
-  const mat = materialOf(tex, M, look, eye);
+  // the capsules round the bones (capsulesOf): their ends in the mesh's own frame, two to a capsule (a and its radius, b)
+  const CAPS = capsulesOf(M, J), capU = uniformArray(CAPS.flatMap(() => [new THREE.Vector4(), new THREE.Vector4()]), 'vec4');
+  const mat = materialOf(tex, M, look, eye, capU, CAPS.length);
   // the skeleton: each bone at its joint, its place its parent's offset
   const bones = {}; for (const nm of NAMES) { const b = new THREE.Bone(); b.name = nm; bones[nm] = b; }
   for (const nm of NAMES) { const par = PARENT[nm], p = J[nm], q = par ? J[par] : [0, 0, 0]; bones[nm].position.set(p[0] - q[0], p[1] - q[1], p[2] - q[2]); if (par) bones[par].add(bones[nm]); }
   const mesh = new THREE.SkinnedMesh(geo, mat); mesh.frustumCulled = false; mesh.add(bones.root); mesh.updateMatrixWorld(true);
+  mesh.layers.enable(CASTS);   // a person casts a shadow, wherever one is drawn (src/world/shadow.js)
   const skeleton = new THREE.Skeleton(NAMES.map((n) => bones[n])); mesh.bind(skeleton);
   const object = new THREE.Group(); object.add(mesh);
+  // the capsules where the bones hold them now: each end from its place at rest (all bones turned as the world at rest,
+  // so a point at rest is its bone's own offset from the joint) through its bone, into the mesh's frame
+  const toMesh = new THREE.Matrix4(), held = new THREE.Matrix4(), end = new THREE.Vector3();
+  const placeCaps = () => {
+    toMesh.copy(mesh.matrixWorld).invert();
+    CAPS.forEach((c, i) => [c.a, c.b].forEach((e, k) => {
+      const j = J[e.b]; held.multiplyMatrices(toMesh, bones[e.b].matrixWorld);
+      end.set(e.p[0] - j[0], e.p[1] - j[1], e.p[2] - j[2]).applyMatrix4(held); capU.array[i * 2 + k].set(end.x, end.y, end.z, c.r);
+    }));
+  };
+  placeCaps();
   const hips0 = bones.hips.position.y, soles = SIDES.map((s) => { const f = J['foot.' + s]; return [[0, 0.004 - f[1], -0.07 - f[2]], [0, 0.004 - f[1], 0.18 - f[2]]]; });   // heel and toe under each foot, in its bone's frame
   // the state of its moving: the move, the one it came from and how far into the change, its clock, where it walks
   const S = { move: 'idle', from: null, k: 1, t: 0, a: 0, yaw: 0, R: R.walkRound ?? 1.5 };
@@ -345,6 +431,7 @@ export function humanOf(tex, R, { eye = uniform(U.uCam.value) } = {}) {
       let low = Infinity; SIDES.forEach((s, i) => { for (const p of soles[i]) { v.set(...p).applyMatrix4(bones['foot.' + s].matrixWorld); low = Math.min(low, v.y); } });
       const ground = object.parent ? object.parent.matrixWorld.elements[13] : 0;
       bones.hips.position.y = hips0 - (low - ground - 0.004); object.updateMatrixWorld(true);
+      placeCaps();
     },
   };
   return api;
