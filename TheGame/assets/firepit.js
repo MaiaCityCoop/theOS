@@ -11,8 +11,23 @@
 import { noise3 } from './kit/blob.js';
 import { lerp } from './kit/math.js';
 import { lcg } from '../src/core/hash.js';
+// What a real one measures, and where that is known from (intent 0035): next to what it is, read against the
+// world's one scale (world/scale.js) and measured against what it draws by `bun tools/scale.js`.
+const MEASURE = {
+  real: 'a ring of stones round a fire on the ground, seats round it',
+  ring: 0.62,                        // the ring's radius, to its stones' middle: 1.24 m across, a group's fire ring
+  seat: { height: 0.44, width: 0.48, from: 1.74 },   // a seat's height and width, and how far it stands from the fire's middle
+  typical: [0.4, 0.5],               // what stands highest of it: its seats
+  most: 0.6,
+  own: ['seat.from: how far the seats stand from the fire'],
+  source: [
+    'campfire rings, makers\' sheets read 2026-11-16: 0.61 and 0.76 m inside for one camp (Pilot Rock FSW-26/7, FA-30), 1.17 and 1.37 m for a group (FS-48, FSW-56)',
+    'a campfire 0.9 m across or less (Minnesota DNR, campfire safety)',
+    'seats: 0.43 to 0.48 m high (Sunshine Coast Council\'s design guide: most at 0.45 m; Inclusive Mobility 2021: 0.47 to 0.48 m)',
+  ],
+};
 
-const RING = 0.62, SEAT_R = 1.74, SEAT_H = 0.44, SEAT_W = 0.48;
+const RING = MEASURE.ring, SEAT_R = MEASURE.seat.from, SEAT_H = MEASURE.seat.height, SEAT_W = MEASURE.seat.width;
 
 // tints on the stone (the river's pebble): its own grey, a little warm or cool; where it faces the fire, sooted near black
 const stone = [0.8, 0.78, 0.76], stoneWarm = [0.9, 0.8, 0.69], stoneCool = [0.7, 0.75, 0.82], soot = [0.12, 0.115, 0.11];
@@ -217,6 +232,7 @@ export default {
   name: 'Fire pit',
   kind: 'default',
   about: 'A ring of sooted river stones round a bed of ash and charcoal, the wood that will burn on it, wood stacked ready, and log rounds cut from a pine to sit on. It stands out on the grass in front of the tent.',
+  measure: MEASURE,
   size: { length: 2 * (SEAT_R + SEAT_W), width: 2 * (SEAT_R + SEAT_W), height: 0.95 },
   // what it is made of: the world's own materials, wrapped round it from three sides (src/world/place.js). A face
   // names one of these and tints it; the order here is the order the shapes name them by.

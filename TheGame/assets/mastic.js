@@ -19,6 +19,13 @@ export default tree({
   name: 'Mastic',
   kind: 'shrub',
   about: 'The lentisk of the Mediterranean woods: a dense, rounded evergreen bush to a man’s height, dark and glossy, under the pines and oaks.',
+  // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
+  measure: {
+    real: 'Pistacia lentiscus, mastic',
+    typical: [1, 4],
+    most: 8,
+    source: ['RHS (Pistacia lentiscus): 2.5 to 4 m; Wikipedia: up to 4 m; Plants For A Future: 5 m; Stihl\'s tree profiles: 1 to 8 m, as a small tree'],
+  },
   colours: { wood: woodCol, leaves: leafCol },
   materials: { wood: 'fb5ce908-7437-45b6-879f-154de32d12b9' /* holm oak bark */, leaves: 'c4cbd29b-9dd2-494d-913b-9a80c40ab8e6' /* holm oak sprig */ },
   foliage: { wrap: 0.35, through: 0.2, flutter: 0.5, tint: [1.15, 1.25, 0.9] },

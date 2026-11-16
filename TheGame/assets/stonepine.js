@@ -11,13 +11,25 @@ import { tree, builder, tube, cards, outward } from './kit/tree.js';
 import { add, sub, mul, norm, lerp, bez, sstep } from './kit/math.js';
 import { rng } from '../src/core/hash.js';
 import SPRIG from '../materials/pinetuft.twigs.js';
+// What a real one measures, and where that is known from (intent 0035): next to what it is, read against the
+// world's one scale (world/scale.js) and measured against what it draws by `bun tools/scale.js`.
+const MEASURE = {
+  real: 'Pinus pinea, the stone pine',
+  mature: 20,                        // what its height by age comes to (assets/stonepine.js)
+  typical: [12, 20],
+  most: 25,
+  source: [
+    'RHS (Pinus pinea): 15 to 20 m when fully mature',
+    'Wikipedia (Stone pine): 12 to 20 m, can exceed 25 m',
+  ],
+};
 
 // how it grows: a stone pine of five is a bush of a metre and a half, a ball of needles from the ground; at fifteen an
 // egg of four metres on a short trunk; from about thirty it lifts its crown, the lower limbs shed, the trunk forks; at
 // seventy a tall bare trunk under an umbrella; at a hundred and fifty twenty metres, its dome broad and flat. Its height
 // by age (metres), and its numbers at an age: where the trunk forks (and how its S bends), its crown's flat underside,
 // its dome's height and reach, how its limbs branch (stems from the fork, limbs from each stem). v: one of its variants.
-const height = (year) => 20 * (1 - Math.exp(-year / 55)) ** 1.1;
+const height = (year) => MEASURE.mature * (1 - Math.exp(-year / 55)) ** 1.1;   // (mature: its measure's)
 function form(year, v, seed = 300) {
   const R0 = rng(seed * 7919 + v * 31 + year * 7), H = height(year), old = sstep(10, 90, year), side = v % 2 ? -1 : 1;
   const base = H * (0.14 + 0.64 * old), r = H * (0.42 + 0.1 * old) * (0.94 + 0.12 * R0());
@@ -125,6 +137,7 @@ export default tree({
   name: 'Stone pine',
   kind: 'tree',
   about: 'The umbrella pine of the Mediterranean: a long, slender trunk bending in a slow S, bare to over half its height, six thin limbs fanning up like an umbrella’s ribs, and one broad dome of rounded needle puffs, flat underneath.',
+  measure: MEASURE,
   colours: { bark: barkCol, needles: needleCol },
   materials: { wood: 'bf97f33b-56bd-4df4-89ba-949e77ce8c27' /* pine bark */, leaves: 'f0cd9e72-612d-4f2e-9790-0ef5f7257742' /* pine tuft */ },
   // its stages of growth, by age (years), and how many variants of each; a tree in the world is as old as its stand says

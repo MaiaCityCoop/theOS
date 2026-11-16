@@ -139,6 +139,17 @@ export function createTemporal(renderer, { off = false } = {}) {
     const p = v0.sub(0.5).mul(u.barrel.mul(r2).add(1)).div(u.barrel.mul(1.35).add(1)).add(0.5), e = p.sub(0.5).mul(wide);
     return vec4(tP.sample(p).level(0).rgb.mul(float(1).sub(smoothstep(0.55, 1.45, dot(e, e)).mul(u.dim))), 1);
   }));
+  // the same glass over the walker's picture (intent 0034), as firm as the picture without it: the sharpening above,
+  // read round where the glass bends each pixel from
+  const firmGlassed = flat(Fn(() => {
+    const v0 = at(), wide = vec2(2, float(2).div(u.picH)), qq = v0.sub(0.5).mul(wide), r2 = qq.x.mul(qq.x).add(qq.y.mul(qq.y).mul(0.35));
+    const p = v0.sub(0.5).mul(u.barrel.mul(r2).add(1)).div(u.barrel.mul(1.35).add(1)).add(0.5), q = p.sub(0.5).mul(wide);
+    const c = p.mul(u.outSize), px = (x, y) => tP.sample(c.add(vec2(x, y)).div(u.outSize)).level(0).rgb;
+    const e = px(0, 0), n = px(0, -1), w = px(-1, 0), o = px(1, 0), d = px(0, 1), lo = min(min(n, w), min(o, d)), hi = max(max(n, w), max(o, d));
+    const a = min(lo, e).div(hi.mul(4).max(1e-4)).negate(), b = float(1).sub(max(hi, e)).div(lo.mul(4).sub(4).min(-1e-4)), l3 = max(a, b);
+    const lobe = clamp(max(l3.x, max(l3.y, l3.z)), -0.1875, 0).mul(u.sharp);
+    return vec4(n.add(w).add(o).add(d).mul(lobe).add(e).div(lobe.mul(4).add(1)).mul(float(1).sub(smoothstep(0.55, 1.45, dot(q, q)).mul(u.dim))), 1);
+  }));
 
   const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), size = new THREE.Vector2();
   const proj = new THREE.Matrix4(), projInv = new THREE.Matrix4(), view = new THREE.Matrix4(), world = new THREE.Matrix4(), projWas = new THREE.Matrix4(), viewWas = new THREE.Matrix4(), rel = new THREE.Matrix4();
@@ -189,7 +200,7 @@ export function createTemporal(renderer, { off = false } = {}) {
       renderer.setRenderTarget(hist[turn]); renderer.render(build, cam); renderer.setRenderTarget(null);
       tP.value = hist[turn].texture;
       if (through?.glass) { u.barrel.value = through.glass.barrel; u.picH.value = through.glass.picH; u.dim.value = through.glass.dim; }
-      renderer.render(through?.glass ? glassed : K.sharp > 0 ? firm : copy, cam);
+      renderer.render(through?.glass ? (through.glass.firm && K.sharp > 0 ? firmGlassed : glassed) : K.sharp > 0 ? firm : copy, cam);
       turn = 1 - turn; fresh = false; projWas.copy(proj); viewWas.copy(view);
     },
   };
