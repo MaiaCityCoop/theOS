@@ -141,7 +141,7 @@ on the one below, each looked at alone before the next:
 - [ ] Round 1: the body (naked, no hair, muscular first; clothes later)
   - [x] a first attempt from blended solids (turned down)
   - [x] a second, muscles as strands without the bones under them (set aside)
-  - [ ] the bones, each in its shape, bone-coloured, at their joints
+  - [ ] the bones, each in its shape, bone-coloured, at their joints (a first pass; the skull's face, the foot and the knee still crude)
   - [ ] the skeleton and its proportions, checked from the front and side
   - [ ] muscles from origin to insertion, a skin over them
   - [ ] the face from the skull up; hands; feet
@@ -171,3 +171,4 @@ on the one below, each looked at alone before the next:
 | 2026-11-16 | `4af0d5d` | the intent opened and defined |
 | 2026-11-16 | `97ae830` | a first body from blended solids, turned down; the field and the tables it reads |
 | 2026-11-16 | `db7eddc` | a second body, muscles as strands with no bones under them, set aside |
+| 2026-11-16 | `73af01a` | the skeleton, a first pass: every bone in its shape, from the spine to the skull |
