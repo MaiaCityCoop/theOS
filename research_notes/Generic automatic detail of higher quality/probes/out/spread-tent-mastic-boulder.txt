@@ -1,0 +1,59 @@
+
+== Bell tent: 1392 triangles in 33 pieces, 28 of them under a fiftieth of it
+   3. the same triangles in all (things spread evenly over the ground): today 1392 from 600 px, 296 from 170 px, 174 from 45 px, 18 from 15 px; spread by size: all 1392 down to 86 px, then by the square of the size, never under 8
+      at 400 px | today (  1392 triangles): outline 100 %, a neighbourhood off by  0 % (worst  0 %) | spread (  1392, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at 296 px | today (  1392 triangles): outline 100 %, a neighbourhood off by  0 % (worst  0 %) | spread (  1392, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at 219 px | today (  1392 triangles): outline 100 %, a neighbourhood off by  0 % (worst  0 %) | spread (  1392, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at 163 px | today (   296 triangles): outline  99 %, a neighbourhood off by  1 % (worst 12 %) | spread (  1392, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at 120 px | today (   296 triangles): outline  98 %, a neighbourhood off by  0 % (worst 10 %) | spread (  1392, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at  89 px | today (   296 triangles): outline  98 %, a neighbourhood off by  0 % (worst  9 %) | spread (  1392, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at  66 px | today (   296 triangles): outline  98 %, a neighbourhood off by  0 % (worst  7 %) | spread (   826, folding it all): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at  49 px | today (   296 triangles): outline  98 %, a neighbourhood off by  0 % (worst  5 %) | spread (   437, the solid pieces thinned alike, enlarged 1.41 x): outline  96 %, a neighbourhood off by  1 % (worst  4 %)
+      at  36 px | today (   174 triangles): outline  91 %, a neighbourhood off by  1 % (worst 10 %) | spread (   248, a hull of 20 round its largest crowd that stops 2 % of the light): outline 100 %, a neighbourhood off by  1 % (worst  2 %)
+      at  27 px | today (   174 triangles): outline  96 %, a neighbourhood off by  1 % (worst  9 %) | spread (   136, a solid hull of 20 round its largest crowd, 0.68 of its reach): outline 100 %, a neighbourhood off by  2 % (worst 17 %)
+      at  20 px | today (   174 triangles): outline  96 %, a neighbourhood off by  1 % (worst  9 %) | spread (    74, a solid hull of 20 round its largest crowd, 0.70 of its reach): outline 102 %, a neighbourhood off by  4 % (worst 23 %)
+      at  15 px | today (    18 triangles): outline  89 %, a neighbourhood off by  8 % (worst 31 %) | spread (    41, a solid hull of 20 round its largest crowd, 0.73 of its reach): outline 100 %, a neighbourhood off by  8 % (worst 33 %)
+      at  11 px | today (    18 triangles): outline  89 %, a neighbourhood off by  8 % (worst 31 %) | spread (    22, a solid hull of 8 round its largest crowd, 0.72 of its reach): outline 100 %, a neighbourhood off by  8 % (worst 42 %)
+      at   8 px | today (    18 triangles): outline  89 %, a neighbourhood off by  8 % (worst 31 %) | spread (    12, a solid hull of 8 round its largest crowd, 0.73 of its reach): outline  99 %, a neighbourhood off by 10 % (worst 45 %)
+      over these sizes: a neighbourhood off on average 2 % today, 2 % spread; at its most 8 % today, 10 % spread; the outline off by at most 11 % today, 4 % spread
+   (88242 ms)
+
+== Mastic: 744 triangles in 342 pieces, 342 of them under a fiftieth of it
+   3. the same triangles in all (things spread evenly over the ground): today 744 from 600 px, 88 from 140 px, 20 from 16 px; spread by size: all 744 down to 83 px, then by the square of the size, never under 8
+      at 400 px | today (   744 triangles): outline 100 %, a neighbourhood off by  0 % (worst  0 %) | spread (   744, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at 296 px | today (   744 triangles): outline 100 %, a neighbourhood off by  0 % (worst  0 %) | spread (   744, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at 219 px | today (   744 triangles): outline 100 %, a neighbourhood off by  0 % (worst  0 %) | spread (   744, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at 163 px | today (   744 triangles): outline 100 %, a neighbourhood off by  0 % (worst  0 %) | spread (   744, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at 120 px | today (    88 triangles): outline  89 %, a neighbourhood off by 16 % (worst 81 %) | spread (   744, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at  89 px | today (    88 triangles): outline  89 %, a neighbourhood off by 15 % (worst 79 %) | spread (   744, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at  66 px | today (    88 triangles): outline  90 %, a neighbourhood off by 15 % (worst 72 %) | spread (   458, the cut-out pieces thinned, the smallest first, enlarged 1.13 x): outline 101 %, a neighbourhood off by  2 % (worst 14 %)
+      at  49 px | today (    88 triangles): outline  90 %, a neighbourhood off by 14 % (worst 66 %) | spread (   250, the cut-out pieces thinned, the smallest first, enlarged 2.00 x): outline 102 %, a neighbourhood off by  6 % (worst 38 %)
+      at  36 px | today (    88 triangles): outline  89 %, a neighbourhood off by 13 % (worst 62 %) | spread (   141, folding it all): outline  97 %, a neighbourhood off by  9 % (worst 43 %)
+      at  27 px | today (    88 triangles): outline  89 %, a neighbourhood off by 12 % (worst 57 %) | spread (    77, the cut-out pieces thinned, the smallest first, enlarged 1.58 x): outline 100 %, a neighbourhood off by 12 % (worst 53 %)
+      at  20 px | today (    88 triangles): outline  89 %, a neighbourhood off by 12 % (worst 57 %) | spread (    36, a hull of 36 round all of it that stops 76 % of the light): outline  94 %, a neighbourhood off by 17 % (worst 58 %)
+      at  15 px | today (    20 triangles): outline  46 %, a neighbourhood off by 25 % (worst 79 %) | spread (    20, a hull of 20 round all of it that stops 85 % of the light): outline  87 %, a neighbourhood off by 16 % (worst 68 %)
+      at  11 px | today (    20 triangles): outline  46 %, a neighbourhood off by 25 % (worst 79 %) | spread (    12, a solid hull of 8 round its largest crowd, 1.07 of its reach): outline  77 %, a neighbourhood off by 19 % (worst 77 %)
+      at   8 px | today (    20 triangles): outline  46 %, a neighbourhood off by 25 % (worst 79 %) | spread (     8, a solid hull of 8 round its largest crowd, 1.07 of its reach): outline  77 %, a neighbourhood off by 19 % (worst 77 %)
+      over these sizes: a neighbourhood off on average 12 % today, 7 % spread; at its most 25 % today, 19 % spread; the outline off by at most 54 % today, 23 % spread
+   (104458 ms)
+
+== Boulder: 110592 triangles in 1 piece, 0 of them under a fiftieth of it
+   3. the same triangles in all (things spread evenly over the ground): today 110592 from 600 px, 12288 from 400 px, 3072 from 128 px, 768 from 64 px, 192 from 32 px, 48 from 16 px, 12 from 8 px; spread by size: all 110592 down to 536 px, then by the square of the size, never under 8
+      at 400 px | today ( 12288 triangles): outline  99 %, a neighbourhood off by  1 % (worst 23 %) | spread ( 61704, folding it all): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at 296 px | today ( 12288 triangles): outline  99 %, a neighbourhood off by  1 % (worst 20 %) | spread ( 33856, folding it all): outline 100 %, a neighbourhood off by  0 % (worst  1 %)
+      at 219 px | today ( 12288 triangles): outline  99 %, a neighbourhood off by  1 % (worst 16 %) | spread ( 18576, folding it all): outline 100 %, a neighbourhood off by  0 % (worst  1 %)
+      at 163 px | today ( 12288 triangles): outline  99 %, a neighbourhood off by  1 % (worst 13 %) | spread ( 10192, folding it all): outline 100 %, a neighbourhood off by  0 % (worst  2 %)
+      at 120 px | today (  3072 triangles): outline  98 %, a neighbourhood off by  2 % (worst 26 %) | spread (  5592, folding it all): outline 100 %, a neighbourhood off by  0 % (worst  2 %)
+      at  89 px | today (  3072 triangles): outline  97 %, a neighbourhood off by  2 % (worst 20 %) | spread (  3068, folding it all): outline 100 %, a neighbourhood off by  0 % (worst  3 %)
+      at  66 px | today (  3072 triangles): outline  98 %, a neighbourhood off by  2 % (worst 15 %) | spread (  1682, folding it all): outline 100 %, a neighbourhood off by  0 % (worst  3 %)
+      at  49 px | today (   768 triangles): outline  97 %, a neighbourhood off by  3 % (worst 24 %) | spread (   922, folding it all): outline  99 %, a neighbourhood off by  1 % (worst  4 %)
+      at  36 px | today (   768 triangles): outline  96 %, a neighbourhood off by  3 % (worst 19 %) | spread (   506, folding it all): outline  99 %, a neighbourhood off by  1 % (worst  8 %)
+      at  27 px | today (   192 triangles): outline  95 %, a neighbourhood off by  4 % (worst 30 %) | spread (   278, folding it all): outline  99 %, a neighbourhood off by  1 % (worst  8 %)
+      at  20 px | today (   192 triangles): outline  95 %, a neighbourhood off by  4 % (worst 30 %) | spread (   152, folding it all): outline  99 %, a neighbourhood off by  2 % (worst 15 %)
+      at  15 px | today (    48 triangles): outline  89 %, a neighbourhood off by 10 % (worst 65 %) | spread (    82, folding it all): outline  95 %, a neighbourhood off by  3 % (worst 24 %)
+      at  11 px | today (    48 triangles): outline  89 %, a neighbourhood off by 10 % (worst 65 %) | spread (    36, a solid hull of 36 round all of it, 0.99 of its reach): outline 100 %, a neighbourhood off by 10 % (worst 57 %)
+      at   8 px | today (    48 triangles): outline  89 %, a neighbourhood off by 10 % (worst 65 %) | spread (    20, a hull of 20 round all of it that stops 100 % of the light): outline  99 %, a neighbourhood off by 13 % (worst 71 %)
+      at   6 px | today (    12 triangles): outline  90 %, a neighbourhood off by 18 % (worst 71 %) | spread (     8, a solid hull of 8 round all of it, 1.20 of its reach): outline 102 %, a neighbourhood off by 16 % (worst 72 %)
+      at   4 px | today (    12 triangles): outline  85 %, a neighbourhood off by 16 % (worst 64 %) | spread (     8, a solid hull of 8 round all of it, 1.20 of its reach): outline  96 %, a neighbourhood off by 14 % (worst 58 %)
+      over these sizes: a neighbourhood off on average 5 % today, 4 % spread; at its most 18 % today, 16 % spread; the outline off by at most 15 % today, 5 % spread
+   (48281 ms)

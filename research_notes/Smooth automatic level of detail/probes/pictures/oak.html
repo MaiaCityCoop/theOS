@@ -1,0 +1,53 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>An oak's crown under each rule</title>
+<style>
+  html, body { margin: 0; background: #f7f0e3; color: #173655; font: 15px/1.35 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  #wrap { width: 1900px; padding: 28px 28px 22px; box-sizing: border-box; }
+  h1 { font-size: 26px; margin: 0 0 4px; font-weight: 650; }
+  p.sub { margin: 0 0 16px; color: #5f7f52; font-size: 16px; }
+  .row { display: grid; grid-template-columns: repeat(5, 360px); gap: 8px; }
+  .cell { background: #fbf6ea; border-radius: 14px; overflow: hidden; }
+  .cell canvas { display: block; }
+  .cap { padding: 8px 12px 12px; min-height: 96px; }
+  .cap b { display: block; font-size: 16px; }
+  .cap span { color: #7f8a78; font-size: 14px; display: block; }
+  .cap em { font-style: normal; color: #4f9d34; font-weight: 600; }
+  .cap em.bad { color: #b4532a; }
+  footer { color: #7f8a78; font-size: 13px; margin-top: 10px; max-width: 1500px; }
+</style>
+<div id="wrap">
+  <h1 id="title">An oak of ours, its crown under each rule</h1>
+  <p class="sub">Seen from the side. A card is drawn as its sprig would cover it: 45 % of it, so where cards lie over one another the crown grows dense.</p>
+  <div class="row" id="row"></div>
+  <footer>The crown's shape and cover only: one green, no sprig's painting, no light, no wind. "Cover": how much of the picture the crown covers, beside the full crown, from the side and from above. Drawn by a plain WebGL page for this research, not by the game.</footer>
+</div>
+<script type="importmap">{ "imports": { "three": "./three/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+const D = await (await fetch('./oak.json')).json();
+document.getElementById('title').textContent = `A ${D.name.toLowerCase()} of ours, its crown under each rule`;
+const W = 360, Hh = 430, fmt = (n) => n.toLocaleString('en-US');
+// the whole tree in the picture: from its foot to the crown's top, as wide as the crown reaches
+const y0 = 0, y1 = D.hi[1], z0 = D.lo[2], z1 = D.hi[2], cy = (y0 + y1) / 2, cz = (z0 + z1) / 2, cx = (D.lo[0] + D.hi[0]) / 2;
+const s = Math.min((W - 16) / (z1 - z0), (Hh - 16) / (y1 - y0));
+const leafM = new THREE.MeshBasicMaterial({ color: 0x3f7a2b, transparent: true, opacity: D.card, depthWrite: false, side: THREE.DoubleSide });
+const woodM = new THREE.MeshBasicMaterial({ color: 0x6d4b2e, side: THREE.DoubleSide });
+const geo = (a) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(a), 3)); return g; };
+const row = document.getElementById('row');
+D.variants.forEach((V, i) => {
+  const cell = document.createElement('div'); cell.className = 'cell';
+  const canvas = document.createElement('canvas'); canvas.style.width = W + 'px'; canvas.style.height = Hh + 'px';
+  const r = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true }); r.setPixelRatio(devicePixelRatio); r.setSize(W, Hh, false); r.setClearColor(0xfbf6ea, 1);
+  const scene = new THREE.Scene();
+  if (V.wood.length) scene.add(new THREE.Mesh(geo(V.wood), woodM));
+  if (V.leaf.length) scene.add(new THREE.Mesh(geo(V.leaf), leafM));
+  const cam = new THREE.OrthographicCamera(-W / 2 / s, W / 2 / s, Hh / 2 / s, -Hh / 2 / s, 0.1, 500); cam.position.set(cx + 200, cy, cz); cam.lookAt(cx, cy, cz);
+  r.render(scene, cam);
+  cell.appendChild(canvas);
+  const ok = Math.abs(V.side - 100) <= 5 && Math.abs(V.above - 100) <= 5, cap = document.createElement('div'); cap.className = 'cap';
+  cap.innerHTML = `<b>${V.name[0].toUpperCase() + V.name.slice(1)}${V.times ? ` ${V.times} times` : ''}</b><span>${fmt(V.leafTris)} leaf triangles</span>` + (i ? `<span>cover: <em class="${ok ? '' : 'bad'}">${V.side} %</em> from the side, <em class="${ok ? '' : 'bad'}">${V.above} %</em> from above</span>` : '<span>the full crown: 100 %</span>');
+  cell.appendChild(cap); row.appendChild(cell);
+});
+document.body.dataset.done = '1';
+</script>

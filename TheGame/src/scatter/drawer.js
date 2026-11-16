@@ -58,6 +58,7 @@ import { Tier, offScreen, clipOf } from './tier.js';
 import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective, cornersOf, shapedOf } from './heap.js';
 import { ballCorners } from '../../assets/kit/blob.js';
 import { solidOf } from './solid.js';
+import { LOD } from '../../assets/kit/crowd.js';   // (how the plants' levels are made, told to the recipes' workers)
 import { GHOST as GHOSTING } from '../world/bodies.js';   // (`?ghost`: the walker passes through everything, in every world, and what he is inside draws back from his eye)
 import { LADDER, FULLN, DOTN, roomOf, underOf, trisOf, vertsOf } from '../../assets/kit/ladder.js';
 import { dotMesh, BONES } from '../../assets/kit/solid.js';
@@ -83,7 +84,7 @@ const CLASSIX = []; const classIndex = (c) => (CLASSIX[c] ||= new THREE.BufferAt
 let POOL = null;
 const pool = () => (POOL ||= (() => {
   const workers = Array.from({ length: 3 }, () => new Worker(new URL('./recipes.worker.js', import.meta.url), { type: 'module' })), waiting = new Map(); let nextId = 0, turn = 0;
-  for (const w of workers) w.onmessage = ({ data }) => { waiting.get(data.id)(data.out); waiting.delete(data.id); };
+  for (const w of workers) { w.onmessage = ({ data }) => { waiting.get(data.id)?.(data.out); waiting.delete(data.id); }; w.postMessage({ id: -1, jobs: [['lod', { ...LOD }]] }); }   // (first, how the plants' levels are made: assets/kit/crowd.js, `?lod=new`)
   return (jobs) => new Promise((res) => { const id = nextId++; waiting.set(id, res); workers[turn++ % workers.length].postMessage({ id, jobs }); });
 })());
 
@@ -556,6 +557,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // the level's own shape where no kind has it, the corners looked up where every kind has
     const lead = !made.length, run = T.run.bind(T), hp = H.pools[i];
     const shows = (k) => (byKind ? H.has(k, i) : classed ? classesIn[i].has(cLo + k) : k === KS ? hp.shaped > 0 : perSlot ? hp.who[k % K0] >= 0 : hp.one || hp.held > hp.shaped);
+    T.kindOf = (k) => (byKind ? k : perSlot && k !== KS ? hp.who[k % K0] : -1);   // whose mesh its k-th draw draws: a kind's own, or the one that lies in its slot of the heap (-1: none, or a draw of many kinds': a class's, the level's own shape, the dot)
     T.run = (r, world, ...a) => {
       if (lead) arrive();
       if (T.n > 0) T.meshes.forEach((m, k) => { m.visible = shows(k); });

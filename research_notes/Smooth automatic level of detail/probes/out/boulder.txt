@@ -1,0 +1,55 @@
+boulder: 55298 vertices, 110592 triangles; groups of 8
+built in 415 ms (266613 triangles a second): base clusters 201, grouping (JS) 67, simplifying 76, splitting 67, bounds 4; the mesh itself took 510
+1814 clusters in 15 levels, 221042 triangles in all (1.999 times the mesh); 1 at the top with 6 triangles; unsound parents: 0
+its vertices cluster by cluster: 151350 (83 a cluster, 2.74 times the mesh's); at 16 bytes a vertex and a byte a corner: 3.08 MB, the full mesh alone as the heap keeps it 2.21 MB
+level  clusters  triangles  largest error (of its size)  stuck groups
+    0       867     110592       0.00e+0  0
+    1       451      55288       7.94e-4  0
+    2       242      27628       1.06e-3  0
+    3       124      13794       1.71e-3  0
+    4        65       6886       2.35e-3  0
+    5        31       3436       3.33e-3  0
+    6        16       1716       5.12e-3  0
+    7         7        858       8.16e-3  0
+    8         4        428       1.05e-2  0
+    9         2        214       1.70e-2  0
+   10         1        106       2.47e-2  0
+   11         1         52       4.44e-2  0
+   12         1         26       6.03e-2  0
+   13         1         12       1.26e-1  0
+   14         1          6       1.53e-1  0
+the ladder today: level, squares an edge, drawn down to px, triangles, how far its vertices move to the next mesh (most, rms; of its size), that in pixels at the change
+  0  full     400   110592  0.0137  0.0018  5.5 px most, 0.7 px rms
+  1    32     128    12288  0.0229  0.0040  2.9 px most, 0.5 px rms
+  2    16      64     3072  0.0429  0.0074  2.7 px most, 0.5 px rms
+  3     8      32      768  0.0650  0.0159  2.1 px most, 0.5 px rms
+  4     4      16      192  0.1510  0.0443  2.4 px most, 0.7 px rms
+  5     2       8       48  0.2575  0.1066  2.1 px most, 0.9 px rms
+  6     1       4       12  0.0000  0.0000  0.0 px most, 0.0 px rms
+  7   dot    1.15        1  0.0000  0.0000  0.0 px most, 0.0 px rms
+size on screen (px)  ladder  | cut at 1 px (in view)  | at 2 px (in view)  | at 4 px (in view)
+    4000    110592  |    55400 (   20258)  |    42470 (   16230)  |    32782 (   13172)
+    2000    110592  |    54306 (   23678)  |    39424 (   17692)  |    29802 (   13868)
+    1200    110592  |    43636 (   24079)  |    30034 (   17016)  |    22388 (   14169)
+     800    110592  |    32208 (   23976)  |    19608 (   15309)  |    13792 (   11637)
+     500    110592  |    17000 (   17000)  |     9614 (    9614)  |     6104 (    6104)
+     400     12288  |    13210 (   13210)  |     6340 (    6340)  |     3436 (    3436)
+     300     12288  |     8034 (    8034)  |     3436 (    3436)  |     1716 (    1716)
+     200     12288  |     3436 (    3436)  |     1716 (    1716)  |      428 (     428)
+     128      3072  |     1716 (    1716)  |      428 (     428)  |      214 (     214)
+      90      3072  |      858 (     858)  |      214 (     214)  |      106 (     106)
+      64       768  |      428 (     428)  |      106 (     106)  |       52 (      52)
+      32       192  |      106 (     106)  |       52 (      52)  |       26 (      26)
+      16        48  |       26 (      26)  |       26 (      26)  |        6 (       6)
+       8        12  |       26 (      26)  |        6 (       6)  |        6 (       6)
+       4         1  |        6 (       6)  |        6 (       6)  |        6 (       6)
+       2         1  |        6 (       6)  |        6 (       6)  |        6 (       6)
+       1         0  |        6 (       6)  |        6 (       6)  |        6 (       6)
+how far from the full mesh, in pixels (rms / most), and with how many triangles: the ladder's level where it takes over, and the cut at the same size
+  at  400 px  ladder  12288 tris 0.56 / 4.41  | cut 1 px:  13210 tris 0.14 / 1.10  | cut 2 px:   6340 tris 0.24 / 1.49  | cut 4 px:   3436 tris 0.35 / 1.82
+  at  128 px  ladder   3072 tris 0.45 / 2.86  | cut 1 px:   1716 tris 0.19 / 1.02  | cut 2 px:    428 tris 0.44 / 2.11  | cut 4 px:    214 tris 0.77 / 2.77
+  at   64 px  ladder    768 tris 0.45 / 2.55  | cut 1 px:    428 tris 0.22 / 1.05  | cut 2 px:    106 tris 0.56 / 1.71  | cut 4 px:     52 tris 0.94 / 3.01
+  at   32 px  ladder    192 tris 0.42 / 1.95  | cut 1 px:    106 tris 0.28 / 0.86  | cut 2 px:     52 tris 0.47 / 1.51  | cut 4 px:     26 tris 1.06 / 3.08
+  at   16 px  ladder     48 tris 0.53 / 2.34  | cut 1 px:     26 tris 0.53 / 1.54  | cut 2 px:     26 tris 0.53 / 1.54  | cut 4 px:      6 tris 2.57 / 6.14
+the tail under one cluster: 52, 26, 12, 6 triangles
+cracks: 0 open edges in the 51 cuts above (7 pinched), 0 open in 126 more cuts from all round (24 pinched)

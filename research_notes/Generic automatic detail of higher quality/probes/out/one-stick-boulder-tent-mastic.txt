@@ -1,0 +1,38 @@
+
+== Boulder: 110592 triangles in 1 piece, 0 of them under a fiftieth of it
+   1. two ways to a share of its triangles, measured at the size on screen that share would be drawn at
+       50 % at 362 px | folding it all ( 55296): outline 100 %, a neighbourhood off by  0 % (worst  0 %) | no crowd in it | the stick chooses folding it all
+       25 % at 256 px | folding it all ( 27648): outline 100 %, a neighbourhood off by  0 % (worst  1 %) | no crowd in it | the stick chooses folding it all
+       10 % at 162 px | folding it all ( 11058): outline 100 %, a neighbourhood off by  0 % (worst  2 %) | no crowd in it | the stick chooses folding it all
+        4 % at 102 px | folding it all (  4422): outline 100 %, a neighbourhood off by  0 % (worst  2 %) | no crowd in it | the stick chooses folding it all
+   2. today's levels at the size each is first drawn at, and the best of the ways with about as many triangles
+      ladder 32     from  400 px,  12288 triangles | today: outline  99 %, a neighbourhood off by  1 % (worst 23 %) | folding it all (12288): outline 100 %, a neighbourhood off by  0 % (worst  3 %)
+      ladder 16     from  128 px,   3072 triangles | today: outline  98 %, a neighbourhood off by  2 % (worst 28 %) | folding it all (3072): outline 100 %, a neighbourhood off by  0 % (worst  4 %)
+      ladder 8      from   64 px,    768 triangles | today: outline  96 %, a neighbourhood off by  4 % (worst 31 %) | folding it all (768): outline 100 %, a neighbourhood off by  1 % (worst  7 %)
+      ladder 4      from   32 px,    192 triangles | today: outline  95 %, a neighbourhood off by  4 % (worst 30 %) | folding it all (192): outline  98 %, a neighbourhood off by  1 % (worst 12 %)
+      ladder 2      from   16 px,     48 triangles | today: outline  89 %, a neighbourhood off by 10 % (worst 65 %) | folding it all (48): outline  92 %, a neighbourhood off by  6 % (worst 32 %)
+      ladder 1      from    8 px,     12 triangles | today: outline  85 %, a neighbourhood off by 20 % (worst 98 %) | a solid hull of 8 round all of it, 1.20 of its reach (8): outline 102 %, a neighbourhood off by 18 % (worst 89 %)
+   (20510 ms)
+
+== Bell tent: 1392 triangles in 33 pieces, 28 of them under a fiftieth of it
+   1. two ways to a share of its triangles, measured at the size on screen that share would be drawn at
+       50 % at 362 px | folding it all (   696): outline 100 %, a neighbourhood off by  0 % (worst  2 %) | crowd by crowd (   705; the solid pieces thinned alike, enlarged 1.22 x): outline  98 %, a neighbourhood off by  1 % (worst 18 %) | the stick chooses folding it all
+       25 % at 256 px | folding it all (   348): outline  90 %, a neighbourhood off by  2 % (worst 19 %) | crowd by crowd (   340; the solid pieces thinned alike, enlarged 1.43 x): outline  94 %, a neighbourhood off by  1 % (worst 18 %) | the stick chooses crowd by crowd
+       10 % at 162 px | folding it all (   138): outline  85 %, a neighbourhood off by  3 % (worst 40 %) | crowd by crowd (   144; the solid pieces thinned, the smallest first, enlarged 1.48 x): outline  86 %, a neighbourhood off by  3 % (worst 27 %) | the stick chooses crowd by crowd
+        4 % at 102 px | folding it all (    54): outline  79 %, a neighbourhood off by  6 % (worst 51 %) | crowd by crowd (    54; the solid pieces folded): outline  78 %, a neighbourhood off by  6 % (worst 56 %) | the stick chooses folding it all
+   2. today's levels at the size each is first drawn at, and the best of the ways with about as many triangles
+      level 1       from  170 px,    296 triangles | today: outline  99 %, a neighbourhood off by  1 % (worst 13 %) | the solid pieces thinned alike, enlarged 2.09 x (281): outline  92 %, a neighbourhood off by  2 % (worst 14 %)
+      level 2       from   45 px,    174 triangles | today: outline  90 %, a neighbourhood off by  1 % (worst 11 %) | the solid pieces thinned alike, enlarged 2.15 x (169): outline  95 %, a neighbourhood off by  1 % (worst  6 %)
+      level 3       from   15 px,     18 triangles | today: outline  89 %, a neighbourhood off by  8 % (worst 31 %) | a solid hull of 8 round its largest crowd, 0.72 of its reach (18): outline  99 %, a neighbourhood off by  9 % (worst 42 %)
+   (53632 ms)
+
+== Mastic: 744 triangles in 342 pieces, 342 of them under a fiftieth of it
+   1. two ways to a share of its triangles, measured at the size on screen that share would be drawn at
+       50 % at 362 px | folding it all (   356): outline 100 %, a neighbourhood off by  3 % (worst 40 %) | crowd by crowd (   354; the cut-out pieces folded): outline 100 %, a neighbourhood off by  3 % (worst 34 %) | the stick chooses crowd by crowd
+       25 % at 256 px | folding it all (   170): outline  97 %, a neighbourhood off by  9 % (worst 69 %) | crowd by crowd (   186; the cut-out pieces thinned, the smallest first, enlarged 2.43 x): outline 105 %, a neighbourhood off by  9 % (worst 54 %) | the stick chooses crowd by crowd
+       10 % at 162 px | folding it all (    74): outline  89 %, a neighbourhood off by 18 % (worst 82 %) | crowd by crowd (    75; the cut-out pieces thinned, the smallest first, enlarged 1.59 x): outline 102 %, a neighbourhood off by 18 % (worst 86 %) | the stick chooses crowd by crowd
+        4 % at 102 px | folding it all (    29): outline  83 %, a neighbourhood off by 33 % (worst 100 %) | crowd by crowd (    28; the cut-out pieces folded): outline  80 %, a neighbourhood off by 32 % (worst 87 %) | the stick chooses crowd by crowd
+   2. today's levels at the size each is first drawn at, and the best of the ways with about as many triangles
+      level 1       from  140 px,     88 triangles | today: outline  89 %, a neighbourhood off by 16 % (worst 82 %) | the cut-out pieces thinned, the smallest first, enlarged 1.52 x (88): outline 101 %, a neighbourhood off by 16 % (worst 84 %)
+      its far body  from   16 px,     20 triangles | today: outline  46 %, a neighbourhood off by 25 % (worst 79 %) | a hull of 20 round all of it that stops 85 % of the light (20): outline  87 %, a neighbourhood off by 16 % (worst 68 %)
+   (61113 ms)

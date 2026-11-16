@@ -1,0 +1,21 @@
+
+== Stone pine: 11550 triangles in 3849 pieces, 3849 of them under a fiftieth of it
+   3. the same triangles in all (things spread evenly over the ground): today 11550 from 600 px, 2406 from 260 px, 858 from 80 px, 168 from 34 px, 30 from 18 px, 8 from 7 px; spread by size: all 11550 down to 213 px, then by the square of the size, never under 8
+      at 400 px | today ( 11550 triangles): outline 100 %, a neighbourhood off by  0 % (worst  0 %) | spread ( 11550, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at 296 px | today ( 11550 triangles): outline 100 %, a neighbourhood off by  0 % (worst  0 %) | spread ( 11550, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at 219 px | today (  2406 triangles): outline 113 %, a neighbourhood off by 19 % (worst 98 %) | spread ( 11550, all of it): outline 100 %, a neighbourhood off by  0 % (worst  0 %)
+      at 163 px | today (  2406 triangles): outline 113 %, a neighbourhood off by 19 % (worst 94 %) | spread (  6441, the solid pieces folded; the cut-out pieces thinned, the smallest first, enlarged 1.59 x): outline 101 %, a neighbourhood off by  6 % (worst 36 %)
+      at 120 px | today (  2406 triangles): outline 112 %, a neighbourhood off by 18 % (worst 89 %) | spread (  3513, the solid pieces folded; the cut-out pieces thinned alike, enlarged 1.60 x): outline 101 %, a neighbourhood off by  9 % (worst 52 %)
+      at  89 px | today (  2406 triangles): outline 113 %, a neighbourhood off by 17 % (worst 81 %) | spread (  1930, the solid pieces folded; the cut-out pieces thinned alike, enlarged 2.01 x): outline 104 %, a neighbourhood off by 13 % (worst 64 %)
+      at  66 px | today (   858 triangles): outline 130 %, a neighbourhood off by 23 % (worst 96 %) | spread (  1053, the solid pieces folded; the cut-out pieces thinned alike, enlarged 2.54 x): outline 106 %, a neighbourhood off by 16 % (worst 75 %)
+      at  49 px | today (   858 triangles): outline 128 %, a neighbourhood off by 22 % (worst 90 %) | spread (   608, the solid pieces folded; the cut-out pieces thinned alike, enlarged 3.23 x): outline 109 %, a neighbourhood off by 18 % (worst 82 %)
+      at  36 px | today (   858 triangles): outline 128 %, a neighbourhood off by 20 % (worst 91 %) | spread (   330, a solid hull of 36 round its largest crowd, 1.03 of its reach): outline  95 %, a neighbourhood off by 14 % (worst 56 %)
+      at  27 px | today (   168 triangles): outline 142 %, a neighbourhood off by 24 % (worst 95 %) | spread (   169, a solid hull of 20 round its largest crowd, 1.05 of its reach): outline  92 %, a neighbourhood off by 14 % (worst 53 %)
+      at  20 px | today (   168 triangles): outline 142 %, a neighbourhood off by 24 % (worst 95 %) | spread (    99, a solid hull of 36 round its largest crowd, 1.03 of its reach): outline  92 %, a neighbourhood off by 14 % (worst 54 %)
+      at  15 px | today (    30 triangles): outline  72 %, a neighbourhood off by 29 % (worst 87 %) | spread (    54, a solid hull of 20 round its largest crowd, 1.05 of its reach): outline  93 %, a neighbourhood off by 15 % (worst 55 %)
+      at  11 px | today (    30 triangles): outline  72 %, a neighbourhood off by 29 % (worst 87 %) | spread (    27, a solid hull of 20 round its largest crowd, 1.05 of its reach): outline  94 %, a neighbourhood off by 16 % (worst 67 %)
+      at   8 px | today (    30 triangles): outline  72 %, a neighbourhood off by 29 % (worst 87 %) | spread (    15, a solid hull of 8 round its largest crowd, 1.21 of its reach): outline  93 %, a neighbourhood off by 20 % (worst 71 %)
+      at   6 px | today (     8 triangles): outline  47 %, a neighbourhood off by 35 % (worst 95 %) | spread (     8, a solid hull of 8 round its largest crowd, 1.23 of its reach): outline  82 %, a neighbourhood off by 19 % (worst 67 %)
+      at   4 px | today (     8 triangles): outline  47 %, a neighbourhood off by 29 % (worst 66 %) | spread (     8, a solid hull of 8 round its largest crowd, 1.23 of its reach): outline  84 %, a neighbourhood off by 16 % (worst 58 %)
+      over these sizes: a neighbourhood off on average 21 % today, 12 % spread; at its most 35 % today, 20 % spread; the outline off by at most 53 % today, 18 % spread
+   (225677 ms)

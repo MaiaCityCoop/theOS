@@ -8,6 +8,8 @@
 | [`OS/`](OS/README.md) | The dashboard over the three, and the front page |
 | `brand/` | `brand.css`: the one look of every page |
 | [`deploy/`](deploy/README.md) | Putting the website (`OS/`) and the game (`TheGame/`) on their host: https://next.maia.city and https://play.next.maia.city |
+| `reports/` | Research an intent asked for: one Markdown report each, linked from its intent |
+| `research_notes/` | The notes behind each report with their sources, and the scripts and outputs of what was measured for it |
 
 `bun install` in `TheGame/` and in `OS/` once; then `bun run dev` here: one server, http://localhost:5180, the
 dashboard at `/` and the game inside it at `/game/` (`/game/library.html`, `/game/lenses.html`, `/game/timeline.html`).

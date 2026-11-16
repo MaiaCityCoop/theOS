@@ -1,0 +1,55 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Today: a plant at each of its levels</title>
+<style>
+  html, body { margin: 0; background: #f7f0e3; color: #173655; font: 15px/1.35 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  #wrap { width: 1900px; padding: 28px 28px 22px; box-sizing: border-box; }
+  h1 { font-size: 26px; margin: 0 0 4px; font-weight: 650; }
+  p.sub { margin: 0 0 14px; color: #5f7f52; font-size: 16px; max-width: 1500px; }
+  h2 { font-size: 17px; margin: 14px 0 6px; font-weight: 600; }
+  .row { display: grid; grid-template-columns: repeat(6, 300px); gap: 8px; }
+  .cell { background: #fbf6ea; border-radius: 14px; overflow: hidden; }
+  .cell canvas { display: block; }
+  .cap { padding: 6px 10px 10px; min-height: 92px; }
+  .cap b { display: block; font-size: 15px; }
+  .cap span { color: #7f8a78; font-size: 13px; display: block; }
+  .cap em { font-style: normal; color: #4f9d34; font-weight: 600; }
+  .cap em.bad { color: #b4532a; }
+  footer { color: #7f8a78; font-size: 13px; margin-top: 10px; max-width: 1500px; }
+</style>
+<div id="wrap">
+  <h1>Today: one plant at each of its levels</h1>
+  <p class="sub">The same plant, the same scale, seen from the side, as each of its levels draws it. "Outline": how much of the picture the crown touches, beside its nearest level. A crown that is the same at every level would read 100 % everywhere.</p>
+  <div id="rows"></div>
+  <footer>Shape and cover only: one green, a card drawn as 45 % sprig, no painting, no light, no wind. Between two levels the game draws both and lets sprigs shrink and grow one after another; this shows what it moves between. Drawn by a plain WebGL page for this research, not by the game.</footer>
+</div>
+<script type="importmap">{ "imports": { "three": "./three/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+const W = 300, Hh = 300, fmt = (n) => n.toLocaleString('en-US');
+const woodM = new THREE.MeshBasicMaterial({ color: 0x6d4b2e, side: THREE.DoubleSide });
+const geo = (a) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(a), 3)); return g; };
+const rows = document.getElementById('rows');
+for (const file of ['levels-holmoak', 'levels-stonepine', 'levels-mastic']) {
+  const D = await (await fetch(`./${file}.json`)).json();
+  const h = document.createElement('h2'); h.textContent = `${D.name} (${D.kind === 'shrub' ? 'a shrub: its size is its largest side' : 'a tree: its size is its height'} on screen)`; rows.appendChild(h);
+  const row = document.createElement('div'); row.className = 'row'; rows.appendChild(row);
+  // the whole plant in the picture, the same for every level: from its foot to its top, as wide as its nearest level reaches
+  const y0 = Math.min(0, D.lo[1]), y1 = D.hi[1], z0 = D.lo[2], z1 = D.hi[2], cy = (y0 + y1) / 2, cz = (z0 + z1) / 2, cx = (D.lo[0] + D.hi[0]) / 2, s = Math.min((W - 30) / (z1 - z0), (Hh - 30) / (y1 - y0)) / 1.25;
+  for (const L of D.levels) {
+    const cell = document.createElement('div'); cell.className = 'cell';
+    const canvas = document.createElement('canvas'); canvas.style.width = W + 'px'; canvas.style.height = Hh + 'px';
+    const r = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true }); r.setPixelRatio(devicePixelRatio); r.setSize(W, Hh, false); r.setClearColor(0xfbf6ea, 1);
+    const scene = new THREE.Scene();
+    if (L.wood.length) scene.add(new THREE.Mesh(geo(L.wood), woodM));
+    if (L.leaf.length) scene.add(new THREE.Mesh(geo(L.leaf), new THREE.MeshBasicMaterial(L.solid ? { color: 0x3f7a2b, side: THREE.DoubleSide } : { color: 0x3f7a2b, transparent: true, opacity: D.card, depthWrite: false, side: THREE.DoubleSide })));
+    const cam = new THREE.OrthographicCamera(-W / 2 / s, W / 2 / s, Hh / 2 / s, -Hh / 2 / s, 0.1, 500); cam.position.set(cx + 200, cy, cz); cam.lookAt(cx, cy, cz);
+    r.render(scene, cam); cell.appendChild(canvas);
+    const off = (v) => Math.abs(v - 100) > 5, cap = document.createElement('div'); cap.className = 'cap';
+    const range = L.from ? `${L.from} px down to ${L.to} px` : `over ${L.to} px`;
+    cap.innerHTML = `<b>${L.name[0].toUpperCase() + L.name.slice(1)}${L.solid ? ' (one solid)' : ''}</b><span>drawn at ${range}; ${fmt(L.tris)} triangles</span>` + (L === D.levels[0] ? '<span>outline 100 %, cover 100 %</span>' : `<span>outline <em class="${off(L.oSide) ? 'bad' : ''}">${L.oSide} %</em>, from above <em class="${off(L.oAbove) ? 'bad' : ''}">${L.oAbove} %</em></span><span>cover <em class="${off(L.side) ? 'bad' : ''}">${L.side} %</em>, from above <em class="${off(L.above) ? 'bad' : ''}">${L.above} %</em></span>`);
+    cell.appendChild(cap); row.appendChild(cell);
+  }
+}
+document.body.dataset.done = '1';
+</script>

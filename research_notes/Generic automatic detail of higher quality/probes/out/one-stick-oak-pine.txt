@@ -1,0 +1,28 @@
+
+== Holm oak: 21444 triangles in 6981 pieces, 6981 of them under a fiftieth of it
+   1. two ways to a share of its triangles, measured at the size on screen that share would be drawn at
+       50 % at 362 px | folding it all ( 10598): outline  99 %, a neighbourhood off by 10 % (worst 99 %) | crowd by crowd ( 10288; the solid pieces folded; the cut-out pieces thinned, the smallest first, enlarged 1.28 x): outline 100 %, a neighbourhood off by 10 % (worst 61 %) | the stick chooses crowd by crowd
+       25 % at 256 px | folding it all (  5274): outline  97 %, a neighbourhood off by 19 % (worst 90 %) | crowd by crowd (  5247; the solid pieces folded; the cut-out pieces thinned, the smallest first, enlarged 1.73 x): outline 100 %, a neighbourhood off by 15 % (worst 83 %) | the stick chooses crowd by crowd
+       10 % at 162 px | folding it all (  1207): outline  77 %, a neighbourhood off by 58 % (worst 100 %) | crowd by crowd (  2065; the solid pieces folded; the cut-out pieces thinned, the smallest first, enlarged 2.72 x): outline 101 %, a neighbourhood off by 22 % (worst 100 %) | the stick chooses crowd by crowd
+        4 % at 102 px | folding it all (   370): outline  31 %, a neighbourhood off by 78 % (worst 100 %) | crowd by crowd (   848; the solid pieces folded; the cut-out pieces thinned alike, enlarged 4.68 x): outline 105 %, a neighbourhood off by 27 % (worst 100 %) | the stick chooses crowd by crowd
+   2. today's levels at the size each is first drawn at, and the best of the ways with about as many triangles
+      level 1       from  260 px,   3948 triangles | today: outline 106 %, a neighbourhood off by 22 % (worst 100 %) | the solid pieces folded; the cut-out pieces thinned, the smallest first, enlarged 1.99 x (3681): outline 101 %, a neighbourhood off by 18 % (worst 96 %)
+      level 2       from   80 px,   1068 triangles | today: outline 110 %, a neighbourhood off by 24 % (worst 100 %) | the solid pieces folded; the cut-out pieces thinned alike, enlarged 4.07 x (1028): outline 104 %, a neighbourhood off by 24 % (worst 100 %)
+      level 3       from   34 px,    228 triangles | today: outline 113 %, a neighbourhood off by 26 % (worst 97 %) | a solid hull of 36 round its largest crowd, 1.01 of its reach (228): outline  93 %, a neighbourhood off by 24 % (worst 100 %)
+      its far body  from   18 px,     30 triangles | today: outline  66 %, a neighbourhood off by 39 % (worst 100 %) | a solid hull of 20 round its largest crowd, 1.05 of its reach (36): outline  91 %, a neighbourhood off by 26 % (worst 100 %)
+      its speck     from    7 px,      8 triangles | today: outline  42 %, a neighbourhood off by 48 % (worst 100 %) | a solid hull of 8 round its largest crowd, 1.27 of its reach (8): outline  92 %, a neighbourhood off by 30 % (worst 100 %)
+   (290273 ms)
+
+== Stone pine: 11550 triangles in 3849 pieces, 3849 of them under a fiftieth of it
+   1. two ways to a share of its triangles, measured at the size on screen that share would be drawn at
+       50 % at 362 px | folding it all (  5727): outline  99 %, a neighbourhood off by  7 % (worst 96 %) | crowd by crowd (  5731; the solid pieces folded; the cut-out pieces thinned alike, enlarged 1.38 x): outline 100 %, a neighbourhood off by  8 % (worst 54 %) | the stick chooses crowd by crowd
+       25 % at 256 px | folding it all (  2837): outline  96 %, a neighbourhood off by 17 % (worst 88 %) | crowd by crowd (  2755; the solid pieces folded; the cut-out pieces thinned alike, enlarged 1.75 x): outline 102 %, a neighbourhood off by 12 % (worst 70 %) | the stick chooses crowd by crowd
+       10 % at 162 px | folding it all (  1105): outline  85 %, a neighbourhood off by 37 % (worst 97 %) | crowd by crowd (  1079; the solid pieces folded; the cut-out pieces thinned alike, enlarged 2.50 x): outline 107 %, a neighbourhood off by 18 % (worst 85 %) | the stick chooses crowd by crowd
+        4 % at 102 px | folding it all (   240): outline  22 %, a neighbourhood off by 74 % (worst 100 %) | crowd by crowd (   449; the solid pieces folded; the cut-out pieces thinned alike, enlarged 3.61 x): outline 115 %, a neighbourhood off by 23 % (worst 94 %) | the stick chooses crowd by crowd
+   2. today's levels at the size each is first drawn at, and the best of the ways with about as many triangles
+      level 1       from  260 px,   2406 triangles | today: outline 113 %, a neighbourhood off by 20 % (worst 100 %) | the solid pieces folded; the cut-out pieces thinned alike, enlarged 1.87 x (2397): outline 103 %, a neighbourhood off by 14 % (worst 75 %)
+      level 2       from   80 px,    858 triangles | today: outline 131 %, a neighbourhood off by 24 % (worst 98 %) | the solid pieces folded; the cut-out pieces thinned, the smallest first, enlarged 2.66 x (854): outline 108 %, a neighbourhood off by 19 % (worst 85 %)
+      level 3       from   34 px,    168 triangles | today: outline 149 %, a neighbourhood off by 25 % (worst 86 %) | a solid hull of 36 round its largest crowd, 1.03 of its reach (145): outline  94 %, a neighbourhood off by 14 % (worst 56 %)
+      its far body  from   18 px,     30 triangles | today: outline  72 %, a neighbourhood off by 29 % (worst 87 %) | a solid hull of 20 round its largest crowd, 1.05 of its reach (27): outline  94 %, a neighbourhood off by 16 % (worst 67 %)
+      its speck     from    7 px,      8 triangles | today: outline  51 %, a neighbourhood off by 39 % (worst 88 %) | a solid hull of 8 round its largest crowd, 1.23 of its reach (8): outline  97 %, a neighbourhood off by 21 % (worst 72 %)
+   (146855 ms)

@@ -1,0 +1,43 @@
+ball:289: 501128 vertices, 1002252 triangles; groups of 8
+built in 2560 ms (391457 triangles a second): base clusters 833, grouping (JS) 437, simplifying 610, splitting 643, bounds 37; the mesh itself took 643
+16593 clusters in 18 levels, 2002908 triangles in all (1.998 times the mesh); 1 at the top with 6 triangles; unsound parents: 0
+its vertices cluster by cluster: 1368221 (82 a cluster, 2.73 times the mesh's); at 16 bytes a vertex and a byte a corner: 27.90 MB, the full mesh alone as the heap keeps it 20.05 MB
+level  clusters  triangles  largest error (of its size)  stuck groups
+    0      7930    1002252       0.00e+0  0
+    1      4192     500962       2.72e-4  0
+    2      2177     250220       5.09e-4  0
+    3      1136     124940       8.12e-4  0
+    4       577      62372       1.30e-3  0
+    5       292      31136       1.71e-3  0
+    6       144      15540       2.53e-3  0
+    7        72       7760       3.67e-3  0
+    8        36       3874       5.34e-3  0
+    9        18       1934       7.21e-3  0
+   10         8        966       1.09e-2  0
+   11         4        482       1.46e-2  0
+   12         2        240       2.25e-2  0
+   13         1        120       3.08e-2  0
+   14         1         60       4.30e-2  0
+   15         1         30       7.58e-2  0
+   16         1         14       1.40e-1  0
+   17         1          6       1.78e-1  0
+size on screen (px)  ladder  | cut at 1 px (in view)  | at 2 px (in view)  | at 4 px (in view)
+    4000         -  |   347126 (   79374)  |   200848 (   45524)  |   133034 (   31511)
+    2000         -  |   302554 (   83486)  |   188226 (   55022)  |   130182 (   43452)
+    1200         -  |   203484 (  177833)  |   111746 (  101430)  |    71798 (   67680)
+     800         -  |   113814 (  113814)  |    59426 (   59426)  |    34522 (   34522)
+     500         -  |    52728 (   52728)  |    23562 (   23562)  |    12200 (   12200)
+     400         -  |    33812 (   33812)  |    15042 (   15042)  |     6828 (    6828)
+     300         -  |    17728 (   17728)  |     7760 (    7760)  |     2898 (    2898)
+     200         -  |     7760 (    7760)  |     3376 (    3376)  |      966 (     966)
+     128         -  |     3874 (    3874)  |      966 (     966)  |      240 (     240)
+      90         -  |     1934 (    1934)  |      482 (     482)  |      120 (     120)
+      64         -  |      966 (     966)  |      240 (     240)  |       60 (      60)
+      32         -  |      240 (     240)  |       60 (      60)  |       30 (      30)
+      16         -  |       60 (      60)  |       30 (      30)  |        6 (       6)
+       8         -  |       30 (      30)  |        6 (       6)  |        6 (       6)
+       4         -  |        6 (       6)  |        6 (       6)  |        6 (       6)
+       2         -  |        6 (       6)  |        6 (       6)  |        6 (       6)
+       1         -  |        6 (       6)  |        6 (       6)  |        6 (       6)
+the tail under one cluster: 60, 30, 14, 6 triangles
+cracks: 0 open edges in the 51 cuts above (276 pinched), 0 open in 126 more cuts from all round (647 pinched)

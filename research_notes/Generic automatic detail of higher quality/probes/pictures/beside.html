@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Today's level beside the automatic one, each beside the full plant made small</title>
+<style>
+  html, body { margin: 0; background: #f7f0e3; color: #173655; font: 15px/1.35 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  #wrap { width: 1180px; padding: 28px 28px 22px; box-sizing: border-box; }
+  h1 { font-size: 26px; margin: 0 0 4px; font-weight: 650; }
+  p.sub { margin: 0 0 14px; color: #5f7f52; font-size: 16px; }
+  h2 { font-size: 17px; margin: 16px 0 6px; font-weight: 600; }
+  .row { display: grid; grid-template-columns: 120px repeat(3, 320px); gap: 8px; align-items: stretch; margin-bottom: 8px; }
+  .at { display: flex; flex-direction: column; justify-content: center; font-size: 14px; color: #7f8a78; }
+  .at b { color: #173655; font-size: 16px; }
+  .cell { background: #fbf6ea; border-radius: 14px; overflow: hidden; }
+  .view { height: 250px; display: flex; align-items: center; justify-content: center; }
+  .view canvas { image-rendering: pixelated; }
+  .cap { padding: 6px 10px 10px; min-height: 78px; }
+  .cap b { display: block; font-size: 15px; }
+  .cap span { color: #7f8a78; font-size: 13px; display: block; }
+  .cap em { font-style: normal; color: #4f9d34; font-weight: 600; }
+  .cap em.bad { color: #b4532a; }
+  footer { color: #7f8a78; font-size: 13px; margin-top: 10px; }
+</style>
+<div id="wrap">
+  <h1 id="title"></h1>
+  <p class="sub">Each row is one size on screen: the size at which one of today's levels is first drawn. Every picture is drawn at exactly that many pixels and then shown larger, so its pixels can be seen.</p>
+  <div id="rows"></div>
+  <footer>Shape and cover only, seen from the side: one green, a card drawn as 45 % sprig, no painting, no light, no wind. "Outline" and "a neighbourhood off" are measured from thirteen sides against the full plant: how much of the picture the plant touches, and how much a small patch (four pixels by four; of a plant under 32 pixels an eighth of it) differs on average in what it shows of leaf and of wood. Drawn by a plain WebGL page for this research, not by the game.</footer>
+</div>
+<script type="importmap">{ "imports": { "three": "./three/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+const which = new URLSearchParams(location.search).get('plant') || 'holmoak';
+const D = await (await fetch(`./beside-${which}.json`)).json();
+document.getElementById('title').textContent = `${D.name}: the full plant made small, today's level, and what the builder makes with about as many triangles`;
+const fmt = (n) => n.toLocaleString('en-US'), pc = (x) => `${Math.round(100 * x)} %`;
+// a thing's triangles, sorted by how much light they stop: wood (all of it) brown, the rest green
+function sceneOf(S) {
+  const scene = new THREE.Scene(), by = new Map();
+  for (let t = 0; t < S.a.length; t++) { const a = S.a[t]; let g = by.get(a); if (!g) by.set(a, (g = [])); for (let q = 0; q < 9; q++) g.push(S.p[t * 9 + q]); }
+  for (const [a, p] of [...by].sort((x, y) => Math.abs(y[0]) - Math.abs(x[0]))) {
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p), 3));
+    const al = Math.abs(a), solid = al >= 0.99, m = new THREE.MeshBasicMaterial({ color: a === 1 || a < 0 ? 0x6d4b2e : 0x3f7a2b, side: THREE.DoubleSide, transparent: !solid, opacity: solid ? 1 : al, depthWrite: solid });   // (under 0: see-through, of the brown stuff)
+    const mesh = new THREE.Mesh(g, m); mesh.renderOrder = solid ? 0 : 1; scene.add(mesh);
+  }
+  return scene;
+}
+// the plant's box seen from the side (its size 1: its height for a tree)
+let lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9]; for (let i = 0; i < D.full.p.length; i += 3) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], D.full.p[i + a]); hi[a] = Math.max(hi[a], D.full.p[i + a]); }
+const cy = (lo[1] + hi[1]) / 2, cz = (lo[2] + hi[2]) / 2, cx = (lo[0] + hi[0]) / 2, wide = (hi[2] - lo[2]) * 1.25, tall = (hi[1] - lo[1]) * 1.12;
+const full = sceneOf(D.full), rows = document.getElementById('rows');
+function view(scene, px) {
+  const w = Math.max(4, Math.round(wide * px)), h = Math.max(4, Math.round(tall * px)), canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+  const r = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true }); r.setPixelRatio(1); r.setSize(w, h, false); r.setClearColor(0xfbf6ea, 1);
+  const cam = new THREE.OrthographicCamera(-wide / 2, wide / 2, tall / 2, -tall / 2, 0.1, 50); cam.position.set(cx + 10, cy, cz); cam.lookAt(cx, cy, cz);
+  r.render(scene, cam);
+  const k = Math.max(1, Math.floor(Math.min(300 / w, 236 / h))); canvas.style.width = w * k + 'px'; canvas.style.height = h * k + 'px';
+  return canvas;
+}
+const cell = (canvas, title, lines) => { const c = document.createElement('div'); c.className = 'cell'; const v = document.createElement('div'); v.className = 'view'; v.appendChild(canvas); c.appendChild(v); const cap = document.createElement('div'); cap.className = 'cap'; cap.innerHTML = `<b>${title}</b>` + lines.map((l) => `<span>${l}</span>`).join(''); c.appendChild(cap); return c; };
+const is = (r) => { const bad = Math.abs(r.outline - 1) > 0.05; return `outline <em class="${bad ? 'bad' : ''}">${pc(r.outline)}</em>, a neighbourhood off by <em class="${r.mean > 0.1 ? 'bad' : ''}">${pc(r.mean)}</em>`; };
+for (const L of D.levels) {
+  const row = document.createElement('div'); row.className = 'row';
+  const at = document.createElement('div'); at.className = 'at'; at.innerHTML = `<b>${L.from} px</b>where today's ${L.name.replace('its ', '')} begins`; row.appendChild(at);
+  row.appendChild(cell(view(full, L.from), 'The full plant, made small', [`${fmt(D.fullTris)} triangles`]));
+  row.appendChild(cell(view(sceneOf(L.today), L.from), `Today: ${L.name.replace('its ', 'the ')}`, [`${fmt(L.todayTris)} triangles`, is(L.todayIs)]));
+  row.appendChild(cell(view(sceneOf(L.auto), L.from), 'The builder, told nothing', [`${L.way}; ${fmt(L.autoTris)} triangles`, is(L.autoIs)]));
+  rows.appendChild(row);
+}
+document.body.dataset.done = '1';
+</script>

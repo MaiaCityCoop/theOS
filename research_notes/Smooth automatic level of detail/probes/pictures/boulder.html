@@ -1,0 +1,81 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>A boulder, by the ladder and by the cut</title>
+<style>
+  html, body { margin: 0; background: #f7f0e3; color: #173655; font: 15px/1.35 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  #wrap { position: relative; width: 1840px; padding: 28px 28px 22px; box-sizing: border-box; }
+  h1 { font-size: 26px; margin: 0 0 4px; font-weight: 650; }
+  p.sub { margin: 0 0 16px; color: #5f7f52; font-size: 16px; }
+  .row { display: grid; grid-template-columns: repeat(4, 440px); gap: 8px; margin-bottom: 6px; }
+  .cell { position: relative; background: #fbf6ea; border-radius: 14px; overflow: hidden; }
+  .cell canvas { display: block; }
+  .cap { padding: 8px 12px 10px; }
+  .cap b { display: block; font-size: 17px; }
+  .cap span { color: #7f8a78; font-size: 14px; }
+  .tag { position: absolute; left: 10px; top: 8px; font-size: 12px; color: #7f8a78; background: rgba(251, 246, 234, .8); padding: 1px 6px; border-radius: 8px; }
+  h2 { font-size: 17px; margin: 14px 0 6px; font-weight: 600; }
+  .small { grid-template-columns: repeat(4, 440px); }
+  footer { color: #7f8a78; font-size: 13px; margin-top: 10px; max-width: 1500px; }
+</style>
+<div id="wrap">
+  <h1>One boulder of ours, four ways of drawing it</h1>
+  <p class="sub">Shape 0 of <code>assets/boulder.js</code>. Each picture at its true size: one screen pixel is one pixel here.</p>
+  <h2>400 pixels across</h2>
+  <div class="row" id="r400"></div>
+  <h2>The same, its middle three times larger, the triangles drawn in; in the two on the right every cluster its own colour</h2>
+  <div class="row" id="z400"></div>
+  <h2>128 pixels across</h2>
+  <div class="row small" id="r128"></div>
+  <footer>Shape only: one grey, one light, smooth normals worked out from each mesh's own triangles. No texture, no moss, no wind, none of the game's shading. Drawn by a plain WebGL page for this research, not by the game.</footer>
+</div>
+<script type="importmap">{ "imports": { "three": "./three/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+const D = await (await fetch('./boulder.json')).json();
+const pos = new Float32Array(D.pos);
+const fmt = (n) => n.toLocaleString('en-US');
+
+const light = (scene) => { scene.add(new THREE.HemisphereLight(0xfff6e0, 0x5a5448, 1.15)); const d = new THREE.DirectionalLight(0xffffff, 2.2); d.position.set(-1.2, 1.6, -1.4); scene.add(d); };
+const stone = new THREE.MeshLambertMaterial({ color: 0xa39d90 });
+const smooth = (P, idx) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setIndex(new THREE.BufferAttribute(Uint32Array.from(idx), 1)); g.computeVertexNormals(); return g; };
+// every cluster its own colour, each triangle with its own flat normal
+const coloured = (P, corners, cluster) => {
+  const n = corners.length, p = new Float32Array(n * 3), c = new Float32Array(n * 3), col = new THREE.Color();
+  for (let i = 0; i < n; i++) { const v = corners[i] * 3; p[i * 3] = P[v]; p[i * 3 + 1] = P[v + 1]; p[i * 3 + 2] = P[v + 2]; const k = cluster[Math.floor(i / 3)]; col.setHSL(((k * 0.61803398875) % 1 + 1) % 1, 0.5, 0.62); c[i * 3] = col.r; c[i * 3 + 1] = col.g; c[i * 3 + 2] = col.b; }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3)); g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.computeVertexNormals(); return g;
+};
+function panel(into, { w, h, px, zoom = 1, geometry, material = stone, wire = false, title, note, tag }) {
+  const cell = document.createElement('div'); cell.className = 'cell'; cell.style.width = '440px';
+  const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h; canvas.style.width = w + 'px'; canvas.style.height = h + 'px'; canvas.style.margin = `0 ${(440 - w) / 2}px`;
+  const r = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true }); r.setPixelRatio(1); r.setClearColor(0xfbf6ea, 1);
+  const scene = new THREE.Scene(); light(scene); scene.add(new THREE.Mesh(geometry, material));
+  if (wire) scene.add(new THREE.LineSegments(new THREE.WireframeGeometry(geometry), new THREE.LineBasicMaterial({ color: 0x173655, transparent: true, opacity: 0.55 })));
+  // one unit of the boulder is px pixels: seen from in front (the probes' camera: before it on -z), its middle at the picture's middle
+  const s = px * zoom, cam = new THREE.OrthographicCamera(-w / 2 / s, w / 2 / s, h / 2 / s, -h / 2 / s, 0.01, 10); cam.position.set(0, 0.42, -3); cam.lookAt(0, 0.42, 0);
+  r.render(scene, cam);
+  cell.appendChild(canvas);
+  if (tag) { const t = document.createElement('div'); t.className = 'tag'; t.textContent = tag; cell.appendChild(t); }
+  const cap = document.createElement('div'); cap.className = 'cap'; cap.innerHTML = `<b>${title}</b><span>${note}</span>`; cell.appendChild(cap);
+  into.appendChild(cell);
+}
+const full = smooth(pos, D.full);
+for (const V of D.views) {
+  const lad = smooth(new Float32Array(V.ladder.P), V.ladder.index), c1 = V.cuts[0], c2 = V.cuts[1], g1 = smooth(pos, c1.corners), g2 = smooth(pos, c2.corners);
+  const size = V.px === 400 ? 440 : 170, row = document.getElementById(V.px === 400 ? 'r400' : 'r128');
+  const what = [
+    { geometry: full, title: 'Its full mesh', note: `${fmt(D.full.length / 3)} triangles` },
+    { geometry: lad, title: 'The ladder today', note: `${fmt(V.ladder.tris)} triangles: its level at this size` },
+    { geometry: g1, title: 'The cut, one pixel of error', note: `${fmt(c1.corners.length / 3)} triangles` },
+    { geometry: g2, title: 'The cut, two pixels of error', note: `${fmt(c2.corners.length / 3)} triangles` },
+  ];
+  for (const p of what) panel(row, { w: size, h: size, px: V.px, ...p });
+  if (V.px === 400) {
+    const z = document.getElementById('z400'), vc = new THREE.MeshLambertMaterial({ vertexColors: true });
+    panel(z, { w: 440, h: 300, px: 400, zoom: 3, geometry: full, wire: true, title: 'Its full mesh', note: 'the same grid everywhere' });
+    panel(z, { w: 440, h: 300, px: 400, zoom: 3, geometry: lad, wire: true, title: 'The ladder today', note: 'the same grid everywhere, coarser' });
+    panel(z, { w: 440, h: 300, px: 400, zoom: 3, geometry: coloured(pos, c1.corners, c1.cluster), material: vc, wire: true, title: 'The cut, one pixel', note: 'small triangles where the shape needs them, large where it is flat' });
+    panel(z, { w: 440, h: 300, px: 400, zoom: 3, geometry: coloured(pos, c2.corners, c2.cluster), material: vc, wire: true, title: 'The cut, two pixels', note: 'the same, half the triangles' });
+  }
+}
+document.body.dataset.done = '1';
+</script>
