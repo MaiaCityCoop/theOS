@@ -24,17 +24,28 @@ And, when the answer had come:
 > I don't like our current LOD system either: it kind of visually transforms, changes shapes and style, pumps,
 > especially shrubs and tree crowns. This should be 100 % smooth with no visible difference. Do you see what I mean?
 
+And, when the definition had come:
+
+> So the quality of the new algorithm must be higher. And the algorithm needs to be fully generic, scalable for any
+> kind of future assets. Ask me to open up the relevant domains to [research] properly!
+
+(The last word is my reading of "detach".)
+
 Samuel wants an asset's file to hold its full-detail recipe and nothing else: no levels, no pixel sizes. One rule of
 the engine takes it from there down to a pixel, with nothing to see on the way: no swelling, no shrinking, no change
-of shape or style, above all on shrubs and crowns. The picture is to be better than today's, and the gates stay: 60
-frames a second and 4K. Below: what is written per asset today, what Samuel sees today (measured), the answer, what
-was measured on our own assets, what exists and what is not known. What would be built is in the definition.
+of shape or style, above all on shrubs and crowns. The picture must be better than today's, the gates stay (60 frames
+a second and 4K), and the rule must hold for assets nobody has thought of yet, with nothing written for their kind.
+Below: what is written per asset today, what Samuel sees today (measured), the answer, what was measured on our own
+assets, what exists and what is not known. What would be built is in the definition. **The third message is not
+worked in yet**: the definition below is still the one written after the second.
 
-The research in full, with its sources: `reports/Smooth automatic level of detail.md`. Its notes, and the two scripts
-that made the measurements below with their outputs: `research_notes/Smooth automatic level of detail/` (the scripts:
-`probes/dag.mjs`, `probes/crown.mjs`; what was measured: `probes_on_the_games_own_assets.md`; three pictures of it:
-`probes/out/boulder-four-ways.jpg`, `probes/out/oak-crown-under-each-rule.jpg`,
-`probes/out/today-each-plant-at-each-level.jpg`).
+The research in full, with its sources: `reports/Smooth automatic level of detail.md` (the first round, from search
+extracts for the most part). Its notes, and the two scripts that made the measurements below with their outputs:
+`research_notes/Smooth automatic level of detail/` (the scripts: `probes/dag.mjs`, `probes/crown.mjs`; what was
+measured: `probes_on_the_games_own_assets.md`; three pictures of it: `probes/out/boulder-four-ways.jpg`,
+`probes/out/oak-crown-under-each-rule.jpg`, `probes/out/today-each-plant-at-each-level.jpg`). A second round, from
+the original decks, documentation and code once Samuel had opened their hosts, is being read: its notes so far are in
+`research_notes/Generic automatic detail of higher quality/`; its report is not written yet.
 
 ### What is written per asset today
 
