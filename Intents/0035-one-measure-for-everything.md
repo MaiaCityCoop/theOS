@@ -1,7 +1,7 @@
 ---
 id: "0035"
 title: One measure for everything
-state: propose            # idea | define | build | propose | story | archived
+state: story              # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-16
 story: Stories/0035-one-measure-for-everything/
@@ -209,6 +209,20 @@ The run on this branch:
 
 ## Story
 
+Samuel's yes: "Merge it". The story is [`Stories/0035-one-measure-for-everything`](../Stories/0035-one-measure-for-everything/story.md),
+"Everything its own size", a film of 48 seconds (`timeline.json`), in beats:
+
+1. One tent on a meadow, a fire, a Settler, trees, bushes, stones: each made on its own, nothing holding their sizes
+   to each other or to the world outside.
+2. Samuel asks for one source of truth: every asset measured against its source.
+3. One file, every measure with its source; the tent, the fire, the trees, the Settler and the walker built from it;
+   a run that measures everything against it on every change.
+4. What it found: eyes of a taller person behind the Settler's face, a door higher than any bell tent's, a rockrose
+   taller than its species, reeds shorter than theirs. Set right.
+5. What it found that is Samuel's to decide: the stones, drawn twice the size they say.
+
+It ends when the film plays in the game: not yet seen played.
+
 ## Archived
 
 ---
@@ -245,6 +259,15 @@ The run on this branch:
   the byte.
 - **Broke / not there yet:** the stones and boulders are drawn about twice the size their recipes say: found, not set
   right, Samuel's choice. Not seen on a phone.
+
+### 2026-11-16 (3)
+
+- **Asked:** "Merge it".
+- **Delivered:** the intent to Story (its story's beats, the link to its folder); pull request #24 marked ready and
+  merged into main.
+- **Good:** CI green on the pull request's head before the merge.
+- **Broke / not there yet:** the stones' and boulders' size is still Samuel's to choose; intent 0034 waits for his
+  "go"; not seen on a phone; the film not yet seen played.
 
 ## Trail
 
