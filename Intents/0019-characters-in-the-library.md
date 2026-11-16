@@ -154,6 +154,13 @@ notes folder, `0019-shots/`)
 - **Broke / not there yet:** not seen on screen: the headless screenshots were stopped twice for the frame-rate
   session's quiet windows, and Samuel asked to merge before they ran.
 
+### 2026-11-16
+
+- **Asked:** "And in preview library viewer default center frame the character looking at us."
+- **Delivered:** chosen in the library, a person is framed from the front, in the middle of the picture, facing the camera, and the camera holds there instead of circling (a drag still turns it).
+- **Good:** Seen in Chromium at 1280×800: the Settler in the middle, face on.
+- **Broke / not there yet:** On a phone the library's picture is a wide band with black above and below (as before this change), which cuts the feet. Not seen on Samuel's phone.
+
 ## Trail
 
 | When | Commit | What |
@@ -162,3 +169,4 @@ notes folder, `0019-shots/`)
 | 2026-11-14 | `68b556e` | origin/main (b4a10e3, the fire pit) merged in |
 | 2026-11-14 | `aabedad` | Propose: the checks as they were, the gaps |
 | 2026-11-14 | `07663bb` | Denim indigo, shoulders without pads |
+| 2026-11-16 | `743ccac` | a person framed from the front, centred, facing the camera, held |
