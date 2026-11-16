@@ -3,8 +3,10 @@
 // stand's thicket and its herds), each by its own outline. Here only how a step goes; what is solid, and where, is
 // the engine's. The camera (src/camera/rig.js) asks the same: where the eyes may stand, a line of sight, the way in.
 import { pushOut, bodiesNear, want, within, ceilingAt, clear } from './bodies.js';
+import { WALKER } from '../../world/scale.js';
 export { within, ceilingAt, clear };
-const BODY = 0.3;   // how wide the walker is, from the middle: a step keeps this far off anything
+const BODY = WALKER.round;   // how wide the walker is, from the middle: a step keeps this far off anything (world/scale.js)
+const { shin: LOW, head: TALL, knee: KNEE } = WALKER;   // what is stepped over, what passes over, what leaves stop him above
 const SUB = 0.25;   // no part of a step is longer than this: a long step (a slow frame, a run) goes in parts, so it cannot pass over a thin trunk or a wall
 
 /** A step from (px, pz) to (x, z): where it really ends, kept out of every solid. Stopped short by something, it is
@@ -17,14 +19,14 @@ export function step(px, pz, x, z) {
   want(px, pz);   // (bodies are made round the walker: src/world/bodies.js wanted)
   const far = Math.hypot(x - px, z - pz), near = bodiesNear(px, pz, far + BODY + 3, true);   // (the bodies round the whole step, asked once)
   if (!near.length) return [x, z];
-  if (far < 1e-4) return pushOut(x, z, BODY, 0.3, 1.8, 0.55, [px, pz], near);   // (standing still: out of what has come where he stands)
+  if (far < 1e-4) return pushOut(x, z, BODY, LOW, TALL, KNEE, [px, pz], near);   // (standing still: out of what has come where he stands)
   const n = Math.ceil(far / SUB); let cx = px, cz = pz;
   for (let i = 0; i < n; i++) [cx, cz] = part(cx, cz, cx + (x - px) / n, cz + (z - pz) / n, near);
   return [cx, cz];
 }
 function part(px, pz, x, z, near) {
   const wx = x - px, wz = z - pz, want = Math.hypot(wx, wz), held = (r) => { const m = Math.hypot(r[0] - px, r[1] - pz); return m > want ? [px + ((r[0] - px) * want) / m, pz + ((r[1] - pz) * want) / m] : r; };   // (pushed out of a thing it may land further on than it stepped: no faster than he walks)
-  const once = (qx, qz) => pushOut(qx, qz, BODY, 0.3, 1.8, 0.55, [px, pz], near);
+  const once = (qx, qz) => pushOut(qx, qz, BODY, LOW, TALL, KNEE, [px, pz], near);
   const q = once(x, z);
   const on = (r) => ((r[0] - px) * wx + (r[1] - pz) * wz) / want, turned = (a) => { const c = Math.cos(a), n = Math.sin(a); return once(px + wx * c - wz * n, pz + wx * n + wz * c); }, made = on(q);
   if (made > want * 0.35) return held(q);

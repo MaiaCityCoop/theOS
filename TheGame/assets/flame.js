@@ -6,7 +6,8 @@
 // Units are metres; the origin is the middle of the fire, on the ground.
 import { lerp } from './kit/math.js';
 import { lcg } from '../src/core/hash.js';
-const HOT = 0.9;   // how high the tallest tongue reaches
+import { FLAME } from '../world/scale.js';
+const HOT = FLAME.hot;   // how high the tallest tongue reaches (world/scale.js)
 
 // a fire's colours, from the heart out: the base is dull red where there is no air, the tips nearly white
 const fDeep = [0.55, 0.07, 0.02], fRed = [0.86, 0.16, 0.03], fOrange = [1.0, 0.45, 0.06], fAmber = [1.0, 0.72, 0.16], fPale = [1.0, 0.93, 0.62];

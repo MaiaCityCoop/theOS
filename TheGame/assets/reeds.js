@@ -35,5 +35,5 @@ export default tree({
   levels: [{ P: 4, most: [52, 26] }, { P: 8, most: [28, 14] }],   // most: the most vertices and triangles a shape of it has there (its place in the heap)
   far: { P: 32, shade: 0.9, speck: false, sides: 5, shoulder: false, trunk: false },
   // where it grows: the riverbank's reeds (only in a lake's shallow margin), all of its cells
-  placement: { at: 'scatter', engine: 'trees', stand: 'reeds', biome: '84588b7e-0680-47ca-9793-409c7359db0c' /* riverbank */, share: 1, scale: [0.8, 1.3], lean: 0.08, seed: 880 },
+  placement: { at: 'scatter', engine: 'trees', stand: 'reeds', biome: '84588b7e-0680-47ca-9793-409c7359db0c' /* riverbank */, share: 1, scale: [1, 1.6], lean: 0.08, seed: 880 },
 });
