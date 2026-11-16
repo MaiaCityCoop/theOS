@@ -227,7 +227,9 @@ const mixed = (A, B, e) => {
 /** The skeleton, built from its recipe (characters/skeleton.js). quick: only its quick surface (a small picture). */
 export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false } = {}) {
   const object = new THREE.Group(), mat = materialOf(eye), root = new THREE.Bone(); root.name = 'root'; object.add(root);
-  const muscles = !!R.layers?.includes('muscles'), LV = muscles ? UNDER : LEVELS;
+  // (the muscles only for the character itself, not for the list's small picture or the measuring run: nothing else
+  // grows or draws them)
+  const muscles = !quick && !!R.layers?.includes('muscles'), LV = muscles ? UNDER : LEVELS;
   const api = { object, mesh: null, bones: { root }, skeleton: null, material: mat, moves: MOVES.map(({ id, name, about }) => ({ id, name, about })), boneFaces: 0, height: R.height, measures: {}, bonesCount: 0, pieces: 0, level: -1, failed: null, onGrown: null, flesh: null };
   let K = null, names = [], rest = {}, soles = [];   // the rig once its code is here; its joints' names; where each stands in its parent; where the feet meet the ground
   const rigged = ({ RIG, turnsOf, turnOf }) => {
