@@ -176,6 +176,13 @@ Asked for outright, with the requirements spelled out; the definition holds no s
   the leaves' shapes carry `from`; the engine (`pushOut`) passes a plant whose top stands under it; a stand packs bodies
   only where a kind can reach the line, and keeps only the plants that do. So moss cushion and dead wood are always
   walked through, rockrose and bracken up to about 1.5 m, mastic when small; reeds (1.6 m and up) and big bushes stop.
+- (2026-11-16, Samuel) **Zoomed out, nothing on the ground is hit.** Asked: "The collision control is now a bit weird:
+  the moment I zoom out a bit I still collide with the ground floor element. This shouldn't happen, right?" This
+  intent had made the street band a walker's (`walk: true`), for the follow view behind him, so the point the camera
+  hangs over was stopped up to about 14 m high (halfway to the town band, as the rig eases its keys). The follow view
+  had been taken out on 11-13 (`ffede8a`), so no walker is seen there. Now one number of the rig, `walk` in
+  `camera/rig.js`, says the height under which the point is a walker: 4 m, as before this intent (`h < 4`). The bands
+  no longer carry it.
 
 ## Propose
 
@@ -200,6 +207,20 @@ his middle came to the thing's middle (trees, shrubs, rocks: the drawn foot; the
 | 5 | passed | `/?stress` loads and draws (70 s on SwiftShader, main 68 s), no console errors. Three walks of 4 s of game time into its thicket: main made good 11.6 / 7.4 / 12.3 m of a free 13.7 to 14.1, this branch 6.9 / 7.4 / 12.5 m; with `?ghost` 12.9 / 12.8 / 13.0 m, straight. The step alone, at 60 frames a second in the same thicket: the same paths on main and on this branch to the centimetre (6.86 / 0.66 / 12.29 m), the same cost (1.8 to 3.2 ms a step on both). At SwiftShader's 11 a second main's single long steps hop through gaps the walker cannot pass at 60 (11.6 m against 6.8); this branch's steps, in parts, stay with the 60 a second walk |
 | 6 | passed | The forest, about 250 frames walking 30 m, the picture not drawn, the final code: the walker's step 0.25 ms a frame on average (p95 0.5), main 0.22 (p95 0.4), though it now meets 55 bodies round him where main met only trunks and rocks; the scatter's choosing and packing 2.95 ms (p95 10.7), main 3.22 (p95 13.1); a frame 69 ms (p50 34), main 85 (p50 35); the start 43.2 s, main 42.7, its marks the same to half a second. (A first round, with the plants' packings compiled before the first frame: the start 45.7 s against 42.7; so they are compiled aside now.) The stress world, 200 frames: the step 4.0 ms (main 4.5), p50 0.7 (main 1.7), p95 15.1 (main 21.4), one frame at 118 (main's most 52); the scatter 10.4 ms (main 9.3); a frame 572 ms (main 603). SwiftShader's frames are the GPU's, emulated: these say only that nothing new costs a frame |
 | 7 | passed | Every provider answers by cells: the placed grid and the plants' grids (`bodyGrid`), the rocks by their hash's cells, the stress stand by its lattice; nothing walks a list of all. The step asks once a step (main: up to eighteen times) |
+
+**Then, zoomed out (2026-11-16, `cfb5bf2`):** the game's own controls, W held from the start towards the 1.1 m rock
+5 m east of it, the camera at five heights; how near the point came to the rock's middle:
+
+| Height | main `7e71153` | this branch |
+| --- | --- | --- |
+| 1.7 m (eye) | 0.66 m, held off and led round | 0.66 m, held off and led round |
+| 3.5 m | 0.66 m | 0.66 m |
+| 4.5 m | 0.66 m | 0.20 m: over it |
+| 8 m | 0.66 m | 0.10 m: over it |
+| 13 m | 0.66 m | 0.15 m: over it |
+
+What is solid round the start, the tent, the forest and the river is the same on main before and after intent 0029's
+round two (the same bodies, places and sizes; the same share of ground a walker is pushed off). `vite build` passes.
 
 **Known gaps**
 
@@ -226,6 +247,7 @@ his middle came to the thing's middle (trees, shrubs, rocks: the drawn foot; the
 - [x] Plants as bodies: a packing round the walker for every stand, read back; trunks, leaves
 - [x] The walker's step on the engine alone; the old paths gone
 - [x] The follow view stops the walker (`walk` a band's number)
+- [x] Zoomed out, nothing stops the point: the walker only under 4 m (`walk` one number of the rig)
 - [x] Checks 1 to 7, before and after
 - [x] Push, draft PR
 - [ ] Samuel: walk into the forest in Samuel's own Safari, at eye level and in the follow view; accept or send back
@@ -302,6 +324,18 @@ his middle came to the thing's middle (trees, shrubs, rocks: the drawn foot; the
 - **Good:** one number to move, if 1.5 m is the wrong line.
 - **Broke / not there yet:** not walked in a browser here; the reeds (lake shallows, 1.6 m and up) always stop now.
 
+### 2026-11-16, back to build: zoomed out, nothing hit
+
+- **Asked:** "The collision control is now a bit weird: the moment I zoom out a bit I still collide with the ground
+  floor element. This shouldn't happen, right?" (Samuel, after intent 0029's round two was merged and on next.)
+- **Found:** not from 0029: what is solid is the same before and after its round two. It is this intent's: the street
+  band was made a walker's, so the point was stopped up to about 14 m high, where before only under 4 m.
+- **Delivered:** the walker only under 4 m again, one number of the rig (`walk`, `camera/rig.js`); proposed again.
+- **Good:** at 4.5, 8 and 13 m the point goes over the rock that held it at 0.66 m on main; at eye level and 3.5 m it
+  is held as before.
+- **Not there yet:** seen on SwiftShader only. Between 4 m and the street band's 5 m the view is hung back a little
+  from the point and nothing stops it, as before this intent.
+
 ## Trail
 
 | When | Commit | What |
@@ -310,3 +344,4 @@ his middle came to the thing's middle (trees, shrubs, rocks: the drawn foot; the
 | 2026-11-15 | `2916d3b` | PR #9 merged into main (deployed to next) |
 | 2026-11-15 | `296a150` | Shrubs walked through again: the shrub kind's `solid: false` |
 | 2026-11-15 | `5313c55` | Shrubs by their size: under `SHRUB_FROM` (1.5 m) walked through, taller led round |
+| 2026-11-16 | `cfb5bf2` | Zoomed out, nothing stops the camera's point: the walker only under 4 m again (`walk`, one number of the rig) |
