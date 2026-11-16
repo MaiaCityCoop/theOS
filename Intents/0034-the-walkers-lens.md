@@ -124,3 +124,4 @@ _A draft: which schedule is Samuel's to choose. Not built before he does._
 | --- | --- | --- |
 | 2026-11-16 | `58cf67c` | the intent opened and defined: today's lens as focal lengths, three schedules to choose from |
 | 2026-11-16 | `5bb42ef` | two long lines folded |
+| 2026-11-16 | `78f3c84` | what makes sense for the lens, written in as schedule D, for Samuel's go |

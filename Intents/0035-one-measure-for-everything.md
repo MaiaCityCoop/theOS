@@ -252,3 +252,6 @@ The run on this branch:
 | --- | --- | --- |
 | 2026-11-16 | `58cf67c` | the intent opened and defined: every size the code holds and where, one measure with its sources |
 | 2026-11-16 | `5bb42ef` | two long lines folded |
+| 2026-11-16 | `e46439a` | the measure (world/scale.js), the recipes, the camera and the solids reading it, the run (tools/scale.js) in CI, the lineup, four things set right |
+| 2026-11-16 | `4ba3170` | built: the Build section, the changelog |
+| 2026-11-16 | `9a3f76e` | proposed: every check with its result, the run's table, the gates; the story spawned |
