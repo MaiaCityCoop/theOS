@@ -137,3 +137,4 @@ has.
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-16 | `9a8e050` | the inventory, 28 points in 8 groups |
+| 2026-11-16 | `721addf` | the inventory redone for the person: 25 points in 7 groups; can code alone get there |
