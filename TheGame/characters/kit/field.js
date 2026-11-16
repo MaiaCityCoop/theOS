@@ -83,10 +83,11 @@ export const plate = (c, R, outline, { tc = 0.003, te = tc, ramp = 0.01, bend = 
   return { t: 9, c, R, pts, tc, te, ramp, bend, lo, hi };
 };
 
-/** A group: its own ops, blended in order, standing as one solid (lo, hi: its bounds, given or from its adds). */
-export const group = (ops, lo, hi) => {
-  if (!lo) { lo = [1e9, 1e9, 1e9]; hi = [-1e9, -1e9, -1e9]; for (const o of ops) if (o.op === 'add') for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], o.s.lo[i] - o.k); hi[i] = Math.max(hi[i], o.s.hi[i] + o.k); } }
-  return { t: 6, ops, lo, hi };
+/** A group: its own ops, blended in order, standing as one solid (lo, hi: its bounds, given or from its adds); grow:
+ *  metres its whole surface is pushed outwards by (a bone with the gristle on it, for the bone next to it to fit round). */
+export const group = (ops, lo, hi, grow = 0) => {
+  if (!lo) { lo = [1e9, 1e9, 1e9]; hi = [-1e9, -1e9, -1e9]; for (const o of ops) if ((o.op ?? 'add') === 'add') for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], o.s.lo[i] - o.k - grow); hi[i] = Math.max(hi[i], o.s.hi[i] + o.k + grow); } }
+  return { t: 6, ops, lo, hi, grow };
 };
 
 /** A turn as rows (world into the solid's frame) from its axes, each given in the world: x, y (z made). */
@@ -128,7 +129,7 @@ export function compile(ops) {
   for (const e of q) flat.push(e);
   for (let i = 0; i < flat.length; i++) { const s = flat[i].o.s; if (s.t === 6) { flat[i].start = flat.length; flat[i].count = s.ops.length; for (const c of s.ops) flat.push({ o: c }); } }
   const P = new Float64Array(flat.length * REC);
-  flat.forEach((e, i) => { write(P, i * REC, e.o); if (e.o.s.t === 6) { P[i * REC + 9] = e.start; P[i * REC + 10] = e.count; } });
+  flat.forEach((e, i) => { write(P, i * REC, e.o); if (e.o.s.t === 6) { P[i * REC + 9] = e.start; P[i * REC + 10] = e.count; P[i * REC + 11] = e.o.s.grow ?? 0; } });
   return P;
 }
 
@@ -165,7 +166,7 @@ function distR(P, r, x, y, z) {
       const t = Math.sqrt(u * u + w * w) - P[q + 3]; return Math.sqrt(t * t + v * v) - P[q + 4];
     }
     case 5: return P[q] * x + P[q + 1] * y + P[q + 2] * z + P[q + 3];
-    case 6: { let f = 1e9; const a = P[q], n = P[q + 1]; for (let i = 0; i < n; i++) f = step(P, (a + i) * REC, f, x, y, z); return f; }
+    case 6: { let f = 1e9; const a = P[q], n = P[q + 1]; for (let i = 0; i < n; i++) f = step(P, (a + i) * REC, f, x, y, z); return f - P[q + 2]; }
     case 8: {   // a loft: its section at the point's place along the axis, a curve through the knots
       const dx = x - P[q], dy = y - P[q + 1], dz = z - P[q + 2], L = P[q + 12], N = P[q + 13], cap = P[q + 14], r0 = P[q + 15], r1 = P[q + 16];
       const s = dx * P[q + 3] + dy * P[q + 4] + dz * P[q + 5], t = s / L, tc = t < 0 ? 0 : t > 1 ? 1 : t;

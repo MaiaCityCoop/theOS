@@ -13,6 +13,7 @@
 // right), taken z first, then x, then y; or { axis, angle } about a joint's own axis.
 import { JOINTS, FINGERS, fingerJoints } from './rig.js';
 import { VERTEBRAE, vertebraFrame, SACRAL_BASE, ATLAS } from './spine.js';
+import { bladeFrame } from './arm.js';
 
 const SIDES = [['L', 1], ['R', -1]];
 
@@ -75,11 +76,20 @@ export function rigOf() {
   }
   return R;
 }
-// (points of the left arm and leg the rig's joints are taken from; the regions' own files place the bones there)
-const ARM = { ac: [0.176, 1.478, -0.02], elbowAxis: [1, 0, 0.18], radialHead: [0.222, 1.094, -0.036], ulnarHead: [0.207, 0.868, -0.032] };
+// Points of the left arm and leg the rig's joints are taken from, where the regions' own files lay the bones (./arm.js:
+// the blade's frame and the collarbone's outer end in it; the humerus' and the forearm's frames from the elbow).
+const ARM = (() => {
+  const S = JOINTS['upperArm.L'], E = JOINTS['foreArm.L'], W = JOINTS['hand.L'], B = bladeFrame(S);
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const hy = nrm(dif(S, E)), hx = nrm(dif([1, 0, 0], hy.map((v) => v * hy[0]))), fy = nrm(dif(E, W)), fx = nrm(dif([1, 0, 0], fy.map((v) => v * fy[0]))), fz = cross(fx, fy), L = Math.hypot(...dif(E, W));
+  const F = (x, y, z) => [0, 1, 2].map((i) => E[i] + fx[i] * x + fy[i] * y + fz[i] * z); void dot;
+  return { ac: B.p(0.0165, 0.0445, 0.0085), elbowAxis: nrm([0, 1, 2].map((i) => hx[i] + 0.1 * hy[i])), radialHead: F(0.0165, -0.0158, 0.0045), ulnarHead: F(0.002, -L + 0.0078, -0.018) };
+})();
 const LEG = { ankleAxis: [1, -0.14, -0.1], toesAxis: [1, 0, -0.28] };
 
-const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], norm = (a) => { const l = Math.hypot(...a) || 1; return a.map((v) => v / l); };
+function dif(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+function nrm(a) { const l = Math.hypot(...a) || 1; return a.map((v) => v / l); }
+const sub = dif, norm = nrm;
 const mulM = (a, b) => [0, 1, 2].flatMap((i) => [0, 1, 2].map((j) => a[i * 3] * b[j] + a[i * 3 + 1] * b[3 + j] + a[i * 3 + 2] * b[6 + j]));
 const apply = (a, p) => [a[0] * p[0] + a[1] * p[1] + a[2] * p[2], a[3] * p[0] + a[4] * p[1] + a[5] * p[2], a[6] * p[0] + a[7] * p[1] + a[8] * p[2]];
 const about = (ax, t) => { const [x, y, z] = norm(ax), c = Math.cos(t), s = Math.sin(t), k = 1 - c; return [c + x * x * k, x * y * k - z * s, x * z * k + y * s, y * x * k + z * s, c + y * y * k, y * z * k - x * s, z * x * k - y * s, z * y * k + x * s, c + z * z * k]; };

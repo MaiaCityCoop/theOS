@@ -106,11 +106,11 @@ function cranium(K) {
     put(S([49.6, 2, 76], [50.6, 26, 75.5], { w: 5.4, d: 2.8, t0: [6.2, 3.4], t1: [5.2, 2.8], out: [1, 0, 0.3] }), 4);   // its outer rim, thick
   });
   // the nose's opening, pear-shaped, and the cavity behind it; the hollow of the palate inside the arch of the teeth
-  cut(loft([0, -14, 126], [0, -14, 62], [[12.5, 12.5, 25, 10.5, 0, 0, 1.5, 2.6], [12.5, 12.5, 25, 10.5, 0, 0, 1.5, 2.6], [12.8, 12.8, 26, 11.5, 0, 0, 1.5, 2.6], [12.8, 12.8, 26, 11.5, 0, 0, 1.5, 2.6]], { out: [0, 1, 0] }), 1.6);
+  cut(loft([0, -14, 126], [0, -14, 42], [[12.5, 12.5, 25, 10.5, 0, 0, 1.5, 2.6], [12.5, 12.5, 25, 10.5, 0, 0, 1.5, 2.6], [12.8, 12.8, 26, 11.5, 0, 0, 1.5, 2.6], [12.8, 12.8, 20, 11.5, 0, 0, 2, 2.6], [12.5, 12.5, 12, 11.5, 0, 0, 2.4, 2.6]], { out: [0, 1, 0] }), 1.6);   // (it opens again behind the palate: the two inner nostrils)
   cut(E([0, -47, 72], [23, 15, 31]), 4);
   // the great hole in the base, the ear canals, the pits for the jaw's heads, the hollows over the canines' roots, the
   // small holes under the sockets and the notches in the brow's edge
-  cut(E([0, -31, -13], [14.5, 9, 17.5]), 3);
+  cut(E([0, -30, -14], [15, 13, 18]), 2.5);
   K.both(() => {
     cut(K.rod(at(68, -4.5, 0.5), at(44, -2, 3), 0.0043, 0.0036), 1.5);
     cut(E([50, -0.5, 14], [11.5, 6, 7.5]), 3);
@@ -120,14 +120,17 @@ function cranium(K) {
   });
   // (after the opening is cut) the spine under it, the wall between the nostrils and the scrolls on the side walls
   put(S([0, -23, 103], [0, -19.5, 111], { w: 1.8, d: 1.6, t0: [3, 2.4], t1: [0.7, 0.6], out: [0, 1, 0] }), 2);
-  put(K.box(at(0.6, -7, 86), mm(0.9, 17, 15), 0.0006), 1.5);
+  put(K.box(at(0.6, -8, 78), mm(0.9, 16, 24), 0.0006), 1.5);
   K.both(() => {
     put(E([9.5, -15, 88], [3.6, 5, 15]), 2.5);
     put(E([6.5, 0, 84], [2.4, 6.5, 12]), 2);
     put(E([19.5, -33, 100], [3.2, 9, 2.4]), 4);                                 // the ridge over the canine's root
-    // the wings of bone behind the upper jaw, down from the skull's base
-    put(K.box(at(24, -22, 43), mm(1.3, 15, 7.5), 0.0012, [[0.9, 0, 0.42], [0, 1, 0]]), 2.5);
-    put(K.box(at(13.5, -23, 43), mm(1.2, 15, 6), 0.001), 2.5);
+    // the wings of bone behind the upper jaw, down from the skull's base: their root, the outer one flaring back and
+    // out, the inner one straight with its small hook
+    put(E([19, -7, 45], [11, 6, 8]), 4);
+    put(K.box(at(25, -23, 43), mm(1.1, 14, 8), 0.001, [[0.87, 0, 0.5], [0.12, 1, 0]]), 3);
+    put(K.box(at(14.5, -24, 45.5), mm(1, 14, 5.5), 0.001), 3);
+    put(K.rod(at(14.5, -37.5, 43.5), at(17.5, -41, 41.5), 0.0011, 0.0009), 1);
   });
 }
 
