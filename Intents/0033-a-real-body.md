@@ -255,3 +255,4 @@ correctly"; "ensure the skull is correct".**
 | 2026-11-16 | `f41bd18` | the rig's moves held within a body's ranges |
 | 2026-11-16 | `9682add` | the pelvis, the arm and the hand rebuilt bone by bone |
 | 2026-11-16 | `5a3de2b` | main merged in (intent 0032) |
+| 2026-11-16 | `07f27e5` | the arm and the hand refitted to a man's measures; the rig takes the arm's joints from the arm |
