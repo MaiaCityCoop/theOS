@@ -15,6 +15,27 @@ const SK = [0, 1.66, -0.012];   // the middle between the ear canals, in the ref
 const at = (x, y, z) => [x / 1000, SK[1] + y / 1000, SK[2] + z / 1000];
 const mm = (...v) => v.map((q) => q / 1000);
 
+/** The skull's seams (sutures): lines over the cranium where its bones grew together, each a run of points in the
+ *  skull's millimetres (both: on each side). Whoever draws the skull lays them onto its surface as fine, toothed,
+ *  darker lines; they are no part of its form. */
+export const SUTURES = [
+  { name: 'sagittal', pts: [[0, 117.5, 18], [0, 119, -5], [0, 115, -30], [0, 103, -55], [0, 88, -72], [0, 72, -82]] },
+  { name: 'coronal', both: true, pts: [[0, 117.5, 18], [25, 110, 19], [45, 96, 22], [58, 76, 28], [64, 56, 33], [62, 40, 38], [58, 28, 42]] },
+  { name: 'lambdoid', both: true, pts: [[0, 72, -82], [20, 62, -80], [38, 45, -72], [52, 25, -60], [58, 8, -50]] },
+  { name: 'squamosal', both: true, pts: [[58, 28, 42], [66, 40, 22], [70, 44, 0], [69, 38, -20], [65, 24, -38], [58, 8, -50]] },
+  { name: 'occipitomastoid', both: true, pts: [[58, 8, -50], [55, -4, -40], [50, -14, -31]] },
+  { name: 'sphenofrontal', both: true, pts: [[58, 28, 42], [52, 27, 52], [47, 26, 62]] },
+  { name: 'frontozygomatic', both: true, pts: [[46, 25.5, 80], [50, 26.5, 76], [52.5, 27, 71]] },
+  { name: 'frontonasal', pts: [[-11, 25, 95], [-5, 26.5, 99.5], [0, 26.5, 101], [5, 26.5, 99.5], [11, 25, 95]] },
+  { name: 'internasal', pts: [[0, 26.5, 101], [0, 20, 108], [0, 13.5, 115.5]] },
+  { name: 'nasomaxillary', both: true, pts: [[5, 26.5, 99.5], [6.5, 18, 105], [8.5, 10, 110]] },
+  { name: 'zygomaticomaxillary', both: true, pts: [[33, 0, 85], [37, -9, 81], [40, -21, 75]] },
+  { name: 'zygomaticotemporal', both: true, pts: [[63.5, 3, 40], [65.5, -1.5, 34], [66, -6, 29]] },
+  { name: 'intermaxillary', pts: [[0, -25, 105], [0, -34, 106], [0, -43, 107]] },
+];
+/** A point given in the skull's millimetres, in the reference man's metres. */
+export const skullPoint = (x, y, z) => at(x, y, z);
+
 export function skull(K) {
   cranium(K);
   mandible(K);
