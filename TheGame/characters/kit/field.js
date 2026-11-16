@@ -3,7 +3,8 @@
 // in the page or in a worker, and a tool can run it under node.
 //
 //   solid(kind, …)   a solid: ball, egg (an ellipsoid), rod (a cone with round ends), box (rounded), ring (a torus),
-//                    plane, or a group of solids with its own blends (shell, cut, …)
+//                    plane, strand (a muscle, a band), loft (a shaft with its section along it), plate (a blade of
+//                    bone drawn by its outline), or a group of solids with its own blends (shell, cut, …)
 //   fieldOf(ops)     the field: ops in order, each { op: 'add' | 'sub' | 'and', k, s } (k: how far it blends, metres);
 //                    every op may carry what the caller wants back (bone, part, tag)
 //   meshOf(field, region)  the surface in a box, as a grid of cells `h` metres a side (surface nets): one point a cell the
@@ -41,18 +42,44 @@ export const strand = (a, b, { w, d, t0 = [w * 0.25, d * 0.25], t1 = [w * 0.25, 
   return { t: 7, a, b, u, v: vv, w: ww, L, W: w, D: d, t0, t1, q: Math.log(0.5) / Math.log(Math.min(0.95, Math.max(0.05, belly))), p: full, bend, lo, hi, opt: { w, d, t0, t1, belly, full, bend } };
 };
 
-/** A limb or a trunk: an axis from a to b, and its section along it, given at evenly spaced knots: [half-width (along
- *  v), front (along u × v), back, shift (of the middle along v), squareness (2 an ellipse, more a box)]. The section
- *  between knots is a smooth curve through them; the ends are cut flat and rounded by what they blend into. */
-export const tube = (a, b, knots, { v = [1, 0, 0], out = null } = {}) => {
+/** A long shape (a bone's shaft, a limb): an axis from a to b, and its section along it, given at evenly spaced knots.
+ *  A knot: [w+, w-, front, back, cv, cw, nf, nb]: its half-widths along v and against it, its reach to the front (along
+ *  u × v) and to the back, where its middle sits off the axis (along v, along the front), and how square it is in front
+ *  and behind (2 an ellipse, more a box, less a ridge). Short forms: [w, front, back] and [w, front, back, cv, n].
+ *  The section between knots is a smooth curve through them. caps: how long its rounded ends are, in half-sections
+ *  (0: cut flat, to be rounded by what it blends into). */
+export const loft = (a, b, knots, { v = [1, 0, 0], out = null, caps = 0 } = {}) => {
   let u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]; const L = Math.hypot(...u) || 1e-6; u = u.map((c) => c / L);
   let vv = out ? [out[1] * u[2] - out[2] * u[1], out[2] * u[0] - out[0] * u[2], out[0] * u[1] - out[1] * u[0]] : [...v];
   const dv = vv[0] * u[0] + vv[1] * u[1] + vv[2] * u[2]; vv = [vv[0] - u[0] * dv, vv[1] - u[1] * dv, vv[2] - u[2] * dv]; const lv = Math.hypot(...vv) || 1; vv = vv.map((c) => c / lv);
   const ww = [u[1] * vv[2] - u[2] * vv[1], u[2] * vv[0] - u[0] * vv[2], u[0] * vv[1] - u[1] * vv[0]];
-  const K = knots.map((k) => [k[0], k[1], k[2], k[3] ?? 0, k[4] ?? 2]);
-  const e = Math.max(...K.map((k) => Math.max(k[0] + Math.abs(k[3]), k[1], k[2]))) * 1.05;
-  const lo = [0, 1, 2].map((i) => Math.min(a[i], b[i]) - e), hi = [0, 1, 2].map((i) => Math.max(a[i], b[i]) + e);
-  return { t: 8, a, b, u, v: vv, w: ww, L, K, lo, hi };
+  const K = knots.map((k) => k.length >= 8 ? k.slice(0, 8) : k.length <= 3 ? [k[0], k[0], k[1], k[2] ?? k[1], 0, 0, 2, 2] : [k[0], k[0], k[1], k[2], k[3] ?? 0, 0, k[4] ?? 2, k[4] ?? 2]);
+  const e = Math.max(...K.map((k) => Math.hypot(Math.max(k[0], k[1]) + Math.abs(k[4]), Math.max(k[2], k[3]) + Math.abs(k[5])))) * 1.05;
+  const ce = caps * Math.max(Math.min(K[0][0], K[0][1], K[0][2], K[0][3]), Math.min(K.at(-1)[0], K.at(-1)[1], K.at(-1)[2], K.at(-1)[3]));
+  const lo = [0, 1, 2].map((i) => Math.min(a[i], b[i]) - e - ce), hi = [0, 1, 2].map((i) => Math.max(a[i], b[i]) + e + ce);
+  return { t: 8, a, b, u, v: vv, w: ww, L, K, caps, lo, hi };
+};
+/** The loft's older name and knots: [half-width, front, back, shift along v, squareness]. */
+export const tube = loft;
+
+/** A plate of bone (a blade, a wing, a wall): an outline drawn in its own plane (points [u, v] round it, metres from c;
+ *  R: frame(u, v) of its plane), `tc` half as thick in its middle and `te` at its rim (rounded), the change taking `ramp`
+ *  metres in from the rim; bend: [bu, bv, buv], how its sheet curves out of the plane (n += bu·u² + bv·v² + buv·u·v);
+ *  smooth: points drawn for each one given (a curve through them; 1: the corners as given). */
+export const plate = (c, R, outline, { tc = 0.003, te = tc, ramp = 0.01, bend = [0, 0, 0], smooth = 1 } = {}) => {
+  let pts = outline;
+  if (smooth > 1) {
+    const n = outline.length, cr = (p0, p1, p2, p3, t) => [0, 1].map((i) => 0.5 * (2 * p1[i] + (p2[i] - p0[i]) * t + (2 * p0[i] - 5 * p1[i] + 4 * p2[i] - p3[i]) * t * t + (3 * p1[i] - p0[i] - 3 * p2[i] + p3[i]) * t * t * t));
+    pts = []; for (let i = 0; i < n; i++) for (let j = 0; j < smooth; j++) pts.push(cr(outline[(i + n - 1) % n], outline[i], outline[(i + 1) % n], outline[(i + 2) % n], j / smooth));
+  }
+  if (pts.length > POLY) throw new Error('a plate has at most ' + POLY + ' points round it');
+  // its bounds: the outline's box in its plane, as far out of it as it bends and is thick, carried to the world
+  let u0 = 1e9, u1 = -1e9, v0 = 1e9, v1 = -1e9; for (const [a, b] of pts) { u0 = Math.min(u0, a); u1 = Math.max(u1, a); v0 = Math.min(v0, b); v1 = Math.max(v1, b); }
+  const t = Math.max(tc, te); let n0 = -t, n1 = t;
+  for (const a of [u0, (u0 + u1) / 2, u1, 0]) for (const b of [v0, (v0 + v1) / 2, v1, 0]) { const w = bend[0] * a * a + bend[1] * b * b + bend[2] * a * b; n0 = Math.min(n0, w - t); n1 = Math.max(n1, w + t); }
+  const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+  for (const a of [u0 - te, u1 + te]) for (const b of [v0 - te, v1 + te]) for (const w of [n0, n1]) for (let i = 0; i < 3; i++) { const x = c[i] + R[i] * a + R[3 + i] * b + R[6 + i] * w; lo[i] = Math.min(lo[i], x); hi[i] = Math.max(hi[i], x); }
+  return { t: 9, c, R, pts, tc, te, ramp, bend, lo, hi };
 };
 
 /** A group: its own ops, blended in order, standing as one solid (lo, hi: its bounds, given or from its adds). */
@@ -76,7 +103,7 @@ const smax = (a, b, k) => -smin(-a, -b, k);
 // The ops are written into one Float64Array, a record of REC numbers each, and read back in a tight loop (no objects,
 // no shapes to look up): [op, type, k, lo×3, hi×3, …the solid's own numbers]. A group's ops follow the top level's,
 // and its record holds where they start and how many there are.
-const REC = 84, OP = { add: 0, sub: 1, and: 2 }, KNOTS = 12;
+const REC = 160, OP = { add: 0, sub: 1, and: 2 }, KNOTS = 16, KW = 8, POLY = 56;
 function write(P, at, o) {
   const s = o.s; P[at] = OP[o.op ?? 'add']; P[at + 1] = s.t; P[at + 2] = o.k; P.set(s.lo, at + 3); P.set(s.hi, at + 6); const q = at + 9;
   switch (s.t) {
@@ -86,8 +113,10 @@ function write(P, at, o) {
     case 3: P.set(s.c, q); P.set(s.h, q + 3); P[q + 6] = s.rr; P.set(s.R, q + 7); break;
     case 4: P.set(s.c, q); P[q + 3] = s.R0; P[q + 4] = s.r; P.set(s.R, q + 5); break;
     case 5: P.set(s.n, q); P[q + 3] = s.d; break;
-    case 8: P.set(s.a, q); P.set(s.u, q + 3); P.set(s.v, q + 6); P.set(s.w, q + 9); P[q + 12] = s.L; P[q + 13] = s.K.length;
-      if (s.K.length > KNOTS) throw new Error('a tube has at most ' + KNOTS + ' knots'); s.K.forEach((k, i) => P.set(k, q + 14 + i * 5)); break;
+    case 8: P.set(s.a, q); P.set(s.u, q + 3); P.set(s.v, q + 6); P.set(s.w, q + 9); P[q + 12] = s.L; P[q + 13] = s.K.length; P[q + 14] = s.caps;
+      if (s.K.length > KNOTS) throw new Error('a loft has at most ' + KNOTS + ' knots'); s.K.forEach((k, i) => P.set(k, q + 15 + i * KW)); break;
+    case 9: P.set(s.c, q); P.set(s.R, q + 3); P[q + 12] = s.tc; P[q + 13] = s.te; P[q + 14] = s.ramp; P.set(s.bend, q + 15); P[q + 18] = s.pts.length;
+      s.pts.forEach((p, i) => { P[q + 19 + i * 2] = p[0]; P[q + 20 + i * 2] = p[1]; }); break;
     case 7: P.set(s.a, q); P.set(s.u, q + 3); P.set(s.v, q + 6); P.set(s.w, q + 9); P[q + 12] = s.L; P[q + 13] = s.W; P[q + 14] = s.D;
       P[q + 15] = s.t0[0]; P[q + 16] = s.t1[0]; P[q + 17] = s.t0[1]; P[q + 18] = s.t1[1]; P[q + 19] = s.q; P[q + 20] = s.p; P[q + 21] = s.bend; break;
   }
@@ -136,22 +165,47 @@ function distR(P, r, x, y, z) {
     }
     case 5: return P[q] * x + P[q + 1] * y + P[q + 2] * z + P[q + 3];
     case 6: { let f = 1e9; const a = P[q], n = P[q + 1]; for (let i = 0; i < n; i++) f = step(P, (a + i) * REC, f, x, y, z); return f; }
-    case 8: {   // a tube: its section at the point's place along the axis, a curve through the knots
-      const dx = x - P[q], dy = y - P[q + 1], dz = z - P[q + 2], L = P[q + 12], N = P[q + 13];
+    case 8: {   // a loft: its section at the point's place along the axis, a curve through the knots
+      const dx = x - P[q], dy = y - P[q + 1], dz = z - P[q + 2], L = P[q + 12], N = P[q + 13], cap = P[q + 14];
       const s = dx * P[q + 3] + dy * P[q + 4] + dz * P[q + 5], t = s / L, tc = t < 0 ? 0 : t > 1 ? 1 : t;
-      const f = tc * (N - 1), i = f >= N - 1 ? N - 2 : Math.floor(f), xx = f - i, x2 = xx * xx, x3 = x2 * xx;
-      const k0 = q + 14 + Math.max(0, i - 1) * 5, k1 = q + 14 + i * 5, k2 = q + 14 + (i + 1) * 5, k3 = q + 14 + Math.min(N - 1, i + 2) * 5;
-      const cr = (c) => 0.5 * (2 * P[k1 + c] + (P[k2 + c] - P[k0 + c]) * xx + (2 * P[k0 + c] - 5 * P[k1 + c] + 4 * P[k2 + c] - P[k3 + c]) * x2 + (3 * P[k1 + c] - P[k0 + c] - 3 * P[k2 + c] + P[k3 + c]) * x3);
-      const X0 = dx * P[q + 6] + dy * P[q + 7] + dz * P[q + 8], Y = dx * P[q + 9] + dy * P[q + 10] + dz * P[q + 11];
-      const rw = cr(0), rd = Y > 0 ? cr(1) : cr(2), X = X0 - cr(3), n = cr(4);
-      const ax0 = (X < 0 ? -X : X) / rw, ay0 = (Y < 0 ? -Y : Y) / rd;
-      const e = n === 2 ? Math.sqrt(ax0 * ax0 + ay0 * ay0) : Math.pow(Math.pow(ax0, n) + Math.pow(ay0, n), 1 / n);
-      // (steep changes of the section along the axis: the distance across overstates the true one; damped by the slope)
-      const g = Math.max(Math.abs(P[k2] - P[k1]), Math.abs(P[k2 + 1] - P[k1 + 1]), Math.abs(P[k2 + 2] - P[k1 + 2])) * (N - 1) / L;
-      let dc = ((e - 1) * (rw < rd ? rw : rd)) / Math.sqrt(1 + g * g);
+      const f = tc * (N - 1), i = f >= N - 1 ? N - 2 : Math.floor(f), xx = f - i, x2 = xx * xx, x3 = x2 * xx, kb = q + 15;
+      const k0 = kb + (i > 0 ? i - 1 : 0) * KW, k1 = kb + i * KW, k2 = kb + (i + 1) * KW, k3 = kb + (i + 2 < N ? i + 2 : N - 1) * KW;
+      const c0 = -0.5 * xx + x2 - 0.5 * x3, c1 = 1 - 2.5 * x2 + 1.5 * x3, c2 = 0.5 * xx + 2 * x2 - 1.5 * x3, c3 = -0.5 * x2 + 0.5 * x3;
+      const X = dx * P[q + 6] + dy * P[q + 7] + dz * P[q + 8] - (c0 * P[k0 + 4] + c1 * P[k1 + 4] + c2 * P[k2 + 4] + c3 * P[k3 + 4]);
+      const Y = dx * P[q + 9] + dy * P[q + 10] + dz * P[q + 11] - (c0 * P[k0 + 5] + c1 * P[k1 + 5] + c2 * P[k2 + 5] + c3 * P[k3 + 5]);
+      const ix = X > 0 ? 0 : 1, iy = Y > 0 ? 2 : 3, ie = Y > 0 ? 6 : 7;
+      let rx = c0 * P[k0 + ix] + c1 * P[k1 + ix] + c2 * P[k2 + ix] + c3 * P[k3 + ix], ry = c0 * P[k0 + iy] + c1 * P[k1 + iy] + c2 * P[k2 + iy] + c3 * P[k3 + iy];
+      const n = c0 * P[k0 + ie] + c1 * P[k1 + ie] + c2 * P[k2 + ie] + c3 * P[k3 + ie];
+      if (rx < 1e-4) rx = 1e-4; if (ry < 1e-4) ry = 1e-4;
+      const ax0 = (X < 0 ? -X : X) / rx, ay0 = (Y < 0 ? -Y : Y) / ry;
+      let e = n === 2 ? Math.sqrt(ax0 * ax0 + ay0 * ay0) : Math.pow(Math.pow(ax0, n) + Math.pow(ay0, n), 1 / n);
+      // (where the section changes fast along the axis the distance across overstates the true one: damped by the slope)
+      let g = 0; for (let c = 0; c < 6; c++) { const dv = P[k2 + c] - P[k1 + c]; if (dv > g) g = dv; else if (-dv > g) g = -dv; }
+      g *= (N - 1) / L; const damp = 1 / Math.sqrt(1 + g * g), rm = rx < ry ? rx : ry;
       const ax = t < 0 ? -s : t > 1 ? s - L : 0;
-      if (ax <= 0) return dc;
+      if (ax <= 0) return (e - 1) * rm * damp;
+      if (cap > 0) { const rc = rm * cap, w = ax / rc; e = Math.sqrt(e * e + w * w); return (e - 1) * (rm < rc ? rm : rc) * damp; }
+      const dc = (e - 1) * rm * damp;
       return dc > 0 ? Math.sqrt(dc * dc + ax * ax) : ax;
+    }
+    case 9: {   // a plate: how far from its outline in its own (bent) plane, and from its sheet
+      const dx = x - P[q], dy = y - P[q + 1], dz = z - P[q + 2];
+      const pu = P[q + 3] * dx + P[q + 4] * dy + P[q + 5] * dz, pv = P[q + 6] * dx + P[q + 7] * dy + P[q + 8] * dz;
+      let pw = P[q + 9] * dx + P[q + 10] * dy + P[q + 11] * dz - (P[q + 15] * pu * pu + P[q + 16] * pv * pv + P[q + 17] * pu * pv);
+      const te = P[q + 13], N = P[q + 18], o = q + 19;
+      let dd = 1e18, inside = false, jx = P[o + 2 * (N - 1)], jy = P[o + 2 * (N - 1) + 1];
+      for (let i = 0; i < N; i++) {
+        const vx = P[o + 2 * i], vy = P[o + 2 * i + 1], ex = jx - vx, ey = jy - vy, wx = pu - vx, wy = pv - vy;
+        let h = (wx * ex + wy * ey) / (ex * ex + ey * ey); h = h < 0 ? 0 : h > 1 ? 1 : h;
+        const bx = wx - ex * h, by = wy - ey * h, b2 = bx * bx + by * by; if (b2 < dd) dd = b2;
+        if ((vy > pv) !== (jy > pv) && pu < vx + (ex * (pv - vy)) / ey) inside = !inside;
+        jx = vx; jy = vy;
+      }
+      const e = (inside ? -Math.sqrt(dd) : Math.sqrt(dd)) + te;
+      if (pw < 0) pw = -pw;
+      if (e > 0) return Math.sqrt(e * e + pw * pw) - te;
+      const ramp = P[q + 14]; let sm = ramp > 0 ? -e / ramp : 1; if (sm > 1) sm = 1; sm = sm * sm * (3 - 2 * sm);
+      return pw - (te + (P[q + 12] - te) * sm);
     }
     case 7: {   // a strand: its section at the nearest point along it, an ellipse swelling in the belly
       const dx = x - P[q], dy = y - P[q + 1], dz = z - P[q + 2], L = P[q + 12];
