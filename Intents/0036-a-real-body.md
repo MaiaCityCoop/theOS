@@ -1,7 +1,7 @@
 ---
 id: "0036"
 title: A real body, its movement and its clothes
-state: build              # idea | define | build | propose | story | archived
+state: propose            # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-16
 story:
@@ -194,7 +194,111 @@ correctly"; "ensure the skull is correct".**
   raised high its lower corner stands off them), and the thumb's part in a fist is rough. The fingers' middle bones
   come out some 4 mm long for their shares of a finger's length.
 
+**The skeleton in the library (2026-11-16), as Samuel asked: "Did you add the skeleton and it's rigged moves to our
+lib?"** It was not there (every still till then was drawn outside the game). Now it is.
+
+- **What is there.** A second character beside the Settler: `characters/skeleton.js` (a recipe with its own uid and its
+  own measure), built by `characters/kit/bones.js`. It stands on the library's stage in the world's light as every
+  surface does (the shading contract of intent 0032: the sun past the clouds and the shadow map, the sky's light as
+  much as each hollow leaves of it, a little gloss, more on a tooth), with its card: 90 joints, 262 pieces, its moves,
+  its rig drawn over it on request.
+- **Grown in the page, off its thread.** The bones' fields are drawn out as surfaces by workers
+  (`skeleton/grow.worker.js`, `skeleton/mesh.js`), a bone at a time: first a quick surface (8 mm cells, 450 000
+  triangles, no shade in its hollows), then the full one (3.5 mm cells, 999 000 triangles; 5.5 mm on a phone or a
+  machine of four threads or fewer, 637 000), each point with the way it faces, what it is and how open it stands. A
+  bone with a thin blade (the shoulder blade, the hip bone's wing) is drawn with cells half the blade's thickness: at
+  cells nearer its own thickness it came out pricked with holes. The page keeps both surfaces in the browser (under a
+  digest of the bones' fields and of the rules they are drawn by: other bones, grown again), so a second visit should
+  have them at once; that second visit I have not seen. One thread takes 9 s for the quick surface and 31 s (5.5 mm)
+  or 48 s (3.5 mm) for the full one; the workers share it out. The page's own thread carries none of the bones' code:
+  the game's start names 18.7 kB more script than main's (7.1 kB compressed: the stage kit); the rig's part (8.4 kB)
+  comes when a skeleton is first made, the bones' code (84.6 kB) only in the workers.
+- **One surface, carried whole.** All bones are one mesh; each point is held by one joint alone (bone does not
+  bend), so the 90 joints move it exactly as the pose says (`skeleton/pose.js`).
+- **The moves**, all on the rig's plain moves and within a body's ranges: Stand (the weight going from foot to foot,
+  the pelvis tipping over upright legs), Walk, Wave, Reach, and Every joint (each joint in turn through its range:
+  the spine bent, leaned and twisted, the head and the jaw, the arms raised and turned, elbows, forearms, wrists and
+  fists, a hip and its knee, the other hip turned, its ankle and toes). A move runs from its own beginning.
+- **The walk.** A stride's joint angles are a table of their own (`GAIT`: Winter 1991, Perry 1992, as remembered),
+  then fitted to this skeleton's legs, because as remembered they did not carry a body: the leading leg reached 5 cm
+  less far down than the trailing one at the heel's strike (gait analysis gives the hip against a pelvis tipped some
+  10° forwards), so the front foot landed late and flat while the back one rolled onto its toes; and the standing
+  sole went back under the body at anything from 0.8 to 2 m/s within one step. Fitted: both feet reach the ground
+  together at the step's change, the heel strikes with the toes up 17°, the foot lies flat from a twelfth to a third
+  of the stride, rolls over its ball and leaves at six tenths; its sole goes back at 1.1 to 1.5 m/s. The body is
+  carried as far as its standing soles go back under it (it has no speed of its own to slide on), the hips let down
+  till the lowest sole touches, where the body's sole will be (the heel's bone stands 17 mm above the ground, on a
+  pad that is not there yet). On the stage's round the pelvis turns over the standing foot: that leg is turned back
+  in its hip and let out by as much as keeps the foot in place, half of the round's turn left to the foot itself.
+  Measured in the page frame by frame: 1.25 m/s (1.07 to 1.54 within a stride), the hips rising and falling 23 mm,
+  a standing foot's big-toe joint moving 2.5 to 5 cm through its half second on the ground (its roll and its turn on
+  the round in that), never more than 8 mm in one frame. Before the fitting and the footing it slid 12 to 14 cm a
+  step. Two ways of holding the foot along the way as well (a pace found as it walks; the leg drawn back or
+  forwards) ran away or swung, and are not in it.
+- **In the rig, changed.** The upper arm's and the thigh's own turn (in and out) are about the bone's own length
+  wherever the limb is raised to (before: about the upright, right only for a hanging limb); the pelvis has a move
+  of its own (`hips`).
+- **In the library, changed.** A character need not wear anything: its card says how it is made, gives its own
+  figures and a note while it grows. With a person on the stage the camera comes as near as 45 cm (it stopped at
+  3 m), a drag up or down moves what it looks at from the feet to the crown, and the lens is stopped down as it
+  comes close; at 3 m and beyond nothing changed. I have not tried this with a hand on the mouse. The registry's
+  versions follow a kit that is loaded when first wanted or run in a worker (no other recipe's version moved).
+- **With main (intents 0034 and 0035).** The skeleton has its own measure (`bun tools/scale.js`: it stands 1.774 m,
+  within a grown person's 1.6 to 1.8; the man it is the skeleton of stands 1.80 m, said as its own choice); the run
+  waits for a character that is grown after it is made. The body's tables (`kit/measures.js`) read where the eyes,
+  shoulders, hip, knee and ankle stand from the reference body (`world/scale.js`), and keep the rest of the figure's
+  shares themselves.
+- **Not there yet.** The Settler and the game still stand on the old body: only the Skeleton uses the new rig. Its
+  shadow on the ground is faint: the world's shadow map has 6 cm texels at the library's distance, wider than most
+  bones. No levels of detail by distance yet. The walk is still a table played forwards: its angles do not answer
+  the ground (no leg solved from where its foot stands: round 2); on the round the inner leg is let out up to 13 cm
+  and turned up to 16° to keep its foot; while both feet are down each slides a little (the body goes with both).
+  Wave turns the body on the spot with the feet sliding under it, as the Settler's does. A first visit grows the
+  quick surface for the list's small picture even if the skeleton is never chosen.
+
 ## Propose
+
+**This round, delivered** (branch `aven/0033-a-real-body`, pull request #22): the skeleton and its rig, to be looked
+at in the library. Samuel: "Body session should finish its skeleton rigged work and merge it into main"; and, of the
+checks: "Can we drop all the still checks and merge directly so we can check visually ourself?" So this is proposed
+for his own eyes on `next`, with fewer checks than Define asks.
+
+- **What is delivered.** Every bone of a man of 1.80 m, each a piece of its own against Gray's plates
+  (`TheGame/characters/kit/skeleton/`); a rig of 90 joints where the bones really meet, with moves held within a
+  body's ranges (`skeleton/pose.js`); and the skeleton as a character of the library with five moves on that rig
+  (`characters/skeleton.js`, `characters/kit/bones.js`).
+- **Where to look.** `library.html`, Characters, Skeleton
+  (`library.html?character=7b0e2f6c-3a41-4d5e-9c18-5f2a6d0b9e37`): Stand, Walk, Wave, Reach, Every joint; the wheel to
+  come close, a drag up or down to look higher or lower; "Show" on the card for the rig's lines.
+
+**The checks, as they really were**
+
+- *Stills from the library, front, side and back, at rest and in a move, close face and hands:* **begun, then
+  dropped at Samuel's request.** Taken before that, from the library's own stage (outside the repository, four of
+  them sent to Samuel): standing from four sides, the skull from two, chest, pelvis, hand, foot, the back, the wave,
+  and eight frames of one stride. Not taken: Reach and Every joint. None after the last change (the thin blades'
+  finer cells) or after main was merged in.
+- *Timings, main against the branch:* **dropped at Samuel's request** before a full run. What was measured earlier
+  the same day, on the software GPU here (1280 × 720): the Settler alone on the stage 60 ms a frame on this branch,
+  61 on main; the Skeleton alone 169 ms, at 484 000 triangles (it has 637 000 at that fineness now, and that was
+  not timed again); the whole library frame about 5.9 s with either on the stage. No frame rate on real hardware,
+  no 4K figure, nothing on a phone.
+- *The walk:* measured in the page (Build): 1.25 m/s, a standing foot's toe joint moving 2.5 to 5 cm through a step.
+  Seen in eight stills of one stride. Not seen moving, by anyone.
+- *Both sites build:* **passed** here (`vite build` in `TheGame` and in `OS`), after main was merged in.
+- *The measuring run:* **passed** (`bun tools/scale.js`: 16 of 16 within their measure, the Skeleton at 1.774 m).
+- *The API's tests:* **not run here** (the avatar is not touched; CI runs them).
+- *Nothing else in the picture changes:* the game's start names 18.7 kB more script (7.1 kB compressed) and builds
+  no skeleton; the library at 3 m and beyond is as it was. **Not checked by eye** after the merge.
+
+**Known gaps**
+
+- Only the Skeleton uses the new rig. The Settler, the game and `me.html` are on main's body as they were: the
+  muscles, the fat and the skin on these bones, and a person skinned to this rig, are not built.
+- The library's close look and the kept surfaces (a second visit) are written and not tried by hand.
+- Faint shadow on the ground; no levels of detail; a million triangles at the finest; the walk a fitted table, not
+  yet a leg that answers the ground (Build, "Not there yet").
+- The story folder is not spawned: this round goes to `next` for a look first, at Samuel's word.
 
 ## Story
 
@@ -209,7 +313,11 @@ correctly"; "ensure the skull is correct".**
   - [x] a second, muscles as strands without the bones under them (set aside)
   - [x] the bones, each a piece of its own in its true shape, against Gray's plates (the skull laid over its plates), neighbours fitted round one another
   - [x] the skeleton rigged where its bones really meet (90 joints, moves held within a body's ranges), seen walking and reaching
-  - [ ] Samuel's word on the skeleton; fine relief; the blade gliding on the ribs, the ribs' breath
+  - [x] the skeleton in the library: grown in the page, in the world's light, with its moves (stand, walk, wave, reach, every joint) and a close look
+  - [x] main's measure for it (intent 0035); the reference body's shares read from the world's scale
+  - [ ] Samuel's word on the skeleton, from `next`; fine relief; the blade gliding on the ribs, the ribs' breath
+  - [ ] the library's close look and a second visit tried by hand; a shadow the bones can cast; levels of detail
+  - [ ] this round's story folder
   - [ ] muscles from origin to insertion, a skin over them
   - [ ] the face from the skull up; hands; feet
 - [ ] Round 2: movement
@@ -232,6 +340,22 @@ correctly"; "ensure the skull is correct".**
   of a skeleton rather than as a diagram.
 - **Broke / not there yet (later):** My preview had drawn every picture inside out since the first attempt (Build):
   the stills Samuel judged were wrong in that way too. The bones are not in the game yet; the rig is still to be made.
+- **Asked (evening):** "Did you add the skeleton and it's rigged moves to our lib?" Then, through the coordinator:
+  "Body session should finish its skeleton rigged work and merge it into main", and "Can we drop all the still
+  checks and merge directly so we can check visually ourself?"
+- **Delivered (evening):** the skeleton as a character of the library, grown in the page off its thread, in the
+  world's light, with five moves on its rig; the library's camera comes close to a person; main merged in, the
+  skeleton's own measure. Proposed for a look on `next`, the stills and timings dropped as asked (Propose).
+- **Good (evening):** The walk is measured, not judged by eye: the standing foot moves a few centimetres through a
+  step (it slid 12 to 14 before), the body goes at an even 1.25 m/s.
+- **Broke / not there yet (evening):** The stride's angles as I remembered them did not carry a body (Build); they
+  are fitted now, which is not the same as measured. I lost an hour to a comment I had put in the middle of a line:
+  it cut the ankles and toes out of the walk, and I tuned against that before I saw it. I did not read the
+  coordinator's messages for nearly two hours (they waited while I worked on). Only the Skeleton uses the new rig;
+  its shadow on the ground is faint; no levels of detail yet.
+- **Renumbered:** this intent was 0033. Another intent on its way to main is 0033 too and was approved first, so
+  this one is 0036 from commit `9fdf555` on: its file, its id, the places the code names it. The commits before
+  keep the trailer `Intent: 0033` they were made with, and the branch its name.
 - **Broke / not there yet:** The first body: "This looks absolute catastrophic." Every solid showed as a lump; the
   proportions, the face, the hands and the clothes were all wrong (Build). Samuel: naked first, no hair, a muscular
   body; the clothes later. A second attempt, muscles as strands over no bones, floated apart (Build). Samuel: the
@@ -256,3 +380,7 @@ correctly"; "ensure the skull is correct".**
 | 2026-11-16 | `9682add` | the pelvis, the arm and the hand rebuilt bone by bone |
 | 2026-11-16 | `5a3de2b` | main merged in (intent 0032) |
 | 2026-11-16 | `07f27e5` | the arm and the hand refitted to a man's measures; the rig takes the arm's joints from the arm |
+| 2026-11-16 | `35a7a12` | the skeleton in the library, grown in the page, with its moves on the rig; the walk's stride fitted, its feet kept |
+| 2026-11-16 | `9fdf555` | renumbered from 0033 to 0036; a thin blade drawn with cells half its thickness |
+| 2026-11-16 | `62c0e2b` | main merged in (intents 0034 and 0035) |
+| 2026-11-16 | `1894bba` | the skeleton's own measure; the body's tables read the reference body's shares from the world's scale |
