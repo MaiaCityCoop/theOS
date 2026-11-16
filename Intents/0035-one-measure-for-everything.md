@@ -1,7 +1,7 @@
 ---
 id: "0035"
 title: One measure for everything
-state: define             # idea | define | build | propose | story | archived
+state: build              # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-16
 story:
@@ -79,6 +79,81 @@ _A draft for Samuel to approve or change. Not built before._
 
 ## Build
 
+Samuel approved the definition: "do make 35".
+
+**The measure** is `TheGame/world/scale.js`: the reference person (`PERSON`: the Settler, 1.74 m, with where on them
+the eyes, shoulders, hip, knee and ankle are, the shares of stature intent 0033's body is built from), the walker who is
+you (`WALKER`, worked out from the person), and every recipe of the registry by its uid (`THINGS`: 14 assets and the
+Settler). Each says what it is in the world outside, how tall a grown one stands (`typical`), the tallest a real one
+grows (`most`), or for rocks their widest side (`across`), and its sources: makers' sheets of 5 m bell tents and of
+campfire rings, seating guidance, the RHS and the floras for the plants, the sedimentologists' grain-size scales for
+rocks, ANSUR II and Drillis & Contini for the body. Where no source was found it says so (`own`): the flame's height, a
+fallen branch's, the walker's room round the arms and over the hair, how far the fire pit's seats stand from the fire.
+
+**What reads it:** the bell tent (its round, wall, peak, the pole's cap, the door), the fire pit (its ring, its seats),
+the flame (its tallest tongue), the stone pine and the holm oak (what their height by age comes to), the Settler (its
+stature), the camera (`camera/rig.js`: the walker's eyes and the first key), what is solid (`src/world/solids.js`,
+`src/world/bodies.js`: the walker's round, the shin, the head, the knee; `assets/kinds.js`: a shrub stops you from the
+shoulder up), and the old walk controller nothing uses any more (`src/camera/walk.js`). Every asset that should not
+change was built before and after and hashed, every level and shape: the same to the byte (the fire pit, the flame,
+both trees, the mastic, the bracken, the moss, the dead wood, the grass, the stones, the boulders, the Settler's mesh).
+
+Not as the definition said: "no size of a real thing written anywhere else" holds for the measures a thing is built
+from, not for a plant's own shapes (a mastic's two mounds, a reed clump's three heights) or how much a placement scales
+them: those are which bush it is and how much they vary, so they stay its recipe's, and the run checks every shape at
+every scale against the measure instead. The avatars' range (1.55 to 1.95 m, `characters/kit/avatar.js` and its copy in
+the API) stays where it is: intent 0033 is changing the avatar. The films' cameras (three shots of `cine/trailer.js` at
+"eye height", 1.7 m) and the tools' views (`tools/bench.js`, `tools/shots.js`) keep their 1.7 m: they are shots,
+composed.
+
+**The run**, `bun tools/scale.js`, builds every asset and character of the registry as the game builds it, in Bun: the
+game's modules glob their folders the way Vite does (`import.meta.glob`), so `tools/glob.js` does that for Bun, and the
+registry is imported first, as the game does (the recipes import it back). Plants: every shape at every level, times
+their placement's scale (a tree: its stage of growth at its stand's ages, as `src/scatter/trees.js` grows it), set
+0.15 m into the ground as a stand sets them (`FOOT`, now exported). Made things: every level as made. Rocks: as
+`src/scatter/rocks.js` draws them. The grass: the blade times its tuft's share. The Settler: built with a stand-in
+texture (38 088 vertices) and measured feet to hair: 1.752 m. Five and a half seconds; CI runs it after the sign-in
+checks. A far level that stands more than a fifth taller or lower than the near one is noted, not failed.
+
+The registry versions a recipe with what it builds with; the measure is now one of those (`tools/registry.js`, SHARED),
+so a changed measure gives each recipe that reads it a new version. Its uids are of what it measures, not of what a
+recipe uses, so they are not read as uses (at first they were, and every recipe that reads it used every other: a ring).
+
+**The lineup** is the first item of the library's assets (`library.html?lineup=1`): every asset beside the Settler,
+each as the library stands it (a tree at seventy, a bush at its own size, rocks small to large), the people-sized
+things next to the Settler and the trees at the ends, on a bare round (the meadow's grass, to 1.3 m, hid what is small),
+a gold line at the walker's eyes over each, looked at square on from the walker's eyes, so the gold line lies on the
+horizon. The wheel goes back to see all of it. Its card lists each thing with its measure. The grass is the meadow's
+own, round the stage.
+
+**Found and set right** (the run, before):
+
+- **The walker's eyes**: 1.7 m, a person of about 1.82 m, while the Settler's eyes are at 1.629 m. Now 1.629 m.
+- **The tent's door**: 2.05 m high and 1.76 m wide at the ground. Makers' 5 m bell tents have doors of 1.5 to 1.8 m
+  (2.0 m only on an XL with taller walls) and 1.32 m wide. Now 1.8 m and 1.32 m. Going in, the walker stoops 8 cm
+  under its top (the camera's eyes keep 0.25 m under what is overhead), as people do.
+- **The rockrose** stood up to 1.51 m. The sage-leaved rockrose grows to 1 m, and its own file says "knee to hip
+  high". Its placement's scale 0.5–1.3 is now 0.45–0.85: 0.36 to 0.94 m, a middling one 0.59 m.
+- **The reeds**: a middling clump stood 1.81 m; common reed's stems are 2 to 4 m. Their scale 0.8–1.3 is now 1–1.6:
+  1.55 to 3.41 m, a middling one 2.28 m.
+- **The walker's body**: its knee 0.55 m is now the person's, 0.496 m; what is stepped over, under the shin's middle,
+  0.3 m is now 0.282 m; a shrub stops you from 1.5 m, now the shoulder, 1.423 m, as `assets/kinds.js` said it was. Its
+  round (0.3 m) and head (1.8 m) are kept: room for the arms, a hand over the hair.
+
+**Found and not set right** (`known` in the measure: the run shows it and does not fail on it):
+
+- **Stones and boulders are drawn about twice the size their recipes say.** `src/scatter/rocks.js` draws a rock's
+  largest side as its size times its shape's span, 1.8 to 2.6 (`assets/kit/rock.js`: "a rock of size 1"), while the
+  recipes' own words, the library's card ("Length 7–55 cm") and the measure read the size as its length. Stones are
+  drawn 0.12 to 1.42 m across, a middling one 0.29 m (cobbles are 0.064 to 0.256 m); boulders 1.2 to 11.9 m, a
+  middling one 2.8 m ("up to four metres"). Set right, every stone and boulder in the world is about half as large,
+  and the engine draws the stress world's rocks too: Samuel's choice.
+
+**Found, outside this intent** (in the Todo): a tree's youngest stage is built taller than its own height by age
+(a holm oak of 6: 1.51 m against 1.19 m; a stone pine of 5: 1.55 m against 1.36 m), so saplings stand 14 to 27 %
+taller than their age; and a sapling's far levels stand up to 36 % taller than its near one. Speeds are not sizes:
+the walker walks 3.2 m a second, about twice a person's pace.
+
 ## Propose
 
 ## Story
@@ -89,9 +164,13 @@ _A draft for Samuel to approve or change. Not built before._
 
 ## Todo
 
-- [ ] Samuel: is this what he meant; approve or change the definition
-- [ ] Agree with intent 0033 where the reference body's numbers live
-- [ ] Build, check, propose
+- [x] Samuel: is this what he meant; approve or change the definition ("do make 35")
+- [ ] Agree with intent 0033 where the reference body's numbers live (the same numbers in both for now)
+- [ ] Build, check, propose (built; the checks being run)
+- [ ] Samuel: the stones and boulders, drawn about twice their size: set right (halved) or kept
+- [ ] The walker's eyes from your own avatar's height, not the reference person's
+- [ ] A sapling's youngest stage built to its own curve; its far levels at its near level's height
+- [ ] Seen on Samuel's iPhone
 
 ## Changelog
 
@@ -102,6 +181,19 @@ _A draft for Samuel to approve or change. Not built before._
   walker's eyes against the Settler's), and a definition to approve.
 - **Good:** the sizes are few and plain to find.
 - **Broke / not there yet:** nothing built; Samuel's yes first.
+
+### 2026-11-16 (2)
+
+- **Asked:** "do make 35" (with "what makes lens wise sense?", answered in intent 0034).
+- **Delivered:** the measure (`world/scale.js`): the person, the walker, every recipe of the registry with its
+  sources; the tent, the fire pit, the flame, both trees, the Settler, the camera and what is solid reading it; the run
+  (`bun tools/scale.js`), in CI; the lineup in the library; set right: the walker's eyes (1.7 → 1.629 m), the tent's
+  door (2.05 → 1.8 m high, 1.76 → 1.32 m wide), the rockrose (to 1.51 → to 0.94 m), the reeds (a middling clump
+  1.81 → 2.28 m), the walker's knee, shin and shoulder.
+- **Good:** every asset and the Settler build in Bun in five and a half seconds; what should not change is the same to
+  the byte.
+- **Broke / not there yet:** the stones and boulders are drawn about twice the size their recipes say: found, not set
+  right, Samuel's choice. Not seen on a phone.
 
 ## Trail
 
