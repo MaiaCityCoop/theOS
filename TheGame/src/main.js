@@ -54,6 +54,7 @@ const canvas = document.getElementById('c');
 // (the stress stand keeps its kinds' own textures in one array of many layers: more than a device gives unasked; src/scatter/stress.js)
 const layers = flag('stress') ? Math.min(2048, (await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits?.maxTextureArrayLayers ?? 256) : 256;
 const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (a pixel's fourth number is not how see-through it is: it says how still the thing is, src/world/light.js stillness; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
+if (flag('draws')) (await import('../tools/draws.js')).watch();   // ?draws: every pass and draw a frame asks of the GPU, counted (tools/draws.js: window.__draws), from before the first pipeline is made
 await renderer.init();
 if (!flag('fat')) useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js); ?fat: twice, as three keeps it, to compare
 shareComputeCompiles(renderer);   // a compute shader compiled once, however many passes run it (src/core/compile.js)

@@ -180,7 +180,9 @@ function plantMaterial(tex, D) {
   // feed: where a vertex comes from. In the world, the heap ({ ok(B): whether the draw's vertex is one of this plant's
   // mesh, vertex(B): it, unpacked, and its kind's numbers }: createStands); none: a mesh of its own (the library's
   // plant: its attributes, its numbers on the mesh).
-  return (Lv = null, feed = null) => {
+  // px: its size on screen told, a node (pixels), where it is not to be reckoned from where the eye stands: the measure's
+  // (tools/stick.js), which draws a plant as the game draws it at a size while its own camera frames it. None: reckoned.
+  return (Lv = null, feed = null, px = null) => {
     const slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0);
     const own = feed ? null : { Hk: ofMesh('hk', 1, 'float'), Ks: ofMesh('ks', 1, 'float'), Wd: ofMesh('wind', new THREE.Vector4(0, 0, 1, 0.3)), Lf: ofMesh('leaf', new THREE.Vector4(0.45, 0.55, 0, 0)), Tw: ofMesh('twig', 0, 'float'), Tn: ofMesh('tint', new THREE.Vector3(1, 1, 1)) };
     const vertexOf = (B) => (feed ? feed.vertex(B) : { position: positionGeometry, normal: attribute('normal', 'vec3'), uv: attribute('uv', 'vec2'), part: attribute('part', 'float'), ao: attribute('ao', 'float'), cn: attribute('cn', 'vec3'), root: attribute('root', 'vec3'), hand: attribute('hand', 'vec2'), twig: attribute('twig', 'float'), shade: seedOf(B), ...own });
@@ -201,7 +203,7 @@ function plantMaterial(tex, D) {
         if (Lv) {
           // its size on screen now (its size, A.w; a stand that says its `size`, that), and from it the one hand-over
           // (src/detail/handover.js): its sprigs part by part, its wood whole, its last level sinking
-          let H = handOver(pxOf(D.ST?.size ? float(D.ST.size) : A.w, A.xy), LU, D.sink);
+          let H = handOver(px ?? pxOf(D.ST?.size ? float(D.ST.size) : A.w, A.xy), LU, D.sink);
           if (feed?.streamed) {
             // its finest level comes when a plant is near (its mesh is made then): until it is there the next level
             // stands in for it whole, and from when it came the two hand over by the clock, sprig by sprig, as two
@@ -371,7 +373,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
         place: (c, { band }, found) => plantIn(c, g, band, shadow, seen, found), thing: `plants:${G.name}`,   // (a plant's own state: its stand and its cell, src/world/things.js)
         extra: shadow ? { cull: SH.reach, fixed: SH.far * SH.wide } : {},   // (the stand-in in small patches: those whose shade cannot reach the view are dropped)
       });
-      t.viewKeyed = !shadow; t.asset = G.name; tiers.push(t);
+      t.viewKeyed = !shadow; t.asset = G.name; t.drawer = D; tiers.push(t);
       return t;
     };
     for (let i = 0; i < n; i++) tier(i, G);
@@ -407,7 +409,21 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
   // each frame: the stands' meshes until they are in (read back from the browser, or made by the workers); what is solid
   tiers.solid = (renderer) => { for (const D of drawers) D.start(); for (const f of solids) f(renderer); };
   // for looking at it (window.__plants): how many plants each tier packs now, what the heaps hold
-  window.__plants = { drawers, tiers, async counts() { const out = []; for (const t of tiers) { const B = await t.read(renderer); out.push(`${t.asset} ${t.level}: ${B.reduce((x, b) => x + b.count, 0)}`); } return { tiers: out, held: drawers.map((D) => D.H.held().join(',')), coarseMs: drawers.map((D) => D.stats.coarseMs), kept: drawers.map((D) => D.stats.kept) }; } };
+  window.__plants = { drawers, tiers, async counts() { const out = []; for (const t of tiers) { const B = await t.read(renderer); out.push(`${t.asset} ${t.level}: ${B.reduce((x, b) => x + b.count, 0)}`); } return { tiers: out, held: drawers.map((D) => D.H.held().join(',')), coarseMs: drawers.map((D) => D.stats.coarseMs), kept: drawers.map((D) => D.stats.kept) }; },
+    // … and what each stand asked of the GPU in the last frame, a row a stand: of each of its tiers the plants drawn (a
+    // draw's count is written by the packing, on the GPU: its arguments are read back; a plant in hand-over is in both
+    // its levels' tiers) and the vertices and corners that is, each draw's count times its mesh's; summed for the picture
+    // (eye) and for the shadow map (light: the stand-in, and what casts as drawn; its layer, src/world/shadow.js)
+    submitted: () => Promise.all(drawers.map(async (D) => {
+      const mine = tiers.filter((t) => t.drawer === D), none = () => ({ plants: 0, verts: 0, corners: 0 }), S = { stand: mine[0]?.asset, eye: none(), light: none(), tiers: [] };
+      for (const t of mine) {
+        const a = new Uint32Array(await renderer.getArrayBufferAsync(t.args)), T = { level: t.level, eye: t.mesh.layers.isEnabled(0), light: t.mesh.layers.isEnabled(1), ...none() };
+        t.meshes.forEach((m, k) => { const n = m.visible ? a[k * 5 + 1] : 0, kind = t.kindOf(k); T.plants += n; T.corners += n * a[k * 5]; if (kind >= 0) T.verts += n * D.H.count(kind, t.level); });
+        for (const w of ['eye', 'light']) if (T[w]) for (const k of Object.keys(S[w])) S[w][k] += T[k];
+        S.tiers.push(T);
+      }
+      return S;
+    })) };
   return tiers;
 }
 
@@ -452,10 +468,12 @@ function standBodies(G, KINDS, ground, renderer) {
 }
 
 /** One plant on its own, in the stands' material (its bark, its leaves, its wind), for the asset library's stage and
-    list: level `level`, its foot at (x, y, z), scale s, of its shapes the one asked. */
-export function treeSample(tex, row, level = 0, x = 0, y = 0, z = 0, s = 1, form = 0) {
-  const g = geometryOf(row.asset, row.detail.levels[Math.min(level, row.detail.levels.length - 1)], form);
-  const { m, shape } = plantMaterial(tex, row.detail)();   // (a mesh of its own, not the heap's: the library's)
+    list: level `level`, its foot at (x, y, z), scale s, of its shapes the one asked. px: its size on screen told, a
+    node (pixels): it is then drawn as the game draws that level at that size, its hand-over and its sinking with it
+    (the measure's: tools/stick.js); none: the whole of its level. */
+export function treeSample(tex, row, level = 0, x = 0, y = 0, z = 0, s = 1, form = 0, px = null) {
+  const n = row.detail.levels.length, L = row.detail.levels[Math.min(level, n - 1)], g = geometryOf(row.asset, L, form);
+  const { m, shape } = plantMaterial(tex, row.detail)(px && { lo: L.lo, hi: L.hi, last: L.i === n - 1 }, null, px);   // (a mesh of its own, not the heap's: the library's)
   m.vertexNode = Fn(() => shape(vec4(x, z, y, s * sizeAtOne(row.asset, form)), vec4(0.4, 0, 1.3, Math.PI)))();   // turned a little, its shade the middle one, the whole of its level
   const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = 1; mesh.layers.enable(1);
   return wear(mesh, tex, row, form);

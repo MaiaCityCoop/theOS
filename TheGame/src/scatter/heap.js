@@ -58,6 +58,8 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
     // whether it is of the level's shape: cornersOf, shapedOf), which levels of the kind are there and when this one came)
     index: index.node, elems: elems.node, table: storage(table, 'uvec4', kinds * L),
     has: (k, l) => ((mask[k] >> l) & 1) === 1,
+    /** What a kind's level counts, as its row says: its corners, or what its make counts by (a plant's vertices); 0: it is not there. */
+    count: (k, l) => T[row(k, l) + 2] & ~SHAPED,
     /** A kind's level is wanted now (it is not put out while it is). */
     touch(k, l, now) { const p = pools[l]; if (p.slot && p.slot[k] >= 0) p.used[p.slot[k]] = now; },
     /** How many kinds' a level could take in now: its free slots, and those not wanted since `since` (touch's `now`s:

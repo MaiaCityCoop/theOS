@@ -556,6 +556,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // the level's own shape where no kind has it, the corners looked up where every kind has
     const lead = !made.length, run = T.run.bind(T), hp = H.pools[i];
     const shows = (k) => (byKind ? H.has(k, i) : classed ? classesIn[i].has(cLo + k) : k === KS ? hp.shaped > 0 : perSlot ? hp.who[k % K0] >= 0 : hp.one || hp.held > hp.shaped);
+    T.kindOf = (k) => (byKind ? k : perSlot && k !== KS ? hp.who[k % K0] : -1);   // whose mesh its k-th draw draws: a kind's own, or the one that lies in its slot of the heap (-1: none, or a draw of many kinds': a class's, the level's own shape, the dot)
     T.run = (r, world, ...a) => {
       if (lead) arrive();
       if (T.n > 0) T.meshes.forEach((m, k) => { m.visible = shows(k); });
