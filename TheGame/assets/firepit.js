@@ -11,8 +11,9 @@
 import { noise3 } from './kit/blob.js';
 import { lerp } from './kit/math.js';
 import { lcg } from '../src/core/hash.js';
+import { FIRE_PIT } from '../world/scale.js';
 
-const RING = 0.62, SEAT_R = 1.74, SEAT_H = 0.44, SEAT_W = 0.48;
+const RING = FIRE_PIT.ring, SEAT_R = FIRE_PIT.seat.from, SEAT_H = FIRE_PIT.seat.height, SEAT_W = FIRE_PIT.seat.width;   // (world/scale.js)
 
 // tints on the stone (the river's pebble): its own grey, a little warm or cool; where it faces the fire, sooted near black
 const stone = [0.8, 0.78, 0.76], stoneWarm = [0.9, 0.8, 0.69], stoneCool = [0.7, 0.75, 0.82], soot = [0.12, 0.115, 0.11];

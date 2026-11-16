@@ -42,6 +42,7 @@
 import * as THREE from 'three/webgpu';
 import { things } from './things.js';
 import { flag } from '../core/flags.js';
+import { WALKER } from '../../world/scale.js';
 
 export const GHOST = flag('ghost');
 const providers = [];
@@ -109,7 +110,7 @@ export const topOf = (S) => (S.shape === 'sphere' ? S.at[1] + S.r : S.shape === 
 
 const A = [0, 0, 0], B = [0, 0, 0], W = [0, 0, 0], O = [0, 0], F = [0, 0];
 /** What stops a walker round (x, z): each solid shape between knee and head as a round on the ground (walls are not rounds). */
-export function roundsNear(x, z, reach, low = 0.3, tall = 1.8) {
+export function roundsNear(x, z, reach, low = WALKER.shin, tall = WALKER.head) {
   const out = [], put = (b, p, r) => { toWorld(b, p, W); const h = b.up + p[1] * b.s, R = r * b.s; if (h + R > low && h - R < tall && Math.hypot(W[0] - x, W[2] - z) < reach + R) out.push({ x: W[0], z: W[2], r: R }); };
   for (const b of bodiesNear(x, z, reach + 3, true)) for (const S of b.body.shapes) {
     if (S.pass) continue;
@@ -127,7 +128,7 @@ export function roundsNear(x, z, reach, low = 0.3, tall = 1.8) {
     of it he was on (from: [x, z], where he stood before this step; none: where he stands), except at its doors. Twice
     over, so what one shape pushes into another is pushed out again. list: the bodies to keep him out of (none: those
     round him). */
-export function pushOut(x, z, r = 0.3, low = 0.3, tall = 1.8, knee = 0.55, from = null, list = null) {   // (low: what ends under the shin is stepped over; knee: what is passed through (leaves) stops him only where it stands higher than this, and only its inner half)
+export function pushOut(x, z, r = WALKER.round, low = WALKER.shin, tall = WALKER.head, knee = WALKER.knee, from = null, list = null) {   // (low: what ends under the shin is stepped over; knee: what is passed through (leaves) stops him only where it stands higher than this, and only its inner half)
   const fx0 = from ? from[0] : x, fz0 = from ? from[1] : z, near = list ?? bodiesNear(x, z, r + 3, true);
   for (let pass = 0; pass < 2; pass++) for (const b of near) {
     const c = Math.cos(b.yaw), s = Math.sin(b.yaw), dx = x - b.x, dz = z - b.z, R = r / b.s, lo0 = (low - b.up) / b.s, lo1 = (knee - b.up) / b.s, hi = (tall - b.up) / b.s;   // the walker in the body's own frame
@@ -184,7 +185,7 @@ export function ceilingAt(x, z) {
 /** A line of sight from (x0, z0) to (x1, z1): the share of it (0 to 1) clear before a wall stops it (a little before:
     no nearer to it than a walker may come); doors let it through. Only walls do: a camera pulled in by every stone or
     trunk it passes would jump in and out. */
-export function clear(x0, z0, x1, z1, pad = 0.3) {
+export function clear(x0, z0, x1, z1, pad = WALKER.round) {
   const L = Math.hypot(x1 - x0, z1 - z0), walls = bodiesNear((x0 + x1) / 2, (z0 + z1) / 2, L / 2 + pad, true, true).filter((b) => b.body.shapes.some((S) => S.shape === 'wall'));
   if (!walls.length) return 1;
   const n = Math.max(2, Math.ceil(L / 0.25));

@@ -30,7 +30,7 @@
   #toLib:hover{background:var(--glass-hover)}
   #grid.on ~ #toLib, #grid.on ~ #info, body:has(#grid.on) #list{display:none}   /* choosing a section: nothing else on screen */
   #list[data-sec] .item, #list[data-sec] .group{display:none}
-  #list[data-sec="assets"] .item[data-id], #list[data-sec="biomes"] .item[data-biome], #list[data-sec="materials"] .item[data-mat], #list[data-sec="characters"] .item[data-char]{display:flex}
+  #list[data-sec="assets"] .item[data-id], #list[data-sec="assets"] .item[data-lineup], #list[data-sec="biomes"] .item[data-biome], #list[data-sec="materials"] .item[data-mat], #list[data-sec="characters"] .item[data-char]{display:flex}
   #list[data-sec="assets"] .group[data-g="assets"], #list[data-sec="biomes"] .group[data-g="biomes"], #list[data-sec="materials"] .group[data-g="materials"], #list[data-sec="characters"] .group[data-g="characters"]{display:block}   /* the section's name and count over its list */
   #grid{position:fixed;inset:0;z-index:6;display:none;place-items:center;background:rgba(15,29,44,.28);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
   #grid.on{display:grid}
@@ -80,6 +80,7 @@ import { poseAt, heightFor } from './src/camera/rig.js';
 import { STAGE } from './world/places.js';
 import { heightAt } from './src/world/land.js';
 import { materialPreview, materialThumb, dioramaThumb, sceneThumb } from './src/materials/preview.js';
+import { THINGS, WALKER, PERSON } from './world/scale.js';
 const q = new URLSearchParams(location.search), cine = window.__cine;
 const hex = (c) => '#' + c.map((v) => Math.round(Math.min(1, v) * 255).toString(16).padStart(2, '0')).join('');
 // every recipe from the registry, by its uid (src/core/registry.js)
@@ -105,7 +106,7 @@ const { scene, U, ground, tex } = window.__game;
 ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BASE));   // round the stage, the land is all meadow
 
 // the list: each asset with a small picture of its nearest level
-document.getElementById('list').innerHTML = `<div class="group" data-g="assets">Assets · ${ids.length}</div>` + ids.map((id) => `<button class="item glass flat" data-id="${id}"><canvas width="72" height="72"></canvas><span><b class="g-name">${ASSETS[id].name}</b><small class="g-sub">${ASSETS[id].kind}</small></span></button>`).join('')
+document.getElementById('list').innerHTML = `<div class="group" data-g="assets">Assets · ${ids.length}</div>` + `<button class="item glass flat" data-lineup="1"><canvas width="72" height="72"></canvas><span><b class="g-name">Lineup</b><small class="g-sub">all, beside the Settler</small></span></button>` + ids.map((id) => `<button class="item glass flat" data-id="${id}"><canvas width="72" height="72"></canvas><span><b class="g-name">${ASSETS[id].name}</b><small class="g-sub">${ASSETS[id].kind}</small></span></button>`).join('')
   + `<div class="group" data-g="biomes">Biomes · ${BIOMES.length}</div>` + BIOMES.map((b) => `<button class="item glass flat" data-biome="${b.uid}"><canvas width="72" height="72"></canvas><span><b class="g-name">${b.name}</b><small class="g-sub">${b.kind}</small></span></button>`).join('')
   + `<div class="group" data-g="characters">Characters · ${CHARS.length}</div>` + CHARS.map((c) => `<button class="item glass flat" data-char="${c.uid}"><canvas width="72" height="72"></canvas><span><b class="g-name">${c.name}</b><small class="g-sub">${c.kind}</small></span></button>`).join('')
   + `<div class="group" data-g="materials">Materials · ${MATERIALS.length}</div>` + MATERIALS.map((m) => `<button class="item glass flat" data-mat="${m.uid}"><canvas width="72" height="72"></canvas><span><b class="g-name">${m.name}</b><small class="g-sub">${m.kind}</small></span></button>`).join('');
@@ -145,6 +146,12 @@ for (const b of document.querySelectorAll('.item[data-biome]')) {   // a biome's
   later(b, () => materialThumb(window.__game.renderer, tex, BIOME[b.dataset.biome].floor.material, b.querySelector('canvas')));
   b.onclick = () => chooseBiome(b.dataset.biome);
 }
+{ // the lineup's picture: its things as bars by their heights, the walker's eyes a gold line over them (drawn, not rendered)
+  const b = document.querySelector('.item[data-lineup]'), g = b.querySelector("canvas").getContext("2d");
+  [[19.6, '#4b6b3a'], [3.2, '#d8cfb5'], [1.75, '#8a6f55'], [2.3, '#5e7d45'], [0.6, '#8d9a7d'], [0.3, '#9a958c'], [20.6, '#3f5f34']].forEach(([h, c], i) => { g.fillStyle = c; g.fillRect(4 + i * 9.4, 68 - Math.max(2, Math.sqrt(h / 20) * 64), 7, Math.max(2, Math.sqrt(h / 20) * 64)); });
+  g.fillStyle = '#f2b544'; g.fillRect(2, 68 - Math.sqrt(WALKER.eye / 20) * 64, 68, 2);
+  b.onclick = () => chooseLineup();
+}
 for (const b of document.querySelectorAll('.item[data-id]')) {
   const a = ASSETS[b.dataset.id];
   later(b, () => assetThumb(a, b.querySelector('canvas')));
@@ -174,7 +181,7 @@ function free(o) {
 }
 function clearStage() {
   ground.stage(STAGE.x, STAGE.z, STAGE.r); ground.sandbox(STAGE.x, STAGE.z, BIOMES.indexOf(BASE));
-  staged = free(staged); person = null; boneLines = free(boneLines); bodyLines = free(bodyLines);
+  staged = free(staged); person = null; boneLines = free(boneLines); bodyLines = free(bodyLines); lined = lined.map(free).filter(Boolean); lineMid = null;
   if (heldMat && !tex.used.some((u) => u.uid === heldMat)) tex.release(heldMat);   // (a material held while it stood: the pool's again)
   heldMat = null;
 }
@@ -318,6 +325,41 @@ function chooseCharacter(id, keep) {
   document.getElementById('bonesT').onclick = () => { showBones = !showBones; chooseCharacter(id, true); };
   history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}character=${id}&move=${P.move}`);
 }
+// The lineup (intent 0035): every asset beside the Settler, each as the world stands it (a tree at seventy, a bush at
+// its own size, stones and boulders small to large), on one line across the stage, the largest at its ends, and a line
+// of the sun's gold at the walker's eyes (world/scale.js): what is the right size next to what, at a glance. The grass
+// is the meadow's own, all round the stage.
+let lined = [], lineMid = null;
+const LINEUP = ['Stone pine', 'Mastic', 'Reeds', 'Bell tent', 'Fire pit', null, 'Bracken', 'Rockrose', 'Dead wood', 'Moss cushion', 'Stones', 'Boulders', 'Holm oak'];   // null: the Settler
+function chooseLineup() {
+  clearStage();
+  const all = Object.values(ASSETS), byName = (n) => all.find((a) => a.name === n), with_ = { 'Fire pit': 'Flame' };   // (the flame stands in its pit)
+  const order = [...LINEUP.map((n) => (n ? byName(n) : 'person')).filter(Boolean), ...all.filter((a) => !LINEUP.includes(a.name) && a.name !== 'Flame' && engineOf(a)?.id !== 'grass' && a.placement.engine !== 'grass')];
+  const R = (a) => (a === 'person' ? 1.2 : a.placement.engine === 'rocks' ? (most(a.size.length) * 0.7 + 0.4) * 2.7 + most(a.size.length) * 2 : a.placement.engine === 'trees' ? Math.max(1, most(a.size.length) * 0.75) : most(a.size.length));
+  const gap = 0.8, wide = order.reduce((t, a) => t + R(a) + gap, -gap), z = STAGE.z, eyes = new THREE.MeshBasicMaterial({ color: 0xf2b544 });
+  ground.stage(STAGE.x, STAGE.z, wide / 2 + 4);   // (bare ground under the whole line: no blade in front of what is small)
+  let x = STAGE.x - wide / 2;
+  for (const a of order) {
+    const w = R(a), cx = x + w / 2, y = heightAt(cx, z);
+    if (a === 'person') {
+      const c = CHARS[0], P = c.make(tex); P.step(0.5); P.object.position.set(cx, y, z); P.object.rotation.y = 0; P.object.updateMatrixWorld(true); scene.add(P.object); lined.push(P.object);
+    } else {
+      const E = engineOf(a);
+      if (E?.stage) { const o = E.stage(tex, rowOf(a), { x: cx, z, heightAt, ground, level: 0, seed: null, age: 70 }); scene.add(o); lined.push(o); }
+      else { lined.push(place(scene, a, { x: cx, z, yaw: Math.PI, solid: false })); const f = with_[a.name] && byName(with_[a.name]); if (f) lined.push(place(scene, f, { x: cx, z, yaw: Math.PI, solid: false })); }
+    }
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(w + gap, 0.015, 0.015), eyes); bar.position.set(cx, y + WALKER.eye, z + 0.02); bar.renderOrder = 9; scene.add(bar); lined.push(bar);   // the walker's eyes, over its ground
+    x += w + gap;
+  }
+  const p = order.indexOf('person'), at = order.slice(0, p).reduce((t, a) => t + R(a) + gap, 0) + R('person') / 2;   // (the Settler's place on the line)
+  lineMid = [STAGE.x - wide / 2 + at, z]; H = 9; dist = 14; pitch = 0.02; yaw = 0; spin = false;
+  document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', !!b.dataset.lineup));
+  const real = (u) => THINGS[u]?.typical ? `${THINGS[u].typical.join('–')} m` : THINGS[u]?.across ? `${THINGS[u].across.typical.join('–')} m across` : '';
+  document.getElementById('info').innerHTML = head('Lineup', 'every asset', 'At their true size', `Every asset of the registry beside the Settler (${PERSON.stature} m), each as the world stands it: a tree at seventy, a bush at its own size, stones and boulders small to large. The gold line is the walker's eyes: yours, ${WALKER.eye} m.`)
+    + `<div class="g-cells g-part">${order.map((a) => (a === 'person' ? cell('Settler', say(`${PERSON.stature} m tall`)) : cell(a.name, say(real(a.uid))))).join('')}</div>`
+    + `<footer class="g-part"><span class="g-file">TheGame/world/scale.js</span><span class="g-file">bun tools/scale.js</span></footer>`;
+  history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}lineup=1`);
+}
 // a material: a ball of it in the middle of the stage, and the stage's round laid in it, into the land like any ground
 const ballGeo = new THREE.SphereGeometry(1.1, 128, 96); ballGeo.userData.kept = true;   // (one ball for every material: kept when its material goes)
 let heldMat = null;   // (the staged material is held in the pool while it stands: the list's pictures may not take its layer; given back when it goes: clearStage)
@@ -353,7 +395,11 @@ function frame(now) {
   const sy = Math.sin(yaw), cy = Math.cos(yaw), kx = sy - cy, kz = cy + sy, kl = Math.hypot(kx, kz), up = 40 * Math.PI / 180;
   U.uSunDir.value.set((kx / kl) * Math.cos(up), Math.sin(up), (kz / kl) * Math.cos(up));
   // what the camera circles: the stage's middle, or a person where they are now (eased, so a walk is followed smoothly)
-  if (person) { const w = person.object.getWorldPosition(whereNow), k = Math.min(1, dt * 3); mid[0] += (w.x - mid[0]) * k; mid[1] += (w.z - mid[1]) * k; } else { mid[0] = STAGE.x; mid[1] = STAGE.z; }
+  if (person) { const w = person.object.getWorldPosition(whereNow), k = Math.min(1, dt * 3); mid[0] += (w.x - mid[0]) * k; mid[1] += (w.z - mid[1]) * k; } else if (lineMid) { mid[0] = lineMid[0]; mid[1] = lineMid[1]; } else { mid[0] = STAGE.x; mid[1] = STAGE.z; }
+  if (lineMid) {   // the lineup: looked at square on, from the walker's eyes (the wheel goes back, a drag turns): the gold line on the horizon
+    cine.take({ pos: [mid[0] + Math.sin(yaw) * dist, ground0 + WALKER.eye + dist * Math.tan(pitch), mid[1] + Math.cos(yaw) * dist], look: [mid[0], ground0 + WALKER.eye, mid[1]], mm: 28 });
+    return;
+  }
   const ty = ground0 + H * 0.45, c = Math.cos(pitch);
   const p = poseAt(mid[0], mid[1], yaw, heightFor(mid[0], mid[1], yaw, dist));   // the game's one camera, held over the stage at this distance (intent 0003)
   cine.take({ pos: p.pos, look: [mid[0], ty, mid[1]], mm: 35 });
@@ -375,8 +421,8 @@ for (const sct of SECTIONS) {
 document.getElementById('toLib').onclick = () => grid.classList.add('on');   // back to the library's sections
 grid.onclick = (e) => { if (e.target === grid) grid.classList.remove('on'); };
 section(q.get('biome') ? 'biomes' : q.get('material') ? 'materials' : q.get('character') ? 'characters' : 'assets');
-if (!q.get('asset') && !q.get('biome') && !q.get('material') && !q.get('character')) grid.classList.add('on');   // the library opens on its sections
-if (CHAR[q.get('character')]) chooseCharacter(q.get('character')); else if (BIOME[q.get('biome')]) chooseBiome(q.get('biome')); else if (MATERIAL[q.get('material')]) chooseMaterial(q.get('material')); else choose(ASSETS[q.get('asset')] ? q.get('asset') : ids[0]);
+if (!q.get('asset') && !q.get('biome') && !q.get('material') && !q.get('character') && !q.get('lineup')) grid.classList.add('on');   // the library opens on its sections
+if (q.get('lineup')) chooseLineup(); else if (CHAR[q.get('character')]) chooseCharacter(q.get('character')); else if (BIOME[q.get('biome')]) chooseBiome(q.get('biome')); else if (MATERIAL[q.get('material')]) chooseMaterial(q.get('material')); else choose(ASSETS[q.get('asset')] ? q.get('asset') : ids[0]);
 requestAnimationFrame(frame);
 </script>
 </body>

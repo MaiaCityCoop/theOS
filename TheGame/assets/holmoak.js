@@ -10,12 +10,13 @@ import { tree, builder, tube, cards, crown } from './kit/tree.js';
 import { add, sub, mul, norm, lerp, sstep } from './kit/math.js';
 import { rng } from '../src/core/hash.js';
 import SPRIG from '../materials/holmoakleaf.twigs.js';
+import { HOLM_OAK } from '../world/scale.js';
 
 // how it grows: at six a dense bush a little over a metre; at eighteen a tall bush of four metres, leaves to the ground;
 // at forty a small round tree on a short bole; at ninety fifteen metres, its crown as wide; at two hundred a great dome
 // over twenty metres across. Its height by age (metres), and its numbers at an age: its height, where its crown begins,
 // its crown's reach, how far its crown's widest part lies up it (squat), how many great limbs leave its fork, its lean.
-const height = (year) => 21 * (1 - Math.exp(-year / 70)) ** 1.15;
+const height = (year) => HOLM_OAK.mature * (1 - Math.exp(-year / 70)) ** 1.15;   // (mature: world/scale.js)
 function form(year, v, seed = 410) {
   const R0 = rng(seed * 7919 + v * 31 + year * 7), H = height(year), old = sstep(12, 110, year), side = v % 2 ? -1 : 1;
   return {

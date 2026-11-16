@@ -31,9 +31,10 @@
 //             colours: a shrub that borrows another plant's sprig) }
 //   surface   how its faces take the light (src/world/place.js): { wrap (0..1, light wrapping round a soft thing), through
 //             (0..1, light shining through a thin one when the sun is behind it) }
+import { WALKER } from '../world/scale.js';
 /** How tall a shrub must stand to stop a walker (metres, as it stands: its own height times its scale): one smaller is
-    walked through, one taller is brushed through at its edge and led round its middle. About a walker's shoulder. */
-export const SHRUB_FROM = 1.5;
+    walked through, one taller is brushed through at its edge and led round its middle. A walker's shoulder (world/scale.js). */
+export const SHRUB_FROM = WALKER.shoulder;
 const KINDS = {
   default: { px: [200, 60, 20, 6], fade: 0.15, sink: 1.7, impostor: { px: 1.5, views: 8 }, solid: { box: true }, casts: true, snow: { clumps: 0.08 }, surface: { wrap: 0, through: 0 } },
   tree: { px: [260, 80, 34, 18, 7, 3], measure: 'height', fade: 0.1, sink: 1.7, impostor: false, solid: { trunk: true, post: 0.03 }, casts: true, snow: { clumps: 0.3 }, wind: { sway: 0.35 }, foliage: { wrap: 0.45, through: 0.55, flutter: 1 } },   // a 12 m pine: its finest to about 30 m, its farthest (the kit's: a crown as one body, then a speck of eight triangles) to over two kilometres; then its biome's canopy colours the land

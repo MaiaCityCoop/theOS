@@ -15,8 +15,10 @@
 // and right turns, up and down tilts the view away from the height's own pitch. `tilt` says how far: up and down the bounds of the pitch (radians), drag
 // radians per pixel, fade how fast a tilt eases back to the height's own as the height changes (per unit of its
 // logarithm: a small scroll keeps the tilt you chose, a long one comes to the height's natural view).
+import { WALKER } from '../world/scale.js';
+
 export default {
-  eye: 1.7,            // the walker's eyes
+  eye: WALKER.eye,     // the walker's eyes: the person's (world/scale.js)
   walk: 4,             // under this height the point the camera hangs over is a walker: what is solid stops him, and ground
                        // too steep to walk up; higher, it moves freely over the city (zoomed out, nothing on the ground is hit)
   top: 12000,          // the highest it goes: the city and the horizon (the height fog thins the air up there, src/world/light.js)
@@ -25,7 +27,7 @@ export default {
   stepUp: 0.25,        // a rise lower than this is stepped up whatever its slope (a kerb, a root)
   tilt: { up: 1.2, down: -1.5, drag: 0.0022, fade: 0.5 },
   keys: [
-    { h: 1.7, band: 'eye', pitch: null, fov: 68, speed: 3.2, run: 9, orbit: 0, lock: true },
+    { h: WALKER.eye, band: 'eye', pitch: null, fov: 68, speed: 3.2, run: 9, orbit: 0, lock: true },
     { h: 5, band: 'street', pitch: -0.32, fov: 64, speed: 7, run: 20, orbit: 1, lock: true },
     { h: 40, band: 'town', pitch: -0.62, fov: 54, speed: 40, run: 120, orbit: 1, lock: false },
     { h: 800, band: 'skyline', pitch: -0.9, fov: 44, speed: 500, run: 1500, orbit: 1, lock: false },
