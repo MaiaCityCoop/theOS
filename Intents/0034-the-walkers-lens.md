@@ -53,8 +53,8 @@ _A draft: which schedule is Samuel's to choose. Not built before he does._
 **The choice**
 
 - **A, as asked:** 50 mm at the eyes, wider with every band, 16 mm at the top.
-- **B, the kit's widest at the eyes:** 28 mm at the eyes (74° wide on a desktop, 22° on an upright phone, detail × 1.6),
-  wider going up to 16 mm.
+- **B, the kit's widest at the eyes:** 28 mm at the eyes (74° wide on a desktop, 22° on an upright phone, detail
+  × 1.6), wider going up to 16 mm.
 - **C, today's angles kept**, named as the kit's lenses (18 to 33 mm), and the anamorphic look brought to the walker
   another way (the film camera's framing, its barrel distortion).
 

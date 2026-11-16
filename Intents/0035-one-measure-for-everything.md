@@ -37,8 +37,8 @@ measures what is built against anything. Read on 2026-11-16:
 
 Already one disagreement: eyes stand at about 93 % of a person's height, so the walker's 1.7 m is a person of about
 1.82 m, while the Settler, 1.74 m, has their eyes at about 1.63 m: walking, your eyes are 7 cm higher than those of
-the library's first person. Intent 0033 (a real body) is bringing body measures in from public surveys, each cited: the person in this
-measure is theirs.
+the library's first person. Intent 0033 (a real body) is bringing body measures in from public surveys, each cited:
+the person in this measure is theirs.
 
 ## Define
 
