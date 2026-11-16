@@ -248,8 +248,13 @@ function plantMaterial(tex, D) {
   return (Lv = null, feed = null, px = null) => {
     const slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0);
     const own = feed ? null : { Hk: ofMesh('hk', 1, 'float'), Ks: ofMesh('ks', 1, 'float'), Wd: ofMesh('wind', new THREE.Vector4(0, 0, 1, 0.3)), Lf: ofMesh('leaf', new THREE.Vector4(0.45, 0.55, 0, 0)), Tw: ofMesh('twig', 0, 'float'), Tn: ofMesh('tint', new THREE.Vector3(1, 1, 1)) };
-    const crowdOwn = !feed && Lv?.crowd ? { go: attribute('go', 'float'), tip: attribute('tip', 'vec3'), tipUv: attribute('tipUv', 'vec2'), to: attribute('to', 'vec3'), body: attribute('body', 'float'), rule: [0, 1, 2, 3].map((j) => ofMesh(`rule${j}`, new THREE.Vector4(), 'vec4')) } : null;
-    const vertexOf = (B) => (feed ? feed.vertex(B) : { position: positionGeometry, normal: attribute('normal', 'vec3'), uv: attribute('uv', 'vec2'), part: attribute('part', 'float'), ao: attribute('ao', 'float'), cn: attribute('cn', 'vec3'), root: attribute('root', 'vec3'), hand: attribute('hand', 'vec2'), twig: attribute('twig', 'float'), shade: seedOf(B), ...own, ...(crowdOwn ? { crowd: crowdOwn } : {}) });
+    // (the library's crowd plant: what the rule reads packed into seven buffers, a stage has eight: crowdSample)
+    const crowdOwn = !feed && Lv?.crowd ? (B) => {
+      const ut = attribute('uvTip', 'vec4'), pa = attribute('partAo', 'vec4'), tg = attribute('tipGo', 'vec4');
+      return { position: positionGeometry, normal: attribute('normal', 'vec3'), uv: ut.xy, part: pa.x, ao: pa.y, cn: attribute('cn', 'vec3'), root: attribute('root', 'vec3'), hand: vec2(0), twig: pa.z, shade: seedOf(B), ...own,
+        crowd: { tipUv: ut.zw, body: pa.w, tip: tg.xyz, to: tg.xyz, go: tg.w, rule: [0, 1, 2, 3].map((j) => ofMesh(`rule${j}`, new THREE.Vector4(), 'vec4')) } };
+    } : null;
+    const vertexOf = (B) => (feed ? feed.vertex(B) : crowdOwn ? crowdOwn(B) : { position: positionGeometry, normal: attribute('normal', 'vec3'), uv: attribute('uv', 'vec2'), part: attribute('part', 'float'), ao: attribute('ao', 'float'), cn: attribute('cn', 'vec3'), root: attribute('root', 'vec3'), hand: attribute('hand', 'vec2'), twig: attribute('twig', 'float'), shade: seedOf(B), ...own });
     const LU = Lv && levelOf(Lv, D.fade), LC = Lv?.crowd ? { lo: uniform(Lv.lo), hi: uniform(Number.isFinite(Lv.hi) ? Lv.hi : 1e9) } : null;   // (a crowd's level: its sizes as they are, uniforms: every level one shader)
     // what a pixel needs: where on its texture, and the light, the snow and the air already worked out at its corners
     // (vMul: what its texture's colour is multiplied by; vAdd: what is added: the snow on it, the air before it), so a
@@ -567,7 +572,11 @@ export function treeSample(tex, row, level = 0, x = 0, y = 0, z = 0, s = 1, form
     sizes sinking as its farthest level does. Built on the page (a tenth of a second and more for a tree). */
 function crowdSample(tex, row, x, y, z, s, form, px) {
   const a = row.asset, S = crowdOf(a, form), M = crowdLevelOf(S, 0, Infinity), g = new THREE.BufferGeometry();
-  for (const [k, w] of [['position', 3], ['normal', 3], ['uv', 2], ['part', 1], ['ao', 1], ['cn', 3], ['root', 3], ['hand', 2], ['twig', 1], ['go', 1], ['tip', 3], ['tipUv', 2], ['to', 3], ['body', 1]]) g.setAttribute(k, new THREE.BufferAttribute(M[k], w));
+  const four = (f) => { const a = new Float32Array(M.count * 4); for (let v = 0; v < M.count; v++) a.set(f(v), v * 4); return new THREE.BufferAttribute(a, 4); };
+  for (const [k, w] of [['position', 3], ['normal', 3], ['cn', 3], ['root', 3]]) g.setAttribute(k, new THREE.BufferAttribute(M[k], w));
+  g.setAttribute('uvTip', four((v) => [M.uv[v * 2], M.uv[v * 2 + 1], M.tipUv[v * 2], M.tipUv[v * 2 + 1]]));
+  g.setAttribute('partAo', four((v) => [M.part[v], M.ao[v], M.twig[v], M.body[v]]));
+  g.setAttribute('tipGo', four((v) => { const T = M.body[v] ? M.to : M.tip; return [T[v * 3], T[v * 3 + 1], T[v * 3 + 2], M.go[v]]; }));
   g.setIndex(new THREE.BufferAttribute(M.index, 1));
   const B = bandsOf(a), lo = B.at(-1)[0];
   const { m, shape } = plantMaterial(tex, row.detail)({ lo, hi: Infinity, last: true, crowd: true, first: true, splay: false }, null, px);
