@@ -1,7 +1,7 @@
 ---
 id: "0035"
 title: One measure for everything
-state: story              # idea | define | build | propose | story | archived
+state: build              # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-16
 story: Stories/0035-one-measure-for-everything/
@@ -149,6 +149,37 @@ own, round the stage.
   middling one 2.8 m ("up to four metres"). Set right, every stone and boulder in the world is about half as large,
   and the engine draws the stress world's rocks too: Samuel's choice.
 
+**The rocks and the trees, set right at their source** (the second round: Samuel, through the coordinating session:
+"Stones and boulders should match their actual sizes: SSOT this globally and generatively"):
+
+- **Where the rocks' factor two came from.** The rock kit grows a shape at a size of 1 (its largest side then, its
+  `span`, is 1.8 to 2.6) and draws it in a frame where its largest side is 1; the rocks' engine
+  (`src/scatter/rocks.js`) then scaled a rock by its size *and* its span again, and so did the library's stage and
+  picture and what stops the walker (`src/world/rocksolid.js`, the same factor, so what stopped you matched what you
+  saw); the stress world's stand, which sizes every kind by its look, sized a rock by its span: about 2 m, stone and
+  boulder alike.
+- **Now a rock of size s is s across, everywhere**: the engine, the library, what stops the walker, the stand (a rock
+  kind's size: the size the world draws most of its rocks at, from its asset). An outcrop makes its boulders larger
+  more often, as before, but never past their most (the engine and the walker's bodies alike). The stones' and the
+  boulders' sizes are the measure's (`STONES`, `BOULDERS` in `world/scale.js`): 7 to 55 cm, 0.7 to 4.2 m, as their
+  recipes always said. No engine scales a rock by anything of its own.
+- **Trees had the same kind of drift, twice.** The engine drew a tree at the height its age asks over its stage's
+  height by age, while the shape is built taller than that (its crown's top over its form): saplings stood 14 to 27 %
+  too tall, grown trees 5 to 14 %. Now over the shape's own built height (`sizeAtOne`). And between its stages a tree's
+  height ran straight from where its stage began to where it ended, missing its height by age by up to 31 % (a holm
+  oak of six); now through its stage's own year, straight in the logarithms of age and height (`heightIn` in the tree
+  kit, the same on the graphics card), on the graphics card and in the library alike.
+- **The run measures what is drawn**: rocks built at every level of the ladder and measured in the frame they are
+  drawn in, times their size; what stops the walker against how far the drawn rock reaches over the ground (0.65 to
+  0.76 of it: the kit's 0.7, a little inside its outline, by the same size); a rock's drawn least and most against its
+  own size (its lumps stand up to 6 % over); trees at five ages through every stage, as the engine draws them and as the
+  library stands them, each within 5 % of its height by age or the run fails.
+- **Every asset's geometry is the same to the byte** as on main (`50b42d6`): meshes, solids, sizes. Only how the
+  engines scale what they draw has changed.
+- Found on the way: the ladder's cube (one square an edge, drawn between 4 and 8 pixels) is 25 to
+  30 % narrower than a rock's full mesh, a pixel or two, as it was; the holm oak's finest level stands up to 7 % over
+  its near one.
+
 **Found, outside this intent** (in the Todo): a tree's youngest stage is built taller than its own height by age
 (a holm oak of 6: 1.51 m against 1.19 m; a stone pine of 5: 1.55 m against 1.36 m), so saplings stand 14 to 27 %
 taller than their age; and a sapling's far levels stand up to 36 % taller than its near one. Speeds are not sizes:
@@ -268,6 +299,16 @@ It ends when the film plays in the game: not yet seen played.
 - **Good:** CI green on the pull request's head before the merge.
 - **Broke / not there yet:** the stones' and boulders' size is still Samuel's to choose; intent 0034 waits for his
   "go"; not seen on a phone; the film not yet seen played.
+
+### 2026-11-16 (4)
+
+- **Asked** (Samuel, through the coordinating session): "Stones and boulders should match their actual sizes: SSOT
+  this globally and generatively." The intent goes back from Story to Build for it.
+- **Delivered:** every rock drawn at its size, everywhere (the engine, the library, what stops the walker, the stress
+  world's stand), its sizes the measure's; trees drawn at their height by age (over their built height, and through
+  each stage's own year); the run measuring the built meshes, the colliders and every tree's age.
+- **Good:** 15 of 15 within their measure; every asset's geometry the same to the byte.
+- **Broke / not there yet:** the stills and the frame times against main are being taken.
 
 ## Trail
 
