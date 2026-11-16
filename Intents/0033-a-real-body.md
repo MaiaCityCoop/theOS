@@ -159,10 +159,32 @@ correctly"; "ensure the skull is correct".**
   nearly right, which hid it). Fixed; every earlier still of mine was wrong in this way. The chest stood 4 cm too far
   forward (its inlet twice as deep as a man's): set back, and the collarbone's joint with it. The eyes' joints moved
   12 mm forward and the jaw's hinge to the jaw's heads, where this skull has them.
+- **Where bones meet.** Laid one by one, neighbours stood in one another by up to a centimetre at their joints (the
+  talus in the heel bone, each toe bone in the next, the ribs' heads in the vertebrae). Now the hollow side of every
+  joint is carved by the round side, half a millimetre off it (`skeleton.js`, a list of which bone gives way to
+  which): the foot's bones, the wrist's, the vertebrae's small joints, the hip's and shoulder's sockets fit round
+  their neighbours. Checked by asking every bone's points how deep they lie in every other bone: standing, nothing
+  passes through anything by more than 1.5 mm.
+- **The rig** (`skeleton/pose.js`): a joint where each pair of bones really meets, 86 of them: one for every vertebra
+  (at the disc under it), the atlas turning on the axis' peg and the skull nodding in the atlas' cups, the jaw's hinge
+  through its two heads, the collarbone on the breastbone, the blade on the collarbone, the shoulder, the elbow's
+  hinge, the radius turning about the ulna (the forearm's twist), the wrist, each finger joint, the hip, the knee,
+  the kneecap riding round the femur's end and sinking into its groove, the ankle, each toe at its own knuckle. A pose carries every
+  bone whole by the joint that holds it. Plain moves (a bend of the loins, an arm raised, a knee bent) are shared
+  out the way a body shares them: a bend of the loins mostly in its two lowest joints, half of the head's turn in
+  the atlas, a third of an arm's raise by the blade; each move is held within a body's range (the knee to 150°, the
+  jaw to 30°, the loins' twist to 8°: the ranges clinicians measure by, in a table of their own). Seen walking,
+  reaching, with the elbow and the knee bent, the forearm turned (the radius crosses the ulna) and a fist; walking,
+  nothing in the legs, the spine or the skull passes through anything by more than 2 mm.
+- **The measures that moved.** The arm's joints: the elbow 3 cm higher and the wrist 1 cm (the humerus had come out
+  37 cm, a man's is 34), the shoulder 14 mm further back (so the blade lies on the ribs at its own angle); the
+  fingers 15% longer and the palm shorter (the hand is 19 cm to the middle finger's tip).
 - **Not there yet.** The bones are not in the game: they are seen in stills drawn outside it (a camera of my own:
   soft shadows, the shade of hollows from the field, a bone's mottling). No fine relief yet (muscle lines, grooves,
-  most small holes). The rig is still the first pass's few joints: next, a joint where each pair of bones really
-  meets (a bone of the rig for every vertebra, the radius turning about the ulna, the kneecap), checked in poses.
+  most small holes); the wrist's bones are rounded blocks, the skull's base is simplified. A loft cut flat at its end
+  can leave holes in the surface near it (the regions round or cut their ends to avoid it): to be found. In the
+  rig the breastbone follows one vertebra (so a bent chest pulls the ribs' front ends off it), the ribs do not yet
+  rise with a breath, and the thumb's part in a fist is rough.
 
 ## Propose
 
@@ -177,8 +199,9 @@ correctly"; "ensure the skull is correct".**
 - [ ] Round 1: the body (naked, no hair, muscular first; clothes later)
   - [x] a first attempt from blended solids (turned down)
   - [x] a second, muscles as strands without the bones under them (set aside)
-  - [ ] the bones, each a piece of its own in its true shape, against Gray's plates: skull (laid over its plates), leg and foot, spine and chest done; pelvis, arm and hand under way
-  - [ ] the skeleton rigged where its bones really meet, checked in poses
+  - [ ] the bones, each a piece of its own in its true shape, against Gray's plates (the skull laid over its plates), neighbours fitted round one another: all regions in; the pelvis and the arm's refit to its new measures still being finished
+  - [ ] the skeleton rigged where its bones really meet (86 joints, moves held within a body's ranges): seen walking; the arm to be checked again after its refit
+  - [ ] Samuel's word on the skeleton; fine relief
   - [ ] muscles from origin to insertion, a skin over them
   - [ ] the face from the skull up; hands; feet
 - [ ] Round 2: movement
@@ -215,3 +238,10 @@ correctly"; "ensure the skull is correct".**
 | 2026-11-16 | `db7eddc` | a second body, muscles as strands with no bones under them, set aside |
 | 2026-11-16 | `73af01a` | the skeleton, a first pass: every bone in its shape, from the spine to the skull |
 | 2026-11-16 | `8710b71` | the skeleton: the eyes' sockets from their rims back, a stronger brow, the foot's bones as blocks |
+| 2026-11-16 | `ef930bb` | the skeleton in regions, every bone a field of its own; a loft and a plate among the solids |
+| 2026-11-16 | `a5c5920` | the skull, the leg and the foot rebuilt bone by bone against Gray's plates |
+| 2026-11-16 | `453f40b` | the spine and the chest rebuilt; the skull's seams; the chest set back to its true depth |
+| 2026-11-16 | `d02d5d8` | the skeleton's rig: a joint where each pair of bones meets, and the pose |
+| 2026-11-16 | `8e6cc45` | neighbouring bones fit round one another; the arm's and hand's truer measures; the skull's base |
+| 2026-11-16 | `eb7b2a7` | each toe turns at its own knuckle |
+| 2026-11-16 | `f41bd18` | the rig's moves held within a body's ranges |
