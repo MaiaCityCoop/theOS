@@ -1,0 +1,272 @@
+{
+  "intent": "0032",
+  "title": "The person in the shade, and their shadow",
+  "day": null,
+  "inGame": null,
+  "goals": [
+    [
+      "The person takes the shade: the shadow map, the clouds, a storm's dim",
+      true
+    ],
+    [
+      "The person casts a shadow that meets their feet, wherever a person is drawn",
+      true
+    ],
+    [
+      "Shade where the body meets itself: sixteen capsules round the bones",
+      true
+    ],
+    [
+      "Nothing else in the picture changed",
+      true
+    ],
+    [
+      "Frame time no worse on SwiftShader; not yet seen on a phone",
+      false
+    ]
+  ],
+  "preview": {
+    "pos": [
+      -1264.0,
+      -5.37,
+      617.07
+    ],
+    "look": [
+      -1262.6,
+      -6.0,
+      631.0
+    ],
+    "mm": 35
+  },
+  "clips": [
+    {
+      "name": "The tent at eleven",
+      "kind": "wide",
+      "secs": 9,
+      "ease": "in",
+      "in": "dip",
+      "inSecs": 1.4,
+      "hour": 11,
+      "clouds": 0,
+      "why": "the one tent in the late morning sun: the shade its canvas makes is where the person now darkens",
+      "keys": [
+        {
+          "pos": [
+            -1264.0,
+            -5.37,
+            617.07
+          ],
+          "look": [
+            -1262.6,
+            -6.0,
+            631.0
+          ],
+          "mm": 35
+        },
+        {
+          "pos": [
+            -1263.85,
+            -5.4,
+            618.6
+          ],
+          "look": [
+            -1262.6,
+            -6.0,
+            631.0
+          ],
+          "mm": 35
+        }
+      ]
+    },
+    {
+      "name": "Into the shade",
+      "kind": "push in",
+      "secs": 10,
+      "ease": "out",
+      "in": "cut",
+      "why": "towards the open door: inside, out of the sun, where on main the person stood lit",
+      "keys": [
+        {
+          "pos": [
+            -1263.4,
+            -5.5,
+            621.5
+          ],
+          "look": [
+            -1262.8,
+            -6.3,
+            631.5
+          ],
+          "mm": 35
+        },
+        {
+          "pos": [
+            -1263.1,
+            -5.6,
+            625.5
+          ],
+          "look": [
+            -1262.8,
+            -6.4,
+            631.5
+          ],
+          "mm": 35
+        }
+      ]
+    },
+    {
+      "name": "Under the crown",
+      "kind": "medium",
+      "secs": 12,
+      "ease": "inout",
+      "in": "dissolve",
+      "inSecs": 1.0,
+      "why": "the shade a crown lays on the ground: the person stands in it now as the grass does",
+      "keys": [
+        {
+          "pos": [
+            -1388.0,
+            -9.7,
+            621.0
+          ],
+          "look": [
+            -1383.0,
+            -10.6,
+            625.3
+          ],
+          "mm": 30
+        },
+        {
+          "pos": [
+            -1386.6,
+            -9.6,
+            622.6
+          ],
+          "look": [
+            -1383.0,
+            -10.6,
+            625.3
+          ],
+          "mm": 30
+        }
+      ]
+    },
+    {
+      "name": "A cloud comes over",
+      "kind": "medium",
+      "secs": 13,
+      "ease": "soft",
+      "in": "dissolve",
+      "inSecs": 1.0,
+      "out": "dip",
+      "clouds": [
+        0,
+        0.9
+      ],
+      "why": "the meadow where the person was stood: the sky closing, the grass darkening, as the person would",
+      "keys": [
+        {
+          "pos": [
+            -1257.9,
+            -6.1,
+            626.95
+          ],
+          "look": [
+            -1255.5,
+            -6.8,
+            628.5
+          ],
+          "mm": 35
+        },
+        {
+          "pos": [
+            -1258.6,
+            -6.0,
+            625.6
+          ],
+          "look": [
+            -1255.5,
+            -6.8,
+            628.5
+          ],
+          "mm": 35
+        }
+      ]
+    }
+  ],
+  "captions": [
+    {
+      "at": 0.6,
+      "for": 3.6,
+      "kind": "title",
+      "over": "The person in the shade",
+      "text": "A shadow of their own"
+    },
+    {
+      "at": 4.8,
+      "for": 2.8,
+      "kind": "samuel",
+      "text": "Do the shade / shadows thing."
+    },
+    {
+      "at": 7.9,
+      "for": 3.4,
+      "kind": "samuel",
+      "text": "Ensure you keep quality gate 60fps and 4K always intact."
+    },
+    {
+      "at": 11.6,
+      "for": 3.0,
+      "kind": "maia",
+      "text": "The person stood in the sun everywhere."
+    },
+    {
+      "at": 14.9,
+      "for": 3.0,
+      "kind": "maia",
+      "text": "Under a tree. Under a cloud. In the tent."
+    },
+    {
+      "at": 18.2,
+      "for": 3.0,
+      "kind": "maia",
+      "text": "Now they take the shade the grass takes."
+    },
+    {
+      "at": 21.5,
+      "for": 3.2,
+      "kind": "maia",
+      "text": "And their shadow falls, from their shoes."
+    },
+    {
+      "at": 25.0,
+      "for": 3.4,
+      "kind": "maia",
+      "text": "Sixteen capsules round the bones."
+    },
+    {
+      "at": 28.7,
+      "for": 3.2,
+      "kind": "maia",
+      "text": "An arm shades the body. Under it, the shirt darkens."
+    },
+    {
+      "at": 32.2,
+      "for": 3.4,
+      "kind": "maia",
+      "text": "Worked out per vertex: more pixels cost them nothing."
+    },
+    {
+      "at": 35.9,
+      "for": 3.0,
+      "kind": "maia",
+      "text": "Nothing else in the picture changed."
+    },
+    {
+      "at": 39.2,
+      "for": 3.6,
+      "kind": "note",
+      "text": "Measured without a GPU. Safari and the iPhone are still to come."
+    }
+  ]
+}

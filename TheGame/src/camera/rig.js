@@ -17,7 +17,7 @@ export function at(h) {
   while (i < K.length - 2 && L > Math.log(K[i + 1].h)) i++;
   const a = K[i], b = K[i + 1], t = ease(Math.min(1, Math.max(0, (L - Math.log(a.h)) / (Math.log(b.h) - Math.log(a.h)))));
   const mix = (k) => a[k] + (b[k] - a[k]) * t;
-  return { band: t < 0.5 ? a.band : b.band, lock: t < 0.5 ? a.lock : b.lock, walk: !!(t < 0.5 ? a.walk : b.walk), pitch: a.pitch === null ? (b.pitch ?? 0) : mix('pitch'), free: a.pitch === null ? 1 - t : 0, fov: mix('fov'), speed: mix('speed'), run: mix('run'), orbit: mix('orbit') };
+  return { band: t < 0.5 ? a.band : b.band, lock: t < 0.5 ? a.lock : b.lock, pitch: a.pitch === null ? (b.pitch ?? 0) : mix('pitch'), free: a.pitch === null ? 1 - t : 0, fov: mix('fov'), speed: mix('speed'), run: mix('run'), orbit: mix('orbit') };
 }
 
 /** The height's own pitch (where it looks when left alone: ahead at eye level, down from above), and the pitch with a
@@ -113,8 +113,8 @@ export function createControls(camera, canvas, msg, stat) {
       // the tilt: kept through a small change of height, eased back to the height's own over a long one; never past the bounds
       look *= Math.exp(-RIG.tilt.fade * Math.abs(L - LPrev)); LPrev = L;
       look = Math.max(RIG.tilt.down - own(v), Math.min(RIG.tilt.up - own(v), look));
-      // move the point on the ground: by the keys, at this height's speed; where it is a walker (his eyes, or the follow
-      // view behind him: camera/rig.js walk), what is solid stops it (src/world/solids.js)
+      // move the point on the ground: by the keys, at this height's speed; where it is a walker (under camera/rig.js walk),
+      // what is solid stops it (src/world/solids.js)
       let f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
       let s = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
       f = Math.max(-1, Math.min(1, f + touch.y)); s = Math.max(-1, Math.min(1, s + touch.x));   // the joystick adds its push
@@ -122,7 +122,7 @@ export function createControls(camera, canvas, msg, stat) {
       const run = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 1 : touch.run;   // Shift, or how far past its rim the joystick is pushed (0 … 1: src/camera/touch.js)
       const speed = v.speed + (v.run - v.speed) * run, n = Math.max(1, Math.hypot(f, s)) > 1 ? 1 / Math.hypot(f, s) : 1, sy = Math.sin(yaw), cy = Math.cos(yaw);
       const nx = pivot.x + (-sy * f + cy * s) * speed * n * dt, nz = pivot.z + (-cy * f - sy * s) * speed * n * dt;
-      if (v.walk) {   // on foot: what is solid stops you, and ground too steep to walk up (camera/rig.js: climb); along it you slide
+      if (h < RIG.walk) {   // on foot: what is solid stops you, and ground too steep to walk up (camera/rig.js: climb); along it you slide
         const up = (ax, az, bx, bz) => { const rise = heightAt(bx, bz) - heightAt(ax, az), run = Math.hypot(bx - ax, bz - az); return rise <= RIG.stepUp * Math.min(1, run / 0.3) || rise / Math.max(run, 1e-6) <= RIG.climb; };
         const [qx, qz] = step(pivot.x, pivot.z, nx, nz);
         if (up(pivot.x, pivot.z, qx, qz)) { pivot.x = qx; pivot.z = qz; }

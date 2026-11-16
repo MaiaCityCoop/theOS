@@ -6,7 +6,7 @@
 // to the shared lanes (wet, fog, dim), and what each does to a surface (`surface`: the snow lying on it). What is one
 // condition's own (the snow's depth, the wind's push, the clouds' shade) is that condition's code, handed on from here,
 // so a material asks the contract and no file but the condition's holds it.
-import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, pow, smoothstep, fract, floor, dot, max, clamp, length, normalize, screenCoordinate } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, pow, smoothstep, fract, floor, dot, max, min, abs, clamp, length, normalize, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { lane } from './weather/lanes.js';
 import { surfaceHooks, airHooks } from './weather/index.js';
@@ -79,15 +79,17 @@ export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(
 // shadows: what the casters hide of the light, from one map round the camera (src/world/shadow.js); 1 lit, 0 in shadow.
 // uShadowM takes a world point straight to the map's (u, v, depth), whichever way up the backend keeps it. Twelve taps on
 // a spiral, turned by `turn` (a screen noise from pixel to pixel in a fragment; in a vertex, where there is no pixel, by
-// the point itself): a soft edge with no grid in it.
-const shadowOf = (w, turn) => {
+// the point itself): a soft edge with no grid in it. A surface is lit where nothing nearer the light than `bias` (of the
+// map's depth: BIAS, a quarter of a metre and more) was drawn there.
+const BIAS = 0.0004;
+const shadowOf = (w, turn, bias = BIAS) => {
   const r = float(1).toVar();
   If(U.uShadowOn.greaterThan(0.5), () => {
     const s = U.uShadowM.mul(vec4(w, 1)), q = s.xyz.div(s.w);
     If(q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(1)).and(q.y.lessThan(1)).and(q.z.lessThan(1)), () => {
       // four samples, each compared and filtered by the GPU over 2 x 2 texels (a comparison sampler): softer than nine
       // single taps, at under half their cost
-      const k = float(0).toVar(), z = q.z.sub(0.0004);
+      const k = float(0).toVar(), z = q.z.sub(bias);
       for (const [i, j] of [[-0.62, -0.24], [0.24, -0.62], [0.62, 0.24], [-0.24, 0.62]]) k.addAssign(U.tShadow.sample(q.xy.add(vec2(i, j).mul(U.uShadowTexel.mul(1.7)))).level(0).compare(z));
       const e = smoothstep(0, 0.08, q.xy).mul(smoothstep(1, 0.92, q.xy));   // fading out at the map's edge
       r.assign(mix(1, k.div(4), e.x.mul(e.y)));
@@ -96,6 +98,15 @@ const shadowOf = (w, turn) => {
   return r;
 };
 export const shadowAt = Fn(([w]) => shadowOf(w, ign(screenCoordinate.xy)));
+/** What stands on the ground and casts (a person: characters/kit/human.js) is drawn into the map pulled towards the light
+    by the map's own bias, so its shadow starts where it touches the ground: unpulled, the bias would leave the ground
+    lit for a hand's breadth round its feet (every surface takes BIAS before it calls itself shaded). This is how far,
+    in metres along the light: the bias over the map's depth for a metre towards the light (from its matrix; at most a
+    metre, for the frame before the map's first). */
+export const casterPull = () => min(float(BIAS).div(max(abs(U.uShadowM.mul(vec4(U.uSunDir, 0)).z), 1e-6)), 1);
+/** shadowAt for what casts pulled (casterPull): it allows for its own pull as well as the bias, or it would shade itself
+    all over */
+export const shadowAtPulled = Fn(([w]) => shadowOf(w, ign(screenCoordinate.xy), 2 * BIAS));
 /** the same with one sample (the GPU still filters it over 2 x 2 texels): for what is too thin for a soft edge to show (a
     blade of grass), a quarter of the reads */
 export const shadowAtOne = Fn(([w]) => {
