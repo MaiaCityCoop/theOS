@@ -89,6 +89,28 @@ away, in three rounds, each its own pull request that leaves the person at least
 
 ## Build
 
+**Round 1, first attempt (2026-11-16), turned down.** A body as a field of about 280 blended solids (eggs and rods
+for bones, muscles and fat, set on a skeleton of 68 bones), drawn out as one surface region by region (the face, the
+hands and the head finer than the body, joined where they meet), with the clothes and the hair as shells over it
+(`characters/kit/field.js`, `body.js`, `measures.js`; nothing in the game uses them yet). Seen only in previews drawn
+outside the game. Samuel: "This looks absolute catastrophic." What was wrong, as seen:
+
+- Every solid showed as its own lump: muscles as eggs stuck on rods, nothing running from bone to bone and thinning
+  into tendon, no layer of skin pulling them into one surface.
+- The trunk a barrel (too deep and wide at the waist and hips, no taper), the chest and breasts eggs stuck on, the
+  shoulder blades plates, the buttocks two balls; narrow sloping shoulders, thin even arms meeting the trunk as
+  tubes, a thick neck; small lumpy hands, blobs for feet.
+- The face: the eye sockets holes with the eyeballs bulging out of them, a nose of a rod and a ball, nostrils
+  punched into the front of the face, lips like a sausage, a flat face with a receding chin; ears like crumpled blobs.
+- The hair a helmet; the body through the shirt and trousers.
+- The cuts at the wrists gave several rims instead of one; the middle level held 61 000 points (twice what it should)
+  and took 2.6 s to build.
+
+**Round 1 again, as Samuel asked:** "let's go for naked first without hair and muscular body (clothes come later)".
+The skeleton and its proportions first, checked from the front and the side; muscles as shapes from their origin to
+their insertion, thinning into tendons; a skin over them; the face from the skull up; each part looked at alone
+before it is joined. A muscular man first, smooth at the groin as an anatomy figure is; women and other builds after.
+
 ## Propose
 
 ## Story
@@ -99,13 +121,32 @@ away, in three rounds, each its own pull request that leaves the person at least
 
 ## Todo
 
-- [ ] Round 1: the body
+- [ ] Round 1: the body (naked, no hair, muscular first; clothes later)
+  - [x] a first attempt from blended solids (turned down)
+  - [ ] the skeleton and its proportions, checked from the front and side
+  - [ ] muscles from origin to insertion, a skin over them
+  - [ ] the face from the skull up; hands; feet
 - [ ] Round 2: movement
 - [ ] Round 3: garments and hair
 
 ## Changelog
 
+### 2026-11-16
+
+- **Asked:** "Start with the proper body phase … so the complete body with good movements, and the garment as well,
+  like nice natural garment."
+- **Delivered:** the intent opened and defined (three rounds); a harness to measure the person (main against the
+  branch) and to take stills of it; a first body grown from blended solids, seen only in previews.
+- **Good:** The harness draws WebGPU in a browser here (headed Chromium on a virtual screen) and times the person alone
+  on the GPU: on main the Settler costs about 61 ms at the library's distance and 165 ms in a close-up of the face
+  (SwiftShader, 1280×720).
+- **Broke / not there yet:** The first body: "This looks absolute catastrophic." Every solid showed as a lump; the
+  proportions, the face, the hands and the clothes were all wrong (Build). Samuel: naked first, no hair, a muscular
+  body; the clothes later.
+
 ## Trail
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-16 | `4af0d5d` | the intent opened and defined |
+| 2026-11-16 | `97ae830` | a first body from blended solids, turned down; the field and the tables it reads |
