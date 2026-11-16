@@ -125,7 +125,9 @@ function game(view, show = true) {
 
 // ---- the game's frame on a phone: the safe area it is not given (an iframe has none; brand.css --safe-*), told when it
 // asks, loads or the window turns; and the picture's colours at its top and bottom edges, which it tells, for Safari to
-// paint its bars with (the frame's background and two thin strips: index.html #game .edge) ----
+// paint its bars with (two strips: index.html #game .edge). Only in Safari's tab on an iPhone or iPad (navigator.standalone
+// is iOS's own: false in a tab, true in a web app on the home screen, where the picture goes under the status bar) ----
+if (navigator.standalone === false && matchMedia('(pointer: coarse)').matches) document.documentElement.classList.add('ios-tab');
 const safeProbe = document.createElement('i');
 safeProbe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding:var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l)';
 document.body.append(safeProbe);
@@ -140,7 +142,10 @@ addEventListener('message', (ev) => {
   const m = ev.data; if (!m?.maia || ev.source !== $('frame').contentWindow) return;
   if (m.cmd === 'safe?') tellSafe();
   const colour = (c) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c);
-  if (m.cmd === 'edges' && colour(m.top) && colour(m.bottom)) { $('game').style.setProperty('--game-t', m.top); $('game').style.setProperty('--game-b', m.bottom); }
+  if (m.cmd === 'edges' && colour(m.top) && colour(m.bottom)) {
+    $('game').style.setProperty('--game-t', m.top); $('game').style.setProperty('--game-b', m.bottom);
+    for (const e of $('game').querySelectorAll('.edge')) e.replaceWith(e.cloneNode());   // anew: Safari reads a colour again only when a fixed element comes or goes
+  }
 });
 
 // ---- intents: a board by state ----

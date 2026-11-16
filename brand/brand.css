@@ -207,13 +207,24 @@ body.framed .os-bar.bottom { bottom: 96px; }                          /* inside 
 .os-weather-row .g-btn { height: 28px; padding: 0 11px; }
 body.has-weather .os-hint { top: calc(var(--edge-t) + var(--pill-h) + 12px); }
 @media (max-width: 700px) { .os-weather-card { width: min(300px, calc(100vw - 2 * var(--edge))); right: 50%; transform: translateX(50%); } }
-/* the picture's colours at a phone browser's edges (TheGame/src/ui/edges.js sets them): Safari paints its status bar
-   and its toolbar with the colour of the fixed thing at that edge of the page; a thin strip at each gives them the sky's
-   at the top and the ground's at the bottom. Not in a web app on the home screen: there the picture goes under them */
-.os-edge { display: none; position: fixed; left: 0; right: 0; height: 4px; z-index: 1; pointer-events: none; }
-.os-edge.t { top: 0; background: var(--os-edge-t, transparent); }
-.os-edge.b { bottom: 0; background: var(--os-edge-b, transparent); }
-@media (display-mode: browser) and (pointer: coarse) { .os-edge { display: block; } }
+/* the picture's colours at the edges of Safari's tab on an iPhone (TheGame/src/ui/edges.js makes these strips and colours
+   them). Safari 26 paints its status bar and its toolbar from the page (WebKit, LocalFrameView::fixedContainerEdges): at
+   each edge it looks at one point, the middle of the edge 4px in, and takes the background colour of the fixed element
+   there, if that element is at least 90% as wide as the page and more than 10px deep; with none, the page's background.
+   A pseudo-element does not count (the loading veil is one), and a colour is read again only when a fixed element comes
+   or goes (edges.js makes the strips anew when the colours change). So: a strip the page's width and 12px deep, over
+   the veil while it stands and under everything else, with a short fade into the picture. Not in a web app on the home
+   screen: there are no bars to paint, the picture goes under the status bar */
+.os-edge { position: fixed; left: 0; right: 0; height: 12px; z-index: 1; pointer-events: none; }
+.os-edge::after { content: ''; position: absolute; left: 0; right: 0; height: 24px; }
+.os-edge.t { top: 0; background-color: var(--os-edge-t, #242e3c); }
+.os-edge.t::after { top: 100%; background: linear-gradient(var(--os-edge-t, #242e3c), transparent); }
+.os-edge.b { bottom: 0; background-color: var(--os-edge-b, #9c8560); }
+.os-edge.b::after { bottom: 100%; background: linear-gradient(transparent, var(--os-edge-b, #9c8560)); }
+html.os-loading .os-edge { z-index: 99995; }
+/* until the strips are made (the page's scripts still loading), the page's background, which Safari takes where no
+   strip is: the veil's night, not the sky's blue (iOS only: -webkit-touch-callout is iOS Safari's own) */
+@supports (-webkit-touch-callout: none) { html.os-loading, html.os-loading body { background-color: #242e3c; } }
 /* the joystick on touch screens, bottom left above the bottom line (camera/touch.js has its size) */
 .os-stick { position: fixed; z-index: 7; border-radius: 50%; display: grid; place-items: center; touch-action: none; }
 .os-stick i { border-radius: 50%; background: var(--glass-solid); box-shadow: 0 4px 14px rgba(12, 24, 38, .25); transition: transform .06s; }
