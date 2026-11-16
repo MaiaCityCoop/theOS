@@ -1,7 +1,7 @@
 ---
 id: "0033"
 title: Detail that scales by itself, from any asset
-state: define             # idea | define | build | propose | story | archived
+state: build              # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-16
 story:
@@ -401,8 +401,8 @@ So in a browser the aim is an error of one to two pixels with triangles several 
 
 Taken up with Samuel's second message, sharpened by his third (the quality must be higher; the method fully generic,
 for any kind of future asset) and his fourth (no jump from close-up to 12 km, walking or zooming; the stress world's
-performance a hard gate, its movers and its millions included). **Not approved yet: nothing is built before he says
-so.**
+performance a hard gate, its movers and its millions included). **Approved by Samuel on 2026-11-16: "Approved, go
+implement the solution."**
 
 **What done looks like**
 
@@ -569,6 +569,9 @@ one made of ten thousand repeated parts, each part built once.
 
 ## Build
 
+Begun 2026-11-16, after Samuel's approval, with stage 1 (the stick, the builder, and the plants on them). Main was
+merged in first: it had gained intents 0034 (the walker's lens, at define) and 0035 (one measure for everything).
+
 ## Propose
 
 ## Story
@@ -579,7 +582,7 @@ one made of ten thousand repeated parts, each part built once.
 
 ## Todo
 
-- [ ] Samuel: approve or change the definition
+- [x] Samuel: approve or change the definition (approved 2026-11-16)
 - [ ] Samuel: open the open library's live demo in Safari on the Mac and on the iPhone, and say what frame rate it
       shows (a first number, before stage 2)
 - [x] Samuel: may the refused pages be allowed for a check of the report's marked statements (he opened 17 hosts,
