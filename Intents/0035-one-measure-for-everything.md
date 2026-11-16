@@ -278,3 +278,4 @@ It ends when the film plays in the game: not yet seen played.
 | 2026-11-16 | `e46439a` | the measure (world/scale.js), the recipes, the camera and the solids reading it, the run (tools/scale.js) in CI, the lineup, four things set right |
 | 2026-11-16 | `4ba3170` | built: the Build section, the changelog |
 | 2026-11-16 | `9a3f76e` | proposed: every check with its result, the run's table, the gates; the story spawned |
+| 2026-11-16 | `7a339cc` | Samuel's yes: the intent to Story, its story's beats |
