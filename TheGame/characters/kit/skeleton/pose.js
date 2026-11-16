@@ -122,16 +122,36 @@ const SHARE = {
   chest: { bones: ['T12', 'T11', 'T10', 'T9', 'T8', 'T7', 'T6', 'T5', 'T4', 'T3', 'T2', 'T1'], flex: [0.16, 0.14, 0.1, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.06, 0.06, 0.06], side: null, twist: [0.03, 0.04, 0.06, 0.09, 0.1, 0.11, 0.11, 0.11, 0.1, 0.09, 0.08, 0.08] },
   neck: { bones: ['C7', 'C6', 'C5', 'C4', 'C3', 'C2'], flex: [0.13, 0.2, 0.22, 0.2, 0.15, 0.1], side: null, twist: [0.14, 0.18, 0.2, 0.2, 0.16, 0.12] },
 };
+// How far a body's joints go (degrees, [least, most] for each number of a move), from the ranges clinicians measure by
+// (American Academy of Orthopaedic Surgeons, "Joint Motion: Method of Measuring and Recording", 1965; Kapandji, "The
+// Physiology of the Joints"), as remembered. A move beyond its range is held at it.
+const D = Math.PI / 180;
+export const LIMITS = {
+  loins: [[-25, 60], [-8, 8], [-25, 25]], chest: [[-20, 35], [-35, 35], [-25, 25]], neck: [[-40, 40], [-30, 30], [-35, 35]], head: [[-25, 20], [-75, 75], [-10, 10]], jaw: [[0, 30]],
+  arm: [[-50, 180], [-30, 180], [-90, 70]], elbow: [[0, 150]], forearm: [[-85, 85]], wrist: [[-70, 80], [-35, 20]], fist: [[0, 1]],
+  hip: [[-20, 125], [-30, 45], [-45, 45]], knee: [[0, 150]], ankle: [[-50, 20]], toes: [[-40, 70]],
+};
+function within(moves) {
+  const out = {};
+  for (const [k, v] of Object.entries(moves)) {
+    const L = LIMITS[k.replace(/\.[LR]$/, '')];
+    if (!L) { out[k] = v; continue; }
+    const hold = (x, [lo, hi]) => (k.startsWith('fist') ? Math.min(hi, Math.max(lo, x)) : Math.min(hi * D, Math.max(lo * D, x)));
+    out[k] = Array.isArray(v) ? v.map((x, i) => hold(x, L[i] ?? [-180, 180])) : hold(v, L[0]);
+  }
+  return out;
+}
+
 /**
- * Turns from plain moves (radians; each side's taken apart, e.g. { 'knee.L': 1.2 }):
+ * Turns from plain moves (radians; each side's taken apart, e.g. { 'knee.L': 1.2 }; free: beyond a body's ranges too):
  *   loins, chest, neck: [bend forwards, twist to the left, lean to the right]; head: [nod, turn, tilt] (half of a turn
  *   is the atlas'); jaw: how far it opens
  *   arm.S: [raise forwards, raise sideways, turn the upper arm inwards]; elbow.S; forearm.S (palm turned backwards);
  *   wrist.S: [bend to the palm, to the thumb]; fist.S (0 … 1)
  *   hip.S: [forwards, outwards, turned outwards]; knee.S; ankle.S (toes up); toes.S
  */
-export function turnsOf(m = {}) {
-  const T = {};
+export function turnsOf(moves = {}, { free = false } = {}) {
+  const T = {}, m = free ? moves : within(moves);
   for (const [name, s] of Object.entries(SHARE)) { const v = m[name]; if (!v) continue; s.bones.forEach((b, i) => { T[b] = [v[0] * s.flex[i], v[1] * s.twist[i], v[2] * (s.side ?? s.flex.map(() => 1 / s.bones.length))[i]]; }); }
   if (m.head) { T.head = [m.head[0], m.head[1] * 0.1, m.head[2]]; T.C1 = [0, m.head[1] * 0.55, 0]; for (const [b, w] of [['C2', 0.07], ['C3', 0.07], ['C4', 0.07], ['C5', 0.07], ['C6', 0.07]]) T[b] = [(T[b]?.[0] ?? 0), (T[b]?.[1] ?? 0) + m.head[1] * w, (T[b]?.[2] ?? 0)]; }
   if (m.jaw) T.jaw = { angle: m.jaw };
