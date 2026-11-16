@@ -180,6 +180,19 @@ own, round the stage.
   30 % narrower than a rock's full mesh, a pixel or two, as it was; the holm oak's finest level stands up to 7 % over
   its near one.
 
+**Each measure next to its thing** (the third round: Samuel, through the coordinating session: "The size info should
+be always co-located with its asset definitions but measured against the global scale"). Not as the definition said:
+the measure is no longer one file of every thing. Each recipe carries its own (`measure`: what a real one measures,
+its sources, and what it is built from), next to what it is: the tent's, the fire pit's, the flame's, both trees', the
+stones' and the boulders' are built from it; the bushes', the grass's, the moss's and the dead wood's are read beside
+them; the Settler's is in `characters/settler.js`. `TheGame/world/scale.js` is the one scale they are all read
+against: the units, the reference body (the Settler's stature and where on it the eyes, shoulders and knees are: one
+copy, which intent 0033's tables are to read), the walker worked out from it, the tolerances, and the rules a measure
+keeps (`faultsOf`). The run reads every recipe's own measure, holds it to those rules and to what the recipe draws,
+and fails where they disagree or where a recipe has none (tried: the flame's measure taken out, and a mastic's most
+set under its typical: both exit 1). It sets each thing beside the reference body too: a stone pine stands 10.6
+Settlers, the tent 1.83. Every asset's geometry is the same to the byte before and after the move.
+
 **Found, outside this intent** (in the Todo): a tree's youngest stage is built taller than its own height by age
 (a holm oak of 6: 1.51 m against 1.19 m; a stone pine of 5: 1.55 m against 1.36 m), so saplings stand 14 to 27 %
 taller than their age; and a sapling's far levels stand up to 36 % taller than its near one. Speeds are not sizes:
@@ -308,6 +321,17 @@ It ends when the film plays in the game: not yet seen played.
   world's stand), its sizes the measure's; trees drawn at their height by age (over their built height, and through
   each stage's own year); the run measuring the built meshes, the colliders and every tree's age.
 - **Good:** 15 of 15 within their measure; every asset's geometry the same to the byte.
+- **Broke / not there yet:** the stills and the frame times against main are being taken.
+
+### 2026-11-16 (5)
+
+- **Asked** (Samuel, through the coordinating session): "The size info should be always co-located with its asset
+  definitions but measured against the global scale."
+- **Delivered:** each recipe's measure in its own file; `world/scale.js` the one scale (units, the reference body, the
+  walker, the tolerances, the rules); the run reading every recipe's own measure against them and against what it
+  draws; the lineup's card reading them too.
+- **Good:** every asset's geometry the same to the byte; a recipe without a measure, or with one that breaks the rules,
+  fails the run.
 - **Broke / not there yet:** the stills and the frame times against main are being taken.
 
 ## Trail

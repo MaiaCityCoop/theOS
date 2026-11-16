@@ -26,10 +26,11 @@ them to each other or to the world outside.
 Samuel asked for one source of truth for the size of everything: every asset measured against its source, so each is
 right next to every other.
 
-Now there is one file, the measure: a person of 1.74 metres, and where on them the eyes, shoulders and knees are;
-what a 5 m bell tent measures, from the makers' sheets; a campfire ring and the seats round it; how tall a stone pine,
-a holm oak, a mastic, a reed grows, from the floras; how large a cobble and a boulder are, from the scales of grain
-sizes. Every number with its source, and where none was found, it says so.
+Now every thing carries its own measure, next to what it is: what a 5 m bell tent measures, from the makers' sheets;
+a campfire ring and the seats round it; how tall a stone pine, a holm oak, a mastic, a reed grows, from the floras;
+how large a cobble and a boulder are, from the scales of grain sizes. Every number with its source, and where none was
+found, it says so. And all of them are read against one scale: a person of 1.74 metres, and where on them the eyes,
+shoulders and knees are.
 
 The tent, the fire, the trees and the Settler are built from it, and so is the walker who is you. And a run builds
 every asset and the Settler as the game builds them, stands each as the world stands it, and holds what it drew
@@ -71,7 +72,8 @@ In the library, a lineup: everything beside the Settler at its true size, and a 
 | Line | Where it is true |
 | --- | --- |
 | Samuel's lines | His message of 2026-11-16: "Regarding tent and human body and fire place and trees etc. sizes. Can you create a universal SSOT scale src for every asset to have proper sizing also in relation to each other. So every asset is measured against its source. Do you see what I meant?"; "do make 35"; and his answer on the rocks, as the coordinating session passed it on: "Stones and boulders should match their actual sizes: SSOT this globally and generatively" |
-| "a person of 1.74 metres" | The Settler (`characters/settler.js`), now `PERSON.stature` in `TheGame/world/scale.js`; ANSUR II's mean stature is 1.629 m for women and 1.756 m for men |
+| "a person of 1.74 metres" | The reference body, `PERSON.stature` in `TheGame/world/scale.js`, the one scale; the Settler (`characters/settler.js`) is drawn at it, its measure beside it: ANSUR II's mean stature is 1.629 m for women and 1.756 m for men |
+| "every thing carries its own measure" | Each recipe's `measure`, in its own file (assets/*.js, characters/settler.js); `bun tools/scale.js` reads each against the one scale and against what it draws |
 | "Your eyes stood at 1.7 metres" | `camera/rig.js` on main: `eye: 1.7`; eyes are at 0.936 of stature (Drillis & Contini 1966, in Winter 2009), so 1.7 m is the eyes of a person of 1.82 m. Measured in the game as it starts: the camera 1.700 m over the ground on main, 1.629 m on this branch |
 | "A 5 m bell tent's door: 1.8 metres. Ours was 2.05." | `assets/belltent.js` on main: `DOOR_H = 2.05`, 1.76 m wide at the ground. Makers' 5 m bell tents: doors of 1.5 m, 1.68 m (and 1.32 m wide), 1.7 m, 1.8 m, and 2.0 m on an XL with taller walls. Now 1.8 m high, 1.32 m wide |
 | "you stoop a little going in" | The camera keeps its eyes 0.25 m under what is overhead (`src/camera/rig.js`): under the door's top of 1.8 m, 1.55 m, 8 cm under the walker's eyes |
