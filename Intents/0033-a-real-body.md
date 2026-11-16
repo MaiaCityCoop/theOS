@@ -128,6 +128,42 @@ on the one below, each looked at alone before the next:
 3. The fat, yellow: where it lies, more or less by build, sex and age.
 4. The skin over all of it.
 
+**The bones (2026-11-16), as Samuel asked: "the skeleton now to be anatomically absolut correct and photorealistic -
+feel free to research skeletons reference images as well"; "once you got all the bones correct you can try to rig it
+correctly"; "ensure the skull is correct".**
+
+- **What it is built from.** Each bone is now a field of its own (never blended with its neighbour), written in one
+  file a region (`characters/kit/skeleton/`: skull, spine, chest, pelvis, arm, hand, leg, foot) with the rig and the
+  kit they share; a point is written once, for the left side of the man of reference, and mirrored. Two solids were
+  added for real bone shapes (`field.js`): a loft (a shaft with its section given along it: three-sided where the
+  bone is, its end closed as a dome where it is a head or a crown) and a plate (a blade drawn by its outline, bent,
+  thick at its rim).
+- **What it is measured against.** The plates of Gray's Anatomy (1918, public domain, from Wikimedia Commons), about
+  fifty of them, kept outside the repository: they are looked at, and for the skull read on a grid; nothing of them
+  is traced into a mesh. The numbers they gave are written where they are used, with the figure they came from.
+- **The skull**, from fig. 188 (side) and 190 (front): the braincase a loft whose breadth, profile and plan are given
+  level by level, its crown a true dome; the face one shaped mass whose front passes through the rims of the eye
+  sockets, with the sockets (four-sided funnels, inner walls straight back, outer slanting in), the nose's opening
+  and cavity and the palate cut into it; the bony nose, the cheekbones' arches, the mastoids, the styloids, the
+  condyles; the lower jaw as a blade with its head, coronoid and notch on a body round the arch; thirty-two teeth each
+  its own piece, standing where the ones before them end; the hyoid; the seams (sutures) as lines for whoever draws
+  it. Laid over the two plates at their own scale and tilt, its outline, sockets, nose, row of teeth and jaw fall on
+  theirs within a few millimetres; seen from the front its jaw is wider than the plate's at the angles (the plate is
+  drawn in perspective, the check is not).
+- **The other regions** were each rebuilt by a helper session of mine working in its own file against its own
+  plates, all at once: the leg and foot (femur, kneecap, tibia, fibula, seven ankle bones, metatarsals, toes), the
+  spine and chest (twenty-four vertebrae each in its region's shape with an open canal, the discs, twelve pairs of
+  ribs, their cartilages, the breastbone), the pelvis and the arm and hand.
+- **Found on the way.** The pictures I had judged every body by, since the first attempt, were drawn inside out: my
+  preview drew the faces turned away from the eye, so a hollow showed as its far inner wall (convex shapes looked
+  nearly right, which hid it). Fixed; every earlier still of mine was wrong in this way. The chest stood 4 cm too far
+  forward (its inlet twice as deep as a man's): set back, and the collarbone's joint with it. The eyes' joints moved
+  12 mm forward and the jaw's hinge to the jaw's heads, where this skull has them.
+- **Not there yet.** The bones are not in the game: they are seen in stills drawn outside it (a camera of my own:
+  soft shadows, the shade of hollows from the field, a bone's mottling). No fine relief yet (muscle lines, grooves,
+  most small holes). The rig is still the first pass's few joints: next, a joint where each pair of bones really
+  meets (a bone of the rig for every vertebra, the radius turning about the ulna, the kneecap), checked in poses.
+
 ## Propose
 
 ## Story
@@ -141,8 +177,8 @@ on the one below, each looked at alone before the next:
 - [ ] Round 1: the body (naked, no hair, muscular first; clothes later)
   - [x] a first attempt from blended solids (turned down)
   - [x] a second, muscles as strands without the bones under them (set aside)
-  - [ ] the bones, each in its shape, bone-coloured, at their joints (a first pass; the skull's face, the foot and the knee still crude)
-  - [ ] the skeleton and its proportions, checked from the front and side
+  - [ ] the bones, each a piece of its own in its true shape, against Gray's plates: skull (laid over its plates), leg and foot, spine and chest done; pelvis, arm and hand under way
+  - [ ] the skeleton rigged where its bones really meet, checked in poses
   - [ ] muscles from origin to insertion, a skin over them
   - [ ] the face from the skull up; hands; feet
 - [ ] Round 2: movement
@@ -159,6 +195,12 @@ on the one below, each looked at alone before the next:
 - **Good:** The harness draws WebGPU in a browser here (headed Chromium on a virtual screen) and times the person alone
   on the GPU: on main the Settler costs about 61 ms at the library's distance and 165 ms in a close-up of the face
   (SwiftShader, 1280×720).
+- **Delivered (later the same day):** the skeleton rebuilt bone by bone against Gray's plates: the skull (checked by
+  laying it over its two plates), the leg and foot, the spine and chest; the pelvis, the arm and the hand under way.
+- **Good (later):** Every bone is its own piece now, so it can be turned on the rig. The stills read as a photograph
+  of a skeleton rather than as a diagram.
+- **Broke / not there yet (later):** My preview had drawn every picture inside out since the first attempt (Build):
+  the stills Samuel judged were wrong in that way too. The bones are not in the game yet; the rig is still to be made.
 - **Broke / not there yet:** The first body: "This looks absolute catastrophic." Every solid showed as a lump; the
   proportions, the face, the hands and the clothes were all wrong (Build). Samuel: naked first, no hair, a muscular
   body; the clothes later. A second attempt, muscles as strands over no bones, floated apart (Build). Samuel: the
