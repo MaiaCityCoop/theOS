@@ -72,16 +72,21 @@ export const CROWD = {
   RUN: 16,         // cards in a run: the engine draws a crowd's cards by runs, each 4 x RUN vertices and one shared list of 6 x RUN corners
   CLASSES: 4,      // the most classes by size a crowd is sorted into (each half the area of the one before)
   HULLS: [[6, 3], [5, 2], [4, 1]],   // the far bodies, finest first: corners round a ring, rings between the two poles (36, 20 and 8 triangles)
-  TURN: [[18, 13], [9, 6.5]],        // pixels: between which sizes the first body turns into the second, and the second into the third (the post thins away with the second)
+  TURN: [[24, 18], [9, 7]],          // pixels: between which sizes the first body turns into the second, and the second into the third (the post thins away with the second). Each ends where today's kinds' bands for trees end (18, 7): a level of the far band then holds one body, not three
+  FAR: 18,         // pixels: the far body has taken over by this size at the latest (a crown's cards are then a pixel or two each), so the far levels hold no cards
   REACH: 0.95,     // a body's corner lies as far out as this share of the crown's corners in its sector reach
   STOPS: 1 - sqrt(1 - 0.45),         // how much of the light one triangle of a card stops (a sprig of two crossed cards: 45 %), where cover is reckoned
   PIC: 64,         // … in pictures of this many pixels a side, from thirteen sides
 };
 /** Whether the plants are drawn by this kit (`?lod=new`, set by src/scatter/trees.js before anything is built, and handed
-    to the recipes' workers), and the two numbers that set what a plant costs: at today's levels' sizes on screen a
-    card of CARD pixels (the research's 15) submits two to four times today's level at the top of its band, so 24 is
-    taken, and the far body comes no sooner than the cards' enlarging must stop (KMAX). `?card=` and `?kmax=` change them. */
-export const LOD = { on: false, CARD: 24, KMAX: 8 };
+    to the recipes' workers), and the numbers that set what a plant costs. CARD: at today's level bands a card of the
+    research's 15 pixels submits two to four times today's level at the top of a band; 30 brings the plants to about
+    main's vertices (intent 0033, Build). KMAX: the far body comes no sooner than the cards' enlarging must stop.
+    SPLIT: no level the kit makes wider than this many times on screen where it can hold cards (assets/kit/tree.js; 0:
+    the kinds' bands as they are): a level holds all its band may show at its widest. STANDS: the size a stand that
+    changes level as one measures its plants by, of each plant asset (src/scatter/trees.js). `?card=`, `?kmax=` and
+    `?split=` change them. */
+export const LOD = { on: false, CARD: 30, KMAX: 8, SPLIT: 2, STANDS: null };
 /** Where each of a shape's sixteen numbers lies in `meta`: P0, E, where the far body begins and has taken over (pixels),
     the crown's middle (three), how many cards, where the classes 1, 2 and 3 begin (three pairs: the share of the
     parts before it, the share of the cards' area before it), the size it was built for (metres), how many parts. */
@@ -360,7 +365,9 @@ export function crowd(m, opts = {}) {
   // where the far body takes over: the cards would be enlarged more than KMAX times, or fewer than LEAST parts would stay; the M parts still there go one by one over its window
   let M = N;
   if (N > K.LEAST) { const aK = pow(K.KMAX, -1 / E); let a = 0, b = 1; for (let i = 0; i < 40; i++) { const s = (a + b) / 2; if (areaAt(s, meta) < aK) a = s; else b = s; } M = min(N, max(K.LEAST, ceil(b * N - 1e-9))); }
-  const hull = { hi: P0 * pow(N ? M / N : 1, 1 / K.A), lo: 0 }; hull.lo = hull.hi / K.WIN;
+  const hull = { hi: P0 * pow(N ? M / N : 1, 1 / K.A), lo: 0 };
+  if (N > K.LEAST && hull.hi < K.FAR * K.WIN) { hull.hi = K.FAR * K.WIN; M = min(N, max(K.LEAST, ceil(shareAt(hull.hi, P0, K.A) * N - 1e-9))); }   // (no later than FAR: fewer parts go one by one over its window, from a larger share)
+  hull.lo = hull.hi / K.WIN;
   const go = Float32Array.from({ length: N }, (_, t) => (t < M ? hull.lo * pow(K.WIN, (t + 0.5) / M) : P0 * pow((t + 0.5) / N, 1 / K.A)));
 
   // ---- its solid pieces: how wide each is, its foot, its go ----

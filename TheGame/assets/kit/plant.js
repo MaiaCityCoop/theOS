@@ -96,4 +96,8 @@ export const crowdOf = (a, i) => {
 };
 /** Level l of shape i: what it is drawn with between its sizes on screen (the crowd's finest level: every size above its
     own, as it stands in for the splay of its sprigs until that has come). */
-export const crowdAt = (a, i, l) => { const [lo, hi] = bandsOf(a)[l]; return levelOf(crowdOf(a, i), lo, l === finestOf(a) ? Infinity : hi); };
+export const crowdAt = (a, i, l) => { const [lo, hi] = bandsOf(a)[l]; return levelOf(crowdOf(a, i), lo, l === finestOf(a) ? Infinity : ownTop(a, i, hi)); };
+/** The largest a plant of shape i can be on screen, by its own size, where its stand measures it as `hi` pixels: in a
+    stand that changes level as one (LOD.STANDS: the stand's size, src/scatter/trees.js) its own size over the stand's,
+    at its largest scale (the rule reckons a plant by its own size, at most the stand's: trees.js crowdRule). */
+export const ownTop = (a, i, hi) => { const z = LOD.STANDS?.[a.uid]; return z && Number.isFinite(hi) ? hi * Math.min(1, (shapeSize(a, i) * most(a.placement.scale ?? 1)) / z) : hi; };

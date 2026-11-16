@@ -30,8 +30,8 @@
 // its file is read (a worker reads this file too: plain JS, nothing of the page in it).
 
 import { kindRule } from '../kinds.js';
-import { LOD, budgetOf } from './crowd.js';
-import { bandsOf, shapeSize, crowdLevel } from './plant.js';
+import { LOD, CROWD, budgetOf } from './crowd.js';
+import { bandsOf, shapeSize, crowdLevel, ownTop } from './plant.js';
 import { add, sub, mul, dot, len, norm, cross, lerp, bez } from './math.js';
 import { rng } from '../../src/core/hash.js';
 
@@ -329,6 +329,24 @@ export function tree(recipe) {
   // themselves (its kind's sizes are for the levels its file draws and the kit's farthest: one more in front must not shift them)
   const f = fine ? 1 : 0, kpx = fine ? rest.detail?.px ?? kindRule(rest, 'px') : null, pxAt = (i) => (kpx ? { px: kpx[Math.min(i, kpx.length - 1)] } : {});
   const specs = [...(fine ? [{ P: fine.P ?? 2, px: fine.px, most: fine.most, fine: true }] : []), ...levels.map((L, i) => ({ ...L, ...pxAt(i) })), ...fars.map((o, j) => ({ P: far.P ?? 64, far: true, most: farMost(o), ...pxAt(levels.length + j) }))];
+  // under `?lod=new` with LOD.SPLIT (assets/kit/crowd.js): every level the crowd kit makes, but its finest where it has
+  // no splay before it, is cut into levels no wider than SPLIT times on screen. A crowd level holds all its band may
+  // show at its widest: the narrower its band, the nearer what it submits to what it shows (more draws). Reckoned when
+  // asked, not when the file is read: the flag is set after (the page's, the workers')
+  let cut = null, cutKey = null;
+  const specsOf = () => {
+    if (!LOD.on || !(LOD.SPLIT > 1)) return specs;
+    if (cutKey === LOD.SPLIT) return cut;
+    const kp = rest.detail?.px ?? kindRule(rest, 'px'), at = specs.map((L, i) => ({ ...L, px: L.px ?? kp[Math.min(i, kp.length - 1)] }));
+    cut = []; cutKey = LOD.SPLIT;
+    at.forEach((L, i) => {
+      const hi = i ? at[i - 1].px : Infinity;
+      if (L.fine || !Number.isFinite(hi) || hi <= CROWD.FAR) { cut.push(L); return; }   // (a band under FAR holds a far body only: cut, it would only pack its plants twice where two meet)
+      const n = Math.max(1, Math.ceil(Math.log(hi / L.px) / Math.log(LOD.SPLIT) - 1e-9));
+      for (let k = 1; k <= n; k++) cut.push({ ...L, px: k === n ? L.px : hi * Math.pow(L.px / hi, k / n) });
+    });
+    return cut;
+  };
   // (the last few made are kept as the builder left them: a far level is made from its shape's nearest)
   const memo = new Map(), once = (key, make) => { let m = memo.get(key); if (!m) { if (memo.size >= 6) memo.delete(memo.keys().next().value); memo.set(key, (m = make())); } return m; };
   /** Shape `shape` at level `level`, as the builder made it (its attributes lists of numbers). */
@@ -352,23 +370,23 @@ export function tree(recipe) {
     // as its height by age says, as the trees' engine draws it: src/scatter/trees.js sizeAtOne)
     ...(G ? { growth: { years: growth.years, stages: G.stages, height: growth.height, at: (age, v) => { const r = G.at(age, v), S = G.stages.find((x) => r.shape >= x.offset && r.shape < x.offset + x.variants), b = measured().heights[r.shape]; return { ...r, s: b > 0 ? (r.s * S.h) / b : r.s }; } } } : {}),
     /** how many shapes it has, and how many levels (its file's and the kit's two farthest) */
-    shapeCount: shapes.length, levelCount: specs.length,
+    shapeCount: shapes.length,
     rawAt,
     /** its shade's mesh for a shape (what the shadow map is drawn from), as the builder made it; none: it has no shade of its own */
     shadeRaw: shade ? (shape) => shade(shapes[shape], shape) : null,
     /** Under `?lod=new` (assets/kit/crowd.js): the room each shape's levels need in the heap, [shape][level] { verts,
         tris } (its splay's: none), reckoned from its nearest level without building it, and kept with its outline */
     crowdRooms() {
-      const o = measured(), key = `${LOD.CARD}:${LOD.KMAX}`;
+      const o = measured(), key = `${LOD.CARD}:${LOD.KMAX}:${LOD.SPLIT}:${LOD.STANDS?.[out.uid] ?? ''}`;
       if (o.crowd?.key !== key) {
         const B = bandsOf(out), his = B.map(([, hi], l) => (l === f ? Infinity : hi));
-        o.crowd = { key, rooms: shapes.map((s, i) => { const R = budgetOf(rawAt(f, i), { size: shapeSize(out, i), CARD: LOD.CARD, KMAX: LOD.KMAX }, his); return R.map((r, l) => (crowdLevel(out, l) ? [r.verts, r.tris] : null)); }) };
+        o.crowd = { key, rooms: shapes.map((s, i) => { const R = budgetOf(rawAt(f, i), { size: shapeSize(out, i), CARD: LOD.CARD, KMAX: LOD.KMAX }, his.map((hi) => ownTop(out, i, hi))); return R.map((r, l) => (crowdLevel(out, l) ? [r.verts, r.tris] : null)); }) };
         OUTLINES.made.set(id, o);
       }
       return o.crowd.rooms;
     },
     /** shape `shape` at level `level` as typed arrays (a plain geometry's: the library's stage) */
-    meshAt: (level, shape = 0) => packed(rawAt(Math.min(level, specs.length - 1), Math.min(shape, shapes.length - 1))),
+    meshAt: (level, shape = 0) => packed(rawAt(Math.min(level, specs.length - 1), Math.min(shape, shapes.length - 1))),   // (its file's levels: the crowd kit's are made by assets/kit/plant.js)
     /** the same kind of tree grown from another seed: other shapes, other places (the library's Random). A shape of its
         file's that carries a seed of its own (a bush's mound, a branch: no growth to grow it from the placement's seed)
         is grown from that seed moved as far as the placement's was, so a bush is another bush too; its own seed gives
@@ -382,6 +400,8 @@ export function tree(recipe) {
     // tris(): counted when asked); shadow: it is drawn into the shadow map by its shade, for every tree within `far`
     // metres (from high up, up to `wide` times that) whose shade can reach the view (`reach`: how far a crown's shadow
     // falls); past them the land dims its floor under the stand by itself (src/terrain/material.js)
-    detail: lazy(() => (detail ??= { ...(rest.detail || {}), levels: specs.map((L, i) => ({ ...L, tris: () => rawAt(i, 0).index.length / 3 })), ...(shade ? { shadow: { far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) })),
+    detail: lazy(() => (detail?.of === specsOf() ? detail.d : (detail = { of: specsOf(), d: { ...(rest.detail || {}), levels: specsOf().map((L, i) => ({ ...L, tris: () => rawAt(i, 0).index.length / 3 })), ...(shade ? { shadow: { far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) } }).d)),
+    /** how many levels it has (its file's and the kit's two farthest; under `?lod=new` as LOD.SPLIT cuts them) */
+    levelCount: lazy(() => specsOf().length),
   });
 }
