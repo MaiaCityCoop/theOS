@@ -4,17 +4,18 @@ import { writeFileSync, appendFileSync, mkdirSync, readdirSync, readFileSync, ex
 import { resolve, dirname, join, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib';
-import { buildRegistry, FOLDERS } from './tools/registry.js';
+import { buildRegistry, FOLDERS, SHARED } from './tools/registry.js';
 import { listScenes, sceneFile } from '../Stories/scenes.js';
 
 const ROOT = import.meta.dirname;
-// the registry's manifest (registry.json, tools/registry.js): made at the start, and again whenever a recipe changes
+// the registry's manifest (registry.json, tools/registry.js): made at the start, and again whenever a recipe, or what
+// every recipe builds with (SHARED: the dice, the measure), changes
 const registry = {
   name: 'registry',
   buildStart() { buildRegistry(ROOT); },
   configureServer(server) {
     buildRegistry(ROOT);
-    server.watcher.on('all', (_, file) => { if (FOLDERS.some((d) => file.startsWith(resolve(ROOT, d) + '/'))) { try { buildRegistry(ROOT); } catch (e) { console.error('[registry]', e.message); } } });
+    server.watcher.on('all', (_, file) => { if (FOLDERS.some((d) => file.startsWith(resolve(ROOT, d) + '/')) || SHARED.some((f) => file === resolve(ROOT, f))) { try { buildRegistry(ROOT); } catch (e) { console.error('[registry]', e.message); } } });
   },
 };
 

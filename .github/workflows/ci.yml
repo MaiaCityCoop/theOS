@@ -43,6 +43,9 @@ jobs:
       - name: Sign-in checks
         working-directory: TheGame
         run: bun tools/account-check.js
+      - name: Every asset against its measure
+        working-directory: TheGame
+        run: bun tools/scale.js
       - name: API tests
         working-directory: API
         env:

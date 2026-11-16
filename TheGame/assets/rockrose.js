@@ -29,7 +29,7 @@ export default tree({
   // (its farthest, one body, darker than its sprigs' tops: a bush is mostly its own shade)
   far: { P: 32, shade: 0.85, speck: false, sides: 5, shoulder: true, trunk: false },
   // where it grows: the pine forest's understory, of which it takes its share
-  placement: { at: 'scatter', engine: 'trees', stand: 'shrubs', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.25, scale: [0.5, 1.3], lean: 0,
+  placement: { at: 'scatter', engine: 'trees', stand: 'shrubs', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.25, scale: [0.45, 0.85], lean: 0,
     // (it wants the sun: the glades and the wood's edge)
     where: { field: 'glade', from: 0.15, to: 1 }, seed: 620 },
 });
