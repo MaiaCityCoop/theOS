@@ -1,0 +1,49 @@
+Stone pine, shape 4: 17776 vertices, 11246 triangles (4118 wood, 7128 leaf: 1782 sprigs of two crossed cards)
+its crown covers 54.8 % of its box's picture from the side, 52.5 % from above (a card taken as 45 % sprig)
+
+as its file draws it                             4118 wood   7128 leaf tris | leaf area  100 % | cover from the side  100 %, from above  100 % | outline  100 %,  100 %
+
+the simplifier (edge collapse, as serves a rock):
+  to 50 %, plain: reached 50 %                    103 wood   5467 leaf tris | leaf area   83 % | cover from the side   99 %, from above   96 % | outline  100 %,   99 %
+  to 50 %, pruning what stands alone: reached 50 %    103 wood   5467 leaf tris | leaf area   83 % | cover from the side   99 %, from above   96 % | outline  100 %,   99 %
+  to 50 %, by a grid (sloppy): reached 38 %       448 wood   3840 leaf tris | leaf area   63 % | cover from the side   85 %, from above   87 % | outline   86 %,   90 %
+  to 25 %, plain: reached 25 %                     84 wood   2674 leaf tris | leaf area   47 % | cover from the side   94 %, from above   79 % | outline   98 %,   94 %
+  to 25 %, pruning what stands alone: reached 25 %     84 wood   2674 leaf tris | leaf area   47 % | cover from the side   94 %, from above   79 % | outline   98 %,   94 %
+  to 25 %, by a grid (sloppy): reached 12 %       129 wood   1177 leaf tris | leaf area   38 % | cover from the side   77 %, from above   74 % | outline   79 %,   87 %
+  to 10 %, plain: reached 7 %                     246 wood    514 leaf tris | leaf area   10 % | cover from the side   52 %, from above   28 % | outline   78 %,   53 %
+  to 10 %, pruning what stands alone: reached 8 %    246 wood    645 leaf tris | leaf area   12 % | cover from the side   60 %, from above   34 % | outline   83 %,   64 %
+  to 10 %, by a grid (sloppy): reached 3 %         50 wood    304 leaf tris | leaf area   21 % | cover from the side   47 %, from above   62 % | outline   50 %,   74 %
+
+thinning the sprigs at random, the wood left as it is:
+   50 % of the sprigs, left their size           4118 wood   3564 leaf tris | leaf area   50 % | cover from the side   92 %, from above   80 % | outline   96 %,   94 %
+   50 % of the sprigs, each 1.41 times as long and wide   4118 wood   3564 leaf tris | leaf area  100 % | cover from the side  116 %, from above  108 % | outline  119 %,  112 %
+   25 % of the sprigs, left their size           4118 wood   1784 leaf tris | leaf area   25 % | cover from the side   80 %, from above   55 % | outline   90 %,   81 %
+   25 % of the sprigs, each 2.00 times as long and wide   4118 wood   1784 leaf tris | leaf area  101 % | cover from the side  135 %, from above  117 % | outline  141 %,  123 %
+   10 % of the sprigs, left their size           4118 wood    712 leaf tris | leaf area   10 % | cover from the side   55 %, from above   28 % | outline   78 %,   54 %
+   10 % of the sprigs, each 3.16 times as long and wide   4118 wood    712 leaf tris | leaf area  104 % | cover from the side  159 %, from above  128 % | outline  162 %,  137 %
+    4 % of the sprigs, left their size           4118 wood    284 leaf tris | leaf area    4 % | cover from the side   28 %, from above   12 % | outline   56 %,   28 %
+    4 % of the sprigs, each 5.01 times as long and wide   4118 wood    284 leaf tris | leaf area  102 % | cover from the side  158 %, from above  133 % | outline  161 %,  147 %
+
+thinned, each sprig enlarged until the crown covers what the full one covers (the enlargement found, not given):
+   50 %, about its foot  : 1.21 x (area's: 1.41)   4118 wood   3564 leaf tris | leaf area   73 % | cover from the side  104 %, from above   96 % | outline  107 %,  104 %
+   50 %, about its middle: 1.26 x (area's: 1.41)   4118 wood   3564 leaf tris | leaf area   80 % | cover from the side  103 %, from above   97 % | outline  106 %,  103 %
+   50 %, about its tip   : 1.37 x (area's: 1.41)   4118 wood   3564 leaf tris | leaf area   94 % | cover from the side  102 %, from above   97 % | outline  104 %,  101 %
+   25 %, about its foot  : 1.51 x (area's: 2.00)   4118 wood   1784 leaf tris | leaf area   58 % | cover from the side  109 %, from above   91 % | outline  117 %,  106 %
+   25 %, about its middle: 1.62 x (area's: 2.00)   4118 wood   1784 leaf tris | leaf area   66 % | cover from the side  107 %, from above   92 % | outline  113 %,  103 %
+   25 %, about its tip   : 1.79 x (area's: 2.00)   4118 wood   1784 leaf tris | leaf area   81 % | cover from the side  106 %, from above   93 % | outline  109 %,   99 %
+   10 %, about its foot  : 2.06 x (area's: 3.16)   4118 wood    712 leaf tris | leaf area   44 % | cover from the side  117 %, from above   82 % | outline  133 %,  108 %
+   10 %, about its middle: 2.23 x (area's: 3.16)   4118 wood    712 leaf tris | leaf area   51 % | cover from the side  115 %, from above   84 % | outline  127 %,  102 %
+   10 %, about its tip   : 2.38 x (area's: 3.16)   4118 wood    712 leaf tris | leaf area   58 % | cover from the side  113 %, from above   87 % | outline  118 %,  101 %
+    4 %, about its foot  : 3.12 x (area's: 5.00)   4118 wood    284 leaf tris | leaf area   39 % | cover from the side  119 %, from above   80 % | outline  137 %,  115 %
+    4 %, about its middle: 3.18 x (area's: 5.00)   4118 wood    284 leaf tris | leaf area   41 % | cover from the side  119 %, from above   80 % | outline  137 %,  107 %
+    4 %, about its tip   : 3.27 x (area's: 5.00)   4118 wood    284 leaf tris | leaf area   43 % | cover from the side  114 %, from above   85 % | outline  126 %,  110 %
+    1 %, about its foot  : 5.97 x (area's: 10.00)   4118 wood     72 leaf tris | leaf area   38 % | cover from the side  123 %, from above   76 % | outline  156 %,  122 %
+    1 %, about its middle: 5.50 x (area's: 10.00)   4118 wood     72 leaf tris | leaf area   32 % | cover from the side  124 %, from above   75 % | outline  147 %,  119 %
+    1 %, about its tip   : 5.87 x (area's: 10.00)   4118 wood     72 leaf tris | leaf area   37 % | cover from the side  120 %, from above   79 % | outline  150 %,  125 %
+
+the levels its file writes by hand today, and the kit's two farthest:
+  level 1                                         782 wood   1560 leaf tris | cover from the side  120 %, from above  103 % | outline  122 %,  105 %
+  level 2                                         442 wood    368 leaf tris | cover from the side  131 %, from above   89 % | outline  134 %,   99 %
+  level 3                                          30 wood    120 leaf tris | cover from the side  116 %, from above   74 % | outline  124 %,   91 %
+  level 4 (one solid body)                          6 wood     24 leaf tris | cover from the side   58 %, from above   71 % | outline   53 %,   61 %
+  level 5 (one solid body)                          0 wood      8 leaf tris | cover from the side   29 %, from above   55 % | outline   27 %,   47 %

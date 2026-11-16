@@ -1,0 +1,10 @@
+  level 1 group of 11: 1376 -> 688 triangles, the simplifier's error 7.33e-4, measured 1.11e-3, locked 0 of 1027 vertices
+  level 1 group of 1: 16 -> 8 triangles, the simplifier's error 4.83e-3, measured 7.07e-1, locked 0 of 39 vertices
+  level 2 group of 6: 688 -> 344 triangles, the simplifier's error 4.68e-3, measured 2.17e-1, locked 0 of 574 vertices
+  level 2 group of 1: 8 -> 4 triangles, the simplifier's error 4.83e-3, measured 7.07e-1, locked 0 of 20 vertices
+  level 3 group of 3: 344 -> 168 triangles, the simplifier's error 1.55e-2, measured 2.21e-1, locked 0 of 304 vertices
+  level 3 group of 1: 4 -> 2 triangles, the simplifier's error 4.83e-3, measured 3.83e-1, locked 0 of 10 vertices
+  level 4 group of 2: 168 -> 84 triangles, the simplifier's error 3.31e-2, measured 3.39e-2, locked 0 of 158 vertices
+  level 4 group of 1: 2 -> 1 triangles, the simplifier's error 4.83e-3, measured 4.83e-3, locked 0 of 5 vertices
+  level 5 group of 1: 84 -> 42 triangles, the simplifier's error 5.20e-2, measured 5.41e-2, locked 0 of 99 vertices
+  level 5 group of 1: 1 -> 0 triangles, the simplifier's error 3.94e-3, measured 1.22e-2, locked 0 of 3 vertices

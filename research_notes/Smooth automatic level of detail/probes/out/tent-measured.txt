@@ -1,0 +1,40 @@
+the tent: 1396 faces, 4188 corners of their own, welded to 1066 vertices; its largest side 8.75 m
+tent: 1066 vertices, 1392 triangles; groups of 8
+built in 47 ms (29725 triangles a second): base clusters 6, grouping (JS) 2, simplifying 3, splitting 1, bounds 1; the mesh itself took 10
+32 clusters in 9 levels, 2768 triangles in all (1.989 times the mesh); 1 at the top with 5 triangles; unsound parents: 0
+loose parts that ended on the way (simplified to nothing): 1 triangles
+its vertices cluster by cluster: 2438 (76 a cluster, 2.29 times the mesh's); at 16 bytes a vertex and a byte a corner: 0.05 MB, the full mesh alone as the heap keeps it 0.03 MB
+level  clusters  triangles  largest error (of its size)  stuck groups
+    0        12       1392       0.00e+0  0
+    1         7        696       1.11e-3  0
+    2         4        348       2.17e-1  0
+    3         3        170       2.21e-1  0
+    4         2         85       2.21e-1  0
+    5         1         42       2.21e-1  0
+    6         1         20       2.21e-1  0
+    7         1         10       2.21e-1  0
+    8         1          5       2.25e-1  0
+size on screen (px)  ladder  | cut at 1 px (in view)  | at 2 px (in view)  | at 4 px (in view)
+    4000      1392  |     1376 (    1248)  |     1376 (    1248)  |     1376 (    1248)
+    2000      1392  |     1376 (    1376)  |     1376 (    1376)  |     1376 (    1376)
+    1200      1392  |     1376 (    1376)  |     1376 (    1376)  |     1376 (    1376)
+     800      1392  |     1376 (    1376)  |     1376 (    1376)  |      688 (     688)
+     500      1392  |     1376 (    1376)  |      688 (     688)  |      688 (     688)
+     400      1392  |      688 (     688)  |      688 (     688)  |      688 (     688)
+     300      1392  |      688 (     688)  |      688 (     688)  |      688 (     688)
+     200      1392  |      688 (     688)  |      688 (     688)  |      688 (     688)
+     128       296  |      688 (     688)  |      688 (     688)  |      688 (     688)
+      90       296  |      688 (     688)  |      688 (     688)  |      688 (     688)
+      64       296  |      688 (     688)  |      688 (     688)  |      688 (     688)
+      32       174  |      688 (     688)  |      688 (     688)  |      688 (     688)
+      16       174  |      688 (     688)  |      688 (     688)  |        5 (       5)
+       8        18  |      688 (     688)  |        5 (       5)  |        5 (       5)
+       4         0  |        5 (       5)  |        5 (       5)  |        5 (       5)
+       2         0  |        5 (       5)  |        5 (       5)  |        5 (       5)
+       1         0  |        5 (       5)  |        5 (       5)  |        5 (       5)
+how far from the full mesh, in pixels (rms / most), and with how many triangles: the ladder's level where it takes over, and the cut at the same size
+  at  170 px  ladder    296 tris 2.26 / 15.44  | cut 1 px:    688 tris 2.96 / 36.88  | cut 2 px:    688 tris 2.96 / 36.88  | cut 4 px:    688 tris 2.96 / 36.88
+  at   45 px  ladder    174 tris 2.31 / 9.94  | cut 1 px:    688 tris 0.78 / 9.76  | cut 2 px:    688 tris 0.78 / 9.76  | cut 4 px:    688 tris 0.78 / 9.76
+  at   15 px  ladder     18 tris 1.14 / 3.76  | cut 1 px:    688 tris 0.26 / 3.25  | cut 2 px:    688 tris 0.26 / 3.25  | cut 4 px:      5 tris 1.63 / 5.30
+the tail under one cluster: 20, 10, 5 triangles
+cracks: 0 open edges in the 51 cuts above (0 pinched), 0 open in 126 more cuts from all round (0 pinched)

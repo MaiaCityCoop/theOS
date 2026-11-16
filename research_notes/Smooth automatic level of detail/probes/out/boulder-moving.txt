@@ -1,0 +1,58 @@
+boulder: 55298 vertices, 110592 triangles; groups of 8
+built in 7645 ms (14465 triangles a second): base clusters 112, grouping (JS) 61, simplifying 87, splitting 88, bounds 7298; the mesh itself took 375
+1814 clusters in 15 levels, 221042 triangles in all (1.999 times the mesh); 1 at the top with 6 triangles; unsound parents: 0
+its vertices cluster by cluster: 151350 (83 a cluster, 2.74 times the mesh's); at 16 bytes a vertex and a byte a corner: 3.08 MB, the full mesh alone as the heap keeps it 2.21 MB
+level  clusters  triangles  largest error (of its size)  stuck groups
+    0       867     110592       0.00e+0  0
+    1       451      55288       7.94e-4  0
+    2       242      27628       1.06e-3  0
+    3       124      13794       1.71e-3  0
+    4        65       6886       2.35e-3  0
+    5        31       3436       3.33e-3  0
+    6        16       1716       5.12e-3  0
+    7         7        858       8.16e-3  0
+    8         4        428       1.05e-2  0
+    9         2        214       1.70e-2  0
+   10         1        106       2.47e-2  0
+   11         1         52       4.44e-2  0
+   12         1         26       6.03e-2  0
+   13         1         12       1.26e-1  0
+   14         1          6       1.58e-1  0
+the ladder today: level, squares an edge, drawn down to px, triangles, how far its vertices move to the next mesh (most, rms; of its size), that in pixels at the change
+  0  full     400   110592  0.0137  0.0018  5.5 px most, 0.7 px rms
+  1    32     128    12288  0.0229  0.0040  2.9 px most, 0.5 px rms
+  2    16      64     3072  0.0429  0.0074  2.7 px most, 0.5 px rms
+  3     8      32      768  0.0650  0.0159  2.1 px most, 0.5 px rms
+  4     4      16      192  0.1510  0.0443  2.4 px most, 0.7 px rms
+  5     2       8       48  0.2575  0.1066  2.1 px most, 0.9 px rms
+  6     1       4       12  0.0000  0.0000  0.0 px most, 0.0 px rms
+  7   dot    1.15        1  0.0000  0.0000  0.0 px most, 0.0 px rms
+size on screen (px)  ladder  | cut at 1 px (in view)  | at 2 px (in view)  | at 4 px (in view)
+    4000    110592  |    56884 (   21236)  |    43494 (   16230)  |    33754 (   13760)
+    2000    110592  |    56098 (   24966)  |    40396 (   18408)  |    29802 (   13868)
+    1200    110592  |    45132 (   25319)  |    31054 (   17546)  |    23330 (   14791)
+     800    110592  |    34718 (   26486)  |    21356 (   16929)  |    14228 (   12073)
+     500    110592  |    18092 (   18092)  |    10028 (   10028)  |     6104 (    6104)
+     400     12288  |    14618 (   14618)  |     6886 (    6886)  |     3436 (    3436)
+     300     12288  |     8034 (    8034)  |     3436 (    3436)  |     1716 (    1716)
+     200     12288  |     3436 (    3436)  |     1716 (    1716)  |      428 (     428)
+     128      3072  |     1716 (    1716)  |      428 (     428)  |      214 (     214)
+      90      3072  |      858 (     858)  |      214 (     214)  |      106 (     106)
+      64       768  |      428 (     428)  |      106 (     106)  |       52 (      52)
+      32       192  |      106 (     106)  |       52 (      52)  |       26 (      26)
+      16        48  |       26 (      26)  |       26 (      26)  |        6 (       6)
+       8        12  |       26 (      26)  |        6 (       6)  |        6 (       6)
+       4         1  |        6 (       6)  |        6 (       6)  |        6 (       6)
+       2         1  |        6 (       6)  |        6 (       6)  |        6 (       6)
+       1         0  |        6 (       6)  |        6 (       6)  |        6 (       6)
+the tail under one cluster: 52, 26, 12, 6 triangles
+moving vertices: where each lost vertex lies on its group's simplified surface found in 7285 ms; a group moved all the way lies at most 4.93e-2 of the thing's size from that surface (1.86 of the group's own error at worst, 0.113 of it on average), of 221036 triangles; a lost vertex goes to the nearest point of the simplified surface; a group's error at least 1.25 times its children's; moving over the last 1.25 times tau
+a walk up to it, 412 steps from 20 px to 1200 px; the smallest growth of error from a group to its parent: 1.250 times
+  error (px)  vertices moved  | the largest change in one step (px), at size  | a step's largest change: mean, 95th of a hundred  | steps with a change over half a pixel  | the most any vertex is off (px)  | two clusters disagreeing on a vertex
+       1      no            |   1.088 at    54 px          | 0.108, 0.761                    |   52 of 411                      |   1.21                  | 0.0e+0
+       1      yes           |   0.925 at   664 px          | 0.100, 0.499                    |   20 of 411                      |   1.21                  | 3.3e-8
+       2      no            |   2.722 at    32 px          | 0.129, 1.106                    |   48 of 411                      |   2.99                  | 0.0e+0
+       2      yes           |   1.474 at   145 px          | 0.146, 0.752                    |   32 of 411                      |   3.09                  | 3.3e-8
+       4      no            |   6.745 at    24 px          | 0.190, 1.536                    |   44 of 411                      |   9.10                  | 0.0e+0
+       4      yes           |   2.509 at    60 px          | 0.243, 1.058                    |   40 of 411                      |   9.19                  | 3.3e-8
+cracks: 0 open edges in the 51 cuts above (7 pinched), 0 open in 126 more cuts from all round (25 pinched)
