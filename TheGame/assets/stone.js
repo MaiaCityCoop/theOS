@@ -1,14 +1,16 @@
 // Stones: small rocks lying all over the land, more where it is dry, thick along the river's banks. An asset in the
 // one recipe (assets/index.js). Its shapes are worn rocks (assets/kit/rock.js), each at every level of the ladder; its
 // placement is a scatter: the land's engine (src/scatter/rocks.js) spreads thousands, each cell hashed to its own
-// shape, size and turn.
+// shape, size and turn. Its sizes are the measure's (world/scale.js): a stone of size s is s across.
+import { STONES } from '../world/scale.js';
+
 export default {
   uid: '62b01bbe-c92c-4181-b774-45a6af054b12',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)
   type: 'asset',
   name: 'Stones',
   kind: 'rock',
   about: 'Small field stones, a few centimetres to half a metre, lying in the grass and thick on the river banks.',
-  size: { length: [0.07, 0.55], width: [0.07, 0.55], height: [0.05, 0.4] },
+  size: { length: STONES.size, width: STONES.size, height: STONES.height },
   colours: { stone: [0.52, 0.5, 0.46] },
   // worn round and smooth by the river and the weather: few broken faces, little moss, a paler, warmer grey than the boulders
   look: { material: 'f4a707ab-dcac-4c3a-a4d6-7a929d0e945e' /* pebble */, moss: 0.12, relief: 0.6, tint: [0.92, 0.9, 0.87], cuts: 0.3, smooth: 0.85 },

@@ -111,6 +111,26 @@ export const HOLM_OAK = {
   ],
 };
 
+/** Rocks, by their largest side, as the world draws them (src/scatter/rocks.js): a rock of size s is s across (its
+ *  lumps a few hundredths more). `size`: the least and the most the world draws of them (a rock's size is its cell's
+ *  die: most of them small); `height`: how high one stands, as it lies (its recipe's, not measured against a source). */
+export const STONES = {
+  real: 'field stones: most of them cobbles, a few small boulders',
+  size: [0.07, 0.55],
+  height: [0.05, 0.4],
+  across: { typical: [0.064, 0.256], most: 1.024 },
+  own: ['height: how high a stone stands as it lies'],
+  source: ['Wentworth 1922, "A scale of grade and class terms for clastic sediments": cobbles 64 to 256 mm, boulders larger; Blair & McPherson 1999: fine boulders 0.256 to 0.512 m, medium 0.512 to 1.024 m'],
+};
+export const BOULDERS = {
+  real: 'boulders, where the outcrops break through',
+  size: [0.7, 4.2],
+  height: [0.5, 3],
+  across: { typical: [0.512, 2.048], most: 8.192 },
+  own: ['height: how high a boulder stands as it lies'],
+  source: ['Blair & McPherson 1999, "Grain-size and textural classification of coarse sedimentary particles": boulders medium 0.512 to 1.024 m, coarse 1.024 to 2.048 m, very coarse 2.048 to 4.096 m; larger, blocks (fine 4.1 to 8.2 m)'],
+};
+
 /** The measures, by the uid of the recipe each is of. */
 export const THINGS = {
   // the people
@@ -169,16 +189,6 @@ export const THINGS = {
     source: ['false oat-grass (Arrhenatherum elatius), a hay meadow\'s tallest: 0.5 to 1.2 m, now and then 1.5 m (Flora Helvetica); 0.6 to 1.5 m (Bayer crop science)'],
   },
   // rocks, by their widest side: the sedimentologists' scale of grain sizes
-  '62b01bbe-c92c-4181-b774-45a6af054b12': {
-    real: 'field stones: most of them cobbles, a few small boulders',
-    across: { typical: [0.064, 0.256], most: 1.024 },
-    known: 'drawn about twice the size its recipe says (7 to 55 cm long, assets/stone.js): src/scatter/rocks.js draws a rock\'s largest side as its size times its shape\'s span (assets/kit/rock.js: a rock of size 1 is 1.8 to 2.6 across), while the recipe, its card in the library and this measure read its size as its length. Set right, every stone in the world is about half as large; the engine is the stress world\'s too. Samuel\'s choice (intent 0035)',
-    source: ['Wentworth 1922, "A scale of grade and class terms for clastic sediments": cobbles 64 to 256 mm, boulders larger; Blair & McPherson 1999: fine boulders 0.256 to 0.512 m, medium 0.512 to 1.024 m'],
-  },
-  '42345740-c3cc-455a-8017-a97ccdee6df3': {
-    real: 'boulders, where the outcrops break through',
-    across: { typical: [0.512, 2.048], most: 8.192 },
-    known: 'drawn about twice the size its recipe says (up to 4.2 m, assets/boulder.js), as the stones (above): set right, every boulder is about half as large. Samuel\'s choice (intent 0035)',
-    source: ['Blair & McPherson 1999, "Grain-size and textural classification of coarse sedimentary particles": boulders medium 0.512 to 1.024 m, coarse 1.024 to 2.048 m, very coarse 2.048 to 4.096 m; larger, blocks (fine 4.1 to 8.2 m)'],
-  },
+  '62b01bbe-c92c-4181-b774-45a6af054b12': STONES,
+  '42345740-c3cc-455a-8017-a97ccdee6df3': BOULDERS,
 };

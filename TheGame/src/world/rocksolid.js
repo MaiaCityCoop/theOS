@@ -33,8 +33,8 @@ function rockIn(k, ki, i, j) {
   const keep = k.big ? rnd(i, j, 200) <= (0.012 + 0.6 * oc) * sstep(R.w + 2, R.w + 9, R.d) && !onWay(x, z, 3) : rnd(i, j, 200) <= G.stone * 0.7;   // as the card keeps them (src/scatter/rocks.js)
   if (keep) {
     // its size, and which of its asset's shapes it is (the same two hashes as the card's); that shape's reach and height
-    const r1 = rnd(i, j, 204), s = k.lo + (k.hi - k.lo) * (r1 * r1 * r1 + (k.big ? oc * 0.25 * r1 : 0)), v = Math.min(k.shapes - 1, Math.floor(rnd(i, j, 201) * k.shapes)), B = rockBody(k.asset, v);
-    rock = { x, z, s, v, uid: k.uid, side: s * B.span, key, thing: idOf(`rocks:${k.uid}`, i, j), kind: k.zoo + v, sunk: B.sunk, yaw: rnd(i, j, 211) * TAU };   // (its turn: the card's, src/scatter/rocks.js; thing: its asset and its cell, as the GPU keys it: src/world/things.js)
+    const r1 = rnd(i, j, 204), s = k.lo + (k.hi - k.lo) * Math.min(1, r1 * r1 * r1 + (k.big ? oc * 0.25 * r1 : 0)), v = Math.min(k.shapes - 1, Math.floor(rnd(i, j, 201) * k.shapes)), B = rockBody(k.asset, v);
+    rock = { x, z, s, v, uid: k.uid, side: s, key, thing: idOf(`rocks:${k.uid}`, i, j), kind: k.zoo + v, sunk: B.sunk, yaw: rnd(i, j, 211) * TAU };   // (its turn: the card's, src/scatter/rocks.js; thing: its asset and its cell, as the GPU keys it: src/world/things.js)
   }
   kept.set(key, rock); return rock;
 }

@@ -335,7 +335,7 @@ function chooseLineup() {
   clearStage();
   const all = Object.values(ASSETS), byName = (n) => all.find((a) => a.name === n), with_ = { 'Fire pit': 'Flame' };   // (the flame stands in its pit)
   const order = [...LINEUP.map((n) => (n ? byName(n) : 'person')).filter(Boolean), ...all.filter((a) => !LINEUP.includes(a.name) && a.name !== 'Flame' && engineOf(a)?.id !== 'grass' && a.placement.engine !== 'grass')];
-  const R = (a) => (a === 'person' ? 1.2 : a.placement.engine === 'rocks' ? (most(a.size.length) * 0.7 + 0.4) * 2.7 + most(a.size.length) * 2 : a.placement.engine === 'trees' ? Math.max(1, most(a.size.length) * 0.75) : most(a.size.length));
+  const R = (a) => (a === 'person' ? 1.2 : a.placement.engine === 'rocks' ? (most(a.size.length) * 0.4 + 0.3) * 2.7 + most(a.size.length) : a.placement.engine === 'trees' ? Math.max(1, most(a.size.length) * 0.75) : most(a.size.length));
   const gap = 0.8, wide = order.reduce((t, a) => t + R(a) + gap, -gap), z = STAGE.z, eyes = new THREE.MeshBasicMaterial({ color: 0xf2b544 });
   ground.stage(STAGE.x, STAGE.z, wide / 2 + 4);   // (bare ground under the whole line: no blade in front of what is small)
   let x = STAGE.x - wide / 2;

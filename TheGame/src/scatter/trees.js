@@ -29,7 +29,7 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, step } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, exp, step } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt, nearLake } from '../world/land.nodes.js';
 import { kindsOf, whereOf } from '../world/stand.js';
@@ -118,7 +118,11 @@ function plantIn(c, G, band, all, seen, found) {
             GR.stages.forEach((S, j) => {
               const lo = j ? S.from : -1, hi = j < GR.stages.length - 1 ? S.to : 1e9;
               If(age.greaterThanEqual(lo).and(age.lessThan(hi)), () => {
-                const t = clamp(log(max(age, S.from).div(S.from)).div(Math.log(S.to / S.from)), 0, 1), hh = mix(S.hFrom, S.hTo, t);
+                // (its height: its stage's height by age where the stage begins, at its year and where it ends, straight
+                // in the logarithms of age and height between them, as assets/kit/tree.js heightIn works it out)
+                const ag = clamp(age, S.from, S.to), low = ag.lessThan(S.year);
+                const t = low.select(log(ag.div(S.from)).div(Math.log(S.year / S.from)), log(ag.div(S.year)).div(Math.log(S.to / S.year)));
+                const hh = exp(low.select(mix(float(Math.log(S.hFrom)), float(Math.log(S.h)), t), mix(float(Math.log(S.h)), float(Math.log(S.hTo)), t)));
                 h.assign(hh.mul(own)); which.assign(floor(rnd(cx, cy, h0(309)).mul(S.variants)).add(S.offset + Kd.offset));
               });
             });
@@ -152,9 +156,11 @@ function plantIn(c, G, band, all, seen, found) {
 // light reaches round its leaves, how much shines through, and the layers of its leaves' and its wood's textures:
 // src/materials/bake.js); tint, its leaves' own colour. A kind is these numbers: no shader of its own.
 /** How large shape `shape` of a plant asset is at scale 1, metres, as its size on screen is measured (sizeOf: a tree's
-    height, a bush's largest side): its stage's height where it grows by its stand's age (assets/kit/tree.js: growth;
-    `staged`), else its asset's, by the kind's measure. A plant's packed size (A.w) over this is its scale. */
-export const sizeAtOne = (a, shape = 0, staged = true) => { const H = a.size.height, S = staged && a.growth?.stages?.find((x) => shape >= x.offset && shape < x.offset + x.variants); return (S ? S.h : H) * (sizeOf(a) / H); };
+    height, a bush's largest side): where it grows by its stand's age (assets/kit/tree.js: growth; `staged`), that
+    shape's own height as built (its crown's top, which may stand over its stage's height by age), so a tree of an age
+    is drawn exactly as tall as its height by age says (intent 0035); else its asset's, by the kind's measure. A plant's
+    packed size (A.w) over this is its scale. */
+export const sizeAtOne = (a, shape = 0, staged = true) => { const H = a.size.height, S = staged && a.growth?.stages?.find((x) => shape >= x.offset && shape < x.offset + x.variants); return (S ? a.heights?.[shape] ?? S.h : H) * (sizeOf(a) / H); };
 const numbersOf = (tex, row, shape = 0) => {
   const a = row.asset, M = a.materials || {}, F = { wrap: 0.45, through: 0.55, flutter: 1, ...kindOf(a, 'foliage') };   // (its own `foliage` over its kind's)
   return { hk: a.heights?.[shape] ?? a.size.height, ks: sizeAtOne(a, shape), wind: [kindOf(a, 'wind')?.sway ?? 0, a.placement.lean ?? 0, F.flutter, row.snow.clumps], leaf: [F.wrap, F.through, tex.layer(M.leaves ?? M.needles ?? M.wood), tex.layer(M.wood ?? M.leaves ?? M.needles)], twig: tex.layer(a.fine?.twig ?? M.leaves ?? M.needles ?? M.wood), tint: F.tint ?? [1, 1, 1] };

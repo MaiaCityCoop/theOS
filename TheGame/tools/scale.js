@@ -6,13 +6,16 @@
 //
 // How a thing is stood as the world stands it:
 //   a plant of a stand (placement.engine 'trees': trees, bushes, what lies on the floor): each shape built at its nearest
-//     level and measured; times its placement's scale (a tree: its stage of growth at its stand's ages, as
-//     src/scatter/trees.js grows it); its foot set FOOT into the ground. Its middle: the engine's middle scale (a tree:
-//     its oldest stage at scale 1)
+//     level and measured; times its placement's scale; its foot set FOOT into the ground. Its middle: the engine's
+//     middle scale. A tree: the height its stand's ages ask (its stage's, from its height by age), drawn as the engine
+//     draws it (its packed size over its size at scale 1: src/scatter/trees.js sizeAtOne), its middle its oldest stage;
+//     and as the library stands it at each stage's age (its growth's `at`)
 //   a made thing (placement.at 'places': the tent, the fire pit, its flame): each level built and measured as it is
-//   rocks: their widest side on the ground, as src/scatter/rocks.js draws them: each shape in its own frame (its largest
-//     side 1, assets/kit/rock.js) times its size and its shape's span; the size its asset's least to most by the cube of
-//     a die (most rocks are small), a quarter more on an outcrop; the middle at the die's middle (an outcrop's too)
+//   rocks: their widest side on the ground, as src/scatter/rocks.js draws them: each shape built at every level of the
+//     ladder (assets/kit/rock.js: in the frame it is drawn in, its largest side 1) times its size, its asset's least to
+//     most by the cube of a die (most rocks are small), larger more often on an outcrop, never past its most; the
+//     middle at the die's middle. What stops a walker (its collider's round, src/world/rocksolid.js scales it by the
+//     same size) is held against how far the drawn rock reaches over the ground
 // A measure may say `known`: a disagreement found and said, not yet set right; it is shown, and does not fail the run.
 //   the grass: one blade, its asset's height times its tuft's share (0.5 to 2.2, src/scatter/grass.js), the middle the
 //     mean share
@@ -23,8 +26,12 @@ import './glob.js';
 const { recipe, manifest } = await import('../src/core/registry.js');   // (first, as the game does: the recipes import it back)
 const { THINGS, PERSON, WALKER } = await import('../world/scale.js');
 const RIG = (await import('../camera/rig.js')).default;
-const { FOOT } = await import('../src/scatter/trees.js');
-const { rockBody } = await import('../assets/kit/rock.js');
+const { FOOT, sizeAtOne } = await import('../src/scatter/trees.js');
+const { heightIn } = await import('../assets/kit/tree.js');
+const { rockBody, rockMesh, rockFamily } = await import('../assets/kit/rock.js');
+const { LADDER, DOTN } = await import('../assets/kit/ladder.js');
+const { unpackSolid } = await import('../assets/kit/solid.js');
+const { sizeOf } = await import('../assets/kinds.js');
 const THREE = await import('three/webgpu');
 const { texture } = await import('three/tsl');
 
@@ -47,10 +54,25 @@ function measured(a) {
     const B = bounds(mesh.geometry.attributes.position.array), h = B.top - Math.max(0, B.lo[1]);
     return { by: 'height', least: h, middle: h, most: h, notes };
   }
-  if (P.engine === 'rocks') {   // drawn in its own frame (its largest side 1) times its size and its shape's span; its size mix(least, most, die³ (+ a quarter more on an outcrop))
-    const wide = Array.from({ length: P.shapes ?? 1 }, (_, v) => { const B = rockBody(a, v), F = B.frame; return B.span * Math.max(F.max[0] - F.min[0], F.max[2] - F.min[2]); });
-    const [s0, s1] = a.size.length, mean = wide.reduce((s, x) => s + x, 0) / wide.length;
-    return { by: 'across', least: s0 * Math.min(...wide), middle: mix(s0, s1, 0.125 + (P.outcrops ? 0.0625 : 0)) * mean, most: mix(s0, s1, P.outcrops ? 1.25 : 1) * Math.max(...wide), notes };
+  if (P.engine === 'rocks') {   // each shape built at every level, in the frame it is drawn in (its largest side 1), times its size
+    const wide = [], fam = rockFamily('scale', a);
+    for (let v = 0; v < (P.shapes ?? 1); v++) {
+      let near = null, reach = 0;
+      LADDER.forEach((L, l) => {
+        if (L.n === DOTN) return;
+        const M = rockMesh(a, v, l), lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity], ps = [];
+        for (let i = 0; i < M.verts.length; i += 4) { const p = unpackSolid(M.verts, i, 1).p; ps.push(p); for (let k = 0; k < 3; k++) { if (p[k] < lo[k]) lo[k] = p[k]; if (p[k] > hi[k]) hi[k] = p[k]; } }
+        const w = Math.max(hi[0] - lo[0], hi[2] - lo[2]);
+        if (near == null) { near = w; const g = rockBody(a, v).sunk; for (const p of ps) if (p[1] >= g) reach = Math.max(reach, Math.hypot(p[0], p[2])); }   // (how far it reaches over the ground: what a walker sees of it)
+        else if (Math.abs(w - near) > LEVELS * near) notes.push(`shape ${v}, level ${l}: ${r3(w)} across against ${r3(near)} near, of its size`);
+      });
+      wide.push(near);
+      const C = fam.collidersOf(v)[0], k = C ? C.r / reach : 0;   // its collider's round against the drawn rock's reach over the ground, both of its size
+      if (!(k >= 0.5 && k <= 1.05)) notes.push(`shape ${v}: what stops a walker reaches ${r3(k)} of how far it is drawn over the ground`);
+      (measured.round ??= []).push(k);
+    }
+    const [s0, s1] = a.size.length, mean = wide.reduce((s, x) => s + x, 0) / wide.length, out = measured.round.splice(0);
+    return { by: 'across', least: s0 * Math.min(...wide), middle: mix(s0, s1, 0.125 + (P.outcrops ? 0.0625 : 0)) * mean, most: s1 * Math.max(...wide), round: [Math.min(...out), Math.max(...out)], notes };
   }
   if (P.engine === 'grass') return { by: 'height', least: a.height * 0.5, middle: a.height * (0.5 + 0.55 / 3 + 0.8 / 3), most: a.height * 2.2, notes };
   if (a.meshAt && a.shapeCount) {   // a plant of a stand
@@ -64,10 +86,19 @@ function measured(a) {
       }
     }
     const [k0, k1] = P.scale ?? [1, 1], G = a.growth;
-    if (G?.stages) {   // a tree: as old as its stand, its stage scaled to its own height (assets/kit/tree.js stagesOf)
-      const last = G.stages.at(-1), oldest = Math.max(...tops.slice(last.offset, last.offset + last.variants));
-      G.stages.forEach((S) => { const t = Math.max(...tops.slice(S.offset, S.offset + S.variants)); if (Math.abs(t - S.h) > 0.1 * S.h) notes.push(`stage of ${S.year} years: built ${r3(t)} m, its curve ${r3(S.h)} m`); });
-      return { by: 'height', least: G.stages[0].hFrom * k0 - FOOT, middle: oldest - FOOT, most: Math.max(...tops) * (last.hTo / last.h) * k1 - FOOT, notes };
+    if (G?.stages) {   // a tree: as old as its stand, drawn as the engine draws it (its packed size, the height its age asks times wide, over its shape's size at scale 1)
+      const near = a.heights, wide = sizeOf(a) / a.size.height, drawn = (shape, h) => (near[shape] * h * wide) / sizeAtOne(a, shape), of = (S) => Array.from({ length: S.variants }, (_, v) => S.offset + v);
+      const last = G.stages.at(-1), first = G.stages[0], fails = [];
+      // every stage, at ages through its span: drawn by the engine, and stood by the library, against its height by age
+      G.stages.forEach((S) => {
+        for (const age of [S.from, Math.sqrt(S.from * S.year), S.year, Math.sqrt(S.year * S.to), Math.min(S.to, 200)]) {
+          const want = G.height(age), h = heightIn(S, age);
+          for (const v of of(S)) { const d = drawn(v, h); if (Math.abs(d - want) > 0.05 * want) fails.push(`a tree of ${r3(age)} years (shape ${v}) drawn ${r3(d)} m, its height by age ${r3(want)} m`); }
+          const t = G.at(age), lib = near[t.shape] * t.s;   // the library's tree of this age (the trees' engine: stage)
+          if (Math.abs(lib - want) > 0.05 * want) fails.push(`the library's tree of ${r3(age)} years ${r3(lib)} m, its height by age ${r3(want)} m`);
+        }
+      });
+      return { by: 'height', least: Math.min(...of(first).map((v) => drawn(v, first.hFrom * k0))) - FOOT, middle: Math.max(...of(last).map((v) => drawn(v, last.h))) - FOOT, most: Math.max(...of(last).map((v) => drawn(v, last.hTo * k1))) - FOOT, notes, fails };
     }
     const sMid = mix(k0, k1, 0.5 ** 1.3), mean = tops.reduce((s, x) => s + x, 0) / tops.length;   // (its scale: mix(k0, k1, die^1.3), src/scatter/trees.js)
     return { by: 'height', least: Math.min(...tops) * k0 - FOOT, middle: mean * sMid - FOOT, most: Math.max(...tops) * k1 - FOOT, notes };
@@ -88,11 +119,15 @@ for (const [uid, m] of Object.entries(manifest)) {
   if (!S) { miss.push(`${m.name} (${m.file}): no measure in world/scale.js`); continue; }
   const M = measured(a);
   if (!M) { miss.push(`${m.name} (${m.file}): not measurable here`); continue; }
-  const want = M.by === 'across' ? S.across : { typical: S.typical, most: S.most }, fails = [];
+  const want = M.by === 'across' ? S.across : { typical: S.typical, most: S.most }, fails = [...(M.fails ?? [])];
+  if (M.by === 'across' && S.size) {   // a rock is drawn at its size: its least and most as drawn, its lumps allowed for
+    if (M.least < S.size[0] * 0.8 - 1e-6) fails.push(`its least ${r3(M.least)} m is under its size's least ${S.size[0]} m`);
+    if (M.most > S.size[1] * 1.1 + 1e-6) fails.push(`its most ${r3(M.most)} m is over its size's most ${S.size[1]} m`);
+  }
   if (want.typical && (M.middle < want.typical[0] - 1e-6 || M.middle > want.typical[1] + 1e-6)) fails.push(`its middle ${r3(M.middle)} m is not ${want.typical[0]} to ${want.typical[1]} m`);
   if (want.most != null && M.most > want.most + 1e-6) fails.push(`its most ${r3(M.most)} m is over ${want.most} m`);
   if (S.mature != null && a.growth?.height) { const h = a.growth.height(1e4); if (Math.abs(h - S.mature) > 0.01 * S.mature) fails.push(`its height by age comes to ${r3(h)} m, not ${S.mature} m`); }
-  rows.push({ name: m.name, file: m.file, real: S.real, by: M.by, least: r3(M.least), middle: r3(M.middle), most: r3(M.most), typical: want.typical, mostReal: want.most, own: S.own ?? [], source: S.source, notes: M.notes, fails, known: fails.length && S.known ? S.known : null });
+  rows.push({ name: m.name, file: m.file, real: S.real, by: M.by, least: r3(M.least), middle: r3(M.middle), most: r3(M.most), typical: want.typical, mostReal: want.most, round: M.round ?? null, own: S.own ?? [], source: S.source, notes: M.notes, fails, known: fails.length && S.known ? S.known : null });
 }
 // the walker: the person's body, as the camera and the solids read it
 const walker = { eye: RIG.eye, firstKey: RIG.keys[0].h, person: PERSON.stature, ...WALKER }, wfails = [];
@@ -104,6 +139,7 @@ else {
   console.log(`${pad('thing', 16)}${pad('by', 8)}${pad('least', 8)}${pad('middle', 8)}${pad('most', 8)}${pad('real: typical', 15)}${pad('most', 7)}`);
   for (const r of rows) {
     console.log(`${r.fails.length ? (r.known ? '!' : '✗') : '✓'} ${pad(r.name, 14)}${pad(r.by, 8)}${pad(r.least, 8)}${pad(r.middle, 8)}${pad(r.most, 8)}${pad(r.typical ? r.typical.join(' to ') : '', 15)}${pad(r.mostReal ?? '', 7)}${r.real}`);
+    if (r.round) console.log(`    what stops a walker: ${r.round.map(r3).join(' to ')} of how far it is drawn over the ground (its collider, by the same size)`);
     for (const f of r.fails) console.log(`    out: ${f}`);
     if (r.known) console.log(`    known: ${r.known}`);
     for (const n of r.notes) console.log(`    note: ${n}`);
