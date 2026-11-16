@@ -111,6 +111,23 @@ The skeleton and its proportions first, checked from the front and the side; mus
 their insertion, thinning into tendons; a skin over them; the face from the skull up; each part looked at alone
 before it is joined. A muscular man first, smooth at the groin as an anatomy figure is; women and other builds after.
 
+**Round 1, second attempt (2026-11-16), set aside.** A muscular man of reference (1.80 m) with the muscles laid as
+strands from their origin to their insertion, each end carried by its own bone (`characters/kit/anatomy.js`; the strand
+and a profiled tube added to `field.js`). Seen in previews only: the muscles floated apart with gaps between them, and the
+broad flat ones (the back's) stood off the ribs as wings in the arms-out pose. Muscles cannot be laid well without the
+bones they lie on.
+
+**Round 1, as Samuel then asked:** "do the bones completely correct first, and then the anatomically correct muscles
+and fat afterwards, each part, bones, fat and muscles, correctly coloured … as choreographed basis." In layers, each
+on the one below, each looked at alone before the next:
+
+1. The bones, bone-coloured: each in its own shape and size from the measures (skull and jaw, the spine's vertebrae,
+   ribs and breastbone, collarbones and shoulder blades, the pelvis, the long bones, kneecaps, the hands' and feet's
+   bones), meeting at their real joints: the skeleton the person moves by.
+2. The muscles, red: each from its origin on a bone to its insertion on another, at its size.
+3. The fat, yellow: where it lies, more or less by build, sex and age.
+4. The skin over all of it.
+
 ## Propose
 
 ## Story
@@ -123,6 +140,8 @@ before it is joined. A muscular man first, smooth at the groin as an anatomy fig
 
 - [ ] Round 1: the body (naked, no hair, muscular first; clothes later)
   - [x] a first attempt from blended solids (turned down)
+  - [x] a second, muscles as strands without the bones under them (set aside)
+  - [ ] the bones, each in its shape, bone-coloured, at their joints
   - [ ] the skeleton and its proportions, checked from the front and side
   - [ ] muscles from origin to insertion, a skin over them
   - [ ] the face from the skull up; hands; feet
@@ -142,7 +161,8 @@ before it is joined. A muscular man first, smooth at the groin as an anatomy fig
   (SwiftShader, 1280×720).
 - **Broke / not there yet:** The first body: "This looks absolute catastrophic." Every solid showed as a lump; the
   proportions, the face, the hands and the clothes were all wrong (Build). Samuel: naked first, no hair, a muscular
-  body; the clothes later.
+  body; the clothes later. A second attempt, muscles as strands over no bones, floated apart (Build). Samuel: the
+  bones first, completely correct, then the muscles and the fat, each layer in its own colour.
 
 ## Trail
 
@@ -150,3 +170,4 @@ before it is joined. A muscular man first, smooth at the groin as an anatomy fig
 | --- | --- | --- |
 | 2026-11-16 | `4af0d5d` | the intent opened and defined |
 | 2026-11-16 | `97ae830` | a first body from blended solids, turned down; the field and the tables it reads |
+| 2026-11-16 | `db7eddc` | a second body, muscles as strands with no bones under them, set aside |
