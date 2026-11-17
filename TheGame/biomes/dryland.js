@@ -1,5 +1,5 @@
 // Dry land: where the land is dry. A biome of the world, in the one recipe every biome follows (biomes/README.md).
-import { float, uint, smoothstep } from 'three/tsl';
+import { uint, smoothstep } from 'three/tsl';
 import { vnoise, bent, turned, second } from '../src/world/noise.nodes.js';
 
 export default {
@@ -14,9 +14,9 @@ export default {
   // It reads its place bent (B), with a second swell far from home and its finer noise turned, so it is not blocks along
   // the noise's grid (world/outlines.js; in JS, the same: src/world/land.js aridAt)
   where: ({ p, B = bent(p) }) => smoothstep(0.5, 0.66, vnoise(B.div(700), uint(50)).add(vnoise(turned(B, 2).div(330), uint(54)).sub(0.5).mul(second(p))).add(vnoise(turned(B).div(150), uint(51)).sub(0.5).mul(0.3))),
-  floor: { material: '082f0183-5d92-4ac8-821c-14408d3ee056' /* dryearth */, tile: [4.0, 6.4] },
-  // sandy spots in it, where a noise of 45 m says (let go far off)
-  spots: { material: '2f329f07-d2ba-4dc8-a6e3-73053c65e10f' /* sand */, tile: [2.0, 3.2], where: ({ p, dist }) => smoothstep(0.55, 0.72, vnoise(p.mul(1 / 45), uint(73))).mul(float(1).sub(smoothstep(600, 1500, dist))) },
+  floor: { material: '082f0183-5d92-4ac8-821c-14408d3ee056' /* dryearth */, tile: 4.0 },
+  // sandy spots in it, where a noise of 45 m says (let go far off: fade, metres)
+  spots: { material: '2f329f07-d2ba-4dc8-a6e3-73053c65e10f' /* sand */, tile: 2.0, where: ({ p }) => smoothstep(0.55, 0.72, vnoise(p.mul(1 / 45), uint(73))), fade: [600, 1500] },
   grass: {
     cover: 0.45,                                           // grass only in tufts, and less of it
     tufts: true,

@@ -1,6 +1,6 @@
 // The gate (intent 0038): one driver for every check of the picture and of its cost. Run from TheGame/ against the dev
-// server (http://localhost:5180/game/, or GATE_URL), in the system's own Chrome through Playwright, headless (--headed:
-// in a window, for frame times as a screen paces them):
+// server (http://localhost:5180/game/, or GATE_URL, or --url <url> on any command), in the system's own Chrome through
+// Playwright, headless (--headed: in a window, for frame times as a screen paces them):
 //
 //   bun tools/gate.js stills [--tag t] [--truth] [--views a,b]   the gate's views (tools/gate/views.js) as 4K PNGs in
 //                                                                .gate/<tag>/ (by default the commit); --truth: ?truth
@@ -36,7 +36,7 @@ import { VIEWS, PATHS } from './gate/views.js';
 import { BUDGET } from './bench.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
 
-const BASE = process.env.GATE_URL || 'http://localhost:5180/game/';
+let BASE = process.env.GATE_URL || 'http://localhost:5180/game/';   // (--url: another server, set with the options below)
 const OUT = new URL('../.gate/', import.meta.url).pathname;   // TheGame/.gate/: made again by every run, not kept in git
 const SCREEN = { width: 1920, height: 1080, dpr: 2 }, INSIDE = 4 / 3, TIME = 100;   // (TIME: the seconds the world's clock stands at for stills)
 const FRAME = 1000 / 60, JITTER = 1, MEMORY = 8e9;   // the hard gates in motion: no frame longer than 1/60 s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within 8 GB
@@ -81,13 +81,13 @@ async function settled({ wait, at }) {
 
 /** In the page, once, for pictures that hold still: the world's clock standing at `time` seconds (the fire, the smoke,
     the water and the grass caught at the same moment in every run; what grows by the clock is grown at once where the
-    clock is held, src/core/settle.js), the governor held where it starts, the world drawn inside at `inside` (or as the
+    clock is held, src/core/settle.js), the governor held where it starts (its detail cap too), the world drawn inside at `inside` (or as the
     page chooses: ?truth), and no lens blur (the walker sees none, and it would hide what detail does). */
 async function prepare({ inside, time }) {
   const s = window.__game, R = performance.getEntriesByType('resource').map((e) => e.name);
   const { U } = await import(R.filter((n) => n.includes('src/core/uniforms.js')).at(-1));
   if (time != null) Object.defineProperty(U.uTime, 'value', { get: () => time, set() {}, configurable: true });
-  s.governor.hold(true);
+  s.governor.hold(true); s.governor.rest?.();   // (and its detail cap where it starts: what the start's frames cost must not change the picture)
   s.renderer.setPixelRatio(devicePixelRatio);   // (the canvas at all the screen's pixels: so the game keeps it, up to two a point)
   if (inside != null) s.screen.set(inside);
   window.__cine.dof = false;
@@ -428,6 +428,7 @@ for (let i = 0; i < args.length; i++) {
   else if (FLAGS.has(a.slice(2))) opt[a.slice(2)] = true;
   else opt[a.slice(2)] = args[++i];
 }
+if (opt.url) BASE = new URL(opt.url).href;
 const WITH = { stills: (c) => stills(c, opt), noise: (c) => noise(c, pos[0], opt), bench: (c) => bench(c, opt), compile: (c) => compile(c, opt) };
 try {
   let r;

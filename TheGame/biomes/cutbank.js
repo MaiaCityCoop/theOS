@@ -14,7 +14,7 @@ export default {
   river: true,
   // where it lies (node code): on a bend's outside, from just inside the water's edge to a few metres up the bank
   where: ({ p, d, w, b }) => { const dd = d.add(edgeJit(p.add(31)).mul(0.7)); return max(b, 0).mul(smoothstep(w.mul(0.85), w.mul(0.98), dd)).mul(float(1).sub(smoothstep(w.add(1.4), w.add(3.4), dd))); },
-  floor: { material: '082f0183-5d92-4ac8-821c-14408d3ee056' /* dryearth */, tile: [1.6, 2.6] },
+  floor: { material: '082f0183-5d92-4ac8-821c-14408d3ee056' /* dryearth */, tile: 1.6 },
   grass: null,
   stones: 0.12,
 };
