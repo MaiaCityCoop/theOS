@@ -187,6 +187,15 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes.
 - **Broke / not there yet:** —
 
+### 2026-11-17 (13)
+
+- **Asked:** "Deep inside, I know this truth… I carry…"; remove "and smiles now"; the Moon-to-Earth transition is bad
+  and "a few of us" is not needed.
+- **Delivered:** the opening as he worded it; "smiles now" out; the transition one line: "Together, we reached the
+  Moon. Now, together, we build a green city on Earth, with our bare hands."
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** —
+
 ## Trail
 
 | When | Commit | What |

@@ -28,15 +28,13 @@ severity:
 
 ## The core message
 
-> **Deep inside, when I am honest with myself, I know I carry a power far greater than anything in the universe.**
+> **Deep inside, I know this truth: I carry a power far greater than anything in the universe.**
 >
-> And it is not just me. You know it too. In fact, each and every one of us knows it, and smiles now.
+> And it is not just me. You know it too. In fact, each and every one of us knows it.
 >
 > Imagine a million humans waking up with sparkling eyes, a smiling heart and fire in the belly. Every day. Every vision that waited for permission, finally built, side by side.
 >
-> We stood on the Moon. That was a few of us.
->
-> Now a million of us stand on Earth, in a green city we build with our bare hands.
+> Together, we reached the Moon. Now, together, we build a green city on Earth, with our bare hands.
 >
 > This is Maia City. Food forests by every door. Green energy on every roof. Everything owned by all of us who build it. Every hour free for what we love.
 >
