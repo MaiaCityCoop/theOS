@@ -74,9 +74,9 @@ export const TISSUE_DEFAULT = 4;
 // across (the eye's mean diameter: Bekerman et al. 2014, "Variations in eyeball diameters of the healthy adults",
 // J Ophthalmol, as remembered). `rig`: the bone that carries it.
 export const UNDER = [
-  { what: 'nose bridge', rig: 'head', solid: ['rod', [0.0, 1.668, 0.1], [0.0, 1.638, 0.12], 0.0042, 0.0058] },
-  { what: 'nose tip', rig: 'head', solid: ['egg', [0.0, 1.6335, 0.1205], [0.0075, 0.0072, 0.0085]] },
-  { what: 'nose wing', rig: 'head', solid: ['egg', [0.0118, 1.6295, 0.108], [0.0052, 0.0055, 0.0078]] },
+  { what: 'nose bridge', rig: 'head', solid: ['rod', [0.0, 1.668, 0.1], [0.0, 1.638, 0.117], 0.0042, 0.0058] },
+  { what: 'nose tip', rig: 'head', solid: ['egg', [0.0, 1.6345, 0.1175], [0.0075, 0.0072, 0.0082]] },
+  { what: 'nose wing', rig: 'head', solid: ['egg', [0.0122, 1.6295, 0.1075], [0.0056, 0.0056, 0.0078]] },
   { what: 'ear shell', rig: 'head', solid: ['egg', [0.077, 1.666, -0.022], [0.007, 0.03, 0.0175], [[0.94, 0, 0.34], [0, 1, 0]]] },
   { what: 'ear lobe', rig: 'head', solid: ['egg', [0.074, 1.633, -0.016], [0.006, 0.009, 0.008]] },
   { what: 'eye', rig: 'eye', solid: ['ball', [0.032, 1.677, 0.072], 0.012] },
@@ -85,7 +85,7 @@ export const UNDER = [
 // opening, 30 mm), the nostrils, the bowl of the ear.
 export const OPENINGS = [
   { what: 'eye opening', solid: ['egg', [0.032, 1.6768, 0.085], [0.0142, 0.0035, 0.012]] },
-  { what: 'nostril', solid: ['egg', [0.0075, 1.6245, 0.113], [0.0034, 0.003, 0.0058]] },
+  { what: 'nostril', solid: ['egg', [0.0072, 1.6255, 0.11], [0.0032, 0.0028, 0.0055]] },
   { what: 'ear bowl', solid: ['egg', [0.084, 1.66, -0.018], [0.0055, 0.0115, 0.0085]] },
 ];
 // Where the skin takes another colour: the lips (their red), the areolae, the nails. [what, centre, radii (m)]
@@ -147,11 +147,11 @@ export const PROFILES = [
   { part: 'arm', a: [0.186, 1.425, -0.042], b: [0.2, 1.13, -0.056], front: [0, 0, 1], fade: [0, 0], limb: 'arm', joins: [0, 1], sections: [   // the upper arm, from over the shoulder to the elbow
     [0, 4.2, 3.0, 4.6, 4.6, 2.0], [0, 5.2, 4.2, 5.4, 5.4, 2.1], [0, 4.9, 4.5, 5.2, 5.1, 2.1], [0, 4.6, 4.5, 5.4, 5.0, 2.1], [0, 4.3, 4.1, 4.7, 4.7, 2.1], [0, 4.0, 3.7, 4.1, 4.4, 2.1]] },
   { part: 'arm', a: [0.2, 1.13, -0.056], b: [0.226, 0.875, -0.022], front: [0, 0, 1], fade: [0, 1], limb: 'arm', joins: [1, 0], sections: [   // the forearm, from the elbow to the wrist
-    [0, 4.3, 3.8, 4.2, 4.1, 2.1], [0, 4.6, 4.0, 4.6, 4.1, 2.1], [0, 4.0, 3.6, 4.1, 3.6, 2.1], [0, 3.3, 3.0, 3.6, 3.1, 2.15], [0, 2.4, 2.2, 3.0, 2.7, 2.2], [0, 1.9, 1.7, 2.7, 2.5, 2.3]] },
+    [0, 4.5, 4.0, 4.4, 4.3, 2.1], [0, 5.0, 4.4, 5.0, 4.5, 2.1], [0, 4.4, 3.9, 4.4, 3.9, 2.1], [0, 3.5, 3.2, 3.8, 3.3, 2.15], [0, 2.4, 2.2, 3.0, 2.7, 2.2], [0, 1.9, 1.7, 2.7, 2.5, 2.3]] },
   { part: 'leg', a: [0.088, 0.9, 0.0], b: [0.085, 0.5, 0.006], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [0, 1], sections: [   // the thigh, from the hip to the knee
     [0, 9.0, 8.0, 8.5, 9.5, 2.2], [0, 9.3, 8.6, 9.0, 9.6, 2.2], [0, 8.8, 8.3, 8.8, 8.8, 2.2], [0, 8.0, 7.6, 8.4, 7.8, 2.2], [0, 6.8, 6.6, 7.4, 6.4, 2.2], [0, 5.3, 5.5, 6.0, 5.3, 2.1]] },
   { part: 'leg', a: [0.085, 0.5, 0.006], b: [0.078, 0.1, -0.016], front: [0, 0, 1], fade: [0, 1], limb: 'leg', joins: [1, 0], sections: [   // the leg, from the knee to the ankle
-    [0, 5.3, 5.5, 5.8, 5.4, 2.1], [0, 5.3, 5.6, 4.6, 6.6, 2.1], [0, 5.1, 5.6, 4.2, 7.0, 2.1], [0, 4.3, 4.4, 3.6, 5.6, 2.1], [0, 3.4, 3.4, 3.0, 4.1, 2.1], [0, 3.0, 3.2, 2.8, 3.4, 2.1]] },
+    [0, 5.3, 5.5, 5.8, 5.4, 2.1], [0, 5.6, 6.0, 4.8, 7.2, 2.1], [0, 5.4, 6.0, 4.4, 7.5, 2.1], [0, 4.5, 4.7, 3.7, 5.9, 2.1], [0, 3.4, 3.4, 3.0, 4.1, 2.1], [0, 3.0, 3.2, 2.8, 3.4, 2.1]] },
 ];
 // Masses the outline holds besides its sections: each buttock (the gluteus maximus under its pad of fat, its fold at
 // 0.80 m, the cleft between the two), a superellipsoid round its middle (left side; m): [out, in, up, down, front,
@@ -161,11 +161,11 @@ export const PROFILES = [
 export const MASSES = [
   // the face's own (the skin over them; Farkas's norms of the adult man's face, as remembered: the mouth 5.2 cm wide,
   // the upper lip standing 11.6 cm forward of the head's middle, the lower 11.3, the chin 10.9; middle only, m)
-  { part: 'head', what: 'mouth', at: [0, 1.6, 0.082], r: [0.033, 0.033, 0.02, 0.022, 0.024, 0.03], n: 2.0, k: 0.016, arch: 12 },   // (the teeth's arch under the lips)
+  { part: 'head', what: 'mouth', at: [0, 1.6, 0.08], r: [0.036, 0.036, 0.022, 0.024, 0.025, 0.03], n: 2.0, k: 0.028, arch: 12 },   // (the teeth's arch under the lips)
   { part: 'head', what: 'upper lip', at: [0, 1.6045, 0.107], r: [0.026, 0.026, 0.0065, 0.0045, 0.0065, 0.01], n: 2.0, k: 0.005, arch: 22 },
   { part: 'head', what: 'lower lip', at: [0, 1.5925, 0.1045], r: [0.023, 0.023, 0.0045, 0.0065, 0.0065, 0.01], n: 2.0, k: 0.005, arch: 22 },
   { part: 'head', what: 'masseter', at: [0.046, 1.623, 0.024], r: [0.019, 0.02, 0.022, 0.028, 0.026, 0.022], n: 2.0, k: 0.018 },   // (and the cheek's fat over it)
-  { part: 'head', what: 'chin', at: [0, 1.57, 0.092], r: [0.026, 0.026, 0.014, 0.014, 0.01, 0.014], n: 2.0, k: 0.028 },
+  { part: 'head', what: 'chin', at: [0, 1.571, 0.09], r: [0.03, 0.03, 0.014, 0.013, 0.011, 0.014], n: 2.0, k: 0.03 },
   { part: 'trunk', what: 'deltoid', at: [0.172, 1.44, -0.032], r: [0.042, 0.03, 0.045, 0.07, 0.045, 0.048], n: 2.1, k: 0.025 },   // (the shoulder's cap, over the acromion and the head of the arm)
   { part: 'trunk', what: 'pectoral', at: [0.078, 1.33, 0.078], r: [0.074, 0.064, 0.1, 0.038, 0.022, 0.03], n: 2.6, k: 0.025, lean: 0.3 },   // (a slightly muscular man's: its lower edge at the nipples, the sternum in the groove between the two)
   { part: 'trunk', what: 'buttock', at: [0.072, 0.885, -0.08], r: [0.085, 0.062, 0.11, 0.085, 0.05, 0.065], n: 2.5, k: 0.025 },

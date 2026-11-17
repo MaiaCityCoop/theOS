@@ -231,7 +231,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
     // nose's and the ears' gristle and the eyes sharp again over it)
     const whole = head ? new Float32Array(n) : null;
     if (head) for (let k = lo[2]; k <= hi[2]; k++) for (let j = lo[1]; j <= hi[1]; j++) for (let i = lo[0]; i <= hi[0]; i++) { const g = I(i, j, k), q = at(i, j, k); whole[q] = exactPart[g] === p ? smin(sd[q], exact[g], 0.005) : sd[q]; }
-    const far = pro.length ? Float32Array.from(sd) : head ? Float32Array.from(whole) : null; if (far) blurBox(far, dims, Math.round((head ? 0.02 : 0.04) / h));
+    const far = pro.length ? Float32Array.from(sd) : head ? Float32Array.from(whole) : null; if (far) blurBox(far, dims, Math.round((head ? 0.014 : 0.04) / h));
     // (and softened a little: the skin bridges what is narrower than a centimetre between two bellies)
     const mid = pro.length ? Float32Array.from(sd) : null; if (mid) blurBox(mid, dims, 1);
     for (let k = lo[2]; k <= hi[2]; k++) for (let j = lo[1]; j <= hi[1]; j++) for (let i = lo[0]; i <= hi[0]; i++) {
