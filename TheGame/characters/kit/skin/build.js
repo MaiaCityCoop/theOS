@@ -23,7 +23,7 @@
 // The skin is where that is as far out as the fat and the skin are thick there, half way to a man's measured outline
 // (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through; the surface is drawn out of the grid (surface nets) and smoothed along itself: two surfaces,
 // the arms' with their hands, and the rest's, each closed (an arm along the side only touches the trunk).
-import { TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE } from './table.js';
+import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE } from './table.js';
 import { frameAt, slots } from '../muscles/build.js';
 import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
@@ -234,9 +234,11 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
     const out = new Float64Array(n), inn = new Float64Array(n), at = (i, j, k) => (i - lo[0]) + dims[0] * ((j - lo[1]) + dims[1] * (k - lo[2]));
     for (let k = lo[2]; k <= hi[2]; k++) for (let j = lo[1]; j <= hi[1]; j++) for (let i = lo[0]; i <= hi[0]; i++) { const ins = occ[I(i, j, k)] & bit, q = at(i, j, k); out[q] = ins ? 0 : BIG; inn[q] = ins ? BIG : 0; }
     // (closed: grown by CLOSE and shrunk back by as much, so a groove narrower than twice that between two muscles is
-    // filled, as the fat and the fascia fill it, and nothing that stands out is worn away)
+    // filled, as the fat and the fascia fill it, and nothing that stands out is worn away. Over the trunk, the legs and
+    // the arms by 3.7 and 2.6 cm: the fascia wraps each limb's muscles and the trunk's into one, as a stocking does, so
+    // the skin drawn from them is one surface, not the ropes and gaps of the strands under it)
     edt(out, dims);
-    const close = CLOSE * ({ trunk: 1.4, leg: 1.4, arm: 1, head: 0.35 }[PARTS[p]] ?? 0.3), r2 = (close / h + 0.5) ** 2;   // (in cells from cell to cell: a cell is half one beyond its middle)
+    const close = CLOSE * ({ trunk: 3.1, leg: 3.1, arm: 2.2, head: 0.35 }[PARTS[p]] ?? 0.66), r2 = (close / h + 0.5) ** 2;   // (in cells from cell to cell: a cell is half one beyond its middle)
     for (let q = 0; q < n; q++) { const ins = out[q] <= r2; out[q] = ins ? 0 : BIG; inn[q] = ins ? BIG : 0; }
     edt(out, dims); edt(inn, dims);
     let sd = new Float32Array(n); for (let q = 0; q < n; q++) sd[q] = Math.min(0.06, (out[q] > 0 ? Math.sqrt(out[q]) - 0.5 : 0.5 - Math.sqrt(inn[q])) * h + close);
@@ -295,7 +297,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
           const g2 = at(i, j, k), keep = Math.min(1, Math.max(0.3, 1.3 - tissue[g] / 0.009)) * (Y(j) < 0.13 ? 0.3 + 0.7 * smooth01((Y(j) - 0.09) / 0.04) : 1);   // (the foot's bones and tendons, under little fat, damped: its outline is its shape)
           let s2 = E - (p === P_.trunk ? reliefAt(q) : 0) + keep * Math.max(p === P_.trunk ? -0.005 : -0.002, mid[g2] - far[g2]) * (p === P_.trunk ? 2.0 : 1.2);   // (what stands out shows; a groove between two muscles the fat fills, but for two millimetres (four over the trunk, where the pectoral's edge, the rectus's lines and the serratus show))
           if (exactPart[g] === p) { const cap = p === P_.trunk && Y(j) > 1.4 && Math.abs(X(i)) > 0.13 ? 0.007 : 0.0025; s2 = smin(s2, exact[g] - Math.max(cap, 0.4 * tissue[g]), 0.02); }   // (the acromion under the deltoid's tendon and the trapezius: a little deeper than other bones near the skin)
-          v = v + w * (s2 - v);
+          v = v + w * OUTLINE * (s2 - v);
         }
       }
       const fl = ARMS(p) ? fieldA : field, fp = ARMS(p) ? fieldPartA : fieldPart;

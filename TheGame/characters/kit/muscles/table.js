@@ -50,7 +50,7 @@ export const MUSCLES = [
       line(at('clavLatThird', -0.01, 0.004, 0), 'clavLat', at('acromion', -0.012, 0.004, -0.008), at('scapSpineMid', 0, 0.004, -0.004), at('scapSpineRoot', 0.006, 0.002, 0))] }),
   M('latissimus', 'Latissimus dorsi', 'back', { vol: 280, layer: 2, bands: 6, sheet: true, t: [[0.08, 0.15, 0.3, 0.42, 0.4, 0.2], 0.1], src: 'Ho07',
     path: [line(at('spT7', 0, 0, -0.006), at('spT10', 0, 0, -0.006), at('spL1', 0, 0, -0.006), at('spL4', 0, 0, -0.006), 'sacrumBackLat', 'iliacCrestBack', 'iliacCrestTop'),
-      line(by('T8', 0.1, 1.33, -0.135), by('T12', 0.13, 1.2, -0.11), by('L3', 0.14, 1.1, -0.07)),
+      line(by('T8', 0.1, 1.33, -0.135), by('T12', 0.122, 1.2, -0.108), by('L3', 0.124, 1.1, -0.07)),
       line(by('T6', 0.145, 1.34, -0.1), by('T9', 0.16, 1.28, -0.07)),
       by('humerus.L', 0.163, 1.375, -0.065),
       on('humerus.L', 0.18, 1.385, -0.03)] }),
@@ -97,7 +97,7 @@ export const MUSCLES = [
       line(on('xiphoid', 0.008, 1.268, 0.062), on('cartilage5.L', 0.075, 1.3, 0.064))] }),
   M('obliqueExternal', 'External oblique', 'belly', { vol: 280, layer: 2, bands: 6, sheet: true, t: [0.05, [0.3, 0.28, 0.22, 0.12, 0.06, 0.05]], src: 'est',
     path: [line(at('ribSide5', 0, -0.02, 0.045), at('ribSide6', 0.003, -0.02, 0.04), at('ribSide7', 0.004, -0.02, 0.035), at('ribSide8', 0.004, -0.02, 0.025), at('ribSide9', 0.003, -0.015, 0.0), at('ribSide10', 0, -0.012, -0.02), at('ribSide11', 0, -0.01, -0.03)),
-      line(by('T12', 0.11, 1.22, 0.072), by('L2', 0.128, 1.13, 0.045), by('L4', 0.135, 1.06, 0.0)),
+      line(by('T12', 0.108, 1.22, 0.072), by('L2', 0.12, 1.13, 0.045), by('L4', 0.124, 1.06, 0.0)),
       line(by('L1', 0.085, 1.2, 0.086), by('L3', 0.085, 1.09, 0.088), by('L5', 0.085, 1.0, 0.083), 'ASIS', at('iliacCrestLat', 0, 0.008, 0), at('iliacCrestTop', 0, 0.006, -0.01))] }),
   // ── the neck ─────────────────────────────────────────────────────────────────────────────────────────────────────
   M('sternocleidomastoid', 'Sternocleidomastoid', 'neck', { vol: 45, layer: 2, bands: 2, t: [0.15, 0.08], aspect: 1.5, src: 'est',

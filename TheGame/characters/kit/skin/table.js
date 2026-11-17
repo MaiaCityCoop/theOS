@@ -89,6 +89,7 @@ export const OPENINGS = [
   { what: 'eye opening', solid: ['egg', [0.032, 1.6768, 0.085], [0.0142, 0.0035, 0.012]] },
   { what: 'nostril', solid: ['egg', [0.0072, 1.6255, 0.11], [0.0032, 0.0028, 0.0055]] },
   { what: 'ear bowl', solid: ['egg', [0.084, 1.66, -0.018], [0.0055, 0.0115, 0.0085]] },
+  { what: 'gluteal cleft', solid: ['egg', [0.0, 0.872, -0.135], [0.006, 0.072, 0.07]] },   // (between the buttocks, from the coccyx down: the fascia's closing over the muscles fills it)
 ];
 // Where the skin takes another colour: the lips (their red), the areolae, the nails. [what, centre, radii (m)]
 export const MARKS = [
@@ -139,6 +140,12 @@ export const partOf = (rig) => {   // (the head a piece of its own: its face is 
 // run into one another softly), and its sections from a to b, evenly spaced: [forward shift of the middle, half-breadth outwards,
 // half-breadth inwards, front, back, squareness (2 an ellipse, more a rounded box)] in cm; limb, the limb it is a piece of,
 // and joins, which of its ends meet the limb's next piece (its pieces are one outline there, ./build.js).
+// How much of the skin's shape the outline gives (0 … 1), the rest from the muscles under it in their fascia, the
+// tissue's depth over them (./build.js). The outline was all of it; built from the muscles alone, fitted to an anatomical
+// figure from the front, the back and the side, the trunk shows its own pectorals, belly and back, but the buttocks and
+// the arms come out as boxes and ropes: the outline is how the fat rounds them, and half of it rounds them as a slightly
+// muscular man's are.
+export const OUTLINE = 0.5;
 export const PROFILE_SOURCE = 'Gordon et al. 2014, "2012 Anthropometric Survey of U.S. Army Personnel" (ANSUR II), NATICK/TR-15/007: men\'s circumferences, breadths and depths, as remembered, scaled to 1.80 m and to a slightly muscular build; the outline fitted, front, back and side, to the living model of Richer, Anatomie artistique (1890), vol. 2, plates 74 to 76 ("Topographie morphologique"), drawn at the same scale beside it (public domain, Wikimedia Commons)';
 export const PROFILES = [
   { part: 'trunk', a: [0, 0.84, 0], b: [0, 1.6, 0], front: [0, 0, 1], fade: [0, 1], sections: [   // every 4 cm from 0.84 m up
