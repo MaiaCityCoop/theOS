@@ -90,3 +90,4 @@ Asked outright and without surprises, so built straight away.
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-17 | `e838274` | Bible → Compass; core message rewritten; count and Fibonacci out; days 1 and 2 removed |
