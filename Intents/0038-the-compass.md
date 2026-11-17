@@ -140,6 +140,15 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes.
 - **Broke / not there yet:** —
 
+### 2026-11-17 (8)
+
+- **Asked:** "It's not about full size. It's even bigger. Everyone waking up with sparkling eyes, because…"
+- **Delivered:** "full size" taken out of the Compass's core (message, premise, theme, stakes, voice); the message now
+  opens on everyone waking up with sparkling eyes, because today they get to build what they love, with people who
+  believe in them; the Moon line turned to "That was a few of us. Imagine all of us."
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** the "because" is drafted, not Samuel's; his own words wanted.
+
 ## Trail
 
 | When | Commit | What |

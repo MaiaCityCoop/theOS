@@ -6,7 +6,7 @@ sub-genre: documented build
 setting-era: 2026 to 2042
 status: planning
 themes:
-  - living at full size
+  - waking up with sparkling eyes
   - ownership as a human right
   - thinking big
   - abundance
@@ -17,7 +17,7 @@ language: en
 release-start: 2026-11-16
 release-every: 1
 release-warn-days: 1
-premise: "When people unite and each one lives at full size, they can build anything, even a better way to live; the city is the proof."
+premise: "When people unite and everyone wakes up with sparkling eyes, there is nothing they cannot build, even a better way to live; the city is the proof."
 counter-premise: "The sensible life is the small one: keep it safe, keep it reasonable, keep the big thing for later."
 severity:
   - warning: stray-file
@@ -32,13 +32,13 @@ severity:
 >
 > Not one of us. All of us.
 >
-> Imagine every person living at their full size. Every gift unlocked. Every idea that waited for permission, finally built, side by side.
+> Imagine everyone waking up with sparkling eyes, because today they get to build what they love, with people who believe in them. Every gift unlocked. Every idea that waited for permission, finally built, side by side.
 >
 > Imagine saying your wildest idea out loud, and the whole room leans in. Someone says: *show me.* By evening, it stands.
 >
 > Imagine being seen for exactly who you are, and becoming who you were always meant to be.
 >
-> We crossed oceans by the stars. We stood on the Moon. Now imagine what we build together, every day, all of us.
+> We crossed oceans by the stars. We stood on the Moon. That was a few of us. Imagine all of us.
 >
 > We are writing a new blueprint for how to live, and proving it the only way that convinces anyone: by building it together. A city that feeds itself, powers itself and belongs to everyone who builds it.
 >
@@ -48,13 +48,13 @@ severity:
 
 **The task, in Samuel's words:** making bringing sparkling visions to life the norm, not the exception.
 
-**The feeling it leaves:** awe at what people are; permission to be, to be seen, to become who they are meant to be; and *I knew it all along*: their size was right, and now there is a place built to it.
+**The feeling it leaves:** awe at what people are; permission to be, to be seen, to become who they are meant to be; and *I knew it all along*: what they always sensed in themselves was real, and now there is a place built for it.
 
 **How it persuades:** only by the answer, never the wound. It speaks to the deepest wish (to be allowed, to be seen, to become) by showing it granted: a room that leans in, *show me*, standing by evening. **It is felt, not told:** every beat is a picture the camera can show.
 
 ## Synopsis
 
-The city is the vehicle, not the point: the point is what people achieve together when each of them is unlocked, and the blueprint for living that others can copy. Maia City is built by the people who arrive to build it, owning everything they make, first in a game and then in the earth. One story a day for 5,423 days: the person who joins tonight, the one who wins the first real dome, the ones who leave their old lives for the first village. They shape Maia as they come, and she holds every one of them to their full size. Samuel went first and files the report.
+The city is the vehicle, not the point: the point is what people achieve together when each of them is unlocked, and the blueprint for living that others can copy. Maia City is built by the people who arrive to build it, owning everything they make, first in a game and then in the earth. One story a day for 5,423 days: the person who joins tonight, the one who wins the first real dome, the ones who leave their old lives for the first village. They shape Maia as they come, and she holds every one of them to everything they can become. Samuel went first and files the report.
 
 **The hero is the viewer.** Not Samuel, not Maia: whoever walks in. That is why the serial speaks in the second person. "You" is the protagonist, not a style.
 
@@ -64,7 +64,7 @@ The register is Apple's *Think Different* and its misfits: honour the ones who b
 
 - **Celebrate, never warn.** No fear, no dystopia, no villain, no lecture. Show the city at its best and let the viewer feel how naturally they belong in it.
 - **Address, never describe.** "You" from the first word. Never "people like you".
-- **Raise, never flatter.** No "you are special". Assume they already know their size; speak to that person.
+- **Raise, never flatter.** No "you are special". Assume they already sense what they could become; speak to that person.
 - **End on a door, not a rallying cry.** One step they can take tonight: walk into the game.
 - **The voice from 2042 says thank you.** It thanks the viewer for an ordinary evening when they stepped up to what they knew they could do. Gratitude to live up to, never a warning to escape.
 - **Every claim carries its receipt.** A number, date or fact appears only with a source in `research/`. Push to the largest true claim, then stop. No dated forecasts.
@@ -104,8 +104,8 @@ Real footage joins when there are real domes to film, never before. One method c
 ### Stakes
 
 - **External.** The city: it stands because people come and build it, and every day it is visibly more than the day before.
-- **Relational.** Finding your people: a whole city of them living at full size, side by side.
-- **Internal.** Living at your full size, every day, starting now.
+- **Relational.** Finding your people: a whole city of them, waking up with sparkling eyes, side by side.
+- **Internal.** Waking up with sparkling eyes, every day, starting now.
 
 ### Episodes
 
