@@ -121,6 +121,15 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes.
 - **Broke / not there yet:** —
 
+### 2026-11-17 (6)
+
+- **Asked:** "Currently it's just words. We need to feel."
+- **Delivered:** the abstractions (full size, every gift unlocked) replaced by pictures the viewer has lived: the city
+  drawn on the kitchen floor at seven, the notebook in the drawer, the idea half-said at dinner; then the welcome as a
+  picture: a room that leans in, "show me", standing by evening. Rule added: felt, not told.
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** —
+
 ## Trail
 
 | When | Commit | What |
