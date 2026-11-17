@@ -102,7 +102,7 @@ export const bandsOf = (a) => { const px = kindRule(a, 'px'), lo = a.detail.leve
 export const shapeSize = (a, shape) => { const H = a.size.height, S = a.growth?.stages?.find((x) => shape >= x.offset && shape < x.offset + x.variants); return (S ? a.heights?.[shape] ?? S.h : H) * (kindRule(a, 'measure') === 'height' ? 1 : Math.max(most(a.size.length), most(a.size.width ?? 0), most(H)) / H); };
 const finestOf = (a) => a.detail.levels.findIndex((L) => !L.fine);
 const BUILT = new Map();   // (the last few shapes built: a kind's levels are asked for one after another)
-/** A plant's shape as the crowd kit builds it from its nearest level. */
+/** A plant's shape as the crowd kit builds it from its finest level (its splay, where it has one: tree.js rawAt). */
 export const crowdOf = (a, i) => {
   const key = `${a.uid}:${a.placement?.seed}:${i}:${LOD.CARD}:${LOD.KMAX}:${LOD.BAKE}:${LOD.FAR}`; let S = BUILT.get(key);
   if (!S) { if (BUILT.size >= 4) BUILT.delete(BUILT.keys().next().value); BUILT.set(key, (S = crowd(a.rawAt(finestOf(a), i), { size: shapeSize(a, i), CARD: LOD.CARD, KMAX: LOD.KMAX, FAR: LOD.FAR, ...(LOD.BAKE ? { enclose: 1.05 } : {}) }))); if (LOD.BAKE) S.bake = bakeOf(S); }

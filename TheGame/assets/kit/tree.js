@@ -333,12 +333,14 @@ export function tree(recipe) {
   // no splay before it, is cut into levels no wider than SPLIT times on screen. A crowd level holds all its band may
   // show at its widest: the narrower its band, the nearer what it submits to what it shows (more draws). Reckoned when
   // asked, not when the file is read: the flag is set after (the page's, the workers')
-  // Under `?lod=new` it has no splay: the crowd kit's first level stands from the top, every size above its band, its
-  // cards turning in one by one as they come near, so nothing is handed over sprig by sprig there, nor comes later and
-  // swaps in (intent 0033: the pops close to medium). Its levels are then counted from the crowd's first (`at`: a level as
-  // counted then, as the file's: one on where it has a splay)
+  // Under `?lod=new` it has no splay as a level of its own: the crowd kit's first level stands from the top, every size
+  // above its band, its cards turning in one by one as they come near, so nothing is handed over sprig by sprig there,
+  // nor comes later and swaps in (intent 0033: the pops close to medium). That first level is the splay itself: the crowd
+  // is built from it, so close up it is as fine as the splay was, every twig there, and its finest detail is the first
+  // share of the one build, not another level. Its levels are then counted from the crowd's first (`at0`: a level as
+  // counted then, as the file's: its first the splay where it has one, the others one on)
   let cut = null, cutKey = null, bare = null;
-  const at0 = (l) => (LOD.on ? l + f : l);
+  const at0 = (l) => (LOD.on && l ? l + f : l);
   const specsOf = () => {
     if (!LOD.on) return specs;
     const base = (bare ??= fine ? specs.slice(1) : specs);
@@ -378,16 +380,16 @@ export function tree(recipe) {
     ...(G ? { growth: { years: growth.years, stages: G.stages, height: growth.height, at: (age, v) => { const r = G.at(age, v), S = G.stages.find((x) => r.shape >= x.offset && r.shape < x.offset + x.variants), b = measured().heights[r.shape]; return { ...r, s: b > 0 ? (r.s * S.h) / b : r.s }; } } } : {}),
     /** how many shapes it has, and how many levels (its file's and the kit's two farthest) */
     shapeCount: shapes.length,
-    rawAt: (level, shape) => rawAt(at0(level), shape),   // (as its levels are counted: under `?lod=new` without its splay)
+    rawAt: (level, shape) => rawAt(at0(level), shape),   // (as its levels are counted: under `?lod=new` its splay the crowd's first, no level of its own)
     /** its shade's mesh for a shape (what the shadow map is drawn from), as the builder made it; none: it has no shade of its own */
     shadeRaw: shade ? (shape) => shade(shapes[shape], shape) : null,
     /** Under `?lod=new` (assets/kit/crowd.js): the room each shape's levels need in the heap, [shape][level] { verts,
-        tris } (its splay's: none), reckoned from its nearest level without building it, and kept with its outline */
+        tris }, reckoned from its finest (its splay, where it has one) without building it, and kept with its outline */
     crowdRooms() {
       const o = measured(), key = `${LOD.CARD}:${LOD.KMAX}:${LOD.SPLIT}:${LOD.BAKE}:${LOD.FAR}:${LOD.STANDS?.[out.uid] ?? ''}`;
       if (o.crowd?.key !== key) {
         const B = bandsOf(out), his = B.map(([, hi], l) => (l === (LOD.on ? 0 : f) ? Infinity : hi));
-        o.crowd = { key, rooms: shapes.map((s, i) => { const R = budgetOf(rawAt(f, i), { size: shapeSize(out, i), CARD: LOD.CARD, KMAX: LOD.KMAX, FAR: LOD.FAR, baked: LOD.BAKE }, his.map((hi) => ownTop(out, i, hi))); return R.map((r, l) => (crowdLevel(out, l) ? [r.verts, r.tris] : null)); }) };
+        o.crowd = { key, rooms: shapes.map((s, i) => { const R = budgetOf(rawAt(LOD.on ? 0 : f, i), { size: shapeSize(out, i), CARD: LOD.CARD, KMAX: LOD.KMAX, FAR: LOD.FAR, baked: LOD.BAKE }, his.map((hi) => ownTop(out, i, hi))); return R.map((r, l) => (crowdLevel(out, l) ? [r.verts, r.tris] : null)); }) };
         OUTLINES.made.set(id, o);
       }
       return o.crowd.rooms;
