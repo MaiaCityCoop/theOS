@@ -1293,3 +1293,7 @@ quick drawing, drawn until the reduced levels come, and grown into them): not bu
 | 2026-11-17 | `17c40ac` | under `?lod=new` no splay: the crowd's first level stands from the top (the pops close to medium) |
 | 2026-11-17 | `9d81203` | a far body eased in where its window opens |
 | 2026-11-17 | `1e38da7` | the crowd built from the splay: close up as fine as `?lod=old`, its first level the splay, every other a share of the same build; at or under old's vertices at every size |
+| 2026-11-17 | `22256aa` | the rocks' levels made from their full mesh alone, under `?lod=new`: one reduction for any solid (`reduce.js`), the hand-over exact, no dot, the camera-still sweep (`tools/sweep.js`) |
+| 2026-11-17 | `de3e682` | the assets' versions, for the kits' change |
+| 2026-11-17 | `fa306e4` | the rocks' reduction twice as quick, and spread over the workers |
+| 2026-11-17 | `633248d` | stage 2 begun, the rocks: build notes, todo, changelog |
