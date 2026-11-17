@@ -88,7 +88,7 @@ The ground cache (`?groundcache`) halves that, but it is off: it is softer betwe
 6. **Body realism (0036).** Waits for Samuel's pick from the ranked list in `0036-body.md`: hair and eyes first,
    then skin tone, lips, nose and ears, hands and feet, creases, then movement-driven skin.
 7. **Bible (0037).**
-   - Run `story reindex .` in `Bible/`. The index still lists "A Euro a Day" and lacks The Count and
+   - Run `story reindex .` in `Compass/` (was `Bible/`). The index still lists "A Euro a Day" and lacks The Count and
      Self-Sovereignty.
    - Held items wait for Samuel: the two tone rules, four glossary terms, the door and the charter, and "no debt".
 

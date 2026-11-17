@@ -471,14 +471,16 @@
   .ideadoc .show p{background:rgba(242,181,68,.22)}
   .ideadoc p.none{background:none;padding-left:0;color:rgba(251,246,234,.35)}
   .lane.off>h3{color:rgba(251,246,234,.5)}.lane.off .idea{opacity:.6}
-  /* ---- the bible (../Bible): the serial's spine, read from its markdown. The page only shows it; the story CLI alone changes it ---- */
-  #bibleview{padding-top:clamp(28px,4vw,56px);padding-bottom:140px;color:var(--cream)}
-  #stories.editing #bibleview{display:none}
-  #bibleview .calhead h2{color:var(--cream)}#bibleview .calhead p{color:rgba(251,246,234,.6)}
-  #bible{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start}
-  #bible.open{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-  @media (max-width:900px){#bible.open{grid-template-columns:minmax(0,1fr)}}
+  /* ---- the compass (../Compass): the serial's core, read from its markdown. The page only shows it; the story CLI alone changes it ---- */
+  #compassview{padding-top:clamp(28px,4vw,56px);padding-bottom:140px;color:var(--cream)}
+  #stories.editing #compassview{display:none}
+  #compassview .calhead h2{color:var(--cream)}#compassview .calhead p{color:rgba(251,246,234,.6)}
+  #compass{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start}
+  #compass.open{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  @media (max-width:900px){#compass.open{grid-template-columns:minmax(0,1fr)}}
   .spine{padding:16px 18px 18px;border-radius:14px;background:#18243c;display:grid;gap:12px}
+  .spine .core{font:400 clamp(17px,1.6vw,21px)/1.5 var(--serif);font-variation-settings:var(--soft);color:var(--cream)}.spine .core p{margin:0 0 .7em}.spine .core p:last-child{margin:0}.spine .core strong{font-weight:560;color:#f2b544}
+  .spine .core + .prem{font-size:clamp(15px,1.3vw,17px);opacity:.75;border-top:1px solid rgba(251,246,234,.1);padding-top:12px}
   .spine .prem{margin:0;font:440 clamp(19px,2vw,25px)/1.25 var(--serif);font-variation-settings:var(--soft);color:var(--cream)}
   .spine .anti{margin:0;padding:9px 12px;border-radius:9px;background:rgba(79,157,52,.5);font:400 14px/1.4 var(--sans);color:var(--cream)}
   .spine .anti b,.spine .goal b{display:block;font:500 9.5px/1.6 var(--sans);letter-spacing:.09em;text-transform:uppercase;opacity:.7}
@@ -486,11 +488,6 @@
   .stakes{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px}
   .stakes div{padding:9px 11px;border-radius:9px;background:rgba(251,246,234,.05);font:400 12.5px/1.4 var(--sans);color:rgba(251,246,234,.85)}
   .stakes div b{display:block;font:500 9.5px/1.6 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:rgba(251,246,234,.5)}
-  .ladder{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:4px}
-  .ladder i{font-style:normal;display:grid;gap:1px;padding:7px 8px;border-radius:8px;background:rgba(251,246,234,.05);font:400 11px/1.3 var(--sans);color:rgba(251,246,234,.55);font-variant-numeric:tabular-nums}
-  .ladder i b{font:500 13px/1.2 var(--sans);color:var(--cream)}
-  .ladder i.game{background:rgba(95,127,82,.35)}.ladder i.hinge{background:rgba(242,181,68,.4)}.ladder i.hinge b{color:var(--cream)}
-  .ladder i u{text-decoration:none;font:400 9.5px/1.3 var(--sans);opacity:.6}
   .bdoc{position:sticky;top:14px;max-height:calc(100vh - 120px);overflow:auto;padding:12px 18px 18px;border-radius:14px;background:#18243c;min-width:0;color:var(--cream)}
   .bdoc header{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
   .bdoc header b{font:440 22px/1.1 var(--serif);font-variation-settings:var(--soft);margin-right:6px}
@@ -865,7 +862,7 @@
 <main id="legal"><section class="wrap"><article class="legaldoc" id="legaldoc"></article></section></main>
 <main id="city"><div class="tiles" id="tiles"></div></main>
 <main id="intents"><header class="sheethead"><h1>Intents</h1><button class="btn small quiet" data-close>Close</button></header><div class="sheetbody"><div id="board"></div><div id="intentdoc" class="doc"></div></div></main>
-<main id="stories"><section id="shelfview" class="wrap"><header class="calhead"><h2>Stories</h2><p>One a day. Open one to edit its film.</p></header><div class="shelf" id="shelf"></div><header class="calhead sub"><h2>Scenes</h2><p>Timelines that stand alone. A story is composed of them.</p></header><div class="shelf" id="sceneshelf"></div></section><section id="bibleview" class="wrap"><header class="calhead"><h2>The Bible</h2><p id="biblenote"></p></header><div id="bible"></div></section><section id="ideasview" class="wrap"><header class="calhead"><h2>Ideas</h2><p id="ideasnote"></p></header><div id="ideas"></div></section><section id="storyedit"></section></main>
+<main id="stories"><section id="shelfview" class="wrap"><header class="calhead"><h2>Stories</h2><p>One a day. Open one to edit its film.</p></header><div class="shelf" id="shelf"></div><header class="calhead sub"><h2>Scenes</h2><p>Timelines that stand alone. A story is composed of them.</p></header><div class="shelf" id="sceneshelf"></div></section><section id="compassview" class="wrap"><header class="calhead"><h2>The Compass</h2><p id="compassnote"></p></header><div id="compass"></div></section><section id="ideasview" class="wrap"><header class="calhead"><h2>Ideas</h2><p id="ideasnote"></p></header><div id="ideas"></div></section><section id="storyedit"></section></main>
 <button class="sheetx" data-close aria-label="Close"><svg viewBox="0 0 16 16"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
 <main id="game"><div id="gamebar"></div><iframe id="frame" allow="fullscreen; pointer-lock" title="The Game"></iframe></main>
 <script type="module" src="/src/main.js"></script>

@@ -6,9 +6,9 @@ name: CI
 on:
   push:
     branches: [main]
-    paths: [OS/**, TheGame/**, API/**, Intents/**, Stories/**, Bible/**, brand/**, deploy/**, .github/workflows/**]
+    paths: [OS/**, TheGame/**, API/**, Intents/**, Stories/**, Compass/**, brand/**, deploy/**, .github/workflows/**]
   pull_request:
-    paths: [OS/**, TheGame/**, API/**, Intents/**, Stories/**, Bible/**, brand/**, deploy/**, .github/workflows/**]
+    paths: [OS/**, TheGame/**, API/**, Intents/**, Stories/**, Compass/**, brand/**, deploy/**, .github/workflows/**]
 
 permissions:
   contents: read
