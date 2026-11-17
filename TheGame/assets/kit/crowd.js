@@ -83,10 +83,11 @@ export const CROWD = {
     research's 15 pixels submits two to four times today's level at the top of a band; 30 brings the plants to about
     main's vertices (intent 0033, Build). KMAX: the far body comes no sooner than the cards' enlarging must stop.
     SPLIT: no level the kit makes wider than this many times on screen where it can hold cards (assets/kit/tree.js; 0:
-    the kinds' bands as they are): a level holds all its band may show at its widest. STANDS: the size a stand that
+    the kinds' bands as they are): a level holds all its band may show at its widest. 0 by default: cut at 2, fewer
+    vertices were submitted but the frame was slower (more tiers to pack, more draws; intent 0033, Build). STANDS: the size a stand that
     changes level as one measures its plants by, of each plant asset (src/scatter/trees.js). `?card=`, `?kmax=` and
     `?split=` change them. */
-export const LOD = { on: false, CARD: 30, KMAX: 8, SPLIT: 2, STANDS: null };
+export const LOD = { on: false, CARD: 30, KMAX: 8, SPLIT: 0, STANDS: null };
 /** Where each of a shape's sixteen numbers lies in `meta`: P0, E, where the far body begins and has taken over (pixels),
     the crown's middle (three), how many cards, where the classes 1, 2 and 3 begin (three pairs: the share of the
     parts before it, the share of the cards' area before it), the size it was built for (metres), how many parts. */
@@ -302,14 +303,14 @@ function headOf(m, K) {
 }
 
 /** What a shape may submit at most at each of the sizes on screen `his` (pixels; Infinity: all of it), without
-    building it: a level's room in the heap (src/scatter/trees.js). -> [{ verts, tris }] (its two first vertices are its
-    numbers: levelOf) */
+    building it: a level's room in the heap (src/scatter/trees.js). -> [{ verts, tris }] (its first vertex is its
+    numbers: assets/kit/plant.js) */
 export function budgetOf(m, opts = {}, his = [Infinity]) {
   const K = { ...CROWD, ...opts }, H = headOf(m, K);
   let sv = 0, st = 0, quads = 0;
   for (let q = 0; q < H.nP; q++) { const v = H.pVerts[q + 1] - H.pVerts[q], t = H.pTris[q + 1] - H.pTris[q]; if (H.partOf[q] >= 0 && H.quadP(q)) quads++; else { sv += v; st += t; } }
   const bodies = K.HULLS.reduce((s, [a, b]) => [s[0] + a * b + 2, s[1] + 2 * a * b], [8, 6]);   // (every far body and the post)
-  return his.map((hi) => { const share = H.N ? min(1, shareAt(hi * K.WIN, H.P0, K.A)) : 0, cards = min(quads, ceil(share * H.N) * H.most); return { verts: 2 + cards * 4 + sv + bodies[0], tris: cards * 2 + st + bodies[1] }; });
+  return his.map((hi) => { const share = H.N ? min(1, shareAt(hi * K.WIN, H.P0, K.A)) : 0, cards = min(quads, ceil(share * H.N) * H.most); return { verts: 1 + cards * 4 + sv + bodies[0], tris: cards * 2 + st + bodies[1] }; });
 }
 
 export function crowd(m, opts = {}) {
