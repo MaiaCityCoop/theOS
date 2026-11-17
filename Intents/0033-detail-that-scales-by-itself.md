@@ -856,6 +856,63 @@ the way, the distance and how tall the oak stands. `window.__flyby.at(s)` holds 
 **Not yet measured:** check 3 (the zoom to 12 km and back, frame to frame, in the game); the flight's frame rate on a
 GPU (SwiftShader draws a few frames a second; the flight runs by the clock, so it is smooth only on a real GPU).
 
+### Stage 1: the pumping fixed (2026-11-17)
+
+The coordinator, for Samuel: fix every abrupt change under `?lod=new` until checks 1 and 2 pass, keep the 60 fps and
+4K gate, judge the far crowns from 90 m beside main. What changed, step by step, each measured with the walk:
+
+- **The far body at its full size from the first** (the pump): it no longer grows from the crown's middle. Its baked
+  texels come in one by one as the cards go, into / (1 − DENSE + DENSE·into) of them, `into` straight in the size's
+  logarithm through its window (`CROWD.DENSE` 0.8: 0.9 let the sparser pine's cover run 14 % over, 0.7 its outline 15 %
+  under).
+- **Every far body encloses the crown**: as far out as it must be to hold 99.5 % of what the crown's leaves cover from
+  each baked view (`crownSeen`, `enclosing`), at least 1.05. A coarser body no longer cuts the crown (below 20 px the
+  oak's outline was 0.87 then 0.65).
+- **The wood fades into the post** over `CROWD.SWAP` (0.3 … 0.6 of the window), pixel by pixel; the post thins evenly
+  from the window's end to 7 px (it thinned inside 9 → 7 px: a step 22 000 times its still neighbours on the pine).
+- **The baked views blended**: the two side views either side of the eye and the one from above, a pixel each by a
+  fixed pattern, as far as the eye has come round or up. Going round the oak in the orbit flight (crown pixels, 2°
+  steps) the nearest-view snap was a change 2.25 times the median at the view's edge; blended, none.
+- **`KMAX` 4** (was 8): the far body comes while the cards still hold the outline (the oak's window 52 → 40 px is now
+  116 → 89 px). A shrub whose first E fit hits `EMIN` is measured again at share 0.04 (the mastic: E 0.20 → 0.245).
+- **The bake as large as its far body**: a shape's bake is the next power of two of its window's start (`bakeRes`, 16 …
+  128 texels, from HI as the GPU reads it), with smaller pictures beside each view in the stand's texture, as covered
+  over the cut as the whole (`bakeLayers`); the shader takes one by the plant's size on screen. 2 x 2 samples a texel
+  were tried and did not help.
+- **Lit as the cards are**: a baked texel carries the leaves' ao (darker deeper in the crown from that side, `DEEP`) and
+  their normal (octahedral), and is lit live: sky, sun, cloud and the shadow tap, wrap and through-light, as a card.
+  A far body is darker at its rim (`RIM`). Before: an ao against the crown's mean, then absolute ao alone (darker, but
+  a speckle, not lobes).
+
+**The walk after** (`walk-after-contact-sheet.png`, `walk-after-outline-cover.png` in the research notes' `stage1/`):
+
+| Plant | Outline off ≥ 20 px (old / before / now) | Below 20 px (now) | Cover ≥ 20 px (now) | Steps over 3× (now) |
+| --- | --- | --- | --- | --- |
+| holm oak | 6 % / 55 % / 6 % | 4 % | 7 % | 0 |
+| stone pine | 31 % / 63 % / 8 % | 3 % | 9 % | 0 |
+| mastic | 10 % / 70 % / 19 % | 12 % | 14 % | 0 |
+
+Check 2 passes for all three (a step counts where it changes 1 % of the picture or more: steps of 0.08 % among still
+ones were counted 3 times before). Check 1 passes on the oak below 20 px and the pine below 20 px; above it the trees
+are 6 and 8 % off (the cards before the window), the mastic 19 % (its cards thin before its window at 70 to 80 px, its
+far body 13 % over: open).
+
+**From 90 m and by the tent** (`far-crowns-90m-old-new.jpg`, `far-crowns-tent-old-new.jpg`): the far crowns read as
+trees, with light tops and dark sides to their lobes under the live sun; a little lighter than main's, the gaps between
+crowns softer. The horizon by the tent as main's, its left trees a little darker. On the way there, `KMAX` 4 with the
+crown's light only as an ao gave pads (stills in the session, not kept).
+
+**Check 3** (the zoom from 12 km to the eyes, frame to frame): at 0.53 s a pose, whole pictures, neither way shows a
+frame over 3 times its neighbours (largest 1.3×), but the camera's own motion swamps any change of level. Taken out
+(each pose drawn at its own detail and at the next frame's, the governor's factor times one 60 fps step at the
+zoom's speed), the run was confounded: the clouds' shadows moved in the 2.5 s between the two pictures (the floor was
+taken 0.8 s apart). To run again with the clouds still. The last word is Samuel's eyes on the flyby on a GPU.
+
+**Cost, not yet weighed**: the plants' heaps 86 MB under `?lod=new` against 40 MB under `?lod=old`, and the stand
+textures about 26 MB more; at a cold start the bakes take 1 s on one thread (28 shapes: 3 at 32 texels, 10 at 64,
+15 at 128), the trees stand's coarse levels in 6.2 s against 2.9 s (SwiftShader). Within the gates for now; to come
+back to (a bake made lazily, as a shape's window first opens). Frame times not measured again here.
+
 ## Propose
 
 ## Story
@@ -896,10 +953,15 @@ GPU (SwiftShader draws a few frames a second; the flight runs by the clock, so i
         and Safari not measured): take it, or measure it on a GPU first (`?gputime`, the bench's views), where a pixel's
         cost and a vertex's weigh differently than on this CPU
   - [x] every abrupt change under `?lod=new` listed; checks 1 and 2 old against new (the walk); `?flyby` to watch it
-  - [ ] the pump from the cards to the far body: the far body at its full size from the start, denser as it comes in
-  - [ ] each far body as large as the crown's own outline (no shrink from one to the next)
-  - [ ] wood to post faded, not swapped; two of the bake's views blended going round
-  - [ ] check 3: the zoom to 12 km and back, frame to frame, in the game
+  - [x] the pump from the cards to the far body: the far body at its full size from the start, denser as it comes in
+  - [x] each far body as large as the crown's own outline (no shrink from one to the next)
+  - [x] wood to post faded, not swapped; two of the bake's views blended going round
+  - [x] `KMAX` 4; the bake as large as its far body, with its smaller pictures; its texels lit live by their normals
+  - [ ] check 3: the zoom to 12 km and back, frame to frame, the camera's motion taken out, with the clouds still
+  - [ ] the mastic: 19 % off above 20 px (its cards thin before its window; its far body 13 % over)
+  - [ ] memory (about 112 MB against 40) and the cold start (6.2 s against 2.9 s): a bake made lazily
+  - [ ] the frame times again on the bench's views, and on a GPU
+  - [ ] Samuel: `?lod=new&flyby` against `?lod=old&flyby`, and `&flyby=orbit`, on a GPU
   - [ ] `LOD_DEFAULT` 'new' once that is settled
   - [ ] `?lod=new` the default, `?lod=old` kept, once as fast and as good as main from 90 m and by the tent; the stress
         world checked not slower
@@ -1100,6 +1162,17 @@ GPU (SwiftShader draws a few frames a second; the flight runs by the clock, so i
 - **Broke / not there yet:** The new way pumps: the outline falls to a third or half between 100 and 40 px and comes
   back, and its far bodies are smaller than the crown. Check 3 not yet run. The fixes come next, each its own PR.
 
+### 2026-11-17 (8)
+
+- **Asked:** (the coordinator, for Samuel) fix every abrupt change under `?lod=new`; then the far crowns from 90 m as
+  separate trees with dark gaps; then check 3.
+- **Delivered:** the far body at full size and coming in texel by texel, enclosing the crown, the wood faded into the
+  post, the baked views blended, `KMAX` 4, bakes as large as the far body with smaller pictures, baked normals lit live.
+- **Good:** Check 2 passes for all three plants; the trees within 8 % of the near view's outline above 20 px and 4 %
+  below (before: 55 to 63 %). From 90 m the far crowns read as trees with lit lobes.
+- **Broke / not there yet:** The mastic 19 % off. Memory 112 MB against 40, the cold start 6.2 s against 2.9 s.
+  Check 3 with the camera's motion taken out was confounded by moving cloud shadows: to run again.
+
 ## Trail
 
 | When | Commit | What |
@@ -1127,3 +1200,4 @@ GPU (SwiftShader draws a few frames a second; the flight runs by the clock, so i
 | 2026-11-17 | `a0fe8fd` | the baked crowns read from a texture of each stand's, filled as the levels come in |
 | 2026-11-17 | `aaecab1` | the baked crowns see-through only against the sky |
 | 2026-11-17 | `12fe6a2` | every abrupt change under `?lod=new` listed; the walk (checks 1 and 2) old against new; `?flyby` and `?flyby=orbit` |
+| 2026-11-17 | `7e2857b` | the pumping fixed: far bodies at full size and enclosing, wood to post faded, views blended, `KMAX` 4, bakes sized with mips, baked normals lit live |

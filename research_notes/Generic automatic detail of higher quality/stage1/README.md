@@ -43,3 +43,12 @@ changes in no step (none over 3 times its neighbours on the oak) but pumps: betw
 (up to 8 times) and turn see-through, the outline falls to 0.45 (oak), 0.38 (pine), 0.30 (mastic), and then the far
 body grows from the crown's middle to its full size by 40 px; further out each far body turns into the next, smaller
 one (24 to 18 px, 9 to 7 px), the outline 0.87 then 0.65.
+
+### The pumping fixed (2026-11-17)
+
+| File | What it shows |
+| --- | --- |
+| `walk-after-contact-sheet.png` | the walk again after the fixes: old above, new below (the speckle between 100 and 56 px is the far body coming in texel by texel while the cards go) |
+| `walk-after-outline-cover.png` | its outline, cover and steps, old and new |
+| `far-crowns-90m-old-new.jpg` | from 90 m over the pine forest: main (left), `?lod=new` with its baked normals lit live (right) |
+| `far-crowns-tent-old-new.jpg` | the horizon by the tent: main (left), `?lod=new` (right) |
