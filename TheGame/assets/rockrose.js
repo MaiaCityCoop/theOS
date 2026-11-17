@@ -1,15 +1,15 @@
 // Rockrose (Cistus): a low grey-green mound, knee to hip high, where the wood opens. Its own sprig
 // (materials/rockroseleaf.js): soft grey-green leaves, a few white flowers.
-// Built with the tree kit's mound (assets/kit/tree.js): two shapes, two levels of its own (its base sprigs the same in both), its farthest the kit's. An
+// Built with the tree kit's mound (assets/kit/tree.js): two shapes, each a mesh whose levels are first shares of it. An
 // asset in the one recipe (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by the trees' engine in the pine
 // forest's understory (biomes/pineforest.js `shrubs`), of which it takes its share.
 import { tree, builder, mound } from './kit/tree.js';
 
 const woodCol = [0.2, 0.17, 0.14], leafCol = [0.08, 0.11, 0.07];   // (for a picture without the textures)
-// a level of it: q 0 near (its stems, its base and its fine sprigs), 1 further (its base alone, unchanged); S its shape
-function grow(q, S) {
+// the bush: its stems, its base and its fine sprigs; S its shape
+function grow(S) {
   const b = builder({ ao: (p) => 0.45 + 0.4 * Math.min(1, p[1] / S.h), barkTile: 0.5, colours: [woodCol, leafCol] });
-  mound(b, q, { r: S.r, h: S.h, lobes: S.lobes, ragged: 0.25, puffs: [42, 16], count: [2, 1], size: [0.42, 0.9], rise: 0.45, stems: 4, seed: S.seed });
+  mound(b, { r: S.r, h: S.h, lobes: S.lobes, ragged: 0.25, puffs: [42, 16], count: [2, 1], size: [0.42, 0.9], rise: 0.45, stems: 4, seed: S.seed });
   return b;
 }
 
@@ -32,9 +32,8 @@ export default tree({
   shapes: [{ r: 1.05, h: 0.9, lobes: 3, seed: 621 }, { r: 0.8, h: 0.65, lobes: 2, seed: 622 }],
   grow,
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
-  levels: [{ P: 4, most: [780, 416] }, { P: 8, most: [140, 70] }],   // most: the most vertices and triangles a shape of it has at that level (its place in the heap: src/scatter/heap.js; a recipe that grows past it is told so)
-  // (its farthest, one body, darker than its sprigs' tops: a bush is mostly its own shade)
-  far: { P: 32, shade: 0.85, speck: false, sides: 5, shoulder: true, trunk: false },
+  levels: [{ P: 4 }, { P: 8 }],
+  far: { P: 32, speck: false },   // (its far level: the crowd kit's far body, no speck after it)
   // where it grows: the pine forest's understory, of which it takes its share
   placement: { at: 'scatter', engine: 'trees', stand: 'shrubs', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.25, scale: [0.45, 0.85], lean: 0,
     // (it wants the sun: the glades and the wood's edge)

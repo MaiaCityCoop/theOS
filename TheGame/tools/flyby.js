@@ -1,6 +1,5 @@
 // `?flyby`: the game's own camera flown by itself, on a loop, to watch the plants' levels of detail change (intent 0033:
-// what pumps, pops or snaps as a plant comes nearer or goes round). With `?lod=old` the plants' files' own levels, with
-// `?lod=new` the crowd kit's: the same flight under each, side by side in two tabs. Loaded only with ?flyby (src/main.js).
+// what pumps, pops or snaps as a plant comes nearer or goes round). Loaded only with ?flyby (src/main.js).
 //
 //   ?flyby (or ?flyby=zoom)  the rig's one zoom (src/camera/rig.js: the height, from 12 km to the walker's eyes), over a
 //                            holm oak at the pine forest's edge, from the top down to eye level NEAR metres before it and
@@ -17,7 +16,6 @@
 import { poseAt } from '../src/camera/rig.js';
 import { heightAt } from '../src/world/land.js';
 import { flagText, flagNum } from '../src/core/flags.js';
-import { LOD_DEFAULT } from '../assets/kit/crowd.js';
 import RIG from '../camera/rig.js';
 
 export const OAK = { x: -1342.09, z: 604.37, height: 12.84 };
@@ -39,7 +37,7 @@ function heightForPx(px, yaw) {
 }
 
 export function run() {
-  const C = window.__game.controls, mode = flagText('flyby') === 'orbit' ? 'orbit' : 'zoom', lod = flagText('lod') ?? LOD_DEFAULT;
+  const C = window.__game.controls, mode = flagText('flyby') === 'orbit' ? 'orbit' : 'zoom';
   const label = document.createElement('div');
   label.style.cssText = 'position:fixed;left:12px;top:12px;z-index:99999;background:rgba(255,253,246,0.9);color:#1f2a1c;font:12px/1.4 ui-monospace,Menlo,monospace;padding:6px 10px;border-radius:8px;pointer-events:none';
   document.body.appendChild(label);
@@ -63,7 +61,7 @@ export function run() {
     }
     C.place(x, z, yaw); C.height = h;   // (place puts the rig at the eyes; the height after it)
     const P = poseAt(x, z, yaw, h), d = Math.hypot(P.pos[0] - OAK.x, P.pos[2] - OAK.z, P.pos[1] - heightAt(OAK.x, OAK.z)), px = pxOf(P);
-    const txt = `flyby ${mode} · lod ${lod} · ${d >= 1000 ? (d / 1000).toFixed(1) + ' km' : d.toFixed(0) + ' m'} from the oak · oak ${px >= 10 ? px.toFixed(0) : px.toFixed(1)} px tall`;
+    const txt = `flyby ${mode} · ${d >= 1000 ? (d / 1000).toFixed(1) + ' km' : d.toFixed(0) + ' m'} from the oak · oak ${px >= 10 ? px.toFixed(0) : px.toFixed(1)} px tall`;
     if (txt !== shown) { shown = txt; label.textContent = txt; }
   };
   requestAnimationFrame(step);

@@ -58,7 +58,6 @@ import { Tier, offScreen, clipOf } from './tier.js';
 import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective, cornersOf, shapedOf } from './heap.js';
 import { ballCorners } from '../../assets/kit/blob.js';
 import { solidOf } from './solid.js';
-import { LOD } from '../../assets/kit/crowd.js';   // (how the plants' levels are made, told to the recipes' workers)
 import { GHOST as GHOSTING } from '../world/bodies.js';   // (`?ghost`: the walker passes through everything, in every world, and what he is inside draws back from his eye)
 import { LADDER, FULLN, DOTN, roomOf, underOf, trisOf, vertsOf } from '../../assets/kit/ladder.js';
 import { dotMesh, BONES } from '../../assets/kit/solid.js';
@@ -70,29 +69,31 @@ import { pxK } from '../detail/index.js';
 import { note } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { did } from '../core/work.js';
-import { flag } from '../core/flags.js';
 import { stateAt, keyN, nameKey } from '../world/things.js';
 import { pxOf, turnOf, seedOf } from './row.js';
 
 const GROW = 1.5, SKIN = 128, SKINPX = 28, SINK = 1.6, LOOK = 24;   // GROW: seconds a level that came late takes to grow out of the coarser one; SKIN: a kind's own texture, pixels a side; SKINPX: the size on screen from which a thing wears it; SINK: how far under its last pixels a dot sinks away; LOOK: a kind's look, numbers (six rows of four)
 // a make's levels: a kind a draw up to BYKIND kinds, else by the size of their meshes (classOf: the power of two of
 // triangles a mesh of n corners fits in; classN the same as a node; classIndex: the corners of a class's draw, 0 … 3 · 2^c - 1)
-const BYKIND = 32, BYCLASS = flag('byclass');
+const BYKIND = 32;
 const classOf = (n) => { const t = Math.ceil(n / 3); return t <= 1 ? 0 : 32 - Math.clz32(t - 1); }, classN = (n) => uint(32).sub(countLeadingZeros(n.add(uint(2)).div(uint(3)).sub(uint(1))));
 const CLASSIX = []; const classIndex = (c) => (CLASSIX[c] ||= new THREE.BufferAttribute(Uint32Array.from({ length: 3 * 2 ** c }, (_, j) => j), 1));
-// the recipes' workers (recipes.worker.js): one set for every drawer, made when the first asks
+// the recipes' workers (recipes.worker.js): one set for every drawer, made when the first asks; all(jobs) tells every
+// one of them, before anything asked after it
 let POOL = null;
 const pool = () => (POOL ||= (() => {
   const workers = Array.from({ length: 3 }, () => new Worker(new URL('./recipes.worker.js', import.meta.url), { type: 'module' })), waiting = new Map(); let nextId = 0, turn = 0;
-  for (const w of workers) { w.onmessage = ({ data }) => { waiting.get(data.id)?.(data.out); waiting.delete(data.id); }; w.postMessage({ id: -1, jobs: [['lod', { ...LOD }]] }); }   // (first, how the plants' levels are made: assets/kit/crowd.js, `?lod=new`)
-  return (jobs) => new Promise((res) => { const id = nextId++; waiting.set(id, res); workers[turn++ % workers.length].postMessage({ id, jobs }); });
+  for (const w of workers) w.onmessage = ({ data }) => { waiting.get(data.id)?.(data.out); waiting.delete(data.id); };
+  const ask = (jobs) => new Promise((res) => { const id = nextId++; waiting.set(id, res); workers[turn++ % workers.length].postMessage({ id, jobs }); });
+  ask.all = (jobs) => { for (const w of workers) w.postMessage({ id: -1, jobs }); };
+  return ask;
 })());
 
 /** name: its own (the ledger's, and what the browser keeps its coarse meshes under); LEVELS: the levels, finest first
     (the ladder's n and px, and of each: slots); SHADE: what casts the shadows (its shrink); SMOOTH: a uniform
     (whether levels turn into each other; the lens is the world's one, U.uPxK); ghost: a thing draws back from an eye inside it;
     skins, ground, soft, relief: what its kinds may be (above); full: the most squares an edge a full mesh of its kinds
-    has (none: the ladder's most: a slot of the heap is as large as that); thin: [lo, hi] (intent 0033, `?lod=new`): no
+    has (none: the ladder's most: a slot of the heap is as large as that); thin: [lo, hi] (intent 0033): no
     dot, a thing's last mesh thins away pixel by pixel from hi pixels on screen down to lo, its shadow with it; still: its
     kinds stand on no skeleton and their vertices carry their coarse normal and shade finely (assets/kit/solid.js);
     zoo: its kinds ({ first (the zoo's number
@@ -102,16 +103,17 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // vertices in order (none shared: drawn by class, no corner is looked up), material(src, level, shadow, at): its
   // material (at(R): where a draw's vertex lies in the heap, and whether it is drawn), dot: its last level is the drawer's
   // dot, here(OWN): it makes its coarse levels itself, numbers: its kinds' own numbers, { rows, of(k) }, kept after their
-  // looks in the one table: numOf }): no textures of its own; a look and a dot only where it says (its kinds' looks then
-  // say the dot's colour: a made thing's, src/scatter/placed.js).
+  // looks in the one table: numOf, tell: jobs every recipes' worker is told first, what its kinds are made by that a
+  // worker cannot read itself: the plants' stands, src/scatter/trees.js }): no textures of its own; a look and a dot
+  // only where it says (its kinds' looks then say the dot's colour: a made thing's, src/scatter/placed.js).
   // KINDS: the zoo's numbers of its kinds, where they are not one after another from `first`
   const SOLID = !MAKE, DOT = SOLID || !!MAKE?.dot, NL = DOT ? ALL : 0, kindNo = (k) => (KINDS ? KINDS[k] : first + k);
   // A make's own levels are drawn a kind a draw while its kinds are few (BYKIND): each mesh's own list of corners its
   // draw's index, no vertex worked out for nothing. Of more kinds (hundreds of species, a city of buildings), a level is
   // drawn in a few draws by the size of its meshes (CLASSED): a draw for each power of two of triangles, each thing
   // drawn as long as its class (at most twice its own), its corners looked up in the heap where its make shares vertices
-  // between them. `?byclass`: so however few its kinds, to measure.
-  const CLASSED = !!MAKE && (BYCLASS || ALL > BYKIND), CORNERED = CLASSED && !MAKE.flat;   // CORNERED: its corners are kept in the heap
+  // between them.
+  const CLASSED = !!MAKE && ALL > BYKIND, CORNERED = CLASSED && !MAKE.flat;   // CORNERED: its corners are kept in the heap
   const WORN = GROUND || (!SOLID && DOT);   // (its dot is the mean of the world's material its kind wears, in its tint)
   const L = LEVELS.length, STREAMED = LEVELS.filter((l) => l.slots).length, HULL = LEVELS.findIndex((l) => l.n > 0 && l.n <= 2), ROWS = (GROUND ? 3 : 2) + (STATE ? 1 : 0), SR = ROWS - 1;   // ROWS: what a tier packs of a thing, rows of four; SR: where a drawer made with `state` packs the thing's own (its tint, its wear: src/world/things.js)
   const room = (i) => LEVELS[i].room ?? (FULLMOST && LEVELS[i].n === FULLN ? { tris: trisOf(FULLMOST), verts: vertsOf(FULLMOST) } : roomOf(i));   // the most a level's mesh may be (a level's own, or the ladder's)
@@ -333,6 +335,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // ---- the meshes: made by the kinds' recipes in workers (recipes.worker.js); the coarse levels of every kind at the
   // start, the fine ones as the camera comes near ----
   const ask = pool(), done = []; let busy = 0;   // (a worker knows a kind by the zoo's number: this drawer's k-th is first + k)
+  if (MAKE?.tell) ask.all(MAKE.tell);   // (before anything of it is asked)
   const stats = { coarseMs: 0, built: 0, put: 0, full: 0, skins: 0, kept: false }, t0 = performance.now();
   // every kind's dot is there from the start (the same three corners for all). Its two coarse meshes are read back from
   // the browser where an earlier start kept them (src/core/kept.js: one piece, under the recipes' fingerprint); else

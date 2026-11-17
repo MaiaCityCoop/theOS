@@ -9,8 +9,7 @@
 // it lies in (until it is painted: layer 0, a plain stand-in). Held by the world, it stays; asked for by a page
 // (the library's pictures), it may give its layer up to the next, the longest unasked first.
 //
-// Where the GPU has block compression (BC: every desktop; `?rawtex` leaves it off, to measure against) a material is
-// kept compressed: 2.8 MB where it was 11, and no slower to read. Nothing compressed is downloaded: each painted tile
+// Where the GPU has block compression (BC: every desktop) a material is kept compressed: 2.8 MB where it was 11, and no slower to read. Nothing compressed is downloaded: each painted tile
 // is packed into blocks here, by a compute pass of our own (blocksOf), and copied into its layer on the GPU. A block
 // is 4 by 4 texels:
 //   A  (BC3, 16 bytes)  its colours four steps between two it keeps (5:6:5 bits); the height eight steps between
@@ -22,12 +21,10 @@
 // from: materials of kind `noise`), is read as painted from a small array of its own: four steps a block would be
 // steps in the land. Those are always there.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Loop, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, ivec2, uniform, sqrt, clamp, normalize, texture, textureLoad, property, outputStruct, instancedArray, instanceIndex, min, max, dot, round, select, uniformArray, int, renderGroup, atomicAdd, atomicStore, atomicLoad } from 'three/tsl';
+import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, ivec2, uniform, sqrt, clamp, normalize, texture, textureLoad, property, outputStruct, instancedArray, instanceIndex, min, max, dot, round, select, uniformArray, int, renderGroup } from 'three/tsl';
 import { recipes } from '../core/registry.js';
 import { note } from '../core/gpu.js';
 import { compileFor, inTurn } from '../core/compile.js';
-import { flag, flagText } from '../core/flags.js';
-import { LOD_DEFAULT } from '../../assets/kit/crowd.js';
 
 const SIZE = 1024, LEVELS = Math.log2(SIZE) + 1;
 
@@ -67,43 +64,10 @@ const SIDES = Array.from({ length: LEVELS }, (_, l) => Math.max(1, SIZE >> (l + 
 let BLOCKS = 0, ROOM = 0;
 SIDES.forEach((s, l) => { FIRST[l] = BLOCKS; BLOCKS += s * s; AT[l] = ROOM; ROOM += STRIDES[l] * s; });
 
-// Foliage's cut-out kept as thick at every mip as at its finest (intent 0033; under `?lod=new` with `?mips=1`): a
-// mip of a painting is its texels averaged, so a leaf's edge fades and a sprig seen small is fainter than the leaves it
-// is, and cut where the finest is cut it thins out with distance (main's plants lower their cut far off by hand to make
-// up for it, src/scatter/trees.js). Here each mip's alpha is scaled so that as many of its texels pass the cut as of the
-// finest level's: the share over CUT of level 0 is counted, and for each level the alpha that as large a share of its
-// texels reaches (a histogram of 256 steps a level, on the GPU), and its alpha multiplied by CUT over that (at most
-// eight times). Painted tiles only, as they are packed (blocksOf).
-// Tried on the far canopy and not enough by itself (intent 0033, Build, 2026-11-17): kept for a far card or body that
-// wears its painting, which needs it.
-export const COVER = { CUT: 0.45, on: flagText('mips') === '1' && (flagText('lod') ?? LOD_DEFAULT) === 'new' };   // (only where the plants are the crowd kit's: assets/kit/crowd.js LOD_DEFAULT)
-const TEXELS = Array.from({ length: LEVELS }, (_, l) => (SIZE >> l) ** 2), TFIRST = []; let TALL = 0;
-TEXELS.forEach((n, l) => { TFIRST[l] = TALL; TALL += n; });
-function coverageOf(src) {
-  const hist = instancedArray(LEVELS * 256, 'uint').toAtomic(), scale = instancedArray(LEVELS, 'float'), cut = Math.ceil(COVER.CUT * 255);
-  const clear = Fn(() => { atomicStore(hist.element(instanceIndex), uint(0)); })().compute(LEVELS * 256);
-  const count = Fn(() => {
-    const lv = uint(0).toVar(), first = uint(0).toVar();
-    for (let l = 1; l < LEVELS; l++) If(instanceIndex.greaterThanEqual(uint(TFIRST[l])), () => { lv.assign(uint(l)); first.assign(uint(TFIRST[l])); });
-    const side = uint(SIZE).shiftRight(lv).toVar(), k = instanceIndex.sub(first), x = k.mod(side), y = k.div(side);
-    const a = src.sample(vec2(float(x).add(0.5), float(y).add(0.5)).div(float(side))).level(float(lv)).a;
-    atomicAdd(hist.element(lv.mul(uint(256)).add(uint(round(clamp(a, 0, 1).mul(255))))), uint(1));
-  })().compute(TALL);
-  const solve = Fn(() => {
-    const l = instanceIndex, c0 = uint(0).toVar();
-    Loop({ start: cut, end: 256, type: 'int' }, ({ i }) => { c0.addAssign(atomicLoad(hist.element(uint(i)))); });
-    const share = float(c0).div(SIZE * SIZE).toVar(), side = float(uint(SIZE).shiftRight(l)), n = side.mul(side), acc = float(0).toVar(), t = int(255).toVar();
-    Loop({ start: 0, end: 256, type: 'int' }, ({ i }) => { If(acc.div(n).lessThan(share), () => { const b = int(255).sub(i); acc.addAssign(float(atomicLoad(hist.element(l.mul(uint(256)).add(uint(b)))))); t.assign(b); }); });
-    scale.element(l).assign(select(l.equal(uint(0)).or(share.lessThanEqual(0)), float(1), clamp(float(COVER.CUT).div(max(float(t).div(255), 1 / 255)), 1, 8)));
-  })().compute(LEVELS);
-  return { passes: [clear, count, solve], scale };
-}
-
 // A painted tile packed into blocks, its every level in one pass: a block an instance. src: the painted tile with its
 // mips. `normals` 0: a tile of A, its sixteen bytes to `out`; 1: of N, to `out`, and of R, its eight bytes to `outR`.
-// cov: a foliage's mips' alpha scales (coverageOf), taken where `cover` is 1.
-function blocksOf(src, out, outR, cov = null) {
-  const normals = uniform(0), cover = uniform(0);
+function blocksOf(src, out, outR) {
+  const normals = uniform(0);
   const pass = Fn(() => {
     const lv = uint(0).toVar(), first = uint(0).toVar(), at = uint(0).toVar();
     for (let l = 1; l < LEVELS; l++) If(instanceIndex.greaterThanEqual(uint(FIRST[l])), () => { lv.assign(uint(l)); first.assign(uint(FIRST[l])); at.assign(uint(AT[l])); });
@@ -142,12 +106,12 @@ function blocksOf(src, out, outR, cov = null) {
       });
       return [bits(Q0).bitOr(bits(Q1).shiftLeft(uint(16))).toVar(), ci];
     };
-    const isN = normals.greaterThan(0.5), sc = cov ? select(cover.greaterThan(0.5).and(isN.not()), cov.scale.element(lv), float(1)).toVar() : null, fourth = steps(px.map((c) => (sc ? min(c.a.mul(sc), 1) : c.a))), red = steps(px.map((c) => c.r)), green = steps(px.map((c) => c.g)), rgb = colours(px.map((c) => c.rgb));
+    const isN = normals.greaterThan(0.5), fourth = steps(px.map((c) => c.a)), red = steps(px.map((c) => c.r)), green = steps(px.map((c) => c.g)), rgb = colours(px.map((c) => c.rgb));
     const e = at.add(by.mul(max(side, uint(32)))).add(bx).toVar();
     out.element(e).assign(uvec4(select(isN, red[0], fourth[0]), select(isN, red[1], fourth[1]), select(isN, green[0], rgb[0]), select(isN, green[1], rgb[1])));
     outR.element(e).assign(uvec2(fourth[0], fourth[1]));
   })().compute(BLOCKS);
-  return { pass, normals, cover };
+  return { pass, normals };
 }
 
 // Every material of the library, numbered (a material's number is its place here: tex.layer)
@@ -177,15 +141,15 @@ export function usedMaterials() {
     there (hold: keep it until release(material)), flush(): paint what reads asked for while shaders were built
     (each frame), used: the materials the world wears, capacity: layers in the pool, packed: whether they are kept
     compressed, ready: a promise, the start's materials painted (they are compiled side by side meanwhile) }.
-    opts: raw (as painted, uncompressed: what a GPU without the formats gets), spare (layers beyond what the world
-    wears, for what is asked for besides: the library's pictures). */
-export function bakeTextures(renderer, { raw = flag('rawtex'), spare = 6 } = {}) {
+    opts: spare (layers beyond what the world wears, for what is asked for besides: the library's pictures). A GPU
+    without the formats gets them as painted, uncompressed. */
+export function bakeTextures(renderer, { spare = 6 } = {}) {
   // seen at a low angle a texture is filtered along the slope, several taps a read: four for the colours, two for the
   // relief (its blur is not seen), not eight for both: at eye level the ground is most of the picture and its reads most
   // of a frame's time (a walk in the forest: 23 ms at eight, 19 at four and two, at one and a half pixels a point)
   const USED = usedMaterials(), DATA = USED.filter((m) => m.kind === 'noise'), SEEN = USED.filter((m) => m.kind !== 'noise');
   const ROOM_OF = ALL.filter((m) => m.kind !== 'noise').length, CAP = 1 + Math.min(ROOM_OF, SEEN.length + spare);   // (layer 0: the stand-in)
-  const dev = renderer.backend.device, PACKED = !raw && !!dev?.features?.has('texture-compression-bc');
+  const dev = renderer.backend.device, PACKED = !!dev?.features?.has('texture-compression-bc');
   const array = (aniso, depth) => {
     const rt = new THREE.RenderTarget(SIZE, SIZE, { depth, depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
     Object.assign(rt.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, anisotropy: aniso });
@@ -219,8 +183,7 @@ export function bakeTextures(renderer, { raw = flag('rawtex'), spare = 6 } = {})
     const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false;
     const relief = reliefProgram(raw.textures[1]), reliefQuad = new THREE.Mesh(quad.geometry, relief.mat); reliefQuad.frustumCulled = false;
     const blocks = PACKED ? instancedArray(ROOM + 2048, 'uvec4') : null, blocksR = PACKED ? instancedArray(ROOM + 2048, 'uvec2') : null;
-    const cov = PACKED && COVER.on ? coverageOf(texture(tmp.texture)) : null;
-    return (P = { tmp, raw, quad, relief, reliefQuad, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), blocks, blocksR, cov, enc: PACKED ? blocksOf(texture(tmp.texture), blocks, blocksR, cov) : null });
+    return (P = { tmp, raw, quad, relief, reliefQuad, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), blocks, blocksR, enc: PACKED ? blocksOf(texture(tmp.texture), blocks, blocksR) : null });
   };
   const box = new THREE.Box2(), at = new THREE.Vector3();
   const copy = (dst, i) => { for (let l = 0; l < LEVELS; l++) { const s = SIZE >> l; box.min.set(0, 0); box.max.set(s, s); at.set(0, 0, i); renderer.copyTextureToTexture(P.tmp.texture, dst, box, at, l, l); } };
@@ -242,8 +205,6 @@ export function bakeTextures(renderer, { raw = flag('rawtex'), spare = 6 } = {})
     const prev = renderer.getRenderTarget();
     renderer.setRenderTarget(P.raw); renderer.render(quad, P.cam); renderer.setRenderTarget(prev);
     renderer.copyTextureToTexture(P.raw.textures[0], P.tmp.texture);
-    const foliage = !!P.cov && m.kind === 'foliage'; if (P.enc) P.enc.cover.value = foliage ? 1 : 0;
-    if (foliage) renderer.compute(P.cov.passes);   // (its mips' coverage, before it is packed)
     if (data) copy(Dd, i); else if (PACKED) pack(i, false); else copy(A, i);
     if (!data) {
       P.relief.bumpInv.value = 1 / m.bump;

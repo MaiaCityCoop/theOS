@@ -23,8 +23,6 @@ import { unionOf } from '../skeleton/mesh.js';
 import { slope } from '../field.js';
 
 import { MAXK } from './layout.js';
-/** How the muscles are drawn out, as a number: another, and a kept drawing is drawn again. */
-export const MADE = 6;
 
 const AROUND = 10, RING = 0.011, GAP = 0.0008, DEEP = 0.3;
 // The man these muscles are laid for is slightly muscular (intent 0036): his muscles the studies' means. They were a

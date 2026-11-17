@@ -4,7 +4,7 @@
 // leaf cards, cut out, swaying; a thousand kinds of creature, each ONE mesh on a skeleton of its own. Every village
 // plot of the city (src/city: 898 of them) is filled with a million of what stands, a hundred of each kind; and in
 // every plot ten thousand of what roams move about, each herd at its own pace. 898 million standing, nine million
-// moving. Only with `?stress` in the address; nothing of it is in the library.
+// moving. Loaded only with `?stress` in the address (src/scatter/index.js); nothing of it is in the library.
 //
 // What plugs in, each a file found by itself: a family of kinds (assets/zoo/*.js: meshes at every level, texture,
 // look, skeleton, herds), a way of taking the light (src/shading/*.js), a material of the world (materials/*.js: the
@@ -69,7 +69,6 @@ import { bodyOf } from '../../assets/zoo/index.js';
 import { addWays, waysChanged } from '../world/ways.js';
 import { moved } from '../../assets/kit/bones.js';
 import CITY from '../../world/city.js';
-import { flag } from '../core/flags.js';
 
 const KINDS = 10000, SIDE = 1000, MSIDE = 100, GROUP = KINDS / SIDE;   // a plot's ten thousand places for a kind (given to the STAND kinds that stand: the zoo's; ALL: with those that roam); a plot's lattice: a thousand cells a side, one asset in each (GROUP rows of it hold every kind once: a hundred of every kind a plot); its movers' lattice: ten thousand
 const PLOTS = Math.round(CITY.people / CITY.perVillage), RAYS = 64, PH_AT = 4 + RAYS + RAYS + 1, Q_AT = PH_AT + RAYS + 1, LC_AT = Q_AT + 1, VERGE_AT = Q_AT + 2, LEAST_AT = Q_AT + 3, CLRS_AT = Q_AT + 6, MAXW = 32, ROW = CLRS_AT + MAXW + 2, FAR_AT = ROW - 2, KEPT_AT = ROW - 1, KEPT = 8, BITS = 11, TAU = Math.PI * 2;   // a plot's row: its middle (x, z), its mean reach, its things' scale, then how far its edge is in RAYS directions, then the directions that cut its land into RAYS equal shares, the directions at every RAYS-th of the way round it (PH_AT), its movers' scale, how long it is round, the room of what stands beside its ways, its shortest reach (Q_AT …), half the width each of its ways is kept clear (CLRS_AT, MAXW of them), its longest reach, and where its places are kept (KEPT plots' at once; -1: not kept); BITS: a cell's number holds its plot above them
@@ -319,9 +318,7 @@ function plotOf(cp, i) {
 
 // the plots, as the GPU reads them: a row each (ROW numbers), filled when the city's plan has come (src/city: made in a
 // worker at the start). Kept here, not in the stand: what else places things reads the ways from them (below)
-const CORNERS = flag('corners');   // (`?corners`: every corner of every triangle looked up and worked out by itself, as before 2026-11-14: to measure against)
-const STRESS = flag('stress');
-const plotRows = new THREE.StorageBufferAttribute(new Float32Array(STRESS ? PLOTS * ROW : ROW), 1), PT = storage(plotRows, 'float', STRESS ? PLOTS * ROW : ROW), PL = [];
+const plotRows = new THREE.StorageBufferAttribute(new Float32Array(PLOTS * ROW), 1), PT = storage(plotRows, 'float', PLOTS * ROW), PL = [];
 const reach = (base, th) => { const t = th.div(TAU).add(1).fract().mul(RAYS), i0 = floor(t), a = uint(i0).min(uint(RAYS - 1)); return mix(PT.element(base.add(uint(4)).add(a)), PT.element(base.add(uint(4)).add(a.add(uint(1)).mod(uint(RAYS)))), t.sub(i0)); };
 const middle = (base) => vec2(PT.element(base), PT.element(base.add(uint(1))));
 // the stand's ways, said to the world (src/world/ways.js): a place is on a way where, in one of the NEARW plots nearest
@@ -343,7 +340,7 @@ const nearKN = (r) => LUTU.element(uint(clamp(floor(r.mul(64)), 0, 63))), candK 
 const clrN = (base, k) => PT.element(base.add(uint(CLRS_AT)).add(uint(k)));
 // the middle of way k (a float) of a plot at direction th, of its reach: the same in JS above (ringC)
 const ringCN = (plot, k, th) => { const G = RINGU.element(uint(k)); return G.x.add(G.z.mul(sin(G.w.mul(th).add(rnd(plot, int(RINGU2.element(uint(k)).x), uint(950)).mul(TAU))))); };
-if (STRESS) addWays({
+addWays({
   node: Fn(([p, margin]) => {
     const on = float(0).toVar();
     Loop(NEARW, ({ i }) => {
@@ -409,7 +406,7 @@ export function createStress(scene, renderer, tex) {
 
   // how it is drawn: the one drawer (src/scatter/drawer.js): the heap of every kind's meshes, their looks and textures,
   // the levels' materials and draws, and what streams them in. Here only where things stand and move.
-  const D = createDrawer(scene, renderer, tex, { name: 'stand', LEVELS, SHADE, SMOOTH, corners: CORNERS, zoo: { first: 0, ALL, STAND, MOVING, lookOfKind, fingerprint } });
+  const D = createDrawer(scene, renderer, tex, { name: 'stand', LEVELS, SHADE, SMOOTH, zoo: { first: 0, ALL, STAND, MOVING, lookOfKind, fingerprint } });
   const { H, lookOf, sizes, skins, boneRows, ask, stats, pending } = D;
 
   const tiers = [];
@@ -654,8 +651,8 @@ export function createStress(scene, renderer, tex) {
   return tiers;
 }
 
-/** A scatter engine (src/scatter/index.js finds it): it places no asset of the library, only its own, and only when asked. */
+/** A scatter engine (src/scatter/index.js loads it where `?stress` asks): it places no asset of the library, only its own. */
 export const engine = {
   id: 'stress',
-  createOwn: (scene, tex, ground, gpu, renderer) => (gpu && STRESS ? createStress(scene, renderer, tex) : []),
+  createOwn: (scene, tex, ground, gpu, renderer) => (gpu ? createStress(scene, renderer, tex) : []),
 };

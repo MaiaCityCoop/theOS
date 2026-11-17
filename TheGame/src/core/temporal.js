@@ -16,9 +16,6 @@
 // The kept picture carries, beside its colour, how much it is built from (its fourth number): a pixel newly seen takes
 // the frame's own colour at once and is sharp a few frames on; one long seen changes slowly, and is steady.
 //
-// `?notaau` (to measure against): nothing shifted and nothing kept, so the same passes show one frame spread over
-// the screen's pixels by the filter alone, as before.
-//
 // What it costs, by the clock (frames drawn back to back, 2026-11-14; the GPU's own pass timestamps, summed, overstate
 // every extra pass by milliseconds and misled a day's work): its three passes about a millisecond a frame over the
 // one filter pass they replace, the finer texture reads most of another, the firming nothing to speak of.
@@ -36,8 +33,7 @@ import { U } from './uniforms.js';
 const halton = (i, b) => { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; };
 const PLACES = Array.from({ length: 32 }, (_, i) => [halton(i + 1, 2) - 0.5, halton(i + 1, 3) - 0.5]);   // parts of a pixel, evenly spread whatever their number
 
-/** off: nothing shifted and nothing kept (`?notaau`: one frame, spread by the filter). */
-export function createTemporal(renderer, { off = false } = {}) {
+export function createTemporal(renderer) {
   // sigma: how wide a screen pixel takes the frame's pixels in (screen pixels); most: how many frames' worth a pixel is
   // built from at most (moving: while it crosses the screen at `fast` pixels a frame or more, where what is kept blurs
   // by being moved); short: how much a pixel that moves by itself keeps; still: the pixels a frame a point may move by
@@ -164,18 +160,18 @@ export function createTemporal(renderer, { off = false } = {}) {
     /** Before the world is drawn into a target of w by h: the camera's window shifted by this frame's part of a pixel. */
     begin(camera, w, h) {
       proj.copy(camera.projectionMatrix); projInv.copy(camera.projectionMatrixInverse); view.copy(camera.matrixWorldInverse); world.copy(camera.matrixWorld);
-      const [jx, jy] = off ? [0, 0] : PLACES[(k = (k + 1) % PLACES.length)];
-      u.jit.value.set(jx, jy); if (!off) camera.setViewOffset(w, h, jx, jy, w, h); U.uMarks.value = 1;
+      const [jx, jy] = PLACES[(k = (k + 1) % PLACES.length)];
+      u.jit.value.set(jx, jy); camera.setViewOffset(w, h, jx, jy, w, h); U.uMarks.value = 1;
       // how fast the wind moves what sways, as screen pixels a frame for a metre of swing at a metre from the eye, over
       // what counts as still: its gusts' depth and how fast they pass (src/world/weather/wind.js)
       const W = U.uWind.value, rate = W.z * (0.25 + 0.35 * W.z) * ((2 * Math.PI * W.w) / 38) * (1 + 0.6 * W.z * W.z);
       U.uMark.value = (rate * camera.projectionMatrix.elements[5] * renderer.getDrawingBufferSize(size).y * 0.5) / (60 * K.still);
       // textures read as finely as the screen's pixels would read them, not the inside's: what that leaves crawling in one
       // frame, the frames together take in (src/terrain/material.js, src/scatter/stress.js)
-      U.uFine.value = off ? 1 : 1 + (Math.min(1, w / size.x) - 1) * K.fine;
+      U.uFine.value = 1 + (Math.min(1, w / size.x) - 1) * K.fine;
     },
     /** After it: the camera as it was, and nothing marked or read finer by what is drawn otherwise (the lens's own pass). */
-    end(camera) { if (!off) camera.clearViewOffset(); U.uMarks.value = 0; U.uMark.value = 0; U.uFine.value = 1; },
+    end(camera) { camera.clearViewOffset(); U.uMarks.value = 0; U.uMark.value = 0; U.uFine.value = 1; },
     /** The screen's picture from the frame just drawn (`now`: its colour and depth) and what is kept (`was`: the
         frame before's target, for its depth; none at the first), laid on the canvas. through: what the lens made of
         the frame ({ colour: its colour blurred, glass: { barrel, picH, dim } }: src/camera/post.js), or none. */
@@ -194,7 +190,7 @@ export function createTemporal(renderer, { off = false } = {}) {
       // taken out before anything is rounded (the two views' product is their difference)
       rel.multiplyMatrices(viewWas, world); u.toWas.value.multiplyMatrices(projWas, rel).multiply(projInv); u.toNow.value.copy(u.toWas.value).invert();
       u.inSize.value.set(now.width, now.height); u.outSize.value.copy(size); u.kn.value = 1 / (2 * K.sigma * K.sigma);
-      u.kept.value = fresh || off ? 0 : 1; u.wasOk.value = was && !fresh ? 1 : 0;
+      u.kept.value = fresh ? 0 : 1; u.wasOk.value = was && !fresh ? 1 : 0;
       tC.value = through ? through.colour : now.texture; tD.value = now.depthTexture; tDW.value = (was ?? now).depthTexture; tH.value = hist[1 - turn].texture;
       renderer.setRenderTarget(guide); renderer.render(look, cam);
       renderer.setRenderTarget(hist[turn]); renderer.render(build, cam); renderer.setRenderTarget(null);

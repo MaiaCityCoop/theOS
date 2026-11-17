@@ -17,7 +17,7 @@ file says what it is; none of what follows is written in it.
 | --- | --- | --- |
 | How large is it on screen? | `sizeOf(asset)` metres, times the lens's pixels a metre, over its distance through the lens | `assets/kinds.js` (`sizeOf`), `index.js` (`pxK`), `U.uPxK` (one for every engine; a packed thing's: `src/scatter/row.js` `pxOf`), `U.uLodInv` |
 | Which level is that? | its kind's `px`, resolved | `index.js` `detailOf` |
-| How does a level come and go? | parts one by one (`partGrown`), one piece whole at half way (`whole`), the last level sinking (`sunk`, `sinkInto`) | `handover.js` `handOver` |
+| How does a level come and go? | one piece whole at half way (`whole`), the last level sinking (`sunk`, `sinkInto`) | `handover.js` `handOver` |
 | Which things does a level's packing hold? | its band, its hand-over, and a pad for the camera's movement | `handover.js` `bandOf`, `padOf` |
 | The same, off the GPU | | `handover.js` `handOverAt` |
 
@@ -28,7 +28,7 @@ every distance with it.
 
 | What | Engine | How |
 | --- | --- | --- |
-| trees, bushes, ferns: anything in a stand | `src/scatter/trees.js`, drawn by `src/scatter/drawer.js` | per vertex, each frame: `handOver` + `partGrown` + `sinkInto`; packing by the drawer's tier (`bandOf`) |
+| trees, bushes, ferns: anything in a stand | `src/scatter/trees.js`, drawn by `src/scatter/drawer.js` | per vertex, each frame: `handOver` + `sinkInto`; packing by the drawer's tier (`bandOf`) |
 | rocks, and whatever else the heap holds | `src/scatter/drawer.js` (the rocks placed by `rocks.js`) | the ladder's eight levels (`assets/kit/ladder.js`), each vertex moving to its place on the next coarser mesh over a level's last pixels; an asset may end sooner (`detail.end`), shrinking away |
 | what stands at a spot of its own (a tent, a fire pit, later a house): a list of a few or of millions | `src/scatter/placed.js`, drawn by `src/scatter/drawer.js` (intent 0029) | per vertex, each frame: `handOver` (of one piece: whole, half way), `sinkInto`; packing by the drawer's tier over the list's runs; its last level the drawer's dot |
 | what moves (the stress stand's movers, the herds of `?herds=N`) | `src/scatter/stress.js`, `src/scatter/herds.js`, drawn by `src/scatter/drawer.js` | the drawer's one tier of every level, packed every frame: the level its size asks for, on its skeleton until its hull |
@@ -247,8 +247,7 @@ What moves by itself cannot be followed, so **it says so**: the fourth number of
 now, a flake by its own blending), and little is kept there: it is as sharp as one frame, not smeared. A new kind
 that moves by itself keeps this rule, or it leaves a trail. Three passes after the world's (the look at the inside's
 pixels; the build and the show at the screen's): what a screen pixel does is paid four and a half million times a
-frame, so the arithmetic lives in the look. `?notaau` shifts and keeps nothing (the same passes then spread one
-frame by the filter alone): to measure against.
+frame, so the arithmetic lives in the look.
 
 ## A thing of its own: placed in numbers, its own state, its own look (intent 0029)
 

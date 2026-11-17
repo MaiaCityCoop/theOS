@@ -20,9 +20,13 @@ import { recipes } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { waysVersion } from '../world/ways.js';
 import { flushThings, thingsVersion } from '../world/things.js';
+import { flag } from '../core/flags.js';
 
-const FOUND = import.meta.glob(['./*.js', '!./index.js', '!./*.worker.js'], { eager: true });   // (whole modules: a named import would fail where a module has none)
-export const ENGINES = Object.fromEntries(Object.values(FOUND).map((m) => m.engine).filter(Boolean).map((e) => [e.id, e]));
+// (the stress stand and the herds are tools that measure: loaded only where the address asks for them, `?stress`,
+// `?herds=N`, as the bench and the flyby are: src/main.js)
+const FOUND = import.meta.glob(['./*.js', '!./index.js', '!./*.worker.js', '!./stress.js', '!./herds.js'], { eager: true });   // (whole modules: a named import would fail where a module has none)
+const TOOLS = await Promise.all([flag('stress') && import('./stress.js'), flag('herds') && import('./herds.js')].filter(Boolean));
+export const ENGINES = Object.fromEntries([...Object.values(FOUND), ...TOOLS].map((m) => m.engine).filter(Boolean).map((e) => [e.id, e]));
 
 /** An asset's engine, and the row it reads of it. */
 export const engineOf = (asset) => (asset?.placement?.at === 'scatter' ? ENGINES[asset.placement.engine] : null) ?? null;
