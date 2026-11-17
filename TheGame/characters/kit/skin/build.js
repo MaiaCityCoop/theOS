@@ -265,8 +265,10 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       if (Number.isNaN(tissue[g])) tissue[g] = tissueAt([Math.abs(X(i)), Y(j), Z(k)]);
       let v = d - tissue[g];
       if (head) {
-        const q2 = at(i, j, k), qq = [Math.abs(X(i)), Y(j), Z(k)], face = smooth01((qq[2] - 0.0) / 0.06);
-        v = far[q2] + (0.12 + 0.13 * face) * (whole[q2] - far[q2]) - tissue[g];
+        // (only the face's front, the brow, the nose's root, the lips' and the chin's ground, keeps a little of what stands
+        // out: over the cheeks and the jaw's side what the muscles under them leave is bumps the fat smooths away)
+        const q2 = at(i, j, k), qq = [Math.abs(X(i)), Y(j), Z(k)];
+        v = far[q2] + 0.12 * smooth01((qq[2] - 0.07) / 0.03) * (whole[q2] - far[q2]) - tissue[g];
         headBase[g] = v; v = features(v, qq, tissue[g]);
       }
       // (each leg on its own side of the middle: where the knees or the thighs touch, standing, the skin goes round

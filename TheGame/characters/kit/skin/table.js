@@ -174,6 +174,7 @@ export const MASSES = [
   { part: 'head', what: 'lower lip', at: [0, 1.5925, 0.1025], r: [0.023, 0.023, 0.0045, 0.0065, 0.0065, 0.01], n: 2.0, k: 0.005, arch: 22 },
   { part: 'head', what: 'masseter', at: [0.042, 1.623, 0.026], r: [0.009, 0.02, 0.022, 0.026, 0.024, 0.02], n: 2.0, k: 0.015 },   // (and the cheek's fat over it)
   { part: 'head', what: 'chin', at: [0, 1.571, 0.09], r: [0.02, 0.02, 0.014, 0.013, 0.011, 0.014], n: 2.0, k: 0.03 },
+  { part: 'trunk', what: 'jugular notch', at: [0, 1.475, 0.036], r: [0.012, 0.012, 0.008, 0.008, 0.009, 0.02], n: 2.0, k: 0.012 },   // (the hollow above the breastbone a soft one, the width of a thumb, not a pit)
   { part: 'trunk', what: 'deltoid', at: [0.178, 1.43, -0.034], r: [0.045, 0.03, 0.04, 0.05, 0.046, 0.048], n: 2.0, k: 0.03 },   // (the shoulder's cap, over the acromion and the head of the arm)
   { part: 'trunk', what: 'pectoral', at: [0.078, 1.33, 0.078], r: [0.074, 0.064, 0.1, 0.038, 0.022, 0.03], n: 2.6, k: 0.025, lean: 0.3 },   // (a slightly muscular man's: its lower edge at the nipples, the sternum in the groove between the two)
   { part: 'trunk', what: 'buttock', at: [0.072, 0.885, -0.08], r: [0.085, 0.062, 0.11, 0.085, 0.05, 0.065], n: 2.5, k: 0.025 },

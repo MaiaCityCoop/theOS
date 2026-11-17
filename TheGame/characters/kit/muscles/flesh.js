@@ -209,7 +209,7 @@ function materialOf(tex, eye, kind, inset = 0, rest = null) {
         const near = (c, r) => exp(length(Q.sub(vec3(...c))).div(r).pow(2).negate());   // (a place of the body, softly)
         // its relief, finer than its points: pores (about a millimetre) and the skin's fine grain, faded with distance
         const fade = clamp(float(1).sub(length(eye.sub(w)).div(2.5)), 0, 1), bump = (f, e) => { const c = mx_noise_float(P.mul(f)); return vec3(mx_noise_float(P.add(vec3(e, 0, 0)).mul(f)).sub(c), mx_noise_float(P.add(vec3(0, e, 0)).mul(f)).sub(c), mx_noise_float(P.add(vec3(0, 0, e)).mul(f)).sub(c)).div(e); };
-        const g0 = bump(900, 0.0002).mul(0.00009).add(bump(160, 0.001).mul(0.00015)), gw = modelWorldMatrix.mul(vec4(g0, 0)).xyz.mul(fade.mul(is(3).oneMinus()));
+        const g0 = bump(900, 0.0002).mul(0.00007).add(bump(360, 0.0005).mul(0.00004)).add(bump(60, 0.003).mul(0.00012)), gw = modelWorldMatrix.mul(vec4(g0, 0)).xyz.mul(fade.mul(is(3).oneMinus()));
         const nb = normalize(n.sub(gw.sub(n.mul(dot(gw, n)))));
         // its colour: a fair skin, mottled; the blood nearer the surface on the cheeks, the nose, the ears, the
         // knuckles, the elbows, the knees and the feet; the soles paler; veins faint and bluish on the forearm's
@@ -222,16 +222,19 @@ function materialOf(tex, eye, kind, inset = 0, rest = null) {
         let base = vec3(0.6, 0.39, 0.28).mul(float(0.93).add(mottle.mul(0.1)).add(pore.mul(0.025)));
         base = mix(base, base.mul(vec3(1.06, 0.8, 0.78)), clamp(flush, 0, 1));
         base = mix(base, base.mul(vec3(0.82, 0.88, 1.08)), vein);
+        // (a few freckles, darker and browner, scattered in loose clusters)
+        const freckle = smoothstep(0.5, 0.68, mx_noise_float(P.mul(230))).mul(smoothstep(0.15, 0.55, mx_noise_float(P.mul(6).add(11.3))));
+        base = mix(base, base.mul(vec3(0.74, 0.62, 0.55)), freckle.mul(0.45));
         base = mix(base, base.mul(vec3(1.08, 1.05, 1.02)), smoothstep(0.012, 0.0, P.y));
         const col = mix(mix(mix(base, vec3(0.56, 0.24, 0.22), is(1)), vec3(0.36, 0.2, 0.16), is(2)), vec3(0.66, 0.46, 0.42), is(3).mul(0.85)).mul(mix(vec3(0.6, 0.48, 0.44), vec3(1), open));
         // (the light under the skin: a wrapped diffuse that wraps further in the red, so the shade's edge is warm; and
         // where the skin is thin, the ears and the nose, the light from behind comes through red)
-        const nl = dot(nb, L), diff = max(vec3(nl).add(vec3(0.5, 0.3, 0.25)).div(vec3(1.5, 1.3, 1.25)), 0);
+        const nl = dot(nb, L), ng = dot(n, L), diff = max(vec3(mix(nl, ng, 0.6), nl, nl).add(vec3(0.32, 0.14, 0.1)).div(vec3(1.32, 1.14, 1.1)), 0);   // (the red from deeper, so from a smoother surface: the pores' and the grain's shade is bluish-grey, not red)
         const thin = near([0.077, 1.665, -0.02], 0.025).add(near([0, 1.634, 0.12], 0.012).mul(0.5)), through = pow(clamp(dot(V, L.negate()), 0, 1), 4).mul(thin).mul(0.6);
         // (its sheen: the oil on the skin, two lobes, the sharper on the forehead, the nose and the lips; stronger at a
         // grazing angle, as every surface's is, F0 = 0.028)
         const hh = max(dot(nb, Hh), 0), fres = float(0.028).add(float(0.972).mul(pow(float(1).sub(max(dot(nb, V), 0)), 5)));
-        const oily = clamp(near([0, 1.72, 0.1], 0.04).add(near([0, 1.64, 0.115], 0.025)).add(is(1)), 0, 1), sharp = mix(float(60), float(160), oily);
+        const oily = clamp(near([0, 1.72, 0.1], 0.04).add(near([0, 1.64, 0.115], 0.025)).add(is(1)), 0, 1), sharp = mix(float(60), float(160), oily).mul(mx_noise_float(P.mul(45)).mul(0.3).add(1));   // (and patchy, as the oil lies)
         const spec = fres.mul(pow(hh, sharp).mul(sharp.add(8).div(25)).add(pow(hh, 14).mul(0.9))).mul(mix(float(0.7), float(1.3), oily)).mul(is(3).mul(1.5).add(1));
         const lit = col.mul(skyLight(nb).mul(open.mul(open)).add(sun.mul(diff))).add(sun.mul(vec3(0.9, 0.25, 0.12)).mul(through)).add(sun.mul(spec).mul(max(nl, 0)));
         out.assign(finish(lit, w, eye));
