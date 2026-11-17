@@ -665,6 +665,32 @@ canopy softer and more even than main's, which keeps more of its crowns' detail 
 
 So it is **not yet the default**: about as fast, not at least as fast, and not shown to look at least as good.
 
+### Stage 1: the shape's numbers, fewer tiers, the far canopy (2026-11-17)
+
+Asked by the coordinator after #29: read the shape's numbers per plant, use fewer tiers, give the far canopy main's
+detail; make it the default once it is at least as fast and as good.
+
+- **Fewer tiers.** The bands are uncut again by default (`LOD.SPLIT` 0, `?split=2` still cuts them). Timed beside main in
+  one sitting (bench's frame, wall time): main 8 600 / 6 926 ms (tent / river bend), uncut 8 672 / 7 048 (+0.8 / +1.8 %),
+  cut at 2 8 901 / 7 308 (+3.5 / +5.5 %). Cut bands submit fewer vertices (546k against 740k at the river bend) and are
+  slower: on this GPU the tiers' packing passes and the draws cost more than the vertices they save.
+- **The shape's numbers.** A vertex cannot read anything once a plant; what it reads can be fewer. The sixteen numbers
+  are now half floats in one vertex in front of the level's (two elements read, not four), checked to come back within a
+  half float's precision.
+- **Then:** by the tent 8 996 ms against main's 8 960 (+0.4 %), at the river bend 7 308 against 7 592 (−3.7 %). Main's
+  own frame by the tent moved between 8 410 and 8 960 ms over these runs: they are as fast as each other within what
+  this machine can tell. A GPU's time, Safari and the stress world are not measured.
+- **The far canopy: not yet.** From 90 m the pines are 13 to 35 px tall, where the crowd's few cards are enlarged up to
+  KMAX times with their painting stretched: large flat leaves, softer than main's levels made of larger painted sprigs,
+  with their gaps. Tried, each beside main at that view, none better: the far body later (`far` 12 and 9: still flat
+  leaves, more vertices), sooner (`kmax` 5: smooth pads), the card showing more of its painting (`spread` 0.5: smooth
+  pads; `spread` 1 with the painting's mip chosen as for the card unenlarged: sharp leaves near, but a grid shimmers in
+  the trees by the tent). None was kept. What it needs is a decision more than a number: more cards there (cost), or
+  a card or far body that carries a crown's gaps and shade (a painting of a sprig cluster, or the body baked with the
+  crown's look), or alpha mips that keep their coverage.
+
+So the default stays main's: as fast, not as good from afar.
+
 ## Propose
 
 ## Story
@@ -693,9 +719,10 @@ So it is **not yet the default**: about as fast, not at least as fast, and not s
   - [ ] Samuel: look at `?lod=new` on next, by the tent, in the pine forest, from 90 m, and in the library
   - [x] what is submitted brought down towards what shows: the far body by 18 px, one body a far level, bands cut
         where they hold cards, CARD 30 (1.16 x main by the tent, 0.91 x at the river bend)
-  - [ ] the last few per cent: the shape's numbers read once a plant, not once a vertex (or kept in the kinds' table),
-        and fewer tiers; then the frame times again, and in the stress world
-  - [ ] the far canopy from 90 m as detailed as main's (the far body sooner than main's: FAR 18 with CARD 30)
+  - [x] the last few per cent: the shape's numbers in two elements, the bands uncut (as fast as main within the noise here)
+  - [ ] the frame times on a GPU (`?gputime`), in Safari and in the stress world
+  - [ ] the far canopy from 90 m as detailed as main's: more cards there, a card or far body that carries a crown's gaps
+        and shade, or alpha mips that keep their coverage (knobs tried and dropped: Build)
   - [ ] a card's cut-out reckoned by how much of it is leaves, so a card can show more of its painting (`?spread=1`)
         without turning solid far off
   - [ ] the drawer: runs of cards, the hull's ring
@@ -815,6 +842,17 @@ So it is **not yet the default**: about as fast, not at least as fast, and not s
   time, the stress world, Safari, a phone. One commit message of mine gave the earlier counts wrong (1.03M and 1.13M);
   it was corrected before any pull request.
 
+### 2026-11-17
+
+- **Asked:** (the coordinator, after #29 was merged and put on next) the shape's numbers read per plant, fewer tiers,
+  the far canopy with main's detail; the default once at least as fast and as good.
+- **Delivered:** the bands uncut by default; the shape's numbers as half floats, two elements a vertex reads, not four.
+- **Good:** As fast as main within this machine's noise: by the tent +0.4 %, at the river bend −3.7 %, where the cut
+  bands of #29 were 3.5 and 5.5 % slower in the same sitting. Found: on this GPU fewer tiers matter more than fewer
+  vertices.
+- **Broke / not there yet:** The far canopy from 90 m: five tries beside main, none as good, none kept (Build). So the
+  default stays main's. Not measured: GPU time, Safari, the stress world.
+
 ## Trail
 
 | When | Commit | What |
@@ -834,3 +872,4 @@ So it is **not yet the default**: about as fast, not at least as fast, and not s
 | 2026-11-16 | `788c07c` | the plants on the crowd kit behind `?lod=new`: levels as first shares of one build, the rule in the vertex stage, rooms, the library's plant |
 | 2026-11-16 | `4a880b9` | the library's crowd plant in seven vertex buffers |
 | 2026-11-16 | `f55b39d` | what the plants submit brought down: one far body a far level by 18 px, bands cut where they hold cards, a stand's size to the workers, CARD 30 |
+| 2026-11-17 | `99d7836` | the bands uncut by default; the shape's numbers as half floats in one vertex |
