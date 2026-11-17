@@ -223,7 +223,7 @@ function materialOf(tex, eye, kind, inset = 0, rest = null) {
         base = mix(base, base.mul(vec3(1.06, 0.8, 0.78)), clamp(flush, 0, 1));
         base = mix(base, base.mul(vec3(0.82, 0.88, 1.08)), vein);
         base = mix(base, base.mul(vec3(1.08, 1.05, 1.02)), smoothstep(0.012, 0.0, P.y));
-        const col = mix(mix(mix(base, vec3(0.56, 0.24, 0.22), is(1)), vec3(0.36, 0.2, 0.16), is(2)), vec3(0.74, 0.54, 0.5), is(3)).mul(mix(vec3(0.6, 0.48, 0.44), vec3(1), open));
+        const col = mix(mix(mix(base, vec3(0.56, 0.24, 0.22), is(1)), vec3(0.36, 0.2, 0.16), is(2)), vec3(0.66, 0.46, 0.42), is(3).mul(0.85)).mul(mix(vec3(0.6, 0.48, 0.44), vec3(1), open));
         // (the light under the skin: a wrapped diffuse that wraps further in the red, so the shade's edge is warm; and
         // where the skin is thin, the ears and the nose, the light from behind comes through red)
         const nl = dot(nb, L), diff = max(vec3(nl).add(vec3(0.5, 0.3, 0.25)).div(vec3(1.5, 1.3, 1.25)), 0);

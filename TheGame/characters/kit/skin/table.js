@@ -151,8 +151,13 @@ export const PROFILES = [
     [0.0, 4.8, 4.2, 4.7, 4.6, 2.1], [0.0, 5.3, 4.7, 5.3, 4.8, 2.1], [0.0, 4.7, 4.1, 4.7, 4.1, 2.1], [0.0, 3.5, 3.2, 3.8, 3.3, 2.1], [0.0, 2.4, 2.2, 3.0, 2.7, 2.2], [0.0, 1.9, 1.7, 2.7, 2.5, 2.3]] },
   { part: 'leg', a: [0.088, 0.9, 0.0], b: [0.085, 0.5, 0.006], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [0, 1], sections: [   // the thigh, from the hip to the knee
     [0.0, 9.0, 8.0, 8.5, 9.5, 2.2], [0.0, 9.3, 8.2, 9.0, 9.6, 2.2], [0.0, 8.9, 7.3, 9.6, 8.8, 2.2], [0.0, 8.1, 6.6, 9.2, 7.8, 2.2], [0.0, 6.9, 5.8, 8.2, 6.4, 2.2], [0.0, 5.3, 5.5, 6.0, 5.3, 2.1]] },
-  { part: 'leg', a: [0.085, 0.5, 0.006], b: [0.078, 0.1, -0.016], front: [0, 0, 1], fade: [0, 1], limb: 'leg', joins: [1, 0], sections: [   // the leg, from the knee to the ankle
-    [0.0, 5.3, 5.5, 5.8, 5.4, 2.1], [0.0, 5.8, 6.4, 4.8, 7.8, 2.1], [0.0, 5.5, 6.3, 4.4, 8.2, 2.1], [0.0, 4.4, 4.7, 3.7, 6.2, 2.1], [0.0, 3.1, 3.1, 2.9, 3.8, 2.1], [0.0, 2.8, 3.0, 2.7, 3.3, 2.1]] },
+  { part: 'leg', a: [0.085, 0.5, 0.006], b: [0.077, 0.04, -0.02], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [1, 0], sections: [   // the leg, from the knee down through the ankle
+    [0.0, 5.3, 5.5, 5.8, 5.4, 2.1], [0.0, 5.8, 6.4, 4.8, 7.9, 2.1], [0.0, 5.2, 6.0, 4.2, 7.6, 2.1], [0.0, 3.8, 4.0, 3.3, 5.0, 2.1], [0.0, 2.9, 3.0, 2.8, 3.4, 2.1], [0.0, 3.2, 3.4, 3.4, 3.8, 2.1]] },
+  // the foot, from the back of the heel to the ball, its front the instep (up); its first half-breadth is the inner
+  // side's, the second the outer's: 27 cm long, 10 across the ball, 6.5 across the heel, its instep 7 high (Hawes &
+  // Sovak 1994, as remembered)
+  { part: 'leg', a: [0.078, 0.03, -0.085], b: [0.09, 0.025, 0.135], front: [0, 1, 0], fade: [0, 0], k: 0.02, sections: [
+    [0.0, 2.6, 2.6, 3.0, 3.0, 2.0], [0.0, 3.0, 3.2, 5.5, 3.0, 2.2], [0.0, 3.2, 3.3, 6.0, 2.7, 2.4], [0.0, 3.4, 3.6, 4.8, 2.3, 2.6], [0.0, 4.0, 4.3, 3.4, 2.2, 2.8], [0.0, 4.6, 4.7, 2.3, 2.3, 2.6]] },
 ];
 // Masses the outline holds besides its sections: each buttock (the gluteus maximus under its pad of fat, its fold at
 // 0.80 m, the cleft between the two), a superellipsoid round its middle (left side; m): [out, in, up, down, front,
@@ -192,9 +197,9 @@ export const MOUTH = { at: [0, 1.5985, 0.112], half: 0.0255, deep: 0.008, arch: 
 // the knuckle, at the tip, the tip (left foot, m), how flat (height over breadth)].
 export const FOOT_SOURCE = 'Hawes & Sovak 1994, "Quantitative morphology of the human foot in a North American population", Ergonomics 37: 1213-1226, as remembered';
 export const TOES = {
-  toe1: [0.0135, 0.0118, [0.077, 0.0135, 0.196], 0.78], toe2: [0.0085, 0.0074, [0.097, 0.0105, 0.19], 0.85],
-  toe3: [0.0082, 0.0071, [0.112, 0.0098, 0.179], 0.85], toe4: [0.0078, 0.0068, [0.125, 0.0095, 0.164], 0.85],
-  toe5: [0.0072, 0.0064, [0.138, 0.0092, 0.147], 0.85],
+  toe1: [0.0135, 0.0118, [0.077, 0.0125, 0.196], 0.72], toe2: [0.0085, 0.0074, [0.097, 0.009, 0.19], 0.75],
+  toe3: [0.0082, 0.0071, [0.112, 0.0085, 0.179], 0.75], toe4: [0.0078, 0.0068, [0.125, 0.0082, 0.164], 0.75],
+  toe5: [0.0072, 0.0064, [0.138, 0.008, 0.147], 0.75],
 };
 // The trunk's relief over its outline (./build.js): what a slightly muscular man's skin shows of what is under it, after
 // Richer's living model (Anatomie artistique, 1890, vol. 2, plates 74 and 78, the trunk from the front), about two

@@ -279,7 +279,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
         }
         if (lw > 0) E = E === Infinity ? le / lw : smin(E, le / lw, 0.012);
         if (w > 0) {
-          const g2 = at(i, j, k), keep = Math.min(1, Math.max(0.3, 1.3 - tissue[g] / 0.009));
+          const g2 = at(i, j, k), keep = Math.min(1, Math.max(0.3, 1.3 - tissue[g] / 0.009)) * (Y(j) < 0.13 ? 0.3 + 0.7 * smooth01((Y(j) - 0.09) / 0.04) : 1);   // (the foot's bones and tendons, under little fat, damped: its outline is its shape)
           let s2 = E - (p === P_.trunk ? reliefAt(q) : 0) + keep * Math.max(p === P_.trunk ? -0.005 : -0.002, mid[g2] - far[g2]) * (p === P_.trunk ? 2.0 : 1.2);   // (what stands out shows; a groove between two muscles the fat fills, but for two millimetres (four over the trunk, where the pectoral's edge, the rectus's lines and the serratus show))
           if (exactPart[g] === p) s2 = smin(s2, exact[g] - Math.max(0.0025, 0.4 * tissue[g]), 0.02);
           v = v + w * (s2 - v);
@@ -371,9 +371,9 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       const q = [FLo[0] + i * HF, FLo[1] + j * HF, FLo[2] + k * HF], soft = smooth01((0.085 - q[1]) / 0.02) * 0.007;
       let body = GB.sample(q); if (soft > 0) { let a = 0; for (const o of FOOT_BLUR) a += GB.sample([q[0] + o[0] * soft, q[1] + o[1] * soft, q[2] + o[2] * soft]); body = a / FOOT_BLUR.length; }
       body += 0.0003 * smooth01((q[1] - 0.06) / 0.02);   // (the foot's own: its tendons and the gaps between its long bones under the fat smoothed away; inside the leg's skin at the ankle)
-      const cut = -smin(-body, -(q[2] - ball(q[0]) - 0.012), 0.012);   // (the foot without its old toes, its front rounded off)
+      const cut = -smin(-body, -(q[2] - ball(q[0]) - 0.004), 0.02);   // (the foot without its old toes, its front rounded off: the ball falls away into the toes)
       let v = Math.max(cut, -q[1] + 0.0005), best = v, part = P_.leg;
-      for (const R of toeRods) { const f = toeRod(q, R); v = smin(v, f, 0.006); }
+      for (const R of toeRods) { const f = toeRod(q, R); v = smin(v, f, 0.012); }
       v = Math.max(v, 0.0005 - q[1]);   // (its sole flat on the ground)
       footF[i + FNn[0] * (j + FNn[1] * k)] = v; footP[i + FNn[0] * (j + FNn[1] * k)] = part;
     }
