@@ -122,6 +122,18 @@ numbers are written below.
 
 - I'm building straight away: Samuel asked for the work outright, three times, and nothing in this definition goes
   past what he said.
+- **The photos are Samuel's own**, of the real site (he chose this on 2026-11-17). Shot list:
+  - **Camera:** the phone's main lens (about 24–28 mm), at about 11:00 in clear sun, plus a few under cloud.
+  - **Settings:** RAW (ProRAW) if possible, otherwise HDR and filters off. Portrait mode off.
+  - **Views:**
+    - the tent from 13 m at eye height;
+    - a stone pine stand from inside at eye height;
+    - single pines, an oak, a shrub, a boulder and the fire pit, each at 2, 10, 30, 60, 120, 250 and 500 m (as many as
+      the place allows);
+    - the meadow from 10, 30, 120 and 500 m up, if there is a drone or a hill;
+    - the hills at 1–12 km.
+  - **Handling:** they are kept by hash outside git, the way `Stories/objects/` keeps media, and each is tagged with
+    its view and distance. GPS is stripped from anything committed.
 - `aven/0033-avenmac-wip` (eye-ray read of the far body, `GROWN`) is not merged. Stage 4's impostor replaces the far
   body it improves. Its measuring scripts go into stage 2's gate.
 
@@ -135,6 +147,7 @@ numbers are written below.
 
 ## Todo
 
+- [ ] Samuel's reference photos (shot list under Build)
 - [ ] Stage 1: clean ground
 - [ ] Stage 2: gate and measure
 - [ ] Stage 3: boot
