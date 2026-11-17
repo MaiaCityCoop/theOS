@@ -28,23 +28,23 @@ severity:
 
 ## The core message
 
-> **To the ones who know we are capable of more.**
+> **Deep inside, when I am honest with myself, I know I carry a power far greater than anything in the universe.**
 >
-> Not one of us. All of us.
+> Not just me. Each and every one of us.
 >
-> Imagine everyone waking up with sparkling eyes, because today they get to build what they love, with people who believe in them. Every gift unlocked. Every idea that waited for permission, finally built, side by side.
+> Imagine a million people daring to believe it at once. A million people waking up with sparkling eyes. Every vision that waited for permission, finally built, side by side.
 >
-> Imagine saying your wildest idea out loud, and the whole room leans in. Someone says: *show me.* By evening, it stands.
+> Food at every door. Sun on every roof. Every hour free for what we love.
 >
-> Imagine being seen for exactly who you are, and becoming who you were always meant to be.
+> We stood on the Moon. That was a few of us. Imagine a million of us standing in a green city that we build with our bare hands.
 >
-> We crossed oceans by the stars. We stood on the Moon. That was a few of us. Imagine all of us.
+> We are writing a new blueprint for how to live, and proving it the only way that convinces anyone: by building it together.
 >
-> We are writing a new blueprint for how to live, and proving it the only way that convinces anyone: by building it together. A city that feeds itself, powers itself and belongs to everyone who builds it.
+> The city is the proof. We are the point.
 >
-> The city is the proof. You are the point.
->
-> It begins with one tent on a green meadow. You can walk in tonight.
+> It begins with one tent on a green meadow. I can walk in tonight.
+
+**It is read in the first person.** The viewer says it as their own words: what they know about themselves when they are honest, and dare to believe.
 
 **The task, in Samuel's words:** making bringing sparkling visions to life the norm, not the exception.
 

@@ -149,6 +149,17 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes.
 - **Broke / not there yet:** the "because" is drafted, not Samuel's; his own words wanted.
 
+### 2026-11-17 (9)
+
+- **Asked:** the opening line rebuilt over many rounds: not "capable of more", not giant and small, not wonders or a
+  bright light, no walls coming down; first person ("Deep inside I know"); a power far greater than anything in the
+  universe, that every human knows when honest and daring to believe; each and every one of us; a million, not
+  billions; concrete, not too detailed. Samuel's own line: "We stood on the Moon. That was a few of us. Imagine a
+  million of us standing in a green city that we build with our bare hands."
+- **Delivered:** the core message in the first person, with that line in his words.
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** many drafts missed (too abstract, too negative, too detailed) before this one.
+
 ## Trail
 
 | When | Commit | What |
