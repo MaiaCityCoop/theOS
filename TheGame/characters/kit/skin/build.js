@@ -23,7 +23,7 @@
 // The skin is where that is as far out as the fat and the skin are thick there, half way to a man's measured outline
 // (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through; the surface is drawn out of the grid (surface nets) and smoothed along itself: two surfaces,
 // the arms' with their hands, and the rest's, each closed (an arm along the side only touches the trunk).
-import { TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, THENAR, FINGERS, MOUTH, TOES, RELIEF } from './table.js';
+import { TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF } from './table.js';
 import { frameAt, slots } from '../muscles/build.js';
 import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
@@ -160,7 +160,14 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       if (closed) { const cap = 0.7 * Math.min(ax, bz), a2 = Math.abs(along); if (a2 >= cap) return { E: Math.hypot(r, a2 - cap), w: 1, limb: e.limb, along: 0 }; const k = Math.sqrt(1 - (a2 / cap) ** 2); ax *= k; bz *= k; extra = 0; }
       const rho = (Math.abs(x / ax) ** ex + Math.abs(z / bz) ** ex) ** (1 / ex), E = r > 1e-9 ? r * (1 - 1 / rho) + extra : -Math.min(ax, bz);
       const w = closed ? 1 : Math.min(e.fade[0] ? smooth01((t + 0.02) / 0.12) : 1, e.fade[1] ? smooth01((1.02 - t) / 0.12) : 1);
-      return { E, w, limb: e.limb, along: joined ? along : 0 };
+      // (the limb's relief here: ./table.js LIMB_RELIEF)
+      let rel = 0;
+      if (e.name) for (const R of LIMB_RELIEF) {
+        if (R.piece !== e.name) continue;
+        const ang = (Math.atan2(x, z) * 180) / Math.PI, da = ((ang - R.ang + 540) % 360) - 180, rho = Math.hypot((t - R.t) / R.dt, da / R.da);
+        if (rho < 1) rel += (R.h / 1000) * (1 - smooth01((rho - 0.3) / 0.7));
+      }
+      return { E: E - rel, w, limb: e.limb, along: joined ? along : 0 };
     };
   };
   const massOf = (m) => (q) => {

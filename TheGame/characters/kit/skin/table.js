@@ -145,14 +145,14 @@ export const PROFILES = [
     [-0.3, 15.4, 15.4, 10.9, 10.6, 2.2], [-0.8, 15.9, 15.9, 11.4, 11.2, 2.4], [-1.3, 16.3, 16.3, 11.6, 11.8, 2.5], [-1.8, 16.4, 16.4, 11.6, 12.8, 2.6],
     [-2.3, 16.6, 16.6, 11.4, 13.6, 2.8], [-2.8, 16.8, 16.8, 11.2, 14.0, 2.8], [-3.3, 17.6, 17.6, 11.5, 13.6, 2.6], [-3.8, 19.6, 19.6, 9.8, 12.0, 2.3],
     [-4.0, 17.5, 17.5, 7.4, 9.6, 2.2], [-3.5, 10.5, 10.5, 6.0, 8.2, 2.0], [-3.0, 6.9, 6.9, 5.6, 6.6, 2.0], [-2.5, 6.3, 6.3, 5.4, 6.0, 2.0]] },
-  { part: 'arm', a: [0.186, 1.425, -0.042], b: [0.2, 1.13, -0.056], front: [0, 0, 1], fade: [0, 0], limb: 'arm', joins: [0, 1], sections: [   // the upper arm, from over the shoulder to the elbow
-    [0.0, 5.6, 3.6, 5.2, 5.2, 2.0], [0.0, 5.9, 4.5, 5.8, 5.8, 2.1], [0.0, 5.2, 4.8, 5.6, 5.5, 2.1], [0.0, 4.9, 4.8, 5.8, 5.4, 2.1], [0.0, 4.6, 4.4, 5.0, 5.0, 2.1], [0.0, 4.0, 3.7, 4.1, 4.4, 2.1]] },
-  { part: 'arm', a: [0.2, 1.13, -0.056], b: [0.228, 0.845, -0.02], front: [0, 0, 1], fade: [0, 0], limb: 'arm', joins: [1, 0], sections: [   // (on past the wrist into the hand, rounded off under its skin)   // the forearm, from the elbow to the wrist
-    [0.0, 4.8, 4.2, 4.7, 4.6, 2.1], [0.0, 5.3, 4.7, 5.3, 4.8, 2.1], [0.0, 4.4, 3.9, 4.5, 4.0, 2.1], [0.0, 3.2, 2.9, 3.6, 3.1, 2.1], [0.0, 2.3, 2.1, 2.9, 2.6, 2.3], [0.0, 2.0, 1.8, 2.9, 2.7, 2.4], [0.0, 1.6, 1.4, 2.8, 2.6, 2.4]] },
-  { part: 'leg', a: [0.088, 0.9, 0.0], b: [0.085, 0.5, 0.006], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [0, 1], sections: [   // the thigh, from the hip to the knee
+  { part: 'arm', name: 'upper arm', a: [0.186, 1.425, -0.042], b: [0.2, 1.13, -0.056], front: [0, 0, 1], fade: [0, 0], limb: 'arm', joins: [0, 1], sections: [
+    [0.0, 5.6, 3.6, 5.2, 5.2, 2.1], [0.0, 5.9, 4.5, 5.8, 5.8, 2.1], [0.0, 5.2, 4.3, 5.0, 5.3, 2.1], [0.0, 4.4, 4.2, 5.1, 5.2, 2.1], [0.0, 4.3, 4.2, 5.4, 4.9, 2.1], [0.0, 4.2, 4.0, 5.2, 4.5, 2.1], [0.0, 4.0, 3.7, 4.6, 4.2, 2.1], [0.0, 3.8, 3.5, 4.0, 4.0, 2.1]] },
+  { part: 'arm', name: 'forearm', a: [0.2, 1.13, -0.056], b: [0.228, 0.845, -0.02], front: [0, 0, 1], fade: [0, 0], limb: 'arm', joins: [1, 0], sections: [
+    [0.0, 4.3, 3.8, 4.4, 4.4, 2.1], [0.0, 4.8, 4.4, 5.1, 4.6, 2.1], [0.0, 4.7, 4.4, 5.0, 4.4, 2.1], [0.0, 4.3, 4.0, 4.6, 4.0, 2.1], [0.0, 3.7, 3.4, 3.8, 3.4, 2.1], [0.0, 3.2, 2.9, 3.4, 3.1, 2.1], [0.0, 2.5, 2.2, 3.0, 2.8, 2.1], [0.0, 1.9, 1.8, 2.9, 2.7, 2.1], [0.0, 1.6, 1.4, 2.8, 2.6, 2.1]] },
+  { part: 'leg', name: 'thigh', a: [0.088, 0.9, 0.0], b: [0.085, 0.5, 0.006], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [0, 1], sections: [   // the thigh, from the hip to the knee
     [0.0, 9.0, 8.0, 8.5, 9.5, 2.2], [0.0, 9.3, 8.2, 9.0, 9.6, 2.2], [0.0, 8.9, 7.3, 9.6, 8.8, 2.2], [0.0, 8.1, 6.6, 9.2, 7.8, 2.2], [0.0, 6.9, 5.8, 8.2, 6.4, 2.2], [0.0, 5.3, 5.5, 6.0, 5.3, 2.1]] },
-  { part: 'leg', a: [0.085, 0.5, 0.006], b: [0.077, 0.04, -0.02], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [1, 0], sections: [   // the leg, from the knee down through the ankle
-    [0.0, 5.3, 5.5, 5.8, 5.4, 2.1], [0.0, 5.8, 6.4, 4.8, 7.9, 2.1], [0.0, 5.2, 6.0, 4.2, 7.6, 2.1], [0.0, 3.8, 4.0, 3.3, 5.0, 2.1], [0.0, 2.9, 3.0, 2.8, 3.4, 2.1], [0.0, 3.2, 3.4, 3.4, 3.8, 2.1]] },
+  { part: 'leg', name: 'leg', a: [0.085, 0.5, 0.006], b: [0.077, 0.04, -0.02], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [1, 0], sections: [   // the leg, from the knee down through the ankle
+    [0.0, 5.3, 5.5, 5.8, 5.4, 2.1], [0.0, 5.4, 6.0, 4.5, 7.3, 2.1], [0.0, 4.8, 5.6, 3.9, 7.1, 2.1], [0.0, 3.5, 3.7, 3.1, 4.7, 2.1], [0.0, 2.9, 3.0, 2.8, 3.4, 2.1], [0.0, 3.2, 3.4, 3.4, 3.8, 2.1]] },
   // the foot, from the back of the heel to the ball, its front the instep (up); its first half-breadth is the inner
   // side's, the second the outer's: 27 cm long, 10 across the ball, 6.5 across the heel, its instep 7 high (Hawes &
   // Sovak 1994, as remembered)
@@ -228,4 +228,27 @@ export const RELIEF = [
   { what: 'teres major', side: 'back', at: [0.125, 1.29], r: [0.035, 0.03], soft: 0.85, h: 3 },
   { what: 'latissimus', side: 'back', at: [0.115, 1.19], r: [0.05, 0.09], soft: 0.95, h: 3 },
   { what: 'dimple over the pelvis', side: 'back', at: [0.036, 0.99], r: [0.011, 0.011], soft: 0.8, h: -4 },
+];
+// The limbs' relief over their outline, as the trunk's (RELIEF), after Richer's arm and leg (Anatomie artistique, vol. 2,
+// plates 82 to 85 and 90 to 92), a little less marked than his model's: each round a place of a piece of a limb, `t` how far along
+// it (0 at its top, 1 at its bottom), `ang` which way round it (0 its front, 90 its outer side, -90 its inner, 180 its
+// back), half `dt` along and `da` round (degrees), `h` how far it stands out (mm; less than nothing, in).
+export const LIMB_RELIEF = [
+  { what: 'biceps', piece: 'upper arm', t: 0.62, ang: 5, dt: 0.27, da: 60, h: 9 },
+  { what: 'deltoid\'s insertion', piece: 'upper arm', t: 0.4, ang: 85, dt: 0.07, da: 45, h: -4.5 },
+  { what: 'deltoid', piece: 'upper arm', t: 0.12, ang: 60, dt: 0.22, da: 90, h: 5.4 },
+  { what: 'triceps', piece: 'upper arm', t: 0.45, ang: 175, dt: 0.3, da: 65, h: 6.3 },
+  { what: 'between biceps and triceps', piece: 'upper arm', t: 0.6, ang: -80, dt: 0.32, da: 22, h: -4.5 },
+  { what: 'triceps\'s tendon', piece: 'upper arm', t: 0.85, ang: 180, dt: 0.12, da: 40, h: -2.7 },
+  { what: 'brachioradialis', piece: 'forearm', t: 0.2, ang: 40, dt: 0.22, da: 55, h: 7.2 },
+  { what: 'the forearm\'s flexors', piece: 'forearm', t: 0.22, ang: -50, dt: 0.26, da: 55, h: 5.4 },
+  { what: 'the elbow\'s hollow', piece: 'forearm', t: 0.0, ang: -5, dt: 0.07, da: 35, h: -5.4 },
+  { what: 'vastus lateralis', piece: 'thigh', t: 0.5, ang: 80, dt: 0.4, da: 55, h: 5.4 },
+  { what: 'vastus medialis', piece: 'thigh', t: 0.85, ang: -50, dt: 0.15, da: 45, h: 9 },
+  { what: 'rectus femoris', piece: 'thigh', t: 0.45, ang: 10, dt: 0.35, da: 35, h: 5.4 },
+  { what: 'over the kneecap', piece: 'thigh', t: 0.97, ang: 15, dt: 0.06, da: 40, h: -2.7 },
+  { what: 'gastrocnemius, inner head', piece: 'leg', t: 0.27, ang: -150, dt: 0.16, da: 45, h: 9 },
+  { what: 'gastrocnemius, outer head', piece: 'leg', t: 0.24, ang: 150, dt: 0.13, da: 40, h: 7.2 },
+  { what: 'tibialis anterior', piece: 'leg', t: 0.35, ang: 25, dt: 0.3, da: 30, h: 4.5 },
+  { what: 'shin', piece: 'leg', t: 0.45, ang: -20, dt: 0.38, da: 18, h: -2.7 },
 ];
