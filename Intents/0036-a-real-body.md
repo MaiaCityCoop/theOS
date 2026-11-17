@@ -445,7 +445,98 @@ complete photorealistic version". Branch `aven/0036-face`.
   nose's wings stand apart; the hands are rods; the buttocks stand out too far from the back. The skin's look is a
   shader's guess, not compared with photographs of skin.
 
+**Round 1, the muscles first, then the fat over them (2026-11-17, afternoon).** Samuel: "The body is still not well
+formed … weird shapes and dents", "you need a colored reference pic", "always start first with fat and tissues, not
+skin", and with two anatomical figures (front, back and side, muscles drawn): "I think we just need to fix our muscles
+view to be more correct and detailed to look like this! Then the skin will be way better." Branch `aven/0036-shapes`.
+
+- **Seen first.** Beside his figures our muscles were loose strands with gaps; and the skin built from them alone,
+  the drawn outline set aside, was grotesque: ropes over the thighs, the hips 27 cm from the middle where a man's end
+  at 18, the thigh 61 cm round at its middle (a man's 51), a belly standing 4 cm out of the ribs, buttocks a box.
+  Every fix since was measured that way, the skin from the muscles alone against a man's girths (scratchpad tools,
+  not committed), and looked at beside the figures.
+- **The muscles** (`muscles/build.js`, `muscles/table.js`). Their size the studies' means (they were a fifth over:
+  BUILD 1.0). A strand lifted over the muscles under it by 8 mm at most (it was 4.5 cm; its path is already drawn
+  through its middle). A sheet thickened to its volume by twice at most (three times swelled the thigh's adductors).
+  Moved by name: the vastus lateralis, the iliotibial band, the biceps femoris, the rectus femoris, the tensor
+  fasciae latae closer in; the quadriceps tapering into their tendon above the kneecap; the rectus abdominis flat from
+  the ribs to the pubis and the external oblique's edge behind it; the latissimus's and the oblique's lower parts
+  closer in at the waist; the gluteus medius closer to the pelvis (320 cm³); the gluteus maximus fullest lower and
+  further back; the pectoralis major fuller (390 cm³) fanning to the shoulder; the deltoid fuller (420 cm³) and a
+  centimetre further out. Volumes as remembered, not checked against the papers.
+- **The fat over them** (`skin/build.js`, `skin/table.js`). The muscles of each limb and of the trunk wrapped in
+  their fascia before the fat goes on: closed over by 3.7 cm on the trunk and the legs, 2.6 on the arms, so the
+  strands are one surface. The skin half from them (with the tissue's depth over them), half from the outline, which
+  is how the fat rounds them (`OUTLINE` 0.5): from the muscles alone the buttocks and arms came out as boxes and
+  ropes. The cleft between the buttocks carved (the closing had filled it). The shoulder's seam: the trunk's skin
+  slides under the arm's slowly, the trunk's shoulder cap taken out (the deltoid makes the round now), the acromion
+  held 13 mm under the skin.
+- **Measured** (the skin as built, cm; a slightly muscular man's in brackets): waist 82 round (82) and 29 across
+  (29), hips 35 across (35), chest 105 (101), knee 37 (38), calf 38 (38), forearm 28 (28), upper arm 33 (32).
+- **Seen** in the `_lab` page, the real shader on WebGL (SwiftShader), front, side, back and three-quarters, and the
+  muscles beside Samuel's figures. Not timed.
+- **Not there yet.** The top of the shoulder a little lumpy; a faint line where the arm's skin meets the chest's
+  from the front; the knee's front sunk under the kneecap (the fat pads beside its ligament not drawn); the arms
+  half the outline's tubes; the thighs touch to the knee. The muscles' own look in the Muscles character is still
+  strands, now in the right places.
+
+**Round 1, the limbs and their ends (2026-11-17, later afternoon).** Samuel: "Muscles and fat tissues till
+photorealistic". Branch `aven/0036-limbs`. Each fix seen close up in the `_lab` page and measured.
+
+- **The shoulder's top** follows the bones softened by 1.5 cm, held 8 mm under the skin: one smooth rise, not the
+  acromion's and the collarbone's knobs.
+- **The trunk's taper** beside Richer's model: the latissimus fuller (360 cm³) and flaring below the armpit (no
+  further: there it met the hanging arm and was shaded as a pit); the outline's hips a centimetre slimmer. The
+  trunk 33 cm across under the arms, 28.6 at the waist, 34.6 at the hips.
+- **The hand**: its palm reaches 2 cm past the knuckles (the fingers hung below it as rods, with a gap), squarer;
+  the fingers touch side by side as a relaxed hand's do and are webbed to the palm all at once (each finger's own web
+  cut its neighbour's into teeth). A heel, the carpus, as deep and broad as the wrist.
+- **The wrist** without its ring: the outline's lower forearm slimmer, the extensors' tendons half a centimetre to a
+  centimetre closer in (they stood out to 24.5 cm from the middle, the back of a wrist being at 23).
+- **The ankle**: the leg's and the foot's skins cross over five centimetres, each cut edge under the other's skin;
+  a soft line remains where they cross (they are two grids, differing by up to 2 mm: one skin for leg and foot
+  would take it away).
+- **The calves** fuller and higher (the gastrocnemius 280 and 170 cm³, its belly further back), the soleus and the
+  tendons slimmer lower down, the outline's calf fuller inside, its knee and ankle narrower: calf 39 cm (38), knee 37
+  (38), ankle 7 across.
+- **The knee's fat pads** in the tissue's table (above the kneecap, beside its ligament): no visible change; the
+  kneecap and the outline make the knee's front.
+- **Not there yet.** The soft line at the ankle and a faint one on the deltoid's front; specks in the fingers' webs;
+  the fingers still even rods; the legs still straighter than Richer's model's; the arms abducted in his, hanging in
+  ours.
+
 ## Propose
+
+**This round, the limbs and their ends** (branch `aven/0036-limbs`), proposed for Samuel's own look on `next`.
+
+- **What is delivered.** The shoulder's top, the trunk's taper, the hand, the wrist, the ankle, the calves (Build,
+  the limbs and their ends). **Where to look:** Body in the library, close to the hands, the wrists, the ankles and
+  the shoulders.
+- **The checks:** drawn only in my `_lab` page (WebGL, SwiftShader), not in the library, not timed; `vite build` and
+  `scale.js` (18 of 18) pass. Only Body and Muscles change.
+
+**The round before, the muscles first, then the fat over them** (merged in #46):
+
+**This round, the muscles first, then the fat over them** (branch `aven/0036-shapes`), proposed for Samuel's own look
+on `next`.
+
+- **What is delivered.** The muscles fitted to an anatomical figure from the front, back and side, and the skin
+  drawn from them in their fascia, half rounded by the fat's outline (Build, the muscles first).
+- **Where to look.** `library.html`, Characters, Body (`library.html?character=f2d908f8-3c01-411d-a561-ef27148ba557`,
+  and `&layer=muscles`): from the front, the back and the side.
+
+**The checks, as they really were**
+
+- *Drawn in the library:* **not seen** (the software GPU here loses its WebGPU device there). Seen in my own `_lab`
+  page through the same `fleshOf` on WebGL, and the muscles on the CPU beside the figures.
+- *Frame time, 60 fps and 4K:* **not measured.** The skin's triangles are about as many as before; the shader is
+  unchanged. The canvas is not touched.
+- *Both sites build:* **passed** here (`vite build` in `TheGame`). *The measuring run:* **passed** (18 of 18).
+- *Nothing else changes:* only Body and Muscles draw these; the Settler, the game and `me.html` stay on their body.
+
+**Known gaps:** Build, the muscles first, "Not there yet".
+
+**The round before, the face and the skin's look** (merged in #45):
 
 **This round, the face and the skin's look** (branch `aven/0036-face`), proposed for Samuel's own look on `next`.
 
@@ -603,7 +694,10 @@ for his own eyes on `next`, with fewer checks than Define asks.
   - [x] the fat and the tissue fitted to Richer's living model; what shows through them; hands and feet drawn finer
   - [x] the face's proportions fitted to Richer's head (the lower face, the jaw, the hollows)
   - [ ] the face's features: the lids' folds and lashes, the lips' shape, the nose's wings; brows and hair
-  - [ ] the hands' shape; the buttocks against the back; the skin's look compared with photographs
+  - [x] the muscles fitted to an anatomical figure; the skin from them in their fascia, half rounded by the fat
+  - [x] the shoulder's top, the trunk's taper, the hand and the wrist, the ankle, the calves
+  - [ ] the leg and the foot as one skin (the ankle's line); the fingers' shape; the muscles' own look as a surface, not strands
+  - [ ] the hands' shape; the skin's look compared with colour photographs
 - [ ] Round 2: movement
 - [ ] Round 3: garments and hair
 
@@ -687,6 +781,27 @@ for his own eyes on `next`, with fewer checks than Define asks.
   a cheekbone, a jaw line) stood as shelves and lumps and were taken out; a set-back of the jaw over too short a
   height creased the mouth before I spread it. The head is bald, the eyes stare, the hands are rods.
 
+- **Asked (afternoon):** "The body is still not well formed … weird shapes and dents", "you need a colored reference
+  pic", "always start first with fat and tissues, not skin", and with two anatomical figures: "fix our muscles view to
+  be more correct and detailed to look like this! Then the skin will be way better." Then: "Go ahead".
+- **Delivered (afternoon):** the muscles fitted to the figures, the skin drawn from them in their fascia and half
+  rounded by the fat (Build, the muscles first).
+- **Good (afternoon):** The skin built from the muscles now measures as a man: waist, hips, calf and forearm on the
+  survey's numbers, and from the front it shows his own chest, belly and back.
+- **Broke / not there yet (afternoon):** I began on the shoulder and the buttocks by the outline, the skin's step,
+  before Samuel turned me to the muscles. Muybridge's photographs were all the web fetch found (no colour photograph
+  of a body under a free licence came through). Drawing the buttock as strands made it worse and was undone. My lab's
+  server died twice under me, and once my renders were stale.
+
+- **Asked (later afternoon):** "Muscles and fat tissues till photorealistic".
+- **Delivered:** the shoulder's top, the trunk's taper, the hand, the wrist, the ankle and the calves (Build, the
+  limbs and their ends).
+- **Good:** The hand reads as a hand at last, its palm, heel and fingers one; the torn line round the ankle and the
+  ring round the wrist are gone.
+- **Broke / not there yet:** I spent most of an hour on the ankle's seam, seven tries, before seeing that what showed
+  was where two skins cross, not an edge: it is a soft line now, not gone. #46 was merged while I went on on its
+  branch; the later commits were carried over to a new one.
+
 ## Trail
 
 | When | Commit | What |
@@ -733,3 +848,16 @@ for his own eyes on `next`, with fewer checks than Define asks.
 | 2026-11-17 | `14f5b76` | the face's tissue and the neck after Richer's head |
 | 2026-11-17 | `d642e9a` | the lower face set back and the jaw rounded after Richer's head; the fine head over the neck without seams |
 | 2026-11-17 | `c7bb216` | the skin's shade from deeper and its grain finer; the cheeks smooth; the throat's hollow |
+| 2026-11-17 | `75e8e41` | the buttocks smaller and rounder, run into the thighs |
+| 2026-11-17 | `c02661a` | the muscles closer to a real man's: slimmer thighs, narrower hips, a flat belly |
+| 2026-11-17 | `8b84f16` | the gluteus maximus full, the quadriceps tapering into their tendon |
+| 2026-11-17 | `77ee4a8` | a fuller chest and rounder shoulders; a slimmer waist and hips |
+| 2026-11-17 | `74834d9` | the hip's and the thigh's outer muscles closer in |
+| 2026-11-17 | `f82a34a` | the skin drawn from the muscles in their fascia, half rounded by the fat |
+| 2026-11-17 | `f6e59b3` | the skin's drawing numbered again |
+| 2026-11-17 | `b46d0b6` | the shoulder one surface: the trunk's skin slides under the arm's |
+| 2026-11-17 | `6f5a6b3` | a smooth shoulder top, the lats' flare, slimmer hips, the knee's fat pads |
+| 2026-11-17 | `d22a23e` | the hand: its palm past the knuckles, its fingers webbed to it |
+| 2026-11-17 | `b3cf9b0` | the ankle: the leg's and the foot's skins cross softly |
+| 2026-11-17 | `0efa1e3` | the calves fuller and higher, the knees and the ankles slimmer |
+| 2026-11-17 | `e9d45c2` | the wrist without its ring: a slimmer lower forearm, the hand's heel |

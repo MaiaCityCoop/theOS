@@ -417,7 +417,8 @@ function plantMaterial(tex, D) {
         const leaf = part.greaterThan(0.5), n0 = normalize(turn(V.normal)), n = n0.dot(Ve).lessThan(0).select(n0.negate(), n0);
         const ndl = leaf.select(n.dot(U.uSunDir).add(wrap).div(wrap.add(1)), n.dot(U.uSunDir)).max(0);   // needles take the light round their edge
         const through = leaf.select(pow(max(Ve.negate().dot(U.uSunDir), 0), 3).mul(shines), float(0));   // the sun behind a brush of needles shines through it
-        const L = skyLight(n).mul(ao.mul(ao).mul(0.75).add(ao.mul(0.25))).add(U.uSun.mul(cloudAtVertex(w)).mul(ndl.add(through)).mul(ao.mul(0.6).add(0.4)));
+        const sunAt = cloudAtVertex(w).toVar();   // (once: nine taps of the shadow map, and the clouds' map; the baked far body's light reads it too)
+        const L = skyLight(n).mul(ao.mul(ao).mul(0.75).add(ao.mul(0.25))).add(U.uSun.mul(sunAt).mul(ndl.add(through)).mul(ao.mul(0.6).add(0.4)));
         const W = weatherOn(n, snowLiftAtVertex(w, clumps)), air = airOf(w);   // what the weather does to it (wet, its snow in clumps), and the air before it
         // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
         const tint = leaf.select(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(V.shade.mul(0.3).add(0.84)).mul(Tn), vec3(1));
@@ -426,7 +427,7 @@ function plantMaterial(tex, D) {
         // (a far body wearing its crown baked is lit texel by texel in the fragment, as its leaves are: here only what
         // that light is multiplied by, and what it needs: the sun as it reaches this corner, through-light, wrap, the turn)
         const bakedBody = vImp && V.crowd ? V.crowd.rule[3].y.greaterThan(0).and(V.crowd.body.greaterThan(0.5)).and(V.crowd.body.lessThan(3.5)) : null;
-        if (vLit) vLit.assign(vec4(cloudAtVertex(w), through, wrap, B.x));
+        if (vLit) vLit.assign(vec4(sunAt, through, wrap, B.x));
         vMul.assign(bakedBody ? bakedBody.select(tint.mul(W.keep).mul(air.k).mul(rimmed), L.mul(tint).mul(W.keep).mul(air.k).mul(rimmed)) : L.mul(tint).mul(W.keep).mul(air.k).mul(rimmed));
         vAdd.assign(W.add.mul(L).mul(air.k).add(air.col.mul(float(1).sub(air.k))));
       });
