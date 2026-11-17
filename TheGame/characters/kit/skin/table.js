@@ -215,4 +215,12 @@ export const RELIEF = [
   { what: 'hollow over the breastbone', side: 'front', at: [0, 1.478], r: [0.016, 0.012], soft: 0.8, h: -5 },
   { what: 'between deltoid and pectoral', side: 'front', a: [0.135, 1.475], b: [0.165, 1.37], w: 0.009, h: -2.5 },
   { what: 'under the pectoral', side: 'front', a: [0.03, 1.285], b: [0.14, 1.315], w: 0.01, h: -2 },
+  // the back (plate 80): the long muscles of the back either side of the spine's furrow, the muscles over the shoulder
+  // blade, the latissimus over the lower ribs, the dimples over the back of the pelvis
+  { what: 'erector spinae', side: 'back', at: [0.034, 1.13], r: [0.03, 0.2], n: 2.2, soft: 0.85, h: 5 },
+  { what: 'spine', side: 'back', a: [0, 1.43], b: [0, 0.97], w: 0.011, h: -2 },
+  { what: 'infraspinatus', side: 'back', at: [0.088, 1.37], r: [0.05, 0.055], soft: 0.85, h: 4 },
+  { what: 'teres major', side: 'back', at: [0.125, 1.29], r: [0.035, 0.03], soft: 0.85, h: 3 },
+  { what: 'latissimus', side: 'back', at: [0.115, 1.19], r: [0.05, 0.09], soft: 0.95, h: 3 },
+  { what: 'dimple over the pelvis', side: 'back', at: [0.036, 0.99], r: [0.011, 0.011], soft: 0.8, h: -4 },
 ];
