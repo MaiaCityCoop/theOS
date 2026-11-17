@@ -55,6 +55,25 @@ governor may raise it to hold 60 fps before it lowers the pixel ratio. Nothing e
 answer: Nanite's error cut for surfaces, pruning for crowds of parts, and octahedral impostors at the far end. Here it
 is fitted to WebGPU and Safari.
 
+**The look target.** On 2026-11-17 Samuel sent three frames of a real-time forest: "this is the quality gate, what our
+forest actually should look like". They show a temperate forest of birch and pine with ferns and a stream. The
+species will come from the site; the quality is what these frames set. What makes them real, and what each part of
+the architecture owes:
+
+| In the frames | Ours today | Whose job |
+| --- | --- | --- |
+| Five layers of growth: canopy, young trees, shrubs, ferns and herbs, litter and deadwood, all mixed and dense | A meadow of grass with trees standing apart | **Builder** (the kinds) and the scatter's one rule, by layer |
+| Crowns made of many small clusters with sky between them, read as separate crowns out to the haze | Stretched cards near, domes in the middle distance | **Builder** (pruning, impostor) and **Draw path** |
+| Dappled light: leaf shadows on the path, light through the leaves, deep occlusion under the shrubs, sky light occluded in the stand | One sun and sky term, soft shadows, no light through leaves | **Light**: leaf-scale shadow, transmission, ambient occlusion (GTAO), sky occlusion |
+| Haze that layers the stand by distance (aerial perspective) | Thin haze | **Light** |
+| Ground with relief: a worn path with cracked dirt, roots, needles, mossy rocks bedded in the soil | Flat material layers | **Land** (material layers with relief near the eye) and **Builder** (rocks) |
+| Water that is clear over stones, reflects, and falls | A river surface | **Land** (water), a later stage |
+| Bark you can read (birch, pine) | Plain trunks | **Builder** (materials) |
+
+To hold 60 fps on a 4K screen at this look, the frame is drawn at the resolution the governor chooses and brought up
+to 4K by the temporal pass (temporal upscaling). The industry ships the same way: Nanite's published frame was drawn
+at about 1400p and upscaled to 4K.
+
 **The architecture: one of each**
 
 | One | What | Replaces |
