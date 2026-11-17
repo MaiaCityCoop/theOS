@@ -266,7 +266,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
         if (lw > 0) E = E === Infinity ? le / lw : smin(E, le / lw, 0.012);
         if (w > 0) {
           const g2 = at(i, j, k), keep = Math.min(1, Math.max(0.3, 1.3 - tissue[g] / 0.009));
-          let s2 = E + keep * Math.max(p === P_.trunk ? -0.004 : -0.002, mid[g2] - far[g2]) * (p === P_.trunk ? 1.4 : 1);   // (what stands out shows; a groove between two muscles the fat fills, but for two millimetres (four over the trunk, where the pectoral's edge, the rectus's lines and the serratus show))
+          let s2 = E + keep * Math.max(p === P_.trunk ? -0.005 : -0.002, mid[g2] - far[g2]) * (p === P_.trunk ? 2.0 : 1.2);   // (what stands out shows; a groove between two muscles the fat fills, but for two millimetres (four over the trunk, where the pectoral's edge, the rectus's lines and the serratus show))
           if (exactPart[g] === p) s2 = smin(s2, exact[g] - Math.max(0.0025, 0.4 * tissue[g]), 0.02);
           v = v + w * (s2 - v);
         }
