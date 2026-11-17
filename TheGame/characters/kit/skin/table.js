@@ -196,3 +196,23 @@ export const TOES = {
   toe3: [0.0082, 0.0071, [0.112, 0.0098, 0.179], 0.85], toe4: [0.0078, 0.0068, [0.125, 0.0095, 0.164], 0.85],
   toe5: [0.0072, 0.0064, [0.138, 0.0092, 0.147], 0.85],
 };
+// The trunk's relief over its outline (./build.js): what a slightly muscular man's skin shows of what is under it, after
+// Richer's living model (Anatomie artistique, 1890, vol. 2, plates 74 and 78, the trunk from the front), about two
+// thirds as marked as his: the rectus's blocks either side of the white line between them, their tendinous lines the
+// gaps between the blocks, the navel, the oblique's pad over the crest of the pelvis and the groin's line under it, the
+// collarbones, the hollow over the breastbone, the groove between the deltoid and the pectoral. Left side (m): a block
+// round `at`, half `r` across and high, `n` its squareness, `soft` how much of it is its soft edge; or a line from `a`
+// to `b`, `w` half wide; `h` how far it stands out (mm; less than nothing, in).
+export const RELIEF = [
+  { what: 'rectus, upper', side: 'front', at: [0.046, 1.232], r: [0.039, 0.034], n: 3.5, soft: 0.6, h: 3.5 },
+  { what: 'rectus, middle', side: 'front', at: [0.046, 1.163], r: [0.04, 0.034], n: 3.5, soft: 0.6, h: 4 },
+  { what: 'rectus, lower', side: 'front', at: [0.045, 1.095], r: [0.039, 0.033], n: 3.5, soft: 0.6, h: 3.5 },
+  { what: 'rectus, under the navel', side: 'front', at: [0.042, 0.995], r: [0.04, 0.065], n: 2.4, soft: 0.7, h: 3 },
+  { what: 'navel', side: 'front', at: [0, 1.055], r: [0.0075, 0.009], soft: 0.7, h: -6 },
+  { what: 'oblique', side: 'front', at: [0.118, 1.03], r: [0.042, 0.065], soft: 0.9, h: 7 },
+  { what: 'groin', side: 'front', a: [0.115, 0.975], b: [0.03, 0.885], w: 0.012, h: -3 },
+  { what: 'collarbone', side: 'front', a: [0.025, 1.488], b: [0.15, 1.5], w: 0.011, h: 2.5 },
+  { what: 'hollow over the breastbone', side: 'front', at: [0, 1.478], r: [0.016, 0.012], soft: 0.8, h: -5 },
+  { what: 'between deltoid and pectoral', side: 'front', a: [0.135, 1.475], b: [0.165, 1.37], w: 0.009, h: -2.5 },
+  { what: 'under the pectoral', side: 'front', a: [0.03, 1.285], b: [0.14, 1.315], w: 0.01, h: -2 },
+];

@@ -23,7 +23,7 @@
 // The skin is where that is as far out as the fat and the skin are thick there, half way to a man's measured outline
 // (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through; the surface is drawn out of the grid (surface nets) and smoothed along itself: two surfaces,
 // the arms' with their hands, and the rest's, each closed (an arm along the side only touches the trunk).
-import { TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, THENAR, FINGERS, MOUTH, TOES } from './table.js';
+import { TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, THENAR, FINGERS, MOUTH, TOES, RELIEF } from './table.js';
 import { frameAt, slots } from '../muscles/build.js';
 import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
@@ -184,6 +184,20 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
   };
   const headMasses = MASSES.filter((m) => m.part === 'head').map((m) => massOf(m));
   const underFields = UNDER.map((u) => F.fieldOf([{ op: 'add', k: 0, s: solidOf(u.solid) }]));
+  // (the trunk's relief, ./table.js RELIEF: how far its skin stands out of the outline at a point of its front or back,
+  // m; blocks rounded at their corners and soft at their edges, lines along a segment, each as high as it is)
+  const reliefAt = (q) => {
+    let d = 0; const front = smooth01((q[2] + 0.02) / 0.06), back = smooth01((-q[2] - 0.02) / 0.06);
+    for (const r of RELIEF) {
+      const side = r.side === 'back' ? back : front; if (side <= 0) continue;
+      let rho;
+      if (r.a) { const ab = [r.b[0] - r.a[0], r.b[1] - r.a[1]], t = Math.max(0, Math.min(1, ((q[0] - r.a[0]) * ab[0] + (q[1] - r.a[1]) * ab[1]) / (ab[0] ** 2 + ab[1] ** 2))); rho = Math.hypot(q[0] - r.a[0] - ab[0] * t, q[1] - r.a[1] - ab[1] * t) / r.w; }
+      else { const n = r.n ?? 2; rho = (Math.abs((q[0] - r.at[0]) / r.r[0]) ** n + Math.abs((q[1] - r.at[1]) / r.r[1]) ** n) ** (1 / n); }
+      if (rho >= 1) continue;
+      d += side * (r.h / 1000) * (1 - smooth01((rho - (1 - (r.soft ?? 0.5))) / (r.soft ?? 0.5)));
+    }
+    return d;
+  };
   const profilesOf = PARTS.map((p) => p === 'head' ? [] : [...PROFILES.filter((e) => e.part === p).map(profileOf), ...MASSES.filter((m) => m.part === p).map(massOf)]);
   // (a field softened a long way, in place: three running means of 2r+1 cells along each axis)
   const blurBox = (f, dims, r) => {
@@ -266,7 +280,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
         if (lw > 0) E = E === Infinity ? le / lw : smin(E, le / lw, 0.012);
         if (w > 0) {
           const g2 = at(i, j, k), keep = Math.min(1, Math.max(0.3, 1.3 - tissue[g] / 0.009));
-          let s2 = E + keep * Math.max(p === P_.trunk ? -0.005 : -0.002, mid[g2] - far[g2]) * (p === P_.trunk ? 2.0 : 1.2);   // (what stands out shows; a groove between two muscles the fat fills, but for two millimetres (four over the trunk, where the pectoral's edge, the rectus's lines and the serratus show))
+          let s2 = E - (p === P_.trunk ? reliefAt(q) : 0) + keep * Math.max(p === P_.trunk ? -0.005 : -0.002, mid[g2] - far[g2]) * (p === P_.trunk ? 2.0 : 1.2);   // (what stands out shows; a groove between two muscles the fat fills, but for two millimetres (four over the trunk, where the pectoral's edge, the rectus's lines and the serratus show))
           if (exactPart[g] === p) s2 = smin(s2, exact[g] - Math.max(0.0025, 0.4 * tissue[g]), 0.02);
           v = v + w * (s2 - v);
         }
