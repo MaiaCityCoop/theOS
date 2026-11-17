@@ -160,3 +160,4 @@ Asked outright and without surprises, so built straight away.
 | 2026-11-17 | `6665e5d` | Core message: permission to be seen and to become |
 | 2026-11-17 | `e20df32` | Core message in pictures the viewer has lived |
 | 2026-11-17 | `80e76ad` | Core message: Samuel's version enlarged, empowering only |
+| 2026-11-17 | `0cd5ad1` | Sparkling eyes instead of full size |
