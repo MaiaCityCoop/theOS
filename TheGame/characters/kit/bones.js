@@ -296,7 +296,9 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
     { id: 'bones', name: 'Bones', about: 'The skeleton alone.' },
   ] : null;
   api.layer = body ? 'skin' : null;
-  const wantsBones = () => !body || api.layer === 'muscles' || api.layer === 'bones';
+  // (and a body's bones while its skin is still being laid, or could not be: a phone takes a minute or more over it,
+  // and may not manage it at all; the page never shows nothing)
+  const wantsBones = () => !body || !api.flesh || api.layer === 'muscles' || api.layer === 'bones';
   let growing = null;
   const growBones = () => (growing ||= (async () => {
     const full = LV.length - 1, hit = await held(LV[full]);
@@ -316,7 +318,7 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
   Object.defineProperty(api, 'move', { get: () => S.move });
   // what the card says of it beside its figures: its joints and pieces, and how far its growing is
   Object.defineProperty(api, 'figures', { get: () => muscles ? [[api.bonesCount || '…', '', 'Joints'], [api.flesh?.counts.muscles || '…', '', 'Muscles']] : [[api.bonesCount || '…', '', 'Joints'], [api.pieces || '…', '', 'Pieces']] });
-  Object.defineProperty(api, 'note', { get: () => (api.failed ? 'Its bones could not be grown in this browser: ' + api.failed : body && !api.flesh ? 'Its body is being laid in the page: the muscles on the bones, then the fat and the skin over them (some seconds the first time; the browser keeps it for the next visit).' : body && wantsBones() && api.level < 0 ? 'Its bones are being grown in the page: coarse within a few seconds, then fine.' : !body && api.level < 0 ? 'Its bones are being grown in the page: coarse within a few seconds, then fine.' : muscles && !api.flesh ? 'Its muscles are being laid on its bones, in the page (the browser keeps them for the next visit).' : api.level < LV.length - 1 && !quick ? 'Coarse for now: the fine bones are still growing (the browser keeps them for the next visit).' : null) });
+  Object.defineProperty(api, 'note', { get: () => (api.failed ? (body && api.mesh ? 'Its skin could not be laid in this browser (' + api.failed + '): its bones are shown.' : 'Its bones could not be grown in this browser: ' + api.failed) : body && !api.flesh ? 'Its body is being laid in the page: the muscles on the bones, then the fat and the skin over them (some seconds the first time; the browser keeps it for the next visit).' : body && wantsBones() && api.level < 0 ? 'Its bones are being grown in the page: coarse within a few seconds, then fine.' : !body && api.level < 0 ? 'Its bones are being grown in the page: coarse within a few seconds, then fine.' : muscles && !api.flesh ? 'Its muscles are being laid on its bones, in the page (the browser keeps them for the next visit).' : api.level < LV.length - 1 && !quick ? 'Coarse for now: the fine bones are still growing (the browser keeps them for the next visit).' : null) });
   // (its faces: the bones' and the muscles' together)
   Object.defineProperty(api, 'faces', { get: () => { const c = api.flesh?.counts, L = api.layer; return !body ? api.boneFaces + (c?.muscleFaces ?? 0) : L === 'skin' || L === 'fat' ? c?.skinFaces ?? 0 : L === 'muscles' ? api.boneFaces + (c?.muscleFaces ?? 0) : api.boneFaces; }, set: (v) => { api.boneFaces = v; } });
   api.rigLabel = 'Rig · a joint where two bones meet'; api.rigAbout = 'one to each vertebra, the atlas and the skull; the jaw; collarbone, blade, shoulder, elbow, the radius turning about the ulna, wrist, every finger\'s three; hip, knee and kneecap, ankle, each toe';
@@ -393,7 +395,7 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
   };
   api.grown = (async () => {
     rigged(await posing());
-    if (body) return flesh();
+    if (body) { growBones(); return flesh(); }   // (the bones first, quick, shown until the skin is on)
     const full = LV.length - 1, hit = quick ? null : await held(LV[full]);
     if (hit) put(full, hit); else put(0, await surface(LV[0]));
     const laid = muscles ? flesh() : null;   // (asked before the fine bones, so the workers lay the muscles first)

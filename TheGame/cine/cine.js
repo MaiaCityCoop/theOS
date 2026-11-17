@@ -16,9 +16,12 @@ const pending = [];   // what was asked before the game's camera existed
 const clampMm = (mm) => Math.max(28, Math.min(180, mm));   // between the primes only a zoom move passes
 // three's fov is the vertical one, of the whole window. The lens fixes how wide the picture sees; where the
 // window is wider than the picture's shape (bars left and right), it fixes how tall instead.
-const FILL = new URLSearchParams(location.search).has('embed') || new URLSearchParams(location.search).get('in') === 'os';   // as a picture in a frame (or inside the dashboard): the lens fills it, no bars
+const FILLED = new URLSearchParams(location.search).has('embed') || new URLSearchParams(location.search).get('in') === 'os';
+// (and a page that only looks through the lens, not a film: the library (`cine.fill = true`), whose picture is the
+// window's own on a phone held upright too, never a band of the film's shape between black)
+const fills = () => FILLED || !!api.fill;   // as a picture in a frame (or inside the dashboard): the lens fills it, no bars
 function vfov(mm) {
-  const wa = cam?.aspect || 1.5, pa = FILL ? wa : S.fmt.aspect || wa;
+  const wa = cam?.aspect || 1.5, pa = fills() ? wa : S.fmt.aspect || wa;
   return (2 * Math.atan(S.fmt.w / 2 / mm / Math.max(wa, pa))) / RAD;
 }
 
@@ -44,7 +47,7 @@ function apply() {
   const f = vfov(S.mm);
   if (Math.abs(cam.fov - f) > 1e-4) { cam.fov = f; cam.updateProjectionMatrix(); }
   // the lens, for the game's depth of field: always wide open
-  DOF.on = api.dof; DOF.focus = S.focus; DOF.mm = S.mm; DOF.N = api.aperture; DOF.aspect = FILL ? innerWidth / innerHeight : S.fmt.aspect;   // framed in any shape, the picture is the window's own
+  DOF.on = api.dof; DOF.focus = S.focus; DOF.mm = S.mm; DOF.N = api.aperture; DOF.aspect = fills() ? innerWidth / innerHeight : S.fmt.aspect;   // framed in any shape, the picture is the window's own
   DOF.barrel = api.distortion * Math.min(1, (28 / S.mm) ** 1.5); cam.userData.dof = DOF;   // (these two had been swallowed by the comment above since 2026-11-11: no lens was drawn till 2026-11-14)
 }
 const DOF = { on: false, focus: 10, mm: 35, N: 1.9, aspect: 16 / 9 };
@@ -127,7 +130,7 @@ function pre(now) {
 let veil, frost, fctx, frozenFor = -1, bars = [];
 function frame() { // the picture's shape: black where the lens's format leaves the window empty
   if (!bars.length) for (let i = 0; i < 2; i++) { const b = document.createElement('div'); b.style.cssText = 'position:fixed;background:#000;pointer-events:none;z-index:3;display:none'; document.body.append(b); bars.push(b); }
-  const pa = on && !FILL ? S.fmt.aspect : 0, wa = innerWidth / innerHeight;
+  const pa = on && !fills() ? S.fmt.aspect : 0, wa = innerWidth / innerHeight;
   if (!pa || Math.abs(pa - wa) < 0.01) { bars[0].style.display = bars[1].style.display = 'none'; return; }
   const tb = pa > wa, size = tb ? (innerHeight - innerWidth / pa) / 2 : (innerWidth - innerHeight * pa) / 2;
   bars.forEach((b, i) => { b.style.display = 'block'; b.style.inset = tb ? (i ? `auto 0 0 0` : `0 0 auto 0`) : (i ? `0 0 0 auto` : `0 auto 0 0`); b.style.width = tb ? 'auto' : size + 'px'; b.style.height = tb ? size + 'px' : 'auto'; });
@@ -184,6 +187,7 @@ const api = (window.__cine = {
   lenses: LENSES,       // the kit: A28 … A180, the Master Anamorphic primes (cine/lenses.js)
   floor: null,          // (x, z) => the ground's height there; set, the camera never sinks under it
   loop: false,
+  fill: false,          // true: the picture fills the window in any shape, no bars (a viewer, not a film: the library)
   dof: true,            // depth of field, where the game can draw it
   aperture: 1.9,        // T1.9: the Master Anamorphics wide open, always
   distortion: 0.045,    // barrel at 28 mm, falling away with focal length; this glass is known for having very little
