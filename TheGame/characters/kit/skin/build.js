@@ -23,13 +23,13 @@
 // The skin is where that is as far out as the fat and the skin are thick there, half way to a man's measured outline
 // (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through; the surface is drawn out of the grid (surface nets) and smoothed along itself: two surfaces,
 // the arms' with their hands, and the rest's, each closed (an arm along the side only touches the trunk).
-import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE } from './table.js';
+import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, CARPUS, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE } from './table.js';
 import { frameAt, slots } from '../muscles/build.js';
 import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
 
 /** How the skin is drawn out, as a number: another, and a kept drawing is drawn again. */
-export const MADE = 4;
+export const MADE = 9;
 
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math.hypot(a[0], a[1], a[2]), norm = (a) => mul(a, 1 / (len(a) || 1));
@@ -222,6 +222,9 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       for (let q = 0; q < n; q++) f[q] = t[q];
     }
   };
+  // (the bones softened by a centimetre and a half: on the top of the shoulder the acromion and the collarbone's end
+  // show through the skin as one smooth rise, not as their own ridges and knobs)
+  const exactSoft = Float32Array.from(exact, (v) => Math.min(0.03, v)); blurBox(exactSoft, [nx, ny, nz], 2);
   const headBase = new Float32Array(NV).fill(1); let restField = null;
   for (let p = 0; p < PARTS.length; p++) {
     if (p === P_.head) restField = Float32Array.from(field);   // (all but the head: the neck the head's fine skin runs into)
@@ -296,7 +299,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
         if (w > 0) {
           const g2 = at(i, j, k), keep = Math.min(1, Math.max(0.3, 1.3 - tissue[g] / 0.009)) * (Y(j) < 0.13 ? 0.3 + 0.7 * smooth01((Y(j) - 0.09) / 0.04) : 1);   // (the foot's bones and tendons, under little fat, damped: its outline is its shape)
           let s2 = E - (p === P_.trunk ? reliefAt(q) : 0) + keep * Math.max(p === P_.trunk ? -0.005 : -0.002, mid[g2] - far[g2]) * (p === P_.trunk ? 2.0 : 1.2);   // (what stands out shows; a groove between two muscles the fat fills, but for two millimetres (four over the trunk, where the pectoral's edge, the rectus's lines and the serratus show))
-          if (exactPart[g] === p) { const cap = p === P_.trunk && Y(j) > 1.4 && Math.abs(X(i)) > 0.13 ? 0.013 : 0.0025; s2 = smin(s2, exact[g] - Math.max(cap, 0.4 * tissue[g]), 0.02); }   // (the acromion and the collarbone's end under the deltoid's tendon and the trapezius: 13 mm under the skin, deeper than other bones near it; held 7 mm under, they stood as knobs)
+          if (exactPart[g] === p) { const sh = p === P_.trunk && Y(j) > 1.4 && Math.abs(X(i)) > 0.13, cap = sh ? 0.008 : 0.0025; s2 = smin(s2, (sh ? exactSoft[g] : exact[g]) - Math.max(cap, 0.4 * tissue[g]), 0.02); }   // (the acromion and the collarbone's end under the deltoid's tendon and the trapezius: 13 mm under the skin, deeper than other bones near it; held 7 mm under, they stood as knobs)
           v = v + w * OUTLINE * (s2 - v);
         }
       }
@@ -367,16 +370,21 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       return { part: P_[f], segs: [[j[0], j[1], r1, r2], [j[1], j[2], r2, r3], [j[2], tip, r3, r4]] };
     });
     const rod = (q, [a, b, ra, rb]) => { const ab = sub(b, a), t = Math.max(0, Math.min(1, dot(sub(q, a), ab) / dot(ab, ab))), c = add(a, mul(ab, t)), d = sub(q, c); return Math.hypot(d[0] / 0.86, d[1], d[2]) - (ra + (rb - ra) * t); };
-    const palm = massOf(PALM), thenar = massOf(THENAR);
+    const palm = massOf(PALM), thenar = massOf(THENAR), carpus = massOf(CARPUS);
     const rods = handRods;
     for (let k = 0; k < HNn[2]; k++) for (let j = 0; j < HNn[1]; j++) for (let i = 0; i < HNn[0]; i++) {
       const q = [HLo[0] + i * HF, HLo[1] + j * HF, HLo[2] + k * HF];
-      let hand = smin(palm(q).E, thenar(q).E, THENAR.k), best = hand, part = P_.arm;
+      let hand = smin(smin(palm(q).E, carpus(q).E, CARPUS.k), thenar(q).E, THENAR.k), best = hand, part = P_.arm;
       // (the forearm: a fifth of a millimetre outside the arm's own skin where the two lie together: the hand's fine edge
       // lies over the arm's, which dives under it)
-      const fore = GA.sample(q) + Math.max(0, 0.878 - q[1]) * 0.3 - 0.0002; hand = smin(hand, fore, 0.0005 + 0.02 * smooth01((0.872 - q[1]) / 0.03));   // (softly into the palm, but at the wrist itself no fuller than the forearm: no cuff) if (fore < best) best = fore;
+      const fore = GA.sample(q) + Math.max(0, 0.878 - q[1]) * 0.3 - 0.0002; hand = smin(hand, fore, 0.0005 + 0.02 * smooth01((0.872 - q[1]) / 0.03)); if (fore < best) best = fore;   // (softly into the palm, but at the wrist itself no fuller than the forearm: no cuff)
       let v = hand;
-      for (const R of rods) { let f = Infinity; for (const sg of R.segs) f = f === Infinity ? rod(q, sg) : smin(f, rod(q, sg), 0.003); const web = smin(hand, f, 0.007); if (f < best) { best = f; part = R.part; } v = Math.min(v, web); }
+      // (the fingers side by side, touching where a relaxed hand's do and parting into a crease, not a slit thinner than
+      // the cells can draw; all of them webbed to the palm at once: one web, not one for each finger cutting into its
+      // neighbour's)
+      let all = Infinity;
+      for (const R of rods) { let f = Infinity; for (const sg of R.segs) f = f === Infinity ? rod(q, sg) : smin(f, rod(q, sg), 0.003); if (f < best) { best = f; part = R.part; } all = all === Infinity ? f : smin(all, f, 0.0025); }
+      v = Math.min(v, smin(hand, all, 0.011));
       const g = i + HNn[0] * (j + HNn[1] * k); handF[g] = v; handP[g] = part;
     }
   }
@@ -402,7 +410,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
     for (let k = 0; k < FNn[2]; k++) for (let j = 0; j < FNn[1]; j++) for (let i = 0; i < FNn[0]; i++) {
       const q = [FLo[0] + i * HF, FLo[1] + j * HF, FLo[2] + k * HF], soft = smooth01((0.085 - q[1]) / 0.02) * 0.007;
       let body = GB.sample(q); if (soft > 0) { let a = 0; for (const o of FOOT_BLUR) a += GB.sample([q[0] + o[0] * soft, q[1] + o[1] * soft, q[2] + o[2] * soft]); body = a / FOOT_BLUR.length; }
-      body += 0.0003 * smooth01((q[1] - 0.06) / 0.02);   // (the foot's own: its tendons and the gaps between its long bones under the fat smoothed away; inside the leg's skin at the ankle)
+      body += 0.0045 * smooth01((q[1] - 0.08) / 0.03);   // (the foot's own: its tendons and the gaps between its long bones under the fat smoothed away; at the ankle sinking under the leg's skin, four and a half millimetres by where the foot's own is cut off (0.11 m), as the leg's sinks under the foot's lower down: the two cross between, slowly, in a soft line rather than a torn edge)
       const cut = -smin(-body, -(q[2] - ball(q[0]) - 0.004), 0.02);   // (the foot without its old toes, its front rounded off: the ball falls away into the toes)
       let v = Math.max(cut, -q[1] + 0.0005), best = v, part = P_.leg;
       for (const R of toeRods) { const f = toeRod(q, R); v = smin(v, f, 0.012); }
@@ -411,6 +419,9 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
     }
   }
   const GFoot = gridOf(footF, FNn, FLo, HF);
+  // (and the leg's own skin dives under the foot's from 0.11 m down, five millimetres by 0.06 m (it is cut off at 0.065):
+  // its coarse cells cut the ankle's curve short by as much as two, so a smaller dive left its edge standing out)
+  for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) { const y = Y(j); if (y > 0.11) continue; const d = 0.005 * (1 - smooth01((y - 0.06) / 0.05)); for (let i = 0; i < nx; i++) if (Math.abs(X(i)) < 0.17) field[I(i, j, k)] += d; }
   // (the nails: on the back of a finger's last joint and the top of a toe's, from a little past its middle to its tip,
   // as broad as two thirds of it; the thumb's nail faces out and forward, as the thumb turns)
   const nailAt = (p, nrm) => {   // (how much of a nail a point is: 0 to 1, its edge soft over a millimetre or so)
@@ -578,10 +589,10 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
         // (the fine head's grid holds the neck under it and the tops of the shoulders as the body's does, the same field
         // drawn finer: so the two give way to one another a centimetre inside its edge, where they are one surface)
         const inHead = (v, m) => { for (let a = 0; a < 3; a++) { const x = M.pos[v * 3 + a]; if (x < HLO[a] + m || x > HLO[a] + (HN[a] - 1) * HF - m) return false; } return true; };
-        const y = (v) => M.pos[v * 3 + 1], inHand = (v) => y(v) < 0.855 && Math.abs(M.pos[v * 3]) > 0.15, inFoot = (v) => y(v) < 0.085 && M.pos[v * 3 + 2] > -0.14;
+        const y = (v) => M.pos[v * 3 + 1], inHand = (v) => y(v) < 0.855 && Math.abs(M.pos[v * 3]) > 0.15, inFoot = (v) => y(v) < 0.065 && M.pos[v * 3 + 2] > -0.14;
         const keepT = lv !== 1 ? () => true : k === 0 ? (a, b, c) => (part[a] !== P_.head || part[b] !== P_.head || part[c] !== P_.head) && !(inHead(a, 0.015) && inHead(b, 0.015) && inHead(c, 0.015)) && (!inFoot(a) || !inFoot(b) || !inFoot(c))
           : k === 1 ? (a, b, c) => !inHand(a) || !inHand(b) || !inHand(c) : k === 2 ? (a, b, c) => inHead(a, 0.008) || inHead(b, 0.008) || inHead(c, 0.008)
-          : k <= 4 ? (a, b, c) => y(a) < 0.905 || y(b) < 0.905 || y(c) < 0.905 : (a, b, c) => y(a) < 0.095 || y(b) < 0.095 || y(c) < 0.095;
+          : k <= 4 ? (a, b, c) => y(a) < 0.905 || y(b) < 0.905 || y(c) < 0.905 : (a, b, c) => y(a) < 0.11 || y(b) < 0.11 || y(c) < 0.11;
         for (let v = 0; v < nv; v++) { out.pos.push(...pt(M, v)); out.part.push(part[v]); out.piece.push(k); out.nb.push(M.nb[v].map((u) => u + n0)); }
         for (let t = 0; t < M.tri.length; t += 3) { const a = M.tri[t], b = M.tri[t + 1], c = M.tri[t + 2]; if (keepT(a, b, c)) out.tri.push(a + n0, b + n0, c + n0); }
       }
