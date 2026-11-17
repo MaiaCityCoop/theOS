@@ -36,9 +36,11 @@ severity:
 >
 > Food at every door. Sun on every roof. Every hour free for what we love.
 >
-> We stood on the Moon. That was a few of us. Imagine a million of us standing in a green city that we build with our bare hands.
+> We stood on the Moon. That was a few of us.
 >
-> We are writing a new blueprint for how to live, and proving it the only way that convinces anyone: by building it together.
+> Imagine a million of us, standing on Earth, in a green city that we build with our bare hands.
+>
+> This is Maia City: a new blueprint for how to live, proven the only way that convinces anyone, by building it together.
 >
 > The city is the proof. We are the point.
 >

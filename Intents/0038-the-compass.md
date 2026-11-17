@@ -160,6 +160,14 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes.
 - **Broke / not there yet:** many drafts missed (too abstract, too negative, too detailed) before this one.
 
+### 2026-11-17 (10)
+
+- **Asked:** "Standing on Earth… there you can transition into the Maia City intro."
+- **Delivered:** the Moon against the Earth: "Imagine a million of us, standing on Earth, in a green city that we build
+  with our bare hands." The next line names it: "This is Maia City: a new blueprint for how to live…"
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** —
+
 ## Trail
 
 | When | Commit | What |
