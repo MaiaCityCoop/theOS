@@ -228,3 +228,4 @@ setTimeout(() => (stats.outlines.made = keepOutlines()), 2500);   // what was me
 console.log(`[the game] ready in ${stats.loadMs.toFixed(0)} ms; the largest shader ${Math.round(SHADER.most / 1e3)} KB`, boot);
 requestAnimationFrame(frame);
 requestAnimationFrame(() => requestAnimationFrame(loadingDone));   // the veil goes once the world is on the screen
+if (flag('flyby')) import('../tools/flyby.js').then((m) => m.run());   // ?flyby: the camera flown by itself, to watch the plants' levels change (tools/flyby.js)
