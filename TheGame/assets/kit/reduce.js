@@ -57,14 +57,16 @@ export function chain(M, rooms) {
   edges.clear();
   const qAt = (u, v, x, y, z) => { const a = u * 10, b = v * 10; const q = (i) => Q[a + i] + Q[b + i]; return q(0) * x * x + 2 * q(1) * x * y + 2 * q(2) * x * z + 2 * q(3) * x + q(4) * y * y + 2 * q(5) * y * z + 2 * q(6) * y + q(7) * z * z + 2 * q(8) * z + q(9); };
   // the corners round u (from its live triangles), and how many live triangles hold both u and v
-  const ring = (u, out) => { out.length = 0; for (const t of vt[u]) if (alive[t]) for (let j = 0; j < 3; j++) { const w = tv[t * 3 + j]; if (w !== u && !out.includes(w)) out.push(w); } return out; };
-  const RU = [], RV = []; let QE = 0;   // (QE: the last fold's own error, its cost without its travel)
+  // (kept until a fold changes it: read, never written to, by who asks)
+  const RC = new Array(V).fill(null);
+  const ring = (u) => { let out = RC[u]; if (out) return out; out = []; for (const t of vt[u]) if (alive[t]) for (let j = 0; j < 3; j++) { const w = tv[t * 3 + j]; if (w !== u && !out.includes(w)) out.push(w); } return (RC[u] = out); };
+  let QE = 0;   // (QE: the last fold's own error, its cost without its travel)
   // what folding u onto v costs (Infinity: it may not be folded)
-  const cost = (u, v, ru = ring(u, RU)) => {
+  const cost = (u, v, ru = ring(u)) => {
     if (lock[u] || (border[u] && !border[v])) return Infinity;
     let shared = 0; for (const t of vt[u]) if (alive[t] && (tv[t * 3] === v || tv[t * 3 + 1] === v || tv[t * 3 + 2] === v)) shared++;
     if (border[u] && shared !== 1) return Infinity;   // (a border corner moves along its border only)
-    ring(v, RV); let common = 0; for (const w of ru) if (RV.includes(w)) common++;
+    const RV = ring(v); let common = 0; for (const w of ru) if (RV.includes(w)) common++;
     if (common !== shared) return Infinity;   // (the surface would be torn: more than the edge's own triangles meet the two)
     const vx = pos[v * 3], vy = pos[v * 3 + 1], vz = pos[v * 3 + 2];
     for (const t of vt[u]) {
@@ -72,10 +74,10 @@ export function chain(M, rooms) {
       // the triangle with u at v: not turned over, not to nothing
       const P = (w) => (w === u ? v : w), A = P(a) * 3, B = P(b) * 3, C = P(c) * 3;
       const ux = pos[B] - pos[A], uy = pos[B + 1] - pos[A + 1], uz = pos[B + 2] - pos[A + 2], wx = pos[C] - pos[A], wy = pos[C + 1] - pos[A + 1], wz = pos[C + 2] - pos[A + 2];
-      const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx, nl = Math.hypot(nx, ny, nz);
-      if (nl < 1e-14) return Infinity;
-      nrm(t, n3); const ol = Math.hypot(n3[0], n3[1], n3[2]) || 1;
-      if ((nx * n3[0] + ny * n3[1] + nz * n3[2]) / (nl * ol) < 0.25) return Infinity;
+      const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx, nl2 = nx * nx + ny * ny + nz * nz;
+      if (nl2 < 1e-28) return Infinity;
+      nrm(t, n3); const ol2 = n3[0] * n3[0] + n3[1] * n3[1] + n3[2] * n3[2] || 1, d = nx * n3[0] + ny * n3[1] + nz * n3[2];
+      if (d <= 0 || d * d < 0.0625 * nl2 * ol2) return Infinity;   // (its normal turned by more than 75 degrees: cos² < 1/16)
     }
     // (what it costs: how far the surface moves, and a little for how far the corner travels, so that of folds alike the
     // short ones come first: a corner then has a short way to its place on the coarser level, packed finely)
@@ -85,7 +87,7 @@ export function chain(M, rooms) {
   };
   // a queue of the cheapest fold of each corner (stale entries skipped by their version)
   let hk = new Float64Array(1024), hu = new Int32Array(1024), hv = new Int32Array(1024), hn = 0;
-  const ver = new Int32Array(V), best = new Int32Array(V).fill(-1), bestK = new Float64Array(V).fill(Infinity), RW = [];
+  const ver = new Int32Array(V), best = new Int32Array(V).fill(-1), bestK = new Float64Array(V).fill(Infinity);
   const push = (k, u, vv) => {
     if (hn === hk.length) { const g = (A, C) => { const B = new C(A.length * 2); B.set(A); return B; }; hk = g(hk, Float64Array); hu = g(hu, Int32Array); hv = g(hv, Int32Array); }
     let i = hn++; while (i > 0) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hk[i] = hk[p]; hu[i] = hu[p]; hv[i] = hv[p]; i = p; }
@@ -96,11 +98,10 @@ export function chain(M, rooms) {
     for (;;) { let c = i * 2 + 1; if (c >= hn) break; if (c + 1 < hn && hk[c + 1] < hk[c]) c++; if (hk[c] >= lk) break; hk[i] = hk[c]; hu[i] = hu[c]; hv[i] = hv[c]; i = c; }
     hk[i] = lk; hu[i] = lu; hv[i] = lv; return [k, u, vv];
   };
-  const R0 = [];
   const judge = (u) => {
     ver[u]++; let bk = Infinity, bv = -1;
     if (lock[u]) { best[u] = -1; bestK[u] = Infinity; return; }
-    ring(u, R0); for (let i = 0; i < R0.length; i++) { const k = cost(u, R0[i], R0); if (k < bk) { bk = k; bv = R0[i]; } }
+    const R0 = ring(u); for (let i = 0; i < R0.length; i++) { const k = cost(u, R0[i], R0); if (k < bk) { bk = k; bv = R0[i]; } }
     best[u] = bv; bestK[u] = bk; if (bv >= 0) push(bk, u, ver[u]);
   };
   for (let u = 0; u < V; u++) judge(u);
@@ -115,6 +116,7 @@ export function chain(M, rooms) {
     if (tris <= last.tris && verts <= last.verts && Math.sqrt(qe) > last.err) break;   // (within its room, and the next fold would cost the last level more than it may lose)
     // fold u onto v
     step++; dieAt[u] = step; parent[u] = v;
+    for (const w of ring(u)) RC[w] = null; RC[u] = RC[v] = null;   // (every ring the fold changes: u's corners')
     for (const t of vt[u]) {
       if (!alive[t]) continue;
       if (tv[t * 3] === v || tv[t * 3 + 1] === v || tv[t * 3 + 2] === v) { alive[t] = 0; tris--; continue; }
@@ -128,7 +130,7 @@ export function chain(M, rooms) {
     // (v is judged anew; a corner round it only where its best was u or v, or folding it onto v is now cheaper:
     // any other fold of it that has grown dearer or been barred is found so when it comes up, and judged then)
     judge(v);
-    for (const w of ring(v, RW)) { if (best[w] === u || best[w] === v || best[w] < 0) { judge(w); continue; } const k2 = cost(w, v); if (k2 < bestK[w]) { ver[w]++; best[w] = v; bestK[w] = k2; push(k2, w, ver[w]); } }
+    for (const w of ring(v)) { if (best[w] === u || best[w] === v || best[w] < 0) { judge(w); continue; } const k2 = cost(w, v); if (k2 < bestK[w]) { ver[w]++; best[w] = v; bestK[w] = k2; push(k2, w, ver[w]); } }
   }
   vt = null; hk = hu = hv = null;   // (what the folding worked with: not kept with the levels)
   // each level's step: as coarse as its error allows, and at least as coarse as its room

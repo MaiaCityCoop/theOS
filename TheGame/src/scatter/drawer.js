@@ -369,8 +369,11 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // blocks): they are there for the first picture, not behind the workers' queue of everything else the start asks)
     if (MAKE?.here) { const blocks = MAKE.here(OWN); blocks.forEach((b, j) => blockIn(b, 0, ALL, OWN[j][1], OWN[j][2])); coarse = ALL; stats.coarseMs = Math.round(performance.now() - t0); keptPut(FP, KEPT, blocks); return; }
     const all = OWN.map(([l, idx, elems]) => ({ l, corners: new Uint32Array(ALL * idx), verts: new Uint32Array(ALL * elems * 4), counts: new Uint32Array(ALL), draws: new Uint32Array(ALL) }));
-    for (let k = 0; k < ALL; k += 100) {   // (a hundred kinds a message, sent to the GPU as one piece a level)
-      const n = Math.min(100, ALL - k);
+    // (a hundred kinds a message, sent to the GPU as one piece a level; of fewer kinds, a third of them a message, one to
+    // each worker: a kind whose levels are reduced from its full mesh takes a second or two, intent 0033)
+    const STEP = Math.max(1, Math.min(100, Math.ceil(ALL / 3)));
+    for (let k = 0; k < ALL; k += STEP) {
+      const n = Math.min(STEP, ALL - k);
       ask([['own', KINDS ? KINDS.slice(k, k + n) : first + k, n, OWN]]).then(([blocks]) => {
         blocks.forEach((b, j) => { blockIn(b, k, n, OWN[j][1], OWN[j][2]); all[j].corners.set(b.corners, k * OWN[j][1]); all[j].verts.set(b.verts, k * OWN[j][2] * 4); all[j].counts.set(b.counts, k); all[j].draws.set(b.draws, k); });
         coarse += n; if (coarse >= ALL) { stats.coarseMs = Math.round(performance.now() - t0); keptPut(FP, KEPT, all); }
