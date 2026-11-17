@@ -29,7 +29,7 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, atan, clamp, log, exp, exp2, step, fract, unpackHalf2x16, storage } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, atan, clamp, log, exp, exp2, step, fract, unpackHalf2x16, storage, texture } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt, nearLake } from '../world/land.nodes.js';
 import { kindsOf, whereOf } from '../world/stand.js';
@@ -49,7 +49,7 @@ import { addBodies, bodyGrid, topOf, wanted } from '../world/bodies.js';
 import { idOf } from '../world/things.js';
 import { wayAt, waysVersion } from '../world/ways.js';
 import { pxOf, turnOf, seedOf } from './row.js';
-import { LOD, LOD_DEFAULT, CROWD, levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
+import { LOD, LOD_DEFAULT, CROWD, BAKED, levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
 import { crowdLevel, crowdOf, bandsOf, GRID, TIPUV, GOQ } from '../../assets/kit/plant.js';
 import { flagText, flagNum } from '../core/flags.js';
 import { bits, lo16, hi16, sn8 } from './unpack.js';
@@ -66,6 +66,8 @@ if ((flagText('lod') ?? LOD_DEFAULT) === 'new') Object.assign(LOD, { on: true, C
 // mipped, and a painting shown many times over is mipped to a blur its cut-out passes everywhere: the card is then a
 // solid patch. So 0 until the cut-out is reckoned by how much of the card is leaves (`?spread=` to try).
 const SPREAD = flagNum('spread', 0);
+/** A half float's 16 bits as the number (what assets/kit/plant.js wrote). */
+const unhalf = (h) => { const e = (h >> 10) & 31, m = h & 1023, v = e === 0 ? m * 2 ** -24 : e === 31 ? Infinity : (1 + m / 1024) * 2 ** (e - 15); return h & 0x8000 ? -v : v; };
 const SX = (2 * GRID.xz) / 65535, SY = (GRID.y1 - GRID.y0) / 65535;
 /** A crowd level's vertex: what the rule moves it by, from the elements a plant's vertex is (assets/kit/plant.js), and
     its shape's sixteen numbers (ruleOf). */
@@ -269,7 +271,8 @@ function plantMaterial(tex, D) {
     // a far body that wears its crown baked (under `?lod=new`, `?bake=0` for none): where on which baked view it lies (u, v, the view, 1), and where
     // its plant's level lies in the heap (as two numbers under 4096: a whole number however a pixel got it)
     const elemOf = feed?.elem ?? Lv?.bakeElem;   // (where a baked crown's bytes are read from: the heap's elements, or the library's plant's own)
-    const vImp = Lv?.crowd && elemOf && LOD.BAKE ? varyingProperty('vec4', 'tImp') : null, vBase = vImp ? varyingProperty('vec2', 'tBase') : null;
+    const vImp = Lv?.crowd && (elemOf || D.bakeTex) && LOD.BAKE ? varyingProperty('vec4', 'tImp') : null, vBase = vImp ? varyingProperty('vec2', 'tBase') : null;
+    const bakeTex = feed && D.bakeTex ? texture(D.bakeTex) : null;   // (the world's: its stand's texture; the library's plant reads its own buffer)
     const shape = (A, B) => {
       const clip = offScreen().toVar();
       const drawn = () => {
@@ -306,7 +309,8 @@ function plantMaterial(tex, D) {
                 const k = floor(atan(d.z, d.x).div(Math.PI / 4).add(8.5)).mod(8), z = k.mul(Math.PI / 4), se = Math.sin(Math.PI / 6), ce = Math.cos(Math.PI / 6);
                 const u = top.select(vec3(1, 0, 0), vec3(sin(z), 0, cos(z).negate())), v = top.select(vec3(0, 0, -1), vec3(cos(z).mul(-se), ce, sin(z).mul(-se)));
                 const rel = R.pos.sub(V.root), half = max(r, 1e-3).mul(2);
-                vImp.assign(vec4(rel.dot(u).div(half).add(0.5), rel.dot(v).div(half).add(0.5), top.select(float(8), k), baked.select(float(1), float(0))));
+                const view = top.select(float(8), k);
+                vImp.assign(vec4(rel.dot(u).div(half).add(0.5), rel.dot(v).div(half).add(0.5), D.bakeTex && feed ? floor(B.y.add(0.5)).mul(BAKED.length).add(view) : view, baked.select(float(1), float(0))));   // (z: the texture's layer, its shape's and the view's; the library's: the view)
                 const at = V.crowd.rule[3].z.mul(1024).add(V.crowd.rule[3].w), b = V.base !== undefined ? float(V.base).add(at.mul(2)) : float(0);   // (its bake's first element: after the level's vertices, two elements a vertex; the library's: its own, from 0)
                 vBase.assign(vec2(floor(b.div(4096)), b.mod(4096)));
               }
@@ -373,10 +377,15 @@ function plantMaterial(tex, D) {
         const whole = step(1.5, vPart);
         if (vImp) If(vImp.w.greaterThan(0.5), () => {
           // a far body wearing its crown baked: as much of it as the crown covers there, as shaded as the crown is there
-          const R = CROWD.BAKE, tx = clamp(floor(vImp.x.mul(R)), 0, R - 1), ty = clamp(float(R - 1).sub(floor(vImp.y.mul(R))), 0, R - 1);
-          const t = uint(floor(vImp.z.add(0.5)).mul(R * R).add(ty.mul(R)).add(tx)), base = uint(floor(vBase.x.add(0.5)).mul(4096).add(floor(vBase.y.add(0.5))));
-          const E = elemOf(base.add(t.shiftRight(uint(3)))), w = t.bitAnd(uint(7)).shiftRight(uint(1)), word = w.equal(uint(0)).select(E.x, w.equal(uint(1)).select(E.y, w.equal(uint(2)).select(E.z, E.w)));
-          const bits16 = word.shiftRight(t.bitAnd(uint(1)).mul(uint(16))), cover = float(bits16.bitAnd(uint(255))).div(255), shade = float(bits16.shiftRight(uint(8)).bitAnd(uint(255))).div(255);
+          const R = CROWD.BAKE, tx = clamp(floor(vImp.x.mul(R)), 0, R - 1), ty = clamp(float(R - 1).sub(floor(vImp.y.mul(R))), 0, R - 1), layer = floor(vImp.z.add(0.5));
+          const t = uint(layer.mul(R * R).add(ty.mul(R)).add(tx)), cs = vec2(0).toVar();
+          if (bakeTex) cs.assign(bakeTex.sample(vec2(tx.add(0.5), ty.add(0.5)).div(R)).depth(layer).xy);   // (the texel itself: nearest, its rows from the top as baked)
+          else {
+            const base = uint(floor(vBase.x.add(0.5)).mul(4096).add(floor(vBase.y.add(0.5))));
+            const E = elemOf(base.add(t.shiftRight(uint(3)))), w = t.bitAnd(uint(7)).shiftRight(uint(1)), word = w.equal(uint(0)).select(E.x, w.equal(uint(1)).select(E.y, w.equal(uint(2)).select(E.z, E.w)));
+            const bits16 = word.shiftRight(t.bitAnd(uint(1)).mul(uint(16))); cs.assign(vec2(float(bits16.bitAnd(uint(255))), float(bits16.shiftRight(uint(8)).bitAnd(uint(255)))).div(255));
+          }
+          const cover = cs.x, shade = cs.y;
           // a baked texel is a clump of leaves there or a gap, as often as the crown covers it there (its own number, the
           // same every frame: the crown's gaps stay where they are), so the far crown is as see-through as the near one
           If(cover.lessThanEqual(fract(sin(float(t).mul(12.9898).add(78.233)).mul(43758.5453))), () => { Discard(); });
@@ -470,9 +479,26 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
         streamed: FINE && lv < 2 ? (B) => { const R0 = heapRow(D.H, uint(B.y.add(0.5)), uint(0)).toVar(); return { held: R0.z.greaterThan(uint(0)), grown: smoothstep(0, GROW, sinceCame(R0, U.uTime)) }; } : null,
       };
     };
+    // the far bodies' baked crowns (`?lod=new`): a layer each of a shape's baked views, read from the first of its levels
+    // that carries them as they come (from the workers, or read back from the browser), in a texture of the stand's own:
+    // a pixel samples it, where the heap would be read element by element
+    const BR = CROWD.BAKE, BV = BAKED.length, bakeDone = new Uint8Array(G.meshes);
+    G.bakeTex = LOD.on && LOD.BAKE && CROWDED.some(Boolean) ? Object.assign(new THREE.DataArrayTexture(new Uint8Array(BR * BR * 2 * BV * G.meshes), BR, BR, BV * G.meshes), { format: THREE.RGFormat, type: THREE.UnsignedByteType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false, colorSpace: THREE.NoColorSpace }) : null;
+    const bakeIn = G.bakeTex && ((l, k0, nk, verts, elems) => {
+      if (!CROWDED[l]) return;
+      let any = false;
+      for (let j = 0; j < nk; j++) {
+        const kd = k0 + j; if (bakeDone[kd]) continue;
+        const o = j * elems * 4, r = unhalf(verts[o + 6] >>> 16), at = unhalf(verts[o + 7] & 0xffff) * 1024 + unhalf(verts[o + 7] >>> 16);   // (its numbers' slots 13, 14 and 15: crowd.js RULE)
+        if (!(r > 0) || !(at > 0)) continue;
+        const bytes = new Uint8Array(verts.buffer, verts.byteOffset + (o + at * 8) * 4, BR * BR * 2 * BV);
+        G.bakeTex.image.data.set(bytes, kd * BR * BR * 2 * BV); bakeDone[kd] = 1; any = true;
+      }
+      if (any) G.bakeTex.needsUpdate = true;
+    });
     const D = createDrawer(scene, renderer, tex, {
       name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1),
-      make: { per: 2, numbers: { rows: 4, of: (k) => numbers.subarray(k * 16, k * 16 + 16) }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, last: i === n - 1, ...(CROWDED[i] ? { crowd: true, first: i === CROWDED.indexOf(true), splay: FINE } : {}) }, feedOf(i, at)); m.vertexNode = Fn(() => shape(src.readAt(0, slot), src.readAt(1, slot)))(); return m; } },
+      make: { per: 2, onBlock: bakeIn || null, numbers: { rows: 4, of: (k) => numbers.subarray(k * 16, k * 16 + 16) }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, last: i === n - 1, ...(CROWDED[i] ? { crowd: true, first: i === CROWDED.indexOf(true), splay: FINE } : {}) }, feedOf(i, at)); m.vertexNode = Fn(() => shape(src.readAt(0, slot), src.readAt(1, slot)))(); return m; } },
       // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
       zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 2${LOD.on ? ` crowd ${LOD.CARD}:${LOD.KMAX}:${LOD.SPLIT}:${LOD.BAKE}:${LOD.FAR}` : ''}|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
     });

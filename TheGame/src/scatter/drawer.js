@@ -350,7 +350,8 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // where a make's vertex of a draw at level i lies (at(R): R its kind's row there): its number, and whether the draw's
   // corner is one of its mesh's (a class's draw runs as long as its class)
   const atOf = (i) => (R) => ({ vertex: RANGE[i] && CORNERED ? H.index.element(R.x.add(vertexIndex)) : vertexIndex, drawn: vertexIndex.lessThan(cornersOf(R)) });
-  const blockIn = (b, k0, n, idx) => {
+  const blockIn = (b, k0, n, idx, elems) => {
+    MAKE?.onBlock?.(b.l, k0, n, b.verts, elems);   // (what a make reads of its meshes as they come: the plants' baked crowns, src/scatter/trees.js)
     H.putBlock(b.l, k0, n, MAKE && !CORNERED ? NONE : b.corners, b.verts, CLASSED ? b.draws : b.counts);   // (classed: its count is its corners')
     if (RANGE[b.l]) for (let j = 0; j < n; j++) if (b.draws[j]) classesIn[b.l].add(clampClass(b.l, classOf(b.draws[j])));
     if (MAKE && !RANGE[b.l]) for (let j = 0; j < n; j++) {
@@ -362,12 +363,12 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     coarse = 0;
     // (a make of a few small kinds may make its coarse levels itself, here, as the workers would (MAKE.here(OWN): the
     // blocks): they are there for the first picture, not behind the workers' queue of everything else the start asks)
-    if (MAKE?.here) { const blocks = MAKE.here(OWN); blocks.forEach((b, j) => blockIn(b, 0, ALL, OWN[j][1])); coarse = ALL; stats.coarseMs = Math.round(performance.now() - t0); keptPut(FP, KEPT, blocks); return; }
+    if (MAKE?.here) { const blocks = MAKE.here(OWN); blocks.forEach((b, j) => blockIn(b, 0, ALL, OWN[j][1], OWN[j][2])); coarse = ALL; stats.coarseMs = Math.round(performance.now() - t0); keptPut(FP, KEPT, blocks); return; }
     const all = OWN.map(([l, idx, elems]) => ({ l, corners: new Uint32Array(ALL * idx), verts: new Uint32Array(ALL * elems * 4), counts: new Uint32Array(ALL), draws: new Uint32Array(ALL) }));
     for (let k = 0; k < ALL; k += 100) {   // (a hundred kinds a message, sent to the GPU as one piece a level)
       const n = Math.min(100, ALL - k);
       ask([['own', KINDS ? KINDS.slice(k, k + n) : first + k, n, OWN]]).then(([blocks]) => {
-        blocks.forEach((b, j) => { blockIn(b, k, n, OWN[j][1]); all[j].corners.set(b.corners, k * OWN[j][1]); all[j].verts.set(b.verts, k * OWN[j][2] * 4); all[j].counts.set(b.counts, k); all[j].draws.set(b.draws, k); });
+        blocks.forEach((b, j) => { blockIn(b, k, n, OWN[j][1], OWN[j][2]); all[j].corners.set(b.corners, k * OWN[j][1]); all[j].verts.set(b.verts, k * OWN[j][2] * 4); all[j].counts.set(b.counts, k); all[j].draws.set(b.draws, k); });
         coarse += n; if (coarse >= ALL) { stats.coarseMs = Math.round(performance.now() - t0); keptPut(FP, KEPT, all); }
       });
     }
@@ -434,7 +435,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // each frame until every kind's coarse levels are in
   const start = () => {
     if (coarse < 0) {
-      if (keptOwn) { keptOwn.forEach((b, j) => blockIn(b, 0, ALL, OWN[j][1])); coarse = ALL; keptOwn = false; stats.kept = true; stats.coarseMs = Math.round(performance.now() - t0); }
+      if (keptOwn) { keptOwn.forEach((b, j) => blockIn(b, 0, ALL, OWN[j][1], OWN[j][2])); coarse = ALL; keptOwn = false; stats.kept = true; stats.coarseMs = Math.round(performance.now() - t0); }
       else if (EAGER || window.__game?.loadMs) { loadedAt ||= performance.now(); if (keptOwn === false || performance.now() - loadedAt > 1500) fill(); }   // (the browser's answer is waited for a moment into the first frames: a busy start holds it back)
     }
   };

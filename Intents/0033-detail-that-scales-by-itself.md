@@ -764,6 +764,23 @@ wearing the bake; the counter counting vertices only; the stress world not slowe
 - **The default**: `assets/kit/crowd.js` LOD_DEFAULT ('old' still); `?lod=old` and `?lod=new` choose either. Not
   switched: the horizon matches at a cost of a few per cent of frame time.
 
+### Stage 1: the bake as a texture (2026-11-17)
+
+The coordinator's choice after #33: the bake read from a texture (the cheaper read), #33's look kept; the default if then
+at least as fast as main over several pairs in opposite orders, else the numbers.
+
+- **The texture**: each stand under `?lod=new` has a texture array of its own, a layer for each of its shapes' baked
+  views (48 a side, two channels, nearest). As a level's block comes in, from the workers or read back from the browser,
+  the drawer tells the plants' make (`MAKE.onBlock`), which copies each shape's bake out of the first of its levels that
+  carries one. A far body's pixel samples it where it read the heap. The library's plant still reads its own buffer.
+- **Drawn the same**: the luminance of the same regions is unchanged to the decimal.
+- **Timed**, three pairs in alternating order (bench's frame, wall time on SwiftShader): by the tent +3.6, +2.5 and
+  +2.7 %, at the river bend +1.7, +2.0 and +1.7 %. No better than reading the heap (#33: +5.2 and +3.3, +2.3 %).
+- **So the default stays 'old'.** Set against the earlier rounds (#32's solid bake 4 to 6 % faster than main; #33's
+  see-through bake a few per cent slower, from the heap or from the texture alike), the cost is the gaps themselves,
+  not the read: through them more of what lies behind is drawn. Holding the horizon's look and main's frame time
+  together needs fewer layers behind the far crowns, or the gaps only where they show against the sky.
+
 ## Propose
 
 ## Story
@@ -798,8 +815,9 @@ wearing the bake; the counter counting vertices only; the stress world not slowe
   - [x] the crown baked, worn by the far bodies, the far body from 40 px (`?lod=new`; `?bake=0` without)
   - [x] the trees on the horizon by the tent as airy as main's (the bake see-through as the crown)
   - [x] the library's plant wears the bake; the counter counts vertices only; the stress world no slower
-  - [ ] Samuel: the horizon matches main at a few per cent of frame time here: take it, or the bake as a texture (a
-        cheaper read than the heap's), or the bake solid again (faster, the horizon heavier)
+  - [x] the bake as a texture: drawn the same, no faster (+2 to 4 %, three pairs)
+  - [ ] Samuel: the horizon matches main at 2 to 4 % of frame time here: take it, or the bake solid again (faster, the
+        horizon heavier), or the gaps only where they show against the sky (not tried)
   - [ ] `LOD_DEFAULT` 'new' once that is settled
   - [ ] `?lod=new` the default, `?lod=old` kept, once as fast and as good as main from 90 m and by the tent; the stress
         world checked not slower
@@ -971,6 +989,16 @@ wearing the bake; the counter counting vertices only; the stress world not slowe
   river bend (+2.3 % in one, −21 % in the other). From 90 m 6 % lighter than main. So not switched: the choice is with
   the coordinator and Samuel, with the stills.
 
+### 2026-11-17 (5)
+
+- **Asked:** (the coordinator) the bake as a texture, #33's look kept; the default if then at least as fast as main
+  over several pairs in opposite orders, else the numbers.
+- **Delivered:** the stands' baked crowns in a texture array each, filled as the levels come in; the far bodies sample
+  it.
+- **Good:** Drawn exactly as before (the same luminance to the decimal).
+- **Broke / not there yet:** No faster: by the tent +3.6, +2.5, +2.7 %, at the river bend +1.7, +2.0, +1.7 % in three
+  pairs. The default stays 'old'. The cost is the gaps (more drawn behind them), not the read.
+
 ## Trail
 
 | When | Commit | What |
@@ -995,3 +1023,4 @@ wearing the bake; the counter counting vertices only; the stress world not slowe
 | 2026-11-17 | `9847fd0` | the far bodies wear their crown baked (`bakeOf`, carried in the heap) |
 | 2026-11-17 | `fa7d70c` | `?lod=new` wears its crowns baked, the far body from 40 px; the stills |
 | 2026-11-17 | `63b5a74` | the bake as see-through as the crown, and as light; the library's plant wears it; the counter by vertices; `LOD_DEFAULT` |
+| 2026-11-17 | `a0fe8fd` | the baked crowns read from a texture of each stand's, filled as the levels come in |
