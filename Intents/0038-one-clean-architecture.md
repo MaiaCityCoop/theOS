@@ -72,7 +72,8 @@ the architecture owes:
 
 To hold 60 fps on a 4K screen at this look, the frame is drawn at the resolution the governor chooses and brought up
 to 4K by the temporal pass (temporal upscaling). The industry ships the same way: Nanite's published frame was drawn
-at about 1400p and upscaled to 4K.
+at about 1400p and upscaled to 4K. **Samuel decided this on 2026-11-17 ("Yes, upscaled 4K"):** the gate is a 4K
+output, upscaled.
 
 **The architecture: one of each**
 
@@ -100,8 +101,9 @@ numbers are written below.
    - delete the dead character code, the ground cache, `slots.js`, and the `MADE` numbers (the registry's hash
      replaces them);
    - load `stress.js` and `herds.js` only when asked for.
-2. **Gate.** `?truth`, `tools/gate.js` (it absorbs `Intents/handoff/avenmac/*.mjs`), `src/detail/measure.js` in device
-   pixels, and the baseline on main.
+2. **Gate, measure and upscale.** `?truth`, `tools/gate.js` (it absorbs `Intents/handoff/avenmac/*.mjs`), and
+   `src/detail/measure.js` in the pixels drawn. The temporal pass becomes the upscaler: the frame is drawn at the
+   governor's resolution and resolved to the 4K screen. Then the baseline on main.
 3. **Boot.** A stage profile for the library and Me, the ground shader wrapped so it compiles small, and Me's copied
    stage code merged.
 4. **Far end.** One GPU impostor for plants, rocks and made things. It deletes the hull body, `bakeOf`, `GROWN`, the
@@ -129,7 +131,7 @@ numbers are written below.
 | 4 | Nothing ever changes visibly | In recorded walks, zooms (1.7 m to 12 km), scrolls and flybys, the change caused by detail in each frame, ((LOD − truth) now) − ((LOD − truth) one frame before), stays under the threshold of visibility in every frame and every 32-pixel tile. There is no "3× the median" allowance |
 | 4a | Photorealistic | At every gate view, the full-detail picture's distance to the real photos of the same scene (CMMD, and the image statistics) falls stage by stage and never rises. The end is Samuel's blind test: at the gate's views he can't tell the render from a photograph |
 | 4b | Generic and universal | No asset file holds any detail data (`levels`, `ladder`, `grow`, px sizes, `detail`). A new asset dropped in gets all its detail from the builder, with no line of LOD code written for it |
-| 5 | The 4K gate holds | `?bench` at 4K on Samuel's Mac, Chrome and Safari: ≤ 12 ms of GPU at every bench view, and memory ≤ 8 GB |
+| 5 | The 4K gate holds | `?bench` at a 4K output, upscaled, on Samuel's Mac in Chrome and Safari: ≤ 12 ms of GPU at every bench view, memory ≤ 8 GB, with the resolution drawn recorded next to it. The picture checks (3, 4, 4a) are judged on the upscaled 4K output |
 | 6 | The library starts in Safari | Bytes compiled at start, from the gate's shader log, are a fraction of today's 5.8 MB, and the library shows its subject in Safari with no 20 s timeout |
 | 7 | Lines go down | `git diff --stat main` at the end of each stage. The total falls stage after stage |
 
