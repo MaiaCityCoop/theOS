@@ -798,6 +798,64 @@ horizon kept.
   pixels (the bake's read and shade, and a body that encloses its crown, larger than main's far level's) set against
   main's far levels. The default stays 'old'.
 
+### Stage 1: what pumps and pops, measured; the flyby (2026-11-17)
+
+Samuel, through the coordinator: the pumping, popping and visible transitions were the main thing to solve, with a
+better architecture for the levels; speed is second (the 60 fps and 4K gate kept). First every place under `?lod=new`
+where a plant's picture can change at once, then checks 1 to 3 old against new, then the fixes, each its own PR; and
+the flight to watch it by.
+
+**Where a plant's picture can change at once, under `?lod=new`:**
+
+1. *The near hand-over (the splay):* a card grows or shrinks from its tip by its own size on screen (`grownAt`),
+   never at once: continuous (the walk finds no step there).
+2. *A level's edge:* none. Each level is a first share of one build, and a level at its band's edge draws what the
+   next draws there, vertex for vertex (the containment check, Build "the shape's numbers"): the walk draws the whole
+   build at every size, which at each size is exactly what its level draws.
+3. *Cards to the far body (between 52 and 40 px):* continuous but a pump, the largest. The cards are enlarged (up
+   to `KMAX` 8 times) and fade to see-through while the far body grows from the crown's middle: the outline falls to
+   0.45 (oak), 0.38 (pine), 0.30 (mastic) of the near view's and comes back. A fix.
+4. *Wood to its post (at the far body's half way):* a swap in one frame, small (the trunk and limbs inside the crown).
+   A fix.
+5. *One far body into the next (24 to 18 px, 9 to 7 px):* continuous, but each is smaller: the outline steps 1.0, 0.87,
+   0.65 over a few per cent of size each; on the pine 3.5 times its neighbours at 8.2 px (check 2's limit is 3). A fix.
+6. *The far body, the speck, nothing:* the last level sinks (lower and narrower, its cover fading, as `handover.js`):
+   smooth in cover; the outline ends where the cover passes one half.
+7. *The bake's view:* each far body wears the nearest of the bake's nine views: going round a tree it snaps from
+   one to the next every 30°. Not in the walk (one side); it is what `?flyby=orbit` is for. A fix (two views blended).
+8. *`?sky`:* the gaps against the sky blend smoothly by the slope from the eye: nothing at once.
+9. *`shade()` (the shadow's caster):* the hand-made stand-in, as under `?lod=old`; it does not follow the picture, but
+   nothing of it changes at once that did not before.
+
+**The walk** (`TheGame/tools/walk.js`, on the CPU, no browser): each plant from one side in a fixed frame, at every
+1 % of size from 600 px down to where it sinks, under each way. Under `?lod=old` each size draws the one level its
+band holds (the old hand-over, ±10 % of size with parts growing and shrinking, is not drawn: each old step shows as
+one step). Check 1 (outline within 5 % of the near view's down to 20 px, 15 % below) and check 2 (no step more than 3
+times its neighbours):
+
+| Plant | Way | Outline off, ≥ 20 px | below | Cover off, ≥ 20 px | Steps over 3× | Largest step (share of the picture) |
+| --- | --- | --- | --- | --- | --- | --- |
+| holm oak | old | 6 % | 60 % | 3 % | 5 (every level's edge) | 61 % at 17.9 px, 28 % at 33.8 px |
+| holm oak | new | 55 % | 34 % | 43 % | 0 | 8.5 % at 44 px |
+| stone pine | old | 31 % | 58 % | 27 % | 5 | 77 % at 17.9 px, 34 % at 33.8 px |
+| stone pine | new | 63 % | 37 % | 25 % | 4 (3.1 to 3.5×, 7 to 23 px) | 11.6 % at 44 px |
+| mastic | old | 10 % | 58 % | 12 % | 2 | 55 % at 15.9 px |
+| mastic | new | 70 % | 3 % | 40 % | 1 (3.4× at 18.8 px) | 9.8 % at 58 px |
+
+Neither passes. The old way pops (one step of up to three quarters of the picture where a level ends); the new way
+does not pop but pumps (between 100 and 40 px the plant thins to a third or half of its outline and fills again), and
+below 20 px its far bodies are smaller than the crown. The pictures: `walk-contact-sheet.png` and
+`walk-outline-cover.png` in the research notes' `stage1/`.
+
+**The flyby:** `?flyby` flies the game's own camera by itself, on a loop: the rig's one zoom from 12 km down to eye level
+10 m before a holm oak at the pine forest's east edge (over the river: little stands between) and back up, 30 s each
+way (`&secs=`), evenly in the height's logarithm; `?flyby=orbit` goes round the same oak at the height where it stands
+60 px tall (`&px=`), once in 40 s. With `?lod=old` or `?lod=new`: two tabs side by side. A line at the top left says
+the way, the distance and how tall the oak stands. `window.__flyby.at(s)` holds the flight at a moment (for stills).
+
+**Not yet measured:** check 3 (the zoom to 12 km and back, frame to frame, in the game); the flight's frame rate on a
+GPU (SwiftShader draws a few frames a second; the flight runs by the clock, so it is smooth only on a real GPU).
+
 ## Propose
 
 ## Story
@@ -837,6 +895,11 @@ horizon kept.
   - [ ] Samuel: the plants under `?lod=new` look as main and cost about 3 % of the frame here (SwiftShader; GPU time
         and Safari not measured): take it, or measure it on a GPU first (`?gputime`, the bench's views), where a pixel's
         cost and a vertex's weigh differently than on this CPU
+  - [x] every abrupt change under `?lod=new` listed; checks 1 and 2 old against new (the walk); `?flyby` to watch it
+  - [ ] the pump from the cards to the far body: the far body at its full size from the start, denser as it comes in
+  - [ ] each far body as large as the crown's own outline (no shrink from one to the next)
+  - [ ] wood to post faded, not swapped; two of the bake's views blended going round
+  - [ ] check 3: the zoom to 12 km and back, frame to frame, in the game
   - [ ] `LOD_DEFAULT` 'new' once that is settled
   - [ ] `?lod=new` the default, `?lod=old` kept, once as fast and as good as main from 90 m and by the tent; the stress
         world checked not slower
@@ -1027,6 +1090,16 @@ horizon kept.
 - **Broke / not there yet:** No faster: about +3 % over three pairs (+7.0, −0.6, +3.3 % by the tent; +7.4, +3.2, +3.0 %
   at the river bend). The default stays 'old'. My earlier "#32 4 to 6 % faster" rested on one pair: within the spread.
 
+### 2026-11-17 (7)
+
+- **Asked:** (the coordinator, for Samuel) pumping and popping first: every abrupt change under `?lod=new` listed,
+  checks 1 to 3 old against new, the fixes; a flight to watch it by, `?flyby`.
+- **Delivered:** the list (nine places: three to fix, one small swap, one snap going round); the walk on the CPU
+  (`tools/walk.js`) with its numbers, a chart and a contact sheet; `?flyby` and `?flyby=orbit`.
+- **Good:** The new way has no pop where the old has five (old: up to 77 % of the picture in one step).
+- **Broke / not there yet:** The new way pumps: the outline falls to a third or half between 100 and 40 px and comes
+  back, and its far bodies are smaller than the crown. Check 3 not yet run. The fixes come next, each its own PR.
+
 ## Trail
 
 | When | Commit | What |
@@ -1053,3 +1126,4 @@ horizon kept.
 | 2026-11-17 | `63b5a74` | the bake as see-through as the crown, and as light; the library's plant wears it; the counter by vertices; `LOD_DEFAULT` |
 | 2026-11-17 | `a0fe8fd` | the baked crowns read from a texture of each stand's, filled as the levels come in |
 | 2026-11-17 | `aaecab1` | the baked crowns see-through only against the sky |
+| 2026-11-17 | `12fe6a2` | every abrupt change under `?lod=new` listed; the walk (checks 1 and 2) old against new; `?flyby` and `?flyby=orbit` |
