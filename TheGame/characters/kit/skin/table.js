@@ -89,6 +89,7 @@ export const OPENINGS = [
   { what: 'eye opening', solid: ['egg', [0.032, 1.6768, 0.085], [0.0142, 0.0035, 0.012]] },
   { what: 'nostril', solid: ['egg', [0.0072, 1.6255, 0.11], [0.0032, 0.0028, 0.0055]] },
   { what: 'ear bowl', solid: ['egg', [0.084, 1.66, -0.018], [0.0055, 0.0115, 0.0085]] },
+  { what: 'gluteal cleft', solid: ['egg', [0.0, 0.872, -0.135], [0.006, 0.072, 0.07]] },   // (between the buttocks, from the coccyx down: the fascia's closing over the muscles fills it)
 ];
 // Where the skin takes another colour: the lips (their red), the areolae, the nails. [what, centre, radii (m)]
 export const MARKS = [
@@ -139,6 +140,12 @@ export const partOf = (rig) => {   // (the head a piece of its own: its face is 
 // run into one another softly), and its sections from a to b, evenly spaced: [forward shift of the middle, half-breadth outwards,
 // half-breadth inwards, front, back, squareness (2 an ellipse, more a rounded box)] in cm; limb, the limb it is a piece of,
 // and joins, which of its ends meet the limb's next piece (its pieces are one outline there, ./build.js).
+// How much of the skin's shape the outline gives (0 … 1), the rest from the muscles under it in their fascia, the
+// tissue's depth over them (./build.js). The outline was all of it; built from the muscles alone, fitted to an anatomical
+// figure from the front, the back and the side, the trunk shows its own pectorals, belly and back, but the buttocks and
+// the arms come out as boxes and ropes: the outline is how the fat rounds them, and half of it rounds them as a slightly
+// muscular man's are.
+export const OUTLINE = 0.5;
 export const PROFILE_SOURCE = 'Gordon et al. 2014, "2012 Anthropometric Survey of U.S. Army Personnel" (ANSUR II), NATICK/TR-15/007: men\'s circumferences, breadths and depths, as remembered, scaled to 1.80 m and to a slightly muscular build; the outline fitted, front, back and side, to the living model of Richer, Anatomie artistique (1890), vol. 2, plates 74 to 76 ("Topographie morphologique"), drawn at the same scale beside it (public domain, Wikimedia Commons)';
 export const PROFILES = [
   { part: 'trunk', a: [0, 0.84, 0], b: [0, 1.6, 0], front: [0, 0, 1], fade: [0, 1], sections: [   // every 4 cm from 0.84 m up
@@ -175,9 +182,8 @@ export const MASSES = [
   { part: 'head', what: 'masseter', at: [0.042, 1.623, 0.026], r: [0.009, 0.02, 0.022, 0.026, 0.024, 0.02], n: 2.0, k: 0.015 },   // (and the cheek's fat over it)
   { part: 'head', what: 'chin', at: [0, 1.571, 0.09], r: [0.02, 0.02, 0.014, 0.013, 0.011, 0.014], n: 2.0, k: 0.03 },
   { part: 'trunk', what: 'jugular notch', at: [0, 1.475, 0.036], r: [0.012, 0.012, 0.008, 0.008, 0.009, 0.02], n: 2.0, k: 0.012 },   // (the hollow above the breastbone a soft one, the width of a thumb, not a pit)
-  { part: 'trunk', what: 'deltoid', at: [0.178, 1.43, -0.034], r: [0.045, 0.03, 0.04, 0.05, 0.046, 0.048], n: 2.0, k: 0.03 },   // (the shoulder's cap, over the acromion and the head of the arm)
   { part: 'trunk', what: 'pectoral', at: [0.078, 1.33, 0.078], r: [0.074, 0.064, 0.1, 0.038, 0.022, 0.03], n: 2.6, k: 0.025, lean: 0.3 },   // (a slightly muscular man's: its lower edge at the nipples, the sternum in the groove between the two)
-  { part: 'trunk', what: 'buttock', at: [0.072, 0.885, -0.08], r: [0.085, 0.062, 0.11, 0.085, 0.05, 0.065], n: 2.5, k: 0.025 },
+  { part: 'trunk', what: 'buttock', at: [0.068, 0.885, -0.075], r: [0.075, 0.06, 0.11, 0.1, 0.05, 0.052], n: 2.1, k: 0.04 },
 ];
 // The hand, drawn finer than the body (./build.js): its palm and the ball of its thumb as masses (left hand, standing,
 // its palm to the thigh: +x its back, +z towards the thumb; m), each finger three tapering rods from its knuckle

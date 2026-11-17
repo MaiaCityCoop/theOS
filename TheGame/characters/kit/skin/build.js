@@ -23,13 +23,13 @@
 // The skin is where that is as far out as the fat and the skin are thick there, half way to a man's measured outline
 // (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through; the surface is drawn out of the grid (surface nets) and smoothed along itself: two surfaces,
 // the arms' with their hands, and the rest's, each closed (an arm along the side only touches the trunk).
-import { TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE } from './table.js';
+import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE } from './table.js';
 import { frameAt, slots } from '../muscles/build.js';
 import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
 
 /** How the skin is drawn out, as a number: another, and a kept drawing is drawn again. */
-export const MADE = 2;
+export const MADE = 4;
 
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math.hypot(a[0], a[1], a[2]), norm = (a) => mul(a, 1 / (len(a) || 1));
@@ -234,9 +234,11 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
     const out = new Float64Array(n), inn = new Float64Array(n), at = (i, j, k) => (i - lo[0]) + dims[0] * ((j - lo[1]) + dims[1] * (k - lo[2]));
     for (let k = lo[2]; k <= hi[2]; k++) for (let j = lo[1]; j <= hi[1]; j++) for (let i = lo[0]; i <= hi[0]; i++) { const ins = occ[I(i, j, k)] & bit, q = at(i, j, k); out[q] = ins ? 0 : BIG; inn[q] = ins ? BIG : 0; }
     // (closed: grown by CLOSE and shrunk back by as much, so a groove narrower than twice that between two muscles is
-    // filled, as the fat and the fascia fill it, and nothing that stands out is worn away)
+    // filled, as the fat and the fascia fill it, and nothing that stands out is worn away. Over the trunk, the legs and
+    // the arms by 3.7 and 2.6 cm: the fascia wraps each limb's muscles and the trunk's into one, as a stocking does, so
+    // the skin drawn from them is one surface, not the ropes and gaps of the strands under it)
     edt(out, dims);
-    const close = CLOSE * ({ trunk: 1.4, leg: 1.4, arm: 1, head: 0.35 }[PARTS[p]] ?? 0.3), r2 = (close / h + 0.5) ** 2;   // (in cells from cell to cell: a cell is half one beyond its middle)
+    const close = CLOSE * ({ trunk: 3.1, leg: 3.1, arm: 2.2, head: 0.35 }[PARTS[p]] ?? 0.66), r2 = (close / h + 0.5) ** 2;   // (in cells from cell to cell: a cell is half one beyond its middle)
     for (let q = 0; q < n; q++) { const ins = out[q] <= r2; out[q] = ins ? 0 : BIG; inn[q] = ins ? BIG : 0; }
     edt(out, dims); edt(inn, dims);
     let sd = new Float32Array(n); for (let q = 0; q < n; q++) sd[q] = Math.min(0.06, (out[q] > 0 ? Math.sqrt(out[q]) - 0.5 : 0.5 - Math.sqrt(inn[q])) * h + close);
@@ -294,8 +296,8 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
         if (w > 0) {
           const g2 = at(i, j, k), keep = Math.min(1, Math.max(0.3, 1.3 - tissue[g] / 0.009)) * (Y(j) < 0.13 ? 0.3 + 0.7 * smooth01((Y(j) - 0.09) / 0.04) : 1);   // (the foot's bones and tendons, under little fat, damped: its outline is its shape)
           let s2 = E - (p === P_.trunk ? reliefAt(q) : 0) + keep * Math.max(p === P_.trunk ? -0.005 : -0.002, mid[g2] - far[g2]) * (p === P_.trunk ? 2.0 : 1.2);   // (what stands out shows; a groove between two muscles the fat fills, but for two millimetres (four over the trunk, where the pectoral's edge, the rectus's lines and the serratus show))
-          if (exactPart[g] === p) { const cap = p === P_.trunk && Y(j) > 1.4 && Math.abs(X(i)) > 0.13 ? 0.007 : 0.0025; s2 = smin(s2, exact[g] - Math.max(cap, 0.4 * tissue[g]), 0.02); }   // (the acromion under the deltoid's tendon and the trapezius: a little deeper than other bones near the skin)
-          v = v + w * (s2 - v);
+          if (exactPart[g] === p) { const cap = p === P_.trunk && Y(j) > 1.4 && Math.abs(X(i)) > 0.13 ? 0.013 : 0.0025; s2 = smin(s2, exact[g] - Math.max(cap, 0.4 * tissue[g]), 0.02); }   // (the acromion and the collarbone's end under the deltoid's tendon and the trapezius: 13 mm under the skin, deeper than other bones near it; held 7 mm under, they stood as knobs)
+          v = v + w * OUTLINE * (s2 - v);
         }
       }
       const fl = ARMS(p) ? fieldA : field, fp = ARMS(p) ? fieldPartA : fieldPart;
@@ -304,11 +306,12 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       const was = fp[g], soft = was !== 255 && was !== p && (was === P_.trunk || p === P_.trunk) ? 0.03 : 0;
       const old = fl[g], u = soft ? smin(old, v, soft) : Math.min(old, v); if (u < old) { fl[g] = u; if (v < old) fp[g] = p; }
       // (the top of the arm, the deltoid, is in the trunk's skin too, so the shoulder is one surface from the neck over
-      // it; below it, as the arm's own skin takes over, it sinks under that skin, four millimetres for each centimetre
-      // below the shoulder's top (and above it as fast: the top of the shoulder is the trunk's own, the arm's cap does
-      // not stand out of it), so the two do not meet in a seam)
-      if (p === P_.arm && Y(j) > 1.37) {
-        const vb = v + Math.max(0, 1.43 - Y(j)) * 0.4 + Math.max(0, Y(j) - 1.455) * 0.8, ob = field[g], ub = smin(ob, vb, 0.045);   // (softly, wherever the trunk's own skin is: no crease where it ends)
+      // it; below it, as the arm's own skin takes over, it sinks under that skin, a millimetre and a half at once (so the
+      // two are not drawn in the same place, each showing through the other in patches) and a millimetre and a half more
+      // for each centimetre below the shoulder's top: slowly, so the trunk's skin slides under the arm's rather than
+      // ending in an edge. Above it the arm's sinks as fast: the top of the shoulder is the trunk's own)
+      if (p === P_.arm && Y(j) > 1.3) {
+        const vb = v + 0.0015 * smooth01((1.445 - Y(j)) / 0.015) + Math.max(0, 1.43 - Y(j)) * 0.15 + Math.max(0, Y(j) - 1.455) * 0.8, ob = field[g], ub = smin(ob, vb, 0.045);   // (softly, wherever the trunk's own skin is: no crease where it ends)
         if (ub < ob) { field[g] = ub; if (vb < ob) fieldPart[g] = p; }
       }
     }
