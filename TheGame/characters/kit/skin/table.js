@@ -47,6 +47,9 @@ export const TISSUE = [
   ['upperBack', [0.05, 1.42, -0.15], 5, 8, 'est'],
   ['forearm', [0.22, 1.0, -0.03], 3, 8, 'est'], ['elbow', [0.19, 1.15, -0.09], 2.5, 3, 'est'],
   ['knee', [0.085, 0.5, 0.075], 3.5, 4, 'est'], ['shin', [0.07, 0.3, 0.035], 3, 7, 'est'],
+  // (the knee's fat pads: over the quadriceps' tendon above the kneecap, and either side of its ligament below it, where a
+  // living knee is full, not the hollows between tendon and bone)
+  ['suprapatellar', [0.085, 0.548, 0.06], 7, 2.2, 'est'], ['infrapatellarIn', [0.066, 0.468, 0.052], 9, 1.4, 'est'], ['infrapatellarOut', [0.104, 0.468, 0.05], 9, 1.4, 'est'],
   ['ankle', [0.07, 0.09, -0.01], 3, 4, 'est'], ['footTop', [0.1, 0.06, 0.07], 3, 4, 'est'],
   ['handBack', [0.245, 0.8, -0.01], 2.5, 4, 'est'], ['fingerBack', [0.24, 0.72, -0.02], 2, 3, 'est'],
   // the pads
@@ -149,19 +152,19 @@ export const OUTLINE = 0.5;
 export const PROFILE_SOURCE = 'Gordon et al. 2014, "2012 Anthropometric Survey of U.S. Army Personnel" (ANSUR II), NATICK/TR-15/007: men\'s circumferences, breadths and depths, as remembered, scaled to 1.80 m and to a slightly muscular build; the outline fitted, front, back and side, to the living model of Richer, Anatomie artistique (1890), vol. 2, plates 74 to 76 ("Topographie morphologique"), drawn at the same scale beside it (public domain, Wikimedia Commons)';
 export const PROFILES = [
   { part: 'trunk', a: [0, 0.84, 0], b: [0, 1.6, 0], front: [0, 0, 1], fade: [0, 1], sections: [   // every 4 cm from 0.84 m up
-    [-3.0, 9.0, 9.0, 6.0, 7.0, 2.0], [-2.5, 15.0, 15.0, 8.5, 8.0, 2.2], [-1.8, 17.6, 17.6, 10.0, 9.0, 2.4], [-1.5, 17.0, 17.0, 10.2, 10.0, 2.3],
-    [-1.0, 15.4, 15.4, 10.4, 11.2, 2.2], [-0.5, 14.4, 14.4, 10.5, 9.6, 2.1], [0.0, 14.1, 14.1, 10.5, 9.5, 2.1], [0.0, 14.4, 14.4, 10.6, 9.8, 2.2],
-    [-0.3, 15.4, 15.4, 10.9, 10.6, 2.2], [-0.8, 15.9, 15.9, 11.4, 11.2, 2.4], [-1.3, 16.3, 16.3, 11.6, 11.8, 2.5], [-1.8, 16.4, 16.4, 11.6, 12.8, 2.6],
+    [-3.0, 9.0, 9.0, 6.0, 7.0, 2.0], [-2.5, 14.6, 14.6, 8.5, 8.0, 2.2], [-1.8, 17.0, 17.0, 10.0, 9.0, 2.4], [-1.5, 16.2, 16.2, 10.2, 10.0, 2.3],
+    [-1.0, 14.8, 14.8, 10.4, 11.2, 2.2], [-0.5, 13.9, 13.9, 10.5, 9.6, 2.1], [0.0, 13.7, 13.7, 10.5, 9.5, 2.1], [0.0, 14.2, 14.2, 10.6, 9.8, 2.2],
+    [-0.3, 15.4, 15.4, 10.9, 10.6, 2.2], [-0.8, 16.3, 16.3, 11.4, 11.2, 2.4], [-1.3, 16.8, 16.8, 11.6, 11.8, 2.5], [-1.8, 16.9, 16.9, 11.6, 12.8, 2.6],
     [-2.3, 16.6, 16.6, 11.4, 13.6, 2.8], [-2.8, 16.8, 16.8, 11.2, 14.0, 2.8], [-3.3, 17.6, 17.6, 11.5, 13.6, 2.6], [-3.8, 19.6, 19.6, 9.8, 12.0, 2.3],
     [-4.0, 17.5, 17.5, 7.4, 9.6, 2.2], [-3.5, 10.5, 10.5, 6.0, 8.2, 2.0], [-3.0, 6.3, 6.3, 5.4, 6.4, 2.0], [-2.5, 5.6, 5.6, 5.0, 5.8, 2.0]] },
   { part: 'arm', name: 'upper arm', a: [0.186, 1.425, -0.042], b: [0.2, 1.13, -0.056], front: [0, 0, 1], fade: [0, 0], limb: 'arm', joins: [0, 1], sections: [
     [0.0, 5.6, 3.6, 5.2, 5.2, 2.1], [0.0, 5.9, 4.5, 5.8, 5.8, 2.1], [0.0, 5.2, 4.3, 5.0, 5.3, 2.1], [0.0, 4.4, 4.2, 5.1, 5.2, 2.1], [0.0, 4.3, 4.2, 5.4, 4.9, 2.1], [0.0, 4.2, 4.0, 5.2, 4.5, 2.1], [0.0, 4.0, 3.7, 4.6, 4.2, 2.1], [0.0, 3.8, 3.5, 4.0, 4.0, 2.1]] },
   { part: 'arm', name: 'forearm', a: [0.2, 1.13, -0.056], b: [0.228, 0.845, -0.02], front: [0, 0, 1], fade: [0, 0], limb: 'arm', joins: [1, 0], sections: [
-    [0.0, 4.3, 3.8, 4.4, 4.4, 2.1], [0.0, 4.8, 4.4, 5.1, 4.6, 2.1], [0.0, 4.7, 4.4, 5.0, 4.4, 2.1], [0.0, 4.3, 4.0, 4.6, 4.0, 2.1], [0.0, 3.7, 3.4, 3.8, 3.4, 2.1], [0.0, 3.2, 2.9, 3.4, 3.1, 2.1], [0.0, 2.5, 2.2, 3.0, 2.8, 2.1], [0.0, 1.9, 1.8, 2.9, 2.7, 2.1], [0.0, 1.6, 1.4, 2.8, 2.6, 2.1]] },
+    [0.0, 4.3, 3.8, 4.4, 4.4, 2.1], [0.0, 4.8, 4.4, 5.1, 4.6, 2.1], [0.0, 4.7, 4.4, 5.0, 4.4, 2.1], [0.0, 4.3, 4.0, 4.6, 4.0, 2.1], [0.0, 3.6, 3.3, 3.8, 3.4, 2.1], [0.0, 2.9, 2.6, 3.3, 3.0, 2.1], [0.0, 2.2, 2.0, 3.0, 2.8, 2.1], [0.0, 1.8, 1.7, 2.9, 2.7, 2.1], [0.0, 1.6, 1.4, 2.8, 2.6, 2.1]] },
   { part: 'leg', name: 'thigh', a: [0.088, 0.9, 0.0], b: [0.085, 0.5, 0.006], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [0, 1], sections: [   // the thigh, from the hip to the knee
-    [0.0, 9.0, 8.0, 8.5, 9.5, 2.2], [0.0, 9.3, 8.2, 9.0, 9.6, 2.2], [0.0, 8.9, 7.3, 9.6, 8.8, 2.2], [0.0, 8.1, 6.6, 9.2, 7.8, 2.2], [0.0, 6.9, 5.8, 8.2, 6.4, 2.2], [0.0, 5.3, 5.5, 6.0, 5.3, 2.1]] },
+    [0.0, 9.0, 8.0, 8.5, 9.5, 2.2], [0.0, 9.3, 8.2, 9.0, 9.6, 2.2], [0.0, 8.9, 7.3, 9.6, 8.8, 2.2], [0.0, 8.1, 6.6, 9.2, 7.8, 2.2], [0.0, 6.5, 5.4, 8.2, 6.4, 2.2], [0.0, 4.9, 5.0, 6.0, 5.3, 2.1]] },
   { part: 'leg', name: 'leg', a: [0.085, 0.5, 0.006], b: [0.077, 0.04, -0.02], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [1, 0], sections: [   // the leg, from the knee down through the ankle
-    [0.0, 5.3, 5.5, 5.8, 5.4, 2.1], [0.0, 5.4, 6.0, 4.5, 7.3, 2.1], [0.0, 4.8, 5.6, 3.9, 7.1, 2.1], [0.0, 3.5, 3.7, 3.1, 4.7, 2.1], [0.0, 2.9, 3.0, 2.8, 3.4, 2.1], [0.0, 3.2, 3.4, 3.4, 3.8, 2.1]] },
+    [0.0, 4.9, 5.0, 5.8, 5.4, 2.1], [0.0, 5.6, 6.6, 4.5, 7.8, 2.1], [0.0, 4.9, 6.0, 3.9, 7.5, 2.1], [0.0, 3.2, 3.4, 3.1, 4.3, 2.1], [0.0, 2.5, 2.6, 2.8, 3.1, 2.1], [0.0, 3.2, 3.4, 3.4, 3.8, 2.1]] },
   // the foot, from the back of the heel to the ball, its front the instep (up); its first half-breadth is the inner
   // side's, the second the outer's: 27 cm long, 10 across the ball, 6.5 across the heel, its instep 7 high (Hawes &
   // Sovak 1994, as remembered)
@@ -192,7 +195,10 @@ export const MASSES = [
 // flattened a little front to back. FINGERS: [radius at the knuckle, at the first joint, at the second, at the tip;
 // the last rod's length].
 export const HAND_SOURCE = 'Greiner 1991, "Hand anthropometry of U.S. Army personnel", NATICK/TR-92/011, as remembered';
-export const PALM = { at: [0.226, 0.826, -0.021], r: [0.0115, 0.0165, 0.048, 0.044, 0.042, 0.042], n: 2.6 };
+export const PALM = { at: [0.226, 0.822, -0.021], r: [0.0115, 0.0165, 0.052, 0.058, 0.043, 0.043], n: 3.0 };
+// (the heel of the hand: the carpus, as deep and as broad as the wrist above it, the palm thinning from it towards the
+// fingers; without it the wrist's bones stood as a ring over a thinner palm)
+export const CARPUS = { at: [0.226, 0.862, -0.022], r: [0.016, 0.019, 0.018, 0.034, 0.03, 0.029], n: 2.0, k: 0.02 };
 export const THENAR = { at: [0.214, 0.816, 0.006], r: [0.01, 0.014, 0.022, 0.018, 0.014, 0.012], n: 2.0, k: 0.012 };
 export const FINGERS = {
   thumb: [0.0112, 0.0105, 0.0098, 0.0088, 0.026], index: [0.0098, 0.0088, 0.0081, 0.0074, 0.022], middle: [0.0099, 0.009, 0.0083, 0.0076, 0.024],
