@@ -214,8 +214,12 @@ const seen = [];
 scene.traverse((o) => { if (o.isMesh) { seen.push(o, o.visible); o.visible = true; } });
 mark('built');
 await loadingStep('Lighting the world', 0.55);
-await screen.compile(scene, camera);   // every material, for the target the world is drawn into (src/core/screen.js)
-await shadows.compile(scene, camera, heightAt(camera.position.x, camera.position.z));   // and every caster, for the shadow map
+// (each compile given 20 s: a pipeline the GPU never answers for, or one that fails, held the veil over the page for
+// good (Samuel's Mac, 2026-11-17, at "Lighting the world"). Past that the page goes on, and what was not compiled is
+// compiled as it is first drawn: a slow first frame, never a page that does not come)
+const inTime = (what, p) => Promise.race([p.then(() => true, (err) => { console.warn(`the start: ${what} could not be compiled:`, err); return false; }), new Promise((res) => setTimeout(() => res(null), 20000))]).then((ok) => { if (ok === null) console.warn(`the start: ${what} took more than 20 s to compile; going on without waiting for it`); });
+await inTime('the materials', screen.compile(scene, camera));   // every material, for the target the world is drawn into (src/core/screen.js)
+await inTime("the shadow map's casters", shadows.compile(scene, camera, heightAt(camera.position.x, camera.position.z)));   // and every caster, for the shadow map
 tex.flush();   // (a material a shader asked for that no biome or asset names: painted before the first frame)
 mark('compiled');
 terrain.cache?.update(renderer, camera, `${innerHeight}|${U.uSand.value.toArray()}`);   // (its first laying, and its shaders, while the page still starts)
