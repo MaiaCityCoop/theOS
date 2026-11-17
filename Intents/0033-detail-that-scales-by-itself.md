@@ -1208,3 +1208,4 @@ back to (a bake made lazily, as a shape's window first opens). Frame times not m
 | 2026-11-17 | `17c40ac` | under `?lod=new` no splay: the crowd's first level stands from the top (the pops close to medium) |
 | 2026-11-17 | `9d81203` | a far body eased in where its window opens |
 | 2026-11-17 | `1e38da7` | the crowd built from the splay: close up as fine as `?lod=old`, its first level the splay, every other a share of the same build; at or under old's vertices at every size |
+| 2026-11-17 | `01a9e20` | the grass map's texel in half-stop steps, faded from one map to the next over 36 frames: no longer laid anew every frame of a climb, nor the whole lawn changed at once |
