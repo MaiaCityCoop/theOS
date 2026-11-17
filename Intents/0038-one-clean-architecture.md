@@ -162,7 +162,7 @@ numbers are written below.
 | 4 | Nothing ever changes visibly | In recorded walks, zooms (1.7 m to 12 km), scrolls and flybys, the change caused by detail in each frame, ((LOD − truth) now) − ((LOD − truth) one frame before), stays under the threshold of visibility in every frame and every 32-pixel tile. There is no "3× the median" allowance |
 | 4a | Photorealistic | At every gate view, the full-detail picture's distance to the real photos of the same scene (CMMD, and the image statistics) falls stage by stage and never rises. The end is Samuel's blind test: at the gate's views he can't tell the render from a photograph |
 | 4b | Generic and universal | No asset file holds any detail data (`levels`, `ladder`, `grow`, px sizes, `detail`). A new asset dropped in gets all its detail from the builder, with no line of LOD code written for it |
-| 5 | The 4K gate holds | `?bench` at a 4K output, upscaled, on Samuel's Mac in Chrome and Safari: ≤ 12 ms of GPU at every bench view, memory ≤ 8 GB, with the resolution drawn recorded next to it. The picture checks (3, 4, 4a) are judged on the upscaled 4K output |
+| 5 | 60 fps at all times, 8 GB at most: hard gates | On Samuel's Mac in Chrome and Safari, at a 4K output, upscaled:<br>• `?bench` at the fixed views: ≤ 12 ms of GPU at each, with the resolution drawn recorded beside it.<br>• **In motion** (`gate.js paths`: a walk into the stand, a zoom from 1.7 m to 12 km, an orbit, the flyby; with the cache warm and cold): no frame over 16.7 ms, and no frame over 12 ms of GPU. Streaming, building and compiling are included, so no hitch is allowed.<br>• The peak memory of the whole browser (every process), sampled through the same runs: ≤ 8 GB.<br>The picture checks (3, 4, 4a) are judged on the upscaled 4K output |
 | 6 | The library starts in Safari | Bytes compiled at start, from the gate's shader log, are a fraction of today's 5.8 MB, and the library shows its subject in Safari with no 20 s timeout |
 | 7 | Lines go down | `git diff --stat main` at the end of each stage. The total falls stage after stage |
 
@@ -211,6 +211,41 @@ numbers are written below.
 - **Not done in stage 1, for later stages:** the workers still get the stands' sizes once (`make.tell`): biome data,
   not tuning. The library's Detail tab now counts the crowd's faces. Stage 4's impostor replaces the far
   body it improves. Its measuring scripts go into stage 2's gate.
+
+### Stage 2a: the gate, settle, one measure, the truth (2026-11-17)
+
+Stage 2 lands in two PRs: **2a**, the gate and the measure, and **2b**, the prepass, the motion vectors and the
+upscaler. Samuel asked for speed ("the baseline isn't even a quality gate today"), so the stages after 2a run in
+parallel streams, each in its own worktree and branch.
+
+- **`tools/gate.js`** is one driver: stills, diff, noise, bench, compile, paths, all.
+  - **Its FLIP** is NVIDIA's LDR-FLIP, ported. Its error map equals flip-evaluator 1.7's (mean 0.024704 against
+    0.024704), and its tiles are identical.
+  - **The 4K screen** is 1920×1080 at a pixel ratio of 2, because the game caps its canvas at 2 pixels a point.
+  - **Memory** is judged by macOS's physical footprint of every browser process. RSS misses Metal memory: one GPU
+    process showed 52 MB RSS against a 1.16 GB footprint.
+  - **The clock** is frozen at a fixed 100 s. Vite's reload socket is blocked in gate pages.
+- **`settle()`** resolves when no engine has anything out and the temporal history has converged. On a cold cache,
+  after a jump to the pine stand, the old timed still (120 frames + 2.5 s) showed no trees; `settle()` resolved after
+  31.8 s with the forest drawn.
+- **`measure.js`** is the one measure, used by every engine. Today's unit (CSS pixels) is kept; `DRAWN = false` is
+  the switch to the pixels drawn.
+- **`?truth=<m>`** measures everything within reach as huge, so every engine draws its finest.
+  - It holds at 800 m. At 1000 m and 2000 m the WebGPU device was lost, so the 12 km view is not truth yet.
+  - It takes 3.3 s a frame at 4K and holds 1 GB.
+  - Shadows still come from the trees' stand-in.
+- **The default picture is unchanged.** At 7 views the mean difference is within the run-to-run noise, except the
+  flame and smoke, frozen at different moments.
+- **The gate's first readings on today's code** (2a's runs shared the GPU with each other, so the times are upper
+  bounds):
+
+| Measure | Reading | Gate |
+| --- | --- | --- |
+| FLIP against `?truth` (tent, pines) | 0.14–0.21: the grass, and trees the normal picture leaves out | Under the threshold of visibility; the noise floor is ≤ 0.022 |
+| GPU at the bench views, drawn 2560×1440 | 20–55 ms | ≤ 12 ms |
+| Frames in motion (orbit, flyby; warm and cold) | Median 50–67 ms; GPU p99 102–110 ms | No frame over 16.7 ms |
+| Peak memory (physical footprint) | 3.47 GB | ≤ 8 GB |
+| Shaders compiled at start | 135 modules, 3.58 MB (the land: 390 + 240 KB) | Small enough that the library starts in Safari |
 
 ### The state of the art, checked (2026-11-17)
 
@@ -267,7 +302,8 @@ Three research rounds, each read against this definition. Sources marked † wer
 
 - [ ] Samuel's reference photos (shot list under Build)
 - [x] Stage 1: clean ground
-- [ ] Stage 2: gate, measure, prepass and upscale
+- [x] Stage 2a: gate, settle, one measure, truth
+- [ ] Stage 2b: prepass, motion vectors, upscale
 - [ ] Stage 3: boot
 - [ ] Stage 4: far end, impostor and clump rung
 - [ ] Stage 5: crowds, parts and one wind
@@ -310,3 +346,5 @@ Three research rounds, each read against this definition. Sources marked † wer
 | 2026-11-17 | `647b8da` | The look target, a real-time forest |
 | 2026-11-17 | `7a4e2b7` | A 4K output, upscaled |
 | 2026-11-17 | `e05e75b` | Stage 1: clean ground, one plant LOD path, no tuning switches (−1194 lines) |
+| 2026-11-17 | `a5d2d9a` | Stage 1 merged (#61) and deployed to next |
+| 2026-11-17 | `06baae7` | Stage 2a: the gate (FLIP, stills, bench, compile, paths), settle, one measure, `?truth` |

@@ -14,6 +14,7 @@ import { boxIn } from '../core/frustum.js';
 import { gpuStorage, more } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
+import { TRUTH } from '../detail/measure.js';
 
 export const MAXP = 384;   // patches a tier can draw at once
 
@@ -26,6 +27,9 @@ export const clipOf = (w) => cameraProjectionMatrix.mul(cameraViewMatrix).mul(ve
 // the drawer's tiers, src/scatter/drawer.js) reckons it again. One handler for every tier of every placer.
 const ALL = new Set();
 addEventListener('resize', () => { for (const T of ALL) T.band?.(); });
+// (?truth: a tier's band may reach far past what its patches can hold; the nearest are then chosen first, never a row of
+// them by where they lie: src/detail/measure.js)
+const NEAREST = [];
 
 export class Tier {
   /** cell: metres per cell; P: cells per patch side; near/far: the band, in metres as a 68° lens sees them.
@@ -103,7 +107,7 @@ export class Tier {
     if (key === this.key) return;
     this.key = key;
     const N = n * this.P * this.P; this.cand.value = N; this.passes[1].dispatchSize = Math.max(1, N);
-    renderer.compute(this.passes); did('packs'); did('kcells', Math.round(N / 1000)); this.empty = !n;
+    renderer.compute(this.passes); did('packs'); if (this.movers) did('moving'); did('kcells', Math.round(N / 1000)); this.empty = !n;   // (moving: a tier packed every frame, its things moving; not a change of what stands: src/core/work.js changed)
   }
   /** On WebGPU: what the last packing holds, read back to the CPU a moment later (a promise of { count, data: the first
       slots' vec4s as floats, one array a slot } a bucket), for what the CPU must know of where things stand (src/scatter/trees.js:
@@ -135,10 +139,12 @@ export class Tier {
         const yb = 0.32 * Math.sqrt(nd) + 0.2 * S + 6;         // the land is gentle: it cannot be further off than this
         const c = this.cull; if (c !== false && !boxIn(x0 - c, x1 + c, h0 - yb, h0 + yb + c, z0 - c, z1 + c)) continue;   // (widened: what is drawn for the light, whose shadow may fall into view)
         if (this.spans) { const r = this.spans(i, j); if (r?.length) this.found.push({ nd, i, j, r }); continue; }   // (a list's: its runs, below)
+        if (TRUTH) { NEAREST.push({ nd, i, j }); continue; }
         if (n === MAXP) { this.over = true; continue; }
         list[n].set(i * P, j * P); n++;
       }
     }
+    if (NEAREST.length) { NEAREST.sort((a, b) => a.nd - b.nd); for (const f of NEAREST) { if (n === MAXP) { this.over = true; break; } list[n].set(f.i * P, f.j * P); n++; } NEAREST.length = 0; }
     if (this.spans) {
       // a list's runs, the nearest patch's first: where there are more than the packing can take, the farthest go
       const F = this.found.sort((a, b) => a.nd - b.nd);

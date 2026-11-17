@@ -7,6 +7,7 @@ import { Fn, float, vec2, vec3, vec4, attribute, positionGeometry, varyingProper
 import { U } from '../core/uniforms.js';
 import { byRole } from '../core/registry.js';
 import { detailOf } from '../detail/index.js';
+import { farAt, TRUTH } from '../detail/measure.js';
 import { sizeOf } from '../../assets/kinds.js';
 import { int } from 'three/tsl';
 import { camDist, riverInfo, riverNear, heightAt, baseB, pathN, pathMask, bareMask, outcropMask, grassTint, vnoise, placeOff, stageAt, biomesAt, shareOf, roofAt, groveAt, leadAt, BASE, LAID } from '../world/land.nodes.js';
@@ -16,10 +17,13 @@ import { finish, ign, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCov
 const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
 
 export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
+/** How many times as far every level of the land reaches but the last (whose reach is where the land ends): 1, and under
+    ?truth 4, each quad a quarter as large on the screen (src/detail/measure.js; its finest everywhere is past any GPU). */
+export const FINE = TRUTH ? 4 : 1;
 
 /** The node's grid point, morphed: (world x, z) */
 export function gridPoint() {
-  const node = attribute('aNode', 'vec4'), g = positionGeometry.xz, cell = node.z.div(GRID), rng = exp2(node.w).mul(R0);
+  const node = attribute('aNode', 'vec4'), g = positionGeometry.xz, cell = node.z.div(GRID), rng = exp2(node.w).mul(R0 * FINE);
   const k = clamp(camDist(node.xy.add(g.mul(cell))).sub(rng.mul(0.8)).div(rng.mul(0.15)), 0, 1);
   return node.xy.add(g.sub(fract(g.mul(0.5)).mul(2).mul(k)).mul(cell));
 }
@@ -177,7 +181,7 @@ export function terrainMaterial(tex) {
       // its colour comes in where its plants go out: they are drawn while their largest side is more than their last
       // level's pixels (the same rule, by the lens and the window: src/detail), the largest to `last` metres, most of
       // them gone by two thirds of that; without such plants, its own from/to
-      const cutPx = A ? detailOf(A).cut : 0, last = cutPx ? U.uPxK.mul((P.size ?? sizeOf(A) * (A.placement.scale?.[1] ?? 1)) / cutPx) : null;
+      const cutPx = A ? detailOf(A).cut : 0, last = cutPx ? farAt(cutPx, P.size ?? sizeOf(A) * (A.placement.scale?.[1] ?? 1)) : null;   // (the measure's: src/detail/measure.js)
       // (a stand that changes level as one, its `size`: its colour comes onto the land only far off, where its plants
       // are bodies about to sink: near by the floor between the bushes keeps its own colour as one walks)
       const fade = last ? (P.size ? smoothstep(last.mul(0.45), last.mul(0.8), dist2) : smoothstep(last.mul(0.3), last.mul(0.68), dist2)) : smoothstep(CV.from, CV.to, dist2);
@@ -226,7 +230,9 @@ export function terrainMaterial(tex) {
     const tint = vTint;
     // the layers here, laid by the pixel itself
     const far = (reach) => smoothstep(reach.mul(0.8), reach, length(p.sub(U.uCam.xz)));
-    const X = compose({ p, dx, dy, dist2, d, w, b, L, tint, ny: vN.y, pth: vPth, out: vOut, twoTakes: dist2.lessThan(ign(screenCoordinate.xy).mul(80).add(240)), far });
+    // (a material's second take only so far off: past that it costs more than it shows. ?truth reads it everywhere:
+    // src/detail/measure.js)
+    const X = compose({ p, dx, dy, dist2, d, w, b, L, tint, ny: vN.y, pth: vPth, out: vOut, twoTakes: TRUTH ? dist2.greaterThanEqual(0) : dist2.lessThan(ign(screenCoordinate.xy).mul(80).add(240)), far });
     const M = { c: X.c.mul(X.macro), h: X.h, n: X.n }, { cv, glum, shade } = X;
     const wet = float(1).sub(smoothstep(w.mul(0.9), w.add(2.5), d));
     // depth up close, from the material's own height: what lies low (the gaps between stones, a crack) sits in its

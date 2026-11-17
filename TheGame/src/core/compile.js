@@ -4,15 +4,18 @@
 // each other. So every compile before the first frame, and the city's whenever its plan comes, goes through here: in
 // turn, each with its own target set for as long as it runs. Inside one compile the GPU compiles side by side all the
 // same (three keeps up to sixteen in flight); what packs (compute) reads no target and compiles beside any of these,
-// each of its shaders once (shareComputeCompiles).
+// each of its shaders once (shareComputeCompiles). What the GPU is compiling at any moment is counted (countCompiles): a
+// pipeline asked for aside is not drawn with until it has come, so the world is not complete before (src/core/settle.js).
+import { source } from './settle.js';
 
-let last = Promise.resolve();
+let last = Promise.resolve(), turns = 0, aside = 0;   // (turns: compiles waiting their turn here or running; aside: pipelines the GPU is compiling)
 
 /** Run `fn` (it may be async) when its turn comes: after everything asked for here before it, and before anything asked
     after it (drawing what was just compiled, say, so that it does not draw while the next compile is half done). A
     promise of what it gives. */
 export function inTurn(fn) {
-  const done = last.then(fn, fn);   // (in turn, whether the one before it went well or not)
+  turns++; const done = last.then(fn, fn);   // (in turn, whether the one before it went well or not)
+  done.then(() => turns--, () => turns--);
   // (and the next one's turn comes when this one is done or after 20 s, whichever is first: a compile the GPU never
   // answers held every one after it, and the page with them)
   last = Promise.race([done.catch(() => {}), new Promise((res) => setTimeout(res, 20000))]);
@@ -39,6 +42,21 @@ export function shareComputeCompiles(renderer) {
     if (m) { going.set(m, p); const done = () => { if (going.get(m) === p) going.delete(m); }; p.then(done, done); }
     return p;
   };
+}
+
+/** Count what the GPU compiles aside (a render or compute pipeline asked for with a promise: what three's compileAsync
+    and compileComputeAsync ask for), and every compile waiting its turn here: the world's source `compiling`. On the
+    renderer's device, once. */
+export function countCompiles(renderer) {
+  const dev = renderer.backend?.device;
+  if (dev && !dev.__counting) {
+    dev.__counting = true;
+    for (const k of ['createRenderPipelineAsync', 'createComputePipelineAsync']) {
+      const make = dev[k]; if (!make) continue;
+      dev[k] = function (d) { const p = make.call(this, d); aside++; p.then(() => aside--, () => aside--); return p; };
+    }
+  }
+  source('compiling', () => aside + turns);
 }
 
 /** Compile what `camera` sees of `object` (a scene, or a part of one standing in `scene`) for `target` (a render

@@ -15,7 +15,8 @@ import { offWays } from '../world/ways.js';
 import { finish, skyLight, weathered, snowLift, cloudAt } from '../world/light.js';
 import { byRole } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
-import { pxK } from '../detail/index.js';
+import { distanceAt, TRUTH } from '../detail/measure.js';
+import { source } from '../core/settle.js';
 import { most } from '../../assets/kinds.js';
 import { createDrawer } from './drawer.js';
 import { LADDER } from '../../assets/kit/ladder.js';
@@ -26,10 +27,11 @@ import { DELTA } from '../../assets/kit/reduce.js';
 import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 
 // the levels: the ladder's (assets/kit/ladder.js). Every shape's coarser levels are always there (a few megabytes);
-// the full meshes only of the shapes that lie near enough to fill a good part of the screen, six at once. Every level
-// is made from a shape's full mesh by the one reduction (assets/kit/reduce.js, intent 0033): its corners carried
-// further to their places on the next level, and its meshes not the ladder's balls, drawn by their corners
-const LEVELS = LADDER.map((l, i) => ({ n: l.n, px: l.px, delta: DELTA[i], ...(i ? {} : { slots: 6 }) })), L = LEVELS.length;
+// the full meshes only of the shapes that lie near enough to fill a good part of the screen, six at once (?truth:
+// every shape's at once, src/detail/measure.js). Every level is made from a shape's full mesh by the one reduction
+// (assets/kit/reduce.js, intent 0033): its corners carried further to their places on the next level, and its meshes
+// not the ladder's balls, drawn by their corners
+const LEVELS = LADDER.map((l, i) => ({ n: l.n, px: l.px, delta: DELTA[i], ...(i ? {} : { slots: TRUTH ? Math.max(6, placedBy('rocks').count) : 6 }) })), L = LEVELS.length;
 // RELIEF: the size on screen from which a rock's relief is read (under that its texture's mipmaps have none left);
 // REACH: how far the ground's map says where stones lie (src/scatter/ground.js), metres to the 68° lens: they shrink
 // away before it ends
@@ -92,16 +94,21 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
     // rocks have (no dot: it thins away over THIN)
     const last = L - 2;
     // (its patches: about five to its reach, so the tier looks at a few dozen, whatever the lens; cap: the most of it in one draw)
-    const farAt = Math.min(reach, (sizes[1] * pxK(Math.max(innerHeight, 1400))) / THIN[0]), P = Math.min(64, Math.max(2, 2 ** Math.ceil(Math.log2(farAt / (row.cell * 5)))));
+    const farAt = Math.min(reach, distanceAt(THIN[0], sizes[1], Math.max(innerHeight, 1400))), P = Math.min(64, Math.max(2, 2 ** Math.ceil(Math.log2(farAt / (row.cell * 5)))));
     const T = D.tierAll({ cell: row.cell, P, cap: big ? 16384 : 4096, sizes, place, casts: row.detail.casts, far: reach, last, thing: `rocks:${row.uid}` });   // (thing: a rock's own state, its asset and its cell: src/world/things.js)
     T.asset = row.name; tiers.push(T);
   }
   // each frame: the coarse levels until they are in; and, when the camera has moved, the full meshes of the shapes
   // that lie near enough for them (the rocks round the camera, reckoned on the CPU as the GPU places them:
-  // src/world/rocksolid.js)
+  // src/world/rocksolid.js). A stone is known there only once the ground round the camera has been read back
+  // (src/scatter/ground.js): until a look has been taken since the last read-back, what lies near is not all asked
+  // for (src/core/settle.js)
+  let looked = -1;
+  source('rocks', () => (looked !== ground.reads ? 1 : 0));
   tiers.solid = () => {
     D.start();
     const N = D.scan(); if (!N) return;
+    looked = ground.reads;
     const cam = U.uCam.value, dy = U.uDy.value, far = N.reach(sizeMost);
     if (far <= dy) { N.none(); return; }
     rocksAround(cam.x, cam.z, far, (r) => { if (firstOf.has(r.uid)) N.wants(firstOf.get(r.uid) + r.v, r.side, Math.hypot(r.x - cam.x, r.z - cam.z, dy), 0); });

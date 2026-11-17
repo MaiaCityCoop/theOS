@@ -120,6 +120,12 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
     },
     /** How many kinds' levels are in, level by level. */
     held: () => pools.map((p) => p.held),
+    /** Every level put in after `time` (the clock's seconds) as if it had come then: what draws it has grown it out of
+        the coarser one by now (a clock held for a still never would: src/core/settle.js). */
+    ripen(time) {
+      const t = Math.max(0, Math.floor(time * 16));
+      for (let k = 0; k < kinds; k++) { let late = false; for (let l = 0; l < L; l++) if (came[k * L + l] > t) { came[k * L + l] = t; late = true; } if (late) masked(k); }
+    },
   };
   return H;
 }

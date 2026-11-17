@@ -25,6 +25,7 @@ import { Fn, If, vec2, vec3, vec4, uv, float, uint, uvec2, uvec4, ivec2, uniform
 import { recipes } from '../core/registry.js';
 import { note } from '../core/gpu.js';
 import { compileFor, inTurn } from '../core/compile.js';
+import { source } from '../core/settle.js';
 
 const SIZE = 1024, LEVELS = Math.log2(SIZE) + 1;
 
@@ -250,6 +251,7 @@ export function bakeTextures(renderer, { spare = 6 } = {}) {
   };
   const release = (ref) => { const k = numberOf(ref); if (k >= 0) held[k] = 0; };
   const flush = () => { if (!wanted.size) return; const list = [...wanted]; wanted.clear(); for (const k of list) if (!where[k]) want(ALL[k], true); };
+  source('textures', () => wanted.size + busy);   // (what is still to be painted: asked for and not yet flushed, or the start's being compiled: src/core/settle.js)
 
   // the stand-in, the numbers' own, and what the world wears (held): their layers taken now, all painted together; the
   // world reads none of them before `ready`

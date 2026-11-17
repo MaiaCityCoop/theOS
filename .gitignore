@@ -1,2 +1,4 @@
 # media named by its BLAKE3 hash (Stories/scenes.js): kept beside the stories, not in git; objects.json says what each is
 Stories/objects/
+# the gate's stills, heat maps and reports (TheGame/tools/gate.js): made again by every run, not kept in git
+.gate/
