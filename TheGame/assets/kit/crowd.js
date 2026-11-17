@@ -97,9 +97,10 @@ export const CROWD = {
     changes level as one measures its plants by, of each plant asset (src/scatter/trees.js). `?card=`, `?kmax=` and
     `?split=` change them. */
 export const LOD = { on: false, CARD: 30, KMAX: 4, SPLIT: 0, BAKE: false, FAR: 18, STANDS: null };
-/** What the plants are drawn with where the address says nothing: 'old', their files' own levels; 'new', this kit's.
-    `?lod=old` and `?lod=new` choose either, to compare (src/scatter/trees.js). */
-export const LOD_DEFAULT = 'old';
+/** What the plants are drawn with where the address says nothing: 'new', this kit's (the default since intent 0033's
+    pumping and pops were fixed); 'old', their files' own levels. `?lod=old` and `?lod=new` choose either, to compare
+    (src/scatter/trees.js): the game, the library's plant and the films alike. */
+export const LOD_DEFAULT = 'new';
 // BAKE: the far bodies wear their crown baked (bakeOf); FAR: CROWD.FAR's. Under `?lod=new` the game sets BAKE and FAR 40:
 // from 90 m a baked body reads as a crown with its shade and gaps where a few enlarged cards read as large flat leaves,
 // and the far body from 40 px costs less than the cards (intent 0033, Build). `?bake=0`, `?far=` to compare.
