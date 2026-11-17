@@ -19,6 +19,8 @@
 import { LADDER, FULLN, DOTN, underOf } from './ladder.js';
 import { ball, ballMesh, hash3, noise3, SWELL } from './blob.js';
 import { dotMesh } from './solid.js';
+import { ladderOf, ladderMesh } from './reduce.js';
+import { LOD } from './crowd.js';   // (`?lod=new`: its levels made from its full mesh by the one reduction, intent 0033)
 import { sstep } from './math.js';
 import { kindOf, kindRule, shapesOf } from '../kinds.js';
 
@@ -84,10 +86,23 @@ const rockAt = (S, n) => {
     return 0.45 + 0.55 * sstep(-0.25, 0.35, ly);
   };
 };
-/** Shape v of a rock asset at level l of the ladder. */
-export function rockMesh(asset, v, l) {
+/** Shape v of a rock asset at its full detail, all its recipe makes: { V, pos, nor, shade, index } (assets/kit/blob.js:
+    ball), its own frame (its foot at 0, its largest side 1). */
+export const rockFull = (asset, v) => { const S = shapeOf(asset, v); return ball(FULL_ROCK, rockAt(S, FULL_ROCK), true); };
+// (`?lod=new`: a shape's levels, all from its full mesh by the one reduction (reduce.js), the last few kept: a worker
+// asked for a shape's levels one after another makes them once)
+const CHAINS = new Map();
+const chainOf = (asset, v) => {
+  const key = `${asset.uid}:${asset.placement.seed}:${v}`; let C = CHAINS.get(key); if (C) return C;
+  if (CHAINS.size >= 3) CHAINS.delete(CHAINS.keys().next().value);
+  CHAINS.set(key, (C = ladderOf(rockFull(asset, v)))); return C;
+};
+/** Shape v of a rock asset at level l of the ladder. Under `?lod=new` every level is made from its full mesh alone
+    (sketch: as before, the recipe drawn coarser: what is wanted on the page at once, the library's). */
+export function rockMesh(asset, v, l, sketch = false) {
   const n = LADDER[l].n;
   if (n === DOTN) return dotMesh();
+  if (LOD.on && !sketch) return ladderMesh(chainOf(asset, v), l);
   const S = shapeOf(asset, v);
   return ballMesh((q) => rockAt(S, q), n === FULLN ? FULL_ROCK : n, underOf(l), LADDER[l].delta);
 }
@@ -103,6 +118,8 @@ export const rockBody = (asset, v) => measure(shapeOf(asset, v)).body;
 export const rockFamily = (id, asset) => ({
   id, placed: 'rocks', asset: asset.uid, count: asset.placement.shapes ?? 1,
   meshOf: (i, l) => rockMesh(asset, i, l),
+  // (what its fingerprint reads: the recipe drawn coarser, quick on the page, and which way its levels are made)
+  printOf: (i, l) => rockMesh(asset, i, l, true), print: () => (LOD.on ? 'reduce 1' : ''),
   lookOf: (i) => {
     // (size: its largest side as a stand that sizes its kinds by their look draws it, src/scatter/stress.js: the size
     // the world draws most of them at, its asset's least to most by the cube of a die, as src/scatter/rocks.js does)
