@@ -54,7 +54,7 @@ severity:
 
 **The feeling it leaves:** awe at what people are; permission to be, to be seen, to become who they are meant to be; and *I knew it all along*: their size was right, and now there is a place built to it.
 
-**How it persuades:** it meets the oldest insecurity (*too much*, *too big*, *who do you think you are*) and turns it into the welcome: here, all of you is exactly what is needed. Never by naming a fear; by granting the permission. **It is felt, not told:** every beat is a picture the viewer has lived (the drawing on the floor, the notebook in the drawer, the sentence kept back at dinner) or a picture of the welcome (a room that leans in, *show me*, standing by evening). An abstraction (\"full size\", \"potential\") is never the line itself.
+**How it persuades:** it meets the oldest insecurity (*too much*, *too big*, *who do you think you are*) and turns it into the welcome: here, all of you is exactly what is needed. Never by naming a fear; by granting the permission. **It is felt, not told:** every beat is a picture the viewer has lived (the drawing on the floor, the notebook in the drawer, the sentence kept back at dinner) or a picture of the welcome (a room that leans in, *show me*, standing by evening). An abstraction ("full size", "potential") is never the line itself.
 
 ## Synopsis
 
