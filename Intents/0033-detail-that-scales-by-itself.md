@@ -1206,3 +1206,4 @@ back to (a bake made lazily, as a shape's window first opens). Frame times not m
 | 2026-11-17 | `b2cdcec` | a plant thins away over its last pixels (`CROWD.END`) instead of stopping at once; the walk draws the end as the game does |
 | 2026-11-17 | `75c8ea5` | the shadow's stand-in shrinks to its foot as its plant thins away |
 | 2026-11-17 | `17c40ac` | under `?lod=new` no splay: the crowd's first level stands from the top (the pops close to medium) |
+| 2026-11-17 | `9d81203` | a far body eased in where its window opens |
