@@ -89,6 +89,9 @@ export const CROWD = {
     changes level as one measures its plants by, of each plant asset (src/scatter/trees.js). `?card=`, `?kmax=` and
     `?split=` change them. */
 export const LOD = { on: false, CARD: 30, KMAX: 8, SPLIT: 0, BAKE: false, FAR: 18, STANDS: null };
+/** What the plants are drawn with where the address says nothing: 'old', their files' own levels; 'new', this kit's.
+    `?lod=old` and `?lod=new` choose either, to compare (src/scatter/trees.js). */
+export const LOD_DEFAULT = 'old';
 // BAKE: the far bodies wear their crown baked (bakeOf); FAR: CROWD.FAR's. Under `?lod=new` the game sets BAKE and FAR 40:
 // from 90 m a baked body reads as a crown with its shade and gaps where a few enlarged cards read as large flat leaves,
 // and the far body from 40 px costs less than the cards (intent 0033, Build). `?bake=0`, `?far=` to compare.
@@ -505,7 +508,7 @@ export function crowd(m, opts = {}) {
 // ---- a shape as the engine draws it between two sizes on screen ----
 /** Where each of a level's sixteen numbers lies (levelOf: `rule`): what the one rule reads of its shape. X: under how many
     pixels the wood has given way to the post (half way through the far body's coming). */
-export const RULE = { P0: 0, E: 1, HI: 2, LO: 3, CLASSES: 4, A: 10, X: 11, KMAX: 12, BAKED: 13 };   // BAKED: the baked crown's half width (bakeOf: r), 0 where the level carries none
+export const RULE = { P0: 0, E: 1, HI: 2, LO: 3, CLASSES: 4, A: 10, X: 11, KMAX: 12, BAKED: 13, AT: 14 };   // AT: the vertex its bake begins at (x 1024, and the rest: two slots)   // BAKED: the baked crown's half width (bakeOf: r), 0 where the level carries none
 /** What a shape submits to be drawn anywhere between lo and hi pixels (hi: Infinity, every size above lo): its first
     cards in turn order, its solids not yet gone, the far bodies and the post where they show; every vertex as the kit
     made it (position normal uv part ao cn root hand twig) and, a vertex, what the rule moves it by:
@@ -547,7 +550,7 @@ export function levelOf(S, lo = 0, hi = Infinity, K = CROWD) {
     o += B.count;
   }
   const rule = new Float32Array(16); rule[RULE.P0] = S.P0; rule[RULE.E] = S.E; rule[RULE.HI] = HI; rule[RULE.LO] = LO; rule.set(S.meta.subarray(META.CLASSES, META.CLASSES + 6), RULE.CLASSES); rule[RULE.A] = S.A; rule[RULE.X] = X; rule[RULE.KMAX] = S.KMAX;
-  const bake = bodies.length && S.bake ? S.bake : null; if (bake) rule[RULE.BAKED] = bake.r;   // (a level with a far body carries the crown baked, before its vertices: assets/kit/plant.js)
+  const bake = bodies.length && S.bake ? S.bake : null; if (bake) rule[RULE.BAKED] = bake.r;   // (a level with a far body carries the crown baked, after its vertices: assets/kit/plant.js)
   return { ...out, index: Uint32Array.from(index), rule, bake };
 }
 
@@ -563,8 +566,8 @@ export const BAKED = [...Array.from({ length: 8 }, (_, a) => { const z = (a * PI
 export const bakedVerts = (K = CROWD) => ceil((BAKED.length * K.BAKE * K.BAKE * 2) / 32);
 /** A shape's crown as the far bodies wear it: drawn from each of BAKED's directions, RES texels a side over 2 r metres
     about `mid`, every texel two bytes: how much of it the crown covers (a card stopping STOPS of the light, the wood all
-    of it) and how much light reaches what covers it (its corners' ao, front to back: what lies behind counts as much as
-    shows through what lies before it). S: a shape (crowd's).
+    of it) and how much light reaches what covers it, as against the crown on the whole (its corners' ao, front to back:
+    what lies behind counts as much as shows through what lies before it; 0.5 as the crown's mean). S: a shape (crowd's).
     -> { res, r, bytes: Uint8Array(views x res x res x 2) } */
 export function bakeOf(S, K = CROWD) {
   const res = K.BAKE, mid = S.mid, P = S.position, n = S.count, I = [];
@@ -590,8 +593,10 @@ export function bakeOf(S, K = CROWD) {
         if ((e0 >= 0 && e1 >= 0 && e2 >= 0) || (e0 <= 0 && e1 <= 0 && e2 <= 0)) { const j = y * res + x; A[j] += ao * stop * T[j]; Wt[j] += stop * T[j]; T[j] *= 1 - stop; }
       }
     }
-    // (the picture's rows from its top: v up)
-    for (let y = 0; y < res; y++) for (let x = 0; x < res; x++) { const j = y * res + x, o = (view * res * res + (res - 1 - y) * res + x) * 2; bytes[o] = round((1 - T[j]) * 255); bytes[o + 1] = Wt[j] > 0 ? round(min(1, A[j] / Wt[j]) * 255) : 0; }
+    // its light as against the crown's own on the whole (half of it a byte's middle): the bodies are lit as the rest, the
+    // bake only says where it is lighter or darker than that. (The picture's rows from its top: v up)
+    let sa = 0, sw = 0; for (let j = 0; j < res * res; j++) { sa += A[j]; sw += Wt[j]; } const mean = sa > 0 ? sa / sw : 1;
+    for (let y = 0; y < res; y++) for (let x = 0; x < res; x++) { const j = y * res + x, o = (view * res * res + (res - 1 - y) * res + x) * 2; bytes[o] = round((1 - T[j]) * 255); bytes[o + 1] = Wt[j] > 0 ? round(min(1, (A[j] / Wt[j] / mean) * 0.5) * 255) : 128; }
   });
   return { res, r, bytes };
 }

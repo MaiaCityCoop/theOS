@@ -15,6 +15,8 @@ from 90 m up (`tools/shots.js` view x -1290, z 618, yaw -4.54, pitch -25), cropp
 | `baked-crown-90m-zoom.jpg` | from 90 m, the lower left of the view enlarged, and by the tent: main (left) · the baked crowns (right) |
 | `baked-crown-90m-far.jpg` | main · `?lod=new` as in #30 · baked, far body from 18 px · baked, far body from 40 px |
 | `baked-crown-oak-views.jpg` | the bake of the holm oak's largest shape, its nine views: how much of each texel the crown covers (top), how much light reaches it (below) |
+| `see-through-crown-90m-horizon.jpg` | the bake as see-through as the crown, and as light (#33): from 90 m enlarged, and the horizon by the tent: main (left) · `?lod=new` (right) |
+| `see-through-crown-eye-library.jpg` | the same: the pine forest at eye level, main (left) · `?lod=new` (right); the library's holm oak, `?lod=new` (left) · main (right) |
 | `eye-level-spread1-bias.jpg` | pine forest at eye level and by the tent: main (left) · `spread=1` with the mip bias (right, not kept) |
 
 What they show: at 90 m main's crowns keep their leaves' shapes and dark gaps; every variant of `?lod=new` reads as
