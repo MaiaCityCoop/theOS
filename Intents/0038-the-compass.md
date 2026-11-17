@@ -86,6 +86,16 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes (0 errors, 0 warnings); no "bible" left in OS, skills, CI or the Compass; no Fibonacci or 1,346,269 left in the Compass; Stories → The Compass shows the core message on top, no ladder.
 - **Broke / not there yet:** the dashboard's home page still says "1.3 million humans" and `OS/src/main.js` names 1,346,269 in a comment; two ideas still carry the old ladder (`the-first-377-set-the-room`, `the-gate-and-the-door`); the series tagline "one million humans … 16 years" stays in the skills. All waiting on Samuel.
 
+### 2026-11-17 (2)
+
+- **Asked:** "The city is just our means, a vehicle to show what we can achieve when we unite… a better blueprint to live,
+  while unlocking the full potential of each and every one of us." Then: keep the backbone, make it mightier, sparkling,
+  touching hearts, awe that humanity is amazing.
+- **Delivered:** the core message enlarged (what people have already done; that, every morning, in everyone; "the city
+  is the proof, you are the point"); premise and synopsis now say the city is the vehicle.
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** the remaining interview questions are still open.
+
 ## Trail
 
 | When | Commit | What |

@@ -17,7 +17,7 @@ language: en
 release-start: 2026-11-16
 release-every: 1
 release-warn-days: 1
-premise: "Life at full size becomes the normal life when people build a city they own together, where reaching for the big thing is simply what everyone does."
+premise: "When people unite and each one lives at full size, they can build anything, even a better way to live; the city is the proof."
 counter-premise: "The sensible life is the small one: keep it safe, keep it reasonable, keep the big thing for later."
 severity:
   - warning: stray-file
@@ -28,23 +28,29 @@ severity:
 
 ## The core message
 
-> **To the ones who already see it.**
+> **To the ones who know we are capable of more.**
 >
-> The ones who look at an empty meadow and see a city. Who dream in decades and build in days. Who were always a little larger than the room, and were right to be.
+> Not one of us. All of us.
 >
-> You were made for something big. So we are building the place where big is normal.
+> Look at what people have already done. We crossed oceans by the stars. We painted ceilings that still stop strangers mid-step. We stood on the Moon while the whole world held its breath. Each began with someone who dared to think big, and the many hands that joined them.
 >
-> A city that feeds itself, powers itself and belongs to every person who builds it. Where reaching for the thing you know is right is simply what people do here, every morning.
+> Now imagine that not once in a century, but every morning, in everyone. Every person living at their full size. Every gift unlocked. Every idea that waited for permission, finally built, side by side.
 >
-> It looks impossible. So did every great city, the day before its first stone.
+> That is what we are here for: to find out how far we can go together.
+>
+> We are writing a new blueprint for how to live, and proving it the only way that convinces anyone: by building it together. A city that feeds itself, powers itself and belongs to everyone who builds it. Where reaching high is simply what people do.
+>
+> The city is the proof. You are the point.
+>
+> And when it stands, the world will not say *look what they built*. It will say *look what people are capable of*.
 >
 > It begins with one tent on a green meadow. You can walk in tonight.
 
-**The feeling it leaves:** *you knew it all along.* Not converted, not braver: confirmed. Their size was right; now there is a place built to it.
+**The feeling it leaves:** awe at what people are, and *I knew it all along*: their size was right, and now there is a place built to it.
 
 ## Synopsis
 
-Maia City is built by the people who arrive to build it, owning everything they make, first in a game and then in the earth. One story a day for 5,423 days: the person who joins tonight, the one who wins the first real dome, the ones who leave their old lives for the first village. They shape Maia as they come, and she holds every one of them to their full size. Samuel went first and files the report.
+The city is the vehicle, not the point: the point is what people achieve together when each of them is unlocked, and the blueprint for living that others can copy. Maia City is built by the people who arrive to build it, owning everything they make, first in a game and then in the earth. One story a day for 5,423 days: the person who joins tonight, the one who wins the first real dome, the ones who leave their old lives for the first village. They shape Maia as they come, and she holds every one of them to their full size. Samuel went first and files the report.
 
 **The hero is the viewer.** Not Samuel, not Maia: whoever walks in. That is why the serial speaks in the second person. "You" is the protagonist, not a style.
 
