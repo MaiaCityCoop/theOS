@@ -134,7 +134,8 @@ export const partOf = (rig) => {   // (the head a piece of its own: its face is 
 // piece's (a hand, a foot, the head: their skin is their own) and which close round (the top of the arm over the
 // shoulder, the bottom of the trunk between the thighs, the top of the thigh under the buttock: where they meet they
 // run into one another softly), and its sections from a to b, evenly spaced: [forward shift of the middle, half-breadth outwards,
-// half-breadth inwards, front, back, squareness (2 an ellipse, more a rounded box)] in cm.
+// half-breadth inwards, front, back, squareness (2 an ellipse, more a rounded box)] in cm; limb, the limb it is a piece of,
+// and joins, which of its ends meet the limb's next piece (its pieces are one outline there, ./build.js).
 export const PROFILE_SOURCE = 'Gordon et al. 2014, "2012 Anthropometric Survey of U.S. Army Personnel" (ANSUR II), NATICK/TR-15/007: men\'s circumferences, breadths and depths, as remembered, scaled to 1.80 m and to a slightly muscular build; the sections\' shapes after Richer, Anatomie artistique (1890), as remembered';
 export const PROFILES = [
   { part: 'trunk', a: [0, 0.84, 0], b: [0, 1.6, 0], front: [0, 0, 1], fade: [0, 1], sections: [   // every 4 cm from 0.84 m up
@@ -143,13 +144,13 @@ export const PROFILES = [
     [-0.3, 15.4, 15.4, 10.9, 10.6, 2.25], [-0.8, 15.9, 15.9, 11.4, 11.2, 2.35], [-1.3, 16.3, 16.3, 11.6, 11.8, 2.5], [-1.8, 16.4, 16.4, 11.6, 12.3, 2.65],
     [-2.3, 16.6, 16.6, 11.4, 12.5, 2.8], [-2.8, 16.8, 16.8, 11.2, 12.4, 2.8], [-3.3, 17.6, 17.6, 11.5, 12.0, 2.6], [-3.8, 19.6, 19.6, 9.8, 10.8, 2.3],
     [-4.0, 15.0, 15.0, 7.6, 8.8, 2.0], [-3.5, 6.2, 6.2, 5.7, 6.4, 2.0], [-3.0, 5.7, 5.7, 5.3, 5.9, 2.0], [-2.5, 5.6, 5.6, 5.3, 5.7, 2.0]] },
-  { part: 'arm', a: [0.186, 1.425, -0.042], b: [0.2, 1.13, -0.056], front: [0, 0, 1], fade: [0, 0], sections: [   // the upper arm, from over the shoulder to the elbow
+  { part: 'arm', a: [0.186, 1.425, -0.042], b: [0.2, 1.13, -0.056], front: [0, 0, 1], fade: [0, 0], limb: 'arm', joins: [0, 1], sections: [   // the upper arm, from over the shoulder to the elbow
     [0, 4.2, 3.0, 4.6, 4.6, 2.0], [0, 5.2, 4.2, 5.4, 5.4, 2.1], [0, 4.9, 4.5, 5.2, 5.1, 2.1], [0, 4.6, 4.5, 5.4, 5.0, 2.1], [0, 4.3, 4.1, 4.7, 4.7, 2.1], [0, 4.0, 3.7, 4.1, 4.4, 2.1]] },
-  { part: 'arm', a: [0.2, 1.13, -0.056], b: [0.226, 0.875, -0.022], front: [0, 0, 1], fade: [0, 1], sections: [   // the forearm, from the elbow to the wrist
+  { part: 'arm', a: [0.2, 1.13, -0.056], b: [0.226, 0.875, -0.022], front: [0, 0, 1], fade: [0, 1], limb: 'arm', joins: [1, 0], sections: [   // the forearm, from the elbow to the wrist
     [0, 4.3, 3.8, 4.2, 4.1, 2.1], [0, 4.6, 4.0, 4.6, 4.1, 2.1], [0, 4.0, 3.6, 4.1, 3.6, 2.1], [0, 3.3, 3.0, 3.6, 3.1, 2.15], [0, 2.4, 2.2, 3.0, 2.7, 2.2], [0, 1.9, 1.7, 2.7, 2.5, 2.3]] },
-  { part: 'leg', a: [0.088, 0.9, 0.0], b: [0.085, 0.5, 0.006], front: [0, 0, 1], fade: [0, 0], sections: [   // the thigh, from the hip to the knee
+  { part: 'leg', a: [0.088, 0.9, 0.0], b: [0.085, 0.5, 0.006], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [0, 1], sections: [   // the thigh, from the hip to the knee
     [0, 9.0, 8.0, 8.5, 9.5, 2.2], [0, 9.3, 8.6, 9.0, 9.6, 2.2], [0, 8.8, 8.3, 8.8, 8.8, 2.2], [0, 8.0, 7.6, 8.4, 7.8, 2.2], [0, 6.8, 6.6, 7.4, 6.4, 2.2], [0, 5.3, 5.5, 6.0, 5.3, 2.1]] },
-  { part: 'leg', a: [0.085, 0.5, 0.006], b: [0.078, 0.1, -0.016], front: [0, 0, 1], fade: [0, 1], sections: [   // the leg, from the knee to the ankle
+  { part: 'leg', a: [0.085, 0.5, 0.006], b: [0.078, 0.1, -0.016], front: [0, 0, 1], fade: [0, 1], limb: 'leg', joins: [1, 0], sections: [   // the leg, from the knee to the ankle
     [0, 5.3, 5.5, 5.8, 5.4, 2.1], [0, 5.3, 5.6, 4.6, 6.6, 2.1], [0, 5.1, 5.6, 4.2, 7.0, 2.1], [0, 4.3, 4.4, 3.6, 5.6, 2.1], [0, 3.4, 3.4, 3.0, 4.1, 2.1], [0, 3.0, 3.2, 2.8, 3.4, 2.1]] },
 ];
 // Masses the outline holds besides its sections: each buttock (the gluteus maximus under its pad of fat, its fold at

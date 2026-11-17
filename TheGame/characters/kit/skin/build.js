@@ -155,12 +155,12 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
     return (q) => {
       const t = dot(sub(q, e.a), u) / L, tc = Math.min(1, Math.max(0, t)), [cz, ao, ai, bf, bb, ex] = at(tc), along = (t - tc) * L;
       const d = sub(sub(q, e.a), add(mul(u, tc * L), mul(f0, cz))), x = dot(d, sd), z = dot(d, f0), r = Math.hypot(x, z);
-      const end = t < 0 ? 0 : 1, closed = along !== 0 && !e.fade[end];
+      const end = t < 0 ? 0 : 1, joined = along !== 0 && !!e.joins?.[end], closed = along !== 0 && !e.fade[end] && !joined;   // (a limb's piece runs on past an end where the next piece takes it over, straight)
       let ax = x >= 0 ? ao : ai, bz = z >= 0 ? bf : bb, extra = 0;
-      if (closed) { const cap = 0.7 * Math.min(ax, bz), a2 = Math.abs(along); if (a2 >= cap) return { E: Math.hypot(r, a2 - cap), w: 1 }; const k = Math.sqrt(1 - (a2 / cap) ** 2); ax *= k; bz *= k; extra = 0; }
+      if (closed) { const cap = 0.7 * Math.min(ax, bz), a2 = Math.abs(along); if (a2 >= cap) return { E: Math.hypot(r, a2 - cap), w: 1, limb: e.limb, along: 0 }; const k = Math.sqrt(1 - (a2 / cap) ** 2); ax *= k; bz *= k; extra = 0; }
       const rho = (Math.abs(x / ax) ** ex + Math.abs(z / bz) ** ex) ** (1 / ex), E = r > 1e-9 ? r * (1 - 1 / rho) + extra : -Math.min(ax, bz);
       const w = closed ? 1 : Math.min(e.fade[0] ? smooth01((t + 0.02) / 0.12) : 1, e.fade[1] ? smooth01((1.02 - t) / 0.12) : 1);
-      return { E, w };
+      return { E, w, limb: e.limb, along: joined ? along : 0 };
     };
   };
   const massOf = (m) => (q) => {
@@ -253,7 +253,17 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       // it as they do)
       if (pro.length) {
         const q = [Math.abs(X(i)), Y(j), Z(k)]; let E = Infinity, w = 0;
-        for (const P of pro) { const o = P(q); E = E === Infinity ? o.E : smin(E, o.E, o.k ?? 0.012); w = Math.max(w, o.w); }   // (a mass holds no weight of its own: it adds to the outline where the outline holds)
+        // (the pieces of one limb, the upper arm and the forearm, the thigh and the leg, are one outline: at the joint
+        // between them each holds as much as the point is within it, over four centimetres either side, and the outline is
+        // their mean, so the knee is no fuller than either piece makes it. The rest, the trunk and the masses on it, run
+        // into one another softly)
+        let lw = 0, le = 0;
+        for (const P of pro) {
+          const o = P(q);
+          if (o.limb) { const s = 1 - smooth01(Math.abs(o.along) / 0.05); if (s > 0) { lw += s; le += s * o.E; w = Math.max(w, o.w * Math.min(1, lw)); } continue; }
+          E = E === Infinity ? o.E : smin(E, o.E, o.k ?? 0.012); w = Math.max(w, o.w);   // (a mass holds no weight of its own: it adds to the outline where the outline holds)
+        }
+        if (lw > 0) E = E === Infinity ? le / lw : smin(E, le / lw, 0.012);
         if (w > 0) {
           const g2 = at(i, j, k), keep = Math.min(1, Math.max(0.3, 1.3 - tissue[g] / 0.009));
           let s2 = E + keep * Math.max(p === P_.trunk ? -0.004 : -0.002, mid[g2] - far[g2]) * (p === P_.trunk ? 1.4 : 1);   // (what stands out shows; a groove between two muscles the fat fills, but for two millimetres (four over the trunk, where the pectoral's edge, the rectus's lines and the serratus show))
@@ -271,7 +281,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       // below the shoulder's top (and above it as fast: the top of the shoulder is the trunk's own, the arm's cap does
       // not stand out of it), so the two do not meet in a seam)
       if (p === P_.arm && Y(j) > 1.37) {
-        const vb = v + Math.max(0, 1.43 - Y(j)) * 0.4 + Math.max(0, Y(j) - 1.455) * 0.8, ob = field[g], ub = smin(ob, vb, fieldPart[g] === P_.trunk ? 0.045 : 0.001);
+        const vb = v + Math.max(0, 1.43 - Y(j)) * 0.4 + Math.max(0, Y(j) - 1.455) * 0.8, ob = field[g], ub = smin(ob, vb, 0.045);   // (softly, wherever the trunk's own skin is: no crease where it ends)
         if (ub < ob) { field[g] = ub; if (vb < ob) fieldPart[g] = p; }
       }
     }
@@ -455,13 +465,14 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
   // (a point of an arm's skin hangs only on the arm's bones and the shoulder girdle's, never on the ribs beside it; a
   // finger's on its own and the hand's; a point of the other skin on any of its bones, the trunk's, the legs' and the
   // head's, the nearest; and a limb's on its own side's alone: the left knee's skin never on the right thigh)
-  const may = (own, rig, x) => {
+  const may = (own, rig, x, shoulder) => {
     const part = P_[partOf(rig)];
     if (own === 255) return true;
+    if (own === P_.trunk && shoulder && /^upperArm\./.test(rig)) return rig.endsWith(x > 0 ? '.L' : '.R');   // (the trunk's skin over the shoulder's cap rides on the arm too)
     if ((own === P_.leg || ARMS(own)) && rig.endsWith(x > 0 ? '.R' : '.L')) return false;
     return ARMS(own) ? (own === P_.arm ? ARMS(part) || /^(scapula|clavicle)\./.test(rig) : part === own || /^hand\./.test(rig)) : !ARMS(part);
   };
-  const mayTable = new Map(), mayOf = (own, x) => { const k = own * 2 + (x > 0 ? 1 : 0); let t = mayTable.get(k); if (!t) mayTable.set(k, (t = Uint8Array.from(rigs, (r) => (may(own, r, x) ? 1 : 0)))); return t; };
+  const mayTable = new Map(), mayOf = (own, x, sh) => { const k = own * 4 + (x > 0 ? 1 : 0) + (sh ? 2 : 0); let t = mayTable.get(k); if (!t) mayTable.set(k, (t = Uint8Array.from(rigs, (r) => (may(own, r, x, sh) ? 1 : 0)))); return t; };
   const partAt = (p, arms) => {
     const fl = arms ? fieldA : field, fp = arms ? fieldPartA : fieldPart;
     const i = Math.round((p[0] - LO[0]) / h), j = Math.round((p[1] - LO[1]) / h), k = Math.round((p[2] - LO[2]) / h); let best = 255, bv = Infinity;
@@ -470,7 +481,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
   };
   const best = new Float32Array(rigs.length);
   const fasten = (p, own) => {
-    const q = p, ok = mayOf(own, q[0]);
+    const q = p, ok = mayOf(own, q[0], q[1] > 1.27 && Math.abs(q[0]) > 0.13);
     // the nearest point of each joint's bones, looked for in ever wider shells: an arm's, a hand's, a finger's until the
     // five nearest are sure, or all within 16 cm (a finger's skin has its own three joints and the hand's); the trunk's,
     // the legs' and the head's always as far as 16 cm, so that two points side by side weigh their bones alike (one
