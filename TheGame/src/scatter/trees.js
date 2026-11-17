@@ -29,11 +29,11 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, atan, clamp, log, exp, exp2, step, fract, unpackHalf2x16, storage, texture } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, atan, clamp, log, exp, exp2, step, fract, unpackHalf2x16, storage, texture, screenCoordinate, ceil, log2, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt, nearLake } from '../world/land.nodes.js';
 import { kindsOf, whereOf } from '../world/stand.js';
-import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, unlit, windAt, windDir, windStrength, stillness } from '../world/light.js';
+import { ign, toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, unlit, windAt, windDir, windStrength, stillness } from '../world/light.js';
 import { CLEARINGS } from '../../world/places.js';
 import { recipe, recipes, versionOf } from '../core/registry.js';
 import { geometryOf, scatterRow } from '../../assets/index.js';
@@ -49,7 +49,7 @@ import { addBodies, bodyGrid, topOf, wanted } from '../world/bodies.js';
 import { idOf } from '../world/things.js';
 import { wayAt, waysVersion } from '../world/ways.js';
 import { pxOf, turnOf, seedOf } from './row.js';
-import { LOD, LOD_DEFAULT, CROWD, BAKED, levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
+import { LOD, LOD_DEFAULT, CROWD, BAKED, BAKEMIPS, bakeRes, octOf, levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
 import { crowdLevel, crowdOf, bandsOf, GRID, TIPUV, GOQ } from '../../assets/kit/plant.js';
 import { flagText, flagNum } from '../core/flags.js';
 import { bits, lo16, hi16, sn8 } from './unpack.js';
@@ -81,6 +81,39 @@ const crowdOfElems = (e0, e1, rule) => {
 /** A crowd level's shape's sixteen numbers from the two elements before its vertices (assets/kit/plant.js: half
     floats, two a number of 32 bits), as four vec4 (crowd.js RULE). */
 const ruleOf = (a, b) => [vec4(unpackHalf2x16(a.x), unpackHalf2x16(a.y)), vec4(unpackHalf2x16(a.z), unpackHalf2x16(a.w)), vec4(unpackHalf2x16(b.x), unpackHalf2x16(b.y)), vec4(unpackHalf2x16(b.z), unpackHalf2x16(b.w))];
+/** How dense a baked far body is, `into` its window (crowdRule's: 0 where it begins, 1 where the cards are gone, straight
+    in the size's logarithm, not eased: the cards begin to go at once, one by one): as many of its texels as fill what
+    the cards that went leave, over a crown covering CROWD.DENSE (most at first, where they lie over the cards still there). */
+const crowdDense = (into) => into.div(float(1 - CROWD.DENSE).add(into.mul(CROWD.DENSE)).max(1e-6));
+/** A shape's baked views (bytes: views x res x res x 4, crowd.js bakeOf) into a stand's texture (out: layers BW x BH x 4,
+    from layer l0): each view's picture and its smaller ones (BAKEMIPS). A smaller picture's texel: the mean cover of the
+    four under it, raised (at most 8 times) until as much of the picture is over half covered as of the whole one; its
+    ao and its leaves' way the mean of theirs, by how much each covers. */
+export function bakeLayers(bytes, res, out, l0, BW, BH) {
+  const L = BAKEMIPS(res);
+  for (let v = 0; v < bytes.length / (res * res * 4); v++) {
+    const base = (l0 + v) * BW * BH * 4, src = v * res * res * 4;
+    let C = new Float32Array(res * res), S = new Float32Array(res * res), Nn = new Float32Array(res * res * 3), solid = 0;
+    for (let i = 0; i < res * res; i++) { C[i] = bytes[src + i * 4] / 255; S[i] = bytes[src + i * 4 + 1] / 255; const d = octIn(bytes[src + i * 4 + 2] / 255, bytes[src + i * 4 + 3] / 255); Nn.set(d, i * 3); if (C[i] > 0.5) solid++; }
+    const share = solid / (res * res);
+    L.forEach(({ x, y, n }, m) => {
+      if (m) {   // (from the one before: n x n, each of four)
+        const c = new Float32Array(n * n), sh = new Float32Array(n * n), nn = new Float32Array(n * n * 3), N = n * 2;
+        for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+          let a = 0, w = 0, t = 0, x3 = 0, y3 = 0, z3 = 0;
+          for (const [di, dj] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { const k = (j * 2 + dj) * N + i * 2 + di; a += C[k]; w += C[k] * S[k]; t += C[k]; x3 += C[k] * Nn[k * 3]; y3 += C[k] * Nn[k * 3 + 1]; z3 += C[k] * Nn[k * 3 + 2]; }
+          const q = j * n + i, l = Math.hypot(x3, y3, z3) || 1; c[q] = a / 4; sh[q] = t > 0 ? w / t : 0.5; nn[q * 3] = x3 / l; nn[q * 3 + 1] = y3 / l; nn[q * 3 + 2] = z3 / l;
+        }
+        C = c; S = sh; Nn = nn;
+      }
+      let k = 1; if (m && share > 0) { let lo = 1, hi = 8; const over = (s) => { let q = 0; for (const z of C) if (z * s > 0.5) q++; return q / (n * n); }; if (over(1) < share) { for (let i = 0; i < 12; i++) { const md = (lo + hi) / 2; if (over(md) < share) lo = md; else hi = md; } k = hi; } }
+      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const d = base + ((y + j) * BW + x + i) * 4, q = j * n + i, [ox, oy] = octOf(Nn[q * 3], Nn[q * 3 + 1], Nn[q * 3 + 2]); out[d] = Math.round(Math.min(1, C[q] * k) * 255); out[d + 1] = Math.round(S[q] * 255); out[d + 2] = Math.round(ox * 255); out[d + 3] = Math.round(oy * 255); }
+    });
+  }
+}
+/** octOf's two numbers back to a direction of length one (on the CPU, and as nodes: octDecode). */
+const octIn = (u, v) => { let x = u * 2 - 1, y = v * 2 - 1; const z = 1 - Math.abs(x) - Math.abs(y); if (z < 0) { const px = x, py = y; x = (1 - Math.abs(py)) * (px >= 0 ? 1 : -1); y = (1 - Math.abs(px)) * (py >= 0 ? 1 : -1); } const l = Math.hypot(x, y, z) || 1; return [x / l, y / l, z / l]; };
+const octDecode = (o) => { const p = o.mul(2).sub(1), z = float(1).sub(abs(p.x)).sub(abs(p.y)), q = z.lessThan(0).select(vec2(float(1).sub(abs(p.y)).mul(p.x.greaterThanEqual(0).select(1, -1)), float(1).sub(abs(p.x)).mul(p.y.greaterThanEqual(0).select(1, -1))), p); return normalize(vec3(q.x, q.y, z)); };
 const smooth01 = (t) => { const c = clamp(t, 0, 1); return c.mul(c).mul(float(3).sub(c.mul(2))); };
 /** The one rule (assets/kit/crowd.js, the same in JS there): where a crowd level's vertex lies and what of its painting
     it wears at px pixels, and whether it shows. V: the vertex (position, root, uv, part) with C, what the rule moves it by
@@ -94,25 +127,29 @@ function crowdRule(px, V, C, hand = float(1), whole = null) {
   const area = share.lessThanEqual(r1.x).select(seg(float(0), float(0), r1.x, r1.y), share.lessThanEqual(r1.z).select(seg(r1.x, r1.y, r1.z, r1.w), share.lessThanEqual(r2.x).select(seg(r1.z, r1.w, r2.x, r2.y), seg(r2.x, r2.y, float(1), float(1)))));
   const k = min(KMAX, pow(max(area, 1e-9), E.negate()));
   const g = C.go.greaterThan(0).select(smooth01(px.div(max(C.go, 1e-6)).sub(1).div(CROWD.GROW - 1)), float(1));
-  const h = HI.greaterThan(0).select(smooth01(log(HI.div(max(px, 1e-6))).div(log(HI.div(LO)))), float(0));
+  const into = HI.greaterThan(0).select(clamp(log(HI.div(max(px, 1e-6))).div(log(HI.div(LO))), 0, 1), float(0)), h = smooth01(into);   // (into: how far into the far body's window, straight in the size's logarithm; h: eased)
   const turned = (i) => smooth01(log(float(CROWD.TURN[i][0]).div(max(px, 1e-6))).div(Math.log(CROWD.TURN[i][0] / CROWD.TURN[i][1])));
   const card = V.part.greaterThan(0.5).and(V.part.lessThan(1.5)).and(C.body.lessThan(0.5)), body = C.body.greaterThan(0.5), post = C.body.greaterThan(3.5);
-  const pos = V.position.toVar(), uv = V.uv.toVar(), shown = float(1).greaterThan(0).toVar();
+  const pos = V.position.toVar(), uv = V.uv.toVar(), shown = float(1).greaterThan(0).toVar(), fade = float(1).toVar();
+  const swap = clamp(into.sub(CROWD.SWAP[0]).div(CROWD.SWAP[1] - CROWD.SWAP[0]), 0, 1);   // (the wood giving way to the post: 0 … 1 over CROWD.SWAP of the window)
   If(card, () => {
     const grown = g.mul(hand), at = (p) => C.tip.add(p.sub(C.tip).mul(k));
     pos.assign(mix(at(V.root), at(V.position), grown)); uv.assign(V.uv.add(C.tipUv.mul(float(1).sub(pow(k, SPREAD))))); shown.assign(grown.greaterThan(0));
   }).ElseIf(post, () => {
-    pos.assign(mix(V.position, C.to, turned(1))); shown.assign(px.lessThan(HI).and(px.greaterThanEqual(CROWD.TURN[1][1])).and(h.greaterThanEqual(0.5)));
+    const thin = clamp(log(LO.div(max(px, 1e-6))).div(log(LO.div(CROWD.TURN[1][1]))), 0, 1);   // (the post thins evenly from the window's end to where the last body is alone, CROWD.TURN's last: never at once among still sizes)
+    pos.assign(mix(V.position, C.to, thin)); shown.assign(px.lessThan(HI).and(px.greaterThanEqual(CROWD.TURN[1][1])).and(into.greaterThan(CROWD.SWAP[0]))); fade.assign(swap);
   }).ElseIf(body, () => {
-    const b = C.body.sub(1), turn = b.lessThan(0.5).select(turned(0), b.lessThan(1.5).select(turned(1), float(0)));
-    pos.assign(mix(V.root, mix(V.position, C.to, turn), h));
+    // (a baked body stands at its full size from the first: it comes in denser, not larger, its baked texels showing
+    // as far as it has come in, CROWD.DENSE: crowdDense; one that wears no bake grows out of the crown's middle)
+    const b = C.body.sub(1), turn = b.lessThan(0.5).select(turned(0), b.lessThan(1.5).select(turned(1), float(0))), q = mix(V.position, C.to, turn);
+    pos.assign(r3.y.greaterThan(0).select(q, mix(V.root, q, h)));
     const T0 = CROWD.TURN[0][1], T1 = CROWD.TURN[1][1], range = b.lessThan(0.5).select(px.greaterThanEqual(T0), b.lessThan(1.5).select(px.greaterThanEqual(T1).and(px.lessThan(T0)), px.lessThan(T1)));   // (each from its size up to the next, as a level's band: assets/kit/crowd.js levelOf)
     shown.assign(px.lessThan(HI).and(range).and(h.greaterThan(0)));
-  }).Else(() => {   // (the wood: a thin piece shrinks to its foot; all of it gives way to the post half way into the far body)
-    const wood = C.go.lessThanEqual(0).or(g.greaterThan(0)).and(h.lessThan(0.5));
-    pos.assign(mix(V.root, V.position, g)); shown.assign(whole ? wood.and(whole) : wood);
+  }).Else(() => {   // (the wood: a thin piece shrinks to its foot; all of it gives way to the post over CROWD.SWAP of the far body's window, the one going out as the other comes in, pixel by pixel)
+    const wood = C.go.lessThanEqual(0).or(g.greaterThan(0)).and(into.lessThan(CROWD.SWAP[1]));
+    pos.assign(mix(V.root, V.position, g)); shown.assign(whole ? wood.and(whole) : wood); fade.assign(float(1).sub(swap));
   });
-  return { pos, uv, shown };
+  return { pos, uv, shown, into, fade };
 }
 
 export const GROW = 1.5, SLOTS = 6, FOOT = 0.15;   // GROW: seconds a finest level that has just come takes to grow out of the next (its sprigs one after another); SLOTS: of how many shapes a stand holds the finest meshes at once; FOOT: how deep a plant's foot is set into the ground
@@ -274,7 +311,7 @@ function plantMaterial(tex, D) {
     // a far body that wears its crown baked (under `?lod=new`, `?bake=0` for none): where on which baked view it lies (u, v, the view, 1), and where
     // its plant's level lies in the heap (as two numbers under 4096: a whole number however a pixel got it)
     const elemOf = feed?.elem ?? Lv?.bakeElem;   // (where a baked crown's bytes are read from: the heap's elements, or the library's plant's own)
-    const vImp = Lv?.crowd && (elemOf || D.bakeTex) && LOD.BAKE ? varyingProperty('vec4', 'tImp') : null, vBase = vImp ? varyingProperty('vec2', 'tBase') : null;
+    const vImp = Lv?.crowd && (elemOf || D.bakeTex) && LOD.BAKE ? varyingProperty('vec4', 'tImp') : null, vBase = vImp ? varyingProperty('vec2', 'tBase') : null, vDense = vImp ? varyingProperty('vec4', 'tDense') : null, vImp1 = vImp ? varyingProperty('vec4', 'tImp1') : null, vImp2 = vImp ? varyingProperty('vec4', 'tImp2') : null, vLit = vImp ? varyingProperty('vec4', 'tLit') : null;
     const bakeTex = feed && D.bakeTex ? texture(D.bakeTex) : null;   // (the world's: its stand's texture; the library's plant reads its own buffer)
     const shape = (A, B) => {
       const clip = offScreen().toVar();
@@ -305,21 +342,29 @@ function plantMaterial(tex, D) {
             const show = above.and(below).and(R.shown);
             If(V.drawn ? show.and(V.drawn) : show, () => {
               if (vImp) {
-                // the baked view nearest the eye, in the plant's own frame (crowd.js BAKED: eight round it 30 degrees up, one
-                // from above), and the body's point on it: the crown's picture there says whether it covers and how shaded
+                // the baked views round the eye, in the plant's own frame (crowd.js BAKED: eight round it 30 degrees up, one
+                // from above), and the body's point on each: the crown's picture there says whether it covers and how shaded.
+                // The two side views either side of the eye, and the one from above, each as much as the eye is near it (the
+                // fragment takes one of them a pixel, by a fixed pattern: going round, or rising, the picture passes from one
+                // view to the next, never snaps)
                 const r = V.crowd.rule[3].y, baked = r.greaterThan(0).and(V.crowd.body.greaterThan(0.5)).and(V.crowd.body.lessThan(3.5));
-                const d = turnOf(B.x).unturn(normalize(U.uCam.sub(vec3(A.x, A.z, A.y)))), top = d.y.greaterThan(0.866);
-                const k = floor(atan(d.z, d.x).div(Math.PI / 4).add(8.5)).mod(8), z = k.mul(Math.PI / 4), se = Math.sin(Math.PI / 6), ce = Math.cos(Math.PI / 6);
-                const u = top.select(vec3(1, 0, 0), vec3(sin(z), 0, cos(z).negate())), v = top.select(vec3(0, 0, -1), vec3(cos(z).mul(-se), ce, sin(z).mul(-se)));
-                const rel = R.pos.sub(V.root), half = max(r, 1e-3).mul(2);
-                const view = top.select(float(8), k);
+                const d = turnOf(B.x).unturn(normalize(U.uCam.sub(vec3(A.x, A.z, A.y)))), se = Math.sin(Math.PI / 6), ce = Math.cos(Math.PI / 6);
+                const a8 = atan(d.z, d.x).div(Math.PI / 4).add(8), k0 = floor(a8).mod(8), k1 = k0.add(1).mod(8), toNext = fract(a8), toTop = clamp(d.y.sub(se).div(1 - se), 0, 1);
+                const rel = R.pos.sub(V.root), half = max(r, 1e-3).mul(2), layerOf = (view) => (D.bakeTex && feed ? floor(B.y.add(0.5)).mul(BAKED.length).add(view) : view);   // (the texture's layer, its shape's and the view's; the library's: the view)
+                const side = (k) => { const z = k.mul(Math.PI / 4); return vec2(rel.dot(vec3(sin(z), 0, cos(z).negate())), rel.dot(vec3(cos(z).mul(-se), ce, sin(z).mul(-se)))).div(half).add(0.5); };
+                const above = vec2(rel.dot(vec3(1, 0, 0)), rel.dot(vec3(0, 0, -1))).div(half).add(0.5);
+                vImp1.assign(vec4(side(k1), layerOf(k1), toNext)); vImp2.assign(vec4(above, layerOf(float(8)), toTop));
                 // (w: 0 not baked; else 1 and how far against the sky it is, 0 … 1: how high it stands seen from the eye, its
                 // height in the world its foot's and its own times its scale (its turn is about the up axis); gaps only
                 // there, where the sky shows through them, and the crown solid where ground or other crowns lie behind)
                 const s = A.w.div(V.Ks), seenAt = A.z.add(R.pos.y.mul(s)).sub(U.uCam.y).div(max(length(vec2(A.x, A.y).sub(U.uCam.xz)), 1)), sky = smoothstep(SKY[0], SKY[1], seenAt);
-                vImp.assign(vec4(rel.dot(u).div(half).add(0.5), rel.dot(v).div(half).add(0.5), D.bakeTex && feed ? floor(B.y.add(0.5)).mul(BAKED.length).add(view) : view, baked.select(sky.add(1), float(0))));   // (z: the texture's layer, its shape's and the view's; the library's: the view)
+                vImp.assign(vec4(side(k0), layerOf(k0), baked.select(sky.add(1), float(0))));
                 const at = V.crowd.rule[3].z.mul(1024).add(V.crowd.rule[3].w), b = V.base !== undefined ? float(V.base).add(at.mul(2)) : float(0);   // (its bake's first element: after the level's vertices, two elements a vertex; the library's: its own, from 0)
-                vBase.assign(vec2(floor(b.div(4096)), b.mod(4096)));
+                vBase.assign(vec2(floor(b.div(4096)), b.mod(4096))); // (x: a far body's density, or the wood's and the post's share as one gives way to the other; y: its bake's texels a
+                // side, crowd.js bakeRes from HI as read here; z: which of its smaller pictures, one texel to a pixel: its size on
+                // screen against the bake's, the plant three quarters of the bake's frame)
+                const BR = clamp(exp2(ceil(log2(max(V.crowd.rule[0].z, 1)))), CROWD.BAKEMIN, CROWD.BAKE), lod = clamp(floor(log2(BR.mul(0.75).div(max(pxR, 1))).add(0.5)), 0, log2(BR).sub(2));
+                vDense.assign(vec4(baked.select(crowdDense(R.into), R.fade), BR, D.bakeTex && feed ? lod : float(0), V.ao));   // (w: its corner's ao, which its light was reckoned with)
               }
               clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos, uv: R.uv }, float(1), H.sunk));
             });
@@ -367,7 +412,13 @@ function plantMaterial(tex, D) {
         const W = weatherOn(n, snowLiftAtVertex(w, clumps)), air = airOf(w);   // what the weather does to it (wet, its snow in clumps), and the air before it
         // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer)
         const tint = leaf.select(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(V.shade.mul(0.3).add(0.84)).mul(Tn), vec3(1));
-        vMul.assign(L.mul(tint).mul(W.keep).mul(air.k));
+        // (a far body darker at its rim, where it turns away from the eye: neighbouring crowns part by the shade between them)
+        const rim = Lv?.crowd && LOD.BAKE ? mix(float(CROWD.RIM), float(1), smoothstep(0.05, 0.6, abs(n0.dot(Ve)))) : float(1), rimmed = V.crowd ? V.crowd.body.greaterThan(0.5).and(V.crowd.body.lessThan(3.5)).select(rim, float(1)) : float(1);
+        // (a far body wearing its crown baked is lit texel by texel in the fragment, as its leaves are: here only what
+        // that light is multiplied by, and what it needs: the sun as it reaches this corner, through-light, wrap, the turn)
+        const bakedBody = vImp && V.crowd ? V.crowd.rule[3].y.greaterThan(0).and(V.crowd.body.greaterThan(0.5)).and(V.crowd.body.lessThan(3.5)) : null;
+        if (vLit) vLit.assign(vec4(cloudAtVertex(w), through, wrap, B.x));
+        vMul.assign(bakedBody ? bakedBody.select(tint.mul(W.keep).mul(air.k).mul(rimmed), L.mul(tint).mul(W.keep).mul(air.k).mul(rimmed)) : L.mul(tint).mul(W.keep).mul(air.k).mul(rimmed));
         vAdd.assign(W.add.mul(L).mul(air.k).add(air.col.mul(float(1).sub(air.k))));
       });
       return clipOf(w);
@@ -384,21 +435,37 @@ function plantMaterial(tex, D) {
         const whole = step(1.5, vPart);
         if (vImp) If(vImp.w.greaterThan(0.5), () => {
           // a far body wearing its crown baked: as much of it as the crown covers there, as shaded as the crown is there
-          const R = CROWD.BAKE, tx = clamp(floor(vImp.x.mul(R)), 0, R - 1), ty = clamp(float(R - 1).sub(floor(vImp.y.mul(R))), 0, R - 1), layer = floor(vImp.z.add(0.5));
-          const t = uint(layer.mul(R * R).add(ty.mul(R)).add(tx)), cs = vec2(0).toVar();
-          if (bakeTex) cs.assign(bakeTex.sample(vec2(tx.add(0.5), ty.add(0.5)).div(R)).depth(layer).xy);   // (the texel itself: nearest, its rows from the top as baked)
+          const pick = ign(screenCoordinate.xy), rise = ign(screenCoordinate.xy.add(vec2(37, 17)));   // (which view this pixel takes: the one from above as far as the eye is up; else the next side view as far as the eye has come round to it)
+          const at = rise.lessThan(vImp2.w).select(vImp2.xyz, pick.lessThan(vImp1.w).select(vImp1.xyz, vImp.xyz));
+          // (its picture of n texels a side at this size: crowd.js BAKEMIPS, its rows from the top as baked; t: the texel's own number)
+          const R = vDense.y, lod = vDense.z, n = floor(R.div(exp2(lod)).add(0.5)), layer = floor(at.z.add(0.5));
+          const tx = clamp(floor(at.x.mul(n)), 0, n.sub(1)), ty = clamp(n.sub(1).sub(floor(at.y.mul(n))), 0, n.sub(1)), cs = vec4(0).toVar();
+          const X = lod.greaterThan(0.5).select(R, float(0)).add(tx), Y = lod.greaterThan(0.5).select(R.sub(R.div(exp2(lod.sub(1)))), float(0)).add(ty);
+          const t = bakeTex ? uint(layer.mul(CROWD.BAKE * 1.5 * CROWD.BAKE).add(Y.mul(CROWD.BAKE * 1.5)).add(X)) : uint(layer.mul(R).mul(R).add(ty.mul(R)).add(tx));
+          if (bakeTex) cs.assign(bakeTex.sample(vec2(X.add(0.5).div(CROWD.BAKE * 1.5), Y.add(0.5).div(CROWD.BAKE))).depth(layer));   // (the texel itself: nearest)
           else {
             const base = uint(floor(vBase.x.add(0.5)).mul(4096).add(floor(vBase.y.add(0.5))));
-            const E = elemOf(base.add(t.shiftRight(uint(3)))), w = t.bitAnd(uint(7)).shiftRight(uint(1)), word = w.equal(uint(0)).select(E.x, w.equal(uint(1)).select(E.y, w.equal(uint(2)).select(E.z, E.w)));
-            const bits16 = word.shiftRight(t.bitAnd(uint(1)).mul(uint(16))); cs.assign(vec2(float(bits16.bitAnd(uint(255))), float(bits16.shiftRight(uint(8)).bitAnd(uint(255)))).div(255));
+            const E = elemOf(base.add(t.shiftRight(uint(2)))), w = t.bitAnd(uint(3)), word = w.equal(uint(0)).select(E.x, w.equal(uint(1)).select(E.y, w.equal(uint(2)).select(E.z, E.w)));   // (a texel a word: four bytes)
+            cs.assign(vec4(float(word.bitAnd(uint(255))), float(word.shiftRight(uint(8)).bitAnd(uint(255))), float(word.shiftRight(uint(16)).bitAnd(uint(255))), float(word.shiftRight(uint(24)).bitAnd(uint(255)))).div(255));
           }
           const cover = cs.x, shade = cs.y;
           // a baked texel is a clump of leaves there or a gap, as often as the crown covers it there (its own number, the
           // same every frame: the crown's gaps stay where they are), so the far crown is as see-through as the near one
           // (where it stands against the sky, as see-through as the crown; else solid where the crown covers half and more)
-          If(cover.lessThanEqual(mix(float(0.5), fract(sin(float(t).mul(12.9898).add(78.233)).mul(43758.5453)), clamp(vImp.w.sub(1), 0, 1))), () => { Discard(); });
-          T.assign(vec4(T.rgb.mul(pow(clamp(shade.mul(2), 0.3, 2), 1.3).mul(0.93)), 1));   // (lighter or darker than the crown on the whole; measured beside main's far levels from 90 m and by the tent)
+          // (and coming in, a texel shows once the body has come in as far as its own second number: the same every frame,
+          // so the body fills in grain by grain, never grows or jumps)
+          If(cover.lessThanEqual(mix(float(0.5), fract(sin(float(t).mul(12.9898).add(78.233)).mul(43758.5453)), clamp(vImp.w.sub(1), 0, 1))).or(fract(sin(float(t).mul(39.3468).add(11.1351)).mul(24634.6345)).greaterThanEqual(vDense.x)), () => { Discard(); });
+          // (lit as its leaves are, by the cards' own light (the vertex stage's L), with the leaves' way there turned with the
+          // plant, the live sky and sun, the sun as it reaches the body's corners (its cloud and cast shadow), its ao and
+          // its depth in the crown: light tops and dark sides to its lobes, under the sun as it moves. Squared after: T)
+          const nT = turnOf(vLit.w).turn(octDecode(cs.zw)), wrapT = vLit.z, aoT = shade;
+          const ndlT = nT.dot(U.uSunDir).add(wrapT).div(wrapT.add(1)).max(0);
+          const LT = skyLight(nT).mul(aoT.mul(aoT).mul(0.75).add(aoT.mul(0.25))).add(U.uSun.mul(vLit.x).mul(ndlT.add(vLit.y)).mul(aoT.mul(0.6).add(0.4)));
+          T.assign(vec4(T.rgb.mul(sqrt(LT)), 1));
         });
+        // (the wood and the post while one gives way to the other: each pixel of the one or of the other, by a fixed
+        // pattern on the screen, as much of each as its share)
+        if (vImp) If(vImp.w.lessThan(0.5).and(vDense.x.lessThan(0.999)).and(ign(screenCoordinate.xy).greaterThanEqual(vDense.x)), () => { Discard(); });
         // (the shadow map takes no coverage: cut)
         If(shadow, () => { If(T.a.lessThan(vCut.x).and(whole.lessThan(0.5)), () => { Discard(); }); })
           .Else(() => { alpha.assign(max(smoothstep(vCut.x.sub(0.08), vCut.x.add(0.08), T.a), whole).mul(vCut.y)); If(alpha.lessThan(0.04), () => { Discard(); }); });
@@ -490,17 +557,19 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // the far bodies' baked crowns (`?lod=new`): a layer each of a shape's baked views, read from the first of its levels
     // that carries them as they come (from the workers, or read back from the browser), in a texture of the stand's own:
     // a pixel samples it, where the heap would be read element by element
-    const BR = CROWD.BAKE, BV = BAKED.length, bakeDone = new Uint8Array(G.meshes);
-    G.bakeTex = LOD.on && LOD.BAKE && CROWDED.some(Boolean) ? Object.assign(new THREE.DataArrayTexture(new Uint8Array(BR * BR * 2 * BV * G.meshes), BR, BR, BV * G.meshes), { format: THREE.RGFormat, type: THREE.UnsignedByteType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false, colorSpace: THREE.NoColorSpace }) : null;
+    // (each layer a view's picture at its shape's own size and its smaller pictures beside it, BAKEMIPS: made here as it
+    // comes, each texel of a smaller one the mean of the four under it, as much covered over the cut as the whole picture
+    // is, so far off a body neither thins nor sparkles)
+    const BR = CROWD.BAKE, BW = BR + BR / 2, BV = BAKED.length, bakeDone = new Uint8Array(G.meshes);
+    G.bakeTex = LOD.on && LOD.BAKE && CROWDED.some(Boolean) ? Object.assign(new THREE.DataArrayTexture(new Uint8Array(BW * BR * 4 * BV * G.meshes), BW, BR, BV * G.meshes), { format: THREE.RGBAFormat, type: THREE.UnsignedByteType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false, colorSpace: THREE.NoColorSpace }) : null;
     const bakeIn = G.bakeTex && ((l, k0, nk, verts, elems) => {
       if (!CROWDED[l]) return;
       let any = false;
       for (let j = 0; j < nk; j++) {
         const kd = k0 + j; if (bakeDone[kd]) continue;
-        const o = j * elems * 4, r = unhalf(verts[o + 6] >>> 16), at = unhalf(verts[o + 7] & 0xffff) * 1024 + unhalf(verts[o + 7] >>> 16);   // (its numbers' slots 13, 14 and 15: crowd.js RULE)
+        const o = j * elems * 4, r = unhalf(verts[o + 6] >>> 16), at = unhalf(verts[o + 7] & 0xffff) * 1024 + unhalf(verts[o + 7] >>> 16), res = bakeRes(unhalf(verts[o + 1] & 0xffff));   // (its numbers' slots 2 (HI: its size), 13, 14 and 15: crowd.js RULE)
         if (!(r > 0) || !(at > 0)) continue;
-        const bytes = new Uint8Array(verts.buffer, verts.byteOffset + (o + at * 8) * 4, BR * BR * 2 * BV);
-        G.bakeTex.image.data.set(bytes, kd * BR * BR * 2 * BV); bakeDone[kd] = 1; any = true;
+        bakeLayers(new Uint8Array(verts.buffer, verts.byteOffset + (o + at * 8) * 4, res * res * 4 * BV), res, G.bakeTex.image.data, kd * BV, BW, BR); bakeDone[kd] = 1; any = true;
       }
       if (any) G.bakeTex.needsUpdate = true;
     });
@@ -508,7 +577,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
       name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1),
       make: { per: 2, onBlock: bakeIn || null, numbers: { rows: 4, of: (k) => numbers.subarray(k * 16, k * 16 + 16) }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, last: i === n - 1, ...(CROWDED[i] ? { crowd: true, first: i === CROWDED.indexOf(true), splay: FINE } : {}) }, feedOf(i, at)); m.vertexNode = Fn(() => shape(src.readAt(0, slot), src.readAt(1, slot)))(); return m; } },
       // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
-      zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 2${LOD.on ? ` crowd ${LOD.CARD}:${LOD.KMAX}:${LOD.SPLIT}:${LOD.BAKE}:${LOD.FAR}` : ''}|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
+      zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 3${LOD.on ? ` crowd ${LOD.CARD}:${LOD.KMAX}:${LOD.SPLIT}:${LOD.BAKE}:${LOD.FAR}` : ''}|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
     });
     D.crowded = CROWDED; drawers.push(D);   // (which of its levels are the crowd kit's: their counts hold the shape's numbers too)
     // what of it is solid (src/world/bodies.js): every plant of the stand round the walker, whatever its kind and size

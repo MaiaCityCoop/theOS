@@ -64,6 +64,7 @@ export const CROWD = {
   A: 2,            // how fast a crowd thins under P0: its share is (px / P0)^A (2: as many cards to a pixel of crown at every size)
   E: 0.45,         // how much those that stay are enlarged: by (the share of the cards' area that is drawn)^-E. Measured on every shape that has cards enough to measure (EMIN … EMAX); this is for the others
   EMIN: 0.2, EMAX: 0.6,
+  FIT: 0.04,       // … the second share it is measured at (as fewest LEAST parts): the larger E of the two
   KMAX: 5,         // … and never by more than this: where it is reached the far body takes over
   LEAST: 8,        // … or where fewer card parts than this would stay
   WIN: 1.3,        // the far body takes over from its start down to this many times smaller: the last parts go one by one, the body grows from the crown's middle
@@ -72,8 +73,13 @@ export const CROWD = {
   RUN: 16,         // cards in a run: the engine draws a crowd's cards by runs, each 4 x RUN vertices and one shared list of 6 x RUN corners
   CLASSES: 4,      // the most classes by size a crowd is sorted into (each half the area of the one before)
   HULLS: [[6, 3], [5, 2], [4, 1]],   // the far bodies, finest first: corners round a ring, rings between the two poles (36, 20 and 8 triangles)
-  TURN: [[24, 18], [9, 7]],          // pixels: between which sizes the first body turns into the second, and the second into the third (the post thins away with the second). Each ends where today's kinds' bands for trees end (18, 7): a level of the far band then holds one body, not three
-  BAKE: 48,        // texels a side of each of a crown's baked views (bakeOf), where its far bodies wear it (LOD.BAKE)
+  TURN: [[24, 18], [9, 7]],          // pixels: between which sizes the first body turns into the second, and the second into the third (the post thins away evenly from the far body's window's end to the last of these). Each ends where today's kinds' bands for trees end (18, 7): a level of the far band then holds one body, not three
+  BAKE: 128,       // texels a side of each of a crown's baked views at most (bakeOf), where its far bodies wear it (LOD.BAKE): a shape's own, as many as its far body is pixels tall where it comes (bakeRes)
+  BAKEMIN: 16,     // … and at least
+  RIM: 0.45,       // a baked far body's light at its rim, where it turns away from the eye, against its middle's (src/scatter/trees.js): crowns side by side part by the shade between them
+  DEEP: 0.8,       // a baked texel is darker as what shows there lies deeper in the crown, seen from its side: by this much where it lies at the crown's far side (its hollows and gaps between its lobes, in the crown's own shade)
+  SWAP: [0.3, 0.6], // how far into the far body's window (as DENSE) the wood gives way to the post: the one going out as the other comes in, pixel by pixel
+  DENSE: 0.8,      // a baked far body stands at its full size from the first and comes in denser, texel by texel, as the cards go one by one over its window (`into`, 0 … 1): into / (1 - DENSE + DENSE into) of its texels, as many as fill what the cards leave where a crown covers this much (the walk, tools/walk.js: 0.8 holds the oak's and the pine's cover and outline both within 9 %; 0.9 lets the sparser pine's cover run 14 % over, 0.7 its outline 15 % under)
   FAR: 18,         // pixels: the far body has taken over by this size at the latest (a crown's cards are then a pixel or two each), so the far levels hold no cards
   REACH: 0.95,     // a body's corner lies as far out as this share of the crown's corners in its sector reach
   STOPS: 1 - sqrt(1 - 0.45),         // how much of the light one triangle of a card stops (a sprig of two crossed cards: 45 %), where cover is reckoned
@@ -82,13 +88,14 @@ export const CROWD = {
 /** Whether the plants are drawn by this kit (`?lod=new`, set by src/scatter/trees.js before anything is built, and handed
     to the recipes' workers), and the numbers that set what a plant costs. CARD: at today's level bands a card of the
     research's 15 pixels submits two to four times today's level at the top of a band; 30 brings the plants to about
-    main's vertices (intent 0033, Build). KMAX: the far body comes no sooner than the cards' enlarging must stop.
+    main's vertices (intent 0033, Build). KMAX: the far body comes no sooner than the cards' enlarging must stop; 4 (was 8): it comes in
+    while the cards still hold the crown's outline, so the plant does not thin before it (intent 0033, the walk).
     SPLIT: no level the kit makes wider than this many times on screen where it can hold cards (assets/kit/tree.js; 0:
     the kinds' bands as they are): a level holds all its band may show at its widest. 0 by default: cut at 2, fewer
     vertices were submitted but the frame was slower (more tiers to pack, more draws; intent 0033, Build). STANDS: the size a stand that
     changes level as one measures its plants by, of each plant asset (src/scatter/trees.js). `?card=`, `?kmax=` and
     `?split=` change them. */
-export const LOD = { on: false, CARD: 30, KMAX: 8, SPLIT: 0, BAKE: false, FAR: 18, STANDS: null };
+export const LOD = { on: false, CARD: 30, KMAX: 4, SPLIT: 0, BAKE: false, FAR: 18, STANDS: null };
 /** What the plants are drawn with where the address says nothing: 'old', their files' own levels; 'new', this kit's.
     `?lod=old` and `?lod=new` choose either, to compare (src/scatter/trees.js). */
 export const LOD_DEFAULT = 'old';
@@ -167,6 +174,36 @@ function coverOf(P, n, I, stop, F, R, own = null) {
   }
   const all = sum / (SIDES.length * R * R);
   return own ? [all, sum2 / (SIDES.length * R * R)] : all;
+}
+/** What a crown's leaves (the parts `part` 1) cover seen from each of BAKED's sides, RES pixels a side about `mid`: the
+    pictures a far body must hold (enclosing). -> { mid, r, masks: Uint8Array a side, count: how many pixels each } */
+function crownSeen(P, n, I, part, mid, RES = 48) {
+  let r = 0; for (let i = 0; i < n; i++) if (part[i] === 1) r = max(r, hypot(P[i * 3] - mid[0], P[i * 3 + 1] - mid[1], P[i * 3 + 2] - mid[2]));
+  const J = []; for (let t = 0; t < I.length; t += 3) if (part[I[t]] === 1 && part[I[t + 1]] === 1 && part[I[t + 2]] === 1) J.push(I[t], I[t + 1], I[t + 2]);
+  const F = { mid, r: (r || 1) * 1.3, RES }, masks = BAKED.map((V) => seenFrom(P, n, J, V, F));
+  return { ...F, masks, count: masks.map((M) => M.reduce((a, b) => a + b, 0)) };
+}
+/** Which pixels triangles (P, n corners, I) cover seen from side V ({ u, v }) in frame F ({ mid, r, RES }). */
+function seenFrom(P, n, I, { u, v }, { mid, r, RES }) {
+  const M = new Uint8Array(RES * RES), k = RES / (2 * r), X = new Float32Array(n), Y = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const x = P[i * 3] - mid[0], y = P[i * 3 + 1] - mid[1], z = P[i * 3 + 2] - mid[2]; X[i] = (x * u[0] + y * u[1] + z * u[2] + r) * k - 0.5; Y[i] = (x * v[0] + y * v[1] + z * v[2] + r) * k - 0.5; }
+  for (let t = 0; t < I.length; t += 3) {
+    const a = I[t], b = I[t + 1], c = I[t + 2], X0 = X[a], Y0 = Y[a], X1 = X[b], Y1 = Y[b], X2 = X[c], Y2 = Y[c];
+    const x0 = max(0, ceil(min(X0, X1, X2))), x1 = min(RES - 1, floor(max(X0, X1, X2))), y0 = max(0, ceil(min(Y0, Y1, Y2))), y1 = min(RES - 1, floor(max(Y0, Y1, Y2)));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const e0 = (X1 - X0) * (y - Y0) - (Y1 - Y0) * (x - X0), e1 = (X2 - X1) * (y - Y1) - (Y2 - Y1) * (x - X1), e2 = (X0 - X2) * (y - Y2) - (Y0 - Y2) * (x - X2);
+      if ((e0 >= 0 && e1 >= 0 && e2 >= 0) || (e0 <= 0 && e1 <= 0 && e2 <= 0)) M[y * RES + x] = 1;
+    }
+  }
+  return M;
+}
+/** The least reach (1 … 3) at which a far body H (its corners at reach r: at(r)) holds HOLD of what the crown covers from
+    each side it is baked from (crownSeen), to a hundredth. */
+function enclosing(crown, H, at, HOLD = 0.995) {
+  const holds = (r) => { const Q = at(r); return BAKED.every((V, j) => { if (!crown.count[j]) return true; const M = seenFrom(Q, H.count, H.index, V, crown), C = crown.masks[j]; let k = 0; for (let i = 0; i < M.length; i++) k += M[i] & C[i]; return k >= HOLD * crown.count[j]; }); };
+  let lo = 0.5, hi = 1; while (!holds(hi) && hi < 3) { lo = hi; hi = min(3, hi * 1.25); }
+  for (let i = 0; i < 8 && hi - lo > 0.01; i++) { const mm = (lo + hi) / 2; if (holds(mm)) hi = mm; else lo = mm; }
+  return hi;
 }
 /** The x at which a measure that rises with x (f) reaches `want`, to half a hundredth of it: from a first guess x0,
     stepping by how the measure answered (`by`: the power it is taken to rise with at first). */
@@ -357,8 +394,12 @@ export function crowd(m, opts = {}) {
   const stop = Float32Array.from({ length: n }, (_, v) => (m.part[v] === 1 ? K.STOPS : 1)), [cover, coverCards] = N ? coverOf(P, n, I, stop, frame, K.PIC, Uint8Array.from({ length: n }, (_, v) => (m.part[v] === 1 ? 1 : 0))) : [0, 0];
   // E, measured: a first tenth of the turns, drawn as the engine draws them (the last of them still growing), is enlarged until the crowd by itself covers what all of it covered
   let E = K.E;
-  if (opts.E == null && N > K.LEAST) {
-    const s = max(0.1, K.LEAST / N), px = P0 * pow(s, 1 / K.A), a = areaAt(s, meta), ids = [], of = [], J = [], at = new Map();
+  // (measured at a tenth of the cards; where that finds the least E there is, again at as few as K.FIT, where the last of
+  // them must still hold the crown before the far body comes, and the larger taken: a shrub whose cards hold its outline
+  // at a tenth but thin under it)
+  if (opts.E == null && N > K.LEAST) for (const s of [max(0.1, K.LEAST / N), max(K.FIT, K.LEAST / N)]) {
+    if (s !== max(0.1, K.LEAST / N) && (s >= max(0.1, K.LEAST / N) || E > K.EMIN)) break;
+    const px = P0 * pow(s, 1 / K.A), a = areaAt(s, meta), ids = [], of = [], J = [], at = new Map();
     for (let t = 0; t < N; t++) {
       const g = grownAt(px, P0 * pow((t + 0.5) / N, 1 / K.A), K.GROW); if (g <= 0) break;
       for (let j = pp[order[t]]; j < pp[order[t] + 1]; j++) { const q = pieces[j]; for (let i = pVerts[q]; i < pVerts[q + 1]; i++) { at.set(verts[i], ids.length); ids.push(verts[i]); of.push(order[t], g); } for (let i = pTris[q]; i < pTris[q + 1]; i++) J.push(at.get(I[tris[i]]), at.get(I[tris[i] + 1]), at.get(I[tris[i] + 2])); }
@@ -368,7 +409,7 @@ export function crowd(m, opts = {}) {
       for (let i = 0; i < ids.length; i++) { const v = ids[i] * 3, p = of[i * 2] * 3, g = of[i * 2 + 1]; for (let c = 0; c < 3; c++) { const T = tip[p + c], r = T + (R[v + c] - T) * k; Q[i * 3 + c] = r + (T + (P[v + c] - T) * k - r) * g; } }
       return coverOf(Q, ids.length, J, st, frame, K.PIC);
     }, coverCards, pow(a, -K.E), 1.2) : 0;
-    if (k > 1) E = min(K.EMAX, max(K.EMIN, -log(k) / log(a)));
+    if (k > 1) E = max(s === max(0.1, K.LEAST / N) ? K.EMIN : E, min(K.EMAX, max(K.EMIN, -log(k) / log(a))));
   }
   meta[META.P0] = P0; meta[META.E] = E; meta[META.SIZE] = size; meta[META.PARTS] = N; meta.set(mid, META.MID);
   // where the far body takes over: the cards would be enlarged more than KMAX times, or fewer than LEAST parts would stay; the M parts still there go one by one over its window
@@ -459,10 +500,14 @@ export function crowd(m, opts = {}) {
     post = N ? postOf() : null;
     // each body sized so that, with the post, the thing covers as much as it did
     const want = N ? cover : coverOf(P, n, I, stop, frame, K.PIC), ones = new Float32Array(64).fill(1);
+    const crown = K.enclose ? crownSeen(P, n, I, m.part, bm) : null;
     hulls.forEach((H, i) => {
       const P2 = post && i < 2 ? post : null, nq = H.count + (P2 ? P2.count : 0), Q = new Float32Array(nq * 3), J = new Uint16Array(H.index.length + (P2 ? P2.index.length : 0));
       J.set(H.index); if (P2) { Q.set(P2.position, H.count * 3); J.set(P2.index.map((v) => v + H.count), H.index.length); }
-      H.reach = K.enclose ? K.enclose : reaching((r) => { Q.set(placed(H, r)); return coverOf(Q, nq, J, ones, frame, K.PIC); }, want, 1, 2);   // (a body that wears its crown baked encloses it: the bake's gaps say what it covers)
+      // (a body that wears its crown baked encloses it: the bake's gaps say what it covers. Each, the coarse ones too, as far
+      // out as it must be to hold what the crown's leaves cover from every side it is baked from, and never less than
+      // `enclose`: what it shows is the bake, cut by its own outline, so one smaller than the crown cuts the crown)
+      H.reach = K.enclose ? max(K.enclose, enclosing(crown, H, (r) => placed(H, r))) : reaching((r) => { Q.set(placed(H, r)); return coverOf(Q, nq, J, ones, frame, K.PIC); }, want, 1, 2);
       H.position = placed(H, H.reach);
     });
     hulls.forEach((H, i) => { H.to = i + 1 < hulls.length ? placesOn(H, hulls[i + 1]) : Float32Array.from({ length: H.count * 3 }, (_, j) => bm[j % 3]); });
@@ -563,22 +608,40 @@ export const BAKED = [...Array.from({ length: 8 }, (_, a) => { const z = (a * PI
   return { w, u, v: [w[1] * u[2] - w[2] * u[1], w[2] * u[0] - w[0] * u[2], w[0] * u[1] - w[1] * u[0]] };
 });
 /** How many of a plant's vertices (32 bytes each, assets/kit/plant.js) a baked crown takes. */
-export const bakedVerts = (K = CROWD) => ceil((BAKED.length * K.BAKE * K.BAKE * 2) / 32);
+/** A number as the half float the GPU reads it as (assets/kit/plant.js packs the rule so): what the shader sees. */
+const f16 = Math.f16round ?? ((x) => { if (!(x > 0)) return x; const q = 2 ** (floor(log2(x)) - 10); return round(x / q) * q; });
+/** How many texels a side a shape's baked views have: as many as its far body is pixels tall where it comes in (HI, its
+    window's start: the next power of two, BAKEMIN … BAKE), so it never shows fewer texels than pixels. From HI as the
+    GPU reads it, so the shader reckons the same (src/scatter/trees.js). */
+export const bakeRes = (hi, K = CROWD) => { const h = f16(hi); return h > 0 ? min(K.BAKE, max(K.BAKEMIN, 2 ** ceil(log2(h)))) : K.BAKEMIN; };
+/** The texels a layer of a stand's baked views holds: a view's picture at its own size, and its smaller pictures to its
+    right (each half the one before, one under the other, down to 4 texels), BAKE x 1.5 BAKE (src/scatter/trees.js). */
+export const BAKEMIPS = (res) => { const out = [{ x: 0, y: 0, n: res }]; for (let n = res >> 1, y = 0; n >= 4; y += n, n >>= 1) out.push({ x: res, y, n }); return out; };
+export const bakedVerts = (K = CROWD) => ceil((BAKED.length * K.BAKE * K.BAKE * 4) / 32);
+/** A direction (not of length one) as two numbers 0 … 1, octahedral (src/scatter/trees.js octDecode reads it). */
+export function octOf(x, y, z) {
+  const l = abs(x) + abs(y) + abs(z); if (!(l > 0)) return [0.5, 0.5];
+  let u = x / l, v = y / l; if (z < 0) { const pu = u, pv = v; u = (1 - abs(pv)) * (pu >= 0 ? 1 : -1); v = (1 - abs(pu)) * (pv >= 0 ? 1 : -1); }
+  return [u * 0.5 + 0.5, v * 0.5 + 0.5];
+}
 /** A shape's crown as the far bodies wear it: drawn from each of BAKED's directions, RES texels a side over 2 r metres
-    about `mid`, every texel two bytes: how much of it the crown covers (a card stopping STOPS of the light, the wood all
-    of it) and how much light reaches what covers it, as against the crown on the whole (its corners' ao, front to back:
-    what lies behind counts as much as shows through what lies before it; 0.5 as the crown's mean). S: a shape (crowd's).
-    -> { res, r, bytes: Uint8Array(views x res x res x 2) } */
+    about `mid`, every texel four bytes: how much of it the crown covers (a card stopping STOPS of the light, the wood all
+    of it) and how much light reaches what covers it (its corners' ao, front to back: what lies behind counts as much as
+    shows through what lies before it; darker as it lies deeper in the crown from that side, DEEP), and which way the
+    leaves face there (their normals so weighted, octahedral: octOf), so a far body is lit texel by texel as its leaves
+    are, under the live sun (src/scatter/trees.js). S: a shape (crowd's).
+    -> { res, r, bytes: Uint8Array(views x res x res x 4) } */
 export function bakeOf(S, K = CROWD) {
-  const res = K.BAKE, mid = S.mid, P = S.position, n = S.count, I = [];
+  const res = bakeRes(S.hull.hi, K), mid = S.mid, P = S.position, n = S.count, I = [];
   for (let c = 0; c < S.cards; c++) I.push(4 * c, 4 * c + 1, 4 * c + 2, 4 * c, 4 * c + 2, 4 * c + 3);
   for (const x of S.index) I.push(x);
   let r = 0; for (let i = 0; i < n; i++) r = max(r, hypot(P[i * 3] - mid[0], P[i * 3 + 1] - mid[1], P[i * 3 + 2] - mid[2]));
   r *= 1.02;
-  const k = res / (2 * r), bytes = new Uint8Array(BAKED.length * res * res * 2), T = new Float32Array(res * res), A = new Float32Array(res * res), Wt = new Float32Array(res * res), X = new Float32Array(n), Y = new Float32Array(n);
+  const k = res / (2 * r), bytes = new Uint8Array(BAKED.length * res * res * 4), T = new Float32Array(res * res), A = new Float32Array(res * res), Dp = new Float32Array(res * res), Wt = new Float32Array(res * res), Nm = new Float32Array(res * res * 3), X = new Float32Array(n), Y = new Float32Array(n), Nr = S.normal;
   const nt = I.length / 3, depth = new Float32Array(nt), order = new Uint32Array(nt);
   BAKED.forEach(({ w, u, v }, view) => {
-    T.fill(1); A.fill(0); Wt.fill(0);
+    T.fill(1); A.fill(0); Dp.fill(0); Wt.fill(0); Nm.fill(0);
+    let front = -Infinity; for (let i = 0; i < n; i++) front = max(front, P[i * 3] * w[0] + P[i * 3 + 1] * w[1] + P[i * 3 + 2] * w[2]);
     for (let i = 0; i < n; i++) { const x = P[i * 3] - mid[0], y = P[i * 3 + 1] - mid[1], z = P[i * 3 + 2] - mid[2]; X[i] = (x * u[0] + y * u[1] + z * u[2] + r) * k - 0.5; Y[i] = (x * v[0] + y * v[1] + z * v[2] + r) * k - 0.5; }
     // (front to back: what is nearest the eye is seen first, and what lies behind it only through it)
     for (let j = 0; j < nt; j++) { let d = 0; for (let c = 0; c < 3; c++) { const i = I[j * 3 + c] * 3; d += P[i] * w[0] + P[i + 1] * w[1] + P[i + 2] * w[2]; } depth[j] = d; order[j] = j; }
@@ -587,16 +650,22 @@ export function bakeOf(S, K = CROWD) {
       const a = I[t], b = I[t + 1], c = I[t + 2], X0 = X[a], Y0 = Y[a], X1 = X[b], Y1 = Y[b], X2 = X[c], Y2 = Y[c];
       const x0 = max(0, ceil(min(X0, X1, X2))), x1 = min(res - 1, floor(max(X0, X1, X2))), y0 = max(0, ceil(min(Y0, Y1, Y2))), y1 = min(res - 1, floor(max(Y0, Y1, Y2)));
       if (x1 < x0 || y1 < y0) continue;
-      const stop = S.part[a] === 1 ? K.STOPS : 1, ao = (S.ao[a] + S.ao[b] + S.ao[c]) / 3, ax = X1 - X0, ay = Y1 - Y0, bx = X2 - X1, by = Y2 - Y1, gx = X0 - X2, gy = Y0 - Y2;
+      // (its normal: its corners', turned to face this view, a leaf's two sides being one)
+      let nx = Nr[a * 3] + Nr[b * 3] + Nr[c * 3], ny = Nr[a * 3 + 1] + Nr[b * 3 + 1] + Nr[c * 3 + 1], nz = Nr[a * 3 + 2] + Nr[b * 3 + 2] + Nr[c * 3 + 2];
+      if (nx * w[0] + ny * w[1] + nz * w[2] < 0) { nx = -nx; ny = -ny; nz = -nz; }
+      const nl = hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+      const stop = S.part[a] === 1 ? K.STOPS : 1, ao = (S.ao[a] + S.ao[b] + S.ao[c]) / 3, deep = min(1, (front - depth[j] / 3) / (2 * r)), ax = X1 - X0, ay = Y1 - Y0, bx = X2 - X1, by = Y2 - Y1, gx = X0 - X2, gy = Y0 - Y2;
       for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
         const e0 = ax * (y - Y0) - ay * (x - X0), e1 = bx * (y - Y1) - by * (x - X1), e2 = gx * (y - Y2) - gy * (x - X2);
-        if ((e0 >= 0 && e1 >= 0 && e2 >= 0) || (e0 <= 0 && e1 <= 0 && e2 <= 0)) { const j = y * res + x; A[j] += ao * stop * T[j]; Wt[j] += stop * T[j]; T[j] *= 1 - stop; }
+        if ((e0 >= 0 && e1 >= 0 && e2 >= 0) || (e0 <= 0 && e1 <= 0 && e2 <= 0)) { const j = y * res + x, f = stop * T[j]; A[j] += ao * f; Dp[j] += deep * f; Nm[j * 3] += nx * f; Nm[j * 3 + 1] += ny * f; Nm[j * 3 + 2] += nz * f; Wt[j] += f; T[j] *= 1 - stop; }
       }
     }
-    // its light as against the crown's own on the whole (half of it a byte's middle): the bodies are lit as the rest, the
-    // bake only says where it is lighter or darker than that. (The picture's rows from its top: v up)
-    let sa = 0, sw = 0; for (let j = 0; j < res * res; j++) { sa += A[j]; sw += Wt[j]; } const mean = sa > 0 ? sa / sw : 1;
-    for (let y = 0; y < res; y++) for (let x = 0; x < res; x++) { const j = y * res + x, o = (view * res * res + (res - 1 - y) * res + x) * 2; bytes[o] = round((1 - T[j]) * 255); bytes[o + 1] = Wt[j] > 0 ? round(min(1, (A[j] / Wt[j] / mean) * 0.5) * 255) : 128; }
+    // its ao as it is (darker deeper in: 0 where nothing covers it) and the leaves' normal there, in the plant's own frame
+    // (octOf): the far body is lit there as its leaves are, live (src/scatter/trees.js). (The picture's rows from its top: v up)
+    for (let y = 0; y < res; y++) for (let x = 0; x < res; x++) {
+      const j = y * res + x, o = (view * res * res + (res - 1 - y) * res + x) * 4, [ox, oy] = octOf(Nm[j * 3], Nm[j * 3 + 1], Nm[j * 3 + 2]);
+      bytes[o] = round((1 - T[j]) * 255); bytes[o + 1] = Wt[j] > 0 ? round(min(1, (A[j] / Wt[j]) * (1 - K.DEEP * (Dp[j] / Wt[j]))) * 255) : 0; bytes[o + 2] = round(ox * 255); bytes[o + 3] = round(oy * 255);
+    }
   });
   return { res, r, bytes };
 }

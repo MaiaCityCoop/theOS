@@ -5,7 +5,8 @@
 //             crown 20 px tall, within 15 % below)
 //   cover     how much light it stops, against the near view's
 //   jump      how much the picture changes from one step to the next, against the median of the ten steps round it
-//             (check 2: no step more than 3 times; 'alone' where nothing round it changes at all: the old levels' one
+//             (check 2: no step more than 3 times, of those changing at least FLOOR of the picture; 'alone' where nothing
+//             round it changes at all: the old levels' one
 //             step between two still stretches)
 //   step      how much the picture changes from one step to the next, as a share of the near view's cover
 // The picture is the plant from one side, 30 degrees up (the bake's first view, so a far body wears its bake as drawn),
@@ -22,6 +23,7 @@ import { crowd, levelOf, LOD, CROWD, META, BAKED, bakeOf, shareAt, areaAt, grown
 import { bandsOf, shapeSize, crowdLevel } from '../assets/kit/plant.js';
 import { writeFileSync } from 'node:fs';
 
+const FLOOR = 0.01;   // (check 2 counts a step only where it changes at least this share of the picture: a hundredth of a step among still ones is no pop)
 const SHEET = [400, 200, 100, 70, 56, 50, 46, 42, 38, 30, 22, 18, 14, 10, 8, 6], RES = 96, STOP = 1 - Math.sqrt(1 - 0.45);
 const names = process.argv.slice(2).length ? process.argv.slice(2) : ['holmoak', 'stonepine', 'mastic'];
 const { u: U, v: V, w: W } = BAKED[0];
@@ -47,18 +49,21 @@ const measure = (C) => { let out = 0, cov = 0; for (const c of C) { if (c >= 0.5
 /** The crowd kit's plant at px (the rule as trees.js crowdRule reckons it, on the whole build). */
 function crowdAt(S, L, px, F) {
   const m = S.meta, HI = m[META.HI], h = hullAt(px, m), k = Math.min(S.KMAX, Math.pow(Math.max(areaAt(shareAt(px, S.P0, S.A), m), 1e-9), -m[META.E]));
+  const into = HI > 0 ? Math.min(1, Math.max(0, Math.log(HI / Math.max(px, 1e-6)) / Math.log(HI / m[META.LO]))) : 0, swap = Math.min(1, Math.max(0, (into - CROWD.SWAP[0]) / (CROWD.SWAP[1] - CROWD.SWAP[0])));   // (into its window; the wood giving way to the post)
   const n = L.count, P = new Float32Array(n * 3), shown = new Uint8Array(n), T0 = CROWD.TURN[0][1], T1 = CROWD.TURN[1][1];
   for (let v = 0; v < n; v++) {
     const b = L.body[v], g = grownAt(px, L.go[v]), p = (i) => L.position[v * 3 + i], r = (i) => L.root[v * 3 + i], tp = (i) => L.tip[v * 3 + i], to = (i) => L.to[v * 3 + i];
     if (!b && L.part[v] === 1) { for (let i = 0; i < 3; i++) { const R = tp(i) + (r(i) - tp(i)) * k, Q = tp(i) + (p(i) - tp(i)) * k; P[v * 3 + i] = R + (Q - R) * g; } shown[v] = g > 0; }
-    else if (b === 4) { const tu = turnedAt(px, 1); for (let i = 0; i < 3; i++) P[v * 3 + i] = p(i) + (to(i) - p(i)) * tu; shown[v] = px < HI && px >= T1 && h >= 0.5; }
-    else if (b) { const j = b - 1, tu = j === 0 ? turnedAt(px, 0) : j === 1 ? turnedAt(px, 1) : 0; for (let i = 0; i < 3; i++) { const q = p(i) + (to(i) - p(i)) * tu; P[v * 3 + i] = r(i) + (q - r(i)) * h; } shown[v] = px < HI && h > 0 && (j === 0 ? px >= T0 : j === 1 ? px >= T1 && px < T0 : px < T1); }
-    else { for (let i = 0; i < 3; i++) P[v * 3 + i] = r(i) + (p(i) - r(i)) * g; shown[v] = (L.go[v] <= 0 || g > 0) && h < 0.5; }
+    else if (b === 4) { const tu = Math.min(1, Math.max(0, Math.log(m[META.LO] / Math.max(px, 1e-6)) / Math.log(m[META.LO] / T1))); for (let i = 0; i < 3; i++) P[v * 3 + i] = p(i) + (to(i) - p(i)) * tu; shown[v] = px < HI && px >= T1 && into > CROWD.SWAP[0]; }
+    else if (b) { const j = b - 1, tu = j === 0 ? turnedAt(px, 0) : j === 1 ? turnedAt(px, 1) : 0; for (let i = 0; i < 3; i++) { const q = p(i) + (to(i) - p(i)) * tu; P[v * 3 + i] = S.bake ? q : r(i) + (q - r(i)) * h; } shown[v] = px < HI && h > 0 && (j === 0 ? px >= T0 : j === 1 ? px >= T1 && px < T0 : px < T1); }   // (baked: at its full size, coming in denser: below)
+    else { for (let i = 0; i < 3; i++) P[v * 3 + i] = r(i) + (p(i) - r(i)) * g; shown[v] = (L.go[v] <= 0 || g > 0) && into < CROWD.SWAP[1]; }
   }
   const bake = S.bake, br = bake ? bake.r : 1, bk = RES / (2 * F.r), I = L.index;
   // a baked body's pixel: the bake's first view at the pixel's place (the picture's frame and the bake's share their axes)
-  const baked = (x, y) => { const wx = (x + 0.5) / bk - F.r, wy = (y + 0.5) / bk - F.r, cu = wx + dot(F.c, U) - dot(S.mid, U), cv = wy + dot(F.c, V) - dot(S.mid, V), tx = Math.floor(((cu / (2 * br)) + 0.5) * bake.res), ty = bake.res - 1 - Math.floor(((cv / (2 * br)) + 0.5) * bake.res); return tx < 0 || ty < 0 || tx >= bake.res || ty >= bake.res ? 0 : bake.bytes[(ty * bake.res + tx) * 2] / 255; };
-  return draw(P, I, (t) => { const a = I[t * 3], b2 = I[t * 3 + 1], c = I[t * 3 + 2]; if (!shown[a] || !shown[b2] || !shown[c]) return 0; const bd = L.body[a]; return bd >= 1 && bd <= 3 && bake ? baked : L.part[a] === 1 && !bd ? STOP : 1; }, F);
+  const baked = (x, y) => { const wx = (x + 0.5) / bk - F.r, wy = (y + 0.5) / bk - F.r, cu = wx + dot(F.c, U) - dot(S.mid, U), cv = wy + dot(F.c, V) - dot(S.mid, V), tx = Math.floor(((cu / (2 * br)) + 0.5) * bake.res), ty = bake.res - 1 - Math.floor(((cv / (2 * br)) + 0.5) * bake.res); return tx < 0 || ty < 0 || tx >= bake.res || ty >= bake.res ? 0 : seen(ty * bake.res + tx) ? bake.bytes[(ty * bake.res + tx) * 4] / 255 : 0; };
+  // (a texel shows once the body has come in as far as its own fixed number: trees.js crowdDense)
+  const dense = into / (1 - CROWD.DENSE + CROWD.DENSE * into + 1e-9), seen = (t) => { const x = Math.sin(t * 39.3468 + 11.1351) * 24634.6345; return x - Math.floor(x) < dense; };
+  return draw(P, I, (t) => { const a = I[t * 3], b2 = I[t * 3 + 1], c = I[t * 3 + 2]; if (!shown[a] || !shown[b2] || !shown[c]) return 0; const bd = L.body[a]; return bd >= 1 && bd <= 3 && bake ? baked : L.part[a] === 1 && !bd ? STOP : bd === 4 ? swap : 1 - swap; }, F);   // (the wood and the post, as much of each as its share of the pixels: trees.js's pattern)
 }
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
@@ -92,7 +97,7 @@ for (const nm of names) {
       row.jump = med > 0 ? diff[i] / med : diff[i] > 0 ? Infinity : 0; row.diff = diff[i]; row.step = diff[i] / ref.cover;
     });
     const worst = (lo, hi, k) => Math.max(...rows.filter((x) => x.px >= lo && x.px < hi).map((x) => Math.abs(x[k] - 1)));
-    const jumps = rows.filter((x) => x.jump > 3 && x.diff > 2).sort((x, y) => y.jump - x.jump);
+    const jumps = rows.filter((x) => x.jump > 3 && x.step >= FLOOR).sort((x, y) => y.jump - x.jump);
     const big = [...rows].sort((x, y) => y.step - x.step).slice(0, 3), x3 = (x) => (x.jump === Infinity ? 'alone' : `${x.jump.toFixed(1)}x`);
     console.log(`${nm} ${way}: outline off by at most ${(worst(20, 601, 'outline') * 100).toFixed(0)} % (20 px and up), ${(worst(last * sink, 20, 'outline') * 100).toFixed(0)} % below; cover ${(worst(20, 601, 'cover') * 100).toFixed(0)} % / ${(worst(last * sink, 20, 'cover') * 100).toFixed(0)} %; steps over 3x their neighbours: ${jumps.length}${jumps.length ? ` (${jumps.slice(0, 6).map((x) => `${x3(x)} at ${x.px} px`).join(', ')})` : ''}; largest steps ${big.map((x) => `${(x.step * 100).toFixed(1)} % at ${x.px} px`).join(', ')}`);
     (out[nm] ??= {})[way] = rows;
