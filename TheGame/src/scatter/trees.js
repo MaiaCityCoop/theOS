@@ -53,6 +53,7 @@ import { LOD, CROWD, levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
 import { crowdLevel, crowdOf, bandsOf, GRID, TIPUV, GOQ } from '../../assets/kit/plant.js';
 import { flagText, flagNum } from '../core/flags.js';
 import { bits, lo16, hi16, sn8 } from './unpack.js';
+import { COVER } from '../materials/bake.js';
 
 // `?lod=new` (intent 0033): every plant's levels but its finest splay are a first share of one build of its nearest
 // level by the crowd kit (assets/kit/crowd.js), and the one rule moves each vertex by its size on screen, smoothly: a
@@ -323,7 +324,8 @@ function plantMaterial(tex, D) {
       // the needles' outline: far off a mip's needles are fainter, so the cut lowers with them and the crown stays full;
       // a card seen edge-on is a flat sliver, not a brush: it fades as it turns away
       // … and foliage right at the eye is let go (walking through a low crown, no card fills the picture)
-      vCut.assign(vec2(mix(0.45, 0.16, smoothstep(15, 220, far)), max(smoothstep(0.06, 0.42, abs(normalize(turn(cardN)).dot(Ve))), body).mul(smoothstep(0.35, 1.3, far))));
+      vCut.assign(vec2(Lv?.crowd && COVER.on ? float(COVER.CUT) : mix(0.45, 0.16, smoothstep(15, 220, far)),   // (a crowd's level where foliage keeps its coverage at every mip, src/materials/bake.js: one cut at every distance)
+         max(smoothstep(0.06, 0.42, abs(normalize(turn(cardN)).dot(Ve))), body).mul(smoothstep(0.35, 1.3, far))));
       vMul.assign(vec3(0)); vAdd.assign(vec3(0));
       If(unlit().not(), () => {   // (drawn into the shadow map, only its depth and its cut-out count)
         // its light: the sky's and the sun's on the dome its crown makes (a crown of a thousand cards takes the light as a
