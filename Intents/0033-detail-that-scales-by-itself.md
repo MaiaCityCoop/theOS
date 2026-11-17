@@ -743,6 +743,27 @@ choice of whether that is good enough is Samuel's on next. Not done: the stress 
 time, Safari. The library's plant does not wear the bake (its far bodies are solid, and enclose). Under the bake the
 plants' submitted() counter counts the bake's bytes as vertices.
 
+### Stage 1: towards the default (2026-11-17)
+
+The coordinator after #32: the horizon by the tent not heavier than main's, 90 m not softer or darker; the library's plant
+wearing the bake; the counter counting vertices only; the stress world not slower; then the default.
+
+- **See-through as the crown.** A baked texel is now a clump of leaves or a gap as often as the crown covers it there
+  (its own fixed number: the gaps stay where they are), where before it was solid from 60 % up. Its light is the bake's
+  against the crown's own mean, so the bodies are lit as the rest and the bake only makes them lighter or darker there.
+- **Measured beside main** (mean and spread of the luminance of the same region): the trees on the horizon by the tent
+  146.4 / 54.7 against main's 145.7 / 54.8 (#32: 143.3 / 58.0); from 90 m over the pine forest 104.2 / 15.0 against
+  98.6 / 16.7 (#32: 95.2 / 16.0). The horizon now matches; from 90 m it is 6 % lighter than main with a little less
+  contrast, and main keeps more crisp dark holes between its crowns.
+- **The library's plant** wears the bake (its bytes in a buffer of its own).
+- **The counter** counts vertices only: the bake now lies after a level's vertices, outside its count.
+- **The stress world**: four frames at its first view, main 25.0, 20.8, 20.6, 20.2 s, `?lod=new` 18.9, 15.8, 21.1,
+  21.3 s: no slower (its plants are not the stands').
+- **The world's frame**, two pairs in opposite order: by the tent +5.2 % and +3.3 %, at the river bend −21 % and +2.3 %.
+  The see-through bake costs a few per cent: every far body's pixel reads the heap and may let what lies behind show.
+- **The default**: `assets/kit/crowd.js` LOD_DEFAULT ('old' still); `?lod=old` and `?lod=new` choose either. Not
+  switched: the horizon matches at a cost of a few per cent of frame time.
+
 ## Propose
 
 ## Story
@@ -775,9 +796,11 @@ plants' submitted() counter counts the bake's bytes as vertices.
   - [ ] the frame times on a GPU (`?gputime`), in Safari and in the stress world
   - [x] alpha mips that keep their coverage (opt-in `?mips=1`; not enough by themselves from 90 m)
   - [x] the crown baked, worn by the far bodies, the far body from 40 px (`?lod=new`; `?bake=0` without)
-  - [ ] Samuel: `?lod=new` on next, by the tent, in the pine forest and from 90 m: is the baked crown good enough
-  - [ ] the trees on the horizon by the tent as airy as main's (a bake from more sides near the horizon, or the cut
-        by what each texel lets through)
+  - [x] the trees on the horizon by the tent as airy as main's (the bake see-through as the crown)
+  - [x] the library's plant wears the bake; the counter counts vertices only; the stress world no slower
+  - [ ] Samuel: the horizon matches main at a few per cent of frame time here: take it, or the bake as a texture (a
+        cheaper read than the heap's), or the bake solid again (faster, the horizon heavier)
+  - [ ] `LOD_DEFAULT` 'new' once that is settled
   - [ ] `?lod=new` the default, `?lod=old` kept, once as fast and as good as main from 90 m and by the tent; the stress
         world checked not slower
   - [ ] a card's cut-out reckoned by how much of it is leaves, so a card can show more of its painting (`?spread=1`)
@@ -935,6 +958,19 @@ plants' submitted() counter counts the bake's bytes as vertices.
   stays main's: Samuel's eye decides. The stress world not checked (no default changed); the counter of submitted
   vertices counts the bake as vertices.
 
+### 2026-11-17 (4)
+
+- **Asked:** (the coordinator) the horizon by the tent not heavier than main's and 90 m not softer or darker; the
+  library's plant wearing the bake; the counter counting vertices only; the stress world checked; then the default, or,
+  if the horizon cannot match without a cost to frame time, say so with stills.
+- **Delivered:** the bake as see-through as the crown and lit as against its own mean; the library's plant wearing it;
+  the counter by vertices; the default as one constant, `?lod=old` and `?lod=new` either way.
+- **Good:** The horizon by the tent matches main's in brightness and contrast (146.4 / 54.7 against 145.7 / 54.8). The
+  stress world is no slower.
+- **Broke / not there yet:** It costs a few per cent of the frame by the tent (+5.2 and +3.3 % in two pairs) and at the
+  river bend (+2.3 % in one, −21 % in the other). From 90 m 6 % lighter than main. So not switched: the choice is with
+  the coordinator and Samuel, with the stills.
+
 ## Trail
 
 | When | Commit | What |
@@ -958,3 +994,4 @@ plants' submitted() counter counts the bake's bytes as vertices.
 | 2026-11-17 | `4bc3f99` | coverage-preserving alpha mips for foliage, opt-in (`?mips=1`); the far canopy's stills |
 | 2026-11-17 | `9847fd0` | the far bodies wear their crown baked (`bakeOf`, carried in the heap) |
 | 2026-11-17 | `fa7d70c` | `?lod=new` wears its crowns baked, the far body from 40 px; the stills |
+| 2026-11-17 | `63b5a74` | the bake as see-through as the crown, and as light; the library's plant wears it; the counter by vertices; `LOD_DEFAULT` |
