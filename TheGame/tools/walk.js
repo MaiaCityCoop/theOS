@@ -79,7 +79,8 @@ for (const nm of names) {
   const a = (await import(`../assets/${nm}.js`)).default, s = a.shapeCount - 1, f = a.detail.levels.findIndex((L) => !L.fine), near = a.rawAt(f, s);
   let c = [0, 0, 0], r = 0; const P0 = near.position, n0 = P0.length / 3; for (let i = 0; i < n0; i++) for (let k = 0; k < 3; k++) c[k] += P0[i * 3 + k] / n0; for (let i = 0; i < n0; i++) r = Math.max(r, Math.hypot(P0[i * 3] - c[0], P0[i * 3 + 1] - c[1], P0[i * 3 + 2] - c[2]));
   const F = { c, r: r * 1.15 }, ref = measure(draw(P0, near.index, (t) => (near.part[near.index[t * 3]] === 1 ? STOP : 1), F));
-  Object.assign(LOD, { on: true, BAKE: true, FAR: 40 }); const S = crowd(near, { size: shapeSize(a, s), CARD: LOD.CARD, KMAX: LOD.KMAX, FAR: LOD.FAR, enclose: 1.05 }); S.bake = bakeOf(S);
+  const top = f > 0 ? a.rawAt(0, s) : near;   // (the crowd is built from the finest: the splay, where it has one, as the game builds it)
+  Object.assign(LOD, { on: true, BAKE: true, FAR: 40 }); const S = crowd(top, { size: shapeSize(a, s), CARD: LOD.CARD, KMAX: LOD.KMAX, FAR: LOD.FAR, enclose: 1.05 }); S.bake = bakeOf(S);
   const sheet = [], L = levelOf(S, 0, Infinity), B = (() => { LOD.on = false; const b = bandsOf(a); return b; })(), cache = {};
   const last = B.at(-1)[0], sink = CROWD.END, oldSink = a.detail.sink ?? 0, pxs = []; for (let px = 600; px >= last / 1.6; px /= 1.01) pxs.push(px);
   for (const way of ['old', 'new']) {
