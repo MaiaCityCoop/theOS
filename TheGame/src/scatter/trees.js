@@ -55,6 +55,7 @@ import { CROWD, BAKED, BAKEMIPS, bakeRes, levelOf as crowdLevelOf } from '../../
 import { crowdOf, bandsOf, STANDS, GRID, GOQ } from '../../assets/kit/plant.js';
 import { oct, unoct } from '../../assets/kit/pack.js';
 import { bits, lo16, hi16, octDir } from './unpack.js';
+import { TRUTH, REACH as TRUTH_REACH } from '../detail/measure.js';
 
 /** A half float's 16 bits as the number (what assets/kit/plant.js wrote). */
 const unhalf = (h) => { const e = (h >> 10) & 31, m = h & 1023, v = e === 0 ? m * 2 ** -24 : e === 31 ? Infinity : (1 + m / 1024) * 2 ** (e - 15); return h & 0x8000 ? -v : v; };
@@ -571,7 +572,9 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // a tier: its cells worked out once for every kind in it, each plant that is of its level packed into its shape's
     // draw. g: the group it packs (the stand's, or of its kinds those that cast)
     const tier = (i, g, shadow = false) => {
-      const P = shadow ? 4 : G.kinds[0].levels[i].P;
+      // (P: its cells a patch side, its level's. Under ?truth its finest level's band reaches as far as the truth does,
+      // src/detail/measure.js: its patches then as large as MAXP of them need to be to hold that round)
+      const P = shadow ? 4 : TRUTH && !i ? Math.max(G.kinds[0].levels[0].P, 2 ** Math.ceil(Math.log2((0.105 * TRUTH_REACH) / ST.cell))) : G.kinds[0].levels[i].P;
       // reach: a crown's reach, and how far the camera may move before the packing is made again (the cells are worked
       // out again every sixteenth of a patch)
       const seen = shadow ? null : { r: uniform(round + (ST.cell * P) / 16 + 2), high: sHi };

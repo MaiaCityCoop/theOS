@@ -15,6 +15,7 @@ import { inside } from './plan.js';
 import { load, save } from '../core/store.js';
 import { createCard } from './card.js';
 import { flag } from '../core/flags.js';
+import { source } from '../core/settle.js';
 
 // a plot's colours by its state (display values, as every material here writes them: src/world/light.js): line, wash
 const LOOK = {
@@ -30,6 +31,8 @@ export function createCity({ scene, camera, canvas, renderer, compile = (o) => r
   const here = (page === '' || page === 'index.html') && !flag('embed');   // the walk only: not the film, the lenses, the library
   const api = { plots: [], update() {}, ready: false };
   if (!here) return api;
+  let failed = false;
+  source('city', () => (api.ready || failed ? 0 : 1));   // (its plan made in a worker and compiled, src/core/settle.js)
 
   const group = new THREE.Group(); group.visible = false; scene.add(group);
   const uOp = uniform(0), uW = uniform(0.0011);
@@ -196,6 +199,6 @@ export function createCity({ scene, camera, canvas, renderer, compile = (o) => r
 
   const worker = new Worker(new URL('./plan.worker.js', import.meta.url), { type: 'module' });
   worker.onmessage = (e) => { build(e.data); worker.terminate(); };
-  worker.onerror = (e) => console.warn('[city] the plan failed', e.message);
+  worker.onerror = (e) => { failed = true; console.warn('[city] the plan failed', e.message); };
   return api;
 }

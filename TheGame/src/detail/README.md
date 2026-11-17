@@ -15,7 +15,7 @@ file says what it is; none of what follows is written in it.
 
 | Question | Answer | Where |
 | --- | --- | --- |
-| How large is it on screen? | `sizeOf(asset)` metres, times the lens's pixels a metre, over its distance through the lens | `assets/kinds.js` (`sizeOf`), `index.js` (`pxK`), `U.uPxK` (one for every engine; a packed thing's: `src/scatter/row.js` `pxOf`), `U.uLodInv` |
+| How large is it on screen? | `sizeOf(asset)` metres, times the lens's pixels a metre, over its distance through the lens | `assets/kinds.js` (`sizeOf`), `measure.js`, the one measure (`pxK`, `pxOn`; in node code `uPxK`, `pxAt`, `spanAt`; a packed thing's: `src/scatter/row.js` `pxOf`), `U.uLodInv` |
 | Which level is that? | its kind's `px`, resolved | `index.js` `detailOf` |
 | How does a level come and go? | one piece whole at half way (`whole`), the last level sinking (`sunk`, `sinkInto`) | `handover.js` `handOver` |
 | Which things does a level's packing hold? | its band, its hand-over, and a pad for the camera's movement | `handover.js` `bandOf`, `padOf` |
@@ -283,7 +283,7 @@ Every concept below lives in one module and is imported wherever it is needed; n
 | drawer | the heap of every kind's meshes, the one table of a kind's numbers (its look, then its make's own: `numOf`), the tiers and their draws, what streams them in | `src/scatter/drawer.js` (with `heap.js`, `tier.js`) |
 | placer | where things stand and move: hashed cells (the rocks, the plants, the stand), a list (`placed.js`), paths (`herds.js`) | `src/scatter/*.js`; every one packs a thing the same two rows: `src/scatter/row.js` |
 | thing | one thing of the world: its key (its placer and two numbers), its body's id, its state, its seed | `src/world/things.js`, `src/world/bodies.js` |
-| level | a kind's mesh for a size on screen, the hand-over between two, the lens they are measured through (`U.uPxK`, kept by `trackView`) | `src/detail` (`index.js`, `handover.js`); the solids' ladder: `assets/kit/ladder.js` |
+| level | a kind's mesh for a size on screen, the hand-over between two, the lens they are measured through (`measure.js`: `uPxK`, kept by `keepMeasure`) | `src/detail` (`measure.js`, `index.js`, `handover.js`); the solids' ladder: `assets/kit/ladder.js` |
 | hash | every number from a seed: the land's noise, a recipe's dice, a thing's key, a fingerprint | `src/core/hash.js` (`hash.nodes.js` on the GPU, the same constants) |
 | flag | the address's switches (`?stress`, `?ghost`, `?many`, `?herds`, `?byclass`, …) | `src/core/flags.js` |
 

@@ -15,14 +15,18 @@
 import * as THREE from 'three/webgpu';
 import { note } from './gpu.js';
 import { compileFor } from './compile.js';
+import { TRUTH } from '../detail/measure.js';
 
 export function createScreen(renderer, { temporal, lens = null }) {
   const OUT = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(OUT);
   let inside = OUT, turn = 0;
+  // (?truth, the gate's reference: drawn at every pixel the canvas has, whatever it is set to, never fewer:
+  // src/detail/measure.js)
+  const ratio = () => (TRUTH ? renderer.getPixelRatio() : inside);
   const css = new THREE.Vector2(), size = new THREE.Vector2(), rts = [null, null];
   /** The inside's size in pixels. */
-  const sizeOf = (v) => { renderer.getSize(css); return v.set(Math.max(1, Math.round(css.x * inside)), Math.max(1, Math.round(css.y * inside))); };
+  const sizeOf = (v) => { renderer.getSize(css); return v.set(Math.max(1, Math.round(css.x * ratio())), Math.max(1, Math.round(css.y * ratio()))); };
   /** This turn's target, made (again) at the inside's size. */
   const targetNow = () => {
     sizeOf(size);
@@ -36,7 +40,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
   };
   return {
     out: OUT, size: sizeOf,
-    get inside() { return inside; },
+    get inside() { return ratio(); },
     /** The target the world is drawn into (what a material compiled aside is compiled for). */
     get target() { return rts[turn] ?? rts[1 - turn] ?? null; },
     /** The inside's pixel ratio: no more than the screen's own. */

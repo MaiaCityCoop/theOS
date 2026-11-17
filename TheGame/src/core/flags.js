@@ -12,6 +12,9 @@
 //   ?ghost     nothing stops the walker (src/world/bodies.js)
 //   ?webgl     drawn through WebGL 2 where the browser has WebGPU too
 //   ?embed     the page inside another (a film, the dashboard): no weather panel, no walk
+//   ?truth     every asset at full detail at any distance, the gate's reference picture (tools/gate.js): everything within
+//              `?truth=<metres>` of the eye (600 unless it says) measured as large on screen, so every engine draws its
+//              finest; drawn at every pixel the canvas has; slow, offline (src/detail/measure.js)
 // (The film player, cine/, reads its own address: its scene, its menu.)
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 /** Whether the address names it (`?ghost`). */

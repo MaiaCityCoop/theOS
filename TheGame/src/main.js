@@ -16,13 +16,14 @@ import * as THREE from 'three/webgpu';
 import { loadingStep, loadingDone } from './ui/loading.js';   // first: the veil is told what is being made
 import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
-import { trackView } from './detail/index.js';
+import { keepMeasure, TRUTH } from './detail/measure.js';
 import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
 import { createHud } from './core/hud.js';
 import { useGPU } from './core/gpu.js';
-import { taken, busy } from './core/work.js';
+import { taken, busy, changed } from './core/work.js';
+import { settle, ready, waiting, watch, tick } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
 import { createTerrain } from './terrain/terrain.js';
 import { createGround } from './scatter/ground.js';
@@ -45,7 +46,7 @@ import { useGround } from './world/rocksolid.js';
 import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
-import { inTurn, shareComputeCompiles } from './core/compile.js';
+import { inTurn, shareComputeCompiles, countCompiles } from './core/compile.js';
 import { flag } from './core/flags.js';
 
 const SKY = 0x9fc2e6, t0 = performance.now();
@@ -57,6 +58,7 @@ if (flag('draws')) (await import('../tools/draws.js')).watch();   // ?draws: eve
 await renderer.init();
 useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js)
 shareComputeCompiles(renderer);   // a compute shader compiled once, however many passes run it (src/core/compile.js)
+countCompiles(renderer);   // and what the GPU is compiling counted: the world is not complete before it has come (src/core/settle.js)
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // every material makes its colours for the screen itself (toScreen)
 renderer.setSize(innerWidth, innerHeight, false);
 renderer.setClearColor(SKY);
@@ -72,10 +74,13 @@ addEventListener('resize', () => {   // only a real change of size rebuilds the 
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight, false);
 });
 
-const stats = (window.__game = { renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 } });
+// (settle(): a promise, the world complete for the camera as it stands: nothing streaming or building in any engine, and
+// the picture built over time come to rest on it; ready: the same for the first view; waiting(): what is still out.
+// What the gate waits on, never a timer: src/core/settle.js)
+const stats = (window.__game = { renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready, waiting });
 const bounds = flag('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
 const U = createUniforms(camera, SKY);
-trackView(); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
+setImpostorRenderer(renderer);
 // The one way to the screen, for every view (src/core/screen.js): the world drawn at the inside's pixels (the governor's
 // dial; the screen keeps all its own), through the lens where the camera brings one (src/camera/post.js), and the
 // screen's picture built over time from those frames (src/core/temporal.js).
@@ -83,6 +88,9 @@ const temporal = (stats.temporal = createTemporal(renderer));
 const screen = (stats.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
 const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
 stats.governor = governor;   // the film holds it still while it plays
+keepMeasure(() => screen.inside);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
+if (TRUTH) governor.hold(true);   // (?truth: everything at its finest, offline: no dial turned for its slow frames)
+watch({ camera, renderer, screen, temporal, U });   // what the world complete is measured against (src/core/settle.js)
 const boot = (stats.boot = {}), mark = (k) => (boot[k] = Math.round(performance.now() - t0));   // where the start's time goes
 mark('renderer');
 await loadingStep('Painting the ground', 0.12);
@@ -166,6 +174,7 @@ function frame(now) {
   // (a film's footage fills the picture, cine/media.js: the world under it is neither chosen nor drawn, the GPU is the video's)
   if (!stats.covered) { choose(Math.min(ms, 100) / 1000); hud.cpu(performance.now() - c0); const d0 = performance.now(); draw(); parts.draw = performance.now() - d0; }
   governor.end(ms, now, scatter.over, wasBusy); wasBusy = busy();   // (the time since the last frame is that frame's: what it did besides drawing is told with it)
+  if (!stats.covered) tick(changed());   // (whether the world is complete: src/core/settle.js)
   hitch(ms, now);
   hud.frame(ms, now, controls.band !== 'eye' ? `  ${controls.band} ${Math.round(controls.height)} m` : '');
 }
@@ -225,3 +234,4 @@ requestAnimationFrame(frame);
 requestAnimationFrame(() => requestAnimationFrame(loadingDone));   // the veil goes once the world is on the screen
 if (flag('flyby')) import('../tools/flyby.js').then((m) => m.run());   // ?flyby: the camera flown by itself, to watch the plants' levels change (tools/flyby.js)
 if (flag('bench')) import('../tools/bench.js').then((m) => m.overlay());   // ?bench: the frame timed at the bench's six views once the world is loaded, the numbers on the screen (tools/bench.js)
+export { ready };   // (for a page that shows the world: the first view complete)

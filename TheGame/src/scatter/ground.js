@@ -15,6 +15,7 @@ import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, p
 import { CLEARINGS } from '../../world/places.js';
 import { offWays, waysVersion } from '../world/ways.js';
 import { BIOMES } from '../world/biomes.js';
+import { source } from '../core/settle.js';
 
 const N = 512;   // texels a side; a texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers the blades' reach
 const FADE = 36;   // frames (0.6 s at 60 fps; counted in frames, so no frame changes more than a 36th, however slow): from the map before to the new one, where its texel steps
@@ -57,16 +58,21 @@ export function createGround(renderer, tex) {
   const read = (t, pos, M) => texture(t, pos.sub(M.o).div(M.texel).add(0.5).div(N)).level(0);
   // (both maps read, as much of each as W says: read where a blade is packed, once a blade, not at its every vertex)
   const both = (i, pos, f) => mix(f(read(rts[0].textures[i], pos, R[0]), R[0]), f(read(rts[1].textures[i], pos, R[1]), R[1]), W);
-  let lastDy = -1, lastS = 0, lastW = 0, cpu = null, reading = false;
+  let lastDy = -1, lastS = 0, lastW = 0, cpu = null, reading = false, reads = 0;   // (reads: how many read-backs have come)
   // the CPU's copy of the ground under the camera (read back after each pass, a moment later): what runs on the CPU and
   // must agree with what is drawn reads it, the rocks' bodies first (src/world/rocksolid.js)
   const h2f = (h) => { const e = (h >> 10) & 31, f = h & 1023, sg = h & 32768 ? -1 : 1; return e === 0 ? sg * f * 2 ** -24 : e === 31 ? NaN : sg * (1 + f / 1024) * 2 ** (e - 15); };
   const readBack = (o, texel, base) => {
     if (reading) return; reading = true;
-    renderer.readRenderTargetPixelsAsync(rts[cur], 0, 0, N, N, 0).then((px) => { cpu = { x: o.x, z: o.y, texel, base, px }; }).catch(() => {}).finally(() => (reading = false));
+    renderer.readRenderTargetPixelsAsync(rts[cur], 0, 0, N, N, 0).then((px) => { cpu = { x: o.x, z: o.y, texel, base, px }; reads++; }).catch(() => {}).finally(() => (reading = false));
   };
+  // (still out, for the world complete: src/core/settle.js): what reads the map passing from the one before to the new,
+  // and the map being read back for the CPU
+  source('ground', () => (fadeAt >= 0 ? 1 : 0) + (reading ? 1 : 0));
   return {
     version: 0,
+    /** How many times the CPU's copy has been read back (what looks at it knows it has new ground: src/scatter/rocks.js). */
+    get reads() { return reads; },
     /** height, grass density, grass height (a share of the asset's), stone chance at pos (a node; one filtered read) */
     A: (pos) => both(0, pos, (g, M) => vec4(g.x.add(M.base), g.y, g.z, g.w)),
     /** the grass's colour at pos, and in w its dryness (a node) */

@@ -29,6 +29,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, If, float, vec2, vec3, vec4, uv, uniform, texture, property, outputStruct, max, min, abs, floor, fract, clamp, mix, length, dot, smoothstep } from 'three/tsl';
 import { note } from './gpu.js';
 import { U } from './uniforms.js';
+import { pxThrough, TRUTH } from '../detail/measure.js';
 
 const halton = (i, b) => { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; };
 const PLACES = Array.from({ length: 32 }, (_, i) => [halton(i + 1, 2) - 0.5, halton(i + 1, 3) - 0.5]);   // parts of a pixel, evenly spread whatever their number
@@ -150,9 +151,17 @@ export function createTemporal(renderer) {
   const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), size = new THREE.Vector2();
   const proj = new THREE.Matrix4(), projInv = new THREE.Matrix4(), view = new THREE.Matrix4(), world = new THREE.Matrix4(), projWas = new THREE.Matrix4(), viewWas = new THREE.Matrix4(), rel = new THREE.Matrix4();
   const hist = [null, null], opts = { type: THREE.HalfFloatType, depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false };
-  let guide = null, turn = 0, k = 0, fresh = true, lastAt = 0;
+  let guide = null, turn = 0, k = 0, fresh = true, lastAt = 0, age = 0;
   return {
     K,
+    /** Frames the kept picture has been built over since it was last let go (0: this frame stood alone). */
+    get age() { return age; },
+    /** How many frames in a row, nothing changed, until what was kept before has left the picture (src/core/settle.js):
+        a frame takes in at least 1 / (most + 1) of a screen pixel where one of its own pixels falls on it, so after
+        so many such frames what was there is under half a step of eight bits (1/510); drawn at fewer pixels than the
+        screen has, one falls on a screen pixel once in as many frames as the screen has pixels for each drawn one; and
+        all thirty-two places a pixel is drawn at have come round. */
+    get settles() { const a = (u.outSize.value.x * u.outSize.value.y) / Math.max(1, u.inSize.value.x * u.inSize.value.y); return Math.max(PLACES.length, Math.ceil(Math.log(510) / Math.log(1 + 1 / K.most)) * Math.max(1, Math.ceil(a - 1e-6))); },
     /** Its numbers, changed while it runs (for tuning: a page's own tools). */
     tune(o) { Object.assign(K, o); for (const n of DIALS) u[n].value = K[n]; },
     /** Forget what is kept: the next frame stands alone (a cut). */
@@ -165,7 +174,7 @@ export function createTemporal(renderer) {
       // how fast the wind moves what sways, as screen pixels a frame for a metre of swing at a metre from the eye, over
       // what counts as still: its gusts' depth and how fast they pass (src/world/weather/wind.js)
       const W = U.uWind.value, rate = W.z * (0.25 + 0.35 * W.z) * ((2 * Math.PI * W.w) / 38) * (1 + 0.6 * W.z * W.z);
-      U.uMark.value = (rate * camera.projectionMatrix.elements[5] * renderer.getDrawingBufferSize(size).y * 0.5) / (60 * K.still);
+      U.uMark.value = (rate * pxThrough(camera, renderer.getDrawingBufferSize(size).y)) / (60 * K.still);   // (the screen's pixels through this lens: the measure's)
       // textures read as finely as the screen's pixels would read them, not the inside's: what that leaves crawling in one
       // frame, the frames together take in (src/terrain/material.js, src/scatter/stress.js)
       U.uFine.value = 1 + (Math.min(1, w / size.x) - 1) * K.fine;
@@ -185,7 +194,7 @@ export function createTemporal(renderer) {
         guide?.dispose(); guide = new THREE.RenderTarget(now.width, now.height, { ...opts, count: 2 });
         tG.value = guide.textures[0]; tB.value = guide.textures[1]; note("the frame's ways back and ranges (two targets)", 2 * now.width * now.height * 8, 0);
       }
-      const t = performance.now(); if (t - lastAt > K.stale) fresh = true; lastAt = t;   // (not drawn for a while: a film, the lens's own pass, a hidden page)
+      const t = performance.now(); if (t - lastAt > K.stale && !TRUTH) fresh = true; lastAt = t;   // (not drawn for a while: a film, the lens's own pass, a hidden page; ?truth's frames are slow, src/detail/measure.js, and build on)
       // this frame's screen to the last one's, and back: through both cameras, the far numbers of the world's places
       // taken out before anything is rounded (the two views' product is their difference)
       rel.multiplyMatrices(viewWas, world); u.toWas.value.multiplyMatrices(projWas, rel).multiply(projInv); u.toNow.value.copy(u.toWas.value).invert();
@@ -197,7 +206,7 @@ export function createTemporal(renderer) {
       tP.value = hist[turn].texture;
       if (through?.glass) { u.barrel.value = through.glass.barrel; u.picH.value = through.glass.picH; u.dim.value = through.glass.dim; }
       renderer.render(through?.glass ? (through.glass.firm && K.sharp > 0 ? firmGlassed : glassed) : K.sharp > 0 ? firm : copy, cam);
-      turn = 1 - turn; fresh = false; projWas.copy(proj); viewWas.copy(view);
+      age = fresh ? 0 : age + 1; turn = 1 - turn; fresh = false; projWas.copy(proj); viewWas.copy(view);
     },
   };
 }
