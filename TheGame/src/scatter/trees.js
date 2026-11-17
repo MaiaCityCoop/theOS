@@ -68,6 +68,9 @@ if ((flagText('lod') ?? LOD_DEFAULT) === 'new') Object.assign(LOD, { on: true, C
 const SPREAD = flagNum('spread', 0);
 /** A half float's 16 bits as the number (what assets/kit/plant.js wrote). */
 const unhalf = (h) => { const e = (h >> 10) & 31, m = h & 1023, v = e === 0 ? m * 2 ** -24 : e === 31 ? Infinity : (1 + m / 1024) * 2 ** (e - 15); return h & 0x8000 ? -v : v; };
+// SKY: between which slopes from the eye (height over distance) a far body's point goes from solid to see-through: under
+// the horizon ground or other crowns lie behind it, over it the sky (`?sky=lo,hi` to try)
+const SKY = (flagText('sky') ?? '-0.03,0').split(',').map(Number);
 const SX = (2 * GRID.xz) / 65535, SY = (GRID.y1 - GRID.y0) / 65535;
 /** A crowd level's vertex: what the rule moves it by, from the elements a plant's vertex is (assets/kit/plant.js), and
     its shape's sixteen numbers (ruleOf). */
@@ -310,7 +313,11 @@ function plantMaterial(tex, D) {
                 const u = top.select(vec3(1, 0, 0), vec3(sin(z), 0, cos(z).negate())), v = top.select(vec3(0, 0, -1), vec3(cos(z).mul(-se), ce, sin(z).mul(-se)));
                 const rel = R.pos.sub(V.root), half = max(r, 1e-3).mul(2);
                 const view = top.select(float(8), k);
-                vImp.assign(vec4(rel.dot(u).div(half).add(0.5), rel.dot(v).div(half).add(0.5), D.bakeTex && feed ? floor(B.y.add(0.5)).mul(BAKED.length).add(view) : view, baked.select(float(1), float(0))));   // (z: the texture's layer, its shape's and the view's; the library's: the view)
+                // (w: 0 not baked; else 1 and how far against the sky it is, 0 … 1: how high it stands seen from the eye, its
+                // height in the world its foot's and its own times its scale (its turn is about the up axis); gaps only
+                // there, where the sky shows through them, and the crown solid where ground or other crowns lie behind)
+                const s = A.w.div(V.Ks), seenAt = A.z.add(R.pos.y.mul(s)).sub(U.uCam.y).div(max(length(vec2(A.x, A.y).sub(U.uCam.xz)), 1)), sky = smoothstep(SKY[0], SKY[1], seenAt);
+                vImp.assign(vec4(rel.dot(u).div(half).add(0.5), rel.dot(v).div(half).add(0.5), D.bakeTex && feed ? floor(B.y.add(0.5)).mul(BAKED.length).add(view) : view, baked.select(sky.add(1), float(0))));   // (z: the texture's layer, its shape's and the view's; the library's: the view)
                 const at = V.crowd.rule[3].z.mul(1024).add(V.crowd.rule[3].w), b = V.base !== undefined ? float(V.base).add(at.mul(2)) : float(0);   // (its bake's first element: after the level's vertices, two elements a vertex; the library's: its own, from 0)
                 vBase.assign(vec2(floor(b.div(4096)), b.mod(4096)));
               }
@@ -388,7 +395,8 @@ function plantMaterial(tex, D) {
           const cover = cs.x, shade = cs.y;
           // a baked texel is a clump of leaves there or a gap, as often as the crown covers it there (its own number, the
           // same every frame: the crown's gaps stay where they are), so the far crown is as see-through as the near one
-          If(cover.lessThanEqual(fract(sin(float(t).mul(12.9898).add(78.233)).mul(43758.5453))), () => { Discard(); });
+          // (where it stands against the sky, as see-through as the crown; else solid where the crown covers half and more)
+          If(cover.lessThanEqual(mix(float(0.5), fract(sin(float(t).mul(12.9898).add(78.233)).mul(43758.5453)), clamp(vImp.w.sub(1), 0, 1))), () => { Discard(); });
           T.assign(vec4(T.rgb.mul(pow(clamp(shade.mul(2), 0.3, 2), 1.3).mul(0.93)), 1));   // (lighter or darker than the crown on the whole; measured beside main's far levels from 90 m and by the tent)
         });
         // (the shadow map takes no coverage: cut)
