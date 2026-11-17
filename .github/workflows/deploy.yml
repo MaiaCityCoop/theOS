@@ -1,13 +1,16 @@
 name: Deploy
+run-name: Deploy ${{ inputs.commit || github.event.workflow_run.head_sha }} to ${{ inputs.environment || 'next' }}
 
-# Builds the website (OS/) and the game (TheGame/) at a commit on main for one environment and installs both on that
-# environment's host over SSH. Started by hand, or by CI after a push to main when AUTO_DEPLOY_NEXT is "true".
-# Rolling back is deploying an earlier commit. deploy/README.md lists the secrets and variables.
+# Installs a release CI built (ci.yml's artifact `release-next`: the website, the game and the API's source at one
+# commit on main) on an environment's host over SSH; nothing is built again. It runs by itself once CI has passed on a
+# push to main, and ships that run's release to next. Started by hand, it takes a full commit SHA on main and ships
+# the release of that commit's passed CI run: rolling back is deploying an earlier commit. deploy/README.md lists the
+# secrets and variables.
 on:
-  workflow_call:
-    inputs:
-      environment: { type: string, required: true }
-      commit: { type: string, required: true }
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       environment:
@@ -20,58 +23,60 @@ on:
 
 permissions:
   contents: read
-
-concurrency:
-  group: deploy-${{ inputs.environment }}
-  cancel-in-progress: false
+  actions: read
 
 jobs:
   deploy:
+    # by itself only after a CI run that passed on a push to this repository's main
+    if: >-
+      github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository)
+    # on the job, so a skipped run (CI failed) never takes the place of a deploy waiting its turn
+    concurrency:
+      group: deploy-${{ inputs.environment || 'next' }}
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
-      name: ${{ inputs.environment }}
+      name: ${{ inputs.environment || 'next' }}
       url: ${{ vars.SITE_URL }}
+    env:
+      TARGET: ${{ inputs.environment || 'next' }}
+      COMMIT: ${{ inputs.commit || github.event.workflow_run.head_sha }}
     steps:
-      - name: Check inputs
+      - name: Find CI's release of the commit
+        id: ci
         env:
-          TARGET: ${{ inputs.environment }}
-          COMMIT: ${{ inputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.event.workflow_run.id }}
         run: |
           [[ "$TARGET" =~ ^next$ ]] || { echo "::error::Unknown environment"; exit 1; }
           [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Use a full commit SHA"; exit 1; }
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ inputs.commit }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: The commit is on main
-        env:
-          COMMIT: ${{ inputs.commit }}
-        run: |
-          git merge-base --is-ancestor "$COMMIT" origin/main \
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/compare/$COMMIT...main" --jq .status)" =~ ^(ahead|identical)$ ]] \
             || { echo "::error::$COMMIT is not on main"; exit 1; }
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+          # by hand: the CI run that passed on the push to main of that commit
+          [[ -n "$RUN" ]] || RUN=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch main --event push \
+            --commit "$COMMIT" --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          [[ -n "$RUN" ]] || { echo "::error::No CI run passed on a push of $COMMIT to main, so CI kept no release of it"; exit 1; }
+          echo "run=$RUN" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          bun-version: 1.4.4
-      - name: Install
-        run: |
-          (cd TheGame && bun install --frozen-lockfile)
-          (cd OS && bun install --frozen-lockfile)
-      - name: Build the release archive
-        env:
-          TARGET: ${{ inputs.environment }}
-          COMMIT: ${{ inputs.commit }}
-        run: deploy/bundle.sh "deploy/environments/$TARGET.json" "$COMMIT" "$RUNNER_TEMP/release.tar"
+          name: release-${{ inputs.environment || 'next' }}
+          run-id: ${{ steps.ci.outputs.run }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}
       - name: Deploy over SSH
         env:
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
           DEPLOY_HOST_KEY: ${{ vars.DEPLOY_HOST_KEY }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
+          release="$RUNNER_TEMP/release-$TARGET.tar"
+          [[ "$(tar -xOf "$release" website/version.json | jq -r .commit)" == "$COMMIT" ]] \
+            || { echo "::error::The release is not of $COMMIT"; exit 1; }
           install -m 700 -d ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
           printf '%s %s\n' "$DEPLOY_HOST" "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
           ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o BatchMode=yes \
-            "deploy@$DEPLOY_HOST" deploy < "$RUNNER_TEMP/release.tar"
-          rm -f ~/.ssh/deploy "$RUNNER_TEMP/release.tar"
+            "deploy@$DEPLOY_HOST" deploy < "$release"
+          rm -f ~/.ssh/deploy "$release"
