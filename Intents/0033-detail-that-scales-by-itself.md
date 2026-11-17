@@ -1211,3 +1211,4 @@ back to (a bake made lazily, as a shape's window first opens). Frame times not m
 | 2026-11-17 | `2e3168c` | `?bench`: the six views timed on the screen once the world is loaded (the GPU's own time where it can); `bench()` holds the game's frame while it runs |
 | 2026-11-17 | `09e2fc1` | `?lod=new` the default (`LOD_DEFAULT`), `?lod=old` kept |
 | 2026-11-17 | `6f11f36` | a plant's sunlight at a vertex reckoned once, not twice (the baked far body's light read it a second time): the pine forest's plants 1196 to 941 ms on SwiftShader |
+| 2026-11-17 | `4ebf6ed` | the grass map's texel in half-stop steps, faded from one map to the next over 36 frames: no longer laid anew every frame of a climb, nor the whole lawn changed at once |
