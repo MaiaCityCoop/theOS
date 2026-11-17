@@ -139,3 +139,31 @@ not texture-rate bound (anisotropy 4→1 and grad→level reads changed nothing)
 
 **Housekeeping not done:** the remote branch deletions were left for Samuel's OK (several hold unmerged commits:
 `aven/0036-shapes` 5, `aven/0033-bench-url`, `-ground-cache-fade`, `-default-old` 1 each).
+
+### AvenMac, last state, update (later on 2026-11-17)
+
+**Changed since main** (`TheGame/src/scatter/trees.js`, on top of the GROWN commit):
+- The baked far body reads its bake **along the eye's ray**: each corner's point on a view's picture is where the
+  eye's ray through it meets that view's plane through the crown's middle (`onView`), not the corner moved along the
+  view's axis. This removed the over-reach (the tent hidden by grown shrubs) and gives lobed crown outlines.
+- The three views (two sides, top) are **blended by weight and cut once** instead of each pixel picking one by a
+  pattern (`pick`/`rise` removed): the dotted outline is gone. Each view, and the second mip, is read only where its
+  weight is over nought.
+
+**Measured** (stills: `shots/plants-lod/` on the Mac; tree-line crops showed old / new / eye-ray / blended):
+- Look: the tree line at 100–400 m now has lobed outlines, no domes, no stipple; still lighter and flatter than old
+  (old reads as separate crowns with dark gaps). The near band is NOT fixed: 50–80 m pines still show one stretched
+  leaf painting (KMAX enlargement), and large far bodies close up are soft (128-texel bake over hundreds of device px).
+- GPU, 4K (bench ratio 3), pine forest eye level, two runs: old ~23; main's new ~29–30 (one run read 35.7/36.4 in the
+  last session, noisy); this branch with `?grown=1` 31.6/32.1, default `grown=1.4` ~35–38, `grown=1.2` 34.7/32.9.
+  So the blend costs ~2 ms and growing the body costs 2–5 ms more. Not shippable on cost.
+
+**Root cause worth keeping in mind:** sizes on screen are counted in the game's CSS pixels (`innerHeight`), so at 4K
+(DPR 3 here) every band lands 3× nearer than designed: cards enlarge and bodies come where they cover hundreds of
+device pixels.
+
+**Next I was about to try:** grown 1.1–1.15 or grow only in the outline's directions; cheaper view choice (two side
+views only, top only above some elevation); then the near band (KMAX 2 paid for by an earlier, now-good-looking far
+body), and darker crown gaps (RIM/DEEP) for the far crowns' contrast.
+
+No dev server running (stopped); browsers closed.

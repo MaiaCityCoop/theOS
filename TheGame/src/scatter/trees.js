@@ -362,8 +362,14 @@ function plantMaterial(tex, D) {
                 // from any side: its outline is then the bake's (its cover, cut below), never the body's few corners
                 posB.assign(baked.select(V.root.add(R.pos.sub(V.root).mul(GROWN)), R.pos));
                 const rel = posB.sub(V.root), half = max(r, 1e-3).mul(2), layerOf = (view) => (D.bakeTex && feed ? floor(B.y.add(0.5)).mul(BAKED.length).add(view) : view);   // (the texture's layer, its shape's and the view's; the library's: the view)
-                const side = (k) => { const z = k.mul(Math.PI / 4); return vec2(rel.dot(vec3(sin(z), 0, cos(z).negate())), rel.dot(vec3(cos(z).mul(-se), ce, sin(z).mul(-se)))).div(half).add(0.5); };
-                const above = vec2(rel.dot(vec3(1, 0, 0)), rel.dot(vec3(0, 0, -1))).div(half).add(0.5);
+                // (where on a view's picture: the point the eye's ray through this corner meets the view's plane through the
+                // crown's middle, not the corner itself moved along the view's own axis: the views look 30 degrees down and the
+                // eye mostly does not, and a grown body's corner lies off the crown, so along the view's axis it would land on
+                // leaves the eye does not see there)
+                const eL = turnOf(B.x).unturn(U.uCam.sub(vec3(A.x, A.z, A.y))).div(A.w.div(V.Ks)).sub(V.root);   // the eye, from the crown's middle, in the plant's own frame
+                const onView = (w) => { const q = eL.sub(rel).dot(w), t = eL.dot(w).div(q.abs().max(1e-4).mul(q.sign().add(0.5).sign())); return eL.add(rel.sub(eL).mul(t)); };
+                const side = (k) => { const z = k.mul(Math.PI / 4), x = onView(vec3(cos(z).mul(ce), se, sin(z).mul(ce))); return vec2(x.dot(vec3(sin(z), 0, cos(z).negate())), x.dot(vec3(cos(z).mul(-se), ce, sin(z).mul(-se)))).div(half).add(0.5); };
+                const top = onView(vec3(0, 1, 0)), above = vec2(top.dot(vec3(1, 0, 0)), top.dot(vec3(0, 0, -1))).div(half).add(0.5);
                 vImp1.assign(vec4(side(k1), layerOf(k1), toNext)); vImp2.assign(vec4(above, layerOf(float(8)), toTop));
                 // (w: 0 not baked; else 1 and how far against the sky it is, 0 … 1: how high it stands seen from the eye, its
                 // height in the world its foot's and its own times its scale (its turn is about the up axis); gaps only
@@ -453,12 +459,14 @@ function plantMaterial(tex, D) {
         const whole = step(1.5, vPart);
         if (vImp) If(vImp.w.greaterThan(0.5), () => {
           // a far body wearing its crown baked: as much of it as the crown covers there, as shaded as the crown is there
-          const pick = ign(screenCoordinate.xy), rise = ign(screenCoordinate.xy.add(vec2(37, 17)));   // (which view this pixel takes: the one from above as far as the eye is up; else the next side view as far as the eye has come round to it)
-          const at = rise.lessThan(vImp2.w).select(vImp2.xyz, pick.lessThan(vImp1.w).select(vImp1.xyz, vImp.xyz));
+          // (the views either side of the eye and the one from above, each read and blended by how near the eye is to it:
+          // their covers mixed, then cut once, so the outline passes from one view's to the next as one line; a pixel taking
+          // one view or the other by a pattern had stippled the outline, where the two views' outlines differ)
           // (its picture of n texels a side at a size: crowd.js BAKEMIPS, its rows from the top as baked; t: the texel's own
           // number, for its two fixed numbers below)
-          const R = vDense.y, layer = floor(at.z.add(0.5));
-          const read = (lod) => {
+          const R = vDense.y;
+          const read = (at, lod) => {
+            const layer = floor(at.z.add(0.5));
             const n = floor(R.div(exp2(lod)).add(0.5)), tx = clamp(floor(at.x.mul(n)), 0, n.sub(1)), ty = clamp(n.sub(1).sub(floor(at.y.mul(n))), 0, n.sub(1)), cs = vec4(0).toVar();
             const X = lod.greaterThan(0.5).select(R, float(0)).add(tx), Y = lod.greaterThan(0.5).select(R.sub(R.div(exp2(lod.sub(1)))), float(0)).add(ty);
             const t = bakeTex ? uint(layer.mul(CROWD.BAKE * 1.5 * CROWD.BAKE).add(Y.mul(CROWD.BAKE * 1.5)).add(X)) : uint(layer.mul(R).mul(R).add(ty.mul(R)).add(tx));
@@ -475,14 +483,25 @@ function plantMaterial(tex, D) {
           // the one to the next: its cover, its ao, its leaves' way, and its two fixed numbers too, so where it passes from
           // one picture to the next nothing changes at once, and nothing crawls as the eye moves. The library's: the first)
           const lods = vDense.z, l0 = floor(lods).min(log2(R).sub(2)), f = bakeTex ? fract(lods).mul(l0.lessThan(log2(R).sub(2)).select(float(1), float(0))) : float(0);
-          const A0 = read(l0), A1 = bakeTex ? read(l0.add(1).min(log2(R).sub(2))) : A0, mixOf = (a, b) => (bakeTex ? mix(a, b, f) : a);
-          const cover = mixOf(A0.cs.x, A1.cs.x), shade = mixOf(A0.cs.y, A1.cs.y), nLeaf = bakeTex ? normalize(mix(A0.n, A1.n, f)) : A0.n;
+          // (each picture read only where it counts: a view where its weight is over nought, the smaller picture where the
+          // size has gone some way towards it; at eye level the view from above is never read, mostly one side view)
+          const sum = { cover: float(0).toVar(), shade: float(0).toVar(), n: vec3(0).toVar(), cut: float(0).toVar(), come: float(0).toVar() };
+          const addView = (at, w) => {
+            const A0 = read(at, l0), cs = A0.cs.toVar(), cut = float(A0.cut).toVar(), come = float(A0.come).toVar(), n = vec3(A0.n).toVar();
+            if (bakeTex) If(f.greaterThan(0.004), () => { const A1 = read(at, l0.add(1).min(log2(R).sub(2))); cs.assign(mix(cs, A1.cs, f)); cut.assign(mix(cut, A1.cut, f)); come.assign(mix(come, A1.come, f)); n.assign(mix(n, A1.n, f)); });
+            sum.cover.addAssign(cs.x.mul(w)); sum.shade.addAssign(cs.y.mul(w)); sum.n.addAssign(n.mul(w)); sum.cut.addAssign(cut.mul(w)); sum.come.addAssign(come.mul(w));
+          };
+          const w2 = vImp2.w, w1 = float(1).sub(w2).mul(vImp1.w), w0 = float(1).sub(w2).sub(w1);
+          If(w0.greaterThan(0.004), () => addView(vImp.xyz, w0));
+          If(w1.greaterThan(0.004), () => addView(vImp1.xyz, w1));
+          If(w2.greaterThan(0.004), () => addView(vImp2.xyz, w2));
+          const cover = sum.cover, shade = sum.shade, nLeaf = normalize(sum.n), cutV = sum.cut, comeV = sum.come;
           // a baked texel is a clump of leaves there or a gap, as often as the crown covers it there (its own number, the
           // same every frame: the crown's gaps stay where they are), so the far crown is as see-through as the near one
           // (where it stands against the sky, as see-through as the crown; else solid where the crown covers half and more)
           // (and coming in, a texel shows once the body has come in as far as its own second number: the same every frame,
           // so the body fills in grain by grain, never grows or jumps)
-          If(cover.lessThanEqual(mix(float(0.5), mixOf(A0.cut, A1.cut), clamp(vImp.w.sub(1), 0, 1))).or(mixOf(A0.come, A1.come).greaterThanEqual(vDense.x)), () => { Discard(); });
+          If(cover.lessThanEqual(mix(float(0.5), cutV, clamp(vImp.w.sub(1), 0, 1))).or(comeV.greaterThanEqual(vDense.x)), () => { Discard(); });
           // (lit as its leaves are, by the cards' own light (the vertex stage's L), with the leaves' way there turned with the
           // plant, the live sky and sun, the sun as it reaches the body's corners (its cloud and cast shadow), its ao and
           // its depth in the crown: light tops and dark sides to its lobes, under the sun as it moves. Squared after: T)
