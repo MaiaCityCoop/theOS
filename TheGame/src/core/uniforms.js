@@ -23,6 +23,7 @@ export const U = {
   uExposure: uniform(1),                           // the picture's exposure (the sky sets it by the hour)
   uSnow: uniform(0),                               // how deep the snow lies, metres (src/world/weather/snow.js)
   uFine: uniform(1),                               // how much finer than the inside's pixels textures are read (built over time: src/core/temporal.js)
+  uDrawn: uniform(typeof devicePixelRatio === 'number' ? Math.min(devicePixelRatio, 2) : 1),   // pixels drawn a CSS pixel: the inside's ratio (src/core/temporal.js, tools/bench.js), for src/detail/measure.js drawnAt
   uMarks: uniform(0),                              // 1 while the world is drawn for the picture built over time: a pixel's fourth number then says how still it is
   uMark: uniform(0),                               // what moves by itself marks its pixels by it (src/world/light.js: stillness; set by src/core/temporal.js)
   uSnowFall: uniform(0),                           // how much snow is falling, 0 … 1 (src/world/weather/snowfall.js)

@@ -23,7 +23,7 @@ export async function bench({ ratio = 1.5, frames = 60, settle = 0 } = {}) {
   const pm = camera.projectionMatrix.clone(), was = renderer.getPixelRatio(), covered = s.covered; renderer.setPixelRatio(ratio); s.governor.hold(true); s.covered = true;   // (covered: the game's own frame neither chooses nor draws)
   const frame = (v) => {
     const P = poseAt(v.x, v.z, v.yaw, v.h, -0.05); camera.position.set(...P.pos); camera.rotation.order = 'YXZ'; camera.rotation.set(P.pitch, P.yaw, 0); camera.fov = P.fov; camera.updateProjectionMatrix(); camera.updateMatrixWorld();
-    const p = camera.position, g = heightAt(p.x, p.z), dy = Math.max(0, p.y - g - 2); U.uDy.value = dy; U.uAirH.value = Math.max(0, p.y - g); U.uLodInv.value = 1;
+    const p = camera.position, g = heightAt(p.x, p.z), dy = Math.max(0, p.y - g - 2); U.uDy.value = dy; U.uAirH.value = Math.max(0, p.y - g); U.uLodInv.value = 1; U.uDrawn.value = ratio;   // (drawn straight onto the canvas: its pixels a pixel of the lens's measure)
     setPlanes(pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)); s.ground.update(p.x, p.z, dy, 1); s.terrain.update(camera, dy, 1); s.scatter.select(p.x, p.z, g, 1, dy);
     s.weather.before(camera, g); s.shadows.render(s.scene, camera, g); renderer.render(s.scene, camera);
   };

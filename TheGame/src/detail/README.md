@@ -28,11 +28,11 @@ every distance with it.
 
 | What | Engine | How |
 | --- | --- | --- |
-| trees, bushes, ferns: anything in a stand | `src/scatter/trees.js`, drawn by `src/scatter/drawer.js` | per vertex, each frame: `handOver` + `sinkInto`; packing by the drawer's tier (`bandOf`) |
+| trees, bushes, ferns: anything in a stand | `src/scatter/trees.js`, drawn by `src/scatter/drawer.js` | per vertex, each frame: `handOver` + `sinkInto`; packing by the drawer's tier (`bandOf`). Far off, its clumps (a chunk of its leaves as three crossed planes) and its impostor (one quad, three views blended with parallax), both baked on the GPU from its finest level (`impostor.js`); it is its impostor where the impostor's texels are no larger than the pixels drawn (`measure.js` `drawnAt`, `trees.js` `meshShare`: a short cross-fade, texel by texel) |
 | rocks, and whatever else the heap holds | `src/scatter/drawer.js` (the rocks placed by `rocks.js`) | the ladder's eight levels (`assets/kit/ladder.js`), each vertex moving to its place on the next coarser mesh over a level's last pixels; an asset may end sooner (`detail.end`), shrinking away |
 | what stands at a spot of its own (a tent, a fire pit, later a house): a list of a few or of millions | `src/scatter/placed.js`, drawn by `src/scatter/drawer.js` (intent 0029) | per vertex, each frame: `handOver` (of one piece: whole, half way), `sinkInto`; packing by the drawer's tier over the list's runs; its last level the drawer's dot |
 | what moves (the stress stand's movers, the herds of `?herds=N`) | `src/scatter/stress.js`, `src/scatter/herds.js`, drawn by `src/scatter/drawer.js` | the drawer's one tier of every level, packed every frame: the level its size asks for, on its skeleton until its hull |
-| the same in the library's stage, and where there is no WebGPU | `index.js` `Detailed`, `src/world/place.js` (its light and wind: `src/world/made.nodes.js`, the list's too), `impostor.js` | on the CPU: `handOverAt`, the material's `sunk` |
+| the same in the library's stage, and where there is no WebGPU | `index.js` `Detailed`, `src/world/place.js` (its light and wind: `src/world/made.nodes.js`, the list's too), `impostor.js` (the plants' impostor, baked once a recipe from its nearest level) | on the CPU: `handOverAt`, the material's `sunk` |
 | the land's colour where a stand has sunk | `src/terrain/material.js` | `sizeOf`, `detailOf().cut`, the stand's `cover` |
 
 Not on it: the grass (`src/scatter/grass.js`): rings of blades by the lens's distance, no levels of a thing.

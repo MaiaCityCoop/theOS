@@ -178,6 +178,7 @@ export function createTemporal(renderer) {
       // textures read as finely as the screen's pixels would read them, not the inside's: what that leaves crawling in one
       // frame, the frames together take in (src/terrain/material.js, src/scatter/stress.js)
       U.uFine.value = 1 + (Math.min(1, w / size.x) - 1) * K.fine;
+      U.uDrawn.value = h / Math.max(1, renderer.getSize(size).y);   // (the pixels drawn a CSS pixel: src/detail/measure.js drawnAt)
     },
     /** After it: the camera as it was, and nothing marked or read finer by what is drawn otherwise (the lens's own pass). */
     end(camera) { camera.clearViewOffset(); U.uMarks.value = 0; U.uMark.value = 0; U.uFine.value = 1; },

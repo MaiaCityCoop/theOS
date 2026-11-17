@@ -36,7 +36,9 @@ export class Tier {
       cull: metres the eye's frustum is widened by before a patch outside it is dropped (a shadow's reach), or false to keep
       every patch; fixed: metres round the camera, whatever the lens.
       Without `live`: material(cellNode) is the tier's node material, given the cell each instance stands for.
-      With `live` (and `gpu`, a WebGPU renderer's): live(cellNode) -> { alive, data: [vec4, …] } says what stands in a cell;
+      With `live` (and `gpu`, a WebGPU renderer's): live(cellNode) -> { alive, data: [vec4, …], bucket?, also? } says what
+      stands in a cell (bucket: which of its geometries draws it; also, where given: a second one, -1 none, and its
+      bucket may then be -1);
       material({ read }) is the material, read(k) its k-th vec4 of `slots`, ready-made; `cap` the most that may stand at once
       (a number: of each bucket; or a list, a cap a bucket: where one bucket holds thousands and the others a few).
       spans: a tier of a list (src/scatter/placed.js: what is placed one by one, kept in the order of where it stands):
@@ -72,11 +74,17 @@ export class Tier {
         Fn(() => { for (let k = 0; k < K; k++) atomicStore(count.element(k), uint(0)); })().compute(1),
         Fn(() => {
           If(instanceIndex.lessThan(this.cand), () => {
-            const Q = partOf(instanceIndex), L = live(Q.cell, Q), b = K > 1 ? uint(L.bucket) : uint(0);
-            If(L.alive, () => {
+            const Q = partOf(instanceIndex), L = live(Q.cell, Q);
+            // (into its bucket; and where live says `also`, into that one too: a thing handing over from one draw to
+            // another, drawn by both while the vertex stages say which shows: src/scatter/drawer.js, the impostors)
+            const put = (b) => {
               const i = atomicAdd(count.element(b), uint(1)).toVar();
               if (own) If(i.lessThan(uint(capOff.element(b).x)), () => { const at = uint(capOff.element(b).y).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
               else If(i.lessThan(uCap), () => { const at = b.mul(uCap).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
+            };
+            If(L.alive, () => {
+              if (L.also) { If(L.bucket.greaterThanEqual(0), () => { put(uint(L.bucket)); }); If(L.also.greaterThanEqual(0), () => { put(uint(L.also)); }); }
+              else put(K > 1 ? uint(L.bucket) : uint(0));
             });
           });
         })().compute(MAXP * P * P),
