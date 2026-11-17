@@ -363,7 +363,7 @@ function plantMaterial(tex, D) {
                 vBase.assign(vec2(floor(b.div(4096)), b.mod(4096))); // (x: a far body's density, or the wood's and the post's share as one gives way to the other; y: its bake's texels a
                 // side, crowd.js bakeRes from HI as read here; z: which of its smaller pictures, one texel to a pixel: its size on
                 // screen against the bake's, the plant three quarters of the bake's frame)
-                const BR = clamp(exp2(ceil(log2(max(V.crowd.rule[0].z, 1)))), CROWD.BAKEMIN, CROWD.BAKE), lod = clamp(floor(log2(BR.mul(0.75).div(max(pxR, 1))).add(0.5)), 0, log2(BR).sub(2));
+                const BR = clamp(exp2(ceil(log2(max(V.crowd.rule[0].z, 1)))), CROWD.BAKEMIN, CROWD.BAKE), lod = clamp(log2(BR.mul(0.75).div(max(pxR, 1))), 0, log2(BR).sub(2));   // (not a whole number: the fragment takes the two pictures either side, a pixel each, as near as it is to each)
                 vDense.assign(vec4(baked.select(crowdDense(R.into), R.fade), BR, D.bakeTex && feed ? lod : float(0), V.ao));   // (w: its corner's ao, which its light was reckoned with)
               }
               clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos, uv: R.uv }, float(1), H.sunk));
@@ -438,7 +438,9 @@ function plantMaterial(tex, D) {
           const pick = ign(screenCoordinate.xy), rise = ign(screenCoordinate.xy.add(vec2(37, 17)));   // (which view this pixel takes: the one from above as far as the eye is up; else the next side view as far as the eye has come round to it)
           const at = rise.lessThan(vImp2.w).select(vImp2.xyz, pick.lessThan(vImp1.w).select(vImp1.xyz, vImp.xyz));
           // (its picture of n texels a side at this size: crowd.js BAKEMIPS, its rows from the top as baked; t: the texel's own number)
-          const R = vDense.y, lod = vDense.z, n = floor(R.div(exp2(lod)).add(0.5)), layer = floor(at.z.add(0.5));
+          // (which of its smaller pictures: the two either side of its size, a pixel each by a fixed pattern, as far as it
+          // has gone from one to the next: a picture never gives way to the next at once)
+          const R = vDense.y, lod = floor(vDense.z).add(ign(screenCoordinate.xy.add(vec2(71, 23))).lessThan(fract(vDense.z)).select(float(1), float(0))).min(log2(R).sub(2)), n = floor(R.div(exp2(lod)).add(0.5)), layer = floor(at.z.add(0.5));
           const tx = clamp(floor(at.x.mul(n)), 0, n.sub(1)), ty = clamp(n.sub(1).sub(floor(at.y.mul(n))), 0, n.sub(1)), cs = vec4(0).toVar();
           const X = lod.greaterThan(0.5).select(R, float(0)).add(tx), Y = lod.greaterThan(0.5).select(R.sub(R.div(exp2(lod.sub(1)))), float(0)).add(ty);
           const t = bakeTex ? uint(layer.mul(CROWD.BAKE * 1.5 * CROWD.BAKE).add(Y.mul(CROWD.BAKE * 1.5)).add(X)) : uint(layer.mul(R).mul(R).add(ty.mul(R)).add(tx));
