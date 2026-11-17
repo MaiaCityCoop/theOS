@@ -41,7 +41,7 @@
     "type": "asset",
     "name": "Fire pit",
     "file": "assets/firepit.js",
-    "version": "682d36683c313f8aef592cb54a0d062fe1fe631182b17298ab4cf9a66236ddcc",
+    "version": "a5c21ab6145fe3cdd02fd90c47f6ee751278091c0a4fcf976087ede7e0c216fc",
     "uses": [
       "5e888d71-827c-4efc-8d13-50717c7f1dc8",
       "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
@@ -226,7 +226,7 @@
     "type": "character",
     "name": "Settler",
     "file": "characters/settler.js",
-    "version": "cbe6c29fe6d1c20f55a59e17f3a2ff66df528505c129efad795aae23ac3068c1",
+    "version": "0ef352db7a3757fd05c75011e74f6b9cd031cad8c4ff230338caa6e7da09b65e",
     "uses": [
       "3cb68f1f-a92d-4adf-bb8e-838abf352389",
       "5f430c04-8942-442c-ac6a-b5c958cc887a",

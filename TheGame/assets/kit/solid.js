@@ -10,6 +10,9 @@
 //            that mesh's normal there; the two bones that move it (of its kind's sixteen) and how much the second does.
 //            What stands on no skeleton may keep something else in those twelve bits (a leaf card: where on the card
 //            the vertex is: assets/kit/frond.js)
+//   still    (a solid that stands on no skeleton, its levels made by assets/kit/reduce.js: `?lod=new`) word 3 is
+//            dz high (6) | coarse normal u (9) | v (9) | coarse shade (6) | 2 spare: its normal and its shade on the next
+//            coarser level as finely as that level's own, so where the one level gives way to the next they are its, bit for bit
 import { held, sn, sc, oct, OCT, unoct } from './pack.js';
 
 /** How many bones a kind's skeleton may have (a vertex names its two in four bits each). */
@@ -20,9 +23,9 @@ export const cut = { n: 0, most: 0, reset() { this.n = 0; this.most = 0; } };
 
 /** Pack one vertex into out[o … o + 3]: its place, its normal, its shade (0 … 1); its place and normal on the coarser
     mesh (its own again where it has none), D the level's delta; its bones a and b (0 … 15) and b's weight (0 … 1). */
-export function packSolid(out, o, x, y, z, nx, ny, nz, shade, tx, ty, tz, tnx, tny, tnz, D, a = 0, b = 0, w = 0) {
+export function packSolid(out, o, x, y, z, nx, ny, nz, shade, tx, ty, tz, tnx, tny, tnz, D, a = 0, b = 0, w = 0, still = null) {
   oct(nx, ny, nz); const NU = sc(OCT[0], 255), NV = sc(OCT[1], 255);
-  oct(tnx, tny, tnz); const TU = sc(OCT[0], 63), TV = sc(OCT[1], 63);
+  oct(tnx, tny, tnz); const TU = sc(OCT[0], still ? 255 : 63), TV = sc(OCT[1], still ? 255 : 63);   // (still: its coarse shade, 0 … 1)
   let dx = 511, dy = 511, dz = 511;
   if (D > 0) {
     const ex = (tx - x) / D, ey = (ty - y) / D, ez = (tz - z) / D, far = Math.max(Math.abs(ex), Math.abs(ey), Math.abs(ez));
@@ -33,7 +36,7 @@ export function packSolid(out, o, x, y, z, nx, ny, nz, shade, tx, ty, tz, tnx, t
   out[o] = (sn(x, 65535) | (sn(y, 65535) << 16)) >>> 0;
   out[o + 1] = (sn(z, 65535) | (NU << 16) | ((NV & 0x7f) << 25)) >>> 0;
   out[o + 2] = ((NV >> 7) | (SH << 2) | (dx << 8) | (dy << 18) | ((dz & 0xf) << 28)) >>> 0;
-  out[o + 3] = ((dz >> 4) | (TU << 6) | (TV << 13) | (a << 20) | (b << 24) | (W << 28)) >>> 0;
+  out[o + 3] = (still != null ? (dz >> 4) | (TU << 6) | (TV << 15) | (held(still * 63, 63) << 24) : (dz >> 4) | (TU << 6) | (TV << 13) | (a << 20) | (b << 24) | (W << 28)) >>> 0;
 }
 
 /** A dot: three corners at a thing's middle (what draws it turns it to the eye and takes its colour from its look). */
