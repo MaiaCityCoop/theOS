@@ -177,7 +177,7 @@ export const MASSES = [
   { part: 'trunk', what: 'jugular notch', at: [0, 1.475, 0.036], r: [0.012, 0.012, 0.008, 0.008, 0.009, 0.02], n: 2.0, k: 0.012 },   // (the hollow above the breastbone a soft one, the width of a thumb, not a pit)
   { part: 'trunk', what: 'deltoid', at: [0.178, 1.43, -0.034], r: [0.045, 0.03, 0.04, 0.05, 0.046, 0.048], n: 2.0, k: 0.03 },   // (the shoulder's cap, over the acromion and the head of the arm)
   { part: 'trunk', what: 'pectoral', at: [0.078, 1.33, 0.078], r: [0.074, 0.064, 0.1, 0.038, 0.022, 0.03], n: 2.6, k: 0.025, lean: 0.3 },   // (a slightly muscular man's: its lower edge at the nipples, the sternum in the groove between the two)
-  { part: 'trunk', what: 'buttock', at: [0.072, 0.885, -0.08], r: [0.085, 0.062, 0.11, 0.085, 0.05, 0.065], n: 2.5, k: 0.025 },
+  { part: 'trunk', what: 'buttock', at: [0.068, 0.885, -0.075], r: [0.075, 0.06, 0.11, 0.1, 0.05, 0.052], n: 2.1, k: 0.04 },
 ];
 // The hand, drawn finer than the body (./build.js): its palm and the ball of its thumb as masses (left hand, standing,
 // its palm to the thigh: +x its back, +z towards the thumb; m), each finger three tapering rods from its knuckle
