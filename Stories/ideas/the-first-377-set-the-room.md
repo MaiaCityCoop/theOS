@@ -15,7 +15,7 @@ updated: 2026-11-17
 ## What happened
 
 - [0037] Founders set a community's feel, and whoever is not at the table at the start arrives later as an afterthought.
-- [0037] So the question of how someone who cannot pay a euro comes in moved from someday to the first season: the gate is widest at the first rungs.
+- [0037] So how the door stays open to anyone moved from someday to the first season: the gate is widest at the first rungs.
 
 ## Samuel's own words
 

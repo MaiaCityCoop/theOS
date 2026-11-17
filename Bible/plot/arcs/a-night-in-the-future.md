@@ -18,7 +18,7 @@ mice-threads:
 
 # A Night in the Future
 
-Track 2, the domes. Opens at step 13, 377 paying citizens, on day 165, and runs to 2042. The jump it asks for is a trip.
+Track 2, the domes. Opens at step 13, 377 citizens, on day 165, and runs to 2042. The jump it asks for is a trip.
 
 One real dome per Fibonacci milestone, each delivered to one winner chosen by a leaderboard inside [the twin](../../worldbuilding/locations/the-twin.md), and each opening a new produce category the city sells. This is where the city stops being a screen and becomes something a person can hold, and later sleep inside. The step-by-step unlocks are in [the ladder](../../worldbuilding/systems/the-ladder.md); the network is [the dome network](../../worldbuilding/locations/the-dome-network.md).
 

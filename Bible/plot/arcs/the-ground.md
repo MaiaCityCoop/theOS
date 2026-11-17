@@ -17,7 +17,7 @@ mice-threads:
 
 # The Ground
 
-Track 4, the city itself. Opens at step 29, 832,040 paying citizens, with the land and the sovereignty, and runs to 2042. The jump it asks for is everything. See [the ladder](../../worldbuilding/systems/the-ladder.md).
+Track 4, the city itself. Opens at step 29, 832,040 citizens, with the land and the sovereignty, and runs to 2042. The jump it asks for is everything. See [the ladder](../../worldbuilding/systems/the-ladder.md).
 
 [Maia City](../../worldbuilding/locations/maia-city.md): a sovereign solarpunk city state for 1.3 million people, built from the ground up. This is the arc the hard stake belongs to. In 2042 it stands, or it does not.
 

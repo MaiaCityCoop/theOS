@@ -18,7 +18,7 @@ mice-threads:
 
 # The First World
 
-Track 1, the game. Opens at step 1, the first paying citizen, and runs to 2042. The jump it asks for is a euro a day, then an evening.
+Track 1, the game. Opens at step 1, the first citizen, and runs to 2042. The jump it asks for is walking in, then an evening.
 
 **Phase one of [the ladder](../../worldbuilding/systems/the-ladder.md) belongs entirely to this arc**: steps 1 to 12, about the first 147 days, in which twelve dome scales are built in the twin and nothing physical is promised. On step 13, day 165, the 144 m district dome completes the ladder and the first real dome leaves the game on the same day, handing over to [A Night in the Future](a-night-in-the-future.md).
 

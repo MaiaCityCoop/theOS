@@ -16,7 +16,7 @@ updated: 2026-11-17
 
 - [0037] A researcher who visited fifty communities found the same thing sinking them: one person's land, and a good owner who changed, or had to.
 - [0037] The Bible said the founder would hold no more than anyone else by the end, and never said who holds the ground on the way there.
-- [0037] The answer proposed: the ground and every dome belong to the citizens from the first square metre, and the city carries no debt.
+- [0037] Settled: the Maia City Coop owns all the land, so every citizen does, and nobody can pull it from under anyone.
 
 ## Samuel's own words
 

@@ -41,7 +41,7 @@ The serial never makes him the subject of its own argument. When he is on the pa
 
 ## Motivations & Goals
 
-- **What he wants.** 1,346,269 people owning a sovereign solarpunk city they built from the ground up, a euro a day each, first in the game and then in the earth.
+- **What he wants.** 1,346,269 people owning a sovereign solarpunk city they built from the ground up, first in the game and then in the earth.
 - **What he needs.** To not die having never lived, and to not watch the people around him bury their dreams in the safe life.
 - **What he believes produces joy.** Building momentum and contributing around a shared vision greater than yourself. Ownership is a human right. Survival is meant to be eliminated.
 - **His deepest pain.** The waste of human potential on nothing, caused by badly designed systemic principles, not by the people living inside them.

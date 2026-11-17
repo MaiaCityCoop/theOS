@@ -16,7 +16,7 @@ updated: 2026-11-17
 
 - [0037] A Māori radio station built speech recognition for its own language from its own people's voices in ten days, and turned down the money to keep it.
 - [0037] The Bible said the only open question is who owns the machines, and had not answered it for the one machine in the story.
-- [0037] The answer proposed: Maia is in the stack, held by her citizens like a dome, and what a citizen gives her stays theirs.
+- [0037] Settled: Maia is owned by everyone, as the land is; what a citizen brings to her stays theirs.
 
 ## Samuel's own words
 

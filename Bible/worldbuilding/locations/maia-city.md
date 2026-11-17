@@ -42,7 +42,7 @@ Thinking and executing big is the norm here, not the exception. That is the one 
 
 ## Current State
 
-Not yet in the ground. Track 4 opens at step 29 of [the ladder](../systems/the-ladder.md), 832,040 paying citizens, with the land and the sovereignty; the city is what the first three tracks exist to make possible.
+Not yet in the ground. Track 4 opens at step 29 of [the ladder](../systems/the-ladder.md), 832,040 citizens, with the land and the sovereignty; the city is what the first three tracks exist to make possible.
 
 ## Open
 

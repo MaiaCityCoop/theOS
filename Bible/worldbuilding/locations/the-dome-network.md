@@ -15,7 +15,7 @@ status: planned
 
 # The Dome Network
 
-Real domes, spread around the world, owned by the community together. Track 2, which opens at step 13 of [the ladder](../systems/the-ladder.md) (377 paying citizens, day 165) and runs to 2042.
+Real domes, spread around the world, owned by the community together. Track 2, which opens at step 13 of [the ladder](../systems/the-ladder.md) (377 citizens, day 165) and runs to 2042.
 
 **One dome per Fibonacci milestone, each delivered to one winner** chosen by a leaderboard inside [the twin](the-twin.md), and each opening a new produce category the city sells. The first is a 50 cm dome growing herbs and strawberries, on the same day the complete ladder finishes standing in the game. From step 18 the 8 m dome has a bed and a kitchen, and that is the first night anyone can book.
 

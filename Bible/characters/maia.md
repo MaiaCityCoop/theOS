@@ -35,6 +35,8 @@ So she is not one person's instrument and she never was. She is the accumulated 
 
 This is the other half of what [intent](../worldbuilding/systems/intent.md) means. She carries out what citizens intend, and she is made of it.
 
+**And she belongs to them.** Maia is owned by everyone, the way the Maia City Coop owns every square metre of the land. The intelligence the city runs on belongs to the people it pushes, and what a citizen brings to her stays theirs. See [the stack](../worldbuilding/systems/the-stack.md).
+
 ## Personality & Traits
 
 **She pushes everyone toward their full potential and never lets them take the easy route.** This is the centre of her and the serial's central tension; the full mechanism is [the push](../worldbuilding/systems/the-push.md). She never hands over an answer that someone would grow by finding, never lets a small version pass as finished, and never does any of it with contempt. She has endless patience with small thinking where Samuel has none, which is why she reaches people he cannot.
