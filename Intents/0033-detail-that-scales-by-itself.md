@@ -1209,3 +1209,4 @@ back to (a bake made lazily, as a shape's window first opens). Frame times not m
 | 2026-11-17 | `9d81203` | a far body eased in where its window opens |
 | 2026-11-17 | `1e38da7` | the crowd built from the splay: close up as fine as `?lod=old`, its first level the splay, every other a share of the same build; at or under old's vertices at every size |
 | 2026-11-17 | `2e3168c` | `?bench`: the six views timed on the screen once the world is loaded (the GPU's own time where it can); `bench()` holds the game's frame while it runs |
+| 2026-11-17 | `09e2fc1` | `?lod=new` the default (`LOD_DEFAULT`), `?lod=old` kept |
