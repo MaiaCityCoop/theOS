@@ -228,6 +228,8 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
     const whole = head ? new Float32Array(n) : null;
     if (head) for (let k = lo[2]; k <= hi[2]; k++) for (let j = lo[1]; j <= hi[1]; j++) for (let i = lo[0]; i <= hi[0]; i++) { const g = I(i, j, k), q = at(i, j, k); whole[q] = exactPart[g] === p ? smin(sd[q], exact[g], 0.005) : sd[q]; }
     const far = pro.length ? Float32Array.from(sd) : head ? Float32Array.from(whole) : null; if (far) blurBox(far, dims, Math.round(0.02 / h));
+    // (and softened a little: the skin bridges what is narrower than a centimetre between two bellies)
+    const mid = pro.length ? Float32Array.from(sd) : null; if (mid) blurBox(mid, dims, 1);
     for (let k = lo[2]; k <= hi[2]; k++) for (let j = lo[1]; j <= hi[1]; j++) for (let i = lo[0]; i <= hi[0]; i++) {
       // (the muscles' and the bones' and the rest's blended over a few millimetres)
       const g = I(i, j, k), d = exactPart[g] === p ? smin(sd[at(i, j, k)], exact[g], 0.005) : sd[at(i, j, k)]; if (d > 0.055) continue;
@@ -242,15 +244,16 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       // each, and does not bridge them to be torn as they part)
       if (p === P_.leg) v = Math.max(v, 0.003 - Math.abs(X(i)), 0.0005 - Y(j));   // (and its sole flat on the ground, as a sole stood on is)
       // (where the piece has an outline: the skin on it, with the muscles' relief laid on as much as the fat there lets
-      // it through (most of it under 2 mm of fat, a sixth under 8), and never under a bone near the skin: the
-      // collarbone, the elbow, the knee, the shin, the crest of the pelvis stand out of it as they do)
+      // it through (all of it under 3 mm of fat, a third under 9: a slightly muscular man's muscles show), and never
+      // under a bone near the skin: the collarbone, the elbow, the knee, the shin, the crest of the pelvis stand out of
+      // it as they do)
       if (pro.length) {
         const q = [Math.abs(X(i)), Y(j), Z(k)]; let E = Infinity, w = 0;
         for (const P of pro) { const o = P(q); E = E === Infinity ? o.E : smin(E, o.E, o.k ?? 0.012); w = Math.max(w, o.w); }   // (a mass holds no weight of its own: it adds to the outline where the outline holds)
         if (w > 0) {
-          const g2 = at(i, j, k), keep = Math.min(0.85, Math.max(0.15, 1.1 - tissue[g] / 0.008));
-          let s2 = E + keep * (sd[g2] - far[g2]);
-          if (exactPart[g] === p) s2 = smin(s2, exact[g] - Math.max(0.0025, 0.4 * tissue[g]), 0.012);
+          const g2 = at(i, j, k), keep = Math.min(1, Math.max(0.3, 1.3 - tissue[g] / 0.009));
+          let s2 = E + keep * Math.max(-0.002, mid[g2] - far[g2]);   // (what stands out shows; a groove between two muscles the fat fills, but for two millimetres)
+          if (exactPart[g] === p) s2 = smin(s2, exact[g] - Math.max(0.0025, 0.4 * tissue[g]), 0.02);
           v = v + w * (s2 - v);
         }
       }
@@ -261,9 +264,10 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       const old = fl[g], u = soft ? smin(old, v, soft) : Math.min(old, v); if (u < old) { fl[g] = u; if (v < old) fp[g] = p; }
       // (the top of the arm, the deltoid, is in the trunk's skin too, so the shoulder is one surface from the neck over
       // it; below it, as the arm's own skin takes over, it sinks under that skin, four millimetres for each centimetre
-      // below the shoulder's top, so the two do not meet in a seam)
+      // below the shoulder's top (and above it as fast: the top of the shoulder is the trunk's own, the arm's cap does
+      // not stand out of it), so the two do not meet in a seam)
       if (p === P_.arm && Y(j) > 1.37) {
-        const vb = v + Math.max(0, 1.43 - Y(j)) * 0.4, ob = field[g], ub = smin(ob, vb, fieldPart[g] === P_.trunk ? 0.03 : 0.001);
+        const vb = v + Math.max(0, 1.43 - Y(j)) * 0.4 + Math.max(0, Y(j) - 1.455) * 0.8, ob = field[g], ub = smin(ob, vb, fieldPart[g] === P_.trunk ? 0.045 : 0.001);
         if (ub < ob) { field[g] = ub; if (vb < ob) fieldPart[g] = p; }
       }
     }
@@ -321,6 +325,8 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
   }
   const GHand = gridOf(handF, HNn, HLo, HF);
   const handPartAt = (p) => { const q = [Math.abs(p[0]), p[1], p[2]], i = Math.round((q[0] - HLo[0]) / HF), j = Math.round((q[1] - HLo[1]) / HF), k = Math.round((q[2] - HLo[2]) / HF); return handP[Math.max(0, Math.min(HNn[0] - 1, i)) + HNn[0] * (Math.max(0, Math.min(HNn[1] - 1, j)) + HNn[1] * Math.max(0, Math.min(HNn[2] - 1, k)))]; };
+  // (what stands round a point of a skin: the skins as fine as its own, the trunk's and the arms' together)
+  const occluder = (piece, o) => piece === 2 ? Math.min(GH.sample(o), GA.sample(o)) : piece >= 3 ? Math.min(GHand.sample([Math.abs(o[0]), o[1], o[2]]), GB.sample(o)) : Math.min(GB.sample(o), GA.sample(o));
   const mirrorMesh = (M) => ({ pos: M.pos.map((v, i) => (i % 3 === 0 ? -v : v)), tri: M.tri.map((v, i) => (i % 3 === 1 ? M.tri[i + 1] : i % 3 === 2 ? M.tri[i - 1] : v)), nb: M.nb });
 
   // ── drawn out: surface nets on the grid (and on a grid twice as coarse, for the far level) ──────────────────────
@@ -457,7 +463,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       const pt = (M, v) => [M.pos[v * 3], M.pos[v * 3 + 1], M.pos[v * 3 + 2]];
       const pieces = [[nets(lv, GB), (p) => partAt(p, false)], [nets(lv, GA), (p) => partAt(p, true)]];
       if (lv === 1) { pieces.push([nets(1, GH), hpartAt]); const L = nets(1, GHand); pieces.push([L, handPartAt], [mirrorMesh(L), handPartAt]); }
-      const out = { pos: [], tri: [], nb: [], part: [] };
+      const out = { pos: [], tri: [], nb: [], part: [], piece: [] };
       for (const [k, [M, partOf_]] of pieces.entries()) {
         const n0 = out.pos.length / 3, nv = M.pos.length / 3, part = Array.from({ length: nv }, (_, v) => partOf_(pt(M, v))), near = k === 2 ? Array.from({ length: nv }, (_, v) => hnearAt(pt(M, v))) : null;
         // (near, the head is the fine one's: the body's own head is left out but for a ring round the neck, where the
@@ -467,7 +473,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
         const keepT = lv !== 1 ? () => true : k === 0 ? (a, b, c) => part[a] !== P_.head || part[b] !== P_.head || part[c] !== P_.head
           : k === 1 ? (a, b, c) => !inHand(a) || !inHand(b) || !inHand(c) : k === 2 ? (a, b, c) => near[a] || near[b] || near[c]
           : (a, b, c) => y(a) < 0.895 || y(b) < 0.895 || y(c) < 0.895;
-        for (let v = 0; v < nv; v++) { out.pos.push(...pt(M, v)); out.part.push(part[v]); out.nb.push(M.nb[v].map((u) => u + n0)); }
+        for (let v = 0; v < nv; v++) { out.pos.push(...pt(M, v)); out.part.push(part[v]); out.piece.push(k); out.nb.push(M.nb[v].map((u) => u + n0)); }
         for (let t = 0; t < M.tri.length; t += 3) { const a = M.tri[t], b = M.tri[t + 1], c = M.tri[t + 2]; if (keepT(a, b, c)) out.tri.push(a + n0, b + n0, c + n0); }
       }
       return out;
@@ -494,10 +500,14 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       let what = inside(q, lips) ? 1 : Math.hypot(q[0] - nip[0], q[1] - nip[1]) < areola.r[0] && q[2] > nip[2] - 0.012 ? 2 : 0;
       if (allRows(A.row).rigid && /^(index3|middle3|ring3|little3|thumb3)\./.test(rigA) && Math.abs(nrm[0]) > 0.6 && Math.sign(nrm[0]) === Math.sign(p[0])) what = 3;
       if (allRows(A.row).rigid && /^toe\d\./.test(rigA) && nrm[1] > 0.6 && p[2] > 0.13) what = 3;
-      // how open it stands: a hollow (its neighbours further out than it) darker
-      let s = [0, 0, 0]; for (const u of S.nb[v]) s = add(s, [S.pos[u * 3], S.pos[u * 3 + 1], S.pos[u * 3 + 2]]);
-      const cav = S.nb[v].length ? dot(sub(mul(s, 1 / S.nb[v].length), p), nrm) / cell : 0;
-      attr.look.push(Math.max(0.35, Math.min(1, 1 - cav * 1.6)), what, 0, 0);
+      // how open it stands: how much of the body is round it, looked for a centimetre and a half and four centimetres
+      // out of it, straight out and slanting (the trunk's and the arms' skins both: under the arm, between the thighs)
+      let occ = 0, ws = 0; const t1 = norm(cross(nrm, Math.abs(nrm[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0])), t2 = cross(nrm, t1);
+      for (let qd = 0; qd < 5; qd++) {
+        const a = (qd / 4) * 2 * Math.PI, dir = qd === 4 ? nrm : norm(add(mul(nrm, 0.7), add(mul(t1, Math.cos(a) * 0.71), mul(t2, Math.sin(a) * 0.71))));
+        for (const d of [0.015, 0.04]) { const o = add(p, mul(dir, d)), f = occluder(S.piece[v], o); occ += 0.5 * Math.max(0, 1 - f / (d * 0.7)); ws += 0.5; }
+      }
+      attr.look.push(Math.max(0.45, Math.min(1, 1 - (1.3 * occ) / ws)), what, 0, 0);
       pos.push(...p);
       // the soles: under each foot and toe, the lowest point every two centimetres
       if (L === 'fine' && allRows(A.row).rigid && /^(foot|toe\d)\./.test(rigA) && p[1] < 0.03) { const k2 = rigA + ':' + Math.round(p[2] / 0.02) + ':' + Math.round(p[0] / 0.03); const was = low.get(k2); if (!was || p[1] < was.p[1]) low.set(k2, { rig: rigA, p }); }
