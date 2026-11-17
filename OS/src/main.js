@@ -17,21 +17,24 @@ const cit = (v) => `${n(v)} citizen${v === 1 ? '' : 's'}`;   // the count is of 
 const mm = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 let intents = [], stories = [], scenes = [], me = {}, current = null, gameView = 'walk';   // me: who works here (the dashboard's welcome)
 const latest = () => stories.filter((s) => s.film).pop();
-const filmOf = (id, scene = !!current?.scene && current.id === id) => `${GAME}/timeline.html?${scene ? 'scene' : 'story'}=${id}&embed`;   // a story's film, or a scene's (Stories/scenes/)
+// the page's own flags (`?lod=new`, `?flyby`, any the game reads: TheGame/src/core/flags.js), passed on to every frame
+// of the game it opens; the dashboard reads none itself
+const FLAGS = location.search.slice(1), withFlags = (u) => (FLAGS ? u + (u.includes('?') ? '&' : '?') + FLAGS : u);
+const filmOf = (id, scene = !!current?.scene && current.id === id) => withFlags(`${GAME}/timeline.html?${scene ? 'scene' : 'story'}=${id}&embed`);   // a story's film, or a scene's (Stories/scenes/)
 
 // ---- tabs: showing one stops the framed games of the others ----
 function tab(name) {
   document.body.classList.toggle('sheet', name === 'intents');   // the intents open as a sheet over the dashboard
   document.body.classList.toggle('studio', name === 'stories');   // the stories, their shelf and their editor: dark, TheOS blue
   document.body.classList.toggle('admin', name !== 'home' && name !== 'legal' && name !== 'join');   // inside: the bottom pill; the front page has none
-  if (location.hash.slice(1) !== (name === 'home' ? '' : name)) history.replaceState(null, '', name === 'home' ? location.pathname : '#' + name);
+  if (location.hash.slice(1) !== (name === 'home' ? '' : name)) history.replaceState(null, '', name === 'home' ? location.pathname + location.search : '#' + name);   // (its flags kept)
   document.querySelectorAll('main').forEach((m) => m.classList.toggle('on', m.id === name));
   if (name === 'intents') { $('city').classList.add('on'); city(); }   // the dashboard stays under the sheet
   if (name === 'stories') $('stories').classList.toggle('editing', !!current);
   if (name === 'stories' && !current) { bible(); ideas(); }   // the bible and the ideas as they stand now (both change only by their tools)
   document.body.classList.toggle('play', name === 'game');   // the game takes the whole window
   if (name !== 'home') $('heroframe').removeAttribute('src');
-  if (name === 'game') { if (!$('frame').getAttribute('src')) $('frame').src = GAME + VIEWS[gameView][1]; } else $('frame').removeAttribute('src');
+  if (name === 'game') { if (!$('frame').getAttribute('src')) $('frame').src = withFlags(GAME + VIEWS[gameView][1]); } else $('frame').removeAttribute('src');
   const player = document.querySelector('.player iframe');
   if (player) { if (name === 'stories' && current) { if (!player.getAttribute('src')) player.src = filmOf(current.id) + '&ch=edit'; } else player.removeAttribute('src'); }
   scrollTo(0, 0);
