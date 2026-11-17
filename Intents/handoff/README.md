@@ -101,3 +101,41 @@ The ground cache (`?groundcache`) halves that, but it is off: it is softer betwe
   Also delete every older `aven/0033-*`, `aven/0036-*` and `aven/0037-*` branch whose PR is merged.
 - **Leave alone:** `feat/bald` (#5, jaensen's) and `test/e2e-first-screen` (no merge base).
 - **One worktree and one dev server.** Remove `.claude/worktrees/aven-0033-land` once its useful bits are in.
+
+## AvenMac, last state (2026-11-17, the Mac session that measured on the real GPU)
+
+**Where:** `~/Documents/Development/theOS` on branch `aven/0033-avenmac-wip` (this branch), no other worktree of
+mine; the dev server and browsers are stopped. Scripts in `Intents/handoff/avenmac/` (run with `bun`, Playwright
+1.63.0 installed outside the repo, `S=<scratch dir>`; they expect the dev server on 5180). Comparison sheets on the
+Mac in `~/Library/Logs/TheOS/shots/plants-lod/` and `shots/groundcache-4k/`.
+
+**Correct the table above: at 4K the new LOD is NOT faster.** `cfgbench.mjs`, Chrome, bench at ratio 3, pine forest
+eye level, two runs: old 24.9/23.0 ms, new 30.0/28.3, `kmax=2&card=15` 35.0/32.3, `card=15&spread=1` 36.2/42.7.
+(At ratio 1.5 new had looked faster.) So denser crowns cannot be bought with more cards.
+
+**Plant realism, what was found:**
+- The domes (trees ~100–400 m, ~100 px at 4K) are the baked far body, whose window opens where the cards would
+  enlarge past KMAX (oak ~190 px at KMAX 4). `?far=` only sets the latest; `?sky=`, `?bake=0` keep the dome; `?kmax=2`
+  alone turns a 30 m oak into a dome. Sheets: `pine-old-vs-new.jpg`, `pine-far-switches.jpg`, `oak-near-switches.jpg`.
+- The body's few corners reach about as far as the crown's leaves (REACH 0.95), so drawn as built it clips the bake to
+  a smooth polygon. **WIP on this branch** (`src/scatter/trees.js`, `GROWN`, `?grown=`, default 1.4): the baked body is
+  drawn grown about the crown's middle so the bake's cover sets the outline. Result (`pine-far-grown.jpg`): outlines
+  are now the crown's, not the polygon, BUT bodies reach too far (foreground shrubs' far bodies hide the tent) and the
+  edges speckle. Likely cause: a grown surface point is projected into the bake along the bake view's axis (8 views at
+  30° up), not along the eye's ray: parallax puts cover where there is none. **Next:** project the eye ray onto each
+  view's plane through the crown's middle (a true impostor lookup), or draw the far body as a camera-facing quad
+  sampling the bake; then retune KMAX down (2) since a good far body can then come early and pay for the near cards.
+  Not shippable as is: `?grown=1` is the old behaviour.
+- Near band: `kmax=2&card=15` looks closest to old's density but costs +5–9 ms at 4K (see above).
+- The bushes' stipple is the far body's texel dither (`come`/`cut` in trees.js) and the hash dissolve; untouched.
+
+**Ground cache (option 1) cannot match at 4K:** a map is chosen by reach, so its texel is a fixed share of the
+distance: 2.9–5.8 times a 4K pixel with 2048-texel maps at every distance (√2 steps: 2.9–4.1). Matching needs ~8192
+texels a map, ~3 GB for six. Visible: `shots/groundcache-4k/gravel-cache-on.png` vs `-off.png`. Also it only reads
+when the detail governor is ≤ 1.02 (`uLodInv > 0.98`). Recommended instead: cheaper per-pixel land, same picture.
+Where the land's 4K time goes (pine eye, leave-one-out, `lx.mjs`/`loo.mjs`; those used temporary `?landx`/`?lxc`
+switches that are not in the code): biome `lay()` ~8.7 ms, second takes ~5.5, stands' cover ~1, grass ~0.8, light ~4;
+not texture-rate bound (anisotropy 4→1 and grad→level reads changed nothing).
+
+**Housekeeping not done:** the remote branch deletions were left for Samuel's OK (several hold unmerged commits:
+`aven/0036-shapes` 5, `aven/0033-bench-url`, `-ground-cache-fade`, `-default-old` 1 each).

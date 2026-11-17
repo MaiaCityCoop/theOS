@@ -71,6 +71,10 @@ const unhalf = (h) => { const e = (h >> 10) & 31, m = h & 1023, v = e === 0 ? m 
 // SKY: between which slopes from the eye (height over distance) a far body's point goes from solid to see-through: under
 // the horizon ground or other crowns lie behind it, over it the sky (`?sky=lo,hi` to try)
 const SKY = (flagText('sky') ?? '-0.03,0').split(',').map(Number);
+// GROWN: how much larger than itself a baked far body is drawn about the crown's middle (`?grown=` to try; 1: as built). Its
+// few corners reach about as far as the crown's outermost leaves, so drawn as built it clipped the crown's picture to a
+// smooth dome; grown, it holds all of it and the picture's own cover is the outline (intent 0033)
+const GROWN = flagNum('grown', 1.4);
 const SX = (2 * GRID.xz) / 65535, SY = (GRID.y1 - GRID.y0) / 65535;
 /** A crowd level's vertex: what the rule moves it by, from the elements a plant's vertex is (assets/kit/plant.js), and
     its shape's sixteen numbers (ruleOf). */
@@ -342,6 +346,7 @@ function plantMaterial(tex, D) {
             const end = Lv.last ? smoothstep(LC.lo, LC.lo.mul(CROWD.END), at) : float(1);
             const hand = Lv.first && Lv.splay ? partGrown({ ...H, v: float(0) }, V.root, float(0), V.hand) : float(1);
             const R = crowdRule(pxR, V, V.crowd, hand, Lv.first && Lv.splay ? H.u.greaterThanEqual(0.5) : null);
+            const posB = R.pos.toVar();   // (where the vertex is drawn: a baked far body's grown, below)
             const show = above.and(below).and(R.shown).and(end.greaterThan(0));
             If(V.drawn ? show.and(V.drawn) : show, () => {
               if (vImp) {
@@ -353,14 +358,17 @@ function plantMaterial(tex, D) {
                 const r = V.crowd.rule[3].y, baked = r.greaterThan(0).and(V.crowd.body.greaterThan(0.5)).and(V.crowd.body.lessThan(3.5));
                 const d = turnOf(B.x).unturn(normalize(U.uCam.sub(vec3(A.x, A.z, A.y)))), se = Math.sin(Math.PI / 6), ce = Math.cos(Math.PI / 6);
                 const a8 = atan(d.z, d.x).div(Math.PI / 4).add(8), k0 = floor(a8).mod(8), k1 = k0.add(1).mod(8), toNext = fract(a8), toTop = clamp(d.y.sub(se).div(1 - se), 0, 1);
-                const rel = R.pos.sub(V.root), half = max(r, 1e-3).mul(2), layerOf = (view) => (D.bakeTex && feed ? floor(B.y.add(0.5)).mul(BAKED.length).add(view) : view);   // (the texture's layer, its shape's and the view's; the library's: the view)
+                // a baked far body is drawn GROWN times its own size about the crown's middle, so it is larger than the crown seen
+                // from any side: its outline is then the bake's (its cover, cut below), never the body's few corners
+                posB.assign(baked.select(V.root.add(R.pos.sub(V.root).mul(GROWN)), R.pos));
+                const rel = posB.sub(V.root), half = max(r, 1e-3).mul(2), layerOf = (view) => (D.bakeTex && feed ? floor(B.y.add(0.5)).mul(BAKED.length).add(view) : view);   // (the texture's layer, its shape's and the view's; the library's: the view)
                 const side = (k) => { const z = k.mul(Math.PI / 4); return vec2(rel.dot(vec3(sin(z), 0, cos(z).negate())), rel.dot(vec3(cos(z).mul(-se), ce, sin(z).mul(-se)))).div(half).add(0.5); };
                 const above = vec2(rel.dot(vec3(1, 0, 0)), rel.dot(vec3(0, 0, -1))).div(half).add(0.5);
                 vImp1.assign(vec4(side(k1), layerOf(k1), toNext)); vImp2.assign(vec4(above, layerOf(float(8)), toTop));
                 // (w: 0 not baked; else 1 and how far against the sky it is, 0 … 1: how high it stands seen from the eye, its
                 // height in the world its foot's and its own times its scale (its turn is about the up axis); gaps only
                 // there, where the sky shows through them, and the crown solid where ground or other crowns lie behind)
-                const s = A.w.div(V.Ks), seenAt = A.z.add(R.pos.y.mul(s)).sub(U.uCam.y).div(max(length(vec2(A.x, A.y).sub(U.uCam.xz)), 1)), sky = smoothstep(SKY[0], SKY[1], seenAt);
+                const s = A.w.div(V.Ks), seenAt = A.z.add(posB.y.mul(s)).sub(U.uCam.y).div(max(length(vec2(A.x, A.y).sub(U.uCam.xz)), 1)), sky = smoothstep(SKY[0], SKY[1], seenAt);
                 vImp.assign(vec4(side(k0), layerOf(k0), baked.select(sky.add(1), float(0))));
                 const at = V.crowd.rule[3].z.mul(1024).add(V.crowd.rule[3].w), b = V.base !== undefined ? float(V.base).add(at.mul(2)) : float(0);   // (its bake's first element: after the level's vertices, two elements a vertex; the library's: its own, from 0)
                 vBase.assign(vec2(floor(b.div(4096)), b.mod(4096))); // (x: a far body's density, or the wood's and the post's share as one gives way to the other; y: its bake's texels a
@@ -369,7 +377,7 @@ function plantMaterial(tex, D) {
                 const BR = clamp(exp2(ceil(log2(max(V.crowd.rule[0].z, 1)))), CROWD.BAKEMIN, CROWD.BAKE), lod = clamp(log2(BR.mul(0.75).div(max(pxR, 1))), 0, log2(BR).sub(2));   // (not a whole number: the fragment mixes the two pictures either side, as near as it is to each)
                 vDense.assign(vec4(baked.select(crowdDense(R.into), R.fade).mul(end), BR, D.bakeTex && feed ? lod : float(0), V.ao));   // (w: its corner's ao, which its light was reckoned with)
               }
-              clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos, uv: R.uv }, float(1), H.sunk));
+              clip.assign(stand(A, B, { ...V, position: posB, root: posB, uv: R.uv }, float(1), H.sunk));
             });
             return;
           }
