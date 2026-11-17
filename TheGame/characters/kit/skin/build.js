@@ -29,7 +29,7 @@ import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
 
 /** How the skin is drawn out, as a number: another, and a kept drawing is drawn again. */
-export const MADE = 4;
+export const MADE = 5;
 
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math.hypot(a[0], a[1], a[2]), norm = (a) => mul(a, 1 / (len(a) || 1));
@@ -222,6 +222,9 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       for (let q = 0; q < n; q++) f[q] = t[q];
     }
   };
+  // (the bones softened by a centimetre and a half: on the top of the shoulder the acromion and the collarbone's end
+  // show through the skin as one smooth rise, not as their own ridges and knobs)
+  const exactSoft = Float32Array.from(exact, (v) => Math.min(0.03, v)); blurBox(exactSoft, [nx, ny, nz], 2);
   const headBase = new Float32Array(NV).fill(1); let restField = null;
   for (let p = 0; p < PARTS.length; p++) {
     if (p === P_.head) restField = Float32Array.from(field);   // (all but the head: the neck the head's fine skin runs into)
@@ -296,7 +299,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
         if (w > 0) {
           const g2 = at(i, j, k), keep = Math.min(1, Math.max(0.3, 1.3 - tissue[g] / 0.009)) * (Y(j) < 0.13 ? 0.3 + 0.7 * smooth01((Y(j) - 0.09) / 0.04) : 1);   // (the foot's bones and tendons, under little fat, damped: its outline is its shape)
           let s2 = E - (p === P_.trunk ? reliefAt(q) : 0) + keep * Math.max(p === P_.trunk ? -0.005 : -0.002, mid[g2] - far[g2]) * (p === P_.trunk ? 2.0 : 1.2);   // (what stands out shows; a groove between two muscles the fat fills, but for two millimetres (four over the trunk, where the pectoral's edge, the rectus's lines and the serratus show))
-          if (exactPart[g] === p) { const cap = p === P_.trunk && Y(j) > 1.4 && Math.abs(X(i)) > 0.13 ? 0.013 : 0.0025; s2 = smin(s2, exact[g] - Math.max(cap, 0.4 * tissue[g]), 0.02); }   // (the acromion and the collarbone's end under the deltoid's tendon and the trapezius: 13 mm under the skin, deeper than other bones near it; held 7 mm under, they stood as knobs)
+          if (exactPart[g] === p) { const sh = p === P_.trunk && Y(j) > 1.4 && Math.abs(X(i)) > 0.13, cap = sh ? 0.008 : 0.0025; s2 = smin(s2, (sh ? exactSoft[g] : exact[g]) - Math.max(cap, 0.4 * tissue[g]), 0.02); }   // (the acromion and the collarbone's end under the deltoid's tendon and the trapezius: 13 mm under the skin, deeper than other bones near it; held 7 mm under, they stood as knobs)
           v = v + w * OUTLINE * (s2 - v);
         }
       }
