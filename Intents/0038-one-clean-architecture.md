@@ -75,18 +75,44 @@ to 4K by the temporal pass (temporal upscaling). The industry ships the same way
 at about 1400p and upscaled to 4K. **Samuel decided this on 2026-11-17 ("Yes, upscaled 4K"):** the gate is a 4K
 output, upscaled.
 
-**The architecture: one of each**
+**The architecture: one of each.** Three research rounds checked it against the state of the art (2026-11-17,
+below under Build): vegetation and geometry LOD, light and upscaling, and land, placement and the GPU pipeline. Each
+row says what was adopted, and from whom.
 
 | One | What | Replaces |
 | --- | --- | --- |
-| **Measure** | `src/detail/measure.js`: size and error in device pixels drawn (the canvas after the governor's ratio) and `ERROR_PX` | `pxK(innerHeight)`, the ladder's 8 px sizes, the kinds' px bands, `KMAX`/`CARD`/`FAR`/`END` numbers |
-| **Builder** (in workers, kept by the registry's hash) | It looks at what the geometry is and picks how to make it coarser: a **surface** gets a cluster hierarchy (meshoptimizer, MIT); a **crowd of parts** (sprigs, grass, litter) gets one spread order, and survivors grow evenly by 1/√share, never stretched; the **whole thing small** gets one GPU-baked hemi-octahedral impostor (colour, normal, alpha, depth), lit live; beyond that, the land's colour | `ladder.js`, `reduce.js`, per-asset `levels`/`grow` tables, the hull body and CPU bake, `place.js`'s second impostor, the `MADE` cache numbers |
-| **Draw path** | The existing heap drawer (`drawer.js`, `row.js`: kept) and one packing pass that picks, per thing, its cut, share or impostor by the measure. It draws in px buckets so no hidden vertex runs | The `SPLIT` tiers, `crowdRule` throwing hidden vertices off screen |
-| **Light** | `lit({ albedo, n, shade, wet, spec, model })` in `src/world/light.js`, for every material: land, plants, rocks, made things, characters, impostors | About 15 hand-rolled light expressions, 3 shadow and 3 cloud copies |
-| **Land** | A ground shader of constant size: the 3–4 strongest material layers picked per vertex, one read each, the take chosen per pixel under TAA, slow noise per vertex | Per-biome code generation, `slots.js`, the ground cache, two takes a material |
+| **Measure** | `src/detail/measure.js`: size and error in the pixels drawn (the canvas after the governor's ratio), and one `ERROR_PX`. The error of the wind's motion counts in it too (NVIDIA, HPG 2026) | `pxK(innerHeight)`, the ladder's 8 px sizes, the kinds' px bands, `KMAX`/`CARD`/`FAR`/`END` numbers |
+| **Builder** (in workers, kept by the registry's hash) | A recipe gives **parts**: each a prototype, a transform and a pivot (Nanite Assemblies). The builder works once per prototype, and coarser comes in rungs, picked by what the geometry is. **Surfaces:** a cluster hierarchy (meshoptimizer; thin parts held by constrained edge contraction). **Crowds of parts:** one spread order. Sprigs grow about their tips, at most 2–3×; blades are halved and doubled in width, so a meadow keeps its height (Ghost of Tsushima). Each thing switches at its own random offset. **Clumps:** three crossed planes per chunk of leaves, with their opacity matched to the true area (NVIDIA HPG 2026, Simplygon's billboard clouds). **The whole thing small:** one octahedral impostor, baked on the GPU (colour, normal, alpha, depth), with three views blended with parallax and alpha mips that keep their cover. Beyond that, the land's colour. **One wind** for every rung | `ladder.js`, `reduce.js`, per-asset `levels`/`grow` tables, the hull body and CPU bake, `place.js`'s second impostor, the `MADE` cache numbers |
+| **Placement** | One rule for everything that grows or lies on the land (Horizon Zero Dawn's GPU placement, UE PCG). Each layer's density is ecotope × slope, water and light × the influence of larger things already placed × clumping. It is placed by one shared ordered dither, largest first: trees, young trees, shrubs, ferns and herbs, litter, deadwood, rocks. Each thing writes its footprint, shade and litter for the layers under it. The dither's rank is the crowds' spread order too, so placing and thinning are one number | Stands, cells and clumps per kind; the five layers of the look target don't exist yet |
+| **Draw path** | The heap drawer (`drawer.js`, `row.js`: kept). One packing pass picks each thing's rung by the measure, and two-pass occlusion culling against a depth pyramid (Nanite, Bevy) drops what is hidden; compaction is one atomic per workgroup. An alpha-tested **prepass** writes depth, normals and **motion vectors, the wind's included**. The main pass then draws with an equal depth test and no discard, which suits Apple's tile GPUs | The `SPLIT` tiers, `crowdRule` throwing hidden vertices off screen, no occlusion test, no motion vectors |
+| **Light** | `lit()` in `src/world/light.js`, for every material. **Shadows:** two cascades in one atlas, the near one 3.4 cm a texel over about 70 m, with the penumbra growing as the sun's disc says; Bend's screen-space shadows for what is finer (litter, ferns, leaf on leaf). **Sky and occlusion:** a canopy map drawn from above for the sky's visibility in the stand; GTAO with a visibility bitmask and bent normals; leaves lit from behind (two-sided transmission). **Air:** Hillaire's sky and aerial-perspective tables (an MIT WebGPU port exists); height fog in froxels with shafts through the canopy. **Bounce:** sky-visibility probes (Ghost of Tsushima). **Noise:** spatiotemporal blue noise | About 15 hand-rolled light expressions, 3 shadow and 3 cloud copies, one 2048² shadow map over 120 m, thin haze |
+| **Land** | Call of Duty's 2023 terrain. A one-byte map of material layers (four taps, up to 256 layers) is composited in compute into an **adaptive virtual texture** (Far Cry 4): pages chosen per pixel by a feedback buffer, hex-tiled inside, BC-compressed, about 100 MB. The ground is shaded once, in a deferred pass. The same pages carry height: displacement near the eye on a mesh built in compute, parallax further out, and skirts that bed rocks in the soil. Paths are spline decals laid into the pages | Per-biome code generation, `slots.js`, the ground cache (by rings, too coarse), two takes a material |
+| **Upscale** | One fused pass to the 4K screen that writes history and canvas and tonemaps. It uses FSR 2's ideas (locks, jitter phases, a reactive mask) and UE TSR's detection of thin foliage, with the prepass's motion vectors | Three passes, tonemapping in every material, foliage with no history |
 | **Boot** | `src/boot.js({ profile: 'world' or 'stage' })` with a `ready` promise | Four pages' copied heads, the `window.__game` polling, the library starting the world |
-| **Gate** | **The gate is photorealism.** It has two halves. **Real:** the full-detail picture is held against photographs of the real thing at the same distance: a meadow, stone pines, holm oaks, shrubs, a bell tent, a fire pit, rocks, hills from 1 to 12 km. It is scored by its distance to the photos in CLIP features (CMMD) and in natural-image statistics (light, colour, contrast, the spectrum of detail), and by Samuel's blind test, photo or render. **Invisible:** detail never shows. `tools/gate.js` is one driver. The detail reference is **`?truth`**: every asset at full detail, rendered offline (in passes if it has to be). It is never a legacy LOD. It measures the picture's perceptual difference to the truth at fixed views from 1.7 m to 12 km, the change caused by detail in every frame of recorded walks, zooms, scrolls and flybys, GPU ms at 4K, memory, and the bytes compiled at start. Its headless part runs in CI | `?lod=old` as the baseline, the lenient sweep (no step over 3×), 9 loose Playwright scripts, checks done by hand |
+| **Gate** | **The gate is photorealism.** It has two halves. **Real:** the full-detail picture is held against photographs of the real thing at the same distance: a meadow, stone pines, holm oaks, shrubs, a bell tent, a fire pit, rocks, hills from 1 to 12 km. It is scored by its distance to the photos in CLIP features (CMMD) and in natural-image statistics (light, colour, contrast, the spectrum of detail), and by Samuel's blind test, photo or render. **Invisible:** detail never shows. `tools/gate.js` is one driver. The detail reference is **`?truth`**: every asset at full detail, supersampled so it doesn't shimmer, rendered offline (in passes if it has to be). It is never a legacy LOD. It measures the picture's perceptual difference to the truth at fixed views from 1.7 m to 12 km, the change caused by detail in every frame of recorded walks, zooms, scrolls and flybys (pages arriving included), GPU ms at 4K, memory, and the bytes compiled at start. It waits for the world's `ready`, never a timer, and measures its own noise floor. Its headless part runs in CI | `?lod=old` as the baseline, the lenient sweep (no step over 3×), 9 loose Playwright scripts, checks done by hand |
 | **Ship** | CI builds once, the deploy ships that build, and every merge to main goes to next by itself | The manual dispatch with a copied SHA |
+
+**Left out on purpose:**
+
+| What | Why |
+| --- | --- |
+| A compute rasteriser (Nanite's) | It needs 64-bit atomics. Safari has none, and Chrome's are M2 and later only |
+| A visibility buffer | Apple's GPUs already remove hidden pixels; the prepass gets the rest |
+| Virtual shadow maps | Wind invalidates their pages every frame |
+| DDGI, Lumen, radiance cascades | WebGPU has no ray tracing; probes from sky visibility instead |
+| Gaussian splats, neural LOD | Baked light, no wind, and they must be trained per asset |
+| Voxel far field | Experimental even in Unreal 5.9 |
+| Trees generated on the GPU each frame | Needs work graphs, which WebGPU lacks |
+| A full FSR 2 port | 5.4 ms at 4K on a GPU 2.7× an M1; its ideas instead |
+
+**Budget, 12 ms of GPU at a 4K output from about 1440p (ms):**
+
+| Land | Vegetation | Shadows | AO, GI | Air | Upscale | Post | Margin |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 2.0 | 3.4 | 2.0 | 1.0 | 0.7 | 2.0 | 0.4 | 0.5 |
+
+The risk is the vegetation and the land on the bench's base M1. The stand alone measured 5.4 ms at 1440×779 in 0008.
+The governor may settle near 1080p there (a 2× upscale), and nearer 1440p on an M-Pro.
 
 **The address switches left are tools that measure, never dials of the look:** `bench`, `gputime`, `draws`,
 `flyby` (`secs`, `px`), `stress` (`many`, `herds`), `bounds`, `ghost`, `webgl`, `embed`, `truth`.
@@ -101,25 +127,30 @@ numbers are written below.
    - delete the dead character code, the ground cache, `slots.js`, and the `MADE` numbers (the registry's hash
      replaces them);
    - load `stress.js` and `herds.js` only when asked for.
-2. **Gate, measure and upscale.** `?truth`, `tools/gate.js` (it absorbs `Intents/handoff/avenmac/*.mjs`), and
-   `src/detail/measure.js` in the pixels drawn. The temporal pass becomes the upscaler: the frame is drawn at the
-   governor's resolution and resolved to the 4K screen. Then the baseline on main.
+2. **Gate, measure, prepass and upscale.** `?truth` (supersampled), `tools/gate.js` (it absorbs
+   `Intents/handoff/avenmac/*.mjs`), the world's `ready`, and `src/detail/measure.js` in the pixels drawn. The prepass
+   with motion vectors (the wind's included), and the fused upscale to the 4K screen. Then the baseline on main.
 3. **Boot.** A stage profile for the library and Me, the ground shader wrapped so it compiles small, and Me's copied
    stage code merged.
-4. **Far end.** One GPU impostor for plants, rocks and made things. It deletes the hull body, `bakeOf`, `GROWN`, the
-   hash dissolve and `place.js`'s copy, and fixes the domes and the stipple.
-5. **Crowds.** One spread order and the √share growth. It draws in px buckets and deletes `KMAX` and the card
-   stretch, so the near pines are fixed.
-6. **Land.** One take per material, slow noise per vertex, then the top-K layers.
-7. **Surfaces.** A cluster hierarchy for rocks, then the tent and fire pit (this absorbs `aven/0033-solids-wip`). It
+4. **Far end.** The impostor (three views with parallax, alpha mips that keep their cover) and the clump rung, for
+   plants, rocks and made things. It deletes the hull body, `bakeOf`, `GROWN`, the hash dissolve and `place.js`'s copy,
+   and fixes the domes and the stipple.
+5. **Crowds.** Recipes give parts; one spread order; growth capped at 2–3× (sprigs about their tips, blades in width);
+   a random offset per thing; one wind for every rung; occlusion culling. It deletes `KMAX` and the card stretch, so
+   the near pines are fixed.
+6. **Land.** The deferred ground pass with the layer map first, then the adaptive virtual texture with feedback, then
+   relief (displacement, parallax, skirts, path decals).
+7. **Placement.** The one rule and the five layers, with the kinds the layers need: young trees, ferns, herbs,
+   litter, deadwood.
+8. **Surfaces.** A cluster hierarchy for rocks, then the tent and fire pit (this absorbs `aven/0033-solids-wip`). It
    deletes `ladder.js`, `reduce.js` and the kinds' bands. The Safari spike comes first.
-8. **One light**, and the characters on it with one move player. The `skinOf` function of 618 lines is split into
-   stages.
-9. **Repository**, which can run beside the others because it touches no GPU code:
-   - CI's build is shipped as is, and next deploys itself;
-   - one dev server and repo API, one install (bun workspaces);
-   - one store for the four Stories CLIs;
-   - `.gitattributes` `merge=union` on `Intents/*.md`.
+9. **One light.** The cascades, screen-space shadows, the canopy map, GTAO, transmission, Hillaire's air, froxel fog
+   and sky probes. The characters move onto it with one move player, and `skinOf`'s 618 lines are split into stages.
+10. **Repository**, which can run beside the others because it touches no GPU code:
+    - CI's build is shipped as is, and next deploys itself;
+    - one dev server and repo API, one install (bun workspaces);
+    - one store for the four Stories CLIs;
+    - `.gitattributes` `merge=union` on `Intents/*.md`.
 
 **Checks**
 
@@ -155,8 +186,74 @@ numbers are written below.
     - the hills at 1–12 km.
   - **Handling:** they are kept by hash outside git, the way `Stories/objects/` keeps media, and each is tagged with
     its view and distance. GPS is stripped from anything committed.
-- `aven/0033-avenmac-wip` (eye-ray read of the far body, `GROWN`) is not merged. Stage 4's impostor replaces the far
+- `aven/0033-avenmac-wip` (eye-ray read of the far body, `GROWN`) is not merged.
+- **What was done** (`e05e75b`, 51 files, +526 / −1720):
+  - the legacy LOD and every old-only path, table and level are deleted;
+  - 16 switches are frozen at main's defaults: CARD 30, KMAX 4, FAR 40, enclose 1.05, bake on, no split, SKY
+    [-0.03, 0], spread 0; mips, rawtex, byclass, corners, fat, notaau, slots and groundcache are frozen off;
+  - `LOD` is merged into `CROWD`, and rocks no longer import the plants' kit;
+  - the ground cache, `slots.js` and its biome recompiles are deleted (with 5 biomes laid and 8 slots, they never took
+    effect), as are the unused character kit and `tools/walk.js`;
+  - the bones' caches are keyed on the registry's version (any character's current version is good, so switching
+    characters doesn't regrow them);
+  - stress and herds load only when asked for.
+- **Checks:**
+  - `scale.js` gives 18 of 18, and `vite build` passes for TheGame and OS;
+  - no switch is read, and nothing imports a deleted file;
+  - on the CPU, all 149 packed plant meshes, the crowd shapes, the bakes and the rock meshes are byte-identical to
+    main's;
+  - the land's vertex shader is byte-identical; its fragment shader computes the same values.
+- **Stills** (4K, seven views from the tent's eye to 500 m, TAA on, time frozen). This branch against itself gives a
+  mean absolute difference of 0.13–0.61 of 255. Against main it gives 0.01–0.76 at every view, so the picture is the
+  same.
+  - The first still of main at the pine view was taken before its trees had streamed in. Re-shot with a longer
+    wait, it matches (0.56). So stage 2's gate waits for the world's `ready`, never a timer.
+- **Not done in stage 1, for later stages:** the workers still get the stands' sizes once (`make.tell`): biome data,
+  not tuning. The library's Detail tab now counts the crowd's faces. Stage 4's impostor replaces the far
   body it improves. Its measuring scripts go into stage 2's gate.
+
+### The state of the art, checked (2026-11-17)
+
+Three research rounds, each read against this definition. Sources marked † were seen only through a search summary.
+
+- **Vegetation and geometry LOD:**
+  - Epic, *Nanite Foliage*, Unreal 5.7+ (assemblies, bone wind, voxels);
+  - van Antwerpen et al., *Real-time Path Tracing of Massive Dynamic Foliage*, HPG 2026 (clump planes, motion error
+    in the screen error, FLIP against the denoiser's drift);
+  - Simplygon, *vegetation billboard clouds*, 2026;
+  - octahedral impostors with frame blending (arycama 2024, agargaro's three.js forest);
+  - Ghost of Tsushima's grass, GDC 2021†;
+  - Kapoulkine, *coordinated omission*, 2026;
+  - the Dawn commit on 64-bit atomics (M2 and later), March 2026.
+  - **Skipped:** Gaussian-splat LOD (LODGE, Spark 2.0†), neural LOD (Weier 2023†), voxels, GPU-generated trees
+    (Kuth, HPG 2025†).
+- **Light and upscaling:**
+  - Bend Studio, *screen-space shadows*, 2023 (Apache-2.0);
+  - Jimenez, GTAO, 2016† and Therrien's visibility bitmask, 2023;
+  - Hillaire, *sky and atmosphere*, EGSR 2020† (MIT port: webgpu-sky-atmosphere);
+  - Patry, *Ghost of Tsushima*, SIGGRAPH Advances 2021 (froxel haze, sky probes);
+  - Wronski, *World AO*, GDC 2014†;
+  - Barré-Brisebois, *translucency*, 2011†;
+  - FSR 2 (MIT) and UE 5.7 TSR's thin-geometry detection;
+  - NVIDIA's spatiotemporal blue noise†;
+  - the Safari 27 notes (no subgroups, timestamps in about 93% of reports).
+- **Land, placement and the GPU pipeline:**
+  - Etienne, *Large Scale Terrain Rendering in Call of Duty*, SIGGRAPH Advances 2023 (layer map, AVT, deferred
+    terrain, skirts);
+  - Ka Chen, *Adaptive Virtual Texture Rendering in Far Cry 4*, GDC 2015;
+  - van Muijden, *GPU-based procedural placement in Horizon Zero Dawn*, GDC 2017;
+  - Mikkelsen, *hex-tiling*, JCGT 2022;
+  - Benyoub & Dupuy, *concurrent binary trees*, HPG 2024†;
+  - Haar & Aaltonen, *GPU-driven rendering*, SIGGRAPH 2015† (two-pass occlusion);
+  - WebKit's `HardwareCapabilities.mm` (indirect draws, yes; subgroups and 64-bit atomics, no).
+- **What the research changed in this definition:**
+  - the land is a virtual texture fed by a layer map, not layers picked per vertex, which would seam;
+  - placement is one defined rule;
+  - motion vectors (the wind's included) and a prepass come first, in stage 2;
+  - the builder gains parts, a clump rung and one wind;
+  - growth keeps a meadow's height;
+  - the truth is supersampled;
+  - the gate waits for `ready`.
 
 ## Propose
 
@@ -169,15 +266,16 @@ numbers are written below.
 ## Todo
 
 - [ ] Samuel's reference photos (shot list under Build)
-- [ ] Stage 1: clean ground
-- [ ] Stage 2: gate and measure
+- [x] Stage 1: clean ground
+- [ ] Stage 2: gate, measure, prepass and upscale
 - [ ] Stage 3: boot
-- [ ] Stage 4: far end, one impostor
-- [ ] Stage 5: crowds
-- [ ] Stage 6: land
-- [ ] Stage 7: surfaces, cluster hierarchy
-- [ ] Stage 8: one light, characters
-- [ ] Stage 9: repository
+- [ ] Stage 4: far end, impostor and clump rung
+- [ ] Stage 5: crowds, parts and one wind
+- [ ] Stage 6: land, virtual texture and relief
+- [ ] Stage 7: placement, five layers
+- [ ] Stage 8: surfaces, cluster hierarchy
+- [ ] Stage 9: one light, characters
+- [ ] Stage 10: repository
 
 ## Changelog
 
@@ -189,8 +287,26 @@ numbers are written below.
   process), and this definition.
 - **Good:** the heap drawer and the row contract are already one path for everything, and stay.
 - **Broke / not there yet:** nothing built yet.
+- **Then asked:** the legacy LOD is no reference; "way higher": the gate is photorealistic, against Samuel's own
+  photos and three frames of a real-time forest he sent; 4K output with temporal upscaling ("Yes, upscaled 4K");
+  "double check the design against the cutting edge".
+- **Then delivered:**
+  - the gate rewritten as photorealism (real against photographs, detail invisible against supersampled full detail);
+  - three research rounds folded in: virtual-textured land, one placement rule, prepass with motion vectors, parts,
+    clump rung, one wind, a light model for foliage, a fused upscaler, and a budget;
+  - stage 1 built and checked: 1194 fewer lines, the same picture.
+- **Good:** stage 1 changed nothing on screen. The plant meshes are byte-identical, and the stills match main within
+  the TAA's noise.
+- **Not there yet:** stages 2–10; Samuel's photos.
 
 ## Trail
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-17 | `b712f56` | Defined from the four audits |
+| 2026-11-17 | `7181723` | The gate is full detail itself; the legacy LOD is no reference |
+| 2026-11-17 | `9f0c755` | The gate is photorealism |
+| 2026-11-17 | `999fba1` | Samuel's own photos; the shot list |
+| 2026-11-17 | `647b8da` | The look target, a real-time forest |
+| 2026-11-17 | `7a4e2b7` | A 4K output, upscaled |
+| 2026-11-17 | `e05e75b` | Stage 1: clean ground, one plant LOD path, no tuning switches (−1194 lines) |
