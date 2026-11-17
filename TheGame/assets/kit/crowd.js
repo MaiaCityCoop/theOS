@@ -79,6 +79,7 @@ export const CROWD = {
   RIM: 0.45,       // a baked far body's light at its rim, where it turns away from the eye, against its middle's (src/scatter/trees.js): crowns side by side part by the shade between them
   DEEP: 0.8,       // a baked texel is darker as what shows there lies deeper in the crown, seen from its side: by this much where it lies at the crown's far side (its hollows and gaps between its lobes, in the crown's own shade)
   SWAP: [0.3, 0.6], // how far into the far body's window (as DENSE) the wood gives way to the post: the one going out as the other comes in, pixel by pixel
+  END: 1.6,        // a plant's last level thins it away over its last pixels, from this many times its size down to it (src/scatter/trees.js): it never stops at once
   DENSE: 0.8,      // a baked far body stands at its full size from the first and comes in denser, texel by texel, as the cards go one by one over its window (`into`, 0 … 1): into / (1 - DENSE + DENSE into) of its texels, as many as fill what the cards leave where a crown covers this much (the walk, tools/walk.js: 0.8 holds the oak's and the pine's cover and outline both within 9 %; 0.9 lets the sparser pine's cover run 14 % over, 0.7 its outline 15 % under)
   FAR: 18,         // pixels: the far body has taken over by this size at the latest (a crown's cards are then a pixel or two each), so the far levels hold no cards
   REACH: 0.95,     // a body's corner lies as far out as this share of the crown's corners in its sector reach

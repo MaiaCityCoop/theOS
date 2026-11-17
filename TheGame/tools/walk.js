@@ -81,12 +81,16 @@ for (const nm of names) {
   const F = { c, r: r * 1.15 }, ref = measure(draw(P0, near.index, (t) => (near.part[near.index[t * 3]] === 1 ? STOP : 1), F));
   Object.assign(LOD, { on: true, BAKE: true, FAR: 40 }); const S = crowd(near, { size: shapeSize(a, s), CARD: LOD.CARD, KMAX: LOD.KMAX, FAR: LOD.FAR, enclose: 1.05 }); S.bake = bakeOf(S);
   const sheet = [], L = levelOf(S, 0, Infinity), B = (() => { LOD.on = false; const b = bandsOf(a); return b; })(), cache = {};
-  const last = B.at(-1)[0], sink = 1.7, pxs = []; for (let px = 600; px >= last / 1.6; px /= 1.01) pxs.push(px);
+  const last = B.at(-1)[0], sink = CROWD.END, oldSink = a.detail.sink ?? 0, pxs = []; for (let px = 600; px >= last / 1.6; px /= 1.01) pxs.push(px);
   for (const way of ['old', 'new']) {
     const rows = [], pics = [];
     for (const px of pxs) {
       let C = way === 'old' ? oldAt(a, s, px, B, F, cache) : crowdAt(S, L, px, F);
-      const sunk = px < last * sink ? Math.max(0, Math.min(1, (px - last) / (last * sink - last))) : 1;   // (the last level sinking: lower and narrower, as handover.js)
+      // (the end, as the game draws it: under ?lod=new the last level thins the plant away over its last pixels,
+      // CROWD.END times its size down to it (src/scatter/trees.js); under ?lod=old it sinks only if its kind says so
+      // (detail.sink: handover.js), else it stops where its last level ends)
+      const e = way === 'new' ? sink : oldSink > 1 ? oldSink : 0;
+      const sunk = px < last ? 0 : e && px < last * e ? (px - last) / (last * e - last) : 1;
       if (sunk < 1) { const g = sunk * sunk * (3 - 2 * sunk); C = C.map((x) => x * g); }
       const M = measure(C); pics.push(C); rows.push({ px: +px.toFixed(2), outline: M.outline / ref.outline, cover: M.cover / ref.cover });
     }

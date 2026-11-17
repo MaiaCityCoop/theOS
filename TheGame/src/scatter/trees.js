@@ -337,9 +337,12 @@ function plantMaterial(tex, D) {
             // plant by its own size on screen (a stand that changes level as one: its size, at most)
             const own = px ?? pxOf(A.w, A.xy), at = px ?? pxOf(D.ST?.size ? float(D.ST.size) : A.w, A.xy), pxR = min(own, at);
             const above = Lv.first ? H.u.greaterThan(0) : at.lessThan(LC.hi), below = Lv.last ? H.sunk.greaterThan(0) : at.greaterThanEqual(LC.lo);
+            // (its last level: the plant thins away over its last pixels, CROWD.END times its size down to it, as its far
+            // body came in, texel by texel: by where its packing ends nothing of it is left to go at once)
+            const end = Lv.last ? smoothstep(LC.lo, LC.lo.mul(CROWD.END), at) : float(1);
             const hand = Lv.first && Lv.splay ? partGrown({ ...H, v: float(0) }, V.root, float(0), V.hand) : float(1);
             const R = crowdRule(pxR, V, V.crowd, hand, Lv.first && Lv.splay ? H.u.greaterThanEqual(0.5) : null);
-            const show = above.and(below).and(R.shown);
+            const show = above.and(below).and(R.shown).and(end.greaterThan(0));
             If(V.drawn ? show.and(V.drawn) : show, () => {
               if (vImp) {
                 // the baked views round the eye, in the plant's own frame (crowd.js BAKED: eight round it 30 degrees up, one
@@ -364,7 +367,7 @@ function plantMaterial(tex, D) {
                 // side, crowd.js bakeRes from HI as read here; z: which of its smaller pictures, one texel to a pixel: its size on
                 // screen against the bake's, the plant three quarters of the bake's frame)
                 const BR = clamp(exp2(ceil(log2(max(V.crowd.rule[0].z, 1)))), CROWD.BAKEMIN, CROWD.BAKE), lod = clamp(floor(log2(BR.mul(0.75).div(max(pxR, 1))).add(0.5)), 0, log2(BR).sub(2));
-                vDense.assign(vec4(baked.select(crowdDense(R.into), R.fade), BR, D.bakeTex && feed ? lod : float(0), V.ao));   // (w: its corner's ao, which its light was reckoned with)
+                vDense.assign(vec4(baked.select(crowdDense(R.into), R.fade).mul(end), BR, D.bakeTex && feed ? lod : float(0), V.ao));   // (w: its corner's ao, which its light was reckoned with)
               }
               clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos, uv: R.uv }, float(1), H.sunk));
             });
