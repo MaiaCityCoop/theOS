@@ -1,0 +1,373 @@
+// The fat and the skin drawn out (intent 0036): one surface over the whole body, standing, laid at the fat's and the
+// skin's thickness (./table.js) over the muscles (../muscles/build.js), the bones, the nose's and the ears' gristle and
+// the eyes, and opened where the eyes and the nostrils are; then each of its points fastened to the four bones nearest
+// under it, so the rig carries it as a game's skin is carried (../muscles/flesh.js). Plain JS, no three: it runs in the
+// workers that grow the bones (../skeleton/grow.worker.js), or under node.
+//
+//   skinOf(bones, muscles, { h }) -> { rows, attr, rest, pos, fine, coarse, soles, counts }
+//     muscles  what ../muscles/build.js laid, with its `inner` (the strands)
+//     rows     the rows the skin adds to the muscles' (each bone a point of it hangs on: a row carried whole by that
+//              bone)
+//     attr     its points: the four rows each hangs on and its share on each, its normal standing, how open it stands,
+//              what it is (skin, lip, areola, nail)
+//     rest     each of those rows' frame standing (its middle, along it, out, across: four times four numbers a row)
+//     fine, coarse   two levels of detail, each its own points: `pos` and `attr` hold the fine level's, then the coarse's
+//     soles    where the feet meet the ground: the lowest points of the soles, each with the joint that carries it
+//
+// How it is drawn out: on a grid of cells h a side over the whole body, piece by piece (the trunk, the head, each arm
+// with its hand, each finger, each leg with its foot: so the arm does not grow into the trunk where it lies along it, nor
+// the fingers into one another). Each piece's muscles are filled into the grid (their surfaces, by where rows of cells
+// cross them), and its small bones; how far each cell is from them is a distance transform, closed by a centimetre or
+// two (a groove narrower than that between muscles is filled, as the fat and the fascia fill it) and softened a little;
+// its large bones, its fills, the nose's and the ears' gristle and the eyes give their own true distances, blended in.
+// The skin is where that is as far out as the fat and the skin are thick there, half way to a man's measured outline
+// (./table.js ENVELOPE); the surface is drawn out of the grid (surface nets) and smoothed along itself: two surfaces,
+// the arms' with their hands, and the rest's, each closed (an arm along the side only touches the trunk).
+import { TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, ENVELOPE, ENVELOPE_SHARE } from './table.js';
+import { frameAt, slots } from '../muscles/build.js';
+import { rigOf } from '../skeleton/pose.js';
+import * as F from '../field.js';
+
+/** How the skin is drawn out, as a number: another, and a kept drawing is drawn again. */
+export const MADE = 2;
+
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math.hypot(a[0], a[1], a[2]), norm = (a) => mul(a, 1 / (len(a) || 1));
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
+const mirror = (n) => n.replace(/\.L$/, '.R');
+const solidOf = ([kind, ...a]) => kind === 'rod' ? F.rod(...a) : kind === 'ball' ? F.ball(...a) : F.egg(a[0], a[1], a[2] ? F.frame(...a[2]) : undefined);
+
+/** The fat's and the skin's thickness at a point of the left side (m). */
+export function tissueAt(q) {
+  let w = 0.015, t = 0.015 * TISSUE_DEFAULT;
+  for (const [, at, mm, cm] of TISSUE) { const d = Math.hypot(q[0] - at[0], q[1] - at[1], q[2] - at[2]) / (cm / 100), k = Math.exp(-d * d); w += k; t += k * mm; }
+  return (t / w) / 1000;
+}
+
+export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE = 0.012, only: ONLY = null } = {}) {
+  const RIG = rigOf();
+  const MUSCLE_PART = new Map(M.inner.strands.map((o) => [o.B.m.id, /^(arm|forearm|hand)$/.test(o.B.m.part) || o.B.m.id === 'deltoid' ? 'arm' : /^(thigh|leg|foot)$/.test(o.B.m.part) ? 'leg' : o.B.m.part === 'face' ? 'head' : 'trunk']));
+  // ── what is under the skin, piece by piece, in a grid of cells h a side ────────────────────────────────────────
+  // Each piece (the trunk with the neck and the head, each arm with its hand, each finger, each leg with its foot) is
+  // filled into the grid from what it is made of: its bones (their own fields), its muscles (their surfaces, filled
+  // between where a row of cells enters and leaves them), its fills and gristle and eyes. Then for each piece how far
+  // each cell is from its surface (a distance transform), softened a little (fat rounds what is under it); the skin is
+  // where that is as far out as the fat and the skin are thick there, the nearest piece's.
+  const PARTS = ['trunk', 'arm', 'leg', 'thumb', 'index', 'middle', 'ring', 'little', 'head'], P_ = Object.fromEntries(PARTS.map((p, i) => [p, i]));
+  const musclePart = (m) => (/^(arm|forearm|hand)$/.test(m.part) || m.id === 'deltoid' ? 'arm' : /^(thigh|leg|foot)$/.test(m.part) ? 'leg' : m.part === 'face' ? 'head' : 'trunk');
+  const LO = [-0.34, -0.04, -0.23], HI = [0.34, 1.84, 0.27];
+  const nx = Math.ceil((HI[0] - LO[0]) / h) + 1, ny = Math.ceil((HI[1] - LO[1]) / h) + 1, nz = Math.ceil((HI[2] - LO[2]) / h) + 1, NV = nx * ny * nz;
+  const I = (i, j, k) => i + nx * (j + ny * k), X = (i) => LO[0] + i * h, Y = (j) => LO[1] + j * h, Z = (k) => LO[2] + k * h;
+  const occ = new Uint16Array(NV);   // a bit for each piece the cell is inside
+  const fillBox = (lo, hi, inside, bit) => {
+    const i0 = Math.max(0, Math.floor((lo[0] - LO[0]) / h)), i1 = Math.min(nx - 1, Math.ceil((hi[0] - LO[0]) / h)), j0 = Math.max(0, Math.floor((lo[1] - LO[1]) / h)), j1 = Math.min(ny - 1, Math.ceil((hi[1] - LO[1]) / h)), k0 = Math.max(0, Math.floor((lo[2] - LO[2]) / h)), k1 = Math.min(nz - 1, Math.ceil((hi[2] - LO[2]) / h));
+    for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (inside(X(i), Y(j), Z(k))) occ[I(i, j, k)] |= bit;
+  };
+  // the bones, the fills, the gristle and the eyes as their own fields (smooth, as true as their solids): for each cell
+  // the nearest of them within a few centimetres, and its piece
+  const exact = new Float32Array(NV).fill(0.05), exactPart = new Uint8Array(NV).fill(255), REACH = 0.035;   // (beyond the thickest pad: the field is true wherever the skin can be)
+  const fillExact = (lo, hi, fn, part) => {
+    const i0 = Math.max(0, Math.floor((lo[0] - REACH - LO[0]) / h)), i1 = Math.min(nx - 1, Math.ceil((hi[0] + REACH - LO[0]) / h)), j0 = Math.max(0, Math.floor((lo[1] - REACH - LO[1]) / h)), j1 = Math.min(ny - 1, Math.ceil((hi[1] + REACH - LO[1]) / h)), k0 = Math.max(0, Math.floor((lo[2] - REACH - LO[2]) / h)), k1 = Math.min(nz - 1, Math.ceil((hi[2] + REACH - LO[2]) / h));
+    for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const g = I(i, j, k), v = fn(X(i), Y(j), Z(k)); if (v < exact[g]) { exact[g] = v; exactPart[g] = part; } }
+  };
+  // (a small bone, a toe's or a finger's, a wrist's or an ankle's, is true only very near itself: it is filled into the
+  // grid as the muscles are, and measured from there)
+  const small = (b) => Math.min(b.hi[0] - b.lo[0], b.hi[1] - b.lo[1], b.hi[2] - b.lo[2]) < 0.03;
+  for (const b of bones) { if (/^tooth/.test(b.id)) continue; if (small(b)) fillBox(b.lo, b.hi, (x, y, z) => b.F.f(x, y, z) < 0, 1 << P_[partOf(b.rig)]); else fillExact(b.lo, b.hi, (x, y, z) => b.F.f(x, y, z), P_[partOf(b.rig)]); }
+  const mirrored = (fn) => (x, y, z) => fn(Math.abs(x), y, z);
+  for (const [list, partOfIt] of [[FILL, (f) => f.part], [UNDER, () => 'head']]) for (const f of list) { const s2 = solidOf(f.solid), fd = F.fieldOf([{ op: 'add', k: 0, s: s2 }]); for (const sg of [1, -1]) fillExact([sg > 0 ? s2.lo[0] : -s2.hi[0], s2.lo[1], s2.lo[2]], [sg > 0 ? s2.hi[0] : -s2.lo[0], s2.hi[1], s2.hi[2]], mirrored((x, y, z) => fd.f(x, y, z)), P_[partOfIt(f)]); }
+  // the muscles: each a closed surface; a row of cells along an axis is inside it between where it enters and leaves
+  // (each muscle on its own, by how many times the row has gone in and come out); along all three axes, so a thin
+  // sheet lying along one is still caught by the others, and at least the cell nearest a crossing pair is marked
+  {
+    // (each closed surface on its own: a strand's tube, or a broad muscle's one sheet)
+    const SHEET = new Set(M.inner.strands.filter((o) => o.B.m.sheet && o.B.n > 1).map((o) => o.B.m.id));
+    const rowMuscle = new Int32Array(M.rows.length).fill(-1), surfacePart = [];
+    M.muscles.forEach((m, n) => { const id = m.id.replace(/\.[LR]$/, ''), part = P_[MUSCLE_PART.get(id) ?? 'trunk']; if (SHEET.has(id)) { for (const r of m.rows) rowMuscle[r] = surfacePart.length; surfacePart.push(part); } else for (const r of m.rows) { rowMuscle[r] = surfacePart.length; surfacePart.push(part); } });
+    const partOfMuscle = surfacePart;
+    // (a point of a strand that hangs on a finger's joint is in that finger's piece: the tendons along the fingers)
+    // (and the long tendons over the ankle and the foot are left out of the skin: thinner than its cells, they come out as
+    // spikes and cones; the ankle's and the foot's shape under the skin is their bones', the foot's own short muscles'
+    // and its pads', and the Achilles tendon's)
+    const SHORT = new Set(['extensorDigitorumBrevis', 'abductorHallucis', 'abductorDigitiMinimi', 'flexorDigitorumBrevis']);
+    const triPart = (v) => { const row = M.attr.place[v * 4], r = M.rows[row], k = Math.min(r.keys.length - 1, Math.round(M.attr.place[v * 4 + 1] + M.attr.place[v * 4 + 2])), rig = r.keys[k].rig, p = partOf(rig); if ((/^(foot|toe\d)\./.test(rig) || (M.pos[v * 3 + 1] < 0.17 && M.attr.place[v * 4 + 3] < 0.35 && !/^(gastrocnemius|soleus)/.test(rowName[row]))) && !SHORT.has(rowName[row])) return -2; return /^(thumb|index|middle|ring|little)$/.test(p) ? P_[p] : -1; };
+    const rowName = []; M.muscles.forEach((m) => { for (const r of m.rows) rowName[r] = m.id.replace(/\.[LR]$/, ''); });
+    const P = M.pos, T = M.fine, n3 = [nx, ny, nz], jit = [0.93e-5, 1.37e-5, 2.11e-5];
+    for (const ax of [0, 1, 2]) {
+      const u = (ax + 1) % 3, w = (ax + 2) % 3, cross = new Map();
+      for (let t = 0; t < T.length; t += 3) {
+        const a = T[t] * 3, b = T[t + 1] * 3, c = T[t + 2] * 3, m = rowMuscle[M.attr.place[T[t] * 4]], tp = triPart(T[t]);
+        const au = P[a + u], aw = P[a + w], bu = P[b + u], bw = P[b + w], cu = P[c + u], cw = P[c + w];
+        const det = (bu - au) * (cw - aw) - (cu - au) * (bw - aw); if (Math.abs(det) < 1e-14) continue;
+        const sgn = det > 0 ? 1 : -1;
+        const j0 = Math.max(0, Math.ceil((Math.min(au, bu, cu) - LO[u] - jit[u]) / h)), j1 = Math.min(n3[u] - 1, Math.floor((Math.max(au, bu, cu) - LO[u] - jit[u]) / h));
+        const k0 = Math.max(0, Math.ceil((Math.min(aw, bw, cw) - LO[w] - jit[w]) / h)), k1 = Math.min(n3[w] - 1, Math.floor((Math.max(aw, bw, cw) - LO[w] - jit[w]) / h));
+        for (let j = j0; j <= j1; j++) for (let k = k0; k <= k1; k++) {
+          const pu = LO[u] + j * h + jit[u], pw = LO[w] + k * h + jit[w], w1 = ((pu - au) * (cw - aw) - (cu - au) * (pw - aw)) / det, w2 = ((bu - au) * (pw - aw) - (pu - au) * (bw - aw)) / det, w0 = 1 - w1 - w2;
+          if (w0 < 0 || w1 < 0 || w2 < 0) continue;
+          const x = w0 * P[a + ax] + w1 * P[b + ax] + w2 * P[c + ax], q = j + n3[u] * k; let l = cross.get(q); if (!l) cross.set(q, (l = [])); l.push(x, tp, m);
+        }
+      }
+      const cell = [0, 0, 0];
+      for (const [q, l] of cross) {
+        cell[u] = q % n3[u]; cell[w] = Math.floor(q / n3[u]); const by = new Map();
+        for (let n = 0; n < l.length; n += 3) { let e = by.get(l[n + 2]); if (!e) by.set(l[n + 2], (e = [])); e.push([l[n], l[n + 1]]); }
+        for (const [m, e] of by) {
+          // (in at one crossing, out at the next: however its faces are wound)
+          e.sort((p1, p2) => p1[0] - p2[0]); let inside = false, from = 0, bit = 0;
+          for (const [x, tp] of e) {
+            inside = !inside;
+            if (inside) { from = x; bit = tp === -2 ? 0 : 1 << (tp >= 0 ? tp : partOfMuscle[m]); }
+            else { let i0 = Math.ceil((from - LO[ax]) / h), i1 = Math.floor((x - LO[ax]) / h); if (i0 > i1) i0 = i1 = Math.round(((from + x) / 2 - LO[ax]) / h); for (let i = Math.max(0, i0); i <= Math.min(n3[ax] - 1, i1); i++) { cell[ax] = i; occ[I(cell[0], cell[1], cell[2])] |= bit; } }
+          }
+        }
+      }
+    }
+  }
+  // each piece's distance (signed, m), softened; the skin's field the nearest piece's less the tissue's thickness
+  // (two skins: the arms' with their hands and fingers, and the rest's, the trunk's, the legs' and the head's; each closed on
+  // its own, the arm's into the trunk at the shoulder: an arm along the side only touches the trunk, and its own skin
+  // goes round it there, so that raised it leaves the trunk's whole)
+  const ARMS = (p) => p === P_.arm || (p >= P_.thumb && p <= P_.little);
+  const field = new Float32Array(NV).fill(1), fieldPart = new Uint8Array(NV).fill(255), fieldA = new Float32Array(NV).fill(1), fieldPartA = new Uint8Array(NV).fill(255), tissue = new Float32Array(NV).fill(NaN), MARGIN = Math.ceil((0.035 + 0.012) / h);
+  const edt1 = (f, n, s, o, d, v, z) => {   // Felzenszwalb's squared distance along one line
+    let k = 0; v[0] = 0; z[0] = -Infinity; z[1] = Infinity;
+    for (let q = 1; q < n; q++) { let sx; do { const p = v[k]; sx = ((f[o + q * s] + q * q) - (f[o + p * s] + p * p)) / (2 * q - 2 * p); if (sx <= z[k]) k--; else break; } while (k >= 0); k++; v[k] = q; z[k] = sx; z[k + 1] = Infinity; }
+    k = 0; for (let q = 0; q < n; q++) { while (z[k + 1] < q) k++; const p = v[k]; d[q] = (q - p) * (q - p) + f[o + p * s]; }
+    for (let q = 0; q < n; q++) f[o + q * s] = d[q];
+  };
+  const edt = (f, dims) => {
+    const [a, b, c] = dims, nmax = Math.max(a, b, c), v = new Int32Array(nmax), z = new Float64Array(nmax + 1), d = new Float64Array(nmax);
+    for (let kk = 0; kk < c; kk++) for (let jj = 0; jj < b; jj++) edt1(f, a, 1, a * (jj + b * kk), d, v, z);
+    for (let kk = 0; kk < c; kk++) for (let ii = 0; ii < a; ii++) edt1(f, b, a, ii + a * b * kk, d, v, z);
+    for (let jj = 0; jj < b; jj++) for (let ii = 0; ii < a; ii++) edt1(f, c, a * b, ii + a * jj, d, v, z);
+  };
+  const smooth01 = (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
+  const envOf = PARTS.map((p) => ENVELOPE.filter((e) => e.part === p).map((e) => {
+    const L = len(sub(e.b, e.a)), knots = e.ovals.map(([wo, wi, fr, bk]) => [wo, wi, fr, bk, 0, 0, 2, 2]);
+    return { a: e.a, u: norm(sub(e.b, e.a)), L, f: F.fieldOf([{ op: 'add', k: 0, s: F.loft(e.a, e.b, knots, { out: e.front, caps: 0.6 }) }]) };
+  }));
+  for (let p = 0; p < PARTS.length; p++) {
+    if (ONLY && !ONLY.includes(PARTS[p])) continue;
+    const bit = 1 << p; let lo = [nx, ny, nz], hi = [-1, -1, -1];
+    for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) if ((occ[I(i, j, k)] & bit) || (exactPart[I(i, j, k)] === p && exact[I(i, j, k)] < 0)) { if (i < lo[0]) lo[0] = i; if (j < lo[1]) lo[1] = j; if (k < lo[2]) lo[2] = k; if (i > hi[0]) hi[0] = i; if (j > hi[1]) hi[1] = j; if (k > hi[2]) hi[2] = k; }
+    if (hi[0] < 0) continue;
+    lo = lo.map((v) => Math.max(0, v - MARGIN)); hi = [Math.min(nx - 1, hi[0] + MARGIN), Math.min(ny - 1, hi[1] + MARGIN), Math.min(nz - 1, hi[2] + MARGIN)];
+    const dims = [hi[0] - lo[0] + 1, hi[1] - lo[1] + 1, hi[2] - lo[2] + 1], n = dims[0] * dims[1] * dims[2], BIG = 1e12;
+    const out = new Float64Array(n), inn = new Float64Array(n), at = (i, j, k) => (i - lo[0]) + dims[0] * ((j - lo[1]) + dims[1] * (k - lo[2]));
+    for (let k = lo[2]; k <= hi[2]; k++) for (let j = lo[1]; j <= hi[1]; j++) for (let i = lo[0]; i <= hi[0]; i++) { const ins = occ[I(i, j, k)] & bit, q = at(i, j, k); out[q] = ins ? 0 : BIG; inn[q] = ins ? BIG : 0; }
+    // (closed: grown by CLOSE and shrunk back by as much, so a groove narrower than twice that between two muscles is
+    // filled, as the fat and the fascia fill it, and nothing that stands out is worn away)
+    edt(out, dims);
+    const close = CLOSE * ({ trunk: 1.4, leg: 1.4, arm: 1, head: 0.35 }[PARTS[p]] ?? 0.3), r2 = (close / h + 0.5) ** 2;   // (in cells from cell to cell: a cell is half one beyond its middle)
+    for (let q = 0; q < n; q++) { const ins = out[q] <= r2; out[q] = ins ? 0 : BIG; inn[q] = ins ? BIG : 0; }
+    edt(out, dims); edt(inn, dims);
+    let sd = new Float32Array(n); for (let q = 0; q < n; q++) sd[q] = Math.min(0.06, (out[q] > 0 ? Math.sqrt(out[q]) - 0.5 : 0.5 - Math.sqrt(inn[q])) * h + close);
+
+    // (about SOFT metres: the fat over a lean man rounds the muscles' edges and fills the grooves between them)
+    const W = [1, 4, 6, 4, 1].map((x) => x / 16), passes = Math.max(1, Math.round((SOFT / h) ** 2));
+    for (let pass = 0; pass < passes; pass++) for (const [s, len_] of [[1, dims[0]], [dims[0], dims[1]], [dims[0] * dims[1], dims[2]]]) {
+      const t = new Float32Array(n);
+      for (let q = 0; q < n; q++) { const c = Math.floor(q / s) % len_; let acc = 0, ws = 0; for (let e = -2; e <= 2; e++) { if (c + e < 0 || c + e >= len_) continue; acc += W[e + 2] * sd[q + e * s]; ws += W[e + 2]; } t[q] = acc / ws; }
+      sd = t;
+    }
+    for (let k = lo[2]; k <= hi[2]; k++) for (let j = lo[1]; j <= hi[1]; j++) for (let i = lo[0]; i <= hi[0]; i++) {
+      // (the muscles' and the bones' and the rest's blended over a few millimetres)
+      const g = I(i, j, k), d = exactPart[g] === p ? smin(sd[at(i, j, k)], exact[g], 0.005) : sd[at(i, j, k)]; if (d > 0.055) continue;
+      if (Number.isNaN(tissue[g])) tissue[g] = tissueAt([Math.abs(X(i)), Y(j), Z(k)]);
+      let v = d - tissue[g];
+      // (each leg on its own side of the middle: where the knees or the thighs touch, standing, the skin goes round
+      // each, and does not bridge them to be torn as they part)
+      if (p === P_.leg) v = Math.max(v, 0.003 - Math.abs(X(i)));
+      // (half way to a man's outline, where the piece has one: its share fading out at the outline's ends)
+      for (const E of envOf[p]) { const q = [Math.abs(X(i)), Y(j), Z(k)], t = dot(sub(q, E.a), E.u) / E.L, w = ENVELOPE_SHARE * Math.min(smooth01((t + 0.04) / 0.14), smooth01((1.04 - t) / 0.14)); if (w > 0) v = v + w * (E.f.f(q[0], q[1], q[2]) - v); }
+      const fl = ARMS(p) ? fieldA : field, fp = ARMS(p) ? fieldPartA : fieldPart; if (v < fl[g]) { fl[g] = v; fp[g] = p; }
+    }
+  }
+  // the openings carved, the nipples raised
+  const open = F.fieldOf(OPENINGS.map((u) => ({ op: 'add', k: 0.001, s: solidOf(u.solid) })));
+  for (const u of OPENINGS) { const s2 = solidOf(u.solid); for (const sg of [1, -1]) { const lo = [sg > 0 ? s2.lo[0] : -s2.hi[0], s2.lo[1], s2.lo[2]], hi = [sg > 0 ? s2.hi[0] : -s2.lo[0], s2.hi[1], s2.hi[2]]; for (let k = Math.max(0, Math.floor((lo[2] - LO[2]) / h)); k <= Math.min(nz - 1, Math.ceil((hi[2] - LO[2]) / h)); k++) for (let j = Math.max(0, Math.floor((lo[1] - LO[1]) / h)); j <= Math.min(ny - 1, Math.ceil((hi[1] - LO[1]) / h)); j++) for (let i = Math.max(0, Math.floor((lo[0] - LO[0]) / h)); i <= Math.min(nx - 1, Math.ceil((hi[0] - LO[0]) / h)); i++) { const g = I(i, j, k); field[g] = Math.max(field[g], -open.f(Math.abs(X(i)), Y(j), Z(k))); } } }
+  const sample = (p, fl = field) => { const fi = (p[0] - LO[0]) / h, fj = (p[1] - LO[1]) / h, fk = (p[2] - LO[2]) / h, i = Math.floor(fi), j = Math.floor(fj), k = Math.floor(fk), u = fi - i, v = fj - j, w = fk - k; let s = 0; for (let n = 0; n < 8; n++) { const a = n & 1, b = (n >> 1) & 1, c = (n >> 2) & 1; s += (a ? u : 1 - u) * (b ? v : 1 - v) * (c ? w : 1 - w) * fl[I(i + a, j + b, k + c)]; } return s; };
+  let nip = null;
+  { let z0 = 0, z1 = 0.2; for (let it = 0; it < 30; it++) { const zz = (z0 + z1) / 2; if (sample([NIPPLE.at[0], NIPPLE.at[1], zz]) < 0) z0 = zz; else z1 = zz; } nip = [NIPPLE.at[0], NIPPLE.at[1], z0 - NIPPLE.r * 0.4]; }
+  for (const sg of [1, -1]) { const c = [sg * nip[0], nip[1], nip[2]], R = Math.ceil(0.012 / h), ci = Math.round((c[0] - LO[0]) / h), cj = Math.round((c[1] - LO[1]) / h), ck = Math.round((c[2] - LO[2]) / h); for (let k = ck - R; k <= ck + R; k++) for (let j = cj - R; j <= cj + R; j++) for (let i = ci - R; i <= ci + R; i++) { const g = I(i, j, k); field[g] = smin(field[g], Math.hypot(X(i) - c[0], Y(j) - c[1], Z(k) - c[2]) - NIPPLE.r, 0.002); } }
+
+  // ── drawn out: surface nets on the grid (and on a grid twice as coarse, for the far level) ──────────────────────
+  const nets = (lvl, fl) => {
+    const s = lvl, gx = Math.floor((nx - 1) / s), gy = Math.floor((ny - 1) / s), gz = Math.floor((nz - 1) / s), hh = h * s;
+    const val = (i, j, k) => { if (s === 1) return fl[I(i, j, k)]; let a = 0; for (let n = 0; n < 8; n++) a += fl[I(Math.min(nx - 1, i * s + (n & 1)), Math.min(ny - 1, j * s + ((n >> 1) & 1)), Math.min(nz - 1, k * s + ((n >> 2) & 1)))]; return a / 8; };
+    const V = new Float32Array((gx + 1) * (gy + 1) * (gz + 1)), J = (i, j, k) => i + (gx + 1) * (j + (gy + 1) * k);
+    for (let k = 0; k <= gz; k++) for (let j = 0; j <= gy; j++) for (let i = 0; i <= gx; i++) V[J(i, j, k)] = val(i, j, k);
+    const vert = new Int32Array((gx + 1) * (gy + 1) * (gz + 1)).fill(-1), pos = [];
+    const E = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
+    for (let k = 0; k < gz; k++) for (let j = 0; j < gy; j++) for (let i = 0; i < gx; i++) {
+      let neg = 0; const v = []; for (let n = 0; n < 8; n++) { const x = V[J(i + (n & 1), j + ((n >> 1) & 1), k + ((n >> 2) & 1))]; v.push(x); if (x < 0) neg++; }
+      if (neg === 0 || neg === 8) continue;
+      let sx = 0, sy = 0, sz = 0, m = 0;
+      for (const [a, b] of E) if ((v[a] < 0) !== (v[b] < 0)) { const t = v[a] / (v[a] - v[b]); sx += (a & 1) + ((b & 1) - (a & 1)) * t; sy += ((a >> 1) & 1) + (((b >> 1) & 1) - ((a >> 1) & 1)) * t; sz += ((a >> 2) & 1) + (((b >> 2) & 1) - ((a >> 2) & 1)) * t; m++; }
+      vert[J(i, j, k)] = pos.length / 3; pos.push(LO[0] + (i + sx / m) * hh, LO[1] + (j + sy / m) * hh, LO[2] + (k + sz / m) * hh);
+    }
+    const tri = [];
+    for (let k = 1; k < gz; k++) for (let j = 1; j < gy; j++) for (let i = 1; i < gx; i++) {
+      const v0 = V[J(i, j, k)];
+      for (const a of [0, 1, 2]) {
+        const v1 = a === 0 ? V[J(i + 1, j, k)] : a === 1 ? V[J(i, j + 1, k)] : V[J(i, j, k + 1)]; if ((v0 < 0) === (v1 < 0)) continue;
+        const o = (db, dc) => { const e = [i, j, k]; e[(a + 1) % 3] -= db; e[(a + 2) % 3] -= dc; return vert[J(e[0], e[1], e[2])]; };
+        const A = o(0, 0), B = o(1, 0), C = o(1, 1), D = o(0, 1); if (A < 0 || B < 0 || C < 0 || D < 0) continue;
+        if (v0 < 0) tri.push(A, B, C, A, C, D); else tri.push(A, C, B, A, D, C);
+      }
+    }
+    // only the body itself: the largest piece the surface makes, and pieces nearly as large (no bubbles)
+    const parent = new Int32Array(pos.length / 3).map((_, i) => i), root = (x) => { while (parent[x] !== x) x = parent[x] = parent[parent[x]]; return x; };
+    for (let t = 0; t < tri.length; t += 3) { const a = root(tri[t]), b = root(tri[t + 1]), c = root(tri[t + 2]); parent[b] = a; parent[root(c)] = a; }
+    const size = new Map(); for (let v = 0; v < parent.length; v++) { const r = root(v); size.set(r, (size.get(r) ?? 0) + 1); }
+    const big = Math.max(...size.values()), keep = new Set([...size].filter(([, n]) => n > big * 0.02).map(([r]) => r));
+    const map = new Int32Array(parent.length).fill(-1), P = []; let n = 0;
+    for (let v = 0; v < parent.length; v++) if (keep.has(root(v))) { map[v] = n++; P.push(pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]); }
+    const T = []; for (let t = 0; t < tri.length; t += 3) if (map[tri[t]] >= 0) T.push(map[tri[t]], map[tri[t + 1]], map[tri[t + 2]]);
+    // (smoothed a little along the surface, then set back onto it: the grid's steps taken out)
+    const nb = Array.from({ length: n }, () => []); for (let t = 0; t < T.length; t += 3) for (let e = 0; e < 3; e++) { nb[T[t + e]].push(T[t + (e + 1) % 3]); }
+    for (let it = 0; it < 2; it++) {
+      const Q = P.slice();
+      for (let v = 0; v < n; v++) { if (!nb[v].length) continue; let s = [0, 0, 0]; for (const u of nb[v]) s = add(s, [P[u * 3], P[u * 3 + 1], P[u * 3 + 2]]); s = mul(s, 1 / nb[v].length); Q[v * 3] = P[v * 3] * 0.4 + s[0] * 0.6; Q[v * 3 + 1] = P[v * 3 + 1] * 0.4 + s[1] * 0.6; Q[v * 3 + 2] = P[v * 3 + 2] * 0.4 + s[2] * 0.6; }
+      for (let v = 0; v < n; v++) { const p = [Q[v * 3], Q[v * 3 + 1], Q[v * 3 + 2]], e = h * 0.5, f0 = sample(p, fl), g = norm([sample(add(p, [e, 0, 0]), fl) - f0, sample(add(p, [0, e, 0]), fl) - f0, sample(add(p, [0, 0, e]), fl) - f0]), r = sub(p, mul(g, Math.max(-h * 0.6, Math.min(h * 0.6, f0)))); P[v * 3] = r[0]; P[v * 3 + 1] = r[1]; P[v * 3 + 2] = r[2]; }
+    }
+    return { pos: P, tri: T, nb };
+  };
+
+  // ── each point fastened: to the four bones nearest under it ──────────────────────────────────────────────────────
+  // Each bone is a row of its own, carried whole by that bone's joint (rigid: it does not swell); a point among several
+  // is carried by each, the nearer more, as a game's skin is by its bones (linear blend skinning, four bones a point:
+  // over the loins the pelvis, two vertebrae and a thigh all pull at the same point).
+  // (the muscles under it would swell it as they shorten, but they move each its own way and pull the skin into folds
+  // and strings where a limb bends far: the bones carry it smoothly)
+  const rows = [], first = M.rows.length, rigid = new Map(), key = (i, j, k) => i + 4096 * (j + 4096 * k);
+  const rigidRow = (rig) => {
+    if (!rigid.has(rig)) { rigid.set(rig, first + rows.length); rows.push({ keys: [{ rig, at: [0, 0, 0], out: [0, 0, 1] }, { rig, at: [0, -0.05, 0], out: [0, 0, 1] }], closed: false, rigid: true, L0: 0.05, Lt: 0 }); }
+    return rigid.get(rig);
+  };
+  const allRows = (r) => (r < first ? M.rows[r] : rows[r - first]);
+  const curveOf = new Map();
+  const curve = (r) => { let c = curveOf.get(r); if (!c) { const R = allRows(r), P = R.keys.map((k) => add(k.at, RIG[k.rig].at)); c = { S: slots(P, R.closed), Q: slots(R.keys.map((k) => k.out), R.closed) }; curveOf.set(r, c); } return c; };
+  // the bones' surfaces as points (a bone's own field is true only near it; the trunk's skin lies a hand's breadth
+  // from its spine), both sides' (the left's mirrored: a point by the middle hangs on both thighs, not on one), in a
+  // grid; with each its joint and its piece. The gristle and the eyes too.
+  const BG = 0.02, raw = [], rigs = [], rigIndex = new Map();
+  const put = (x, y, z, rig) => { if (!rigIndex.has(rig)) { rigIndex.set(rig, rigs.length); rigs.push(rig); } raw.push(x, y, z, rigIndex.get(rig)); };
+  const surface = (f, lo, hi, rig) => {
+    const e = small({ lo, hi }) ? 0.004 : 0.009;   // (as close as the weights need: they are soft over centimetres)
+    for (let x = Math.max(-e, lo[0]); x <= hi[0]; x += e) for (let y = lo[1]; y <= hi[1]; y += e) for (let z = lo[2]; z <= hi[2]; z += e) if (Math.abs(f(x, y, z)) < e * 0.7) { const ax = Math.abs(x); put(ax, y, z, rig); if (ax > e) put(-ax, y, z, mirror(rig)); }
+  };
+  for (const b of bones) if (!b.id.endsWith('.R') && !/^(tooth|patella)/.test(b.id) && b.hi[0] > -0.01) surface((x, y, z) => b.F.f(x, y, z), b.lo, b.hi, b.rig);
+  for (const u of UNDER) { const f = F.fieldOf([{ op: 'add', k: 0, s: solidOf(u.solid) }]), c = u.solid[1], e = 0.032; surface((x, y, z) => f.f(x, y, z), sub(c, [e, e, e]), add(c, [e, e, e]), u.rig === 'eye' ? 'eye.L' : u.rig); }
+  // (in a grid of cells BG a side, each cell's points together)
+  const G0 = [-0.36, -0.06, -0.25], gn = [Math.ceil(0.72 / BG) + 1, Math.ceil(1.92 / BG) + 1, Math.ceil(0.54 / BG) + 1], NP = raw.length / 4;
+  const cellOf = (x, y, z) => { const i = Math.floor((x - G0[0]) / BG), j = Math.floor((y - G0[1]) / BG), k = Math.floor((z - G0[2]) / BG); return i < 0 || j < 0 || k < 0 || i >= gn[0] || j >= gn[1] || k >= gn[2] ? -1 : i + gn[0] * (j + gn[1] * k); };
+  const start = new Int32Array(gn[0] * gn[1] * gn[2] + 1), px = new Float32Array(NP * 3), prig = new Int16Array(NP);
+  for (let n = 0; n < NP; n++) { const c = cellOf(raw[n * 4], raw[n * 4 + 1], raw[n * 4 + 2]); if (c >= 0) start[c + 1]++; }
+  for (let c = 0; c < start.length - 1; c++) start[c + 1] += start[c];
+  { const fill = start.slice(0, -1); for (let n = 0; n < NP; n++) { const c = cellOf(raw[n * 4], raw[n * 4 + 1], raw[n * 4 + 2]); if (c < 0) continue; const m = fill[c]++; px.set([raw[n * 4], raw[n * 4 + 1], raw[n * 4 + 2]], m * 3); prig[m] = raw[n * 4 + 3]; } }
+  // (a point of an arm's skin hangs only on the arm's bones and the shoulder girdle's, never on the ribs beside it; a
+  // finger's on its own and the hand's; a point of the other skin on any of its bones, the trunk's, the legs' and the
+  // head's, the nearest; and a limb's on its own side's alone: the left knee's skin never on the right thigh)
+  const may = (own, rig, x) => {
+    const part = P_[partOf(rig)];
+    if (own === 255) return true;
+    if ((own === P_.leg || ARMS(own)) && rig.endsWith(x > 0 ? '.R' : '.L')) return false;
+    return ARMS(own) ? (own === P_.arm ? ARMS(part) || /^(scapula|clavicle)\./.test(rig) : part === own || /^hand\./.test(rig)) : !ARMS(part);
+  };
+  const mayTable = new Map(), mayOf = (own, x) => { const k = own * 2 + (x > 0 ? 1 : 0); let t = mayTable.get(k); if (!t) mayTable.set(k, (t = Uint8Array.from(rigs, (r) => (may(own, r, x) ? 1 : 0)))); return t; };
+  const partAt = (p, arms) => {
+    const fl = arms ? fieldA : field, fp = arms ? fieldPartA : fieldPart;
+    const i = Math.round((p[0] - LO[0]) / h), j = Math.round((p[1] - LO[1]) / h), k = Math.round((p[2] - LO[2]) / h); let best = 255, bv = Infinity;
+    for (let dk = -1; dk <= 1; dk++) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const g = I(i + di, j + dj, k + dk), v = Math.abs(fl[g]); if (fp[g] !== 255 && v < bv) { bv = v; best = fp[g]; } }
+    return best;
+  };
+  const best = new Float32Array(rigs.length);
+  const fasten = (p, own) => {
+    const q = p, ok = mayOf(own, q[0]);
+    // the nearest point of each joint's bones, looked for in ever wider shells until the five nearest are sure, or
+    // all within 16 cm (a finger's skin has its own three joints and the hand's)
+    const ci = Math.floor((q[0] - G0[0]) / BG), cj = Math.floor((q[1] - G0[1]) / BG), ck = Math.floor((q[2] - G0[2]) / BG);
+    best.fill(Infinity);
+    let r0 = -1;
+    for (const r of [2, 4, 8, 16, 24]) {
+      for (let k = Math.max(0, ck - r); k <= Math.min(gn[2] - 1, ck + r); k++) for (let j = Math.max(0, cj - r); j <= Math.min(gn[1] - 1, cj + r); j++) {
+        const inner = Math.abs(k - ck) <= r0 && Math.abs(j - cj) <= r0;
+        for (let i = Math.max(0, ci - r); i <= Math.min(gn[0] - 1, ci + r); i++) {
+          if (inner && Math.abs(i - ci) <= r0) { i = Math.min(gn[0] - 1, ci + r0); continue; }
+          const c = i + gn[0] * (j + gn[1] * k);
+          for (let m = start[c]; m < start[c + 1]; m++) { const g = prig[m]; if (!ok[g]) continue; const dx = px[m * 3] - q[0], dy = px[m * 3 + 1] - q[1], dz = px[m * 3 + 2] - q[2], d = dx * dx + dy * dy + dz * dz; if (d < best[g]) best[g] = d; }
+        }
+      }
+      r0 = r;
+      let sure = 0; const lim = (r * BG) ** 2; for (let g = 0; g < rigs.length; g++) if (best[g] <= lim) sure++;
+      if (sure >= 5 || (r >= 8 && sure >= 1)) break;   // (within 16 cm, all there are; beyond, the nearest)
+    }
+    const near = new Map(); for (let g = 0; g < rigs.length; g++) if (best[g] < Infinity) near.set(rigs[g], Math.sqrt(best[g]));
+    const FAR = Math.max(8, r0) * BG, cand = [...near].map(([rig, d]) => ({ rig, d })).filter((c) => c.d < FAR).sort((a, b) => a.d - b.d);
+    const row = (c) => rigidRow(c.rig);
+    if (!cand.length) return [{ row: rigidRow('hips'), w: 1 }];
+    // the weights: each falls with the distance, the fifth's taken from all four (so that where the fourth and the
+    // fifth change places the point does not jump; and none beyond the farthest looked at); softer over the trunk and the
+    // legs, whose skin lies far from the bones and bends with the whole spine
+    const soft = ARMS(own) ? 0.04 : 0.06, w = (c) => 1 / (c.d + soft) ** 2, w5 = w(cand[4] ?? { d: FAR });
+    const out = cand.slice(0, 4).map((c) => ({ row: row(c), w: w(c) - w5 })), all = out.reduce((a, c) => a + c.w, 0), kept = out.filter((c) => c.w > 0.004 * all), sum = kept.reduce((a, c) => a + c.w, 0);
+    return kept.map((c) => ({ row: c.row, w: c.w / sum }));
+  };
+
+  // ── both levels: their points fastened, in their frames ──────────────────────────────────────────────────────────
+  const attr = { bone: [], weight: [], nor: [], look: [] }, pos = [], idx = [];
+  const lips = MARKS[0], areola = MARKS[1], inside = (q, m) => ((q[0] - m.at[0]) / m.r[0]) ** 2 + ((q[1] - m.at[1]) / m.r[1]) ** 2 + ((q[2] - m.at[2]) / m.r[2]) ** 2 < 1;
+  let soles = null;
+  for (const [L, cell, lv] of [['fine', h, 1], ['coarse', h * 2, 2]]) {
+    const S = (() => {   // (the two skins as one list of points and faces; which skin each point is of kept)
+      const a = nets(lv, field), b = nets(lv, fieldA), na = a.pos.length / 3;
+      return { pos: [...a.pos, ...b.pos], tri: [...a.tri, ...b.tri.map((v) => v + na)], nb: [...a.nb, ...b.nb.map((l) => l.map((v) => v + na))], arms: (v) => v >= na };
+    })(), n = S.pos.length / 3, base = pos.length / 3;
+    // (two fingers that only touch, standing, are bridged by the surface; the bridge is taken out, or it would stretch
+    // into strings as they part. The trunk, the legs and the head are one skin, the arms with their hands another)
+    {
+      const part = new Uint8Array(n); for (let v = 0; v < n; v++) part[v] = partAt([S.pos[v * 3], S.pos[v * 3 + 1], S.pos[v * 3 + 2]], S.arms(v)); S.part = part;
+      const finger = (a) => a >= P_.thumb && a <= P_.little, joined = (a, b) => a === b || !finger(a) || !finger(b);
+      const kept = []; for (let t = 0; t < S.tri.length; t += 3) { const a = S.tri[t], b = S.tri[t + 1], c = S.tri[t + 2]; if (joined(part[a], part[b]) && joined(part[b], part[c]) && joined(part[a], part[c])) kept.push(a, b, c); }
+      S.tri = kept;
+    }
+    // normals from the faces round each point
+    const N = Array.from({ length: n }, () => [0, 0, 0]);
+    for (let t = 0; t < S.tri.length; t += 3) { const [a, b, c] = [S.tri[t], S.tri[t + 1], S.tri[t + 2]], pa = [S.pos[a * 3], S.pos[a * 3 + 1], S.pos[a * 3 + 2]], nn = cross(sub([S.pos[b * 3], S.pos[b * 3 + 1], S.pos[b * 3 + 2]], pa), sub([S.pos[c * 3], S.pos[c * 3 + 1], S.pos[c * 3 + 2]], pa)); for (const v of [a, b, c]) N[v] = add(N[v], nn); }
+    const low = new Map();
+    for (let v = 0; v < n; v++) {
+      const p = [S.pos[v * 3], S.pos[v * 3 + 1], S.pos[v * 3 + 2]], nrm = norm(N[v]), held = fasten(p, S.part[v]), A = held[0];
+      // (each bone's row and its share; the point and its normal as they stand, the bones' frames standing kept apart)
+      for (let j = 0; j < 4; j++) { attr.bone.push(held[j]?.row ?? 0); attr.weight.push(held[j]?.w ?? 0); }
+      attr.nor.push(...nrm);
+      // what it is: 1 a lip, 2 an areola, 3 a nail
+      const q = [Math.abs(p[0]), p[1], p[2]], rigA = allRows(A.row).keys[0].rig;
+      let what = inside(q, lips) ? 1 : Math.hypot(q[0] - nip[0], q[1] - nip[1]) < areola.r[0] && q[2] > nip[2] - 0.012 ? 2 : 0;
+      if (allRows(A.row).rigid && /^(index3|middle3|ring3|little3|thumb3)\./.test(rigA) && Math.abs(nrm[0]) > 0.6 && Math.sign(nrm[0]) === Math.sign(p[0])) what = 3;
+      if (allRows(A.row).rigid && /^toe\d\./.test(rigA) && nrm[1] > 0.6 && p[2] > 0.13) what = 3;
+      // how open it stands: a hollow (its neighbours further out than it) darker
+      let s = [0, 0, 0]; for (const u of S.nb[v]) s = add(s, [S.pos[u * 3], S.pos[u * 3 + 1], S.pos[u * 3 + 2]]);
+      const cav = S.nb[v].length ? dot(sub(mul(s, 1 / S.nb[v].length), p), nrm) / cell : 0;
+      attr.look.push(Math.max(0.35, Math.min(1, 1 - cav * 1.6)), what, 0, 0);
+      pos.push(...p);
+      // the soles: under each foot and toe, the lowest point every two centimetres
+      if (L === 'fine' && allRows(A.row).rigid && /^(foot|toe\d)\./.test(rigA) && p[1] < 0.03) { const k2 = rigA + ':' + Math.round(p[2] / 0.02) + ':' + Math.round(p[0] / 0.03); const was = low.get(k2); if (!was || p[1] < was.p[1]) low.set(k2, { rig: rigA, p }); }
+    }
+    if (L === 'fine') soles = [...low.values()].map(({ rig, p }) => ({ rig, at: sub(p, RIG[rig].at) }));
+    idx.push(Uint32Array.from(S.tri, (t) => t + base));
+  }
+  const F32 = (a) => Float32Array.from(a);
+  // the frame of each bone's row as the body stands (its middle, along it, out, across), each four of a row's texels
+  const rest = new Float32Array((first + rows.length) * 16);
+  for (const r of rigid.values()) { const c = curve(r), Fr = frameAt(c.S, c.Q, 0, 0.5); [Fr.C, Fr.T, Fr.O, Fr.B].forEach((v, j) => rest.set([...v, 0], r * 16 + j * 4)); }
+  return {
+    rows, soles, pos: F32(pos), fine: idx[0], coarse: idx[1],
+    attr: { bone: F32(attr.bone), weight: F32(attr.weight), nor: F32(attr.nor), look: F32(attr.look) }, rest,
+    counts: { points: pos.length / 3, fine: idx[0].length / 3, coarse: idx[1].length / 3, bonesHeld: rigid.size },
+    skin: SKIN / 1000,
+  };
+}

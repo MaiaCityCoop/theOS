@@ -99,6 +99,16 @@ const muscled = () => (MUSCLED ||= (async () => {
   return out;
 })());
 const fleshing = () => (FLESH ||= import('./muscles/flesh.js'));
+// A body: the muscles and the fat and the skin over them (./skin/build.js), laid in a worker as one, kept as the rest.
+// Its skin is drawn with cells of BODY_H (coarser on a phone or a machine of few threads).
+const BODY_H = few ? 0.008 : 0.006, BODIED = {};
+const bodied = () => (BODIED[BODY_H] ||= (async () => {
+  const key = 'body:' + BODY_H, [A, hit] = await Promise.all([about(), kept('readonly', (s) => s.get(key))]);
+  if (hit && hit.digest === A.body) return hit;
+  const out = { ...(await ask({ body: true, h: BODY_H })).body, digest: A.body };
+  kept('readwrite', (s) => s.put(out, key));
+  return out;
+})());
 // The rig's code, when a skeleton is first made (./skeleton/pose.js): its joints, and the turns a move gives them.
 let POSE = null;
 const posing = () => (POSE ||= import('./skeleton/pose.js').then((M) => ({ RIG: M.rigOf(), turnsOf: M.turnsOf, turnOf: M.turnOf })));
@@ -230,6 +240,9 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
   // (the muscles only for the character itself, not for the list's small picture or the measuring run: nothing else
   // grows or draws them)
   const muscles = !quick && !!R.layers?.includes('muscles'), LV = muscles ? UNDER : LEVELS;
+  // (a body: its skin, its fat, its muscles and its bones, one of them outermost at a time; its bones grown only when
+  // they are to be seen)
+  const body = muscles && !!R.layers?.includes('skin');
   const api = { object, mesh: null, bones: { root }, skeleton: null, material: mat, moves: MOVES.map(({ id, name, about }) => ({ id, name, about })), boneFaces: 0, height: R.height, measures: {}, bonesCount: 0, pieces: 0, level: -1, failed: null, onGrown: null, flesh: null };
   let K = null, names = [], rest = {}, soles = [];   // the rig once its code is here; its joints' names; where each stands in its parent; where the feet meet the ground
   const rigged = ({ RIG, turnsOf, turnOf }) => {
@@ -260,27 +273,52 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
       const y = G.pos[v * 3 + 1], z = G.pos[v * 3 + 2], key = n + ':' + Math.round(z / 0.02), was = low.get(key);
       if (!was || y < was[1][1]) low.set(key, [n, [G.pos[v * 3], y, z]]);
     }
-    soles = [...low.values()].map(([n, p]) => { const at = K.RIG[n].at; return { n, side: n.slice(-1), p: new THREE.Vector3(p[0] - at[0], Math.min(0, p[1]) - at[1], p[2] - at[2]), x: null, z: null, dx: 0, dz: 0 }; });
-    S.foot.L.at = S.foot.R.at = -1;
+    if (!body) { soles = [...low.values()].map(([n, p]) => { const at = K.RIG[n].at; return { n, side: n.slice(-1), p: new THREE.Vector3(p[0] - at[0], Math.min(0, p[1]) - at[1], p[2] - at[2]), x: null, z: null, dx: 0, dz: 0 }; }); S.foot.L.at = S.foot.R.at = -1; }
+    show();
     api.onGrown?.(level);
   };
   // the muscles, once the rig and the bones stand: laid in a worker, carried by the same joints
   const flesh = async () => {
-    const [D, F] = await Promise.all([muscled(), fleshing()]);
+    const [D, F] = await Promise.all([body ? bodied() : muscled(), fleshing()]);
     if (api.disposed) return;
-    api.flesh = F.fleshOf(D, { object, bones: api.bones, eye }); object.add(api.flesh.mesh); api.flesh.update();
+    const fl = (api.flesh = F.fleshOf(D, { object, bones: api.bones, eye }));
+    for (const m of [fl.muscles, fl.fat, fl.skin]) if (m) object.add(m);
+    // (a body stands on its skin's soles: under each foot and toe, its lowest points)
+    if (body && D.soles) { soles = D.soles.map(({ rig, at }) => ({ n: rig, side: rig.slice(-1), p: new THREE.Vector3(at[0], at[1], at[2]), x: null, z: null, dx: 0, dz: 0 })); S.foot.L.at = S.foot.R.at = -1; }
+    show(); fl.update();
     api.onGrown?.(api.level);
   };
+  // which layer is outermost: what is drawn (the bones under the muscles; nothing under the fat or the skin)
+  api.layers = body ? [
+    { id: 'skin', name: 'Skin', about: 'The skin over the fat: a man as he stands, naked.' },
+    { id: 'fat', name: 'Fat', about: 'The fat under the skin, as thick as it is place by place: thin over the shin and the skull, padded at the heel, the palm and the buttock.' },
+    { id: 'muscles', name: 'Muscles', about: 'The muscles over the bones.' },
+    { id: 'bones', name: 'Bones', about: 'The skeleton alone.' },
+  ] : null;
+  api.layer = body ? 'skin' : null;
+  const wantsBones = () => !body || api.layer === 'muscles' || api.layer === 'bones';
+  let growing = null;
+  const growBones = () => (growing ||= (async () => {
+    const full = LV.length - 1, hit = await held(LV[full]);
+    if (hit) return put(full, hit);
+    put(0, await surface(LV[0])); put(full, await surface(LV[full]));
+  })().catch((err) => { api.failed = err.message; api.onGrown?.(-1); }));
+  function show() {
+    const L = api.layer, fl = api.flesh;
+    if (api.mesh) api.mesh.visible = wantsBones();
+    if (fl) { if (fl.skin) fl.skin.visible = L === 'skin'; if (fl.fat) fl.fat.visible = L === 'fat'; if (fl.muscles) fl.muscles.visible = !body || L === 'muscles'; for (const e of fl.eyes) e.visible = L !== 'bones'; }
+  }
+  api.setLayer = (id) => { if (!body || id === api.layer || !api.layers.some((l) => l.id === id)) return; api.layer = id; show(); if (wantsBones()) growBones(); };
   // the state of its moving (as a person's: ./human.js)
   const footing = () => ({ down: false, at: -1, side: 0, turn: 0, faced: 0, ex: 0, dSide: 0 });   // a foot on the ground: the point of its sole that stands, and what its leg is given to keep it there
   const S = { move: 'stand', from: null, k: 1, t: 0, began: {}, a: 0, yaw: 0, R: R.walkRound ?? 1.5, pace: 0, foot: { L: footing(), R: footing() } };
   const m4 = new THREE.Matrix4(), v = new THREE.Vector3(), q = new THREE.Vector3(), moveOf = (id) => MOVES.find((x) => x.id === id);
   Object.defineProperty(api, 'move', { get: () => S.move });
   // what the card says of it beside its figures: its joints and pieces, and how far its growing is
-  Object.defineProperty(api, 'figures', { get: () => muscles ? [[api.bonesCount || '…', '', 'Joints'], [api.flesh?.muscles || '…', '', 'Muscles']] : [[api.bonesCount || '…', '', 'Joints'], [api.pieces || '…', '', 'Pieces']] });
-  Object.defineProperty(api, 'note', { get: () => (api.failed ? 'Its bones could not be grown in this browser: ' + api.failed : api.level < 0 ? 'Its bones are being grown in the page: coarse within a few seconds, then fine.' : muscles && !api.flesh ? 'Its muscles are being laid on its bones, in the page (the browser keeps them for the next visit).' : api.level < LV.length - 1 && !quick ? 'Coarse for now: the fine bones are still growing (the browser keeps them for the next visit).' : null) });
+  Object.defineProperty(api, 'figures', { get: () => muscles ? [[api.bonesCount || '…', '', 'Joints'], [api.flesh?.counts.muscles || '…', '', 'Muscles']] : [[api.bonesCount || '…', '', 'Joints'], [api.pieces || '…', '', 'Pieces']] });
+  Object.defineProperty(api, 'note', { get: () => (api.failed ? 'Its bones could not be grown in this browser: ' + api.failed : body && !api.flesh ? 'Its body is being laid in the page: the muscles on the bones, then the fat and the skin over them (some seconds the first time; the browser keeps it for the next visit).' : body && wantsBones() && api.level < 0 ? 'Its bones are being grown in the page: coarse within a few seconds, then fine.' : !body && api.level < 0 ? 'Its bones are being grown in the page: coarse within a few seconds, then fine.' : muscles && !api.flesh ? 'Its muscles are being laid on its bones, in the page (the browser keeps them for the next visit).' : api.level < LV.length - 1 && !quick ? 'Coarse for now: the fine bones are still growing (the browser keeps them for the next visit).' : null) });
   // (its faces: the bones' and the muscles' together)
-  Object.defineProperty(api, 'faces', { get: () => api.boneFaces + (api.flesh?.faces ?? 0), set: (v) => { api.boneFaces = v; } });
+  Object.defineProperty(api, 'faces', { get: () => { const c = api.flesh?.counts, L = api.layer; return !body ? api.boneFaces + (c?.muscleFaces ?? 0) : L === 'skin' || L === 'fat' ? c?.skinFaces ?? 0 : L === 'muscles' ? api.boneFaces + (c?.muscleFaces ?? 0) : api.boneFaces; }, set: (v) => { api.boneFaces = v; } });
   api.rigLabel = 'Rig · a joint where two bones meet'; api.rigAbout = 'one to each vertebra, the atlas and the skull; the jaw; collarbone, blade, shoulder, elbow, the radius turning about the ulna, wrist, every finger\'s three; hip, knee and kneecap, ankle, each toe';
   api.setMove = (id) => { if (id === S.move || !moveOf(id)) return; S.from = S.move; S.k = 0; S.move = id; S.began[id] = S.t; };   // (a move runs from its own beginning: every joint in its order, a stride from the heel's strike)
   api.dispose = () => { api.disposed = true; api.mesh?.geometry.dispose(); mat.dispose(); api.flesh?.dispose(); };
@@ -355,6 +393,7 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
   };
   api.grown = (async () => {
     rigged(await posing());
+    if (body) return flesh();
     const full = LV.length - 1, hit = quick ? null : await held(LV[full]);
     if (hit) put(full, hit); else put(0, await surface(LV[0]));
     const laid = muscles ? flesh() : null;   // (asked before the fine bones, so the workers lay the muscles first)
