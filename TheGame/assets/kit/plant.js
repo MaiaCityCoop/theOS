@@ -21,8 +21,9 @@
 // what its one rule moves a vertex by in what is free, and its shape's sixteen numbers in front of its vertices:
 //   vertex 0           the shape's sixteen numbers (crowd.js RULE) as half floats, two a number of 32 bits (two
 //                      elements to read, not four: they are read for every vertex); its corners count from 1
-//   vertices 1 …       where the level has a far body and the crown is baked (LOD.BAKE): the crown baked (crowd.js
-//                      bakeOf), its bytes as they are; its corners then count from after them
+//   after its vertices where the level has a far body and the crown is baked (LOD.BAKE): the crown baked (crowd.js
+//                      bakeOf), its bytes as they are; the vertex it begins at in the numbers' slots 14 and 15
+//                      (x 1024, and the rest)
 //   3   … | body (3, bits 13 … 15)       0, or which far body it is (1 2 3, finest first; 4 the post)
 //   5   root z (16) | tip u (8) | v (8)  from its place on its card's painting to the tip's, ±TIPUV
 //   6   tip x (16) | y (16)              the point it is enlarged about (a far body's: its place on the next coarser, `to`)
@@ -51,8 +52,9 @@ const oct8 = (x, y, z) => { oct(x, y, z); OU = sn(OCT[0], 255); OV = sn(OCT[1], 
 /** A mesh of the tree kit (as its builder left it, or as typed arrays) as the heap takes it: every vertex packed,
     its triangles' corners as they are. */
 export function packPlant(m) {
-  const BV = m.bake ? Math.ceil(m.bake.bytes.length / 32) : 0, P = m.position, N = m.normal, UV = m.uv, CN = m.cn, RT = m.root, HD = m.hand, n = m.part.length, R = m.rule ? 1 + BV : 0, out = new Uint32Array((n + R) * 8);
-  if (BV) new Uint8Array(out.buffer, 32, BV * 32).set(m.bake.bytes);   // (its crown baked, after its numbers: crowd.js bakeOf)
+  const BV = m.bake ? Math.ceil(m.bake.bytes.length / 32) : 0, P = m.position, N = m.normal, UV = m.uv, CN = m.cn, RT = m.root, HD = m.hand, n = m.part.length, R = m.rule ? 1 : 0, out = new Uint32Array((n + R + BV) * 8);
+  // (its crown baked, after its vertices: crowd.js bakeOf; where it begins, a vertex's number, as two whole numbers a half float holds exactly)
+  if (BV) { new Uint8Array(out.buffer, (n + R) * 32, BV * 32).set(m.bake.bytes); m.rule[14] = Math.floor((n + R) / 1024); m.rule[15] = (n + R) % 1024; }
   if (R) for (let i = 0; i < 8; i++) out[i] = (half(m.rule[i * 2]) | (half(m.rule[i * 2 + 1]) << 16)) >>> 0;   // (a crowd's level: its shape's numbers first, two to a number of 32 bits)
   for (let v = 0; v < n; v++) {
     const o = (v + R) * 8, p = v * 3;
@@ -72,7 +74,7 @@ export function packPlant(m) {
       out[o + 7] = (gx(T[p + 2]) | (q << 16)) >>> 0;
     }
   }
-  return { index: R ? Uint32Array.from(m.index, (x) => x + R) : Uint32Array.from(m.index), verts: out, count: n + R };   // (count: its vertices)
+  return { index: R ? Uint32Array.from(m.index, (x) => x + R) : Uint32Array.from(m.index), verts: out, count: n + R };   // (count: its numbers and its vertices; a baked crown after them is not counted)
 }
 
 /** A plant asset's shapes (assets/*.js made by the tree kit's tree()) as a family of the zoo (assets/zoo/index.js):

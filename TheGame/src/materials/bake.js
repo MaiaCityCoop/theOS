@@ -27,6 +27,7 @@ import { recipes } from '../core/registry.js';
 import { note } from '../core/gpu.js';
 import { compileFor, inTurn } from '../core/compile.js';
 import { flag, flagText } from '../core/flags.js';
+import { LOD_DEFAULT } from '../../assets/kit/crowd.js';
 
 const SIZE = 1024, LEVELS = Math.log2(SIZE) + 1;
 
@@ -75,7 +76,7 @@ SIDES.forEach((s, l) => { FIRST[l] = BLOCKS; BLOCKS += s * s; AT[l] = ROOM; ROOM
 // eight times). Painted tiles only, as they are packed (blocksOf).
 // Tried on the far canopy and not enough by itself (intent 0033, Build, 2026-11-17): kept for a far card or body that
 // wears its painting, which needs it.
-export const COVER = { CUT: 0.45, on: flagText('lod') === 'new' && flagText('mips') === '1' };
+export const COVER = { CUT: 0.45, on: flagText('mips') === '1' && (flagText('lod') ?? LOD_DEFAULT) === 'new' };   // (only where the plants are the crowd kit's: assets/kit/crowd.js LOD_DEFAULT)
 const TEXELS = Array.from({ length: LEVELS }, (_, l) => (SIZE >> l) ** 2), TFIRST = []; let TALL = 0;
 TEXELS.forEach((n, l) => { TFIRST[l] = TALL; TALL += n; });
 function coverageOf(src) {
