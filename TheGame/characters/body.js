@@ -1,8 +1,8 @@
 // The body of the library (intent 0036): the skeleton (./skeleton.js), the muscles on it (./muscles.js), and over them
 // the fat and the skin: a man of 1.80 m as he stands, naked. One layer outermost at a time (skin, fat, muscles, bones),
-// all of them on the skeleton's rig and moving with it: the skin rides on the muscles under it and the bones it lies
-// near, and swells where they swell. Grown in the page from our own code. A character is a recipe like any other
-// (src/core/registry.js).
+// all of them on the skeleton's rig and moving with it: the skin is carried by the bones nearest under it, as a game's
+// skin is (it does not yet swell with the muscles). Grown in the page from our own code. A character is a recipe like
+// any other (src/core/registry.js).
 import { skeletonOf, MOVES } from './kit/bones.js';
 import { PERSON } from '../world/scale.js';
 
