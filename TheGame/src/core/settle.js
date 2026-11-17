@@ -1,0 +1,72 @@
+// When the world is complete for the camera as it stands (intent 0038): what the gate waits for before it takes a
+// picture, never a timer (tools/gate.js), and what a page waits for before it shows its first view (`ready`). A still
+// taken 120 frames and two and a half seconds after a jump to the pine stand, in a browser that had kept nothing,
+// showed no tree at all (2026-11-17): the plants were still being made in the workers.
+//
+// Complete is two things, one after the other:
+//   - nothing is still out: every part whose work ends later than the frame that asked for it (a worker builds, the
+//     browser reads back what it kept, the GPU compiles a pipeline or reads a map back) says how much of it is out, a
+//     count asked once a frame (source: cheap), and every one says none;
+//   - then the picture built over time (src/core/temporal.js) has come to rest on it: as many frames in a row in which
+//     nothing changed (nothing packed again, put in or painted; the camera, its lens, the pixels, the detail governor as
+//     they were) as it takes for what it kept before to have left the picture (temporal.settles).
+// The sources, each said where it is made: every drawer (src/scatter/drawer.js: its kinds' coarse levels, the meshes,
+// textures and skeletons asked of the recipes' workers, a level still growing out of the coarser one), the world's
+// textures (src/materials/bake.js), the pipelines the GPU is compiling (src/core/compile.js), the ground round the camera
+// passing from one map to the next or being read back (src/scatter/ground.js), the stones whose ground has been read back
+// since the rocks last looked (src/scatter/rocks.js), the lakes being looked for (src/world/lakes.js), the city's plan
+// (src/city/index.js).
+const SOURCES = new Map();
+/** A part whose work ends later than the frame that asks for it: fn(held) -> how much of it is still out (0: none).
+    held: the clock stood still since the last frame (a still's; what grows by the clock would never be done). */
+export const source = (name, fn) => { let k = name; for (let i = 2; SOURCES.has(k); i++) k = `${name} (${i})`; SOURCES.set(k, fn); };
+/** What is still out, by source ({}: nothing). */
+export function waiting() { const out = {}; for (const [name, fn] of SOURCES) { const n = fn(false); if (n) out[name] = n; } return out; }
+
+let V = null, clock = NaN, frames = 0, still = 0, need = 32, first = null;
+const asks = new Set(), seen = new Float64Array(37), broke = new Set();
+/** A promise: the world complete for the page's first view (what a page shows itself on). */
+export const ready = new Promise((res) => (first = res));
+
+/** What a frame's view is compared by: the camera, the renderer (its canvas's pixels), the screen (the inside's pixels:
+    the governor's ratio), the picture built over time, the shared uniforms (the clock, the detail governor). */
+export function watch({ camera, renderer, screen, temporal, U }) { V = { camera, renderer, screen, temporal, U }; }
+// (whether the view differs from the last frame's: the camera's place and turn, its lens, the pixels drawn and shown,
+// the detail governor's factor)
+function viewChanged() {
+  const { camera, renderer, screen, U } = V, m = camera.matrixWorld.elements, p = camera.projectionMatrix.elements, c = renderer.domElement;
+  let changed = false, i = 0;
+  const is = (v) => { if (seen[i] !== v) { seen[i] = v; changed = true; } i++; };
+  for (let k = 0; k < 16; k++) is(m[k]);
+  for (let k = 0; k < 16; k++) is(p[k]);
+  is(screen.inside); is(c.width); is(c.height); is(U.uLodInv.value);
+  return changed;
+}
+
+/** After each frame the world was drawn in (src/main.js), with whether it changed what is drawn besides the view
+    (packed a tier again, put meshes or textures in: src/core/work.js changed). */
+export function tick(did) {
+  if (!V) return;
+  frames++;
+  const held = V.U.uTime.value === clock; clock = V.U.uTime.value;
+  let out = 0;
+  for (const [name, fn] of SOURCES) { try { out += fn(held) || 0; } catch (e) { out++; if (!broke.has(name)) { broke.add(name); console.warn(`settle: '${name}' could not say what is still out`, e); } } }   // (a part that cannot say holds the world incomplete, and never stops the frame)
+  const moved = viewChanged(), T = V.temporal;
+  still = moved || did || out > 0 || T.age === 0 ? 0 : still + 1;
+  need = T.settles;
+  if (still < need || T.age < need) return;
+  if (first) { first({ frames }); first = null; }
+  for (const a of asks) if (frames > a.from) { asks.delete(a); clearTimeout(a.timer); a.res({ frames: frames - a.from, ms: Math.round(performance.now() - a.t0), still }); }
+}
+
+/** A promise: the world complete for the camera as it stands now, resolved at a frame drawn after this call, once
+    nothing has been out and nothing has changed for as long as the picture built over time takes to come to rest.
+    { frames, ms, still }: how long it took, and for how many frames nothing changed. timeout (ms): rejected after it,
+    with what is still out. */
+export function settle({ timeout = 300000 } = {}) {
+  return new Promise((res, rej) => {
+    const a = { from: frames, t0: performance.now(), res };
+    a.timer = setTimeout(() => { asks.delete(a); rej(new Error(`settle: after ${timeout / 1000} s, still out: ${JSON.stringify(waiting())}; ${still} frames of ${need} unchanged`)); }, timeout);
+    asks.add(a);
+  });
+}

@@ -5,12 +5,12 @@ import * as THREE from 'three/webgpu';
 import { HMIN, HMAX, heightAt, riverAt } from '../world/land.js';
 import { boxIn } from '../core/frustum.js';
 import { U } from '../core/uniforms.js';
-import { terrainMaterial, GRID, R0 } from './material.js';
+import { terrainMaterial, GRID, R0, FINE } from './material.js';
 import { waterMaterial } from './water.js';
 
 const S0 = 8;               // a level-0 node's side, metres (0.5 m quads)
 const LEVELS = 10;          // the top level reaches R0 * 2^9 = 24.6 km
-const CAP = 4096, WCAP = 1024;
+const CAP = 4096 * FINE * FINE, WCAP = 1024 * FINE * FINE;   // (?truth's finer land: as many more nodes as its levels reach further, squared)
 const WATER_LEVELS = 6;
 
 function gridGeometry() {
@@ -44,8 +44,8 @@ export function createTerrain(scene, tex) {
   waterMesh.renderOrder = 20;
   scene.add(landMesh, waterMesh);
 
-  const range = [], range2 = [];
-  for (let i = 0; i < LEVELS; i++) { range.push(R0 * 2 ** i); range2.push(range[i] * range[i]); }
+  const range = [], range2 = [];   // (each level's reach; under ?truth FINE times as far, but the last's: the land ends where it always does)
+  for (let i = 0; i < LEVELS; i++) { range.push(R0 * 2 ** i * (i < LEVELS - 1 ? FINE : 1)); range2.push(range[i] * range[i]); }
   const TOP = S0 * 2 ** (LEVELS - 1);
   let cx = 0, cz = 0, dy2 = 0, inv2 = 1;
 

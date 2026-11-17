@@ -43,18 +43,17 @@ export async function bench({ ratio = 1.5, frames = 60, settle = 0 } = {}) {
   return { ratio, size: [innerWidth, innerHeight], ...out };
 }
 
-/** `?bench`: bench() once the world is loaded (the plants built, a few seconds more for what streams), and its numbers
-    on the screen; again on a click. Opened with the game (src/main.js). */
+/** `?bench`: bench() once the world is complete where it starts (window.__game.ready: src/core/settle.js), and its
+    numbers on the screen; again on a click. Opened with the game (src/main.js). */
 export async function overlay() {
   const { flagText } = await import('../src/core/flags.js');
-  const ratio = +flagText('bench') || 1.5, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const ratio = +flagText('bench') || 1.5;
   const el = document.createElement('div');
   el.style.cssText = 'position:fixed;left:12px;top:12px;z-index:99999;background:rgba(255,253,246,0.94);color:#1f2a1c;font:13px/1.45 ui-monospace,Menlo,monospace;padding:8px 12px;border-radius:8px;white-space:pre;cursor:pointer';
   document.body.appendChild(el);
   const say = (t) => (el.textContent = `bench\n${t}`);
   say('waiting for the world to load…');
-  for (let i = 0; i < 1200; i++) { const D = window.__plants?.drawers; if (D?.length && D.every((d) => d.stats.coarseMs > 0)) break; await wait(500); }
-  await wait(5000);
+  await window.__game.ready;
   let busy = false;
   const run = async () => {
     if (busy) return; busy = true; say('running: the picture holds still a while…');

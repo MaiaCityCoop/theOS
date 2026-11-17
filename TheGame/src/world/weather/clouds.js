@@ -7,6 +7,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, Loop, float, vec2, vec3, vec4, uv, positionGeometry, If, mix, exp, pow, max, min, log2, clamp, smoothstep } from 'three/tsl';
 import CLOUDS from '../../../world/clouds.js';
 import { U } from '../../core/uniforms.js';
+import { uPxK } from '../../detail/measure.js';
 import { tile } from '../tile.js';
 
 const nameOf = (c) => CLOUDS.names.filter(([at]) => c >= at).at(-1)[1];
@@ -117,7 +118,7 @@ export default {
       const d0 = v.xz.mul(t.sub(t00)).div(CLOUDS.size), dA = v.xz.mul(span).div(CLOUDS.size).div(N), rot = (q) => vec2(q.x.mul(0.786).sub(q.y.mul(0.618)), q.x.mul(0.618).add(q.y.mul(0.786))).mul(1.414);
       const a0 = C.a.add(d0), b0 = C.b.add(rot(d0)), dB = rot(dA);
       // (how coarse a read may be: a pixel's width up there, more along the ray where it grazes the layer)
-      const lod = clamp(log2(t.div(U.uPxK).div(yy).div(CLOUDS.size).mul(1024)), 0, 7);
+      const lod = clamp(log2(t.div(uPxK).div(yy).div(CLOUDS.size).mul(1024)), 0, 7);   // (the measure's pixels: src/detail/measure.js)
       const at = (ua, ub) => cover(mix(billows(ua).level(lod).r, billows(ub).level(lod).r, 0.45).add(C.region).add(fray), [0.14, 0.26]);
       const mid = N * 0.35, fray = billows(a0.add(dA.mul(mid)).mul(3.7).add(0.31)).level(lod).g.sub(0.5).mul(0.12);   // (their frayed edge, once a ray)
       // the side turned to the sun: more cloud a little way towards it than here, and this side is the shaded one

@@ -34,7 +34,8 @@
 //                               once a frame: a look at what stands or passes near, when the camera has moved (or
 //                               the lens, the governor or `extra`): ask for the levels and textures it is large
 //                               enough on screen for now, and will still be when they have come
-//     near(K, inv, ahead)       the same look, asked for outright
+//     near(inv, ahead)          the same look, asked for outright
+//     waiting(held)             how much of it is still out (src/core/settle.js: the world complete), below
 //     stats, pending, skins, boneRows (the movers' skeletons, as numbers), fingerprint
 // What a drawer's kinds may be is said when it is made, so a drawer whose kinds need none of it carries none of it in
 // its shader: skins (how many kinds' own textures it holds at once; 0: none, its kinds wear the world's materials),
@@ -65,7 +66,8 @@ import { CHAIN } from '../../assets/kit/bones.js';
 import { MODELS, modelOf } from '../shading/index.js';
 import { byRole } from '../core/registry.js';
 import { bandOf, padOf } from '../detail/handover.js';
-import { pxK } from '../detail/index.js';
+import { pxK, pxOn, farFor, spanAt, pxAt, TRUTH } from '../detail/measure.js';
+import { source } from '../core/settle.js';
 import { note } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { did } from '../core/work.js';
@@ -343,7 +345,8 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // it is a slow start), and kept for the next
   if (DOT) H.putAll(L - 1, dotMesh());
   const OWN = []; for (let l = STREAMED; l < L - (DOT ? 1 : 0); l++) OWN.push([l, MAKE ? room(l).tris * 3 : H.pools[l].idx, H.pools[l].elems]);   // (a make without a dot: its last level is every kind's own too)
-  if (MOVING) ask([['bones', first + STAND, MOVING]]).then(([rows]) => { boneRows.array.set(rows); boneRows.needsUpdate = true; });
+  let bonesOut = MOVING ? 1 : 0;   // (its movers' skeletons, until they have come)
+  if (MOVING) ask([['bones', first + STAND, MOVING]]).then(([rows]) => { boneRows.array.set(rows); boneRows.needsUpdate = true; bonesOut = 0; });
   const FP = fingerprint(), KEPT = name === 'stand' ? 'own' : `own: ${name}`, EAGER = ALL <= 256; let coarse = -1, keptOwn = null, loadedAt = 0;   // (EAGER: a few kinds are read back or built as soon as the browser has answered, not after the first frames: they are there when the first picture is)
   keptGet(FP, KEPT).then((rec) => { keptOwn = Array.isArray(rec) && rec.length === OWN.length && rec.every((b, n) => b.l === OWN[n][0] && b.counts?.length === ALL && b.draws?.length === ALL && b.corners?.length === ALL * OWN[n][1]) ? rec : false; if (EAGER) start(); });
   // a block of a level every kind has its own of (kinds k0 … k0 + n, each `idx` corners' room), come from the workers
@@ -429,6 +432,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // that frame: a flicker each time a mesh came or went. A frame sends the GPU one full mesh at most, or a dozen
   // small ones (under a megabyte); and a level waits until the next coarser one has come and grown: each grows out of the one before it
   const fulls = [], made = [], all0 = uniform(0);   // its tiers; and those of the full meshes, a draw a slot of the heap
+  let grewAt = -1e9;   // (the clock's seconds when a level was last put in: a solid make's grows out of the coarser one for GROW seconds from then)
   const arrive = () => {
     const now = performance.now();
     for (let sent = 0, puts = 0, n = done.length; n > 0 && sent < 220000 && puts < 12; n--) {
@@ -437,7 +441,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       pending.delete(id); asked[d.l]--; if (wantAt[id] < round - 1) continue;
       sent += d.mesh.draw ?? d.mesh.index.length; puts++;
       if (H.put(d.k, d.l, d.mesh, round, round, U.uTime.value)) {
-        stats.put++; putAt[id] = now; did('meshes'); did('kB', Math.round((d.mesh.index.byteLength + d.mesh.verts.byteLength) / 1024));
+        stats.put++; putAt[id] = now; grewAt = U.uTime.value; did('meshes'); did('kB', Math.round((d.mesh.index.byteLength + d.mesh.verts.byteLength) / 1024));
         if (!d.l) for (const T0 of fulls) { for (const at of T0.slotArgs(H.pools[0].slot[d.k])) { T0.args.array[at] = d.mesh.draw ?? d.mesh.index.length; T0.args.addUpdateRange(at, 1); } T0.args.needsUpdate = true; if (MAKE) T0.geometries[H.pools[0].slot[d.k]].setIndex(new THREE.BufferAttribute(d.mesh.index, 1)); }   // (another make's: its corners are the slot's draw's own list)   // (its slot's draw: as long as it)
       }
     }
@@ -463,17 +467,17 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     speed += (Math.min(v, 300) - speed) * Math.min(1, dt * 4);   // (metres a second, smoothed)
     if (Math.hypot(cam.x - sx, cam.z - sz) < 0.7 && key === sk && now - scanAt < 300) return null;
     sx = cam.x; sz = cam.z; sk = key; scanAt = now;   // (its placer says whether a look makes the frame busy: src/core/work.js)
-    const ahead = speed * 0.35, N = near(K, inv, ahead); N.ahead = ahead; return N;
+    const ahead = speed * 0.35, N = near(inv, ahead); N.ahead = ahead; return N;
   };
-  // a look at what stands or passes near (K: the lens's pixels a metre, inv: the detail governor's, ahead: how far the
-  // camera travels while a mesh is made)
-  const near = (K, inv, ahead) => {
+  // a look at what stands or passes near (inv: the detail governor's, ahead: how far the camera travels while a mesh is
+  // made); a size on screen is the measure's (src/detail/measure.js)
+  const near = (inv, ahead) => {
     round++;
     const asks = [], want = [], lo = LEVELS[STREAMED - 1].px;
     // a thing s metres large, d metres off: its size on screen now, and as it will be when a mesh asked for now has come
     // (`ahead`: the camera travelling, and the thing itself: a fine level that will have been passed by then is not asked for)
     const wants = (k, s, d, own) => {
-      const px = (s * K * 1.2) / Math.max(1e-3, d * inv), then = (s * K * 1.2) / ((d + ahead + own) * inv);
+      const px = pxOn(s * 1.2, Math.max(1e-3, d * inv)), then = pxOn(s * 1.2, (d + ahead + own) * inv);
       if (SKINS && px > SKINPX) { skinAt[k] = round; if (skins.slot[k] >= 0) skins.used[skins.slot[k]] = round; else if (then > SKINPX && !skinPending.has(k)) want.push([px, k]); }
       for (let l = STREAMED - 1; l >= 0 && px > LEVELS[l].px; l--) {
         if (H.has(k, l)) { H.touch(k, l, round); wantAt[k * L + l] = round; }
@@ -482,7 +486,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     };
     return {
       /** How far off a thing of that size is still asked for. */
-      reach: (s) => (s * K * 1.2) / (lo * inv),
+      reach: (s) => farFor(lo, s * 1.2) / inv,
       wants,
       /** Nothing is near enough: nothing asked. */
       none() { queue = []; },
@@ -533,7 +537,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       place(c, { band, whole, all, ...part }, (kind, size, dist, fill, key = null) => {
         // of this level: it is there (heap.js), and the thing is the size on screen the level is drawn at, or larger
         // while its next finer level has not come
-        const span = size.mul(U.uPxK), R = heapRow(H, kind, lv), has = R.z.greaterThan(uint(0));
+        const span = spanAt(size, dist), R = heapRow(H, kind, lv), has = R.z.greaterThan(uint(0));   // (its size on screen at a metre: the measure's)
         const near = dist.greaterThanEqual(span.mul(band.from).sub(band.pad)).or(stands.greaterThan(0.5).and(R.w.shiftRight(under).bitAnd(uint(1)).equal(uint(0))));
         If(has.and(whole.or(dist.lessThan(span.mul(band.to).add(band.pad)).and(near))), () => {
           fill(...rows);
@@ -598,7 +602,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     const live = (c, part = {}) => {
       const alive = float(0).toVar(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar()), bucket = float(0).toVar();
       place(c, { band, whole: all0.greaterThan(0.5), all: all0, ...part }, (kind, size, dist, fill, key = null) => {
-        const px = size.mul(U.uPxK).div(max(dist, 1e-3));
+        const px = pxAt(size, dist);   // (its size on screen: the measure's)
         If(px.greaterThan(END), () => {
           // the level its size asks for; drawn at the finest that is there and no finer than that
           const want = uint(0).toVar(), held = heldOf(heapRow(H, kind, uint(L - 1))), lvl = uint(last).toVar();
@@ -617,9 +621,9 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       return { alive: alive.greaterThan(0.5), data: rows, bucket };
     };
     // (one material for every mesh level of it, its level told by each mesh; one more for what is drawn by a level's own list)
-    const mats = {}, T = new Tier(scene, draws.map((d) => (d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, order: 1, live, gpu: true, cap: draws.map((d) => (d.dot ? cap : Math.min(cap, 16 * 4 ** Math.max(1, d.level)))), slots: ROWS });   // (a cap a draw: what is drawn large is few, four times as many a level further off)
+    const mats = {}, T = new Tier(scene, draws.map((d) => (d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, order: 1, live, gpu: true, cap: draws.map((d) => (d.dot || (TRUTH && !d.level) ? cap : Math.min(cap, 16 * 4 ** Math.max(1, d.level)))), slots: ROWS });   // (a cap a draw: what is drawn large is few, four times as many a level further off; ?truth draws all of it at its finest)
     T.step = step;
-    T.band = () => { T.near = 0; T.far = Math.min(far, (sizes[1] * pxK()) / (THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)))); band.far.value = T.far; };   // (a drawer that thins its things away: packed until they are gone)
+    T.band = () => { T.near = 0; T.far = Math.min(far, farFor(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])); band.far.value = T.far; };   // (a drawer that thins its things away: packed until they are gone)
     T.band(); T.draws = draws;
     T.meshes.forEach((m, k) => { const d = draws[k]; m.userData.level = d.level; m.renderOrder = 1 + d.level * 0.01; if (casts && !d.dot) m.layers.enable(1); });   // (the fine levels first; it casts its shadows as drawn, a dot none)
     T.slotArgs = (s) => [s * 5]; fulls.push(T);   // (where a slot's draw keeps its length)
@@ -634,5 +638,16 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     made.push(T);
     return T;
   };
-  return { H, LO, L, STREAMED, HULL, kindNo, lookOf, numOf, look, lookRows, sizes, skins, boneRows, fingerprint: FP, tier, tierAll, meshOf, dot, drawOf, drawShaped, shapeOf, ask, stats, pending, start, skinsIn, scan, near };
+  // how much of it is still out, for the world complete (src/core/settle.js): its kinds' coarse levels not all in (read
+  // back from the browser, or made in the workers), meshes and textures asked of the workers and not yet put in, its
+  // movers' skeletons, and a level put in that is still growing out of the coarser one. That grows by the clock: where
+  // the clock is held (held: it stood still since the last frame, as a still's does), it would never grow, and is grown
+  // at once instead
+  const waiting = (held = false) => {
+    let n = (coarse < ALL ? ALL - Math.max(0, coarse) : 0) + pending.size + queue.length + done.length + skinAsks.length + skinPending.size + skinDone.length + bonesOut;
+    if (SOLID && U.uTime.value - grewAt < GROW) { if (held) { H.ripen(U.uTime.value - GROW); grewAt = -1e9; } else n++; }
+    return n;
+  };
+  source(`drawer: ${name}`, waiting);
+  return { H, LO, L, STREAMED, HULL, kindNo, lookOf, numOf, look, lookRows, sizes, skins, boneRows, fingerprint: FP, tier, tierAll, meshOf, dot, drawOf, drawShaped, shapeOf, ask, stats, pending, start, skinsIn, scan, near, waiting };
 }

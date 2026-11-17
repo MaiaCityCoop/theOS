@@ -8,6 +8,7 @@ import { hashI, camDist, BASE } from '../world/land.nodes.js';
 import { finish, stillness, skyLight, weathered, cloudAtOne, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
+import { TRUTH } from '../detail/measure.js';
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
 
@@ -81,9 +82,12 @@ function bladeMaterial(T) {
   };
 }
 
-/** The asset `grass`: a tier per row of its table. gpu: on WebGPU, what stands is packed by a compute pass (tier.js). */
+/** The asset `grass`: a tier per row of its table. gpu: on WebGPU, what stands is packed by a compute pass (tier.js).
+    ?truth (src/detail/measure.js): its first ring's blades, dense and fine, all the way out to where its last ring ends
+    (the ground's map, which says where it grows, reaches no further: src/scatter/ground.js). */
 export function createGrass(scene, tex, ground, asset, gpu = false) {
-  return asset.tiers.map((T) => {
+  const last = asset.tiers.at(-1), rings = TRUTH ? [{ ...asset.tiers[0], far: last.far, farFade: last.farFade, end: last.end }] : asset.tiers;
+  return rings.map((T) => {
     const make = bladeMaterial(T), live = (c) => bladeIn(c, asset, T, ground);
     const material = (src) => {
       const { m, shape } = make();
