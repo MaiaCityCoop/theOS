@@ -24,12 +24,13 @@ import { slope } from '../field.js';
 
 import { MAXK } from './layout.js';
 /** How the muscles are drawn out, as a number: another, and a kept drawing is drawn again. */
-export const MADE = 2;
+export const MADE = 6;
 
 const AROUND = 10, RING = 0.011, GAP = 0.0008, DEEP = 0.3;
-// The man these muscles are laid for trains: his muscles a fifth larger than the studies' means (their subjects were
-// ordinary adults), as Samuel asked for a muscular body first (intent 0036). A body's build will set it later.
-export const BUILD = 1.2;
+// The man these muscles are laid for is slightly muscular (intent 0036): his muscles the studies' means. They were a
+// fifth larger, and with the skin drawn from them the thighs and the hips stood far out of a real man's. A body's build
+// will set it later.
+export const BUILD = 1.0;
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math.hypot(a[0], a[1], a[2]), norm = (a) => mul(a, 1 / (len(a) || 1));
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -189,7 +190,7 @@ export function musclesOf(bones) {
         if (worst >= -1e-4) break;
         let g = grad(under, at, 0.0015) ?? r.O; if (dot(g, r.O) < 0.2) g = norm(add(g, mul(r.O, 0.6)));
         r.shift = add(r.shift, mul(g, Math.min(0.005, -worst + 2e-4)));
-        if (len(r.shift) > 0.045) { r.shift = mul(norm(r.shift), 0.045); break; }
+        if (len(r.shift) > 0.008) { r.shift = mul(norm(r.shift), 0.008); break; }   // (a little: a strand's path is drawn through its own middle, where it lies over the muscles under it; lifted further, as far as 4.5 cm, the thigh's outer and back muscles stood 2 to 4 cm out of a real thigh)
       }
     }
     // (evened along the strand, so it does not kink where one ring was moved more than the next)
@@ -289,7 +290,7 @@ export function musclesOf(bones) {
       // table asks (the bands' spread across the sheet is only roughly their width)
       let V = 0; for (let t = f0; t < fine.length; t += 3) { const A = P0[fine[t] - base], B = P0[fine[t + 1] - base], C = P0[fine[t + 2] - base]; V += dot(A, cross(B, C)) / 6; }
       if (V < 0) for (const [list, from] of [[fine, f0], [coarse, c0]]) for (let t = from; t < list.length; t += 3) { const x = list[t + 1]; list[t + 1] = list[t + 2]; list[t + 2] = x; }
-      const want = (BUILD * m.vol * 1e-6), k = Math.min(3, Math.max(0.5, want / Math.max(1e-7, Math.abs(V))));
+      const want = (BUILD * m.vol * 1e-6), k = Math.min(2,   /* (no more than twice as deep: thickened as much as three times, the adductor magnus and the sheets on the thigh swelled it) */ Math.max(0.5, want / Math.max(1e-7, Math.abs(V))));
       for (let q = 0; q < P0.length; q++) { const s0 = attr.sec[(base + q) * 4], p = add(P0[q], mul(FR[q].O, s0 * (k - 1))); P0[q] = p; attr.sec[(base + q) * 4] = s0 * k; pos[(base + q) * 3] = p[0]; pos[(base + q) * 3 + 1] = p[1]; pos[(base + q) * 3 + 2] = p[2]; }
     }
     // normals: from the faces round each point, then in its frame
