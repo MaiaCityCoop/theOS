@@ -195,7 +195,7 @@ export const MASSES = [
 // flattened a little front to back. FINGERS: [radius at the knuckle, at the first joint, at the second, at the tip;
 // the last rod's length].
 export const HAND_SOURCE = 'Greiner 1991, "Hand anthropometry of U.S. Army personnel", NATICK/TR-92/011, as remembered';
-export const PALM = { at: [0.226, 0.826, -0.021], r: [0.0115, 0.0165, 0.048, 0.044, 0.042, 0.042], n: 2.6 };
+export const PALM = { at: [0.226, 0.822, -0.021], r: [0.0115, 0.0165, 0.052, 0.058, 0.043, 0.043], n: 3.0 };
 export const THENAR = { at: [0.214, 0.816, 0.006], r: [0.01, 0.014, 0.022, 0.018, 0.014, 0.012], n: 2.0, k: 0.012 };
 export const FINGERS = {
   thumb: [0.0112, 0.0105, 0.0098, 0.0088, 0.026], index: [0.0098, 0.0088, 0.0081, 0.0074, 0.022], middle: [0.0099, 0.009, 0.0083, 0.0076, 0.024],

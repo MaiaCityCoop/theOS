@@ -29,7 +29,7 @@ import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
 
 /** How the skin is drawn out, as a number: another, and a kept drawing is drawn again. */
-export const MADE = 5;
+export const MADE = 6;
 
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math.hypot(a[0], a[1], a[2]), norm = (a) => mul(a, 1 / (len(a) || 1));
@@ -377,9 +377,14 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       let hand = smin(palm(q).E, thenar(q).E, THENAR.k), best = hand, part = P_.arm;
       // (the forearm: a fifth of a millimetre outside the arm's own skin where the two lie together: the hand's fine edge
       // lies over the arm's, which dives under it)
-      const fore = GA.sample(q) + Math.max(0, 0.878 - q[1]) * 0.3 - 0.0002; hand = smin(hand, fore, 0.0005 + 0.02 * smooth01((0.872 - q[1]) / 0.03));   // (softly into the palm, but at the wrist itself no fuller than the forearm: no cuff) if (fore < best) best = fore;
+      const fore = GA.sample(q) + Math.max(0, 0.878 - q[1]) * 0.3 - 0.0002; hand = smin(hand, fore, 0.0005 + 0.02 * smooth01((0.872 - q[1]) / 0.03)); if (fore < best) best = fore;   // (softly into the palm, but at the wrist itself no fuller than the forearm: no cuff)
       let v = hand;
-      for (const R of rods) { let f = Infinity; for (const sg of R.segs) f = f === Infinity ? rod(q, sg) : smin(f, rod(q, sg), 0.003); const web = smin(hand, f, 0.007); if (f < best) { best = f; part = R.part; } v = Math.min(v, web); }
+      // (the fingers side by side, touching where a relaxed hand's do and parting into a crease, not a slit thinner than
+      // the cells can draw; all of them webbed to the palm at once: one web, not one for each finger cutting into its
+      // neighbour's)
+      let all = Infinity;
+      for (const R of rods) { let f = Infinity; for (const sg of R.segs) f = f === Infinity ? rod(q, sg) : smin(f, rod(q, sg), 0.003); if (f < best) { best = f; part = R.part; } all = all === Infinity ? f : smin(all, f, 0.0025); }
+      v = Math.min(v, smin(hand, all, 0.011));
       const g = i + HNn[0] * (j + HNn[1] * k); handF[g] = v; handP[g] = part;
     }
   }
