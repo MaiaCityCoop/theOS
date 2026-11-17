@@ -24,7 +24,7 @@ Evening. Two sentences on how it almost went the other way: a stretch of years w
 
 Then the realization, aimed at the trade and at the judgment and never at the reader: on the day you read this you are not living yet, and what holds you is not the fear of failing but the suspicion that you might be considerable, and the knowledge of what a small-minded room does to anyone who reaches. Samuel is quoted in his own words and includes himself.
 
-The rung is named once, plainly, with no pitch: one euro a day, and the euro is the first piece of what you own.
+The rung is named once, plainly, with no pitch: walk in tonight, and walking in is the first piece of what you own.
 
 Closes on the cliffhanger: this equinox is fifteen years away, and tomorrow is day one — citizen number one, a man no more remarkable than the reader, saying it out loud while still frightened. The last beat hands the city to the reader and puts the messenger back in his place.
 

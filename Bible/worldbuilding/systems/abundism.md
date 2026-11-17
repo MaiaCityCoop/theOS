@@ -37,7 +37,7 @@ So the day is not empty and it is not leisure. It is a small group of people, wh
 
 The window for it opens once machines can produce more than people need, and narrows as ownership of those machines settles. That settling is happening this decade, while work is still a lever an ordinary person can pull to buy in.
 
-The serial puts no date on it. A borrowed forecast owes receipts the project does not control, and one that passes unmet fails in public. What is true needs no date, and the thing actually measured is [the count](a-euro-a-day.md).
+The serial puts no date on it. A borrowed forecast owes receipts the project does not control, and one that passes unmet fails in public. What is true needs no date, and the thing actually measured is [the count](the-count.md).
 
 ## Impact on Society
 

@@ -12,13 +12,13 @@ The act of leaving the safe life for the thing you actually want. Every track of
 
 | Rung | What it costs |
 |------|---------------|
-| A euro a day | [One euro](../../worldbuilding/systems/a-euro-a-day.md), which makes you a citizen and an owner |
+| Walking in | One step into [the twin](../../worldbuilding/locations/the-twin.md), which makes you a citizen and an owner |
 | An evening | Playing in [the twin](../../worldbuilding/locations/the-twin.md) |
 | A trip | A night in [a dome](../../worldbuilding/locations/the-dome-network.md) |
 | Your old life | Moving to [the first village](../../worldbuilding/locations/the-first-village.md) |
 | Everything | [The city](../../worldbuilding/locations/maia-city.md) |
 
-The ladder exists so that no reader is ever too far from the next rung. Nobody is asked to jump the whole distance at once, and the first rung is a euro.
+The ladder exists so that no reader is ever too far from the next rung. Nobody is asked to jump the whole distance at once, and the first rung is walking in.
 
 ## Usage Notes
 

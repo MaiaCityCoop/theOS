@@ -17,7 +17,7 @@ status: open
 
 # The Twin
 
-The city in the game. Track 1, open from the first paying citizen and running the whole 16 years, growing from a world you can walk around into a full digital twin of the real city: the blueprint for AI-native sovereign city states, and for the cities that come after this one.
+The city in the game. Track 1, open from the first citizen and running the whole 16 years, growing from a world you can walk around into a full digital twin of the real city: the blueprint for AI-native sovereign city states, and for the cities that come after this one.
 
 **For the first 165 days it is the only thing that exists.** Phase one of [the ladder](../systems/the-ladder.md), steps 1 to 12, builds twelve dome scales in here, from the 5 cm desk dome to the 89 m dome, and promises nothing physical until the money is real. On step 13 the 144 m district dome completes the ladder and the first real dome leaves the game on the same day.
 

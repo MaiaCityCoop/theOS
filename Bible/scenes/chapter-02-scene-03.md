@@ -24,7 +24,7 @@ Step 1 unlocks a dome five centimetres across, in a game, against a city for 1,3
 
 Maia is small today too, because she is made of what people intend and almost nobody has arrived. Come in now and you are not joining something; you are one of the people it gets made out of.
 
-Then the rung, once: a euro a day, the first piece of what you own, and the reason the count and the day's revenue are the same number.
+Then the rung, once: walk in tonight. It is the first piece of what you own: the ground belongs to everyone in the city, and so does Maia.
 
 Closes on the serial's whole stake, made immediate: tomorrow the number is either still one, or it is not.
 

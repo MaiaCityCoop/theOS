@@ -19,4 +19,4 @@ Machines will produce abundance either way. The only open question is who owns t
 - It narrows and it closes. It does not "run out" or "expire".
 - Say what it is a window for: owning something, jumping, building. A window on its own is vague.
 - It is never a threat of violence, collapse or dystopia on the page. It is a door narrowing quietly while people are busy being sensible.
-- The serial's hard stake is [the count](../../worldbuilding/systems/a-euro-a-day.md), not the window. The window says why the count matters; the count is what is actually measured, every day, in public.
+- The serial's hard stake is [the count](../../worldbuilding/systems/the-count.md), not the window. The window says why the count matters; the count is what is actually measured, every day, in public.

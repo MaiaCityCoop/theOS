@@ -52,9 +52,9 @@ So the feeling at the end is vindication, not conversion. They were not wrong to
 
 ## Their arc, which every one of them walks
 
-Watcher → a euro a day → player in [the twin](../worldbuilding/locations/the-twin.md) → winner of something real → [founding settler](../glossary/terms/founding-settler.md) → owner of a city.
+Watcher → walking in → player in [the twin](../worldbuilding/locations/the-twin.md) → winner of something real → [founding settler](../glossary/terms/founding-settler.md) → owner of a city.
 
-The rungs exist so that nobody is ever more than one step from the next one, and the first is a euro. See [the jump](../glossary/terms/the-jump.md) and [the ladder](../worldbuilding/systems/the-ladder.md).
+The rungs exist so that nobody is ever more than one step from the next one, and the first is walking in. See [the jump](../glossary/terms/the-jump.md) and [the ladder](../worldbuilding/systems/the-ladder.md).
 
 ## What they do to Maia
 
@@ -69,4 +69,4 @@ Theirs, not written for them. When a citizen or a settler is on the page they ar
 ## Open
 
 - How the milestone winners are chosen: the leaderboard metric inside the twin is not decided.
-- How someone who cannot pay a euro a day comes in, which decides whether this is a movement or a club.
+- What true citizenship asks of someone when it comes back, and how it stays open to anyone, which decides whether this is a movement or a club.

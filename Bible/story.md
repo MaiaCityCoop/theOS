@@ -17,9 +17,9 @@ language: en
 release-start: 2026-11-16
 release-every: 1
 release-warn-days: 1
-premise: "Living triumphs over surviving because people build a room where reaching is the norm and playing it safe is the exception, so nobody has to be brave to be their full size."
+premise: "Living triumphs over surviving when people build a city they own together, where going for the big thing is normal and playing it safe is the odd choice, so nobody has to be brave to live at full size."
 counter-premise: "Playing small is wise, because a world that calls ambition crazy makes anyone who reaches pay for it."
-season-goal: "Reach 377 paying citizens: the whole dome ladder standing in the game, and the first real dome delivered to one winner."
+season-goal: "Reach 377 citizens: the whole dome ladder standing in the game, and the first real dome delivered to one winner."
 severity:
   - warning: stray-file
     level: "off"
@@ -29,9 +29,9 @@ severity:
 
 ## Synopsis
 
-Maia City is built by the people who arrive to build it: 1,346,269 of them over 5,423 days, a euro a day each, owning everything they make, first in a game and then in the earth. This is their story, a day at a time — the person who joins tonight, the one who wins the first real dome, the thousand who leave their old lives for the first village. They shape Maia as they come, and she holds every one of them to their full size. Samuel went first and files the report.
+Maia City is built by the people who arrive to build it: 1,346,269 of them over 5,423 days, owning everything they make, first in a game and then in the earth. This is their story, a day at a time — the person who joins tonight, the one who wins the first real dome, the thousand who leave their old lives for the first village. They shape Maia as they come, and she holds every one of them to their full size. Samuel went first and files the report.
 
-**Logline.** Each person who pays a euro and walks into Maia City wants to build something larger than the life they have, and to own a piece of it. What stands in their way is not failure. It is the safe life they would have to leave, and a world that punishes anyone who reaches — the fear is of their own greatness, and of being judged for it. If not enough of them jump, the city stays a game.
+**Logline.** Each person who walks into Maia City wants to build something larger than the life they have, and to own a piece of it: the ground, the domes, and Maia herself. What stands in their way is not failure. It is the safe life they would have to leave, and a world that punishes anyone who reaches — the fear is of their own greatness, and of being judged for it. If not enough of them jump, the city stays a game.
 
 **The hero is the viewer.** Not Samuel and not Maia: whoever comes into the system. Samuel is the messenger who went first and reports back; Maia is shaped by every citizen who arrives, and pushes every one of them. This is why the serial is in the second person — "you" is the protagonist, not a style.
 
@@ -77,7 +77,9 @@ Who this is for, said out loud. Every episode is written to this person and to n
 >
 > So you were never miscalibrated. **You are correctly sized for a world that does not exist yet.**
 >
-> It is being built. A euro a day at a time, by people who stopped waiting to be told it was allowed.
+> It is being built, by people who stopped waiting to be told it was allowed. Every square metre of it belongs to all of them, and so does Maia.
+>
+> You can walk in tonight.
 
 ### The inversion: what the reader should end up feeling
 
@@ -101,7 +103,7 @@ That is also why the twin and the blueprint matter beyond the city: the inversio
 - **Name the fear before they do.** The line that earns everything else is that the fear is of being seen wanting it, not of failing. Say it plainly, once, and move.
 - **Let them off, then raise them.** The adjustment they made was accurate, not weak. Only after that is it safe to say the fear was a measurement of the size.
 - **Never flatter and never accuse.** No "you are special", no "you are asleep". The address assumes they already know, and treats knowing as the entry condition.
-- **End on a rung, not a rallying cry.** A euro a day. Anything larger asked at the end gives the fear somewhere to go.
+- **End on a rung, not a rallying cry.** One step they can take tonight: walk into the game. Anything larger asked at the end gives the fear somewhere to go.
 - **Never ask them to be brave.** Courage is the wrong ask when the judgment is real. Show the room where the price is not charged, and let them walk into it.
 - **Close on vindication, never on conversion.** They do not need to change. They were right all along; the room was the thing that was wrong.
 
@@ -112,7 +114,7 @@ Three ways of telling, at three costs. The cost decides the cadence, so this bel
 | Method | Cost | What only it can do |
 |--------|------|---------------------|
 | **The world camera** — the in-game camera in [the twin](worldbuilding/locations/the-twin.md) | Cheap | Anywhere the city is: 2042, the domes, the food forests, the silence, the weather, the ladder standing at every scale. It is the only method that can show a city that does not exist yet, and the only one that scales to a daily serial |
-| **Explainer** — motion graphic design | Medium | Anything that is a quantity rather than a place: the count, the euro, the Fibonacci ladder, how the stack works, where the money goes, why a dome feeds the people in it |
+| **Explainer** — motion graphic design | Medium | Anything that is a quantity rather than a place: the count, the Fibonacci ladder, how the stack works, why a dome feeds the people in it |
 | **Samuel on camera** | Expensive | The one thing neither of the others can do: a human face saying a human thing. His own words, an admission, being pushed, a report from a day that went badly |
 
 A fourth arrives at step 13 and grows from there: **real footage** of the real domes, villages and people. Until then it does not exist, and the serial must not fake it.
@@ -169,24 +171,24 @@ The most common misreading of abundance, and the city is the opposite. Execution
 
 All four run to 2042 and open at different points. They are plot arcs, not seasons.
 
-Each track opens at the citizen count that pays for it, not on a calendar. The full step-by-step unlocks are in [the ladder](worldbuilding/systems/the-ladder.md).
+Each track opens at a citizen count, not on a calendar. The full step-by-step unlocks are in [the ladder](worldbuilding/systems/the-ladder.md).
 
 | Track | Opens at | What stands | The jump it asks |
 | --- | --- | --- | --- |
-| The game | Step 1 · 1 citizen | The whole dome ladder standing in the twin, growing into a full digital twin: the blueprint for AI-native sovereign city states, and for the cities that follow | A euro a day, then an evening |
+| The game | Step 1 · 1 citizen | The whole dome ladder standing in the twin, growing into a full digital twin: the blueprint for AI-native sovereign city states, and for the cities that follow | An evening |
 | The domes | Step 13 · 377 | Real domes, one per milestone, each to a winner from the game. Bookable from step 18 | A trip |
 | The villages | Step 25 · 121,393 | The first hamlet, then the village: 500 to 1,500 founding settlers building the primitives the city needs | Your old life |
 | The city | Step 29 · 832,040 | Maia City: 1,346,269 people, 2042 | Everything |
 
 Every citizen walks the same arc: watcher, then player, then winner, then founder. **The twin is the audition all the way up**: what you build in the game is what earns you the real thing, from a 50 cm herb dome to a place in the first village.
 
-**Phase one is in the game only, to step 12 (233 citizens, about day 147).** Nothing physical is promised before the money is real.
+**Phase one is in the game only, to step 12 (233 citizens, about day 147).** Nothing physical is promised before it can be built.
 
-**Step 13 is the hinge of the first season:** 377 citizens, day 165, €14,078 collected. The 144 m district dome goes up in the twin, so the complete ladder stands in the game, and on the same day the first real dome leaves it — one 50 cm dome, growing herbs and strawberries, delivered to one winner. The day the whole city stands in the game is the day the first piece of it turns up at somebody's door.
+**Step 13 is the hinge of the first season:** 377 citizens, day 165. The 144 m district dome goes up in the twin, so the complete ladder stands in the game, and on the same day the first real dome leaves it — one 50 cm dome, growing herbs and strawberries, delivered to one winner. The day the whole city stands in the game is the day the first piece of it turns up at somebody's door.
 
 ### What the city is
 
-A sovereign solarpunk city state for 1.3 million people, built from the ground up in 16 years, to 2042. Geodesic domes where people co-live and co-produce food year-round; permaculture food forests inside the domes and around them, for full self-sufficiency. Its own monetary policy and system of government. A post-AGI, post-labour economy: abundism. Everything owned by its citizens through shared co-ops, so there is no traditional work, only ownership in what you believe in. Robots run the dome factories around the clock. Biomimicry and material science in the building itself, a generation of cities in harmony with the nature around them. Fully automated logistics and transport, 100% underground. Nobody starves and nobody has to survive, so the whole of human attention goes to the problems worth cracking. **Thinking and executing big is the norm, not the exception.**
+A sovereign solarpunk city state for 1.3 million people, built from the ground up in 16 years, to 2042. Geodesic domes where people co-live and co-produce food year-round; permaculture food forests inside the domes and around them, for full self-sufficiency. Its own monetary policy and system of government. A post-AGI, post-labour economy: abundism. All of its land is owned by the Maia City Coop, which means by every citizen, and so is Maia. Everything is owned by its citizens, so there is no traditional work, only ownership in what you believe in. Robots run the dome factories around the clock. Biomimicry and material science in the building itself, a generation of cities in harmony with the nature around them. Fully automated logistics and transport, 100% underground. Nobody starves and nobody has to survive, so the whole of human attention goes to the problems worth cracking. **Thinking and executing big is the norm, not the exception.**
 
 ### Episodes
 
@@ -211,7 +213,7 @@ Two things follow and both are deliberate:
 
 The serial rules that follow from it, per episode: it poses and answers **one question of its own**, delivers at least **one concrete reward**, lands **one hard realization**, and ends on a **cliffhanger** the next day's hook takes up. Recaps are woven into the action, never dumped, and a new reader can orient inside the first page. Stakes rotate in type rather than escalating forever: personal, then what someone owns, then a principle, then something physical.
 
-**A season is a Fibonacci step in paying citizens, not a year.** The calendar does not end a season; the count does. Season N closes the day paying citizens reach F(N), and the goal of every season is a single public number anyone can check.
+**A season is a Fibonacci step in citizens, not a year.** The calendar does not end a season; the count does. Season N closes the day citizens reach F(N), and the goal of every season is a single public number anyone can check.
 
 The ladder runs 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181, 6765, 10946, 17711, 28657, 46368, 75025, 121393, 196418, 317811, 514229, 832040, **1346269**.
 
@@ -219,9 +221,9 @@ The ladder runs 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1
 
 Seasons are deliberately unequal in length. The first rungs fall in days, the last take years, and the story's pace is the project's actual pace rather than a schedule. A season that does not reach its number does not end early for the story's convenience.
 
-**And every citizen is one euro a day**, so the citizen count and the daily revenue are the same figure: at step 30 that is €1,346,269 a day, about €491 million a year, from its own citizens. See [a euro a day](worldbuilding/systems/a-euro-a-day.md).
+**How the city is paid for comes later.** True citizenship, the city's currency and the co-op models behind them are being worked out and are not in the Bible yet. Until they are, an episode states the count and what stands, and no money.
 
-**Each milestone unlocks two real things**: one larger dome, built for one winner chosen by a leaderboard inside the twin, and one new produce category the city sells on the market. The dome is the proof and the produce is the business. Budgets are half of what has actually been collected, never a projection: early on the pot is about 43 days of current revenue, not a year's. The whole ladder is in [the ladder](worldbuilding/systems/the-ladder.md).
+**Each milestone unlocks two real things**: one larger dome, built for one winner chosen by a leaderboard inside the twin, and one new produce category the city sells on the market. The dome is the proof and the produce is the business. The whole ladder is in [the ladder](worldbuilding/systems/the-ladder.md).
 
 **The first thirteen steps fall inside the first 165 days**, at the early growth rate of roughly doubling per month (10, 25, 50, 100, 250, 500 citizens by month). So nearly half the ladder is crossed in six months and the remaining seventeen steps take the other fifteen and a half years.
 

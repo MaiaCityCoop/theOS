@@ -17,7 +17,7 @@ mice-threads:
 
 # The Thousand
 
-Track 3, the first village. Opens at step 25, 121,393 paying citizens, with the first hamlet, and runs to 2042. The jump it asks for is your old life. See [the ladder](../../worldbuilding/systems/the-ladder.md).
+Track 3, the first village. Opens at step 25, 121,393 citizens, with the first hamlet, and runs to 2042. The jump it asks for is your old life. See [the ladder](../../worldbuilding/systems/the-ladder.md).
 
 Between 500 and 1,500 [founding settlers](../../glossary/terms/founding-settler.md) move to the Mediterranean and build every primitive the city of 1.3 million will later run on. See [the first village](../../worldbuilding/locations/the-first-village.md).
 

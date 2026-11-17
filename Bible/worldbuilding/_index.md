@@ -19,7 +19,7 @@ The serial never puts a date on that fork. Its hard stake is a number instead: *
 
 **Every citizen walks the same arc:** watcher, then player, then [founding settler](../glossary/terms/founding-settler.md).
 
-**And it is paid for a euro at a time.** A paying citizen in the twin is [one euro a day](systems/a-euro-a-day.md), so the citizen count and the daily revenue are the same number, and that number is what the seasons are measured by: Fibonacci steps up to F31, which is 1,346,269 people. No investors, no state. The city is funded by the people who will live in it, which settles who it belongs to before a dome exists.
+**And it belongs to the people who build it.** [The count](systems/the-count.md) of citizens is what the seasons are measured by: Fibonacci steps up to F31, which is 1,346,269 people. The Maia City Coop owns all the land, so every citizen does, and Maia is owned by everyone too. That settles who the city belongs to before a dome exists. How it is paid for comes back later, with true citizenship.
 
 **And something pushes them the whole way.** Abundism removes survival as a reason to do anything, which is its point and its danger: nothing required of you is also nothing making you grow. [The push](systems/the-push.md) is the city's answer. Maia holds every human she meets to their full potential and never lets them take the easy route, the founder included. It is the internal fight every person has, stay small or go full size, turned into a conversation that answers back.
 

@@ -1,7 +1,7 @@
 ---
 id: "0037"
 title: What three videos teach the Bible
-state: define            # idea | define | build | propose | story | archived
+state: build             # idea | define | build | propose | story | archived
 outcome:
 opened: 2026-11-17
 story:
@@ -190,7 +190,36 @@ Recommended, in plain words. **A–D are the mission: Samuel's call.** E–H fol
 
 ## Build
 
-_Filled while building: decisions, and what turned out different from the definition._
+### Samuel's answer to Part 2 (2026-11-17)
+
+> Can you formulate this even better? this is quite abstract! while sharpening the message … B is good · C keep now ·
+> D completely rethink this after all again · G the stack: don't go into too much detail about how the
+> participation/governance works yet, we are flexible after all about multiple learnings and iterations, but what is
+> kept for sure anyway is the Maia City Coop owns all the land, and thus every citizen, also AvenMaia (our AGI) will
+> be owned by everyone too · the 1€ a day remove altogether from the whole worldbuilding concept · we will be
+> reintroducing HEARTS and MINDS concepts regarding currency and ownership coop models later on again
+
+> we will still reintroduce the 1€ later on, but true citizenship.. but just remove it from everything for now
+
+### What round 2 applied
+
+| | Decision | In the Bible now |
+| --- | --- | --- |
+| A | Sharper, less abstract | Premise: "Living triumphs over surviving when people build a city they own together, where going for the big thing is normal and playing it safe is the odd choice, so nobody has to be brave to live at full size." (He did not pick between the three offered; the recommended one went in, his to change.) |
+| B | Yes | Logline: "…and to own a piece of it: the ground, the domes, and Maia herself." |
+| C | Keep | Themes unchanged. |
+| D | Rethought | The address now closes: "It is being built, by people who stopped waiting to be told it was allowed. Every square metre of it belongs to all of them, and so does Maia. / You can walk in tonight." The rung it ends on is walking in. |
+| G · stack | Only what is fixed | `the-stack.md` rewritten: the Maia City Coop owns all the land, so every citizen does; Maia is owned by everyone too. Governance, stakes and currency are marked as still being worked out, to come back with true citizenship. `maia.md` gains "she belongs to them". |
+| € | Out of everything | `systems/a-euro-a-day.md` replaced by `systems/the-count.md` (the citizen count, public, Fibonacci, the early curve, no money). The euro, budgets, pots and "paying citizens" taken out of `story.md`, the ladder, the indexes' prose, the jump, the window, abundism, the twin, the dome network, Maia City, Samuel, the citizen, four plot arcs, and draft episodes 1 and 2 with their scenes, whose rung is now "walk in tonight". |
+
+**Held, not applied** (he did not answer them, and most touch currency or co-op mechanics, which come back with
+Hearts and Minds): E (the two Tone & Style rules), F (the four glossary terms), the door and the charter as systems,
+"no debt", and the smaller G rows (the domes' energy, abundism's "a place and a person's time", the village's own
+culture, Maia "shows you where to look"). Each stays in Part 2 for a later yes.
+
+**Decisions taken in building:** the count is still called "citizens", not "players", because the whole Bible is
+written that way; true citizenship will say what more a citizen is. In prose she stays Maia, never "AvenMaia" or
+"AGI".
 
 ## Propose
 
@@ -211,9 +240,12 @@ _accepted or rejected, the date, the reason in a line._
 - [x] Read the Bible, its style sheet, characters, worldbuilding and the story skills
 - [x] Learn: each video against the Bible (Part 1)
 - [x] Propose: the before/after (Part 2)
-- [ ] Round 1: research notes and story ideas, PR, coordinator told
-- [ ] Samuel's answer on A–D
-- [ ] Round 2: apply what he approved; `story check .`; PR
+- [x] Round 1: research notes and story ideas, PR #54
+- [ ] Round 1: coordinator told (the message was refused: their session needs a trusted device)
+- [x] Samuel's answer on A–D
+- [x] Round 2: apply what he approved, the euro out of everything
+- [ ] `story reindex .` and `story check .` where the CLI is installed (`worldbuilding/_index.md` still lists A Euro a Day)
+- [ ] Samuel's word on the held items: E, F, the door, the charter, the smaller G rows
 
 ## Changelog
 
@@ -232,6 +264,18 @@ _accepted or rejected, the date, the reason in a line._
   on its own pages (8% and 2% are). The story-skills CLI is not installed in this session and the downloaded copy
   could not be run, so the research notes were written by hand in the CLI's own note format and
   `research/_index.md` waits for the next `story reindex .`.
+
+### 2026-11-17 · round 2
+
+- **Asked:** a sharper, less abstract premise; B yes; C kept; D rethought; the stack only what is fixed (the Maia City
+  Coop owns all the land, Maia is owned by everyone); the euro out of everything for now, to come back later as true
+  citizenship with Hearts and Minds.
+- **Delivered:** the premise, logline and address rewritten; `the-stack.md` rewritten; `a-euro-a-day.md` replaced by
+  `the-count.md`; the euro, budgets and "paying citizens" taken out of the Bible (26 files changed, draft episodes 1 and 2 included).
+- **Good:** the address now ends on one step, walking in, and on the one fact that makes the room safe: everyone owns
+  the ground and Maia.
+- **Broke / not there yet:** no CLI in this session, so the registries are not reindexed: the table in
+  `worldbuilding/_index.md` still has a row for A Euro a Day, pointing at a file that is gone, and none for The Count.
 
 ## Trail
 

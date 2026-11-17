@@ -2,7 +2,7 @@
 id: the-gate-and-the-door
 title: The gate and the door
 lane: The city and its people
-hook: Anyone can walk in for a euro; the door to the ground opens on what you built
+hook: Anyone can walk into the game; the door to the ground opens on what you built
 stage: raw
 intents: 0037
 story: 
@@ -15,7 +15,7 @@ updated: 2026-11-17
 ## What happened
 
 - [0037] Communities that last have a strong door: a long visit, a trial, the members' yes, and a no from one is never a no from all.
-- [0037] Maia City lets anyone in for a euro and will not change that; the ladder, with the twin as its audition, turns out to be the door.
+- [0037] Anyone can walk into Maia City, and that will not change; the ladder, with the twin as its audition, turns out to be the door.
 
 ## Samuel's own words
 

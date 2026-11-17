@@ -35,14 +35,14 @@ The equinox is the right day to open on: the first day of the growing year in a 
 7. **The turn, and the thank-you.** It almost went the other way, and it turned on the equinox of 2027 — fifteen years to the day before this morning — when *you* decided something. Told from 2042 as memory, not forecast. The dark version gets one sentence. Then the beat the whole episode is for: **thank you.** Not for believing it; for deciding anyway, on an evening when nobody was watching. Paid off after the address: you have not made it yet, it is four months in front of you, and being described doing a thing is how a person comes to see themselves doing it.
 8. **The address.** The identity beat: you are not afraid of failing, you are afraid of being seen wanting it; the adjustment you made was accurate; the fear was a measurement of the size; you are correctly sized for a world that does not exist yet.
 9. **The inversion.** Nobody here is brave, because nothing requires it. Reaching is the ordinary move and playing it safe is the conspicuous one. The reader never has to become braver — the room changed. Closes on vindication, not conversion: you knew you were right all along.
-10. **The rung.** One euro a day, named once, no pitch.
+10. **The rung.** Walking into the game tonight, named once, no pitch.
 11. **Cliffhanger.** Citizen number one, a man no more remarkable than the reader, and the city is not his.
 
 **Arc beats advanced:** The Trade, plot point 1. Wish and Build, the push on the page for the first time.
 
 **Shot on:** the world camera throughout — the city does not exist, so the twin is the only thing that can show it. No face to camera and no explainer.
 
-**Receipts owed:** none. Every claim is the project's own mechanism (the euro, the count, the ladder) or arithmetic from it. The equinox of 2027 appears as the morning the reader is remembered deciding something, spoken from 2042, fifteen years to the day. That is the episode's own history, not a prediction about the world, so it owes no source and cannot expire.
+**Receipts owed:** none. Every claim is the project's own mechanism (the count, the ladder) or arithmetic from it. The equinox of 2027 appears as the morning the reader is remembered deciding something, spoken from 2042, fifteen years to the day. That is the episode's own history, not a prediction about the world, so it owes no source and cannot expire.
 
 ---
 
@@ -60,7 +60,7 @@ Breakfast is three metres from where you slept.
 
 You pick the first strawberries of the year with your eyes still half shut. There are herbs along the inside of the wall, and beyond them the food forest runs out through the open side of the dome and keeps going, past the next dome and the one after it, until it stops being a garden and becomes a landscape. Nothing here was flown in. Nothing arrived in a lorry. The thing you are eating grew where you are standing, which is the oldest arrangement there is and took fifteen years to get back.
 
-Strawberries were the first thing this city ever learned to grow. That was the first real unlock, back at the beginning, when there were three hundred and seventy-seven people paying into it and one of them won a dome fifty centimetres across. Herbs and strawberries. Somebody's windowsill.
+Strawberries were the first thing this city ever learned to grow. That was the first real unlock, back at the beginning, when there were three hundred and seventy-seven people in it and one of them won a dome fifty centimetres across. Herbs and strawberries. Somebody's windowsill.
 
 You step outside and the first thing you notice is what you do not hear.
 
@@ -148,7 +148,7 @@ I have already thanked you for it. That was not a trick. It is just easier to se
 
 Here is the whole first rung, and then I will leave you alone about it.
 
-One euro a day. That is what it costs to be a citizen of this city, and the euro is not a subscription, it is the first piece of what you will own. One euro a day, from enough people, built everything in this episode. There is no rung underneath it and there is no larger one you have to take first.
+Walk in tonight. That is all it takes to be a citizen of this city, and it is not a subscription, it is the first piece of what you will own: every square metre of this city belongs to everyone in it, and so does Maia. Enough people walking in built everything in this episode. There is no rung underneath it and there is no larger one you have to take first.
 
 ---
 
@@ -156,7 +156,7 @@ It is late now and the city has gone quiet in the way a city can only go quiet w
 
 This equinox is fifteen years and four months away from you.
 
-Tomorrow I am going to tell you about the first one: a single day, a single euro, and citizen number one. A man no more remarkable than you, who had talked about this for years and was still frightened to put his name on it in public, because the thing was so large that saying it out loud invited every judgment he had spent his life avoiding.
+Tomorrow I am going to tell you about the first one: a single day, a single step, and citizen number one. A man no more remarkable than you, who had talked about this for years and was still frightened to put his name on it in public, because the thing was so large that saying it out loud invited every judgment he had spent his life avoiding.
 
 He said it anyway. Then he spent the next day telling somebody what he had seen, and the day after that, and the day after that. That is the whole of his job, and he is still doing it.
 

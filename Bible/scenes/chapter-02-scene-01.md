@@ -19,6 +19,6 @@ sequel: false
 
 # The Number Is One
 
-Yesterday a city of 1,346,269. Today the count reads one, and that one is a 37-year-old engineer who has just paid a euro into a thing that does not exist. The full inventory: a world you can walk into, Maia who is nearly nobody yet because almost nobody has shaped her, a man, and a number.
+Yesterday a city of 1,346,269. Today the count reads one, and that one is a 37-year-old engineer who has just walked into a thing that does not exist. The full inventory: a world you can walk into, Maia who is nearly nobody yet because almost nobody has shaped her, a man, and a number.
 
 **Notes.** The reveal is given straight, with no softening, because the gap between episode 1 and this is the serial's whole engine. `outcome: "no"` — the reader is handed the real position, and it is a long way from what they were shown.

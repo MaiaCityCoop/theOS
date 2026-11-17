@@ -32,14 +32,14 @@ It is still the reader's episode. Samuel is the material, not the subject: what 
 5. **Day one is not the big one.** It is small, public and faintly embarrassing. That is what every day one is, and it is why most never happen.
 6. **Step 1 unlocks a dome five centimetres across, in a game.** Laughable beside 1.3 million, and that is exactly the design: the ladder starts where a person can actually reach.
 7. **Maia, today.** Nearly nothing yet, because almost nobody has shaped her. She is as small as the count.
-8. **The rung.** A euro a day, named once.
+8. **The rung.** Walking in tonight, named once.
 9. **Cliffhanger.** Tomorrow the number is either still one or it is not, and that is the entire story.
 
 **Arc beats advanced:** The Trade, plot point 2 (the trade named). The First World, plot point 1 (the world opens).
 
 **Shot on:** explainer for the count going from 1,346,269 to 1, and for the thirty-step ladder; the world camera for the 5 cm dome and the empty twin. Samuel is spoken about, not filmed — on day 1 the messenger has not earned a face-to-camera yet.
 
-**Receipts owed:** none. The count, the euro and the ladder are the project's own, and the date is day 1 itself.
+**Receipts owed:** none. The count and the ladder are the project's own, and the date is day 1 itself.
 
 **Day 1 is Monday 16 November 2026**, recorded as `release-start` in `story.md` with `release-every: 1`. This episode is day 2.
 
@@ -53,7 +53,7 @@ Today I am going to show you the number.
 
 The number is one.
 
-Not one thousand. Not one hundred. One. There is a count, it is public, anybody can look at it, and this morning it reads one, and that one is a thirty-seven-year-old engineer who has just paid a euro into a thing that does not exist.
+Not one thousand. Not one hundred. One. There is a count, it is public, anybody can look at it, and this morning it reads one, and that one is a thirty-seven-year-old engineer who has just walked into a thing that does not exist.
 
 So let us be accurate about what is actually here, because I would rather you heard it from me than worked it out later and felt sold to.
 
@@ -69,7 +69,7 @@ He has had this for years. Not vaguely — specifically. The domes, the food for
 
 What he did yesterday was put his name on it, in public, where it can be seen and counted and laughed at.
 
-That was the hard part. Not the design. Not the money, which is a euro. Not the engineering, which is years of work he actually enjoys. The hard part was the sentence said out loud in front of people, because a thing this size said out loud by one person invites exactly the response you are already imagining.
+That was the hard part. Not the design. Not the money. Not the engineering, which is years of work he actually enjoys. The hard part was the sentence said out loud in front of people, because a thing this size said out loud by one person invites exactly the response you are already imagining.
 
 He will tell you himself what stopped him for so long. In his own words: **not one human he knows lives up to what they are actually capable of.** He includes himself in that. Right up until yesterday morning.
 
@@ -111,9 +111,9 @@ A city of 1,346,269 people ends with a mayor made out of 1,346,269 people. Today
 
 ---
 
-One euro a day. That is the rung.
+Walk in tonight. That is the rung.
 
-It is not a subscription and it does not buy you access to anything. It is the first piece of what you will own, and it is the reason the count and the day's money are the same number. At one citizen, this city earns one euro a day.
+It is not a subscription and it does not buy you access to anything. It is the first piece of what you will own: the ground this city will stand on belongs to everyone in it, and so does Maia. Today that is a meadow in a game and a count that reads one.
 
 That is the whole ask and I am not going to dress it up.
 
