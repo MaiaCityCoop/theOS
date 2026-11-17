@@ -130,6 +130,16 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes.
 - **Broke / not there yet:** —
 
+### 2026-11-17 (7)
+
+- **Asked:** the negative part is still too strong, push it into the empowering part; the intro was bad again: recover
+  Samuel's chosen version and just enlarge it.
+- **Delivered:** his version kept word for word, enlarged by three empowering beats: the room that leans in ("show
+  me", by evening it stands), being seen and becoming, the oceans and the Moon turned to "what we build together".
+  The kitchen floor, the notebook and "never too much" taken out.
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** —
+
 ## Trail
 
 | When | Commit | What |
