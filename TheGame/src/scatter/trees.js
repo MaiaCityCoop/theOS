@@ -363,7 +363,7 @@ function plantMaterial(tex, D) {
                 vBase.assign(vec2(floor(b.div(4096)), b.mod(4096))); // (x: a far body's density, or the wood's and the post's share as one gives way to the other; y: its bake's texels a
                 // side, crowd.js bakeRes from HI as read here; z: which of its smaller pictures, one texel to a pixel: its size on
                 // screen against the bake's, the plant three quarters of the bake's frame)
-                const BR = clamp(exp2(ceil(log2(max(V.crowd.rule[0].z, 1)))), CROWD.BAKEMIN, CROWD.BAKE), lod = clamp(floor(log2(BR.mul(0.75).div(max(pxR, 1))).add(0.5)), 0, log2(BR).sub(2));
+                const BR = clamp(exp2(ceil(log2(max(V.crowd.rule[0].z, 1)))), CROWD.BAKEMIN, CROWD.BAKE), lod = clamp(log2(BR.mul(0.75).div(max(pxR, 1))), 0, log2(BR).sub(2));   // (not a whole number: the fragment mixes the two pictures either side, as near as it is to each)
                 vDense.assign(vec4(baked.select(crowdDense(R.into), R.fade), BR, D.bakeTex && feed ? lod : float(0), V.ao));   // (w: its corner's ao, which its light was reckoned with)
               }
               clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos, uv: R.uv }, float(1), H.sunk));
@@ -437,28 +437,38 @@ function plantMaterial(tex, D) {
           // a far body wearing its crown baked: as much of it as the crown covers there, as shaded as the crown is there
           const pick = ign(screenCoordinate.xy), rise = ign(screenCoordinate.xy.add(vec2(37, 17)));   // (which view this pixel takes: the one from above as far as the eye is up; else the next side view as far as the eye has come round to it)
           const at = rise.lessThan(vImp2.w).select(vImp2.xyz, pick.lessThan(vImp1.w).select(vImp1.xyz, vImp.xyz));
-          // (its picture of n texels a side at this size: crowd.js BAKEMIPS, its rows from the top as baked; t: the texel's own number)
-          const R = vDense.y, lod = vDense.z, n = floor(R.div(exp2(lod)).add(0.5)), layer = floor(at.z.add(0.5));
-          const tx = clamp(floor(at.x.mul(n)), 0, n.sub(1)), ty = clamp(n.sub(1).sub(floor(at.y.mul(n))), 0, n.sub(1)), cs = vec4(0).toVar();
-          const X = lod.greaterThan(0.5).select(R, float(0)).add(tx), Y = lod.greaterThan(0.5).select(R.sub(R.div(exp2(lod.sub(1)))), float(0)).add(ty);
-          const t = bakeTex ? uint(layer.mul(CROWD.BAKE * 1.5 * CROWD.BAKE).add(Y.mul(CROWD.BAKE * 1.5)).add(X)) : uint(layer.mul(R).mul(R).add(ty.mul(R)).add(tx));
-          if (bakeTex) cs.assign(bakeTex.sample(vec2(X.add(0.5).div(CROWD.BAKE * 1.5), Y.add(0.5).div(CROWD.BAKE))).depth(layer));   // (the texel itself: nearest)
-          else {
-            const base = uint(floor(vBase.x.add(0.5)).mul(4096).add(floor(vBase.y.add(0.5))));
-            const E = elemOf(base.add(t.shiftRight(uint(2)))), w = t.bitAnd(uint(3)), word = w.equal(uint(0)).select(E.x, w.equal(uint(1)).select(E.y, w.equal(uint(2)).select(E.z, E.w)));   // (a texel a word: four bytes)
-            cs.assign(vec4(float(word.bitAnd(uint(255))), float(word.shiftRight(uint(8)).bitAnd(uint(255))), float(word.shiftRight(uint(16)).bitAnd(uint(255))), float(word.shiftRight(uint(24)).bitAnd(uint(255)))).div(255));
-          }
-          const cover = cs.x, shade = cs.y;
+          // (its picture of n texels a side at a size: crowd.js BAKEMIPS, its rows from the top as baked; t: the texel's own
+          // number, for its two fixed numbers below)
+          const R = vDense.y, layer = floor(at.z.add(0.5));
+          const read = (lod) => {
+            const n = floor(R.div(exp2(lod)).add(0.5)), tx = clamp(floor(at.x.mul(n)), 0, n.sub(1)), ty = clamp(n.sub(1).sub(floor(at.y.mul(n))), 0, n.sub(1)), cs = vec4(0).toVar();
+            const X = lod.greaterThan(0.5).select(R, float(0)).add(tx), Y = lod.greaterThan(0.5).select(R.sub(R.div(exp2(lod.sub(1)))), float(0)).add(ty);
+            const t = bakeTex ? uint(layer.mul(CROWD.BAKE * 1.5 * CROWD.BAKE).add(Y.mul(CROWD.BAKE * 1.5)).add(X)) : uint(layer.mul(R).mul(R).add(ty.mul(R)).add(tx));
+            if (bakeTex) cs.assign(bakeTex.sample(vec2(X.add(0.5).div(CROWD.BAKE * 1.5), Y.add(0.5).div(CROWD.BAKE))).depth(layer));   // (the texel itself: nearest)
+            else {
+              const base = uint(floor(vBase.x.add(0.5)).mul(4096).add(floor(vBase.y.add(0.5))));
+              const E = elemOf(base.add(t.shiftRight(uint(2)))), w = t.bitAnd(uint(3)), word = w.equal(uint(0)).select(E.x, w.equal(uint(1)).select(E.y, w.equal(uint(2)).select(E.z, E.w)));   // (a texel a word: four bytes)
+              cs.assign(vec4(float(word.bitAnd(uint(255))), float(word.shiftRight(uint(8)).bitAnd(uint(255))), float(word.shiftRight(uint(16)).bitAnd(uint(255))), float(word.shiftRight(uint(24)).bitAnd(uint(255)))).div(255));
+            }
+            const ft = float(t);
+            return { cs, n: octDecode(cs.zw), cut: fract(sin(ft.mul(12.9898).add(78.233)).mul(43758.5453)), come: fract(sin(ft.mul(39.3468).add(11.1351)).mul(24634.6345)) };
+          };
+          // (the two of its smaller pictures either side of its size, each texel as it is, mixed as far as it has gone from
+          // the one to the next: its cover, its ao, its leaves' way, and its two fixed numbers too, so where it passes from
+          // one picture to the next nothing changes at once, and nothing crawls as the eye moves. The library's: the first)
+          const lods = vDense.z, l0 = floor(lods).min(log2(R).sub(2)), f = bakeTex ? fract(lods).mul(l0.lessThan(log2(R).sub(2)).select(float(1), float(0))) : float(0);
+          const A0 = read(l0), A1 = bakeTex ? read(l0.add(1).min(log2(R).sub(2))) : A0, mixOf = (a, b) => (bakeTex ? mix(a, b, f) : a);
+          const cover = mixOf(A0.cs.x, A1.cs.x), shade = mixOf(A0.cs.y, A1.cs.y), nLeaf = bakeTex ? normalize(mix(A0.n, A1.n, f)) : A0.n;
           // a baked texel is a clump of leaves there or a gap, as often as the crown covers it there (its own number, the
           // same every frame: the crown's gaps stay where they are), so the far crown is as see-through as the near one
           // (where it stands against the sky, as see-through as the crown; else solid where the crown covers half and more)
           // (and coming in, a texel shows once the body has come in as far as its own second number: the same every frame,
           // so the body fills in grain by grain, never grows or jumps)
-          If(cover.lessThanEqual(mix(float(0.5), fract(sin(float(t).mul(12.9898).add(78.233)).mul(43758.5453)), clamp(vImp.w.sub(1), 0, 1))).or(fract(sin(float(t).mul(39.3468).add(11.1351)).mul(24634.6345)).greaterThanEqual(vDense.x)), () => { Discard(); });
+          If(cover.lessThanEqual(mix(float(0.5), mixOf(A0.cut, A1.cut), clamp(vImp.w.sub(1), 0, 1))).or(mixOf(A0.come, A1.come).greaterThanEqual(vDense.x)), () => { Discard(); });
           // (lit as its leaves are, by the cards' own light (the vertex stage's L), with the leaves' way there turned with the
           // plant, the live sky and sun, the sun as it reaches the body's corners (its cloud and cast shadow), its ao and
           // its depth in the crown: light tops and dark sides to its lobes, under the sun as it moves. Squared after: T)
-          const nT = turnOf(vLit.w).turn(octDecode(cs.zw)), wrapT = vLit.z, aoT = shade;
+          const nT = turnOf(vLit.w).turn(nLeaf), wrapT = vLit.z, aoT = shade;
           const ndlT = nT.dot(U.uSunDir).add(wrapT).div(wrapT.add(1)).max(0);
           const LT = skyLight(nT).mul(aoT.mul(aoT).mul(0.75).add(aoT.mul(0.25))).add(U.uSun.mul(vLit.x).mul(ndlT.add(vLit.y)).mul(aoT.mul(0.6).add(0.4)));
           T.assign(vec4(T.rgb.mul(sqrt(LT)), 1));
