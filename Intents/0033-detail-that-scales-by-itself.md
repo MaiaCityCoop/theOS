@@ -781,6 +781,23 @@ at least as fast as main over several pairs in opposite orders, else the numbers
   not the read: through them more of what lies behind is drawn. Holding the horizon's look and main's frame time
   together needs fewer layers behind the far crowns, or the gaps only where they show against the sky.
 
+### Stage 1: gaps only against the sky (2026-11-17)
+
+The coordinator, from my suggestion after #34: the far crowns see-through only where the sky shows behind them, solid
+where ground or other crowns lie behind; the default if then at least as fast as main on both benches with #33's
+horizon kept.
+
+- **How**: a far body's point is see-through as far as its slope from the eye (its height in the world over its
+  distance) lies between -0.03 (solid where the crown covers half and more, as #32) and 0 (see-through, as #33),
+  smoothly, so nothing changes at once as the eye moves. `?sky=lo,hi` to try.
+- **Drawn as #33**: from 90 m 104.3 / 15.0 (#33 104.2 / 15.0), the horizon by the tent 146.5 / 54.7 (#33 146.4 / 54.7).
+- **Timed**, three pairs in alternating order: by the tent +7.0, −0.6, +3.3 %; at the river bend +7.4, +3.2, +3.0 %.
+  No faster than #34.
+- **So the gaps were not the cost.** The view from 90 m draws almost every crown solid now and is no faster; #32's
+  "4 to 6 % faster" rested on one pair and was within this machine's spread. What remains is the far bodies' own
+  pixels (the bake's read and shade, and a body that encloses its crown, larger than main's far level's) set against
+  main's far levels. The default stays 'old'.
+
 ## Propose
 
 ## Story
@@ -816,8 +833,10 @@ at least as fast as main over several pairs in opposite orders, else the numbers
   - [x] the trees on the horizon by the tent as airy as main's (the bake see-through as the crown)
   - [x] the library's plant wears the bake; the counter counts vertices only; the stress world no slower
   - [x] the bake as a texture: drawn the same, no faster (+2 to 4 %, three pairs)
-  - [ ] Samuel: the horizon matches main at 2 to 4 % of frame time here: take it, or the bake solid again (faster, the
-        horizon heavier), or the gaps only where they show against the sky (not tried)
+  - [x] the gaps only where they show against the sky: drawn as #33, no faster (about +3 %, three pairs)
+  - [ ] Samuel: the plants under `?lod=new` look as main and cost about 3 % of the frame here (SwiftShader; GPU time
+        and Safari not measured): take it, or measure it on a GPU first (`?gputime`, the bench's views), where a pixel's
+        cost and a vertex's weigh differently than on this CPU
   - [ ] `LOD_DEFAULT` 'new' once that is settled
   - [ ] `?lod=new` the default, `?lod=old` kept, once as fast and as good as main from 90 m and by the tent; the stress
         world checked not slower
@@ -999,6 +1018,15 @@ at least as fast as main over several pairs in opposite orders, else the numbers
 - **Broke / not there yet:** No faster: by the tent +3.6, +2.5, +2.7 %, at the river bend +1.7, +2.0, +1.7 % in three
   pairs. The default stays 'old'. The cost is the gaps (more drawn behind them), not the read.
 
+### 2026-11-17 (6)
+
+- **Asked:** (the coordinator) gaps only where the crowns show against the sky; the default if then at least as fast
+  as main on both benches, #33's horizon kept; else the numbers.
+- **Delivered:** a far body's point see-through by its slope from the eye, solid under the horizon, smoothly between.
+- **Good:** Drawn as #33, to the decimal.
+- **Broke / not there yet:** No faster: about +3 % over three pairs (+7.0, −0.6, +3.3 % by the tent; +7.4, +3.2, +3.0 %
+  at the river bend). The default stays 'old'. My earlier "#32 4 to 6 % faster" rested on one pair: within the spread.
+
 ## Trail
 
 | When | Commit | What |
@@ -1024,3 +1052,4 @@ at least as fast as main over several pairs in opposite orders, else the numbers
 | 2026-11-17 | `fa7d70c` | `?lod=new` wears its crowns baked, the far body from 40 px; the stills |
 | 2026-11-17 | `63b5a74` | the bake as see-through as the crown, and as light; the library's plant wears it; the counter by vertices; `LOD_DEFAULT` |
 | 2026-11-17 | `a0fe8fd` | the baked crowns read from a texture of each stand's, filled as the levels come in |
+| 2026-11-17 | `aaecab1` | the baked crowns see-through only against the sky |
