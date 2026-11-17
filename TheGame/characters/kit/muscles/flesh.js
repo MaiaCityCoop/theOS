@@ -19,7 +19,7 @@
 // two rows' curves and is carried by both. A point of the skin is carried by the four bones nearest under it, each by
 // its share (linear blend skinning: the bones' frames at rest kept in a texture of their own).
 import * as THREE from 'three/webgpu';
-import { Fn, If, attribute, varyingProperty, uniform, float, int, ivec2, vec3, vec4, textureLoad, normalize, cross, mix, max, pow, clamp, dot, abs, length, smoothstep, positionWorld, positionGeometry, modelWorldMatrix, modelWorldMatrixInverse, mx_noise_float } from 'three/tsl';
+import { Fn, If, attribute, varyingProperty, uniform, float, int, ivec2, vec3, vec4, textureLoad, normalize, cross, mix, max, pow, clamp, dot, abs, length, smoothstep, exp, positionWorld, positionGeometry, modelWorldMatrix, modelWorldMatrixInverse, mx_noise_float } from 'three/tsl';
 import { U } from '../../../src/core/uniforms.js';
 import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull } from '../../../src/world/light.js';
 import { CASTS } from '../../../src/world/shadow.js';
@@ -205,14 +205,35 @@ function materialOf(tex, eye, kind, inset = 0, rest = null) {
         const diff = max(ndl.add(0.3).div(1.3), 0), spec = pow(ndh, 60).mul(0.25);
         out.assign(finish(col.mul(skyLight(n).mul(open.mul(open)).add(sun.mul(diff))).add(sun.mul(spec).mul(max(ndl, 0))), w, eye));
       } else {
-        const what = look.y, is = (k) => float(1).sub(clamp(abs(what.sub(k)), 0, 1));
-        const mottle = mx_noise_float(P.mul(40)).mul(0.5).add(0.5), pore = mx_noise_float(P.mul(1600));
-        const base = vec3(0.62, 0.43, 0.32).mul(float(0.92).add(mottle.mul(0.12)).add(pore.mul(0.03)));
-        const col = mix(mix(mix(base, vec3(0.6, 0.3, 0.28), is(1)), vec3(0.4, 0.24, 0.19), is(2)), vec3(0.85, 0.7, 0.66), is(3)).mul(mix(vec3(0.62, 0.5, 0.46), vec3(1), open));
-        // (light under the skin: a wrapped diffuse, warmer and redder where the light turns away)
-        const diff = max(ndl.add(0.35).div(1.35), 0), scatter = clamp(float(1).sub(abs(ndl.mul(2.2))), 0, 1).mul(0.12);
-        const gloss = mix(float(0.12), float(0.5), is(3).add(is(1).mul(0.6))), spec = pow(ndh, gloss.mul(160).add(24)).mul(gloss.mul(0.6));
-        const lit = col.mul(skyLight(n).mul(open.mul(open)).add(sun.mul(diff))).add(sun.mul(vec3(0.75, 0.22, 0.12)).mul(scatter)).add(sun.mul(spec).mul(max(ndl, 0)));
+        const what = look.y, is = (k) => float(1).sub(clamp(abs(what.sub(k)), 0, 1)), Q = vec3(abs(P.x), P.y, P.z);
+        const near = (c, r) => exp(length(Q.sub(vec3(...c))).div(r).pow(2).negate());   // (a place of the body, softly)
+        // its relief, finer than its points: pores (about a millimetre) and the skin's fine grain, faded with distance
+        const fade = clamp(float(1).sub(length(eye.sub(w)).div(2.5)), 0, 1), bump = (f, e) => { const c = mx_noise_float(P.mul(f)); return vec3(mx_noise_float(P.add(vec3(e, 0, 0)).mul(f)).sub(c), mx_noise_float(P.add(vec3(0, e, 0)).mul(f)).sub(c), mx_noise_float(P.add(vec3(0, 0, e)).mul(f)).sub(c)).div(e); };
+        const g0 = bump(900, 0.0002).mul(0.00009).add(bump(160, 0.001).mul(0.00015)), gw = modelWorldMatrix.mul(vec4(g0, 0)).xyz.mul(fade.mul(is(3).oneMinus()));
+        const nb = normalize(n.sub(gw.sub(n.mul(dot(gw, n)))));
+        // its colour: a fair skin, mottled; the blood nearer the surface on the cheeks, the nose, the ears, the
+        // knuckles, the elbows, the knees and the feet; the soles paler; veins faint and bluish on the forearm's
+        // inside, the backs of the hands and the tops of the feet; the lips, the areolae, the nails their own
+        const mottle = mx_noise_float(P.mul(40)).mul(0.5).add(0.5), blot = mx_noise_float(P.mul(9).add(3.7)).mul(0.5).add(0.5), pore = mx_noise_float(P.mul(1600));
+        const flush = near([0.045, 1.635, 0.085], 0.03).mul(0.55).add(near([0, 1.634, 0.12], 0.02).mul(0.6)).add(near([0.077, 1.665, -0.02], 0.03).mul(0.6))
+          .add(near([0.225, 0.77, -0.01], 0.05).mul(0.35)).add(near([0.19, 1.14, -0.08], 0.035).mul(0.35)).add(near([0.085, 0.5, 0.08], 0.045).mul(0.35)).add(near([0.08, 0.03, 0.06], 0.07).mul(0.3)).add(blot.mul(0.12));
+        const vmask = near([0.215, 1.0, 0.0], 0.09).add(near([0.23, 0.82, -0.02], 0.05)).add(near([0.085, 0.05, 0.07], 0.06)), ridge = float(1).sub(abs(mx_noise_float(P.mul(vec3(70, 14, 70)))));
+        const vein = smoothstep(0.93, 0.985, ridge).mul(clamp(vmask, 0, 1)).mul(0.55);
+        let base = vec3(0.6, 0.39, 0.28).mul(float(0.93).add(mottle.mul(0.1)).add(pore.mul(0.025)));
+        base = mix(base, base.mul(vec3(1.06, 0.8, 0.78)), clamp(flush, 0, 1));
+        base = mix(base, base.mul(vec3(0.82, 0.88, 1.08)), vein);
+        base = mix(base, base.mul(vec3(1.08, 1.05, 1.02)), smoothstep(0.012, 0.0, P.y));
+        const col = mix(mix(mix(base, vec3(0.56, 0.24, 0.22), is(1)), vec3(0.36, 0.2, 0.16), is(2)), vec3(0.8, 0.66, 0.62), is(3)).mul(mix(vec3(0.6, 0.48, 0.44), vec3(1), open));
+        // (the light under the skin: a wrapped diffuse that wraps further in the red, so the shade's edge is warm; and
+        // where the skin is thin, the ears and the nose, the light from behind comes through red)
+        const nl = dot(nb, L), diff = max(vec3(nl).add(vec3(0.5, 0.3, 0.25)).div(vec3(1.5, 1.3, 1.25)), 0);
+        const thin = near([0.077, 1.665, -0.02], 0.025).add(near([0, 1.634, 0.12], 0.012).mul(0.5)), through = pow(clamp(dot(V, L.negate()), 0, 1), 4).mul(thin).mul(0.6);
+        // (its sheen: the oil on the skin, two lobes, the sharper on the forehead, the nose and the lips; stronger at a
+        // grazing angle, as every surface's is, F0 = 0.028)
+        const hh = max(dot(nb, Hh), 0), fres = float(0.028).add(float(0.972).mul(pow(float(1).sub(max(dot(nb, V), 0)), 5)));
+        const oily = clamp(near([0, 1.72, 0.1], 0.04).add(near([0, 1.64, 0.115], 0.025)).add(is(1)), 0, 1), sharp = mix(float(60), float(160), oily);
+        const spec = fres.mul(pow(hh, sharp).mul(sharp.add(8).div(25)).add(pow(hh, 14).mul(0.9))).mul(mix(float(0.7), float(1.3), oily)).mul(is(3).mul(1.5).add(1));
+        const lit = col.mul(skyLight(nb).mul(open.mul(open)).add(sun.mul(diff))).add(sun.mul(vec3(0.9, 0.25, 0.12)).mul(through)).add(sun.mul(spec).mul(max(nl, 0)));
         out.assign(finish(lit, w, eye));
       }
     });

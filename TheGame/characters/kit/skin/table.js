@@ -29,18 +29,18 @@ export const SKIN = 1.8;
 
 // [name, [x, y, z] on the body's surface, mm of fat and skin, reach in cm, source]
 export const TISSUE = [
-  // the trunk: Jackson & Pollock's seven sites (half the fold)
-  ['chest', [0.085, 1.36, 0.105], 4, 9, 'JP78'],
-  ['midaxillary', [0.155, 1.3, 0.0], 5, 9, 'JP78'],
+  // the trunk: Jackson & Pollock's seven sites (half the fold; a slightly muscular man's, about 14% fat)
+  ['chest', [0.085, 1.36, 0.105], 5, 9, 'JP78'],
+  ['midaxillary', [0.155, 1.3, 0.0], 6, 9, 'JP78'],
   ['triceps', [0.205, 1.28, -0.085], 4, 7, 'JP78'],
-  ['subscapular', [0.1, 1.31, -0.14], 6, 9, 'JP78'],
-  ['abdomen', [0.03, 1.06, 0.125], 7.5, 9, 'JP78'],
-  ['suprailiac', [0.135, 1.1, 0.04], 6, 8, 'JP78'],
-  ['thigh', [0.1, 0.72, 0.095], 5, 10, 'JP78'],
+  ['subscapular', [0.1, 1.31, -0.14], 7, 9, 'JP78'],
+  ['abdomen', [0.03, 1.06, 0.125], 10, 9, 'JP78'],
+  ['suprailiac', [0.135, 1.1, 0.04], 7, 8, 'JP78'],
+  ['thigh', [0.1, 0.72, 0.095], 6.5, 10, 'JP78'],
   ['biceps', [0.2, 1.28, 0.025], 2, 6, 'DW74'],
   ['calf', [0.045, 0.33, -0.035], 3, 8, 'DW74'],
   // between them and round them
-  ['loins', [0.04, 1.08, -0.12], 6, 8, 'est'], ['flank', [0.145, 1.06, -0.035], 8, 7, 'est'],
+  ['loins', [0.04, 1.08, -0.12], 8, 8, 'est'], ['flank', [0.145, 1.06, -0.035], 9, 7, 'est'],
   ['backThigh', [0.1, 0.72, -0.1], 6, 9, 'est'], ['innerThigh', [0.045, 0.75, 0.0], 6, 7, 'est'],
   ['shoulder', [0.12, 1.5, -0.05], 5, 7, 'est'], ['deltoid', [0.215, 1.38, -0.03], 4, 6, 'est'],
   ['nape', [0.0, 1.55, -0.1], 6, 6, 'est'], ['throat', [0.0, 1.52, 0.06], 4, 5, 'est'],
@@ -50,7 +50,7 @@ export const TISSUE = [
   ['ankle', [0.07, 0.09, -0.01], 3, 4, 'est'], ['footTop', [0.1, 0.06, 0.07], 3, 4, 'est'],
   ['handBack', [0.245, 0.8, -0.01], 2.5, 4, 'est'], ['fingerBack', [0.24, 0.72, -0.02], 2, 3, 'est'],
   // the pads
-  ['buttock', [0.09, 0.9, -0.14], 12, 9, 'us'], ['heel', [0.075, -0.005, -0.055], 18, 3, 'us'],
+  ['buttock', [0.09, 0.9, -0.14], 14, 9, 'us'], ['heel', [0.075, 0.004, -0.045], 14, 2, 'us'], ['heelBack', [0.075, 0.04, -0.085], 4, 2, 'est'],
   ['ball', [0.1, -0.002, 0.125], 10, 3.5, 'us'], ['arch', [0.075, 0.01, 0.04], 6, 3, 'us'],
   ['palm', [0.205, 0.805, -0.012], 7, 2.5, 'us'], ['fingerPads', [0.218, 0.72, -0.015], 4, 2.5, 'us'],
   ['thumbPad', [0.198, 0.81, 0.03], 6, 2, 'us'],
@@ -59,10 +59,10 @@ export const TISSUE = [
   ['glabella', [0.0, 1.703, 0.104], 5.5, 1.6, 'SS08'], ['nasion', [0.0, 1.682, 0.102], 6.5, 1.4, 'SS08'],
   ['brow', [0.03, 1.708, 0.1], 6, 1.8, 'SS08'], ['forehead', [0.02, 1.75, 0.088], 4.5, 3, 'SS08'],
   ['lids', [0.032, 1.678, 0.088], 1.2, 1.4, 'SS08'], ['rhinion', [0.0, 1.668, 0.106], 2.5, 1, 'SS08'],
-  ['cheekbone', [0.05, 1.672, 0.075], 7, 2, 'SS08'], ['cheek', [0.045, 1.632, 0.078], 14, 2.4, 'SS08'],
+  ['cheekbone', [0.05, 1.672, 0.075], 7, 2, 'SS08'], ['cheek', [0.045, 1.632, 0.078], 9, 2.4, 'SS08'],
   ['philtrum', [0.0, 1.618, 0.11], 5, 1.5, 'SS08'], ['lowerLip', [0.0, 1.586, 0.106], 5, 1.4, 'SS08'],
-  ['chin', [0.0, 1.567, 0.098], 11, 1.8, 'SS08'], ['jawAngle', [0.052, 1.597, -0.004], 10, 2.2, 'SS08'],
-  ['ramus', [0.058, 1.625, 0.015], 6, 1.8, 'SS08'], ['temple', [0.068, 1.715, 0.02], 5, 2.5, 'SS08'],
+  ['chin', [0.0, 1.567, 0.098], 11, 1.8, 'SS08'], ['jawAngle', [0.052, 1.597, -0.004], 6, 2.2, 'SS08'],
+  ['ramus', [0.058, 1.625, 0.015], 5, 1.8, 'SS08'], ['temple', [0.068, 1.715, 0.02], 5, 2.5, 'SS08'],
   ['ear', [0.078, 1.665, -0.02], 1.5, 1.8, 'est'], ['noseTip', [0.0, 1.633, 0.126], 2, 1.2, 'est'],
   ['underChin', [0.0, 1.565, 0.05], 7, 2.5, 'est'],
 ];
@@ -74,8 +74,8 @@ export const TISSUE_DEFAULT = 4;
 // across (the eye's mean diameter: Bekerman et al. 2014, "Variations in eyeball diameters of the healthy adults",
 // J Ophthalmol, as remembered). `rig`: the bone that carries it.
 export const UNDER = [
-  { what: 'nose bridge', rig: 'head', solid: ['rod', [0.0, 1.668, 0.1], [0.0, 1.638, 0.119], 0.0045, 0.006] },
-  { what: 'nose tip', rig: 'head', solid: ['egg', [0.0, 1.634, 0.12], [0.0085, 0.0075, 0.008]] },
+  { what: 'nose bridge', rig: 'head', solid: ['rod', [0.0, 1.668, 0.1], [0.0, 1.638, 0.12], 0.0042, 0.0058] },
+  { what: 'nose tip', rig: 'head', solid: ['egg', [0.0, 1.634, 0.1215], [0.009, 0.008, 0.0085]] },
   { what: 'nose wing', rig: 'head', solid: ['egg', [0.0125, 1.629, 0.106], [0.0065, 0.006, 0.0085]] },
   { what: 'ear shell', rig: 'head', solid: ['egg', [0.077, 1.666, -0.022], [0.007, 0.03, 0.0175], [[0.94, 0, 0.34], [0, 1, 0]]] },
   { what: 'ear lobe', rig: 'head', solid: ['egg', [0.074, 1.633, -0.016], [0.006, 0.009, 0.008]] },
@@ -121,24 +121,59 @@ export const partOf = (rig) => {   // (the head a piece of its own: its face is 
   return 'trunk';
 };
 
-// The body's outline as a man's is measured (ENVELOPE): the trunk and each limb a shape of ovals, one every few
-// centimetres along it, as wide and as deep as the anthropometric surveys measure a man of this stature, half way
-// between his ordinary and his trained build (US Army, ANSUR II: Gordon et al. 2014, NATICK/TR-15/007, its men: their
-// chest, waist, buttock, thigh, calf, biceps, forearm, wrist and neck circumferences and the chest's, waist's and hip's
-// breadths and depths, as remembered, scaled from their 1.756 m to 1.80 m). The skin of the trunk and the limbs lies
-// half way between the muscles under it and this outline (ENVELOPE_SHARE): what the muscles laid one by one make too
-// much or too little of the outline is taken back towards a man's, and what they shape on it stays.
-// Each: the piece, its axis from a to b (left side), the way its front faces, and its ovals from a to b, evenly spaced:
-// [half-width outwards, half-width inwards, front, back] (m), from the axis.
-export const ENVELOPE_SOURCE = 'Gordon et al. 2014, "2012 Anthropometric Survey of U.S. Army Personnel" (ANSUR II), NATICK/TR-15/007: men\'s circumferences, breadths and depths, as remembered, scaled to 1.80 m';
-export const ENVELOPE_SHARE = 0.5;
-export const ENVELOPE = [
-  { part: 'trunk', a: [0, 0.84, -0.02], b: [0, 1.62, -0.025], front: [0, 0, 1], ovals: [   // every 6.5 cm from 0.84 m up
-    [0.15, 0.15, 0.11, 0.12], [0.175, 0.175, 0.14, 0.145], [0.17, 0.17, 0.145, 0.13], [0.155, 0.155, 0.15, 0.115], [0.148, 0.148, 0.15, 0.11],
-    [0.152, 0.152, 0.148, 0.112], [0.158, 0.158, 0.138, 0.12], [0.165, 0.165, 0.145, 0.13], [0.17, 0.17, 0.14, 0.135], [0.178, 0.178, 0.12, 0.13],
-    [0.15, 0.15, 0.09, 0.11], [0.065, 0.065, 0.07, 0.07], [0.058, 0.058, 0.07, 0.065]] },
-  { part: 'arm', a: [0.182, 1.43, -0.04], b: [0.2, 1.14, -0.056], front: [0, 0, 1], ovals: [[0.05, 0.05, 0.055, 0.058], [0.05, 0.048, 0.054, 0.056], [0.047, 0.045, 0.05, 0.052], [0.043, 0.04, 0.045, 0.046], [0.04, 0.038, 0.04, 0.042]] },
-  { part: 'arm', a: [0.2, 1.13, -0.056], b: [0.226, 0.87, -0.022], front: [0, 0, 1], ovals: [[0.042, 0.04, 0.046, 0.046], [0.04, 0.036, 0.044, 0.04], [0.033, 0.03, 0.04, 0.034], [0.026, 0.024, 0.034, 0.028], [0.02, 0.019, 0.03, 0.024]] },
-  { part: 'leg', a: [0.088, 0.86, 0.0], b: [0.084, 0.5, 0.006], front: [0, 0, 1], ovals: [[0.095, 0.1, 0.09, 0.095], [0.09, 0.09, 0.085, 0.085], [0.082, 0.078, 0.078, 0.075], [0.07, 0.066, 0.068, 0.062], [0.056, 0.055, 0.062, 0.052], [0.052, 0.05, 0.065, 0.05]] },
-  { part: 'leg', a: [0.084, 0.49, 0.004], b: [0.078, 0.1, -0.016], front: [0, 0, 1], ovals: [[0.05, 0.05, 0.06, 0.055], [0.052, 0.056, 0.042, 0.075], [0.048, 0.052, 0.038, 0.07], [0.04, 0.042, 0.034, 0.055], [0.03, 0.032, 0.03, 0.04], [0.027, 0.03, 0.03, 0.035]] },
+// The body's outline (PROFILES): the trunk and each limb a shape of sections, one every few centimetres along it, each
+// as broad and as deep as a man of 1.80 m of a slightly muscular build measures there (about 14% of him fat): his
+// chest 101 cm round, his waist 82, his buttocks 98, his thigh 57 at its top, his calf 38, his arm 32 relaxed, his
+// forearm 28, his wrist 17, his neck 39; his chest 33 cm broad and 25 deep, his waist 29 and 21, his hips 35 and 24.
+// (The US Army's survey of men, ANSUR II: Gordon et al. 2014, NATICK/TR-15/007, its men's circumferences, breadths and
+// depths, as remembered, scaled from their 1.756 m to 1.80 m and taken from their mean build, about a quarter fat, to a
+// trained man's; the sections' shapes after Richer's plates of the living model, Anatomie artistique, 1890, as
+// remembered.) The skin lies on this outline; the muscles' and the bones' own relief is laid on it, as much of it as
+// the fat there lets through (./build.js).
+// Each: the piece, its axis from a to b (left side), the way its front faces, which of its ends fade into the next
+// piece's (a hand, a foot, the head: their skin is their own) and which close round (the top of the arm over the
+// shoulder, the bottom of the trunk between the thighs, the top of the thigh under the buttock: where they meet they
+// run into one another softly), and its sections from a to b, evenly spaced: [forward shift of the middle, half-breadth outwards,
+// half-breadth inwards, front, back, squareness (2 an ellipse, more a rounded box)] in cm.
+export const PROFILE_SOURCE = 'Gordon et al. 2014, "2012 Anthropometric Survey of U.S. Army Personnel" (ANSUR II), NATICK/TR-15/007: men\'s circumferences, breadths and depths, as remembered, scaled to 1.80 m and to a slightly muscular build; the sections\' shapes after Richer, Anatomie artistique (1890), as remembered';
+export const PROFILES = [
+  { part: 'trunk', a: [0, 0.84, 0], b: [0, 1.6, 0], front: [0, 0, 1], fade: [0, 1], sections: [   // every 4 cm from 0.84 m up
+    [-3.0, 9.0, 9.0, 6.0, 7.0, 2.0], [-2.5, 15.0, 15.0, 8.5, 8.0, 2.2], [-1.8, 17.6, 17.6, 10.0, 9.0, 2.35], [-1.5, 17.0, 17.0, 10.2, 10.0, 2.3],
+    [-1.0, 15.8, 15.8, 10.4, 11.2, 2.2], [-0.5, 15.0, 15.0, 10.5, 10.4, 2.15], [0.0, 14.8, 14.8, 10.5, 10.2, 2.15], [0.0, 15.0, 15.0, 10.6, 10.3, 2.2],
+    [-0.3, 15.4, 15.4, 10.9, 10.6, 2.25], [-0.8, 15.9, 15.9, 11.4, 11.2, 2.35], [-1.3, 16.3, 16.3, 12.0, 11.8, 2.5], [-1.8, 16.6, 16.6, 12.5, 12.3, 2.65],
+    [-2.3, 16.8, 16.8, 12.6, 12.5, 2.8], [-2.8, 16.9, 16.9, 12.3, 12.4, 2.8], [-3.3, 17.2, 17.2, 11.5, 12.0, 2.6], [-3.8, 18.2, 18.2, 9.8, 10.8, 2.2],
+    [-4.0, 13.8, 13.8, 7.5, 8.6, 2.1], [-3.5, 6.2, 6.2, 5.7, 6.4, 2.0], [-3.0, 5.7, 5.7, 5.3, 5.9, 2.0], [-2.5, 5.6, 5.6, 5.3, 5.7, 2.0]] },
+  { part: 'arm', a: [0.184, 1.445, -0.04], b: [0.2, 1.13, -0.056], front: [0, 0, 1], fade: [0, 0], sections: [   // the upper arm, from over the shoulder to the elbow
+    [0, 4.2, 3.0, 4.6, 4.6, 2.0], [0, 5.2, 4.2, 5.4, 5.4, 2.1], [0, 4.9, 4.5, 5.2, 5.1, 2.1], [0, 4.6, 4.5, 5.4, 5.0, 2.1], [0, 4.3, 4.1, 4.7, 4.7, 2.1], [0, 4.0, 3.7, 4.1, 4.4, 2.1]] },
+  { part: 'arm', a: [0.2, 1.13, -0.056], b: [0.226, 0.875, -0.022], front: [0, 0, 1], fade: [0, 1], sections: [   // the forearm, from the elbow to the wrist
+    [0, 4.3, 3.8, 4.2, 4.1, 2.1], [0, 4.6, 4.0, 4.6, 4.1, 2.1], [0, 4.0, 3.6, 4.1, 3.6, 2.1], [0, 3.3, 3.0, 3.6, 3.1, 2.15], [0, 2.4, 2.2, 3.0, 2.7, 2.2], [0, 1.9, 1.7, 2.7, 2.5, 2.3]] },
+  { part: 'leg', a: [0.088, 0.9, 0.0], b: [0.085, 0.5, 0.006], front: [0, 0, 1], fade: [0, 0], sections: [   // the thigh, from the hip to the knee
+    [0, 9.0, 8.0, 8.5, 9.5, 2.2], [0, 9.3, 8.6, 9.0, 9.6, 2.2], [0, 8.8, 8.3, 8.8, 8.8, 2.2], [0, 8.0, 7.6, 8.4, 7.8, 2.2], [0, 6.8, 6.6, 7.4, 6.4, 2.2], [0, 5.3, 5.5, 6.0, 5.3, 2.1]] },
+  { part: 'leg', a: [0.085, 0.5, 0.006], b: [0.078, 0.1, -0.016], front: [0, 0, 1], fade: [0, 1], sections: [   // the leg, from the knee to the ankle
+    [0, 5.3, 5.5, 5.8, 5.4, 2.1], [0, 5.3, 5.6, 4.6, 6.6, 2.1], [0, 5.1, 5.6, 4.2, 7.0, 2.1], [0, 4.3, 4.4, 3.6, 5.6, 2.1], [0, 3.4, 3.4, 3.0, 4.1, 2.1], [0, 3.0, 3.2, 2.8, 3.4, 2.1]] },
 ];
+// Masses the outline holds besides its sections: each buttock (the gluteus maximus under its pad of fat, its fold at
+// 0.80 m, the cleft between the two), a superellipsoid round its middle (left side; m): [out, in, up, down, front,
+// back] its half-extents, n its squareness, k how softly it runs into the outline (m).
+export const MASSES = [
+  // the face's own (the skin over them; Farkas's norms of the adult man's face, as remembered: the mouth 5.2 cm wide,
+  // the upper lip standing 11.6 cm forward of the head's middle, the lower 11.3, the chin 10.9; middle only, m)
+  { part: 'head', what: 'mouth', at: [0, 1.6, 0.082], r: [0.033, 0.033, 0.02, 0.022, 0.024, 0.03], n: 2.0, k: 0.016 },   // (the teeth's arch under the lips)
+  { part: 'head', what: 'upper lip', at: [0, 1.6045, 0.107], r: [0.025, 0.025, 0.0065, 0.0045, 0.0095, 0.01], n: 2.0, k: 0.004 },
+  { part: 'head', what: 'lower lip', at: [0, 1.5925, 0.105], r: [0.023, 0.023, 0.0045, 0.0065, 0.0085, 0.01], n: 2.0, k: 0.004 },
+  { part: 'head', what: 'chin', at: [0, 1.567, 0.097], r: [0.019, 0.019, 0.011, 0.012, 0.009, 0.012], n: 2.4, k: 0.012 },
+  { part: 'trunk', what: 'buttock', at: [0.072, 0.885, -0.08], r: [0.085, 0.062, 0.11, 0.085, 0.05, 0.065], n: 2.5, k: 0.025 },
+];
+// The hand, drawn finer than the body (./build.js): its palm and the ball of its thumb as masses (left hand, standing,
+// its palm to the thigh: +x its back, +z towards the thumb; m), each finger three tapering rods from its knuckle
+// through its joints to its tip, as broad as a man's are (Greiner 1991, "Hand anthropometry of U.S. Army personnel",
+// NATICK/TR-92/011, as remembered: the hand 8.8 cm broad at its knuckles, a finger 2 cm at its base, 1.6 at its tip),
+// flattened a little front to back. FINGERS: [radius at the knuckle, at the first joint, at the second, at the tip;
+// the last rod's length].
+export const HAND_SOURCE = 'Greiner 1991, "Hand anthropometry of U.S. Army personnel", NATICK/TR-92/011, as remembered';
+export const PALM = { at: [0.226, 0.826, -0.021], r: [0.0115, 0.0165, 0.048, 0.044, 0.042, 0.042], n: 2.6 };
+export const THENAR = { at: [0.214, 0.816, 0.006], r: [0.01, 0.014, 0.022, 0.018, 0.014, 0.012], n: 2.0, k: 0.012 };
+export const FINGERS = {
+  thumb: [0.0112, 0.0105, 0.0098, 0.0088, 0.026], index: [0.0098, 0.0088, 0.0081, 0.0074, 0.022], middle: [0.0099, 0.009, 0.0083, 0.0076, 0.024],
+  ring: [0.0094, 0.0085, 0.0079, 0.0072, 0.023], little: [0.0086, 0.0077, 0.0071, 0.0066, 0.02],
+};
