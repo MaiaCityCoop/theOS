@@ -24,7 +24,7 @@ import { slope } from '../field.js';
 
 import { MAXK } from './layout.js';
 /** How the muscles are drawn out, as a number: another, and a kept drawing is drawn again. */
-export const MADE = 1;
+export const MADE = 2;
 
 const AROUND = 10, RING = 0.011, GAP = 0.0008, DEEP = 0.3;
 // The man these muscles are laid for trains: his muscles a fifth larger than the studies' means (their subjects were
@@ -54,7 +54,7 @@ const crd = (p0, p1, p2, p3, t) => [0, 1, 2].map((i) => 0.5 * ((p2[i] - p0[i]) +
 export function frameAt(S, Q, i, t) {
   const C = cr(S[i], S[i + 1], S[i + 2], S[i + 3], t), T = norm(crd(S[i], S[i + 1], S[i + 2], S[i + 3], t));
   const o = lerp(Q[i + 1], Q[i + 2], t), O = norm(sub(o, mul(T, dot(o, T)))), B = cross(T, O);
-  return { C, T, O, B };
+  return { C, T, O, B, o };   // (o: the out as mixed, before it is squared to the curve: two frames are mixed by it, as the shader mixes them)
 }
 
 // ── the points: landmarks, points on bones, points passed ──────────────────────────────────────────────────────────
@@ -223,18 +223,18 @@ export function musclesOf(bones) {
     const frameOf = (j, r, f) => {
       const A = curves[j], ra = A.o.rings[r], Fa = frameAt(A.S, A.Q, ra.i, ra.t); if (!f) return Fa;
       const Bc = curves[j + 1], rb = Bc.o.rings[r], Fb = frameAt(Bc.S, Bc.Q, rb.i, rb.t);
-      const C = lerp(Fa.C, Fb.C, f), T = norm(lerp(Fa.T, Fb.T, f)), o = lerp(Fa.O, Fb.O, f), O = norm(sub(o, mul(T, dot(o, T))));
+      const C = lerp(Fa.C, Fb.C, f), T = norm(lerp(Fa.T, Fb.T, f)), o = lerp(Fa.o, Fb.o, f), O = norm(sub(o, mul(T, dot(o, T))));
       return { C, T, O, B: cross(T, O) };
     };
     const point = (j, r, f, two, p, shift) => {
       const ra = curves[j].o.rings[r], rb = two ? curves[j + 1].o.rings[r] : ra, F = frameOf(j, r, two ? f : 0), rel = sub(p, F.C), lift = dot(shift, F.O), fl = ra.flesh + (rb.flesh - ra.flesh) * Math.min(1, Math.max(0, f));
       P0.push(p); FR.push(F); pos.push(...p);
-      attr.place.push(first + j, ra.i, ra.t, fl); attr.pair.push(rb.i, rb.t, two ? f : 0, two ? 1 : 0);
+      attr.place.push(first + j, ra.i, ra.t, fl); attr.pair.push(rb.i, rb.t, two ? f : 0, two ? first + j + 2 : 0);
       attr.sec.push(dot(rel, F.O) - lift, dot(rel, F.B), dot(rel, F.T), lift); attr.look.push(1, 1 - fl, 0, ra.s * curves[j].o.L);
       return nv++;
     };
     const tri = (list, a, b, c) => (side > 0 ? list.push(a, b, c) : list.push(a, c, b));
-    const f0 = fine.length;
+    const f0 = fine.length, c0 = coarse.length;
     if (!m.sheet || group.length < 2) {
       // tubes
       for (let j = 0; j < curves.length; j++) {
@@ -285,6 +285,12 @@ export function musclesOf(bones) {
         for (let q = 0; q < rs.length - 1; q++) { const r0 = rs[q], r1 = rs[q + 1], e = cols - 1; tri(list, v(1, r0, 0), v(1, r1, 0), v(-1, r1, 0)); tri(list, v(1, r0, 0), v(-1, r1, 0), v(-1, r0, 0)); tri(list, v(1, r0, e), v(-1, r1, e), v(1, r1, e)); tri(list, v(1, r0, e), v(-1, r0, e), v(-1, r1, e)); }
       };
       weave(fine, 1, 1); weave(coarse, 2, 2);
+      // its volume, from its own surface: turned outwards if it was woven inside out, and its depth made what the
+      // table asks (the bands' spread across the sheet is only roughly their width)
+      let V = 0; for (let t = f0; t < fine.length; t += 3) { const A = P0[fine[t] - base], B = P0[fine[t + 1] - base], C = P0[fine[t + 2] - base]; V += dot(A, cross(B, C)) / 6; }
+      if (V < 0) for (const [list, from] of [[fine, f0], [coarse, c0]]) for (let t = from; t < list.length; t += 3) { const x = list[t + 1]; list[t + 1] = list[t + 2]; list[t + 2] = x; }
+      const want = (BUILD * m.vol * 1e-6), k = Math.min(3, Math.max(0.5, want / Math.max(1e-7, Math.abs(V))));
+      for (let q = 0; q < P0.length; q++) { const s0 = attr.sec[(base + q) * 4], p = add(P0[q], mul(FR[q].O, s0 * (k - 1))); P0[q] = p; attr.sec[(base + q) * 4] = s0 * k; pos[(base + q) * 3] = p[0]; pos[(base + q) * 3 + 1] = p[1]; pos[(base + q) * 3 + 2] = p[2]; }
     }
     // normals: from the faces round each point, then in its frame
     const N = P0.map(() => [0, 0, 0]);
@@ -300,5 +306,7 @@ export function musclesOf(bones) {
     attr: { place: F32(attr.place), pair: F32(attr.pair), sec: F32(attr.sec), nor: F32(attr.nor), look: F32(attr.look) },
     fine: Uint32Array.from(fine), coarse: Uint32Array.from(coarse), pos: F32(pos),
     counts: { muscles: muscles.size, strands: rows.length, points: nv, fine: fine.length / 3, coarse: coarse.length / 3 },
+    // (for the skin laid over them, in the same worker: never handed to the page) the strands, left side
+    inner: { strands: out },
   };
 }

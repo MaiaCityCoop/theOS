@@ -327,7 +327,89 @@ library beside the Skeleton; the Settler, the game and `me.html` stay on their b
   the standing one's; muscles of the same layer may pass into one another, and in a deep bend any may pass into a
   bone. The volumes are as remembered and not yet checked against the papers.
 
+**Round 1, the fat and the skin (2026-11-17).** Samuel: "Ok continue with fat and skin." A fourth character, Body
+(`characters/body.js`, its own uid and measure), the bones, the muscles, the fat and the skin of the same man, one of
+them outermost at a time; the Skeleton, the Muscles, the Settler, the game and `me.html` stay as they were.
+
+- **What is there.** Body in the library, with a chooser on its card: Skin, Fat, Muscles, Bones (`layer` in the URL,
+  as the move is). Skin: the man naked, the lips, the areolae and the nails in their own colour, eyes in their sockets.
+  Fat: the same surface a skin's thickness (1.8 mm) further in, a lobed yellow. Muscles and Bones: as their own
+  characters, the bones grown only when they are shown.
+- **How thick** (`characters/kit/skin/table.js`): the fat and the skin together, place by place, each site with its
+  source: the trunk's from Jackson & Pollock's seven skinfold sites (1978, half the fold, a lean man of about 12% fat),
+  the arm's from Durnin & Womersley (1974), the face's from Stephan & Simpson's review of soft-tissue depths (2008),
+  the pads (heel 18 mm, ball 10, palm 7, buttock 12) estimated from ultrasound studies, the rest between them; **as
+  remembered**, to be checked against the papers as the muscles' volumes are. Between the sites the thickness is
+  blended over each site's reach. The nose's and the ears' gristle and the eyeballs are solids of their own under
+  the skin; the eyes and the nostrils opened, the ears' bowls hollowed.
+- **Drawn out** (`characters/kit/skin/build.js`), in the workers that grow the bones, after the muscles, kept by the
+  browser as they are: on a grid of 6 mm cells (8 mm on a phone or a four-thread machine), piece by piece (the trunk,
+  the head, each arm with its hand, each finger, each leg with its foot): each piece's muscles and small bones filled
+  into the grid, how far each cell is from them by a distance transform, closed by a centimetre or so (the fat fills
+  the grooves between muscles) and softened; its large bones, the gristle and the eyes give their own true distances.
+  The skin is where that is as far out as the tissue is thick there, half way to a man's outline from ANSUR II
+  (ovals of the trunk every 6.5 cm, the arms' and the legs' lofts). Two surfaces, each closed: the arms' with their
+  hands, and the rest's (an arm along the side only touches the trunk: as one surface, raising it tore the trunk's
+  side open); each leg kept on its own side of the middle, so the knees do not bridge. 110 000 points, 178 000
+  triangles near and 43 000 far (from 7 m); 96 000 near at 8 mm. About 15 s in one worker here the first time (the
+  muscles 3 s before it), then kept.
+- **Moving with the rig** (`characters/kit/muscles/flesh.js`): each point of the skin hangs on the four bones nearest
+  under it, the nearer more (linear blend skinning, as a game's skin is): an arm's skin only on the arm's bones and the
+  shoulder girdle's, a finger's on its own and the hand's, a limb's on its own side's; the trunk's, the legs' and the
+  head's on any of theirs. The shader carries each point and its normal from where each bone stands at rest to where
+  it stands now (the bones' frames at rest in a small texture of their own). The fat is the same points drawn in by
+  the skin's thickness.
+- **How it was seen.** In stills drawn outside the game (the same small rasteriser, the shader's formulas run on the
+  CPU with the rig's own numbers): front, side and back, the head, the hands, the feet, the hips; posed (an elbow bent
+  far, an arm raised forward, a hip and a knee bent high, the loins bent, the head turned; and an arm raised to the
+  side). Standing, the points come back to where they were drawn to 0.000 mm.
+- **On the way.** The skin first rode on the muscles under it, to swell with them: their strands, each moving its own
+  way, pulled it into strings and flaps wherever a limb bent far, and an arm's skin that had touched the trunk stayed
+  on the ribs as the arm rose. Then two bones a point: belts and seams where the pelvis, the vertebrae and the thigh
+  each pulled the same skin. Now four bones a point, the arms a skin of their own, each leg on its own side.
+  Before that, the skin itself: pockmarks and holes (a hollow inside), arms grown into the trunk and the fingers into
+  one another, ragged rings where the muscles were measured by their rings rather than their surfaces, broad muscles
+  missing where a sheet was thinner than a cell (and some sheets wound inside out, which turned out true of the
+  Muscles character too: fixed there), the hands and ears worn away by the closing, the skull in steps, a belly too
+  shallow, spikes on the toes and cones over the foot's tendons.
+- **Not there yet.** The skin does not swell with the muscles under it; a deep bend at the loins leaves a fine crease
+  line; the top of each arm's skin stands a little square over the shoulder, and a raised arm's skin passes into the
+  trunk's at the armpit rather than folding; a hip bent high crumples the buttock. The face is the skull's with its
+  soft tissue, not yet a face of its own (no eyelids over the eyes, no brows); no navel, no genital detail, no hair.
+  The thicknesses are as remembered.
+
 ## Propose
+
+**This round, the fat and the skin** (branch `aven/0036-fat-skin`), proposed for Samuel's own look on `next`.
+
+- **What is delivered.** The fat and the skin over the muscles (`TheGame/characters/kit/skin/`), the skin carried
+  by the rig (`TheGame/characters/kit/muscles/flesh.js`), and a character of the library to see them by, Body
+  (`TheGame/characters/body.js`) with a chooser of its layers. Build says what is in it and where its numbers come
+  from.
+- **Where to look.** `library.html`, Characters, Body
+  (`library.html?character=f2d908f8-3c01-411d-a561-ef27148ba557`, `&layer=fat`, `&layer=muscles`, `&layer=bones`):
+  the five moves; the wheel to come close. The first visit lays the muscles and the skin in some seconds (about 18 s
+  in one worker here); the browser keeps them.
+
+**The checks, as they really were**
+
+- *The skin drawn in the library:* **not seen.** Tried once on the Body page: as last round, the software GPU
+  here (SwiftShader) loses its WebGPU device in the library (the plants' compute passes fail first) before the body
+  is laid, so neither a draw nor a shader error of the skin's could be seen. To be checked on `next`, on a real GPU.
+- *The skin standing and moving:* seen in stills drawn outside the game (Build), with the rig's own pose and the
+  shader's formulas run on the CPU. Not seen moving, by anyone.
+- *Frame time, 60 fps and 4K:* **not measured.** What can be said: with the skin outermost only the skin is drawn
+  (178 000 triangles near, 43 000 far; nothing under it), against the Skeleton's 999 000; each point reads its four
+  bones' frames (eight to sixteen texture reads), about what a muscle's point reads. The canvas is not touched.
+- *Both sites build:* **passed** here (`vite build` in `TheGame` and `OS`).
+- *The measuring run:* **passed** (`bun tools/scale.js`: 18 of 18, Body 1.774 m by its bones).
+- *Sign-in checks:* **passed** (`bun tools/account-check.js`, 67). The API's tests not run here (untouched).
+- *Nothing else changes:* the skin is laid and drawn only for Body; the Muscles character changes only in its broad
+  sheets (turned outwards where they were wound inside out, given their table's volume). Not compared by eye.
+
+**Known gaps:** Build, "Not there yet"; the Settler still on its old body.
+
+**The round before, the muscles** (merged in #28):
 
 **This round, the muscles** (branch `aven/0036-muscles`, pull request #28), proposed for Samuel's own look on `next`.
 
@@ -426,7 +508,9 @@ for his own eyes on `next`, with fewer checks than Define asks.
   - [x] muscles from origin to insertion, carried by the rig, swelling as they shorten (the Muscles character)
   - [ ] the muscles seen drawn and timed in the library on `next` (not seen here: the software GPU loses its device)
   - [ ] Samuel's word on the muscles; the volumes checked against the papers; the face, the jaw's and the thighs' shapes
-  - [ ] the fat, then a skin over them
+  - [x] the fat, then a skin over them (the Body character, its layers chosen on its card)
+  - [ ] the skin seen drawn and timed in the library on `next`; Samuel's word on it
+  - [ ] the skin swelling with the muscles; the shoulder, the armpit and the buttock in deep bends; the thicknesses checked against the papers
   - [ ] the face from the skull up; hands; feet
 - [ ] Round 2: movement
 - [ ] Round 3: garments and hair
@@ -479,6 +563,19 @@ for his own eyes on `next`, with fewer checks than Define asks.
   the device even on the Settler, then a bare page where a plain cube lost it as well. Nothing of the muscles was seen
   drawn in a browser, and nothing was timed. The volumes are as remembered.
 
+### 2026-11-17
+
+- **Asked:** "Ok continue with fat and skin."
+- **Delivered:** the fat and the skin over the muscles, a fourth character, Body, with its layers chosen on its card
+  (Build); proposed with the draw unseen.
+- **Good:** The skin reads as a man standing, front, side and back, and stays whole in a deep bend of the elbow, the
+  hip, the knee and the loins and with an arm raised: each point carried by its four nearest bones.
+- **Broke / not there yet:** Most of the day went on the skin's surface and then on keeping it whole as it moves:
+  riding on the muscles, it tore into strings and flaps in every deep bend, and I tried three ways of fastening it
+  before the plain one (four bones a point) held. It no longer swells with the muscles under it. In a bend the
+  shoulder stands square, the armpit passes through and the buttock crumples. Nothing was seen drawn in a browser
+  or timed. The thicknesses are as remembered.
+
 ## Trail
 
 | When | Commit | What |
@@ -505,3 +602,6 @@ for his own eyes on `next`, with fewer checks than Define asks.
 | 2026-11-16 | `3053481` | the muscles, each from its origin to its insertion on the skeleton, carried by its rig (the Muscles character) |
 | 2026-11-16 | `6c852f0` | the gluteus maximus one sheet; strands lifted down the slope of what they lie in; bones under the muscles coarser on a four-thread machine |
 | 2026-11-16 | `52b090c` | the muscles grown and drawn only for their own character |
+| 2026-11-17 | `e079075` | the fat and the skin over the muscles, the Body character with its layers; the skin carried by its four nearest bones |
+| 2026-11-17 | `039e4ef` | Body's comment says the skin is carried by its bones |
+| 2026-11-17 | `1d39b34` | the registry's version of Body after its comment changed |

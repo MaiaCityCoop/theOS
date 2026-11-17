@@ -313,7 +313,7 @@ function chooseCharacter(id, keep) {
     let P = people.get(id); if (!P) { people.set(id, (P = c.make(tex))); P.onGrown = () => { if (person === P) chooseCharacter(id, true); }; }   // (one grown in the page says when a finer surface is on it: its card is drawn again)
     staged = new THREE.Group(); staged.position.set(STAGE.x, heightAt(STAGE.x, STAGE.z), STAGE.z); staged.add(P.object);
     staged.userData.kept = true;   // (kept to be shown again: nothing to free when it goes)
-    scene.add(staged); person = P; if (q.get('move')) P.setMove(q.get('move')); P.step(0);
+    scene.add(staged); person = P; if (q.get('move')) P.setMove(q.get('move')); if (q.get('layer') && P.setLayer) P.setLayer(q.get('layer')); P.step(0);
     // the first frame from the front, the person in the middle and facing us; then it circles, as every subject does
     H = P.height * 1.25; dist = 4.2; pitch = 0.2; spin = true; yaw = P.object.rotation.y;
     hint.textContent = 'Drag to circle, up and down to look higher or lower · wheel to come close';
@@ -330,12 +330,14 @@ function chooseCharacter(id, keep) {
     + figs([fig(num(P.height), 'm', 'Height'), ...(P.figures ?? [[P.bonesCount, '', 'Bones']]).map((f) => fig(...f)), fig(Math.round(P.faces / 1000), 'k', 'Faces')])
     + (P.note ? `<div class="g-cell g-part">${say(P.note)}</div>` : '')
     + `<div class="g-cell g-part"><span class="g-label">Moves · rigged</span><div class="g-pick" style="margin-top:6px">${P.moves.map((m) => `<button data-move="${m.id}" class="${P.move === m.id ? 'on' : ''}"><b>${m.name[0]}</b><span><span class="g-name">${m.name}</span><span class="g-sub" style="white-space:normal">${m.about}</span></span></button>`).join('')}</div></div>`
+    + (P.layers ? `<div class="g-cell g-part"><span class="g-label">Layers · the outermost shown</span><div class="g-pick" style="margin-top:6px">${P.layers.map((l) => `<button data-layer="${l.id}" class="${P.layer === l.id ? 'on' : ''}"><b>${l.name[0]}</b><span><span class="g-name">${l.name}</span><span class="g-sub" style="white-space:normal">${l.about}</span></span></button>`).join('')}</div></div>` : '')
     + `<div class="g-cell g-part"><span class="g-label">${P.rigLabel ?? `Skeleton · ${P.bonesCount} bones, skinned`}</span><div class="seed"><b style="font-weight:450${P.rigAbout ? ';line-height:1.35' : ''}">${P.rigAbout ?? 'hips, spine, chest, neck, head; arms, hands, legs, feet'}</b><button class="g-btn${showBones ? '' : ' quiet'}" id="bonesT">${showBones ? 'Hide' : 'Show'}</button></div></div>`
     + (c.wears ? `<div class="g-cells g-part">${cell('Wears', `<div class="g-chips">${mats.map(chip).join('')}</div>`, true)}${cell('Made from', say(`The stress stand's ${c.from.rig}, kind ${c.from.kind}: its legs, build, head and lean`), true)}</div>` : c.made ? `<div class="g-cells g-part">${cell('Made', say(c.made), true)}</div>` : '')
     + fileOf(c);
   document.querySelectorAll('[data-move]').forEach((b) => (b.onclick = () => { P.setMove(b.dataset.move); chooseCharacter(id, true); }));
+  document.querySelectorAll('[data-layer]').forEach((b) => (b.onclick = () => { P.setLayer(b.dataset.layer); chooseCharacter(id, true); }));   // (a body: which of its layers is outermost)
   document.getElementById('bonesT').onclick = () => { showBones = !showBones; chooseCharacter(id, true); };
-  history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}character=${id}&move=${P.move}`);
+  history.replaceState(null, '', `?${q.get('in') ? 'in=' + q.get('in') + '&' : ''}character=${id}&move=${P.move}${P.layer ? '&layer=' + P.layer : ''}`);
 }
 // The lineup (intent 0035): every asset beside the Settler, each as the world stands it (a tree at seventy, a bush at
 // its own size, stones and boulders small to large), on one line across the stage, the largest at its ends, and a line
