@@ -378,6 +378,41 @@ them outermost at a time; the Skeleton, the Muscles, the Settler, the game and `
   soft tissue, not yet a face of its own (no eyelids over the eyes, no brows); no navel, no genital detail, no hair.
   The thicknesses are as remembered.
 
+**Round 1, the fat and the tissue against references (2026-11-17, later).** Samuel: "Fat and tissue must be first
+otherwise the skin looks bad", "gather reference images first with tissue and fat so you nail the actual body shapes
+first", "slightly muscular". Merged with the skin in #36.
+
+- **The reference.** Paul Richer, *Anatomie artistique* (1890, public domain), vol. 2: the living model front, back and
+  side (plates 74 to 76), the trunk (78 to 80), the leg (82 to 85), the arm (90 to 92), fetched from Wikimedia Commons
+  (this container's own requests are refused there; a fetch from outside it works). Each comparison drawn at the same
+  scale beside ours, on a 5 cm grid, and fitted by eye and by girth.
+- **The fat as an outline** (`skin/table.js` PROFILES): the trunk, the upper arm, the forearm, the thigh and the leg
+  each a shape of sections a few centimetres apart, as broad and deep as a slightly muscular man of 1.80 m measures
+  (about 14% fat: chest 101 cm round, waist 82, buttocks 98, thigh 57, calf 38, upper arm 32, forearm 28, wrist 17,
+  neck 39; ANSUR II as remembered), fitted to Richer's model: the trapezius sloping from the neck to the shoulder, the
+  upper back rounded, the lower back curving in, the thighs parting, the calves bulging, the ankles slim. A limb's
+  pieces are one outline at the knee and the elbow. The pectorals, the buttocks and the shoulder's cap are masses on it.
+  The foot an outline of its own from the heel to the ball.
+- **What shows through it** (RELIEF, LIMB_RELIEF): the rectus's blocks, the navel, the oblique's pad, the collarbones,
+  the hollow over the breastbone; the spine's furrow, the muscles over the shoulder blade, the dimples over the pelvis;
+  the deltoid, biceps, triceps, the forearm's muscles below the elbow; the vasti, the calf's two heads, the shin: a
+  little less marked than Richer's model, sized from his plates. The muscles' own surface shows as much as the fat
+  over it lets it (all of it under 3 mm of fat, a third under 9); the bones near the skin stand out of it.
+- **Finer where it is fine.** The head, the hands and the feet drawn on cells of 2 mm, a third of the body's: the
+  lids round the eyeballs, the lips parting along a slit, the nose's gristle, the ears; each finger three tapering rods
+  from the rig's joints (Greiner 1991), each toe a flattened rod (Hawes & Sovak 1994), the nails a soft-edged share of
+  their own. Each runs into the body's skin, which dives under it, so no seam shows.
+- **Bending.** Over the trunk and the thighs a point's share of its four bones is evened out with its neighbours',
+  so the belly folds softly instead of creasing; the shoulder's skin rides on the arm too.
+- **The skin's look** (`muscles/flesh.js`): pores and grain as relief, a blush on the cheeks, the nose, the ears, the
+  knuckles, the elbows, the knees and the feet, faint veins, an oily sheen with a Fresnel edge, light wrapping redder
+  under the skin and through the ears; how open a point stands from how much of the body is round it.
+- **Seen.** For the first time through the game's own skin shader: a page of my own (`_lab`, not committed) draws the
+  Body with `fleshOf` on WebGL, the software GPU here losing its WebGPU device as before. Not timed.
+- **Not there yet.** The face is a long slab with jowls beside Richer's: no jaw line, a flat lower face, weak cheekbones
+  and brow (two attempts to hold it to limits made it worse and were taken out). The arms still read a little as
+  tubes. No hair, no brows.
+
 ## Propose
 
 **This round, the fat and the skin** (branch `aven/0036-fat-skin`), proposed for Samuel's own look on `next`.
@@ -511,7 +546,8 @@ for his own eyes on `next`, with fewer checks than Define asks.
   - [x] the fat, then a skin over them (the Body character, its layers chosen on its card)
   - [ ] the skin seen drawn and timed in the library on `next`; Samuel's word on it
   - [ ] the skin swelling with the muscles; the shoulder, the armpit and the buttock in deep bends; the thicknesses checked against the papers
-  - [ ] the face from the skull up; hands; feet
+  - [x] the fat and the tissue fitted to Richer's living model; what shows through them; hands and feet drawn finer
+  - [ ] the face from the skull up, fitted to Richer's head
 - [ ] Round 2: movement
 - [ ] Round 3: garments and hair
 
@@ -570,11 +606,21 @@ for his own eyes on `next`, with fewer checks than Define asks.
   (Build); proposed with the draw unseen.
 - **Good:** The skin reads as a man standing, front, side and back, and stays whole in a deep bend of the elbow, the
   hip, the knee and the loins and with an arm raised: each point carried by its four nearest bones.
-- **Broke / not there yet:** Most of the day went on the skin's surface and then on keeping it whole as it moves:
+- **Broke / not there yet (morning):** Most of the day went on the skin's surface and then on keeping it whole as it moves:
   riding on the muscles, it tore into strings and flaps in every deep bend, and I tried three ways of fastening it
   before the plain one (four bones a point) held. It no longer swells with the muscles under it. In a bend the
   shoulder stands square, the armpit passes through and the buttock crumples. Nothing was seen drawn in a browser
   or timed. The thicknesses are as remembered.
+
+- **Asked (later):** "Fat and tissue must be first otherwise the skin looks bad", "gather reference images first with
+  tissue and fat so you nail the actual body shapes first", "slightly muscular", "don't stop until we have a
+  photorealistic body".
+- **Delivered (later):** the fat and the tissue fitted to Richer's living model, what shows through them, the head,
+  hands and feet drawn finer, the skin's look (Build); merged by Samuel in #36.
+- **Good (later):** Beside Richer's plates at the same scale the trunk, the back and the legs read as a man's; the torso
+  close up reads as a lightly muscled one.
+- **Broke / not there yet (later):** For an hour I fitted shapes from memory before the references came through; the
+  face is still far from Richer's head, and my two tries at holding it in shape made it worse.
 
 ## Trail
 
@@ -605,3 +651,18 @@ for his own eyes on `next`, with fewer checks than Define asks.
 | 2026-11-17 | `e079075` | the fat and the skin over the muscles, the Body character with its layers; the skin carried by its four nearest bones |
 | 2026-11-17 | `039e4ef` | Body's comment says the skin is carried by its bones |
 | 2026-11-17 | `1d39b34` | the registry's version of Body after its comment changed |
+| 2026-11-17 | `f142a64` | the fat as an outline of a slightly muscular man, the head and the hands drawn finer, the skin's look |
+| 2026-11-17 | `74efd67` | the shoulder a rounded cap; the shade of the hollows from what stands round them |
+| 2026-11-17 | `3ea9a51` | the face filled out, the feet and toes drawn finer, the nails |
+| 2026-11-17 | `a6766ca` | the skin's bones evened out over the trunk, so it bends without creasing |
+| 2026-11-17 | `770672f` | a slightly muscular man's chest; soft edges to the lips and the areolae |
+| 2026-11-17 | `fca7fec` | the knees and the elbows one outline; the shoulder's skin over the arm |
+| 2026-11-17 | `98b1168` | a fuller calf and forearm, a softer lower face |
+| 2026-11-17 | `e330c92` | the fat and the tissue fitted to Richer's living model, front, back and side |
+| 2026-11-17 | `f09c782` | the trunk's front relief after Richer |
+| 2026-11-17 | `250d814` | the back's relief after Richer |
+| 2026-11-17 | `d19a4dc` | an ankle, a heel and a foot of their own |
+| 2026-11-17 | `dc292bd` | the trapezius's slope and the shoulder's cap after Richer |
+| 2026-11-17 | `b4b42a4` | the wrist runs into the hand |
+| 2026-11-17 | `87f6deb` | the arms' and the legs' muscles show |
+| 2026-11-17 | `14f5b76` | the face's tissue and the neck after Richer's head |
