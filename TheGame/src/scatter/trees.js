@@ -29,7 +29,7 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, exp, exp2, step, unpackHalf2x16 } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, atan, clamp, log, exp, exp2, step, unpackHalf2x16 } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt, nearLake } from '../world/land.nodes.js';
 import { kindsOf, whereOf } from '../world/stand.js';
@@ -60,7 +60,7 @@ import { COVER } from '../materials/bake.js';
 // crowd's parts go one by one and those that stay grow, the wood thins, the far bodies grow out of the crown and turn
 // into each other. Its levels are only where its parts lie in the heap: two levels at the size where they meet draw the
 // same. `?card=` and `?kmax=` set its two numbers. Without the flag the plants are as they were.
-if (flagText('lod') === 'new') Object.assign(LOD, { on: true, CARD: flagNum('card', LOD.CARD), KMAX: flagNum('kmax', LOD.KMAX), SPLIT: flagNum('split', LOD.SPLIT) });
+if (flagText('lod') === 'new') Object.assign(LOD, { on: true, CARD: flagNum('card', LOD.CARD), KMAX: flagNum('kmax', LOD.KMAX), SPLIT: flagNum('split', LOD.SPLIT), BAKE: flagText('bake') === '1', FAR: flagNum('far', LOD.FAR) });
 // SPREAD: how much more of its painting an enlarged card shows (1: all of it, its leaves as large as ever; 0: its
 // painting enlarged with it, as today's coarser levels draw larger sprigs). Seen from afar a card shows its painting
 // mipped, and a painting shown many times over is mipped to a blur its cut-out passes everywhere: the card is then a
@@ -266,6 +266,9 @@ function plantMaterial(tex, D) {
     const vStill = varyingProperty('float', 'tStill');   // (built over time: how still it is in the wind, src/world/light.js stillness)
     const vPart = varyingProperty('float', 'tPart'), vCut = varyingProperty('vec2', 'tCut');   // vCut: the needles' cut, and how far a card is from edge-on
     const vLay = varyingProperty('vec2', 'tLay');   // (the layers of its leaves' and its wood's textures: its kind's)
+    // a far body that wears its crown baked (`?bake=1`): where on which baked view it lies (u, v, the view, 1), and where
+    // its plant's level lies in the heap (as two numbers under 4096: a whole number however a pixel got it)
+    const vImp = Lv?.crowd && feed && LOD.BAKE ? varyingProperty('vec4', 'tImp') : null, vBase = vImp ? varyingProperty('vec2', 'tBase') : null;
     const shape = (A, B) => {
       const clip = offScreen().toVar();
       const drawn = () => {
@@ -293,7 +296,21 @@ function plantMaterial(tex, D) {
             const hand = Lv.first && Lv.splay ? partGrown({ ...H, v: float(0) }, V.root, float(0), V.hand) : float(1);
             const R = crowdRule(pxR, V, V.crowd, hand, Lv.first && Lv.splay ? H.u.greaterThanEqual(0.5) : null);
             const show = above.and(below).and(R.shown);
-            If(V.drawn ? show.and(V.drawn) : show, () => { clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos, uv: R.uv }, float(1), H.sunk)); });
+            If(V.drawn ? show.and(V.drawn) : show, () => {
+              if (vImp) {
+                // the baked view nearest the eye, in the plant's own frame (crowd.js BAKED: eight round it 30 degrees up, one
+                // from above), and the body's point on it: the crown's picture there says whether it covers and how shaded
+                const r = V.crowd.rule[3].y, baked = r.greaterThan(0).and(V.crowd.body.greaterThan(0.5)).and(V.crowd.body.lessThan(3.5));
+                const d = turnOf(B.x).unturn(normalize(U.uCam.sub(vec3(A.x, A.z, A.y)))), top = d.y.greaterThan(0.866);
+                const k = floor(atan(d.z, d.x).div(Math.PI / 4).add(8.5)).mod(8), z = k.mul(Math.PI / 4), se = Math.sin(Math.PI / 6), ce = Math.cos(Math.PI / 6);
+                const u = top.select(vec3(1, 0, 0), vec3(sin(z), 0, cos(z).negate())), v = top.select(vec3(0, 0, -1), vec3(cos(z).mul(-se), ce, sin(z).mul(-se)));
+                const rel = R.pos.sub(V.root), half = max(r, 1e-3).mul(2);
+                vImp.assign(vec4(rel.dot(u).div(half).add(0.5), rel.dot(v).div(half).add(0.5), top.select(float(8), k), baked.select(float(1), float(0))));
+                const b = float(V.base.add(uint(2)));
+                vBase.assign(vec2(floor(b.div(4096)), b.mod(4096)));
+              }
+              clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos, uv: R.uv }, float(1), H.sunk));
+            });
             return;
           }
           grown.assign(mix(float(1), partGrown(H, V.root, body, V.hand), step(0.5, part))); sunk.assign(H.sunk);
@@ -353,6 +370,15 @@ function plantMaterial(tex, D) {
       If(leaf, () => {
         T.assign(tex.a(floor(vLay.x.add(0.5)), vUv));   // (its kind's leaves: the layer a whole number, however a pixel got it)
         const whole = step(1.5, vPart);
+        if (vImp) If(vImp.w.greaterThan(0.5), () => {
+          // a far body wearing its crown baked: as much of it as the crown covers there, as shaded as the crown is there
+          const R = CROWD.BAKE, tx = clamp(floor(vImp.x.mul(R)), 0, R - 1), ty = clamp(float(R - 1).sub(floor(vImp.y.mul(R))), 0, R - 1);
+          const t = uint(floor(vImp.z.add(0.5)).mul(R * R).add(ty.mul(R)).add(tx)), base = uint(floor(vBase.x.add(0.5)).mul(4096).add(floor(vBase.y.add(0.5))));
+          const E = feed.elem(base.add(t.shiftRight(uint(3)))), w = t.bitAnd(uint(7)).shiftRight(uint(1)), word = w.equal(uint(0)).select(E.x, w.equal(uint(1)).select(E.y, w.equal(uint(2)).select(E.z, E.w)));
+          const bits16 = word.shiftRight(t.bitAnd(uint(1)).mul(uint(16))), cover = float(bits16.bitAnd(uint(255))).div(255), shade = float(bits16.shiftRight(uint(8)).bitAnd(uint(255))).div(255);
+          If(cover.lessThan(0.6), () => { Discard(); });   // (where the crown lets more than two fifths of the light through, a gap)
+          T.assign(vec4(T.rgb.mul(mix(0.3, 1.2, shade.mul(shade)).mul(mix(0.6, 1, smoothstep(0.6, 1, cover)))), 1));   // (darker deep in it, and where it is thin)
+        });
         // (the shadow map takes no coverage: cut)
         If(shadow, () => { If(T.a.lessThan(vCut.x).and(whole.lessThan(0.5)), () => { Discard(); }); })
           .Else(() => { alpha.assign(max(smoothstep(vCut.x.sub(0.08), vCut.x.add(0.08), T.a), whole).mul(vCut.y)); If(alpha.lessThan(0.04), () => { Discard(); }); });
@@ -433,9 +459,10 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
           const e0 = D.H.elems.element(e).toVar(), e1 = D.H.elems.element(e.add(uint(1))).toVar();
           // (a crowd's level: its shape's numbers in the two elements before its vertices)
           const crowd = CROWDED[lv] ? { crowd: crowdOfElems(e0, e1, ruleOf(D.H.elems.element(R.y).toVar(), D.H.elems.element(R.y.add(uint(1))).toVar()).map((r) => r.toVar())) } : {};
-          return { ...plantOf(e0, e1), Hk: r0.x, Tn: r0.yzw, Wd: D.numOf(kind, 1).toVar(), Lf: D.numOf(kind, 2).toVar(), Tw: r3.x, Ks: r3.y, shade: seedOf(B), drawn: P.drawn, ...crowd };
+          return { ...plantOf(e0, e1), Hk: r0.x, Tn: r0.yzw, Wd: D.numOf(kind, 1).toVar(), Lf: D.numOf(kind, 2).toVar(), Tw: r3.x, Ks: r3.y, shade: seedOf(B), drawn: P.drawn, base: R.y, ...crowd };
         },
         level: lv,
+        elem: (i) => D.H.elems.element(i),   // (the heap's element i: a baked crown's bytes, read where a pixel needs them)
         // (the stand's finest level, of this plant's shape: whether it is there, and how far it has grown in since it came)
         streamed: FINE && lv < 2 ? (B) => { const R0 = heapRow(D.H, uint(B.y.add(0.5)), uint(0)).toVar(); return { held: R0.z.greaterThan(uint(0)), grown: smoothstep(0, GROW, sinceCame(R0, U.uTime)) }; } : null,
       };
@@ -444,7 +471,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
       name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1),
       make: { per: 2, numbers: { rows: 4, of: (k) => numbers.subarray(k * 16, k * 16 + 16) }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, last: i === n - 1, ...(CROWDED[i] ? { crowd: true, first: i === CROWDED.indexOf(true), splay: FINE } : {}) }, feedOf(i, at)); m.vertexNode = Fn(() => shape(src.readAt(0, slot), src.readAt(1, slot)))(); return m; } },
       // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
-      zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 2${LOD.on ? ` crowd ${LOD.CARD}:${LOD.KMAX}:${LOD.SPLIT}` : ''}|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
+      zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 2${LOD.on ? ` crowd ${LOD.CARD}:${LOD.KMAX}:${LOD.SPLIT}:${LOD.BAKE}:${LOD.FAR}` : ''}|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
     });
     drawers.push(D);
     // what of it is solid (src/world/bodies.js): every plant of the stand round the walker, whatever its kind and size

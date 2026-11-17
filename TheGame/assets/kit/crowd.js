@@ -73,6 +73,7 @@ export const CROWD = {
   CLASSES: 4,      // the most classes by size a crowd is sorted into (each half the area of the one before)
   HULLS: [[6, 3], [5, 2], [4, 1]],   // the far bodies, finest first: corners round a ring, rings between the two poles (36, 20 and 8 triangles)
   TURN: [[24, 18], [9, 7]],          // pixels: between which sizes the first body turns into the second, and the second into the third (the post thins away with the second). Each ends where today's kinds' bands for trees end (18, 7): a level of the far band then holds one body, not three
+  BAKE: 48,        // texels a side of each of a crown's baked views (bakeOf), where its far bodies wear it (LOD.BAKE)
   FAR: 18,         // pixels: the far body has taken over by this size at the latest (a crown's cards are then a pixel or two each), so the far levels hold no cards
   REACH: 0.95,     // a body's corner lies as far out as this share of the crown's corners in its sector reach
   STOPS: 1 - sqrt(1 - 0.45),         // how much of the light one triangle of a card stops (a sprig of two crossed cards: 45 %), where cover is reckoned
@@ -87,7 +88,7 @@ export const CROWD = {
     vertices were submitted but the frame was slower (more tiers to pack, more draws; intent 0033, Build). STANDS: the size a stand that
     changes level as one measures its plants by, of each plant asset (src/scatter/trees.js). `?card=`, `?kmax=` and
     `?split=` change them. */
-export const LOD = { on: false, CARD: 30, KMAX: 8, SPLIT: 0, STANDS: null };
+export const LOD = { on: false, CARD: 30, KMAX: 8, SPLIT: 0, BAKE: false, FAR: 18, STANDS: null };   // BAKE: the far bodies wear their crown baked (bakeOf; `?bake=1`)
 /** Where each of a shape's sixteen numbers lies in `meta`: P0, E, where the far body begins and has taken over (pixels),
     the crown's middle (three), how many cards, where the classes 1, 2 and 3 begin (three pairs: the share of the
     parts before it, the share of the cards' area before it), the size it was built for (metres), how many parts. */
@@ -310,7 +311,8 @@ export function budgetOf(m, opts = {}, his = [Infinity]) {
   let sv = 0, st = 0, quads = 0;
   for (let q = 0; q < H.nP; q++) { const v = H.pVerts[q + 1] - H.pVerts[q], t = H.pTris[q + 1] - H.pTris[q]; if (H.partOf[q] >= 0 && H.quadP(q)) quads++; else { sv += v; st += t; } }
   const bodies = K.HULLS.reduce((s, [a, b]) => [s[0] + a * b + 2, s[1] + 2 * a * b], [8, 6]);   // (every far body and the post)
-  return his.map((hi) => { const share = H.N ? min(1, shareAt(hi * K.WIN, H.P0, K.A)) : 0, cards = min(quads, ceil(share * H.N) * H.most); return { verts: 1 + cards * 4 + sv + bodies[0], tris: cards * 2 + st + bodies[1] }; });
+  const baked = K.baked ? bakedVerts(K) : 0;   // (the crown baked, where a level carries it)
+  return his.map((hi) => { const share = H.N ? min(1, shareAt(hi * K.WIN, H.P0, K.A)) : 0, cards = min(quads, ceil(share * H.N) * H.most); return { verts: 1 + baked + cards * 4 + sv + bodies[0], tris: cards * 2 + st + bodies[1] }; });
 }
 
 export function crowd(m, opts = {}) {
@@ -454,7 +456,7 @@ export function crowd(m, opts = {}) {
     hulls.forEach((H, i) => {
       const P2 = post && i < 2 ? post : null, nq = H.count + (P2 ? P2.count : 0), Q = new Float32Array(nq * 3), J = new Uint16Array(H.index.length + (P2 ? P2.index.length : 0));
       J.set(H.index); if (P2) { Q.set(P2.position, H.count * 3); J.set(P2.index.map((v) => v + H.count), H.index.length); }
-      H.reach = reaching((r) => { Q.set(placed(H, r)); return coverOf(Q, nq, J, ones, frame, K.PIC); }, want, 1, 2);
+      H.reach = K.enclose ? K.enclose : reaching((r) => { Q.set(placed(H, r)); return coverOf(Q, nq, J, ones, frame, K.PIC); }, want, 1, 2);   // (a body that wears its crown baked encloses it: the bake's gaps say what it covers)
       H.position = placed(H, H.reach);
     });
     hulls.forEach((H, i) => { H.to = i + 1 < hulls.length ? placesOn(H, hulls[i + 1]) : Float32Array.from({ length: H.count * 3 }, (_, j) => bm[j % 3]); });
@@ -500,7 +502,7 @@ export function crowd(m, opts = {}) {
 // ---- a shape as the engine draws it between two sizes on screen ----
 /** Where each of a level's sixteen numbers lies (levelOf: `rule`): what the one rule reads of its shape. X: under how many
     pixels the wood has given way to the post (half way through the far body's coming). */
-export const RULE = { P0: 0, E: 1, HI: 2, LO: 3, CLASSES: 4, A: 10, X: 11, KMAX: 12 };
+export const RULE = { P0: 0, E: 1, HI: 2, LO: 3, CLASSES: 4, A: 10, X: 11, KMAX: 12, BAKED: 13 };   // BAKED: the baked crown's half width (bakeOf: r), 0 where the level carries none
 /** What a shape submits to be drawn anywhere between lo and hi pixels (hi: Infinity, every size above lo): its first
     cards in turn order, its solids not yet gone, the far bodies and the post where they show; every vertex as the kit
     made it (position normal uv part ao cn root hand twig) and, a vertex, what the rule moves it by:
@@ -542,5 +544,51 @@ export function levelOf(S, lo = 0, hi = Infinity, K = CROWD) {
     o += B.count;
   }
   const rule = new Float32Array(16); rule[RULE.P0] = S.P0; rule[RULE.E] = S.E; rule[RULE.HI] = HI; rule[RULE.LO] = LO; rule.set(S.meta.subarray(META.CLASSES, META.CLASSES + 6), RULE.CLASSES); rule[RULE.A] = S.A; rule[RULE.X] = X; rule[RULE.KMAX] = S.KMAX;
-  return { ...out, index: Uint32Array.from(index), rule };
+  const bake = bodies.length && S.bake ? S.bake : null; if (bake) rule[RULE.BAKED] = bake.r;   // (a level with a far body carries the crown baked, before its vertices: assets/kit/plant.js)
+  return { ...out, index: Uint32Array.from(index), rule, bake };
+}
+
+// ---- the crown baked (LOD.BAKE: `?lod=new&bake=1`) ----
+/** The directions a crown is baked from, as the engine picks them (src/scatter/trees.js): eight round it, 30 degrees up,
+    then one from above. Each { w: towards the eye, u, v: the picture's right and up }. */
+export const BAKED = [...Array.from({ length: 8 }, (_, a) => { const z = (a * PI) / 4, e = PI / 6; return [cos(e) * cos(z), sin(e), cos(e) * sin(z)]; }), [0, 1, 0]].map((w) => {
+  const a = abs(w[1]) > 0.99 ? [0, 0, -1] : [0, 1, 0];
+  let u = [a[1] * w[2] - a[2] * w[1], a[2] * w[0] - a[0] * w[2], a[0] * w[1] - a[1] * w[0]]; const l = hypot(...u); u = u.map((x) => x / l);
+  return { w, u, v: [w[1] * u[2] - w[2] * u[1], w[2] * u[0] - w[0] * u[2], w[0] * u[1] - w[1] * u[0]] };
+});
+/** How many of a plant's vertices (32 bytes each, assets/kit/plant.js) a baked crown takes. */
+export const bakedVerts = (K = CROWD) => ceil((BAKED.length * K.BAKE * K.BAKE * 2) / 32);
+/** A shape's crown as the far bodies wear it: drawn from each of BAKED's directions, RES texels a side over 2 r metres
+    about `mid`, every texel two bytes: how much of it the crown covers (a card stopping STOPS of the light, the wood all
+    of it) and how much light reaches what covers it (its corners' ao, front to back: what lies behind counts as much as
+    shows through what lies before it). S: a shape (crowd's).
+    -> { res, r, bytes: Uint8Array(views x res x res x 2) } */
+export function bakeOf(S, K = CROWD) {
+  const res = K.BAKE, mid = S.mid, P = S.position, n = S.count, I = [];
+  for (let c = 0; c < S.cards; c++) I.push(4 * c, 4 * c + 1, 4 * c + 2, 4 * c, 4 * c + 2, 4 * c + 3);
+  for (const x of S.index) I.push(x);
+  let r = 0; for (let i = 0; i < n; i++) r = max(r, hypot(P[i * 3] - mid[0], P[i * 3 + 1] - mid[1], P[i * 3 + 2] - mid[2]));
+  r *= 1.02;
+  const k = res / (2 * r), bytes = new Uint8Array(BAKED.length * res * res * 2), T = new Float32Array(res * res), A = new Float32Array(res * res), Wt = new Float32Array(res * res), X = new Float32Array(n), Y = new Float32Array(n);
+  const nt = I.length / 3, depth = new Float32Array(nt), order = new Uint32Array(nt);
+  BAKED.forEach(({ w, u, v }, view) => {
+    T.fill(1); A.fill(0); Wt.fill(0);
+    for (let i = 0; i < n; i++) { const x = P[i * 3] - mid[0], y = P[i * 3 + 1] - mid[1], z = P[i * 3 + 2] - mid[2]; X[i] = (x * u[0] + y * u[1] + z * u[2] + r) * k - 0.5; Y[i] = (x * v[0] + y * v[1] + z * v[2] + r) * k - 0.5; }
+    // (front to back: what is nearest the eye is seen first, and what lies behind it only through it)
+    for (let j = 0; j < nt; j++) { let d = 0; for (let c = 0; c < 3; c++) { const i = I[j * 3 + c] * 3; d += P[i] * w[0] + P[i + 1] * w[1] + P[i + 2] * w[2]; } depth[j] = d; order[j] = j; }
+    order.sort((a, b) => depth[b] - depth[a]);
+    for (const j of order) { const t = j * 3;
+      const a = I[t], b = I[t + 1], c = I[t + 2], X0 = X[a], Y0 = Y[a], X1 = X[b], Y1 = Y[b], X2 = X[c], Y2 = Y[c];
+      const x0 = max(0, ceil(min(X0, X1, X2))), x1 = min(res - 1, floor(max(X0, X1, X2))), y0 = max(0, ceil(min(Y0, Y1, Y2))), y1 = min(res - 1, floor(max(Y0, Y1, Y2)));
+      if (x1 < x0 || y1 < y0) continue;
+      const stop = S.part[a] === 1 ? K.STOPS : 1, ao = (S.ao[a] + S.ao[b] + S.ao[c]) / 3, ax = X1 - X0, ay = Y1 - Y0, bx = X2 - X1, by = Y2 - Y1, gx = X0 - X2, gy = Y0 - Y2;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const e0 = ax * (y - Y0) - ay * (x - X0), e1 = bx * (y - Y1) - by * (x - X1), e2 = gx * (y - Y2) - gy * (x - X2);
+        if ((e0 >= 0 && e1 >= 0 && e2 >= 0) || (e0 <= 0 && e1 <= 0 && e2 <= 0)) { const j = y * res + x; A[j] += ao * stop * T[j]; Wt[j] += stop * T[j]; T[j] *= 1 - stop; }
+      }
+    }
+    // (the picture's rows from its top: v up)
+    for (let y = 0; y < res; y++) for (let x = 0; x < res; x++) { const j = y * res + x, o = (view * res * res + (res - 1 - y) * res + x) * 2; bytes[o] = round((1 - T[j]) * 255); bytes[o + 1] = Wt[j] > 0 ? round(min(1, A[j] / Wt[j]) * 255) : 0; }
+  });
+  return { res, r, bytes };
 }

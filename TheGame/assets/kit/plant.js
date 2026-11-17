@@ -21,6 +21,8 @@
 // what its one rule moves a vertex by in what is free, and its shape's sixteen numbers in front of its vertices:
 //   vertex 0           the shape's sixteen numbers (crowd.js RULE) as half floats, two a number of 32 bits (two
 //                      elements to read, not four: they are read for every vertex); its corners count from 1
+//   vertices 1 …       where the level has a far body and the crown is baked (`?bake=1`): the crown baked (crowd.js
+//                      bakeOf), its bytes as they are; its corners then count from after them
 //   3   … | body (3, bits 13 … 15)       0, or which far body it is (1 2 3, finest first; 4 the post)
 //   5   root z (16) | tip u (8) | v (8)  from its place on its card's painting to the tip's, ±TIPUV
 //   6   tip x (16) | y (16)              the point it is enlarged about (a far body's: its place on the next coarser, `to`)
@@ -31,7 +33,7 @@
 //   plantFamily(id, asset)   a plant asset's shapes as a family of the zoo (assets/zoo/index.js)
 import { kindRule, shapesOf, most } from '../kinds.js';
 import { held, sn, q16, oct, OCT } from './pack.js';
-import { LOD, crowd, levelOf } from './crowd.js';
+import { LOD, crowd, levelOf, bakeOf } from './crowd.js';
 
 export const GRID = { xz: 40, y0: -2, y1: 78 }, UVK = 1024, UV0 = 16, TIPUV = 2.5, GOQ = 2048;   // x and z over -40 … 40 m, y over -2 … 78 m, 16 bits each (1.2 mm); uv in 1024ths, from -16
 /** A number as a half float's 16 bits (round to nearest; what the GPU's unpackHalf2x16 reads back). */
@@ -49,7 +51,8 @@ const oct8 = (x, y, z) => { oct(x, y, z); OU = sn(OCT[0], 255); OV = sn(OCT[1], 
 /** A mesh of the tree kit (as its builder left it, or as typed arrays) as the heap takes it: every vertex packed,
     its triangles' corners as they are. */
 export function packPlant(m) {
-  const P = m.position, N = m.normal, UV = m.uv, CN = m.cn, RT = m.root, HD = m.hand, n = m.part.length, R = m.rule ? 1 : 0, out = new Uint32Array((n + R) * 8);
+  const BV = m.bake ? Math.ceil(m.bake.bytes.length / 32) : 0, P = m.position, N = m.normal, UV = m.uv, CN = m.cn, RT = m.root, HD = m.hand, n = m.part.length, R = m.rule ? 1 + BV : 0, out = new Uint32Array((n + R) * 8);
+  if (BV) new Uint8Array(out.buffer, 32, BV * 32).set(m.bake.bytes);   // (its crown baked, after its numbers: crowd.js bakeOf)
   if (R) for (let i = 0; i < 8; i++) out[i] = (half(m.rule[i * 2]) | (half(m.rule[i * 2 + 1]) << 16)) >>> 0;   // (a crowd's level: its shape's numbers first, two to a number of 32 bits)
   for (let v = 0; v < n; v++) {
     const o = (v + R) * 8, p = v * 3;
@@ -99,8 +102,8 @@ const finestOf = (a) => a.detail.levels.findIndex((L) => !L.fine);
 const BUILT = new Map();   // (the last few shapes built: a kind's levels are asked for one after another)
 /** A plant's shape as the crowd kit builds it from its nearest level. */
 export const crowdOf = (a, i) => {
-  const key = `${a.uid}:${a.placement?.seed}:${i}:${LOD.CARD}:${LOD.KMAX}`; let S = BUILT.get(key);
-  if (!S) { if (BUILT.size >= 4) BUILT.delete(BUILT.keys().next().value); BUILT.set(key, (S = crowd(a.rawAt(finestOf(a), i), { size: shapeSize(a, i), CARD: LOD.CARD, KMAX: LOD.KMAX }))); }
+  const key = `${a.uid}:${a.placement?.seed}:${i}:${LOD.CARD}:${LOD.KMAX}:${LOD.BAKE}:${LOD.FAR}`; let S = BUILT.get(key);
+  if (!S) { if (BUILT.size >= 4) BUILT.delete(BUILT.keys().next().value); BUILT.set(key, (S = crowd(a.rawAt(finestOf(a), i), { size: shapeSize(a, i), CARD: LOD.CARD, KMAX: LOD.KMAX, FAR: LOD.FAR, ...(LOD.BAKE ? { enclose: 1.05 } : {}) }))); if (LOD.BAKE) S.bake = bakeOf(S); }
   return S;
 };
 /** Level l of shape i: what it is drawn with between its sizes on screen (the crowd's finest level: every size above its
