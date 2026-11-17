@@ -36,15 +36,17 @@ severity:
 >
 > Now imagine that not once in a century, but every morning, in everyone. Every person living at their full size. Every gift unlocked. Every idea that waited for permission, finally built, side by side.
 >
-> That is what we are here for: to find out how far we can go together.
+> That is the task: to make bringing a sparkling vision to life the norm, not the exception.
 >
-> We are writing a new blueprint for how to live, and proving it the only way that convinces anyone: by building it together. A city that feeds itself, powers itself and belongs to everyone who builds it. Where reaching high is simply what people do.
+> We are writing a new blueprint for how to live, and proving it the only way that convinces anyone: by building it together. A city that feeds itself, powers itself and belongs to everyone who builds it. Where a vision does not wait for a lifetime of permission. It gets built, together, now.
 >
 > The city is the proof. You are the point.
 >
 > And when it stands, the world will not say *look what they built*. It will say *look what people are capable of*.
 >
 > It begins with one tent on a green meadow. You can walk in tonight.
+
+**The task, in Samuel's words:** making bringing sparkling visions to life the norm, not the exception.
 
 **The feeling it leaves:** awe at what people are, and *I knew it all along*: their size was right, and now there is a place built to it.
 

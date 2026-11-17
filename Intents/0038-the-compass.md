@@ -96,6 +96,13 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes.
 - **Broke / not there yet:** the remaining interview questions are still open.
 
+### 2026-11-17 (3)
+
+- **Asked:** "Making bringing sparkling visions to life the norm, not the exception, is the actual task."
+- **Delivered:** that line as the task in the core message, and quoted under it as his words.
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** —
+
 ## Trail
 
 | When | Commit | What |
