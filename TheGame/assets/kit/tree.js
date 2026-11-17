@@ -341,7 +341,7 @@ export function tree(recipe) {
     cut = []; cutKey = LOD.SPLIT;
     at.forEach((L, i) => {
       const hi = i ? at[i - 1].px : Infinity;
-      if (L.fine || !Number.isFinite(hi) || hi <= CROWD.FAR) { cut.push(L); return; }   // (a band under FAR holds a far body only: cut, it would only pack its plants twice where two meet)
+      if (L.fine || !Number.isFinite(hi) || hi <= LOD.FAR) { cut.push(L); return; }   // (a band under FAR holds a far body only: cut, it would only pack its plants twice where two meet)
       const n = Math.max(1, Math.ceil(Math.log(hi / L.px) / Math.log(LOD.SPLIT) - 1e-9));
       for (let k = 1; k <= n; k++) cut.push({ ...L, px: k === n ? L.px : hi * Math.pow(L.px / hi, k / n) });
     });
@@ -377,10 +377,10 @@ export function tree(recipe) {
     /** Under `?lod=new` (assets/kit/crowd.js): the room each shape's levels need in the heap, [shape][level] { verts,
         tris } (its splay's: none), reckoned from its nearest level without building it, and kept with its outline */
     crowdRooms() {
-      const o = measured(), key = `${LOD.CARD}:${LOD.KMAX}:${LOD.SPLIT}:${LOD.STANDS?.[out.uid] ?? ''}`;
+      const o = measured(), key = `${LOD.CARD}:${LOD.KMAX}:${LOD.SPLIT}:${LOD.BAKE}:${LOD.FAR}:${LOD.STANDS?.[out.uid] ?? ''}`;
       if (o.crowd?.key !== key) {
         const B = bandsOf(out), his = B.map(([, hi], l) => (l === f ? Infinity : hi));
-        o.crowd = { key, rooms: shapes.map((s, i) => { const R = budgetOf(rawAt(f, i), { size: shapeSize(out, i), CARD: LOD.CARD, KMAX: LOD.KMAX }, his.map((hi) => ownTop(out, i, hi))); return R.map((r, l) => (crowdLevel(out, l) ? [r.verts, r.tris] : null)); }) };
+        o.crowd = { key, rooms: shapes.map((s, i) => { const R = budgetOf(rawAt(f, i), { size: shapeSize(out, i), CARD: LOD.CARD, KMAX: LOD.KMAX, FAR: LOD.FAR, baked: LOD.BAKE }, his.map((hi) => ownTop(out, i, hi))); return R.map((r, l) => (crowdLevel(out, l) ? [r.verts, r.tris] : null)); }) };
         OUTLINES.made.set(id, o);
       }
       return o.crowd.rooms;

@@ -713,6 +713,36 @@ not more cards (frame time).
   and its light (a baked crown is lit as it was baked unless its normals are baked too). Not begun here: handed to
   Samuel with the stills.
 
+### Stage 1: the crown baked (2026-11-17)
+
+The coordinator, for Samuel: build the second way, the baked crown; more cards ruled out (frame time); main's far levels
+the default until it is as good from 90 m and by the tent and as fast.
+
+- **The bake** (`crowd.js` bakeOf): every shape's whole build drawn on the CPU, in the recipes' worker, from nine
+  directions (eight round it 30 degrees up, one from above), 48 texels a side over the crown: how much of each texel the
+  crown covers, and how much light reaches what covers it, front to back (its corners' ao). About 150 ms for the oak's
+  largest shape, once a start that builds it.
+- **Where it lies**: in front of the vertices of each level that has a far body (after the shape's numbers), so it is
+  in the heap and kept in the browser with the meshes; no texture of its own.
+- **Worn by the far bodies**: a body's vertex picks the baked view nearest the eye in the plant's own frame and its
+  point on it; its pixel reads the bake from the heap, cuts where the crown lets more than two fifths of the light
+  through, and is darker where the crown is deep or thin. It is lit as the rest. The bodies now enclose the crown (the
+  bake says what they cover). Its mips: none, it is read texel by texel at 48 a side.
+- **The far body from 40 px** (`?far=`): with the bake, a far body at 40 px reads better than a few cards enlarged
+  eight times, and costs less.
+- **`?lod=new` now wears it** (`?bake=0` for the cards' own far end by 18 px).
+
+Seen beside main (stills: `research_notes/Generic automatic detail of higher quality/stage1/baked-crown-*.jpg`): from 90 m
+over the pine forest the crowns read as trees with their shade and gaps again, close to main's though softer and a little
+darker; in the pine forest at eye level about as main; by the tent the trees on the horizon are heavier than main's (a
+dense crown seen from the side leaves the bake few gaps). Timed beside main in one sitting (bench's frame, wall time):
+by the tent 8 526 ms against main's 8 887 (−4 %), at the river bend 6 982 against 7 411 (−6 %).
+
+So: as fast or faster, nearly as good from 90 m, not as good on the horizon by the tent. The default stays main's; the
+choice of whether that is good enough is Samuel's on next. Not done: the stress world (the default did not change), GPU
+time, Safari. The library's plant does not wear the bake (its far bodies are solid, and enclose). Under the bake the
+plants' submitted() counter counts the bake's bytes as vertices.
+
 ## Propose
 
 ## Story
@@ -744,8 +774,10 @@ not more cards (frame time).
   - [x] the last few per cent: the shape's numbers in two elements, the bands uncut (as fast as main within the noise here)
   - [ ] the frame times on a GPU (`?gputime`), in Safari and in the stress world
   - [x] alpha mips that keep their coverage (opt-in `?mips=1`; not enough by themselves from 90 m)
-  - [ ] Samuel: the far canopy from 90 m, with the stills: a far card or body baked from the plant's own build (its own
-        piece of work: Build), or more cards there (frame time), or main's far levels kept for the plants until then
+  - [x] the crown baked, worn by the far bodies, the far body from 40 px (`?lod=new`; `?bake=0` without)
+  - [ ] Samuel: `?lod=new` on next, by the tent, in the pine forest and from 90 m: is the baked crown good enough
+  - [ ] the trees on the horizon by the tent as airy as main's (a bake from more sides near the horizon, or the cut
+        by what each texel lets through)
   - [ ] `?lod=new` the default, `?lod=old` kept, once as fast and as good as main from 90 m and by the tent; the stress
         world checked not slower
   - [ ] a card's cut-out reckoned by how much of it is leaves, so a card can show more of its painting (`?spread=1`)
@@ -891,6 +923,18 @@ not more cards (frame time).
   painting. `spread=1` with them shows a dotted grid near and a checkered one by the tent. The baked far card or body
   was not built (its own piece of work); the choice goes to Samuel with the stills. The default stays main's.
 
+### 2026-11-17 (3)
+
+- **Asked:** (the coordinator, for Samuel) build the baked crown; not more cards; the default once as good and as fast,
+  `?lod=old` kept, the stress world checked.
+- **Delivered:** every shape's crown baked on the CPU from nine directions and carried with its far levels in the heap;
+  the far bodies wear it; under `?lod=new` the far body takes over from 40 px.
+- **Good:** From 90 m the crowns read as trees again, with their shade and gaps; it is 4 to 6 % faster than main on the
+  bench here.
+- **Broke / not there yet:** Softer than main from 90 m, and the trees on the horizon by the tent heavier. The default
+  stays main's: Samuel's eye decides. The stress world not checked (no default changed); the counter of submitted
+  vertices counts the bake as vertices.
+
 ## Trail
 
 | When | Commit | What |
@@ -912,3 +956,5 @@ not more cards (frame time).
 | 2026-11-16 | `f55b39d` | what the plants submit brought down: one far body a far level by 18 px, bands cut where they hold cards, a stand's size to the workers, CARD 30 |
 | 2026-11-17 | `99d7836` | the bands uncut by default; the shape's numbers as half floats in one vertex |
 | 2026-11-17 | `4bc3f99` | coverage-preserving alpha mips for foliage, opt-in (`?mips=1`); the far canopy's stills |
+| 2026-11-17 | `9847fd0` | the far bodies wear their crown baked (`bakeOf`, carried in the heap) |
+| 2026-11-17 | `fa7d70c` | `?lod=new` wears its crowns baked, the far body from 40 px; the stills |
