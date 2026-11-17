@@ -310,3 +310,4 @@ _accepted or rejected, the date, the reason in a line._
 | --- | --- | --- |
 | 2026-11-17 | `aecfb6b` | The reading, the before/after, seven research notes, six story ideas |
 | 2026-11-17 | `6c6200a` | Round 2: the mission sharpened, the euro out of everything |
+| 2026-11-17 | `4af782b` | Round 3: self-sovereignty, food, energy and ownership |
