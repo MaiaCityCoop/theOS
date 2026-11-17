@@ -12,9 +12,6 @@
 //   the build   the screen's picture kept from frame to frame and built from them (src/core/temporal.js): at the
 //               screen's own pixels, its edges smooth; no target is multisampled anywhere
 //   the show    onto the canvas: a copy, or through the lens's glass
-//
-// `?notaau`: nothing shifted and nothing kept (the same passes then spread one frame by the filter alone): to measure
-// against.
 import * as THREE from 'three/webgpu';
 import { note } from './gpu.js';
 import { compileFor } from './compile.js';

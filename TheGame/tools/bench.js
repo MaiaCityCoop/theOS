@@ -2,8 +2,8 @@
 // each view drawn n times, shadows as the game draws them. Opened with ?gputime, it reads the GPU's own time per frame
 // (timestamp queries, where the device has them); otherwise the wall's, waiting for the GPU to finish (unreliable in a
 // hidden or background tab). The game's own frame is held while it runs, so nothing else is drawn between.
-// `?bench` (src/main.js): the same once the world is loaded, its numbers on the screen (overlay): `?lod=old&bench` against
-// `?lod=new&bench` on one's own GPU, nothing typed. `?bench=2`: at that pixel ratio (1.5 else).
+// `?bench` (src/main.js): the same once the world is loaded, its numbers on the screen (overlay), nothing typed.
+// `?bench=2`: at that pixel ratio (1.5 else).
 export const VIEWS = [
   { name: 'tent, eye level', x: -1262.6 + 14 * -Math.sin(0.1), z: 631 + 14 * -Math.cos(0.1), yaw: Math.atan2(-Math.sin(0.1), -Math.cos(0.1)), h: 1.7 },
   { name: 'river bend, 26 m', x: -1334.8, z: 808.6, yaw: 0.9, h: 26 },
@@ -44,14 +44,14 @@ export async function bench({ ratio = 1.5, frames = 60, settle = 0 } = {}) {
 }
 
 /** `?bench`: bench() once the world is loaded (the plants built, a few seconds more for what streams), and its numbers
-    on the screen, with what the plants were drawn with; again on a click. Opened with the game (src/main.js). */
+    on the screen; again on a click. Opened with the game (src/main.js). */
 export async function overlay() {
-  const { flagText } = await import('../src/core/flags.js'), { LOD_DEFAULT } = await import('../assets/kit/crowd.js');
-  const lod = flagText('lod') ?? LOD_DEFAULT, ratio = +flagText('bench') || 1.5, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const { flagText } = await import('../src/core/flags.js');
+  const ratio = +flagText('bench') || 1.5, wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const el = document.createElement('div');
   el.style.cssText = 'position:fixed;left:12px;top:12px;z-index:99999;background:rgba(255,253,246,0.94);color:#1f2a1c;font:13px/1.45 ui-monospace,Menlo,monospace;padding:8px 12px;border-radius:8px;white-space:pre;cursor:pointer';
   document.body.appendChild(el);
-  const say = (t) => (el.textContent = `bench · plants ?lod=${lod}\n${t}`);
+  const say = (t) => (el.textContent = `bench\n${t}`);
   say('waiting for the world to load…');
   for (let i = 0; i < 1200; i++) { const D = window.__plants?.drawers; if (D?.length && D.every((d) => d.stats.coarseMs > 0)) break; await wait(500); }
   await wait(5000);
@@ -62,7 +62,7 @@ export async function overlay() {
       const r = await bench({ ratio, settle: 3000 });
       const rows = VIEWS.map((v) => `${v.name.padEnd(24)}${String(r[v.name].toFixed(2)).padStart(8)} ms`).join('\n');
       say(`${r.measure}, ${r.size.join('×')} at ×${r.ratio}\n\n${rows}\n\n${'worst'.padEnd(24)}${String(r.worst.toFixed(2)).padStart(8)} ms  ${r.pass ? 'within' : 'over'} ${BUDGET} ms\n\nclick to run again`);
-      console.log('[bench]', lod, JSON.stringify(r));
+      console.log('[bench]', JSON.stringify(r));
     } catch (e) { say('failed: ' + e.message); }
     busy = false;
   };

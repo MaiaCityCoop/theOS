@@ -23,21 +23,19 @@ import { placedBy, lookOf as zooLook, fingerprint } from '../../assets/zoo/index
 import { rockMesh, rockBody, FULL_ROCK } from '../../assets/kit/rock.js';
 import { unpackSolid } from '../../assets/kit/solid.js';
 import { DELTA } from '../../assets/kit/reduce.js';
-import { LOD } from '../../assets/kit/crowd.js';
 import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 
 // the levels: the ladder's (assets/kit/ladder.js). Every shape's coarser levels are always there (a few megabytes);
-// the full meshes only of the shapes that lie near enough to fill a good part of the screen, six at once
-// (`?lod=new`: every level made from a shape's full mesh by the one reduction, assets/kit/reduce.js: its corners
-// carried further to their places on the next level, and its meshes not the ladder's balls, drawn by their corners)
-// (told when the rocks are made, not when this file is read: `?lod=new` is set by src/scatter/trees.js, read after it)
-const LEVELS = LADDER.map((l, i) => ({ n: l.n, px: l.px, ...(i ? {} : { slots: 6 }) })), L = LEVELS.length;
+// the full meshes only of the shapes that lie near enough to fill a good part of the screen, six at once. Every level
+// is made from a shape's full mesh by the one reduction (assets/kit/reduce.js, intent 0033): its corners carried
+// further to their places on the next level, and its meshes not the ladder's balls, drawn by their corners
+const LEVELS = LADDER.map((l, i) => ({ n: l.n, px: l.px, delta: DELTA[i], ...(i ? {} : { slots: 6 }) })), L = LEVELS.length;
 // RELIEF: the size on screen from which a rock's relief is read (under that its texture's mipmaps have none left);
 // REACH: how far the ground's map says where stones lie (src/scatter/ground.js), metres to the 68° lens: they shrink
 // away before it ends
 const SHADE = { shrink: 0.85, far: 30, wide: 1.5 }, RELIEF = 10, REACH = 104;
-// THIN (`?lod=new`): where a rock's last mesh thins away, pixels on screen: over the pixels the dot sank in before
-// (the ladder's last, and SINK times it: drawer.js), with no dot to hand over to
+// THIN: where a rock's last mesh thins away, pixels on screen: over the pixels the dot sank in before (the ladder's
+// last, and SINK times it: drawer.js), with no dot to hand over to
 const THIN = [LADDER[LADDER.length - 1].px, LADDER[LADDER.length - 1].px * 1.6];
 
 /** The assets of engine `rocks`, all at once: they share one drawer (a level of every shape of every rock asset is in
@@ -48,16 +46,16 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
   rows = gpu ? rows.filter((row) => famOf(row) || console.warn(`rocks: no family of the zoo brings the shapes of '${row.name}' (assets/zoo)`)) : [];
   rocksDrawn(rows.map((row) => row.uid));
   if (!rows.length) return [];
-  const SMOOTH = uniform(1), NEW = LOD.on; if (NEW) LEVELS.forEach((l, i) => (l.delta = DELTA[i]));
+  const SMOOTH = uniform(1);
   const D = createDrawer(scene, renderer, tex, {
-    name: 'rocks', LEVELS, SHADE, SMOOTH, corners: NEW, thin: NEW ? THIN : null, still: NEW, skins: 0, ground: true, soft: true, relief: RELIEF, full: FULL_ROCK,
+    name: 'rocks', LEVELS, SHADE, SMOOTH, corners: true, thin: THIN, still: true, skins: 0, ground: true, soft: true, relief: RELIEF, full: FULL_ROCK,
     zoo: { first: Z.first, ALL: Z.count, STAND: Z.count, MOVING: 0, lookOfKind: (k) => { const B = zooLook(Z.first + k); return { ...B, material: B.material ?? byRole('rock').uid }; }, fingerprint: () => fingerprint('rocks') },
   });
   const { lookOf } = D, tiers = [], firstOf = new Map(); let sizeMost = 0;
   for (const row of rows) {
     const F = famOf(row), big = !!row.outcrops, shapes = F.count;
     // (a rock's size on screen is its largest side's: its size, metres, its asset's, the measure's: world/scale.js)
-    const sizes = [row.size[0], row.size[1]], reach = big ? Infinity : REACH, end = NEW ? 0 : row.asset.detail?.end ?? 0;   // (`?lod=new`: no asset says where it ends; every rock thins away over the same last pixels, THIN)   // (end: the size on screen its asset is drawn down to, where that is sooner than the ladder's end)
+    const sizes = [row.size[0], row.size[1]], reach = big ? Infinity : REACH;   // (every rock thins away over the same last pixels, THIN)
     firstOf.set(row.uid, F.first); sizeMost = Math.max(sizeMost, sizes[1]);
     // what lies in a cell: a rock of one of the asset's shapes, or nothing. The cheap tests first (most cells hold
     // none); the ground under it and the grass round it only for a rock that is of the tier's level (fill)
@@ -68,9 +66,8 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
         // more often, never past its most: src/world/rocksolid.js works out the same)
         const r1 = rnd(cx, cy, uint(204)), s = mix(row.size[0], row.size[1], r1.mul(r1).mul(r1).add(oc.mul(big ? 0.25 : 0).mul(r1)).min(1));
         const kind = uint(floor(rnd(cx, cy, uint(201)).mul(shapes)).min(shapes - 1)).add(uint(F.first));
-        // (a stone shrinks away where the ground's map ends, and whatever ends sooner than the ladder does over its last pixels)
-        const full = big ? s : s.mul(float(1).sub(smoothstep(REACH * 0.86, REACH, dist)));
-        const size = end ? full.mul(smoothstep(end, end * 1.6, full.mul(U.uPxK).div(max(dist, 1e-3)))) : full;
+        // (a stone shrinks away where the ground's map ends)
+        const size = big ? s : s.mul(float(1).sub(smoothstep(REACH * 0.86, REACH, dist)));
         found(kind, size, dist, (A, B, G) => {
           const sunk = size.mul(lookOf(kind, 5).w);   // (how deep it lies: its look's)
           if (big) {   // an outcrop: the land worked out here (the ground's map does not reach so far)
@@ -92,10 +89,10 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
       });
     };
     // one tier an asset: every rock dropped into the draw of its level (drawer.js: tierAll). last: the last level its
-    // rocks have (an asset that ends sooner than the ladder has shrunk away before the ones after)
-    const last = NEW ? L - 2 : LEVELS.findIndex((l, i) => i === L - 1 || l.px <= end);
+    // rocks have (no dot: it thins away over THIN)
+    const last = L - 2;
     // (its patches: about five to its reach, so the tier looks at a few dozen, whatever the lens; cap: the most of it in one draw)
-    const farAt = Math.min(reach, (sizes[1] * pxK(Math.max(innerHeight, 1400))) / Math.max(end, NEW ? THIN[0] : LEVELS[last].px)), P = Math.min(64, Math.max(2, 2 ** Math.ceil(Math.log2(farAt / (row.cell * 5)))));
+    const farAt = Math.min(reach, (sizes[1] * pxK(Math.max(innerHeight, 1400))) / THIN[0]), P = Math.min(64, Math.max(2, 2 ** Math.ceil(Math.log2(farAt / (row.cell * 5)))));
     const T = D.tierAll({ cell: row.cell, P, cap: big ? 16384 : 4096, sizes, place, casts: row.detail.casts, far: reach, last, thing: `rocks:${row.uid}` });   // (thing: a rock's own state, its asset and its cell: src/world/things.js)
     T.asset = row.name; tiers.push(T);
   }

@@ -104,7 +104,7 @@ function createHerds(scene, renderer, tex) {
   return tiers;
 }
 
-/** A scatter engine (src/scatter/index.js finds it): what it places of its own, where `?herds=N` asks. */
+/** A scatter engine (src/scatter/index.js loads it where `?herds=N` asks): what it places of its own. */
 export const engine = {
   id: 'herds',
   createOwn: (scene, tex, ground, gpu, renderer) => (gpu && N && MOVING ? createHerds(scene, renderer, tex) : []),

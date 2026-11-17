@@ -44,7 +44,6 @@ import { createShadows } from './world/shadow.js';
 import { useGround } from './world/rocksolid.js';
 import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
-import { createBiomeSlots } from './world/slots.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
 import { inTurn, shareComputeCompiles } from './core/compile.js';
 import { flag } from './core/flags.js';
@@ -56,7 +55,7 @@ const layers = flag('stress') ? Math.min(2048, (await navigator.gpu?.requestAdap
 const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (a pixel's fourth number is not how see-through it is: it says how still the thing is, src/world/light.js stillness; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
 if (flag('draws')) (await import('../tools/draws.js')).watch();   // ?draws: every pass and draw a frame asks of the GPU, counted (tools/draws.js: window.__draws), from before the first pipeline is made
 await renderer.init();
-if (!flag('fat')) useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js); ?fat: twice, as three keeps it, to compare
+useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js)
 shareComputeCompiles(renderer);   // a compute shader compiled once, however many passes run it (src/core/compile.js)
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // every material makes its colours for the screen itself (toScreen)
 renderer.setSize(innerWidth, innerHeight, false);
@@ -79,9 +78,8 @@ const U = createUniforms(camera, SKY);
 trackView(); setImpostorRenderer(renderer);   // the measure of size on screen for every level of detail (src/detail)
 // The one way to the screen, for every view (src/core/screen.js): the world drawn at the inside's pixels (the governor's
 // dial; the screen keeps all its own), through the lens where the camera brings one (src/camera/post.js), and the
-// screen's picture built over time from those frames (src/core/temporal.js). `?notaau`: nothing shifted, nothing kept
-// (one frame spread by the filter: to measure against).
-const temporal = (stats.temporal = createTemporal(renderer, { off: flag('notaau') }));
+// screen's picture built over time from those frames (src/core/temporal.js).
+const temporal = (stats.temporal = createTemporal(renderer));
 const screen = (stats.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
 const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
 stats.governor = governor;   // the film holds it still while it plays
@@ -98,14 +96,12 @@ useTiles(tex);   // node code that reads a baked tile by itself (the clouds' fie
 useBackend(renderer);   // and what is lit per corner (a tree) reads the shadow map's texels only where the backend can
 mark('bake');
 await loadingStep('Raising the land', 0.3);
-// the biomes the land's shaders hold: those round the camera (src/world/slots.js; all of them while they are few)
-const slots = (stats.slots = createBiomeSlots(renderer));
-const ground = createGround(renderer, tex, slots.list());
+const ground = createGround(renderer, tex);
 useGround(ground);   // the rocks' bodies read their stones from it
 const groundPass = ground.compile();   // its pass, for its own maps: in turn, after the textures' (src/core/compile.js)
 stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage things (the library)
 mark('ground');
-const terrain = createTerrain(scene, tex, slots.list());
+const terrain = createTerrain(scene, tex);
 mark('terrain');
 stats.terrain = terrain;
 const scatter = createScatter(scene, tex, ground, renderer, camera);
@@ -126,11 +122,9 @@ stats.controls = controls;
 const city = (stats.city = createCity({ scene, camera, canvas, renderer, compile: (o) => screen.compile(o, camera, scene) }));   // (compiled for the target the world is drawn into)
 const hud = createHud(document.getElementById('hud'), renderer, camera, governor, stats);
 spawn(controls);
-if (slots.many) { const first = await slots.look(camera.position.x, camera.position.z); if (first) { await ground.biomes(first, true); await terrain.biomes(first, renderer, camera, null, true); } }   // (the biomes round where the walk starts: before anything is compiled)
 // the lakes round the camera (src/world/lakes.js: no river runs in a ring; what it rings round is water): found before the first frame
 const lakes = (stats.lakes = createLakes()); let lakesSeen = 0;
 lakes.lookHere(camera.position.x, camera.position.z);
-const newBiomes = (next) => Promise.all([ground.biomes(next), terrain.biomes(next, renderer, camera, screen.target)]);
 
 // ---- a frame: place the camera, choose what to draw, draw ----
 const projScreen = new THREE.Matrix4();
@@ -156,7 +150,6 @@ function choose(dt) {
 }
 function draw() {
   const gy = heightAt(camera.position.x, camera.position.z);
-  terrain.cache?.update(renderer, camera, `${innerHeight}|${U.uSand.value.toArray()}`);   // the ground's layers laid where the camera has come (src/terrain/groundcache.js)
   weather.before(camera, gy); shadows.render(scene, camera, gy);   // (what a condition draws before the picture: the clouds' shadow map)
   screen.render(scene, camera);   // (through its lens, where the camera brings one)
 }
@@ -166,7 +159,6 @@ function frame(now) {
   const ms = last ? now - last : 16.7; last = now;
   U.uTime.value = (now - t0) / 1000;
   tex.flush();   // (materials asked for since the last frame: src/materials/bake.js)
-  slots.update(camera, newBiomes);   // (the biomes round the camera: their shaders compiled aside when they change)
   lakes.update(camera); if (lakes.version !== lakesSeen) { lakesSeen = lakes.version; ground.refresh(); }   // (new lakes: the ground under the camera drawn again)
   renderer.info.reset();
   governor.begin();
@@ -222,7 +214,6 @@ await inTime('the materials', screen.compile(scene, camera));   // every materia
 await inTime("the shadow map's casters", shadows.compile(scene, camera, heightAt(camera.position.x, camera.position.z)));   // and every caster, for the shadow map
 tex.flush();   // (a material a shader asked for that no biome or asset names: painted before the first frame)
 mark('compiled');
-terrain.cache?.update(renderer, camera, `${innerHeight}|${U.uSand.value.toArray()}`);   // (its first laying, and its shaders, while the page still starts)
 screen.render(scene, camera);   // (through the inside's target: its pipelines are the ones a frame uses)
 for (let i = 0; i < seen.length; i += 2) seen[i].visible = seen[i + 1];
 choose(0);

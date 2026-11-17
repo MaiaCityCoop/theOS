@@ -24,6 +24,7 @@ import { U } from '../../src/core/uniforms.js';
 import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull } from '../../src/world/light.js';
 import { CASTS } from '../../src/world/shadow.js';
 import { PART } from './skeleton/rig.js';
+import { recipes, versionOf } from '../../src/core/registry.js';
 
 const TAU = 2 * Math.PI, D = Math.PI / 180, SIDES = [['L', 1], ['R', -1]];
 const LEG = 0.9;   // from the hip's joint to the sole (m): what a leg let out by an angle carries its foot aside by
@@ -54,27 +55,30 @@ function pump() {
 }
 const ask = (msg) => new Promise((res, rej) => { POOL.queue.push({ msg, res, rej }); pump(); });
 
-// What there is to grow: the bones' count, their order, their digest (asked of a worker once).
+// What there is to grow: the bones' count and their order (asked of a worker once).
 let ABOUT = null;
 const about = () => (ABOUT ||= ask({ about: true }).then((d) => d.about));
-// A grown surface is kept by the browser (IndexedDB) with the digest of the bones it was grown from: other bones, and
-// it is grown again. Where the browser keeps nothing, it is grown each time.
+// A grown surface is kept by the browser (IndexedDB) with the version of the character it was grown for: its hash in
+// the registry (registry.json), of its file and of every kit file it reaches, these workers' too. Any of that changed,
+// and it is grown again. (What is grown here is the same for every character that grows it: one kept under any
+// character's version as it is now is good.) Where the browser keeps nothing, it is grown each time.
 const kept = (mode, fn) => new Promise((res) => {
   try {
     const r = indexedDB.open('theos-grown', 1); r.onupgradeneeded = () => r.result.createObjectStore('surfaces'); r.onerror = () => res(null);
     r.onsuccess = () => { try { const q = fn(r.result.transaction('surfaces', mode).objectStore('surfaces')); q.onsuccess = () => res(q.result ?? null); q.onerror = () => res(null); } catch { res(null); } };
   } catch { res(null); }
 });
+const fresh = (hit) => !!hit?.version && recipes('character').some((r) => versionOf(r) === hit.version);
 const HELD = {}, SURFACE = {};
-const held = (L) => (HELD[L.key] ||= Promise.all([about(), kept('readonly', (s) => s.get(L.key))]).then(([A, hit]) => (hit && hit.digest === A.digest && hit.h === L.h ? hit : null)));
-/** The bones' surface at a level: { pieces, rigs, of, pos, nor, look, tri }: every point with the way it faces, what it
- *  is and how open it stands (look), and the joint that carries it (rigs[of]). */
-function surface(L) {
+const held = (L) => (HELD[L.key] ||= kept('readonly', (s) => s.get(L.key)).then((hit) => (fresh(hit) && hit.h === L.h ? hit : null)));
+/** The bones' surface at a level, grown for the character of that version: { pieces, rigs, of, pos, nor, look, tri }:
+ *  every point with the way it faces, what it is and how open it stands (look), and the joint that carries it (rigs[of]). */
+function surface(L, version) {
   return (SURFACE[L.key] ||= (async () => {
     const hit = await held(L); if (hit) return hit;
     const A = await about(), parts = await Promise.all(A.order.map((i) => ask({ i, h: L.h, shade: L.shade })));
     let nv = 0, nt = 0, pieces = 0; for (const p of parts) if (!p.none) { nv += p.pos.length / 3; nt += p.tri.length; pieces++; }
-    const out = { digest: A.digest, h: L.h, pieces, rigs: [], of: new Uint16Array(nv), pos: new Float32Array(nv * 3), nor: new Float32Array(nv * 3), look: new Float32Array(nv * 2), tri: new Uint32Array(nt) };
+    const out = { version, h: L.h, pieces, rigs: [], of: new Uint16Array(nv), pos: new Float32Array(nv * 3), nor: new Float32Array(nv * 3), look: new Float32Array(nv * 2), tri: new Uint32Array(nt) };
     let v0 = 0, t0 = 0;
     for (const p of parts) {
       if (p.none) continue;
@@ -91,10 +95,10 @@ function surface(L) {
 // The muscles laid on the bones (./muscles/build.js), in a worker, kept by the browser as the bones are; and the page's
 // part of them (./muscles/flesh.js), when a body with muscles is first made.
 let MUSCLED = null, FLESH = null;
-const muscled = () => (MUSCLED ||= (async () => {
-  const [A, hit] = await Promise.all([about(), kept('readonly', (s) => s.get('muscles'))]);
-  if (hit && hit.digest === A.muscles) return hit;
-  const out = { ...(await ask({ muscles: true })).muscles, digest: A.muscles };
+const muscled = (version) => (MUSCLED ||= (async () => {
+  const hit = await kept('readonly', (s) => s.get('muscles'));
+  if (fresh(hit)) return hit;
+  const out = { ...(await ask({ muscles: true })).muscles, version };
   kept('readwrite', (s) => s.put(out, 'muscles'));
   return out;
 })());
@@ -102,10 +106,10 @@ const fleshing = () => (FLESH ||= import('./muscles/flesh.js'));
 // A body: the muscles and the fat and the skin over them (./skin/build.js), laid in a worker as one, kept as the rest.
 // Its skin is drawn with cells of BODY_H (coarser on a phone or a machine of few threads).
 const BODY_H = few ? 0.008 : 0.006, BODIED = {};
-const bodied = () => (BODIED[BODY_H] ||= (async () => {
-  const key = 'body:' + BODY_H, [A, hit] = await Promise.all([about(), kept('readonly', (s) => s.get(key))]);
-  if (hit && hit.digest === A.body) return hit;
-  const out = { ...(await ask({ body: true, h: BODY_H })).body, digest: A.body };
+const bodied = (version) => (BODIED[BODY_H] ||= (async () => {
+  const key = 'body:' + BODY_H, hit = await kept('readonly', (s) => s.get(key));
+  if (fresh(hit)) return hit;
+  const out = { ...(await ask({ body: true, h: BODY_H })).body, version };
   kept('readwrite', (s) => s.put(out, key));
   return out;
 })());
@@ -243,6 +247,7 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
   // (a body: its skin, its fat, its muscles and its bones, one of them outermost at a time; its bones grown only when
   // they are to be seen)
   const body = muscles && !!R.layers?.includes('skin');
+  const version = versionOf(R);   // (what is grown for it is kept under it)
   const api = { object, mesh: null, bones: { root }, skeleton: null, material: mat, moves: MOVES.map(({ id, name, about }) => ({ id, name, about })), boneFaces: 0, height: R.height, measures: {}, bonesCount: 0, pieces: 0, level: -1, failed: null, onGrown: null, flesh: null };
   let K = null, names = [], rest = {}, soles = [];   // the rig once its code is here; its joints' names; where each stands in its parent; where the feet meet the ground
   const rigged = ({ RIG, turnsOf, turnOf }) => {
@@ -279,7 +284,7 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
   };
   // the muscles, once the rig and the bones stand: laid in a worker, carried by the same joints
   const flesh = async () => {
-    const [D, F] = await Promise.all([body ? bodied() : muscled(), fleshing()]);
+    const [D, F] = await Promise.all([body ? bodied(version) : muscled(version), fleshing()]);
     if (api.disposed) return;
     const fl = (api.flesh = F.fleshOf(D, { object, bones: api.bones, eye }));
     for (const m of [fl.muscles, fl.fat, fl.skin]) if (m) object.add(m);
@@ -303,7 +308,7 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
   const growBones = () => (growing ||= (async () => {
     const full = LV.length - 1, hit = await held(LV[full]);
     if (hit) return put(full, hit);
-    put(0, await surface(LV[0])); put(full, await surface(LV[full]));
+    put(0, await surface(LV[0], version)); put(full, await surface(LV[full], version));
   })().catch((err) => { api.failed = err.message; api.onGrown?.(-1); }));
   function show() {
     const L = api.layer, fl = api.flesh;
@@ -397,9 +402,9 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
     rigged(await posing());
     if (body) { growBones(); return flesh(); }   // (the bones first, quick, shown until the skin is on)
     const full = LV.length - 1, hit = quick ? null : await held(LV[full]);
-    if (hit) put(full, hit); else put(0, await surface(LV[0]));
+    if (hit) put(full, hit); else put(0, await surface(LV[0], version));
     const laid = muscles ? flesh() : null;   // (asked before the fine bones, so the workers lay the muscles first)
-    if (!quick && !hit) put(full, await surface(LV[full]));
+    if (!quick && !hit) put(full, await surface(LV[full], version));
     await laid;
   })().catch((err) => { api.failed = err.message; console.warn('skeleton: its bones could not be grown:', err); api.onGrown?.(-1); });
   return api;

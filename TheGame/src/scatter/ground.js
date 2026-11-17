@@ -11,7 +11,7 @@ import { U } from '../core/uniforms.js';
 import { note } from '../core/gpu.js';
 import { compileFor } from '../core/compile.js';
 import { heightAt as heightCPU, SAND } from '../world/land.js';
-import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt, LAID } from '../world/land.nodes.js';
+import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt } from '../world/land.nodes.js';
 import { CLEARINGS } from '../../world/places.js';
 import { offWays, waysVersion } from '../world/ways.js';
 import { BIOMES } from '../world/biomes.js';
@@ -28,7 +28,7 @@ const stepOf = (s, was) => (was && s <= was * 1.0001 && s > was / (Math.SQRT2 * 
 // what stands at a named place keeps its floor clear (its `clear`, metres round it): 1 where grass and stones may be
 const clearOf = (pos) => CLEARINGS.reduce((k, p) => k.mul(smoothstep(p.clear - 0.4, p.clear + 0.3, length(pos.sub(vec2(p.x, p.z))))), float(1));
 
-export function createGround(renderer, tex, list = LAID) {
+export function createGround(renderer, tex) {
   const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false };
   // one pass, two outputs (MRT): the ground (height, grass, its height, stones) and the grass's colour (and its dryness)
   // (two of them: the one read, and the one before it while what is read passes from it to the new one)
@@ -37,11 +37,11 @@ export function createGround(renderer, tex, list = LAID) {
   let cur = 0, fadeAt = -1;   // (fadeAt: frames into the fade; -1: none)
   // the texel's centre, in metres; three's node reads turn a target's rows the other way up, so the writer turns them too
   const posOf = () => G.o.add(vec2(uv().x, float(1).sub(uv().y)).mul(N).sub(0.5).mul(G.texel));
-  // the pass's material, for a list of biomes (the slots': those round the camera, src/world/slots.js)
-  const build = (list) => {
+  // the pass's material
+  const build = () => {
     // (plain shared nodes, not a function: three works a shared node out once, and hands the two to the two targets)
     const pos = posOf(), I = riverInfo(pos), w = I.y, d = abs(I.x), b = I.z, dist = camDist(pos);
-    const L = biomesAt({ p: pos, dist, d, w, b }, false, list);   // every biome's share here: their grass, its height, their stones, the dryness
+    const L = biomesAt({ p: pos, dist, d, w, b });   // every biome's share here: their grass, its height, their stones, the dryness
     const path = placeOff(pos, pathMask(pathN(pos))), oc = outcropMask(pos), stage = stageAt(pos), keep = offWays(clearOf(pos).mul(float(1).sub(stage)), pos, 1);   // (and no grass or stone on a way: src/world/ways.js)
     const dens = float(1).sub(path).mul(float(1).sub(bareMask(pos))).mul(float(1).sub(oc.mul(0.25))).mul(L.cover).mul(keep);
     const stone = keep.mul(L.stones.add(oc.mul(0.5))).mul(float(1).sub(path.mul(0.8)));
@@ -53,7 +53,7 @@ export function createGround(renderer, tex, list = LAID) {
     });
     return mat;
   };
-  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), build(list)), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); quad.frustumCulled = false;
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), build()), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); quad.frustumCulled = false;
   const read = (t, pos, M) => texture(t, pos.sub(M.o).div(M.texel).add(0.5).div(N)).level(0);
   // (both maps read, as much of each as W says: read where a blade is packed, once a blade, not at its every vertex)
   const both = (i, pos, f) => mix(f(read(rts[0].textures[i], pos, R[0]), R[0]), f(read(rts[1].textures[i], pos, R[1]), R[1]), W);
@@ -85,13 +85,6 @@ export function createGround(renderer, tex, list = LAID) {
     stage(x, z, r, material = null, tile = 2) { U.uStage.value.set(x, z, r); U.uStageGround.value.set(material ? tex.layer(material) : -1, tile); lastS = 0; },
     /** The library's sandbox: round (x, z) the land is all one biome (its number in biomes/); no arguments: off. */
     sandbox(x = 0, z = 0, biome = -1) { U.uSand.value.set(x, z, biome < 0 ? 0 : 1, biome); Object.assign(SAND, { on: biome >= 0, x, z, river: !!BIOMES[biome]?.water }); lastS = 0; },
-    /** Its pass for another list of biomes (the slots' have changed): compiled aside, then taken, and drawn again.
-        now: taken at once (before the start compiles everything). */
-    async biomes(next, now = false) {
-      const m = build(next);
-      if (!now) { const was = renderer.getRenderTarget(), q = new THREE.Mesh(quad.geometry, m); q.frustumCulled = false; renderer.setRenderTarget(rts[cur]); const done = renderer.compileAsync(q, cam).catch(() => {}); renderer.setRenderTarget(was); await done; }   // (for its own target: the pipeline it is drawn with)
-      quad.material.dispose(); quad.material = m; lastS = 0;
-    },
     /** Drawn again at the next update (the land under it changed: the lakes, src/world/lakes.js). */
     refresh() { lastS = 0; },
     /** Its pass compiled for its own two maps, before it is first drawn, in turn (src/core/compile.js; a promise). */

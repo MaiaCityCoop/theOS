@@ -23,7 +23,6 @@ What lies and grows on each kind of land: one file each in this folder, each a r
 | `canopy` | a biome with a stand: past where its trees' shadows are drawn its floor is dimmed under its groves, and far off, where its trees sink away, its land takes the colour of their crowns: `{ colour, from, to }` (from/to in metres only where no tree of it says where its trees end) |
 
 A new biome is a new file: the terrain, the grass, the stones and the library take it from the registry, laid where its
-rule says. However many there are, the land's shaders hold the eight that lie round the camera (`src/world/slots.js`:
-each biome's rule looked at in a small pass of its own; when the eight change, the land's new shaders are compiled
-aside and taken), so a biome more does not make the land's shader larger. The land's node code reads these numbers: change one and the world changes with it. Its version (registry.json) is
+rule says. Every biome laid is in the land's shaders, so a biome more makes them larger (intent 0038, stage 6, makes
+the land's shader one size, whatever the biomes). The land's node code reads these numbers: change one and the world changes with it. Its version (registry.json) is
 the BLAKE3 hash of its file and of the versions of the materials it lays.

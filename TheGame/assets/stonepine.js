@@ -2,8 +2,8 @@
 // reddish-grey plated bark, bending in a slow S, bare to well over half its height; there it forks, and forks again, into
 // six long, thin limbs that fan up and out like the ribs of an umbrella; they split into branches, the branches into
 // twigs, and at the twigs' ends brushes of long needles heap into puffs, rounded like clouds, that together make one
-// broad dome, flat underneath. Built with the tree kit (assets/kit/tree.js) as a mesh per level of detail and shape: the
-// wood as tubes wrapped in bark (materials/pinebark.js), the needles as crossed cards cut out of a painted tuft (materials/pinetuft.js), each card's
+// broad dome, flat underneath. Built with the tree kit (assets/kit/tree.js) as a mesh per shape (its levels of detail
+// first shares of it): the wood as tubes wrapped in bark (materials/pinebark.js), the needles as crossed cards cut out of a painted tuft (materials/pinetuft.js), each card's
 // normal its puff's and the dome's (so a puff is lit as a ball: bright on top, dark under). An asset in the one recipe
 // (assets/index.js), scattered by the trees' engine (src/scatter/trees.js) where the pine forest lies (biomes/
 // pineforest.js). Units are metres; a shape is a stage of its growth at its own height; the origin is the foot of its trunk.
@@ -55,22 +55,21 @@ const trunkAt = (T, t) => {
   return add(add(mul(P1, 3 * u * u * t), mul(P2, 3 * u * t * t)), mul(FORK, t * t * t));
 };
 
-// ---- the tree at a level: q 0 near (every twig), 1 middle (branches, larger tufts), 2 far (limbs, a few big tufts), 3 farthest
-// (a trunk, its stems and a dozen great tufts: a tree a few dozen pixels high); T its shape (an age's form), v which ----
-function pine(q, T, v) {
-  const b = use(T), R0 = rng(T.seed), S = [12, 7, 5, 3][q], s2 = [8, 5, 4, 3][q], k = R / 7.2, H = BASE + DOME;
+// ---- the tree, every twig of it; T its shape (an age's form), v which ----
+function pine(T, v) {
+  const b = use(T), R0 = rng(T.seed), S = 12, s2 = 8, k = R / 7.2, H = BASE + DOME;
   const thick = Math.min(1.4, Math.max(0.12, H / 14)), g = Math.min(1.25, Math.max(0.3, 0.3 + 0.7 * k));   // thick: its wood's girth to the classic's; g: its puffs' and brushes' size
   // the trunk: flared at its foot, bending in a slow S as it climbs to the fork
-  const nT = q === 3 ? 4 : 10, trunk = Array.from({ length: nT }, (_, i) => trunkAt(T, i / (nT - 1))), rT = (t) => thick * (0.24 + 0.12 * (1 - t) + 0.2 * Math.max(0, 1 - t * 7) ** 2);
+  const nT = 10, trunk = Array.from({ length: nT }, (_, i) => trunkAt(T, i / (nT - 1))), rT = (t) => thick * (0.24 + 0.12 * (1 - t) + 0.2 * Math.max(0, 1 - t * 7) ** 2);
   tube(b, trunk, trunk.map((_, i) => rT(i / (nT - 1))), S, { body: true });
-  if (q === 0 && FORK[1] > 3) for (const [y, a] of [[0.5, 0.6], [0.68, 2.9], [0.85, 4.8]]) {   // the stubs of limbs it shed long ago
+  if (FORK[1] > 3) for (const [y, a] of [[0.5, 0.6], [0.68, 2.9], [0.85, 4.8]]) {   // the stubs of limbs it shed long ago
     const at = trunkAt(T, y), d = norm([Math.cos(a + v), 0.3, Math.sin(a + v)]);
     tube(b, [at, add(at, mul(d, 0.5 * thick))], [0.06 * thick, 0.025 * thick], 5);
   }
   // the puffs: rounded heaps of needles over the dome, most along its top, a ring of them making its flat underside's rim
-  const nP = Math.round([140, 56, 20, 9][q] * fill(g)), puffs = [];   // as many as its crown's skin needs, puffs of its size
+  const nP = Math.round(140 * fill(g)), puffs = [];   // as many as its crown's skin needs, puffs of its size
   for (let i = 0; i < nP; i++) {
-    const a = R0() * 2 * Math.PI, rim = R0() < 0.35, r = R * (rim ? 0.62 + 0.36 * R0() : Math.sqrt(0.04 + 0.92 * R0())), pr = [1, 1.4, 1.4, 1.8][q] * (0.8 + 0.45 * R0()) * g;
+    const a = R0() * 2 * Math.PI, rim = R0() < 0.35, r = R * (rim ? 0.62 + 0.36 * R0() : Math.sqrt(0.04 + 0.92 * R0())), pr = (0.8 + 0.45 * R0()) * g;
     const y = rim ? BASE + (0.15 + R0() * 0.45) * g : topAt(r) - pr * (0.7 + 0.25 * R0());   // the rim's puffs make the flat underside
     puffs.push({ a, pr, p: [MID[0] + Math.cos(a) * r, y, MID[2] + Math.sin(a) * r] });
   }
@@ -80,28 +79,28 @@ function pine(q, T, v) {
   const from = trunkAt(T, 0.94), way = norm(sub(FORK, trunkAt(T, 0.85))), r0 = rT(0.94) * (T.stems === 1 ? 1 : 0.82);
   for (let j = 0; j < T.stems; j++) {
     const sa = 0.3 + v + (j * 2 * Math.PI) / T.stems, so = [Math.cos(sa), 0, Math.sin(sa)], top = add(FORK, add(mul(so, 0.9 * k * (T.stems > 1)), [0, rise * (0.9 + R0() * 0.25), 0]));
-    tube(b, bez(from, add(from, mul(way, rise * 0.7)), top, q === 3 ? 1 : 4), [1, 0.9, 0.82, 0.75, 0.7].slice(0, q === 3 ? 2 : 5).map((x) => x * r0), s2);
+    tube(b, bez(from, add(from, mul(way, rise * 0.7)), top, 4), [1, 0.9, 0.82, 0.75, 0.7].map((x) => x * r0), s2);
     for (let l = 0; l < T.limbs; l++) limbs.push({ from: top, a: sa + (l - (T.limbs - 1) / 2) * ((2 * Math.PI) / nL) + (R0() - 0.5) * 0.3 });
   }
   const near = (a) => limbs.reduce((m, l, k) => (Math.abs(Math.atan2(Math.sin(a - l.a), Math.cos(a - l.a))) < Math.abs(Math.atan2(Math.sin(a - limbs[m].a), Math.cos(a - limbs[m].a))) ? k : m), 0);
   limbs.forEach((L, li) => {
     const out = [Math.cos(L.a), 0, Math.sin(L.a)], reach = R * (0.5 + 0.2 * R0()), end = [MID[0] + out[0] * reach, BASE - 0.1 * g + R0() * 0.5 * g, MID[2] + out[2] * reach];
-    if (q < 3) tube(b, bez(L.from, add(lerp(L.from, end, 0.45), [0, 1.3 * k, 0]), end, 6), [0.11, 0.1, 0.09, 0.08, 0.07, 0.06, 0.055].map((x) => x * thick), q ? 4 : 6);   // long and thin, bowed upward
+    tube(b, bez(L.from, add(lerp(L.from, end, 0.45), [0, 1.3 * k, 0]), end, 6), [0.11, 0.1, 0.09, 0.08, 0.07, 0.06, 0.055].map((x) => x * thick), 6);   // long and thin, bowed upward
     const mine = puffs.filter((c) => near(c.a) === li);
-    const nG = q >= 2 ? 1 : q ? 2 : 3, groups = Array.from({ length: nG }, () => []);
+    const nG = 3, groups = Array.from({ length: nG }, () => []);
     mine.sort((x, y) => Math.hypot(x.p[0] - MID[0], x.p[2] - MID[2]) - Math.hypot(y.p[0] - MID[0], y.p[2] - MID[2])).forEach((c, i) => groups[Math.floor((i * nG) / mine.length)].push(c));
     for (const gr of groups) {
       if (!gr.length) continue;
       const G = sub(mul(gr.reduce((s, c) => add(s, c.p), [0, 0, 0]), 1 / gr.length), [0, 0.6 * g, 0]);
-      if (q < 2) tube(b, bez(lerp(L.from, end, 0.6), add(lerp(end, G, 0.5), [0, 0.6 * g, 0]), G, 4), [0.06, 0.05, 0.042, 0.035, 0.03].map((x) => x * g), q ? 3 : 5);
+      tube(b, bez(lerp(L.from, end, 0.6), add(lerp(end, G, 0.5), [0, 0.6 * g, 0]), G, 4), [0.06, 0.05, 0.042, 0.035, 0.03].map((x) => x * g), 5);
       for (const c of gr) {
-        if (q === 0) tube(b, bez(G, add(lerp(G, c.p, 0.5), [0, 0.3 * g, 0]), c.p, 2), [0.03, 0.02, 0.013].map((x) => x * g), 4);
+        tube(b, bez(G, add(lerp(G, c.p, 0.5), [0, 0.3 * g, 0]), c.p, 2), [0.03, 0.02, 0.013].map((x) => x * g), 4);
         // the puff: brushes standing out all over its upper side, each lit as the ball it makes (and the dome it is part of)
-        const dome = norm(sub(c.p, [MID[0], BASE - DOME * 1.2, MID[2]])), n = [11, 6, 4, 3][q];
+        const dome = norm(sub(c.p, [MID[0], BASE - DOME * 1.2, MID[2]])), n = 11;
         for (let t = 0; t < n; t++) {
-          const d = outward(R0, q >= 2 ? 0.55 : 0.25), size = [1.15, 2.6, 4.4, 6][q] * (0.8 + R0() * 0.4) * g, dir = norm(add(d, [0, 0.35, 0]));
-          // its foot: on the puff's skin; a coarser level's larger brush sunk into it by the part it is larger, so every level
-          // has the same outline (no fringe of the coarser one round the finer while they hand over)
+          const d = outward(R0, 0.25), size = 1.15 * (0.8 + R0() * 0.4) * g, dir = norm(add(d, [0, 0.35, 0]));
+          // its foot: on the puff's skin; a brush larger than the crown's own sunk into it by the part it is larger, so none
+          // stands out of the outline
           const at = sub(add(c.p, mul(d, c.pr * 0.35)), mul(dir, Math.max(0, size - 1.15 * g) * 0.8)), light = norm(add(mul(d, 0.35), mul(dome, 0.85)));   // mostly the dome's: the needle mass reads as one surface, the puffs as its swell
           const ao = Math.max(0.22, aoAt(at) * (0.6 + 0.4 * Math.max(0, d[1])));   // a puff's underside in its own shade
           cards(b, at, dir, size, light, ao, R0);
@@ -144,11 +143,10 @@ export default tree({
   growth: { years: [5, 15, 35, 70, 150], variants: [1, 1, 2, 2, 2], form, height, min: 2, max: 220 },
   grow: pine, shade,
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, tree (assets/kinds.js); P: cells per patch side
-  levels: [{ P: 4, most: [19700, 12480] }, { P: 8, most: [4100, 2600] }, { P: 16, most: [1200, 928] }, { P: 32, most: [330, 182] }],   // most: the most vertices and triangles a shape of it has at that level (its place in the heap: src/scatter/heap.js; a recipe that grows past it is told so)
-  shadow: { most: [488, 318] },   // (its shade's)
-  // its finest level, for the few nearest (larger on screen than px): every sprig a spray of its twigs, each a card of
-  // one whole twig's painting (assets/kit/tree.js: splayOf)
-  fine: { px: 600, sprig: SPRIG, twig: '8c41d228-0e3e-4fd6-b47c-9ee7929ae713' /* pine twig */, most: [50000, 28000] },
+  levels: [{ P: 4 }, { P: 8 }, { P: 16 }, { P: 32 }],
+  shadow: { most: [488, 318] },   // (its shade's: the most vertices and triangles a shape of it has, its place in the heap: src/scatter/heap.js)
+  // its finest: every sprig a spray of its twigs, each a card of one whole twig's painting (assets/kit/tree.js: splayOf)
+  fine: { sprig: SPRIG, twig: '8c41d228-0e3e-4fd6-b47c-9ee7929ae713' /* pine twig */ },
   // where it grows: the pine forest's stand (its cells, its groves, its ages: biomes/pineforest.js `trees`), of which it
   // takes its share; scale: one tree's own size about its age's height; lean: how far a trunk may lean; seed: its shapes'
   placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.7, scale: [0.93, 1.07], lean: 0.1, seed: 300 },

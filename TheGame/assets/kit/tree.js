@@ -1,7 +1,8 @@
 // The tree kit: what every tree file (assets/*.js of kind `tree`) builds its tree with, so a new kind of tree is only its
-// own shapes and how it grows. A tree is a mesh per level of detail and per shape: wood as tubes wrapped in its bark
+// own shapes and how it grows. A tree is a mesh per shape, as it is from near: wood as tubes wrapped in its bark
 // texture (part 0), leaves or needles as crossed cards cut out of a painted sprig (part 1), each card knowing its own
-// plane (cn: seen edge-on it is cut away, src/scatter/trees.js), every vertex how much light reaches it (ao).
+// plane (cn: seen edge-on it is cut away, src/scatter/trees.js), every vertex how much light reaches it (ao). Its levels
+// of detail are first shares of that one mesh, made by the crowd kit (assets/kit/crowd.js, assets/kit/plant.js).
 //
 //   export default tree({ uid, type: 'asset', name, kind: 'tree', materials: { wood, leaves }, growth, grow, shade,
 //                         levels: [{ P }, …], placement: { biome, share, … }, … })
@@ -15,23 +16,21 @@
 // groves, the ages, the same for every kind of tree that grows there); share, its part of that stand's cells (one tree a
 // cell: a mix); scale, one tree's own size about its age's height; seed, its shapes' (another seed: other trees of its kind).
 //
-// levels: one { P } for each level its file draws (P: cells per patch side); after them the kit adds its two farthest
-// by itself, made from its nearest: its crown as one body on a post (30 triangles), then a speck (8) (farOf;
-// `far: { P, sides, shade }` to tune them, `speck: false` for the body alone, `far: false` for none).
-// fine { px, sprig, twig, most }: before them, its finest, made from its nearest too (splayOf): every sprig laid out
-// as its painting's twigs, a spray, each twig a card of its own painting (twig: a material of one whole twig), for a
-// tree larger on screen than px (the few nearest: its mesh comes when a tree is that near); sprig: its leaves'
-// paintings as numbers (materials/*.twigs.js).
-// grow(q, shape, i) builds level q (0 nearest) of a shape (a stage's form, or shapes[i]) with builder()/tube()/cards(), or
-// crown() for its limbs and foliage as most trees share them, or mound() for a low bush, and returns the builder;
+// levels: one { P } for each of its levels (P: cells per patch side); after them its far ones, where the crowd kit's far
+// body stands for it: two (`far: { P }`, `speck: false` for one, `far: false` for none). Where each ends on screen is its
+// kind's (assets/kinds.js px).
+// fine { sprig, twig }: its finest is splayed (splayOf): every sprig laid out as its painting's twigs, a spray, each twig
+// a card of its own painting (twig: a material of one whole twig); sprig: its leaves' paintings as numbers
+// (materials/*.twigs.js).
+// grow(shape, i) builds a shape whole (a stage's form, or shapes[i]) with builder()/tube()/cards(), or crown() for its
+// limbs and foliage as most trees share them, or mound() for a low bush, and returns the builder;
 // shade(shape, i), if given, the light mesh the shadow map is drawn from (else none of its levels cast, but the nearest);
 // tree() works out the rest the engine reads: its levels, its size, and each shape's trunk as a body (the tube made
 // with { body: true }, where it stands at a walker's chest); its meshes are made where they are asked for, never when
 // its file is read (a worker reads this file too: plain JS, nothing of the page in it).
 
-import { kindRule } from '../kinds.js';
-import { LOD, CROWD, budgetOf } from './crowd.js';
-import { bandsOf, shapeSize, crowdLevel, ownTop } from './plant.js';
+import { budgetOf } from './crowd.js';
+import { bandsOf, shapeSize, ownTop } from './plant.js';
 import { add, sub, mul, dot, len, norm, cross, lerp, bez } from './math.js';
 import { rng } from '../../src/core/hash.js';
 
@@ -40,9 +39,9 @@ export const outward = (R0, lift) => { const a = R0() * 2 * Math.PI, y = lift + 
 
 const CHEST = 1.2;   // metres up a trunk where a walker meets it
 
-/** The mesh being built: positions, normals, uv, part (0 wood, 1 leaves, 2 a crown as one solid body: farOf), ao, a
-    card's plane (cn), its foot (root: what it grows from and shrinks to as two levels hand over) and how it hands
-    over (hand: see cards), indexed. ao(p): the
+/** The mesh being built: positions, normals, uv, part (0 wood, 1 leaves, 2 a solid body, no sprig cut out of it), ao, a
+    card's plane (cn), its foot (root: what its sprig grows from and shrinks to) and how it hands over (hand: see
+    cards), indexed. ao(p): the
     light that reaches the wood at p; barkTile: metres of wood one tile of bark covers; colours: [wood, leaves] for a
     picture without the textures. */
 export function builder({ ao = () => 1, barkTile = 1, colours = [[0.3, 0.22, 0.15], [0.1, 0.18, 0.06]] } = {}) {
@@ -81,12 +80,10 @@ export function tube(b, pts, rad, sides, { body = false } = {}) {
 
 /** Crossed cards: two cards crossed along dir, their foot at p, s metres long and wide, cut out of the leaves' sprig;
     light: the normal its light is reckoned with (a crown is lit as the dome it makes, not card by card); root: what it
-    grows from and shrinks to as two levels hand over (its foot, unless told: two levels' cards with the same root are
-    one sprig to the eye: src/detail/handover.js); hand: [from, kept] for such a sprig: `from`, the size it comes in at
-    from the finer level (to its own: it takes the finer one's place at that size, then swells; 0: it grows from
-    nothing), `kept`, 1 if the next coarser level has it too (it gives way at once, not shrinking; 0: it folds away); rep: how
-    many times its sprig's picture is laid across it (a coarser level's card is larger, its leaves are not: the picture
-    is repeated, not stretched, or a bush near by grows giant leaves as it changes level). */
+    grows from and shrinks to (its foot, unless told: cards with the same root are one sprig, which comes and goes as
+    one: assets/kit/crowd.js); hand: [from, kept], carried with it (a card whose `from` is 1 is not splayed: splayOf);
+    rep: how many times its sprig's picture is laid across it (a larger card's leaves are their own size: the picture is
+    repeated, not stretched). */
 export function cards(b, p, dir, s, light, ao, R0, root = p, hand = [0, 0], rep = 1) {
   const side0 = norm(cross(dir, Math.abs(dir[1]) < 0.95 ? [0, 1, 0] : [1, 0, 0])), turn = R0() * Math.PI;
   for (const q of [0, Math.PI / 2]) {
@@ -99,35 +96,34 @@ export function cards(b, p, dir, s, light, ao, R0, root = p, hand = [0, 0], rep 
 
 /** A crown's wood and foliage, as most trees share them. `limbs`: where each great limb leaves the wood below and where
     it ends ({ from, end }); `puffs`: its heaps of foliage ({ p: where, pr: how large }). Every puff is fed by the limb
-    whose end is nearest: the limb splits into branches (to groups of its puffs) and twigs (to each puff), as many as
-    level q shows (0: every twig; 1: branches; 2: limbs only; 3: no wood but what the file made); over each puff its
-    cards stand out.
+    whose end is nearest: the limb splits into branches (to groups of its puffs) and twigs (to each puff); over each
+    puff its cards stand out.
       thick, g     the wood's girth and the foliage's size, to a grown tree's (1)
       girth        a limb's radius at its foot and at its end, metres at thick 1; bow: how far it bows upward
-      count, size  cards a puff, and a card's size in metres, per level
+      count, size  cards a puff, and a card's size in metres
       lift         how much the cards' ways favour up (0: all round the puff; outward())
       dirOf(p, d)  the way a card stands, from a random way d out of its puff at p (default: d, lifted a little)
       light(p, d)  the normal it is lit with (a crown is lit as the body it makes); ao(p, d): the light that reaches it */
-export function crown(b, q, { limbs, puffs, thick = 1, g = 1, girth = [0.11, 0.055], bow = 1.3, count, size, lift = 0.25, dirOf, light, ao, R0 }) {
+export function crown(b, { limbs, puffs, thick = 1, g = 1, girth = [0.11, 0.055], bow = 1.3, count, size, lift = 0.25, dirOf, light, ao, R0 }) {
   const d2 = (u, w) => (u[0] - w[0]) ** 2 + (u[1] - w[1]) ** 2 + (u[2] - w[2]) ** 2;
   const of = puffs.map((c) => limbs.reduce((m, L, k) => (d2(c.p, L.end) < d2(c.p, limbs[m].end) ? k : m), 0));
   limbs.forEach((L, li) => {
-    if (q < 3) { const n = 6, pts = bez(L.from, add(lerp(L.from, L.end, 0.45), [0, bow * thick, 0]), L.end, n); tube(b, pts, pts.map((_, i) => (girth[0] + (girth[1] - girth[0]) * (i / n)) * thick), q ? 4 : 6); }   // long, bowed upward
+    { const n = 6, pts = bez(L.from, add(lerp(L.from, L.end, 0.45), [0, bow * thick, 0]), L.end, n); tube(b, pts, pts.map((_, i) => (girth[0] + (girth[1] - girth[0]) * (i / n)) * thick), 6); }   // long, bowed upward
     // its branches: more of them the more puffs it feeds (a few twigs to a branch's end, not a fan of spokes)
-    const mine = puffs.filter((_, i) => of[i] === li), nG = Math.min(mine.length, q >= 2 ? 1 : q ? Math.min(4, Math.max(2, Math.ceil(mine.length / 5))) : Math.min(9, Math.max(3, Math.ceil(mine.length / 5))));
+    const mine = puffs.filter((_, i) => of[i] === li), nG = Math.min(mine.length, Math.min(9, Math.max(3, Math.ceil(mine.length / 5))));
     if (!nG) return;
     const groups = Array.from({ length: nG }, () => []);
     mine.sort((x, y) => d2(x.p, L.from) - d2(y.p, L.from)).forEach((c, i) => groups[Math.floor((i * nG) / mine.length)].push(c));
     for (const gr of groups) {
       const G = sub(mul(gr.reduce((t, c) => add(t, c.p), [0, 0, 0]), 1 / gr.length), [0, 0.6 * g, 0]);   // where its branch ends: under its puffs' middle
-      if (q < 2) tube(b, bez(lerp(L.from, L.end, 0.6), add(lerp(L.end, G, 0.5), [0, 0.6 * g, 0]), G, 4), [0.06, 0.05, 0.042, 0.035, 0.03].map((x) => (x * g * girth[0]) / 0.11), q ? 3 : 5);
+      tube(b, bez(lerp(L.from, L.end, 0.6), add(lerp(L.end, G, 0.5), [0, 0.6 * g, 0]), G, 4), [0.06, 0.05, 0.042, 0.035, 0.03].map((x) => (x * g * girth[0]) / 0.11), 5);
       for (const c of gr) {
-        if (q === 0) { const run = Math.sqrt(d2(G, c.p)); tube(b, bez(G, add(lerp(G, c.p, 0.5), [0, 0.22 * run, 0]), c.p, 3), [0.03, 0.024, 0.018, 0.012].map((x) => x * g), 3); }   // a twig, arching up to its puff
-        for (let t = 0; t < count[q]; t++) {
-          const d = outward(R0, q >= 2 ? Math.max(lift, 0.3) : lift), sz = size[q] * (0.8 + R0() * 0.4) * g, dir = dirOf ? dirOf(c.p, d) : norm(add(d, [0, 0.35, 0]));
-          // its foot on the puff's skin; a coarser level's larger card sunk into it by the part it is larger, so every
-          // level has the same outline (no fringe of the coarser one round the finer where they change over)
-          const at = sub(add(c.p, mul(d, c.pr * 0.35)), mul(dir, Math.max(0, sz - size[0] * g) * 0.8));
+        { const run = Math.sqrt(d2(G, c.p)); tube(b, bez(G, add(lerp(G, c.p, 0.5), [0, 0.22 * run, 0]), c.p, 3), [0.03, 0.024, 0.018, 0.012].map((x) => x * g), 3); }   // a twig, arching up to its puff
+        for (let t = 0; t < count; t++) {
+          const d = outward(R0, lift), sz = size * (0.8 + R0() * 0.4) * g, dir = dirOf ? dirOf(c.p, d) : norm(add(d, [0, 0.35, 0]));
+          // its foot on the puff's skin; a card larger than the crown's own sunk into it by the part it is larger, so
+          // none stands out of the outline
+          const at = sub(add(c.p, mul(d, c.pr * 0.35)), mul(dir, Math.max(0, sz - size * g) * 0.8));
           cards(b, at, dir, sz, light(c.p, d), ao(at, d), R0);
         }
       }
@@ -139,53 +135,50 @@ export function crown(b, q, { limbs, puffs, thick = 1, g = 1, girth = [0.11, 0.0
     height, and a shoot here and there standing out past the rest, so its outline is ragged and bushes that stand close
     run into one another. Its foliage is in two parts:
       - its base: a few large sprigs (each the sprig's picture repeated across a larger card, its leaves their own size)
-        that make its whole shape. They are the same at every level: the same places, the same size, the same colour.
-        A bush does not change as one walks up to it;
-      - its fine sprigs: many small ones, at its nearest level only, added over the base (they grow in among it, the
-        base does not move), and a few short stems from its foot.
+        that make its whole shape;
+      - its fine sprigs: many small ones over the base (they grow in among it), and a few short stems from its foot.
       r, h         its reach and height, metres (of its largest heap; the others lie within about 1.3 r)
       lobes        how many heaps (1: a single round bush); ragged: the share of its sprigs that stand out as shoots
       dome         [from, to], 0 its foot … 1 its top: where on a heap its sprigs stand (a fern: only low, round its foot)
-      puffs        [places on it at its nearest level, of them the base's]; count: [sprigs at a place, of them the base's]
+      puffs        [places on it, of them the base's]; count: [sprigs at a place, of them the base's]
       size         [a fine sprig's, a base sprig's], metres
       rise         how much a sprig's way favours up over out
       stems        short stems from its foot
-      seed         its own number: the same seed, the same bush at every level */
-export function mound(b, q, { r, h, lobes = 1, ragged = 0.2, dome = [0.1, 1], puffs, count, size, rise = 0.3, stems = 0, seed = 1, R0 = rng(seed) }) {
-  // (its heaps first, from the same numbers at every level: one outline)
+      seed         its own number: the same seed, the same bush */
+export function mound(b, { r, h, lobes = 1, ragged = 0.2, dome = [0.1, 1], puffs, count, size, rise = 0.3, stems = 0, seed = 1, R0 = rng(seed) }) {
+  // (its heaps first: its outline)
   const heaps = Array.from({ length: lobes }, (_, i) => {
     const a = R0() * 2 * Math.PI, d = i ? r * (0.45 + 0.4 * R0()) : 0, k = i ? 0.5 + 0.35 * R0() : lobes > 1 ? 0.8 : 1;
     return { c: [Math.cos(a) * d, 0, Math.sin(a) * d], r: r * k, h: h * (i ? 0.55 + 0.5 * R0() : 1) };
   });
   const rep = Math.max(1, Math.round(size[1] / size[0]));
-  for (let i = 0; i < (q ? puffs[1] : puffs[0]); i++) {
+  for (let i = 0; i < puffs[0]; i++) {
     const Q = rng(seed * 7919 + i * 131 + 17), H = heaps[Math.min(lobes - 1, Math.floor(Q() * lobes))], shoot = Q() < ragged ? 1.15 + 0.3 * Q() : 1;
     const a = Q() * 2 * Math.PI, u = dome[0] + (dome[1] - dome[0]) * Q() ** 0.7, c = Math.sqrt(Math.max(0, 1 - u * u)), k = (0.5 + 0.5 * Q()) * shoot;
     const d = [Math.cos(a) * c, u, Math.sin(a) * c], p = add(H.c, [d[0] * H.r * k, d[1] * H.h * 0.75 * k, d[2] * H.r * k]), light = norm([d[0] * 0.6, d[1] * 0.6 + 0.8, d[2] * 0.6]);
     const ao = Math.max(0.3, (0.45 + 0.55 * Math.min(1, p[1] / Math.max(h * 0.75, 0.1))) * (0.65 + 0.35 * Math.min(1, k)));
-    for (let t = 0; t < (q ? count[1] : count[0]); t++) {
+    for (let t = 0; t < count[0]; t++) {
       const C = rng(seed * 104729 + i * 977 + t * 61 + 5), base = i < puffs[1] && t < count[1];
       const dir = norm([d[0] + (C() - 0.5) * 0.7, d[1] + rise, d[2] + (C() - 0.5) * 0.7]), f = (0.75 + 0.5 * C()) * (shoot > 1 ? 1.2 : 1), foot = add(p, mul(dir, 0.02 * t));
-      // a base sprig: the same card at every level (hand 1, 1: the coarser level's takes the nearer one's place as it
-      // is, at once: nothing to see), sunk into the heap by what it is larger than a fine one; a fine sprig grows in
+      // a base sprig (hand 1, 1: one splayOf leaves as it is), sunk into the heap by what it is larger than a fine one
       if (base) cards(b, sub(foot, mul(dir, (size[1] - size[0]) * f * 0.8)), dir, size[1] * f, light, ao, C, foot, [1, 1], rep);
       else cards(b, foot, dir, size[0] * f, light, ao, C, foot);
     }
   }
-  if (q === 0) for (let i = 0; i < stems; i++) {
+  for (let i = 0; i < stems; i++) {
     const H = heaps[i % lobes], a = R0() * 2 * Math.PI, e = add(H.c, [Math.cos(a) * H.r * 0.4, H.h * 0.55, Math.sin(a) * H.r * 0.4]), k = Math.max(0.5, h);
     tube(b, [[0, 0, 0], add(mul(e, 0.5), [0, h * 0.1, 0]), e], [0.03 * k, 0.022 * k, 0.012 * k], 3);
   }
 }
 
-/** A plant's finest level, made from its nearest (as farOf makes its farthest): every sprig (a pair of crossed cards,
+/** A plant's finest, made from it as grown: every sprig (a pair of crossed cards,
     the whole spray painted on each) laid out as its painting's twigs: a card a twig, each the painting of ONE twig,
     whole (its plant's `fine.twig`: nothing beside it on the card, so none cuts through another's leaves), the twigs
     standing round the sprig's own way as a spray's do, each as long as its twig in the spray, its leaves the size they
     were. The sprig is no longer two flat sheets. S: the paintings as numbers ({ twigs: [[angle from upright, length],
     …], reach, twig: { foot, length, half } }: materials/*.twigs.js). Its wood, and whatever is no such sprig (a card
     whose painting is repeated: a bush's base), stay as they are; a twig's card keeps its sprig's foot as its root, so
-    the sprig hands over to the next level's as one. */
+    the sprig comes and goes as one. */
 export function splayOf(m, S, seed = 1) {
   const b = builder(), n = m.part.length, idx = m.index, V = (a, i) => [a[i * 3], a[i * 3 + 1], a[i * 3 + 2]], map = new Int32Array(n).fill(-1);
   b.body = m.body ?? null;
@@ -215,60 +208,7 @@ export function splayOf(m, S, seed = 1) {
   return b;
 }
 
-const pct = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(sorted.length * q)))];
-const mean = (a) => a.reduce((t, x) => t + x, 0) / Math.max(1, a.length);
-
-/** A tree far off, made from its nearest mesh, so no tree file draws it: its crown one closed body round its leaves
-    (part 2: solid, no sprig cut out of it), as wide each way as they reach, lit as they are (their own normals and
-    shade, averaged); its trunk a three-sided post from its foot into the crown. Thirty-six triangles: a tree a dozen
-    pixels high; or, as a speck (four sides, no shoulder, no trunk), eight: a tree of a few pixels.
-    sides: corners round the crown; shoulder: a ring between its widest and its top (a rounded crown, not a pointed
-    one); trunk: its post; shade: how much darker than its outer leaves (a crown of cards shows its own depths). */
-export function farOf(m, { sides = 6, shade = 0.85, shoulder: round = true, trunk = true } = {}) {
-  const N = m.part.length, X = (i) => m.position[i * 3], Y = (i) => m.position[i * 3 + 1], Z = (i) => m.position[i * 3 + 2];
-  const leaf = [], wood = [];
-  for (let i = 0; i < N; i++) (m.part[i] > 0.5 ? leaf : wood).push(i);
-  const col = (i, d) => (i == null ? d : [m.color[i * 3], m.color[i * 3 + 1], m.color[i * 3 + 2]]), wAo = wood.length ? mean(wood.map((i) => m.ao[i])) : 1;
-  const b = builder({ ao: () => wAo, colours: [col(wood[0], [0.3, 0.22, 0.15]), col(leaf[0], [0.1, 0.18, 0.06])] });
-  let top = [0, wood.reduce((t, i) => Math.max(t, Y(i)), 0), 0];
-  if (leaf.length) {
-    const ys = leaf.map(Y).sort((a, c) => a - c), y0 = pct(ys, 0.04), y1 = pct(ys, 0.985), cx = mean(leaf.map(X)), cz = mean(leaf.map(Z));
-    const rOf = (i) => Math.hypot(X(i) - cx, Z(i) - cz), secOf = (i) => Math.floor((Math.atan2(Z(i) - cz, X(i) - cx) / (2 * Math.PI) + 1) * sides) % sides;
-    const rAll = pct(leaf.map(rOf).sort((a, c) => a - c), 0.85), bySec = Array.from({ length: sides }, () => []);
-    for (const i of leaf) bySec[secOf(i)].push(i);
-    // how far its leaves reach, each way (evened a little with the ways beside it)
-    let r = bySec.map((s) => (s.length > 8 ? pct(s.map(rOf).sort((a, c) => a - c), 0.85) : rAll));
-    r = r.map((x, k) => 0.5 * x + 0.25 * (r[(k + 1) % sides] + r[(k + sides - 1) % sides]));
-    // where it is widest (an umbrella's rim is its underside, a round crown's its middle), and its shoulder above
-    const outer = leaf.filter((i) => rOf(i) > 0.7 * rAll), yw = Math.min(y0 + 0.6 * (y1 - y0), Math.max(y0 + 0.08 * (y1 - y0), outer.length ? mean(outer.map(Y)) : (y0 + y1) / 2)), ysh = yw + 0.68 * (y1 - yw);
-    const C = [cx, (yw + y1) / 2, cz];
-    // what a corner of it is lit with: its leaves' own normals and shade there, averaged
-    const lit = (set) => {
-      const s = set.length >= 4 ? set : leaf, n = s.reduce((t, i) => add(t, [m.normal[i * 3], m.normal[i * 3 + 1], m.normal[i * 3 + 2]]), [0, 0, 0]);
-      return { n: len(n) > 1e-6 ? norm(n) : [0, 1, 0], ao: mean(s.map((i) => m.ao[i])) * shade };
-    };
-    const put = (p, L, uv) => b.v(p, L.n, uv, 2, L.ao, L.n, C);
-    const dirs = Array.from({ length: sides }, (_, k) => { const a = ((k + 0.5) / sides) * 2 * Math.PI; return [Math.cos(a), Math.sin(a)]; });
-    const wide = dirs.map(([c, s], k) => put([cx + c * r[k], yw, cz + s * r[k]], lit(bySec[k].filter((i) => rOf(i) > 0.6 * r[k])), [k / sides, 0.3]));
-    const shoulder = round ? dirs.map(([c, s], k) => put([cx + c * r[k] * 0.72, ysh, cz + s * r[k] * 0.72], lit(bySec[k].filter((i) => Y(i) > (yw + ysh) / 2)), [k / sides, 0.7])) : wide;
-    // (without a shoulder its top a little lower: a cone as full as the dome it stands for)
-    const apex = put([cx, round ? y1 : ysh + 0.5 * (y1 - ysh), cz], lit(leaf.filter((i) => Y(i) > ysh)), [0.5, 1]), under = put([cx, y0, cz], lit(leaf.filter((i) => Y(i) < yw)), [0.5, 0]);
-    for (let k = 0; k < sides; k++) {
-      const j = (k + 1) % sides;
-      if (round) b.index.push(wide[k], shoulder[k], shoulder[j], wide[k], shoulder[j], wide[j]);
-      b.index.push(shoulder[k], apex, shoulder[j], under, wide[k], wide[j]);
-    }
-    top = [cx, yw * 0.6 + y0 * 0.4, cz];
-  }
-  if (wood.length && trunk) {
-    const low = wood.reduce((t, i) => Math.min(t, Y(i)), Infinity), foot = wood.filter((i) => Y(i) <= low + Math.max(0.5, 0.12 * (top[1] - low)));
-    const fx = mean(foot.map(X)), fz = mean(foot.map(Z)), rf = Math.max(0.04, mean(foot.map((i) => Math.hypot(X(i) - fx, Z(i) - fz))));
-    tube(b, [[fx, low, fz], top], [rf, rf * 0.6], 3);
-  }
-  return b;
-}
-
-// the box round every shape's nearest mesh: the tree's size
+// the box round every shape's mesh: the tree's size
 const boundsOf = (meshes) => {
   let x = 0, z = 0, y = 0;
   for (const m of meshes) for (let i = 0; i < m.position.length; i += 3) { x = Math.max(x, Math.abs(m.position[i])); y = Math.max(y, m.position[i + 1]); z = Math.max(z, Math.abs(m.position[i + 2])); }
@@ -302,7 +242,7 @@ export function heightIn(S, age) {
 }
 
 /** What the page must know of a tree at once, before any of its meshes is made (its size, each shape's height and
-    trunk: measured on its nearest level), by what it is (a recipe's uid and seed): `kept`, what was measured at an
+    trunk: measured on its shapes as grown), by what it is (a recipe's uid and seed): `kept`, what was measured at an
     earlier start and is handed in (src/core/outlines.js reads it from where it is kept, by the recipe's version);
     `made`, what was measured anew this time, for it to keep. A few numbers a tree. */
 export const OUTLINES = { kept: new Map(), made: new Map() };
@@ -314,58 +254,27 @@ const packed = (m) => ({ ...Object.fromEntries(FLOATS.filter((k) => m[k]?.length
 /** A tree file's recipe made whole. With growth, its shapes are its stages of growth (and their variants), and a tree
     in the world is as old as its stand says (placement.age, src/scatter/trees.js).
     Nothing of it is built when its file is read, and in the game none of its meshes is ever on the page: they are
-    made shape by shape and level by level where they are asked for (rawAt: by its family in the recipes' workers,
-    assets/kit/plant.js; meshAt: by the library, for a plant on its stage) and live on the GPU (src/scatter/heap.js).
-    What the page must know at once (size, heights, trunk) is measured once on its nearest level and kept as a few
-    numbers (OUTLINES). */
+    made shape by shape where they are asked for (finest: by its family in the recipes' workers, assets/kit/plant.js,
+    each level a first share of it; and by the library, for a plant on its stage) and live on the GPU
+    (src/scatter/heap.js). What the page must know at once (size, heights, trunk) is measured once on its shapes as
+    grown and kept as a few numbers (OUTLINES). */
 export function tree(recipe) {
   const { shapes: own = [{}], growth, grow, shade, levels, shadow = {}, far = {}, fine = null, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
   const G = growth ? stagesOf(growth, seed) : null, shapes = G ? G.shapes : own;
-  // after the levels its file draws, its two farthest, made from its nearest (farOf): a crown as one body on a post,
-  // then a speck; `far: false`: none
-  const fars = far ? [far, ...(far.speck === false ? [] : [{ ...far, sides: 4, shoulder: false, trunk: false }])] : [];
-  const farMost = ({ sides = 6, shoulder = true, trunk = true }) => [sides * (shoulder ? 2 : 1) + 2 + (trunk ? 8 : 0), sides * (shoulder ? 4 : 2) + (trunk ? 6 : 0)];   // (a far body's vertices and triangles: its crown's rings, top and underside, its post: farOf)
-  // before them, where its file says `fine`, its finest (splayOf). Its levels then say where each ends on screen
-  // themselves (its kind's sizes are for the levels its file draws and the kit's farthest: one more in front must not shift them)
-  const f = fine ? 1 : 0, kpx = fine ? rest.detail?.px ?? kindRule(rest, 'px') : null, pxAt = (i) => (kpx ? { px: kpx[Math.min(i, kpx.length - 1)] } : {});
-  const specs = [...(fine ? [{ P: fine.P ?? 2, px: fine.px, most: fine.most, fine: true }] : []), ...levels.map((L, i) => ({ ...L, ...pxAt(i) })), ...fars.map((o, j) => ({ P: far.P ?? 64, far: true, most: farMost(o), ...pxAt(levels.length + j) }))];
-  // under `?lod=new` with LOD.SPLIT (assets/kit/crowd.js): every level the crowd kit makes, but its finest where it has
-  // no splay before it, is cut into levels no wider than SPLIT times on screen. A crowd level holds all its band may
-  // show at its widest: the narrower its band, the nearer what it submits to what it shows (more draws). Reckoned when
-  // asked, not when the file is read: the flag is set after (the page's, the workers')
-  // Under `?lod=new` it has no splay as a level of its own: the crowd kit's first level stands from the top, every size
-  // above its band, its cards turning in one by one as they come near, so nothing is handed over sprig by sprig there,
-  // nor comes later and swaps in (intent 0033: the pops close to medium). That first level is the splay itself: the crowd
-  // is built from it, so close up it is as fine as the splay was, every twig there, and its finest detail is the first
-  // share of the one build, not another level. Its levels are then counted from the crowd's first (`at0`: a level as
-  // counted then, as the file's: its first the splay where it has one, the others one on)
-  let cut = null, cutKey = null, bare = null;
-  const at0 = (l) => (LOD.on && l ? l + f : l);
-  const specsOf = () => {
-    if (!LOD.on) return specs;
-    const base = (bare ??= fine ? specs.slice(1) : specs);
-    if (!(LOD.SPLIT > 1)) return base;
-    if (cutKey === LOD.SPLIT) return cut;
-    const kp = rest.detail?.px ?? kindRule(rest, 'px'), at = base.map((L, i) => ({ ...L, px: L.px ?? kp[Math.min(i + f, kp.length - 1)] }));
-    cut = []; cutKey = LOD.SPLIT;
-    at.forEach((L, i) => {
-      const hi = i ? at[i - 1].px : Infinity;
-      if (L.fine || !Number.isFinite(hi) || hi <= LOD.FAR) { cut.push(L); return; }   // (a band under FAR holds a far body only: cut, it would only pack its plants twice where two meet)
-      const n = Math.max(1, Math.ceil(Math.log(hi / L.px) / Math.log(LOD.SPLIT) - 1e-9));
-      for (let k = 1; k <= n; k++) cut.push({ ...L, px: k === n ? L.px : hi * Math.pow(L.px / hi, k / n) });
-    });
-    return cut;
-  };
-  // (the last few made are kept as the builder left them: a far level is made from its shape's nearest)
+  // its levels: its file's, then its far ones (the crowd kit's far body: two, one where `speck: false`, none where
+  // `far: false`), each a first share of its finest; where each ends on screen is its kind's (assets/kinds.js px)
+  const specs = [...levels, ...(far ? Array.from({ length: far.speck === false ? 1 : 2 }, () => ({ P: far.P ?? 64, far: true })) : [])];
+  // (the last few made are kept as the builder left them: the crowd kit builds a shape's levels one after another)
   const memo = new Map(), once = (key, make) => { let m = memo.get(key); if (!m) { if (memo.size >= 6) memo.delete(memo.keys().next().value); memo.set(key, (m = make())); } return m; };
-  /** Shape `shape` at level `level`, as the builder made it (its attributes lists of numbers). */
-  const rawAt = (level, shape) => once(`${level}:${shape}`, () => (fine && level === 0 ? splayOf(rawAt(1, shape), fine.sprig, seed + shape) : level - f < levels.length ? grow(level - f, shapes[shape], shape) : farOf(rawAt(f, shape), fars[level - f - levels.length])));
+  /** Shape `shape` at its finest, as the builder made it (its attributes lists of numbers): grown whole, and where its
+      file says `fine` every sprig splayed into its twigs (splayOf). The crowd kit makes every level of it from this. */
+  const finest = (shape) => once(shape, () => { const m = grow(shapes[shape], shape); return fine ? splayOf(m, fine.sprig, seed + shape) : m; });
   const id = `${rest.uid}:${seed}`; let outline = null, detail = null;
   const measured = () => {
     if (!outline) {
       outline = OUTLINES.kept.get(id);
       if (!outline) {
-        const near = shapes.map((s, i) => grow(0, s, i));
+        const near = shapes.map((s, i) => grow(s, i));
         outline = { size: boundsOf(near), trunk: near.map((m) => m.body ?? [0, 0, 0.12]), heights: near.map((m) => boundsOf([m]).height) };   // trunk: each shape's at a walker's chest: where it stands off its foot, its radius (assets/kinds.js: shapesOf, a tree's trunk)
         OUTLINES.made.set(id, outline);
       }
@@ -374,28 +283,28 @@ export function tree(recipe) {
   };
   const out = {
     ...rest,
-    ...(fine ? { fine: { px: fine.px, twig: fine.twig } } : {}),   // (what its finest level wears: the plants' material reads it, the textures find it)
+    ...(fine ? { fine: { twig: fine.twig } } : {}),   // (what its finest wears: the plants' material reads it, the textures find it)
     // (at: a tree of an age, which shape and its scale; the scale over the shape as built, so it stands exactly as tall
     // as its height by age says, as the trees' engine draws it: src/scatter/trees.js sizeAtOne)
     ...(G ? { growth: { years: growth.years, stages: G.stages, height: growth.height, at: (age, v) => { const r = G.at(age, v), S = G.stages.find((x) => r.shape >= x.offset && r.shape < x.offset + x.variants), b = measured().heights[r.shape]; return { ...r, s: b > 0 ? (r.s * S.h) / b : r.s }; } } } : {}),
-    /** how many shapes it has, and how many levels (its file's and the kit's two farthest) */
-    shapeCount: shapes.length,
-    rawAt: (level, shape) => rawAt(at0(level), shape),   // (as its levels are counted: under `?lod=new` its splay the crowd's first, no level of its own)
+    /** how many shapes it has, and how many levels (its file's and its far ones) */
+    shapeCount: shapes.length, levelCount: specs.length,
+    finest,
     /** its shade's mesh for a shape (what the shadow map is drawn from), as the builder made it; none: it has no shade of its own */
     shadeRaw: shade ? (shape) => shade(shapes[shape], shape) : null,
-    /** Under `?lod=new` (assets/kit/crowd.js): the room each shape's levels need in the heap, [shape][level] { verts,
-        tris }, reckoned from its finest (its splay, where it has one) without building it, and kept with its outline */
+    /** The room each shape's levels need in the heap, [shape][level] [verts, tris] (assets/kit/crowd.js budgetOf),
+        reckoned from its finest without building the crowd, and kept with its outline */
     crowdRooms() {
-      const o = measured(), key = `${LOD.CARD}:${LOD.KMAX}:${LOD.SPLIT}:${LOD.BAKE}:${LOD.FAR}:${LOD.STANDS?.[out.uid] ?? ''}`;
-      if (o.crowd?.key !== key) {
-        const B = bandsOf(out), his = B.map(([, hi], l) => (l === (LOD.on ? 0 : f) ? Infinity : hi));
-        o.crowd = { key, rooms: shapes.map((s, i) => { const R = budgetOf(rawAt(LOD.on ? 0 : f, i), { size: shapeSize(out, i), CARD: LOD.CARD, KMAX: LOD.KMAX, FAR: LOD.FAR, baked: LOD.BAKE }, his.map((hi) => ownTop(out, i, hi))); return R.map((r, l) => (crowdLevel(out, l) ? [r.verts, r.tris] : null)); }) };
+      const o = measured();
+      if (!o.rooms) {
+        const his = bandsOf(out).map(([, hi], l) => (l ? hi : Infinity));
+        o.rooms = shapes.map((s, i) => budgetOf(finest(i), { size: shapeSize(out, i) }, his.map((hi) => ownTop(out, i, hi))).map((r) => [r.verts, r.tris]));
         OUTLINES.made.set(id, o);
       }
-      return o.crowd.rooms;
+      return o.rooms;
     },
-    /** shape `shape` at level `level` as typed arrays (a plain geometry's: the library's stage) */
-    meshAt: (level, shape = 0) => packed(rawAt(Math.min(level, specs.length - 1), Math.min(shape, shapes.length - 1))),   // (its file's levels: the crowd kit's are made by assets/kit/plant.js)
+    /** shape `shape` at its finest as typed arrays (a plain geometry's), at any level: every level is a first share of it */
+    meshAt: (level, shape = 0) => packed(finest(Math.min(shape, shapes.length - 1))),
     /** the same kind of tree grown from another seed: other shapes, other places (the library's Random). A shape of its
         file's that carries a seed of its own (a bush's mound, a branch: no growth to grow it from the placement's seed)
         is grown from that seed moved as far as the placement's was, so a bush is another bush too; its own seed gives
@@ -405,12 +314,10 @@ export function tree(recipe) {
   const lazy = (get) => ({ enumerable: true, configurable: true, get });
   return Object.defineProperties(out, {
     size: lazy(() => rest.size ?? measured().size), trunk: lazy(() => measured().trunk), heights: lazy(() => measured().heights),
-    // its levels as numbers only (P: cells a patch's side; most: the most vertices and triangles a shape of it has there, its file says;
-    // tris(): counted when asked); shadow: it is drawn into the shadow map by its shade, for every tree within `far`
-    // metres (from high up, up to `wide` times that) whose shade can reach the view (`reach`: how far a crown's shadow
-    // falls); past them the land dims its floor under the stand by itself (src/terrain/material.js)
-    detail: lazy(() => (detail?.of === specsOf() ? detail.d : (detail = { of: specsOf(), d: { ...(rest.detail || {}), levels: specsOf().map((L, i) => ({ ...L, tris: () => rawAt(at0(i), 0).index.length / 3 })), ...(shade ? { shadow: { far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) } }).d)),
-    /** how many levels it has (its file's and the kit's two farthest; under `?lod=new` as LOD.SPLIT cuts them) */
-    levelCount: lazy(() => specsOf().length),
+    // its levels as numbers only (P: cells a patch's side; tris(): the most triangles its first shape has there, of its
+    // room in the heap); shadow: it is drawn into the shadow map by its shade, for every tree within `far` metres (from
+    // high up, up to `wide` times that) whose shade can reach the view (`reach`: how far a crown's shadow falls); past
+    // them the land dims its floor under the stand by itself (src/terrain/material.js)
+    detail: lazy(() => (detail ??= { ...(rest.detail || {}), levels: specs.map((L, i) => ({ ...L, tris: () => out.crowdRooms()[0][i][1] })), ...(shade ? { shadow: { far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) })),
   });
 }

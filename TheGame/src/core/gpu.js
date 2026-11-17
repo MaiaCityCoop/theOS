@@ -25,7 +25,7 @@ if (typeof window !== 'undefined') window.__memory = ledger;
 
 let R = null;
 /** The renderer whose GPU the lean buffers are made on (main.js, once it has started). Without it (WebGL, a page that
-    did not ask, `?fat`): gpuStorage makes an ordinary buffer, kept twice. */
+    did not ask): gpuStorage makes an ordinary buffer, kept twice. */
 export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer : null; };
 export const lean = () => !!R;
 

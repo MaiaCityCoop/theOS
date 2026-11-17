@@ -84,12 +84,7 @@ async function measured(a) {
   if (a.meshAt && a.shapeCount) {   // a plant of a stand
     const tops = [];
     for (let s = 0; s < a.shapeCount; s++) {
-      const near = bounds(a.meshAt(0, s).position);
-      tops.push(near.top);
-      for (let l = 1; l < a.levelCount; l++) {
-        const B = bounds(a.meshAt(l, s).position);
-        if (Math.abs(B.top - near.top) > LEVELS * near.top) notes.push(`shape ${s}, level ${l}: ${r3(B.top)} m against ${r3(near.top)} m near`);
-      }
+      tops.push(bounds(a.meshAt(0, s).position).top);   // (a plant has one mesh, its finest: the crowd thins it, intent 0038)
     }
     const [k0, k1] = P.scale ?? [1, 1], G = a.growth;
     if (G?.stages) {   // a tree: as old as its stand, drawn as the engine draws it (its packed size, the height its age asks times wide, over its shape's size at scale 1)
