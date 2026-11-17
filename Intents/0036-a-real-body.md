@@ -604,3 +604,4 @@ for his own eyes on `next`, with fewer checks than Define asks.
 | 2026-11-16 | `52b090c` | the muscles grown and drawn only for their own character |
 | 2026-11-17 | `e079075` | the fat and the skin over the muscles, the Body character with its layers; the skin carried by its four nearest bones |
 | 2026-11-17 | `039e4ef` | Body's comment says the skin is carried by its bones |
+| 2026-11-17 | `1d39b34` | the registry's version of Body after its comment changed |
