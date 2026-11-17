@@ -18,19 +18,20 @@
 // stand(asset, at) puts a place in (src/main.js: world/places.js); `?many=N` stands N more round the meadow, to measure
 // (the list's room is set at the start: as many as `many` asks, and four thousand besides).
 import * as THREE from 'three/webgpu';
-import { Fn, If, float, uint, vec3, vec4, uniform, varyingProperty, normalize, mix, fract, dFdx, dFdy } from 'three/tsl';
+import { Fn, If, Discard, float, uint, vec3, vec4, uniform, varyingProperty, normalize, mix, fract, dFdx, dFdy, smoothstep, screenCoordinate } from 'three/tsl';
 import { camDist } from '../world/land.nodes.js';
 import { heightAt } from '../world/land.js';
-import { windAt, windStrength, unlit } from '../world/light.js';
+import { windAt, windStrength, unlit, ign } from '../world/light.js';
 import { layerOf, wrapGrad } from '../world/tile.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { pxK, detailOf } from '../detail/index.js';
 import { spanOf, most, kindOf } from '../../assets/kinds.js';
 import { bodyOfAsset } from '../../assets/index.js';
 import { placedBy } from '../../assets/zoo/index.js';
-import { madeBox, madeRoom, madeMesh } from '../../assets/kit/made.js';
+import { madeBox, madeRoom, madeMesh, MADE_PX, THIN, WIDE } from '../../assets/kit/made.js';
+import { LOD } from '../../assets/kit/crowd.js';
 import { versionOf } from '../core/registry.js';
-import { madeOf } from './madevert.js';
+import { madeOf, madeTo, madeWidth } from './madevert.js';
 import { createDrawer } from './drawer.js';
 import { heapRow } from './heap.js';
 import { offScreen, clipOf } from './tier.js';
@@ -64,20 +65,33 @@ export const unstand = (id) => LIST?.unstand(id) ?? false;
     how worn it is: src/world/things.js), its kind's numbers (the drawer's table: its look, and NUMS rows of its own),
     and from there what src/world/made.nodes.js does for every made thing. Lv: its level ({ lo, hi, last }), fade and
     sink its kinds'. */
-function madeMaterial(D, src, lv, Lv, fade, sink, at) {
+// `?lod=new` (intent 0033): a level is drawn between its own sizes on screen, and over them every vertex moves to its
+// place on the next coarser level (assets/kit/made.js: madeLevels), so where one level gives way to the next both draw
+// the same; a thin piece fades by its width on screen, and the last level thins away over its last pixels (END)
+const END = [1.15, 1.84];
+function madeMaterial(D, src, lv, Lv, fade, sink, at, NEW = false) {
   const slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0), level = uniform(lv, 'uint'), LU = levelOf(Lv, fade);
-  const vW = varyingProperty('vec3', 'mW'), vN = varyingProperty('vec3', 'mN'), vC = varyingProperty('vec3', 'mC'), vY = varyingProperty('float', 'mY'), vK = varyingProperty('vec3', 'mK');   // (vK: its kind, the material its face wears, how worn it is)
+  const vF = varyingProperty('float', 'mF'), vW = varyingProperty('vec3', 'mW'), vN = varyingProperty('vec3', 'mN'), vC = varyingProperty('vec3', 'mC'), vY = varyingProperty('float', 'mY'), vK = varyingProperty('vec3', 'mK');   // (vK: its kind, the material its face wears, how worn it is)
   const m = new THREE.NodeMaterial(); m.side = THREE.DoubleSide;
   m.vertexNode = Fn(() => {
     const A = src.readAt(0, slot), B = src.readAt(1, slot), S = src.readAt(2, slot), clip = offScreen().toVar();
     const kind = uint(B.y.add(0.5)), N0 = D.numOf(kind, 0).toVar(), N1 = D.numOf(kind, 1).toVar(), N2 = D.numOf(kind, 2).toVar(), span = D.lookOf(kind, 3).w;   // (span: its largest side, its look's)
     // its size on screen, and the one hand-over (src/detail/handover.js): a made thing is of one piece, it changes over
     // whole, half way; its last level sinks, where no dot follows it
-    const H = handOver(pxOf(A.w, A.xy), LU, sink);
+    const px = pxOf(A.w, A.xy), H = handOver(px, LU, sink);
     const R = heapRow(D.H, kind, level).toVar();
     const on = at(R);   // (where the draw's vertex lies, and whether it is one of the mesh's: drawer.js atOf)
-    If(H.whole.and(on.drawn), () => {
-      const V = madeOf(D.H.elems.element(R.y.add(on.vertex)), N0.xyz, N1.xyz), p = V.position;
+    const hi = Number.isFinite(Lv.hi) ? Lv.hi : 1e9, shown = NEW ? px.greaterThanEqual(Lv.lo).and(px.lessThan(hi)) : H.whole;
+    If(shown.and(on.drawn), () => {
+      const e0 = D.H.elems.element(R.y.add(NEW ? on.vertex.mul(uint(2)) : on.vertex)).toVar(), V = madeOf(e0, N0.xyz, N1.xyz);
+      if (NEW) {
+        // (how far it has gone to the next coarser level: over the whole of its band, top to bottom)
+        const T = madeTo(D.H.elems.element(R.y.add(on.vertex.mul(uint(2))).add(uint(1))), N0.xyz, N1.xyz), t = Lv.last ? float(0) : float(1).sub(smoothstep(Lv.lo, Number.isFinite(Lv.hi) ? Lv.hi : Lv.lo * 2, px));
+        V.position.assign(mix(V.position, T.position, t)); V.normal.assign(normalize(mix(V.normal, normalize(T.normal), t))); V.colour.assign(mix(V.colour, T.colour, t));
+        const wd = madeWidth(e0), thin = wd.greaterThan(0).select(smoothstep(THIN, WIDE, wd.mul(px).div(span)), float(1));
+        vF.assign(thin.mul(Lv.last ? smoothstep(END[0], END[1], px) : float(1)));
+      }
+      const p = V.position;
       const s = A.w.div(span), { turn, unturn } = turnOf(B.x);
       // its sway in the wind, in its own frame (src/world/made.nodes.js)
       const foot = vec3(A.x, A.z, A.y), push = windAt(foot.xz.add(turn(p).xz.mul(s))), along = unturn(vec3(push.x, 0, push.y));
@@ -90,6 +104,7 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
   })();
   m.fragmentNode = Fn(() => {
     const out = vec4(0).toVar();
+    if (NEW) Discard(ign(screenCoordinate.xy).greaterThanEqual(vF));   // (a thin piece's, and its last pixels': as many of its pixels as are left, the same ones from frame to frame)
     If(unlit().not(), () => {   // (drawn into the shadow map, only its depth counts: no light)
       const kind = uint(vK.x.add(0.5)), N3 = D.numOf(kind, 3), N4 = D.numOf(kind, 4), snow = D.lookOf(kind, 3).x, part = vK.y;
       const w = vW, n0 = facing(normalize(vN), w).toVar();   // (the face's side towards the eye)
@@ -109,7 +124,7 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
 
 /** A group: the made kinds whose levels end at the same pixels, its drawer, its list, its tiers. */
 function groupOf(scene, tex, renderer, name, kinds, cap) {
-  const first = kinds[0].asset, D0 = detailOf(first), meshes = D0.levels.filter((l) => !l.impostor), card = D0.levels.find((l) => l.impostor), ML = meshes.length, n = kinds.length;
+  const NEW = LOD.on, first = kinds[0].asset, D0 = detailOf(first), meshes = NEW ? MADE_PX.map((px, i) => ({ lo: i === MADE_PX.length - 1 ? END[0] : px })) : D0.levels.filter((l) => !l.impostor), card = NEW ? null : D0.levels.find((l) => l.impostor), ML = meshes.length, n = kinds.length;   // (`?lod=new`: the levels every made thing has, made from its finest faces; its last one thins away)
   // its levels: the kinds' own, each kind's mesh in a place of its own size; where they had a far card, the drawer's dot
   const LEVELS = meshes.map((l, i) => { const rooms = kinds.map((Kd) => madeRoom(Kd.asset, i)); return { px: l.lo, room: { verts: Math.max(1, ...rooms.map((r) => r.verts)), tris: Math.max(1, ...rooms.map((r) => r.tris)) }, rooms }; });
   if (card) LEVELS.push({ px: card.lo });
@@ -122,7 +137,7 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
     if (M.length > 4) console.warn(`placed: '${a.name}' names ${M.length} materials; its faces wear the first four`);
     return [...B.min, most(a.size.height), ...B.ext, most(a.size.length) / 2, W.billow ?? 0, W.flap ?? 0, W.sway ?? 0, 0, S.wrap ?? 0, S.through ?? 0, a.texture ?? 1, a.relief ?? 1, M[0] ?? -1, M[1] ?? -1, M[2] ?? -1, M[3] ?? -1];
   };
-  const KINDS = kinds.map((Kd) => Kd.zoo), fade = D0.fade, sink = D0.sink;
+  const KINDS = kinds.map((Kd) => Kd.zoo), fade = D0.fade, sink = NEW ? 0 : D0.sink;
   // (its kinds' coarse levels made here, as the recipes' worker makes a block (recipes.worker.js: 'own'), where they are
   // few and small: a few hundred thousand faces are a few tens of milliseconds, and they are there for the first picture)
   const FEW = kinds.reduce((s, Kd) => s + Kd.asset.detail.levels.reduce((t, l) => t + l.faces.length, 0), 0) < 300000;
@@ -133,9 +148,9 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
   });
   const D = createDrawer(scene, renderer, tex, {
     name: `made: ${name}`, LEVELS, SHADE: { shrink: 1, far: 30, wide: 1.5 }, SMOOTH: uniform(1), state: true,
-    make: { per: 1, flat: true, dot: !!card, numbers: { rows: NUMS, of: numbersOf }, material: (src, i, shadow, at) => madeMaterial(D, src, i, { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity, last: !card && i === ML - 1 }, fade, sink, at), here: FEW ? here : null },
+    make: { per: NEW ? 2 : 1, flat: true, dot: !!card, numbers: { rows: NUMS, of: numbersOf }, material: (src, i, shadow, at) => madeMaterial(D, src, i, { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity, last: !card && i === ML - 1 }, fade, sink, at, NEW), here: FEW ? here : null },
     // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
-    zoo: { kinds: KINDS, ALL: n, lookOfKind: (k) => kinds[k].look, fingerprint: () => `made 2|${kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room?.verts}:${l.room?.tris}`).join()}` },
+    zoo: { kinds: KINDS, ALL: n, lookOfKind: (k) => kinds[k].look, fingerprint: () => `made 2${NEW ? ' new' : ''}|${kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room?.verts}:${l.room?.tris}`).join()}` },
   });
 
   // ---- the list: what stands, by the order of where it stands ----
@@ -227,7 +242,7 @@ export function createPlaced(scene, tex, renderer) {
   if (!all.length) return [];
   // the groups: kinds whose levels end at the same pixels, and that sink and hand over alike
   const by = new Map();
-  for (const Kd of all) { const D = detailOf(Kd.asset), sig = `${D.levels.map((l) => (l.impostor ? `card ${l.lo}` : l.lo)).join(',')}|${D.fade}|${D.sink}`; if (!by.has(sig)) by.set(sig, []); by.get(sig).push(Kd); }
+  for (const Kd of all) { const D = detailOf(Kd.asset), sig = LOD.on ? 'new' : `${D.levels.map((l) => (l.impostor ? `card ${l.lo}` : l.lo)).join(',')}|${D.fade}|${D.sink}`; if (!by.has(sig)) by.set(sig, []); by.get(sig).push(Kd); }
   const groups = [], byUid = new Map(), tiers = [];
   for (const kinds of by.values()) {
     const cap = Math.min(MOST, 4096 + Math.ceil(((MANY * kinds.length) / all.length) * 1.05));   // (its room: its share of `?many`, and four thousand besides)
