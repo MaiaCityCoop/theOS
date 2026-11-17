@@ -28,13 +28,17 @@ severity:
 
 ## The core message
 
-> **Deep inside, I know this truth: I carry a power far greater than anything in the universe.**
+> **Deep inside, I know this truth: we carry a power far greater than anything in the universe.**
 >
-> And it is not just me. You know it too. In fact, each and every one of us knows it.
+> The power to make the impossible real, the moment we unite behind one vision.
+>
+> It is how we learned to fly. How we lit up the night. How we connected the whole world in an instant.
+>
+> And it is not just me. You know it too. Each and every one of us knows it.
 >
 > Imagine a million humans waking up with sparkling eyes, a smiling heart and fire in the belly. Every day. Every vision that waited for permission, finally built, side by side.
 >
-> Together, we reached the Moon. Now, together, we build a green city on Earth, with our bare hands.
+> And next, together, we build a green city, from the ground up.
 >
 > This is Maia City. Food forests by every door. Green energy on every roof. Everything owned by all of us who build it. Every hour free for what we love.
 >
@@ -42,7 +46,7 @@ severity:
 >
 > The city is the proof. We are the point.
 >
-> It begins first in a game, then for real: one tent on a green meadow. Tonight, I can walk in.
+> It begins first in a game, then for real.
 
 **It is read in the first person.** The viewer says it as their own words: what they know about themselves when they are honest, and dare to believe.
 

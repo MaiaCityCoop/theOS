@@ -196,6 +196,18 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes.
 - **Broke / not there yet:** —
 
+### 2026-11-17 (14)
+
+- **Asked:** "we carry", not "I carry"; a transition that names the power so the reader understands it (from vision to
+  reality: when we unite in a vision, the impossible becomes possible; we always did this; no prose glue); not the
+  Moon: three things, each grander (human flight, …); "from the ground up", not "bare hands"; remove the tent and
+  "tonight, I can walk in".
+- **Delivered:** the power named: "the power to make the impossible real, the moment we unite behind one vision";
+  flight, light in the night, the whole world connected in an instant; "and next, together, we build a green city,
+  from the ground up"; the close "It begins first in a game, then for real."
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** —
+
 ## Trail
 
 | When | Commit | What |
