@@ -140,8 +140,8 @@ export const PROFILES = [
   { part: 'trunk', a: [0, 0.84, 0], b: [0, 1.6, 0], front: [0, 0, 1], fade: [0, 1], sections: [   // every 4 cm from 0.84 m up
     [-3.0, 9.0, 9.0, 6.0, 7.0, 2.0], [-2.5, 15.0, 15.0, 8.5, 8.0, 2.2], [-1.8, 17.6, 17.6, 10.0, 9.0, 2.35], [-1.5, 17.0, 17.0, 10.2, 10.0, 2.3],
     [-1.0, 15.8, 15.8, 10.4, 11.2, 2.2], [-0.5, 15.0, 15.0, 10.5, 10.4, 2.15], [0.0, 14.8, 14.8, 10.5, 10.2, 2.15], [0.0, 15.0, 15.0, 10.6, 10.3, 2.2],
-    [-0.3, 15.4, 15.4, 10.9, 10.6, 2.25], [-0.8, 15.9, 15.9, 11.4, 11.2, 2.35], [-1.3, 16.3, 16.3, 12.0, 11.8, 2.5], [-1.8, 16.6, 16.6, 12.5, 12.3, 2.65],
-    [-2.3, 16.8, 16.8, 12.6, 12.5, 2.8], [-2.8, 16.9, 16.9, 12.3, 12.4, 2.8], [-3.3, 17.6, 17.6, 11.5, 12.0, 2.6], [-3.8, 19.6, 19.6, 9.8, 10.8, 2.3],
+    [-0.3, 15.4, 15.4, 10.9, 10.6, 2.25], [-0.8, 15.9, 15.9, 11.4, 11.2, 2.35], [-1.3, 16.3, 16.3, 11.6, 11.8, 2.5], [-1.8, 16.4, 16.4, 11.6, 12.3, 2.65],
+    [-2.3, 16.6, 16.6, 11.4, 12.5, 2.8], [-2.8, 16.8, 16.8, 11.2, 12.4, 2.8], [-3.3, 17.6, 17.6, 11.5, 12.0, 2.6], [-3.8, 19.6, 19.6, 9.8, 10.8, 2.3],
     [-4.0, 15.0, 15.0, 7.6, 8.8, 2.0], [-3.5, 6.2, 6.2, 5.7, 6.4, 2.0], [-3.0, 5.7, 5.7, 5.3, 5.9, 2.0], [-2.5, 5.6, 5.6, 5.3, 5.7, 2.0]] },
   { part: 'arm', a: [0.186, 1.425, -0.042], b: [0.2, 1.13, -0.056], front: [0, 0, 1], fade: [0, 0], sections: [   // the upper arm, from over the shoulder to the elbow
     [0, 4.2, 3.0, 4.6, 4.6, 2.0], [0, 5.2, 4.2, 5.4, 5.4, 2.1], [0, 4.9, 4.5, 5.2, 5.1, 2.1], [0, 4.6, 4.5, 5.4, 5.0, 2.1], [0, 4.3, 4.1, 4.7, 4.7, 2.1], [0, 4.0, 3.7, 4.1, 4.4, 2.1]] },
@@ -155,7 +155,8 @@ export const PROFILES = [
 // Masses the outline holds besides its sections: each buttock (the gluteus maximus under its pad of fat, its fold at
 // 0.80 m, the cleft between the two), a superellipsoid round its middle (left side; m): [out, in, up, down, front,
 // back] its half-extents, n its squareness, k how softly it runs into the outline (m), arch how far its sides curve
-// back round the middle (the lips round the teeth: m back for each m² out).
+// back round the middle (the lips round the teeth: m back for each m² out), lean how far its upper half falls back (a
+// pectoral thick at its lower edge, thinning up into the collarbone: m back for each m up).
 export const MASSES = [
   // the face's own (the skin over them; Farkas's norms of the adult man's face, as remembered: the mouth 5.2 cm wide,
   // the upper lip standing 11.6 cm forward of the head's middle, the lower 11.3, the chin 10.9; middle only, m)
@@ -165,6 +166,7 @@ export const MASSES = [
   { part: 'head', what: 'masseter', at: [0.046, 1.623, 0.024], r: [0.019, 0.02, 0.022, 0.028, 0.026, 0.022], n: 2.0, k: 0.018 },   // (and the cheek's fat over it)
   { part: 'head', what: 'chin', at: [0, 1.57, 0.092], r: [0.026, 0.026, 0.014, 0.014, 0.01, 0.014], n: 2.0, k: 0.028 },
   { part: 'trunk', what: 'deltoid', at: [0.172, 1.44, -0.032], r: [0.042, 0.03, 0.045, 0.07, 0.045, 0.048], n: 2.1, k: 0.025 },   // (the shoulder's cap, over the acromion and the head of the arm)
+  { part: 'trunk', what: 'pectoral', at: [0.078, 1.33, 0.078], r: [0.074, 0.064, 0.1, 0.038, 0.022, 0.03], n: 2.6, k: 0.025, lean: 0.3 },   // (a slightly muscular man's: its lower edge at the nipples, the sternum in the groove between the two)
   { part: 'trunk', what: 'buttock', at: [0.072, 0.885, -0.08], r: [0.085, 0.062, 0.11, 0.085, 0.05, 0.065], n: 2.5, k: 0.025 },
 ];
 // The hand, drawn finer than the body (./build.js): its palm and the ball of its thumb as masses (left hand, standing,

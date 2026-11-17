@@ -205,7 +205,7 @@ function materialOf(tex, eye, kind, inset = 0, rest = null) {
         const diff = max(ndl.add(0.3).div(1.3), 0), spec = pow(ndh, 60).mul(0.25);
         out.assign(finish(col.mul(skyLight(n).mul(open.mul(open)).add(sun.mul(diff))).add(sun.mul(spec).mul(max(ndl, 0))), w, eye));
       } else {
-        const what = look.y, nailW = clamp(look.z, 0, 1), is = (k) => (k === 3 ? nailW : float(1).sub(clamp(abs(what.sub(k)), 0, 1))), Q = vec3(abs(P.x), P.y, P.z);
+        const is = (k) => clamp(k === 1 ? look.y : k === 2 ? look.w : look.z, 0, 1), Q = vec3(abs(P.x), P.y, P.z);   // (how much of a lip, an areola, a nail)
         const near = (c, r) => exp(length(Q.sub(vec3(...c))).div(r).pow(2).negate());   // (a place of the body, softly)
         // its relief, finer than its points: pores (about a millimetre) and the skin's fine grain, faded with distance
         const fade = clamp(float(1).sub(length(eye.sub(w)).div(2.5)), 0, 1), bump = (f, e) => { const c = mx_noise_float(P.mul(f)); return vec3(mx_noise_float(P.add(vec3(e, 0, 0)).mul(f)).sub(c), mx_noise_float(P.add(vec3(0, e, 0)).mul(f)).sub(c), mx_noise_float(P.add(vec3(0, 0, e)).mul(f)).sub(c)).div(e); };
