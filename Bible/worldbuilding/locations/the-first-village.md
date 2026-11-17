@@ -27,7 +27,7 @@ Domes grown together into a place people live in permanently: homes, food forest
 
 **At the start everything is trucked in**, and the serial must never pretend otherwise. A settlement on open ground eats what arrives by lorry.
 
-The whole arc of a village, in the game and in the ground, is to work itself off those deliveries one at a time: plant the food forest, grow what it eats, make its own power and materials, reach **self-sufficiency** — and then go past it, until it **exports more than it brings in**. Sovereignty is the end of that road, not the beginning of it.
+The whole arc of a village, in the game and in the ground, is to work itself off those deliveries one at a time: plant the food forest, grow what it eats, make its own power and materials, reach **self-sufficiency** — and then go past it, until it **exports more than it brings in**. Sovereignty is the end of that road, not the beginning of it: food, then energy, on land the Maia City Coop owns from the first day, which are the three of [self-sovereignty](../systems/self-sovereignty.md).
 
 Saying "nothing is trucked in" is only true of the finished city in 2042. Of a new village it is a lie, and it throws away the most interesting thing the game has: the climb.
 
