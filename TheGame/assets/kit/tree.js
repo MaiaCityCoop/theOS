@@ -333,11 +333,18 @@ export function tree(recipe) {
   // no splay before it, is cut into levels no wider than SPLIT times on screen. A crowd level holds all its band may
   // show at its widest: the narrower its band, the nearer what it submits to what it shows (more draws). Reckoned when
   // asked, not when the file is read: the flag is set after (the page's, the workers')
-  let cut = null, cutKey = null;
+  // Under `?lod=new` it has no splay: the crowd kit's first level stands from the top, every size above its band, its
+  // cards turning in one by one as they come near, so nothing is handed over sprig by sprig there, nor comes later and
+  // swaps in (intent 0033: the pops close to medium). Its levels are then counted from the crowd's first (`at`: a level as
+  // counted then, as the file's: one on where it has a splay)
+  let cut = null, cutKey = null, bare = null;
+  const at0 = (l) => (LOD.on ? l + f : l);
   const specsOf = () => {
-    if (!LOD.on || !(LOD.SPLIT > 1)) return specs;
+    if (!LOD.on) return specs;
+    const base = (bare ??= fine ? specs.slice(1) : specs);
+    if (!(LOD.SPLIT > 1)) return base;
     if (cutKey === LOD.SPLIT) return cut;
-    const kp = rest.detail?.px ?? kindRule(rest, 'px'), at = specs.map((L, i) => ({ ...L, px: L.px ?? kp[Math.min(i, kp.length - 1)] }));
+    const kp = rest.detail?.px ?? kindRule(rest, 'px'), at = base.map((L, i) => ({ ...L, px: L.px ?? kp[Math.min(i + f, kp.length - 1)] }));
     cut = []; cutKey = LOD.SPLIT;
     at.forEach((L, i) => {
       const hi = i ? at[i - 1].px : Infinity;
@@ -371,7 +378,7 @@ export function tree(recipe) {
     ...(G ? { growth: { years: growth.years, stages: G.stages, height: growth.height, at: (age, v) => { const r = G.at(age, v), S = G.stages.find((x) => r.shape >= x.offset && r.shape < x.offset + x.variants), b = measured().heights[r.shape]; return { ...r, s: b > 0 ? (r.s * S.h) / b : r.s }; } } } : {}),
     /** how many shapes it has, and how many levels (its file's and the kit's two farthest) */
     shapeCount: shapes.length,
-    rawAt,
+    rawAt: (level, shape) => rawAt(at0(level), shape),   // (as its levels are counted: under `?lod=new` without its splay)
     /** its shade's mesh for a shape (what the shadow map is drawn from), as the builder made it; none: it has no shade of its own */
     shadeRaw: shade ? (shape) => shade(shapes[shape], shape) : null,
     /** Under `?lod=new` (assets/kit/crowd.js): the room each shape's levels need in the heap, [shape][level] { verts,
@@ -379,7 +386,7 @@ export function tree(recipe) {
     crowdRooms() {
       const o = measured(), key = `${LOD.CARD}:${LOD.KMAX}:${LOD.SPLIT}:${LOD.BAKE}:${LOD.FAR}:${LOD.STANDS?.[out.uid] ?? ''}`;
       if (o.crowd?.key !== key) {
-        const B = bandsOf(out), his = B.map(([, hi], l) => (l === f ? Infinity : hi));
+        const B = bandsOf(out), his = B.map(([, hi], l) => (l === (LOD.on ? 0 : f) ? Infinity : hi));
         o.crowd = { key, rooms: shapes.map((s, i) => { const R = budgetOf(rawAt(f, i), { size: shapeSize(out, i), CARD: LOD.CARD, KMAX: LOD.KMAX, FAR: LOD.FAR, baked: LOD.BAKE }, his.map((hi) => ownTop(out, i, hi))); return R.map((r, l) => (crowdLevel(out, l) ? [r.verts, r.tris] : null)); }) };
         OUTLINES.made.set(id, o);
       }
@@ -400,7 +407,7 @@ export function tree(recipe) {
     // tris(): counted when asked); shadow: it is drawn into the shadow map by its shade, for every tree within `far`
     // metres (from high up, up to `wide` times that) whose shade can reach the view (`reach`: how far a crown's shadow
     // falls); past them the land dims its floor under the stand by itself (src/terrain/material.js)
-    detail: lazy(() => (detail?.of === specsOf() ? detail.d : (detail = { of: specsOf(), d: { ...(rest.detail || {}), levels: specsOf().map((L, i) => ({ ...L, tris: () => rawAt(i, 0).index.length / 3 })), ...(shade ? { shadow: { far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) } }).d)),
+    detail: lazy(() => (detail?.of === specsOf() ? detail.d : (detail = { of: specsOf(), d: { ...(rest.detail || {}), levels: specsOf().map((L, i) => ({ ...L, tris: () => rawAt(at0(i), 0).index.length / 3 })), ...(shade ? { shadow: { far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) } }).d)),
     /** how many levels it has (its file's and the kit's two farthest; under `?lod=new` as LOD.SPLIT cuts them) */
     levelCount: lazy(() => specsOf().length),
   });
