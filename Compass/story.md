@@ -34,13 +34,13 @@ severity:
 >
 > Imagine a million people daring to believe it at once. A million people waking up with sparkling eyes. Every vision that waited for permission, finally built, side by side.
 >
-> Food at every door. Sun on every roof. Every hour free for what we love.
->
 > We stood on the Moon. That was a few of us.
 >
 > Imagine a million of us, standing on Earth, in a green city that we build with our bare hands.
 >
-> This is Maia City: a new blueprint for how to live, proven the only way that convinces anyone, by building it together.
+> This is Maia City. Healthy food growing by every door. Clean power from the sun on every roof. Every home, every field, every machine owned by all of us who build it. Every hour free for what we love.
+>
+> A new blueprint for how to live, proven the only way that convinces anyone: by building it together.
 >
 > The city is the proof. We are the point.
 >

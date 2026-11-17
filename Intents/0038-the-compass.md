@@ -168,6 +168,15 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes.
 - **Broke / not there yet:** —
 
+### 2026-11-17 (11)
+
+- **Asked:** add the mini pitch of what the city is, without the word "sovereignty": healthy food by the door, etc.
+- **Delivered:** after "This is Maia City": healthy food by every door, clean power from the sun on every roof, every
+  home, field and machine owned by all who build it, every hour free for what we love. The earlier food-and-sun line
+  folded into it.
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** —
+
 ## Trail
 
 | When | Commit | What |
