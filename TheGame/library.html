@@ -82,6 +82,7 @@ import { heightAt } from './src/world/land.js';
 import { materialPreview, materialThumb, dioramaThumb, sceneThumb } from './src/materials/preview.js';
 import { WALKER, PERSON } from './world/scale.js';
 const q = new URLSearchParams(location.search), cine = window.__cine;
+cine.fill = true;   // (the library looks through the film camera's lens but is no film: its picture fills the window, upright on a phone too, with no black bars of the film's 16 : 9 over the page)
 const hint = document.querySelector('.hint'), HINT = hint.textContent;   // the hint under the stage: how it is looked at
 const hex = (c) => '#' + c.map((v) => Math.round(Math.min(1, v) * 255).toString(16).padStart(2, '0')).join('');
 // every recipe from the registry, by its uid (src/core/registry.js)
