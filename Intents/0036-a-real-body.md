@@ -413,7 +413,61 @@ first", "slightly muscular". Merged with the skin in #36.
   and brow (two attempts to hold it to limits made it worse and were taken out). The arms still read a little as
   tubes. No hair, no brows.
 
+**Round 1, the face and the skin's look (2026-11-17, evening).** Samuel: "do what you believe is right to finish the
+complete photorealistic version". Branch `aven/0036-face`.
+
+- **The face against Richer's head** (front and side, the head of plates 74 and 76 at the same scale, eyes to chin).
+  Set beside it, ours had the chin and the lips nearly level with the nose's tip, a jaw that came forward as a box
+  9 cm deep even 3.5 cm from the middle, and seams where the fine head met the neck. Now the lower face is drawn as
+  though moved back (`LOWER_FACE` in `skin/table.js`): 11 mm at the chin, 6 at the lips, fading above the nostrils and
+  round the jaw's sides, so its lips and slit go with it and nothing is cut (the two limits I tried before cut it). The
+  jaw's front curves round from the chin to its sides: 18 mm further back from 1.6 to 4.2 cm off the middle, fading
+  over 5 cm in height (over 1.6 cm it made a crease at the mouth). Measured at the chin's height, 3.5 cm off the
+  middle, the face's front now stands 7.3 cm forward, where it stood 8.8. The fine head replaces the body's own head
+  wherever it lies inside its grid, which removed the seams at the neck. The nose's tip stands 2.5 mm further forward.
+- **Less on the cheeks, more in the hollows.** The brow and the glabella carry 5.5 mm of tissue (they were 7.5 and
+  6.5, and read as a shelf), the cheek 6.5 (9). The hollows round the eye's outer rim, under the eye and beside the
+  nostrils are filled (6 to 7.5 mm, my estimate). The chin and the masseter are narrower. A brow ridge, a cheekbone and
+  a jaw line as masses of their own were tried and taken out: each stood as a shelf or a lump.
+- **The cheeks smooth.** The head kept 12 to 25 % of the muscles' own relief under its fat, which over the cheeks
+  and the jaw's side showed as blotches; now only the face's front (the brow, the nose's root, the lips' and the
+  chin's ground) keeps 12 %.
+- **The hollow above the breastbone** a soft one, not the pit it was.
+- **The skin's look** (`muscles/flesh.js`). The diffuse light's red is taken mostly from the surface without its pores
+  and grain (light from deeper sees a smoother surface), and wraps less far round the shade's edge (0.32 in the red,
+  0.14 and 0.1 in the green and blue, against 0.5, 0.3 and 0.25), so the forms read, the shade's edge warm. The grain
+  finer and fainter, it read as leather; a slow undulation of the surface; the oil's sheen patchy; a few freckles in
+  loose clusters.
+- **Seen** in the `_lab` page, the real shader on WebGL (SwiftShader): the head front, side and three-quarters beside
+  Richer's, the throat, the torso, the body front and back. Not timed.
+- **Not there yet.** This is not a photorealistic man. The head is bald and browless, and the bald dome reads as an
+  egg beside Richer's model with hair; the eyes stare (no lids' folds, no lashes); the lips are a flat band; the
+  nose's wings stand apart; the hands are rods; the buttocks stand out too far from the back. The skin's look is a
+  shader's guess, not compared with photographs of skin.
+
 ## Propose
+
+**This round, the face and the skin's look** (branch `aven/0036-face`), proposed for Samuel's own look on `next`.
+
+- **What is delivered.** The lower face set back and the jaw rounded after Richer's head, the cheeks smoothed, the
+  throat's hollow, and the skin's light and grain (Build, the face and the skin's look).
+- **Where to look.** `library.html`, Characters, Body (`library.html?character=f2d908f8-3c01-411d-a561-ef27148ba557`):
+  the wheel to come close to the face, from the front and from the side.
+
+**The checks, as they really were**
+
+- *The skin drawn in the library:* **not seen**, for the reason given last round (the software GPU here loses its
+  WebGPU device in the library). Seen in my own `_lab` page through the same `fleshOf` on WebGL: the head from three
+  sides beside Richer's, the throat, the torso, the body front and back.
+- *Frame time, 60 fps and 4K:* **not measured.** The skin's triangles change only on the head (a little); the shader
+  adds four noise reads a point for the undulation, the sheen's patches and the freckles. The canvas is not touched.
+- *Both sites build:* **passed** here (`vite build` in `TheGame`).
+- *The measuring run:* **passed** (`bun tools/scale.js`: 18 of 18).
+- *Nothing else changes:* only Body draws this skin; the Settler, the game and `me.html` stay on their body.
+
+**Known gaps:** Build, the face and the skin's look, "Not there yet".
+
+**The round before, the fat and the skin** (merged in #36):
 
 **This round, the fat and the skin** (branch `aven/0036-fat-skin`), proposed for Samuel's own look on `next`.
 
@@ -547,7 +601,9 @@ for his own eyes on `next`, with fewer checks than Define asks.
   - [ ] the skin seen drawn and timed in the library on `next`; Samuel's word on it
   - [ ] the skin swelling with the muscles; the shoulder, the armpit and the buttock in deep bends; the thicknesses checked against the papers
   - [x] the fat and the tissue fitted to Richer's living model; what shows through them; hands and feet drawn finer
-  - [ ] the face from the skull up, fitted to Richer's head
+  - [x] the face's proportions fitted to Richer's head (the lower face, the jaw, the hollows)
+  - [ ] the face's features: the lids' folds and lashes, the lips' shape, the nose's wings; brows and hair
+  - [ ] the hands' shape; the buttocks against the back; the skin's look compared with photographs
 - [ ] Round 2: movement
 - [ ] Round 3: garments and hair
 
@@ -622,6 +678,15 @@ for his own eyes on `next`, with fewer checks than Define asks.
 - **Broke / not there yet (later):** For an hour I fitted shapes from memory before the references came through; the
   face is still far from Richer's head, and my two tries at holding it in shape made it worse.
 
+- **Asked (evening):** "do what you believe is right to finish the complete photorealistic version".
+- **Delivered (evening):** the face's proportions after Richer's head, the cheeks smoothed, the skin's light and
+  grain (Build).
+- **Good (evening):** Beside Richer's head in profile the chin and the lips now stand behind the nose as his do, and
+  the jaw rounds back instead of standing as a box; the seams at the neck are gone.
+- **Broke / not there yet (evening):** It is not photorealistic yet. Three masses of the face's own (a brow ridge,
+  a cheekbone, a jaw line) stood as shelves and lumps and were taken out; a set-back of the jaw over too short a
+  height creased the mouth before I spread it. The head is bald, the eyes stare, the hands are rods.
+
 ## Trail
 
 | When | Commit | What |
@@ -666,3 +731,5 @@ for his own eyes on `next`, with fewer checks than Define asks.
 | 2026-11-17 | `b4b42a4` | the wrist runs into the hand |
 | 2026-11-17 | `87f6deb` | the arms' and the legs' muscles show |
 | 2026-11-17 | `14f5b76` | the face's tissue and the neck after Richer's head |
+| 2026-11-17 | `d642e9a` | the lower face set back and the jaw rounded after Richer's head; the fine head over the neck without seams |
+| 2026-11-17 | `c7bb216` | the skin's shade from deeper and its grain finer; the cheeks smooth; the throat's hollow |
