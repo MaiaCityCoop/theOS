@@ -376,6 +376,12 @@ function plantMaterial(tex, D) {
           grown.assign(mix(float(1), partGrown(H, V.root, body, V.hand), step(0.5, part))); sunk.assign(H.sunk);
           shown.assign(H.there.and(part.greaterThan(0.5).or(H.whole)));
         }
+        // (the shadow's stand-in, `?lod=new`: it goes as the plant goes, shrinking to its foot over its last level's last
+        // pixels as the plant thins away there (CROWD.END): no shadow is left where no tree is, and none goes at once)
+        if (!Lv && feed && LOD.on && D.kinds) {
+          const lo = D.kinds[0].levels.at(-1).lo, end = smoothstep(lo, lo * CROWD.END, pxOf(D.ST?.size ? float(D.ST.size) : A.w, A.xy));
+          shown.assign(shown.and(end.greaterThan(0))); sunk.assign(end);
+        }
         If(V.drawn ? shown.and(V.drawn) : shown, () => { clip.assign(stand(A, B, V, grown, sunk)); });   // (drawn: the draw's corner is one of its mesh's)
       };
       drawn();
@@ -385,7 +391,7 @@ function plantMaterial(tex, D) {
       const part = V.part, ao = V.ao, card = float(1).sub(abs(part.sub(1))), body = step(1.5, part), Hk = V.Hk, sway = V.Wd.x, leans = V.Wd.y, flutters = V.Wd.z, clumps = V.Wd.w, wrap = V.Lf.x, shines = V.Lf.y, Tn = V.Tn;
       const s = A.w.div(V.Ks), { turn } = turnOf(B.x);   // (s: its scale, its size over its kind's at scale 1)
       // (a sprig grown from its foot, the crown's body from its middle; the whole plant sunk)
-      const g0 = Lv ? sinkInto(mix(V.root, V.position, grown), sunk) : V.position;
+      const g0 = Lv ? sinkInto(mix(V.root, V.position, grown), sunk) : V.position.mul(sunk);   // (whole, none of a level: only the shadow's stand-in shrinks, to its foot: sunk)
       const lean = vec2(cos(B.z), sin(B.z)).mul(V.shade.sub(0.5).mul(leans.mul(2))), lp = g0.add(vec3(lean.x, 0, lean.y).mul(g0.y)), up = clamp(lp.y.div(Hk), 0, 1);   // each leans its own way
       // the wind: the crown sways, the foot stays (the push grows with height squared), a slow sway of its own (from a
       // breeze up); and its sprigs swing in the wind, each as one from its foot, its tip most (a card's corners share its
