@@ -21,7 +21,7 @@
 // what its one rule moves a vertex by in what is free, and its shape's sixteen numbers in front of its vertices:
 //   vertex 0           the shape's sixteen numbers (crowd.js RULE) as half floats, two a number of 32 bits (two
 //                      elements to read, not four: they are read for every vertex); its corners count from 1
-//   vertices 1 …       where the level has a far body and the crown is baked (`?bake=1`): the crown baked (crowd.js
+//   vertices 1 …       where the level has a far body and the crown is baked (LOD.BAKE): the crown baked (crowd.js
 //                      bakeOf), its bytes as they are; its corners then count from after them
 //   3   … | body (3, bits 13 … 15)       0, or which far body it is (1 2 3, finest first; 4 the post)
 //   5   root z (16) | tip u (8) | v (8)  from its place on its card's painting to the tip's, ±TIPUV

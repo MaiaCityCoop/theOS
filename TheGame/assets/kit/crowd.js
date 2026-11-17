@@ -88,7 +88,10 @@ export const CROWD = {
     vertices were submitted but the frame was slower (more tiers to pack, more draws; intent 0033, Build). STANDS: the size a stand that
     changes level as one measures its plants by, of each plant asset (src/scatter/trees.js). `?card=`, `?kmax=` and
     `?split=` change them. */
-export const LOD = { on: false, CARD: 30, KMAX: 8, SPLIT: 0, BAKE: false, FAR: 18, STANDS: null };   // BAKE: the far bodies wear their crown baked (bakeOf; `?bake=1`)
+export const LOD = { on: false, CARD: 30, KMAX: 8, SPLIT: 0, BAKE: false, FAR: 18, STANDS: null };
+// BAKE: the far bodies wear their crown baked (bakeOf); FAR: CROWD.FAR's. Under `?lod=new` the game sets BAKE and FAR 40:
+// from 90 m a baked body reads as a crown with its shade and gaps where a few enlarged cards read as large flat leaves,
+// and the far body from 40 px costs less than the cards (intent 0033, Build). `?bake=0`, `?far=` to compare.
 /** Where each of a shape's sixteen numbers lies in `meta`: P0, E, where the far body begins and has taken over (pixels),
     the crown's middle (three), how many cards, where the classes 1, 2 and 3 begin (three pairs: the share of the
     parts before it, the share of the cards' area before it), the size it was built for (metres), how many parts. */
@@ -548,7 +551,7 @@ export function levelOf(S, lo = 0, hi = Infinity, K = CROWD) {
   return { ...out, index: Uint32Array.from(index), rule, bake };
 }
 
-// ---- the crown baked (LOD.BAKE: `?lod=new&bake=1`) ----
+// ---- the crown baked (LOD.BAKE: under `?lod=new`, `?bake=0` for none) ----
 /** The directions a crown is baked from, as the engine picks them (src/scatter/trees.js): eight round it, 30 degrees up,
     then one from above. Each { w: towards the eye, u, v: the picture's right and up }. */
 export const BAKED = [...Array.from({ length: 8 }, (_, a) => { const z = (a * PI) / 4, e = PI / 6; return [cos(e) * cos(z), sin(e), cos(e) * sin(z)]; }), [0, 1, 0]].map((w) => {

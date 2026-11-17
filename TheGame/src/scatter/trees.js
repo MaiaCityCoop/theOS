@@ -60,7 +60,7 @@ import { COVER } from '../materials/bake.js';
 // crowd's parts go one by one and those that stay grow, the wood thins, the far bodies grow out of the crown and turn
 // into each other. Its levels are only where its parts lie in the heap: two levels at the size where they meet draw the
 // same. `?card=` and `?kmax=` set its two numbers. Without the flag the plants are as they were.
-if (flagText('lod') === 'new') Object.assign(LOD, { on: true, CARD: flagNum('card', LOD.CARD), KMAX: flagNum('kmax', LOD.KMAX), SPLIT: flagNum('split', LOD.SPLIT), BAKE: flagText('bake') === '1', FAR: flagNum('far', LOD.FAR) });
+if (flagText('lod') === 'new') Object.assign(LOD, { on: true, CARD: flagNum('card', LOD.CARD), KMAX: flagNum('kmax', LOD.KMAX), SPLIT: flagNum('split', LOD.SPLIT), BAKE: flagText('bake') !== '0', FAR: flagNum('far', flagText('bake') !== '0' ? 40 : LOD.FAR) });   // (baked crowns, and the far body from 40 px with them: `?bake=0` for the cards' own far end, by 18 px)
 // SPREAD: how much more of its painting an enlarged card shows (1: all of it, its leaves as large as ever; 0: its
 // painting enlarged with it, as today's coarser levels draw larger sprigs). Seen from afar a card shows its painting
 // mipped, and a painting shown many times over is mipped to a blur its cut-out passes everywhere: the card is then a
@@ -266,7 +266,7 @@ function plantMaterial(tex, D) {
     const vStill = varyingProperty('float', 'tStill');   // (built over time: how still it is in the wind, src/world/light.js stillness)
     const vPart = varyingProperty('float', 'tPart'), vCut = varyingProperty('vec2', 'tCut');   // vCut: the needles' cut, and how far a card is from edge-on
     const vLay = varyingProperty('vec2', 'tLay');   // (the layers of its leaves' and its wood's textures: its kind's)
-    // a far body that wears its crown baked (`?bake=1`): where on which baked view it lies (u, v, the view, 1), and where
+    // a far body that wears its crown baked (under `?lod=new`, `?bake=0` for none): where on which baked view it lies (u, v, the view, 1), and where
     // its plant's level lies in the heap (as two numbers under 4096: a whole number however a pixel got it)
     const vImp = Lv?.crowd && feed && LOD.BAKE ? varyingProperty('vec4', 'tImp') : null, vBase = vImp ? varyingProperty('vec2', 'tBase') : null;
     const shape = (A, B) => {
