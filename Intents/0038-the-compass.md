@@ -129,3 +129,4 @@ Asked outright and without surprises, so built straight away.
 | 2026-11-17 | `df815a7` | Core message enlarged: the city is the proof, people are the point |
 | 2026-11-17 | `7e10d7d` | The task in the core message |
 | 2026-11-17 | `c947ce5` | Core message: short rhythm, larger context |
+| 2026-11-17 | `6665e5d` | Core message: permission to be seen and to become |
