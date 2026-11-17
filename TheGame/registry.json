@@ -212,14 +212,14 @@
     "type": "character",
     "name": "Body",
     "file": "characters/body.js",
-    "version": "c5bd3f50333293d4e0b64d9408c3764fd910938ccc8f35a471cd8c9ce386683e",
+    "version": "4f07156ab29ce1d87432f5ddd8e35e5f482ee09e41cce23484ad5e20e968d524",
     "uses": []
   },
   "7e571b19-a173-474a-b271-65cf86be6c47": {
     "type": "character",
     "name": "Muscles",
     "file": "characters/muscles.js",
-    "version": "b869e366afab0ca8e6b234b65ce86cbe2eadf5026ba87fc93698fdc42499c9fa",
+    "version": "d8020164cb78ca32b03548fd4c65f2db2918240af0f210f8465e48c628eb1d5a",
     "uses": []
   },
   "944dc52a-5094-480c-9396-5ceedbbf03b1": {
@@ -237,7 +237,7 @@
     "type": "character",
     "name": "Skeleton",
     "file": "characters/skeleton.js",
-    "version": "fc47efed02e4b9ca14d23b1bd94223e2c25a57213cb9a54784a9e5e0330338e5",
+    "version": "37b172ccd78158b0f78ff406184887a8b6c22e52708eb84ac70a02a4b9f29ae4",
     "uses": []
   },
   "6042540e-d4ea-4a07-8bd9-d8465f5635b9": {

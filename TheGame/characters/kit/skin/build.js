@@ -470,8 +470,10 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
   const best = new Float32Array(rigs.length);
   const fasten = (p, own) => {
     const q = p, ok = mayOf(own, q[0]);
-    // the nearest point of each joint's bones, looked for in ever wider shells until the five nearest are sure, or
-    // all within 16 cm (a finger's skin has its own three joints and the hand's)
+    // the nearest point of each joint's bones, looked for in ever wider shells: an arm's, a hand's, a finger's until the
+    // five nearest are sure, or all within 16 cm (a finger's skin has its own three joints and the hand's); the trunk's,
+    // the legs' and the head's always as far as 16 cm, so that two points side by side weigh their bones alike (one
+    // that stopped looking sooner than its neighbour would make a crease between them as the body bends)
     const ci = Math.floor((q[0] - G0[0]) / BG), cj = Math.floor((q[1] - G0[1]) / BG), ck = Math.floor((q[2] - G0[2]) / BG);
     best.fill(Infinity);
     let r0 = -1;
@@ -486,7 +488,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       }
       r0 = r;
       let sure = 0; const lim = (r * BG) ** 2; for (let g = 0; g < rigs.length; g++) if (best[g] <= lim) sure++;
-      if (sure >= 5 || (r >= 8 && sure >= 1)) break;   // (within 16 cm, all there are; beyond, the nearest)
+      if ((ARMS(own) && sure >= 5) || (r >= 8 && sure >= 1)) break;   // (within 16 cm, all there are; beyond, the nearest)
     }
     const near = new Map(); for (let g = 0; g < rigs.length; g++) if (best[g] < Infinity) near.set(rigs[g], Math.sqrt(best[g]));
     const FAR = Math.max(8, r0) * BG, cand = [...near].map(([rig, d]) => ({ rig, d })).filter((c) => c.d < FAR).sort((a, b) => a.d - b.d);
@@ -537,8 +539,27 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
     const N = Array.from({ length: n }, () => [0, 0, 0]);
     for (let t = 0; t < S.tri.length; t += 3) { const [a, b, c] = [S.tri[t], S.tri[t + 1], S.tri[t + 2]], pa = [S.pos[a * 3], S.pos[a * 3 + 1], S.pos[a * 3 + 2]], nn = cross(sub([S.pos[b * 3], S.pos[b * 3 + 1], S.pos[b * 3 + 2]], pa), sub([S.pos[c * 3], S.pos[c * 3 + 1], S.pos[c * 3 + 2]], pa)); for (const v of [a, b, c]) N[v] = add(N[v], nn); }
     const low = new Map();
+    // (each point's bones, then evened out over the skin round it: where a bone lies near the skin, the crest of the
+    // pelvis, the ribs' edge, a point's share of it would change within a centimetre or two, and as the body bends the
+    // skin would crumple there; spread over a few centimetres it bends smoothly. The trunk's and the thighs' skin only,
+    // away from where the finer head, hands and feet lie with it)
+    const holds = Array.from({ length: n }, (_, v) => fasten([S.pos[v * 3], S.pos[v * 3 + 1], S.pos[v * 3 + 2]], S.part[v]));
+    {
+      const free = (v) => S.piece[v] === 0 && !ARMS(S.part[v]) && S.pos[v * 3 + 1] > 0.6 && S.pos[v * 3 + 1] < 1.42;
+      for (let it = 0; it < (lv === 1 ? 60 : 15); it++) {
+        const next = holds.slice();
+        for (let v = 0; v < n; v++) {
+          if (!free(v) || !S.nb[v].length) continue;
+          const m = new Map(); const add_ = (h, k) => { for (const { row, w } of h) m.set(row, (m.get(row) ?? 0) + w * k); };
+          add_(holds[v], 0.5); for (const u of S.nb[v]) add_(holds[u], 0.5 / S.nb[v].length);
+          const top = [...m].sort((a, b) => b[1] - a[1]), w5 = top[4]?.[1] ?? 0, four = top.slice(0, 4).map(([row, w]) => ({ row, w: w - w5 })).filter((c) => c.w > 1e-4), sum = four.reduce((a, c) => a + c.w, 0);
+          next[v] = four.map((c) => ({ row: c.row, w: c.w / sum }));
+        }
+        for (let v = 0; v < n; v++) holds[v] = next[v];
+      }
+    }
     for (let v = 0; v < n; v++) {
-      const p = [S.pos[v * 3], S.pos[v * 3 + 1], S.pos[v * 3 + 2]], nrm = norm(N[v]), held = fasten(p, S.part[v]), A = held[0];
+      const p = [S.pos[v * 3], S.pos[v * 3 + 1], S.pos[v * 3 + 2]], nrm = norm(N[v]), held = holds[v], A = held[0];
       // (each bone's row and its share; the point and its normal as they stand, the bones' frames standing kept apart)
       for (let j = 0; j < 4; j++) { attr.bone.push(held[j]?.row ?? 0); attr.weight.push(held[j]?.w ?? 0); }
       attr.nor.push(...nrm);
