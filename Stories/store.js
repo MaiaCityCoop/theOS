@@ -1,5 +1,5 @@
 // What the four Stories CLIs (arc.js, hook.js, ideas.js, scenes.js) share, kept once; each keeps only its own commands
-// and checks.
+// and checks. The dev servers read the repository through it too (../server/repo.js).
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';

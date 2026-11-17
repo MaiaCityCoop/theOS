@@ -1,5 +1,5 @@
 // The story ideas' one door (Stories/ideas/*.md): every change to an idea is a call of this tool; no one edits the files
-// by hand, and the dashboard's Ideas page only shows them (OS/vite.config.js reads them with readIdeas, below).
+// by hand, and the dashboard's Ideas page only shows them (server/repo.js reads them with readIdeas, below).
 //
 //   bun Stories/ideas.js list                         every idea, lane by lane
 //   bun Stories/ideas.js show <id>                    one idea, whole
