@@ -35,6 +35,7 @@ Thinking and executing big is the norm here, not the exception. That is the one 
 
 - Dome greenhouses for co-living and year-round food.
 - Food forests, inside and around, for full self-sufficiency.
+- [Self-sovereignty](../systems/self-sovereignty.md) three ways: its own food, its own energy, and all its land owned by the Maia City Coop.
 - Dome factories where robots run around the clock.
 - The underground: automated logistics and transport, with no surface traffic.
 - Its own monetary policy and its own system of government.

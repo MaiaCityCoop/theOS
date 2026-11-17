@@ -20,6 +20,9 @@ Two things hold whatever else is learned on the way, and the serial can say them
   dome does. What a citizen brings to her stays theirs. This is the answer, inside the city, to the only open question
   about abundance: who owns the machines.
 
+Ownership is the third of the city's [self-sovereignties](self-sovereignty.md), beside food and energy: financial
+sovereignty, on ground nobody can take back.
+
 ## What is still being worked out
 
 **How the coop is governed, how a stake is held, and how the city's currency works** are not fixed, on purpose. The

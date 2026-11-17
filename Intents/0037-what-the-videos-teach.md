@@ -221,6 +221,21 @@ culture, Maia "shows you where to look"). Each stays in Part 2 for a later yes.
 written that way; true citizenship will say what more a citizen is. In prose she stays Maia, never "AvenMaia" or
 "AGI".
 
+### Round 3 · self-sovereignty (2026-11-17)
+
+> also the key pattern of self-sovereignty should be woven in right? food sovereignty, energy sovereignty, ownership
+> (financial sovereignty)
+
+Woven in as the city's key pattern, without touching the premise, logline or themes he had just settled:
+
+- `systems/self-sovereignty.md` (new): it feeds itself, powers itself, owns itself. Food (layered food forests), energy
+  (designed for the sun from the first drawing), ownership (financial sovereignty: the Maia City Coop owns all the
+  land, Maia is owned by everyone). Rules: all three or it is not sovereign; the end of the road, not the beginning;
+  measured, not declared; never a shelter; the person's before the city's; the money mechanics come later.
+- Woven into `story.md` (What the city is), `worldbuilding/_index.md`, `the-domes.md` (the held energy and
+  food-forest rows now applied), `the-stack.md`, `the-first-village.md` and `maia-city.md`.
+- One idea: `feeds-powers-owns-itself`, with his words.
+
 ## Propose
 
 _Filled when everything is built. Then stop: the human decides._
@@ -245,6 +260,7 @@ _accepted or rejected, the date, the reason in a line._
 - [x] Samuel's answer on A–D
 - [x] Round 2: apply what he approved, the euro out of everything
 - [ ] `story reindex .` and `story check .` where the CLI is installed (`worldbuilding/_index.md` still lists A Euro a Day)
+- [x] Round 3: self-sovereignty woven in
 - [ ] Samuel's word on the held items: E, F, the door, the charter, the smaller G rows
 
 ## Changelog
@@ -276,6 +292,17 @@ _accepted or rejected, the date, the reason in a line._
   the ground and Maia.
 - **Broke / not there yet:** no CLI in this session, so the registries are not reindexed: the table in
   `worldbuilding/_index.md` still has a row for A Euro a Day, pointing at a file that is gone, and none for The Count.
+
+### 2026-11-17 · round 3
+
+- **Asked:** "the key pattern of self-sovereignty should be woven in right? food sovereignty, energy sovereignty,
+  ownership (financial sovereignty)"
+- **Delivered:** a new system, self-sovereignty, with its three parts; woven into the story's description of the
+  city, the worldbuilding overview, the domes, the stack, the first village and Maia City; one story idea.
+- **Good:** it ties together what the Bible already said in pieces (the village's climb off trucked-in supplies, "a
+  city that imports its food is not sovereign") under one name.
+- **Broke / not there yet:** food-forest yields and dome energy still have no sourced figures; the registries still
+  wait for `story reindex .`.
 
 ## Trail
 

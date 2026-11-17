@@ -15,6 +15,8 @@ The serial never puts a date on that fork. Its hard stake is a number instead: *
 
 **The city.** [Maia City](locations/maia-city.md) is a sovereign solarpunk city state for 1.3 million people, built from the ground up by 2042. It runs on [abundism](systems/abundism.md), owns itself through [the stack](systems/the-stack.md), governs and builds by [intent](systems/intent.md), lives and eats inside [the domes](systems/the-domes.md), and moves everything through [the underground](systems/the-underground.md).
 
+**Its key pattern is [self-sovereignty](systems/self-sovereignty.md):** it feeds itself, powers itself and owns itself. Food from the food forests, energy from a city built for the sun, and ownership through the Maia City Coop, which owns all the land, so every citizen does, and Maia is owned by everyone too. A new village starts with everything trucked in and climbs to all three.
+
 **Four proofs, four heights of [jump](../glossary/terms/the-jump.md).** The city becomes real in four overlapping tracks, each one something a person can touch, each one asking more than the last. [The twin](locations/the-twin.md) from year 1 costs an evening. [The dome network](locations/the-dome-network.md) from year 2 costs a trip. [The first village](locations/the-first-village.md) from year 4 costs your old life. The city itself, from year 6, costs everything. All four run to 2042, so no reader ever arrives too late for the next rung.
 
 **Every citizen walks the same arc:** watcher, then player, then [founding settler](../glossary/terms/founding-settler.md).
