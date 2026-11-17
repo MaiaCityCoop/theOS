@@ -23,6 +23,11 @@ story:
 >
 > Consolidate all the patches into one clean architecture that works!!! Get rid of all the scattered patches and do a
 > clean first-principles refactoring!! No more tuning switches either!
+>
+> Also our legacy LOD with the manual per-asset models was really bad! So it's not a reference! We must have a 3× better,
+> fully algorithmic, generic and universal upgrade, so smooth that we don't see any actual change at any moment while
+> moving, scrolling, zooming or walking around, because it's perfect. So our old legacy manual LOD is not the quality
+> gate.
 
 On 2026-11-17 four read-only audits read the whole repository: the render core and the land; the plants, LOD and
 assets; the characters, the film camera and the tools; and the OS, the API, CI and the process. Two research reports
@@ -60,7 +65,7 @@ is fitted to WebGPU and Safari.
 | **Light** | `lit({ albedo, n, shade, wet, spec, model })` in `src/world/light.js`, for every material: land, plants, rocks, made things, characters, impostors | About 15 hand-rolled light expressions, 3 shadow and 3 cloud copies |
 | **Land** | A ground shader of constant size: the 3–4 strongest material layers picked per vertex, one read each, the take chosen per pixel under TAA, slow noise per vertex | Per-biome code generation, `slots.js`, the ground cache, two takes a material |
 | **Boot** | `src/boot.js({ profile: 'world' or 'stage' })` with a `ready` promise | Four pages' copied heads, the `window.__game` polling, the library starting the world |
-| **Gate** | `tools/gate.js`, one driver: pictures against **`?truth`** (everything at full detail) at fixed views and 10–500 m, the camera-still sweep for pops, GPU ms at 4K, memory, and the bytes compiled at start. Its headless part runs in CI | `?lod=old` as the baseline, 9 loose Playwright scripts, checks done by hand |
+| **Gate** | `tools/gate.js`, one driver. The reference is **`?truth`**: every asset at full detail, rendered offline (in passes if it has to be). It is never a legacy LOD. It measures the picture's perceptual difference to the truth at fixed views from 1.7 m to 12 km, the change caused by detail in every frame of recorded walks, zooms, scrolls and flybys, GPU ms at 4K, memory, and the bytes compiled at start. Its headless part runs in CI | `?lod=old` as the baseline, the lenient sweep (no step over 3×), 9 loose Playwright scripts, checks done by hand |
 | **Ship** | CI builds once, the deploy ships that build, and every merge to main goes to next by itself | The manual dispatch with a copied SHA |
 
 **The address switches left are tools that measure, never dials of the look:** `bench`, `gputime`, `draws`,
@@ -101,8 +106,9 @@ numbers are written below.
 | --- | --- | --- |
 | 1 | Stage 1 changes nothing on screen | `tools/gate.js` stills on main and on the branch, the same at every view (diff ≤ TAA noise). `bun tools/scale.js` 18 of 18. `vite build` passes for TheGame and OS |
 | 2 | No tuning switch is left | `grep` finds none of the 16 names. `src/core/flags.js` lists only the tools above |
-| 3 | Every stage gets nearer the truth | The gate's picture difference to `?truth` at each view and distance is lower than the stage before, or equal where the stage is a clean-up |
-| 4 | Nothing pops | The camera-still sweep (`tools/sweep.js`, at 4K): no step over 3× the median, for a boulder, the tent, a pine, an oak and a shrub |
+| 3 | It can't be told apart from full detail | The perceptual difference to `?truth` (FLIP, 4K) stays under the threshold of visibility at every view from 1.7 m to 12 km, in every 32-pixel tile and not just on average. Stage 2 sets the threshold against Samuel's eye, from pairs he can't tell apart, and it is never loosened after that. Nothing is measured against the legacy LOD. Every stage is nearer the truth than the one before, or equal where the stage is a clean-up |
+| 4 | Nothing ever changes visibly | In recorded walks, zooms (1.7 m to 12 km), scrolls and flybys, the change caused by detail in each frame, ((LOD − truth) now) − ((LOD − truth) one frame before), stays under the threshold of visibility in every frame and every 32-pixel tile. There is no "3× the median" allowance |
+| 4b | Generic and universal | No asset file holds any detail data (`levels`, `ladder`, `grow`, px sizes, `detail`). A new asset dropped in gets all its detail from the builder, with no line of LOD code written for it |
 | 5 | The 4K gate holds | `?bench` at 4K on Samuel's Mac, Chrome and Safari: ≤ 12 ms of GPU at every bench view, and memory ≤ 8 GB |
 | 6 | The library starts in Safari | Bytes compiled at start, from the gate's shader log, are a fraction of today's 5.8 MB, and the library shows its subject in Safari with no 20 s timeout |
 | 7 | Lines go down | `git diff --stat main` at the end of each stage. The total falls stage after stage |
