@@ -202,3 +202,4 @@ Asked outright and without surprises, so built straight away.
 | 2026-11-17 | `2fbd1eb` | Core message in the first person, Samuel's Moon line |
 | 2026-11-17 | `60bb1be` | Moon to Earth, into Maia City |
 | 2026-11-17 | `38d8dae` | The city's mini pitch in the core message |
+| 2026-11-17 | `488d06e` | Core message: Samuel's lines, the transition, the compact pitch |
