@@ -118,3 +118,4 @@ Asked outright and without surprises, so built straight away.
 | 2026-11-17 | `e838274` | Bible → Compass; core message rewritten; count and Fibonacci out; days 1 and 2 removed |
 | 2026-11-17 | `df815a7` | Core message enlarged: the city is the proof, people are the point |
 | 2026-11-17 | `7e10d7d` | The task in the core message |
+| 2026-11-17 | `c947ce5` | Core message: short rhythm, larger context |
