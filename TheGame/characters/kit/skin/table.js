@@ -56,10 +56,12 @@ export const TISSUE = [
   ['thumbPad', [0.198, 0.81, 0.03], 6, 2, 'us'],
   ['scalp', [0.0, 1.79, -0.01], 6, 9, 'us'], ['occiput', [0.0, 1.7, -0.1], 7, 6, 'us'],
   // the face: tissue depth over the bone
-  ['glabella', [0.0, 1.703, 0.104], 6.5, 1.6, 'SS08'], ['nasion', [0.0, 1.682, 0.102], 4.5, 1.2, 'SS08'],
-  ['brow', [0.03, 1.708, 0.1], 7.5, 1.8, 'SS08'], ['forehead', [0.02, 1.75, 0.088], 4.5, 3, 'SS08'],
+  ['glabella', [0.0, 1.703, 0.104], 5.5, 1.6, 'SS08'], ['nasion', [0.0, 1.682, 0.102], 4.5, 1.2, 'SS08'],
+  ['brow', [0.03, 1.708, 0.1], 5.5, 1.8, 'SS08'], ['forehead', [0.02, 1.75, 0.088], 4.5, 3, 'SS08'],
   ['lids', [0.032, 1.678, 0.088], 1.2, 1.4, 'SS08'], ['rhinion', [0.0, 1.668, 0.106], 2.5, 1, 'SS08'],
-  ['cheekbone', [0.05, 1.672, 0.075], 7, 2, 'SS08'], ['cheek', [0.045, 1.632, 0.078], 9, 2.4, 'SS08'],
+  ['cheekbone', [0.05, 1.672, 0.075], 7, 2, 'SS08'], ['cheek', [0.045, 1.638, 0.078], 6.5, 2.2, 'SS08'],
+  // (the hollows round the eye's outer rim and beside the nostrils filled, as a living face's fat fills them)
+  ['orbitRim', [0.058, 1.69, 0.07], 6, 1.4, 'est'], ['upperLipSide', [0.022, 1.622, 0.098], 7.5, 1.3, 'est'], ['infraorbital', [0.034, 1.656, 0.092], 6, 1.2, 'est'],
   ['philtrum', [0.0, 1.618, 0.11], 5, 1.5, 'SS08'], ['lowerLip', [0.0, 1.586, 0.106], 5, 1.4, 'SS08'],
   ['chin', [0.0, 1.567, 0.098], 11, 1.8, 'SS08'], ['jawAngle', [0.052, 1.597, -0.004], 4, 2.2, 'SS08'],
   ['ramus', [0.058, 1.625, 0.015], 5, 1.8, 'SS08'], ['temple', [0.068, 1.715, 0.02], 5, 2.5, 'SS08'],
@@ -74,8 +76,8 @@ export const TISSUE_DEFAULT = 4;
 // across (the eye's mean diameter: Bekerman et al. 2014, "Variations in eyeball diameters of the healthy adults",
 // J Ophthalmol, as remembered). `rig`: the bone that carries it.
 export const UNDER = [
-  { what: 'nose bridge', rig: 'head', solid: ['rod', [0.0, 1.668, 0.1], [0.0, 1.638, 0.117], 0.0042, 0.0058] },
-  { what: 'nose tip', rig: 'head', solid: ['egg', [0.0, 1.6345, 0.1175], [0.0075, 0.0072, 0.0082]] },
+  { what: 'nose bridge', rig: 'head', solid: ['rod', [0.0, 1.668, 0.1], [0.0, 1.638, 0.12], 0.0042, 0.0058] },
+  { what: 'nose tip', rig: 'head', solid: ['egg', [0.0, 1.6345, 0.12], [0.0075, 0.0072, 0.0085]] },
   { what: 'nose wing', rig: 'head', solid: ['egg', [0.0122, 1.6295, 0.1075], [0.0056, 0.0056, 0.0078]] },
   { what: 'ear shell', rig: 'head', solid: ['egg', [0.077, 1.666, -0.022], [0.007, 0.03, 0.0175], [[0.94, 0, 0.34], [0, 1, 0]]] },
   { what: 'ear lobe', rig: 'head', solid: ['egg', [0.074, 1.633, -0.016], [0.006, 0.009, 0.008]] },
@@ -170,8 +172,8 @@ export const MASSES = [
   { part: 'head', what: 'mouth', at: [0, 1.6, 0.08], r: [0.036, 0.036, 0.022, 0.024, 0.025, 0.03], n: 2.0, k: 0.014, arch: 12 },   // (the teeth's arch under the lips)
   { part: 'head', what: 'upper lip', at: [0, 1.6045, 0.1055], r: [0.026, 0.026, 0.0065, 0.0045, 0.0065, 0.01], n: 2.0, k: 0.005, arch: 22 },
   { part: 'head', what: 'lower lip', at: [0, 1.5925, 0.1025], r: [0.023, 0.023, 0.0045, 0.0065, 0.0065, 0.01], n: 2.0, k: 0.005, arch: 22 },
-  { part: 'head', what: 'masseter', at: [0.042, 1.623, 0.026], r: [0.013, 0.02, 0.022, 0.026, 0.024, 0.02], n: 2.0, k: 0.015 },   // (and the cheek's fat over it)
-  { part: 'head', what: 'chin', at: [0, 1.571, 0.09], r: [0.03, 0.03, 0.014, 0.013, 0.011, 0.014], n: 2.0, k: 0.03 },
+  { part: 'head', what: 'masseter', at: [0.042, 1.623, 0.026], r: [0.009, 0.02, 0.022, 0.026, 0.024, 0.02], n: 2.0, k: 0.015 },   // (and the cheek's fat over it)
+  { part: 'head', what: 'chin', at: [0, 1.571, 0.09], r: [0.02, 0.02, 0.014, 0.013, 0.011, 0.014], n: 2.0, k: 0.03 },
   { part: 'trunk', what: 'deltoid', at: [0.178, 1.43, -0.034], r: [0.045, 0.03, 0.04, 0.05, 0.046, 0.048], n: 2.0, k: 0.03 },   // (the shoulder's cap, over the acromion and the head of the arm)
   { part: 'trunk', what: 'pectoral', at: [0.078, 1.33, 0.078], r: [0.074, 0.064, 0.1, 0.038, 0.022, 0.03], n: 2.6, k: 0.025, lean: 0.3 },   // (a slightly muscular man's: its lower edge at the nipples, the sternum in the groove between the two)
   { part: 'trunk', what: 'buttock', at: [0.072, 0.885, -0.08], r: [0.085, 0.062, 0.11, 0.085, 0.05, 0.065], n: 2.5, k: 0.025 },
@@ -252,3 +254,13 @@ export const LIMB_RELIEF = [
   { what: 'tibialis anterior', piece: 'leg', t: 0.35, ang: 25, dt: 0.3, da: 30, h: 4.5 },
   { what: 'shin', piece: 'leg', t: 0.45, ang: -20, dt: 0.38, da: 18, h: -2.7 },
 ];
+// The lower face set back (./build.js): measured against Richer's head in profile (vol. 2, plate 76), scaled to our
+// face's height from the eyes to the chin, the chin stands 3 cm behind the tip of the nose and the lips 2.3; ours, from
+// the jaw and the teeth under them, stood 1.4 and 1.5. The head's shape is drawn as though moved back by `chin` (m) at
+// the chin and `lips` at the mouth, fading to nothing above the nostrils, round the jaw's sides and back towards its
+// angle: a warp of the whole lower face, its lips, chin and slit with it, so nothing is cut.
+// And the jaw's front curved round from the chin (`jaw`, m, set back from `jawIn` to `jawOut` from the middle, fading
+// by `jawFade`, between the nostrils' height and the chin's): ours stood 9 cm forward 3.5 cm from the middle, a box
+// where a jaw rounds back towards its angle.
+export const LOWER_FACE = { chin: 0.011, lips: 0.006, top: 1.622, mouth: 1.598, chinAt: 1.566, half: 0.014, side: 0.055, back: 0.015, front: 0.055,
+  jaw: 0.018, jawIn: 0.016, jawOut: 0.042, jawFade: 0.066, jawTop: 1.634, jawLow: 1.584 };

@@ -23,7 +23,7 @@
 // The skin is where that is as far out as the fat and the skin are thick there, half way to a man's measured outline
 // (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through; the surface is drawn out of the grid (surface nets) and smoothed along itself: two surfaces,
 // the arms' with their hands, and the rest's, each closed (an arm along the side only touches the trunk).
-import { TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF } from './table.js';
+import { TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE } from './table.js';
 import { frameAt, slots } from '../muscles/build.js';
 import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
@@ -171,6 +171,10 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
     };
   };
   const massOf = (m) => (q) => {
+    if (m.a) {   // (a ridge along a line: from a to b, its radius from ra to rb)
+      const ab = sub(m.b, m.a), t = Math.max(0, Math.min(1, dot(sub(q, m.a), ab) / dot(ab, ab)));
+      return { E: len(sub(q, add(m.a, mul(ab, t)))) - (m.ra + (m.rb - m.ra) * t), w: 0, k: m.k };
+    }
     const x = q[0] - m.at[0], y = q[1] - m.at[1], z = q[2] - m.at[2] + (m.arch ?? 0) * (q[0] - m.at[0]) ** 2 + (m.lean ?? 0) * Math.max(0, q[1] - m.at[1]), r = Math.hypot(x, y, z), [ro, ri, ru, rd, rf, rb] = m.r;
     const rho = (Math.abs(x / (x >= 0 ? ro : ri)) ** m.n + Math.abs(y / (y >= 0 ? ru : rd)) ** m.n + Math.abs(z / (z >= 0 ? rf : rb)) ** m.n) ** (1 / m.n);
     return { E: r > 1e-9 ? r * (1 - 1 / rho) : -Math.min(...m.r), w: 0, k: m.k };
@@ -323,13 +327,23 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
   // into the neck as the body's grid runs it
   const GB = gridOf(field, [nx, ny, nz], LO, h), GA = gridOf(fieldA, [nx, ny, nz], LO, h);
   const HF = h / 3, HLO = [-0.105, 1.51, -0.135], HN = [Math.ceil(0.21 / HF) + 1, Math.ceil(0.32 / HF) + 1, Math.ceil(0.3 / HF) + 1];
+  // (the lower face set back, ./table.js LOWER_FACE: its shape read from further forward, so it stands further back)
+  const warpFace = (q) => {
+    const W = LOWER_FACE, y = q[1], ax = Math.abs(q[0]);
+    const wy = y > W.top ? 0 : y > W.mouth ? (W.lips / W.chin) * smooth01((W.top - y) / (W.top - W.mouth)) : y > W.chinAt ? W.lips / W.chin + (1 - W.lips / W.chin) * smooth01((W.mouth - y) / (W.mouth - W.chinAt)) : 1;
+    const w = wy * (1 - smooth01((ax - W.half) / (W.side - W.half))) * smooth01((q[2] - W.back) / (W.front - W.back));
+    // (and the jaw's front curved round from the chin: set back the more the further from the middle, to the jaw's side)
+    const jw = smooth01((ax - W.jawIn) / (W.jawOut - W.jawIn)) * (1 - smooth01((ax - W.jawOut) / (W.jawFade - W.jawOut))) * smooth01((W.jawTop - y) / (W.jawTop - W.jawLow)) * smooth01((q[2] - 0.02) / 0.03);
+    const dz = W.chin * w + W.jaw * jw;
+    return dz > 0 ? [q[0], q[1], q[2] + dz] : q;
+  };
   const hfield = new Float32Array(HN[0] * HN[1] * HN[2]).fill(1), hpart = new Uint8Array(hfield.length).fill(P_.trunk), hnear = new Uint8Array(hfield.length);
   {
     const Hb = gridOf(headBase, [nx, ny, nz], LO, h), Rf = gridOf(restField ?? field, [nx, ny, nz], LO, h), Tf = gridOf(Float32Array.from(tissue, (t) => (Number.isNaN(t) ? 0.003 : t)), [nx, ny, nz], LO, h);
     for (let k = 0; k < HN[2]; k++) for (let j = 0; j < HN[1]; j++) for (let i = 0; i < HN[0]; i++) {
-      const q = [HLO[0] + i * HF, HLO[1] + j * HF, HLO[2] + k * HF], hb = Hb.sample(q), rest = Rf.sample(q); let v = hb;
+      const q0 = [HLO[0] + i * HF, HLO[1] + j * HF, HLO[2] + k * HF], q = warpFace(q0), hb = Hb.sample(q), rest = Rf.sample(q0); let v = hb;
       if (hb < 0.025) { const qq = [Math.abs(q[0]), q[1], q[2]]; v = features(hb, qq, Tf.sample(q)); v = Math.max(v, -open.f(qq[0], qq[1], qq[2])); }
-      const g = i + HN[0] * (j + HN[1] * k); hfield[g] = smin(v, rest, 0.022); hpart[g] = v < rest ? P_.head : P_.trunk; hnear[g] = v < rest + 0.01 ? 1 : 0;   // (kept a centimetre into the neck: the two skins lie together there, no gap between)
+      const g = i + HN[0] * (j + HN[1] * k); hfield[g] = smin(v, rest, 0.022); hpart[g] = v < rest ? P_.head : P_.trunk; hnear[g] = v < rest + 0.003 ? 2 : v < rest + 0.01 ? 1 : 0;   // (kept a centimetre into the neck: the two skins lie together there, no gap between)
     }
   }
   const GH = gridOf(hfield, HN, HLO, HF);
@@ -552,14 +566,16 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       if (lv === 1) { pieces.push([nets(1, GH), hpartAt]); const L = nets(1, GHand); pieces.push([L, handPartAt], [mirrorMesh(L), handPartAt]); const Fo = nets(1, GFoot); pieces.push([Fo, () => P_.leg], [mirrorMesh(Fo), () => P_.leg]); }
       const out = { pos: [], tri: [], nb: [], part: [], piece: [] };
       for (const [k, [M, partOf_]] of pieces.entries()) {
-        const n0 = out.pos.length / 3, nv = M.pos.length / 3, part = Array.from({ length: nv }, (_, v) => partOf_(pt(M, v))), near = k === 2 ? Array.from({ length: nv }, (_, v) => hnearAt(pt(M, v))) : null;
-        // (near, the head is the fine one's: the body's own head is left out but for a ring round the neck, where the
-        // two lie together; the fine one's neck likewise)
+        const n0 = out.pos.length / 3, nv = M.pos.length / 3, part = Array.from({ length: nv }, (_, v) => partOf_(pt(M, v))), near = k <= 2 ? Array.from({ length: nv }, (_, v) => hnearAt(pt(M, v))) : null;
+        // (near, the head is the fine one's)
         // (and the arms' own hands likewise: the fine hands' from just under the wrist, the arms' from just over it)
         // (the feet likewise, from the ankle down)
+        // (the fine head's grid holds the neck under it and the tops of the shoulders as the body's does, the same field
+        // drawn finer: so the two give way to one another a centimetre inside its edge, where they are one surface)
+        const inHead = (v, m) => { for (let a = 0; a < 3; a++) { const x = M.pos[v * 3 + a]; if (x < HLO[a] + m || x > HLO[a] + (HN[a] - 1) * HF - m) return false; } return true; };
         const y = (v) => M.pos[v * 3 + 1], inHand = (v) => y(v) < 0.855 && Math.abs(M.pos[v * 3]) > 0.15, inFoot = (v) => y(v) < 0.085 && M.pos[v * 3 + 2] > -0.14;
-        const keepT = lv !== 1 ? () => true : k === 0 ? (a, b, c) => (part[a] !== P_.head || part[b] !== P_.head || part[c] !== P_.head) && (!inFoot(a) || !inFoot(b) || !inFoot(c))
-          : k === 1 ? (a, b, c) => !inHand(a) || !inHand(b) || !inHand(c) : k === 2 ? (a, b, c) => near[a] || near[b] || near[c]
+        const keepT = lv !== 1 ? () => true : k === 0 ? (a, b, c) => (part[a] !== P_.head || part[b] !== P_.head || part[c] !== P_.head) && !(inHead(a, 0.015) && inHead(b, 0.015) && inHead(c, 0.015)) && (!inFoot(a) || !inFoot(b) || !inFoot(c))
+          : k === 1 ? (a, b, c) => !inHand(a) || !inHand(b) || !inHand(c) : k === 2 ? (a, b, c) => inHead(a, 0.008) || inHead(b, 0.008) || inHead(c, 0.008)
           : k <= 4 ? (a, b, c) => y(a) < 0.905 || y(b) < 0.905 || y(c) < 0.905 : (a, b, c) => y(a) < 0.095 || y(b) < 0.095 || y(c) < 0.095;
         for (let v = 0; v < nv; v++) { out.pos.push(...pt(M, v)); out.part.push(part[v]); out.piece.push(k); out.nb.push(M.nb[v].map((u) => u + n0)); }
         for (let t = 0; t < M.tri.length; t += 3) { const a = M.tri[t], b = M.tri[t + 1], c = M.tri[t + 2]; if (keepT(a, b, c)) out.tri.push(a + n0, b + n0, c + n0); }
