@@ -1204,3 +1204,4 @@ back to (a bake made lazily, as a shape's window first opens). Frame times not m
 | 2026-11-17 | `5e4a2ae` | the dashboard passes its own flags (`?lod=new`, `?flyby`) on to the game's frames |
 | 2026-11-17 | `1ea50fc`, `6e5ea00` | a far body's two baked pictures either side of its size mixed (the camera-still sweep in the game: its steps at 2.1 and 1.9 at the oak's mip edges now 0.33 and 0.41, as their neighbours) |
 | 2026-11-17 | `b2cdcec` | a plant thins away over its last pixels (`CROWD.END`) instead of stopping at once; the walk draws the end as the game does |
+| 2026-11-17 | `75c8ea5` | the shadow's stand-in shrinks to its foot as its plant thins away |
