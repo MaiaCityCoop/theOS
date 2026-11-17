@@ -36,7 +36,11 @@ severity:
 >
 > Imagine that not once in a century, but every day, in everyone. Every person at their full size. Every gift unlocked. Every idea that waited for permission, finally built.
 >
-> That is the task: to make bringing a sparkling vision to life the norm, not the exception.
+> And you. The part of you that you keep quiet. The dream you only say out loud at 2 a.m. The person you have always known you could be.
+>
+> Bring all of it. Here it is not too much. Here it is exactly what we need.
+>
+> You are allowed to be seen. You are allowed to become who you were always meant to be.
 >
 > We are writing a new blueprint for how to live, and proving it the only way that convinces anyone: by building it together. A city that feeds itself, powers itself and belongs to everyone who builds it.
 >
@@ -46,7 +50,9 @@ severity:
 
 **The task, in Samuel's words:** making bringing sparkling visions to life the norm, not the exception.
 
-**The feeling it leaves:** awe at what people are, and *I knew it all along*: their size was right, and now there is a place built to it.
+**The feeling it leaves:** awe at what people are; permission to be, to be seen, to become who they are meant to be; and *I knew it all along*: their size was right, and now there is a place built to it.
+
+**How it persuades:** it meets the oldest insecurity (*too much*, *too big*, *who do you think you are*) and turns it into the welcome: here, all of you is exactly what is needed. Never by naming a fear; by granting the permission.
 
 ## Synopsis
 

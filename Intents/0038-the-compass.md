@@ -111,6 +111,16 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes.
 - **Broke / not there yet:** —
 
+### 2026-11-17 (5)
+
+- **Asked:** "That is the task" is not persuasion; redraft at the same pace as heart-warming, inspiring copy that touches
+  the deepest inner insecurity in a positive way: allowing to be, to be seen, to become what they are truly meant to be.
+- **Delivered:** the task line out of the message (kept below it in Samuel's words); three new beats: the part of you
+  kept quiet, "here it is not too much, it is exactly what we need", "you are allowed to be seen… to become who you
+  were always meant to be". A note on how it persuades.
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** —
+
 ## Trail
 
 | When | Commit | What |
