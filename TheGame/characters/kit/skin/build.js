@@ -329,7 +329,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
     for (let k = 0; k < HN[2]; k++) for (let j = 0; j < HN[1]; j++) for (let i = 0; i < HN[0]; i++) {
       const q = [HLO[0] + i * HF, HLO[1] + j * HF, HLO[2] + k * HF], hb = Hb.sample(q), rest = Rf.sample(q); let v = hb;
       if (hb < 0.025) { const qq = [Math.abs(q[0]), q[1], q[2]]; v = features(hb, qq, Tf.sample(q)); v = Math.max(v, -open.f(qq[0], qq[1], qq[2])); }
-      const g = i + HN[0] * (j + HN[1] * k); hfield[g] = smin(v, rest, 0.03); hpart[g] = v < rest ? P_.head : P_.trunk; hnear[g] = v < rest + 0.01 ? 1 : 0;   // (kept a centimetre into the neck: the two skins lie together there, no gap between)
+      const g = i + HN[0] * (j + HN[1] * k); hfield[g] = smin(v, rest, 0.022); hpart[g] = v < rest ? P_.head : P_.trunk; hnear[g] = v < rest + 0.01 ? 1 : 0;   // (kept a centimetre into the neck: the two skins lie together there, no gap between)
     }
   }
   const GH = gridOf(hfield, HN, HLO, HF);
