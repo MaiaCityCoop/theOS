@@ -913,6 +913,71 @@ textures about 26 MB more; at a cold start the bakes take 1 s on one thread (28 
 15 at 128), the trees stand's coarse levels in 6.2 s against 2.9 s (SwiftShader). Within the gates for now; to come
 back to (a bake made lazily, as a shape's window first opens). Frame times not measured again here.
 
+### Stage 2: the rocks' levels made from their full mesh alone (2026-11-17, a second session)
+
+Samuel, through the coordinator: "The jumps are way better now. Still slightly there but good enough for now. So please
+ensure now to upgrade every asset [but] biomes and characters to the new LOD and switch it on as default system." This
+session took the solids and the made things, in small pull requests behind `?lod=new`, the rocks first.
+
+- **One reduction for any solid** (`assets/kit/reduce.js`, no `meshoptimizer`): edges folded one at a time from the full
+  mesh, the cheapest first (Garland and Heckbert's quadric error, and a little for how far the corner travels: `TRAVEL`),
+  each fold a corner onto a neighbour that stays (a half-edge collapse). So every coarser mesh's corners are some of the
+  finer one's, and every corner knows which it was folded into: the "simplifier's own record" the definition asked for,
+  by writing the simplifier rather than changing `meshoptimizer`'s source. No fold turns a triangle over, tears the
+  surface or moves a border off itself; a corner may be locked (a seam). A level is as coarse as half a game pixel of
+  error allows at the top of its band (`E_PX`), within the ladder's room; level l at its coarser end is level l + 1
+  corner for corner.
+- **A coarse corner stands for what was folded into it**: moved along its normal to the mean of their surface, with their
+  mean normal and shade. That replaces the swelling written by hand per ball (`blob.js` SWELL) for what is reduced.
+- **The hand-over exact, bit for bit.** The first sweep showed a step at every level's edge (3 to 12 times its
+  neighbours), as main has (6 to 15): a vertex's coarse normal was packed in 7 bits where the next level's own is 9, and
+  its shade not at all. A solid on no skeleton now carries both in the twelve bits its bones would take (`solid.js`
+  `still`): checked on every corner two levels share, equal in every bit. And the coarse places in 10 bits over a range
+  measured on the 24 shapes (`DELTA`): with the travel's weight the finest level's farthest corner goes 0.07 of the
+  rock, not 0.31, packed to a six-thousandth.
+- **The far end**: no dot and no asset's own end (`detail.end` is not read under `?lod=new`): a rock's last mesh (12
+  triangles) thins away pixel by pixel over the pixels the dot sank in before (1.84 to 1.15 px), its shadow with it
+  (`drawer.js` `thin`). Generic: any drawer of solids may take it.
+- **Cost of the build**: 1.25 s a shape on one thread (bun; 2.2 s before each corner's ring was kept between folds), 24
+  shapes, in the workers at the first start, a third of them to each, kept by the browser after. The page builds none: the zoo's fingerprint reads a quick drawing of the recipe (`printOf`). The rooms
+  are the ladder's: the heap is as large as before. The coarse meshes are not the ladder's balls any more, so they are
+  drawn by looking their corners up, not by the balls' one list.
+
+**The camera-still sweep** (`tools/sweep.js`): the camera held on a thing, the clock stopped, only the detail factor
+lowered evenly in its logarithm over 300 frames, the engine counting as on a 4K screen (2160 pixels high), only the
+thing's own engine drawn; the change from frame to frame read on a disc round it, each against the median of its ten
+neighbours (the gate: 3). Headless Chromium, WebGPU on SwiftShader, from frozen builds on ports of their own.
+
+| Thing | main (`?lod=new`) | this |
+| --- | --- | --- |
+| a boulder (3.3 m), 610 px to under one | 205 (the cube to the dot at 4.6 px), 15, 6.3 (levels' edges) | 1.35 |
+| a field of stones | 1.9 | 1.74 |
+
+The stones go before their far end in a still sweep: the ground's map ends at 104 m of the lens's distance, and they
+shrink away there (the land's rule, not the detail engine's).
+
+**Frame time** (the bench's six views, `tools/bench.js`'s poses and frame drawn into the game's own target: drawn onto the
+canvas every pipeline is made again for it, an hour on this software GPU; 640 x 360, ratio 1, three frames after four to
+settle, wall time; two pairs, old new new old, both `?lod=new` so the plants are alike; ms a frame, each the pair's mean):
+
+| View | main | this |
+| --- | --- | --- |
+| tent, eye level | 2 826 | 2 800 |
+| river bend, 26 m | 1 321 | 1 309 |
+| town, 40 m | 1 227 | 1 219 |
+| skyline, 2.5 km | 422 | 427 |
+| pine forest, eye level | 3 555 | 3 529 |
+| pine forest, 90 m | 884 | 906 |
+
+Within this machine's spread (one view's two runs of the same build differ by up to 9 %). **The stress world** (`?stress`,
+its first view, four frames, two pairs): main 2 812 and 3 013 ms, this 2 936 and 2 775: no slower. GPU time, Safari and a
+phone not measured.
+
+**Not as good: the first start.** The rocks' coarse levels come when their reduction is done: 20.8 s after their drawer
+is made in the stress world, 22.8 s in the world (main: 2.3 to 2.7 s); until then no rock is drawn. The browser keeps
+them, so a second start reads them back. The definition's answer is a far stand-in that does not wait (the recipe's own
+quick drawing, drawn until the reduced levels come, and grown into them): not built here, on the todo.
+
 ## Propose
 
 ## Story
@@ -971,6 +1036,12 @@ back to (a bake made lazily, as a shape's window first opens). Frame times not m
   - [ ] the switch in the world (`?lod=new` the default); the tables and the kinds' pixel sizes deleted
   - [ ] `shade()`, the hand-made body for the shadow, replaced by the builder's
 - [ ] Stage 2: solids
+  - [x] one reduction for any solid, with every corner's place on the next level exact (`assets/kit/reduce.js`)
+  - [x] the stones and the boulders on it behind `?lod=new`; no dot, no asset's own end; the camera-still sweep
+        (`tools/sweep.js`): boulder 1.35, stones 1.74 (main 205 and 1.9)
+  - [ ] the rocks' first start: the recipe's quick drawing until the reduced levels come (21 s at a first start, main 2.5)
+  - [ ] the stones' and boulders' `detail` blocks deleted once `?lod=new` is the default
+  - [ ] creatures (stage 4's bones) and the stress stand's shapes on it
 - [ ] Stage 3: made things, and thin loose parts
 - [ ] Stage 4: movers
 - [ ] Stage 5: assets nobody wrote a line for
@@ -1172,6 +1243,20 @@ back to (a bake made lazily, as a shape's window first opens). Frame times not m
   below (before: 55 to 63 %). From 90 m the far crowns read as trees with lit lobes.
 - **Broke / not there yet:** The mastic 19 % off. Memory 112 MB against 40, the cold start 6.2 s against 2.9 s.
   Check 3 with the camera's motion taken out was confounded by moving cloud shadows: to run again.
+
+### 2026-11-17 (9)
+
+- **Asked:** (Samuel, through the coordinator) every asset but biomes and characters onto the new levels of detail, and
+  that the default; this session the solids and the made things, in small pull requests behind `?lod=new`, the rocks
+  first, each shown by a camera-still sweep, the bench in pairs and the stress world.
+- **Delivered:** one reduction for any solid, from its full mesh, every corner's place on the next level exact; the
+  stones and boulders on it, with no dot and no end of their own; the camera-still sweep as a tool.
+- **Good:** The boulder's largest step from frame to frame 1.35 times its neighbours (main 205); the hand-over between
+  levels bit for bit. The bench and the stress world no slower.
+- **Broke / not there yet:** The first start draws no rock for about 21 s (main 2.5 s); a second start reads them back.
+  On the way: the boulder first vanished at once at 1.84 px (its tier still ended where the dot had), the first sweeps
+  were lost to a page reloaded under them and to a window's height I put back wrongly, and `tools/bench.js` drawn onto
+  the canvas took over an hour a run here, so its views were timed into the game's own target.
 
 ## Trail
 
