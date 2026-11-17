@@ -24,7 +24,7 @@ import { slope } from '../field.js';
 
 import { MAXK } from './layout.js';
 /** How the muscles are drawn out, as a number: another, and a kept drawing is drawn again. */
-export const MADE = 3;
+export const MADE = 4;
 
 const AROUND = 10, RING = 0.011, GAP = 0.0008, DEEP = 0.3;
 // The man these muscles are laid for is slightly muscular (intent 0036): his muscles the studies' means. They were a
@@ -290,7 +290,7 @@ export function musclesOf(bones) {
       // table asks (the bands' spread across the sheet is only roughly their width)
       let V = 0; for (let t = f0; t < fine.length; t += 3) { const A = P0[fine[t] - base], B = P0[fine[t + 1] - base], C = P0[fine[t + 2] - base]; V += dot(A, cross(B, C)) / 6; }
       if (V < 0) for (const [list, from] of [[fine, f0], [coarse, c0]]) for (let t = from; t < list.length; t += 3) { const x = list[t + 1]; list[t + 1] = list[t + 2]; list[t + 2] = x; }
-      const want = (BUILD * m.vol * 1e-6), k = Math.min(1.5,   /* (no deeper than half again: thickened as much as three times, the adductor magnus and the sheets on the thigh swelled it) */ Math.max(0.5, want / Math.max(1e-7, Math.abs(V))));
+      const want = (BUILD * m.vol * 1e-6), k = Math.min(2,   /* (no more than twice as deep: thickened as much as three times, the adductor magnus and the sheets on the thigh swelled it) */ Math.max(0.5, want / Math.max(1e-7, Math.abs(V))));
       for (let q = 0; q < P0.length; q++) { const s0 = attr.sec[(base + q) * 4], p = add(P0[q], mul(FR[q].O, s0 * (k - 1))); P0[q] = p; attr.sec[(base + q) * 4] = s0 * k; pos[(base + q) * 3] = p[0]; pos[(base + q) * 3 + 1] = p[1]; pos[(base + q) * 3 + 2] = p[2]; }
     }
     // normals: from the faces round each point, then in its frame
