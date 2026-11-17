@@ -346,14 +346,20 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
     for (let k = 0; k < HNn[2]; k++) for (let j = 0; j < HNn[1]; j++) for (let i = 0; i < HNn[0]; i++) {
       const q = [HLo[0] + i * HF, HLo[1] + j * HF, HLo[2] + k * HF];
       let hand = smin(palm(q).E, thenar(q).E, THENAR.k), best = hand, part = P_.arm;
-      // (the forearm: a little inside the arm's own skin where the two lie together, so the hand's edge is under the arm's)
-      const fore = GA.sample(q) + Math.max(0, 0.878 - q[1]) * 0.7 + 0.0003; hand = smin(hand, fore, 0.022); if (fore < best) best = fore;
+      // (the forearm: a fifth of a millimetre outside the arm's own skin where the two lie together: the hand's fine edge
+      // lies over the arm's, which dives under it)
+      const fore = GA.sample(q) + Math.max(0, 0.878 - q[1]) * 0.3 - 0.0002; hand = smin(hand, fore, 0.0005 + 0.02 * smooth01((0.872 - q[1]) / 0.03));   // (softly into the palm, but at the wrist itself no fuller than the forearm: no cuff) if (fore < best) best = fore;
       let v = hand;
       for (const R of rods) { let f = Infinity; for (const sg of R.segs) f = f === Infinity ? rod(q, sg) : smin(f, rod(q, sg), 0.003); const web = smin(hand, f, 0.007); if (f < best) { best = f; part = R.part; } v = Math.min(v, web); }
       const g = i + HNn[0] * (j + HNn[1] * k); handF[g] = v; handP[g] = part;
     }
   }
   const GHand = gridOf(handF, HNn, HLo, HF);
+  // (and the arm's own skin dives under the hand's from the wrist down, so where it ends no edge shows: it is under the
+  // hand's skin there. Only near, where the fine hand is drawn)
+  const fieldA2 = Float32Array.from(fieldA);
+  for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) { const y = Y(j); if (y > 0.89) continue; for (let i = 0; i < nx; i++) if (Math.abs(X(i)) > 0.15) fieldA2[I(i, j, k)] += (0.89 - y) * 1.5; }
+  const GA2 = gridOf(fieldA2, [nx, ny, nz], LO, h);
   const handPartAt = (p) => { const q = [Math.abs(p[0]), p[1], p[2]], i = Math.round((q[0] - HLo[0]) / HF), j = Math.round((q[1] - HLo[1]) / HF), k = Math.round((q[2] - HLo[2]) / HF); return handP[Math.max(0, Math.min(HNn[0] - 1, i)) + HNn[0] * (Math.max(0, Math.min(HNn[1] - 1, j)) + HNn[1] * Math.max(0, Math.min(HNn[2] - 1, k)))]; };
   // (what stands round a point of a skin: the skins as fine as its own, the trunk's and the arms' together)
   const occluder = (piece, o) => piece === 2 ? Math.min(GH.sample(o), GA.sample(o)) : piece === 3 || piece === 4 ? Math.min(GHand.sample([Math.abs(o[0]), o[1], o[2]]), GB.sample(o)) : piece >= 5 ? Math.min(GFoot.sample([Math.abs(o[0]), o[1], o[2]]), GB.sample(o)) : Math.min(GB.sample(o), GA.sample(o));
@@ -535,7 +541,7 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
   for (const [L, cell, lv] of [['fine', h, 1], ['coarse', h * 2, 2]]) {
     const S = (() => {   // (the skins as one list of points and faces, each point with the piece it is of)
       const pt = (M, v) => [M.pos[v * 3], M.pos[v * 3 + 1], M.pos[v * 3 + 2]];
-      const pieces = [[nets(lv, GB), (p) => partAt(p, false)], [nets(lv, GA), (p) => partAt(p, true)]];
+      const pieces = [[nets(lv, GB), (p) => partAt(p, false)], [nets(lv, lv === 1 ? GA2 : GA), (p) => partAt(p, true)]];
       if (lv === 1) { pieces.push([nets(1, GH), hpartAt]); const L = nets(1, GHand); pieces.push([L, handPartAt], [mirrorMesh(L), handPartAt]); const Fo = nets(1, GFoot); pieces.push([Fo, () => P_.leg], [mirrorMesh(Fo), () => P_.leg]); }
       const out = { pos: [], tri: [], nb: [], part: [], piece: [] };
       for (const [k, [M, partOf_]] of pieces.entries()) {
@@ -544,10 +550,10 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
         // two lie together; the fine one's neck likewise)
         // (and the arms' own hands likewise: the fine hands' from just under the wrist, the arms' from just over it)
         // (the feet likewise, from the ankle down)
-        const y = (v) => M.pos[v * 3 + 1], inHand = (v) => y(v) < 0.875 && Math.abs(M.pos[v * 3]) > 0.15, inFoot = (v) => y(v) < 0.085 && M.pos[v * 3 + 2] > -0.14;
+        const y = (v) => M.pos[v * 3 + 1], inHand = (v) => y(v) < 0.855 && Math.abs(M.pos[v * 3]) > 0.15, inFoot = (v) => y(v) < 0.085 && M.pos[v * 3 + 2] > -0.14;
         const keepT = lv !== 1 ? () => true : k === 0 ? (a, b, c) => (part[a] !== P_.head || part[b] !== P_.head || part[c] !== P_.head) && (!inFoot(a) || !inFoot(b) || !inFoot(c))
           : k === 1 ? (a, b, c) => !inHand(a) || !inHand(b) || !inHand(c) : k === 2 ? (a, b, c) => near[a] || near[b] || near[c]
-          : k <= 4 ? (a, b, c) => y(a) < 0.885 || y(b) < 0.885 || y(c) < 0.885 : (a, b, c) => y(a) < 0.095 || y(b) < 0.095 || y(c) < 0.095;
+          : k <= 4 ? (a, b, c) => y(a) < 0.905 || y(b) < 0.905 || y(c) < 0.905 : (a, b, c) => y(a) < 0.095 || y(b) < 0.095 || y(c) < 0.095;
         for (let v = 0; v < nv; v++) { out.pos.push(...pt(M, v)); out.part.push(part[v]); out.piece.push(k); out.nb.push(M.nb[v].map((u) => u + n0)); }
         for (let t = 0; t < M.tri.length; t += 3) { const a = M.tri[t], b = M.tri[t + 1], c = M.tri[t + 2]; if (keepT(a, b, c)) out.tri.push(a + n0, b + n0, c + n0); }
       }
