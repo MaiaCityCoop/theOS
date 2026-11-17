@@ -75,8 +75,8 @@ export const TISSUE_DEFAULT = 4;
 // J Ophthalmol, as remembered). `rig`: the bone that carries it.
 export const UNDER = [
   { what: 'nose bridge', rig: 'head', solid: ['rod', [0.0, 1.668, 0.1], [0.0, 1.638, 0.12], 0.0042, 0.0058] },
-  { what: 'nose tip', rig: 'head', solid: ['egg', [0.0, 1.634, 0.1215], [0.009, 0.008, 0.0085]] },
-  { what: 'nose wing', rig: 'head', solid: ['egg', [0.0125, 1.629, 0.106], [0.0065, 0.006, 0.0085]] },
+  { what: 'nose tip', rig: 'head', solid: ['egg', [0.0, 1.6335, 0.1205], [0.0075, 0.0072, 0.0085]] },
+  { what: 'nose wing', rig: 'head', solid: ['egg', [0.0118, 1.6295, 0.108], [0.0052, 0.0055, 0.0078]] },
   { what: 'ear shell', rig: 'head', solid: ['egg', [0.077, 1.666, -0.022], [0.007, 0.03, 0.0175], [[0.94, 0, 0.34], [0, 1, 0]]] },
   { what: 'ear lobe', rig: 'head', solid: ['egg', [0.074, 1.633, -0.016], [0.006, 0.009, 0.008]] },
   { what: 'eye', rig: 'eye', solid: ['ball', [0.032, 1.677, 0.072], 0.012] },
@@ -84,13 +84,13 @@ export const UNDER = [
 // What is carved out of the skin after it is laid (left side): the eyes' openings (an almond as wide as the eye's
 // opening, 30 mm), the nostrils, the bowl of the ear.
 export const OPENINGS = [
-  { what: 'eye opening', solid: ['egg', [0.032, 1.6775, 0.085], [0.0145, 0.0042, 0.012]] },
+  { what: 'eye opening', solid: ['egg', [0.032, 1.6768, 0.085], [0.0142, 0.0035, 0.012]] },
   { what: 'nostril', solid: ['egg', [0.0075, 1.6245, 0.113], [0.0034, 0.003, 0.0058]] },
   { what: 'ear bowl', solid: ['egg', [0.084, 1.66, -0.018], [0.0055, 0.0115, 0.0085]] },
 ];
 // Where the skin takes another colour: the lips (their red), the areolae, the nails. [what, centre, radii (m)]
 export const MARKS = [
-  { what: 'lips', at: [0.0, 1.5985, 0.11], r: [0.026, 0.0115, 0.02] },
+  { what: 'lips', at: [0.0, 1.598, 0.11], r: [0.0255, 0.0085, 0.02] },
   { what: 'areola', at: [0.095, 1.312, 0.105], r: [0.013, 0.013, 0.03] },
 ];
 /** The nipple: a small rise in the middle of the areola (left side; m). */
@@ -154,14 +154,16 @@ export const PROFILES = [
 ];
 // Masses the outline holds besides its sections: each buttock (the gluteus maximus under its pad of fat, its fold at
 // 0.80 m, the cleft between the two), a superellipsoid round its middle (left side; m): [out, in, up, down, front,
-// back] its half-extents, n its squareness, k how softly it runs into the outline (m).
+// back] its half-extents, n its squareness, k how softly it runs into the outline (m), arch how far its sides curve
+// back round the middle (the lips round the teeth: m back for each m² out).
 export const MASSES = [
   // the face's own (the skin over them; Farkas's norms of the adult man's face, as remembered: the mouth 5.2 cm wide,
   // the upper lip standing 11.6 cm forward of the head's middle, the lower 11.3, the chin 10.9; middle only, m)
-  { part: 'head', what: 'mouth', at: [0, 1.6, 0.082], r: [0.033, 0.033, 0.02, 0.022, 0.024, 0.03], n: 2.0, k: 0.016 },   // (the teeth's arch under the lips)
-  { part: 'head', what: 'upper lip', at: [0, 1.6045, 0.107], r: [0.025, 0.025, 0.0065, 0.0045, 0.0095, 0.01], n: 2.0, k: 0.004 },
-  { part: 'head', what: 'lower lip', at: [0, 1.5925, 0.105], r: [0.023, 0.023, 0.0045, 0.0065, 0.0085, 0.01], n: 2.0, k: 0.004 },
-  { part: 'head', what: 'chin', at: [0, 1.567, 0.097], r: [0.019, 0.019, 0.011, 0.012, 0.009, 0.012], n: 2.4, k: 0.012 },
+  { part: 'head', what: 'mouth', at: [0, 1.6, 0.082], r: [0.033, 0.033, 0.02, 0.022, 0.024, 0.03], n: 2.0, k: 0.016, arch: 12 },   // (the teeth's arch under the lips)
+  { part: 'head', what: 'upper lip', at: [0, 1.6045, 0.107], r: [0.026, 0.026, 0.0065, 0.0045, 0.0065, 0.01], n: 2.0, k: 0.005, arch: 22 },
+  { part: 'head', what: 'lower lip', at: [0, 1.5925, 0.1045], r: [0.023, 0.023, 0.0045, 0.0065, 0.0065, 0.01], n: 2.0, k: 0.005, arch: 22 },
+  { part: 'head', what: 'masseter', at: [0.046, 1.623, 0.024], r: [0.019, 0.02, 0.022, 0.028, 0.026, 0.022], n: 2.0, k: 0.018 },   // (and the cheek's fat over it)
+  { part: 'head', what: 'chin', at: [0, 1.57, 0.092], r: [0.026, 0.026, 0.014, 0.014, 0.01, 0.014], n: 2.0, k: 0.028 },
   { part: 'trunk', what: 'deltoid', at: [0.172, 1.44, -0.032], r: [0.042, 0.03, 0.045, 0.07, 0.045, 0.048], n: 2.1, k: 0.025 },   // (the shoulder's cap, over the acromion and the head of the arm)
   { part: 'trunk', what: 'buttock', at: [0.072, 0.885, -0.08], r: [0.085, 0.062, 0.11, 0.085, 0.05, 0.065], n: 2.5, k: 0.025 },
 ];
@@ -177,4 +179,16 @@ export const THENAR = { at: [0.214, 0.816, 0.006], r: [0.01, 0.014, 0.022, 0.018
 export const FINGERS = {
   thumb: [0.0112, 0.0105, 0.0098, 0.0088, 0.026], index: [0.0098, 0.0088, 0.0081, 0.0074, 0.022], middle: [0.0099, 0.009, 0.0083, 0.0076, 0.024],
   ring: [0.0094, 0.0085, 0.0079, 0.0072, 0.023], little: [0.0086, 0.0077, 0.0071, 0.0066, 0.02],
+};
+/** The mouth's line: where the lips part, a slit as deep as their red, round the teeth's arch (m). */
+export const MOUTH = { at: [0, 1.5985, 0.112], half: 0.0255, deep: 0.008, arch: 22, gap: 0.0011 };
+// The foot's toes, drawn finer (./build.js), each a flattened tapering rod from its knuckle (its joint in the rig) to its
+// tip, as broad as a man's are (the big toe 2.5 cm across, the little one 1.4; Hawes & Sovak 1994, "Quantitative
+// morphology of the human foot in a North American population", Ergonomics 37: 1213-1226, as remembered): [radius at
+// the knuckle, at the tip, the tip (left foot, m), how flat (height over breadth)].
+export const FOOT_SOURCE = 'Hawes & Sovak 1994, "Quantitative morphology of the human foot in a North American population", Ergonomics 37: 1213-1226, as remembered';
+export const TOES = {
+  toe1: [0.0135, 0.0118, [0.077, 0.0135, 0.196], 0.78], toe2: [0.0085, 0.0074, [0.097, 0.0105, 0.19], 0.85],
+  toe3: [0.0082, 0.0071, [0.112, 0.0098, 0.179], 0.85], toe4: [0.0078, 0.0068, [0.125, 0.0095, 0.164], 0.85],
+  toe5: [0.0072, 0.0064, [0.138, 0.0092, 0.147], 0.85],
 };

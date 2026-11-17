@@ -205,7 +205,7 @@ function materialOf(tex, eye, kind, inset = 0, rest = null) {
         const diff = max(ndl.add(0.3).div(1.3), 0), spec = pow(ndh, 60).mul(0.25);
         out.assign(finish(col.mul(skyLight(n).mul(open.mul(open)).add(sun.mul(diff))).add(sun.mul(spec).mul(max(ndl, 0))), w, eye));
       } else {
-        const what = look.y, is = (k) => float(1).sub(clamp(abs(what.sub(k)), 0, 1)), Q = vec3(abs(P.x), P.y, P.z);
+        const what = look.y, nailW = clamp(look.z, 0, 1), is = (k) => (k === 3 ? nailW : float(1).sub(clamp(abs(what.sub(k)), 0, 1))), Q = vec3(abs(P.x), P.y, P.z);
         const near = (c, r) => exp(length(Q.sub(vec3(...c))).div(r).pow(2).negate());   // (a place of the body, softly)
         // its relief, finer than its points: pores (about a millimetre) and the skin's fine grain, faded with distance
         const fade = clamp(float(1).sub(length(eye.sub(w)).div(2.5)), 0, 1), bump = (f, e) => { const c = mx_noise_float(P.mul(f)); return vec3(mx_noise_float(P.add(vec3(e, 0, 0)).mul(f)).sub(c), mx_noise_float(P.add(vec3(0, e, 0)).mul(f)).sub(c), mx_noise_float(P.add(vec3(0, 0, e)).mul(f)).sub(c)).div(e); };
@@ -223,7 +223,7 @@ function materialOf(tex, eye, kind, inset = 0, rest = null) {
         base = mix(base, base.mul(vec3(1.06, 0.8, 0.78)), clamp(flush, 0, 1));
         base = mix(base, base.mul(vec3(0.82, 0.88, 1.08)), vein);
         base = mix(base, base.mul(vec3(1.08, 1.05, 1.02)), smoothstep(0.012, 0.0, P.y));
-        const col = mix(mix(mix(base, vec3(0.56, 0.24, 0.22), is(1)), vec3(0.36, 0.2, 0.16), is(2)), vec3(0.8, 0.66, 0.62), is(3)).mul(mix(vec3(0.6, 0.48, 0.44), vec3(1), open));
+        const col = mix(mix(mix(base, vec3(0.56, 0.24, 0.22), is(1)), vec3(0.36, 0.2, 0.16), is(2)), vec3(0.74, 0.54, 0.5), is(3)).mul(mix(vec3(0.6, 0.48, 0.44), vec3(1), open));
         // (the light under the skin: a wrapped diffuse that wraps further in the red, so the shade's edge is warm; and
         // where the skin is thin, the ears and the nose, the light from behind comes through red)
         const nl = dot(nb, L), diff = max(vec3(nl).add(vec3(0.5, 0.3, 0.25)).div(vec3(1.5, 1.3, 1.25)), 0);
