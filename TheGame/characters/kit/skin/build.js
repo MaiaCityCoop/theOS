@@ -23,13 +23,13 @@
 // The skin is where that is as far out as the fat and the skin are thick there, half way to a man's measured outline
 // (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through; the surface is drawn out of the grid (surface nets) and smoothed along itself: two surfaces,
 // the arms' with their hands, and the rest's, each closed (an arm along the side only touches the trunk).
-import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE } from './table.js';
+import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, CARPUS, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE } from './table.js';
 import { frameAt, slots } from '../muscles/build.js';
 import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
 
 /** How the skin is drawn out, as a number: another, and a kept drawing is drawn again. */
-export const MADE = 8;
+export const MADE = 9;
 
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math.hypot(a[0], a[1], a[2]), norm = (a) => mul(a, 1 / (len(a) || 1));
@@ -370,11 +370,11 @@ export function skinOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE =
       return { part: P_[f], segs: [[j[0], j[1], r1, r2], [j[1], j[2], r2, r3], [j[2], tip, r3, r4]] };
     });
     const rod = (q, [a, b, ra, rb]) => { const ab = sub(b, a), t = Math.max(0, Math.min(1, dot(sub(q, a), ab) / dot(ab, ab))), c = add(a, mul(ab, t)), d = sub(q, c); return Math.hypot(d[0] / 0.86, d[1], d[2]) - (ra + (rb - ra) * t); };
-    const palm = massOf(PALM), thenar = massOf(THENAR);
+    const palm = massOf(PALM), thenar = massOf(THENAR), carpus = massOf(CARPUS);
     const rods = handRods;
     for (let k = 0; k < HNn[2]; k++) for (let j = 0; j < HNn[1]; j++) for (let i = 0; i < HNn[0]; i++) {
       const q = [HLo[0] + i * HF, HLo[1] + j * HF, HLo[2] + k * HF];
-      let hand = smin(palm(q).E, thenar(q).E, THENAR.k), best = hand, part = P_.arm;
+      let hand = smin(smin(palm(q).E, carpus(q).E, CARPUS.k), thenar(q).E, THENAR.k), best = hand, part = P_.arm;
       // (the forearm: a fifth of a millimetre outside the arm's own skin where the two lie together: the hand's fine edge
       // lies over the arm's, which dives under it)
       const fore = GA.sample(q) + Math.max(0, 0.878 - q[1]) * 0.3 - 0.0002; hand = smin(hand, fore, 0.0005 + 0.02 * smooth01((0.872 - q[1]) / 0.03)); if (fore < best) best = fore;   // (softly into the palm, but at the wrist itself no fuller than the forearm: no cuff)
