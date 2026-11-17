@@ -30,21 +30,21 @@ severity:
 
 > **Deep inside, when I am honest with myself, I know I carry a power far greater than anything in the universe.**
 >
-> Not just me. Each and every one of us.
+> And it is not just me. You know it too. In fact, each and every one of us knows it, and smiles now.
 >
-> Imagine a million people daring to believe it at once. A million people waking up with sparkling eyes. Every vision that waited for permission, finally built, side by side.
+> Imagine a million humans waking up with sparkling eyes, a smiling heart and fire in the belly. Every day. Every vision that waited for permission, finally built, side by side.
 >
 > We stood on the Moon. That was a few of us.
 >
-> Imagine a million of us, standing on Earth, in a green city that we build with our bare hands.
+> Now a million of us stand on Earth, in a green city we build with our bare hands.
 >
-> This is Maia City. Healthy food growing by every door. Clean power from the sun on every roof. Every home, every field, every machine owned by all of us who build it. Every hour free for what we love.
+> This is Maia City. Food forests by every door. Green energy on every roof. Everything owned by all of us who build it. Every hour free for what we love.
 >
 > A new blueprint for how to live, proven the only way that convinces anyone: by building it together.
 >
 > The city is the proof. We are the point.
 >
-> It begins with one tent on a green meadow. I can walk in tonight.
+> It begins first in a game, then for real: one tent on a green meadow. Tonight, I can walk in.
 
 **It is read in the first person.** The viewer says it as their own words: what they know about themselves when they are honest, and dare to believe.
 

@@ -177,6 +177,16 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes.
 - **Broke / not there yet:** —
 
+### 2026-11-17 (12)
+
+- **Asked:** "And it's not just me. You know it too. In fact each and every one of us knows this and smiles now."
+  "Daring to believe it" too unclear: go directly to "a million humans waking up with sparkling eyes, a smiling heart
+  and fire in the belly, every day". Don't repeat "imagine a million"; make it a good transition. Not fields: green
+  energy and food forests, compact. Last sentence: first in a game, then for real; tonight I can walk in.
+- **Delivered:** all of it, in his words where he gave them.
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** —
+
 ## Trail
 
 | When | Commit | What |
