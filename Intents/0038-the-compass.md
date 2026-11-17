@@ -103,6 +103,14 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes.
 - **Broke / not there yet:** —
 
+### 2026-11-17 (4)
+
+- **Asked:** the pace and rhythm of the shorter version was better; recover that style with the larger context.
+- **Delivered:** the core message back to short lines, keeping the awe (oceans, the Moon), the task, and "the city is
+  the proof, you are the point".
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** —
+
 ## Trail
 
 | When | Commit | What |
