@@ -1201,3 +1201,4 @@ back to (a bake made lazily, as a shape's window first opens). Frame times not m
 | 2026-11-17 | `aaecab1` | the baked crowns see-through only against the sky |
 | 2026-11-17 | `12fe6a2` | every abrupt change under `?lod=new` listed; the walk (checks 1 and 2) old against new; `?flyby` and `?flyby=orbit` |
 | 2026-11-17 | `7e2857b` | the pumping fixed: far bodies at full size and enclosing, wood to post faded, views blended, `KMAX` 4, bakes sized with mips, baked normals lit live |
+| 2026-11-17 | `5e4a2ae` | the dashboard passes its own flags (`?lod=new`, `?flyby`) on to the game's frames |
