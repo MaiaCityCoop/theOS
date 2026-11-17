@@ -84,7 +84,7 @@ const ruleOf = (a, b) => [vec4(unpackHalf2x16(a.x), unpackHalf2x16(a.y)), vec4(u
 /** How dense a baked far body is, `into` its window (crowdRule's: 0 where it begins, 1 where the cards are gone, straight
     in the size's logarithm, not eased: the cards begin to go at once, one by one): as many of its texels as fill what
     the cards that went leave, over a crown covering CROWD.DENSE (most at first, where they lie over the cards still there). */
-const crowdDense = (into) => into.div(float(1 - CROWD.DENSE).add(into.mul(CROWD.DENSE)).max(1e-6));
+const crowdDense = (into) => { const i = smooth01(into); return i.div(float(1 - CROWD.DENSE).add(i.mul(CROWD.DENSE)).max(1e-6)); };   // (eased in where its window opens: the law alone rose five times as steeply as the window there)
 /** A shape's baked views (bytes: views x res x res x 4, crowd.js bakeOf) into a stand's texture (out: layers BW x BH x 4,
     from layer l0): each view's picture and its smaller ones (BAKEMIPS). A smaller picture's texel: the mean cover of the
     four under it, raised (at most 8 times) until as much of the picture is over half covered as of the whole one; its

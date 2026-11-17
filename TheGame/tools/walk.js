@@ -62,7 +62,7 @@ function crowdAt(S, L, px, F) {
   // a baked body's pixel: the bake's first view at the pixel's place (the picture's frame and the bake's share their axes)
   const baked = (x, y) => { const wx = (x + 0.5) / bk - F.r, wy = (y + 0.5) / bk - F.r, cu = wx + dot(F.c, U) - dot(S.mid, U), cv = wy + dot(F.c, V) - dot(S.mid, V), tx = Math.floor(((cu / (2 * br)) + 0.5) * bake.res), ty = bake.res - 1 - Math.floor(((cv / (2 * br)) + 0.5) * bake.res); return tx < 0 || ty < 0 || tx >= bake.res || ty >= bake.res ? 0 : seen(ty * bake.res + tx) ? bake.bytes[(ty * bake.res + tx) * 4] / 255 : 0; };
   // (a texel shows once the body has come in as far as its own fixed number: trees.js crowdDense)
-  const dense = into / (1 - CROWD.DENSE + CROWD.DENSE * into + 1e-9), seen = (t) => { const x = Math.sin(t * 39.3468 + 11.1351) * 24634.6345; return x - Math.floor(x) < dense; };
+  const iv = into * into * (3 - 2 * into), dense = iv / (1 - CROWD.DENSE + CROWD.DENSE * iv + 1e-9), seen = (t) => { const x = Math.sin(t * 39.3468 + 11.1351) * 24634.6345; return x - Math.floor(x) < dense; };   // (eased in where its window opens: trees.js crowdDense)
   return draw(P, I, (t) => { const a = I[t * 3], b2 = I[t * 3 + 1], c = I[t * 3 + 2]; if (!shown[a] || !shown[b2] || !shown[c]) return 0; const bd = L.body[a]; return bd >= 1 && bd <= 3 && bake ? baked : L.part[a] === 1 && !bd ? STOP : bd === 4 ? swap : 1 - swap; }, F);   // (the wood and the post, as much of each as its share of the pixels: trees.js's pattern)
 }
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
