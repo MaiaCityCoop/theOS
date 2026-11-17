@@ -29,7 +29,7 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, exp, exp2, step, uintBitsToFloat } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attribute, positionGeometry, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, clamp, log, exp, exp2, step, unpackHalf2x16 } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt, nearLake } from '../world/land.nodes.js';
 import { kindsOf, whereOf } from '../world/stand.js';
@@ -67,12 +67,14 @@ if (flagText('lod') === 'new') Object.assign(LOD, { on: true, CARD: flagNum('car
 const SPREAD = flagNum('spread', 0);
 const SX = (2 * GRID.xz) / 65535, SY = (GRID.y1 - GRID.y0) / 65535;
 /** A crowd level's vertex: what the rule moves it by, from the elements a plant's vertex is (assets/kit/plant.js), and
-    its shape's sixteen numbers from the four elements before its vertices (h0: the first). */
+    its shape's sixteen numbers (ruleOf). */
 const crowdOfElems = (e0, e1, rule) => {
   const tip = vec3(lo16(e1.z).mul(SX).sub(GRID.xz), hi16(e1.z).mul(SY).add(GRID.y0), lo16(e1.w).mul(SX).sub(GRID.xz)).toVar();   // (a far body's corner: its place on the next coarser)
   return { body: float(bits(e0.w, 13, 7)).toVar(), tipUv: vec2(sn8(e1.y, 16), sn8(e1.y, 24)).mul(TIPUV).toVar(), tip, to: tip, go: hi16(e1.w).greaterThan(0).select(exp2(hi16(e1.w).div(GOQ).sub(8)), float(0)).toVar(), rule };
 };
-const asFloats = (u) => vec4(uintBitsToFloat(u.x), uintBitsToFloat(u.y), uintBitsToFloat(u.z), uintBitsToFloat(u.w));
+/** A crowd level's shape's sixteen numbers from the two elements before its vertices (assets/kit/plant.js: half
+    floats, two a number of 32 bits), as four vec4 (crowd.js RULE). */
+const ruleOf = (a, b) => [vec4(unpackHalf2x16(a.x), unpackHalf2x16(a.y)), vec4(unpackHalf2x16(a.z), unpackHalf2x16(a.w)), vec4(unpackHalf2x16(b.x), unpackHalf2x16(b.y)), vec4(unpackHalf2x16(b.z), unpackHalf2x16(b.w))];
 const smooth01 = (t) => { const c = clamp(t, 0, 1); return c.mul(c).mul(float(3).sub(c.mul(2))); };
 /** The one rule (assets/kit/crowd.js, the same in JS there): where a crowd level's vertex lies and what of its painting
     it wears at px pixels, and whether it shows. V: the vertex (position, root, uv, part) with C, what the rule moves it by
@@ -427,8 +429,8 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
         vertex: (B) => {
           const kind = uint(B.y.add(0.5)), R = heapRow(D.H, kind, level).toVar(), P = at(R), e = R.y.add(P.vertex.mul(uint(2))), r0 = D.numOf(kind, 0).toVar(), r3 = D.numOf(kind, 3).toVar();
           const e0 = D.H.elems.element(e).toVar(), e1 = D.H.elems.element(e.add(uint(1))).toVar();
-          // (a crowd's level: its shape's numbers in the four elements before its vertices)
-          const crowd = CROWDED[lv] ? { crowd: crowdOfElems(e0, e1, [0, 1, 2, 3].map((j) => asFloats(D.H.elems.element(R.y.add(uint(j)))).toVar())) } : {};
+          // (a crowd's level: its shape's numbers in the two elements before its vertices)
+          const crowd = CROWDED[lv] ? { crowd: crowdOfElems(e0, e1, ruleOf(D.H.elems.element(R.y).toVar(), D.H.elems.element(R.y.add(uint(1))).toVar()).map((r) => r.toVar())) } : {};
           return { ...plantOf(e0, e1), Hk: r0.x, Tn: r0.yzw, Wd: D.numOf(kind, 1).toVar(), Lf: D.numOf(kind, 2).toVar(), Tw: r3.x, Ks: r3.y, shade: seedOf(B), drawn: P.drawn, ...crowd };
         },
         level: lv,
