@@ -691,6 +691,28 @@ detail; make it the default once it is at least as fast and as good.
 
 So the default stays main's: as fast, not as good from afar.
 
+### Stage 1: the far canopy, the coordinator's call (2026-11-17)
+
+The coordinator, for Samuel ("advance everything you can yourself"): first coverage-preserving alpha mips; only if they
+are not enough from 90 m, a far body or card that carries the crown's gaps and shade, baked from the plant's own build;
+not more cards (frame time).
+
+- **Coverage-preserving alpha mips** (`src/materials/bake.js` COVER; `?lod=new&mips=1`): as a foliage painting is
+  packed, a histogram of its alpha at every mip (256 steps a level, on the GPU), and each level's alpha scaled so that as
+  large a share of its texels passes the cut (0.45) as of the finest level's, at most eight times; the crowd's levels
+  then cut at 0.45 at every distance, where main's plants lower their cut to 0.16 far off by hand. Main's textures are
+  not touched. (BC compression is there on SwiftShader, so it was the packed path that was seen.)
+- **Seen beside main** (stills: `research_notes/Generic automatic detail of higher quality/stage1/`): by the tent about as
+  main; from 90 m it changes little. The far crowns there (13 to 35 px) are a few cards enlarged up to KMAX times
+  showing their sprig painting stretched, and a mip that keeps its coverage does not change what a stretched painting
+  shows. With the card showing more of its painting at its own size (`spread=1`) the mips keep the coverage, but the
+  crowns turn into a dotted grid near, and the trees by the tent into a checkered one. So it stays opt-in.
+- **The second way, not built:** a far card or body that carries the crown's gaps and shade, baked from the plant's
+  own build, is a piece of work of its own: a pass that draws every shape's crown from a few sides into an atlas of
+  its own, the cards or the far bodies reading it by where on the crown they lie, its mips through the coverage above,
+  and its light (a baked crown is lit as it was baked unless its normals are baked too). Not begun here: handed to
+  Samuel with the stills.
+
 ## Propose
 
 ## Story
@@ -721,8 +743,11 @@ So the default stays main's: as fast, not as good from afar.
         where they hold cards, CARD 30 (1.16 x main by the tent, 0.91 x at the river bend)
   - [x] the last few per cent: the shape's numbers in two elements, the bands uncut (as fast as main within the noise here)
   - [ ] the frame times on a GPU (`?gputime`), in Safari and in the stress world
-  - [ ] the far canopy from 90 m as detailed as main's: more cards there, a card or far body that carries a crown's gaps
-        and shade, or alpha mips that keep their coverage (knobs tried and dropped: Build)
+  - [x] alpha mips that keep their coverage (opt-in `?mips=1`; not enough by themselves from 90 m)
+  - [ ] Samuel: the far canopy from 90 m, with the stills: a far card or body baked from the plant's own build (its own
+        piece of work: Build), or more cards there (frame time), or main's far levels kept for the plants until then
+  - [ ] `?lod=new` the default, `?lod=old` kept, once as fast and as good as main from 90 m and by the tent; the stress
+        world checked not slower
   - [ ] a card's cut-out reckoned by how much of it is leaves, so a card can show more of its painting (`?spread=1`)
         without turning solid far off
   - [ ] the drawer: runs of cards, the hull's ring
@@ -853,6 +878,19 @@ So the default stays main's: as fast, not as good from afar.
 - **Broke / not there yet:** The far canopy from 90 m: five tries beside main, none as good, none kept (Build). So the
   default stays main's. Not measured: GPU time, Safari, the stress world.
 
+### 2026-11-17 (2)
+
+- **Asked:** (the coordinator, for Samuel) coverage-preserving alpha mips first; a far body or card baked from the
+  plant's own build only if they are not enough from 90 m; not more cards; the default once as good and as fast, with
+  `?lod=old` kept and the stress world checked; if both fall short, say so with stills.
+- **Delivered:** the coverage-preserving alpha mips for foliage, opt-in (`?lod=new&mips=1`), main's textures untouched;
+  the stills of everything tried on the far canopy, with a note naming each panel.
+- **Good:** The mips do what they say: with `spread=1` the far crowns keep their coverage where before they turned
+  solid. By the tent the mips look as main.
+- **Broke / not there yet:** From 90 m they change little: the crowns there are enlarged cards showing a stretched
+  painting. `spread=1` with them shows a dotted grid near and a checkered one by the tent. The baked far card or body
+  was not built (its own piece of work); the choice goes to Samuel with the stills. The default stays main's.
+
 ## Trail
 
 | When | Commit | What |
@@ -873,3 +911,4 @@ So the default stays main's: as fast, not as good from afar.
 | 2026-11-16 | `4a880b9` | the library's crowd plant in seven vertex buffers |
 | 2026-11-16 | `f55b39d` | what the plants submit brought down: one far body a far level by 18 px, bands cut where they hold cards, a stand's size to the workers, CARD 30 |
 | 2026-11-17 | `99d7836` | the bands uncut by default; the shape's numbers as half floats in one vertex |
+| 2026-11-17 | `4bc3f99` | coverage-preserving alpha mips for foliage, opt-in (`?mips=1`); the far canopy's stills |
