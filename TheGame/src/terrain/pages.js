@@ -266,6 +266,13 @@ export function createPages(renderer, tex) {
   const refs = new Map(), want = new Map();
   const prev = new THREE.Vector3(), turn = new THREE.Quaternion(); let moved = 0, swung = 0, pxRad = 1600;   // (metres and radians the camera moved last frame; screen pixels a radian through its lens)
   let quietFrom = 0, readTo = 0, dirty = false, pick = null, pickedAt = -1e9, judged = -1, nAsk = 0, askedAt = -1, cutAt = 0;   // (since when nothing changed what is asked for; the last frame whose asks are in; the queue to be sorted again; the bias being chosen)
+  let stoodAt = 0, askW = 0, askH = 0;   // (the last frame the camera stood; the pixels the last asks came from)
+  // (which frames' asks have come back: a read-back is not taken while all its buffers are out, so a sweep counts only
+  // where every one of its frames was read)
+  const got = new Int32Array(2 * SWEEP * SWEEP).fill(-1);
+  /** Whether a whole sweep's asks have come back since frame q: the last `span` frames read, all of them, one after the
+      other, every one after q. */
+  const sweptSince = (q) => { if (readTo - span + 1 <= q) return false; for (let k = 0; k < span; k++) if (got[(readTo - k) % got.length] !== readTo - k) return false; return true; };
   // What the pixels ask for is a function of the view, the bias and the relief's heights (the land's vertices near the
   // eye are raised by the pages, src/terrain/material.js, so there a pixel's point moves as they come in): a page the relief reads
   // (at its finest level or coarser, within its reach of the camera), laid or faded in, changes what is asked for as a
@@ -315,7 +322,7 @@ export function createPages(renderer, tex) {
       if (R.f !== f || levelOf(R.raw, R.t, bias) !== R.L) { R.f = f; asked(R, f); }
       across(R, data[k + 1], raw, t, f);
     }
-    readTo = Math.max(readTo, f);
+    readTo = Math.max(readTo, f); got[f % got.length] = f;
   };
   // what has not been asked for for two sweeps no longer is (and the queue: what is asked for and not in, parents first,
   // the coarsest first, then what most asked for)
@@ -370,9 +377,9 @@ export function createPages(renderer, tex) {
     B.mapAsync(GPUMapMode.READ, 0, n * 8).then(() => { lag = Math.max(1, frame - f); try { if (f >= cutAt) took(new Uint32Array(B.getMappedRange(0, n * 8)), f); } finally { B.unmap(); } }).catch(() => {}).finally(() => { busyReads.delete(B); spare.push(B); });
   };
   // (still out, for the world complete: src/core/settle.js): pages asked for and not in, pages fading in, the bias being
-  // chosen, and until a whole sweep has been read since anything changed what is asked for (the camera moved, the
-  // bias): until then a pixel may not have asked yet
-  source('pages', () => queue.length + fading.length + (pick ? 1 : 0) + (readTo < quietFrom + span ? 1 : 0));
+  // chosen, and until a whole sweep has been read, every frame of it, since anything changed what is asked for (the
+  // camera moved, the pixels drawn, the bias, the relief's heights): until then a pixel may not have asked yet
+  source('pages', () => queue.length + fading.length + (pick ? 1 : 0) + (sweptSince(quietFrom) ? 0 : 1));
 
   // ---- what update does once a frame, step by step ----
   // the frame's length: how many of a block's pixels ask (all of them within a fixation), the sweep's frames at that, and
@@ -393,7 +400,7 @@ export function createPages(renderer, tex) {
     const cam = camera.position;
     moved = cam.distanceTo(prev); swung = 2 * Math.acos(Math.min(1, Math.abs(turn.dot(camera.quaternion))));
     if (moved > Math.max(50, 2 * (U.uDy.value + 2)) || swung > 0.5) { moved = swung = 0; bias = 0; refs.clear(); want.clear(); queue = []; pick = null; readTo = cutAt = frame; }
-    if (moved > 1e-4 || swung > 1e-5) quietFrom = frame;
+    if (moved > 1e-4 || swung > 1e-5) quietFrom = frame; else stoodAt = frame;
     prev.copy(cam); turn.copy(camera.quaternion); pxRad = (camera.projectionMatrix.elements[5] * size.y) / 2;
   };
   // each level's window round the camera: the pages it leaves let go
@@ -414,13 +421,19 @@ export function createPages(renderer, tex) {
     for (const Q of IN.values()) if (Q.pin && Q.m === TOP && far(Q)) Q.pin = false;
     if (pins.length) make(pins, Infinity);
   };
-  // the pixels' asks: the last frame's read back, what is no longer asked for forgotten, the bias chosen again when
-  // what is kept does not fit (or, once a sweep has been read with the camera still, when it may be finer)
+  // the pixels' asks: the last frame's read back, what is no longer asked for forgotten, the bias chosen again from asks
+  // that are all of the view as it is: once a sweep has been read, every frame of it, with the camera still and nothing
+  // changed (once a still view, at bias 0 too: a view that does not fit is stepped coarser standing), or, while it
+  // moves, when what the last sweep asked does not fit, the camera having moved through all of that sweep (each frame's
+  // asks then its own view's). Never from a sweep that holds a view before a change and the one after it (a pose set, a
+  // turn of the pixels drawn: two views' pages asked at once, the bias stepped coarser and back, every page laid twice)
   const judge = () => {
     if (askedAt === frame - 1) readBack(nAsk, frame - 1);
     if (frame % 8 === 0) forget();
+    const still = isStill();
     if (!pick && refs.size) {
-      const over = want.size > SLOTS && frame - pickedAt > span, settled = isStill() && readTo >= quietFrom + span && judged < quietFrom && bias > 0;
+      const over = !still && frame - stoodAt > span + lag && frame - pickedAt > span && want.size > SLOTS && needAt(bias) > SLOTS;
+      const settled = still && sweptSince(quietFrom) && judged < quietFrom;
       if (over || settled) { pick = { lo: 0, hi: QUARTERS, still: settled }; if (settled) judged = quietFrom; }   // (chosen while the camera moved: chosen again once it stands)
     }
     choose();
@@ -458,6 +471,7 @@ export function createPages(renderer, tex) {
     /** After the prepass (src/core/screen.js afterPrepass): which pages its pixels read, one in each SWEEP × SWEEP.
         depth, motion: the prepass's; camera: as it drew (its shift too); w, h: its pixels. */
     ask({ depth, motion, camera, w, h }) {
+      if (w !== askW || h !== askH) { askW = w; askH = h; quietFrom = frame; }   // (other pixels drawn, the governor's or a bench's: a pixel's footprint, so what it asks for, is another; as a move of the camera)
       tDepth.value = depth; tMotion.value = motion; uSize.value.set(w, h); uEye.value.setFromMatrixPosition(camera.matrixWorld); uBiasK.value = bias;
       uInv.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
       const fw = Math.ceil(w / SWEEP), fh = Math.ceil(h / SWEEP); uFw.value = fw; nAsk = Math.min(fw * fh, BLOCKS_MOST); askedAt = frame;
