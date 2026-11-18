@@ -210,9 +210,34 @@ with a choice of **hairstyles** and of **colours** (hair, skin, eyes), picked in
   AI-native character pipelines: generated character sheets, generated video for movement and rigging, image-to-3D
   generators, automatic rigging, and an agent driving the whole. Define will be rewritten from it.
 
+### 2026-11-18, the research stopped; ready-made open characters looked at
+
+- **Asked.** Samuel, while the second research ran: "Best if it's drivable via fal"; "Do they have already pre-made
+  male and female characters we can start in MVP right away?"; "Ok, which of those are the most realistic photo-like
+  ones, and can you give me a few reference screenshots of each lib, of each 1 male and 1 female image, and their
+  links? Only of truly open-source libs that we can use" (typos tidied). Then, as typed: "Old top the research and
+  control to give me the reference threejs models libs", read here as: stop the research and go on giving the
+  reference three.js model libraries.
+- **Delivered.** The second research stopped as it stood: four of its five lines are notes (image-to-3D generators,
+  character sheets, video and movement, an agent driving the whole through fal); the fifth (rigging and game-ready
+  avatars) was stopped unfinished and left no note; no report was written. In its place the open, ready-made
+  characters were fetched and drawn in three.js by hand: Microsoft Rocketbox (MIT), VALID (MIT), a MakeHuman woman
+  (CC0), CharMorph's Antonia and Reom (CC-BY), each licence read from its own file; and the reusable three.js tools
+  beside them (TalkingHead, CharacterStudio, Mesh2Motion). The note:
+  `research_notes/AI native character creation workflows/ready_made_open_characters.md`. The renders went to Samuel
+  directly and are not in the repository.
+- **Good.** A man and a woman with a full set of expression shapes can be loaded in three.js today from two
+  libraries under MIT.
+- **Not there.** None of them stands beside the photograph. A MakeHuman man could not be built here. fal cannot be
+  called from this environment (no key, hosts not allowed), so nothing was generated. Nothing was seen on a real
+  GPU. Define still holds the first plan, set aside, and waits for Samuel's choice of a way.
+
 ## Trail
 
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-18 | 4555070 | the intent opened; the research's first notes |
 | 2026-11-18 | cfa9633 | the research's notes complete (six lines) |
+| 2026-11-18 | c7b5ad0 | the research's report; the recommendation and the plan in Define |
+| 2026-11-18 | 8591fee | the first plan set aside at Samuel's word; a second research asked for |
+| 2026-11-18 | 855503a | the second research's notes as they stood (four lines; 8b7d33c, 1a0ba18, 6095120, e8cbdc2 before it) |
