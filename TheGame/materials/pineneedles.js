@@ -15,7 +15,7 @@ export default {
   type: 'material',
   name: 'Pine needles',
   kind: 'ground',
-  about: "A pine forest's floor: needles thick and rusty where they fell last, grey and matted where they have lain, thin over dark earth between; twigs, cones and bark flakes on them, moss in cushions where the earth shows.",
+  about: 'A pine forest floor: rusty and grey needles, twigs, cones, moss.',
   usedBy: 'the floor of the pine forest',
   swatch: [0.24, 0.16, 0.1],
   bump: 0.042,   // how deep its relief reads in the normals (a deep litter: twigs and cones stand out of it)

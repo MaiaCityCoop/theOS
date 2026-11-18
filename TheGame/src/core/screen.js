@@ -23,16 +23,16 @@ import { note, mark } from './gpu.js';
 import { compileFor, compileList, made, ask, labelled } from './compile.js';
 import { twinOf } from './pass.js';
 import { U } from './uniforms.js';
-import { TRUTH_AS } from '../detail/measure.js';
+import { ERROR_PX } from '../detail/error.js';
 import { occlusion } from './occlusion.js';
 import { outputRatio } from './output.js';
 
 export function createScreen(renderer, { temporal, lens = null }) {
   let OUT = outputRatio(), inside = OUT, turn = 0;   // (OUT: the canvas's pixel ratio, the output's for this window)
   renderer.setPixelRatio(OUT);
-  // (?truth, the gate's reference: as a still drawn at every pixel the canvas has, whatever it is set to, never fewer;
-  // in motion at the inside, as the game draws: src/detail/measure.js TRUTH_AS)
-  const ratio = () => (TRUTH_AS.still ? renderer.getPixelRatio() : inside);
+  // (the pixels drawn follow the dial: with it turned below its rest, a rung within that fraction of a pixel drawn,
+  // as many more as it asks, up to every pixel the canvas has: ?truth, the gate's reference, src/detail/measure.js)
+  const ratio = () => Math.min(OUT, inside / Math.min(1, ERROR_PX()));
   const css = new THREE.Vector2(), size = new THREE.Vector2();
   /** The inside's size in pixels. */
   const sizeOf = (v) => { renderer.getSize(css); return v.set(Math.max(1, Math.round(css.x * ratio())), Math.max(1, Math.round(css.y * ratio()))); };

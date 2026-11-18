@@ -7,7 +7,7 @@ export default {
   type: 'material',
   name: 'Pine bark',
   kind: 'bark',
-  about: "A stone pine's bark: thick reddish plates, tall and narrow, split by deep grey-brown fissures, flaking in layers.",
+  about: 'Thick reddish plates split by deep grey-brown fissures.',
   usedBy: 'the trunks and limbs of the stone pines',
   swatch: [0.36, 0.2, 0.12],
   bump: 0.03,   // how deep its relief reads in the normals: larger is flatter

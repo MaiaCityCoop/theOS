@@ -141,6 +141,14 @@
 .g-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .g-chip { display: inline-flex; align-items: center; gap: 7px; height: 27px; padding: 0 11px 0 7px; border-radius: 999px; background: rgba(255, 255, 255, .14); box-shadow: inset 0 0 0 1px var(--glass-line); font: 500 12.5px/1 var(--glass-font); color: var(--on-glass); white-space: nowrap; }
 .g-chip i { width: 13px; height: 13px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(255, 255, 255, .55); }
+.g-pills { display: flex; flex-wrap: wrap; gap: 5px; }   /* a thing's variants (its moves, its layers): a pill each (.g-btn), the chosen one solid, its few words under the row */
+.g-pills .g-btn { padding: 6px 10px; }
+.g-pills + .g-sub { white-space: normal; }
+.g-more > summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }   /* a longer text, closed until asked for */
+.g-more > summary::-webkit-details-marker { display: none; }
+.g-more > summary::after { content: '+'; font: 500 15px/0.6 var(--glass-font); letter-spacing: 0; }
+.g-more[open] > summary::after { content: '\2013'; }
+.g-more > .g-text { margin-top: 9px; }
 .g-file { display: block; font: 400 11.5px/1.2 var(--mono); color: var(--on-glass-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .g-hint { font: 500 10.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--on-glass-3); text-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
 /* tabs at the top of a card (Info | Detail), and a list of choices in it (a card's levels of detail) */

@@ -11,7 +11,7 @@ const skeleton = {
   type: 'character',
   name: 'Skeleton',
   kind: 'skeleton',
-  about: 'Every bone of a man of 1.80 m, each a piece of its own in its true shape: skull and jaw with thirty-two teeth, twenty-four vertebrae and their discs, ribs and breastbone, the limbs to the last joint of each finger and toe. It moves on ninety joints, each where two bones really meet.',
+  about: 'Every bone of a man of 1.80 m, moving on ninety joints.',
   made: '262 pieces grown in the page from our own code: 186 of bone (the skull\'s bones as one cranium and a jaw), 32 teeth, 23 discs, 20 rib cartilages and the pubic disc; shaped against the plates of Gray\'s Anatomy (1918).',
   height: 1.8,   // the man its bones are laid for: the body kit's man of reference (./kit/skeleton.js)
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
