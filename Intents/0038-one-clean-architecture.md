@@ -1515,8 +1515,8 @@ per-pass GPU ceilings can be a merge rule.
 - [ ] Stage 8: surfaces, cluster hierarchy (built: rocks, the tent and the fire pit; the stress world's zoo to 8b)
 - [ ] One measure everywhere: every rung where its own error is the one ERROR_PX (built, CPU-checked; PR #82, to be
   measured on the Mac mini)
-- [ ] Rung errors and atlases: every rung's real error in metres, the atlases from their share (built, CPU-checked on
-  `aven/0038-rung-errors`; to be measured on the Mac mini)
+- [ ] Rung errors and atlases: every rung's real error in metres, the atlases from their share (built, CPU-checked;
+  PR #111, to be measured on the Mac mini)
 - [ ] Stage 9: one light, characters
 - [ ] The bench pass by pass (built on `aven/0038-bench-per-pass`): measured on the Mac mini, the per-part ceilings a
       merge rule
@@ -1724,7 +1724,7 @@ per-pass GPU ceilings can be a merge rule.
   limits every device guarantees; the plants' hand-overs under their switch; nothing sinking above gone; a made thing's
   card counting its views; each pixel's own views. CPU only.
 - **Delivered:** built on `aven/0038-rung-errors` (under Build, Rung errors and atlases), with #82's dial pixels merged
-  in; the PR for train 2.
+  in; PR #111, for train 2.
 - **Good:**
   - the trees' impostors stand in from about 2.2 km, not 6.6–7.3 km, and the shrubs' from 300–470 m;
   - the atlases take 506 MiB of their 512 (were 548 MB), all of it derived;
