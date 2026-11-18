@@ -35,15 +35,16 @@ function serve(dist) {
 
 // ---- in the page, before any of its own code runs: what each part asks and when it is answered ----
 function watchStart(FIRST) {
-  const now = () => performance.now(), S = (window.__start = { pipes: [], jobs: [], kept: [], reads: [], long: [], src: {}, frames: [] });
+  const now = () => performance.now(), S = (window.__start = { pipes: [], shaders: [], jobs: [], kept: [], reads: [], long: [], src: {}, frames: [] });
   // (the veil, src/ui/loading.js: watched from the document, as there is no <html> yet)
   new MutationObserver(() => { if (!S.veil && document.documentElement?.classList.contains('os-loaded')) S.veil = now(); }).observe(document, { attributes: true, subtree: true, attributeFilter: ['class'] });
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) S.long.push([e.startTime, e.duration]); }).observe({ type: 'longtask', buffered: true }); } catch { /* (no long tasks told: none counted) */ }
   const timed = (list, e, p) => { list.push(e); p.then(() => (e.t1 = now()), () => (e.t1 = now())); return p; };
   const D = window.GPUDevice?.prototype;
   if (navigator.gpu) { const ask = navigator.gpu.requestAdapter.bind(navigator.gpu); navigator.gpu.requestAdapter = (...a) => { S.adapter ??= now(); return ask(...a); }; }
-  if (D) for (const k of ['createRenderPipelineAsync', 'createComputePipelineAsync']) { const f = D[k]; D[k] = function (d) { return timed(S.pipes, { k: k[6], t0: now() }, f.call(this, d)); }; }
-  if (D) for (const k of ['createRenderPipeline', 'createComputePipeline']) { const f = D[k]; D[k] = function (d) { const e = { k: k[6], t0: now() }, r = f.call(this, d); e.t1 = now(); S.pipes.push(e); return r; }; }
+  if (D) for (const k of ['createRenderPipelineAsync', 'createComputePipelineAsync']) { const f = D[k]; D[k] = function (d) { return timed(S.pipes, { k: k[6], label: d?.label ?? '', t0: now() }, f.call(this, d)); }; }
+  if (D) for (const k of ['createRenderPipeline', 'createComputePipeline']) { const f = D[k]; D[k] = function (d) { const e = { k: k[6], label: d?.label ?? '', sync: true, t0: now() }, r = f.call(this, d); e.t1 = now(); S.pipes.push(e); return r; }; }
+  if (D) { const f = D.createShaderModule; D.createShaderModule = function (d) { S.shaders.push({ t0: now(), bytes: d?.code?.length ?? 0, label: d?.label ?? '' }); return f.call(this, d); }; }
   const W = window.Worker;
   window.Worker = class extends W {
     constructor(u, o) {
@@ -104,10 +105,12 @@ function chain(r) {
     `  modules: ${r.scripts.n} scripts, ${(r.scripts.bytes / 1e3).toFixed(0)} kB sent, the last in at ${s(r.scripts.last)}; the GPU first asked for at ${s(S.adapter)}`,
     `  the start's own marks (ms from its start): ${JSON.stringify(r.boot)}`,
     `  pipelines before the first frame: ${P.length} (${P.filter((e) => e.k === 'R').length} render, ${P.filter((e) => e.k === 'C').length} compute), compiling ${s(covered(P))} of the time, each ${median(P.filter((e) => e.t1).map((e) => e.t1 - e.t0))?.toFixed(0) ?? '–'} ms (median), the last done at ${s(until(P))}; after it ${S.pipes.length - P.length}`,
+    `  shader modules before the first frame: ${pre(S.shaders).length}, ${(pre(S.shaders).reduce((a, x) => a + x.bytes, 0) / 1e6).toFixed(2)} MB of WGSL, the largest ${[...pre(S.shaders)].sort((a, b) => b.bytes - a.bytes).slice(0, 4).map((x) => `${(x.bytes / 1e3).toFixed(0)} kB ${x.label}`.trim()).join(', ')}; after it ${S.shaders.length - pre(S.shaders).length}`,
+    `  the slowest pipelines: ${[...S.pipes].filter((e) => e.t1).sort((a, b) => (b.t1 - b.t0) - (a.t1 - a.t0)).slice(0, 4).map((e) => `${(e.t1 - e.t0).toFixed(0)} ms ${e.sync ? 'made at once ' : ''}${e.label}`).join(', ')}; made at once (not aside): ${S.pipes.filter((e) => e.sync).length}`,
     `  the page's own thread before the first frame: ${lt.length} long tasks, ${s(lt.reduce((a, x) => a + x[1], 0))}`,
     ...Object.entries(workers).map(([k, l]) => `  worker ${k}: ${l.length} jobs, busy ${s(covered(l))}, the last back at ${s(until(l))} (${pre(l).length} before the first frame)`),
     `  kept (IndexedDB): ${kept('get').length} reads (${kept('get').filter((e) => e.hit).length} found), the last answered at ${s(until(kept('get')))}; ${kept('put').length} writes, the last at ${s(until(kept('put')))}`,
-    `  read back from the GPU: ${S.reads.length}, the last at ${s(until(S.reads))}`,
+    `  read back from the GPU: ${S.reads.length}, each ${median(S.reads.filter((e) => e.t1).map((e) => e.t1 - e.t0))?.toFixed(0) ?? '–'} ms (median), the last at ${s(until(S.reads))}`,
     ...Object.entries(S.src).map(([k, v]) => `  out: ${k} from ${s(v.from)} until ${s(v.until)} (at most ${v.most})`),
     ...(r.out && Object.keys(r.out).length ? [`  still out at the end: ${JSON.stringify(r.out)}`] : []),
     ...(S.frames.length ? [`  frames after the first: ${S.frames.length}, median ${median(S.frames).toFixed(1)} ms, ${S.frames.filter((x) => x > 1000 / 59).length} over 16.7 ms, the longest ${Math.max(...S.frames).toFixed(0)} ms`] : []),
