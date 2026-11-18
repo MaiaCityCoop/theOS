@@ -6,7 +6,10 @@
 // own (the governor's dial: src/core/governor.js).
 //
 //   the prepass  the world drawn at the inside's pixels, a part of a pixel aside from the last frame: its depth, and
-//                where each pixel's point lay a frame ago (its motion: src/core/pass.js); what is cut out is cut here
+//                where each pixel's point lay a frame ago (its motion: src/core/pass.js); what is cut out is cut here.
+//                What the tiers pack is culled for it in two passes (src/core/occlusion.js): before it, what the last
+//                frame's depth hides is held back; after it, what of that this frame's depth does not hide is drawn
+//                into it too
 //   the colour   the world drawn again into the same depth, only where the prepass left it (an equal test, nothing
 //                cut): the light's own numbers, before the screen's curve
 //   the lens     where the camera brings one (camera.userData.dof, the virtual camera's: src/camera/post.js): the
@@ -20,6 +23,7 @@ import { compileFor } from './compile.js';
 import { twinOf } from './pass.js';
 import { U } from './uniforms.js';
 import { TRUTH } from '../detail/measure.js';
+import { occlusion } from './occlusion.js';
 
 export function createScreen(renderer, { temporal, lens = null }) {
   const OUT = Math.min(window.devicePixelRatio || 1, 2);
@@ -68,15 +72,19 @@ export function createScreen(renderer, { temporal, lens = null }) {
     render(scene, camera) {
       const t = targetsNow(), was = T.turns[1 - turn], alpha = renderer.getClearAlpha(), clearDepth = renderer.autoClearDepth;
       temporal.begin(camera, size.x, size.y);
+      const culls = occlusion.early(renderer, camera, size.x, size.y);   // (pass one, against the last frame's depth)
       // the prepass: nothing moved where nothing was drawn (the sky: the upscale takes the camera's motion there)
       renderer.getClearColor(clear); renderer.setClearColor(0x000000, 0);
       renderer.setRenderObjectFunction(pre); renderer.setRenderTarget(t.pre); renderer.render(scene, camera);
+      // (and pass two, against this frame's depth: what it finds drawn into the prepass after the rest)
+      if (culls) occlusion.late(renderer, t.depth, size.x, size.y, (late) => { const ac = renderer.autoClear; renderer.autoClear = false; renderer.render(late, camera); renderer.autoClear = ac; });
       // the colour, into the prepass's depth. (Cleared to the renderer's clear colour, which the sky sets to the hour's
       // horizon as the screen shows it: here in the light's own numbers, the screen's curve taken back off it)
       const E = 1.25 * U.uExposure.value, un = (v) => -Math.log(1 - Math.min(0.999, v) ** 2.2) / E;
       sky.setRGB(un(clear.r), un(clear.g), un(clear.b), THREE.LinearSRGBColorSpace); renderer.setClearColor(sky, 1); renderer.autoClearDepth = false;
       renderer.setRenderObjectFunction(main); renderer.setRenderTarget(t.main); renderer.render(scene, camera);
       renderer.setRenderObjectFunction(null); renderer.autoClearDepth = clearDepth; renderer.setRenderTarget(null); renderer.setClearColor(clear, alpha);
+      if (culls) occlusion.rest();   // (every other view draws all that was packed: the shadow map, a still, a bake)
       temporal.end(camera);
       const dof = camera.userData.dof, glass = camera.userData.glass;   // the virtual camera brings a lens with it: its picture is drawn through it; the walker's glass, without the film's depth of field (src/camera/rig.js)
       const blurred = lens && dof && dof.on ? lens.blur(t.main, camera, dof) : null;

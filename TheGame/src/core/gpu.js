@@ -28,6 +28,8 @@ let R = null;
     did not ask): gpuStorage makes an ordinary buffer, kept twice. */
 export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer : null; };
 export const lean = () => !!R;
+/** Whether the renderer's GPU has a WebGPU feature (none without WebGPU). */
+export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);
 
 const TYPES = { uint: [Uint32Array, 1], float: [Float32Array, 1], vec4: [Float32Array, 4], uvec4: [Uint32Array, 4] };
 /** A storage buffer of `count` items of `type` (uint, float, vec4, uvec4), nothing in it yet:
