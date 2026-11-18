@@ -130,21 +130,21 @@ const masksOf = (lid, flags) => {
   return wm;
 };
 /** The last of n (from lo) whose number get(i) is x at most, of numbers that never fall (a bucket's first chunk, or its
-    first thing): by halving, STEPS times at most. */
-const STEPS = 24;
-const lastAtMost = (get, lo, n, x) => {
+    first thing): by halving, `steps` times (as many as halve n down to one). */
+const stepsOf = (n) => Math.ceil(Math.log2(Math.max(1, n))) + 1;
+const lastAtMost = (get, lo, n, x, steps) => {
   const a = uint(lo).toVar(), b = uint(lo).add(n).toVar();
-  Loop({ start: uint(0), end: uint(STEPS), type: 'uint', condition: '<' }, () => {
+  Loop({ start: uint(0), end: uint(steps), type: 'uint', condition: '<' }, () => {
     If(b.sub(a).greaterThan(uint(1)), () => { const m = a.add(b).shiftRight(uint(1)).toVar(); If(get(m).lessThanEqual(x), () => { a.assign(m); }).Else(() => { b.assign(m); }); });
   });
   return a;
 };
 
 // ---- the arenas: the culled tiers, their things' boxes and what the passes keep of them, in one set of buffers ----
-// A bucket's numbers, eight a bucket (and a ninth bucket's past the last, where the scans' ends are): its first thing in
+// A bucket's numbers, nine a bucket (and a bucket's more past the last, where the scans' ends are): its first thing in
 // the arena, its room, its tier, its first chunk for pass one and for pass two, how many pass one keeps and holds back,
-// how many its tier packed
-const BASE = 0, CAP = 1, TIER = 2, C1 = 3, C2 = 4, N1 = 5, R1 = 6, PACK = 7, NB = 8;
+// how many its tier packed, and how many its tier packed into the buckets before it (its first box)
+const BASE = 0, CAP = 1, TIER = 2, C1 = 3, C2 = 4, N1 = 5, R1 = 6, PACK = 7, PRE = 8, NB = 9;
 const ARENAS = [];
 let OPEN = null;
 const TIERS = new Set();
@@ -161,7 +161,7 @@ function arena() {
   const BK = storage(bk, 'uint', 1), ON = storage(on, 'uint', 1).toReadOnly(), EYE = storage(eye, 'uint', 1);
   const d1 = new THREE.IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1]), 1), d2 = new THREE.IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1]), 1);
   const D1 = storage(d1, 'uint', 3), D2 = storage(d2, 'uint', 3), D1r = storage(d1, 'uint', 3).toReadOnly(), D2r = storage(d2, 'uint', 3).toReadOnly();   // (read only, how many chunks there are is the same for a whole workgroup: the scan may loop over them)
-  const uN = uniform(1, 'uint'), uG = uniform(0, 'uint'), uNC = uniform(1, 'uint'), uB2 = uniform(6, 'uint');   // (its things, its buckets, its chunks; where pass two's chunks begin)
+  const uN = uniform(1, 'uint'), uG = uniform(0, 'uint'), uNC = uniform(1, 'uint'), uB2 = uniform(6, 'uint'), uS = uniform(1, 'uint');   // (its things, its buckets, its chunks; where pass two's chunks begin; how many halvings find a bucket)
   const at = (g, f) => BK.element(g.mul(uint(NB)).add(uint(f))), set = (g, f, v) => { at(g, f).assign(v); };
   const countOf = (g) => ON.element(at(g, TIER)).greaterThan(uint(0)).select(at(g, PACK).min(at(g, CAP)), uint(0));   // (what of a bucket pass one tests: nothing of a tier not drawn this frame)
   const boxAt = (slot) => { const r0 = BOX.element(slot.mul(uint(2))).toVar(), r1 = BOX.element(slot.mul(uint(2)).add(uint(1))); return { c: r0.xyz, h: r1.xyz.add(r0.w.mul(gustOf())).add(snowDepth) }; };
@@ -179,7 +179,7 @@ function arena() {
     B[G * NB + BASE] = N;
     Object.assign(bk, { array: B, count: B.length }); Object.assign(on, { array: new Uint32Array(Math.max(1, A.tiers.length)), count: Math.max(1, A.tiers.length) }); Object.assign(eye, { array: E, count: E.length / 5 });
     const bytes = boxes.make(2 * N) + lists.make(2 * N) + chunks.make(NC * 9);
-    uN.value = N; uG.value = G; uNC.value = NC; uB2.value = NC * 6;
+    uN.value = N; uG.value = G; uNC.value = NC; uB2.value = NC * 6; uS.value = stepsOf(G);
     more('tiers: the culling\'s numbers (occlusion)', B.byteLength + E.byteLength, B.byteLength + E.byteLength);
     A.bytes = bytes;
   };
@@ -198,7 +198,7 @@ function arena() {
   // pass one: what is out of view dropped; what the last frame's pyramid does not hide drawn; the rest held back
   const oneTest = Fn(() => {
     A.build();
-    const w = workgroupId.x, lid = localId.x, g = lastAtMost((q) => at(q, C1), 0, uG, w), i = w.sub(at(g, C1)).mul(uint(WG)).add(lid), seen = float(0).toVar(), held = float(0).toVar();
+    const w = workgroupId.x, lid = localId.x, g = lastAtMost((q) => at(q, C1), 0, uG, w, uS), i = w.sub(at(g, C1)).mul(uint(WG)).add(lid), seen = float(0).toVar(), held = float(0).toVar();
     If(i.lessThan(countOf(g)), () => {
       const B = boxAt(at(g, BASE).add(i)), here = onScreen(U.vp, B.c, B.h);
       If(U.mode.lessThan(0.5).or(outside(here).not()), () => {
@@ -245,7 +245,7 @@ function arena() {
   })().compute(SW, [SW]);
   const oneWrite = Fn(() => {
     A.build();
-    const w = workgroupId.x, lid = localId.x, g = lastAtMost((q) => at(q, C1), 0, uG, w).toVar(), f = at(g, C1), base = at(g, BASE), i = w.sub(f).mul(uint(WG)).add(lid), c = w.mul(uint(6)), s0 = f.mul(uint(6));
+    const w = workgroupId.x, lid = localId.x, g = lastAtMost((q) => at(q, C1), 0, uG, w, uS).toVar(), f = at(g, C1), base = at(g, BASE), i = w.sub(f).mul(uint(WG)).add(lid), c = w.mul(uint(6)), s0 = f.mul(uint(6));
     const m0 = CH.element(c), m1 = CH.element(c.add(uint(1))), h0 = CH.element(c.add(uint(2))), h1 = CH.element(c.add(uint(3)));
     If(isSet(m0, m1, lid), () => { LIST.element(base.add(CH.element(c.add(uint(4))).sub(CH.element(s0.add(uint(4))))).add(below(m0, m1, lid))).assign(i); });
     If(isSet(h0, h1, lid), () => { LIST.element(uN.add(base).add(CH.element(c.add(uint(5))).sub(CH.element(s0.add(uint(5))))).add(below(h0, h1, lid))).assign(i); });
@@ -254,7 +254,7 @@ function arena() {
   // pass two: what pass one held back, against this frame's pyramid through this frame's camera
   const twoTest = Fn(() => {
     A.build();
-    const w = workgroupId.x, lid = localId.x, g = lastAtMost((q) => at(q, C2), 0, uG, w).toVar(), j = w.sub(at(g, C2)).mul(uint(WG)).add(lid), seen = float(0).toVar();
+    const w = workgroupId.x, lid = localId.x, g = lastAtMost((q) => at(q, C2), 0, uG, w, uS).toVar(), j = w.sub(at(g, C2)).mul(uint(WG)).add(lid), seen = float(0).toVar();
     If(j.lessThan(at(g, R1)), () => { const base = at(g, BASE), B = boxAt(base.add(LIST.element(uN.add(base).add(j)))); If(hiddenBy(onScreen(U.vp, B.c, B.h), P).not(), () => { seen.assign(1); }); });
     const wm = masksOf(lid, [seen.greaterThan(0.5)]);
     If(lid.lessThan(uint(2)), () => { CH.element(uB2.add(w.mul(uint(3))).add(lid)).assign(atomicLoad(wm.element(lid))); });
@@ -273,7 +273,7 @@ function arena() {
   })().compute(SW, [SW]);
   const twoWrite = Fn(() => {
     A.build();
-    const w = workgroupId.x, lid = localId.x, g = lastAtMost((q) => at(q, C2), 0, uG, w).toVar(), f = at(g, C2), base = at(g, BASE), j = w.sub(f).mul(uint(WG)).add(lid), c = uB2.add(w.mul(uint(3))), s0 = uB2.add(f.mul(uint(3)));
+    const w = workgroupId.x, lid = localId.x, g = lastAtMost((q) => at(q, C2), 0, uG, w, uS).toVar(), f = at(g, C2), base = at(g, BASE), j = w.sub(f).mul(uint(WG)).add(lid), c = uB2.add(w.mul(uint(3))), s0 = uB2.add(f.mul(uint(3)));
     const m0 = CH.element(c), m1 = CH.element(c.add(uint(1)));
     If(isSet(m0, m1, lid), () => { LIST.element(base.add(at(g, N1)).add(CH.element(c.add(uint(2))).sub(CH.element(s0.add(uint(2))))).add(below(m0, m1, lid))).assign(LIST.element(uN.add(base).add(j))); });
   })().compute(MANY, [WG]);
@@ -286,29 +286,40 @@ function arena() {
 let lateScene = null, bundle = null, shown = new Int32Array(0), built = false;   // (built: the pyramid is there to test against)
 const proxies = [];
 
-/** A tier's culling: { boxes (a compute pass for the end of its packing: each thing's box into the arena), entry
+/** A tier's culling: { args, boxes (two compute passes for the end of its packing: its draws' counts, as its own
+    packing's last pass makes them, and each thing's box into the arena), entry
     (slot: where the eye's vertex stages read a thing: the bucket's place in the packing, a node), use(which),
     setLength(k, n), adopt(meshes) }.
     K: its buckets (draws); caps, offs: each bucket's room and where its things begin; total: all their room; S: rows a
-    thing; data: the packing (vec4 nodes); args: its draw arguments (K × 5: what it packed); box(A, B, k): the world box
+    thing; data: the packing (vec4 nodes); args: its draw arguments (K × 5: what it packed); count: how many its packing
+    put into each bucket (atomic, maybe more than its room); box(A, B, k): the world box
     of a thing of bucket k from its rows ({ c, h, w }: its middle, half its size, and how far the wind may push it, a
     metre of its sway: gustOf). */
-export function cullOf(T, { K, caps, offs, total, S, data, args, box }) {
+export function cullOf(T, { K, caps, offs, total, S, data, args, count, box }) {
   const A = (OPEN ||= arena()), me = { T, K, caps, offs, total, g0: A.G, base: A.N, idx: A.tiers.length };
   A.tiers.push(me); A.G += K; A.N += total; A.NC += caps.reduce((a, c) => a + Math.ceil(c / WG), 0);
   const F = storage(args, 'uint', 5 * K), uBase = uniform(me.base, 'uint'), uG0 = uniform(me.g0, 'uint');
-  // after the packing: each thing's box, and what each bucket holds, into the arena
+  // after the packing (its last pass, in its stead): each draw as many as it holds, no more than its room; the same
+  // into the arena, with how many the draws before it hold; and as many workgroups as work out their boxes
+  const d = new THREE.IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1]), 1), D = storage(d, 'uint', 3);
+  const argsPass = Fn(() => {
+    A.build();
+    const run = uint(0).toVar();
+    for (let k = 0; k < K; k++) { const g = uG0.add(uint(k)), n = atomicLoad(count.element(k)).min(A.at(g, CAP)).toVar(); F.element(k * 5 + 1).assign(n); A.at(g, PACK).assign(n); A.at(g, PRE).assign(run); run.addAssign(n); }
+    D.element(uint(0)).assign(run.add(uint(WG - 1)).div(uint(WG)));
+  })().compute(1);
+  // then each thing it packed: its box, into the arena (a workgroup's 64 of them, whatever bucket each is in)
   const boxes = Fn(() => {
     A.build();
-    const s = instanceIndex, g = lastAtMost((q) => A.at(q, BASE), uG0, uint(K), uBase.add(s)).toVar(), k = g.sub(uG0), j = uBase.add(s).sub(A.at(g, BASE)), n = F.element(k.mul(uint(5)).add(uint(1))).min(A.at(g, CAP));
-    If(j.equal(uint(0)), () => { A.at(g, PACK).assign(n); });
-    If(j.lessThan(n), () => {
-      const e = s.mul(uint(S)), B = box(data.element(e), data.element(e.add(uint(1))), k), o = uBase.add(s).mul(uint(2));
+    const t = instanceIndex, g = lastAtMost((q) => A.at(q, PRE), uG0, uint(K), t, stepsOf(K)).toVar(), k = g.sub(uG0), i = t.sub(A.at(g, PRE));
+    If(i.lessThan(A.at(g, PACK)), () => {
+      const s = A.at(g, BASE).sub(uBase).add(i), e = s.mul(uint(S)), B = box(data.element(e), data.element(e.add(uint(1))), k), o = uBase.add(s).mul(uint(2));
       A.BOX.element(o).assign(vec4(B.c, B.w)); A.BOX.element(o.add(uint(1))).assign(vec4(B.h, 0));
     });
-  })().compute(Math.max(1, total));
+  })().compute(MANY, [WG]);
+  boxes.dispatchSize = d;
   const C = {
-    boxes, arena: A, g0: me.g0,
+    args: argsPass, boxes, arena: A, g0: me.g0,
     /** Where the eye's passes read a thing of a bucket whose things begin at `slot` (a uint node): through what the passes
         kept; every other pass (the shadow map's, a still's, a bake's) where the packing put it. */
     entry: (slot) => Fn((builder) => { A.build(); const p = passOf(builder); return p === 'pre' || p === 'main' ? slot.add(A.LIST.element(uBase.add(slot).add(instanceIndex))) : slot.add(instanceIndex); })(),

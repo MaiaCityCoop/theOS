@@ -113,8 +113,8 @@ export class Tier {
       ];
       this.data = data; this.slots = slots; this.args = args; this.caps = caps; this.offs = offs;
       // (culled: the eye's passes read a thing through what the culling kept, its pass two's after the rest)
-      const C = culled ? cullOf(this, { K, caps, offs, total, S: slots, data, args, box: bounds }) : null, at = C ? C.entry : (slot) => slot.add(instanceIndex);
-      if (C) this.passes.push(C.boxes);   // (its things' boxes, for the culling)
+      const C = culled ? cullOf(this, { K, caps, offs, total, S: slots, data, args, count, box: bounds }) : null, at = C ? C.entry : (slot) => slot.add(instanceIndex);
+      if (C) this.passes.splice(2, 1, C.args, C.boxes);   // (its draws' counts the culling's way, and its things' boxes)
       // (readAt: read from a place in the buffer a material is told per mesh, mesh.userData.slot: one material for every bucket)
       this.meshes = geos.map((g, k) => { g.setIndirect(args, k * 20); g.instanceCount = caps[k]; const m = new THREE.Mesh(g, material({ read: (j) => data.element(at(uint(offs[k])).mul(S).add(uint(j))), readAt: (j, slot) => data.element(at(slot).mul(S).add(uint(j))) }, k)); m.userData.slot = offs[k]; return m; });
       this.culler = C;
