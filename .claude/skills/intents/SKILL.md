@@ -17,9 +17,9 @@ Copy `Intents/TEMPLATE.md` to open one. The next number is one more than the hig
 | State | Who writes | What goes in its section | It ends when |
 | --- | --- | --- | --- |
 | **Idea** | the agent, from the human's words | What is wanted and why. The human's own words where they exist, tidied of typos only. | the human says go on |
-| **Define** | the agent | What done looks like: the deliverables, and for each a **check** (how it will be shown to be done: a command, a page to open, a number to read). What is out of scope. This is the spec and the delivery gate in one. | **the human approves it.** Do not build before. If the human asked for the work outright and the definition holds no surprise, say so in one line and build. |
-| **Build** | the agent | Notes while building: decisions taken, what turned out different from the definition and why. | every deliverable exists |
-| **Propose** | the agent | What is delivered and where to look at it; each check with its result as it really was (passed, failed with the output, not run and why); known gaps. The story folder is spawned now (below). | **stop.** The human decides. |
+| **Define** | the agent | What done looks like: the deliverables, and for each a **check** (how it will be shown to be done: a command, a page to open, a number to read). What is out of scope. **And the architecture pass** (below) over everything the intent will touch, with its **code gates** as checks. This is the spec and the delivery gate in one. | **the human approves it.** Do not build before. If the human asked for the work outright and the definition holds no surprise, say so in one line and build. |
+| **Build** | the agent | Notes while building: decisions taken, what turned out different from the definition and why. The code gates hold at every merge. | every deliverable exists |
+| **Propose** | the agent | What is delivered and where to look at it; each check with its result as it really was (passed, failed with the output, not run and why), the code gates' numbers among them; known gaps. The story folder is spawned now (below). | **stop.** The human decides. |
 | **Story** | the agent, after the human's yes | The work as a story for the devlog: what the human wanted, what the agents made, what went wrong on the way, in beats. Link to the story folder. | the story plays in the game |
 | **Archived** | the human's decision, written down by the agent | `accepted` or `rejected`, the date, the reason in a line. | it is the end |
 
@@ -42,6 +42,45 @@ Under the states, three running sections, kept current from the first day:
 
 Every commit made for an intent ends its message with `Intent: NNNN` (before the co-author line).
 One commit per request cycle where that is natural, so stages can be checked out again.
+
+## Define: the architecture pass
+
+Every intent leaves the system slimmer, leaner and cleaner than it found it. That is not a refactor
+saved for later: it is part of every intent, planned at Define and held at every merge. The pass
+covers everything the intent will touch, build or plan, and the code around it that does the same
+job.
+
+1. **Read what is there.** The current state of that part of the repository: its modules, what
+   calls what, which functions do the same thing under different names, which modes, settings and
+   flags exist, what is legacy or glue kept "just in case". Write it down in Define, short.
+2. **Ask whether it is the first-principles form.** What is the invariant this part must keep, and
+   is the code the simplest thing that keeps it? Where is there a second path, a special case, a
+   copy, a hand-set number, a layer that only passes things through?
+3. **Take away until something breaks.** Remove, merge and simplify as far as it goes: delete
+   copies, special cases, legacy paths and glue; fold similar functions into one. Run the checks
+   after each cut. The first thing that breaks shows what was really needed.
+4. **Put back only what broke, in the best form there is.** Before choosing that form, research it:
+   current best practice and the state of the art (papers, conference talks, the docs and source of
+   the engines and libraries that solved it, recent releases), on the web, not from memory. Write
+   the sources, the options weighed and the pattern chosen, with the reason, into
+   `research_notes/NNNN-topic.md`, and cite it in Define.
+5. **Set the code gates.** The numbers below, measured now on `main` over the touched area, with
+   the target the intent commits to. They are checks like any other, and every merge holds them.
+
+| Gate | Measure | Must |
+| --- | --- | --- |
+| **Size** | lines of code in the touched area (`git diff --shortstat main...`, code only, not notes) | go down, or Define says why the new capability needs each line |
+| **Copies** | duplicated lines and clones in the touched folders (`bunx jscpd --min-tokens 50`) | go down; no new clone |
+| **Similar functions** | functions doing one job under several names (the clones above, and reading) | merged into one |
+| **Spaghetti** | cyclomatic complexity per function (`bunx eslint --rule 'complexity: [error, N]'`, ad hoc), and nesting | no touched function over the ceiling Define sets; the mean goes down |
+| **Dead and legacy code** | unused files, exports, flags, branches and glue (`bunx knip`; reading) | none left in the touched area |
+| **Coupling** | import cycles (`bunx madge --circular`) | none |
+| **Settings** | modes, hand-set thresholds, switches and repeated config | the count goes down, toward one source of each |
+| **Dependencies** | packages | no new one without a reason in Define |
+
+These gates measure what a change does to the code, so they are measured against `main` by
+design. That is not the picture gate: a picture is judged on its own, never against `main`. The
+first intent that runs them wraps them in one command (`tools/health.js`), so they can join CI.
 
 ## Building: one master, many workers
 
@@ -114,6 +153,8 @@ Work is developed in parallel and tested together, once:
 - **The root cause, from first principles, never a patch.** Name the invariant that is broken and
   restore it. A distance fade, a magic threshold, a fudge factor, a longer timeout or a retry is not
   a fix; a timeout or a retry may stand only beside the real fix, as a guard. A patch does not merge.
+- **The code gates** from Define's architecture pass hold at every merge. Every PR leaves the code
+  it touches simpler than it found it: fewer lines, copies, branches and settings, no new glue.
 - **One source of truth, DRY, KISS.** One source, one measure, one path for each thing. No second
   mode of the same thing (a reference is the same pipeline with its measure at the limit), no
   hand-set setting unless it is physical or artistic, every GPU resource and dispatch sized from the
@@ -182,3 +223,7 @@ It plays at `http://localhost:5173/timeline.html?story=NNNN-slug`, and from the 
 - Do not let a worker merge, ask the human, or take the GPU outside its turn.
 - Do not run two GPU jobs at once on one machine.
 - Do not judge a branch against `main`, or merge a patch in place of the root fix.
+- Do not define an intent without its architecture pass, or choose a pattern without the research
+  written down.
+- Do not add code around old code: replace it. Do not keep a legacy path, a copy or a setting "just
+  in case".
