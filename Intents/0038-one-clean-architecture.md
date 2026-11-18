@@ -697,6 +697,46 @@ Built on `aven/0038-stage6b-avt` from main at `cc3aa70` (stages 1, 2a, 2b, 4, 6a
   eight-tap read between its levels, the far read pushed about by a wave and the dithered hand-over to it,
   `did('land')`.
 - **Not done:** Safari (it can't be automated here); BC on a GPU without it (rgba8, 640 pages, the bias higher).
+- **Measured**, on a GPU shared with other sessions all day (load averages 50–250; the WebGPU device was lost several
+  times, each such still taken again on a browser of its own).
+  - **GPU ms**, drawn 2560 × 1440 into 3840 × 2160, one page at a time in alternating rounds, the GPU drained before
+    each timed pass, the least of three rounds (main at `cc3aa70`; stage 3 changes neither the land nor its cost):
+
+| View | Land alone, main → 6b | Whole frame, main → 6b |
+| --- | --- | --- |
+| Tent, eye level | 28.9 → 15.5 | 31.4 → 31.2 |
+| River bend, 26 m | 47.2 → 13.9 | 54.0 → 21.1 |
+| Town, 40 m | 46.9 → 13.2 | 48.1 → 16.5 |
+| Skyline, 2.5 km | 76.2 → 13.7 | 73.6 → 14.2 |
+| Pine forest, eye level | 75.1 → 13.9 | 93.5 → 32.7 |
+| Pine forest, 90 m | 65.5 → 11.8 | 75.9 → 14.7 |
+
+  - The shadow pass, the same code on both sides, also read slower in main's pages in every round (3.2–34 ms against
+    0.4–1.8), whatever came first: so not all of the difference is the land's, and the absolute times are the shared
+    GPU's. The land alone is faster at every view, and most from above.
+  - **FLIP against main** (`501aff5`, after the merge; fresh profiles): tent eye 0.040 (p99 tile 0.137), river 26 m
+    0.047 (0.130), town 40 m 0.053 (0.098), tent 10 m 0.095 (0.285), tent 30 m 0.073 (0.246), tent 120 m 0.059 (0.235).
+    What differs: the ground about 1.4–2 × softer near the eye (the bias), the far grazing ground let go nearer, BC's
+    blocks. No hole, no seam. Stage 6a against 2a read 0.05–0.08; the same code shot twice about 0.02. The truths were
+    not taken (the coordinator's call: tokens; and they kept losing the device).
+  - **Pages in motion** (the gate's paths, the film camera, the pages watched frame by frame): the zoom (1.7 m to
+    12 km in 20 s) ran 836 frames at a median of 16.7 ms (p99 33, worst 83) and laid 5736 pages, at most 20 in a
+    frame, the asked-for and not yet in 0 at the median (473 at most), at most 124 fading in at once; the walk into the
+    pines ran 1231 frames at 33 ms (p99 50, worst 100), 2304 pages, at most 12 a frame, 119 waiting at most. Every page
+    comes in over 10 frames from its parent, so none comes in at once; the ground sharpens over a second or two after a
+    stop, and steps of the bias (0.25 a step) refine it as a whole.
+  - **Compiled at the start** (gate `compile`): main 224 modules, 3.06 MB; 6b 227 modules, 3.15 MB. The land's
+    fragment fell out of the ten largest; the page's kernel (79 KB), the layer map's (78 KB, as the clipmap's was) and
+    the packing (62 KB) are compute.
+  - **Settle** at a view after a jump: 14–159 s on the branch against 7–13 s on main, under the same load: the bias
+    walks a quarter step every 128 frames, and every step lays the view's pages again. One step to where the asks fit
+    would settle in one.
+  - `bun tools/scale.js` 18 of 18; `bunx --bun vite build` passes (TheGame), after the merge with stage 3; the library's
+    stage draws its land through the pages like the game's.
+- **Left for 6c (relief):** the pages already carry each texel's height (A's fourth number). Displacement near the eye
+  on a mesh built in compute, parallax further out (a few reads along the ray within the page), skirts that bed rocks
+  in the soil, and path decals laid into the pages as they are laid. Also: the bias to settle in one step; the far
+  grazing hand-over (the level by distance for what is let go, apart from the level by the filter's footprint).
 
 ## Propose
 
@@ -717,7 +757,7 @@ Built on `aven/0038-stage6b-avt` from main at `cc3aa70` (stages 1, 2a, 2b, 4, 6a
 - [ ] Stage 5: crowds, parts and one wind
 - [ ] Stage 6: land, virtual texture and relief
   - [x] 6a: the layer map, one read a material (the deferred pass left to 6b)
-  - [ ] 6b: the adaptive virtual texture with feedback, the deferred pass, the ground pass read from the map
+  - [x] 6b: the adaptive virtual texture with feedback (built; draft PR; the ground pass still reads the land's nodes)
   - [ ] 6c: relief (displacement, parallax, skirts, path decals)
 - [ ] Stage 7: placement, five layers
 - [ ] Stage 8: surfaces, cluster hierarchy
@@ -800,6 +840,20 @@ Built on `aven/0038-stage6b-avt` from main at `cc3aa70` (stages 1, 2a, 2b, 4, 6a
   can measure the library and Me at all now. The game's own start compiles the same 224 modules, byte for byte.
 - **Not there yet:** Safari not tried (it can't be automated here); the first subject's arrival was slower than main's
   in one pair of runs, under a load average near 300.
+- **Asked (by the orchestrating session):** stage 6b, the land as an adaptive virtual texture: pages composited in
+  compute from the layer map with hex-tiling inside, a feedback pass, a page table into a fixed atlas of about 100 MB,
+  parents first and the camera's speed, pages faded in, sectors round the camera; the ground's colour pass one page
+  read; the ground pass from the map where clean; the per-pixel laying deleted; measured with the gate. Then: merge
+  main (stage 3), before/after pictures for Samuel, and drive it home.
+- **Delivered:** stage 6b built (under Build): `src/terrain/pages.js`, the layer map on each page's own grid, the
+  pages asked for from the prepass, BC pages in 107 MB.
+- **Good:** the land alone is 2–6 times faster at the bench's views from above (13–14 ms against 47–76 on the shared
+  GPU), and the zoom ran at a median of 16.7 ms with pages coming in faded.
+- **Not there yet:**
+  - the near ground is softer than main's: the screen's 3000–3500 pages fit only at a bias of 0.5–1;
+  - at eye level the far grazing ground lets go nearer (the bare patches 100 m behind the tent);
+  - settling after a jump is slow (the bias's quarter steps);
+  - the ground pass still reads the land's nodes; Safari not tried; lines rose (+330 in the game).
 
 ## Trail
 
@@ -826,3 +880,6 @@ Built on `aven/0038-stage6b-avt` from main at `cc3aa70` (stages 1, 2a, 2b, 4, 6a
 | 2026-11-18 | `eca4f33` | Stage 3: the pictures compiled aside, in turn; what grows on the stage a part of its own in settle |
 | 2026-11-18 | `90988c7` | Stage 3: grow hidden again stays hidden; the gate counts loads, not the library's address |
 | 2026-11-18 | `78988cb` | Stage 3: pictures after the first view complete; a subject's 20 s from its turn; the painter lingers |
+| 2026-11-18 | `d55d805` | Stage 6b: the land as one virtual texture (pages laid once in compute, BC atlas, page table, feedback, fade-in) |
+| 2026-11-18 | `8653cd3` | Stage 6b: pages asked for from the prepass (a storage write in the colour pass cost its early depth test); each mip its own binding |
+| 2026-11-18 | `8a53e90` | Stage 6b merged with main (stage 3): the pages in `boot.js`, the library's stage drawn through them |
