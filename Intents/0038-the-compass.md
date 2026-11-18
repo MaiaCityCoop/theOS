@@ -258,8 +258,8 @@ Asked outright and without surprises, so built straight away.
   rots the day's harvest. "No seasons for the MVP, since we grow in domes."
 - **Delivered:** all of it in `the-game.md`: the start capital, daily play, the phases (2 to 5 marked draft), phase 1.
 - **Good:** `story check .` passes.
-- **Broke / not there yet:** 112,500 of the 125,000 start HEARTS are placed; the remaining 12,500 are written down
-  as kept, to be confirmed. Phases 2 to 5 are drafts.
+- **Broke / not there yet:** the village's share was 25,000 HEARTS, not 12,500 (Samuel's correction): all 125,000
+  start HEARTS are invested, none kept. Phases 2 to 5 are drafts.
 
 ## Trail
 
