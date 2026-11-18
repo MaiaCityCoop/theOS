@@ -192,7 +192,7 @@ Characters and animals (anything on a skeleton): later, on Samuel's word (2026-1
 | --- | --- | --- | --- |
 | Occlusion culling | `aven/0038-draw-occlusion`, PR #68 | CI green | Views from above draw only 2–8 % of main's things: prove with gate stills at `bench-river-bend-26m`, `bench-town-40m` and `bench-pine-forest-90m` that nothing visible is missing (FLIP within noise) |
 | 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
-| 9: one light | `aven/0038-stage9-light`, PR #72 | Ready for review; all seven steps in (see Stage 9 under Build) | Time it on the Mac mini's unshared GPU (`gate.js bench` prints each light pass alone), and run `paths` and the stress world there; the views that never settle (6b's settling, fixed in 6c) were not measured |
+| 9: one light | `aven/0038-stage9-light`, PR #72 | Ready for review; all seven steps in (Stage 9 under Build) | On the Mac mini: first see that GTAO's one-load read leaves no streaks (not yet seen on a GPU); then the gates: its own `?truth`, the photos, nothing pops in motion, the budgets (`gate.js bench` prints each light pass alone) |
 
 **Not started:**
 - **6c:** relief, meaning displacement near the eye, parallax further out, skirts for rocks, path decals. 6b's pages
@@ -1046,6 +1046,88 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
     one page;
   - Safari has not been tried.
 
+### Stage 9: one light (2026-11-18)
+
+- Built on `aven/0038-stage9-light` (PR #72) from main at `1e6a849`, merged with main at `3a2896a` (stage 5),
+  `d1c3805` (6b) and `314e2e6`. Characters stay as they were (out of scope): they keep their own light calls, which
+  still work (`shadowAtPulled`, `casterPull`, `skyLight`, `finish`).
+- **`lit()` and `lightOn()`** (`src/world/light.js`): one light for every material: the land, the grass, the rocks,
+  made things (`madeLit`), the heap's things and its dots (the shading models get their sun and sky from it), the
+  impostors, the trees' cards, clump planes and impostors, the water's sun, the fire's smoke, the snowfall and the
+  material preview. A surface says what it is (colour, normal, point; wrap, `through`, its own occlusion, its highlight)
+  and gets the sky's part, the sun's and the highlight, then the air. `sunAt(w, how)` is the one sun share (the storm,
+  the clouds, the shadow), replacing `cloudAt`, `cloudAtOne` and `cloudAtVertex`. Step 1 alone drew as main does (FLIP
+  0.017–0.049 mean at the four views).
+- **Shadows** (`src/world/shadow.js`): one atlas of two 2048-texel cascades. The near one covers 70 m round the eye
+  (a third of it ahead), 3.4 cm a texel, drawn every frame; the far one the old box (100 m, growing with height), drawn
+  every third frame and whenever the sun or the eye jumps, kept between (its square alone cleared by a triangle at the
+  far plane). The near one is soft as the sun's disc makes it (PCSS: six reads for the blockers' distance, a penumbra of
+  that distance times 0.0093 rad, eight comparison taps on a disc turned by the blue noise). Casters draw their **shadow
+  twins** (`src/core/pass.js`): their depth and cut-out only, so leaves cast dappled light, no caster binds the atlas
+  it is drawn into (the ping-pong pair is gone), and a caster's shadow shader is a few lines (materials that cut say so:
+  `userData.shadow`).
+- **Contact shadows** (`src/world/light/screen.js`), after Bend Studio's screen-space shadows (Apache-2.0): from each
+  pixel of the prepass's depth a short ray towards the sun (12 steps, 0.12 m + 2 % of the distance), its start dithered
+  by the blue noise, a surface as thick as its depth says, faded to its end and from 40 m. Bend's wave-wide sharing of
+  samples is not ported (no subgroups in Safari). Read by `lightOn` in the colour pass of what takes part in the
+  prepass, and by the trees' pixels (leaf on leaf).
+- **The canopy map** (`src/world/light/canopy.js`): what casts, drawn straight down from above and straight up from
+  below, 192 m round the eye, 19 cm a texel, every 8 frames: the crowns' top and underside, the slab between, gaps and
+  all. Half way between, a **sky probe** every metre at 0.5, 4 and 12 m over the ground marches twelve cosine-weighted
+  rays through the slab: the share of its sky it sees (Wronski's World AO; Ghost of Tsushima's sky visibility).
+  `lightOn` dims the sky's light by it (one read), and where the probes see no sky, the crowns give a little of their
+  light back, green (the probes' bounce). `sunThrough` gives the air a coarse sun through the crowns.
+- **GTAO** with Therrien's visibility bitmask, at half the pixels: two slices a pixel, six steps a side, each sample a
+  surface 0.35 m (+ 2 % of its distance) thick, 32 sectors; the share left is the sky's (the pass also works out the
+  bent normal, which nothing reads yet). On the sky term only, and on the highlight as Lagarde's specular occlusion.
+  Its slices are turned by the blue noise per pixel, held still from frame to frame; the contact pass reads its
+  half-size picture four times between texels and keeps its share in its own texel, so every material reads both with
+  one load and no sampler (see Found).
+- **Leaves lit from behind**: `lightOn`'s transmission is two-sided (the lobe round the sun seen through a leaf, and its
+  far side lit), tinted yellower than the leaf looks lit; the trees' cards carry the sky's and the sun's light apart, so
+  each pixel takes GTAO on the first and the contact shadows on the second; their own per-vertex occlusion (the
+  builder's) is kept; the canopy's probes dim the crown inside.
+- **The air** (`src/world/light/air.js`): Hillaire's tables as the MIT port `webgpu-sky-atmosphere` lays them out, in
+  rgba16f: transmittance 256 × 64 and multiple scattering 32 × 32 (once), the sky view 192 × 108 (every frame; the dome
+  draws it by day, the hour's colours by night, and the painted glow round the sun gives way to it). The aerial
+  perspective and a height fog share one froxel volume, 160 × 90 × 64 out to 24 km (one compute pass, a thread a
+  column), lit by the sun through the air and through the canopy map (the shafts) and by the sky as the probes let it
+  in. Every material ends in it (`finish`: c × T + L; where the land ends, the sky's own light along that way); the
+  library's pictures and the WebGL 2 fallback keep the old analytic haze.
+- **Noise:** one spatiotemporal blue noise (`src/world/light/noise.js`): a 64 × 64 void-and-cluster tile made at the
+  start, four shifted ranks, stepped by the golden ratio every frame (the shadows' taps, the contact rays, the froxels'
+  depth; GTAO's without the step).
+- **Found:**
+  - **Streaks** under the tall grass, on the tent's canvas and through the far crowns came with GTAO's read in the
+    colour pass (a sampled texture of its own, read four times). Probed at the tent's start view (1280 × 720): with that
+    read taken out the picture was clean, sky, air, shadows and all; with it, the grass, the canvas and the far land
+    and crowns broke. The likeliest cause is materials that already bind many textures going past what a pipeline may
+    hold, so they were not drawn and the upscale smeared the frame before. Hence the one load. Not yet seen on a GPU
+    (all GPU work on this machine was stopped before it could be shot): **the first thing to look at on the Mac mini.**
+  - Colours below zero (or not numbers) are now held off: every material's colour is clamped at zero before the air
+    (`finish`), the upscale takes anything below zero as black, and GTAO writes nothing it cannot work out.
+  - A circular import (light → canopy → land.nodes → registry) is broken by handing the ground's height to the canopy
+    from the boot.
+  - The gate's runs here lost their WebGPU device under the shared machine's load (load averages 60–230, two reboots),
+    and stills shot during such a run come out black.
+- **The bench** times each light pass alone at each view (`tools/bench.js light`, printed under the gate's `bench`):
+  `near`, `far`, `canopy`, `probes`, `sky`, `froxels`, `contact`, `gtao`.
+- **Measured** (on the MacBook, the GPU shared with other agents until all GPU work here was stopped):
+  - Step 1 alone (`lit()`, nothing else) was checked to draw as before it (FLIP 0.017–0.049 mean at the four views):
+    a check of the refactor only, **not a gate** (Samuel, 2026-11-18: main is no gate).
+  - Steps 2–7 (stills at the tent and the pine forest, eye level): the near cascade's dappled shadows and the contact
+    shadows darken the grass and the floor of the stand; the canopy's probes darken the stand's floor and trunks; the
+    air layers the far land and the dome is Hillaire's. The last full set of the branch's stills was lost to device
+    losses. **The gates are measured on the Mac mini:** the branch against its own `?truth`, against the photos,
+    nothing popping in motion, and the hard budgets.
+  - **Not measured here:** GPU ms against the 12 ms budget (the bench now prints each light pass alone: `near`, `far`,
+    `canopy`, `probes`, `sky`, `froxels`, `contact`, `gtao`), the paths, memory, the stress world: left to the Mac
+    mini's unshared GPU.
+  - `bun tools/scale.js`: 18 of 18. `bunx --bun vite build`: passes.
+  - **Borderline:** the sky shows faint rings near the top of the frame (the sky view's rows near the zenith); the
+    probes leave trunks deep in the stand dark where no green comes back; the contact rays are per pixel, not Bend's
+    shared waves.
+
 ## Propose
 
 ## Story
@@ -1223,6 +1305,8 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
   the game's −30 % (4.66 → 3.28 MB), the release for next −30 % (9.0 → 6.3 MB); `index.html` 75 → 16 kB.
 - **Not there yet:** the website's own console errors (SVG `NaN` in the day cards, 404s for scene media not in git)
   are main's too, and untouched.
+
+- Stage 9, one light (PR #72, ready for review): `lit()` for every material; two shadow cascades in one atlas with a penumbra from the sun's disc and shadow twins; contact shadows; the canopy map and its sky probes with a green bounce; GTAO; leaves lit from behind; Hillaire's sky and a froxel air with shafts; one blue noise. Characters and animals out of scope for now.
 
 ## Trail
 
