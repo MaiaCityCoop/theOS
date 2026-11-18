@@ -6,7 +6,7 @@
 // to the shared lanes (wet, fog, dim), and what each does to a surface (`surface`: the snow lying on it). What is one
 // condition's own (the snow's depth, the wind's push, the clouds' shade) is that condition's code, handed on from here,
 // so a material asks the contract and no file but the condition's holds it.
-import { Fn, float, int, vec2, vec3, vec4, ivec2, If, mix, exp, pow, smoothstep, fract, floor, dot, max, min, clamp, length, normalize, cos, sin, screenCoordinate } from 'three/tsl';
+import { Fn, float, int, vec2, vec3, vec4, ivec2, If, Loop, Break, mix, exp, pow, smoothstep, fract, floor, dot, max, min, clamp, length, normalize, cos, sin, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { passOf } from '../core/pass.js';
 import { lane } from './weather/lanes.js';
@@ -100,9 +100,10 @@ export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(
 const disc = (n, a0 = 0) => Array.from({ length: n }, (_, i) => { const r = Math.sqrt((i + 0.5) / n), a = a0 + i * 2.399963; return [Math.cos(a) * r, Math.sin(a) * r]; });
 const BLOCKERS = disc(6), TAPS = disc(8, 1.3);
 const turned = ([x, y], cs) => vec2(cs.x.mul(x).sub(cs.y.mul(y)), cs.y.mul(x).add(cs.x.mul(y)));
-/** a point in cascade k: { q (u, v, depth), e (how far inside: 0 at its edge, 1 a tenth in) } */
+/** a point in cascade k (a number, or an index in a shader): { q (u, v, depth), e (how far inside: 0 at its edge, 1 a
+    tenth in) } */
 const cascade = (w, k) => {
-  const s = cascades().mats[k].mul(vec4(w, 1)), q = s.xyz.div(s.w), m = min(min(q.x, q.y), min(float(1).sub(q.x), float(1).sub(q.y)));
+  const s = cascades().mats.element(int(k)).mul(vec4(w, 1)), q = s.xyz.div(s.w), m = min(min(q.x, q.y), min(float(1).sub(q.x), float(1).sub(q.y)));
   return { q, e: smoothstep(0, 0.1, m).mul(q.z.lessThan(1).select(float(1), float(0))) };
 };
 const depthAt = (uv, k) => { const S = cascades().S; return float(U.tShadow.load(ivec2(clamp(uv.mul(S), vec2(0), vec2(S - 1)))).depth(int(k))); };
@@ -127,14 +128,21 @@ const shadowOf = (w, n, how) => {
     const N = n ?? vec3(0), noise = blueAt(screenCoordinate.xy), turn = noise.x.mul(Math.PI * 2), cs = vec2(cos(turn), sin(turn));
     // read in the first cascade the point lies in (the hand-over to the next dithered over a cascade's last tenth: the
     // picture built over time averages it), the last fading out at its own edge; moved off along its normal by 1.2 of
-    // that cascade's texels, and its depth back by that cascade's bias
-    const inK = (k) => {
-      const A = cascade(w.add(N.mul(1.2 * C.texel[k])), k), z = A.q.z.sub((C.bias[k] / C.range[k]) * pull);
-      const here = () => (how === 'one' ? compareAt(A.q.xy, k, z) : k === 0 ? nearSoft(A.q, z, cs) : farSoft(A.q, z, k));
-      if (k === C.n - 1) { If(A.e.greaterThan(0), () => { r.assign(mix(1, here(), A.e)); }); return; }
-      If(A.e.greaterThan(noise.y), () => { r.assign(here()); }).Else(() => inK(k + 1));
-    };
-    inK(0);
+    // that cascade's texels, and its depth back by that cascade's bias. One loop finds which cascade and how much of it,
+    // one read reads it there: the shader holds each read once, however many cascades there are
+    const at = (k) => cascade(w.add(N.mul(C.texelAt.element(k).mul(1.2))), k);
+    const k = int(C.n - 1).toVar(), share = float(0).toVar();
+    Loop({ start: int(0), end: int(C.n), type: 'int', condition: '<' }, ({ i }) => {
+      const e = at(i).e;
+      If(i.equal(C.n - 1), () => { k.assign(i); share.assign(e); Break(); });
+      If(e.greaterThan(noise.y), () => { k.assign(i); share.assign(1); Break(); });
+    });
+    If(share.greaterThan(0), () => {
+      const A = at(k), z = A.q.z.sub(C.backAt.element(k).mul(pull)), read = float(1).toVar();
+      if (how === 'one') read.assign(compareAt(A.q.xy, k, z));
+      else If(k.equal(0), () => { read.assign(nearSoft(A.q, z, cs)); }).Else(() => { read.assign(farSoft(A.q, z, k)); });
+      r.assign(mix(1, read, share));
+    });
   });
   return r;
 };
@@ -164,27 +172,26 @@ const vertexIn = (A, k) => {
   // i: the nearest of the texels read; f: how far the corner lies from it, -0.5 .. 0.5 of their spacing
   const S = cascades().S, t = A.q.xy.mul(S).sub(0.5).div(VSTEP), i = floor(t.add(0.5)), f = t.sub(i);
   const bell = (v) => [v.sub(0.5).mul(v.sub(0.5)).mul(0.5), float(0.75).sub(v.mul(v)), v.add(0.5).mul(v.add(0.5)).mul(0.5)];   // (the three weights along one axis: they add up to 1)
-  const wx = bell(f.x), wy = bell(f.y), z = A.q.z.sub(cascades().bias[k] / cascades().range[k]), s = float(0).toVar();
+  const wx = bell(f.x), wy = bell(f.y), z = A.q.z.sub(cascades().backAt.element(int(k))), s = float(0).toVar();
   for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) {
     const p = clamp(i.add(vec2(a - 1, b - 1)).mul(VSTEP), 0, S - 1);
     s.addAssign(smoothstep(z.sub(VSOFT), z, float(U.tShadow.load(ivec2(p)).depth(int(k)))).mul(wx[a]).mul(wy[b]));   // lit where nothing nearer the light was drawn there
   }
   return s;
 };
-// (the corner's shadow from cascade k outwards: its own where it lies inside it, what lies beyond over its last tenth, the
-// last fading out at its own edge)
-const vertexFrom = (w, k) => {
-  const A = cascade(w, k), s = float(1).toVar();
-  if (k === cascades().n - 1) { If(A.e.greaterThan(0), () => { s.assign(mix(1, vertexIn(A, k), A.e)); }); return s; }
-  const own = float(1).toVar(), beyond = float(1).toVar();
-  If(A.e.greaterThan(0), () => { own.assign(vertexIn(A, k)); });
-  If(A.e.lessThan(1), () => { beyond.assign(vertexFrom(w, k + 1)); });
-  s.assign(mix(beyond, own, A.e));
-  return s;
-};
+// (the corner's shadow from the near cascade out: each its share where the corner lies inside it, its last tenth handing
+// over to the next, what is left after the last lit; one loop, ended where a cascade holds all of it)
 const shadowAtVertex = Fn(([w]) => {
   const r = float(1).toVar();
-  if (texelReads) If(U.uShadowOn.greaterThan(0.5), () => { r.assign(vertexFrom(w, 0)); });
+  if (texelReads) If(U.uShadowOn.greaterThan(0.5), () => {
+    const left = float(1).toVar(), s = float(0).toVar();
+    Loop({ start: int(0), end: int(cascades().n), type: 'int', condition: '<' }, ({ i }) => {
+      const A = cascade(w, i);
+      If(A.e.greaterThan(0), () => { s.addAssign(left.mul(A.e).mul(vertexIn(A, i))); left.mulAssign(float(1).sub(A.e)); });
+      If(left.lessThanEqual(0), () => { Break(); });
+    });
+    r.assign(s.add(left));
+  });
   return r;
 });
 /** true while the casters are drawn into the shadow map: a caster's fragment does no light then (only its depth counts) */

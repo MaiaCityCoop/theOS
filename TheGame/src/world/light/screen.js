@@ -58,7 +58,7 @@ function createScreenLight(renderer) {
       // the way to the eye), nudged off the surface by its depth's own precision, its start dithered. Its two ends on the
       // screen and how far each lies: across the screen the distance's inverse runs straight, so a step's own distance is
       // a mix of the two ends'
-      const C = cascades(), inside = (k) => { const c = C.mats[k].mul(vec4(w, 1)); return c.x.greaterThan(0).and(c.y.greaterThan(0)).and(c.x.lessThan(1)).and(c.y.lessThan(1)); };
+      const C = cascades(), inside = (k) => { const c = C.mats.element(int(k)).mul(vec4(w, 1)); return c.x.greaterThan(0).and(c.y.greaterThan(0)).and(c.x.lessThan(1)).and(c.y.lessThan(1)); };
       const reach = (k) => C.bias[k] + 2 * C.texel[k];   // (what cascade k cannot see: its bias and two of its texels)
       let far = float(reach(C.n - 1)); for (let k = C.n - 2; k >= 0; k--) far = inside(k).select(float(reach(k)), far);
       const len = min(far, dist.mul(0.5));
