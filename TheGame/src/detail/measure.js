@@ -105,6 +105,11 @@ export const TRUTH_DIAL = TRUTH ? (ASKED > 0 && ASKED < 1 ? Math.max(1e-3, ASKED
 /** The least the dial will be on this page: 1 (the governor only raises it), or the truth's. What every capacity is sized
     for (pxKMost), so a turn of the dial down to it finds room. */
 export const DIAL_LEAST = TRUTH ? TRUTH_DIAL : 1;
+/** How ?truth's picture is drawn. still (where it starts, under ?truth): as a still, at every pixel the canvas has and
+    over many more places of a pixel, never let go for its slow frames (src/core/screen.js, src/core/temporal.js). Set
+    false, as the game draws a frame in motion: at the inside the screen is set to, with the game's own places, while
+    everything is still drawn at the truth's dial (tools/gate.js motion). */
+export const TRUTH_AS = { still: TRUTH };
 
 /** How many pixels drawn a thing `size` metres large covers `dist` metres off, as the 68° lens sees that distance. */
 export const pxOn = (size, dist) => (size * U.uPxK.value) / dist;
