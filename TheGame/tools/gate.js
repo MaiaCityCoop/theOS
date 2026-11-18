@@ -15,7 +15,11 @@
 //                                                                (--jpeg: and a labelled sheet of the two, <view>.jpg)
 //   bun tools/gate.js noise <tag> [--truth] [--views a,b]        the same views shot twice: the floor any diff stands on
 //   bun tools/gate.js bench [--ratio r] [--frames n]             tools/bench.js at its six views with ?gputime: GPU ms
-//                                                                against its BUDGET, and the resolution drawn; where
+//                                                                against its BUDGET, and the resolution drawn
+//                        [--twice] [--ratchet]                   and each part of each view against its ceiling
+//                                                                (tools/gate/ceilings.js): shown, never blocking; --twice: the
+//                                                                noise measured from two runs; --ratchet: main's nightly,
+//                                                                each ceiling lowered to what is measured, never raised; where
 //                                                                it went, pass by pass and by part (geometry, light,
 //                                                                ground, upscale and post: bench.js CLASSES)
 //   bun tools/gate.js compile [--page library.html]              the WGSL compiled from the start until the world has
@@ -552,7 +556,7 @@ async function all(opt) {
 }
 
 // ---- the command line ----
-const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor']);   // (options without a value)
+const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor', 'twice', 'ratchet']);   // (options without a value)
 const [cmd, ...args] = process.argv.slice(2), pos = [], opt = {};
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -560,7 +564,7 @@ for (let i = 0; i < args.length; i++) {
   else if (FLAGS.has(a.slice(2))) opt[a.slice(2)] = true;
   else opt[a.slice(2)] = args[++i];
 }
-const WITH = { stills: (c) => stills(c, opt), noise: (c) => noise(c, pos[0], opt), bench: (c) => locked('bench', () => bench(c, opt)), compile: (c) => locked('compile', () => compile(c, opt)) };
+const WITH = { stills: (c) => stills(c, opt), noise: (c) => noise(c, pos[0], opt), bench: (c) => import('./gate/ceilings.js').then((C) => C.rule(() => locked('bench', () => bench(c, opt)), opt, commit())), compile: (c) => locked('compile', () => compile(c, opt)) };
 try {
   let r;
   if (cmd === 'diff') await diff(pos[0], pos[1], opt);
