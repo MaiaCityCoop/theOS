@@ -333,7 +333,7 @@ function shared() {
   // (the table: its two counts (zi), its first draw's row (kb), its draws (K), its room (N), where its first thing lies
   // in its kind's (base), the store copied from and into (from, to), the one gathered (g), its regions (nE), and
   // whether what it held is gone (fresh))
-  const u = { zi: uniform(0, 'uint'), kb: uniform(0, 'uint'), K: uniform(1, 'uint'), N: uniform(1, 'uint'), base: uniform(0, 'uint'), from: uniform(0, 'uint'), to: uniform(0, 'uint'), g: uniform(0, 'uint'), nE: uniform(0, 'uint'), fresh: uniform(0, 'uint'), append: uniform(0, 'uint') };
+  const u = { zi: uniform(0, 'uint'), kb: uniform(0, 'uint'), K: uniform(1, 'uint'), N: uniform(1, 'uint'), base: uniform(0, 'uint'), from: uniform(0, 'uint'), to: uniform(0, 'uint'), g: uniform(0, 'uint'), nE: uniform(0, 'uint'), fresh: uniform(0, 'uint'), append: uniform(0, 'uint'), P: uniform(1, 'uint') };   // (P: as many as what it packs for its draws holds)
   const eachK = (fn) => { Loop({ start: uint(0), end: u.K, type: 'uint', condition: '<' }, ({ i }) => { fn(i); }); };
   const zero = () => { eachK((k) => { atomicStore(C.element(u.kb.add(k)), uint(0)); }); };
   const begin = Fn(() => {
@@ -344,7 +344,16 @@ function shared() {
     sizeTo(DFn, u.append.greaterThan(uint(0)).select(uint(0), Z.element(u.zi).add(uint(WG - 1)).div(uint(WG))));
   })().compute(1);
   const seal = Fn(() => { const n = atomicLoad(held.element(uint(0))).toVar(), m = n.min(u.N); Z.element(u.zi).assign(m); Z.element(u.zi.add(uint(1))).assign(n); sizeTo(DGn, m.add(uint(WG - 1)).div(uint(WG))); })().compute(1);
-  const lay = Fn(() => { const at = uint(0).toVar(); eachK((k) => { O.element(u.kb.add(k)).assign(at); at.addAssign(atomicLoad(C.element(u.kb.add(k)))); atomicStore(cur.element(k), uint(0)); }); })().compute(1);
+  // (where each draw's things begin, one after another, each no more than the room left (P): what is past it is not
+  // written, nor drawn; how many there were in all kept beside its store's counts, read back with them)
+  const lay = Fn(() => {
+    const at = uint(0).toVar(), all = uint(0).toVar();
+    eachK((k) => {
+      const c = atomicLoad(C.element(u.kb.add(k))).toVar(), n = c.min(u.P.sub(at.min(u.P)));
+      O.element(u.kb.add(k)).assign(at); atomicStore(C.element(u.kb.add(k)), n); at.addAssign(n); all.addAssign(c); atomicStore(cur.element(k), uint(0));
+    });
+    Z.element(u.zi.add(uint(2))).assign(all);
+  })().compute(1);
   const gbegin = Fn(() => { zero(); sizeTo(DGn, Z.element(u.zi).add(uint(WG - 1)).div(uint(WG))); })().compute(1);
   const EN = storage(E, 'uvec4', LEAVES).toReadOnly();
   GR = { tiers: [], KB: 0, KMAX: 1, dirty: true, stale: true, Zs, Cs, Os, Us, Z, C, O, cur, held, E, X, A, XN: storage(X, 'uvec2', LEAVES).toReadOnly(), AL: storage(A, 'uint', LEAVES + 1).toReadOnly(), DF, DG, u, begin, seal, lay, gbegin, entry: entryOf(EN, u.nE, Math.ceil(Math.log2(LEAVES)) + 1) };
@@ -385,7 +394,7 @@ function kindOf(key, { K, slots, found, select, twice, label }) {
   const gather = (write) => {
     const p = Fn(() => {
       const i = thing().toVar(), on = i.lessThan(G.Z.element(u.zi)), at = u.g.add(i.min(u.N.sub(uint(1)))).toVar(), r = Array.from({ length: slots }, (_, j) => rowOf(at, j).toVar()), L = select(r);
-      into(L, on.and(L.alive), write ? G.cur : counts, write ? (b, n) => { rowsAt(data, S, u.base.add(G.O.element(u.kb.add(b))).add(n), L.data ?? r); } : null);
+      into(L, on.and(L.alive), write ? G.cur : counts, write ? (b, n) => { If(n.lessThan(atomicLoad(G.C.element(u.kb.add(b)))), () => { rowsAt(data, S, u.base.add(G.O.element(u.kb.add(b))).add(n), L.data ?? r); }); } : null);   // (no more than lay left room for: never into the next tier's)
     })().compute(MANY, [WG]);
     p.dispatchSize = G.DG; return p;
   };
@@ -397,8 +406,9 @@ function kindOf(key, { K, slots, found, select, twice, label }) {
 /** A resident tier's packing: its rows in the shared ones, its range in its kind's stores, its draws and their culling. */
 function residentPackedOf(T, geos, material, { found, select, store = 0, slots = 0, bounds = null, kind = null, twice = false, label = 'a tier' }) {
   const G = shared(), K = geos.length, S = uint(slots), s = kindOf(kind ?? T, { K, slots, found, select, twice, label });
-  const me = { T, K, zi: 2 * G.tiers.length, kb: G.KB, N: firstStore(store), base: 0, dbase: 0, uKb: uniform(G.KB, 'uint'), uBase: uniform(0, 'uint') };
-  const P = () => (s.twice ? 2 : 1) * me.N;   // (what it packed for its draws: a thing of it in two of them where it may be drawn twice)
+  const me = { T, K, zi: 3 * G.tiers.length, kb: G.KB, N: firstStore(store), base: 0, dbase: 0, uKb: uniform(G.KB, 'uint'), uBase: uniform(0, 'uint') };
+  me.P = (s.twice ? 2 : 1) * me.N;   // (what it packs for its draws: until its own count is read back, as much as its store, twice where a thing of it may be drawn twice)
+  const P = () => me.P;
   G.tiers.push(me); G.KB += K; G.KMAX = Math.max(G.KMAX, K); G.dirty = G.stale = true; s.tiers.push(me); s.dirty = true;
   const row = (k) => me.uKb.add(typeof k === 'number' ? uint(k) : k), count = { element: (k) => G.C.element(row(k)) }, { args, argsNode } = argsOf(geos);
   // (where each of its draws' things begin in what its kind packed: its own copy, written with its draws' counts after
@@ -421,13 +431,13 @@ function residentPackedOf(T, geos, material, { found, select, store = 0, slots =
 const CULL = bytesOf('uvec4') + 2 * bytesOf('uint');   // (the culling's for a thing: its box and its two places in the lists, src/core/occlusion.js)
 function relayout(s) {
   const again = s.epoch > 0; s.dirty = false; s.wait = null; s.epoch++;
-  const P = (me) => (s.twice ? 2 : 1) * me.N, row = s.slots * bytesOf('vec4');
+  const P = (me) => me.P, row = s.slots * bytesOf('vec4');
   const bytes = () => s.tiers.reduce((n, me) => n + 2 * me.N * (row + bytesOf('uint')) + P(me) * (row + (me.T.culler ? CULL : 0)), 0);
   const most = Math.floor(Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity) / row);   // (things one binding holds)
   const need = bytes(), room = Math.max(0, roomOf('geometry')), things = s.tiers.reduce((n, me) => n + Math.max(2 * me.N, P(me)), 0), fit = Math.min(room / need, most / things);
   if (fit < 1) {
     console.warn(`tiers ${s.tiers.map((me) => `${me.T.asset ?? ''} ${me.T.level ?? ''}`.trim()).join(', ')}: they would hold ${Math.round(need / 2 ** 20)} MB, past ${room / need < most / things ? `the ${Math.round(room / 2 ** 20)} MB their class has left (geometry)` : `one binding (${most} things)`}: held to it, the rest is the dial's (the governor's)`);
-    for (const me of s.tiers) me.N = Math.max(WG, Math.floor((me.N * fit) / WG) * WG);
+    for (const me of s.tiers) { me.N = Math.max(WG, Math.floor((me.N * fit) / WG) * WG); me.P = Math.max(WG, Math.floor((me.P * fit) / WG) * WG); }
   }
   let sb = 0, db = 0; const arenas = new Set();
   for (const me of s.tiers) {
@@ -443,7 +453,7 @@ function relayout(s) {
 export function ready() {
   const G = GR; if (!G?.stale) return;
   G.stale = false;
-  if (G.dirty) { G.dirty = false; G.Zs.make(2 * G.tiers.length); G.Cs.make(G.KB); G.Os.make(G.KB); G.Us.make(G.KMAX); for (const s of KINDS.values()) s.dirty = true; }   // (a tier made after others had packed: what every one held is gone)
+  if (G.dirty) { G.dirty = false; G.Zs.make(3 * G.tiers.length); G.Cs.make(G.KB); G.Os.make(G.KB); G.Us.make(G.KMAX); for (const s of KINDS.values()) s.dirty = true; }   // (a tier made after others had packed: what every one held is gone)
   for (const s of KINDS.values()) if (s.dirty) { if (s.wait?.size) G.stale = true; else relayout(s); }   // (a kind whose tiers then asking have not all answered waits for them: laid out once, not once a tier)
 }
 // ---- the cells a frame visits ----
@@ -484,7 +494,7 @@ const overlaps = (A, B) => A.bi * BLOCK < B.bi * BLOCK + B.w && B.bi * BLOCK < A
 function residentOf(T, me, s, ends) {
   const G = GR, regions = new Resident({ cell: T.cell, fixed: T.metres, room: LEAVES - 16 }), alive = new Uint32Array(LEAVES + 1);
   const ids = [], freed = [];   // (numbers free; and those let go this packing, free from the next: the store still holds their things till it is copied forward)
-  let at = 0, key = null, gkey = null, asking = false, wrong = 0, packs = 0, epoch = -1, fresh = 1;   // (wrong: a packing changed its store, and whether it fits what it found is not yet read back: the world is not complete till it is)
+  let at = 0, key = null, gkey = null, asking = false, wrong = 0, packs = 0, epoch = -1, fresh = 1, gathers = 0, gathered = 0;   // (gathered: a gather since its counts were read)   // (wrong: a packing changed its store, and whether it fits what it found is not yet read back: the world is not complete till it is)
   const drop = (id) => { alive[id] = 0; freed.push(id); };
   const letGo = (L) => { if (L.id != null) { drop(L.id); L.id = null; } };
   // (what it has still to visit, by region: { L, side (its pieces' side, cells), next (the first piece not visited),
@@ -517,20 +527,23 @@ function residentOf(T, me, s, ends) {
   // pieces; append: only adding, into the store it holds)
   const table = (o, to, g, n, append = 0) => {
     const { u } = G;
-    u.zi.value = me.zi; u.kb.value = me.kb; u.K.value = me.K; u.N.value = me.N; u.base.value = me.dbase; u.nE.value = n; u.fresh.value = fresh; u.append.value = append;
+    u.zi.value = me.zi; u.kb.value = me.kb; u.K.value = me.K; u.N.value = me.N; u.base.value = me.dbase; u.nE.value = n; u.fresh.value = fresh; u.append.value = append; u.P.value = me.P;
     u.from.value = me.base + o * me.N; u.to.value = me.base + to * me.N; u.g.value = me.base + g * me.N;
     T.table?.();   // (its kind's own numbers: its engine's)
   };
-  // (its own count, read back after a packing changed its store: made again where it found more than it holds, or BAND
-  // times less than it would be made at; its kind laid out again once every tier of it asking then has answered)
+  // (its own counts, read back after a packing or a gather: what it found, made again where that is more than its store
+  // holds, or BAND times less than it would be made at; what it packed for its draws, the same against their room;
+  // its kind laid out again once every tier of it asking then has answered)
+  const roomFor = (n) => Math.max(WG, Math.ceil((n * MARGIN) / WG) * WG);
   const ask = (renderer) => {
     if (asking) return;
-    asking = true; s.asking.add(me); const asked = packs;
+    asking = true; s.asking.add(me); const asked = packs, seen = gathers;
     renderer.getArrayBufferAsync(G.Zs.attr).then((b) => {
-      const f = new Uint32Array(b)[me.zi + 1], want = Math.max(WG, Math.ceil((f * MARGIN) / WG) * WG);
-      T.over = f > me.N;
-      if (f > me.N || want * BAND < me.N) { me.N = want; if (!s.dirty) s.wait = new Set(s.asking); s.dirty = G.stale = true; wrong = 1; return; }
+      const z = new Uint32Array(b), f = z[me.zi + 1], p = z[me.zi + 2], N = roomFor(f), P = roomFor(p);
+      T.over = f > me.N || p > me.P;
+      if (f > me.N || N * BAND < me.N || p > me.P || P * BAND < me.P) { me.N = N; me.P = P; if (!s.dirty) s.wait = new Set(s.asking); s.dirty = G.stale = true; wrong = 1; return; }
       if (asked === packs) wrong = 0;   // (no packing since: what it holds is what was read)
+      if (seen === gathers) gathered = 0;
     }).catch(() => {}).finally(() => { asking = false; s.asking.delete(me); s.wait?.delete(me); });
   };
   // (the regions now: what is new or run out waits its turn, what has left the band is let go)
@@ -587,10 +600,10 @@ function residentOf(T, me, s, ends) {
       update(c, near, far, k);
       const { n, cells } = visits(sc);
       T.n = regions.leaves.size; for (const m of T.meshes) m.visible = T.n > 0;
-      if (wrong) ask(renderer);
+      if (wrong || gathered) ask(renderer);
       const g = `${world}|${near}|${far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}`;
       if (n || freed.length) pack(renderer, n, cells, g);
-      else if (g !== gkey) { gkey = g; table(at, at, at, 0); renderer.compute([...s.only, ...ends]); did('gathers'); }
+      else if (g !== gkey) { gkey = g; table(at, at, at, 0); renderer.compute([...s.only, ...ends]); gathers++; gathered = 1; did('gathers'); }
     },
   };
 }
