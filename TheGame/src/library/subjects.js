@@ -16,7 +16,7 @@ import { heightAt } from '../world/land.js';
 import { materialPreview } from '../materials/preview.js';
 import { WALKER, PERSON } from '../../world/scale.js';
 import { U } from '../core/uniforms.js';
-import { byUid, num, cap, head, fig, figs, cell, say, chip, fileOf, sizeFig } from './card.js';
+import { byUid, num, cap, head, fig, figs, cell, say, chip, fileOf, sizeFig, pick, more } from './card.js';
 
 export const ASSETS = byUid(recipes('asset')), MATERIALS = recipes('material'), MATERIAL = byUid(MATERIALS), BIOME = byUid(BIOMES);
 export const CHARS = recipes('character'), CHAR = byUid(CHARS);   // the people (characters/*.js): each made by its own kit
@@ -93,7 +93,7 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
     const F = frameOf(a); S.H = F.height; S.dist = F.dist; S.pitch = F.pitch; S.spin = true;
     mark('id', id);
     const s0 = a.placement.seed, seeded = s0 != null;
-    const scat = a.placement.at === 'scatter', where = scat ? (a.placement.biome ? `Scattered where the ${(BIOME[a.placement.biome]?.name || 'its biome').toLowerCase()} lies` : `Scattered over ${a.placement.outcrops ? 'the outcrops' : 'all the land'}`) : 'Stood at a named place';
+    const scat = a.placement.at === 'scatter', where = scat ? `Scattered · ${a.placement.biome ? (BIOME[a.placement.biome]?.name || 'its biome').toLowerCase() : a.placement.outcrops ? 'outcrops' : 'everywhere'}` : 'At a named place';
     // what a person reads: what it is, how large, where it stands (its colours and its levels of detail are the file's)
     info.innerHTML = `<div class="g-tabs"><button data-tab="info" class="${cardTab === 'info' ? 'on' : ''}">Info</button><button data-tab="detail" class="${cardTab === 'detail' ? 'on' : ''}">Detail</button></div>`
       + (cardTab === 'detail' ? levelsOf(a) : head('Asset', a.kind, a.name, a.about)
@@ -122,7 +122,7 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
   const ageText = (a) => (growRow ? `Every stage · ${a.growth.years.join(', ')} years` : `${age} year${age === 1 ? '' : 's'} · ${a.growth.at(age).height.toFixed(1)} m high`);
   function growthCell(a) {
     const G = a.growth;
-    return `<div class="g-cell g-part"><span class="g-label">Growth · by age</span><div class="seed"><b id="ageL" style="font-weight:450">${ageText(a)}</b><button class="g-btn${growRow ? '' : ' quiet'}" id="ageRow">${growRow ? 'One' : 'All'}</button></div>`
+    return `<div class="g-cell g-part"><span class="g-label">Age</span><div class="seed"><b id="ageL" style="font-weight:450">${ageText(a)}</b><button class="g-btn${growRow ? '' : ' quiet'}" id="ageRow">${growRow ? 'One' : 'All'}</button></div>`
       + `<input id="ageS" type="range" min="${Math.ceil(G.stages[0].from)}" max="${Math.floor(G.stages.at(-1).to)}" value="${age}" style="width:100%;margin:10px 0 6px;accent-color:#e3c27a">`
       + `<div class="seed" style="gap:6px;flex-wrap:wrap">${G.years.map((y) => `<button class="g-btn${!growRow && age === y ? '' : ' quiet'}" data-age="${y}">${y}</button>`).join('')}</div></div>`;
   }
@@ -140,7 +140,7 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
   function levelsOf(a) {
     const m = (v) => (v >= 1000 ? `${num(v / 1000)} km` : `${Math.round(v)} m`), p = (v) => `${num(v)} px`;
     const range = (b) => (b.hi === Infinity ? `over ${p(b.lo)}` : b.lo === 0 ? `under ${p(b.hi)}` : `${p(b.lo)} to ${p(b.hi)}`);
-    return `<header><span class="g-label">${a.name} · levels of detail</span><p class="g-text" style="margin-top:8px">Each level by its size on screen; choose one and the camera goes to where it is drawn. On the right, how far that is with the walker's lens on this screen.</p></header>
+    return `<header><span class="g-label">Levels of detail</span><p class="g-text" style="margin-top:8px">Choose a level to go where it is drawn. Right: how far that is.</p></header>
     ${bodyCell(a)}
     <div class="g-pick g-part">${bands(a).map((b) => `<button data-lod="${b.i}" class="${lodAt === b.i ? 'on' : ''}"><b>${b.impostor ? '◆' : b.faces ? b.i + 1 : '–'}</b><span><span class="g-name">${b.impostor ? `Impostor · ${atlases().VIEWS ** 2} views` : b.faces ? `${b.faces.toLocaleString('en')} faces` : 'Not drawn'}</span><span class="g-sub">${range(b)}</span></span><span class="g-file">${m(distanceAt(pxAim(b), span(a)))}</span></button>`).join('')}</div>`
       + fileOf(a);
@@ -148,7 +148,7 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
   // its body, as a line of words and a button to draw it on the stage
   function bodyCell(a) {
     const s = solidOf(a), own = !!a.solid, parts = [s.walls?.length && `${s.walls.length} wall${s.walls.length > 1 ? 's' : ''}${s.walls.some((w) => w.gaps?.length) ? ' with a door' : ''}`, s.posts?.length && `${s.posts.length} post${s.posts.length > 1 ? 's' : ''}`, s.boxes?.length && `${s.boxes.length} box${s.boxes.length > 1 ? 'es' : ''}`].filter(Boolean).join(', ');
-    return `<div class="g-cell g-part"><span class="g-label">Body · ${own ? 'its own' : `its kind's (${a.kind})`}</span><div class="seed"><b style="font-weight:450">${parts || 'none'}</b><button class="g-btn${showBody ? '' : ' quiet'}" id="bodyT">${showBody ? 'Hide' : 'Show'}</button></div></div>`;
+    return `<div class="g-cell g-part"><span class="g-label" title="${own ? 'its own' : `its kind's (${a.kind})`}">Body</span><div class="seed"><b style="font-weight:450">${parts || 'none'}</b><button class="g-btn${showBody ? '' : ' quiet'}" id="bodyT">${showBody ? 'Hide' : 'Show'}</button></div></div>`;
   }
   function lookAtLevel(a, i) {
     lodAt = i; const p = Math.max(S.pitch, 0.25), y = S.yaw;
@@ -162,13 +162,16 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
     const b = BIOME[id]; clear(); S.round(0); S.sandbox(b); S.grow();
     S.H = 0.8; const wet = !!b.water; S.dist = wet ? 85 : 26; S.pitch = wet ? 0.55 : 0.42; S.spin = true;
     mark('biome', id);
-    const laid = b.laid || 'Where its own rule lays it', pct = (v) => Math.round(v * 100);
+    const laid = b.laid || 'By its own rule', pct = (v) => Math.round(v * 100);
     info.innerHTML = head('Biome', b.kind, b.name, b.about)
       + figs([b.grass && fig(pct(b.grass.cover), '%', 'Grass'), b.grass && fig(pct(b.grass.height), '%', 'Height'), b.stones && fig(pct(b.stones), '%', 'Stones')].filter(Boolean))
       + `<div class="g-cells g-part">${cell('Laid', say(laid))}${cell('Grass', say(b.grass ? cap([b.grass.tufts && 'in tufts', b.grass.flowers && 'with flowers'].filter(Boolean).join(', ')) || 'Plain' : 'None'))}${cell('Ground', `<div class="g-chips">${[b.floor, b.patches, b.spots, b.slopes].filter(Boolean).map((x) => chip(x.material)).join('')}</div>`, true)}</div>`
       + fileOf(b);
     address(`biome=${id}`);
   }
+
+  // what a character wears and what it is made from; one that wears nothing says how it is made, closed until asked for
+  const madeOf = (c) => (c.wears ? `<div class="g-cells g-part">${cell('Wears', `<div class="g-chips">${[c.wears.shirt.material, c.wears.trousers.material, c.wears.hair.material].map(chip).join('')}</div>`, true)}${cell('From', say(`Walker ${c.from.kind}`), true)}</div>` : c.made ? more('Made', c.made) : '');
 
   // ---- a person: standing in the middle of the stage, moving as the card says (a walk goes round it); their skeleton
   // drawn over them if asked. Made once and kept: choosing again or changing the move does not make them again ----
@@ -179,7 +182,8 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
       let P = people.get(id); if (!P) { people.set(id, (P = c.make(tex))); P.onGrown = () => { if (person === P) character(id, true); }; }   // (one grown in the page says when a finer surface is on it: its card is drawn again)
       staged = new THREE.Group(); staged.position.set(STAGE.x, heightAt(STAGE.x, STAGE.z), STAGE.z); staged.add(P.object);
       staged.userData.kept = true;   // (kept to be shown again: nothing to free when it goes)
-      person = P; if (q.get('move')) P.setMove(q.get('move')); if (q.get('layer') && P.setLayer) P.setLayer(q.get('layer')); P.step(0);
+      person = P; for (const [ask, set] of [['move', 'setMove'], ['layer', 'setLayer'], ['face', 'setExpression']]) if (q.get(ask)) P[set]?.(q.get(ask));   // (what the address asks of them)
+      P.step(0);
       game.show(staged);
       // the first frame from the front, the person in the middle and facing us; then it circles, as every subject does
       S.H = P.height * 1.25; S.dist = 4.2; S.pitch = 0.2; S.spin = true; S.yaw = P.object.rotation.y; S.person = P;
@@ -189,21 +193,19 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
     boneLines = free(boneLines);
     if (showBones) { boneLines = new THREE.SkeletonHelper(P.bones.root); boneLines.material.depthTest = false; boneLines.material.transparent = true; boneLines.renderOrder = 9; game.show(boneLines); }
     mark('char', id);
-    // (a character says what it wears and what it is made from; one that wears nothing, the skeleton, says how it is made,
-    // gives its own figures and its rig's own words, and a note while it is still being grown)
-    const mats = c.wears ? [c.wears.shirt.material, c.wears.trousers.material, c.wears.hair.material] : [];
+    // (a character says what it wears and what it is made from; one that wears nothing says how it is made, closed until
+    // asked for, gives its own figures, and a note while it is still being grown. Its variants are pills: card.js pick)
     info.innerHTML = head('Character', c.kind, c.name, c.about)
       + figs([fig(num(P.height), 'm', 'Height'), ...(P.figures ?? [[P.bonesCount, '', 'Bones']]).map((f) => fig(...f)), fig(Math.round(P.faces / 1000), 'k', 'Faces')])
       + (P.note ? `<div class="g-cell g-part">${say(P.note)}</div>` : '')
-      + `<div class="g-cell g-part"><span class="g-label">Moves · rigged</span><div class="g-pick" style="margin-top:6px">${P.moves.map((m) => `<button data-move="${m.id}" class="${P.move === m.id ? 'on' : ''}"><b>${m.name[0]}</b><span><span class="g-name">${m.name}</span><span class="g-sub" style="white-space:normal">${m.about}</span></span></button>`).join('')}</div></div>`
-      + (P.layers ? `<div class="g-cell g-part"><span class="g-label">Layers · the outermost shown</span><div class="g-pick" style="margin-top:6px">${P.layers.map((l) => `<button data-layer="${l.id}" class="${P.layer === l.id ? 'on' : ''}"><b>${l.name[0]}</b><span><span class="g-name">${l.name}</span><span class="g-sub" style="white-space:normal">${l.about}</span></span></button>`).join('')}</div></div>` : '')
-      + `<div class="g-cell g-part"><span class="g-label">${P.rigLabel ?? `Skeleton · ${P.bonesCount} bones, skinned`}</span><div class="seed"><b style="font-weight:450${P.rigAbout ? ';line-height:1.35' : ''}">${P.rigAbout ?? 'hips, spine, chest, neck, head; arms, hands, legs, feet'}</b><button class="g-btn${showBones ? '' : ' quiet'}" id="bonesT">${showBones ? 'Hide' : 'Show'}</button></div></div>`
-      + (c.wears ? `<div class="g-cells g-part">${cell('Wears', `<div class="g-chips">${mats.map(chip).join('')}</div>`, true)}${cell('Made from', say(`The stress stand's ${c.from.rig}, kind ${c.from.kind}: its legs, build, head and lean`), true)}</div>` : c.made ? `<div class="g-cells g-part">${cell('Made', say(c.made), true)}</div>` : '')
+      + [['Moves', 'move', P.moves, P.move], ['Expressions', 'face', P.expressions, P.expression], ['Layers', 'layer', P.layers, P.layer]].filter((v) => v[2]).map((v) => pick(...v)).join('')
+      + `<div class="seed g-part"><span class="g-label">${P.rigLabel ?? 'Skeleton'}</span><b></b><button class="g-btn${showBones ? '' : ' quiet'}" id="bonesT">${showBones ? 'Hide' : 'Show'}</button></div>`
+      + madeOf(c)
       + fileOf(c);
-    document.querySelectorAll('[data-move]').forEach((b) => (b.onclick = () => { P.setMove(b.dataset.move); character(id, true); }));
-    document.querySelectorAll('[data-layer]').forEach((b) => (b.onclick = () => { P.setLayer(b.dataset.layer); character(id, true); }));   // (a body: which of its layers is outermost)
+    // (a pill chooses its variant: a move; a body's outermost layer; what a figure's face does, characters/kit/figure.js)
+    for (const [ask, set] of [['move', 'setMove'], ['layer', 'setLayer'], ['face', 'setExpression']]) document.querySelectorAll(`[data-${ask}]`).forEach((b) => (b.onclick = () => { P[set](b.dataset[ask]); character(id, true); }));
     document.getElementById('bonesT').onclick = () => { showBones = !showBones; character(id, true); };
-    address(`character=${id}&move=${P.move}${P.layer ? '&layer=' + P.layer : ''}`);
+    address(`character=${id}&move=${P.move}${P.layer ? '&layer=' + P.layer : ''}${P.expression ? '&face=' + P.expression : ''}`);
   }
 
   // ---- the lineup (intent 0035): every asset beside the Settler, each as the world stands it (a tree at seventy, a bush
@@ -235,7 +237,7 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
     S.line = [STAGE.x - wide / 2 + along, z]; S.H = 9; S.dist = 14; S.pitch = 0.02; S.yaw = 0; S.spin = false;
     document.querySelectorAll('.item').forEach((b) => b.classList.toggle('on', !!b.dataset.lineup));
     const real = (u) => { const m = ASSETS[u]?.measure; return m?.typical ? `${m.typical.join('–')} m` : m?.across ? `${m.across.typical.join('–')} m across` : ''; };   // (its own measure: intent 0035)
-    info.innerHTML = head('Lineup', 'every asset', 'At their true size', `Every asset of the registry beside the Settler (${PERSON.stature} m), each as the world stands it: a tree at seventy, a bush at its own size, stones and boulders small to large. The gold line is the walker's eyes: yours, ${WALKER.eye} m.`)
+    info.innerHTML = head('Lineup', 'every asset', 'At their true size', `Every asset beside the Settler (${PERSON.stature} m). The gold line: your eyes, ${WALKER.eye} m.`)
       + `<div class="g-cells g-part">${order.map((a) => (a === 'person' ? cell('Settler', say(`${PERSON.stature} m tall`)) : cell(a.name, say(real(a.uid))))).join('')}</div>`
       + `<footer class="g-part"><span class="g-file">each asset's measure, against TheGame/world/scale.js</span><span class="g-file">bun tools/scale.js</span></footer>`;
     address('lineup=1');
@@ -253,8 +255,8 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
     S.H = 1.3; S.dist = 9.5; S.pitch = 0.5; S.spin = true;
     mark('mat', id);
     info.innerHTML = head('Material', m.kind, m.name, m.about)
-      + figs([fig(1024, 'px', 'Baked'), fig(MATERIALS.indexOf(m), '', 'In the shaders')])
-      + `<div class="g-cells g-part">${cell('Used by', say(cap(m.usedBy).replace(/; /g, '<br>')), true)}${cell('Relief', say(`${m.bump} · smaller is deeper`), true)}${cell('Baked as', say(`Albedo + height, relief, roughness${tex.packed ? ', compressed on the GPU' : ''}; painted when worn`), true)}</div>`
+      + figs([fig(1024, 'px', 'Baked'), fig(MATERIALS.indexOf(m), '', 'Layer')])
+      + `<div class="g-cells g-part">${cell('Used by', say(cap(m.usedBy).replace(/; /g, '<br>')), true)}${cell('Relief', say(`${m.bump}`))}${cell('Baked', say(`Albedo, height, relief, roughness${tex.packed ? ', packed' : ''}`), true)}</div>`
       + fileOf(m);
     address(`material=${id}`);
   }

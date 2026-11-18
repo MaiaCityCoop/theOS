@@ -30,6 +30,7 @@ import { UV_TILES } from '../../assets/kit/plant.js';
 import { note, PORTABLE } from '../core/gpu.js';
 import { SHARE_MB } from '../core/classes.js';
 import { FNV, fnv } from '../core/hash.js';
+import { asking } from '../core/workers.js';
 import { pxAt } from './measure.js';
 import { atlasesOf, atlasBytes, levelsUnder, SS, LEAST } from './atlas.js';
 import { farLayers } from '../scatter/entries.js';
@@ -102,15 +103,11 @@ export function createAtlas(renderer, { name, side, layers, cell = side, views =
 }
 
 // ---- the bake: a row of pictures at a time, SS x SS samples a texel, reduced on the GPU, read back, mipped in a worker ----
-let WORKERS = null, nextJob = 0; const waiting = new Map();
-const workers = () => (WORKERS ||= Array.from({ length: Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2)) }, () => {
-  const w = new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' }); w.busy = 0;
-  w.onmessage = ({ data }) => { w.busy--; waiting.get(data.id)?.(data); waiting.delete(data.id); };
-  return w;
-}));
-/** The pictures' smaller ones, as a worker makes them (impostor.worker.js, the least busy of a few): { levels: [{ colour,
-    data, n }] }. */
-const mipsOf = (colour, data, side, cell, least) => new Promise((res) => { const id = nextJob++, w = workers().reduce((a, b) => (b.busy < a.busy ? b : a)); w.busy++; waiting.set(id, res); w.postMessage({ id, colour, data, side, cell, least }, [colour.buffer, data.buffer]); });
+let WORKERS = null;
+const workers = () => (WORKERS ||= Array.from({ length: Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2)) }, () => asking(new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' }), "the impostors' worker")));
+/** The pictures' smaller ones, as a worker makes them (impostor.worker.js, the least busy of a few, watched:
+    src/core/workers.js): { levels: [{ colour, data, n }] }. */
+const mipsOf = (colour, data, side, cell, least) => workers().reduce((a, b) => (b.out() < a.out() ? b : a))({ colour, data, side, cell, least }, [colour.buffer, data.buffer]);
 
 /** What bakes a family's pictures: rows of `per` pictures `px` texels a side, drawn by draw(row) (a mesh whose
     instances are the row's pictures, its two materials' outputs: { colour, data }), reduced SS x SS into the atlas'

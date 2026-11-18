@@ -29,13 +29,8 @@
 //                        pxAt(size, dist), spanAt(size, dist) and dialPxAt(px), the twins of the above
 //   onMeasure(f), measureVersion()   what reckons a band of distances once (a tier's, the meadow's rings) reckons it again
 //                        when either number changes: the window, the governor's ratio, the dial
-//   bandAt(near, far, finest, pad)   a level's band of distances, as ?truth has it
-//
-// ?truth (the gate's reference picture): every thing within REACH metres of the eye, as the 68° lens sees them, is
-// measured BIG times as large as it is, so every engine draws it at its finest: a plant's whole crowd, none of it
-// enlarged, no far body; the rocks' and the made things' full meshes; nothing thinned or sunk. Past REACH it is measured
-// as always. `?truth=<metres>` reaches as far as it says. What an engine cuts by distance besides (the grass's rings,
-// the land's mesh) it widens under ?truth where it does it.
+//   TRUTH, DIAL_LEAST, truthAfter   ?truth: the same measure, the dial turned down to TRUTH_DIAL once the game's start
+//                        has settled (src/boot.js); every capacity sized for the least dial (pxKMost)
 import { float, max } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { flag, flagNum } from '../core/flags.js';
@@ -55,7 +50,7 @@ export const pxThrough = (camera, h) => camera.projectionMatrix.elements[5] * h 
 export const lensOf = (camera) => camera.projectionMatrix.elements[5] / LENS;
 
 // ---- the live pixel and the dial, kept ----
-let inside = () => 1, most = 1;   // the governor's ratio of the pixels drawn (keepMeasure: the screen's inside), and the most it can be (the screen's own)
+let inside = () => 1, most = () => 1;   // the governor's ratio of the pixels drawn (keepMeasure: the screen's inside), and the most it can be (the canvas's, as it is now: src/core/output.js)
 const listeners = new Set(); let version = 0;
 /** The inside's height, pixels drawn, as the screen has it now (the window's CSS height at the governor's ratio). */
 const drawnHeight = () => (globalThis.innerHeight || 1080) * inside();
@@ -69,65 +64,61 @@ function keep(dial = ERROR_PX()) {
 }
 keep();   // (from the start, before the screen says its ratio: the window's own pixels)
 /** Keep the measure current: drawn, the screen's ratio of the pixels drawn (src/core/screen.js inside), and out, the most
-    it can be (the screen's own); the window's size is followed, and each frame asks again (measureNow). */
-export function keepMeasure(drawn = null, out = 1) {
+    it can be (the canvas's, src/core/output.js: read as it is now, a resize changes it); the window's size is followed,
+    and each frame asks again (measureNow). */
+export function keepMeasure(drawn = null, out = () => 1) {
   if (drawn) inside = drawn;
-  most = Math.max(1, out);
+  most = () => Math.max(1, out());
   keep(); addEventListener('resize', () => keep());
 }
 /** The live pixel in the dial's pixels: dial pixels a metre covers one metre from the eye (error.js). */
 export const dialK = () => pxK() / ERROR_PX();
-/** The live pixel at the most pixels the screen can draw (its own ratio) and the dial at rest (1: the governor only
-    raises it), in the dial's pixels so: what a capacity is sized for. */
-export const pxKMost = () => pxKAt((globalThis.innerHeight || 1080) * most);
+/** The live pixel at the most pixels the screen can draw (its own ratio) and the least the dial will be on this page
+    (DIAL_LEAST: 1, the governor only raises it; or the truth's), in the dial's pixels so: what a capacity is sized for. */
+export const pxKMost = () => pxKAt((globalThis.innerHeight || 1080) * most()) / DIAL_LEAST;
 /** How far off a thing `size` metres large is still px dial pixels large, at the most (pxKMost). */
 export const farMost = (px, size) => (size * pxKMost()) / px;
 /** Each frame, before anything chooses (src/boot.js choose, tools/bench.js): the governor may have changed the inside's
     ratio. True where the measure changed. */
 export const measureNow = () => keep();
+/** ?truth: the dial turned down to TRUTH_DIAL once the game's start (`ready`, src/boot.js) has settled; the game: nothing. */
+export const truthAfter = (ready) => { if (TRUTH) ready.then(() => keep(TRUTH_DIAL)); };
 /** f() whenever the live pixel or the dial changes (a tier's band, the meadow's rings); returns what stops it. */
 export const onMeasure = (f) => { listeners.add(f); return () => listeners.delete(f); };
 /** A number that changes whenever the measure does: what packs by it packs again. */
 export const measureVersion = () => version;
 
-// ---- ?truth ----
-// (how far the truth reaches where the address names no other: read in headless Chrome on Samuel's Mac, 2026-11-17,
-// 800 m held at the pine stand, 1.6 s a frame at 1280×720; 1000 m and 2000 m lost the WebGPU device there. At 600 m a
-// frame there took 1.2 s at 1280×720 and 3.3 s at 4K, 1 GB held; past it the gate's views are as the game draws them)
-const REACHES = 600;
-/** How far ?truth measures every thing as large: metres, as the 68° lens sees them (0: not asked for). */
-export const REACH = flag('truth') ? Math.max(0, flagNum('truth', REACHES)) || REACHES : 0;
+// ---- ?truth: the one measure, the dial turned down ----
+// The gate's reference picture (tools/gate.js) is the game's own measure with the dial turned down to TRUTH_DIAL: every
+// rung within a fraction of a pixel drawn of the thing at full detail, at every distance, so what is far off is as near
+// the truth as what is near, and nothing is drawn finer than the view can show. There is no truth of its own: no reach,
+// no "everything within it measured huge". A ?truth page starts as the game starts, at the dial's rest (the world built
+// at the game's pace, the far ends baked a frame at a time at the game's frame rate), and turns the dial down once that
+// start has settled (src/boot.js); then it is drawn as a still (src/core/screen.js, src/core/temporal.js). `?truth=d`
+// draws at dial d.
 /** Whether the address asks for the truth (`?truth`). */
-export const TRUTH = REACH > 0;
-/** How ?truth's picture is drawn. still (where it starts, under ?truth): as a still, at every pixel the canvas has and
-    over many more places of a pixel, never let go for its slow frames (src/core/screen.js, src/core/temporal.js). Set
-    false, as the game draws a frame in motion: at the inside the screen is set to, with the game's own places, while
-    everything is still drawn at its finest: the same frame at full detail, drawn the same way, that the gate holds each
-    frame of a path against (tools/gate.js motion). */
-export const TRUTH_AS = { still: TRUTH };
-const BIG = 1e6;   // how many times larger the truth measures a thing within its reach
+export const TRUTH = flag('truth');
+/** The dial the truth is drawn at: a quarter of a pixel drawn by default. The truth is drawn at every pixel of the canvas
+    (a third again finer than the game's inside each way) over 32 places of a pixel, so a quarter of an inside pixel is
+    below what its picture can show. */
+const ASKED = TRUTH ? flagNum('truth', 0.25) : 1;   // (a dial between 0 and 1; anything else, a reach in metres as ?truth once took, is the default)
+const TRUTH_DIAL = TRUTH ? (ASKED > 0 && ASKED < 1 ? Math.max(1e-3, ASKED) : 0.25) : 1;
+/** The least the dial will be on this page: 1 (the governor only raises it), or the truth's. What every capacity is sized
+    for (pxKMost), so a turn of the dial down to it finds room. */
+export const DIAL_LEAST = TRUTH ? TRUTH_DIAL : 1;
 
 /** How many pixels drawn a thing `size` metres large covers `dist` metres off, as the 68° lens sees that distance. */
-export const pxOn = (size, dist) => { const px = (size * U.uPxK.value) / dist; return TRUTH && dist < REACH ? px * BIG : px; };
+export const pxOn = (size, dist) => (size * U.uPxK.value) / dist;
 /** How far off (metres, as the 68° lens sees them) a thing `size` metres large covers px dial pixels: as far as a level
-    of it drawn down to px reaches (under ?truth, at least REACH: everything within it is large). */
-export const farFor = (px, size) => (TRUTH ? Math.max(REACH, (size * dialK()) / px) : (size * dialK()) / px);
-/** A level's band of distances [near, far] (metres, as the 68° lens sees them) as ?truth has it: the finest level holds
-    everything within REACH, every other level nothing there. pad: how far past its band a level's packing reaches.
-    [0, 0]: none at all. */
-export const bandAt = (near, far, finest, pad = 0) => {
-  if (!TRUTH) return [near, far];
-  if (finest) return [near, Math.max(far, REACH + pad)];
-  const n = Math.max(near, REACH - pad); return n < far ? [n, far] : [0, 0];
-};
-
+    of it drawn down to px reaches. */
+export const farFor = (px, size) => (size * dialK()) / px;
 // ---- on the GPU ----
 /** The uniforms the measure is kept in (of the shared set, so every material binds them with the rest): the live pixel
     and the dial. */
 export const uPxK = U.uPxK;
 /** A thing `size` metres large, `dist` metres off as the 68° lens sees it (camDist): the pixels drawn it covers at one
     metre, a node (its pixels on screen are this over dist). size, dist: nodes. */
-export const spanAt = (size, dist) => (TRUTH ? size.mul(U.uPxK).mul(dist.lessThan(REACH).select(float(BIG), float(1))) : size.mul(U.uPxK));
+export const spanAt = (size, dist) => size.mul(U.uPxK);
 /** Its pixels drawn, a node. */
 export const pxAt = (size, dist) => spanAt(size, dist).div(max(dist, 1e-3));
 /** A size on screen (pixels drawn, a node) in the dial's pixels: what it meets every switch and level at (error.js

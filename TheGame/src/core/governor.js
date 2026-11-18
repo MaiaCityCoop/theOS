@@ -33,11 +33,12 @@
 // tried ten seconds after a step down (read on 2026-11-14: his picture sat under the screen's points in half his rows,
 // a minute at a time after something else had used the GPU for seconds).
 import { lensOf } from '../detail/measure.js';
+import { outputRatio } from './output.js';
 
-export function createGovernor(renderer, { startCap = 3, maxCap = 16, apply = (r) => renderer.setPixelRatio(r) } = {}) {   // apply: what takes the pixel ratio it decides (the game: the inside's, src/core/screen.js; the screen keeps its own)
-  const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2), DPR_MIN = Math.min(1, DPR_MAX), FLOOR = 0.6;   // DPR_MIN: where it starts and comes back to first; FLOOR: how soft it may go to hold 60 fps
+export function createGovernor(renderer, { startCap = 3, maxCap = 16, apply = (r) => renderer.setPixelRatio(r), most = outputRatio } = {}) {   // apply: what takes the pixel ratio it decides (the game: the inside's, src/core/screen.js; the screen keeps its own)
+  const DPR_MAX = () => most(), DPR_MIN = () => Math.min(1, most()), FLOOR = 0.6;   // DPR_MAX(): the canvas's ratio (most: the game's, src/core/screen.js; the output's: src/core/output.js), as it is now; DPR_MIN(): where it starts and comes back to first; FLOOR: how soft it may go to hold 60 fps
   const SLOW = 20, LATE = 0.08, ROOM = 0.02, MEAN = 17.5, WARM = 4000, MOST = 0.35, STREAK = 6, EASY = 0.05;   // a frame longer than SLOW (ms) missed 60 fps by far; the shares of such frames that are too many, and few enough to try more; the mean frame (ms) that is under 57 fps; ms after the start before the first look
-  let dpr = DPR_MIN, resize = false, ceiling = DPR_MAX, ceilingAt = 0, hold = 45000;   // ceiling: the ratio not gone over for `hold` ms from ceilingAt
+  let dpr = DPR_MIN(), resize = false, ceiling = DPR_MAX(), ceilingAt = 0, hold = 45000;   // ceiling: the ratio not gone over for `hold` ms from ceilingAt
   let upAt = -1e9, probe = 45000, probeAt = -1e9, low = 10000;   // (low: how long a ratio under the screen's own points is not gone over again after a step down: short, longer each time the way back up proved too much)   // when the ratio was last raised; how long a ratio that proved too much right after is left alone (longer each time), and when one last did
   let cap = startCap, zoom = 1, lod = 1, ema = 16.7, calm = 0, at = 0;
   const times = new Float32Array(160); let tn = 0, mid = 16.7, streak = 0, midAvg = 16.7, lateAvg = 0;   // (midAvg, lateAvg: the middle frame and the late share over the last few seconds: what one look hides when frames lie at the edge of 60)   // a look's frame times, the middle one of them, and how many looks running had too many late frames
@@ -47,7 +48,7 @@ export function createGovernor(renderer, { startCap = 3, maxCap = 16, apply = (r
   apply(dpr);
   return {
     /** Before drawing: a change of pixel ratio empties the canvas, so it is made only here. */
-    begin() { if (resize) { apply(dpr); resize = false; } },
+    begin() { if (dpr > DPR_MAX()) { dpr = DPR_MAX(); resize = true; } if (resize) { apply(dpr); resize = false; } },   // (a smaller canvas, the window made larger: the ratio within it at once)
     /** The detail factor for this camera, this frame. */
     detail(camera) { zoom = Math.max(1, lensOf(camera)); lod = Math.min(zoom, cap); return lod; },   // (the lens against the walker's: src/detail/measure.js)
     /** After drawing: the frame's time, and whether a tier ran out of patches. */
@@ -83,14 +84,14 @@ export function createGovernor(renderer, { startCap = 3, maxCap = 16, apply = (r
       // Travelling: most frames busy with what comes into view. Pixels over the screen's own points are a luxury then:
       // given back a notch a look (two when nearly every frame is busy), and none tried, till it has passed. (Read in
       // his Safari on 2026-11-14: the ratio had climbed to 1.6 on a fast flight and the frames fell to 43 a second.)
-      else if (busyShare > 0.5 && dpr > DPR_MIN) { next = Math.max(DPR_MIN, dpr - (busyShare > 0.75 ? 0.25 : 0.125)); calm = hot = 0; downAt = now; }
+      else if (busyShare > 0.5 && dpr > DPR_MIN()) { next = Math.max(DPR_MIN(), dpr - (busyShare > 0.75 ? 0.25 : 0.125)); calm = hot = 0; downAt = now; }
       else if (busyShare > 0.25 && !(mid > MEAN || share > MOST)) { calm = 0; hot = 0; }   // (some of it: nothing tried, nothing given up)
-      else if ((share > LATE || mean > MEAN) && dpr > DPR_MIN) {
+      else if ((share > LATE || mean > MEAN) && dpr > DPR_MIN()) {
         // pixels over the screen's own: given back at once, a step a look (two when most frames are late). Slow right
         // after a step up: that step was too much, and is left alone for a while, longer each time. Slow at a ratio
         // that had held: the picture got heavier (a walk into a thicker stand, a burst of new things), tried again soon
         calm = hot = 0; downAt = now;
-        next = Math.max(DPR_MIN, dpr - (share > 0.4 ? 0.25 : 0.125));
+        next = Math.max(DPR_MIN(), dpr - (share > 0.4 ? 0.25 : 0.125));
         if (now - upAt < 4000) { probe = now - probeAt < probe + 30000 ? Math.min(300000, probe * 2) : 45000; probeAt = now; hold = probe; } else hold = 10000;
         ceiling = next; ceilingAt = now;
       } else if (slow) {
@@ -111,9 +112,9 @@ export function createGovernor(renderer, { startCap = 3, maxCap = 16, apply = (r
         }
       } else if (share <= EASY && mid < MEAN - 0.4 && midAvg < MEAN - 0.4) {   // (room: the usual frame in time, a dropped frame or two a look allowed)
         hot = 0;
-        if (++calm >= (dpr >= DPR_MIN ? 6 : 4) && now - downAt > 8000) { calm = 0; if (dpr < Math.min(DPR_MAX, ceiling)) { next = Math.min(DPR_MAX, ceiling, dpr + 0.125); upAt = now; } else if (cap < zoom) cap = Math.min(maxCap, cap * 1.12); }
+        if (++calm >= (dpr >= DPR_MIN() ? 6 : 4) && now - downAt > 8000) { calm = 0; if (dpr < Math.min(DPR_MAX(), ceiling)) { next = Math.min(DPR_MAX(), ceiling, dpr + 0.125); upAt = now; } else if (cap < zoom) cap = Math.min(maxCap, cap * 1.12); }
       } else { calm = 0; hot = 0; }
-      if (now - ceilingAt > hold) ceiling = DPR_MAX;   // what was too much is not tried again for a while
+      if (now - ceilingAt > hold) ceiling = DPR_MAX();   // what was too much is not tried again for a while
       if (next !== dpr) { dpr = next; resize = true; n = late = sum = worst = tn = 0; }
     },
     /** Hold the dials where they are (true), or let them move again (false). */

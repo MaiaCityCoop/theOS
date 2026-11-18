@@ -18,7 +18,7 @@ export default tree({
   type: 'asset',
   name: 'Rockrose',
   kind: 'shrub',
-  about: 'A cistus: a low, grey-green mound to the knee or the hip, in the glades and at the wood’s edge.',
+  about: 'A low grey-green mound, knee to hip high, at the edge of the wood.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
     real: 'Cistus salviifolius, the sage-leaved rockrose: low, grey-green, white-flowered',
