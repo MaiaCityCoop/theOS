@@ -40,7 +40,7 @@ import { ERROR_PX, pxK, keepNumbers } from './error.js';
 const LENS = 1 / Math.tan((68 / 2) * Math.PI / 180);   // the walker's 68° lens as a projection's scale (what a camera's projectionMatrix holds at [5])
 
 /** Pixels a metre covers at one metre away, through the walker's 68° lens, on a picture h pixels tall. */
-const pxKAt = (h) => h / (2 * Math.tan((68 / 2) * Math.PI / 180));
+export const pxKAt = (h) => h / (2 * Math.tan((68 / 2) * Math.PI / 180));
 /** Where a size on screen is reached: metres away, for a thing of span metres, as the walker's lens sees it, on a picture
     h pixels tall (none: the live pixel's, whatever ?truth says: the library). */
 export const distanceAt = (px, span, h = 0) => (span * (h ? pxKAt(h) : pxK())) / px;
