@@ -25,8 +25,8 @@
 //                      chunks), as 32-bit floats; the vertex it begins at in the numbers' slots 14 and 15 (x 1024,
 //                      and the rest). What the GPU bakes its far end from (src/detail/impostor.js)
 //   6   tip x (16) | y (16)              the point it is enlarged about (a chunk's plane's: its chunk's middle)
-//   7   tip z (16) | go (16)             the size on screen under which it is gone (a plane's: under which its chunk
-//                                        has come), log2 in 2048ths from 2^-8 (0: never)
+//   7   tip z (16) | go (16)             the error, metres, at which it goes (a plane's: at which its chunk comes:
+//                                        assets/kit/crowd.js), log2 in 2048ths from 2^-16 m (0: never)
 //
 //   packPlant(mesh) -> { index: its corners, verts: Uint32Array, count: how many vertices }   what a family hands on
 //   plantFamily(id, asset)   a plant asset's shapes as a family of the zoo (assets/zoo/index.js)
@@ -35,7 +35,7 @@ import { held, sn, q16, oct, OCT } from './pack.js';
 import { crowd, levelOf } from './crowd.js';
 import { goneAt, rungAt, rungPx } from '../../src/detail/error.js';
 
-export const GRID = { xz: 40, y0: -2, y1: 78 }, UVK = 1024, UV0 = 16, GOQ = 2048;   // x and z over -40 … 40 m, y over -2 … 78 m, 16 bits each (1.2 mm); uv in 1024ths, from -16
+export const GRID = { xz: 40, y0: -2, y1: 78 }, UVK = 1024, UV0 = 16, GOQ = 2048, GO0 = 16;   // x and z over -40 … 40 m, y over -2 … 78 m, 16 bits each (1.2 mm); uv in 1024ths, from -16; a go's log2 in 2048ths, from 2^-16 m (15 µm … 65 km)
 /** A number as a half float's 16 bits (round to nearest; what the GPU's unpackHalf2x16 reads back). */
 const F32 = new Float32Array(1), U32 = new Uint32Array(F32.buffer);
 const half = (x) => {
@@ -66,7 +66,7 @@ export function packPlant(m) {
     out[o + 4] = (gx(RT[p]) | (gy(RT[p + 1]) << 16)) >>> 0;
     out[o + 5] = gx(RT[p + 2]);
     if (R) {
-      const T = m.tip, go = m.go[v], q = !(go > 0) ? 0 : Math.max(1, Math.min(65535, Math.round((Math.log2(go) + 8) * GOQ)));
+      const T = m.tip, go = m.go[v], q = !(go > 0) ? 0 : Math.max(1, Math.min(65535, Math.round((Math.log2(go) + GO0) * GOQ)));
       out[o + 6] = (gx(T[p]) | (gy(T[p + 1]) << 16)) >>> 0;
       out[o + 7] = (gx(T[p + 2]) | (q << 16)) >>> 0;
     }
