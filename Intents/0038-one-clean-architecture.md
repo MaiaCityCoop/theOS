@@ -1122,13 +1122,13 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
 | Tent, eye level | 0.095 (0.90) |
 | Pine forest, eye level | 0.393 (0.93) |
 | Pines from 10 m | 0.427 (0.83) |
-| Pines from 30 m | not measured: main's still never settled (its pages still out after 300 s, the device lost once before) |
+| Pines from 30 m | not settled: 6b, fixed in 6c (main's pages still out after 300 s) |
 
     The forest is placed anew and grows a floor, so this measures the change, not an error. The tent's p99 tile is
     the trees and shrubs behind it, standing elsewhere.
-  - **Against the truth: it did not hold.** After 6b every ?truth=300 frame came out black, main's too (the device
-    lost). Before 6b the branch's own truth was taken at all four views, but its stills were lost to a dev server busy
-    with a build.
+  - **Against the truth: not measured: ?truth black since 6b.** Under the truth's jitter the pages never settle, main's
+    too; the fix comes from the Mac mini. Before 6b the branch's own truth was taken at all four views, but its stills
+    were lost to a dev server busy with a build.
   - **Borderline:**
     - the tent's view changes behind the tent, not at it;
     - the pines from 30 m are unmeasured;
@@ -1136,7 +1136,7 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
   - **Memory:** the whole browser's peak over the walk was 5.36 GB on main and 5.76 GB on the branch (+0.40 GB), within
     8 GB. That was taken before 6b, on the shared GPU. The growth map itself is 8 MB.
   - **Timings are left to the Mac mini's unshared GPU:** the bench, the walk and the stress world's walk. Here the
-    stress world never settled at the start within 300 s, on main or on the branch.
+    stress world's start was not settled: 6b, fixed in 6c (on main and on the branch).
   - `bun tools/scale.js`: 24 of 24 (the six new kinds among them). `bunx --bun vite build`: built. CI green.
 - **Lines:** +831 −331 in the game (net +500): the rule and the growth map +212 net in the engine, the six kinds,
   the floor kit and their registry rows +313.
@@ -1343,8 +1343,8 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
   - a plant's levels are its kind's, so no new asset file holds detail data;
   - under the crowns the floor is litter, ferns, herbs, logs and stones, not a meadow;
   - `bun tools/scale.js` 24 of 24.
-- **Not there yet:** no FLIP against the truth (black at every truth after 6b, main's too); the timings are left to
-  the Mac mini; the rest under the stage's Not done.
+- **Not there yet:** not measured against the truth (?truth black since 6b); the pines from 30 m and the stress
+  world's start not settled (6b, fixed in 6c); the timings left to the Mac mini; the rest under the stage's Not done.
 
 ## Trail
 
