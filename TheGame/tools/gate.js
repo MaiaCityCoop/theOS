@@ -41,7 +41,10 @@
 //                        [--device mps] [--no-clip]              folder) held against photographs (a folder with its
 //                                                                manifest.json, tools/gate/README.md): CMMD on CLIP
 //                                                                features, and natural-image statistics, by view, kind
-//                                                                and all together; in Python (GATE_PYTHON)
+//                                                                and all together; in Python (GATE_PYTHON); the photos'
+//                                                                own spread beside each; a class's distances may only
+//                                                                go down (tools/gate/real-ratchet.json; exit 1 if one
+//                                                                rose; --ratchet: main's run lowers them)
 //   --query q (with any of them)                                 more of every page's address: --query stress, the
 //                                                                stress world (src/scatter/stress.js)
 //   bun tools/gate.js all [--tag t] [--views a,b]                stills of this code and of ?truth, their diff, the
