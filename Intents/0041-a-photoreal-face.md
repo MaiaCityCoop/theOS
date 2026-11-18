@@ -42,8 +42,9 @@ its six notes are in `research_notes/Photoreal browser face first principles/`. 
 
 ## Define
 
-**Not approved yet. Nothing is built before Samuel says go:** the plan lifts the rule in one place, adds a woman's
-body, and is the largest piece of work on the Body so far.
+**Set aside by Samuel on 2026-11-18** ("This isn't helpful so far"): he asks for AI-native workflows to be researched
+instead (see the changelog). What follows is the plan as it was proposed, kept for the record until Define is
+rewritten from the second research. Nothing of it is built.
 
 ### What the research found
 
@@ -198,6 +199,16 @@ with a choice of **hairstyles** and of **colours** (hair, skin, eyes), picked in
 - **Not there.** No scan of a woman with a licence that allows shipping was found. Most evidence is search extracts:
   nearly every primary source was blocked from the research environment. Nothing can be timed here: there is only a
   software GPU. Nothing is built: Define waits for Samuel.
+
+### 2026-11-18, the plan set aside
+
+- **Asked.** Samuel, on the report and the plan: "Ok. This isn't helpful so far. Let's research cutting-edge
+  AI/Opus/Fable-native workflows like generating a reference image character sheet, a character shoot movie for
+  movement rigging, and then maybe something like Tripo AI or image-to-3D model workflows. Like Tripo, 3D AI Studio
+  etc." (typos tidied).
+- **So.** The plan in Define is not approved and is set aside as it stands. A second research is started on
+  AI-native character pipelines: generated character sheets, generated video for movement and rigging, image-to-3D
+  generators, automatic rigging, and an agent driving the whole. Define will be rewritten from it.
 
 ## Trail
 
