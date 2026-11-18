@@ -113,6 +113,7 @@ export const computeMaker = (renderer) => { let m = computeMakers.get(renderer);
 // so are shown's visibility and frustum test: three takes what it compiles as the call begins)
 async function compiling(renderer, target, root, camera, scene, draw, shown = []) {
   const was = renderer.getRenderTarget(), to = typeof target === 'function' ? target() : target, depth = renderer.depth, held = shown.map((o) => [o, o.visible, o.frustumCulled]);
+  const own = Object.hasOwn(renderer, 'renderObject') ? renderer.renderObject : null;   // (one a tool set on the renderer itself: put back as it was)
   renderer.setRenderTarget(to);
   let compiled;
   try {
@@ -120,7 +121,7 @@ async function compiling(renderer, target, root, camera, scene, draw, shown = []
     renderer.renderObject = draw;
     for (const o of shown) { o.visible = true; o.frustumCulled = false; }
     compiled = renderer.compileAsync(root, camera, scene);
-  } finally { renderer.depth = depth; delete renderer.renderObject; for (const [o, v, f] of held) { o.visible = v; o.frustumCulled = f; } }
+  } finally { renderer.depth = depth; if (own) renderer.renderObject = own; else delete renderer.renderObject; for (const [o, v, f] of held) { o.visible = v; o.frustumCulled = f; } }
   try { await compiled; } finally { renderer.setRenderTarget(was); }
 }
 const drawn = (renderer, route) => route ?? Object.getPrototypeOf(renderer).renderObject;

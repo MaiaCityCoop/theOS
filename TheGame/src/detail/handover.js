@@ -7,13 +7,12 @@
 //     from end to end);
 //   - between two levels both are drawn. A thing of one piece (a rock, a tent) changes over whole, half way: its levels
 //     are one outline (a plant's levels are first shares of one build, the same where they meet: assets/kit/crowd.js);
-//   - its last level sinks into the ground over the BAND above where it is gone (`sink`, error.js goneAt): lower first,
-//     then narrower, to nothing.
+//   - its last level sinks into the ground over the BAND under where it is gone (`sink`, error.js goneAt: its lo is a
+//     BAND under that), lower first, then narrower, to nothing.
 // On the GPU as node code (a level's numbers as uniforms: every level of a thing is then one shader), and the same
 // reckoning in JS for what is chosen on the CPU. Every size on screen here is in the dial's pixels (src/detail/error.js:
 // a level's numbers hold at every turn of the dial; a measured size meets them over the dial, measure.js dialPxAt).
 import { float, vec3, uniform, log, max, clamp, mix, smoothstep, sqrt } from 'three/tsl';
-import { bandAt } from './measure.js';
 
 /** A level's numbers as uniforms. Lv: { lo, hi, last } (the dial pixels it is drawn between; whether it is the farthest). */
 export const levelOf = (Lv, fade) => ({ hi: uniform(Number.isFinite(Lv.hi) ? Math.log(Lv.hi) + fade : 1e3), lo: uniform(Math.log(Lv.lo) + fade), px: uniform(Lv.lo), last: uniform(Lv.last ? 1 : 0), fade });
@@ -28,12 +27,11 @@ export const padOf = (cell, P) => ((cell * P) / 16) * 1.8;
                           dial: its size times pxK over ERROR_PX), `dist` away, is this level's to pack (its band, its
                           hand-over, and the pad)
       reach(sLo, sHi, K)  [near, far] metres: where a thing between sLo and sHi metres across can be of this level (K: dial
-                          pixels a metre covers at a metre, measure.js dialK, or pxKMost for the most; ?truth's band where
-                          it is asked for: measure.js bandAt) */
+                          pixels a metre covers at a metre, measure.js dialK, or pxKMost for the most) */
 export const bandOf = (Lv, fade, pad = 0) => {
   const e = Math.exp(fade), B = { pad: uniform(pad), to: uniform(e / Lv.lo), from: uniform(Number.isFinite(Lv.hi) ? 1 / (Lv.hi * e) : 0), margin: pad };
   B.holds = (dist, span) => dist.lessThan(span.mul(B.to).add(B.pad)).and(dist.greaterThanEqual(span.mul(B.from).sub(B.pad)));
-  B.reach = (sLo, sHi, K) => bandAt(Number.isFinite(Lv.hi) ? Math.max(0, (sLo * K) / (Lv.hi * e) - pad) : 0, (sHi * K * e) / Lv.lo + pad, !Number.isFinite(Lv.hi), pad);
+  B.reach = (sLo, sHi, K) => [Number.isFinite(Lv.hi) ? Math.max(0, (sLo * K) / (Lv.hi * e) - pad) : 0, (sHi * K * e) / Lv.lo + pad];
   return B;
 };
 

@@ -15,8 +15,8 @@ export default {
   type: 'material',
   name: 'Pine tuft',
   kind: 'foliage',
-  about: "A stone pine's sprig: four twigs fanning from its foot, each with brushes of long paired needles fanning out all round, dark at their base: one foliage card.",
-  usedBy: 'the crowns of the stone pines (a cut-out card)',
+  about: 'Four twigs with brushes of long paired needles. A foliage card.',
+  usedBy: 'stone pine crowns',
   swatch: [0.16, 0.25, 0.1],
   bump: 0.05,
   paint: (uv) => {

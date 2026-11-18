@@ -53,7 +53,8 @@ export async function mock({ webgl = false, dpr = 1, record = false, lean = fals
     debug: { diagnostics: { keywords: false }, onNodeBuilderCreated: null }, info: { render: {}, compute: {}, memory: {}, autoReset: true, reset() {} },
     xr: { enabled: false }, shadowMap: { enabled: false }, lighting: { getNode: () => null }, isOutputTarget: false, highPrecision: false, autoClear: true,
     currentColorSpace: THREE.LinearSRGBColorSpace, outputColorSpace: THREE.LinearSRGBColorSpace, toneMapping: THREE.NoToneMapping,
-    hasFeature: () => true, hasCompatibility: () => false,   // (every feature: every path of the node code is built) getColorBufferType: () => THREE.HalfFloatType, getMRT: () => null, getOutputRenderTarget: () => null, getPixelRatio: () => dpr,
+    hasFeature: () => true, hasCompatibility: () => false,   // (every feature: every path of the node code is built)
+    getColorBufferType: () => THREE.HalfFloatType, getMRT: () => null, getOutputRenderTarget: () => null, getPixelRatio: () => dpr,
     size: { W: size[0] * dpr, H: size[1] * dpr }, getDrawingBufferSize: (v) => v.set(renderer.size.W, renderer.size.H), getSize: (v) => v.set(renderer.size.W / dpr, renderer.size.H / dpr), setSize() {}, setPixelRatio() {},
     getRenderTarget: () => target, setRenderTarget: (t) => { target = t; if (record) calls.push(`target ${id(t)}`); },
     render: (o) => { drawn.add(o); if (record) calls.push(`render ${id(o)}`); }, clear() {}, setRenderObjectFunction() {}, getRenderObjectFunction: () => null, setViewport() {}, setScissor() {}, setScissorTest() {}, copyTextureToTexture() {}, copyFramebufferToTexture() {}, setAnimationLoop() {}, dispose() {}, setClearColor() {}, getClearColor: (c) => c, getClearAlpha: () => 1, initRenderTarget() {},

@@ -10,7 +10,7 @@ const settler = {
   type: 'character',
   name: 'Settler',
   kind: 'human',
-  about: 'One of the first on the meadow: a shirt of sage-dyed homespun linen, denim trousers with a turned hem, a leather belt and shoes.',
+  about: 'One of the first on the meadow, in linen, denim and leather.',
   from: { rig: 'walker', kind: 26 },   // the stress stand's walker it is made from (assets/kit/creature.js: RIGS[0], kind 26)
   height: PERSON.stature,   // the reference body's (world/scale.js)
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)

@@ -22,7 +22,7 @@ import * as THREE from 'three/webgpu';
 import { loadingStep, loadingSay, loadingDone } from './ui/loading.js';   // the veil is told what is being made
 import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
-import { keepMeasure, measureNow, TRUTH } from './detail/measure.js';
+import { keepMeasure, measureNow, truthAfter, TRUTH } from './detail/measure.js';
 import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
@@ -107,6 +107,9 @@ export async function boot({ profile = 'world' } = {}) {
   game.governor = governor;   // the film holds it still while it plays
   keepMeasure(() => screen.inside, () => screen.out);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
   if (TRUTH) governor.hold(true);   // (?truth: everything at its finest, offline: no dial turned for its slow frames)
+  // ?truth (src/detail/measure.js): the game's own start, at the dial's rest (the world built at the game's pace), then,
+  // once that first view is complete, the dial turned down to the truth's: what it brings in is waited for by settle()
+  truthAfter(game.ready);
   watch({ camera, renderer, screen, temporal, U });   // what the world complete is measured against (src/core/settle.js)
   const marks = (game.boot = {}), mark = (k) => (marks[k] = Math.round(performance.now() - t0));   // where the start's time goes
   mark('renderer');
