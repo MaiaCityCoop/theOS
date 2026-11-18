@@ -1,5 +1,5 @@
 // What the page must know of a plant before any of its meshes is made (assets/kit/tree.js: OUTLINES: its size, each
-// shape's height and trunk), kept in the browser between starts: a few numbers a plant, each under what it is (its
+// shape's height, trunk and feet), kept in the browser between starts: a few numbers a plant, each under what it is (its
 // recipe's uid and seed) at its recipe's version (registry.json: the hash of its file and its kit). They are measured
 // on a plant's nearest meshes, a third of a second and more of the page's one thread for a tree: once, then read back
 // at once (localStorage: no waiting). A recipe that has changed has another version: it is measured anew. Where
