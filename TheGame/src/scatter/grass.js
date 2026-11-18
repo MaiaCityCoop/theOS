@@ -1,6 +1,7 @@
 // Grass: instanced blades. A blade's place, height, bend, colour and dryness are hashed from its cell; its density comes
-// from the ground pass (ground.js); the wind bends it (windAt) and each blade flutters on its own. Three rings (the grass's
-// own file, assets/grass.js: its tiers): dense and fine close, sparse and wide far.
+// from the ground pass (ground.js); the wind bends it (windAt) and each blade flutters on its own. Rings round the
+// camera, made from the grass's blade alone (assets/grass.js: its full detail) and each where its own error is the one
+// ERROR_PX (ringsOf): dense and fine close, fewer and wider further off.
 import * as THREE from 'three/webgpu';
 import { Fn, float, int, uint, vec2, vec3, vec4, If, min, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor } from 'three/tsl';
 import { U } from '../core/uniforms.js';
@@ -9,10 +10,12 @@ import { finish, skyLight, weathered, cloudAtOne, windAt, windStrength, snowDept
 import { passOf, motion, vWas } from '../core/pass.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
-import { TRUTH } from '../detail/measure.js';
+import { TRUTH, pxK } from '../detail/measure.js';
+import { BAND, switchAt } from '../detail/error.js';
 import { CROWD } from '../../assets/kit/crowd.js';
 import { rankOf } from './rule.js';
 import { growthMap } from './growth.js';   // (a blade's turn in the one spread order, as everything placed has it)
+import { REACH } from './ground.js';
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
 
@@ -31,8 +34,36 @@ function blade(segs) {
 // blades so many times fewer and as many times wider (widthOf); and the last ring's blades are thinned out towards its
 // end, one spread order deciding which go (rankOf), those left growing in width up to SWELL times (endOf), never in height.
 const widthOf = (asset, T) => asset.tiers[0].w * (T.cell / asset.tiers[0].cell) ** 2;
-/** The share of the last ring's blades still drawn at `dist` metres (1 short of its last 30 %, none at its end). */
-const endOf = (T, dist) => (T.end < 1e5 ? float(1).sub(smoothstep(T.end * 0.7, T.end, dist)) : float(1));
+/** The share of the last ring's blades still drawn at `dist` metres (all of it short of the BAND before its end, none at
+    its end). */
+const endOf = (T, dist) => (T.end < 1e5 ? float(1).sub(smoothstep(T.end / BAND, T.end, dist)) : float(1));
+
+/** The meadow's rings, made from its blade alone (assets/grass.js `blade`: its full detail), near to far, each a tier
+    of src/scatter/tier.js: { segs, cell, P, w (the nearest's), near, nearFade, far, farFade, end } (metres as the
+    walker's 68° lens sees them: a longer lens stretches them by its own factor, core/governor.js).
+      - ring k's cells are 2^(k/2) times the blade's: its blades halved in number ring by ring, each as many times wider
+        as they are fewer (widthOf), so it covers the ground as the blade does and the meadow keeps its height;
+      - its error is how much wider its blades are than the blade, w (2^k - 1): where they stood is the spread order's
+        (rankOf), what the ground's pixels show of them the width keeps. It takes over where that is within the one
+        ERROR_PX (src/detail/error.js switchAt), its blades coming in, blade by blade, over the BAND past there while the
+        ring before's go;
+      - its bends as few as keep the bow of a blade within that same error (a bow of b metres drawn in n straight pieces
+        misses its curve by b / 4n²; the mean blade's bow: bladeIn's mean height, 0.95 of the asset's, times its mean
+        bend, 0.65, bowing 1.15 of that at its tip);
+      - the meadow ends where the ground's map does (src/scatter/ground.js REACH), thinning away over the BAND before it:
+        there the land's own grass colour is all there is. A ring that would only come in where the meadow is thinning
+        away is not made: the ring before it, finer, goes on to the end.
+    h: the picture's height in pixels of the measure (the window's), what a pixel of error is reckoned at. */
+export function ringsOf(asset, h = globalThis.innerHeight || 1080) {
+  const B = asset.blade, K = pxK(h), bow = asset.height * 0.95 * 0.65 * 1.15, at = (k) => switchAt(B.w * (2 ** k - 1), K);
+  const rings = [];
+  for (let k = 0; k === 0 || at(k) * BAND < REACH; k++) {
+    const e = B.w * (2 ** k - 1), segs = k ? Math.min(B.segs, Math.max(1, Math.ceil(Math.sqrt(bow / (4 * e)) - 1e-9))) : B.segs;
+    rings.push({ segs, cell: B.cell * 2 ** (k / 2), P: B.P, ...(k ? {} : { w: B.w }), near: k ? at(k) * BAND : -1, nearFade: k ? at(k) * (BAND - 1) : 0 });
+  }
+  rings.forEach((T, k) => { const next = rings[k + 1]; Object.assign(T, next ? { far: next.near, farFade: next.nearFade } : { far: REACH, farFade: 0 }, { end: REACH }); });
+  return rings;
+}
 
 // what stands in a cell: a blade, or nothing. Its place, the ground under it, its height, its lean and bend, its colour,
 // a flower now and then; packed into three vec4 (A: x, z, the ground's height, the blade's height; B: its heading, its
@@ -142,7 +173,7 @@ function tuft(height) {
 /** A scatter engine (src/scatter/index.js finds it): what an asset's placement.engine 'grass' names. */
 export const engine = {
   id: 'grass',
-  row: (a) => ({ ...scatterRow(a), height: a.height, tiers: a.tiers }),   // its blade's height and its rings, over the common row
+  row: (a) => ({ ...scatterRow(a), height: a.height, tiers: ringsOf(a) }),   // its blade's height and its rings (made from its blade: ringsOf), over the common row
   create: createGrass,
   // the library: a tuft for the list; on the stage the meadow itself, grown over the bare round (src/stage/studio.js)
   thumb: (tex, row) => ({ things: [tuft(row.height)], eye: [0.55, 0.42, 0.75], look: [0, row.height * 0.42, 0] }),

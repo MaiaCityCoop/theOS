@@ -27,8 +27,8 @@ import { U } from '../core/uniforms.js';
 import { layerOf, wrapGrad } from '../world/tile.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { distanceAt } from '../detail/measure.js';
-import { SURFACE_LEVELS, PX_CUT, BUDGET_DRAWN, surfaceBand, surfacePx } from '../detail/error.js';
-import { spanOf, most, kindOf, kindRule } from '../../assets/kinds.js';
+import { SURFACE_LEVELS, PX_CUT, BUDGET_DRAWN, FADE, GONE, surfaceBand, surfacePx } from '../detail/error.js';
+import { spanOf, most, kindOf } from '../../assets/kinds.js';
 import { bodyOfAsset } from '../../assets/index.js';
 import { placedBy } from '../../assets/zoo/index.js';
 import { madeBox, madeRoom } from '../../assets/kit/made.js';
@@ -132,11 +132,12 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
 
 /** A group: made kinds drawn by one drawer, its list, its tiers. */
 function groupOf(scene, tex, renderer, name, kinds, cap) {
-  const first = kinds[0].asset, n = kinds.length, ML = SURFACE_LEVELS - 1;
+  const n = kinds.length, ML = SURFACE_LEVELS - 1;
   // its levels: the surfaces' (src/detail/error.js), each kind's in a place as large as its whole hierarchy; the last,
-  // under a pixel and a half, the drawer's dot
+  // from where its coarsest clusters end down to where it is gone (GONE: leaving it out differs by all of it), the
+  // drawer's dot, sinking away over the BAND above that
   const rooms = kinds.map((Kd) => madeRoom(Kd.asset)), room = { verts: Math.max(...rooms.map((r) => r.verts)), tris: Math.max(...rooms.map((r) => r.tris)) };
-  const LEVELS = [...Array.from({ length: ML }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), room, rooms })), { px: 0.95, room: { verts: 3, tris: 1 } }];
+  const LEVELS = [...Array.from({ length: ML }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), room, rooms })), { px: GONE, room: { verts: 3, tris: 1 } }];
   // each kind's own numbers (NUMS rows of four, after its look in the drawer's one table): [its box's least corner, its
   // height], [its box's size, its half length], [its wind: billow, flap, sway], [its surface: wrap, through; metres a
   // tile of its materials, their relief], [the layers of its materials (none: -1)]; how its snow lies and its largest
@@ -146,7 +147,7 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
     if (M.length > 4) console.warn(`placed: '${a.name}' names ${M.length} materials; its faces wear the first four`);
     return [...B.min, most(a.size.height), ...B.ext, most(a.size.length) / 2, W.billow ?? 0, W.flap ?? 0, W.sway ?? 0, 0, S.wrap ?? 0, S.through ?? 0, a.texture ?? 1, a.relief ?? 1, M[0] ?? -1, M[1] ?? -1, M[2] ?? -1, M[3] ?? -1];
   };
-  const KINDS = kinds.map((Kd) => Kd.zoo), fade = kindRule(first, 'fade'), sink = 0;   // (fade: only where a thing's level changes, exactly at its pixels: handOver's `whole`)
+  const KINDS = kinds.map((Kd) => Kd.zoo), fade = FADE, sink = 0;   // (fade: only where a thing's level changes, exactly at its pixels: handOver's `whole`)
   const D = createDrawer(scene, renderer, tex, {
     name: `made: ${name}`, LEVELS, SHADE: { shrink: 1, far: 30, wide: 1.5 }, SMOOTH: uniform(1), state: true,
     make: { per: 2, flat: false, dot: true, numbers: { rows: NUMS, of: numbersOf }, material: (src, i, shadow, at) => madeMaterial(D, src, i, { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity, last: false }, fade, sink, at),

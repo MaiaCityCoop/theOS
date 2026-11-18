@@ -32,7 +32,8 @@
 //   - a level draws the same as the next where they meet: it hands over to it at once, at its band's end;
 //   - it is its impostor where the impostor's texels are no larger than the pixels they are drawn on (measure.js drawnAt), each
 //     plant a little before or after the next, over a short cross-fade texel by texel (meshShare);
-//   - its last level sinks into the ground over its last pixels (kinds.js: sink);
+//   - its last level sinks into the ground over the BAND above where it is gone (where leaving it out, its height over
+//     the land, is within the one ERROR_PX: assets/kit/plant.js goneOf, src/detail/error.js);
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
@@ -60,9 +61,10 @@ import { idOf } from '../world/things.js';
 import { wayAt, waysVersion } from '../world/ways.js';
 import { pxOf, turnOf, seedOf } from './row.js';
 import { CROWD, levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
-import { crowdOf, bandsOf, GRID, GOQ } from '../../assets/kit/plant.js';
+import { crowdOf, bandsOf, GRID, GOQ, FOOT } from '../../assets/kit/plant.js';
 import { lo16, hi16 } from './unpack.js';
-import { TRUTH, REACH as TRUTH_REACH, drawnAt } from '../detail/measure.js';
+import { TRUTH, REACH as TRUTH_REACH, drawnAt, pxK } from '../detail/measure.js';
+import { switchPx, BUDGET_DRAWN } from '../detail/error.js';
 import { source } from '../core/settle.js';
 import { keptGet, keptPut } from '../core/kept.js';
 
@@ -131,7 +133,7 @@ const swayOf = (A, B, up, sway, s, time) => {
   return windAt(A.xy, time).mul(u2.mul(sway)).add(vec2(sin(time.mul(0.9).add(B.z)), cos(time.mul(0.7).add(B.z))).mul(u2.mul(ws.mul(0.05).add(smoothstep(0, 0.08, ws).mul(0.008)))));
 };
 
-export const FOOT = 0.15;   // how deep a plant's foot is set into the ground
+export { FOOT };   // how deep a plant's foot is set into the ground (assets/kit/plant.js: where it is gone is reckoned from it)
 
 // what stands in a cell: a thing, or nothing, by the one rule (rule.js: which of its layer's things stands there).
 // Where one stands, `found` is told (the drawer's: drawer.js tier): which it is (its kind's, and of its kind's shapes
@@ -257,7 +259,7 @@ function plantMaterial(tex, D) {
         if (vFade) vFade.assign(1);   // (all of it its own: the shadow's stand-in, and a plant not handing over)
         if (!Lv) {
           // the shadow's stand-in: it goes as the plant goes, shrinking to its foot over its last level's last pixels as
-          // the plant sinks there (kinds.js: sink): no shadow is left where no tree is, and none goes at once
+          // the plant sinks there (over the BAND above where it is gone): no shadow is left where no tree is, and none goes at once
           const lo = D.kinds[0].levels.at(-1).lo, end = smoothstep(lo, lo * Math.max(D.sink, 1.2), pxOf(A.w, A.xy));
           If(V.drawn ? end.greaterThan(0).and(V.drawn) : end.greaterThan(0), () => { clip.assign(stand(A, B, V, end, pass)); });   // (drawn: the draw's corner is one of its mesh's)
           return;
@@ -499,10 +501,10 @@ function farOf(renderer, tex, G, D) {
     return (M = { kindU, rowU, sphereU, nU, cells, geo, view: mesh(viewV, DEEP), tile: mesh(tileV, 0) });
   };
   // its numbers, once its pictures are in: its sphere; T, the most pixels drawn its measured size may be as its impostor
-  // (G.cell texels over its sphere's width: its texels never larger than the pixels they are drawn on)
+  // (its bake's error, a texel, G.cell of them over its sphere's width, within the one ERROR_PX: src/detail/error.js)
   const numbers = (k, far) => {
     const row3 = G.numbers.subarray(k * 20 + 12, k * 20 + 16);
-    row3[2] = (G.cell * far[5]) / (2 * far[4]);
+    row3[2] = switchPx((2 * far[4]) / (G.cell * far[5])) * BUDGET_DRAWN;
     D().setNum(k, 4, [far[1], far[2], far[3], far[4]]); D().setNum(k, 3, row3);
     version++; any = true;
   };
@@ -555,27 +557,42 @@ function farOf(renderer, tex, G, D) {
   };
 }
 
-/** The things this engine places, as the layers they are placed in (rule.js): the things of one layer whose levels are
-    the same (the same pixels, the same patches: their kind's, assets/kinds.js, and the kit's) are one group, packed and
-    drawn together (createStands); a thing of the layer made otherwise is a group of its own, in the same cells. Each
+/** The things this engine places, as the layers they are placed in (rule.js): the things of one layer that end alike
+    (gone at the same level of everything's: assets/kit/plant.js bandsOf) and alike have a far end or none are one group,
+    packed and drawn together (createStands); a thing of the layer made otherwise is a group of its own, in the same
+    cells. A group's levels are its kinds' cut as one: everything's levels (src/detail/error.js rungPx), two of them one
+    where every shape of every kind holds the same in both (its room there: its crowd whole above where it thins, nothing
+    but its numbers where its impostor is all there is); each level's patches as large as its band asks (patchOf). Each
     kind: its thing of the layer (e: a grown tree, a sapling, a bush, a stone), its shapes, where its meshes lie among the
     group's (offset), the sizes it can have. */
 export function groupsOf(rows) {
   const by = new Map();
   for (const L of layersOf(rows)) for (const e of L.entries) {
-    const { row, asset: a } = e, P = a.placement, levels = row.detail.levels.filter((l) => !l.impostor).map((l, i) => ({ ...l, P: patchOf(l, i) }));
-    const key = [L.k, row.detail.fade, row.detail.sink, ...levels.map((l) => `${l.P}:${l.lo}`)].join('|');
-    if (!by.has(key)) by.set(key, { key, name: `${a.kind}s, ${L.name}`, L, fade: row.detail.fade, sink: row.detail.sink, n: levels.length, kinds: [] });   // (named by its first kind)
+    const { row, asset: a } = e, P = a.placement, ends = row.detail.levels.length, far = !!a.far;
+    const key = [L.k, ends, far].join('|');
+    if (!by.has(key)) by.set(key, { key, name: `${a.kind}s, ${L.name}`, L, fade: row.detail.fade, sink: row.detail.sink, ends, kinds: [] });   // (named by its first kind)
     // the sizes a plant of it can have: its youngest and its oldest (by its growth: a sapling's, its first stages'), or its scale's
     const H = a.size.height, GR = a.growth, wide = sizeOf(a) / H, n = e.shapes[1], last = GR?.stages.filter((S) => S.offset < n).at(-1);
     const lo = (GR ? GR.stages[0].hFrom * P.scale[0] : H * P.scale[0]) * wide, hi = (GR ? Math.max(...a.heights.slice(0, n)) * (last.hTo / last.h) * P.scale[1] : H * P.scale[1]) * wide;
-    by.get(key).kinds.push({ row, asset: a, e, levels, shapes: n, wide, spread: Math.max(most(a.size.length), most(a.size.width ?? 0)) / (2 * H), age: e.ages, ageScale: grovesOf(e.biome, L).clumps * 2.5, lo, hi, round: (a.size.length / 2) * P.scale[1] * (hi / (H * P.scale[1] * wide)) });
+    by.get(key).kinds.push({ row, asset: a, e, shapes: n, wide, spread: Math.max(most(a.size.length), most(a.size.width ?? 0)) / (2 * H), age: e.ages, ageScale: grovesOf(e.biome, L).clumps * 2.5, lo, hi, round: (a.size.length / 2) * P.scale[1] * (hi / (H * P.scale[1] * wide)) });
   }
-  return [...by.values()].map((G) => offsets({ ...G, kinds: G.kinds.sort((x, y) => x.e.i - y.e.i) }));
+  return [...by.values()].map((G) => offsets(cutOf({ ...G, kinds: G.kinds.sort((x, y) => x.e.i - y.e.i) })));
 }
 const offsets = (G) => { let at = 0; return { ...G, kinds: G.kinds.map((Kd) => { const k = { ...Kd, offset: at }; at += Kd.shapes; return k; }), meshes: at }; };
-/** A level's patch (its tier's cells a side): its own, else twice the level before's from four (the far ones' 64 at most). */
-const patchOf = (l, i) => l.P ?? Math.min(64, 4 << i);
+/** A group's levels cut as one (groupsOf): its kinds' own levels (all alike: their rooms by shape and level, assets/kit/
+    tree.js crowdRooms), each run of them that holds the same for every shape one level, [lo, hi] its run's ends, its
+    rooms its run's first's; and its patches (patchOf). Every kind's levels are then the group's (Kd.levels, Kd.rooms). */
+function cutOf(G) {
+  const own = G.kinds[0].row.detail.levels, R = G.kinds.map((Kd) => Kd.asset.crowdRooms().slice(0, Kd.shapes)), runs = [];
+  const alike = (l) => R.every((rooms) => rooms.every((r) => r[l][0] === r[l + 1][0] && r[l][1] === r[l + 1][1]));
+  for (let l = 0; l < own.length; l++) { if (runs.length && alike(l - 1)) runs.at(-1).to = l; else runs.push({ from: l, to: l }); }
+  const sHi = Math.max(...G.kinds.map((k) => k.hi)), K = pxK(Math.max(globalThis.innerHeight || 0, 1440));   // (a window as tall as a 1440p one, or taller: its patches hold the band then too)
+  const levels = runs.map(({ from, to }, i) => { const lo = own[to].lo, hi = own[from].hi; return { lo, hi, from, P: patchOf(G.L.cell, (sHi * K * Math.exp(G.fade)) / lo) }; });
+  return { ...G, n: levels.length, kinds: G.kinds.map((Kd, k) => ({ ...Kd, levels, rooms: R[k].map((r) => levels.map((L) => r[L.from])) })) };
+}
+/** A level's patch (its tier's cells a side, of cells `cell` metres): as many that MAXP of them hold the round its band
+    reaches (`reach` metres), and never under four. */
+const patchOf = (cell, reach) => Math.min(256, Math.max(4, 2 ** Math.ceil(Math.log2(Math.max(1, (0.105 * reach) / cell)))));
 
 /** Everything this engine places: for every stand a drawer of its own kinds (drawer.js: a heap of their shapes at their
     levels) and a tier a level of detail, each where a plant of it is the size on screen its kind asks, a draw a
@@ -598,17 +615,18 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // of the stand's kinds those that cast and have a shade; their shades lie in the heap as one more level, after the stand's own
     const casting = G.kinds.filter((Kd) => Kd.asset.detail.shadow && Kd.row.detail.casts), SHL = casting.length ? n : -1;
     const SH = casting.length ? { far: Math.max(...casting.map((Kd) => Kd.asset.detail.shadow.far)), wide: Math.max(...casting.map((Kd) => Kd.asset.detail.shadow.wide ?? 2.4)), reach: Math.max(...casting.map((Kd) => Kd.asset.detail.shadow.reach ?? 20)) } : { far: 1, wide: 1, reach: 0 };
-    // the stand's levels as the drawer takes them: where each ends on screen (its kinds': assets/kinds.js) and the room
-    // a shape of any of its kinds needs there (its shade's: its file says, `most`, its vertices and triangles)
+    // the stand's levels as the drawer takes them: where each ends on screen and what it holds (its kinds' levels cut as
+    // one: cutOf; the workers build each by its band, `crowd`, the shade by `'shade'`) and the room a shape of any of its
+    // kinds needs there (its shade's: its file says, `most`, its vertices and triangles)
     const roomOf = (get) => ({ verts: Math.max(1, ...G.kinds.map((Kd) => get(Kd)?.[0] ?? 0)), tris: Math.max(1, ...G.kinds.map((Kd) => get(Kd)?.[1] ?? 0)) });
     // (and each shape's own, by its kind's file: a heap place as large as its own, not the largest kind's)
     const shapeKd = []; for (const Kd of G.kinds) for (let v = 0; v < Kd.shapes; v++) shapeKd[Kd.offset + v] = Kd;
     const roomsOf = (get) => shapeKd.map((Kd) => ({ verts: Math.max(1, get(Kd)?.[0] ?? 0), tris: Math.max(1, get(Kd)?.[1] ?? 0) }));
     // (a level of the crowd kit's is as large as its first share of the shape: its kind's file says nothing of it,
-    // assets/kit/tree.js crowdRooms)
-    const crowdRoom = (v, i) => { const Kd = shapeKd[v]; return Kd.asset.crowdRooms()[v - Kd.offset][i]; };
+    // assets/kit/tree.js crowdRooms, at the top of each of the stand's levels: cutOf)
+    const crowdRoom = (v, i) => { const Kd = shapeKd[v]; return Kd.rooms[v - Kd.offset][i]; };
     const roomAt = (i) => ({ room: { verts: Math.max(1, ...shapeKd.map((_, v) => crowdRoom(v, i)[0])), tris: Math.max(1, ...shapeKd.map((_, v) => crowdRoom(v, i)[1])) }, rooms: shapeKd.map((_, v) => ({ verts: crowdRoom(v, i)[0], tris: crowdRoom(v, i)[1] })) });
-    const LEVELS = [...G.kinds[0].levels.map((l, i) => ({ px: l.lo, ...roomAt(i) })), ...(SHL >= 0 ? [{ px: 1e-3, room: roomOf((Kd) => Kd.asset.detail.shadow?.most), rooms: roomsOf((Kd) => Kd.asset.detail.shadow?.most) }] : [])];
+    const LEVELS = [...G.kinds[0].levels.map((l, i) => ({ px: l.lo, crowd: [l.lo, l.hi], ...roomAt(i) })), ...(SHL >= 0 ? [{ px: 1e-3, crowd: 'shade', room: roomOf((Kd) => Kd.asset.detail.shadow?.most), rooms: roomsOf((Kd) => Kd.asset.detail.shadow?.most) }] : [])];
     // each shape's far end as the crowd kit reckons it (assets/kit/tree.js farOf): the stand's impostors' views as fine as
     // its finest shape's want (G.cell), and a layer of its clumps' atlas for each shape that has clumps (G.clumpLayer)
     const FE = shapeKd.map((Kd, v) => Kd.asset.farOf?.()?.[v - Kd.offset] ?? { cell: 0, chunks: 0 });
@@ -636,10 +654,10 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
         },
       };
     };
-    // its far ends (farOf): where its kinds have far levels, each shape's impostor and its clumps, baked on the GPU as
-    // its finest level comes; packed into the impostors' draw where they show (wants: and its own while it may still
-    // show, the camera moving a sixteenth of a patch between two packings)
-    G.far = G.kinds.some((Kd) => Kd.levels.some((l) => l.far)) ? farOf(renderer, tex, G, () => D) : null;
+    // its far ends (farOf): where its kinds have far ends (assets/kinds.js `far`), each shape's impostor and its clumps,
+    // baked on the GPU as its finest level comes; packed into the impostors' draw where they show (wants: and its own
+    // while it may still show, the camera moving a sixteenth of a patch between two packings)
+    G.far = G.kinds.some((Kd) => Kd.asset.far) ? farOf(renderer, tex, G, () => D) : null;
     const far = G.far && {
       wants: (kind, rows) => { const T = D.numOf(kind, 3).z, d = drawnAt(pxOf(rows[0].w, rows[0].xy)); return { mesh: T.lessThanEqual(0).or(d.greaterThan(T.mul(SWITCH * (1 - FADE) * 0.8))), far: T.greaterThan(0).and(d.lessThan(T.mul(1.25))) }; },
       material: (src, i) => impostorMaterial(G, () => D, { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, first: i === 0, last: i === n - 1 }, src),
@@ -649,7 +667,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
       name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1),
       make: { per: 2, onBlock: G.far?.onBlock, far, numbers: { rows: 5, of: (k) => numbers.subarray(k * 20, k * 20 + 20) }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, first: i === 0, last: i === n - 1 }, feedOf(i, at)); m.vertexNode = Fn((builder) => shape(src.readAt(0, slot), src.readAt(1, slot), passOf(builder)))(); return m; } },
       // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
-      zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 5|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
+      zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 6|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.px}:${l.room.verts}:${l.room.tris}`).join()}` },
     });
     D.crowded = n; D.far = G.far; drawers.push(D);   // (its first n levels are the crowd kit's: their counts hold the shape's numbers too)
     // what of it is solid (src/world/bodies.js): every plant of the stand round the walker, whatever its kind and size

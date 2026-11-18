@@ -1,7 +1,8 @@
 // The one measure (intent 0038): how large a thing is on the screen. Every choice of detail in the game is made by it,
-// on the CPU and on the GPU, and every one asks here: nowhere else is a pixel counted. Assets, kinds and kits say only
-// how many pixels a level is drawn down to (assets/kinds.js, assets/kit/ladder.js, assets/kit/crowd.js); this says
-// what such a pixel is, and how many of them a thing covers.
+// on the CPU and on the GPU, and every one asks here: nowhere else is a pixel counted. No asset, kind or kit says where
+// its detail changes: each rung of a thing comes where its own error is the one ERROR_PX (src/detail/error.js switchPx;
+// only the stress world's zoo still keeps its ladder, assets/kit/ladder.js, until 8b); this says what such a pixel is,
+// and how many of them a thing covers.
 //
 //   pxK(h)               pixels on the screen a metre covers one metre from the eye, through the walker's 68° lens (the
 //                        lens every level is set for; a longer one is the detail governor's factor, U.uLodInv:
@@ -17,11 +18,12 @@
 //                        dist), spanAt(size, dist) and farAt(px, size), the twins of the above; drawnAt(px): a size
 //                        on screen as the pixels drawn, whatever the unit (what a baked texel is matched against)
 //   bandAt(near, far, finest, pad)   a level's band of distances, as ?truth has it
-//   ERROR_PX             the most a thing drawn at a level may differ from it at full detail, in pixels drawn: the one
-//                        number of detail (src/detail/error.js, plain, so the recipes' workers read it too). The crowd
-//                        kit's rungs are chosen by it (assets/kit/crowd.js: its clumps take over where their texels
-//                        are ERROR_PX pixels drawn, and the crowd thins down to there); the rocks' and the made things'
-//                        are to be (stage 8), and the governor may raise it to hold 60 fps before it gives up pixels
+//   ERROR_PX             the most a thing drawn at a rung may differ from it at full detail, in pixels drawn: the one
+//                        number of detail (src/detail/error.js, plain, so the recipes' workers read it too). Every rung
+//                        is chosen by it through one function, switchPx(e): a crowd's share by its spread order's
+//                        error, its clumps and its impostor by their bake's, a surface's clusters by their own, a ring
+//                        of blades by how much wider its blades are, a thing's end by how far it stands off the land;
+//                        the governor may raise it to hold 60 fps before it gives up pixels
 //   BUDGET_DRAWN         the pixels drawn a pixel of the measure, as the budget draws a 4K screen (error.js)
 //
 // Its unit, today: the window's CSS pixels (innerHeight), the pixels every level's numbers were set in (intent 0002).

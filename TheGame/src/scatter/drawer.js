@@ -77,9 +77,9 @@ import { stateAt, keyN, nameKey } from '../world/things.js';
 import { pxOf, turnOf, seedOf } from './row.js';
 import { createCut, clusterOf, levelHead, allowedAt, eased, ruleOf } from './cut.js';
 import { camDist } from '../world/land.nodes.js';
-import { surfaceBand } from '../detail/error.js';
+import { surfaceBand, BAND, GONE } from '../detail/error.js';
 
-const GROW = 1.5, SKIN = 128, SKINPX = 28, SINK = 1.6, LOOK = 24;   // GROW: seconds a level that came late takes to grow out of the coarser one; SKIN: a kind's own texture, pixels a side; SKINPX: the size on screen from which a thing wears it; SINK: how far under its last pixels a dot sinks away; LOOK: a kind's look, numbers (six rows of four)
+const GROW = 1.5, SKIN = 128, SKINPX = 28, SINK = BAND, LOOK = 24;   // GROW: seconds a level that came late takes to grow out of the coarser one; SKIN: a kind's own texture, pixels a side; SKINPX: the size on screen from which a thing wears it (the stress world's zoo: 8b); SINK: how far over where it is gone a dot sinks away (the one hand-over, src/detail/error.js); LOOK: a kind's look, numbers (six rows of four)
 // a make's levels: a kind a draw up to BYKIND kinds, else by the size of their meshes (classOf: the power of two of
 // triangles a mesh of n corners fits in; classN the same as a node; classIndex: the corners of a class's draw, 0 … 3 · 2^c - 1)
 const BYKIND = 32;
@@ -399,7 +399,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // they are built in the workers once the first frames are drawn (a start that builds eleven thousand kinds beside
   // it is a slow start), and kept for the next
   if (DOT) H.putAll(L - 1, dotMesh());
-  const OWN = []; for (let l = STREAMED; l < L - (DOT ? 1 : 0); l++) OWN.push([l, MAKE ? room(l).tris * 3 : H.pools[l].idx, H.pools[l].elems, ...(SOLID ? [LEVELS[l].delta ?? LADDER[l].delta] : [])]);   // (a make without a dot: its last level is every kind's own too; a solid's level says its delta: its kinds' boxes are measured where they are made)
+  const OWN = []; for (let l = STREAMED; l < L - (DOT ? 1 : 0); l++) OWN.push([l, MAKE ? room(l).tris * 3 : H.pools[l].idx, H.pools[l].elems, ...(SOLID ? [LEVELS[l].delta ?? LADDER[l].delta] : LEVELS[l].crowd != null ? [null, LEVELS[l].crowd] : [])]);   // (a make without a dot: its last level is every kind's own too; a solid's level says its delta: its kinds' boxes are measured where they are made; a level of plants the sizes it is drawn between, as their stand cut it: src/scatter/trees.js)
   let bonesOut = MOVING ? 1 : 0;   // (its movers' skeletons, until they have come)
   if (MOVING) ask([['bones', first + STAND, MOVING]]).then(([rows]) => { boneRows.array.set(rows); boneRows.needsUpdate = true; bonesOut = 0; });
   const FP = fingerprint(), KEPT = name === 'stand' ? 'own' : `own: ${name}`, EAGER = ALL <= 256; let coarse = -1, keptOwn = null, loadedAt = 0;   // (EAGER: a few kinds are read back or built as soon as the browser has answered, not after the first frames: they are there when the first picture is)
@@ -635,7 +635,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     let own = null;   // (another make's material: one for every draw of the tier)
     const draws = classed ? Array.from({ length: cHi - cLo + 1 }, (_, c) => { const g = new THREE.InstancedBufferGeometry(); g.setIndex(classIndex(cLo + c)); return g; }) : Array.from({ length: byKind ? ALL : leafy ? K0 * 2 : K0 }, () => drawOf(i));
     if (FAR) draws.push(new THREE.InstancedBufferGeometry().setIndex([0, 1, 2, 0, 2, 3]));   // (the far end's quad: four corners, its vertex stage places them)
-    const caps = FAR ? [...draws.slice(0, KF).map(() => cap), Math.min(240000, cap * ALL)] : cap;   // (its far end's draw holds as many as every kind's)
+    const caps = FAR ? [...draws.slice(0, KF).map(() => cap), Math.min(1 << 20, cap * ALL)] : cap;   // (its far end's draw holds as many as every kind's, up to about a million: what is gone only under a pixel reaches far)
     const T = new Tier(scene, [...draws, ...(KS >= 0 ? [drawShaped(i)] : [])], (src, k = 0) => (k === KF ? FAR.material(src, i) : isDot && !shadow ? dot(src) : MAKE ? (own ||= MAKE.material(src, i, shadow, atOf(i))) : meshOf(src, i, shadow, false, leafy && k >= K0 && k !== KS, k === KS)), { cell, P, near: 0, far: 1, order: 1, live, gpu: true, cap: caps, slots: ROWS, bounds: shadow ? null : boundsOf(GROWN, KF), ...extra });   // (the shadow's stand-in is never culled: what casts may stand where the eye does not see)
     T.band = shadow ? () => { T.near = 0; T.far = SHADE.far; band.near.value = -1; band.far.value = SHADE.far * SHADE.wide; }
       : () => {
@@ -681,7 +681,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // many arrays of its own, the stress stand's movers', has twelve uniform buffers to a stage, no more)
     // (with the level's pixels: its packing binds this and not the drawer's LO)
     const at = (i, f) => Math.max(0, draws.findIndex((d) => d.level === i && f(d)));
-    const DRAWS = uniformArray(LEVELS.map((l, i) => new THREE.Vector4(l.px, at(i, (d) => !d.shared), at(i, (d) => d.shared), 0)), 'vec4'), END = THIN ? THIN[0] : DOT && last === L - 1 ? LEVELS[L - 1].px : 0.3;   // (END: the size on screen under which nothing of it is drawn)
+    const DRAWS = uniformArray(LEVELS.map((l, i) => new THREE.Vector4(l.px, at(i, (d) => !d.shared), at(i, (d) => d.shared), 0)), 'vec4'), END = THIN ? THIN[0] : DOT && last === L - 1 ? LEVELS[L - 1].px : GONE;   // (END: the size on screen under which nothing of it is drawn: where it is gone)
     const live = (c, part = {}) => {
       const alive = float(0).toVar(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar()), bucket = float(0).toVar();
       place(c, { band, whole: all0.greaterThan(0.5), all: all0, ...part }, (kind, size, dist, fill, key = null) => {

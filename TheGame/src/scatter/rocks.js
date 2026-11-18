@@ -21,7 +21,8 @@ import { most } from '../../assets/kinds.js';
 import { createDrawer } from './drawer.js';
 import { placedBy, lookOf as zooLook, fingerprint } from '../../assets/zoo/index.js';
 import { rockFull, rockBody, FULL_ROCK } from '../../assets/kit/rock.js';
-import { SURFACE_LEVELS, surfaceBand, surfacePx } from '../detail/error.js';
+import { SURFACE_LEVELS, surfaceBand, surfacePx, GONE, BAND } from '../detail/error.js';
+import { REACH } from './ground.js';
 import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 
 // the levels: a rock's cluster hierarchy (assets/kit/clusters.js, from its full mesh alone) as the surfaces' levels hold
@@ -34,11 +35,11 @@ const ROOM = [[2.05, 1.45], [0.25, 0.19], [0.085, 0.065], [0.036, 0.027], [0.009
 const FULL = 12 * FULL_ROCK * FULL_ROCK, LEVELS = Array.from({ length: SURFACE_LEVELS }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), delta: 0, room: { tris: Math.ceil(ROOM[i][0] * FULL), verts: Math.ceil(ROOM[i][1] * FULL) }, ...(i ? {} : { cut: true, slots: TRUTH ? Math.max(6, placedBy('rocks').count) : 6 }) })), L = LEVELS.length;
 // RELIEF: the size on screen from which a rock's relief is read (under that its texture's mipmaps have none left);
 // REACH: how far the ground's map says where stones lie (src/scatter/ground.js), metres to the 68° lens: they shrink
-// away before it ends
-const SHADE = { shrink: 0.85, far: 30, wide: 1.5 }, RELIEF = 10, REACH = 104;
-// THIN: where a rock thins away, pixels on screen: over its last pixel and a half, pixel by pixel, with nothing to hand
-// over to (its land's colour is under it)
-const THIN = [1.15, 1.84];
+// away over the BAND before it ends
+const SHADE = { shrink: 0.85, far: 30, wide: 1.5 }, RELIEF = 10;
+// THIN: where a rock thins away, pixels on screen: pixel by pixel over the BAND above where it is gone (leaving a rock
+// out differs by all of it: GONE, src/detail/error.js), with nothing to hand over to (its land's colour is under it)
+const THIN = [GONE, GONE * BAND];
 
 /** The assets of engine `rocks`, all at once: they share one drawer (a level of every shape of every rock asset is in
     one heap), each asset a tier a level over its own cells. */
@@ -69,7 +70,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
         const r1 = rnd(cx, cy, uint(204)), s = mix(row.size[0], row.size[1], r1.mul(r1).mul(r1).add(oc.mul(big ? 0.25 : 0).mul(r1)).min(1));
         const kind = uint(floor(rnd(cx, cy, uint(201)).mul(shapes)).min(shapes - 1)).add(uint(F.first));
         // (a stone shrinks away where the ground's map ends)
-        const size = big ? s : s.mul(float(1).sub(smoothstep(REACH * 0.86, REACH, dist)));
+        const size = big ? s : s.mul(float(1).sub(smoothstep(REACH / BAND, REACH, dist)));
         found(kind, size, dist, (A, B, G) => {
           const sunk = size.mul(lookOf(kind, 5).w);   // (how deep it lies: its look's)
           if (big) {   // an outcrop: the land worked out here (the ground's map does not reach so far)

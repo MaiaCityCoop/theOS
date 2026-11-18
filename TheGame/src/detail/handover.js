@@ -3,10 +3,12 @@
 // (src/world/place.js, impostor.js). Nothing
 // appears or drops out at once, and nothing is dithered:
 //   - when: a thing's size on screen now, in pixels through the lens (src/detail/index.js), against its level's pixels
-//     (assets/kinds.js: px), with `fade` either side;
+//     (where its rung's own error is the one ERROR_PX: src/detail/error.js), `fade` either side (error.js FADE: BAND
+//     from end to end);
 //   - between two levels both are drawn. A thing of one piece (a rock, a tent) changes over whole, half way: its levels
 //     are one outline (a plant's levels are first shares of one build, the same where they meet: assets/kit/crowd.js);
-//   - its last level sinks into the ground over its last pixels (kinds.js: sink): lower first, then narrower, to nothing.
+//   - its last level sinks into the ground over the BAND above where it is gone (`sink`, error.js goneAt): lower first,
+//     then narrower, to nothing.
 // On the GPU as node code (a level's numbers as uniforms: every level of a thing is then one shader), and the same
 // reckoning in JS for what is chosen on the CPU.
 import { float, vec3, uniform, log, max, clamp, mix, smoothstep, sqrt } from 'three/tsl';
