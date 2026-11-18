@@ -47,7 +47,8 @@ import { createSky } from './world/sky.js';
 import { createWeather } from './world/weather/index.js';
 import { useBackend } from './world/light.js';
 import { useTiles } from './world/tile.js';
-import { createShadows } from './world/shadow.js';
+import { createLight } from './world/light/index.js';
+import { groundAt } from './world/land.nodes.js';
 import { useGround } from './world/rocksolid.js';
 import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
@@ -146,8 +147,8 @@ export async function boot({ profile = 'world' } = {}) {
   const weather = (game.weather = createWeather({ scene, renderer, camera }));
   for (const id of weather.ids) game[id] = weather[id];
   game.sky = sky;   // the sun and the sky: one time of day drives the light (intent 0007)
-  const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)
-  game.shadows = shadows;
+  const shadows = createLight(renderer, { groundAt });   // the light's passes before a frame: the shadow atlas, the canopy map, the air (src/world/light/index.js), read by every surface (src/world/light.js)
+  game.light = game.shadows = shadows;
   game.controls = controls;
   const city = world ? (game.city = createCity({ scene, camera, canvas, renderer, compile: (o) => screen.compile(o, camera, scene) })) : null;   // (compiled for the target the world is drawn into)
   const hudAt = document.getElementById('hud'), hud = hudAt ? createHud(hudAt, renderer, camera, governor, game) : null;

@@ -15,6 +15,7 @@ import { cloudShade } from './weather/clouds.js';
 import { BIAS } from './shadow.js';
 import { blueAt } from './light/noise.js';
 import { SCREEN } from './light/screen.js';
+import { skyAt } from './light/canopy.js';
 
 export { snowDepth, snowCover, snowDrift, snowLift, snowLiftAtVertex, SNOW } from './weather/snow.js';
 export { cloudShade, cloudField, cloudLayerShade, CLOUD_H } from './weather/clouds.js';
@@ -206,7 +207,7 @@ export const lightOn = (s) => {
   const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mul(contactHere());
   const wrap = s.wrap ?? 0, ndl = s.ndl ?? (wrap ? n.dot(L).add(wrap).div(float(wrap).add(1)) : n.dot(L)).max(0);
   const back = V ? max(V.negate().dot(L), 0) : null, light = U.uSun.mul(share);   // (how far the eye looks into the sun; the sun's light here)
-  let sky = skyLight(n), sun = ndl;
+  let sky = s.w ? skyLight(n).mul(skyAt(s.w)) : skyLight(n), sun = ndl;   // (the sky's light, less what the crowns above hide of it: src/world/light/canopy.js)
   if (s.through) { const t = pow(back, s.lobe ?? 3).mul(s.through); sun = sun.add(s.tint ? s.tint.mul(t) : t); }
   sun = light.mul(sun);
   if (s.sky) sky = sky.mul(s.sky);
