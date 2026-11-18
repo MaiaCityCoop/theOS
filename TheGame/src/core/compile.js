@@ -25,7 +25,7 @@ export function inTurn(fn, counted = true) {
   if (counted) turns++;
   const done = last.then(fn, fn);   // (in turn, whether the one before it went well or not)
   if (counted) done.then(() => turns--, () => turns--);
-  last = done.catch(() => {});
+  last = done.catch(() => {});   // (never two at once: three keeps the running compile's state in the renderer)
   return done;
 }
 
@@ -63,6 +63,8 @@ const own = (what) => SAME.get(what) ?? what;
 const stateOf = (what) => { let S = STATE.get(what); if (!S) STATE.set(what, (S = new Map())); return S; };
 /** Whether `what` (a mesh, or a list of compute passes) is made for `pass`. */
 export const made = (what, pass) => STATE.get(own(what))?.get(pass) === 'made';
+/** Whether `what` was asked to be made for `pass` and is not yet (neither made nor failed). */
+export const pending = (what, pass) => STATE.get(own(what))?.get(pass) === 'asked';
 /** `copy` (another mesh of the same material and geometry: one pipeline) is made whenever `what` is (src/core/occlusion.js). */
 export const sameAs = (copy, what) => void SAME.set(copy, what);
 // what was asked of each maker since the last flush, made in one turn, side by side: a frame's asks of one pass are one

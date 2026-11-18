@@ -25,7 +25,8 @@
 import * as THREE from 'three/webgpu';
 import { Fn, Loop, Break, float, int, uint, vec2, vec3, vec4, ivec2, uvec2, uvec4, uniform, texture, storageTexture, instancedArray, normalize, cross, abs, max, clamp, floor, ceil, round, sqrt, log2, mat3, If, Discard, screenCoordinate, instanceIndex, globalId, workgroupId, localId, workgroupArray, workgroupBarrier, atomicAdd, atomicStore, atomicLoad, packHalf2x16, unpackHalf2x16, positionGeometry, varyingProperty, attribute, modelWorldMatrix, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { finish, skyLight, weathered, snowLift, cloudAt, unlit } from '../world/light.js';
+import { lit, weathered, snowLift, unlit } from '../world/light.js';
+import { passOf } from '../core/pass.js';
 import { IN } from '../../assets/kit/crowd.js';
 import { UV_TILES } from '../../assets/kit/plant.js';
 import { note, PORTABLE } from '../core/gpu.js';
@@ -89,7 +90,7 @@ export function createAtlas(renderer, { name, side, layers, cell = side, views =
   const mipmaps = Array.from({ length: levelsUnder(cell) + 1 }, (_, m) => ({ width: side >> m, height: side >> m }));
   const make = () => Object.assign(new THREE.StorageArrayTexture(side, side, Math.max(2, layers)), { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace, generateMipmaps: false, mipmaps });   // (two layers at least: an array, however few)
   note(`${name}`, Math.round(atlasBytes(side, Math.max(2, layers))), 0, 'geometry');   // (src/core/classes.js: its share, SHARE_MB)
-  return { colour: make(), data: make(), side, cell, views, least };
+  return { colour: make(), data: make(), side, cell, views, least, tiles: uniform(side / cell) };   // (tiles: its pictures a side, as data: an atlas sized to its stand's largest clumps reads with the same code as any)
 }
 
 // ---- a layer's smaller pictures, made on the GPU where it was baked: nothing read back, no worker, nothing kept ----
@@ -109,6 +110,7 @@ export function createAtlas(renderer, { name, side, layers, cell = side, views =
 function createMips(side, least) {
   const P = instancedArray(side * side, 'uvec4'), Q = instancedArray(side * side, 'uvec4'), most = Math.ceil(side / least) ** 2;
   const scale = instancedArray(most, 'float'), cover = instancedArray(most, 'float'), uN = uniform(0, 'uint'), uC = uniform(0, 'uint'), buf = [P, Q];
+  note("plants' far ends: their smaller pictures, made", 2 * side * side * 16 + 2 * most * 4, 0, 'geometry');   // (the steps' two levels, and each picture's cover and scale: every bake's, one set)
   const unpack = (v0) => { const v = v0.toVar(), a = unpackHalf2x16(v.x), b = unpackHalf2x16(v.y), d = unpackHalf2x16(v.w); return { rgb: vec3(a.x, a.y, b.x), a: b.y, oct: unpackHalf2x16(v.z), d: d.x, w: d.y }; };
   const pack = (rgb, a, oct, d, w) => uvec4(packHalf2x16(rgb.xy), packHalf2x16(vec2(rgb.z, a)), packHalf2x16(oct), packHalf2x16(vec2(d, w)));
   // (a texel an invocation, 8 × 8 a workgroup; a picture a workgroup of 64, its texels shared out among them: fn(index)
@@ -324,7 +326,7 @@ const impostorViews = (d, views) => {
     clamped inside its tile there, the tile where it lies in the atlas' own grid (as many a side as its stand's largest
     clumps need: src/scatter/trees.js): { colour, cover, normal, lit, leaf } as impostorRead. */
 export function clumpRead(A, layer, uv, lod) {
-  const n = A.side / A.cell, t = floor(uv), k = t.y.mul(atlases().TILES).add(t.x), at = vec2(k.sub(floor(k.div(n)).mul(n)), floor(k.div(n)));
+  const n = A.tiles, t = floor(uv), k = t.y.mul(atlases().TILES).add(t.x), at = vec2(k.sub(floor(k.div(n)).mul(n)), floor(k.div(n)));
   const s = inCell(uv.sub(t).sub(IN).div(1 - 2 * IN), float(A.cell), lod).add(at).div(n), c = texture(A.colour).sample(s).depth(layer).level(lod), d = texture(A.data).sample(s).depth(layer).level(lod);
   return { colour: c.rgb, cover: c.a, normal: octDec(d.xy), ...litOf(d.w) };
 }
@@ -371,12 +373,14 @@ export function impostorOf(geo, snow = { clumps: 0.08 }) {
       vL.assign(clamp(log2(float(A.cell).div(pxAt(k.mul(2 * r), U.uCam.sub(C).length().mul(U.uLodInv)).max(1e-3))), 0, levelsUnder(A.cell)));   // (its texels one to a pixel drawn)
       return ready.greaterThan(0.5).select(cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(w, 1)), vec4(2, 2, 2, 1));
     })();
-    m.fragmentNode = Fn(() => {
+    m.userData.shadow = true;   // (it says what it cuts in the shadow pass: src/core/pass.js)
+    m.fragmentNode = Fn((builder) => {
       const R = impostorRead(A, float(0), vP, vE, vL), out = vec4(0).toVar();
       If(R.cover.lessThan(0.5), () => { Discard(); });
-      If(unlit().not(), () => {   // drawn into the shadow map, only its outline counts: no light
-        const n = normalize(M.mul(R.normal)), col = weathered(R.colour.mul(R.colour), n, snowLift(vX, snow.clumps)).mul(skyLight(n).add(U.uSun.mul(cloudAt(vX)).mul(max(n.dot(U.uSunDir), 0).mul(0.8).add(0.2))));   // as the asset's own material lights it
-        out.assign(finish(col, vX));
+      if (passOf(builder) === 'shadow') return out;   // (drawn into the shadow map, only its outline counts: no light)
+      If(unlit().not(), () => {
+        const n = normalize(M.mul(R.normal));   // (as the asset's own material lights it)
+        out.assign(lit({ colour: weathered(R.colour.mul(R.colour), n, snowLift(vX, snow.clumps)), n, w: vX, ndl: max(n.dot(U.uSunDir), 0).mul(0.8).add(0.2) }));
       });
       return out;
     })();

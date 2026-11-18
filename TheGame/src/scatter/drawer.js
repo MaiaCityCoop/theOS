@@ -54,7 +54,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, If, float, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, storage, texture, vertexIndex, instanceIndex, cameraViewMatrix, screenCoordinate, dFdx, dFdy, cos, sin, abs, max, pow, mix, cross, length, normalize, smoothstep, clamp, fract, countLeadingZeros } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { ign, finish, skyLight, cloudAt, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
+import { ign, finish, lit, lightOn, skyLight, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { landPages } from '../terrain/pages.js';
 import { SOIL_RELIEF } from '../world/physics.js';
@@ -253,10 +253,10 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // in the ground, a rock taller than the snow is deep, keeps the snow where it settles, on what of it faces up: its
     // sides stay bare)
     const W = weatherOn(n, snowLift(w, M3.x)), bare = own.mul(vB.w), col = (GROUND ? bare.mul(W.keep).add(W.add) : mix(bare.mul(W.keep).add(W.add), SNOW, smoothstep(0.03, 0.14, vSnow))).toVar();
-    // the light: the sky's, and the sun's through the clouds and the shadow map
-    const sunK = SOFT ? cloudAt(w) : cloudAtOne(w);
-    const V = normalize(U.uCam.sub(w)), S = U.uSunDir, sun = U.uSun.mul(sunK), sky = skyLight(n), ndl = max(n.dot(S), 0), Hf = normalize(V.add(S)), ndh = max(n.dot(Hf), 0), nv = max(n.dot(V), 0);
-    const shine = M2.z.mul(float(1).sub(rough.mul(0.6))).mul(W.keep), gloss = GROUND ? shine.mul(float(1).sub(grown)) : shine, back = max(V.negate().dot(S), 0), plain = col.mul(sky.add(sun.mul(ndl)));   // (what is grown over does not shine)
+    // the light (src/world/light.js lightOn): the sky's, and the sun's through the clouds and the shadow map; its model
+    // (below) puts them on it
+    const Lo = lightOn({ n, w, how: SOFT ? 'soft' : 'one' }), V = Lo.V, S = U.uSunDir, sun = Lo.light, sky = Lo.sky, ndl = Lo.ndl, back = Lo.back, Hf = normalize(V.add(S)), ndh = max(n.dot(Hf), 0), nv = max(n.dot(V), 0);
+    const shine = M2.z.mul(float(1).sub(rough.mul(0.6))).mul(W.keep), gloss = GROUND ? shine.mul(float(1).sub(grown)) : shine, plain = col.mul(sky.add(Lo.sun));   // (what is grown over does not shine)
     const lit = vec3(0).toVar(), model = M0.w;
     // its model: how it takes the light (src/shading/*.js: each a file there, a branch here)
     const C = { colour: col, plain, tint: M0.rgb, second: M1.rgb, normal: n, eye: V, toSun: S, half: Hf, sun, sky, skyLight, ndl, ndh, nv, back, gloss, glow: M3.y, through: M3.z, height: m, bare: W.keep, phase: vC.w, seed, time: U.uTime };
@@ -293,7 +293,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
         let base = M0.rgb;   // (what wears a material of the world: that material's mean, the last of its mipmaps, in its tint)
         if (WORN) { const M5 = lookOf(kind, 5), t = tex.a(M5.x.max(0), vec2(0.5)).level(10); base = M5.x.greaterThan(-0.5).select(t.rgb.mul(t.rgb).mul(M0.rgb), M0.rgb); }
         const W = weatherOn(n, M3.x.mul(0.5)), col = base.mul(0.85).mul(W.keep).add(W.add);
-        out.assign(finish(col.mul(skyLight(n).add(U.uSun.mul(sunDim()).mul(cloudShade(w)).mul(max(n.dot(U.uSunDir), 0)))), w));
+        out.assign(lit({ colour: col, n, w, sun: sunDim().mul(cloudShade(w)) }));   // (no shadow map: a pixel or two, far off)
       });
       return out;
     })();
@@ -404,12 +404,12 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     m.fragmentNode = Fn((builder) => {
       const pass = passOf(builder), out = vec4(0).toVar();
       if (THIN) cut(builder, ign(screenCoordinate.xy).greaterThanEqual(vEnd));   // (its last pixels: as many of its pixels as it has left, the same ones from frame to frame)
-      if (pass === 'pre') { if (foliage) leafCut(builder); return motion(vWas, foliage ? 1 : 0); }   // (the prepass: what is cut, and where it was: src/core/pass.js)
+      if (pass === 'pre' || pass === 'shadow') { if (foliage) leafCut(builder); return pass === 'pre' ? motion(vWas, foliage ? 1 : 0) : out; }   // (the prepass: what is cut, and where it was: src/core/pass.js)
       // (a mover's motion is not followed: its pixels say that nothing kept of them may be trusted, src/core/temporal.js)
       If(unlit().not(), () => { out.assign(vec4(shade(foliage, builder).rgb, moving && pass === 'main' ? 0 : 1)); });   // (into the shadow map: only its depth)
       return out;
     })();
-    m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
+    m.userData.pre = true; m.userData.shadow = true;   // (it takes part in the prepass, and says what it cuts in the shadow pass: src/core/pass.js)
     return m;
   };
   // (a draw as long as the level's longest mesh: its vertices are read from the heap by their number; a flat make's: its
@@ -695,7 +695,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       If(L.ok, () => { sortOf(out, kind, rows, L.R); });
       return done(out, rows);
     };
-    const K = { N, inner, found, select };
+    const K = { N, inner, found, select, label: shadow ? `${name}, its shade` : name };   // (label: its buffers' name, tier.js)
     byKey.set(key, K);
     return K;
   };
@@ -717,7 +717,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
         for (const k of ['near', 'far', 'pad', 'to', 'from']) K.N.band[k].value = band[k].value;
         K.inner.value = shadow || !i ? band.from.value : finer; table?.();
       };
-      packs = { found: K.found, select: K.select, metres: shadow, kind: K, table: tell };
+      packs = { found: K.found, select: K.select, metres: shadow, kind: K, table: tell, twice: !!FAR, label: K.label };   // (twice: a thing handing over to its far end is packed for both its draws)
     } else {   // (its own patches: a cell's thing, packed where it is of the level now)
       const N = { lv: uniform(i, 'uint'), under: uniform(mine.under, 'uint'), stands: uniform(mine.stands), all: uniform(mine.all), band }, TH = thingOf(thing);
       const { whole, ofLevel, holder, sortOf, done } = levelCode(N, flags);
@@ -807,7 +807,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // (one material for every mesh level of it, its level told by each mesh; one more for what is drawn by a level's own list)
     // (what moves chooses its own patches, packed every frame, a cap a draw: what is drawn large is few, four times as
     // many a level further off, and as many more as the dial's least reaches (measure.js DIAL_LEAST); what stands still is resident, its buckets as large as it finds it needs: tier.js)
-    const packs = moving ? { live, cap: draws.map((d) => (d.dot ? cap : Math.min(cap, Math.ceil((16 * 4 ** Math.max(1, d.level)) / DIAL_LEAST ** 2)))) } : { found, select };
+    const packs = moving ? { live, cap: draws.map((d) => (d.dot ? cap : Math.min(cap, Math.ceil((16 * 4 ** Math.max(1, d.level)) / DIAL_LEAST ** 2)))) } : { found, select, label: name };
     const mats = {}, T = new Tier(scene, draws.map((d) => (d.cut ? new THREE.InstancedBufferGeometry().setIndex([0, 1, 2]) : d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, order: 1, ...packs, gpu: true, slots: ROWS, bounds: boundsOf(GROWN + (moving ? 0.5 : 0)) });
     T.step = step;
     T.band = () => { T.near = 0; T.far = Math.min(far, farFor(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])); band.far.value = T.far; };   // (a drawer that thins its things away: packed until they are gone)

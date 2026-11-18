@@ -62,7 +62,7 @@ const JSCPD = join(GAME, 'node_modules/jscpd/run-jscpd.js'), KNIP = join(GAME, '
 const READS = new Set(['flag', 'flagNum', 'flagText']);   // how the address is read (src/core/flags.js)
 // the hand-set numbers the SSOT audit names, by the file each is set in (not ERROR_PX, the one dial; DRAWN is a mode).
 // The code must hold each, or every run fails (staleAudit): a change that takes one away drops it here too
-const AUDIT = { 'tier.js': ['MAXP'], 'terrain.js': ['CAP'] };
+const AUDIT = { 'tier.js': ['MAXP'] };
 const COMPLEXITY = builtinRules.get('complexity');
 
 const fail = (why) => { console.error(`health: ${why}`); process.exit(1); };

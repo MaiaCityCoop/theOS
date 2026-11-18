@@ -14,7 +14,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { mock } from './gpu-mock.js';
 
-const t0 = performance.now(), failed = [], made = [];
+const t0 = performance.now(), failed = [], made = [], bakers = [];
 // (every pipeline built, by its WGSL text, not by object: a render one is a vertex and a fragment stage)
 const shaders = { render: new Set(), compute: new Set() };
 /** Pipelines by their WGSL text: render and compute ones, the distinct shader modules they hold, and those modules'
@@ -46,7 +46,8 @@ const game = await tryTo('the screen', async () => {
 });
 const tex = await tryTo('the materials painted', async () => {
   const { bakeTextures } = await import('../src/materials/bake.js'), tex = bakeTextures(renderer, { spare: 1 });
-  (await import('../src/world/tile.js')).useTiles(tex); (await import('../src/world/light.js')).useBackend(renderer);
+  (await import('../src/world/tile.js')).useTiles(tex);
+  (await import('../src/world/light/start.js')).startLight(renderer, game?.screen);   // (the light's start where the start has it: before any material)
   return tex;
 }) ?? M.tiles;
 const ground = await tryTo('the ground', async () => {
@@ -55,7 +56,7 @@ const ground = await tryTo('the ground', async () => {
   return ground;
 });
 await tryTo('the land', async () => { const { createTerrain } = await import('../src/terrain/terrain.js'), terrain = createTerrain(scene, tex, renderer); await terrain.compile(); });
-await tryTo('what grows', async () => { const { createScatter } = await import('../src/scatter/index.js'), { ahead } = await import('../src/core/compile.js'), scatter = createScatter(scene, tex, ground, renderer, camera); await scatter.compile(); await ahead(scatter.ahead()); });   // (and every tier's own packing, as the world makes it after its first frame: src/core/compile.js)
+await tryTo('what grows', async () => { const { createScatter } = await import('../src/scatter/index.js'), { ahead } = await import('../src/core/compile.js'), scatter = createScatter(scene, tex, ground, renderer, camera); await scatter.compile(); await ahead(scatter.ahead()); bakers.push(...(scatter.bakes?.() ?? [])); });   // (and every tier's own packing, as the world makes it after its first frame: src/core/compile.js)
 await tryTo('what stands at a place', async () => {
   const { recipe } = await import('../src/core/registry.js'), { place } = await import('../src/world/place.js'), { stand } = await import('../src/scatter/placed.js'), { PLACES } = await import('../world/places.js');
   for (const at of Object.values(PLACES)) { const a = recipe(at.asset); if (!stand(a, at)) place(scene, a, at); }
@@ -69,7 +70,8 @@ await tryTo('the city', async () => { (await import('../src/city/index.js')).cre
 await tryTo('a frame', async () => { game?.screen?.render(scene, camera); });
 
 // ---- every material made, built as each pass draws it ----
-const { twinOf } = await import('../src/core/pass.js');
+const { twinOf } = await import('../src/core/pass.js'), { prepassTarget } = await import('../src/core/screen.js');
+const PRE_TARGET = prepassTarget(4, 4, new THREE.DepthTexture(4, 4));   // (the prepass built as it draws: into its target, writing its id too)
 const built = new Set(), materials = new Map();
 const take = (object, m) => { if (m?.isNodeMaterial && !materials.has(m)) materials.set(m, object); };
 scene.traverse((o) => { for (const m of [o.material].flat()) take(o, m); });
@@ -81,12 +83,20 @@ const buildAll = (where) => {
     const twins = (() => { try { return twinOf(m); } catch { return { pre: null, main: null }; } })();
     for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main]]) {
       if (!mat) continue;
+      if (pass === 'pre') renderer.setRenderTarget(PRE_TARGET);
       try { const s = M.build(object.isMesh || object.isPoints || object.isLine || object.isSprite ? object : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); shaders.render.add(`${s.vertex}\0${s.fragment}`); made.push(pass); }
       catch (e) { failed.push(`${part}, ${pass}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
+      if (pass === 'pre') renderer.setRenderTarget(null);
     }
   }
 };
 buildAll('the world');
+// what bakes the far ends (src/scatter/trees.js farOf): compiled at the start, drawn straight by the bakers, by no pass,
+// so as itself only (no prepass or colour twin)
+for (const o of bakers) for (const m of o.userData.materials) {
+  if (built.has(m)) continue; built.add(m); part = `the world: a far end's bake (${m.name || m.type})`;
+  try { const s = M.build(o, m); shaders.render.add(`${s.vertex}\0${s.fragment}`); made.push('own'); } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
+}
 let passes = 0;
 for (const node of M.computed) { part = `a compute pass (${node.name || node.type || 'compute'})`; try { shaders.compute.add(M.compute(node)); passes++; } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); } }
 const world = { materials: built.size, builds: made.length, passes, pipelines: pipelinesOf(shaders) };   // (counted here: the world's start, not the library's)

@@ -36,8 +36,8 @@ export const rowOf = (asset) => engineOf(asset)?.row?.(asset) ?? scatterRow(asse
 
 export function createScatter(scene, tex, ground, renderer, camera = null) {
   const gpu = !!renderer?.backend?.isWebGPUBackend;   // compute-packed tiers where WebGPU is (tier.js)
-  const tiers = [], solid = [], before = [], more = [];
-  const take = (made, name) => { if (made.solid) solid.push(made.solid); if (made.before) before.push(made.before); if (made.compile) more.push(made.compile); for (const t of made) { t.asset ??= name; tiers.push(t); } };   // solid: what reads its packing back as bodies (trees.js)
+  const tiers = [], solid = [], before = [], more = [], bakes = [];
+  const take = (made, name) => { if (made.solid) solid.push(made.solid); if (made.bakes) bakes.push(made.bakes); if (made.before) before.push(made.before); if (made.compile) more.push(made.compile); for (const t of made) { t.asset ??= name; tiers.push(t); } };   // solid: what reads its packing back as bodies (trees.js)
   const rows = new Map();   // each engine's assets
   for (const a of recipes('asset').filter((r) => r.placement?.at === 'scatter')) {
     const E = engineOf(a); if (!E) { console.warn(`no scatter engine '${a.placement.engine}' (${a.name})`); continue; }
@@ -50,6 +50,9 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
   for (const E of Object.values(ENGINES)) if (E.createOwn) take(E.createOwn(scene, tex, ground, gpu, renderer), E.id);   // what an engine places of its own
   return {
     tiers,
+    /** The meshes that bake what the engines draw far off (trees.js: a stand's impostors and clumps), drawn by no tier:
+        each with its materials (userData.materials), for whatever builds every material the start makes (tools/smoke.js) */
+    bakes: () => bakes.flatMap((f) => f()),
     /** Choose, for this frame, the patches each tier draws (after the frustum's planes are set: core/frustum.js). */
     select(cx, cz, h0, lod, dy) {
       for (let i = 0; i < tiers.length; i++) tiers[i].select(cx, cz, h0, lod, dy);

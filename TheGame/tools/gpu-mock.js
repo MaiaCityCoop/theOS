@@ -47,14 +47,14 @@ export async function mock({ webgl = false, dpr = 1, record = false, lean = fals
   const backend = { isWebGPUBackend: !webgl, isWebGLBackend: webgl, compatibilityMode: false, parameters: {}, get: () => ({}), device: webgl ? null : device,
     capabilities: { getUniformBufferLimit: () => 65536 }, utils: { getTextureSampleData: () => ({ primarySamples: 1, samples: 1, isMSAA: false }) },
     extensions: { has: () => true, get: () => ({}) }, createNodeBuilder: (o, r) => new Builder(o, r) };
-  let target = null;
+  let target = null, mrt = null;
   const renderer = {
     backend, library: new THREE.StandardNodeLibrary(), nodes: { getCacheKey: () => 0, library: null }, contextNode: TSL.context(), _bindings: undefined,
     debug: { diagnostics: { keywords: false }, onNodeBuilderCreated: null }, info: { render: {}, compute: {}, memory: {}, autoReset: true, reset() {} },
     xr: { enabled: false }, shadowMap: { enabled: false }, lighting: { getNode: () => null }, isOutputTarget: false, highPrecision: false, autoClear: true,
     currentColorSpace: THREE.LinearSRGBColorSpace, outputColorSpace: THREE.LinearSRGBColorSpace, toneMapping: THREE.NoToneMapping,
     hasFeature: () => true, hasCompatibility: () => false,   // (every feature: every path of the node code is built)
-    getColorBufferType: () => THREE.HalfFloatType, getMRT: () => null, getOutputRenderTarget: () => null, getPixelRatio: () => dpr,
+    getColorBufferType: () => THREE.HalfFloatType, getMRT: () => mrt, setMRT: (m) => { mrt = m; }, getOutputRenderTarget: () => null, getPixelRatio: () => dpr,   // (mrt: what a pass writes, src/core/pass.js PRE_OUT)
     size: { W: size[0] * dpr, H: size[1] * dpr }, getDrawingBufferSize: (v) => v.set(renderer.size.W, renderer.size.H), getSize: (v) => v.set(renderer.size.W / dpr, renderer.size.H / dpr), setSize() {}, setPixelRatio() {},
     getRenderTarget: () => target, setRenderTarget: (t) => { target = t; if (record) calls.push(`target ${id(t)}`); },
     render: (o) => { drawn.add(o); if (record) calls.push(`render ${id(o)}`); }, clear() {}, setRenderObjectFunction() {}, getRenderObjectFunction: () => null, setViewport() {}, setScissor() {}, setScissorTest() {}, copyTextureToTexture() {}, copyFramebufferToTexture() {}, setAnimationLoop() {}, dispose() {}, setClearColor() {}, getClearColor: (c) => c, getClearAlpha: () => 1, initRenderTarget() {},
