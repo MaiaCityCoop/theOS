@@ -57,6 +57,7 @@ import { createCity } from './city/index.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
 import { inTurn, shareComputeCompiles, countCompiles } from './core/compile.js';
 import { flag } from './core/flags.js';
+import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
 
 const SKY = 0x9fc2e6, REACH = 6000;   // REACH: how far the stage's land is drawn (m): it ends in the air beyond what its camera looks at
 // (each compile given 20 s: a pipeline the GPU never answers for, or one that fails, held the veil over the page for good
@@ -291,6 +292,7 @@ export async function boot({ profile = 'world' } = {}) {
     for (let i = 0; i < seen.length; i += 2) seen[i].visible = seen[i + 1];
     choose(0);
     screen.render(scene, camera);
+    stampDone(renderer, FIRST_FRAME);   // (the first frame that draws the world: what every measure of a start reads)
     game.loadMs = performance.now() - t0;
     setTimeout(() => (game.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start
     console.log(`[the game] ready in ${game.loadMs.toFixed(0)} ms`, marks);
