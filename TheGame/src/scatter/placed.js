@@ -136,7 +136,7 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
   // its levels: the surfaces' (src/detail/error.js), each kind's in a place as large as its whole hierarchy; the last,
   // under a pixel and a half, the drawer's dot
   const rooms = kinds.map((Kd) => madeRoom(Kd.asset)), room = { verts: Math.max(...rooms.map((r) => r.verts)), tris: Math.max(...rooms.map((r) => r.tris)) };
-  const LEVELS = [...Array.from({ length: ML }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), room, rooms })), { px: 0.95 }];
+  const LEVELS = [...Array.from({ length: ML }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), room, rooms })), { px: 0.95, room: { verts: 3, tris: 1 } }];
   // each kind's own numbers (NUMS rows of four, after its look in the drawer's one table): [its box's least corner, its
   // height], [its box's size, its half length], [its wind: billow, flap, sway], [its surface: wrap, through; metres a
   // tile of its materials, their relief], [the layers of its materials (none: -1)]; how its snow lies and its largest
@@ -152,7 +152,7 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
     make: { per: 2, flat: false, dot: true, numbers: { rows: NUMS, of: numbersOf }, material: (src, i, shadow, at) => madeMaterial(D, src, i, { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity, last: false }, fade, sink, at),
       box: (k) => { const a = kinds[k].asset, B = madeBox(a), s = spanOf(a); return { min: B.min.map((v) => v / s), max: B.min.map((v, j) => (v + B.ext[j]) / s) }; } },   // (its box over every level, in its sizes: what the eye's occlusion test reads, drawer.js kindBox)
     // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
-    zoo: { kinds: KINDS, ALL: n, lookOfKind: (k) => kinds[k].look, fingerprint: () => `made 3|${kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${rooms.map((r) => `${r.verts}:${r.tris}`).join()}` },
+    zoo: { kinds: KINDS, ALL: n, lookOfKind: (k) => kinds[k].look, fingerprint: () => `made 4|${kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${rooms.map((r) => `${r.verts}:${r.tris}`).join()}` },
   });
 
   // ---- the list: what stands, by the order of where it stands ----

@@ -82,7 +82,7 @@ export function madeMesh(a, l, room = null) {
     out[o + 5] = oct16(t[k + 3], t[k + 4], t[k + 5]);
     out[o + 6] = (c8(t[k + 6]) | (c8(t[k + 7]) << 8) | (c8(t[k + 8]) << 16)) >>> 0;
     out[o + 7] = 0;
-  }, room);
+  }, room, false);   // (every level drawn in the vertex stage: src/scatter/placed.js)
 }
 
 /** Its look, as the drawer takes a kind's (assets/zoo/index.js: lookOf), for its dot: its mean colour (its faces' by
