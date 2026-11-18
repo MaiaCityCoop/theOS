@@ -1,4 +1,4 @@
-// The skin's cage (intent 0039): the body as one closed surface of a few thousand four-sided faces, laid the way a
+// The skin's cage (intent 0041): the body as one closed surface of a few thousand four-sided faces, laid the way a
 // modeller lays a body's faces: in rings round the trunk, the neck and the head, round each arm and leg, each finger
 // and toe, a ring dividing in two where the body does (the armpits, the crotch, the thumb, between the fingers and the
 // toes). Its points are found on the body's shape (./target.js: the fat and the skin over the muscles and the bones),

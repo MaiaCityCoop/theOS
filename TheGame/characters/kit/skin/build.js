@@ -1,4 +1,4 @@
-// The fat and the skin drawn out (intents 0036, 0039): one closed surface over the whole body, standing, made as a
+// The fat and the skin drawn out (intents 0036, 0041): one closed surface over the whole body, standing, made as a
 // film's or a game's body is made: a cage of a few thousand four-sided faces laid in rings round the body (./cage.js),
 // its points found on the body's shape (./target.js: the fat's and the skin's thickness over the muscles, the bones,
 // the gristle and the eyes), and that cage made smooth (./subdiv.js). Each point of it is then fastened to the bones

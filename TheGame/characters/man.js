@@ -1,4 +1,4 @@
-// A man brought in whole (intent 0041): the first figure of the library that is not grown from our own numbers. One of
+// A man brought in whole (intent 0043): the first figure of the library that is not grown from our own numbers. One of
 // VALID's (the Validated Avatar Library for Inclusion and Diversity), kept as the file its makers gave, stood in the
 // world by the figure kit (./kit/figure.js): its light, its moves, its face's expressions. A first pair, he and the
 // Woman (./woman.js), to see the way working; which figures become the base is still to be chosen.

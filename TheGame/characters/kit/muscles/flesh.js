@@ -116,7 +116,7 @@ export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
   };
 }
 
-// ── the eyes (intent 0040): a ball 24 mm across in each socket, carried by the eye's own joint; and the lashes ────────
+// ── the eyes (intent 0042): a ball 24 mm across in each socket, carried by the eye's own joint; and the lashes ────────
 // The ball shows through the opening the skin is cut by (../skin/light.js: the same almond, so the two edges are one
 // line). What makes an eye read as an eye, each drawn here: the white is not white, and lies in the upper lid's shade;
 // the iris sits behind the cornea's bulge (seen from the side it shifts as the eye turns from the looker), with its

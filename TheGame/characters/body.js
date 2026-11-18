@@ -1,4 +1,4 @@
-// The body of the library (intents 0036, 0039): the skeleton (./skeleton.js), the muscles on it (./muscles.js), and over
+// The body of the library (intents 0036, 0041): the skeleton (./skeleton.js), the muscles on it (./muscles.js), and over
 // them the fat and the skin: a man of 1.80 m as he stands, naked. One layer outermost at a time (skin, fat, muscles,
 // bones), all of them on the skeleton's rig and moving with it. The skin is one closed surface, made as a film's or a
 // game's body is: a cage of four-sided faces wrapped on the shape the anatomy gives and made smooth (./kit/skin/), each

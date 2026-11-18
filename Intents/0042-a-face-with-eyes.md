@@ -1,28 +1,28 @@
 ---
-id: "0040"
+id: "0042"
 title: A face with eyes
 state: propose         # idea | define | build | propose | story | archived
 outcome:               # accepted | rejected, set only when archived
 opened: 2026-11-18
-story: Stories/0040-a-face-with-eyes/
+story: Stories/0042-a-face-with-eyes/
 ---
 
-# 0040 · A face with eyes
+# 0042 · A face with eyes
 
 ## Idea
 
 > Ok eyes and face is the worst at the moment the body is okay for now
 
-Samuel, on seeing the Body after intent 0039's second round. The body's skin stands for now; the face and the eyes
-are what most read as not a person. Intent 0039 listed why, under "what still stands between the Body and the gate":
+Samuel, on seeing the Body after intent 0041's second round. The body's skin stands for now; the face and the eyes
+are what most read as not a person. Intent 0041 listed why, under "what still stands between the Body and the gate":
 
 - **The eyes are painted balls** seen through a small hole in the skin: no lids, no bulge of the cornea, no wet rim,
   no shade under the lid, no lashes, no brows; and they stare.
 - **The face is a mask:** a blunt nose without wings, the lips a pink band, no groove under the nose, ears as flaps.
-- And seen close on 2026-11-18, a fault of 0039's own second round: the neck's hold to its outline cut into the chin
+- And seen close on 2026-11-18, a fault of 0041's own second round: the neck's hold to its outline cut into the chin
   and the jaw, so the lower face melts into the throat.
 
-The gate is Samuel's, from 0039: a photorealistic body and movements. This intent is a step towards it for the face,
+The gate is Samuel's, from 0041: a photorealistic body and movements. This intent is a step towards it for the face,
 not the gate passed.
 
 ## Define
@@ -64,7 +64,7 @@ drawn exactly, per pixel, and only the rest is left to the shape:
 
 - Hair on the head as strands; a beard as hair. Ears' own form. Teeth, tongue, the mouth's inside.
 - The face moving: a blink, a look, speech. (The opening is drawn so that a blink is one number later.)
-- Whether the rule is lifted for the head: Samuel's, as in 0039.
+- Whether the rule is lifted for the head: Samuel's, as in 0041.
 
 ### Second round (2026-11-18)
 
@@ -187,7 +187,7 @@ from a plumb line through the nose's foot); heights and breadths from Farkas 199
   it at 30. The warp is gone. Samuel's eye is the judge of which reads right.
 - **The neck** is a column up into the head, closed inside it; the head runs into it over 12 mm, not 22 to 30.
 - **Under the chin** the cage's rings may now stand back six times the height between them (2.2 before): the floor of
-  the mouth is a shallow slope, not a wedge down to the throat. The neck's least girth went 43.1 cm (intent 0039) to
+  the mouth is a shallow slope, not a wedge down to the throat. The neck's least girth went 43.1 cm (intent 0041) to
   45.3 (the new chin's wedge inside the measure) to 39.4.
 - **The lift** (the shape's fine forms laid on the smooth surface) now holds over the whole face. Before it was held
   off round the eyes and to a fifth between the features, because the old shape's bumps came through it.
@@ -323,7 +323,7 @@ drawn face**: see the gaps. Look at it with
 | --- | --- | --- |
 | 1 | The face reads as a face, and a warm one; the ears as ears; against the photograph | **A face, and a warm one: passed. Against the photograph: not passed.** The tool drew all twenty-three stills on 2026-11-18. Beside the stills before: an upright forehead; eyes in sockets, narrowed from below as a smile narrows them, with lashes, a wide pupil and sparks of light; a nose with ridge, tip and wings; a broad smile, its corners up, the lips parted over the upper row of teeth, each tooth shaded against the next; a chin and a jaw's line; ears with a rim, an inner ridge, a bowl and a lobe, standing off the head from the front and from behind. Whether it is the gaze of a human in love and full of inspiration is Samuel's to say: it is warm and bright; it is also fixed |
 | 2 | Its measures | **Printed.** Table below: eight of fourteen within 5 % of a man's, one at 5 %, the nose's tip 11.2 % short; four are a smile's measured against norms for a face at rest. The norms are remembered, none read for this |
-| 3 | The body is as it was | **Passed.** Twelve of the body's thirteen measures to the digit as in intent 0039; the neck 38.8 cm for 43.1 (a man's 39). Open edges 0 at each of the three levels. The body's own points are where they were; the five poses' shares read a little lower (0.34 %, 1.1 %, 0.42 %, 0.51 %, 1.62 % for 0.38, 1.24, 0.47, 0.58, 1.87) because the ears' edges, which do not stretch, are now counted among them |
+| 3 | The body is as it was | **Passed.** Twelve of the body's thirteen measures to the digit as in intent 0041; the neck 38.8 cm for 43.1 (a man's 39). Open edges 0 at each of the three levels. The body's own points are where they were; the five poses' shares read a little lower (0.34 %, 1.1 %, 0.42 %, 0.51 %, 1.62 % for 0.38, 1.24, 0.47, 0.58, 1.87) because the ears' edges, which do not stretch, are now counted among them |
 | 4 | Nothing else changes | **Passed.** `bun tools/scale.js`: 18 of 18 within their measure. `bun tools/registry.js`: 52 recipes. `vite build` in `TheGame` and in `OS`: built |
 
 Also seen: the Body grown end to end in a page's own workers with the smile, the teeth and the ears, standing,
@@ -365,7 +365,7 @@ lab script's print).
 - **Hair.** His brows and lashes are hairs; ours are drawn, and there is none on the head or the jaw.
 
 I do not think numbers alone reach that picture. Each round brings it nearer and the steps get smaller. The
-industry's way to it (intent 0039's research) is a real head measured: a scan or a sculpture for the form, and
+industry's way to it (intent 0041's research) is a real head measured: a scan or a sculpture for the form, and
 photographed skin for its surface. That is what the rule "our own code only" keeps out.
 
 **Known gaps, as the stills show them.**
@@ -384,7 +384,7 @@ photographed skin for its surface. That is what the rule "our own code only" kee
 6. **The skin is one even surface**: no pores that differ from place to place, no hairs in the beard's shadow, no
    line on the brow, a shaved head. It reads as a well-made game character, not a photograph.
 7. **Faint level streaks** across the far cheek in the three-quarter still, and a pale line up the cheek.
-8. **The skin is three closed surfaces now** (the body and two ears), not intent 0039's one.
+8. **The skin is three closed surfaces now** (the body and two ears), not intent 0041's one.
 9. **The jaw's angle** has 0.6 mm of skin over its bone, measured on cells of 6 mm: too coarse to trust either way.
    The chin cannot be shorter than it is without a shorter jaw bone.
 10. **Cost not measured.** The ears add 24 680 triangles near, the teeth and the eyes their own surfaces. Every still
@@ -399,7 +399,7 @@ photographed skin for its surface. That is what the rule "our own code only" kee
   be. Shorter still means a shorter jaw bone in the skeleton: say so and it is a round of its own.
 - **What next for the head**, if anything: hair (head, beard, brows as strands); the face moving (a blink is one
   number in `EYE`, a smile four in `MOUTH`; a look and a jaw are the rig's).
-- **The rule "our own code only"**, as in 0039: it stands, and it is now what stands between this face and the
+- **The rule "our own code only"**, as in 0041: it stands, and it is now what stands between this face and the
   photograph. Three ways on: keep it and go on round by round (folds as real relief, the form made unlike its mirror,
   hairs as strands, a portrait's light: nearer each time, never there, I think); lift it for the head's surface only
   (photographed skin on our form); lift it for the head (a scanned or sculpted head).
@@ -412,7 +412,7 @@ photographed skin for its surface. That is what the rule "our own code only" kee
 
 ## Todo
 
-- [x] the chin and the jaw given back (0039's second round cut them)
+- [x] the chin and the jaw given back (0041's second round cut them)
 - [x] the eye's opening cut per pixel; the lids over the globe
 - [x] the eyeball's shader
 - [x] lashes, brows
@@ -435,7 +435,7 @@ photographed skin for its surface. That is what the rule "our own code only" kee
 
 ### 2026-11-18
 
-- **Asked.** Samuel, after 0039's second round: "Ok eyes and face is the worst at the moment the body is okay for
+- **Asked.** Samuel, after 0041's second round: "Ok eyes and face is the worst at the moment the body is okay for
   now".
 - **Delivered.** The intent opened and defined. Eyes: lids cut along their edges per pixel, a globe with its own
   shader, lashes, brows. The lips' red and line; the shaved hair's shadow. Then, because the head still read as a
@@ -537,3 +537,6 @@ photographed skin for its surface. That is what the rule "our own code only" kee
 | 2026-11-18 | 2fee84f | fourth round: the chin shorter, nostrils that show; the tool reads the chin's own foot |
 | 2026-11-18 | 3c6ca32 | proposed a fourth time: the fourth round's write-up |
 | 2026-11-18 | be568ca | fifth round: the photograph as the gate; blue eyes, a smile of the whole face, the skin's folds, pores and colour; a portrait still |
+
+On its branch this intent was numbered 0040, and its commits' messages say `Intent: 0040`. It was given 0042 on 2026-11-18,
+when the branch was brought to `main`, where 0040 had meanwhile been taken by another intent.

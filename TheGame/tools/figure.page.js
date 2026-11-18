@@ -1,4 +1,4 @@
-// A figure alone (intent 0041): a character of the library that is brought in whole (characters/kit/figure.js), made by
+// A figure alone (intent 0043): a character of the library that is brought in whole (characters/kit/figure.js), made by
 // its own recipe and drawn with none of the world round it, so a still of a move or of a face takes seconds where
 // the library takes the world's start. A tool: tools/figure.html on the game's dev server.
 //

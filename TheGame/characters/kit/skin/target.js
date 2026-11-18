@@ -1,4 +1,4 @@
-// The body's shape under its skin, and so the skin's (intents 0036, 0039, 0040): where the fat and the skin lie over the
+// The body's shape under its skin, and so the skin's (intents 0036, 0041, 0042): where the fat and the skin lie over the
 // muscles (../muscles/build.js), the bones, the nose's and the ears' gristle and the eyes, as thick as they are place by
 // place (./table.js), opened where the eyes and the nostrils are. A shape, not yet a surface: fields a ray can be sent
 // through (negative inside, metres), which ./cage.js lays the skin's cage on. Plain JS, no three: it runs in the workers
@@ -19,7 +19,7 @@
 // large bones, its fills, the nose's and the ears' gristle and the eyes give their own true distances, blended in. The
 // skin is where that is as far out as the fat and the skin are thick there, half way to a man's measured outline
 // (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through. The head alone is not made
-// so: its skin is laid on its own form (./head.js, intent 0040), the nose's and the ears' gristle on it, and the neck
+// so: its skin is laid on its own form (./head.js, intent 0042), the nose's and the ears' gristle on it, and the neck
 // runs up into it as a column.
 import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, NIPPLE, FILL, partOf, PROFILES, MASSES, PALM, CARPUS, THENAR, FINGERS, TOES, RELIEF, LIMB_RELIEF, HEAD, gapAt } from './table.js';
 import { headFormOf } from './head.js';

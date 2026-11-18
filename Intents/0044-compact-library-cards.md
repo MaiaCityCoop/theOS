@@ -1,20 +1,20 @@
 ---
-id: "0042"
+id: "0044"
 title: Compact library cards
 state: propose         # idea | define | build | propose | story | archived
 outcome:               # accepted | rejected, set only when archived
 opened: 2026-11-18
-story: Stories/0042-compact-library-cards/
+story: Stories/0044-compact-library-cards/
 ---
 
-# 0042 · Compact library cards
+# 0044 · Compact library cards
 
 ## Idea
 
 > Can you also use this moment to make the prose of each variant and right aside text labels way more compact for
 > every existing asset?
 
-Samuel, on 2026-11-18 (typos tidied), with a picture of the library's card for the Woman (intent 0041): its
+Samuel, on 2026-11-18 (typos tidied), with a picture of the library's card for the Woman (intent 0043): its
 description eleven lines long, its four figures running into each other ("1.74 m" against "84"), and each move a box
 of three to six lines, so that the card runs off the screen before its moves end.
 
@@ -80,7 +80,7 @@ Notes while building, 2026-11-18.
 
 ## Propose
 
-Proposed on 2026-11-18. Story: [`Stories/0042-compact-library-cards/`](../Stories/0042-compact-library-cards/story.md).
+Proposed on 2026-11-18. Story: [`Stories/0044-compact-library-cards/`](../Stories/0044-compact-library-cards/story.md).
 
 **Delivered:** the words of all 54 recipes and of the three character kits, short; the card compact
 (`TheGame/src/library/card.js`, `subjects.js`, `library.html`, two small parts in `brand/brand.css`);
@@ -97,7 +97,7 @@ Proposed on 2026-11-18. Story: [`Stories/0042-compact-library-cards/`](../Storie
 
 **Known gaps**
 
-- **The stage behind the card was not seen**: this machine's software GPU does not draw the world (intent 0041).
+- **The stage behind the card was not seen**: this machine's software GPU does not draw the world (intent 0043).
   What a click does to the figure was not seen, only that the card and the address follow it.
 - **The words are mine.** Fifty-four descriptions written in one go; each says less than before. Any that reads
   wrong is one line in its recipe's file.
@@ -141,3 +141,6 @@ Proposed on 2026-11-18. Story: [`Stories/0042-compact-library-cards/`](../Storie
 | --- | --- | --- |
 | 2026-11-18 | 933576c | every recipe and variant said short; the card compact; tools/words.js |
 | 2026-11-18 | e5f566d | proposed: the checks as they were, the story |
+
+On its branch this intent was numbered 0042, and its commits' messages say `Intent: 0042`. It was given 0044 on 2026-11-18,
+when the branch was brought to `main`, where 0042 had meanwhile been taken by another intent.

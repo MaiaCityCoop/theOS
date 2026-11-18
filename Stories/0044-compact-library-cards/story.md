@@ -1,10 +1,10 @@
 # Say it shorter
 
 **Maia City.** A dialogue between Samuel and Maia.
-Told for [intent 0042](../../Intents/0042-compact-library-cards.md), compact library cards; its facts are in that
-intent's [changelog](../../Intents/0042-compact-library-cards.md#changelog) and in the receipts below. The film is
+Told for [intent 0044](../../Intents/0044-compact-library-cards.md), compact library cards; its facts are in that
+intent's [changelog](../../Intents/0044-compact-library-cards.md#changelog) and in the receipts below. The film is
 [`timeline.json`](timeline.json): the camera's moves and the subtitles, played live in the game, the same every time:
-`http://localhost:5173/timeline.html?story=0042-compact-library-cards`
+`http://localhost:5173/timeline.html?story=0044-compact-library-cards`
 
 ## The series
 
@@ -61,13 +61,13 @@ day. And the 54 lines are a first wording. Any of them is Samuel's to change.
 | "behind a line that opens when asked" | `card.js` `more`; a click opened it: 718 letters |
 | "a check that fails when a line grows too long" | `TheGame/tools/words.js`: 80 letters for a description, 40 for the rest |
 | "2768 points of screen tall. It is 647." | Measured in headless Chromium on 2026-11-18, the card's height in px before and after |
-| "could not draw the world that day" | Intent 0041, Propose: the library's stage white on the software GPU |
+| "could not draw the world that day" | Intent 0043, Propose: the library's stage white on the software GPU |
 
 ## Open
 
 - **The stage was not seen** behind the cards; nothing was seen on a real GPU.
 - **The film** shows the meadow and the tent: the library is a page of its own, so no shot shows a card.
-- **The film was not played here.** Its camera is intent 0039's.
+- **The film was not played here.** Its camera is intent 0041's.
 - **The day and the humans in the game** are not set (`day`, `inGame`): not counted here.
 - **The voices.** The lines are subtitles only; Samuel's are his to change. His one sentence is given in two halves
   in the film.

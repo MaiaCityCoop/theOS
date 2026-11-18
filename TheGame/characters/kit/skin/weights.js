@@ -1,4 +1,4 @@
-// The skin fastened to the bones (intents 0036, 0039): each point of it hangs on the four bones nearest under it, the
+// The skin fastened to the bones (intents 0036, 0041): each point of it hangs on the four bones nearest under it, the
 // nearer more (linear blend skinning, as a game's skin is carried: ../muscles/flesh.js). Plain JS, no three: it runs in
 // the workers that lay the skin (./build.js), or under node.
 //

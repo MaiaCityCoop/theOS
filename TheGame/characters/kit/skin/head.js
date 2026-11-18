@@ -1,4 +1,4 @@
-// The head's own form (intent 0040): the shape the skin of the head and the face is laid on (./target.js), written out
+// The head's own form (intent 0042): the shape the skin of the head and the face is laid on (./target.js), written out
 // as a draughtsman lays a head out: its outline seen from the front and its profile seen from the side, level by level
 // from the chin to the crown (./table.js HEAD.sections), and on that ground the forms that stand out of it or lie in
 // it: the nose's ridge, tip and wings, the lips, the chin, the brow, the hollow over each eye and the lids over the

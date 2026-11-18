@@ -1,4 +1,4 @@
-// A subdivision surface (intent 0039): a cage of a few thousand faces made smooth the way films and games make a body
+// A subdivision surface (intent 0041): a cage of a few thousand faces made smooth the way films and games make a body
 // smooth (Catmull & Clark 1978: every face a point, every edge a point, every old point moved; each round four times
 // the faces, the surface nearer its limit, which is smooth wherever the cage is). Plain JS, no three: it runs in the
 // workers that lay the skin (./build.js), or under node.

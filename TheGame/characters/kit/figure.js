@@ -1,4 +1,4 @@
-// A figure brought in whole (intent 0041): a person made elsewhere and kept as one file (characters/figures/*.glb):
+// A figure brought in whole (intent 0043): a person made elsewhere and kept as one file (characters/figures/*.glb):
 // the body in its clothes, the eyes, the teeth and the hair, bound to a skeleton of its own, the face with shapes of
 // its own. The first of the library that is not grown from our own numbers: the figures are VALID's (the Validated
 // Avatar Library for Inclusion and Diversity, Do, Zelenty, Gonzalez-Franco & McMahan 2023, MIT: figures/LICENSE).

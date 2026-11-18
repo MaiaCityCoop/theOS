@@ -1,13 +1,13 @@
 ---
-id: "0041"
+id: "0043"
 title: A photoreal face
 state: propose         # idea | define | build | propose | story | archived
 outcome:               # accepted | rejected, set only when archived
 opened: 2026-11-18
-story: Stories/0041-a-photoreal-face/
+story: Stories/0043-a-photoreal-face/
 ---
 
-# 0041 · A photoreal face
+# 0043 · A photoreal face
 
 ## Idea
 
@@ -26,7 +26,7 @@ story: Stories/0041-a-photoreal-face/
 > just reference images, now with one unified workflow; for now a standard male and female base that just has
 > different hairstyles and colour in the beginning MVP. And then plan that in our intent.
 
-Samuel, on 2026-11-18, after intent 0040's fifth round (typos tidied). Intent 0040 brought the Body's face from a
+Samuel, on 2026-11-18, after intent 0042's fifth round (typos tidied). Intent 0042 brought the Body's face from a
 mask to a warm, drawn face, and set a photograph of a real smiling man as the face's gate. It also said plainly that
 numbers alone would not reach that photograph, and that the rule "our own code only: no third-party meshes, scans or
 motion capture" was what stood in the way.
@@ -72,7 +72,7 @@ The checks every change runs: `bun tools/registry.js`, `bun tools/scale.js`, `vi
 ### Out of scope
 
 Changing a figure's looks (blending figures, skin tone, hair, clothes); our own skin and eye shading on them; driving
-the face from a camera; anything generated through fal; the photograph as a gate. The Body (intent 0040) stays as it
+the face from a camera; anything generated through fal; the photograph as a gate. The Body (intent 0042) stays as it
 is. The figures stand in the library only: nothing in the world or the game uses them yet. Which two figures become
 the base is Samuel's to choose from the link; the two imported now are a first pair to see the way working.
 
@@ -116,7 +116,7 @@ Notes while building, 2026-11-18.
 
 ## Propose
 
-Proposed on 2026-11-18. Story: [`Stories/0041-a-photoreal-face/`](../Stories/0041-a-photoreal-face/story.md).
+Proposed on 2026-11-18. Story: [`Stories/0043-a-photoreal-face/`](../Stories/0043-a-photoreal-face/story.md).
 
 ### What is delivered, and where to look
 
@@ -163,7 +163,7 @@ Proposed on 2026-11-18. Story: [`Stories/0041-a-photoreal-face/`](../Stories/004
   figure made (the small picture and the stage: twice).
 - **In the library only**: nothing in the world or the game uses them.
 - **About 4 MB of binary files are now in the repository**, the game's first.
-- **The film was not played**; its camera is intent 0039's, and it shows the meadow, not the two.
+- **The film was not played**; its camera is intent 0041's, and it shows the meadow, not the two.
 
 ### Samuel's to decide
 
@@ -316,3 +316,6 @@ Proposed on 2026-11-18. Story: [`Stories/0041-a-photoreal-face/`](../Stories/004
 | 2026-11-18 | ec65986 | a man and a woman of VALID brought in whole; the figure kit, its moves and expressions; the library row; the tools |
 | 2026-11-18 | c923301 | proposed: the checks as they were, the page for choosing two, the story |
 | 2026-11-18 | d9102cc | the two figures through WebGPU on the tool page (its own shadow map, the picture read back); held |
+
+On its branch this intent was numbered 0041, and its commits' messages say `Intent: 0041`. It was given 0043 on 2026-11-18,
+when the branch was brought to `main`, where 0041 had meanwhile been taken by another intent.

@@ -1,4 +1,4 @@
-// A woman brought in whole (intent 0041): with the Man (./man.js) the first pair of figures that are not grown from our
+// A woman brought in whole (intent 0043): with the Man (./man.js) the first pair of figures that are not grown from our
 // own numbers. One of VALID's (the Validated Avatar Library for Inclusion and Diversity), kept as the file its makers
 // gave, stood in the world by the figure kit (./kit/figure.js): its light, its moves, its face's expressions.
 import { figureOf, MOVES, EXPRESSIONS } from './kit/figure.js';

@@ -1,4 +1,4 @@
-// The figures brought in whole (intent 0041), checked and looked at: `bun tools/figure.js` reads every figure a
+// The figures brought in whole (intent 0043), checked and looked at: `bun tools/figure.js` reads every figure a
 // recipe names (characters/*.js with a `figure`): that its file is the one the recipe was written for (its SHA-256),
 // that its licence lies beside it, and what is in it (its points, its triangles, its bones, its face's shapes, its
 // pictures); it fails (exit 1) where a file is not its recipe's, has no body with shapes, or the licence is missing.

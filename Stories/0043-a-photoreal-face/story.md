@@ -1,10 +1,10 @@
 # The first two who were not grown here
 
 **Maia City.** A dialogue between Samuel and Maia.
-Told for [intent 0041](../../Intents/0041-a-photoreal-face.md), a photoreal face; its facts are in that intent's
-[changelog](../../Intents/0041-a-photoreal-face.md#changelog) and in the receipts below. The film is
+Told for [intent 0043](../../Intents/0043-a-photoreal-face.md), a photoreal face; its facts are in that intent's
+[changelog](../../Intents/0043-a-photoreal-face.md#changelog) and in the receipts below. The film is
 [`timeline.json`](timeline.json): the camera's moves and the subtitles, played live in the game, the same every time:
-`http://localhost:5173/timeline.html?story=0041-a-photoreal-face`
+`http://localhost:5173/timeline.html?story=0043-a-photoreal-face`
 
 ## The series
 
@@ -73,9 +73,9 @@ for anyone. Which two of the forty-two become the city's first man and woman is 
 | Line | Where it is true |
 | --- | --- |
 | Samuel's lines | His messages of 2026-11-18, typos tidied: "Ok. This isn't helpful so far."; "VALID looks the most promising so far."; "Ok go for the whole VALID figure, and import one male and one female one. Then visualize in our character lib with a few rig moves and expressions. Customization we talk later." |
-| "hers was a drawn face" | Intent 0040, Propose, "Against the photograph" |
-| "a plan: keep the head ... borrow the fine relief of real skin" | Intent 0041, the first plan, kept in commit c7b5ad0; `reports/Photoreal browser face first principles.md` |
-| "a still figure, with no face that can move" | The second research's note on generators that make a figure from a picture (in `research_notes/`; intent 0041's changelog names it): none that was read gives expression shapes, eyes or teeth of their own |
+| "hers was a drawn face" | Intent 0042, Propose, "Against the photograph" |
+| "a plan: keep the head ... borrow the fine relief of real skin" | Intent 0043, the first plan, kept in commit c7b5ad0; `reports/Photoreal browser face first principles.md` |
+| "a still figure, with no face that can move" | The second research's note on generators that make a figure from a picture (in `research_notes/`; intent 0043's changelog names it): none that was read gives expression shapes, eyes or teeth of their own |
 | "fetched every library she could reach ... under the same light" | The note on ready-made open characters beside it (`ready_made_open_characters.md`): Rocketbox, VALID, a MakeHuman woman, CharMorph's Antonia and Reom, each licence read from its own file |
 | "forty-two people ... a university in Florida with Google ... the freest of licences" | VALID's readme (University of Central Florida, Google Labs); `avatars.json` of c-frame/valid-avatars-glb: 42 people in five outfits; `TheGame/characters/figures/LICENSE`: MIT |
 | "one and the same mesh: 20,951 points ... 84 bones ... 65 shapes" | The same note, "VALID's figures share one layout": checked with headless Blender on four figures; the other 38 were not checked |
@@ -84,8 +84,8 @@ for anyone. Which two of the forty-two become the city's first man and woman is 
 | "their arms are brought down first ... the Settler's own walk, carried over to their bones" | `figure.js`: `ARMS`, `DROP`, and the human kit's `MOVES` turned in the world's axes as each bone lies at rest |
 | "their feet stay on the ground"; "Their eyes turn to whoever looks" | `figure.js` `step`: the hips let down till the lowest sole touches; the eyes' bones turned to the camera within half a radian; the stills of 2026-11-18 |
 | "They smile, laugh ... and speak, the lower teeth going with the jaw" | `figure.js` `EXPRESSIONS`: seven, weights of the face's own shapes; the lower teeth's shapes driven by the face's |
-| "They look like people of a game" | The stills of 2026-11-18; intent 0041, Propose, Known gaps |
-| "the library's own stage would not draw there at all, for them or for anyone" | Intent 0041, Propose: the library page opened in headless Chromium, its card read, its picture white for the Settler too |
+| "They look like people of a game" | The stills of 2026-11-18; intent 0043, Propose, Known gaps |
+| "the library's own stage would not draw there at all, for them or for anyone" | Intent 0043, Propose: the library page opened in headless Chromium, its card read, its picture white for the Settler too |
 
 ## Open
 
@@ -95,7 +95,7 @@ for anyone. Which two of the forty-two become the city's first man and woman is 
 - **The film** shows the meadow and the tent: the figures stand in the library, not yet in the world, so no shot
   shows the people the lines talk about.
 - **The film was not played here.** Its page's timeline reads; the world was not drawn on the software GPU. Its
-  camera is intent 0039's.
+  camera is intent 0041's.
 - **The day and the humans in the game** are not set (`day`, `inGame`): not counted here.
 - **The voices.** The lines are subtitles only; Samuel's are his to change.
 - **The gate is not reached.** Beside the photograph these are figures of a game.

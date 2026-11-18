@@ -1,4 +1,4 @@
-// The library's words, kept short (intent 0042): `bun tools/words.js` reads what the library's card shows of every
+// The library's words, kept short (intent 0044): `bun tools/words.js` reads what the library's card shows of every
 // recipe (its `about`, a biome's `laid`, a material's `usedBy`) and of every variant a character kit offers (a move,
 // a layer, an expression: each `about` written in characters/kit/*.js), and fails (exit 1) where one is longer than
 // its measure below. The card is narrow (brand.css --side-w): a description is one or two of its lines, a variant's

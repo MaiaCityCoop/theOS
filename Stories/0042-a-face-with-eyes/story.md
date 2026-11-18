@@ -1,10 +1,10 @@
 # A face that smiles back
 
 **Maia City.** A dialogue between Samuel and Maia.
-Told for [intent 0040](../../Intents/0040-a-face-with-eyes.md), a face with eyes; its facts are in that intent's
-[changelog](../../Intents/0040-a-face-with-eyes.md#changelog) and in the receipts below. The film is
+Told for [intent 0042](../../Intents/0042-a-face-with-eyes.md), a face with eyes; its facts are in that intent's
+[changelog](../../Intents/0042-a-face-with-eyes.md#changelog) and in the receipts below. The film is
 [`timeline.json`](timeline.json): the camera's moves and the subtitles, played live in the game, the same every time:
-`http://localhost:5173/timeline.html?story=0040-a-face-with-eyes`
+`http://localhost:5173/timeline.html?story=0042-a-face-with-eyes`
 
 ## The series
 
@@ -78,9 +78,9 @@ smile never leaves it. Whether it is in love is Samuel's to say. Maia says what 
 | Line | Where it is true |
 | --- | --- |
 | Samuel's lines | His messages of 2026-11-18: "Ok eyes and face is the worst at the moment the body is okay for now"; after the first round: "So ensure we have an actual sparkling eyes friendly positive face. The chin is too wide going too far to the front, the sparkling smile isn't there yet. No sparkling smile yet there. And the ears need to be more realistic"; after the second: "The base view should be a smile and sparkle in the eyes. Friendly heartwarming gaze, a human in love and full of inspiration. This included good teeth" (typos tidied) |
-| "two balls looking out of holes" | The stills of the face before, drawn on 2026-11-18; intent 0039, Propose, "the eyes are painted balls" |
+| "two balls looking out of holes" | The stills of the face before, drawn on 2026-11-18; intent 0041, Propose, "the eyes are painted balls" |
 | "cut pixel by pixel"; "thirty millimetres long" | `TheGame/characters/kit/skin/light.js` throws the skin away inside the lids' line; `skin/table.js` `EYE`: an opening 30.1 mm long |
-| "its skull softened over two centimetres"; "8 mm under its own teeth" | Intent 0040, Build: the head's field before, softened by running means of 14 mm each way; the lips' line at 1.5985 m, the skull's teeth meeting at 1.6064 m (`skeleton/skull.js`) |
+| "its skull softened over two centimetres"; "8 mm under its own teeth" | Intent 0042, Build: the head's field before, softened by running means of 14 mm each way; the lips' line at 1.5985 m, the skull's teeth meeting at 1.6064 m (`skeleton/skull.js`) |
 | "sixteen levels"; "the skull's own or a published measure" | `skin/table.js` `HEAD`; its sources named there, as remembered: the skull's table, Arnett et al. 1999, Farkas 1994 |
 | "its rest became a whole smile"; "the corners ... higher than the upper lip's middle"; "the lower lip follows the edges of the upper teeth" | `skin/table.js` `MOUTH`: corners at 1.6150 m, the upper lip's middle edge at 1.6148, the lower lip's at 1.6050, the skull's upper front teeth ending at 1.6051; `skin/head.js`; the stills of 2026-11-18 |
 | "they stand exactly where the skull's own teeth stand, each in its gum" | `skeleton/skull.js` `teethOf` gives each tooth's place; `muscles/flesh.js` `mouthOf` draws eighteen crowns there, the gum drawn on each |
@@ -89,9 +89,9 @@ smile never leaves it. Whether it is in love is Samuel's to say. Maia says what 
 | "The chin came in and back" | `skin/table.js` `HEAD`: the chin 100.5 mm before the head's middle plane for 104.5, its mass 17 mm half-broad for 19 |
 | "a rim, a bowl and a lobe"; "19 mm off the head" | `skin/ear.js`; measured by its own lab script: 63.4 mm by 35.9, its rear rim 19.3 mm off the head's form at most |
 | "thin enough that the sun comes through them red" | The plate 2.4 mm at its thinnest; the still of the head from behind, 2026-11-18 |
-| "Samuel held a photograph beside it ... the gate" | His message of 2026-11-18 with the picture: "So this reference image should be our gate of being good human, real-like, photorealistic-like reference"; "Go for blue eyes too". The picture is his and is not in the repository; intent 0040, Define, describes it |
-| "beside the photograph hers is still a drawn face" | Intent 0040, Propose, "Against the photograph" |
-| "A photograph, no" | Intent 0040, Propose, Known gaps |
+| "Samuel held a photograph beside it ... the gate" | His message of 2026-11-18 with the picture: "So this reference image should be our gate of being good human, real-like, photorealistic-like reference"; "Go for blue eyes too". The picture is his and is not in the repository; intent 0042, Define, describes it |
+| "beside the photograph hers is still a drawn face" | Intent 0042, Propose, "Against the photograph" |
+| "A photograph, no" | Intent 0042, Propose, Known gaps |
 | "Seen on a software GPU only" | Every still was drawn through WebGL 2 on SwiftShader in a container; the library was not seen |
 
 ## Open
@@ -100,10 +100,10 @@ smile never leaves it. Whether it is in love is Samuel's to say. Maia says what 
 - **The film** shows the meadow and the tent: the Body stands in the library, not yet in the world, so no shot shows
   the face the lines talk about.
 - **The film was not played here.** Its page answers and its timeline reads; the world was not drawn on the software
-  GPU. Its camera is intent 0039's.
+  GPU. Its camera is intent 0041's.
 - **The day and the humans in the game** are not set (`day`, `inGame`): not counted here.
 - **The voices.** The lines are subtitles only; Samuel's are his to change.
 - **The gate is not reached.** The photograph Samuel set as the gate is far from this face still: its skin, its
   light, a smile of the whole face.
 - **Samuel's:** to accept or reject; how to go on towards the photograph (the rule "our own code only" is what
-  stands in the way: intent 0040 names three ways); what comes next for the head (hair, a face that moves).
+  stands in the way: intent 0042 names three ways); what comes next for the head (hair, a face that moves).

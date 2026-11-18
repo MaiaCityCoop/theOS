@@ -1,6 +1,6 @@
 # The figures brought in
 
-The only files of the game that are not grown from its own code (intent 0041). Each is a whole person: body,
+The only files of the game that are not grown from its own code (intent 0043). Each is a whole person: body,
 clothes, eyes, teeth and hair on a skeleton of 84 bones, the face with 65 shapes.
 
 | File | What | From |

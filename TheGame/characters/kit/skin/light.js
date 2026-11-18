@@ -1,4 +1,4 @@
-// The skin's light (intent 0039), in TSL: how a point of skin is carried by its joints and how it gives back the
+// The skin's light (intent 0041), in TSL: how a point of skin is carried by its joints and how it gives back the
 // world's light, as skin does. Loaded with ../muscles/flesh.js, when a body is first made.
 //
 //   carriedBy(joints, inset) -> a position node: each point where its four joints carry it, each by its share (linear

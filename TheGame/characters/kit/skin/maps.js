@@ -1,4 +1,4 @@
-// What the skin's light is read from (intent 0039), worked out once as the skin is laid (./build.js) and kept with it:
+// What the skin's light is read from (intent 0041), worked out once as the skin is laid (./build.js) and kept with it:
 // two small pictures, made by this code from published numbers, none drawn or scanned. Plain JS, no three.
 //
 //   scatterMap() -> { w, h, data }   how much light a point of skin gives back, by how it faces the light (across:

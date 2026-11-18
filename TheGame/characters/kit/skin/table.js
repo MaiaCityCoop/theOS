@@ -142,7 +142,7 @@ export const partOf = (rig) => {   // (the head a piece of its own: its face is 
 // tissue's depth over them (./build.js). The outline was all of it; built from the muscles alone, fitted to an anatomical
 // figure from the front, the back and the side, the trunk shows its own pectorals, belly and back, but the buttocks and
 // the arms come out as boxes and ropes: the outline is how the fat rounds them. At a half of it the skin still showed the
-// strands' ropes and gaps as bumps a few centimetres across (intent 0039: seen under a raking light, glossy); at four
+// strands' ropes and gaps as bumps a few centimetres across (intent 0041: seen under a raking light, glossy); at four
 // fifths it lies smooth, as skin over fat does, and what a slightly muscular man shows is the relief's to draw (RELIEF).
 export const OUTLINE = 0.8;
 export const PROFILE_SOURCE = 'Gordon et al. 2014, "2012 Anthropometric Survey of U.S. Army Personnel" (ANSUR II), NATICK/TR-15/007: men\'s circumferences, breadths and depths, as remembered, scaled to 1.80 m and to a slightly muscular build; the outline fitted, front, back and side, to the living model of Richer, Anatomie artistique (1890), vol. 2, plates 74 to 76 ("Topographie morphologique"), drawn at the same scale beside it (public domain, Wikimedia Commons)';
@@ -292,7 +292,7 @@ export const TONE = {
 export const LEG_GAP = [[0.82, 0.003], [0.78, 0.006], [0.72, 0.011], [0.64, 0.018], [0.56, 0.024], [0.5, 0.027], [0.44, 0.016], [0.36, 0.01], [0, 0.01]];
 export const gapAt = (y) => { const G = LEG_GAP; if (y >= G[0][0]) return G[0][1]; for (let i = 0; i < G.length - 1; i++) if (y >= G[i + 1][0]) return G[i + 1][1] + ((G[i][1] - G[i + 1][1]) * (y - G[i + 1][0])) / (G[i][0] - G[i + 1][0]); return G.at(-1)[1]; };
 
-// The face's own lines (intent 0040), drawn as the skin is drawn (./light.js), not laid on its points: a lid's edge, the
+// The face's own lines (intent 0042), drawn as the skin is drawn (./light.js), not laid on its points: a lid's edge, the
 // lips' border and a brow's hairs are finer than the skin's points lie apart. Left side; m. From Farkas's norms of the
 // adult man's face (Farkas 1994, "Anthropometry of the Head and Face"), as remembered: between the eyes' inner corners
 // 33 mm, an eye's opening 31 mm long and 10 to 11 high, its outer corner a little higher than its inner; the mouth 52 mm
@@ -333,7 +333,7 @@ export const eyeOpening = (u, v) => {
   return { d: t <= 0 || t >= 1 ? -Math.hypot(u - (t <= 0 ? E.inner[0] : E.outer[0]), v - (t <= 0 ? E.inner[1] : E.outer[1])) : Math.min(under, over), under, over, t };
 };
 
-// The face's fine folds (intent 0040, fifth round), drawn as the skin is drawn (./light.js): each a short straight
+// The face's fine folds (intent 0042, fifth round), drawn as the skin is drawn (./light.js): each a short straight
 // run seen from the front, left side: [from x, y, to x, y, half its breadth (m), how deep (0 … 1)]. A whole smile
 // folds the skin: a fan from each eye's outer corner, creases under the lower lid; and a brow that has smiled for
 // forty years keeps its lines. (The fold from the nose's wing round the mouth is a form of the head's, HEAD's hollows:
@@ -348,7 +348,7 @@ export const FOLDS = [
   [0, 1.7215, 0.02, 1.7225, 0.0013, 0.22], [0.02, 1.7225, 0.043, 1.721, 0.0013, 0.22], [0, 1.7325, 0.02, 1.7336, 0.0013, 0.25], [0.02, 1.7336, 0.042, 1.732, 0.0013, 0.25],
 ];
 
-// The head's form (intent 0040; ./head.js lays it out). m unless said.
+// The head's form (intent 0042; ./head.js lays it out). m unless said.
 //   sections   the head level by level from the chin's foot to the crown, each level's outline seen from above:
 //              [height (m), where it is widest (z), its half-breadth there, how far its front and its back lie from
 //              there (all mm), how square its front and its back are (2: an ellipse's; more: squarer; less: pointed)].

@@ -1,10 +1,10 @@
 # One skin where there were seven pieces
 
 **Maia City.** A dialogue between Samuel and Maia.
-Told for [intent 0039](../../Intents/0039-one-smooth-skin.md), one smooth skin; its facts are in that intent's
-[changelog](../../Intents/0039-one-smooth-skin.md#changelog) and in the receipts below. The film is
+Told for [intent 0041](../../Intents/0041-one-smooth-skin.md), one smooth skin; its facts are in that intent's
+[changelog](../../Intents/0041-one-smooth-skin.md#changelog) and in the receipts below. The film is
 [`timeline.json`](timeline.json): the camera's moves and the subtitles, played live in the game, the same every time:
-`http://localhost:5173/timeline.html?story=0039-one-smooth-skin`
+`http://localhost:5173/timeline.html?story=0041-one-smooth-skin`
 
 ## The series
 
@@ -76,7 +76,7 @@ anatomy under them is. And there is no hair. Maia says so, and puts three choice
 | "Its thighs met to the knees. Now they stand apart." | Every limb's outline had its outward and inward sides swapped (`skin/target.js`, set right on 2026-11-18): the thigh's fuller outer side lay across the body's middle. Measured on the skin now: 2.4 cm between the thighs at 0.76 m, 4.0 at 0.68, 6.6 between the knees |
 | "red light spreads a millimetre under it" | The six-bell profile of light in skin (d'Eon, Luebke & Enderton 2007), as shipping shaders hold it: red's spread 1.18 mm on the whole, green's 0.26, blue's 0.16 (`skin/maps.js`) |
 | "bends ... without a tear" | The tool's stills in five poses; the skin is one closed surface, so there is nothing to part |
-| "Photoreal, not yet" | Intent 0039, Propose, Known gaps |
+| "Photoreal, not yet" | Intent 0041, Propose, Known gaps |
 | "Seen on a software GPU only" | Every still was drawn through WebGL 2 on SwiftShader in a container; the library was not seen |
 
 ## Open

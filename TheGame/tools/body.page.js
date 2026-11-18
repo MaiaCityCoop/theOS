@@ -1,4 +1,4 @@
-// The Body alone (intent 0039): what `bun tools/body.js --keep` laid (TheGame/.body/), carried by the rig and drawn
+// The Body alone (intent 0041): what `bun tools/body.js --keep` laid (TheGame/.body/), carried by the rig and drawn
 // through the game's own flesh (characters/kit/muscles/flesh.js) with none of the world round it, so a still of it
 // takes seconds where the library takes the world's start. A tool: tools/body.html on the game's dev server.
 //

@@ -1,13 +1,13 @@
 ---
-id: "0039"
+id: "0041"
 title: One smooth skin
 state: propose         # idea | define | build | propose | story | archived
 outcome:               # accepted | rejected, set only when archived
 opened: 2026-11-18
-story: Stories/0039-one-smooth-skin/
+story: Stories/0041-one-smooth-skin/
 ---
 
-# 0039 · One smooth skin
+# 0041 · One smooth skin
 
 ## Idea
 
@@ -205,7 +205,7 @@ stands between is listed below, sixteen points.
   the wheel to come close, the moves, the layers. Not seen there by me (below).
 - **Without the world:** `bun run game`, then `cd TheGame && bun tools/body.js --stills <folder>` takes fifteen stills
   in a minute or two and prints every number below; `http://localhost:5173/tools/body.html?gpu` is the page itself.
-- **The story's folder** is spawned: [`Stories/0039-one-smooth-skin/`](../Stories/0039-one-smooth-skin/story.md), its film
+- **The story's folder** is spawned: [`Stories/0041-one-smooth-skin/`](../Stories/0041-one-smooth-skin/story.md), its film
   over the meadow and the tent (the Body stands in the library, not yet in the world).
 - **The stills** I judged by were taken that way on this container's software GPU, through WebGL 2. They are not kept
   in the repository; before and after, side by side, were sent to Samuel with this.
@@ -364,7 +364,7 @@ shows (9); a body that walks by its feet and its balance, breathes, looks and bl
   43 cm round (39) and a soft fold runs from the jaw's angle. It does not pass the gate: see the sixteen points.
 
 - **Asked (evening):** "Ok eyes and face is the worst at the moment the body is okay for now".
-- **Delivered (evening):** nothing more here: the face and the eyes are intent 0040's. This intent stays proposed;
+- **Delivered (evening):** nothing more here: the face and the eyes are intent 0042's. This intent stays proposed;
   his word on the body is "okay for now", not yet an acceptance.
 
 ## Trail
@@ -379,3 +379,6 @@ shows (9); a body that walks by its feet and its balance, breathes, looks and bl
 | 2026-11-18 | `2a2534e` | proposed: Build, each check as it was, the gaps, three choices for Samuel; the story's folder |
 | 2026-11-18 | `6a5952c` | the limbs' sections right side out; thighs apart, a smoother skin, the neck to the skull's base |
 | 2026-11-18 | `4245334` | the gate in Samuel's words; the second round; sixteen weak points against the gate |
+
+On its branch this intent was numbered 0039, and its commits' messages say `Intent: 0039`. It was given 0041 on 2026-11-18,
+when the branch was brought to `main`, where 0039 had meanwhile been taken by another intent.

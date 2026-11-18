@@ -1,4 +1,4 @@
-// The ear (intent 0040): the auricle as a form of its own, a thin folded plate standing off the head's side, and its
+// The ear (intent 0042): the auricle as a form of its own, a thin folded plate standing off the head's side, and its
 // surface drawn out of it as a closed mesh. Before, an ear was a low relief in the head's skin (an egg of gristle under
 // it and a bowl carved in): a skin laid in level rings round the head cannot go round behind an ear. So the ear is its
 // own surface: it stands with its root inside the head, and the head's skin runs on under it. Plain JS, no three: it

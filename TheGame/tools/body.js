@@ -1,4 +1,4 @@
-// The Body built without the world, measured, and kept for the lab's page (intent 0039): `bun tools/body.js` lays the
+// The Body built without the world, measured, and kept for the lab's page (intent 0041): `bun tools/body.js` lays the
 // bones, the muscles and the skin as the workers lay them (characters/kit/skeleton/grow.worker.js), and says of the skin:
 //   whether it is one closed surface (every edge between exactly two faces), its points and triangles at each level,
 //   its volume, and how far each level is off the finest (what the page chooses a level by);
