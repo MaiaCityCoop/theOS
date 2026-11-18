@@ -133,6 +133,24 @@ A task is on the board from the moment it is planned until it is merged or dropp
 merged rows move to the changelog at the end of the day. A task with no session yet says so; a
 session with no task on the board is a mistake.
 
+### Every machine busy
+
+The master keeps every machine working and as little idle as it can. Idle time is planned away,
+not waited out.
+
+- **No session waits for a merge.** A task that builds on work not merged yet branches from the
+  train's branch (or the PR it needs) and merges `main` in when that lands.
+- **Every session has its next task** on the board before its current one ends, and gets its
+  brief the moment it is free. A worker that finishes with nothing next tells the master at once.
+- **The GPU is never idle while something waits to be measured.** The master keeps its queue
+  filled ahead: the next train, quick checks, the gate's own jobs on `main`, diagnostics a worker
+  needs. When a train is not ready, the GPU runs measurements that help the next one.
+- **Each machine within its limits:** the avenMAIA MacMini's memory (at most two task sessions
+  beside the master), the avenMAIA MacBook Sam's GPU at about half at most while Samuel works on
+  it. Busy never means overloaded: a frozen machine is the most idle of all.
+- The board shows what each machine is doing now; a machine with nothing on the board is a gap to
+  fill.
+
 ### The GPU: one lock, one queue
 
 - Every GPU run on a machine takes that machine's lock first (`~/src/github/MaiaCityCoop/.gate-lock`,
