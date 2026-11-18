@@ -1153,7 +1153,13 @@ Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at
     are kept in IndexedDB, so a second start reads them back.
   - `bun tools/scale.js`: 18 of 18. `bun tools/account-check.js`: 67 passed. `bunx --bun vite build`: built.
 
-FLIPLINES
+  - **FLIP against main and against `?truth`: measured on the Mac mini**, on its own GPU. This MacBook's GPU was
+    shared and froze, so its runs were stopped. Here, the branch's stills settled at `bench-tent-eye-level`, `tent-10m`,
+    `tent-30m` and `tent-120m` (171.8, 110.5, 126.0 and 53.5 s), and main's at `firepit-3m`, `boulder-6m` and
+    `boulder-30m`. Not measured here:
+    - main's tent views did not settle within 300 s, with one of the land's pages still out (6b's settling, fixed in 6c);
+    - `?truth` drew black before #79;
+    - the branch's own close views lost the WebGPU device, and so did the truth retried after #79, on the shared GPU.
 
 ## Propose
 
