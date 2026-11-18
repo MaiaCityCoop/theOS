@@ -1439,6 +1439,10 @@ rules for both: root causes, never fewer samples as a patch; the light's ceiling
   (one): 11–19 reads, about 20 KB of fragment code with the clouds.
 - **The bench** also prints what each pass adds to the span (each pass, in the order the GPU began them, from where the
   passes before it ended): these add up to the span, where the passes' own times do not.
+- **Merged with main's bench** (#83, `ecc80f2`): its `CLASSES` name the light's passes in place of `shadow map`
+  (`light`: `clouds`, `near`, `far`, `canopy`, `probes`, `air tables`, `sky`, `froxels`, `screen light`, `gtao`,
+  `contact`); the bench's frame marks nothing for the light, which marks its own; what each pass adds to the span is
+  printed part by part, as the passes' own times are.
 - **Not measured here** (no GPU work on this machine): all of it, on the Mac mini: the gate's bench, stills, `?truth`,
   the paths. `bun tools/scale.js`: 24 of 24. `bunx --bun vite build`: TheGame and OS built.
 - **For Samuel**, where 9a may not hold the look within 3 ms without a fudge:
@@ -1447,6 +1451,43 @@ rules for both: root causes, never fewer samples as a patch; the light's ceiling
   - the contact shadows at eye level in the stand, where nearly every pixel is within the near cascade and marches all
     twelve steps;
   - the stand's floor without the green bounce (9b) is darker than stage 9 drew it.
+
+### The bench, pass by pass, on main (2026-11-18)
+
+Built on `aven/0038-bench-per-pass` from main at `3d0c3b5`: stage 9's `cf77e71` ("the bench times each pass on its
+own") ported to main's passes, since it does not cherry-pick (it was written on stage 9's light). It is there so that
+per-pass GPU ceilings can be a merge rule.
+
+- `src/core/gpu.js` `mark(name)` / `listen(fn)`; nothing listens in the game. The screen marks its passes (`occlusion`,
+  `prepass`, `prepass, late`, each after-prepass part by its name: `pages`, `colour`, `lens`, `upscale`: stage 9's
+  lines as they are); the bench's frame marks what comes before it (`ground map`, `pages, laid`, `packing`, `clouds`,
+  `shadow map`).
+- `tools/bench.js` reads three's query sets itself: every pass's begin and end under its mark, in the real frame, with
+  the game held. Each pass is in one of four parts (`CLASSES`), the classes of the ceilings this is for (geometry about
+  5 ms, light 3, ground 1.5, upscale and post 1.5, and 1 of slack: 12):
+  - **geometry**: packing, occlusion, prepass, prepass late, colour;
+  - **light**: clouds, shadow map;
+  - **ground**: ground map, pages laid, pages (asked for);
+  - **upscale/post**: lens, upscale;
+  - **other**, the slack: whatever no part names.
+- `tools/gate.js bench` prints per view `passes` (each pass's own time added) and `span` (first begin to last end), then
+  each part's sum with its passes under it, in ms a frame, a view a column (in brackets, the ms in a frame it is drawn
+  in, for what is drawn in turn). Then the colour pass with its shadow reads and without. `.gate/bench.json` keeps
+  `passes`, `classes`, `span` and `shading` per view. Chrome gets `--enable-webgpu-developer-features`.
+- Stage 9's own passes (the cascades, canopy, probes, air, froxels, GTAO, contact) are not on main. Stage 9 marks them,
+  and names them in `CLASSES`, when it merges main; until then they would show under other.
+- **Not measured here: to be measured on the Mac mini** (`bun tools/gate.js bench`; no GPU work on this MacBook).
+  Checked on the CPU: `bench()` and the gate's table against a mock of three's query sets (each pass under its mark,
+  what is drawn in turn, the parts adding up to the frame, the shadow A/B); `bun tools/scale.js` 24 of 24;
+  `bunx --bun vite build` for TheGame and OS: built.
+- **The upscale: the next root cause after 9a** (not fixed here). On the Mac mini, stage 9's branch measured the upscale
+  pass at 7.5–21.2 ms a frame at a 3840 × 2160 output (the skyline 21.2), 5–14 times its 1.5 ms share. It is main's own
+  pass from 2b, and has a row of its own in the table. What is to be found is why it costs that much at a 4K output:
+  - the formats: the half-float colour and motion it reads, and the kept picture, an eight-bit storage texture written
+    from the fragment shader beside the canvas;
+  - the taps: 13 reads a screen pixel;
+  - the history reads: Catmull-Rom's five of the kept picture;
+  - the motion-vector dilation: the nearest of the 2 × 2, by a gather of the depth.
 
 ## Propose
 
@@ -1466,7 +1507,6 @@ rules for both: root causes, never fewer samples as a patch; the light's ceiling
 - [x] Stage 3: boot (merged #67; Safari to be tried on next)
 - [x] Stage 4: far end, impostor and clump rung (merged #66)
 - [x] Stage 5: crowds, parts and one wind (#69; its cost and the impostors' size left, under Open risks)
-- [ ] Stage 5: crowds, parts and one wind
   - [x] the draw path's two-pass occlusion culling, against a depth pyramid (built; draft PR #68)
 - [ ] Stage 6: land, virtual texture and relief
   - [x] 6a: the layer map, one read a material (the deferred pass left to 6b)
@@ -1478,6 +1518,9 @@ rules for both: root causes, never fewer samples as a patch; the light's ceiling
 - [ ] Stage 9: one light, characters
   - [x] 9a: the light within its ceiling (built; on #72, the gate on the Mac mini)
   - [ ] 9b: froxels, GTAO, the probes marched and their bounce, cheap enough to be the default (now behind `?light=full`)
+- [ ] The bench pass by pass (built on `aven/0038-bench-per-pass`): measured on the Mac mini, the per-part ceilings a
+      merge rule
+- [ ] The upscale's cost at a 4K output (7.5–21.2 ms against its 1.5): the next root cause after 9a
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
 
 ## Changelog
@@ -1644,6 +1687,15 @@ rules for both: root causes, never fewer samples as a patch; the light's ceiling
   - `bun tools/scale.js` 24 of 24.
 - **Not there yet:** not measured against the truth (?truth black since 6b); the pines from 30 m and the stress
   world's start not settled (6b, fixed in 6c); the timings left to the Mac mini; the rest under the stage's Not done.
+- **Asked (by the orchestrating session, on the Mac mini):** per-pass GPU timing on main, so per-pass ceilings can be a
+  merge rule (geometry about 5 ms, light 3, ground 1.5, upscale and post 1.5, 1 of slack): stage 9's `cf77e71` ported to
+  main's passes, each in one of the ceilings' four classes, a sum per class per view; the upscale on its own, flagged as
+  the next root cause after 9a.
+- **Delivered:** built (under Build, "The bench, pass by pass, on main"); a PR into main, ready for review.
+- **Good:** every pass of main's frame has a name and a part; the upscale has a row of its own; the screen's marks are
+  stage 9's lines as they are, so stage 9's merge of `screen.js` and `boot.js` is clean (`git merge-tree`).
+- **Not there yet:** nothing measured: the Mac mini runs `bun tools/gate.js bench`; stage 9's passes join when it merges
+  main; the upscale's cost is not looked into.
 
 - Stage 9, one light (PR #72, ready for review): `lit()` for every material; two shadow cascades in one atlas with a penumbra from the sun's disc and shadow twins; contact shadows; the canopy map and its sky probes with a green bounce; GTAO; leaves lit from behind; Hillaire's sky and a froxel air with shafts; one blue noise. Characters and animals out of scope for now.
 - **Asked (by the master, after the Mac mini measured stage 9 at 75–116 ms):** fix the bench's per-pass timing, count
@@ -1701,3 +1753,4 @@ rules for both: root causes, never fewer samples as a patch; the light's ceiling
 | 2026-11-18 | `16f8e01` | Stage 7: the growth map keyed on the sandbox and the stage, not the ground map's fade |
 | 2026-11-18 | `1aac442` | Stage 7 merged with main (6b): the land's litter and far colours read the rule's stands |
 | 2026-11-18 | `3907ce7` | Stage 7 merged with main (`314e2e6`) |
+| 2026-11-18 | `19d0559` | The bench times each pass on its own on main: the passes marked, each in one of four parts (geometry, light, ground, upscale/post) |
