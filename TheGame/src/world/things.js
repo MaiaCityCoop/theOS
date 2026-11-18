@@ -17,22 +17,23 @@
 //   things.get(id), things.clear(id), things.all(), things.pick([from, dir]) -> the id the eye looks at, or null
 // Kept in the page only: saving it, and sharing it between people, is the API's (not yet).
 import { uint, float, vec3, uniform, If, Loop, Break } from 'three/tsl';
-import { gpuStorageLater, limitOf } from '../core/gpu.js';
+import { gpuStorageLater, limitOf, bytesOf } from '../core/gpu.js';
+import { PROBES } from '../core/budget.js';
 import { HX, HY, fmix, fnvOf } from '../core/hash.js';
 import { fmixN } from '../core/hash.nodes.js';
 import { c8 } from '../../assets/kit/pack.js';
 
 // The table: open addressing, a key within PROBE places of its own (a look-up stops at the first empty one), never
-// fuller than LOAD (so a look-up takes a few steps, and a key never runs out of places: with linear probing at a share
-// LOAD filled, a look-up that misses, as most do, is (1 + 1 / (1 − LOAD)²) / 2 places long on average, 3.6 at 0.6;
-// one that finds, (1 + 1 / (1 − LOAD)) / 2, 1.75). As large as what
-// is in it needs: the least power of two that holds it at LOAD, at least PROBE places, twice as large when it fills;
-// 16 bytes an entry, never more than one buffer the GPU binds
-const PROBE = 32, LOAD = 0.6;
+// fuller than LOAD: with linear probing at a share α filled, a look-up that misses, as most do (most things nobody
+// changed), reads (1 + 1 / (1 − α)²) / 2 places on average (Knuth, The Art of Computer Programming 3, 6.4, Algorithm L),
+// so LOAD is the share at which that is the look-up's budget, PROBES (src/core/budget.js): 0.62 for 4 (one that finds
+// reads (1 + 1 / (1 − α)) / 2, 1.8). As large as what is in it needs: the least power of two that holds it at LOAD, at
+// least PROBE places, twice as large when it fills; an entry a uvec4, never more than one buffer the GPU binds
+const PROBE = 32, LOAD = 1 - 1 / Math.sqrt(2 * PROBES - 1);
 let CAP = PROBE, MASK = CAP - 1;
 const uMask = uniform(MASK, 'uint');   // (the table's mask on the GPU: its size, as it is now)
-/** The most it may hold: what one buffer the GPU binds (16 bytes an entry) holds at LOAD (without a GPU, nothing binds it). */
-const most = () => Math.floor(((limitOf('maxStorageBufferBindingSize') || Infinity) / 16) * LOAD);
+/** The most it may hold: what one buffer the GPU binds holds at LOAD (without a GPU, nothing binds it). */
+const most = () => Math.floor(((limitOf('maxStorageBufferBindingSize') || Infinity) / bytesOf('uvec4')) * LOAD);
 
 /** A placer's name as a number (what its things' keys are woven with). */
 export const nameKey = fnvOf;

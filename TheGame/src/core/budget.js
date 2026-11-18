@@ -31,3 +31,7 @@ export const FRAME_MS_BY_CLASS = { geometry: 5, light: 3, ground: 1.5, 'upscale/
     What a pool is sized by, where it may be larger or smaller, is the room its class has left (src/core/gpu.js roomOf).
     unit: MiB. source: Intents/0038, Build (GPU memory by class) */
 export const BUDGET_MB = { geometry: 2048, ground: 1024, light: 256, 'upscale/post': 256, other: 512 };
+/** A look-up of the single things' table (src/world/things.js) for a thing nobody changed, as most are: the places it
+    reads on average, at most (a uvec4 each), for every packed thing at every packing while any thing is changed: what
+    the table's fill follows from. unit: places. source: Intents/0038, Build (the solids' builder and cut) */
+export const PROBES = 4;
