@@ -163,6 +163,17 @@ Later, not in the MVP: underground transport, the dome factory, robotics, and co
 - **The 49% cap:** citizens pay in about €16M by 1,597 (€8M to the village coop) against about €300M invested, so their 51% holds only because their stake is valued through the HEARTS–€ pool, as treasury wealth.
 - Phases 2 to 4 are one gate each and long to build; their build steps (drilling begins, plant online, tower shell, server farm online) may become sub-milestones.
 
+### Economies of scale
+
+The ladder's € figures are for **a first village**, buying everything from the market. Later villages get much cheaper, **but only once the startup factory coops exist** (phase 4 of a city's first village): before that, every village pays market prices.
+
+- **The factory coops unlock it.** The coops for domes, batteries, solar panels, geothermal drilling and open-source machines supply every later village, **in city HEARTS, inside the city**, instead of imports paid in €. So the € a village needs from outside falls much faster than its price.
+- **The factory coops level up themselves.** Each one climbs by the units it has made in total; every doubling lowers its cost per unit, by about 20% (a design value, after the learning curves of solar and batteries). The more villages a city builds, the cheaper the next one: about half the cost by the tenth village, about a quarter by the hundredth, for the parts the factories make.
+- **What does not get cheaper through us:** the server farm's GPUs, bought on the global market.
+- **Blueprints:** later villages copy what worked (designs, crop plans, the ladder), and skip the first village's experiments.
+- **The pioneer premium:** the first villages carry the most risk and pay the most. Their settlers and investors get more MINDS per € and a stake in the factory coops that later villages buy from.
+- **The race speeds up:** every village a country finishes makes its next one cheaper and faster.
+
 ### The race
 
 - **Between countries:** the richest city, by total wealth, wins the real city.
@@ -196,5 +207,6 @@ The numbers the game publishes, the proof:
 
 - Insolvency in full.
 - Each coop's governance model, in detail.
+- Whether the scale discount stays inside one country's city or reaches other countries (through exports or blueprints).
 - The ladder's percentages (food, energy, climate) and the plants per dome size with their real growing cycles: to be tuned, and sourced before they are shown as fact.
 - Real-world numbers (dome yields, solar output, market prices) need sources before they are shown as fact.
