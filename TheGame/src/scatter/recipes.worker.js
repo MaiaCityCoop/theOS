@@ -35,6 +35,7 @@ function solidBox(v, D, out = new Float32Array(6), at = 0) {
   out.set(b, at); return out;
 }
 
+self.postMessage({ here: true });   // (started: the page hears it, src/core/workers.js asking)
 self.onmessage = async ({ data: { id, jobs } }) => {
   await ready;
   const out = [], move = [];
