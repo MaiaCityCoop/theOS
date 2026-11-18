@@ -19,7 +19,7 @@ export async function find(target) {
   if (typeof target === 'object') return { keep: ['boulder', 'stone', 'placed'], ...target };
   const { heightAt } = await mod('src/world/land.js');
   if (target === 'tent' || target === 'firepit') {
-    const { PLACES } = await import('/world/places.js'), P = target === 'tent' ? PLACES.tent : PLACES.fire, h = target === 'tent' ? 3 : 0.5;
+    const { PLACES } = await import('../world/places.js'), P = target === 'tent' ? PLACES.tent : PLACES.fire, h = target === 'tent' ? 3 : 0.5;
     return { x: P.x, z: P.z, y: heightAt(P.x, P.z) + h / 2, r: target === 'tent' ? 3.2 : 1.2, keep: ['placed'] };
   }
   const { rocksAround } = await mod('src/world/rocksolid.js'), found = [];
