@@ -1434,62 +1434,11 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
     from 41 m and a stone of 1.1 m from 72 m (at 700 px: 32 m and 56 m), against the meadow's 88 m. Under #82 nothing
     that writes a foot sinks before 110 m, and the meadow ends at 112 m.
   - **Left:** every foot is at least 1.5 m round (¾ of a texel), wider than a sapling, a stone or a branch. The map is
-    too coarse to hold their bodies, which is a fix of its own (Feet, below).
+    too coarse to hold their bodies, which is a fix of its own.
   - **Cost:** the understory's gather looks at 36 cells a texel instead of 16, since its largest mastic's crown (4.2 m)
     reaches past the old 2.7 m. The canopy's 25 are unchanged.
   - **To be measured on the Mac mini:** `bench-tent-eye-level`, `tent-10m`, `tent-30m`, `bench-river-bend-26m`,
     `pines-30m`, `bench-pine-forest-eye-level`, and the growth map's passes in the bench.
-- **Feet** (`aven/0038-feet`, 2026-11-18, on the meadow fix). **The invariant: a thing keeps clear the ground it really
-  covers, no more.** On main every foot was a disk at least 1.5 m round, because a 2 m texel cannot hold a smaller body.
-  So a sapling, a stone or a branch cleared about 4 m² of meadow, and a mastic 4.8 m², even while drawn.
-  - **What a thing covers is its own body**, measured on each shape as it is built (the tree kit's builder, `feet`):
-    - wood that rises through the ground leaves its cross-section there (a trunk, a sapling's stem, a bush's stems);
-    - what lies on the ground, its wood ring to ring (a log, a branch) or a stone's outline where it leaves the soil;
-    - leaves cover none: they shade.
-    - At the middle scale: a sapling 0.001–0.03 m², a mastic's stems 0.01–0.03, a branch 0.05–0.29, a stone 0.3–1.4,
-      a log 0.7–1.5, a grown pine's trunk up to 1.6 m². Bracken and reeds cover nothing.
-  - **The form chosen is (b): feet are not rasterised.**
-    - What stands in each cell of the canopy and the understory is placed once and kept, a word a cell, in the growth
-      map's buffer: 4.25 MB more, 12.25 MB in all.
-    - A blade, a floor thing or a bush tests itself against the pieces of the bodies whose feet may reach it, read from
-      those words and turned and scaled as they are drawn.
-    - A texel's foot byte now says only whether any foot may reach into it. Where none may (the open meadow), nothing
-      more is read: the flag rides in the word already read for the lead. Where one may, 1 canopy word and 16
-      understory words, and the pieces of the bodies in reach.
-    - The growth map's own gather reads the same words instead of placing again. A 16 m strip places 14 k cells
-      instead of 500 k; the whole window 0.74 M instead of 64 M.
-    - Nothing is set by hand. A body's footprint is its geometry. The cells a point asks about follow from its
-      layer's largest footprint and the cells' size: 1 in the canopy (trunks reach 0.78 m), 4 × 4 in the understory
-      (a log reaches 3.0 m). A word gives each thing and shape as many bits as their counts need. No new dial, and
-      no branch for `?truth`.
-  - **(a) costs more.** The error measure lets a footprint's texel be 1.1 mm for every metre of distance (1 pixel
-    drawn, at a window 900 px tall): 2–3 mm at the walker's feet, 13 cm at the meadow's end. A map kept so is a clipmap
-    of seven 4096² levels, about 110 MB. Its finest level is 8 m wide and moves every frame of a walk. One map fine
-    enough for the thinnest foot (a rockrose's stem, 1.4 cm) over the meadow's 224 m is 1 GB.
-  - **(b) without the kept words** places the 17 cells round every blade again: 4 M placings a full repack of the
-    meadow (about 250 k blades), nine strips' worth. Its nearest ring alone (59 k blades) repacks every 0.5 m of a walk.
-  - **WGSL**, built on the CPU (three's `WGSLNodeBuilder`, no device; no validator ran):
-    - the growth map's passes, 80 k characters → 90 k: its cells' passes 30 k and 38 k, its texels' 11 k each;
-    - a floor thing's placement 27 k → 32 k;
-    - a blade's read of the map 10 k → 15 k.
-  - The kit measures the feet, so every recipe of the tree kit has a new version and the first start builds the
-    plants again.
-  - **Left:** a thing is tested at its foot, so a log may still lie through a trunk, as on main. The floor's things (a
-    moss cushion) write no feet.
-  - **To be measured on the Mac mini:**
-    - `bench-tent-eye-level`, `tent-10m`, `tent-30m`, `bench-river-bend-26m`: no bare round patches in the meadow, and
-      the grass up to the edge of each stone, sapling and branch;
-    - `pines-30m`, `bench-pine-forest-eye-level`: the floor up to trunks, logs and bushes' stems;
-  - **The code gates** (on the Mac mini, CPU only; its author finished): `tube` and `feetOf` in named stages (the tree
-    kit's eight plants build the same meshes, feet and trunks, hash for hash). A layer's inset from its feet: each of
-    its things stands its feet's reach in from its cell's edge, so two trunks of neighbouring cells never stand in each
-    other and a point's ground is one cell's thing's (the canopy: 0.784 m of a 9.94 m cell, 0.0789, where 0.08 was set);
-    where the feet do not fit in half a cell (a fallen log in the understory's 2.48 m), none, its things anywhere in
-    their cells (they move by up to 0.2 m; the floor's, which write no feet, up to 5 cm). The feet's table within the
-    device's own uniform room (limitOf). FOOT named physical (metres of stem set into the ground), its derived form each
-    thing's feet's reach times the slope where it stands, a follow-up in the trees' packing.
-    - the growth map's passes in the bench.
-  - **Checks run here (CPU):** `bun tools/scale.js` 24 of 24; `bunx --bun vite build` for TheGame and OS.
 
 ### Draw path: one culling for every tier, the late prepass one bundle, the grass culled, plants' boxes measured (2026-11-18)
 
