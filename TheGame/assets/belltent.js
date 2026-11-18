@@ -1,7 +1,8 @@
-// The bell tent, the first thing in Maia City (it stands by the river, world/places.js). Canvas: round, a short wall, a cone of roof on one centre pole, a door with its flaps tied back,
-// guy ropes to pegs all round, a groundsheet. The detailed one of the library: four levels of detail, each its own
-// shape, from every rope and peg up close (and an inside to walk into, through the door) to a plain six-sided cone far away. An asset in the one recipe
-// (assets/index.js). Units are metres; the origin is the middle of its floor; the door faces -z.
+// The bell tent, the first thing in Maia City (it stands by the river, world/places.js). Canvas: round, a short wall, a
+// cone of roof on one centre pole, its door open, guy ropes to pegs all round, a groundsheet, and an
+// inside to walk into, through the door. It says only what it is, every rope and peg: every coarser version of it is the
+// builder's (assets/kit/made.js). An asset in the one recipe (assets/index.js). Units are metres; the origin is the
+// middle of its floor; the door faces -z.
 // What a real one measures, and where that is known from (intent 0035): next to what it is, read against the
 // world's one scale (world/scale.js) and measured against what it draws by `bun tools/scale.js`.
 const MEASURE = {
@@ -20,7 +21,7 @@ const MEASURE = {
 };
 const R = MEASURE.diameter / 2, WALL = MEASURE.wall, PEAK = MEASURE.peak, CAP = MEASURE.cap;
 const canvas = [0.86, 0.82, 0.71], shade = [0.74, 0.69, 0.57], inside = [0.07, 0.06, 0.05], rope = [0.58, 0.5, 0.37], wood = [0.42, 0.31, 0.2], sheet = [0.24, 0.29, 0.22];
-const floorPale = [0.8, 0.76, 0.66], lining = [0.74, 0.55, 0.3], lining2 = [0.66, 0.48, 0.26], rug = [0.55, 0.27, 0.16], rug2 = [0.78, 0.6, 0.32], linen = [0.84, 0.8, 0.7], wool = [0.3, 0.38, 0.29], lamp = [1.0, 0.82, 0.42];
+const lining = [0.74, 0.55, 0.3], lining2 = [0.66, 0.48, 0.26], rug = [0.55, 0.27, 0.16], rug2 = [0.78, 0.6, 0.32], linen = [0.84, 0.8, 0.7], wool = [0.3, 0.38, 0.29], lamp = [1.0, 0.82, 0.42];
 const DOOR_W = MEASURE.door.width / 2 / R, DOOR_H = MEASURE.door.height;   // the door: half its width as an angle round the tent, and how high it reaches into the roof
 const at = (r, y, t) => [r * Math.cos(t), y, r * Math.sin(t)];
 const coneR = (y) => R * (PEAK - y) / (PEAK - WALL);   // the roof's radius at a height
@@ -73,32 +74,10 @@ function furnish(f, n) {
   box(f, 0.11, 0, 0.13, 0.13, 2.02, 2.05, [0.16, 0.15, 0.14]);
 }
 
-function bell(n, { door = true, open = false, bare = false, flaps = false, ropes = 0, pegs = false, pole = false, groundsheet = false } = {}) {
-  const f = [], top = [0, PEAK, 0];
-  if (open) {   // up close the door is a real opening, and there is an inside to walk into
-    skin(f, n, R, (t) => doorTop(t + Math.PI / 2), lit, 6); furnish(f, n); door = false;
-  } else if (bare) {   // further off, still an opening: a pale floor and the lit canvas within, nothing else
-    skin(f, n, R, (t) => doorTop(t + Math.PI / 2), lit, 3); skin(f, n, R - 0.03, (t) => doorTop(t + Math.PI / 2), () => lining, 3);
-    disc(f, 0, 0, R - 0.05, 0.06, floorPale, n); door = false;
-  } else for (let i = 0; i < n; i++) {
-    const t0 = -Math.PI / 2 + (i / n) * 2 * Math.PI + Math.PI / n, t1 = t0 + (2 * Math.PI) / n;   // a seam, not a face, faces the door's middle
-    const a0 = at(R, 0, t0), a1 = at(R, 0, t1), b0 = at(R, WALL, t0), b1 = at(R, WALL, t1), c = lit((t0 + t1) / 2);
-    f.push([a0, a1, b1, c], [a0, b1, b0, c]);   // the wall
-    f.push([b0, b1, top, c]);                                                               // the roof
-  }
-  if (door) {   // the open door, laid just outside the canvas: from the ground, through the wall, up into the roof to a point
-    // in small pieces that follow the curve of wall and roof: a flat door across a round tent would sink into it
-    const m = -Math.PI / 2, e = 0.02, H = 8, Wn = 6;
-    const half = (y) => (y <= WALL ? DOOR_W * (1 - 0.06 * y / WALL) : DOOR_W * 0.94 * (1 - (y - WALL) / (DOOR_H - WALL)));
-    const on = (y, k) => { const w = half(y), t = m - w + (2 * w * k) / Wn; return at((y <= WALL ? R : coneR(y)) + e, y, t); };
-    const ys = [0, WALL / 2, WALL]; for (let j = 1; j <= H; j++) ys.push(WALL + ((DOOR_H - WALL) * j) / H);   // a break exactly where the wall meets the roof
-    for (let j = 0; j < ys.length - 1; j++) { const y0 = ys[j], y1 = ys[j + 1];
-      for (let k = 0; k < Wn; k++) f.push([on(y0, k), on(y0, k + 1), on(y1, k + 1), inside], [on(y0, k), on(y1, k + 1), on(y1, k), inside]); }
-    if (flaps) for (const s of [-1, 1]) {   // its two flaps, rolled back and tied beside it
-      const t = m + s * (DOOR_W + 0.06), u = m + s * (DOOR_W + 0.3);
-      f.push([at(R + e * 2, 0, t), at(R + e * 2, 0, u), at(coneR(DOOR_H * 0.82) + e * 2, DOOR_H * 0.82, t), shade]);
-    }
-  }
+function bell(n, { ropes = 0, pegs = false, pole = false, groundsheet = false } = {}) {
+  const f = [];
+  // the door a real opening, and an inside to walk into
+  skin(f, n, R, (t) => doorTop(t + Math.PI / 2), lit, 6); furnish(f, n);
   if (pole) {   // the centre pole, through the peak
     const w = 0.035, p = (x, z, y) => [x, y, z];
     for (const [x0, z0, x1, z1] of [[-w, -w, w, -w], [w, -w, w, w], [w, w, -w, w], [-w, w, -w, -w]]) f.push([p(x0, z0, 0), p(x1, z1, 0), p(x1, z1, PEAK + CAP), wood], [p(x0, z0, 0), p(x1, z1, PEAK + CAP), p(x0, z0, PEAK + CAP), wood]);
@@ -130,16 +109,8 @@ export default {
   measure: MEASURE,
   size: { length: 2 * R * 1.75, width: 2 * R * 1.75, height: PEAK + CAP },
   colours: { canvas, shade, inside, rope, wood, groundsheet: sheet },
-  // levels of detail, near to far, each its own shape: up close every rope and peg; then fewer seams; far, a cone
-  // its levels of detail, near to far (src/detail): where each ends comes from its kind, shelter (assets/kinds.js)
-  detail: {
-    levels: [
-      { faces: bell(32, { open: true, flaps: true, ropes: 8, pegs: true, pole: true, groundsheet: true }) },
-      { faces: bell(16, { bare: true, flaps: true, ropes: 8 }) },
-      { faces: bell(10, { bare: true }) },
-      { faces: bell(6, { door: false }) },
-    ],
-  },
+  // all it is, up close: every coarser version of it is the builder's (assets/kit/made.js)
+  faces: bell(32, { ropes: 8, pegs: true, pole: true, groundsheet: true }),
   placement: { at: 'places', clearsGround: 3.2 },
   // what a walker cannot pass, in its own frame (the origin the middle of its floor, the door towards -z):
   // walls (a round, with the gaps that can be walked through), posts, boxes; and the height of what is overhead

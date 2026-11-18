@@ -28,11 +28,14 @@
 //   7   tip z (16) | go (16)             the size on screen under which it is gone (a plane's: under which its chunk
 //                                        has come), log2 in 2048ths from 2^-8 (0: never)
 //
-//   packPlant(mesh) -> { index: its corners, verts: Uint32Array, count: how many vertices }   what a family hands on
+//   packPlant(mesh) -> { index: its corners, verts: Uint32Array, count: how many vertices, box }   what a family hands on
+//                      (box: [x0, y0, z0, x1, y1, z1], metres in its own frame, round all it can reach: a crowd's sprigs
+//                      enlarged about their tips as far as its rule lets them; what the eye's culling tests it by,
+//                      src/scatter/drawer.js kindBox)
 //   plantFamily(id, asset)   a plant asset's shapes as a family of the zoo (assets/zoo/index.js)
-import { kindRule, shapesOf, most } from '../kinds.js';
+import { kindRule, shapesOf, most, baseOf } from '../kinds.js';
 import { held, sn, q16, oct, OCT } from './pack.js';
-import { crowd, levelOf } from './crowd.js';
+import { crowd, levelOf, CROWD, RULE } from './crowd.js';
 
 export const GRID = { xz: 40, y0: -2, y1: 78 }, UVK = 1024, UV0 = 16, GOQ = 2048;   // x and z over -40 … 40 m, y over -2 … 78 m, 16 bits each (1.2 mm); uv in 1024ths, from -16
 /** A number as a half float's 16 bits (round to nearest; what the GPU's unpackHalf2x16 reads back). */
@@ -54,6 +57,14 @@ export function packPlant(m) {
   // (its far data, after its vertices: crowd.js; where it begins, a vertex's number, as two whole numbers a half float holds exactly)
   if (FV) { new Float32Array(out.buffer, (n + R) * 32, m.far.length).set(m.far); m.rule[14] = Math.floor((n + R) / 1024); m.rule[15] = (n + R) % 1024; }
   if (R) for (let i = 0; i < 8; i++) out[i] = (half(m.rule[i * 2]) | (half(m.rule[i * 2 + 1]) << 16)) >>> 0;   // (a crowd's level: its shape's numbers first, two to a number of 32 bits)
+  // (its box: every vertex where it stands and what it grows from; a card's, enlarged about its tip as far as the rule
+  // lets it, its root's too: a card grows out of it as it comes. Whatever it is moved to lies between those)
+  const box = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity], grow = R ? Math.max(CROWD.SWELL, m.rule[RULE.SWELL] || 0) : 1;
+  const take = (x, y, z) => { if (x < box[0]) box[0] = x; if (y < box[1]) box[1] = y; if (z < box[2]) box[2] = z; if (x > box[3]) box[3] = x; if (y > box[4]) box[4] = y; if (z > box[5]) box[5] = z; };
+  for (let v = 0; v < n; v++) {
+    const p = v * 3; take(P[p], P[p + 1], P[p + 2]); take(RT[p], RT[p + 1], RT[p + 2]);
+    if (R) { const T = m.tip; take(T[p], T[p + 1], T[p + 2]); if ((m.part[v] & 3) === 1) for (const Q of [P, RT]) take(T[p] + (Q[p] - T[p]) * grow, T[p + 1] + (Q[p + 1] - T[p + 1]) * grow, T[p + 2] + (Q[p + 2] - T[p + 2]) * grow); }
+  }
   for (let v = 0; v < n; v++) {
     const o = (v + R) * 8, p = v * 3;
     out[o] = (gx(P[p]) | (gy(P[p + 1]) << 16)) >>> 0;
@@ -70,7 +81,7 @@ export function packPlant(m) {
       out[o + 7] = (gx(T[p + 2]) | (q << 16)) >>> 0;
     }
   }
-  return { index: R ? Uint32Array.from(m.index, (x) => x + R) : Uint32Array.from(m.index), verts: out, count: n + R };   // (count: its numbers and its vertices; its far data after them is not counted)
+  return { index: R ? Uint32Array.from(m.index, (x) => x + R) : Uint32Array.from(m.index), verts: out, count: n + R, box: n ? Float32Array.from(box) : null };   // (count: its numbers and its vertices; its far data after them is not counted)
 }
 
 /** A plant asset's shapes (assets/*.js made by the tree kit's tree()) as a family of the zoo (assets/zoo/index.js):
@@ -86,6 +97,9 @@ export const plantFamily = (id, asset) => ({
   boundsOf: (i) => { const d = dimsOf(asset, i), x = Math.max(d.length, d.width) / 2; return { min: [-x, 0, -x], max: [x, d.height, x] }; },
   collidersOf: (i) => shapesOf(kindRule(asset, 'solid'), dimsOf(asset, i)),
 });
+/** A plant's base over its height, its shape i's: how far round its middle what is solid of it stands on the ground, a
+    metre of its height (assets/kinds.js baseOf; its kind's rule, as collidersOf: a tree its trunk). */
+export const baseShare = (asset, i) => { const d = dimsOf(asset, i); return baseOf(shapesOf(kindRule(asset, 'solid'), d)) / d.height; };
 const dimsOf = (asset, i) => { const H = most(asset.size.height), h = asset.heights?.[i] ?? H, k = h / H; return { height: h, length: most(asset.size.length) * k, width: most(asset.size.width ?? asset.size.length) * k, trunk: asset.trunk?.[i] ?? null }; };
 
 // ---- the plants' levels by the crowd kit (intent 0033): one build of a shape's finest, every level a first share of
@@ -97,7 +111,6 @@ export const shapeSize = (a, shape) => { const H = a.size.height, S = a.growth?.
 /** The size each stand that changes level as one measures its plants by (its biome's `size`: the shrubs' 3.5 m), by
     plant asset's uid: what the biomes say, read on the page (src/scatter/trees.js) and told to the recipes' workers,
     which read no biome (the plants' make: src/scatter/drawer.js `tell`). */
-export const STANDS = {};
 const BUILT = new Map();   // (the last few shapes built: a kind's levels are asked for one after another)
 /** A place along one axis as the GPU reads it back from the heap (the grid a vertex is packed on, above): where a
     chunk's parts are found by their tips (crowd.js clumpsOf), the same on both sides of the GPU. */
@@ -111,8 +124,4 @@ export const crowdOf = (a, i) => {
   return S;
 };
 /** Level l of shape i: what it is drawn with between its sizes on screen (its first level: every size above its own). */
-export const crowdAt = (a, i, l) => { const [lo, hi] = bandsOf(a)[l]; return levelOf(crowdOf(a, i), lo, l === 0 ? Infinity : ownTop(a, i, hi)); };
-/** The largest a plant of shape i can be on screen, by its own size, where its stand measures it as `hi` pixels: in a
-    stand that changes level as one (STANDS: the stand's size) its own size over the stand's, at its largest scale (the
-    rule reckons a plant by its own size, at most the stand's: src/scatter/trees.js crowdRule). */
-export const ownTop = (a, i, hi) => { const z = STANDS[a.uid]; return z && Number.isFinite(hi) ? hi * Math.min(1, (shapeSize(a, i) * most(a.placement.scale ?? 1)) / z) : hi; };
+export const crowdAt = (a, i, l) => { const [lo, hi] = bandsOf(a)[l]; return levelOf(crowdOf(a, i), lo, l === 0 ? Infinity : hi); };

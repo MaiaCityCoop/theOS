@@ -11,6 +11,8 @@ import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
 import { TRUTH } from '../detail/measure.js';
 import { CROWD } from '../../assets/kit/crowd.js';
+import { rankOf } from './rule.js';
+import { growthMap } from './growth.js';   // (a blade's turn in the one spread order, as everything placed has it)
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
 
@@ -29,10 +31,6 @@ function blade(segs) {
 // blades so many times fewer and as many times wider (widthOf); and the last ring's blades are thinned out towards its
 // end, one spread order deciding which go (rankOf), those left growing in width up to SWELL times (endOf), never in height.
 const widthOf = (asset, T) => asset.tiers[0].w * (T.cell / asset.tiers[0].cell) ** 2;
-/** A blade's turn in the meadow's one spread order: its cell's place in a 4 x 4 ordered dither (Bayer), so any first
-    share of the turns is spread evenly over the ground, and within that by its own number. */
-const bayer2 = (x, y) => x.bitXor(y).bitAnd(uint(1)).mul(uint(2)).add(y.bitAnd(uint(1)));
-const rankOf = (c, own) => { const x = uint(c.x).bitAnd(uint(3)), y = uint(c.y).bitAnd(uint(3)); return float(bayer2(x, y).mul(uint(4)).add(bayer2(x.shiftRight(uint(1)), y.shiftRight(uint(1))))).add(own).div(16); };
 /** The share of the last ring's blades still drawn at `dist` metres (1 short of its last 30 %, none at its end). */
 const endOf = (T, dist) => (T.end < 1e5 ? float(1).sub(smoothstep(T.end * 0.7, T.end, dist)) : float(1));
 
@@ -43,7 +41,11 @@ function bladeIn(c, asset, T, ground) {
   // three hashes carry everything a blade is; nothing is read before the blade is known to stand
   const h1 = hashI(c.x, c.y, uint(100));
   const pos = vec2(c).add(vec2(float(h1.bitAnd(uint(0xFFF))), float(h1.shiftRight(uint(12)).bitAnd(uint(0xFFF)))).mul(1 / 4096)).mul(T.cell);
-  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = G.y, h2 = hashI(c.x, c.y, uint(101));
+  // (and, the smallest layer of all, as thick as the light that comes down to it through the crowns over it lets it
+  // grow, in proportion to that light (as a plant grows by the light it takes: Monteith 1977), and none on the feet of
+  // the larger: src/scatter/growth.js, rule.js)
+  const M = growthMap(), F = M ? M.all(pos) : null;
+  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = F ? G.y.mul(F.light).mul(float(1).sub(F.foot)) : G.y, h2 = hashI(c.x, c.y, uint(101));
   const inBand = dist.lessThanEqual(hf.mul(-T.farFade).add(T.far)).and(dist.greaterThanEqual(hf.mul(-T.nearFade).add(T.near)));
   const r1 = u8(h2, 0), r2 = u8(h2, 8), r3 = u8(h2, 16);
   // blades stand in tufts: the tuft they are in gives them a height, a lean and a shade in common
@@ -119,7 +121,14 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
     };
     // the most that may stand at once: the ring's area in cells, as much as the frustum can hold of it
     const cap = Math.ceil((Math.PI * (T.far ** 2 - Math.max(0, T.near - T.nearFade) ** 2)) / (T.cell * T.cell) * 0.6);
-    return new Tier(scene, blade(T.segs), material, { cell: T.cell, P: T.P, near: T.near - T.nearFade, far: T.far, order: 0, live, gpu, cap, slots: 3 });
+    // a blade's box, for the eye's culling (src/core/occlusion.js): from its foot up its height, out as far as it bends
+    // (bowed deepest under snow) and its widest (its ring's half width, wider by as much as it thins); the wind leans its
+    // tip its height a unit of the wind's push (bladeMaterial: never more than 1.25 of it)
+    const wide = widthOf(asset, T) * CROWD.SWELL * 1.25;
+    const bounds = (A, B) => { const h = A.w, reach = h.mul(B.y.add(0.6).mul(1.15)).add(wide + 0.02); return { c: vec3(A.x, A.z.add(h.mul(0.5)), A.y), h: vec3(reach, h.mul(0.5).add(0.02), reach), w: h.mul(1.1) }; };
+    const t = new Tier(scene, blade(T.segs), material, { cell: T.cell, P: T.P, near: T.near - T.nearFade, far: T.far, order: 0, live, gpu, cap, slots: 3, bounds });
+    if (growthMap()) t.reads = growthMap().version;   // (packed again when what grows over it changes)
+    return t;
   });
 }
 

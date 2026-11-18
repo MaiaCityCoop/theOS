@@ -38,9 +38,8 @@ export default tree({
   wind: { sway: 0.35 },   // (tall and thin: the wind bends a reed bed in waves)
   shapes: [{ r: 0.35, h: 2.1, cards: 5, seed: 881 }, { r: 0.25, h: 1.7, cards: 4, seed: 882 }, { r: 0.45, h: 2.4, cards: 6, seed: 883 }],
   grow,
-  // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
-  levels: [{ P: 4 }, { P: 8 }],
-  far: { P: 32, speck: false },   // (its far level: its clumps and its impostor, no speck after it)
-  // where it grows: the riverbank's reeds (only in a lake's shallow margin), all of its cells
-  placement: { at: 'scatter', engine: 'trees', stand: 'reeds', biome: '84588b7e-0680-47ca-9793-409c7359db0c' /* riverbank */, share: 1, scale: [1, 1.6], lean: 0.08, seed: 880 },
+  // where it grows (src/scatter/rule.js): the riverbank, in beds, only where it rings a lake (lakes) and only in the
+  // shallow margin, from where the water shoals to just up the bank (shore: of the river's half-width from the channel's
+  // middle)
+  placement: { at: 'scatter', engine: 'trees', biome: '84588b7e-0680-47ca-9793-409c7359db0c' /* riverbank */, cover: 1, lakes: true, shore: [0.42, 1.28], scale: [1, 1.6], lean: 0.08, seed: 880 },
 });

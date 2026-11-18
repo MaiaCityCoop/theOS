@@ -2,9 +2,9 @@
 // turned: hashed, on the GPU, for the cells a tier looks at. Nothing else of a rock is here:
 //   - its shape at every level is its kit's (assets/kit/rock.js), brought to the heap by its asset's family
 //     (assets/zoo/scattered.js: a family a rock asset, found by itself);
-//   - how it is drawn is the one drawer's (drawer.js), as for everything the heap holds: its level by its size on
-//     screen (the ladder's eight, a full mesh of 110 000 triangles to a dot), each level turning into the next, the
-//     world's material it wears, the moss on what of it faces up, its snow, its light.
+//   - how it is drawn is the one drawer's (drawer.js), as for everything the heap holds: its clusters by the cut's rule
+//     (cut.js: from its full mesh of 110 000 triangles to a few, each turning into its parent), the world's material it
+//     wears, the moss on what of it faces up, its snow, its light.
 // Until 2026-11-14 a rock was a cut icosphere of 20 to 1280 triangles with a shader of its own, four levels that
 // changed over whole and an end at six pixels.
 import * as THREE from 'three/webgpu';
@@ -19,26 +19,26 @@ import { distanceAt, TRUTH } from '../detail/measure.js';
 import { source } from '../core/settle.js';
 import { most } from '../../assets/kinds.js';
 import { createDrawer } from './drawer.js';
-import { LADDER } from '../../assets/kit/ladder.js';
 import { placedBy, lookOf as zooLook, fingerprint } from '../../assets/zoo/index.js';
-import { rockMesh, rockBody, FULL_ROCK } from '../../assets/kit/rock.js';
-import { unpackSolid } from '../../assets/kit/solid.js';
-import { DELTA } from '../../assets/kit/reduce.js';
+import { rockFull, rockBody, FULL_ROCK } from '../../assets/kit/rock.js';
+import { SURFACE_LEVELS, surfaceBand, surfacePx } from '../detail/error.js';
 import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 
-// the levels: the ladder's (assets/kit/ladder.js). Every shape's coarser levels are always there (a few megabytes);
-// the full meshes only of the shapes that lie near enough to fill a good part of the screen, six at once (?truth:
-// every shape's at once, src/detail/measure.js). Every level is made from a shape's full mesh by the one reduction
-// (assets/kit/reduce.js, intent 0033): its corners carried further to their places on the next level, and its meshes
-// not the ladder's balls, drawn by their corners
-const LEVELS = LADDER.map((l, i) => ({ n: l.n, px: l.px, delta: DELTA[i], ...(i ? {} : { slots: TRUTH ? Math.max(6, placedBy('rocks').count) : 6 }) })), L = LEVELS.length;
+// the levels: a rock's cluster hierarchy (assets/kit/clusters.js, from its full mesh alone) as the surfaces' levels hold
+// it (src/detail/error.js): level 0, every cluster a thing at the eye may need, there only for the shapes that lie near
+// (six at once; ?truth: every shape's), drawn by the cut; every coarser level always there. ROOM: the most a level holds,
+// triangles and elements, as shares of a full mesh's triangles: measured over twelve of the rocks' shapes, boulders and
+// stones (2026-11-18), with a quarter to spare. A shape that would need more is cut down to fit, never left with a hole
+// (assets/kit/surface.js: trimmed)
+const ROOM = [[2.05, 1.45], [0.25, 0.19], [0.085, 0.065], [0.036, 0.027], [0.009, 0.0056], [0.0045, 0.0028], [0.0012, 0.0009], [0.0006, 0.0005], [0.00015, 0.00015]];
+const FULL = 12 * FULL_ROCK * FULL_ROCK, LEVELS = Array.from({ length: SURFACE_LEVELS }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), delta: 0, room: { tris: Math.ceil(ROOM[i][0] * FULL), verts: Math.ceil(ROOM[i][1] * FULL) }, ...(i ? {} : { cut: true, slots: TRUTH ? Math.max(6, placedBy('rocks').count) : 6 }) })), L = LEVELS.length;
 // RELIEF: the size on screen from which a rock's relief is read (under that its texture's mipmaps have none left);
 // REACH: how far the ground's map says where stones lie (src/scatter/ground.js), metres to the 68° lens: they shrink
 // away before it ends
 const SHADE = { shrink: 0.85, far: 30, wide: 1.5 }, RELIEF = 10, REACH = 104;
-// THIN: where a rock's last mesh thins away, pixels on screen: over the pixels the dot sank in before (the ladder's
-// last, and SINK times it: drawer.js), with no dot to hand over to
-const THIN = [LADDER[LADDER.length - 1].px, LADDER[LADDER.length - 1].px * 1.6];
+// THIN: where a rock thins away, pixels on screen: over its last pixel and a half, pixel by pixel, with nothing to hand
+// over to (its land's colour is under it)
+const THIN = [1.15, 1.84];
 
 /** The assets of engine `rocks`, all at once: they share one drawer (a level of every shape of every rock asset is in
     one heap), each asset a tier a level over its own cells. */
@@ -50,7 +50,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
   if (!rows.length) return [];
   const SMOOTH = uniform(1);
   const D = createDrawer(scene, renderer, tex, {
-    name: 'rocks', LEVELS, SHADE, SMOOTH, corners: true, thin: THIN, still: true, skins: 0, ground: true, soft: true, relief: RELIEF, full: FULL_ROCK,
+    name: 'rocks', LEVELS, SHADE, SMOOTH, corners: true, thin: THIN, still: true, skins: 0, ground: true, soft: true, relief: RELIEF,
     zoo: { first: Z.first, ALL: Z.count, STAND: Z.count, MOVING: 0, lookOfKind: (k) => { const B = zooLook(Z.first + k); return { ...B, material: B.material ?? byRole('rock').uid }; }, fingerprint: () => fingerprint('rocks') },
   });
   const { lookOf } = D, tiers = [], firstOf = new Map(); let sizeMost = 0;
@@ -70,29 +70,30 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
         const kind = uint(floor(rnd(cx, cy, uint(201)).mul(shapes)).min(shapes - 1)).add(uint(F.first));
         // (a stone shrinks away where the ground's map ends)
         const size = big ? s : s.mul(float(1).sub(smoothstep(REACH * 0.86, REACH, dist)));
-        found(kind, size, dist, (A, B, G) => {
+        // (none on a way: none whose base, half its side round its middle, reaches onto it: src/world/ways.js;
+        // src/world/rocksolid.js keeps the same)
+        If(offWays(float(1), pos, s.mul(0.5)).greaterThan(0.5), () => found(kind, size, dist, (A, B, G) => {
           const sunk = size.mul(lookOf(kind, 5).w);   // (how deep it lies: its look's)
           if (big) {   // an outcrop: the land worked out here (the ground's map does not reach so far)
             const d = abs(I.x), w = I.y, dry = dryAt({ p: pos, dist, d, w, b: I.z });
             A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(sunk), size)); G.assign(vec4(grassTint(tex, pos, dry, 0).rgb, dry));
           } else { A.assign(vec4(pos, GA.x.sub(sunk), size)); G.assign(ground.tint(pos)); }
           B.assign(vec4(rnd(cx, cy, uint(211)).mul(6.2831853), float(kind), 0, rnd(cx, cy, uint(212)).mul(6.2831853)));   // (its turn, its kind; it does not sway; its seed: drawer.js)
-        });
+        }));
       };
       If(dist.lessThan(band.far).and(dist.greaterThanEqual(band.near)), () => {
         const r0 = rnd(cx, cy, uint(200));
         if (big) {
           const oc = outcropMask(pos).toVar();
           If(r0.lessThanEqual(oc.mul(0.6).add(0.012)), () => {
-            const I = riverInfo(pos).toVar();   // (none in the river, none on a way: src/world/ways.js)
-            If(r0.lessThanEqual(offWays(oc.mul(0.6).add(0.012).mul(smoothstep(I.y.add(2), I.y.add(9), abs(I.x))), pos, 3)), () => { thing(oc, I, null); });
+            const I = riverInfo(pos).toVar();   // (none in the river)
+            If(r0.lessThanEqual(oc.mul(0.6).add(0.012).mul(smoothstep(I.y.add(2), I.y.add(9), abs(I.x)))), () => { thing(oc, I, null); });
           });
         } else { const GA = ground.A(pos).toVar(); If(r0.lessThanEqual(GA.w.mul(0.7)), () => { thing(float(0), null, GA); }); }
       });
     };
-    // one tier an asset: every rock dropped into the draw of its level (drawer.js: tierAll). last: the last level its
-    // rocks have (no dot: it thins away over THIN)
-    const last = L - 2;
+    // one tier an asset: every rock dropped into the draw of its level (drawer.js: tierAll), level 0 drawn by its cut
+    const last = L - 1;
     // (its patches: about five to its reach, so the tier looks at a few dozen, whatever the lens; cap: the most of it in one draw)
     const farAt = Math.min(reach, distanceAt(THIN[0], sizes[1], Math.max(innerHeight, 1400))), P = Math.min(64, Math.max(2, 2 ** Math.ceil(Math.log2(farAt / (row.cell * 5)))));
     const T = D.tierAll({ cell: row.cell, P, cap: big ? 16384 : 4096, sizes, place, casts: row.detail.casts, far: reach, last, thing: `rocks:${row.uid}` });   // (thing: a rock's own state, its asset and its cell: src/world/things.js)
@@ -143,24 +144,23 @@ function rockShade(tex, row, s, eye = U.uCam) {
   return finish(col, s.world, eye);
 }
 const GEOS = new Map();
-// shape v of an asset at a level of the ladder, as a plain geometry (in its own frame: its foot at 0, its largest side 1);
-// from its seed, so another seed is another rock. The last few dozen kept (what stood on the stage is freed by the
-// library when it goes; one kept here is sent to the GPU again when it is shown again)
-function rockGeometry(asset, v, l) {
-  const key = `${asset.uid}:${asset.placement.seed}:${v}:${l}`; let g = GEOS.get(key); if (g) return g;
+// shape v of an asset as it is, a plain geometry (in its own frame: its foot at 0, its largest side 1); from its seed, so
+// another seed is another rock. The last few dozen kept (what stood on the stage is freed by the library when it goes;
+// one kept here is sent to the GPU again when it is shown again)
+function rockGeometry(asset, v) {
+  const key = `${asset.uid}:${asset.placement.seed}:${v}`; let g = GEOS.get(key); if (g) return g;
   if (GEOS.size >= 32) GEOS.delete(GEOS.keys().next().value);
-  const m = rockMesh(asset, v, l, true), n = m.verts.length / 4, pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), shade = new Float32Array(n);
-  for (let i = 0; i < n; i++) { const u = unpackSolid(m.verts, i * 4, 0); pos.set(u.p, i * 3); nor.set(u.n, i * 3); shade[i] = u.shade; }
-  g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setAttribute('shade', new THREE.BufferAttribute(shade, 1)); g.setIndex(new THREE.BufferAttribute(m.index, 1));
+  const F = rockFull(asset, v);
+  g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(F.pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(F.nor, 3)); g.setAttribute('shade', new THREE.BufferAttribute(Float32Array.from(F.shade), 1)); g.setIndex(new THREE.BufferAttribute(F.index, 1));
   GEOS.set(key, g); return g;
 }
-/** One rock on its own, in the world's rock material (its texture, its moss): shape `shape` of the asset at level
-    `level` of the ladder. Its `eye` uniform is the camera it is lit and hazed for (a list's picture sets its own). */
+/** One rock on its own, in the world's rock material (its texture, its moss): shape `shape` of the asset, as it is. Its
+    `eye` uniform is the camera it is lit and hazed for (a list's picture sets its own). */
 export function rockSample(tex, row, level = 1, shape = 0) {
   const m = new THREE.NodeMaterial(), eye = uniform(U.uCam.value);
   m.fragmentNode = Fn(() => rockShade(tex, row, { world: positionWorld, n: normalWorld, tint: vec3(0.05, 0.13, 0.02), arid: float(0), dark: attribute('shade', 'float') }, eye))();
   m.eye = eye;
-  const mesh = new THREE.Mesh(rockGeometry(row.asset, shape, Math.min(Math.max(level, 0), L - 2)), m); mesh.layers.enable(1); return mesh;
+  const mesh = new THREE.Mesh(rockGeometry(row.asset, shape), m); mesh.layers.enable(1); return mesh;
 }
 
 // what it reads of a rock's file, over the common row: where it lies (outcrops), its sizes, its look

@@ -52,10 +52,12 @@
 // level is drawn in a few draws by the size of its meshes (CLASSED, below): what a new species costs is its bytes.
 // It was the stress stand's own until 2026-11-14: lifted out that day, and the world's rocks drawn by it since.
 import * as THREE from 'three/webgpu';
-import { Fn, If, float, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, storage, texture, vertexIndex, cameraViewMatrix, screenCoordinate, dFdx, dFdy, cos, sin, abs, max, pow, mix, cross, length, normalize, smoothstep, clamp, fract, countLeadingZeros } from 'three/tsl';
+import { Fn, If, float, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, storage, texture, vertexIndex, instanceIndex, cameraViewMatrix, screenCoordinate, dFdx, dFdy, cos, sin, abs, max, pow, mix, cross, length, normalize, smoothstep, clamp, fract, countLeadingZeros } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { ign, finish, skyLight, cloudAt, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
+import { landPages } from '../terrain/pages.js';
+import { SOIL_RELIEF } from '../world/physics.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective, cornersOf, shapedOf } from './heap.js';
 import { ballCorners } from '../../assets/kit/blob.js';
@@ -68,18 +70,27 @@ import { CHAIN } from '../../assets/kit/bones.js';
 import { MODELS, modelOf } from '../shading/index.js';
 import { byRole } from '../core/registry.js';
 import { bandOf, padOf } from '../detail/handover.js';
-import { pxK, pxOn, farFor, spanAt, pxAt, TRUTH } from '../detail/measure.js';
+import { pxK, pxOn, farFor, spanAt, pxAt, TRUTH, ERROR_PX } from '../detail/measure.js';
 import { source } from '../core/settle.js';
 import { note } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { did } from '../core/work.js';
 import { stateAt, keyN, nameKey } from '../world/things.js';
 import { pxOf, turnOf, seedOf } from './row.js';
+import { createCut, clusterOf, levelHead, allowedAt, eased, ruleOf } from './cut.js';
+import { camDist } from '../world/land.nodes.js';
+import { surfaceBand } from '../detail/error.js';
 
 const GROW = 1.5, SKIN = 128, SKINPX = 28, SINK = 1.6, LOOK = 24;   // GROW: seconds a level that came late takes to grow out of the coarser one; SKIN: a kind's own texture, pixels a side; SKINPX: the size on screen from which a thing wears it; SINK: how far under its last pixels a dot sinks away; LOOK: a kind's look, numbers (six rows of four)
 // a make's levels: a kind a draw up to BYKIND kinds, else by the size of their meshes (classOf: the power of two of
 // triangles a mesh of n corners fits in; classN the same as a node; classIndex: the corners of a class's draw, 0 … 3 · 2^c - 1)
 const BYKIND = 32;
+/** Whether a drawer's kinds' boxes are measured on their meshes as they come (a solid's: assets/kit/solid.js solidBox;
+    a make that measures its own: MAKE.boxOf, the plants'), not said at the start (createDrawer kindBox). */
+const measured = (SOLID, MAKE) => SOLID || !!MAKE.boxOf;
+/** How much a kind's box is grown, of its size, for what may move a thing past it (createDrawer GROWN): a solid's little,
+    a box said or measured of a make's kinds more, one taken from a kind's height most. */
+const grownOf = (SOLID, MAKE) => (SOLID ? 0.02 : MAKE?.box || MAKE?.boxOf ? 0.05 : 0.3);
 const classOf = (n) => { const t = Math.ceil(n / 3); return t <= 1 ? 0 : 32 - Math.clz32(t - 1); }, classN = (n) => uint(32).sub(countLeadingZeros(n.add(uint(2)).div(uint(3)).sub(uint(1))));
 const CLASSIX = []; const classIndex = (c) => (CLASSIX[c] ||= new THREE.BufferAttribute(Uint32Array.from({ length: 3 * 2 ** c }, (_, j) => j), 1));
 // the recipes' workers (recipes.worker.js): one set for every drawer, made when the first asks; all(jobs) tells every
@@ -111,7 +122,9 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // worker cannot read itself: the plants' stands, src/scatter/trees.js }): no textures of its own; a look and a dot
   // only where it says (its kinds' looks then say the dot's colour: a made thing's, src/scatter/placed.js).
   // KINDS: the zoo's numbers of its kinds, where they are not one after another from `first`
-  const SOLID = !MAKE, DOT = SOLID || !!MAKE?.dot, NL = DOT ? ALL : 0, kindNo = (k) => (KINDS ? KINDS[k] : first + k);
+  // BANDED: its kinds are surfaces, each level some clusters of its hierarchy (src/scatter/cut.js), level 0 their cut;
+  // none of it a dot
+  const SOLID = !MAKE, BANDED = SOLID && !!LEVELS[0].band, DOT = (SOLID && !BANDED) || !!MAKE?.dot, NL = SOLID || DOT ? ALL : 0, kindNo = (k) => (KINDS ? KINDS[k] : first + k);
   // A make's own levels are drawn a kind a draw while its kinds are few (BYKIND): each mesh's own list of corners its
   // draw's index, no vertex worked out for nothing. Of more kinds (hundreds of species, a city of buildings), a level is
   // drawn in a few draws by the size of its meshes (CLASSED): a draw for each power of two of triangles, each thing
@@ -141,17 +154,20 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   }
   if (MR) for (let k = 0; k < ALL; k++) look.set(MAKE.numbers.of(k), k * STRIDE + LR * 4);
   // a kind's box: grown by every box that is said of it (b: [x0, y0, z0, x1, y1, z1], in its sizes, its foot at 0).
-  // Where its make says its kinds' (MAKE.box(k), in their sizes: the made things'), that; a make that says nothing (the
-  // plants') measures a kind by its height or more, and its family's box (assets/zoo/index.js bodyOf: metres) is taken
-  // over its height; a solid's is measured on every mesh of it that comes (assets/kit/solid.js solidBox). Its dot
+  // Where its make says its kinds' (MAKE.box(k), in their sizes: the made things'), that; a make that measures its
+  // meshes (MAKE.boxOf(k, b): a mesh's box, as its family measured it, in its kind's sizes: the plants', its sprigs
+  // enlarged as far as they grow) grows it by every mesh of it that comes, and is unknown until the first has; a make
+  // that says nothing measures a kind by its height or more, and its family's box (assets/zoo/index.js bodyOf: metres) is
+  // taken over its height; a solid's is measured on every mesh of it that comes (assets/kit/solid.js solidBox). Its dot
   // (its last level, where it has one) is as wide as its look says and stands round its middle (dot, below)
   const kindBox = (k, b, quiet = false) => {
     const o = k * STRIDE + BR * 4, r = Math.hypot(Math.max(Math.abs(b[0]), Math.abs(b[3])), Math.max(Math.abs(b[2]), Math.abs(b[5]))), known = look[o + 3] > 0.5;
     look.set([known ? Math.max(look[o], r) : r, known ? Math.min(look[o + 1], b[1]) : b[1], known ? Math.max(look[o + 2], b[4]) : b[4], 1], o);
     if (!quiet) { lookRows.addUpdateRange(o, 4); lookRows.needsUpdate = true; }
   };
+  const MEASURED = measured(SOLID, MAKE), boxIn = (k, b) => (SOLID || !MAKE.boxOf ? b : MAKE.boxOf(k, b));   // (a mesh's box as measured, in its kind's sizes: a make that measures its own says how)
   for (let k = 0; k < ALL; k++) {
-    if (!SOLID) { let b = MAKE.box?.(k); if (!b) { const B = bodyOf(kindNo(k)).box, h = Math.max(1e-3, B.max[1]); b = { min: B.min.map((v) => v / h), max: B.max.map((v) => v / h) }; } kindBox(k, [...b.min, ...b.max], true); }
+    if (!MEASURED) { let b = MAKE.box?.(k); if (!b) { const B = bodyOf(kindNo(k)).box, h = Math.max(1e-3, B.max[1]); b = { min: B.min.map((v) => v / h), max: B.max.map((v) => v / h) }; } kindBox(k, [...b.min, ...b.max], true); }
     if (DOT) { const w = 1.64 * (look[k * STRIDE + 18] > 0 ? look[k * STRIDE + 18] : 0.5), m = look[k * STRIDE + 18] > 0 ? look[k * STRIDE + 19] : 0.35; kindBox(k, [-w, m - w, -w, w, m + w, w], true); }   // (its triangle turned to the eye: its corners within 1.64 of its size round its middle)
   }
   const sizes = Float32Array.from({ length: SOLID ? STAND : 0 }, (_, k) => look[k * STRIDE + 15]), LEAVES = Array.from({ length: NL }, (_, k) => look[k * STRIDE + 17]).some((x) => x > 0.5);   // a standing kind's largest side, metres (its look's); LEAVES: some kind is cut out as leaves
@@ -208,12 +224,29 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
         own.assign(mix(own, vG.rgb.mul(0.75).mul(mt.a.add(0.5)), grown.mul(0.9).mul(M5.y.mul(1.5).min(1))));
       });
     }
+    // its skirt (intent 0038, stage 6c): bedded in the soil, not set on it. The soil round it lies at the ground's own
+    // height there (the land's page, src/terrain/pages.js: SOIL_RELIEF from its lowest to its highest over the land's smooth
+    // surface, as the relief near the eye raises it), and where it faces up it fills its hollows (where its own
+    // texture stands low) as much again: below that it wears the ground there, its normal the ground's, nothing grown
+    // over it; the line between over one pixel drawn (ERROR_PX). (Its size in sA's fourth number; what of it lies in
+    // the ground, its look's: how far its foot is over the land's smooth surface)
+    const land = GROUND ? landPages() : null, bed = land ? float(0).toVar() : null, bedN = land ? vec3(0, 1, 0).toVar() : null;
+    if (land) {
+      const above = vC.y.sub(M5.w.mul(vA.w)).toVar(), edge = abs(dFdx(above)).add(abs(dFdy(above))).mul(ERROR_PX).max(1e-4);
+      If(above.lessThan(edge.add(SOIL_RELIEF)), () => {
+        const G = land.read(w.xz, dFdx(w.xz).mul(U.uFine), dFdy(w.xz).mul(U.uFine), length(U.uCam.sub(w)));
+        const soil = G.h.sub(0.5).add(float(0.5).sub(m).mul(max(N0.y, 0))).mul(SOIL_RELIEF);
+        bed.assign(float(1).sub(smoothstep(soil.sub(edge), soil.add(edge), above)));
+        own.assign(mix(own, G.c, bed)); bedN.assign(normalize(vec3(G.n.x, 1, G.n.y))); grown.mulAssign(float(1).sub(bed));
+      });
+    }
     const n = N0.toVar(), rough = float(0.7).toVar();
     If(vPx.greaterThan(RELIEF), () => {   // (its relief: only where it is large enough to show, faded in)
       const t1 = tex.n(M2.x, q.zy).grad(gx.zy, gy.zy), t2 = tex.n(M2.x, q.xz).grad(gx.xz, gy.xz), t3 = tex.n(M2.x, q.xy).grad(gx.xy, gy.xy), x = t1.xy.mul(2).sub(1), y = t2.xy.mul(2).sub(1), z = t3.xy.mul(2).sub(1);
       n.assign(normalize(N0.add(vec3(0, x.y, x.x).mul(b.x).add(vec3(y.x, 0, y.y).mul(b.y)).add(vec3(z.x, z.y, 0).mul(b.z)).mul(GROUND ? smoothstep(RELIEF, RELIEF * 2, vPx).mul(M5.z) : smoothstep(RELIEF, RELIEF * 2, vPx)))));
       rough.assign(tex.r(M2.x, q.zy, gx.zy, gy.zy).mul(b.x).add(tex.r(M2.x, q.xz, gx.xz, gy.xz).mul(b.y)).add(tex.r(M2.x, q.xy, gx.xy, gy.xy).mul(b.z)));
     });
+    if (land) n.assign(normalize(mix(n, bedN, bed.mul(0.85))));   // (the soil it wears lies as the ground does)
     // (where the snow has lifted it, it is snow all through, its sides too: a small thing is buried whole. What stands
     // in the ground, a rock taller than the snow is deep, keeps the snow where it settles, on what of it faces up: its
     // sides stay bare)
@@ -285,25 +318,45 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // (shared: drawn by the level's own list of corners, its vertices read by their numbers: what is of the level's shape)
   // (i: its level; none (null): the mesh says it (userData.level), so one material draws every level of a tier.
   // packed: whoever packed a thing chose its level, and it is drawn at that one whatever its size is now: tierAll)
-  const meshOf = (src, i, shadow = false, moving = false, foliage = false, shared = false, packed = false) => {
+  // (by: the cut's draw of level 0 (src/scatter/cut.js), a listed cluster an instance, its thing read through the list)
+  const meshOf = (src, i, shadow = false, moving = false, foliage = false, shared = false, packed = false, by = null) => {
     const num = (f, type) => (i === null ? uniform(0, type).onObjectUpdate(({ object }) => f(object?.userData?.level ?? 0)) : uniform(f(i), type));
-    const lv = num((l) => l, 'uint'), whole = uniform(shadow ? 1 : 0), lo = num((l) => LEVELS[l].px), top = num((l) => (l ? LEVELS[l - 1].px : LEVELS[0].px * 2)), morphs = num((l) => (underOf(l) ? 1 : 0)), delta = num((l) => LEVELS[l].delta ?? LADDER[l].delta), still = num((l) => (l + 1 === HULL ? 1 : 0)), m = new THREE.NodeMaterial();   // its level as numbers: every level is one shader
+    const lv = num((l) => l, 'uint'), whole = uniform(shadow ? 1 : 0), m = new THREE.NodeMaterial();   // its level as numbers: every level is one shader
+    const lo = BANDED ? null : num((l) => LEVELS[l].px), top = BANDED ? null : num((l) => (l ? LEVELS[l - 1].px : LEVELS[0].px * 2)), morphs = BANDED ? null : num((l) => (underOf(l) ? 1 : 0)), delta = BANDED ? null : num((l) => LEVELS[l].delta ?? LADDER[l].delta), still = num((l) => (l + 1 === HULL ? 1 : 0));
+    const from = BANDED ? num((l) => surfaceBand(Math.min(l + 1, L - 1))[0]) : null;   // (a banded level that came late refines from what its coarser one showed: that one's least error)
     const limbs = moving && (i === null || i < HULL);   // (a mover's coarse levels are its hull: no bone moves it. Of a tier of every level (tierAll) its level is the mesh's, so whether it has limbs is asked as it is drawn)
     if (foliage) m.side = THREE.DoubleSide;
     m.vertexNode = Fn(() => {
-      const A = src.readAt(0, SLOT), B = src.readAt(1, SLOT), clip = offScreen().toVar();
+      const E = by ? by.entry(instanceIndex) : null, A = by ? by.thing(E.thing, 0) : src.readAt(0, SLOT), B = by ? by.thing(E.thing, 1) : src.readAt(1, SLOT), clip = offScreen().toVar();
       const px = pxOf(A.w, A.xy);   // its size on screen now
       vPx.assign(px); if (THIN) vEnd.assign(smoothstep(THIN[0], THIN[1], px));   // (how much of it is left as it thins away)
       {
-        // a mesh of the heap: the level its size asks for, and whether this one is drawn for it (heap.js: effective)
-        const R = heapRow(H, uint(B.y), lv).toVar(), want = uint(0).toVar();
-        for (let j = 0; j < L - 1; j++) want.addAssign(px.lessThanEqual(LO.element(j)).select(uint(1), uint(0)));
-        If(packed ? vertexIndex.lessThan(cornersOf(R)) : vertexIndex.lessThan(cornersOf(R)).and(whole.greaterThan(0.5).or(effective(heldOf(R), want, lv))), () => {
+        const R = heapRow(H, uint(B.y), lv).toVar();
+        // which element of the heap the draw's vertex is; whether it is drawn; how far it has turned into what replaces
+        // it (at a time: the clock's, and for the prepass the clock's a frame ago); the range its way there is packed in
+        let el, ok, tOf, D;
+        if (by) {
+          // (the cut's: the listed cluster's corners, turned as far as the cut found)
+          const C = clusterOf(H, R, E.cluster);
+          ok = vertexIndex.lessThan(C.tris.mul(uint(3))); el = H.index.element(R.x.add(C.first).add(vertexIndex)); tOf = () => E.t; D = C.D;
+        } else if (BANDED) {
+          // a level of clusters (src/scatter/cut.js): each by the rule, the thing's own size the error allowed
+          const corner = H.index.element(R.x.add(vertexIndex)).toVar(), C = clusterOf(H, R, corner.shiftRight(uint(16))), head = levelHead(H, R), dT = camDist(A.xy);
+          const b = (time) => clamp(eased(R, allowedAt(A, dT), from, time), head.lo, head.hi), now = b(U.uTime).toVar(), rule = ruleOf(C.self, C.parent, now, now);
+          ok = vertexIndex.lessThan(cornersOf(R)).and(rule.drawn); el = corner.bitAnd(uint(0xffff)); tOf = (time) => (time === U.uTime ? rule.t : ruleOf(C.self, C.parent, b(time), b(time)).t); D = C.D;
+        } else {
+          // a mesh of the heap: the level its size asks for, and whether this one is drawn for it (heap.js: effective)
+          const want = uint(0).toVar();
+          for (let j = 0; j < L - 1; j++) want.addAssign(px.lessThanEqual(LO.element(j)).select(uint(1), uint(0)));
+          ok = packed ? vertexIndex.lessThan(cornersOf(R)) : vertexIndex.lessThan(cornersOf(R)).and(whole.greaterThan(0.5).or(effective(heldOf(R), want, lv)));
           // how far it has turned into the next coarser mesh: over its last pixels, and backwards from when it came
           // (over the whole of its range, top to bottom: it is never still and never jumps)
-          const grown = (time) => float(1).sub(whole).mul(SMOOTH).mul(max(morphs.mul(float(1).sub(smoothstep(lo, top, px))), float(1).sub(smoothstep(0, GROW, sinceCame(R, time)))));
-          const t = grown(U.uTime).toVar();
-          const v = solidOf((shared ? H.elems.element(R.y.add(vertexIndex)) : heapElem(H, R, vertexIndex)).toVar(), t, delta, STILL), { turn } = turnOf(B.x);
+          tOf = (time) => float(1).sub(whole).mul(SMOOTH).mul(max(morphs.mul(float(1).sub(smoothstep(lo, top, px))), float(1).sub(smoothstep(0, GROW, sinceCame(R, time)))));
+          el = null; D = delta;
+        }
+        If(ok, () => {
+          const t = tOf(U.uTime).toVar();
+          const v = solidOf((el ? H.elems.element(R.y.add(el)) : shared ? H.elems.element(R.y.add(vertexIndex)) : heapElem(H, R, vertexIndex)).toVar(), t, D, STILL), { turn } = turnOf(B.x);
           const p0 = vec3(v.p).toVar(), n0 = vec3(v.n).toVar(), P = vec3(p0).toVar(), N = vec3(n0).toVar();
           const onBones = () => {
             // on its skeleton: moved by its two bones, each as much as the vertex is bound to it
@@ -335,11 +388,11 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
           // (where it was a frame ago, for the prepass: grown as far as it had grown then, swayed as the wind had it then;
           // a mover's own motion is not followed, so its pixels say they keep nothing: below)
           const kw = sway ? B.z.greaterThan(0).select(sway(U.uTimeWas), vec2(0)) : null;
-          const was = moving ? w : vec3(A.x, A.z, A.y).add(restOf(v.at(grown(U.uTimeWas))).mul(out)).add(vec3(kw.x, snow.mul(out), kw.y));
+          const was = moving ? w : vec3(A.x, A.z, A.y).add(restOf(v.at(tOf(U.uTimeWas))).mul(out)).add(vec3(kw.x, snow.mul(out), kw.y));
           // (its texture lies on it as it stands; on a mover as it is at rest, in its own frame: it must not swim over
           // a leg that swings)
-          vA.assign(vec4(w, 0)); vB.assign(vec4(nw, v.shade)); vC.assign(vec4(moving ? p0.mul(A.w) : rest, B.y)); vN.assign(moving ? n0 : nw); vSeed.assign(seedOf(B));
-          if (GROUND) vG.assign(src.readAt(2, SLOT));
+          vA.assign(vec4(w, A.w)); vB.assign(vec4(nw, v.shade)); vC.assign(vec4(moving ? p0.mul(A.w) : rest, B.y)); vN.assign(moving ? n0 : nw); vSeed.assign(seedOf(B));
+          if (GROUND) vG.assign(by ? by.thing(E.thing, 2) : src.readAt(2, SLOT));
           if (foliage) vUV.assign(vec2(float(v.a).div(15), float(v.b).mul(16).add(v.w.mul(15)).div(255)));   // (where on its card: assets/kit/frond.js)
           clip.assign(clipOf(w, was));
         });
@@ -359,7 +412,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   };
   // (a draw as long as the level's longest mesh: its vertices are read from the heap by their number; a flat make's: its
   // room's vertices, read by their numbers)
-  const indexOf = LEVELS.map((l, i) => (MAKE ? (MAKE.flat && !(DOT && i === L - 1) ? new THREE.BufferAttribute(Uint32Array.from({ length: room(i).verts }, (_, j) => j), 1) : null) : new THREE.BufferAttribute(Uint32Array.from({ length: room(i).tris * 3 }, (_, j) => j), 1)));
+  const indexOf = LEVELS.map((l, i) => (l.cut ? null : MAKE ? (MAKE.flat && !(DOT && i === L - 1) ? new THREE.BufferAttribute(Uint32Array.from({ length: room(i).verts }, (_, j) => j), 1) : null) : new THREE.BufferAttribute(Uint32Array.from({ length: room(i).tris * 3 }, (_, j) => j), 1)));   // (a level drawn by its cut has no draw of its own)
   const drawOf = (i) => { const g = new THREE.InstancedBufferGeometry(); g.setIndex(indexOf[i] ?? new THREE.BufferAttribute(new Uint32Array(3), 1)); return g; };   // (another make's: its own list, set when its mesh has come: blockIn)
   // (and a draw by the level's own list of corners, for what is of its shape: a vertex is then worked out once, not once
   // for every triangle that meets in it)
@@ -378,7 +431,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   let bonesOut = MOVING ? 1 : 0;   // (its movers' skeletons, until they have come)
   if (MOVING) ask([['bones', first + STAND, MOVING]]).then(([rows]) => { boneRows.array.set(rows); boneRows.needsUpdate = true; bonesOut = 0; });
   const FP = fingerprint(), KEPT = name === 'stand' ? 'own' : `own: ${name}`, EAGER = ALL <= 256; let coarse = -1, keptOwn = null, loadedAt = 0;   // (EAGER: a few kinds are read back or built as soon as the browser has answered, not after the first frames: they are there when the first picture is)
-  keptGet(FP, KEPT).then((rec) => { keptOwn = Array.isArray(rec) && rec.length === OWN.length && rec.every((b, n) => b.l === OWN[n][0] && b.counts?.length === ALL && b.draws?.length === ALL && b.corners?.length === ALL * OWN[n][1] && (!SOLID || b.boxes?.length === ALL * 6)) ? rec : false; if (EAGER) start(); });
+  keptGet(FP, KEPT).then((rec) => { keptOwn = Array.isArray(rec) && rec.length === OWN.length && rec.every((b, n) => b.l === OWN[n][0] && b.counts?.length === ALL && b.draws?.length === ALL && b.corners?.length === ALL * OWN[n][1] && (!MEASURED || b.boxes?.length === ALL * 6)) ? rec : false; if (EAGER) start(); });
   // a block of a level every kind has its own of (kinds k0 … k0 + n, each `idx` corners' room), come from the workers
   // or read back: into the heap. A make that keeps its corners itself: each mesh's list is the index of its kind's
   // draw at that level, in every tier of it
@@ -392,12 +445,12 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const atOf = (i) => (R) => ({ vertex: RANGE[i] && CORNERED ? H.index.element(R.x.add(vertexIndex)) : vertexIndex, drawn: vertexIndex.lessThan(cornersOf(R)) });
   const blockIn = (b, k0, n, idx, elems) => {
     MAKE?.onBlock?.(b, k0, n, idx, elems);   // (what a make reads of its meshes as they come: what the plants' far ends are baked from, src/scatter/trees.js)
-    if (b.boxes) for (let j = 0; j < n; j++) if (b.draws[j]) kindBox(k0 + j, b.boxes.subarray(j * 6, j * 6 + 6));   // (a solid's: measured where it was made)
+    if (b.boxes) for (let j = 0; j < n; j++) if (b.draws[j]) kindBox(k0 + j, boxIn(k0 + j, b.boxes.subarray(j * 6, j * 6 + 6)));   // (a solid's, a plant's: measured where it was made)
     H.putBlock(b.l, k0, n, MAKE && !CORNERED ? NONE : b.corners, b.verts, CLASSED ? b.draws : b.counts);   // (classed: its count is its corners')
     if (RANGE[b.l]) for (let j = 0; j < n; j++) if (b.draws[j]) classesIn[b.l].add(clampClass(b.l, classOf(b.draws[j])));
     if (MAKE && !RANGE[b.l]) for (let j = 0; j < n; j++) {
       const list = b.corners.slice(j * idx, j * idx + b.draws[j]);
-      for (const T of made) if (T.level === b.l) { T.geometries[k0 + j].setIndex(new THREE.BufferAttribute(list, 1)); T.args.array[(k0 + j) * 5] = list.length; T.args.addUpdateRange((k0 + j) * 5, 1); T.args.needsUpdate = true; }
+      for (const T of made) if (T.level === b.l) { T.geometries[k0 + j].setIndex(new THREE.BufferAttribute(list, 1)); T.setLength(k0 + j, list.length); }
     }
   };
   const fill = () => {
@@ -405,14 +458,14 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // (a make of a few small kinds may make its coarse levels itself, here, as the workers would (MAKE.here(OWN): the
     // blocks): they are there for the first picture, not behind the workers' queue of everything else the start asks)
     if (MAKE?.here) { const blocks = MAKE.here(OWN); blocks.forEach((b, j) => blockIn(b, 0, ALL, OWN[j][1], OWN[j][2])); coarse = ALL; stats.coarseMs = Math.round(performance.now() - t0); keptPut(FP, KEPT, blocks); return; }
-    const all = OWN.map(([l, idx, elems]) => ({ l, corners: new Uint32Array(ALL * idx), verts: new Uint32Array(ALL * elems * 4), counts: new Uint32Array(ALL), draws: new Uint32Array(ALL), ...(SOLID ? { boxes: new Float32Array(ALL * 6) } : {}) }));
+    const all = OWN.map(([l, idx, elems]) => ({ l, corners: new Uint32Array(ALL * idx), verts: new Uint32Array(ALL * elems * 4), counts: new Uint32Array(ALL), draws: new Uint32Array(ALL), ...(MEASURED ? { boxes: new Float32Array(ALL * 6) } : {}) }));
     // (a hundred kinds a message, sent to the GPU as one piece a level; of fewer kinds, a third of them a message, one to
     // each worker: a kind whose levels are reduced from its full mesh takes a second or two, intent 0033)
     const STEP = Math.max(1, Math.min(100, Math.ceil(ALL / 3)));
     for (let k = 0; k < ALL; k += STEP) {
       const n = Math.min(STEP, ALL - k);
       ask([['own', KINDS ? KINDS.slice(k, k + n) : first + k, n, OWN]]).then(([blocks]) => {
-        blocks.forEach((b, j) => { blockIn(b, k, n, OWN[j][1], OWN[j][2]); all[j].corners.set(b.corners, k * OWN[j][1]); all[j].verts.set(b.verts, k * OWN[j][2] * 4); all[j].counts.set(b.counts, k); all[j].draws.set(b.draws, k); if (b.boxes) all[j].boxes.set(b.boxes, k * 6); });
+        blocks.forEach((b, j) => { blockIn(b, k, n, OWN[j][1], OWN[j][2]); all[j].corners.set(b.corners, k * OWN[j][1]); all[j].verts.set(b.verts, k * OWN[j][2] * 4); all[j].counts.set(b.counts, k); all[j].draws.set(b.draws, k); if (b.boxes && all[j].boxes) all[j].boxes.set(b.boxes, k * 6); });
         coarse += n; if (coarse >= ALL) { stats.coarseMs = Math.round(performance.now() - t0); keptPut(FP, KEPT, all); }
       });
     }
@@ -434,7 +487,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       }
       if (!batch.length) continue;
       busy++;
-      ask(batch.map(({ k, l }) => (SOLID ? ['mesh', kindNo(k), l, LEVELS[l].delta ?? LADDER[l].delta] : ['mesh', kindNo(k), l]))).then((out) => { busy--; out.forEach((mesh, n) => { stats.built++; if (!batch[n].l) stats.full++; done.push({ k: batch[n].k, l: batch[n].l, mesh }); }); feed(); });   // (a solid's box measured there too: kindBox)
+      ask(batch.map(({ k, l }) => (SOLID ? ['mesh', kindNo(k), l, LEVELS[l].delta ?? LADDER[l].delta, { tris: room(l).tris, elems: H.pools[l].elems }] : ['mesh', kindNo(k), l]))).then((out) => { busy--; out.forEach((mesh, n) => { stats.built++; if (!batch[n].l) stats.full++; done.push({ k: batch[n].k, l: batch[n].l, mesh }); }); feed(); });   // (a solid's box measured there too: kindBox)
     }
   };
   // a kind's own texture: asked of the workers like a mesh; when it has come, written into a layer of the array (a free
@@ -471,10 +524,10 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       if (d.l < 2 && wantAt[id] >= round - 1 && (pending.has(id + 1) || now - putAt[id + 1] < GROW * 1000)) { done.push(d); continue; }
       pending.delete(id); asked[d.l]--; if (wantAt[id] < round - 1) continue;
       sent += d.mesh.draw ?? d.mesh.index.length; puts++;
-      if (d.mesh.box) kindBox(d.k, d.mesh.box);   // (before it is drawn: its box as large as it)
+      if (d.mesh.box) kindBox(d.k, boxIn(d.k, d.mesh.box));   // (before it is drawn: its box as large as it)
       if (H.put(d.k, d.l, d.mesh, round, round, U.uTime.value)) {
         stats.put++; putAt[id] = now; grewAt = U.uTime.value; did('meshes'); did('kB', Math.round((d.mesh.index.byteLength + d.mesh.verts.byteLength) / 1024));
-        if (!d.l) for (const T0 of fulls) { for (const at of T0.slotArgs(H.pools[0].slot[d.k])) { T0.args.array[at] = d.mesh.draw ?? d.mesh.index.length; T0.args.addUpdateRange(at, 1); } T0.args.needsUpdate = true; if (MAKE) T0.geometries[H.pools[0].slot[d.k]].setIndex(new THREE.BufferAttribute(d.mesh.index, 1)); }   // (another make's: its corners are the slot's draw's own list)   // (its slot's draw: as long as it)
+        if (!d.l) for (const T0 of fulls) { for (const at of T0.slotArgs(H.pools[0].slot[d.k])) T0.setLength(at / 5, d.mesh.draw ?? d.mesh.index.length); if (MAKE) T0.geometries[H.pools[0].slot[d.k]].setIndex(new THREE.BufferAttribute(d.mesh.index, 1)); }   // (another make's: its corners are the slot's draw's own list)   // (its slot's draw: as long as it)
       }
     }
   };
@@ -551,17 +604,16 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   };
   const thingOf = (thing) => (thing == null ? null : uniform(typeof thing === 'number' ? thing : nameKey(thing), 'uint'));
   // Where a thing is in the world, for the eye's occlusion test (src/core/occlusion.js): its kind's box (kindBox) at its
-  // size round its foot, grown by all that may move it past that: its growth (grow, of its size: a make's sprigs
-  // enlarged about their tips where it is a crowd that thins, a mover's limbs on its bones), the wind's sway at its
-  // strongest now (the gusts' most, src/world/weather/wind.js windAt, at its top), the snow lying on it. far: the bucket
-  // of its far end's quad (MAKE.far: it stands over its whole sphere, half of it towards the eye), drawn round half again
-  // the box's corner. A kind whose box is not known yet is never hidden
-  const GROWN = SOLID ? 0.02 : MAKE?.box ? 0.05 : 0.3;
+  // size round its foot, grown by what may move it past that: its growth (grow, of its size: a make's sprigs enlarged
+  // about their tips where it is a crowd that thins, a mover's limbs on its bones); and how far the wind may push it,
+  // a metre of its sway (w: its top's, src/world/weather/wind.js windAt; the culling reckons it with the wind as it
+  // blows, and the snow lying on it). far: the bucket of its far end's quad (MAKE.far: it stands over its whole sphere,
+  // half of it towards the eye), drawn round half again the box's corner. A kind whose box is not known yet is never hidden
+  const GROWN = grownOf(SOLID, MAKE);
   const boundsOf = (grow, far = -1) => (A, B, k) => {
-    const R = lookOf(uint(B.y.add(0.5)), BR).toVar(), s = A.w, ws = windStrength;
-    const pad = s.mul(grow).add(s.mul(0.1).add(1.5).mul(ws.mul(1.65).mul(ws.mul(ws).mul(0.6).add(1)))).add(snowDepth).add(0.05);
+    const R = lookOf(uint(B.y.add(0.5)), BR).toVar(), s = A.w;
     const half = vec3(R.x, R.z.sub(R.y).mul(0.5), R.x).mul(s), h = far >= 0 ? k.equal(uint(far)).select(vec3(length(half).mul(1.5)), half) : half;
-    return { c: vec3(A.x, A.z.add(R.y.add(R.z).mul(0.5).mul(s)), A.y), h: R.w.greaterThan(0.5).select(h.add(pad), vec3(1e6)) };
+    return { c: vec3(A.x, A.z.add(R.y.add(R.z).mul(0.5).mul(s)), A.y), h: R.w.greaterThan(0.5).select(h.add(s.mul(grow)).add(0.05), vec3(1e6)), w: s.mul(0.1).add(1.5) };
   };
   const tier = (i, { cell, P, cap, sizes, place, shadow = false, casts = false, fade = 0.02, far = Infinity, thing = null, extra = {} }) => {   // (thing: its placer's name, for a thing's own state; extra: more of the tier's own options: tier.js)
     const Lv = { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity }, band = { near: uniform(0), far: uniform(1), ...bandOf(Lv, fade, padOf(cell, P)) };
@@ -648,14 +700,15 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     const band = { near: uniform(-1), far: uniform(1) }, K0 = LEVELS[0].slots || 1, hp0 = H.pools[0], TH = thingOf(thing);
     // its draws: a slot of the heap's each for the full meshes; of every other mesh level the corners looked up and,
     // where the level has a shape of its own, that list; the dot
-    const draws = Array.from({ length: K0 }, (_, s) => ({ level: 0, slot: s }));
-    for (let i = 1; i <= Math.min(last, L - 2); i++) { draws.push({ level: i }); if (shapeOf[i]) draws.push({ level: i, shared: true }); }
-    if (last === L - 1) draws.push({ level: L - 1, dot: true });
+    // (a level 0 drawn by its cut: one draw that only holds its things, the cut's own drawing them)
+    const CUT0 = !!LEVELS[0].cut, draws = CUT0 ? [{ level: 0, cut: true }] : Array.from({ length: K0 }, (_, s) => ({ level: 0, slot: s }));
+    for (let i = 1; i <= Math.min(last, DOT ? L - 2 : L - 1); i++) { draws.push({ level: i }); if (shapeOf[i]) draws.push({ level: i, shared: true }); }
+    if (DOT && last === L - 1) draws.push({ level: L - 1, dot: true });
     // (each level's two draws, its plain one and the one by its own list of corners, as one array: a packing that binds
     // many arrays of its own, the stress stand's movers', has twelve uniform buffers to a stage, no more)
     // (with the level's pixels: its packing binds this and not the drawer's LO)
     const at = (i, f) => Math.max(0, draws.findIndex((d) => d.level === i && f(d)));
-    const DRAWS = uniformArray(LEVELS.map((l, i) => new THREE.Vector4(l.px, at(i, (d) => !d.shared), at(i, (d) => d.shared), 0)), 'vec4'), END = THIN ? THIN[0] : last === L - 1 ? LEVELS[L - 1].px : 0.3;   // (END: the size on screen under which nothing of it is drawn)
+    const DRAWS = uniformArray(LEVELS.map((l, i) => new THREE.Vector4(l.px, at(i, (d) => !d.shared), at(i, (d) => d.shared), 0)), 'vec4'), END = THIN ? THIN[0] : DOT && last === L - 1 ? LEVELS[L - 1].px : 0.3;   // (END: the size on screen under which nothing of it is drawn)
     const live = (c, part = {}) => {
       const alive = float(0).toVar(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar()), bucket = float(0).toVar();
       place(c, { band, whole: all0.greaterThan(0.5), all: all0, ...part }, (kind, size, dist, fill, key = null) => {
@@ -669,7 +722,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
           If(R.z.greaterThan(uint(0)), () => {
             fill(...rows);
             asItIs(TH, c, key, rows, () => {
-              const dr = DRAWS.element(lvl); bucket.assign(lvl.equal(uint(0)).select(float(R.y.sub(uint(hp0.e0)).div(uint(hp0.elems))), shapedOf(R).select(dr.z, dr.y)));
+              const dr = DRAWS.element(lvl); bucket.assign(lvl.equal(uint(0)).select(CUT0 ? float(0) : float(R.y.sub(uint(hp0.e0)).div(uint(hp0.elems))), shapedOf(R).select(dr.z, dr.y)));
               alive.assign(1);
             });
           });
@@ -678,18 +731,23 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       return { alive: alive.greaterThan(0.5), data: rows, bucket };
     };
     // (one material for every mesh level of it, its level told by each mesh; one more for what is drawn by a level's own list)
-    const mats = {}, T = new Tier(scene, draws.map((d) => (d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, order: 1, live, gpu: true, cap: draws.map((d) => (d.dot || (TRUTH && !d.level) ? cap : Math.min(cap, 16 * 4 ** Math.max(1, d.level)))), slots: ROWS, bounds: boundsOf(GROWN + (moving ? 0.5 : 0)) });   // (a cap a draw: what is drawn large is few, four times as many a level further off; ?truth draws all of it at its finest)
+    const mats = {}, T = new Tier(scene, draws.map((d) => (d.cut ? new THREE.InstancedBufferGeometry().setIndex([0, 1, 2]) : d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, order: 1, live, gpu: true, cap: draws.map((d) => (d.dot || (TRUTH && !d.level) ? cap : Math.min(cap, 16 * 4 ** Math.max(1, d.level)))), slots: ROWS, bounds: boundsOf(GROWN + (moving ? 0.5 : 0)) });   // (a cap a draw: what is drawn large is few, four times as many a level further off; ?truth draws all of it at its finest)
     T.step = step;
     T.band = () => { T.near = 0; T.far = Math.min(far, farFor(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])); band.far.value = T.far; };   // (a drawer that thins its things away: packed until they are gone)
     T.band(); T.draws = draws;
     T.meshes.forEach((m, k) => { const d = draws[k]; m.userData.level = d.level; m.renderOrder = 1 + d.level * 0.01; if (casts && !d.dot) m.layers.enable(1); });   // (the fine levels first; it casts its shadows as drawn, a dot none)
-    T.slotArgs = (s) => [s * 5]; fulls.push(T);   // (where a slot's draw keeps its length)
-    const shows = (d) => (d.dot ? true : d.slot != null ? hp0.who[d.slot] >= 0 : d.shared ? H.pools[d.level].shaped > 0 : H.pools[d.level].held > H.pools[d.level].shaped);
+    if (!CUT0) { T.slotArgs = (s) => [s * 5]; fulls.push(T); }   // (where a slot's draw keeps its length)
+    const shows = (d) => (d.cut ? false : d.dot ? true : d.slot != null ? hp0.who[d.slot] >= 0 : d.shared ? H.pools[d.level].shaped > 0 : H.pools[d.level].held > H.pools[d.level].shaped);
+    // level 0's cut: every frame, after the packing, what of the things it holds is drawn, cluster by cluster
+    const C = CUT0 ? createCut({ T, k: 0, H, room: room(0), name }) : null, cm = C ? new THREE.Mesh(C.geometry, meshOf(null, 0, false, moving, false, false, true, C)) : null;
+    if (cm) { Object.assign(cm, { frustumCulled: false, renderOrder: 1, visible: false }); cm.userData.level = 0; if (casts) cm.layers.enable(1); scene.add(cm); T.cutMesh = cm; }
     const lead = !made.length, run = T.run.bind(T); let frame = 0;
     T.run = (r, world, ...a) => {
       if (lead) arrive();
       if (T.n > 0) T.meshes.forEach((m, k) => { m.visible = shows(draws[k]); });
-      return run(r, `${world}|${H.version}${moving ? `|${frame++}` : ''}`, ...a);   // (what moves: packed every frame)
+      const out = run(r, `${world}|${H.version}${moving ? `|${frame++}` : ''}`, ...a);   // (what moves: packed every frame)
+      if (cm) { cm.visible = T.n > 0 && hp0.held > 0; if (cm.visible) r.compute(C.passes); }
+      return out;
     };
     T.movers = moving;
     made.push(T);

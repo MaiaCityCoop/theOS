@@ -4,3 +4,7 @@ Stories/objects/
 .gate/
 # the Body as tools/body.js --keep laid it, for its tool's page (TheGame/tools/body.html): made again by every run
 .body/
+
+# the artifact library: the authors' own work stays on this machine (Artifacts/store.js)
+Artifacts/items/*/source.md
+Artifacts/items/*/thumb.jpg

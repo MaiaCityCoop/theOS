@@ -142,12 +142,12 @@ export default tree({
   // its stages of growth, by age (years), and how many variants of each; a tree in the world is as old as its stand says
   growth: { years: [5, 15, 35, 70, 150], variants: [1, 1, 2, 2, 2], form, height, min: 2, max: 220 },
   grow: pine, shade,
-  // its levels of detail, near to far (src/detail): where each ends comes from its kind, tree (assets/kinds.js); P: cells per patch side
-  levels: [{ P: 4 }, { P: 8 }, { P: 16 }, { P: 32 }],
   shadow: { most: [488, 318] },   // (its shade's: the most vertices and triangles a shape of it has, its place in the heap: src/scatter/heap.js)
   // its finest: every sprig a spray of its twigs, each a card of one whole twig's painting (assets/kit/tree.js: splayOf)
   fine: { sprig: SPRIG, twig: '8c41d228-0e3e-4fd6-b47c-9ee7929ae713' /* pine twig */ },
-  // where it grows: the pine forest's stand (its cells, its groves, its ages: biomes/pineforest.js `trees`), of which it
-  // takes its share; scale: one tree's own size about its age's height; lean: how far a trunk may lean; seed: its shapes'
-  placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.7, scale: [0.93, 1.07], lean: 0.1, seed: 300 },
+  // where it grows (the one rule: src/scatter/rule.js): the pine forest, as old as its stands (biomes/pineforest.js
+  // `age`); cover: how much of the ground its crowns cover there where it grows best; young: how much its saplings cover
+  // where their light comes through to its litter; scale: one tree's own size about its age's height; lean: how far a
+  // trunk may lean; seed: its shapes'
+  placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, cover: 1, young: 0.12, scale: [0.93, 1.07], lean: 0.1, seed: 300 },
 });

@@ -12,7 +12,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, uint, int, ivec2, vec4, uniform, uniformArray, instancedArray, storage, atomicAdd, atomicStore, atomicLoad, min, instanceIndex, localId, workgroupArray, workgroupBarrier, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { boxIn } from '../core/frustum.js';
 import { gpuStorage, more, hasFeature } from '../core/gpu.js';
-import { cullOf } from '../core/occlusion.js';
+import { cullOf, cullable } from '../core/occlusion.js';
 import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
 import { TRUTH } from '../detail/measure.js';
@@ -50,8 +50,8 @@ export class Tier {
       it can take; live is then also told which run a cell is of and which of its places ({ pid, b, span: (start,
       count) }).
       bounds(A, B, k): where what it packs is drawn by the eye, it is culled (src/core/occlusion.js): the world box of a
-      thing packed into bucket k ({ c, h }: its middle and half its size, its sway and growth in it), from its first two
-      rows. */
+      thing packed into bucket k ({ c, h, w }: its middle and half its size, its growth in it; how far the wind may push
+      it, a metre of its sway), from its first two rows. */
   constructor(scene, geometry, material, { cell, P, near = 0, far, order = 0, live = null, gpu = false, cap = 0, slots = 0, cull = 0, fixed = 0, spans = null, bounds = null }) {
     ALL.add(this);
     this.cull = cull; this.fixed = fixed; this.P = P; this.S = cell * P; this.near = Math.max(0, near); this.far = far; this.n = 0; this.over = false;
@@ -74,10 +74,10 @@ export class Tier {
       // most eight, src/world/things.js reads one more)
       const buf = gpuStorage('vec4', Math.max(1, total * slots), null, true), data = buf.node, count = instancedArray(K, 'uint').toAtomic(), S = uint(slots);
       more('tiers: what stands, packed', buf.bytes, buf.lean ? 0 : buf.bytes);
-      // (one buffer of draw arguments, five a bucket: a shader binds few buffers. Culled, three sets of them: all it
-      // packed, what the eye sees, what pass two found: src/core/occlusion.js)
-      const culled = !!bounds && hasFeature('indirect-first-instance'), sets = culled ? 3 : 1;
-      const args = new THREE.IndirectStorageBufferAttribute(new Uint32Array(Array.from({ length: sets }, () => geos.flatMap((g) => [g.index.count, 0, 0, 0, 0])).flat()), 5), argsNode = storage(args, 'uint', 5 * K);
+      // (one buffer of draw arguments, five a bucket: a shader binds few buffers. Culled, what the eye sees and what pass
+      // two found are two sets more, in the culling's own buffer: src/core/occlusion.js)
+      const culled = !!bounds && hasFeature('indirect-first-instance') && cullable(total);   // (?truth too: what this frame's depth hides adds nothing to any pixel, and the reference drawn whole, ten million things a frame at 4K, does not settle)
+      const args = new THREE.IndirectStorageBufferAttribute(new Uint32Array(geos.flatMap((g) => [g.index.count, 0, 0, 0, 0])), 5), argsNode = storage(args, 'uint', 5 * K);
       this.cand = uniform(0, 'uint');
       // what a workgroup packs, by one atomic a bucket it puts anything into (not one a thing): its 64 count theirs in
       // shared memory, then one of them asks each bucket for room for all of them at once
@@ -113,8 +113,8 @@ export class Tier {
       ];
       this.data = data; this.slots = slots; this.args = args; this.caps = caps; this.offs = offs;
       // (culled: the eye's passes read a thing through what the culling kept, its pass two's after the rest)
-      const C = culled ? cullOf(this, { K, caps, offs, total, S: slots, data, args, box: bounds }) : null, at = C ? C.entry : (slot) => slot.add(instanceIndex);
-      if (C) this.passes.push(C.prep);
+      const C = culled ? cullOf(this, { K, caps, offs, total, S: slots, data, args, count, box: bounds }) : null, at = C ? C.entry : (slot) => slot.add(instanceIndex);
+      if (C) this.passes.splice(2, 1, C.args, C.boxes);   // (its draws' counts the culling's way, and its things' boxes)
       // (readAt: read from a place in the buffer a material is told per mesh, mesh.userData.slot: one material for every bucket)
       this.meshes = geos.map((g, k) => { g.setIndirect(args, k * 20); g.instanceCount = caps[k]; const m = new THREE.Mesh(g, material({ read: (j) => data.element(at(uint(offs[k])).mul(S).add(uint(j))), readAt: (j, slot) => data.element(at(slot).mul(S).add(uint(j))) }, k)); m.userData.slot = offs[k]; return m; });
       this.culler = C;
@@ -123,7 +123,11 @@ export class Tier {
     for (const m of this.meshes) { m.frustumCulled = false; m.renderOrder = order; scene.add(m); }
     this.culler?.adopt(this.meshes);
   }
-  /** On WebGPU, after select: pack what stands in this frame's cells. */
+  /** Draw k's length (its corners, n) changed: in every set of its arguments (culled: the eye's too). */
+  setLength(k, n) {
+    if (this.culler) { this.culler.setLength(k, n); return; }
+    this.args.array[k * 5] = n; this.args.addUpdateRange(k * 5, 1); this.args.needsUpdate = true;
+  }
   /** On WebGPU, after select: pack what stands in this frame's cells; again only when something it reads has changed: the
       cells, the world's state (`world`: the ground's map, the lens, the stage), or the camera by more than a sixteenth of a
       patch (what stands thins with distance: a step that small is not seen). Standing still, the packing is kept. */
@@ -138,6 +142,7 @@ export class Tier {
     if (this.runs) for (let i = 0; i < n; i++) { const a = this.runs[i].x | 0, b = this.runs[i].y | 0; h1 = fnv(h1, a); h2 = Math.imul((h2 << 5) ^ (h2 >>> 27) ^ b, 0x85ebca6b) + a | 0; }   // (a list's runs: the same patch may hold other places now)
     let key = `${world}|${n}|${this.near}|${this.far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}|${h1}|${h2}`;
     if (this.viewKeyed) key += `|${view}`;   // what it packs is tested against the view one by one (index.js: inView)
+    if (this.reads) key += `|${this.reads()}`;   // (and what it reads besides: the growth map, src/scatter/growth.js)
     if (key === this.key) return;
     this.key = key;
     const N = n * this.P * this.P; this.cand.value = N; this.passes[1].dispatchSize = Math.max(1, N);

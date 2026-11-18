@@ -11,24 +11,22 @@ import { U } from '../core/uniforms.js';
 import { kindRule, spanOf } from '../../assets/kinds.js';
 import { handOverAt } from './handover.js';
 import { pxOn } from './measure.js';
-import { LADDER, FULLN, DOTN } from '../../assets/kit/ladder.js';
 
 // (the measure's, here too for whoever asked here before it had a file of its own: the library, tools/sweep.js)
 export { pxK, distanceAt } from './measure.js';
 
-/** An asset's levels of detail, resolved: its own `detail` block over its kind's defaults. An asset whose shapes are
-    kinds of the heap (src/scatter/heap.js: a rock) says `ladder` instead of levels: its levels are the ladder's
-    (assets/kit/ladder.js), as every such kind's, a ball of so many squares an edge each (`ball`; `ladder`: how many its
-    full mesh has), the last a dot; `end`: the size on screen it is drawn down to, where that is sooner than the
-    ladder's end (a small thing that would be lost in the grass: it shrinks away over its last pixels). */
+/** An asset's levels of detail, resolved: its own `detail` block over its kind's defaults (a plant's). A surface (a rock,
+    a made thing: one that says only its full detail, its `faces` or its kit's mesh) has no levels of its own: every
+    coarser version of it is the builder's (assets/kit/clusters.js), drawn by the cut (src/scatter/cut.js); here it is
+    its faces, one level, for what draws it whole (src/world/place.js: without WebGPU). */
 export function detailOf(a) {
   const d = a.detail || {}, px = d.px || kindRule(a, 'px'), fade = d.fade ?? kindRule(a, 'fade');
-  const own = d.ladder ? LADDER.filter((l, i) => !d.end || !i || LADDER[i - 1].px > d.end).map((l) => ({ ball: l.n === FULLN ? d.ladder : l.n === DOTN ? 0 : l.n, px: Math.max(l.px, d.end ?? 0) })) : d.levels || [];
-  const levels = own.map((l, i) => ({ ...l, i, lo: l.px ?? px[Math.min(i, px.length - 1)] }));
+  const own = d.levels || (a.faces ? [{ faces: a.faces }] : []);
+  const levels = own.map((l, i) => ({ ...l, i, lo: l.px ?? px?.[Math.min(i, px.length - 1)] ?? 0 }));
   const imp = d.impostor ?? kindRule(a, 'impostor');   // after the meshes: one card (src/detail/impostor.js)
   if (imp) levels.push({ impostor: true, i: levels.length, lo: imp.px });
   levels.forEach((l, i) => (l.hi = i ? levels[i - 1].lo : Infinity));
-  return { levels, fade, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: d.casts ?? kindRule(a, 'casts') ?? true, sink: d.sink ?? kindRule(a, 'sink') ?? 0 };
+  return { levels, fade, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: a.casts ?? d.casts ?? kindRule(a, 'casts') ?? true, sink: d.sink ?? kindRule(a, 'sink') ?? 0 };
 }
 
 /**

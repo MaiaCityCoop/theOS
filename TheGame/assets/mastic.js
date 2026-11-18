@@ -31,9 +31,7 @@ export default tree({
   foliage: { wrap: 0.35, through: 0.2, flutter: 0.5, tint: [1.15, 1.25, 0.9] },
   shapes: [{ r: 1.5, h: 1.75, lobes: 3, seed: 611 }, { r: 1.15, h: 1.25, lobes: 2, seed: 612 }],
   grow,
-  // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
-  levels: [{ P: 4 }, { P: 8 }],
-  far: { P: 32, speck: false },   // (its far level: its clumps and its impostor, no speck after it)
-  // where it grows: the pine forest's understory, of which it takes its share
-  placement: { at: 'scatter', engine: 'trees', stand: 'shrubs', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.35, scale: [0.4, 1.3], lean: 0, seed: 610 },
+  // where it grows (src/scatter/rule.js): under the pine forest's crowns and between them; light: how thick in deep
+  // shade and in the open (it bears shade)
+  placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, cover: 0.8, light: [0.35, 1], scale: [0.4, 1.3], lean: 0, seed: 610 },
 });

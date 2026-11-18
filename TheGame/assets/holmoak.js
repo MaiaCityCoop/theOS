@@ -110,12 +110,11 @@ export default tree({
   grow: oak, shade,
   // what it drops: the ground under it where it leads in its stand (the land lays it: src/terrain/material.js)
   litter: { material: 'd269b213-283d-4f8f-92b0-66b57ac2e8b6' /* oak litter */, tile: 1.9 },
-  // its levels of detail, near to far (src/detail): where each ends comes from its kind, tree (assets/kinds.js); P: cells per patch side
-  levels: [{ P: 4 }, { P: 8 }, { P: 16 }, { P: 32 }],
   shadow: { most: [870, 492] },   // (its shade's: the most vertices and triangles a shape of it has, its place in the heap: src/scatter/heap.js)
   // its finest: every sprig a spray of its twigs, each a card of one whole twig's painting (assets/kit/tree.js: splayOf)
   fine: { sprig: SPRIG, twig: '8ee46707-6ec8-4c04-96e9-70151301427f' /* holm oak twig */ },
-  // where it grows: the pine forest's stand (its cells, its groves, its ages: biomes/pineforest.js `trees`), of which it
-  // takes its share; scale: one tree's own size about its age's height; lean: how far a trunk may lean; seed: its shapes'
-  placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.3, scale: [0.9, 1.1], lean: 0.06, seed: 410 },
+  // where it grows (the one rule: src/scatter/rule.js): the pine forest, among its pines; cover: how much of the ground
+  // its crowns cover where it grows best; young: its saplings'; scale: one tree's own size about its age's height; lean:
+  // how far a trunk may lean; seed: its shapes'
+  placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, cover: 0.5, young: 0.1, scale: [0.9, 1.1], lean: 0.06, seed: 410 },
 });
