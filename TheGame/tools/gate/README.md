@@ -38,9 +38,10 @@ A truth drawn in motion as the game draws a frame (train 1, 2026-11-18) was no r
 canopy changed frame to frame unlike the game's, and the measure read the two shimmers (a median of 0.52), and its land
 pages lagged behind a climbing zoom.
 
-- **The merge rule:** no frame's worst 32-pixel tile over `POP` (in `motion.js`). `POP` is 0.05 until Samuel's pairs
-  set the threshold of visibility (check 3); it is never loosened after that. **Not binding** until train 2's GPU run
-  shows the settled-still truth.
+- **The merge rule:** no frame's worst 32-pixel tile over the line (`lineOf` in `motion.js`): ERROR_PX × INSIDE / the
+  tile, 1 × 4/3 / 32 = 0.042. A switch within the dial moves an edge by at most ERROR_PX pixels drawn, INSIDE canvas
+  pixels each, so across a tile at full contrast it changes the tile's mean by at most that. The line follows the dial. **Not binding**
+  until train 2's GPU run shows the settled-still truth.
 - **What it costs:** a truth still a step, about 35 frames of about a second each: a minute a step, offline. The zoom's
   20 s at 5 frames a second is about 1.7 hours; `--to` and `--fps` make a smoke of it.
 - **Out:** `.gate/motion-<tag>/report.json` (every frame's worst tile, its 99th percentile and mean), and a filmstrip
