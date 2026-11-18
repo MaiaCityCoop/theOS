@@ -115,9 +115,13 @@ async function settled({ wait, at }) {
   // from before the world's ready until it has settled)
   let done = false, said;
   if (C?.on) (async () => { while (!done) { await C.step(C.last); await new Promise((r) => setTimeout(r, 0)); } })();
-  try { said = await Promise.race([Promise.resolve(s.ready).then(() => s.settle({ timeout: wait })), late]); } finally { done = true; }
+  // (what held it, and till when: every 2 s, what each source still had out, src/core/settle.js waiting(); a source's
+  // `until` is the last second it had anything out, its `most` the most it had at once)
+  const held = {}, R = performance.getEntriesByType('resource').map((e) => e.name), path = R.filter((n) => n.includes('src/core/settle.js')).at(-1);
+  const look = path ? import(path).then(({ waiting }) => setInterval(() => { const t = Math.round((Date.now() - t0) / 1000); for (const [k, n] of Object.entries(waiting())) { const h = (held[k] ||= { from: t, until: t, most: 0 }); h.until = t; h.most = Math.max(h.most, n); } }, 2000)) : null;
+  try { said = await Promise.race([Promise.resolve(s.ready).then(() => s.settle({ timeout: wait })), late]); } finally { done = true; if (look) clearInterval(await look); }
   let kept = null; try { kept = JSON.parse(JSON.stringify(said ?? null)); } catch {}
-  return { ms: Date.now() - t0, said: kept, now: Math.round(performance.now()) };
+  return { ms: Date.now() - t0, said: kept, now: Math.round(performance.now()), held };
 }
 
 /** In the page, once, for pictures that hold still: the world's clock standing at `time` seconds (the fire, the smoke,
@@ -205,6 +209,7 @@ async function stills(chrome, { tag, truth = false, reach = null, views, tiles =
   const meta = existsSync(`${dir}gate.json`) ? JSON.parse(readFileSync(`${dir}gate.json`, 'utf8')) : { views: {} };
   Object.assign(meta, { tag, url, truth, commit: commit(), when: new Date().toISOString(), screen: SCREEN, start });
   console.log(`stills → .gate/${tag}/ (${url})${n > 1 ? `, each view in ${n} × ${n} tiles` : ''}`);
+  console.log(`  the world came and settled where it starts in ${(start.ms / 1000).toFixed(1)} s; held last by ${Object.entries(start.held ?? {}).sort((a, b) => b[1].until - a[1].until).slice(0, 5).map(([k, h]) => `${k} (to ${h.until} s, at most ${h.most})`).join(', ') || 'nothing'}`);
   try {
     for (const v of list) {
       if (n === 1) {
