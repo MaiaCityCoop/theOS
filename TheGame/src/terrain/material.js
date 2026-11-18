@@ -12,18 +12,25 @@ import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } f
 import { layerOf, standOf, standFade, CARPET, SLOPES, NO_STAND, SHADE_REACH } from './layers.js';
 import { lit, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
+import { reliefShares, reliefOverSnow } from './relief.js';
+import { SOIL_RELIEF } from '../world/physics.js';
 
 export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
 /** How many times as far every level of the land reaches but the last (whose reach is where the land ends): 1, and under
     ?truth 4, each quad a quarter as large on the screen (src/detail/measure.js; its finest everywhere is past any GPU). */
 export const FINE = TRUTH ? 4 : 1;
+/** How far the relief's first level reaches (lens metres): level 0's half (src/terrain/relief.js). */
+export const RELIEF_REACH = (R0 * FINE) / 2;
 
-/** The node's grid point, morphed: (world x, z) */
-export function gridPoint() {
+/** The node's grid point, morphed to the coarser grid at the node's outer edge: { wp (world x, z), k (how far it is
+    morphed: 0 … 1), cell (the node's quad, metres) } */
+function gridOf() {
   const node = attribute('aNode', 'vec4'), g = positionGeometry.xz, cell = node.z.div(GRID), rng = exp2(node.w).mul(R0 * FINE);
-  const k = clamp(camDist(node.xy.add(g.mul(cell))).sub(rng.mul(0.8)).div(rng.mul(0.15)), 0, 1);
-  return node.xy.add(g.sub(fract(g.mul(0.5)).mul(2).mul(k)).mul(cell));
+  const k = clamp(camDist(node.xy.add(g.mul(cell))).sub(rng.mul(0.8)).div(rng.mul(0.15)), 0, 1).toVar();
+  return { wp: node.xy.add(g.sub(fract(g.mul(0.5)).mul(2).mul(k)).mul(cell)), k, cell };
 }
+/** The node's grid point, morphed: (world x, z) */
+export const gridPoint = () => gridOf().wp;
 
 // A ground's material, read once: m its number; p the point (metres); s how far apart its neighbouring texels' points
 // are, either way (a page's texel is square: its mip is the one the steps call for, the material's tile 1024 texels:
@@ -137,8 +144,8 @@ export function laid(tex, p, s, D, X) {
 
 /** The land at wp (a vec2 variable, metres; node code, in a Fn): its height h, the river there I (riverInfo), and with
     `full` its normal N (the height's steps e metres either way, e by how far off it is seen) and how far it stands over
-    the valley's floor (hill). The land's vertex stage, and the relief's points near the eye (src/terrain/relief.js). */
-export function landPoint(wp, full) {
+    the valley's floor (hill). The land's vertex stage. */
+function landPoint(wp, full) {
   const dist = camDist(wp).toVar(), e = max(0.3, dist.div(96)).toVar();
   const at = (q, near) => { const I = (near ? riverNear(q, near) : riverInfo(q)).toVar(), d = abs(I.x).toVar(); return { I, d, h: heightAt(q, dist, d, I.y, I.z).toVar() }; };
   const C = at(wp), h = C.h;
@@ -150,31 +157,38 @@ export function landPoint(wp, full) {
     under a roof. What stands on the land sinks into it as deep. */
 const snowLiftAt = (wp, I, d) => snowDepth.mul(smoothstep(I.y, I.y.add(1.5), d)).mul(float(1).sub(roofAt(wp)));
 
-/** The ground's material. vt: the land's virtual texture (src/terrain/pages.js), whose read gives what laid() laid.
-    from: where its vertex stage takes its points from instead of the land's grid (the relief near the eye,
-    src/terrain/relief.js: () => { world, I, N, hill }, worked out in compute). */
-export function terrainMaterial(vt, from = null) {
-  // ---- vertex: the land's height and normal, the river here ----
+/** The ground's material: the one for all of it, near the eye and far (src/terrain/relief.js). vt: the land's virtual
+    texture (src/terrain/pages.js), whose read gives what laid() laid. */
+export function terrainMaterial(vt) {
+  // ---- vertex: the land's height and normal, the river here; near the eye raised by the ground's own height ----
   // one Fn, every value worked out once into a variable and handed on by name: an expression used twice would otherwise be
   // written out twice, the river three times over at every use, which a browser's shader compiler need not fold back
-  const vWorld = varyingProperty('vec3', 'tWorld'), vI = varyingProperty('vec4', 'tI'), vN = varyingProperty('vec3', 'tN'), vHill = varyingProperty('float', 'tHill');
+  const vWorld = varyingProperty('vec3', 'tWorld'), vI = varyingProperty('vec4', 'tI'), vN = varyingProperty('vec3', 'tN'), vHill = varyingProperty('float', 'tHill'), vRel = varyingProperty('float', 'tRel');
   const vertex = Fn((builder) => {
     const pre = passOf(builder) === 'pre';   // (the prepass needs only where the ground is: src/core/pass.js)
-    if (from) {
-      const R = from(), wp = R.world.xz.toVar();
-      vN.assign(R.N); if (!pre) { vWorld.assign(R.world); vI.assign(R.I); vHill.assign(R.hill); }   // (vN in the prepass too: below)
-      return R.world.add(vec3(0, snowLiftAt(wp, R.I, abs(R.I.x)), 0));
-    }
-    const wp = gridPoint().toVar(), L = landPoint(wp, !pre);
-    if (!pre) { vWorld.assign(vec3(wp.x, L.h, wp.y)); vI.assign(L.I); vN.assign(L.N); vHill.assign(L.hill); }   // (vWorld without the snow's depth: the light and the air do not need it)
+    const P = gridOf(), wp = P.wp.toVar(), L = landPoint(wp, !pre), dist = camDist(wp).toVar();
+    // the relief (src/terrain/relief.js): the ground's own height, as much as the one measure says only geometry can show
+    // it (reliefShares), the soil's (not the grass's carpet: its blades stand over it), what of it stands out of the
+    // snow; read at the mesh's own spacing there (morphed: what the coarser node's vertex at that point reads, so the
+    // levels meet), the same in every pass (the colour pass draws where the prepass's depth is)
+    const share = reliefShares(dist, RELIEF_REACH).geometry.toVar(), raise = float(0).toVar();
+    if (pre) vN.assign(vec3(0, 1, 0));
+    If(share.greaterThan(0), () => {
+      const sp = P.cell.mul(P.k.add(1)), G = vt.read(wp, vec2(sp, 0), vec2(0, sp), dist, { lod: true });
+      raise.assign(G.h.sub(0.5).mul(SOIL_RELIEF).mul(share).mul(float(1).sub(G.cv)).mul(reliefOverSnow(snowDepth)));
+      if (pre) vN.assign(landPoint(wp, true).N);   // (the prepass's asks go by the smooth land under it: its normal)
+    });
+    vRel.assign(share);
+    const h = L.h.add(raise).toVar();
+    if (!pre) { vWorld.assign(vec3(wp.x, h, wp.y)); vI.assign(L.I); vN.assign(L.N); vHill.assign(L.hill); }   // (vWorld without the snow's depth: the light and the air do not need it)
     // the snow lifts the ground it lies on: what stands on the land sinks into it as deep
-    return vec3(wp.x, L.h.add(snowLiftAt(wp, L.I, L.d)), wp.y);
+    return vec3(wp.x, h.add(snowLiftAt(wp, L.I, L.d)), wp.y);
   });
 
   // ---- fragment: the page's texel, lit ----
   // (the picture is built over time, src/core/temporal.js: the ground read as finely as the screen's own pixels would)
   const steps = (p) => [dFdx(p).mul(U.uFine), dFdy(p).mul(U.uFine)];
-  // (on the relief, the level of the pages a pixel asks for and reads goes by the land's smooth surface under it, not by
+  // (where it is raised, the level of the pages a pixel asks for and reads goes by the land's smooth surface under it, not by
   // the relief's own bumps: across a stone the steps between pixels change many times over, and with the picture's
   // jitter from frame to frame, so pages would be asked for one by one for as long as the camera stood. Its steps
   // there: across the eye's ray a pixel's angle, along the slope that over how squarely the ray meets it)
@@ -184,11 +198,13 @@ export function terrainMaterial(vt, from = null) {
     // the level of the land's pages its footprint calls for (2 more: 0 is not the land), for the pages to know what is seen
     // (src/terrain/pages.js ask). The colour pass writes nothing beside its colour: a shader that does loses its early
     // depth test, and the colour's equal test then misses pixels the prepass drew
-    if (passOf(builder) === 'pre') { const [dx, dy] = from ? smooth(positionWorld) : steps(positionWorld.xz); return vec4(motion(positionWorld).xyz, vt.asks(dx, dy)); }
+    // (where it is raised, by the smooth land's steps, as much as it is raised: by its share)
+    const by = (P, [sx, sy]) => { const [mx, my] = smooth(P); return [mix(sx, mx, vRel), mix(sy, my, vRel)]; };
+    if (passOf(builder) === 'pre') { const [dx, dy] = by(positionWorld, steps(positionWorld.xz)); return vec4(motion(positionWorld).xyz, vt.asks(dx, dy)); }
     const p = vWorld.xz, [dx, dy] = steps(p);
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     const d = abs(vI.x), w = vI.y;
-    const G = vt.read(p, dx, dy, rdist, { eye: normalize(U.uCam.sub(vWorld)), level: from ? smooth(vWorld) : null });   // (along the eye's ray through the ground's relief: parallax)
+    const G = vt.read(p, dx, dy, rdist, { eye: normalize(U.uCam.sub(vWorld)), level: by(vWorld, [dx, dy]) });   // (along the eye's ray through the ground's relief: parallax)
     // near, the carpet lies in the shade of its blades, drawn over it: the nearer, the darker (the pixel's own distance)
     const c = G.c.mul(mix(1, mix(0.5, 1, smoothstep(3, 70, dist2)), G.cv)).toVar(), cv = G.cv, h = G.h;
     // past where the shadow cascades reach round the camera (the farthest of them: SHADE_REACH, src/world/shadow.js), a
