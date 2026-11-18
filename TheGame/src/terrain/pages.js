@@ -25,7 +25,7 @@
 // stands' shade), with the page table beside it. If the pages asked for do not fit, every pixel asks a little coarser
 // (the bias), until they do.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Loop, Break, float, int, uint, vec2, vec4, ivec2, uvec2, uvec4, uniform, uniformArray, texture, storageTexture, textureStore, globalId, floor, fract, log2, exp2, max, min, clamp, length, mix, sqrt, renderGroup } from 'three/tsl';
+import { Fn, If, Loop, Break, float, int, uint, vec2, vec4, ivec2, uvec2, uvec4, uniform, uniformArray, texture, storageTexture, textureStore, globalId, floor, fract, log2, exp2, max, min, clamp, length, mix, sqrt, smoothstep, renderGroup } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { note, gpuStorage } from '../core/gpu.js';
 import { did } from '../core/work.js';
@@ -38,7 +38,7 @@ const SLOT = 128, BORDER = 4, PAGE = SLOT - 2 * BORDER;   // texels a page's lay
 const S0 = 1 / 512, LEVELS = 17, TOP = LEVELS - 1, K = 128;   // metres a texel of the finest level; levels; pages a level's window has a side
 const ANISO = 4, FADE = 10, SWEEP = 8, BATCH = 16, MAPN = 8;   // the filter's steps along a slope; frames a page fades in over; a pixel asks in one of SWEEP × SWEEP; pages laid at once; texels between the layer map's points
 const G0 = SLOT / MAPN + 2, G1 = SLOT / 2 / MAPN + 2, POINTS = G0 * G0 + G1 * G1;   // the layer map's points a page has a side, for its first mip and its second; all of them
-const KEEP = 96, FAST = 12, PIN = 26000;   // frames a page not asked for is kept at least; screen pixels a frame a page may cross and still be laid; metres round the camera the last level is always in
+const KEEP = 96, FAST = 12, PIN = 26000, NEAR = 15;   // frames a page not asked for is kept at least; screen pixels a frame a page may cross and still be laid; metres round the camera the last level is always in; metres from the eye the bias spares
 const VALID = 1 << 12, FADED = 1 << 13;   // a page table entry: its slot (12 bits), these, the frame it came in (16 bits)
 const sideOf = (m) => PAGE * S0 * 2 ** m;   // a page's side at level m, metres
 // the pixel each block of SWEEP × SWEEP asks from, frame by frame: an ordered dither's order, so they spread out
@@ -49,23 +49,25 @@ export function createPages(renderer, tex) {
   layerTables(tex);
   // ---- the atlas: a page a layer, two mips. Where the GPU has block compression (BC: every desktop) it is kept in
   // blocks, as the world's materials are (src/materials/bake.js): A (BC3) the colour, gamma 2, and the height; N (BC5)
-  // the relief; X (BC5) the carpet's share and the stands' shade: 3 bytes a texel, so 1792 pages in about 100 MB. A page
-  // is laid into a layer of its own batch first, and packed into blocks from there. Elsewhere A and N are four bytes a
-  // texel each (N with the carpet and the shade in it), 640 pages, laid straight into the atlas ----
-  const dev = renderer.backend.device, PACKED = !!dev?.features?.has('texture-compression-bc');
-  const SLOTS = Math.min(dev?.limits?.maxTextureArrayLayers ?? 256, PACKED ? 1792 : 640);
+  // the relief; X (BC5) the carpet's share and the stands' shade: 3 bytes a texel, so 4096 pages in about 250 MB, what
+  // the 4K screen asks for at its own density (3000–3500 pages at the gate's views), in two arrays of up to 2048 layers
+  // (a device's most). A page is laid into a layer of its own batch first, and packed into blocks from there. Elsewhere A
+  // and N are four bytes a texel each (N with the carpet and the shade in it), 640 pages, laid straight into the atlas ----
+  const dev = renderer.backend.device, PACKED = !!dev?.features?.has('texture-compression-bc'), LAYERS_MOST = dev?.limits?.maxTextureArrayLayers ?? 256;
+  const SLOTS = PACKED ? Math.min(2 * LAYERS_MOST, 4096) : Math.min(LAYERS_MOST, 640), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array)
   const look = { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, anisotropy: ANISO, colorSpace: THREE.NoColorSpace, generateMipmaps: false };
   const laidInto = (n) => Object.assign(new THREE.StorageArrayTexture(SLOT, SLOT, n), look, { mipmaps: [{ width: SLOT, height: SLOT }, { width: SLOT / 2, height: SLOT / 2 }] });
-  const blocks = (format) => {   // (every layer there from the start, empty, filled as pages are laid)
-    const zero = new Uint8Array(SLOTS * (SLOT / 4) ** 2 * 16), mips = [0, 1].map((l) => ({ data: zero.subarray(0, SLOTS * (SLOT / 4 >> l) ** 2 * 16), width: SLOT >> l, height: SLOT >> l }));
-    const t = Object.assign(new THREE.CompressedArrayTexture(mips, SLOT, SLOT, SLOTS, format, THREE.UnsignedByteType), look, { needsUpdate: true });
+  const blocks = (format, n) => {   // (every layer there from the start, empty, filled as pages are laid)
+    const zero = new Uint8Array(n * (SLOT / 4) ** 2 * 16), mips = [0, 1].map((l) => ({ data: zero.subarray(0, n * (SLOT / 4 >> l) ** 2 * 16), width: SLOT >> l, height: SLOT >> l }));
+    const t = Object.assign(new THREE.CompressedArrayTexture(mips, SLOT, SLOT, n, format, THREE.UnsignedByteType), look, { needsUpdate: true });
     renderer.initTexture(t); for (const m of mips) m.data = new Uint8Array(0);   // (sent once, empty; the page keeps none of it)
     return t;
   };
-  const A = PACKED ? blocks(THREE.RGBA_S3TC_DXT5_Format) : laidInto(SLOTS), N = PACKED ? blocks(THREE.RED_GREEN_RGTC2_Format) : laidInto(SLOTS), X = PACKED ? blocks(THREE.RED_GREEN_RGTC2_Format) : null;
-  const SA = PACKED ? laidInto(BATCH) : A, SN = PACKED ? laidInto(BATCH) : N;   // (where a batch is laid: its own layers, or the atlas's)
+  const arrays = (format) => Array.from({ length: Math.ceil(SLOTS / PER) }, (_, k) => blocks(format, Math.min(PER, SLOTS - k * PER)));
+  const A = PACKED ? arrays(THREE.RGBA_S3TC_DXT5_Format) : [laidInto(SLOTS)], N = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : [laidInto(SLOTS)], X = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : null;
+  const SA = PACKED ? laidInto(BATCH) : A[0], SN = PACKED ? laidInto(BATCH) : N[0];   // (where a batch is laid: its own layers, or the atlas's)
   note("the land's pages", SLOTS * SLOT * SLOT * 1.25 * (PACKED ? 3 : 8) + (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 : 0), 0);
-  const tA = texture(A), tN = texture(N), tX = X ? texture(X) : null;
+  const tA = A.map((t) => texture(t)), tN = N.map((t) => texture(t)), tX = X ? X.map((t) => texture(t)) : null;
   // ---- the page table: for each level, its window's pages ----
   const T = gpuStorage('uint', LEVELS * K * K, "the land's page table"), table = new Uint32Array(LEVELS * K * K), TN = T.node.toReadOnly();
   let lo = Infinity, hi = -1;
@@ -148,7 +150,7 @@ export function createPages(renderer, tex) {
     const e = dev.createCommandEncoder(), gpu = (x) => renderer.backend.get(x), buffer = gpu(BLK.attr).buffer;
     list.forEach((q, b) => [A, N, X].forEach((T2, t) => [0, 1].forEach((l) => {
       const side = SLOT / 4 >> l, first = (b * 3 + t) * BLOCKS + (l ? (SLOT / 4) ** 2 : 0);
-      e.copyBufferToTexture({ buffer, offset: first * 16, bytesPerRow: side * 16, rowsPerImage: side }, { texture: gpu(T2).texture, mipLevel: l, origin: { x: 0, y: 0, z: q.slot } }, { width: SLOT >> l, height: SLOT >> l, depthOrArrayLayers: 1 });
+      e.copyBufferToTexture({ buffer, offset: first * 16, bytesPerRow: side * 16, rowsPerImage: side }, { texture: gpu(T2[Math.floor(q.slot / PER)]).texture, mipLevel: l, origin: { x: 0, y: 0, z: q.slot % PER } }, { width: SLOT >> l, height: SLOT >> l, depthOrArrayLayers: 1 });
     })));
     dev.queue.submit([e.finish()]);
   };
@@ -307,17 +309,21 @@ export function createPages(renderer, tex) {
       if (hi >= lo) { T.write(lo, table.subarray(lo, hi + 1)); lo = Infinity; hi = -1; }
       uFrame.value = frame & 0xffff; uStamp.value = stampOf(frame); uSmp.value.set(...SEQ[frame % (SWEEP * SWEEP)]); uBias.value = bias;
     },
+    /** How much coarser a pixel d metres from the eye asks: the bias, none within NEAR (the ground near the eye is
+        always read as finely as the screen's pixels), all of it from 3 NEAR. */
+    biasAt: (d) => uBias.mul(smoothstep(NEAR, 3 * NEAR, d)),
     /** The level of the land's pages a pixel reads (node code, in the ground's fragment: dx, dy how far apart its
-        neighbouring pixels' points are, as finely as the screen's pixels read), fractional: a step coarser for every
-        doubling of its size, and of how far a slope draws it out past ANISO (the filter's steps along it), and the bias. */
-    want: (dx, dy) => { const lx = length(dx), ly = length(dy); return log2(max(max(lx, ly).div(ANISO), min(lx, ly)).div(S0)).add(uBias); },
+        neighbouring pixels' points are, as finely as the screen's pixels read; d how far it is from the eye),
+        fractional: a step coarser for every doubling of its size, and of how far a slope draws it out past ANISO (the
+        filter's steps along it), and the bias. */
+    want(dx, dy, d) { const lx = length(dx), ly = length(dy); return log2(max(max(lx, ly).div(ANISO), min(lx, ly)).div(S0)).add(this.biasAt(d)); },
     /** The same, whole: the level whose page a pixel reads (what the prepass writes for ask). */
-    level(dx, dy) { return int(clamp(floor(this.want(dx, dy)), 0, TOP)); },
-    /** The ground at p as its page holds it (node code, in the ground's fragment: dx, dy as for want): the page of the
+    level(dx, dy, d) { return int(clamp(floor(this.want(dx, dy, d)), 0, TOP)); },
+    /** The ground at p as its page holds it (node code, in the ground's fragment: dx, dy, d as for want): the page of the
         level the pixel wants, or the finest in over it; while a page fades in, the one under it with it. -> { c: its
         colour (linear), h: its height, n: its relief (the normal's x, z), cv: the carpet's share, shade: the stands' } */
-    read(p, dx, dy) {
-      const m0 = this.level(dx, dy).toVar();
+    read(p, dx, dy, d) {
+      const m0 = this.level(dx, dy, d).toVar(), bias = this.biasAt(d).toVar();
       const pageAt = (lv) => ivec2(floor(p.div(exp2(float(lv)).mul(PAGE * S0))));
       // the finest page in for that level or over it, and while it fades in, the one under it
       const s1 = int(-1).toVar(), l1 = int(0).toVar(), w1 = float(1).toVar(), s2 = int(-1).toVar(), l2 = int(0).toVar();
@@ -336,10 +342,13 @@ export function createPages(renderer, tex) {
       });
       // a page's texel: where p lies in its layer, read with the pixel's own steps there (the bias's too: so the filter's
       // step into the second mip is where the next level's page takes over)
+      // (in its array: the first PER slots the first's, the rest the second's)
       const texel = (slot, lv) => {
-        const s = exp2(float(lv)).mul(S0), uv = fract(p.div(s.mul(PAGE))).mul(PAGE).add(BORDER).div(SLOT), k = exp2(uBias).div(s.mul(SLOT)), gx = dx.mul(k), gy = dy.mul(k);
-        const n = tN.sample(uv).depth(slot).grad(gx, gy);
-        return { a: tA.sample(uv).depth(slot).grad(gx, gy), n: tX ? vec4(n.xy, tX.sample(uv).depth(slot).grad(gx, gy).xy) : n };
+        const s = exp2(float(lv)).mul(S0), uv = fract(p.div(s.mul(PAGE))).mul(PAGE).add(BORDER).div(SLOT), k = exp2(bias).div(s.mul(SLOT)), gx = dx.mul(k), gy = dy.mul(k);
+        const ra = vec4(0).toVar(), rn = vec4(0).toVar();
+        const from = (j, layer) => { const n = tN[j].sample(uv).depth(layer).grad(gx, gy); ra.assign(tA[j].sample(uv).depth(layer).grad(gx, gy)); rn.assign(tX ? vec4(n.xy, tX[j].sample(uv).depth(layer).grad(gx, gy).xy) : n); };
+        if (tA.length > 1) If(slot.lessThan(PER), () => from(0, slot)).Else(() => from(1, slot.sub(PER))); else from(0, slot);
+        return { a: ra, n: rn };
       };
       const a = vec4(0.3, 0.3, 0.27, 0.5).toVar(), n = vec4(0.5, 0.5, 0, 0).toVar();   // (nothing in yet: a plain ground)
       If(s1.greaterThanEqual(0), () => {

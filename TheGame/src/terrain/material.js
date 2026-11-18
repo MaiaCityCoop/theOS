@@ -36,8 +36,10 @@ export function gridPoint() {
 // (Once for a texel of a page, not for a pixel of a frame: at every distance, where until 6b it was one read pushed
 // about by a slow wave past 240 to 320 m, so a pixel did not read three hexagons.)
 const CELL = 2;   // a hexagon's size in tiles
-/** The mip of a material's tile (1024 texels: src/materials/bake.js) that texels s metres apart read, at `tile` metres a tile. */
-const mipOf = (s, tile) => log2(max(s.mul(1024).div(tile), 1e-6));
+/** The mip of a material's tile (1024 texels: src/materials/bake.js) that texels s metres apart read, at `tile` metres a
+    tile: half a step finer than the texel, for a page is filtered once more as it is read (two filters one after the
+    other blur more than one: the ground near the eye kept as sharp as a read of the material itself). */
+const mipOf = (s, tile) => log2(max(s.mul(1024).div(tile), 1e-6)).sub(0.5);
 function groundRead(tex, m, p, s, tile) {
   const q = p.div(tile), lv = mipOf(s, tile).toVar(), c = vec3(0).toVar(), h = float(0).toVar(), n = vec2(0).toVar();
   const hx = q.mul((2 * Math.sqrt(3)) / CELL), sk = vec2(hx.x.sub(hx.y.mul(0.57735027)), hx.y.mul(1.15470054)), base = floor(sk), f = sk.sub(base);
@@ -160,11 +162,11 @@ export function terrainMaterial(vt) {
     // which level of the land's pages this pixel reads (1 more: 0 is not the land), for the pages to know what is seen
     // (src/terrain/pages.js ask). The colour pass writes nothing beside its colour: a shader that does loses its early
     // depth test, and the colour's equal test then misses pixels the prepass drew
-    if (passOf(builder) === 'pre') { const p = positionWorld.xz, [dx, dy] = steps(p); return vec4(motion(positionWorld).xyz, float(vt.level(dx, dy)).add(1)); }
+    if (passOf(builder) === 'pre') { const p = positionWorld.xz, [dx, dy] = steps(p); return vec4(motion(positionWorld).xyz, float(vt.level(dx, dy, length(positionWorld.sub(U.uCam)))).add(1)); }
     const p = vWorld.xz, [dx, dy] = steps(p);
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     const d = abs(vI.x), w = vI.y;
-    const G = vt.read(p, dx, dy);
+    const G = vt.read(p, dx, dy, rdist);
     // near, the carpet lies in the shade of its blades, drawn over it: the nearer, the darker (the pixel's own distance)
     const c = G.c.mul(mix(1, mix(0.5, 1, smoothstep(3, 70, dist2)), G.cv)).toVar(), cv = G.cv, h = G.h;
     // past where the shadow map reaches round the camera, a stand's floor lies in its crowns' shade

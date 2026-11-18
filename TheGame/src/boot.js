@@ -64,7 +64,7 @@ const inTime = (what, p) => Promise.race([p.then(() => true, (err) => { console.
 export async function boot({ profile = 'world' } = {}) {
   const world = profile === 'world', t0 = performance.now();
   const canvas = document.getElementById('c');
-  // (textures of many layers: more than a device gives unasked. The land's pages are an array of up to 1792,
+  // (textures of many layers: more than a device gives unasked. The land's pages are two arrays of up to 2048,
   // src/terrain/pages.js; the stress stand keeps its kinds' own textures in one, src/scatter/stress.js)
   const layers = Math.min(2048, (await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits?.maxTextureArrayLayers ?? 256);
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (a frame's fourth number is not how see-through it is: it says how far what is kept may be trusted, src/core/pass.js; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
