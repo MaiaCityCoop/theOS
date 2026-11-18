@@ -48,7 +48,7 @@ function tile() {
 
 /** The noise at a pixel (screen coordinates; or any 2D integer lattice: a froxel's column), this frame: four numbers
     0 … 1, blue in space, stepping on by the golden ratio from frame to frame (U.uFrame). */
-export const blueAt = (p) => {
+export const blueAt = (p, steps = true) => {
   const t = texture(tile()).load(ivec2(uint(p.x).mod(uint(N)), uint(p.y).mod(uint(N))));
-  return fract(t.add(float(U.uFrame).mul(0.61803398875)).add(float(0.5 / 256)));
+  return steps ? fract(t.add(float(U.uFrame).mul(0.61803398875)).add(float(0.5 / 256))) : t.add(float(0.5 / 256));
 };

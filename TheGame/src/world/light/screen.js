@@ -65,7 +65,7 @@ export function createScreenLight(renderer) {
       const u = viewAt(p.sub(vec2(0, 1)), depthAt(p.sub(vec2(0, 1)))), b = viewAt(p.add(vec2(0, 1)), depthAt(p.add(vec2(0, 1))));
       const dx = abs(r.z.sub(v0.z)).lessThan(abs(v0.z.sub(l.z))).select(r.sub(v0), v0.sub(l)), dy = abs(b.z.sub(v0.z)).lessThan(abs(v0.z.sub(u.z))).select(b.sub(v0), v0.sub(u));
       const n0 = normalize(cross(dy, dx)), n = n0.dot(V).lessThan(0).select(n0.negate(), n0);
-      const noise = blueAt(h), radius = clamp(float(AO_R).mul(proj.element(1).y).mul(size.y.mul(0.5)).div(dist), 3, 160), thick = dist.mul(0.02).add(AO_THICK);
+      const noise = blueAt(h, false), radius = clamp(float(AO_R).mul(proj.element(1).y).mul(size.y.mul(0.5)).div(dist), 3, 160), thick = dist.mul(0.02).add(AO_THICK);
       const vis = float(0).toVar(), bent = vec3(0).toVar();
       for (let s = 0; s < 2; s++) {
         const phi = noise.x.add(s * 0.5).mul(Math.PI), dir = vec2(cos(phi), sin(phi)), dirV = vec3(dir.x, dir.y.negate(), 0);   // (screen y runs down, the view's up)

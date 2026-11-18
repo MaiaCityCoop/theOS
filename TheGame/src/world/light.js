@@ -206,7 +206,9 @@ const onScreen = (builder) => passOf(builder) === 'main' && builder.shaderStage 
 const contactHere = Fn((builder) => (onScreen(builder) ? mix(float(1), SCREEN.contact.load(ivec2(screenCoordinate.xy)).r, SCREEN.on) : float(1)));
 // GTAO (screen.js): the share of the sky that reaches the pixel past what stands round it, and the bent normal, the way
 // that sky lies (half the pixels, read between them)
-const aoHere = Fn(([n], builder) => (onScreen(builder) ? mix(vec4(n, 1), SCREEN.ao.sample(screenCoordinate.xy.div(SCREEN.size)).level(0), SCREEN.on) : vec4(n, 1)));
+// (four reads between its texels, a pixel and a half out: its slices' noise averaged over 8 x 8 of the inside's pixels)
+const aoRead = () => { const uv = screenCoordinate.xy.div(SCREEN.size), d = vec2(1.5).div(SCREEN.size); return [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([i, j]) => SCREEN.ao.sample(uv.add(d.mul(vec2(i, j)))).level(0)).reduce((a, b) => a.add(b)).mul(0.25); };
+const aoHere = Fn(([n], builder) => (onScreen(builder) ? mix(vec4(n, 1), aoRead(), SCREEN.on) : vec4(n, 1)));
 const BOUNCE = vec3(0.1, 0.16, 0.05);   // what the crowns give back of the light on them (a leaf's green, its share scattered down)
 const bounce = () => BOUNCE.mul(U.uSun.mul(sunDim()).mul(U.uSunDir.y.max(0)).mul(0.6).add(U.uAmb.mul(0.4)));
 /** What the screen's light says of this pixel, for a material that lights itself per vertex and takes the rest per pixel
