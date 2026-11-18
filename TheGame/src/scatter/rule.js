@@ -32,7 +32,7 @@ import { rnd, vnoise, groveAt, leadAt, riverInfo, shareOf, nearLake } from '../w
 import { U } from '../core/uniforms.js';
 import { recipe, recipes } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
-import { most } from '../../assets/kinds.js';
+import { most, footprintOf, footprintReach } from '../../assets/kinds.js';
 import { CLEARINGS } from '../../world/places.js';
 import { TEXEL, WORDS } from './growth.js';
 import { limitOf } from '../core/gpu.js';
@@ -200,15 +200,13 @@ function feetOf(ls) {
 function shapesInto(e, rows, pieces) {
   const a = e.asset, staged = !!(a.growth && e.ages); let reach = 0; e.row = rows.length;
   for (let s = 0; s < e.shapes[1]; s++) {
-    const P = a.feet?.[s] ?? [], H = staged ? a.heights[s] : a.size.height, S = staged ? a.growth.stages.find((x) => s >= x.offset && s < x.offset + x.variants) : null, bound = boundOf(P);
+    const P = footprintOf(a, s), H = staged ? a.heights[s] : a.size.height, S = staged ? a.growth.stages.find((x) => s >= x.offset && s < x.offset + x.variants) : null, bound = footprintReach(P);
     rows.push([H, bound, pieces.length, P.length]);
     for (const [ax, az, bx, bz, ra, rb, edge] of P) pieces.push([ax, az, bx, bz], [ra, rb, edge, 0]);
     if (!S || grows(e, S)) reach = Math.max(reach, bound * (S ? S.hTo / H : 1) * a.placement.scale[1]);
   }
   return reach;
 }
-/** How far a shape's pieces reach from its foot, at scale 1. */
-const boundOf = (P) => { let b = 0; for (const [ax, az, bx, bz, ra, rb] of P) b = Math.max(b, Math.hypot(ax, az) + ra, Math.hypot(bx, bz) + rb); return b; };
 /** Each layer's record (recordOf): its height as a half float in the low 16 bits, then its thing's number + 1, then its
     shape's row, in as many bits as its things and the rows need. */
 function recordsOf(ls, nRows) {

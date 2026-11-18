@@ -124,12 +124,13 @@ function skin(b, rings, sides) {
     b.index.push(a, d, e, a, e, c);
   }
 }
-/** Where it rises through the ground, its cross-section there is ground it covers: its feet. */
+/** Where it rises through the ground, its cross-section there is ground it covers: its feet. Only where it rises: a
+    branch bowed down into the ground (a sapling's lowest) leaves no foot, as nothing of the thing stands there. */
 function feetWhereItRises(b, pts, rad) {
   const n = pts.length;
   for (let i = 0; i < n - 1; i++) {
     const y0 = pts[i][1] - FOOT, y1 = pts[i + 1][1] - FOOT;
-    if (y0 === y1 || (y0 > 0 && y1 > 0) || (y0 < 0 && y1 < 0) || (y1 === 0 && i < n - 2)) continue;   // (a crossing at a point between two pieces: counted once)
+    if (y0 >= y1 || y0 > 0 || y1 < 0 || (y1 === 0 && i < n - 2)) continue;   // (rising, from under the ground to over it; a crossing at a point between two pieces counted once)
     const t = y0 / (y0 - y1), p = lerp(pts[i], pts[i + 1], t), r = rad[i] + (rad[i + 1] - rad[i]) * t;
     b.feet.push([p[0], p[2], p[0], p[2], r, r, 0]);
   }

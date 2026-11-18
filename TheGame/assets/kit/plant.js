@@ -99,7 +99,7 @@ export const plantFamily = (id, asset) => ({
 });
 /** A plant's base over its height, its shape i's: how far round its middle what is solid of it stands on the ground, a
     metre of its height (assets/kinds.js baseOf; its kind's rule, as collidersOf: a tree its trunk). */
-export const baseShare = (asset, i) => { const d = dimsOf(asset, i); return baseOf(shapesOf(kindRule(asset, 'solid'), d)) / d.height; };
+export const baseShare = (asset, i) => { const d = dimsOf(asset, i); return baseOf(asset, i, () => shapesOf(kindRule(asset, 'solid'), d)) / d.height; };
 const dimsOf = (asset, i) => { const H = most(asset.size.height), h = asset.heights?.[i] ?? H, k = h / H; return { height: h, length: most(asset.size.length) * k, width: most(asset.size.width ?? asset.size.length) * k, trunk: asset.trunk?.[i] ?? null }; };
 
 // ---- the plants' levels by the crowd kit (intent 0033): one build of a shape's finest, every level a first share of

@@ -80,14 +80,32 @@ export const sizeOf = (a) => (kindRule(a, 'measure') === 'height' ? most(a.size.
 // assets/kit/rock.js). Every placer of every world makes its things' bodies here: assets/index.js (what stands at a
 // place), the families of the zoo (what is scattered: assets/kit/plant.js, assets/kit/rock.js).
 const TRUNK = 3;   // metres of a trunk that are solid: past a walker's head and the eye of a camera behind him
-/** A thing's base: how far round its middle what is solid of it stands on the ground (metres, in the frame its shapes
-    are in: shapesOf's), what a walker meets at its foot: a trunk, a post, a stone; nothing of what is passed through (a
-    shrub's leaves) or stands clear of the ground. 0: nothing of it does. What a way keeps off its trodden width
-    (src/world/ways.js). */
-export const baseOf = (shapes) => Math.max(0, ...shapes.filter((S) => !S.pass).map((S) => {
+/** What of a thing covers the ground, shape by shape: pieces [ax, az, bx, bz, ra, rb, edge] in its own frame as it was
+    built (metres, its foot at 0): a solid piece covers what lies within its width (ra … rb) of the line between its ends
+    (a disk where they are one point), an outline (edge 1) what its edges close round. The one source of it is the built
+    geometry's own ground cross-section (asset.feet: what its kit measured as it built the shape, assets/kit/tree.js
+    builder: the wood that rises through the ground, a trunk's flare and all; what lies on it, a log's wood, a stone's
+    outline): the thing itself. Only a kind with no built geometry (no kit measures its feet) falls back to its colliders
+    where they stand on the ground (colliders(): its shapesOf, as the walker meets them), marked so: an approximation of
+    it, never asked where the geometry is. (The walker's colliders could come from the same geometry: a follow-up.) */
+export function footprintOf(asset, shape = 0, colliders = () => []) {
+  return asset.feet?.[shape] ?? onGround(colliders());
+}
+/** The fallback: colliders' cross-sections on the ground (none of what is passed through, a shrub's leaves, or stands clear
+    of the ground): a capsule's or a sphere's disk, a box's outline. */
+const onGround = (shapes) => shapes.filter((S) => !S.pass).flatMap((S) => {
   const at = S.at ?? S.a, low = S.shape === 'capsule' ? Math.min(S.a[1], S.b[1]) - S.r : S.shape === 'sphere' ? S.at[1] - S.r : S.shape === 'box' ? S.at[1] - S.half[1] : Infinity;
-  return low > 0 ? 0 : Math.hypot(at[0], at[2]) + (S.shape === 'box' ? Math.hypot(S.half[0], S.half[2]) : S.r);
-}));
+  if (low > 0) return [];
+  if (S.shape !== 'box') return [[at[0], at[2], at[0], at[2], S.r, S.r, 0]];
+  const c = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([i, j]) => [at[0] + i * S.half[0], at[2] + j * S.half[2]]);
+  return c.map((p, k) => [p[0], p[1], c[(k + 1) % 4][0], c[(k + 1) % 4][1], 0, 0, 1]);
+});
+/** How far a footprint's pieces reach from the thing's foot (metres, as it was built). */
+export const footprintReach = (P) => { let b = 0; for (const [ax, az, bx, bz, ra, rb] of P) b = Math.max(b, Math.hypot(ax, az) + ra, Math.hypot(bx, bz) + rb); return b; };
+/** A thing's base: how far round its middle what of it covers the ground reaches (metres, as it was built): its
+    footprint's reach (footprintOf: the built geometry, or its colliders where it has none). 0: nothing of it does. What a
+    way keeps off its trodden width (src/world/ways.js). */
+export const baseOf = (asset, shape = 0, colliders = () => []) => footprintReach(footprintOf(asset, shape, colliders));
 /** The shapes `rule` makes of a thing of this height and footprint, with its measured trunk or round where it has one. */
 export function shapesOf(rule, { height: h, length: L, width: W = L, trunk = null, round = null }) {
   if (!rule || !(h > 0)) return [];
