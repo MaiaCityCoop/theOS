@@ -43,9 +43,10 @@
 //   bun tools/gate.js all [--tag t] [--views a,b]                stills of this code and of ?truth, their diff, the
 //                                                                bench, the compile and the paths, in one table
 //
-// GATE_LOCK=<dir>: the GPU is shared with other runs (tools/gate/README.md). Each part of a run that draws (a page come,
-// a view or a tile, a path in motion) takes the lock, and lets it go after; meanwhile the page is held on the gate's
-// clock (tools/gate/clock.js) and draws nothing; tools/gate/lock.js.
+// The GPU is shared with other runs: each part of a run that draws (a page come, a view or a tile, a path in motion, the
+// real gate on a GPU) takes the machine's GPU lock in its turn (tools/gpu/lock.js: one queue, oldest first; GPU_OWNER
+// names the run), and lets it go after; meanwhile the page is held on the gate's clock (tools/gate/clock.js) and draws
+// nothing. A gate run under `bun tools/gpu/lock.js take <owner> -- …` holds the lock whole.
 //
 // It never waits on a timer for the picture: once the camera has moved it waits for window.__game.settle() (src/core/
 // settle.js), which resolves when nothing streams or builds for that camera and the picture built over time has come to
@@ -66,7 +67,7 @@ import { FIRST_FRAME } from '../src/core/marks.js';
 import { BUDGET, CLASSES, classOf } from './bench.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
 import { stepper } from './gate/clock.js';
-import { locked, unlock, LOCK } from './gate/lock.js';
+import { locked, unlock } from './gpu/lock.js';
 import { tiled } from './gate/tiles.js';
 import { sideBySide } from './gate/sheet.js';
 import { guard, closeHard } from './gate/guard.js';
@@ -565,7 +566,7 @@ try {
   if (cmd === 'diff') await diff(pos[0], pos[1], opt);
   else if (cmd === 'paths') r = await locked('paths', () => paths(opt));   // (timed: held whole)
   else if (cmd === 'motion') r = await (await import('./gate/motion.js')).motion(opt, { OUT, BASE, SCREEN, INSIDE, WAIT, open, prepare, course, launch, pick, commit, save, rank, said, f });
-  else if (cmd === 'real') r = await (await import('./gate/real.js')).real(pos[0], opt);
+  else if (cmd === 'real') { const real = async () => (await import('./gate/real.js')).real(pos[0], opt); r = await ((opt.device ?? 'cpu') === 'cpu' ? real() : locked('real', real)); }   // (on a GPU, mps: in its turn)
   else if (cmd === 'all') await all(opt);
   else if (WITH[cmd]) { const chrome = await launch(opt); try { r = await WITH[cmd](chrome); } finally { await closeHard(chrome, chrome.gateDir); } }
   else { console.log('bun tools/gate.js stills | diff | noise | bench | compile | paths | motion | real | all: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
