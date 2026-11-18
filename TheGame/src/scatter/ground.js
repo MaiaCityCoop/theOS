@@ -19,17 +19,21 @@ import { CLEARINGS } from '../../world/places.js';
 import { offWays, waysVersion } from '../world/ways.js';
 import { source } from '../core/settle.js';
 import { recipes } from '../core/registry.js';
-import { pxKMost } from '../detail/measure.js';
+import { pxKMost, farMost } from '../detail/measure.js';
+import { GONE } from '../detail/error.js';
+import { most } from '../../assets/kinds.js';
 import { ringsOf, bandsOf } from './grass.js';
 
 const N = 512;   // texels a side of every level; level 0's texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers what reads it
 /** How far round the camera level 0 surely reaches, metres as the 68° lens sees them: half its side, less the 32 texels
     the camera walks before it is drawn again (update); each level after reaches twice as far. What reads level 0 alone
-    (where stones lie, src/scatter/rocks.js; the CPU's copy) ends within it. */
+    (the CPU's copy, src/world/rocksolid.js) ends within it. */
 export const REACH = (N * 0.5) / 2 - 32 * 0.5;
-/** How far the maps reach: the meadow's end at the most pixels the screen can draw (its blades read them furthest out;
-    the maps are a capacity: src/detail/measure.js pxKMost), never less than level 0's. */
-const reachOf = () => Math.max(REACH, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => bandsOf(ringsOf(a), a.height, pxKMost()).end));
+/** How far the maps reach: as far as what reads them is drawn at the most pixels the screen can draw (the maps are a
+    capacity: src/detail/measure.js pxKMost, farMost): the meadow's end, and where the largest of the stones that lie
+    by them is gone (src/scatter/rocks.js: every rock to where it is, by the one rule); never less than level 0's. */
+const reachOf = () => Math.max(REACH, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => bandsOf(ringsOf(a), a.height, pxKMost()).end),
+  ...recipes('asset').filter((a) => a.placement?.engine === 'rocks' && !a.placement.outcrops).map((a) => farMost(GONE, most(a.size.length))));
 const FADE = 36;   // frames (0.6 s at 60 fps; counted in frames, so no frame changes more than a 36th, however slow): from the map before to the new one, where its texel steps
 // (G: the map being drawn; R[set][level]: what each map of the two sets was drawn with, for reading it; W: how much of
 // the second set is read)
