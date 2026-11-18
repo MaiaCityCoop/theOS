@@ -116,6 +116,17 @@ A venv outside the repository (torch is about 1 GB, the CLIP weights about 900 M
 The gate runs `~/.venvs/theos-real/bin/python` unless `GATE_PYTHON` names another. CLIP runs on the CPU by default
 (about a second a picture on an M2, so the GPU stays free for timed runs); `--device mps` puts it on the GPU.
 
+## A page that does not answer
+
+The gate's own waits (`settle()`'s timeout, the race in `settled`) are timers inside the page, and a renderer that is
+frozen, swapped out or has lost its device runs none of them. Train 1c's truth hung 20 minutes on its fourth view, the
+renderer at 0 % CPU and 35 MB resident, the machine's swap at 3.24 of 4 GB. So every `page.evaluate` and
+`waitForFunction` the gate makes is held to a time outside the page (`guard.js`): the call's own wait and a minute
+more, else 5 minutes. A page that does not answer in that time is said: crashed or hung, with the browser's memory
+by process (physical footprint, resident, CPU) and the machine's swap. Its Chrome is closed (killed if it will not
+close), the view is marked failed in `gate.json`, and the run stops with exit 1. `stills` also records the
+browser's memory through the run and prints its peak: the truth is the largest single consumer on an 8 GB machine.
+
 ## A GPU shared between runs
 
 On a machine where several runs share the GPU (and some time their frames), `GATE_LOCK=<dir>` makes the gate take a

@@ -29,7 +29,7 @@
 //                        pxAt(size, dist), spanAt(size, dist) and dialPxAt(px), the twins of the above
 //   onMeasure(f), measureVersion()   what reckons a band of distances once (a tier's, the meadow's rings) reckons it again
 //                        when either number changes: the window, the governor's ratio, the dial
-//   TRUTH, TRUTH_DIAL, DIAL_LEAST   ?truth: the same measure, the dial turned down to TRUTH_DIAL once the game's start
+//   TRUTH, DIAL_LEAST, truthAfter   ?truth: the same measure, the dial turned down to TRUTH_DIAL once the game's start
 //                        has settled (src/boot.js); every capacity sized for the least dial (pxKMost)
 import { float, max } from 'three/tsl';
 import { U } from '../core/uniforms.js';
@@ -80,8 +80,8 @@ export const farMost = (px, size) => (size * pxKMost()) / px;
 /** Each frame, before anything chooses (src/boot.js choose, tools/bench.js): the governor may have changed the inside's
     ratio. True where the measure changed. */
 export const measureNow = () => keep();
-/** The dial from now on: ?truth turns it down to TRUTH_DIAL once the game's start has settled (src/boot.js). */
-export const setErrorPx = (v) => keep(Math.max(0, v));
+/** ?truth: the dial turned down to TRUTH_DIAL once the game's start (`ready`, src/boot.js) has settled; the game: nothing. */
+export const truthAfter = (ready) => { if (TRUTH) ready.then(() => keep(TRUTH_DIAL)); };
 /** f() whenever the live pixel or the dial changes (a tier's band, the meadow's rings); returns what stops it. */
 export const onMeasure = (f) => { listeners.add(f); return () => listeners.delete(f); };
 /** A number that changes whenever the measure does: what packs by it packs again. */
@@ -101,7 +101,7 @@ export const TRUTH = flag('truth');
     (a third again finer than the game's inside each way) over 32 places of a pixel, so a quarter of an inside pixel is
     below what its picture can show. */
 const ASKED = TRUTH ? flagNum('truth', 0.25) : 1;   // (a dial between 0 and 1; anything else, a reach in metres as ?truth once took, is the default)
-export const TRUTH_DIAL = TRUTH ? (ASKED > 0 && ASKED < 1 ? Math.max(1e-3, ASKED) : 0.25) : 1;
+const TRUTH_DIAL = TRUTH ? (ASKED > 0 && ASKED < 1 ? Math.max(1e-3, ASKED) : 0.25) : 1;
 /** The least the dial will be on this page: 1 (the governor only raises it), or the truth's. What every capacity is sized
     for (pxKMost), so a turn of the dial down to it finds room. */
 export const DIAL_LEAST = TRUTH ? TRUTH_DIAL : 1;

@@ -31,7 +31,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
   let inside = OUT, turn = 0;
   // (the pixels drawn follow the dial: with it turned below its rest, a rung within that fraction of a pixel drawn,
   // as many more as it asks, up to every pixel the canvas has: ?truth, the gate's reference, src/detail/measure.js)
-  const ratio = () => Math.min(renderer.getPixelRatio(), inside / Math.min(1, ERROR_PX()));
+  const ratio = () => Math.min(OUT, inside / Math.min(1, ERROR_PX()));
   const css = new THREE.Vector2(), size = new THREE.Vector2();
   /** The inside's size in pixels. */
   const sizeOf = (v) => { renderer.getSize(css); return v.set(Math.max(1, Math.round(css.x * ratio())), Math.max(1, Math.round(css.y * ratio()))); };
