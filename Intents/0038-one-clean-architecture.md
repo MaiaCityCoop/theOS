@@ -1154,6 +1154,134 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
   - the floor's litter is crossed cards, so a fallen sprig stands a little off the ground;
   - Safari not tried.
 
+### Draw path: one culling for every tier, the late prepass one bundle, the grass culled, plants' boxes measured (2026-11-18)
+
+Built on `aven/0038-draw-path-culling-befaf1` from main at `5c591fd` on the Mac mini, merged with main at `5be13a8`
+(stage 7), `3d0c3b5` (stage 8) and `ecc80f2` (the bench by its passes), as PR #77: the follow-ups listed under "Not done" above. It touches the culling
+(`src/core/occlusion.js`), the tiers (`tier.js`), the drawer's boxes, the grass's tiers, the plants' packing, the
+device's limits (`src/boot.js`, `src/core/gpu.js`); nothing of the cut (stage 8) or the light (stage 9).
+
+- **One culling for every tier** (`src/core/occlusion.js`). Every culled tier's things' boxes and what the passes keep
+  of them lie in one set of buffers, an *arena*: each tier a range of it, each of its draws (a bucket) a range of that,
+  each bucket's numbers (its first thing, its room, its tier, its first chunks, what each pass keeps) in one table. A
+  frame dispatches seven passes however many tiers there are: pass one is a scan of the buckets (their first chunks,
+  from what each holds this frame: none for a tier not drawn), the test, the scan of the chunks and the write; pass two
+  the test, the scan and the write. A workgroup finds its bucket by halving over the buckets' first chunks. It was six
+  a tier, for 26 tiers: 156 of a frame's 254 dispatches at the tent; with stage 7's layers there are 33.
+  - **The boxes** are worked out as a tier packs, not as it is culled: the packing's last pass, in a culled tier's own
+    form, writes each draw's count into the arena with how many the draws before it hold, and a pass dispatched over
+    what was packed alone writes each thing's box. The test reads only the arena: it binds no tier's packing, so one
+    pass tests them all.
+  - **A box is 16 bytes**, one `uvec4` a thing: its middle's x and z as 32-bit floats (they are world metres in the
+    thousands, where a half float's step is a metre or more), its height and its sway (how far the wind may push it, a
+    metre a unit of the wind's strength) as two half floats, half its width and half its height as two half floats.
+    Every box is as wide as it is deep (a kind's reach round its foot; a blade's bend in any direction), so one number
+    serves both. The halves are rounded up, never down, and the height's rounding (a 2048th of it) is added to the half
+    height, so a box is never smaller than the thing. The culling reckons the sway with the wind as it blows now, and
+    the snow lying, so nothing is packed again when the wind rises. One read a box: the test is bound by its reads, and
+    16 bytes is one of them; 32 were two, and twice the memory.
+  - **Every GPU resource and dispatch is sized from the adapter's own limits, by design.** The device is made with its
+    adapter's own `maxBufferSize` and `maxStorageBufferBindingSize` (`src/boot.js`; unasked a device gives 256 and
+    128 MB). An arena holds at most what one binding of its boxes allows: a tier that would overflow it makes it as it
+    is and opens the next (seven passes more); a tier too large for one alone is drawn whole. Every buffer made
+    through `src/core/gpu.js` is held to the limits, an error by name where one would not fit, never a buffer the GPU
+    refuses frame after frame. Every culling dispatch, and each tier's box pass, is laid out in two dimensions within
+    `maxComputeWorkgroupsPerDimension`, its true count kept beside it for the scans, a workgroup past it writing
+    nothing: an indirect dispatch past that limit is silently no dispatch at all. Both were found at the final gate.
+    With stage 7's layers the arena's boxes came to 172 MB at 32 bytes a box, over the 128 MB of a binding a device
+    gives unasked, and the culling failed every frame (the arena now holds 5.4 million things' room in 86 MB). Under
+    `?truth` more than 65,535 workgroups' worth of things is packed (the near meadow alone to 88 m is two million
+    blades), so pass one did not run, its scan read stale chunks, the lists changed every frame and the truth never
+    came to rest.
+  - **The truth draws all that is visible.** `?truth` culls as the game does: what this frame's own depth hides adds
+    nothing to any pixel, which culling on against off, within the floor at every bench view (below), shows.
+  - **The eye's draw arguments** (what pass one keeps, then pass two's after them; pass two's alone, for its prepass)
+    lie in the arena too, ten numbers a bucket. A tier's own buffer keeps only what it packed, which stage 8's cut reads
+    as it was. A draw's length goes into every set of its arguments by one call (`Tier.setLength`).
+  - **Only the prepass and the colour** read a thing through the culled list, by name: stage 9's `shadow` pass reads
+    the packing as it is, as every other pass does.
+- **The late prepass is one render bundle** (`THREE.BundleGroup`), recorded again only when what it holds changes (a
+  draw shown or hidden, a draw's corners). three still brings its draws' numbers up to date every frame (its node
+  materials always are), so it saves the encoding, the scene's walk and the pipelines' lookups, not the uniforms.
+- **The grass is culled** (`grass.js`): a blade's box from its foot up its height, out as far as it bends (bowed
+  deepest under snow) and its widest; the wind leans its tip its height a unit of the wind's push.
+- **Plants' boxes are measured on their meshes** (`assets/kit/plant.js` packPlant): every vertex where it stands and
+  what it grows from, and a card's enlarged about its tip as far as the crowd's rule lets it (SWELL), its root's too.
+  The drawer takes a mesh's box in its kind's sizes and as far as it leans (`trees.js` boxOf), grows the kind's box by
+  every mesh that comes, and a kind is never hidden before its first has come. The family's box over the height and
+  the 0.3 of its size for growth are gone for plants (0.05 left, as for made things). The plants' recipes' versions
+  moved with the kit (`registry.json`), so a warm profile bakes the far ends once more.
+- **Characters on skeletons** (Settler, Me) are not culled, as before.
+- **Found, a bench artifact:** `tools/bench.js` draws its frames with the lens factor 1. Where the gate's camera left
+  the ground's map at another step, the map fades to the new one over 36 frames and its version goes up in each, and
+  every tier's packing key begins with it: at `pine forest, 90 m` and `town, 40 m` about 20 tiers pack again in every
+  one of those frames (8–9 ms of compute), and the gate's bench (1 + 60 frames) times them. Its fix is a follow-up.
+- **Measured** on the final code (`2fdfae0` for the pictures, `5447dd1` for the costs: the normal game's dispatches
+  are all under the per-dimension limit, so 2fdfae0 changes nothing of its path) on the Mac mini, headless Chrome, a 4K screen
+  drawn at 2560 × 1440, fresh profiles, the branch on a server of its own (`127.0.0.1`), each run in its turn of the
+  master's queue on the shared GPU. Main is no reference (Samuel, 2026-11-18): the branch is judged on its own.
+  - **Culling changes nothing visible.** In one page (the gate's stills: clock held, governor held), each bench view
+    shot with culling on, with it off (`__occlusion.mode = 0`: everything packed drawn), and on again (the floor).
+    FLIP, the whole frame, mean (p99 of its 32-pixel tiles):
+
+| View | Culling off against on | On against on again (the floor) | Drawn of what is packed (grass included) |
+| --- | --- | --- | --- |
+| Tent, eye level | 0.0248 (0.073) | 0.0221 (0.068) | 156,344 of 213,140 (73 %) |
+| River bend, 26 m | 0.0179 (0.038) | 0.0176 (0.038) | 50,438 of 146,846 (34 %) |
+| Town, 40 m | 0.0192 (0.037) | 0.0225 (0.043) | 49,730 of 132,155 (38 %) |
+| Skyline, 2.5 km | 0.0099 (0.023) | 0.0111 (0.026) | 20,971 of 62,666 (33 %) |
+| Pine forest, eye level | 0.0222 (0.067) | 0.0191 (0.052) | 16,877 of 45,820 (37 %) |
+| Pine forest, 90 m | 0.0157 (0.060) | 0.0195 (0.080) | 6,773 of 50,848 (13 %) |
+
+    Four views lie under the floor; the tent and the pine forest at eye level lie 0.003 over it, as much as the floor
+    itself moves from one run to the next (the run before, on `5447dd1`: floors 0.0255 and 0.0206, culling off against
+    on 0.0264 and 0.0208). The heat maps are the floor's own pattern (the crowns' hand-over speckle, the meadow's
+    blades drawn in another order, the land's texels) and nothing is missing (the pine forest's worst tiles are bare
+    ground in both). Off above, on below, labelled, on `5447dd1`: `aven/0038-shots`, `cull/`.
+  - **FLIP against its own `?truth`: not measured.** `?truth` did not settle at the start within the gate's 300 s in
+    three runs (`5447dd1`, the truth unculled; `ab99e49` and `2fdfae0`, culled, the last with every dispatch within the
+    limit). The one truth that settled (`7c8a1f6`) did so because its culling had failed and the eye drew none of the
+    tiers. Whether main's truth with stages 7 and 8 settles on this GPU in 300 s is not measured either: for the
+    integration train.
+  - **What each pass costs, standing still** (a probe of each part, 40 frames drawn first, medians of 40; ms; GPU by
+    timestamps, CPU by the page's clock, its 0.1 ms grain). In the bench's per-pass names (`tools/bench.js`, #83):
+    `occlusion` is pass one, `prepass, late` the pyramid, pass two and the late prepass's draw:
+
+| View | GPU: frame | GPU: culling, all | pyramid (12 dispatches) | pass one (4) | pass two (3) | late prepass draw | CPU: frame | CPU: late prepass (its bundle) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Tent, eye level | 16.2 | 0.91 | 0.48 | 0.29 | 0.13 | 0.05 | 5.8 | 0.9 (0.8) |
+| River bend, 26 m | 11.8 | 0.28 | 0.18 | 0.08 | 0.02 | 0.03 | 4.5 | 0.6 (0.6) |
+| Town, 40 m | 11.7 | 0.41 | 0.18 | 0.21 | 0.02 | 0.03 | 4.7 | 0.7 (0.6) |
+| Skyline, 2.5 km | 9.2 | 0.23 | 0.18 | 0.04 | 0.01 | 0.02 | 1.5 | 0.3 (0.2) |
+| Pine forest, eye level | 27.5 | 0.83 | 0.36 | 0.34 | 0.10 | 0.05 | 7.3 | 1.1 (1.0) |
+| Pine forest, 90 m | 12.0 | 0.33 | 0.19 | 0.12 | 0.02 | 0.03 | 4.0 | 0.6 (0.5) |
+
+    20 compute dispatches a frame in all. Pass one's CPU is under the probe's grain. The pyramid is the largest part of
+    the culling's GPU time. The frame against the hard gate's 12 ms: within it at the river bend, the town, the skyline
+    and 90 m standing still, over it at the tent (16.2) and in the pine forest (27.5, its render passes 26.5).
+  - **The paths** (`gate.js paths --paths walk,orbit --fresh`, the governor running):
+
+| Path | Cache | Frames | Over 16.7 ms | GPU median | GPU p99 | Over 12 ms of GPU | Memory |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Walk | cold | 2001 | 478 | 20.3 | 34.0 | 2002 | 4.57 GB |
+| Walk | warm | 1896 | 582 | | 28.7 | 1897 | 3.61 GB |
+| Orbit | cold | 1115 | 85 | 16.2 | 29.7 | 1101 | 4.57 GB |
+| Orbit | warm | 1113 | 87 | | 31.1 | 1098 | 3.51 GB |
+
+    60 fps and 12 ms of GPU are not met; the whole browser's peak, 5.31 GB, is within 8 GB. (The paths before the
+    arena's fix read lower: its culling failed and drew none of the tiers.)
+  - **The bench** (`gate.js bench`, before the merges, `3c821b1`): tent 17.3, river bend 13.2, town 15.0, skyline
+    13.4, pine forest at eye level 31.7, from 90 m 15.4 ms of GPU, the town and 90 m with the ground map's fade in. The
+    frames above are the bench's poses on the final code, standing still past the fade.
+  - `bun tools/scale.js`: 24 of 24. `bunx --bun vite build`: TheGame and OS built.
+- **Not done:**
+  - FLIP against its own `?truth` (above), with whatever lets the truth settle;
+  - the pyramid in one or two dispatches (a single-pass downsampler), now the larger part of the culling's GPU time;
+  - the bench's lens and the ground map's fade (above);
+  - the meadow's blades are still packed in an order that changes from run to run (the packing's atomics): the culling
+    keeps whatever order the packing left;
+  - Safari has not been tried.
+
 ### Stage 8: surfaces, one cluster hierarchy from the full mesh alone (2026-11-18)
 
 Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at `d1c3805` (6b) and `314e2e6`.
@@ -1416,6 +1544,7 @@ per-pass GPU ceilings can be a merge rule.
 - [x] Stage 4: far end, impostor and clump rung (merged #66)
 - [x] Stage 5: crowds, parts and one wind (#69; its cost and the impostors' size left, under Open risks)
   - [x] the draw path's two-pass occlusion culling, against a depth pyramid (built; draft PR #68)
+  - [x] the draw path's follow-ups: one culling for every tier, the late prepass bundled, the grass culled, plants' boxes measured, every GPU resource and dispatch within the adapter's limits (PR #77, ready)
 - [ ] Stage 6: land, virtual texture and relief
   - [x] 6a: the layer map, one read a material (the deferred pass left to 6b)
   - [x] 6b: the adaptive virtual texture with feedback (built; draft PR; the ground pass still reads the land's nodes)
@@ -1626,6 +1755,26 @@ per-pass GPU ceilings can be a merge rule.
     trees to 21 km, the meadow's rings within 1 px), so `ERROR_PX` may have to rise;
   - the stress world's ladder waits for 8b;
   - the per-plant offset still reckons a plant up to 1/0.72 small.
+- **Asked (by the orchestrating session, on the Mac mini):** task B, the draw path's follow-ups to #68: one dispatch
+  a pass for all tiers, a render bundle for the late prepass's draws, the grass culled, plants' boxes measured on
+  their meshes, characters on skeletons left out; measured with the gate (bench, paths walk and orbit), the picture
+  unchanged. Then: no comparison with main at all (Samuel: main is no reference), the branch judged on its own
+  (culling on against off, and its own `?truth`), the GPU in turns from the master's queue, budget first and root
+  causes only.
+- **Delivered:** built (under Build, "Draw path: one culling for every tier…"), merged with main (stages 7 and 8, the
+  bench by its passes), PR #77 ready for the integration train; culling off above, on below on `aven/0038-shots`,
+  `cull/`.
+- **Good:**
+  - seven culling dispatches a frame for every tier at once (it was six a tier: 156 of 254 at the tent); 20 compute
+    dispatches a frame in all, standing still;
+  - the culling's GPU 0.2–0.9 ms (the pyramid 0.18–0.48 of it), the late prepass 0.3–1.1 ms of CPU and 0.02–0.05 ms of
+    GPU; the grass culled (at the tent 103 k of its 134 k blades drawn), plants' boxes measured: 13–73 % of what is
+    packed drawn, and culling on against off within the floor at every bench view;
+  - every GPU resource and dispatch sized from the adapter's own limits: found at the final gate when stage 7's
+    layers made the arena outgrow a binding and the truth's packing outgrow a dispatch.
+- **Not there yet:** FLIP against its own `?truth` (the truth did not settle in 300 s at the start); the paths over
+  16.7 ms and 12 ms of GPU (walk p99 34 ms cold), memory 5.31 GB within 8; the pyramid's 12 dispatches; the bench's
+  ground-map fade (under Found); Safari not tried.
 
 ## Trail
 
@@ -1685,4 +1834,13 @@ per-pass GPU ceilings can be a merge rule.
 | 2026-11-18 | `5fedb4b` | One measure: a plant's last level ends at its own end, a stand's at its last kind's |
 | 2026-11-18 | `d55430d` | One measure: the notes in the code in fewer lines |
 | 2026-11-18 | `8e9cc38` | One measure: its notes under Build |
+| 2026-11-18 | `9fa8a1f` | Draw path: one culling for every tier (an arena), the late prepass one bundle, the grass culled, plants' boxes measured |
+| 2026-11-18 | `3c821b1` | Draw path: boxes worked out only for what was packed; a bucket found in as many halvings as it takes |
+| 2026-11-18 | `fe8a3f8` | Draw path merged with main (stage 7): the grass's box and the growth map both in its packing |
 | 2026-11-18 | `19d0559` | The bench times each pass on its own on main: the passes marked, each in one of four parts (geometry, light, ground, upscale/post) |
+| 2026-11-18 | `7c8a1f6` | Draw path merged with main (stage 8): a solid's box its family's own where it gives one |
+| 2026-11-18 | `4dc9499` | Draw path: boxes in 16 bytes; an arena never larger than one binding |
+| 2026-11-18 | `5447dd1` | Every GPU buffer within the device's own limits, the adapter's asked for at boot |
+| 2026-11-18 | `ab99e49` | Draw path: `?truth` culls as the game does (the truth draws all that is visible) |
+| 2026-11-18 | `2fdfae0` | Draw path: every culling dispatch within the device's workgroups a dimension |
+| 2026-11-18 | `d7dcd26` | Draw path merged with main (`ecc80f2`, the bench by its passes); PR #77 ready |
