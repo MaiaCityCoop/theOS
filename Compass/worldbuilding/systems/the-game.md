@@ -135,28 +135,29 @@ Later, not in the MVP: underground transport, the dome factory, robotics, and co
 
 | Phase | Villagers | Goal | Investment | Funded by |
 | --- | --- | --- | ---: | --- |
-| 1 · Food | 3 – 377 | Food sovereignty | ≈ €21M | The citizens; angels from 13, seed from 55 |
+| 1 · Food | 3 – 377 | Food sovereignty | ≈ €21M | The citizens; pre-seed from 5, angels from 13, seed from 55 |
 | 2 · Energy | 378 – 610 | Energy sovereignty: the geothermal star, built once 610 is reached | ≈ €40M | The first major investor |
 | 3 · Compute | 611 – 987 | The server farm in the tower; compute exported | ≈ €127M | The second major investor |
 | 4 · Factories | 988 – 1,597 | Startup factory coops around the centre; fewer imports; the city export-positive | ≈ €113M | The third major investor |
 
-| Villagers | Phase | Added | € this level | € in total | Funded by | Food import | Energy import |
-| ---: | --- | --- | ---: | ---: | --- | ---: | ---: |
-| 3 | 1 · Food | **The starter pack:** 3 tents, a small generator, and a 3 m growing dome for herbs and berries with its tech box; everything is kept in the dome and the tents | €7k | €7k | The village treasury | 98% | 99% |
-| 5 | 1 · Food | 2 tents, one shared; a 5 m dome (vegetables) and its tech box; **the village market dome**, a 5 m dome in the centre; **a used pickup** | €32k | €39k | Citizens | 97% | 97% |
-| 8 | 1 · Food | The first 4-person living dome; an 8 m dome; a rainwater tank | €93k | €132k | Citizens | 94% | 94% |
-| 13 | 1 · Food | A 4-person dome; a 13 m dome, the first food forest; the kitchen container | €210k | €342k | First angels | 88% | 90% |
-| 21 | 1 · Food | The first 12-person dome; a 21 m dome; the bath and sanitary container | €375k | €717k | Angels | 80% | 86% |
-| 34 | 1 · Food | A 12-person dome; a 34 m dome; the workshop and store container | €500k | €1.2M | Angels | 70% | 82% |
-| 55 | 1 · Food | The first 24-person dome; a 55 m dome, the full food forest, with the first aquaponics and fish pond; the water-cycle plant | €1.1M | €2.4M | Seed | 58% | 78% |
-| 89 | 1 · Food | The first 48-person dome; an 89 m dome | €2.6M | €4.9M | Seed | 45% | 74% |
-| 144 | 1 · Food | A 48- and a 24-person dome; the 144 m district dome; the market dome grows into the market hall | €6.9M | €11.8M | Seed | 30% | 70% |
-| 233 | 1 · Food | Two 48-person domes; two 55 m domes; the compost and seed bank | €2.8M | €14.6M | Seed | 15% | 66% |
-| 377 | 1 · Food | Three 48-person domes; two 89 m domes; the cold store and processing | €6.0M | €20.6M | Seed | 0%, food-sovereign | 62% |
-| 610 | 2 · Energy | Five 48-person domes; two 144 m domes; the geothermal star, about 3 MWe and the heat network to every dome | €39.5M | €60M | First major investor | 0% | 0%, energy-sovereign |
-| 987 | 3 · Compute | Eight 48-person domes; three 144 m domes; the village centre tower, first stage, with the server farm (about 2 MW of compute, storage, cooling); geothermal grown by about 5 MW | €127M | €187M | Second major investor | 0% | 0%; compute exported |
-| 1,597 | 4 · Factories | Twelve 48-person domes; four 144 m domes; the tower completed; startup factory coops around the centre: domes, batteries, solar panels, geothermal drilling, open-source machines, avenCEO | €113M | €300M | Third major investor | 0% | 0%; export-positive |
+| Villagers | Phase | Added | € this level | New settlers bring | Investment round | € in total | Funded by | Food import | Energy import |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | --- | ---: | ---: |
+| 3 | 1 · Food | **The starter pack:** 3 tents, a small generator, and a 3 m growing dome for herbs and berries with its tech box; everything is kept in the dome and the tents | €7k | €15k | — | €7k | The village treasury | 98% | 99% |
+| 5 | 1 · Food | 2 tents, one shared; a 5 m dome (vegetables) and its tech box; **the village market dome**, a 5 m dome in the centre; **a used pickup** | €32k | €10k | €14k | €39k | Pre-seed | 97% | 97% |
+| 8 | 1 · Food | The first 4-person living dome; an 8 m dome; a rainwater tank | €93k | €15k | €78k | €132k | Pre-seed | 94% | 94% |
+| 13 | 1 · Food | A 4-person dome; a 13 m dome, the first food forest; the kitchen container | €210k | €25k | €185k | €342k | Angels | 88% | 90% |
+| 21 | 1 · Food | The first 12-person dome; a 21 m dome; the bath and sanitary container | €375k | €40k | €335k | €717k | Angels | 80% | 86% |
+| 34 | 1 · Food | A 12-person dome; a 34 m dome; the workshop and store container | €500k | €65k | €435k | €1.2M | Angels | 70% | 82% |
+| 55 | 1 · Food | The first 24-person dome; a 55 m dome, the full food forest, with the first aquaponics and fish pond; the water-cycle plant | €1.1M | €105k | €1.0M | €2.4M | Seed | 58% | 78% |
+| 89 | 1 · Food | The first 48-person dome; an 89 m dome | €2.6M | €170k | €2.4M | €4.9M | Seed | 45% | 74% |
+| 144 | 1 · Food | A 48- and a 24-person dome; the 144 m district dome; the market dome grows into the market hall | €6.9M | €275k | €6.6M | €11.8M | Seed | 30% | 70% |
+| 233 | 1 · Food | Two 48-person domes; two 55 m domes; the compost and seed bank | €2.8M | €445k | €2.4M | €14.6M | Seed | 15% | 66% |
+| 377 | 1 · Food | Three 48-person domes; two 89 m domes; the cold store and processing | €6.0M | €720k | €5.3M | €20.6M | Seed | 0%, food-sovereign | 62% |
+| 610 | 2 · Energy | Five 48-person domes; two 144 m domes; the geothermal star, about 3 MWe and the heat network to every dome | €39.5M | €1.2M | €38.3M | €60M | First major investor | 0% | 0%, energy-sovereign |
+| 987 | 3 · Compute | Eight 48-person domes; three 144 m domes; the village centre tower, first stage, with the server farm (about 2 MW of compute, storage, cooling); geothermal grown by about 5 MW | €127M | €1.9M | €125M | €187M | Second major investor | 0% | 0%; compute exported |
+| 1,597 | 4 · Factories | Twelve 48-person domes; four 144 m domes; the tower completed; startup factory coops around the centre: domes, batteries, solar panels, geothermal drilling, open-source machines, avenCEO | €113M | €3.1M | €110M | €300M | Third major investor | 0% | 0%; export-positive |
 
+- **Every level's gap is its investment round:** what the level costs, less the € its new settlers bring to the village coop (€5,000 each), is raised from investors at that gate. The rounds add up to about €292M by 1,597; the settlers bring about €8M.
 - **Room for everyone, always:** the living domes hold 416 people at 377, 656 at 610, 1,040 at 987 and 1,616 at 1,597.
 - **The € figures are rough estimates** (2025–26 market levels for tents, domes, containers, geothermal and computing), for sizing the game; each needs a real quote before it is shown as fact. The percentages are design values, to tune.
 - **The 49% cap:** citizens pay in about €16M by 1,597 (€8M to the village coop) against about €300M invested, so their 51% holds only because their stake is valued through the HEARTS–€ pool, as treasury wealth.

@@ -287,6 +287,20 @@ Asked outright and without surprises, so built straight away.
 - **Broke / not there yet:** the € figures are rough estimates to be quoted; a global `.bar` class drew grey boxes on
   the first try, renamed.
 
+### 2026-11-18 (7)
+
+- **Asked:** the € start at €10,000, half to the city coop, half to the village coop; a village starts with 3
+  settlers; the market dome (5 m) and the pickup arrive with the fifth; the economy inside the city (everything in
+  city HEARTS, rent and food money, work proposals, 50% of turnover to MINDS holders, the harvest sold to the village
+  market, prices and a 10% import markup, local governance, the gate as an automated market maker passed only by
+  coops, protocol-owned bootstrap liquidity); aquaponics and fish ponds in the large domes. Then: "Why is the total
+  €39k when each only brings €5k?" and "make the gap on each level an actual investment".
+- **Delivered:** all of it in `the-game.md`; the ladder now shows what new settlers bring and each level's investment
+  round (pre-seed from 5, angels from 13, seed from 55, the three major investors), on the sheet and the `#ladder` page.
+- **Good:** `story check .` passes; the page renders (screenshot).
+- **Broke / not there yet:** "€ in total" read as money brought, not money spent, until the columns were added; the
+  ladder had said "Citizens" at 5 and 8 although their € did not cover it.
+
 ## Trail
 
 | When | Commit | What |

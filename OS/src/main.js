@@ -330,7 +330,7 @@ async function ladder() {
   const phases = (tables[0] || []).slice(1), steps = (tables[1] || []).slice(1);
   const notes = part.split('\n').filter((l) => l.startsWith('- ')).join('\n');
   const paras = rest.filter((x) => !x.startsWith('|') && !x.startsWith('- ')).slice(0, 2);
-  const top = Math.max(...steps.map((r) => euro(r[4])), 1);
+  const top = Math.max(...steps.map((r) => euro(r[6])), 1);
   const pct = (t) => { const v = parseInt(t, 10); return isNaN(v) ? 0 : v; };
   const bar = (t, cls) => `<span class="lbar ${cls}"><i style="width:${pct(t)}%"></i></span><span class="pc">${esc(t)}</span>`;
   const ph = (t) => PHASE[String(t).trim()[0]] || '';
@@ -340,15 +340,17 @@ async function ladder() {
     <div class="lede md">${marked.parse(intro)}</div>
     <div class="phases">${phases.map((r, i) => `<div class="ph ${PHASE[i + 1]}"><small>${esc(r[1])} villagers</small><b>${esc(r[0])}</b><span>${esc(r[2])}</span><em>${esc(r[3])}</em><u>${esc(r[4])}</u></div>`).join('')}</div>
     <div class="tablewrap"><table class="lad">
-      <thead><tr><th>Villagers</th><th>Added at this level</th><th>€ this level</th><th>€ in total</th><th>Funded by</th><th>Food import</th><th>Energy import</th></tr></thead>
+      <thead><tr><th>Villagers</th><th>Added at this level</th><th>€ this level</th><th>Settlers bring</th><th>Investment round</th><th>€ in total</th><th>Funded by</th><th>Food import</th><th>Energy import</th></tr></thead>
       <tbody>${steps.map((r) => `<tr class="${ph(r[1])}">
         <td class="n"><b>${esc(r[0])}</b><small>${esc(r[1])}</small></td>
-        <td class="add">${esc(r[2])}</td>
+        <td class="add">${marked.parseInline(r[2])}</td>
         <td class="eur">${esc(r[3])}</td>
-        <td class="eur"><span class="lbar sum"><i style="width:${Math.max(2, Math.sqrt(euro(r[4]) / top) * 100)}%"></i></span><span class="pc">${esc(r[4])}</span></td>
-        <td>${esc(r[5])}</td>
-        <td>${bar(r[6], 'food')}</td>
-        <td>${bar(r[7], 'energy')}</td></tr>`).join('')}</tbody>
+        <td class="eur bring">${esc(r[4])}</td>
+        <td class="eur round">${esc(r[5])}</td>
+        <td class="eur"><span class="lbar sum"><i style="width:${Math.max(2, Math.sqrt(euro(r[6]) / top) * 100)}%"></i></span><span class="pc">${esc(r[6])}</span></td>
+        <td>${esc(r[7])}</td>
+        <td>${bar(r[8], 'food')}</td>
+        <td>${bar(r[9], 'energy')}</td></tr>`).join('')}</tbody>
     </table></div>
     ${paras.map((p) => `<div class="md note">${marked.parse(p)}</div>`).join('')}
     <div class="md notes">${marked.parse(notes)}</div>`;
