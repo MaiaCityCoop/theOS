@@ -31,7 +31,8 @@ import { SURFACE_LEVELS, FADE, BAND, GONE, surfaceBand, surfacePx } from '../det
 import { spanOf, most, kindOf } from '../../assets/kinds.js';
 import { bodyOfAsset } from '../../assets/index.js';
 import { placedBy } from '../../assets/zoo/index.js';
-import { madeBox, madeRoom } from '../../assets/kit/made.js';
+import { madeBox, MADE_PER } from '../../assets/kit/made.js';
+import { roomsOf, mostOf } from './rooms.js';
 import { clusterOf, levelHead, allowedAt, eased, ruleOf, sphereFrom, pxCut } from './cut.js';
 import { versionOf } from '../core/registry.js';
 import { madeOf, madeWay } from './madevert.js';
@@ -133,11 +134,10 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
 /** A group: made kinds drawn by one drawer, its list, its tiers. */
 function groupOf(scene, tex, renderer, name, kinds, cap) {
   const n = kinds.length, ML = SURFACE_LEVELS - 1;
-  // its levels: the surfaces' (src/detail/error.js), each kind's in a place as large as its whole hierarchy; the last,
-  // from where its coarsest clusters end, the drawer's dot, whole down to where it is gone (GONE: leaving it out differs
-  // by all of it) and sinking away over the BAND under that
-  const rooms = kinds.map((Kd) => madeRoom(Kd.asset)), room = { verts: Math.max(...rooms.map((r) => r.verts)), tris: Math.max(...rooms.map((r) => r.tris)) };
-  const LEVELS = [...Array.from({ length: ML }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), room, rooms })), { px: GONE / BAND, room: { verts: 3, tris: 1 } }];
+  // its levels: the surfaces' (src/detail/error.js), each kind's level in a place as large as what it holds (rooms.json,
+  // measured from its own hierarchy: src/scatter/rooms.js); the last, from where its coarsest clusters end, the drawer's
+  // dot, whole down to where it is gone (GONE: leaving it out differs by all of it) and sinking away over the BAND under that
+  const LEVELS = [...Array.from({ length: ML }, (_, i) => { const rooms = kinds.map((Kd) => roomsOf(Kd.asset.uid, i, MADE_PER)[0]); return { px: surfacePx(i), band: surfaceBand(i), room: mostOf(rooms), rooms }; }), { px: GONE / BAND, room: { verts: 3, tris: 1 } }];
   // each kind's own numbers (NUMS rows of four, after its look in the drawer's one table): [its box's least corner, its
   // height], [its box's size, its half length], [its wind: billow, flap, sway], [its surface: wrap, through; metres a
   // tile of its materials, their relief], [the layers of its materials (none: -1)]; how its snow lies and its largest
@@ -153,7 +153,7 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
     make: { per: 2, flat: false, dot: true, numbers: { rows: NUMS, of: numbersOf }, material: (src, i, shadow, at) => madeMaterial(D, src, i, { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity, last: false }, fade, sink, at),
       box: (k) => { const a = kinds[k].asset, B = madeBox(a), s = spanOf(a); return { min: B.min.map((v) => v / s), max: B.min.map((v, j) => (v + B.ext[j]) / s) }; } },   // (its box over every level, in its sizes: what the eye's occlusion test reads, drawer.js kindBox)
     // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
-    zoo: { kinds: KINDS, ALL: n, lookOfKind: (k) => kinds[k].look, fingerprint: () => `made 4|${kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${rooms.map((r) => `${r.verts}:${r.tris}`).join()}` },
+    zoo: { kinds: KINDS, ALL: n, lookOfKind: (k) => kinds[k].look, fingerprint: () => `made 5|${kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.slice(0, ML).map((l) => l.rooms.map((r) => `${r.verts}:${r.tris}`).join()).join('/')}` },
   });
 
   // ---- the list: what stands, by the order of where it stands ----

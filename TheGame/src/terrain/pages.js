@@ -27,6 +27,8 @@
 import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, Break, float, int, uint, vec2, vec4, ivec2, uvec2, uvec4, uniform, uniformArray, texture, storageTexture, textureStore, globalId, floor, fract, log2, exp2, max, min, clamp, length, mix, sqrt, smoothstep, renderGroup } from 'three/tsl';
 import { U } from '../core/uniforms.js';
+import { boxIn } from '../core/frustum.js';
+import { HMIN, HMAX } from '../world/land.js';
 import { note, gpuStorage, roomOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { source } from '../core/settle.js';
@@ -80,7 +82,7 @@ export function createPages(renderer, tex) {
   // and N are four bytes a texel each (N with the carpet and the shade in it), 640 pages, laid straight into the atlas ----
   const dev = renderer.backend.device, PACKED = !!dev?.features?.has('texture-compression-bc'), LAYERS_MOST = dev?.limits?.maxTextureArrayLayers ?? 256;
   const SLOT_BYTES = SLOT * SLOT * 1.25 * (PACKED ? 3 : 8);   // (a page's texels, with its second mip, in its formats: what the note below counts a slot)
-  const SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, 4096) : Math.min(LAYERS_MOST, 640), Math.floor(roomOf('ground') / SLOT_BYTES)), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class has room for: src/core/classes.js)
+  const SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, 4096) : Math.min(LAYERS_MOST, 640), Math.floor(roomOf('ground') / SLOT_BYTES)), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class has room for: src/core/budget.js)
   const look = { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, anisotropy: ANISO, colorSpace: THREE.NoColorSpace, generateMipmaps: false };
   const laidInto = (n) => Object.assign(new THREE.StorageArrayTexture(SLOT, SLOT, n), look, { mipmaps: [{ width: SLOT, height: SLOT }, { width: SLOT / 2, height: SLOT / 2 }] });
   const blocks = (format, n) => {   // (every layer there from the start, empty, filled as pages are laid)
@@ -415,13 +417,16 @@ export function createPages(renderer, tex) {
       for (const Q of [...IN.values()]) if (Q.m === m && !inWin(m, Q.i, Q.j)) evict(Q, 'window');
     }
   };
-  // the last level round the camera, always in as far as the land is drawn (what a pixel reads where nothing finer is in yet)
-  const pinTop = (cam) => {
-    const P = sideOf(TOP), pins = [], PIN = Math.max(U.uLandEnd.value, P), far = (Q) => Math.abs((Q.i + 0.5) * P - cam.x) > PIN + P || Math.abs((Q.j + 0.5) * P - cam.z) > PIN + P;
-    for (let j = Math.floor((cam.z - PIN) / P); j <= Math.floor((cam.z + PIN) / P); j++) for (let i = Math.floor((cam.x - PIN) / P); i <= Math.floor((cam.x + PIN) / P); i++) {
+  // the last level round the camera, always in (what a pixel reads where nothing finer is in yet): every page of it
+  // within `pin` metres, past `disk` only where the view looks; a pinned page not pinned this frame is free to go
+  const pinTop = (cam, pin, disk) => {
+    const P = sideOf(TOP), pins = [];
+    for (let j = Math.floor((cam.z - pin) / P); j <= Math.floor((cam.z + pin) / P); j++) for (let i = Math.floor((cam.x - pin) / P); i <= Math.floor((cam.x + pin) / P); i++) {
+      const x0 = i * P, z0 = j * P, nx = Math.max(x0 - cam.x, 0, cam.x - x0 - P), nz = Math.max(z0 - cam.z, 0, cam.z - z0 - P);
+      if (nx * nx + nz * nz > disk * disk && !boxIn(x0, x0 + P, HMIN, HMAX, z0, z0 + P)) continue;   // (past the disk: only where the view looks)
       const Q = IN.get(keyOf(TOP, i, j)); if (Q) { Q.pin = true; Q.used = frame; } else pins.push({ m: TOP, i, j, pin: true });
     }
-    for (const Q of IN.values()) if (Q.pin && Q.m === TOP && far(Q)) Q.pin = false;
+    for (const Q of IN.values()) if (Q.pin && Q.m === TOP && Q.used < frame) Q.pin = false;
     if (pins.length) make(pins, Infinity);
   };
   const isStill = () => moved < 1e-4 && swung < 1e-5;
@@ -500,10 +505,13 @@ export function createPages(renderer, tex) {
     /** What the GPU holds of it, for a look: { slots, in, queue, bias, made }. */
     get stats() { return { slots: SLOTS, in: IN.size, need: want.size, queue: queue.length, fading: fading.length, bias, made, refs: refs.size, read: readTo, quiet: quietFrom, frame }; },
     /** Once a frame, before the world is drawn: the windows kept round the camera, what the pixels asked for taken in,
-        pages laid, the table sent. */
-    update(camera) {
+        pages laid, the table sent. The last level is always in as far as the land is drawn (`pin`, metres:
+        src/terrain/terrain.js, its reach from src/detail/extent.js): all round the camera as far as the walker's lens
+        sees (`disk`), and past that where the view looks (a longer lens sees farther in a narrower cone: a disk as far
+        would ask for more pages than the slots hold). */
+    update(camera, pin, disk = pin) {
       frame++; const v0 = version, cam = camera.position, size = renderer.getDrawingBufferSize(new THREE.Vector2());
-      clock(); relay(size); follow(camera, size); windows(cam); pinTop(cam); judge(); layQueue(cam); faded(); send(v0);
+      clock(); relay(size); follow(camera, size); windows(cam); pinTop(cam, pin, disk); judge(); layQueue(cam); faded(); send(v0);
     },
     /** How much coarser than its footprint a pixel asks: half a level finer (a page is filtered as it is read, after
         the filtering its texels were laid with: so the ground is as sharp as a read of its materials, everywhere), and

@@ -15,8 +15,10 @@
 //                                          dependency that no intent the change touches names. CI runs it on every PR.
 //                                          A change that reverts a commit M of the base's line is measured against the
 //                                          state it restores, the base with M undone (M's first parent, where nothing
-//                                          came after M): a pure revert shows no change, and whatever else the change
-//                                          does is measured as ever.
+//                                          came after M), wherever M lies: path by path, a path the base has moved on at
+//                                          since M as the base has it. M: what its "This reverts commit M" names, else
+//                                          the newest commit it undoes. A pure revert shows no change, and whatever else
+//                                          the change does is measured as ever.
 //
 //   Copies        jscpd, clones of 50 tokens or more: the share of lines that are in one, and the largest
 //   Spaghetti     eslint's `complexity` (cyclomatic) of every function: the most, the mean, the 20 most
@@ -64,7 +66,7 @@ const AUDIT = { 'tier.js': ['MAXP'] };
 const COMPLEXITY = builtinRules.get('complexity');
 
 const fail = (why) => { console.error(`health: ${why}`); process.exit(1); };
-const run = (cmd, args, cwd = GAME) => spawnSync(cmd, args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28 });
+const run = (cmd, args, cwd = GAME, more = {}) => spawnSync(cmd, args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28, ...more });
 const git = (...args) => { const r = run('git', args); return r.status ? fail(`git ${args.join(' ')}: ${r.stderr.trim()}`) : r.stdout.split('\n').filter(Boolean); };
 const ARGS = process.argv.slice(2), TAKES = ['--base', '--ceiling'];
 const valueOf = (name) => (ARGS.includes(name) ? ARGS[ARGS.indexOf(name) + 1] ?? fail(`${name} wants a value`) : undefined);
@@ -73,30 +75,53 @@ const at = (f, line) => `${f}:${line}`, fileOf = (place) => place.slice(0, place
 
 // ---- what is measured: the paths asked for, else (against a base) the folders the change touches, else all of TheGame ----
 /** The base a change is measured against: where <ref> and HEAD part; or, where the change reverts a commit M of that
-    base's line, the state that revert restores: the base with M undone (as git revert undoes it), which is M's first
-    parent where nothing came after M. M is the commit a "This reverts commit M" of the change's own commits names (git
-    revert), else the newest commit of the base's line all of whose paths the change touches and leaves as they are with
-    M undone. [the base: a commit, or the tree with M undone; M, or null]. */
+    base's line, the state that revert restores: the base with M undone (as git revert undoes it), wherever M lies in the
+    base's history, a path the base has moved on at since M (where undoing M no longer applies) as the base has it. M is
+    the commit a "This reverts commit M" of the change's own commits names (git revert, -m 1 of a merge too), else the
+    newest commit of the base's line the change undoes: every path of M either undone by the change exactly as undoing M
+    leaves it, or left as the base has it where the base has moved on there since M. [the base: a commit, or the tree
+    with M undone; M, or null]. */
 function baseOf(ref) {
   const base = git('merge-base', ref, 'HEAD')[0], M = revertOf(base, null), T = M && depthOf(M) % 2 === 0 && undone(base, M);
-  return T ? [T, M] : [base, null];
+  return T ? [T.tree, M] : [base, null];
 }
 const ok = (...args) => run('git', args).status === 0;
 /** The commit a change from `base` to `head` (a commit; null: the working tree) reverts: the one a "This reverts commit
-    K" of the change's own commits names, on the base's line; else the newest commit of the base's line all of whose
-    paths the change touches and leaves as they are with it undone. null where it reverts none. */
-function revertOf(base, head) {
+    K" names, on the base's line (of the change's own commits; own: of `head`'s message alone, not of a branch it
+    merged); else the newest commit of the base's line the change undoes (baseOf). null where it reverts none. */
+function revertOf(base, head, own = false) {
   const to = head ? [head] : [], touched = new Set(git('diff', '--name-only', base, ...to, '--', ':/'));
-  const named = [...git('log', '--format=%B', `${base}..${head ?? 'HEAD'}`).join('\n').matchAll(/This reverts commit ([0-9a-f]{7,40})/g)].map((m) => m[1]).find((K) => ok('merge-base', '--is-ancestor', K, base));
-  const restores = ({ sha, paths }) => paths.length && paths.every((p) => touched.has(p)) && ok('diff', '--quiet', undone(base, sha), ...to, '--', ...paths.map((p) => `:/${p}`));
-  return named ?? firstParents(base).find(restores)?.sha ?? null;
+  const said = own ? git('log', '-1', '--format=%B', head) : git('log', '--format=%B', `${base}..${head ?? 'HEAD'}`);
+  const named = [...said.join('\n').matchAll(/This reverts commit ([0-9a-f]{7,40})/g)].map((m) => m[1]).find((K) => ok('merge-base', '--is-ancestor', K, base));
+  const blobOf = (p) => (head ? run('git', ['rev-parse', '-q', '--verify', `${head}:${p}`], REPO).stdout.trim() : run('git', ['hash-object', '--', p], REPO).stdout.trim());
+  // (a path of M the change does not touch only where the base has moved on there since M; then M undone, path by path,
+  // ends at the first path the change does not leave exactly as undoing M does)
+  const moved = (sha, P) => !P.length || git('diff', '--name-only', sha, base, '--', ...P.map((p) => `:/${p}`)).length === P.length;
+  const undoes = ({ sha, paths }) => paths.some((p) => touched.has(p)) && moved(sha, paths.filter((p) => !touched.has(p))) && !!undone(base, sha, (p, blob) => touched.has(p) && blob === blobOf(p));
+  return named ?? firstParents(base).find(undoes)?.sha ?? null;
 }
 /** How deep a commit lies in a chain of reverts: 0, a change of its own; 1, the revert of one; 2, the revert of that.
     Undoing one of an even depth goes back to the state before it; undoing one of an odd depth (a revert) brings back
     what it took out, which is measured as new. */
-const depthOf = (c) => { const K = ok('rev-parse', '--verify', '-q', `${c}^1`) && revertOf(`${c}^1`, c); return K ? 1 + depthOf(K) : 0; };
-/** The tree of `base` with commit M undone, as git revert undoes it (null where that does not merge cleanly). */
-const undone = (base, M) => { const r = run('git', ['merge-tree', '--write-tree', `--merge-base=${M}`, base, `${M}^1`]); return r.status === 0 ? r.stdout.split('\n')[0] : null; };
+const depthOf = (c) => { const K = ok('rev-parse', '--verify', '-q', `${c}^1`) && revertOf(`${c}^1`, c, true); return K ? 1 + depthOf(K) : 0; };
+/** `base` with commit M undone as git revert undoes it, path by path: each path M changed from its first parent taken
+    back (git apply of M's reverse, three-way, into an index of base's own); a path where that no longer applies (the
+    base has moved on there since M) as the base has it. keep(path, blob): asked of each path undone, with its blob;
+    false ends it there (null). { tree, paths: those undone }, or null where none is. Plain git, of any version. */
+function undone(base, M, keep = () => true) {
+  const dir = mkdtempSync(join(tmpdir(), 'health-undo-')), env = { env: { ...process.env, GIT_INDEX_FILE: join(dir, 'index') } }, paths = [];
+  const back = (p) => { run('git', ['rm', '--cached', '-q', '--ignore-unmatch', '--', p], REPO, env); const e = git('ls-tree', base, '--', `:/${p}`)[0]; if (e) { const [mode, , blob] = e.split(/\s+/); run('git', ['update-index', '--add', '--cacheinfo', `${mode},${blob},${p}`], REPO, env); } };
+  try {
+    run('git', ['read-tree', base], REPO, env);
+    for (const p of git('diff', '--name-only', '--no-renames', `${M}^1`, M, '--', ':/')) {
+      const patch = run('git', ['diff', '--binary', '--no-renames', M, `${M}^1`, '--', `:/${p}`], REPO).stdout;
+      if (run('git', ['apply', '--cached', '--3way', '-'], REPO, { ...env, input: patch }).status !== 0) { back(p); continue; }
+      if (!keep(p, run('git', ['rev-parse', '-q', '--verify', `:${p}`], REPO, env).stdout.trim())) return null;
+      paths.push(p);
+    }
+    return paths.length ? { tree: run('git', ['write-tree'], REPO, env).stdout.trim(), paths } : null;
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}
 /** The commits of a commit's first-parent line, newest first, each with the paths it changed from its first parent. */
 function firstParents(c) {
   const out = [];

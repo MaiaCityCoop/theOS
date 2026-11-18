@@ -45,16 +45,16 @@ self.onmessage = async ({ data: { id, jobs } }) => {
     else if (j[0] === 'bones') { const [, k0, n] = j, rows = new Float32Array(n * BONES * 12); for (let i = 0; i < n; i++) { const B = bonesOf(k0 + i); if (B) rows.set(B, i * BONES * 12); } out.push(rows); move.push(rows.buffer); }
     else {
       const [, k0, n, levels] = j, kindOf = (i) => (Array.isArray(k0) ? k0[i] : k0 + i);
-      const blocks = levels.map(([l, idx, elems, D]) => ({ l, corners: new Uint32Array(n * idx), verts: new Uint32Array(n * elems * 4), counts: new Uint32Array(n), draws: new Uint32Array(n), ...(D != null ? { boxes: new Float32Array(n * 6) } : {}) }));   // (draws: how many corners each mesh has)
+      const blocks = levels.map(([l, idx, elems, D]) => ({ l, corners: new Uint32Array(n * idx), verts: new Uint32Array(n * elems * 4), counts: new Uint32Array(n), draws: new Uint32Array(n), elems: new Uint32Array(n), ...(D != null ? { boxes: new Float32Array(n * 6) } : {}) }));   // (draws: how many corners each mesh has)
       // (a kind at a time, all its levels: a family may make one of its levels from another it has just made)
       for (let i = 0; i < n; i++) levels.forEach(([l, idx, elems, D, band], b) => {
         const m = meshOf(kindOf(i), l, { tris: idx / 3, elems, band });
         if (m.index.length > idx || m.verts.length > elems * 4) throw new Error(`recipes: kind ${kindOf(i)} level ${l} is larger than its place (${m.index.length} corners of ${idx}, ${m.verts.length / 4} elements of ${elems})`);
-        blocks[b].corners.set(m.index, i * idx); blocks[b].verts.set(m.verts, i * elems * 4); blocks[b].counts[i] = m.count ?? m.index.length; blocks[b].draws[i] = m.index.length;
+        blocks[b].corners.set(m.index, i * idx); blocks[b].verts.set(m.verts, i * elems * 4); blocks[b].counts[i] = m.count ?? m.index.length; blocks[b].draws[i] = m.index.length; blocks[b].elems[i] = m.verts.length / 4;
         if (D != null) { if (m.box) blocks[b].boxes.set(m.box, i * 6); else solidBox(m.verts, D, blocks[b].boxes, i * 6); }
         else if (m.box) (blocks[b].boxes ||= new Float32Array(n * 6)).set(m.box, i * 6);   // (a family that measures its meshes itself: the plants', assets/kit/plant.js)
       });
-      for (const B of blocks) move.push(B.corners.buffer, B.verts.buffer, B.counts.buffer, B.draws.buffer, ...(B.boxes ? [B.boxes.buffer] : []));
+      for (const B of blocks) move.push(B.corners.buffer, B.verts.buffer, B.counts.buffer, B.draws.buffer, B.elems.buffer, ...(B.boxes ? [B.boxes.buffer] : []));
       out.push(blocks);
     }
   }

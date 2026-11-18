@@ -80,10 +80,9 @@ import { join } from 'node:path';
 import { VIEWS, PATHS, HOURLY } from './gate/views.js';
 import RIG from '../camera/rig.js';
 import { FIRST_FRAME } from '../src/core/marks.js';
-import { BUDGET, CLASSES, classOf, CLASS_NAMES, BUDGET_MB } from './bench.js';
-import { MEMORY } from '../src/core/classes.js';
+import { CLASSES, classOf, CLASS_NAMES } from './bench.js';
+import { FRAME_MS as BUDGET, MEMORY, BUDGET_MB, FRAME_MS_BY_CLASS, OUTPUT } from '../src/core/budget.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
-import { OUTPUT } from '../src/core/budget.js';
 import { stepper } from './gate/clock.js';
 import { locked, unlock } from './gpu/lock.js';
 import { tiled } from './gate/tiles.js';
@@ -95,7 +94,7 @@ const Q_AT = process.argv.indexOf('--query'), EXTRA = Q_AT > 0 ? process.argv[Q_
 const OUT = new URL('../.gate/', import.meta.url).pathname;   // TheGame/.gate/: made again by every run, not kept in git
 // (the output the gate draws: OUTPUT (src/core/budget.js), at one pixel a point: the canvas is the output's own pixels)
 const SCREEN = { ...OUTPUT, dpr: 1 }, INSIDE = 4 / 3, TIME = 100;   // (TIME: the seconds the world's clock stands at for stills)
-const FRAME = 1000 / 60, JITTER = 1;   // the hard gates in motion: no frame longer than 1/60 s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within MEMORY (src/core/classes.js)
+const FRAME = 1000 / 60, JITTER = 1;   // the hard gates in motion: no frame longer than 1/60 s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within 8 GB
 const WAIT = 300e3;   // ms the world may take to come, or to settle, before the gate calls it broken (an error; never a wait for readiness)
 const ARGS = ['--enable-unsafe-webgpu', '--enable-webgpu-developer-features'];   // (the second: the GPU's timestamps to the nanosecond, not rounded to a tenth of a millisecond: the bench times passes of a few hundredths)
 
@@ -369,10 +368,10 @@ async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
     const W = 13, head = (i) => V.map((v) => (v.split(', ')[i] ?? '').padStart(W)).join('');   // (a view's name in two lines: its place, its height)
     const cell = (p) => (!p ? '–' : p.every > 1.5 ? `${p.mean.toFixed(2)}(${p.drawn.toFixed(1)})` : p.mean.toFixed(2)).padStart(W);
     const names = [...new Set(V.flatMap((v) => Object.keys(out.passes[v])))], at = (k) => { const i = (CLASSES[classOf(k)] ?? []).indexOf(k); return i < 0 ? 99 : i; };
-    console.log(`\n  ${'ms a frame, part and pass'.padEnd(28)}${head(0)}`);
+    console.log(`\n  ${'ms a frame, part and pass'.padEnd(28)}${head(0)}${'budget'.padStart(9)}`);
     console.log(`  ${'(in brackets: when drawn)'.padEnd(28)}${head(1)}`);
     for (const c of [...Object.keys(CLASSES), 'other']) {
-      console.log(`  ${c.padEnd(28)}${V.map((v) => f(out.classes[v]?.[c], 2, W)).join('')}`);
+      console.log(`  ${c.padEnd(28)}${V.map((v) => f(out.classes[v]?.[c], 2, W)).join('')}${f(FRAME_MS_BY_CLASS[c], 2, 9)}`);
       for (const k of names.filter((n) => classOf(n) === c).sort((a, b) => at(a) - at(b))) console.log(`    ${k.padEnd(26)}${V.map((v) => cell(out.passes[v][k])).join('')}`);
     }
     console.log(`\n  the colour pass with its shadow reads, and without (ms)`);

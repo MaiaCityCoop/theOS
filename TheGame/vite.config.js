@@ -5,18 +5,26 @@ import { writeFileSync, appendFileSync, mkdirSync, readdirSync, readFileSync, ex
 import { resolve, join, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { brotliCompressSync, gzipSync, constants as zlibConstants } from 'node:zlib';
+import { spawn } from 'node:child_process';
 import { buildRegistry, FOLDERS, SHARED } from './tools/registry.js';
 import * as repo from '../server/repo.js';
 
 const ROOT = import.meta.dirname;
 // the registry's manifest (registry.json, tools/registry.js): made at the start, and again whenever a recipe, or what
-// every recipe builds with (SHARED: the dice, the measure), changes
+// every recipe builds with (SHARED: the dice, the measure), changes; and after it the solids' rooms (rooms.json,
+// tools/rooms.js: measured from their hierarchies, those whose version changed), in a process of their own, one run at
+// a time (a change while one runs: one more after it)
+let measuring = null, again = false;
+const rooms = () => {
+  if (measuring) { again = true; return measuring; }
+  return (measuring = new Promise((res) => spawn(process.execPath, [resolve(ROOT, 'tools/rooms.js')], { stdio: 'inherit' }).on('exit', res)).then(() => { measuring = null; if (again) { again = false; return rooms(); } }));
+};
 const registry = {
   name: 'registry',
-  buildStart() { buildRegistry(ROOT); },
+  async buildStart() { buildRegistry(ROOT); await rooms(); },
   configureServer(server) {
-    buildRegistry(ROOT);
-    server.watcher.on('all', (_, file) => { if (FOLDERS.some((d) => file.startsWith(resolve(ROOT, d) + '/')) || SHARED.some((f) => file === resolve(ROOT, f))) { try { buildRegistry(ROOT); } catch (e) { console.error('[registry]', e.message); } } });
+    buildRegistry(ROOT); rooms();
+    server.watcher.on('all', (_, file) => { if (FOLDERS.some((d) => file.startsWith(resolve(ROOT, d) + '/')) || SHARED.some((f) => file === resolve(ROOT, f))) { try { buildRegistry(ROOT); rooms(); } catch (e) { console.error('[registry]', e.message); } } });
   },
 };
 

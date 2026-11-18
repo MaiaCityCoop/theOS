@@ -15,6 +15,7 @@ import { SOIL_RELIEF } from '../world/physics.js';
 import { LAYERS } from './layers.js';
 import { waterMaterial } from './water.js';
 import { usedMaterials } from '../materials/bake.js';
+import { farthestMost } from '../detail/extent.js';
 import { recipes } from '../core/registry.js';
 
 // The land's levels, from the one measure. A level's quads carry an octave of the land (wavelength λ, amplitude A) as
@@ -22,11 +23,10 @@ import { recipes } from '../core/registry.js';
 // (src/detail/measure.js distanceAt). A level of reach R has quads R / Q apart, and is drawn from R/2 out, so its quads
 // are at most 2d/Q apart at d; every octave is carried where it shows when Q is 4 times the largest of those distances
 // over its wavelength. Level 0's quads are NODE/GRID apart, so its reach is Q NODE / GRID (U.uLandR0), each level after
-// twice as far, the last as far as the land is drawn (END: the air hides it by then, src/world/light.js). Near the eye
-// the quadtree goes on into finer levels: plain land where the relief does not show, the relief's own
-// (src/terrain/relief.js) from where it does.
+// twice as far, the last as far as the land is drawn (where the largest thing is gone, on the largest picture this
+// screen shows: src/detail/extent.js farthestMost). Near the eye the quadtree goes on into finer levels: plain land
+// where the relief does not show, the relief's own (src/terrain/relief.js) from where it does.
 const S0 = NODE;   // a level-0 node's side, metres
-const END = 24576;   // metres the land is drawn to at most
 const WATER_LEVELS = 6;
 /** Level 0's reach (lens metres): now (an octave shows out to where its amplitude covers the dial, ERROR_PX pixels
     drawn), or at the most the screen can draw (most: what the node lists are sized for, src/detail/measure.js farMost). */
@@ -79,7 +79,7 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   };
   // (to start with, as many as its levels hold round the camera at the most: the land's to where it ends and the relief's
   // below them; the water's over the levels it is drawn at)
-  const R00 = landR0(true), land = make(perLevel(R00) * (Math.ceil(Math.log2(END / R00)) + 1 + reliefLevels(R00))), water = make(perLevel(R00) * WATER_LEVELS);
+  const R00 = landR0(true), land = make(perLevel(R00) * (Math.ceil(Math.log2(farthestMost() / R00)) + 1 + reliefLevels(R00))), water = make(perLevel(R00) * WATER_LEVELS);
   const landMat = terrainMaterial(pages), waterMat = waterMaterial(tex);
   // near the eye the quadtree goes on into the relief's finer levels (src/terrain/relief.js), each reaching half as far
   // as the one before: nodes of the land like any other, the land's own vertex stage raising them (material.js)
@@ -94,7 +94,7 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   const range = [], range2 = [];
   let levels = 1, TOP = S0, R0 = R00, cx = 0, cz = 0, dy2 = 0, inv2 = 1;
   const levelsFor = () => {
-    R0 = landR0(); const end = Math.min(reach, END);
+    R0 = landR0(); const end = Math.min(reach, farthestMost());
     levels = Math.max(1, Math.ceil(Math.log2(end / R0)) + 1); TOP = S0 * 2 ** (levels - 1); range.length = range2.length = 0;
     for (let i = 0; i < levels; i++) { range.push(i < levels - 1 ? R0 * 2 ** i * FINE : end); range2.push(range[i] * range[i]); }
     // the relief's first level: the coarsest whose first half reaches as far as its geometry shows (relief.js
@@ -155,10 +155,11 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   return {
     landMesh, waterMesh, pages,
     update(camera, uDy, lodInv) {
-      levelsFor(); pages.update(camera);
+      levelsFor();
+      const top = levels - 1, R = Math.min(range[top] / lodInv, camera.far);   // (as far as it is drawn: its top level's reach, no farther than the far plane)
+      pages.update(camera, R, R * lodInv);   // (its last level kept in as far: all round as far as the walker's lens sees)
       cx = camera.position.x; cz = camera.position.z; dy2 = uDy * uDy; inv2 = lodInv * lodInv;
       land.n = water.n = 0; raised = 0;
-      const top = levels - 1, R = Math.min(range[top] / lodInv, camera.far);
       U.uLandEnd.value = R;
       const i0 = Math.floor((cx - R) / TOP), i1 = Math.floor((cx + R) / TOP), j0 = Math.floor((cz - R) / TOP), j1 = Math.floor((cz + R) / TOP);
       for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) select(i * TOP, j * TOP, TOP, top);
