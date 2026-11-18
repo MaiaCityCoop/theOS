@@ -50,7 +50,7 @@ export function createGround(renderer, tex) {
   // sets of them: the one read, and the one before it while what is read passes from it to the new one
   const LV = Math.max(1, Math.ceil(Math.log2(reachOf() / REACH) - 1e-9) + 1);
   const rts = [0, 1].map(() => new THREE.RenderTarget(N * LV, N, { ...opts, type: THREE.HalfFloatType, count: 2 }));
-  note(`the ground round the camera (${LV} levels of two maps, twice)`, 2 * LV * 2 * N * N * 8, 0);
+  note(`the ground round the camera (${LV} levels of two maps, twice)`, 2 * LV * 2 * N * N * 8, 0, 'ground');
   for (const rt of rts) { rt.textures[0].name = 'ground'; rt.textures[1].name = 'tint'; rt.scissorTest = true; }
   const R = [0, 1].map(() => Array.from({ length: LV }, drawnWith));
   let cur = 0, fadeAt = -1;   // (fadeAt: frames into the fade; -1: none)

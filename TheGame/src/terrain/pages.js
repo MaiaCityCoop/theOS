@@ -27,7 +27,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, Break, float, int, uint, vec2, vec4, ivec2, uvec2, uvec4, uniform, uniformArray, texture, storageTexture, textureStore, globalId, floor, fract, log2, exp2, max, min, clamp, length, mix, sqrt, smoothstep, renderGroup } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { note, gpuStorage } from '../core/gpu.js';
+import { note, gpuStorage, roomOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { source } from '../core/settle.js';
 import { TRUTH, pxAt, dialPxAt } from '../detail/measure.js';
@@ -75,7 +75,8 @@ export function createPages(renderer, tex) {
   // (a device's most). A page is laid into a layer of its own batch first, and packed into blocks from there. Elsewhere A
   // and N are four bytes a texel each (N with the carpet and the shade in it), 640 pages, laid straight into the atlas ----
   const dev = renderer.backend.device, PACKED = !!dev?.features?.has('texture-compression-bc'), LAYERS_MOST = dev?.limits?.maxTextureArrayLayers ?? 256;
-  const SLOTS = PACKED ? Math.min(2 * LAYERS_MOST, 4096) : Math.min(LAYERS_MOST, 640), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array)
+  const SLOT_BYTES = SLOT * SLOT * 1.25 * (PACKED ? 3 : 8);   // (a page's texels, with its second mip, in its formats: what the note below counts a slot)
+  const SLOTS = Math.min(PACKED ? Math.min(2 * LAYERS_MOST, 4096) : Math.min(LAYERS_MOST, 640), Math.floor(roomOf('ground') / SLOT_BYTES)), PER = Math.min(SLOTS, LAYERS_MOST);   // (PER: layers an array; and never more than the ground's class has room for: src/core/classes.js)
   const look = { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, anisotropy: ANISO, colorSpace: THREE.NoColorSpace, generateMipmaps: false };
   const laidInto = (n) => Object.assign(new THREE.StorageArrayTexture(SLOT, SLOT, n), look, { mipmaps: [{ width: SLOT, height: SLOT }, { width: SLOT / 2, height: SLOT / 2 }] });
   const blocks = (format, n) => {   // (every layer there from the start, empty, filled as pages are laid)
@@ -87,10 +88,10 @@ export function createPages(renderer, tex) {
   const arrays = (format) => Array.from({ length: Math.ceil(SLOTS / PER) }, (_, k) => blocks(format, Math.min(PER, SLOTS - k * PER)));
   const A = PACKED ? arrays(THREE.RGBA_S3TC_DXT5_Format) : [laidInto(SLOTS)], N = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : [laidInto(SLOTS)], X = PACKED ? arrays(THREE.RED_GREEN_RGTC2_Format) : null;
   const SA = PACKED ? laidInto(BATCH) : A[0], SN = PACKED ? laidInto(BATCH) : N[0];   // (where a batch is laid: its own layers, or the atlas's)
-  note("the land's pages", SLOTS * SLOT * SLOT * 1.25 * (PACKED ? 3 : 8) + (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 : 0), 0);
+  note("the land's pages", SLOTS * SLOT_BYTES + (PACKED ? BATCH * SLOT * SLOT * 1.25 * 8 : 0), 0, 'ground');
   const tA = A.map((t) => texture(t)), tN = N.map((t) => texture(t)), tX = X ? X.map((t) => texture(t)) : null;
   // ---- the page table: for each level, its window's pages ----
-  const T = gpuStorage('uint', LEVELS * K * K, "the land's page table"), table = new Uint32Array(LEVELS * K * K), TN = T.node.toReadOnly();
+  const T = gpuStorage('uint', LEVELS * K * K, "the land's page table", 'ground'), table = new Uint32Array(LEVELS * K * K), TN = T.node.toReadOnly();
   let lo = Infinity, hi = -1, version = 0;   // (version: how many times the table has changed)
   const put = (k, v) => { table[k] = v; if (k < lo) lo = k; if (k > hi) hi = k; version++; };
   const WIN = uniformArray(Array.from({ length: LEVELS }, () => new THREE.Vector4()), 'vec4').setGroup(renderGroup);   // each level's window: its first page (i, j)
@@ -101,7 +102,7 @@ export function createPages(renderer, tex) {
   // camera as it drew. A block says the finest of them at the bias now, in two 32-bit words: the page it lies in half a
   // level finer than any bias asks for (the reference: its level, its place modulo 2048) and the frame; its own level,
   // and whether it lies at an edge of the page it reads. So what any bias would ask for can be told from them ----
-  const ASK = gpuStorage('uint', BLOCKS_MOST * 2, "the land's pages: what the pixels ask for");
+  const ASK = gpuStorage('uint', BLOCKS_MOST * 2, "the land's pages: what the pixels ask for", 'ground');
   const tDepth = texture(new THREE.DepthTexture(1, 1)), tMotion = texture(new THREE.Texture());
   const uInv = uniform(new THREE.Matrix4()), uSize = uniform(new THREE.Vector2(1, 1)), uStamp = uniform(1, 'uint'), uBiasK = uniform(0);   // (uBiasK: the bias, for the asks' pass)
   const uSmp = uniformArray(Array.from({ length: TAKES }, () => new THREE.Vector2()), 'vec2'), uFw = uniform(1, 'uint');
@@ -140,10 +141,10 @@ export function createPages(renderer, tex) {
   // (each page of the batch: its (x, z) where its own texels begin, its level, its slot; where its first texel lies on
   // its grid of the layer map's points, first mip and second; its grid's first point, in the map's points of the land.
   // In a buffer written before each batch: a uniform array is sent once a frame, and a frame may lay several batches)
-  const DESC = gpuStorage('vec4', BATCH * 3, "the land's pages: the batch being laid"), desc = new Float32Array(BATCH * 12);
+  const DESC = gpuStorage('vec4', BATCH * 3, "the land's pages: the batch being laid", 'ground'), desc = new Float32Array(BATCH * 12);
   const ORIG = { element: (b) => DESC.node.element(b.mul(3)) }, GOFF = { element: (b) => DESC.node.element(b.mul(3).add(1)) }, GN = { element: (b) => DESC.node.element(b.mul(3).add(2)) };
   const uN = uniform(0, 'uint'), uMip = uniform(0, 'uint');
-  const MAP = gpuStorage('uvec4', BATCH * POINTS * 2, "the land's pages: their layer map");
+  const MAP = gpuStorage('uvec4', BATCH * POINTS * 2, "the land's pages: their layer map", 'ground');
   // the layer map's points over each page of the batch (both mips' grids)
   const mapKernel = Fn(() => {
     const id = globalId.x, b = id.div(uint(POINTS)), r = id.sub(b.mul(uint(POINTS)));
@@ -178,7 +179,7 @@ export function createPages(renderer, tex) {
   // the batch packed into blocks (src/materials/bake.js steps, colours), a block of 4 × 4 texels a thread: of each page,
   // its colour and height (BC3), its relief (BC5), its carpet and shade (BC5), each its two mips; then copied into the
   // atlas's layers
-  const BLOCKS = (SLOT / 4) ** 2 + (SLOT / 8) ** 2, BLK = PACKED ? gpuStorage('uvec4', BATCH * 3 * BLOCKS, "the land's pages: the batch's blocks") : null;
+  const BLOCKS = (SLOT / 4) ** 2 + (SLOT / 8) ** 2, BLK = PACKED ? gpuStorage('uvec4', BATCH * 3 * BLOCKS, "the land's pages: the batch's blocks", 'ground') : null;
   const tSA = texture(SA), tSN = texture(SN);
   const packKernel = PACKED ? Fn(() => {
     const id = globalId.x, b = id.div(uint(3 * BLOCKS)), r = id.sub(b.mul(uint(3 * BLOCKS))), t = r.div(uint(BLOCKS)), k = r.sub(t.mul(uint(BLOCKS)));

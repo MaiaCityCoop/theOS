@@ -75,7 +75,7 @@ export function createAtlas(renderer, { name, side, layers, cell = side }) {
     renderer.initRenderTarget(rt); return rt;
   };
   const C = make(), D = make(), mips = Math.floor(Math.log2(side)) + 1;
-  note(`${name}`, Math.round(side * side * layers * 8 * 4 / 3), 0);
+  note(`${name}`, Math.round(side * side * layers * 8 * 4 / 3), 0, 'geometry');
   return {
     colour: C.texture, data: D.texture, side, cell, targets: [C, D],   // (cell: a picture's texels a side; targets: to read a layer back, renderer.readRenderTargetPixelsAsync)
     put(layer, levels) {

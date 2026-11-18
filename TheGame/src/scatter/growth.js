@@ -42,7 +42,7 @@ export const growthMap = () => CURRENT;
 /** The map: its buffer (made with the renderer, on the GPU only), what reads it, and how it is kept round the camera.
     words: how many the layers that write need; far: metres its farthest reader is drawn to (as many levels as reach it). */
 export function createGrowth(renderer, words, far = REACH) {
-  const W = Math.max(1, Math.min(WORDS, words)), LV = levelsFor(far), buf = gpuStorage('uint', N * N * W * LV, 'the growth map'), B = buf.node;
+  const W = Math.max(1, Math.min(WORDS, words)), LV = levelsFor(far), buf = gpuStorage('uint', N * N * W * LV, 'the growth map', 'geometry'), B = buf.node;
   // each level's window: its first texel on the land (x, z, in its own texels); its texel's metres
   const origin = uniformArray(Array.from({ length: LV }, () => new THREE.Vector2()), 'vec2'), TX = Array.from({ length: LV }, (_, l) => TEXEL * 2 ** l);
   const slot = (l, ix, iz, w) => uint(ix.bitAnd(int(N - 1)).add(iz.bitAnd(int(N - 1)).mul(int(N)))).add(uint(l * N * N)).mul(uint(W)).add(uint(w));
