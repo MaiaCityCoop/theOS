@@ -44,6 +44,9 @@ export const VIEWS = [
 //   zoom    the rig over the meadow before the tent, from the walker's eyes to 12 km, evenly in the height's logarithm
 //   orbit   once round the tent, the rig 30 m from it
 //   flyby   the rig's zoom over an oak at the stand's edge, from the top down to its eyes and back up
+/** The views the hour's measure of main draws and holds against ?truth (tools/gate.js hourly): near, the middle
+    distance and the forest, each a bench view. */
+export const HOURLY = ['bench-tent-eye-level', 'bench-river-bend-26m', 'bench-pine-forest-eye-level'];
 export const PATHS = [
   { name: 'walk', walk: { from: [-1268, 627], to: [-1400, 635], eye: RIG.eye, speed: RIG.keys[0].speed, mm: RIG.keys[0].mm } },
   { name: 'zoom', zoom: { at: [BENCH[0].x, BENCH[0].z], yaw: TO_TENT, from: RIG.eye, to: RIG.top, secs: 20 } },
