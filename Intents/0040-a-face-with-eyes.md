@@ -1,7 +1,7 @@
 ---
 id: "0040"
 title: A face with eyes
-state: propose         # idea | define | build | propose | story | archived
+state: build           # idea | define | build | propose | story | archived
 outcome:               # accepted | rejected, set only when archived
 opened: 2026-11-18
 story: Stories/0040-a-face-with-eyes/
@@ -65,6 +65,30 @@ drawn exactly, per pixel, and only the rest is left to the shape:
 - Hair on the head as strands; a beard as hair. Ears' own form. Teeth, tongue, the mouth's inside.
 - The face moving: a blink, a look, speech. (The opening is drawn so that a blink is one number later.)
 - Whether the rule is lifted for the head: Samuel's, as in 0039.
+
+### Second round (2026-11-18)
+
+> So ensure we have an actual sparkling eyes friendly positive face. The chin is too wide, going too far to the
+> front. The sparkling smile isn't there yet. No sparkling smile yet there. And the ears need to be more realistic.
+
+Samuel, on the first round's stills. He asked for it outright, so it is built straight away; it takes the ears and
+the teeth, which the first round left out, into this intent.
+
+| | How | Why |
+| --- | --- | --- |
+| **The chin** | Narrower and further back in the head's form | His eye against the measured means: the means lose |
+| **A smile** | The face's rest is a friendly one: the lips part over the upper front teeth, the opening cut per pixel as the eyes' is; the mouth's corners up and out, the cheeks raised, the lower lids a little higher. Teeth where the skull's stand, and the dark of the mouth behind them | A smile that sparkles shows teeth. The face does not move yet, so the smile is its rest |
+| **The eyes' sparkle** | A second light for the eyes alone, the bright sky before the face, mirrored high in the cornea whichever way the sun stands; the iris brighter on its far side | A catchlight is what makes a look alive, and the sun alone gives one only from some sides |
+| **The ears** | Each its own closed form with rim, inner ridge, bowl, tragus and lobe, joined to the skin's points; the low relief on the head's side goes | A relief cannot stand off the head, and an ear is mostly what stands off |
+
+**Deliverables:** 5. a chin narrower and further back; 6. a smiling face with teeth; 7. eyes that sparkle; 8. ears
+that read as ears.
+
+**Checks:** as before (1 to 4), the stills now judged for a friendly face and for the ears from the side, the front
+and behind. Check 3's "the body as it was" allows the head's points and triangles to change (the ears).
+
+**Out of scope still:** hair; the face moving (the smile is fixed; a blink, a look, speech); the lower teeth, the
+tongue; the rule.
 
 ## Build
 

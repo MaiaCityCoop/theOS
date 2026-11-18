@@ -23,6 +23,7 @@
 //              points lie apart, whichever is more: what the page chooses a level by
 //     soles    where the feet meet the ground: the lowest points of the soles, each with the joint that carries it
 import { MARKS, SKIN, TONE } from './table.js';
+import { earOf, earFieldOf } from './ear.js';
 import { targetOf, tissueAt } from './target.js';
 import { cageOf, fitted, solidsOf } from './cage.js';
 import { scatterMap, microMap, noise3 } from './maps.js';
@@ -194,11 +195,40 @@ export function skinOf(bones, M, { h = 0.006 } = {}) {
   // points lie apart: a third of the middle length of its faces' sides counts as its being off as well)
   const sideOf = (tri) => { const d = []; for (let t = 0; t < tri.length; t += 3) d.push(len(sub(at(tri[t]), at(tri[t + 1])))); d.sort((a, b) => a - b); return d[d.length >> 1]; };
   const farTri = Uint32Array.from(far), off = [Math.max(offMid / 4, sideOf(fine) / 3), Math.max(offMid, sideOf(coarse) / 3), Math.max(offFar, sideOf(farTri) / 3)];
+  // ── the ears ────────────────────────────────────────────────────────────────────────────────────────────────
+  // Each its own closed form (./ear.js: an ear stands off the head, and the cage's level rings cannot draw what stands
+  // off), its root inside the head's side. Its points are joined to the skin's, on the head's joint, with what the
+  // skin's shader reads of a point; its three levels' triangles to the skin's three. The right ear the left's mirror.
+  const E = earOf(), earField = earFieldOf(), headJoint = B.joints.findIndex((j) => j.rig === 'head'), extra = 2 * E.levels.reduce((a, l) => a + l.pos.length / 3, 0);
+  const grown = (a, k) => { const b = new a.constructor((n + extra) * k); b.set(a); return b; };
+  const all = { pos: grown(pos, 3), fine: [fine], coarse: [coarse], far: [farTri] }, A2 = Object.fromEntries(Object.entries(attr).map(([k, a]) => [k, grown(a, a.length / n)]));
+  { let v = n;
+    E.levels.forEach((lv, li) => { for (const sx of [1, -1]) {
+      const m = lv.pos.length / 3, tri = new Uint32Array(lv.tri.length), kn = new Float32Array(m), cnt = new Uint16Array(m);
+      for (let t = 0; t < tri.length; t += 3) { tri[t] = v + lv.tri[t]; tri[t + 1] = v + lv.tri[t + (sx > 0 ? 1 : 2)]; tri[t + 2] = v + lv.tri[t + (sx > 0 ? 2 : 1)]; }
+      all[['fine', 'coarse', 'far'][li]].push(tri);
+      // (how sharply it curves: as the skin's, the mean of how fast its normal turns towards each neighbour, evened once)
+      for (let t = 0; t < lv.tri.length; t += 3) for (let i = 0; i < 3; i++) { const a = lv.tri[t + i], b = lv.tri[t + (i + 1) % 3], d = [lv.pos[b * 3] - lv.pos[a * 3], lv.pos[b * 3 + 1] - lv.pos[a * 3 + 1], lv.pos[b * 3 + 2] - lv.pos[a * 3 + 2]], l2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2]; if (l2 < 1e-14) continue; const k = ((lv.nor[b * 3] - lv.nor[a * 3]) * d[0] + (lv.nor[b * 3 + 1] - lv.nor[a * 3 + 1]) * d[1] + (lv.nor[b * 3 + 2] - lv.nor[a * 3 + 2]) * d[2]) / l2; kn[a] += k; cnt[a]++; kn[b] += k; cnt[b]++; }
+      for (let i = 0; i < m; i++, v++) {
+        const q = [lv.pos[i * 3], lv.pos[i * 3 + 1], lv.pos[i * 3 + 2]], nx = lv.nor[i * 3], ny = lv.nor[i * 3 + 1], nz = lv.nor[i * 3 + 2], o = Math.min(1, Math.max(0, lv.open[i]));
+        all.pos.set([sx * q[0], q[1], q[2]], v * 3); A2.nor.set([sx * nx, ny, nz], v * 3);
+        A2.bone.set([headJoint, 0, 0, 0], v * 4); A2.weight.set([1, 0, 0, 0], v * 4);
+        // (how thick what lies behind the point is: the ear's own plate where it stands free, so the sun comes through it
+        // red; the whole head where the ear sits on it)
+        let thick = 0.03; for (let t = 0.0008; t < 0.03; t += 0.0008) { const b = [q[0] - nx * t, q[1] - ny * t, q[2] - nz * t]; if (Math.min(earField(b), S.body(b)) > 0) { thick = t; break; } }
+        A2.look.set([Math.max(0.3, o), 0, 0, 0], v * 4); A2.bent.set([sx * nx, ny, nz, Math.sqrt(Math.max(0, 1 - Math.max(0.3, o)))], v * 4);
+        A2.feel.set([Math.max(-150, Math.min(150, cnt[i] ? kn[i] / cnt[i] : 0)), thick, P_.head, 0], v * 4);
+        A2.tone.set([Math.min(0.35, toneOf(TONE.blood, q)) + 0.06 * noise3(q[0] * 14 + 1.3, q[1] * 14, q[2] * 14 + 5.2), toneOf(TONE.pigment, q), 0, 0], v * 4);
+      }
+    } });
+  }
+  const joined = (list) => { const out = new Uint32Array(list.reduce((a, l) => a + l.length, 0)); let o = 0; for (const l of list) { out.set(l, o); o += l.length; } return out; };
   return {
-    joints: B.joints, soles: [...low.values()].map(({ rig, p }) => ({ rig, at: sub(p, RIG[rig].at) })), pos, fine, coarse, far: farTri, off, attr,
+    joints: B.joints, soles: [...low.values()].map(({ rig, p }) => ({ rig, at: sub(p, RIG[rig].at) })), pos: all.pos, fine: joined(all.fine), coarse: joined(all.coarse), far: joined(all.far), off, attr: A2,
+    ears: { points: extra, fine: E.levels[0].tri.length / 3 * 2 },
     maps: { scatter: scatterMap(), micro: microMap() },
     headCover: T.headCover,
-    counts: { points: n, fine: fine.length / 3, coarse: coarse.length / 3, far: far.length / 3, cage: n0, joints: B.joints.length },
+    counts: { points: n + extra, fine: fine.length / 3 + (2 * E.levels[0].tri.length) / 3, coarse: coarse.length / 3 + (2 * E.levels[1].tri.length) / 3, far: far.length / 3 + (2 * E.levels[2].tri.length) / 3, cage: n0, joints: B.joints.length },
     skin: SKIN / 1000,
   };
 }

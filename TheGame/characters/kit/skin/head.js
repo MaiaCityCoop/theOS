@@ -11,7 +11,7 @@
 //
 //   headFormOf() -> (q) => m   how far a point of the left side ([x >= 0, y, z], m) is outside the head's form
 //       (negative: inside). The ears' gristle, the nostrils and the neck are ./target.js's to add.
-import { HEAD, EYE } from './table.js';
+import { HEAD, EYE, MOUTH, mouthOpening } from './table.js';
 
 const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
 const smax = (a, b, k) => -smin(-a, -b, k);
@@ -57,7 +57,7 @@ export function headFormOf() {
       const ax = m.b[0] - m.a[0], ay = m.b[1] - m.a[1], az = m.b[2] - m.a[2], t = Math.max(0, Math.min(1, ((x - m.a[0]) * ax + (y - m.a[1]) * ay + (z - m.a[2]) * az) / (ax * ax + ay * ay + az * az)));
       return Math.hypot(x - m.a[0] - ax * t, y - m.a[1] - ay * t, z - m.a[2] - az * t) - (m.ra + (m.rb - m.ra) * t);
     }
-    const dx = x - m.at[0], dy = y - m.at[1], dz = z - m.at[2] + (m.arch ?? 0) * dx * dx, r = Math.hypot(dx, dy, dz), R = m.r, e = m.n ?? 2;
+    const dx = x - m.at[0], dy = y - m.at[1] - (m.rise ?? 0) * dx * dx, dz = z - m.at[2] + (m.arch ?? 0) * dx * dx, r = Math.hypot(dx, dy, dz), R = m.r, e = m.n ?? 2;
     if (r < 1e-9) return -Math.min(...R);
     return r * (1 - 1 / (Math.abs(dx / (dx >= 0 ? R[0] : R[1])) ** e + Math.abs(dy / (dy >= 0 ? R[2] : R[3])) ** e + Math.abs(dz / (dz >= 0 ? R[4] : R[5])) ** e) ** (1 / e));
   };
@@ -66,6 +66,9 @@ export function headFormOf() {
     if (v > 0.06) return v;
     for (const m of HEAD.masses) v = smin(v, mass(m, x, y, z), m.k);
     for (const m of HEAD.hollows) v = smax(v, -mass(m, x, y, z), m.k);
+    // (the mouth, smiling: between the lips' edges the skin stands back on the teeth's faces, the edges rolled in to
+    // them; what is inside the edges is thrown away as the skin is drawn, ./light.js)
+    if (z > 0.06 && y > 1.59 && y < 1.63) { const o = mouthOpening(x, y), floor = MOUTH.floor[0] - MOUTH.floor[1] * x * x - MOUTH.floor[2] * x ** 4; v = smax(v, Math.min(o.d, z - floor), MOUTH.edge); }
     // (the lids: the skin over the globe, as thick as a lid is)
     v = smin(v, Math.hypot(x - EYE.at[0], y - EYE.at[1], z - EYE.at[2]) - EYE.r - EYE.lid, HEAD.lids);
     return v;

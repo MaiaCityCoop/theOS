@@ -42,6 +42,7 @@ const [text, bin] = await Promise.all([fetch('../.body/body.json').then((r) => r
 const ARRAYS = { Float32Array, Uint32Array, Uint16Array, Uint8Array, Int32Array, Int16Array }, data = JSON.parse(text, (k, x) => (x && x.$t ? new ARRAYS[x.$t](bin, x.o, x.n) : x));
 const { fleshOf } = await import('../characters/kit/muscles/flesh.js'), flesh = fleshOf(data, { object, bones, eye: uniform(camera.position) }), layer = q.get('layer') ?? 'skin';
 for (const [k, m] of [['skin', flesh.skin], ['fat', flesh.fat], ['muscles', flesh.muscles]]) if (m) { object.add(m); m.visible = k === layer; }
+for (const m of flesh.mouth ?? []) m.visible = layer === 'skin';   // (the teeth show through the skin's smile only)
 flesh.update();
 if (q.has('lv')) for (const m of [flesh.skin, flesh.fat]) if (m) m.geometry = m.userData.levels[Math.min(m.userData.levels.length - 1, num('lv', 0))];
 let frames = 0; (function draw() { renderer.render(scene, camera); if (++frames < 3) requestAnimationFrame(draw); else window.__drawn = true; })();   // (what a still waits for)

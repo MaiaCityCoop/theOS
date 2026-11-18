@@ -27,7 +27,7 @@ import { Fn, If, Discard, attribute, varyingProperty, float, int, ivec2, vec2, v
 import { U } from '../../../src/core/uniforms.js';
 import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull } from '../../../src/world/light.js';
 import { CURVE_MOST } from './maps.js';
-import { EYE, LIPS, BROW } from './table.js';
+import { EYE, LIPS, BROW, MOUTH } from './table.js';
 
 /** What a surface of skin mirrors head on: 2.8 %, an index of refraction of 1.4 (the figure every skin shader holds:
     Jimenez's SeparableSSS demo, Unity HDRP's diffusion profile, GPU Gems 3 ch. 14). */
@@ -54,6 +54,12 @@ const vN = varyingProperty('vec3', 'vFleshN'), vB = varyingProperty('vec3', 'vFl
     ./table.js eyeOpening has it: how far inside the lids' edges (negative under a lid), how far below the upper lid's
     edge, how far above the lower's, and where along the line between the corners. The skin is cut by it, the eyeball
     shaded by it (../muscles/flesh.js). */
+/** The mouth's opening at a place of the face seen from the front (./table.js mouthOpening, its twin): q = [how far from
+    the middle, how high]. */
+export const mouthOpeningNode = (q) => {
+  const M = MOUTH, t = clamp(q.x.div(M.half), 0, 1), yu = float(M.upper).add(pow(t, 2.2).mul(M.corner - M.upper)), yl = float(M.lower).add(t.mul(t).mul(M.corner - M.lower)), under = yu.sub(q.y), over = q.y.sub(yl);
+  return { d: q.x.greaterThanEqual(M.half).select(length(vec2(q.x.sub(M.half), q.y.sub(M.corner))).negate(), min(under, over)), under, over, t };
+};
 export const eyeOpeningNode = (q) => {
   const E = EYE, d = vec2(E.outer[0] - E.inner[0], E.outer[1] - E.inner[1]), t = dot(q.sub(vec2(...E.inner)), d).div(dot(d, d)), tc = clamp(t, 0.001, 0.999);
   const bump = (p) => pow(tc.div(p), 1.15 * p).mul(pow(tc.oneMinus().div(1 - p), 1.15 * (1 - p))), base = float(E.inner[1]).add(d.y.mul(tc));
@@ -101,17 +107,19 @@ export function skinMaterial({ joints, eye, maps }) {
     const out = vec4(0).toVar();
     // the eye's opening: the skin runs over the globe as a closed lid does, and is cut away inside the lids' edges
     { const R = positionGeometry, o = eyeOpeningNode(vec2(abs(R.x).sub(EYE.at[0]), R.y.sub(EYE.at[1]))); Discard(o.d.greaterThan(0).and(R.z.greaterThan(EYE.at[2]))); }
+    // the mouth's, smiling: between the lips' edges the skin stood back on the teeth; there it is cut away and the teeth show
+    { const R = positionGeometry, o = mouthOpeningNode(vec2(abs(R.x), R.y)); Discard(o.d.greaterThan(0).and(R.z.greaterThan(0.06)).and(R.y.lessThan(1.63))); }
     If(unlit().not(), () => {
       const w = positionWorld, P = positionGeometry, look = attribute('look', 'vec4'), feel = attribute('feel', 'vec4'), tone = attribute('tone', 'vec4');
       const open = clamp(look.x, 0, 1), nail = clamp(look.z, 0, 1), areola = clamp(look.w, 0, 1), cone = attribute('bent', 'vec4').w;
       const sn = normalize(attribute('snor', 'vec3')), n = normalize(vN), nb = normalize(vB), V = normalize(eye.sub(w)), L = U.uSunDir;
       // the face's own lines, by where the point stood at rest (the left side's, mirrored): how far outside the eye's
-      // opening it lies; the lips' red and the line where they part; a brow's hairs
+      // opening it lies; the lips' red round the mouth's opening and their inner edge; a brow's hairs
       const Q = vec3(abs(P.x), P.y, P.z), eyeAt = eyeOpeningNode(Q.xy.sub(vec2(EYE.at[0], EYE.at[1]))), lidEdge = Q.z.greaterThan(EYE.at[2]).select(smoothstep(-0.0014, -0.0002, eyeAt.d), 0);
-      const mx = Q.x.div(LIPS.half), my = Q.y.sub(LIPS.at[1]).add(mx.mul(mx).mul(LIPS.droop)), inMouth = smoothstep(1.02, 0.94, mx).mul(smoothstep(0.085, 0.095, Q.z));
+      const mouth = mouthOpeningNode(Q.xy), mx = Q.x.div(MOUTH.half), inMouth = smoothstep(1.06, 0.98, mx).mul(smoothstep(0.07, 0.08, Q.z)), above = mouth.under.negate(), below = mouth.over.negate();
       const upperRed = mix(float(LIPS.bow[2]), float(LIPS.bow[1]), smoothstep(0, LIPS.bow[0], Q.x)).mul(pow(clamp(mx.mul(mx).oneMinus(), 0, 1), 0.7)), lowerRed = pow(clamp(pow(mx, 2.2).oneMinus(), 0, 1), 0.8).mul(LIPS.lower);
-      const lip = clamp(smoothstep(-0.0003, 0.0006, my).mul(smoothstep(upperRed.add(0.0005), upperRed.sub(0.0007), my)).add(smoothstep(0.0003, -0.0006, my).mul(smoothstep(lowerRed.add(0.0012), lowerRed.sub(0.001), my.negate()))), 0, 1).mul(inMouth);
-      const lipLine = exp(my.div(0.00065).pow(2).negate()).mul(inMouth);
+      const lip = clamp(smoothstep(-0.002, -0.0006, above).mul(smoothstep(upperRed.add(0.0005), upperRed.sub(0.0007), above)).add(smoothstep(-0.002, -0.0006, below).mul(smoothstep(lowerRed.add(0.0012), lowerRed.sub(0.001), below))), 0, 1).mul(inMouth);
+      const lipLine = smoothstep(-0.0014, 0.0002, mouth.d).mul(inMouth);   // (the lips' inner edge, where they turn in to the teeth: wet and darker)
       const bs = clamp(Q.x.sub(BROW.from[0]).div(BROW.to[0] - BROW.from[0]), 0, 1), bp = pow(bs, Math.log(0.5) / Math.log((BROW.peak[0] - BROW.from[0]) / (BROW.to[0] - BROW.from[0])));
       const browY = mix(float(BROW.from[1]), float(BROW.to[1]), bs).add(bp.mul(bp.oneMinus()).mul(4 * (BROW.peak[1] - (BROW.from[1] + BROW.to[1]) / 2))), browHalf = mix(float(BROW.thick[0]), float(BROW.thick[1]), bs).mul(0.5).mul(smoothstep(0, 0.07, bs)).mul(smoothstep(1, 0.8, bs));
       const browIn = smoothstep(browHalf.add(0.0008), browHalf.sub(0.0012), abs(Q.y.sub(browY))).mul(smoothstep(0.05, 0.065, Q.z)).mul(smoothstep(0, 0.02, bs)).mul(smoothstep(1, 0.98, bs));
@@ -142,9 +150,9 @@ export function skinMaterial({ joints, eye, maps }) {
       col = col.mul(mix(vec3(1), vec3(...SKIN.blood), clamp(blood, 0, 1))).mul(mix(vec3(1), vec3(...SKIN.pale), clamp(blood.negate(), 0, 1)));
       col = col.mul(mix(vec3(1), vec3(...SKIN.vein), vein)).mul(mix(vec3(1), vec3(0.72, 0.6, 0.52), freckle)).mul(mix(vec3(0.9, 0.8, 0.78), vec3(1), max(high, face.mul(0.6))));
       col = mix(mix(mix(col, vec3(...SKIN.lip), lip.mul(0.8)), col.mul(vec3(...SKIN.areola)), areola), vec3(...SKIN.nail), nail.mul(0.7));
-      // the line where the lips part, dark; the lid's edge redder; hair shaved to the skin, a cool shadow in it, its
+      // the lips' inner edge, darker; the lid's edge redder; hair shaved to the skin, a cool shadow in it, its
       // dots seen close; a brow's hairs
-      col = col.mul(lipLine.mul(0.62).oneMinus()).mul(mix(vec3(1), vec3(1.0, 0.74, 0.72), lidEdge.mul(0.7))).mul(crease.mul(0.3).oneMinus()).mul(mix(vec3(1), vec3(0.93, 0.85, 0.84), lids.mul(0.7))).mul(lipLines.mul(0.16).oneMinus());
+      col = col.mul(mix(vec3(1), vec3(0.72, 0.5, 0.5), lipLine)).mul(mix(vec3(1), vec3(1.0, 0.74, 0.72), lidEdge.mul(0.7))).mul(crease.mul(0.3).oneMinus()).mul(mix(vec3(1), vec3(0.93, 0.85, 0.84), lids.mul(0.7))).mul(lipLines.mul(0.16).oneMinus());
       col = mix(col, col.mul(vec3(0.5, 0.53, 0.58)), stubble.mul(mx_noise_float(P.mul(2400)).mul(0.3).add(0.7)));
       col = mix(col, vec3(...SKIN.brow), brow.mul(0.8));
 

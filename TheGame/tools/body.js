@@ -18,7 +18,7 @@ import { prepare } from '../characters/kit/skeleton/mesh.js';
 import { musclesOf } from '../characters/kit/muscles/build.js';
 import { skinOf } from '../characters/kit/skin/build.js';
 import { rigOf, turnsOf, poseOf } from '../characters/kit/skeleton/pose.js';
-import { EYE, LIPS } from '../characters/kit/skin/table.js';
+import { EYE, MOUTH } from '../characters/kit/skin/table.js';
 
 /** Five poses the skin is tried in (the rig's plain moves: characters/kit/skeleton/pose.js). */
 export const POSES = {
@@ -131,15 +131,15 @@ const faceRows = (() => {
   const reach = (axis, [y0, y1], [z0, z1] = [-1, 1]) => { let lo = Infinity, hi = -Infinity; for (const v of head) { const y = P[v * 3 + 1], z = P[v * 3 + 2]; if (y < y0 || y > y1 || z < z0 || z > z1) continue; lo = Math.min(lo, P[v * 3 + axis]); hi = Math.max(hi, P[v * 3 + axis]); } return (hi - lo) * 1000; };
   const mid = head.filter((v) => Math.abs(P[v * 3]) < 1e-4 && P[v * 3 + 2] > 0.05).map((v) => [P[v * 3 + 1], P[v * 3 + 2]]).sort((a, b) => b[0] - a[0]);   // (the profile: [height, how far forward], from the top down)
   const between = (y0, y1) => mid.filter(([y]) => y >= y0 && y <= y1), most = (list, k, sign = 1) => list.reduce((a, b) => (sign * b[k] > sign * a[k] ? b : a));
-  const root = most(between(1.672, 1.698), 1, -1), tip = most(between(1.632, 1.652), 1), lip = between(1.615, tip[0]), least = Math.min(...lip.map(([, z]) => z)), foot = most(lip.filter(([, z]) => z < least + 0.0045), 0);   // (the nose's root: the profile's deepest point under the brow; its foot: where the upper lip's flat ends under it)
-  const chin = most(between(1.5, 1.6), 0, -1), E = EYE, L = LIPS;
+  const root = most(between(1.672, 1.698), 1, -1), tip = most(between(1.632, 1.652), 1), lip = between(1.6185, tip[0]), least = Math.min(...lip.map(([, z]) => z)), foot = most(lip.filter(([, z]) => z < least + 0.0045), 0);   // (the nose's root: the profile's deepest point under the brow; its foot: where the upper lip's flat ends under it)
+  const chin = most(between(1.5, 1.6), 0, -1), E = EYE;
   const R = (what, is, man, drawn = false) => ({ what: what + (drawn ? ' (as drawn)' : ''), is: +is.toFixed(1), man, off: +(((is - man) / man) * 100).toFixed(1) });
   return [
     R('head, its length', reach(2, [1.692, 1.708]), 197), R('head, its breadth', reach(0, [1.712, 1.74], [-0.08, 0]), 152),
     R('face, across the cheekbones', reach(0, [1.652, 1.668], [0.01, 1]), 140), R('jaw, across its angles', reach(0, [1.59, 1.6], [-0.012, 0.03]), 119),
     R("face, the nose's root to the chin's foot", (root[0] - chin[0]) * 1000, 122), R("nose, its root to its foot", (root[0] - foot[0]) * 1000, 55),
     R('nose, its breadth', reach(0, [1.632, 1.642], [0.098, 1]), 35), R('nose, its tip before its foot', (tip[1] - foot[1]) * 1000, 19.5),
-    R("upper lip, the nose's foot to where the lips part", (foot[0] - L.at[1]) * 1000, 22, true), R('mouth, its breadth', L.half * 2000, 54, true),
+    R("upper lip, the nose's foot to its edge, smiling (a man's: at rest)", (foot[0] - MOUTH.upper) * 1000, 22, true), R("mouth, its breadth, smiling (a man's: at rest)", MOUTH.half * 2000, 54, true),
     R("eye, its opening's length", Math.hypot(E.outer[0] - E.inner[0], E.outer[1] - E.inner[1]) * 1000, 31, true), R("eye, its opening's height", (E.upper[0] + E.lower[0]) * 1000, 10.5, true),
     R("between the eyes' inner corners", (E.at[0] + E.inner[0]) * 2000, 33, true), R("between the eyes' outer corners", (E.at[0] + E.outer[0]) * 2000, 91, true),
   ];
