@@ -30,11 +30,13 @@ import { U } from '../core/uniforms.js';
 import { note, gpuStorage } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { source } from '../core/settle.js';
-import { TRUTH } from '../detail/measure.js';
+import { TRUTH, ERROR_PX, pxAt, drawnAt } from '../detail/measure.js';
+import { BAND } from '../detail/error.js';
 import { layerTables, layerWords, layersFrom } from './layers.js';
-import { laid, slopeAt, groundRead } from './material.js';
+import { laid, slopeAt, groundRead, R0, FINE } from './material.js';
 import { wear } from './decals.js';
 import { steps, colours } from '../materials/bake.js';
+import { snowDepth } from '../world/light.js';
 
 const SLOT = 128, BORDER = 4, PAGE = SLOT - 2 * BORDER;   // texels a page's layer has a side; of them its border; its own
 const S0 = 1 / 512, LEVELS = 17, TOP = LEVELS - 1, K = 128;   // metres a texel of the finest level; levels; pages a level's window has a side
@@ -43,14 +45,29 @@ const S0 = 1 / 512, LEVELS = 17, TOP = LEVELS - 1, K = 128;   // metres a texel 
 // never settle)
 const ANISO = 4, FADE = 10, SWEEP = TRUTH ? 4 : 8, TAKES = TRUTH ? 16 : 4, BATCH = 16, MAPN = 8;   // the filter's steps along a slope; frames a page fades in over; a block of SWEEP × SWEEP pixels asks once a frame, the finest of TAKES of them; pages laid at once; texels between the layer map's points
 const SPAN = (SWEEP * SWEEP) / TAKES;   // frames a sweep takes: every pixel of a block has asked once
-const EDGE = 4;   // texels from its page's edge within which a pixel asks for the page across it too
 const G0 = SLOT / MAPN + 2, G1 = SLOT / 2 / MAPN + 2, POINTS = G0 * G0 + G1 * G1;   // the layer map's points a page has a side, for its first mip and its second; all of them
 const KEEP = 96, FAST = 12, PIN = 26000, NEAR = 15;   // frames a page not asked for is kept at least; screen pixels a frame a page may cross and still be laid; metres round the camera the last level is always in; metres from the eye the bias spares
-/** The ground's own height in relief: metres from a page's lowest ground to its highest (its height 0 … 1, the land's
-    own at 0.5); the relief near the eye all of it nearer than `near[0]` metres, none past `near[1]` (src/terrain/relief.js);
-    the parallax coming in as it goes, and going from `far[0]` to `far[1]` (there under a pixel of the 4K screen). */
-export const RELIEF = { amp: 0.05, near: [8, 16], far: [28, 45] };
+/** The ground's own height: metres from a page's lowest ground to its highest (its height 0 … 1, the land's own at
+    0.5). The one size of the ground's relief: how it is shown at a distance follows from it by the one measure
+    (reliefShares). */
+export const RELIEF = 0.05;
 const PSTEPS = 6;   // the parallax's steps down the ray
+/** The lens's metres the relief's mesh reaches (its first level, the land's finest's half: src/terrain/relief.js). */
+export const RELIEF_REACH = R0 * FINE / 2;
+/** How the ground's own height is shown at d metres off (as the 68° lens sees them; node): as geometry (the relief
+    near the eye, src/terrain/relief.js), along the eye's ray (parallax, read below), or not at all, by the one measure
+    (src/detail/measure.js). Drawn flat, the ground is off by its height on screen: e, its pixels drawn. Parallax's
+    PSTEPS steps leave a step of it, e / PSTEPS. So geometry where even parallax would be off by more than ERROR_PX;
+    parallax where the flat ground would be; nothing where neither; each handed over within BAND of its line
+    (src/detail/error.js). And no geometry where the relief's mesh folds into the land's grid (from 0.6 of its reach,
+    relief.js): there parallax takes it. -> { geometry, parallax }, shares 0 … 1 */
+export const reliefShares = (d) => {
+  const e = drawnAt(pxAt(float(RELIEF), d)).toVar(), held = float(1).sub(smoothstep(RELIEF_REACH * 0.5, RELIEF_REACH * 0.6, d));
+  const geometry = smoothstep(PSTEPS * ERROR_PX, PSTEPS * ERROR_PX * BAND, e).mul(held).toVar();
+  return { geometry, parallax: smoothstep(ERROR_PX, ERROR_PX * BAND, e).mul(float(1).sub(geometry)) };
+};
+/** How much of the ground's relief stands out of the snow (snow deeper than the relief buries it). */
+export const reliefOverSnow = (depth) => clamp(float(1).sub(depth.div(RELIEF)), 0, 1);
 const FITS = 0.9, OVER = 0.96, STEPS = 10;   // the share of the slots the pages asked for may take at the bias chosen; past this share it is chosen again; the bias's quarter levels, at most
 const BLOCKS_MOST = TRUTH ? Math.ceil(3840 / SWEEP) * Math.ceil(2160 / SWEEP) : Math.ceil(7680 / SWEEP) * Math.ceil(4320 / SWEEP), READS = 4;   // the blocks of the largest inside asked from (8K; ?truth, 4K); read-backs in flight at once
 const VALID = 1 << 12, FADED = 1 << 13;   // a page table entry: its slot (12 bits), these, the frame it came in (16 bits)
@@ -126,10 +143,11 @@ export function createPages(renderer, tex) {
               best.assign(lv);
               const m = int(clamp(floor(raw.sub(0.5)), 0, TOP)), pg = ivec2(floor(w.xz.div(exp2(float(m)).mul(PAGE * S0))));
               w0.assign(uint(m).bitOr(uint(pg.x.bitAnd(2047)).shiftLeft(uint(5))).bitOr(uint(pg.y.bitAnd(2047)).shiftLeft(uint(16))).bitOr(uStamp.shiftLeft(uint(27))));
-              // (and whether its point lies within EDGE texels of an edge of its page at that level, which edge: the
-              // picture's jitter moves a pixel's point by up to half its footprint, so the page across the edge is
-              // asked for with it, not only at the jitter's places that land there)
-              const L = clamp(lv, 0, 15), fr = fract(w.xz.div(exp2(L).mul(PAGE * S0))), e = float(EDGE / PAGE);
+              // (and whether its point lies at an edge of its page at that level, and which: the picture's jitter moves
+              // a pixel's point by up to half a pixel drawn, at most half its footprint's longer side, ANISO times the
+              // texel its level calls for over the finer reads (uFine); within that of an edge the page across it is
+              // asked for with it, so no place of the jitter finds a page the others did not)
+              const L = clamp(lv, 0, 15), fr = fract(w.xz.div(exp2(L).mul(PAGE * S0))), e = exp2(raw.sub(L)).mul(0.5 * ANISO / PAGE).div(U.uFine);
               const ex = fr.x.lessThan(e).select(uint(1), fr.x.greaterThan(float(1).sub(e)).select(uint(2), uint(0))), ez = fr.y.lessThan(e).select(uint(1), fr.y.greaterThan(float(1).sub(e)).select(uint(2), uint(0)));
               w1.assign(uint(clamp(raw.add(2), 0, 255).mul(256)).bitOr(uint(t.mul(255)).shiftLeft(uint(16))).bitOr(ex.bitOr(ez.shiftLeft(uint(2))).shiftLeft(uint(24))).bitOr(uint(L).shiftLeft(uint(28))));
             });
@@ -234,7 +252,7 @@ export function createPages(renderer, tex) {
     uMip.value = 0; renderer.compute(pageKernel, [SLOT / 8, (SLOT * list.length) / 8, 1]);
     uMip.value = 1; renderer.compute(pageKernel, [SLOT / 16, (SLOT / 2 * list.length) / 8, 1]);
     if (PACKED) pack(list);
-    for (const q of list) { put(q.idx, VALID | q.slot | ((frame & 0xffff) << 16)); q.came = frame; fading.push(q); }
+    for (const q of list) { put(q.idx, VALID | q.slot | ((frame & 0xffff) << 16)); q.came = frame; fading.push(q); moves(q); }
     made += list.length; did('pages', list.length);
     for (const q of list) { recent.push({ m: q.m, i: q.i, j: q.j, frame }); if (recent.length > 24) recent.shift(); }   // (for a look: the last pages laid)
   };
@@ -262,6 +280,16 @@ export function createPages(renderer, tex) {
   const refs = new Map(), want = new Map();
   const prev = new THREE.Vector3(), turn = new THREE.Quaternion(); let moved = 0, swung = 0, pxRad = 1600;   // (metres and radians the camera moved last frame; screen pixels a radian through its lens)
   let quietFrom = 0, readTo = 0, dirty = false, pick = null, pickedAt = -1e9, judged = -1, nAsk = 0, askedAt = -1, cutAt = 0;   // (since when nothing changed what is asked for; the last frame whose asks are in; the queue to be sorted again; the bias being chosen)
+  // What the pixels ask for is a function of the view, the bias and the relief's heights (src/terrain/relief.js: its
+  // points are raised by the pages, so where it stands a pixel's point moves as they come in): a page the relief reads
+  // (at its finest level or coarser, within its reach of the camera), laid or faded in, changes what is asked for as a
+  // move of the camera does, and a sweep is asked again after it
+  let reliefFinest = Infinity;
+  const moves = (q) => {
+    if (q.m < reliefFinest) return;
+    const P = sideOf(q.m), r = RELIEF_REACH / U.uLodInv.value, dx = Math.max(q.i * P - prev.x, 0, prev.x - (q.i + 1) * P), dz = Math.max(q.j * P - prev.z, 0, prev.z - (q.j + 1) * P);
+    if (dx * dx + dz * dz < r * r) quietFrom = frame;
+  };
   // a page asked for at frame f: it and every page over it, each in its level's window (past it: its parent)
   const ask = (L, i, j, f, n) => {
     for (; L <= TOP; L++, i = Math.floor(i / 2), j = Math.floor(j / 2)) {
@@ -365,6 +393,9 @@ export function createPages(renderer, tex) {
     },
     /** Every page laid again (the land under them changed: the lakes). */
     refresh: flush,
+    /** The relief near the eye reads the pages, its finest points `cell` metres apart (src/terrain/relief.js): what
+        those pages are changes what the pixels ask for (moves, above). */
+    underRelief(cell) { reliefFinest = Math.max(0, Math.floor(Math.log2(cell / S0) - 0.5)); },
     /** Whether what a read gives may differ from the last frame's: the table changed this frame, or a page fades in. */
     get changing() { return fading.length > 0 || changed; },
     /** For a look: how many pages the last sweep's asks come to at each quarter level of the bias. */
@@ -418,7 +449,7 @@ export function createPages(renderer, tex) {
       // ---- the pages fading in: done after FADE frames ----
       for (let n = fading.length - 1; n >= 0; n--) {
         const q = fading[n]; if (frame - q.came < FADE) continue;
-        if (IN.get(q.key) === q && (table[q.idx] & 0xfff) === q.slot) put(q.idx, table[q.idx] | FADED);
+        if (IN.get(q.key) === q && (table[q.idx] & 0xfff) === q.slot) { put(q.idx, table[q.idx] | FADED); moves(q); }
         fading.splice(n, 1);
       }
       changed = version !== v0;
@@ -474,17 +505,20 @@ export function createPages(renderer, tex) {
       const at = (t, P, layer) => { const r = t.sample(P.uv).depth(layer); return compute ? r.level(log2(max(max(length(P.gx), length(P.gy)).mul(SLOT), 1e-6))) : r.grad(P.gx, P.gy); };
       // (in its array: the first PER slots the first's, the rest the second's)
       const inArray = (slot, fn) => { if (tA.length > 1) If(slot.lessThan(PER), () => fn(0, slot)).Else(() => fn(1, slot.sub(PER))); else fn(0, slot); };
-      // ---- parallax (from where the relief near the eye lets go, src/terrain/relief.js, until it is less than a pixel):
-      // the ground's own height (h, 0 … 1, the land's at 0.5, RELIEF.amp from lowest to highest) seen along the eye's ray.
+      // ---- parallax (as much as reliefShares says: from where the relief near the eye lets go until the flat ground is
+      // within the one error): the ground's own height (h, 0 … 1, the land's at 0.5, RELIEF from lowest to highest),
+      // the soil's (not the grass's carpet: its blades stand over it), what of it stands out of the snow, seen along
+      // the eye's ray.
       // The ray at height h lies over p + sl (h - 0.5); from the top down, PSTEPS steps, until it is under the ground;
       // between the last two steps, where it crossed. Within p's page and its border (the steps along a grazing ray
       // held to what the border holds) ----
       const q = vec2(p).toVar();
       if (eye) {
-        const amp = float(RELIEF.amp).mul(smoothstep(RELIEF.near[0], RELIEF.near[1], d)).mul(float(1).sub(smoothstep(RELIEF.far[0], RELIEF.far[1], d))).toVar();
-        If(amp.greaterThan(0.002).and(s1.greaterThanEqual(0)), () => {
-          const sl = eye.xz.div(max(eye.y, 0.25)).mul(amp).toVar();
+        const share = reliefShares(d.mul(U.uLodInv)).parallax.mul(reliefOverSnow(snowDepth)).toVar();
+        If(share.greaterThan(0.01).and(s1.greaterThanEqual(0)), () => {
           inArray(s1, (j, layer) => {
+            const soil = float(1).sub(tX ? at(tX[j], inPage(p, l1), layer).x : at(tN[j], inPage(p, l1), layer).z);   // (the carpet's share there)
+            const sl = eye.xz.div(max(eye.y, 0.25)).mul(share.mul(soil).mul(RELIEF)).toVar();
             const hAt = (pt) => at(tA[j], inPage(pt, l1), layer).a;
             const was = vec2(p.add(sl.mul(0.5))).toVar(), above = hAt(was).sub(1).toVar();   // (how far the ground stands over the ray: under 0, the ray is above it)
             Loop(PSTEPS, ({ i }) => {

@@ -73,8 +73,9 @@ export async function overlay() {
   el.onclick = run; await run();
 }
 
-/** Where a view's GPU time goes (opened with ?gputime): the frame drawn with one part at a time (sky, land, water, each
-    scattered thing, the placed assets), the shadow pass and the clouds' map on their own; parts' shares are what count,
+/** Where a view's GPU time goes (opened with ?gputime): the frame drawn with one part at a time (sky, land and the
+    relief near the eye, water, each scattered thing, the placed assets), the shadow pass, the clouds' map and the
+    relief's points (compute) on their own; parts' shares are what count,
     the whole swings with whatever else the GPU is doing. */
 export async function parts(view = VIEWS[0], { ratio = 1, frames = 30 } = {}) {
   const s = window.__game, { renderer, camera, U, scene } = s, R = performance.getEntriesByType('resource').map((e) => e.name);
@@ -86,10 +87,12 @@ export async function parts(view = VIEWS[0], { ratio = 1, frames = 30 } = {}) {
   setPlanes(pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)); s.ground.update(p.x, p.z, dy, 1); s.terrain.update(camera, dy, 1); s.scatter.select(p.x, p.z, g, 1, dy);
   const time = async (f) => { f(); await renderer.resolveTimestampsAsync('render'); let sum = 0; for (let i = 0; i < frames; i++) { f(); sum += (await renderer.resolveTimestampsAsync('render')) || 0; } return +(sum / frames).toFixed(2); };
   const kids = scene.children.filter((o) => o.visible), tierOf = new Map(); for (const t of s.scatter.tiers) for (const m of t.meshes ?? [t.mesh]) tierOf.set(m, t.asset);
-  const groups = { sky: (o) => o.renderOrder === 15, land: (o) => o === s.terrain.landMesh, water: (o) => o === s.terrain.waterMesh };
+  const groups = { sky: (o) => o.renderOrder === 15, land: (o) => o === s.terrain.landMesh || o === s.terrain.relief?.mesh, water: (o) => o === s.terrain.waterMesh };   // (the land: its mesh and the relief's near the eye)
   for (const a of new Set(tierOf.values())) groups[a] = (o) => tierOf.get(o) === a;
   const named = Object.values(groups); groups.placed = (o) => !named.some((f) => f(o)) && !tierOf.has(o);
   const out = { view: v.name, all: await time(() => renderer.render(scene, camera)), shadow: await time(() => s.shadows.render(scene, camera, g)), weather: await time(() => s.weather.before(camera, g)) };
+  // (the relief's points near the eye, worked out in compute: src/terrain/relief.js)
+  if (s.terrain.relief?.count) { const timeC = async (f) => { f(); await renderer.resolveTimestampsAsync('compute'); let sum = 0; for (let i = 0; i < frames; i++) { f(); sum += (await renderer.resolveTimestampsAsync('compute')) || 0; } return +(sum / frames).toFixed(2); }; out.relief = await timeC(() => s.terrain.relief.build(camera, true)); }
   for (const [k, f] of Object.entries(groups)) { kids.forEach((o) => (o.visible = f(o))); out[k] = await time(() => renderer.render(scene, camera)); kids.forEach((o) => (o.visible = true)); }
   renderer.setPixelRatio(was); s.governor.hold(false);
   return out;

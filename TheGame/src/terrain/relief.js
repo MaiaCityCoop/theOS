@@ -9,10 +9,10 @@
 //   points   one compute pass a frame works out every vertex of every such node once (not once for each pass that
 //            draws it): the land's height and normal there, the river, how high it stands over the valley (the land's
 //            own vertex code: material.js landPoint), and the ground's own height from its virtual texture's page
-//            (src/terrain/pages.js), read as finely as the mesh is fine, raised or lowered by it (RELIEF.amp from its
-//            lowest to its highest). Nearer than RELIEF.near[0] metres all of it, none past near[1]: where the land's
-//            coarser mesh takes over there is none, so they meet; further out the pixels take the height on (parallax,
-//            pages.js read)
+//            (src/terrain/pages.js), read as finely as the mesh is fine, raised or lowered by it (RELIEF from its
+//            lowest to its highest), as much as the one measure says only geometry can show it (pages.js
+//            reliefShares: where even parallax would be off by more than ERROR_PX); none where the mesh folds into the
+//            land's grid, so they meet; further out the pixels take the height on (parallax, pages.js read)
 //   drawn    one instanced mesh of the land's material, its vertex stage reading what the pass worked out; its pixels
 //            are the land's (the prepass's asks, the page read, the light)
 // Where the grass's carpet covers the ground, its blades stand over it: it is raised less (its share of the page).
@@ -23,7 +23,7 @@ import { camDist } from '../world/land.nodes.js';
 import { snowDepth } from '../world/light.js';
 import { TRUTH } from '../detail/measure.js';
 import { R0, FINE, landPoint } from './material.js';
-import { RELIEF } from './pages.js';
+import { RELIEF, reliefShares, reliefOverSnow } from './pages.js';
 
 export const GRID = 32, LEVELS = 4;   // quads a node of relief has a side; levels of it below the land's finest
 const V = (GRID + 1) ** 2, CAP = TRUTH ? 4096 : 512;   // vertices a node; nodes at most (beyond, the land draws them flat: terrain.js)
@@ -64,8 +64,10 @@ export function createRelief(scene, renderer, vt, material) {
       // reads what the coarser node's vertex there reads)
       const sp = cell.mul(first.select(float(1).add(k1).add(k.mul(2)), float(1).add(k))), dx = vec2(sp, 0), dy = vec2(0, sp);
       const G = vt.read(wp, dx, dy, dist, { compute: true });
-      const raise = float(1).sub(smoothstep(RELIEF.near[0] * FINE, RELIEF.near[1] * FINE, dist)).mul(float(1).sub(G.cv.mul(0.85))).mul(float(1).sub(smoothstep(0.02, 0.1, snowDepth)));
-      const y = L.h.add(G.h.sub(0.5).mul(RELIEF.amp).mul(raise));
+      // (as much as the one measure says the geometry must show it (pages.js reliefShares), the soil's (not the grass's
+      // carpet: its blades stand over it), what of it stands out of the snow)
+      const raise = reliefShares(dist).geometry.mul(float(1).sub(G.cv)).mul(reliefOverSnow(snowDepth));
+      const y = L.h.add(G.h.sub(0.5).mul(RELIEF).mul(raise));
       const at2 = n.mul(uint(V)).add(v);
       P.node.element(at2).assign(vec4(wp.x, y, wp.y, L.hill));
       Q.node.element(at2).assign(vec4(L.N.x, L.N.z, L.I.x, L.I.y));
@@ -93,11 +95,11 @@ export function createRelief(scene, renderer, vt, material) {
     add(x, z, size, level) { if (n >= CAP) return false; nodes.set([x, z, size, level], n * 4); n++; return true; },
     /** Its points worked out, for this frame's nodes (once the land's pages are sent: they are read), where anything
         they come from may have changed since: the camera (what the land lets go with distance, the morph), the pages,
-        the nodes; and every half second (the snow). */
-    build(camera) {
+        the nodes; and every half second (the snow). always: whatever has changed (a timing: tools/bench.js parts). */
+    build(camera, always = false) {
       g.instanceCount = n; mesh.visible = n > 0; if (!n) return;
       const c = camera.position, key = `${c.x},${c.y},${c.z},${n},${nodes[0]},${nodes[1]},${nodes[(n - 1) * 4]},${nodes[(n - 1) * 4 + 1]}`;
-      if (key === was && !vt.changing && ++at < 30) return;
+      if (!always && key === was && !vt.changing && ++at < 30) return;
       was = key; at = 0;
       NODES.write(0, nodes.subarray(0, n * 4)); uN.value = n;
       renderer.compute(kernel, [Math.ceil((n * V) / 64), 1, 1]);

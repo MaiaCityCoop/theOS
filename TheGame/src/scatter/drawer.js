@@ -56,7 +56,7 @@ import { Fn, If, float, uint, vec2, vec3, vec4, uniform, uniformArray, varyingPr
 import { U } from '../core/uniforms.js';
 import { ign, finish, skyLight, cloudAt, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
-import { landPages } from '../terrain/pages.js';
+import { landPages, RELIEF } from '../terrain/pages.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective, cornersOf, shapedOf } from './heap.js';
 import { ballCorners } from '../../assets/kit/blob.js';
@@ -69,7 +69,7 @@ import { CHAIN } from '../../assets/kit/bones.js';
 import { MODELS, modelOf } from '../shading/index.js';
 import { byRole } from '../core/registry.js';
 import { bandOf, padOf } from '../detail/handover.js';
-import { pxK, pxOn, farFor, spanAt, pxAt, TRUTH } from '../detail/measure.js';
+import { pxK, pxOn, farFor, spanAt, pxAt, TRUTH, ERROR_PX } from '../detail/measure.js';
 import { source } from '../core/settle.js';
 import { note } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
@@ -214,16 +214,19 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
         own.assign(mix(own, vG.rgb.mul(0.75).mul(mt.a.add(0.5)), grown.mul(0.9).mul(M5.y.mul(1.5).min(1))));
       });
     }
-    // its skirt (intent 0038, stage 6c): where it goes into the ground it wears the ground there (the land's own page,
-    // src/terrain/pages.js), up to a hand's breadth on a large stone, highest in its hollows and on what of it faces
-    // up, and nothing grows over that: bedded in the soil, not set on it. (Its size in sA's fourth number; what of it
-    // lies in the ground, its look's)
+    // its skirt (intent 0038, stage 6c): bedded in the soil, not set on it. The soil round it lies at the ground's own
+    // height there (the land's page, src/terrain/pages.js: RELIEF from its lowest to its highest over the land's smooth
+    // surface, as the relief near the eye raises it), and where it faces up it fills its hollows (where its own
+    // texture stands low) as much again: below that it wears the ground there, its normal the ground's, nothing grown
+    // over it; the line between over one pixel drawn (ERROR_PX). (Its size in sA's fourth number; what of it lies in
+    // the ground, its look's: how far its foot is over the land's smooth surface)
     const land = GROUND ? landPages() : null, bed = land ? float(0).toVar() : null, bedN = land ? vec3(0, 1, 0).toVar() : null;
     if (land) {
-      const size = vA.w, reach = size.mul(0.12).min(0.2).add(0.015), above = vC.y.sub(M5.w.mul(size));
-      bed.assign(float(1).sub(smoothstep(0, reach, above.add(m.sub(0.5).mul(reach).mul(0.8)).sub(max(N0.y, 0).mul(reach).mul(0.35)))));
-      If(bed.greaterThan(0.004), () => {
+      const above = vC.y.sub(M5.w.mul(vA.w)).toVar(), edge = abs(dFdx(above)).add(abs(dFdy(above))).mul(ERROR_PX).max(1e-4);
+      If(above.lessThan(edge.add(RELIEF)), () => {
         const G = land.read(w.xz, dFdx(w.xz).mul(U.uFine), dFdy(w.xz).mul(U.uFine), length(U.uCam.sub(w)));
+        const soil = G.h.sub(0.5).add(float(0.5).sub(m).mul(max(N0.y, 0))).mul(RELIEF);
+        bed.assign(float(1).sub(smoothstep(soil.sub(edge), soil.add(edge), above)));
         own.assign(mix(own, G.c, bed)); bedN.assign(normalize(vec3(G.n.x, 1, G.n.y))); grown.mulAssign(float(1).sub(bed));
       });
     }

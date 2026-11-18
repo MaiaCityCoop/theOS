@@ -7,7 +7,7 @@ import { boxIn } from '../core/frustum.js';
 import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, R0, FINE } from './material.js';
 import { createPages } from './pages.js';
-import { createRelief, LEVELS as RELIEF_LEVELS } from './relief.js';
+import { createRelief, LEVELS as RELIEF_LEVELS, GRID as RELIEF_GRID } from './relief.js';
 import { LAYERS } from './layers.js';
 import { waterMaterial } from './water.js';
 import { usedMaterials } from '../materials/bake.js';
@@ -54,6 +54,7 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   // (src/terrain/relief.js), each level reaching half as far as the one before; where it has no room left, the land
   // draws a node of it flat
   const relief = createRelief(scene, renderer, pages, (from) => terrainMaterial(pages, from)), FIRST = -RELIEF_LEVELS;
+  pages.underRelief(S0 / 2 ** RELIEF_LEVELS / RELIEF_GRID);   // (its finest points this far apart)
   const landMesh = new THREE.Mesh(land.g, landMat), waterMesh = new THREE.Mesh(water.g, waterMat);
   landMesh.frustumCulled = waterMesh.frustumCulled = false;
   landMesh.renderOrder = 10; // after the grass and the rocks: they are in front, the depth test spares the ground's shader

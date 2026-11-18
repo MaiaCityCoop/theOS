@@ -11,7 +11,7 @@ import { PATHS } from '../../world/paths.js';
 import { addWays } from '../world/ways.js';
 import { vnoise } from '../world/noise.nodes.js';
 
-const STEP = 1, EDGE = 0.25;   // metres between the curve's points; how far a path's edge wanders either way (as a share of its half width)
+const STEP = 1, EDGE = 0.25, SOFT = 0.3;   // metres between the curve's points; how far a path's edge wanders either way (as a share of its half width); metres its edge goes over from worn to grass
 const DIRT = '082f0183-5d92-4ac8-821c-14408d3ee056' /* dry earth: the trodden middle */, CRUMBS = '0db6a039-9f7f-4a58-8137-c3348dfb922e' /* path: towards the edges */;
 
 // a curve through the points (Catmull-Rom, centripetal: no loops where they bunch), a point every STEP metres
@@ -85,10 +85,12 @@ if (RUNS.length) addWays({
 export function wear(p, s, M, read) {
   if (!RUNS.length) return;
   const W = pathNear(p, s.mul(0.5).add(0.6)).toVar(), e = W.x, half = W.y;
-  If(e.lessThan(s.mul(0.5).add(0.5)), () => {
+  If(e.lessThan(s.mul(0.5).add(SOFT)), () => {
     // the share of the texel the path covers: the path [-half, half] across, the texel s wide round its point
-    const d = e.add(half), cover = clamp(min(d.add(s.mul(0.5)), half).sub(max(d.sub(s.mul(0.5)), half.negate())).div(s), 0, 1);
-    const soft = float(1).sub(smoothstep(-0.12, 0.22, e)), worn = max(s.greaterThan(0.25).select(cover, soft), float(0)).toVar();   // (near, a soft edge; far, its share)
+    // the share of the texel the path covers: the path [-half, half] across, its edge itself soft over SOFT metres, so
+    // seen through the texel (s wide round its point) a box SOFT and s together wide (near, the soft edge; far, a line
+    // of its share)
+    const d = e.add(half), box = s.mul(s).add(SOFT * SOFT).sqrt(), worn = clamp(min(d.add(box.mul(0.5)), half).sub(max(d.sub(box.mul(0.5)), half.negate())).div(box), 0, 1).toVar();
     const c = clamp(d.div(half), 0, 1.4);   // across it: 0 its middle, 1 its edge
     // packed, cracked earth where feet go most, crumbs and pebbles towards the edges, in patches
     const mid = float(1).sub(smoothstep(0.25, 0.75, c.add(vnoise(p.mul(1 / 1.9), uint(613)).sub(0.5).mul(0.6)))).toVar();
