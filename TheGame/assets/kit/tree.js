@@ -263,12 +263,13 @@ export function bush(b, { r, h, lobes = 1, ragged = 0.15, shoots, size, stems = 
   woodOf(b, N, rad, 0.007);
   shootsOf(b, N, heaps, { h, shoots, size, rise, seed });
 }
-/** Where a bush's leaves can live: points in the shell under its heaps' domes, three to a shoot. */
+/** Where a bush's leaves can live: points in the shell under its heaps' domes, three to a shoot. A heap's dome stands three
+    quarters of its height up, as mound() lays its sprigs there: the shoots that grow from it reach the rest. */
 function livingRoom(heaps, { shoots, ragged, shell, seed }) {
   return Array.from({ length: shoots * 3 }, (_, i) => {
     const Q = rng(seed * 6151 + i * 37 + 11), H = heaps[Math.min(heaps.length - 1, Math.floor(Q() * heaps.length))], a = Q() * 2 * Math.PI, u = 0.06 + 0.94 * Q() ** 0.7, c = Math.sqrt(1 - u * u);
     const k = (1 - shell * Q()) * (Q() < ragged ? 1.2 : 1);
-    return [H.c[0] + Math.cos(a) * c * H.r * k, u * H.h * k, H.c[2] + Math.sin(a) * c * H.r * k];
+    return [H.c[0] + Math.cos(a) * c * H.r * k, u * H.h * 0.75 * k, H.c[2] + Math.sin(a) * c * H.r * k];
   });
 }
 /** A bush's stems where they leave its root crown, a hand round its middle, each leaning out its own way. */
@@ -325,15 +326,16 @@ function woodOf(b, N, rad, least) {
     if (drawn.length > 1) tube(b, drawn.map((q) => N[q].p), drawn.map((q) => rad[q]), 3);
   });
 }
-/** Its shoots: a card at each branch's end, and where there are fewer ends than shoots, at the buds next back from them;
-    each grows out along its branch and a little out of the bush and up, larger at its top and outside, lit as the heap's
-    dome it stands on is (a bush takes the light as a whole), as much as reaches that deep. */
+/** Its shoots: a card at each branch's end, and where there are fewer ends than shoots, at the buds next back from them,
+    and where there are fewer buds, a second at a bud, turned its own way (a branch's end bears a few shoots); each grows
+    out along its branch and a little out of the bush and up, larger at its top and outside, lit as the heap's dome it
+    stands on is (a bush takes the light as a whole), as much as reaches that deep. */
 function shootsOf(b, N, heaps, { h, shoots, size, rise, seed }) {
   const back = new Array(N.length).fill(Infinity);   // (how many buds back from a branch's end)
   for (let k = N.length - 1; k >= 0; k--) { if (!N[k].kids) back[k] = 0; if (N[k].up >= 0) back[N[k].up] = Math.min(back[N[k].up], back[k] + 1); }
   const order = N.map((n, k) => k).filter((k) => !N[k].lead).sort((x, y) => back[x] - back[y] || rng(seed + x)() - rng(seed + y)());
-  for (const k of order.slice(0, shoots)) {
-    const C = rng(seed * 104729 + k * 61 + 5), p = N[k].p, H = heaps.reduce((m, q) => (len(sub(p, q.c)) / q.r < len(sub(p, m.c)) / m.r ? q : m));
+  for (let i = 0; i < shoots && order.length; i++) {
+    const k = order[i % order.length], C = rng(seed * 104729 + k * 61 + 5 + Math.floor(i / order.length) * 7919), p = N[k].p, H = heaps.reduce((m, q) => (len(sub(p, q.c)) / q.r < len(sub(p, m.c)) / m.r ? q : m));
     const rel = len([(p[0] - H.c[0]) / H.r, p[1] / H.h, (p[2] - H.c[2]) / H.r]), o = norm([p[0] - H.c[0], p[1] * 0.5, p[2] - H.c[2]]);
     const dir = norm(add(add(mul(N[k].dir, 0.6), mul(o, 0.4)), [(C() - 0.5) * 0.4, rise, (C() - 0.5) * 0.4]));
     const s = size[0] + (size[1] - size[0]) * Math.min(1, 0.5 * Math.min(1, p[1] / h) + 0.5 * rel) * (0.8 + 0.4 * C());

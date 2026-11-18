@@ -735,18 +735,21 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // his knee) packs none
     if (G.kinds.some((Kd) => Array.from({ length: Kd.shapes }, (_, v) => bodyOf(KINDS[Kd.offset + v])).some((B) => B.shapes.some((S) => topOf(S) * Kd.asset.placement.scale[1] - FOOT > (S.pass ? Math.max(0.55, S.from ?? 0) : 0.3))))) solids.push(standBodies(G, KINDS, ground, renderer));
     // a tier: its cells worked out once for every kind in it, each plant that is of its level packed into its shape's
-    // draw. g: the group it packs (the stand's, or of its kinds those that cast)
+    // draw. g: the group it packs (the stand's, or of its kinds those that cast). Its levels pack by one piece of code,
+    // compiled once (the drawer's kind of tier: one place for them all, the shadow's stand-in another), each telling
+    // its own numbers before it packs (table)
+    // (seen.r: a crown's reach, and how far the camera may move before the packing is made again: a level's)
+    const seen = { r: uniform(0), high: sHi }, places = new Map();
+    const placeOf = (g, shadow) => { if (!places.has(g)) places.set(g, (c, { band }, found) => plantIn(c, g, band, shadow, shadow ? null : seen, found)); return places.get(g); };
     const tier = (i, g, shadow = false) => {
       // (P: its level's patch, which says how far the camera may move before it packs again: a sixteenth of it. What it
       // looks at is its region tree's, however far its band reaches: src/scatter/regions.js)
       const P = shadow ? 4 : G.kinds[0].levels[i].P;
-      // reach: a crown's reach, and how far the camera may move before the packing is made again (the cells are worked
-      // out again every sixteenth of a patch)
-      const seen = shadow ? null : { r: uniform(round + (L.cell * P) / 16 + 2), high: sHi };
       const t = D.tier(i, {
         cell: L.cell, P, sizes: [sLo, sHi], fade: G.fade, shadow,   // (as many as it finds it holds: its store and its buckets from its own count, src/scatter/tier.js)
         casts: !shadow && i === 0 && g.kinds.some((Kd) => Kd.row.detail.casts && !Kd.asset.detail.shadow),   // without a stand-in the near ones cast, as drawn (src/world/shadow.js)
-        place: (c, { band }, found) => plantIn(c, g, band, shadow, seen, found), thing: `plants:${G.name}`,   // (a plant's own state: its stand and its cell, src/world/things.js)
+        place: placeOf(g, shadow), thing: `plants:${G.name}`,   // (a plant's own state: its stand and its cell, src/world/things.js)
+        table: shadow ? null : () => { seen.r.value = round + (L.cell * P) / 16 + 2; },   // (the cells are worked out again every sixteenth of a patch)
         extra: shadow ? { cull: SH.reach, fixed: SH.far * SH.wide } : {},   // (the stand-in in small patches: those whose shade cannot reach the view are dropped)
       });
       t.viewKeyed = !shadow; t.asset = G.name; t.drawer = D; tiers.push(t);

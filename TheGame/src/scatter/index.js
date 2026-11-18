@@ -22,6 +22,7 @@ import { waysVersion } from '../world/ways.js';
 import { flushThings, thingsVersion } from '../world/things.js';
 import { flag } from '../core/flags.js';
 import { occlusion } from '../core/occlusion.js';
+import { ready } from './tier.js';
 
 // (the stress stand and the herds are tools that measure: loaded only where the address asks for them, `?stress`,
 // `?herds=N`, as the bench and the flyby are: src/boot.js)
@@ -71,6 +72,6 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
     /** Every tier's packing passes compiled side by side, before the first packing (a promise): they read no target, so
         this may run beside anything. Compiled as each tier first packed, one after another, the GPU did nothing else
         meanwhile (63 passes, 8 s of a start of 35 without a GPU, 2026-11-15). */
-    compile() { const passes = [...tiers.flatMap((t) => t.passes ?? []), ...occlusion.passes()]; return Promise.all([passes.length ? renderer.compileComputeAsync(passes) : null, ...more.map((f) => f())]); },   // (and the culling's: src/core/occlusion.js)
+    compile() { ready(); const passes = [...tiers.flatMap((t) => t.passes ?? []), ...occlusion.passes()]; return Promise.all([passes.length ? renderer.compileComputeAsync(passes) : null, ...more.map((f) => f())]); },   // (and the culling's: src/core/occlusion.js; ready: the resident tiers' shared rows made as large as all of them, before anything binds them: tier.js)
   };
 }
