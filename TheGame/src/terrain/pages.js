@@ -21,9 +21,9 @@
 //            longest gives its slot up
 //   shown    a pixel reads the finest page in for its level, walking up to a coarser one where it is not in yet; a
 //            page newly in is faded in over FADE frames from the one under it, so a page never comes in at once
-// The atlas is two arrays of SLOTS layers, a page a layer (its colour and height; its relief, the carpet's share and
-// the stands' shade), with the page table beside it. If the pages asked for do not fit, every pixel asks a little
-// coarser (the bias), until they do.
+// The atlas is arrays of SLOTS layers, a page a layer (its colour and height; its relief; the carpet's share and the
+// stands' shade), with the page table beside it. If the pages asked for do not fit, every pixel asks a little coarser
+// (the bias), until they do.
 import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, Break, float, int, uint, vec2, vec4, ivec2, uvec2, uvec4, uniform, uniformArray, texture, storageTexture, textureStore, globalId, floor, fract, log2, exp2, max, min, clamp, length, mix, sqrt, renderGroup } from 'three/tsl';
 import { U } from '../core/uniforms.js';
@@ -239,7 +239,7 @@ export function createPages(renderer, tex) {
     // (what was asked for in the last sweep, the frames a pixel takes to ask again; judged again only once what the last
     // step asked for has been asked for a sweep)
     need = queue.length; for (const P of IN.values()) if (P.used >= frame - SWEEP * SWEEP - 8) need++;
-    if (need > SLOTS * 0.92 && frame - biasAt > 2 * SWEEP * SWEEP && bias < 2) { bias += 0.25; biasAt = frame; roomy = 0; }
+    if (need > SLOTS * 0.96 && frame - biasAt > 2 * SWEEP * SWEEP && bias < 2) { bias += 0.25; biasAt = frame; roomy = 0; }
     else if (need < SLOTS * 0.6 && bias > 0) { if (++roomy > 6 && frame - biasAt > 240) { bias -= 0.25; biasAt = frame; roomy = 0; } }
     else roomy = 0;
   };
