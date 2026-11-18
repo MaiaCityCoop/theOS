@@ -62,7 +62,7 @@ import { pxOf, turnOf, seedOf } from './row.js';
 import { CROWD, levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
 import { crowdOf, bandsOf, GRID, GOQ } from '../../assets/kit/plant.js';
 import { lo16, hi16 } from './unpack.js';
-import { TRUTH, REACH as TRUTH_REACH, drawnAt } from '../detail/measure.js';
+import { TRUTH, REACH as TRUTH_REACH, drawnAt, farFor, ERROR_PX, BUDGET_DRAWN } from '../detail/measure.js';
 import { source } from '../core/settle.js';
 import { keptGet, keptPut } from '../core/kept.js';
 
@@ -573,9 +573,13 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
   if (!gpu) return tiers;   // (without WebGPU nothing of the heap can be drawn: no plants there)
   const Z = placedBy('trees'), famOf = (uid) => Z.families.find((F) => F.F.asset === uid);
   // the growth map (growth.js): what each layer that writes leaves for the layers after it, worked out round the camera
-  // before anything packs (tiers.before), the largest layer first
-  const layers = layersOf(rows), words = layers.filter((L) => L.word >= 0).length, M = words ? createGrowth(renderer, words) : null;
-  if (M) M.build(writersOf(layers, M));
+  // before anything packs (tiers.before), the largest layer first; as far as what reads it is drawn: a layer that reads
+  // it as far as its largest thing is gone by the one measure, the meadow (which reads every layer's) as far as its blade
+  const layers = layersOf(rows), words = layers.filter((L) => L.word >= 0).length;
+  const blades = Math.max(0, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => farFor(ERROR_PX / BUDGET_DRAWN, sizeOf(a))));
+  const readFar = (W) => Math.max(blades, ...layers.filter((L) => L.reads.includes(W)).map((L) => Math.max(...L.entries.map((e) => farFor(ERROR_PX / BUDGET_DRAWN, sizeOf(e.asset))))));
+  const M = words ? createGrowth(renderer, words, Math.max(...layers.filter((L) => L.word >= 0).map(readFar))) : null;
+  if (M) M.build(writersOf(layers, M, readFar));
   for (const G of groupsOf(rows)) {
     G.M = G.L.reads.length ? M : null;
     const lost = G.kinds.filter((Kd) => !famOf(Kd.asset.uid)); if (lost.length) { console.warn(`plants: no family of the zoo brings the shapes of ${lost.map((Kd) => `'${Kd.asset.name}'`).join(', ')} (assets/zoo)`); continue; }

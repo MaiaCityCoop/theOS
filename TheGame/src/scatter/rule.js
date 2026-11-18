@@ -204,12 +204,14 @@ export function placeIn(c, L, M, pos) {
     share of the texel's light), takes the ground at its foot, and drops its litter out to beyond its crown; the litter's
     lead is the thing that drops most there. */
 export function gatherOf(L, M) {
-  // (its cells as far round q as anything of theirs reaches: their litter and feet, their crowns over the texel's points)
-  const crowns = L.entries.filter(crowned), edge = TEXEL * (0.5 - 0.5 / SUB) * Math.SQRT2, reach = Math.max(L.reach, ...crowns.map((e) => crownMost(e) + edge)), m = Math.ceil((2 * reach) / L.cell) + 1;
-  const points = Array.from({ length: SUB * SUB }, (_, s) => vec2(((s % SUB) + 0.5) / SUB - 0.5, (Math.floor(s / SUB) + 0.5) / SUB - 0.5).mul(TEXEL));
-  return (q) => {
+  const crowns = L.entries.filter(crowned), crownFar = Math.max(0, ...crowns.map(crownMost));
+  // (q: the texel's middle; texel: its side, metres, a node: the growth map's level's. Its cells as far round q as anything
+  // of theirs reaches: their litter and feet, their crowns over the texel's points)
+  return (q, texel) => {
+    const edge = texel.mul((0.5 - 0.5 / SUB) * Math.SQRT2), reach = crowns.length ? max(float(L.reach), edge.add(crownFar)).toVar() : float(L.reach), m = int(reach.mul(2 / L.cell)).add(2).toVar();
+    const points = Array.from({ length: SUB * SUB }, (_, s) => vec2(((s % SUB) + 0.5) / SUB - 0.5, (Math.floor(s / SUB) + 0.5) / SUB - 0.5).mul(texel));
     const lo = ivec2(floor(q.sub(reach).div(L.cell))).toVar(), light = points.map(() => float(1).toVar()), foot = float(0).toVar(), litter = float(0).toVar(), lead = uint(0).toVar(), best = float(0).toVar();
-    Loop(m, m, ({ i, j }) => {
+    Loop({ start: int(0), end: m, type: 'int', condition: '<' }, { start: int(0), end: m, type: 'int', condition: '<' }, ({ i, j }) => {
         const c = lo.add(ivec2(i, j)).toVar(), pos = posIn(c, L).toVar(), R = placeIn(c, L, M, pos);
         If(R.k.greaterThanEqual(0), () => {
           const E = L.table.element(R.k), r = length(q.sub(pos)).toVar();
@@ -218,7 +220,7 @@ export function gatherOf(L, M) {
             for (const e of crowns) If(R.k.equal(e.i), () => { crown.assign(grownIn(c, L, e, pos).h.mul(spreadOf(e.asset))); });
             If(crown.greaterThan(0).and(r.lessThan(crown.add(edge))), () => { points.forEach((o, s) => light[s].mulAssign(throughCrown(length(q.add(o).sub(pos)), crown))); });
           }
-          foot.assign(max(foot, smoothstep(max(E.y, TEXEL * 0.75), max(E.y, TEXEL * 0.75).mul(0.5), r)));
+          foot.assign(max(foot, smoothstep(max(E.y, texel.mul(0.75)), max(E.y, texel.mul(0.75)).mul(0.5), r)));
           const l = float(1).sub(smoothstep(E.x.mul(0.5), E.x.mul(1.6), r)).mul(E.w).toVar();
           litter.addAssign(l);
           If(l.greaterThan(best), () => { best.assign(l); lead.assign(uint(E.z)); });
@@ -228,8 +230,8 @@ export function gatherOf(L, M) {
   };
 }
 
-/** The growth map's passes: one for every layer that writes, in their order. */
-export const writersOf = (layers, M) => layers.filter((L) => L.word >= 0).map((L) => ({ w: L.word, gather: gatherOf(L, M) }));
+/** The growth map's passes: one for every layer that writes, in their order; far(L): metres what reads it is drawn to. */
+export const writersOf = (layers, M, far = () => Infinity) => layers.filter((L) => L.word >= 0).map((L) => ({ w: L.word, gather: gatherOf(L, M), far: far(L) }));
 
 // ---- what the land reads of the rule (src/terrain/layers.js): where a biome's grown trees and its bushes stand ----
 /** A biome's stands as the land wears them far off: its grown trees (its `canopy` colour) and its bushes (its
