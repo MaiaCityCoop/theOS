@@ -22,7 +22,7 @@ import { Fn, If, float, uint, vec3, vec4, uniform, varyingProperty, normalize, m
 import { camDist } from '../world/land.nodes.js';
 import { heightAt } from '../world/land.js';
 import { windAt, windStrength, unlit } from '../world/light.js';
-import { passOf, motion, vWas } from '../core/pass.js';
+import { passOf, motion, vWas, drawnId, idClass } from '../core/pass.js';
 import { U } from '../core/uniforms.js';
 import { layerOf, wrapGrad } from '../world/tile.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
@@ -128,6 +128,7 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
     return out;
   })();
   m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
+  if (src?.placeAt) m.idNode = drawnId(idClass({ family: 'made', level: lv }), src.placeAt(slot));   // (what its pixels' id says: src/core/pass.js)
   return m;
 }
 
