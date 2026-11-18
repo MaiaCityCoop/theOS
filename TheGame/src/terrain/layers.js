@@ -21,7 +21,6 @@ import { byRole } from '../core/registry.js';
 import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID } from '../world/land.nodes.js';
 import { standsOf, rowsOf } from '../scatter/rule.js';
 import { detailOf } from '../detail/index.js';
-import { TRUTH, REACH } from '../detail/measure.js';
 import { sizeOf } from '../../assets/kinds.js';
 import { BOX } from '../world/shadow.js';
 const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
@@ -240,7 +239,7 @@ export const standOf = (id) => { const a = STAND_T.element(id.mul(2)), b = STAND
 /** How far off (metres, as the 68° lens sees them) a stand's colour comes in: its plants' last level's reach (the
     measure's farAt: src/detail/measure.js, its span reckoned at the dial's rest, so over the dial now), or its own from/to. */
 export const standFade = (S, dist2) => {
-  const at = U.uPxK.mul(S.span).div(U.uErrorPx), last = TRUTH ? max(at, REACH) : at;
+  const at = U.uPxK.mul(S.span).div(U.uErrorPx), last = at;   // (?truth: the dial turned down moves it out, as every other far)
   return S.span.greaterThan(0).select(smoothstep(last.mul(S.a), last.mul(S.b), dist2), smoothstep(S.a, S.b, dist2));
 };
 /** How far the shadow map reaches round the camera for a stand whose shadows reach `reach` metres (src/world/shadow.js:
