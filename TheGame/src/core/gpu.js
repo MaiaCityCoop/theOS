@@ -24,9 +24,9 @@ export const ledger = () => {
 if (typeof window !== 'undefined') window.__memory = ledger;
 
 // Whose the GPU's passes are, for a tool that times each part of a frame (tools/bench.js): the code that draws a part
-// marks where its passes begin (the screen's: the culling, the prepass, the colour, the lens, the upscale; the bench's
-// frame what comes before it), and the tool reads the GPU's own clock pass by pass under those names. Nothing listens
-// in the game: a mark is then one test.
+// marks where its passes begin (the screen's: the culling, the prepass, the colour, the lens, the upscale; the light's:
+// its cascades, the canopy, the air, the screen's light; the bench's frame what comes before them), and the tool reads
+// the GPU's own clock pass by pass under those names. Nothing listens in the game: a mark is then one test.
 let tap = null;
 /** The passes from here on are `name`'s (null: no one's in particular), until the next mark. */
 export const mark = (name) => { if (tap) tap(name); };
@@ -53,6 +53,11 @@ export const askedLimits = async () => limitsFrom((await navigator.gpu?.requestA
 export const limitOf = (name) => { if (!SIZED.includes(name)) throw new Error(`gpu: ${name} is not a limit the device is asked for (SIZED)`); return R?.backend?.device?.limits?.[name] ?? 0; };
 /** Every buffer made here within the device's limits: one larger is an error of whoever sized it, said by name. */
 const within = (bytes, name) => { const most = Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity); if (bytes > most) throw new Error(`${name ?? 'a buffer'}: ${bytes} bytes, more than the GPU binds in one buffer (${most})`); };
+/** The limits every WebGPU device grants (the standard's defaults), beside the adapter's own (limitOf): what a baked
+    thing is sized by. A baked atlas is content kept by its key and drawn on any device, Safari and mobile among them,
+    so its size may not depend on the GPU it was first made on (src/detail/atlas.js atlasesOf); what lives only while
+    the page runs (arenas, pages, cascades) takes the adapter's own. */
+export const PORTABLE = { maxTextureDimension2D: 8192, maxTextureArrayLayers: 256, maxUniformBufferBindingSize: 65536 };
 
 const TYPES = { uint: [Uint32Array, 1], float: [Float32Array, 1], vec4: [Float32Array, 4], uvec4: [Uint32Array, 4] };
 /** A storage buffer of `count` items of `type` (uint, float, vec4, uvec4), nothing in it yet:

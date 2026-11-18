@@ -47,7 +47,8 @@ export const BAND = 1.5, FADE = Math.log(BAND) / 2;
 // ---- nothing: where a thing is gone ----
 /** Leaving a thing out differs by how far it stands off what stays: a plant its height over the land (which wears its
     stand's colour or its floor), a rock or a made thing all of it (s at most 1: a share of its size). Where it is gone,
-    dial pixels; it sinks away over the BAND above. */
+    dial pixels: it is whole down to there and sinks away over the BAND under it, as every hand-over runs under its
+    switch. */
 export const goneAt = (s) => switchPx(Math.min(1, s));
 /** Where a thing that is all its error is gone (a rock, a made thing; the largest thing anything places: how far
     anything is drawn, src/detail/extent.js), dial pixels: one. */

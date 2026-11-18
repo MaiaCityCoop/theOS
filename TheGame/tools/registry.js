@@ -1,8 +1,10 @@
 // The registry's manifest (registry.json): every recipe in materials/, biomes/, assets/ and characters/ by its stable uid, with its
 // type, its name, its file, the recipes it uses, and its version: the BLAKE3 hash of its source and of the versions of
 // what it uses, so a changed material gives every biome and asset that lays it a new version too. A version never
-// changes once made; a uid never changes at all. Run on its own (`bun tools/registry.js`) or by the dev server on
-// every change to a recipe (vite.config.js).
+// changes once made; a uid never changes at all. Never kept in git (it is only ever made again, and a branch that kept
+// it met every other over it): made at every build and dev start, and on every change to a recipe (vite.config.js), by
+// every tool that loads the game's modules (tools/glob.js) and by the lint (tools/lint.js), and first in CI. On its own:
+// `bun tools/registry.js`.
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { resolve, join, dirname, relative, sep } from 'node:path';
 import { blake3 } from '@noble/hashes/blake3.js';
@@ -12,9 +14,10 @@ export const FOLDERS = ['materials', 'biomes', 'assets', 'characters'];
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/g;
 
 // what a recipe's file builds with, followed through its imports (those it loads when first wanted and the workers it
-// runs among them): the kits (a folder `kit/`), the shared dice, the world's one scale (world/scale.js) and the one
-// number of detail (src/detail/error.js), in the order they are first met
-export const SHARED = ['src/core/hash.js', 'world/scale.js', 'src/detail/error.js'];
+// runs among them): the kits (a folder `kit/`), the shared dice, the world's one scale (world/scale.js), the one
+// measure of detail (src/detail/error.js) and what the far ends' pictures misplace (src/detail/atlas.js), in the order
+// they are first met
+export const SHARED = ['src/core/hash.js', 'world/scale.js', 'src/detail/error.js', 'src/detail/atlas.js'];
 function kitsOf(root, file, seen = new Set()) {
   for (const m of readFileSync(file, 'utf8').matchAll(/(?:from|import|import\(|new URL\()\s*'(\.{1,2}\/[^']+\.js)'/g)) {
     const p = resolve(dirname(file), m[1]), rel = relative(root, p).split(sep).join('/');
