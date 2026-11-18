@@ -184,7 +184,7 @@ export async function parts(view = VIEWS[0], { ratio = 1, frames = 30 } = {}) {
     setPlanes(pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)); s.ground.update(p.x, p.z, dy, 1); s.terrain.update(camera, dy, 1); s.scatter.select(p.x, p.z, g, 1, dy);
     const time = async (f) => (await timed(clock, f, frames)).sum;
     const kids = scene.children.filter((o) => o.visible), tierOf = new Map(); for (const t of s.scatter.tiers) for (const m of t.meshes ?? [t.mesh]) tierOf.set(m, t.asset);
-    const groups = { sky: (o) => o.renderOrder === 15, land: (o) => o === s.terrain.landMesh || o === s.terrain.relief?.mesh, water: (o) => o === s.terrain.waterMesh };   // (the land: its mesh and the relief's near the eye)
+    const groups = { sky: (o) => o.renderOrder === 15, land: (o) => o === s.terrain.landMesh, water: (o) => o === s.terrain.waterMesh };   // (the land: its one mesh, near the eye and far)
     for (const a of new Set(tierOf.values())) groups[a] = (o) => tierOf.get(o) === a;
     const named = Object.values(groups); groups.placed = (o) => !named.some((f) => f(o)) && !tierOf.has(o);
     const out = { view: v.name, all: await time(() => inTarget(() => renderer.render(scene, camera))), light: await time(() => s.shadows.render(scene, camera, g)), weather: await time(() => s.weather.before(camera, g)) };
