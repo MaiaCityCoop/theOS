@@ -16,6 +16,7 @@
 // is level; only the foot's turn forwards from the leg and the thumb lie otherwise. x is the body's left, y up, z its
 // front. A ring's points are counted from its front round by its left, its back and its right.
 import { refine, limit } from './subdiv.js';
+import { gapAt } from './table.js';
 
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math.hypot(a[0], a[1], a[2]), norm = (a) => mul(a, 1 / (len(a) || 1));
@@ -46,7 +47,7 @@ export function solidsOf(T) {
   };
   const arm = (p) => { let v = GA.sample(p); const q = [Math.abs(p[0]), p[1], p[2]], w = within(q, GHand.lo, handHi, 0.012); if (w > 0) v += w * (GHand.sample(q) - v); return v; };
   const both = (p) => smin(body(p), arm(p), 0.02);   // (the shoulders: the trunk and the arms as one)
-  const leg = (p) => -smin(-body(p), p[0] - 0.002, 0.012);   // (the left leg alone: its own side of the middle, rounded into where the thighs lie together)
+  const leg = (p) => -smin(-body(p), p[0] - gapAt(p[1]), 0.02);   // (the left leg alone: its own side of the middle, as far from it as a standing man's inner thigh is, ./table.js LEG_GAP)
   return { body, arm, both, leg, any: (p) => Math.min(body(p), arm(p)) };
 }
 
@@ -150,11 +151,21 @@ export function cageOf(T, { only = null } = {}) {
   const rows = [];   // (the rings from the crown down, each a list of H points)
   if (!only || only.includes('body')) {
     for (const y of headYs) rows.push(halfRing(body, y, H / 2, evenH, 'head', { soft: 1, thick: 0.004, z0: -0.01 }));
-    for (const y of neckYs) rows.push(halfRing(body, y, H / 2, evenH, 'head', { soft: 2, thick: 0.004 }));
+    for (const y of neckYs) rows.push(halfRing(body, y, H / 2, evenH, 'head', { soft: 3, thick: 0.005 }));
     // (over the shoulders the points go from evenly spaced, at the neck, to held at the armpit's folds)
     for (const y of shoulderYs) { const t = smooth01((neckYs.at(-1) - y) / (neckYs.at(-1) - armpit)); rows.push(halfRing(both, y, H / 2, (O) => foldShares(O, t), (i) => (i > iP && i < iQ && y < 1.47 ? 'arm' : 'trunk'), { soft: 2, thick: 0.004 })); }
     const S0 = across(held(split.O, H / 2, [[iP, split.P], [iQ, split.Q]]).map((f) => split.O.atFrac(f)), (i) => (i > iP && i < iQ ? 'arm' : 'trunk'));
     rows.push(S0);
+    // Under the chin: the jaw overhangs the throat, and level rings cannot draw an overhang: the ring under the chin
+    // would stand five centimetres behind the one above it, the faces between them one long ledge with a crease at
+    // each end. So before the throat and under the jaw's sides a ring's points stand back from the ring above by no more than 1.4
+    // times the height between them: the floor of the mouth a slope from the chin to the throat, as it is seen
+    // from the front on a man who holds his head level. (Round to behind the jaw's angle; only where the lower ring
+    // stands inside the upper.)
+    for (let r = 1; r < rows.length; r++) {
+      const y = P[rows[r][0]][1]; if (y > 1.585 || y < 1.5) continue;
+      for (const i of [...Array(Math.round(H / 3.4) + 1).keys()]) { const a = P[rows[r - 1][i]], b = P[rows[r][i]], dx = b[0] - a[0], dz = b[2] - a[2], d = Math.hypot(dx, dz), most = 1.4 * (a[1] - b[1]); if (d > most && Math.hypot(b[0], b[2] + 0.02) < Math.hypot(a[0], a[2] + 0.02)) { b[0] = a[0] + (dx * most) / d; b[2] = a[2] + (dz * most) / d; if (i > 0) { const t = P[twin[rows[r][i]]]; t[0] = -b[0]; t[2] = b[2]; } } }
+    }
     for (let i = 0; i < rows.length - 1; i++) band(rows[i], rows[i + 1], whole);
     // the crown: the first ring closed by a patch of squares, H/4 a side, its points on the scalp over them
     {
@@ -188,7 +199,7 @@ export function cageOf(T, { only = null } = {}) {
     // the trunk: its points held at the folds just under the armpit, evenly spaced by the waist
     const evenT = even(NT / 2), tP = iP, tQ = iP + KA;
     const trunkRows = [trunk0];
-    for (const y of trunkYs) { const t = 1 - smooth01((armpit - y) / 0.16); trunkRows.push(halfRing(body, y, NT / 2, (O) => { const h = held(O, NT / 2, [[tP, split.P], [tQ, split.Q]]); return h.map((s, i) => evenT[i] + (s - evenT[i]) * t); }, 'trunk', { soft: 3, thick: 0.008 })); }
+    for (const y of trunkYs) { const t = 1 - smooth01((armpit - y) / 0.16); trunkRows.push(halfRing(body, y, NT / 2, (O) => { const h = held(O, NT / 2, [[tP, split.P], [tQ, split.Q]]); return h.map((s, i) => evenT[i] + (s - evenT[i]) * t); }, 'trunk', { soft: 5.5, thick: 0.014 })); }
     for (let i = 0; i < trunkRows.length - 1; i++) band(trunkRows[i], trunkRows[i + 1], whole);
 
     // ── the crotch: the trunk's last ring divides into the two legs', a row of points under the body between them ──
@@ -202,7 +213,7 @@ export function cageOf(T, { only = null } = {}) {
     // Its middle is found on the shape (the middle of its outline), its points at the angles given, from the front
     // round by the left.
     const frameOf = (e1, u) => { const f = norm(sub(e1, mul(u, dot(e1, u)))); return [f, cross(f, u)]; };
-    const planeRing = (S, c0, e1, u, angles, of, { soft = 4, thick = 0.008, far = 0.2, step = 0.003, centre = true } = {}) => {
+    const planeRing = (S, c0, e1, u, angles, of, { soft = 8, thick = 0.014, far = 0.2, step = 0.003, centre = true } = {}) => {
       const [f, l] = frameOf(e1, u); let c = c0, O = null;
       if (centre) for (let it = 0; it < 2; it++) { O = outline(S, c, f, l, { far, soft, thick, along: u, step }); const m = O.middle(); c = add(c0, add(mul(f, dot(sub(m, c0), f)), mul(l, dot(sub(m, c0), l)))); }
       O = outline(S, c, f, l, { far, soft, thick, along: u, step });

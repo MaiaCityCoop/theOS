@@ -22,7 +22,7 @@
 //              points lie apart, whichever is more: what the page chooses a level by
 //     soles    where the feet meet the ground: the lowest points of the soles, each with the joint that carries it
 import { MARKS, SKIN, TONE } from './table.js';
-import { targetOf } from './target.js';
+import { targetOf, tissueAt } from './target.js';
 import { cageOf, fitted, solidsOf } from './cage.js';
 import { scatterMap, microMap, noise3 } from './maps.js';
 import { refine, limit, triangles } from './subdiv.js';
@@ -36,8 +36,10 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 const smooth01 = (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 
 /** How much of the shape's finer form is laid back on the smooth surface, piece by piece: [the share of the way, the
-    furthest a point is moved (m)]; the head's from `neck` (m) up. */
-export const LIFT = { head: [1, 0.012], hand: [0.9, 0.004], foot: [0.9, 0.004], body: [0.3, 0.006], neck: 1.53 };
+    furthest a point is moved (m)]; the head's from `neck` (m) up; the rest of the body's only where the fat and the
+    skin are thin over a bone (all of it under `thin[0]` m of them, none over `thin[1]`: the collarbone, the kneecap,
+    the shin, the ankle's and the wrist's knobs, the elbow), for under fat the skin lies smooth. */
+export const LIFT = { head: [1, 0.012], hand: [0.9, 0.004], foot: [0.9, 0.004], body: [0.9, 0.006], thin: [0.0025, 0.0055], neck: 1.53 };
 
 export function skinOf(bones, M, { h = 0.006 } = {}) {
   const T = targetOf(bones, M, { h }), { P_, ARMS, RIG } = T;
@@ -56,14 +58,20 @@ export function skinOf(bones, M, { h = 0.006 } = {}) {
   // The cage holds what is a few centimetres across; what is finer than its rings (an eyelid, a nostril, the lips'
   // line, a knuckle) is in the shape still. So each point of the finest level is moved along its normal towards the
   // shape's own surface, as far as LIFT lets its piece (a film's body carries its sculptor's detail the same way: a
-  // displacement over the smooth surface): the head all the way, the hands and the feet nearly, the rest of the body
-  // a part of it (there, much of what the shape holds beyond the smooth surface is the muscles' strands, not form).
+  // displacement over the smooth surface): the head all the way, the hands and the feet nearly; the rest of the body
+  // only where a bone lies just under the skin (elsewhere what the shape holds beyond the smooth surface is the
+  // muscles' strands, and under its fat a body's skin lies smooth).
   {
     const wristY = RIG['hand.L'].at[1] + 0.02;
-    const liftOf = (v, p) => part[v] === P_.head ? { w: smooth01((p[1] - LIFT.neck) / 0.05), r: LIFT.head[1], S: S.body } : ARMS(part[v]) ? (p[1] < wristY ? { w: LIFT.hand[0], r: LIFT.hand[1], S: S.arm } : { w: LIFT.body[0], r: LIFT.body[1], S: p[1] > 1.3 ? S.both : S.arm }) : part[v] === P_.leg && p[1] < 0.12 ? { w: LIFT.foot[0], r: LIFT.foot[1], S: S.body } : { w: LIFT.body[0], r: LIFT.body[1], S: p[1] > 1.3 ? S.both : S.body };
+    const thinAt = (p) => 1 - smooth01((tissueAt([Math.abs(p[0]), p[1], p[2]]) - LIFT.thin[0]) / (LIFT.thin[1] - LIFT.thin[0]));
+    const legOf = (p) => (p[0] >= 0 ? S.leg : (q) => S.leg([-q[0], q[1], q[2]]));
+    const liftOf = (v, p, nrm) => part[v] === P_.head ? { w: smooth01((p[1] - LIFT.neck) / 0.05) * smooth01((nrm[1] + 0.4) / 0.4) * Math.max(smooth01((p[2] - 0.06) / 0.03), smooth01((p[1] - 1.58) / 0.03)), r: LIFT.head[1], S: S.body }   // (not under the chin and the jaw, where the cage's slope stands for their overhang)
+      : ARMS(part[v]) ? (p[1] < wristY ? { w: LIFT.hand[0], r: LIFT.hand[1], S: S.arm } : { w: LIFT.body[0] * thinAt(p), r: LIFT.body[1], S: p[1] > 1.3 ? S.both : S.arm })
+      : part[v] === P_.leg ? (p[1] < 0.12 ? { w: LIFT.foot[0], r: LIFT.foot[1], S: legOf(p) } : { w: LIFT.body[0] * thinAt(p), r: LIFT.body[1], S: legOf(p) })
+      : { w: LIFT.body[0] * thinAt(p), r: LIFT.body[1], S: p[1] > 1.3 ? S.both : S.body };
     const moved = new Float32Array(n);
     for (let v = 0; v < n; v++) {
-      const p = at(v), nrm = [nor[v * 3], nor[v * 3 + 1], nor[v * 3 + 2]], { w, r, S: sol } = liftOf(v, p); if (w <= 0) continue;
+      const p = at(v), nrm = [nor[v * 3], nor[v * 3 + 1], nor[v * 3 + 2]], { w, r, S: sol } = liftOf(v, p, nrm); if (w <= 0.01) continue;
       // (the shape's surface along the normal: outwards if the point is inside it, inwards if outside; none within reach, none taken)
       const f0 = sol(p), dir = f0 < 0 ? 1 : -1; let t0 = 0, t1 = -1;
       for (let t = 0.001; t <= r + 1e-9; t += 0.001) { if ((sol(add(p, mul(nrm, dir * t))) < 0) !== (f0 < 0)) { t1 = t; break; } t0 = t; }

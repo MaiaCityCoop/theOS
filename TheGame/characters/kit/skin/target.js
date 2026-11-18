@@ -19,7 +19,7 @@
 // large bones, its fills, the nose's and the ears' gristle and the eyes give their own true distances, blended in. The
 // skin is where that is as far out as the fat and the skin are thick there, half way to a man's measured outline
 // (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through.
-import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, NIPPLE, FILL, partOf, PROFILES, MASSES, PALM, CARPUS, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE } from './table.js';
+import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, NIPPLE, FILL, partOf, PROFILES, MASSES, PALM, CARPUS, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE, gapAt } from './table.js';
 import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
 
@@ -139,8 +139,12 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
   // section's middle: true enough near it), and how much the outline holds there (0 where it fades into a hand, a foot,
   // the head; past a closed end it rounds over as a dome)
   const cr = (p0, p1, p2, p3, t) => 0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t);
+  // (a section's outward side is the left side's outward, +x, whichever way its piece runs: taken as it came from the
+  // axis and the front, it pointed inwards for every piece that runs downwards, an arm, a thigh, a leg, and their
+  // outward and inward half-breadths and their relief's sides were each other's: the thighs met at the middle, the
+  // deltoid's round lay in the armpit)
   const profileOf = (e) => {
-    const u = norm(sub(e.b, e.a)), L = len(sub(e.b, e.a)), f0 = norm(sub(e.front, mul(u, dot(e.front, u)))), sd = cross(u, f0), S = e.sections.map((k) => k.map((v, i) => (i === 5 ? v : v / 100))), n = S.length;
+    const u = norm(sub(e.b, e.a)), L = len(sub(e.b, e.a)), f0 = norm(sub(e.front, mul(u, dot(e.front, u)))), s0 = cross(u, f0), sd = s0[0] < 0 ? mul(s0, -1) : s0, S = e.sections.map((k) => k.map((v, i) => (i === 5 ? v : v / 100))), n = S.length;
     const at = (t) => { const x = Math.min(n - 1, Math.max(0, t * (n - 1))), i = Math.min(n - 2, Math.floor(x)), f = x - i; return S[0].map((_, c) => cr(S[Math.max(0, i - 1)][c], S[i][c], S[i + 1][c], S[Math.min(n - 1, i + 2)][c], f)); };
     return (q) => {
       const t = dot(sub(q, e.a), u) / L, tc = Math.min(1, Math.max(0, t)), [cz, ao, ai, bf, bb, ex] = at(tc), along = (t - tc) * L;
@@ -265,12 +269,14 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
         const q2 = at(i, j, k), qq = [Math.abs(X(i)), Y(j), Z(k)];
         v = far[q2] + 0.12 * smooth01((qq[2] - 0.07) / 0.03) * (whole[q2] - far[q2]) - tissue[g];
         // (the neck no fuller than a man's measured outline: from its muscles alone it came out 50 cm round, a man's is 39)
-        if (qq[1] < 1.6) { const o = profilesOf[P_.trunk][0](qq); if (o.w > 0) v += o.w * (Math.max(v, o.E) - v); }
+        // (its nape too, up to the skull's base: behind the ears only, the jaw and the face are the head's own)
+        if (qq[1] < 1.68) { const o = profilesOf[P_.trunk][0](qq), k = o.w * (qq[1] < 1.58 ? 1 : smooth01((-qq[2] - 0.01) / 0.04)); if (k > 0) v += k * (-smin(-v, -o.E, 0.02) - v); }
         headBase[g] = v; v = features(v, qq, tissue[g]);
       }
       // (each leg on its own side of the middle: where the knees or the thighs touch, standing, the skin goes round
       // each, and does not bridge them to be torn as they part)
-      if (p === P_.leg) v = Math.max(v, 0.003 - Math.abs(X(i)), 0.0005 - Y(j));   // (and its sole flat on the ground, as a sole stood on is)
+      // (and its inner side as far from the middle as a standing man's is, ./table.js LEG_GAP, rounded: the thighs part below the crotch)
+      if (p === P_.leg) v = Math.max(-smin(-v, Math.abs(X(i)) - gapAt(Y(j)), 0.02), 0.003 - Math.abs(X(i)), 0.0005 - Y(j));   // (and its sole flat on the ground, as a sole stood on is)
       // (where the piece has an outline: the skin on it, with the muscles' relief laid on as much as the fat there lets
       // it through (all of it under 3 mm of fat, a third under 9: a slightly muscular man's muscles show), and never
       // under a bone near the skin: the collarbone, the elbow, the knee, the shin, the crest of the pelvis stand out of
@@ -294,7 +300,7 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
           if (exactPart[g] === p) { const sh = p === P_.trunk && Y(j) > 1.4 && Math.abs(X(i)) > 0.13, cap = sh ? 0.008 : 0.0025; s2 = smin(s2, (sh ? exactSoft[g] : exact[g]) - Math.max(cap, 0.4 * tissue[g]), 0.02); }   // (the acromion and the collarbone's end under the deltoid's tendon and the trapezius: 13 mm under the skin, deeper than other bones near it; held 7 mm under, they stood as knobs)
           v = v + w * OUTLINE * (s2 - v);
           // (the neck no fuller than the outline: from the trapezius's strands alone its nape stood as far back as the skull's and it measured 50 cm round, a man's 39)
-          if (p === P_.trunk && Y(j) > 1.49) v += w * smooth01((Y(j) - 1.49) / 0.03) * (Math.max(v, E) - v);
+          if (p === P_.trunk && Y(j) > 1.47) v += w * smooth01((Y(j) - 1.47) / 0.05) * (-smin(-v, -E, 0.02) - v);   // (softly: held hard it left a line where the hold began)
         }
       }
       const fl = ARMS(p) ? fieldA : field, fp = ARMS(p) ? fieldPartA : fieldPart;

@@ -146,30 +146,31 @@ export const partOf = (rig) => {   // (the head a piece of its own: its face is 
 // How much of the skin's shape the outline gives (0 … 1), the rest from the muscles under it in their fascia, the
 // tissue's depth over them (./build.js). The outline was all of it; built from the muscles alone, fitted to an anatomical
 // figure from the front, the back and the side, the trunk shows its own pectorals, belly and back, but the buttocks and
-// the arms come out as boxes and ropes: the outline is how the fat rounds them, and half of it rounds them as a slightly
-// muscular man's are.
-export const OUTLINE = 0.5;
+// the arms come out as boxes and ropes: the outline is how the fat rounds them. At a half of it the skin still showed the
+// strands' ropes and gaps as bumps a few centimetres across (intent 0039: seen under a raking light, glossy); at four
+// fifths it lies smooth, as skin over fat does, and what a slightly muscular man shows is the relief's to draw (RELIEF).
+export const OUTLINE = 0.8;
 export const PROFILE_SOURCE = 'Gordon et al. 2014, "2012 Anthropometric Survey of U.S. Army Personnel" (ANSUR II), NATICK/TR-15/007: men\'s circumferences, breadths and depths, as remembered, scaled to 1.80 m and to a slightly muscular build; the outline fitted, front, back and side, to the living model of Richer, Anatomie artistique (1890), vol. 2, plates 74 to 76 ("Topographie morphologique"), drawn at the same scale beside it (public domain, Wikimedia Commons)';
 export const PROFILES = [
-  { part: 'trunk', a: [0, 0.84, 0], b: [0, 1.6, 0], front: [0, 0, 1], fade: [0, 1], sections: [   // every 4 cm from 0.84 m up
+  { part: 'trunk', a: [0, 0.84, 0], b: [0, 1.68, 0], front: [0, 0, 1], fade: [0, 1], sections: [   // every 4 cm from 0.84 m up, to the skull's base
     [-3.0, 9.0, 9.0, 6.0, 7.0, 2.0], [-2.5, 14.6, 14.6, 8.5, 8.0, 2.2], [-1.8, 17.0, 17.0, 10.0, 9.0, 2.4], [-1.5, 16.2, 16.2, 10.2, 10.0, 2.3],
     [-1.0, 14.8, 14.8, 10.4, 11.2, 2.2], [-0.5, 13.9, 13.9, 10.5, 9.6, 2.1], [0.0, 13.7, 13.7, 10.5, 9.5, 2.1], [0.0, 14.2, 14.2, 10.6, 9.8, 2.2],
     [-0.3, 15.4, 15.4, 10.9, 10.6, 2.2], [-0.8, 16.3, 16.3, 11.4, 11.2, 2.4], [-1.3, 16.8, 16.8, 11.6, 11.8, 2.5], [-1.8, 16.9, 16.9, 11.6, 12.8, 2.6],
     [-2.3, 16.6, 16.6, 11.4, 13.6, 2.8], [-2.8, 16.8, 16.8, 11.2, 14.0, 2.8], [-3.3, 17.6, 17.6, 11.5, 13.6, 2.6], [-3.8, 19.6, 19.6, 9.8, 12.0, 2.3],
-    [-4.0, 17.5, 17.5, 7.4, 9.2, 2.2], [-3.3, 8.8, 8.8, 6.0, 6.8, 2.0], [-2.7, 6.3, 6.3, 5.8, 6.4, 2.0], [-2.3, 6.0, 6.0, 5.6, 6.0, 2.0]] },   // (the neck 39 cm round under the jaw: it measured 50, its nape as far back as the skull's)
+    [-4.0, 17.5, 17.5, 7.4, 9.2, 2.2], [-3.4, 10.8, 10.8, 5.8, 7.0, 2.0], [-2.7, 6.2, 6.2, 5.5, 6.0, 2.0], [-2.3, 5.9, 5.9, 5.5, 5.9, 2.0], [-2.2, 7.4, 7.4, 9.0, 6.4, 2.0], [-2.0, 7.9, 7.9, 10.5, 8.0, 2.0]] },   // (the neck 39 cm round under the jaw: it measured 50, its nape as far back as the skull's)
   { part: 'arm', name: 'upper arm', a: [0.186, 1.425, -0.042], b: [0.2, 1.13, -0.056], front: [0, 0, 1], fade: [0, 0], limb: 'arm', joins: [0, 1], sections: [
-    [0.0, 6.3, 3.6, 5.6, 5.4, 2.1], [0.0, 6.6, 4.5, 6.0, 5.9, 2.1], [0.0, 5.6, 4.3, 5.2, 5.4, 2.1], [0.0, 4.4, 4.2, 5.1, 5.2, 2.1], [0.0, 4.3, 4.2, 5.4, 4.9, 2.1], [0.0, 4.2, 4.0, 5.2, 4.5, 2.1], [0.0, 4.0, 3.7, 4.6, 4.2, 2.1], [0.0, 3.8, 3.5, 4.0, 4.0, 2.1]] },
+    [0.0, 5.9, 3.6, 5.4, 5.3, 2.1], [0.0, 6.2, 4.5, 5.9, 5.8, 2.1], [0.0, 5.4, 4.3, 5.1, 5.3, 2.1], [0.0, 4.4, 4.2, 5.1, 5.2, 2.1], [0.0, 4.3, 4.2, 5.4, 4.9, 2.1], [0.0, 4.2, 4.0, 5.2, 4.5, 2.1], [0.0, 4.0, 3.7, 4.6, 4.2, 2.1], [0.0, 3.8, 3.5, 4.0, 4.0, 2.1]] },
   { part: 'arm', name: 'forearm', a: [0.2, 1.13, -0.056], b: [0.228, 0.845, -0.02], front: [0, 0, 1], fade: [0, 0], limb: 'arm', joins: [1, 0], sections: [
     [0.0, 4.2, 3.7, 4.3, 4.3, 2.1], [0.0, 4.4, 4.0, 4.6, 4.2, 2.1], [0.0, 4.2, 3.9, 4.5, 4.0, 2.1], [0.0, 3.9, 3.6, 4.2, 3.7, 2.1], [0.0, 3.4, 3.1, 3.6, 3.2, 2.1], [0.0, 2.8, 2.5, 3.2, 2.9, 2.1], [0.0, 2.2, 2.0, 2.9, 2.7, 2.1], [0.0, 1.8, 1.7, 2.8, 2.6, 2.1], [0.0, 1.6, 1.4, 2.7, 2.5, 2.1]] },
   { part: 'leg', name: 'thigh', a: [0.088, 0.9, 0.0], b: [0.085, 0.5, 0.006], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [0, 1], sections: [   // the thigh, from the hip to the knee
     [0.0, 9.0, 8.0, 8.5, 9.5, 2.2], [0.0, 9.3, 8.2, 9.0, 9.6, 2.2], [0.0, 8.9, 7.3, 9.6, 8.8, 2.2], [0.0, 8.1, 6.6, 9.2, 7.8, 2.2], [0.0, 6.5, 5.4, 8.2, 6.4, 2.2], [0.0, 4.9, 5.0, 6.0, 5.3, 2.1]] },
   { part: 'leg', name: 'leg', a: [0.085, 0.5, 0.006], b: [0.077, 0.04, -0.02], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [1, 0], sections: [   // the leg, from the knee down through the ankle
     [0.0, 4.9, 5.0, 5.8, 5.4, 2.1], [0.0, 5.6, 6.6, 4.5, 7.8, 2.1], [0.0, 4.9, 6.0, 3.9, 7.5, 2.1], [0.0, 3.3, 3.5, 3.2, 4.4, 2.1], [0.0, 2.8, 2.9, 3.0, 3.4, 2.1], [0.0, 3.3, 3.5, 3.5, 3.9, 2.1]] },
-  // the foot, from the back of the heel to the ball, its front the instep (up); its first half-breadth is the inner
-  // side's, the second the outer's: 27 cm long, 10 across the ball, 6.5 across the heel, its instep 7 high (Hawes &
+  // the foot, from the back of the heel to the ball, its front the instep (up); its first half-breadth is the outer
+  // side's, the second the inner's, as every piece's: 27 cm long, 10 across the ball, 6.5 across the heel, its instep 7 high (Hawes &
   // Sovak 1994, as remembered)
   { part: 'leg', a: [0.078, 0.03, -0.085], b: [0.09, 0.025, 0.135], front: [0, 1, 0], fade: [0, 0], k: 0.02, sections: [
-    [0.0, 2.6, 2.6, 3.0, 3.0, 2.0], [0.0, 3.0, 3.2, 5.5, 3.0, 2.2], [0.0, 3.2, 3.3, 6.0, 2.7, 2.4], [0.0, 3.4, 3.6, 4.8, 2.3, 2.6], [0.0, 4.0, 4.3, 3.4, 2.2, 2.8], [0.0, 4.6, 4.7, 2.3, 2.3, 2.6]] },
+    [0.0, 2.6, 2.6, 3.0, 3.0, 2.0], [0.0, 3.2, 3.0, 5.5, 3.0, 2.2], [0.0, 3.3, 3.2, 6.0, 2.7, 2.4], [0.0, 3.6, 3.4, 4.8, 2.3, 2.6], [0.0, 4.3, 4.0, 3.4, 2.2, 2.8], [0.0, 4.7, 4.6, 2.3, 2.3, 2.6]] },
 ];
 // Masses the outline holds besides its sections: each buttock (the gluteus maximus under its pad of fat, its fold at
 // 0.80 m, the cleft between the two), a superellipsoid round its middle (left side; m): [out, in, up, down, front,
@@ -302,3 +303,11 @@ export const TONE = {
   oil: [['forehead', [0, 1.72, 0.1], 0.04, 1], ['nose', [0, 1.64, 0.115], 0.025, 1], ['chin', [0, 1.585, 0.1], 0.025, 0.6], ['chest', [0, 1.38, 0.1], 0.1, 0.3], ['shoulders', [0.17, 1.45, -0.03], 0.07, 0.3]],
   veins: [['forearm, inside', [0.205, 1.0, 0.0], 0.09, 1], ['back of the hand', [0.24, 0.82, -0.02], 0.05, 1], ['top of the foot', [0.085, 0.06, 0.07], 0.06, 1]],
 };
+
+// How far each leg's inner side stays from the body's middle plane, by height (m: [height, half the gap]): a man
+// standing with his feet under his hips has his thighs close together just under the crotch, then a gap that
+// opens to about five centimetres between the knees (his knees stand 17 cm apart here, a knee 11 cm broad); below
+// them the calves' own shape rules. From the muscles alone the inner thighs filled the gap to the knees, and the two
+// legs read as one.
+export const LEG_GAP = [[0.82, 0.003], [0.78, 0.006], [0.72, 0.011], [0.64, 0.018], [0.56, 0.024], [0.5, 0.027], [0.44, 0.016], [0.36, 0.01], [0, 0.01]];
+export const gapAt = (y) => { const G = LEG_GAP; if (y >= G[0][0]) return G[0][1]; for (let i = 0; i < G.length - 1; i++) if (y >= G[i + 1][0]) return G[i + 1][1] + ((G[i][1] - G[i + 1][1]) * (y - G[i + 1][0])) / (G[i][0] - G[i + 1][0]); return G.at(-1)[1]; };
