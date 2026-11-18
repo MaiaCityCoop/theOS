@@ -1,15 +1,14 @@
 // The library's words, kept short (intent 0044): `bun tools/words.js` reads what the library's card shows of every
 // recipe (its `about`, a biome's `laid`, a material's `usedBy`) and of every variant a character kit offers (a move,
 // a layer, an expression: each `about` written in characters/kit/*.js), and fails (exit 1) where one is longer than
-// its measure below. The card is narrow (brand.css --side-w): a description is one or two of its lines, a variant's
-// words one. `--json` prints the numbers instead of the table.
+// its measure (src/library/budget.js). The card is narrow (brand.css --side-w): a description is two or three of its
+// lines, a variant's words one. `--json` prints the numbers instead of the table.
 import './glob.js';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-export const MOST = { about: 80, laid: 40, usedBy: 40, variant: 40 };   // letters
-
 const { recipes } = await import('../src/core/registry.js');   // (first, as the game does: the recipes import it back)
+const { WORDS: MOST } = await import('../src/library/budget.js');   // (how long each may be: the library's own requirement)
 const ROOT = resolve(import.meta.dirname, '..'), lines = [];
 for (const type of ['asset', 'biome', 'character', 'material']) for (const r of recipes(type)) {
   lines.push({ kind: `${type}: about`, of: r.name, text: r.about ?? '', most: MOST.about, must: true });

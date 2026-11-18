@@ -36,6 +36,7 @@
 import { kindRule, shapesOf, most, baseOf } from '../kinds.js';
 import { held, sn, q16, oct, OCT } from './pack.js';
 import { crowd, levelOf, CROWD, RULE } from './crowd.js';
+import { goneAt, rungAt, rungPx } from '../../src/detail/error.js';
 
 export const GRID = { xz: 40, y0: -2, y1: 78 }, UVK = 1024, UV0 = 16, GOQ = 2048;   // x and z over -40 … 40 m, y over -2 … 78 m, 16 bits each (1.2 mm); uv in 1024ths, from -16
 /** A number as a half float's 16 bits (round to nearest; what the GPU's unpackHalf2x16 reads back). */
@@ -89,8 +90,10 @@ export function packPlant(m) {
     crowd kit: crowdAt), and after them, where it has one, its shade (what the shadow map is drawn from). The engine
     that places plants (src/scatter/trees.js) finds it by the asset's uid. */
 export const plantFamily = (id, asset) => ({
-  id, placed: 'trees', asset: asset.uid, count: asset.shapeCount, levels: asset.levelCount + (asset.shadeRaw ? 1 : 0),
-  meshOf: (i, l) => packPlant(l < asset.levelCount ? crowdAt(asset, i, l) : asset.shadeRaw(i)),
+  id, placed: 'trees', asset: asset.uid, count: asset.shapeCount, get levels() { return asset.levelCount + (asset.shadeRaw ? 1 : 0); },
+  // (room.band: the sizes on screen the level is drawn between, as its stand's drawer cut its levels: src/scatter/trees.js;
+  // 'shade', its shade: what the shadow map is drawn from, none for a plant without one)
+  meshOf: (i, l, room = null) => { const b = room?.band; return packPlant(b === 'shade' || (!b && l >= asset.levelCount) ? (asset.shadeRaw ? asset.shadeRaw(i) : NONE) : crowdAt(asset, i, l, b ?? null)); },
   // what of a shape is solid, and its box (src/world/bodies.js), in metres of its own frame at scale 1: its kind's rule
   // (assets/kinds.js: a tree its trunk, a shrub its leaves) made from what the tree kit measured of it (its height, its
   // trunk where a walker meets it) and its asset's footprint at that height
@@ -103,15 +106,25 @@ export const baseShare = (asset, i) => { const d = dimsOf(asset, i); return base
 const dimsOf = (asset, i) => { const H = most(asset.size.height), h = asset.heights?.[i] ?? H, k = h / H; return { height: h, length: most(asset.size.length) * k, width: most(asset.size.width ?? asset.size.length) * k, trunk: asset.trunk?.[i] ?? null }; };
 
 // ---- the plants' levels by the crowd kit (intent 0033): one build of a shape's finest, every level a first share of
-// it (assets/kit/crowd.js) ----
-/** The sizes on screen each level of a plant is drawn between, finest first: [lo, hi] (its file's px, else its kind's). */
-export const bandsOf = (a) => { const px = kindRule(a, 'px'), lo = a.detail.levels.map((L, i) => L.px ?? px[Math.min(i, px.length - 1)]); return lo.map((x, i) => [x, i ? lo[i - 1] : Infinity]); };
+// it (assets/kit/crowd.js), holding all that its sizes ask for; what is drawn of it is the crowd kit's rule ----
+/** How deep a plant's foot is set into the ground (src/scatter/trees.js stands it so). */
+export const FOOT = 0.15;
+/** Whether a plant has a far end (its impostor, after its clumps where the crowd kit finds them): its own, else its kind's. */
+export const hasFar = (a) => !!(a.far ?? kindRule(a, 'far'));
+/** Where a plant is gone (src/detail/error.js goneAt): the land under it wears its stand's colour or its floor, so leaving
+    it out differs by how far it stands over the ground, of its size on screen's measure, the most of its shapes'. */
+const goneOf = (a) => {
+  let e = 0; for (let i = 0; i < (a.shapeCount ?? 1); i++) e = Math.max(e, Math.max(0, (a.heights?.[i] ?? most(a.size.height)) - FOOT) / shapeSize(a, i));
+  return goneAt(e || 1);
+};
+/** The sizes on screen each level of a plant is drawn between, finest first: [lo, hi]: everything's (rungPx), down to the
+    one its end falls in, the last to its end. A stand cuts its kinds' as one (src/scatter/trees.js groupsOf). */
+export const bandsOf = (a) => { const g = goneOf(a), last = rungAt(g); return Array.from({ length: last + 1 }, (_, l) => [l === last ? g : rungPx(l), l ? rungPx(l - 1) : Infinity]); };
 /** How large shape `shape` of a plant is at scale 1, as its size on screen is measured (src/scatter/trees.js sizeAtOne). */
 export const shapeSize = (a, shape) => { const H = a.size.height, S = a.growth?.stages?.find((x) => shape >= x.offset && shape < x.offset + x.variants); return (S ? a.heights?.[shape] ?? S.h : H) * (kindRule(a, 'measure') === 'height' ? 1 : Math.max(most(a.size.length), most(a.size.width ?? 0), most(H)) / H); };
-/** The size each stand that changes level as one measures its plants by (its biome's `size`: the shrubs' 3.5 m), by
-    plant asset's uid: what the biomes say, read on the page (src/scatter/trees.js) and told to the recipes' workers,
-    which read no biome (the plants' make: src/scatter/drawer.js `tell`). */
 const BUILT = new Map();   // (the last few shapes built: a kind's levels are asked for one after another)
+// (the shade of a plant that has none, where its stand's drawer asks every kind for one: nothing)
+const NONE = { position: [], normal: [], uv: [], cn: [], root: [], part: [], ao: [], index: [] };
 /** A place along one axis as the GPU reads it back from the heap (the grid a vertex is packed on, above): where a
     chunk's parts are found by their tips (crowd.js clumpsOf), the same on both sides of the GPU. */
 const SX = (2 * GRID.xz) / 65535, SY = (GRID.y1 - GRID.y0) / 65535;
@@ -120,8 +133,9 @@ const onGrid = (v, axis) => (axis === 1 ? gy(v) * SY + GRID.y0 : gx(v) * SX - GR
     splay): its crowd, its clumps and its impostor's frame. */
 export const crowdOf = (a, i) => {
   const key = `${a.uid}:${a.placement?.seed}:${i}`; let S = BUILT.get(key);
-  if (!S) { if (BUILT.size >= 4) BUILT.delete(BUILT.keys().next().value); BUILT.set(key, (S = crowd(a.finest(i), { size: shapeSize(a, i), grid: onGrid }))); }
+  if (!S) { if (BUILT.size >= 4) BUILT.delete(BUILT.keys().next().value); BUILT.set(key, (S = crowd(a.finest(i), { size: shapeSize(a, i), grid: onGrid, far: hasFar(a) }))); }
   return S;
 };
-/** Level l of shape i: what it is drawn with between its sizes on screen (its first level: every size above its own). */
-export const crowdAt = (a, i, l) => { const [lo, hi] = bandsOf(a)[l]; return levelOf(crowdOf(a, i), lo, l === 0 ? Infinity : hi); };
+/** Level l of shape i: what it is drawn with between its sizes on screen (its first level: every size above its own).
+    band: [lo, hi] as its stand's drawer cut it (none: its own, bandsOf). */
+export const crowdAt = (a, i, l, band = null) => { const [lo, hi] = band ?? bandsOf(a)[l]; return levelOf(crowdOf(a, i), lo, band ? hi : l === 0 ? Infinity : hi); };

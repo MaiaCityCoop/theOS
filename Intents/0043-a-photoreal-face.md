@@ -324,6 +324,46 @@ Proposed on 2026-11-18. Story: [`Stories/0043-a-photoreal-face/`](../Stories/004
   branch, the Body's skin code with it, which is a longer piece of work and asks how a sculpted form's numbers are
   to be held under the rule against hand-set numbers.
 
+### 2026-11-18, the two figures to `main` on a branch of their own
+
+- **Asked.** Samuel, shown that the whole branch fails `main`'s code gates (most of it the Body's skin, face and ear:
+  intents 0041 and 0042): the figures only, now. A small branch from `main` with the Man, the Woman and the compact
+  cards (intent 0044), made to pass the gates, merged once CI is green. He gave leave for the one extra branch, and
+  for merging without the GPU machine's train.
+- **Delivered.** `claude/0043-figures-and-cards`, from `main`: the two figures' files, their kit and recipes, the
+  tools, the library's card, the short words; nothing of intents 0041 and 0042, which stay on their branch. The kit
+  written anew to hold the gates, and what that changed:
+  - **It reads its own pictures.** The file is handed to three's reader without its pictures, and the kit decodes
+    them itself; where nothing decodes a picture (the scale check under bun) the figure stands without them. One path,
+    where there were two behind a switch.
+  - **The arms' hang is worked out, not set**: each arm is turned from where it lies in the file to straight down
+    (it was 86° by hand), and the collar bone takes a third of that, the shoulder girdle's own share of an arm's raise
+    (`src/world/physics.js` `SHOULDER_RHYTHM`: Inman, Saunders & Abbott 1944). The shoulders stand rounder for it.
+  - **The fingers are left as they came** (they were bent a little at ease, by a number set by hand).
+  - **The two recipes are made by one maker** (`figure`), and are measured against the statures of men and women
+    (`physics.js` `STATURE`, ANSUR II; the standard deviations as remembered, said so there): typical from the first
+    to the last of a hundred. Man 1.815 m of 1.596 to 1.916; Woman 1.738 m of 1.48 to 1.778.
+  - Its step is five small parts (the pose, the walk, the ground, the eyes, the face) where it was one.
+- **Seen again on the new kit:** all 28 stills (every move and expression of both); both figures through WebGPU,
+  read back; the library's card clicked on the Woman, the Body and the Settler.
+- **The checks `main`'s CI runs, here:** lint, the smoke gate, the artifacts' check, the sign-in checks, the scale
+  check (26 of 26), both sites built; and the code gates against `main`:
+
+  | Gate | Here | Base | Change |
+  | --- | --- | --- | --- |
+  | Copies | 0.81 % of lines in clones, 10 clones | 0.87 %, 10 clones | ±0 lines, 0 new clones |
+  | Spaghetti | most 87, mean 2.45 over 1751 functions | most 87, mean 2.49 over 1613 | mean −0.03; no touched function over 20 and more complex than before |
+  | Dead code | 0 files, 46 exports | 0 files, 46 exports | none new |
+  | Cycles | 0 | 0 | none new |
+  | Size | 6636 lines of code in 114 files | 6258 in 107 | +378: the figure kit, two recipes, two tools and a tool's page |
+  | Settings | 7 mode branches, 166 hand-set, 4 physical, 1 required | 7, 166, 2 physical, 0 required | ±0 mode branches, ±0 hand-set, +2 physical, +1 required |
+  | Dependencies | 11 direct | 11 direct | none new |
+
+  "Nothing is worse than at the base."
+- **Not there.** This intent was defined before `main` asked every intent for an architecture pass and a 10 % gate:
+  it has neither. No measure of rendering, start or memory was taken: nothing in the world draws these figures yet,
+  and there is no GPU here. The API's tests were not run here (no database). The library's stage is still unseen.
+
 ## Trail
 
 | When | Commit | What |
@@ -341,6 +381,10 @@ Proposed on 2026-11-18. Story: [`Stories/0043-a-photoreal-face/`](../Stories/004
 | 2026-11-18 | 410041d | this branch's intents renumbered 0041 to 0044 |
 | 2026-11-18 | ea30cf4 | main merged into the branch (250 commits), four conflicts resolved |
 | 2026-11-18 | 02fbbe2 | the six recipes main added said short; what the code gates found |
+| 2026-11-18 | d3632ea | on `claude/0043-figures-and-cards`, for `main`: the two figures, their kit written anew to hold the code gates |
+
+The rows above that one are commits of the branch this intent was made on (`claude/human-rig-photorealism-upgrade-sp1om2`);
+they are not on `main` until that branch is.
 
 On its branch this intent was numbered 0041, and its commits' messages say `Intent: 0041`. It was given 0043 on 2026-11-18,
 when the branch was brought to `main`, where 0041 had meanwhile been taken by another intent.

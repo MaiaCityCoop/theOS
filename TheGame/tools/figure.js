@@ -15,19 +15,19 @@ import { createHash } from 'node:crypto';
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i < 0 ? d : process.argv[i + 1] ?? true; };
 
 /** What a figure's file holds, read from its glTF's own description (no decoding: counts are written there). */
-export function contentsOf(file) {
+function contentsOf(file) {
   const buf = readFileSync(file), n = buf.readUInt32LE(12), J = JSON.parse(buf.subarray(20, 20 + n).toString('utf8')), acc = J.accessors ?? [];
   const meshes = (J.meshes ?? []).map((m) => ({ name: m.name, points: m.primitives.reduce((t, p) => t + acc[p.attributes.POSITION].count, 0), triangles: m.primitives.reduce((t, p) => t + (p.indices != null ? acc[p.indices].count : acc[p.attributes.POSITION].count) / 3, 0), shapes: m.primitives[0].targets?.length ?? 0 }));
   return { bytes: buf.length, sha256: createHash('sha256').update(buf).digest('hex'), meshes, points: meshes.reduce((t, m) => t + m.points, 0), triangles: meshes.reduce((t, m) => t + m.triangles, 0),
     shapes: Math.max(0, ...meshes.map((m) => m.shapes)), bones: Math.max(0, ...(J.skins ?? []).map((s) => s.joints.length)), pictures: (J.images ?? []).map((i) => `${i.name} (${Math.round(J.bufferViews[i.bufferView].byteLength / 1024)} kB)`), needs: J.extensionsRequired ?? [] };
 }
 
-/** The stills of a figure: its moves (standing from the front and from behind, two strides of its walk from the side, its wave, its cheer, the pose it came in with its skeleton drawn), and each expression close (the address of tools/figure.html each). `eyes`: how high its eyes are (m). */
-export const VIEWS = (who, eyes) => ({
+/** The stills of a figure: its moves (standing from the front and from behind, two strides of its walk from the side, its wave, its cheer, the pose it came in with its skeleton drawn), and each expression close (the address of tools/figure.html each). */
+const VIEWS = (who) => ({
   'standing': `who=${who}&d=4.6&y=0.95&yaw=-15&t=4.5`, 'standing, from behind': `who=${who}&d=4.6&y=0.95&yaw=165&t=4.5`,
   'walking, a stride': `who=${who}&move=walk&d=4.8&y=0.95&yaw=-80&t=2.0`, 'walking, the next': `who=${who}&move=walk&d=4.8&y=0.95&yaw=-80&t=2.54`,
   'waving': `who=${who}&move=wave&d=4.6&y=0.95&yaw=-15&t=2.2&turned`, 'cheering': `who=${who}&move=cheer&d=4.6&y=1.05&yaw=-15&t=2.17`, 'as it came, its skeleton': `who=${who}&move=came&d=4.6&y=0.95&yaw=-15&t=2&bones`,
-  ...Object.fromEntries(['rest', 'smile', 'laugh', 'surprise', 'sad', 'closed', 'speak'].map((f) => [`face, ${f}`, `who=${who}&face=${f}&d=0.62&y=${eyes}&yaw=-12&z=0.03&t=4.5&sun=30&suna=30`])),
+  ...Object.fromEntries(['rest', 'smile', 'laugh', 'surprise', 'sad', 'closed', 'speak'].map((f) => [`face, ${f}`, `who=${who}&face=${f}&head&d=0.62&yaw=-12&z=0.03&t=4.5&sun=30&suna=30`])),
 });
 
 const { recipes: every, manifest } = await import('../src/core/registry.js');   // (first, as the game does: the recipes import it back)
@@ -61,7 +61,7 @@ if (stills && stills !== true) {
   if (!(await fetch(base + 'tools/figure.html').then((r) => r.ok, () => false))) { console.error(`no stills: the game's dev server does not answer at ${base} (bun run game)`); process.exit(1); }
   const { chromium } = await import('playwright-core'), path = arg('chrome'), browser = await chromium.launch(path && path !== true ? { executablePath: String(path), args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } : { channel: 'chrome' });
   let taken = 0;
-  for (const { who, r } of recipes) for (const [name, view] of Object.entries(VIEWS(who, (r.height * 0.938).toFixed(3)))) {
+  for (const { who, r } of recipes) for (const [name, view] of Object.entries(VIEWS(who))) {
     const page = await browser.newPage({ viewport: name.startsWith('face') ? { width: 560, height: 680 } : { width: 560, height: 800 } }), said = [];
     page.on('pageerror', (e) => said.push(String(e).slice(0, 200)));
     await page.goto(`${base}tools/figure.html?${view}${arg('with') && arg('with') !== true ? '&' + arg('with') : ''}`); await page.waitForFunction(() => window.__drawn, null, { timeout: 240000 }).catch(() => said.push('not drawn in four minutes'));

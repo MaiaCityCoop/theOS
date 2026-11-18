@@ -6,12 +6,14 @@
 //   ['skin', k, size]          its own texture, `size` pixels a side
 //   ['bones', k0, n]           the skeletons of kinds k0 … k0 + n, end to end (three rows of four a bone; none: all nought)
 //   ['rooms']                  how much room each herd's movers take as they move (the zoo's herdRooms)
-//   ['own', k0, n, [[l, idx, elems, D?], …]]   levels every kind has its own of, of kinds k0 … k0 + n (or k0 a list
+//   ['own', k0, n, [[l, idx, elems, D?, band?], …]]   levels every kind has its own of, of kinds k0 … k0 + n (or k0 a list
 //                              of kinds, where a drawer's are not one after another), each level as one block as the
 //                              heap takes it (src/scatter/heap.js: putBlock): { corners, verts, counts } (counts: a
 //                              mesh's corners, or what its family says it counts by: a plant's vertices); and where a
 //                              level says its delta D (solids), or its family measures its meshes (the plants'), each
-//                              kind's box at it: boxes, six numbers a kind
+//                              kind's box at it: boxes, six numbers a kind; band: the sizes on screen a level of plants is
+//                              drawn between, as its stand cut it ('shade': its shade), handed to its family
+//                              (assets/kit/plant.js plantFamily)
 import { meshOf, skinOf, bonesOf, herdRooms } from '../../assets/zoo/index.js';
 import { BONES } from '../../assets/kit/solid.js';
 import { useBuilder } from '../../assets/kit/surface.js';
@@ -45,8 +47,8 @@ self.onmessage = async ({ data: { id, jobs } }) => {
       const [, k0, n, levels] = j, kindOf = (i) => (Array.isArray(k0) ? k0[i] : k0 + i);
       const blocks = levels.map(([l, idx, elems, D]) => ({ l, corners: new Uint32Array(n * idx), verts: new Uint32Array(n * elems * 4), counts: new Uint32Array(n), draws: new Uint32Array(n), ...(D != null ? { boxes: new Float32Array(n * 6) } : {}) }));   // (draws: how many corners each mesh has)
       // (a kind at a time, all its levels: a family may make one of its levels from another it has just made)
-      for (let i = 0; i < n; i++) levels.forEach(([l, idx, elems, D], b) => {
-        const m = meshOf(kindOf(i), l, { tris: idx / 3, elems });
+      for (let i = 0; i < n; i++) levels.forEach(([l, idx, elems, D, band], b) => {
+        const m = meshOf(kindOf(i), l, { tris: idx / 3, elems, band });
         if (m.index.length > idx || m.verts.length > elems * 4) throw new Error(`recipes: kind ${kindOf(i)} level ${l} is larger than its place (${m.index.length} corners of ${idx}, ${m.verts.length / 4} elements of ${elems})`);
         blocks[b].corners.set(m.index, i * idx); blocks[b].verts.set(m.verts, i * elems * 4); blocks[b].counts[i] = m.count ?? m.index.length; blocks[b].draws[i] = m.index.length;
         if (D != null) { if (m.box) blocks[b].boxes.set(m.box, i * 6); else solidBox(m.verts, D, blocks[b].boxes, i * 6); }

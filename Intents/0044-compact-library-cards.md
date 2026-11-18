@@ -135,12 +135,26 @@ Proposed on 2026-11-18. Story: [`Stories/0044-compact-library-cards/`](../Storie
 - **Not there.** The stage was not seen (the software GPU); one of eight cards was measured but not pictured; the
   short lines are a first wording, his to change.
 
+### 2026-11-18, to `main` with the two figures
+
+- **Delivered.** Brought to `main` on `claude/0043-figures-and-cards` with intent 0043's figures. `main` had six
+  recipes this intent had not seen (a fern, a herb, a fallen log, a bedded stone, oak and pine litter): said short
+  as the others. The words' measures are the library's requirement now, in a file of their own
+  (`TheGame/src/library/budget.js`), as `main`'s code gates ask of a number set by hand. `main`'s own Body and
+  skeleton kit carry the short words too.
+- **Checked.** `bun tools/words.js`: 115 of 115 lines within their measure, over 60 recipes. The code gates against
+  `main`: nothing worse (their table is in intent 0043's changelog, measured over both intents together).
+
 ## Trail
 
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-18 | 933576c | every recipe and variant said short; the card compact; tools/words.js |
 | 2026-11-18 | e5f566d | proposed: the checks as they were, the story |
+| 2026-11-18 | 8350ac9 | on `claude/0043-figures-and-cards`, for `main`: the short words and the compact card, over main's 60 recipes |
+
+The rows above that one are commits of the branch this intent was made on (`claude/human-rig-photorealism-upgrade-sp1om2`);
+they are not on `main` until that branch is.
 
 On its branch this intent was numbered 0042, and its commits' messages say `Intent: 0042`. It was given 0044 on 2026-11-18,
 when the branch was brought to `main`, where 0042 had meanwhile been taken by another intent.

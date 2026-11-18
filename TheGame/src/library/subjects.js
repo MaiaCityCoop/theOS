@@ -170,6 +170,9 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
     address(`biome=${id}`);
   }
 
+  // what a character wears and what it is made from; one that wears nothing says how it is made, closed until asked for
+  const madeOf = (c) => (c.wears ? `<div class="g-cells g-part">${cell('Wears', `<div class="g-chips">${[c.wears.shirt.material, c.wears.trousers.material, c.wears.hair.material].map(chip).join('')}</div>`, true)}${cell('From', say(`Walker ${c.from.kind}`), true)}</div>` : c.made ? more('Made', c.made) : '');
+
   // ---- a person: standing in the middle of the stage, moving as the card says (a walk goes round it); their skeleton
   // drawn over them if asked. Made once and kept: choosing again or changing the move does not make them again ----
   function character(id, keep) {
@@ -179,7 +182,8 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
       let P = people.get(id); if (!P) { people.set(id, (P = c.make(tex))); P.onGrown = () => { if (person === P) character(id, true); }; }   // (one grown in the page says when a finer surface is on it: its card is drawn again)
       staged = new THREE.Group(); staged.position.set(STAGE.x, heightAt(STAGE.x, STAGE.z), STAGE.z); staged.add(P.object);
       staged.userData.kept = true;   // (kept to be shown again: nothing to free when it goes)
-      person = P; if (q.get('move')) P.setMove(q.get('move')); if (q.get('layer') && P.setLayer) P.setLayer(q.get('layer')); if (q.get('face') && P.setExpression) P.setExpression(q.get('face')); P.step(0);
+      person = P; for (const [ask, set] of [['move', 'setMove'], ['layer', 'setLayer'], ['face', 'setExpression']]) if (q.get(ask)) P[set]?.(q.get(ask));   // (what the address asks of them)
+      P.step(0);
       game.show(staged);
       // the first frame from the front, the person in the middle and facing us; then it circles, as every subject does
       S.H = P.height * 1.25; S.dist = 4.2; S.pitch = 0.2; S.spin = true; S.yaw = P.object.rotation.y; S.person = P;
@@ -191,19 +195,15 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
     mark('char', id);
     // (a character says what it wears and what it is made from; one that wears nothing says how it is made, closed until
     // asked for, gives its own figures, and a note while it is still being grown. Its variants are pills: card.js pick)
-    const mats = c.wears ? [c.wears.shirt.material, c.wears.trousers.material, c.wears.hair.material] : [];
     info.innerHTML = head('Character', c.kind, c.name, c.about)
       + figs([fig(num(P.height), 'm', 'Height'), ...(P.figures ?? [[P.bonesCount, '', 'Bones']]).map((f) => fig(...f)), fig(Math.round(P.faces / 1000), 'k', 'Faces')])
       + (P.note ? `<div class="g-cell g-part">${say(P.note)}</div>` : '')
-      + pick('Moves', 'move', P.moves, P.move)
-      + (P.expressions ? pick('Expressions', 'face', P.expressions, P.expression) : '')
-      + (P.layers ? pick('Layers', 'layer', P.layers, P.layer) : '')
+      + [['Moves', 'move', P.moves, P.move], ['Expressions', 'face', P.expressions, P.expression], ['Layers', 'layer', P.layers, P.layer]].filter((v) => v[2]).map((v) => pick(...v)).join('')
       + `<div class="seed g-part"><span class="g-label">${P.rigLabel ?? 'Skeleton'}</span><b></b><button class="g-btn${showBones ? '' : ' quiet'}" id="bonesT">${showBones ? 'Hide' : 'Show'}</button></div>`
-      + (c.wears ? `<div class="g-cells g-part">${cell('Wears', `<div class="g-chips">${mats.map(chip).join('')}</div>`, true)}${cell('From', say(`Walker ${c.from.kind}`), true)}</div>` : c.made ? more('Made', c.made) : '')
+      + madeOf(c)
       + fileOf(c);
-    document.querySelectorAll('[data-move]').forEach((b) => (b.onclick = () => { P.setMove(b.dataset.move); character(id, true); }));
-    document.querySelectorAll('[data-layer]').forEach((b) => (b.onclick = () => { P.setLayer(b.dataset.layer); character(id, true); }));   // (a body: which of its layers is outermost)
-    document.querySelectorAll('[data-face]').forEach((b) => (b.onclick = () => { P.setExpression(b.dataset.face); character(id, true); }));   // (a figure brought in whole: what its face does, characters/kit/figure.js)
+    // (a pill chooses its variant: a move; a body's outermost layer; what a figure's face does, characters/kit/figure.js)
+    for (const [ask, set] of [['move', 'setMove'], ['layer', 'setLayer'], ['face', 'setExpression']]) document.querySelectorAll(`[data-${ask}]`).forEach((b) => (b.onclick = () => { P[set](b.dataset[ask]); character(id, true); }));
     document.getElementById('bonesT').onclick = () => { showBones = !showBones; character(id, true); };
     address(`character=${id}&move=${P.move}${P.layer ? '&layer=' + P.layer : ''}${P.expression ? '&face=' + P.expression : ''}`);
   }
