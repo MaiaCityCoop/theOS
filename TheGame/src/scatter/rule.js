@@ -39,9 +39,7 @@ import { limitOf } from '../core/gpu.js';
 
 const R0 = 0.69, PER = 1.8, CLUMPS = 55, PATCHES = 90, TOP = 1;   // R0: metres of reach where the classes begin (0.69-2.8 m, 2.8-11 m, ...); PER: a cell's side to its class's middle reach; CLUMPS, PATCHES: a biome's groves and the patches where one kind leads, metres, at the class of a grown tree (TOP), where its biome does not say (its `groves`)
 const SHADE = 0.85;   // how much of the light coming down through a crown its foliage takes where it is deepest, over its middle
-const SUB = 4;   // a growth map texel's light is the mean of SUB x SUB points over it, half a metre apart (gatherOf)
-const AGED = [0.65, 1.3];   // a grown tree's own age, of its stand's (grownIn)
-const EDGE = TEXEL * (0.5 - 0.5 / SUB) * Math.SQRT2;   // how far the farthest of those points lies from the texel's middle
+const AGED = [0.65, 1.3];   // a grown tree's own age, of its stand's (grownIn, grows)
 
 // ---- the spread order (stage 5's): the one number that places and thins ----
 const bayer2 = (x, y) => x.bitXor(y).bitAnd(uint(1)).mul(uint(2)).add(y.bitAnd(uint(1)));
@@ -328,6 +326,11 @@ export function placeIn(c, L, M, pos) {
   return { k, I, rank };
 }
 
+/** A layer's light over a texel (gatherOf): the mean of SUB x SUB points over it, two across its smallest crown (Nyquist's:
+    a crown's edge is not lost between them; crownMost: a crown's half width), and how far the farthest of them lies from
+    the texel's middle (edge); its crowned entries. */
+const lightOf = (L) => { const crowns = L.entries.filter(crowned), SUB = crowns.length ? Math.max(1, Math.ceil(TEXEL / Math.min(...crowns.map(crownMost)))) : 1; return { crowns, SUB, edge: TEXEL * (0.5 - 0.5 / SUB) * Math.SQRT2 }; };
+
 /** What stands in cell c of layer L, as the growth map keeps it (growth.js), one word: how tall it stands (grownIn's,
     a half float: the low 16 bits), which of its things (its number + 1, 0 none: the bits after), the row of its shape
     (feetOf: the bits after those; L.record says where). Placed once by the rule; what reads the layer reads this
@@ -344,18 +347,18 @@ export const recordOf = (L, M) => (c) => {
     x0 + w read along one side [first, past the last], and one more either side (the GPU reckons lo in 32-bit floats);
     span(n), the most cells along a side that n texels read so. */
 function gatherCells(L) {
-  const R = Math.max(L.reach, ...L.entries.filter(crowned).map((e) => crownMost(e) + EDGE), L.feet ? L.feet.reach + (TEXEL / 2) * Math.SQRT2 : 0), m = Math.ceil((2 * R) / L.cell) + 1;
+  const { crowns, edge } = lightOf(L), R = Math.max(L.reach, ...crowns.map((e) => crownMost(e) + edge), L.feet ? L.feet.reach + (TEXEL / 2) * Math.SQRT2 : 0), m = Math.ceil((2 * R) / L.cell) + 1;
   const lo = (x) => Math.floor(((x + 0.5) * TEXEL - R) / L.cell);
   return { R, m, cells: (x0, w) => [lo(x0) - 1, lo(x0 + w - 1) + m + 1], span: (n) => Math.floor(((n - 1) * TEXEL) / L.cell) + 1 + m + 2 };
 }
 
 /** What layer L leaves at q (a texel's middle, metres) for the layers after it, as the growth map keeps it: what stands in
     each of its cells round q (as the map keeps it: recordOf), its crown taking the light coming down through it (the
-    light under the crowns, above: the texel's mean, over SUB x SUB points of it, so a crown smaller than a texel takes its
-    share of the texel's light), its litter dropped out to beyond its crown (the litter's lead: the thing that drops most
-    there), and whether its feet may reach into the texel (feetIn). M: the growth map. */
+    light under the crowns, above: the texel's mean, over lightOf's SUB x SUB points of it, so a crown smaller than a
+    texel takes its share of the texel's light), its litter dropped out to beyond its crown (the litter's lead: the thing
+    that drops most there), and whether its feet may reach into the texel (feetIn). M: the growth map. */
 export function gatherOf(L, M) {
-  const crowns = L.entries.filter(crowned), { R: reach, m } = gatherCells(L);
+  const { crowns, SUB, edge } = lightOf(L), { R: reach, m } = gatherCells(L);
   const points = Array.from({ length: SUB * SUB }, (_, s) => vec2(((s % SUB) + 0.5) / SUB - 0.5, (Math.floor(s / SUB) + 0.5) / SUB - 0.5).mul(TEXEL));
   return (q) => {
     const lo = ivec2(floor(q.sub(reach).div(L.cell))).toVar(), light = points.map(() => float(1).toVar()), feet = float(0).toVar(), litter = float(0).toVar(), lead = uint(0).toVar(), best = float(0).toVar();
@@ -365,7 +368,7 @@ export function gatherOf(L, M) {
           const pos = posIn(c, L).toVar(), E = L.table.element(B.k), r = length(q.sub(pos)).toVar();
           if (crowns.length) {   // (its crown as far as it reaches as it is drawn: none, what lies on the floor)
             const crown = B.h.mul(E.y).toVar();
-            If(crown.greaterThan(0).and(r.lessThan(crown.add(EDGE))), () => { points.forEach((o, s) => light[s].mulAssign(throughCrown(length(q.add(o).sub(pos)), crown))); });
+            If(crown.greaterThan(0).and(r.lessThan(crown.add(edge))), () => { points.forEach((o, s) => light[s].mulAssign(throughCrown(length(q.add(o).sub(pos)), crown))); });
           }
           if (L.feet) If(feet.lessThan(0.5), () => { feet.assign(feetIn(c, L, B, pos, q)); });
           const l = float(1).sub(smoothstep(E.x.mul(0.5), E.x.mul(1.6), r)).mul(E.w).toVar();

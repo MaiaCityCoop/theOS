@@ -26,9 +26,14 @@
 //   Settings      mode branches (TRUTH-like): every place a condition asks a mode, a constant true or false for the
 //                 whole run (one the address sets, as `?truth` sets TRUTH, or one set by hand): in the condition of an
 //                 if, ?:, loop or switch, or left of &&, || or ??, by the flags each is made from. Hand-set numbers:
-//                 every module constant, or number in a constant's table, written as a number by hand, and those the
-//                 SSOT audit (research_notes/0038-ssot-audit.md) names however they are written (marked). Flag reads:
-//                 every call of flag, flagNum and flagText (src/core/flags.js)
+//                 every module constant, or number in a constant's table, written as a number by hand (a literal,
+//                 arithmetic of them, Math's, or a value made of them alone: TSL's vec2, vec3, vec4, color, float,
+//                 three's Vector2, Vector3, Vector4, Color, Matrix3, Matrix4; not what a uniform starts at, nor an
+//                 array's size), and those the SSOT audit (research_notes/0038-ssot-audit.md) names however they are
+//                 written (marked); not the
+//                 physical constants: the exported values of a module named physics.js, the one place they live, each
+//                 saying its unit and its source in its comment (`unit: …`, `source: …`; --base fails where one does
+//                 not). Flag reads: every call of flag, flagNum and flagText (src/core/flags.js)
 //   Dependencies  the direct dependencies of every package.json in the repository
 //
 // No node on the path: jscpd and knip are run by bun from their files, eslint and madge through their own APIs.
@@ -64,12 +69,23 @@ const at = (f, line) => `${f}:${line}`, fileOf = (place) => place.slice(0, place
     revert), else the newest commit of the base's line all of whose paths the change touches and leaves as they are with
     M undone. [the base: a commit, or the tree with M undone; M, or null]. */
 function baseOf(ref) {
-  const base = git('merge-base', ref, 'HEAD')[0], touched = new Set(git('diff', '--name-only', base, '--', ':/'));
-  const named = [...git('log', '--format=%B', `${base}..HEAD`).join('\n').matchAll(/This reverts commit ([0-9a-f]{7,40})/g)].map((m) => m[1]).find((M) => run('git', ['merge-base', '--is-ancestor', M, base]).status === 0);
-  const restores = ({ sha, paths }) => paths.length && paths.every((p) => touched.has(p)) && run('git', ['diff', '--quiet', undone(base, sha), '--', ...paths.map((p) => `:/${p}`)]).status === 0;
-  const M = named ?? firstParents(base).find(restores)?.sha, T = M && undone(base, M);
+  const base = git('merge-base', ref, 'HEAD')[0], M = revertOf(base, null), T = M && depthOf(M) % 2 === 0 && undone(base, M);
   return T ? [T, M] : [base, null];
 }
+const ok = (...args) => run('git', args).status === 0;
+/** The commit a change from `base` to `head` (a commit; null: the working tree) reverts: the one a "This reverts commit
+    K" of the change's own commits names, on the base's line; else the newest commit of the base's line all of whose
+    paths the change touches and leaves as they are with it undone. null where it reverts none. */
+function revertOf(base, head) {
+  const to = head ? [head] : [], touched = new Set(git('diff', '--name-only', base, ...to, '--', ':/'));
+  const named = [...git('log', '--format=%B', `${base}..${head ?? 'HEAD'}`).join('\n').matchAll(/This reverts commit ([0-9a-f]{7,40})/g)].map((m) => m[1]).find((K) => ok('merge-base', '--is-ancestor', K, base));
+  const restores = ({ sha, paths }) => paths.length && paths.every((p) => touched.has(p)) && ok('diff', '--quiet', undone(base, sha), ...to, '--', ...paths.map((p) => `:/${p}`));
+  return named ?? firstParents(base).find(restores)?.sha ?? null;
+}
+/** How deep a commit lies in a chain of reverts: 0, a change of its own; 1, the revert of one; 2, the revert of that.
+    Undoing one of an even depth goes back to the state before it; undoing one of an odd depth (a revert) brings back
+    what it took out, which is measured as new. */
+const depthOf = (c) => { const K = ok('rev-parse', '--verify', '-q', `${c}^1`) && revertOf(`${c}^1`, c); return K ? 1 + depthOf(K) : 0; };
 /** The tree of `base` with commit M undone, as git revert undoes it (null where that does not merge cleanly). */
 const undone = (base, M) => { const r = run('git', ['merge-tree', '--write-tree', `--merge-base=${M}`, base, `${M}^1`]); return r.status === 0 ? r.stdout.split('\n')[0] : null; };
 /** The commits of a commit's first-parent line, newest first, each with the paths it changed from its first parent. */
@@ -206,11 +222,17 @@ function inTest(n) {
 // ---- numbers set by hand ----
 const ARITH = new Set(['+', '-', '*', '/', '%', '**', '<<', '>>', '>>>', '&', '|', '^']);
 const isMath = (n) => n.type === 'MemberExpression' && n.object.name === 'Math';
-const NUMBER = {   // which expressions are numbers written by hand: literals, arithmetic of them, Math's
+// a value TSL's or three's value constructors make of numbers alone is a number set by hand too (a number hidden in a
+// vector is still one); what a uniform starts at, an array's size and the like are not values written by hand
+const VALUE = { call: /^(vec[234]|color|float)$/, new: /^(Vector[234]|Color|Matrix[34])$/ };
+const calleeName = (c) => (c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' && !c.computed ? c.property.name : '');
+const ofNumbers = (n) => n.arguments.length > 0 && n.arguments.every(isNumber);
+const NUMBER = {   // which expressions are numbers written by hand: literals, arithmetic of them, Math's, and values made of them
   Literal: (n) => typeof n.value === 'number',
   UnaryExpression: (n) => ['-', '+', '~'].includes(n.operator) && isNumber(n.argument),
   BinaryExpression: (n) => ARITH.has(n.operator) && isNumber(n.left) && isNumber(n.right),
-  CallExpression: (n) => isMath(n.callee) && n.arguments.length > 0 && n.arguments.every(isNumber),
+  CallExpression: (n) => (isMath(n.callee) || VALUE.call.test(calleeName(n.callee))) && ofNumbers(n),
+  NewExpression: (n) => VALUE.new.test(calleeName(n.callee)) && ofNumbers(n),
   MemberExpression: isMath,
 };
 const isNumber = (n) => !!NUMBER[n.type]?.(n);
@@ -220,6 +242,26 @@ function numbers(m, name, init, out) {
   const n = frozen(init), text = m.sc.getText(n), audit = !!AUDIT[basename(m.f)]?.includes(name);
   if (n.type === 'ObjectExpression') for (const p of n.properties) if (p.type === 'Property' && !p.computed) numbers(m, `${name}.${nameOf(p.key)}`, p.value, out);
   if (audit || (isNumber(n) && /\d/.test(text))) out.push({ at: at(m.f, n.loc.start.line), name, value: text, ...(audit && { audit }) });
+}
+/** Whether a module constant is physical: an exported value (not a function) of a module named physics.js, the one
+    place physical constants live, each with its unit and its source. */
+const physical = (m, name) => basename(m.f) === 'physics.js' && [...m.exports.values()].includes(name) && !/Function/.test(m.consts.get(name).init.type);
+/** Whether a constant's comment (before its statement, not on the line the one before ends on, or after it on its own
+    last line) says its unit and its source (`unit: …`, `source: …`). */
+function sourced(m, v) {
+  const s = v.parent.parent?.type === 'ExportNamedDeclaration' ? v.parent.parent : v.parent, before = m.sc.getTokenBefore(s)?.loc.end.line ?? 0;
+  const said = [...m.sc.getCommentsBefore(s).filter((c) => c.loc.start.line > before), ...m.sc.getCommentsAfter(s).filter((c) => c.loc.start.line === s.loc.end.line)].map((c) => c.value).join(' ');
+  return /\bunits?:\s*\S/i.test(said) && /\bsources?:\s*\S/i.test(said);
+}
+/** A module's constants: each physical one (a vector or a table one constant), the one without its unit or source among
+    them, and the hand-set numbers of the rest. */
+function constants(m, S) {
+  for (const [name, v] of m.consts) {
+    if (!physical(m, name)) { numbers(m, name, v.init, S.numbers); continue; }
+    const c = { at: at(m.f, v.loc.start.line), name, value: m.sc.getText(v.init) };
+    S.physical.push(c);
+    if (!sourced(m, v)) S.unsourced.push(c);
+  }
 }
 
 // ---- the gates, over a tree ----
@@ -260,17 +302,17 @@ function size(t) {
   return { files: t.files.length, code: folders.reduce((s, d) => s + d.code, 0), folders };
 }
 function settings(t) {
-  const branches = [], hand = [], reads = [];
+  const S = { branches: [], numbers: [], physical: [], unsourced: [], reads: [] };
   for (const m of t.files.map((f) => mod(t, f)).filter((x) => x.sc)) {
     for (const r of m.sc.scopeManager.scopes.flatMap((s) => s.references)) {
       const id = r.identifier, line = at(m.f, id.loc.start.line), read = readOf(id);
       const what = read ? { mode: true, flags: [read] } : r.resolved?.scope === m.scope && made(t, m.f, id.name);   // (a module's own bindings and imports)
-      if (read) reads.push({ at: line, flag: read });
-      if (what?.mode && inTest(read ? id.parent : id)) branches.push({ at: line, on: what.flags.join(' ') });
+      if (read) S.reads.push({ at: line, flag: read });
+      if (what?.mode && inTest(read ? id.parent : id)) S.branches.push({ at: line, on: what.flags.join(' ') });
     }
-    for (const [name, v] of m.consts) numbers(m, name, v.init, hand);
+    constants(m, S);
   }
-  return { branches, numbers: hand, reads };
+  return S;
 }
 /** The direct dependencies of each package.json among a tree of the repository's files (from its root, repo). */
 const dependencies = (repo, files) => files.filter((p) => basename(p) === 'package.json').map((p) => {
@@ -316,7 +358,7 @@ function change(B, H) {
     size: H.size.code - B.size.code,
     settings: { branches: { change: H.settings.branches.length - B.settings.branches.length, rose: rose(B.settings.branches, H.settings.branches, (b) => `${b.on} in ${fileOf(b.at)}`) },
       numbers: { change: H.settings.numbers.length - B.settings.numbers.length, new: H.settings.numbers.filter((x) => !set.has(exportKey(x))) },
-      reads: H.settings.reads.length - B.settings.reads.length },
+      physical: H.settings.physical.length - B.settings.physical.length, unsourced: H.settings.unsourced, reads: H.settings.reads.length - B.settings.reads.length },
     dependencies: added(B.dependencies, H.dependencies),
   };
 }
@@ -336,6 +378,7 @@ const worse = (D) => [
   ...D.cycles.map((c) => `cycles: a new one, ${ring(c)}`),
   ...(D.settings.branches.change > 0 ? D.settings.branches.rose.map(([k, by]) => `settings: ${n(by, 'more mode branch')} on ${k}`) : []),
   ...(D.settings.numbers.change > 0 ? D.settings.numbers.new.map((x) => `settings: a new hand-set number, ${x.at} ${x.name} = ${x.value}`) : []),
+  ...D.settings.unsourced.map((x) => `settings: ${x.at} ${x.name}, a physical constant (physics.js) whose comment does not say its unit and its source`),
   ...D.dependencies.filter((d) => !d.named).map((d) => `dependencies: ${d.name} (${d.at}) is new, and no intent the change touches names it`),
 ];
 
@@ -350,7 +393,7 @@ const SAID = {   // each gate's measure, in a cell
   'Dead code': (G) => `${n(G.dead.files.length, 'file')}, ${n(G.dead.exports.length, 'export')}, ${G.dead.duplicates.length} exported twice`,
   Cycles: (G) => `${G.cycles.cycles.length}${G.cycles.unfollowed.length ? ` (madge could not follow ${n(G.cycles.unfollowed.length, 'import')})` : ''}`,
   Size: (G) => `${G.size.code} lines of code in ${n(G.size.files, 'file')}`,
-  Settings: (G) => `${n(G.settings.branches.length, 'mode branch')}, ${n(G.settings.numbers.length, 'hand-set number')} (the audit's ${G.settings.numbers.filter((x) => x.audit).length}), ${n(G.settings.reads.length, 'flag read')}`,
+  Settings: (G) => `${n(G.settings.branches.length, 'mode branch')}, ${n(G.settings.numbers.length, 'hand-set number')} (the audit's ${G.settings.numbers.filter((x) => x.audit).length}), ${n(G.settings.physical.length, 'physical constant')}${G.settings.unsourced.length ? ` (${G.settings.unsourced.length} without unit or source)` : ''}, ${n(G.settings.reads.length, 'flag read')}`,
   Dependencies: (G) => `${G.dependencies.reduce((s, p) => s + p.dependencies.length + p.dev.length, 0)} direct (${G.dependencies.reduce((s, p) => s + p.dev.length, 0)} dev) in ${G.dependencies.length} package.json`,
 };
 const WHERE = {   // where the most of each gate is, in a cell
@@ -368,7 +411,7 @@ const CHANGE = {   // each gate's change from the base, in a cell
   'Dead code': (D) => `${n(D.dead.files.length, 'new file')}, ${n(D.dead.exports.length, 'new export')}`,
   Cycles: (D) => `${D.cycles.length} new`,
   Size: (D) => `${signed(D.size)} lines of code`,
-  Settings: (D) => `${signed(D.settings.branches.change)} mode branches, ${signed(D.settings.numbers.change)} hand-set numbers, ${signed(D.settings.reads)} flag reads`,
+  Settings: (D) => `${signed(D.settings.branches.change)} mode branches, ${signed(D.settings.numbers.change)} hand-set numbers, ${signed(D.settings.physical)} physical constants, ${signed(D.settings.reads)} flag reads`,
   Dependencies: (D) => D.dependencies.map((d) => `${d.name} (${dirname(d.at)}) new${d.named ? ', named in its intent' : ''}`).join(', ') || 'none new',
 };
 /** The gates against the base: here, there and the change, and what got worse. */
@@ -395,6 +438,7 @@ function table(G) {
   list('Mode branches', count(G.settings.branches, (b) => b.on).map(([on, k]) => `${String(k).padStart(4)}  ${on}: ${G.settings.branches.filter((b) => b.on === on).map((b) => b.at).join(', ')}`));
   list('Hand-set numbers by folder', count(G.settings.numbers, (x) => dirname(x.at)).map(([d, k]) => `${String(k).padStart(4)}  ${d}`));
   list('The audit\'s, still set', G.settings.numbers.filter((x) => x.audit).map((x) => `${x.at}  ${x.name} = ${x.value}`));
+  list('Physical constants without their unit or source', G.settings.unsourced.map((x) => `${x.at}  ${x.name}`));
   list('Flag reads', count(G.settings.reads, (x) => x.flag).map(([flag, k]) => `${String(k).padStart(4)}  ${flag}`));
   list('Dependencies', G.dependencies.map((p) => `${p.at}: ${[...p.dependencies, ...p.dev.map((d) => `${d} (dev)`)].join(', ') || 'none'}`));
   return out.join('\n');
