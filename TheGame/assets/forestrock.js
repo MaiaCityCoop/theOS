@@ -11,7 +11,7 @@ export default tree({
   type: 'asset',
   name: 'Bedded stone',
   kind: 'litter',
-  about: 'A stone of the bedrock showing through the forest’s floor, weathered round, most of it under the soil.',
+  about: 'A stone of the bedrock showing through the forest floor, weathered round.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
     real: 'a stone bedded in a forest\'s soil: what shows of it over the floor',

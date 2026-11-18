@@ -18,8 +18,8 @@ export default {
   type: 'material',
   name: 'Reed clump',
   kind: 'foliage',
-  about: 'A clump of common reed: tall narrow leaves bending each its own way, green below and yellowing to the tips, feathery purple-brown plumes over the tallest: one foliage card.',
-  usedBy: "the reeds in a lake's shallows (a cut-out card)",
+  about: 'Tall narrow reed leaves under feathery plumes. A foliage card.',
+  usedBy: 'the reeds in the shallows',
   swatch: [0.2, 0.26, 0.1],
   bump: 0.06,
   paint: (uv) => {

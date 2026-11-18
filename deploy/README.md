@@ -81,6 +81,11 @@ There are no backups of the database yet.
    (`deploy/deploy.sh`). The script:
    - refuses anything but plain files and directories under `website/`, `game/` and `api/`;
    - unpacks the release into `/srv/maia-city/releases/<commit>-<time>`;
+   - serves the build before it too: the previous release's own hashed files are hard-linked into the new one's
+     `assets/` (nothing copied), so a page that loaded before the switch still finds its own chunks and workers.
+     `<site>.assets` beside each site lists the release's own, so the next deploy carries only those: one build back,
+     never more. A page that still loses one (two deploys while it was open) reloads into the build served, once, or
+     says so on its veil (`brand/loading.js`);
    - builds and starts the release's API (`sudo maia-api-up`), and stops there if it doesn't come up;
    - switches the `/srv/maia-city/current` link, so both sites change at once;
    - checks on `127.0.0.1:8081` (website) and `127.0.0.1:8082` (game and API) that Caddy serves the new release and
@@ -106,6 +111,9 @@ says which commit the API runs.
   (`brand.css`, `loading.js`, the icon). Everything else is `no-cache`.
 - **Compression:** the game's build writes every file that compresses a second time beside itself, as brotli at its
   best (`.br`); Caddy sends that where the browser accepts it, and compresses everything else as it sends it.
+- **Lost files:** a request under `/assets/` for a file that is not there is logged to
+  `/var/log/caddy/<site>-lost.log` (JSON, its page in the Referer; rolled at 10 MiB, five kept). Nothing else is
+  logged. It takes effect when `setup-host.sh` writes the Caddyfile again.
 - **Framing:** the website may frame only itself. The game may be framed by itself and the website.
 - **The API:** on the game's name, `/api/session`, `/api/me`, `/api/me/*` and `/api/health` go to `127.0.0.1:8083`.
   The game's other `/api/` paths (its scenes) stay files.
