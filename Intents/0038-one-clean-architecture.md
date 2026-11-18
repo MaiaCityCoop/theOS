@@ -340,6 +340,82 @@ parallel streams, each in its own worktree and branch.
   a mover's own motion (its skeleton at the previous stride); Safari is not tried (`@invariant`, storage writes in a
   fragment shader); the virtual camera's depth of field is not exercised by the gate (its target is now half float);
   `tools/sweep.js` reads the colour target as eight bits and now gets half floats.
+
+### Stage 3: one boot, and a stage that starts only what it shows (2026-11-18)
+
+- Built on `aven/0038-stage3-boot` from main at `53a065c`, merged with main at `cc3aa70` (stage 4).
+- **`src/boot.js({ profile })`** is the one start of every page that draws the world, with a `ready` promise (the
+  page's first view complete: `src/core/settle.js`). It brings the virtual camera and the game's pill with it, so no
+  page lists `cine/cine.js` and `cine/menu.js` before the world any more. The library and Me await it instead of
+  polling `window.__game` every 50 ms.
+  - **`world`** is today's game, the same parts in the same order: the game's page, the lens bench, a film's live
+    world.
+  - **`stage`** starts the sky, the weather, the light and its shadows, and the land round the stage (the terrain,
+    drawn 6 km out, where it ends in the air). It does not start the city, the places, the lakes, the walker, the
+    ground map or anything scattered.
+  - **Its textures:** the land's materials are painted at the start (`bakeTextures({ first })`); a subject's when its
+    shaders first ask for them.
+  - **Its subjects:** `game.show(object)` compiles one aside (both passes and the shadow map, every level of it), and
+    only then puts it in. `game.hide` takes it out again, or stops a show that is not in yet.
+  - **What grows:** the ground map and the scatter start only for a subject that is the meadow itself (`game.grow`:
+    the grass, a biome), in a group of their own, hidden again with the next subject. Hidden, what they have out
+    holds nothing up (`partOf` and `leave` in `settle.js`).
+  - Its `ready`: the first subject in, then settled.
+- **`src/stage/studio.js`** is the stage's set-up that the library and Me had copied:
+  - the stage's round and sandbox, moved here from the ground map (which now draws itself again when they change);
+  - the studio light;
+  - the camera circling the subject, the eased follow of a person, the close look with the lens stopped down, and the
+    lineup seen square on.
+  - It stands still while something waits for the world to settle (`settling()`): a stage that circles by itself
+    never settles.
+- **`src/library/`**: the library's inline module (385 lines) is now four modules: `index.js` (the page), `subjects.js`
+  (what each kind of recipe stands on the stage, and its card), `pictures.js` and `card.js`. Its pictures come once
+  the first view is complete. Each is compiled aside, in turn, with what its shaders ask of the textures painted
+  first (`sceneThumb`).
+- **Also:** the baker lets its painter go half a minute after its last paint, not 4 s: the library's pictures, which
+  come after the first view, found its packing pass (53 KB) gone and compiled it again. A subject's 20 s to compile
+  count from its compile's turn, not from the queue before it.
+- **Deleted:** `src/main.js` (its 235 lines are boot's `world`), the library's inline module, Me's copied stage and
+  its start of the whole world, the `window.__game` polling, the pages' script order, `ground.stage` and
+  `ground.sandbox`, and the walker's readout and hint on the two stage pages. In the game: 906 lines added, 748
+  deleted (+158), most of it the stage profile (show, hide, grow) and the studio.
+- **Found:**
+  - On main the library's and Me's camera circles by itself, so `settle()` never resolves there: the gate's
+    `compile --page library.html` timed out after 300 s on main. The numbers for main below come from a probe with the
+    gate's shader watcher that holds the film camera at the page's first view.
+  - Under the world's walker, the library's 35 mm lens was overwritten every frame by the walker's own (`camera.fov`),
+    so it showed the walker's wider view. The stage has no walker: the library and Me now look through the 35 mm they
+    ask for, and the subject stands larger in the frame. The stage has no grass blades round its round, and its land
+    ends 6 km out.
+  - The gate counted the library writing its own address (`history.replaceState`) as the page loading again. It now
+    counts loads.
+- **Check 6, side by side** (main `cc3aa70` against the branch, the same probe by turns, fresh profiles, three rounds
+  each). The machine was shared with other agents' runs, at load averages of 30 to 340, so the times are medians, with
+  their range:
+
+| | Library, main | Library, stage | Me, main | Me, stage |
+| --- | --- | --- | --- | --- |
+| WGSL compiled until settled | 244 modules, 3.20 MB | 74–76 modules, 0.78–0.80 MB | 231–234 modules, 3.15–3.21 MB | 57–58 modules, 0.63 MB |
+| Compiled as first drawn (sync) | 43–44 | 20 | 34–37 | 18–20 |
+| The first subject on the screen (the veil lifts) | 4.4 s (4.3–26.3) | 3.4 s (2.0–10.6) | 12.3 s (4.3–47.1) | 4.9 s (2.6–33.5) |
+| The first view complete (`ready`) | 54 s (45–165) | 26 s (5.5–31.5) | 171 s (44–305) | 9.5 s (5.1–56.4) |
+
+  - The gate's own `compile` on the branch: the library 74 modules, 0.78 MB, settled 20.8 s in; Me 58 modules,
+    0.63 MB, settled 33.5 s in (load averages 20 to 32).
+  - What a page compiles is now what it shows: the sky, the land and its layer map, the shadow map, the textures'
+    painters and the land's materials, and the subject. The largest module is the layer map's pass (78 KB).
+  - The library's `ready` above still waited for its pictures; they now wait for it. Measured so once (load average
+    248): the subject on the screen at 5.3 s with 63 modules (0.70 MB) compiled, `ready` at 21.2 s, and 74 modules
+    (0.78 MB) with the pictures.
+- **The game's own start is unchanged:** the gate's `compile` gives 224 modules and 3,055,041 bytes of WGSL on main and
+  on the branch alike (settled 112 and 248 s in, at load averages near 200: noise). The tent at eye level, 4K, fresh
+  profiles: FLIP of main against the branch 0.0223 (p99 tile 0.0822), of main against main shot again 0.0224 (0.0823).
+- **Not done:**
+  - Safari can't be automated here: the library and Me are to be opened in Safari on next.
+  - A subject's material that the land does not wear is painted when it is first asked for, its painter compiled as it
+    is drawn (a few small programs a subject).
+  - The stage's land is the world's terrain and layer map: all ten levels of the map are worked out, though the land
+    is drawn only 6 km out.
 ### Stage 10: ship what CI built; next deploys itself (2026-11-17)
 
 - **Ship what CI built.** CI's push to `main` uploads its release tar, `release-next`. The deploy downloads that run's
@@ -574,7 +650,7 @@ Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
 - [x] Stage 1: clean ground
 - [x] Stage 2a: gate, settle, one measure, truth
 - [x] Stage 2b: prepass, motion vectors, upscale
-- [ ] Stage 3: boot
+- [x] Stage 3: boot (built; draft PR; Safari to be tried on next)
 - [x] Stage 4: far end, impostor and clump rung (built; draft PR)
 - [ ] Stage 5: crowds, parts and one wind
 - [ ] Stage 6: land, virtual texture and relief
@@ -649,6 +725,19 @@ Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
   `drawnAt`). The stills hold after the merge.
 - **Then asked:** merge main again (stage 6a). **Delivered:** merged (`e8d5bdb`); `bun tools/scale.js` 18 of 18,
   both builds, and the tent and the pine stand at 60 m drawn without an error. Draft PR #66.
+- **Asked (by the orchestrating session):** stage 3, boot: one `src/boot.js({ profile })` with a `ready` promise for
+  every page; a `stage` profile that starts only the sky, a small ground round the stage, the light and the shadows,
+  and compiles only what the shown subject needs when it is shown; the stage set-up shared by the library and Me in
+  `src/stage/studio.js`; the library's inline module in `src/library/*.js`; check 6 measured with the gate; what it
+  replaces deleted.
+- **Delivered:** stage 3 built (under Build): one boot with the profiles `world` and `stage`, the studio, the library's
+  four modules. `src/main.js`, the `window.__game` polling, the pages' script order, the library's inline module and
+  Me's copied stage are deleted.
+- **Good:** the library compiles 0.8 MB of WGSL where it compiled 3.2 MB (74–76 modules against 244), and Me 0.63
+  against 3.15 MB (57–58 against 231–234). Its first view came 1.7 to 30 times sooner in every pair of runs. The gate
+  can measure the library and Me at all now. The game's own start compiles the same 224 modules, byte for byte.
+- **Not there yet:** Safari not tried (it can't be automated here); the first subject's arrival was slower than main's
+  in one pair of runs, under a load average near 300.
 
 ## Trail
 
@@ -670,3 +759,8 @@ Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
 | 2026-11-18 | `29cc189` | Stage 6a: hex-tiled near, one wobbled read far; the start's shader watcher goes |
 | 2026-11-18 | `325c6d0` | Stage 6a: `?truth` reads the ground as the picture does (draft PR #65) |
 | 2026-11-18 | `e8d5bdb` | Stage 4 merged with main (6a): the registry made again from the merged recipes |
+| 2026-11-18 | `b2a3916` | Stage 3: one boot with the profiles world and stage, the studio, the library's modules; `src/main.js` deleted |
+| 2026-11-18 | `920d0c8` | Stage 3 merged with main (stage 4): the library's Detail tab names the impostor |
+| 2026-11-18 | `eca4f33` | Stage 3: the pictures compiled aside, in turn; what grows on the stage a part of its own in settle |
+| 2026-11-18 | `90988c7` | Stage 3: grow hidden again stays hidden; the gate counts loads, not the library's address |
+| 2026-11-18 | `78988cb` | Stage 3: pictures after the first view complete; a subject's 20 s from its turn; the painter lingers |
