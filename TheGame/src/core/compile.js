@@ -16,9 +16,9 @@ let last = Promise.resolve(), turns = 0, aside = 0;   // (turns: compiles waitin
 export function inTurn(fn) {
   turns++; const done = last.then(fn, fn);   // (in turn, whether the one before it went well or not)
   done.then(() => turns--, () => turns--);
-  // (and the next one's turn comes when this one is done or after 20 s, whichever is first: a compile the GPU never
-  // answers held every one after it, and the page with them)
-  last = Promise.race([done.catch(() => {}), new Promise((res) => setTimeout(res, 20000))]);
+  // (and the next one's turn comes only when this one is done: two at once trip over each other, and a slow browser's
+  // compile that overran 20 s used to let the next start beside it)
+  last = done.catch(() => {});   // (never two at once: three keeps the running compile's state in the renderer)
   return done;
 }
 
