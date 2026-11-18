@@ -40,17 +40,28 @@ _Filled when the idea is taken up. Replaces a spec and delivery gates._
 - **Put back, in the best form:** the pattern chosen, and why. Research in
   `research_notes/NNNN-topic.md` (sources, options weighed).
 
-**Code gates** (measured on `main` over the touched area; every merge holds them)
+**Code gates** (measured on `main` over the touched area with `bun tools/health.js`; every merge holds them)
 
-| Gate | On `main` now | Target | Measure |
+| Gate | On `main` now | Target |
+| --- | --- | --- |
+| Size (lines of code) | … | lower |
+| Copies (duplicated lines, clones) | … | lower, no new clone |
+| Spaghetti (max and mean complexity a function) | … | ≤ … and lower |
+| Dead and legacy code (unused files, exports, flags, glue) | … | 0 |
+| Coupling (import cycles) | … | 0 |
+| Settings (mode branches, hand-set numbers, flag reads) | … | lower |
+| Dependencies | … | no new one without a reason |
+
+**The 10 % gate** (measured on `main` on the GPU machine; at least 10 % better where this intent
+touches, nothing worse anywhere)
+
+| Measure | On `main` now | Target (≥ 10 %) | At Propose |
 | --- | --- | --- | --- |
-| Size (lines of code) | … | lower | `git diff --shortstat main...` |
-| Copies (duplicated lines, clones) | … | lower, no new clone | `bunx jscpd --min-tokens 50` |
-| Spaghetti (max and mean complexity a function) | … | ≤ … and lower | `bunx eslint --rule 'complexity: [error, N]'` |
-| Dead and legacy code (unused files, exports, flags, glue) | … | 0 | `bunx knip` |
-| Coupling (import cycles) | … | 0 | `bunx madge --circular` |
-| Settings (modes, hand-set thresholds, switches) | … | lower | reading, or the area's own count |
-| Dependencies | … | no new one without a reason | `package.json` |
+| Rendering: GPU ms per bench view and class; p99 frame and frames over 16.7 ms in motion | … | … | … |
+| Startup: settled where it starts, cold and warm; the first frame | … | … | … |
+| Boot and load: shader code compiled; bytes before the first frame | … | … | … |
+| Memory: the browser's peak; each class against its budget | … | … | … |
+| Quality: FLIP against its own truth; `real` per view class; the worst pop in motion | … | … | … |
 
 ## Build
 
