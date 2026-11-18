@@ -129,7 +129,8 @@ export function createBaker(renderer, { per, px, rows }) {
   return {
     /** Bake `rows` rows of a thing's pictures into the atlas' layer: draw(r) its mesh for row r (its instances the
         row's pictures, its materials [colour, data]); least: the smallest picture's side mipped to. A promise of
-        { done }, once its pictures are read back (the targets free for the next): done, once its layer is in the atlas. */
+        { done }, once its pictures are read back (the targets free for the next): done, once its layer is in the atlas,
+        with its levels (what the browser keeps of it: src/scatter/trees.js farOf). */
     async bake(atlas, layer, count, draw, least = 4) {
       const prev = renderer.getRenderTarget(), pc = renderer.getClearColor(new THREE.Color()), pa = renderer.getClearAlpha(), ac = renderer.autoClear;
       renderer.setClearColor(0x000000, 0);
@@ -145,7 +146,7 @@ export function createBaker(renderer, { per, px, rows }) {
         }
       } finally { renderer.setRenderTarget(prev); renderer.setClearColor(pc, pa); renderer.autoClear = ac; }
       const [c, d] = await Promise.all(out.map((o) => renderer.readRenderTargetPixelsAsync(o, 0, 0, W, W)));
-      return { done: mipsOf(new Uint8Array(c), new Uint8Array(d), W, px, least).then(({ levels }) => atlas.put(layer, levels)) };
+      return { done: mipsOf(new Uint8Array(c), new Uint8Array(d), W, px, least).then(({ levels }) => { atlas.put(layer, levels); return levels; }) };
     },
   };
 }
@@ -153,12 +154,11 @@ export function createBaker(renderer, { per, px, rows }) {
 // ---- reading them: a picture's texel, clamped inside its cell at the level read ----
 const inCell = (uv, cellPx, lod) => { const h = float(0.5).mul(float(2).pow(floor(lod).add(1))).div(cellPx); return clamp(uv, h, float(1).sub(h)); };
 /** A shape's impostor read where a pixel's ray meets it, the three views nearest the eye's blended: { colour (albedo,
-    gamma 2), cover, normal (its own frame), depth (along the eye's view, in radii), light (0 … 1), leaf (0 … 1), at
-    (where in the atlas the heaviest of the three was read: a texel's own place, for what is decided texel by texel) }.
+    gamma 2), cover, normal (its own frame), depth (along the eye's view, in radii), light (0 … 1), leaf (0 … 1) }.
     p: the pixel's point on the quad, eye: the eye, both in the thing's frame from its sphere's middle in its radii;
     V: the views and their weights (impostorViews, worked out once for the thing); lod: the level read. */
 export function impostorRead(A, layer, p, eye, V, lod) {
-  const rd = normalize(p.sub(eye)).toVar(), out = { colour: vec3(0).toVar(), cover: float(0).toVar(), normal: vec3(0).toVar(), depth: float(0).toVar(), lit: float(0).toVar(), at: vec2(0).toVar() };
+  const rd = normalize(p.sub(eye)).toVar(), out = { colour: vec3(0).toVar(), cover: float(0).toVar(), normal: vec3(0).toVar(), depth: float(0).toVar(), lit: float(0).toVar() };
   const C = texture(A.colour), Dt = texture(A.data);
   for (let k = 0; k < 3; k++) {
     const g = V.cells[k], w = [V.w.x, V.w.y, V.w.z][k], D = dirOf(g.x.div(VIEWS - 1).mul(2).sub(1), g.y.div(VIEWS - 1).mul(2).sub(1)), B = basisOf(D), dd = rd.dot(D).min(-1e-3);
@@ -167,7 +167,6 @@ export function impostorRead(A, layer, p, eye, V, lod) {
     const h0 = Dt.sample(st(uvAt(float(0)))).depth(layer).level(lod).z.mul(2).sub(1), uv = uvAt(h0), s = st(uv);   // (one step of parallax: where the ray stands as high over the view's plane as what the view saw there)
     const c = C.sample(s).depth(layer).level(lod), d = Dt.sample(s).depth(layer).level(lod);
     out.colour.addAssign(c.rgb.mul(w)); out.cover.addAssign(c.a.mul(w)); out.normal.addAssign(octDec(d.xy).mul(w)); out.depth.addAssign(d.z.mul(2).sub(1).mul(w)); out.lit.addAssign(d.w.mul(w));
-    if (k === 0) out.at.assign(s); else If(w.greaterThan([V.w.x, V.w.y, V.w.z].slice(0, k).reduce((a, b) => max(a, b))), () => { out.at.assign(s); });   // (where in the atlas the heaviest of the three read)
   }
   return { ...out, normal: normalize(out.normal.add(vec3(0, 1e-5, 0))), ...litOf(out.lit) };
 }

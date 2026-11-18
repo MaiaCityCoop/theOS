@@ -36,11 +36,11 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, instanceIndex, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, instanceIndex, screenCoordinate, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt, nearLake } from '../world/land.nodes.js';
 import { kindsOf, whereOf } from '../world/stand.js';
-import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, unlit, windAt, windDir, windStrength } from '../world/light.js';
+import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, unlit, windAt, windDir, windStrength, ign } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { CLEARINGS } from '../../world/places.js';
 import { recipe, recipes, versionOf } from '../core/registry.js';
@@ -63,6 +63,7 @@ import { crowdOf, bandsOf, STANDS, GRID, GOQ } from '../../assets/kit/plant.js';
 import { lo16, hi16 } from './unpack.js';
 import { TRUTH, REACH as TRUTH_REACH, drawnAt } from '../detail/measure.js';
 import { source } from '../core/settle.js';
+import { keptGet, keptPut } from '../core/kept.js';
 
 /** A half float's 16 bits as the number (what assets/kit/plant.js wrote). */
 const unhalf = (h) => { const e = (h >> 10) & 31, m = h & 1023, v = e === 0 ? m * 2 ** -24 : e === 31 ? Infinity : (1 + m / 1024) * 2 ** (e - 15); return h & 0x8000 ? -v : v; };
@@ -81,22 +82,31 @@ const smooth01 = (t) => { const c = clamp(t, 0, 1); return c.mul(c).mul(float(3)
 /** How much of a plant is still its mesh, 1 … 0: its impostor comes where its texels are no larger than the pixels
     drawn (T: the most pixels its measured size may be drawn as, CELL texels of its sphere: farOf; 0, none yet), each
     plant at its own size a little under that (by its seed: a stand passes over to them plant by plant, never all at
-    once: SWITCH … 1 of it), over the last FADE of the way down to it: a short cross-fade, the two drawn texel by texel,
-    each texel by a number of its own (sitting on it as a leaf does: no pattern on the screen). own: its size on screen. */
+    once: SWITCH … 1 of it), over the last FADE of the way down to it: a short cross-fade (handing). own: its size on
+    screen. */
 const { SWITCH, FADE } = CROWD;
 const meshShare = (T, own, seed) => T.greaterThan(0).select(clamp(drawnAt(own).div(T.mul(float(SWITCH).add(fract(seed.mul(7.31)).mul(1 - SWITCH)))).sub(1).div(FADE).add(1), 0, 1), float(1));
+/** Whether a pixel of a plant handing over to its impostor is its mesh's (share: how much of it is still its mesh): by a
+    noise of the screen's that changes every frame, the same for the mesh and the impostor, so each pixel is one of the
+    two, never both and never neither, and the picture built over time cross-fades them (src/core/temporal.js); the
+    prepass's motion keeps what it built where the plant moves. The impostor's pixels are the others. */
+const handing = (share) => fract(ign(screenCoordinate.xy).add(unlit().select(float(0), U.uDither))).lessThan(share);   // (the shadow map's still: it is built over no time)
+/** A plant reckons its size on screen this share of what it is, by its own number (SWITCH … 1): its sprigs go, its
+    clumps come and its twigs thin each at a size of its own, so no two plants of a stand change together (Lipp et al.,
+    HPG 2026: a random offset a bundle). Never more than it is: a level holds what its band's top asks for. */
+const ownShare = (seed) => float(SWITCH).add(fract(seed.mul(3.17).add(0.5)).mul(1 - SWITCH));
 
 /** The one rule (assets/kit/crowd.js, the same in JS there): where a crowd level's vertex lies at px pixels, and whether
     it shows. V: the vertex (position, root, part) with C, what the rule moves it by (crowdOfElems; rule: its shape's
-    numbers, four vec4). A card's painting is enlarged with it; a chunk's planes grow out of its middle as it comes,
-    while its own sprigs go (crowd.js clumpsOf: each where its own parts were). */
+    numbers, four vec4). A sprig that stays grows about its tip, uniformly, at most SWELL times; a chunk's planes grow
+    out of its middle as it comes, while its own sprigs go (crowd.js clumpsOf: each where its own parts were). */
 function crowdRule(px, V, C) {
-  const [r0, r1, r2] = C.rule, P0 = r0.x, E = r0.y, A = r2.z, KMAX = r2.w;
+  const [r0, r1, r2] = C.rule, P0 = r0.x, E = r0.y, A = r2.z, SWELL = r2.w;
   const share = min(float(1), pow(max(px, 0).div(P0), A));
   // the share of the cards' area that share is (the largest come first): straight between its classes' bounds
   const seg = (s0, a0, s1, a1) => a0.add(a1.sub(a0).mul(clamp(share.sub(s0).div(max(s1.sub(s0), 1e-6)), 0, 1)));
   const area = share.lessThanEqual(r1.x).select(seg(float(0), float(0), r1.x, r1.y), share.lessThanEqual(r1.z).select(seg(r1.x, r1.y, r1.z, r1.w), share.lessThanEqual(r2.x).select(seg(r1.z, r1.w, r2.x, r2.y), seg(r2.x, r2.y, float(1), float(1)))));
-  const k = min(KMAX, pow(max(area, 1e-9), E.negate()));
+  const k = min(SWELL, pow(max(area, 1e-9), E.negate()));
   const g = C.go.greaterThan(0).select(smooth01(px.div(max(C.go, 1e-6)).sub(1).div(CROWD.GROW - 1)), float(1));
   const pos = V.position.toVar(), shown = float(1).greaterThan(0).toVar();
   If(V.part.greaterThan(0.5).and(V.part.lessThan(1.5)), () => {   // (a card: enlarged about its tip, growing from its root as it comes)
@@ -110,6 +120,15 @@ function crowdRule(px, V, C) {
   });
   return { pos, shown };
 }
+
+/** The one wind of a plant, at every rung (its cards, its clumps' planes, its impostor): how far a point of it `up` of
+    the way up it (0 its foot … 1 its top) is pushed at `time` (x, z, metres): the gust where it stands (windAt), the
+    push growing with height squared, and a slow sway of its own from a breeze up (its phase B.z). sway: its kind's; s:
+    its scale. */
+const swayOf = (A, B, up, sway, s, time) => {
+  const u2 = up.mul(up).mul(s), ws = windStrength;
+  return windAt(A.xy, time).mul(u2.mul(sway)).add(vec2(sin(time.mul(0.9).add(B.z)), cos(time.mul(0.7).add(B.z))).mul(u2.mul(ws.mul(0.05).add(smoothstep(0, 0.08, ws).mul(0.008)))));
+};
 
 export const FOOT = 0.15;   // how deep a plant's foot is set into the ground
 
@@ -288,9 +307,12 @@ function plantMaterial(tex, D) {
         // (src/detail/handover.js): its last level sinking. A level is drawn only between its own sizes on screen, hard
         // (the level beside it draws the same there). Its rule reckons a plant by its own size on screen (a stand that
         // changes level as one: its size, at most). Where it is its impostor (meshShare), nothing of its mesh shows
-        const own = px ?? pxOf(A.w, A.xy), at = px ?? pxOf(D.ST?.size ? float(D.ST.size) : A.w, A.xy), pxR = min(own, at), H = handOver(at, LU, D.sink);
+        const own = px ?? pxOf(A.w, A.xy), at = px ?? pxOf(D.ST?.size ? float(D.ST.size) : A.w, A.xy), pxR = min(own, at).mul(ownShare(V.shade)).toVar(), H = handOver(at, LU, D.sink);
         const above = Lv.first ? H.u.greaterThan(0) : at.lessThan(LC.hi), below = Lv.last ? H.sunk.greaterThan(0) : at.greaterThanEqual(LC.lo);
         const R = crowdRule(pxR, V, V.crowd), mesh = meshShare(V.Tf, own, V.shade), show = above.and(below).and(R.shown).and(mesh.greaterThan(0));
+        // (its sprigs' own swing fades out over the last doubling of its size before its clumps come: they, and its
+        // impostor, sway with the crown only, so nothing stops as one hands over to the next)
+        const swing = clamp(pxR.div(max(V.crowd.rule[0].z, 1e-3)).sub(1), 0, 1);
         If(V.drawn ? show.and(V.drawn) : show, () => {   // (drawn: the draw's corner is one of its mesh's)
           if (FAR) {
             // (a plane's texels read one to a pixel drawn, down to LODS.tiles: its tile's TILE texels lie over its chunk's
@@ -299,15 +321,15 @@ function plantMaterial(tex, D) {
             // |v.x| + |v.y| + |v.z| times what its leaves do)
             const e = abs(V.position.sub(V.crowd.tip)), wide = max(e.x, max(e.y, e.z)).mul(2).max(1e-3), perM = drawnAt(own).div(V.Ks);
             const v = turnOf(B.x).unturn(normalize(U.uCam.sub(vec3(A.x, A.z, A.y))));
-            vClump.assign(vec4(B.y, clamp(log2(float(CROWD.TILE).div(wide.mul(perM).max(1e-3))), 0, LODS.tiles), float(1).div(abs(v.x).add(abs(v.y)).add(abs(v.z))).mul(mesh), 0)); vFade.assign(mesh);   // (and as much less as its impostor has come)
+            vClump.assign(vec4(B.y, clamp(log2(float(CROWD.TILE).div(wide.mul(perM).max(1e-3))), 0, LODS.tiles), float(1).div(abs(v.x).add(abs(v.y)).add(abs(v.z))), 0)); vFade.assign(mesh);   // (and how much of it is still its mesh's: handing)
           }
-          clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos }, H.sunk, pass));
+          clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos }, H.sunk, pass, swing));
         });
       };
       drawn();
       return clip;
     };
-    const stand = (A, B, V, sunk, pass) => {
+    const stand = (A, B, V, sunk, pass, swing = float(1)) => {
       const part = V.part, ao = V.ao, card = float(1).sub(abs(part.sub(1))).max(0), body = step(1.5, part), Hk = V.Hk, sway = V.Wd.x, leans = V.Wd.y, flutters = V.Wd.z, clumps = V.Wd.w, wrap = V.Lf.x, shines = V.Lf.y, Tn = V.Tn;
       const s = A.w.div(V.Ks), { turn } = turnOf(B.x);   // (s: its scale, its size over its kind's at scale 1)
       // (a level's last pixels: the whole plant sunk; the shadow's stand-in, of no level, shrinks to its foot)
@@ -320,8 +342,8 @@ function plantMaterial(tex, D) {
       // Where it is at a time: the clock's, and for the prepass the clock's a frame ago (where it was: its motion)
       const ws = windStrength, cardN = V.cn;
       const at = (time) => {
-        const kk = windAt(A.xy, time).mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(time.mul(0.9).add(B.z)), cos(time.mul(0.7).add(B.z))).mul(up.mul(up).mul(ws.mul(0.05).add(smoothstep(0, 0.08, ws).mul(0.008))).mul(s)));
-        const flutter = sin(time.mul(ws.mul(5).add(1.6)).add(cardN.dot(vec3(12.9, 78.2, 37.7))).add(B.z)).mul(ws.mul(0.14)).mul(card).mul(V.uv.y.min(1)).mul(flutters);
+        const kk = swayOf(A, B, up, sway, s, time);
+        const flutter = sin(time.mul(ws.mul(5).add(1.6)).add(cardN.dot(vec3(12.9, 78.2, 37.7))).add(B.z)).mul(ws.mul(0.14)).mul(card).mul(V.uv.y.min(1)).mul(flutters).mul(swing);
         return vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(kk.x.add(windDir.x.mul(flutter)), flutter.mul(0.4), kk.y.add(windDir.y.mul(flutter))));
       };
       const w = at(U.uTime).toVar();
@@ -363,9 +385,9 @@ function plantMaterial(tex, D) {
       // (two halves of coverage are the same samples: a crown half see-through, in a grid): their hand-over is their
       // sprigs' sizes, in the vertex stage
       const leaf = vPart.greaterThan(0.5), T = vec4(1).toVar(), alpha = float(1).toVar(), shadow = unlit();
-      // (while its impostor comes, as much of its mesh as is still its own: meshShare, each texel of its paintings by a
-      // number of its own; cut in the prepass)
-      const fading = () => { if (FAR) cut(builder, hash(uint(floor(vUv.x.mul(97).add(4096))).add(uint(floor(vUv.y.mul(97).add(4096))).mul(uint(8191)))).greaterThanEqual(vFade)); };
+      // (while its impostor comes, as much of its mesh as is still its own: meshShare, cross-faded under the picture built
+      // over time (handing); cut in the prepass)
+      const fading = () => { if (FAR) cut(builder, handing(vFade).not()); };
       const cards = () => {
         fading();
         T.assign(tex.a(floor(vLay.x.add(0.5)), vUv));   // (its kind's leaves: the layer a whole number, however a pixel got it)
@@ -379,9 +401,10 @@ function plantMaterial(tex, D) {
         If(vPart.greaterThan(1.5), () => {
           // a chunk's plane: its leaves as baked (src/detail/impostor.js), as many of its covered texels kept as the
           // chunk's own cover is of its three planes' (vClump.z), each texel by a number of its own (still from frame to
-          // frame, sitting on the plane as a leaf does: no pattern on the screen); cut in the prepass
+          // frame, sitting on the plane as a leaf does: no pattern on the screen), and as much as is still its mesh's
+          // (handing); cut in the prepass
           const C = clumpRead(FAR.clumps(), vClump.x, vUv, vClump.y), t = floor(vUv.mul(CROWD.TILE)), keep = hash(uint(t.x).add(uint(t.y).mul(uint(4099))).add(uint(vClump.x).mul(uint(1000003))));
-          cut(builder, C.cover.lessThan(0.5).or(keep.greaterThanEqual(vClump.z)));
+          cut(builder, C.cover.lessThan(0.5).or(keep.greaterThanEqual(vClump.z)).or(handing(vFade).not()));
           if (pass === 'pre') return;
           If(shadow.not(), () => {
             // lit as its leaves are, pixel by pixel, their way there turned with the plant and pulled a little towards
@@ -443,16 +466,19 @@ function impostorMaterial(G, D, Lv, src) {
       const air = airOf(c);
       vT.assign(mix(vec3(1.07, 1.0, 0.78), vec3(0.86, 0.98, 1.1), B.z.mul(1.1631).fract()).mul(seedOf(B).mul(0.3).add(0.84)).mul(r0.yzw));
       vAir.assign(vec4(air.col, air.k)); vLit.assign(vec4(cloudAtVertex(c), pow(max(d.negate().dot(U.uSunDir), 0), 3).mul(r2.y), r2.x, 0));
-      clip.assign(clipOf(w));
+      // it sways in the one wind as its mesh does (swayOf), each corner as far as its height up the plant: what it
+      // shows is read where it stood still (vP), so its picture leans with the wind as the crown does; and for the
+      // prepass, where it was a frame ago
+      const up1 = clamp(w.y.sub(A.z).div(s.mul(r0.x)), 0, 1), sway = D().numOf(kind, 1).x, swayed = (time) => { const kk = swayOf(A, B, up1, sway, s, time); return w.add(vec3(kk.x, 0, kk.y)); };
+      clip.assign(clipOf(swayed(U.uTime), swayed(U.uTimeWas)));
     });
     return clip;
   })();
   m.fragmentNode = Fn((builder) => {
     const R = impostorRead(G.far.views, vK.x, vP, vE, { cells: [vA.xy, vA.zw, vB.xy], w: vW }, vK.y), out = vec4(0).toVar();
-    // (cut in the prepass, src/core/pass.js: what it does not cover, and as much of it as it is not its impostor yet,
-    // meshShare, each texel by a number of its own; then where its point was a frame ago: its quad's, standing still)
-    const t = floor(R.at.mul(G.far.views.side).div(float(2).pow(floor(vK.y))));
-    cut(builder, R.cover.lessThan(0.5).or(hash(uint(t.x).add(uint(t.y).mul(uint(8191))).add(uint(vK.x).mul(uint(1000003)))).greaterThanEqual(vB.z)));
+    // (cut in the prepass, src/core/pass.js: what it does not cover, and the pixels that are still its mesh's while it
+    // hands over (handing); then where its point was a frame ago)
+    cut(builder, R.cover.lessThan(0.5).or(handing(float(1).sub(vB.z))));
     if (passOf(builder) === 'pre') return motion(vWas, R.leaf);   // (a leaf's texel is thin)
     If(unlit().not(), () => {
       const col = R.colour, n = turnOf(vK.z).turn(R.normal), ao = R.light, leaf = R.leaf, sd = n.dot(U.uSunDir);
@@ -469,6 +495,7 @@ function impostorMaterial(G, D, Lv, src) {
 
 // ---- the far ends baked: each shape's impostor and its clumps, from its finest level in the heap ----
 let BAKING = false;   // (one shape at a time, of every stand: the bakers' targets are one set)
+const BAKED = 1;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
 const DEEP = 0.5;   // how much darker what an impostor's view shows at the far side of its plant's sphere than at the near
 /** A stand's far ends (G: its group; D(): its drawer, once made): its two atlases (the impostors' views, a layer a shape;
     its chunks' planes, made when the first shape with clumps comes), and what bakes them. Each shape is baked as its
@@ -512,9 +539,25 @@ function farOf(renderer, tex, G, D) {
     const geo = new THREE.InstancedBufferGeometry(), mesh = (v, deep) => Object.assign(new THREE.Mesh(geo, null), { frustumCulled: false, userData: { materials: [mat(v, colourF), mat(v, dataF(deep))] } });
     return (M = { kindU, rowU, sphereU, nU, cells, geo, view: mesh(viewV, DEEP), tile: mesh(tileV, 0) });
   };
+  // its numbers, once its pictures are in: its sphere; T, the most pixels drawn its measured size may be as its impostor
+  // (CELL texels over its sphere's width: its texels never larger than the pixels they are drawn on)
+  const numbers = (k, far) => {
+    const row3 = G.numbers.subarray(k * 20 + 12, k * 20 + 16);
+    row3[2] = (CROWD.CELL * far[5]) / (2 * far[4]);
+    D().setNum(k, 4, [far[1], far[2], far[3], far[4]]); D().setNum(k, 3, row3);
+    version++; any = true;
+  };
+  // What the browser keeps of them (src/core/kept.js): each shape's pictures as the workers mipped them, kept under the
+  // registry's versions of all they are baked from (the stand's kinds and their rooms: its drawer's fingerprint; their
+  // paintings: their materials' versions) and the bake's own (BAKED). A start that finds them puts them in and bakes
+  // nothing: the far plants are whole from the first frames, not after half a minute to a minute and a half.
+  let KEPT = null;
+  const keptAs = () => (KEPT ||= `far ${BAKED}|${CROWD.VIEWS}x${CROWD.CELL}|${CROWD.TILES}x${CROWD.TILE}|${D().fingerprint}|${G.kinds.flatMap((Kd) => [...Object.values(Kd.asset.materials ?? {}), Kd.asset.fine?.twig].filter(Boolean).map(versionOf)).join()}`);
   // (a promise of { done }: its pictures drawn and read back, the bakers free for the next shape; done, once they are
   // in the atlases and its numbers say so)
   const job = async ({ k, corners, far }) => {
+    const key = `far: ${G.name}: ${k}`, kept = await keptGet(keptAs(), key);
+    if (kept) { views.put(k, kept.views); if (kept.clumps) clumpsOf().put(k, kept.clumps); return { done: Promise.resolve(numbers(k, far)) }; }
     const B = materials(); B.geo.setIndex(new THREE.BufferAttribute(corners, 1)); B.kindU.value = k; B.sphereU.value.set(far[1], far[2], far[3], far[4]);
     const a = await bakers(renderer).views.bake(views, k, CROWD.VIEWS, (r) => { B.rowU.value = r; B.geo.instanceCount = CROWD.VIEWS; return B.view; });
     const nc = far[0];
@@ -524,14 +567,7 @@ function farOf(renderer, tex, G, D) {
       B.nU.value = nc;
       b = await bakers(renderer).tiles.bake(clumpsOf(), k, Math.ceil((nc * 3) / CROWD.TILES), (r) => { B.rowU.value = r; B.geo.instanceCount = CROWD.TILES; return B.tile; });
     }
-    // its numbers: its sphere; T, the most pixels drawn its measured size may be as its impostor (CELL texels over its
-    // sphere's width: its texels never larger than the pixels they are drawn on)
-    return { done: Promise.all([a.done, b?.done]).then(() => {
-      const row3 = G.numbers.subarray(k * 20 + 12, k * 20 + 16);
-      row3[2] = (CROWD.CELL * far[5]) / (2 * far[4]);
-      D().setNum(k, 4, [far[1], far[2], far[3], far[4]]); D().setNum(k, 3, row3);
-      version++; any = true;
-    }) };
+    return { done: Promise.all([a.done, b?.done]).then(([va, vb]) => { keptPut(keptAs(), key, { views: va, clumps: vb ?? null }); numbers(k, far); }) };
   };
   return {
     views, clumps: () => clumpsOf(), version: () => version, ready: () => any,

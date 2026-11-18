@@ -40,23 +40,52 @@ export const outward = (R0, lift) => { const a = R0() * 2 * Math.PI, y = lift + 
 const CHEST = 1.2;   // metres up a trunk where a walker meets it
 
 /** The mesh being built: positions, normals, uv, part (0 wood, 1 leaves, 2 a solid body, no sprig cut out of it), ao, a
-    card's plane (cn), its foot (root: what its sprig grows from and shrinks to) and how it hands over (hand: see
-    cards), indexed. ao(p): the
-    light that reaches the wood at p; barkTile: metres of wood one tile of bark covers; colours: [wood, leaves] for a
-    picture without the textures. */
+    card's plane (cn), its foot (root: what its sprig grows from and shrinks to), indexed; and its parts (intent 0038,
+    Nanite's assemblies): what it is made of, each a prototype laid by a rigid transform about a pivot, as the recipe
+    lays it, so the builder (assets/kit/crowd.js) never has to find them again in the triangles:
+      { proto, v0, v1, i0, i1, tip, root }   a sprig: prototype `proto` (SPRIG: two crossed cards; SHEET: the same, its
+                                             painting repeated; a spray of twigs: splayOf) at { at, x, y, z, s } (its
+                                             foot, its three ways, its length), its vertices v0 … v1 four a card, its
+                                             corners i0 … i1; tip: what it grows about, root: what it grows out of
+      { v0, v1, i0, i1, foot }               a solid piece (a tube: a limb, a twig, the trunk), its own; foot: where it
+                                             grows from and shrinks to
+    Whatever is laid without a part (a moss's domes) is one solid piece that stays. ao(p): the light that reaches the
+    wood at p; barkTile: metres of wood one tile of bark covers; colours: [wood, leaves] for a picture without the
+    textures. */
 export function builder({ ao = () => 1, barkTile = 1, colours = [[0.3, 0.22, 0.15], [0.1, 0.18, 0.06]] } = {}) {
-  const b = { position: [], normal: [], uv: [], part: [], ao: [], color: [], cn: [], root: [], hand: [], twig: [], index: [], body: null };
+  const b = { position: [], normal: [], uv: [], part: [], ao: [], color: [], cn: [], root: [], twig: [], index: [], parts: [], body: null };
   // (twig: 1 where a card wears the painting of one twig, its plant's `fine.twig`, not its sprig: splayOf)
-  b.v = (p, n, uv, part, a, cn = [0, 0, 0], root = [0, 0, 0], hand = [0, 0], twig = 0) => { b.position.push(...p); b.normal.push(...n); b.cn.push(...cn); b.root.push(...root); b.hand.push(...hand); b.uv.push(...uv); b.part.push(part); b.ao.push(a); b.twig.push(twig); b.color.push(...colours[Math.min(part, 1)]); return b.ao.length - 1; };
+  b.v = (p, n, uv, part, a, cn = [0, 0, 0], root = [0, 0, 0], twig = 0) => { b.position.push(...p); b.normal.push(...n); b.cn.push(...cn); b.root.push(...root); b.uv.push(...uv); b.part.push(part); b.ao.push(a); b.twig.push(twig); b.color.push(...colours[Math.min(part, 1)]); return b.ao.length - 1; };
   b.aoAt = ao; b.barkTile = barkTile;
   return b;
 }
+
+/** The prototypes a sprig is laid as: its own frame is { x, y, z } (y its way, from its foot at 0 to its tip at 1; x and
+    z across it, z = x × y), its corners' places a multiple of its length. */
+export const SPRIG = 'sprig', SHEET = 'sheet';
+/** Lay prototype P (its cards: [{ q: four corners [x, y, z] in its frame, uv: four [u, v], cn: [x, y, z], ao, twig }])
+    as a sprig of b at T ({ at, x, y, z, s }), lit by `light` with `ao` (each card's own share of it), part `proto`. */
+function lay(b, proto, P, T, light, ao, root, tip) {
+  const v0 = b.ao.length, i0 = b.index.length, w = (q) => [0, 1, 2].map((k) => T.at[k] + T.s * (q[0] * T.x[k] + q[1] * T.y[k] + q[2] * T.z[k]));
+  for (const C of P) {
+    let cn = norm([0, 1, 2].map((k) => C.cn[0] * T.x[k] + C.cn[1] * T.y[k] + C.cn[2] * T.z[k]));
+    if (C.lit && dot(cn, light) < 0) cn = mul(cn, -1);   // (a twig's card faces the crown's light)
+    const n = C.lit ? norm(add(mul(light, 0.8), mul(cn, 0.3))) : light, a = Math.min(1, ao * C.ao);   // (lit mostly as the crown is, a little as its own card faces)
+    const [k0, k1, k2, k3] = C.q.map((q, j) => b.v(w(q), n, C.uv[j], 1, a, cn, root, C.twig));
+    b.index.push(k0, k1, k2, k0, k2, k3);
+  }
+  b.parts.push({ proto, v0, v1: b.ao.length, i0, i1: b.index.length, T, light, ao, root, tip });
+}
+/** Two crossed cards, the whole painting on each, `rep` times across it. */
+const crossed = (rep) => [0, 1].map((c) => ({ q: [[-0.5, 0], [0.5, 0], [0.5, 1], [-0.5, 1]].map(([a, y]) => (c ? [0, y, -a] : [a, y, 0])), uv: [[0, 0], [rep, 0], [rep, rep], [0, rep]], cn: c ? [1, 0, 0] : [0, 0, 1], ao: 1, twig: 0, lit: false }));
+const CROSSED = new Map();
 
 /** A tube along pts, radius rad[i] at each, `sides` round: its rings carried along the curve without twisting, its bark
     wrapped round a whole number of times so it meets itself. body: this is the trunk (where it passes a walker's chest,
     and how thick it is there, makes the tree's body). */
 export function tube(b, pts, rad, sides, { body = false } = {}) {
   const n = pts.length, T = pts.map((_, i) => norm(sub(pts[Math.min(i + 1, n - 1)], pts[Math.max(i - 1, 0)])));
+  const v0 = b.ao.length, i0 = b.index.length;   // (a solid part of its own: it grows from its first ring's middle)
   let N = norm(cross(T[0], Math.abs(T[0][1]) < 0.9 ? [0, 1, 0] : [1, 0, 0])), along = 0;
   const reps = Math.max(1, Math.round((2 * Math.PI * rad[0]) / b.barkTile)), rings = [];
   for (let i = 0; i < n; i++) {
@@ -69,6 +98,7 @@ export function tube(b, pts, rad, sides, { body = false } = {}) {
     const a = rings[i][k], c = rings[i][k + 1], d = rings[i + 1][k], e = rings[i + 1][k + 1];
     b.index.push(a, d, e, a, e, c);
   }
+  b.parts.push({ v0, v1: b.ao.length, i0, i1: b.index.length, foot: pts[0] });
   if (body) {
     for (let i = 1; i < n && !b.body; i++) if (pts[i][1] >= CHEST) {   // the trunk at chest height
       const t = (CHEST - pts[i - 1][1]) / Math.max(1e-6, pts[i][1] - pts[i - 1][1]), p = lerp(pts[i - 1], pts[i], t);
@@ -78,20 +108,17 @@ export function tube(b, pts, rad, sides, { body = false } = {}) {
   }
 }
 
-/** Crossed cards: two cards crossed along dir, their foot at p, s metres long and wide, cut out of the leaves' sprig;
+/** A sprig: two cards crossed along dir, their foot at p, s metres long and wide, cut out of the leaves' sprig, laid as
+    its prototype (one part: it comes and goes as one, and grows about its tip, p + dir s: assets/kit/crowd.js);
     light: the normal its light is reckoned with (a crown is lit as the dome it makes, not card by card); root: what it
-    grows from and shrinks to (its foot, unless told: cards with the same root are one sprig, which comes and goes as
-    one: assets/kit/crowd.js); hand: [from, kept], carried with it (a card whose `from` is 1 is not splayed: splayOf);
-    rep: how many times its sprig's picture is laid across it (a larger card's leaves are their own size: the picture is
-    repeated, not stretched). */
-export function cards(b, p, dir, s, light, ao, R0, root = p, hand = [0, 0], rep = 1) {
+    grows out of (its foot, unless told); rep: how many times its sprig's picture is laid across it (a larger card's
+    leaves are their own size: the picture is repeated, not stretched); proto: SHEET for one no finest level splays (a
+    bush's base). */
+export function cards(b, p, dir, s, light, ao, R0, root = p, rep = 1, proto = SPRIG) {
   const side0 = norm(cross(dir, Math.abs(dir[1]) < 0.95 ? [0, 1, 0] : [1, 0, 0])), turn = R0() * Math.PI;
-  for (const q of [0, Math.PI / 2]) {
-    const side = norm(add(mul(side0, Math.cos(turn + q)), mul(cross(dir, side0), Math.sin(turn + q))));
-    const w = mul(side, s * 0.5), h = mul(dir, s), c0 = sub(p, w), c1 = add(p, w), c2 = add(c1, h), c3 = add(c0, h), cn = norm(cross(side, dir));
-    const [i0, i1, i2, i3] = [[c0, [0, 0]], [c1, [rep, 0]], [c2, [rep, rep]], [c3, [0, rep]]].map(([v, uv]) => b.v(v, light, uv, 1, ao, cn, root, hand));
-    b.index.push(i0, i1, i2, i0, i2, i3);
-  }
+  const x = norm(add(mul(side0, Math.cos(turn)), mul(cross(dir, side0), Math.sin(turn))));
+  let P = CROSSED.get(rep); if (!P) CROSSED.set(rep, (P = crossed(rep)));
+  lay(b, proto, P, { at: p, x, y: dir, z: cross(x, dir), s }, light, ao, root, add(p, mul(dir, s)));
 }
 
 /** A crown's wood and foliage, as most trees share them. `limbs`: where each great limb leaves the wood below and where
@@ -160,8 +187,8 @@ export function mound(b, { r, h, lobes = 1, ragged = 0.2, dome = [0.1, 1], puffs
     for (let t = 0; t < count[0]; t++) {
       const C = rng(seed * 104729 + i * 977 + t * 61 + 5), base = i < puffs[1] && t < count[1];
       const dir = norm([d[0] + (C() - 0.5) * 0.7, d[1] + rise, d[2] + (C() - 0.5) * 0.7]), f = (0.75 + 0.5 * C()) * (shoot > 1 ? 1.2 : 1), foot = add(p, mul(dir, 0.02 * t));
-      // a base sprig (hand 1, 1: one splayOf leaves as it is), sunk into the heap by what it is larger than a fine one
-      if (base) cards(b, sub(foot, mul(dir, (size[1] - size[0]) * f * 0.8)), dir, size[1] * f, light, ao, C, foot, [1, 1], rep);
+      // a base sprig (a SHEET: one splayOf leaves as it is), sunk into the heap by what it is larger than a fine one
+      if (base) cards(b, sub(foot, mul(dir, (size[1] - size[0]) * f * 0.8)), dir, size[1] * f, light, ao, C, foot, rep, SHEET);
       else cards(b, foot, dir, size[0] * f, light, ao, C, foot);
     }
   }
@@ -171,40 +198,41 @@ export function mound(b, { r, h, lobes = 1, ragged = 0.2, dome = [0.1, 1], puffs
   }
 }
 
-/** A plant's finest, made from it as grown: every sprig (a pair of crossed cards,
-    the whole spray painted on each) laid out as its painting's twigs: a card a twig, each the painting of ONE twig,
-    whole (its plant's `fine.twig`: nothing beside it on the card, so none cuts through another's leaves), the twigs
-    standing round the sprig's own way as a spray's do, each as long as its twig in the spray, its leaves the size they
-    were. The sprig is no longer two flat sheets. S: the paintings as numbers ({ twigs: [[angle from upright, length],
-    …], reach, twig: { foot, length, half } }: materials/*.twigs.js). Its wood, and whatever is no such sprig (a card
-    whose painting is repeated: a bush's base), stay as they are; a twig's card keeps its sprig's foot as its root, so
-    the sprig comes and goes as one. */
+/** A sprig's spray as a prototype (splayOf), in a sprig's own frame (its length 1): a card a twig of S's painting, the
+    twigs standing round the sprig's way as a spray's do, each as long as its twig in the spray, its foot on the sprig's
+    foot, as wide as the painting's leaves reach, in the painting's own proportion. R: its own dice. */
+function sprayOf(S, R) {
+  const T = S.twig, u0 = T.foot[0] - T.half, u1 = T.foot[0] + T.half, phi0 = R() * 2 * Math.PI, Y = [0, 1, 0];   // (the part of the twig's painting a card shows: all of it)
+  return S.twigs.map(([ang, L], j) => {
+    // where it stands: as far from the sprig's way as on the painting, round it by the golden angle (no two twigs one
+    // behind another), turned a little about itself
+    const phi = phi0 + j * 2.39996 + (R() - 0.5) * 0.6, pol = Math.abs(ang) * (0.8 + 0.5 * R()) + 0.08, rad = [Math.cos(phi), 0, -Math.sin(phi)];
+    const axis = norm(add(mul(Y, Math.cos(pol)), mul(rad, Math.sin(pol)))), w0 = norm(cross(Y, axis)), roll = (R() - 0.5) * 1.0, w = norm(add(mul(w0, Math.cos(roll)), mul(cross(axis, w0), Math.sin(roll))));
+    const k = L / T.length, lo = -T.foot[1] * k, hi = (1 - T.foot[1]) * k, half = T.half * k;
+    return { q: [[lo, -half], [lo, half], [hi, half], [hi, -half]].map(([al, ac]) => add(mul(axis, al), mul(w, ac))), uv: [[u0, 0], [u1, 0], [u1, 1], [u0, 1]], cn: norm(cross(w, axis)), ao: 0.85 + 0.3 * R(), twig: 1, lit: true };
+  });
+}
+const SPRAYS = 4;   // the sprays a plant's sprigs are laid as: each sprig one of them, turned its own way about itself
+/** A plant's finest, made from it as grown: every sprig (a pair of crossed cards, the whole spray painted on each) laid
+    as its painting's spray instead, a card a twig, each the painting of ONE twig, whole (its plant's `fine.twig`: nothing
+    beside it on the card, so none cuts through another's leaves), its leaves the size they were. The sprig is no longer
+    two flat sheets. The spray is made once a prototype (SPRAYS of them), not once a sprig: a sprig keeps its place, its
+    way and its turn (its transform), its light, its tip and its root, so it comes and goes as one. S: the paintings as
+    numbers ({ twigs: [[angle from upright, length], …], reach, twig: { foot, length, half } }: materials/*.twigs.js). Its
+    wood, and whatever is no such sprig (a SHEET: a bush's base), stay as they are. */
 export function splayOf(m, S, seed = 1) {
-  const b = builder(), n = m.part.length, idx = m.index, V = (a, i) => [a[i * 3], a[i * 3 + 1], a[i * 3 + 2]], map = new Int32Array(n).fill(-1);
+  const b = builder(), sprays = Array.from({ length: SPRAYS }, (_, v) => sprayOf(S, rng(seed * 7919 + v * 31 + 5))), n = m.part.length, map = new Int32Array(n).fill(-1);
   b.body = m.body ?? null;
-  const copy = (i) => (map[i] >= 0 ? map[i] : (map[i] = b.v(V(m.position, i), V(m.normal, i), [m.uv[i * 2], m.uv[i * 2 + 1]], m.part[i], m.ao[i], V(m.cn, i), V(m.root, i), [m.hand[i * 2], m.hand[i * 2 + 1]], m.twig?.[i] ?? 0)));
-  // a sprig as cards() lays it: two quads on eight vertices one after another, the whole painting on each, handed over as one
-  const sprigAt = (t) => { const a = idx[t]; if (m.part[a] !== 1 || t + 12 > idx.length || m.hand[a * 2] > 0.5 || m.uv[(a + 2) * 2] !== 1 || m.uv[(a + 2) * 2 + 1] !== 1) return false; for (let q = 0; q < 2; q++) { const o = t + q * 6, v = a + q * 4; if (idx[o] !== v || idx[o + 1] !== v + 1 || idx[o + 2] !== v + 2 || idx[o + 3] !== v || idx[o + 4] !== v + 2 || idx[o + 5] !== v + 3) return false; } return true; };
-  const T = S.twig, u0 = T.foot[0] - T.half, u1 = T.foot[0] + T.half;   // (the part of the twig's painting a card shows: all of it)
-  for (let t = 0; t < idx.length;) {
-    if (!sprigAt(t)) { b.index.push(copy(idx[t]), copy(idx[t + 1]), copy(idx[t + 2])); t += 3; continue; }
-    const a = idx[t], c0 = V(m.position, a), c1 = V(m.position, a + 1), c3 = V(m.position, a + 3), p = lerp(c0, c1, 0.5), h = sub(c3, c0), s = len(h), dir = mul(h, 1 / (s || 1));
-    const e1 = norm(sub(c1, c0)), e2 = cross(dir, e1), light = V(m.normal, a), root = V(m.root, a), R = rng(seed * 7919 + a * 31 + 5), phi0 = R() * 2 * Math.PI;
-    S.twigs.forEach(([ang, L], j) => {
-      // where it stands: as far from the sprig's way as on the painting, round it by the golden angle (no two twigs one
-      // behind another), turned a little about itself
-      const phi = phi0 + j * 2.39996 + (R() - 0.5) * 0.6, pol = Math.abs(ang) * (0.8 + 0.5 * R()) + 0.08, rad = add(mul(e1, Math.cos(phi)), mul(e2, Math.sin(phi)));
-      const axis = norm(add(mul(dir, Math.cos(pol)), mul(rad, Math.sin(pol)))), w0 = norm(cross(dir, axis)), roll = (R() - 0.5) * 1.0, w = norm(add(mul(w0, Math.cos(roll)), mul(cross(axis, w0), Math.sin(roll))));
-      // its card: the twig's painting stretched so its twig is as long as this twig is in the spray (L of the sprig's
-      // card), its foot on the sprig's foot; as wide as the painting's leaves reach, in the painting's own proportion
-      const k = (L * s) / T.length, lo = -T.foot[1] * k, hi = (1 - T.foot[1]) * k, half = T.half * k;
-      let cn = norm(cross(w, axis)); if (dot(cn, light) < 0) cn = mul(cn, -1);
-      const nrm = norm(add(mul(light, 0.8), mul(cn, 0.3))), ao = Math.min(1, m.ao[a] * (0.85 + 0.3 * R()));   // lit mostly as the crown is, a little as its own card faces
-      const q = [[lo, -half, u0, 0], [lo, half, u1, 0], [hi, half, u1, 1], [hi, -half, u0, 1]].map(([al, ac, u, v]) => b.v(add(p, add(mul(axis, al), mul(w, ac))), nrm, [u, v], 1, ao, cn, root, [0, 0], 1));
-      b.index.push(q[0], q[1], q[2], q[0], q[2], q[3]);
-    });
-    t += 12;
-  }
+  const V = (a, i) => [a[i * 3], a[i * 3 + 1], a[i * 3 + 2]], copy = (i) => (map[i] >= 0 ? map[i] : (map[i] = b.v(V(m.position, i), V(m.normal, i), [m.uv[i * 2], m.uv[i * 2 + 1]], m.part[i], m.ao[i], V(m.cn, i), V(m.root, i), m.twig?.[i] ?? 0)));
+  const mine = new Uint8Array(m.index.length);   // (a corner of a part: what is of no part is copied as it is)
+  m.parts.forEach((q, k) => {
+    mine.fill(1, q.i0, q.i1);
+    if (q.proto === SPRIG) return lay(b, `${SPRIG}:${k % SPRAYS}`, sprays[k % SPRAYS], q.T, q.light, q.ao, q.root, q.tip);
+    const v0 = b.ao.length, i0 = b.index.length;
+    for (let i = q.i0; i < q.i1; i++) b.index.push(copy(m.index[i]));
+    b.parts.push({ ...q, v0, v1: b.ao.length, i0, i1: b.index.length });
+  });
+  for (let i = 0; i < m.index.length; i++) if (!mine[i]) b.index.push(copy(m.index[i]));
   return b;
 }
 

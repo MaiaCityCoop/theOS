@@ -10,8 +10,8 @@
 //   1   z (16) | normal u (8) | v (8)    (GRID: the same at every level, so a sprig's foot is the same number in
 //                                        both of two levels that hand over); the normal it is lit with, octahedral
 //   2   u (16) | v (16)                  where on its bark or its sprig's painting, in 1024ths, from -16 to 48 tiles
-//   3   ao (8) | part (2) | hand (2) | twig (1) | – | card u (8) | v (8)     the light that reaches it; 0 wood, 1 a
-//                                        sprig's card, 2 a chunk's plane (a clump); how it hands over (from, kept); whether
+//   3   ao (8) | part (2) | – (2) | twig (1) | – | card u (8) | v (8)       the light that reaches it; 0 wood, 1 a
+//                                        sprig's card, 2 a chunk's plane (a clump); whether
 //                                        its card wears the painting of one twig (its finest level); its card's plane
 //   4   root x (16) | y (16)             what it grows from and shrinks to as two levels hand over
 //   5   root z (16)
@@ -50,7 +50,7 @@ const oct8 = (x, y, z) => { oct(x, y, z); OU = sn(OCT[0], 255); OV = sn(OCT[1], 
 /** A mesh of the tree kit (as its builder left it, or as typed arrays) as the heap takes it: every vertex packed,
     its triangles' corners as they are. */
 export function packPlant(m) {
-  const FV = m.far ? Math.ceil(m.far.length / 8) : 0, P = m.position, N = m.normal, UV = m.uv, CN = m.cn, RT = m.root, HD = m.hand, n = m.part.length, R = m.rule ? 1 : 0, out = new Uint32Array((n + R + FV) * 8);
+  const FV = m.far ? Math.ceil(m.far.length / 8) : 0, P = m.position, N = m.normal, UV = m.uv, CN = m.cn, RT = m.root, n = m.part.length, R = m.rule ? 1 : 0, out = new Uint32Array((n + R + FV) * 8);
   // (its far data, after its vertices: crowd.js; where it begins, a vertex's number, as two whole numbers a half float holds exactly)
   if (FV) { new Float32Array(out.buffer, (n + R) * 32, m.far.length).set(m.far); m.rule[14] = Math.floor((n + R) / 1024); m.rule[15] = (n + R) % 1024; }
   if (R) for (let i = 0; i < 8; i++) out[i] = (half(m.rule[i * 2]) | (half(m.rule[i * 2 + 1]) << 16)) >>> 0;   // (a crowd's level: its shape's numbers first, two to a number of 32 bits)
@@ -61,7 +61,7 @@ export function packPlant(m) {
     out[o + 1] = (gx(P[p + 2]) | (OU << 16) | (OV << 24)) >>> 0;
     out[o + 2] = (held((UV[v * 2] + UV0) * UVK, 65535) | (held((UV[v * 2 + 1] + UV0) * UVK, 65535) << 16)) >>> 0;
     oct8(CN[p], CN[p + 1], CN[p + 2]);
-    out[o + 3] = (held(m.ao[v] * 255, 255) | ((m.part[v] & 3) << 8) | ((HD[v * 2] > 0.5 ? 1 : 0) << 10) | ((HD[v * 2 + 1] > 0.5 ? 1 : 0) << 11) | ((m.twig?.[v] > 0.5 ? 1 : 0) << 12) | (OU << 16) | (OV << 24)) >>> 0;
+    out[o + 3] = (held(m.ao[v] * 255, 255) | ((m.part[v] & 3) << 8) | ((m.twig?.[v] > 0.5 ? 1 : 0) << 12) | (OU << 16) | (OV << 24)) >>> 0;
     out[o + 4] = (gx(RT[p]) | (gy(RT[p + 1]) << 16)) >>> 0;
     out[o + 5] = gx(RT[p + 2]);
     if (R) {
