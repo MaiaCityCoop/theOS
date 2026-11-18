@@ -10,7 +10,7 @@ import { U } from '../core/uniforms.js';
 import { TRUTH } from '../detail/measure.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
 import { OCT_LAM } from '../world/land.js';
-import { layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND, SHADE_REACH } from './layers.js';
+import { layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND, SHADE_REACH, CROWNS } from './layers.js';
 import { finish, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
 
@@ -128,9 +128,9 @@ export function laid(tex, p, s, D, X) {
     const S = standOf(T.id), fade = standFade(S, D);
     If(fade.greaterThan(0.003).or(S.reach.greaterThan(0)), () => {
       const under2 = smoothstep(float(1.08).sub(T.c.mul(0.75)), float(1.22).sub(T.c.mul(0.75)), T.n.add(T.c.mul(0.45)));   // where a plant is, as many as cover says
-      // (darker than a crown's own colour: seen from afar it is mostly its own shade; from very far a plant is smaller
-      // than a pixel: the pattern goes over into its mean, no speckle to shimmer)
-      const mean = smoothstep(S.grain.mul(2000), S.grain.mul(7000), D), crown = S.colour.mul(mix(T.n, 0.5, mean).mul(0.6).add(0.42));
+      // (darker than a crown's own colour: seen from afar it is mostly its own shade; where the texel can no longer hold
+      // the pattern's finest scale, two texels to it, the pattern goes over into its mean, no speckle to shimmer)
+      const mean = smoothstep(S.grain.mul(CROWNS / 4), S.grain.mul(CROWNS / 2), s), crown = S.colour.mul(mix(T.n, 0.5, mean).mul(0.6).add(0.42));
       const k = fade.mul(smoothstep(0, 0.15, T.c)), top = k.mul(mix(under2, smoothstep(0.1, 0.95, T.c), mean));
       M.c.assign(mix(M.c, crown, top)); M.n.assign(M.n.mul(float(1).sub(top))); M.h.assign(mix(M.h, under2, k)); M.g.assign(M.g.mul(float(1).sub(top)));
       If(S.reach.greaterThan(0), () => { shade.assign(max(shade, T.c.mul(T.n.mul(0.9).add(0.3)).min(0.85).mul(float(1).sub(top)))); });   // the floor between the crowns in their shade (the crowns themselves in the light)
@@ -139,6 +139,11 @@ export function laid(tex, p, s, D, X) {
   M.c.mulAssign(X.macro.add(1));   // the land's colour variation, from the baked cloudy noise
   return { c: M.c, h: M.h, n: M.n, cv: M.g, shade };
 }
+/** How much of the light reaches a texel of the ground for its own relief, h its height: what lies low (the gaps
+    between stones, a crack) sits in its neighbours' shade; the grass's carpet less (its blades are drawn over it, cv its
+    share). Laid into the page with the texel's colour (src/terrain/pages.js), so the page's levels filter it as they
+    filter the colour: by the texel's footprint, not by metres. */
+export const cavityOf = (h, cv) => mix(1, smoothstep(0.08, 0.5, h).mul(0.62).add(0.38), float(1).sub(cv.mul(0.6)));
 
 /** The land at wp (a vec2 variable, metres; node code, in a Fn): its height h, the river there I (riverInfo), and with
     `full` its normal N (the height's steps e metres either way, e by how far off it is seen) and how far it stands over
@@ -201,9 +206,8 @@ export function terrainMaterial(vt, from = null) {
 
     // ---- the light ----
     const wet = float(1).sub(smoothstep(w.mul(0.9), w.add(2.5), d));
-    // depth up close, from the material's own height: what lies low (the gaps between stones, a crack) sits in its
-    // neighbours' shade, and the relief reads deeper; let go with distance, where it would only darken the whole
-    const near = float(1).sub(smoothstep(12, 70, dist2)), cav = mix(1, smoothstep(0.08, 0.5, h).mul(0.62).add(0.38), near.mul(float(1).sub(cv.mul(0.6))));
+    // (the depth of the ground's own relief, what lies low in its neighbours' shade, is in its colour: laid with it,
+    // cavityOf; its relief's normal as the page holds it, its levels' filtering flattening what a texel averages)
     // snow: as deep as uSnow, deeper in drifts and thinner on the rises between; what stands out of the ground (a pebble's
     // top, the grass's carpet) shows through until it is covered; none on the water. Under it the ground's own relief goes.
     const drift = float(0.5).toVar(); If(snowDepth.greaterThan(0.001), () => { drift.assign(snowDrift(p)); });   // only while snow lies
@@ -211,12 +215,13 @@ export function terrainMaterial(vt, from = null) {
     const lift = h.mul(float(0.025).add(cv.mul(smoothstep(20, 90, dist2).mul(0.14))));
     const snow = snowCover(vN, lift).mul(smoothstep(w, w.add(1.5), d)).mul(float(1).sub(roofAt(p)));   // none under a roof
     const rn = G.n.mul(float(1).sub(snow.mul(0.85)));
-    const n = normalize(vN.add(vec3(rn.x, 0, rn.y).mul(float(1).sub(smoothstep(60, 400, dist2).mul(0.7)).mul(near.mul(0.7).add(1)))));
-    // relief: hollows sit in shade, crowns in light; slopes facing the sun lit harder than the plain normal says
+    const n = normalize(vN.add(vec3(rn.x, 0, rn.y)));
+    // relief: hollows sit in shade, crowns in light (the land's slopes are its own, as far as they show: its octaves
+    // are kept that far, src/world/land.nodes.js)
     const relief = mix(0.74, 1.1, smoothstep(-6, 16, vHill));
-    const s0 = max(n.dot(U.uSunDir), 0), sunl = mix(s0, smoothstep(0.55, 0.95, s0), smoothstep(60, 600, dist2).mul(0.5));
+    const sunl = max(n.dot(U.uSunDir), 0);
     const cs = cloudShade(vWorld).toVar();
-    const col = weathered(mix(c.mul(mix(1, 0.5, wet)).mul(cav), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).mul(skyLight(n).mul(cs.mul(0.3).add(0.7)).mul(float(1).sub(shade.mul(0.35))).add(U.uSun.mul(cs).mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)).mul(sunl)));   // under a cloud the sky is dimmer too (the clouds' shade read once: light.js cloudAt is these three)
+    const col = weathered(mix(c.mul(mix(1, 0.5, wet)), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).mul(skyLight(n).mul(cs.mul(0.3).add(0.7)).mul(float(1).sub(shade.mul(0.35))).add(U.uSun.mul(cs).mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)).mul(sunl)));   // under a cloud the sky is dimmer too (the clouds' shade read once: light.js cloudAt is these three)
     const V = normalize(U.uCam.sub(vWorld));
     return finish(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), vWorld);
   });

@@ -27,6 +27,8 @@ import { BOX } from '../world/shadow.js';
 const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
 
 const EMPTY = 255, NO_STAND = 15;
+/** The finest scale of a stand's crowns' pattern, metres a grain (what of it a texel can hold: src/terrain/material.js). */
+export const CROWNS = 9.3;
 
 // ---- the ground's layers, in the order they are laid (lowest first): a layer's id is its place here ----
 // (each: its ground { material, tile }, and how far off it is let go, fade [from, to] metres, where it says)
@@ -159,7 +161,7 @@ export function layerWords(tex, p, texel) {
     const wt = share.get(T.bio), g = T.grain;
     const c = clamp(wt.mul(groveAt(p, T.P)).mul((T.P.density ?? 1) * T.fill), 0, 1).toVar();
     If(c.greaterThan(st[1].c), () => {
-      const n = nz(p.div(23 * g).add(0.7), 23 * g).r.mul(0.35).add(nz(prr.div(31.7 * g).add(0.2), 31.7 * g).g.mul(0.35)).add(nz(pr.div(9.3 * g), 9.3 * g).g.mul(0.3)).toVar();
+      const n = nz(p.div(23 * g).add(0.7), 23 * g).r.mul(0.35).add(nz(prr.div(31.7 * g).add(0.2), 31.7 * g).g.mul(0.35)).add(nz(pr.div(CROWNS * g), CROWNS * g).g.mul(0.3)).toVar();
       If(c.greaterThan(st[0].c), () => { st[1].id.assign(st[0].id); st[1].c.assign(st[0].c); st[1].n.assign(st[0].n); st[0].id.assign(id); st[0].c.assign(c); st[0].n.assign(n); })
         .Else(() => { st[1].id.assign(id); st[1].c.assign(c); st[1].n.assign(n); });
     });

@@ -33,7 +33,7 @@ import { source } from '../core/settle.js';
 import { TRUTH, ERROR_PX, pxAt, drawnAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { layerTables, layerWords, layersFrom } from './layers.js';
-import { laid, slopeAt, groundRead } from './material.js';
+import { laid, slopeAt, groundRead, cavityOf } from './material.js';
 import { wear } from './decals.js';
 import { steps, colours } from '../materials/bake.js';
 import { snowDepth } from '../world/light.js';
@@ -192,6 +192,7 @@ export function createPages(renderer, tex) {
       const load = (t) => { const k = base.add(uint(i.y).add(uint(t).shiftRight(uint(1))).mul(G)).add(uint(i.x).add(uint(t).bitAnd(uint(1)))).mul(uint(2)); return { L: MAP.node.element(k), M: MAP.node.element(k.add(uint(1))).x }; };
       const M = laid(tex, p, s, D, layersFrom(load, u.sub(i), slopeAt(p, D)));
       wear(p, s, M, (m, tile) => groundRead(tex, m, p, s, tile));   // (the footpaths, worn into it: src/terrain/decals.js)
+      M.c.mulAssign(cavityOf(M.h, M.cv));   // (the depth of its own relief, in its colour: material.js cavityOf)
       const a = vec4(sqrt(clamp(M.c, 0, 1)), clamp(M.h, 0, 1)), n = vec4(clamp(M.n.mul(0.5).add(0.5), 0, 1), clamp(M.cv, 0, 1), clamp(M.shade, 0, 1));
       const layer = PACKED ? int(b) : int(P.w), at = uvec2(x, y);   // (packed: the batch's own layer; else its slot in the atlas)
       If(two, () => { store(SA, 1, at, layer, a); store(SN, 1, at, layer, n); }).Else(() => { store(SA, 0, at, layer, a); store(SN, 0, at, layer, n); });
