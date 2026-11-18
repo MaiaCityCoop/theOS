@@ -123,13 +123,13 @@ Later, not in the MVP: underground transport, the dome factory, robotics, and co
 
 ### The village ladder
 
-**A village starts with at least 3 settlers,** who get the starter pack: a used pickup, 3 tents, a small generator, a 3 m growing dome for herbs and berries, and a 5 m dome in the centre for the village market, which they raise together. It fits what three settlers bring: €30k in all, €15k of it in the village treasury, which pays for the pack; the other €15k is the city coop's. From there it climbs by **Fibonacci gates in villagers**, through four phases. **The village coop owns every dome.** Two kinds: **living domes** (for 4, 12, 24 and 48 people; the tents move inside them, and none is ever taken down) and **growing domes** (Fibonacci diameters). **Every dome comes with its own tech box:** battery, a few small CPUs, internet, a heat pump and converters, all its technology in one container. Its solar cells are on the dome.
+**A village starts with at least 3 settlers,** who get the starter pack: a used pickup, 3 tents, a small generator, a 3 m growing dome for herbs and berries, and they keep everything in that dome and their tents until the fifth villager brings the market dome. It fits what three settlers bring: €30k in all, €15k of it in the village treasury, which pays for the pack; the other €15k is the city coop's. From there it climbs by **Fibonacci gates in villagers**, through four phases. **The village coop owns every dome.** Two kinds: **living domes** (for 4, 12, 24 and 48 people; the tents move inside them, and none is ever taken down) and **growing domes** (Fibonacci diameters). **Every dome comes with its own tech box:** battery, a few small CPUs, internet, a heat pump and converters, all its technology in one container. Its solar cells are on the dome.
 
 **The geothermal star:** from 610 villagers, the geothermal plant in the village centre feeds heat and power in a star to every dome's heat pump, and the domes hold **24 °C or more all year**. Until then, every gate makes their climate steadier. **Energy is never exported out of the city;** a surplus goes only to neighbouring villages that started later.
 
 **Large growing domes, 55 m and up, hold aquaponics, fish and water ponds** beside the food forest: fish and greens in one water cycle.
 
-**The village market** stands in the centre from the first day: a 5 m dome the first three settlers raise themselves. Every citizen sells their harvest there. It grows with the village: into the market hall at 144 villagers, and into the village centre tower later.
+**The village market:** until the fifth villager, everything is kept and traded in the 3 m growing dome and the tents. With the fifth comes the market dome, a 5 m dome in the centre. Every citizen sells their harvest there. It grows with the village: into the market hall at 144 villagers, and into the village centre tower later.
 
 **Compute arrives once, all of it,** at 987 villagers: one server farm in the village centre tower. Compute is what the village exports.
 
@@ -142,11 +142,11 @@ Later, not in the MVP: underground transport, the dome factory, robotics, and co
 
 | Villagers | Phase | Added | € this level | € in total | Funded by | Food import | Energy import |
 | ---: | --- | --- | ---: | ---: | --- | ---: | ---: |
-| 3 | 1 · Food | **The starter pack:** a used pickup, 3 tents, a small generator, a 3 m growing dome for herbs and berries with its tech box, and **the village market dome**, a 5 m dome in the centre, raised by the three settlers | €15k | €15k | The village treasury | 98% | 99% |
-| 5 | 1 · Food | 2 tents, one shared; a 5 m dome (vegetables) and its tech box | €19k | €34k | Citizens | 97% | 97% |
-| 8 | 1 · Food | The first 4-person living dome; an 8 m dome; a rainwater tank | €93k | €127k | Citizens | 94% | 94% |
-| 13 | 1 · Food | A 4-person dome; a 13 m dome, the first food forest; the kitchen container | €210k | €337k | First angels | 88% | 90% |
-| 21 | 1 · Food | The first 12-person dome; a 21 m dome; the bath and sanitary container | €375k | €712k | Angels | 80% | 86% |
+| 3 | 1 · Food | **The starter pack:** a used pickup, 3 tents, a small generator, and a 3 m growing dome for herbs and berries with its tech box; everything is kept in the dome and the tents | €15k | €15k | The village treasury | 98% | 99% |
+| 5 | 1 · Food | 2 tents, one shared; a 5 m dome (vegetables) and its tech box; **the village market dome**, a 5 m dome in the centre | €24k | €39k | Citizens | 97% | 97% |
+| 8 | 1 · Food | The first 4-person living dome; an 8 m dome; a rainwater tank | €93k | €132k | Citizens | 94% | 94% |
+| 13 | 1 · Food | A 4-person dome; a 13 m dome, the first food forest; the kitchen container | €210k | €342k | First angels | 88% | 90% |
+| 21 | 1 · Food | The first 12-person dome; a 21 m dome; the bath and sanitary container | €375k | €717k | Angels | 80% | 86% |
 | 34 | 1 · Food | A 12-person dome; a 34 m dome; the workshop and store container | €500k | €1.2M | Angels | 70% | 82% |
 | 55 | 1 · Food | The first 24-person dome; a 55 m dome, the full food forest, with the first aquaponics and fish pond; the water-cycle plant | €1.1M | €2.4M | Seed | 58% | 78% |
 | 89 | 1 · Food | The first 48-person dome; an 89 m dome | €2.6M | €4.9M | Seed | 45% | 74% |
