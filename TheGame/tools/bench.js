@@ -7,6 +7,8 @@
 // while it runs, so nothing else is drawn between.
 // `?bench` (src/boot.js): the same once the world is loaded, its numbers on the screen (overlay), nothing typed.
 // `?bench=2`: at that pixel ratio (1.5 else).
+import { CLASSES, classOf } from '../src/core/classes.js';
+
 export const VIEWS = [
   { name: 'tent, eye level', x: -1262.6 + 14 * -Math.sin(0.1), z: 631 + 14 * -Math.cos(0.1), yaw: Math.atan2(-Math.sin(0.1), -Math.cos(0.1)), h: 1.7 },
   { name: 'river bend, 26 m', x: -1334.8, z: 808.6, yaw: 0.9, h: 26 },
@@ -18,18 +20,12 @@ export const VIEWS = [
 /** The hard gate: a frame's GPU time at most this (ms), at every view, so 60 fps holds with room for the CPU and the
     browser's own work (16.7 ms a frame in all). */
 export const BUDGET = 12;
-/** The frame's four parts, each the passes it is made of (by the names their code marks them with: src/core/gpu.js
-    mark), in the frame's order: what BUDGET is shared out by, a ceiling a part (measured and set on the Mac mini). A pass
-    no part names is 'other': the slack. */
-export const CLASSES = {
-  geometry: ['packing', 'occlusion', 'prepass', 'prepass, late', 'colour'],   // what is drawn: the tiers' packing and the surfaces' cut (src/scatter), the culling's pass one, the prepass, then the depth pyramid, pass two and what it finds (src/core/occlusion.js), the colour
-  light: ['clouds', 'shadow map'],   // the clouds' shadow map (src/world/weather/clouds.js), the casters' (src/world/shadow.js)
-  ground: ['ground map', 'pages, laid', 'relief', 'pages'],   // the ground under the camera (src/scatter/ground.js); the land's pages laid, the relief's points near the eye (src/terrain/relief.js), and the pages asked for after the prepass (src/terrain/pages.js)
-  'upscale/post': ['lens', 'upscale'],   // the virtual camera's lens (src/camera/post.js), the upscale to the screen (src/core/temporal.js)
-};
-const CLASS = new Map(Object.entries(CLASSES).flatMap(([c, names]) => names.map((k) => [k, c])));
-/** The part a pass is in ('other': none's). */
-export const classOf = (name) => CLASS.get(name) ?? 'other';
+/** The GPU's memory now, by class beside each class's budget (src/core/gpu.js ledger: { classes: { class: { gpu,
+    budget } }, gpu: all that is noted, device: all the device has made, unnoted: of that, what no pool notes }; MB). */
+export const memoryNow = () => { const L = window.__memory?.(); return L ? { classes: L.classes, gpu: L.gpu, device: L.device, unnoted: L.unnoted } : null; };
+/** The frame's parts, each the passes it is made of, by the names their code marks them with: what BUDGET (and the
+    memory's gate) is shared out by, one table for the game and its tools (src/core/classes.js). */
+export { CLASSES, classOf, CLASS_NAMES, BUDGET_MB } from '../src/core/classes.js';
 
 // the page's own modules (the same ones the game runs, found by their resource entries: the dev server's addresses)
 const mod = (part) => import(performance.getEntriesByType('resource').map((e) => e.name).filter((n) => n.includes(part)).at(-1));
@@ -135,9 +131,9 @@ export async function bench({ ratio = 1.5, frames = 60, settle = 0, shading = fa
       frame(v); await fin();
       if (clock) {
         const T = await timed(clock, () => frame(v), frames);
-        out[v.name] = T.sum; (out.span ||= {})[v.name] = T.span; (out.passes ||= {})[v.name] = T.passes; (out.classes ||= {})[v.name] = T.classes;
+        out[v.name] = T.sum; (out.span ||= {})[v.name] = T.span; (out.passes ||= {})[v.name] = T.passes; (out.classes ||= {})[v.name] = T.classes; (out.memory ||= {})[v.name] = memoryNow();
         if (shading) { const D = await timed(clock, () => frame(v, true), frames); (out.shading ||= {})[v.name] = { colour: T.passes.colour?.mean ?? 0, colourWithout: D.passes.colour?.mean ?? 0 }; frame(v); await fin(); }   // (and one frame as it was, so the shadows are read again)
-      } else { const t0 = performance.now(); for (let i = 0; i < frames; i++) frame(v); await fin(); out[v.name] = +((performance.now() - t0) / frames).toFixed(2); }
+      } else { const t0 = performance.now(); for (let i = 0; i < frames; i++) frame(v); await fin(); out[v.name] = +((performance.now() - t0) / frames).toFixed(2); (out.memory ||= {})[v.name] = memoryNow(); }
     }
   } finally { clock?.stop(); ratioTo(was); s.governor.hold(false); s.covered = covered; }
   out.measure = clock ? 'GPU time' : 'wall time';

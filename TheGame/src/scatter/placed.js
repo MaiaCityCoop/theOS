@@ -161,7 +161,7 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
   // `placed:<its asset>:<x>:<z>`, and src/world/things.js's by its spot to the centimetre, cx and cz)
   const x = new Float32Array(cap), z = new Float32Array(cap), foot = new Float32Array(cap), size = new Float32Array(cap), yaw = new Float32Array(cap), kind = new Uint16Array(cap), key = new Uint32Array(cap), solid = new Uint8Array(cap), cx = new Int32Array(cap), cz = new Int32Array(cap);
   const idAt = (i) => `placed:${kinds[kind[i]].asset.uid}:${+x[i].toFixed(3)}:${+z[i].toFixed(3)}`;
-  const ROWS = gpuStorage('vec4', cap * 2, `placed, ${name}: where they stand`);
+  const ROWS = gpuStorage('vec4', cap * 2, `placed, ${name}: where they stand`, 'geometry');
   G.add = (k, at) => {
     if (G.n >= cap) { if (!G.full) console.warn(`placed: the list of ${name} holds ${cap} places (\`?many\` raises it at the start); no more are stood`); G.full = true; return false; }
     const i = G.n++, a = kinds[k].asset;
@@ -235,7 +235,7 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
       }
     }
   };
-  note(`placed, ${name}: the list on the page`, 0, cap * 37);
+  note(`placed, ${name}: the list on the page`, 0, cap * 37, 'geometry');
   return G;
 }
 

@@ -47,8 +47,8 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
     const p = { idx: l.idx, elems: l.elems, io, eo, n, own, one: !!l.one, shape: l.shape || null, i0: iAt, e0: eAt, held: 0, shaped: 0, who: own || l.one ? null : new Int32Array(n).fill(-1), used: own || l.one ? null : new Float64Array(n), slot: own || l.one ? null : new Int32Array(kinds).fill(-1) };
     iAt += io ? io[n] : n * l.idx; eAt += eo ? eo[n] : n * l.elems; return p;
   });
-  const index = gpuStorage('uint', Math.max(4, iAt), `${name}: corners`), elems = gpuStorage('uvec4', eAt, `${name}: vertices`), table = new THREE.StorageBufferAttribute(new Uint32Array(kinds * L * 4), 4);
-  note(`${name}: table`, table.array.byteLength, table.array.byteLength);
+  const index = gpuStorage('uint', Math.max(4, iAt), `${name}: corners`, 'geometry'), elems = gpuStorage('uvec4', eAt, `${name}: vertices`, 'geometry'), table = new THREE.StorageBufferAttribute(new Uint32Array(kinds * L * 4), 4);
+  note(`${name}: table`, table.array.byteLength, table.array.byteLength, 'geometry');
   const T = table.array, mask = new Uint32Array(kinds), came = new Uint32Array(kinds * L);   // came: when a kind's level was put in, sixteenths of a second
   const row = (k, l) => (k * L + l) * 4;
   const masked = (k, quiet) => { for (let l = 0; l < L; l++) T[row(k, l) + 3] = (mask[k] | (came[k * L + l] << 12)) >>> 0; if (!quiet) { table.addUpdateRange(row(k, 0), L * 4); table.needsUpdate = true; } };
