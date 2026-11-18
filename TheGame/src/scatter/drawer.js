@@ -609,7 +609,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     const half = vec3(R.x, R.z.sub(R.y).mul(0.5), R.x).mul(s), h = far >= 0 ? k.equal(uint(far)).select(vec3(length(half).mul(1.5)), half) : half;
     return { c: vec3(A.x, A.z.add(R.y.add(R.z).mul(0.5).mul(s)), A.y), h: R.w.greaterThan(0.5).select(h.add(s.mul(grow)).add(0.05), vec3(1e6)), w: s.mul(0.1).add(1.5) };
   };
-  const tier = (i, { cell, P, cap, sizes, place, shadow = false, casts = false, fade = 0.02, far = Infinity, thing = null, extra = {} }) => {   // (thing: its placer's name, for a thing's own state; extra: more of the tier's own options: tier.js)
+  const tier = (i, { cell, P, cap, sizes, place, shadow = false, casts = false, fade = 0.02, far = Infinity, thing = null, own = false, extra = {} }) => {   // (thing: its placer's name, for a thing's own state; own: the placer chooses its own patches, else its regions are resident; extra: more of the tier's own options: tier.js)
     const Lv = { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity }, band = { near: uniform(0), far: uniform(1), ...bandOf(Lv, fade, padOf(cell, P)) };
     // the full meshes are a draw a slot of the heap, each as long as the mesh that lies in it (set when it is put in:
     // arrive, above): a full mesh is 50 000 to 200 000 triangles, and one draw as long as the longest for all of them
@@ -626,38 +626,63 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // (and what is of the level's own shape, a ball of the ladder's, the last draw: by the level's list of corners)
     const KS = shapeOf[i] ? (leafy ? K0 * 2 : K0) : -1;
     // (its level and whether it is the shadow's as numbers: every tier's packing is one piece of code, compiled once)
-    const lv = uniform(i, 'uint'), under = uniform(Math.max(0, i - 1), 'uint'), stands = uniform(i ? 1 : 0), all = uniform(shadow ? 1 : 0), TH = thingOf(thing);
-    const live = (c, part = {}) => {
-      const alive = float(0).toVar(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar()), bucket = float(0).toVar(), whole = all.greaterThan(0.5), also = FAR ? float(-1).toVar() : null;
-      place(c, { band, whole, all, ...part }, (kind, size, dist, fill, key = null) => {
-        // of this level: it is there (heap.js), and the thing is the size on screen the level is drawn at, or larger
-        // while its next finer level has not come
-        const span = dialPxAt(spanAt(size, dist)), R = heapRow(H, kind, lv), has = R.z.greaterThan(uint(0));   // (its size on screen at a metre: the measure's, in dial pixels as its band: src/detail/error.js)
-        const near = dist.greaterThanEqual(span.mul(band.from).sub(band.pad)).or(stands.greaterThan(0.5).and(R.w.shiftRight(under).bitAnd(uint(1)).equal(uint(0))));
-        If(has.and(whole.or(dist.lessThan(span.mul(band.to).add(band.pad)).and(near))), () => {
-          fill(...rows);
-          asItIs(TH, c, key, rows, () => {
-            if (byKind) bucket.assign(float(kind));   // (its kind's own draw)
-            if (classed) bucket.assign(float(classN(cornersOf(R)).max(uint(cLo)).min(uint(cHi)).sub(uint(cLo))));   // (its class's draw)
-            if (perSlot) bucket.assign(float(R.y.sub(uint(H.pools[0].e0)).div(uint(H.pools[0].elems))));   // (the full meshes: which of the heap's slots its kind's lies in)
-            if (leafy) bucket.addAssign(lookOf(kind, 4).y.greaterThan(0.5).select(float(K0), float(0)));
-            if (KS >= 0) If(shapedOf(R), () => { bucket.assign(float(KS)); });
-            if (FAR) {   // (its kind's draw, its far end's, or both)
-              const w = FAR.wants(kind, rows);
-              If(w.mesh.not(), () => { bucket.assign(-1); });
-              If(w.far, () => { also.assign(KF); });
-              If(w.mesh.or(w.far), () => { alive.assign(1); });
-            } else alive.assign(1);
-          });
-        });
-      });
-      return { alive: alive.greaterThan(0.5), data: rows, bucket, also };
+    const lv = uniform(i, 'uint'), under = uniform(Math.max(0, i - 1), 'uint'), stands = uniform(i ? 1 : 0), all = uniform(shadow ? 1 : 0), TH = thingOf(thing), whole = all.greaterThan(0.5);
+    // of this level, a thing of `kind`, `size` metres, `dist` metres off (pad: how far past its band): it is there
+    // (heap.js), and it is the size on screen the level is drawn at, or larger while its next finer level has not come
+    const ofLevel = (kind, size, dist, pad) => {
+      const span = dialPxAt(spanAt(size, dist)), R = heapRow(H, kind, lv), has = R.z.greaterThan(uint(0));   // (its size on screen at a metre: the measure's, in dial pixels as its band: src/detail/error.js)
+      const near = dist.greaterThanEqual(span.mul(band.from).sub(pad)).or(stands.greaterThan(0.5).and(R.w.shiftRight(under).bitAnd(uint(1)).equal(uint(0))));
+      return { R, ok: has.and(whole.or(dist.lessThan(span.mul(band.to).add(pad)).and(near))) };
     };
-    let own = null;   // (another make's material: one for every draw of the tier)
+    // which of its draws it is dropped into (bucket), and of its far end's too where it hands over to it (also)
+    const holder = () => ({ alive: float(0).toVar(), bucket: float(0).toVar(), also: FAR ? float(-1).toVar() : null });
+    const sortOf = (out, kind, rows, R) => {
+      if (byKind) out.bucket.assign(float(kind));   // (its kind's own draw)
+      if (classed) out.bucket.assign(float(classN(cornersOf(R)).max(uint(cLo)).min(uint(cHi)).sub(uint(cLo))));   // (its class's draw)
+      if (perSlot) out.bucket.assign(float(R.y.sub(uint(H.pools[0].e0)).div(uint(H.pools[0].elems))));   // (the full meshes: which of the heap's slots its kind's lies in)
+      if (leafy) out.bucket.addAssign(lookOf(kind, 4).y.greaterThan(0.5).select(float(K0), float(0)));
+      if (KS >= 0) If(shapedOf(R), () => { out.bucket.assign(float(KS)); });
+      if (FAR) {   // (its kind's draw, its far end's, or both)
+        const w = FAR.wants(kind, rows);
+        If(w.mesh.not(), () => { out.bucket.assign(-1); });
+        If(w.far, () => { out.also.assign(KF); });
+        If(w.mesh.or(w.far), () => { out.alive.assign(1); });
+      } else out.alive.assign(1);
+    };
+    const done = (out, rows) => ({ alive: out.alive.greaterThan(0.5), data: rows, bucket: out.bucket, also: out.also });
+    // (its own patches: a cell's thing, packed where it is of the level now)
+    const live = (c, part = {}) => {
+      const out = holder(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar());
+      place(c, { band, whole, all, ...part }, (kind, size, dist, fill, key = null) => {
+        const L = ofLevel(kind, size, dist, band.pad);
+        If(L.ok, () => { fill(...rows); asItIs(TH, c, key, rows, () => { sortOf(out, kind, rows, L.R); }); });
+      });
+      return done(out, rows);
+    };
+    // (resident: a cell's thing, held where it may be of the level for a camera within its region's pad (from this level
+    // on down to the next finer's band: while that one has not come, this one draws it); and of a thing held, whether it
+    // is of the level now)
+    const finer = i > 1 ? 1 / (LEVELS[i - 2].px * Math.exp(fade)) : 0, inner = shadow || !i ? band.from : uniform(finer);
+    const found = (c, Q) => {
+      const alive = float(0).toVar(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar());
+      place(c, { band: { ...band, near: band.near.sub(Q.pad), far: band.far.add(Q.pad) }, whole, all, ...Q }, (kind, size, dist, fill, key = null) => {
+        const span = dialPxAt(spanAt(size, dist));
+        If(whole.or(dist.lessThan(span.mul(band.to).add(Q.pad)).and(dist.greaterThanEqual(span.mul(inner).sub(Q.pad)))), () => { fill(...rows); asItIs(TH, c, key, rows, () => { alive.assign(1); }); });
+      });
+      return { alive: alive.greaterThan(0.5), data: rows };
+    };
+    const select = (rows) => {
+      const out = holder(), kind = uint(rows[1].y.add(0.5)), L = ofLevel(kind, rows[0].w, camDist(rows[0].xy), band.pad);
+      If(L.ok, () => { sortOf(out, kind, rows, L.R); });
+      return done(out, rows);
+    };
+    const resident = !own && !extra.spans;
+    let made1 = null;   // (another make's material: one for every draw of the tier)
     const draws = classed ? Array.from({ length: cHi - cLo + 1 }, (_, c) => { const g = new THREE.InstancedBufferGeometry(); g.setIndex(classIndex(cLo + c)); return g; }) : Array.from({ length: byKind ? ALL : leafy ? K0 * 2 : K0 }, () => drawOf(i));
     if (FAR) draws.push(new THREE.InstancedBufferGeometry().setIndex([0, 1, 2, 0, 2, 3]));   // (the far end's quad: four corners, its vertex stage places them)
-    const caps = FAR ? [...draws.slice(0, KF).map(() => cap), Math.min(1 << 20, cap * ALL)] : cap;   // (its far end's draw holds as many as every kind's, up to about a million: what is gone only under a pixel reaches far)
-    const T = new Tier(scene, [...draws, ...(KS >= 0 ? [drawShaped(i)] : [])], (src, k = 0) => (k === KF ? FAR.material(src, i) : isDot && !shadow ? dot(src) : MAKE ? (own ||= MAKE.material(src, i, shadow, atOf(i))) : meshOf(src, i, shadow, false, leafy && k >= K0 && k !== KS, k === KS)), { cell, P, near: 0, far: 1, reach: shadow ? SHADE.far * SHADE.wide : Math.min(far, band.reach(sizes[0], sizes[1], pxKMost())[1]), high: sizes[1], order: 1, live, gpu: true, cap: caps, slots: ROWS, bounds: shadow ? null : boundsOf(GROWN, KF), ...extra });   // (the shadow's stand-in is never culled: what casts may stand where the eye does not see; reach: how far its band can reach, its region tree's room)
+    const caps = FAR ? [...draws.slice(0, KF).map(() => cap), Math.min(1 << 20, cap * ALL)] : cap;   // (its own patches: its far end's draw holds as many as every kind's, up to about a million)
+    const packs = resident ? { found, select, metres: shadow } : { live, cap: caps };   // (a resident tier's buckets are as large as it finds it needs: tier.js)
+    const T = new Tier(scene, [...draws, ...(KS >= 0 ? [drawShaped(i)] : [])], (src, k = 0) => (k === KF ? FAR.material(src, i) : isDot && !shadow ? dot(src) : MAKE ? (made1 ||= MAKE.material(src, i, shadow, atOf(i))) : meshOf(src, i, shadow, false, leafy && k >= K0 && k !== KS, k === KS)), { cell, P, near: 0, far: 1, order: 1, ...packs, gpu: true, slots: ROWS, bounds: shadow ? null : boundsOf(GROWN, KF), ...extra });   // (the shadow's stand-in is never culled: what casts may stand where the eye does not see)
     T.band = shadow ? () => { T.near = 0; T.far = SHADE.far; band.near.value = -1; band.far.value = SHADE.far * SHADE.wide; }
       : () => {
         [T.near, T.far] = band.reach(sizes[0], sizes[1], dialK()); if (i <= STREAMED) T.near = 0;   // (a level may stand in for the finer ones, right up to the camera)
@@ -703,29 +728,44 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // (with the level's pixels: its packing binds this and not the drawer's LO)
     const at = (i, f) => Math.max(0, draws.findIndex((d) => d.level === i && f(d)));
     const DRAWS = uniformArray(LEVELS.map((l, i) => new THREE.Vector4(l.px, at(i, (d) => !d.shared), at(i, (d) => d.shared), 0)), 'vec4'), END = THIN ? THIN[0] : DOT && last === L - 1 ? LEVELS[L - 1].px : GONE;   // (END: the size on screen under which nothing of it is drawn: where it is gone. Dial pixels, every one: src/detail/error.js)
+    // a thing of `kind`, px dial pixels large: the level its size asks for, drawn at the finest that is there and no finer
+    // than that; its draw (into out.bucket, where it has one: then `go`)
+    const levelOf = (kind, px, out, go = () => {}) => {
+      const want = uint(0).toVar(), held = heldOf(heapRow(H, kind, uint(L - 1))), lvl = uint(last).toVar();
+      for (let j = 0; j < last; j++) want.addAssign(px.lessThanEqual(DRAWS.element(j).x).select(uint(1), uint(0)));
+      for (let l = last - 1; l >= 0; l--) If(want.lessThanEqual(uint(l)).and(held.shiftRight(uint(l)).bitAnd(uint(1)).equal(uint(1))), () => { lvl.assign(uint(l)); });
+      const R = heapRow(H, kind, lvl).toVar();
+      If(R.z.greaterThan(uint(0)), () => { go(() => { const dr = DRAWS.element(lvl); out.bucket.assign(lvl.equal(uint(0)).select(CUT0 ? float(0) : float(R.y.sub(uint(hp0.e0)).div(uint(hp0.elems))), shapedOf(R).select(dr.z, dr.y))); out.alive.assign(1); }); });
+    };
+    const whole = all0.greaterThan(0.5), holder = () => ({ alive: float(0).toVar(), bucket: float(0).toVar() });
+    // (its own patches, what moves: a cell's thing, packed at its level now)
     const live = (c, part = {}) => {
-      const alive = float(0).toVar(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar()), bucket = float(0).toVar();
-      place(c, { band, whole: all0.greaterThan(0.5), all: all0, ...part }, (kind, size, dist, fill, key = null) => {
+      const out = holder(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar());
+      place(c, { band, whole, all: all0, ...part }, (kind, size, dist, fill, key = null) => {
         const px = dialPxAt(pxAt(size, dist));   // (its size on screen: the measure's, in dial pixels as its levels)
-        If(px.greaterThan(END), () => {
-          // the level its size asks for; drawn at the finest that is there and no finer than that
-          const want = uint(0).toVar(), held = heldOf(heapRow(H, kind, uint(L - 1))), lvl = uint(last).toVar();
-          for (let j = 0; j < last; j++) want.addAssign(px.lessThanEqual(DRAWS.element(j).x).select(uint(1), uint(0)));
-          for (let l = last - 1; l >= 0; l--) If(want.lessThanEqual(uint(l)).and(held.shiftRight(uint(l)).bitAnd(uint(1)).equal(uint(1))), () => { lvl.assign(uint(l)); });
-          const R = heapRow(H, kind, lvl).toVar();
-          If(R.z.greaterThan(uint(0)), () => {
-            fill(...rows);
-            asItIs(TH, c, key, rows, () => {
-              const dr = DRAWS.element(lvl); bucket.assign(lvl.equal(uint(0)).select(CUT0 ? float(0) : float(R.y.sub(uint(hp0.e0)).div(uint(hp0.elems))), shapedOf(R).select(dr.z, dr.y)));
-              alive.assign(1);
-            });
-          });
-        });
+        If(px.greaterThan(END), () => { levelOf(kind, px, out, (sort) => { fill(...rows); asItIs(TH, c, key, rows, sort); }); });
       });
-      return { alive: alive.greaterThan(0.5), data: rows, bucket };
+      return { alive: out.alive.greaterThan(0.5), data: rows, bucket: out.bucket };
+    };
+    // (resident: a cell's thing, held where it is not gone for a camera within its region's pad; of a thing held, its
+    // level now)
+    const found = (c, Q) => {
+      const alive = float(0).toVar(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar());
+      place(c, { band: { ...band, near: band.near.sub(Q.pad), far: band.far.add(Q.pad) }, whole, all: all0, ...Q }, (kind, size, dist, fill, key = null) => {
+        If(dialPxAt(pxAt(size, max(dist.sub(Q.pad), 1e-3))).greaterThan(END), () => { fill(...rows); asItIs(TH, c, key, rows, () => { alive.assign(1); }); });
+      });
+      return { alive: alive.greaterThan(0.5), data: rows };
+    };
+    const select = (rows) => {
+      const out = holder(), kind = uint(rows[1].y.add(0.5)), px = dialPxAt(pxAt(rows[0].w, camDist(rows[0].xy)));
+      If(px.greaterThan(END), () => { levelOf(kind, px, out, (sort) => sort()); });
+      return { alive: out.alive.greaterThan(0.5), bucket: out.bucket };
     };
     // (one material for every mesh level of it, its level told by each mesh; one more for what is drawn by a level's own list)
-    const mats = {}, T = new Tier(scene, draws.map((d) => (d.cut ? new THREE.InstancedBufferGeometry().setIndex([0, 1, 2]) : d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, reach: Math.min(far, farMost(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])), high: sizes[1], order: 1, live, gpu: true, cap: draws.map((d) => (d.dot || (TRUTH && !d.level) ? cap : Math.min(cap, 16 * 4 ** Math.max(1, d.level)))), slots: ROWS, bounds: boundsOf(GROWN + (moving ? 0.5 : 0)) });   // (a cap a draw: what is drawn large is few, four times as many a level further off; ?truth draws all of it at its finest)
+    // (what moves chooses its own patches, packed every frame, a cap a draw: what is drawn large is few, four times as
+    // many a level further off; what stands still is resident, its buckets as large as it finds it needs: tier.js)
+    const packs = moving ? { live, cap: draws.map((d) => (d.dot ? cap : Math.min(cap, 16 * 4 ** Math.max(1, d.level)))) } : { found, select };
+    const mats = {}, T = new Tier(scene, draws.map((d) => (d.cut ? new THREE.InstancedBufferGeometry().setIndex([0, 1, 2]) : d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, order: 1, ...packs, gpu: true, slots: ROWS, bounds: boundsOf(GROWN + (moving ? 0.5 : 0)) });
     T.step = step;
     T.band = () => { T.near = 0; T.far = Math.min(far, farFor(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])); band.far.value = T.far; };   // (a drawer that thins its things away: packed until they are gone)
     T.band(); T.draws = draws;
@@ -733,7 +773,10 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     if (!CUT0) { T.slotArgs = (s) => [s * 5]; fulls.push(T); }   // (where a slot's draw keeps its length)
     const shows = (d) => (d.cut ? false : d.dot ? true : d.slot != null ? hp0.who[d.slot] >= 0 : d.shared ? H.pools[d.level].shaped > 0 : H.pools[d.level].held > H.pools[d.level].shaped);
     // level 0's cut: every frame, after the packing, what of the things it holds is drawn, cluster by cluster
-    const C = CUT0 ? createCut({ T, k: 0, H, room: room(0), name }) : null, cm = C ? new THREE.Mesh(C.geometry, meshOf(null, 0, false, moving, false, false, true, C)) : null;
+    // (the most of it that can be at level 0 at once: what stands within where its largest is that large, a thing a cell,
+    // at the most pixels the screen can draw)
+    const near0 = (sizes[1] * pxKMost()) / LEVELS[0].px, things = Math.ceil(Math.PI * (near0 / cell + 1) ** 2);
+    const C = CUT0 ? createCut({ T, k: 0, H, room: room(0), name, things }) : null, cm = C ? new THREE.Mesh(C.geometry, meshOf(null, 0, false, moving, false, false, true, C)) : null;
     if (cm) { Object.assign(cm, { frustumCulled: false, renderOrder: 1, visible: false }); cm.userData.level = 0; if (casts) cm.layers.enable(1); scene.add(cm); T.cutMesh = cm; }
     const lead = !made.length, run = T.run.bind(T); let frame = 0;
     T.run = (r, world, ...a) => {
