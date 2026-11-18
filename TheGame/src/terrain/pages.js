@@ -184,7 +184,7 @@ export function createPages(renderer, tex) {
     uMip.value = 0; renderer.compute(pageKernel, [SLOT / 8, (SLOT * list.length) / 8, 1]);
     uMip.value = 1; renderer.compute(pageKernel, [SLOT / 16, (SLOT / 2 * list.length) / 8, 1]);
     if (PACKED) pack(list);
-    for (const q of list) { put(q.idx, VALID | q.slot | ((frame & 0xffff) << 16)); q.came = frame; fading.push(q); }
+    for (const q of list) { put(q.idx, VALID | q.slot | (TRUTH ? FADED : 0) | ((frame & 0xffff) << 16)); q.came = frame; if (!TRUTH) fading.push(q); }   // (?truth: in at once, the reference fades nothing)
     made += list.length; did('pages', list.length);
   };
   // make each of these pages, BATCH at a time, as many as `most`: how many were made
