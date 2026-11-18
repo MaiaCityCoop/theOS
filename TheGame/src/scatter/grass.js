@@ -2,7 +2,7 @@
 // from the ground pass (ground.js); the wind bends it (windAt) and each blade flutters on its own. Three rings (the grass's
 // own file, assets/grass.js: its tiers): dense and fine close, sparse and wide far.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, If, min, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor } from 'three/tsl';
+import { Fn, float, int, uint, bool, vec2, vec3, vec4, If, min, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { hashI, camDist, BASE } from '../world/land.nodes.js';
 import { finish, skyLight, weathered, cloudAtOne, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
@@ -42,10 +42,10 @@ function bladeIn(c, asset, T, ground) {
   const h1 = hashI(c.x, c.y, uint(100));
   const pos = vec2(c).add(vec2(float(h1.bitAnd(uint(0xFFF))), float(h1.shiftRight(uint(12)).bitAnd(uint(0xFFF)))).mul(1 / 4096)).mul(T.cell);
   // (and, the smallest layer of all, as thick as the light that comes down to it through the crowns over it lets it
-  // grow, in proportion to that light (as a plant grows by the light it takes: Monteith 1977), and none on the feet of
-  // the larger: src/scatter/growth.js, rule.js)
+  // grow, in proportion to that light (as a plant grows by the light it takes: Monteith 1977), and none on the ground
+  // the larger things really cover, a trunk, a stem, a log, a branch, a stone, no more: src/scatter/growth.js, rule.js)
   const M = growthMap(), F = M ? M.all(pos) : null;
-  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = F ? G.y.mul(F.light).mul(float(1).sub(F.foot)) : G.y, h2 = hashI(c.x, c.y, uint(101));
+  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = F ? G.y.mul(F.light) : G.y, h2 = hashI(c.x, c.y, uint(101));
   const inBand = dist.lessThanEqual(hf.mul(-T.farFade).add(T.far)).and(dist.greaterThanEqual(hf.mul(-T.nearFade).add(T.near)));
   const r1 = u8(h2, 0), r2 = u8(h2, 8), r3 = u8(h2, 16);
   // blades stand in tufts: the tuft they are in gives them a height, a lean and a shade in common
@@ -55,9 +55,11 @@ function bladeIn(c, asset, T, ground) {
   const hgt = float(asset.height).mul(float(0.5).add(r1.mul(r1).mul(0.55)).add(c1.mul(c1).mul(0.8)).add(flower.mul(0.35))).mul(G.z).mul(dens.mul(0.4).add(0.6));
   const ang = c2.add(r2.sub(0.5).mul(0.55)).mul(6.2831853), bend = float(0.2).add(r3.mul(0.55)).add(c3.mul(0.35)).mul(float(1).sub(flower.mul(0.7)));
   const base = tint.rgb.mul(float(0.7).add(r3.mul(0.35)).add(c3.mul(0.35))), dried = clamp(tint.a.mul(1.2).add(r2.mul(0.35)).sub(0.25), 0, 1);
-  // (as many drawn as the ground says it grows there, and towards the meadow's end fewer: a first share of the turns)
-  return { alive: inBand.and(rankOf(c, u8(h2, 24)).lessThanEqual(dens.mul(endOf(T, dist)))).and(hgt.greaterThan(snowDepth.mul(2.5))),   // a blade not much taller than the snow is deep lies bent under it
-    data: [vec4(pos, G.x, hgt), vec4(ang, bend, r1, flower), vec4(base, dried)] };
+  // (as many drawn as the ground says it grows there, and towards the meadow's end fewer: a first share of the turns;
+  // and where one would stand, none on ground a larger thing covers: asked last, where it is asked at all)
+  const grows = inBand.and(rankOf(c, u8(h2, 24)).lessThanEqual(dens.mul(endOf(T, dist)))).and(hgt.greaterThan(snowDepth.mul(2.5))).toVar();   // a blade not much taller than the snow is deep lies bent under it
+  if (F) If(grows, () => { If(F.foot().greaterThan(0.5), () => { grows.assign(bool(false)); }); });
+  return { alive: grows, data: [vec4(pos, G.x, hgt), vec4(ang, bend, r1, flower), vec4(base, dried)] };
 }
 
 function bladeMaterial(T, wide) {

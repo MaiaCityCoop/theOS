@@ -25,9 +25,10 @@
 // grow(shape, i) builds a shape whole (a stage's form, or shapes[i]) with builder()/tube()/cards(), or crown() for its
 // limbs and foliage as most trees share them, or mound() for a low bush, and returns the builder;
 // shade(shape, i), if given, the light mesh the shadow map is drawn from (else none of its levels cast, but the nearest);
-// tree() works out the rest the engine reads: its levels, its size, and each shape's trunk as a body (the tube made
-// with { body: true }, where it stands at a walker's chest); its meshes are made where they are asked for, never when
-// its file is read (a worker reads this file too: plain JS, nothing of the page in it).
+// tree() works out the rest the engine reads: its levels, its size, each shape's trunk as a body (the tube made with
+// { body: true }, where it stands at a walker's chest) and its feet (the ground it covers: builder); its meshes are made
+// where they are asked for, never when its file is read (a worker reads this file too: plain JS, nothing of the page
+// in it).
 
 import { budgetOf } from './crowd.js';
 import { bandsOf, shapeSize } from './plant.js';
@@ -39,6 +40,9 @@ import { rng } from '../../src/core/hash.js';
 export const outward = (R0, lift) => { const a = R0() * 2 * Math.PI, y = lift + (1 - lift) * R0() * 2 - (1 - lift), r = Math.sqrt(Math.max(0, 1 - y * y)); return [Math.cos(a) * r, y, Math.sin(a) * r]; };
 
 const CHEST = 1.2;   // metres up a trunk where a walker meets it
+/** How deep what stands in a stand is set into the ground (src/scatter/trees.js draws it so): where the ground is in a
+    shape's own frame. What lies on it is built so much higher (assets/kit/floor.js). */
+export const FOOT = 0.15;
 
 /** The mesh being built: positions, normals, uv, part (0 wood, 1 leaves, 2 a solid body, no sprig cut out of it), ao, a
     card's plane (cn), its foot (root: what its sprig grows from and shrinks to), indexed; and its parts (intent 0038,
@@ -52,9 +56,14 @@ const CHEST = 1.2;   // metres up a trunk where a walker meets it
                                              grows from and shrinks to
     Whatever is laid without a part (a moss's domes) is one solid piece that stays. ao(p): the light that reaches the
     wood at p; barkTile: metres of wood one tile of bark covers; colours: [wood, leaves] for a picture without the
-    textures. */
+    textures.
+    Its feet: the ground it covers, as it is built, each piece [ax, az, bx, bz, ra, rb, edge] in its own frame at scale
+    1 (src/scatter/rule.js reads them): a solid piece (edge 0) covers what lies within ra … rb of a to b, between them
+    and no further (a disk where a is b); an outline's edge (edge 1) bounds, with the rest of its outline, what it
+    covers. Wood that rises through the ground leaves its cross-section there (tube: a trunk, a sapling's stem, a bush's
+    stems); what lies on the ground, its wood or stone (assets/kit/floor.js). Leaves cover none: they shade. */
 export function builder({ ao = () => 1, barkTile = 1, colours = [[0.3, 0.22, 0.15], [0.1, 0.18, 0.06]] } = {}) {
-  const b = { position: [], normal: [], uv: [], part: [], ao: [], color: [], cn: [], root: [], twig: [], index: [], parts: [], body: null };
+  const b = { position: [], normal: [], uv: [], part: [], ao: [], color: [], cn: [], root: [], twig: [], index: [], parts: [], body: null, feet: [] };
   // (twig: 1 where a card wears the painting of one twig, its plant's `fine.twig`, not its sprig: splayOf)
   b.v = (p, n, uv, part, a, cn = [0, 0, 0], root = [0, 0, 0], twig = 0) => { b.position.push(...p); b.normal.push(...n); b.cn.push(...cn); b.root.push(...root); b.uv.push(...uv); b.part.push(part); b.ao.push(a); b.twig.push(twig); b.color.push(...colours[Math.min(part, 1)]); return b.ao.length - 1; };
   b.aoAt = ao; b.barkTile = barkTile;
@@ -100,6 +109,13 @@ export function tube(b, pts, rad, sides, { body = false } = {}) {
     b.index.push(a, d, e, a, e, c);
   }
   b.parts.push({ v0, v1: b.ao.length, i0, i1: b.index.length, foot: pts[0] });
+  // (where it rises through the ground, its cross-section there is ground it covers: its feet)
+  for (let i = 0; i < n - 1; i++) {
+    const y0 = pts[i][1] - FOOT, y1 = pts[i + 1][1] - FOOT;
+    if (y0 === y1 || (y0 > 0 && y1 > 0) || (y0 < 0 && y1 < 0) || (y1 === 0 && i < n - 2)) continue;   // (a crossing at a point between two pieces: counted once)
+    const t = y0 / (y0 - y1), p = lerp(pts[i], pts[i + 1], t), r = rad[i] + (rad[i + 1] - rad[i]) * t;
+    b.feet.push([p[0], p[2], p[0], p[2], r, r, 0]);
+  }
   if (body) {
     for (let i = 1; i < n && !b.body; i++) if (pts[i][1] >= CHEST) {   // the trunk at chest height
       const t = (CHEST - pts[i - 1][1]) / Math.max(1e-6, pts[i][1] - pts[i - 1][1]), p = lerp(pts[i - 1], pts[i], t);
@@ -270,8 +286,8 @@ export function heightIn(S, age) {
   return a1 > a0 ? Math.exp(Math.log(h0) + (Math.log(h1) - Math.log(h0)) * (Math.log(a / a0) / Math.log(a1 / a0))) : h0;
 }
 
-/** What the page must know of a tree at once, before any of its meshes is made (its size, each shape's height and
-    trunk: measured on its shapes as grown), by what it is (a recipe's uid and seed): `kept`, what was measured at an
+/** What the page must know of a tree at once, before any of its meshes is made (its size, each shape's height, trunk
+    and feet: measured on its shapes as grown), by what it is (a recipe's uid and seed): `kept`, what was measured at an
     earlier start and is handed in (src/core/outlines.js reads it from where it is kept, by the recipe's version);
     `made`, what was measured anew this time, for it to keep. A few numbers a tree. */
 export const OUTLINES = { kept: new Map(), made: new Map() };
@@ -285,7 +301,7 @@ const packed = (m) => ({ ...Object.fromEntries(FLOATS.filter((k) => m[k]?.length
     Nothing of it is built when its file is read, and in the game none of its meshes is ever on the page: they are
     made shape by shape where they are asked for (finest: by its family in the recipes' workers, assets/kit/plant.js,
     each level a first share of it; and by the library, for a plant on its stage) and live on the GPU
-    (src/scatter/heap.js). What the page must know at once (size, heights, trunk) is measured once on its shapes as
+    (src/scatter/heap.js). What the page must know at once (size, heights, trunk, feet) is measured once on its shapes as
     grown and kept as a few numbers (OUTLINES). */
 export function tree(recipe) {
   const { shapes: own = [{}], growth, grow, shade, shadow = {}, fine = null, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
@@ -307,7 +323,7 @@ export function tree(recipe) {
       outline = OUTLINES.kept.get(id);
       if (!outline) {
         const near = shapes.map((s, i) => grow(s, i));
-        outline = { size: boundsOf(near), trunk: near.map((m) => m.body ?? [0, 0, 0.12]), heights: near.map((m) => boundsOf([m]).height) };   // trunk: each shape's at a walker's chest: where it stands off its foot, its radius (assets/kinds.js: shapesOf, a tree's trunk)
+        outline = { size: boundsOf(near), trunk: near.map((m) => m.body ?? [0, 0, 0.12]), heights: near.map((m) => boundsOf([m]).height), feet: near.map((m) => m.feet) };   // trunk: each shape's at a walker's chest: where it stands off its foot, its radius (assets/kinds.js: shapesOf, a tree's trunk); feet: the ground each covers (builder)
         OUTLINES.made.set(id, outline);
       }
     }
@@ -347,7 +363,7 @@ export function tree(recipe) {
   };
   const lazy = (get) => ({ enumerable: true, configurable: true, get });
   return Object.defineProperties(out, {
-    size: lazy(() => rest.size ?? measured().size), trunk: lazy(() => measured().trunk), heights: lazy(() => measured().heights),
+    size: lazy(() => rest.size ?? measured().size), trunk: lazy(() => measured().trunk), heights: lazy(() => measured().heights), feet: lazy(() => measured().feet),
     // its levels as numbers only (P: cells a patch's side; tris(): the most triangles its first shape has there, of its
     // room in the heap); shadow: it is drawn into the shadow map by its shade, for every tree within `far` metres (from
     // high up, up to `wide` times that) whose shade can reach the view (`reach`: how far a crown's shadow falls); past
