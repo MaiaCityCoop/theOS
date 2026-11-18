@@ -36,17 +36,17 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, instanceIndex, screenCoordinate, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, instanceIndex, screenCoordinate, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, cross, clamp, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { rnd, vnoise, camDist, heightAt } from '../world/land.nodes.js';
-import { layersOf, posIn, placeIn, grovesOf, writersOf } from './rule.js';
+import { rnd, camDist, heightAt } from '../world/land.nodes.js';
+import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf } from './rule.js';
 import { createGrowth } from './growth.js';
 import { toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, unlit, windAt, windDir, windStrength, ign } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { CLEARINGS } from '../../world/places.js';
 import { recipe, recipes, versionOf } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
-import { kindOf, sizeOf, most } from '../../assets/kinds.js';
+import { kindOf, sizeOf, most, baseOf } from '../../assets/kinds.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { createAtlas, bakers, viewClip, tileClip, impostorRead, impostorViews, clumpRead, octEnc, litIn, LODS } from '../detail/impostor.js';
 import { offScreen, clipOf, MAXP, Tier } from './tier.js';
@@ -60,7 +60,7 @@ import { idOf } from '../world/things.js';
 import { wayAt, waysVersion } from '../world/ways.js';
 import { pxOf, turnOf, seedOf } from './row.js';
 import { CROWD, levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
-import { crowdOf, bandsOf, GRID, GOQ } from '../../assets/kit/plant.js';
+import { crowdOf, bandsOf, baseShare, GRID, GOQ } from '../../assets/kit/plant.js';
 import { lo16, hi16 } from './unpack.js';
 import { TRUTH, REACH as TRUTH_REACH, drawnAt } from '../detail/measure.js';
 import { source } from '../core/settle.js';
@@ -141,8 +141,8 @@ export const FOOT = 0.15;   // how deep a plant's foot is set into the ground
 // size over its shape's at scale 1 (sizeAtOne). Done once per cell for the whole group (src/scatter/tier.js); the cheap
 // tests first (its band, the view), as most cells hold none.
 //   G: the group (groupsOf): its layer (the cells, rule.js), the growth map it reads (G.M) and its kinds, each one of
-//      the layer's things (Kd.e: its entry); a kind's growth: its stages by age, the age its stand's (its biome's `age`,
-//      a slow noise) or a sapling's, the plant its stage scaled to its own height (assets/kit/tree.js)
+//      the layer's things (Kd.e: its entry); how tall it stands and which of its shapes, the rule's (rule.js grownIn: a
+//      kind's stages by age, the age its stand's or a sapling's, the plant its stage scaled to its own height)
 function plantIn(c, G, band, all, seen, found) {
   const { L, kinds } = G, cx = c.x, cy = c.y, h0 = (k) => uint(k + L.seed - 300);   // (the layer's seed moves every hash: each layer its own cells)
   const pos = posIn(c, L).toVar(), dist = camDist(pos);
@@ -150,41 +150,27 @@ function plantIn(c, G, band, all, seen, found) {
   const there = range.lessThan(band.far).and(range.greaterThanEqual(band.near));
   If(seen ? there.and(inView(pos, seen.r, seen.high)) : there, () => {   // (seen.r: a uniform, its level's)   // (and in the eye's view: not the shadow's stand-in, whose shade may fall into it)
     const R = placeIn(c, L, G.M, pos), I = R.I, d = abs(I.x), w = I.y;
-    const which = float(0).toVar(), h = float(1).toVar(), across = float(1).toVar(), out = float(0).toVar(), hit = float(0).toVar();
-    // the kind's own: how large this one is, and which of its shapes
+    const which = float(0).toVar(), h = float(1).toVar(), across = float(1).toVar(), base = float(0).toVar(), hit = float(0).toVar();
+    // the kind's own: how large this one is, and which of its shapes (the rule's: rule.js grownIn, as the growth map
+    // reckons its crown)
     kinds.forEach((Kd) => { If(R.k.equal(Kd.e.i), () => {
-      const a = Kd.asset, P = a.placement, GR = a.growth, AG = Kd.e.ages, r = rnd(cx, cy, h0(312));
-      const own = mix(P.scale[0], P.scale[1], GR && AG ? rnd(cx, cy, h0(304)) : pow(rnd(cx, cy, h0(304)), 1.3));
-      if (GR && AG) {   // grown, as old as its stand: a slow noise gives the stand its age; young, a sapling's
-        const age = (Kd.e.young ? mix(AG[0], AG[1], r.mul(r)) : mix(AG[0], AG[1], vnoise(pos.div(Kd.ageScale), h0(311))).mul(mix(0.65, 1.3, r))).toVar();
-        GR.stages.forEach((S, j) => {
-          if (S.offset >= Kd.e.shapes[1]) return;   // (a sapling: only its first stages)
-          const lo = j ? S.from : -1, hi = j < GR.stages.length - 1 && GR.stages[j + 1].offset < Kd.e.shapes[1] ? S.to : 1e9;
-          If(age.greaterThanEqual(lo).and(age.lessThan(hi)), () => {
-            // (its height: its stage's height by age where the stage begins, at its year and where it ends, straight
-            // in the logarithms of age and height between them, as assets/kit/tree.js heightIn works it out)
-            const ag = clamp(age, S.from, S.to), low = ag.lessThan(S.year);
-            const t = low.select(log(ag.div(S.from)).div(Math.log(S.year / S.from)), log(ag.div(S.year)).div(Math.log(S.to / S.year)));
-            const hh = exp(low.select(mix(float(Math.log(S.hFrom)), float(Math.log(S.h)), t), mix(float(Math.log(S.h)), float(Math.log(S.hTo)), t)));
-            h.assign(hh.mul(own)); which.assign(floor(rnd(cx, cy, h0(309)).mul(S.variants)).add(S.offset + Kd.offset));
-          });
-        });
-      } else { h.assign(own.mul(a.size.height)); which.assign(floor(rnd(cx, cy, h0(309)).mul(Kd.shapes)).min(Kd.shapes - 1).add(Kd.offset)); }   // (no growth: a shape at random, its size its placement's scale)
-      out.assign(h.mul(Kd.spread));   // (how far it reaches out from its foot: half its kind's span, at its height)
+      const T = grownIn(c, L, Kd.e, pos);
+      h.assign(T.h); which.assign(T.shape.add(Kd.offset));
       across.assign(h.mul(Kd.wide));   // (its size on screen by what its kind measures it by, src/detail sizeOf: a bush is low and wide, its largest side counts. `wide`: that to its height)
+      base.assign(h.mul(Kd.base));   // (how far round its middle what is solid of it stands on the ground: a trunk; createStands)
       hit.assign(1);
     }); });
     // Whether it is of the tier's level (the size on screen the level asks, and a little either side: its hand-over,
     // and as far as the camera may move before the cells are worked out again) the drawer says; what of it shows, its
     // vertices say each frame (plantMaterial). (The shadow's stand-in: every plant in its band)
     If(hit.greaterThan(0.5), () => {
-      const way = wayAt(pos, out.add(0.5));
+      const way = wayAt(pos, base);
       const stands = () => found(uint(which), across, dist, (A, B) => {
         A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(FOOT), across));   // (where it stands, its foot, its size in metres)
         B.assign(vec4(rnd(cx, cy, h0(305)).mul(6.2831853), which, rnd(cx, cy, h0(306)).mul(6.2831853), rnd(cx, cy, h0(307)).mul(0.999 * 6.2831853)));   // (its turn, its kind, its sway's phase, its seed: its shade, as it always was)
       });
-      // (and nothing of it reaches over a way: what moves there, on the ground or over it, meets no plant. src/world/ways.js;
-      // where none are laid the shader is the one it was)
+      // (and none stands on a way: none whose base, what of it a walker meets at its foot, reaches onto it. Its crown
+      // may reach over one. src/world/ways.js; where none are laid the shader is the one it was)
       if (way) If(way.lessThan(0.5), stands); else stands();
     });
   });
@@ -569,7 +555,7 @@ export function groupsOf(rows) {
     // the sizes a plant of it can have: its youngest and its oldest (by its growth: a sapling's, its first stages'), or its scale's
     const H = a.size.height, GR = a.growth, wide = sizeOf(a) / H, n = e.shapes[1], last = GR?.stages.filter((S) => S.offset < n).at(-1);
     const lo = (GR ? GR.stages[0].hFrom * P.scale[0] : H * P.scale[0]) * wide, hi = (GR ? Math.max(...a.heights.slice(0, n)) * (last.hTo / last.h) * P.scale[1] : H * P.scale[1]) * wide;
-    by.get(key).kinds.push({ row, asset: a, e, levels, shapes: n, wide, spread: Math.max(most(a.size.length), most(a.size.width ?? 0)) / (2 * H), age: e.ages, ageScale: grovesOf(e.biome, L).clumps * 2.5, lo, hi, round: (a.size.length / 2) * P.scale[1] * (hi / (H * P.scale[1] * wide)) });
+    by.get(key).kinds.push({ row, asset: a, e, levels, shapes: n, wide, base: Math.max(...Array.from({ length: n }, (_, i) => baseShare(a, i))), age: e.ages, ageScale: grovesOf(e.biome, L).clumps * 2.5, lo, hi, round: (a.size.length / 2) * P.scale[1] * (hi / (H * P.scale[1] * wide)) });
   }
   return [...by.values()].map((G) => offsets({ ...G, kinds: G.kinds.sort((x, y) => x.e.i - y.e.i) }));
 }
@@ -647,7 +633,9 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     };
     const D = createDrawer(scene, renderer, tex, {
       name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1),
-      make: { per: 2, onBlock: G.far?.onBlock, far, numbers: { rows: 5, of: (k) => numbers.subarray(k * 20, k * 20 + 20) }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, first: i === 0, last: i === n - 1 }, feedOf(i, at)); m.vertexNode = Fn((builder) => shape(src.readAt(0, slot), src.readAt(1, slot), passOf(builder)))(); return m; } },
+      // (boxOf: a mesh's box as its family measured it, metres at scale 1 (assets/kit/plant.js), in its shape's sizes and
+      // as far as it leans: its stand's lean moves a point sideways by its height, at most the lean of its wind's numbers)
+      make: { per: 2, onBlock: G.far?.onBlock, far, numbers: { rows: 5, of: (k) => numbers.subarray(k * 20, k * 20 + 20) }, boxOf: (k, b) => { const K = G.KS[k] || 1, L = numbers[k * 20 + 5] * Math.max(Math.abs(b[1]), b[4], 0); return [(b[0] - L) / K, b[1] / K, (b[2] - L) / K, (b[3] + L) / K, b[4] / K, (b[5] + L) / K]; }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, first: i === 0, last: i === n - 1 }, feedOf(i, at)); m.vertexNode = Fn((builder) => shape(src.readAt(0, slot), src.readAt(1, slot), passOf(builder)))(); return m; } },
       // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
       zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 5|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
     });
