@@ -65,7 +65,7 @@ import { pxOf, turnOf, seedOf } from './row.js';
 import { CROWD, levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
 import { crowdOf, bandsOf, GRID, GOQ, GO0, FOOT } from '../../assets/kit/plant.js';
 import { lo16, hi16 } from './unpack.js';
-import { pxKMost, measureVersion } from '../detail/measure.js';
+import { pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
 import { BAND, FADE } from '../detail/error.js';
 import { source } from '../core/settle.js';
 import { keptGet, keptPut } from '../core/kept.js';
@@ -265,7 +265,7 @@ function plantMaterial(tex, D) {
         if (!Lv) {
           // the shadow's stand-in: it goes as the plant goes, shrinking to its foot over its last level's last pixels as
           // the plant sinks there (over the BAND above where it is gone): no shadow is left where no tree is, and none goes at once
-          const lo = D.kinds[0].levels.at(-1).lo, end = smoothstep(lo, lo * Math.max(D.sink, 1.2), pxOf(A.w, A.xy));
+          const lo = D.kinds[0].levels.at(-1).lo, end = smoothstep(lo, lo * Math.max(D.sink, 1.2), dialPxAt(pxOf(A.w, A.xy)));
           If(V.drawn ? end.greaterThan(0).and(V.drawn) : end.greaterThan(0), () => { clip.assign(stand(A, B, V, end, pass)); });   // (drawn: the draw's corner is one of its mesh's)
           return;
         }
@@ -273,7 +273,7 @@ function plantMaterial(tex, D) {
         // (src/detail/handover.js): its last level sinking. A level is drawn only between its own sizes on screen, hard
         // (the level beside it draws the same there). Its rule reckons a plant by its own size on screen, each of its
         // rungs by its own error (crowdRule). Where it is its impostor (meshShare), nothing of its mesh shows
-        const own = px ?? pxOf(A.w, A.xy), at = own, H = handOver(at, LU, D.sink);
+        const own = px ?? pxOf(A.w, A.xy), at = dialPxAt(own), H = handOver(at, LU, D.sink);   // (its level's ends in the dial's pixels: src/detail/error.js)
         const above = Lv.first ? H.u.greaterThan(0) : at.lessThan(LC.hi), below = Lv.last ? H.sunk.greaterThan(0) : at.greaterThanEqual(LC.lo);
         const R = crowdRule(own, V, V.crowd), mesh = meshShare(V.Tf, own, V.Ks, V.shade), show = above.and(below).and(R.shown).and(mesh.greaterThan(0));
         // (its sprigs' own swing fades out over the BAND above where its crowd ends (its rule's HI, metres: its clumps or
@@ -409,7 +409,7 @@ function impostorMaterial(G, D, Lv, src) {
   m.vertexNode = Fn(() => {
     const A = src.readAt(0, slot), B = src.readAt(1, slot), clip = offScreen().toVar(), kind = uint(B.y.add(0.5));
     const r0 = D().numOf(kind, 0), r2 = D().numOf(kind, 2), r3 = D().numOf(kind, 3), r4 = D().numOf(kind, 4);
-    const own = pxOf(A.w, A.xy), at = own, H = handOver(at, LU, G.sink);
+    const own = pxOf(A.w, A.xy), at = dialPxAt(own), H = handOver(at, LU, G.sink);
     const above = Lv.first ? H.u.greaterThan(0) : at.lessThan(LC.hi), below = Lv.last ? H.sunk.greaterThan(0) : at.greaterThanEqual(LC.lo);
     const share = float(1).sub(meshShare(r3.z, own, r3.y, seedOf(B)));
     If(above.and(below).and(share.greaterThan(0)), () => {
