@@ -359,3 +359,4 @@ Asked outright and without surprises, so built straight away.
 | 2026-11-18 | `df4c5ea` | Four-phase village ladder; the #ladder page |
 | 2026-11-18 | `893c909` | Investment rounds per level; the economy rules |
 | 2026-11-18 | `bf4e8d3` | The harvest sheet and its recipe engine |
+| 2026-11-18 | `f8ac3e6` | The Compass rebuilt: chapters, diagrams, explorers, library |
