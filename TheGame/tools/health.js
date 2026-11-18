@@ -13,6 +13,10 @@
 //                                          default for `complexity`) and not as complex at the base; a new unused file
 //                                          or export; a new cycle; more mode branches or hand-set numbers; a new
 //                                          dependency that no intent the change touches names. CI runs it on every PR.
+//                                          A change that reverts a commit M of the base's line is measured against the
+//                                          state it restores, the base with M undone (M's first parent, where nothing
+//                                          came after M): a pure revert shows no change, and whatever else the change
+//                                          does is measured as ever.
 //
 //   Copies        jscpd, clones of 50 tokens or more: the share of lines that are in one, and the largest
 //   Spaghetti     eslint's `complexity` (cyclomatic) of every function: the most, the mean, the 20 most
@@ -23,8 +27,10 @@
 //                 whole run (one the address sets, as `?truth` sets TRUTH, or one set by hand): in the condition of an
 //                 if, ?:, loop or switch, or left of &&, || or ??, by the flags each is made from. Hand-set numbers:
 //                 every module constant, or number in a constant's table, written as a number by hand, and those the
-//                 SSOT audit (research_notes/0038-ssot-audit.md) names however they are written (marked). Flag reads:
-//                 every call of flag, flagNum and flagText (src/core/flags.js)
+//                 SSOT audit (research_notes/0038-ssot-audit.md) names however they are written (marked); not the
+//                 physical constants: the exported values of a module named physics.js, the one place they live, each
+//                 saying its unit and its source in its comment (`unit: …`, `source: …`; --base fails where one does
+//                 not). Flag reads: every call of flag, flagNum and flagText (src/core/flags.js)
 //   Dependencies  the direct dependencies of every package.json in the repository
 //
 // No node on the path: jscpd and knip are run by bun from their files, eslint and madge through their own APIs.
@@ -54,7 +60,27 @@ const REF = valueOf('--base'), CEILING = +(valueOf('--ceiling') ?? COMPLEXITY.me
 const at = (f, line) => `${f}:${line}`, fileOf = (place) => place.slice(0, place.lastIndexOf(':')), nameOf = (n) => n.name ?? n.value;
 
 // ---- what is measured: the paths asked for, else (against a base) the folders the change touches, else all of TheGame ----
-const BASE = REF && git('merge-base', REF, 'HEAD')[0];
+/** The base a change is measured against: where <ref> and HEAD part; or, where the change reverts a commit M of that
+    base's line, the state that revert restores: the base with M undone (as git revert undoes it), which is M's first
+    parent where nothing came after M. M is the commit a "This reverts commit M" of the change's own commits names (git
+    revert), else the newest commit of the base's line all of whose paths the change touches and leaves as they are with
+    M undone. [the base: a commit, or the tree with M undone; M, or null]. */
+function baseOf(ref) {
+  const base = git('merge-base', ref, 'HEAD')[0], touched = new Set(git('diff', '--name-only', base, '--', ':/'));
+  const named = [...git('log', '--format=%B', `${base}..HEAD`).join('\n').matchAll(/This reverts commit ([0-9a-f]{7,40})/g)].map((m) => m[1]).find((M) => run('git', ['merge-base', '--is-ancestor', M, base]).status === 0);
+  const restores = ({ sha, paths }) => paths.length && paths.every((p) => touched.has(p)) && run('git', ['diff', '--quiet', undone(base, sha), '--', ...paths.map((p) => `:/${p}`)]).status === 0;
+  const M = named ?? firstParents(base).find(restores)?.sha, T = M && undone(base, M);
+  return T ? [T, M] : [base, null];
+}
+/** The tree of `base` with commit M undone, as git revert undoes it (null where that does not merge cleanly). */
+const undone = (base, M) => { const r = run('git', ['merge-tree', '--write-tree', `--merge-base=${M}`, base, `${M}^1`]); return r.status === 0 ? r.stdout.split('\n')[0] : null; };
+/** The commits of a commit's first-parent line, newest first, each with the paths it changed from its first parent. */
+function firstParents(c) {
+  const out = [];
+  for (const l of git('log', '--first-parent', '--format=@%H', '--name-only', c)) if (l.startsWith('@')) out.push({ sha: l.slice(1), paths: [] }); else out.at(-1).paths.push(l);
+  return out;
+}
+const [BASE, REVERTED] = REF ? baseOf(REF) : [];
 const CHANGED = BASE ? [...git('diff', '--name-only', '--relative', BASE), ...git('ls-files', '-o', '--exclude-standard')] : [];
 function inGame(p) {
   const abs = [resolve(p), resolve(GAME, p)].find((q) => existsSync(q)) ?? fail(`no ${p}`), rel = relative(GAME, abs);
@@ -197,6 +223,26 @@ function numbers(m, name, init, out) {
   if (n.type === 'ObjectExpression') for (const p of n.properties) if (p.type === 'Property' && !p.computed) numbers(m, `${name}.${nameOf(p.key)}`, p.value, out);
   if (audit || (isNumber(n) && /\d/.test(text))) out.push({ at: at(m.f, n.loc.start.line), name, value: text, ...(audit && { audit }) });
 }
+/** Whether a module constant is physical: an exported value (not a function) of a module named physics.js, the one
+    place physical constants live, each with its unit and its source. */
+const physical = (m, name) => basename(m.f) === 'physics.js' && [...m.exports.values()].includes(name) && !/Function/.test(m.consts.get(name).init.type);
+/** Whether a constant's comment (before its statement, not on the line the one before ends on, or after it on its own
+    last line) says its unit and its source (`unit: …`, `source: …`). */
+function sourced(m, v) {
+  const s = v.parent.parent?.type === 'ExportNamedDeclaration' ? v.parent.parent : v.parent, before = m.sc.getTokenBefore(s)?.loc.end.line ?? 0;
+  const said = [...m.sc.getCommentsBefore(s).filter((c) => c.loc.start.line > before), ...m.sc.getCommentsAfter(s).filter((c) => c.loc.start.line === s.loc.end.line)].map((c) => c.value).join(' ');
+  return /\bunits?:\s*\S/i.test(said) && /\bsources?:\s*\S/i.test(said);
+}
+/** A module's constants: each physical one (a vector or a table one constant), the one without its unit or source among
+    them, and the hand-set numbers of the rest. */
+function constants(m, S) {
+  for (const [name, v] of m.consts) {
+    if (!physical(m, name)) { numbers(m, name, v.init, S.numbers); continue; }
+    const c = { at: at(m.f, v.loc.start.line), name, value: m.sc.getText(v.init) };
+    S.physical.push(c);
+    if (!sourced(m, v)) S.unsourced.push(c);
+  }
+}
 
 // ---- the gates, over a tree ----
 function copies(t) {
@@ -236,17 +282,17 @@ function size(t) {
   return { files: t.files.length, code: folders.reduce((s, d) => s + d.code, 0), folders };
 }
 function settings(t) {
-  const branches = [], hand = [], reads = [];
+  const S = { branches: [], numbers: [], physical: [], unsourced: [], reads: [] };
   for (const m of t.files.map((f) => mod(t, f)).filter((x) => x.sc)) {
     for (const r of m.sc.scopeManager.scopes.flatMap((s) => s.references)) {
       const id = r.identifier, line = at(m.f, id.loc.start.line), read = readOf(id);
       const what = read ? { mode: true, flags: [read] } : r.resolved?.scope === m.scope && made(t, m.f, id.name);   // (a module's own bindings and imports)
-      if (read) reads.push({ at: line, flag: read });
-      if (what?.mode && inTest(read ? id.parent : id)) branches.push({ at: line, on: what.flags.join(' ') });
+      if (read) S.reads.push({ at: line, flag: read });
+      if (what?.mode && inTest(read ? id.parent : id)) S.branches.push({ at: line, on: what.flags.join(' ') });
     }
-    for (const [name, v] of m.consts) numbers(m, name, v.init, hand);
+    constants(m, S);
   }
-  return { branches, numbers: hand, reads };
+  return S;
 }
 /** The direct dependencies of each package.json among a tree of the repository's files (from its root, repo). */
 const dependencies = (repo, files) => files.filter((p) => basename(p) === 'package.json').map((p) => {
@@ -292,7 +338,7 @@ function change(B, H) {
     size: H.size.code - B.size.code,
     settings: { branches: { change: H.settings.branches.length - B.settings.branches.length, rose: rose(B.settings.branches, H.settings.branches, (b) => `${b.on} in ${fileOf(b.at)}`) },
       numbers: { change: H.settings.numbers.length - B.settings.numbers.length, new: H.settings.numbers.filter((x) => !set.has(exportKey(x))) },
-      reads: H.settings.reads.length - B.settings.reads.length },
+      physical: H.settings.physical.length - B.settings.physical.length, unsourced: H.settings.unsourced, reads: H.settings.reads.length - B.settings.reads.length },
     dependencies: added(B.dependencies, H.dependencies),
   };
 }
@@ -312,6 +358,7 @@ const worse = (D) => [
   ...D.cycles.map((c) => `cycles: a new one, ${ring(c)}`),
   ...(D.settings.branches.change > 0 ? D.settings.branches.rose.map(([k, by]) => `settings: ${n(by, 'more mode branch')} on ${k}`) : []),
   ...(D.settings.numbers.change > 0 ? D.settings.numbers.new.map((x) => `settings: a new hand-set number, ${x.at} ${x.name} = ${x.value}`) : []),
+  ...D.settings.unsourced.map((x) => `settings: ${x.at} ${x.name}, a physical constant (physics.js) whose comment does not say its unit and its source`),
   ...D.dependencies.filter((d) => !d.named).map((d) => `dependencies: ${d.name} (${d.at}) is new, and no intent the change touches names it`),
 ];
 
@@ -326,7 +373,7 @@ const SAID = {   // each gate's measure, in a cell
   'Dead code': (G) => `${n(G.dead.files.length, 'file')}, ${n(G.dead.exports.length, 'export')}, ${G.dead.duplicates.length} exported twice`,
   Cycles: (G) => `${G.cycles.cycles.length}${G.cycles.unfollowed.length ? ` (madge could not follow ${n(G.cycles.unfollowed.length, 'import')})` : ''}`,
   Size: (G) => `${G.size.code} lines of code in ${n(G.size.files, 'file')}`,
-  Settings: (G) => `${n(G.settings.branches.length, 'mode branch')}, ${n(G.settings.numbers.length, 'hand-set number')} (the audit's ${G.settings.numbers.filter((x) => x.audit).length}), ${n(G.settings.reads.length, 'flag read')}`,
+  Settings: (G) => `${n(G.settings.branches.length, 'mode branch')}, ${n(G.settings.numbers.length, 'hand-set number')} (the audit's ${G.settings.numbers.filter((x) => x.audit).length}), ${n(G.settings.physical.length, 'physical constant')}${G.settings.unsourced.length ? ` (${G.settings.unsourced.length} without unit or source)` : ''}, ${n(G.settings.reads.length, 'flag read')}`,
   Dependencies: (G) => `${G.dependencies.reduce((s, p) => s + p.dependencies.length + p.dev.length, 0)} direct (${G.dependencies.reduce((s, p) => s + p.dev.length, 0)} dev) in ${G.dependencies.length} package.json`,
 };
 const WHERE = {   // where the most of each gate is, in a cell
@@ -344,13 +391,13 @@ const CHANGE = {   // each gate's change from the base, in a cell
   'Dead code': (D) => `${n(D.dead.files.length, 'new file')}, ${n(D.dead.exports.length, 'new export')}`,
   Cycles: (D) => `${D.cycles.length} new`,
   Size: (D) => `${signed(D.size)} lines of code`,
-  Settings: (D) => `${signed(D.settings.branches.change)} mode branches, ${signed(D.settings.numbers.change)} hand-set numbers, ${signed(D.settings.reads)} flag reads`,
+  Settings: (D) => `${signed(D.settings.branches.change)} mode branches, ${signed(D.settings.numbers.change)} hand-set numbers, ${signed(D.settings.physical)} physical constants, ${signed(D.settings.reads)} flag reads`,
   Dependencies: (D) => D.dependencies.map((d) => `${d.name} (${dirname(d.at)}) new${d.named ? ', named in its intent' : ''}`).join(', ') || 'none new',
 };
 /** The gates against the base: here, there and the change, and what got worse. */
 function against(G) {
   const rows = Object.keys(SAID).map((g) => [g, SAID[g](G), SAID[g](G.base), CHANGE[g](G.change)]);
-  return [`Code gates · ${G.area.join(' ') || 'no .js touched'} · ${G.commit} against ${G.base.commit} (${G.base.ref}) · .gate/health.json`, '',
+  return [`Code gates · ${G.area.join(' ') || 'no .js touched'} · ${G.commit} against ${G.base.commit} (${G.base.ref}${G.base.reverts ? `: the state the revert of ${G.base.reverts} restores` : ''}) · .gate/health.json`, '',
     '| Gate | Here | Base | Change |', '| --- | --- | --- | --- |', ...cell(rows), '',
     ...(G.worse.length ? ['Worse than at the base:', ...G.worse.map((w) => `  ${w}`)] : ['Nothing is worse than at the base.'])].join('\n');
 }
@@ -371,6 +418,7 @@ function table(G) {
   list('Mode branches', count(G.settings.branches, (b) => b.on).map(([on, k]) => `${String(k).padStart(4)}  ${on}: ${G.settings.branches.filter((b) => b.on === on).map((b) => b.at).join(', ')}`));
   list('Hand-set numbers by folder', count(G.settings.numbers, (x) => dirname(x.at)).map(([d, k]) => `${String(k).padStart(4)}  ${d}`));
   list('The audit\'s, still set', G.settings.numbers.filter((x) => x.audit).map((x) => `${x.at}  ${x.name} = ${x.value}`));
+  list('Physical constants without their unit or source', G.settings.unsourced.map((x) => `${x.at}  ${x.name}`));
   list('Flag reads', count(G.settings.reads, (x) => x.flag).map(([flag, k]) => `${String(k).padStart(4)}  ${flag}`));
   list('Dependencies', G.dependencies.map((p) => `${p.at}: ${[...p.dependencies, ...p.dev.map((d) => `${d} (dev)`)].join(', ') || 'none'}`));
   return out.join('\n');
@@ -383,7 +431,7 @@ const H = { commit: git('rev-parse', '--short', 'HEAD')[0] + (git('status', '--p
   area: AREA.map((a) => (a.folder !== undefined ? `${a.folder}/*` : a.path)), ...HERE };
 if (BASE) {
   const { repo, game } = unpack(BASE);
-  H.base = { ref: REF, commit: BASE.slice(0, 7), ...(await measure(game, BASE_FILES, repo, git('ls-tree', '-r', '--name-only', '--full-tree', BASE))) };
+  H.base = { ref: REF, commit: BASE.slice(0, 7), reverts: REVERTED?.slice(0, 7) ?? null, ...(await measure(game, BASE_FILES, repo, git('ls-tree', '-r', '--name-only', '--full-tree', BASE))) };
   H.change = change(H.base, HERE);
   H.worse = worse(H.change);
   process.exitCode = H.worse.length ? 1 : 0;
