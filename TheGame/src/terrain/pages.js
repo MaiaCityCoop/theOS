@@ -48,7 +48,7 @@ const S0 = 1 / 512, LEVELS = 17, TOP = LEVELS - 1, K = 128;   // metres a texel 
 // (how many of a block's pixels ask each frame (`takes`) follows the frame's own length: every one of them within a
 // fixation of the eye (src/world/physics.js FIXATION), so a long frame, as ?truth's, asks all of them, and a sweep is that
 // frame; at 60 frames a second, five a frame and a sweep of thirteen)
-const ANISO = 4, FADE = 10, BATCH = 16;   // the filter's steps along a slope; frames a page fades in over; pages laid at once
+const ANISO = 4, FADE = 10, BATCH = 4;   // the filter's steps along a slope; frames a page fades in over; pages laid at once (a kernel's submission each: about 2 ms of a GPU's own time a page measured, WebKit on the Mac mini, so a batch's within the 10 ms no submission may pass)
 // a block of SWEEP × SWEEP pixels asks once a frame, the finest of `takes` of them: no wider than a page's border on
 // either side, so at the finest's level (a pixel there about a texel) every pixel of it lies within the finest's page and
 // its border, or the page across the edge it is asked with
@@ -427,7 +427,7 @@ export function createPages(renderer, tex) {
       const Q = IN.get(keyOf(TOP, i, j)); if (Q) { Q.pin = true; Q.used = frame; } else pins.push({ m: TOP, i, j, pin: true });
     }
     for (const Q of IN.values()) if (Q.pin && Q.m === TOP && Q.used < frame) Q.pin = false;
-    if (pins.length) make(pins, Infinity);
+    if (pins.length) make(pins, BATCH);   // (a batch a frame: after a start or a jump many, never all at once)
   };
   const isStill = () => moved < 1e-4 && swung < 1e-5;
   // the pixels' asks: the last frame's read back, what is no longer asked for forgotten, the bias chosen again from asks
@@ -453,7 +453,7 @@ export function createPages(renderer, tex) {
     if (dirty) sortQueue();
     if (!queue.length) return;
     const still = isStill();
-    make(still ? queue : queue.filter((q) => !waits(q.m, q.i, q.j, cam)), still ? 48 : 12); queue = queue.filter((q) => !IN.has(keyOf(q.m, q.i, q.j)) && inWin(q.m, q.i, q.j));
+    make(still ? queue : queue.filter((q) => !waits(q.m, q.i, q.j, cam)), still ? 4 * BATCH : BATCH); queue = queue.filter((q) => !IN.has(keyOf(q.m, q.i, q.j)) && inWin(q.m, q.i, q.j));
   };
   // the pages fading in: done after FADE frames of the fades' clock
   const faded = () => {
