@@ -12,9 +12,7 @@
 //                                          the change touches over the ceiling (--ceiling: Define's; else eslint's own
 //                                          default for `complexity`) and not as complex at the base; a new unused file
 //                                          or export; a new cycle; more mode branches or hand-set numbers; a new
-//                                          dependency that no intent the change touches names; more of what a start
-//                                          of the world compiles (its pipelines and shader modules). CI runs it
-//                                          on every PR.
+//                                          dependency that no intent the change touches names. CI runs it on every PR.
 //                                          A change that reverts a commit M of the base's line is measured against the
 //                                          state it restores, the base with M undone (M's first parent, where nothing
 //                                          came after M): a pure revert shows no change, and whatever else the change
@@ -41,10 +39,10 @@
 //   Pipelines     what a start of the world compiles (tools/smoke.js: the world made on the GPU's stand-in as
 //                 src/boot.js makes it, every material as each pass draws it and every compute pass built; what it
 //                 kept for the commit in .gate/smoke/, else run in the tree): its distinct render pipelines (a vertex
-//                 and a fragment stage), distinct compute pipelines and the distinct shader modules they hold, all by
-//                 their WGSL text, not by object, and those modules' WGSL bytes. The engine's pipelines do not grow
-//                 with what the world holds (assets are data, the passes few): --base fails on any rise of the three
-//                 counts; the bytes are shown, not held
+//                 and a fragment stage), distinct compute pipelines, the distinct shader modules they hold and those
+//                 modules' WGSL bytes, all by their WGSL text, not by object. Shown with its change against the base,
+//                 never failing: a feature adds what it needs, and the count comes down through shared passes, whose
+//                 trend the hourly scoreboard keeps
 //   Dependencies  the direct dependencies of every package.json in the repository
 //
 // No node on the path: jscpd and knip are run by bun from their files, eslint and madge through their own APIs.
@@ -368,7 +366,7 @@ function pipelines(game, commit) {
   const said = kept && existsSync(kept) ? readFileSync(kept, 'utf8') : run(process.execPath, ['tools/smoke.js', '--json'], game).stdout.trim().split('\n').at(-1);
   try { const j = JSON.parse(said); return j.world.pipelines ? { ...j.world.pipelines, failed: j.failed.length } : null; } catch { return null; }
 }
-const PIPES = { render: 'distinct render pipeline', compute: 'distinct compute pipeline', modules: 'distinct shader module' };   // (held; the bytes are shown)
+const PIPES = ['render', 'compute', 'modules', 'bytes'];
 async function measure(root, files, repo, all, commit) {
   const t = treeOf(root, files);
   return { files: files.length, copies: copies(t), spaghetti: spaghetti(t), dead: dead(t), cycles: await cycles(t), size: size(t), settings: settings(t), pipelines: pipelines(root, commit), dependencies: dependencies(repo, all) };
@@ -430,7 +428,6 @@ const worse = (D) => [
   ...(D.settings.branches.change > 0 ? D.settings.branches.rose.map(([k, by]) => `settings: ${n(by, 'more mode branch')} on ${k}`) : []),
   ...(D.settings.numbers.change > 0 ? D.settings.numbers.new.map((x) => `settings: a new hand-set number, ${x.at} ${x.name} = ${x.value}`) : []),
   ...D.settings.unsourced.map((x) => `settings: ${x.at} ${x.name}, ${HOLDS[x.kind].holds} whose comment does not say its ${HOLDS[x.kind].says.join(' and its ')}`),
-  ...(D.pipelines ? Object.keys(PIPES).filter((k) => D.pipelines.is[k] > D.pipelines.was[k]).map((k) => `pipelines: ${n(D.pipelines.is[k] - D.pipelines.was[k], `more ${PIPES[k]}`)} for a start of the world (${D.pipelines.was[k]} → ${D.pipelines.is[k]})`) : []),
   ...D.dependencies.filter((d) => !d.named).map((d) => `dependencies: ${d.name} (${d.at}) is new, and no intent the change touches names it`),
 ];
 
@@ -466,7 +463,7 @@ const CHANGE = {   // each gate's change from the base, in a cell
   Cycles: (D) => `${D.cycles.length} new`,
   Size: (D) => `${signed(D.size)} lines of code`,
   Settings: (D) => `${signed(D.settings.branches.change)} mode branches, ${signed(D.settings.numbers.change)} hand-set, ${KINDS.map((k) => `${signed(D.settings[k])} ${k}`).join(', ')}, ${signed(D.settings.reads)} flag reads`,
-  Pipelines: ({ pipelines: p }) => (p ? `${Object.keys(PIPES).map((k) => `${signed(p.is[k] - p.was[k])} ${k}`).join(', ')}, ${signed(p.is.bytes - p.was.bytes)} bytes` : 'not counted at the base'),
+  Pipelines: ({ pipelines: p }) => (p ? PIPES.map((k) => `${signed(p.is[k] - p.was[k])} ${k}`).join(', ') : 'not counted at the base'),
   Dependencies: (D) => D.dependencies.map((d) => `${d.name} (${dirname(d.at)}) new${d.named ? ', named in its intent' : ''}`).join(', ') || 'none new',
 };
 /** The gates against the base: here, there and the change, and what got worse. */
