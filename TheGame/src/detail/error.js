@@ -23,7 +23,7 @@
 // ---- the dial, the live pixel, the switch (src/detail/measure.js keeps them) ----
 let DIAL = 1, K = NaN;   // (K: none until the page says: the workers never ask)
 /** The dial: the most pixels drawn by which a rung may differ from the thing at full detail. 1 at rest; the governor
-    turns it (src/core/governor.js), through the measure (measure.js setErrorPx). */
+    turns it (src/core/governor.js), through the measure (measure.js). */
 export const ERROR_PX = () => DIAL;
 /** The live pixel: pixels drawn a metre covers one metre from the eye, through the walker's 68° lens (the inside's height
     in pixels, at the governor's ratio: measure.js keepMeasure). */
