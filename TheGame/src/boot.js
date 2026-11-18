@@ -13,18 +13,7 @@
 // It gives the game (window.__game: what the pages, the films and the tools read) as soon as its parts are made, before
 // they are compiled; game.ready is the page's first view complete (src/core/settle.js), what the gate waits for. The
 // virtual camera (cine/cine.js: every frame passes through it) and the game's pill (cine/menu.js) come with it, first.
-//
-//   world/      the land as functions: in JS for the walker's feet (land.js), as nodes for the GPU (land.nodes.js);
-//               the light every material shares (light.js), the sky, the shadows, the places and what stands there
-//   core/       what everything shares: uniforms, the frustum, the governor, the readout
-//   materials/  the ground's textures, painted once at start into one texture array
-//   terrain/    the ground and the water: a quadtree of one tile
-//   scatter/    what stands on the land: a table of assets, drawn tier by tier
-//   detail/     levels of detail by size on screen, and far cards
-//   camera/     the one camera, and the lens's picture (depth of field)
-//
-// Drawn by three's WebGPURenderer (WebGL 2 where WebGPU is missing), every material in node code (TSL, intent 0008).
-// A frame only moves uniforms and chooses what to draw.
+// What each folder of src/ does: ../README.md. A frame only moves uniforms and chooses what to draw.
 import { outlinesKept, keepOutlines } from './core/outlines.js';   // (first: what was measured of the plants at an earlier start is read back before any file asks a plant's size)
 import '../cine/cine.js';   // the virtual camera, before anything asks for a frame: it holds the game's camera wherever a page or a film says
 import '../cine/menu.js';   // the game's pill
@@ -258,12 +247,13 @@ export async function boot({ profile = 'world' } = {}) {
       neither packed nor drawn, and what it has out holds nothing up (src/core/settle.js: its own part). */
   const grow = (on = true) => {
     leave('grown', !on);
-    if (!on) { if (grown) hide(grown.into); return Promise.resolve(); }
+    if (!on) { if (grown) { grown.on = false; hide(grown.into); } return Promise.resolve(); }
     if (!grown) {
       grown = partOf('grown', () => { const g = growing(new THREE.Group()); scatterOf(g); return g; }); game.ground = grown.ground;
       grown.ready = Promise.all([grown.pass, grown.packing]).then(() => { grown.live = true; grown.scatter.warm(); });   // (packed from the next frame on; drawn once its materials are compiled)
     }
-    return grown.ready.then(() => show(grown.into));
+    grown.on = true;
+    return grown.ready.then(() => (grown.on ? show(grown.into) : null));   // (unless it was hidden again meanwhile)
   };
   if (!world) Object.assign(game, { show, hide, grow });
 
