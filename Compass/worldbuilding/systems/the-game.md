@@ -107,7 +107,7 @@ Later, not in the MVP: underground transport, the dome factory, robotics, and co
 
 ### The village ladder
 
-A village climbs by **Fibonacci gates in villagers**, through four phases. **The village coop owns every dome.** Two kinds: **living domes** (for 4, 12, 24 and 48 people; the tents move inside them, and none is ever taken down) and **growing domes** (Fibonacci diameters). **Every dome comes with its own tech box:** battery, a few small CPUs, internet, a heat pump and converters, all its technology in one container. Its solar cells are on the dome.
+**A village starts with at least 3 settlers,** who get the starter pack: a pickup, 3 tents and a 3 m growing dome for herbs and berries. From there it climbs by **Fibonacci gates in villagers**, through four phases. **The village coop owns every dome.** Two kinds: **living domes** (for 4, 12, 24 and 48 people; the tents move inside them, and none is ever taken down) and **growing domes** (Fibonacci diameters). **Every dome comes with its own tech box:** battery, a few small CPUs, internet, a heat pump and converters, all its technology in one container. Its solar cells are on the dome.
 
 **The geothermal star:** from 610 villagers, the geothermal plant in the village centre feeds heat and power in a star to every dome's heat pump, and the domes hold **24 °C or more all year**. Until then, every gate makes their climate steadier. **Energy is never exported out of the city;** a surplus goes only to neighbouring villages that started later.
 
@@ -115,20 +115,18 @@ A village climbs by **Fibonacci gates in villagers**, through four phases. **The
 
 | Phase | Villagers | Goal | Investment | Funded by |
 | --- | --- | --- | ---: | --- |
-| 1 · Food | 1 – 377 | Food sovereignty | ≈ €21M | The citizens; angels from 13, seed from 55 |
+| 1 · Food | 3 – 377 | Food sovereignty | ≈ €21M | The citizens; angels from 13, seed from 55 |
 | 2 · Energy | 378 – 610 | Energy sovereignty: the geothermal star, built once 610 is reached | ≈ €40M | The first major investor |
 | 3 · Compute | 611 – 987 | The server farm in the tower; compute exported | ≈ €127M | The second major investor |
 | 4 · Factories | 988 – 1,597 | Startup factory coops around the centre; fewer imports; the city export-positive | ≈ €113M | The third major investor |
 
 | Villagers | Phase | Added | € this level | € in total | Funded by | Food import | Energy import |
 | ---: | --- | --- | ---: | ---: | --- | ---: | ---: |
-| 1 | 1 · Food | 1 tent, a pickup, a generator | €30k | €30k | Citizens | 100% | 100% |
-| 2 | 1 · Food | A tent; a 2 m growing dome (berries) and its tech box | €6k | €36k | Citizens | 99% | 100% |
-| 3 | 1 · Food | A tent; a 3 m dome (herbs) and its tech box | €8k | €44k | Citizens | 98% | 99% |
-| 5 | 1 · Food | 2 tents, one shared; a 5 m dome (vegetables) and its tech box | €19k | €63k | Citizens | 97% | 97% |
-| 8 | 1 · Food | The first 4-person living dome; an 8 m dome; a rainwater tank | €93k | €156k | Citizens | 94% | 94% |
-| 13 | 1 · Food | A 4-person dome; a 13 m dome, the first food forest; the kitchen container | €210k | €366k | First angels | 88% | 90% |
-| 21 | 1 · Food | The first 12-person dome; a 21 m dome; the bath and sanitary container | €375k | €741k | Angels | 80% | 86% |
+| 3 | 1 · Food | **The starter pack:** a pickup, 3 tents, a generator, and a 3 m growing dome for herbs and berries with its tech box | €37k | €37k | Citizens | 98% | 99% |
+| 5 | 1 · Food | 2 tents, one shared; a 5 m dome (vegetables) and its tech box | €19k | €56k | Citizens | 97% | 97% |
+| 8 | 1 · Food | The first 4-person living dome; an 8 m dome; a rainwater tank | €93k | €149k | Citizens | 94% | 94% |
+| 13 | 1 · Food | A 4-person dome; a 13 m dome, the first food forest; the kitchen container | €210k | €359k | First angels | 88% | 90% |
+| 21 | 1 · Food | The first 12-person dome; a 21 m dome; the bath and sanitary container | €375k | €734k | Angels | 80% | 86% |
 | 34 | 1 · Food | A 12-person dome; a 34 m dome; the workshop and store container | €500k | €1.2M | Angels | 70% | 82% |
 | 55 | 1 · Food | The first 24-person dome; a 55 m dome, the full food forest; the water-cycle plant | €1.1M | €2.4M | Seed | 58% | 78% |
 | 89 | 1 · Food | The first 48-person dome; an 89 m dome | €2.6M | €4.9M | Seed | 45% | 74% |
