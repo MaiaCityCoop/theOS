@@ -521,6 +521,17 @@ photographed skin for its surface. That is what the rule "our own code only" kee
 - **Not there yet.** The gate. Beside the photograph ours is a drawn face: even skin, flat light, a mild smile, a
   mirrored form, no hair. Said plainly in Propose, with three ways on.
 
+### 2026-11-18, night: brought to `main`'s gates
+
+- **Asked:** "Once this is done ensure that you also deliver all remaining work that we did on our custom work as
+  well".
+- **Delivered:** nothing new in the face: its code brought to what `main`'s code gates ask, with the Body's (intent
+  0041's changelog says how). The ear's table and its plane, the face's lines and the head's form are in
+  `characters/kit/skin/art.js`, each saying what it was chosen against; the ear's maps and its surface are made in
+  named steps.
+- **Good:** the Body laid again is byte for byte the same after every step, and its stills pixel for pixel.
+- **Broke / not there yet:** nothing of the face's own gate is nearer: the photograph is not reached.
+
 ## Trail
 
 | When | Commit | What |
@@ -537,6 +548,7 @@ photographed skin for its surface. That is what the rule "our own code only" kee
 | 2026-11-18 | 2fee84f | fourth round: the chin shorter, nostrils that show; the tool reads the chin's own foot |
 | 2026-11-18 | 3c6ca32 | proposed a fourth time: the fourth round's write-up |
 | 2026-11-18 | be568ca | fifth round: the photograph as the gate; blue eyes, a smile of the whole face, the skin's folds, pores and colour; a portrait still |
+| 2026-11-18 | 019b8cf | brought to `main`'s gates with the Body: the face's and the ear's numbers in `art.js`, each with its source (intent 0041's commits) |
 
 On its branch this intent was numbered 0040, and its commits' messages say `Intent: 0040`. It was given 0042 on 2026-11-18,
 when the branch was brought to `main`, where 0040 had meanwhile been taken by another intent.

@@ -318,7 +318,8 @@ shows (9); a body that walks by its feet and its balance, breathes, looks and bl
 - [x] second round: the limbs' outlines right side out, the thighs apart, the bumps, the neck
 - [x] every weak point against the gate, listed (Propose)
 - [x] the code brought to `main`'s gates, the Body unchanged byte for byte (but for the by-eye numbers' count)
-- [ ] on `main`: the gate's place for what is set by eye (Samuel's to decide), then the pull request
+- [x] the gate's place for what is set by eye (Samuel: "Add it to the gate")
+- [ ] on `main`: the pull request, green, merged
 - [ ] seen in the library on a real GPU, and timed
 - [ ] Samuel's word on the rule, the screen's curve and what comes next
 - [ ] the shoulders' breadth; the crease across the belly bent forwards; the shoulder's top with the arm level
@@ -392,6 +393,19 @@ shows (9); a body that walks by its feet and its balance, breathes, looks and bl
   On the way: two of my edit scripts stopped at their own checks (a line's index, a count) before they wrote
   anything, and were run again right.
 
+- **Asked (night, on the gate):** put to Samuel as a question with three ways on: add the place to the gate, ask the
+  gate's owner first, or leave the Body on its branch. He chose "Add it to the gate (Recommended)".
+- **Delivered (night, on the gate):** `tools/health.js` counts the exported values of a module named `art.js` as
+  artistic, and fails where one does not say in its comment what it was chosen against. `main` had moved meanwhile
+  (it no longer keeps `registry.json` in git, and had changed the same tool's notes): merged, both by hand.
+- **Good (night, on the gate):** against `main` nothing is worse than at the base: 19 fewer numbers set by hand than
+  `main` has, 16 artistic constants, each with its source. Every step of CI run here passes: the registry, lint,
+  smoke, the gates, the artifacts, the sign-in checks, the assets' measures, both sites built. The Body laid again is
+  byte for byte the same.
+- **Broke / not there yet (night, on the gate):** the API's tests were not run here (no Postgres; the change does
+  not touch the API). `tools/words.js` now names one line over its measure, a material that came in from `main`
+  meanwhile (Mastic branch end, 114 letters for 80): not this intent's, left as it is and told to Samuel.
+
 ## Trail
 
 | When | Commit | What |
@@ -410,6 +424,7 @@ shows (9); a body that walks by its feet and its balance, breathes, looks and bl
 | 2026-11-18 | `ea365b2` | the shape under the skin made in named steps |
 | 2026-11-18 | `1ea9c57` | conversions and what follows from another number written as that |
 | 2026-11-18 | `019b8cf` | what was shaped by eye in one module, each with its source; the physical and the published in theirs |
+| 2026-11-18 | `a90bb5c` | the gates' tool has a place for what is set by eye (Samuel's decision) |
 
 On its branch this intent was numbered 0039, and its commits' messages say `Intent: 0039`. It was given 0041 on 2026-11-18,
 when the branch was brought to `main`, where 0039 had meanwhile been taken by another intent.
