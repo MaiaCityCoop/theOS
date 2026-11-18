@@ -3,7 +3,7 @@
     "type": "asset",
     "name": "Bedded stone",
     "file": "assets/forestrock.js",
-    "version": "14c2eeb9ea6aa2cf1b7c5b6b522e1bb5fbb862208157024e955a632f029ee7b3",
+    "version": "8c510946e5ec8c0102b73cffcddb2da779803acbebc977a8caa9c353855e4cde",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "506c509b-300d-42eb-8403-f3969b06b271"
@@ -29,7 +29,7 @@
     "type": "asset",
     "name": "Bracken",
     "file": "assets/bracken.js",
-    "version": "4c7e4dda9b8c17cbd891be8ab6606709f10a94697eb60669cee052f676fe0524",
+    "version": "157a94797bb959e338ebbb7554c4076edb5c9e70ec6f360daed2a4de00c8704d",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "6042540e-d4ea-4a07-8bd9-d8465f5635b9",
@@ -40,7 +40,7 @@
     "type": "asset",
     "name": "Dead wood",
     "file": "assets/deadwood.js",
-    "version": "1bdfad8ac2d647a7378799715556df1910bfdd5ffe9a972f339dd7a401aaa7b4",
+    "version": "bf2d56dc65ecad897740557e515bcbbf579e3b1b9e93d26d23255b7669411ee1",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "40cb573a-5aa3-4e2f-90ff-41e69d20915e",
@@ -53,7 +53,7 @@
     "type": "asset",
     "name": "Fallen log",
     "file": "assets/log.js",
-    "version": "a22a9ecf2909bc59cc7252eabd25e06d4dd17de99c7089e13ecece5f9edfae46",
+    "version": "747e01fbe2987fc5fef852b0e139f3d2fe613271aae179a588ed24facc8c921b",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "40cb573a-5aa3-4e2f-90ff-41e69d20915e",
@@ -66,7 +66,7 @@
     "type": "asset",
     "name": "Fern",
     "file": "assets/fern.js",
-    "version": "347266cb027e4e8124e57d034bfddb90f6d24d13a83c0fe9851272f10e2bbc4f",
+    "version": "14af62f3b930b8c766111fcce047addb319c36997f10f657455372a10c1a849a",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "6042540e-d4ea-4a07-8bd9-d8465f5635b9",
@@ -103,7 +103,7 @@
     "type": "asset",
     "name": "Holm oak",
     "file": "assets/holmoak.js",
-    "version": "6014ef3b845b9d8e0314b5620a48b0810ab6265db711ab4c5c16be5c00e82b4d",
+    "version": "e80d39040d27d420a2da42c9deedcc9096672933286526c9191047a044f92207",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "8ee46707-6ec8-4c04-96e9-70151301427f",
@@ -116,10 +116,10 @@
     "type": "asset",
     "name": "Mastic",
     "file": "assets/mastic.js",
-    "version": "af936ae05e587be9e82669e7787e11f2ba27c17da7cb8d81a3e340ad0dac35b4",
+    "version": "62d172f834089b2910efb2d22a781e28a26228c490baaec55e004bb2f54d06fa",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
-      "c4cbd29b-9dd2-494d-913b-9a80c40ab8e6",
+      "caac10dc-f24f-4509-a3b4-7f9c817afd63",
       "fb5ce908-7437-45b6-879f-154de32d12b9"
     ]
   },
@@ -127,7 +127,7 @@
     "type": "asset",
     "name": "Moss cushion",
     "file": "assets/mosscushion.js",
-    "version": "528dd3a9778b632b5039646243c19120843a398dd0f7996fec57a264b50d37d7",
+    "version": "ffccdbcb73d05db8b31386dc3c258bb1242635bf5c45f6a8762dc359e8fd45bb",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "ae3df398-9f52-4a4a-b54f-a2db2eafb0c8"
@@ -137,7 +137,7 @@
     "type": "asset",
     "name": "Oak litter",
     "file": "assets/oaklitter.js",
-    "version": "79e875d788aee388dda852879fbe662158d67797e440db718e304184f6418c84",
+    "version": "75a2fbaab109cce396ddc976eb491d324338b9f40c5674d5511693b7c4905b2a",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "40cb573a-5aa3-4e2f-90ff-41e69d20915e",
@@ -149,7 +149,7 @@
     "type": "asset",
     "name": "Pine litter",
     "file": "assets/pinelitter.js",
-    "version": "5897d0a3703492204524d946af61b52fe525123fcd7dc3a4bcc3e25b47069469",
+    "version": "6a47a225585c569463aa25436d53c10e46ef77b51750ea19534bd54884940b3e",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
@@ -161,7 +161,7 @@
     "type": "asset",
     "name": "Reeds",
     "file": "assets/reeds.js",
-    "version": "b533ccd8b4c93a63a9ae5837dab82db92b0bbdc4b127f029f49d4632ede5463d",
+    "version": "e5e16de22e6e634a551c673ab9a9668a41df72b0cd5f5310d060bf253ec11af4",
     "uses": [
       "307376d9-da36-4388-8c5a-8cfb308ee312",
       "84588b7e-0680-47ca-9793-409c7359db0c",
@@ -172,7 +172,7 @@
     "type": "asset",
     "name": "Rockrose",
     "file": "assets/rockrose.js",
-    "version": "eb7cf387f229d3c413cdc9911145710ed97f8e6290b259c8e77a716de1c317d5",
+    "version": "3a6b534c1a022021c6d1766fb1269e3fbc6fb99f6229c22a3916edc0a3d34538",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "4cdde33c-5114-41e7-badf-e9f69fcf42f5",
@@ -183,7 +183,7 @@
     "type": "asset",
     "name": "Stone pine",
     "file": "assets/stonepine.js",
-    "version": "bac1bc24fcd00bc3558ec7743dd4262e3e55c8e21777a47bf9044d5c3b94fee9",
+    "version": "b95544355b556458c69fcf8f05e3b0f0e239cf419a5ca7e5c170b1adefd99acb",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "8c41d228-0e3e-4fd6-b47c-9ee7929ae713",
@@ -204,7 +204,7 @@
     "type": "asset",
     "name": "Woodland herb",
     "file": "assets/herb.js",
-    "version": "5471a21fc2bd236d6f85cf009d662c4421de424cb0952c6e31f70b1507abab1d",
+    "version": "e770601fa21db9e65c68f142d4dc25c093d44171cd2f5cf8646629eaca982324",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "4cdde33c-5114-41e7-badf-e9f69fcf42f5",
@@ -399,6 +399,13 @@
     "name": "Linen weave",
     "file": "materials/linenweave.js",
     "version": "9485a9be288a5a45507030abb2df07cc68b75c4887a42a963ce6fd2bbe71c1c8",
+    "uses": []
+  },
+  "caac10dc-f24f-4509-a3b4-7f9c817afd63": {
+    "type": "material",
+    "name": "Mastic branch end",
+    "file": "materials/masticleaf.js",
+    "version": "8fe4616645923d3b3ca7fcba5dc8806b08eee5cf6f07dc29d6040c0f65618781",
     "uses": []
   },
   "ae3df398-9f52-4a4a-b54f-a2db2eafb0c8": {

@@ -174,12 +174,7 @@ export function crown(b, { limbs, puffs, thick = 1, g = 1, girth = [0.11, 0.055]
       stems        short stems from its foot
       seed         its own number: the same seed, the same bush */
 export function mound(b, { r, h, lobes = 1, ragged = 0.2, dome = [0.1, 1], puffs, count, size, rise = 0.3, stems = 0, seed = 1, R0 = rng(seed) }) {
-  // (its heaps first: its outline)
-  const heaps = Array.from({ length: lobes }, (_, i) => {
-    const a = R0() * 2 * Math.PI, d = i ? r * (0.45 + 0.4 * R0()) : 0, k = i ? 0.5 + 0.35 * R0() : lobes > 1 ? 0.8 : 1;
-    return { c: [Math.cos(a) * d, 0, Math.sin(a) * d], r: r * k, h: h * (i ? 0.55 + 0.5 * R0() : 1) };
-  });
-  const rep = Math.max(1, Math.round(size[1] / size[0]));
+  const heaps = heapsOf(r, h, lobes, R0), rep = Math.max(1, Math.round(size[1] / size[0]));   // (its heaps first: its outline)
   for (let i = 0; i < puffs[0]; i++) {
     const Q = rng(seed * 7919 + i * 131 + 17), H = heaps[Math.min(lobes - 1, Math.floor(Q() * lobes))], shoot = Q() < ragged ? 1.15 + 0.3 * Q() : 1;
     const a = Q() * 2 * Math.PI, u = dome[0] + (dome[1] - dome[0]) * Q() ** 0.7, c = Math.sqrt(Math.max(0, 1 - u * u)), k = (0.5 + 0.5 * Q()) * shoot;
@@ -196,6 +191,110 @@ export function mound(b, { r, h, lobes = 1, ragged = 0.2, dome = [0.1, 1], puffs
   for (let i = 0; i < stems; i++) {
     const H = heaps[i % lobes], a = R0() * 2 * Math.PI, e = add(H.c, [Math.cos(a) * H.r * 0.4, H.h * 0.55, Math.sin(a) * H.r * 0.4]), k = Math.max(0.5, h);
     tube(b, [[0, 0, 0], add(mul(e, 0.5), [0, h * 0.1, 0]), e], [0.03 * k, 0.022 * k, 0.012 * k], 3);
+  }
+}
+/** A low plant's outline as mound() and bush() share it: `lobes` heaps beside one another, the first the largest, round
+    its foot, the others within about 1.3 r, each its own reach and height. */
+function heapsOf(r, h, lobes, R0) {
+  return Array.from({ length: lobes }, (_, i) => {
+    const a = R0() * 2 * Math.PI, d = i ? r * (0.45 + 0.4 * R0()) : 0, k = i ? 0.5 + 0.35 * R0() : lobes > 1 ? 0.8 : 1;
+    return { c: [Math.cos(a) * d, 0, Math.sin(a) * d], r: r * k, h: h * (i ? 0.55 + 0.5 * R0() : 1) };
+  });
+}
+
+/** A bush grown, not laid on a shell: its stems leave its root crown and branch towards where there is room and light,
+    and its branches' ends bear its shoots, each a card of its leaves' painting (a mastic's branch end, as a fern's card
+    is its frond). So its outline is how far its branches reached, ragged, with gaps where none did, and inside it the
+    wood that carries them. Grown by space colonisation (Runions, Lane and Prusinkiewicz 2007, "Modeling trees with a
+    space colonization algorithm"): points where leaves can live draw the nearest buds towards them a step at a time,
+    and a point a bud has reached is taken. Those points lie in a shell under its outline, where light still reaches (a
+    crown's leaves live in its outer layer, Beer and Lambert's law), and its outline is mound()'s heaps, so it stands as
+    large as a mound of the same numbers. Its wood is as thick as all it carries (Leonardo's rule: a branch's cross
+    section the sum of its twigs'), drawn where it is thicker than a twig on a card.
+      r, h, lobes   its reach and height, metres, and its heaps (as mound())
+      ragged        the share of points that lie past its outline (a shoot here and there standing out)
+      shoots        how many shoots, its cards: one at each branch's end, and along its last spans where too few ends
+      size          [least, most]: a shoot's card, metres (the most at its top and outside, where the light is)
+      stems         stems from its root crown
+      shell         how deep its leaves live under its outline, a share of its reach
+      rise          how much growth favours up over out (towards the light)
+      seed          its own number: the same seed, the same bush */
+export function bush(b, { r, h, lobes = 1, ragged = 0.15, shoots, size, stems = 6, shell = 0.35, rise = 0.3, seed = 1, R0 = rng(seed) }) {
+  const heaps = heapsOf(r, h, lobes, R0), step = h / 9;
+  const N = grown(livingRoom(heaps, { shoots, ragged, shell, seed }), stemsOf(r, stems, R0), { step, rise });
+  const rad = pipes(N, 0.0015 + 0.002 * h);
+  woodOf(b, N, rad, 0.007);
+  shootsOf(b, N, heaps, { h, shoots, size, rise, seed });
+}
+/** Where a bush's leaves can live: points in the shell under its heaps' domes, three to a shoot. */
+function livingRoom(heaps, { shoots, ragged, shell, seed }) {
+  return Array.from({ length: shoots * 3 }, (_, i) => {
+    const Q = rng(seed * 6151 + i * 37 + 11), H = heaps[Math.min(heaps.length - 1, Math.floor(Q() * heaps.length))], a = Q() * 2 * Math.PI, u = 0.06 + 0.94 * Q() ** 0.7, c = Math.sqrt(1 - u * u);
+    const k = (1 - shell * Q()) * (Q() < ragged ? 1.2 : 1);
+    return [H.c[0] + Math.cos(a) * c * H.r * k, u * H.h * k, H.c[2] + Math.sin(a) * c * H.r * k];
+  });
+}
+/** A bush's stems where they leave its root crown, a hand round its middle, each leaning out its own way. */
+const stemsOf = (r, stems, R0) => Array.from({ length: stems }, (_, i) => {
+  const a = ((i + R0()) / stems) * 2 * Math.PI, d = r * 0.05;
+  return { p: [Math.cos(a) * d, 0, Math.sin(a) * d], dir: norm([Math.cos(a) * 0.4, 1, Math.sin(a) * 0.4]), up: -1, kids: 0, lead: true };
+});
+/** Space colonisation: the buds N grown a step at a time, each towards the points that draw it (the nearest bud within
+    four steps of a point) and up, until no point is left that a bud can reach. A stem's tip that nothing draws yet
+    grows on its own way, up to its crown. Every bud: { p, dir, up: its parent's index, kids, lead }. */
+function grown(P, N, { step, rise }) {
+  const reach2 = (4 * step) ** 2, take2 = (1.7 * step) ** 2, d2 = (q, n) => (q[0] - n[0]) ** 2 + (q[1] - n[1]) ** 2 + (q[2] - n[2]) ** 2;
+  for (let it = 0; it < 90 && P.length; it++) {
+    const pull = new Map();
+    for (const q of P) {
+      let best = -1, bd = reach2;
+      for (let k = 0; k < N.length; k++) { const d = d2(q, N[k].p); if (d < bd) { bd = d; best = k; } }
+      if (best >= 0) pull.set(best, add(pull.get(best) ?? [0, 0, 0], mul(sub(q, N[best].p), 1 / Math.max(Math.sqrt(bd), 1e-6))));
+    }
+    for (let k = 0; k < N.length; k++) if (N[k].lead && !N[k].kids && !pull.has(k)) pull.set(k, N[k].dir);
+    if (!pull.size) break;
+    const from = N.length;
+    for (const [k, v] of pull) {
+      const n = N[k], dir = norm(add(len(v) > 1e-6 ? norm(v) : n.dir, [0, rise, 0]));
+      N.push({ p: add(n.p, mul(dir, step)), dir, up: k, kids: 0, lead: n.lead && !n.kids && n.p[1] < 6 * step && !P.some((q) => d2(q, n.p) < reach2) });   // (a stem grows on its own way at most two thirds up)
+      n.kids++;
+    }
+    for (let i = P.length - 1; i >= 0; i--) for (let k = from; k < N.length; k++) if (d2(P[i], N[k].p) < take2) { P.splice(i, 1); break; }
+  }
+  return N;
+}
+/** Each bud's wood, as thick as all it carries (Leonardo: a branch's cross section the sum of its twigs', each `twig`). */
+function pipes(N, twig) {
+  const a = N.map((n) => (n.kids ? 0 : twig * twig));
+  for (let k = N.length - 1; k >= 0; k--) if (N[k].up >= 0) a[N[k].up] += a[k];   // (a bud comes after its parent)
+  return a.map(Math.sqrt);
+}
+/** A bush's wood where it is thicker than `least`: each run of buds between two forks one tube, from its parent's place. */
+function woodOf(b, N, rad, least) {
+  const kids = N.map(() => []);
+  N.forEach((n, k) => { if (n.up >= 0) kids[n.up].push(k); });
+  N.forEach((n, k) => {
+    if (n.up >= 0 && kids[n.up].length === 1) return;   // (a run begins at a stem's foot or at a fork)
+    const run = n.up >= 0 ? [n.up, k] : [k];
+    while (kids[run.at(-1)].length === 1) run.push(kids[run.at(-1)][0]);
+    const drawn = run.filter((q, i) => rad[q] >= least && (i % 2 === 0 || i === run.length - 1));
+    if (drawn.length > 1) tube(b, drawn.map((q) => N[q].p), drawn.map((q) => rad[q]), 3);
+  });
+}
+/** Its shoots: a card at each branch's end, and where there are fewer ends than shoots, at the buds next back from them;
+    each grows out along its branch and a little out of the bush and up, larger at its top and outside, lit as the heap's
+    dome it stands on is (a bush takes the light as a whole), as much as reaches that deep. */
+function shootsOf(b, N, heaps, { h, shoots, size, rise, seed }) {
+  const back = new Array(N.length).fill(Infinity);   // (how many buds back from a branch's end)
+  for (let k = N.length - 1; k >= 0; k--) { if (!N[k].kids) back[k] = 0; if (N[k].up >= 0) back[N[k].up] = Math.min(back[N[k].up], back[k] + 1); }
+  const order = N.map((n, k) => k).filter((k) => !N[k].lead).sort((x, y) => back[x] - back[y] || rng(seed + x)() - rng(seed + y)());
+  for (const k of order.slice(0, shoots)) {
+    const C = rng(seed * 104729 + k * 61 + 5), p = N[k].p, H = heaps.reduce((m, q) => (len(sub(p, q.c)) / q.r < len(sub(p, m.c)) / m.r ? q : m));
+    const rel = len([(p[0] - H.c[0]) / H.r, p[1] / H.h, (p[2] - H.c[2]) / H.r]), o = norm([p[0] - H.c[0], p[1] * 0.5, p[2] - H.c[2]]);
+    const dir = norm(add(add(mul(N[k].dir, 0.6), mul(o, 0.4)), [(C() - 0.5) * 0.4, rise, (C() - 0.5) * 0.4]));
+    const s = size[0] + (size[1] - size[0]) * Math.min(1, 0.5 * Math.min(1, p[1] / h) + 0.5 * rel) * (0.8 + 0.4 * C());
+    const ao = Math.max(0.3, (0.45 + 0.55 * Math.min(1, p[1] / (h * 0.75))) * (0.65 + 0.35 * Math.min(1, rel)));
+    cards(b, sub(p, mul(dir, s * 0.2)), dir, s, norm([o[0] * 0.6, o[1] * 0.6 + 0.8, o[2] * 0.6]), ao, C, p);
   }
 }
 
