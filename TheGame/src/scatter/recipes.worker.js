@@ -17,9 +17,10 @@ import { meshOf, skinOf, bonesOf, herdRooms } from '../../assets/zoo/index.js';
 import { BONES } from '../../assets/kit/solid.js';
 import { STANDS } from '../../assets/kit/plant.js';
 import { useBuilder } from '../../assets/kit/surface.js';
+import { build, ready as built } from '../../assets/kit/clusters.js';
 
 // the builder of surfaces' hierarchies (meshoptimizer's WebAssembly: here, never on the page), before any job is done
-const ready = import('../../assets/kit/clusters.js').then((m) => useBuilder(m.build));
+const ready = built.then(() => useBuilder(build));
 
 /** The box round a solid mesh in its own frame, [x0, y0, z0, x1, y1, z1] (assets/kit/solid.js: a vertex's place, 16 bits
     a number over -1 … 1, and its way to where it lies on the coarser mesh it turns into, 10 bits over ± D, its level's

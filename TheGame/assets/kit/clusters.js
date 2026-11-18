@@ -34,7 +34,8 @@
 import { MeshoptSimplifier as S, MeshoptClusterizer as C } from 'meshoptimizer';
 import { BAND } from '../../src/detail/error.js';
 
-await Promise.all([S.ready, C.ready]);
+/** When meshoptimizer's WebAssembly is ready: build() may be called from then on. */
+export const ready = Promise.all([S.ready, C.ready]);
 export { BAND };
 const MAXT = 128, MAXV = 192, MINT = 32, GS = 8, STUCK = 0.85, TAIL = 8;   // a cluster's most triangles and vertices; a group's clusters; a group left with more than STUCK of its triangles is stuck; the tail ends at TAIL triangles
 /** A part is kept whole until its reach is allowed: one of at most FEW triangles, or THIN times longer than it is wide. */

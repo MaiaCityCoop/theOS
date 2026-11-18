@@ -7,13 +7,14 @@
 // walked without the morph (its clusters swapped at once), to show what the morph takes away.
 //
 //   bun tools/gate/pop.js [boulder|stone|belltent|firepit …]
-import { build } from '../../assets/kit/clusters.js';
+import { build, ready } from '../../assets/kit/clusters.js';
 import { useBuilder } from '../../assets/kit/surface.js';
 import { ERROR_PX, BUDGET_DRAWN, BAND, PX_CUT, SURFACE_LEVELS, surfaceBand, surfacePx } from '../../src/detail/error.js';
 import { rockFull } from '../../assets/kit/rock.js';
 import { spanOf } from '../../assets/kinds.js';
 
-useBuilder(build);
+await ready; useBuilder(build);
+const STEP = 1.01;   // (a step a frame: 1 % nearer)
 const K = 1 / (2 * Math.tan((68 / 2) * Math.PI / 180)), H = 1080;   // the measure's: pixels a metre covers at a metre (a picture 1080 tall), and the walker's lens
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -83,7 +84,7 @@ for (const name of process.argv.slice(2).length ? process.argv.slice(2) : ['boul
   const D = build(await meshOf(name)), dir = [0.8, 0.25, 0.55], dl = Math.hypot(...dir);
   for (const morph of [true, false]) {
     let prev = null, most = 0, mostAt = 0, steps = 0; const all = [];
-    for (let dd = 0.9; dd < 900; dd *= 1.01) {   // from just off its middle to where it is about a pixel
+    for (let dd = 0.9; dd < 900; dd *= STEP) {   // from just off its middle to where it is about a pixel
       const eye = [(dir[0] / dl) * dd, 0.4 + (dir[1] / dl) * dd, (dir[2] / dl) * dd], now = drawn(D, eye, morph);
       if (prev && prev.tris.length && now.tris.length) {
         const j = Math.max(jump(prev.tris, now.tris), jump(now.tris, prev.tris)) * now.px * BUDGET_DRAWN;   // (in the pixels drawn)
