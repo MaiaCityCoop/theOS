@@ -3,8 +3,8 @@
 // muscles is first made (../bones.js): the game, which shows none, carries none of it.
 //
 //   fleshOf(data, { object, bones, eye }) -> { muscles, skin, fat, eyes, update(), level(dist), dispose(), counts }
-//     data       what the workers laid: the rows the rig moves (the muscles' strands, and for a skin the bones a point of
-//                it hangs on directly), and each surface: its points' places in those rows, its triangles near and far
+//     data       what the workers laid: the rows the rig moves (the muscles' strands), and each surface: a muscle's
+//                points' places in those rows, a skin's points' joints; its triangles near and far
 //     muscles, skin, fat, eyes   the meshes (each null where it was not laid); the fat is the skin's surface drawn a
 //                skin's thickness further in, in its own colour
 //     update()   each frame, after the rig has moved: every row's points carried by their joints, into a texture the
@@ -13,11 +13,11 @@
 //     level(d)   the level of detail for an eye d metres away: the muscles' every ring and every point round it near,
 //                their coarse surface far; the skin's the coarsest of its three that the measure allows there
 //
-// In the shader, a point is found on its curve again, each frame: the curve through its row's points (Catmull-Rom,
-// the same numbers the workers laid it with), the frame there (along it, out, across), and the point's own place in
-// that frame, the part of it that is the muscle's own depth scaled by the belly's swell. A point of a sheet lies between
-// two rows' curves and is carried by both. A point of the skin is carried by the four bones nearest under it, each by
-// its share (linear blend skinning: the bones' frames at rest kept in a texture of their own).
+// In the shader, a muscle's point is found on its curve again, each frame: the curve through its row's points
+// (Catmull-Rom, the same numbers the workers laid it with), the frame there (along it, out, across), and the point's
+// own place in that frame, the part of it that is the muscle's own depth scaled by the belly's swell. A point of a
+// sheet lies between two rows' curves and is carried by both. A point of the skin is carried by its four joints, each
+// by its share (linear blend skinning), and lit as skin is: ../skin/light.js.
 import * as THREE from 'three/webgpu';
 import { Fn, If, attribute, varyingProperty, uniform, float, int, ivec2, vec3, vec4, textureLoad, normalize, cross, mix, max, pow, clamp, dot, abs, length, smoothstep, exp, positionWorld, positionGeometry, modelWorldMatrix, modelWorldMatrixInverse, mx_noise_float } from 'three/tsl';
 import { U } from '../../../src/core/uniforms.js';
@@ -25,6 +25,7 @@ import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull
 import { CASTS } from '../../../src/world/shadow.js';
 import { SLOTS, COLS } from './layout.js';
 import { pxOn, ERROR_PX } from '../../../src/detail/measure.js';
+import { carriedBy, skinMaterial } from '../skin/light.js';
 
 /** How far away the far level takes over (m). */
 export const FAR = 7;
@@ -40,8 +41,16 @@ export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
   for (let i = 0; i < 9; i++) { P.push(new THREE.Vector3()); Q.push(new THREE.Vector3()); }
   const put = (base, col, v) => { const o = base + col * 4; data[o] = v.x; data[o + 1] = v.y; data[o + 2] = v.z; };
   const ghost = new THREE.Vector3();
+  // (a skin's joints: each the 3 x 4 matrix from where a point stood at rest to where the joint has it now, in the
+  // body's own frame; three texels a joint, read by the skin's points: ../skin/light.js carriedBy)
+  const J = D.skin?.joints ?? null, jointData = J ? new Float32Array(4 * 4 * J.length) : null, jointTex = J ? new THREE.DataTexture(jointData, 4, J.length, THREE.RGBAFormat, THREE.FloatType) : null, jm = new THREE.Matrix4(), jt = new THREE.Matrix4();
+  if (jointTex) { jointTex.magFilter = jointTex.minFilter = THREE.NearestFilter; jointTex.generateMipmaps = false; jointTex.needsUpdate = true; }
   function update() {
     inv.copy(object.matrixWorld).invert();
+    if (J) {
+      J.forEach(({ rig, at }, j) => { const e = jm.multiplyMatrices(inv, bones[rig].matrixWorld).multiply(jt.makeTranslation(-at[0], -at[1], -at[2])).elements; for (let r = 0; r < 3; r++) jointData.set([e[r], e[4 + r], e[8 + r], e[12 + r]], (j * 4 + r) * 4); });
+      jointTex.needsUpdate = true;
+    }
     rigs.forEach((n, i) => rel[i].multiplyMatrices(inv, bones[n].matrixWorld));
     for (let r = 0; r < H; r++) {
       const row = rows[r], keys = row.keys, n = keys.length, base = r * COLS * 4;
@@ -74,13 +83,11 @@ export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
       geo.setAttribute('place', new THREE.BufferAttribute(S.attr.place, 4));
       geo.setAttribute('pair', new THREE.BufferAttribute(S.attr.pair, 4));
       geo.setAttribute('sec', new THREE.BufferAttribute(S.attr.sec, 4));
-    } else {   // (the skin's: the four bones it hangs on, and how much on each)
-      geo.setAttribute('bone', new THREE.BufferAttribute(S.attr.bone, 4));
-      geo.setAttribute('weight', new THREE.BufferAttribute(S.attr.weight, 4));
+    } else {   // (the skin's: the four joints it hangs on and how much on each; how it curves and how thick the body is under it; the cone its light comes from; its tone)
+      for (const k of ['bone', 'weight', 'feel', 'bent', 'tone']) geo.setAttribute(k, new THREE.BufferAttribute(S.attr[k], 4));
     }
     geo.setAttribute('snor', new THREE.BufferAttribute(S.attr.nor, 3));
     geo.setAttribute('look', new THREE.BufferAttribute(S.attr.look, 4));
-    if (S.attr.feel) geo.setAttribute('feel', new THREE.BufferAttribute(S.attr.feel, 4));   // (the skin's: how it curves, how thick the body is under it)
     // (each coarser level the same buffers under its own faces: the skin's three, the muscles' two)
     const levels = [S.fine, S.coarse, S.far].filter(Boolean).map((index) => { const g = geo.clone(); for (const k of Object.keys(geo.attributes)) g.setAttribute(k, geo.attributes[k]); g.setIndex(new THREE.BufferAttribute(index, 1)); g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 1.4); return g; });
     const mesh = new THREE.Mesh(levels[0], mat); mesh.frustumCulled = false; mesh.layers.enable(CASTS);
@@ -90,10 +97,7 @@ export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
   };
   // (a muscles' payload of its own, or a body's: its muscles and its skin)
   const M = D.skin || D.muscles?.pos ? D.muscles : D, S = D.skin ?? null;
-  // (the skin's bones' frames as the body stands, four texels a row: its middle, along it, out, across)
-  const rest = S ? new THREE.DataTexture(S.rest, 4, H, THREE.RGBAFormat, THREE.FloatType) : null;
-  if (rest) { rest.magFilter = rest.minFilter = THREE.NearestFilter; rest.generateMipmaps = false; rest.needsUpdate = true; }
-  const mats = [materialOf(tex, eye, 'muscle'), S && materialOf(tex, eye, 'skin', 0, rest), S && materialOf(tex, eye, 'fat', D.skinThick ?? 0.0018, rest)];
+  const mats = [materialOf(tex, eye, 'muscle'), S && skinMaterial({ joints: jointTex, eye, maps: S.maps }), S && materialOf(tex, eye, 'fat', D.skinThick ?? 0.0018, jointTex)];
   const muscles = meshOf(M, mats[0], -1), skin = meshOf(S, mats[1], -3), fat = S ? meshOf(S, mats[2], -2) : null;
   if (fat) { fat.geometry = skin.geometry; fat.userData.levels = skin.userData.levels; fat.userData.off = skin.userData.off; }
   const eyes = S ? eyesOf(bones, eye) : [];
@@ -105,7 +109,7 @@ export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
     muscles, skin, fat, eyes, update,
     counts: { muscles: (D.muscleList ?? M.muscles ?? []).length, strands: H, muscleFaces: muscles?.userData.faces ?? 0, skinFaces: skin?.userData.faces ?? 0 },
     level(d) { for (const m of [muscles, skin, fat]) if (m) { const g = m.userData.levels[Math.min(m.userData.levels.length - 1, want(m, d))]; if (m.geometry !== g) m.geometry = g; } },
-    dispose() { for (const m of [muscles, skin]) if (m) for (const g of m.userData.levels) g.dispose(); tex.dispose(); rest?.dispose(); for (const m of mats) m?.dispose(); for (const e of eyes) { e.geometry.dispose(); e.material.dispose(); } },
+    dispose() { for (const m of [muscles, skin]) if (m) for (const g of m.userData.levels) g.dispose(); tex.dispose(); jointTex?.dispose(); for (const m of mats) if (m) { for (const t of m.userData.pictures ?? []) t.dispose(); m.dispose(); } for (const e of eyes) { e.geometry.dispose(); e.material.dispose(); } },
   };
 }
 
@@ -140,10 +144,9 @@ function eyesOf(bones, eye) {
 
 // ── the looks ────────────────────────────────────────────────────────────────────────────────────────────────────────
 // Muscle red, darker and browner where its fibres part, a wet sheen; tendon and aponeurosis a bluish pearl white,
-// glossier. Fat a lobed yellow. Skin: a warm tone, mottled a little, its light passing a little under it (warmer at the
-// edge of its shade), an oily sheen; the lips red, the areolae darker, the nails pale and glossy. In the light as every
-// surface of the world is (src/world/light.js), as the bones are (../bones.js).
-function materialOf(tex, eye, kind, inset = 0, rest = null) {
+// glossier. Fat a lobed yellow, drawn on the skin's own surface a skin's thickness in. (The skin's: ../skin/light.js.)
+// In the light as every surface of the world is (src/world/light.js), as the bones are (../bones.js).
+function materialOf(tex, eye, kind, inset = 0, joints = null) {
   const m = new THREE.NodeMaterial(); m.eye = eye;
   const at = (col, row) => textureLoad(tex, ivec2(col, row));
   const curve = (row, i, t) => {
@@ -154,24 +157,7 @@ function materialOf(tex, eye, kind, inset = 0, rest = null) {
     return { C, T: normalize(dC), o, k };
   };
   const vN = varyingProperty('vec3', 'vFleshN');
-  if (rest) m.positionNode = Fn(() => {
-    // the skin, as a game's is: each of its four bones carries the point and its normal from where that bone stands at
-    // rest to where it stands now, and the point is where they carry it, each by its share
-    const bone = attribute('bone', 'vec4'), wt = attribute('weight', 'vec4'), p0 = positionGeometry, n0 = attribute('snor', 'vec3');
-    const p = vec3(0).toVar(), n = vec3(0).toVar(), R = (k, r) => textureLoad(rest, ivec2(k, r)).xyz;
-    for (const c of ['x', 'y', 'z', 'w']) {
-      If(wt[c].greaterThan(0), () => {
-        const r = int(bone[c]), F = curve(r, int(0), float(0.5)), O = normalize(F.o.sub(F.T.mul(dot(F.o, F.T)))), B = cross(F.T, O);
-        const Tr = R(1, r), Or = R(2, r), Br = R(3, r), d = p0.sub(R(0, r));
-        p.addAssign(F.C.add(O.mul(dot(d, Or))).add(B.mul(dot(d, Br))).add(F.T.mul(dot(d, Tr))).mul(wt[c]));
-        n.addAssign(O.mul(dot(n0, Or)).add(B.mul(dot(n0, Br))).add(F.T.mul(dot(n0, Tr))).mul(wt[c]));
-      });
-    }
-    const nn = normalize(n);
-    vN.assign(normalize(modelWorldMatrix.mul(vec4(nn, 0)).xyz));
-    const q = inset ? p.sub(nn.mul(inset)) : p;   // (the fat: under the skin by the skin's thickness)
-    return q.add(normalize(modelWorldMatrixInverse.mul(vec4(U.uSunDir, 0)).xyz).mul(casterPull().mul(U.uShadowPass)));
-  })();
+  if (joints) m.positionNode = carriedBy(joints, inset);   // (the fat: the skin's own points, a skin's thickness in)
   else m.positionNode = Fn(() => {
     const place = attribute('place', 'vec4'), pair = attribute('pair', 'vec4'), sec = attribute('sec', 'vec4'), sn = attribute('snor', 'vec3');
     const row = int(place.x), A = curve(row, int(place.y), place.z);
@@ -182,8 +168,7 @@ function materialOf(tex, eye, kind, inset = 0, rest = null) {
     });
     const O = normalize(o.sub(T.mul(dot(o, T)))), B = cross(T, O), kv = mix(float(1), k, place.w);
     const n = normalize(O.mul(sn.x).add(B.mul(sn.y)).add(T.mul(sn.z)));
-    let p = C.add(O.mul(sec.x.mul(kv).add(sec.w))).add(B.mul(sec.y.mul(kv))).add(T.mul(sec.z));
-    if (inset) p = p.sub(n.mul(inset));   // (the fat: under the skin by the skin's thickness)
+    const p = C.add(O.mul(sec.x.mul(kv).add(sec.w))).add(B.mul(sec.y.mul(kv))).add(T.mul(sec.z));
     vN.assign(normalize(modelWorldMatrix.mul(vec4(n, 0)).xyz));
     // (drawn for the shadow, pulled towards the sun as every caster is)
     return p.add(normalize(modelWorldMatrixInverse.mul(vec4(U.uSunDir, 0)).xyz).mul(casterPull().mul(U.uShadowPass)));
@@ -208,40 +193,6 @@ function materialOf(tex, eye, kind, inset = 0, rest = null) {
         const col = vec3(0.86, 0.66, 0.26).mul(float(0.82).add(lobe.mul(0.22)).add(fine.mul(0.05))).mul(mix(vec3(0.6, 0.5, 0.4), vec3(1), open));
         const diff = max(ndl.add(0.3).div(1.3), 0), spec = pow(ndh, 60).mul(0.25);
         out.assign(finish(col.mul(skyLight(n).mul(open.mul(open)).add(sun.mul(diff))).add(sun.mul(spec).mul(max(ndl, 0))), w, eye));
-      } else {
-        const is = (k) => clamp(k === 1 ? look.y : k === 2 ? look.w : look.z, 0, 1), Q = vec3(abs(P.x), P.y, P.z);   // (how much of a lip, an areola, a nail)
-        const near = (c, r) => exp(length(Q.sub(vec3(...c))).div(r).pow(2).negate());   // (a place of the body, softly)
-        // its relief, finer than its points: pores (about a millimetre) and the skin's fine grain, faded with distance
-        const fade = clamp(float(1).sub(length(eye.sub(w)).div(2.5)), 0, 1), bump = (f, e) => { const c = mx_noise_float(P.mul(f)); return vec3(mx_noise_float(P.add(vec3(e, 0, 0)).mul(f)).sub(c), mx_noise_float(P.add(vec3(0, e, 0)).mul(f)).sub(c), mx_noise_float(P.add(vec3(0, 0, e)).mul(f)).sub(c)).div(e); };
-        const g0 = bump(900, 0.0002).mul(0.00007).add(bump(360, 0.0005).mul(0.00004)).add(bump(60, 0.003).mul(0.00012)), gw = modelWorldMatrix.mul(vec4(g0, 0)).xyz.mul(fade.mul(is(3).oneMinus()));
-        const nb = normalize(n.sub(gw.sub(n.mul(dot(gw, n)))));
-        // its colour: a fair skin, mottled; the blood nearer the surface on the cheeks, the nose, the ears, the
-        // knuckles, the elbows, the knees and the feet; the soles paler; veins faint and bluish on the forearm's
-        // inside, the backs of the hands and the tops of the feet; the lips, the areolae, the nails their own
-        const mottle = mx_noise_float(P.mul(40)).mul(0.5).add(0.5), blot = mx_noise_float(P.mul(9).add(3.7)).mul(0.5).add(0.5), pore = mx_noise_float(P.mul(1600));
-        const flush = near([0.045, 1.635, 0.085], 0.03).mul(0.55).add(near([0, 1.634, 0.12], 0.02).mul(0.6)).add(near([0.077, 1.665, -0.02], 0.03).mul(0.6))
-          .add(near([0.225, 0.77, -0.01], 0.05).mul(0.35)).add(near([0.19, 1.14, -0.08], 0.035).mul(0.35)).add(near([0.085, 0.5, 0.08], 0.045).mul(0.35)).add(near([0.08, 0.03, 0.06], 0.07).mul(0.3)).add(blot.mul(0.12));
-        const vmask = near([0.215, 1.0, 0.0], 0.09).add(near([0.23, 0.82, -0.02], 0.05)).add(near([0.085, 0.05, 0.07], 0.06)), ridge = float(1).sub(abs(mx_noise_float(P.mul(vec3(70, 14, 70)))));
-        const vein = smoothstep(0.93, 0.985, ridge).mul(clamp(vmask, 0, 1)).mul(0.55);
-        let base = vec3(0.6, 0.39, 0.28).mul(float(0.93).add(mottle.mul(0.1)).add(pore.mul(0.025)));
-        base = mix(base, base.mul(vec3(1.06, 0.8, 0.78)), clamp(flush, 0, 1));
-        base = mix(base, base.mul(vec3(0.82, 0.88, 1.08)), vein);
-        // (a few freckles, darker and browner, scattered in loose clusters)
-        const freckle = smoothstep(0.5, 0.68, mx_noise_float(P.mul(230))).mul(smoothstep(0.15, 0.55, mx_noise_float(P.mul(6).add(11.3))));
-        base = mix(base, base.mul(vec3(0.74, 0.62, 0.55)), freckle.mul(0.45));
-        base = mix(base, base.mul(vec3(1.08, 1.05, 1.02)), smoothstep(0.012, 0.0, P.y));
-        const col = mix(mix(mix(base, vec3(0.56, 0.24, 0.22), is(1)), vec3(0.36, 0.2, 0.16), is(2)), vec3(0.66, 0.46, 0.42), is(3).mul(0.85)).mul(mix(vec3(0.6, 0.48, 0.44), vec3(1), open));
-        // (the light under the skin: a wrapped diffuse that wraps further in the red, so the shade's edge is warm; and
-        // where the skin is thin, the ears and the nose, the light from behind comes through red)
-        const nl = dot(nb, L), ng = dot(n, L), diff = max(vec3(mix(nl, ng, 0.6), nl, nl).add(vec3(0.32, 0.14, 0.1)).div(vec3(1.32, 1.14, 1.1)), 0);   // (the red from deeper, so from a smoother surface: the pores' and the grain's shade is bluish-grey, not red)
-        const thin = near([0.077, 1.665, -0.02], 0.025).add(near([0, 1.634, 0.12], 0.012).mul(0.5)), through = pow(clamp(dot(V, L.negate()), 0, 1), 4).mul(thin).mul(0.6);
-        // (its sheen: the oil on the skin, two lobes, the sharper on the forehead, the nose and the lips; stronger at a
-        // grazing angle, as every surface's is, F0 = 0.028)
-        const hh = max(dot(nb, Hh), 0), fres = float(0.028).add(float(0.972).mul(pow(float(1).sub(max(dot(nb, V), 0)), 5)));
-        const oily = clamp(near([0, 1.72, 0.1], 0.04).add(near([0, 1.64, 0.115], 0.025)).add(is(1)), 0, 1), sharp = mix(float(60), float(160), oily).mul(mx_noise_float(P.mul(45)).mul(0.3).add(1));   // (and patchy, as the oil lies)
-        const spec = fres.mul(pow(hh, sharp).mul(sharp.add(8).div(25)).add(pow(hh, 14).mul(0.9))).mul(mix(float(0.7), float(1.3), oily)).mul(is(3).mul(1.5).add(1));
-        const lit = col.mul(skyLight(nb).mul(open.mul(open)).add(sun.mul(diff))).add(sun.mul(vec3(0.9, 0.25, 0.12)).mul(through)).add(sun.mul(spec).mul(max(nl, 0)));
-        out.assign(finish(lit, w, eye));
       }
     });
     return out;

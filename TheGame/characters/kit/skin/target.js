@@ -267,6 +267,8 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
         // out: over the cheeks and the jaw's side what the muscles under them leave is bumps the fat smooths away)
         const q2 = at(i, j, k), qq = [Math.abs(X(i)), Y(j), Z(k)];
         v = far[q2] + 0.12 * smooth01((qq[2] - 0.07) / 0.03) * (whole[q2] - far[q2]) - tissue[g];
+        // (the neck no fuller than a man's measured outline: from its muscles alone it came out 50 cm round, a man's is 39)
+        if (qq[1] < 1.6) { const o = profilesOf[P_.trunk][0](qq); if (o.w > 0) v += o.w * (Math.max(v, o.E) - v); }
         headBase[g] = v; v = features(v, qq, tissue[g]);
       }
       // (each leg on its own side of the middle: where the knees or the thighs touch, standing, the skin goes round
@@ -294,6 +296,8 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
           let s2 = E - (p === P_.trunk ? reliefAt(q) : 0) + keep * Math.max(p === P_.trunk ? -0.005 : -0.002, mid[g2] - far[g2]) * (p === P_.trunk ? 2.0 : 1.2);   // (what stands out shows; a groove between two muscles the fat fills, but for two millimetres (four over the trunk, where the pectoral's edge, the rectus's lines and the serratus show))
           if (exactPart[g] === p) { const sh = p === P_.trunk && Y(j) > 1.4 && Math.abs(X(i)) > 0.13, cap = sh ? 0.008 : 0.0025; s2 = smin(s2, (sh ? exactSoft[g] : exact[g]) - Math.max(cap, 0.4 * tissue[g]), 0.02); }   // (the acromion and the collarbone's end under the deltoid's tendon and the trapezius: 13 mm under the skin, deeper than other bones near it; held 7 mm under, they stood as knobs)
           v = v + w * OUTLINE * (s2 - v);
+          // (the neck no fuller than the outline: from the trapezius's strands alone its nape stood as far back as the skull's and it measured 50 cm round, a man's 39)
+          if (p === P_.trunk && Y(j) > 1.49) v += w * smooth01((Y(j) - 1.49) / 0.03) * (Math.max(v, E) - v);
         }
       }
       const fl = ARMS(p) ? fieldA : field, fp = ARMS(p) ? fieldPartA : fieldPart;

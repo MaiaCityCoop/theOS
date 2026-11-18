@@ -29,11 +29,12 @@ const D = Math.PI / 180;
     (L); how many edges cross under an armpit (KA) and under the crotch (KC). They fit: H = T + 2A - 4KA, L = T/2 + KC. */
 export const COUNT = { H: 48, T: 32, A: 20, L: 20, KA: 6, KC: 4 };
 
-export function cageOf(T, { only = null } = {}) {
-  const { RIG, GB, GA, GH, GHand, GFoot } = T, J = (n) => RIG[n].at;
-  // ── the shape, as solids a ray can be sent through (each negative inside, metres) ──────────────────────────────
-  // The fine grids (the head's, a hand's, a foot's) hold their neighbourhood whole, so inside one its field is the
-  // shape; it gives way to the body's coarser one over a centimetre at its edge.
+/** The shape as solids a ray can be sent through (each negative inside, metres): `body` the trunk, the legs and the
+    head; `arm` the arms with their hands; `both` the two as one (the shoulders); `leg` the left leg alone; `any` the
+    nearer of the first two, as they stand. The fine grids (the head's, a hand's, a foot's) hold their neighbourhood
+    whole, so inside one its field is the shape; it gives way to the body's coarser one over a centimetre at its edge. */
+export function solidsOf(T) {
+  const { GB, GA, GH, GHand, GFoot } = T;
   const within = (p, lo, hi, m) => Math.min(smooth01((p[0] - lo[0]) / m), smooth01((hi[0] - p[0]) / m), smooth01((p[1] - lo[1]) / m), smooth01((hi[1] - p[1]) / m), smooth01((p[2] - lo[2]) / m), smooth01((hi[2] - p[2]) / m));
   const hi3 = (G) => [G.lo[0] + (G.n[0] - 1) * G.h, G.lo[1] + (G.n[1] - 1) * G.h, G.lo[2] + (G.n[2] - 1) * G.h];
   const headHi = hi3(GH), handHi = hi3(GHand), footHi = hi3(GFoot);
@@ -46,7 +47,11 @@ export function cageOf(T, { only = null } = {}) {
   const arm = (p) => { let v = GA.sample(p); const q = [Math.abs(p[0]), p[1], p[2]], w = within(q, GHand.lo, handHi, 0.012); if (w > 0) v += w * (GHand.sample(q) - v); return v; };
   const both = (p) => smin(body(p), arm(p), 0.02);   // (the shoulders: the trunk and the arms as one)
   const leg = (p) => -smin(-body(p), p[0] - 0.002, 0.012);   // (the left leg alone: its own side of the middle, rounded into where the thighs lie together)
+  return { body, arm, both, leg, any: (p) => Math.min(body(p), arm(p)) };
+}
 
+export function cageOf(T, { only = null } = {}) {
+  const { RIG } = T, J = (n) => RIG[n].at, { body, arm, both, leg } = solidsOf(T);
   // ── a ray from a ring's middle to the skin ─────────────────────────────────────────────────────────────────────
   // Out along d from c: where the ray leaves the solid; a hollow narrower than `gap` it crosses (the dip over a
   // collarbone), a wider one ends it (the other leg, the trunk beside an arm).

@@ -2,35 +2,27 @@
 // nearer more (linear blend skinning, as a game's skin is carried: ../muscles/flesh.js). Plain JS, no three: it runs in
 // the workers that lay the skin (./build.js), or under node.
 //
-//   bindingOf(bones, M, T) -> { fasten(p, part) -> [{ row, w }], rows, first, restOf() }
-//     fasten   a point's bones and its share on each: of the piece `part` (PARTS' number: an arm's skin hangs only on
+//   bindingOf(bones, T) -> { fasten(p, part) -> [{ joint, w }], joints }
+//     fasten   a point's joints and its share on each: of the piece `part` (PARTS' number: an arm's skin hangs only on
 //              the arm's bones and the shoulder girdle's, a finger's on its own and the hand's, a limb's on its own side's)
-//     rows     the rows the skin adds to the muscles': each bone a row of its own, carried whole by its joint
-//     restOf() each of those rows' frame as the body stands (its middle, along it, out, across: four times four numbers a row)
+//     joints   the joints the skin hangs on, in the order `joint` numbers them: each its name in the rig and where it
+//              stands at rest
 import { UNDER, partOf } from './table.js';
-import { frameAt, slots } from '../muscles/build.js';
 import * as F from '../field.js';
 
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const mirror = (n) => n.replace(/\.L$/, '.R');
 const solidOf = ([kind, ...a]) => kind === 'rod' ? F.rod(...a) : kind === 'ball' ? F.ball(...a) : F.egg(a[0], a[1], a[2] ? F.frame(...a[2]) : undefined);
 
-export function bindingOf(bones, M, T) {
+export function bindingOf(bones, T) {
   const { RIG, P_, ARMS, small } = T;
   // ── each point fastened: to the four bones nearest under it ──────────────────────────────────────────────────────
-  // Each bone is a row of its own, carried whole by that bone's joint (rigid: it does not swell); a point among several
-  // is carried by each, the nearer more, as a game's skin is by its bones (linear blend skinning, four bones a point:
-  // over the loins the pelvis, two vertebrae and a thigh all pull at the same point).
+  // A point among several bones is carried by each, the nearer more, as a game's skin is by its bones (linear blend
+  // skinning, four bones a point: over the loins the pelvis, two vertebrae and a thigh all pull at the same point).
   // (the muscles under it would swell it as they shorten, but they move each its own way and pull the skin into folds
   // and strings where a limb bends far: the bones carry it smoothly)
-  const rows = [], first = M.rows.length, rigid = new Map(), key = (i, j, k) => i + 4096 * (j + 4096 * k);
-  const rigidRow = (rig) => {
-    if (!rigid.has(rig)) { rigid.set(rig, first + rows.length); rows.push({ keys: [{ rig, at: [0, 0, 0], out: [0, 0, 1] }, { rig, at: [0, -0.05, 0], out: [0, 0, 1] }], closed: false, rigid: true, L0: 0.05, Lt: 0 }); }
-    return rigid.get(rig);
-  };
-  const allRows = (r) => (r < first ? M.rows[r] : rows[r - first]);
-  const curveOf = new Map();
-  const curve = (r) => { let c = curveOf.get(r); if (!c) { const R = allRows(r), P = R.keys.map((k) => add(k.at, RIG[k.rig].at)); c = { S: slots(P, R.closed), Q: slots(R.keys.map((k) => k.out), R.closed) }; curveOf.set(r, c); } return c; };
+  const joints = [], number = new Map();
+  const jointOf = (rig) => { if (!number.has(rig)) { number.set(rig, joints.length); joints.push({ rig, at: RIG[rig].at.slice() }); } return number.get(rig); };
   // the bones' surfaces as points (a bone's own field is true only near it; the trunk's skin lies a hand's breadth
   // from its spine), both sides' (the left's mirrored: a point by the middle hangs on both thighs, not on one), in a
   // grid; with each its joint and its piece. The gristle and the eyes too.
@@ -85,19 +77,13 @@ export function bindingOf(bones, M, T) {
     }
     const near = new Map(); for (let g = 0; g < rigs.length; g++) if (best[g] < Infinity) near.set(rigs[g], Math.sqrt(best[g]));
     const FAR = Math.max(8, r0) * BG, cand = [...near].map(([rig, d]) => ({ rig, d })).filter((c) => c.d < FAR).sort((a, b) => a.d - b.d);
-    const row = (c) => rigidRow(c.rig);
-    if (!cand.length) return [{ row: rigidRow('hips'), w: 1 }];
+    if (!cand.length) return [{ joint: jointOf('hips'), w: 1 }];
     // the weights: each falls with the distance, the fifth's taken from all four (so that where the fourth and the
     // fifth change places the point does not jump; and none beyond the farthest looked at); softer over the trunk and the
     // legs, whose skin lies far from the bones and bends with the whole spine
     const soft = ARMS(own) ? 0.04 : 0.06, w = (c) => 1 / (c.d + soft) ** 2, w5 = w(cand[4] ?? { d: FAR });
-    const out = cand.slice(0, 4).map((c) => ({ row: row(c), w: w(c) - w5 })), all = out.reduce((a, c) => a + c.w, 0), kept = out.filter((c) => c.w > 0.004 * all), sum = kept.reduce((a, c) => a + c.w, 0);
-    return kept.map((c) => ({ row: c.row, w: c.w / sum }));
+    const out = cand.slice(0, 4).map((c) => ({ joint: jointOf(c.rig), w: w(c) - w5 })), all = out.reduce((a, c) => a + c.w, 0), kept = out.filter((c) => c.w > 0.004 * all), sum = kept.reduce((a, c) => a + c.w, 0);
+    return kept.map((c) => ({ joint: c.joint, w: c.w / sum }));
   };
-  const restOf = () => {
-    const rest = new Float32Array((first + rows.length) * 16);
-    for (const r of rigid.values()) { const c = curve(r), Fr = frameAt(c.S, c.Q, 0, 0.5); [Fr.C, Fr.T, Fr.O, Fr.B].forEach((v, j) => rest.set([...v, 0], r * 16 + j * 4)); }
-    return rest;
-  };
-  return { fasten, rows, first, allRows, restOf, held: () => rigid.size };
+  return { fasten, joints };
 }

@@ -156,15 +156,15 @@ export const PROFILES = [
     [-1.0, 14.8, 14.8, 10.4, 11.2, 2.2], [-0.5, 13.9, 13.9, 10.5, 9.6, 2.1], [0.0, 13.7, 13.7, 10.5, 9.5, 2.1], [0.0, 14.2, 14.2, 10.6, 9.8, 2.2],
     [-0.3, 15.4, 15.4, 10.9, 10.6, 2.2], [-0.8, 16.3, 16.3, 11.4, 11.2, 2.4], [-1.3, 16.8, 16.8, 11.6, 11.8, 2.5], [-1.8, 16.9, 16.9, 11.6, 12.8, 2.6],
     [-2.3, 16.6, 16.6, 11.4, 13.6, 2.8], [-2.8, 16.8, 16.8, 11.2, 14.0, 2.8], [-3.3, 17.6, 17.6, 11.5, 13.6, 2.6], [-3.8, 19.6, 19.6, 9.8, 12.0, 2.3],
-    [-4.0, 17.5, 17.5, 7.4, 9.6, 2.2], [-3.5, 10.5, 10.5, 6.0, 8.2, 2.0], [-3.0, 6.3, 6.3, 5.4, 6.4, 2.0], [-2.5, 5.6, 5.6, 5.0, 5.8, 2.0]] },
+    [-4.0, 17.5, 17.5, 7.4, 9.2, 2.2], [-3.3, 8.8, 8.8, 6.0, 6.8, 2.0], [-2.7, 6.3, 6.3, 5.8, 6.4, 2.0], [-2.3, 6.0, 6.0, 5.6, 6.0, 2.0]] },   // (the neck 39 cm round under the jaw: it measured 50, its nape as far back as the skull's)
   { part: 'arm', name: 'upper arm', a: [0.186, 1.425, -0.042], b: [0.2, 1.13, -0.056], front: [0, 0, 1], fade: [0, 0], limb: 'arm', joins: [0, 1], sections: [
-    [0.0, 5.6, 3.6, 5.2, 5.2, 2.1], [0.0, 5.9, 4.5, 5.8, 5.8, 2.1], [0.0, 5.2, 4.3, 5.0, 5.3, 2.1], [0.0, 4.4, 4.2, 5.1, 5.2, 2.1], [0.0, 4.3, 4.2, 5.4, 4.9, 2.1], [0.0, 4.2, 4.0, 5.2, 4.5, 2.1], [0.0, 4.0, 3.7, 4.6, 4.2, 2.1], [0.0, 3.8, 3.5, 4.0, 4.0, 2.1]] },
+    [0.0, 6.3, 3.6, 5.6, 5.4, 2.1], [0.0, 6.6, 4.5, 6.0, 5.9, 2.1], [0.0, 5.6, 4.3, 5.2, 5.4, 2.1], [0.0, 4.4, 4.2, 5.1, 5.2, 2.1], [0.0, 4.3, 4.2, 5.4, 4.9, 2.1], [0.0, 4.2, 4.0, 5.2, 4.5, 2.1], [0.0, 4.0, 3.7, 4.6, 4.2, 2.1], [0.0, 3.8, 3.5, 4.0, 4.0, 2.1]] },
   { part: 'arm', name: 'forearm', a: [0.2, 1.13, -0.056], b: [0.228, 0.845, -0.02], front: [0, 0, 1], fade: [0, 0], limb: 'arm', joins: [1, 0], sections: [
-    [0.0, 4.3, 3.8, 4.4, 4.4, 2.1], [0.0, 4.8, 4.4, 5.1, 4.6, 2.1], [0.0, 4.7, 4.4, 5.0, 4.4, 2.1], [0.0, 4.3, 4.0, 4.6, 4.0, 2.1], [0.0, 3.6, 3.3, 3.8, 3.4, 2.1], [0.0, 2.9, 2.6, 3.3, 3.0, 2.1], [0.0, 2.2, 2.0, 3.0, 2.8, 2.1], [0.0, 1.8, 1.7, 2.9, 2.7, 2.1], [0.0, 1.6, 1.4, 2.8, 2.6, 2.1]] },
+    [0.0, 4.2, 3.7, 4.3, 4.3, 2.1], [0.0, 4.4, 4.0, 4.6, 4.2, 2.1], [0.0, 4.2, 3.9, 4.5, 4.0, 2.1], [0.0, 3.9, 3.6, 4.2, 3.7, 2.1], [0.0, 3.4, 3.1, 3.6, 3.2, 2.1], [0.0, 2.8, 2.5, 3.2, 2.9, 2.1], [0.0, 2.2, 2.0, 2.9, 2.7, 2.1], [0.0, 1.8, 1.7, 2.8, 2.6, 2.1], [0.0, 1.6, 1.4, 2.7, 2.5, 2.1]] },
   { part: 'leg', name: 'thigh', a: [0.088, 0.9, 0.0], b: [0.085, 0.5, 0.006], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [0, 1], sections: [   // the thigh, from the hip to the knee
     [0.0, 9.0, 8.0, 8.5, 9.5, 2.2], [0.0, 9.3, 8.2, 9.0, 9.6, 2.2], [0.0, 8.9, 7.3, 9.6, 8.8, 2.2], [0.0, 8.1, 6.6, 9.2, 7.8, 2.2], [0.0, 6.5, 5.4, 8.2, 6.4, 2.2], [0.0, 4.9, 5.0, 6.0, 5.3, 2.1]] },
   { part: 'leg', name: 'leg', a: [0.085, 0.5, 0.006], b: [0.077, 0.04, -0.02], front: [0, 0, 1], fade: [0, 0], limb: 'leg', joins: [1, 0], sections: [   // the leg, from the knee down through the ankle
-    [0.0, 4.9, 5.0, 5.8, 5.4, 2.1], [0.0, 5.6, 6.6, 4.5, 7.8, 2.1], [0.0, 4.9, 6.0, 3.9, 7.5, 2.1], [0.0, 3.2, 3.4, 3.1, 4.3, 2.1], [0.0, 2.5, 2.6, 2.8, 3.1, 2.1], [0.0, 3.2, 3.4, 3.4, 3.8, 2.1]] },
+    [0.0, 4.9, 5.0, 5.8, 5.4, 2.1], [0.0, 5.6, 6.6, 4.5, 7.8, 2.1], [0.0, 4.9, 6.0, 3.9, 7.5, 2.1], [0.0, 3.3, 3.5, 3.2, 4.4, 2.1], [0.0, 2.8, 2.9, 3.0, 3.4, 2.1], [0.0, 3.3, 3.5, 3.5, 3.9, 2.1]] },
   // the foot, from the back of the heel to the ball, its front the instep (up); its first half-breadth is the inner
   // side's, the second the outer's: 27 cm long, 10 across the ball, 6.5 across the heel, its instep 7 high (Hawes &
   // Sovak 1994, as remembered)
@@ -186,7 +186,7 @@ export const MASSES = [
   { part: 'head', what: 'chin', at: [0, 1.571, 0.09], r: [0.02, 0.02, 0.014, 0.013, 0.011, 0.014], n: 2.0, k: 0.03 },
   { part: 'trunk', what: 'jugular notch', at: [0, 1.475, 0.036], r: [0.012, 0.012, 0.008, 0.008, 0.009, 0.02], n: 2.0, k: 0.012 },   // (the hollow above the breastbone a soft one, the width of a thumb, not a pit)
   { part: 'trunk', what: 'pectoral', at: [0.078, 1.33, 0.078], r: [0.074, 0.064, 0.1, 0.038, 0.022, 0.03], n: 2.6, k: 0.025, lean: 0.3 },   // (a slightly muscular man's: its lower edge at the nipples, the sternum in the groove between the two)
-  { part: 'trunk', what: 'buttock', at: [0.068, 0.885, -0.075], r: [0.075, 0.06, 0.11, 0.1, 0.05, 0.052], n: 2.1, k: 0.04 },
+  { part: 'trunk', what: 'buttock', at: [0.068, 0.885, -0.075], r: [0.075, 0.06, 0.11, 0.1, 0.05, 0.04], n: 2.1, k: 0.04 },
 ];
 // The hand, drawn finer than the body (./build.js): its palm and the ball of its thumb as masses (left hand, standing,
 // its palm to the thigh: +x its back, +z towards the thumb; m), each finger three tapering rods from its knuckle
@@ -277,3 +277,28 @@ export const LIMB_RELIEF = [
 // where a jaw rounds back towards its angle.
 export const LOWER_FACE = { chin: 0.011, lips: 0.006, top: 1.622, mouth: 1.598, chinAt: 1.566, half: 0.014, side: 0.055, back: 0.015, front: 0.055,
   jaw: 0.018, jawIn: 0.016, jawOut: 0.042, jawFade: 0.066, jawTop: 1.634, jawLow: 1.584 };
+
+// The skin's tone place by place (./build.js lays it on the skin's points; ../muscles/flesh.js colours by it). Each a
+// place of the left side (m), how far it reaches (m) and how much. `blood`: where it lies nearer the surface and the
+// skin is redder (the cheeks, the nose, the ears, the chin, the knuckles and the fingers' ends, the elbows, the knees, the
+// heels and the balls of the feet, the palms), or further and it is paler (-). `pigment`: where the skin is browner
+// for the sun it has had (the face, the neck, the forearms, the backs of the hands) or paler for the little it has
+// (the loins, the inside of the upper arm, the palms and the soles, which hold almost none). `oil`: where it is
+// glossier (the forehead, the nose, the chin; a little the chest and the shoulders). `veins`: where they show through
+// (the inside of the forearm, the back of the hand, the top of the foot). As a painter of bodies lays them, from
+// practice, not from a measured map: none was found (reports/Photoreal human body architecture.md, "skin colour").
+export const TONE = {
+  blood: [
+    ['cheek', [0.045, 1.635, 0.085], 0.03, 0.55], ['nose', [0, 1.634, 0.12], 0.02, 0.6], ['ear', [0.077, 1.665, -0.02], 0.03, 0.6], ['chin', [0, 1.585, 0.1], 0.025, 0.25],
+    ['knuckles', [0.238, 0.775, -0.02], 0.035, 0.4], ['finger ends', [0.23, 0.69, -0.02], 0.035, 0.45], ['palm', [0.207, 0.82, -0.02], 0.04, 0.35], ['elbow', [0.19, 1.14, -0.08], 0.035, 0.4],
+    ['knee', [0.085, 0.5, 0.08], 0.045, 0.35], ['heel', [0.077, 0.02, -0.06], 0.045, 0.4], ['ball of the foot', [0.09, 0.015, 0.11], 0.05, 0.4], ['toes', [0.1, 0.02, 0.17], 0.05, 0.35],
+    ['chest', [0, 1.38, 0.1], 0.1, 0.12], ['shin', [0.08, 0.3, 0.05], 0.1, -0.12],
+  ],
+  pigment: [
+    ['face', [0, 1.67, 0.07], 0.12, 0.22], ['neck', [0, 1.52, 0], 0.09, 0.2], ['forearm', [0.215, 1.0, -0.04], 0.15, 0.25], ['back of the hand', [0.24, 0.82, -0.02], 0.05, 0.3],
+    ['shoulders', [0.15, 1.44, -0.05], 0.12, 0.12], ['loins', [0, 0.93, -0.03], 0.2, -0.3], ['inside of the upper arm', [0.15, 1.27, -0.03], 0.07, -0.25],
+    ['palm', [0.205, 0.81, -0.02], 0.045, -0.6], ['sole', [0.085, -0.005, 0.03], 0.1, -0.6], ['thigh, inside', [0.03, 0.72, 0], 0.1, -0.2],
+  ],
+  oil: [['forehead', [0, 1.72, 0.1], 0.04, 1], ['nose', [0, 1.64, 0.115], 0.025, 1], ['chin', [0, 1.585, 0.1], 0.025, 0.6], ['chest', [0, 1.38, 0.1], 0.1, 0.3], ['shoulders', [0.17, 1.45, -0.03], 0.07, 0.3]],
+  veins: [['forearm, inside', [0.205, 1.0, 0.0], 0.09, 1], ['back of the hand', [0.24, 0.82, -0.02], 0.05, 1], ['top of the foot', [0.085, 0.06, 0.07], 0.06, 1]],
+};
