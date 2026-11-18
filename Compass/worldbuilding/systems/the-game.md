@@ -85,6 +85,7 @@ Every city goes through three stages: **survive** (imported food, tents and gene
 ### Daily play: ten minutes
 
 - **The hook is the harvest.** The clock follows modern greenhouse growing cycles, with **one game month to one real day**, so nearly every day something of a citizen's own is ripe.
+- **No seasons in the MVP.** Everything grows inside the domes, all year, so weather and seasons do not touch the harvest.
 - **Every citizen tends their own plants** in the shared dome's food-forest garden. **There are only shared domes.**
 - **Neglect costs yield.** A day missed, and that day's ripe harvest rots. So every citizen comes back to harvest every day, for their own and their village's export goals.
 - Then the day's 24 HEARTS are invested.
