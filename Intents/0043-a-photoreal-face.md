@@ -338,6 +338,9 @@ Proposed on 2026-11-18. Story: [`Stories/0043-a-photoreal-face/`](../Stories/004
 | 2026-11-18 | ec65986 | a man and a woman of VALID brought in whole; the figure kit, its moves and expressions; the library row; the tools |
 | 2026-11-18 | c923301 | proposed: the checks as they were, the page for choosing two, the story |
 | 2026-11-18 | d9102cc | the two figures through WebGPU on the tool page (its own shadow map, the picture read back); held |
+| 2026-11-18 | 410041d | this branch's intents renumbered 0041 to 0044 |
+| 2026-11-18 | ea30cf4 | main merged into the branch (250 commits), four conflicts resolved |
+| 2026-11-18 | 02fbbe2 | the six recipes main added said short; what the code gates found |
 
 On its branch this intent was numbered 0041, and its commits' messages say `Intent: 0041`. It was given 0043 on 2026-11-18,
 when the branch was brought to `main`, where 0041 had meanwhile been taken by another intent.
