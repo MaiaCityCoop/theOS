@@ -7,6 +7,7 @@ import { boxIn } from '../core/frustum.js';
 import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, R0, FINE } from './material.js';
 import { createPages } from './pages.js';
+import { mark } from '../core/gpu.js';
 import { createRelief, LEVELS as RELIEF_LEVELS, GRID as RELIEF_GRID } from './relief.js';
 import { LAYERS } from './layers.js';
 import { waterMaterial } from './water.js';
@@ -116,7 +117,7 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
       U.uLandEnd.value = R;
       const i0 = Math.floor((cx - R) / TOP), i1 = Math.floor((cx + R) / TOP), j0 = Math.floor((cz - R) / TOP), j1 = Math.floor((cz + R) / TOP);
       for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) select(i * TOP, j * TOP, TOP, top);
-      push(land); push(water); relief.build(camera);
+      push(land); push(water); mark('relief'); relief.build(camera);   // (a tool's clock names the relief's pass: src/core/gpu.js mark)
       waterMesh.visible = water.n > 0;
     },
     /** The pages' passes compiled (a promise). */
