@@ -167,7 +167,6 @@ numbers are written below.
 | 7 | Lines go down | `git diff --stat main` at the end of each stage. The total falls stage after stage |
 
 **Out of scope:** new assets, the body's look (0036, waiting on Samuel's pick), the Bible (0037), and the story pipeline.
-Characters and animals (anything on a skeleton): later, on Samuel's word (2026-11-18).
 
 ## Where we left off (2026-11-18): read this first to take over
 
@@ -230,7 +229,6 @@ unification. Every machine kept busy.
 | Occlusion culling | `aven/0038-draw-occlusion`, PR #68 | CI green | Views from above draw only 2–8 % of main's things: prove with gate stills at `bench-river-bend-26m`, `bench-town-40m` and `bench-pine-forest-90m` that nothing visible is missing (FLIP within noise) |
 | 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
 | 7: one placement rule, the forest in layers | `aven/0038-stage7-layers`, PR #73 (ready for review) | Built, merged with main (`314e2e6`), measured (under Build, Stage 7); CI green | The master's review; Samuel to judge the floor (pictures on `aven/0038-shots`, `stage7/`); the research's floor kinds and the site's species come after 8 and 9 |
-| 9a: one light, within its ceiling | `aven/0038-stage9-light`, PR #72 | 9a built (Stage 9a under Build): the cascades layered, the contact shadows only where the cascades miss something, the canopy map for the stand's sky, analytic air; 9b (froxels, GTAO, ray-marched probes, bounce) behind `?light=full` | On the Mac mini: the full gate (bench per pass, stills, `?truth`, paths); merge #83 (the bench per pass) once it lands, the light's passes into its classes |
 
 **Not started:**
 - **6c** is built (draft PR #81, under Build): relief near the eye on a mesh built in compute, parallax further out,
@@ -244,6 +242,8 @@ unification. Every machine kept busy.
   grazing ground (at eye level the far bare patches go too near).
 - **8b:** the stress world's zoo on the cluster hierarchy: its standing shapes built on demand, its creatures skinned
   (stage 8's notes say what it needs).
+- **9:** one light: leaf shadows, Bend's screen-space shadows, the canopy map, GTAO, transmission, Hillaire's sky,
+  froxel fog, sky probes. It is the biggest step towards the look target.
 
 **Open risks:**
 - **Safari:** mobile Safari loads, but its first start is slow (a later task, under Todo). Desktop Safari is still
@@ -1681,234 +1681,6 @@ Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at
     - `?truth` drew black before #79;
     - the branch's own close views lost the WebGPU device, and so did the truth retried after #79, on the shared GPU.
 
-### Stage 9: one light (2026-11-18)
-
-- Built on `aven/0038-stage9-light` (PR #72) from main at `1e6a849`, merged with main at `3a2896a` (stage 5),
-  `d1c3805` (6b) and `314e2e6`. Characters stay as they were (out of scope): they keep their own light calls, which
-  still work (`shadowAtPulled`, `casterPull`, `skyLight`, `finish`).
-- **`lit()` and `lightOn()`** (`src/world/light.js`): one light for every material: the land, the grass, the rocks,
-  made things (`madeLit`), the heap's things and its dots (the shading models get their sun and sky from it), the
-  impostors, the trees' cards, clump planes and impostors, the water's sun, the fire's smoke, the snowfall and the
-  material preview. A surface says what it is (colour, normal, point; wrap, `through`, its own occlusion, its highlight)
-  and gets the sky's part, the sun's and the highlight, then the air. `sunAt(w, how)` is the one sun share (the storm,
-  the clouds, the shadow), replacing `cloudAt`, `cloudAtOne` and `cloudAtVertex`. Step 1 alone drew as main does (FLIP
-  0.017–0.049 mean at the four views).
-- **Shadows** (`src/world/shadow.js`): one atlas of two 2048-texel cascades. The near one covers 70 m round the eye
-  (a third of it ahead), 3.4 cm a texel, drawn every frame; the far one the old box (100 m, growing with height), drawn
-  every third frame and whenever the sun or the eye jumps, kept between (its square alone cleared by a triangle at the
-  far plane). The near one is soft as the sun's disc makes it (PCSS: six reads for the blockers' distance, a penumbra of
-  that distance times 0.0093 rad, eight comparison taps on a disc turned by the blue noise). Casters draw their **shadow
-  twins** (`src/core/pass.js`): their depth and cut-out only, so leaves cast dappled light, no caster binds the atlas
-  it is drawn into (the ping-pong pair is gone), and a caster's shadow shader is a few lines (materials that cut say so:
-  `userData.shadow`).
-- **Contact shadows** (`src/world/light/screen.js`), after Bend Studio's screen-space shadows (Apache-2.0): from each
-  pixel of the prepass's depth a short ray towards the sun (12 steps, 0.12 m + 2 % of the distance), its start dithered
-  by the blue noise, a surface as thick as its depth says, faded to its end and from 40 m. Bend's wave-wide sharing of
-  samples is not ported (no subgroups in Safari). Read by `lightOn` in the colour pass of what takes part in the
-  prepass, and by the trees' pixels (leaf on leaf).
-- **The canopy map** (`src/world/light/canopy.js`): what casts, drawn straight down from above and straight up from
-  below, 192 m round the eye, 19 cm a texel, every 8 frames: the crowns' top and underside, the slab between, gaps and
-  all. Half way between, a **sky probe** every metre at 0.5, 4 and 12 m over the ground marches twelve cosine-weighted
-  rays through the slab: the share of its sky it sees (Wronski's World AO; Ghost of Tsushima's sky visibility).
-  `lightOn` dims the sky's light by it (one read), and where the probes see no sky, the crowns give a little of their
-  light back, green (the probes' bounce). `sunThrough` gives the air a coarse sun through the crowns.
-- **GTAO** with Therrien's visibility bitmask, at half the pixels: two slices a pixel, six steps a side, each sample a
-  surface 0.35 m (+ 2 % of its distance) thick, 32 sectors; the share left is the sky's (the pass also works out the
-  bent normal, which nothing reads yet). On the sky term only, and on the highlight as Lagarde's specular occlusion.
-  Its slices are turned by the blue noise per pixel, held still from frame to frame; the contact pass reads its
-  half-size picture four times between texels and keeps its share in its own texel, so every material reads both with
-  one load and no sampler (see Found).
-- **Leaves lit from behind**: `lightOn`'s transmission is two-sided (the lobe round the sun seen through a leaf, and its
-  far side lit), tinted yellower than the leaf looks lit; the trees' cards carry the sky's and the sun's light apart, so
-  each pixel takes GTAO on the first and the contact shadows on the second; their own per-vertex occlusion (the
-  builder's) is kept; the canopy's probes dim the crown inside.
-- **The air** (`src/world/light/air.js`): Hillaire's tables as the MIT port `webgpu-sky-atmosphere` lays them out, in
-  rgba16f: transmittance 256 × 64 and multiple scattering 32 × 32 (once), the sky view 192 × 108 (every frame; the dome
-  draws it by day, the hour's colours by night, and the painted glow round the sun gives way to it). The aerial
-  perspective and a height fog share one froxel volume, 160 × 90 × 64 out to 24 km (one compute pass, a thread a
-  column), lit by the sun through the air and through the canopy map (the shafts) and by the sky as the probes let it
-  in. Every material ends in it (`finish`: c × T + L; where the land ends, the sky's own light along that way); the
-  library's pictures and the WebGL 2 fallback keep the old analytic haze.
-- **Noise:** one spatiotemporal blue noise (`src/world/light/noise.js`): a 64 × 64 void-and-cluster tile made at the
-  start, four shifted ranks, stepped by the golden ratio every frame (the shadows' taps, the contact rays, the froxels'
-  depth; GTAO's without the step).
-- **Found:**
-  - **Streaks** under the tall grass, on the tent's canvas and through the far crowns came with GTAO's read in the
-    colour pass (a sampled texture of its own, read four times). Probed at the tent's start view (1280 × 720): with that
-    read taken out the picture was clean, sky, air, shadows and all; with it, the grass, the canvas and the far land
-    and crowns broke. The likeliest cause is materials that already bind many textures going past what a pipeline may
-    hold, so they were not drawn and the upscale smeared the frame before. Hence the one load. Not yet seen on a GPU
-    (all GPU work on this machine was stopped before it could be shot): **the first thing to look at on the Mac mini.**
-  - Colours below zero (or not numbers) are now held off: every material's colour is clamped at zero before the air
-    (`finish`), the upscale takes anything below zero as black, and GTAO writes nothing it cannot work out.
-  - A circular import (light → canopy → land.nodes → registry) is broken by handing the ground's height to the canopy
-    from the boot.
-  - The gate's runs here lost their WebGPU device under the shared machine's load (load averages 60–230, two reboots),
-    and stills shot during such a run come out black.
-- **The bench** times every pass of the real frame on the GPU's own clock, under the name of the part that drew it
-  (`src/core/gpu.js` `mark`; printed under the gate's `bench`), and the colour pass's share of the shadows (the same
-  frames with its shadow reads off). Its first version timed each light pass alone, after the game's own frame had
-  been let go again: each column was then about a whole frame of the game's (23–53 ms each, more than the frame
-  together, on the Mac mini). Fixed under "Stage 9: the cost, counted".
-- **Measured** (on the MacBook, the GPU shared with other agents until all GPU work here was stopped):
-  - Step 1 alone (`lit()`, nothing else) was checked to draw as before it (FLIP 0.017–0.049 mean at the four views):
-    a check of the refactor only, **not a gate** (Samuel, 2026-11-18: main is no gate).
-  - Steps 2–7 (stills at the tent and the pine forest, eye level): the near cascade's dappled shadows and the contact
-    shadows darken the grass and the floor of the stand; the canopy's probes darken the stand's floor and trunks; the
-    air layers the far land and the dome is Hillaire's. The last full set of the branch's stills was lost to device
-    losses. **The gates are measured on the Mac mini:** the branch against its own `?truth`, against the photos,
-    nothing popping in motion, and the hard budgets.
-  - **Not measured here:** GPU ms against the 12 ms budget (the bench now prints each light pass alone: `near`, `far`,
-    `canopy`, `probes`, `sky`, `froxels`, `contact`, `gtao`), the paths, memory, the stress world: left to the Mac
-    mini's unshared GPU.
-  - `bun tools/scale.js`: 18 of 18. `bunx --bun vite build`: passes.
-  - **Borderline:** the sky shows faint rings near the top of the frame (the sky view's rows near the zenith); the
-    probes leave trunks deep in the stand dark where no green comes back; the contact rays are per pixel, not Bend's
-    shared waves.
-
-### Stage 9: the cost, counted (2026-11-18)
-
-The Mac mini measured stage 9 (with 7 and 8; 8 alone adds nothing) at 74.7–116.3 ms of GPU at the bench's views,
-against 13.3–31.0 for stage 7 alone; in motion nearly every frame was over 16.7 ms. Done on the MacBook with no GPU
-work at all (it rebooted twice under GPU load): the bench fixed, and every part of the light counted on paper.
-
-- **The bench** (`cf77e71`): its light columns read 23–53 ms each because `light()` ran after `bench()` had let the
-  game's own frame go, and three's `resolveTimestampsAsync` returns the sum of the last frame it has a number for:
-  between a pass and its read-back the game drew whole frames, and those were read. A pool with nothing new also gave
-  its last sum again. Now the code marks whose passes follow (`src/core/gpu.js` `mark`, a no-op unless a tool
-  listens), and `tools/bench.js` reads three's query sets itself: each pass's begin and end, under its mark, in the
-  real frame, with the game held. It prints per view the frame (the passes' own times added, as before), its span
-  (first begin to last end), and each pass a frame and in the frames it is drawn in (the far cascade, canopy and
-  probes are drawn in turn).
-- **The count**, per frame at 2560 × 1440 (3.69 M pixels; GTAO's half, 0.92 M) on a base M1 (2.6 TFLOPS, about 1.3 G
-  instructions a millisecond at best and half that in practice; 68 GB/s), at eye level in the stand:
-
-| Part | What a frame does | ms (M1) | Why |
-| --- | --- | --- | --- |
-| The atlas's load and store | The near cascade is two passes (a triangle that wipes its square, then the casters), each on the whole 4096 × 2048 depth atlas (33.5 MB); a far frame clears it all, then the near loads it | 1.8–2.7 | A tile GPU loads and stores the whole attachment whatever the scissor: about 120 MB a frame for 70 m of shadow |
-| Near cascade | 2048² over 70 m, every frame. Its casters: all the eye packed, drawn whole (a tier is not culled per camera): 100–250 trees' shades (at most 490 triangles each; young ones fewer), the boulders at the eye's cut, the tent and fire pit; 0.15–0.4 M triangles | 0.5–1.2 | Vertices about 0.2; about 15 M fragments, 4.2 M texels under 3–4 layers of puff cards, each cut out (a discard: no hidden-surface removal) |
-| Far cascade | 2048² over 200 m (1.8 km up high), every third frame, and at once when the eye moves 5 m or the sun turns; the same casters | 0.3 (1.0 when drawn) | As the near one; in a flyby, every frame |
-| Shadow twins | Each caster once a view, its depth and cut-out only: 1.6 views a frame on average (near, a third of far, a quarter of canopy), 4 in the frame they all fall in. Impostors and clumps cast nothing (both trees cast by their shade; a kind without one casts its level 0, its impostor draw with it); stones cast nothing | in the rows above | |
-| Canopy map | 2 × 1024² over 192 m every 8 frames: the same casters twice, from above and from below. Its depth is depth32float, the atlas's depth24plus, so every caster's twin is compiled twice, the canopy's not before the first frame | 0.13 (1.0 when drawn) | The same vertex work twice; 2 M texels × 3 |
-| Sky probes | 192² × 3 heights × 12 rays × 6 steps: 216 slab tests a probe (432 loads), every 8 frames, each probe's rays turned by its own hash; and the ground's height a probe | 0.25 (1.5–2.5 when run) | 16 M loads, incoherent, on the 8.4 MB map: a spike every 8 frames |
-| Sky view | 192 × 108 × 32 steps, every frame | 0.1 | 66 M instructions |
-| Froxels | 160 × 90 × 64 = 0.92 M froxels, a thread a column (14,400 threads, 64 slices each in turn): about 250 instructions a froxel, and nearer than 90 m six canopy steps (12 loads) and a probe read | 0.5–1.0 | 0.25 G instructions, 6 M loads, but 14 threads a lane in series: bound by waiting |
-| GTAO | Half the pixels: 2 slices × 2 sides × 6 steps = 24 depth samples and 5 for the normal, each unprojected, with two normalizations and two arc cosines; then 2 × 32 sectors with a cosine and a sine each, only for the bent normal, which nothing reads. The slices turned pixel by pixel and reaching 160 pixels: incoherent reads of the 14.7 MB depth, which has no smaller levels | 5–10 | About 6 k instructions a pixel (5.5 G), and about 15 M reads that miss the caches |
-| Contact shadows | Every pixel, 12 steps (project, load, unproject, two smoothsteps) and four reads of GTAO's half picture; also past 80 m, where the result is faded to nothing | 4–7 | About 1.3 k instructions a pixel (4.8 G) |
-| Colour pass: shadows | Every lit pixel: 6 blocker loads and 8 comparison taps (2 × 2 filtered) on a Vogel disc, each tap with its own sine and cosine (28 a pixel) | 2–3 | About 500 instructions and 14 taps a pixel |
-| Colour pass: the rest | The probes' read, the froxels' read (a logarithm, a matrix, a 3D sample), the sky view's (two arc cosines), the screen light's load, the clouds' map | 1–1.5 | About 300 instructions and 5 reads a pixel |
-| Trees' cards, a vertex | `sunAt(w, 'vertex')`: 9 loads a cascade (18 in the near cascade's last tenth), the probes, the froxels, the sky view, the clouds, at every vertex drawn (2–5 M in the stand) | 1–2 more than before stage 9 | About 25 reads and 600 instructions a vertex; one map's nine loads and the haze were there before |
-| Texture bindings | Every lit material binds six more for the light: the atlas (and a comparison sampler), the blue noise, the screen light's, the probes, the froxels, the sky view; the land then holds 13–15 of the 16 sampled textures a stage may have (its pages' six arrays, the clouds' map, …). `blueAt` makes a texture node of its own at every call | none | Not time, but whether it is drawn: a pipeline over the limit is not (the streaks) |
-| **In all** | | **17–30** at eye level in the stand; 14–22 at the skyline | Against the budget's 2 (shadows) + 1 (AO, GI) + 0.7 (air) |
-
-- **What the count does not see:** the Mac mini read 55–100 ms more than stage 7, three to five times the count, and
-  even at the skyline, where hardly anything casts. What a count of work cannot show: register spills (a shader that
-  holds more than its registers spills to memory, and the trees' vertex stage and the land's colour both grew by the
-  light's terms), and how much of GTAO's reads miss. The fixed bench says which pass holds it, and the colour pass's
-  A/B how much is the shadows' reads.
-
-### Stage 9a: the light within its ceiling (2026-11-18)
-
-Stage 9 is split (Samuel, 2026-11-18, so the new light reaches next sooner): **9a**, the light's core within its
-ceiling, lands first on #72; **9b**, the costly rest, later in a PR of its own, on `aven/0038-stage9b`. The
-rules for both: root causes, never fewer samples as a patch; the light's ceiling about 3 ms of the 12.
-
-- **Measured first** (checkpoint 1, `2507190`, on the Mac mini: a base M2, 2560 × 1440 into 4K, each pass on the
-  GPU's own clock): a frame's span 45–73 ms, its passes summed 75–118 (they overlap: a pass's clock starts with its
-  vertex stage, while the one before's pixels are still being shaded). Per pass: contact shadows 22.1–33.8, GTAO
-  19.9–30.1, the colour 14.2–28.1 (its shadow reads −2.4 to 4.7 of it), the upscale 7.5–21.2, prepass 0.6–8.6, packing
-  3.1–5.2, pages 0.3–5.7; near cascade 0.65–1.6, far 0.1–0.3 (1.0 when drawn), canopy 0.01–0.08 (0.7 when drawn),
-  probes 0.4–0.7 (5.2 when drawn), sky 0.4–1.1, froxels 0.6–0.9.
-- **Why the contact shadows and GTAO cost so much:** four to five times the count, and the same at every view, so it is
-  the pixels and the waiting, not the scene:
-  - contact shadows: every pixel (to 80 m and past it, where the result was faded to nothing) marched twelve steps in a
-    loop, each step's read waiting on the one before's two 4 × 4 matrices (project, read, unproject), so a thread had one
-    read in flight at a time; and each pixel read GTAO's picture four times besides;
-  - GTAO: 2 × 32 sectors with a cosine and a sine each, for a bent normal nothing reads; slices turned pixel by pixel and
-    reaching 160 pixels, so neighbours read far apart on a full-precision depth with no smaller levels (a cache miss a
-    read); its steps a read at a time;
-  - the near cascade: one atlas for both. A tile GPU loads and stores all of what a pass draws into, whatever its
-    scissor, and the near cascade was two passes (a triangle wiping its square, then the casters): 120 MB a frame.
-- **9a, the default:**
-
-| Part | Stage 9 | 9a | Why it is cheaper |
-| --- | --- | --- | --- |
-| Cascades | One 4096 × 2048 atlas. The near one was wiped and drawn in two passes, each loading and storing all of it; the far one every third frame | Two layers of one depth array (still one binding), each cleared and drawn by a pass of its own, nothing loaded. 2048² each (3.4 cm near, as before); the far one every fourth frame | No load and no wipe: the near pass stores its own 16.8 MB, not twice 67 MB |
-| Penumbra | 6 blocker reads and 8 taps, each tap with a sine and a cosine (28 a pixel) | The same taps on one turned disc | The same samples, one sine and cosine a pixel |
-| Contact shadows | Every pixel, 12 steps, each read waiting on the last | A ray as long as what the cascade cannot see (its bias and two of its texels: 0.14 m in the near one, 0.45 m in the far one near the ground), and none where all of it is under a pixel. 12 steps whose reads all go out before any is tested, marched on the screen (no matrix a step), a hard test, two bytes a pixel | Only where there is something the cascades miss, and the reads overlap |
-| Sky in the stand | GTAO at half the pixels, and probes marched ray by ray (432 reads a probe), all at once every 8 frames | The canopy map's slab above nine columns round each probe (18 reads), the probes made in 8 bands a frame, map and probes each a pair (one read while the other is made); GTAO only in 9b | The canopy map instead of GTAO, and no frame carrying all of it |
-| Air | The froxels (160 × 90 × 64) and Hillaire's sky view, read by every pixel | The height fog worked out at the pixel, as the library's pictures and WebGL 2 have it; the hour's own sky | No volume to make, two reads a pixel fewer |
-| Green bounce | From the probes | Only in 9b | |
-| Canopy map | 2 × 1024² (19 cm), drawn all at once every 8 frames | 2 × 512² (37.5 cm: the probes' columns stand 4–8 m apart), a view a frame, every 16 frames | |
-
-- **9b on its own branch** (`aven/0038-stage9b`; first behind `?light=full`, which the master took out on 2026-11-18: a
-  preview switch is a second path through the light): Hillaire's air in froxels with its sky and shafts, GTAO, the
-  probes marched ray by ray and their green bounce, as stage 9 built them (the probes made in bands too). It joins the
-  one light, with no switch, once it fits the light's 3 ms. #72 keeps none of it: the air is the height fog alone, the
-  dome the hour's colours, the screen's light the contact shadows alone (one byte a pixel), the canopy map 512 a side.
-- **Bindings**, counted on the CPU (three's own WGSL builder on a stand-in device, no GPU): the land's colour pass binds
-  12 textures and 10 samplers in 9a (stage 9: 14 and 12; `?light=full`: 14 and 12); a lit surface's colour pass binds
-  6 textures and 2 samplers for the light: the screen light's and the blue noise (loads; the noise now one texture node
-  for every read), the cascades (a depth array and a comparison sampler), the clouds' map and field, the probes. Every
-  light pass and both modes build their WGSL without an error.
-- **What `lit()` reads at a pixel in 9a:** the screen light (one load), the blue noise (one), the cascades (six loads,
-  and eight comparison taps where something casts; four taps in the far one), the clouds' map and field, the probes
-  (one): 11–19 reads, about 20 KB of fragment code with the clouds.
-- **The bench** also prints what each pass adds to the span (each pass, in the order the GPU began them, from where the
-  passes before it ended): these add up to the span, where the passes' own times do not.
-- **Merged with main's bench** (#83, `ecc80f2`): its `CLASSES` name the light's passes in place of `shadow map`
-  (`light`: `clouds`, `near`, `far`, `canopy`, `probes`, `air tables`, `sky`, `froxels`, `screen light`, `gtao`,
-  `contact`); the bench's frame marks nothing for the light, which marks its own; what each pass adds to the span is
-  printed part by part, as the passes' own times are.
-- **Not measured here** (no GPU work on this machine): all of it, on the Mac mini: the gate's bench, stills, `?truth`,
-  the paths. `bun tools/scale.js`: 24 of 24. `bunx --bun vite build`: TheGame and OS built.
-- **The sun's shadows on the GPU** (trains 1 and 1b drew the stand's floor at eye level evenly in the sun):
-  `tools/shadowcheck.mjs` asks the GPU what it did. It reads each cascade back and puts a 41 × 41 grid of floor points
-  in shade two ways: by that readback, and by the light's own `shadowAt`, `shadowAtOne` and `shadowAtVertex`, drawn on
-  the GPU. It also records WebGPU's errors and the near layer with the tiers' culling off.
-  - **9a alone** (`c032e3d`; the MacBook and the Mac mini agree): the near layer 58.7 % drawn; 998 of 1681 floor points
-    in shade by the readback, 999–1016 by the light's code (1676 agree); no errors. The stills show the crowns' and
-    trunks' shade (`aven/0038-shots`, `9a-shadowcheck/`).
-  - **Train 1b** (9a with #77, #78, #81, #84): the same map and the same reading (745 of 1681 in shade), yet the near
-    floor evenly in the sun. Train 1c, without 9a, lost the shade too.
-  - Three diagnostics on the Mac mini named the cause: train 1b without #81 casts (soft 1006 of 1681, the floor
-    dappled), while with the relief drawn flat, or its own shadow read painted, it does not. It was #81's ways: the path
-    "into the pines" cleared the tree standing about 3 m ahead, whose crown shaded that floor. The shadow path itself
-    (9a, the relief's shader) was right. Task A fixes the clearing at the root: a way takes away only what stands on it,
-    by the thing's feet.
-- **Every number derived** (the master's calls, 2026-11-18), nothing of the light set by hand:
-  - **The cascades** (`src/world/shadow.js useCascades`, at the start, before any material is built):
-    - texels a side: a texel `ERROR_PX` drawn at its own cascade's edge, 2 `pxK` `BUDGET_DRAWN` / `ERROR_PX` (2135 on
-      the gate's 1080-pixel screen);
-    - the near one: its texel the sun's penumbra under the lowest crown that casts (`SUN_DIAMETER` × the holm oak's
-      crown base at its oldest, 5.30 m, from its kit's form: the stand-in for the contact shadows' hand-over);
-    - the rest each twice the one before, as many as reach the farthest caster (`SHADE_REACH`, 192 m, which the land
-      now reads directly: no `BOX`). On a 1080-pixel screen: 3 cascades of 48, 96 and 192 m, 54.7 MB.
-    - The near one is drawn every frame and one other in turn; their bias is two of their texels.
-    - The widest penumbra is `SUN_DIAMETER` × the tallest caster (25 m) along the light.
-    - The sun comes through a leaf in the leaf's own colour (ρ = τ, the two-stream canopy models' leaf): no `THROUGH`.
-  - **The canopy** (`src/world/light/canopy.js`), from the crowns:
-    - it reaches as far as the cascades (384 m);
-    - a probe every quarter of the smallest crown's reach (2.36 m), its map's texel half that;
-    - the probes at the floor, a person's eyes and the lowest crown's base, their kernel's rings at half a crown and a
-      whole one, each ring an equal share of the sky;
-    - made again once the eye has crossed a probe's spacing, a piece a frame (2.1 MB, from 4.3).
-  - **The contact shadows**: a sample every `ERROR_PX` of the ray on the screen, per pixel.
-  - **Physics and method:** the physical numbers are said once, in their units, with their sources
-    (`src/world/light/physics.js`); the blue noise's sigma and tile are its method's own (`src/core/method.js`:
-    Ulichney 1993, Pixman's 64 × 64).
-  - **The code gates** against train 2's first car (`health.js --base origin/aven/0038-unrevert-1c`): every gate
-    holds. 2 fewer hand-set numbers, 2 physical constants with sources, `boot` at 1c's 34 (the screen's light wired in
-    `screenLightFor`), no new export, 14 fewer lines in clones.
-  - **Not yet on a GPU:** the derived layout's shadowcheck on the Mac mini (`aven/0038-diag-9a-derive`), and the light's
-    3 ms in train 2's per-class bench. Where it is over, the governor's dial answers, not a hand-set count.
-- **For Samuel**, where 9a may not hold the look within 3 ms without a fudge:
-  - the colour pass's own share of the shadows (its A/B read −2.4 to 4.7 ms: noise round a real cost). If it stays over,
-    the cure is a blocker search from a min-depth pyramid of the cascade, which costs the land a binding (12 of 16 now);
-  - the contact shadows at eye level in the stand, where nearly every pixel is within the near cascade and marches all
-    twelve steps;
-  - the stand's floor without the green bounce (9b) is darker than stage 9 drew it.
-
 ### The bench, pass by pass, on main (2026-11-18)
 
 Built on `aven/0038-bench-per-pass` from main at `3d0c3b5`: stage 9's `cf77e71` ("the bench times each pass on its
@@ -2043,6 +1815,7 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 - [x] Stage 3: boot (merged #67; Safari to be tried on next)
 - [x] Stage 4: far end, impostor and clump rung (merged #66)
 - [x] Stage 5: crowds, parts and one wind (#69; its cost and the impostors' size left, under Open risks)
+- [ ] Stage 5: crowds, parts and one wind
   - [x] the draw path's two-pass occlusion culling, against a depth pyramid (built; draft PR #68)
   - [x] the draw path's follow-ups: one culling for every tier, the late prepass bundled, the grass culled, plants' boxes measured, every GPU resource and dispatch within the adapter's limits (PR #77, ready)
 - [ ] Stage 6: land, virtual texture and relief
@@ -2053,8 +1826,6 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
   - [x] one rule, the growth map, the forest's layers and their kinds (built; draft PR #73)
 - [ ] Stage 8: surfaces, cluster hierarchy (built: rocks, the tent and the fire pit; the stress world's zoo to 8b)
 - [ ] Stage 9: one light, characters
-  - [x] 9a: the light within its ceiling (built; on #72, the gate on the Mac mini)
-  - [ ] 9b: froxels, GTAO, the probes marched and their bounce, cheap enough to be the default (on `aven/0038-stage9b`)
 - [ ] The bench pass by pass (built on `aven/0038-bench-per-pass`): measured on the Mac mini, the per-part ceilings a
       merge rule
 - [ ] The upscale's cost at a 4K output (7.5–21.2 ms against its 1.5): the next root cause after 9a
@@ -2248,12 +2019,6 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 - **Not there yet:** nothing measured: the Mac mini runs `bun tools/gate.js bench`; stage 9's passes join when it merges
   main; the upscale's cost is not looked into.
 
-- Stage 9, one light (PR #72, ready for review): `lit()` for every material; two shadow cascades in one atlas with a penumbra from the sun's disc and shadow twins; contact shadows; the canopy map and its sky probes with a green bounce; GTAO; leaves lit from behind; Hillaire's sky and a froxel air with shafts; one blue noise. Characters and animals out of scope for now.
-- **Asked (by the master, after the Mac mini measured stage 9 at 75–116 ms):** fix the bench's per-pass timing, count
-  the light's cost on paper, and cut it to its ceiling, on the MacBook with no GPU work.
-- **Delivered:** the bench times every pass of the real frame on the GPU's clock (`cf77e71`); the cost counted
-  (Stage 9: the cost, counted); 9a within its ceiling and 9b behind `?light=full` (Stage 9a), every shader of both built
-  on the CPU without an error, the land's bindings 12 of 16 (stage 9: 14). The gates are the Mac mini's.
 - **Asked (Task C, by the session on the Mac mini):** finish the gate. `gate.js motion` (check 4 in motion: the change
   detail makes in each frame against the same frame's truth, per 32-px tile, with FLIP; a filmstrip; the merge rule
   "nothing pops"); `?truth` past 800 m, in passes; `gate.js real` (check 4a: CMMD and image statistics against
