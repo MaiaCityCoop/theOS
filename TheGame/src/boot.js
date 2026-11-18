@@ -21,7 +21,8 @@ import * as THREE from 'three/webgpu';
 import { loadingStep, loadingDone } from './ui/loading.js';   // the veil is told what is being made
 import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
-import { keepMeasure, measureNow, TRUTH } from './detail/measure.js';
+import { keepMeasure, measureNow, truthAfter, TRUTH } from './detail/measure.js';
+import { farthest, farthestMost } from './detail/extent.js';
 import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
@@ -41,17 +42,19 @@ import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
 import { createLens } from './camera/post.js';
 import { createScreen } from './core/screen.js';
+import { startLight } from './world/light/start.js';
 import { createTemporal } from './core/temporal.js';
 import { createSky } from './world/sky.js';
 import { createWeather } from './world/weather/index.js';
-import { useBackend } from './world/light.js';
 import { useTiles } from './world/tile.js';
-import { createShadows } from './world/shadow.js';
+import { createLight } from './world/light/index.js';
+import { groundAt } from './world/land.nodes.js';
 import { useGround } from './world/rocksolid.js';
 import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
 import { inTurn, shareComputeCompiles, countCompiles } from './core/compile.js';
+import { waitsOn, gpuLost } from './core/waits.js';   // what the start waits for, watched: the veil says what holds it up, or what stopped the page
 import { flag } from './core/flags.js';
 import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
 
@@ -59,7 +62,9 @@ const SKY = 0x9fc2e6, REACH = 6000;   // REACH: how far the stage's land is draw
 // (each compile given 20 s: a pipeline the GPU never answers for, or one that fails, held the veil over the page for good
 // (Samuel's Mac, 2026-11-17, at "Lighting the world"). Past that the page goes on, and what was not compiled is compiled
 // as it is first drawn: a slow first frame, never a page that does not come)
-const inTime = (what, p) => Promise.race([p.then(() => true, (err) => { console.warn(`the start: ${what} could not be compiled:`, err); return false; }), new Promise((res) => setTimeout(() => res(null), 20000))]).then((ok) => { if (ok === null) console.warn(`the start: ${what} took more than 20 s to compile; going on without waiting for it`); });
+// (the start waits until what it compiles is made, however long the browser takes: drawing before that would make the
+// browser compile every pipeline left in that one frame, one by one, which on a busy machine held the veil for minutes)
+const inTime = (what, p) => p.then(() => true, (err) => { console.warn(`the start: ${what} could not be compiled:`, err); return false; });
 
 /** Start the world for this page: { profile: 'world' | 'stage' }. A promise of the game, once its parts are made. */
 export async function boot({ profile = 'world' } = {}) {
@@ -70,9 +75,11 @@ export async function boot({ profile = 'world' } = {}) {
   // large as the GPU has them, not the 128 and 256 MB a device gives unasked: what is shared by many lies in buffers as
   // large as these say, src/core/occlusion.js)
   const limits = await askedLimits();   // (every limit the design sizes against, as this adapter has it: src/core/gpu.js SIZED)
-  const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), requiredLimits: limits });   // alpha false: the canvas is opaque (a frame's fourth number is not how see-through it is: it says how far what is kept may be trusted, src/core/pass.js; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
+  const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, depth: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), requiredLimits: limits });   // depth false: the canvas has none: nothing drawn onto it tests depth (the upscale lays one quad, src/core/temporal.js), and a 4K one stored every frame was 33 MB moved for nothing   // alpha false: the canvas is opaque (a frame's fourth number is not how see-through it is: it says how far what is kept may be trusted, src/core/pass.js; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
   if (flag('draws')) (await import('../tools/draws.js')).watch();   // ?draws: every pass and draw a frame asks of the GPU, counted (tools/draws.js: window.__draws), from before the first pipeline is made
-  await renderer.init();
+  const dropped = renderer.onDeviceLost;   // (three's own, on the GPU taken from the page: said in the console, and nothing drawn after)
+  renderer.onDeviceLost = (info) => { dropped.call(renderer, info); gpuLost(info); };   // and the page says so, with a way to reload
+  await waitsOn('the GPU', renderer.init(), null);
   useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js)
   shareComputeCompiles(renderer);   // a compute shader compiled once, however many passes run it (src/core/compile.js)
   countCompiles(renderer);   // and what the GPU is compiling counted: the world is not complete before it has come (src/core/settle.js)
@@ -82,7 +89,7 @@ export async function boot({ profile = 'world' } = {}) {
   renderer.info.autoReset = false;   // a frame may be several passes: counted together
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(68, innerWidth / innerHeight, 0.15, 30000);
+  const camera = new THREE.PerspectiveCamera(68, innerWidth / innerHeight, 0.15, farthestMost());   // (its far plane where the largest thing is gone, kept so as the window and the lens change: below, and src/detail/extent.js)
   scene.add(camera);
   if (!world) { camera.position.set(STAGE.x + 6, heightAt(STAGE.x, STAGE.z) + 3, STAGE.z + 6); camera.lookAt(STAGE.x, heightAt(STAGE.x, STAGE.z) + 1, STAGE.z); }   // (the stage's camera over the stage from the start: its land is laid round where it looks)
   let sizeW = innerWidth, sizeH = innerHeight, resizes = 0;
@@ -110,6 +117,9 @@ export async function boot({ profile = 'world' } = {}) {
   game.governor = governor;   // the film holds it still while it plays
   keepMeasure(() => screen.inside, () => screen.out);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
   if (TRUTH) governor.hold(true);   // (?truth: everything at its finest, offline: no dial turned for its slow frames)
+  // ?truth (src/detail/measure.js): the game's own start, at the dial's rest (the world built at the game's pace), then,
+  // once that first view is complete, the dial turned down to the truth's: what it brings in is waited for by settle()
+  truthAfter(game.ready);
   watch({ camera, renderer, screen, temporal, U });   // what the world complete is measured against (src/core/settle.js)
   const marks = (game.boot = {}), mark = (k) => (marks[k] = Math.round(performance.now() - t0));   // where the start's time goes
   mark('renderer');
@@ -118,7 +128,7 @@ export async function boot({ profile = 'world' } = {}) {
   // with the biomes: src/terrain/layers.js. The stage paints the land's materials at its start, a subject's when it wears them)
   const tex = bakeTextures(renderer, world ? { spare: 1 } : { spare: 8, first: landMaterials() });   // (the library's pictures ask for materials the world may not wear; the start's are compiled side by side and painted while the world is made: tex.ready)
   useTiles(tex);   // node code that reads a baked tile by itself (the clouds' field, the snow's clumps: src/world/tile.js)
-  useBackend(renderer);   // and what is lit per corner (a tree) reads the shadow map's texels only where the backend can
+  game.screenLight = startLight(renderer, screen);   // the light's start, before any material is built: the backend's reads, the shadow cascades laid out from what casts, the light worked out on the screen (src/world/light/start.js)
   mark('bake');
   await loadingStep('Raising the land', 0.3);
   // what grows on the land (the ground under the camera and every scattered thing: src/scatter): the world's from the
@@ -151,8 +161,8 @@ export async function boot({ profile = 'world' } = {}) {
   const weather = (game.weather = createWeather({ scene, renderer, camera }));
   for (const id of weather.ids) game[id] = weather[id];
   game.sky = sky;   // the sun and the sky: one time of day drives the light (intent 0007)
-  const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)
-  game.shadows = shadows;
+  const shadows = createLight(renderer, { groundAt });   // the light's passes before a frame: the shadow cascades and the canopy map (src/world/light/index.js), read by every surface (src/world/light.js)
+  game.light = game.shadows = shadows;
   game.controls = controls;
   const city = world ? (game.city = createCity({ scene, camera, canvas, renderer, compile: (o) => screen.compile(o, camera, scene) })) : null;   // (compiled for the target the world is drawn into)
   const hudAt = document.getElementById('hud'), hud = hudAt ? createHud(hudAt, renderer, camera, governor, game) : null;
@@ -176,6 +186,7 @@ export async function boot({ profile = 'world' } = {}) {
     const lod = governor.detail(camera);
     U.uLodInv.value = 1 / lod;
     measureNow();   // (the live pixel and the dial, as the governor left them: src/detail/measure.js)
+    const far = farthest() * lod; if (!(Math.abs(camera.far - far) <= far * 0.01)) { camera.far = far; camera.updateProjectionMatrix(); }   // (as far as the largest thing is drawn through this lens: src/detail/extent.js)
     u = performance.now(); parts.ctl = u - t; t = u;
     if (live()) grown.ground.update(p.x, p.z, dy, lod);
     u = performance.now(); parts.ground = u - t; t = u;
@@ -269,10 +280,10 @@ export async function boot({ profile = 'world' } = {}) {
   // packs reads no target, so its passes compile beside the rest (`packing`, above).
   (async () => {
     mark('world');
-    await tex.ready;   // the textures painted (their passes compiled side by side since they were asked for)
+    await waitsOn('the textures', tex.ready, null);   // the textures painted (their passes compiled side by side since they were asked for)
     mark('painted');
-    if (world) { await grown.pass; await grown.packing; grown.live = true; }
-    await layerPass;
+    if (world) { await waitsOn("the ground's maps", grown.pass, null); await waitsOn('what grows on the land', grown.packing, null); grown.live = true; }
+    await waitsOn("the land's layers", layerPass, null);
     await inTurn(() => choose(0));   // (not while something else compiles: src/core/compile.js)
     mark('chosen');
     terrain.all(); if (world) grown.scatter.warm();

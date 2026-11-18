@@ -25,35 +25,42 @@
 //
 //   createHeap({ kinds, name, levels: [{ idx, elems, slots?, one?, shape?, sizes? }, …] })   levels finest first: the most corners
 //                         and elements a kind has at it (idx 0: a make that keeps its corners itself, each mesh's
-//                         as its draw's own list: a plant; a row's count is then what the mesh says, its vertices); slots: how many kinds' it holds at once (none: every kind's);
+//                         as its draw's own list: a plant; a row's count is then what the mesh says, its vertices); slots: how many kinds' it holds at once (none: every kind's; never more than there are kinds: a slot holds one kind's mesh);
 //                         shape: the level's own list of corners (a Uint32Array), or none; sizes: { idx, elems } (lists a
 //                         kind long) where a level's kinds differ in size: each kind's place as large as its own, not the largest
 //   an element: four numbers of 32 bits, 16 bytes; a vertex is one of them (a solid: assets/kit/solid.js) or several
 //   (what draws it knows: heapElem's `per`); a corner: the number of a vertex of its own mesh
 //   The table also says when a level came (`came`): what draws it lets it grow out of the coarser one from then.
 import * as THREE from 'three/webgpu';
-import { storage, uint, float } from 'three/tsl';
-import { gpuStorage, note } from '../core/gpu.js';
+import { storage, uint, float, uniform } from 'three/tsl';
+import { gpuStorage, note, limitOf } from '../core/gpu.js';
 
 const SHAPED = 0x80000000;   // in a row's count of corners: the mesh is of its level's own shape
 export function createHeap({ kinds, levels, name = 'heap' }) {
   const L = levels.length; let iAt = 0, eAt = 0;
   // whether n corners from `o` of `idx` are exactly a pool's own shape
   const shaped = (p, idx, o, n) => { const S = p.shape; if (!S || n !== S.length) return 0; for (let i = 0; i < n; i++) if (idx[o + i] !== S[i]) return 0; return SHAPED; };
-  const pools = levels.map((l) => {
-    const n = l.one ? 1 : l.slots || kinds, own = !l.slots && !l.one;
+  // how many kinds' meshes each level holds at once: a slotted level as many as it asks, never more than there are (a slot
+  // holds one kind's), and only as many as the device's largest buffer and binding hold beside the rest of the heap
+  // (src/core/gpu.js limitOf: what the device was granted); a level held to fewer than it asked is said
+  const asked = levels.map((l) => (l.one ? 1 : Math.min(kinds, l.slots || kinds))), most = Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity);
+  const share = (key, bytes) => { let fixed = 0, slotted = 0; levels.forEach((l, i) => { const b = (l.sizes && !l.slots && !l.one ? l.sizes[key].reduce((a, c) => a + c, 0) : asked[i] * l[key]) * bytes; if (l.slots) slotted += b; else fixed += b; }); return slotted ? Math.min(1, (most - fixed) / slotted) : 1; };
+  const fit = Math.min(share('idx', 4), share('elems', 16));
+  const pools = levels.map((l, i) => {
+    const n = l.slots ? Math.max(1, Math.floor(asked[i] * fit)) : asked[i], own = !l.slots && !l.one;
+    if (n < asked[i]) console.warn(`${name}: level ${i} holds ${n} kinds' meshes at once, not the ${asked[i]} it asks: the device's largest buffer holds no more`);
     const sz = own && l.sizes ? l.sizes : null, at = (list) => { const o = new Uint32Array(n + 1); for (let k = 0; k < n; k++) o[k + 1] = o[k] + list[k]; return o; };
     const io = sz ? at(sz.idx) : null, eo = sz ? at(sz.elems) : null;   // (where each kind's place begins, and its size: the next one's start)
     const p = { idx: l.idx, elems: l.elems, io, eo, n, own, one: !!l.one, shape: l.shape || null, i0: iAt, e0: eAt, held: 0, shaped: 0, who: own || l.one ? null : new Int32Array(n).fill(-1), used: own || l.one ? null : new Float64Array(n), slot: own || l.one ? null : new Int32Array(kinds).fill(-1) };
     iAt += io ? io[n] : n * l.idx; eAt += eo ? eo[n] : n * l.elems; return p;
   });
-  const index = gpuStorage('uint', Math.max(4, iAt), `${name}: corners`), elems = gpuStorage('uvec4', eAt, `${name}: vertices`), table = new THREE.StorageBufferAttribute(new Uint32Array(kinds * L * 4), 4);
-  note(`${name}: table`, table.array.byteLength, table.array.byteLength);
+  const index = gpuStorage('uint', Math.max(4, iAt), `${name}: corners`, 'geometry'), elems = gpuStorage('uvec4', eAt, `${name}: vertices`, 'geometry'), table = new THREE.StorageBufferAttribute(new Uint32Array(kinds * L * 4), 4);
+  note(`${name}: table`, table.array.byteLength, table.array.byteLength, 'geometry');
   const T = table.array, mask = new Uint32Array(kinds), came = new Uint32Array(kinds * L);   // came: when a kind's level was put in, sixteenths of a second
   const row = (k, l) => (k * L + l) * 4;
   const masked = (k, quiet) => { for (let l = 0; l < L; l++) T[row(k, l) + 3] = (mask[k] | (came[k * L + l] << 12)) >>> 0; if (!quiet) { table.addUpdateRange(row(k, 0), L * 4); table.needsUpdate = true; } };
   const H = {
-    kinds, L, pools, version: 0, versions: new Uint32Array(L), bytes: index.bytes + elems.bytes + table.array.byteLength,
+    kinds, L, uL: uniform(L, 'uint'), pools, version: 0, versions: new Uint32Array(L), bytes: index.bytes + elems.bytes + table.array.byteLength,
     // as nodes: its corners, its elements, and a level's row of a kind (first corner, first element, corners (and
     // whether it is of the level's shape: cornersOf, shapedOf), which levels of the kind are there and when this one came)
     index: index.node, elems: elems.node, table: storage(table, 'uvec4', kinds * L),
@@ -91,12 +98,16 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
     },
     /** Put in a level of kinds k0 … k0 + n at once (a level every kind has its own of): their corners and elements end
         to end, each kind's in a place as large as the level's (idx corners, elems elements); counts: how many corners
-        each has. Two pieces to the GPU, whatever n. */
-    putBlock(l, k0, n, corners, verts, counts) {
+        each has; used: how many elements (where its make says them: the recipes' workers do). Two pieces to the GPU,
+        whatever n. */
+    putBlock(l, k0, n, corners, verts, counts, used = null) {
       const p = pools[l]; if (!p.own) throw new Error('heap: putBlock is for a level every kind has its own of');
       if (p.io) for (let j = 0; j < n; j++) {   // (places of their own sizes: kind by kind, each its own part of the block)
         const k = k0 + j, ri = p.io[k + 1] - p.io[k], re = p.eo[k + 1] - p.eo[k];
-        if (counts[j] > (ri || re)) throw new Error(`heap: kind ${k} level ${l} is larger than its place (${counts[j]} in ${ri || re})`);
+        // (its corners against its corners' place, its elements against its elements': a make that keeps no corners of
+        // its own has no place for them, and its count is no measure of its elements)
+        if (ri && counts[j] > ri) throw new Error(`heap: kind ${k} level ${l} has more corners than its place (${counts[j]} in ${ri})`);
+        if (used && used[j] > re) throw new Error(`heap: kind ${k} level ${l} has more elements than its place (${used[j]} in ${re})`);
         if (corners.length && ri) index.write(p.i0 + p.io[k], corners.subarray(j * p.idx, j * p.idx + ri));
         elems.write((p.e0 + p.eo[k]) * 4, verts.subarray(j * p.elems * 4, (j * p.elems + re) * 4));
       } else {
@@ -130,8 +141,9 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
   return H;
 }
 
-/** A level's row of a kind, as a node (in a compute pass or a vertex stage). */
-export const heapRow = (H, kind, level) => H.table.element(kind.mul(uint(H.L)).add(level));
+/** A level's row of a kind, as a node (in a compute pass or a vertex stage). How many levels a kind has is data, not
+    code (uL): the shaders that read the heap are the same whatever its levels, and a heap that gains one makes none new. */
+export const heapRow = (H, kind, level) => H.table.element(kind.mul(H.uL).add(level));
 
 /** How many corners a row's mesh has; and whether it is of its level's own shape (drawn by the level's list of corners,
     its vertices read by their numbers: no corner looked up). */

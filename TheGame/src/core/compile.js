@@ -16,9 +16,9 @@ let last = Promise.resolve(), turns = 0, aside = 0;   // (turns: compiles waitin
 export function inTurn(fn) {
   turns++; const done = last.then(fn, fn);   // (in turn, whether the one before it went well or not)
   done.then(() => turns--, () => turns--);
-  // (and the next one's turn comes when this one is done or after 20 s, whichever is first: a compile the GPU never
-  // answers held every one after it, and the page with them)
-  last = Promise.race([done.catch(() => {}), new Promise((res) => setTimeout(res, 20000))]);
+  // (and the next one's turn comes only when this one is done: two at once trip over each other, and a slow browser's
+  // compile that overran 20 s used to let the next start beside it)
+  last = done.catch(() => {});   // (never two at once: three keeps the running compile's state in the renderer)
   return done;
 }
 
@@ -66,9 +66,11 @@ export function countCompiles(renderer) {
 export const compileFor = (renderer, target, object, camera, scene = null, route = null) => inTurn(async () => {
   const was = renderer.getRenderTarget(), to = typeof target === 'function' ? target() : target, depth = renderer.depth;
   renderer.setRenderTarget(to);
-  // (three r187 compiles for a target as if it had the canvas's depth: one without depth, a painter's tile, got
-  // pipelines its passes never use, and each pass compiled again as it was first drawn. The renderer's own setting is
-  // read as the compile begins, and is put back at once; as is the route, which three reads only as the compile begins)
-  let done; try { if (to && !to.depthBuffer) renderer.depth = false; if (route) renderer.renderObject = route; done = renderer.compileAsync(object, camera, scene); } finally { renderer.depth = depth; if (route) delete renderer.renderObject; }
+  // (three r187 compiles for a target as if it had the canvas's depth, whatever the target's own: one without depth, a
+  // painter's tile, got pipelines its passes never use; and with a canvas that has none (src/boot.js), a depth-only
+  // target, the prepass's, got pipelines with no attachment at all. So the renderer's own setting follows the
+  // target's, both ways, as the compile begins, and is put back at once; as is the route, which three reads only as
+  // the compile begins)
+  let done; try { if (to) renderer.depth = !!to.depthBuffer; if (route) renderer.renderObject = route; done = renderer.compileAsync(object, camera, scene); } finally { renderer.depth = depth; if (route) delete renderer.renderObject; }
   try { await done; } finally { renderer.setRenderTarget(was); }
 });

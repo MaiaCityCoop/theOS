@@ -12,13 +12,13 @@
 //                                          the change touches over the ceiling (--ceiling: Define's; else eslint's own
 //                                          default for `complexity`) and not as complex at the base; a new unused file
 //                                          or export; a new cycle; more mode branches or hand-set numbers; a new
-//                                          dependency that no intent the change touches names; more of what a start
-//                                          of the world compiles (pipelines, shader modules, WGSL bytes). CI runs it
-//                                          on every PR.
+//                                          dependency that no intent the change touches names. CI runs it on every PR.
 //                                          A change that reverts a commit M of the base's line is measured against the
 //                                          state it restores, the base with M undone (M's first parent, where nothing
-//                                          came after M): a pure revert shows no change, and whatever else the change
-//                                          does is measured as ever.
+//                                          came after M), wherever M lies: path by path, a path the base has moved on at
+//                                          since M as the base has it. M: what its "This reverts commit M" names, else
+//                                          the newest commit it undoes. A pure revert shows no change, and whatever else
+//                                          the change does is measured as ever.
 //
 //   Copies        jscpd, clones of 50 tokens or more: the share of lines that are in one, and the largest
 //   Spaghetti     eslint's `complexity` (cyclomatic) of every function: the most, the mean, the 20 most
@@ -40,12 +40,13 @@
 //                 an artistic one, what it was chosen against), and a physical one or a requirement its unit too
 //                 (`unit: …`); --base fails where one does not. Flag reads: every call of flag, flagNum and flagText
 //                 (src/core/flags.js)
-//   Pipelines     what a start of the world compiles (tools/smoke.js --json, run in each tree: the world made on the
-//                 GPU's stand-in as src/boot.js makes it, every material as each pass draws it and every compute pass
-//                 built): its distinct render pipelines (a vertex and a fragment stage), distinct compute pipelines,
-//                 the distinct shader modules they hold and those modules' WGSL bytes, all by their WGSL text, not by
-//                 object. The engine's pipelines do not grow with what the world holds (assets are data, the passes
-//                 few): --base fails on any rise
+//   Pipelines     what a start of the world compiles (tools/smoke.js: the world made on the GPU's stand-in as
+//                 src/boot.js makes it, every material as each pass draws it and every compute pass built; what it
+//                 kept for the commit in .gate/smoke/, else run in the tree): its distinct render pipelines (a vertex
+//                 and a fragment stage), distinct compute pipelines, the distinct shader modules they hold and those
+//                 modules' WGSL bytes, all by their WGSL text, not by object. Shown with its change against the base,
+//                 never failing: a feature adds what it needs, and the count comes down through shared passes, whose
+//                 trend the hourly scoreboard keeps
 //   Dependencies  the direct dependencies of every package.json in the repository
 //
 // No node on the path: jscpd and knip are run by bun from their files, eslint and madge through their own APIs.
@@ -63,12 +64,11 @@ const JSCPD = join(GAME, 'node_modules/jscpd/run-jscpd.js'), KNIP = join(GAME, '
 const READS = new Set(['flag', 'flagNum', 'flagText']);   // how the address is read (src/core/flags.js)
 // the hand-set numbers the SSOT audit names, by the file each is set in (not ERROR_PX, the one dial; DRAWN is a mode).
 // The code must hold each, or every run fails (staleAudit): a change that takes one away drops it here too
-const AUDIT = { 'tier.js': ['MAXP'], 'terrain.js': ['CAP'],
-  'crowd.js': ['SWELL', 'WIN', 'CLUMPS', 'VIEWS', 'CELL', 'TILE', 'TILES', 'SWITCH', 'FADE', 'RATIO'].map((k) => `CROWD.${k}`) };
+const AUDIT = { 'tier.js': ['MAXP'] };
 const COMPLEXITY = builtinRules.get('complexity');
 
 const fail = (why) => { console.error(`health: ${why}`); process.exit(1); };
-const run = (cmd, args, cwd = GAME) => spawnSync(cmd, args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28 });
+const run = (cmd, args, cwd = GAME, more = {}) => spawnSync(cmd, args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28, ...more });
 const git = (...args) => { const r = run('git', args); return r.status ? fail(`git ${args.join(' ')}: ${r.stderr.trim()}`) : r.stdout.split('\n').filter(Boolean); };
 const ARGS = process.argv.slice(2), TAKES = ['--base', '--ceiling'];
 const valueOf = (name) => (ARGS.includes(name) ? ARGS[ARGS.indexOf(name) + 1] ?? fail(`${name} wants a value`) : undefined);
@@ -77,30 +77,53 @@ const at = (f, line) => `${f}:${line}`, fileOf = (place) => place.slice(0, place
 
 // ---- what is measured: the paths asked for, else (against a base) the folders the change touches, else all of TheGame ----
 /** The base a change is measured against: where <ref> and HEAD part; or, where the change reverts a commit M of that
-    base's line, the state that revert restores: the base with M undone (as git revert undoes it), which is M's first
-    parent where nothing came after M. M is the commit a "This reverts commit M" of the change's own commits names (git
-    revert), else the newest commit of the base's line all of whose paths the change touches and leaves as they are with
-    M undone. [the base: a commit, or the tree with M undone; M, or null]. */
+    base's line, the state that revert restores: the base with M undone (as git revert undoes it), wherever M lies in the
+    base's history, a path the base has moved on at since M (where undoing M no longer applies) as the base has it. M is
+    the commit a "This reverts commit M" of the change's own commits names (git revert, -m 1 of a merge too), else the
+    newest commit of the base's line the change undoes: every path of M either undone by the change exactly as undoing M
+    leaves it, or left as the base has it where the base has moved on there since M. [the base: a commit, or the tree
+    with M undone; M, or null]. */
 function baseOf(ref) {
   const base = git('merge-base', ref, 'HEAD')[0], M = revertOf(base, null), T = M && depthOf(M) % 2 === 0 && undone(base, M);
-  return T ? [T, M] : [base, null];
+  return T ? [T.tree, M] : [base, null];
 }
 const ok = (...args) => run('git', args).status === 0;
 /** The commit a change from `base` to `head` (a commit; null: the working tree) reverts: the one a "This reverts commit
-    K" of the change's own commits names, on the base's line; else the newest commit of the base's line all of whose
-    paths the change touches and leaves as they are with it undone. null where it reverts none. */
-function revertOf(base, head) {
+    K" names, on the base's line (of the change's own commits; own: of `head`'s message alone, not of a branch it
+    merged); else the newest commit of the base's line the change undoes (baseOf). null where it reverts none. */
+function revertOf(base, head, own = false) {
   const to = head ? [head] : [], touched = new Set(git('diff', '--name-only', base, ...to, '--', ':/'));
-  const named = [...git('log', '--format=%B', `${base}..${head ?? 'HEAD'}`).join('\n').matchAll(/This reverts commit ([0-9a-f]{7,40})/g)].map((m) => m[1]).find((K) => ok('merge-base', '--is-ancestor', K, base));
-  const restores = ({ sha, paths }) => paths.length && paths.every((p) => touched.has(p)) && ok('diff', '--quiet', undone(base, sha), ...to, '--', ...paths.map((p) => `:/${p}`));
-  return named ?? firstParents(base).find(restores)?.sha ?? null;
+  const said = own ? git('log', '-1', '--format=%B', head) : git('log', '--format=%B', `${base}..${head ?? 'HEAD'}`);
+  const named = [...said.join('\n').matchAll(/This reverts commit ([0-9a-f]{7,40})/g)].map((m) => m[1]).find((K) => ok('merge-base', '--is-ancestor', K, base));
+  const blobOf = (p) => (head ? run('git', ['rev-parse', '-q', '--verify', `${head}:${p}`], REPO).stdout.trim() : run('git', ['hash-object', '--', p], REPO).stdout.trim());
+  // (a path of M the change does not touch only where the base has moved on there since M; then M undone, path by path,
+  // ends at the first path the change does not leave exactly as undoing M does)
+  const moved = (sha, P) => !P.length || git('diff', '--name-only', sha, base, '--', ...P.map((p) => `:/${p}`)).length === P.length;
+  const undoes = ({ sha, paths }) => paths.some((p) => touched.has(p)) && moved(sha, paths.filter((p) => !touched.has(p))) && !!undone(base, sha, (p, blob) => touched.has(p) && blob === blobOf(p));
+  return named ?? firstParents(base).find(undoes)?.sha ?? null;
 }
 /** How deep a commit lies in a chain of reverts: 0, a change of its own; 1, the revert of one; 2, the revert of that.
     Undoing one of an even depth goes back to the state before it; undoing one of an odd depth (a revert) brings back
     what it took out, which is measured as new. */
-const depthOf = (c) => { const K = ok('rev-parse', '--verify', '-q', `${c}^1`) && revertOf(`${c}^1`, c); return K ? 1 + depthOf(K) : 0; };
-/** The tree of `base` with commit M undone, as git revert undoes it (null where that does not merge cleanly). */
-const undone = (base, M) => { const r = run('git', ['merge-tree', '--write-tree', `--merge-base=${M}`, base, `${M}^1`]); return r.status === 0 ? r.stdout.split('\n')[0] : null; };
+const depthOf = (c) => { const K = ok('rev-parse', '--verify', '-q', `${c}^1`) && revertOf(`${c}^1`, c, true); return K ? 1 + depthOf(K) : 0; };
+/** `base` with commit M undone as git revert undoes it, path by path: each path M changed from its first parent taken
+    back (git apply of M's reverse, three-way, into an index of base's own); a path where that no longer applies (the
+    base has moved on there since M) as the base has it. keep(path, blob): asked of each path undone, with its blob;
+    false ends it there (null). { tree, paths: those undone }, or null where none is. Plain git, of any version. */
+function undone(base, M, keep = () => true) {
+  const dir = mkdtempSync(join(tmpdir(), 'health-undo-')), env = { env: { ...process.env, GIT_INDEX_FILE: join(dir, 'index') } }, paths = [];
+  const back = (p) => { run('git', ['rm', '--cached', '-q', '--ignore-unmatch', '--', p], REPO, env); const e = git('ls-tree', base, '--', `:/${p}`)[0]; if (e) { const [mode, , blob] = e.split(/\s+/); run('git', ['update-index', '--add', '--cacheinfo', `${mode},${blob},${p}`], REPO, env); } };
+  try {
+    run('git', ['read-tree', base], REPO, env);
+    for (const p of git('diff', '--name-only', '--no-renames', `${M}^1`, M, '--', ':/')) {
+      const patch = run('git', ['diff', '--binary', '--no-renames', M, `${M}^1`, '--', `:/${p}`], REPO).stdout;
+      if (run('git', ['apply', '--cached', '--3way', '-'], REPO, { ...env, input: patch }).status !== 0) { back(p); continue; }
+      if (!keep(p, run('git', ['rev-parse', '-q', '--verify', `:${p}`], REPO, env).stdout.trim())) return null;
+      paths.push(p);
+    }
+    return paths.length ? { tree: run('git', ['write-tree'], REPO, env).stdout.trim(), paths } : null;
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}
 /** The commits of a commit's first-parent line, newest first, each with the paths it changed from its first parent. */
 function firstParents(c) {
   const out = [];
@@ -364,17 +387,18 @@ const dependencies = (repo, files) => files.filter((p) => basename(p) === 'packa
   const j = JSON.parse(readFileSync(join(repo, p), 'utf8'));
   return { at: p, dependencies: Object.keys({ ...j.dependencies, ...j.optionalDependencies, ...j.peerDependencies }), dev: Object.keys(j.devDependencies ?? {}) };
 });
-/** What a start of the world compiles, by WGSL text (tools/smoke.js --json, run in the tree's TheGame/, `game`):
-    { render, compute, modules, bytes, failed: how many builds threw }; null where that tree's smoke.js does not count
-    them. */
-function pipelines(game) {
-  const r = run(process.execPath, ['tools/smoke.js', '--json'], game);
-  try { const j = JSON.parse(r.stdout.trim().split('\n').at(-1)); return j.world.pipelines ? { ...j.world.pipelines, failed: j.failed.length } : null; } catch { return null; }
+/** What a start of the world compiles at a commit, by WGSL text: what tools/smoke.js kept for that commit (.gate/
+    smoke/<commit>.json; CI keeps main's), else smoke.js --json run in the tree's TheGame/ (`game`). { render, compute,
+    modules, bytes, failed: how many builds threw }; null where that tree's smoke.js does not count them. */
+function pipelines(game, commit) {
+  const kept = commit && join(GAME, '.gate/smoke', `${commit}.json`);
+  const said = kept && existsSync(kept) ? readFileSync(kept, 'utf8') : run(process.execPath, ['tools/smoke.js', '--json'], game).stdout.trim().split('\n').at(-1);
+  try { const j = JSON.parse(said); return j.world.pipelines ? { ...j.world.pipelines, failed: j.failed.length } : null; } catch { return null; }
 }
-const PIPES = { render: 'distinct render pipeline', compute: 'distinct compute pipeline', modules: 'distinct shader module', bytes: 'WGSL byte' };
-async function measure(root, files, repo, all) {
+const PIPES = ['render', 'compute', 'modules', 'bytes'];
+async function measure(root, files, repo, all, commit) {
   const t = treeOf(root, files);
-  return { files: files.length, copies: copies(t), spaghetti: spaghetti(t), dead: dead(t), cycles: await cycles(t), size: size(t), settings: settings(t), pipelines: pipelines(root), dependencies: dependencies(repo, all) };
+  return { files: files.length, copies: copies(t), spaghetti: spaghetti(t), dead: dead(t), cycles: await cycles(t), size: size(t), settings: settings(t), pipelines: pipelines(root, commit), dependencies: dependencies(repo, all) };
 }
 
 // ---- against the base: what the change made of each gate ----
@@ -433,7 +457,6 @@ const worse = (D) => [
   ...(D.settings.branches.change > 0 ? D.settings.branches.rose.map(([k, by]) => `settings: ${n(by, 'more mode branch')} on ${k}`) : []),
   ...(D.settings.numbers.change > 0 ? D.settings.numbers.new.map((x) => `settings: a new hand-set number, ${x.at} ${x.name} = ${x.value}`) : []),
   ...D.settings.unsourced.map((x) => `settings: ${x.at} ${x.name}, ${HOLDS[x.kind].holds} whose comment does not say its ${HOLDS[x.kind].says.join(' and its ')}`),
-  ...(D.pipelines ? Object.keys(PIPES).filter((k) => D.pipelines.is[k] > D.pipelines.was[k]).map((k) => `pipelines: ${n(D.pipelines.is[k] - D.pipelines.was[k], `more ${PIPES[k]}`)} for a start of the world (${D.pipelines.was[k]} → ${D.pipelines.is[k]})`) : []),
   ...D.dependencies.filter((d) => !d.named).map((d) => `dependencies: ${d.name} (${d.at}) is new, and no intent the change touches names it`),
 ];
 
@@ -469,7 +492,7 @@ const CHANGE = {   // each gate's change from the base, in a cell
   Cycles: (D) => `${D.cycles.length} new`,
   Size: (D) => `${signed(D.size)} lines of code`,
   Settings: (D) => `${signed(D.settings.branches.change)} mode branches, ${signed(D.settings.numbers.change)} hand-set, ${KINDS.map((k) => `${signed(D.settings[k])} ${k}`).join(', ')}, ${signed(D.settings.reads)} flag reads`,
-  Pipelines: ({ pipelines: p }) => (p ? Object.keys(PIPES).map((k) => `${signed(p.is[k] - p.was[k])} ${k}`).join(', ') : 'not counted at the base'),
+  Pipelines: ({ pipelines: p }) => (p ? PIPES.map((k) => `${signed(p.is[k] - p.was[k])} ${k}`).join(', ') : 'not counted at the base'),
   Dependencies: (D) => D.dependencies.map((d) => `${d.name} (${dirname(d.at)}) new${d.named ? ', named in its intent' : ''}`).join(', ') || 'none new',
 };
 /** The gates against the base: here, there and the change, and what got worse. */
@@ -506,12 +529,14 @@ function table(G) {
 const stale = staleAudit();
 if (stale.length) fail(`AUDIT names what the code no longer has (${stale.join(', ')}): drop it from AUDIT (tools/health.js)`);
 const all = git('ls-files', '-co', '--exclude-standard', '--full-name', '--', ':/').filter((p) => existsSync(join(REPO, p)));
-const HERE = await measure(GAME, HERE_FILES, REPO, all);
+/** The commit the tree is as it stands; null where it holds changes not committed (no summary kept for a commit is its). */
+const standing = () => (git('status', '--porcelain').length ? null : git('rev-parse', 'HEAD')[0]);
+const HERE = await measure(GAME, HERE_FILES, REPO, all, standing());
 const H = { commit: git('rev-parse', '--short', 'HEAD')[0] + (git('status', '--porcelain').length ? '+' : ''), at: new Date().toISOString(),
   area: AREA.map((a) => (a.folder !== undefined ? `${a.folder}/*` : a.path)), ...HERE };
 if (BASE) {
   const { repo, game } = unpack(BASE);
-  H.base = { ref: REF, commit: BASE.slice(0, 7), reverts: REVERTED?.slice(0, 7) ?? null, ...(await measure(game, BASE_FILES, repo, git('ls-tree', '-r', '--name-only', '--full-tree', BASE))) };
+  H.base = { ref: REF, commit: BASE.slice(0, 7), reverts: REVERTED?.slice(0, 7) ?? null, ...(await measure(game, BASE_FILES, repo, git('ls-tree', '-r', '--name-only', '--full-tree', BASE), BASE)) };
   H.change = change(H.base, HERE);
   H.worse = worse(H.change);
   process.exitCode = H.worse.length ? 1 : 0;

@@ -38,7 +38,7 @@ import { Fn, If, float, vec2, vec3, vec4, ivec2, uv, uniform, texture, textureSt
 import { note } from './gpu.js';
 import { U } from './uniforms.js';
 import { display, ign } from '../world/light.js';
-import { TRUTH_AS } from '../detail/measure.js';
+import { ERROR_PX } from '../detail/error.js';
 
 const halton = (i, b) => { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; };
 /** The places a frame is drawn at by turns (parts of a drawn pixel, -0.5 … 0.5), n of them: evenly spread however many. */
@@ -88,7 +88,7 @@ export function createTemporal(renderer) {
   const tC = texture(new THREE.Texture()), tD = texture(new THREE.DepthTexture(1, 1)), tDW = texture(new THREE.DepthTexture(1, 1)), tM = texture(new THREE.Texture());
   const at = () => vec2(uv().x, float(1).sub(uv().y));   // (a target reads with its rows turned)
   const max3 = (c) => max(c.x, max(c.y, c.z));
-  const toP = (c) => c.mul(float(1).div(max3(c).add(1))), fromP = (p) => p.mul(float(1).div(float(1).sub(min(max3(p), 0.999))));   // (the perceptual curve, and back)
+  const toP = (c0) => { const c = max(c0, vec3(0)); return c.mul(float(1).div(max3(c).add(1))); }, fromP = (p) => p.mul(float(1).div(float(1).sub(min(max3(p), 0.999))));   // (the perceptual curve, and back; no light is less than none: a colour below 0, or not a number, is taken as black, never divided by nothing)
   const toY = (c) => vec3(c.x.add(c.z).mul(0.25).add(c.y.mul(0.5)), c.x.sub(c.z).mul(0.5), c.y.mul(0.5).sub(c.x.add(c.z).mul(0.25)));   // YCoCg
   const fromY = (y) => vec3(y.x.add(y.y).sub(y.z), y.x.add(y.z), y.x.sub(y.y).sub(y.z));
   // the glass: where on the frame (its picture's widths) a screen pixel at p shows, with this barrel; and where on the
@@ -196,8 +196,9 @@ export function createTemporal(renderer) {
   const proj = new THREE.Matrix4(), projInv = new THREE.Matrix4(), view = new THREE.Matrix4(), world = new THREE.Matrix4(), projWas = new THREE.Matrix4(), viewWas = new THREE.Matrix4(), rel = new THREE.Matrix4();
   let places = placesOf(8), turn = 0, k = 0, fresh = true, lastAt = 0, age = 0, timeWas = null, sizeKept = '', glassWas = [0, 1], tile = null;
   /** The places for a frame drawn at w × h onto the screen: ⌈8·s²⌉ of them for s screen pixels a drawn one, each way
-      (FSR 2's count); ?truth, its own reference, takes 32 (its frames are slow, and it is to be supersampled). */
-  const placesFor = (w, h) => { renderer.getDrawingBufferSize(size); const s = Math.max(size.x / w, size.y / h, 1), n = TRUTH_AS.still ? Math.max(32, Math.ceil(8 * s * s)) : Math.ceil(8 * s * s - 1e-6); if (n !== places.length) { places = placesOf(n); k %= n; } };
+      (FSR 2's count); a dial turned below its rest as many more as it is a fraction of a pixel drawn (?truth's quarter: 32,
+      its frames slow and it to be supersampled). */
+  const placesFor = (w, h) => { renderer.getDrawingBufferSize(size); const s = Math.max(size.x / w, size.y / h, 1), n = Math.ceil((8 * s * s) / Math.min(1, ERROR_PX()) - 1e-6); if (n !== places.length) { places = placesOf(n); k %= n; } };
 
   // ---- resolve's stages, in its order, once a frame ----
   /** The kept picture at the screen's size: made again where the size changed, and what was kept let go. */
@@ -206,7 +207,7 @@ export function createTemporal(renderer) {
     if (key === sizeKept) return;
     sizeKept = key; fresh = true;
     for (const h of hist) h.setSize(size.x, size.y);
-    note('the picture kept over time (two of it)', 2 * size.x * size.y * (STORE ? 4 : 8), 0);
+    note('the picture kept over time (two of it)', 2 * size.x * size.y * (STORE ? 4 : 8), 0, 'upscale/post');
   };
   /** This frame's screen to the last one's, and back: through both cameras, the far numbers of the world's places taken
       out before anything is rounded (the two views' product is their difference). */
@@ -238,7 +239,7 @@ export function createTemporal(renderer) {
     /** Frames the kept picture has been built over since it was last let go (0: this frame stood alone). */
     get age() { return age; },
     /** Which of its places of a pixel the last frame was drawn at; set, the next frame is drawn at the one after it (the
-        gate draws the truth's frame at the place the game's was: tools/gate/motion.js). */
+        gate's motion --floor draws its second pass at the first's places: tools/gate/motion.js). */
     get place() { return k; },
     set place(v) { k = ((Math.round(v) % places.length) + places.length) % places.length; },
     /** How many frames in a row, nothing changed, until what was kept before has left the picture (src/core/settle.js):
@@ -253,7 +254,7 @@ export function createTemporal(renderer) {
         and what the prepass asks of where things were a frame ago (src/core/pass.js). */
     begin(camera, w, h) {
       proj.copy(camera.projectionMatrix); projInv.copy(camera.projectionMatrixInverse); view.copy(camera.matrixWorldInverse); world.copy(camera.matrixWorld);
-      const t = performance.now(); if (t - lastAt > K.stale && !TRUTH_AS.still) fresh = true; lastAt = t;   // (not drawn for a while: a film, a hidden page; ?truth's frames are slow, src/detail/measure.js, and build on)
+      const t = performance.now(); if (t - lastAt > K.stale && ERROR_PX() >= 1) fresh = true; lastAt = t;   // (not drawn for a while: a film, a hidden page; ?truth's frames are slow, src/detail/measure.js, and build on)
       placesFor(w, h);
       const [jx, jy] = places[(k = (k + 1) % places.length)];
       // (the camera set to show a tile of a larger picture, camera.view: ?truth drawn tile by tile, tools/gate.js; this

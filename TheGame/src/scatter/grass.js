@@ -1,21 +1,19 @@
 // Grass: instanced blades. A blade's place, height, bend, colour and dryness are hashed from its cell; its density comes
 // from the ground pass (ground.js); the wind bends it (windAt) and each blade flutters on its own. Rings round the
 // camera, made from the grass's blade alone (assets/grass.js: its full detail: ringsOf) and each where its own error is
-// the one ERROR_PX (bandsOf, as the measure is now): dense and fine close, fewer and wider further off.
+// the one ERROR_PX (bandsOf, as the measure is now): every blade as it is, in its own cells, its bends fewer further off.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, If, min, uniform, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor, uintBitsToFloat, floatBitsToUint } from 'three/tsl';
+import { Fn, float, int, uint, bool, vec2, vec3, vec4, If, min, uniform, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor, uintBitsToFloat, floatBitsToUint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { hashI, camDist, BASE } from '../world/land.nodes.js';
-import { finish, skyLight, weathered, cloudAtOne, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
+import { lit, weathered, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion, vWas } from '../core/pass.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
-import { TRUTH, dialK } from '../detail/measure.js';
-import { BAND } from '../detail/error.js';
-import { CROWD } from '../../assets/kit/crowd.js';
+import { dialK } from '../detail/measure.js';
+import { BAND, GONE } from '../detail/error.js';
 import { rankOf } from './rule.js';
 import { growthMap } from './growth.js';   // (a blade's turn in the one spread order, as everything placed has it)
-import { REACH } from './ground.js';
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
 
@@ -29,36 +27,60 @@ function blade(segs) {
   return g;
 }
 
-// The meadow is a crowd of blades (Ghost of Tsushima's grass; intent 0038): where fewer are drawn, those drawn are wider
-// by as much, so it covers the ground as before and keeps its height. Each ring's cells are wider than the last's, its
-// blades so many times fewer and as many times wider (ringsOf); and the last ring's blades are thinned out towards the
-// meadow's end, one spread order deciding which go (rankOf), those left growing in width up to SWELL times (endOf), never
-// in height.
-/** The share of the last ring's blades still drawn at `dist` metres (all of it short of the BAND before the meadow's
-    end, none at its end; T: a ring's numbers, uniforms). */
-const endOf = (T, dist) => float(1).sub(smoothstep(T.end.div(BAND), T.end, dist));
+// The meadow is a crowd of blades (intent 0038), and thins as a crowd does (src/detail/error.js, as the plants' sprigs):
+// drawing a first share of it leaves a blade out as far from one drawn as the cells drawn stand apart, so the share may
+// thin only where its cells stand under a dial pixel apart, which is where its blades end (bandsOf). So no ring is
+// fewer: every blade is drawn as it is, its own size in its own cells, out to there, the rings only bending it less
+// (ringsOf); over the BAND past it they thin away, as every hand-over runs under its switch (src/detail/handover.js),
+// one spread order deciding which go (rankOf), those left as they are, and the carpet under them takes what they no
+// longer cover (src/terrain/material.js: the meadow averaged, by the blades' own share, endOf): the blades and the
+// carpet one meadow either side, never a blade swollen to stand for it.
+/** The share of the meadow's blades still drawn at `dist` metres as the 68° lens sees them (a node): all of it out to
+    where they end (U.uMeadowEnd a BAND under that), none at U.uMeadowEnd. The blades thin by it, and the land's carpet
+    under them reads it (src/terrain/material.js): one statistic either side of where the blades hand over to it. */
+export const endOf = (dist) => float(1).sub(smoothstep(U.uMeadowEnd.div(BAND), U.uMeadowEnd, dist));
+/** The meadow's mean top, metres, for an asset `height` tall: its mean blade (bladeIn: 0.5 of the asset's height, and
+    r² 0.55 and its tuft's c² 0.8 more, each r and c 0 … 1: their means a third) at its tip, bowed by its mean bend
+    (bladeIn: 0.2, and 0.55 r and 0.35 c more: their means a half) as bladeMaterial bows it there (0.42 of its bend). What
+    the meadow is past its blades: the land raised by it (src/terrain/material.js), its tufts over it (pages.js). */
+export const meanTop = (height) => height * (0.5 + 0.55 / 3 + 0.8 / 3) * (1 - 0.42 * (0.2 + 0.55 / 2 + 0.35 / 2));
+/** How a blade is lit, as the one light takes it (src/world/light.js lit: these are its numbers): the sun wrapped round it
+    (n: its normal, rounded and softened to the meadow's whole: half Lambert, squared), through it where the eye looks
+    into the sun (the bright yellow-green of a lit meadow), and its sheen, the more of each the higher up it the point is
+    (t, 0 at its foot, 1 at its tip); the sky's light on it the more, too. The meadow past its blades is lit by it as they
+    are at their tips, its top (src/terrain/material.js). */
+export const bladeLight = (n, t) => {
+  const hl = n.dot(U.uSunDir).mul(0.5).add(0.5);
+  return { ndl: hl.mul(hl).mul(1.1), through: t, lobe: 2, tint: vec3(0.5, 1, 0.22), sky: t.mul(0.45).add(0.55), gloss: t.mul(0.16), sharp: 20 };
+};
 
-/** The meadow's rings, made from its blade alone (assets/grass.js `blade`), near to far: { segs, cell, P, w, e }. Ring k's
-    cells are 2^(k/2) times the blade's, its blades halved in number ring by ring and as many times wider (w: half a
-    blade's width), so the meadow keeps its cover and its height. Its error e is how much wider its blades are than the
-    blade, w (2^k - 1); its bends as few as keep a blade's bow within it (a bow of b metres in n straight pieces misses
-    its curve by b / 4n²: the mean blade's, bladeIn's mean height 0.95 of the asset's, its bend 0.65, bowing 1.15 of that
-    at its tip). A ring is made while it can come in before the meadow is gone (bandsOf): while its error, a BAND over
-    it, is under the mean blade's height (leaving the blades out, where the ground under them wears the meadow's colour,
-    differs by that). The same at every measure: where each is drawn is bandsOf's. */
+/** The meadow's rings, made from its blade alone (assets/grass.js `blade`), near to far: { segs, cell, P, w, e }. Every
+    ring is the blade in its own cells (cell, w: half its width, as it is); ring k bends it in k fewer straight pieces
+    than the blade's segs. Its error e is how far that misses the blade's curve (a bow of b metres in n straight pieces
+    misses it by b / 4n²: the mean blade's, bladeIn's mean height 0.95 of the asset's, its bend 0.65, bowing 1.15 of
+    that at its tip). A ring is made while it can come in where the blades are whole (bandsOf), at any measure (both go
+    as K): while its error is under a cell (where the cells stand a dial pixel apart) and under the mean blade's height
+    over GONE (where it is gone). Where each is drawn is bandsOf's. */
 export function ringsOf(asset) {
-  const B = asset.blade, h = asset.height * 0.95, bow = h * 0.65 * 1.15, rings = [];
-  for (let k = 0, e = 0; e * BAND < h; e = B.w * (2 ** ++k - 1)) rings.push({ segs: k ? Math.min(B.segs, Math.max(1, Math.ceil(Math.sqrt(bow / (4 * e)) - 1e-9))) : B.segs, cell: B.cell * 2 ** (k / 2), P: B.P, w: B.w * 2 ** k, e });
+  const B = asset.blade, h = asset.height * 0.95, bow = h * 0.65 * 1.15, ends = Math.min(B.cell, h / GONE), rings = [];
+  for (let n = B.segs; n >= 1; n--) { const e = n === B.segs ? 0 : bow / (4 * n * n); if (e >= ends) break; rings.push({ segs: n, cell: B.cell, P: B.P, w: B.w, e }); }
   return rings;
 }
 /** Where the rings are drawn at a measure (K: dial pixels a metre covers at a metre: src/detail/measure.js dialK, the
     measure now), metres as the walker's 68° lens sees them: { end, bands: [{ near, nearFade, far, farFade }] a ring }.
     Ring k takes over where its error fits (e K: src/detail/error.js), its blades coming in over the BAND past there as
-    the ring before's go. The meadow ends where the ground's map does (ground.js REACH), or nearer where it is gone (its
-    mean blade's height fits), thinning over the BAND before its end; a ring that would only come in there draws nothing
-    (far 0). height: the asset's. */
+    the ring before's go. The meadow's blades end where the ring drawn there stands under a dial pixel apart (its cell
+    covers `cell K` dial pixels at a metre): past that a field of them cannot be told from a surface with the same
+    statistics, and nearer there no share of them may be left out (a first share of a crowd leaves a blade out as far
+    from one drawn as its cells stand apart: above), so there and no nearer the carpet carries the meadow on
+    (src/terrain/material.js: the blades' own share, endOf); nearer still where its mean blade is gone (GONE dial
+    pixels: leaving it out differs by all of its height, src/detail/error.js goneAt). They are whole out to there and
+    thin away over the BAND under it, as every hand-over runs under its switch (src/detail/handover.js): `end` is where
+    the last of them has gone, a BAND past their end (the ground's map reaches it: src/scatter/ground.js reachOf). A
+    ring that would only come in as they thin draws nothing (far 0). height: the asset's. */
 export function bandsOf(rings, height, K) {
-  const end = Math.min(REACH, height * 0.95 * K), at = (k) => rings[k].e * K, on = rings.map((_, k) => !k || at(k) * BAND < end);
+  const at = (k) => rings[k].e * K, end = Math.min((height * 0.95 * K) / GONE, rings[0].cell * K) * BAND;   // (every ring the blade in its own cells: ringsOf)
+  const on = rings.map((_, k) => !k || at(k) * BAND < end);
   return { end, bands: rings.map((_, k) => {
     if (!on[k]) return { near: 0, nearFade: 0, far: 0, farFade: 0 };
     const next = on[k + 1] ? at(k + 1) : 0;
@@ -82,10 +104,10 @@ function bladeIn(c, asset, T, ground, pad) {
   const h1 = hashI(c.x, c.y, uint(100));
   const pos = vec2(c).add(vec2(float(h1.bitAnd(uint(0xFFF))), float(h1.shiftRight(uint(12)).bitAnd(uint(0xFFF)))).mul(1 / 4096)).mul(T.cell);   // (T: its ring's numbers, uniforms: every ring one shader)
   // (and, the smallest layer of all, as thick as the light that comes down to it through the crowns over it lets it
-  // grow, in proportion to that light (as a plant grows by the light it takes: Monteith 1977), and none on the feet of
-  // the larger: src/scatter/growth.js, rule.js)
+  // grow, in proportion to that light (as a plant grows by the light it takes: Monteith 1977), and none on the ground
+  // the larger things really cover, a trunk, a stem, a log, a branch, a stone, no more: src/scatter/growth.js, rule.js)
   const M = growthMap(), F = M ? M.all(pos) : null;
-  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = F ? G.y.mul(F.light).mul(float(1).sub(F.foot)) : G.y, h2 = hashI(c.x, c.y, uint(101));
+  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = F ? G.y.mul(F.light) : G.y, h2 = hashI(c.x, c.y, uint(101));
   const inBand = dist.lessThanEqual(hf.mul(T.farFade.negate()).add(T.far).add(pad)).and(dist.greaterThanEqual(hf.mul(T.nearFade.negate()).add(T.near).sub(pad)));
   const r1 = u8(h2, 0), r2 = u8(h2, 8), r3 = u8(h2, 16);
   // blades stand in tufts: the tuft they are in gives them a height, a lean and a shade in common
@@ -95,15 +117,17 @@ function bladeIn(c, asset, T, ground, pad) {
   const hgt = float(asset.height).mul(float(0.5).add(r1.mul(r1).mul(0.55)).add(c1.mul(c1).mul(0.8)).add(flower.mul(0.35))).mul(G.z).mul(dens.mul(0.4).add(0.6));
   const ang = c2.add(r2.sub(0.5).mul(0.55)).mul(6.2831853), bend = float(0.2).add(r3.mul(0.55)).add(c3.mul(0.35)).mul(float(1).sub(flower.mul(0.7)));
   const base = tint.rgb.mul(float(0.7).add(r3.mul(0.35)).add(c3.mul(0.35))), dried = clamp(tint.a.mul(1.2).add(r2.mul(0.35)).sub(0.25), 0, 1);
-  // (as many as the ground says it grows there: a first share of the turns; towards the meadow's end fewer, as it is drawn)
-  const rank = rankOf(c, u8(h2, 24));
-  return { alive: inBand.and(rank.lessThanEqual(dens)), data: [vec4(pos, G.x, hgt), vec4(ang, bend, r1, flower), vec4(packRGB(base), dried, rank.div(dens.max(1e-6)), hf)] };
+  // (as many as the ground says it grows there: a first share of the turns; towards the meadow's end fewer, as it is
+  // drawn; and where one would stand, none on ground a larger thing covers: asked last, where it is asked at all)
+  const rank = rankOf(c, u8(h2, 24)), grows = inBand.and(rank.lessThanEqual(dens)).toVar();
+  if (F) If(grows, () => { If(F.foot().greaterThan(0.5), () => { grows.assign(bool(false)); }); });
+  return { alive: grows, data: [vec4(pos, G.x, hgt), vec4(ang, bend, r1, flower), vec4(packRGB(base), dried, rank.div(dens.max(1e-6)), hf)] };
 }
 /** Of a blade held, whether its ring draws it now (its band, the meadow's end, the snow: a blade not much taller than the
     snow is deep lies bent under it), and its rows as its material reads them (C: its colour, how much its tip has dried). */
 function bladeOf([A, B, C], T) {
   const dist = camDist(A.xy), hf = C.w, inBand = dist.lessThanEqual(hf.mul(T.farFade.negate()).add(T.far)).and(dist.greaterThanEqual(hf.mul(T.nearFade.negate()).add(T.near)));
-  return { alive: inBand.and(C.z.lessThanEqual(endOf(T, dist))).and(A.w.greaterThan(snowDepth.mul(2.5))), data: [A, B, vec4(unpackRGB(C.x), C.y)] };
+  return { alive: inBand.and(C.z.lessThanEqual(endOf(dist))).and(A.w.greaterThan(snowDepth.mul(2.5))), data: [A, B, vec4(unpackRGB(C.x), C.y)] };
 }
 
 function bladeMaterial(T) {
@@ -114,7 +138,7 @@ function bladeMaterial(T) {
       const pos = A.xy, hgt = A.w, ang = B.x, r1 = B.z, flower = B.w;
       const bend = B.y.add(clamp(snowDepth.mul(3), 0, 0.6));   // snow weighs the blades down: deep, they bow over
       const dir = vec2(cos(ang), sin(ang)), side = vec2(dir.y.negate(), dir.x);
-      const t = positionGeometry.y, s = positionGeometry.x, wd = T.w.mul(min(float(CROWD.SWELL), float(1).div(endOf(T, camDist(pos)).max(1e-3)))).mul(r1.mul(0.5).add(0.75)).mul(float(1).sub(t.mul(t).mul(0.8)));   // (w: its ring's half width; wider still as fewer are drawn towards the meadow's end)
+      const t = positionGeometry.y, s = positionGeometry.x, wd = T.w.mul(r1.mul(0.5).add(0.75)).mul(float(1).sub(t.mul(t).mul(0.8)));   // (w: the blade's half width, as it is in every ring)
       // the wind (src/world/light.js): the gust here, and each blade's own flutter, quicker and wider the harder it blows;
       // at the clock's time, and for the prepass at the clock as it stood a frame ago (where the blade was: its motion)
       const ws = windStrength, lean = t.mul(t).mul(1.1), fw = hgt.mul(bend).mul(t).mul(t).mul(1.15);   // long blades arc over
@@ -138,14 +162,14 @@ function bladeMaterial(T) {
       if (passOf(builder) === 'pre') return motion(vWas, 1);   // (the prepass: where it lay a frame ago; a blade is thin)
       const vT = vTS.x, n0 = normalize(vN.add(vSide.mul(vTS.y).mul(0.6)));   // a blade is a little rounded
       const n = normalize(frontFacing.select(n0, n0.negate()).add(vec3(0, 1.4, 0)));   // and a meadow lights as a soft whole
-      const ndl = n.dot(U.uSunDir).mul(0.5).add(0.5), V = normalize(U.uCam.sub(vWorld));
-      const thru = pow(max(V.negate().dot(U.uSunDir), 0), 2).mul(vT);   // light through the blade: the bright yellow-green of a lit meadow
-      const sheen = pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 20).mul(0.16).mul(vT);
-      const sun = U.uSun.mul(cloudAtOne(vWorld));   // one sample of the shadow map: a blade is too thin for a soft edge to show
-      const onIt = max(clamp(snowDepth.mul(4), 0, 0.4).mul(float(1).sub(smoothstep(0.05, 0.5, vT))), clamp(snowDepth.mul(2.5), 0, 0.6).mul(smoothstep(0.3, 0.8, n0.y.abs())).mul(smoothstep(0.3, 0.8, vT)));   // snow at the foot, and lying on what bows over
-      const col0 = weathered(mix(vCol, SNOW, onIt), n, 9).mul(skyLight(n).mul(vT.mul(0.45).add(0.55)).add(sun.mul(ndl.mul(ndl).mul(1.1).add(vec3(0.5, 1, 0.22).mul(thru))))).add(sun.mul(sheen));
-      const col = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86)).select(vec3(0.92, 0.92, 0.86).mul(skyLight(n).add(U.uSun.mul(0.7))), col0);
-      return finish(col, vWorld);
+      // a meadow takes the light as a blade does (bladeLight: softly round, the sun through its blades the bright
+      // yellow-green of a lit meadow, a sheen along them); one sample of the shadow map: a blade is too thin for a soft
+      // edge to show. A flower's head (pale, at a blade's tip) takes it plainly
+      const B = bladeLight(n, vT), head = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86));
+      const onIt = max(clamp(snowDepth.mul(4), 0, 0.4).mul(float(1).sub(smoothstep(0.05, 0.5, vT))), clamp(snowDepth.mul(2.5), 0, 0.6).mul(smoothstep(0.3, 0.8, n0.y.abs())).mul(smoothstep(0.3, 0.8, vT)));   // snow at the foot, and lying on
+      return lit({ colour: head.select(vec3(0.92, 0.92, 0.86), weathered(mix(vCol, SNOW, onIt), n, 9)), n, w: vWorld, how: 'one',
+        ndl: head.select(float(0.7), B.ndl), through: head.select(float(0), B.through), lobe: B.lobe, tint: B.tint,
+        sky: head.select(float(1), B.sky), gloss: head.select(float(0), B.gloss), sharp: B.sharp });
     });
     const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
     return { m, shape };
@@ -154,13 +178,13 @@ function bladeMaterial(T) {
 
 /** The asset `grass`: a tier a ring (ringsOf). gpu: on WebGPU, what stands is packed by a compute pass (tier.js). Each
     ring's band is the measure's (bandsOf), reckoned again as it changes (the window, the governor's ratio, the dial:
-    tier.js reband), its numbers uniforms. ?truth (src/detail/measure.js): its first ring's blades, dense and fine, all
-    the way out to the meadow's end (the ground's map, which says where it grows, reaches no further:
-    src/scatter/ground.js). */
+    tier.js reband), its numbers uniforms. ?truth is the dial (src/detail/measure.js): its rings and its end by the same
+    rule, at its own pixel. */
 export function createGrass(scene, tex, ground, asset, gpu = false) {
-  const rings = TRUTH ? asset.tiers.slice(0, 1) : asset.tiers, now = () => bandsOf(rings, asset.height, dialK());
+  const rings = asset.tiers, now = () => bandsOf(rings, asset.height, dialK());
+  U.uMeadowTop.value = meanTop(asset.height);   // (what the carpet is raised to past the blades: src/terrain/material.js)
   return rings.map((R, k) => {
-    const T = { cell: uniform(R.cell), w: uniform(R.w), near: uniform(0), nearFade: uniform(0), far: uniform(0), farFade: uniform(0), end: uniform(REACH) };
+    const T = { cell: uniform(R.cell), w: uniform(R.w), near: uniform(0), nearFade: uniform(0), far: uniform(0), farFade: uniform(0) };
     // (its store and its gather: tier.js; without WebGPU both at once, per vertex)
     const found = (c, Q) => bladeIn(c, asset, T, ground, Q.pad), select = (rows) => bladeOf(rows, T);
     const live = (c) => { const F = found(c, { pad: float(0) }), S = select(F.data); return { alive: F.alive.and(S.alive), data: S.data }; };
@@ -172,15 +196,15 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
       return m;
     };
     // a blade's box, for the eye's culling (src/core/occlusion.js): from its foot up its height, out as far as it bends
-    // (bowed deepest under snow) and its widest (its ring's half width, wider by as much as it thins); the wind leans its
-    // tip its height a unit of the wind's push (bladeMaterial: never more than 1.25 of it)
-    const wide = R.w * CROWD.SWELL * 1.25;
+    // (bowed deepest under snow) and its widest (its half width, at most 1.25 of the blade's: bladeMaterial); the wind
+    // leans its tip its height a unit of the wind's push (bladeMaterial: never more than 1.25 of it)
+    const wide = R.w * 1.25;
     const bounds = (A, B) => { const h = A.w, reach = h.mul(B.y.add(0.6).mul(1.15)).add(wide + 0.02); return { c: vec3(A.x, A.z.add(h.mul(0.5)), A.y), h: vec3(reach, h.mul(0.5).add(0.02), reach), w: h.mul(1.1) }; };
-    const t = new Tier(scene, blade(R.segs), material, { cell: R.cell, P: R.P, near: 0, far: 0, order: 0, found, select, metres: true, gpu, slots: 3, bounds });
+    const t = new Tier(scene, blade(R.segs), material, { cell: R.cell, P: R.P, near: 0, far: 0, order: 0, found, select, metres: true, gpu, slots: 3, bounds, cls: 'ground' });
     t.band = () => {   // (its band as the measure is now: tier.js reckons every tier's again when it changes)
       const N = now(), b = N.bands[k];
       for (const key of ['near', 'nearFade', 'far', 'farFade']) T[key].value = b[key];
-      T.end.value = N.end; t.near = Math.max(0, b.near - b.nearFade); t.far = b.far;
+      U.uMeadowEnd.value = N.end; t.near = Math.max(0, b.near - b.nearFade); t.far = b.far;
     };
     t.band();
     if (growthMap()) t.reads = growthMap().version;   // (packed again when what grows over it changes)

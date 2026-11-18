@@ -8,6 +8,8 @@ import { U } from '../core/uniforms.js';
 import { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second } from './noise.nodes.js';
 export { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second };
 import { OCT_LAM, OCT_AMP, WATER_DROP, PADS, PAD_FALL, BEND, MEANDER, LAKE_MAX } from './land.js';
+import { BAND } from '../detail/error.js';
+import { uPxK, dialPxAt } from '../detail/measure.js';
 import { BIOMES, BASE, WATER } from './biomes.js';
 import { PLACES } from '../../world/places.js';
 import { recipe, byRole } from '../core/registry.js';
@@ -71,11 +73,13 @@ export const nearLake = (p, margin = 40) => {
 /** 1 in a lake, 0 elsewhere (its water stands still: src/terrain/water.js) */
 export const lakeAt = Fn(([p]) => inLake(p, riverRaw(p).x));
 /** (signed distance from the channel's middle, half-width, which bank: > 0 a bend's outside, the bend) */
+/** A path's width before it wanders, metres: its least (src/terrain/layers.js lets its ground go by it). */
+export const PATH_W = 4.5;
 export const riverInfo = Fn(([p]) => {
   const R = riverRaw(p).toVar(), gl = max(length(R.yz), 2e-4), t = vec2(R.z.negate(), R.y).div(gl);
   const A = riverRaw(p.add(t.mul(20))), Bk = riverRaw(p.sub(t.mul(20)));
   const dt0 = atan(A.z, A.y).sub(atan(Bk.z, Bk.y)), dt = atan(sin(dt0), cos(dt0)), bend = clamp(dt.div(40).mul(BEND), -1, 1);
-  const w = float(4.5).add(smoothstep(0.25, 0.75, vnoise(p.mul(1 / 90), uint(42))).mul(3.5)).add(abs(bend).mul(7)).mul(vnoise(p.mul(1 / 14), uint(43)).mul(0.28).add(0.86));
+  const w = float(PATH_W).add(smoothstep(0.25, 0.75, vnoise(p.mul(1 / 90), uint(42))).mul(3.5)).add(abs(bend).mul(7)).mul(vnoise(p.mul(1 / 14), uint(43)).mul(0.28).add(0.86));
   // (inside a lake: the channel's middle all over. Its numbers held first: a choice between two values that both
   // work them out would write the river out twice over)
   const W = w.toVar(), Bd = bend.toVar(), sd = R.x.div(gl).sub(W.mul(0.25).mul(Bd)).toVar(), out = vec4(sd, W, Bd.mul(sd.greaterThanEqual(0).select(1, -1)), Bd).toVar();
@@ -104,20 +108,27 @@ export const riverBank = Fn(([d, w, b]) => {
 export const baseB = Fn(([p]) => vnoise(p.mul(1 / 2600), uint(11)).sub(0.5).mul(40).add(vnoise(p.mul(1 / 900).add(3.7), uint(12)).sub(0.5).mul(14))).setLayout({ name: 'baseB', type: 'float', inputs: [{ name: 'p', type: 'vec2' }] });
 export const WATER_DROP_N = float(WATER_DROP);
 
-/** The ground's height at p: the land's octaves (each let go with distance), the river, and the pads under what stands */
-export const heightAt = Fn(([p, dist, d, w, b]) => {
+/** The ground's height at p (pe: the dial's pixels a metre of height covers there, src/detail/measure.js): the land's
+    octaves, each kept as long as its height shows (its amplitude over a dial pixel on screen, handed over within BAND: the
+    land's mesh is fine enough to carry every octave that shows, src/terrain/terrain.js), the river, and the pads under
+    what stands */
+const heightOf = Fn(([p, dist, d, w, b, pe]) => {
   const m = smoothstep(w, w.add(80), d), mm = mix(0.35, 1, m), h = float(0).toVar(), q = vec2(p).toVar();
   for (let i = 0; i < OCT_LAM.length; i++) {
     q.assign(vec2(q.x.mul(0.8).sub(q.y.mul(0.6)), q.x.mul(0.6).add(q.y.mul(0.8))));
-    const lam = OCT_LAM[i];
-    If(dist.lessThan(lam * 19.2), () => {
-      h.addAssign(vnoise(q.div(lam).add(i * 7.31), uint(20 + i)).sub(0.5).mul(OCT_AMP[i]).mul(float(1).sub(smoothstep(lam * 9.6, lam * 19.2, dist))).mul(i >= 6 ? mm : m));
+    const lam = OCT_LAM[i], e = pe.mul(OCT_AMP[i]);
+    If(e.greaterThan(1), () => {
+      h.addAssign(vnoise(q.div(lam).add(i * 7.31), uint(20 + i)).sub(0.5).mul(OCT_AMP[i]).mul(smoothstep(1, BAND, e)).mul(i >= 6 ? mm : m));
     });
   }
   const H = baseB(p).add(h).add(m.mul(3)).add(riverBank(d, w, b)).sub(riverCarve(d, w, b)).toVar();
   for (const P of PADS) H.assign(mix(float(P.h), H, smoothstep(P.r, P.r + PAD_FALL, length(p.sub(vec2(P.x, P.z))))));
   return H;
-}).setLayout({ name: 'heightAt', type: 'float', inputs: [{ name: 'p', type: 'vec2' }, { name: 'dist', type: 'float' }, { name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }] });
+}).setLayout({ name: 'heightAt', type: 'float', inputs: [{ name: 'p', type: 'vec2' }, { name: 'dist', type: 'float' }, { name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }, { name: 'pe', type: 'float' }] });
+/** The ground's height at p, seen dist metres off (d, w, b: the river there, riverInfo). (The measure is read here,
+    outside the land's function: a uniform named inside one does not compile; through the lens, as its mesh is made:
+    src/terrain/terrain.js) */
+export const heightAt = (p, dist, d, w, b) => heightOf(p, dist, d, w, b, dialPxAt(uPxK.div(max(dist, 1e-3))));
 /** the height at p, the river worked out here */
 export const groundAt = (p, dist) => { const I = riverInfo(p); return heightAt(p, dist, abs(I.x), I.y, I.z); };
 

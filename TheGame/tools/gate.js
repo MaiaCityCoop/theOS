@@ -3,8 +3,8 @@
 // own Chrome through Playwright, headless (--headed: in a window, for frame times as a screen paces them):
 //
 //   bun tools/gate.js stills [--tag t] [--truth] [--views a,b]   the gate's views (tools/gate/views.js) as PNGs at the output (OUTPUT) in
-//                        [--fresh] [--reach m] [--tiles n]       .gate/<tag>/ (by default the commit); --truth: ?truth
-//                                                                (--reach: ?truth=m, as far as it says); --fresh: on a
+//                        [--fresh] [--dial d] [--tiles n]        .gate/<tag>/ (by default the commit); --truth: ?truth
+//                                                                (--dial: ?truth=d, the dial it is drawn at); --fresh: on a
 //                                                                new browser profile (launch, below); --tiles: each view
 //                                                                drawn in n × n tiles, each at all the canvas's pixels,
 //                                                                brought down by n and laid side by side (the truth past
@@ -15,9 +15,14 @@
 //                                                                (--jpeg: and a labelled sheet of the two, <view>.jpg)
 //   bun tools/gate.js noise <tag> [--truth] [--views a,b]        the same views shot twice: the floor any diff stands on
 //   bun tools/gate.js bench [--ratio r] [--frames n]             tools/bench.js at its six views with ?gputime: GPU ms
-//                                                                against its BUDGET, and the resolution drawn; where
+//                                                                against its BUDGET, and the resolution drawn
+//                        [--twice] [--ratchet]                   and each part of each view against its ceiling
+//                                                                (tools/gate/ceilings.js): shown, never blocking; --twice: the
+//                                                                noise measured from two runs; --ratchet: main's nightly,
+//                                                                each ceiling lowered to what is measured, never raised; where
 //                                                                it went, pass by pass and by part (geometry, light,
-//                                                                ground, upscale and post: bench.js CLASSES)
+//                                                                ground, upscale and post: bench.js CLASSES), and what
+//                                                                each adds to the span (the light's each on its own)
 //   bun tools/gate.js compile [--page library.html]              the WGSL compiled from the start until the world has
 //                                                                settled: bytes, modules, the largest ten (check 6)
 //   bun tools/gate.js paths [--paths a,b]                        the paths (tools/gate/views.js) on a cold profile and a
@@ -37,11 +42,27 @@
 //                        [--device mps] [--no-clip]              folder) held against photographs (a folder with its
 //                                                                manifest.json, tools/gate/README.md): CMMD on CLIP
 //                                                                features, and natural-image statistics, by view, kind
-//                                                                and all together; in Python (GATE_PYTHON)
+//                                                                and all together; in Python (GATE_PYTHON); the photos'
+//                                                                own spread beside each; a class's distances may only
+//                                                                go down (tools/gate/real-ratchet.json; exit 1 if one
+//                                                                rose; --ratchet: main's run lowers them)
 //   --query q (with any of them)                                 more of every page's address: --query stress, the
 //                                                                stress world (src/scatter/stress.js)
 //   bun tools/gate.js all [--tag t] [--views a,b]                stills of this code and of ?truth, their diff, the
 //                                                                bench, the compile and the paths, in one table
+//   bun tools/gate.js device [--secs s]                          the device on the machine the 8 GB gate is for
+//                                                                (budget.js MACHINE, in WebKit): GPU memory by the
+//                                                                game's ledger, its peak and where it settles, the
+//                                                                longest submission, whether the device survives (a
+//                                                                lost one fails): tools/gate/device.js
+//   bun tools/gate.js smoke [--views a,b]                        the GPU smoke: at HOURLY's views, the world settled
+//                                                                posed, turned about and walked on, and every WebGPU
+//                                                                error meanwhile
+//   bun tools/gate.js hourly [--views a,b] [--paths a,b]         the hour's measure of main, under the GPU lock once:
+//                                                                the smoke, the stills, ?truth and FLIP at HOURLY's views, the
+//                                                                bench (the ceilings shown), the compile, the paths
+//                                                                walk and zoom; .gate/hourly/<commit>/summary.json and
+//                                                                board.md, against the hour before (tools/gate/ten.js)
 //
 // The GPU is shared with other runs: each part of a run that draws (a page come, a view or a tile, a path in motion, the
 // real gate on a GPU) takes the machine's GPU lock in its turn (tools/gpu/lock.js: one queue, oldest first; GPU_OWNER
@@ -57,16 +78,17 @@
 // and the clock run, as in the game. Chrome runs on the gate's own profile, .gate/chrome/, kept from run to run (the
 // world is made in half a minute, not two); the paths make a fresh one for their cold run.
 import { chromium } from 'playwright-core';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync, readdirSync, statSync } from 'node:fs';
 import { execSync, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { VIEWS, PATHS } from './gate/views.js';
+import { VIEWS, PATHS, HOURLY } from './gate/views.js';
+import RIG from '../camera/rig.js';
 import { FIRST_FRAME } from '../src/core/marks.js';
-import { BUDGET, CLASSES, classOf } from './bench.js';
+import { CLASSES, classOf, CLASS_NAMES } from './bench.js';
+import { FRAME_MS as BUDGET, MEMORY, BUDGET_MB, FRAME_MS_BY_CLASS, OUTPUT } from '../src/core/budget.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
-import { OUTPUT } from '../src/core/budget.js';
 import { stepper } from './gate/clock.js';
 import { locked, unlock } from './gpu/lock.js';
 import { tiled } from './gate/tiles.js';
@@ -78,7 +100,7 @@ const Q_AT = process.argv.indexOf('--query'), EXTRA = Q_AT > 0 ? process.argv[Q_
 const OUT = new URL('../.gate/', import.meta.url).pathname;   // TheGame/.gate/: made again by every run, not kept in git
 // (the output the gate draws: OUTPUT (src/core/budget.js), at one pixel a point: the canvas is the output's own pixels)
 const SCREEN = { ...OUTPUT, dpr: 1 }, INSIDE = 4 / 3, TIME = 100;   // (TIME: the seconds the world's clock stands at for stills)
-const FRAME = 1000 / 60, JITTER = 1, MEMORY = 8e9;   // the hard gates in motion: no frame longer than 1/60 s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within 8 GB
+const FRAME = 1000 / 60, JITTER = 1;   // the hard gates in motion: no frame longer than 1/60 s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within 8 GB
 const WAIT = 300e3;   // ms the world may take to come, or to settle, before the gate calls it broken (an error; never a wait for readiness)
 const ARGS = ['--enable-unsafe-webgpu', '--enable-webgpu-developer-features'];   // (the second: the GPU's timestamps to the nanosecond, not rounded to a tenth of a millisecond: the bench times passes of a few hundredths)
 
@@ -109,7 +131,7 @@ async function open(ctx, { path = '', query = '', init = null, wait = null } = {
     // wind not uncovering ground that asks for more of the land's pages, src/terrain/pages.js, and draws only when asked)
     if (init === stepper) await page.evaluate(() => window.__gateClock.start());
     if (!(await page.evaluate(() => typeof window.__game?.settle === 'function'))) throw new Error(`${url}: window.__game.settle() is missing, so the gate cannot know when the picture is ready, and it never waits on a timer. It comes with intent 0038 stage 2 (src/core/settle.js): a promise that resolves when nothing streams or builds for the camera and the picture built over time has come to rest.`);
-    const start = await page.evaluate(settled, { wait, at: 'the start' });   // (the world made and settled where it starts, before anything is asked of it)
+    const start = await page.evaluate(settled, { wait, at: 'the start', keep: KEEP.on });   // (the world made and settled where it starts, before anything is asked of it)
     if (!(await page.evaluate(() => !!window.__game.renderer.backend.isWebGPUBackend))) throw new Error(`${url}: drawn through WebGL, not WebGPU (Chrome gave the page no GPU adapter)`);
     return { page, errors, url, start, close };
   } catch (e) { said(errors); await close(); throw e; }
@@ -126,7 +148,7 @@ function firstFrame({ name }) {
   return { ms: m.startTime, bytes: came.reduce((s, e) => s + (e.transferSize || 0), 0), files: came.length };
 }
 const firstSaid = (F) => (F ? `${(F.ms / 1000).toFixed(1)} s, ${(F.bytes / 1e6).toFixed(1)} MB loaded before it (${F.files} files)` : 'not marked');
-async function settled({ wait, at }) {
+async function settled({ wait, at, keep = false }) {
   const s = window.__game, C = window.__gateClock, t0 = Date.now(), late = new Promise((_, no) => setTimeout(() => no(new Error(`window.__game.settle() did not resolve in ${wait / 1000} s at ${at}`)), wait + 10e3));
   // (the page on the gate's clock, tools/gate/clock.js: its frames drawn here, one after another, the clock standing,
   // from before the world's ready until it has settled)
@@ -136,9 +158,12 @@ async function settled({ wait, at }) {
   // `until` is the last second it had anything out, its `most` the most it had at once)
   const held = {}, R = performance.getEntriesByType('resource').map((e) => e.name), path = R.filter((n) => n.includes('src/core/settle.js')).at(-1);
   const look = path ? import(path).then(({ waiting }) => setInterval(() => { const t = Math.round((Date.now() - t0) / 1000); for (const [k, n] of Object.entries(waiting())) { const h = (held[k] ||= { from: t, until: t, most: 0 }); h.until = t; h.most = Math.max(h.most, n); } }, 2000)) : null;
-  try { said = await Promise.race([Promise.resolve(s.ready).then(() => s.settle({ timeout: wait })), late]); } finally { done = true; if (look) clearInterval(await look); }
+  let ok = true;
+  try { said = await Promise.race([Promise.resolve(s.ready).then(() => s.settle({ timeout: wait })), late]); }
+  catch (e) { if (!keep) throw e; ok = false; said = String(e?.message ?? e); }   // (keep: what ran out of its wait is said and measured, not the end)
+  finally { done = true; if (look) clearInterval(await look); }
   let kept = null; try { kept = JSON.parse(JSON.stringify(said ?? null)); } catch {}
-  return { ms: Date.now() - t0, said: kept, now: Math.round(performance.now()), held };
+  return { ms: Date.now() - t0, said: kept, now: Math.round(performance.now()), held, settled: ok };
 }
 
 /** In the page, once, for pictures that hold still: the world's clock standing at `time` seconds (the fire, the smoke,
@@ -173,7 +198,10 @@ async function aim(v) {
   return cam;
 }
 /** The camera to a view and the world settled there. */
-const go = async (page, v) => ({ cam: await page.evaluate(aim, v), ...(await page.evaluate(settled, { wait: WAIT, at: v.name })) });
+const go = async (page, v) => ({ cam: await page.evaluate(aim, v), ...(await page.evaluate(settled, { wait: WAIT, at: v.name, keep: KEEP.on })) });
+/** Whether a wait that runs out is measured on (`hourly`: a start or a view that does not settle is the board's to say, and
+    what settles is measured all the same), or the end of the run (every other command). */
+const KEEP = { on: false };
 
 /** In the page: the next frame drawn, as a PNG, and the sizes it was drawn at (inside) and shown at (the canvas). */
 async function still() {
@@ -209,12 +237,12 @@ const rank = (xs, q) => { const s = [...xs].sort((a, b) => a - b); return s.leng
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { unlock(); for (const d of FRESH) rmSync(d, { recursive: true, force: true }); process.exit(130); });
 
 // ---- the commands ----
-/** stills' page: ?truth (at `reach`, where given) or the game, under the GPU lock, held on the gate's clock from its
+/** stills' page: ?truth (at dial `dial`, where given) or the game, under the GPU lock, held on the gate's clock from its
     start (tools/gate/clock.js): it settles there with the clock standing, not while the wind uncovers ground that asks
     for more of the land's pages, which on slow frames, ?truth's, it can do faster than they settle; and nothing is
     drawn between two views or tiles, so another run may have the GPU meanwhile. */
-const stillsPage = (chrome, tag, truth, reach) => locked(`stills ${tag}: the page`, async () => {
-  const P = await open(chrome, { query: truth ? (reach ? `truth=${reach}` : 'truth') : '', init: stepper });
+const stillsPage = (chrome, tag, truth, dial) => locked(`stills ${tag}: the page`, async () => {
+  const P = await open(chrome, { query: truth ? (dial ? `truth=${dial}` : 'truth') : '', init: stepper });
   await P.page.evaluate(prepare, { inside: truth ? null : INSIDE, time: TIME });
   await P.page.evaluate(() => window.__gateClock.start());
   return P;
@@ -229,7 +257,8 @@ async function drawView(page, v, { tag, dir, n, truth, valid }) {
     console.log(`  ${v.name.padEnd(28)} ${n * n} tiles in ${((Date.now() - t0) / 60e3).toFixed(1)} min, each drawn ${px(T.parts[0].drawn)} for a ${n}th of the picture each way`);
     return { tiles: n, ms: Date.now() - t0, settleMs: T.parts.map((p) => p.ms), over: T.parts.some((p) => p.over), drawn: T.parts[0].drawn };
   }
-  const [a, s] = await locked(label, async () => { const a = await go(page, v); return [a, valid(await page.evaluate(still))]; });
+  const [a, s] = await locked(label, async () => { const a = await go(page, v); return [a, a.settled === false ? null : valid(await page.evaluate(still))]; });
+  if (!s) { console.log(`  ${v.name.padEnd(28)} not settled in ${(a.ms / 1000).toFixed(1)} s: ${String(a.said).slice(0, 200)}`); return { notSettled: a.said, settleMs: a.ms }; }
   writeFileSync(`${dir}${v.name}.png`, Buffer.from(s.png.slice(s.png.indexOf(',') + 1), 'base64'));
   console.log(`  ${v.name.padEnd(28)} settled in ${(a.ms / 1000).toFixed(1).padStart(5)} s, drawn ${px(s.drawn)} into ${px(s.out)}${s.over ? ' (a tier had more patches than it holds: the farthest left out)' : ''}`);
   if (truth && s.drawn[0] < s.out[0]) console.log('  (the truth drawn at fewer pixels than it is shown at: ?truth is to be supersampled)');
@@ -240,11 +269,11 @@ function memorySaid(meta, mem) {
   meta.memory = mem.stop();
   console.log(`  the most memory, ${meta.memory.measure}: ${(meta.memory.peak.bytes / 1e9).toFixed(2)} GB (${meta.memory.peak.phase ?? '–'}: ${Object.entries(meta.memory.peak.by ?? {}).map(([k, b]) => `${k} ${(b / 1e9).toFixed(2)} GB`).join(', ')})`);
 }
-async function stills(chrome, { tag, truth = false, reach = null, views, tiles = 1 } = {}) {
+async function stills(chrome, { tag, truth = false, dial = null, views, tiles = 1 } = {}) {
   tag ||= commit() + (truth ? '-truth' : '');
   const list = pick(VIEWS, views, 'view'), dir = `${OUT}${tag}/`, n = Math.max(1, Math.round(+tiles || 1));
   const mem = chrome.gateDir ? memory(chrome.gateDir) : null;   // (the whole browser's memory through the run: the truth is the largest single consumer on the machine)
-  const { page, errors, url, start, close } = await stillsPage(chrome, tag, truth, reach).catch((e) => { mem?.stop(); throw e; });
+  const { page, errors, url, start, close } = await stillsPage(chrome, tag, truth, dial).catch((e) => { mem?.stop(); throw e; });
   // (a frame drawn while the GPU refused any of its work is not the game's picture: one refused buffer leaves every bind
   // group that holds it invalid, and Chrome then drops whole passes, black stills that "settled in 2.7 s" (2026-11-18,
   // ?truth's grass over WebGPU's binding limit); such a view fails, with what the GPU said)
@@ -253,7 +282,7 @@ async function stills(chrome, { tag, truth = false, reach = null, views, tiles =
   const meta = existsSync(`${dir}gate.json`) ? JSON.parse(readFileSync(`${dir}gate.json`, 'utf8')) : { views: {} };
   Object.assign(meta, { tag, url, truth, commit: commit(), when: new Date().toISOString(), screen: SCREEN, start });
   console.log(`stills → .gate/${tag}/ (${url})${n > 1 ? `, each view in ${n} × ${n} tiles` : ''}`);
-  console.log(`  the world came and settled where it starts in ${(start.ms / 1000).toFixed(1)} s; held last by ${Object.entries(start.held ?? {}).sort((a, b) => b[1].until - a[1].until).slice(0, 5).map(([k, h]) => `${k} (to ${h.until} s, at most ${h.most})`).join(', ') || 'nothing'}`);
+  console.log(`  the world came and ${start.settled === false ? 'did not settle' : 'settled'} where it starts in ${(start.ms / 1000).toFixed(1)} s; held last by ${Object.entries(start.held ?? {}).sort((a, b) => b[1].until - a[1].until).slice(0, 5).map(([k, h]) => `${k} (to ${h.until} s, at most ${h.most})`).join(', ') || 'nothing'}`);
   try {
     for (const v of list) {
       if (mem) mem.phase = v.name;
@@ -301,18 +330,38 @@ async function noise(chrome, tag, opt) {
   return await diff(a, b, opt);
 }
 
+/** The GPU's memory by class (src/core/gpu.js ledger, src/core/classes.js BUDGET_MB), MB, a column a view or path
+    (`by`: { name: memoryNow() }): each class beside its budget, all that the pools note, all the device has made, and
+    of that what no pool notes. A class over its budget is said. */
+function memoryTable(by) {
+  const V = Object.keys(by).filter((k) => by[k]); if (!V.length) return;
+  const W = 13, head = (i) => V.map((v) => (v.split(', ')[i] ?? '').padStart(W)).join(''), over = [];
+  console.log(`\n  ${'GPU memory, MB a class'.padEnd(28)}${head(0)}${'budget'.padStart(9)}`);
+  console.log(`  ${''.padEnd(28)}${head(1)}`);
+  for (const c of CLASS_NAMES) {
+    console.log(`  ${c.padEnd(28)}${V.map((v) => f(by[v].classes?.[c]?.gpu, 0, W)).join('')}${f(BUDGET_MB[c], 0, 9)}`);
+    for (const v of V) if ((by[v].classes?.[c]?.gpu ?? 0) > BUDGET_MB[c]) over.push(`${c} at ${v}`);
+  }
+  console.log(`  ${'noted, all'.padEnd(28)}${V.map((v) => f(by[v].gpu, 0, W)).join('')}`);
+  console.log(`  ${'the device made, all'.padEnd(28)}${V.map((v) => f(by[v].device, 0, W)).join('')}`);
+  console.log(`  ${'of it, noted by no pool'.padEnd(28)}${V.map((v) => f(by[v].unnoted, 0, W)).join('')}`);
+  if (over.length) console.log(`  over its budget: ${over.join('; ')}`);
+}
+
 /** tools/bench.js's bench(), one view at a time, each once the world has settled there. bench() draws the world as the
     game does: inside at `ratio`, laid on the canvas by the upscale pass (the whole frame's GPU time), and says
     where it went: every pass of the frame on the GPU's own clock, under the name of the part that drew it (the packing,
-    the clouds, the shadow map, the culling, the prepass, the land's pages, the colour, the upscale, …), the frame's parts
-    each added up (bench.js CLASSES: geometry, light, ground, upscale and post; what none of them names, other), and the
-    colour pass's share of the shadows (the same frames with its shadow reads off). */
+    the clouds, the light's cascades, canopy, probes and contact shadows, the culling, the prepass,
+    the land's pages, the colour, the upscale, …), the frame's parts each added up (bench.js CLASSES: geometry, light,
+    ground, upscale and post; what none of them names, other), what each adds to the span, and the colour pass's share
+    of the shadows (the same frames with its shadow reads off). */
 async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
-  const { page, errors, url, close } = await open(chrome, { query: 'gputime' }), out = { ratio: +ratio, views: {}, span: {}, passes: {}, classes: {}, shading: {} };
+  const { page, errors, url, close } = await open(chrome, { query: 'gputime' }), out = { ratio: +ratio, views: {}, span: {}, passes: {}, classes: {}, shading: {}, memory: {} };
   try {
     await page.evaluate(prepare, { inside: null, time: TIME });
     for (const v of VIEWS.filter((x) => x.bench)) {
-      await go(page, v);
+      const g = await go(page, v);
+      if (g.settled === false) { (out.unsettled ||= {})[v.bench] = g.said; continue; }
       const r = await page.evaluate(async ({ name, ratio, frames }) => {
         const B = await import(new URL('tools/bench.js', location.href).href), all = [...B.VIEWS];
         B.VIEWS.splice(0, all.length, all.find((x) => x.name === name));   // (bench() times every view in its list: here only this one)
@@ -320,9 +369,10 @@ async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
       }, { name: v.bench, ratio: +ratio, frames: +frames });
       out.measure = r.measure; out.drawn = [Math.floor(r.size[0] * r.ratio), Math.floor(r.size[1] * r.ratio)]; out.views[v.bench] = r[v.bench];
       if (r.passes) { out.span[v.bench] = r.span[v.bench]; out.passes[v.bench] = r.passes[v.bench]; out.classes[v.bench] = r.classes[v.bench]; out.shading[v.bench] = r.shading?.[v.bench]; }
+      out.memory[v.bench] = r.memory?.[v.bench] ?? null;
     }
   } finally { said(errors); await close(); }
-  out.worst = Math.max(...Object.values(out.views)); out.pass = out.worst <= BUDGET;
+  out.worst = Math.max(0, ...Object.values(out.views)); out.pass = out.worst <= BUDGET;
   console.log(`bench: ${out.measure}, drawn ${px(out.drawn)} (×${(+ratio).toFixed(2)} of ${SCREEN.width}×${SCREEN.height}) and brought up to ${px([SCREEN.width * SCREEN.dpr, SCREEN.height * SCREEN.dpr])} (${url})`);
   console.log(`  ${''.padEnd(28)}${'passes'.padStart(8)}${'span'.padStart(9)}   (passes: each pass's own time added; span: the first pass's begin to the last one's end)`);
   for (const [k, ms] of [...Object.entries(out.views), ['worst', out.worst]]) console.log(`  ${k.padEnd(28)}${f(ms)}${f(out.span[k], 2, 9)} ms  ${ms <= BUDGET ? 'within' : 'OVER'} ${BUDGET}`);
@@ -333,15 +383,25 @@ async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
     const W = 13, head = (i) => V.map((v) => (v.split(', ')[i] ?? '').padStart(W)).join('');   // (a view's name in two lines: its place, its height)
     const cell = (p) => (!p ? '–' : p.every > 1.5 ? `${p.mean.toFixed(2)}(${p.drawn.toFixed(1)})` : p.mean.toFixed(2)).padStart(W);
     const names = [...new Set(V.flatMap((v) => Object.keys(out.passes[v])))], at = (k) => { const i = (CLASSES[classOf(k)] ?? []).indexOf(k); return i < 0 ? 99 : i; };
-    console.log(`\n  ${'ms a frame, part and pass'.padEnd(28)}${head(0)}`);
+    const passesOf = (c) => names.filter((n) => classOf(n) === c).sort((a, b) => at(a) - at(b));   // (a part's passes, in the frame's order)
+    console.log(`\n  ${'ms a frame, part and pass'.padEnd(28)}${head(0)}${'budget'.padStart(9)}`);
     console.log(`  ${'(in brackets: when drawn)'.padEnd(28)}${head(1)}`);
     for (const c of [...Object.keys(CLASSES), 'other']) {
-      console.log(`  ${c.padEnd(28)}${V.map((v) => f(out.classes[v]?.[c], 2, W)).join('')}`);
-      for (const k of names.filter((n) => classOf(n) === c).sort((a, b) => at(a) - at(b))) console.log(`    ${k.padEnd(26)}${V.map((v) => cell(out.passes[v][k])).join('')}`);
+      console.log(`  ${c.padEnd(28)}${V.map((v) => f(out.classes[v]?.[c], 2, W)).join('')}${f(FRAME_MS_BY_CLASS[c], 2, 9)}`);
+      for (const k of passesOf(c)) console.log(`    ${k.padEnd(26)}${V.map((v) => cell(out.passes[v][k])).join('')}`);
+    }
+    // (and what each adds to the span, ms a frame, the same rows: passes overlap on a tile GPU, so their own times add
+    // up to more than the frame; these add up to its span)
+    console.log(`\n  ${'what each adds to the span'.padEnd(28)}${head(0)}`);
+    console.log(`  ${'(these add up to the span)'.padEnd(28)}${head(1)}`);
+    for (const c of [...Object.keys(CLASSES), 'other']) {
+      console.log(`  ${c.padEnd(28)}${V.map((v) => f(passesOf(c).reduce((s, k) => s + (out.passes[v][k]?.adds ?? 0), 0), 2, W)).join('')}`);
+      for (const k of passesOf(c)) console.log(`    ${k.padEnd(26)}${V.map((v) => f(out.passes[v][k]?.adds, 2, W)).join('')}`);
     }
     console.log(`\n  the colour pass with its shadow reads, and without (ms)`);
     for (const [v, S] of Object.entries(out.shading)) if (S) console.log(`  ${v.padEnd(28)}${f(S.colour)}${f(S.colourWithout)}  (${f(S.colour - S.colourWithout, 2, 6)} ms the shadows' share)`);
   }
+  memoryTable(out.memory);
   return out;
 }
 
@@ -495,9 +555,10 @@ async function travel(ctx, list, mem) {
     for (const p of list) {
       mem.phase = `before ${p.name}`;
       const c = await page.evaluate(p.flyby ? flight : course, p);
-      await page.evaluate(settled, { wait: WAIT, at: `the start of ${p.name}` });
+      const g = await page.evaluate(settled, { wait: WAIT, at: `the start of ${p.name}`, keep: KEEP.on });
+      if (g.settled === false) { out.paths[p.name] = { notSettled: g.said }; continue; }
       mem.phase = p.name;
-      out.paths[p.name] = { secs: c.secs, ...told(await page.evaluate(ride, { fly: !!p.flyby })) };
+      out.paths[p.name] = { secs: c.secs, ...told(await page.evaluate(ride, { fly: !!p.flyby })), memory: await page.evaluate(() => { const L = window.__memory?.(); return L ? { classes: L.classes, gpu: L.gpu, device: L.device, unnoted: L.unnoted } : null; }) };   // (the GPU's memory by class, as the path ends)
     }
     out.first = await page.evaluate(firstFrame, { name: FIRST_FRAME });   // (by now long set: read once the paths are ridden)
   } finally { out.errors = errors; said(errors); await close(); }
@@ -526,12 +587,75 @@ async function paths(opt) {
   console.log(`  the first frame that draws the world: cold ${firstSaid(out.cold.first)}; warm ${firstSaid(out.warm.first)}`);
   console.log(`  the most memory, ${out.cold.memory.measure}: ${gb(most.bytes)}, ${most.phase} (${Object.entries(most.by ?? {}).map(([k, b]) => `${k} ${gb(b)}`).join(', ')}); resident, at most ${gb(Math.max(out.cold.memory.rss, out.warm.memory.rss))}`);
   if (!out.cold.paths[list[0].name].gpu) console.log('  (no GPU times: the page had no timestamp queries)');
+  memoryTable(Object.fromEntries(list.flatMap((p) => ['cold', 'warm'].map((cache) => [`${p.name}, ${cache}`, out[cache].paths[p.name].memory ?? null]))));
   console.log(`  the gate in motion (no frame over 16.7 ms, the GPU within ${BUDGET} ms in every frame, at most 8 GB): ${fails.length ? 'NOT MET: ' + fails.join('; ') : 'met'}`);
   return { ...out, peak: most.bytes, pass: !fails.length, fails };
 }
 
 /** Everything, for this code: its stills and the truth's, their FLIP, the bench, the compile, then the paths (their own
     Chrome, the gate's closed first: nothing else running while frames are timed); one table. */
+/** The GPU smoke, the hour's first look: at each view, the world settled where it is posed, turned about there (the
+    rig's yaw half a turn on) and walked on (a second at the walker's pace, camera/rig.js), what each took, and what the
+    WebGPU device said wrong meanwhile (validation errors, a lost device), on a page of the game as it runs. */
+async function smoke(chrome, { views }) {
+  const P = await open(chrome, { query: '' }), out = { start: P.start, views: {}, errors: [] }, s = (ms) => `${(ms / 1000).toFixed(1)} s`;
+  try {
+    await P.page.evaluate(prepare, { inside: INSIDE, time: TIME });
+    for (const v of pick(VIEWS, views, 'view')) out.views[v.name] = await moves(P.page, v);
+  } finally { out.errors = P.errors.filter((e) => /GPUValidationError|device (was )?lost|WebGPU/i.test(e)); await P.close(); }
+  for (const [k, m] of Object.entries(out.views)) console.log(`  smoke, ${k.padEnd(28)} settled posed in ${s(m.posed)}, turned ${s(m.turned)}, walked ${s(m.walked)}`);
+  console.log(`  smoke: ${out.errors.length ? `${out.errors.length} WebGPU error(s); the first: ${out.errors[0].slice(0, 300)}` : 'no WebGPU error'}`);
+  return out;
+}
+/** A view (with its rig) settled posed, turned about and walked on: ms each. */
+async function moves(page, v) {
+  const r = v.rig, step = RIG.keys[0].speed, turned = { ...v, name: `${v.name}, turned`, rig: { ...r, yaw: r.yaw + Math.PI } };
+  const walked = { ...v, name: `${v.name}, walked`, rig: { ...r, x: r.x - Math.sin(r.yaw) * step, z: r.z - Math.cos(r.yaw) * step } };   // (the rig looks along (−sin, −cos) of its yaw)
+  return { posed: (await go(page, v)).ms, turned: (await go(page, turned)).ms, walked: (await go(page, walked)).ms };
+}
+/** The hour's measure of main (ship-first: a PR merges when its CI is green, main is measured once an hour, and what
+    got worse goes back as work): one run under the GPU lock taken once (tools/gpu/lock.js), at the output (OUTPUT): the
+    GPU smoke (smoke), the stills and ?truth at HOURLY's views and FLIP between them, the bench by class (each part against its ceiling: a row
+    shown, never blocking), the WGSL compiled, and the paths walk and zoom (each frame's time, the GPU's, the memory, the
+    first frame). Kept as .gate/hourly/<commit>/summary.json (the run as tools/gate/ten.js reads it), and its scoreboard,
+    board.md: every measure against the hour before. */
+async function hourly(opt) {
+  const tag = commit(), views = opt.views ?? HOURLY.join(','), at = `${OUT}hourly/`;
+  KEEP.on = true;   // (a start or a view that does not settle is said on the board, and what settles is measured all the same)
+  const run = await locked('the hour', async () => {
+    const dev = await (await import('./gate/device.js')).device(BASE);   // (first: the device on the machine the 8 GB gate is for)
+    const chrome = await launch({ ...opt, fresh: true });
+    let s, a, t, b, c;
+    try {
+      const set = (o) => stills(chrome, o).catch((e) => { console.log(`  stills ${o.tag}: ${e.message.slice(0, 300)}`); return o.tag; });   // (a view the GPU refused is marked in its gate.json; the hour goes on)
+      s = await smoke(chrome, { views }); a = await set({ tag, views }); t = await set({ tag: `${tag}-truth`, truth: true, views });
+      b = await (await import('./gate/ceilings.js')).rule(() => bench(chrome, opt), {}, tag); c = await compile(chrome, opt);
+    } finally { await closeHard(chrome, chrome.gateDir); }
+    const unsettled = (set) => Object.entries(JSON.parse(readFileSync(`${OUT}${set}/gate.json`, 'utf8')).views ?? {}).filter(([, r]) => r.notSettled).map(([k]) => k);
+    return { tag, when: new Date().toISOString(), out: OUTPUT, device: dev, start: s.start, smoke: s, stills: { lod: unsettled(a), truth: unsettled(t) }, flip: await diff(a, t, { ...opt, views }).catch((e) => ({ none: e.message })), bench: b, compile: c, paths: await paths({ ...opt, paths: opt.paths ?? 'walk,zoom' }) };
+  });
+  save(`${at}${tag}/summary.json`, run);
+  if (run.device?.pass === false) process.exitCode = 1;   // (a lost device fails the hour)
+  return board(tag, at);
+}
+/** The scoreboard of the hour `tag` (in `at`): every measure against the last hour kept before it (tools/gate/ten.js),
+    and each part of each bench view against its ceiling; board.md beside its summary. */
+async function board(tag, at) {
+  const { runOf, held } = await import('./gate/ten.js'), here = runOf(`${at}${tag}/summary.json`);
+  const before = readdirSync(at).filter((d) => d !== tag && existsSync(`${at}${d}/summary.json`)).sort((x, y) => statSync(`${at}${y}/summary.json`).mtimeMs - statSync(`${at}${x}/summary.json`).mtimeMs)[0];
+  const H = before ? held(here, runOf(`${at}${before}/summary.json`)) : null, rows = here.bench?.ceilings?.rows ?? [];
+  const R = JSON.parse(readFileSync(`${at}${tag}/summary.json`, 'utf8')), S = R.start;
+  const out = [...(R.stills?.lod ?? []).map((v) => `${v} (stills)`), ...(R.stills?.truth ?? []).map((v) => `${v} (?truth)`), ...Object.keys(R.bench?.unsettled ?? {}).map((v) => `${v} (bench)`), ...['cold', 'warm'].flatMap((c) => Object.entries(R.paths?.[c]?.paths ?? {}).filter(([, r]) => r.notSettled).map(([k]) => `${k} (paths, ${c})`))];
+  const md = [`# The hour on main, ${tag} (${OUTPUT.width} × ${OUTPUT.height}), ${new Date().toISOString().slice(0, 16)}`, '',
+    ...(await import('./gate/device.js')).lines(R.device), '',
+    S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
+    out.length ? `Not settled, so not measured: ${out.join(', ')}.` : 'Every view and path settled.', '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
+    `Each part of each bench view against its ceiling (tools/gate/ceilings.json), shown, never blocking:`, '', '| View | Part | ms | Ceiling | Over |', '| --- | --- | --- | --- | --- |',
+    ...rows.map((r) => `| ${r.view} | ${r.part} | ${r.ms.toFixed(2)} | ${r.ceiling.toFixed(2)} | ${r.over ? 'over' : ''} |`)].join('\n');
+  writeFileSync(`${at}${tag}/board.md`, md + '\n');
+  console.log(`\n${md}\n\n→ .gate/hourly/${tag}/summary.json and board.md`);
+  return { tag, before: before ?? null, worse: H?.worse ?? [] };
+}
 async function all(opt) {
   const tag = opt.tag || commit(), chrome = await launch(opt);
   let a, t, b, c;
@@ -552,7 +676,7 @@ async function all(opt) {
 }
 
 // ---- the command line ----
-const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor']);   // (options without a value)
+const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor', 'twice', 'ratchet']);   // (options without a value)
 const [cmd, ...args] = process.argv.slice(2), pos = [], opt = {};
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -560,7 +684,7 @@ for (let i = 0; i < args.length; i++) {
   else if (FLAGS.has(a.slice(2))) opt[a.slice(2)] = true;
   else opt[a.slice(2)] = args[++i];
 }
-const WITH = { stills: (c) => stills(c, opt), noise: (c) => noise(c, pos[0], opt), bench: (c) => locked('bench', () => bench(c, opt)), compile: (c) => locked('compile', () => compile(c, opt)) };
+const WITH = { smoke: (c) => locked('smoke', () => smoke(c, { views: opt.views ?? HOURLY.join(',') })), stills: (c) => stills(c, opt), noise: (c) => noise(c, pos[0], opt), bench: (c) => import('./gate/ceilings.js').then((C) => C.rule(() => locked('bench', () => bench(c, opt)), opt, commit())), compile: (c) => locked('compile', () => compile(c, opt)) };
 try {
   let r;
   if (cmd === 'diff') await diff(pos[0], pos[1], opt);
@@ -568,8 +692,11 @@ try {
   else if (cmd === 'motion') r = await (await import('./gate/motion.js')).motion(opt, { OUT, BASE, SCREEN, INSIDE, WAIT, open, prepare, course, launch, pick, commit, save, rank, said, f });
   else if (cmd === 'real') { const real = async () => (await import('./gate/real.js')).real(pos[0], opt); r = await ((opt.device ?? 'cpu') === 'cpu' ? real() : locked('real', real)); }   // (on a GPU, mps: in its turn)
   else if (cmd === 'all') await all(opt);
+  else if (cmd === 'hourly') r = await hourly(opt);
+  else if (cmd === 'device') r = await locked('device', async () => (await import('./gate/device.js')).device(BASE, opt.secs ? { secs: +opt.secs } : {}));
   else if (WITH[cmd]) { const chrome = await launch(opt); try { r = await WITH[cmd](chrome); } finally { await closeHard(chrome, chrome.gateDir); } }
-  else { console.log('bun tools/gate.js stills | diff | noise | bench | compile | paths | motion | real | all: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
-  if (['bench', 'compile', 'paths'].includes(cmd)) { mkdirSync(OUT, { recursive: true }); save(`${OUT}${cmd}.json`, r); }   // (the numbers kept: .gate/bench.json and so on)
+  else { console.log('bun tools/gate.js device | smoke | stills | diff | noise | bench | compile | paths | motion | real | all | hourly: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
+  if (['bench', 'compile', 'paths', 'device'].includes(cmd)) { mkdirSync(OUT, { recursive: true }); save(`${OUT}${cmd}.json`, r); }
+  if (cmd === 'device' && !r.pass) process.exitCode = 1;   // (the numbers kept: .gate/bench.json and so on)
 } catch (e) { console.error(`gate: ${e.message}`); process.exitCode = 1; }
 finally { for (const d of FRESH) rmSync(d, { recursive: true, force: true }); }

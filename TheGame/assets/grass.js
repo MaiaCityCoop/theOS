@@ -1,14 +1,14 @@
-// The grass: the meadow's blades, drawn round the camera by its engine (src/scatter/grass.js), dense and fine close,
-// fewer and wider further off. An asset in the one recipe (assets/index.js). How much of it grows where, how high and in
+// The grass: the meadow's blades, drawn round the camera by its engine (src/scatter/grass.js), each as it is, its bends
+// fewer further off. An asset in the one recipe (assets/index.js). How much of it grows where, how high and in
 // which colours is each biome's own (its `grass`: biomes/*.js); here is the blade, at its full detail, and no more:
 //
 //   blade  { segs, cell, P, w }   segs: bends along it; cell: metres per cell, one blade may stand in each; P: cells along
 //          a patch's side (P * P blades a patch: how the engine packs them); w: half its width
 //
-// Its engine makes every coarser ring of it from this alone: each ring's cells as many times wider, its blades so many
-// times fewer and as many times wider (Ghost of Tsushima: halved and doubled), so each covers the ground as the one before
-// and the meadow keeps its height; each ring where its blades' own error, how much wider they are than the blade, is the
-// one ERROR_PX (src/detail/error.js).
+// Its engine makes every coarser ring of it from this alone: the blade in its own cells, as wide and as tall, bent in
+// fewer straight pieces, each ring where how far that misses the blade's curve is the one ERROR_PX (src/detail/error.js).
+// None is fewer: a meadow thins only where its cells stand under a dial pixel apart, where its blades end and the carpet
+// under them carries it on.
 export default {
   uid: 'eb8f406f-1035-4921-ba42-10f05efab6ed',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)
   type: 'asset',

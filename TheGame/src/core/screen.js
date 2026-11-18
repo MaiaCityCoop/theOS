@@ -23,16 +23,24 @@ import { note, mark } from './gpu.js';
 import { compileFor } from './compile.js';
 import { twinOf } from './pass.js';
 import { U } from './uniforms.js';
-import { TRUTH_AS } from '../detail/measure.js';
+import { ERROR_PX } from '../detail/error.js';
 import { occlusion } from './occlusion.js';
 import { outputRatio } from './output.js';
+
+/** The prepass's target, w × h pixels on `depth`: its motion (rgba16f, `output`), and what drew each pixel (`id`: two
+    numbers of 32 bits: src/core/pass.js drawnId, written by every material's prepass twin, twinOf). */
+export const prepassTarget = (w, h, depth) => {
+  const t = new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, count: 2 });
+  t.textures[0].name = 'output'; Object.assign(t.textures[1], { name: 'id', type: THREE.UnsignedIntType, format: THREE.RGIntegerFormat });
+  return t;
+};
 
 export function createScreen(renderer, { temporal, lens = null }) {
   let OUT = outputRatio(), inside = OUT, turn = 0;   // (OUT: the canvas's pixel ratio, the output's for this window)
   renderer.setPixelRatio(OUT);
-  // (?truth, the gate's reference: as a still drawn at every pixel the canvas has, whatever it is set to, never fewer;
-  // in motion at the inside, as the game draws: src/detail/measure.js TRUTH_AS)
-  const ratio = () => (TRUTH_AS.still ? renderer.getPixelRatio() : inside);
+  // (the pixels drawn follow the dial: with it turned below its rest, a rung within that fraction of a pixel drawn,
+  // as many more as it asks, up to every pixel the canvas has: ?truth, the gate's reference, src/detail/measure.js)
+  const ratio = () => Math.min(OUT, inside / Math.min(1, ERROR_PX()));
   const css = new THREE.Vector2(), size = new THREE.Vector2();
   /** The inside's size in pixels. */
   const sizeOf = (v) => { renderer.getSize(css); return v.set(Math.max(1, Math.round(css.x * ratio())), Math.max(1, Math.round(css.y * ratio()))); };
@@ -44,9 +52,9 @@ export function createScreen(renderer, { temporal, lens = null }) {
     if (T?.w !== size.x || T?.h !== size.y) {
       if (T) for (const t of T.turns) { t.pre.dispose(); t.main.dispose(); t.depth.dispose(); }
       const w = size.x, h = size.y, made = (o, depth) => new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, ...o });
-      const turns = [0, 1].map(() => { const depth = new THREE.DepthTexture(w, h); return { depth, pre: made({ minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter }, depth), main: made({ minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }, depth) }; });
+      const turns = [0, 1].map(() => { const depth = new THREE.DepthTexture(w, h); return { depth, pre: prepassTarget(w, h, depth), main: made({ minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }, depth) }; });
       T = { w, h, turns };
-      note('the picture inside (its colour, motion and depth, two of each)', 2 * w * h * (8 + 8 + 4), 0);
+      note('the picture inside (its colour, motion, id and depth, two of each)', 2 * w * h * (8 + 8 + 8 + 4), 0, 'geometry');   // (what the prepass and the colour draw into)
     }
     return T.turns[turn];
   };
@@ -79,6 +87,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
     /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
       const t = targetsNow(), was = T.turns[1 - turn], alpha = renderer.getClearAlpha(), clearDepth = renderer.autoClearDepth;
+      U.uFrame.value = (U.uFrame.value + 1) % 4096;   // (the blue noise steps on: src/world/light/noise.js)
       temporal.begin(camera, size.x, size.y);
       // (each part's passes marked as whose they are, for a tool's timing: src/core/gpu.js)
       mark('occlusion'); const culls = occlusion.early(renderer, camera, size.x, size.y, scene);   // (pass one, against the last frame's depth)
