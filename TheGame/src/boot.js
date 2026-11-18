@@ -26,7 +26,7 @@ import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
 import { createHud } from './core/hud.js';
-import { useGPU, limitsFrom } from './core/gpu.js';
+import { useGPU, askedLimits } from './core/gpu.js';
 import { taken, busy, changed } from './core/work.js';
 import { settle, ready as firstView, waiting, watch, tick, partOf, leave } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
@@ -68,7 +68,7 @@ export async function boot({ profile = 'world' } = {}) {
   // src/terrain/pages.js; the stress stand keeps its kinds' own textures in one, src/scatter/stress.js. And buffers as
   // large as the GPU has them, not the 128 and 256 MB a device gives unasked: what is shared by many lies in buffers as
   // large as these say, src/core/occlusion.js)
-  const limits = limitsFrom((await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits);   // (every limit the design sizes against, as this adapter has it: src/core/gpu.js SIZED)
+  const limits = await askedLimits();   // (every limit the design sizes against, as this adapter has it: src/core/gpu.js SIZED)
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), requiredLimits: limits });   // alpha false: the canvas is opaque (a frame's fourth number is not how see-through it is: it says how far what is kept may be trusted, src/core/pass.js; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
   if (flag('draws')) (await import('../tools/draws.js')).watch();   // ?draws: every pass and draw a frame asks of the GPU, counted (tools/draws.js: window.__draws), from before the first pipeline is made
   await renderer.init();

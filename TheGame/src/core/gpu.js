@@ -46,7 +46,9 @@ export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);
     unasked; one not in the list is not read. */
 const SIZED = ['maxBufferSize', 'maxStorageBufferBindingSize', 'maxUniformBufferBindingSize', 'maxComputeWorkgroupsPerDimension', 'maxTextureArrayLayers'];
 /** What to ask a device for, of its adapter's limits A: each of SIZED as A has it. */
-export const limitsFrom = (A) => Object.fromEntries(SIZED.filter((k) => A?.[k] != null).map((k) => [k, A[k]]));
+const limitsFrom = (A) => Object.fromEntries(SIZED.filter((k) => A?.[k] != null).map((k) => [k, A[k]]));
+/** What the device is asked for (src/boot.js): each of SIZED as this machine's adapter has it (none without WebGPU). */
+export const askedLimits = async () => limitsFrom((await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits);
 /** One of the renderer's GPU's limits, one of SIZED (none without WebGPU: nothing then asks). */
 export const limitOf = (name) => { if (!SIZED.includes(name)) throw new Error(`gpu: ${name} is not a limit the device is asked for (SIZED)`); return R?.backend?.device?.limits?.[name] ?? 0; };
 /** Every buffer made here within the device's limits: one larger is an error of whoever sized it, said by name. */
