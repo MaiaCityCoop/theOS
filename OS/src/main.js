@@ -31,7 +31,10 @@ function tab(name) {
   document.querySelectorAll('main').forEach((m) => m.classList.toggle('on', m.id === name));
   if (name === 'intents') { $('city').classList.add('on'); city(); }   // the dashboard stays under the sheet
   if (name === 'stories') $('stories').classList.toggle('editing', !!current);
-  if (name === 'stories' && !current) { bible(); ideas(); }   // the bible and the ideas as they stand now (both change only by their tools)
+  if (name === 'stories' && !current) ideas();   // the ideas as they stand now
+  if (name === 'compass') compass();   // the compass
+  if (name === 'ladder') ladder();   // the village ladder, from the game sheet as they stand now (both change only by their tools)
+  if (name === 'artifacts') artifacts();   // the artifact library, as Artifacts/items/ stands now (changed only by Artifacts/artifacts.js)
   document.body.classList.toggle('play', name === 'game');   // the game takes the whole window
   if (name !== 'home') $('heroframe').removeAttribute('src');
   if (name === 'game') { if (!$('frame').getAttribute('src')) $('frame').src = withFlags(GAME + VIEWS[gameView][1]); } else $('frame').removeAttribute('src');
@@ -204,60 +207,24 @@ async function ideas() {
   box.querySelectorAll('.idea').forEach((c) => (c.onclick = () => { ideaOpen = ideaOpen === c.dataset.id ? null : c.dataset.id; ideas(); }));
   box.querySelector('[data-do=shut]')?.addEventListener('click', () => { ideaOpen = null; ideas(); });
 }
-// ---- the bible (../Bible): the serial's spine, over the shelf. The premise and what stands against it, the ladder of
-// Fibonacci steps in paying citizens, and every character, arc, system, place, term and episode as a document.
-// The page only shows it: the bible is changed by the story CLI alone, so this draws again whenever the stories open ----
-let bibleOpen = null;
+// ---- the compass (../Compass) and its village ladder: their own pages (src/compass/). Read again whenever they open;
+// the page only shows the Compass, which the story CLI alone changes ----
 const esc = (t) => String(t ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
-const eur = (v) => (v >= 1e6 ? '€' + (v / 1e6).toFixed(v >= 1e8 ? 0 : 1) + 'M' : v >= 1e4 ? '€' + Math.round(v / 1e3) + 'k' : '€' + n(v));
-const fib = (() => { const o = []; let a = 1, b = 1; while (a <= 1346269) { if (!o.includes(a)) o.push(a); [a, b] = [b, a + b]; } return o; })();   // the 30 steps, 1 to 1,346,269: the count and the day's euros are one number
-const gist = (md) => { const p = md.split('\n').find((l) => l.trim() && !/^(#|>|\||-\s|\*\s|\d+\.\s|---|\*\*Open)/.test(l.trim())) || ''; const t = p.replace(/\*\*|\*|\[|\]\([^)]*\)|`/g, '').trim(); return t.length > 110 ? t.slice(0, 109).replace(/\s\S*$/, '') + '…' : t; };
-
-async function bible() {
-  const box = $('bible'); if (!box) return;
-  const b = await get('/api/bible').then((r) => r.json()).catch(() => null);
-  if (!b) { box.innerHTML = '<p class="empty">No bible yet.</p>'; $('biblenote').textContent = ''; return; }
-  const f = b.story.front, kinds = [
-    ['Episodes', 'chapters', b.chapters, (x) => `${x.front.date || ''}${x.front.hook ? ' · ' + x.front.hook : ''}`],
-    ['Characters', 'characters', b.characters, (x) => x.front.role || ''],
-    ['Arcs', 'arcs', b.arcs, (x) => `${x.front.type || ''}${x.front.status ? ' · ' + x.front.status : ''}`],
-    ['Systems', 'systems', b.systems, (x) => x.front.type || ''],
-    ['Places', 'locations', b.locations, (x) => `${x.front.type || ''}${x.front.status ? ' · ' + x.front.status : ''}`],
-    ['Glossary', 'terms', b.terms, (x) => x.front.category || ''],
-  ];
-  const all = kinds.flatMap(([, k, list]) => list.map((x) => ({ ...x, kind: k })))
-    .concat([{ kind: 'index', id: 'bible', front: { title: 'The bible' }, body: b.story.body }, { kind: 'index', id: 'plot', front: { title: 'The plot' }, body: b.plot },
-      { kind: 'index', id: 'world', front: { title: 'The world' }, body: b.world }, { kind: 'index', id: 'timeline', front: { title: 'The timeline' }, body: b.timeline }]);
-  const key = (x) => x.kind + '/' + x.id;
-  const open = all.find((x) => key(x) === bibleOpen);
-  $('biblenote').innerHTML = `<b>${esc(f.title || 'Maia City')}</b> · ${esc(f.form || '')} · ${n(b.chapters.length)} of ${n(DAYS)} episodes · ${n(b.characters.length + b.arcs.length + b.systems.length + b.locations.length + b.terms.length)} entries`;
-
-  // the three stakes, as the bible's own Notes section states them
-  const stakes = [...b.story.body.matchAll(/^- \*\*(External|Relational|Internal)\.?\*\*\s*([\s\S]*?)(?=\n- \*\*|\n\n|\n#)/gm)]
-    .map((m) => `<div><b>${m[1]}</b>${esc(m[2].replace(/\s+/g, ' ').trim())}</div>`).join('');
-
-  const step = (c, i) => `<i class="${i < 12 ? 'game' : i === 12 ? 'hinge' : ''}" title="Step ${i + 1}: ${n(c)} paying citizens, €${n(c)} a day${i < 12 ? ' · in the game' : i === 12 ? ' · the hinge: the first real dome' : ''}"><u>Step ${i + 1}</u><b>${n(c)}</b><u>${eur(c * 365)}/yr</u></i>`;
-  const card = (x, sub) => `<button class="idea${bibleOpen === key(x) ? ' on' : ''}" data-k="${key(x)}"><b>${esc(x.front.name || x.front.term || x.front.title || x.id)}</b><span>${esc(gist(x.body))}</span>${sub ? `<span class="row"><em>${esc(sub)}</em></span>` : ''}</button>`;
-  const lane = (name, k, list, sub) => (list.length ? `<section class="lane"><h3>${name}<small>${list.length}</small></h3><div class="ideas">${list.map((x) => card({ ...x, kind: k }, sub(x))).join('')}</div></section>` : '');
-
-  const left = `<div class="lanes">
-    <div class="spine">
-      <p class="prem">${esc(f.premise || '')}</p>
-      ${f['counter-premise'] ? `<p class="anti"><b>And against it</b>${esc(f['counter-premise'])}</p>` : ''}
-      ${f['season-goal'] ? `<p class="goal"><b>This season</b>${esc(f['season-goal'])}</p>` : ''}
-      ${stakes ? `<div class="stakes">${stakes}</div>` : ''}
-      <div><h3 style="font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5);margin:4px 0 7px">The ladder · a euro a day, so the count is the day's revenue</h3><div class="ladder">${fib.map(step).join('')}</div></div>
-    </div>
-    ${lane('The bible', 'index', all.filter((x) => x.kind === 'index'), () => 'index')}
-    ${kinds.map(([name, k, list, sub]) => lane(name, k, list, sub)).join('')}
-  </div>`;
-  const doc = (x) => `<aside class="bdoc"><header><b>${esc(x.front.name || x.front.term || x.front.title || x.id)}</b>${x.front.type || x.front.role || x.front.category ? `<i>${esc(x.front.type || x.front.role || x.front.category)}</i>` : ''}<button data-do="shut" aria-label="Close">×</button></header>` +
-    (x.kind === 'chapters' ? `<div class="md prose">${marked.parse(x.text || '')}</div><h4 style="font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.45);margin:22px 0 8px">Its outline</h4><div class="md">${marked.parse(x.outline || '')}</div>`
-      : `<div class="md">${marked.parse(x.body || '')}</div>`) + '</aside>';
-  box.classList.toggle('open', !!open);
-  box.innerHTML = left + (open ? doc(open) : '');
-  box.querySelectorAll('.idea').forEach((c) => (c.onclick = () => { bibleOpen = bibleOpen === c.dataset.k ? null : c.dataset.k; bible(); }));
-  box.querySelector('[data-do=shut]')?.addEventListener('click', () => { bibleOpen = null; bible(); });
+const compassData = () => get('/api/compass').then((r) => r.json()).catch(() => null);
+async function compass() {
+  const box = $('cx'); if (!box) return;
+  const b = await compassData();
+  if (!b) { box.innerHTML = '<p class="lede">No compass yet.</p>'; return; }
+  (await import('./compass/index.js')).renderCompass(box, b, { tab, DAYS });
+}
+async function artifacts() {
+  const box = $('axl'); if (!box) return;
+  const list = await get('/api/artifacts').then((r) => r.json()).catch(() => []);
+  (await import('./artifacts/index.js')).renderArtifacts(box, list);
+}
+async function ladder() {
+  const box = $('lx'); if (!box) return;
+  (await import('./compass/index.js')).renderLadder(box, await compassData(), { tab });
 }
 
 async function story(s, show = true) {
@@ -502,6 +469,7 @@ function city() {
     const b = e.currentTarget, url = location.origin + '/', say = (t) => { const was = b.firstChild.textContent; b.firstChild.textContent = t; setTimeout(() => (b.firstChild.textContent = was), 1800); };
     try { if (navigator.share) await navigator.share({ title: 'Maia City', text: 'Come and see Maia City grow, one day at a time.', url }); else { await navigator.clipboard.writeText(url); say('Link copied'); } } catch {}
   };
+  $('tiles').insertAdjacentHTML('beforeend', `<button class="tile" data-go="artifacts"><span class="label">Library</span><h2>Artifacts</h2><p>Everything from outside that we learn from: videos, posts, articles, papers. Tagged, summarised, searchable.</p><div class="foot"><span class="go"></span></div></button>`);
   $('tiles').insertAdjacentHTML('beforeend', `<button class="tile" data-library><span class="label">Library</span><h2>Assets</h2><p>Every made thing that stands in the world, one file each. Turn them, read what they are.</p><div class="foot"><span class="go"></span></div></button>`);
   $('tiles').insertAdjacentHTML('beforeend', `<button class="tile dark pair" data-lenses><span class="label">Debug &amp; performance</span><h2>Lenses</h2><p>The world through nine film lenses, with the frame time, draw calls and triangles: where it runs smooth and where it does not.</p><div class="foot"><span class="go"></span></div></button>`);
   // beside the lenses, the engine's own test: the world with every plot filled (898 million standing, nine million moving; TheGame/src/scatter/stress.js)
@@ -512,4 +480,5 @@ function city() {
 [intents, stories, me, scenes] = await Promise.all([get('/api/intents').then((r) => r.json()), get('/api/stories').then((r) => r.json()).catch(() => []), get('/api/me').then((r) => r.json()).catch(() => ({})), get('/api/scenes').then((r) => r.json()).catch(() => [])]);
 board(); home();
 shelf();
-game('walk', false); tab(['city', 'intents', 'stories', 'game', 'join'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');
+if ($('tocompass')) $('tocompass').onclick = () => tab('compass');
+game('walk', false); tab(['city', 'intents', 'stories', 'compass', 'ladder', 'artifacts', 'game', 'join'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');

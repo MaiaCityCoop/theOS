@@ -37,7 +37,6 @@ import { WORDS } from './growth.js';
 
 const R0 = 0.69, PER = 1.8, CLUMPS = 55, PATCHES = 90, TOP = 1;   // R0: metres of reach where the classes begin (0.69-2.8 m, 2.8-11 m, ...); PER: a cell's side to its class's middle reach; CLUMPS, PATCHES: a biome's groves and the patches where one kind leads, metres, at the class of a grown tree (TOP), where its biome does not say (its `groves`)
 const SHADE = 0.85;   // how much of the light coming down through a crown its foliage takes where it is deepest, over its middle
-const SUB = 4;   // a growth map texel's light is the mean of SUB x SUB points over it, half a metre apart (gatherOf)
 
 // ---- the spread order (stage 5's): the one number that places and thins ----
 const bayer2 = (x, y) => x.bitXor(y).bitAnd(uint(1)).mul(uint(2)).add(y.bitAnd(uint(1)));
@@ -209,11 +208,13 @@ export function placeIn(c, L, M, pos) {
 
 /** What layer L leaves at q (a texel's middle, metres) for the layers after it, as the growth map keeps it: each of its
     cells round q placed by the rule, and what stands there takes the light coming down through its crown (the light
-    under the crowns, above: the texel's mean, over SUB x SUB points of it, so a crown smaller than a texel takes its
+    under the crowns, above: the texel's mean, over SUB x SUB points of it (two across its smallest crown), so a crown smaller than a texel takes its
     share of the texel's light), takes the ground at its foot, and drops its litter out to beyond its crown; the litter's
     lead is the thing that drops most there. */
 export function gatherOf(L, M) {
-  const crowns = L.entries.filter(crowned), crownFar = Math.max(0, ...crowns.map(crownMost));
+  // (the texel's light the mean of SUB x SUB points over it, two across its smallest crown (Nyquist's: its edge is not
+  // lost between them; crownMost: a crown's half width), at its word's finest texel, its band limit (growth.js): one)
+  const crowns = L.entries.filter(crowned), crownFar = Math.max(0, ...crowns.map(crownMost)), SUB = crowns.length ? Math.max(1, Math.ceil((M?.texels?.[L.word] ?? L.band) / Math.min(...crowns.map(crownMost)))) : 1;
   // (q: the texel's middle; texel: its side, metres, a node: the growth map's level's. Its cells as far round q as anything
   // of theirs reaches: their litter and feet, their crowns over the texel's points)
   return (q, texel) => {

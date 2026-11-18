@@ -65,7 +65,7 @@ export function createGround(renderer, tex) {
     // (plain shared nodes, not a function: three works a shared node out once, and hands the two to the two targets)
     const pos = posOf(), I = riverInfo(pos), w = I.y, d = abs(I.x), b = I.z, dist = camDist(pos);
     const L = biomesAt({ p: pos, dist, d, w, b });   // every biome's share here: their grass, its height, their stones, the dryness
-    const path = placeOff(pos, pathMask(pathN(pos))), oc = outcropMask(pos), stage = stageAt(pos), keep = offWays(clearOf(pos).mul(float(1).sub(stage)), pos, 1);   // (and no grass or stone on a way: src/world/ways.js)
+    const path = placeOff(pos, pathMask(pathN(pos))), oc = outcropMask(pos), stage = stageAt(pos), keep = offWays(clearOf(pos).mul(float(1).sub(stage)), pos);   // (and no grass or stone on a way, a blade's or a stone's middle: src/world/ways.js; a stone by its own size there too, src/scatter/rocks.js)
     const dens = float(1).sub(path).mul(float(1).sub(bareMask(pos))).mul(float(1).sub(oc.mul(0.25))).mul(L.cover).mul(keep);
     const stone = keep.mul(L.stones.add(oc.mul(0.5))).mul(float(1).sub(path.mul(0.8)));
     const t = grassTint(tex, pos, L.dry, 0);
@@ -106,6 +106,27 @@ export function createGround(renderer, tex) {
   // (still out, for the world complete: src/core/settle.js): what reads the map passing from the one before to the new,
   // and the map being read back for the CPU
   source('ground', () => (fadeAt >= 0 ? 1 : 0) + (reading ? 1 : 0));
+  // (passing from the maps before to the new ones: what reads them packs again each frame of it; and, none fading, the
+  // library's stage or sandbox moved: drawn again whole)
+  function fadeOn() {
+    if (fadeAt >= 0) { const t = Math.min(1, ++fadeAt / FADE), e = t * t * (3 - 2 * t); W.value = cur ? e : 1 - e; this.version++; if (t >= 1) fadeAt = -1; }
+    if (fadeAt < 0) { const k = `${U.uSand.value.toArray()}|${U.uStage.value.toArray()}`; if (k !== laid) { laid = k; lastS = 0; } }
+  }
+  // level l of the set read drawn again where it is, if it must be (the camera walked 32 of its texels, rose or sank by
+  // a quarter of its height, or `whole`), not at all too high up for anything to read it: whether it was
+  const drawLevel = (l, S, cx, cz, dy, whole) => {
+    const TEXEL = 0.5 * S * 2 ** l, SNAP = 32 * TEXEL, reach = REACH * S * 2 ** l, M = R[cur][l], o = M.o.value, was = lastDy[l];
+    const ox = Math.round(cx / SNAP) * SNAP - (N * TEXEL) / 2, oz = Math.round(cz / SNAP) * SNAP - (N * TEXEL) / 2;
+    if (!whole && ((ox === o.x && oz === o.y && Math.abs(dy - was) < Math.max(4, was * 0.25)) || (dy > reach && was > reach))) return false;   // (higher than it reaches: nothing reads it)
+    lastDy[l] = dy;
+    G.o.value.set(ox, oz); G.texel.value = TEXEL; G.base.value = Math.round(heightCPU(ox + (N * TEXEL) / 2, oz + (N * TEXEL) / 2));
+    M.o.value.copy(G.o.value); M.texel.value = TEXEL; M.base.value = G.base.value;
+    const before = renderer.getRenderTarget(), ac = renderer.autoClear, rt = rts[cur];
+    rt.viewport.set(l * N, 0, N, N); rt.scissor.set(l * N, 0, N, N); renderer.autoClear = false;   // (its own window only: the others kept)
+    renderer.setRenderTarget(rt); renderer.render(quad, cam); renderer.setRenderTarget(before); renderer.autoClear = ac;
+    if (l === 0 && dy < 30) readBack(M.o.value.clone(), TEXEL, G.base.value);   // only a walker near the ground needs the CPU's copy (the rocks' bodies): level 0's
+    return true;
+  };
   return {
     version: 0,
     /** How many times the CPU's copy has been read back (what looks at it knows it has new ground: src/scatter/rocks.js). */
@@ -130,11 +151,7 @@ export function createGround(renderer, tex) {
     /** s: the lens factor; a level drawn again when the camera has walked 32 of its texels, or risen or sunk by a quarter
         of its height, or the lens's step changed (stepOf); none at all too high up for anything to read it */
     update(cx, cz, dy, s = 1) {
-      if (fadeAt >= 0) {   // (passing from the maps before to the new ones: what reads them packs again each frame of it)
-        const t = Math.min(1, ++fadeAt / FADE), e = t * t * (3 - 2 * t);
-        W.value = cur ? e : 1 - e; this.version++; if (t >= 1) fadeAt = -1;
-      }
-      if (fadeAt < 0) { const k = `${U.uSand.value.toArray()}|${U.uStage.value.toArray()}`; if (k !== laid) { laid = k; lastS = 0; } }   // (the library's stage or sandbox moved: drawn again whole)
+      fadeOn.call(this);
       const S = fadeAt >= 0 ? lastS : stepOf(s, lastS), wv = waysVersion();   // (no other step while one fades: the next waits for it, FADE frames; and when the ways are others than they were)
       // its texels stepped (not its first, nor maps drawn again for what lies on the land: lastS 0): the new ones drawn
       // into the other set, and read more and more from it over FADE frames; else each level of the set read is drawn
@@ -142,19 +159,7 @@ export function createGround(renderer, tex) {
       const whole = S !== lastS || wv !== lastW, step = lastS > 0 && S !== lastS;
       if (step) { cur = 1 - cur; fadeAt = 0; } else if (lastS === 0) { fadeAt = -1; W.value = cur; }
       lastS = S; lastW = wv;
-      for (let l = 0; l < LV; l++) {
-        const TEXEL = 0.5 * S * 2 ** l, SNAP = 32 * TEXEL, reach = REACH * S * 2 ** l, M = R[cur][l], o = M.o.value, was = lastDy[l];
-        const ox = Math.round(cx / SNAP) * SNAP - (N * TEXEL) / 2, oz = Math.round(cz / SNAP) * SNAP - (N * TEXEL) / 2;
-        if (!whole && ox === o.x && oz === o.y && Math.abs(dy - was) < Math.max(4, was * 0.25)) continue;
-        if (!whole && dy > reach && was > reach) continue;   // (higher than it reaches: nothing reads it)
-        lastDy[l] = dy;
-        G.o.value.set(ox, oz); G.texel.value = TEXEL; G.base.value = Math.round(heightCPU(ox + (N * TEXEL) / 2, oz + (N * TEXEL) / 2));
-        M.o.value.copy(G.o.value); M.texel.value = TEXEL; M.base.value = G.base.value;
-        const before = renderer.getRenderTarget(), ac = renderer.autoClear, rt = rts[cur];
-        rt.viewport.set(l * N, 0, N, N); rt.scissor.set(l * N, 0, N, N); renderer.autoClear = false;   // (its own window only: the others kept)
-        renderer.setRenderTarget(rt); renderer.render(quad, cam); renderer.setRenderTarget(before); renderer.autoClear = ac; this.version++;   // what reads the maps knows they are new
-        if (l === 0 && dy < 30) readBack(M.o.value.clone(), TEXEL, G.base.value);   // only a walker near the ground needs the CPU's copy (the rocks' bodies): level 0's
-      }
+      for (let l = 0; l < LV; l++) if (drawLevel(l, S, cx, cz, dy, whole)) this.version++;   // what reads the maps knows they are new
     },
   };
 }

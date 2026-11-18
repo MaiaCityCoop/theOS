@@ -10,17 +10,23 @@ import { U } from '../core/uniforms.js';
 import { TRUTH, pxAt, dialPxAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
-import { OCT_LAM } from '../world/land.js';
+import { OCT_LAM, OCT_AMP } from '../world/land.js';
 import { layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND, SHADE_REACH, CROWNS } from './layers.js';
 import { finish, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
 import { endOf, bladeLit } from '../scatter/grass.js';
-import { RELIEF, reliefShares, reliefOverSnow } from './relief.js';
+import { reliefShares, reliefOverSnow } from './relief.js';
+import { SOIL_RELIEF } from '../world/physics.js';
 
 export const GRID = 16, NODE = 8;   // quads per node side; a level-0 node's side, metres (its reach is the measure's: U.uLandR0, src/terrain/terrain.js)
 /** How many times as far every level of the land reaches but the last (whose reach is where the land ends): 1, and under
     ?truth 4, each quad a quarter as large on the screen (src/detail/measure.js; its finest everywhere is past any GPU). */
 export const FINE = TRUTH ? 4 : 1;
+/** The parallax's steps down the eye's ray (pages.js read, relief.js reliefShares): as many as keep a step of it within a
+    dial pixel where the relief's geometry lets go, half its first level's reach (src/terrain/terrain.js): there the
+    soil's relief (src/world/physics.js) covers SOIL_RELIEF GRID / (NODE FINE) over the steepest of the land's octaves
+    (A / λ: what level 0's reach is made from) dial pixels, whatever the measure (it is in both). */
+export const PSTEPS = Math.ceil((SOIL_RELIEF * GRID) / (NODE * FINE * Math.max(...OCT_AMP.map((A, i) => A / OCT_LAM[i]))));
 
 /** The step the land's normal is worked out over, seen dist metres off: its mesh's quad there (the land's levels keep
     dist over its quad at their ratio: GRID over NODE of the finest's reach), never finer than an eighth of its finest
@@ -28,7 +34,7 @@ export const FINE = TRUTH ? 4 : 1;
 const normalStep = (dist) => max(OCT_LAM.at(-1) / 8, dist.mul(NODE / GRID).div(U.uLandR0.mul(FINE)));
 /** The node's grid point, morphed to the coarser grid at the node's outer edge: { wp (world x, z), k (how far it is
     morphed: 0 … 1), cell (the node's quad, metres) } */
-export function gridOf() {
+function gridOf() {
   const node = attribute('aNode', 'vec4'), g = positionGeometry.xz, cell = node.z.div(GRID), rng = exp2(node.w).mul(U.uLandR0).mul(FINE);
   const k = clamp(camDist(node.xy.add(g.mul(cell))).sub(rng.mul(0.8)).div(rng.mul(0.15)), 0, 1).toVar();
   return { wp: node.xy.add(g.sub(fract(g.mul(0.5)).mul(2).mul(k)).mul(cell)), k, cell };
@@ -156,7 +162,7 @@ export const cavityOf = (h, cv) => mix(1, smoothstep(0.08, 0.5, h).mul(0.62).add
 /** The land at wp (a vec2 variable, metres; node code, in a Fn): its height h, the river there I (riverInfo), and with
     `full` its normal N (the height's steps e metres either way, e by how far off it is seen) and how far it stands over
     the valley's floor (hill). The land's vertex stage. */
-export function landPoint(wp, full) {
+function landPoint(wp, full) {
   const dist = camDist(wp).toVar(), e = normalStep(dist).toVar();
   const at = (q, near) => { const I = (near ? riverNear(q, near) : riverInfo(q)).toVar(), d = abs(I.x).toVar(); return { I, d, h: heightAt(q, dist, d, I.y, I.z).toVar() }; };
   const C = at(wp), h = C.h;
@@ -182,11 +188,11 @@ export function terrainMaterial(vt) {
     // it (reliefShares), the soil's (not the grass's carpet: its blades stand over it), what of it stands out of the
     // snow; read at the mesh's own spacing there (morphed: what the coarser node's vertex at that point reads, so the
     // levels meet), the same in every pass (the colour pass draws where the prepass's depth is)
-    const share = reliefShares(dist).geometry.toVar(), raise = float(0).toVar();
+    const share = reliefShares(dist, PSTEPS).geometry.toVar(), raise = float(0).toVar();
     if (pre) vN.assign(vec3(0, 1, 0));
     If(share.greaterThan(0), () => {
       const sp = P.cell.mul(P.k.add(1)), G = vt.read(wp, vec2(sp, 0), vec2(0, sp), dist, { lod: true });
-      raise.assign(G.h.sub(0.5).mul(RELIEF).mul(share).mul(float(1).sub(G.cv)).mul(reliefOverSnow(snowDepth)));
+      raise.assign(G.h.sub(0.5).mul(SOIL_RELIEF).mul(share).mul(float(1).sub(G.cv)).mul(reliefOverSnow(snowDepth)));
       if (pre) vN.assign(landPoint(wp, true).N);   // (the prepass's asks go by the smooth land under it: its normal)
     });
     // past the meadow's blades, its mean top (src/scatter/grass.js meanTop: U.uMeadowTop): the land's own vertices raised

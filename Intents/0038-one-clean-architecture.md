@@ -229,7 +229,6 @@ unification. Every machine kept busy.
 | Occlusion culling | `aven/0038-draw-occlusion`, PR #68 | CI green | Views from above draw only 2–8 % of main's things: prove with gate stills at `bench-river-bend-26m`, `bench-town-40m` and `bench-pine-forest-90m` that nothing visible is missing (FLIP within noise) |
 | 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
 | 7: one placement rule, the forest in layers | `aven/0038-stage7-layers`, PR #73 (ready for review) | Built, merged with main (`314e2e6`), measured (under Build, Stage 7); CI green | The master's review; Samuel to judge the floor (pictures on `aven/0038-shots`, `stage7/`); the research's floor kinds and the site's species come after 8 and 9 |
-| One measure everywhere | `aven/0038-one-measure`, PR #82 (7 and 8 merged in) | Built on the MacBook, CPU checks only (under Build, One measure everywhere) | The Mac mini: FLIP against the truth at the views named there, the bench, the paths, memory; after #80 |
 
 **Not started:**
 - **6c** is built (draft PR #81, under Build): relief near the eye on a mesh built in compute, parallax further out,
@@ -1682,99 +1681,6 @@ Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at
     - `?truth` drew black before #79;
     - the branch's own close views lost the WebGPU device, and so did the truth retried after #79, on the shared GPU.
 
-### One measure everywhere (2026-11-18)
-
-Built on `aven/0038-one-measure` from main (`d471cd1`), with stage 7 (`82f5e6e`, then `96483d2`) and stage 8 (`4d57e81`,
-then `3c3b261`) merged in, then main again (`5be13a8`, stage 7 merged). The rule of Define, carried to its end: an
-asset says only what it is at full detail, and every switch of detail comes from the asset's own error against its
-full detail, through one function. Built on the MacBook with no GPU work at all (it rebooted twice under GPU load):
-everything below was checked on the CPU.
-
-- **The one function** (`src/detail/error.js`). A rung is anything coarser that stands in for a thing; its error,
-  measured on the thing itself, is the farthest any of it lies from where the thing is, in metres over the thing's size.
-  `errorPx(e, px)` is the pixels of difference it makes at a size on screen, `switchPx(e)` the size under which that is
-  within `ERROR_PX` (and `switchAt` the same as a distance). Every hand-over spans `BAND` (1.5; `FADE` its half on a log
-  scale). A thing is gone at `goneAt(e)`: leaving it out differs by how far it stands off what stays. Everything's
-  levels are cut at the same sizes, `rungPx` (192, 96, 48 … px: they only share the work out); `SURFACE_LEVELS` is
-  worked out from where things are gone (9, as before).
-- **Each rung's error now:**
-
-| Rung | Its error | Its switch |
-| --- | --- | --- |
-| A first share of a crowd's sprigs | its spread order's share error: drawing the first t turns, the farthest a sprig left out lies from one drawn (`crowd.js turnsOf`) | each sprig gone where that is within `ERROR_PX` |
-| A twig or limb gone | its width | `switchPx(width / size)` (was `TWIG`, 0.75 px: the same number) |
-| A plant's clumps | their bake's texel, `TILE` over a chunk's largest side | as stage 5, now through `switchPx` |
-| A plant's impostor | its bake's texel, `CELL` over its sphere's width | as stage 4, now through `switchPx` (`T`) |
-| A made thing's card (the library, no WebGPU) | its bake's texel, `CELL` over its sphere | from about 70 px (tent) and 85 px (fire pit) to `GONE` |
-| A cluster's parent | the cluster's own (stage 8) | unchanged |
-| A ring of blades | how much wider its blades are than the blade, w (2^k − 1); its bends as few as keep the bow within that | ring k where that is within `ERROR_PX` |
-| Nothing: a plant gone | its height over the land, which wears its stand's colour or its floor, over its size (`plant.js goneOf`) | a tree 0.76 px, a shrub 2–2.8, a fern 2.5, a herb 2.9, litter 3.5–7.3 |
-| Nothing: a rock, a made thing gone | all of it (`GONE`, 0.75 px) | rocks thin from 1.13 to 0.75 px, the made things' dot to 0.75 |
-
-- **A crowd does not thin before its clumps.** Measured, the share error of every grown crown is far over its clumps'
-  where they take over: a stone pine missing 5 % of its sprigs is 0.24 m off its truth, where its clumps' texel is
-  about 0.11 m. Stage 5's rule drew half a grown pine's sprigs at 272 px, 17 px drawn off by this measure. So a grown
-  pine or oak is whole (1–2 % of its sprigs go above 114–128 px) down to where its clumps come; ferns and herbs (no far
-  end) thin by the share error alone, whole down to 13–19 px. `P0` and `A` (what the GPU enlarges the survivors by) run
-  through the ends of each crown's measured thinning (A as small as 0.005 where a crown hardly thins).
-- **Levels.** A plant's levels are everything's, down to the one its end falls in, the last down to its end
-  (`plant.js bandsOf`). A stand cuts its kinds' levels as one (`trees.js cutOf`): two levels one where every shape of
-  every kind holds the same in both (its room), so the floor's litter has one level below 192 px and the canopy six
-  (192, 96, 48, 24, 12, and 0.76–12 px for the impostors alone). The workers build each level by the band they are told
-  (`recipes.worker.js`, `plantFamily`). A level's patches are as large as its band asks (MAXP of them hold the round it
-  reaches): 4 near, 256 for the far impostors. Kinds group by their layer, the level they end at and whether they have a
-  far end: the saplings and the reeds now share a stand.
-- **The grass** (`assets/grass.js`: its blade only; `src/scatter/grass.js ringsOf`): its rings are made from the blade
-  (each ring's cells √2 times the last's, its blades halved and doubled), ring k from where how much wider its blades are
-  is within `ERROR_PX`, coming in over the `BAND` past there. At a window 1080 tall: the blade to 15–22 m, cells of
-  0.12 m from there to 45–67 m, of 0.17 m from there to the meadow's end, three, three and two bends. The meadow ends
-  where the ground's map does (`ground.js REACH`, 112 m), thinning over the `BAND` before it; the stones' reach is the
-  same map's (was 104 m, shrinking from 89; now from 75).
-- **Deleted:** the kinds' pixel bands (`tree` 260 120 34 18 7 3, `shrub` 140 16 5, `litter` and `herb` 100 6), every
-  kind's `fade` (0.15, the trees' 0.1) and `sink` (1.7), the impostor's 1.5 px (`default`, `shelter`), `far`'s levels
-  (`{}` / `{ speck: false }`: now yes or no); the grass's rings (15, 42, 88 m, fades 5, 10, 22, its cells, bends and
-  end); the crowd's `TWIG` and its thinning to `SWELL^-A` (`M`, `P0`); the rocks' `THIN` 1.15–1.84 px and `REACH` 104 m;
-  the made things' dot at 0.95 px; the drawer's dot sink 1.6 and end 0.3 px; the plants' patches 4 << i (at most 64);
-  the flame's four hand-built levels (it says its faces); `SURFACE_LEVELS` 9 as a number. `tools/scale.js` now fails
-  where an asset's file or a kind holds detail data (check 4b): here it finds none; on the tree before this change, 25.
-- **Not changed, and why:** the stress world's zoo keeps its ladder (`ladder.js` 400 … 1.15 px, the drawer's `SKINPX`
-  28, the herds' 600 m) until 8b; the textures' relief from 10 and 90 px (a shading cost, not a rung); the shadows'
-  stand-ins (80, 30 m: stage 9's cascades); the land's canopy colour coming in over 0.3–0.68 of where the trees go
-  (stage 6); the crowd's own hand-over shapes (`WIN` 1.3, `GROW` 1.1, the impostor's cross-fade `FADE` 0.15) and its
-  per-plant offset `SWITCH` (0.72–1), which still reckons a plant up to 1/0.72 smaller than it is: its crowd and clumps
-  come up to 1.4 `ERROR_PX` early; `PX_CUT` (where the cut's compute begins: a split of the work).
-- **Measured here (CPU only; not gates):**
-  - `bun tools/scale.js`: 24 of 24, and no asset holds detail data (20 asset files, 8 kinds). `bunx --bun vite build`:
-    TheGame and OS built. `bun tools/gate/pop.js belltent`: the largest jump 0.606 px with the morph, 1.010 swapped (as
-    stage 8's); `--at firepit:7.4,23,113`: 7304, 2825 and 1225 triangles, the same as before this change.
-  - Every level of every kind, built as the workers build it by its band, fits its room (a CPU walk of all 7 stands).
-  - The switch points of a grown shape, before → now (pixels of the measure; metres at a window 1080 tall):
-
-| Plant | Its crowd thins from | Its clumps, its impostor | Gone |
-| --- | --- | --- | --- |
-| Stone pine, 19.5 m | 385 px (41 m) → hardly: 1 % from 520 px | 128 px (122 m), 75 px (209 m): unchanged | 3 px (5.2 km) → 0.76 px (20.7 km) |
-| Holm oak, 21 m | 341 px (49 m) → hardly: 2 % from 718 px | 114 px (147 m), 85 px (198 m) | 3 px (5.6 km) → 0.76 px (22.2 km) |
-| Mastic, 6.4 m | 405 px (13 m) → 330 px | 136 px (38 m) | 5 px (1.0 km) → 2.56 px (2.0 km) |
-| Rockrose, bracken | 387, 181 px → not before their impostor (134, 105 px) | | 5 px (0.67 km) → 2.8, 2.0 px (1.2, 1.7 km) |
-| Fern, 1.36 m | 165 px (6.6 m) → 19 px (58 m) | none (its kind has no far end) | 6 px (182 m) → 2.47 px (442 m) |
-| Woodland herb, 0.72 m | 167 px (3.4 m) → 13 px (44 m) | none | 6 px (96 m) → 2.94 px (195 m) |
-| Pine litter, oak litter, moss | none | none | 6 px → 6.2, 7.3, 6.5 px (145, 110, 139 m) |
-| Dead wood, fallen log, bedded stone | none | none | 6 px → 6.5, 5.2, 3.5 px (318, 710, 365 m) |
-
-  - A rough load, on the CPU (eye level, flat ground, every layer at its densest grove, a 100° wedge, nothing hidden;
-    to compare, not a measure of a view): the plants' mesh vertices 15.2 M → 20.8 M (+37 %), the grass 0.39 M → 2.34 M
-    (80 k → 383 k blades). The canopy's levels hold 90, 89, 89, 11 and 11 thousand vertices for its largest shape (was
-    86, 51, 15 and 5 thousand). The far impostors reach about 21 km (was 5–6 km), so the trees' far level packs up to
-    about 13 M cells a repack (again every 160 m the camera moves), the saplings' and reeds' 6 M (every 40 m); the
-    trees' far draw holds up to 480 k (was 240 k).
-- **To be measured on the Mac mini** (its own GPU; nothing here was drawn): FLIP against `?truth` at
-  `bench-tent-eye-level`, `bench-pine-forest-eye-level`, `pines-30m` and `tent-120m`, and where switch points moved
-  most: `pines-120m` (grown crowns whole into their clumps), `pines-500m`, `far-2.5km` and `bench-skyline-2.5km`
-  (impostors to about 21 km), `tent-10m` and `tent-30m` (the meadow's rings), `bench-pine-forest-90m` and
-  `bench-river-bend-26m` (shrubs, reeds, ferns farther); the bench there; the paths (the far levels' repacks); memory.
-  If the cost is too much, `ERROR_PX` is the one number to raise: at 2 every switch's size on screen doubles.
-- **Lines:** +424 −294 in the game (net +130, of it +22 the detail engine's README): the rungs' errors said where they
-  are measured, the stands' cut and the grass's rings made from the blade.
 ### The bench, pass by pass, on main (2026-11-18)
 
 Built on `aven/0038-bench-per-pass` from main at `3d0c3b5`: stage 9's `cf77e71` ("the bench times each pass on its
@@ -1812,97 +1718,6 @@ per-pass GPU ceilings can be a merge rule.
   - the history reads: Catmull-Rom's five of the kept picture;
   - the motion-vector dilation: the nearest of the 2 × 2, by a gather of the depth.
 
-### The land and the ground from the one measure (train 2, 2026-11-18)
-
-On `aven/0038-ground-unify`, from `aven/0038-train-1c`, then with one measure v2 (`aven/0038-one-measure`, `499dbe0`)
-merged in. Every hand-set distance in the land's and the ground's code is now said by the measure (`src/detail/
-measure.js`, `error.js`) or by what is drawn, in the dial's pixels where v2 has them.
-
-- **(3) The land's octaves** (`src/world/land.nodes.js heightOf`): an octave is kept while its amplitude covers more
-  than a dial pixel there (`dialPxAt`), handed over over the `BAND` (was 9.6 to 19.2 wavelengths).
-- **(4) The land's levels** (`src/terrain/terrain.js`): level 0's reach is 4 times the farthest any octave shows over its
-  wavelength (the quads at most λ/2 apart wherever it shows), each level twice the one before's, now at the dial
-  (`distanceAt(ERROR_PX(), A)`); the node lists sized at the most (`farMost`), grown when exceeded. The relief's first
-  level is where its geometry shows (`RELIEF` covering `PSTEPS` dial pixels).
-- **(6) The pages** (`src/terrain/pages.js`): `KEEP` two sweeps and the read-backs; `PIN` the land's end; `NEAR` and the
-  jump cut gone. The bias is chosen only from a sweep whose every frame was read, and only from asks all of one view
-  (below).
-- **(2) The ground's shading by the texel**: the cavity laid into the page with its colour (`material.js cavityOf`), the
-  stands' crown pattern going over into its mean where the texel can no longer hold it; the near boost, the 60–400 m
-  fade and the sun's contrast by distance gone.
-- **(5) The growth map** (`src/scatter/growth.js`): as many levels as reach its farthest reader at the most: each
-  reading layer's `goneOf` at `farMost`, and the meadow's end.
-- **(1) The meadow's end** (`src/scatter/grass.js bandsOf`, `src/scatter/ground.js`):
-  - The blades end where the mean blade covers `GONE` dial pixels (leaving them out differs by all of their height):
-    441 m at a window 1080 drawn, 588 m at 1440, 882 m at 2160. Before, they ended where the ground's map did (112 m).
-  - The ground's map is a clipmap of the same 512² maps, its texel doubling a level, with as many levels as reach that
-    end at the most: 4 on a 4K screen, 32 MB with the lens step's second set (was 8 MB). A level is drawn again when the
-    camera walks 32 of its texels. A point is read from the finest level that holds it, going over into the next over
-    the outer eighth. The stones and the CPU's copy read level 0.
-  - The carpet reads the blades' own end share (`grass.js endOf`, the end in `U.uMeadowEnd`). It shapes the carpet's
-    shade under them (was 3–70 m), its bare patches while they stand (were let go 100–160 m), its cover's share (was
-    4–60 m) and the snow's lift (was 20–90 m).
-  - Under `?truth` the first ring still ends at the first map's reach (until the truth is the dial, #106).
-  - **(b), the master's call** (`2e886be`, `0af5190`): the blades end where the ring drawn there stands under a dial
-    pixel apart (its cell × `dialK`), past which a field of them cannot be told from a surface with the same statistics,
-    and the carpet carries the meadow on; nearer still where the blade is gone. 192 m at a window drawn 1080 tall, 257 m
-    at 1440, 385 m at 2160 (ring 3's cells, 0.24 m; ring 4 never comes in). The ground's map: 3 levels.
-  - **The blades' caps** from the view's real share (`src/scatter/view.js viewArea`: the most of a band the view takes
-    in, level to straight down, from any height: 0.47–0.56 of a ring's band), within `roomOf('ground')` (#97); the grass
-    tiers' packing noted under 'ground'. 3.5 M blades (159 MB) at 1440, 7.8 M (357 MB) at 2160; at the gone reach they
-    were 23.2 M (1.06 GB).
-  - **Past its blades the carpet is the meadow, averaged** (`ec2596f`): its mean top (`grass.js meanTop`, from
-    `bladeIn`'s own distributions: the mean blade at its tip, bowed by its mean bend, 0.69 of the asset's height) raises
-    the land's own vertices as much as the meadow covers, from where the blades thin and as long as that top covers a
-    dial pixel; its tufts go in the parallax at that height; it is lit by the blades' own light (`grass.js bladeLit`,
-    one function for both) at their tips. Its colour, cover, shade and snow read the blades' own share (`endOf`).
-  - **?truth the dial** (#106 merged, `cce13fd`): the meadow's rings and end by the same rule at the truth's pixel (to
-    1540 m at 4K and a quarter dial); its caps then need 125 M blades, so within `roomOf('ground')` each truth ring
-    keeps about 12 % until #82's stores are sized from their own count.
-  - **The checks** (the master's GPU turn on `cce13fd`): FLIP against the truth at `tent-30m` and `tent-120m`, the
-    stills, motion over `zoom` (no pop at the hand-over). Caps beyond the interim bound are #82's.
-- **Why still views from 40 m up laid pages** (traced on the GPU at `41deea0` and `b510a8e`: `town, 40 m` and `pine
-  forest, 90 m`, 240 still frames, then the bench's 60):
-  - Standing still, nothing is laid: 0 pages in 240 frames, before and after.
-  - The bench's first frame sets its own pose. `over` counted `want`, the pages asked over two sweeps, so it held the
-    view before and the view after. It overflowed, and the bias was chosen coarser "while moving" (0 → 0.75, 0.5 →
-    0.75), then chosen back once the camera stood.
-  - Every page was laid twice within the bench's 60 frames: 732 to 1061 pages, 3 to 5 ms a frame.
-  - Now (`20861d9`) the bias is chosen only from asks that are all of one view: once a still view's sweep is read, or,
-    in motion, from the last sweep's asks (`needAt`, what the pick halves over) once the camera has moved through all
-    of it.
-  - The invariant: a view's bias is chosen once, a sweep after it stands, so a still view settles within one sweep and
-    its read-backs (`SPAN + READS`, 20 frames).
-- Settle at `b510a8e` (stills, fresh): the start 22.6 s, `bench-tent-eye-level` 10.2 s, `bench-town-40m` 5.6 s,
-  `tent-30m` 8.6 s. Pictures: `~/src/github/MaiaCityCoop/shots/0038-ground-unify/`.
-- **Not measured yet:** `20861d9` and `b9ae230` (the train measures them). Left: (7) the truth branches (with Task C's
-  `?truth` at dial 0), and the carpet's own tile scales and tufts by the texel.
-### Train 2: GPU memory by class, beside the milliseconds (2026-11-18)
-
-Built on `aven/0038-memory` from train 1c (`e11b419`), on the Mac mini, CPU only (the integration train measures it).
-The 8 GB hard gate gets what the 12 ms got in #83: shared out by the frame's classes, each with its ceiling, and the
-gate says each class's share.
-
-- **One table of classes** (`src/core/classes.js`, plain JS): each class's passes by the names their code marks them
-  with (#83's CLASSES, moved here from `tools/bench.js`, which re-exports them), and the memory: MEMORY (the gate,
-  8 GB), BUDGET_MB a class and what they leave the browser. Budgets: geometry 2048 MB (the plants' and rocks' meshes,
-  their far ends' atlases, what the tiers pack and the culling keeps, the growth map, the picture drawn inside), ground
-  1024 (the land's pages, the world's materials, the relief, the ground's maps), light 256 (the cascades at 16 MB a
-  2048² depth, the canopy, the air's froxels, the clouds' map), upscale/post 256 (the kept picture at the screen's
-  pixels, the lens), other 512 (what no pool notes). They leave the page and the browser's processes about 3.7 GB (the
-  renderer was 2.06 GB, the browser and its helpers 0.1 GB at the paths' peak). First numbers, to be set from the
-  train's own readings as the ms ceilings are.
-- **One accounting** (`src/core/gpu.js`): every pool noted under its class (note, more, gpuStorage, gpuStorageLater),
-  at its making, made anew, let go; the ledger (`window.__memory()`) by class beside each budget; `roomOf(class)`, what
-  a class has left, for every pool that may be larger or smaller. And the device itself counted: every buffer and
-  texture as it is made and destroyed (a texture by its format, its mips and layers), so the ledger says what no pool
-  notes (three's own buffers, the targets it makes): what to note next.
-- **Sized from the room, with the device's limits:** the culling's arenas (a tier the geometry's room cannot hold is
-  drawn whole) and the land's pages (never more slots than the ground's room). The impostors' atlases (the rung-error
-  agent's), #82 v2's capacities and the cascades (after 9a's fix) read `roomOf` the same way.
-- **The gate:** `gate.js bench` prints the GPU's memory by class for every view beside its milliseconds, with each
-  budget, all the pools note, all the device made and what no pool notes, and says a class over its budget;
-  `gate.js paths` the same as each path ends. `.gate/bench.json` and `paths.json` hold it.
 ### Code gates: the baseline (2026-11-18)
 
 `TheGame/tools/health.js` runs the architecture pass's code gates (the `intents` skill, "Define: the architecture
@@ -1957,6 +1772,31 @@ CI runs it on every pull request against main (`--base HEAD^1`: main, as the pul
 3 s. The four imports from the game's root (three in `cine/trailer.js`, one in `tools/sweep.js`) are now relative, so
 madge follows every import.
 
+### The 10 % gate as one report (2026-11-18)
+
+`bun tools/gate/ten.js --base <run>` holds a run of the gate against a stored one, the base (the train's numbers on
+main), measure by measure: Here, Base, Change, and whether the change is the skill's 10 % better ("Define: the 10 %
+gate"). It reads only what the gate kept and measures nothing again, so it runs on the CPU.
+- **A run** is addressed as the gate names it. It is `.gate/<tag>/summary.json` (`gate.js all`), with these beside it
+  where they were run: the diff against its own truth, `real.json` and `motion-<tag>/report.json`. `<run>` is a tag, a
+  `summary.json`, or a git ref (its commit's tag). Where this code has no summary, its last single runs are used
+  (`bench.json`, `paths.json`, `compile.json`, `real.json`).
+- **The measures** are the skill's, and lower is better in each:
+  - rendering: GPU ms a frame per bench view and per part; each path's p99 frame and frames over 16.7 ms;
+  - startup: the world settled where it starts, cold and warm;
+  - boot and load: the WGSL compiled until settled;
+  - memory: the browser's peak; each class's GPU memory;
+  - quality: FLIP against its own truth (mean, p99 tile); each view class's distances to the photos; each path's worst
+    pop.
+- **It fails (exit 1)** where a measure got worse by more than its noise. The noise is what two runs of the same code
+  differ by, as the gate measured it: the bench's `--twice` (`ceilings.json`), `gate.js noise <tag>` (the FLIP floor),
+  `motion --floor`, or `--again` (the base run twice, every measure).
+- **A measure with no noise measured is shown, never judged.** On the runs kept so far, that is the paths, the compile
+  and real: the base needs `--again` for them.
+- **It holds no number of its own.** The 10 % is read from the skill's heading, the noise from the gate.
+
+The gate does not yet keep the first frame or the bytes loaded before it, so the report cannot show them (under Todo).
+
 ## Propose
 
 ## Story
@@ -1975,6 +1815,7 @@ madge follows every import.
 - [x] Stage 3: boot (merged #67; Safari to be tried on next)
 - [x] Stage 4: far end, impostor and clump rung (merged #66)
 - [x] Stage 5: crowds, parts and one wind (#69; its cost and the impostors' size left, under Open risks)
+- [ ] Stage 5: crowds, parts and one wind
   - [x] the draw path's two-pass occlusion culling, against a depth pyramid (built; draft PR #68)
   - [x] the draw path's follow-ups: one culling for every tier, the late prepass bundled, the grass culled, plants' boxes measured, every GPU resource and dispatch within the adapter's limits (PR #77, ready)
 - [ ] Stage 6: land, virtual texture and relief
@@ -1984,8 +1825,6 @@ madge follows every import.
 - [ ] Stage 7: placement, five layers
   - [x] one rule, the growth map, the forest's layers and their kinds (built; draft PR #73)
 - [ ] Stage 8: surfaces, cluster hierarchy (built: rocks, the tent and the fire pit; the stress world's zoo to 8b)
-- [ ] One measure everywhere: every rung where its own error is the one ERROR_PX (built, CPU-checked; PR #82, to be
-  measured on the Mac mini)
 - [ ] Stage 9: one light, characters
 - [ ] The bench pass by pass (built on `aven/0038-bench-per-pass`): measured on the Mac mini, the per-part ceilings a
       merge rule
@@ -1994,11 +1833,17 @@ madge follows every import.
       pull request (`--base`)
 - [ ] The 91 unused exports the dead-code gate finds over `src assets/kit tools`: the first clean-up after train 2
       lands (train 2's branches change their files)
+- [x] The 10 % gate as one report: `tools/gate/ten.js` (under Build)
+- [ ] The gate keeps the first frame and the bytes loaded before it, so the 10 % report can hold them; the train's
+      base is run twice (`--again`), so the paths, the compile and real are judged too
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
 - [ ] The gate finished: motion (nothing pops), the truth in tiles, real against photographs (#78; #79 merged)
   - [ ] its first job on main: the truth at 2.5 and 12 km in tiles, motion on the four paths, real at every view
   - [ ] `?truth`'s cold start: build its world at the game's pace, then draw at its finest
   - [ ] the per-pass ceilings as a gate rule (`budgets` in Define, `gate.js bench` fails a class over its ceiling)
+  - [x] ~~a `scale.js` ratchet counting `?truth`'s branches and unexplained thresholds~~: superseded (2026-11-18).
+      `tools/health.js`'s Settings gate is the one counter of mode branches and hand-set numbers, and fails any rise
+      over the base; a second counter would be the copy this intent removes
 
 ## Changelog
 
@@ -2174,27 +2019,6 @@ madge follows every import.
 - **Not there yet:** nothing measured: the Mac mini runs `bun tools/gate.js bench`; stage 9's passes join when it merges
   main; the upscale's cost is not looked into.
 
-- **Asked (by the master on the Mac mini):** one measure everywhere: `ERROR_PX` with `error.js` drives every switch
-  of detail, each from the asset's own error against its full detail, through one function. Delete the kinds' pixel
-  bands, `fade` and `sink`, the plants' levels, the grass's 15, 42 and 88 m and every other hand-set threshold of
-  detail; constants of physics and ecology stay. Stages 7 and 8 merged in. CPU only: the MacBook rebooted twice under
-  GPU load.
-- **Delivered:** built (under Build, One measure everywhere), PR #82:
-  - `errorPx` and `switchPx` in `error.js`: crowds by their spread order's share error, clumps and impostors by their
-    bake's, the grass's rings by their blades, a thing's end by how far it stands off the land;
-  - the levels cut as one where they hold the same;
-  - `scale.js` checks that no asset holds detail data.
-- **Good:**
-  - no kind or asset file holds a size on screen, a fade or a ring any more (25 places found on the tree before);
-  - the cut's pop check and triangles are unchanged;
-  - every level fits its room;
-  - `scale.js` 24 of 24, both builds pass.
-- **Not there yet:**
-  - nothing was drawn here: FLIP, the bench, the paths and memory are the Mac mini's;
-  - a rough CPU model reads the plants' mesh vertices +37 % and the grass 6× (the crowds whole down to their clumps,
-    trees to 21 km, the meadow's rings within 1 px), so `ERROR_PX` may have to rise;
-  - the stress world's ladder waits for 8b;
-  - the per-plant offset still reckons a plant up to 1/0.72 small.
 - **Asked (Task C, by the session on the Mac mini):** finish the gate. `gate.js motion` (check 4 in motion: the change
   detail makes in each frame against the same frame's truth, per 32-px tile, with FLIP; a filmstrip; the merge rule
   "nothing pops"); `?truth` past 800 m, in passes; `gate.js real` (check 4a: CMMD and image statistics against
@@ -2252,39 +2076,17 @@ madge follows every import.
     250–355 frames where the floor is about 150; the walk's GPU p99 rose 1–3.5 ms;
   - the skirts are not in the gate's views, so they are checked in the code, not in a still;
   - the far grazing hand-over left from 6b; Safari not tried.
-
-- **Asked (by the master on the Mac mini):** `?truth` as the one measure with the dial turned down after the game's own
-  start (no REACH, BIG or REACHES); then the truth's memory before and after, in one GPU turn on #102's guard.
-- **Delivered (#106, draft):**
-  - `?truth` turns the dial to `TRUTH_DIAL` (a quarter of a pixel) once `game.ready` has settled;
-  - every capacity is sized for `DIAL_LEAST`;
-  - a heap clamps its slots to its kinds (`6a0edcc`);
-  - the before/after, measured on the Mac mini at 20:45 (bench-tent-eye-level, tent-10m, pines-30m).
-- **Good:**
-  - the start settled in 39.3 s after (42.6 s before), held last by the rocks (at most 25 pending; 8034 before);
-  - with the heap fix the rocks' buffers fit under `?truth`: corners 74.0 MB, vertices 70.6 MB (plain 27.3 and 26.5).
-- **Not there yet:**
-  - **Neither side drew a valid frame.** Both overran WebGPU's default limits (binding 128 MiB, buffer 256 MiB), which is
-    all the device is asked for, though the adapter offers 4 GiB:
-    - grass's packed blades, 157 MB in one binding on both sides (57.8 MB plain; grass.js:163 → tier.js:96), routed to
-      its owner;
-    - on the after side, before `6a0edcc`, the rock heap at 96 slots: a 259 MB vertex binding and a 273 MB index buffer.
-  - The memory peaks (physical footprint, the guard's own count) are lower bounds, since a refused buffer is never
-    allocated:
-    - before: 6.87 GB, GPU process 4.45, swap at most 4173 of 5120 MB;
-    - after: 7.25 GB, GPU process 4.68, swap at most 3884 of 5120 MB.
-  - The after side's first view did not settle (the land's pages still out after 300 s). The run then hung 13 minutes in
-    `page.close()`, now guarded in #102 (`d70c299`).
-  - `createBuffer` asked 13.88 GB in total under `?truth` against 1.66 GB plain, while the ledger holds 2.80 against
-    2.01 GB; passed to the memory accounting (#97).
-
-- **Asked (by the master on the Mac mini):** the 8 GB gate as the ms budgets are: GPU memory per class, one accounting
-  in `gpu.js` (every buffer and texture with its class and bytes, at making and letting go), the gate printing memory
-  per class beside the ms, a budget per class summing under 8 GB with the browser's share, and what may be larger or
-  smaller sized from it with the device's limits; the class names #83's.
-- **Delivered:** `aven/0038-memory`, draft PR (under Build, "Train 2: GPU memory by class…").
-- **Not there yet:** not run (CPU only); the budgets are first numbers, to be set from the train's readings; what no
-  pool notes is counted, not yet named.
+- **Asked (by the master on the Mac mini):** the 10 % gate's missing startup measures: the first frame and the bytes
+  loaded before it, under one definition shared with the cold-start work.
+- **Delivered:**
+  - `src/core/marks.js`: the game's marks on its own timeline, `FIRST_FRAME` = `game:first-frame`;
+  - `src/boot.js` stamps it once the GPU has done the first frame that draws the world (not the loading veil);
+  - `tools/gate.js paths` reads it in its cold and warm runs: ms from the navigation's start, and the bytes over the wire
+    of every file that had come by then (what a cache served is not counted);
+  - `tools/gate/ten.js` holds both under startup.
+- **Good:** `tools/health.js --base origin/main` finds nothing worse; `scale.js` 24 of 24; the build passes.
+- **Not there yet:** not yet run on the GPU; the first `paths` run gives the numbers. Under the dev server, what is loaded
+  is the unbundled modules; a built page (`--url` at a preview) gives the bytes a player loads.
 
 ## Trail
 
@@ -2338,23 +2140,12 @@ madge follows every import.
 | 2026-11-18 | `16f8e01` | Stage 7: the growth map keyed on the sandbox and the stage, not the ground map's fade |
 | 2026-11-18 | `1aac442` | Stage 7 merged with main (6b): the land's litter and far colours read the rule's stands |
 | 2026-11-18 | `3907ce7` | Stage 7 merged with main (`314e2e6`) |
-| 2026-11-18 | `1937ba4` | One measure: stage 7 merged in, from main at `d471cd1` |
-| 2026-11-18 | `c077f59` | One measure: stage 8 merged in, both sides' kinds kept, the intent's doubled rows once |
-| 2026-11-18 | `81ac770` | One measure: stage 8's new head (`3c3b261`) merged in |
-| 2026-11-18 | `a887bbb` | One measure everywhere: `switchPx`; the kinds' bands, fades and sinks, the grass's rings and the other thresholds deleted; check 4b |
-| 2026-11-18 | `11d9aa0` | One measure: merged with main (`5be13a8`, stage 7) |
-| 2026-11-18 | `ae325f2` | One measure: a made thing's card only where it can be baked; the detail engine's README |
-| 2026-11-18 | `5fedb4b` | One measure: a plant's last level ends at its own end, a stand's at its last kind's |
-| 2026-11-18 | `d55430d` | One measure: the notes in the code in fewer lines |
-| 2026-11-18 | `8e9cc38` | One measure: its notes under Build |
 | 2026-11-18 | `9fa8a1f` | Draw path: one culling for every tier (an arena), the late prepass one bundle, the grass culled, plants' boxes measured |
 | 2026-11-18 | `3c821b1` | Draw path: boxes worked out only for what was packed; a bucket found in as many halvings as it takes |
 | 2026-11-18 | `fe8a3f8` | Draw path merged with main (stage 7): the grass's box and the growth map both in its packing |
 | 2026-11-18 | `e969626` | Stage 6c: the notes, the numbers measured, the changelog and trail |
 | 2026-11-18 | `015ab1c` | Stage 6c merged with main (stages 7 and 8): the drawer's ground colour by stage 8, the size for the skirt beside it |
 | 2026-11-18 | `19d0559` | The bench times each pass on its own on main: the passes marked, each in one of four parts (geometry, light, ground, upscale/post) |
-| 2026-11-18 | `35890b2` | `?truth` is the one measure with the dial turned down, after the game's own start (draft PR #106) |
-| 2026-11-18 | `6a0edcc` | A heap never holds more slots than it has kinds; the drawer draws the heap's own slots |
 | 2026-11-18 | `5e27a07` | The gate: motion, the truth in tiles, real against photographs, the GPU lock |
 | 2026-11-18 | `0315389` | The gate: motion and real as modules of `tools/gate/`; motion in two passes, one world in memory |
 | 2026-11-18 | `3311322` | The gate: `?truth` settles (every pixel asks its page); pages held on the gate's clock from the start |
@@ -2370,22 +2161,8 @@ madge follows every import.
 | 2026-11-18 | `ab99e49` | Draw path: `?truth` culls as the game does (the truth draws all that is visible) |
 | 2026-11-18 | `2fdfae0` | Draw path: every culling dispatch within the device's workgroups a dimension |
 | 2026-11-18 | `d7dcd26` | Draw path merged with main (`ecc80f2`, the bench by its passes); PR #77 ready |
-| 2026-11-18 | `41deea0` | Ground: the pages traced frame by frame |
-| 2026-11-18 | `a2c1700` | Ground (3): the land's octaves kept as long as they show |
-| 2026-11-18 | `868e682` | Ground (4, 6): the land's levels and the pages' numbers from the measure |
-| 2026-11-18 | `8b0ab15` | Ground (3, 4): the measure read through main's own measure.js |
-| 2026-11-18 | `63fa4fa` | Ground (5): the growth map as far as what reads it is drawn |
-| 2026-11-18 | `420dc00` | Ground (2): the ground's shading by the texel, not by metres |
-| 2026-11-18 | `b510a8e` | Ground (6): a sweep counts only where every frame of it was read |
-| 2026-11-18 | `f88a1d3` | Ground: one measure v2 merged in; the land and the pages in the dial's pixels |
-| 2026-11-18 | `20861d9` | Ground (6): the bias chosen only from asks all of the view as it is (the bench's re-laying) |
-| 2026-11-18 | `b9ae230` | Ground (1): the blades end where they are gone, the ground's map a clipmap to there, the carpet tied to their share |
-| 2026-11-18 | `85e1e1d` | GPU memory by class: one table of classes, one accounting with the device counted, the gate beside the ms |
-| 2026-11-18 | `2e886be` | Ground (1b): the blades end where the ring drawn there stands under a dial pixel apart |
-| 2026-11-18 | `caeff69` | Ground: #97 (memory by class) merged in |
-| 2026-11-18 | `0af5190` | Ground (1b): the blades' caps from the view's real share, within the ground's room |
 | 2026-11-18 | `26f751d` | `tools/health.js`: the code gates in one command (copies, spaghetti, dead code, cycles, size, settings, dependencies); the baseline under Build |
 | 2026-11-18 | `695ea18` | Imports from the game's root made relative (`cine/trailer.js`, `tools/sweep.js`), so madge follows every import |
 | 2026-11-18 | `bca2270` | The code gates held against main: `health.js --base` (each gate's change, exit 1 where one got worse), run by CI on every pull request |
-| 2026-11-18 | `ec2596f` | Ground (b): past its blades the carpet is the meadow, averaged (its mean top, its tufts, the blades' light) |
-| 2026-11-18 | `cce13fd` | Ground: #106 (?truth the dial, on #82 v2 with train 1c) merged in |
+| 2026-11-18 | `52bbeb9` | The 10 % gate as one report: `tools/gate/ten.js --base <run>` (here, base, change, ≥ 10 %?; exit 1 where a measure got worse beyond its noise) |
+| 2026-11-18 | `78b3451` | The first frame that draws the world, one mark (`game:first-frame`), and the bytes loaded before it in the 10 % gate |

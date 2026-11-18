@@ -6,10 +6,11 @@ import { HMIN, HMAX, heightAt, riverAt, OCT_LAM, OCT_AMP } from '../world/land.j
 import { boxIn } from '../core/frustum.js';
 import { limitOf } from '../core/gpu.js';
 import { U } from '../core/uniforms.js';
-import { terrainMaterial, GRID, NODE, FINE } from './material.js';
+import { terrainMaterial, GRID, NODE, FINE, PSTEPS } from './material.js';
 import { distanceAt, farMost, ERROR_PX } from '../detail/measure.js';
 import { createPages } from './pages.js';
-import { RELIEF, PSTEPS, LEVELS as RELIEF_LEVELS } from './relief.js';
+import { WALKER } from '../../world/scale.js';
+import { SOIL_RELIEF } from '../world/physics.js';
 import { LAYERS } from './layers.js';
 import { waterMaterial } from './water.js';
 import { usedMaterials } from '../materials/bake.js';
@@ -32,6 +33,10 @@ const landR0 = (most = false) => 4 * Math.max(...OCT_AMP.map((A, i) => (most ? f
 /** Nodes a level may hold at most, round the camera whole (a level's reach over its node's side is R0/S0: the same at
     every level; how many, never fewer than the quadtree selects). */
 const perLevel = (r0) => Math.ceil(Math.PI * (r0 * FINE / S0 + 1.5) ** 2);
+/** The relief's levels below level 0 for a level 0 of reach r0: each reaching half as far as the one before, down to
+    the first whose reach is within the walker's eye's height (world/scale.js): the nearest ground the eye sees, where its
+    mesh is finest (src/terrain/relief.js). */
+const reliefLevels = (r0) => Math.ceil(Math.log2((r0 * FINE) / WALKER.eye));
 
 function gridGeometry() {
   const n = GRID + 1, pos = new Float32Array(n * n * 3), idx = new Uint16Array(GRID * GRID * 6);
@@ -73,11 +78,11 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   };
   // (to start with, as many as its levels hold round the camera at the most: the land's to where it ends and the relief's
   // below them; the water's over the levels it is drawn at)
-  const R00 = landR0(true), land = make(perLevel(R00) * (Math.ceil(Math.log2(END / R00)) + 1 + RELIEF_LEVELS)), water = make(perLevel(R00) * WATER_LEVELS);
+  const R00 = landR0(true), land = make(perLevel(R00) * (Math.ceil(Math.log2(END / R00)) + 1 + reliefLevels(R00))), water = make(perLevel(R00) * WATER_LEVELS);
   const landMat = terrainMaterial(pages), waterMat = waterMaterial(tex);
   // near the eye the quadtree goes on into the relief's finer levels (src/terrain/relief.js), each reaching half as far
   // as the one before: nodes of the land like any other, the land's own vertex stage raising them (material.js)
-  let FIRST = -RELIEF_LEVELS, RELIEF0 = -1, raised = 0;   // (the finest level, and the relief's first: the measure's, update; how many nodes of the relief's levels this frame)
+  let FIRST = -reliefLevels(R00), RELIEF0 = -1, raised = 0;   // (the finest level, and the relief's first: the measure's, update; how many nodes of the relief's levels this frame)
   const landMesh = new THREE.Mesh(land.g, landMat), waterMesh = new THREE.Mesh(water.g, waterMat);
   landMesh.frustumCulled = waterMesh.frustumCulled = false;
   landMesh.renderOrder = 10; // after the grass and the rocks: they are in front, the depth test spares the ground's shader
@@ -92,10 +97,10 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
     levels = Math.max(1, Math.ceil(Math.log2(end / R0)) + 1); TOP = S0 * 2 ** (levels - 1); range.length = range2.length = 0;
     for (let i = 0; i < levels; i++) { range.push(i < levels - 1 ? R0 * 2 ** i * FINE : end); range2.push(range[i] * range[i]); }
     // the relief's first level: the coarsest whose first half reaches as far as its geometry shows (relief.js
-    // reliefShares: even parallax would be off by more than the dial, out to where RELIEF covers PSTEPS of its pixels);
-    // its levels from there, the finest RELIEF_LEVELS below
-    const shows = distanceAt(PSTEPS * ERROR_PX(), RELIEF);
-    RELIEF0 = Math.min(-1, Math.ceil(Math.log2((2 * shows) / (R0 * FINE)))); FIRST = RELIEF0 - RELIEF_LEVELS + 1;
+    // reliefShares: even parallax would be off by more than the dial, out to where SOIL_RELIEF covers PSTEPS of its
+    // pixels: level -1, PSTEPS being what it is); its levels from there down to the walker's eye (reliefLevels)
+    const shows = distanceAt(PSTEPS * ERROR_PX(), SOIL_RELIEF);
+    RELIEF0 = Math.min(-1, Math.ceil(Math.log2((2 * shows) / (R0 * FINE)))); FIRST = Math.min(RELIEF0, -reliefLevels(R0));
     U.uLandR0.value = R0; U.uReliefReach.value = R0 * FINE * 2 ** RELIEF0;
     pages.underRelief((S0 * 2 ** FIRST) / GRID, raised > 0);   // (its finest vertices this far apart; whether it has any nodes: the last frame's)
   };

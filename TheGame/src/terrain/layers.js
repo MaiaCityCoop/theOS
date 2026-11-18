@@ -20,6 +20,7 @@ import { U } from '../core/uniforms.js';
 import { byRole } from '../core/registry.js';
 import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID, PATH_W } from '../world/land.nodes.js';
 import { endOf } from '../scatter/grass.js';
+import { byte, un } from '../scatter/growth.js';
 import { BAND } from '../detail/error.js';
 import { standsOf, rowsOf } from '../scatter/rule.js';
 import { detailOf } from '../detail/index.js';
@@ -93,8 +94,6 @@ if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} st
     stand's floor lies in its crowns' shade, the pixel's own (src/terrain/material.js). */
 export const SHADE_REACH = Math.max(-1, ...STANDS.map((S) => S.reach));
 
-const byte = (v) => uint(round(clamp(v, 0, 1).mul(255)));
-const un = (w, k) => float(w.shiftRight(uint(8 * k)).bitAnd(uint(255))).mul(1 / 255);
 
 // the layers' table: a layer's material (its number: src/materials/bake.js), its tile (metres), its pattern's size
 // (metres; 0: none), and whether it goes with the meadow's blades (1)
