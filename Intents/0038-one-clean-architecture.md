@@ -1115,6 +1115,51 @@ tools; the game's code only where noted.
 - **`diff --jpeg`** writes a labelled sheet of each view: the two side by side, and the squares round the worst tile.
 - **No comparison with main** (Samuel, 2026-11-18): main is no reference. Everything here holds the branch against its
   own truth, the photographs and the budgets.
+- **Found on the way** (each fixed at its root):
+  - **Read inside the frame, black.** The film camera's grab drew the WebGPU canvas into a 2D one inside the frame and
+    got black (sum 0). `toDataURL`, `drawImage` after the frame, and `createImageBitmap` all read the picture. The first
+    smoke run measured black frames as "0.0000, met".
+  - **A POST on a dropped connection.** The receiver kept connections alive, and the truth's frames come seconds
+    apart. Chrome sent the next frame on a connection the server had just let go, and a POST is not retried ("Failed to
+    fetch"). The receiver now keeps none (the page sends once more beside that).
+  - **The truth's settle** (#79) and the wind on a running clock (the gate's clock, above).
+- **Measured here** (the Mac mini's one GPU, shared; Samuel's process from 18:00: develop in parallel, test together in
+  one train):
+  - **Motion, the smoke run** (zoom, first second, 10 frames a second): the game's pass drew its 11 frames on the gate's
+    clock, none black. Its page came in 27.9 s and settled at the path's start in 23.8 s (766 frames). The truth's page
+    came in 296.8 s. Its first frame's upload then met the dropped connection (fixed since). The truth's pass runs on
+    the integration train.
+  - **The truth settles** (#79's check, main `314e2e6` + the fix): bench-tent-eye-level in 114.1 s and tent-10m in
+    206.1 s, both drawn 3840×2160, real pictures, no black pixel. Without the fix, the same code's start timed out at
+    300 s.
+  - **Real** (`gate.js real`, on the CPU). The reference photos against themselves: two sets of six from inside a stand
+    read CMMD 0.60, and a stand against hills and stands from above 2.10. The two truth stills above (tent views, which
+    no photo of a tent matches yet) against all 38 photos:
+
+| Real | CMMD | L* EMD | ΔE of the mean colour | L* (render, photos) | RMS contrast | Local contrast (32 px) | Spectral slope |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Truth, tent at eye level and from 10 m, against the 38 photos | 6.11 | 13.3 | 15.8 | 57.1, 44.2 | 16.8, 22.1 | 6.6, 12.2 | −2.53, −2.04 |
+
+  - What the statistics say: the renders are brighter than the photos and flatter. They hold half the photos' contrast
+    inside 32-pixel patches, and their spectrum falls off faster: less fine detail, and the light too even. That is check
+    4a's work for stages 9 (light) and on; CMMD at 6 against 0.6 between real stands is how far there is to go.
+- **The truth's cold start**, about 5 minutes. Measured on a fresh profile before #79, what was still out:
+  - at 12 s, 1345 land pages and 8034 rocks' whole meshes;
+  - rocks done by 35 s;
+  - the impostors and clumps of every far end (the trees' 16 shapes) baked by about 96 s;
+  - then pages only.
+
+  The far ends are baked one shape a frame and the land's pages laid in batches a frame. `?truth` draws the whole
+  canvas at its finest from its first frame, about a second a frame, so all that frame-paced work is stretched 30-fold;
+  then 35 quiet frames of convergence. What is kept (the bakes in the browser) is read back at once. The root of the
+  cold start is frame-paced building under the truth's slow frames, not the gate's wait: a follow-up is to build the
+  truth's world at the game's pace and size, and draw at its finest only once it is complete. The gate now records what
+  holds every settle and till when (`held`, in `gate.json` and on the console), so the train's truth stills say how
+  much each part takes, cold and warm. The 15-minute start allowed a `?truth` page is only a guard.
+- **Not run here, the gate's first job on main** (cancelled on the Mac mini to let the train run): the truth at
+  far-2.5km and far-12km in tiles, beside the game's own render (`stills --truth --reach 3500 / 16000 --tiles 3`, then
+  `diff --jpeg`); `motion` on the four paths; `real` on the truth at every view that has photos (eye level in the stand,
+  the trees at 10 to 30 m, the stand from above, the hills).
 ### Stage 7: one placement rule, the forest in layers (2026-11-18)
 
 Built on `aven/0038-stage7-layers` from main at `3a2896a` (stage 5 merged), then merged with main at `d1c3805` (6b), as
@@ -1402,6 +1447,10 @@ per-pass GPU ceilings can be a merge rule.
       merge rule
 - [ ] The upscale's cost at a 4K output (7.5–21.2 ms against its 1.5): the next root cause after 9a
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
+- [ ] The gate finished: motion (nothing pops), the truth in tiles, real against photographs (#78; #79 merged)
+  - [ ] its first job on main: the truth at 2.5 and 12 km in tiles, motion on the four paths, real at every view
+  - [ ] `?truth`'s cold start: build its world at the game's pace, then draw at its finest
+  - [ ] the per-pass ceilings as a gate rule (`budgets` in Define, `gate.js bench` fails a class over its ceiling)
 
 ## Changelog
 
@@ -1577,6 +1626,27 @@ per-pass GPU ceilings can be a merge rule.
 - **Not there yet:** nothing measured: the Mac mini runs `bun tools/gate.js bench`; stage 9's passes join when it merges
   main; the upscale's cost is not looked into.
 
+- **Asked (Task C, by the session on the Mac mini):** finish the gate. `gate.js motion` (check 4 in motion: the change
+  detail makes in each frame against the same frame's truth, per 32-px tile, with FLIP; a filmstrip; the merge rule
+  "nothing pops"); `?truth` past 800 m, in passes; `gate.js real` (check 4a: CMMD and image statistics against
+  reference photos, with a manifest). Then: the `?truth` settle fix split out on its own, now (stages 7–9 could not be
+  gated against the truth); the GPU lock's next turn; no comparison with main; root causes only; the train.
+- **Delivered:** #78 (under Build, "The gate finished"):
+  - motion, real, tiles, the gate's clock and lock as modules of `tools/gate/`, `gate.js` a thin hook;
+  - #79 (merged): `?truth` settles again;
+  - every stills page held on the gate's clock from its start;
+  - frames read once drawn; the receiver keeps no connection;
+  - `.gate-next`;
+  - `held`, what kept each settle.
+- **Good:** `?truth` settles where it hung (tent views in 114 and 206 s). The motion check measures a camera move as
+  0.0000 and a pop as 0.48 on test frames. `real` tells the renders from the photos (CMMD 6.1, against 0.6 between
+  real stands) and says how: brighter, flatter, half the fine contrast.
+- **Not there yet:**
+  - the motion smoke's truth pass, the far truth in tiles and real on the truth at every view (on the train and then on
+    main);
+  - `?truth`'s 5-minute cold start (frame-paced building under its slow frames: a follow-up);
+  - `POP` is 0.05 until check 3's threshold is set from Samuel's pairs.
+
 ## Trail
 
 | When | Commit | What |
@@ -1627,3 +1697,12 @@ per-pass GPU ceilings can be a merge rule.
 | 2026-11-18 | `1aac442` | Stage 7 merged with main (6b): the land's litter and far colours read the rule's stands |
 | 2026-11-18 | `3907ce7` | Stage 7 merged with main (`314e2e6`) |
 | 2026-11-18 | `19d0559` | The bench times each pass on its own on main: the passes marked, each in one of four parts (geometry, light, ground, upscale/post) |
+| 2026-11-18 | `5e27a07` | The gate: motion, the truth in tiles, real against photographs, the GPU lock |
+| 2026-11-18 | `0315389` | The gate: motion and real as modules of `tools/gate/`; motion in two passes, one world in memory |
+| 2026-11-18 | `3311322` | The gate: `?truth` settles (every pixel asks its page); pages held on the gate's clock from the start |
+| 2026-11-18 | `e5fa63b` | `?truth` settles again, on its own (#79, merged) |
+| 2026-11-18 | `ba7bfc5` | The gate: frames read once drawn; the truth drawn twice a step at the game's place |
+| 2026-11-18 | `529eb6d` | The gate: the lock not taken while `.gate-next` names another |
+| 2026-11-18 | `d7ce5ca` | The gate: every stills page held on its clock from the start |
+| 2026-11-18 | `29e02c2` | The gate: the receiver keeps no connection; `?truth`'s start guarded at 15 minutes |
+| 2026-11-18 | `c076a01` | The gate: a settle says what held it, and till when |
