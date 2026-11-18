@@ -1776,6 +1776,56 @@ per-pass GPU ceilings can be a merge rule.
   - the history reads: Catmull-Rom's five of the kept picture;
   - the motion-vector dilation: the nearest of the 2 × 2, by a gather of the depth.
 
+### The land and the ground from the one measure (train 2, 2026-11-18)
+
+On `aven/0038-ground-unify`, from `aven/0038-train-1c`, then with one measure v2 (`aven/0038-one-measure`, `499dbe0`)
+merged in. Every hand-set distance in the land's and the ground's code is now said by the measure (`src/detail/
+measure.js`, `error.js`) or by what is drawn, in the dial's pixels where v2 has them.
+
+- **(3) The land's octaves** (`src/world/land.nodes.js heightOf`): an octave is kept while its amplitude covers more
+  than a dial pixel there (`dialPxAt`), handed over over the `BAND` (was 9.6 to 19.2 wavelengths).
+- **(4) The land's levels** (`src/terrain/terrain.js`): level 0's reach is 4 times the farthest any octave shows over its
+  wavelength (the quads at most λ/2 apart wherever it shows), each level twice the one before's, now at the dial
+  (`distanceAt(ERROR_PX(), A)`); the node lists sized at the most (`farMost`), grown when exceeded. The relief's first
+  level is where its geometry shows (`RELIEF` covering `PSTEPS` dial pixels).
+- **(6) The pages** (`src/terrain/pages.js`): `KEEP` two sweeps and the read-backs; `PIN` the land's end; `NEAR` and the
+  jump cut gone. The bias is chosen only from a sweep whose every frame was read, and only from asks all of one view
+  (below).
+- **(2) The ground's shading by the texel**: the cavity laid into the page with its colour (`material.js cavityOf`), the
+  stands' crown pattern going over into its mean where the texel can no longer hold it; the near boost, the 60–400 m
+  fade and the sun's contrast by distance gone.
+- **(5) The growth map** (`src/scatter/growth.js`): as many levels as reach its farthest reader at the most: each
+  reading layer's `goneOf` at `farMost`, and the meadow's end.
+- **(1) The meadow's end** (`src/scatter/grass.js bandsOf`, `src/scatter/ground.js`):
+  - The blades end where the mean blade covers `GONE` dial pixels (leaving them out differs by all of their height):
+    441 m at a window 1080 drawn, 588 m at 1440, 882 m at 2160. Before, they ended where the ground's map did (112 m).
+  - The ground's map is a clipmap of the same 512² maps, its texel doubling a level, with as many levels as reach that
+    end at the most: 4 on a 4K screen, 32 MB with the lens step's second set (was 8 MB). A level is drawn again when the
+    camera walks 32 of its texels. A point is read from the finest level that holds it, going over into the next over
+    the outer eighth. The stones and the CPU's copy read level 0.
+  - The carpet reads the blades' own end share (`grass.js endOf`, the end in `U.uMeadowEnd`). It shapes the carpet's
+    shade under them (was 3–70 m), its bare patches while they stand (were let go 100–160 m), its cover's share (was
+    4–60 m) and the snow's lift (was 20–90 m).
+  - Under `?truth` the first ring still ends at the first map's reach.
+  - **Open, asked of the master:** the blades' caps, sized at the most measure, grow from 2.1 M cells (95 MB) to 23.2 M
+    (1.06 GB), and at the end about 500 ring-4 cells share a pixel's depth at eye height.
+- **Why still views from 40 m up laid pages** (traced on the GPU at `41deea0` and `b510a8e`: `town, 40 m` and `pine
+  forest, 90 m`, 240 still frames, then the bench's 60):
+  - Standing still, nothing is laid: 0 pages in 240 frames, before and after.
+  - The bench's first frame sets its own pose. `over` counted `want`, the pages asked over two sweeps, so it held the
+    view before and the view after. It overflowed, and the bias was chosen coarser "while moving" (0 → 0.75, 0.5 →
+    0.75), then chosen back once the camera stood.
+  - Every page was laid twice within the bench's 60 frames: 732 to 1061 pages, 3 to 5 ms a frame.
+  - Now (`20861d9`) the bias is chosen only from asks that are all of one view: once a still view's sweep is read, or,
+    in motion, from the last sweep's asks (`needAt`, what the pick halves over) once the camera has moved through all
+    of it.
+  - The invariant: a view's bias is chosen once, a sweep after it stands, so a still view settles within one sweep and
+    its read-backs (`SPAN + READS`, 20 frames).
+- Settle at `b510a8e` (stills, fresh): the start 22.6 s, `bench-tent-eye-level` 10.2 s, `bench-town-40m` 5.6 s,
+  `tent-30m` 8.6 s. Pictures: `~/src/github/MaiaCityCoop/shots/0038-ground-unify/`.
+- **Not measured yet:** `20861d9` and `b9ae230` (the train measures them). Left: (7) the truth branches (with Task C's
+  `?truth` at dial 0), and the carpet's own tile scales and tufts by the texel.
+
 ## Propose
 
 ## Story
@@ -2150,3 +2200,13 @@ per-pass GPU ceilings can be a merge rule.
 | 2026-11-18 | `ab99e49` | Draw path: `?truth` culls as the game does (the truth draws all that is visible) |
 | 2026-11-18 | `2fdfae0` | Draw path: every culling dispatch within the device's workgroups a dimension |
 | 2026-11-18 | `d7dcd26` | Draw path merged with main (`ecc80f2`, the bench by its passes); PR #77 ready |
+| 2026-11-18 | `41deea0` | Ground: the pages traced frame by frame |
+| 2026-11-18 | `a2c1700` | Ground (3): the land's octaves kept as long as they show |
+| 2026-11-18 | `868e682` | Ground (4, 6): the land's levels and the pages' numbers from the measure |
+| 2026-11-18 | `8b0ab15` | Ground (3, 4): the measure read through main's own measure.js |
+| 2026-11-18 | `63fa4fa` | Ground (5): the growth map as far as what reads it is drawn |
+| 2026-11-18 | `420dc00` | Ground (2): the ground's shading by the texel, not by metres |
+| 2026-11-18 | `b510a8e` | Ground (6): a sweep counts only where every frame of it was read |
+| 2026-11-18 | `f88a1d3` | Ground: one measure v2 merged in; the land and the pages in the dial's pixels |
+| 2026-11-18 | `20861d9` | Ground (6): the bias chosen only from asks all of the view as it is (the bench's re-laying) |
+| 2026-11-18 | `b9ae230` | Ground (1): the blades end where they are gone, the ground's map a clipmap to there, the carpet tied to their share |
