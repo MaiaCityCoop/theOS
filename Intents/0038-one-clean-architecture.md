@@ -1410,7 +1410,8 @@ are as large as their share of memory lets them be where that error is least.
 - **The atlases from their share** (`025f99f`, `src/detail/atlas.js` `atlasesOf`). It is given three things:
   - the bytes: 512 MiB for the views and the clumps together, a share of geometry's budget (`src/core/classes.js`
     `SHARE_MB`, in #97's table);
-  - the far ends the stands bake: 29, counted from the registry (`src/scatter/rule.js` `farLayers`);
+  - the far ends the stands bake: 29, counted from the registry (`src/scatter/entries.js` `farLayers`: what the rule
+    places, as plain numbers, out of `rule.js`, so counting them closes no import cycle);
   - the limits every WebGPU device grants (`src/core/gpu.js` `PORTABLE`). A baked atlas is kept by its key and drawn on
     any device, so its size cannot depend on the GPU it was made on.
 
@@ -1463,7 +1464,12 @@ are as large as their share of memory lets them be where that error is least.
   - every level of every plant, built by its band with these atlases, fits its room: 346 of 346;
   - `bun tools/scale.js` 24 of 24; `vite build` for TheGame and OS;
   - WGSL on a mock renderer: all 303 tier materials of the stands (23 of them impostors), the library's plant, the
-    impostor's reads, the bake's clips, and a made thing's card.
+    impostor's reads, the bake's clips, and a made thing's card;
+  - the code gates (`bun tools/health.js --base origin/main`, as CI runs them): no new cycle; the crowd kit's `headOf` and
+    `crowd`, which grew, are split into steps (`boundsOf`, `partsOf`, `orderOf`; `measuredE`, `widthsOf`, `farDataOf`), back
+    under their complexity at the base, every shape built number for number as before. What the gates still find on the
+    branch is #82's (its unused exports, `createDrawer`, `tier.js`, `regions.js`, a clone of `tools/visits.js`) and
+    `classes.js`, #97's file, whose exports its own users will read.
 - **To be measured on the Mac mini** (nothing here was drawn):
   - FLIP against `?truth` where the switches moved most: `far-2.5km` and `bench-skyline-2.5km` (the trees' impostors
     from about 2.2 km, clumps from 1.65–1.83 km), `pines-500m`, and `bench-pine-forest-90m` and `bench-river-bend-26m`
@@ -1892,3 +1898,5 @@ madge follows every import.
 | 2026-11-18 | `26f751d` | `tools/health.js`: the code gates in one command (copies, spaghetti, dead code, cycles, size, settings, dependencies); the baseline under Build |
 | 2026-11-18 | `695ea18` | Imports from the game's root made relative (`cine/trailer.js`, `tools/sweep.js`), so madge follows every import |
 | 2026-11-18 | `bca2270` | The code gates held against main: `health.js --base` (each gate's change, exit 1 where one got worse), run by CI on every pull request |
+| 2026-11-18 | `ea5f07e` | Rung errors: main merged in (`40d3ee3`: the code gates in CI, train 1c reverted) |
+| 2026-11-18 | `4a8a906` | Rung errors: the code gates: what the rule places in `entries.js` (no import cycle); the crowd kit's head and build in steps |
