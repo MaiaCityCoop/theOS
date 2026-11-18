@@ -6,42 +6,77 @@
 // only: the node three is given stands on a placeholder of one item, and the buffer itself is handed to three's
 // backend before it would make its own (it makes one only where none is there yet).
 //
-// The game must run on a machine of 8 GB: a hard gate, shared out by the frame's classes as its milliseconds are
-// (src/core/classes.js: geometry, light, ground, upscale/post, other; each its budget). So every pool says here what it
-// holds and whose it is (note, more: at its making, again when it is made anew, nought when it is let go), and the
-// readout in the corner shows the sum (src/core/hud.js); `window.__memory()` lists it, by class beside each class's
+// The game must run on a machine of 8 GB, and holds at most 2 GB of it on the GPU (src/core/budget.js GPU_MB), shared
+// out by the frame's classes as its milliseconds are (src/core/classes.js: geometry, light, ground, upscale/post, other;
+// each its budget, BUDGET_MB). So every pool says here what it holds and whose it is (note, more: at its making, again
+// when it is made anew, nought when it is let go), and each such make is held against its class's budget, as all the
+// device makes is against the whole: past it, it is said once, loudly, with the class and the maker, and counted (the
+// ledger's over), and made all the same, so nothing breaks while its owner sizes it to the room its class has (roomOf);
+// the hour's gate fails on it (tools/gate.js). The readout in the corner shows the sum (src/core/hud.js); the game's
+// memory() (window.__game.memory(), src/boot.js) is the one ledger: by class, now and at its most, beside each class's
 // budget, and beside it what the device itself has made (every buffer and texture, counted as it is made and
 // destroyed): what no pool notes shows there, the difference. A pool that may be larger or smaller (an atlas, the
-// land's pages, the shadows' cascades, the culling's arenas) is sized by the room its class has left (roomOf), with the
-// device's own limits.
+// land's pages, the culling's arenas) is sized by the room its class has left (roomOf), with the device's own limits.
 import * as THREE from 'three/webgpu';
 import { storage } from 'three/tsl';
-import { CLASS_NAMES } from './classes.js';
-import { BUDGET_MB } from './budget.js';
+import { CLASS_NAMES, classOf } from './classes.js';
+import { BUDGET_MB, GPU_MB } from './budget.js';
 import { MiB } from './physics.js';
 
-const HELD = new Map(), MB = MiB;
+const HELD = new Map(), MB = MiB, PEAK = Object.fromEntries(CLASS_NAMES.map((c) => [c, 0])), OVER = new Map(), WHOLE = 'the whole GPU';
+let peakAll = 0;
+if (Object.values(BUDGET_MB).reduce((s, b) => s + b, 0) !== GPU_MB) throw new Error(`src/core/budget.js: the classes' budgets (BUDGET_MB) share out the GPU's whole (GPU_MB, ${GPU_MB} MB), so they add up to it`);
 /** A pool's memory, bytes: on the GPU, and beside it on the page; its class (src/core/classes.js). Said again under the
     same name: replaced (nought: let go). */
-export const note = (name, gpu = 0, page = 0, cls = 'other') => { HELD.set(name, { gpu, page, cls }); };
+export const note = (name, gpu = 0, page = 0, cls = 'other') => { HELD.set(name, { gpu, page, cls }); held(cls, name); };
 /** The same, added to what the name holds already (many small buffers under one name). */
-export const more = (name, gpu = 0, page = 0, cls = 'other') => { const h = HELD.get(name) ?? { gpu: 0, page: 0, cls }; h.gpu += gpu; h.page += page; HELD.set(name, h); };
+export const more = (name, gpu = 0, page = 0, cls = 'other') => { const h = HELD.get(name) ?? { gpu: 0, page: 0, cls }; h.gpu += gpu; h.page += page; HELD.set(name, h); held(h.cls, name); };
 /** What a class's pools hold on the GPU now, bytes. */
 const heldBy = (cls) => { let n = 0; for (const h of HELD.values()) if (h.cls === cls) n += h.gpu; return n; };
-/** The room a class has left on the GPU, bytes: its budget less what its pools hold. */
-export const roomOf = (cls) => BUDGET_MB[cls] * MB - heldBy(cls);
-/** Everything noted: { gpu, page (MB), classes: { class: { gpu, page, budget (MB) } }, device: what the device has made
-    (MB; null without WebGPU), unnoted: of that, what no pool notes, rows: [[name, gpu MB, page MB, class], …] the
-    largest first }. */
+/** The room a class has left on the GPU, bytes: its budget less what it holds, as its pools say it or as the device made
+    it for its code (the more of the two: what three makes for it too). */
+export const roomOf = (cls) => BUDGET_MB[cls] * MB - Math.max(heldBy(cls), MADE[cls] ?? 0);
+/** A make that took `who` (a class, or the whole GPU) past its budget (MB), `by` (the pool, or what the device was asked
+    to make) holding `bytes` there then: said once a class and maker (once: once a class, whatever made it), loudly, and
+    counted; what was made is kept, so nothing breaks while its owner fits it to the room its class has (roomOf). */
+const past = (who, by, bytes, budget, once = false) => {
+  const key = once ? who : `${who}: ${by}`, o = OVER.get(key), mb = +(bytes / MB).toFixed(1);
+  if (o) { o.times++; o.mb = Math.max(o.mb, mb); return; }
+  OVER.set(key, { who, by, times: 1, mb, budget });
+  console.error(`GPU memory: ${who} holds ${mb} MB, more than its ${budget} MB (src/core/budget.js), with ${by}: made all the same, until it is sized to the room its class has (src/core/gpu.js roomOf)`);
+};
+/** After a pool of `cls` changed (`by`: its name): the class's most and the whole's, and whether the class is past its
+    budget. */
+function held(cls, by) {
+  const n = heldBy(cls); if (n > (PEAK[cls] ?? Infinity)) PEAK[cls] = n;
+  let all = 0; for (const h of HELD.values()) all += h.gpu;
+  if (all > peakAll) peakAll = all;
+  if (n > BUDGET_MB[cls] * MB) past(cls, by, n, BUDGET_MB[cls]);
+}
+/** The one ledger (the game's memory(), src/boot.js; the hour's gate reads it), MB:
+      gpu, peak, budget   what the game holds on the GPU now and the most it held (all the device made, where it is
+                          counted; else what the pools note), and GPU_MB
+      classes             { class: { gpu, peak (the same, the class's: what the device made for its code, else what its
+                          pools note), noted (what its pools say they hold), page (what they keep on the page), budget } }
+      noted, page         what all the pools note, on the GPU and on the page; unnoted: what the device made beyond it
+      makers              what the device made, by class and by what it was (a pool's name, three's label, else its
+                          kind), the largest first: [[class, what, MB, how many], …], where no pool's note says it
+      over                [{ who, by, times, mb, budget }]: each class, or the whole, a make took past its budget, with
+                          what, how often, at the most
+      rows                [[name, gpu MB, page MB, class], …], what each pool notes, the largest first */
 export const ledger = () => {
   const mb = (b) => +(b / MB).toFixed(1), rows = [...HELD].map(([n, h]) => [n, h.gpu, h.page, h.cls]).sort((a, b) => b[1] + b[2] - a[1] - a[2]);
-  const classes = Object.fromEntries(CLASS_NAMES.map((c) => [c, { gpu: 0, page: 0, budget: BUDGET_MB[c] }]));
-  for (const [, g, p, c] of rows) { classes[c].gpu += g; classes[c].page += p; }
-  for (const c of CLASS_NAMES) { classes[c].gpu = mb(classes[c].gpu); classes[c].page = mb(classes[c].page); }
-  const gpu = rows.reduce((s, r) => s + r[1], 0);
-  return { gpu: mb(gpu), page: mb(rows.reduce((s, r) => s + r[2], 0)), classes, device: R ? mb(made) : null, unnoted: R ? mb(Math.max(0, made - gpu)) : null, rows: rows.map(([n, g, p, c]) => [n, mb(g), mb(p), c]) };
+  const classes = Object.fromEntries(CLASS_NAMES.map((c) => [c, { gpu: 0, peak: 0, noted: 0, page: 0, budget: BUDGET_MB[c] }]));
+  for (const [, g, p, c] of rows) { classes[c].noted += g; classes[c].page += p; }
+  for (const c of CLASS_NAMES) Object.assign(classes[c], { gpu: mb(R ? MADE[c] : classes[c].noted), peak: mb(R ? MADE_PEAK[c] : PEAK[c]), noted: mb(classes[c].noted), page: mb(classes[c].page) });
+  const noted = rows.reduce((s, r) => s + r[1], 0);
+  return {
+    gpu: mb(R ? made : noted), peak: mb(R ? peakMade : peakAll), budget: GPU_MB, classes, noted: mb(noted), page: mb(rows.reduce((s, r) => s + r[2], 0)),
+    unnoted: R ? mb(Math.max(0, made - noted)) : null,
+    makers: [...KINDS.values()].filter((k) => k.bytes > 0).sort((a, b) => b.bytes - a.bytes).slice(0, 24).map((k) => [k.cls, k.kind, mb(k.bytes), k.n]),
+    over: [...OVER.values()].map((o) => ({ ...o })), rows: rows.map(([n, g, p, c]) => [n, mb(g), mb(p), c]),
+  };
 };
-if (typeof window !== 'undefined') window.__memory = ledger;
 
 // ---- what the device itself makes: every buffer and texture, as it is made and destroyed ----
 // (a texture's bytes: its texels' at every mip and layer, by its format; a compressed one's by its blocks)
@@ -60,14 +95,42 @@ const texBytes = (d) => {
   for (let m = 0, w = w0, h = h0, z = n; m < (d.mipLevelCount ?? 1); m++, w = Math.max(1, w >> 1), h = Math.max(1, h >> 1), z = three ? Math.max(1, z >> 1) : z) sum += (b ? Math.ceil(w / 4) * Math.ceil(h / 4) * b : w * h * t) * z;
   return sum * (d.sampleCount ?? 1);
 };
-let made = 0;   // (what the device has made, bytes)
-const SIZE = new WeakMap();
-const counted = (o, bytes) => { SIZE.set(o, bytes); made += bytes; const d = o.destroy; o.destroy = function () { if (SIZE.has(o)) { made -= SIZE.get(o); SIZE.delete(o); } return d.call(this); }; return o; };
+// (each counted under the class whose code made it: the class of the pass running (mark: three makes its own buffers and
+// targets as it first draws them, in some pass), or the one a pool here is made for (asClass); else other. Each make is
+// held against its class's budget and the whole's: what no pool notes counts too)
+let NOW = 'other', made = 0, peakMade = 0;   // (whose code runs; what the device has made, bytes; the most it held)
+const MADE = Object.fromEntries(CLASS_NAMES.map((c) => [c, 0])), MADE_PEAK = { ...MADE }, KINDS = new Map(), SIZE = new WeakMap();
+/** make() run as `cls`'s: what the device makes meanwhile is that class's. */
+const asClass = (cls, make) => { const was = NOW; NOW = cls in MADE ? cls : 'other'; try { return make(); } finally { NOW = was; } };
+const counted = (o, bytes, kind) => {
+  const cls = NOW, key = `${cls}: ${kind}`, K = KINDS.get(key) ?? { cls, kind, bytes: 0, n: 0 };
+  SIZE.set(o, { bytes, cls, key }); K.bytes += bytes; K.n++; KINDS.set(key, K);
+  made += bytes; MADE[cls] += bytes;
+  if (made > peakMade) peakMade = made;
+  if (MADE[cls] > MADE_PEAK[cls]) MADE_PEAK[cls] = MADE[cls];
+  if (MADE[cls] > BUDGET_MB[cls] * MB) past(`${cls}, all made for it`, kind, MADE[cls], BUDGET_MB[cls], true);
+  if (made > GPU_MB * MB) past(WHOLE, kind, made, GPU_MB, true);
+  const d = o.destroy;
+  o.destroy = function () {
+    const s = SIZE.get(o);
+    if (s) { made -= s.bytes; MADE[s.cls] -= s.bytes; const k = KINDS.get(s.key); k.bytes -= s.bytes; k.n--; SIZE.delete(o); }
+    return d.call(this);
+  };
+  return o;
+};
+// (what a buffer or a texture is, where it has no label: by how it is used; by its format, size and use)
+const U = globalThis.GPUBufferUsage ?? {}, TU = globalThis.GPUTextureUsage ?? {};
+const bufferKind = (d) => d.label || (d.usage & U.INDEX ? 'index buffers' : d.usage & U.VERTEX ? 'vertex buffers' : d.usage & U.UNIFORM ? 'uniform buffers' : d.usage & U.STORAGE ? 'storage buffers' : d.usage & U.MAP_READ ? 'read-backs' : 'buffers');
+const textureKind = (d) => {
+  if (d.label) return d.label;
+  const s = Array.isArray(d.size) ? d.size : [d.size.width, d.size.height ?? 1, d.size.depthOrArrayLayers ?? 1];
+  return `${d.format} ${s[0]} × ${s[1] ?? 1}${(s[2] ?? 1) > 1 ? ` × ${s[2]}` : ''}${d.usage & TU.RENDER_ATTACHMENT ? ', drawn into' : ''}`;
+};
 const countMade = (dev) => {
   if (dev.__counted) return; dev.__counted = true;
   const B = dev.createBuffer, T = dev.createTexture;
-  dev.createBuffer = function (d) { return counted(B.call(this, d), d.size ?? 0); };
-  dev.createTexture = function (d) { return counted(T.call(this, d), texBytes(d)); };
+  dev.createBuffer = function (d) { return counted(B.call(this, d), d.size ?? 0, bufferKind(d)); };
+  dev.createTexture = function (d) { return counted(T.call(this, d), texBytes(d), textureKind(d)); };
 };
 
 // Whose the GPU's passes are, for a tool that times each part of a frame (tools/bench.js): the code that draws a part
@@ -75,8 +138,9 @@ const countMade = (dev) => {
 // its cascades, the canopy, the air, the screen's light; the bench's frame what comes before them), and the tool reads
 // the GPU's own clock pass by pass under those names. Nothing listens in the game: a mark is then one test.
 let tap = null;
-/** The passes from here on are `name`'s (null: no one's in particular), until the next mark. */
-export const mark = (name) => { if (tap) tap(name); };
+/** The passes from here on are `name`'s (null: no one's in particular), until the next mark; what the device makes
+    meanwhile is the class's they are in. */
+export const mark = (name) => { NOW = name ? classOf(name) : 'other'; if (tap) tap(name); };
 /** A tool listens to the marks: fn(name), or null to stop. */
 export const listen = (fn) => { tap = fn; };
 
@@ -123,7 +187,7 @@ export function gpuStorage(type, count, name = null, cls = 'other', instanced = 
   }
   within(bytes, name);
   const dev = R.backend.device, attr = new Attr(new Arr(size), size);
-  const buffer = dev.createBuffer({ label: name ?? 'lean', size: Math.max(16, bytes), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+  const buffer = asClass(cls, () => dev.createBuffer({ label: name ?? 'lean', size: Math.max(16, bytes), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }));
   R.backend.get(attr).buffer = buffer;
   if (name) note(name, bytes, 0, cls);
   return { node: storage(attr, type, count), attr, bytes, lean: true, write(at, data) { dev.queue.writeBuffer(buffer, at * 4, data); } };
@@ -155,7 +219,7 @@ export function gpuStorageLater(type, name = null, cls = 'other') {
       if (!R) { const a = node.value; a.array = new Arr(Math.max(1, count) * size); a.count = Math.max(1, count); if (name) more(name, bytes - made, bytes - made, cls); made = bytes; return bytes; }
       within(bytes, name);
       const old = node.value, attr = made ? new THREE.StorageBufferAttribute(new Arr(size), size) : old;
-      R.backend.get(attr).buffer = R.backend.device.createBuffer({ label: name ?? 'lean', size: Math.max(16, bytes), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+      R.backend.get(attr).buffer = asClass(cls, () => R.backend.device.createBuffer({ label: name ?? 'lean', size: Math.max(16, bytes), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }));
       if (made) { node.value = attr; REMADE++; retire(old); }
       if (name) more(name, bytes - made, 0, cls);
       made = bytes;

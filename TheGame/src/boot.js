@@ -28,7 +28,7 @@ import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
 import { createHud } from './core/hud.js';
-import { useGPU, askedLimits } from './core/gpu.js';
+import { useGPU, askedLimits, ledger } from './core/gpu.js';
 import { taken, busy, changed } from './core/work.js';
 import { settle, ready as firstView, complete, waiting, watch, tick, partOf, leave } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
@@ -55,6 +55,7 @@ import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
 import { shareComputeCompiles, countCompiles, making, ahead } from './core/compile.js';
+import { waitsOn, gpuLost } from './core/waits.js';   // what the start waits for, watched: the veil says what holds it up, or what stopped the page
 import { flag } from './core/flags.js';
 import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
 
@@ -71,7 +72,9 @@ export async function boot({ profile = 'world' } = {}) {
   const limits = await askedLimits();   // (every limit the design sizes against, as this adapter has it: src/core/gpu.js SIZED)
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, depth: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), requiredLimits: limits });   // depth false: the canvas has none: nothing drawn onto it tests depth (the upscale lays one quad, src/core/temporal.js), and a 4K one stored every frame was 33 MB moved for nothing   // alpha false: the canvas is opaque (a frame's fourth number is not how see-through it is: it says how far what is kept may be trusted, src/core/pass.js; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
   if (flag('draws')) (await import('../tools/draws.js')).watch();   // ?draws: every pass and draw a frame asks of the GPU, counted (tools/draws.js: window.__draws), from before the first pipeline is made
-  await renderer.init();
+  const dropped = renderer.onDeviceLost;   // (three's own, on the GPU taken from the page: said in the console, and nothing drawn after)
+  renderer.onDeviceLost = (info) => { dropped.call(renderer, info); gpuLost(info); };   // and the page says so, with a way to reload
+  await waitsOn('the GPU', renderer.init(), null);
   useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js)
   shareComputeCompiles(renderer);   // a compute shader compiled once, however many passes run it (src/core/compile.js)
   countCompiles();   // and what the world waits for to be compiled counted: it is not complete before (src/core/settle.js)
@@ -96,7 +99,7 @@ export async function boot({ profile = 'world' } = {}) {
   // the picture built over time come to rest on it; ready: the same for the page's first view; waiting(): what is still
   // out. What the gate waits on, never a timer: src/core/settle.js)
   let shown = null; const first = new Promise((res) => (shown = res));   // (the stage's first subject in: its first view is complete once it has settled)
-  const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting });
+  const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting, memory: ledger });   // memory(): the GPU's memory, the one ledger (src/core/gpu.js)
   const bounds = world && flag('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
   const U = createUniforms(camera, SKY);
   setImpostorRenderer(renderer);
@@ -290,10 +293,10 @@ export async function boot({ profile = 'world' } = {}) {
   };
   (async () => {
     mark('world');
-    await tex.ready;   // the textures painted (their passes compiled side by side since they were asked for)
+    await waitsOn('the textures', tex.ready, null);   // the textures painted (their passes compiled side by side since they were asked for)
     mark('painted');
-    if (world) { await grown.pass; await grown.packing; grown.live = true; }
-    await layerPass;
+    if (world) { await waitsOn("the ground's maps", grown.pass, null); await waitsOn('what grows on the land', grown.packing, null); grown.live = true; }
+    await waitsOn("the land's layers", layerPass, null);
     mark('passes');
     await loadingStep('Lighting the world', 0.55);
     veiled = true; requestAnimationFrame(frame);

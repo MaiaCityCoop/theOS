@@ -61,6 +61,7 @@ function bytesOf(L, cell, cover) {
   }
   return { colour, data, n };
 }
+self.postMessage({ here: true });   // (started: the page hears it, src/core/workers.js asking)
 self.onmessage = ({ data: { id, colour, data, side, cell, least } }) => {
   let L = floatsOf(colour, data, side), c = cell;
   const cells = side / cell, cover = new Float32Array(cells * cells), levels = [];
