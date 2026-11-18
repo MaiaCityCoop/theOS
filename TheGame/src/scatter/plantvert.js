@@ -7,7 +7,7 @@ import { GRID, UVK, UV0 } from '../../assets/kit/plant.js';
 const oct = (u, v) => normalize(octDir(u, v));
 const SX = (2 * GRID.xz) / 65535, SY = (GRID.y1 - GRID.y0) / 65535;
 /** Elements e0 and e1 (uvec4 nodes) as a plant's vertex: { position (metres in the plant's own frame, its foot at 0),
-    normal (what it is lit with), uv, ao, part (0 wood, 1 a sprig's card, 2 a crown as one body), hand (from, kept),
+    normal (what it is lit with), uv, ao, part (0 wood, 1 a sprig's card, 2 a chunk's plane: its clumps), hand (from, kept),
     twig (1 where its card wears the painting of one twig: its finest level), cn (its card's plane), root (what it
     grows from and shrinks to) }. Call it inside the vertex stage: each is a variable. */
 export const plantOf = (e0, e1) => ({

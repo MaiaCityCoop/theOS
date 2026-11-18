@@ -26,7 +26,7 @@ export function detailOf(a) {
   const own = d.ladder ? LADDER.filter((l, i) => !d.end || !i || LADDER[i - 1].px > d.end).map((l) => ({ ball: l.n === FULLN ? d.ladder : l.n === DOTN ? 0 : l.n, px: Math.max(l.px, d.end ?? 0) })) : d.levels || [];
   const levels = own.map((l, i) => ({ ...l, i, lo: l.px ?? px[Math.min(i, px.length - 1)] }));
   const imp = d.impostor ?? kindRule(a, 'impostor');   // after the meshes: one card (src/detail/impostor.js)
-  if (imp) levels.push({ impostor: true, views: imp.views ?? 8, i: levels.length, lo: imp.px });
+  if (imp) levels.push({ impostor: true, i: levels.length, lo: imp.px });
   levels.forEach((l, i) => (l.hi = i ? levels[i - 1].lo : Infinity));
   return { levels, fade, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: d.casts ?? kindRule(a, 'casts') ?? true, sink: d.sink ?? kindRule(a, 'sink') ?? 0 };
 }

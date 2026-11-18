@@ -14,7 +14,8 @@
 //                        src/core/temporal.js; the scale bar: src/camera/rig.js); lensOf(camera): how many times larger
 //                        than the 68° lens a camera shows a thing
 //   uPxK                 pxK as a uniform (the shared set's, kept current here: keepMeasure); in node code pxAt(size,
-//                        dist), spanAt(size, dist) and farAt(px, size), the twins of the above
+//                        dist), spanAt(size, dist) and farAt(px, size), the twins of the above; drawnAt(px): a size
+//                        on screen as the pixels drawn, whatever the unit (what a baked texel is matched against)
 //   bandAt(near, far, finest, pad)   a level's band of distances, as ?truth has it
 //   ERROR_PX             the most a thing drawn at a level may differ from it at full detail, in pixels drawn: the one
 //                        number of detail. Nothing reads it yet: the builder's rungs are to be chosen by it (intent
@@ -89,6 +90,10 @@ export const pxAt = (size, dist) => spanAt(size, dist).div(max(dist, 1e-3));
 /** How far off (metres, as the 68° lens sees them) a thing `size` metres large covers px pixels, a node (px, size:
     numbers): farFor's twin. */
 export const farAt = (px, size) => (TRUTH ? max(U.uPxK.mul(size / px), REACH) : U.uPxK.mul(size / px));
+/** Its pixels on screen (pxAt's) as the pixels drawn, a node: what a baked texel is matched against (an impostor comes
+    where its texels are no larger than the pixels drawn: src/scatter/trees.js, src/detail/impostor.js). U.uDrawn: the
+    pixels drawn a CSS pixel, kept as a frame is drawn (src/core/temporal.js). */
+export const drawnAt = (px) => (DRAWN ? px : px.mul(U.uDrawn));
 
 /** Keep uPxK current: every engine's levels measure by it. drawn: the governor's ratio of the pixels drawn (the
     screen's inside: src/core/screen.js), read only where the unit is the pixels drawn (DRAWN). */

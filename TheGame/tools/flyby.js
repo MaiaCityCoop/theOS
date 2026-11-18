@@ -5,7 +5,7 @@
 //                            holm oak at the pine forest's edge, from the top down to eye level NEAR metres before it and
 //                            back up, evenly in the height's logarithm (SECS each way, a moment held at each end)
 //   ?flyby=orbit             round the same oak, the rig at the height where the oak stands PX pixels tall (`&px=`,
-//                            default 60: where a crown's cards give way to its far body), once in ORBIT seconds
+//                            default 60: where a crown's cards give way to its clumps), once in ORBIT seconds
 //   &secs=                   the zoom's seconds each way (default 30)
 // A line at the top left says where the flight is: the way, the camera's distance from the oak, and how tall the oak
 // stands on the screen. Nothing else of the game changes: the picture, the governor and the frame are the game's own.

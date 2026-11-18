@@ -40,7 +40,7 @@ export default tree({
   grow,
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
   levels: [{ P: 4 }, { P: 8 }],
-  far: { P: 32, speck: false },   // (its far level: the crowd kit's far body, no speck after it)
+  far: { P: 32, speck: false },   // (its far level: its clumps and its impostor, no speck after it)
   // where it grows: the riverbank's reeds (only in a lake's shallow margin), all of its cells
   placement: { at: 'scatter', engine: 'trees', stand: 'reeds', biome: '84588b7e-0680-47ca-9793-409c7359db0c' /* riverbank */, share: 1, scale: [1, 1.6], lean: 0.08, seed: 880 },
 });

@@ -261,7 +261,7 @@ const packed = (m) => ({ ...Object.fromEntries(FLOATS.filter((k) => m[k]?.length
 export function tree(recipe) {
   const { shapes: own = [{}], growth, grow, shade, levels, shadow = {}, far = {}, fine = null, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
   const G = growth ? stagesOf(growth, seed) : null, shapes = G ? G.shapes : own;
-  // its levels: its file's, then its far ones (the crowd kit's far body: two, one where `speck: false`, none where
+  // its levels: its file's, then its far ones (its clumps and its impostor: two, one where `speck: false`, none where
   // `far: false`), each a first share of its finest; where each ends on screen is its kind's (assets/kinds.js px)
   const specs = [...levels, ...(far ? Array.from({ length: far.speck === false ? 1 : 2 }, () => ({ P: far.P ?? 64, far: true })) : [])];
   // (the last few made are kept as the builder left them: the crowd kit builds a shape's levels one after another)
