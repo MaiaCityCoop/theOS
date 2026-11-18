@@ -168,6 +168,57 @@ numbers are written below.
 
 **Out of scope:** new assets, the body's look (0036, waiting on Samuel's pick), the Bible (0037), and the story pipeline.
 
+## Where we left off (2026-11-18): read this first to take over
+
+**Live on next (main `501aff5`; next deploys itself after every merge):**
+
+| Stage | PR | What it did |
+| --- | --- | --- |
+| 1 | #61 | Clean ground: −1194 lines, 16 tuning switches gone |
+| 2a | #62 | The gate (`tools/gate.js`, FLIP), `settle()`, `measure.js`, `?truth` |
+| 10 | #63 | CI ships its build, and next deploys itself |
+| 2b | #64 | Prepass, motion vectors (with wind), one 4K upscale |
+| 6a | #65 | The ground from a layer map; shaders at start −39 % |
+| 4 | #66 | Far trees as octahedral impostors and clump planes (no domes, no stipple) |
+| 3 | #67 | One boot (`src/boot.js`); the library and Me compile 75–80 % less |
+| Occlusion culling | #68 | A depth pyramid and two-pass culling of every drawer's tiers: 2–67 % of main's things drawn, nothing visible lost (exact depth check; FLIP within main's noise from above) |
+| 6b | `aven/0038-stage6b-avt` (draft PR to open: `gh`'s token was invalid in its session) | The ground as one virtual texture (`src/terrain/pages.js`): pages laid once in compute, BC atlas of 1792 pages in 107 MB, asked for from the prepass, faded in. The land alone 2–6 × faster from above (13–14 ms against 47–76 on the shared GPU); FLIP against main 0.04–0.09; the near ground a little softer (bias 0.5–1) |
+
+**In flight when this was written** (each on its own branch, as a PR or nearly):
+
+| Stream | Branch | State | Before merging |
+| --- | --- | --- | --- |
+| 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
+
+**Not started:**
+- **6c:** relief, meaning displacement near the eye, parallax further out, skirts for rocks, path decals. 6b's pages
+  already carry each texel's height (their colour's fourth number). Also left from 6b: the bias settling in one step
+  (it walks a quarter step every 128 frames: 14–159 s to settle after a jump), and what is let go with distance taken
+  by distance on grazing ground (at eye level the far bare patches go too near).
+- **7:** the one placement rule and the five layers. It needs Samuel's photos of the real site to choose the species.
+- **8:** cluster hierarchy for rocks, then the tent and fire pit (absorbs `aven/0033-solids-wip`).
+- **9:** one light: leaf shadows, Bend's screen-space shadows, the canopy map, GTAO, transmission, Hillaire's sky,
+  froxel fog, sky probes. It is the biggest step towards the look target.
+
+**Open risks:**
+- **Safari is untested on every stage.** Samuel is to open `/game/`, `/game/library.html` and `/game/me.html` on next
+  in Safari.
+- **The 12 ms / 60 fps gate is not met.** Bench views read 20–55 ms on the base M1, measured while the GPU was shared.
+- Stage 4 left these:
+  - **Impostor atlases:** about 0.4 GB (stage 5 sizes them down).
+  - **Bakes:** 21–91 s per load (stage 5 caches them).
+  - **A faint speckle** mid-way through the hand-over.
+
+**How this work runs:**
+- **Who:** one master session works through subagents, each in its own worktree on its own `aven/0038-…` branch,
+  with its own dev server on its own port. Each runs `tools/gate.js --url … --fresh` against main and against the
+  truth.
+- **Merging:** a PR merges when CI ("check") is green and its gate numbers and screenshots check out. Samuel
+  authorised merging and deploying each stage without asking (2026-11-17).
+- **Screenshots:** labelled before/after images go to Samuel with every task that changes the picture.
+- **Hygiene:** after a merge, remove the stage's worktree, its branch and its dev servers.
+
+
 ## Build
 
 ### Stage 1: clean ground (2026-11-17)
@@ -737,6 +788,125 @@ Built on `aven/0038-stage6b-avt` from main at `cc3aa70` (stages 1, 2a, 2b, 4, 6a
   on a mesh built in compute, parallax further out (a few reads along the ray within the page), skirts that bed rocks
   in the soil, and path decals laid into the pages as they are laid. Also: the bias to settle in one step; the far
   grazing hand-over (the level by distance for what is let go, apart from the level by the filter's footprint).
+### Draw path: two-pass occlusion culling (2026-11-18)
+
+Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with main at `501aff5` (stage 3), as draft PR
+#68. It runs beside stage 5 and touches none of the crowds' files.
+
+- **The depth pyramid** (`src/core/occlusion.js`). Once a frame, in compute, it is built from the prepass's depth.
+  Level 0 has half the depth's pixels each way, and each texel holds the farthest of the four under it, up to one
+  texel. It is one storage buffer, which works the same on every GPU.
+- **Pass one**, before the prepass, takes every thing a tier has packed:
+  - it drops whatever lies wholly outside this frame's view;
+  - it tests the rest against the last frame's pyramid, through the last frame's camera;
+  - what passes is drawn in the prepass and the colour pass, and the rest is held back.
+- **Pass two**, after the prepass and the new pyramid, tests what was held back, through this frame's camera. What is
+  now seen is drawn into the prepass after the rest, then in the colour pass with the rest. The late draw uses the
+  tiers' meshes once more, starting where pass one's list ends (`indirect-first-instance`). Whatever this frame's
+  depth does not hide is drawn in this frame, so nothing comes out from behind something late.
+- **A thing's box** (`drawer.js` `kindBox`, `boundsOf`) is its kind's box at its size:
+  - a solid kind's box is measured on every mesh of it as the recipes' worker makes it;
+  - a made thing's box comes from its faces;
+  - a plant's is its family's box over its height.
+  The box grows by what may move the thing past it: its growth (a crowd's sprigs 0.3 of its size, a mover's limbs
+  0.5), the wind's strongest push at its top now, and the snow.
+- **The shadow map** and every other view draw all that was packed. Each draw has three sets of arguments: everything
+  packed, what the eye sees, and what pass two found. Only the eye's two passes read a thing through the culled list
+  (`passOf`).
+- **Compaction:**
+  - the packing (`tier.js`) takes one atomic per bucket per workgroup instead of one per thing; its 64 count theirs in
+    shared memory first;
+  - the culling passes take none. Each workgroup writes a 64-bit mask of what it keeps. One workgroup scans every
+    chunk's count in shared memory; its loop bound is read-only storage, which Tint takes as uniform, so its barriers
+    are allowed. Each chunk then writes where the scan says;
+  - what is kept keeps the packing's order, so a still frame draws in the same order every frame. With atomics the
+    order changed every frame, and things at exactly equal depth swapped.
+  - No subgroups are used.
+- **It covers** every drawer's tiers: the plants, the rocks, the placed things, the stress stand and the herds. It
+  does not cover the shadow's stand-in, the grass (its own tiers, with no boxes) or the bodies' packing. On the stage
+  profile, a tier is culled only while its meshes stand in the scene drawn. Without `indirect-first-instance`, or
+  without WebGPU, nothing is culled.
+- `tools/bench.js` now counts the compute passes in a frame's GPU time.
+- **Found:**
+  - three adds `if (instanceIndex >= count) return;` to a compute pass with no barrier, so a pass dispatched
+    indirectly needs its count as large as it can be;
+  - two dev servers can listen on one port, one on IPv4 and one on IPv6. Every reading here was taken through
+    `127.0.0.1`;
+  - the bench's Mac has 8 GB, with about 15% free under the other agents' runs. The WebGPU instance was lost several
+    times, main's included, so every check below runs on the GPU and reads back only counters.
+- **Checked, exactly.** The same camera was drawn culled (pass one against the frame before's pyramid) and not culled,
+  with the jitter held, and the two prepass depths were compared pixel by pixel on the GPU. A pixel farther with
+  culling would be something visible left out. None was, and none was nearer:
+  - at the six bench views, 23 or 24 frames each with no wind;
+  - at the pine forest and tent at eye level and the pines from 90 m, 30 frames each in a storm wind (1.0);
+  - along the walk and the orbit, 241 frames each, wind 0.6;
+  - on the stage profile (the library) with its growth shown, and again with it hidden, when nothing is culled.
+
+| Instances drawn (still, 2560×1440 into 4K, no wind) | Packed (what main draws) | Drawn | Share |
+| --- | --- | --- | --- |
+| Tent, eye level | 89,593 | 60,192 | 67% |
+| River bend, 26 m | 44,253 | 740 | 2% |
+| Town, 40 m | 33,287 | 1,013 | 3% |
+| Skyline, 2.5 km | 29,225 | 11,390 | 39% |
+| Pine forest, eye level | 77,921 | 39,022 | 50% |
+| Pine forest, 90 m | 23,308 | 1,781 | 8% |
+
+  - In a storm wind the boxes grow: 45,846 drawn at the pine forest (59%) and 68,256 at the tent (76%).
+  - Most of what goes is out of view (the packing's own test is a wide cone) or far: at the pine forest, the far end's
+    level falls from 27,609 to 4,538, while the nearest levels keep almost all of theirs (86 → 82, 332 → 302).
+
+- **What it costs.** Each part was run alone, the median of 30, on the shared GPU, where the whole frame's render
+  passes took 119 ms at the pine forest and 69 ms at the tent; a quiet frame is about a quarter of that.
+
+| Part (ms) | Pine forest, eye level | Tent, eye level |
+| --- | --- | --- |
+| GPU: the pyramid | 0.72 | 0.63 |
+| GPU: pass one, every culled tier (test, scan, write) | 1.33 | 1.57 |
+| GPU: pass two, every culled tier | 1.03 | 1.10 |
+| GPU: every tier's packing, as when the camera moves (for scale) | 11.8 | 13.3 |
+| CPU: pass one | 0.9 | 0.6 |
+| CPU: the pyramid, pass two and the late prepass's draws | 4.6 | 3.7 |
+| CPU: the whole frame | 18.0 | 13.7 |
+
+  - Most of the GPU time is dispatches, not work: six a culled tier a frame, 16 to 19 tiers. One dispatch a pass for
+    every tier would take most of it away.
+- **GPU time.** Readings were taken side by side in one page, culling off and on, interleaved, at the bench's poses.
+  The GPU was shared with other agents' runs, and frames took 66–115 ms. Off against on (median ms): tent 99.4 → 95.5,
+  river bend 114.8 → 105.4, town 66.2 → 66.9, skyline 71.6 → 72.4, pine forest 68.0 → 68.5. The pines from 90 m
+  were lost to the device. No gain shows above that noise. The plants were about 4 ms of a 30 ms frame in stage 4,
+  and most of what is culled is cheap (far quads), so the gain to expect is about a millisecond.
+- **FLIP against main** (fresh profiles, the six bench views, 4K; main shot twice for the floor):
+
+| View | This branch against main, mean (p99 tile) | Main against main |
+| --- | --- | --- |
+| Tent, eye level | 0.0254 (0.088) | 0.0032 (0.006) |
+| River bend, 26 m | 0.0181 (0.042) | 0.0151 (0.038) |
+| Town, 40 m | 0.0248 (0.050) | 0.0231 (0.049) |
+| Skyline, 2.5 km | 0.0070 (0.025) | 0.0139 (0.034) |
+| Pine forest, eye level | 0.0050 (0.007) | 0.0201 (0.058) |
+| Pine forest, 90 m | 0.0187 (0.066) | 0.0188 (0.066) |
+
+  - Five views lie within the floor. The tent lies above it: its meadow's pixels differ by 1 to 4 of 255, as a fine
+    speckle over every blade, and nothing is missing.
+  - The grass is not culled, but its packing's compaction is new, so its blades are drawn in another order. Where two
+    blades cross within a step of the depth, the last one drawn shows.
+  - Main's own order is the same from run to run, which is why its two tent stills match to 0.003.
+- **The gate's paths** (walk and orbit, cold and warm, on the shared GPU): medians of 67–133 ms a frame and GPU p99 of
+  67–155 ms, so not met, as on main under this load. The peak memory was 4.94 GB (physical footprint), within 8 GB.
+  It was not taken side by side with main.
+- **Pictures** (main above, this branch below, labelled) of the pine forest and the tent at eye level, with a chart of
+  the instances drawn per view: in the session's scratchpad, `visual/occlusion/`.
+- **Not done:**
+  - the culling's own cost is mostly dispatches: six a culled tier a frame. One dispatch a pass for every tier (their
+    lists in one buffer) would take most of it away;
+  - the late prepass costs 1.5–4 ms of CPU a frame (one draw for each mesh of every culled tier). A render bundle would
+    record those draws once;
+  - the grass is not culled: its tiers carry no boxes (`grass.js`, stage 5's). The packing's compaction could keep its
+    order, as the culling's does;
+  - a plant's box is its family's box with 0.3 for growth. A box measured on its meshes would cull more;
+  - the gate's `bench` was not run apart (it would not compare under this load): the readings above are side by side in
+    one page;
+  - Safari has not been tried.
 
 ## Propose
 
@@ -752,9 +922,10 @@ Built on `aven/0038-stage6b-avt` from main at `cc3aa70` (stages 1, 2a, 2b, 4, 6a
 - [x] Stage 1: clean ground
 - [x] Stage 2a: gate, settle, one measure, truth
 - [x] Stage 2b: prepass, motion vectors, upscale
-- [x] Stage 3: boot (built; draft PR; Safari to be tried on next)
-- [x] Stage 4: far end, impostor and clump rung (built; draft PR)
+- [x] Stage 3: boot (merged #67; Safari to be tried on next)
+- [x] Stage 4: far end, impostor and clump rung (merged #66)
 - [ ] Stage 5: crowds, parts and one wind
+  - [x] the draw path's two-pass occlusion culling, against a depth pyramid (built; draft PR #68)
 - [ ] Stage 6: land, virtual texture and relief
   - [x] 6a: the layer map, one read a material (the deferred pass left to 6b)
   - [x] 6b: the adaptive virtual texture with feedback (built; draft PR; the ground pass still reads the land's nodes)
@@ -854,6 +1025,20 @@ Built on `aven/0038-stage6b-avt` from main at `cc3aa70` (stages 1, 2a, 2b, 4, 6a
   - at eye level the far grazing ground lets go nearer (the bare patches 100 m behind the tent);
   - settling after a jump is slow (the bias's quarter steps);
   - the ground pass still reads the land's nodes; Safari not tried; lines rose (+330 in the game).
+- **Asked (by the orchestrating session):** the draw path's occlusion culling: a depth pyramid from the prepass's
+  depth once a frame; two-pass culling in the packing (pass one against the last frame's pyramid, pass two against
+  this frame's), nothing popping in; compaction by one atomic a workgroup, not one a thing; every drawer through the
+  tiers, the shadow casters never culled by the camera's depth.
+- **Delivered:** built (under Build, "Draw path: two-pass occlusion culling"). Draft PR #68.
+- **Good:** the exact check finds no visible pixel left out, at six views, in a storm wind, along the walk and the
+  orbit, and on the stage. The instances drawn fall to 67% at the tent, 50% in the pine forest and 2–8% from above.
+  A still frame draws in the same order every frame.
+- **Not there yet:**
+  - no GPU gain shows above the shared GPU's noise;
+  - the culling costs six dispatches a culled tier a frame, and its late prepass costs CPU;
+  - the grass is not culled;
+  - net lines rose (+390: a new mechanism);
+  - Safari not tried.
 
 ## Trail
 
@@ -883,3 +1068,5 @@ Built on `aven/0038-stage6b-avt` from main at `cc3aa70` (stages 1, 2a, 2b, 4, 6a
 | 2026-11-18 | `d55d805` | Stage 6b: the land as one virtual texture (pages laid once in compute, BC atlas, page table, feedback, fade-in) |
 | 2026-11-18 | `8653cd3` | Stage 6b: pages asked for from the prepass (a storage write in the colour pass cost its early depth test); each mip its own binding |
 | 2026-11-18 | `8a53e90` | Stage 6b merged with main (stage 3): the pages in `boot.js`, the library's stage drawn through them |
+| 2026-11-18 | `907a269` | Draw path: a depth pyramid and two-pass occlusion culling of every drawer's tiers, kept in order, no atomic |
+| 2026-11-18 | `4b04cde` | Draw path: merged with main (stage 3); on the stage only what is drawn is culled (draft PR #68) |

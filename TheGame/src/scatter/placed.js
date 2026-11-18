@@ -141,7 +141,8 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
   });
   const D = createDrawer(scene, renderer, tex, {
     name: `made: ${name}`, LEVELS, SHADE: { shrink: 1, far: 30, wide: 1.5 }, SMOOTH: uniform(1), state: true,
-    make: { per: 1, flat: true, dot: !!card, numbers: { rows: NUMS, of: numbersOf }, material: (src, i, shadow, at) => madeMaterial(D, src, i, { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity, last: !card && i === ML - 1 }, fade, sink, at), here: FEW ? here : null },
+    make: { per: 1, flat: true, dot: !!card, numbers: { rows: NUMS, of: numbersOf }, material: (src, i, shadow, at) => madeMaterial(D, src, i, { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity, last: !card && i === ML - 1 }, fade, sink, at), here: FEW ? here : null,
+      box: (k) => { const a = kinds[k].asset, B = madeBox(a), s = spanOf(a); return { min: B.min.map((v) => v / s), max: B.min.map((v, j) => (v + B.ext[j]) / s) }; } },   // (its box over every level, in its sizes: what the eye's occlusion test reads, drawer.js kindBox)
     // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
     zoo: { kinds: KINDS, ALL: n, lookOfKind: (k) => kinds[k].look, fingerprint: () => `made 2|${kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room?.verts}:${l.room?.tris}`).join()}` },
   });
