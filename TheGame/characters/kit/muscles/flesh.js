@@ -141,7 +141,7 @@ function eyesOf(bones, eye) {
         // is brightest on its far side)
         const upW = vec3(0, 1, 0), L2 = normalize(V.add(upW.mul(0.62)).add(normalize(cross(upW, V)).mul(0.4))), L2l = normalize(modelWorldMatrixInverse.mul(vec4(L2, 0)).xyz);
         const far = clamp(dot(dir, normalize(L2l.xy.add(1e-6)).negate()), 0, 1), lit2 = far.mul(far).mul(smoothstep(0.3, 0.75, ri)).mul(0.7).add(1);
-        const stroma = mix(vec3(0.4, 0.26, 0.09), vec3(0.17, 0.115, 0.055), smoothstep(0.3, 0.95, ri)).mul(fibre.mul(0.55).add(0.95)).mul(lit2).mul(mix(float(1), float(0.32), smoothstep(0.8, 1.0, ri)));
+        const stroma = mix(vec3(0.46, 0.3, 0.1), vec3(0.19, 0.13, 0.06), smoothstep(0.3, 0.95, ri)).mul(fibre.mul(0.55).add(0.95)).mul(lit2).mul(mix(float(1), float(0.32), smoothstep(0.8, 1.0, ri)));
         // the white: off white, veined and pinker towards the corners; the inner corner's pink flesh; the lower lid's rim
         const vein = smoothstep(0.15, 0.75, mx_noise_float(vec3(p.x.mul(700), p.y.mul(1800), 2.3))).mul(smoothstep(0.0062, 0.011, rho)).mul(0.3);
         let col = mix(vec3(...WHITE), vec3(0.6, 0.35, 0.32), vein);
@@ -153,10 +153,12 @@ function eyesOf(bones, eye) {
         const shade = mix(float(0.32), float(1), smoothstep(0.0002, 0.006, o.under)).mul(mix(float(0.75), float(1), smoothstep(0, 0.002, o.over))).mul(mix(float(0.6), float(1), smoothstep(0.0, 0.14, o.t).mul(smoothstep(1.0, 0.88, o.t))));
         const sun = U.uSun.mul(sunDim().mul(cloudShade(w)).mul(shadowAtPulled(w))), diff = max(dot(nS, L).mul(0.55).add(0.45), 0);
         // the sun's glint in the cornea, small and sharp; a broader one on the wet white; the sky mirrored at a grazing look; the wet line
-        const H = normalize(V.add(L)), ndh = max(dot(n, H), 0), ndv = max(dot(n, V), 0), fres = float(0.025).add(float(0.975).mul(pow(float(1).sub(ndv), 5)));
+        const H = normalize(V.add(L)), ndh = max(dot(n, H), 0), ndv = max(dot(n, V), 0), fres = float(0.035).add(float(0.965).mul(pow(float(1).sub(ndv), 5)));
         const glint = pow(ndh, 1400).mul(9).mul(cornea).add(pow(ndh, 260).mul(0.7)).mul(smoothstep(0.0, 0.0025, o.under));
         const wet = smoothstep(0.001, 0.0002, o.over).mul(0.22);
-        const H2 = normalize(V.add(L2)), nh2 = max(dot(n, H2), 0), spark = pow(nh2, 420).mul(4.5).add(pow(nh2, 4000).mul(16)).mul(cornea).mul(smoothstep(0.0, 0.002, o.under)).mul(smoothstep(0.0, 0.0015, o.over));
+        // (and a small second spark low on the other side, as a window opposite gives: a look that is fond is a wet, bright one)
+        const H2 = normalize(V.add(L2)), nh2 = max(dot(n, H2), 0), H3 = normalize(V.add(normalize(V.sub(upW.mul(0.3)).sub(normalize(cross(upW, V)).mul(0.42))))), nh3 = max(dot(n, H3), 0);
+        const spark = pow(nh2, 360).mul(5).add(pow(nh2, 3500).mul(18)).add(pow(nh3, 2600).mul(6)).mul(cornea).mul(smoothstep(0.0, 0.002, o.under)).mul(smoothstep(0.0, 0.0015, o.over));
         const lit = col.mul(skyLight(nS).mul(0.8).add(sun.mul(diff))).mul(shade).add(sun.mul(glint.add(wet))).add(skyLight(upW).mul(spark)).add(skyLight(reflect(V.negate(), n)).mul(fres).mul(shade));
         out.assign(finish(lit, w, eye));
       });
@@ -189,31 +191,36 @@ function eyesOf(bones, eye) {
 }
 
 // The smile's teeth and the dark of the mouth behind them, seen through the lips' opening (../skin/light.js cuts it; the
-// skin there stands back on the teeth's faces, ../skin/head.js). The upper row's ten front teeth, each a crown where
+// skin there stands back on the teeth's faces, ../skin/head.js). The upper row's ten front teeth and the lower's eight
+// (of which a smile shows their edges at most), each with its gum, each a crown where
 // the skull's tooth stands (../skeleton/skull.js teethOf: the skeleton itself is not drawn under the skin): its neck's
 // round section widening to its edge, a cutting tooth thinned there to a blade, the canine drawn to a point. They ride
-// on the head's joint, written where they stand at rest. (Their necks are drawn fuller than the skull's teeth are: no
-// gum is drawn between them, and the dark showed there as gaps.)
+// on the head's joint, written where they stand at rest. (Their necks are drawn fuller than the skull's teeth are, so
+// that they stand shoulder to shoulder as teeth in their gum do.)
 function mouthOf(bones, eye) {
   const b = bones.head; if (!b) return [];
-  const rest = rigOf().head.at, pos = [], idx = [], N = 14;
-  const SECT = [   // [how far from the neck to the edge, the share of its half-length along the row, of its half-thickness across it]
-    [[0, 0.86, 0.8], [0.3, 0.96, 0.94], [0.6, 1.02, 0.86], [0.85, 1.03, 0.5], [0.97, 0.98, 0.22], [1.0, 0.88, 0.1]],
-    [[0, 0.84, 0.78], [0.3, 0.96, 0.96], [0.6, 1.02, 1.0], [0.82, 0.88, 0.78], [0.96, 0.46, 0.4], [1.0, 0.18, 0.16]],
-    [[0, 0.86, 0.72], [0.35, 0.96, 0.88], [0.7, 1.02, 1.0], [0.93, 0.94, 0.88], [1.0, 0.58, 0.5]],
+  const rest = rigOf().head.at, pos = [], idx = [], uv = [], N = 16;
+  // [how far from the neck to the edge (before the neck: under the gum), the share of its half-length along the row, of
+  // its half-thickness across it]: a cutting tooth, a canine, a grinding tooth. Each begins as a collar under the gum,
+  // broad enough to meet its neighbours': the gum is drawn on it (below)
+  const GUM = [[-0.8, 1.12, 1.15], [-0.3, 1.08, 1.04]];
+  const SECT = [
+    [...GUM, [0, 0.9, 0.82], [0.3, 0.97, 0.94], [0.6, 1.02, 0.86], [0.85, 1.03, 0.5], [0.96, 1.0, 0.24], [1.0, 0.93, 0.1]],
+    [...GUM, [0, 0.86, 0.8], [0.3, 0.96, 0.96], [0.6, 1.02, 1.0], [0.82, 0.88, 0.78], [0.96, 0.46, 0.4], [1.0, 0.18, 0.16]],
+    [...GUM, [0, 0.88, 0.74], [0.35, 0.96, 0.88], [0.7, 1.02, 1.0], [0.93, 0.94, 0.88], [1.0, 0.58, 0.5]],
   ];
-  for (const T of teethOf('U').slice(0, 5)) for (const sx of [1, -1]) {
+  for (const T of [...teethOf('U').slice(0, 5), ...teethOf('L').slice(0, 4)]) for (const sx of [1, -1]) {
     const base = pos.length / 3, S = SECT[T.kind], m = (v) => [sx * v[0], v[1], v[2]], neck = m(T.neck), ax = m(T.ax), o = m(T.o), t = m(T.t);
     for (const [f, wl, wt] of S) for (let j = 0; j < N; j++) {
-      const a = (j / N) * 2 * Math.PI, c = Math.cos(a), sn = Math.sin(a), e = 2 / 2.6, u = Math.sign(c) * Math.abs(c) ** e * (T.len / 2) * wl, w = Math.sign(sn) * Math.abs(sn) ** e * (T.thick / 2) * wt;
-      pos.push(neck[0] + ax[0] * T.tall * f + t[0] * u + o[0] * w, neck[1] + ax[1] * T.tall * f + t[1] * u + o[1] * w, neck[2] + ax[2] * T.tall * f + t[2] * u + o[2] * w);
+      const a = (j / N) * 2 * Math.PI, c = Math.cos(a), sn = Math.sin(a), e = 2 / 2.6, cu = Math.sign(c) * Math.abs(c) ** e, u = cu * (T.len / 2) * wl, w = Math.sign(sn) * Math.abs(sn) ** e * (T.thick / 2) * wt;
+      pos.push(neck[0] + ax[0] * T.tall * f + t[0] * u + o[0] * w, neck[1] + ax[1] * T.tall * f + t[1] * u + o[1] * w, neck[2] + ax[2] * T.tall * f + t[2] * u + o[2] * w); uv.push(cu, f);
     }
-    const tip = pos.length / 3; pos.push(neck[0] + ax[0] * T.tall, neck[1] + ax[1] * T.tall, neck[2] + ax[2] * T.tall);
+    const tip = pos.length / 3; pos.push(neck[0] + ax[0] * T.tall, neck[1] + ax[1] * T.tall, neck[2] + ax[2] * T.tall); uv.push(0, 1);
     const quad = (p, q, r, s2) => (sx > 0 ? idx.push(p, q, r, p, r, s2) : idx.push(p, r, q, p, s2, r));
     for (let k = 0; k < S.length - 1; k++) for (let j = 0; j < N; j++) quad(base + k * N + j, base + k * N + (j + 1) % N, base + (k + 1) * N + (j + 1) % N, base + (k + 1) * N + j);
     for (let j = 0; j < N; j++) { const p = base + (S.length - 1) * N + j, q = base + (S.length - 1) * N + (j + 1) % N; sx > 0 ? idx.push(p, q, tip) : idx.push(q, p, tip); }
   }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('tooth', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
   const lit = (colour, gloss) => {
     const mat = new THREE.NodeMaterial(); mat.eye = eye;
     mat.fragmentNode = Fn(() => {
@@ -233,8 +240,14 @@ function mouthOf(bones, eye) {
     })();
     return mat;
   };
-  // (enamel: ivory, a little yellower towards the gum)
-  const teeth = new THREE.Mesh(g, lit((P) => mix(vec3(0.74, 0.71, 0.635), vec3(0.72, 0.64, 0.5), smoothstep(1.6085, 1.6165, P.y)), 1));
+  // (a tooth by where on it: its enamel ivory, warmer towards the neck, a little clearer and cooler at its edge, in
+  // shade where it turns to its neighbour; and the gum, which comes down between two teeth as a point and stands back
+  // at a tooth's middle, drawn on the tooth's own collar)
+  const teeth = new THREE.Mesh(g, lit(() => {
+    const tv = attribute('tooth', 'vec2'), au = tv.x.abs(), f = tv.y, line = pow(au, 2.4).mul(0.26).sub(0.03), gum = smoothstep(line.add(0.04), line.sub(0.02), f);
+    const enamel = mix(mix(vec3(0.74, 0.69, 0.58), vec3(0.75, 0.735, 0.68), smoothstep(0.08, 0.5, f)), vec3(0.66, 0.7, 0.74), smoothstep(0.84, 1.0, f).mul(0.3)).mul(mix(float(0.5), float(1), smoothstep(1.03, 0.62, au)));
+    return mix(enamel, vec3(0.62, 0.3, 0.3), gum);
+  }, 1));
   // (the dark behind them: the mouth's inside, never seen but as what is not teeth)
   const bag = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18).scale(0.045, 0.024, 0.047).translate(0, 1.609, 0.04), lit(() => vec3(0.09, 0.025, 0.025), 0));
   for (const mesh of [teeth, bag]) { mesh.position.set(-rest[0], -rest[1], -rest[2]); mesh.frustumCulled = false; b.add(mesh); }

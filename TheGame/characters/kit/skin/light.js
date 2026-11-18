@@ -44,7 +44,7 @@ export const ROUGH = { skin: 0.5, oily: 0.36, nail: 0.24, lip: 0.34 };
 export const THROUGH = 0.35;
 /** A fair skin's own colour (linear light), before its blood and its pigment (./table.js TONE) tint it place by place:
     between the Physically Based database's skin I and skin III. What more pigment and more blood multiply it by. */
-export const SKIN = { brow: [0.05, 0.032, 0.022], base: [0.58, 0.36, 0.26], pigment: [0.7, 0.56, 0.45], blood: [1.0, 0.72, 0.7], pale: [1.05, 1.04, 0.94], vein: [0.84, 0.9, 1.06], lip: [0.5, 0.18, 0.16], areola: [0.62, 0.45, 0.42], nail: [0.6, 0.4, 0.36] };
+export const SKIN = { brow: [0.05, 0.032, 0.022], base: [0.58, 0.36, 0.26], pigment: [0.7, 0.56, 0.45], blood: [1.0, 0.72, 0.7], pale: [1.05, 1.04, 0.94], vein: [0.84, 0.9, 1.06], lip: [0.56, 0.2, 0.18], areola: [0.62, 0.45, 0.42], nail: [0.6, 0.4, 0.36] };
 /** How strongly the fine relief turns the normal. */
 const RELIEF = 0.55;
 
@@ -129,6 +129,9 @@ export function skinMaterial({ joints, eye, maps }) {
       // (the upper lid's fold, a line over its edge; the lids' thin skin a little darker and redder; the face's skin finer than the body's)
       const front = smoothstep(EYE.at[2] - 0.004, EYE.at[2] + 0.004, Q.z), crease = exp(eyeAt.under.add(0.0042).div(0.0006).pow(2).negate()).mul(smoothstep(0.04, 0.3, eyeAt.t)).mul(smoothstep(0.99, 0.75, eyeAt.t)).mul(front);
       const lids = smoothstep(-0.0085, -0.001, eyeAt.d).mul(front), face = smoothstep(1.52, 1.57, P.y);
+      // (the fine lines a whole smile draws from the eye's outer corner: three, short, fanning out)
+      const oc = Q.xy.sub(vec2(EYE.at[0] + EYE.outer[0], EYE.at[1] + EYE.outer[1])), ray = (deg) => { const a = (deg * Math.PI) / 180, along = oc.x.mul(Math.cos(a)).add(oc.y.mul(Math.sin(a))), off = oc.y.mul(Math.cos(a)).sub(oc.x.mul(Math.sin(a))); return exp(off.div(0.00045).pow(2).negate()).mul(smoothstep(0.002, 0.0045, along)).mul(smoothstep(0.0125, 0.007, along)); };
+      const crow = max(max(ray(24), ray(-4)), ray(-30)).mul(smoothstep(0.045, 0.06, Q.z));
       const lipLines = mx_noise_float(vec3(Q.x.mul(1100), Q.y.mul(140), 2.3)).mul(lip);
 
       // its fine relief: the tile read from the three sides of where the point stood at rest (so it goes with the
@@ -152,7 +155,7 @@ export function skinMaterial({ joints, eye, maps }) {
       col = mix(mix(mix(col, vec3(...SKIN.lip), lip.mul(0.8)), col.mul(vec3(...SKIN.areola)), areola), vec3(...SKIN.nail), nail.mul(0.7));
       // the lips' inner edge, darker; the lid's edge redder; hair shaved to the skin, a cool shadow in it, its
       // dots seen close; a brow's hairs
-      col = col.mul(mix(vec3(1), vec3(0.72, 0.5, 0.5), lipLine)).mul(mix(vec3(1), vec3(1.0, 0.74, 0.72), lidEdge.mul(0.7))).mul(crease.mul(0.3).oneMinus()).mul(mix(vec3(1), vec3(0.93, 0.85, 0.84), lids.mul(0.7))).mul(lipLines.mul(0.16).oneMinus());
+      col = col.mul(mix(vec3(1), vec3(0.72, 0.5, 0.5), lipLine)).mul(mix(vec3(1), vec3(1.0, 0.74, 0.72), lidEdge.mul(0.7))).mul(crease.mul(0.3).oneMinus()).mul(mix(vec3(1), vec3(0.93, 0.85, 0.84), lids.mul(0.7))).mul(lipLines.mul(0.16).oneMinus()).mul(crow.mul(0.07).oneMinus());
       col = mix(col, col.mul(vec3(0.5, 0.53, 0.58)), stubble.mul(mx_noise_float(P.mul(2400)).mul(0.3).add(0.7)));
       col = mix(col, vec3(...SKIN.brow), brow.mul(0.8));
 

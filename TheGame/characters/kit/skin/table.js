@@ -267,7 +267,7 @@ export const LIMB_RELIEF = [
 // practice, not from a measured map: none was found (reports/Photoreal human body architecture.md, "skin colour").
 export const TONE = {
   blood: [
-    ['cheek', [0.045, 1.635, 0.085], 0.035, 0.4], ['nose', [0, 1.634, 0.12], 0.02, 0.6], ['ear', [0.077, 1.665, -0.02], 0.03, 0.6], ['chin', [0, 1.585, 0.1], 0.025, 0.25],
+    ['cheek', [0.045, 1.638, 0.085], 0.035, 0.52], ['nose', [0, 1.634, 0.12], 0.02, 0.6], ['ear', [0.077, 1.665, -0.02], 0.03, 0.6], ['chin', [0, 1.585, 0.1], 0.025, 0.25],
     ['knuckles', [0.238, 0.775, -0.02], 0.035, 0.4], ['finger ends', [0.23, 0.69, -0.02], 0.035, 0.45], ['palm', [0.207, 0.82, -0.02], 0.04, 0.35], ['elbow', [0.19, 1.14, -0.08], 0.035, 0.4],
     ['knee', [0.085, 0.5, 0.08], 0.045, 0.35], ['heel', [0.077, 0.02, -0.06], 0.045, 0.4], ['ball of the foot', [0.09, 0.015, 0.11], 0.05, 0.4], ['toes', [0.1, 0.02, 0.17], 0.05, 0.35],
     ['chest', [0, 1.38, 0.1], 0.1, 0.12], ['shin', [0.08, 0.3, 0.05], 0.1, -0.12],
@@ -304,7 +304,7 @@ export const gapAt = (y) => { const G = LEG_GAP; if (y >= G[0][0]) return G[0][1
 //   LIPS   the upper lip's red: where its bow's peak stands off the middle, its height there and at the middle; the
 //          lower lip's height (each from the mouth's opening, MOUTH below, outwards)
 //   BROW   the brow's line from its inner end over its highest point to its outer end, its thickness at each end
-export const EYE = { at: [0.032, 1.677, 0.072], r: 0.012, inner: [-0.0155, -0.0016], outer: [0.0145, 0.0006], upper: [0.0047, 0.42], lower: [0.004, 0.56], lid: 0.0013, iris: 0.00585, pupil: 0.002 };
+export const EYE = { at: [0.032, 1.677, 0.072], r: 0.012, inner: [-0.0155, -0.0016], outer: [0.0145, 0.0006], upper: [0.0045, 0.42], lower: [0.0034, 0.52], lid: 0.0013, iris: 0.00585, pupil: 0.0025 };
 export const LIPS = { bow: [0.0046, 0.0062, 0.005], lower: 0.0085 };
 // The mouth as it smiles: a friendly face's lips part over its upper teeth. The opening between them, cut out of the
 // skin as it is drawn (as the eyes' are): half its breadth; the height of its corners, of the upper lip's edge at the
@@ -312,8 +312,10 @@ export const LIPS = { bow: [0.0046, 0.0062, 0.005], lower: 0.0085 };
 // middle (m: z = floor[0] - floor[1] x² - floor[2] x⁴; ../skeleton/skull.js's upper row with half a millimetre before
 // it), which the lips' edges roll in to; `edge`: how round those edges are (m). A smile shows three quarters or more
 // of the upper front teeth and the lower lip follows their edges (the "smile arc" of the dentists' books, as
-// remembered); at rest the lips met at 1.6077 m and the mouth was 52 mm broad.
-export const MOUTH = { half: 0.0295, corner: 1.6122, upper: 1.6142, lower: 1.6046, floor: [0.0995, 17, 9000], edge: 0.0028 };
+// remembered); at rest the lips met at 1.6077 m and the mouth was 52 mm broad. It is a whole smile, the kind the eyes
+// take part in: the corners stand higher than the upper lip's middle, the cheeks are raised (HEAD's masses) and the lower
+// lids with them (EYE: the opening 7.9 mm high for a resting eye's 10; the pupil wide, 5 mm, as a fond look's is).
+export const MOUTH = { half: 0.0305, corner: 1.615, upper: 1.6148, lower: 1.605, floor: [0.0995, 17, 9000], edge: 0.0028 };
 /** The mouth's opening at a place of the face seen from the front: how far inside the lips' edges (m; negative: on a
     lip), how far under the upper lip's edge and over the lower's, and how far out from the middle (0 … 1). */
 export const mouthOpening = (x, y) => {
@@ -321,7 +323,7 @@ export const mouthOpening = (x, y) => {
   const under = yu - y, over = y - yl;
   return { d: ax >= M.half ? -Math.hypot(ax - M.half, y - M.corner) : Math.min(under, over), under, over, t };
 };
-export const BROW = { from: [0.0105, 1.6945], peak: [0.04, 1.7015], to: [0.059, 1.6955], thick: [0.0095, 0.004] };
+export const BROW = { from: [0.0105, 1.6955], peak: [0.04, 1.703], to: [0.059, 1.6965], thick: [0.0095, 0.004] };
 /** The eye's opening at a place of the globe's front view: how far inside the lids' edges it lies (m; negative: under
     a lid), how far below the upper edge and above the lower, and where along the line between the corners. */
 export const eyeOpening = (u, v) => {
@@ -374,17 +376,17 @@ export const HEAD = {
     { what: 'nose, its tip', at: [0, 1.6408, 0.1168], r: [0.0095, 0.0095, 0.008, 0.0072, 0.0088, 0.009], k: 0.006 },
     { what: 'nose, a wing', at: [0.0105, 1.6375, 0.102], r: [0.0064, 0.0072, 0.0072, 0.0055, 0.0095, 0.009], n: 2.2, k: 0.0045 },
     { what: 'nose, its foot', a: [0, 1.637, 0.118], b: [0, 1.6352, 0.1045], ra: 0.0034, rb: 0.0036, k: 0.003 },
-    { what: 'upper lip', at: [0, 1.6172, 0.1005], r: [0.031, 0.031, 0.0052, 0.0046, 0.0072, 0.01], k: 0.0035, arch: 21 },
-    { what: 'lower lip', at: [0, 1.5995, 0.0995], r: [0.027, 0.027, 0.0062, 0.0066, 0.008, 0.01], k: 0.0035, arch: 21, rise: 7 },
+    { what: 'upper lip', at: [0, 1.6178, 0.1005], r: [0.032, 0.032, 0.0052, 0.0046, 0.0072, 0.01], k: 0.0035, arch: 21, rise: 1.5 },
+    { what: 'lower lip', at: [0, 1.6, 0.0995], r: [0.028, 0.028, 0.0062, 0.0066, 0.0082, 0.01], k: 0.0035, arch: 21, rise: 10 },
     { what: 'chin', at: [0, 1.5722, 0.0855], r: [0.017, 0.017, 0.0135, 0.0108, 0.012, 0.014], k: 0.018 },
     { what: 'under the jaw', at: [0, 1.5805, 0.046], r: [0.039, 0.039, 0.02, 0.0195, 0.046, 0.04], k: 0.012 },
-    { what: 'cheek, raised by the smile', at: [0.036, 1.642, 0.0735], r: [0.012, 0.012, 0.012, 0.014, 0.0145, 0.01], k: 0.012 },
+    { what: 'cheek, raised by the smile', at: [0.036, 1.644, 0.0735], r: [0.012, 0.012, 0.012, 0.014, 0.0155, 0.01], k: 0.012 },
   ],
   hollows: [
     { what: 'over the upper lid', at: [0.0295, 1.6795, 0.0925], r: [0.0175, 0.0175, 0.008, 0.008, 0.0115, 0.0115], k: 0.01 },
     { what: 'the inner corner', at: [0.0185, 1.6765, 0.0905], r: [0.0085, 0.0085, 0.008, 0.008, 0.0115, 0.0115], k: 0.006 },
     { what: 'the outer corner', at: [0.0455, 1.678, 0.0845], r: [0.007, 0.007, 0.007, 0.007, 0.0105, 0.01], k: 0.007 },
-    { what: 'under the lower lid', at: [0.031, 1.665, 0.0948], r: [0.016, 0.014, 0.006, 0.006, 0.0105, 0.01], k: 0.013 },
+    { what: 'under the lower lid', at: [0.031, 1.665, 0.0956], r: [0.016, 0.014, 0.006, 0.006, 0.0105, 0.01], k: 0.013 },
     { what: 'the groove under the nose', a: [0, 1.6305, 0.111], b: [0, 1.6175, 0.1117], ra: 0.0032, rb: 0.0032, k: 0.003 },
     { what: 'round the nose\'s wing, above', a: [0.0125, 1.6462, 0.1075], b: [0.0185, 1.6425, 0.1005], ra: 0.0022, rb: 0.0025, k: 0.003 },
     { what: 'round the nose\'s wing, beside', a: [0.0185, 1.6425, 0.1005], b: [0.0205, 1.636, 0.098], ra: 0.0025, rb: 0.0025, k: 0.003 },
