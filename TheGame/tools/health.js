@@ -69,12 +69,23 @@ const at = (f, line) => `${f}:${line}`, fileOf = (place) => place.slice(0, place
     revert), else the newest commit of the base's line all of whose paths the change touches and leaves as they are with
     M undone. [the base: a commit, or the tree with M undone; M, or null]. */
 function baseOf(ref) {
-  const base = git('merge-base', ref, 'HEAD')[0], touched = new Set(git('diff', '--name-only', base, '--', ':/'));
-  const named = [...git('log', '--format=%B', `${base}..HEAD`).join('\n').matchAll(/This reverts commit ([0-9a-f]{7,40})/g)].map((m) => m[1]).find((M) => run('git', ['merge-base', '--is-ancestor', M, base]).status === 0);
-  const restores = ({ sha, paths }) => paths.length && paths.every((p) => touched.has(p)) && run('git', ['diff', '--quiet', undone(base, sha), '--', ...paths.map((p) => `:/${p}`)]).status === 0;
-  const M = named ?? firstParents(base).find(restores)?.sha, T = M && undone(base, M);
+  const base = git('merge-base', ref, 'HEAD')[0], M = revertOf(base, null), T = M && depthOf(M) % 2 === 0 && undone(base, M);
   return T ? [T, M] : [base, null];
 }
+const ok = (...args) => run('git', args).status === 0;
+/** The commit a change from `base` to `head` (a commit; null: the working tree) reverts: the one a "This reverts commit
+    K" of the change's own commits names, on the base's line; else the newest commit of the base's line all of whose
+    paths the change touches and leaves as they are with it undone. null where it reverts none. */
+function revertOf(base, head) {
+  const to = head ? [head] : [], touched = new Set(git('diff', '--name-only', base, ...to, '--', ':/'));
+  const named = [...git('log', '--format=%B', `${base}..${head ?? 'HEAD'}`).join('\n').matchAll(/This reverts commit ([0-9a-f]{7,40})/g)].map((m) => m[1]).find((K) => ok('merge-base', '--is-ancestor', K, base));
+  const restores = ({ sha, paths }) => paths.length && paths.every((p) => touched.has(p)) && ok('diff', '--quiet', undone(base, sha), ...to, '--', ...paths.map((p) => `:/${p}`));
+  return named ?? firstParents(base).find(restores)?.sha ?? null;
+}
+/** How deep a commit lies in a chain of reverts: 0, a change of its own; 1, the revert of one; 2, the revert of that.
+    Undoing one of an even depth goes back to the state before it; undoing one of an odd depth (a revert) brings back
+    what it took out, which is measured as new. */
+const depthOf = (c) => { const K = ok('rev-parse', '--verify', '-q', `${c}^1`) && revertOf(`${c}^1`, c); return K ? 1 + depthOf(K) : 0; };
 /** The tree of `base` with commit M undone, as git revert undoes it (null where that does not merge cleanly). */
 const undone = (base, M) => { const r = run('git', ['merge-tree', '--write-tree', `--merge-base=${M}`, base, `${M}^1`]); return r.status === 0 ? r.stdout.split('\n')[0] : null; };
 /** The commits of a commit's first-parent line, newest first, each with the paths it changed from its first parent. */
