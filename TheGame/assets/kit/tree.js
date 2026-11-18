@@ -243,15 +243,9 @@ const stemsOf = (r, stems, R0) => Array.from({ length: stems }, (_, i) => {
     four steps of a point) and up, until no point is left that a bud can reach. A stem's tip that nothing draws yet
     grows on its own way, up to its crown. Every bud: { p, dir, up: its parent's index, kids, lead }. */
 function grown(P, N, { step, rise }) {
-  const reach2 = (4 * step) ** 2, take2 = (1.7 * step) ** 2, d2 = (q, n) => (q[0] - n[0]) ** 2 + (q[1] - n[1]) ** 2 + (q[2] - n[2]) ** 2;
+  const reach2 = (4 * step) ** 2, take2 = (1.7 * step) ** 2;
   for (let it = 0; it < 90 && P.length; it++) {
-    const pull = new Map();
-    for (const q of P) {
-      let best = -1, bd = reach2;
-      for (let k = 0; k < N.length; k++) { const d = d2(q, N[k].p); if (d < bd) { bd = d; best = k; } }
-      if (best >= 0) pull.set(best, add(pull.get(best) ?? [0, 0, 0], mul(sub(q, N[best].p), 1 / Math.max(Math.sqrt(bd), 1e-6))));
-    }
-    for (let k = 0; k < N.length; k++) if (N[k].lead && !N[k].kids && !pull.has(k)) pull.set(k, N[k].dir);
+    const pull = drawn(P, N, reach2);
     if (!pull.size) break;
     const from = N.length;
     for (const [k, v] of pull) {
@@ -259,9 +253,22 @@ function grown(P, N, { step, rise }) {
       N.push({ p: add(n.p, mul(dir, step)), dir, up: k, kids: 0, lead: n.lead && !n.kids && n.p[1] < 6 * step && !P.some((q) => d2(q, n.p) < reach2) });   // (a stem grows on its own way at most two thirds up)
       n.kids++;
     }
-    for (let i = P.length - 1; i >= 0; i--) for (let k = from; k < N.length; k++) if (d2(P[i], N[k].p) < take2) { P.splice(i, 1); break; }
+    for (let i = P.length - 1; i >= 0; i--) if (N.slice(from).some((n) => d2(P[i], n.p) < take2)) P.splice(i, 1);   // (a point a new bud has reached is taken)
   }
   return N;
+}
+const d2 = (q, n) => (q[0] - n[0]) ** 2 + (q[1] - n[1]) ** 2 + (q[2] - n[2]) ** 2;
+/** How the points P draw the buds N, by bud: each point draws the bud nearest it within reach (the sum of the ways to
+    them); a stem's tip that nothing draws is drawn on its own way. */
+function drawn(P, N, reach2) {
+  const pull = new Map();
+  for (const q of P) {
+    let best = -1, bd = reach2;
+    for (let k = 0; k < N.length; k++) { const d = d2(q, N[k].p); if (d < bd) { bd = d; best = k; } }
+    if (best >= 0) pull.set(best, add(pull.get(best) ?? [0, 0, 0], mul(sub(q, N[best].p), 1 / Math.max(Math.sqrt(bd), 1e-6))));
+  }
+  for (let k = 0; k < N.length; k++) if (N[k].lead && !N[k].kids && !pull.has(k)) pull.set(k, N[k].dir);
+  return pull;
 }
 /** Each bud's wood, as thick as all it carries (Leonardo: a branch's cross section the sum of its twigs', each `twig`). */
 function pipes(N, twig) {
