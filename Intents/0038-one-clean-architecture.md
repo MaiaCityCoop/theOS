@@ -1682,6 +1682,48 @@ per-pass GPU ceilings can be a merge rule.
   - the history reads: Catmull-Rom's five of the kept picture;
   - the motion-vector dilation: the nearest of the 2 × 2, by a gather of the depth.
 
+### Train 2: the frame's extents and passes from need (2026-11-18)
+
+Built on `aven/0038-extents` from train 1c (`e11b419`: main with #78, #77, #84, #81), on the Mac mini, CPU only (the
+integration train measures it).
+The audit of train 1 found the frame's far extents set by hand and disagreeing: the camera's far plane 30 km, the land's
+top level 24.6 km, its pages pinned 26 km round the eye, the air's froxels 24 km, while the trees are drawn to their
+GONE reach, about 40 km. And the depth pyramid made once for 3840 × 2160, and the canvas pass storing a 4K depth
+buffer it never tests. The shadows' cascades and casters and the light's resolutions follow once 9a's shadow fix has
+landed (the master's order: one writer a file).
+
+- **One far extent** (`src/detail/extent.js`): `farthest(h) = sizeMost × pxK(h) / GONE`, metres as the 68° lens sees
+  them: where the largest thing any engine places (its size by the measure, at the largest of its placement's scales,
+  read from the registry) is gone, all of it within ERROR_PX pixels drawn (GONE = ERROR_PX / BUDGET_DRAWN pixels of the
+  measure: the one measure's own GONE, #82, once it lands). Everything that reaches out reads it:
+  - **the camera's far plane** (`src/boot.js`): `farthest() × lod` (a longer lens sees as many times farther), set as
+    the window or the lens changes it by more than a hundredth;
+  - **the land's levels** (`src/terrain/terrain.js`): as many as reach `farthestMost()`, the extent on the largest
+    picture the screen shows (they are made once); its top level still scales with the lens and stops at the far
+    plane, so the land ends where the frame does;
+  - **the land's pages kept in** (`src/terrain/pages.js`): the last level round the eye as far as the land is drawn;
+    all round as far as the walker's lens sees, and past that only where the view looks (a long lens, lod up to 16,
+    sees 640 km in a narrow cone: a disk as far would be some 7,000 pages, more than the 4,096 slots);
+  - **the air's froxels** (`src/world/light/air.js`, stage 9a's, not in this base): their last slice at the far plane,
+    as the frame is drawn (their slices are logarithmic, so where they end moves the near ones little). Drafted; it
+    goes in when 9a lands.
+- **The depth pyramid follows the screen** (`src/core/occlusion.js`): as large as the canvas it serves, every pixel of
+  it (the inside is never more), made again when that changes (the window, the screen's ratio). A storage buffer made
+  through `src/core/gpu.js` may now be made again: the old one is let go, so three binds the new one wherever its node
+  is read.
+- **The canvas has no depth** (`src/boot.js`, `depth: false`): nothing drawn onto it tests depth (the upscale lays one
+  quad, `src/core/temporal.js`), and a 4K depth stored every frame was 33 MB moved for nothing. Every page draws
+  through the screen; the one tool that drew a whole scene straight onto the canvas (`tools/bench.js`, its parts and
+  its page-without-a-screen path) draws into the screen's own target, which has one. (three lays a canvas's pass out
+  once, so a canvas cannot be given a depth for a few draws.)
+- **Follow-ups, in order:**
+  - the shadows from the cascades' texel error (the master's decision: a log split, each texel at most twice the one
+    before, as many as reach the farthest caster, the far ones every k frames from the light's per-class ceiling;
+    casters while their size is at least a texel), after 9a's shadow fix;
+  - the light's resolutions (canopy, froxels, the screen's light, the clouds' map) from what each must resolve and
+    the light's per-pass ceilings, with 9a's owner;
+  - long term: a virtual shadow map on 6b's page machinery, so one page system serves the ground and the shadows.
+
 ## Propose
 
 ## Story
@@ -1952,6 +1994,16 @@ per-pass GPU ceilings can be a merge rule.
   - the skirts are not in the gate's views, so they are checked in the code, not in a still;
   - the far grazing hand-over left from 6b; Safari not tried.
 
+- **Asked (by the master on the Mac mini):** train 2, task B: the frame's extents and passes from need. The far
+  extents (camera, land, pages, froxels) from the GONE reach of the largest thing; the shadows' cascades and casters
+  from the cascades' texel error; the depth pyramid resized with the screen; the canvas pass's unused depth gone; the
+  light's resolutions from screen size and the light's budget. Every GPU resource from the adapter's limits; no
+  `TRUTH` branches; no unexplained constants. Cascades and light after 9a's shadow fix.
+- **Delivered:** the far extent, the pyramid and the canvas (under Build, "Train 2: the frame's extents…"), on
+  `aven/0038-extents`, draft PR; the design of all five in the shared notes (`task-b-extents.md`).
+- **Not there yet:** not run (CPU only: the integration train measures it); the froxels' far end, the cascades and the
+  light's resolutions wait for 9a.
+
 ## Trail
 
 | When | Commit | What |
@@ -2025,3 +2077,4 @@ per-pass GPU ceilings can be a merge rule.
 | 2026-11-18 | `ab99e49` | Draw path: `?truth` culls as the game does (the truth draws all that is visible) |
 | 2026-11-18 | `2fdfae0` | Draw path: every culling dispatch within the device's workgroups a dimension |
 | 2026-11-18 | `d7dcd26` | Draw path merged with main (`ecc80f2`, the bench by its passes); PR #77 ready |
+| 2026-11-18 | `43be381` | Train 2: one far extent from need; the depth pyramid follows the screen; the canvas without depth |
