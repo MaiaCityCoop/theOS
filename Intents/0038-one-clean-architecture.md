@@ -170,27 +170,35 @@ numbers are written below.
 
 ## Where we left off (2026-11-18): read this first to take over
 
-### Tasks: the live board (master: `0038 master · avenMAIA MacMini`; updated 2026-11-18 19:55)
+### Tasks: the live board (master: `0038 master · avenMAIA MacMini`; updated 2026-11-18 20:05)
 
-The master keeps this board current (the `intents` skill, "The task board"). Train 1 (with #82) failed on #82's
-packing (11–59 ms); train 1b showed 9a's sun shadows missing on the GPU; **train 1c** (main + #78, #77, #84, #81)
-is being gated and merges into main as one if it passes. The SSOT audit of train 1 is
-`research_notes/0038-ssot-audit.md`; train 2 is its unification.
+The master keeps this board current (the `intents` skill, "The task board"). **Train 1c** (main + #78, #77, #84, #81)
+is being gated and merges into main as one if it passes; 9a (#72) and one measure (#82) stay off it. The SSOT audit
+is `research_notes/0038-ssot-audit.md`; train 2 is its unification. Every machine kept busy.
 
 | Task | Session | Machine | Branch · PR | State | Next |
 | --- | --- | --- | --- | --- | --- |
-| The gate: motion, far truth, real | 0038 gate (motion, truth, ceilings) | avenMAIA MacMini | `aven/0038-gate-motion-real-410055` · #78 | on train 1c | merge; then the settled-still truth in motion, the ceilings as a rule, the truth's cold start, `?truth` = `ERROR_PX` → 0 |
-| Draw path: one culling for every tier | 0038 draw path (culling, then extents) | avenMAIA MacMini | `aven/0038-draw-path-culling-befaf1` · #77 | on train 1c | merge; then extents, pyramid, depthless canvas (cascades and light resolutions after 9a's fix) |
-| Meadow: shade from the real crowns | (MacBook agent) | avenMAIA MacBook Sam | `aven/0038-meadow-fix` · #84 | on train 1c | merge |
-| 6c: relief, paths, settling | 0038 ground (6c relief, then ground unify) | avenMAIA MacMini | `aven/0038-stage6c-relief-e30fca` · #81 | on train 1c | merge; then the land and ground from the one measure |
-| 9a: one light | (MacBook agent, moving to its own session) | avenMAIA MacBook Sam | `aven/0038-stage9-light` · #72 | blocked: sun shadows missing on the GPU | the shadow fix, checked with a 1080p still on the MacBook, then train 2 |
-| One measure v2: the runtime dial, one pixel, hierarchical packing, capacities from need | (MacBook agent, moving to its own session) | avenMAIA MacBook Sam | `aven/0038-one-measure` · #82 | coding | train 2 |
-| Rung errors and atlases | (MacBook agent, moving to its own session) | avenMAIA MacBook Sam | `aven/0038-rung-errors` | coding | train 2 |
-| Feet: real footprints | (MacBook agent) | avenMAIA MacBook Sam | `aven/0038-feet` · #85 | ready | train 2 |
-| Upscale: 13 divisions a pixel, exact lens inverse | (MacBook agent) | avenMAIA MacBook Sam | `aven/0038-upscale` · #86 | ready | train 2 |
-| Code gates: `tools/health.js` | (MacBook agent, moving to its own session) | avenMAIA MacBook Sam | `aven/0038-health` | coding | baseline into Define; merge when CI passes |
+| The gate: motion, far truth, real | 0038 gate (motion, truth, ceilings) | avenMAIA MacMini | `aven/0038-gate-motion-real-410055` · #78 | on train 1c | merge |
+| Draw path: one culling for every tier | 0038 draw path (culling, then extents) | avenMAIA MacMini | `aven/0038-draw-path-culling-befaf1` · #77 | on train 1c | merge |
+| Meadow: shade from the real crowns | (done; no session) | avenMAIA MacBook Sam | `aven/0038-meadow-fix` · #84 | on train 1c | merge |
+| 6c: relief, paths, settling | 0038 ground (6c relief, then ground unify) | avenMAIA MacMini | `aven/0038-stage6c-relief-e30fca` · #81 | on train 1c | merge |
+| Motion: the truth a settled still per step | 0038 gate | avenMAIA MacMini | #94 | ready | train 2 |
+| Ceilings as a rule (5 / 3 / 1.5 / 2.0 / 0.5 ms) | 0038 gate | avenMAIA MacMini | #96 | ready; GPU `bench --twice` queued | train 2 |
+| `real` as a gate table, with a ratchet | 0038 gate | avenMAIA MacMini | #98 | ready; baseline GPU turn queued | train 2 |
+| Far truth at 2.5 and 12 km | 0038 gate | avenMAIA MacMini | — | GPU turns queued after 1c | the far end's first reference |
+| Truth = `ERROR_PX` → 0, and the cold start (one root) | 0038 gate | avenMAIA MacMini | — | planned | after #82 v2's dial |
+| Far extent, pyramid, depthless canvas | 0038 draw path | avenMAIA MacMini | `aven/0038-extents` · #95 | draft | train 2 |
+| GPU memory per class (the 8 GB gate) | 0038 draw path | avenMAIA MacMini | `aven/0038-memory` · #97 | draft | train 2 |
+| 9a's shadows: GPU readback (diagnostic) | 0038 draw path | avenMAIA MacMini | `tools/shadowcheck.mjs` | GPU turn first after 1c | result to the 9a session |
+| Solids: builder and cut from first principles | 0038 draw path | avenMAIA MacMini | — | coding | train 2 |
+| Ground and land from the one measure | 0038 ground | avenMAIA MacMini | `aven/0038-ground-unify` | coding (octaves, land, pages done; growth reach, shading next) | GPU trace turn queued; grass end after #82 v2 |
+| 9a: one light | 0038 9a shadow fix · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-stage9-light` · #72 | blocked: sun shadows missing on the GPU | the fix from B's readback, then train 2 |
+| One measure v2: the dial, one pixel, regions, capacities | 0038 one measure v2 · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-one-measure` · #82 | coding (regions: cells 18.4 → 2.1 M at the river bend) | train 2 |
+| Rung errors and atlases | 0038 rung errors · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-rung-errors` | coding (honest errors: a pine's impostor 210 m → 6.5 km at `ERROR_PX` 1) | train 2; the trade-off to Samuel |
+| Code gates: `tools/health.js` | 0038 health tool · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-health` | coding | baseline into Define |
+| Feet: real footprints | (done; no session) | avenMAIA MacBook Sam | `aven/0038-feet` · #85 | ready | train 2 |
+| Upscale: 13 divisions a pixel | (done; no session) | avenMAIA MacBook Sam | `aven/0038-upscale` · #86 | ready | train 2 |
 | Not started (frozen until the frame fits) | — | — | — | planned | 8b, the research's floor kinds, 9b |
-
 
 **Live on next (main `501aff5`; next deploys itself after every merge):**
 
