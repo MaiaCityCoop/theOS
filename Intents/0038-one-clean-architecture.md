@@ -1885,11 +1885,24 @@ the rocks' and the made things' own hierarchies, the page's modules loaded throu
   is more than 0.6 full (linear probing: a look-up that misses, as most do, looks at 3.6 places on average), within
   one buffer the GPU binds (was 2^18
   places, 4 MB, always). Its buffer made again when it grows, the node the same.
-- **Left:** boulder 3's coarse levels hold about 3,200 triangles because one level-5 group's simplifier error (0.058) is
-  four times what was measured of it (0.014), and BAND carries it up the whole chain. The simplifier's error is a
-  quadric's bound; trusting a measure of the two-sided distance where it is lower is the next root cause. The
-  colours' weights (the rock's shade 0.01, a made thing's colour 0.02) are still by hand: a colour's edge moved is the
-  same question as the normal's.
+- **A group's error measured both ways** ( apart, after the first PR draft): boulder 3's coarse levels
+  held about 3,200 triangles because one level-5 group (214 triangles, 114 of its 165 vertices locked) was said 0.058 of
+  its size off by the simplifier, where sampled densely it lies 0.013 from what it was made into and its shading 0.018;
+  BAND carried that up its whole chain. The simplifier's error is a quadric's (every face's plane, and an attribute's,
+  carried on without end): now it only steers what is taken away, and a group's error is what is measured, from every
+  triangle's middle and every edge's middle of both surfaces to the other, geometry and shading (on an edge, r is half
+  the edge: its two ends alone make its normal there). Middles alone measured 0.67–0.93 of that, cluster by cluster:
+  not enough. Boulder 3's levels 5 and 6: 3,358 and 3,216 triangles → 1,604 and 398; its root 2.25 → 0.74 of its size.
+  The nearest triangle is found within the gap to the cells looked at (the same triangles, 3.4 times faster): a rock's
+  build 1.2–1.5 s (0.7 with the simplifier's word).
+- **The colours' weight, and measured:** lit as its colour times n·l, a normal δ off changes a pixel's light by δ at
+  most, and so does a colour δ off; the picture cannot tell them apart, so a colour's error is counted as the same move,
+  CW = NW = 1/2 (was 0.01 for a rock's shade, 0.02 for a made thing's colour), and measured with the rest. Weighed so,
+  meshoptimizer would not fold across the fire pit's many colour seams (76 groups stuck, 55 clusters never made
+  coarser, 6,193 triangles at its coarsest level); a seam is a wish, not a need, so a group it holds back is made again
+  with its seams free, what that costs measured. The fire pit's coarsest level 3,737 triangles (2,614 while its colours
+  went unmeasured), its middle levels about 10 k (7 k); the tent's coarsest 260 → 24. Rooms: rocks 155.1 MB (24 slots),
+  made things 4.7 MB.
 
 ## Propose
 
@@ -2205,7 +2218,7 @@ the rocks' and the made things' own hierarchies, the page's modules loaded throu
   ROOM table and full-mesh slots from each shape's hierarchy within the geometry's room, the cut's list from need and
   the device's limits, the single things' 2^18 from need.
 - **Delivered:** `aven/0038-solids`, draft PR (under Build, "Train 2: the solids' builder and cut…").
-- **Not there yet:** not run on a GPU (CPU only); boulder 3's coarse levels and the colours' weights (Left, there).
+- **Not there yet:** not run on a GPU (CPU only). Boulder 3's coarse levels and the colours' weights followed (there).
 
 ## Trail
 
@@ -2292,3 +2305,5 @@ the rocks' and the made things' own hierarchies, the page's modules loaded throu
 | 2026-11-18 | `43be381` | Train 2: one far extent from need; the depth pyramid follows the screen; the canvas without depth |
 | 2026-11-18 | `85e1e1d` | GPU memory by class: one table of classes, one accounting with the device counted, the gate beside the ms |
 | 2026-11-18 | `f0f5695` | The solids' builder and cut from first principles: the normal's weight, kept-whole parts, rooms from the hierarchies |
+| 2026-11-18 | `2bcbe0d` | A group's error measured both ways, not the simplifier's quadric (boulder 3's coarse levels) |
+| 2026-11-18 | `d171b3c` | The colours' weight derived and measured; a group its seams hold back made again with them free |
