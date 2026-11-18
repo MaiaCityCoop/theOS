@@ -24,7 +24,7 @@ import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
 import { passOf, vWas } from '../core/pass.js';
 import { source } from '../core/settle.js';
-import { onMeasure } from '../detail/measure.js';
+import { onMeasure, dialK } from '../detail/measure.js';
 import { Resident, WG, BLOCK } from './regions.js';
 
 /** The patches a placer that chooses its own may hand a tier at most (the stress stand's plots, the herds, a list's
@@ -382,11 +382,11 @@ function residentOf(T, { K, S, slots, data, count, args, OF, N: N0, ends, zero, 
       const c = T.cam; if (!c) return;
       const s = T.fixed ? Math.min(T.fixed, T.far + Math.abs(c.dy) * 1.2) / T.far : c.s, near = T.near * s, far = T.far * s, q = T.step || Math.max(0.25, T.S / 16);
       // (what it holds again from nothing where what its cells read has changed: the lens, the stage, the ways, things'
-      // own state, what grows over it, its band)
-      const k = `${kept0}|${T.reads?.() ?? ''}|${near}|${far}`;
+      // own state, what grows over it. Its band moving with the measure only uses its regions' pads up: regions.js)
+      const k = `${kept0}|${T.reads?.() ?? ''}`;
       if (k !== key) { empty(); key = k; }
       ids.push(...later.splice(0));
-      const look = () => regions.update({ cx: c.cx, cz: c.cz, dy: c.dy, near, far, bounds: T.bounds });
+      const look = () => regions.update({ cx: c.cx, cz: c.cz, dy: c.dy, near, far, measure: dialK(), bounds: T.bounds });
       let u = look();
       for (const L of u.free) letGo(L);
       if (u.pack.length > ids.length) { empty(); key = k; u = look(); }   // (a jump: more regions new at once than numbers free while the old are let go: all of it again)

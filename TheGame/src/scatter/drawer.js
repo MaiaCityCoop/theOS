@@ -77,6 +77,7 @@ import { did } from '../core/work.js';
 import { stateAt, keyN, nameKey } from '../world/things.js';
 import { pxOf, turnOf, seedOf } from './row.js';
 import { createCut, clusterOf, levelHead, allowedAt, eased, ruleOf } from './cut.js';
+import { MARGIN } from './regions.js';
 import { camDist } from '../world/land.nodes.js';
 import { surfaceBand, BAND, GONE, dialPx } from '../detail/error.js';
 
@@ -659,15 +660,17 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       });
       return done(out, rows);
     };
-    // (resident: a cell's thing, held where it may be of the level for a camera within its region's pad (from this level
-    // on down to the next finer's band: while that one has not come, this one draws it); and of a thing held, whether it
-    // is of the level now)
+    // (resident: a cell's thing, held where it may be of the level a while (src/scatter/regions.js Resident): its band of
+    // sizes on screen widened by the MARGIN either way, from this level on down to the next finer's band (while that one
+    // has not come, this one draws it); the shadow's stand-in, a band of metres, by its region's pad. And of a thing held,
+    // whether it is of the level now)
     const finer = i > 1 ? 1 / (LEVELS[i - 2].px * Math.exp(fade)) : 0, inner = shadow || !i ? band.from : uniform(finer);
     const found = (c, Q) => {
       const alive = float(0).toVar(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar());
-      place(c, { band: { ...band, near: band.near.sub(Q.pad), far: band.far.add(Q.pad) }, whole, all, ...Q }, (kind, size, dist, fill, key = null) => {
+      const held = shadow ? { ...band, near: band.near.sub(Q.pad), far: band.far.add(Q.pad) } : { ...band, near: band.near.div(MARGIN), far: band.far.mul(MARGIN) };
+      place(c, { band: held, whole, all, ...Q }, (kind, size, dist, fill, key = null) => {
         const span = dialPxAt(spanAt(size, dist));
-        If(whole.or(dist.lessThan(span.mul(band.to).add(Q.pad)).and(dist.greaterThanEqual(span.mul(inner).sub(Q.pad)))), () => { fill(...rows); asItIs(TH, c, key, rows, () => { alive.assign(1); }); });
+        If(whole.or(dist.lessThan(span.mul(band.to).mul(MARGIN)).and(dist.greaterThanEqual(span.mul(inner).div(MARGIN)))), () => { fill(...rows); asItIs(TH, c, key, rows, () => { alive.assign(1); }); });
       });
       return { alive: alive.greaterThan(0.5), data: rows };
     };
@@ -747,12 +750,12 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       });
       return { alive: out.alive.greaterThan(0.5), data: rows, bucket: out.bucket };
     };
-    // (resident: a cell's thing, held where it is not gone for a camera within its region's pad; of a thing held, its
-    // level now)
+    // (resident: a cell's thing, held where it is not gone a while: its size on screen a MARGIN larger (src/scatter/
+    // regions.js Resident); of a thing held, its level now)
     const found = (c, Q) => {
       const alive = float(0).toVar(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar());
-      place(c, { band: { ...band, near: band.near.sub(Q.pad), far: band.far.add(Q.pad) }, whole, all: all0, ...Q }, (kind, size, dist, fill, key = null) => {
-        If(dialPxAt(pxAt(size, max(dist.sub(Q.pad), 1e-3))).greaterThan(END), () => { fill(...rows); asItIs(TH, c, key, rows, () => { alive.assign(1); }); });
+      place(c, { band: { ...band, near: band.near.div(MARGIN), far: band.far.mul(MARGIN) }, whole, all: all0, ...Q }, (kind, size, dist, fill, key = null) => {
+        If(dialPxAt(pxAt(size, dist)).mul(MARGIN).greaterThan(END), () => { fill(...rows); asItIs(TH, c, key, rows, () => { alive.assign(1); }); });
       });
       return { alive: alive.greaterThan(0.5), data: rows };
     };

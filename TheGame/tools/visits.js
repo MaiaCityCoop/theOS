@@ -1,11 +1,12 @@
 // The cells each tier's packing visits at the bench's six views (intent 0038, #82 v2; CPU only, `bun tools/visits.js
-// [per] [walk] [turn]`: per, each tier). The world's own tiers: the plants' levels and stand-ins (src/scatter/trees.js),
+// [per] [walk] [turn] [dial]`: per, each tier). The world's own tiers: the plants' levels and stand-ins (src/scatter/trees.js),
 // the meadow's rings (grass.js). The measure at the gate's: a 1080 window drawn at 4/3 (1440 pixels drawn), the dial at
 // rest. A view: the cells #82 looked at (patches of P x P cells, at most 384 a tier, in scan order) against the cells the
 // resident regions (src/scatter/regions.js Resident) visit to fill their store from nothing, every way round.
 // walk: from each view straight ahead, the cells the resident regions visit a metre (what is new or has run out), their
 // CPU time, and the cells they hold at the end. turn: from each view the camera turned 90° on the spot, a degree a frame:
-// the cells they visit (none: nothing they hold asks the view).
+// the cells they visit (none: nothing they hold asks the view). dial: from each view the measure stepped as the governor
+// steps it (an eighth of the pixels drawn down, twice, and back), the cells visited each step, against packing it all again.
 const G = new URL('..', import.meta.url).pathname.replace(/\/$/, '');   // (TheGame/)
 Object.assign(globalThis, { innerHeight: 1440, innerWidth: 2560, window: globalThis, addEventListener() {}, devicePixelRatio: 1 });
 await import(`${G}/tools/glob.js`);
@@ -31,19 +32,21 @@ const tiers = [];
 for (const Gp of groupsOf(rowsOf())) {
   const L = Gp.L, lv = Gp.kinds[0].levels, sLo = Math.min(...Gp.kinds.map((k) => k.lo)), sHi = Math.max(...Gp.kinds.map((k) => k.hi));
   lv.forEach((l, i) => {
-    const band = bandOf({ lo: l.lo, hi: i ? lv[i - 1].lo : Infinity }, Gp.fade, padOf(L.cell, l.P));
-    let [near, far] = band.reach(sLo, sHi, K); if (i === 0) near = 0;
+    const band = bandOf({ lo: l.lo, hi: i ? lv[i - 1].lo : Infinity }, Gp.fade, padOf(L.cell, l.P)), at = (k) => { const [n, f] = band.reach(sLo, sHi, k); return [i ? n : 0, f]; };
     const reach82 = (sHi * K * Math.exp(Gp.fade)) / (l.lo * 0.75);   // (#82 cut its patches at a 1440 window's CSS pixels: 3/4 of these)
-    tiers.push({ name: `${Gp.name} ${i}`, cell: L.cell, P: patch82(L.cell, reach82), near, far, cull: 0 });
+    tiers.push({ name: `${Gp.name} ${i}`, cell: L.cell, P: patch82(L.cell, reach82), near: at(K)[0], far: at(K)[1], at, cull: 0 });
   });
   const casting = Gp.kinds.filter((Kd) => Kd.asset.detail.shadow && Kd.row.detail.casts);
   if (casting.length) {
     const SH = { far: Math.max(...casting.map((Kd) => Kd.asset.detail.shadow.far)), wide: Math.max(...casting.map((Kd) => Kd.asset.detail.shadow.wide ?? 2.4)), reach: Math.max(...casting.map((Kd) => Kd.asset.detail.shadow.reach ?? 20)) };
-    tiers.push({ name: `${Gp.name} shadow`, cell: L.cell, P: 4, near: 0, far: SH.far, cull: SH.reach, fixed: SH.far * SH.wide, metres: true });
+    tiers.push({ name: `${Gp.name} shadow`, cell: L.cell, P: 4, near: 0, far: SH.far, at: () => [0, SH.far], cull: SH.reach, fixed: SH.far * SH.wide, metres: true });
   }
 }
 const grass = recipes('asset').find((a) => a.placement?.engine === 'grass');
-if (grass) { const { ringsOf, bandsOf } = await import(`${G}/src/scatter/grass.js`), R = ringsOf(grass), { bands } = bandsOf(R, grass.height, K); R.forEach((T, k) => bands[k].far > 0 && tiers.push({ name: `grass ring ${k}`, cell: T.cell, P: T.P, near: Math.max(0, bands[k].near - bands[k].nearFade), far: bands[k].far, cull: 0, metres: true })); }
+if (grass) {
+  const { ringsOf, bandsOf } = await import(`${G}/src/scatter/grass.js`), R = ringsOf(grass), ring = (k, m) => { const b = bandsOf(R, grass.height, m).bands[k]; return [Math.max(0, b.near - b.nearFade), b.far]; };
+  R.forEach((T, k) => ring(k, K)[1] > 0 && tiers.push({ name: `grass ring ${k}`, cell: T.cell, P: T.P, near: ring(k, K)[0], far: ring(k, K)[1], at: (m) => ring(k, m), cull: 0, metres: true }));
+}
 
 // ---- a camera, posed at a view (its heading turned by `turn`, its place moved `ahead` metres along it) ----
 const cam = new THREE.PerspectiveCamera(60, 16 / 9, 0.15, 40000), pm = new THREE.Matrix4();
@@ -101,5 +104,20 @@ if (process.argv.includes('turn')) {
     const S = residents(); let cells = 0;
     for (let a = 0; a <= 90; a++) { const c = pose(v, 0, (a * Math.PI) / 180); for (const { T, R } of S) { const u = R.update({ cx: c.x, cz: c.z, dy: c.dy, near: T.near, far: farOf(T, c) }); if (a) cells += cellsOf(u); } }
     console.log(`${v.name.padEnd(26)}${M(cells).padStart(12)} M`);
+  }
+}
+
+// ---- dial ----
+if (process.argv.includes('dial')) {
+  console.log('\nthe measure stepped      cells visited each step (an eighth down, another, back, back)   all of it again');
+  for (const v of VIEWS) {
+    const S = residents(), c = pose(v), out = [];
+    let all = 0;
+    for (const [i, r] of [1, 0.875, 0.75, 0.875, 1].entries()) {
+      let cells = 0;
+      for (const { T, R } of S) { const [near, far] = T.at(K * r), f = T.fixed ? Math.min(T.fixed, far + c.dy * 1.2) : far, u = R.update({ cx: c.x, cz: c.z, dy: c.dy, near, far: f, measure: K * r }); if (i) cells += cellsOf(u); else all += cellsOf(u); }
+      if (i) out.push(cells);
+    }
+    console.log(`${v.name.padEnd(26)}${out.map((n) => M(n).padStart(8)).join('')} M${M(all).padStart(14)} M`);
   }
 }
