@@ -1,7 +1,8 @@
 // The recipes' worker: what a kind makes (assets/zoo/index.js: its family's meshes, its texture), off the page's thread, its
 // arrays handed over, not copied. A job is
-//   ['mesh', k, l, D?]         kind k's mesh at level l of the ladder (D: its level's delta, where its family's meshes
-//                              are solids: its box too, for the eye's occlusion test: solidBox, below)
+//   ['mesh', k, l, D?, room?]  kind k's mesh at level l (D: its level's delta, where its family's meshes are solids: its
+//                              box too, for the eye's occlusion test: the family's own, else solidBox, below; room: the
+//                              most its level holds, { tris, elems }, where its family builds a surface's levels)
 //   ['skin', k, size]          its own texture, `size` pixels a side
 //   ['bones', k0, n]           the skeletons of kinds k0 … k0 + n, end to end (three rows of four a bone; none: all nought)
 //   ['rooms']                  how much room each herd's movers take as they move (the zoo's herdRooms)
@@ -15,6 +16,10 @@
 import { meshOf, skinOf, bonesOf, herdRooms } from '../../assets/zoo/index.js';
 import { BONES } from '../../assets/kit/solid.js';
 import { STANDS } from '../../assets/kit/plant.js';
+import { useBuilder } from '../../assets/kit/surface.js';
+
+// the builder of surfaces' hierarchies (meshoptimizer's WebAssembly: here, never on the page), before any job is done
+const ready = import('../../assets/kit/clusters.js').then((m) => useBuilder(m.build));
 
 /** The box round a solid mesh in its own frame, [x0, y0, z0, x1, y1, z1] (assets/kit/solid.js: a vertex's place, 16 bits
     a number over -1 … 1, and its way to where it lies on the coarser mesh it turns into, 10 bits over ± D, its level's
@@ -29,10 +34,11 @@ function solidBox(v, D, out = new Float32Array(6), at = 0) {
   out.set(b, at); return out;
 }
 
-self.onmessage = ({ data: { id, jobs } }) => {
+self.onmessage = async ({ data: { id, jobs } }) => {
+  await ready;
   const out = [], move = [];
   for (const j of jobs) {
-    if (j[0] === 'mesh') { const m = meshOf(j[1], j[2]); if (j[3] != null) m.box = solidBox(m.verts, j[3]); out.push(m); move.push(m.index.buffer, m.verts.buffer); }
+    if (j[0] === 'mesh') { const m = meshOf(j[1], j[2], j[4] ?? null); if (j[3] != null) m.box ??= solidBox(m.verts, j[3]); out.push(m); move.push(m.index.buffer, m.verts.buffer); }
     else if (j[0] === 'skin') { const S = skinOf(j[1], j[2]); out.push(S); for (const l of S.levels) move.push(l.buffer); }
     else if (j[0] === 'rooms') out.push(herdRooms());
     else if (j[0] === 'stands') { Object.assign(STANDS, j[1]); out.push(null); }
@@ -42,10 +48,10 @@ self.onmessage = ({ data: { id, jobs } }) => {
       const blocks = levels.map(([l, idx, elems, D]) => ({ l, corners: new Uint32Array(n * idx), verts: new Uint32Array(n * elems * 4), counts: new Uint32Array(n), draws: new Uint32Array(n), ...(D != null ? { boxes: new Float32Array(n * 6) } : {}) }));   // (draws: how many corners each mesh has)
       // (a kind at a time, all its levels: a family may make one of its levels from another it has just made)
       for (let i = 0; i < n; i++) levels.forEach(([l, idx, elems, D], b) => {
-        const m = meshOf(kindOf(i), l);
+        const m = meshOf(kindOf(i), l, { tris: idx / 3, elems });
         if (m.index.length > idx || m.verts.length > elems * 4) throw new Error(`recipes: kind ${kindOf(i)} level ${l} is larger than its place (${m.index.length} corners of ${idx}, ${m.verts.length / 4} elements of ${elems})`);
         blocks[b].corners.set(m.index, i * idx); blocks[b].verts.set(m.verts, i * elems * 4); blocks[b].counts[i] = m.count ?? m.index.length; blocks[b].draws[i] = m.index.length;
-        if (D != null) solidBox(m.verts, D, blocks[b].boxes, i * 6);
+        if (D != null) { if (m.box) blocks[b].boxes.set(m.box, i * 6); else solidBox(m.verts, D, blocks[b].boxes, i * 6); }
       });
       for (const B of blocks) move.push(B.corners.buffer, B.verts.buffer, B.counts.buffer, B.draws.buffer, ...(B.boxes ? [B.boxes.buffer] : []));
       out.push(blocks);

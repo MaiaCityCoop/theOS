@@ -32,12 +32,10 @@
 //     some), so `attr` may carry the weights of its bones, weighed in the error, and the spheres and errors are those of
 //     the rest pose; grown by how far the bones reach is what the cut must add.
 import { MeshoptSimplifier as S, MeshoptClusterizer as C } from 'meshoptimizer';
+import { BAND } from '../../src/detail/error.js';
 
 await Promise.all([S.ready, C.ready]);
-
-/** How many times a group's error at least is its children's: a cluster turns into its parent while the parent's
-    error on screen falls from BAND times the cut's to the cut's, and has done so before the parent is drawn. */
-export const BAND = 1.5;
+export { BAND };
 const MAXT = 128, MAXV = 192, MINT = 32, GS = 8, STUCK = 0.85, TAIL = 8;   // a cluster's most triangles and vertices; a group's clusters; a group left with more than STUCK of its triangles is stuck; the tail ends at TAIL triangles
 /** A part is kept whole until its reach is allowed: one of at most FEW triangles, or THIN times longer than it is wide. */
 const FEW = 12, THIN = 8;
@@ -159,7 +157,7 @@ export function build(M) {
   }
   // what nothing replaces: its parent's error never shows
   for (const c of clusters) if (!c.parent) { c.parent = { err: Infinity, c: c.self.c, r: c.self.r }; morphs([c], null, null, null, null, M, k, null); }
-  return { clusters: clusters.map(({ idx, self, parent, tris, verts, to }) => ({ tris, verts, to, self, parent, n: idx.length / 3 })), V, stats };
+  return { clusters: clusters.map(({ idx, self, parent, tris, verts, to }) => ({ tris, verts, to, self, parent, n: idx.length / 3 })), V, k, M, stats };
 }
 
 /** The clusters of a DAG (build's) any cut between errors lo and hi draws: whose own error is at most hi and whose
