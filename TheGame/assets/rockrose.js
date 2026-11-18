@@ -1,15 +1,16 @@
-// Rockrose (Cistus): a low grey-green mound, knee to hip high, where the wood opens. Its own sprig
-// (materials/rockroseleaf.js): soft grey-green leaves, a few white flowers.
-// Built with the tree kit's mound (assets/kit/tree.js): two shapes, each a mesh whose levels are first shares of it. An
-// asset in the one recipe (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by the trees' engine in the pine
-// forest's understory (biomes/pineforest.js `shrubs`), of which it takes its share.
-import { tree, builder, mound } from './kit/tree.js';
+// Rockrose (Cistus): a low grey-green mound, knee to hip high, where the wood opens. Grown as one grows
+// (assets/kit/tree.js bush): many stems from its foot, branching close and low, each branch's end a card of its own
+// sprig (materials/rockroseleaf.js: soft grey-green leaves, a few white flowers). Two shapes, each a mesh whose levels
+// are first shares of it. An asset in the one recipe (assets/index.js), of kind `shrub` (assets/kinds.js), scattered by
+// the trees' engine in the pine forest's understory (biomes/pineforest.js `shrubs`), of which it takes its share.
+import { tree, builder, bush } from './kit/tree.js';
 
 const woodCol = [0.2, 0.17, 0.14], leafCol = [0.08, 0.11, 0.07];   // (for a picture without the textures)
-// the bush: its stems, its base and its fine sprigs; S its shape
+// the bush: its stems and branches, its branch ends; S its shape. As many cards as the mound it was (42 places, two
+// sprigs at each): its levels and their budgets as they were
 function grow(S) {
   const b = builder({ ao: (p) => 0.45 + 0.4 * Math.min(1, p[1] / S.h), barkTile: 0.5, colours: [woodCol, leafCol] });
-  mound(b, { r: S.r, h: S.h, lobes: S.lobes, ragged: 0.25, puffs: [42, 16], count: [2, 1], size: [0.42, 0.9], rise: 0.45, stems: 4, seed: S.seed });
+  bush(b, { r: S.r, h: S.h, lobes: S.lobes, ragged: 0.2, shoots: 84, size: [0.34, 0.46], stems: 9, rise: 0.45, seed: S.seed });
   return b;
 }
 

@@ -92,6 +92,7 @@ export function createAtlas(renderer, { name, side, layers, cell = side, views =
   note(`${name}`, Math.round(atlasBytes(side, Math.max(2, layers))), 0, 'geometry');   // (src/core/classes.js: its share, SHARE_MB)
   return {
     colour: C.texture, data: D.texture, side, cell, views, targets: [C, D],   // (targets: to read a layer back, renderer.readRenderTargetPixelsAsync)
+    tiles: uniform(side / cell),   // (its pictures a side, as data: an atlas sized to its stand's largest clumps reads with the same code as any)
     put(layer, levels) {
       const dev = renderer.backend.device, gc = renderer.backend.get(C.texture).texture, gd = renderer.backend.get(D.texture).texture;
       levels.forEach(({ colour, data, n }, m) => {
@@ -207,7 +208,7 @@ const impostorViews = (d, views) => {
     clamped inside its tile there, the tile where it lies in the atlas' own grid (as many a side as its stand's largest
     clumps need: src/scatter/trees.js): { colour, cover, normal, lit, leaf } as impostorRead. */
 export function clumpRead(A, layer, uv, lod) {
-  const n = A.side / A.cell, t = floor(uv), k = t.y.mul(atlases().TILES).add(t.x), at = vec2(k.sub(floor(k.div(n)).mul(n)), floor(k.div(n)));
+  const n = A.tiles, t = floor(uv), k = t.y.mul(atlases().TILES).add(t.x), at = vec2(k.sub(floor(k.div(n)).mul(n)), floor(k.div(n)));
   const s = inCell(uv.sub(t).sub(IN).div(1 - 2 * IN), float(A.cell), lod).add(at).div(n), c = texture(A.colour).sample(s).depth(layer).level(lod), d = texture(A.data).sample(s).depth(layer).level(lod);
   return { colour: c.rgb, cover: c.a, normal: octDec(d.xy), ...litOf(d.w) };
 }

@@ -32,7 +32,7 @@
 //   (what draws it knows: heapElem's `per`); a corner: the number of a vertex of its own mesh
 //   The table also says when a level came (`came`): what draws it lets it grow out of the coarser one from then.
 import * as THREE from 'three/webgpu';
-import { storage, uint, float } from 'three/tsl';
+import { storage, uint, float, uniform } from 'three/tsl';
 import { gpuStorage, note, limitOf } from '../core/gpu.js';
 
 const SHAPED = 0x80000000;   // in a row's count of corners: the mesh is of its level's own shape
@@ -60,7 +60,7 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
   const row = (k, l) => (k * L + l) * 4;
   const masked = (k, quiet) => { for (let l = 0; l < L; l++) T[row(k, l) + 3] = (mask[k] | (came[k * L + l] << 12)) >>> 0; if (!quiet) { table.addUpdateRange(row(k, 0), L * 4); table.needsUpdate = true; } };
   const H = {
-    kinds, L, pools, version: 0, versions: new Uint32Array(L), bytes: index.bytes + elems.bytes + table.array.byteLength,
+    kinds, L, uL: uniform(L, 'uint'), pools, version: 0, versions: new Uint32Array(L), bytes: index.bytes + elems.bytes + table.array.byteLength,
     // as nodes: its corners, its elements, and a level's row of a kind (first corner, first element, corners (and
     // whether it is of the level's shape: cornersOf, shapedOf), which levels of the kind are there and when this one came)
     index: index.node, elems: elems.node, table: storage(table, 'uvec4', kinds * L),
@@ -141,8 +141,9 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
   return H;
 }
 
-/** A level's row of a kind, as a node (in a compute pass or a vertex stage). */
-export const heapRow = (H, kind, level) => H.table.element(kind.mul(uint(H.L)).add(level));
+/** A level's row of a kind, as a node (in a compute pass or a vertex stage). How many levels a kind has is data, not
+    code (uL): the shaders that read the heap are the same whatever its levels, and a heap that gains one makes none new. */
+export const heapRow = (H, kind, level) => H.table.element(kind.mul(H.uL).add(level));
 
 /** How many corners a row's mesh has; and whether it is of its level's own shape (drawn by the level's list of corners,
     its vertices read by their numbers: no corner looked up). */

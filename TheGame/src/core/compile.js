@@ -25,7 +25,7 @@ export function inTurn(fn, counted = true) {
   if (counted) turns++;
   const done = last.then(fn, fn);   // (in turn, whether the one before it went well or not)
   if (counted) done.then(() => turns--, () => turns--);
-  last = done.catch(() => {});
+  last = done.catch(() => {});   // (never two at once: three keeps the running compile's state in the renderer)
   return done;
 }
 

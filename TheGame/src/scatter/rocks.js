@@ -24,7 +24,6 @@ import { rockFull, rockBody, ROCK_PER } from '../../assets/kit/rock.js';
 import { roomsOf, mostOf } from './rooms.js';
 import { roomOf } from '../core/gpu.js';
 import { SURFACE_LEVELS, surfaceBand, surfacePx, GONE, BAND } from '../detail/error.js';
-import { REACH } from './ground.js';
 import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 
 // the levels: a rock's cluster hierarchy (assets/kit/clusters.js, from its full mesh alone) as the surfaces' levels hold
@@ -42,8 +41,6 @@ const levelsOf = (Z) => {
   return LV;
 };
 // RELIEF: the size on screen from which a rock's relief is read (under that its texture's mipmaps have none left);
-// REACH: how far the ground's map says where stones lie (src/scatter/ground.js), metres to the 68° lens: they shrink
-// away over the BAND before it ends
 const SHADE = { shrink: 0.85, far: 30, wide: 1.5 }, RELIEF = 10;
 // THIN: where a rock thins away, dial pixels (src/detail/error.js): pixel by pixel over the BAND under where it is gone
 // (leaving a rock out differs by all of it: GONE), with nothing to hand over to (its land's colour is under it)
@@ -66,7 +63,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
   for (const row of rows) {
     const F = famOf(row), big = !!row.outcrops, shapes = F.count;
     // (a rock's size on screen is its largest side's: its size, metres, its asset's, the measure's: world/scale.js)
-    const sizes = [row.size[0], row.size[1]], reach = big ? Infinity : REACH;   // (every rock thins away over the same last pixels, THIN)
+    const sizes = [row.size[0], row.size[1]], reach = Infinity;   // (every rock as far as its own size shows: it thins away over the same last pixels, THIN; the ground's map reaches the stones' farthest, src/scatter/ground.js)
     firstOf.set(row.uid, F.first); sizeMost = Math.max(sizeMost, sizes[1]);
     // what lies in a cell: a rock of one of the asset's shapes, or nothing. The cheap tests first (most cells hold
     // none); the ground under it and the grass round it only for a rock that is of the tier's level (fill)
@@ -77,8 +74,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
         // more often, never past its most: src/world/rocksolid.js works out the same)
         const r1 = rnd(cx, cy, uint(204)), s = mix(row.size[0], row.size[1], r1.mul(r1).mul(r1).add(oc.mul(big ? 0.25 : 0).mul(r1)).min(1));
         const kind = uint(floor(rnd(cx, cy, uint(201)).mul(shapes)).min(shapes - 1)).add(uint(F.first));
-        // (a stone shrinks away where the ground's map ends)
-        const size = big ? s : s.mul(float(1).sub(smoothstep(REACH / BAND, REACH, dist)));
+        const size = s;
         // (none on a way: none whose base, half its side round its middle, reaches onto it: src/world/ways.js;
         // src/world/rocksolid.js keeps the same)
         If(offWays(float(1), pos, s.mul(0.5)).greaterThan(0.5), () => found(kind, size, dist, (A, B, G) => {

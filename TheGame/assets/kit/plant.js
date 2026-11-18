@@ -115,7 +115,7 @@ export const FOOT = 0.15;
 export const hasFar = (a) => !!(a.far ?? kindRule(a, 'far'));
 /** Where a plant is gone (src/detail/error.js goneAt): the land under it wears its stand's colour or its floor, so leaving
     it out differs by how far it stands over the ground, of its size on screen's measure, the most of its shapes'. */
-const goneOf = (a) => {
+export const goneOf = (a) => {
   let e = 0; for (let i = 0; i < (a.shapeCount ?? 1); i++) e = Math.max(e, Math.max(0, (a.heights?.[i] ?? most(a.size.height)) - FOOT) / shapeSize(a, i));
   return goneAt(e || 1);
 };
