@@ -9,6 +9,8 @@ import { hashI, camDist, BASE } from '../world/land.nodes.js';
 import { finish, skyLight, weathered, cloudAtOne, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion, vWas } from '../core/pass.js';
 import { Tier, offScreen, clipOf } from './tier.js';
+import { viewArea } from './view.js';
+import { roomOf } from '../core/gpu.js';
 import { scatterRow } from '../../assets/index.js';
 import { TRUTH, dialK, pxKMost } from '../detail/measure.js';
 import { BAND, GONE } from '../detail/error.js';
@@ -156,9 +158,14 @@ function bladeMaterial(T) {
     any GPU). */
 export function createGrass(scene, tex, ground, asset, gpu = false) {
   const rings = TRUTH ? asset.tiers.slice(0, 1) : asset.tiers, cut = TRUTH ? REACH : Infinity, now = () => bandsOf(rings, asset.height, dialK(), cut);
-  // the most a ring holds: its band's largest area at any measure up to the most (pxKMost: a turn of the dial or of the
-  // governor's ratio only brings the rings nearer), the dial pixels a metre covers halved a quarter at a time
-  const most = rings.map((_, k) => { let a = 0; for (let i = 0; i <= 64; i++) { const b = bandsOf(rings, asset.height, pxKMost() * 2 ** (-i / 4), cut).bands[k]; a = Math.max(a, b.far > 0 ? Math.PI * (b.far ** 2 - Math.max(0, b.near - b.nearFade) ** 2) : 0); } return a; });
+  // the most a ring holds: as much of its band as the eye's view can take in at once (src/scatter/view.js viewArea: level,
+  // down, from any height), the band as large as it gets at any measure up to the most (pxKMost: a turn of the dial or
+  // of the governor's ratio only brings the rings nearer; the dial pixels a metre covers halved a quarter at a time), in
+  // cells; and all the meadow's rings together within the room the ground's class has left (src/core/gpu.js roomOf),
+  // each ring as much less where they would not fit (a ring that holds too few leaves its farthest out: tier.js)
+  const widest = rings.map((_, k) => { let w = null, a = 0; for (let i = 0; i <= 64; i++) { const b = bandsOf(rings, asset.height, pxKMost() * 2 ** (-i / 4), cut).bands[k], n = Math.max(0, b.near - b.nearFade), d = b.far > 0 ? b.far ** 2 - n ** 2 : 0; if (d > a) { a = d; w = [n, b.far]; } } return w; });
+  const need = rings.map((R, k) => (widest[k] ? Math.ceil(viewArea(...widest[k]) / (R.cell * R.cell)) : 0)), BYTES = 3 * 16;   // (three vec4 a blade: slots, below)
+  const fit = Math.min(1, roomOf('ground') / Math.max(1, need.reduce((s, n) => s + n, 0) * BYTES));
   const at = bandsOf(rings, asset.height, pxKMost(), cut);   // (at the most: the farthest every ring and the meadow's end can be, what each ring's region tree is sized for)
   return rings.map((R, k) => {
     const T = { cell: uniform(R.cell), w: uniform(R.w), near: uniform(0), nearFade: uniform(0), far: uniform(0), farFade: uniform(0) };
@@ -169,8 +176,7 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
         : Fn(() => { const L = live(src), out = offScreen().toVar(); If(L.alive, () => { out.assign(shape(...L.data)); }); return out; })();   // the fallback: worked out here, per vertex
       return m;
     };
-    // the most that may stand at once: the ring's most area in cells, as much as the frustum can hold of it
-    const cap = Math.ceil((most[k] / (R.cell * R.cell)) * 0.6);
+    const cap = Math.max(1, Math.floor(need[k] * fit));   // (the most that may stand at once: above)
     // a blade's box, for the eye's culling (src/core/occlusion.js): from its foot up its height, out as far as it bends
     // (bowed deepest under snow) and its widest (its ring's half width, wider by as much as it thins); the wind leans its
     // tip its height a unit of the wind's push (bladeMaterial: never more than 1.25 of it)
@@ -178,7 +184,7 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
     const bounds = (A, B) => { const h = A.w, reach = h.mul(B.y.add(0.6).mul(1.15)).add(wide + 0.02); return { c: vec3(A.x, A.z.add(h.mul(0.5)), A.y), h: vec3(reach, h.mul(0.5).add(0.02), reach), w: h.mul(1.1) }; };
     // (high: the tallest blade, bladeIn's most of the asset's height: its least, its own and its tuft's share, a
     // flower's stalk; reach: its farthest at the most pixels the screen can draw)
-    const t = new Tier(scene, blade(R.segs), material, { cell: R.cell, P: R.P, near: 0, far: 0, reach: at.bands[k].far, high: asset.height * (0.5 + 0.55 + 0.8 + 0.35), order: 0, live, gpu, cap, slots: 3, bounds });
+    const t = new Tier(scene, blade(R.segs), material, { cell: R.cell, P: R.P, near: 0, far: 0, reach: at.bands[k].far, high: asset.height * (0.5 + 0.55 + 0.8 + 0.35), order: 0, live, gpu, cap, slots: BYTES / 16, bounds, cls: 'ground' });
     t.band = () => {   // (its band as the measure is now: tier.js reckons every tier's again when it changes)
       const N = now(), b = N.bands[k];
       for (const key of ['near', 'nearFade', 'far', 'farFade']) T[key].value = b[key];

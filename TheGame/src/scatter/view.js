@@ -5,8 +5,37 @@
 // made again when the camera has turned by about a third of that (TURN, of its quaternion): nothing pops in at the edge.
 import { vec4, abs, length } from 'three/tsl';
 import { U } from '../core/uniforms.js';
+import { pxKAt } from '../detail/measure.js';
 
 const MARGIN = (5 * Math.PI) / 180, TURN = 0.015;
+
+/** The most of a band of distances round the eye, [near, far] metres (the 68° lens's, the measure's), its view takes in
+    at once, as a tier's region tree tests it (widened by MARGIN either way), at the window's aspect: m² of the ground,
+    the most over every way the eye can look at it (level, down, straight down) from every height it can be seen from (the
+    ground to as high as `far`). What a tier that packs the band's cells holds at most is this over a cell's area. */
+export function viewArea(near, far, aspect = (globalThis.innerWidth || 1920) / (globalThis.innerHeight || 1080)) {
+  if (!(far > near)) return 0;
+  const t = 1 / (2 * pxKAt(1)), ty = Math.tan(Math.atan(t) + MARGIN), tx = Math.tan(Math.min(1.5, Math.atan(aspect * t) + MARGIN));
+  const NR = 32, NA = 64, rings = [];   // (the band's ground, as cells of a polar grid round the foot of the eye)
+  let most = 0;
+  for (let ih = 0; ih <= 8; ih++) {
+    const H = (far * ih) / 8, r0 = Math.sqrt(Math.max(0, near * near - H * H)), r1 = Math.sqrt(Math.max(0, far * far - H * H));
+    if (r1 <= r0) continue;
+    rings.length = 0;
+    for (let i = 0; i < NR; i++) { const a = r0 + ((r1 - r0) * (i + 0.5)) / NR; rings.push([a, (a * (r1 - r0) * 2 * Math.PI) / (NR * NA)]); }
+    for (let ip = 0; ip <= 18; ip++) {
+      const th = (ip * Math.PI) / 36, s = Math.sin(th), c = Math.cos(th);   // (looking down by th: level to straight down)
+      let area = 0;
+      for (const [r, dA] of rings) for (let j = 0; j < NA; j++) {
+        const phi = ((j + 0.5) * 2 * Math.PI) / NA, u = r * Math.sin(phi), v = r * Math.cos(phi);
+        const z = H * s + v * c, y = v * s - H * c;   // (the point in the eye's frame: ahead, up; across is u)
+        if (z > 0 && Math.abs(u) <= tx * z && Math.abs(y) <= ty * z) area += dA;
+      }
+      most = Math.max(most, area);
+    }
+  }
+  return most;
+}
 
 let FRUSTUM = null;
 /** The camera's view written to the shared uniforms (uView, uViewK); returns what of it a packing depends on (a key). */

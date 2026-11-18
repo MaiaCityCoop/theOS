@@ -64,7 +64,7 @@ export class Tier {
       thing packed into bucket k ({ c, h, w }: its middle and half its size, its growth in it; how far the wind may push
       it, a metre of its sway), from its first two rows.
       high: how tall what it packs may stand (metres), for the view's test. */
-  constructor(scene, geometry, material, { cell, P, near = 0, far, reach = 0, order = 0, live = null, gpu = false, cap = 0, slots = 0, cull = 0, fixed = 0, spans = null, bounds = null, high = 0 }) {
+  constructor(scene, geometry, material, { cell, P, near = 0, far, reach = 0, order = 0, live = null, gpu = false, cap = 0, slots = 0, cull = 0, fixed = 0, spans = null, bounds = null, high = 0, cls = 'geometry' }) {
     ALL.add(this);
     this.cull = cull; this.fixed = fixed; this.P = P; this.S = cell * P; this.cell = cell; this.near = Math.max(0, near); this.far = far; this.n = 0; this.over = false; this.high = high;
     this.list = Array.from({ length: MAXP }, () => new THREE.Vector2());
@@ -93,8 +93,8 @@ export class Tier {
       const caps = own ? cap : geos.map(() => cap), offs = caps.map((_, k) => caps.slice(0, k).reduce((a, c) => a + c, 0)), total = caps.reduce((a, c) => a + c, 0), capOff = own ? uniformArray(caps.map((c, k) => new THREE.Vector2(c, offs[k])), 'vec2') : null;   // (a bucket's cap and where its things begin, as one array: a stage has twelve uniform buffers)
       // (a thing's rows side by side in one buffer, `slots` of them: one buffer to bind, not one a row; a pass binds at
       // most eight, src/world/things.js reads one more)
-      const buf = gpuStorage('vec4', Math.max(1, total * slots), null, 'geometry', true), data = buf.node, count = instancedArray(K, 'uint').toAtomic(), S = uint(slots);
-      more('tiers: what stands, packed', buf.bytes, buf.lean ? 0 : buf.bytes, 'geometry');
+      const buf = gpuStorage('vec4', Math.max(1, total * slots), null, cls, true), data = buf.node, count = instancedArray(K, 'uint').toAtomic(), S = uint(slots);
+      more('tiers: what stands, packed', buf.bytes, buf.lean ? 0 : buf.bytes, cls);
       // (one buffer of draw arguments, five a bucket: a shader binds few buffers. Culled, what the eye sees and what pass
       // two found are two sets more, in the culling's own buffer: src/core/occlusion.js)
       const culled = !!bounds && hasFeature('indirect-first-instance') && cullable(total);   // (?truth too: what this frame's depth hides adds nothing to any pixel, and the reference drawn whole, ten million things a frame at 4K, does not settle)
