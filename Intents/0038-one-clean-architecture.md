@@ -636,6 +636,68 @@ Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
   - On 2b, a fine even speckle over all the grass adds to the difference, worst at 30 m. The stills show no hole and
     no seam.
 
+### Stage 6b: the ground as one virtual texture (2026-11-18)
+
+Built on `aven/0038-stage6b-avt` from main at `cc3aa70` (stages 1, 2a, 2b, 4, 6a, 10), merged with main at `501aff5`
+(stage 3). After Ka Chen, *Adaptive Virtual Texture Rendering in Far Cry 4* (GDC 2015), and Etienne's Call of Duty
+2023 terrain.
+
+- **The virtual texture** (`src/terrain/pages.js`). The ground's material is laid once a page and kept; a pixel of the
+  ground looks its page up and reads it once, then lights it.
+  - **Levels and pages.** 17 levels, from 2 mm a texel (1/512 m) to 128 m. A page is 120 × 120 texels and a border of
+    4 (its neighbours' texels, so it filters as one with them): one layer of 128² in an array. Each level is a window
+    of 128 × 128 pages round the camera, a page's place in it its place on the land modulo 128: the endless land in
+    rings of sectors.
+  - **Laid in compute, once a page.** First the biomes' rules on the page's own grid, a point every 8 texels (the
+    layer map, now the page's own, `layers.js layerWords`); then every texel as the fragment laid every pixel until
+    now (up to five layers, hex-tiled inside the page at every distance, the carpet, the stands' colour), its slope from
+    the land's height (`material.js laid`, `slopeAt`). A page has two mips: the second is the next level's texels where
+    it lies, so the filter's step into it goes over into the parent page with no seam, in one read. What is let go
+    with distance is let go as at the level's distance (its texel seen as one pixel of the 4K screen).
+  - **The atlas.** BC3 (colour, gamma 2, and height), BC5 (relief), BC5 (the carpet's share, the stands' shade): 3
+    bytes a texel, 1792 pages, 107 MB, packed by a compute pass with `bake.js`'s encoders (now shared: `steps`,
+    `colours`) and copied into the layers. Without BC: rgba8, 640 pages, laid straight in. The roughness is not kept:
+    nothing in the light reads it yet.
+  - **The page table:** 17 × 128² entries of 32 bits (1.1 MB): the slot, in, faded, the frame it came.
+- **Asked for, from the prepass.** The prepass writes, at every pixel of the land, the level it reads (as finely as the
+  4K screen's pixels: its lens and the upscaler's finer reads counted) into the motion target's free fourth number.
+  Right after the prepass (`screen.afterPrepass`) a compute pass takes one pixel in 8 × 8, another each frame (an
+  ordered dither's order), finds its point from its depth through the camera as it drew, and writes the page it wants;
+  read back a few frames later.
+  - Parents first: a page and every page over it, the coarsest first; 48 pages a frame while the camera stands still,
+    12 while it moves; the camera's speed: a page that would cross the screen faster than 12 pixels a frame waits, and
+    its parent is laid.
+  - What has not been asked for for 96 frames gives its slot up. The last level (15 km pages) is always in round the
+    camera, 26 km: a pixel always has a page.
+  - **Found:** a storage write in the land's colour shader cost it its early depth test, and the colour's equal test
+    then missed pixels the prepass drew: pale holes all over the ground, along the 8 × 8 sweep. So the colour pass
+    writes nothing but its colour, and the prepass carries the ask.
+  - **Found:** three binds a texture once a shader, by its uuid, and a storage binding is one mip: a page's second mip
+    went into its first (the ground darkened towards each level's far edge) until each store had a binding of its own.
+- **Shown.** One look into the page table (walking up a level only where a page is not in yet) and one read of the
+  page (its three textures). A page newly in fades in over 10 frames from the one under it (two reads while it
+  fades), so a page never comes in at once.
+- **The adaptive bias.** If what is asked for does not fit the atlas, every pixel asks a quarter level coarser, and
+  finer again when there is room. At the 4K screen's own density the gate's views ask for about 3000–3500 pages (with
+  their parents, and the four-fold slack of whole levels); with 1792 they settle at a bias of 0.5–1, texels 1.4–2 ×
+  a 4K pixel, about the 1440p the world is drawn at. With 2048 layers (123 MB) the town view settled at 0.5.
+- **The light stays as it was.** What hangs on the pixel's own distance is worked out per pixel from the page's
+  numbers: the near carpet's darkening in its blades' shade (from the carpet's share), the stands' floor shade past the
+  shadow map (from their shade), the cavity, the snow.
+- **Hand-overs by level.** What is let go with distance is let go as at the page's level. Along a grazing slope a
+  pixel's level is coarser than its distance alone says (the filter's steps along the slope, four), so at eye level
+  the far ground lets go nearer: the bare patches 100 m behind the tent are gone in the branch's still.
+- **The layer map lives on the pages.** The camera's clipmap (10 × 512², 52 MB) and its toroidal updates are gone: a
+  page's grid is the land's, not the camera's, so pages laid at different times meet without a seam, and a page laid
+  for a longer lens has a finer map under it.
+- **`scatter/ground.js` is not changed.** The layer map is no longer round the camera, and the blades' map needs what
+  it does not hold (the cover over every biome, the grass's height, the stones, the dryness), for a pass drawn once
+  every 16 m walked. Folding it in is no clean change; it reads the same land nodes as before.
+- **Deleted:** the per-pixel laying (the land's fragment was 67 KB, now under the ten largest), the clipmap and its
+  eight-tap read between its levels, the far read pushed about by a wave and the dithered hand-over to it,
+  `did('land')`.
+- **Not done:** Safari (it can't be automated here); BC on a GPU without it (rgba8, 640 pages, the bias higher).
+
 ## Propose
 
 ## Story
