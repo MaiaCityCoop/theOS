@@ -168,6 +168,54 @@ numbers are written below.
 
 **Out of scope:** new assets, the body's look (0036, waiting on Samuel's pick), the Bible (0037), and the story pipeline.
 
+## Where we left off (2026-11-18): read this first to take over
+
+**Live on next (main `501aff5`; next deploys itself after every merge):**
+
+| Stage | PR | What it did |
+| --- | --- | --- |
+| 1 | #61 | Clean ground: −1194 lines, 16 tuning switches gone |
+| 2a | #62 | The gate (`tools/gate.js`, FLIP), `settle()`, `measure.js`, `?truth` |
+| 10 | #63 | CI ships its build, and next deploys itself |
+| 2b | #64 | Prepass, motion vectors (with wind), one 4K upscale |
+| 6a | #65 | The ground from a layer map; shaders at start −39 % |
+| 4 | #66 | Far trees as octahedral impostors and clump planes (no domes, no stipple) |
+| 3 | #67 | One boot (`src/boot.js`); the library and Me compile 75–80 % less |
+
+**In flight when this was written** (each on its own branch, as a PR or nearly):
+
+| Stream | Branch | State | Before merging |
+| --- | --- | --- | --- |
+| 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
+| Occlusion culling | `aven/0038-draw-occlusion`, PR #68 | CI green | Views from above draw only 2–8 % of main's things: prove with gate stills at `bench-river-bend-26m`, `bench-town-40m` and `bench-pine-forest-90m` that nothing visible is missing (FLIP within noise) |
+| 6b: virtual-textured ground | `aven/0038-stage6b-avt` | Notes written, measuring, no PR yet | The views from above must get faster than main, and pages must arrive invisibly |
+
+**Not started:**
+- **6c:** relief, meaning displacement near the eye, parallax further out, skirts for rocks, path decals.
+- **7:** the one placement rule and the five layers. It needs Samuel's photos of the real site to choose the species.
+- **8:** cluster hierarchy for rocks, then the tent and fire pit (absorbs `aven/0033-solids-wip`).
+- **9:** one light: leaf shadows, Bend's screen-space shadows, the canopy map, GTAO, transmission, Hillaire's sky,
+  froxel fog, sky probes. It is the biggest step towards the look target.
+
+**Open risks:**
+- **Safari is untested on every stage.** Samuel is to open `/game/`, `/game/library.html` and `/game/me.html` on next
+  in Safari.
+- **The 12 ms / 60 fps gate is not met.** Bench views read 20–55 ms on the base M1, measured while the GPU was shared.
+- Stage 4 left these:
+  - **Impostor atlases:** about 0.4 GB (stage 5 sizes them down).
+  - **Bakes:** 21–91 s per load (stage 5 caches them).
+  - **A faint speckle** mid-way through the hand-over.
+
+**How this work runs:**
+- **Who:** one master session works through subagents, each in its own worktree on its own `aven/0038-…` branch,
+  with its own dev server on its own port. Each runs `tools/gate.js --url … --fresh` against main and against the
+  truth.
+- **Merging:** a PR merges when CI ("check") is green and its gate numbers and screenshots check out. Samuel
+  authorised merging and deploying each stage without asking (2026-11-17).
+- **Screenshots:** labelled before/after images go to Samuel with every task that changes the picture.
+- **Hygiene:** after a merge, remove the stage's worktree, its branch and its dev servers.
+
+
 ## Build
 
 ### Stage 1: clean ground (2026-11-17)
@@ -770,8 +818,8 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
 - [x] Stage 1: clean ground
 - [x] Stage 2a: gate, settle, one measure, truth
 - [x] Stage 2b: prepass, motion vectors, upscale
-- [x] Stage 3: boot (built; draft PR; Safari to be tried on next)
-- [x] Stage 4: far end, impostor and clump rung (built; draft PR)
+- [x] Stage 3: boot (merged #67; Safari to be tried on next)
+- [x] Stage 4: far end, impostor and clump rung (merged #66)
 - [ ] Stage 5: crowds, parts and one wind
   - [x] the draw path's two-pass occlusion culling, against a depth pyramid (built; draft PR #68)
 - [ ] Stage 6: land, virtual texture and relief
