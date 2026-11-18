@@ -4,6 +4,7 @@
 import * as THREE from 'three/webgpu';
 import { HMIN, HMAX, heightAt, riverAt, OCT_LAM, OCT_AMP } from '../world/land.js';
 import { boxIn } from '../core/frustum.js';
+import { limitOf } from '../core/gpu.js';
 import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, NODE, FINE } from './material.js';
 import { distanceAt, farMost, ERROR_PX } from '../detail/measure.js';
@@ -54,17 +55,25 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   const pages = createPages(renderer, tex);   // the ground's material, laid once a page round the camera (src/terrain/pages.js)
   const { pos, idx } = gridGeometry();
   // a list of nodes, as many as `cap`; grown (twice as large, sent again) where the quadtree selects more, never left out
+  // while the device holds it (a node 16 bytes, its buffer within the device's own maxBufferSize); past that what is
+  // selected is kept aside, the nearest drawn and the farthest left out, and said once (push)
   const room = (s, cap) => { s.data = new Float32Array(cap * 4); s.attr = new THREE.InstancedBufferAttribute(s.data, 4); s.attr.setUsage(THREE.DynamicDrawUsage); s.g.setAttribute('aNode', s.attr); s.cap = cap; };
   const make = (cap) => {
-    const s = { g: new THREE.InstancedBufferGeometry(), n: 0 };
+    const s = { g: new THREE.InstancedBufferGeometry(), n: 0, over: [], said: false };
     s.g.setAttribute('position', pos); s.g.setIndex(idx); s.g.instanceCount = 0; room(s, cap);
     return s;
   };
   const putNode = (s, x, z, size, level) => {
-    if (s.n >= s.cap) { const was = s.data; room(s, s.cap * 2); s.data.set(was); }
+    if (s.n >= s.cap) {
+      const most = Math.floor(limitOf('maxBufferSize') / 16) || Infinity;
+      if (s.cap >= most) { s.over.push(x, z, size, level); return; }
+      const was = s.data; room(s, Math.min(s.cap * 2, most)); s.data.set(was);
+    }
     const o = s.n++ * 4, a = s.data; a[o] = x; a[o + 1] = z; a[o + 2] = size; a[o + 3] = level;
   };
-  const R00 = landR0(true), land = make(perLevel(R00) * 12), water = make(perLevel(R00) * WATER_LEVELS);
+  // (to start with, as many as its levels hold round the camera at the most: the land's to where it ends and the relief's
+  // below them; the water's over the levels it is drawn at)
+  const R00 = landR0(true), land = make(perLevel(R00) * (Math.ceil(Math.log2(END / R00)) + 1 + RELIEF_LEVELS)), water = make(perLevel(R00) * WATER_LEVELS);
   const landMat = terrainMaterial(pages), waterMat = waterMaterial(tex);
   // near the eye the quadtree goes on into the relief's finer levels (src/terrain/relief.js), each reaching half as far
   // as the one before: nodes of the land like any other, the land's own vertex stage raising them (material.js)
@@ -128,6 +137,12 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   }
 
   function push(s) {
+    if (s.over.length) {   // (past the device's limit: the nearest of all it selected, by the lens's distance, not by the order it was walked in)
+      const all = [...s.data.subarray(0, s.n * 4), ...s.over], at = Array.from({ length: all.length / 4 }, (_, i) => i).sort((i, j) => d2(all[i * 4], all[i * 4 + 1], all[i * 4 + 2]) - d2(all[j * 4], all[j * 4 + 1], all[j * 4 + 2]));
+      at.slice(0, s.cap).forEach((i, k) => s.data.set(all.slice(i * 4, i * 4 + 4), k * 4));
+      if (!s.said) { s.said = true; console.warn(`land: ${at.length} nodes selected, ${s.cap} fit the device's buffer (maxBufferSize): the farthest ${at.length - s.cap} left out`); }
+      s.over.length = 0;
+    }
     s.g.instanceCount = s.n;
     s.attr.clearUpdateRanges(); s.attr.addUpdateRange(0, s.n * 4); s.attr.needsUpdate = true;
   }
