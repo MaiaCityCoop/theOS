@@ -10,9 +10,9 @@
 //   BUDGET_MB    the GPU's pools a class, at most, by what each class must hold (below). What a pool is sized by, where
 //                it may be larger or smaller (an atlas, the land's pages, the shadows' cascades, the culling's arenas
 //                and pyramid), is the room its class has left (src/core/gpu.js roomOf), with the device's own limits
-//   BROWSER      what the classes leave of the gate: the page's own heap and arrays and the browser's processes (as they
-//                were measured, tools/gate.js paths: the renderer about 2 GB, the browser and its helpers 0.1 GB, the
-//                GPU process's own beyond what it holds for the page)
+//                what they leave of the gate (about 3.7 GB) is the page's own heap and arrays and the browser's processes
+//                (as they were measured, tools/gate.js paths: the renderer about 2 GB, the browser and its helpers 0.1 GB,
+//                the GPU process's own beyond what it holds for the page)
 export const CLASSES = {
   geometry: ['packing', 'occlusion', 'prepass', 'prepass, late', 'colour'],   // what is drawn: the tiers' packing and the surfaces' cut (src/scatter), the culling's pass one, the prepass, then the depth pyramid, pass two and what it finds (src/core/occlusion.js), the colour
   light: ['clouds', 'shadow map'],   // the clouds' shadow map (src/world/weather/clouds.js), the casters' (src/world/shadow.js)
@@ -25,7 +25,7 @@ const CLASS = new Map(Object.entries(CLASSES).flatMap(([c, names]) => names.map(
 /** The class a pass is in ('other': none's). */
 export const classOf = (name) => CLASS.get(name) ?? 'other';
 
-const MB = 1 << 20;
+
 /** The hard gate on memory: the whole browser, every process of it, bytes (8 GB). */
 export const MEMORY = 8e9;
 /** The GPU's pools a class may hold, MB: what each must hold, and room for it to grow, the whole what the gate leaves.
@@ -39,5 +39,3 @@ export const MEMORY = 8e9;
     upscale/post: the picture kept over time at the screen's own pixels (two of it), the lens's targets;
     other: whatever no pool notes: three's own buffers, what the device makes beside them (src/core/gpu.js counts it) */
 export const BUDGET_MB = { geometry: 2048, ground: 1024, light: 256, 'upscale/post': 256, other: 512 };
-/** What the classes leave of the gate for the page's own and the browser's processes, bytes (about 3.7 GB). */
-export const BROWSER = MEMORY - Object.values(BUDGET_MB).reduce((a, b) => a + b, 0) * MB;

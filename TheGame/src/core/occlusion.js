@@ -38,7 +38,7 @@
 // culled, and everything is drawn as before.
 import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, float, int, uint, vec2, vec3, vec4, uvec4, ivec2, uniform, uniformArray, storage, texture, instanceIndex, workgroupId, localId, workgroupArray, workgroupBarrier, storageBarrier, atomicLoad, atomicStore, atomicOr, countOneBits, max, min, abs, floor, ceil, log2, exp2, clamp, packHalf2x16, unpackHalf2x16, floatBitsToUint, uintBitsToFloat } from 'three/tsl';
-import { gpuStorageLater, more, limitOf, roomOf } from './gpu.js';
+import { gpuStorageLater, more, limitOf, roomOf, bytesOf } from './gpu.js';
 import { passOf } from './pass.js';
 import { windStrength, snowDepth } from '../world/light.js';
 
@@ -317,12 +317,12 @@ const proxies = [];
     put into each bucket (atomic, maybe more than its room); box(A, B, k): the world box
     of a thing of bucket k from its rows ({ c, h, w }: its middle, half its size, and how far the wind may push it, a
     metre of its sway: gustOf). */
-/** The most things one arena holds: its boxes, 16 bytes each, one buffer the GPU binds and makes (the device's own
+/** The most things one arena holds: its boxes, a uvec4 each, one buffer the GPU binds and makes (the device's own
     limits, as large as its adapter has them: src/boot.js). */
-const ROOM = () => Math.floor(Math.min(limitOf('maxStorageBufferBindingSize'), limitOf('maxBufferSize')) / 16);
-/** Whether n things' room fits what the geometry's class has left (src/core/classes.js): a box (16 bytes) and two places
-    in the lists (8) each. */
-const BYTES = 16 + 8, fits = (n) => n * BYTES <= roomOf('geometry');
+const ROOM = () => Math.floor(Math.min(limitOf('maxStorageBufferBindingSize'), limitOf('maxBufferSize')) / bytesOf('uvec4'));
+/** Whether n things' room fits what the geometry's class has left (src/core/classes.js): a box and two places in the
+    lists each (what the arena makes: build). */
+const fits = (n) => n * (bytesOf('uvec4') + 2 * bytesOf('uint')) <= roomOf('geometry');
 /** Whether a tier of `total` things can be culled (one that alone would fill more than an arena is drawn whole). */
 export const cullable = (total) => total <= ROOM() && fits(total);
 export function cullOf(T, { K, caps, offs, total, S, data, args, count, box }) {

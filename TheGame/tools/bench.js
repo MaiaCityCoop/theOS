@@ -25,6 +25,8 @@ export const BUDGET = 12;
 const inTarget = (draw) => { const s = window.__game, r = s.renderer, was = r.getRenderTarget(); r.setRenderTarget(s.screen?.target ?? was); try { return draw(); } finally { r.setRenderTarget(was); } };
 /** The GPU's memory now, by class beside each class's budget (src/core/gpu.js ledger: { classes: { class: { gpu,
     budget } }, gpu: all that is noted, device: all the device has made, unnoted: of that, what no pool notes }; MB). */
+/** A view's number into out's table of `key` (made with the first). */
+const keep = (out, key, name, value) => { (out[key] ||= {})[name] = value; };
 export const memoryNow = () => { const L = window.__memory?.(); return L ? { classes: L.classes, gpu: L.gpu, device: L.device, unnoted: L.unnoted } : null; };
 /** The frame's parts, each the passes it is made of, by the names their code marks them with: what BUDGET (and the
     memory's gate) is shared out by, one table for the game and its tools (src/core/classes.js). */
@@ -134,9 +136,9 @@ export async function bench({ ratio = 1.5, frames = 60, settle = 0, shading = fa
       frame(v); await fin();
       if (clock) {
         const T = await timed(clock, () => frame(v), frames);
-        out[v.name] = T.sum; (out.span ||= {})[v.name] = T.span; (out.passes ||= {})[v.name] = T.passes; (out.classes ||= {})[v.name] = T.classes; (out.memory ||= {})[v.name] = memoryNow();
-        if (shading) { const D = await timed(clock, () => frame(v, true), frames); (out.shading ||= {})[v.name] = { colour: T.passes.colour?.mean ?? 0, colourWithout: D.passes.colour?.mean ?? 0 }; frame(v); await fin(); }   // (and one frame as it was, so the shadows are read again)
-      } else { const t0 = performance.now(); for (let i = 0; i < frames; i++) frame(v); await fin(); out[v.name] = +((performance.now() - t0) / frames).toFixed(2); (out.memory ||= {})[v.name] = memoryNow(); }
+        out[v.name] = T.sum; keep(out, 'span', v.name, T.span); keep(out, 'passes', v.name, T.passes); keep(out, 'classes', v.name, T.classes); keep(out, 'memory', v.name, memoryNow());
+        if (shading) { const D = await timed(clock, () => frame(v, true), frames); keep(out, 'shading', v.name, { colour: T.passes.colour?.mean ?? 0, colourWithout: D.passes.colour?.mean ?? 0 }); frame(v); await fin(); }   // (and one frame as it was, so the shadows are read again)
+      } else { const t0 = performance.now(); for (let i = 0; i < frames; i++) frame(v); await fin(); out[v.name] = +((performance.now() - t0) / frames).toFixed(2); keep(out, 'memory', v.name, memoryNow()); }
     }
   } finally { clock?.stop(); ratioTo(was); s.governor.hold(false); s.covered = covered; }
   out.measure = clock ? 'GPU time' : 'wall time';
