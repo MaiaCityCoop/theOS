@@ -8,6 +8,8 @@
 //   y, x, z      what the camera looks at (m; the figure stands at the middle)          d      how far off (m)
 //   yaw, pitch   where it stands round and over that (degrees; 0: in front)            fov    its lens (degrees)
 //   sun, suna    the key light: degrees to the camera's left, and up (the library's: 45, 40)  exp    the exposure
+//   file         another figure's file in place of the recipe's (an address the dev server answers): one not in the library yet
+//   head         the camera looks at its eyes, however tall it is (y is then added to that)
 //   bones        its skeleton drawn over it          gpu    through WebGPU (as the game draws); without it WebGL 2
 //   round        left on its walk's round (1.5 m from the middle); turned: left turned as its move turned it
 import * as THREE from 'three/webgpu';
@@ -25,15 +27,16 @@ renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight, false); ren
 const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(num('fov', 28), innerWidth / innerHeight, 0.05, 100);
 U.uCam.value = camera.position; U.uHaze.value = 0; U.uExposure.value = num('exp', 1);
 const yaw = num('yaw', 0) * D2R, pitch = num('pitch', 0) * D2R, d = num('d', 4.3), at = [num('x', 0), num('y', 0.9), num('z', 0)];
-camera.position.set(at[0] + Math.sin(yaw) * Math.cos(pitch) * d, at[1] + Math.sin(pitch) * d, at[2] + Math.cos(yaw) * Math.cos(pitch) * d); camera.lookAt(...at);
+const aim = () => { camera.position.set(at[0] + Math.sin(yaw) * Math.cos(pitch) * d, at[1] + Math.sin(pitch) * d, at[2] + Math.cos(yaw) * Math.cos(pitch) * d); camera.lookAt(...at); }; aim();
 const sa = num('sun', 45) * D2R, su = num('suna', 40) * D2R;   // (the library's key: 45° to the camera's left, 40° up)
 U.uSunDir.value.set(Math.sin(yaw - sa) * Math.cos(su), Math.sin(su), Math.cos(yaw - sa) * Math.cos(su)).normalize();
 
-const who = (q.get('who') ?? 'man').replace(/[^a-z0-9-]/g, ''), recipe = (await import(`../characters/${who}.js`)).default;
+const who = (q.get('who') ?? 'man').replace(/[^a-z0-9-]/g, ''), own = (await import(`../characters/${who}.js`)).default, recipe = q.get('file') ? { ...own, name: q.get('file').split('/').pop(), file: new URL(q.get('file'), location.href).href } : own;
 const T = new THREE.Texture(), tex = new Proxy({}, { get: (_, k) => (k === 'want' ? () => {} : () => texture(T)) });
-const P = recipe.make(tex, { eye: uniform(camera.position) }); await P.grown;
+const P = (q.get('file') ? (await import('../characters/kit/figure.js')).figureOf(tex, recipe, { eye: uniform(camera.position) }) : recipe.make(tex, { eye: uniform(camera.position) })); await P.grown;
 if (P.failed) { window.__drawn = { error: P.failed }; throw new Error(P.failed); }
 const stage = new THREE.Group(); stage.add(P.object); scene.add(stage); window.__figure = P;   // (for a look from the console)
+if (q.has('head')) { at[1] = P.height * 0.938 + num('y', 0); aim(); }   // (the camera at its eyes, however tall it is)
 if (q.get('move')) P.setMove(q.get('move'));
 if (q.get('face')) P.setExpression(q.get('face'));
 // (its clock run to t in steps, as the game's frames would: a walk goes its way round, a blend comes to its end)

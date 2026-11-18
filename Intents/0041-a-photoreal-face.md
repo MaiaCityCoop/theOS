@@ -1,10 +1,10 @@
 ---
 id: "0041"
 title: A photoreal face
-state: build           # idea | define | build | propose | story | archived
+state: propose         # idea | define | build | propose | story | archived
 outcome:               # accepted | rejected, set only when archived
 opened: 2026-11-18
-story:                 # Stories/0041-a-photoreal-face/, set at propose
+story: Stories/0041-a-photoreal-face/
 ---
 
 # 0041 · A photoreal face
@@ -78,7 +78,97 @@ the base is Samuel's to choose from the link; the two imported now are a first p
 
 ## Build
 
+Notes while building, 2026-11-18.
+
+- **The files were taken ready, not converted here.** VALID's own files are FBX of 7 to 8 MB each. Its readme
+  names a conversion of all of them to glTF (c-frame/valid-avatars-glb, MIT, Blender then gltf-transform: meshopt and
+  WebP), 2 MB each, with the skeleton, the 65 shapes and the lower teeth's 31 shapes kept. The man drawn from both,
+  side by side under one light, showed no difference. So the two files are that conversion's, unchanged, at its
+  commit `c4719df`; each recipe keeps its file's SHA-256.
+- **Which two.** `White_M_1` and `White_F_1` in their casual clothes: the pair already fetched and looked at. A first
+  pair to see the way working, not the chosen base.
+- **How a move reaches these bones.** The human kit's moves are plain angles for a body that stands turned like the
+  world with its arms down. These bones lie each along its own axis and the figure comes with its arms out. So the
+  kit makes each turn in the world's axes as the bone lies at rest (own · world⁻¹ · turn · world), brings the arms
+  down first (86°, of which the collar bone takes 10°, so the shoulder does not stand up), and turns a forearm and a
+  hand from where the arm hangs. The Settler's own walk, idle and wave then run on the figure unchanged. A cheer was
+  added, and the pose the figure came in, with nothing turned. The fingers are bent a little at ease.
+- **Moves, against the definition.** Define named "looking about" as a move of its own: it is part of standing (the
+  human kit's idle looks about). In its place: cheering, and the pose it came in.
+- **Feet and eyes.** Three points under each foot (heel, ball, toe), taken where the figure's lowest point lies at
+  rest; each step the hips are let down till the lowest touches the ground. The eyes' own bones turn to the camera
+  while it is before the face (half a radian to the side at most), else they wander a little.
+- **The face.** Seven expressions as weights of the makers' shapes by their makers' names; a blink of its own time;
+  the lower teeth's shapes driven by the face's (its tongue's twelve left alone).
+- **The look.** One picture holds the whole figure, so what a part is made of is not written anywhere: the gloss is
+  each mesh's (eyes wet with a glint of the sky, teeth smooth, the rest matt). The relief is turned onto the surface
+  from how the picture lies there, as the file brings no tangents. The hair is drawn from both sides.
+- **Read when first wanted.** The reader (three's GLTFLoader and the meshopt decoder) is fetched with the first
+  figure, not with the game: two pieces of 46 and 26 kB.
+- **Measured by the kit.** A figure's file keeps its points packed, not in metres, so `tools/scale.js` takes what
+  the kit measures (`stands`: the lowest and highest point as the bones hold it at rest). Under bun nothing decodes
+  a picture, so there the kit reads the file without its pictures.
+- **A page of its own for the stills** (`tools/figure.html`, `tools/figure.js`), as the Body has: the library's
+  stage does not draw on this machine (below).
+- **Not every figure has 84 bones.** Read from all 42 casual files: every body is 41,792 triangles with 65 shapes;
+  the skeleton is 84 bones in 19 of them, 99 in 9, 114 in 13 and 129 in one; 12 have their hair as a mesh of its own,
+  the rest in the body's own. The kit stood and drew all 42 (for the page for choosing two) without a fault.
+
 ## Propose
+
+Proposed on 2026-11-18. Story: [`Stories/0041-a-photoreal-face/`](../Stories/0041-a-photoreal-face/story.md).
+
+### What is delivered, and where to look
+
+- **Two people in the library**: `TheGame/characters/man.js` and `woman.js`, their files and licence in
+  `TheGame/characters/figures/`, their kit `TheGame/characters/kit/figure.js`. In the library:
+  `library.html?character=175c0572-91a4-4f04-ab66-618cc24d4cb6` (the Man) and
+  `library.html?character=672220f1-4a72-4154-b3a6-ce0f8d1cff20` (the Woman); their card has the moves and a new row
+  of expressions.
+- **Their stills**: 28, every move and every expression of both, sent to Samuel as two sheets; taken again by
+  `bun tools/figure.js --stills <folder>`.
+- **The page for choosing two**: https://claude.ai/artifact/3LYdouBthVqH1QPvTLGqY1 (private to Samuel): all 42 people of VALID, each drawn through the figure
+  kit, a close face at rest and the whole figure waving with a smile; two can be marked and their names copied.
+  The library's own sheet of every figure in every outfit: `All Models.pdf` in its repository.
+
+### The checks, as they were
+
+| # | Check | Result |
+| --- | --- | --- |
+| 1 | the files in `characters/figures/`, each under 2.5 MB, the licence beside them; a script reads its points, bones and shapes | **passed.** `bun tools/figure.js`: Man 1.94 MB, 31,897 points, 58,724 triangles, 84 bones, 65 shapes; Woman 2.05 MB, 36,760 points, 68,120 triangles, 84 bones, 65 shapes; each file's SHA-256 its recipe's; `LICENSE` there. "2 of 2 figures as their recipes say" |
+| 2 | stills in the library at noon and with the sun low: lit, shaded and shadowed as the Settler beside it | **not as defined.** The library's stage did not draw on this machine: its picture came out white through WebGPU (the device is lost), for the Settler as well as for the Woman; through WebGL 2 the world does not start. Seen in its place: each figure alone on the tool's page, lit by the same sun and sky light, with the sun to the left and from the front. **Its shadow on the ground was not seen**, nor the figure beside the Settler |
+| 3 | `bun tools/registry.js`: two recipes more; `bun tools/scale.js` passes | **passed.** 54 recipes (52 before). Scale: 20 of 20 within their measure; Man 1.815 m, Woman 1.738 m |
+| 4 | a still of each move for each figure; the feet on the ground | **passed**, by eye: standing (front and back), two strides of the walk, waving, cheering, the pose it came in with its skeleton drawn; the soles on one level in each |
+| 5 | a close still of each expression for each figure | **passed**, by eye: at rest, smile, laugh, surprise, sad, eyes closed, speaking; the lower teeth go with the jaw |
+| 6 | the library page opened with each figure, each move, each expression | **partly.** The page was opened on the Woman (`move=wave&face=smile`): its card reads Character · figure, 1.74 m, 84 bones, 65 shapes, 68k faces, five moves, seven expressions. Its stage was white (check 2). The Man's page likewise: 1.81 m, 84 bones, 65 shapes, 59k faces; a click on Laugh and on Cheer turned each on and the address kept both (`move=cheer&face=laugh`). What the clicks did on the stage was not seen |
+| 7 | the link, opened | **passed here, not on Samuel's side.** The page was opened as a file in headless Chromium at phone and desktop width before it was published: 42 people (21 women, 21 men, 7 of them without a validated label), two marked, their names in the bar, no sideways scroll at 400 px. The published link itself was not opened from here. All 42 files were read and drawn by the kit without a fault |
+|  | `vite build` in `TheGame/` | **passed**, with the size warning it had before (one piece of 509 kB). The recipes' piece 191 → 206 kB; the reader's two pieces 46 and 26 kB, fetched with the first figure; the two files 2.0 and 2.1 MB beside them |
+|  | `vite build` in `OS/` | **passed** |
+
+### Known gaps
+
+- **Not seen on a real GPU, and not through WebGPU at all.** Every still was drawn through WebGL 2 on a software
+  GPU. On this machine WebGPU loses its device, on the Body's own tool page too. The game draws through WebGPU, so
+  the first look on a real machine may show a fault that could not be seen here.
+- **Not seen on the library's stage**: no shadow on the ground, no size beside the Settler, no small picture in the
+  list, nothing a click does to the figure.
+- **They look like figures of a game, not like the photograph.** The skin is one flat picture of 2048 for the whole
+  clothed figure, lit like cloth; the man's smile is stiff; in surprise his lower teeth show oddly. The hair is a
+  shell with a picture on it.
+- **The shoulders** bulge a little where the arms are brought down from the pose they came in.
+- **The toes do not bend; the hands only rest.**
+- **Nothing is spared at a distance**: 59,000 and 68,000 triangles however far off; the file is read anew for each
+  figure made (the small picture and the stage: twice).
+- **In the library only**: nothing in the world or the game uses them.
+- **About 4 MB of binary files are now in the repository**, the game's first.
+- **The film was not played**; its camera is intent 0039's, and it shows the meadow, not the two.
+
+### Samuel's to decide
+
+- Accept or reject.
+- **Which two** of the 42 become the base (the page above); the two here are a first pair.
+- Whether figures' files belong in the repository or beside it.
+- Then, as he said, how they are changed: later.
 
 ## Story
 
@@ -94,11 +184,13 @@ the base is Samuel's to choose from the link; the two imported now are a first p
 - [ ] ~~deliverables 1 to 9~~ (the first plan's)
 - [x] the second research, stopped at Samuel's word; the ready-made open characters looked at
 - [x] Samuel's go for the whole VALID figure
-- [ ] the two figures as files, with their licence
-- [ ] the kit that stands a figure in the world's light
-- [ ] the two recipes; a few moves; a few expressions
-- [ ] the library's row of expressions
-- [ ] the checks, the stills, the link for choosing
+- [x] the two figures as files, with their licence
+- [x] the kit that stands a figure in the world's light
+- [x] the two recipes; a few moves; a few expressions
+- [x] the library's row of expressions
+- [x] the checks, the stills, the link for choosing
+- [ ] seen on the library's stage, on a real GPU (not possible here)
+- [ ] Samuel's two favourites
 
 ## Changelog
 
@@ -170,6 +262,26 @@ the base is Samuel's to choose from the link; the two imported now are a first p
   mesh and one UV layout, the same 65 shapes and 84 bones (an earlier count of some 500 bones was the loader's and
   is corrected); and img2threejs read from its repository. The recommendation was given to Samuel in words; Define
   is not rewritten until he says which way.
+
+### 2026-11-18, a man and a woman brought in
+
+- **Asked.** Samuel: "Ok go for the whole VALID figure, and import one male and one female one. Then visualize in
+  our character lib with a few rig moves and expressions. Customization we talk later. Also give me one link to the
+  webpage where we can view the different characters so we can select two favourites." (typos tidied).
+- **Delivered.** Define rewritten to that and built without a further round, as he asked for it outright. Two of
+  VALID's figures in the game as files, unchanged, with their licence; a kit that reads a figure, lights it with the
+  world's light, moves it with the Settler's moves on its own bones, keeps its feet on the ground, turns its eyes to
+  the camera and drives its face's shapes; two recipes, Man and Woman; the library's card with a row of expressions;
+  a tool that checks each file against its recipe and takes its stills; the scale check taught to measure a figure.
+  28 stills, as two sheets, sent to Samuel. A page with all 42 of VALID's people drawn through the same kit, for
+  choosing two: https://claude.ai/artifact/3LYdouBthVqH1QPvTLGqY1. The story and its film's timeline.
+- **Good.** Both figures stand, walk, wave, cheer and change their faces; the registry (54), the scale check (20 of
+  20) and both builds pass; the kit drew all 42 people without a fault.
+- **Not there.** The library's stage does not draw on this machine, for the Settler either: the figures were seen
+  alone on a tool's page, through WebGL 2 on a software GPU, never through WebGPU, so their shadow and their place
+  on the stage are not seen. The first stills run stopped two short because the tool's page was changed while it
+  ran; it was run again whole. A file server over the game's build, meant to let Samuel look from outside, was
+  refused by the session's safety check and not started. They look like figures of a game, not like the photograph.
 
 ## Trail
 

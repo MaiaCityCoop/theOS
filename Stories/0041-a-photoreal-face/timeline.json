@@ -1,0 +1,245 @@
+{
+ "intent": "0041",
+ "title": "A photoreal face",
+ "day": null,
+ "inGame": null,
+ "goals": [
+  [
+   "Two figures of VALID in the game as files, unchanged, with their licence",
+   true
+  ],
+  [
+   "A kit that stands a figure in the world's light, its feet on the ground",
+   true
+  ],
+  [
+   "A few moves on its rig: standing, walking, waving, cheering",
+   true
+  ],
+  [
+   "A few expressions from its face's shapes, the teeth with the jaw",
+   true
+  ],
+  [
+   "The library's card shows them, with a row of expressions",
+   true
+  ],
+  [
+   "One page where all 42 can be seen, for choosing two",
+   true
+  ],
+  [
+   "Seen on the library's stage on a real GPU",
+   false
+  ],
+  [
+   "The two favourites chosen; their looks changed (later)",
+   false
+  ],
+  [
+   "The gate, a photograph of a real smiling face",
+   false
+  ]
+ ],
+ "preview": {
+  "pos": [
+   -1264.0,
+   -5.44,
+   617.07
+  ],
+  "look": [
+   -1262.6,
+   -6.0,
+   631.0
+  ],
+  "mm": 35
+ },
+ "clips": [
+  {
+   "name": "The meadow, one tent",
+   "kind": "wide",
+   "secs": 13,
+   "ease": "in",
+   "in": "dip",
+   "inSecs": 1.4,
+   "hour": 11,
+   "clouds": 0,
+   "why": "the game as it starts: the one tent on the meadow, where the city grows what stands on it from its own code. The two figures stand in the library, not yet in this world",
+   "keys": [
+    {
+     "pos": [
+      -1264.0,
+      -5.44,
+      617.07
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1263.8,
+      -5.45,
+      619.06
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    }
+   ]
+  },
+  {
+   "name": "Towards the tent",
+   "kind": "push in",
+   "secs": 13,
+   "ease": "out",
+   "in": "cut",
+   "why": "nearer, at a person's eyes: where a person brought in from elsewhere will be met",
+   "keys": [
+    {
+     "pos": [
+      -1263.4,
+      -5.46,
+      623.04
+     ],
+     "look": [
+      -1262.85,
+      -5.98,
+      628.51
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1263.05,
+      -5.46,
+      626.52
+     ],
+     "look": [
+      -1262.85,
+      -5.98,
+      628.51
+     ],
+     "mm": 35
+    }
+   ]
+  },
+  {
+   "name": "Back and up",
+   "kind": "pull back",
+   "secs": 14,
+   "ease": "inout",
+   "in": "cut",
+   "why": "back from the tent and up: what the two can do, and what they are not, said plainly over the whole of it",
+   "keys": [
+    {
+     "pos": [
+      -1264.0,
+      -5.44,
+      617.07
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1264.4,
+      -3.07,
+      613.09
+     ],
+     "look": [
+      -1262.6,
+      -6.2,
+      631.0
+     ],
+     "mm": 35
+    }
+   ]
+  }
+ ],
+ "captions": [
+  {
+   "at": 0.6,
+   "for": 3.4,
+   "kind": "title",
+   "text": "The first two who were not grown here",
+   "over": "A photoreal face"
+  },
+  {
+   "at": 4.3,
+   "for": 2.8,
+   "kind": "maia",
+   "text": "Beside the photograph, mine was a drawn face."
+  },
+  {
+   "at": 7.3,
+   "for": 2.6,
+   "kind": "samuel",
+   "text": "This isn't helpful so far."
+  },
+  {
+   "at": 10.1,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "So I fetched every free library of people and drew each."
+  },
+  {
+   "at": 13.6,
+   "for": 2.8,
+   "kind": "samuel",
+   "text": "VALID looks the most promising so far."
+  },
+  {
+   "at": 16.6,
+   "for": 3.2,
+   "kind": "maia",
+   "text": "Four of its people are one mesh: 20,951 points, 84 bones."
+  },
+  {
+   "at": 20.0,
+   "for": 2.8,
+   "kind": "samuel",
+   "text": "Ok go for the whole VALID figure."
+  },
+  {
+   "at": 23.0,
+   "for": 3.4,
+   "kind": "samuel",
+   "text": "Then visualize in our character lib with a few rig moves and expressions."
+  },
+  {
+   "at": 26.8,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "A man and a woman, as their makers gave them."
+  },
+  {
+   "at": 30.0,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "They walk the Settler's walk and look at whoever looks."
+  },
+  {
+   "at": 33.2,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "They smile, laugh, speak. A photograph, no."
+  },
+  {
+   "at": 36.4,
+   "for": 3.2,
+   "kind": "note",
+   "text": "Seen on a software GPU only. Not yet on the library's stage."
+  }
+ ]
+}
