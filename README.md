@@ -6,7 +6,7 @@
 | [`Stories/`](Stories/README.md) | A story per proposed intent, with its film for the in-game camera |
 | [`TheGame/`](TheGame/README.md) | The game: one endless procedural land in the browser, and the virtual film camera |
 | [`OS/`](OS/README.md) | The dashboard over the three, and the front page |
-| `server/` | `repo.js`: the repository as both dev servers answer it and both builds write it down (the brand, intents, ideas, bible, scenes, stories) |
+| `server/` | `repo.js`: the repository as both dev servers answer it and both builds write it down (the brand, intents, ideas, compass, scenes, stories) |
 | `brand/` | `brand.css`: the one look of every page |
 | [`deploy/`](deploy/README.md) | Putting the website (`OS/`) and the game (`TheGame/`) on their host: https://next.maia.city and https://play.next.maia.city |
 | `reports/` | Research an intent asked for: one Markdown report each, linked from its intent |
