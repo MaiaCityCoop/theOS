@@ -1111,7 +1111,7 @@ Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at
     conservative under the skeleton's range of motion (UE 5.7 Nanite skinning does the same);
   - the cut's list for many kinds at once: a dispatch per drawer, not per tier (the Mac mini's Task B).
 
-- **Measured** (headless Chrome on Samuel's MacBook, against main on a server of its own, fresh profiles; the machine
+- **Measured** (not a gate where against main: Samuel, 2026-11-18; headless Chrome on Samuel's MacBook, against main on a server of its own, fresh profiles; the machine
   was shared with other agents throughout, at load averages of 50 to 180, and restarted once):
   - **The pop check** (`tools/gate/pop.js`): each thing walked from just off its middle to about a pixel, 1 % nearer a
     step (the fire pit and the boulder 2 %, every fourth and eighth triangle's corners), the rule reckoned as the GPU
@@ -1126,7 +1126,7 @@ Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at
     No step moves anything a pixel or more: swapped at once, the clusters' changes stand at the error allowed (about a
     pixel), and the morph takes them to between an eighth and three fifths of that, spread over the steps. A step of 2 %
     is a fast zoom (at 60 frames a second, from 1.7 m to 12 km in about seven seconds).
-  - **Triangles drawn** (`pop.js --at`, the rule's own count; main's from its levels and its kinds' pixel bands, seen
+  - **Triangles drawn, against main: not a gate** (Samuel, 2026-11-18: main is no reference) (`pop.js --at`, the rule's own count; main's from its levels and its kinds' pixel bands, seen
     from the gate's views):
 
 | Thing, view | Main | Stage 8 |
@@ -1153,7 +1153,7 @@ Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at
     are kept in IndexedDB, so a second start reads them back.
   - `bun tools/scale.js`: 18 of 18. `bun tools/account-check.js`: 67 passed. `bunx --bun vite build`: built.
 
-  - **FLIP against main and against `?truth`: measured on the Mac mini**, on its own GPU. This MacBook's GPU was
+  - **FLIP against `?truth`: not measured yet; to be measured on the Mac mini**, on its own GPU. This MacBook's GPU was
     shared and froze, so its runs were stopped. Here, the branch's stills settled at `bench-tent-eye-level`, `tent-10m`,
     `tent-30m` and `tent-120m` (171.8, 110.5, 126.0 and 53.5 s), and main's at `firepit-3m`, `boulder-6m` and
     `boulder-30m`. Not measured here:
