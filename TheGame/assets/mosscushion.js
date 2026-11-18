@@ -37,7 +37,7 @@ export default tree({
   type: 'asset',
   name: 'Moss cushion',
   kind: 'litter',
-  about: 'A low cushion of moss on the wood’s floor, a few grown together: green where the needles lie thin and the shade keeps the ground damp.',
+  about: 'A low cushion of moss on the damp, shaded wood floor.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
     real: 'Leucobryum glaucum, cushion moss: cushions on the wood\'s floor, two or three grown together',

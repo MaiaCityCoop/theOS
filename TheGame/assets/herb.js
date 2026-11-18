@@ -11,7 +11,7 @@ export default tree({
   type: 'asset',
   name: 'Woodland herb',
   kind: 'herb',
-  about: 'A low leafy herb of the wood’s floor, ankle to shin high, in the patches of light between the crowns.',
+  about: 'A low leafy herb of the wood floor, ankle to shin high.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
     real: 'a low herb of Mediterranean woods: a leafy tuft',

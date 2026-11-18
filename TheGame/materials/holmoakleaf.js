@@ -19,8 +19,8 @@ export default {
   type: 'material',
   name: 'Holm oak sprig',
   kind: 'foliage',
-  about: "A holm oak's sprig: a fan of twigs thick with small leathery leaves, dark glossy green, a few showing their pale underside: one foliage card.",
-  usedBy: 'the crowns of the holm oaks (a cut-out card)',
+  about: 'A fan of twigs thick with small dark leaves. A foliage card.',
+  usedBy: 'holm oak crowns',
   swatch: [0.06, 0.1, 0.045],
   bump: 0.05,
   paint: (uv) => {
