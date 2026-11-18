@@ -17,7 +17,7 @@ status: unbuilt
 
 # Maia City
 
-A sovereign solarpunk city state, built from the ground up in 16 years by the people who live in it. When the story opens, the city exists only in [the twin](the-twin.md); the ground is empty.
+A sovereign solarpunk city state, built from the ground up in 16 years by the people who live in it. When the story opens, it exists only in [the twin](the-twin.md), once for every European country, and the ground is empty. It is built for real in the country whose city in the game first reaches 1.3 million citizens.
 
 The city is deliberately named for [Maia](../../characters/maia.md), and the name check flags that on purpose.
 

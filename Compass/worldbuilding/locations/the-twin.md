@@ -17,7 +17,7 @@ status: open
 
 # The Twin
 
-The city in the game. Track 1, open from the first citizen and running the whole 16 years, growing from a world you can walk around into a full digital twin of the real city: the blueprint for AI-native sovereign city states, and for the cities that come after this one.
+The cities in the game. Track 1, open from the first citizen and running the whole 16 years. **Every European country has its own city in the twin, built by its own citizens, and the cities race each other:** the first country to reach 1.3 million citizens in the game builds, owns and lives in the real [Maia City](maia-city.md). Each grows from a world you can walk around into a full digital twin of a real city: the blueprint for AI-native sovereign city states, and for the cities that come after this one.
 
 **At the start it is the only thing that exists.** The dome scales are built in here one after another, from the 5 cm desk dome to the 89 m dome, and nothing physical is promised. The day the 144 m district dome completes them, the first real dome leaves the game.
 
@@ -35,6 +35,7 @@ The best players and entrepreneurs here are the people who go on to build the re
 
 ## Notable Features
 
+- One city per European country, all in one game, all racing; anyone can see which country leads.
 - Playable from year 1, so the proof exists before anything is poured.
 - Becomes a true digital twin: what stands here mirrors what stands there.
 - The blueprint other cities copy, which is how one city becomes a template for everyone.

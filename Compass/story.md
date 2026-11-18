@@ -101,12 +101,14 @@ A sovereign solarpunk city, built from the ground up, to 2042. **It feeds itself
 
 They open in order, as the people arrive, and all run to 2042.
 
+**The race.** In the game, every European country builds its own Maia City, and the cities compete. The first country to reach 1.3 million citizens in the game builds, owns and lives in the real one.
+
 | Track | What stands | The step it asks |
 | --- | --- | --- |
-| The game | The whole city first built in [the twin](worldbuilding/locations/the-twin.md): the blueprint for every city that follows | An evening |
+| The game | One city in the game for every European country, each built by its own citizens in [the twin](worldbuilding/locations/the-twin.md), all racing each other | An evening |
 | The domes | Real domes, each won by someone who built in the game | A trip |
 | The villages | The first village: 500 to 1,500 founding settlers building what the city runs on | Your old life |
-| The city | Maia City | Everything |
+| The city | Maia City, built for real in the country whose city wins the race | Everything |
 
 Every citizen walks the same path: watcher, player, winner, founder. **The twin is the audition all the way up.**
 

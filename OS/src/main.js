@@ -25,13 +25,14 @@ const filmOf = (id, scene = !!current?.scene && current.id === id) => withFlags(
 // ---- tabs: showing one stops the framed games of the others ----
 function tab(name) {
   document.body.classList.toggle('sheet', name === 'intents');   // the intents open as a sheet over the dashboard
-  document.body.classList.toggle('studio', name === 'stories');   // the stories, their shelf and their editor: dark, TheOS blue
+  document.body.classList.toggle('studio', name === 'stories' || name === 'compass');   // the stories, their shelf and their editor: dark, TheOS blue
   document.body.classList.toggle('admin', name !== 'home' && name !== 'legal' && name !== 'join');   // inside: the bottom pill; the front page has none
   if (location.hash.slice(1) !== (name === 'home' ? '' : name)) history.replaceState(null, '', name === 'home' ? location.pathname + location.search : '#' + name);   // (its flags kept)
   document.querySelectorAll('main').forEach((m) => m.classList.toggle('on', m.id === name));
   if (name === 'intents') { $('city').classList.add('on'); city(); }   // the dashboard stays under the sheet
   if (name === 'stories') $('stories').classList.toggle('editing', !!current);
-  if (name === 'stories' && !current) { compass(); ideas(); }   // the compass and the ideas as they stand now (both change only by their tools)
+  if (name === 'stories' && !current) ideas();   // the ideas as they stand now
+  if (name === 'compass') compass();   // the compass as they stand now (both change only by their tools)
   document.body.classList.toggle('play', name === 'game');   // the game takes the whole window
   if (name !== 'home') $('heroframe').removeAttribute('src');
   if (name === 'game') { if (!$('frame').getAttribute('src')) $('frame').src = withFlags(GAME + VIEWS[gameView][1]); } else $('frame').removeAttribute('src');
@@ -204,61 +205,98 @@ async function ideas() {
   box.querySelectorAll('.idea').forEach((c) => (c.onclick = () => { ideaOpen = ideaOpen === c.dataset.id ? null : c.dataset.id; ideas(); }));
   box.querySelector('[data-do=shut]')?.addEventListener('click', () => { ideaOpen = null; ideas(); });
 }
-// ---- the compass (../Compass): the serial's core, over the shelf. Its core message, the premise and what it out-builds,
-// and every character, arc, system, place, term and episode as a document.
-// The page only shows it: the compass is changed by the story CLI alone, so this draws again whenever the stories open ----
-let compassOpen = null;
+// ---- the compass (../Compass): its own page. Top to bottom: the vision (why), the mission (what we unite behind), the
+// story (how it is told), its people (who), its arcs (in what order) and its world (where); every entry opens in a
+// drawer. The page only shows it: the compass is changed by the story CLI alone, so it is read again whenever it opens ----
 const esc = (t) => String(t ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 const gist = (md) => { const p = md.split('\n').find((l) => l.trim() && !/^(#|>|\||-\s|\*\s|\d+\.\s|---|\*\*Open)/.test(l.trim())) || ''; const t = p.replace(/\*\*|\*|\[|\]\([^)]*\)|`/g, '').trim(); return t.length > 110 ? t.slice(0, 109).replace(/\s\S*$/, '') + '…' : t; };
-
+const TRACKS = ['the-first-world', 'a-night-in-the-future', 'the-thousand', 'the-ground'];   // the four tracks, in the order they open
 async function compass() {
-  const box = $('compass'); if (!box) return;
+  const box = $('cx'); if (!box) return;
   const b = await get('/api/compass').then((r) => r.json()).catch(() => null);
-  if (!b) { box.innerHTML = '<p class="empty">No compass yet.</p>'; $('compassnote').textContent = ''; return; }
-  const f = b.story.front, kinds = [
-    ['Episodes', 'chapters', b.chapters, (x) => `${x.front.date || ''}${x.front.hook ? ' · ' + x.front.hook : ''}`],
-    ['Characters', 'characters', b.characters, (x) => x.front.role || ''],
-    ['Arcs', 'arcs', b.arcs, (x) => `${x.front.type || ''}${x.front.status ? ' · ' + x.front.status : ''}`],
-    ['Systems', 'systems', b.systems, (x) => x.front.type || ''],
-    ['Places', 'locations', b.locations, (x) => `${x.front.type || ''}${x.front.status ? ' · ' + x.front.status : ''}`],
-    ['Glossary', 'terms', b.terms, (x) => x.front.category || ''],
-  ];
-  const all = kinds.flatMap(([, k, list]) => list.map((x) => ({ ...x, kind: k })))
-    .concat([{ kind: 'index', id: 'compass', front: { title: 'The compass' }, body: b.story.body }, { kind: 'index', id: 'plot', front: { title: 'The plot' }, body: b.plot },
-      { kind: 'index', id: 'world', front: { title: 'The world' }, body: b.world }, { kind: 'index', id: 'timeline', front: { title: 'The timeline' }, body: b.timeline }]);
-  const key = (x) => x.kind + '/' + x.id;
-  const open = all.find((x) => key(x) === compassOpen);
-  $('compassnote').innerHTML = `<b>${esc(f.title || 'Maia City')}</b> · ${esc(f.form || '')} · ${n(b.chapters.length)} of ${n(DAYS)} episodes · ${n(b.characters.length + b.arcs.length + b.systems.length + b.locations.length + b.terms.length)} entries`;
+  if (!b) { box.innerHTML = '<p class="lede">No compass yet.</p>'; return; }
+  const f = b.story.front, md = b.story.body;
+  const quote = (h) => (md.match(new RegExp('## ' + h + '\\n[\\s\\S]*?\\n((?:>.*\\n?)+)')) || [])[1]?.replace(/^> ?/gm, '').trim() || '';
+  const after = (h) => (md.match(new RegExp('\\*\\*' + h + '\\*\\*\\s*([^\\n]+)')) || [])[1] || '';
+  const vision = quote('The core message'), mission = quote('The mission'), joint = after('How the two meet\\.');
+  const stakes = [...md.matchAll(/^- \*\*(External|Relational|Internal)\.?\*\*\s*([^\n]*)/gm)].map((m) => ({ k: m[1], t: m[2] }));
+  const plain = (t) => esc(String(t).replace(/\*\*|\*|`/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'));
+  const first = (t) => plain((t.split('\n').find((l) => l.trim()) || '').replace(/^#+\s*/, ''));
 
-  // the core message: the blockquote under "## The core message", as the compass states it
-  const quote = (h) => (b.story.body.match(new RegExp('## ' + h + '\\n[\\s\\S]*?\\n((?:>.*\\n?)+)')) || [])[1]?.replace(/^> ?/gm, '').trim();
-  const core = quote('The core message'), mission = quote('The mission');
-  // the three stakes, as the compass's own Notes section states them
-  const stakes = [...b.story.body.matchAll(/^- \*\*(External|Relational|Internal)\.?\*\*\s*([\s\S]*?)(?=\n- \*\*|\n\n|\n#)/gm)]
-    .map((m) => `<div><b>${m[1]}</b>${esc(m[2].replace(/\s+/g, ' ').trim())}</div>`).join('');
+  const all = {}; const reg = (kind, x) => (all[kind + '/' + x.id] = { ...x, kind });
+  for (const [k, list] of [['character', b.characters], ['arc', b.arcs], ['system', b.systems], ['place', b.locations], ['term', b.terms], ['episode', b.chapters]]) list.forEach((x) => reg(k, x));
+  reg('index', { id: 'compass', front: { title: 'The whole compass' }, body: md });
+  reg('index', { id: 'plot', front: { title: 'The plot' }, body: b.plot });
+  reg('index', { id: 'world', front: { title: 'The world' }, body: b.world });
+  reg('index', { id: 'timeline', front: { title: 'The timeline' }, body: b.timeline });
+  const name = (x) => x.front.name || x.front.term || x.front.title || x.id;
+  const card = (k, x, label, cls = '') => `<button class="cxc ${cls}" data-k="${k}/${x.id}"><small>${esc(label)}</small><b>${esc(name(x))}</b><span>${esc(gist(x.body))}</span></button>`;
 
-  const card = (x, sub) => `<button class="idea${compassOpen === key(x) ? ' on' : ''}" data-k="${key(x)}"><b>${esc(x.front.name || x.front.term || x.front.title || x.id)}</b><span>${esc(gist(x.body))}</span>${sub ? `<span class="row"><em>${esc(sub)}</em></span>` : ''}</button>`;
-  const lane = (name, k, list, sub) => (list.length ? `<section class="lane"><h3>${name}<small>${list.length}</small></h3><div class="ideas">${list.map((x) => card({ ...x, kind: k }, sub(x))).join('')}</div></section>` : '');
+  const people = [...b.characters].sort((a, c) => (a.id === 'the-citizen' ? -1 : c.id === 'the-citizen' ? 1 : 0));
+  const tracks = TRACKS.map((id) => b.arcs.find((a) => a.id === id)).filter(Boolean), themes = b.arcs.filter((a) => !TRACKS.includes(a.id));
+  const n_ = (v, one, many) => `${v} ${v === 1 ? one : many}`;
 
-  const left = `<div class="lanes">
-    <div class="spine">
-      ${core ? `<div class="core md"><b class="tag">The vision</b>${marked.parse(core)}</div>` : ''}
-      ${mission ? `<div class="mission md"><b class="tag">The mission</b>${marked.parse(mission)}</div>` : ''}
-      <p class="prem">${esc(f.premise || '')}</p>
-      ${f['counter-premise'] ? `<p class="anti"><b>What it out-builds</b>${esc(f['counter-premise'])}</p>` : ''}
-      ${f['season-goal'] ? `<p class="goal"><b>This season</b>${esc(f['season-goal'])}</p>` : ''}
-      ${stakes ? `<div class="stakes">${stakes}</div>` : ''}
-    </div>
-    ${lane('The compass', 'index', all.filter((x) => x.kind === 'index'), () => 'index')}
-    ${kinds.map(([name, k, list, sub]) => lane(name, k, list, sub)).join('')}
-  </div>`;
-  const doc = (x) => `<aside class="bdoc"><header><b>${esc(x.front.name || x.front.term || x.front.title || x.id)}</b>${x.front.type || x.front.role || x.front.category ? `<i>${esc(x.front.type || x.front.role || x.front.category)}</i>` : ''}<button data-do="shut" aria-label="Close">×</button></header>` +
-    (x.kind === 'chapters' ? `<div class="md prose">${marked.parse(x.text || '')}</div><h4 style="font:500 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.45);margin:22px 0 8px">Its outline</h4><div class="md">${marked.parse(x.outline || '')}</div>`
-      : `<div class="md">${marked.parse(x.body || '')}</div>`) + '</aside>';
-  box.classList.toggle('open', !!open);
-  box.innerHTML = left + (open ? doc(open) : '');
-  box.querySelectorAll('.idea').forEach((c) => (c.onclick = () => { compassOpen = compassOpen === c.dataset.k ? null : c.dataset.k; compass(); }));
-  box.querySelector('[data-do=shut]')?.addEventListener('click', () => { compassOpen = null; compass(); });
+  box.innerHTML = `
+    <div class="top"><button class="btn" data-go="stories">← Stories</button><span>${esc(f.title || 'Maia City')} · ${n_(b.chapters.length, 'episode', 'episodes')} of ${n(DAYS)} written</span></div>
+    <h1>The Compass</h1>
+    <p class="lede">Where every day of the story points. Why we do it, what we unite behind, how it is told, who it is about and where it happens, top to bottom.</p>
+    <ol class="map">
+      <a href="#cx-vision"><i>1</i><em>Why</em><b>The vision</b><span>The power we carry when we unite behind one vision.</span></a>
+      <a href="#cx-mission"><i>2</i><em>What</em><b>The mission</b><span>The one vision a million of us unite behind: the race.</span></a>
+      <a href="#cx-story"><i>3</i><em>How</em><b>The story</b><span>One day a story, ${n(DAYS)} days. You are the hero.</span></a>
+      <a href="#cx-people"><i>4</i><em>Who</em><b>The people</b><span>${n_(b.characters.length, 'character', 'characters')}, and ${n_(b.arcs.length, 'arc', 'arcs')} they walk.</span></a>
+      <a href="#cx-world"><i>5</i><em>Where</em><b>The world</b><span>${n_(b.locations.length, 'place', 'places')}, ${n_(b.systems.length, 'system', 'systems')}, ${n_(b.terms.length, 'word', 'words')}.</span></a>
+    </ol>
+
+    <section id="cx-vision"><span class="k"><b>1 · Why</b>The vision · read in the first person</span><div class="vision">${marked.parse(vision)}</div></section>
+
+    <section id="cx-mission"><span class="k"><b>2 · What</b>The mission</span><div class="mission">${marked.parse(mission)}</div>${joint ? `<p class="joint">${plain(joint)}</p>` : ''}</section>
+
+    <section id="cx-story"><span class="k"><b>3 · How</b>The story</span>
+      <p class="premise">${esc(f.premise || '')}</p>
+      <div class="grid">
+        ${f['counter-premise'] ? `<div class="cxc anti"><small>What it out-builds</small><span>${esc(f['counter-premise'])}</span></div>` : ''}
+        ${stakes.map((x) => `<div class="cxc"><small>${esc(x.k)} stake</small><span>${plain(x.t)}</span></div>`).join('')}
+      </div>
+      <p class="sub">Every day</p>
+      <div class="grid">
+        <div class="cxc"><small>One story a day</small><span>${n(DAYS)} days from ${esc(f['release-start'] || '')}. Each poses one question, gives one reward, lands one realization and ends on a cliffhanger.</span></div>
+        <div class="cxc"><small>The voice</small><span>Second person, present tense. Celebrate, never warn. Every claim carries its receipt. Nobody's words are written for them.</span></div>
+        <button class="cxc" data-k="index/compass"><small>Read it all</small><b>The whole compass</b><span>Synopsis, voice, the city, the four tracks, how a day is shot.</span></button>
+      </div>
+    </section>
+
+    <section id="cx-people"><span class="k"><b>4 · Who</b>The people, and the arcs they walk</span>
+      <div class="grid">${people.map((x) => card('character', x, x.id === 'the-citizen' ? 'The hero · you' : x.front.role || 'Character', x.id === 'the-citizen' ? 'you' : '')).join('')}</div>
+      <p class="sub">The four tracks, in the order they open</p>
+      <ol class="path">${tracks.map((x) => `<li>${card('arc', x, x.front.status || '')}</li>`).join('')}</ol>
+      ${themes.length ? `<p class="sub">Running through all of it</p><div class="grid">${themes.map((x) => card('arc', x, x.front.type || 'Thematic')).join('')}</div>` : ''}
+      <p class="sub">Read further</p>
+      <div class="chips"><button data-k="index/plot">The plot</button><button data-k="index/timeline">The timeline</button>${b.chapters.map((x) => `<button data-k="episode/${x.id}">${esc(name(x))}</button>`).join('')}</div>
+    </section>
+
+    <section id="cx-world"><span class="k"><b>5 · Where</b>The world</span>
+      <p class="sub" style="margin-top:0">Places</p>
+      <div class="grid">${b.locations.map((x) => card('place', x, x.front.type || 'Place')).join('')}</div>
+      <p class="sub">How it works</p>
+      <div class="grid">${b.systems.map((x) => card('system', x, x.front.type || 'System')).join('')}</div>
+      <p class="sub">Its words</p>
+      <div class="chips">${b.terms.map((x) => `<button data-k="term/${x.id}">${esc(name(x))}</button>`).join('')}<button data-k="index/world">The world, all of it</button></div>
+    </section>`;
+
+  const doc = $('cxdoc'), shade = $('cxshade');
+  const shut = () => { doc.classList.remove('on'); shade.classList.remove('on'); };
+  const open = (k) => {
+    const x = all[k]; if (!x) return;
+    doc.innerHTML = `<header><div><small>${esc(x.kind === 'index' ? 'The compass' : x.front.role || x.front.type || x.front.category || x.kind)}</small><b>${esc(name(x))}</b></div><button aria-label="Close">×</button></header>` +
+      `<div class="md">${marked.parse(x.kind === 'episode' ? (x.text || '') + '\n\n' + (x.outline || '') : x.body || '')}</div>`;
+    doc.querySelector('header button').onclick = shut; doc.scrollTop = 0;
+    doc.classList.add('on'); shade.classList.add('on');
+  };
+  shade.onclick = shut;
+  box.querySelectorAll('[data-k]').forEach((c) => (c.onclick = () => open(c.dataset.k)));
+  box.querySelectorAll('.map a').forEach((a) => (a.onclick = (e) => { e.preventDefault(); box.querySelector(a.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth' }); }));
+  box.querySelector('[data-go=stories]').onclick = () => tab('stories');
 }
 
 async function story(s, show = true) {
@@ -513,4 +551,5 @@ function city() {
 [intents, stories, me, scenes] = await Promise.all([get('/api/intents').then((r) => r.json()), get('/api/stories').then((r) => r.json()).catch(() => []), get('/api/me').then((r) => r.json()).catch(() => ({})), get('/api/scenes').then((r) => r.json()).catch(() => [])]);
 board(); home();
 shelf();
-game('walk', false); tab(['city', 'intents', 'stories', 'game', 'join'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');
+if ($('tocompass')) $('tocompass').onclick = () => tab('compass');
+game('walk', false); tab(['city', 'intents', 'stories', 'compass', 'game', 'join'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');

@@ -220,6 +220,21 @@ Asked outright and without surprises, so built straight away.
 - **Broke / not there yet:** the mission brings back the 1.3 million and the word "sovereignty", both taken out
   earlier on purpose; kept because they are Samuel's newest words, flagged to him. He answered: keep both.
 
+### 2026-11-18 (2)
+
+- **Asked:** "Completely restyle, re-layout and rethink the whole Compass as its own sub page! Currently it is just one
+  cluster… It needs to be a clean overview of how the whole story, its characters, vision and mission are connected."
+  And: "In every European country we will build one in-game city, which compete against each other to win the real
+  thing."
+- **Delivered:** the Compass is its own page (`#compass`, reached from Stories → The Compass): a map of five stations
+  (why, what, how, who, where), then the vision, the mission, the story (premise, what it out-builds, stakes, every
+  day), the people with the citizen as the hero, the four tracks in order, the thematic arcs, the world; every entry
+  opens in a drawer. The race written into the Compass: one city per European country in the game, the first to 1.3
+  million builds the real one (story.md, the twin, Maia City).
+- **Good:** `story check .` passes; the page renders, the drawer opens (screenshots).
+- **Broke / not there yet:** the first build collided with two global classes (`.card`, `.hero`) and drew huge,
+  letter-spaced cards; renamed, fixed.
+
 ## Trail
 
 | When | Commit | What |
