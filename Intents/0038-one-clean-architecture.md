@@ -191,10 +191,10 @@ numbers are written below.
 | Occlusion culling | `aven/0038-draw-occlusion`, PR #68 | CI green | Views from above draw only 2–8 % of main's things: prove with gate stills at `bench-river-bend-26m`, `bench-town-40m` and `bench-pine-forest-90m` that nothing visible is missing (FLIP within noise) |
 | 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
 | 6b: virtual-textured ground | `aven/0038-stage6b-avt` | Notes written, measuring, no PR yet | The views from above must get faster than main, and pages must arrive invisibly |
+| 7: one placement rule, the forest in layers | `aven/0038-stage7-layers`, draft PR #73 | Built and measured (under Build, Stage 7) | Samuel to judge the floor's look (`scratchpad/visual/stage7/`); the site's species to be set as the kinds' parameters |
 
 **Not started:**
 - **6c:** relief, meaning displacement near the eye, parallax further out, skirts for rocks, path decals.
-- **7:** the one placement rule and the five layers. It needs Samuel's photos of the real site to choose the species.
 - **8:** cluster hierarchy for rocks, then the tent and fire pit (absorbs `aven/0033-solids-wip`).
 - **9:** one light: leaf shadows, Bend's screen-space shadows, the canopy map, GTAO, transmission, Hillaire's sky,
   froxel fog, sky probes. It is the biggest step towards the look target.
@@ -940,6 +940,7 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
   - [ ] 6b: the adaptive virtual texture with feedback, the deferred pass, the ground pass read from the map
   - [ ] 6c: relief (displacement, parallax, skirts, path decals)
 - [ ] Stage 7: placement, five layers
+  - [x] one rule, the growth map, the forest's layers and their kinds (built; draft PR #73)
 - [ ] Stage 8: surfaces, cluster hierarchy
 - [ ] Stage 9: one light, characters
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
