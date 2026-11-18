@@ -28,6 +28,9 @@ severity:
 
 ## The core message
 
+The vision: why. Read in the first person.
+
+
 > **Deep inside, I know this truth: we carry a power far greater than anything in the universe.**
 >
 > The power to make the impossible real, the moment we unite behind one vision.
@@ -55,6 +58,20 @@ severity:
 **The feeling it leaves:** awe at what people are; permission to be, to be seen, to become who they are meant to be; and *I knew it all along*: what they always sensed in themselves was real, and now there is a place built for it.
 
 **How it persuades:** only by the answer, never the wound. It speaks to the deepest wish (to be allowed, to be seen, to become) by showing it granted: a room that leans in, *show me*, standing by evening. **It is felt, not told:** every beat is a picture the camera can show.
+
+## The mission
+
+What the vision unites behind, in Samuel's words (the campaign idea of 18 November 2026):
+
+> **Maia City: building Europe's new capital of sovereignty from the ground up, owned by its citizens. First in a game, then for real.**
+>
+> Which country will win the race?
+>
+> Join now and bring Maia City home to your country.
+>
+> The first country to reach 1.3 million citizens in the game will build, own and live in the real city.
+
+**How the two meet.** The vision names the power: a million people uniting behind one vision. The mission is that vision, and the race makes it everyone's game: every citizen who joins brings the city one step closer to their own country, and anyone can see which country leads.
 
 ## Synopsis
 
@@ -107,7 +124,7 @@ Real footage joins when there are real domes to film, never before. One method c
 
 ### Stakes
 
-- **External.** The city: it stands because people come and build it, and every day it is visibly more than the day before.
+- **External.** The race: which country reaches 1.3 million citizens in the game first, and brings Maia City home to build, own and live in.
 - **Relational.** Finding your people: a whole city of them, waking up with sparkling eyes, side by side.
 - **Internal.** Waking up with sparkling eyes, every day, starting now.
 

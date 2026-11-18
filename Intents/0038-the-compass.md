@@ -208,6 +208,18 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes.
 - **Broke / not there yet:** —
 
+### 2026-11-18
+
+- **Asked:** "This is the vision; now anchor its mission to this": the campaign idea, Maia City as Europe's new
+  capital of sovereignty, built from the ground up and owned by its citizens, first in a game then for real; which
+  country will make the race; join and bring Maia City home to your country; the first country reaching 1.3 million
+  citizens in the game builds, owns and lives in the real city.
+- **Delivered:** `## The mission` in `Compass/story.md` in his words (typos tidied), under the vision; how the two
+  meet; the external stake is now the race. The dashboard shows The vision and The mission at the top of the Compass.
+- **Good:** `story check .` passes; the page renders both (screenshots before and after).
+- **Broke / not there yet:** the mission brings back the 1.3 million and the word "sovereignty", both taken out
+  earlier on purpose; kept because they are Samuel's newest words, flagged to him.
+
 ## Trail
 
 | When | Commit | What |

@@ -231,7 +231,8 @@ async function compass() {
   $('compassnote').innerHTML = `<b>${esc(f.title || 'Maia City')}</b> · ${esc(f.form || '')} · ${n(b.chapters.length)} of ${n(DAYS)} episodes · ${n(b.characters.length + b.arcs.length + b.systems.length + b.locations.length + b.terms.length)} entries`;
 
   // the core message: the blockquote under "## The core message", as the compass states it
-  const core = (b.story.body.match(/## The core message\n+((?:>.*\n?)+)/) || [])[1]?.replace(/^> ?/gm, '').trim();
+  const quote = (h) => (b.story.body.match(new RegExp('## ' + h + '\\n[\\s\\S]*?\\n((?:>.*\\n?)+)')) || [])[1]?.replace(/^> ?/gm, '').trim();
+  const core = quote('The core message'), mission = quote('The mission');
   // the three stakes, as the compass's own Notes section states them
   const stakes = [...b.story.body.matchAll(/^- \*\*(External|Relational|Internal)\.?\*\*\s*([\s\S]*?)(?=\n- \*\*|\n\n|\n#)/gm)]
     .map((m) => `<div><b>${m[1]}</b>${esc(m[2].replace(/\s+/g, ' ').trim())}</div>`).join('');
@@ -241,7 +242,8 @@ async function compass() {
 
   const left = `<div class="lanes">
     <div class="spine">
-      ${core ? `<div class="core md">${marked.parse(core)}</div>` : ''}
+      ${core ? `<div class="core md"><b class="tag">The vision</b>${marked.parse(core)}</div>` : ''}
+      ${mission ? `<div class="mission md"><b class="tag">The mission</b>${marked.parse(mission)}</div>` : ''}
       <p class="prem">${esc(f.premise || '')}</p>
       ${f['counter-premise'] ? `<p class="anti"><b>What it out-builds</b>${esc(f['counter-premise'])}</p>` : ''}
       ${f['season-goal'] ? `<p class="goal"><b>This season</b>${esc(f['season-goal'])}</p>` : ''}
