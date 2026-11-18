@@ -1823,6 +1823,31 @@ CI runs it on every pull request against main (`--base HEAD^1`: main, as the pul
 3 s. The four imports from the game's root (three in `cine/trailer.js`, one in `tools/sweep.js`) are now relative, so
 madge follows every import.
 
+### The 10 % gate as one report (2026-11-18)
+
+`bun tools/gate/ten.js --base <run>` holds a run of the gate against a stored one, the base (the train's numbers on
+main), measure by measure: Here, Base, Change, and whether the change is the skill's 10 % better ("Define: the 10 %
+gate"). It reads only what the gate kept and measures nothing again, so it runs on the CPU.
+- **A run** is addressed as the gate names it. It is `.gate/<tag>/summary.json` (`gate.js all`), with these beside it
+  where they were run: the diff against its own truth, `real.json` and `motion-<tag>/report.json`. `<run>` is a tag, a
+  `summary.json`, or a git ref (its commit's tag). Where this code has no summary, its last single runs are used
+  (`bench.json`, `paths.json`, `compile.json`, `real.json`).
+- **The measures** are the skill's, and lower is better in each:
+  - rendering: GPU ms a frame per bench view and per part; each path's p99 frame and frames over 16.7 ms;
+  - startup: the world settled where it starts, cold and warm;
+  - boot and load: the WGSL compiled until settled;
+  - memory: the browser's peak; each class's GPU memory;
+  - quality: FLIP against its own truth (mean, p99 tile); each view class's distances to the photos; each path's worst
+    pop.
+- **It fails (exit 1)** where a measure got worse by more than its noise. The noise is what two runs of the same code
+  differ by, as the gate measured it: the bench's `--twice` (`ceilings.json`), `gate.js noise <tag>` (the FLIP floor),
+  `motion --floor`, or `--again` (the base run twice, every measure).
+- **A measure with no noise measured is shown, never judged.** On the runs kept so far, that is the paths, the compile
+  and real: the base needs `--again` for them.
+- **It holds no number of its own.** The 10 % is read from the skill's heading, the noise from the gate.
+
+The gate does not yet keep the first frame or the bytes loaded before it, so the report cannot show them (under Todo).
+
 ## Propose
 
 ## Story
@@ -1859,6 +1884,9 @@ madge follows every import.
       pull request (`--base`)
 - [ ] The 91 unused exports the dead-code gate finds over `src assets/kit tools`: the first clean-up after train 2
       lands (train 2's branches change their files)
+- [x] The 10 % gate as one report: `tools/gate/ten.js` (under Build)
+- [ ] The gate keeps the first frame and the bytes loaded before it, so the 10 % report can hold them; the train's
+      base is run twice (`--again`), so the paths, the compile and real are judged too
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
 - [ ] The gate finished: motion (nothing pops), the truth in tiles, real against photographs (#78; #79 merged)
   - [ ] its first job on main: the truth at 2.5 and 12 km in tiles, motion on the four paths, real at every view
@@ -2099,6 +2127,17 @@ madge follows every import.
     250–355 frames where the floor is about 150; the walk's GPU p99 rose 1–3.5 ms;
   - the skirts are not in the gate's views, so they are checked in the code, not in a still;
   - the far grazing hand-over left from 6b; Safari not tried.
+- **Asked (by the master on the Mac mini):** the 10 % gate's missing startup measures: the first frame and the bytes
+  loaded before it, under one definition shared with the cold-start work.
+- **Delivered:**
+  - `src/core/marks.js`: the game's marks on its own timeline, `FIRST_FRAME` = `game:first-frame`;
+  - `src/boot.js` stamps it once the GPU has done the first frame that draws the world (not the loading veil);
+  - `tools/gate.js paths` reads it in its cold and warm runs: ms from the navigation's start, and the bytes over the wire
+    of every file that had come by then (what a cache served is not counted);
+  - `tools/gate/ten.js` holds both under startup.
+- **Good:** `tools/health.js --base origin/main` finds nothing worse; `scale.js` 24 of 24; the build passes.
+- **Not there yet:** not yet run on the GPU; the first `paths` run gives the numbers. Under the dev server, what is loaded
+  is the unbundled modules; a built page (`--url` at a preview) gives the bytes a player loads.
 
 ## Trail
 
@@ -2176,3 +2215,5 @@ madge follows every import.
 | 2026-11-18 | `26f751d` | `tools/health.js`: the code gates in one command (copies, spaghetti, dead code, cycles, size, settings, dependencies); the baseline under Build |
 | 2026-11-18 | `695ea18` | Imports from the game's root made relative (`cine/trailer.js`, `tools/sweep.js`), so madge follows every import |
 | 2026-11-18 | `bca2270` | The code gates held against main: `health.js --base` (each gate's change, exit 1 where one got worse), run by CI on every pull request |
+| 2026-11-18 | `52bbeb9` | The 10 % gate as one report: `tools/gate/ten.js --base <run>` (here, base, change, ≥ 10 %?; exit 1 where a measure got worse beyond its noise) |
+| 2026-11-18 | `78b3451` | The first frame that draws the world, one mark (`game:first-frame`), and the bytes loaded before it in the 10 % gate |
