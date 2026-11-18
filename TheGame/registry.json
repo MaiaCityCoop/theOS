@@ -3,7 +3,7 @@
     "type": "asset",
     "name": "Bedded stone",
     "file": "assets/forestrock.js",
-    "version": "5e29aaa1347c95b9d7d986e1728ec22cb911f5dfd81b6094e5c0ca70e65c6342",
+    "version": "7f1d25bffec1878bd492f9bc3ca5328ec5a15198c639cdc224935eea42650b71",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "506c509b-300d-42eb-8403-f3969b06b271"
@@ -53,7 +53,7 @@
     "type": "asset",
     "name": "Fallen log",
     "file": "assets/log.js",
-    "version": "28789251685faf488650ac4c988ef409c12a45f1f97e56f79cc759ba6b16c251",
+    "version": "ce607e34607fa2cd9537797ca885fbd73067fbf7dea4d09e31b4c6f77efb53d4",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "40cb573a-5aa3-4e2f-90ff-41e69d20915e",
@@ -66,7 +66,7 @@
     "type": "asset",
     "name": "Fern",
     "file": "assets/fern.js",
-    "version": "dbf32a7d7c29449b5336d2921c335d22b68e56d97cc0b57dce7c57a8c9c9416e",
+    "version": "ab25eb19983518ca0858b6cf55c325e80f1627a1049287e175e76e6ef05082dc",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "6042540e-d4ea-4a07-8bd9-d8465f5635b9",
@@ -137,7 +137,7 @@
     "type": "asset",
     "name": "Oak litter",
     "file": "assets/oaklitter.js",
-    "version": "bb84bcfd0b3cdf73b95c77e104f4300403fcc55022cc1cc98902e8fbf2b730a0",
+    "version": "9ab70a02bde558c7e4a832dd6cbea333264b9408a04cc8b7504fb9333c11088c",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "40cb573a-5aa3-4e2f-90ff-41e69d20915e",
@@ -149,7 +149,7 @@
     "type": "asset",
     "name": "Pine litter",
     "file": "assets/pinelitter.js",
-    "version": "23094061fdaa6b362c31352f18908484c947666daf1d6b9d93343832b18e294a",
+    "version": "f642bb45e1173b7d415352aad6348547af166e55dd95c5f53ddb2829e922de04",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
@@ -204,7 +204,7 @@
     "type": "asset",
     "name": "Woodland herb",
     "file": "assets/herb.js",
-    "version": "e8989002d0802e082f637c7935a6fba59502024941be0c3f5578df7b860ca5fe",
+    "version": "f03a94f08b0b1237cbe4ae15edec1dfa507d74dc78fa1934728192c0addccf8a",
     "uses": [
       "170e8df4-254e-4df2-95e2-c584380cf14b",
       "4cdde33c-5114-41e7-badf-e9f69fcf42f5",

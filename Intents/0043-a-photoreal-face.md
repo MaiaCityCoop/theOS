@@ -302,6 +302,28 @@ Proposed on 2026-11-18. Story: [`Stories/0043-a-photoreal-face/`](../Stories/004
   built from `main` (CI on a push to `main`, then the deploy to `next`): the two are in that library only once this
   branch is merged, and no pull request was asked for, so none was opened. Held here, as he asked.
 
+### 2026-11-18, brought up to `main`; not merged: the code gates
+
+- **Asked.** Samuel, told that the website's library is built from `main`: "Or merge deploy to next".
+- **Delivered.** The branch brought up to `main`, which had gone 250 commits on since the branch left it. This
+  branch's four intents renumbered 0041 to 0044 (`main` has its own 0039 and 0040); `main` merged in, four conflicts
+  resolved (two ignore lists, two assets, the registry made anew: 60 recipes); the six recipes `main` had added
+  given short descriptions as the others have. Run here on the merged tree, as `main`'s CI runs them: lint (298
+  files, no problem), the smoke gate (every material and pass built), the artifacts' check, the sign-in checks (67
+  passed), the scale check (26 of 26), both builds; and the words check (115 of 115) and the figures' (2 of 2). The
+  Woman and the Man drawn again on the merged code.
+- **Not there: not merged.** `main`'s code gates (`bun tools/health.js --base origin/main`, which CI runs on every
+  pull request) fail on this branch: 4 new clones, 11 functions over the ceiling of 20 (the skin's `targetOf` at 146),
+  15 new unused exports, 5 more mode branches, about 100 new hand-set numbers. Most of it is the Body's skin, face
+  and ear (intents 0041 and 0042); of the two figures and the cards: two functions of the figure kit, the library's
+  `character`, one clone between the two recipes, two mode branches and some fifteen numbers. No pull request was
+  opened: it could not have merged. `main`'s own rule also puts a merge through its master's train and a run on the
+  GPU machine, which this session is not and has not.
+- **Samuel's to decide:** to bring only the two figures and the cards to `main` now, on a small branch of their own
+  made to pass the gates (it needs his leave: this session may push to its one branch only); or to clean the whole
+  branch, the Body's skin code with it, which is a longer piece of work and asks how a sculpted form's numbers are
+  to be held under the rule against hand-set numbers.
+
 ## Trail
 
 | When | Commit | What |
