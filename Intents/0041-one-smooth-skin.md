@@ -406,6 +406,21 @@ shows (9); a body that walks by its feet and its balance, breathes, looks and bl
   not touch the API). `tools/words.js` now names one line over its measure, a material that came in from `main`
   meanwhile (Mastic branch end, 114 letters for 80): not this intent's, left as it is and told to Samuel.
 
+- **Asked (night, CI):** nothing new from Samuel: the pull request (#170) went up and its `check` job came back red.
+- **Delivered (night, CI):** the cause found and mended. The gates' revert check walks `main`'s first-parent line for
+  a commit the change undoes; this change touched the root `.gitignore`, so the walk reached the repository's first
+  commit, which made that file, and asked for its parent, of which there is none (`health.js`, `undone`: `M^1`). The
+  Body's ignore rule is now in `TheGame/.gitignore`, beside the game's other made things, and the root file is
+  `main`'s again. The tool itself is not changed for this: its fault with a first commit is told to Samuel.
+- **Good (night, CI):** with `main`'s whole history fetched here the failure shows again exactly as in CI when the
+  root `.gitignore` is touched, and the gates pass when it is not.
+- **Broke / not there yet (night, CI):** looking at this I found a mistake of my own on `main`: the figures' merge
+  (#133) had carried `TheGame/.body/body.bin` (25 MB) and `body.json` into git, what `tools/body.js` lays for its
+  page. That branch had no ignore rule for them and I staged the whole folder without looking at what went in. They
+  are out of the tree with this change; the 25 MB stay in `main`'s history, which only a rewrite of it could take
+  out, and that is Samuel's to decide, not mine. The gates had run here on a clone without `main`'s whole history,
+  which is why the red was first seen in CI.
+
 ## Trail
 
 | When | Commit | What |
@@ -425,6 +440,7 @@ shows (9); a body that walks by its feet and its balance, breathes, looks and bl
 | 2026-11-18 | `1ea9c57` | conversions and what follows from another number written as that |
 | 2026-11-18 | `019b8cf` | what was shaped by eye in one module, each with its source; the physical and the published in theirs |
 | 2026-11-18 | `a90bb5c` | the gates' tool has a place for what is set by eye (Samuel's decision) |
+| 2026-11-18 | `7408142` | the Body's kept files out of git; their ignore rule in the game's own file (CI's red mended) |
 
 On its branch this intent was numbered 0039, and its commits' messages say `Intent: 0039`. It was given 0041 on 2026-11-18,
 when the branch was brought to `main`, where 0039 had meanwhile been taken by another intent.
