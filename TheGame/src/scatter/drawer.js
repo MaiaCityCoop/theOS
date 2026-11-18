@@ -290,8 +290,8 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // (shared: drawn by the level's own list of corners, its vertices read by their numbers: what is of the level's shape)
   // (i: its level; none (null): the mesh says it (userData.level), so one material draws every level of a tier.
   // packed: whoever packed a thing chose its level, and it is drawn at that one whatever its size is now: tierAll)
-  // (cut: the cut's draw of level 0 (src/scatter/cut.js), a listed cluster an instance, its thing read through the list)
-  const meshOf = (src, i, shadow = false, moving = false, foliage = false, shared = false, packed = false, cut = null) => {
+  // (by: the cut's draw of level 0 (src/scatter/cut.js), a listed cluster an instance, its thing read through the list)
+  const meshOf = (src, i, shadow = false, moving = false, foliage = false, shared = false, packed = false, by = null) => {
     const num = (f, type) => (i === null ? uniform(0, type).onObjectUpdate(({ object }) => f(object?.userData?.level ?? 0)) : uniform(f(i), type));
     const lv = num((l) => l, 'uint'), whole = uniform(shadow ? 1 : 0), m = new THREE.NodeMaterial();   // its level as numbers: every level is one shader
     const lo = BANDED ? null : num((l) => LEVELS[l].px), top = BANDED ? null : num((l) => (l ? LEVELS[l - 1].px : LEVELS[0].px * 2)), morphs = BANDED ? null : num((l) => (underOf(l) ? 1 : 0)), delta = BANDED ? null : num((l) => LEVELS[l].delta ?? LADDER[l].delta), still = num((l) => (l + 1 === HULL ? 1 : 0));
@@ -299,7 +299,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     const limbs = moving && (i === null || i < HULL);   // (a mover's coarse levels are its hull: no bone moves it. Of a tier of every level (tierAll) its level is the mesh's, so whether it has limbs is asked as it is drawn)
     if (foliage) m.side = THREE.DoubleSide;
     m.vertexNode = Fn(() => {
-      const E = cut ? cut.entry(instanceIndex) : null, A = cut ? cut.thing(E.thing, 0) : src.readAt(0, SLOT), B = cut ? cut.thing(E.thing, 1) : src.readAt(1, SLOT), clip = offScreen().toVar();
+      const E = by ? by.entry(instanceIndex) : null, A = by ? by.thing(E.thing, 0) : src.readAt(0, SLOT), B = by ? by.thing(E.thing, 1) : src.readAt(1, SLOT), clip = offScreen().toVar();
       const px = pxOf(A.w, A.xy);   // its size on screen now
       vPx.assign(px); if (THIN) vEnd.assign(smoothstep(THIN[0], THIN[1], px));   // (how much of it is left as it thins away)
       {
@@ -307,7 +307,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
         // which element of the heap the draw's vertex is; whether it is drawn; how far it has turned into what replaces
         // it (at a time: the clock's, and for the prepass the clock's a frame ago); the range its way there is packed in
         let el, ok, tOf, D;
-        if (cut) {
+        if (by) {
           // (the cut's: the listed cluster's corners, turned as far as the cut found)
           const C = clusterOf(H, R, E.cluster);
           ok = vertexIndex.lessThan(C.tris.mul(uint(3))); el = H.index.element(R.x.add(C.first).add(vertexIndex)); tOf = () => E.t; D = C.D;
@@ -364,7 +364,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
           // (its texture lies on it as it stands; on a mover as it is at rest, in its own frame: it must not swim over
           // a leg that swings)
           vA.assign(vec4(w, 0)); vB.assign(vec4(nw, v.shade)); vC.assign(vec4(moving ? p0.mul(A.w) : rest, B.y)); vN.assign(moving ? n0 : nw); vSeed.assign(seedOf(B));
-          if (GROUND) vG.assign(cut ? cut.thing(E.thing, 2) : src.readAt(2, SLOT));
+          if (GROUND) vG.assign(by ? by.thing(E.thing, 2) : src.readAt(2, SLOT));
           if (foliage) vUV.assign(vec2(float(v.a).div(15), float(v.b).mul(16).add(v.w.mul(15)).div(255)));   // (where on its card: assets/kit/frond.js)
           clip.assign(clipOf(w, was));
         });
