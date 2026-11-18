@@ -77,7 +77,7 @@ import { stateAt, keyN, nameKey } from '../world/things.js';
 import { pxOf, turnOf, seedOf } from './row.js';
 import { createCut, clusterOf, levelHead, allowedAt, eased, ruleOf } from './cut.js';
 import { camDist } from '../world/land.nodes.js';
-import { surfaceBand, BAND, GONE } from '../detail/error.js';
+import { surfaceBand, BAND, gonePx } from '../detail/error.js';
 
 const GROW = 1.5, SKIN = 128, SKINPX = 28, SINK = BAND, LOOK = 24;   // GROW: seconds a level that came late takes to grow out of the coarser one; SKIN: a kind's own texture, pixels a side; SKINPX: the size on screen from which a thing wears it (the stress world's zoo: 8b); SINK: how far over where it is gone a dot sinks away (the one hand-over, src/detail/error.js); LOOK: a kind's look, numbers (six rows of four)
 // a make's levels: a kind a draw up to BYKIND kinds, else by the size of their meshes (classOf: the power of two of
@@ -681,7 +681,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // many arrays of its own, the stress stand's movers', has twelve uniform buffers to a stage, no more)
     // (with the level's pixels: its packing binds this and not the drawer's LO)
     const at = (i, f) => Math.max(0, draws.findIndex((d) => d.level === i && f(d)));
-    const DRAWS = uniformArray(LEVELS.map((l, i) => new THREE.Vector4(l.px, at(i, (d) => !d.shared), at(i, (d) => d.shared), 0)), 'vec4'), END = THIN ? THIN[0] : DOT && last === L - 1 ? LEVELS[L - 1].px : GONE;   // (END: the size on screen under which nothing of it is drawn: where it is gone)
+    const DRAWS = uniformArray(LEVELS.map((l, i) => new THREE.Vector4(l.px, at(i, (d) => !d.shared), at(i, (d) => d.shared), 0)), 'vec4'), END = THIN ? THIN[0] : DOT && last === L - 1 ? LEVELS[L - 1].px : gonePx();   // (END: the size on screen under which nothing of it is drawn: where it is gone)
     const live = (c, part = {}) => {
       const alive = float(0).toVar(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar()), bucket = float(0).toVar();
       place(c, { band, whole: all0.greaterThan(0.5), all: all0, ...part }, (kind, size, dist, fill, key = null) => {

@@ -24,7 +24,7 @@ import { finish, skyLight, weathered, snowLift, cloudAt, unlit } from '../world/
 import { CROWD, IN } from '../../assets/kit/crowd.js';
 import { note } from '../core/gpu.js';
 import { FNV, fnv } from '../core/hash.js';
-import { pxAt, drawnAt } from './measure.js';
+import { pxAt } from './measure.js';
 
 const { VIEWS, CELL, TILE, TILES } = CROWD;
 export const SS = 4;   // samples a side a texel is baked from
@@ -232,7 +232,7 @@ export function impostorOf(geo, snow = { clumps: 0.08 }) {
       const w = C.add(right.mul(positionGeometry.x).add(up.mul(positionGeometry.y)).mul(k.mul(r).mul(sunk.sqrt())));
       vP.assign(M.transpose().mul(w.sub(C)).div(k.mul(k).mul(r).mul(sunk.sqrt()))); vE.assign(M.transpose().mul(U.uCam.sub(C)).div(k.mul(k).mul(r).mul(sunk.sqrt()))); vX.assign(w);
       const V = impostorViews(normalize(M.transpose().mul(d))); vA.assign(vec4(V.cells[0], V.cells[1])); vB.assign(V.cells[2]); vW.assign(V.w);
-      vL.assign(clamp(log2(float(CELL).div(drawnAt(pxAt(k.mul(2 * r), U.uCam.sub(C).length().mul(U.uLodInv))).max(1e-3))), 0, LODS.views()));   // (its texels one to a pixel drawn)
+      vL.assign(clamp(log2(float(CELL).div(pxAt(k.mul(2 * r), U.uCam.sub(C).length().mul(U.uLodInv)).max(1e-3))), 0, LODS.views()));   // (its texels one to a pixel drawn)
       return ready.greaterThan(0.5).select(cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(w, 1)), vec4(2, 2, 2, 1));
     })();
     m.fragmentNode = Fn(() => {

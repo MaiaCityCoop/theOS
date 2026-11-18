@@ -15,13 +15,13 @@ import { offWays } from '../world/ways.js';
 import { finish, skyLight, weathered, snowLift, cloudAt } from '../world/light.js';
 import { byRole } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
-import { distanceAt, TRUTH } from '../detail/measure.js';
+import { farMost, TRUTH } from '../detail/measure.js';
 import { source } from '../core/settle.js';
 import { most } from '../../assets/kinds.js';
 import { createDrawer } from './drawer.js';
 import { placedBy, lookOf as zooLook, fingerprint } from '../../assets/zoo/index.js';
 import { rockFull, rockBody, FULL_ROCK } from '../../assets/kit/rock.js';
-import { SURFACE_LEVELS, surfaceBand, surfacePx, GONE, BAND } from '../detail/error.js';
+import { SURFACE_LEVELS, surfaceBand, surfacePx, gonePx, BAND } from '../detail/error.js';
 import { REACH } from './ground.js';
 import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 
@@ -38,8 +38,8 @@ const FULL = 12 * FULL_ROCK * FULL_ROCK, LEVELS = Array.from({ length: SURFACE_L
 // away over the BAND before it ends
 const SHADE = { shrink: 0.85, far: 30, wide: 1.5 }, RELIEF = 10;
 // THIN: where a rock thins away, pixels on screen: pixel by pixel over the BAND above where it is gone (leaving a rock
-// out differs by all of it: GONE, src/detail/error.js), with nothing to hand over to (its land's colour is under it)
-const THIN = [GONE, GONE * BAND];
+// out differs by all of it: gonePx, src/detail/error.js), with nothing to hand over to (its land's colour is under it)
+const THIN = [gonePx(), gonePx() * BAND];
 
 /** The assets of engine `rocks`, all at once: they share one drawer (a level of every shape of every rock asset is in
     one heap), each asset a tier a level over its own cells. */
@@ -94,7 +94,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
     // one tier an asset: every rock dropped into the draw of its level (drawer.js: tierAll), level 0 drawn by its cut
     const last = L - 1;
     // (its patches: about five to its reach, so the tier looks at a few dozen, whatever the lens; cap: the most of it in one draw)
-    const farAt = Math.min(reach, distanceAt(THIN[0], sizes[1], Math.max(innerHeight, 1400))), P = Math.min(64, Math.max(2, 2 ** Math.ceil(Math.log2(farAt / (row.cell * 5)))));
+    const farAt = Math.min(reach, farMost(THIN[0], sizes[1])), P = Math.min(64, Math.max(2, 2 ** Math.ceil(Math.log2(farAt / (row.cell * 5)))));
     const T = D.tierAll({ cell: row.cell, P, cap: big ? 16384 : 4096, sizes, place, casts: row.detail.casts, far: reach, last, thing: `rocks:${row.uid}` });   // (thing: a rock's own state, its asset and its cell: src/world/things.js)
     T.asset = row.name; tiers.push(T);
   }

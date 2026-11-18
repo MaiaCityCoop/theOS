@@ -2,7 +2,7 @@
 // number of any asset, and no asset holds one of its own: an asset says only what it is at full detail, and every rung
 // coarser comes where its own error is the one ERROR_PX (src/detail/error.js, intent 0038). Read README.md here before
 // writing an engine or a new kind of asset.
-//   - error.js: the one measure's numbers and its one function (switchPx), plain, for the workers too;
+//   - error.js: the one measure's rule (a rung's error in metres against the dial, ERROR_PX), plain, for the workers too;
 //   - measure.js: how large a thing is on the screen, the one measure every level is chosen by (intent 0038);
 //   - here: what is measured (assets/kinds.js: sizeOf), an asset's levels resolved (detailOf), and a placed asset's
 //     levels as one object (Detailed);
@@ -14,10 +14,10 @@ import { kindRule, spanOf } from '../../assets/kinds.js';
 import { CROWD } from '../../assets/kit/crowd.js';
 import { handOverAt } from './handover.js';
 import { pxOn } from './measure.js';
-import { FADE, BAND, GONE, switchPx } from './error.js';
+import { FADE, BAND, gonePx, switchPx } from './error.js';
 
 // (the measure's, here too for whoever asked here before it had a file of its own: the library, tools/sweep.js)
-export { pxK, distanceAt } from './measure.js';
+export { pxK, pxKAt, distanceAt } from './measure.js';
 
 /** Where a made thing's far card comes (src/world/place.js): its error is its bake's, a texel of the views every impostor
     has (CROWD.CELL of them over the sphere round its faces: half its box's diagonal, at most), against its largest side. */
@@ -25,9 +25,9 @@ const CARDS = new WeakMap(), impostorPx = (a) => {
   if (!CARDS.has(a)) {
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
     for (const f of a.faces) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], f[j][k]); hi[k] = Math.max(hi[k], f[j][k]); }
-    CARDS.set(a, switchPx(Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / (CROWD.CELL * spanOf(a))));
+    CARDS.set(a, Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / (CROWD.CELL * spanOf(a)));   // (its error, a share of its size: the dial says where)
   }
-  return CARDS.get(a);
+  return switchPx(CARDS.get(a));
 };
 
 /** An asset's levels of detail, resolved: { levels: [{ i, lo, hi, … }], fade, cut, casts, sink }, each drawn between lo
@@ -40,8 +40,8 @@ export function detailOf(a, { card = true } = {}) {
   const d = a.detail || {};
   const own = d.levels || (a.faces ? [{ faces: a.faces }] : []);
   const imp = card && a.faces && (d.impostor ?? kindRule(a, 'impostor'));   // (after its faces: one card, src/detail/impostor.js)
-  const levels = own.map((l, i) => ({ ...l, i, lo: l.lo ?? (imp ? impostorPx(a) : GONE) }));
-  if (imp && levels.length) levels.push({ impostor: true, i: levels.length, lo: GONE });
+  const levels = own.map((l, i) => ({ ...l, i, lo: l.lo ?? (imp ? impostorPx(a) : gonePx()) }));
+  if (imp && levels.length) levels.push({ impostor: true, i: levels.length, lo: gonePx() });
   levels.forEach((l, i) => (l.hi = i ? levels[i - 1].lo : Infinity));
   return { levels, fade: FADE, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: a.casts ?? d.casts ?? kindRule(a, 'casts') ?? true, sink: BAND };
 }

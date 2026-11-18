@@ -30,7 +30,7 @@
 //   - its size on screen is measured as its kind says (its largest side; a tree's height), by each vertex, this frame;
 //     or, where its stand says a `size`, as that for every plant of the stand: the stand changes level as one;
 //   - a level draws the same as the next where they meet: it hands over to it at once, at its band's end;
-//   - it is its impostor where the impostor's texels are no larger than the pixels they are drawn on (measure.js drawnAt), each
+//   - it is its impostor where the impostor's texels are no larger than the pixels they are drawn on (the measure's: pixels drawn), each
 //     plant a little before or after the next, over a short cross-fade texel by texel (meshShare);
 //   - its last level sinks into the ground over the BAND above where it is gone (where leaving it out, its height over
 //     the land, is within the one ERROR_PX: assets/kit/plant.js goneOf, src/detail/error.js);
@@ -63,8 +63,8 @@ import { pxOf, turnOf, seedOf } from './row.js';
 import { CROWD, levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
 import { crowdOf, bandsOf, GRID, GOQ, FOOT } from '../../assets/kit/plant.js';
 import { lo16, hi16 } from './unpack.js';
-import { TRUTH, REACH as TRUTH_REACH, drawnAt, pxK } from '../detail/measure.js';
-import { switchPx, BUDGET_DRAWN } from '../detail/error.js';
+import { TRUTH, REACH as TRUTH_REACH, pxKMost, measureVersion } from '../detail/measure.js';
+import { switchPx } from '../detail/error.js';
 import { source } from '../core/settle.js';
 import { keptGet, keptPut } from '../core/kept.js';
 
@@ -88,7 +88,7 @@ const smooth01 = (t) => { const c = clamp(t, 0, 1); return c.mul(c).mul(float(3)
     once: SWITCH … 1 of it), over the last FADE of the way down to it: a short cross-fade (handing). own: its size on
     screen. */
 const { SWITCH, FADE } = CROWD;
-const meshShare = (T, own, seed) => T.greaterThan(0).select(clamp(drawnAt(own).div(T.mul(float(SWITCH).add(fract(seed.mul(7.31)).mul(1 - SWITCH)))).sub(1).div(FADE).add(1), 0, 1), float(1));
+const meshShare = (T, own, seed) => T.greaterThan(0).select(clamp(own.div(T.mul(float(SWITCH).add(fract(seed.mul(7.31)).mul(1 - SWITCH)))).sub(1).div(FADE).add(1), 0, 1), float(1));
 /** Whether a pixel of a plant handing over to its impostor is its mesh's (share: how much of it is still its mesh): by a
     noise of the screen's that changes every frame, the same for the mesh and the impostor, so each pixel is one of the
     two, never both and never neither, and the picture built over time cross-fades them (src/core/temporal.js); the
@@ -280,7 +280,7 @@ function plantMaterial(tex, D) {
             // box, as many metres as twice its corner's reach from the middle; and of its cover as much kept as the eye
             // sees of its leaves: its three planes, seen from v (the way to the eye in the plant's own frame), cover
             // |v.x| + |v.y| + |v.z| times what its leaves do)
-            const e = abs(V.position.sub(V.crowd.tip)), wide = max(e.x, max(e.y, e.z)).mul(2).max(1e-3), perM = drawnAt(own).div(V.Ks);
+            const e = abs(V.position.sub(V.crowd.tip)), wide = max(e.x, max(e.y, e.z)).mul(2).max(1e-3), perM = own.div(V.Ks);
             const v = turnOf(B.x).unturn(normalize(U.uCam.sub(vec3(A.x, A.z, A.y))));
             vClump.assign(vec4(V.Cl, clamp(log2(float(CROWD.TILE).div(wide.mul(perM).max(1e-3))), 0, LODS.tiles), float(1).div(abs(v.x).add(abs(v.y)).add(abs(v.z))), 0)); vFade.assign(mesh);   // (and how much of it is still its mesh's: handing)
           }
@@ -420,7 +420,7 @@ function impostorMaterial(G, D, Lv, src) {
       // over the sphere's width), its turn, its sphere's radius in the world
       vP.assign(unturn(w.sub(c)).div(Rw)); vE.assign(unturn(U.uCam.sub(c)).div(Rw));
       const V = impostorViews(unturn(d)); vA.assign(vec4(V.cells[0], V.cells[1])); vB.assign(vec4(V.cells[2], share, 0)); vW.assign(V.w);   // (z: how much of it is its impostor yet)
-      vK.assign(vec4(B.y, clamp(log2(r3.z.div(drawnAt(own).max(1e-3))), 0, LODS.views(G.cell)), B.x, Rw));
+      vK.assign(vec4(B.y, clamp(log2(r3.z.div(own.max(1e-3))), 0, LODS.views(G.cell)), B.x, Rw));
       // its light, once for the plant (a few pixels): the sun as it reaches its middle and through its leaves, the air
       // before it; its own green (as its cards': plantMaterial)
       const air = airOf(c);
@@ -504,7 +504,7 @@ function farOf(renderer, tex, G, D) {
   // (its bake's error, a texel, G.cell of them over its sphere's width, within the one ERROR_PX: src/detail/error.js)
   const numbers = (k, far) => {
     const row3 = G.numbers.subarray(k * 20 + 12, k * 20 + 16);
-    row3[2] = switchPx((2 * far[4]) / (G.cell * far[5])) * BUDGET_DRAWN;
+    row3[2] = switchPx((2 * far[4]) / (G.cell * far[5]));
     D().setNum(k, 4, [far[1], far[2], far[3], far[4]]); D().setNum(k, 3, row3);
     version++; any = true;
   };
@@ -585,7 +585,7 @@ function cutOf(G) {
   const alike = (l) => R.every((rooms) => rooms.every((r) => r[l][0] === r[l + 1][0] && r[l][1] === r[l + 1][1]));
   for (let l = 0; l < own.length; l++) { if (runs.length && alike(l - 1)) runs.at(-1).to = l; else runs.push({ from: l, to: l }); }
   const end = Math.min(...G.kinds.map((Kd) => Kd.row.detail.levels.at(-1).lo));
-  const sHi = Math.max(...G.kinds.map((k) => k.hi)), K = pxK(Math.max(globalThis.innerHeight || 0, 1440));   // (a window as tall as a 1440p one, or taller: its patches hold the band then too)
+  const sHi = Math.max(...G.kinds.map((k) => k.hi)), K = pxKMost();   // (at the most pixels the screen can draw: its patches hold the band then too)
   const levels = runs.map(({ from, to }, i) => { const lo = to === own.length - 1 ? end : own[to].lo, hi = own[from].hi; return { lo, hi, from, P: patchOf(G.L.cell, (sHi * K * Math.exp(G.fade)) / lo) }; });
   return { ...G, n: levels.length, kinds: G.kinds.map((Kd, k) => ({ ...Kd, levels, rooms: R[k].map((r) => levels.map((L) => r[L.from])) })) };
 }
@@ -658,9 +658,9 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // while it may still show, the camera moving a sixteenth of a patch between two packings)
     G.far = G.kinds.some((Kd) => Kd.asset.far) ? farOf(renderer, tex, G, () => D) : null;
     const far = G.far && {
-      wants: (kind, rows) => { const T = D.numOf(kind, 3).z, d = drawnAt(pxOf(rows[0].w, rows[0].xy)); return { mesh: T.lessThanEqual(0).or(d.greaterThan(T.mul(SWITCH * (1 - FADE) * 0.8))), far: T.greaterThan(0).and(d.lessThan(T.mul(1.25))) }; },
+      wants: (kind, rows) => { const T = D.numOf(kind, 3).z, d = pxOf(rows[0].w, rows[0].xy); return { mesh: T.lessThanEqual(0).or(d.greaterThan(T.mul(SWITCH * (1 - FADE) * 0.8))), far: T.greaterThan(0).and(d.lessThan(T.mul(1.25))) }; },
       material: (src, i) => impostorMaterial(G, () => D, { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, first: i === 0, last: i === n - 1 }, src),
-      version: () => `${G.far.version()}|${U.uDrawn.value.toFixed(2)}`, ready: G.far.ready,   // (packed again when one comes, or the pixels drawn change: wants reads them)
+      version: () => `${G.far.version()}|${measureVersion()}`, ready: G.far.ready,   // (packed again when one comes, or the measure changes: wants reads it)
     };
     const D = createDrawer(scene, renderer, tex, {
       name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1),

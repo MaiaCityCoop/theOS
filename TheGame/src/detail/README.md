@@ -16,9 +16,15 @@ where an asset's file or a kind holds detail data).
 
 A coarser rung of a thing (a first share of a crowd's sprigs, its clumps, its impostor, a cluster's parent, a ring of
 wider blades, and last of all nothing: the land under it) differs from the thing at full detail by its error, measured
-on the thing itself: the farthest any of it lies from where the thing is, over the thing's size. `error.js`
-`switchPx(e)` is the one function every switch is: the size on screen under which that error is within `ERROR_PX`
-pixels drawn. Each rung comes in over the `BAND` above its switch.
+on the thing itself: the farthest any of it lies from where the thing is, in metres (object space). Nothing that
+builds a rung knows a pixel. One rule decides every switch, at runtime (`error.js`):
+
+    errorPx(e, dist) = e · pxK() / dist  ≤  ERROR_PX()          on the GPU: errPx(e, dist) ≤ U.uErrorPx (measure.js)
+
+`pxK()` is the live pixel, and the only definition of one: pixels drawn (the inside's, at the governor's ratio of the
+screen's) a metre covers one metre from the eye, through the walker's 68° lens. `ERROR_PX()` is the dial: 1 at rest,
+turned by the governor. `fits(e, dist)` is the rule itself; `switchPx(s)` the same as a size on screen, for an error
+that is the share `s` of a thing's size. Each rung comes in over the `BAND` above its switch.
 
 | Rung | Its error | Where it is measured |
 | --- | --- | --- |
@@ -28,14 +34,14 @@ pixels drawn. Each rung comes in over the `BAND` above its switch.
 | a plant's impostor, a made thing's card | its bake's texel (`CELL` of them over its sphere's width) | `assets/kit/crowd.js`, `index.js` |
 | a cluster's parent | the cluster's own error, from the simplifier and its lost vertices | `assets/kit/clusters.js` |
 | a ring of blades | how much wider its blades are than the blade | `src/scatter/grass.js` `ringsOf` |
-| nothing (a thing gone) | how far it stands off what stays: a plant its height over the land (which wears its stand's colour or its floor), a rock or a made thing all of it (`GONE`) | `assets/kit/plant.js` `goneOf`, `error.js` |
+| nothing (a thing gone) | how far it stands off what stays: a plant its height over the land (which wears its stand's colour or its floor), a rock or a made thing all of it (`gonePx`) | `assets/kit/plant.js` `goneOf`, `error.js` |
 
 ## The rule (one place each)
 
 | Question | Answer | Where |
 | --- | --- | --- |
-| How large is it on screen? | `sizeOf(asset)` metres, times the lens's pixels a metre, over its distance through the lens | `assets/kinds.js` (`sizeOf`), `measure.js`, the one measure (`pxK`, `pxOn`; in node code `uPxK`, `pxAt`, `spanAt`; a packed thing's: `src/scatter/row.js` `pxOf`), `U.uLodInv` |
-| Which level is that? | everything's levels' sizes (`error.js` `rungPx`, a level only shares the work out), down to where it is gone | `index.js` `detailOf`, `assets/kit/plant.js` `bandsOf` |
+| How large is it on screen? | `sizeOf(asset)` metres, times the lens's pixels a metre, over its distance through the lens | `assets/kinds.js` (`sizeOf`), `measure.js`, the one measure (`pxK`, `pxOn`; in node code `uPxK`, `uErrorPx`, `pxAt`, `spanAt`, `errPx`; a packed thing's: `src/scatter/row.js` `pxOf`), `U.uLodInv` |
+| Which level is that? | everything's levels, cut by the error allowed a thing, a share of its size (`error.js` `levelErr`, `levelOf`; their sizes on screen now: `rungPx`): a level only shares the work out, and a dial turned changes no mesh | `index.js` `detailOf`, `assets/kit/plant.js` `bandsOf` |
 | How does a level come and go? | one piece whole at half way (`whole`), the last level sinking (`sunk`, `sinkInto`) | `handover.js` `handOver` |
 | Which things does a level's packing hold? | its band, its hand-over, and a pad for the camera's movement | `handover.js` `bandOf`, `padOf` |
 | The same, off the GPU | | `handover.js` `handOverAt` |
@@ -47,8 +53,8 @@ every distance with it.
 
 | What | Engine | How |
 | --- | --- | --- |
-| trees, bushes, ferns: anything in a stand | `src/scatter/trees.js`, drawn by `src/scatter/drawer.js` | per vertex, each frame: `handOver` + `sinkInto`; packing by the drawer's tier (`bandOf`). Far off, its clumps (a chunk of its leaves as three crossed planes) and its impostor (one quad, three views blended with parallax), both baked on the GPU from its finest level (`impostor.js`); it is its impostor where the impostor's texels are no larger than the pixels drawn (`measure.js` `drawnAt`, `trees.js` `meshShare`: a short cross-fade, texel by texel) |
-| rocks | `src/scatter/drawer.js` (the rocks placed by `rocks.js`) | their cluster hierarchy (`assets/kit/clusters.js`), cluster by cluster by the cut's rule (`src/scatter/cut.js`); thinning away over the `BAND` above `GONE` |
+| trees, bushes, ferns: anything in a stand | `src/scatter/trees.js`, drawn by `src/scatter/drawer.js` | per vertex, each frame: `handOver` + `sinkInto`; packing by the drawer's tier (`bandOf`). Far off, its clumps (a chunk of its leaves as three crossed planes) and its impostor (one quad, three views blended with parallax), both baked on the GPU from its finest level (`impostor.js`); it is its impostor where the impostor's texels are no larger than the pixels drawn (`trees.js` `meshShare`: a short cross-fade, texel by texel) |
+| rocks | `src/scatter/drawer.js` (the rocks placed by `rocks.js`) | their cluster hierarchy (`assets/kit/clusters.js`), cluster by cluster by the cut's rule (`src/scatter/cut.js`); thinning away over the `BAND` above `gonePx` |
 | the stress world's zoo | `src/scatter/drawer.js` (`stress.js`, `herds.js`) | still the ladder's eight levels (`assets/kit/ladder.js`) until 8b |
 | what stands at a spot of its own (a tent, a fire pit, later a house): a list of a few or of millions | `src/scatter/placed.js`, drawn by `src/scatter/drawer.js` (intent 0029) | per vertex, each frame: `handOver` (of one piece: whole, half way), `sinkInto`; packing by the drawer's tier over the list's runs; its last level the drawer's dot |
 | what moves (the stress stand's movers, the herds of `?herds=N`) | `src/scatter/stress.js`, `src/scatter/herds.js`, drawn by `src/scatter/drawer.js` | the drawer's one tier of every level, packed every frame: the level its size asks for, on its skeleton until its hull |

@@ -238,9 +238,9 @@ export const layerOf = (id) => {
 /** A stand's numbers ({ colour, grain, span, fade [a, b], reach }: as STANDS has them), for the fragment. */
 export const standOf = (id) => { const a = STAND_T.element(id.mul(2)), b = STAND_T.element(id.mul(2).add(1)); return { colour: a.xyz, grain: a.w, span: b.x, a: b.y, b: b.z, reach: b.w }; };
 /** How far off (metres, as the 68° lens sees them) a stand's colour comes in: its plants' last level's reach (the
-    measure's farAt: src/detail/measure.js), or its own from/to. */
+    measure's farAt: src/detail/measure.js, its span reckoned at the dial's rest, so over the dial now), or its own from/to. */
 export const standFade = (S, dist2) => {
-  const last = TRUTH ? max(U.uPxK.mul(S.span), REACH) : U.uPxK.mul(S.span);
+  const at = U.uPxK.mul(S.span).div(U.uErrorPx), last = TRUTH ? max(at, REACH) : at;
   return S.span.greaterThan(0).select(smoothstep(last.mul(S.a), last.mul(S.b), dist2), smoothstep(S.a, S.b, dist2));
 };
 /** How far the shadow map reaches round the camera for a stand whose shadows reach `reach` metres (src/world/shadow.js:

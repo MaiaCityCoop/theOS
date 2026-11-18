@@ -269,8 +269,9 @@ export function createPages(renderer, tex) {
     update(camera) {
       frame++;
       const cam = camera.position, size = renderer.getDrawingBufferSize(new THREE.Vector2());
-      // laid again whole when what it is laid as changed: the library's stage and sandbox, the screen's pixels (a level's distance)
-      const k2 = `${U.uSand.value.toArray()}|${U.uStage.value.toArray()}|${U.uStageGround.value.toArray()}|${size.y}|${U.uPxK.value}`;
+      // laid again whole when what it is laid as changed: the library's stage and sandbox, the screen's pixels (a level's
+      // distance: its own, uPxS, not the measure's, which moves with the governor's ratio and would lay every page again)
+      const k2 = `${U.uSand.value.toArray()}|${U.uStage.value.toArray()}|${U.uStageGround.value.toArray()}|${size.y}`;
       if (k2 !== key) { key = k2; flush(); uPxS.value = size.y / (2 * Math.tan((34 * Math.PI) / 180)); }
       // the camera's speed: metres and radians a frame (a jump, farther than twice its height in a frame, is a cut: what
       // was asked for before it no longer counts, and the bias starts again from none)

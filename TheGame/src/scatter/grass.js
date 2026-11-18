@@ -10,8 +10,8 @@ import { finish, skyLight, weathered, cloudAtOne, windAt, windStrength, snowDept
 import { passOf, motion, vWas } from '../core/pass.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
-import { TRUTH, pxK } from '../detail/measure.js';
-import { BAND, switchAt } from '../detail/error.js';
+import { TRUTH } from '../detail/measure.js';
+import { BAND, fitsFrom } from '../detail/error.js';
 import { CROWD } from '../../assets/kit/crowd.js';
 import { rankOf } from './rule.js';
 import { growthMap } from './growth.js';   // (a blade's turn in the one spread order, as everything placed has it)
@@ -42,13 +42,13 @@ const endOf = (T, dist) => (T.end < 1e5 ? float(1).sub(smoothstep(T.end / BAND, 
     (the nearest's), near, nearFade, far, farFade, end } (metres as the walker's 68° lens sees them). Ring k's cells are
     2^(k/2) times the blade's, its blades halved in number ring by ring and as many times wider (widthOf), so the meadow
     keeps its cover and its height. Its error is how much wider its blades are than the blade, w (2^k - 1); it takes over
-    where that is within the one ERROR_PX (src/detail/error.js switchAt), its blades coming in over the BAND past there
+    where that fits the dial (src/detail/error.js fitsFrom: the live pixel and ERROR_PX), its blades coming in over the BAND past there
     as the ring before's go; its bends as few as keep a blade's bow within it (a bow of b metres in n straight pieces
     misses its curve by b / 4n²: the mean blade's, bladeIn's mean height 0.95 of the asset's, its bend 0.65, bowing 1.15
     of that at its tip). The meadow ends where the ground's map does (ground.js REACH), thinning over the BAND before it;
-    a ring that would only come in there is not made. h: the picture's height, pixels of the measure (the window's). */
-export function ringsOf(asset, h = globalThis.innerHeight || 1080) {
-  const B = asset.blade, K = pxK(h), bow = asset.height * 0.95 * 0.65 * 1.15, at = (k) => switchAt(B.w * (2 ** k - 1), K);
+    a ring that would only come in there is not made. As the measure is now (the live pixel, the dial). */
+export function ringsOf(asset) {
+  const B = asset.blade, bow = asset.height * 0.95 * 0.65 * 1.15, at = (k) => fitsFrom(B.w * (2 ** k - 1));
   const rings = [];
   for (let k = 0; k === 0 || at(k) * BAND < REACH; k++) {
     const e = B.w * (2 ** k - 1), segs = k ? Math.min(B.segs, Math.max(1, Math.ceil(Math.sqrt(bow / (4 * e)) - 1e-9))) : B.segs;

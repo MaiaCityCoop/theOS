@@ -55,7 +55,7 @@
 //
 // The rule itself, for whoever draws (its twin is the vertex stage's, src/scatter/trees.js crowdRule): shareAt, areaAt,
 // grownAt, and k as above.
-import { BUDGET_DRAWN, switchPx } from '../../src/detail/error.js';
+import { switchPx } from '../../src/detail/error.js';
 const { PI, sqrt, hypot, floor, ceil, round, min, max, abs, log, log2, pow } = Math;
 
 /** Every number of the rule, in one place, as the plants are drawn. A plant's file has none of them, and none of them
@@ -288,7 +288,7 @@ export function budgetOf(m, opts = {}, his = [Infinity]) {
 }
 /** Under these pixels of the measure nothing but a shape's impostor is drawn: where the last plant's cross-fade to it
     ends, at the most pixels drawn a pixel of the measure (RATIO). A plant without a far end: never. */
-const farLoOf = (H, K) => (H.far ? (H.T * BUDGET_DRAWN * K.SWITCH * (1 - K.FADE)) / K.RATIO : 0);
+const farLoOf = (H, K) => (H.far ? (H.T * K.SWITCH * (1 - K.FADE)) / K.RATIO : 0);
 
 export function crowd(m, opts = {}) {
   const K = { ...CROWD, ...opts }, P = m.position, I = m.index, n = m.part.length, R = m.root;
