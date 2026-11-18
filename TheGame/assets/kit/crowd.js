@@ -14,12 +14,14 @@
 //   - one spread order of the sprigs. Every sprig has its turn, and any first share of the turns is a fair picture of
 //     the whole crown: the sprigs go by size into classes (each half the area of the one before, the largest first), and
 //     within a class each next is the one farthest from all taken before (a blue-noise order). Drawing the first t
-//     turns, the crowd's error is its share error: the farthest a sprig left out lies from one drawn (turnsOf). A thing
-//     never changes its size with distance: every sprig drawn is drawn at its true size, and what a thinned crowd no
-//     longer covers is what shows behind it: its stand's colour, and past its end its next rung's bake, made of it at
-//     its true size (the clumps, the impostor). Each sprig goes (its go) where the crowd without it and every turn
-//     after it is within the dial, shrinking to its root over the FADE below. A crown whose error is nowhere within its
-//     clumps' does not thin before they come;
+//     turns, the crowd's error is what leaving out the rest truly misplaces: the farthest a sprig left out lies from one
+//     drawn (its share error, turnsOf), and at least the reach of the largest left out, whose leaves are gone with it.
+//     A thing never changes its size with distance: every sprig drawn is drawn at its true size. So a crown stays whole
+//     until its sprigs are under the dial, and thins only over the band before its end (the grass's rule:
+//     src/scatter/grass.js); what it no longer covers there is what shows behind it: its stand's colour, and past its
+//     end its next rung's bake, made of it at its true size (the clumps, the impostor). Each sprig goes (its go) where
+//     the crowd without it and every turn after it is within the dial, shrinking to its root over the FADE below. A
+//     crown whose error is nowhere within its clumps' does not thin before they come;
 //   - a solid piece is gone where leaving it out (its width) is within the dial, and shrinks to its foot. The solids'
 //     corners are sorted thick first: a first share of the list is the thick wood;
 //   - the clumps (NVIDIA HPG 2026, Simplygon's billboard clouds): the sprigs split into chunks by their boxes, the
@@ -75,8 +77,7 @@ const { PI, sqrt, hypot, floor, ceil, min, max, abs, log, log2, exp } = Math;
     TILES of them a row, at most CLUMPS chunks a plant, is not the kit's: the page sizes the atlases from their share of
     memory (src/detail/atlas.js atlasesOf, src/detail/impostor.js atlases) and hands them in with the rest (opts), to
     the workers with each level's band (assets/kit/plant.js). */
-export const CROWD = {
-  SWELL: 3,        // the grass's alone (src/scatter/grass.js: how many times a blade widens as fewer are drawn), until its blades keep their size too; nothing of a crowd is enlarged
+const CROWD = {
   LEAST: 8,        // a crowd of no more sprigs than this does not thin: they stay to its end
   CLASSES: 4,     // the most classes by size a crowd is sorted into (each half the area of the one before)
   STOPS: 1 - sqrt(1 - 0.45),         // how much of the light one triangle of a card stops (a sprig of two crossed cards: 45 %), where cover is reckoned
@@ -154,12 +155,15 @@ function headOf(m, K) {
   const P = m.position, n = m.part.length;
   const { lo, hi, mean, frame, sphere } = boundsOf(P, n), size = K.size ?? max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]);
   const { sprigs, solids } = partsOf(m), N = sprigs.length, { mid, sd, order } = orderOf(sprigs, P, K);
-  // ---- the crowd's own error, turn by turn (metres): drawing its first t turns, its share error (turnsOf), what it
-  // truly misplaces: every sprig drawn at its true size, one left out lies that far from one drawn. Never more as more
-  // are drawn; a crowd too few to thin (LEAST) keeps them all (Infinity: never by itself) ----
+  // ---- the crowd's own error, turn by turn (metres): drawing its first t turns, what leaving out the rest truly
+  // misplaces: the farthest one left out lies from one drawn (its share error, turnsOf), and at least the reach of the
+  // largest left out (from its tip to its farthest corner): its leaves are gone with it, nothing drawn stands for them.
+  // Never more as more are drawn; a crowd too few to thin (LEAST) keeps them all (Infinity: never by itself) ----
   const thins = N > K.LEAST, withFar = K.far !== false;
   if (withFar && !K.CELL) throw new Error('crowd: a far end is sized by its atlases (VIEWS, CELL, TILE, CLUMPS: src/detail/impostor.js atlases), and none were given');
-  const own = Float64Array.from({ length: N }, (_, t) => (thins ? order.err[t] : Infinity));
+  const reachOf = (q) => { let r = 0; for (const v of q.verts) r = max(r, hypot(P[v * 3] - q.tip[0], P[v * 3 + 1] - q.tip[1], P[v * 3 + 2] - q.tip[2])); return r; };
+  const own = new Float64Array(N).fill(Infinity);
+  if (thins) for (let t = N - 1, most = 0; t >= 0; t--) { most = max(most, reachOf(sprigs[order[t]])); own[t] = max(order.err[t], most); }
   const endAt = (e) => { let t = 0; while (t < N && own[t] > e) t++; return t; };   // (the sprigs still there where an error of e is allowed: the first so many)
   // ---- the impostor's error (metres): its bake's texel, CELL of them over its sphere's width, and what its views'
   // spacing and its one step of parallax misplace, the plant's depth times their angle (src/detail/atlas.js) ----

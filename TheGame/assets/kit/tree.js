@@ -26,9 +26,10 @@
 // grow(shape, i) builds a shape whole (a stage's form, or shapes[i]) with builder()/tube()/cards(), or crown() for its
 // limbs and foliage as most trees share them, or mound() for a low bush, and returns the builder;
 // shade(shape, i), if given, the light mesh the shadow map is drawn from (else none of its levels cast, but the nearest);
-// tree() works out the rest the engine reads: its levels, its size, and each shape's trunk as a body (the tube made
-// with { body: true }, where it stands at a walker's chest); its meshes are made where they are asked for, never when
-// its file is read (a worker reads this file too: plain JS, nothing of the page in it).
+// tree() works out the rest the engine reads: its levels, its size, each shape's trunk as a body (the tube made with
+// { body: true }, where it stands at a walker's chest) and its feet (the ground it covers: builder); its meshes are made
+// where they are asked for, never when its file is read (a worker reads this file too: plain JS, nothing of the page
+// in it).
 
 import { budgetOf } from './crowd.js';
 import { bandsOf, shapeSize, hasFar } from './plant.js';
@@ -39,6 +40,12 @@ import { rng } from '../../src/core/hash.js';
 export const outward = (R0, lift) => { const a = R0() * 2 * Math.PI, y = lift + (1 - lift) * R0() * 2 - (1 - lift), r = Math.sqrt(Math.max(0, 1 - y * y)); return [Math.cos(a) * r, y, Math.sin(a) * r]; };
 
 const CHEST = 1.2;   // metres up a trunk where a walker meets it
+/** How deep what stands in a stand is set into the ground (src/scatter/trees.js FOOT, as it draws it): where the ground
+    is in a shape's own frame. What lies on it is built so much higher (assets/kit/floor.js). Physical, and set: metres of
+    stem under the ground, so that where a thing stands on a slope its foot stays under the ground all round it (the
+    ground under a stem falls by its foot's width times the slope). Its derived form is each thing's own, its feet's reach
+    (b.feet) times the slope where it stands, in the trees' packing (src/scatter/trees.js); until then one depth for all. */
+export const FOOT = 0.15;   // physical: metres of stem set into the ground
 
 /** The mesh being built: positions, normals, uv, part (0 wood, 1 leaves, 2 a solid body, no sprig cut out of it), ao, a
     card's plane (cn), its foot (root: what its sprig grows from and shrinks to), indexed; and its parts (intent 0038,
@@ -52,9 +59,14 @@ const CHEST = 1.2;   // metres up a trunk where a walker meets it
                                              grows from and shrinks to
     Whatever is laid without a part (a moss's domes) is one solid piece that stays. ao(p): the light that reaches the
     wood at p; barkTile: metres of wood one tile of bark covers; colours: [wood, leaves] for a picture without the
-    textures. */
+    textures.
+    Its feet: the ground it covers, as it is built, each piece [ax, az, bx, bz, ra, rb, edge] in its own frame at scale
+    1 (src/scatter/rule.js reads them): a solid piece (edge 0) covers what lies within ra … rb of a to b, between them
+    and no further (a disk where a is b); an outline's edge (edge 1) bounds, with the rest of its outline, what it
+    covers. Wood that rises through the ground leaves its cross-section there (tube: a trunk, a sapling's stem, a bush's
+    stems); what lies on the ground, its wood or stone (assets/kit/floor.js). Leaves cover none: they shade. */
 export function builder({ ao = () => 1, barkTile = 1, colours = [[0.3, 0.22, 0.15], [0.1, 0.18, 0.06]] } = {}) {
-  const b = { position: [], normal: [], uv: [], part: [], ao: [], color: [], cn: [], root: [], twig: [], index: [], parts: [], body: null };
+  const b = { position: [], normal: [], uv: [], part: [], ao: [], color: [], cn: [], root: [], twig: [], index: [], parts: [], body: null, feet: [] };
   // (twig: 1 where a card wears the painting of one twig, its plant's `fine.twig`, not its sprig: splayOf)
   b.v = (p, n, uv, part, a, cn = [0, 0, 0], root = [0, 0, 0], twig = 0) => { b.position.push(...p); b.normal.push(...n); b.cn.push(...cn); b.root.push(...root); b.uv.push(...uv); b.part.push(part); b.ao.push(a); b.twig.push(twig); b.color.push(...colours[Math.min(part, 1)]); return b.ao.length - 1; };
   b.aoAt = ao; b.barkTile = barkTile;
@@ -85,8 +97,16 @@ const CROSSED = new Map();
     wrapped round a whole number of times so it meets itself. body: this is the trunk (where it passes a walker's chest,
     and how thick it is there, makes the tree's body). */
 export function tube(b, pts, rad, sides, { body = false } = {}) {
-  const n = pts.length, T = pts.map((_, i) => norm(sub(pts[Math.min(i + 1, n - 1)], pts[Math.max(i - 1, 0)])));
   const v0 = b.ao.length, i0 = b.index.length;   // (a solid part of its own: it grows from its first ring's middle)
+  skin(b, ringsAlong(b, pts, rad, sides), sides);
+  b.parts.push({ v0, v1: b.ao.length, i0, i1: b.index.length, foot: pts[0] });
+  feetWhereItRises(b, pts, rad);
+  if (body) b.body ||= chestOf(pts, rad);
+}
+/** Its rings, a vertex every 1 / sides of a turn: each ring's frame carried from the last (no twist), its bark's
+    across a whole number of tiles round, along by the way walked. */
+function ringsAlong(b, pts, rad, sides) {
+  const n = pts.length, T = pts.map((_, i) => norm(sub(pts[Math.min(i + 1, n - 1)], pts[Math.max(i - 1, 0)])));
   let N = norm(cross(T[0], Math.abs(T[0][1]) < 0.9 ? [0, 1, 0] : [1, 0, 0])), along = 0;
   const reps = Math.max(1, Math.round((2 * Math.PI * rad[0]) / b.barkTile)), rings = [];
   for (let i = 0; i < n; i++) {
@@ -95,18 +115,35 @@ export function tube(b, pts, rad, sides, { body = false } = {}) {
     for (let k = 0; k <= sides; k++) { const a = (k / sides) * 2 * Math.PI, d = add(mul(N, Math.cos(a)), mul(B, Math.sin(a))), p = add(pts[i], mul(d, rad[i])); ring.push(b.v(p, d, [(k / sides) * reps, along / b.barkTile], 0, b.aoAt(p))); }
     rings.push(ring);
   }
-  for (let i = 0; i < n - 1; i++) for (let k = 0; k < sides; k++) {
+  return rings;
+}
+/** Two triangles between each two rings' neighbouring vertices. */
+function skin(b, rings, sides) {
+  for (let i = 0; i < rings.length - 1; i++) for (let k = 0; k < sides; k++) {
     const a = rings[i][k], c = rings[i][k + 1], d = rings[i + 1][k], e = rings[i + 1][k + 1];
     b.index.push(a, d, e, a, e, c);
   }
-  b.parts.push({ v0, v1: b.ao.length, i0, i1: b.index.length, foot: pts[0] });
-  if (body) {
-    for (let i = 1; i < n && !b.body; i++) if (pts[i][1] >= CHEST) {   // the trunk at chest height
-      const t = (CHEST - pts[i - 1][1]) / Math.max(1e-6, pts[i][1] - pts[i - 1][1]), p = lerp(pts[i - 1], pts[i], t);
-      b.body = [p[0], p[2], rad[i - 1] + (rad[i] - rad[i - 1]) * t];
-    }
-    if (!b.body && rad[n - 1] >= 0.06) b.body = [pts[n - 1][0], pts[n - 1][2], rad[n - 1]];   // a bole that forks lower: its top (a sapling thinner than that is walked through)
+}
+/** Where it rises through the ground, its cross-section there is ground it covers: its feet. Only where it rises: a
+    branch bowed down into the ground (a sapling's lowest) leaves no foot, as nothing of the thing stands there. */
+function feetWhereItRises(b, pts, rad) {
+  const n = pts.length;
+  for (let i = 0; i < n - 1; i++) {
+    const y0 = pts[i][1] - FOOT, y1 = pts[i + 1][1] - FOOT;
+    if (y0 >= y1 || y0 > 0 || y1 < 0 || (y1 === 0 && i < n - 2)) continue;   // (rising, from under the ground to over it; a crossing at a point between two pieces counted once)
+    const t = y0 / (y0 - y1), p = lerp(pts[i], pts[i + 1], t), r = rad[i] + (rad[i + 1] - rad[i]) * t;
+    b.feet.push([p[0], p[2], p[0], p[2], r, r, 0]);
   }
+}
+/** The trunk at a walker's chest: [x, z, its radius there]; a bole that forks lower, its top (a sapling thinner than
+    0.06 m there is walked through: null). */
+function chestOf(pts, rad) {
+  const n = pts.length;
+  for (let i = 1; i < n; i++) if (pts[i][1] >= CHEST) {
+    const t = (CHEST - pts[i - 1][1]) / Math.max(1e-6, pts[i][1] - pts[i - 1][1]), p = lerp(pts[i - 1], pts[i], t);
+    return [p[0], p[2], rad[i - 1] + (rad[i] - rad[i - 1]) * t];
+  }
+  return rad[n - 1] >= 0.06 ? [pts[n - 1][0], pts[n - 1][2], rad[n - 1]] : null;
 }
 
 /** A sprig: two cards crossed along dir, their foot at p, s metres long and wide, cut out of the leaves' sprig, laid as
@@ -376,8 +413,8 @@ export function heightIn(S, age) {
   return a1 > a0 ? Math.exp(Math.log(h0) + (Math.log(h1) - Math.log(h0)) * (Math.log(a / a0) / Math.log(a1 / a0))) : h0;
 }
 
-/** What the page must know of a tree at once, before any of its meshes is made (its size, each shape's height and
-    trunk: measured on its shapes as grown), by what it is (a recipe's uid and seed): `kept`, what was measured at an
+/** What the page must know of a tree at once, before any of its meshes is made (its size, each shape's height, trunk
+    and feet: measured on its shapes as grown), by what it is (a recipe's uid and seed): `kept`, what was measured at an
     earlier start and is handed in (src/core/outlines.js reads it from where it is kept, by the recipe's version);
     `made`, what was measured anew this time, for it to keep. A few numbers a tree. */
 export const OUTLINES = { kept: new Map(), made: new Map() };
@@ -391,7 +428,7 @@ const packed = (m) => ({ ...Object.fromEntries(FLOATS.filter((k) => m[k]?.length
     Nothing of it is built when its file is read, and in the game none of its meshes is ever on the page: they are
     made shape by shape where they are asked for (finest: by its family in the recipes' workers, assets/kit/plant.js,
     each level a first share of it; and by the library, for a plant on its stage) and live on the GPU
-    (src/scatter/heap.js). What the page must know at once (size, heights, trunk) is measured once on its shapes as
+    (src/scatter/heap.js). What the page must know at once (size, heights, trunk, feet) is measured once on its shapes as
     grown and kept as a few numbers (OUTLINES). */
 export function tree(recipe) {
   const { shapes: own = [{}], growth, grow, shade, shadow = {}, fine = null, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
@@ -410,7 +447,7 @@ export function tree(recipe) {
       outline = OUTLINES.kept.get(id);
       if (!outline) {
         const near = shapes.map((s, i) => grow(s, i));
-        outline = { size: boundsOf(near), trunk: near.map((m) => m.body ?? [0, 0, 0.12]), heights: near.map((m) => boundsOf([m]).height) };   // trunk: each shape's at a walker's chest: where it stands off its foot, its radius (assets/kinds.js: shapesOf, a tree's trunk)
+        outline = { size: boundsOf(near), trunk: near.map((m) => m.body ?? [0, 0, 0.12]), heights: near.map((m) => boundsOf([m]).height), feet: near.map((m) => m.feet) };   // trunk: each shape's at a walker's chest: where it stands off its foot, its radius (assets/kinds.js: shapesOf, a tree's trunk); feet: the ground each covers (builder)
         OUTLINES.made.set(id, outline);
       }
     }
@@ -420,10 +457,8 @@ export function tree(recipe) {
     ...rest,
     ...(fine ? { fine: { twig: fine.twig } } : {}),   // (what its finest wears: the plants' material reads it, the textures find it)
     // (at: a tree of an age, which shape and its scale; the scale over the shape as built, so it stands exactly as tall
-    // as its height by age says, as the trees' engine draws it: src/scatter/trees.js sizeAtOne. base, reach: where its
-    // crown begins at an age, metres over its foot, and how far it reaches round, as its file's form builds it: the
-    // shadow cascades' finest texel reads the lowest base, the canopy's probes the smallest reach, src/world/shadow.js)
-    ...(G ? { growth: { years: growth.years, stages: G.stages, height: growth.height, base: (age) => growth.form(age, 0).base, reach: (age) => growth.form(age, 0).r, at: (age, v) => { const r = G.at(age, v), S = G.stages.find((x) => r.shape >= x.offset && r.shape < x.offset + x.variants), b = measured().heights[r.shape]; return { ...r, s: b > 0 ? (r.s * S.h) / b : r.s }; } } } : {}),
+    // as its height by age says, as the trees' engine draws it: src/scatter/trees.js sizeAtOne)
+    ...(G ? { growth: { years: growth.years, stages: G.stages, height: growth.height, at: (age, v) => { const r = G.at(age, v), S = G.stages.find((x) => r.shape >= x.offset && r.shape < x.offset + x.variants), b = measured().heights[r.shape]; return { ...r, s: b > 0 ? (r.s * S.h) / b : r.s }; } } } : {}),
     /** how many shapes it has; whether it has a far end */
     shapeCount: shapes.length, far,
     finest,
@@ -454,6 +489,7 @@ export function tree(recipe) {
   };
   const lazy = (get) => ({ enumerable: true, configurable: true, get });
   return Object.defineProperties(out, {
+    feet: lazy(() => measured().feet),
     size: lazy(() => rest.size ?? measured().size), trunk: lazy(() => measured().trunk), heights: lazy(() => measured().heights),
     /** how many levels it has of its own (bandsOf: from what is measured of it) */
     levelCount: lazy(() => bandsOf(out).length),
