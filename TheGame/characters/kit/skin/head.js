@@ -11,7 +11,7 @@
 //
 //   headFormOf() -> (q) => m   how far a point of the left side ([x >= 0, y, z], m) is outside the head's form
 //       (negative: inside). The ears' gristle, the nostrils and the neck are ./target.js's to add.
-import { HEAD, EYE, MOUTH, mouthOpening } from './table.js';
+import { HEAD, EYE, MOUTH, mouthOpening } from './art.js';
 
 const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
 const smax = (a, b, k) => -smin(-a, -b, k);

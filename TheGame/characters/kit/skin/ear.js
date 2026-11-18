@@ -15,7 +15,7 @@
 // half-millimetre grid of the plane; the form put together from them is read once on a grid of 0.6 mm and evened
 // there, and that is the field.
 //
-//   EAR            the table below
+//   EAR            its measures (./art.js)
 //   earFieldOf()   -> (p) => m    how far a point of the LEFT side ([x > 0, y, z], the body at rest, m) is outside the
 //                  auricle alone (negative inside); near its surface it changes by about a metre a metre
 //   earOf({ h })   -> { levels: [fine, middle, far] }, the surface on cells h, 2h and 4h a side (surface nets), each
@@ -25,67 +25,8 @@
 //                  enough for the sun to come through, its root is not. Each level is closed: no open edge, none of
 //                  more than two faces.
 import { headFormOf } from './head.js';
+import { EAR, EAR_PLANE } from './art.js';
 
-// The ear's measures (mm in its own plane unless said). Where they are from, as remembered, none read for this:
-//   its size: Farkas 1994, "Anthropometry of the Head and Face": a man's ear 62.7 mm long and 35.4 broad; its long
-//     axis leaning back some 10 to 15 degrees from the upright; it stands off the head by 20 to 30 degrees, its rim 15
-//     to 20 mm from the skull behind it;
-//   its parts and their sizes: the anatomy books' auricle (Gray 1918, fig. 904; Tolleth 1978, "Artistic anatomy,
-//     dimensions, and proportions of the external ear"): the concha about 15 by 20 mm and a centimetre deep, the helix's
-//     roll 4 to 5 mm across, the lobe 15 to 18 mm long and 5 to 6 thick, the plate between them 3.
-//
-//   canal      where the ear canal opens, in the world (the left side; m), and where that is in the ear's plane
-//   lean, off, tip   the frame, degrees: the long axis leaning back; the plane turned off the head's middle plane
-//              round that axis (its rear rim outwards; the head's own side falls away from it by as much again);
-//              its top tipped outwards
-//   clear      how far over the head's skin the ear's own surface stays at least, away from its seam (mm): the head's
-//              skin runs on under the ear, and would show through it where the bowl's floor lay lower
-//   outline    the plate's rim, round it from the front edge over the top and down the back to the lobe ([p, q])
-//   seam       the line along which the ear's front edge runs into the cheek and the temple; `dive`: from how near
-//              that line the plate begins to sink into the head (mm), and how far under the head's skin it ends
-//   root       the outline of what joins the ear to the head under the bowl; `under`: how far inside the head it ends;
-//              `flare`: how much broader it grows for each mm towards the head; `soft`: how softly it runs into the plate
-//   concha     the bowl: its middle, half-breadths, squareness, depth; `wall`: from where to where (shares of its
-//              half-breadth) its wall rises
-//   pit        the canal's own pit in the bowl's floor: middle, radius, depth
-//   crus       the helix's root, a fold running back across the bowl: from a to b, its half-breadth, how high its
-//              crest stands at each end
-//   antihelix  the ridge inside the rim: its stem and its two upper legs ([p, q] each), its height and half-breadth
-//   scapha     the groove between helix and antihelix: how far inside the rim, its half-breadth and depth, between
-//              which angles round the ear it runs (degrees: 0 backwards, 90 up)
-//   fossa      the hollow between the antihelix's two legs
-//   antitragus   the small rise at the bowl's lower rim (the notch between it and the tragus is what lies between)
-//   helix      the roll along the rim: how far inside the outline its middle runs, its radius, how far it stands out
-//              of the plate, and at least `over` the head's skin (where it rises out of the temple); `arc`: the
-//              angles between which it grows from nothing (towards the lobe) and ends (at its root in front)
-//   front      before the bowl the plate lies low, near the cheek, not at the rim's level: how far under it, between
-//              which p it falls there, between which heights q (rising from and to nothing)
-//   tragus     the flap before the canal: a rise of the plate out of that low ground: its middle, its half-breadths
-//              (forwards, a long ramp from the cheek; backwards, its free edge over the canal; up and down), how
-//              high its crest stands, how far it has fallen at their ends
-//   even       over how much the whole form is evened before its surface is drawn (mm): a form put together of
-//              parts has creases where they meet, and an ear has none
-//   plate, lobe   the plate's thickness; the lobe's: below `from` to `to` (q) it grows to `thick` and lies smooth,
-//              turned in towards the head: `level`: where its sheet lies at p = 0, and how much further out a mm back
-const EAR = {
-  canal: { at: [0.07, 1.66, -0.012], in: [4, -0.5, -11.5] },
-  lean: 12, off: 4, tip: 4, clear: 0.9,
-  outline: [[-6, 6], [-6.5, 14], [-5.5, 22], [-3, 29], [2, 34], [9, 36.3], [16.5, 35.5], [23, 31.5], [27, 25], [29, 16], [29, 7], [27.5, -2],
-    [24.5, -10], [21, -16], [18.5, -21], [14, -25.5], [9, -27], [4, -25.5], [0.5, -21], [-1.5, -15], [-4, -9], [-6, -2]],
-  seam: { line: [[-1.5, -15], [-4, -9], [-6, -2], [-6, 6], [-6.5, 14], [-5.5, 22], [-3.5, 27]], dive: [1, 6], under: 3 },
-  root: { outline: [[-8, -10], [-8.5, 2], [-8, 14], [-5.5, 23], [-1, 27], [4, 25], [8.5, 19], [11.5, 10], [12.2, 1], [10.5, -8], [6.5, -14.5], [1, -17], [-4.5, -15.5]], under: 2.5, flare: 0.45, soft: 3 },
-  concha: { at: [8.2, 1.5], r: [8.2, 11.8], n: 2.3, deep: 10.5, wall: [0.55, 1.05] },
-  front: { deep: 8.5, p: [4, -2], q: [-14, -8, 6, 11] },
-  pit: { at: [4.2, -0.5], r: 2.8, deep: 3 },
-  crus: { a: [-2.5, 9.5], b: [8.5, 5], half: 2.4, high: [-1.5, -9.5] },
-  antihelix: { stem: [[12, -10], [17.5, -4], [19.5, 4], [19, 11], [16.5, 17]], upper: [[16.5, 17], [13, 23], [8, 28.5]], lower: [[16.5, 17], [10, 18.5], [3, 19.5]], high: 2.2, half: 2.6 },
-  scapha: { in: 5.6, half: 1.8, deep: 1.8, arc: [-45, -25, 115, 135] },
-  fossa: { at: [9.5, 22.5], r: [4.5, 3.2], deep: 2 },
-  antitragus: { at: [11.5, -10.5], r: 3.2, high: 1 },
-  helix: { in: 2.3, r: 2.4, out: 1, over: 0.3, arc: [-62, -38, 160, 174] },
-  tragus: { at: [1, -1.5], r: [6, 3.4, 5], high: -2.5, fall: 6.5 },
-  plate: 3, lobe: { from: -11, to: -19, thick: 5.5, level: [-7, 0.22] }, even: 0.5,
-};
 
 const rad = (deg) => deg * (Math.PI / 180), degOf = (r) => r / (Math.PI / 180);
 const smooth01 = (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
@@ -127,7 +68,7 @@ const farFrom = (line, closed) => (p, q) => {
 };
 
 // ── the plane's maps ────────────────────────────────────────────────────────────────────────────────────────
-const P0 = -16, Q0 = -34, PW = 51, QW = 77, STEP = 0.5, NP = Math.round(PW / STEP) + 1, NQ = Math.round(QW / STEP) + 1;
+const { p0: P0, q0: Q0, pw: PW, qw: QW, step: STEP } = EAR_PLANE, NP = Math.round(PW / STEP) + 1, NQ = Math.round(QW / STEP) + 1;
 /** A grid of numbers evened by a bell `sg` cells wide along each of its axes in turn, its edges held: an axis is [how
     far apart its neighbours lie in the grid, how many there are along it]. */
 function evened(F, sg, axes) {

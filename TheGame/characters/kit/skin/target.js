@@ -21,7 +21,8 @@
 // (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through. The head alone is not made
 // so: its skin is laid on its own form (./head.js, intent 0042), the nose's and the ears' gristle on it, and the neck
 // runs up into it as a column.
-import { PARTS, OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, NIPPLE, FILL, partOf, PROFILES, MASSES, PALM, CARPUS, THENAR, FINGERS, TOES, RELIEF, LIMB_RELIEF, HEAD, gapAt } from './table.js';
+import { PARTS, OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, NIPPLE, FILL, partOf, PROFILES, MASSES, PALM, CARPUS, THENAR, FINGERS, TOES, RELIEF, LIMB_RELIEF, gapAt } from './table.js';
+import { HEAD } from './art.js';
 import { headFormOf } from './head.js';
 import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';

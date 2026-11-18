@@ -26,29 +26,11 @@ import * as THREE from 'three/webgpu';
 import { Fn, If, Discard, attribute, varyingProperty, float, int, ivec2, vec2, vec3, vec4, texture, textureLoad, normalize, cross, mix, max, min, pow, clamp, dot, abs, length, smoothstep, exp, exp2, sqrt, reflect, positionWorld, positionGeometry, modelWorldMatrix, modelWorldMatrixInverse, mx_noise_float } from 'three/tsl';
 import { U } from '../../../src/core/uniforms.js';
 import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull } from '../../../src/world/light.js';
-import { CURVE_MOST } from './maps.js';
-import { EYE, LIPS, BROW, MOUTH, OPENINGS, FOLDS } from './table.js';
+import { SKIN_F0 as F0 } from '../../../src/world/physics.js';
+import { LOBES } from './method.js';
+import { OPENINGS } from './table.js';
+import { EYE, LIPS, BROW, MOUTH, FOLDS, CURVE_MOST, ROUGH, THROUGH, SKIN_COLOUR as SKIN, RELIEF_TURN as RELIEF, FOLD_STEEP as FOLD } from './art.js';
 
-/** What a surface of skin mirrors head on: 2.8 %, an index of refraction of 1.4 (the figure every skin shader holds:
-    Jimenez's SeparableSSS demo, Unity HDRP's diffusion profile, GPU Gems 3 ch. 14). */
-const F0 = 0.028;
-/** The gloss's two lobes: the skin's roughness times these, the broad one this share of the whole (Unreal Engine's
-    subsurface profile, its defaults: ShadingModels.ush DualSpecularGGX). */
-const LOBES = { sharp: 0.75, broad: 1.3, mix: 0.85 };
-/** The skin's roughness (0 a mirror, 1 chalk): dry, where it is oiliest, a nail, a lip. Skin's as the Physically Based
-    database lists it (0.5); the rest about it by eye. */
-const ROUGH = { skin: 0.5, oily: 0.36, nail: 0.24, lip: 0.34 };
-/** How far light comes through a thin part: the under-skin bells (./maps.js SCATTER) taken at this share of the
-    part's thickness in millimetres (an ear is gristle and two thin skins, not a slab of skin: Jimenez et al. 2010,
-    "Real-time realistic skin translucency", scale it likewise by a part's translucency). */
-const THROUGH = 0.35;
-/** A fair skin's own colour (linear light), before its blood and its pigment (./table.js TONE) tint it place by place:
-    between the Physically Based database's skin I and skin III. What more pigment and more blood multiply it by. */
-const SKIN = { brow: [0.05, 0.032, 0.022], base: [0.58, 0.36, 0.26], pigment: [0.7, 0.56, 0.45], blood: [1.0, 0.72, 0.7], pale: [1.05, 1.04, 0.94], vein: [0.84, 0.9, 1.06], lip: [0.56, 0.2, 0.18], areola: [0.62, 0.45, 0.42], nail: [0.6, 0.4, 0.36] };
-/** How strongly the fine relief turns the normal. */
-const RELIEF = 0.55;
-/** How steep a fold's sides are taken to be, for the light (./table.js FOLDS). */
-const FOLD = 1.5;
 
 const vN = varyingProperty('vec3', 'vFleshN'), vB = varyingProperty('vec3', 'vFleshB');
 

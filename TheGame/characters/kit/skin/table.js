@@ -85,12 +85,12 @@ export const UNDER = [
   { what: 'eye', rig: 'eye', solid: ['ball', [0.032, 1.677, 0.072], 0.012] },
 ];
 // What is carved out of the skin after it is laid (left side): the nostrils, the cleft between the buttocks. (The eyes' openings are not carved: the skin runs over the globe as closed lids do, and the opening is
-// cut out of it as it is drawn, along EYE's almond below: a lid's edge is finer than any point of the skin.)
+// cut out of it as it is drawn, along ./art.js EYE's almond: a lid's edge is finer than any point of the skin.)
 export const OPENINGS = [
   { what: 'nostril', solid: ['egg', [0.0078, 1.6335, 0.1085], [0.0036, 0.0038, 0.0066]] },
   { what: 'gluteal cleft', solid: ['egg', [0.0, 0.872, -0.135], [0.006, 0.072, 0.07]] },   // (between the buttocks, from the coccyx down: the fascia's closing over the muscles fills it)
 ];
-// Where the skin takes another colour: the areolae (the lips' red is drawn by LIPS below, the nails found on the fingers' ends). [what, centre, radii (m)]
+// Where the skin takes another colour: the areolae (the lips' red is drawn by ./art.js LIPS, the nails found on the fingers' ends). [what, centre, radii (m)]
 export const MARKS = [
   { what: 'areola', at: [0.095, 1.312, 0.105], r: [0.013, 0.013, 0.03] },
 ];
@@ -292,115 +292,3 @@ export const TONE = {
 // legs read as one.
 const LEG_GAP = [[0.82, 0.003], [0.78, 0.006], [0.72, 0.011], [0.64, 0.018], [0.56, 0.024], [0.5, 0.027], [0.44, 0.016], [0.36, 0.01], [0, 0.01]];
 export const gapAt = (y) => { const G = LEG_GAP; if (y >= G[0][0]) return G[0][1]; for (let i = 0; i < G.length - 1; i++) if (y >= G[i + 1][0]) return G[i + 1][1] + ((G[i][1] - G[i + 1][1]) * (y - G[i + 1][0])) / (G[i][0] - G[i + 1][0]); return G.at(-1)[1]; };
-
-// The face's own lines (intent 0042), drawn as the skin is drawn (./light.js), not laid on its points: a lid's edge, the
-// lips' border and a brow's hairs are finer than the skin's points lie apart. Left side; m. From Farkas's norms of the
-// adult man's face (Farkas 1994, "Anthropometry of the Head and Face"), as remembered: between the eyes' inner corners
-// 33 mm, an eye's opening 31 mm long and 10 to 11 high, its outer corner a little higher than its inner; the mouth 52 mm
-// broad; the iris 11.7 mm across.
-//   EYE    the globe (its middle and radius, UNDER's); its opening in the globe's own front view (x outwards from the
-//          globe's middle, y up): the inner and the outer corner, how far each lid's edge stands from the line between
-//          them and where along that line (0 the inner corner, 1 the outer) it stands furthest; how thick the lid lies
-//          over the globe; the iris's and the pupil's radius
-//   LIPS   the upper lip's red: where its bow's peak stands off the middle, its height there and at the middle; the
-//          lower lip's height (each from the mouth's opening, MOUTH below, outwards)
-//   BROW   the brow's line from its inner end over its highest point to its outer end, its thickness at each end
-export const EYE = { at: [0.032, 1.677, 0.072], r: 0.012, inner: [-0.0155, -0.0016], outer: [0.0136, 0.0008], upper: [0.0041, 0.42], lower: [0.0026, 0.5], lid: 0.0013, iris: 0.00585, pupil: 0.0025 };
-export const LIPS = { bow: [0.0046, 0.0062, 0.005], lower: 0.0085 };
-// The mouth as it smiles: a friendly face's lips part over its upper teeth. The opening between them, cut out of the
-// skin as it is drawn (as the eyes' are): half its breadth; the height of its corners, of the upper lip's edge at the
-// middle and of the lower lip's (m); `floor`: how far forward the teeth's faces stand behind it, by how far from the
-// middle (m: z = floor[0] - floor[1] x² - floor[2] x⁴; ../skeleton/skull.js's upper row with half a millimetre before
-// it), which the lips' edges roll in to; `edge`: how round those edges are (m). A smile shows three quarters or more
-// of the upper front teeth and the lower lip follows their edges (the "smile arc" of the dentists' books, as
-// remembered); at rest the lips met at 1.6077 m and the mouth was 52 mm broad. It is a whole smile, the kind the eyes
-// take part in: the corners stand higher than the upper lip's middle, the cheeks are raised (HEAD's masses) and the lower
-// lids with them (EYE: the opening 7.9 mm high for a resting eye's 10; the pupil wide, 5 mm, as a fond look's is).
-export const MOUTH = { half: 0.0325, corner: 1.6165, upper: 1.6148, lower: 1.605, floor: [0.0995, 17, 9000], edge: 0.0028 };
-/** The mouth's opening at a place of the face seen from the front: how far inside the lips' edges (m; negative: on a
-    lip), how far under the upper lip's edge and over the lower's, and how far out from the middle (0 … 1). */
-export const mouthOpening = (x, y) => {
-  const M = MOUTH, ax = Math.abs(x), t = Math.min(1, ax / M.half), yu = M.upper + (M.corner - M.upper) * t ** 2.2, yl = M.lower + (M.corner - M.lower) * t * t;
-  const under = yu - y, over = y - yl;
-  return { d: ax >= M.half ? -Math.hypot(ax - M.half, y - M.corner) : Math.min(under, over), under, over, t };
-};
-export const BROW = { from: [0.011, 1.6938], peak: [0.038, 1.6998], to: [0.0585, 1.6948], thick: [0.0105, 0.005] };
-
-// The face's fine folds (intent 0042, fifth round), drawn as the skin is drawn (./light.js): each a short straight
-// run seen from the front, left side: [from x, y, to x, y, half its breadth (m), how deep (0 … 1)]. A whole smile
-// folds the skin: a fan from each eye's outer corner, creases under the lower lid; and a brow that has smiled for
-// forty years keeps its lines. (The fold from the nose's wing round the mouth is a form of the head's, HEAD's hollows:
-// drawn as a line it read as a scratch.) Each fades towards its far end.
-// Where they lie is read off faces, not measured: a painter's knowledge, as TONE's is.
-export const FOLDS = [
-  // the fan from the eye's outer corner
-  [0.0494, 1.6796, 0.0544, 1.6829, 0.0008, 0.50], [0.0499, 1.6785, 0.0576, 1.6806, 0.0008, 0.70], [0.0500, 1.6774, 0.0585, 1.6770, 0.0008, 0.75], [0.0498, 1.6763, 0.0563, 1.6738, 0.0008, 0.60],
-  // under the lower lid, two creases
-  [0.019, 1.6668, 0.031, 1.6654, 0.001, 0.5], [0.031, 1.6654, 0.0445, 1.6676, 0.001, 0.5], [0.0225, 1.6628, 0.034, 1.661, 0.0011, 0.3], [0.034, 1.661, 0.0455, 1.6638, 0.0011, 0.3],
-  // the brow's lines, faint
-  [0, 1.7215, 0.02, 1.7225, 0.0013, 0.22], [0.02, 1.7225, 0.043, 1.721, 0.0013, 0.22], [0, 1.7325, 0.02, 1.7336, 0.0013, 0.25], [0.02, 1.7336, 0.042, 1.732, 0.0013, 0.25],
-];
-
-// The head's form (intent 0042; ./head.js lays it out). m unless said.
-//   sections   the head level by level from the chin's foot to the crown, each level's outline seen from above:
-//              [height (m), where it is widest (z), its half-breadth there, how far its front and its back lie from
-//              there (all mm), how square its front and its back are (2: an ellipse's; more: squarer; less: pointed)].
-//              Its front is the face's ground under the nose, the lips and the chin; below the jaw's angle (1.59 m) it
-//              is the jaw's body alone, its back edge the jaw's lower border running forwards and down to the chin.
-//   crown, chin, dome, foot   the top of the head and the chin's foot (m); the crown rounds over its upper `dome`, the
-//              chin's foot its lower `foot`
-//   masses     what stands out of that ground (the nose, the lips, the chin, the floor of the mouth under the jaw, the
-//              cheeks a smile raises; `rise`: how far a mass's sides stand higher than its middle, m for each m²): [where its middle is, how far it reaches outwards, inwards, up, down,
-//              forwards, back], n its squareness, arch how far its sides curve back (m for each m²), k how softly it
-//              runs into the ground (m); or a ridge from a to b, its radius from ra to rb
-//   hollows    what lies in it, the same way: the hollow between the brow and the upper lid, the eye's corners, the
-//              groove under the nose, the furrow round the nose's wing (the mouth's own opening is MOUTH's, below)
-//   lids       how softly the lids over the globe run into the face round them (m)
-//   neck       how softly the head runs into the neck under it (m)
-//   even       over how much height the levels' numbers are evened between the written ones (m)
-// Where the numbers are from, as remembered:
-//   the skull's own levels (../skeleton/skull.js: 185 mm long, 144 broad, its top 119 mm over the ear canals, its
-//     nasion 26.5 over and 101 before them, its teeth meeting 53.6 under, its chin's foot 93.5 under) with the flesh
-//     over them (TISSUE: the scalp 6 mm, the brow 5.5, the chin 11): a head 198 mm long, 154 broad, 227 high;
-//   the profile's depths: Arnett et al. 1999, "Soft tissue cephalometric analysis" (Am J Orthod Dentofacial Orthop
-//     116), men's means measured from the plumb line through the nose's foot: the glabella 8 mm behind it, the nose's
-//     tip 17.4 before, the upper lip 3.3 before, the lower 1.0, the fold over the chin 7.1 behind, the chin 3.5
-//     behind; the cheekbone 25 behind, the socket's lower rim 22, the nose's wing's foot 15; the lips 15 mm thick
-//     over the teeth;
-//   the heights and breadths: Farkas 1994, "Anthropometry of the Head and Face", men's means: the nose 55 mm high
-//     (root to foot) and 35 broad, the upper lip 22 high, the mouth to the chin's foot 51, the face 139 broad across
-//     the cheekbones and 106 to 112 across the jaw's angles.
-export const HEAD = {
-  crown: 1.7855, chin: 1.569, dome: 0.0705, foot: 0.016, lids: 0.007, even: 0.004, neck: 0.012,
-  sections: [
-    [1.569, 48, 38, 46, 42, 1.8, 2.0], [1.575, 44, 43.5, 51, 44, 1.7, 2.0], [1.585, 30, 54.5, 65.5, 36, 1.6, 2.0],
-    [1.595, 10, 59, 90.5, 22, 1.65, 2.0], [1.608, 4, 61, 100.5, 22, 1.7, 2.0], [1.625, 2, 64.5, 103, 40, 1.9, 2.0], [1.64, 0, 68, 97, 80, 2.3, 2.0],
-    [1.655, -2, 70, 97, 92, 2.8, 2.0], [1.67, -10, 72.5, 104, 87, 2.4, 2.0], [1.685, -15, 75, 109, 83.5, 2.25, 2.0], [1.7, -20, 76.5, 119.5, 79.5, 2.3, 2.0],
-    [1.715, -20, 77, 117, 79.5, 2.3, 2.1], [1.73, -20, 77, 116, 79.5, 2.3, 2.1], [1.745, -20, 77, 116, 79.5, 2.2, 2.1], [1.76, -20, 77, 116, 79.5, 2.2, 2.1], [1.7855, -20, 77, 116, 79.5, 2.2, 2.1],
-  ],
-  masses: [
-    { what: 'nose, its ridge', a: [0, 1.6775, 0.0875], b: [0, 1.6455, 0.115], ra: 0.0075, rb: 0.008, k: 0.006 },
-    { what: 'nose, its sides', a: [0, 1.682, 0.08], b: [0, 1.644, 0.102], ra: 0.0105, rb: 0.014, k: 0.008 },
-    { what: 'nose, its tip', at: [0, 1.6408, 0.1168], r: [0.0095, 0.0095, 0.008, 0.0072, 0.0088, 0.009], k: 0.006 },
-    { what: 'nose, a wing', at: [0.0105, 1.639, 0.102], r: [0.0064, 0.0072, 0.0068, 0.0048, 0.0095, 0.009], n: 2.2, k: 0.0045 },
-    { what: 'nose, its foot', a: [0, 1.6365, 0.118], b: [0, 1.6345, 0.1045], ra: 0.0034, rb: 0.0036, k: 0.003 },
-    { what: 'upper lip', at: [0, 1.6178, 0.1005], r: [0.034, 0.034, 0.0048, 0.0044, 0.0072, 0.01], k: 0.0035, arch: 21, rise: 2.2 },
-    { what: 'lower lip', at: [0, 1.6, 0.0995], r: [0.03, 0.03, 0.0062, 0.0066, 0.0082, 0.01], k: 0.0035, arch: 21, rise: 11 },
-    { what: 'chin', at: [0, 1.5748, 0.0855], r: [0.017, 0.017, 0.0125, 0.0102, 0.012, 0.014], k: 0.018 },
-    { what: 'under the jaw', at: [0, 1.583, 0.046], r: [0.039, 0.039, 0.02, 0.0195, 0.046, 0.04], k: 0.012 },
-    { what: 'the jaw\'s lower border beside the chin', a: [0.008, 1.5715, 0.087], b: [0.03, 1.574, 0.07], ra: 0.0082, rb: 0.0082, k: 0.008 },   // (over the bone's own border there: with the chin shortened it stood out of the skin)
-    { what: 'cheek, raised by the smile', at: [0.038, 1.647, 0.074], r: [0.014, 0.013, 0.012, 0.015, 0.0165, 0.01], k: 0.01 },
-    { what: 'the lower lid, pushed up by the cheek', a: [0.022, 1.6665, 0.0826], b: [0.043, 1.6675, 0.0766], ra: 0.0034, rb: 0.0034, k: 0.004 },
-  ],
-  hollows: [
-    { what: 'over the upper lid', at: [0.0295, 1.6795, 0.0925], r: [0.0175, 0.0175, 0.008, 0.008, 0.0115, 0.0115], k: 0.01 },
-    { what: 'the inner corner', at: [0.0185, 1.6765, 0.0905], r: [0.0085, 0.0085, 0.008, 0.008, 0.0115, 0.0115], k: 0.006 },
-    { what: 'the outer corner', at: [0.0455, 1.678, 0.0845], r: [0.007, 0.007, 0.007, 0.007, 0.0105, 0.01], k: 0.007 },
-    { what: 'under the lower lid', at: [0.031, 1.665, 0.0956], r: [0.016, 0.014, 0.006, 0.006, 0.0105, 0.01], k: 0.013 },
-    { what: 'the fold from the nose\'s wing round the mouth', a: [0.0225, 1.6355, 0.0995], b: [0.0358, 1.618, 0.0905], ra: 0.0034, rb: 0.0034, k: 0.005 },
-    { what: 'the fold, on down outside the mouth\'s corner', a: [0.0358, 1.618, 0.0905], b: [0.0395, 1.604, 0.0835], ra: 0.0034, rb: 0.0026, k: 0.005 },
-    { what: 'the groove under the nose', a: [0, 1.6305, 0.111], b: [0, 1.6175, 0.1117], ra: 0.0032, rb: 0.0032, k: 0.003 },
-    { what: 'round the nose\'s wing, above', a: [0.0125, 1.6462, 0.1075], b: [0.0185, 1.6425, 0.1005], ra: 0.0022, rb: 0.0025, k: 0.003 },
-    { what: 'round the nose\'s wing, beside', a: [0.0185, 1.6425, 0.1005], b: [0.0205, 1.636, 0.098], ra: 0.0025, rb: 0.0025, k: 0.003 },
-  ],
-};

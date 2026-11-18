@@ -18,7 +18,8 @@ import { prepare } from '../characters/kit/skeleton/mesh.js';
 import { musclesOf } from '../characters/kit/muscles/build.js';
 import { skinOf } from '../characters/kit/skin/build.js';
 import { rigOf, turnsOf, poseOf } from '../characters/kit/skeleton/pose.js';
-import { EYE, MOUTH, PARTS } from '../characters/kit/skin/table.js';
+import { PARTS } from '../characters/kit/skin/table.js';
+import { EYE, MOUTH } from '../characters/kit/skin/art.js';
 import { POSES } from '../characters/kit/skin/budget.js';
 
 /** The stills: the body from four sides, the face from three and its eye, mouth and ear close, the head from behind, the body close, and in the five poses (the address of tools/body.html each). */

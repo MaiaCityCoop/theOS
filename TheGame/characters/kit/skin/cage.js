@@ -17,6 +17,7 @@
 // front. A ring's points are counted from its front round by its left, its back and its right.
 import { refine, limit } from './subdiv.js';
 import { gapAt } from './table.js';
+import { CAGE_COUNT as COUNT } from './art.js';
 
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math.hypot(a[0], a[1], a[2]), norm = (a) => mul(a, 1 / (len(a) || 1));
@@ -26,10 +27,6 @@ const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; retu
 const smooth01 = (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 const rad = (deg) => deg * (Math.PI / 180), degOf = (r) => r / (Math.PI / 180);
 
-/** How many points a ring has: the trunk's (T), an arm's (A); how many edges cross under an armpit (KA) and under the
-    crotch (KC). The others follow, so that the rings meet point for point: the head's, the neck's and the shoulders' are
-    H = T + 2A - 4KA, a leg's L = T/2 + KC. */
-const COUNT = { T: 32, A: 20, KA: 6, KC: 4 };
 
 /** The shape as solids a ray can be sent through (each negative inside, metres): `body` the trunk, the legs and the
     head; `arm` the arms with their hands; `both` the two as one (the shoulders); `leg` the left leg alone; `any` the

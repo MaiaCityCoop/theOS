@@ -23,6 +23,7 @@
 //              points lie apart, whichever is more: what the page chooses a level by
 //     soles    where the feet meet the ground: the lowest points of the soles, each with the joint that carries it
 import { MARKS, SKIN, TONE } from './table.js';
+import { LIFT } from './art.js';
 import { earOf } from './ear.js';
 import { targetOf, tissueAt } from './target.js';
 import { cageOf, fitted, solidsOf } from './cage.js';
@@ -37,11 +38,6 @@ const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const smooth01 = (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 
-/** How much of the shape's finer form is laid back on the smooth surface, piece by piece: [the share of the way, the
-    furthest a point is moved (m)]; the head's from `neck` (m) up; the rest of the body's only where the fat and the
-    skin are thin over a bone (all of it under `thin[0]` m of them, none over `thin[1]`: the collarbone, the kneecap,
-    the shin, the ankle's and the wrist's knobs, the elbow), for under fat the skin lies smooth. */
-const LIFT = { head: [1, 0.012], hand: [0.9, 0.004], foot: [0.9, 0.004], body: [0.9, 0.006], thin: [0.0025, 0.0055], neck: 1.53 };
 
 export function skinOf(bones, M, { h = 0.006 } = {}) {
   const T = targetOf(bones, M, { h }), { P_, ARMS, RIG } = T;

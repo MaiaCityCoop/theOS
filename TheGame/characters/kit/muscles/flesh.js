@@ -27,7 +27,7 @@ import { SLOTS, COLS } from './layout.js';
 import { pxOn } from '../../../src/detail/measure.js';
 import { ERROR_PX } from '../../../src/detail/error.js';
 import { carriedBy, skinMaterial, eyeOpeningNode, mouthOpeningNode } from '../skin/light.js';
-import { EYE } from '../skin/table.js';
+import { EYE } from '../skin/art.js';
 import { teethOf } from '../skeleton/skull.js';
 import { rigOf } from '../skeleton/pose.js';
 

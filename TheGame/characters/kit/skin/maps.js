@@ -11,6 +11,7 @@
 //       furrows between its small fields and the pores where they meet. Red and green its slope (128: level), blue how
 //       deep it lies (255: the fields' tops).
 //   noise3(x, y, z) -> -1 … 1   a smooth noise of a place, for what varies over the body (./build.js: its tone)
+import { CURVE_MOST } from './art.js';
 
 /** How far light spreads under skin: six bells (variance in mm², and each colour's share), the fit to light measured
     through skin's three layers (d'Eon, Luebke & Enderton 2007, GPU Gems 3 ch. 14), as it stands in the shaders that
@@ -19,8 +20,6 @@ const SCATTER = [
   [0.0064, [0.233, 0.455, 0.649]], [0.0484, [0.100, 0.336, 0.344]], [0.187, [0.118, 0.198, 0.000]],
   [0.567, [0.113, 0.007, 0.007]], [1.99, [0.358, 0.004, 0.000]], [7.41, [0.078, 0.000, 0.000]],
 ];
-/** The sharpest curve the scatter map holds (1/mm): a rim 2 mm round. */
-export const CURVE_MOST = 0.5;
 
 export function scatterMap(w = 64, h = 32) {
   const data = new Uint8Array(w * h * 4), NA = 40, NB = 20;
