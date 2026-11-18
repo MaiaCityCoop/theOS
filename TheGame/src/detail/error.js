@@ -2,11 +2,11 @@
 // recipes' workers (the crowd kit, the surfaces' builder) here. A recipe's version holds it (tools/registry.js SHARED).
 //
 // An asset says only what it is at full detail. What stands in for it coarser is a rung (a first share of a crowd's
-// sprigs, its clumps, its impostor, a cluster's parent, a ring of wider blades, last of all nothing), and each rung
-// carries its error in object space: the farthest any of it lies from where the thing is, in metres, measured on the
-// thing itself. Nothing that builds a rung knows a pixel. Pixels exist only at runtime, and there is one definition of
-// them: the pixels drawn (the inside's, at the governor's ratio of the screen's: src/core/screen.js), through the
-// walker's 68° lens. One rule decides every switch of detail, at runtime:
+// sprigs, its clumps, its impostor, a cluster's parent, a ring of blades bent in fewer pieces, last of all nothing),
+// and each rung carries its error in object space: the farthest any of it lies from where the thing is, in metres,
+// measured on the thing itself. Nothing that builds a rung knows a pixel. Pixels exist only at runtime, and there is
+// one definition of them: the pixels drawn (the inside's, at the governor's ratio of the screen's: src/core/screen.js),
+// through the walker's 68° lens. One rule decides every switch of detail, at runtime:
 //
 //     e · pxK() / dist  ≤  ERROR_PX()        on the GPU: e · U.uPxK / dist ≤ U.uErrorPx (measure.js)
 //

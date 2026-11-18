@@ -33,7 +33,7 @@ that is the share `s` of a thing's size. Each rung comes in over the `BAND` abov
 | a plant's clumps | their bake's texel (`TILE` of them over a chunk's largest side) | `assets/kit/crowd.js` |
 | a plant's impostor, a made thing's card | its bake's texel (`CELL` of them over its sphere's width) | `assets/kit/crowd.js`, `index.js` |
 | a cluster's parent | the cluster's own error, from the simplifier and its lost vertices | `assets/kit/clusters.js` |
-| a ring of blades | how much wider its blades are than the blade | `src/scatter/grass.js` `ringsOf` |
+| a ring of blades (the blade in its own cells, as it is) | how far its fewer straight pieces miss the blade's curve | `src/scatter/grass.js` `ringsOf` |
 | nothing (a thing gone) | how far it stands off what stays: a plant its height over the land (which wears its stand's colour or its floor), a rock or a made thing all of it (`GONE`) | `assets/kit/plant.js` `goneOf`, `error.js` |
 
 ## The rule (one place each)
