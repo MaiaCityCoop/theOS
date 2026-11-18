@@ -1108,37 +1108,35 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
 - **Found:** the growth map was first keyed on the ground map's version, which ticks every frame of the meadow map's
   fade, so the whole map was worked out again in those frames: the first bench read 124–273 ms a view. It is keyed on
   the sandbox and the stage now.
-- **Measured** in headless Chrome on the MacBook, a 4K screen drawn at 2560 × 1440, against main on a server of its own,
-  fresh profiles. The GPU was shared with the stage 8 and 9 workers' gates all along, and ?truth lost the WebGPU device
-  at every view after 6b, main's and the branch's alike.
+- **Measured** in headless Chrome on the MacBook: a 4K screen drawn at 2560 × 1440, against main on a server of its own,
+  fresh profiles. The GPU was shared with the stage 8 and 9 workers' gates throughout.
   - **Pictures** (main above, the branch below): `stage7/` on the never-merged branch `aven/0038-shots`, linked on
-    PR #73. Under the crowns the floor is litter, ferns, herbs, moss, logs and stones where main's is a meadow; the
-    grass stays in the glades. The trees stand elsewhere: the canopy's cells are the rule's (9.9 m), not the old
-    stand's (10 m).
-  - **FLIP against main** (`d1c3805`), mean (p99 tile): tent at eye level 0.095 (0.90), pine forest at eye level 0.393
-    (0.93), pines from 10 m 0.427 (0.83). The forest is placed anew and grows a floor, so this measures the change,
-    not an error.
-  - **Against the truth:** not measured. After 6b every ?truth=300 frame was black (the device lost, on main too).
-    Before 6b the branch's own truth was taken at all four views, but its stills were lost to a dev server busy with a
-    build.
-  - **GPU, `gate.js bench`** (ms; the branch merged with 6b; main before 6b, from the first round, as main's own bench
-    after 6b never settled while the GPU was shared):
+    PR #73.
+    - Under the crowns the floor is litter, ferns, herbs, moss, logs and stones, where main's is a meadow. The grass
+      stays in the glades.
+    - The trees stand elsewhere: the canopy's cells are the rule's (9.9 m), not the old stand's (10 m).
+  - **FLIP against main** (`d1c3805`, the same game as `314e2e6`), the branch merged with 6b, mean (p99 tile):
 
-| View | Main (`3a2896a`) | Stage 7 (with 6b) |
-| --- | --- | --- |
-| Tent, eye level | 27.7 | 33.8 |
-| River bend, 26 m | 39.7 | 26.0 |
-| Town, 40 m | 35.3 | 28.9 |
-| Skyline, 2.5 km | 38.1 | 29.3 |
-| Pine forest, eye level | 108.8 | 61.8 |
-| Pine forest, 90 m | 82.4 | 35.5 |
+| View | FLIP against main |
+| --- | --- |
+| Tent, eye level | 0.095 (0.90) |
+| Pine forest, eye level | 0.393 (0.93) |
+| Pines from 10 m | 0.427 (0.83) |
+| Pines from 30 m | not measured: main's still never settled (its pages still out after 300 s, the device lost once before) |
 
-  - **The walk** (`gate.js paths --paths walk`; main `3a2896a` against the branch before 6b, the growth map's key
-    fixed): every frame over 16.7 ms on both, as on main under this load. Frame median and p99, ms, cold then warm:
-    main 150 / 267 and 50 / 183; the branch 50 / 67 and 50 / 83. GPU p99: main 204 and 51, the branch 52 and 53.
-    The whole browser's peak memory: main 5.36 GB, the branch 5.76 GB (+0.40), within 8 GB.
-  - **The stress world** (`--query stress`): before 6b, neither main nor the branch settled at the start within 300 s
-    (the device was lost on both).
+    The forest is placed anew and grows a floor, so this measures the change, not an error. The tent's p99 tile is
+    the trees and shrubs behind it, standing elsewhere.
+  - **Against the truth: it did not hold.** After 6b every ?truth=300 frame came out black, main's too (the device
+    lost). Before 6b the branch's own truth was taken at all four views, but its stills were lost to a dev server busy
+    with a build.
+  - **Borderline:**
+    - the tent's view changes behind the tent, not at it;
+    - the pines from 30 m are unmeasured;
+    - the meadow's blades under the crowns are gone, which Samuel should judge at eye level.
+  - **Memory:** the whole browser's peak over the walk was 5.36 GB on main and 5.76 GB on the branch (+0.40 GB), within
+    8 GB. That was taken before 6b, on the shared GPU. The growth map itself is 8 MB.
+  - **Timings are left to the Mac mini's unshared GPU:** the bench, the walk and the stress world's walk. Here the
+    stress world never settled at the start within 300 s, on main or on the branch.
   - `bun tools/scale.js`: 24 of 24 (the six new kinds among them). `bunx --bun vite build`: built. CI green.
 - **Lines:** +831 −331 in the game (net +500): the rule and the growth map +212 net in the engine, the six kinds,
   the floor kit and their registry rows +313.
@@ -1345,8 +1343,8 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
   - a plant's levels are its kind's, so no new asset file holds detail data;
   - under the crowns the floor is litter, ferns, herbs, logs and stones, not a meadow;
   - `bun tools/scale.js` 24 of 24.
-- **Not there yet:** no FLIP against the truth (the device was lost at every truth after 6b); the stress world did not
-  settle on this Mac, main's included; the rest under the stage's Not done.
+- **Not there yet:** no FLIP against the truth (black at every truth after 6b, main's too); the timings are left to
+  the Mac mini; the rest under the stage's Not done.
 
 ## Trail
 
