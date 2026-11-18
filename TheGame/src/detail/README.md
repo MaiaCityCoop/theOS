@@ -236,18 +236,20 @@ the next.
 
 **The one way to the screen** (`src/core/screen.js`). Every view's picture reaches the canvas the same way: the
 walker's, the virtual camera's through its lens, a film's, a still taken for a story. The world is drawn at the
-inside's pixels, each frame a part of a pixel aside from the last; where the camera brings a lens the frame is
-blurred by it (`src/camera/post.js`); and the screen's picture is kept from frame to frame and built from those
-frames (`src/core/temporal.js`): a screen pixel takes a frame's pixels in by how near they fell to it and keeps the
-rest from where its point lay a frame ago (found by the camera's own movement and the pixel's depth). Standing still
-it is the picture drawn at the screen's own pixels with its edges smoothed; no target is multisampled anywhere, and
+inside's pixels, each frame a part of a pixel aside from the last, in two passes (`src/core/pass.js`): a **prepass**
+that cuts out what is cut out (leaves) and writes the depth and each pixel's **motion** (where its point lay a frame
+ago: the camera's movement and the point's own, the wind's, growing; the previous position is the same stateless
+wind asked at the clock as it stood a frame ago), and the **colour**, drawn only where the prepass's depth is (an equal
+test, nothing cut: a tile GPU drops every hidden pixel before shading it), in the light's own numbers. Where the camera
+brings a lens the colour is blurred by it (`src/camera/post.js`); then **one pass** (`src/core/temporal.js`) brings it
+up to the screen's pixels, keeps the screen's picture from frame to frame (read back along each pixel's motion,
+pulled into the range of the drawn pixels round it), puts the screen's curve on it and the lens's glass, and writes
+the kept picture and the canvas together. Standing still it is the picture drawn at the screen's own pixels with its
+edges smoothed; swaying in the wind it is the same, its motion followed; no target is multisampled anywhere, and
 textures are read as finely as the screen's pixels would read them (`U.uFine`: the ground, the stand's things).
-What moves by itself cannot be followed, so **it says so**: the fourth number of its pixels is how still it is
-(`stillness(amount, where)` in `src/world/light.js`: a mover 0, a blade or a crown by how far it swings in the wind
-now, a flake by its own blending), and little is kept there: it is as sharp as one frame, not smeared. A new kind
-that moves by itself keeps this rule, or it leaves a trail. Three passes after the world's (the look at the inside's
-pixels; the build and the show at the screen's): what a screen pixel does is paid four and a half million times a
-frame, so the arithmetic lives in the look.
+A new kind that moves by itself works out where it was a frame ago in its vertex stage (`clipOf(w, was)`, from the
+same function of the clock), and takes part in the prepass (`userData.pre`); what moves and cannot say so (a mover on
+its skeleton, the fire, a flake) lowers its pixels' fourth number (the reactive mask), and is taken as it is drawn.
 
 ## A thing of its own: placed in numbers, its own state, its own look (intent 0029)
 

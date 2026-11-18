@@ -6,7 +6,7 @@
 // it. Nothing is drawn below the height where the plots start to show.
 import * as THREE from 'three/webgpu';
 import { Fn, attribute, positionGeometry, positionWorld, cameraPosition, vec3, float, uniform, smoothstep, length, varying } from 'three/tsl';
-import { airOf, CLOUD_H } from '../world/light.js';
+import { airOf, fromScreen, CLOUD_H } from '../world/light.js';
 import { U } from '../core/uniforms.js';
 import CITY from '../../world/city.js';
 import { heightAt } from '../world/land.js';
@@ -43,8 +43,9 @@ export function createCity({ scene, camera, canvas, renderer, compile = (o) => r
     const p = positionGeometry, col = attribute('aCol', 'vec4');
     if (ribbon) { const s = attribute('aSide', 'vec2'); m.positionNode = p.add(vec3(s.x, 0, s.y).mul(length(p.sub(cameraPosition)).mul(uW).mul(widen))); }   // a line as wide on the screen near and far
     // seen through the same air as the land under it (src/world/light.js: airOf): a cloud between the eye and the plot,
-    // or the haze far off, hides as much of the plot as of the ground
-    m.colorNode = col.rgb; m.opacityNode = col.a.mul(uOp).mul(varying(fadeFar(p))).mul(airK(positionWorld));
+    // or the haze far off, hides as much of the plot as of the ground. (Its colours are the screen's own: drawn into the
+    // world's frame, they are put back into the light's numbers, fromScreen)
+    m.colorNode = fromScreen(col.rgb); m.opacityNode = col.a.mul(uOp).mul(varying(fadeFar(p))).mul(airK(positionWorld));
     return m;
   }
   let plots = [], byId = new Map(), lineGeo, washGeo, picked = null, hover = null, ring = null, open = new Set([1, ...load('city.open', [])]), citizens = 0, card = null;
