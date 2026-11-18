@@ -1,7 +1,7 @@
 // Grass: instanced blades. A blade's place, height, bend, colour and dryness are hashed from its cell; its density comes
 // from the ground pass (ground.js); the wind bends it (windAt) and each blade flutters on its own. Rings round the
 // camera, made from the grass's blade alone (assets/grass.js: its full detail: ringsOf) and each where its own error is
-// the one ERROR_PX (bandsOf, as the measure is now): dense and fine close, fewer and wider further off.
+// the one ERROR_PX (bandsOf, as the measure is now): every blade as it is, in its own cells, its bends fewer further off.
 import * as THREE from 'three/webgpu';
 import { Fn, float, int, uint, vec2, vec3, vec4, If, min, uniform, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor, uintBitsToFloat, floatBitsToUint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
@@ -12,7 +12,6 @@ import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
 import { TRUTH, dialK } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
-import { CROWD } from '../../assets/kit/crowd.js';
 import { rankOf } from './rule.js';
 import { growthMap } from './growth.js';   // (a blade's turn in the one spread order, as everything placed has it)
 import { REACH } from './ground.js';
@@ -29,36 +28,39 @@ function blade(segs) {
   return g;
 }
 
-// The meadow is a crowd of blades (Ghost of Tsushima's grass; intent 0038): where fewer are drawn, those drawn are wider
-// by as much, so it covers the ground as before and keeps its height. Each ring's cells are wider than the last's, its
-// blades so many times fewer and as many times wider (ringsOf); and the last ring's blades are thinned out towards the
-// meadow's end, one spread order deciding which go (rankOf), those left growing in width up to SWELL times (endOf), never
-// in height.
+// The meadow is a crowd of blades (intent 0038), and thins as a crowd does (src/detail/error.js, as the plants'
+// sprigs): drawing a first share of it leaves a blade out as far from one drawn as the cells drawn stand apart, so a
+// share may be left out only where its cells stand under a dial pixel apart, which is where its blades end (bandsOf).
+// So no ring is fewer: every blade is drawn as it is, its own size in its own cells, the rings only bending it less
+// (ringsOf); over the BAND before the meadow's end its blades thin, one spread order deciding which go (rankOf), those
+// left as they are, the ground under them wearing the meadow's colour (endOf): never a blade swollen to stand for
+// others.
 /** The share of the last ring's blades still drawn at `dist` metres (all of it short of the BAND before the meadow's
     end, none at its end; T: a ring's numbers, uniforms). */
 const endOf = (T, dist) => float(1).sub(smoothstep(T.end.div(BAND), T.end, dist));
 
-/** The meadow's rings, made from its blade alone (assets/grass.js `blade`), near to far: { segs, cell, P, w, e }. Ring k's
-    cells are 2^(k/2) times the blade's, its blades halved in number ring by ring and as many times wider (w: half a
-    blade's width), so the meadow keeps its cover and its height. Its error e is how much wider its blades are than the
-    blade, w (2^k - 1); its bends as few as keep a blade's bow within it (a bow of b metres in n straight pieces misses
-    its curve by b / 4n²: the mean blade's, bladeIn's mean height 0.95 of the asset's, its bend 0.65, bowing 1.15 of that
-    at its tip). A ring is made while it can come in before the meadow is gone (bandsOf): while its error, a BAND over
-    it, is under the mean blade's height (leaving the blades out, where the ground under them wears the meadow's colour,
-    differs by that). The same at every measure: where each is drawn is bandsOf's. */
+/** The meadow's rings, made from its blade alone (assets/grass.js `blade`), near to far: { segs, cell, P, w, e }. Every
+    ring is the blade in its own cells (cell, w: half its width, as it is); ring k bends it in k fewer straight pieces
+    than the blade's segs. Its error e is how far that misses the blade's curve (a bow of b metres in n straight pieces
+    misses it by b / 4n²: the mean blade's, bladeIn's mean height 0.95 of the asset's, its bend 0.65, bowing 1.15 of
+    that at its tip). A ring is made while it can come in before the blades end (bandsOf), at any measure (both go as
+    K): while its error, a BAND over it, is under a cell (where the cells stand a dial pixel apart) and under the mean
+    blade's height (where it is gone). Where each is drawn is bandsOf's. */
 export function ringsOf(asset) {
-  const B = asset.blade, h = asset.height * 0.95, bow = h * 0.65 * 1.15, rings = [];
-  for (let k = 0, e = 0; e * BAND < h; e = B.w * (2 ** ++k - 1)) rings.push({ segs: k ? Math.min(B.segs, Math.max(1, Math.ceil(Math.sqrt(bow / (4 * e)) - 1e-9))) : B.segs, cell: B.cell * 2 ** (k / 2), P: B.P, w: B.w * 2 ** k, e });
+  const B = asset.blade, h = asset.height * 0.95, bow = h * 0.65 * 1.15, ends = Math.min(B.cell, h), rings = [];
+  for (let n = B.segs; n >= 1; n--) { const e = n === B.segs ? 0 : bow / (4 * n * n); if (e * BAND >= ends) break; rings.push({ segs: n, cell: B.cell, P: B.P, w: B.w, e }); }
   return rings;
 }
 /** Where the rings are drawn at a measure (K: dial pixels a metre covers at a metre: src/detail/measure.js dialK, the
     measure now), metres as the walker's 68° lens sees them: { end, bands: [{ near, nearFade, far, farFade }] a ring }.
     Ring k takes over where its error fits (e K: src/detail/error.js), its blades coming in over the BAND past there as
-    the ring before's go. The meadow ends where the ground's map does (ground.js REACH), or nearer where it is gone (its
-    mean blade's height fits), thinning over the BAND before its end; a ring that would only come in there draws nothing
-    (far 0). height: the asset's. */
+    the ring before's go. The meadow's blades end where their cells stand under a dial pixel apart (a cell covers
+    `cell K` dial pixels at a metre): past that a field of them cannot be told from a surface with the same statistics,
+    and nearer there no share of them may be left out (above); or nearer where the ground's map ends (ground.js REACH),
+    or where the mean blade is gone (its height fits). They thin over the BAND before their end; a ring that would only
+    come in there draws nothing (far 0). height: the asset's. */
 export function bandsOf(rings, height, K) {
-  const end = Math.min(REACH, height * 0.95 * K), at = (k) => rings[k].e * K, on = rings.map((_, k) => !k || at(k) * BAND < end);
+  const end = Math.min(REACH, height * 0.95 * K, rings[0].cell * K), at = (k) => rings[k].e * K, on = rings.map((_, k) => !k || at(k) * BAND < end);
   return { end, bands: rings.map((_, k) => {
     if (!on[k]) return { near: 0, nearFade: 0, far: 0, farFade: 0 };
     const next = on[k + 1] ? at(k + 1) : 0;
@@ -114,7 +116,7 @@ function bladeMaterial(T) {
       const pos = A.xy, hgt = A.w, ang = B.x, r1 = B.z, flower = B.w;
       const bend = B.y.add(clamp(snowDepth.mul(3), 0, 0.6));   // snow weighs the blades down: deep, they bow over
       const dir = vec2(cos(ang), sin(ang)), side = vec2(dir.y.negate(), dir.x);
-      const t = positionGeometry.y, s = positionGeometry.x, wd = T.w.mul(min(float(CROWD.SWELL), float(1).div(endOf(T, camDist(pos)).max(1e-3)))).mul(r1.mul(0.5).add(0.75)).mul(float(1).sub(t.mul(t).mul(0.8)));   // (w: its ring's half width; wider still as fewer are drawn towards the meadow's end)
+      const t = positionGeometry.y, s = positionGeometry.x, wd = T.w.mul(r1.mul(0.5).add(0.75)).mul(float(1).sub(t.mul(t).mul(0.8)));   // (w: its ring's half width; wider still as fewer are drawn towards the meadow's end)
       // the wind (src/world/light.js): the gust here, and each blade's own flutter, quicker and wider the harder it blows;
       // at the clock's time, and for the prepass at the clock as it stood a frame ago (where the blade was: its motion)
       const ws = windStrength, lean = t.mul(t).mul(1.1), fw = hgt.mul(bend).mul(t).mul(t).mul(1.15);   // long blades arc over
@@ -172,9 +174,9 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
       return m;
     };
     // a blade's box, for the eye's culling (src/core/occlusion.js): from its foot up its height, out as far as it bends
-    // (bowed deepest under snow) and its widest (its ring's half width, wider by as much as it thins); the wind leans its
-    // tip its height a unit of the wind's push (bladeMaterial: never more than 1.25 of it)
-    const wide = R.w * CROWD.SWELL * 1.25;
+    // (bowed deepest under snow) and its widest (its half width, at most 1.25 of the blade's: bladeMaterial); the wind
+    // leans its tip its height a unit of the wind's push (bladeMaterial: never more than 1.25 of it)
+    const wide = R.w * 1.25;
     const bounds = (A, B) => { const h = A.w, reach = h.mul(B.y.add(0.6).mul(1.15)).add(wide + 0.02); return { c: vec3(A.x, A.z.add(h.mul(0.5)), A.y), h: vec3(reach, h.mul(0.5).add(0.02), reach), w: h.mul(1.1) }; };
     const t = new Tier(scene, blade(R.segs), material, { cell: R.cell, P: R.P, near: 0, far: 0, order: 0, found, select, metres: true, gpu, slots: 3, bounds });
     t.band = () => {   // (its band as the measure is now: tier.js reckons every tier's again when it changes)
