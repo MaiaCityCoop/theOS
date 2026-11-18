@@ -59,7 +59,11 @@ On day one, 75,000 HEARTS go in (the city coop and the village coop). The other 
 - **The circle:** rent and food money are the village coop's turnover; half of it flows straight back to its MINDS holders, the citizens, who pay rent and food with it again.
 - **Personal HEARTS are for investing** (they buy MINDS and become city HEARTS in a coop's treasury); living costs are paid only in city HEARTS, from proposals or payouts.
 - **A free citizen** is one whose MINDS payouts cover their rent and food: they no longer need to make proposals to live. How many are free is the game's proof of a post-labour economy.
-- **The gate:** city HEARTS and € meet in the city coop's liquidity pool. € come in from investors and exports; € go out for imports at the market interface.
+- **Your harvest is income.** Every citizen sells what they harvest back to **their own village coop's market**, for city HEARTS. The daily harvest is tied straight into the economy.
+- **Prices:** the village coop sets rent and food prices. **Anything imported, food or goods, is resold at a markup of at least 10%.**
+- **Governance:** every village coop and the city coop has **its own governance model**, which sets its decision logic locally: who accepts work proposals, how prices are set, what is founded next.
+- **The gate:** city HEARTS and € meet in the city coop's liquidity pools, an **automated market maker**: prices move by supply and demand. **Only coops may pass the gate**; citizens never hold €. € come in from investors and exports; € go out for imports at the market interface.
+- **Bootstrap liquidity:** the city coop keeps a small pool for every coop, about **10% of that coop's MINDS supply**, matched with an initial amount of city HEARTS. It is **protocol-owned and one-way**: it never leaves the pool, unless the coop is liquidated.
 
 ### The funding curve
 
@@ -186,6 +190,6 @@ The numbers the game publishes, the proof:
 ## Open
 
 - Insolvency in full.
-- The gate's price (set by the pool or by the city coop), who may pass it, how rent and food prices are set, who accepts work proposals, and whether a citizen's own harvest counts against their food money.
+- Each coop's governance model, in detail.
 - The ladder's percentages (food, energy, climate) and the plants per dome size with their real growing cycles: to be tuned, and sourced before they are shown as fact.
 - Real-world numbers (dome yields, solar output, market prices) need sources before they are shown as fact.
