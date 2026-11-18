@@ -232,6 +232,16 @@ with a choice of **hairstyles** and of **colours** (hair, skin, eyes), picked in
   called from this environment (no key, hosts not allowed), so nothing was generated. Nothing was seen on a real
   GPU. Define still holds the first plan, set aside, and waits for Samuel's choice of a way.
 
+### 2026-11-18, VALID looked at closer; a recommendation asked for
+
+- **Asked.** Samuel, on the sheets: "Ok, is there also a three.js-based avatar editor/creator? That lets us adjust
+  appearance? VALID looks the most promising so far. Can we learn anything else from this? https://img2threejs.io"
+  and then: "Don't start yet. With all the new insights what do you recommend?" (typos tidied).
+- **Delivered.** Nothing built. Two things checked and added to the note: VALID's four fetched figures share one
+  mesh and one UV layout, the same 65 shapes and 84 bones (an earlier count of some 500 bones was the loader's and
+  is corrected); and img2threejs read from its repository. The recommendation was given to Samuel in words; Define
+  is not rewritten until he says which way.
+
 ## Trail
 
 | When | Commit | What |
