@@ -579,15 +579,17 @@ export function groupsOf(rows) {
   return [...by.values()].map((G) => offsets(cutOf({ ...G, kinds: G.kinds.sort((x, y) => x.e.i - y.e.i) })));
 }
 const offsets = (G) => { let at = 0; return { ...G, kinds: G.kinds.map((Kd) => { const k = { ...Kd, offset: at }; at += Kd.shapes; return k; }), meshes: at }; };
-/** A group's levels cut as one (groupsOf): its kinds' own levels (all alike: their rooms by shape and level, assets/kit/
-    tree.js crowdRooms), each run of them that holds the same for every shape one level, [lo, hi] its run's ends, its
-    rooms its run's first's; and its patches (patchOf). Every kind's levels are then the group's (Kd.levels, Kd.rooms). */
+/** A group's levels cut as one (groupsOf): its kinds' own levels (all alike but the last's end: their rooms by shape and
+    level, assets/kit/tree.js crowdRooms), each run of them that holds the same for every shape one level, [lo, hi] its
+    run's ends (the last down to where the last of its kinds is gone), its rooms its run's first's; and its patches
+    (patchOf). Every kind's levels are then the group's (Kd.levels, Kd.rooms). */
 function cutOf(G) {
   const own = G.kinds[0].row.detail.levels, R = G.kinds.map((Kd) => Kd.asset.crowdRooms().slice(0, Kd.shapes)), runs = [];
   const alike = (l) => R.every((rooms) => rooms.every((r) => r[l][0] === r[l + 1][0] && r[l][1] === r[l + 1][1]));
   for (let l = 0; l < own.length; l++) { if (runs.length && alike(l - 1)) runs.at(-1).to = l; else runs.push({ from: l, to: l }); }
+  const end = Math.min(...G.kinds.map((Kd) => Kd.row.detail.levels.at(-1).lo));
   const sHi = Math.max(...G.kinds.map((k) => k.hi)), K = pxK(Math.max(globalThis.innerHeight || 0, 1440));   // (a window as tall as a 1440p one, or taller: its patches hold the band then too)
-  const levels = runs.map(({ from, to }, i) => { const lo = own[to].lo, hi = own[from].hi; return { lo, hi, from, P: patchOf(G.L.cell, (sHi * K * Math.exp(G.fade)) / lo) }; });
+  const levels = runs.map(({ from, to }, i) => { const lo = to === own.length - 1 ? end : own[to].lo, hi = own[from].hi; return { lo, hi, from, P: patchOf(G.L.cell, (sHi * K * Math.exp(G.fade)) / lo) }; });
   return { ...G, n: levels.length, kinds: G.kinds.map((Kd, k) => ({ ...Kd, levels, rooms: R[k].map((r) => levels.map((L) => r[L.from])) })) };
 }
 /** A level's patch (its tier's cells a side, of cells `cell` metres): as many that MAXP of them hold the round its band

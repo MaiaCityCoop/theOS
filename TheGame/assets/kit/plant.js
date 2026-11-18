@@ -107,9 +107,9 @@ export const goneOf = (a) => {
   return goneAt(e || 1);
 };
 /** The sizes on screen each level of a plant is drawn between, finest first: [lo, hi]. Everything's levels' sizes
-    (src/detail/error.js rungPx), down to the one its end falls in (it is gone at that level's least, a little after its
-    own end). A stand cuts its kinds' levels as one (src/scatter/trees.js groupsOf), where they hold the same. */
-export const bandsOf = (a) => Array.from({ length: rungAt(goneOf(a)) + 1 }, (_, l) => [rungPx(l), l ? rungPx(l - 1) : Infinity]);
+    (src/detail/error.js rungPx), down to the one its end falls in, the last drawn down to its end. A stand cuts its
+    kinds' levels as one (src/scatter/trees.js groupsOf), where they hold the same. */
+export const bandsOf = (a) => { const g = goneOf(a), last = rungAt(g); return Array.from({ length: last + 1 }, (_, l) => [l === last ? g : rungPx(l), l ? rungPx(l - 1) : Infinity]); };
 /** How large shape `shape` of a plant is at scale 1, as its size on screen is measured (src/scatter/trees.js sizeAtOne). */
 export const shapeSize = (a, shape) => { const H = a.size.height, S = a.growth?.stages?.find((x) => shape >= x.offset && shape < x.offset + x.variants); return (S ? a.heights?.[shape] ?? S.h : H) * (kindRule(a, 'measure') === 'height' ? 1 : Math.max(most(a.size.length), most(a.size.width ?? 0), most(H)) / H); };
 const BUILT = new Map();   // (the last few shapes built: a kind's levels are asked for one after another)
