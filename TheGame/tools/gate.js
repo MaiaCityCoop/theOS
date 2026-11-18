@@ -62,6 +62,7 @@ import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { VIEWS, PATHS } from './gate/views.js';
+import { FIRST_FRAME } from '../src/core/marks.js';
 import { CLASSES, classOf, CLASS_NAMES } from './bench.js';
 import { FRAME_MS as BUDGET, MEMORY, BUDGET_MB, FRAME_MS_BY_CLASS } from '../src/core/budget.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
@@ -112,6 +113,16 @@ async function open(ctx, { path = '', query = '', init = null, wait = null } = {
 }
 /** In the page: the world's ready (where it has one), then window.__game.settle(); how long that took (ms), what
     settle() said, and when it was (ms since the page began). An error after `wait` ms. */
+/** In the page: the first frame that draws the world (the game's own mark, src/core/marks.js), ms from the navigation's
+    start, and what was loaded before it: the bytes over the wire of the page and every resource that had come by then
+    (transferSize: what a cache served is not counted), and how many files. None where the game set no mark. */
+function firstFrame({ name }) {
+  const m = performance.getEntriesByName(name)[0];
+  if (!m) return null;
+  const came = [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')].filter((e) => e.responseEnd <= m.startTime);
+  return { ms: m.startTime, bytes: came.reduce((s, e) => s + (e.transferSize || 0), 0), files: came.length };
+}
+const firstSaid = (F) => (F ? `${(F.ms / 1000).toFixed(1)} s, ${(F.bytes / 1e6).toFixed(1)} MB loaded before it (${F.files} files)` : 'not marked');
 async function settled({ wait, at }) {
   const s = window.__game, C = window.__gateClock, t0 = Date.now(), late = new Promise((_, no) => setTimeout(() => no(new Error(`window.__game.settle() did not resolve in ${wait / 1000} s at ${at}`)), wait + 10e3));
   // (the page on the gate's clock, tools/gate/clock.js: its frames drawn here, one after another, the clock standing,
@@ -485,6 +496,7 @@ async function travel(ctx, list, mem) {
       mem.phase = p.name;
       out.paths[p.name] = { secs: c.secs, ...told(await page.evaluate(ride, { fly: !!p.flyby })), memory: await page.evaluate(() => { const L = window.__memory?.(); return L ? { classes: L.classes, gpu: L.gpu, device: L.device, unnoted: L.unnoted } : null; }) };   // (the GPU's memory by class, as the path ends)
     }
+    out.first = await page.evaluate(firstFrame, { name: FIRST_FRAME });   // (by now long set: read once the paths are ridden)
   } finally { out.errors = errors; said(errors); await close(); }
   return out;
 }
@@ -508,6 +520,7 @@ async function paths(opt) {
   const most = out.cold.memory.peak.bytes >= out.warm.memory.peak.bytes ? out.cold.memory.peak : out.warm.memory.peak;
   if (most.bytes > MEMORY) fails.push(`memory ${gb(most.bytes)}`);
   console.log(`  the world settled where it starts in ${(out.cold.start.ms / 1000).toFixed(1)} s cold, ${(out.warm.start.ms / 1000).toFixed(1)} s warm`);
+  console.log(`  the first frame that draws the world: cold ${firstSaid(out.cold.first)}; warm ${firstSaid(out.warm.first)}`);
   console.log(`  the most memory, ${out.cold.memory.measure}: ${gb(most.bytes)}, ${most.phase} (${Object.entries(most.by ?? {}).map(([k, b]) => `${k} ${gb(b)}`).join(', ')}); resident, at most ${gb(Math.max(out.cold.memory.rss, out.warm.memory.rss))}`);
   if (!out.cold.paths[list[0].name].gpu) console.log('  (no GPU times: the page had no timestamp queries)');
   memoryTable(Object.fromEntries(list.flatMap((p) => ['cold', 'warm'].map((cache) => [`${p.name}, ${cache}`, out[cache].paths[p.name].memory ?? null]))));
