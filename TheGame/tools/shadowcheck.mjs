@@ -4,7 +4,8 @@
 // 1920 × 1080, the world settled at each view as the gate poses it (tools/gate/views.js: the bench's tent and pine
 // forest at eye level, 11:00, no wind, no clouds). At each view:
 //   still     the picture, as the gate takes it (<out>/<view>.png)
-//   layers    each layer of the cascades read back (copyTextureToBuffer): how many texels something was drawn into
+//   layers    each layer of the cascades read back (copyTextureToBuffer, its rows padded to WebGPU's pitch: readback):
+//             how many texels something was drawn into
 //   floor     a grid of floor points round the eye (41 × 41, 0.75 m apart), each through the near cascade's matrix to
 //             its texel: in shade where the layer holds something nearer the light than it (the CPU's reading)
 //   receiver  the same points through the light's own code on the GPU (src/world/light.js shadowAt, shadowAtOne and
@@ -34,6 +35,22 @@ const OUT = arg('out', new URL('../.gate/shadowcheck/', import.meta.url).pathnam
 mkdirSync(OUT, { recursive: true });
 
 // ---- in the page ----
+/** Into the page: window.__readLayer(tex, S, k), layer k of the cascades read back as S × S depths, row by row. WebGPU
+    copies a texture into a buffer only by rows a multiple of 256 bytes apart (bytesPerRow), and S is derived
+    (src/world/shadow.js useCascades), no power of two: each row is copied padded to that pitch and read back by it. */
+function readback() {
+  window.__readLayer = async (tex, S, k) => {
+    const dev = window.__game.renderer.backend.device, pitch = Math.ceil((S * 4) / 256) * 256, row = pitch / 4;   // (bytes a row, padded; its floats)
+    const buf = dev.createBuffer({ size: pitch * S, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }), enc = dev.createCommandEncoder();
+    enc.copyTextureToBuffer({ texture: tex, origin: { x: 0, y: 0, z: k }, aspect: 'depth-only' }, { buffer: buf, bytesPerRow: pitch, rowsPerImage: S }, { width: S, height: S, depthOrArrayLayers: 1 });
+    dev.queue.submit([enc.finish()]); await buf.mapAsync(GPUMapMode.READ);
+    const raw = new Float32Array(buf.getMappedRange()), a = new Float32Array(S * S);
+    for (let y = 0; y < S; y++) a.set(raw.subarray(y * row, y * row + S), y * S);
+    buf.unmap(); buf.destroy();
+    return a;
+  };
+}
+
 /** The camera to a view (as tools/gate.js aim does) and the world settled there. */
 async function aim(v) {
   const R = performance.getEntriesByType('resource').map((e) => e.name), mod = (part) => import(R.filter((n) => n.includes(part)).at(-1));
@@ -51,17 +68,14 @@ async function look({ N, step }) {
   const R = performance.getEntriesByType('resource').map((e) => e.name), mod = (re) => import(R.filter((n) => re.test(n)).at(-1));
   const THREE = await mod(/three_webgpu\.js/), T = await mod(/three_tsl\.js/);
   const { U } = await mod(/src\/core\/uniforms\.js/), L = await mod(/src\/world\/light\.js/), { heightAt } = await mod(/src\/world\/land\.js/);
-  const g = window.__game, renderer = g.renderer, dev = renderer.backend.device, rt = g.light?.shadows?.target, lay = g.light?.shadows?.layout;
+  const g = window.__game, renderer = g.renderer, rt = g.light?.shadows?.target, lay = g.light?.shadows?.layout;
   if (!rt?.depthTexture?.isArrayTexture) return { cascades: 'none: this build has no cascades of stage 9 (the still alone)' };
   const tex = renderer.backend.get(rt.depthTexture).texture, S = rt.depthTexture.image.width, eye = g.camera.position.clone();
   const out = { cascades: `${tex.width}x${tex.height}x${tex.depthOrArrayLayers} ${tex.format}`, bound: U.tShadow.value === rt.depthTexture, on: U.uShadowOn.value, half: lay.half.map((h) => +h.toFixed(2)), texel: lay.texel.map((t) => +t.toFixed(4)), pen: +U.uShadowPen.value.toFixed(3), sunDir: U.uSunDir.value.toArray().map((v) => +v.toFixed(3)), layers: [] };
   // each layer as it is now
   const layers = [];
   for (let k = 0; k < tex.depthOrArrayLayers; k++) {
-    const buf = dev.createBuffer({ size: S * S * 4, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }), enc = dev.createCommandEncoder();
-    enc.copyTextureToBuffer({ texture: tex, origin: { x: 0, y: 0, z: k }, aspect: 'depth-only' }, { buffer: buf, bytesPerRow: S * 4, rowsPerImage: S }, { width: S, height: S, depthOrArrayLayers: 1 });
-    dev.queue.submit([enc.finish()]); await buf.mapAsync(GPUMapMode.READ);
-    const a = new Float32Array(buf.getMappedRange().slice(0)); buf.unmap(); buf.destroy();
+    const a = await window.__readLayer(tex, S, k);
     let drawn = 0, least = 1; for (let i = 0; i < a.length; i++) { if (a[i] < 1) drawn++; if (a[i] < least) least = a[i]; }
     layers.push(a); out.layers.push({ layer: k, drawn: +(drawn / a.length).toFixed(4), least: +least.toFixed(5) });
   }
@@ -126,17 +140,13 @@ async function errorsOver() {
 
 /** The near layer's texels drawn with the tiers' culling off, then on again. */
 async function unculled() {
-  const o = window.__occlusion, g = window.__game, renderer = g.renderer, dev = renderer.backend.device, rt = g.light?.shadows?.target;
+  const o = window.__occlusion, g = window.__game, renderer = g.renderer, rt = g.light?.shadows?.target;
   if (!o || !rt?.depthTexture?.isArrayTexture) return null;
   const was = o.mode; o.mode = 0;
   try {
     for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
     const tex = renderer.backend.get(rt.depthTexture).texture, S = rt.depthTexture.image.width;
-    const buf = dev.createBuffer({ size: S * S * 4, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }), enc = dev.createCommandEncoder();
-    enc.copyTextureToBuffer({ texture: tex, origin: { x: 0, y: 0, z: 0 }, aspect: 'depth-only' }, { buffer: buf, bytesPerRow: S * 4, rowsPerImage: S }, { width: S, height: S, depthOrArrayLayers: 1 });
-    dev.queue.submit([enc.finish()]); await buf.mapAsync(GPUMapMode.READ);
-    const a = new Float32Array(buf.getMappedRange()); let drawn = 0; for (let i = 0; i < a.length; i++) if (a[i] < 1) drawn++;
-    buf.unmap(); buf.destroy();
+    const a = await window.__readLayer(tex, S, 0); let drawn = 0; for (let i = 0; i < a.length; i++) if (a[i] < 1) drawn++;
     return { mode: was, nearDrawnUnculled: +(drawn / (S * S)).toFixed(4) };
   } finally { o.mode = was; for (let i = 0; i < 2; i++) await new Promise(requestAnimationFrame); }
 }
@@ -166,6 +176,7 @@ try {
     s.governor.hold(true); s.governor.rest?.(); s.screen.set(1); window.__cine.dof = false;
     s.renderer.backend.device.addEventListener('uncapturederror', (e) => (window.__gpuErrors ||= []).push(`uncaptured: ${e.error.message.slice(0, 400)}`));
   });
+  await page.evaluate(readback);
   for (const v of views) {
     await page.evaluate(aim, v);
     const png = await page.evaluate(() => window.__cine.still()), file = `${OUT}${v.name}.png`;
