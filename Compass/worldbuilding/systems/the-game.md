@@ -28,7 +28,7 @@ What the game proves, in real numbers: a post-labour economy that runs on **owne
 
 | | Amount | Rules |
 | --- | --- | --- |
-| **In-game €** | €12,500 per citizen at the start | Invested once, into the city coop: every founder's share of the land |
+| **In-game €** | €10,000 per citizen at the start | Invested once, half each: €5,000 into the city coop (a founder's share of the land) and €5,000 into the village coop |
 | **Personal HEARTS** | 125,000 at the start, plus 24 a day | 7% demurrage a year. 7% of 125,000 is 8,750 a year, about 24 a day: the daily HEARTS hold an idle balance level, so only investing gets anyone ahead |
 | **City HEARTS** | What personal HEARTS become when invested in a coop | Sit in that coop's treasury. Backed by the city's liquidity pool, so they are the game's most valuable currency |
 | **MINDS** | Ownership stake in one coop (*Solar MINDS*, *Food Dome MINDS*, *Maia City MINDS*, …) | Bought on the coop's funding curve |
@@ -41,7 +41,8 @@ Every citizen's start is invested the same way, so wealth is split across real c
 
 | Amount | Into | What it gives |
 | --- | --- | --- |
-| €12,500 | The city coop | A founder's share of the land |
+| €5,000 | The city coop | A founder's share of the land |
+| €5,000 | Their village coop | A founder's share of the village |
 | 50,000 HEARTS | The city coop | A share of the land's infrastructure and the liquidity pool |
 | 25,000 HEARTS | Their village coop | A share of the village's buildings |
 | 50,000 HEARTS | 5,000 each into **10 city-wide coops**, founded by citizens and **unlocked one after another as the villages reach their milestones** | A spread of MINDS across the city's startups |
@@ -140,7 +141,7 @@ A village climbs by **Fibonacci gates in villagers**, through four phases. **The
 
 - **Room for everyone, always:** the living domes hold 416 people at 377, 656 at 610, 1,040 at 987 and 1,616 at 1,597.
 - **The € figures are rough estimates** (2025–26 market levels for tents, domes, containers, geothermal and computing), for sizing the game; each needs a real quote before it is shown as fact. The percentages are design values, to tune.
-- **The 49% cap:** citizens pay in about €20M by 1,597 against about €300M invested, so their 51% holds only because their stake is valued through the HEARTS–€ pool, as treasury wealth.
+- **The 49% cap:** citizens pay in about €16M by 1,597 (€8M to the village coop) against about €300M invested, so their 51% holds only because their stake is valued through the HEARTS–€ pool, as treasury wealth.
 - Phases 2 to 4 are one gate each and long to build; their build steps (drilling begins, plant online, tower shell, server farm online) may become sub-milestones.
 
 ### The race
