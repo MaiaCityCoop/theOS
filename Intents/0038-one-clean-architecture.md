@@ -290,6 +290,39 @@ Three research rounds, each read against this definition. Sources marked † wer
   - the truth is supersampled;
   - the gate waits for `ready`.
 
+### Stage 6a: the ground laid from a layer map (2026-11-17)
+
+Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
+
+- **What the 390 KB shader was.** The gate's compile names it: the two-output pass of `src/scatter/ground.js` (the
+  blades' map), not the land's material. The land was 240 KB (vertex) and 151 KB (fragment). All three are cut here.
+- **The layer map** (`src/terrain/layers.js`, after Etienne, CoD 2023). A clipmap round the camera: ten levels of 512²
+  texels, from 0.25 m to 128 m a texel, kept toroidally. As the camera moves, only the rows and columns a window comes
+  onto are worked out, on the GPU, by one compute pass of the biomes' own rules. A texel is 20 bytes: the four strongest
+  layers (a byte each, so up to 255 layers, numbered in the order they are laid) and their shares; the carpet's cover
+  near, between and far; the macro variation; the two thickest stands (cover and crown pattern); the grass's tint. That
+  is 52 MB.
+- **The fragment** reads the four texels round its point (eight over the last 15 % before the next level), sums them
+  into at most five layers (the fifth is the base's rock on what is too steep, from the pixel's own slope), and lays
+  them in order, the higher winning at a seam, with the carpet among them. Each material is read once. Near, it is
+  hex-tiled (Mikkelsen, JCGT 2022: offsets, not turned, hexagons two tiles across). Past 240–320 m it is one read pushed
+  about by a slow wave, as the old far end did. Its size no longer grows with the biomes or the materials.
+  - Turned hexagons were tried and dropped: sand ripples became a basket weave.
+  - One-tile hexagons broke the ripples every tile; two tiles match the patches the two takes made.
+- **Shader functions.** The land's noises, the hash, the height and the river's carve and bank are now functions of
+  the shader's own (layouts), written once in a shader. What reads a uniform (the river) stays inline: three r187 names
+  a uniform inside such a function apart from the shader's own, and the shader does not compile.
+- **Deleted:** the per-biome code generation in `compose`, the vertex's shares and spots lanes, the second take and its
+  noise mask, the far wobble's two noise reads, and the second tile size in every biome (it only scaled the second
+  take). The dry land's spots now say their fade as data.
+- **A gate fix.** The stills froze the governor's detail cap wherever the start's slow frames had left it. A faster
+  build therefore drew grass blades to 120 m where the baseline did not: 0.14 FLIP for that alone. `governor.rest()` now
+  puts the cap back where it starts. The baseline was re-shot so (`base3`).
+- **Not built: the deferred ground pass.** The land is already drawn after every opaque thing (render order 10), so its
+  fragment runs only where it shows. What a deferred pass would save is the overshading of thin far triangles at eye
+  level, against a split of the scene's one render (the bench, the library and the films draw it with one call) and a
+  G-buffer or depth reconstruction. It comes with 6b, where the virtual texture's feedback wants a screen pass anyway.
+
 ## Propose
 
 ## Story

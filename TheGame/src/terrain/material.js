@@ -1,15 +1,15 @@
 // The ground's material (node code): one grid tile per quadtree node (terrain.js), raised to the land in the vertex
 // stage and morphed towards the coarser grid at its edge; in the fragment, the layers the layer map says lie here
 // (src/terrain/layers.js: worked out once for a stretch of land from the biomes' rules), at most five, each one read of
-// its material hex-tiled so nothing repeats, laid over each other in their order, the higher winning at a seam; the
+// its material (hex-tiled near, so nothing repeats), laid over each other in their order, the higher winning at a seam; the
 // grass's carpet among them; lit by the shading contract. Its size is one, whatever the biomes and their materials.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, Loop, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2 } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, sin, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { TRUTH } from '../detail/measure.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
 import { layersAt, layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND } from './layers.js';
-import { finish, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
+import { finish, ign, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 
 export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
 /** How many times as far every level of the land reaches but the last (whose reach is where the land ends): 1, and under
@@ -23,32 +23,38 @@ export function gridPoint() {
   return node.xy.add(g.sub(fract(g.mul(0.5)).mul(2).mul(k)).mul(cell));
 }
 
-// Hex-tiling (Mikkelsen, "Practical Real-Time Hex-Tiling", JCGT 2022): the plane in hexagons two tiles across (as large
-// as the patches the two takes made, so a ripple runs on), each reading the tile at its own random offset (not turned: a
-// ground's grain, a ripple of sand, keeps its way across them),
-// one read a material where it was read in two takes mixed by a noise until 2026-11-17. Across their edges they blend by
-// how near each is, the higher texel winning, so a seam follows what lies in the ground. The blend is sharp: most of a
-// hexagon reads its own offset alone. m: a material (its number, or its recipe or uid); p: the point (metres); dx, dy:
-// how far apart its neighbouring pixels' points are; tile: metres a tile. -> { c: its colour (linear), h: its height,
-// n: its relief (the normal's x, z) }
+// A ground's material, read once (where it was read in two takes mixed by a noise until 2026-11-17). m: a material (its
+// number, or its recipe or uid); p: the point (metres); dx, dy: how far apart its neighbouring pixels' points are; tile:
+// metres a tile; near: read hex-tiled. -> { c: its colour (linear), h: its height, n: its relief (the normal's x, z) }
+//   near  hex-tiling (Mikkelsen, "Practical Real-Time Hex-Tiling", JCGT 2022): the plane in hexagons two tiles across (as
+//         large as the patches the two takes made, so a ripple runs on), each reading the tile at its own random offset
+//         (not turned: a ground's grain keeps its way across them). Across their edges they blend by how near each is,
+//         the higher texel winning, so a seam follows what lies in the ground; the blend is sharp: most of a hexagon reads
+//         its own offset alone
+//   far   (past 240 to 320 m, where a hexagon is a few pixels and every pixel would read all three) one read, its tile
+//         pushed about by a slow wave a few metres deep, so from high up there is no grid of the same tile
 const CELL = 2;   // a hexagon's size in tiles
-function hexRead(tex, m, p, dx, dy, tile) {
-  const q = p.div(tile), gx = dx.div(tile), gy = dy.div(tile);
-  const s = q.mul((2 * Math.sqrt(3)) / CELL), sk = vec2(s.x.sub(s.y.mul(0.57735027)), s.y.mul(1.15470054)), base = floor(sk), f = sk.sub(base);
-  const z = float(1).sub(f.x).sub(f.y), up = z.lessThan(0).select(float(1), float(0)), sg = up.mul(2).sub(1);
-  const w = vec3(z.negate().mul(sg), up.sub(f.y.mul(sg)), up.sub(f.x.mul(sg))).toVar(), w2 = w.mul(w), b0 = w2.mul(w2).mul(w2).mul(w);   // (each hexagon's nearness to the 7th: a sharp blend)
-  const b = b0.div(b0.x.add(b0.y).add(b0.z)).toVar(), corners = [vec2(up, up), vec2(up, float(1).sub(up)), vec2(float(1).sub(up), up)];
-  const c = vec3(0).toVar(), h = float(0).toVar(), n = vec2(0).toVar(), sum = float(0).toVar();
-  for (let i = 0; i < 3; i++) {
-    const bi = [b.x, b.y, b.z][i];
-    If(bi.greaterThan(0.02), () => {   // (a hexagon all but out of the blend: not read)
-      const v = base.add(corners[i]), r = hashI(int(v.x), int(v.y), uint(91)), uv = q.add(vec2(float(r.bitAnd(uint(0xffff))), float(r.shiftRight(uint(16)))).mul(1 / 65536));
-      const a = tex.a(m, uv).grad(gx, gy), k = bi.mul(a.a.mul(0.6).add(0.4));   // (the higher texel weighs more: Mikkelsen's contrast, by height)
-      c.addAssign(a.rgb.mul(a.rgb).mul(k)); h.addAssign(a.a.mul(k)); n.addAssign(tex.n(m, uv).grad(gx, gy).xy.mul(2).sub(1).mul(k)); sum.addAssign(k);
-    });
-  }
-  const inv = float(1).div(max(sum, 1e-5));
-  return { c: c.mul(inv), h: h.mul(inv), n: n.mul(inv) };
+const wob = (p) => vec2(sin(p.x.mul(1 / 131).add(sin(p.y.mul(1 / 157)))), sin(p.y.mul(1 / 149).add(sin(p.x.mul(1 / 173)).add(1.3)))).mul(4.5);
+function groundRead(tex, m, p, dx, dy, tile, near) {
+  const q = p.div(tile), gx = dx.div(tile), gy = dy.div(tile), c = vec3(0).toVar(), h = float(0).toVar(), n = vec2(0).toVar();
+  const far = () => { const uv = p.add(wob(p)).div(tile), a = tex.a(m, uv).grad(gx, gy); c.assign(a.rgb.mul(a.rgb)); h.assign(a.a); n.assign(tex.n(m, uv).grad(gx, gy).xy.mul(2).sub(1)); };
+  if (near === false) { far(); return { c, h, n }; }
+  If(near, () => {
+    const s = q.mul((2 * Math.sqrt(3)) / CELL), sk = vec2(s.x.sub(s.y.mul(0.57735027)), s.y.mul(1.15470054)), base = floor(sk), f = sk.sub(base);
+    const z = float(1).sub(f.x).sub(f.y), up = z.lessThan(0).select(float(1), float(0)), sg = up.mul(2).sub(1);
+    const w = vec3(z.negate().mul(sg), up.sub(f.y.mul(sg)), up.sub(f.x.mul(sg))).toVar(), w2 = w.mul(w), b0 = w2.mul(w2).mul(w2).mul(w);   // (each hexagon's nearness to the 7th: a sharp blend)
+    const b = b0.div(b0.x.add(b0.y).add(b0.z)).toVar(), corners = [vec2(up, up), vec2(up, float(1).sub(up)), vec2(float(1).sub(up), up)], sum = float(0).toVar();
+    for (let i = 0; i < 3; i++) {
+      const bi = [b.x, b.y, b.z][i];
+      If(bi.greaterThan(0.02), () => {   // (a hexagon all but out of the blend: not read)
+        const v = base.add(corners[i]), r = hashI(int(v.x), int(v.y), uint(91)), uv = q.add(vec2(float(r.bitAnd(uint(0xffff))), float(r.shiftRight(uint(16)))).mul(1 / 65536));
+        const a = tex.a(m, uv).grad(gx, gy), k = bi.mul(a.a.mul(0.6).add(0.4));   // (the higher texel weighs more: Mikkelsen's contrast, by height)
+        c.addAssign(a.rgb.mul(a.rgb).mul(k)); h.addAssign(a.a.mul(k)); n.addAssign(tex.n(m, uv).grad(gx, gy).xy.mul(2).sub(1).mul(k)); sum.addAssign(k);
+      });
+    }
+    const inv = float(1).div(max(sum, 1e-5)); c.mulAssign(inv); h.mulAssign(inv); n.mulAssign(inv);
+  }).Else(far);
+  return { c, h, n };
 }
 
 export function terrainMaterial(tex) {
@@ -81,6 +87,7 @@ export function terrainMaterial(tex) {
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     const d = abs(vI.x), w = vI.y;
     const X = layersAt(p, dx, dy, vN.y);
+    const tiled = (TRUTH ? dist2.greaterThanEqual(0) : dist2.lessThan(ign(screenCoordinate.xy).mul(80).add(240))).toVar();   // (the grounds hex-tiled; the hand-over dithered, so it shows no line. ?truth: all of it)
 
     // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up (each read only where
     // it shows: the blades' within 110 m, the drifts' past 300; in a branch a texture is read with its gradients given,
@@ -93,7 +100,7 @@ export function terrainMaterial(tex) {
     const g2 = vec4(0.5).toVar(), gn2 = vec4(0.5).toVar(), g1a = float(0).toVar(), gn1 = vec2(0).toVar(), g3a = float(0).toVar();
     If(grows, () => { g2.assign(tex.a(carpet, pr.div(9.6)).grad(dpr.div(9.6), dpr2.div(9.6))); gn2.assign(tex.n(carpet, pr.div(9.6)).grad(dpr.div(9.6), dpr2.div(9.6))); });
     If(grows.and(gk.lessThan(1)), () => { g1a.assign(tex.a(carpet, p.div(1.6)).grad(dx.div(1.6), dy.div(1.6)).a); gn1.assign(tex.n(carpet, p.div(1.6)).grad(dx.div(1.6), dy.div(1.6)).xy.mul(2).sub(1)); });
-    If(grows.and(gk2.greaterThan(0)), () => { g3a.assign(hexRead(tex, carpet, prr, dqx, dqy, 57).h); });
+    If(grows.and(gk2.greaterThan(0)), () => { g3a.assign(groundRead(tex, carpet, prr, dqx, dqy, 57, false).h); });
     const glum = mix(mix(g1a, g2.a, gk), mix(g2.a, g3a, 0.6), gk2).toVar();
     const gq0 = gn2.xy.mul(2).sub(1), gq = vec2(gq0.x.mul(0.6).add(gq0.y.mul(0.8)), gq0.x.mul(-0.8).add(gq0.y.mul(0.6)));
     const gnrm = mix(gn1, gq, gk).mul(float(1).sub(gk2.mul(0.7)));
@@ -111,7 +118,7 @@ export function terrainMaterial(tex) {
         const L = layerOf(id), own = id.equal(SLOPES), first = under.lessThanEqual(0).and(own.not());
         const t = own.select(sw, sw.div(under.add(sw)).mul(first.select(float(1), L.fade(dist2)))).toVar();
         under.addAssign(own.select(float(0), sw));
-        If(t.greaterThan(0.003), () => blend(M, hexRead(tex, L.material, p, dx, dy, L.tile), t));
+        If(t.greaterThan(0.003), () => blend(M, groundRead(tex, L.material, p, dx, dy, L.tile, tiled), t));
       });
     });
     If(carpeted.equal(0), () => grass(M));

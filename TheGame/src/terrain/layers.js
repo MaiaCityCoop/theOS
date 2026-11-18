@@ -8,7 +8,7 @@
 // a window over the land kept round the camera. A texel's place in its level is its place on the land modulo N, so as
 // the camera moves only the rows and columns the window comes onto are worked out (a few thousand texels as one walks,
 // a level of 262 144 at a jump). A pixel reads the finest level whose window holds it and whose texel is no finer than
-// the pixel, and in the last quarter before the next level takes over, that one as well, blended.
+// the pixel, and over the last stretch before the next level takes over (BAND), that one as well, blended.
 //
 // A texel holds, packed in four 32-bit words and one more:
 //   the layers laid there   the four strongest (LAYERS below: a byte each, their place in the order they are laid) and
@@ -33,7 +33,7 @@ const noise = byRole('noise');   // the baked cloudy noise: whichever material p
 
 const N = 512, LEVELS = 10, S0 = 0.25, COLS = 5, SNAP = 8;   // texels a level's side; levels (the last reaches 31 km); metres a texel of the first; levels a row of the atlas; texels a window moves by at once
 const REACHES = N / 2 - 10;   // texels from the camera a level is read to (its window is centred within SNAP / 2 of it; one more for the four texels round a point)
-const EMPTY = 255, NO_STAND = 15;
+const EMPTY = 255, NO_STAND = 15, BAND = 0.15;   // (BAND: the share of a level, in its doublings of distance, over which the next takes over)
 
 // ---- the ground's layers, in the order they are laid (lowest first): a layer's id is its place here ----
 // (each: its ground { material, tile }, and how far off it is let go, fade [from, to] metres, where it says)
@@ -84,7 +84,7 @@ for (const bio of LAID) for (const [key, P] of Object.entries(bio)) {
   const A = kindsOf(bio.uid, key).map((k) => k.asset).sort((x, y) => sizeOf(y) / detailOf(y).cut - sizeOf(x) / detailOf(x).cut)[0];
   const cutPx = A ? detailOf(A).cut : 0, span = cutPx ? (P.size ?? sizeOf(A) * (A.placement.scale?.[1] ?? 1)) / cutPx : 0;   // (last = uPxK × span: the measure's farAt, src/detail/measure.js)
   const SH = A?.detail?.shadow;   // where its shadows are no longer drawn: past the map's box, or past the trees' stand-in in it
-  STANDS.push({ bio, P, grain: CV.grain ?? 1, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? (P.size ? [0.45, 0.8] : [0.3, 0.68]) : [CV.from, CV.to], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1 });
+  STANDS.push({ bio, P, grain: CV.grain ?? 1, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? (P.size ? [0.45, 0.8] : [0.3, 0.68]) : [CV.from ?? 1e9, CV.to ?? 2e9], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1 });
 }
 if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} stands that wear a colour: four bits name at most ${NO_STAND - 1}`);
 
@@ -228,18 +228,18 @@ export function createLayers(renderer, tex) {
 }
 
 // ---- the map read where a pixel of the land is ----
-const tMap = texture(MAP), tMore = texture(MORE);
+const tMap = texture(MAP), tMore = texture(MORE); tMap.setUpdateMatrix(false); tMore.setUpdateMatrix(false);   // (read texel by texel: no uv transform)
 /** What lies at p (the ground's fragment: dx, dy how far apart its neighbouring pixels' points are; ny how steep the land
     is there, its normal's y): the layers to lay there, at most five, in the order they are laid ({ id, w }: a layer of
     the map's, w its share; SLOPES's w is how much of it is laid, the pixel's own), the carpet's cover (near, between,
     far), the macro variation, the grass's tint, and the two stands there ({ id (NO_STAND: none), c, n }). */
 export function layersAt(p, dx, dy, ny) {
   // the level: the finest whose window holds p and whose texel is no finer than the pixel (?truth: the finest), and in
-  // the last quarter of it before the next takes over, that one too (beta of it)
+  // the last stretch of it before the next takes over (BAND), that one too (beta of it)
   const d = abs(p.sub(U.uCam.xz)), kd = log2(max(max(d.x, d.y), 1e-3).div(REACHES * S0));
   const kf = TRUTH ? float(-9) : log2(max(sqrt(length(dx).mul(length(dy))), 1e-6).div(S0));
   const kr = clamp(max(kd, kf), -1, LEVELS - 1).toVar(), k = int(clamp(ceil(kr), 0, LEVELS - 1)).toVar();
-  const beta = k.lessThan(LEVELS - 1).select(smoothstep(float(k).sub(0.25), float(k), kr), float(0)).toVar();
+  const beta = k.lessThan(LEVELS - 1).select(smoothstep(float(k).sub(BAND), float(k), kr), float(0)).toVar();
   const grid = (lv) => { const u = p.div(exp2(float(lv)).mul(S0)).sub(0.5), i = floor(u); return { i: ivec2(i), f: u.sub(i) }; };
   const G0 = grid(k), G1 = grid(k.add(1)), i0 = G0.i.toVar(), f0 = G0.f.toVar(), i1 = G1.i.toVar(), f1 = G1.f.toVar();
   // what the texels say, summed by their weights: the layers by id into five slots (the fifth the slope's); the stands by id into two
