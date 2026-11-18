@@ -233,6 +233,11 @@ Work is developed in parallel and tested together, once:
 - The master merges when CI is green and the train's gate holds, pinned to the head that was tested
   (`--match-head-commit`, the full SHA), with a merge commit: never a rebase, never a force-push.
   "No checks reported" is not green: wait until CI has reported and every check has passed.
+- **Quiet CI: drafts while in progress, checked before every push.** A PR opens as a draft and stays one until its own
+  checks pass; CI runs only on PRs marked ready and on `main`, so work in progress never mails a failure to everyone.
+  Every clone turns on the repo's hook once (`git config core.hooksPath .githooks`): `pre-push` runs `tools/lint.js`
+  and `tools/smoke.js` in seconds, so nothing is pushed that breaks without `vite build` seeing it. Only the master
+  edits the intent's file; a PR's notes go in its body.
 - **A train that fails on `main` is reverted at once**, so `next` goes back to the state before it.
   Its code comes back as one branch, `main` plus the revert of the revert (`aven/NNNN-unrevert-…`),
   where its faults are fixed at the root; it is the next train's first car. Until it lands, a branch
