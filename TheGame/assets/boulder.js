@@ -16,7 +16,7 @@ export default {
   type: 'asset',
   name: 'Boulders',
   kind: 'rock',
-  about: 'Big weathered rocks, up to four metres, gathered where the outcrops of the land come to the surface.',
+  about: 'Big weathered rocks, up to four metres, where the outcrops surface.',
   measure: MEASURE,
   size: { length: MEASURE.size, width: MEASURE.size, height: MEASURE.height },
   colours: { stone: [0.5, 0.49, 0.45], moss: [0.33, 0.42, 0.24] },

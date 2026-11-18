@@ -99,7 +99,7 @@ export default tree({
   type: 'asset',
   name: 'Holm oak',
   kind: 'tree',
-  about: 'The evergreen oak of the Mediterranean: a short, stout trunk of dark, finely cracked bark, a low fork into heavy spreading limbs, and a broad, dense, rounded crown of small leathery leaves, nearly black from afar.',
+  about: 'The evergreen oak: a stout trunk, heavy limbs, a dense dark crown.',
   measure: MEASURE,
   colours: { bark: barkCol, leaves: leafCol },
   materials: { wood: 'fb5ce908-7437-45b6-879f-154de32d12b9' /* holm oak bark */, leaves: 'c4cbd29b-9dd2-494d-913b-9a80c40ab8e6' /* holm oak sprig */ },

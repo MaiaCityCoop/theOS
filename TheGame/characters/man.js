@@ -9,7 +9,7 @@ const man = {
   type: 'character',
   name: 'Man',
   kind: 'figure',
-  about: 'A man in a polo shirt, jeans and leather shoes, brought in whole: his body, his clothes, his eyes and his teeth as one figure on a skeleton of 84 bones, his face with 65 shapes of its own. He stands, walks, waves and cheers as the Settler does, looks at whoever looks at him, and smiles, laughs and speaks.',
+  about: 'A man brought in whole from VALID: 84 bones, 65 face shapes.',
   made: 'VALID, the Validated Avatar Library for Inclusion and Diversity (Do, Zelenty, Gonzalez-Franco & McMahan 2023, University of Central Florida and Google; MIT licence, characters/figures/LICENSE): its figure White_M_1 in its casual clothes, as converted to glTF by c-frame/valid-avatars-glb. The file is kept unchanged; the light, the moves and the expressions are ours (characters/kit/figure.js).',
   figure: 'White_M_1_Casual',
   file: new URL('./figures/White_M_1_Casual.glb', import.meta.url).href,

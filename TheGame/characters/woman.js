@@ -8,7 +8,7 @@ const woman = {
   type: 'character',
   name: 'Woman',
   kind: 'figure',
-  about: 'A woman in a T-shirt, shorts and canvas shoes, her brown hair to her shoulders, brought in whole: her body, her clothes, her eyes, her teeth and her hair as one figure on a skeleton of 84 bones, her face with 65 shapes of its own. She stands, walks, waves and cheers as the Settler does, looks at whoever looks at her, and smiles, laughs and speaks.',
+  about: 'A woman brought in whole from VALID: 84 bones, 65 face shapes.',
   made: 'VALID, the Validated Avatar Library for Inclusion and Diversity (Do, Zelenty, Gonzalez-Franco & McMahan 2023, University of Central Florida and Google; MIT licence, characters/figures/LICENSE): its figure White_F_1 in its casual clothes, as converted to glTF by c-frame/valid-avatars-glb. The file is kept unchanged; the light, the moves and the expressions are ours (characters/kit/figure.js).',
   figure: 'White_F_1_Casual',
   file: new URL('./figures/White_F_1_Casual.glb', import.meta.url).href,

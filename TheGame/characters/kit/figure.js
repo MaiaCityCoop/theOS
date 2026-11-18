@@ -38,7 +38,7 @@ const CURL = 0.2;     // each finger joint's bend at ease (it comes with its fin
 const human = (id) => HUMAN.find((m) => m.id === id), LEAN = { lean: 0 };
 export const MOVES = [
   ...['idle', 'walk', 'wave'].map((id) => ({ ...human(id), pose: (t) => human(id).pose(t, LEAN) })),
-  { id: 'cheer', name: 'Cheer', about: 'Both arms thrown up, a spring in the knees, the head back.',
+  { id: 'cheer', name: 'Cheer', about: 'Both arms up, a spring in the knees.',
     pose(t) {
       const out = human('idle').pose(t, LEAN), b = Math.sin(t * TAU * 1.5), up = 0.5 + 0.5 * b;
       for (const [s, , sg] of SIDES) {
@@ -48,7 +48,7 @@ export const MOVES = [
       out.chest = [-0.06 * up, 0, 0]; out.neck = [-0.08 * up, 0, 0]; out.head = [-0.12 * up, 0, 0];
       return out;
     } },
-  { id: 'came', name: 'As it came', about: 'Arms out, as its makers bound it to its skeleton: the pose every move starts from.', out: true, still: true, pose: () => ({}) },
+  { id: 'came', name: 'As it came', about: 'Arms out, as it was bound.', out: true, still: true, pose: () => ({}) },
 ];
 
 // ── the expressions ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -56,14 +56,14 @@ export const MOVES = [
 const both = (n, v) => ({ ['R' + n]: v, ['L' + n]: v });
 const SOUNDS = ['AE_AA', 'TD_I', 'Ax_E', 'MPB_Up', 'UH_OO', 'S', 'AO_a', 'FV', 'Ax_E', 'KG', 'UW_U', null, 'H_EST', 'AE_AA', 'SH_CH', 'TD_I', 'MPB_Down', 'AO_a', null];   // (null: the mouth at rest between words)
 export const EXPRESSIONS = [
-  { id: 'rest', name: 'At rest', about: 'The face as it came, nothing moved but the lids, which blink.', shapes: () => ({}) },
-  { id: 'smile', name: 'Smile', about: 'A closed smile, the eyes narrowing with it.', shapes: () => ({ ...both('smileClose', 0.85), ...both('squint', 0.16), ...both('lowLid', 0.22) }) },
-  { id: 'laugh', name: 'Laugh', about: 'An open smile over the teeth, the jaw let down a little, the eyes narrow.',
+  { id: 'rest', name: 'At rest', about: 'As it came; the lids blink.', shapes: () => ({}) },
+  { id: 'smile', name: 'Smile', about: 'Closed, the eyes narrowing.', shapes: () => ({ ...both('smileClose', 0.85), ...both('squint', 0.16), ...both('lowLid', 0.22) }) },
+  { id: 'laugh', name: 'Laugh', about: 'Open, over the teeth.',
     shapes: (t) => { const k = 0.5 + 0.5 * Math.sin(t * 5.2); return { ...both('smileOpen', 0.82 + 0.1 * k), MouthOpen: 0.12 + 0.14 * k, ...both('squint', 0.28), ...both('lowLid', 0.26), RRbrowUp: 0.2, LLbrowUp: 0.2 }; } },
-  { id: 'surprise', name: 'Surprise', about: 'The brows up, the eyes wide, the mouth fallen open.', shapes: () => ({ RRbrowUp: 0.9, RbrowUp: 0.9, LbrowUp: 0.9, LLbrowUp: 0.9, ...both('eyeOpen', 0.9), MouthOpen: 0.42 }) },
-  { id: 'sad', name: 'Sad', about: 'The inner brows drawn up, the corners of the mouth down.', shapes: () => ({ ...both('sad', 0.85), ...both('mouthSad', 0.75), ...both('pityful', 0.5), Chin: 0.3 }) },
-  { id: 'closed', name: 'Eyes closed', about: 'The lids shut, at peace.', shapes: () => ({ ...both('eyeClose', 1), ...both('smileClose', 0.3) }) },
-  { id: 'speak', name: 'Speaking', about: 'The mouth going through the sounds of speech, the lower teeth and the tongue with the jaw.',
+  { id: 'surprise', name: 'Surprise', about: 'Brows up, eyes wide, mouth open.', shapes: () => ({ RRbrowUp: 0.9, RbrowUp: 0.9, LbrowUp: 0.9, LLbrowUp: 0.9, ...both('eyeOpen', 0.9), MouthOpen: 0.42 }) },
+  { id: 'sad', name: 'Sad', about: 'Inner brows up, mouth corners down.', shapes: () => ({ ...both('sad', 0.85), ...both('mouthSad', 0.75), ...both('pityful', 0.5), Chin: 0.3 }) },
+  { id: 'closed', name: 'Eyes closed', about: 'Lids shut, at peace.', shapes: () => ({ ...both('eyeClose', 1), ...both('smileClose', 0.3) }) },
+  { id: 'speak', name: 'Speaking', about: 'The mouth through the sounds of speech.',
     shapes: (t) => { const f = t / 0.15, i = Math.floor(f), u = f - i, e = u * u * (3 - 2 * u), a = SOUNDS[i % SOUNDS.length], b = SOUNDS[(i + 1) % SOUNDS.length], out = {}; if (a) out[a] = 1 - e; if (b) out[b] = (out[b] ?? 0) + e; return out; } },
 ];
 // the lids: a blink now and then, a fifth of a second (at a time of its own from blink to blink)
@@ -124,9 +124,8 @@ export function figureOf(tex, R, { eye = uniform(U.uCam.value) } = {}) {
   const S = { move: 'idle', from: null, k: 1, t: 0, a: 0, yaw: 0, R: R.walkRound ?? 1.5, face: R.expression ?? 'rest', w: {}, gaze: [0, 0] };
   const moveOf = (id) => MOVES.find((m) => m.id === id);
   const api = { object, mesh: null, bones: { root: holder }, skeleton: null, faces: 0, height: R.height, bonesCount: 0, stands: null, failed: null,
-    note: 'Being fetched: the figure is one file, read when it is first wanted.',
+    note: 'Being fetched…',
     moves: MOVES.map(({ id, name, about }) => ({ id, name, about })), expressions: EXPRESSIONS.map(({ id, name, about }) => ({ id, name, about })),
-    rigAbout: 'hips, spine, neck, head, eyes; shoulders, arms, hands, every finger; legs, feet, toes',
     get move() { return S.move; }, get expression() { return S.face; },
     setMove(id) { if (id === S.move || !moveOf(id)) return; S.from = S.move; S.k = 0; S.move = id; },
     setExpression(id) { if (EXPRESSIONS.some((e) => e.id === id)) S.face = id; },
@@ -182,7 +181,7 @@ export function figureOf(tex, R, { eye = uniform(U.uCam.value) } = {}) {
     for (const [n] of shapes) S.w[n] = 0;
 
     const E = new THREE.Euler(), Q = new THREE.Quaternion(), D = new THREE.Quaternion(), v = new THREE.Vector3(), h = new THREE.Vector3(), headRest = rest.get(bones.Head)?.world.clone().invert();
-    Object.assign(api, { mesh: body, skeleton: body.skeleton, bones: { root: hips, ...bones }, bonesCount: body.skeleton.bones.length, note: undefined, figures: [[body.skeleton.bones.length, '', 'Bones'], [shapes.length, '', 'Shapes']], rigLabel: `Skeleton · ${body.skeleton.bones.length} bones, skinned` });
+    Object.assign(api, { mesh: body, skeleton: body.skeleton, bones: { root: hips, ...bones }, bonesCount: body.skeleton.bones.length, note: undefined, figures: [[body.skeleton.bones.length, '', 'Bones'], [shapes.length, '', 'Shapes']] });
     api.step = (dt, eyeAt) => {
       S.t += dt; S.k = Math.min(1, S.k + dt / 0.45);
       const e = S.k * S.k * (3 - 2 * S.k), mv = moveOf(S.move), from = S.from && e < 1 ? moveOf(S.from) : null, A = mv.pose(S.t), B = from?.pose(S.t);
@@ -225,6 +224,6 @@ export function figureOf(tex, R, { eye = uniform(U.uCam.value) } = {}) {
     api.dispose = () => { api.disposed = true; for (const m of meshes) { m.geometry.dispose(); m.material.dispose?.(); } for (const t of api.pictures ?? []) t.dispose(); body.skeleton.dispose?.(); };
     api.step(0); api.onGrown?.();
     return api;
-  })().catch((err) => { api.failed = String(err?.message ?? err); api.note = `It could not be fetched: ${api.failed}`; api.onGrown?.(); return api; });
+  })().catch((err) => { api.failed = String(err?.message ?? err); api.note = `Not fetched: ${api.failed}`; api.onGrown?.(); return api; });
   return api;
 }

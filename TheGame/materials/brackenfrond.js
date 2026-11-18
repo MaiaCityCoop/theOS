@@ -11,8 +11,8 @@ export default {
   type: 'material',
   name: 'Bracken frond',
   kind: 'foliage',
-  about: 'A fern\'s frond: its stalk, and leaflets in pairs either side, cut into lobes, a fresh green, lighter along their ribs and at their tips: one foliage card.',
-  usedBy: 'the bracken of the wood (a cut-out card)',
+  about: 'A fern frond: stalk and lobed leaflets, fresh green. A foliage card.',
+  usedBy: 'the bracken',
   swatch: [0.1, 0.18, 0.05],
   bump: 0.05,
   paint: (uv) => {

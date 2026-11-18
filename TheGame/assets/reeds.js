@@ -24,7 +24,7 @@ export default tree({
   type: 'asset',
   name: 'Reeds',
   kind: 'shrub',
-  about: "A clump of common reed in a lake's shallows: tall narrow leaves and stems a man's height and more, feathery plumes over them.",
+  about: 'A clump of common reed in the shallows, taller than a man, plumed.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
     real: 'Phragmites australis, common reed',

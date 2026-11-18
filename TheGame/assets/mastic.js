@@ -18,7 +18,7 @@ export default tree({
   type: 'asset',
   name: 'Mastic',
   kind: 'shrub',
-  about: 'The lentisk of the Mediterranean woods: a dense, rounded evergreen bush to a man’s height, dark and glossy, under the pines and oaks.',
+  about: 'A dense, rounded evergreen bush, head-high, dark and glossy.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
     real: 'Pistacia lentiscus, mastic',

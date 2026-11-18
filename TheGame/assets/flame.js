@@ -67,7 +67,7 @@ export default {
   type: 'asset',
   name: 'Flame',
   kind: 'shrub',   // nothing a walker cannot pass, and it casts no shadow of its own (assets/kinds.js)
-  about: 'The fire burning over a fire pit: a tall heart with shorter tongues round it, dull red at the foot and near-white at the tips, moving in the wind.',
+  about: 'The fire over a fire pit: red at the foot, near-white at the tips.',
   measure: MEASURE,
   size: { length: 0.9, width: 0.9, height: HOT + 0.05 },
   colours: { deep: fDeep, red: fRed, orange: fOrange, amber: fAmber, pale: fPale },

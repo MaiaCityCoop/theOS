@@ -7,8 +7,8 @@ export default {
   name: "Land noise",
   kind: 'noise',
   role: 'noise',   // the part it plays for the engine (src/core/registry.js: byRole)
-  about: "Four cloudy noises, one per channel, for the land's colour variation with no grid to see.",
-  usedBy: "the tint of grass and ground across the land",
+  about: 'Four cloudy noises, one per channel, to vary the colour of the land.',
+  usedBy: 'the tint of grass and ground',
   swatch: [0.5, 0.5, 0.5],
   bump: 0.02,   // how deep its relief reads in the normals: larger is flatter
   paint: (uv) => {

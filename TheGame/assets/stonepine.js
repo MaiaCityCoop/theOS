@@ -135,7 +135,7 @@ export default tree({
   type: 'asset',
   name: 'Stone pine',
   kind: 'tree',
-  about: 'The umbrella pine of the Mediterranean: a long, slender trunk bending in a slow S, bare to over half its height, six thin limbs fanning up like an umbrella’s ribs, and one broad dome of rounded needle puffs, flat underneath.',
+  about: 'The umbrella pine: a slender bare trunk under one broad, flat dome.',
   measure: MEASURE,
   colours: { bark: barkCol, needles: needleCol },
   materials: { wood: 'bf97f33b-56bd-4df4-89ba-949e77ce8c27' /* pine bark */, leaves: 'f0cd9e72-612d-4f2e-9790-0ef5f7257742' /* pine tuft */ },

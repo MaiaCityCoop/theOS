@@ -33,7 +33,7 @@ export default tree({
   type: 'asset',
   name: 'Dead wood',
   kind: 'shrub',
-  about: 'A fallen branch on the wood’s floor: grey bark, a few twigs still on it, lying where it came down.',
+  about: 'A fallen branch on the wood floor, grey, a few twigs still on it.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
     real: 'a fallen branch of a pine, lying on the floor',
