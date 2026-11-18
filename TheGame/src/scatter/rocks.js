@@ -21,7 +21,7 @@ import { most } from '../../assets/kinds.js';
 import { createDrawer } from './drawer.js';
 import { placedBy, lookOf as zooLook, fingerprint } from '../../assets/zoo/index.js';
 import { rockFull, rockBody, FULL_ROCK } from '../../assets/kit/rock.js';
-import { SURFACE_LEVELS, surfaceBand, surfacePx, gonePx, BAND } from '../detail/error.js';
+import { SURFACE_LEVELS, surfaceBand, surfacePx, GONE, BAND } from '../detail/error.js';
 import { REACH } from './ground.js';
 import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 
@@ -37,9 +37,9 @@ const FULL = 12 * FULL_ROCK * FULL_ROCK, LEVELS = Array.from({ length: SURFACE_L
 // REACH: how far the ground's map says where stones lie (src/scatter/ground.js), metres to the 68° lens: they shrink
 // away over the BAND before it ends
 const SHADE = { shrink: 0.85, far: 30, wide: 1.5 }, RELIEF = 10;
-// THIN: where a rock thins away, pixels on screen: pixel by pixel over the BAND above where it is gone (leaving a rock
-// out differs by all of it: gonePx, src/detail/error.js), with nothing to hand over to (its land's colour is under it)
-const THIN = [gonePx(), gonePx() * BAND];
+// THIN: where a rock thins away, dial pixels (src/detail/error.js): pixel by pixel over the BAND above where it is gone
+// (leaving a rock out differs by all of it: GONE), with nothing to hand over to (its land's colour is under it)
+const THIN = [GONE, GONE * BAND];
 
 /** The assets of engine `rocks`, all at once: they share one drawer (a level of every shape of every rock asset is in
     one heap), each asset a tier a level over its own cells. */

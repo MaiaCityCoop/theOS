@@ -9,7 +9,7 @@
 //   bun tools/gate/pop.js [boulder|stone|belltent|firepit …]
 import { build, ready } from '../../assets/kit/clusters.js';
 import { useBuilder } from '../../assets/kit/surface.js';
-import { ERROR_PX, BAND, PX_CUT, SURFACE_LEVELS, surfaceBand, surfacePx } from '../../src/detail/error.js';
+import { ERROR_PX, BAND, PX_CUT, SURFACE_LEVELS, surfaceBand, surfacePx, dialPx } from '../../src/detail/error.js';
 import { rockFull } from '../../assets/kit/rock.js';
 import { spanOf } from '../../assets/kinds.js';
 
@@ -35,7 +35,7 @@ async function meshOf(name) {
     (morph off: not at all). { tris: [[ax, ay, az, bx, …] …], px (the thing's size on screen, pixels drawn) }. */
 function drawn(D, eye, morph) {
   const mid = [0, 0.4, 0], d = Math.hypot(eye[0] - mid[0], eye[1] - mid[1], eye[2] - mid[2]), px = (K * H) / d;
-  let l = 0; while (l < SURFACE_LEVELS - 1 && px <= surfacePx(l)) l++;
+  let l = 0; while (l < SURFACE_LEVELS - 1 && dialPx(px) <= surfacePx(l)) l++;   // (the levels' sizes are dial pixels: src/detail/error.js)
   const [lo, hi] = surfaceBand(l), allowed = (dd) => Math.min(hi, Math.max(lo, (ERROR_PX() * dd) / (K * H))), w = l ? 0 : smooth(PX_CUT * ERROR_PX(), 2 * PX_CUT * ERROR_PX(), px);
   const at = (s) => Math.max(1e-3, Math.hypot(eye[0] - s.c[0], eye[1] - s.c[1], eye[2] - s.c[2]) - s.r), P = D.M.pos, KK = 6 + D.k, tris = [];
   for (const c of D.clusters) {

@@ -26,8 +26,8 @@ import { passOf, motion, vWas } from '../core/pass.js';
 import { U } from '../core/uniforms.js';
 import { layerOf, wrapGrad } from '../world/tile.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
-import { farMost } from '../detail/measure.js';
-import { SURFACE_LEVELS, FADE, gonePx, surfaceBand, surfacePx } from '../detail/error.js';
+import { farMost, dialPxAt } from '../detail/measure.js';
+import { SURFACE_LEVELS, FADE, GONE, surfaceBand, surfacePx } from '../detail/error.js';
 import { spanOf, most, kindOf } from '../../assets/kinds.js';
 import { bodyOfAsset } from '../../assets/index.js';
 import { placedBy } from '../../assets/zoo/index.js';
@@ -79,9 +79,9 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
   m.vertexNode = Fn(() => {
     const A = src.readAt(0, slot), B = src.readAt(1, slot), S = src.readAt(2, slot), clip = offScreen().toVar();
     const kind = uint(B.y.add(0.5)), N0 = D.numOf(kind, 0).toVar(), N1 = D.numOf(kind, 1).toVar(), N2 = D.numOf(kind, 2).toVar(), span = D.lookOf(kind, 3).w;   // (span: its largest side, its look's)
-    // its size on screen, and the one hand-over (src/detail/handover.js): a made thing is of one piece, it changes over
-    // whole, half way; its last level sinks, where no dot follows it
-    const px = pxOf(A.w, A.xy), H = handOver(px, LU, sink);
+    // its size on screen, and the one hand-over (src/detail/handover.js, in dial pixels as its levels: src/detail/error.js):
+    // a made thing is of one piece, it changes over whole, half way; its last level sinks, where no dot follows it
+    const px = pxOf(A.w, A.xy), H = handOver(dialPxAt(px), LU, sink);
     const R = heapRow(D.H, kind, level).toVar();
     // the draw's corner: its cluster's number and its vertex's first element (assets/kit/surface.js)
     const corner = at(R).vertex.toVar(), C = clusterOf(D.H, R, corner.shiftRight(uint(16))), head = levelHead(D.H, R), el = R.y.add(corner.bitAnd(uint(0xffff)));
@@ -134,10 +134,10 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
 function groupOf(scene, tex, renderer, name, kinds, cap) {
   const n = kinds.length, ML = SURFACE_LEVELS - 1;
   // its levels: the surfaces' (src/detail/error.js), each kind's in a place as large as its whole hierarchy; the last,
-  // from where its coarsest clusters end down to where it is gone (gonePx: leaving it out differs by all of it), the
+  // from where its coarsest clusters end down to where it is gone (GONE: leaving it out differs by all of it), the
   // drawer's dot, sinking away over the BAND above that
   const rooms = kinds.map((Kd) => madeRoom(Kd.asset)), room = { verts: Math.max(...rooms.map((r) => r.verts)), tris: Math.max(...rooms.map((r) => r.tris)) };
-  const LEVELS = [...Array.from({ length: ML }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), room, rooms })), { px: gonePx(), room: { verts: 3, tris: 1 } }];
+  const LEVELS = [...Array.from({ length: ML }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), room, rooms })), { px: GONE, room: { verts: 3, tris: 1 } }];
   // each kind's own numbers (NUMS rows of four, after its look in the drawer's one table): [its box's least corner, its
   // height], [its box's size, its half length], [its wind: billow, flap, sway], [its surface: wrap, through; metres a
   // tile of its materials, their relief], [the layers of its materials (none: -1)]; how its snow lies and its largest
