@@ -446,7 +446,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const blockIn = (b, k0, n, idx, elems) => {
     MAKE?.onBlock?.(b, k0, n, idx, elems);   // (what a make reads of its meshes as they come: what the plants' far ends are baked from, src/scatter/trees.js)
     if (b.boxes) for (let j = 0; j < n; j++) if (b.draws[j]) kindBox(k0 + j, boxIn(k0 + j, b.boxes.subarray(j * 6, j * 6 + 6)));   // (a solid's, a plant's: measured where it was made)
-    H.putBlock(b.l, k0, n, MAKE && !CORNERED ? NONE : b.corners, b.verts, CLASSED ? b.draws : b.counts);   // (classed: its count is its corners')
+    H.putBlock(b.l, k0, n, MAKE && !CORNERED ? NONE : b.corners, b.verts, CLASSED ? b.draws : b.counts, b.elems);   // (classed: its count is its corners')
     if (RANGE[b.l]) for (let j = 0; j < n; j++) if (b.draws[j]) classesIn[b.l].add(clampClass(b.l, classOf(b.draws[j])));
     if (MAKE && !RANGE[b.l]) for (let j = 0; j < n; j++) {
       const list = b.corners.slice(j * idx, j * idx + b.draws[j]);
