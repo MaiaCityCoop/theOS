@@ -22,10 +22,11 @@
 //   WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 //   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import { inflateSync, deflateSync } from 'node:zlib';
+import { OUTPUT } from '../../src/core/budget.js';
 
-/** How many pixels a degree of the eye's view spans: FLIP's own default, 67.02, a 4K screen 0.7 m wide seen from 0.7 m
-    (a 27–32" 4K screen at about 70 cm). */
-export const PPD = 0.7 * (3840 / 0.7) * (Math.PI / 180);
+/** How many pixels a degree of the eye's view spans: the output (src/core/budget.js OUTPUT) across a screen 0.7 m wide
+    seen from 0.7 m (a 27–32" screen at about 70 cm): 33.5 at 1920 × 1080; FLIP's own default, 67.02, at a 4K output. */
+export const PPD = 0.7 * (OUTPUT.width / 0.7) * (Math.PI / 180);
 
 // FLIP's constants (FLIP.h): the colour metric's exponent qc, the share pc of the largest difference below which errors
 // are spread over [0, pt]; the edge detector's width w (degrees); the feature metric's exponent qf. The eye's contrast
