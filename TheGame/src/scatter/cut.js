@@ -12,7 +12,7 @@
 //     ways choose alike); what passes is listed, and drawn by one indirect draw, a cluster an instance (createCut).
 // 32-bit atomics only, the hardware rasteriser only (tools/gate/cut.html checks it in WebKit and in Chrome).
 import * as THREE from 'three/webgpu';
-import { Fn, If, uint, float, vec3, uvec4, instancedArray, storage, atomicAdd, atomicStore, atomicLoad, instanceIndex, uintBitsToFloat, floatBitsToUint, max, min, mix, clamp, smoothstep, length } from 'three/tsl';
+import { Fn, If, uint, float, vec3, uvec4, instancedArray, storage, atomicAdd, atomicStore, atomicLoad, workgroupId, localId, uintBitsToFloat, floatBitsToUint, max, min, mix, clamp, smoothstep, length } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { heapRow, sinceCame } from './heap.js';
 import { camDist } from '../world/land.nodes.js';
@@ -44,17 +44,17 @@ export const ruleOf = (self, parent, bS, bP) => ({ drawn: self.lessThanEqual(bS)
     heap; level: its level's index; room: what a kind's level holds, { tris }): { passes (for every frame, after the
     packing), entry(i): the i-th listed { thing, cluster, t }, thing(j, row): the j-th packed thing's row, geometry }. */
 export function createCut({ T, k = 0, H, room, name }) {
-  const S = T.slots, cap = T.caps[k], off = T.offs[k], MAXC = Math.ceil(room.tris / 32) + 8, MOST = Math.max(4096, cap * 1024);
+  const S = T.slots, cap = T.caps[k], off = T.offs[k], MAXC = Math.ceil(room.tris / 32) + 8, MOST = Math.min(Math.max(4096, cap * 1024), 1 << 22);   // (MOST: the list's room, under a storage buffer's 256 MB)
   const list = instancedArray(MOST, 'uvec4'), count = instancedArray(1, 'uint').toAtomic(), packed = storage(T.args, 'uint', T.args.array.length).toReadOnly();
   const drawArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array([MAXT * 3, 0, 0, 0, 0]), 5), DA = storage(drawArgs, 'uint', 5);
-  const runArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array([1, 1, 1]), 1), RA = storage(runArgs, 'uint', 3);
+  const runArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array([1, 1, 1]), 1), RA = storage(runArgs, 'uint', 3);   // (its workgroups: the clusters a thing can have across, the things packed down)
   more(`${name}: the cut's list`, MOST * 16, 0);
   const thing = (j, row) => T.data.element(uint(off).add(j).mul(uint(S)).add(uint(row)));
   const LO1 = surfaceBand(1)[0], PXC = PX_CUT / BUDGET_DRAWN;
   // (how many workgroups: a thread a cluster of every thing packed, its count as large as it can be)
-  const start = Fn(() => { atomicStore(count.element(0), uint(0)); RA.element(0).assign(packed.element(k * 5 + 1).min(uint(cap)).mul(uint(MAXC)).add(uint(63)).div(uint(64)).max(uint(1))); })().compute(1);
+  const start = Fn(() => { atomicStore(count.element(0), uint(0)); RA.element(0).assign(uint(Math.ceil(MAXC / 64))); RA.element(1).assign(packed.element(k * 5 + 1).min(uint(cap)).max(uint(1))); })().compute(1);
   const test = Fn(() => {
-    const j = instanceIndex.div(uint(MAXC)), c = instanceIndex.mod(uint(MAXC));
+    const j = workgroupId.y, c = workgroupId.x.mul(uint(64)).add(localId.x);
     If(j.lessThan(packed.element(k * 5 + 1).min(uint(cap))), () => {
       const A = thing(j, 0).toVar(), B = thing(j, 1).toVar(), R = heapRow(H, uint(B.y), uint(0)).toVar(), head = levelHead(H, R);
       If(c.lessThan(head.n), () => {
@@ -67,7 +67,7 @@ export function createCut({ T, k = 0, H, room, name }) {
         If(r.drawn, () => { const i = atomicAdd(count.element(0), uint(1)); If(i.lessThan(uint(MOST)), () => { list.element(i).assign(uvec4(j, c, floatBitsToUint(r.t), 0)); }); });
       });
     });
-  })().compute(cap * MAXC, [64]);
+  })().compute(cap * Math.ceil(MAXC / 64) * 64, [64]);   // (its count as large as it can be: three returns early past it)
   test.dispatchSize = runArgs;
   const end = Fn(() => { DA.element(1).assign(atomicLoad(count.element(0)).min(uint(MOST))); })().compute(1);
   const geometry = new THREE.InstancedBufferGeometry();
