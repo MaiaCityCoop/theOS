@@ -295,3 +295,4 @@ Asked outright and without surprises, so built straight away.
 | 2026-11-18 | `6941129` | The Compass as its own page; the country race in the world |
 | 2026-11-18 | `f28e4db` | The game reference sheet, and its station on the Compass page |
 | 2026-11-18 | `7598858` | Game sheet: start capital, daily play, phases, phase 1 |
+| 2026-11-18 | `04e2d6a` | Phase 1 village ladder in the game sheet |
