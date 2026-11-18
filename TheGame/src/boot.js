@@ -27,7 +27,7 @@ import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
 import { createHud } from './core/hud.js';
-import { useGPU, askedLimits } from './core/gpu.js';
+import { useGPU, askedLimits, ledger } from './core/gpu.js';
 import { taken, busy, changed } from './core/work.js';
 import { settle, ready as firstView, waiting, watch, tick, partOf, leave } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
@@ -104,7 +104,7 @@ export async function boot({ profile = 'world' } = {}) {
   // the picture built over time come to rest on it; ready: the same for the page's first view; waiting(): what is still
   // out. What the gate waits on, never a timer: src/core/settle.js)
   let shown = null; const first = new Promise((res) => (shown = res));   // (the stage's first subject in: its first view is complete once it has settled)
-  const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting });
+  const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting, memory: ledger });   // memory(): the GPU's memory, the one ledger (src/core/gpu.js)
   const bounds = world && flag('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
   const U = createUniforms(camera, SKY);
   setImpostorRenderer(renderer);
@@ -273,7 +273,7 @@ export async function boot({ profile = 'world' } = {}) {
   };
   if (!world) Object.assign(game, { show, hide, grow });
 
-  // ---- before the first frame: compile every material, draw everything once ----
+  // ---- before the first frame: compile every material; the first frame draws what the camera sees, never more ----
   // Every pass is compiled before it is first drawn, side by side (a GPU that can compiles them in parallel), not one at
   // a time as each is first drawn: a pass compiled as it is drawn holds up everything the GPU is asked after it, the
   // page's own uploads too. One compile at a time for a target (three builds a material for the target in place); what
@@ -286,18 +286,22 @@ export async function boot({ profile = 'world' } = {}) {
     await waitsOn("the land's layers", layerPass, null);
     await inTurn(() => choose(0));   // (not while something else compiles: src/core/compile.js)
     mark('chosen');
-    terrain.all(); if (world) grown.scatter.warm();
+    // (every mesh shown for the compile alone, as it was kept first: three compiles only what it would draw)
     const seen = [];
     if (world) scene.traverse((o) => { if (o.isMesh) { seen.push(o, o.visible); o.visible = true; } });
+    terrain.all(); if (world) grown.scatter.warm();
     mark('built');
     await loadingStep('Lighting the world', 0.55);
     await inTime('the materials', screen.compile(scene, camera));   // every material, for the target the world is drawn into (src/core/screen.js)
     await inTime("the shadow map's casters", shadows.compile(scene, camera, heightAt(camera.position.x, camera.position.z)));   // and every caster, for the shadow map
+    // (each mesh as it was, before anything is drawn. Until 2026-11-19 a frame was drawn first with every mesh shown:
+    // every tier at every level, its draws' counts whatever they held, and every far end, in one prepass of 204 draws
+    // that took the GPU 4 s in WebKit on the Mac mini; macOS takes the GPU from a page whose work runs that long, and
+    // the device was lost 0.4 s after it (as Samuel's MacBook lost it). The first frame is a frame)
+    for (let i = 0; i < seen.length; i += 2) seen[i].visible = seen[i + 1];
     tex.flush();   // (a material a shader asked for that no biome or asset names: painted before the first frame)
     mark('compiled');
-    screen.render(scene, camera);   // (through the inside's target: its pipelines are the ones a frame uses)
-    for (let i = 0; i < seen.length; i += 2) seen[i].visible = seen[i + 1];
-    choose(0);
+    choose(0);   // (what the camera sees chosen and packed, as every frame does: what terrain.all and warm set for the compile, set again)
     screen.render(scene, camera);
     stampDone(renderer, FIRST_FRAME);   // (the first frame that draws the world: what every measure of a start reads)
     game.loadMs = performance.now() - t0;
