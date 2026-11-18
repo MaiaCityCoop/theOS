@@ -105,8 +105,9 @@ export function gpuStorage(type, count, name = null, cls = 'other', instanced = 
 }
 /** The same, its size said later, before anything binds it (what is shared by things not all made yet: the culling's
     lists, src/core/occlusion.js): { node, attr, make(count) -> bytes }. A storage buffer's length is not in its code, so
-    the node is the same whatever it is made as; and made again (what grows with need: the single things' table,
-    src/world/things.js), its old buffer is let go, so three binds the new one wherever the node is read. */
+    the node is the same whatever it is made as; and made again (what follows the screen's size, the culling's depth
+    pyramid; what grows with need, the single things' table, src/world/things.js), its old buffer is let go, so three
+    binds the new one wherever the node is read. */
 export function gpuStorageLater(type, name = null, cls = 'other') {
   const [Arr, size] = TYPES[type], attr = new THREE.StorageBufferAttribute(new Arr(size), size);
   return {

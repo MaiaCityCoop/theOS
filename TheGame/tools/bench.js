@@ -20,6 +20,9 @@ export const VIEWS = [
 /** The hard gate: a frame's GPU time at most this (ms), at every view, so 60 fps holds with room for the CPU and the
     browser's own work (16.7 ms a frame in all). */
 export const BUDGET = 12;
+/** A scene drawn whole, as only a tool does: into the screen's own target, which has a depth (the game's canvas has
+    none: src/boot.js; three lays a canvas's pass out once, so it cannot be given one for a few draws). */
+const inTarget = (draw) => { const s = window.__game, r = s.renderer, was = r.getRenderTarget(); r.setRenderTarget(s.screen?.target ?? was); try { return draw(); } finally { r.setRenderTarget(was); } };
 /** The GPU's memory now, by class beside each class's budget (src/core/gpu.js ledger: { classes: { class: { gpu,
     budget } }, gpu: all that is noted, device: all the device has made, unnoted: of that, what no pool notes }; MB). */
 export const memoryNow = () => { const L = window.__memory?.(); return L ? { classes: L.classes, gpu: L.gpu, device: L.device, unnoted: L.unnoted } : null; };
@@ -102,7 +105,7 @@ async function timed(clock, f, n) {
     own share of the shadows is the difference (out.shading[view]: { colour, colourWithout }). */
 export async function bench({ ratio = 1.5, frames = 60, settle = 0, shading = false } = {}) {
   const s = window.__game, { renderer, camera, U } = s;
-  const { poseAt } = await mod('src/camera/rig.js'), { setPlanes } = await mod('src/core/frustum.js'), { heightAt } = await mod('src/world/land.js'), { mark } = await mod('src/core/gpu.js');
+  const { poseAt } = await mod('src/camera/rig.js'), { setPlanes } = await mod('src/core/frustum.js'), { heightAt } = await mod('src/world/land.js'), { mark } = await mod('src/core/gpu.js'), { measureNow } = await mod('src/detail/measure.js');
   const fin = async () => { if (renderer.backend.isWebGPUBackend) await renderer.backend.device.queue.onSubmittedWorkDone(); else { const gl = renderer.backend.gl; gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)); } };
   // (the world drawn as the game draws it: inside at `ratio` and brought up to the canvas, all the screen's pixels, by the
   // upscale pass (src/core/screen.js); a page without the screen, straight onto the canvas at `ratio`)
@@ -112,7 +115,7 @@ export async function bench({ ratio = 1.5, frames = 60, settle = 0, shading = fa
   // passes are, each part apart; the screen marks its own, src/core/screen.js)
   const frame = (v, dark = false) => {
     const P = poseAt(v.x, v.z, v.yaw, v.h, -0.05); camera.position.set(...P.pos); camera.rotation.order = 'YXZ'; camera.rotation.set(P.pitch, P.yaw, 0); camera.fov = P.fov; camera.updateProjectionMatrix(); camera.updateMatrixWorld();
-    const p = camera.position, g = heightAt(p.x, p.z), dy = Math.max(0, p.y - g - 2); U.uDy.value = dy; U.uAirH.value = Math.max(0, p.y - g); U.uLodInv.value = 1; U.uDrawn.value = ratio;   // (the pixels drawn a CSS pixel, for a page without the screen: src/detail/measure.js drawnAt)
+    const p = camera.position, g = heightAt(p.x, p.z), dy = Math.max(0, p.y - g - 2); U.uDy.value = dy; U.uAirH.value = Math.max(0, p.y - g); U.uLodInv.value = 1; measureNow();   // (the measure at the inside's ratio the bench draws at: src/detail/measure.js)
     setPlanes(pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     mark('ground map'); s.ground.update(p.x, p.z, dy, 1);
     mark('pages, laid'); s.terrain.update(camera, dy, 1);
@@ -120,7 +123,7 @@ export async function bench({ ratio = 1.5, frames = 60, settle = 0, shading = fa
     mark('clouds'); s.weather.before(camera, g);
     mark('shadow map'); s.shadows.render(s.scene, camera, g);
     if (dark) U.uShadowOn.value = 0;   // (the colour pass reads no shadow: the A/B of its share)
-    if (s.screen) s.screen.render(s.scene, camera); else { mark('colour'); renderer.render(s.scene, camera); }
+    if (s.screen) s.screen.render(s.scene, camera); else { mark('colour'); inTarget(() => renderer.render(s.scene, camera)); }
     mark(null);
   };
   const out = {}, clock = await clockOf(renderer);   // the game opened with ?gputime (or ?bench): the GPU's own time, not the wall's
@@ -184,8 +187,8 @@ export async function parts(view = VIEWS[0], { ratio = 1, frames = 30 } = {}) {
     const groups = { sky: (o) => o.renderOrder === 15, land: (o) => o === s.terrain.landMesh || o === s.terrain.relief?.mesh, water: (o) => o === s.terrain.waterMesh };   // (the land: its mesh and the relief's near the eye)
     for (const a of new Set(tierOf.values())) groups[a] = (o) => tierOf.get(o) === a;
     const named = Object.values(groups); groups.placed = (o) => !named.some((f) => f(o)) && !tierOf.has(o);
-    const out = { view: v.name, all: await time(() => renderer.render(scene, camera)), light: await time(() => s.shadows.render(scene, camera, g)), weather: await time(() => s.weather.before(camera, g)) };
-    for (const [k, f] of Object.entries(groups)) { kids.forEach((o) => (o.visible = f(o))); out[k] = await time(() => renderer.render(scene, camera)); kids.forEach((o) => (o.visible = true)); }
+    const out = { view: v.name, all: await time(() => inTarget(() => renderer.render(scene, camera))), light: await time(() => s.shadows.render(scene, camera, g)), weather: await time(() => s.weather.before(camera, g)) };
+    for (const [k, f] of Object.entries(groups)) { kids.forEach((o) => (o.visible = f(o))); out[k] = await time(() => inTarget(() => renderer.render(scene, camera))); kids.forEach((o) => (o.visible = true)); }
     return out;
   } finally { clock.stop(); renderer.setPixelRatio(was); s.governor.hold(false); s.covered = covered; }
 }

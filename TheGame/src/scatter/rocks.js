@@ -15,7 +15,7 @@ import { offWays } from '../world/ways.js';
 import { finish, skyLight, weathered, snowLift, cloudAt } from '../world/light.js';
 import { byRole } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
-import { distanceAt } from '../detail/measure.js';
+import { farMost } from '../detail/measure.js';
 import { source } from '../core/settle.js';
 import { most } from '../../assets/kinds.js';
 import { createDrawer } from './drawer.js';
@@ -23,7 +23,8 @@ import { placedBy, lookOf as zooLook, fingerprint } from '../../assets/zoo/index
 import { rockFull, rockBody, ROCK_PER } from '../../assets/kit/rock.js';
 import { roomsOf, mostOf } from './rooms.js';
 import { roomOf } from '../core/gpu.js';
-import { SURFACE_LEVELS, surfaceBand, surfacePx } from '../detail/error.js';
+import { SURFACE_LEVELS, surfaceBand, surfacePx, GONE, BAND } from '../detail/error.js';
+import { REACH } from './ground.js';
 import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 
 // the levels: a rock's cluster hierarchy (assets/kit/clusters.js, from its full mesh alone) as the surfaces' levels hold
@@ -42,11 +43,11 @@ const levelsOf = (Z) => {
 };
 // RELIEF: the size on screen from which a rock's relief is read (under that its texture's mipmaps have none left);
 // REACH: how far the ground's map says where stones lie (src/scatter/ground.js), metres to the 68° lens: they shrink
-// away before it ends
-const SHADE = { shrink: 0.85, far: 30, wide: 1.5 }, RELIEF = 10, REACH = 104;
-// THIN: where a rock thins away, pixels on screen: over its last pixel and a half, pixel by pixel, with nothing to hand
-// over to (its land's colour is under it)
-const THIN = [1.15, 1.84];
+// away over the BAND before it ends
+const SHADE = { shrink: 0.85, far: 30, wide: 1.5 }, RELIEF = 10;
+// THIN: where a rock thins away, dial pixels (src/detail/error.js): pixel by pixel over the BAND above where it is gone
+// (leaving a rock out differs by all of it: GONE), with nothing to hand over to (its land's colour is under it)
+const THIN = [GONE, GONE * BAND];
 
 /** The assets of engine `rocks`, all at once: they share one drawer (a level of every shape of every rock asset is in
     one heap), each asset a tier a level over its own cells. */
@@ -77,7 +78,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
         const r1 = rnd(cx, cy, uint(204)), s = mix(row.size[0], row.size[1], r1.mul(r1).mul(r1).add(oc.mul(big ? 0.25 : 0).mul(r1)).min(1));
         const kind = uint(floor(rnd(cx, cy, uint(201)).mul(shapes)).min(shapes - 1)).add(uint(F.first));
         // (a stone shrinks away where the ground's map ends)
-        const size = big ? s : s.mul(float(1).sub(smoothstep(REACH * 0.86, REACH, dist)));
+        const size = big ? s : s.mul(float(1).sub(smoothstep(REACH / BAND, REACH, dist)));
         found(kind, size, dist, (A, B, G) => {
           const sunk = size.mul(lookOf(kind, 5).w);   // (how deep it lies: its look's)
           if (big) {   // an outcrop: the land worked out here (the ground's map does not reach so far)
@@ -101,7 +102,7 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
     // one tier an asset: every rock dropped into the draw of its level (drawer.js: tierAll), level 0 drawn by its cut
     const last = L - 1;
     // (its patches: about five to its reach, so the tier looks at a few dozen, whatever the lens; cap: the most of it in one draw)
-    const farAt = Math.min(reach, distanceAt(THIN[0], sizes[1], Math.max(innerHeight, 1400))), P = Math.min(64, Math.max(2, 2 ** Math.ceil(Math.log2(farAt / (row.cell * 5)))));
+    const farAt = Math.min(reach, farMost(THIN[0], sizes[1])), P = Math.min(64, Math.max(2, 2 ** Math.ceil(Math.log2(farAt / (row.cell * 5)))));
     const T = D.tierAll({ cell: row.cell, P, cap: big ? 16384 : 4096, sizes, place, casts: row.detail.casts, far: reach, last, thing: `rocks:${row.uid}` });   // (thing: a rock's own state, its asset and its cell: src/world/things.js)
     T.asset = row.name; tiers.push(T);
   }

@@ -38,12 +38,12 @@
 // culled, and everything is drawn as before.
 import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, float, int, uint, vec2, vec3, vec4, uvec4, ivec2, uniform, uniformArray, storage, texture, instanceIndex, workgroupId, localId, workgroupArray, workgroupBarrier, storageBarrier, atomicLoad, atomicStore, atomicOr, countOneBits, max, min, abs, floor, ceil, log2, exp2, clamp, packHalf2x16, unpackHalf2x16, floatBitsToUint, uintBitsToFloat } from 'three/tsl';
-import { gpuStorage, gpuStorageLater, more, limitOf, roomOf } from './gpu.js';
+import { gpuStorageLater, more, limitOf, roomOf } from './gpu.js';
 import { passOf } from './pass.js';
 import { windStrength, snowDepth } from '../world/light.js';
 
 const WG = 64, SW = 256, EPS = 2 ** -21;   // EPS: how much farther than the pyramid a box must be to be hidden (a few steps of a 24-bit depth); SW: the scans' workgroup
-const LEVELS = 16;   // the pyramid's levels at most (2^16 texels a side)
+const LEVELS = 16;   // the pyramid's levels at most: 2^16 texels a side, past any canvas a device makes (its maxTextureDimension2D, 16384 at most today)
 const MANY = 2 ** 30;   // (a pass dispatched indirectly: its count as large as it can be, so three's bound check never cuts it)
 // (and laid out in two dimensions, each within the device's own limit (an indirect dispatch past it is no dispatch at
 // all: nothing culled, a list read stale): uX workgroups a row, the rows as many as it takes; wgOf, a workgroup's place)
@@ -61,13 +61,15 @@ const U = {
   ok: uniform(0),                          // pass one may test against it (it is the last frame's, of this size)
   mode: uniform(2),                        // 0: nothing culled (everything packed is drawn); 1: only what is outside the view; 2: and what is hidden
 };
-let PYR = null;   // the pyramid's buffer: made with the first tier that is culled (its size: the largest screen it can serve)
+// The pyramid's buffer: as large as the screen it serves (the canvas, every pixel of it: the inside is never more), made
+// with the first tier that is culled and made again whenever that changes (the window's size, the screen's ratio)
+let PYR = null;
+/** Its texels, every level of it, for a depth of w × h pixels: level 0 half of them each way, and so on up to one. */
+const texelsOf = (w, h) => { let n = 0; for (let x = Math.ceil(w / 2), y = Math.ceil(h / 2); ; x = Math.ceil(x / 2), y = Math.ceil(y / 2)) { n += x * y; if (x === 1 && y === 1) return n; } };
+/** Made (again) for a screen of w × h pixels, where it is not so already. */
+const sizePyramid = (w, h) => { if (PYR.w === w && PYR.h === h) return; PYR.buf.make(texelsOf(w, h)); PYR.w = w; PYR.h = h; };
 const pyramidNode = () => {
-  if (!PYR) {
-    const w = Math.ceil(Math.max(3840, (globalThis.innerWidth ?? 1920) * 2) / 2), h = Math.ceil(Math.max(2160, (globalThis.innerHeight ?? 1080) * 2) / 2);
-    let n = 0; for (let x = w, y = h; ; x = Math.ceil(x / 2), y = Math.ceil(y / 2)) { n += x * y; if (x === 1 && y === 1) break; }
-    PYR = { w0: w, h0: h, n, buf: gpuStorage('float', n, 'the depth pyramid (occlusion)', 'geometry') };
-  }
+  if (!PYR) { PYR = { w: 0, h: 0, buf: gpuStorageLater('float', 'the depth pyramid (occlusion)', 'geometry') }; sizePyramid(Math.max(1, Math.round((globalThis.innerWidth ?? 1) * (globalThis.devicePixelRatio ?? 1))), Math.max(1, Math.round((globalThis.innerHeight ?? 1) * (globalThis.devicePixelRatio ?? 1)))); }   // (the screen's own pixels until a frame says what it draws)
   return PYR.buf.node;
 };
 
@@ -384,7 +386,7 @@ const passesOfPyramid = () => {
       const read = l === 0 ? (xx, yy) => tD.load(ivec2(int(xx), int(yy))).level(0).r : (xx, yy) => P.element(uint(was.x).add(yy.mul(uint(was.y))).add(xx));
       P.element(uint(is.x).add(i)).assign(max(max(read(x0, y0), read(x1, y0)), max(read(x0, y1), read(x1, y1))));
     });
-  })().compute(Math.ceil(PYR.w0 / 2 ** l) * Math.ceil(PYR.h0 / 2 ** l)));   // (its count the most it can be: three returns early past it)
+  })().compute(MANY));   // (its count as large as it can be: a level's own size, dispatched, and its test above, say what is worked)
   MAKE = { passes, dims, tD };
   return MAKE;
 };
@@ -421,7 +423,7 @@ export const occlusion = {
   },
   /** The pyramid from a depth of w × h pixels (the prepass's), drawn through this frame's camera. */
   build(renderer, depth, w, h) {
-    if (Math.ceil(w / 2) > PYR.w0 || Math.ceil(h / 2) > PYR.h0) { built = false; U.levels.value = 0; return; }   // (a screen larger than it can serve: nothing is hidden)
+    const C = renderer.domElement; sizePyramid(Math.max(w, C?.width ?? w), Math.max(h, C?.height ?? h));   // (the screen it serves, as it is now)
     const M = passesOfPyramid(); let at = 0, l = 0, x = w, y = h;
     M.dims.array[0].set(0, w, h, 0); M.tD.value = depth;
     for (; l < LEVELS; l++) { x = Math.ceil(x / 2); y = Math.ceil(y / 2); M.dims.array[l + 1].set(at, x, y, 0); U.lv.array[l].set(at, x, y, 0); M.passes[l].dispatchSize = x * y; at += x * y; if (x === 1 && y === 1) { l++; break; } }

@@ -35,13 +35,13 @@ export async function find(target) {
     height the engine counts by; w, h: the picture's size; dir: where the camera stands, from the target (a unit
     vector, flat); up: how far it looks down; stills: how many of the frames to hand back as pictures (RGBA). */
 export async function sweep({ target = 'boulder', from = 1.05, to = 1500, frames = 300, scale = 2160, dir = [0.6, 0.8], up = 0.35, stills = 0, keepAll = false, settle = 15000, log = false } = {}) {
-  const s = window.__game, { renderer, camera, scene } = s, { U } = await mod('src/core/uniforms.js'), { pxK } = await mod('src/detail/index.js'), { heightAt } = await mod('src/world/land.js'), { setPlanes } = await mod('src/core/frustum.js');
+  const s = window.__game, { renderer, camera, scene } = s, { U } = await mod('src/core/uniforms.js'), { pxKAt } = await mod('src/detail/index.js'), { heightAt } = await mod('src/world/land.js'), { setPlanes } = await mod('src/core/frustum.js');
   const T = await find(target), keep = new Set(T.keep), w = s.screen.target.width, h = s.screen.target.height;
   s.covered = true; s.governor.hold(true);   // (the game's own frames neither choose nor draw meanwhile: src/boot.js)
   const was = { pxk: U.uPxK.value, time: U.uTime.value, vis: s.scatter.tiers.map((t) => (t.meshes ?? [t.mesh]).map((m) => m.visible)) };
   // (the engine counts as a screen `scale` pixels tall would: its lens's measure, and every tier's reach, reckoned by it)
   const ih = Object.getOwnPropertyDescriptor(window, 'innerHeight'); Object.defineProperty(window, 'innerHeight', { get: () => scale, configurable: true });
-  U.uPxK.value = pxK(scale); s.scatter.tiers.forEach((t) => t.band?.());
+  U.uPxK.value = pxKAt(scale); s.scatter.tiers.forEach((t) => t.band?.());
   // the camera: as far off as frames the target's reach in the middle half of the picture, looking at it
   const fov = 40, d = T.r / Math.tan(((fov / 2) * Math.PI) / 180) / 0.55, dl = Math.hypot(dir[0], dir[1]), cx = T.x + (dir[0] / dl) * d * Math.cos(up), cz = T.z + (dir[1] / dl) * d * Math.cos(up), cy = Math.max(T.y + d * Math.sin(up), heightAt(cx, cz) + 1);
   camera.position.set(cx, cy, cz); camera.fov = fov; camera.aspect = w / h; camera.updateProjectionMatrix(); camera.lookAt(T.x, T.y, T.z); camera.updateMatrixWorld();
