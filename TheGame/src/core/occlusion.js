@@ -250,7 +250,7 @@ function arena() {
       acc.addAssign(s.all);
       workgroupBarrier();
     });
-    If(t.equal(uint(0)), () => { set(uG, C1, acc); sizeTo(D1, acc); });
+    If(t.equal(uint(0)), () => { const all = acc.min(uNC); set(uG, C1, all); sizeTo(D1, all); });   // (never more chunks than the arena has room for: uNC)
   })().compute(SW, [SW]);
   // pass one: what is out of view dropped; what the last frame's pyramid does not hide drawn; the rest held back
   const oneTest = Fn(() => {
@@ -298,7 +298,7 @@ function arena() {
       acc.addAssign(s.all);
       workgroupBarrier();
     });
-    If(t.equal(uint(0)), () => { set(uG, C2, acc); sizeTo(D2, acc); });
+    If(t.equal(uint(0)), () => { const all = acc.min(uNC); set(uG, C2, all); sizeTo(D2, all); });   // (as pass one's: uNC)
   })().compute(SW, [SW]);
   const oneWrite = Fn(() => {
     A.build();
@@ -375,7 +375,10 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
     A.build();
     const run = uint(0).toVar();
     for (let k = 0; k < K; k++) {
-      const g = uG0.add(uint(k)), n = (offAt ? atomicLoad(count.element(k)) : atomicLoad(count.element(k)).min(A.at(g, CAP))).toVar();
+      // (no more than its room: a bucket's own (CAP), or a resident tier's buckets together no more than its region (uHalf),
+      // whatever its count says: a count read before its packing has run, or past what its store holds, would have the
+      // culling dispatch for things that are not there (2026-11-19: a 410 ms pass one at the start, on Samuel's MacBook))
+      const g = uG0.add(uint(k)), n = (offAt ? atomicLoad(count.element(k)).min(uHalf.sub(run)) : atomicLoad(count.element(k)).min(A.at(g, CAP))).toVar();
       if (offAt) { A.at(g, BASE).assign(uBase.add(offAt(uint(k)).mod(uHalf))); A.at(g, CAP).assign(n); }   // (its place in the arena, folded: regionOf)
       F.element(k * 5 + 1).assign(n); A.at(g, PACK).assign(n); A.at(g, PRE).assign(run); run.addAssign(n);
       if (also) also(k);   // (what its tier writes beside, a draw at a time)
