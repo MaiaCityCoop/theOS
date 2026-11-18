@@ -36,7 +36,7 @@ export function createGround(renderer, tex) {
   const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false };
   // one pass, two outputs (MRT): the ground (height, grass, its height, stones) and the grass's colour (and its dryness)
   // (two of them: the one read, and the one before it while what is read passes from it to the new one)
-  const rts = [0, 1].map(() => new THREE.RenderTarget(N, N, { ...opts, type: THREE.HalfFloatType, count: 2 })); note('the ground round the camera (two maps, twice)', 2 * 2 * N * N * 8, 0);
+  const rts = [0, 1].map(() => new THREE.RenderTarget(N, N, { ...opts, type: THREE.HalfFloatType, count: 2 })); note('the ground round the camera (two maps, twice)', 2 * 2 * N * N * 8, 0, 'ground');
   for (const rt of rts) { rt.textures[0].name = 'ground'; rt.textures[1].name = 'tint'; }
   let cur = 0, fadeAt = -1;   // (fadeAt: frames into the fade; -1: none)
   // the texel's centre, in metres; three's node reads turn a target's rows the other way up, so the writer turns them too

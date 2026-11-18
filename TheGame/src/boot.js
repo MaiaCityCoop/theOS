@@ -23,6 +23,7 @@ import { loadingStep, loadingSay, loadingDone } from './ui/loading.js';   // the
 import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
 import { keepMeasure, measureNow, truthAfter, TRUTH } from './detail/measure.js';
+import { farthest, farthestMost } from './detail/extent.js';
 import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
@@ -67,7 +68,7 @@ export async function boot({ profile = 'world' } = {}) {
   // large as the GPU has them, not the 128 and 256 MB a device gives unasked: what is shared by many lies in buffers as
   // large as these say, src/core/occlusion.js)
   const limits = await askedLimits();   // (every limit the design sizes against, as this adapter has it: src/core/gpu.js SIZED)
-  const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), requiredLimits: limits });   // alpha false: the canvas is opaque (a frame's fourth number is not how see-through it is: it says how far what is kept may be trusted, src/core/pass.js; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
+  const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, depth: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), requiredLimits: limits });   // depth false: the canvas has none: nothing drawn onto it tests depth (the upscale lays one quad, src/core/temporal.js), and a 4K one stored every frame was 33 MB moved for nothing   // alpha false: the canvas is opaque (a frame's fourth number is not how see-through it is: it says how far what is kept may be trusted, src/core/pass.js; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
   if (flag('draws')) (await import('../tools/draws.js')).watch();   // ?draws: every pass and draw a frame asks of the GPU, counted (tools/draws.js: window.__draws), from before the first pipeline is made
   await renderer.init();
   useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js)
@@ -79,7 +80,7 @@ export async function boot({ profile = 'world' } = {}) {
   renderer.info.autoReset = false;   // a frame may be several passes: counted together
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(68, innerWidth / innerHeight, 0.15, 30000);
+  const camera = new THREE.PerspectiveCamera(68, innerWidth / innerHeight, 0.15, farthestMost());   // (its far plane where the largest thing is gone, kept so as the window and the lens change: below, and src/detail/extent.js)
   scene.add(camera);
   if (!world) { camera.position.set(STAGE.x + 6, heightAt(STAGE.x, STAGE.z) + 3, STAGE.z + 6); camera.lookAt(STAGE.x, heightAt(STAGE.x, STAGE.z) + 1, STAGE.z); }   // (the stage's camera over the stage from the start: its land is laid round where it looks)
   let sizeW = innerWidth, sizeH = innerHeight, resizes = 0;
@@ -176,6 +177,7 @@ export async function boot({ profile = 'world' } = {}) {
     const lod = governor.detail(camera);
     U.uLodInv.value = 1 / lod;
     measureNow();   // (the live pixel and the dial, as the governor left them: src/detail/measure.js)
+    const far = farthest() * lod; if (!(Math.abs(camera.far - far) <= far * 0.01)) { camera.far = far; camera.updateProjectionMatrix(); }   // (as far as the largest thing is drawn through this lens: src/detail/extent.js)
     u = performance.now(); parts.ctl = u - t; t = u;
     if (live()) grown.ground.update(p.x, p.z, dy, lod);
     u = performance.now(); parts.ground = u - t; t = u;

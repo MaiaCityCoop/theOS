@@ -22,6 +22,7 @@ import { waysVersion } from '../world/ways.js';
 import { flushThings, thingsVersion } from '../world/things.js';
 import { flag } from '../core/flags.js';
 import { occlusion } from '../core/occlusion.js';
+import { ready } from './tier.js';
 
 // (the stress stand and the herds are tools that measure: loaded only where the address asks for them, `?stress`,
 // `?herds=N`, as the bench and the flyby are: src/boot.js)
@@ -72,7 +73,8 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
         may run beside anything. A tier's own passes are made when it first has something to pack, aside, and it packs
         nothing until they are (tier.js run, src/core/compile.js): the start makes those of the tiers its first view
         packs, not all of them (177 of the 308 pipelines a cold start compiled before its first frame were compute,
-        2026-11-18). */
-    compile() { const passes = occlusion.passes(); return Promise.all([passes.length ? renderer.compileComputeAsync(passes) : null, ...more.map((f) => f())]); },
+        2026-11-18). ready: the resident tiers' shared rows made as large as all of them, before anything binds them
+        (tier.js). */
+    compile() { ready(); const passes = occlusion.passes(); return Promise.all([passes.length ? renderer.compileComputeAsync(passes) : null, ...more.map((f) => f())]); },
   };
 }

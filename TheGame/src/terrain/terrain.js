@@ -11,10 +11,10 @@ import { WALKER } from '../../world/scale.js';
 import { LAYERS } from './layers.js';
 import { waterMaterial } from './water.js';
 import { usedMaterials } from '../materials/bake.js';
+import { farthestMost } from '../detail/extent.js';
 import { recipes } from '../core/registry.js';
 
 const S0 = 8;               // a level-0 node's side, metres (0.5 m quads)
-const LEVELS = 10;          // the top level reaches R0 * 2^9 = 24.6 km (a land drawn less far: fewer, `reach`)
 const CAP = 4096 * FINE * FINE, WCAP = 1024 * FINE * FINE;   // (?truth's finer land: as many more nodes as its levels reach further, squared)
 const WATER_LEVELS = 6;
 // (the relief's levels below level 0: each reaching half as far as the one before, down to the first whose reach is
@@ -63,7 +63,9 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   waterMesh.renderOrder = 20;
   scene.add(landMesh, waterMesh);
 
-  const range = [], range2 = [], levels = Math.min(LEVELS, Math.max(1, Math.ceil(Math.log2(reach / R0)) + 1));   // (each level's reach; under ?truth FINE times as far, but the last's: the land ends where it always does)
+  // (its levels: as many as reach where the largest thing is gone, on the largest picture this screen shows
+  // (src/detail/extent.js); a land drawn less far, `reach`, fewer)
+  const range = [], range2 = [], levels = Math.max(1, Math.ceil(Math.log2(Math.min(reach, farthestMost()) / R0)) + 1);   // (each level's reach; under ?truth FINE times as far, but the last's: the land ends where it always does)
   for (let i = 0; i < levels; i++) { range.push(R0 * 2 ** i * (i < levels - 1 ? FINE : 1)); range2.push(range[i] * range[i]); }
   const TOP = S0 * 2 ** (levels - 1);
   let cx = 0, cz = 0, dy2 = 0, inv2 = 1;
@@ -110,10 +112,10 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   return {
     landMesh, waterMesh, pages,
     update(camera, uDy, lodInv) {
-      pages.update(camera);
+      const top = levels - 1, R = Math.min(range[top] / lodInv, camera.far);   // (as far as it is drawn: its top level's reach, no farther than the far plane)
+      pages.update(camera, R, R * lodInv);   // (its last level kept in as far: all round as far as the walker's lens sees)
       cx = camera.position.x; cz = camera.position.z; dy2 = uDy * uDy; inv2 = lodInv * lodInv;
       land.n = water.n = 0;
-      const top = levels - 1, R = Math.min(range[top] / lodInv, camera.far);
       U.uLandEnd.value = R;
       const i0 = Math.floor((cx - R) / TOP), i1 = Math.floor((cx + R) / TOP), j0 = Math.floor((cz - R) / TOP), j1 = Math.floor((cz + R) / TOP);
       for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) select(i * TOP, j * TOP, TOP, top);
