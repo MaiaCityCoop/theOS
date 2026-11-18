@@ -5,17 +5,14 @@
 // Playwright's page.close() a time of its own: it waits for the renderer to let the page go (2026-11-18, a ?truth run
 // whose first view had failed hung 13 minutes in stills' last call, closing that page, its Chrome at 0 % CPU). Here each
 // page.evaluate and page.waitForFunction races a timer of the gate's own: the call's own wait (its argument's `wait`, or
-// waitForFunction's timeout; else the page's own, the longest the gate allows it to come or settle) times MARGIN, and
-// page.close the page's. A page that does not answer in that time is said (crashed, or
+// waitForFunction's timeout), and then the page's whole allowance again (the longest the gate lets it come or settle):
+// the page's own timer had all of that to answer. page.close, naming none, the page's allowance. A page that does not answer in that time is said (crashed, or
 // hung, with the browser's memory by process and the machine's swap at that moment), its Chrome closed (killed if it
 // will not close), and the call fails: the view is marked failed and the run stops, nothing waited on.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
-/** How much longer than the longest it may legitimately take the gate waits on a call before it calls the page hung:
-    a fifth again. */
-const MARGIN = 1.2;
 
 /** A page that did not answer: its message says what was found. */
 class Unanswered extends Error {}
@@ -39,11 +36,11 @@ async function memoryNow(dir) {
 }
 
 /** `page`'s evaluate, waitForFunction and close held to their time from here: a call's own wait, else `wait` (the
-    longest the gate allows the page to come or settle: tools/gate.js open), times MARGIN. dir: the profile its Chrome runs on (for the
+    longest the gate allows the page to come or settle: tools/gate.js open) on top. dir: the profile its Chrome runs on (for the
     memory said); kill(): its Chrome closed at once. */
 export function guard(page, { dir = null, kill = null, wait } = {}) {
   if (!(wait > 0)) throw new Error('guard: the longest a call on the page may take (wait) is the gate\'s to say');
-  const held = (own) => (own ?? wait) * MARGIN;
+  const held = (own) => (own ?? 0) + wait;
   const ev = page.evaluate.bind(page), wf = page.waitForFunction.bind(page), cl = page.close.bind(page);
   let crashed = false; page.on('crash', () => (crashed = true));
   const within = async (call, ms, what) => {
