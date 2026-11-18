@@ -23,8 +23,9 @@ import { fmixN } from '../core/hash.nodes.js';
 import { c8 } from '../../assets/kit/pack.js';
 
 // The table: open addressing, a key within PROBE places of its own (a look-up stops at the first empty one), never
-// fuller than LOAD (so a look-up takes a step or two, and a key never runs out of places: with linear probing at a
-// share LOAD filled, a search is (1 + 1 / (1 − LOAD)²) / 2 places long on the average, 3.6 at 0.6). As large as what
+// fuller than LOAD (so a look-up takes a few steps, and a key never runs out of places: with linear probing at a share
+// LOAD filled, a look-up that misses, as most do, is (1 + 1 / (1 − LOAD)²) / 2 places long on average, 3.6 at 0.6;
+// one that finds, (1 + 1 / (1 − LOAD)) / 2, 1.75). As large as what
 // is in it needs: the least power of two that holds it at LOAD, at least PROBE places, twice as large when it fills;
 // 16 bytes an entry, never more than one buffer the GPU binds
 const PROBE = 32, LOAD = 0.6;

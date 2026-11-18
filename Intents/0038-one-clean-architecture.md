@@ -1709,6 +1709,52 @@ gate says each class's share.
   budget, all the pools note, all the device made and what no pool notes, and says a class over its budget;
   `gate.js paths` the same as each path ends. `.gate/bench.json` and `paths.json` hold it.
 
+### Train 2: the solids' builder and cut from first principles (2026-11-18)
+
+Built on `aven/0038-solids` from train 1c with #97 under it (`e46c295`), on the Mac mini, CPU only: measured in node on
+the rocks' and the made things' own hierarchies, the page's modules loaded through vite without a page.
+
+- **The normal's weight from what it looks like** (`assets/kit/clusters.js`): a normal δ off shades as the surface
+  tilted δ there, as though it had moved, from the nearest place where it is right, δ r / 2. meshoptimizer weighs a
+  change of 1/w in an attribute over a distance d as d of position (its README), so the weight is 1/2 (was 0.02 by
+  hand). And the shading's error is measured at every vertex a group lost (its normal against the one there, r to the
+  nearest corner), beside how far it lies. Measured so, the old weight's hierarchies hid shading: the rocks' errors are
+  1.8–2.4 times what the simplifier said (median parent error 0.70e-3 → 1.71e-3 on a boulder). With 1/2 the simplifier
+  keeps the shading where it costs least: the honest error at 1.0e-3, level 1 holding 25 k triangles against 43 k
+  with 0.02 kept honest (12 k when the shading went unmeasured).
+- **FEW and THIN, from what fails** (`clusters.js` build): a loose part is kept whole where the simplifier's word does
+  not hold for it. Each part is made coarse alone, as far as the simplifier says it stays under its reach over BAND;
+  if what it lost lies farther than that, or it will not be made coarser, it waits whole and goes whole at its reach.
+  The tent keeps 27 of its 33 parts so (FEW/THIN: 28), about as many triangles a level (fewer at levels 2, 5, 6 and
+  8, more at 7: 1,025 against 461). A first try,
+  "keep whole what has no coarser shape once halved", kept 7 and held the tent at full detail to level 6: a rope's
+  first halving is cheap, its second takes its length.
+- **MAXT and MAXV:** the cut draws a listed cluster as MAXT × 3 corners, so MAXT is where the fill holds: 95–96% at 64
+  and 128 on the rocks, 93–94% at 256 (the fire pit 82%, the tent 43%), while from 64 to 128 the clusters to test and
+  list halve. MAXV was 192 by hand; meshoptimizer's own most is 256, nothing drawn reads it, and the tent's fill goes
+  from 62% to 79% (the rocks' does not move).
+- **The rooms from the hierarchies** (`tools/rooms.js`, `rooms.json`, `src/scatter/rooms.js`): every solid's levels
+  measured as `packLevel` lays them, a shape at a time, kept by its recipe's version and the builder's hash (no
+  recipe's version says the kits the zoo and the workers bring), measured again by the dev server after the registry
+  (29 s cold, 52 ms warm). madeRoom (2.1 × faces, 32,000 vertices) and the rocks' ROOM table ("a quarter to spare")
+  are gone. Measured, the table was short for every coarse level of the new hierarchies (level 6: 133 triangles
+  against 3,216 for boulder 3, below).
+- **The rocks' full meshes:** a slot a shape (24), as any of them may lie near at once, within the geometry class's
+  room beside every shape's coarser levels: 151.9 MB (was 6 slots, 53.8 MB, and every shape's under `?truth`). No
+  TRUTH branch.
+- **The cut** (`src/scatter/cut.js`): its clusters a thing are the level's own most (1,787, was ceil(tris / 32) + 8 =
+  7,093, so a quarter of the threads); its list as many as its packed things can ask for, within one buffer the GPU
+  binds and the geometry's room, noted as a pool of its own.
+- **The single things' table** (`src/world/things.js`): as large as what it holds, from 32 places, doubling while it
+  is more than 0.6 full (linear probing: a look-up that misses, as most do, looks at 3.6 places on average), within
+  one buffer the GPU binds (was 2^18
+  places, 4 MB, always). Its buffer made again when it grows, the node the same.
+- **Left:** boulder 3's coarse levels hold about 3,200 triangles because one level-5 group's simplifier error (0.058) is
+  four times what was measured of it (0.014), and BAND carries it up the whole chain. The simplifier's error is a
+  quadric's bound; trusting a measure of the two-sided distance where it is lower is the next root cause. The
+  colours' weights (the rock's shade 0.01, a made thing's colour 0.02) are still by hand: a colour's edge moved is the
+  same question as the normal's.
+
 ## Propose
 
 ## Story
@@ -1987,6 +2033,13 @@ gate says each class's share.
 - **Not there yet:** not run (CPU only); the budgets are first numbers, to be set from the train's readings; what no
   pool notes is counted, not yet named.
 
+- **Asked (by the master on the Mac mini):** the solids' builder and cut from first principles: the normal's weight
+  from the shading's error in pixels against ERROR_PX, MAXT/FEW/THIN derived or justified, madeRoom and the rocks'
+  ROOM table and full-mesh slots from each shape's hierarchy within the geometry's room, the cut's list from need and
+  the device's limits, the single things' 2^18 from need.
+- **Delivered:** `aven/0038-solids`, draft PR (under Build, "Train 2: the solids' builder and cut…").
+- **Not there yet:** not run on a GPU (CPU only); boulder 3's coarse levels and the colours' weights (Left, there).
+
 ## Trail
 
 | When | Commit | What |
@@ -2061,3 +2114,4 @@ gate says each class's share.
 | 2026-11-18 | `2fdfae0` | Draw path: every culling dispatch within the device's workgroups a dimension |
 | 2026-11-18 | `d7dcd26` | Draw path merged with main (`ecc80f2`, the bench by its passes); PR #77 ready |
 | 2026-11-18 | `85e1e1d` | GPU memory by class: one table of classes, one accounting with the device counted, the gate beside the ms |
+| 2026-11-18 | `f0f5695` | The solids' builder and cut from first principles: the normal's weight, kept-whole parts, rooms from the hierarchies |
