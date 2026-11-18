@@ -111,6 +111,27 @@ row says what was adopted, and from whom.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2.0 | 3.4 | 2.0 | 1.0 | 0.7 | 2.0 | 0.4 | 0.5 |
 
+**Budgets, the bench's parts, as a merge rule** (`bun tools/gate.js bench`, `TheGame/tools/gate/ceilings.js`). The bench
+times every pass of the frame on the GPU and adds them up in four parts (`tools/bench.js` CLASSES). Each part has its
+share of the 12 ms:
+
+| Geometry | Light | Ground | Upscale/post | Slack (a pass no part names) | Total |
+| --- | --- | --- | --- | --- | --- |
+| 5.0 | 3.0 | 1.5 | 2.0 | 0.5 | 12.0 |
+
+- **What each part holds.** Geometry is the packing, the culling, the prepass and the colour pass: the vegetation, the
+  rocks and the made things above, and the land's shading. Light is shadows, AO and GI, and air. Ground is the land's
+  pages and relief. Upscale/post is the upscale and the post.
+- **Why upscale/post is 2.0.** It is set to its measured floor: the upscale's bytes alone take about 1.9 ms at a 4K
+  output (#86). The slack is the margin above, 0.5.
+- **The ceilings.** Every part of every view has a ceiling of its own (`tools/gate/ceilings.json`). It starts at
+  max(its share, what main measured): main `3d0c3b5` measured, for example, 23.86 ms of geometry in the pine forest
+  at eye level, and 5.7–6.6 ms of upscale/post at every view.
+- **The rule.** A branch fails `bench` (exit 1) where a part of a view costs more than its ceiling and the noise
+  between two runs (`--twice` measures it; until then the larger of 0.25 ms and 5 %).
+- **The ratchet.** The nightly run on main (`--ratchet`) lowers every ceiling to what main measures, never raises one
+  and never below its share, until every part of every view is within its budget.
+
 The risk is the vegetation and the land on the bench's base M1. The stand alone measured 5.4 ms at 1440×779 in 0008.
 The governor may settle near 1080p there (a 2× upscale), and nearer 1440p on an M-Pro.
 
