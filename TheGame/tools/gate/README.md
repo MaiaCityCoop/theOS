@@ -21,19 +21,28 @@ and `motion`) and **real** (the full-detail picture is held against photographs:
 `bun tools/gate.js motion --url <your server> --fresh [--paths walk,zoom] [--fps 60]`
 
 Every frame of each path is drawn twice, in two passes of a page each (one world in memory at a time: the bench's Mac
-has 8 GB): as the game draws it (L, its frames kept on disk, squeezed, till the second pass), and at full detail
-(`?truth` drawn as a frame in motion, R: the same inside, the same places of a pixel, everything at its finest). Both
-pages run on the gate's clock (`clock.js`): no frame is drawn until the gate asks for it, at the same moment of the
-world's clock in both (each path at its own hour, 3600 s and on, the same in every run). The truth's frame is drawn
-twice with the camera and the clock standing: once to ask for what it needs, then at the LOD frame's place of a pixel
-(`src/core/temporal.js` `place`); what it still lacked is recorded per frame. Frames are read once drawn. For every
-frame the gate measures `FLIP(L now, L before + (R now − R before))`: that picture differs from L exactly by
+has 8 GB): as the game draws it (L, its frames kept on disk, squeezed, till the second pass), and at full detail (R).
+Both pages run on the gate's clock (`clock.js`): no frame is drawn until the gate asks for it, at the same moment of the
+world's clock in both (each path at its own hour, 3600 s and on, the same in every run). **The truth's frame is a
+settled still at its step:** the camera and the clock standing, drawn as `?truth` draws a still (every pixel the canvas
+has, over its 32 places of a pixel) until `settle()` resolves: nothing out (the land's pages among it) and the picture
+come to rest. So the reference neither shimmers nor lacks, as check 4 defines it ("supersampled so it doesn't
+shimmer"). The game's frame is drawn once, as the game draws it. Frames are read once drawn. For every frame the gate
+measures `FLIP(L now, L before + (R now − R before))`: that picture differs from L exactly by
 ((L − R) now) − ((L − R) a frame before), the change detail made, seen in the frame as it was drawn. What the camera,
-the wind and the clock did, the truth did too, so it falls out.
+the wind and the clock did, the truth did too, so it falls out; what the game's own frame does besides (a level that
+switches, a page that comes, the shimmer of what it draws in motion) is counted.
+
+A truth drawn in motion as the game draws a frame (train 1, 2026-11-18) was no reference: its own shimmer in the
+canopy changed frame to frame unlike the game's, and the measure read the two shimmers (a median of 0.52), and its land
+pages lagged behind a climbing zoom.
 
 - **The merge rule:** no frame's worst 32-pixel tile over the line (`lineOf` in `motion.js`): ERROR_PX × INSIDE / the
   tile, 1 × 4/3 / 32 = 0.042. A switch within the dial moves an edge by at most ERROR_PX pixels drawn, INSIDE canvas
-  pixels each, so across a tile at full contrast it changes the tile's mean by at most that. The line follows the dial.
+  pixels each, so across a tile at full contrast it changes the tile's mean by at most that. The line follows the dial. **Not binding**
+  until train 2's GPU run shows the settled-still truth.
+- **What it costs:** a truth still a step, about 35 frames of about a second each: a minute a step, offline. The zoom's
+  20 s at 5 frames a second is about 1.7 hours; `--to` and `--fps` make a smoke of it.
 - **Out:** `.gate/motion-<tag>/report.json` (every frame's worst tile, its 99th percentile and mean), and a filmstrip
   JPEG per path: every frame's worst tile over the path, then the worst frames, each with the squares round its worst
   tile at full size (LOD before and now, truth before and now, FLIP's heat map of the change).

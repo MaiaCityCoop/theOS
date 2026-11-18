@@ -239,7 +239,7 @@ export function createTemporal(renderer) {
     /** Frames the kept picture has been built over since it was last let go (0: this frame stood alone). */
     get age() { return age; },
     /** Which of its places of a pixel the last frame was drawn at; set, the next frame is drawn at the one after it (the
-        gate draws the truth's frame at the place the game's was: tools/gate/motion.js). */
+        gate's motion --floor draws its second pass at the first's places: tools/gate/motion.js). */
     get place() { return k; },
     set place(v) { k = ((Math.round(v) % places.length) + places.length) % places.length; },
     /** How many frames in a row, nothing changed, until what was kept before has left the picture (src/core/settle.js):
