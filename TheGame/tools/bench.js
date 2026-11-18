@@ -24,7 +24,7 @@ export const BUDGET = 12;
 export const CLASSES = {
   geometry: ['packing', 'occlusion', 'prepass', 'prepass, late', 'colour'],   // what is drawn: the tiers' packing and the surfaces' cut (src/scatter), the culling's pass one, the prepass, then the depth pyramid, pass two and what it finds (src/core/occlusion.js), the colour
   light: ['clouds', 'near', 'far', 'canopy', 'probes', 'air tables', 'sky', 'froxels', 'screen light', 'gtao', 'contact'],   // the clouds' shadow map (src/world/weather/clouds.js); the light's passes before the frame (src/world/light/index.js): the near and far cascades (src/world/shadow.js), the canopy map and its sky probes (src/world/light/canopy.js), with ?light=full the air's tables, sky view and froxels (src/world/light/air.js); after the prepass the screen's light (src/boot.js): GTAO with ?light=full, and the contact shadows (src/world/light/screen.js)
-  ground: ['ground map', 'pages, laid', 'relief', 'pages'],   // the ground under the camera (src/scatter/ground.js); the land's pages laid, the relief's points near the eye (src/terrain/relief.js), and the pages asked for after the prepass (src/terrain/pages.js)
+  ground: ['ground map', 'pages, laid', 'pages'],   // the ground under the camera (src/scatter/ground.js); the land's pages laid, and asked for after the prepass (src/terrain/pages.js)
   'upscale/post': ['lens', 'upscale'],   // the virtual camera's lens (src/camera/post.js), the upscale to the screen (src/core/temporal.js)
 };
 const CLASS = new Map(Object.entries(CLASSES).flatMap(([c, names]) => names.map((k) => [k, c])));
@@ -193,7 +193,7 @@ export async function parts(view = VIEWS[0], { ratio = 1, frames = 30 } = {}) {
     setPlanes(pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)); s.ground.update(p.x, p.z, dy, 1); s.terrain.update(camera, dy, 1); s.scatter.select(p.x, p.z, g, 1, dy);
     const time = async (f) => (await timed(clock, f, frames)).sum;
     const kids = scene.children.filter((o) => o.visible), tierOf = new Map(); for (const t of s.scatter.tiers) for (const m of t.meshes ?? [t.mesh]) tierOf.set(m, t.asset);
-    const groups = { sky: (o) => o.renderOrder === 15, land: (o) => o === s.terrain.landMesh || o === s.terrain.relief?.mesh, water: (o) => o === s.terrain.waterMesh };   // (the land: its mesh and the relief's near the eye)
+    const groups = { sky: (o) => o.renderOrder === 15, land: (o) => o === s.terrain.landMesh, water: (o) => o === s.terrain.waterMesh };
     for (const a of new Set(tierOf.values())) groups[a] = (o) => tierOf.get(o) === a;
     const named = Object.values(groups); groups.placed = (o) => !named.some((f) => f(o)) && !tierOf.has(o);
     const out = { view: v.name, all: await time(() => renderer.render(scene, camera)), light: await time(() => s.shadows.render(scene, camera, g)), weather: await time(() => s.weather.before(camera, g)) };
