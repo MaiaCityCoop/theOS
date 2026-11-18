@@ -22,6 +22,8 @@
 //   the grass: one blade, its asset's height times its tuft's share (0.5 to 2.2, src/scatter/grass.js), the middle the
 //     mean share
 //   a person: built (characters/kit/human.js) and measured, feet to the top of the hair
+//   a figure brought in whole (characters/kit/figure.js): read, then measured by its kit from its lowest to its highest
+//     point as its bones hold it at rest (`stands`)
 //   a character that is grown after it is made (the skeleton: characters/kit/bones.js): waited for, then measured the
 //     same way, its quick surface
 // Every level of what is built is measured too: a far level that stands taller or lower than the near one by more
@@ -55,6 +57,7 @@ async function measured(a) {
   if (a.type === 'character') {
     const T = new THREE.Texture(), tex = new Proxy({}, { get: (_, k) => (k === 'want' ? () => {} : () => texture(T)) });
     const made = a.make(tex, { quick: true }); await made.grown;   // (one grown after it is made says when it stands; its quick surface is enough to measure)
+    if (made.stands) { const h = made.stands.top - Math.max(0, made.stands.low); return { by: 'height', least: h, middle: h, most: h, notes }; }   // (a figure brought in whole says where it stands: its file's points are not in metres, its kit measures them as its bones hold them, characters/kit/figure.js)
     let mesh = null; made.object.traverse((o) => { if (o.isSkinnedMesh) mesh = o; });
     if (!mesh) return { by: 'height', least: 0, middle: 0, most: 0, notes, fails: [`it could not be built here${made.failed ? ': ' + made.failed : ''}`] };
     const B = bounds(mesh.geometry.attributes.position.array), h = B.top - Math.max(0, B.lo[1]);

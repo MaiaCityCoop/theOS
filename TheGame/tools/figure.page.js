@@ -1,0 +1,45 @@
+// A figure alone (intent 0041): a character of the library that is brought in whole (characters/kit/figure.js), made by
+// its own recipe and drawn with none of the world round it, so a still of a move or of a face takes seconds where
+// the library takes the world's start. A tool: tools/figure.html on the game's dev server.
+//
+// The address says who, what they do and the view (all optional):
+//   who          the recipe's file in characters/ without its ending (man, woman)
+//   move, face   one of its moves and one of its expressions, by their ids             t      its clock (s) when the still is taken
+//   y, x, z      what the camera looks at (m; the figure stands at the middle)          d      how far off (m)
+//   yaw, pitch   where it stands round and over that (degrees; 0: in front)            fov    its lens (degrees)
+//   sun, suna    the key light: degrees to the camera's left, and up (the library's: 45, 40)  exp    the exposure
+//   bones        its skeleton drawn over it          gpu    through WebGPU (as the game draws); without it WebGL 2
+//   round        left on its walk's round (1.5 m from the middle); turned: left turned as its move turned it
+import * as THREE from 'three/webgpu';
+import { uniform, texture } from 'three/tsl';
+import { useTiles } from '../src/world/tile.js';
+import { U } from '../src/core/uniforms.js';
+
+// (no baked materials here: what reads one, the clouds' field, reads grey)
+{ const grey = new THREE.DataTexture(new Uint8Array([128, 128, 128, 255]), 1, 1); grey.needsUpdate = true; useTiles({ a: (m, uv) => texture(grey, uv), n: (m, uv) => texture(grey, uv), layer: () => 0 }); }
+const q = new URLSearchParams(location.search), num = (k, d) => (q.get(k) == null ? d : +q.get(k)), D2R = Math.PI / 180;
+const renderer = new THREE.WebGPURenderer({ canvas: document.getElementById('c'), antialias: true, forceWebGL: !q.has('gpu') });
+await renderer.init();
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // (the screen's curve is the material's own: src/world/light.js toScreen)
+renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight, false); renderer.setClearColor(new THREE.Color(0.2, 0.2, 0.21));
+const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(num('fov', 28), innerWidth / innerHeight, 0.05, 100);
+U.uCam.value = camera.position; U.uHaze.value = 0; U.uExposure.value = num('exp', 1);
+const yaw = num('yaw', 0) * D2R, pitch = num('pitch', 0) * D2R, d = num('d', 4.3), at = [num('x', 0), num('y', 0.9), num('z', 0)];
+camera.position.set(at[0] + Math.sin(yaw) * Math.cos(pitch) * d, at[1] + Math.sin(pitch) * d, at[2] + Math.cos(yaw) * Math.cos(pitch) * d); camera.lookAt(...at);
+const sa = num('sun', 45) * D2R, su = num('suna', 40) * D2R;   // (the library's key: 45° to the camera's left, 40° up)
+U.uSunDir.value.set(Math.sin(yaw - sa) * Math.cos(su), Math.sin(su), Math.cos(yaw - sa) * Math.cos(su)).normalize();
+
+const who = (q.get('who') ?? 'man').replace(/[^a-z0-9-]/g, ''), recipe = (await import(`../characters/${who}.js`)).default;
+const T = new THREE.Texture(), tex = new Proxy({}, { get: (_, k) => (k === 'want' ? () => {} : () => texture(T)) });
+const P = recipe.make(tex, { eye: uniform(camera.position) }); await P.grown;
+if (P.failed) { window.__drawn = { error: P.failed }; throw new Error(P.failed); }
+const stage = new THREE.Group(); stage.add(P.object); scene.add(stage); window.__figure = P;   // (for a look from the console)
+if (q.get('move')) P.setMove(q.get('move'));
+if (q.get('face')) P.setExpression(q.get('face'));
+// (its clock run to t in steps, as the game's frames would: a walk goes its way round, a blend comes to its end)
+{ const t = num('t', 2), n = Math.max(1, Math.round(t / (1 / 30))), eyeAt = { x: camera.position.x, z: camera.position.z }; for (let i = 0; i < n; i++) P.step(t / n, eyeAt); }
+if (!q.has('round')) { P.object.position.set(0, 0, 0); if (!q.has('turned')) P.object.rotation.y = 0; P.object.updateMatrixWorld(true); }   // (taken off its walk's round to the middle, facing the front; `round` leaves it there, `turned` as it is turned)
+if (q.has('bones')) { const lines = new THREE.SkeletonHelper(P.bones.root); lines.material.depthTest = false; lines.material.transparent = true; lines.renderOrder = 9; scene.add(lines); }
+let low = Infinity; { const v = new THREE.Vector3(); for (const s of ['Left', 'Right']) for (const b of ['Foot', 'ToeBase', 'ToeEnd']) { const bone = P.bones[s + b]; if (bone) low = Math.min(low, bone.getWorldPosition(v).y); } }
+await renderer.compileAsync?.(scene, camera);
+let frames = 0; (function draw() { renderer.render(scene, camera); if (++frames < 4) requestAnimationFrame(draw); else window.__drawn = { who: recipe.name, height: +P.height.toFixed(3), stands: P.stands, faces: P.faces, bones: P.bonesCount, figures: P.figures, move: P.move, face: P.expression, lowestFootBone: +low.toFixed(3) }; })();   // (what a still waits for)

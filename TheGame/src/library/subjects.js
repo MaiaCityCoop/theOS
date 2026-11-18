@@ -179,7 +179,7 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
       let P = people.get(id); if (!P) { people.set(id, (P = c.make(tex))); P.onGrown = () => { if (person === P) character(id, true); }; }   // (one grown in the page says when a finer surface is on it: its card is drawn again)
       staged = new THREE.Group(); staged.position.set(STAGE.x, heightAt(STAGE.x, STAGE.z), STAGE.z); staged.add(P.object);
       staged.userData.kept = true;   // (kept to be shown again: nothing to free when it goes)
-      person = P; if (q.get('move')) P.setMove(q.get('move')); if (q.get('layer') && P.setLayer) P.setLayer(q.get('layer')); P.step(0);
+      person = P; if (q.get('move')) P.setMove(q.get('move')); if (q.get('layer') && P.setLayer) P.setLayer(q.get('layer')); if (q.get('face') && P.setExpression) P.setExpression(q.get('face')); P.step(0);
       game.show(staged);
       // the first frame from the front, the person in the middle and facing us; then it circles, as every subject does
       S.H = P.height * 1.25; S.dist = 4.2; S.pitch = 0.2; S.spin = true; S.yaw = P.object.rotation.y; S.person = P;
@@ -196,14 +196,16 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
       + figs([fig(num(P.height), 'm', 'Height'), ...(P.figures ?? [[P.bonesCount, '', 'Bones']]).map((f) => fig(...f)), fig(Math.round(P.faces / 1000), 'k', 'Faces')])
       + (P.note ? `<div class="g-cell g-part">${say(P.note)}</div>` : '')
       + `<div class="g-cell g-part"><span class="g-label">Moves · rigged</span><div class="g-pick" style="margin-top:6px">${P.moves.map((m) => `<button data-move="${m.id}" class="${P.move === m.id ? 'on' : ''}"><b>${m.name[0]}</b><span><span class="g-name">${m.name}</span><span class="g-sub" style="white-space:normal">${m.about}</span></span></button>`).join('')}</div></div>`
+      + (P.expressions ? `<div class="g-cell g-part"><span class="g-label">Expressions · the face's own shapes</span><div class="g-pick" style="margin-top:6px">${P.expressions.map((x) => `<button data-face="${x.id}" class="${P.expression === x.id ? 'on' : ''}"><b>${x.name[0]}</b><span><span class="g-name">${x.name}</span><span class="g-sub" style="white-space:normal">${x.about}</span></span></button>`).join('')}</div></div>` : '')
       + (P.layers ? `<div class="g-cell g-part"><span class="g-label">Layers · the outermost shown</span><div class="g-pick" style="margin-top:6px">${P.layers.map((l) => `<button data-layer="${l.id}" class="${P.layer === l.id ? 'on' : ''}"><b>${l.name[0]}</b><span><span class="g-name">${l.name}</span><span class="g-sub" style="white-space:normal">${l.about}</span></span></button>`).join('')}</div></div>` : '')
       + `<div class="g-cell g-part"><span class="g-label">${P.rigLabel ?? `Skeleton · ${P.bonesCount} bones, skinned`}</span><div class="seed"><b style="font-weight:450${P.rigAbout ? ';line-height:1.35' : ''}">${P.rigAbout ?? 'hips, spine, chest, neck, head; arms, hands, legs, feet'}</b><button class="g-btn${showBones ? '' : ' quiet'}" id="bonesT">${showBones ? 'Hide' : 'Show'}</button></div></div>`
       + (c.wears ? `<div class="g-cells g-part">${cell('Wears', `<div class="g-chips">${mats.map(chip).join('')}</div>`, true)}${cell('Made from', say(`The stress stand's ${c.from.rig}, kind ${c.from.kind}: its legs, build, head and lean`), true)}</div>` : c.made ? `<div class="g-cells g-part">${cell('Made', say(c.made), true)}</div>` : '')
       + fileOf(c);
     document.querySelectorAll('[data-move]').forEach((b) => (b.onclick = () => { P.setMove(b.dataset.move); character(id, true); }));
     document.querySelectorAll('[data-layer]').forEach((b) => (b.onclick = () => { P.setLayer(b.dataset.layer); character(id, true); }));   // (a body: which of its layers is outermost)
+    document.querySelectorAll('[data-face]').forEach((b) => (b.onclick = () => { P.setExpression(b.dataset.face); character(id, true); }));   // (a figure brought in whole: what its face does, characters/kit/figure.js)
     document.getElementById('bonesT').onclick = () => { showBones = !showBones; character(id, true); };
-    address(`character=${id}&move=${P.move}${P.layer ? '&layer=' + P.layer : ''}`);
+    address(`character=${id}&move=${P.move}${P.layer ? '&layer=' + P.layer : ''}${P.expression ? '&face=' + P.expression : ''}`);
   }
 
   // ---- the lineup (intent 0035): every asset beside the Settler, each as the world stands it (a tree at seventy, a bush
