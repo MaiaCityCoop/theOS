@@ -8,30 +8,30 @@
 // left is what detail did: a level that switched, a page that came, a crowd thinned, a hand-over. B is held to the bytes'
 // range, so a change past it is counted as far as it goes.
 //
-// A message: { i, w, h, L, Lb, R, Rb } (RGBA bytes, SharedArrayBuffers: L and R this frame's, Lb and Rb the frame before's).
-// The answer: { i, mean, p99, worst: { value, x, y, size }, look } – the error map's mean, its 32-pixel tiles' 99th
-// percentile and worst – and, for the filmstrip, `look`: the frame small (THUMB wide), and the 128-pixel squares round
-// its worst tile at full size: LOD before, LOD now, truth before, truth now, and FLIP's heat map of the change.
+// A message: { i, w, h, L, Lb, R, Rb, thumb } (RGBA bytes, SharedArrayBuffers: L and R this frame's, Lb and Rb the frame
+// before's; thumb: how wide the filmstrip draws the frame, tools/gate/motion.js thumbOf). The answer: { i, mean, p99,
+// worst: { value, x, y, size }, look } – the error map's mean, its 32-pixel tiles' 99th percentile and worst – and, for
+// the filmstrip, `look`: the frame small (thumb wide), and the squares round its worst tile at full size, the tile and
+// the ring of tiles round it: LOD before, LOD now, truth before, truth now, and FLIP's heat map of the change.
 import { parentPort } from 'node:worker_threads';
 import { flip, tiles, heat } from './flip.js';
 import { shrink, square } from './sheet.js';
 
-export const THUMB = 640, CROP = 128;
-
-parentPort?.on('message', ({ i, w, h, L, Lb, R, Rb }) => {
+parentPort?.on('message', ({ i, w, h, L, Lb, R, Rb, thumb }) => {
   try {
     const n = w * h, l = new Uint8Array(L), lb = new Uint8Array(Lb), r = new Uint8Array(R), rb = new Uint8Array(Rb), b = new Uint8Array(n * 3);
     for (let p = 0, q = 0; p < n * 4; p += 4, q += 3) for (let c = 0; c < 3; c++) { const v = lb[p + c] + r[p + c] - rb[p + c]; b[q + c] = v < 0 ? 0 : v > 255 ? 255 : v; }
     const err = flip({ width: w, height: h, data: b, channels: 3 }, { width: w, height: h, data: l, channels: 4 }), t = tiles(err, w, h);
-    parentPort.postMessage({ i, mean: t.mean, p99: t.p99, worst: t.worst, look: look(w, h, t.worst, { l, lb, r, rb, err }) });
+    parentPort.postMessage({ i, mean: t.mean, p99: t.p99, worst: t.worst, look: look(w, h, t.worst, { l, lb, r, rb, err }, thumb) });
   } catch (e) { parentPort.postMessage({ i, error: String(e?.stack ?? e) }); }
 });
 
-/** What the filmstrip shows of a frame: the frame THUMB wide (an average of each block of the picture's pixels), and
-    the CROP-pixel squares round the worst tile, RGB bytes each (tools/gate/sheet.js shrink and square). */
-function look(w, h, worst, { l, lb, r, rb, err }) {
-  const of = (data) => ({ width: w, height: h, data }), [B, N, T, Tn] = [lb, l, rb, r].map((d) => square(of(d), worst.x + worst.size / 2, worst.y + worst.size / 2, CROP)), [cx, cy] = N.at;
-  const e = new Float32Array(CROP * CROP); for (let y = 0; y < CROP; y++) e.set(err.subarray((cy + y) * w + cx, (cy + y) * w + cx + CROP), y * CROP);
+/** What the filmstrip shows of a frame: the frame `thumb` wide (an average of each block of the picture's pixels), and
+    the squares round the worst tile, the tile and the ring of tiles round it (three tiles a side), RGB bytes each
+    (tools/gate/sheet.js shrink and square); FLIP's of one number a pixel, read here. */
+function look(w, h, worst, { l, lb, r, rb, err }, thumb) {
+  const crop = 3 * worst.size, of = (data) => ({ width: w, height: h, data }), [B, N, T, Tn] = [lb, l, rb, r].map((d) => square(of(d), worst.x + worst.size / 2, worst.y + worst.size / 2, crop)), [cx, cy] = N.at;
+  const e = new Float32Array(crop * crop); for (let y = 0; y < crop; y++) e.set(err.subarray((cy + y) * w + cx, (cy + y) * w + cx + crop), y * crop);
   const tile = { x: worst.x - cx, y: worst.y - cy, size: worst.size };
-  return { thumb: shrink(of(l), THUMB), at: [cx, cy], crops: [B.rgb, N.rgb, T.rgb, Tn.rgb, heat(e, CROP, CROP, tile)], tile };
+  return { thumb: shrink(of(l), thumb), at: [cx, cy], crop, crops: [B.rgb, N.rgb, T.rgb, Tn.rgb, heat(e, crop, crop, tile)], tile };
 }
