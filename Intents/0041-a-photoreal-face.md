@@ -252,3 +252,4 @@ with a choice of **hairstyles** and of **colours** (hair, skin, eyes), picked in
 | 2026-11-18 | 8591fee | the first plan set aside at Samuel's word; a second research asked for |
 | 2026-11-18 | 855503a | the second research's notes as they stood (four lines; 8b7d33c, 1a0ba18, 6095120, e8cbdc2 before it) |
 | 2026-11-18 | 1b20753 | the second research stopped; the note on ready-made open characters |
+| 2026-11-18 | d029e1b | VALID checked closer (one layout for all four figures); img2threejs read |
