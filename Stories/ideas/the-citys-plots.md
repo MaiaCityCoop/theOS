@@ -2,19 +2,19 @@
 id: the-citys-plots
 title: The city's plots
 lane: The city and its people
-hook: 898 villages for 1.3 million citizens, one of them open
+hook: 898 villages, one of them open
 stage: raw
 intents: 0009
 story: 
 dismissed: no
-updated: 2026-11-12
+updated: 2026-11-17
 ---
 
 # The city's plots
 
 ## What happened
 
-- [0009] Remembered from the old Maia City map: 898 plots, rounded and many-sided, for 1,346,269 citizens.
+- [0009] Remembered from the old Maia City map: 898 plots, rounded and many-sided.
 - [0009] Laid on the real land this time: a village ends where a river runs.
 - [0009] Rise past two kilometres and the plots come in over the land.
 - [0009] Only one is open: Vision Village, round the tent. A village opens beside one that is open.
