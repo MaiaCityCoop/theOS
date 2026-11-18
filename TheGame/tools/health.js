@@ -13,7 +13,7 @@
 //                                          default for `complexity`) and not as complex at the base; a new unused file
 //                                          or export; a new cycle; more mode branches or hand-set numbers; a new
 //                                          dependency that no intent the change touches names; more of what a start
-//                                          of the world compiles (pipelines, shader modules, WGSL bytes). CI runs it
+//                                          of the world compiles (its pipelines and shader modules). CI runs it
 //                                          on every PR.
 //                                          A change that reverts a commit M of the base's line is measured against the
 //                                          state it restores, the base with M undone (M's first parent, where nothing
@@ -38,12 +38,13 @@
 //                 own defining constants, as a filter's σ and its tile), each saying its source in its comment
 //                 (`source: …`), and a physical one or a requirement its unit too (`unit: …`); --base fails where one
 //                 does not. Flag reads: every call of flag, flagNum and flagText (src/core/flags.js)
-//   Pipelines     what a start of the world compiles (tools/smoke.js --json, run in each tree: the world made on the
-//                 GPU's stand-in as src/boot.js makes it, every material as each pass draws it and every compute pass
-//                 built): its distinct render pipelines (a vertex and a fragment stage), distinct compute pipelines,
-//                 the distinct shader modules they hold and those modules' WGSL bytes, all by their WGSL text, not by
-//                 object. The engine's pipelines do not grow with what the world holds (assets are data, the passes
-//                 few): --base fails on any rise
+//   Pipelines     what a start of the world compiles (tools/smoke.js: the world made on the GPU's stand-in as
+//                 src/boot.js makes it, every material as each pass draws it and every compute pass built; what it
+//                 kept for the commit in .gate/smoke/, else run in the tree): its distinct render pipelines (a vertex
+//                 and a fragment stage), distinct compute pipelines and the distinct shader modules they hold, all by
+//                 their WGSL text, not by object, and those modules' WGSL bytes. The engine's pipelines do not grow
+//                 with what the world holds (assets are data, the passes few): --base fails on any rise of the three
+//                 counts; the bytes are shown, not held
 //   Dependencies  the direct dependencies of every package.json in the repository
 //
 // No node on the path: jscpd and knip are run by bun from their files, eslint and madge through their own APIs.
@@ -359,17 +360,18 @@ const dependencies = (repo, files) => files.filter((p) => basename(p) === 'packa
   const j = JSON.parse(readFileSync(join(repo, p), 'utf8'));
   return { at: p, dependencies: Object.keys({ ...j.dependencies, ...j.optionalDependencies, ...j.peerDependencies }), dev: Object.keys(j.devDependencies ?? {}) };
 });
-/** What a start of the world compiles, by WGSL text (tools/smoke.js --json, run in the tree's TheGame/, `game`):
-    { render, compute, modules, bytes, failed: how many builds threw }; null where that tree's smoke.js does not count
-    them. */
-function pipelines(game) {
-  const r = run(process.execPath, ['tools/smoke.js', '--json'], game);
-  try { const j = JSON.parse(r.stdout.trim().split('\n').at(-1)); return j.world.pipelines ? { ...j.world.pipelines, failed: j.failed.length } : null; } catch { return null; }
+/** What a start of the world compiles at a commit, by WGSL text: what tools/smoke.js kept for that commit (.gate/
+    smoke/<commit>.json; CI keeps main's), else smoke.js --json run in the tree's TheGame/ (`game`). { render, compute,
+    modules, bytes, failed: how many builds threw }; null where that tree's smoke.js does not count them. */
+function pipelines(game, commit) {
+  const kept = commit && join(GAME, '.gate/smoke', `${commit}.json`);
+  const said = kept && existsSync(kept) ? readFileSync(kept, 'utf8') : run(process.execPath, ['tools/smoke.js', '--json'], game).stdout.trim().split('\n').at(-1);
+  try { const j = JSON.parse(said); return j.world.pipelines ? { ...j.world.pipelines, failed: j.failed.length } : null; } catch { return null; }
 }
-const PIPES = { render: 'distinct render pipeline', compute: 'distinct compute pipeline', modules: 'distinct shader module', bytes: 'WGSL byte' };
-async function measure(root, files, repo, all) {
+const PIPES = { render: 'distinct render pipeline', compute: 'distinct compute pipeline', modules: 'distinct shader module' };   // (held; the bytes are shown)
+async function measure(root, files, repo, all, commit) {
   const t = treeOf(root, files);
-  return { files: files.length, copies: copies(t), spaghetti: spaghetti(t), dead: dead(t), cycles: await cycles(t), size: size(t), settings: settings(t), pipelines: pipelines(root), dependencies: dependencies(repo, all) };
+  return { files: files.length, copies: copies(t), spaghetti: spaghetti(t), dead: dead(t), cycles: await cycles(t), size: size(t), settings: settings(t), pipelines: pipelines(root, commit), dependencies: dependencies(repo, all) };
 }
 
 // ---- against the base: what the change made of each gate ----
@@ -464,7 +466,7 @@ const CHANGE = {   // each gate's change from the base, in a cell
   Cycles: (D) => `${D.cycles.length} new`,
   Size: (D) => `${signed(D.size)} lines of code`,
   Settings: (D) => `${signed(D.settings.branches.change)} mode branches, ${signed(D.settings.numbers.change)} hand-set, ${KINDS.map((k) => `${signed(D.settings[k])} ${k}`).join(', ')}, ${signed(D.settings.reads)} flag reads`,
-  Pipelines: ({ pipelines: p }) => (p ? Object.keys(PIPES).map((k) => `${signed(p.is[k] - p.was[k])} ${k}`).join(', ') : 'not counted at the base'),
+  Pipelines: ({ pipelines: p }) => (p ? `${Object.keys(PIPES).map((k) => `${signed(p.is[k] - p.was[k])} ${k}`).join(', ')}, ${signed(p.is.bytes - p.was.bytes)} bytes` : 'not counted at the base'),
   Dependencies: (D) => D.dependencies.map((d) => `${d.name} (${dirname(d.at)}) new${d.named ? ', named in its intent' : ''}`).join(', ') || 'none new',
 };
 /** The gates against the base: here, there and the change, and what got worse. */
@@ -501,12 +503,13 @@ function table(G) {
 const stale = staleAudit();
 if (stale.length) fail(`AUDIT names what the code no longer has (${stale.join(', ')}): drop it from AUDIT (tools/health.js)`);
 const all = git('ls-files', '-co', '--exclude-standard', '--full-name', '--', ':/').filter((p) => existsSync(join(REPO, p)));
-const HERE = await measure(GAME, HERE_FILES, REPO, all);
-const H = { commit: git('rev-parse', '--short', 'HEAD')[0] + (git('status', '--porcelain').length ? '+' : ''), at: new Date().toISOString(),
+const SHA = git('rev-parse', 'HEAD')[0], DIRTY = git('status', '--porcelain').length > 0;   // (a tree that is not its commit as it stands: smoke's summary for the commit is not its)
+const HERE = await measure(GAME, HERE_FILES, REPO, all, DIRTY ? null : SHA);
+const H = { commit: SHA.slice(0, 7) + (DIRTY ? '+' : ''), at: new Date().toISOString(),
   area: AREA.map((a) => (a.folder !== undefined ? `${a.folder}/*` : a.path)), ...HERE };
 if (BASE) {
   const { repo, game } = unpack(BASE);
-  H.base = { ref: REF, commit: BASE.slice(0, 7), reverts: REVERTED?.slice(0, 7) ?? null, ...(await measure(game, BASE_FILES, repo, git('ls-tree', '-r', '--name-only', '--full-tree', BASE))) };
+  H.base = { ref: REF, commit: BASE.slice(0, 7), reverts: REVERTED?.slice(0, 7) ?? null, ...(await measure(game, BASE_FILES, repo, git('ls-tree', '-r', '--name-only', '--full-tree', BASE), BASE)) };
   H.change = change(H.base, HERE);
   H.worse = worse(H.change);
   process.exitCode = H.worse.length ? 1 : 0;
