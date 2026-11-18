@@ -1,0 +1,2 @@
+# An intent's trail and changelog grow at the end on every branch: a merge keeps both sides' lines instead of a conflict.
+Intents/*.md merge=union

@@ -53,13 +53,13 @@ const SKY = 0x9fc2e6, t0 = performance.now();
 const canvas = document.getElementById('c');
 // (the stress stand keeps its kinds' own textures in one array of many layers: more than a device gives unasked; src/scatter/stress.js)
 const layers = flag('stress') ? Math.min(2048, (await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits?.maxTextureArrayLayers ?? 256) : 256;
-const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (a pixel's fourth number is not how see-through it is: it says how still the thing is, src/world/light.js stillness; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
+const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (a frame's fourth number is not how see-through it is: it says how far what is kept may be trusted, src/core/pass.js; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
 if (flag('draws')) (await import('../tools/draws.js')).watch();   // ?draws: every pass and draw a frame asks of the GPU, counted (tools/draws.js: window.__draws), from before the first pipeline is made
 await renderer.init();
 useGPU(renderer);   // what only the GPU reads is kept on the GPU only (src/core/gpu.js)
 shareComputeCompiles(renderer);   // a compute shader compiled once, however many passes run it (src/core/compile.js)
 countCompiles(renderer);   // and what the GPU is compiling counted: the world is not complete before it has come (src/core/settle.js)
-renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // every material makes its colours for the screen itself (toScreen)
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // the screen's curve is put on once, by the upscale (src/core/temporal.js), or by a material drawn elsewhere (src/world/light.js toScreen)
 renderer.setSize(innerWidth, innerHeight, false);
 renderer.setClearColor(SKY);
 renderer.info.autoReset = false;   // a frame may be several passes: counted together
@@ -82,8 +82,8 @@ const bounds = flag('bounds') ? showBodies(scene) : null;   // ?bounds: what is 
 const U = createUniforms(camera, SKY);
 setImpostorRenderer(renderer);
 // The one way to the screen, for every view (src/core/screen.js): the world drawn at the inside's pixels (the governor's
-// dial; the screen keeps all its own), through the lens where the camera brings one (src/camera/post.js), and the
-// screen's picture built over time from those frames (src/core/temporal.js).
+// dial; the screen keeps all its own), a prepass and the colour (src/core/pass.js), through the lens where the camera
+// brings one (src/camera/post.js), and brought up to the screen and built over time in one pass (src/core/temporal.js).
 const temporal = (stats.temporal = createTemporal(renderer));
 const screen = (stats.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
 const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });

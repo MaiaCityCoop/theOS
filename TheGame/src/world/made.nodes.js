@@ -11,10 +11,10 @@ import { fireLight } from './fire.js';
 /** p, its place in its own frame (metres, its foot at 0), moved by the wind: pushed downwind with the gust (billow) and
     fluttering along its normal n (flap), held still at the ground and along its middle, moving most halfway up and
     out; a crown pushed downwind the more the higher (sway). H: its height, R: its half length; along: the wind's push
-    in its own frame; strength: the wind's. */
-export const swayed = (p, n, { H, R, billow = 0, flap = 0, sway = 0 }, along, strength) => {
+    in its own frame; strength: the wind's; time: the clock's (none: now; the prepass asks a frame ago, src/core/pass.js). */
+export const swayed = (p, n, { H, R, billow = 0, flap = 0, sway = 0 }, along, strength, time = U.uTime) => {
   const hold = smoothstep(0.02, 0.45, p.y.div(H)).mul(float(1).sub(smoothstep(0.8, 1, p.y.div(H)).mul(0.8))).mul(smoothstep(0.08, 0.55, length(p.xz).div(R)));
-  const f = sin(U.uTime.mul(strength.mul(10).add(4)).add(p.y.mul(3.1)).add(p.x.mul(1.7)).add(p.z.mul(2.3))).mul(strength).mul(flap);   // (no angle round its middle: at a pole's tip it has none)
+  const f = sin(time.mul(strength.mul(10).add(4)).add(p.y.mul(3.1)).add(p.x.mul(1.7)).add(p.z.mul(2.3))).mul(strength).mul(flap);   // (no angle round its middle: at a pole's tip it has none)
   const up = clamp(p.y.div(H), 0, 1);
   return p.add(along.mul(billow).add(n.mul(f)).mul(hold)).add(along.mul(up.mul(up).mul(sway)));
 };

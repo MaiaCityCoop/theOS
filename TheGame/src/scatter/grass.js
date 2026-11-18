@@ -5,7 +5,8 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, int, uint, vec2, vec3, vec4, If, min, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { hashI, camDist, BASE } from '../world/land.nodes.js';
-import { finish, stillness, skyLight, weathered, cloudAtOne, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
+import { finish, skyLight, weathered, cloudAtOne, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
+import { passOf, motion, vWas } from '../core/pass.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
 import { TRUTH } from '../detail/measure.js';
@@ -53,19 +54,27 @@ function bladeMaterial(T) {
       const bend = B.y.add(clamp(snowDepth.mul(3), 0, 0.6));   // snow weighs the blades down: deep, they bow over
       const dir = vec2(cos(ang), sin(ang)), side = vec2(dir.y.negate(), dir.x);
       const t = positionGeometry.y, s = positionGeometry.x, wd = float(T.w).mul(r1.mul(0.5).add(0.75)).mul(float(1).sub(t.mul(t).mul(0.8)));
-      // the wind (src/world/light.js): the gust here, and each blade's own flutter, quicker and wider the harder it blows
-      const ws = windStrength, flutter = sin(U.uTime.mul(ws.mul(9).add(3)).add(r1.mul(6.2831853)).add(pos.x.mul(0.7))).mul(ws.mul(0.35).add(0.08));
-      const k0 = windAt(pos).mul(flutter.add(1)).mul(float(1).sub(flower.mul(0.5))), kl = length(k0), k = k0.mul(min(kl, 1.25).div(kl.max(1e-5)));   // in a storm a blade may lie nearly flat
-      const kk = k.dot(k), lean = t.mul(t).mul(1.1);
-      const up = hgt.mul(t).mul(float(1).sub(bend.mul(0.42).mul(t))).mul(float(1).sub(kk.mul(0.4).mul(t))), fw = hgt.mul(bend).mul(t).mul(t).mul(1.15);   // long blades arc over; pushed, they bow
-      const w = vec3(pos.x, A.z, pos.y).add(vec3(side.x, 0, side.y).mul(s.mul(wd))).add(vec3(dir.x.mul(fw).add(k.x.mul(hgt).mul(lean)), up, dir.y.mul(fw).add(k.y.mul(hgt).mul(lean))));
+      // the wind (src/world/light.js): the gust here, and each blade's own flutter, quicker and wider the harder it blows;
+      // at the clock's time, and for the prepass at the clock as it stood a frame ago (where the blade was: its motion)
+      const ws = windStrength, lean = t.mul(t).mul(1.1), fw = hgt.mul(bend).mul(t).mul(t).mul(1.15);   // long blades arc over
+      const push = (time) => {
+        const flutter = sin(time.mul(ws.mul(9).add(3)).add(r1.mul(6.2831853)).add(pos.x.mul(0.7))).mul(ws.mul(0.35).add(0.08));
+        const k0 = windAt(pos, time).mul(flutter.add(1)).mul(float(1).sub(flower.mul(0.5))), kl = length(k0);
+        return k0.mul(min(kl, 1.25).div(kl.max(1e-5)));   // in a storm a blade may lie nearly flat
+      };
+      const at = (k) => {   // pushed, it bows
+        const up = hgt.mul(t).mul(float(1).sub(bend.mul(0.42).mul(t))).mul(float(1).sub(k.dot(k).mul(0.4).mul(t)));
+        return vec3(pos.x, A.z, pos.y).add(vec3(side.x, 0, side.y).mul(s.mul(wd))).add(vec3(dir.x.mul(fw).add(k.x.mul(hgt).mul(lean)), up, dir.y.mul(fw).add(k.y.mul(hgt).mul(lean))));
+      };
+      const k = push(U.uTime), kk = k.dot(k), w = at(k);
       const tg = normalize(vec3(dir.x.mul(2).mul(bend).mul(t).add(k.x.mul(2.2).mul(t)), float(1).sub(bend.mul(0.6).mul(t)).sub(kk.mul(0.8).mul(t)), dir.y.mul(2).mul(bend).mul(t).add(k.y.mul(2.2).mul(t))));
       const sd = vec3(side.x, 0, side.y);
       vWorld.assign(w); vSide.assign(sd); vN.assign(cross(sd, tg)); vTS.assign(vec3(t, s, flower));
       vCol.assign(mix(C.rgb, vec3(0.42, 0.34, 0.15), smoothstep(0.5, 1, t).mul(max(C.w, clamp(snowDepth.mul(2.5), 0, 0.65)))).mul(mix(0.14, 1.45, t.mul(t.mul(0.4).add(0.6)))));   // dark in the thick of it, light at the tips; in snow, pale and straw-coloured
-      return clipOf(w);
+      return clipOf(w, at(push(U.uTimeWas)));
     };
-    const frag = Fn(() => {
+    const frag = Fn((builder) => {
+      if (passOf(builder) === 'pre') return motion(vWas, 1);   // (the prepass: where it lay a frame ago; a blade is thin)
       const vT = vTS.x, n0 = normalize(vN.add(vSide.mul(vTS.y).mul(0.6)));   // a blade is a little rounded
       const n = normalize(frontFacing.select(n0, n0.negate()).add(vec3(0, 1.4, 0)));   // and a meadow lights as a soft whole
       const ndl = n.dot(U.uSunDir).mul(0.5).add(0.5), V = normalize(U.uCam.sub(vWorld));
@@ -75,9 +84,9 @@ function bladeMaterial(T) {
       const onIt = max(clamp(snowDepth.mul(4), 0, 0.4).mul(float(1).sub(smoothstep(0.05, 0.5, vT))), clamp(snowDepth.mul(2.5), 0, 0.6).mul(smoothstep(0.3, 0.8, n0.y.abs())).mul(smoothstep(0.3, 0.8, vT)));   // snow at the foot, and lying on what bows over
       const col0 = weathered(mix(vCol, SNOW, onIt), n, 9).mul(skyLight(n).mul(vT.mul(0.45).add(0.55)).add(sun.mul(ndl.mul(ndl).mul(1.1).add(vec3(0.5, 1, 0.22).mul(thru))))).add(sun.mul(sheen));
       const col = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86)).select(vec3(0.92, 0.92, 0.86).mul(skyLight(n).add(U.uSun.mul(0.7))), col0);
-      return vec4(finish(col, vWorld).rgb, stillness(vT.mul(vT).mul(0.7), vWorld));   // (a blade's tip in the wind moves by itself, and says so: src/core/temporal.js)
+      return finish(col, vWorld);
     });
-    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide;
+    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
     return { m, shape };
   };
 }

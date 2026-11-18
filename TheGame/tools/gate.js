@@ -1,9 +1,10 @@
 // The gate (intent 0038): one driver for every check of the picture and of its cost. Run from TheGame/ against the dev
-// server (http://localhost:5180/game/, or GATE_URL, or --url <url> on any command), in the system's own Chrome through
-// Playwright, headless (--headed: in a window, for frame times as a screen paces them):
+// server (http://localhost:5180/game/; another with --url <url> or GATE_URL: a worktree's own server), in the system's
+// own Chrome through Playwright, headless (--headed: in a window, for frame times as a screen paces them):
 //
 //   bun tools/gate.js stills [--tag t] [--truth] [--views a,b]   the gate's views (tools/gate/views.js) as 4K PNGs in
-//                                                                .gate/<tag>/ (by default the commit); --truth: ?truth
+//                        [--fresh]                               .gate/<tag>/ (by default the commit); --truth: ?truth;
+//                                                                --fresh: on a new browser profile (launch, below)
 //   bun tools/gate.js diff <tagA> <tagB> [--ppd n]               FLIP between two sets (tools/gate/flip.js), per view:
 //                                                                the mean, the 99th percentile of its 32-px tiles, the
 //                                                                worst tile; heat maps and report.json in .gate/A-vs-B/
@@ -36,7 +37,7 @@ import { VIEWS, PATHS } from './gate/views.js';
 import { BUDGET } from './bench.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
 
-let BASE = process.env.GATE_URL || 'http://localhost:5180/game/';   // (--url: another server, set with the options below)
+const URL_AT = process.argv.indexOf('--url'), BASE = (URL_AT > 0 && process.argv[URL_AT + 1]) || process.env.GATE_URL || 'http://localhost:5180/game/';
 const OUT = new URL('../.gate/', import.meta.url).pathname;   // TheGame/.gate/: made again by every run, not kept in git
 const SCREEN = { width: 1920, height: 1080, dpr: 2 }, INSIDE = 4 / 3, TIME = 100;   // (TIME: the seconds the world's clock stands at for stills)
 const FRAME = 1000 / 60, JITTER = 1, MEMORY = 8e9;   // the hard gates in motion: no frame longer than 1/60 s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within 8 GB
@@ -133,8 +134,12 @@ const save = (file, data) => writeFileSync(file, JSON.stringify(data, null, 1) +
 const px = ([w, h]) => `${w}×${h}`, gb = (b) => `${(b / 1e9).toFixed(2)} GB`, f = (v, n = 2, w = 8) => (v == null ? '–' : v.toFixed(n)).padStart(w);
 const said = (errors) => errors.length && console.log(`  the page said ${errors.length} error(s); the first: ${errors[0]}`);
 /** Chrome on the gate's own profile (.gate/chrome/, kept from run to run: what the browser and the game keep, so the world
-    is made in about half a minute, not two; the paths take a fresh one of their own). One run at a time uses it. */
-const launch = (opt, dir = `${OUT}chrome`) => chromium.launchPersistentContext(dir, { channel: 'chrome', headless: !opt.headed, args: ARGS, viewport: { width: SCREEN.width, height: SCREEN.height }, deviceScaleFactor: SCREEN.dpr })
+    is made in about half a minute, not two; the paths take a fresh one of their own). One run at a time uses it.
+    --fresh: a new profile for this run, thrown away after. What a page keeps is kept by its origin, and can draw what
+    the code would not draw now (2026-11-18: the same code drew the plants at pines-30m otherwise on the kept profile than
+    on a fresh one), so two sets of stills to be compared are each taken fresh. */
+const FRESH = [];
+const launch = (opt, dir = opt.fresh ? (FRESH[FRESH.length] = mkdtempSync(join(tmpdir(), 'gate-fresh-'))) : `${OUT}chrome`) => chromium.launchPersistentContext(dir, { channel: 'chrome', headless: !opt.headed, args: ARGS, viewport: { width: SCREEN.width, height: SCREEN.height }, deviceScaleFactor: SCREEN.dpr })
   .catch((e) => { throw new Error(`Chrome did not start on ${dir} (is another gate run using it?): ${e.message.split('\n')[0]}`); });
 /** The value at fraction q of a list's sorted values (nearest rank). */
 const rank = (xs, q) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.max(0, Math.ceil(q * s.length) - 1)] : null; };
@@ -193,8 +198,8 @@ async function noise(chrome, tag, opt) {
   return diff(a, b, opt);
 }
 
-/** tools/bench.js's bench(), one view at a time, each once the world has settled there. bench() draws the world
-    straight onto the canvas at `ratio` (no upscale), so the resolution drawn is the canvas's at that ratio. */
+/** tools/bench.js's bench(), one view at a time, each once the world has settled there. bench() draws the world as the
+    game does: inside at `ratio`, brought up to the 4K canvas by the upscale pass (the whole frame's GPU time). */
 async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
   const { page, errors, url, close } = await open(chrome, { query: 'gputime' }), out = { ratio: +ratio, views: {} };
   try {
@@ -210,7 +215,7 @@ async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
     }
   } finally { said(errors); await close(); }
   out.worst = Math.max(...Object.values(out.views)); out.pass = out.worst <= BUDGET;
-  console.log(`bench: ${out.measure}, drawn ${px(out.drawn)} (×${(+ratio).toFixed(2)} of ${SCREEN.width}×${SCREEN.height}, straight onto the canvas, no upscale) (${url})`);
+  console.log(`bench: ${out.measure}, drawn ${px(out.drawn)} (×${(+ratio).toFixed(2)} of ${SCREEN.width}×${SCREEN.height}) and brought up to ${px([SCREEN.width * SCREEN.dpr, SCREEN.height * SCREEN.dpr])} (${url})`);
   for (const [k, ms] of [...Object.entries(out.views), ['worst', out.worst]]) console.log(`  ${k.padEnd(28)}${f(ms)} ms  ${ms <= BUDGET ? 'within' : 'OVER'} ${BUDGET}`);
   return out;
 }
@@ -420,7 +425,7 @@ async function all(opt) {
 }
 
 // ---- the command line ----
-const FLAGS = new Set(['truth', 'headed']);   // (options without a value)
+const FLAGS = new Set(['truth', 'headed', 'fresh']);   // (options without a value)
 const [cmd, ...args] = process.argv.slice(2), pos = [], opt = {};
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -428,7 +433,6 @@ for (let i = 0; i < args.length; i++) {
   else if (FLAGS.has(a.slice(2))) opt[a.slice(2)] = true;
   else opt[a.slice(2)] = args[++i];
 }
-if (opt.url) BASE = new URL(opt.url).href;
 const WITH = { stills: (c) => stills(c, opt), noise: (c) => noise(c, pos[0], opt), bench: (c) => bench(c, opt), compile: (c) => compile(c, opt) };
 try {
   let r;
@@ -439,3 +443,4 @@ try {
   else { console.log('bun tools/gate.js stills | diff | noise | bench | compile | paths | all: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
   if (['bench', 'compile', 'paths'].includes(cmd)) { mkdirSync(OUT, { recursive: true }); save(`${OUT}${cmd}.json`, r); }   // (the numbers kept: .gate/bench.json and so on)
 } catch (e) { console.error(`gate: ${e.message}`); process.exitCode = 1; }
+finally { for (const d of FRESH) rmSync(d, { recursive: true, force: true }); }

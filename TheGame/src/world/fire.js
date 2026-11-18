@@ -14,8 +14,9 @@
 // front of the tent: world/places.js; the library's, while its stage shows one). Each fire draws at its own place;
 // a fire burns while it is in the scene, and taken out its light goes back to the one before it (intent 0025).
 //
-// What moves by itself says so to the picture built over time (src/core/temporal.js): the fourth number of the pixels
-// it covers is lowered by as much as it covers them, as falling snow does (src/world/weather/snowfall.js).
+// It says no motion of its own (it is not in the prepass), so it says so to the picture built over time instead
+// (src/core/temporal.js, the reactive mask): the fourth number of the pixels it covers is lowered by as much as it
+// covers them, as falling snow does (src/world/weather/snowfall.js), and there the frame is taken as it is.
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, uv, uniform, instanceIndex, varyingProperty, positionGeometry, cameraViewMatrix, cameraProjectionMatrix, sin, fract, max, mix, abs, pow, length, smoothstep, clamp, uint, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';

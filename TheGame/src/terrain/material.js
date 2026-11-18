@@ -4,12 +4,13 @@
 // its material (hex-tiled near, so nothing repeats), laid over each other in their order, the higher winning at a seam; the
 // grass's carpet among them; lit by the shading contract. Its size is one, whatever the biomes and their materials.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, varyingProperty, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, sin, screenCoordinate } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, positionWorld, varyingProperty, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, sin, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { TRUTH } from '../detail/measure.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
 import { layersAt, layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND } from './layers.js';
 import { finish, ign, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
+import { passOf, motion } from '../core/pass.js';
 
 export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
 /** How many times as far every level of the land reaches but the last (whose reach is where the land ends): 1, and under
@@ -62,12 +63,15 @@ export function terrainMaterial(tex) {
   // one Fn, every value worked out once into a variable and handed on by name: an expression used twice would otherwise be
   // written out twice, the river three times over at every use, which a browser's shader compiler need not fold back
   const vWorld = varyingProperty('vec3', 'tWorld'), vI = varyingProperty('vec4', 'tI'), vN = varyingProperty('vec3', 'tN'), vHill = varyingProperty('float', 'tHill');
-  const vertex = Fn(() => {
+  const vertex = Fn((builder) => {
     const wp = gridPoint().toVar(), dist = camDist(wp).toVar(), e = max(0.3, dist.div(96)).toVar();
     const at = (q, near) => { const I = (near ? riverNear(q, near) : riverInfo(q)).toVar(), d = abs(I.x).toVar(); return { I, d, h: heightAt(q, dist, d, I.y, I.z).toVar() }; };
-    const C = at(wp), X = at(wp.add(vec2(e, 0)), C.I), Z = at(wp.add(vec2(0, e)), C.I), h = C.h;
-    vWorld.assign(vec3(wp.x, h, wp.y)); vI.assign(C.I); vN.assign(normalize(vec3(h.sub(X.h), e, h.sub(Z.h))));   // (vWorld without the snow's depth: the light and the air do not need it)
-    vHill.assign(h.sub(baseB(wp)));   // how far this ground stands over the valley's floor
+    const C = at(wp), h = C.h;
+    if (passOf(builder) !== 'pre') {   // (the prepass needs only where the ground is: src/core/pass.js)
+      const X = at(wp.add(vec2(e, 0)), C.I), Z = at(wp.add(vec2(0, e)), C.I);
+      vWorld.assign(vec3(wp.x, h, wp.y)); vI.assign(C.I); vN.assign(normalize(vec3(h.sub(X.h), e, h.sub(Z.h))));   // (vWorld without the snow's depth: the light and the air do not need it)
+      vHill.assign(h.sub(baseB(wp)));   // how far this ground stands over the valley's floor
+    }
     // the snow lifts the ground it lies on (not the river's channel): what stands on the land sinks into it as deep
     return vec3(wp.x, h.add(snowDepth.mul(smoothstep(C.I.y, C.I.y.add(1.5), C.d)).mul(float(1).sub(roofAt(wp)))), wp.y);
   });
@@ -82,7 +86,8 @@ export function terrainMaterial(tex) {
     M.c.assign(mix(M.c, B.c, k)); M.h.assign(mix(M.h, B.h, k)); M.n.assign(mix(M.n, B.n, k));
   };
 
-  const frag = Fn(() => {
+  const frag = Fn((builder) => {
+    if (passOf(builder) === 'pre') return motion(positionWorld);   // (the prepass: it stands still, only the camera moves)
     const p = vWorld.xz, dx = dFdx(p).mul(U.uFine), dy = dFdy(p).mul(U.uFine);   // (the picture is built over time, src/core/temporal.js: the ground read as finely as the screen's own pixels would)
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     const d = abs(vI.x), w = vI.y;
@@ -162,6 +167,6 @@ export function terrainMaterial(tex) {
     return finish(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), vWorld);
   });
 
-  const m = new THREE.NodeMaterial(); m.positionNode = vertex(); m.fragmentNode = frag();
+  const m = new THREE.NodeMaterial(); m.positionNode = vertex(); m.fragmentNode = frag(); m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
   return m;
 }
