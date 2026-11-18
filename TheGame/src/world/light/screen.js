@@ -19,7 +19,7 @@ import { note } from '../../core/gpu.js';
 
 const white = Object.assign(new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1), { needsUpdate: true });
 /** What the screen's light passes left, for the colour pass to read (white until they run, and where they never do). */
-export const SCREEN = { contact: texture(white), ao: texture(white), size: uniform(new THREE.Vector2(1, 1)), on: uniform(0) };
+export const SCREEN = { contact: texture(white), on: uniform(0) };   // (contact: x the contact shadows' share of the sun, y GTAO's of the sky)
 
 const STEPS = 12;                                   // the contact shadows' steps
 const AO_R = 1.6, AO_THICK = 0.35, AO_STEPS = 6;   // GTAO: how far it looks (m), how thick a surface is taken to be (m, and 2 % of its distance more), steps a side
@@ -31,6 +31,10 @@ export function createScreenLight(renderer) {
   const pixelOf = (v) => { const c = proj.mul(vec4(v, 1)); return c.xy.div(c.w).mul(vec2(0.5, -0.5)).add(0.5).mul(size); };
   const depthAt = (p) => float(depth.load(ivec2(clamp(p, vec2(0), size.sub(1)))));
 
+  // GTAO's share of the sky, at half the pixels (drawn first, below), read here four times between its texels (its
+  // slices' noise averaged over 8 x 8 of the inside's pixels) and kept beside the contact shadows: the colour pass
+  // reads both with one load
+  const aoTex = texture(white), aoAt = (p) => [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([i, j]) => aoTex.sample(p.add(vec2(i * 1.5, j * 1.5)).div(size)).level(0).w).reduce((a, b) => a.add(b)).mul(0.25);
   const contact = new THREE.NodeMaterial();
   contact.fragmentNode = Fn(() => {
     const p = screenCoordinate.xy, d0 = depthAt(p), out = float(1).toVar();
@@ -47,7 +51,7 @@ export function createScreenLight(renderer) {
       });
       out.assign(float(1).sub(hit.mul(float(1).sub(smoothstep(40, 80, dist)))));
     });
-    return vec4(out, 0, 0, 1);
+    return vec4(out, clamp(aoAt(screenCoordinate.xy), 0, 1), 0, 1);
   })();
   // ---- GTAO with a visibility bitmask, at half the pixels ----
   // Jimenez's ground-truth AO (2016) as Therrien's visibility bitmask has it (2023): two slices a pixel through the
@@ -110,12 +114,12 @@ export function createScreenLight(renderer) {
         half = new THREE.RenderTarget(Math.ceil(w / 2), Math.ceil(h / 2), { type: THREE.HalfFloatType, depthBuffer: false, generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
         note('the contact shadows and GTAO', w * h * 4 + Math.ceil(w / 2) * Math.ceil(h / 2) * 8, 0);
       }
-      depth.value = depthTex; size.value.set(w, h); SCREEN.size.value.set(w, h);
+      depth.value = depthTex; size.value.set(w, h);
       proj.value.copy(camera.projectionMatrix); unproj.value.copy(camera.projectionMatrix).invert(); view.value.copy(camera.matrixWorldInverse); viewInv.value.copy(camera.matrixWorld);
       const prev = renderer.getRenderTarget(), route = renderer.getRenderObjectFunction(); renderer.setRenderObjectFunction(null);
-      renderer.setRenderTarget(rt); quads[0].render(renderer); renderer.setRenderTarget(half); quads[1].render(renderer);
+      renderer.setRenderTarget(half); quads[1].render(renderer); aoTex.value = half.texture; renderer.setRenderTarget(rt); quads[0].render(renderer);   // (GTAO first: the contact pass keeps its share)
       renderer.setRenderTarget(prev); renderer.setRenderObjectFunction(route);
-      SCREEN.contact.value = rt.texture; SCREEN.ao.value = half.texture; SCREEN.on.value = 1;
+      SCREEN.contact.value = rt.texture; SCREEN.on.value = 1;
     },
     /** Its targets (a tool's look at them). */
     targets: () => ({ contact: rt, ao: half }),

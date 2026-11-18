@@ -200,20 +200,18 @@ const SHADOWS = { soft: (w, n) => shadowAt(w, n), one: (w, n) => shadowAtOne(w, 
     (a pixel's: the cascades with their penumbra), 'one' (one tap: what is too thin for a soft edge to show, a blade),
     'vertex' (a vertex stage's: a tree's corners), 'pulled' (what is drawn into the map pulled towards the light). */
 export const sunAt = (w, how = 'soft', n = null) => sunDim().mul(cloudShade(w)).mul(SHADOWS[how](w, n));
-// what the screen's light left for this pixel (src/world/light/screen.js): read in the colour pass of what takes part
-// in the prepass (its depth is the one the screen's light read), in a fragment; 1 anywhere else
+// what the screen's light left for this pixel (src/world/light/screen.js): one texel, loaded (no sampler): x the share of
+// the sun the contact shadows let through, y the share of the sky GTAO lets reach it. Read in the colour pass of what
+// takes part in the prepass (its depth is the one the screen's light read), in a fragment; (1, 1) anywhere else. (One
+// load, not one sampled read for each: a material with many textures already went past what a pipeline may bind when
+// GTAO was read apart from the contact shadows, and was then not drawn at all.)
 const onScreen = (builder) => passOf(builder) === 'main' && builder.shaderStage === 'fragment' && builder.material?.userData?.pre === true;
-const contactHere = Fn((builder) => (onScreen(builder) ? mix(float(1), SCREEN.contact.load(ivec2(screenCoordinate.xy)).r, SCREEN.on) : float(1)));
-// GTAO (screen.js): the share of the sky that reaches the pixel past what stands round it, and the bent normal, the way
-// that sky lies (half the pixels, read between them)
-// (four reads between its texels, a pixel and a half out: its slices' noise averaged over 8 x 8 of the inside's pixels)
-const aoRead = () => { const uv = screenCoordinate.xy.div(SCREEN.size), d = vec2(1.5).div(SCREEN.size); return [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([i, j]) => SCREEN.ao.sample(uv.add(d.mul(vec2(i, j)))).level(0)).reduce((a, b) => a.add(b)).mul(0.25); };
-const aoHere = Fn(([n], builder) => (onScreen(builder) ? mix(vec4(n, 1), aoRead(), SCREEN.on) : vec4(n, 1)));
+const screenHere = Fn((builder) => (onScreen(builder) ? mix(vec2(1), SCREEN.contact.load(ivec2(screenCoordinate.xy)).xy, SCREEN.on) : vec2(1)));
 const BOUNCE = vec3(0.1, 0.16, 0.05);   // what the crowns give back of the light on them (a leaf's green, its share scattered down)
 const bounce = () => BOUNCE.mul(U.uSun.mul(sunDim()).mul(U.uSunDir.y.max(0)).mul(0.6).add(U.uAmb.mul(0.4)));
 /** What the screen's light says of this pixel, for a material that lights itself per vertex and takes the rest per pixel
     (a tree's cards): open, the share of the sky GTAO lets reach it; contact, the share of the sun the contact shadows do. */
-export const screenShade = () => ({ open: clamp(aoHere(vec3(0, 1, 0)).w, 0, 1), contact: contactHere() });
+export const screenShade = () => { const S = screenHere().toVar(); return { open: clamp(S.y, 0, 1), contact: S.x }; };
 /** The light a surface takes, in its parts (rgb, the light's numbers): `sky`, what its colour takes from the sky; `sun`,
     from the sun; `spec`, the highlight laid over it. lit() below puts them on a colour; a material that lights itself per
     vertex (a tree) carries them to its pixels. s, every field but n and w optional:
@@ -226,16 +224,16 @@ export const screenShade = () => ({ open: clamp(aoHere(vec3(0, 1, 0)).w, 0, 1), 
       sky           what else dims the sky's light on it (the ground's own shade)
       gloss, sharp  its highlight: how bright, how tight */
 export const lightOn = (s) => {
-  const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mul(contactHere());
+  const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), Sc = screenShade(), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mul(Sc.contact);
   const wrap = s.wrap ?? 0, ndl = s.ndl ?? (wrap ? n.dot(L).add(wrap).div(float(wrap).add(1)) : n.dot(L)).max(0);
   const back = V ? max(V.negate().dot(L), 0) : null, light = U.uSun.mul(share);   // (how far the eye looks into the sun; the sun's light here)
-  // the sky's light: from the way the sky it sees lies (the bent normal), less what stands round it (GTAO) and what the
+  // the sky's light, less what stands round it (GTAO's share) and what the
   // crowns above hide of it (the canopy's probes: src/world/light/canopy.js)
-  const A0 = aoHere(n), A = A0.w.equal(A0.w).and(A0.x.equal(A0.x)).select(A0, vec4(n, 1)), bent = normalize(n.add(A.xyz.mul(clamp(n.dot(A.xyz), 0, 1)))), open = clamp(A.w, 0, 1);   // (bent towards the sky it sees, never past the normal: a bent normal from the depth may face away from a blade's own)
+  const open = Sc.open;
   // (and where the probes see no sky, what the crowns that hide it give back: lit by the sun and the sky themselves, a
   // little of it comes down green: the probes' bounce, Ghost of Tsushima's)
   const seen = s.w ? skyAt(s.w) : float(1);
-  let sky = skyLight(bent).mul(seen).add(bounce().mul(float(1).sub(seen))).mul(open), sun = ndl;
+  let sky = skyLight(n).mul(seen).add(bounce().mul(float(1).sub(seen))).mul(open), sun = ndl;
   // through it, two-sided: the sun behind it seen through it (a lobe round the sun, as tight as `lobe`), and its far
   // side lit (what faces away from the sun, seen from the dark side, glows through)
   if (s.through) { const t = pow(back, s.lobe ?? 3).mul(0.65).add(max(n.dot(L).negate(), 0).mul(0.35)).mul(s.through); sun = sun.add(s.tint ? s.tint.mul(t) : t); }
