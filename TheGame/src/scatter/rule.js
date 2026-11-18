@@ -35,14 +35,13 @@ import { scatterRow } from '../../assets/index.js';
 import { most } from '../../assets/kinds.js';
 import { CLEARINGS } from '../../world/places.js';
 import { TEXEL, WORDS } from './growth.js';
+import { limitOf } from '../core/gpu.js';
 
 const R0 = 0.69, PER = 1.8, CLUMPS = 55, PATCHES = 90, TOP = 1;   // R0: metres of reach where the classes begin (0.69-2.8 m, 2.8-11 m, ...); PER: a cell's side to its class's middle reach; CLUMPS, PATCHES: a biome's groves and the patches where one kind leads, metres, at the class of a grown tree (TOP), where its biome does not say (its `groves`)
 const SHADE = 0.85;   // how much of the light coming down through a crown its foliage takes where it is deepest, over its middle
 const SUB = 4;   // a growth map texel's light is the mean of SUB x SUB points over it, half a metre apart (gatherOf)
 const AGED = [0.65, 1.3];   // a grown tree's own age, of its stand's (grownIn)
 const EDGE = TEXEL * (0.5 - 0.5 / SUB) * Math.SQRT2;   // how far the farthest of those points lies from the texel's middle
-const INSET = 0.08;   // how far into its cell a thing stands at the least, of the cell (posIn)
-const UNIFORM_BYTES = 65536;   // what one uniform buffer holds on every WebGPU device (its least maxUniformBufferBindingSize)
 
 // ---- the spread order (stage 5's): the one number that places and thins ----
 const bayer2 = (x, y) => x.bitXor(y).bitAnd(uint(1)).mul(uint(2)).add(y.bitAnd(uint(1)));
@@ -101,7 +100,7 @@ export function layersOf(rows) {
     for (const e of entries) if (!e.young && (e.asset.kind === 'tree' || e.asset.kind === 'shrub')) { let g = groups.find((x) => x.biome === e.biome && x.kind === e.asset.kind); if (!g) groups.push((g = { biome: e.biome, kind: e.asset.kind, entries: [] })); g.entries.push(e); }
     for (const g of groups) { const t = g.entries.reduce((s, e) => s + e.most, 0); let at = 0; g.most = t; for (const e of g.entries) { e.group = g; e.slice = [at / t, (at += e.most) / t]; } }
     const writes = cell >= TEXEL && word < WORDS;
-    return { k, index, cell, seed: 300 + 100 * (TOP - k), scale, entries, groups, name: `${cell.toFixed(cell < 1 ? 2 : 1)} m`, word: writes ? word++ : -1,
+    return { k, index, cell, seed: 300 + 100 * (TOP - k), scale, entries, groups, name: `${cell.toFixed(cell < 1 ? 2 : 1)} m`, word: writes ? word++ : -1, inset: 0,
       reach: Math.max(...entries.map((e) => e.reach * (e.litter ? 1.6 : 1))) };
   });
   // what each layer reads: the words of every layer before it that writes; and whose litter it reads, as their numbers;
@@ -121,8 +120,9 @@ export function layersOf(rows) {
 export const rowsOf = () => recipes('asset').filter((a) => a.placement?.at === 'scatter' && a.placement.engine === 'trees').map(scatterRow);
 /** A biome's groves at a layer: its `groves` (metres, at a grown tree's class) at the layer's scale, the layer's seed. */
 export const grovesOf = (bio, L) => ({ clumps: (bio.groves?.clumps ?? CLUMPS) * L.scale, patches: (bio.groves?.patches ?? PATCHES) * L.scale, seed: L.seed });
-/** Where the thing of cell c of layer L stands (metres): somewhere in its cell, never at its edge (INSET of it in). */
-export const posIn = (c, L) => { const h0 = (k) => uint(k + L.seed - 300); return vec2(c).add(INSET).add(vec2(rnd(c.x, c.y, h0(302)), rnd(c.x, c.y, h0(303))).mul(1 - 2 * INSET)).mul(L.cell); };
+/** Where the thing of cell c of layer L stands (metres): somewhere in its cell, L.inset of it in from its edge at the
+    least (feetOf). */
+export const posIn = (c, L) => { const h0 = (k) => uint(k + L.seed - 300); return vec2(c).add(L.inset).add(vec2(rnd(c.x, c.y, h0(302)), rnd(c.x, c.y, h0(303))).mul(1 - 2 * L.inset)).mul(L.cell); };
 
 /** How tall the thing of entry e stands in cell c of layer L (metres), and which of its kind's shapes it is (0 … its
     count), as the trees' engine draws it (src/scatter/trees.js) and the growth map reckons its crown (gatherOf): its own
@@ -177,31 +177,45 @@ const throughCrown = (d, R) => { const u = d.div(R); return exp(sqrt(clamp(float
     of their things (its height at scale 1, how far its pieces reach from its foot, where its pieces begin, how many),
     then the pieces, two vec4 each ([ax, az, bx, bz], [ra, rb, edge, 0]: assets/kit/tree.js builder). Each entry's `row`:
     its first shape's row. Each layer's `feet`: how far its things' feet reach at the most (metres), how many of its cells
-    a side may reach a point (m: a thing stands INSET … 1 - INSET into its cell, posIn), and the table; none where nothing
-    of it covers any ground. Each layer's `record`: where its words keep which thing and which row (recordOf), in as
-    many bits as its things and the rows need. */
+    a side may reach a point (m: a thing stands inset … 1 - inset into its cell, posIn), and the table; none where nothing
+    of it covers any ground. Each layer's `inset`: so that the feet of two of its things in neighbouring cells never meet
+    (two trunks never stand in each other: each stands its feet's reach in from its cell's edge, so a point's ground is
+    any thing's of one cell only), where they fit in half its cell; where they do not (a fallen log reaches past half
+    the understory's cell), none: its things stand anywhere in their cells. Each layer's `record`: where its words keep
+    which thing and which row (recordOf), in as many bits as its things and the rows need. */
 function feetOf(ls) {
   const rows = [], pieces = [];
   for (const L of ls) {
-    let reach = 0;
-    for (const e of L.entries) {
-      const a = e.asset, staged = !!(a.growth && e.ages); e.row = rows.length;
-      for (let s = 0; s < e.shapes[1]; s++) {
-        const P = a.feet?.[s] ?? [], H = staged ? a.heights[s] : a.size.height, S = staged ? a.growth.stages.find((x) => s >= x.offset && s < x.offset + x.variants) : null;
-        let bound = 0; for (const [ax, az, bx, bz, ra, rb] of P) bound = Math.max(bound, Math.hypot(ax, az) + ra, Math.hypot(bx, bz) + rb);
-        rows.push([H, bound, pieces.length, P.length]);
-        for (const [ax, az, bx, bz, ra, rb, edge] of P) pieces.push([ax, az, bx, bz], [ra, rb, edge, 0]);
-        if (!S || grows(e, S)) reach = Math.max(reach, bound * (S ? S.hTo / H : 1) * a.placement.scale[1]);   // (at its largest: the oldest of its stage, its placement's largest scale)
-      }
-    }
-    L.feet = reach > 0 ? { reach, m: Math.floor(1 - 2 * INSET + (2 * reach) / L.cell) + 1 } : null;
+    const reach = Math.max(0, ...L.entries.map((e) => shapesInto(e, rows, pieces)));
+    L.inset = 2 * reach < L.cell ? reach / L.cell : 0;
+    L.feet = reach > 0 ? { reach, m: Math.max(1, Math.ceil(1 + 2 * (reach / L.cell - L.inset))) } : null;   // (the cells a side whose things may reach a point: their range, inset … 1 - inset widened by the reach, one cell at the least)
   }
-  // (a record: its height as a half float in the low 16 bits, then its thing's number + 1, then its shape's row)
-  const rowBits = Math.max(1, Math.ceil(Math.log2(rows.length)));
-  for (const L of ls) { const k = Math.ceil(Math.log2(L.entries.length + 1)); L.record = { k, kMask: 2 ** k - 1, row: 16 + k }; if (16 + k + rowBits > 32) throw new Error(`rule.js: the ${L.name} layer's things and shapes do not fit a word (recordOf)`); }
-  if ((rows.length + pieces.length) * 16 > UNIFORM_BYTES) throw new Error('rule.js: the feet do not fit one uniform buffer');
+  recordsOf(ls, rows.length);
+  // (the table is one uniform buffer: no larger than the device binds; without a GPU nothing binds it)
+  if ((rows.length + pieces.length) * 16 > (limitOf('maxUniformBufferBindingSize') || Infinity)) throw new Error('rule.js: the feet do not fit one uniform buffer');
   const table = rows.length ? uniformArray([...rows.map(([H, b, p, n]) => new THREE.Vector4(H, b, rows.length + p, n)), ...pieces.map((v) => new THREE.Vector4(...v))], 'vec4') : null;
   for (const L of ls) if (L.feet) L.feet.table = table;
+}
+/** Entry e's shapes into the feet table: a row each (its height at scale 1, how far its pieces reach from its foot,
+    where its pieces begin, how many) and its pieces; e.row its first. How far its feet reach at its largest (the oldest
+    of its stage that grows here, its placement's largest scale), metres. */
+function shapesInto(e, rows, pieces) {
+  const a = e.asset, staged = !!(a.growth && e.ages); let reach = 0; e.row = rows.length;
+  for (let s = 0; s < e.shapes[1]; s++) {
+    const P = a.feet?.[s] ?? [], H = staged ? a.heights[s] : a.size.height, S = staged ? a.growth.stages.find((x) => s >= x.offset && s < x.offset + x.variants) : null, bound = boundOf(P);
+    rows.push([H, bound, pieces.length, P.length]);
+    for (const [ax, az, bx, bz, ra, rb, edge] of P) pieces.push([ax, az, bx, bz], [ra, rb, edge, 0]);
+    if (!S || grows(e, S)) reach = Math.max(reach, bound * (S ? S.hTo / H : 1) * a.placement.scale[1]);
+  }
+  return reach;
+}
+/** How far a shape's pieces reach from its foot, at scale 1. */
+const boundOf = (P) => { let b = 0; for (const [ax, az, bx, bz, ra, rb] of P) b = Math.max(b, Math.hypot(ax, az) + ra, Math.hypot(bx, bz) + rb); return b; };
+/** Each layer's record (recordOf): its height as a half float in the low 16 bits, then its thing's number + 1, then its
+    shape's row, in as many bits as its things and the rows need. */
+function recordsOf(ls, nRows) {
+  const rowBits = Math.max(1, Math.ceil(Math.log2(nRows)));
+  for (const L of ls) { const k = Math.ceil(Math.log2(L.entries.length + 1)); L.record = { k, kMask: 2 ** k - 1, row: 16 + k }; if (16 + k + rowBits > 32) throw new Error(`rule.js: the ${L.name} layer's things and shapes do not fit a word (recordOf)`); }
 }
 
 /** Whether a thing of entry e may be at stage S of its growth: whether the ages grownIn gives it (a grown tree as old as
@@ -226,7 +240,7 @@ const piecesOf = (T, S, fn) => Loop({ start: int(S.z), end: int(S.z).add(int(S.w
     between its ends, between them; an outline what its edges close round (a ray from p crosses them an odd number of
     times). */
 export function footAt(p, W, M) {
-  const F = W.feet, on = float(0).toVar(), lo = ivec2(floor(p.add(F.reach).div(W.cell).sub(INSET))).sub(F.m - 1).toVar();
+  const F = W.feet, on = float(0).toVar(), lo = ivec2(floor(p.add(F.reach).div(W.cell).sub(W.inset))).sub(F.m - 1).toVar();
   Loop(F.m, F.m, ({ i, j }) => {
     const c = lo.add(ivec2(i, j)).toVar(), B = bodyOf(M.at(W.word, c), W);
     If(on.lessThan(0.5).and(B.k.greaterThanEqual(0)), () => {

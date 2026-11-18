@@ -41,8 +41,11 @@ export const outward = (R0, lift) => { const a = R0() * 2 * Math.PI, y = lift + 
 
 const CHEST = 1.2;   // metres up a trunk where a walker meets it
 /** How deep what stands in a stand is set into the ground (src/scatter/trees.js FOOT, as it draws it): where the ground
-    is in a shape's own frame. What lies on it is built so much higher (assets/kit/floor.js). */
-export const FOOT = 0.15;
+    is in a shape's own frame. What lies on it is built so much higher (assets/kit/floor.js). Physical, and set: metres of
+    stem under the ground, so that where a thing stands on a slope its foot stays under the ground all round it (the
+    ground under a stem falls by its foot's width times the slope). Its derived form is each thing's own, its feet's reach
+    (b.feet) times the slope where it stands, in the trees' packing (src/scatter/trees.js); until then one depth for all. */
+export const FOOT = 0.15;   // physical: metres of stem set into the ground
 
 /** The mesh being built: positions, normals, uv, part (0 wood, 1 leaves, 2 a solid body, no sprig cut out of it), ao, a
     card's plane (cn), its foot (root: what its sprig grows from and shrinks to), indexed; and its parts (intent 0038,
@@ -94,8 +97,16 @@ const CROSSED = new Map();
     wrapped round a whole number of times so it meets itself. body: this is the trunk (where it passes a walker's chest,
     and how thick it is there, makes the tree's body). */
 export function tube(b, pts, rad, sides, { body = false } = {}) {
-  const n = pts.length, T = pts.map((_, i) => norm(sub(pts[Math.min(i + 1, n - 1)], pts[Math.max(i - 1, 0)])));
   const v0 = b.ao.length, i0 = b.index.length;   // (a solid part of its own: it grows from its first ring's middle)
+  skin(b, ringsAlong(b, pts, rad, sides), sides);
+  b.parts.push({ v0, v1: b.ao.length, i0, i1: b.index.length, foot: pts[0] });
+  feetWhereItRises(b, pts, rad);
+  if (body) b.body ||= chestOf(pts, rad);
+}
+/** Its rings, a vertex every 1 / sides of a turn: each ring's frame carried from the last (no twist), its bark's
+    across a whole number of tiles round, along by the way walked. */
+function ringsAlong(b, pts, rad, sides) {
+  const n = pts.length, T = pts.map((_, i) => norm(sub(pts[Math.min(i + 1, n - 1)], pts[Math.max(i - 1, 0)])));
   let N = norm(cross(T[0], Math.abs(T[0][1]) < 0.9 ? [0, 1, 0] : [1, 0, 0])), along = 0;
   const reps = Math.max(1, Math.round((2 * Math.PI * rad[0]) / b.barkTile)), rings = [];
   for (let i = 0; i < n; i++) {
@@ -104,25 +115,34 @@ export function tube(b, pts, rad, sides, { body = false } = {}) {
     for (let k = 0; k <= sides; k++) { const a = (k / sides) * 2 * Math.PI, d = add(mul(N, Math.cos(a)), mul(B, Math.sin(a))), p = add(pts[i], mul(d, rad[i])); ring.push(b.v(p, d, [(k / sides) * reps, along / b.barkTile], 0, b.aoAt(p))); }
     rings.push(ring);
   }
-  for (let i = 0; i < n - 1; i++) for (let k = 0; k < sides; k++) {
+  return rings;
+}
+/** Two triangles between each two rings' neighbouring vertices. */
+function skin(b, rings, sides) {
+  for (let i = 0; i < rings.length - 1; i++) for (let k = 0; k < sides; k++) {
     const a = rings[i][k], c = rings[i][k + 1], d = rings[i + 1][k], e = rings[i + 1][k + 1];
     b.index.push(a, d, e, a, e, c);
   }
-  b.parts.push({ v0, v1: b.ao.length, i0, i1: b.index.length, foot: pts[0] });
-  // (where it rises through the ground, its cross-section there is ground it covers: its feet)
+}
+/** Where it rises through the ground, its cross-section there is ground it covers: its feet. */
+function feetWhereItRises(b, pts, rad) {
+  const n = pts.length;
   for (let i = 0; i < n - 1; i++) {
     const y0 = pts[i][1] - FOOT, y1 = pts[i + 1][1] - FOOT;
     if (y0 === y1 || (y0 > 0 && y1 > 0) || (y0 < 0 && y1 < 0) || (y1 === 0 && i < n - 2)) continue;   // (a crossing at a point between two pieces: counted once)
     const t = y0 / (y0 - y1), p = lerp(pts[i], pts[i + 1], t), r = rad[i] + (rad[i + 1] - rad[i]) * t;
     b.feet.push([p[0], p[2], p[0], p[2], r, r, 0]);
   }
-  if (body) {
-    for (let i = 1; i < n && !b.body; i++) if (pts[i][1] >= CHEST) {   // the trunk at chest height
-      const t = (CHEST - pts[i - 1][1]) / Math.max(1e-6, pts[i][1] - pts[i - 1][1]), p = lerp(pts[i - 1], pts[i], t);
-      b.body = [p[0], p[2], rad[i - 1] + (rad[i] - rad[i - 1]) * t];
-    }
-    if (!b.body && rad[n - 1] >= 0.06) b.body = [pts[n - 1][0], pts[n - 1][2], rad[n - 1]];   // a bole that forks lower: its top (a sapling thinner than that is walked through)
+}
+/** The trunk at a walker's chest: [x, z, its radius there]; a bole that forks lower, its top (a sapling thinner than
+    0.06 m there is walked through: null). */
+function chestOf(pts, rad) {
+  const n = pts.length;
+  for (let i = 1; i < n; i++) if (pts[i][1] >= CHEST) {
+    const t = (CHEST - pts[i - 1][1]) / Math.max(1e-6, pts[i][1] - pts[i - 1][1]), p = lerp(pts[i - 1], pts[i], t);
+    return [p[0], p[2], rad[i - 1] + (rad[i] - rad[i - 1]) * t];
   }
+  return rad[n - 1] >= 0.06 ? [pts[n - 1][0], pts[n - 1][2], rad[n - 1]] : null;
 }
 
 /** A sprig: two cards crossed along dir, their foot at p, s metres long and wide, cut out of the leaves' sprig, laid as

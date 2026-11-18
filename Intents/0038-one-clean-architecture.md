@@ -1474,6 +1474,14 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
     - `bench-tent-eye-level`, `tent-10m`, `tent-30m`, `bench-river-bend-26m`: no bare round patches in the meadow, and
       the grass up to the edge of each stone, sapling and branch;
     - `pines-30m`, `bench-pine-forest-eye-level`: the floor up to trunks, logs and bushes' stems;
+  - **The code gates** (on the Mac mini, CPU only; its author finished): `tube` and `feetOf` in named stages (the tree
+    kit's eight plants build the same meshes, feet and trunks, hash for hash). A layer's inset from its feet: each of
+    its things stands its feet's reach in from its cell's edge, so two trunks of neighbouring cells never stand in each
+    other and a point's ground is one cell's thing's (the canopy: 0.784 m of a 9.94 m cell, 0.0789, where 0.08 was set);
+    where the feet do not fit in half a cell (a fallen log in the understory's 2.48 m), none, its things anywhere in
+    their cells (they move by up to 0.2 m; the floor's, which write no feet, up to 5 cm). The feet's table within the
+    device's own uniform room (limitOf). FOOT named physical (metres of stem set into the ground), its derived form each
+    thing's feet's reach times the slope where it stands, a follow-up in the trees' packing.
     - the growth map's passes in the bench.
   - **Checks run here (CPU):** `bun tools/scale.js` 24 of 24; `bunx --bun vite build` for TheGame and OS.
 
