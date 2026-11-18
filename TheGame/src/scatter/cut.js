@@ -30,6 +30,12 @@ export const clusterOf = (H, R, c) => {
   const at = R.y.add(uint(1)).add(c.mul(uint(3))), r0 = H.elems.element(at);
   return { first: r0.x.shiftRight(uint(8)), tris: r0.x.bitAnd(uint(255)).add(uint(1)), D: uintBitsToFloat(r0.y), self: uintBitsToFloat(r0.z), parent: uintBitsToFloat(r0.w), at };
 };
+/** How far a cluster's sphere (s: its numbers, a uvec4 of the heap: its middle and radius, of the thing's largest side)
+    lies from the eye, its nearest point, as the measure has distances: for a thing of rows A, B. */
+export const sphereFrom = (s, A, B) => {
+  const { turn } = turnOf(B.x), q = vec3(uintBitsToFloat(s.x), uintBitsToFloat(s.y), uintBitsToFloat(s.z));
+  return max(length(vec3(A.x, A.z, A.y).add(turn(q.mul(A.w))).sub(U.uCam)).sub(uintBitsToFloat(s.w).mul(A.w)), 1e-3).mul(U.uLodInv);
+};
 /** The error allowed (of the thing's largest side) for a thing of rows A, d metres off as the measure has distances
     (its own: camDist; ?truth's reach counts as the thing's own distance says). */
 export const allowedAt = (A, dT, d = dT) => float(ERROR_PX).mul(d).div(spanAt(A.w, dT).mul(BUDGET_DRAWN));
@@ -60,9 +66,8 @@ export function createCut({ T, k = 0, H, room, name }) {
       If(c.lessThan(head.n), () => {
         const C = clusterOf(H, R, c), s1 = H.elems.element(C.at.add(uint(1))), s2 = H.elems.element(C.at.add(uint(2)));
         // each sphere's own distance, from the thing's as it grows from PX_CUT to twice that
-        const dT = camDist(A.xy), w = smoothstep(PXC, PXC * 2, spanAt(A.w, dT).div(max(dT, 1e-3))), { turn } = turnOf(B.x), foot = vec3(A.x, A.z, A.y);
-        const dOf = (s) => { const q = vec3(uintBitsToFloat(s.x), uintBitsToFloat(s.y), uintBitsToFloat(s.z)); return max(length(foot.add(turn(q.mul(A.w))).sub(U.uCam)).sub(uintBitsToFloat(s.w).mul(A.w)), 1e-3).mul(U.uLodInv); };
-        const bOf = (s) => clamp(eased(R, allowedAt(A, dT, mix(dT, dOf(s), w)), LO1, U.uTime), head.lo, head.hi);
+        const dT = camDist(A.xy), w = smoothstep(PXC, PXC * 2, spanAt(A.w, dT).div(max(dT, 1e-3)));
+        const bOf = (s) => clamp(eased(R, allowedAt(A, dT, mix(dT, sphereFrom(s, A, B), w)), LO1, U.uTime), head.lo, head.hi);
         const r = ruleOf(C.self, C.parent, bOf(s1), bOf(s2));
         If(r.drawn, () => { const i = atomicAdd(count.element(0), uint(1)); If(i.lessThan(uint(MOST)), () => { list.element(i).assign(uvec4(j, c, floatBitsToUint(r.t), 0)); }); });
       });
