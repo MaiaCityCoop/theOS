@@ -25,6 +25,7 @@ import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull
 import { CASTS } from '../../src/world/shadow.js';
 import { PART } from './skeleton/rig.js';
 import { recipes, versionOf } from '../../src/core/registry.js';
+import { watched } from '../../src/core/workers.js';
 
 const TAU = 2 * Math.PI, D = Math.PI / 180, SIDES = [['L', 1], ['R', -1]];
 const LEG = 0.9;   // from the hip's joint to the sole (m): what a leg let out by an angle carries its foot aside by
@@ -39,16 +40,17 @@ const LEVELS = [{ h: 0.008, shade: 0, key: 'skeleton:0' }, { h: few ? 0.0055 : 0
 const UNDER = [LEVELS[0], { h: few ? 0.008 : 0.0055, shade: 1, key: few ? 'skeleton:h0.008' : 'skeleton:h0.0055' }];
 
 // A few workers, each handed the next thing asked as it finishes one; let go when nothing has been asked for a while.
+// One that fails (watched: src/core/workers.js) is let go, what it was growing failing with it.
 const POOL = { all: [], free: [], queue: [], idle: 0 };
+const grower = () => { const w = watched(new Worker(new URL('./skeleton/grow.worker.js', import.meta.url), { type: 'module' }), "the bones' worker", (e) => { POOL.all.splice(POOL.all.indexOf(w), 1); w.terminate(); w.job?.rej(e); pump(); }); return w; };
 function pump() {
   clearTimeout(POOL.idle);
   const most = Math.max(1, Math.min(6, (navigator.hardwareConcurrency ?? 4) - 1));
   while (POOL.queue.length && (POOL.free.length || POOL.all.length < most)) {
     let w = POOL.free.pop();
-    if (!w) POOL.all.push((w = new Worker(new URL('./skeleton/grow.worker.js', import.meta.url), { type: 'module' })));
-    const job = POOL.queue.shift();
-    w.onmessage = ({ data }) => { POOL.free.push(w); job.res(data); pump(); };
-    w.onerror = (e) => { POOL.all.splice(POOL.all.indexOf(w), 1); w.terminate(); job.rej(new Error(e.message || 'a worker could not grow the bones')); pump(); };
+    if (!w) POOL.all.push((w = grower()));
+    const job = (w.job = POOL.queue.shift());
+    w.onmessage = ({ data }) => { w.job = null; POOL.free.push(w); job.res(data); pump(); };
     w.postMessage(job.msg);
   }
   if (!POOL.queue.length && POOL.free.length === POOL.all.length) POOL.idle = setTimeout(() => { for (const w of POOL.all) w.terminate(); POOL.all.length = POOL.free.length = 0; }, 4000);

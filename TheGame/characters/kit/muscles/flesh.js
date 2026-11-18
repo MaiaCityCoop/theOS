@@ -24,7 +24,8 @@ import { U } from '../../../src/core/uniforms.js';
 import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull } from '../../../src/world/light.js';
 import { CASTS } from '../../../src/world/shadow.js';
 import { SLOTS, COLS } from './layout.js';
-import { pxOn, ERROR_PX } from '../../../src/detail/measure.js';
+import { pxOn } from '../../../src/detail/measure.js';
+import { ERROR_PX } from '../../../src/detail/error.js';
 import { carriedBy, skinMaterial, eyeOpeningNode, mouthOpeningNode } from '../skin/light.js';
 import { EYE } from '../skin/table.js';
 import { teethOf } from '../skeleton/skull.js';
@@ -107,7 +108,7 @@ export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
   // Which level an eye d metres away is shown. The skin's by the one measure (src/detail/measure.js): the coarsest of
   // its levels that stands off the smooth surface by no more than ERROR_PX pixels there (its `off`, metres, measured as
   // it was laid: ../skin/build.js). The muscles' by their distance, as they were.
-  const want = (m, d) => { const off = m.userData.off; if (!off) return d > FAR ? 1 : 0; let k = 0; while (k + 1 < off.length && pxOn(off[k + 1], d * U.uLodInv.value) <= ERROR_PX) k++; return k; };
+  const want = (m, d) => { const off = m.userData.off; if (!off) return d > FAR ? 1 : 0; let k = 0; while (k + 1 < off.length && pxOn(off[k + 1], d * U.uLodInv.value) <= ERROR_PX()) k++; return k; };
   return {
     muscles, skin, fat, eyes, mouth, update,
     counts: { muscles: (D.muscleList ?? M.muscles ?? []).length, strands: H, muscleFaces: muscles?.userData.faces ?? 0, skinFaces: skin?.userData.faces ?? 0 },
