@@ -43,7 +43,10 @@ import { wear } from './decals.js';
 import { steps, colours } from '../materials/bake.js';
 import { snowDepth } from '../world/light.js';
 
-const SLOT = 128, BORDER = 4, PAGE = SLOT - 2 * BORDER;   // texels a page's layer has a side; of them its border; its own
+/** Texels a page's layer has a side: the land's evaluation laid at once, a page; what the ground's maps are drawn in
+    pieces of too (src/scatter/ground.js). */
+export const SLOT = 128;
+const BORDER = 4, PAGE = SLOT - 2 * BORDER;   // of a page's texels a side, its border; its own
 const S0 = 1 / 512, LEVELS = 17, TOP = LEVELS - 1, K = 128;   // metres a texel of the finest level; levels; pages a level's window has a side
 // (how many of a block's pixels ask each frame (`takes`) follows the frame's own length: every one of them within a
 // fixation of the eye (src/world/physics.js FIXATION), so a long frame, as ?truth's, asks all of them, and a sweep is that
