@@ -28,6 +28,8 @@ export const U = {
   // it stood then (what moves by the clock, the wind first, is worked out again at it), the world to that frame's clip
   // space (its camera, unshifted), this frame's shift in the inside's pixels, and the inside's size
   uTimeWas: uniform(0), uWas: uniform(new THREE.Matrix4()), uJit: uniform(new THREE.Vector2()), uIn: uniform(new THREE.Vector2(1, 1)),
+  uDither: uniform(0),                             // a number of this frame's own, 0 … 1: what is cut by a noise of the screen's (a plant handing over to its impostor, src/scatter/trees.js) is cut otherwise every frame, and the picture built over time averages it
+
   uSnowFall: uniform(0),                           // how much snow is falling, 0 … 1 (src/world/weather/snowfall.js)
   tShadow: texture(placeholder), uShadowM: uniform(new THREE.Matrix4()), uShadowOn: uniform(0), uShadowTexel: uniform(1 / 2048), uShadowPass: uniform(0),   // the shadow map (src/world/shadow.js)
   uSky: uniform(v3(0.4, 0.55, 0.7)), uHaze: uniform(1 / 6500), uHazeCol: uniform(v3(0.6, 0.7, 0.8)),

@@ -18,8 +18,11 @@
 //                        on screen as the pixels drawn, whatever the unit (what a baked texel is matched against)
 //   bandAt(near, far, finest, pad)   a level's band of distances, as ?truth has it
 //   ERROR_PX             the most a thing drawn at a level may differ from it at full detail, in pixels drawn: the one
-//                        number of detail. Nothing reads it yet: the builder's rungs are to be chosen by it (intent
-//                        0038, stages 4, 5 and 8), and the governor may raise it to hold 60 fps before it gives up pixels
+//                        number of detail (src/detail/error.js, plain, so the recipes' workers read it too). The crowd
+//                        kit's rungs are chosen by it (assets/kit/crowd.js: its clumps take over where their texels
+//                        are ERROR_PX pixels drawn, and the crowd thins down to there); the rocks' and the made things'
+//                        are to be (stage 8), and the governor may raise it to hold 60 fps before it gives up pixels
+//   BUDGET_DRAWN         the pixels drawn a pixel of the measure, as the budget draws a 4K screen (error.js)
 //
 // Its unit, today: the window's CSS pixels (innerHeight), the pixels every level's numbers were set in (intent 0002).
 // What is drawn is more: the inside's pixels, the governor's ratio of the CSS pixels (src/core/screen.js), two to three
@@ -36,8 +39,7 @@ import { float, max } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { flag, flagNum } from '../core/flags.js';
 
-/** The most a thing drawn at a level may differ from it at full detail, pixels drawn. */
-export const ERROR_PX = 1;
+export { ERROR_PX, BUDGET_DRAWN } from './error.js';
 
 const LENS = 1 / Math.tan((68 / 2) * Math.PI / 180);   // the walker's 68° lens as a projection's scale (what a camera's projectionMatrix holds at [5])
 // the unit: false, the window's CSS pixels; true, the pixels drawn (the inside's: the governor's ratio of the CSS pixels)
