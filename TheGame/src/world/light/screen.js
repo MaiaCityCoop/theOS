@@ -117,6 +117,8 @@ export function createScreenLight(renderer) {
       renderer.setRenderTarget(prev); renderer.setRenderObjectFunction(route);
       SCREEN.contact.value = rt.texture; SCREEN.ao.value = half.texture; SCREEN.on.value = 1;
     },
+    /** Its targets (a tool's look at them). */
+    targets: () => ({ contact: rt, ao: half }),
     /** Each pass alone on the last prepass's depth, for a tool's timing (tools/bench.js light). */
     parts: () => ({ contact: () => { renderer.setRenderTarget(rt); quads[0].render(renderer); renderer.setRenderTarget(null); }, gtao: () => { renderer.setRenderTarget(half); quads[1].render(renderer); renderer.setRenderTarget(null); } }),
   };

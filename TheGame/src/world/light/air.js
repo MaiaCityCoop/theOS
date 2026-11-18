@@ -144,14 +144,15 @@ export function createAir(renderer) {
   let made = false;
   const one = (q, rt) => { renderer.setRenderTarget(rt); q.render(renderer); };
   return {
-    /** Before the frame: the tables (the first two once), the froxels for this camera. */
-    render(camera, groundY) {
+    /** Before the frame: the tables (the first two once), the froxels for this camera (only: 'sky' or 'froxels', that
+        alone: a tool's timing). */
+    render(camera, groundY, only = null) {
       const prev = renderer.getRenderTarget(), route = renderer.getRenderObjectFunction(); renderer.setRenderObjectFunction(null);
       if (!made) { AIR.trans.value = T.texture; one(transQ, T); AIR.multi.value = M.texture; one(multiQ, M); made = true; }
-      one(viewQ, S); AIR.view.value = S.texture;
+      if (only !== 'froxels') { one(viewQ, S); AIR.view.value = S.texture; }
       camera.updateMatrixWorld(); AIR.vp.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); inv.value.copy(AIR.vp.value).invert(); fogRef.value = groundY;
       renderer.setRenderTarget(prev); renderer.setRenderObjectFunction(route);
-      renderer.compute(froxels); AIR.vol.value = vol; AIR.on.value = 1;
+      if (only !== 'sky') { renderer.compute(froxels); AIR.vol.value = vol; AIR.on.value = 1; }
     },
   };
 }

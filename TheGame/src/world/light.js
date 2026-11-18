@@ -195,6 +195,9 @@ const contactHere = Fn((builder) => (onScreen(builder) ? mix(float(1), SCREEN.co
 // GTAO (screen.js): the share of the sky that reaches the pixel past what stands round it, and the bent normal, the way
 // that sky lies (half the pixels, read between them)
 const aoHere = Fn(([n], builder) => (onScreen(builder) ? mix(vec4(n, 1), SCREEN.ao.sample(screenCoordinate.xy.div(SCREEN.size)).level(0), SCREEN.on) : vec4(n, 1)));
+/** What the screen's light says of this pixel, for a material that lights itself per vertex and takes the rest per pixel
+    (a tree's cards): open, the share of the sky GTAO lets reach it; contact, the share of the sun the contact shadows do. */
+export const screenShade = () => ({ open: clamp(aoHere(vec3(0, 1, 0)).w, 0, 1), contact: contactHere() });
 /** The light a surface takes, in its parts (rgb, the light's numbers): `sky`, what its colour takes from the sky; `sun`,
     from the sun; `spec`, the highlight laid over it. lit() below puts them on a colour; a material that lights itself per
     vertex (a tree) carries them to its pixels. s, every field but n and w optional:
@@ -214,7 +217,9 @@ export const lightOn = (s) => {
   // crowns above hide of it (the canopy's probes: src/world/light/canopy.js)
   const A = aoHere(n), bent = normalize(n.add(A.xyz.mul(max(n.dot(A.xyz), 0)))), open = clamp(A.w, 0, 1);   // (bent towards the sky it sees, never past the normal: a bent normal from the depth may face away from a blade's own)
   let sky = skyLight(bent).mul(s.w ? skyAt(s.w).mul(open) : open), sun = ndl;
-  if (s.through) { const t = pow(back, s.lobe ?? 3).mul(s.through); sun = sun.add(s.tint ? s.tint.mul(t) : t); }
+  // through it, two-sided: the sun behind it seen through it (a lobe round the sun, as tight as `lobe`), and its far
+  // side lit (what faces away from the sun, seen from the dark side, glows through)
+  if (s.through) { const t = pow(back, s.lobe ?? 3).mul(0.65).add(max(n.dot(L).negate(), 0).mul(0.35)).mul(s.through); sun = sun.add(s.tint ? s.tint.mul(t) : t); }
   sun = light.mul(sun);
   if (s.sky) sky = sky.mul(s.sky);
   if (s.ao) { const ao = float(s.ao); sky = sky.mul(ao.mul(ao).mul(0.75).add(ao.mul(0.25))); sun = sun.mul(ao.mul(0.6).add(0.4)); }

@@ -1,19 +1,26 @@
 // The light's passes before a frame (intent 0038, stage 9), in the order the frame needs them: the shadow atlas
-// (src/world/shadow.js), the canopy map and its sky probes (canopy.js), the air (air.js). What is worked out on the
-// screen between the prepass and the colour is screen.js's (src/core/screen.js runs it). Every material reads them
-// through the one light (src/world/light.js lightOn, lit).
+// (src/world/shadow.js), the canopy map and its sky probes (canopy.js), the air (air.js: its tables and froxels, which
+// read the canopy map). What is worked out on the screen between the prepass and the colour is screen.js's (src/boot.js
+// hands it to the screen's afterPrepass). Every material reads them through the one light (src/world/light.js lightOn,
+// lit).
 import { createShadows } from '../shadow.js';
 import { createCanopy } from './canopy.js';
+import { createAir } from './air.js';
 
+/** groundAt: the ground's height at a point, as a node (src/world/land.nodes.js), for the canopy's probes. */
 export function createLight(renderer, { groundAt }) {
-  const shadows = createShadows(renderer), canopy = createCanopy(renderer, { groundAt });
+  const shadows = createShadows(renderer), canopy = createCanopy(renderer, { groundAt }), air = createAir(renderer);
   return {
-    shadows, canopy,
+    shadows, canopy, air,
     /** The casters compiled for the shadow atlas (src/world/shadow.js compile; a promise). */
     compile: (object, camera, groundY, scene = null) => shadows.compile(object, camera, groundY, scene),
     /** Before the frame, round where the camera stands (groundY: the ground under it). */
-    render(scene, camera, groundY) { shadows.render(scene, camera, groundY); canopy?.render(scene, camera, groundY); },
-    /** Each pass alone, for a tool's timing (tools/bench.js parts). */
-    parts: (scene, camera, groundY) => ({ shadows: () => shadows.render(scene, camera, groundY), canopy: () => canopy?.render(scene, camera, groundY) }),
+    render(scene, camera, groundY) { shadows.render(scene, camera, groundY); canopy?.render(scene, camera, groundY); air?.render(camera, groundY); },
+    /** Each pass alone, for a tool's timing (tools/bench.js light); those drawn in turn as they cost when it comes. */
+    parts: (scene, camera, groundY) => ({
+      near: () => shadows.render(scene, camera, groundY, 'near'), far: () => shadows.render(scene, camera, groundY, 'far'),
+      ...(canopy ? { canopy: () => canopy.render(scene, camera, groundY, 'map'), probes: () => canopy.render(scene, camera, groundY, 'probes') } : {}),
+      ...(air ? { sky: () => air.render(camera, groundY, 'sky'), froxels: () => air.render(camera, groundY, 'froxels') } : {}),
+    }),
   };
 }
