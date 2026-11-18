@@ -11,7 +11,6 @@
 | `change.js` | The change detail made in one frame, measured in a worker of its own |
 | `tiles.js` | `stills --tiles`: a view drawn in tiles and laid together (the truth past 800 m) |
 | `real.js`, `real.py` | `real`: renders against photographs; the numbers (CMMD, image statistics) in Python |
-| `lock.js` | `GATE_LOCK`: the GPU shared between runs |
 | `sheet.js` | Labelled JPEG sheets (`diff --jpeg`) |
 
 The gate is two halves (intent 0038, Define): **invisible** (detail never shows: `stills`, `diff` against `?truth`,
@@ -129,11 +128,18 @@ browser's memory through the run and prints its peak: the truth is the largest s
 
 ## A GPU shared between runs
 
-On a machine where several runs share the GPU (and some time their frames), `GATE_LOCK=<dir>` makes the gate take a
-lock for each part of a run that draws (a page coming, a view or a tile, a path in motion) by making that directory,
-writing who and when into `<dir>/owner`, and removing it after. Meanwhile its pages are held on its clock and draw
-nothing. A lock held for over an hour is not broken: the gate stops and says so.
+Every machine has one GPU lock and one queue, in `tools/gpu/lock.js`. They live beside the repository and are shared by
+all its worktrees: `.gate-lock/` and `.gate-queue.d/` in `GPU_LOCK_DIR`, by default the folder that holds the
+repository.
+
+- **The gate takes the lock itself.** Each part of a run that draws (a page coming, a view or a tile, a path in motion,
+  `real` on a GPU) waits its turn in the queue, oldest first, holds the lock and lets it go after. Meanwhile the run's
+  pages are held on its clock and draw nothing. `GPU_OWNER` names the run.
+- **A dead holder is no holder.** If every process that held the lock is gone (a run killed outright), the first in
+  line takes the lock back. A lock made by a run from before this tool is waited for, never broken.
 
 ```bash
-GATE_LOCK=~/src/github/MaiaCityCoop/.gate-lock GATE_WHO='0038 task C' bun tools/gate.js motion --url http://localhost:5197/game/ --fresh
+GPU_OWNER='0038 task C' bun tools/gate.js motion --url http://localhost:5197/game/ --fresh
+bun tools/gpu/lock.js take '0038 task C' -- bun tools/gate.js bench   # the whole run in one hold
+bun tools/gpu/lock.js status                                          # who holds it, since when, who waits
 ```

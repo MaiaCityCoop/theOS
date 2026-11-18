@@ -240,7 +240,7 @@ const occlusionOf = (caps, count) => Fn(() => {
 // Signs: about x a leg or an arm swings back (+) or forward (−); about z the left limb goes out (+), the right in (+).
 const WALK_T = 1.06, WALK_A = 0.42;
 export const MOVES = [
-  { id: 'walk', name: 'Walk', about: 'An easy walk round the stage: heel to toe, the arms swinging against the legs, the hips turning under the chest.', speed: 1.3,
+  { id: 'walk', name: 'Walk', about: 'Round the stage, heel to toe.', speed: 1.3,
     pose(t, M) {
       const f = (t / WALK_T) * TAU, out = {};
       for (const [s, ph] of [['L', 0], ['R', PI]]) {
@@ -254,7 +254,7 @@ export const MOVES = [
       out.chest = [0.02, -0.07 * Math.sin(f), 0]; out.neck = [-0.02, 0.02 * Math.sin(f), 0]; out.head = [-0.03, 0, -0.012 * Math.cos(f)];
       return out;
     } },
-  { id: 'idle', name: 'Idle', about: 'Standing at ease: breathing, the weight going from foot to foot, looking about.',
+  { id: 'idle', name: 'Idle', about: 'At ease, breathing, looking about.',
     pose(t, M) {
       const b = Math.sin((t / 4.2) * TAU), w = Math.sin((t / 7.5) * TAU), look = Math.sin((t / 9) * TAU) * 0.45 * Math.min(1, Math.abs(Math.sin((t / 9) * TAU)) * 2.5);
       const out = { hips: [0, 0.04 * w, 0.035 * w], spine: [M.lean + 0.015 * b, -0.02 * w, -0.025 * w], chest: [-0.025 * b, 0, -0.012 * w], neck: [0.02, look * 0.35, 0], head: [0.03 * Math.sin(t * 0.7), look * 0.65, 0.02 * w] };
@@ -265,7 +265,7 @@ export const MOVES = [
       }
       return out;
     } },
-  { id: 'wave', name: 'Wave', about: 'Turned to whoever is looking, the right hand up and waving, a nod.', face: true,
+  { id: 'wave', name: 'Wave', about: 'Turned to you, the right hand waving.', face: true,
     pose(t, M) {
       const out = MOVES[1].pose(t, M), wv = Math.sin(t * TAU * 1.7);
       out['clavicle.R'] = [0, 0, -0.18]; out['upperArm.R'] = [-0.25, 0.2, -2.35]; out['foreArm.R'] = [-0.15, 0, -0.55 + 0.42 * wv]; out['hand.R'] = [0.05, 0, -0.2 * wv];

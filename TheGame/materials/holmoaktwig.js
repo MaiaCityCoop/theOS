@@ -19,8 +19,8 @@ export default {
   type: 'material',
   name: 'Holm oak twig',
   kind: 'foliage',
-  about: "One leafy twig of a holm oak, alone and whole: small leathery leaves, dark glossy green, a few showing their pale underside: the card a holm oak's nearest crown is made of.",
-  usedBy: 'the crowns of the holm oaks, seen close (a cut-out card, a twig each)',
+  about: 'One leafy twig, whole: the card of the nearest holm oak crown.',
+  usedBy: 'holm oak crowns, seen close',
   swatch: [0.06, 0.1, 0.045],
   bump: 0.05,
   paint: (uv) => {

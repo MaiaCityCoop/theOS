@@ -50,7 +50,7 @@ export const pxThrough = (camera, h) => camera.projectionMatrix.elements[5] * h 
 export const lensOf = (camera) => camera.projectionMatrix.elements[5] / LENS;
 
 // ---- the live pixel and the dial, kept ----
-let inside = () => 1, most = 1;   // the governor's ratio of the pixels drawn (keepMeasure: the screen's inside), and the most it can be (the screen's own)
+let inside = () => 1, most = () => 1;   // the governor's ratio of the pixels drawn (keepMeasure: the screen's inside), and the most it can be (the canvas's, as it is now: src/core/output.js)
 const listeners = new Set(); let version = 0;
 /** The inside's height, pixels drawn, as the screen has it now (the window's CSS height at the governor's ratio). */
 const drawnHeight = () => (globalThis.innerHeight || 1080) * inside();
@@ -64,17 +64,18 @@ function keep(dial = ERROR_PX()) {
 }
 keep();   // (from the start, before the screen says its ratio: the window's own pixels)
 /** Keep the measure current: drawn, the screen's ratio of the pixels drawn (src/core/screen.js inside), and out, the most
-    it can be (the screen's own); the window's size is followed, and each frame asks again (measureNow). */
-export function keepMeasure(drawn = null, out = 1) {
+    it can be (the canvas's, src/core/output.js: read as it is now, a resize changes it); the window's size is followed,
+    and each frame asks again (measureNow). */
+export function keepMeasure(drawn = null, out = () => 1) {
   if (drawn) inside = drawn;
-  most = Math.max(1, out);
+  most = () => Math.max(1, out());
   keep(); addEventListener('resize', () => keep());
 }
 /** The live pixel in the dial's pixels: dial pixels a metre covers one metre from the eye (error.js). */
 export const dialK = () => pxK() / ERROR_PX();
 /** The live pixel at the most pixels the screen can draw (its own ratio) and the least the dial will be on this page
     (DIAL_LEAST: 1, the governor only raises it; or the truth's), in the dial's pixels so: what a capacity is sized for. */
-export const pxKMost = () => pxKAt((globalThis.innerHeight || 1080) * most) / DIAL_LEAST;
+export const pxKMost = () => pxKAt((globalThis.innerHeight || 1080) * most()) / DIAL_LEAST;
 /** How far off a thing `size` metres large is still px dial pixels large, at the most (pxKMost). */
 export const farMost = (px, size) => (size * pxKMost()) / px;
 /** Each frame, before anything chooses (src/boot.js choose, tools/bench.js): the governor may have changed the inside's

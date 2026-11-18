@@ -11,7 +11,7 @@ const body = {
   type: 'character',
   name: 'Body',
   kind: 'anatomy',
-  about: 'A man of 1.80 m as he stands, naked: his skin over his fat, over his muscles, over his bones, each a layer that can be shown outermost. The skin lies as far over the muscles and the bones as the fat and the skin are thick there, and rides on them as they move.',
+  about: 'A man of 1.80 m: skin over fat, muscles and bones, each a layer.',
   made: 'The skeleton and its muscles (see Skeleton and Muscles); the fat\'s and the skin\'s thickness place by place from skinfold and soft-tissue depth tables (Jackson & Pollock 1978, Durnin & Womersley 1974, Stephan & Simpson 2008); the body\'s outline from the US Army\'s survey of men (ANSUR II, 2012); the nose\'s and the ears\' gristle and the eyes. Grown in the page from our own code.',
   layers: ['bones', 'muscles', 'fat', 'skin'],
   height: 1.8,   // the man of reference (./kit/skeleton.js)

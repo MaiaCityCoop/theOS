@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PATHS } from './views.js';
 import { stepper } from './clock.js';
-import { locked } from './lock.js';
+import { locked } from '../gpu/lock.js';
 import { lay, jpeg, b64 } from './sheet.js';
 import { ERROR_PX } from '../../src/detail/error.js';
 
@@ -160,7 +160,7 @@ async function filmstrip(ctx, file, { title, sub, r, other = 'truth' }) {
     measured, against the line (lineOf) in every frame's worst tile. Each path in two passes of one page each (pass): the game's, then
     the truth's, drawn on the gate's clock (tools/gate/clock.js) at the same moments of the world's clock and the
     same places of a pixel, the truth's frames drawn again until nothing was still out. Between the passes nothing is
-    drawn, and the GPU lock (GATE_LOCK) is let go. */
+    drawn, and the GPU lock (tools/gpu/lock.js) is let go. */
 export async function motion(opt, kit) {
   K = kit;
   const { OUT, BASE, SCREEN, INSIDE, pick, commit, launch } = K;
