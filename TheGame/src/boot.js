@@ -53,14 +53,12 @@ import { createCity } from './city/index.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
 import { inTurn, shareComputeCompiles, countCompiles } from './core/compile.js';
 import { flag } from './core/flags.js';
+import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
 
 const SKY = 0x9fc2e6, REACH = 6000;   // REACH: how far the stage's land is drawn (m): it ends in the air beyond what its camera looks at
 // (each compile given 20 s: a pipeline the GPU never answers for, or one that fails, held the veil over the page for good
 // (Samuel's Mac, 2026-11-17, at "Lighting the world"). Past that the page goes on, and what was not compiled is compiled
 // as it is first drawn: a slow first frame, never a page that does not come)
-// the first frame that draws the world, marked once the GPU is done with it: the gate's one first frame, its time from
-// the page's start (`game:first-frame`: tools/gate.js, tools/start.js)
-const firstFrame = (renderer) => (renderer.backend.device?.queue.onSubmittedWorkDone() ?? Promise.resolve()).then(() => performance.mark('game:first-frame', { detail: 1 }));
 const inTime = (what, p) => Promise.race([p.then(() => true, (err) => { console.warn(`the start: ${what} could not be compiled:`, err); return false; }), new Promise((res) => setTimeout(() => res(null), 20000))]).then((ok) => { if (ok === null) console.warn(`the start: ${what} took more than 20 s to compile; going on without waiting for it`); });
 
 /** Start the world for this page: { profile: 'world' | 'stage' }. A promise of the game, once its parts are made. */
@@ -289,7 +287,7 @@ export async function boot({ profile = 'world' } = {}) {
     for (let i = 0; i < seen.length; i += 2) seen[i].visible = seen[i + 1];
     choose(0);
     screen.render(scene, camera);
-    firstFrame(renderer);
+    stampDone(renderer, FIRST_FRAME);   // (the first frame that draws the world: what every measure of a start reads)
     game.loadMs = performance.now() - t0;
     setTimeout(() => (game.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start
     console.log(`[the game] ready in ${game.loadMs.toFixed(0)} ms`, marks);

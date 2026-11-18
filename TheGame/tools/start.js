@@ -5,8 +5,8 @@
 //   bun tools/start.js [--dist <dir> | --url <url>] [--screen 1920x1080@2] [--runs cold,warm] [--until first|ready]
 //                      [--browser chrome|webkit] [--headed]
 //
-// The first frame is the gate's one definition of it: the mark `game:first-frame` (src/boot.js), the GPU done with the
-// first frame that draws the world; the bytes before it, every response ended by then, the page's own too. A build
+// The first frame is the one definition of it every measure reads (src/core/marks.js FIRST_FRAME: the GPU done with the
+// first frame that draws the world); the bytes before it, every response ended by then, the page's own too. A build
 // (--dist, by default TheGame/dist: `bunx --bun vite build` first) is served as the host serves it (deploy/Caddyfile):
 // sent compressed where the build wrote it so, kept for good under /assets/, asked for again otherwise. The screen is
 // the gate's (a 4K one: 1920×1080 points at two pixels each). The browser: the system's Chrome, or Playwright's own WebKit
@@ -15,6 +15,7 @@ import { chromium, webkit } from 'playwright-core';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { extname, join, resolve } from 'node:path';
+import { FIRST_FRAME } from '../src/core/marks.js';
 
 const GAME = resolve(import.meta.dirname, '..');
 const option = (k, d) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : d; };
@@ -33,7 +34,7 @@ function serve(dist) {
 }
 
 // ---- in the page, before any of its own code runs: what each part asks and when it is answered ----
-function watchStart() {
+function watchStart(FIRST) {
   const now = () => performance.now(), S = (window.__start = { pipes: [], jobs: [], kept: [], reads: [], long: [], src: {}, frames: [] });
   // (the veil, src/ui/loading.js: watched from the document, as there is no <html> yet)
   new MutationObserver(() => { if (!S.veil && document.documentElement?.classList.contains('os-loaded')) S.veil = now(); }).observe(document, { attributes: true, subtree: true, attributeFilter: ['class'] });
@@ -62,13 +63,13 @@ function watchStart() {
   } });
   // what the world still waits on (src/core/settle.js), every tenth of a second: when each part was first and last out
   setInterval(() => { const w = game?.waiting?.(), t = now(); for (const [k, n] of Object.entries(w ?? {})) { const s = (S.src[k] ||= { from: t, until: t, most: 0 }); s.until = t; s.most = Math.max(s.most, n); } }, 100);
-  const frame = (t) => { const m = performance.getEntriesByName('game:first-frame')[0]; if (m && S.last) S.frames.push(t - S.last); S.last = t; requestAnimationFrame(frame); };
+  const frame = (t) => { const m = performance.getEntriesByName(FIRST)[0]; if (m && S.last) S.frames.push(t - S.last); S.last = t; requestAnimationFrame(frame); };
   requestAnimationFrame(frame);
 }
 
 // ---- in the page, once it is done: the numbers ----
-function numbersOf() {
-  const S = window.__start, G = window.__game, mark = performance.getEntriesByName('game:first-frame')[0] ?? null, first = mark?.startTime ?? null;
+function numbersOf(FIRST) {
+  const S = window.__start, G = window.__game, mark = performance.getEntriesByName(FIRST)[0] ?? null, first = mark?.startTime ?? null;
   const entries = [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')];
   const before = first == null ? [] : entries.filter((e) => e.responseEnd <= first), scripts = entries.filter((e) => /\.js(\?|$)/.test(e.name));
   return { S, first, frameNo: mark?.detail ?? null, bytes: before.reduce((s, e) => s + (e.transferSize || 0), 0), responses: before.length, boot: G?.boot ?? null, loadMs: G?.loadMs ?? null,
@@ -80,12 +81,12 @@ async function open(ctx, url, until, wait) {
   page.on('pageerror', (e) => said.push(String(e).slice(0, 240)));
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') said.push(m.text().slice(0, 240)); });
   await page.addInitScript(() => performance.setResourceTimingBufferSize(1e5));
-  await page.addInitScript(watchStart);
+  await page.addInitScript(watchStart, FIRST_FRAME);
   const t0 = Date.now();
   await page.goto(url, { waitUntil: 'load', timeout: wait });
-  await page.waitForFunction(() => performance.getEntriesByName('game:first-frame').length > 0, null, { timeout: wait, polling: 100 });
+  await page.waitForFunction((name) => performance.getEntriesByName(name).length > 0, FIRST_FRAME, { timeout: wait, polling: 100 });
   if (until === 'ready') await page.evaluate((ms) => Promise.race([window.__game.ready.then(() => (window.__start.ready = performance.now())), new Promise((res) => setTimeout(res, ms))]), wait);
-  const r = { ...(await page.evaluate(numbersOf)), wall: Date.now() - t0, said };
+  const r = { ...(await page.evaluate(numbersOf, FIRST_FRAME)), wall: Date.now() - t0, said };
   await page.close();
   return r;
 }
