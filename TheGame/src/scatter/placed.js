@@ -27,7 +27,7 @@ import { U } from '../core/uniforms.js';
 import { layerOf, wrapGrad } from '../world/tile.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { farMost, dialPxAt } from '../detail/measure.js';
-import { SURFACE_LEVELS, FADE, GONE, surfaceBand, surfacePx } from '../detail/error.js';
+import { SURFACE_LEVELS, FADE, BAND, GONE, surfaceBand, surfacePx } from '../detail/error.js';
 import { spanOf, most, kindOf } from '../../assets/kinds.js';
 import { bodyOfAsset } from '../../assets/index.js';
 import { placedBy } from '../../assets/zoo/index.js';
@@ -134,10 +134,10 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
 function groupOf(scene, tex, renderer, name, kinds, cap) {
   const n = kinds.length, ML = SURFACE_LEVELS - 1;
   // its levels: the surfaces' (src/detail/error.js), each kind's in a place as large as its whole hierarchy; the last,
-  // from where its coarsest clusters end down to where it is gone (GONE: leaving it out differs by all of it), the
-  // drawer's dot, sinking away over the BAND above that
+  // from where its coarsest clusters end, the drawer's dot, whole down to where it is gone (GONE: leaving it out differs
+  // by all of it) and sinking away over the BAND under that
   const rooms = kinds.map((Kd) => madeRoom(Kd.asset)), room = { verts: Math.max(...rooms.map((r) => r.verts)), tris: Math.max(...rooms.map((r) => r.tris)) };
-  const LEVELS = [...Array.from({ length: ML }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), room, rooms })), { px: GONE, room: { verts: 3, tris: 1 } }];
+  const LEVELS = [...Array.from({ length: ML }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), room, rooms })), { px: GONE / BAND, room: { verts: 3, tris: 1 } }];
   // each kind's own numbers (NUMS rows of four, after its look in the drawer's one table): [its box's least corner, its
   // height], [its box's size, its half length], [its wind: billow, flap, sway], [its surface: wrap, through; metres a
   // tile of its materials, their relief], [the layers of its materials (none: -1)]; how its snow lies and its largest
@@ -162,7 +162,7 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
   // `placed:<its asset>:<x>:<z>`, and src/world/things.js's by its spot to the centimetre, cx and cz)
   const x = new Float32Array(cap), z = new Float32Array(cap), foot = new Float32Array(cap), size = new Float32Array(cap), yaw = new Float32Array(cap), kind = new Uint16Array(cap), key = new Uint32Array(cap), solid = new Uint8Array(cap), cx = new Int32Array(cap), cz = new Int32Array(cap);
   const idAt = (i) => `placed:${kinds[kind[i]].asset.uid}:${+x[i].toFixed(3)}:${+z[i].toFixed(3)}`;
-  const ROWS = gpuStorage('vec4', cap * 2, `placed, ${name}: where they stand`);
+  const ROWS = gpuStorage('vec4', cap * 2, `placed, ${name}: where they stand`, 'geometry');
   G.add = (k, at) => {
     if (G.n >= cap) { if (!G.full) console.warn(`placed: the list of ${name} holds ${cap} places (\`?many\` raises it at the start); no more are stood`); G.full = true; return false; }
     const i = G.n++, a = kinds[k].asset;
@@ -236,7 +236,7 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
       }
     }
   };
-  note(`placed, ${name}: the list on the page`, 0, cap * 37);
+  note(`placed, ${name}: the list on the page`, 0, cap * 37, 'geometry');
   return G;
 }
 

@@ -207,7 +207,7 @@ export function createTemporal(renderer) {
     if (key === sizeKept) return;
     sizeKept = key; fresh = true;
     for (const h of hist) h.setSize(size.x, size.y);
-    note('the picture kept over time (two of it)', 2 * size.x * size.y * (STORE ? 4 : 8), 0);
+    note('the picture kept over time (two of it)', 2 * size.x * size.y * (STORE ? 4 : 8), 0, 'upscale/post');
   };
   /** This frame's screen to the last one's, and back: through both cameras, the far numbers of the world's places taken
       out before anything is rounded (the two views' product is their difference). */
@@ -239,7 +239,7 @@ export function createTemporal(renderer) {
     /** Frames the kept picture has been built over since it was last let go (0: this frame stood alone). */
     get age() { return age; },
     /** Which of its places of a pixel the last frame was drawn at; set, the next frame is drawn at the one after it (the
-        gate draws the truth's frame at the place the game's was: tools/gate/motion.js). */
+        gate's motion --floor draws its second pass at the first's places: tools/gate/motion.js). */
     get place() { return k; },
     set place(v) { k = ((Math.round(v) % places.length) + places.length) % places.length; },
     /** How many frames in a row, nothing changed, until what was kept before has left the picture (src/core/settle.js):

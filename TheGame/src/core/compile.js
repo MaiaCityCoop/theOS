@@ -66,9 +66,11 @@ export function countCompiles(renderer) {
 export const compileFor = (renderer, target, object, camera, scene = null, route = null) => inTurn(async () => {
   const was = renderer.getRenderTarget(), to = typeof target === 'function' ? target() : target, depth = renderer.depth;
   renderer.setRenderTarget(to);
-  // (three r187 compiles for a target as if it had the canvas's depth: one without depth, a painter's tile, got
-  // pipelines its passes never use, and each pass compiled again as it was first drawn. The renderer's own setting is
-  // read as the compile begins, and is put back at once; as is the route, which three reads only as the compile begins)
-  let done; try { if (to && !to.depthBuffer) renderer.depth = false; if (route) renderer.renderObject = route; done = renderer.compileAsync(object, camera, scene); } finally { renderer.depth = depth; if (route) delete renderer.renderObject; }
+  // (three r187 compiles for a target as if it had the canvas's depth, whatever the target's own: one without depth, a
+  // painter's tile, got pipelines its passes never use; and with a canvas that has none (src/boot.js), a depth-only
+  // target, the prepass's, got pipelines with no attachment at all. So the renderer's own setting follows the
+  // target's, both ways, as the compile begins, and is put back at once; as is the route, which three reads only as
+  // the compile begins)
+  let done; try { if (to) renderer.depth = !!to.depthBuffer; if (route) renderer.renderObject = route; done = renderer.compileAsync(object, camera, scene); } finally { renderer.depth = depth; if (route) delete renderer.renderObject; }
   try { await done; } finally { renderer.setRenderTarget(was); }
 });

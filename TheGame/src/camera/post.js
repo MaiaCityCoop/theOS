@@ -80,7 +80,7 @@ export function createLens(renderer) {
         // (the small frame is read between its pixels by the blur: smooth; the blurred one pixel by pixel, each weighed by its distance)
         A = new THREE.RenderTarget(hw, hh, { ...halfOpts, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }); B = new THREE.RenderTarget(hw, hh, { ...halfOpts, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
         C = new THREE.RenderTarget(w, h, { type: THREE.HalfFloatType, depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });   // (the light's own numbers: the screen's curve comes after, src/core/temporal.js)
-        tA.value = A.texture; tB.value = B.texture; note("the frame through the lens (two targets of half its size, one of its own)", 2 * hw * hh * 8 + w * h * 8, 0);
+        tA.value = A.texture; tB.value = B.texture; note("the frame through the lens (two targets of half its size, one of its own)", 2 * hw * hh * 8 + w * h * 8, 0, 'upscale/post');
       }
       const f = dof.mm / 1000, picH = dof.aspect > w / h ? w / dof.aspect : h;   // the picture's height inside the frame, pixels
       u.texel.value.set(1 / w, 1 / h); u.half.value.set(hw, hh); u.near.value = camera.near; u.far.value = camera.far;

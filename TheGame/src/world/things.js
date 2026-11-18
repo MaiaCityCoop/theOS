@@ -82,7 +82,7 @@ export const things = {
 /** Each frame, before anything packs: what changed sent to the GPU, in one piece. */
 export function flushThings() {
   if (high < 0) return;
-  gpu ||= gpuStorage('uvec4', CAP, 'things: what was done to single things');
+  gpu ||= gpuStorage('uvec4', CAP, 'things: what was done to single things', 'geometry');
   gpu.write(low * 4, table.subarray(low * 4, (high + 1) * 4)); low = Infinity; high = -1;
 }
 /** What the packings read besides their cells (src/scatter/index.js: a packing is made again when it changes). */
@@ -91,7 +91,7 @@ export const thingsVersion = () => version;
 /** A thing's state as nodes, in a packing (key: a uint node): { gone, grow, tint, wear }; a thing nobody changed is
     there, as large as it was, its own colour. Looked up only while the store holds anything. */
 export const stateAt = (key) => {
-  gpu ||= gpuStorage('uvec4', CAP, 'things: what was done to single things');
+  gpu ||= gpuStorage('uvec4', CAP, 'things: what was done to single things', 'geometry');
   const T = gpu.node, y = uint(0).toVar(), w = uint(0).toVar(), found = uint(0).toVar();
   If(COUNT.greaterThan(uint(0)), () => {
     Loop(PROBE, ({ i }) => {

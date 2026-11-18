@@ -138,7 +138,7 @@ export class Tier {
       const count = Math.min(n[k * 5 + 1], this.room(k)), rows = Array.from({ length: S }, () => new Float32Array(count * 4));
       if (count) {
         const bytes = count * S * 16;
-        if (!this.back || this.back.maxByteLength < bytes) { this.back?.dispose(); this.back = new THREE.ReadbackBuffer(bytes); this.back.name = 'tier'; note(`tiers: read back (${this.asset ?? 'a tier'})`, bytes, 0); }
+        if (!this.back || this.back.maxByteLength < bytes) { this.back?.dispose(); this.back = new THREE.ReadbackBuffer(bytes); this.back.name = 'tier'; note(`tiers: read back (${this.asset ?? 'a tier'})`, bytes, 0, 'geometry'); }
         await renderer.getArrayBufferAsync(this.data.value, this.back, off[k] * S * 16, bytes);
         const f = new Float32Array(this.back.buffer, 0, count * S * 4);
         for (let i = 0; i < count; i++) for (let j = 0; j < S; j++) rows[j].set(f.subarray((i * S + j) * 4, (i * S + j) * 4 + 4), i * 4);
@@ -215,7 +215,7 @@ function entriesOf(T, spans) {
   const R = spans ? new THREE.StorageBufferAttribute(new Uint32Array(MAXP * 2), 2) : null, RN = R ? storage(R, 'uvec2', MAXP).toReadOnly() : null;
   Object.assign(T, { entries: E, entryRuns: R, nE });
   const bytes = E.array.byteLength + (R ? R.array.byteLength : 0);
-  more('tiers: what each looks at', bytes, bytes);
+  more('tiers: what each looks at', bytes, bytes, 'geometry');
   return { EN, nE, RN, STEPS: Math.ceil(Math.log2(MAXP)) + 1 };
 }
 /** Its packing: each bucket a room of its own, one after another (cap: one for all, or a list). */
@@ -227,7 +227,7 @@ function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, b
   const OFF = new THREE.StorageBufferAttribute(Uint32Array.from(offs), 1), OFr = storage(OFF, 'uint', K).toReadOnly();
   // (a thing's rows side by side in one buffer, `slots` of them: one buffer to bind, not one a row; what it packs lives
   // on the GPU only: the GPU writes it and the GPU reads it, src/core/gpu.js)
-  const packed = gpuStorageLater('vec4', 'tiers: what stands, packed'); packed.make(total * slots);
+  const packed = gpuStorageLater('vec4', 'tiers: what stands, packed', 'geometry'); packed.make(total * slots);
   const data = packed.node, count = instancedArray(K, 'uint').toAtomic(), { args, argsNode } = argsOf(geos);
   const culled = !!bounds && hasFeature('indirect-first-instance') && cullable(total);   // (?truth too: what this frame's depth hides adds nothing to any pixel)
   Object.assign(T, { slots, data, args, count, offsets: OFF, room: (k) => caps[k] });
@@ -312,7 +312,7 @@ function patchPass({ K, S, data, count, own, capOff, uCap, entryOf: ofEntry }, l
 // its own besides (copy forward, visit, the gather's two), over its stores and what it packed, each tier a range of
 // them: so a pass is compiled once a kind of work, not once a tier.
 const firstStore = (store) => Math.max(WG, 2 ** Math.ceil(Math.log2(Math.max(WG, store))));   // (until its own count is known: what its engine reckons)
-const lean = (type, name, atomic = false) => { const b = gpuStorageLater(type, name); if (atomic) b.node.toAtomic(); return b; };
+const lean = (type, name, atomic = false) => { const b = gpuStorageLater(type, name, 'geometry'); if (atomic) b.node.toAtomic(); return b; };
 let GR = null;   // (what every resident tier shares: shared(), made with the first)
 const KINDS = new Map();   // (a kind of tier, by its key: its passes, its stores, its tiers)
 function shared() {
@@ -322,7 +322,7 @@ function shared() {
   const Z = Zs.node, C = Cs.node, O = Os.node, cur = Us.node, held = instancedArray(1, 'uint').toAtomic();
   const E = new THREE.StorageBufferAttribute(new Uint32Array(LEAVES * 4), 4), X = new THREE.StorageBufferAttribute(new Uint32Array(LEAVES * 2), 2), A = new THREE.StorageBufferAttribute(new Uint32Array(LEAVES + 1), 1);
   const bytes = E.array.byteLength + X.array.byteLength + A.array.byteLength;
-  more('tiers: what a packing looks at', bytes, bytes);
+  more('tiers: what a packing looks at', bytes, bytes, 'geometry');
   const DF = new THREE.IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1, 0]), 1), DG = new THREE.IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1, 0]), 1), DFn = storage(DF, 'uint', 4), DGn = storage(DG, 'uint', 4);
   // (the table: its two counts (zi), its first draw's row (kb), its draws (K), its room (N), where its first thing lies
   // in its kind's (base), the store copied from and into (from, to), the one gathered (g), its regions (nE), and
