@@ -6,15 +6,16 @@
 // page with the rest, so the relief near the eye (src/terrain/relief.js) and the parallax further out show the path
 // sunk into the meadow. The paths are ways too (src/world/ways.js): the grass, the stones and the trees keep off them.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Loop, float, int, uint, vec2, vec3, uniformArray, min, max, clamp, smoothstep, length, dot, mix } from 'three/tsl';
+import { Fn, If, Loop, float, int, uint, vec2, vec3, uniformArray, min, max, clamp, smoothstep, step, length, dot, mix } from 'three/tsl';
 import { PATHS } from '../../world/paths.js';
 import { addWays } from '../world/ways.js';
 import { vnoise } from '../world/noise.nodes.js';
 import { WALKER } from '../../world/scale.js';
+import { noiseAt } from '../world/land.js';
 
 // (its verge, where feet stray from it: as wide as a step keeps off anything, the walker's round, its edge going over
 // from worn to grass across it; and the edge wandering either way by half of that: src/world/scale.js)
-const SOFT = WALKER.round, WANDER = SOFT / 2;
+const SOFT = WALKER.round, WANDER = SOFT / 2, STRAY = WANDER * 1.5;   // (STRAY: the most it wanders, its two noises' amplitudes together)
 const DIRT = '082f0183-5d92-4ac8-821c-14408d3ee056' /* dry earth: the trodden middle */, CRUMBS = '0db6a039-9f7f-4a58-8137-c3348dfb922e' /* path: towards the edges */;
 
 // a curve through the points (Catmull-Rom, centripetal: no loops where they bunch), a point every `step` metres (the
@@ -46,7 +47,7 @@ const SEG = SEGS.length ? uniformArray(SEGS.map((s) => new THREE.Vector4(...s)),
 const pathNear = Fn(([p0, reach]) => {
   const p = vec2(p0).toVar(), best = float(1e6).toVar(), half = float(1).toVar();
   for (const R of RUNS) {
-    const m = R.half + WANDER;
+    const m = R.half + STRAY;
     If(p.x.greaterThan(float(R.box[0] - m).sub(reach)).and(p.x.lessThan(float(R.box[2] + m).add(reach))).and(p.y.greaterThan(float(R.box[1] - m).sub(reach))).and(p.y.lessThan(float(R.box[3] + m).add(reach))), () => {
       Loop({ start: int(R.first), end: int(R.first + R.n), type: 'int', condition: '<' }, ({ i }) => {
         const s = SEG.element(i), a = s.xy, ab = s.zw.sub(a), t = clamp(dot(p.sub(a), ab).div(max(dot(ab, ab), 1e-6)), 0, 1);
@@ -59,27 +60,28 @@ const pathNear = Fn(([p0, reach]) => {
   return vec2(best.sub(vnoise(p.mul(1 / 2.3), uint(611)).sub(0.5).mul(2).add(vnoise(p.mul(1 / 0.7), uint(612)).sub(0.5)).mul(WANDER)), half);
 });
 
-/** The same in JS, without the edge's wander: how far (x, z) lies past the edge of the nearest path (Infinity where
-    none comes within `reach`). */
+/** The same in JS: how far (x, z) lies past the edge of the nearest path, its wander the same (land.js noiseAt: the
+    nodes' noise; Infinity where none comes within `reach`). */
 function pathNearJS(x, z, reach = 0) {
   let best = Infinity;
   for (const R of RUNS) {
-    const m = R.half + WANDER + reach;
+    const m = R.half + STRAY + reach;
     if (x < R.box[0] - m || x > R.box[2] + m || z < R.box[1] - m || z > R.box[3] + m) continue;
     for (let k = R.first; k < R.first + R.n; k++) {
       const [ax, az, bx, bz] = SEGS[k], ex = bx - ax, ez = bz - az, t = Math.min(1, Math.max(0, ((x - ax) * ex + (z - az) * ez) / Math.max(ex * ex + ez * ez, 1e-6)));
       best = Math.min(best, Math.hypot(x - ax - ex * t, z - az - ez * t) - R.half);
     }
   }
-  return best;
+  return best === Infinity ? best : best - ((noiseAt(x / 2.3, z / 2.3, 611) - 0.5) * 2 + (noiseAt(x / 0.7, z / 0.7, 612) - 0.5)) * WANDER;
 }
 
-// the paths are ways: nothing that is placed stands on them (nor within a quarter of the margin it asks for round
-// them, and the edge's wander)
-// (a quarter of it: the grass grows up to a footpath's edge, a trunk or a boulder stands close by it)
+// the paths are ways: a thing is kept off one where its base (`margin`: how far round its middle what is solid of it
+// stands on the ground, assets/kinds.js baseOf) reaches onto the trodden width, its edge wandering as the worn ground's
+// does; nothing else of it (a crown over the path, a shrub's leaves) is a reason. The grass and the stones by the same
+// rule at their own size (a blade's point, a stone's half side). The same in JS, for what is solid of them.
 if (RUNS.length) addWays({
-  node: (p, margin) => { const k = margin.mul(0.25), e = pathNear(p, k.add(0.5)).x; return float(1).sub(smoothstep(k.sub(0.05), k.add(0.1), e)); },
-  at: (x, z, margin) => pathNearJS(x, z, margin * 0.25 + 0.5) < margin * 0.25 + 0.1 + WANDER,
+  node: (p, margin) => float(1).sub(step(margin, pathNear(p, margin).x)),
+  at: (x, z, margin) => pathNearJS(x, z, margin) < margin,
 });
 
 /** A texel of a page worn by a path (node code, in the page's kernel: src/terrain/pages.js): p its point, s its size
