@@ -310,7 +310,7 @@ const worse = (D) => [
   ...D.dead.files.map((f) => `dead code: ${f}, a new unused file`),
   ...D.dead.exports.map((x) => `dead code: ${x.at} ${x.name}, a new unused export`),
   ...D.cycles.map((c) => `cycles: a new one, ${ring(c)}`),
-  ...(D.settings.branches.change > 0 ? D.settings.branches.rose.map(([k, by]) => `settings: ${by} more mode branches on ${k}`) : []),
+  ...(D.settings.branches.change > 0 ? D.settings.branches.rose.map(([k, by]) => `settings: ${n(by, 'more mode branch')} on ${k}`) : []),
   ...(D.settings.numbers.change > 0 ? D.settings.numbers.new.map((x) => `settings: a new hand-set number, ${x.at} ${x.name} = ${x.value}`) : []),
   ...D.dependencies.filter((d) => !d.named).map((d) => `dependencies: ${d.name} (${d.at}) is new, and no intent the change touches names it`),
 ];

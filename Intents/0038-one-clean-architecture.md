@@ -1372,8 +1372,20 @@ What each counts, where it is not plain:
   - a **flag read** is a call of `flag`, `flagNum` or `flagText`.
 - **Dependencies:** jscpd, eslint, knip and madge are TheGame's dev dependencies for these gates, pinned.
 
-A merge holds every number or brings it down over what it touches: `bun tools/health.js <paths>` on main and on the
-branch. The tool sets no threshold of its own.
+**Held at every merge (2026-11-18).** `bun tools/health.js --base <ref>` also measures the same paths at the point where
+`<ref>` and the branch part (their merge base, unpacked with `git archive` and measured with this tree's own tools). It
+prints each gate's change beside it, and with no path it measures the folders the change touches. It fails where a
+gate got worse:
+- more lines in clones, or a new clone (the same code, wherever it lies);
+- a function the change touches that is over the ceiling and more complex than before. The ceiling is Define's
+  (`--ceiling`); until Define sets one, it is eslint's own default for `complexity`, 20;
+- a new unused file or export, or a new cycle;
+- more mode branches or hand-set numbers;
+- a new dependency that no intent the change touches names.
+
+CI runs it on every pull request against main (`--base HEAD^1`: main, as the pull request merges into it), in about
+3 s. The four imports from the game's root (three in `cine/trailer.js`, one in `tools/sweep.js`) are now relative, so
+madge follows every import.
 
 ## Propose
 
@@ -1406,7 +1418,10 @@ branch. The tool sets no threshold of its own.
 - [ ] The bench pass by pass (built on `aven/0038-bench-per-pass`): measured on the Mac mini, the per-part ceilings a
       merge rule
 - [ ] The upscale's cost at a 4K output (7.5–21.2 ms against its 1.5): the next root cause after 9a
-- [ ] The code gates at every merge: `tools/health.js` built (baseline under Build); in CI, held against main
+- [x] The code gates at every merge: `tools/health.js` (baseline under Build), held against main in CI on every
+      pull request (`--base`)
+- [ ] The 91 unused exports the dead-code gate finds over `src assets/kit tools`: the first clean-up after train 2
+      lands (train 2's branches change their files)
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
 
 ## Changelog
@@ -1634,3 +1649,5 @@ branch. The tool sets no threshold of its own.
 | 2026-11-18 | `3907ce7` | Stage 7 merged with main (`314e2e6`) |
 | 2026-11-18 | `19d0559` | The bench times each pass on its own on main: the passes marked, each in one of four parts (geometry, light, ground, upscale/post) |
 | 2026-11-18 | `26f751d` | `tools/health.js`: the code gates in one command (copies, spaghetti, dead code, cycles, size, settings, dependencies); the baseline under Build |
+| 2026-11-18 | `695ea18` | Imports from the game's root made relative (`cine/trailer.js`, `tools/sweep.js`), so madge follows every import |
+| 2026-11-18 | `bca2270` | The code gates held against main: `health.js --base` (each gate's change, exit 1 where one got worse), run by CI on every pull request |
