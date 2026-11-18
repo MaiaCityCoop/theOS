@@ -12,8 +12,7 @@ import { useCascades } from '../shadow.js';
 import { CASTERS } from '../../terrain/layers.js';
 import { screenLightFor } from './screen.js';
 
-/** The light's start, once the measure is kept (src/detail/measure.js keepMeasure) and before any material is built.
-    Returns the light worked out on the screen (screenLightFor). */
+/** The light's start, before any material is built. Returns the light worked out on the screen (screenLightFor). */
 export function startLight(renderer, screen) {
   useBackend(renderer);
   useCascades(CASTERS);

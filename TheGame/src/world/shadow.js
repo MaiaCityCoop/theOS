@@ -4,8 +4,8 @@
 // the rocks, the tent and the water all darken on the side away from the light.
 //
 // Their layout, all of it derived (useCascades, at the start, before any material is built):
-//   texels   S a side: a texel one dial pixel at its own cascade's edge, at the most pixels the screen can draw (the one
-//            measure: two of the pixels a metre covers a metre off, pxKMost; what is made once is made for the most)
+//   texels   S a side: a texel one dial pixel at its own cascade's edge on the output (the one measure: two of the pixels
+//            a metre covers a metre off on the output's rows, src/core/budget.js OUTPUT, which no canvas exceeds)
 //   the near its texel the sun's own penumbra under the lowest crown that casts (SUN_DIAMETER × CASTERS.crown: a texel finer
 //            than the narrowest penumbra a crown throws resolves nothing the sun's disc does not blur away), a third of
 //            it ahead of the eye. Read with a penumbra as wide as the sun's disc makes it: the farther the blocker from
@@ -30,7 +30,8 @@ import { U } from '../core/uniforms.js';
 import { compileFor } from '../core/compile.js';
 import { twinOf } from '../core/pass.js';
 import { note, mark } from '../core/gpu.js';
-import { pxKMost } from '../detail/measure.js';
+import { pxKAt } from '../detail/measure.js';
+import { OUTPUT } from '../core/budget.js';
 import { SUN_DIAMETER } from './light/physics.js';
 
 export const CASTS = 1;   // the layer of what casts a shadow
@@ -39,16 +40,16 @@ export const CASTS = 1;   // the layer of what casts a shadow
 const spanOf = (h) => ({ back: 300 + h * 0.5, near: 1, far: 600 + h });
 
 let C = null;
-/** Lay the cascades out (the light's start, src/world/light/start.js startLight: once the measure knows the most the
-    screen can draw, keepMeasure, and before any material is built, for the light is built for them), from what casts in
-    the stands (src/terrain/layers.js CASTERS): reach, how far round the eye shadows are drawn; crown, the lowest crown
-    that casts; top, the tallest caster; radius, the smallest crown's reach (for the canopy). */
+/** Lay the cascades out (the light's start, src/world/light/start.js startLight: before any material is built, for the
+    light is built for them), from what casts in the stands (src/terrain/layers.js CASTERS): reach, how far round the eye
+    shadows are drawn; crown, the lowest crown that casts; top, the tallest caster; radius, the smallest crown's reach
+    (for the canopy). */
 export function useCascades({ reach, crown, top, radius }) {
   if (!(reach > 0 && crown > 0 && crown < Infinity && top > 0 && radius > 0 && radius < Infinity)) throw new Error(`the shadow cascades are laid out from what casts in the stands (reach ${reach} m, lowest crown ${crown} m, tallest ${top} m, smallest crown ${radius} m round): none of it there`);
   // a cascade's texels a side: a texel one dial pixel at its own cascade's edge (h metres from the eye, 2h / S a texel,
-  // and a metre a metre off is pxKMost dial pixels: at the most pixels the screen can draw and the dial at rest, for
-  // what is made once is made for the most: src/detail/measure.js)
-  const S = Math.ceil(2 * pxKMost());
+  // and a metre a metre off is pxKAt(OUTPUT.height) pixels on the output, the dial at rest: what is made once is made
+  // for the most any canvas has, src/core/output.js, whatever the window at the start)
+  const S = Math.ceil(2 * pxKAt(OUTPUT.height));
   const finest = (SUN_DIAMETER * crown * S) / 2;   // (the near one's half side at the most: its texel the lowest crown's penumbra)
   // as many as reach `reach`, each twice the one before; two at the least: three binds a depth texture of one layer as no
   // array, which the materials are built for
