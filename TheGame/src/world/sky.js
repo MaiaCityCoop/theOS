@@ -12,6 +12,7 @@ import CLOCK from '../../world/clock.js';   // the date, the hour the game opens
 import { U } from '../core/uniforms.js';
 import { toScreen } from './light.js';
 import { AIR, skyAlong } from './light/air.js';
+import { LIGHT_FULL } from '../core/flags.js';
 import { D } from './sky/dome.js';
 import { skyHooks } from './weather/index.js';
 import { weatherRow } from '../ui/weather.js';
@@ -60,10 +61,10 @@ function dome(camera) {
   mat.vertexNode = Fn(() => { const c = cameraProjectionMatrix.mul(cameraViewMatrix).mul(modelWorldMatrix.mul(vec4(positionGeometry, 1))); return vec4(c.xy, c.w.mul(0.9999999), c.w); })();
   mat.fragmentNode = Fn(() => {
     const v = normalize(vDir), y = v.y;
-    // the sky from the horizon up: by day Hillaire's, as the air's tables give it (src/world/light/air.js), its night (and
-    // the WebGL 2 fallback's sky) the hour's own colours
+    // the sky from the horizon up: the hour's own colours; with ?light=full (stage 9b) by day Hillaire's, as the air's
+    // tables give it (src/world/light/air.js), its night the hour's
     const art = mix(D.horizon, D.zenith, pow(max(y, 0), 0.55));
-    const col = mix(art, skyAlong(v).add(art.mul(D.dark)), AIR.on).toVar();
+    const col = (LIGHT_FULL ? mix(art, skyAlong(v).add(art.mul(D.dark)), AIR.on) : art).toVar();
     // (below the horizon the horizon's own colour: the far land melts into it (light.js: airOf), so from high up, where
     // the land ends below the horizon, there is no band of another colour between them)
     const s = max(v.dot(D.sunD), 0);

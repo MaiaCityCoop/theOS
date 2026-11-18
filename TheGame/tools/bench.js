@@ -30,7 +30,10 @@ const mod = (part) => import(performance.getEntriesByType('resource').map((e) =>
       start()  before what is timed
       end()    after it: a promise of { sum (every pass's own time added: the frame's GPU time, as the bench has always
                said it), span (from the first pass's begin to the last one's end: what passes running side by side take
-               together, and any wait between them), by: { name: ms } } */
+               together, and any wait between them), by: { name: ms }, adds: { name: ms } (what each part adds to the
+               span: of each pass, in the order the GPU began them, how far its end lies past every earlier one's end
+               and its own begin; on a tile GPU passes overlap, so their own times add up to more than the frame:
+               2026-11-18, 75-118 ms of passes in a span of 45-73) } */
 async function clockOf(renderer) {
   const B = renderer.backend;
   if (!B.trackTimestamp || !B.device || renderer.hasFeature?.('timestamp-query') === false) return null;
@@ -62,27 +65,30 @@ async function clockOf(renderer) {
           if (t[q] > 0n && t[q + 1] >= t[q]) passes.push({ name: marks[m][0] ?? 'other', b: t[q], e: t[q + 1] });   // (a pass three asked for and never drew writes neither)
         }
       });
-      if (!passes.length) return { sum: 0, span: 0, by: {} };
-      let lo = passes[0].b, hi = passes[0].e; for (const p of passes) { if (p.b < lo) lo = p.b; if (p.e > hi) hi = p.e; }
-      const by = {}; let sum = 0;
-      for (const p of passes) { const ms = Number(p.e - p.b) / 1e6; by[p.name] = (by[p.name] ?? 0) + ms; sum += ms; }
-      return { sum, span: Number(hi - lo) / 1e6, by };
+      if (!passes.length) return { sum: 0, span: 0, by: {}, adds: {} };
+      passes.sort((x, y) => (x.b < y.b ? -1 : x.b > y.b ? 1 : 0));
+      const lo = passes[0].b, by = {}, adds = {}; let sum = 0, hi = lo;
+      for (const p of passes) {
+        const ms = Number(p.e - p.b) / 1e6, past = p.e > (p.b > hi ? p.b : hi) ? Number(p.e - (p.b > hi ? p.b : hi)) / 1e6 : 0;
+        by[p.name] = (by[p.name] ?? 0) + ms; adds[p.name] = (adds[p.name] ?? 0) + past; sum += ms; if (p.e > hi) hi = p.e;
+      }
+      return { sum, span: Number(hi - lo) / 1e6, by, adds };
     },
     stop() { listen(null); for (const b of kept.values()) { b.res.destroy(); b.map.destroy(); } },
   };
 }
 /** f() timed n times on the clock: { sum, span (each its mean, ms), passes: { name: { mean (ms a frame, over every frame:
     what is drawn in turn counts as its share), drawn (ms in the frames it was drawn in), every (it was drawn every this
-    many frames) } } }. */
+    many frames), adds (what it adds to the span, ms a frame) } } }. */
 async function timed(clock, f, n) {
   let sum = 0, span = 0; const by = {};
   for (let i = 0; i < n; i++) {
     clock.start(); f(); const r = await clock.end();
     sum += r.sum; span += r.span;
-    for (const [k, ms] of Object.entries(r.by)) { const b = (by[k] ||= { ms: 0, frames: 0 }); b.ms += ms; b.frames++; }
+    for (const [k, ms] of Object.entries(r.by)) { const b = (by[k] ||= { ms: 0, adds: 0, frames: 0 }); b.ms += ms; b.adds += r.adds[k] ?? 0; b.frames++; }
   }
   const passes = {}, r3 = (v) => +v.toFixed(3);
-  for (const [k, b] of Object.entries(by).sort((x, y) => y[1].ms - x[1].ms)) passes[k] = { mean: r3(b.ms / n), drawn: r3(b.ms / b.frames), every: +(n / b.frames).toFixed(1) };
+  for (const [k, b] of Object.entries(by).sort((x, y) => y[1].ms - x[1].ms)) passes[k] = { mean: r3(b.ms / n), drawn: r3(b.ms / b.frames), every: +(n / b.frames).toFixed(1), adds: r3(b.adds / n) };
   return { sum: +(sum / n).toFixed(2), span: +(span / n).toFixed(2), passes };
 }
 

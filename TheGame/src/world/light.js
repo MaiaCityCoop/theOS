@@ -6,13 +6,14 @@
 // to the shared lanes (wet, fog, dim), and what each does to a surface (`surface`: the snow lying on it). What is one
 // condition's own (the snow's depth, the wind's push, the clouds' shade) is that condition's code, handed on from here,
 // so a material asks the contract and no file but the condition's holds it.
-import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, exp2, sqrt, pow, smoothstep, fract, floor, dot, max, min, abs, clamp, length, normalize, cos, sin, screenCoordinate } from 'three/tsl';
+import { Fn, float, int, vec2, vec3, vec4, ivec2, If, mix, exp, exp2, sqrt, pow, smoothstep, fract, floor, dot, max, min, abs, clamp, length, normalize, cos, sin, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { passOf } from '../core/pass.js';
 import { lane } from './weather/lanes.js';
 import { surfaceHooks, airHooks } from './weather/index.js';
 import { cloudShade } from './weather/clouds.js';
-import { BIAS } from './shadow.js';
+import { BIAS, SHADOW_S } from './shadow.js';
+import { LIGHT_FULL } from '../core/flags.js';
 import { blueAt } from './light/noise.js';
 import { SCREEN } from './light/screen.js';
 import { skyAt } from './light/canopy.js';
@@ -40,18 +41,17 @@ export const haze = Fn(([c, dist]) => mix(U.uHazeCol, c, exp(dist.negate().mul(U
 // the air lit by the sun: looking towards it, the haze glows warm (light scattered forward by the air), away from it
 // it keeps the horizon's colour; the more air in the line of sight, the more of it
 /** The air between the eye and w, as its two parts: k, how much of a surface's colour comes through, and col, the air's
-    own light. In the world's frame (its colour pass, in either stage) from the froxels (src/world/light/air.js:
-    Hillaire's atmosphere and the height fog with its shafts through the crowns), and where the land ends the sky's own
-    light along that way; anywhere else (a library's picture, the WebGL 2 fallback: AIR off) worked out here, a height
-    fog lit by the sun. A material that lights itself per vertex (a tree: src/scatter/trees.js) carries them to its
-    pixels; airAt mixes them. */
+    own light: a height fog lit by the sun, worked out here. With ?light=full (stage 9b's preview), in the world's frame
+    (its colour pass, in either stage) from the froxels instead (src/world/light/air.js: Hillaire's atmosphere and the
+    height fog with its shafts through the crowns), and where the land ends the sky's own light along that way. A
+    material that lights itself per vertex (a tree: src/scatter/trees.js) carries them to its pixels; airAt mixes them. */
 const airHere = Fn(([w, eye], builder) => {
   const d = w.sub(eye), dist = length(d), towards = max(normalize(d).dot(U.uSunDir), 0);
   const glow = U.uSun.mul(pow(towards, 6).mul(0.22).add(pow(towards, 40).mul(0.25))).mul(U.uSunDir.y.max(0).mul(-1).add(1).mul(0.6).add(0.4));
   // (and by where the land is no longer drawn it is all air: from high up the land's end is not an edge against the sky)
   const end = smoothstep(U.uLandEnd.mul(0.55), U.uLandEnd.mul(0.94), dist), k0 = exp(dist.negate().mul(U.uHaze).mul(airMean(U.uAirH)).mul(lane.fog.mul(40).add(1))).mul(float(1).sub(end));
   const own = vec4(U.uHazeCol.add(glow), k0);
-  if (passOf(builder) !== 'main') return own;
+  if (!LIGHT_FULL || passOf(builder) !== 'main') return own;   // (Hillaire's air in froxels: ?light=full, stage 9b)
   const F = froxelAt(w), T = F.T.mul(float(1).sub(end)), L = F.L.mul(float(1).sub(end)).add(skyAlong(normalize(d)).add(U.uHazeCol.mul(D.dark)).mul(end));
   return mix(own, vec4(L.div(max(float(1).sub(T), 1e-4)), T), AIR.on);
 });
@@ -95,40 +95,39 @@ export const weathered = (col, n, lift = 0) => (weatheredF ||= Fn(([c, nn, l]) =
 // a screen noise (interleaved gradient): for the shadow's taps and the hand-over between levels
 export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
-// shadows: what the casters hide of the light, from the two cascades of one atlas round the camera (src/world/shadow.js);
-// 1 lit, 0 in shadow. uShadowM and uShadowM2 take a world point straight to each cascade's (u, v, depth), whichever way
-// up the backend keeps it; the near cascade is the atlas's left square, the far its right. A point is read in the near
-// one where it lies inside it, the hand-over to the far one dithered over the near one's last tenth (the picture built
-// over time averages it), and the far one fades out at its own edge.
+// shadows: what the casters hide of the light, from the two cascades round the camera (src/world/shadow.js: the two
+// layers of one depth array, the near one first); 1 lit, 0 in shadow. uShadowM and uShadowM2 take a world point
+// straight to each cascade's (u, v, depth), whichever way up the backend keeps it. A point is read in the near one where
+// it lies inside it, the hand-over to the far one dithered over the near one's last tenth (the picture built over time
+// averages it), and the far one fades out at its own edge.
 //
 // The near one is soft as the sun makes it (PCSS, Fernando 2005): six reads round the point find how far the casters
 // above it stand (the blockers' mean depth), and its penumbra is that distance times the width of the sun's disc
 // (0.53°): a leaf a hand above the path throws a sharp shadow, a crown 15 m up a soft one, so a canopy's light falls as
 // the round flecks a real one does. Then eight taps over that penumbra, each compared and filtered over 2 x 2 texels by
-// the GPU (a comparison sampler), on a disc turned by the blue noise from pixel to pixel and frame to frame. The far one
-// takes four taps, about a texel and a half out.
+// the GPU (a comparison sampler), on a disc turned by the blue noise from pixel to pixel and frame to frame (one turn a
+// pixel: its cosine and sine once, not a tap's each). The far one takes four taps, about a texel and a half out.
 const SUN_DISC = 0.0093;   // the sun's width across the sky (radians): metres of penumbra for every metre from blocker to receiver
 const PEN = 0.45;          // the widest penumbra, metres (the blockers are looked for this far round)
-const SHADOW_S = 2048;     // a cascade's texels a side (src/world/shadow.js)
-const vogel = (i, n, turn) => { const r = Math.sqrt((i + 0.5) / n), a = turn.add(i * 2.399963); return vec2(cos(a), sin(a)).mul(r); };
+// a Vogel disc of n taps (radius 1), its first turned by a0: as numbers, turned for a pixel by its (cos, sin)
+const disc = (n, a0 = 0) => Array.from({ length: n }, (_, i) => { const r = Math.sqrt((i + 0.5) / n), a = a0 + i * 2.399963; return [Math.cos(a) * r, Math.sin(a) * r]; });
+const BLOCKERS = disc(6), TAPS = disc(8, 1.3);
+const turned = ([x, y], cs) => vec2(cs.x.mul(x).sub(cs.y.mul(y)), cs.y.mul(x).add(cs.x.mul(y)));
 /** a point in cascade k: { q (u, v, depth), e (how far inside: 0 at its edge, 1 a tenth in) } */
 const cascade = (w, k) => {
   const s = (k ? U.uShadowM2 : U.uShadowM).mul(vec4(w, 1)), q = s.xyz.div(s.w), m = min(min(q.x, q.y), min(float(1).sub(q.x), float(1).sub(q.y)));
   return { q, e: smoothstep(0, 0.1, m).mul(q.z.lessThan(1).select(float(1), float(0))) };
 };
-const atlas = (uv, k) => vec2(uv.x.add(k).mul(0.5), uv.y);
-const depthAt = (uv, k) => float(U.tShadow.load(ivec2(clamp(atlas(uv, k).mul(vec2(2 * SHADOW_S, SHADOW_S)), vec2(0), vec2(2 * SHADOW_S - 1, SHADOW_S - 1)))));
-const compareAt = (uv, k, z) => U.tShadow.sample(atlas(uv, k)).level(0).compare(z);
-// the near cascade, soft as the sun's disc makes it; the far one, four taps
-const nearSoft = (q, z, turn) => {
+const depthAt = (uv, k) => float(U.tShadow.load(ivec2(clamp(uv.mul(SHADOW_S), vec2(0), vec2(SHADOW_S - 1)))).depth(int(k)));
+const compareAt = (uv, k, z) => U.tShadow.sample(uv).depth(int(k)).level(0).compare(z);
+// the near cascade, soft as the sun's disc makes it (the taps over a penumbra `pen` metres wide); the far one, four taps
+const taps = (q, z, cs, pen) => { const perM = float(1).div(U.uShadowSize.x), k = float(0).toVar(); for (const d of TAPS) k.addAssign(compareAt(q.xy.add(turned(d, cs).mul(pen.mul(0.5).mul(perM))), 0, z)); return k.div(TAPS.length); };
+const nearSoft = (q, z, cs) => {
+  if (!texelReads) return taps(q, z, cs, U.uShadowSize.x.mul(3 / SHADOW_S));   // (WebGL 2 reads no texel of a texture it compares: no blockers, a penumbra of three texels)
   const perM = float(1).div(U.uShadowSize.x), found = float(0).toVar(), sum = float(0).toVar();
-  for (let i = 0; i < 6; i++) { const d = depthAt(q.xy.add(vogel(i, 6, turn).mul(PEN * 0.5).mul(perM)), 0); If(d.lessThan(z), () => { sum.addAssign(d); found.addAssign(1); }); }
+  for (const d of BLOCKERS) { const b = depthAt(q.xy.add(turned(d, cs).mul(PEN * 0.5).mul(perM)), 0); If(b.lessThan(z), () => { sum.addAssign(b); found.addAssign(1); }); }
   const r = float(1).toVar();
-  If(found.greaterThan(0), () => {
-    const pen = clamp(z.sub(sum.div(found)).mul(U.uShadowRange.x).mul(SUN_DISC), U.uShadowSize.x.mul(1.5 / SHADOW_S), PEN), k = float(0).toVar();
-    for (let i = 0; i < 8; i++) k.addAssign(compareAt(q.xy.add(vogel(i, 8, turn.add(1.3)).mul(pen.mul(0.5).mul(perM))), 0, z));
-    r.assign(k.div(8));
-  });
+  If(found.greaterThan(0), () => { r.assign(taps(q, z, cs, clamp(z.sub(sum.div(found)).mul(U.uShadowRange.x).mul(SUN_DISC), U.uShadowSize.x.mul(1.5 / SHADOW_S), PEN))); });
   return r;
 };
 const farSoft = (q, z) => { const k = float(0).toVar(); for (const [i, j] of [[-0.62, -0.24], [0.24, -0.62], [0.62, 0.24], [-0.24, 0.62]]) k.addAssign(compareAt(q.xy.add(vec2(i, j).mul(1.7 / SHADOW_S)), 1, z)); return k.div(4); };
@@ -137,11 +136,11 @@ const farSoft = (q, z) => { const k = float(0).toVar(); for (const [i, j] of [[-
 const shadowOf = (w, n, how) => {
   const r = float(1).toVar(), bias = how === 'pulled' ? 2 : 1;
   If(U.uShadowOn.greaterThan(0.5), () => {
-    const N = n ?? vec3(0), noise = blueAt(screenCoordinate.xy), turn = noise.x.mul(Math.PI * 2);
+    const N = n ?? vec3(0), noise = blueAt(screenCoordinate.xy), turn = noise.x.mul(Math.PI * 2), cs = vec2(cos(turn), sin(turn));
     const A = cascade(w.add(N.mul(U.uShadowSize.x.mul(1.2 / SHADOW_S))), 0);
     If(A.e.greaterThan(noise.y), () => {
       const z = A.q.z.sub(U.uShadowRange.z.mul(bias));
-      r.assign(how === 'one' ? compareAt(A.q.xy, 0, z) : nearSoft(A.q, z, turn));
+      r.assign(how === 'one' ? compareAt(A.q.xy, 0, z) : nearSoft(A.q, z, cs));
     }).Else(() => {
       const B = cascade(w.add(N.mul(U.uShadowSize.y.mul(1.2 / SHADOW_S))), 1), z = B.q.z.sub(U.uShadowRange.w.mul(bias));
       If(B.e.greaterThan(0), () => { r.assign(mix(1, how === 'one' ? compareAt(B.q.xy, 1, z) : farSoft(B.q, z), B.e)); });
@@ -174,8 +173,8 @@ const vertexIn = (A, k) => {
   const bell = (v) => [v.sub(0.5).mul(v.sub(0.5)).mul(0.5), float(0.75).sub(v.mul(v)), v.add(0.5).mul(v.add(0.5)).mul(0.5)];   // (the three weights along one axis: they add up to 1)
   const wx = bell(f.x), wy = bell(f.y), z = A.q.z.sub(k ? U.uShadowRange.w : U.uShadowRange.z), s = float(0).toVar();
   for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) {
-    const p = clamp(i.add(vec2(a - 1, b - 1)).mul(VSTEP), 0, SHADOW_S - 1).add(vec2(k * SHADOW_S, 0));
-    s.addAssign(smoothstep(z.sub(VSOFT), z, float(U.tShadow.load(ivec2(p)))).mul(wx[a]).mul(wy[b]));   // lit where nothing nearer the light was drawn there
+    const p = clamp(i.add(vec2(a - 1, b - 1)).mul(VSTEP), 0, SHADOW_S - 1);
+    s.addAssign(smoothstep(z.sub(VSOFT), z, float(U.tShadow.load(ivec2(p)).depth(int(k)))).mul(wx[a]).mul(wy[b]));   // lit where nothing nearer the light was drawn there
   }
   return s;
 };
@@ -210,8 +209,9 @@ const screenHere = Fn((builder) => (onScreen(builder) ? mix(vec2(1), SCREEN.cont
 const BOUNCE = vec3(0.1, 0.16, 0.05);   // what the crowns give back of the light on them (a leaf's green, its share scattered down)
 const bounce = () => BOUNCE.mul(U.uSun.mul(sunDim()).mul(U.uSunDir.y.max(0)).mul(0.6).add(U.uAmb.mul(0.4)));
 /** What the screen's light says of this pixel, for a material that lights itself per vertex and takes the rest per pixel
-    (a tree's cards): open, the share of the sky GTAO lets reach it; contact, the share of the sun the contact shadows do. */
-export const screenShade = () => { const S = screenHere().toVar(); return { open: clamp(S.y, 0, 1), contact: S.x }; };
+    (a tree's cards): open, the share of the sky GTAO lets reach it (with ?light=full; else all of it); contact, the share
+    of the sun the contact shadows do. */
+export const screenShade = () => { const S = screenHere().toVar(); return { open: LIGHT_FULL ? clamp(S.y, 0, 1) : float(1), contact: S.x }; };
 /** The light a surface takes, in its parts (rgb, the light's numbers): `sky`, what its colour takes from the sky; `sun`,
     from the sun; `spec`, the highlight laid over it. lit() below puts them on a colour; a material that lights itself per
     vertex (a tree) carries them to its pixels. s, every field but n and w optional:
@@ -227,13 +227,13 @@ export const lightOn = (s) => {
   const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), Sc = screenShade(), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mul(Sc.contact);
   const wrap = s.wrap ?? 0, ndl = s.ndl ?? (wrap ? n.dot(L).add(wrap).div(float(wrap).add(1)) : n.dot(L)).max(0);
   const back = V ? max(V.negate().dot(L), 0) : null, light = U.uSun.mul(share);   // (how far the eye looks into the sun; the sun's light here)
-  // the sky's light, less what stands round it (GTAO's share) and what the
-  // crowns above hide of it (the canopy's probes: src/world/light/canopy.js)
-  const open = Sc.open;
-  // (and where the probes see no sky, what the crowns that hide it give back: lit by the sun and the sky themselves, a
-  // little of it comes down green: the probes' bounce, Ghost of Tsushima's)
+  // the sky's light, less what the crowns above hide of it (the canopy's probes: src/world/light/canopy.js) and, with
+  // ?light=full (stage 9b), what stands round it (GTAO's share)
+  const open = LIGHT_FULL ? Sc.open : float(1);
+  // (and with ?light=full, where the probes see no sky, what the crowns that hide it give back: lit by the sun and the
+  // sky themselves, a little of it comes down green: the probes' bounce, Ghost of Tsushima's)
   const seen = s.w ? skyAt(s.w) : float(1);
-  let sky = skyLight(n).mul(seen).add(bounce().mul(float(1).sub(seen))).mul(open), sun = ndl;
+  let sky = (LIGHT_FULL ? skyLight(n).mul(seen).add(bounce().mul(float(1).sub(seen))) : skyLight(n).mul(seen)).mul(open), sun = ndl;
   // through it, two-sided: the sun behind it seen through it (a lobe round the sun, as tight as `lobe`), and its far
   // side lit (what faces away from the sun, seen from the dark side, glows through)
   if (s.through) { const t = pow(back, s.lobe ?? 3).mul(0.65).add(max(n.dot(L).negate(), 0).mul(0.35)).mul(s.through); sun = sun.add(s.tint ? s.tint.mul(t) : t); }

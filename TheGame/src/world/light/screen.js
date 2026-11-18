@@ -3,17 +3,27 @@
 //
 //   contact   contact shadows after Bend Studio's screen-space shadows (Days Gone, 2023; Apache-2.0): from each pixel a
 //             short ray towards the sun through the depth, a few centimetres to a metre, so what is too fine for the
-//             shadow atlas still shades: a fern's frond on the litter, a pebble on the path, a leaf on the leaf under it,
-//             a blade on the ground. As Bend's: a ray of fixed pixels' worth of steps, its start dithered (here by the
-//             blue noise, which the picture built over time averages), a surface as thick as its depth says, the
-//             shadow faded towards the ray's end and with distance. Bend's own wave-wide sharing of samples is not
-//             ported (WebGPU's subgroups are missing in Safari): each pixel marches alone
+//             shadow cascades still shades: a fern's frond on the litter, a pebble on the path, a leaf on the leaf under
+//             it, a blade on the ground. As Bend's: a ray of fixed steps, its start dithered (here by the blue noise,
+//             which the picture built over time averages), a surface as thick as its depth says, the shadow faded
+//             towards the ray's end. It looks only for what the cascades cannot see (src/world/shadow.js): a caster
+//             nearer the surface than the cascade's bias and two of its texels, so its ray is that long (in the near
+//             cascade 0.14 m, in the far one 0.45 m near the ground), and none is marched where all of it lies under a
+//             pixel. Marched on
+//             the screen itself: its two ends projected once, the distance at each step a mix of theirs (no matrix a
+//             step), and every step's depth read before any is tested, so the reads go out together instead of each
+//             waiting on the one before (stage 9's march, one read waiting on the last, two matrices a step, every
+//             pixel to 80 m, took 22-34 ms of the Mac mini's at every view). Bend's own wave-wide sharing of samples
+//             is not ported (WebGPU's subgroups are missing in Safari): each pixel marches alone
+//   GTAO      with ?light=full only (stage 9b, src/core/flags.js), below
 //
 // Each is a texture at the inside's pixels, read by the one light (src/world/light.js lightOn) in the colour pass of
 // what takes part in the prepass; anywhere else (a library's picture, a bake) they are 1.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, ivec2, uint, uniform, texture, screenCoordinate, Loop, max, min, smoothstep, clamp, If, floor, abs, cross, normalize, length, acos, sign, ceil, cos, sin } from 'three/tsl';
+import { Fn, float, int, vec2, vec3, vec4, ivec2, uint, uniform, texture, screenCoordinate, Loop, max, min, mix, smoothstep, clamp, If, floor, abs, cross, normalize, length, acos, sign, ceil, cos, sin } from 'three/tsl';
 import { U } from '../../core/uniforms.js';
+import { LIGHT_FULL } from '../../core/flags.js';
+import { SHADOW_S, BIAS } from '../shadow.js';
 import { blueAt } from './noise.js';
 import { note, mark } from '../../core/gpu.js';
 
@@ -30,6 +40,8 @@ export function createScreenLight(renderer) {
   const viewAt = (p, d) => { const c = unproj.mul(vec4(p.div(size).mul(vec2(2, -2)).add(vec2(-1, 1)), d, 1)); return c.xyz.div(c.w); };
   const pixelOf = (v) => { const c = proj.mul(vec4(v, 1)); return c.xy.div(c.w).mul(vec2(0.5, -0.5)).add(0.5).mul(size); };
   const depthAt = (p) => float(depth.load(ivec2(clamp(p, vec2(0), size.sub(1)))));
+  // (how far from the eye a depth lies, straight back: the projection's own two numbers, d = e14 / (depth + e10))
+  const distOf = (d) => proj.element(3).z.div(d.add(proj.element(2).z));
 
   // GTAO's share of the sky, at half the pixels (drawn first, below), read here four times between its texels (its
   // slices' noise averaged over 8 x 8 of the inside's pixels) and kept beside the contact shadows: the colour pass
@@ -38,22 +50,31 @@ export function createScreenLight(renderer) {
   const contact = new THREE.NodeMaterial();
   contact.fragmentNode = Fn(() => {
     const p = screenCoordinate.xy, d0 = depthAt(p), out = float(1).toVar();
-    If(d0.lessThan(1), () => {
-      const v0 = viewAt(p, d0), dist = v0.z.negate(), L = view.mul(vec4(U.uSunDir, 0)).xyz;
-      // the ray: longer the farther (a metre's worth of shadow at 40 m is what a few centimetres are at 2 m), its start
-      // dithered, nudged off the surface by its depth's own precision
-      const len = dist.mul(0.02).add(0.12), j = blueAt(p).z, hit = float(0).toVar();
-      Loop(STEPS, ({ i }) => {
-        const t = float(i).add(j).div(STEPS), v = v0.add(L.mul(len.mul(t).add(dist.mul(0.002)))), q = pixelOf(v);
-        const z = viewAt(q, depthAt(q)).z.negate(), dz = v.z.negate().sub(z), thick = dist.mul(0.012).add(0.04);   // (how far in front of the ray the depth there stands, and how thick a surface is taken to be)
-        const inside = q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(size.x)).and(q.y.lessThan(size.y));
-        hit.assign(max(hit, inside.select(smoothstep(0.004, 0.02, dz.div(dist)).mul(float(1).sub(smoothstep(thick, thick.mul(1.6), dz))).mul(float(1).sub(t.mul(t).mul(0.5))), float(0))));
+    If(d0.lessThan(1).and(U.uShadowOn.greaterThan(0.5)), () => {
+      const v0 = viewAt(p, d0), dist = v0.z.negate(), w = viewInv.mul(vec4(v0, 1)).xyz;
+      // the ray: as long as what the cascade the point lies in cannot see (its bias and two of its texels; never past half
+      // the way to the eye), nudged off the surface by its depth's own precision, its start dithered. Its two ends on the
+      // screen and how far each lies: across the screen the distance's inverse runs straight, so a step's own distance is
+      // a mix of the two ends'
+      const c = U.uShadowM.mul(vec4(w, 1)), near = c.x.greaterThan(0).and(c.y.greaterThan(0)).and(c.x.lessThan(1)).and(c.y.lessThan(1));
+      const len = min(near.select(U.uShadowSize.x.mul(2 / SHADOW_S).add(BIAS[0]), U.uShadowSize.y.mul(2 / SHADOW_S).add(BIAS[1])), dist.mul(0.5));
+      const L = view.mul(vec4(U.uSunDir, 0)).xyz, a = v0.add(L.mul(dist.mul(0.002))), b = a.add(L.mul(len)), pa = pixelOf(a), pb = pixelOf(b);
+      If(length(pb.sub(pa)).greaterThan(1), () => {   // (a ray under a pixel finds nothing the cascades miss)
+        const ia = float(1).div(a.z.negate()).toVar(), ib = float(1).div(b.z.negate().max(1e-3)).toVar(), j = blueAt(p).z.toVar(), thick = dist.mul(0.012).add(0.04), lo = dist.mul(0.004);
+        // every step's place, then every step's depth, then the tests: a surface in front of the ray by more than the
+        // depth's own precision and less than a surface is thick shades it, less towards the ray's end
+        const ts = Array.from({ length: STEPS }, (_, i) => float(i).add(j).div(STEPS)), qs = ts.map((t) => mix(pa, pb, t).toVar()), ds = qs.map((q) => depthAt(q).toVar());
+        let hit = float(0);
+        ts.forEach((t, i) => {
+          const q = qs[i], dz = float(1).div(mix(ia, ib, t)).sub(distOf(ds[i])), inside = q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(size.x)).and(q.y.lessThan(size.y));
+          hit = max(hit, inside.and(dz.greaterThan(lo)).and(dz.lessThan(thick)).select(float(1).sub(t.mul(t).mul(0.5)), float(0)));
+        });
+        out.assign(float(1).sub(hit));
       });
-      out.assign(float(1).sub(hit.mul(float(1).sub(smoothstep(40, 80, dist)))));
     });
-    return vec4(out, clamp(aoAt(screenCoordinate.xy), 0, 1), 0, 1);
+    return vec4(out, LIGHT_FULL ? clamp(aoAt(screenCoordinate.xy), 0, 1) : float(1), 0, 1);   // (GTAO's share kept beside it: ?light=full)
   })();
-  // ---- GTAO with a visibility bitmask, at half the pixels ----
+  // ---- GTAO with a visibility bitmask, at half the pixels (?light=full: stage 9b) ----
   // Jimenez's ground-truth AO (2016) as Therrien's visibility bitmask has it (2023): two slices a pixel through the
   // depth, turned by the blue noise; along each, six steps a side, each a surface THICK deep (not a wall to the sky:
   // what is behind a blade or a twig is seen past it); the 32 sectors of the slice's half-circle round the normal marked
@@ -110,14 +131,14 @@ export function createScreenLight(renderer) {
     run(depthTex, camera, w, h) {
       if (!rt || rt.width !== w || rt.height !== h) {
         rt?.dispose(); half?.dispose();
-        rt = new THREE.RenderTarget(w, h, { type: THREE.UnsignedByteType, depthBuffer: false, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
-        half = new THREE.RenderTarget(Math.ceil(w / 2), Math.ceil(h / 2), { type: THREE.HalfFloatType, depthBuffer: false, generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
-        note('the contact shadows and GTAO', w * h * 4 + Math.ceil(w / 2) * Math.ceil(h / 2) * 8, 0);
+        rt = new THREE.RenderTarget(w, h, { type: THREE.UnsignedByteType, format: THREE.RGFormat, depthBuffer: false, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+        half = LIGHT_FULL ? new THREE.RenderTarget(Math.ceil(w / 2), Math.ceil(h / 2), { type: THREE.HalfFloatType, depthBuffer: false, generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }) : null;
+        note('the contact shadows and GTAO', w * h * 2 + (LIGHT_FULL ? Math.ceil(w / 2) * Math.ceil(h / 2) * 8 : 0), 0);
       }
       depth.value = depthTex; size.value.set(w, h);
       proj.value.copy(camera.projectionMatrix); unproj.value.copy(camera.projectionMatrix).invert(); view.value.copy(camera.matrixWorldInverse); viewInv.value.copy(camera.matrixWorld);
       const prev = renderer.getRenderTarget(), route = renderer.getRenderObjectFunction(); renderer.setRenderObjectFunction(null);
-      mark('gtao'); renderer.setRenderTarget(half); quads[1].render(renderer); aoTex.value = half.texture;   // (GTAO first: the contact pass keeps its share)
+      if (half) { mark('gtao'); renderer.setRenderTarget(half); quads[1].render(renderer); aoTex.value = half.texture; }   // (GTAO first: the contact pass keeps its share)
       mark('contact'); renderer.setRenderTarget(rt); quads[0].render(renderer); mark(null);   // (whose passes these are, for a tool's timing: src/core/gpu.js)
       renderer.setRenderTarget(prev); renderer.setRenderObjectFunction(route);
       SCREEN.contact.value = rt.texture; SCREEN.on.value = 1;

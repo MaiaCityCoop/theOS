@@ -236,6 +236,9 @@ async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
     const keys = [...new Set(P.flatMap((x) => Object.keys(x)))].sort((a, b) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99));
     console.log(`\n  each pass, ms a frame        ${keys.map((k) => k.slice(0, 10).padStart(11)).join('')}`);
     for (const [v, L] of Object.entries(out.passes)) if (L) console.log(`  ${v.padEnd(28)}${keys.map((k) => (L[k] ? (L[k].every > 1.5 ? `${L[k].mean.toFixed(2)}(${L[k].drawn.toFixed(1)})` : L[k].mean.toFixed(2)) : '–').padStart(11)).join('')}`);
+    console.log(`\n  what each pass adds to the span, ms a frame (passes overlap on a tile GPU: these add up to the span)`);
+    console.log(`  ${''.padEnd(28)}${keys.map((k) => k.slice(0, 10).padStart(11)).join('')}`);
+    for (const [v, L] of Object.entries(out.passes)) if (L) console.log(`  ${v.padEnd(28)}${keys.map((k) => (L[k] ? L[k].adds.toFixed(2) : '–').padStart(11)).join('')}`);
     console.log(`\n  the colour pass with its shadow reads, and without (ms)`);
     for (const [v, S] of Object.entries(out.shading)) if (S) console.log(`  ${v.padEnd(28)}${f(S.colour)}${f(S.colourWithout)}  (${f(S.colour - S.colourWithout, 2, 6)} ms the shadows' share)`);
   }

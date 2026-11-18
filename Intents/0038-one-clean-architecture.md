@@ -194,7 +194,7 @@ Characters and animals (anything on a skeleton): later, on Samuel's word (2026-1
 | Occlusion culling | `aven/0038-draw-occlusion`, PR #68 | CI green | Views from above draw only 2–8 % of main's things: prove with gate stills at `bench-river-bend-26m`, `bench-town-40m` and `bench-pine-forest-90m` that nothing visible is missing (FLIP within noise) |
 | 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
 | 7: one placement rule, the forest in layers | `aven/0038-stage7-layers`, PR #73 (ready for review) | Built, merged with main (`314e2e6`), measured (under Build, Stage 7); CI green | The master's review; Samuel to judge the floor (pictures on `aven/0038-shots`, `stage7/`); the research's floor kinds and the site's species come after 8 and 9 |
-| 9: one light | `aven/0038-stage9-light`, PR #72 | Ready for review; all seven steps in (Stage 9 under Build) | On the Mac mini: first see that GTAO's one-load read leaves no streaks (not yet seen on a GPU); then the gates: its own `?truth`, the photos, nothing pops in motion, the budgets (`gate.js bench` prints each light pass alone) |
+| 9a: one light, within its ceiling | `aven/0038-stage9-light`, PR #72 | 9a built (Stage 9a under Build): the cascades layered, the contact shadows only where the cascades miss something, the canopy map for the stand's sky, analytic air; 9b (froxels, GTAO, ray-marched probes, bounce) behind `?light=full` | On the Mac mini: the full gate (bench per pass, stills, `?truth`, paths); merge #83 (the bench per pass) once it lands, the light's passes into its classes |
 
 **Not started:**
 - **6c:** relief, meaning displacement near the eye, parallax further out, skirts for rocks, path decals. 6b's pages
@@ -1392,6 +1392,62 @@ work at all (it rebooted twice under GPU load): the bench fixed, and every part 
   light's terms), and how much of GTAO's reads miss. The fixed bench says which pass holds it, and the colour pass's
   A/B how much is the shadows' reads.
 
+### Stage 9a: the light within its ceiling (2026-11-18)
+
+Stage 9 is split (Samuel, 2026-11-18, so the new light reaches next sooner): **9a**, the light's core within its
+ceiling, lands first on #72; **9b**, the costly rest, later in a PR of its own, until then behind `?light=full`. The
+rules for both: root causes, never fewer samples as a patch; the light's ceiling about 3 ms of the 12.
+
+- **Measured first** (checkpoint 1, `2507190`, on the Mac mini: a base M2, 2560 × 1440 into 4K, each pass on the
+  GPU's own clock): a frame's span 45–73 ms, its passes summed 75–118 (they overlap: a pass's clock starts with its
+  vertex stage, while the one before's pixels are still being shaded). Per pass: contact shadows 22.1–33.8, GTAO
+  19.9–30.1, the colour 14.2–28.1 (its shadow reads −2.4 to 4.7 of it), the upscale 7.5–21.2, prepass 0.6–8.6, packing
+  3.1–5.2, pages 0.3–5.7; near cascade 0.65–1.6, far 0.1–0.3 (1.0 when drawn), canopy 0.01–0.08 (0.7 when drawn),
+  probes 0.4–0.7 (5.2 when drawn), sky 0.4–1.1, froxels 0.6–0.9.
+- **Why the contact shadows and GTAO cost so much:** four to five times the count, and the same at every view, so it is
+  the pixels and the waiting, not the scene:
+  - contact shadows: every pixel (to 80 m and past it, where the result was faded to nothing) marched twelve steps in a
+    loop, each step's read waiting on the one before's two 4 × 4 matrices (project, read, unproject), so a thread had one
+    read in flight at a time; and each pixel read GTAO's picture four times besides;
+  - GTAO: 2 × 32 sectors with a cosine and a sine each, for a bent normal nothing reads; slices turned pixel by pixel and
+    reaching 160 pixels, so neighbours read far apart on a full-precision depth with no smaller levels (a cache miss a
+    read); its steps a read at a time;
+  - the near cascade: one atlas for both. A tile GPU loads and stores all of what a pass draws into, whatever its
+    scissor, and the near cascade was two passes (a triangle wiping its square, then the casters): 120 MB a frame.
+- **9a, the default:**
+
+| Part | Stage 9 | 9a | Why it is cheaper |
+| --- | --- | --- | --- |
+| Cascades | One 4096 × 2048 atlas. The near one was wiped and drawn in two passes, each loading and storing all of it; the far one every third frame | Two layers of one depth array (still one binding), each cleared and drawn by a pass of its own, nothing loaded. 2048² each (3.4 cm near, as before); the far one every fourth frame | No load and no wipe: the near pass stores its own 16.8 MB, not twice 67 MB |
+| Penumbra | 6 blocker reads and 8 taps, each tap with a sine and a cosine (28 a pixel) | The same taps on one turned disc | The same samples, one sine and cosine a pixel |
+| Contact shadows | Every pixel, 12 steps, each read waiting on the last | A ray as long as what the cascade cannot see (its bias and two of its texels: 0.14 m in the near one, 0.45 m in the far one near the ground), and none where all of it is under a pixel. 12 steps whose reads all go out before any is tested, marched on the screen (no matrix a step), a hard test, two bytes a pixel | Only where there is something the cascades miss, and the reads overlap |
+| Sky in the stand | GTAO at half the pixels, and probes marched ray by ray (432 reads a probe), all at once every 8 frames | The canopy map's slab above nine columns round each probe (18 reads), the probes made in 8 bands a frame, map and probes each a pair (one read while the other is made); GTAO only in 9b | The canopy map instead of GTAO, and no frame carrying all of it |
+| Air | The froxels (160 × 90 × 64) and Hillaire's sky view, read by every pixel | The height fog worked out at the pixel, as the library's pictures and WebGL 2 have it; the hour's own sky | No volume to make, two reads a pixel fewer |
+| Green bounce | From the probes | Only in 9b | |
+| Canopy map | 2 × 1024² (19 cm), drawn all at once every 8 frames | 2 × 512² (37.5 cm: the probes' columns stand 4–8 m apart), a view a frame, every 16 frames | |
+
+- **9b, behind `?light=full`** (`src/core/flags.js`: a preview of unfinished work, not a dial of the look, gone once 9b
+  is cheap enough to be the default): Hillaire's air in froxels with its sky and shafts, GTAO, the probes marched ray by
+  ray and their green bounce, as stage 9 built them (the probes now made in bands too). Its code is all kept.
+- **Bindings**, counted on the CPU (three's own WGSL builder on a stand-in device, no GPU): the land's colour pass binds
+  12 textures and 10 samplers in 9a (stage 9: 14 and 12; `?light=full`: 14 and 12); a lit surface's colour pass binds
+  6 textures and 2 samplers for the light: the screen light's and the blue noise (loads; the noise now one texture node
+  for every read), the cascades (a depth array and a comparison sampler), the clouds' map and field, the probes. Every
+  light pass and both modes build their WGSL without an error.
+- **What `lit()` reads at a pixel in 9a:** the screen light (one load), the blue noise (one), the cascades (six loads,
+  and eight comparison taps where something casts; four taps in the far one), the clouds' map and field, the probes
+  (one): 11–19 reads, about 20 KB of fragment code with the clouds.
+- **The bench** also prints what each pass adds to the span (each pass, in the order the GPU began them, from where the
+  passes before it ended): these add up to the span, where the passes' own times do not.
+- **Not measured here** (no GPU work on this machine): all of it, on the Mac mini: the gate's bench, stills, `?truth`,
+  the paths. `bun tools/scale.js`: 24 of 24. `bunx --bun vite build`: TheGame and OS built.
+- **For Samuel**, where 9a may not hold the look within 3 ms without a fudge:
+  - the colour pass's own share of the shadows (its A/B read −2.4 to 4.7 ms: noise round a real cost). If it stays over,
+    the cure is a blocker search from a min-depth pyramid of the cascade, which costs the land a binding (12 of 16 now);
+  - the contact shadows at eye level in the stand, where nearly every pixel is within the near cascade and marches all
+    twelve steps;
+  - the stand's floor without the green bounce (9b) is darker than stage 9 drew it.
+
 ## Propose
 
 ## Story
@@ -1420,6 +1476,8 @@ work at all (it rebooted twice under GPU load): the bench fixed, and every part 
   - [x] one rule, the growth map, the forest's layers and their kinds (built; draft PR #73)
 - [ ] Stage 8: surfaces, cluster hierarchy (built: rocks, the tent and the fire pit; the stress world's zoo to 8b)
 - [ ] Stage 9: one light, characters
+  - [x] 9a: the light within its ceiling (built; on #72, the gate on the Mac mini)
+  - [ ] 9b: froxels, GTAO, the probes marched and their bounce, cheap enough to be the default (now behind `?light=full`)
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
 
 ## Changelog
@@ -1588,6 +1646,11 @@ work at all (it rebooted twice under GPU load): the bench fixed, and every part 
   world's start not settled (6b, fixed in 6c); the timings left to the Mac mini; the rest under the stage's Not done.
 
 - Stage 9, one light (PR #72, ready for review): `lit()` for every material; two shadow cascades in one atlas with a penumbra from the sun's disc and shadow twins; contact shadows; the canopy map and its sky probes with a green bounce; GTAO; leaves lit from behind; Hillaire's sky and a froxel air with shafts; one blue noise. Characters and animals out of scope for now.
+- **Asked (by the master, after the Mac mini measured stage 9 at 75–116 ms):** fix the bench's per-pass timing, count
+  the light's cost on paper, and cut it to its ceiling, on the MacBook with no GPU work.
+- **Delivered:** the bench times every pass of the real frame on the GPU's clock (`cf77e71`); the cost counted
+  (Stage 9: the cost, counted); 9a within its ceiling and 9b behind `?light=full` (Stage 9a), every shader of both built
+  on the CPU without an error, the land's bindings 12 of 16 (stage 9: 14). The gates are the Mac mini's.
 
 ## Trail
 
