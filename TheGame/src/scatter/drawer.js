@@ -56,7 +56,8 @@ import { Fn, If, float, uint, vec2, vec3, vec4, uniform, uniformArray, varyingPr
 import { U } from '../core/uniforms.js';
 import { ign, finish, skyLight, cloudAt, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
-import { landPages, RELIEF } from '../terrain/pages.js';
+import { landPages } from '../terrain/pages.js';
+import { SOIL_RELIEF } from '../world/physics.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective, cornersOf, shapedOf } from './heap.js';
 import { ballCorners } from '../../assets/kit/blob.js';
@@ -218,7 +219,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       });
     }
     // its skirt (intent 0038, stage 6c): bedded in the soil, not set on it. The soil round it lies at the ground's own
-    // height there (the land's page, src/terrain/pages.js: RELIEF from its lowest to its highest over the land's smooth
+    // height there (the land's page, src/terrain/pages.js: SOIL_RELIEF from its lowest to its highest over the land's smooth
     // surface, as the relief near the eye raises it), and where it faces up it fills its hollows (where its own
     // texture stands low) as much again: below that it wears the ground there, its normal the ground's, nothing grown
     // over it; the line between over one pixel drawn (ERROR_PX). (Its size in sA's fourth number; what of it lies in
@@ -226,9 +227,9 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     const land = GROUND ? landPages() : null, bed = land ? float(0).toVar() : null, bedN = land ? vec3(0, 1, 0).toVar() : null;
     if (land) {
       const above = vC.y.sub(M5.w.mul(vA.w)).toVar(), edge = abs(dFdx(above)).add(abs(dFdy(above))).mul(ERROR_PX).max(1e-4);
-      If(above.lessThan(edge.add(RELIEF)), () => {
+      If(above.lessThan(edge.add(SOIL_RELIEF)), () => {
         const G = land.read(w.xz, dFdx(w.xz).mul(U.uFine), dFdy(w.xz).mul(U.uFine), length(U.uCam.sub(w)));
-        const soil = G.h.sub(0.5).add(float(0.5).sub(m).mul(max(N0.y, 0))).mul(RELIEF);
+        const soil = G.h.sub(0.5).add(float(0.5).sub(m).mul(max(N0.y, 0))).mul(SOIL_RELIEF);
         bed.assign(float(1).sub(smoothstep(soil.sub(edge), soil.add(edge), above)));
         own.assign(mix(own, G.c, bed)); bedN.assign(normalize(vec3(G.n.x, 1, G.n.y))); grown.mulAssign(float(1).sub(bed));
       });

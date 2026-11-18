@@ -26,8 +26,11 @@
 //   Settings      mode branches (TRUTH-like): every place a condition asks a mode, a constant true or false for the
 //                 whole run (one the address sets, as `?truth` sets TRUTH, or one set by hand): in the condition of an
 //                 if, ?:, loop or switch, or left of &&, || or ??, by the flags each is made from. Hand-set numbers:
-//                 every module constant, or number in a constant's table, written as a number by hand, and those the
-//                 SSOT audit (research_notes/0038-ssot-audit.md) names however they are written (marked); not the
+//                 every module constant, or number in a constant's table, written as a number by hand (a literal,
+//                 arithmetic of them, Math's, or a value made of them alone: TSL's vec2, vec3, vec4, color, float,
+//                 three's Vector2, Vector3, Vector4, Color, Matrix3, Matrix4; not what a uniform starts at, nor an
+//                 array's size), and those the SSOT audit (research_notes/0038-ssot-audit.md) names however they are
+//                 written (marked); not the
 //                 physical constants: the exported values of a module named physics.js, the one place they live, each
 //                 saying its unit and its source in its comment (`unit: …`, `source: …`; --base fails where one does
 //                 not). Flag reads: every call of flag, flagNum and flagText (src/core/flags.js)
@@ -66,12 +69,23 @@ const at = (f, line) => `${f}:${line}`, fileOf = (place) => place.slice(0, place
     revert), else the newest commit of the base's line all of whose paths the change touches and leaves as they are with
     M undone. [the base: a commit, or the tree with M undone; M, or null]. */
 function baseOf(ref) {
-  const base = git('merge-base', ref, 'HEAD')[0], touched = new Set(git('diff', '--name-only', base, '--', ':/'));
-  const named = [...git('log', '--format=%B', `${base}..HEAD`).join('\n').matchAll(/This reverts commit ([0-9a-f]{7,40})/g)].map((m) => m[1]).find((M) => run('git', ['merge-base', '--is-ancestor', M, base]).status === 0);
-  const restores = ({ sha, paths }) => paths.length && paths.every((p) => touched.has(p)) && run('git', ['diff', '--quiet', undone(base, sha), '--', ...paths.map((p) => `:/${p}`)]).status === 0;
-  const M = named ?? firstParents(base).find(restores)?.sha, T = M && undone(base, M);
+  const base = git('merge-base', ref, 'HEAD')[0], M = revertOf(base, null), T = M && depthOf(M) % 2 === 0 && undone(base, M);
   return T ? [T, M] : [base, null];
 }
+const ok = (...args) => run('git', args).status === 0;
+/** The commit a change from `base` to `head` (a commit; null: the working tree) reverts: the one a "This reverts commit
+    K" of the change's own commits names, on the base's line; else the newest commit of the base's line all of whose
+    paths the change touches and leaves as they are with it undone. null where it reverts none. */
+function revertOf(base, head) {
+  const to = head ? [head] : [], touched = new Set(git('diff', '--name-only', base, ...to, '--', ':/'));
+  const named = [...git('log', '--format=%B', `${base}..${head ?? 'HEAD'}`).join('\n').matchAll(/This reverts commit ([0-9a-f]{7,40})/g)].map((m) => m[1]).find((K) => ok('merge-base', '--is-ancestor', K, base));
+  const restores = ({ sha, paths }) => paths.length && paths.every((p) => touched.has(p)) && ok('diff', '--quiet', undone(base, sha), ...to, '--', ...paths.map((p) => `:/${p}`));
+  return named ?? firstParents(base).find(restores)?.sha ?? null;
+}
+/** How deep a commit lies in a chain of reverts: 0, a change of its own; 1, the revert of one; 2, the revert of that.
+    Undoing one of an even depth goes back to the state before it; undoing one of an odd depth (a revert) brings back
+    what it took out, which is measured as new. */
+const depthOf = (c) => { const K = ok('rev-parse', '--verify', '-q', `${c}^1`) && revertOf(`${c}^1`, c); return K ? 1 + depthOf(K) : 0; };
 /** The tree of `base` with commit M undone, as git revert undoes it (null where that does not merge cleanly). */
 const undone = (base, M) => { const r = run('git', ['merge-tree', '--write-tree', `--merge-base=${M}`, base, `${M}^1`]); return r.status === 0 ? r.stdout.split('\n')[0] : null; };
 /** The commits of a commit's first-parent line, newest first, each with the paths it changed from its first parent. */
@@ -208,11 +222,17 @@ function inTest(n) {
 // ---- numbers set by hand ----
 const ARITH = new Set(['+', '-', '*', '/', '%', '**', '<<', '>>', '>>>', '&', '|', '^']);
 const isMath = (n) => n.type === 'MemberExpression' && n.object.name === 'Math';
-const NUMBER = {   // which expressions are numbers written by hand: literals, arithmetic of them, Math's
+// a value TSL's or three's value constructors make of numbers alone is a number set by hand too (a number hidden in a
+// vector is still one); what a uniform starts at, an array's size and the like are not values written by hand
+const VALUE = { call: /^(vec[234]|color|float)$/, new: /^(Vector[234]|Color|Matrix[34])$/ };
+const calleeName = (c) => (c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' && !c.computed ? c.property.name : '');
+const ofNumbers = (n) => n.arguments.length > 0 && n.arguments.every(isNumber);
+const NUMBER = {   // which expressions are numbers written by hand: literals, arithmetic of them, Math's, and values made of them
   Literal: (n) => typeof n.value === 'number',
   UnaryExpression: (n) => ['-', '+', '~'].includes(n.operator) && isNumber(n.argument),
   BinaryExpression: (n) => ARITH.has(n.operator) && isNumber(n.left) && isNumber(n.right),
-  CallExpression: (n) => isMath(n.callee) && n.arguments.length > 0 && n.arguments.every(isNumber),
+  CallExpression: (n) => (isMath(n.callee) || VALUE.call.test(calleeName(n.callee))) && ofNumbers(n),
+  NewExpression: (n) => VALUE.new.test(calleeName(n.callee)) && ofNumbers(n),
   MemberExpression: isMath,
 };
 const isNumber = (n) => !!NUMBER[n.type]?.(n);
