@@ -12,6 +12,9 @@ import { VIEWS as BENCH } from '../bench.js';
 import RIG from '../../camera/rig.js';
 
 const SKY = { hour: 11, wind: 0, clouds: 0 };
+/** The screen a light check is drawn at (tools/shadowcheck.mjs --size; tools/cascades.js's stand-in screen): width x
+    height at scale 1, within what the MacBook's GPU may be asked for a functional check (1920 x 1080 at the most). */
+export const CHECK_SIZE = '1280x720';
 export const TENT = [-1262.6, 631], PINES = [-1383.6, 634.1];   // the bell tent; the pine stand, where the bench stands in it
 export const FIRE = [-1263.3, 624.4], BOULDER = [-1335.42, 550.17];   // the fire pit before the tent; a boulder of 3.3 m on an outcrop south-west of it (src/world/rocksolid.js)
 const TO_TENT = BENCH[0].yaw, INTO_PINES = BENCH[4].yaw;   // the headings the bench looks at them by: the tent from the meadow, the stand from the tent's side
@@ -44,6 +47,9 @@ export const VIEWS = [
 //   zoom    the rig over the meadow before the tent, from the walker's eyes to 12 km, evenly in the height's logarithm
 //   orbit   once round the tent, the rig 30 m from it
 //   flyby   the rig's zoom over an oak at the stand's edge, from the top down to its eyes and back up
+/** The views the hour's measure of main draws and holds against ?truth (tools/gate.js hourly): near, the middle
+    distance and the forest, each a bench view. */
+export const HOURLY = ['bench-tent-eye-level', 'bench-river-bend-26m', 'bench-pine-forest-eye-level'];
 export const PATHS = [
   { name: 'walk', walk: { from: [-1268, 627], to: [-1400, 635], eye: RIG.eye, speed: RIG.keys[0].speed, mm: RIG.keys[0].mm } },
   { name: 'zoom', zoom: { at: [BENCH[0].x, BENCH[0].z], yaw: TO_TENT, from: RIG.eye, to: RIG.top, secs: 20 } },

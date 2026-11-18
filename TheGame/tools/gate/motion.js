@@ -1,5 +1,5 @@
 // The motion check of the gate (intent 0038, check 4: nothing pops). Every frame of a path is drawn twice, as the game
-// draws it and at full detail (?truth, drawn as a frame in motion: src/detail/measure.js TRUTH_AS), on the gate's clock
+// draws it and at full detail (?truth: at each frame a settled still, so it neither shimmers nor lacks), on the gate's clock
 // (tools/gate/clock.js), and the change detail made in each frame is measured (tools/gate/change.js). tools/gate.js
 // motion; tools/gate/README.md. The functions marked "in the page" are handed to the page whole and read nothing of
 // this module.
@@ -81,7 +81,7 @@ async function pass(ctx, p, o) {
 async function arrive(P, p, { truth, floor, T, fps, to, from = null, start = null }) {
   const fly = !!p.flyby, who = !from ? 'LOD' : floor ? 'LOD again' : 'truth';
   await P.page.evaluate(K.prepare, { inside: K.INSIDE, time: null });
-  const begun = await P.page.evaluate(begin, { truth });
+  const begun = await P.page.evaluate(begin);
   if (begun.clock >= T) throw new Error(`the page's clock (${begun.clock.toFixed(0)} s) is past where the path starts on it (${T} s)`);
   const c = fly ? { secs: await P.page.evaluate(async () => (await import(new URL('tools/flyby.js', location.href).href)).cycleOf('zoom')) } : await P.page.evaluate(K.course, p);
   const secs = Math.min(c.secs, to ?? Infinity), n = Math.floor(secs * fps + 1e-6) + 1;
@@ -202,10 +202,9 @@ function say(report, dir, tag) {
     but those the gate steps), and what the frames need: the shared uniforms, what is still out (src/core/settle.js), the
     flight (tools/flyby.js). truth: this page is the truth, drawn as a frame in motion. Its own start (t0: the world's
     clock is (timestamp − t0) / 1000 s, src/boot.js) and that clock now. */
-export async function begin({ truth }) {
+export async function begin() {
   const R = performance.getEntriesByType('resource').map((e) => e.name), mod = (part) => import(R.filter((n) => n.includes(part)).at(-1));
   const [{ U }, { waiting }, F] = await Promise.all([mod('src/core/uniforms.js'), mod('src/core/settle.js'), import(new URL('tools/flyby.js', location.href).href)]);
-  if (truth) { const { TRUTH_AS } = await mod('src/detail/measure.js'); TRUTH_AS.still = false; }
   const C = window.__gateClock; C.start();
   const t0 = C.last - U.uTime.value * 1000, g = window.__game;
   // (the camera where the path has it s seconds in: the film camera's timeline, or the flight's rig)
