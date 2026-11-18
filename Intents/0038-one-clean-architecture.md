@@ -2370,3 +2370,5 @@ madge follows every import.
 | 2026-11-18 | `bca2270` | The code gates held against main: `health.js --base` (each gate's change, exit 1 where one got worse), run by CI on every pull request |
 | 2026-11-18 | `ea5f07e` | Rung errors: main merged in (`40d3ee3`: the code gates in CI, train 1c reverted) |
 | 2026-11-18 | `4a8a906` | Rung errors: the code gates: what the rule places in `entries.js` (no import cycle); the crowd kit's head and build in steps |
+| 2026-11-18 | `efe3d2d` | Rung errors: one measure merged in (`cf38614`: #82 v2 with train 1c unreverted); `PORTABLE` beside #77's `limitOf` |
+| 2026-11-18 | `ebbcafe` | Rung errors: trees.js's `log` and rule.js's `most`, which the merge with train 1c left unbound, imported again |
