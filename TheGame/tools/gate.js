@@ -62,8 +62,8 @@ import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { VIEWS, PATHS } from './gate/views.js';
-import { BUDGET, CLASSES, classOf, CLASS_NAMES, BUDGET_MB } from './bench.js';
-import { MEMORY } from '../src/core/classes.js';
+import { CLASSES, classOf, CLASS_NAMES } from './bench.js';
+import { FRAME_MS as BUDGET, MEMORY, BUDGET_MB, FRAME_MS_BY_CLASS } from '../src/core/budget.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
 import { stepper } from './gate/clock.js';
 import { locked, unlock, LOCK } from './gate/lock.js';
@@ -318,10 +318,10 @@ async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
     const W = 13, head = (i) => V.map((v) => (v.split(', ')[i] ?? '').padStart(W)).join('');   // (a view's name in two lines: its place, its height)
     const cell = (p) => (!p ? '–' : p.every > 1.5 ? `${p.mean.toFixed(2)}(${p.drawn.toFixed(1)})` : p.mean.toFixed(2)).padStart(W);
     const names = [...new Set(V.flatMap((v) => Object.keys(out.passes[v])))], at = (k) => { const i = (CLASSES[classOf(k)] ?? []).indexOf(k); return i < 0 ? 99 : i; };
-    console.log(`\n  ${'ms a frame, part and pass'.padEnd(28)}${head(0)}`);
+    console.log(`\n  ${'ms a frame, part and pass'.padEnd(28)}${head(0)}${'budget'.padStart(9)}`);
     console.log(`  ${'(in brackets: when drawn)'.padEnd(28)}${head(1)}`);
     for (const c of [...Object.keys(CLASSES), 'other']) {
-      console.log(`  ${c.padEnd(28)}${V.map((v) => f(out.classes[v]?.[c], 2, W)).join('')}`);
+      console.log(`  ${c.padEnd(28)}${V.map((v) => f(out.classes[v]?.[c], 2, W)).join('')}${f(FRAME_MS_BY_CLASS[c], 2, 9)}`);
       for (const k of names.filter((n) => classOf(n) === c).sort((a, b) => at(a) - at(b))) console.log(`    ${k.padEnd(26)}${V.map((v) => cell(out.passes[v][k])).join('')}`);
     }
     console.log(`\n  the colour pass with its shadow reads, and without (ms)`);

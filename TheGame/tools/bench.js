@@ -8,6 +8,7 @@
 // `?bench` (src/boot.js): the same once the world is loaded, its numbers on the screen (overlay), nothing typed.
 // `?bench=2`: at that pixel ratio (1.5 else).
 import { CLASSES, classOf } from '../src/core/classes.js';
+import { FRAME_MS as BUDGET } from '../src/core/budget.js';   // (the hard gate on a frame's GPU time)
 
 export const VIEWS = [
   { name: 'tent, eye level', x: -1262.6 + 14 * -Math.sin(0.1), z: 631 + 14 * -Math.cos(0.1), yaw: Math.atan2(-Math.sin(0.1), -Math.cos(0.1)), h: 1.7 },
@@ -17,9 +18,6 @@ export const VIEWS = [
   { name: 'pine forest, eye level', x: -1383.6, z: 634.1, yaw: -4.14, h: 1.7 },
   { name: 'pine forest, 90 m', x: -1290, z: 618, yaw: -4.54, h: 90 },
 ];
-/** The hard gate: a frame's GPU time at most this (ms), at every view, so 60 fps holds with room for the CPU and the
-    browser's own work (16.7 ms a frame in all). */
-export const BUDGET = 12;
 /** A scene drawn whole, as only a tool does: into the screen's own target, which has a depth (the game's canvas has
     none: src/boot.js; three lays a canvas's pass out once, so it cannot be given one for a few draws). */
 const inTarget = (draw) => { const s = window.__game, r = s.renderer, was = r.getRenderTarget(); r.setRenderTarget(s.screen?.target ?? was); try { return draw(); } finally { r.setRenderTarget(was); } };
@@ -30,7 +28,7 @@ const keep = (out, key, name, value) => { (out[key] ||= {})[name] = value; };
 export const memoryNow = () => { const L = window.__memory?.(); return L ? { classes: L.classes, gpu: L.gpu, device: L.device, unnoted: L.unnoted } : null; };
 /** The frame's parts, each the passes it is made of, by the names their code marks them with: what BUDGET (and the
     memory's gate) is shared out by, one table for the game and its tools (src/core/classes.js). */
-export { CLASSES, classOf, CLASS_NAMES, BUDGET_MB } from '../src/core/classes.js';
+export { CLASSES, classOf, CLASS_NAMES } from '../src/core/classes.js';
 
 // the page's own modules (the same ones the game runs, found by their resource entries: the dev server's addresses)
 const mod = (part) => import(performance.getEntriesByType('resource').map((e) => e.name).filter((n) => n.includes(part)).at(-1));
