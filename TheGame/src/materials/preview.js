@@ -4,7 +4,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec3, uniform, positionWorld, normalWorld, abs, pow, normalize, max, mix, sign } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { finish, skyLight } from '../world/light.js';
+import { lit } from '../world/light.js';
 import { recipes } from '../core/registry.js';
 import { BIOMES, BASE, WATER } from '../world/biomes.js';
 import { compileFor } from '../core/compile.js';
@@ -24,10 +24,9 @@ export function materialPreview(tex, id, tile = 2, own = {}) {
     // each projection's relief, turned onto the surface (whiteout blend)
     const bn = normalize(vec3(0, dx.y, dx.x).mul(b.x).mul(sign(n.x)).add(vec3(dy.x, 0, dy.y).mul(b.y).mul(sign(n.y))).add(vec3(dz.x, dz.y, 0).mul(b.z).mul(sign(n.z))).add(n));
     const rough = tex.r(id, px).mul(b.x).add(tex.r(id, py).mul(b.y)).add(tex.r(id, pz).mul(b.z));
-    const V = normalize(eye.sub(w)), H = normalize(V.add(U.uSunDir)), ndl = max(bn.dot(U.uSunDir), 0);
-    const spec = pow(max(bn.dot(H), 0), mix(60, 6, rough)).mul(float(1).sub(rough)).mul(0.5);
-    const col = a.mul(a).mul(tint).mul(skyLight(bn).add(U.uSun.mul(ndl.mul(0.85).add(0.15)))).add(U.uSun.mul(spec).mul(ndl));
-    return finish(col, w, eye);
+    const ndl = max(bn.dot(U.uSunDir), 0);
+
+    return lit({ colour: a.mul(a).mul(tint), n: bn, w, eye, ndl: ndl.mul(0.85).add(0.15), sun: float(1), gloss: float(1).sub(rough).mul(0.5).mul(ndl), sharp: mix(60, 6, rough) });
   })();
   return m;
 }

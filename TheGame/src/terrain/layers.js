@@ -15,7 +15,7 @@
 //   the stands' cover       the two thickest stands (STANDS below): how thick each grows there and its crowns' pattern
 //   the grass's colour      its tint, and which two stands those are
 import * as THREE from 'three/webgpu';
-import { If, Loop, float, int, uint, vec2, vec3, abs, max, min, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup } from 'three/tsl';
+import { If, Loop, float, int, uint, vec2, vec3, abs, max, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { byRole } from '../core/registry.js';
 import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID, PATH_W } from '../world/land.nodes.js';
@@ -25,7 +25,6 @@ import { BAND } from '../detail/error.js';
 import { standsOf, rowsOf } from '../scatter/rule.js';
 import { detailOf } from '../detail/index.js';
 import { sizeOf } from '../../assets/kinds.js';
-import { BOX } from '../world/shadow.js';
 const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
 
 const EMPTY = 255, NO_STAND = 15;
@@ -86,13 +85,32 @@ for (const bio of LAID) for (const { P, kinds, CV } of standsOf(bio, rowsOf())) 
   // largest is gone (`last` = uPxK × its span: the measure's farAt, src/detail/measure.js); without such plants, always
   const spanOf = (a) => (sizeOf(a) * (a.placement.scale?.[1] ?? 1)) / detailOf(a).cut, spans = kinds.map((k) => spanOf(k.asset)).filter((x) => x > 0 && Number.isFinite(x));
   const span = spans.length ? Math.max(...spans) : 0, A = span ? kinds.map((k) => k.asset).find((a) => spanOf(a) === span) : null;
-  const SH = A?.detail?.shadow;   // where its shadows are no longer drawn: past the map's box, or past the trees' stand-in in it
-  STANDS.push({ bio, P, grain: CV.grain ?? 1, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? [Math.min(...spans) / (span * BAND), 1] : [0, 0], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1 });
+  const SH = A?.detail?.shadow;   // where its shadows are no longer drawn: past the trees' stand-in, the cascades' reach
+  // what of it casts (src/world/shadow.js): its trees' crowns at their oldest, where each begins over the ground and how
+  // far it reaches round (the kit's form: assets/kit/tree.js growth.base, growth.reach), and the tallest of it (its
+  // measure's most)
+  const cast = kinds.map((k) => k.asset).filter((a) => detailOf(a).casts !== false), trees = cast.filter((a) => a.growth?.base);
+  const crown = Math.min(...trees.map((a) => a.growth.base(a.growth.years.at(-1)))), radius = Math.min(...trees.map((a) => a.growth.reach(a.growth.years.at(-1))));
+  const top = Math.max(0, ...cast.map((a) => a.measure?.most ?? a.size.height));
+  STANDS.push({ bio, P, grain: CV.grain ?? 1, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? [Math.min(...spans) / (span * BAND), 1] : [0, 0], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
 }
 if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} stands that wear a colour: four bits name at most ${NO_STAND - 1}`);
 /** How far round the camera the shadows of the stands that cast them are drawn at the most (-1: none casts): past it, a
     stand's floor lies in its crowns' shade, the pixel's own (src/terrain/material.js). */
 export const SHADE_REACH = Math.max(-1, ...STANDS.map((S) => S.reach));
+/** What casts in the stands, which the shadow cascades are laid out from (src/world/shadow.js useCascades, in the light's
+    start: src/world/light/start.js startLight). reach: how far round the eye shadows are drawn (SHADE_REACH). crown:
+    the lowest a crown begins over the ground among the trees that cast, at their oldest (metres; Infinity: none): the
+    cascades' finest texel is the sun's penumbra from it. radius: the smallest reach of a crown round its trunk among
+    them, at their oldest (metres; Infinity: none): the canopy's probes stand a quarter of it apart
+    (src/world/light/canopy.js). top: the tallest thing that casts (metres, its measure's most): how far round a point
+    its shadow's blockers are looked for (src/world/light.js). */
+export const CASTERS = Object.freeze({
+  reach: SHADE_REACH,
+  crown: Math.min(...STANDS.map((S) => S.crown)),
+  radius: Math.min(...STANDS.map((S) => S.radius)),
+  top: Math.max(0, ...STANDS.map((S) => S.top)),
+});
 
 
 // the layers' table: a layer's material (its number: src/materials/bake.js), its tile (metres), its pattern's size
@@ -251,7 +269,4 @@ export const standFade = (S, dist2) => {
   const at = U.uPxK.mul(S.span).div(U.uErrorPx), last = at;   // (?truth: the dial turned down moves it out, as every other far)
   return S.span.greaterThan(0).select(smoothstep(last.mul(S.a), last.mul(S.b), dist2), float(1));
 };
-/** How far the shadow map reaches round the camera for a stand whose shadows reach `reach` metres (src/world/shadow.js:
-    its box grows with the camera's height). */
-export const shadowReach = (reach) => min(U.uAirH.mul(BOX.grow).add(BOX.min), reach);
 export { NO_STAND };

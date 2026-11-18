@@ -11,10 +11,10 @@ import { TRUTH, pxAt, dialPxAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
 import { OCT_LAM, OCT_AMP } from '../world/land.js';
-import { layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND, SHADE_REACH, CROWNS } from './layers.js';
-import { finish, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
+import { layerOf, standOf, standFade, CARPET, SLOPES, NO_STAND, SHADE_REACH, CROWNS } from './layers.js';
+import { lit, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
-import { endOf, bladeLit } from '../scatter/grass.js';
+import { endOf, bladeLight } from '../scatter/grass.js';
 import { reliefShares, reliefOverSnow } from './relief.js';
 import { SOIL_RELIEF } from '../world/physics.js';
 
@@ -233,8 +233,9 @@ export function terrainMaterial(vt) {
     // where the meadow's blades stand, the carpet lies in their shade, drawn over it; as they thin out towards its end
     // it comes out of it (their own share at the pixel's distance: src/scatter/grass.js endOf)
     const blades = endOf(dist2), c = G.c.mul(mix(1, 0.5, G.cv.mul(blades))).toVar(), cv = G.cv, h = G.h;
-    // past where the shadow map reaches round the camera, a stand's floor lies in its crowns' shade
-    const shade = SHADE_REACH > 0 ? G.shade.mul(smoothstep(shadowReach(SHADE_REACH).mul(0.8), shadowReach(SHADE_REACH), length(p.sub(U.uCam.xz)))) : float(0);
+    // past where the shadow cascades reach round the camera (the farthest of them: SHADE_REACH, src/world/shadow.js), a
+    // stand's floor lies in its crowns' shade
+    const shade = SHADE_REACH > 0 ? G.shade.mul(smoothstep(SHADE_REACH * 0.8, SHADE_REACH, length(p.sub(U.uCam.xz)))) : float(0);
 
     // ---- the light ----
     const wet = float(1).sub(smoothstep(w.mul(0.9), w.add(2.5), d));
@@ -254,13 +255,13 @@ export function terrainMaterial(vt) {
     const relief = mix(0.74, 1.1, smoothstep(-6, 16, vHill));
     const sunl = max(n.dot(U.uSunDir), 0);
     const cs = cloudShade(vWorld).toVar();
-    const surf = weathered(mix(c.mul(mix(1, 0.5, wet)), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).toVar(), V = normalize(U.uCam.sub(vWorld));
-    const sun = U.uSun.mul(cs).mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)).toVar();
-    const lit = surf.mul(skyLight(n).mul(cs.mul(0.3).add(0.7)).mul(float(1).sub(shade.mul(0.35))).add(sun.mul(sunl)));
+    // (under a cloud the sky is dimmer too: the clouds' shade read once, for both; wet, it shines)
+    const colour = weathered(mix(c.mul(mix(1, 0.5, wet)), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).toVar();
+    const sun = cs.mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)).toVar();
+    const ground = lit({ colour, n, w: vWorld, sun, ndl: sunl, sky: cs.mul(0.3).add(0.7).mul(float(1).sub(shade.mul(0.35))), gloss: wet.mul(0.3), sharp: 48 });
     // (past the meadow's blades the carpet is their aggregate, lit as they are at their tips, the meadow's top:
-    // src/scatter/grass.js bladeLit; the ground's own light where it is bare, under snow or under the blades)
-    const col = mix(lit, bladeLit(surf, n, V, float(1), sun), cv.mul(float(1).sub(blades)).mul(float(1).sub(snow)));   // under a cloud the sky is dimmer too (the clouds' shade read once: light.js cloudAt is these three)
-    return finish(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), vWorld);
+    // src/scatter/grass.js bladeLight; the ground's own light where it is bare, under snow or under the blades)
+    return mix(ground, lit({ colour, n, w: vWorld, sun, ...bladeLight(n, float(1)) }), cv.mul(float(1).sub(blades)).mul(float(1).sub(snow)));
   });
 
   const m = new THREE.NodeMaterial(); m.positionNode = vertex(); m.fragmentNode = frag(); m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)

@@ -5,7 +5,9 @@ import * as THREE from 'three/webgpu';
 import { uniform, texture } from 'three/tsl';
 
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
-const placeholder = Object.assign(new THREE.DepthTexture(1, 1), { compareFunction: THREE.LessEqualCompare });   // the shadow map until src/world/shadow.js gives the real one (read with a comparison sampler as it is)
+// the shadow cascades until src/world/shadow.js gives the real ones: a depth array as they are (two layers: an array of
+// any count binds alike), read with a comparison sampler as they are, so a shader built before is built for them
+const placeholder = Object.assign(new THREE.DepthTexture(1, 1, THREE.FloatType, undefined, undefined, undefined, undefined, undefined, undefined, THREE.DepthFormat, 2), { compareFunction: THREE.LessEqualCompare });
 const lit = Object.assign(new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1), { needsUpdate: true });   // the clouds' shadow map until src/world/weather/clouds.js draws one: all in the sun
 
 /** The one set, for node code that reads it directly. */
@@ -34,7 +36,10 @@ export const U = {
   uDither: uniform(0),                             // a number of this frame's own, 0 … 1: what is cut by a noise of the screen's (a plant handing over to its impostor, src/scatter/trees.js) is cut otherwise every frame, and the picture built over time averages it
 
   uSnowFall: uniform(0),                           // how much snow is falling, 0 … 1 (src/world/weather/snowfall.js)
-  tShadow: texture(placeholder), uShadowM: uniform(new THREE.Matrix4()), uShadowOn: uniform(0), uShadowTexel: uniform(1 / 2048), uShadowPass: uniform(0),   // the shadow map (src/world/shadow.js)
+  tShadow: texture(placeholder), uShadowOn: uniform(0), uShadowPass: uniform(0),   // the shadow cascades (src/world/shadow.js): a depth array, the near one its first layer (their layout and matrices: shadow.js cascades)
+  uShadowPen: uniform(0),                          // the widest penumbra the cascades are searched for (metres): the sun's disc over the tallest caster's way along the light (src/world/shadow.js)
+  uShadowPull: uniform(0),                         // how far a caster drawn pulled towards the light is pulled (metres): the near cascade's bias (src/world/shadow.js, characters/kit/human.js)
+  uFrame: uniform(0),                              // the world's frames drawn: the blue noise steps on with it (src/world/light/noise.js)
   uSky: uniform(v3(0.4, 0.55, 0.7)), uHaze: uniform(1 / 6500), uHazeCol: uniform(v3(0.6, 0.7, 0.8)),
 };
 
