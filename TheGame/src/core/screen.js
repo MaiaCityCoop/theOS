@@ -18,7 +18,7 @@
 //                frames, at the screen's own pixels, the screen's curve and the lens's glass on it
 // Two of each by turns: the frame before's depth says what has changed place.
 import * as THREE from 'three/webgpu';
-import { note } from './gpu.js';
+import { note, mark } from './gpu.js';
 import { compileFor } from './compile.js';
 import { twinOf } from './pass.js';
 import { U } from './uniforms.js';
@@ -70,31 +70,32 @@ export function createScreen(renderer, { temporal, lens = null }) {
     last: null,
     /** fn({ depth, motion, camera, w, h }) after every prepass, before the colour: what reads what the prepass drew, with
         the camera as it drew it (its shift for this frame too). The land's pages ask there for what they show
-        (src/terrain/pages.js). */
-    afterPrepass(fn) { prepassed.push(fn); },
+        (src/terrain/pages.js). name: whose its passes are, for a tool's timing (src/core/gpu.js mark). */
+    afterPrepass(fn, name = null) { prepassed.push([fn, name]); },
     /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
       const t = targetsNow(), was = T.turns[1 - turn], alpha = renderer.getClearAlpha(), clearDepth = renderer.autoClearDepth;
       temporal.begin(camera, size.x, size.y);
-      const culls = occlusion.early(renderer, camera, size.x, size.y, scene);   // (pass one, against the last frame's depth)
+      // (each part's passes marked as whose they are, for a tool's timing: src/core/gpu.js)
+      mark('occlusion'); const culls = occlusion.early(renderer, camera, size.x, size.y, scene);   // (pass one, against the last frame's depth)
       // the prepass: nothing moved where nothing was drawn (the sky: the upscale takes the camera's motion there)
       renderer.getClearColor(clear); renderer.setClearColor(0x000000, 0);
-      renderer.setRenderObjectFunction(pre); renderer.setRenderTarget(t.pre); renderer.render(scene, camera);
+      mark('prepass'); renderer.setRenderObjectFunction(pre); renderer.setRenderTarget(t.pre); renderer.render(scene, camera);
       // (and pass two, against this frame's depth: what it finds drawn into the prepass after the rest)
-      if (culls) occlusion.late(renderer, t.depth, size.x, size.y, (late) => { const ac = renderer.autoClear; renderer.autoClear = false; renderer.render(late, camera); renderer.autoClear = ac; });
-      for (const fn of prepassed) fn({ depth: t.depth, motion: t.pre.texture, camera, w: size.x, h: size.y });   // (once all of it is drawn)
+      if (culls) { mark('prepass, late'); occlusion.late(renderer, t.depth, size.x, size.y, (late) => { const ac = renderer.autoClear; renderer.autoClear = false; renderer.render(late, camera); renderer.autoClear = ac; }); }
+      for (const [fn, name] of prepassed) { mark(name); fn({ depth: t.depth, motion: t.pre.texture, camera, w: size.x, h: size.y }); }   // (once all of it is drawn)
       // the colour, into the prepass's depth. (Cleared to the renderer's clear colour, which the sky sets to the hour's
       // horizon as the screen shows it: here in the light's own numbers, the screen's curve taken back off it)
       const E = 1.25 * U.uExposure.value, un = (v) => -Math.log(1 - Math.min(0.999, v) ** 2.2) / E;
       sky.setRGB(un(clear.r), un(clear.g), un(clear.b), THREE.LinearSRGBColorSpace); renderer.setClearColor(sky, 1); renderer.autoClearDepth = false;
-      renderer.setRenderObjectFunction(main); renderer.setRenderTarget(t.main); renderer.render(scene, camera);
+      mark('colour'); renderer.setRenderObjectFunction(main); renderer.setRenderTarget(t.main); renderer.render(scene, camera);
       renderer.setRenderObjectFunction(null); renderer.autoClearDepth = clearDepth; renderer.setRenderTarget(null); renderer.setClearColor(clear, alpha);
       if (culls) occlusion.rest();   // (every other view draws all that was packed: the shadow map, a still, a bake)
       temporal.end(camera);
       const dof = camera.userData.dof, glass = camera.userData.glass;   // the virtual camera brings a lens with it: its picture is drawn through it; the walker's glass, without the film's depth of field (src/camera/rig.js)
-      const blurred = lens && dof && dof.on ? lens.blur(t.main, camera, dof) : null;
-      temporal.resolve((this.last = { colour: blurred ? blurred.colour : t.main.texture, depth: t.depth, motion: t.pre.texture, depthWas: was.depth, glass: blurred ? blurred.glass : glass ?? null }));
-      turn = 1 - turn;
+      mark('lens'); const blurred = lens && dof && dof.on ? lens.blur(t.main, camera, dof) : null;
+      mark('upscale'); temporal.resolve((this.last = { colour: blurred ? blurred.colour : t.main.texture, depth: t.depth, motion: t.pre.texture, depthWas: was.depth, glass: blurred ? blurred.glass : glass ?? null }));
+      mark(null); turn = 1 - turn;
     },
   };
 }
