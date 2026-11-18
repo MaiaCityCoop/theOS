@@ -39,10 +39,10 @@ export const CASTS = 1;   // the layer of what casts a shadow
 const spanOf = (h) => ({ back: 300 + h * 0.5, near: 1, far: 600 + h });
 
 let C = null;
-/** Lay the cascades out (src/boot.js: once the measure knows the most the screen can draw, keepMeasure, and before any
-    material is built, for the light is built for them), from what casts in the stands (src/terrain/layers.js CASTERS):
-    reach, how far round the eye shadows are drawn; crown, the lowest crown that casts; top, the tallest caster; radius,
-    the smallest crown's reach (for the canopy). */
+/** Lay the cascades out (the light's start, src/world/light/start.js startLight: once the measure knows the most the
+    screen can draw, keepMeasure, and before any material is built, for the light is built for them), from what casts in
+    the stands (src/terrain/layers.js CASTERS): reach, how far round the eye shadows are drawn; crown, the lowest crown
+    that casts; top, the tallest caster; radius, the smallest crown's reach (for the canopy). */
 export function useCascades({ reach, crown, top, radius }) {
   if (!(reach > 0 && crown > 0 && crown < Infinity && top > 0 && radius > 0 && radius < Infinity)) throw new Error(`the shadow cascades are laid out from what casts in the stands (reach ${reach} m, lowest crown ${crown} m, tallest ${top} m, smallest crown ${radius} m round): none of it there`);
   // a cascade's texels a side: a texel one dial pixel at its own cascade's edge (h metres from the eye, 2h / S a texel,
@@ -64,7 +64,7 @@ export function useCascades({ reach, crown, top, radius }) {
     (what they were laid out from: reach, crown, top, radius, m), mats (each
     one's matrix from the world to its u, v and depth, uniforms) }. */
 export const cascades = () => {
-  if (!C) throw new Error('the shadow cascades are laid out at the start, before any material is built (src/boot.js: useCascades)');
+  if (!C) throw new Error('the shadow cascades are laid out at the start, before any material is built (src/world/light/start.js startLight, where src/boot.js and tools/smoke.js start the light)');
   return C;
 };
 

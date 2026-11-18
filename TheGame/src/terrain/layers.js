@@ -89,8 +89,8 @@ if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} st
 /** How far round the camera the shadows of the stands that cast them are drawn at the most (-1: none casts): past it, a
     stand's floor lies in its crowns' shade, the pixel's own (src/terrain/material.js). */
 export const SHADE_REACH = Math.max(-1, ...STANDS.map((S) => S.reach));
-/** What casts in the stands, which the shadow cascades are laid out from (src/world/shadow.js useCascades: src/boot.js,
-    and the tools that make the world as it does). reach: how far round the eye shadows are drawn (SHADE_REACH). crown:
+/** What casts in the stands, which the shadow cascades are laid out from (src/world/shadow.js useCascades, in the light's
+    start: src/world/light/start.js startLight). reach: how far round the eye shadows are drawn (SHADE_REACH). crown:
     the lowest a crown begins over the ground among the trees that cast, at their oldest (metres; Infinity: none): the
     cascades' finest texel is the sun's penumbra from it. radius: the smallest reach of a crown round its trunk among
     them, at their oldest (metres; Infinity: none): the canopy's probes stand a quarter of it apart

@@ -29,14 +29,13 @@ const game = await tryTo('the screen', async () => {
   (await import('../src/detail/impostor.js')).setImpostorRenderer(renderer);
   const { createTemporal } = await import('../src/core/temporal.js'), { createScreen } = await import('../src/core/screen.js'), { createLens } = await import('../src/camera/post.js');
   const temporal = createTemporal(renderer), screen = createScreen(renderer, { temporal, lens: createLens(renderer) });
-  (await import('../src/world/light/screen.js')).screenLightFor(renderer, screen);   // (the light worked out on the screen from the prepass's depth)
   (await import('../src/detail/measure.js')).keepMeasure(() => screen.inside);
   return { U, temporal, screen };
 });
 const tex = await tryTo('the materials painted', async () => {
   const { bakeTextures } = await import('../src/materials/bake.js'), tex = bakeTextures(renderer, { spare: 1 });
-  (await import('../src/world/tile.js')).useTiles(tex); (await import('../src/world/light.js')).useBackend(renderer);
-  (await import('../src/world/shadow.js')).useCascades((await import('../src/terrain/layers.js')).CASTERS);   // (the shadow cascades laid out from what casts, before any material is built)
+  (await import('../src/world/tile.js')).useTiles(tex);
+  (await import('../src/world/light/start.js')).startLight(renderer, game?.screen);   // (the light's start where the start has it: before any material)
   return tex;
 }) ?? M.tiles;
 const ground = await tryTo('the ground', async () => {
