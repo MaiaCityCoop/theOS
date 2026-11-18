@@ -12,12 +12,11 @@ import { Tier, offScreen, clipOf } from './tier.js';
 import { viewArea } from './view.js';
 import { roomOf } from '../core/gpu.js';
 import { scatterRow } from '../../assets/index.js';
-import { TRUTH, dialK, pxKMost } from '../detail/measure.js';
+import { dialK, pxKMost } from '../detail/measure.js';
 import { BAND, GONE } from '../detail/error.js';
 import { CROWD } from '../../assets/kit/crowd.js';
 import { rankOf } from './rule.js';
 import { growthMap } from './growth.js';   // (a blade's turn in the one spread order, as everything placed has it)
-import { REACH } from './ground.js';
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
 
@@ -60,12 +59,12 @@ export const bladeLit = (col, n, V, t, sun) => {
     blade's width), so the meadow keeps its cover and its height. Its error e is how much wider its blades are than the
     blade, w (2^k - 1); its bends as few as keep a blade's bow within it (a bow of b metres in n straight pieces misses
     its curve by b / 4n²: the mean blade's, bladeIn's mean height 0.95 of the asset's, its bend 0.65, bowing 1.15 of that
-    at its tip). A ring is made while its error is under the mean blade's height: past that, leaving the blades out (the
-    ground under them wears the meadow's colour) is as near, and the meadow is gone first (bandsOf). The same at every
-    measure: where each is drawn is bandsOf's. */
+    at its tip). A ring is made while it can come in before the meadow is gone (bandsOf): while its error, a BAND over
+    it, is under the mean blade's height (leaving the blades out, where the ground under them wears the meadow's colour,
+    differs by that). The same at every measure: where each is drawn is bandsOf's. */
 export function ringsOf(asset) {
   const B = asset.blade, h = asset.height * 0.95, bow = h * 0.65 * 1.15, rings = [];
-  for (let k = 0, e = 0; e < h; e = B.w * (2 ** ++k - 1)) rings.push({ segs: k ? Math.min(B.segs, Math.max(1, Math.ceil(Math.sqrt(bow / (4 * e)) - 1e-9))) : B.segs, cell: B.cell * 2 ** (k / 2), P: B.P, w: B.w * 2 ** k, e });
+  for (let k = 0, e = 0; e * BAND < h; e = B.w * (2 ** ++k - 1)) rings.push({ segs: k ? Math.min(B.segs, Math.max(1, Math.ceil(Math.sqrt(bow / (4 * e)) - 1e-9))) : B.segs, cell: B.cell * 2 ** (k / 2), P: B.P, w: B.w * 2 ** k, e });
   return rings;
 }
 /** Where the rings are drawn at a measure (K: dial pixels a metre covers at a metre: src/detail/measure.js dialK, the
@@ -75,11 +74,11 @@ export function ringsOf(asset) {
     covers `cell K` dial pixels at a metre): past that a field of them cannot be told from a surface with the same
     statistics, and the carpet carries the meadow on (src/terrain/material.js: the blades' own share, endOf); nearer
     still where its mean blade is gone (GONE dial pixels: leaving it out differs by all of its height,
-    src/detail/error.js goneAt), or at `cut`. They thin over the BAND before their end; a ring that would only come in
+    src/detail/error.js goneAt). They thin over the BAND before their end; a ring that would only come in
     there draws nothing (far 0). height: the asset's. */
-export function bandsOf(rings, height, K, cut = Infinity) {
+export function bandsOf(rings, height, K) {
   const at = (k) => rings[k].e * K;
-  let end = Math.min(cut, (height * 0.95 * K) / GONE);
+  let end = (height * 0.95 * K) / GONE;
   for (let k = 0; k < rings.length; k++) {   // (ring k is drawn from `from` to `to`; its cells fall under a dial pixel past `under`)
     const from = k ? at(k) * BAND : 0, to = k + 1 < rings.length ? at(k + 1) * BAND : Infinity, under = rings[k].cell * K;
     if (from >= end) break;
@@ -165,21 +164,20 @@ function bladeMaterial(T) {
 
 /** The asset `grass`: a tier a ring (ringsOf). gpu: on WebGPU, what stands is packed by a compute pass (tier.js). Each
     ring's band is the measure's (bandsOf), reckoned again as it changes (the window, the governor's ratio, the dial:
-    tier.js reband), its numbers uniforms. ?truth (src/detail/measure.js): its first ring's blades, dense and fine, out to
-    where the ground's first map reaches (ground.js REACH: the first ring's blades to where the meadow is gone are past
-    any GPU). */
+    tier.js reband), its numbers uniforms. ?truth is the dial (src/detail/measure.js): its rings and its end by the same
+    rule, at its own pixel. */
 export function createGrass(scene, tex, ground, asset, gpu = false) {
-  const rings = TRUTH ? asset.tiers.slice(0, 1) : asset.tiers, cut = TRUTH ? REACH : Infinity, now = () => bandsOf(rings, asset.height, dialK(), cut);
+  const rings = asset.tiers, now = () => bandsOf(rings, asset.height, dialK());
   // the most a ring holds: as much of its band as the eye's view can take in at once (src/scatter/view.js viewArea: level,
   // down, from any height), the band as large as it gets at any measure up to the most (pxKMost: a turn of the dial or
   // of the governor's ratio only brings the rings nearer; the dial pixels a metre covers halved a quarter at a time), in
   // cells; and all the meadow's rings together within the room the ground's class has left (src/core/gpu.js roomOf),
   // each ring as much less where they would not fit (a ring that holds too few leaves its farthest out: tier.js)
-  const widest = rings.map((_, k) => { let w = null, a = 0; for (let i = 0; i <= 64; i++) { const b = bandsOf(rings, asset.height, pxKMost() * 2 ** (-i / 4), cut).bands[k], n = Math.max(0, b.near - b.nearFade), d = b.far > 0 ? b.far ** 2 - n ** 2 : 0; if (d > a) { a = d; w = [n, b.far]; } } return w; });
+  const widest = rings.map((_, k) => { let w = null, a = 0; for (let i = 0; i <= 64; i++) { const b = bandsOf(rings, asset.height, pxKMost() * 2 ** (-i / 4)).bands[k], n = Math.max(0, b.near - b.nearFade), d = b.far > 0 ? b.far ** 2 - n ** 2 : 0; if (d > a) { a = d; w = [n, b.far]; } } return w; });
   const need = rings.map((R, k) => (widest[k] ? Math.ceil(viewArea(...widest[k]) / (R.cell * R.cell)) : 0)), BYTES = 3 * 16;   // (three vec4 a blade: slots, below)
   const fit = Math.min(1, roomOf('ground') / Math.max(1, need.reduce((s, n) => s + n, 0) * BYTES));
   U.uMeadowTop.value = meanTop(asset.height);
-  const at = bandsOf(rings, asset.height, pxKMost(), cut);   // (at the most: the farthest every ring and the meadow's end can be, what each ring's region tree is sized for)
+  const at = bandsOf(rings, asset.height, pxKMost());   // (at the most: the farthest every ring and the meadow's end can be, what each ring's region tree is sized for)
   return rings.map((R, k) => {
     const T = { cell: uniform(R.cell), w: uniform(R.w), near: uniform(0), nearFade: uniform(0), far: uniform(0), farFade: uniform(0) };
     const make = bladeMaterial(T), live = (c) => bladeIn(c, asset, T, ground);

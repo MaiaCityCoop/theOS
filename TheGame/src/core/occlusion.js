@@ -44,12 +44,18 @@ import { windStrength, snowDepth } from '../world/light.js';
 
 const WG = 64, SW = 256, EPS = 2 ** -21;   // EPS: how much farther than the pyramid a box must be to be hidden (a few steps of a 24-bit depth); SW: the scans' workgroup
 const LEVELS = 16;   // the pyramid's levels at most (2^16 texels a side)
-const MANY = 2 ** 30;   // (a pass dispatched indirectly: its count as large as it can be, so three's bound check never cuts it)
+// (a pass dispatched indirectly: what it reaches is its arguments' to say, so three's bound check, against its count
+// as a u32 uniform, is as large as a u32 holds and never cuts it)
+export const MANY = Uint32Array.of(-1)[0];
 // (and laid out in two dimensions, each within the device's own limit (an indirect dispatch past it is no dispatch at
 // all: nothing culled, a list read stale): uX workgroups a row, the rows as many as it takes; wgOf, a workgroup's place)
-const uX = uniform(65535, 'uint'), wgOf = () => workgroupId.y.mul(uX).add(workgroupId.x);
+const uX = uniform(65535, 'uint');
+/** A workgroup's place in an indirect dispatch laid out by sizeTo. */
+export const wgOf = () => workgroupId.y.mul(uX).add(workgroupId.x);
 /** An indirect dispatch's size for n workgroups, and n itself after it (its fourth number: what a scan loops over). */
-const sizeTo = (D, n) => { D.element(uint(0)).assign(n.min(uX)); D.element(uint(1)).assign(n.add(uX).sub(uint(1)).div(uX)); D.element(uint(3)).assign(n); };
+export const sizeTo = (D, n) => { D.element(uint(0)).assign(n.min(uX)); D.element(uint(1)).assign(n.add(uX).sub(uint(1)).div(uX)); D.element(uint(3)).assign(n); };
+/** The device's own workgroups a dimension, for what is laid out by sizeTo (src/scatter/tier.js too). */
+export const useLimits = () => { uX.value = limitOf('maxComputeWorkgroupsPerDimension') || 65535; };
 
 // ---- the shared numbers: this frame's camera, and the pyramid's (its camera, its size, its levels) ----
 const U = {
@@ -157,10 +163,12 @@ const lastAtMost = (get, lo, n, x, steps) => {
 };
 
 // ---- the arenas: the culled tiers, their things' boxes and what the passes keep of them, in one set of buffers ----
-// A bucket's numbers, nine a bucket (and a bucket's more past the last, where the scans' ends are): its first thing in
-// the arena, its room, its tier, its first chunk for pass one and for pass two, how many pass one keeps and holds back,
-// how many its tier packed, and how many its tier packed into the buckets before it (its first box)
-const BASE = 0, CAP = 1, TIER = 2, C1 = 3, C2 = 4, N1 = 5, R1 = 6, PACK = 7, PRE = 8, NB = 9;
+// A bucket's numbers, one layout (BUCKET: each number's place in a bucket is its place in the list, NB of them a bucket;
+// and a bucket's more past the last, where the scans' ends are): its first thing in the arena (BASE), its room (CAP),
+// its tier (TIER), its first chunk for pass one and for pass two (C1, C2), how many pass one keeps and holds back (N1,
+// R1), how many its tier packed (PACK), and how many its tier packed into the buckets before it, its first box (PRE)
+const BUCKET = ['BASE', 'CAP', 'TIER', 'C1', 'C2', 'N1', 'R1', 'PACK', 'PRE'];
+const { BASE, CAP, TIER, C1, C2, N1, R1, PACK, PRE } = Object.fromEntries(BUCKET.map((name, at) => [name, at])), NB = BUCKET.length;
 const ARENAS = [];
 let OPEN = null;
 const TIERS = new Set();
@@ -320,7 +328,7 @@ const BYTES = 16 + 8, fits = (n) => n * BYTES <= roomOf('geometry');
 /** Whether a tier of `total` things can be culled (one that alone would fill more than an arena is drawn whole). */
 export const cullable = (total) => total <= ROOM() && fits(total);
 export function cullOf(T, { K, caps, offs, total, S, data, args, count, box }) {
-  uX.value = limitOf('maxComputeWorkgroupsPerDimension');   // (the device's own)
+  useLimits();   // (the device's own)
   if (OPEN && (OPEN.N + total > ROOM() || !fits(OPEN.N + total))) OPEN.build();   // (full: it is made as it is, and this tier opens the next)
   const A = (OPEN ||= arena()), me = { T, K, caps, offs, total, g0: A.G, base: A.N, idx: A.tiers.length };
   A.tiers.push(me); A.G += K; A.N += total; A.NC += caps.reduce((a, c) => a + Math.ceil(c / WG), 0);

@@ -3,8 +3,8 @@
 // own Chrome through Playwright, headless (--headed: in a window, for frame times as a screen paces them):
 //
 //   bun tools/gate.js stills [--tag t] [--truth] [--views a,b]   the gate's views (tools/gate/views.js) as 4K PNGs in
-//                        [--fresh] [--reach m] [--tiles n]       .gate/<tag>/ (by default the commit); --truth: ?truth
-//                                                                (--reach: ?truth=m, as far as it says); --fresh: on a
+//                        [--fresh] [--dial d] [--tiles n]        .gate/<tag>/ (by default the commit); --truth: ?truth
+//                                                                (--dial: ?truth=d, the dial it is drawn at); --fresh: on a
 //                                                                new browser profile (launch, below); --tiles: each view
 //                                                                drawn in n × n tiles, each at all the canvas's pixels,
 //                                                                brought down by n and laid side by side (the truth past
@@ -195,7 +195,7 @@ const rank = (xs, q) => { const s = [...xs].sort((a, b) => a - b); return s.leng
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { unlock(); for (const d of FRESH) rmSync(d, { recursive: true, force: true }); process.exit(130); });
 
 // ---- the commands ----
-async function stills(chrome, { tag, truth = false, reach = null, views, tiles = 1 } = {}) {
+async function stills(chrome, { tag, truth = false, dial = null, views, tiles = 1 } = {}) {
   tag ||= commit() + (truth ? '-truth' : '');
   const list = pick(VIEWS, views, 'view'), dir = `${OUT}${tag}/`, n = Math.max(1, Math.round(+tiles || 1)), png = (s) => Buffer.from(s.png.slice(s.png.indexOf(',') + 1), 'base64');
   // (the page held on the gate's clock, tools/gate/clock.js, from its start: it settles there with the clock standing,
@@ -203,7 +203,7 @@ async function stills(chrome, { tag, truth = false, reach = null, views, tiles =
   // faster than they settle; and nothing is drawn between two views or tiles, so another run may have the GPU meanwhile)
   const held = true;
   const { page, errors, url, start, close } = await locked(`stills ${tag}: the page`, async () => {
-    const P = await open(chrome, { query: truth ? (reach ? `truth=${reach}` : 'truth') : '', init: held ? stepper : null });
+    const P = await open(chrome, { query: truth ? (dial ? `truth=${dial}` : 'truth') : '', init: held ? stepper : null });
     await P.page.evaluate(prepare, { inside: truth ? null : INSIDE, time: TIME });
     if (held) await P.page.evaluate(() => window.__gateClock.start());
     return P;

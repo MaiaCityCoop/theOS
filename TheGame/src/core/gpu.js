@@ -78,8 +78,15 @@ export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer :
 export const lean = () => !!R;
 /** Whether the renderer's GPU has a WebGPU feature (none without WebGPU). */
 export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);
-/** One of the renderer's GPU's limits (none without WebGPU: nothing then asks). */
-export const limitOf = (name) => R?.backend?.device?.limits?.[name] ?? 0;
+/** The limits the design sizes against: every one read here (limitOf), and the layers of the land's pages and of the
+    drawers' skins (src/terrain/pages.js, src/scatter/drawer.js). The device is asked for each as its adapter has it
+    (src/boot.js limitsFrom), so what is sized from them is sized from what this GPU gives, never from WebGPU's defaults
+    unasked; one not in the list is not read. */
+const SIZED = ['maxBufferSize', 'maxStorageBufferBindingSize', 'maxUniformBufferBindingSize', 'maxComputeWorkgroupsPerDimension', 'maxTextureArrayLayers'];
+/** What to ask a device for, of its adapter's limits A: each of SIZED as A has it. */
+export const limitsFrom = (A) => Object.fromEntries(SIZED.filter((k) => A?.[k] != null).map((k) => [k, A[k]]));
+/** One of the renderer's GPU's limits, one of SIZED (none without WebGPU: nothing then asks). */
+export const limitOf = (name) => { if (!SIZED.includes(name)) throw new Error(`gpu: ${name} is not a limit the device is asked for (SIZED)`); return R?.backend?.device?.limits?.[name] ?? 0; };
 /** Every buffer made here within the device's limits: one larger is an error of whoever sized it, said by name. */
 const within = (bytes, name) => { const most = Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity); if (bytes > most) throw new Error(`${name ?? 'a buffer'}: ${bytes} bytes, more than the GPU binds in one buffer (${most})`); };
 

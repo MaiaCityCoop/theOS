@@ -21,12 +21,12 @@ import * as THREE from 'three/webgpu';
 import { loadingStep, loadingDone } from './ui/loading.js';   // the veil is told what is being made
 import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
-import { keepMeasure, measureNow, TRUTH } from './detail/measure.js';
+import { keepMeasure, measureNow, setErrorPx, TRUTH, TRUTH_DIAL } from './detail/measure.js';
 import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
 import { createHud } from './core/hud.js';
-import { useGPU } from './core/gpu.js';
+import { useGPU, limitsFrom } from './core/gpu.js';
 import { taken, busy, changed } from './core/work.js';
 import { settle, ready as firstView, waiting, watch, tick, partOf, leave } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
@@ -68,8 +68,7 @@ export async function boot({ profile = 'world' } = {}) {
   // src/terrain/pages.js; the stress stand keeps its kinds' own textures in one, src/scatter/stress.js. And buffers as
   // large as the GPU has them, not the 128 and 256 MB a device gives unasked: what is shared by many lies in buffers as
   // large as these say, src/core/occlusion.js)
-  const A = (await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits, layers = Math.min(2048, A?.maxTextureArrayLayers ?? 256);
-  const limits = { ...(layers > 256 ? { maxTextureArrayLayers: layers } : {}), ...(A ? { maxBufferSize: A.maxBufferSize, maxStorageBufferBindingSize: A.maxStorageBufferBindingSize } : {}) };
+  const limits = limitsFrom((await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits);   // (every limit the design sizes against, as this adapter has it: src/core/gpu.js SIZED)
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), requiredLimits: limits });   // alpha false: the canvas is opaque (a frame's fourth number is not how see-through it is: it says how far what is kept may be trusted, src/core/pass.js; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
   if (flag('draws')) (await import('../tools/draws.js')).watch();   // ?draws: every pass and draw a frame asks of the GPU, counted (tools/draws.js: window.__draws), from before the first pipeline is made
   await renderer.init();
@@ -108,7 +107,10 @@ export async function boot({ profile = 'world' } = {}) {
   const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
   game.governor = governor;   // the film holds it still while it plays
   keepMeasure(() => screen.inside, screen.out);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
-  if (TRUTH) governor.hold(true);   // (?truth: everything at its finest, offline: no dial turned for its slow frames)
+  if (TRUTH) governor.hold(true);   // (?truth: offline, no dial of the governor's turned for its slow frames)
+  // ?truth (src/detail/measure.js): the game's own start, at the dial's rest (the world built at the game's pace), then,
+  // once that first view is complete, the dial turned down to the truth's: what it brings in is waited for by settle()
+  if (TRUTH) game.ready.then(() => setErrorPx(TRUTH_DIAL));
   watch({ camera, renderer, screen, temporal, U });   // what the world complete is measured against (src/core/settle.js)
   const marks = (game.boot = {}), mark = (k) => (marks[k] = Math.round(performance.now() - t0));   // where the start's time goes
   mark('renderer');

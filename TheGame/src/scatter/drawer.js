@@ -57,7 +57,7 @@ import { U } from '../core/uniforms.js';
 import { ign, finish, skyLight, cloudAt, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { landPages } from '../terrain/pages.js';
-import { RELIEF } from '../terrain/relief.js';
+import { RELIEF as SOIL_RELIEF } from '../terrain/relief.js';   // (not RELIEF: createDrawer's own option `relief` is named so)
 import { Tier, offScreen, clipOf } from './tier.js';
 import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective, cornersOf, shapedOf } from './heap.js';
 import { ballCorners } from '../../assets/kit/blob.js';
@@ -70,7 +70,7 @@ import { CHAIN } from '../../assets/kit/bones.js';
 import { MODELS, modelOf } from '../shading/index.js';
 import { byRole } from '../core/registry.js';
 import { bandOf, padOf } from '../detail/handover.js';
-import { dialK, pxKMost, pxOn, farFor, farMost, spanAt, pxAt, dialPxAt, uErrorPx, TRUTH } from '../detail/measure.js';
+import { dialK, pxKMost, pxOn, farFor, farMost, spanAt, pxAt, dialPxAt, DIAL_LEAST } from '../detail/measure.js';
 import { source } from '../core/settle.js';
 import { note } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
@@ -219,17 +219,17 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       });
     }
     // its skirt (intent 0038, stage 6c): bedded in the soil, not set on it. The soil round it lies at the ground's own
-    // height there (the land's page, src/terrain/pages.js: RELIEF from its lowest to its highest over the land's smooth
+    // height there (the land's page, src/terrain/pages.js: SOIL_RELIEF from its lowest to its highest over the land's smooth
     // surface, as the relief near the eye raises it), and where it faces up it fills its hollows (where its own
     // texture stands low) as much again: below that it wears the ground there, its normal the ground's, nothing grown
-    // over it; the line between over one pixel drawn (ERROR_PX). (Its size in sA's fourth number; what of it lies in
+    // over it; the line between over the dial's pixels drawn (U.uErrorPx: src/detail/measure.js). (Its size in sA's fourth number; what of it lies in
     // the ground, its look's: how far its foot is over the land's smooth surface)
     const land = GROUND ? landPages() : null, bed = land ? float(0).toVar() : null, bedN = land ? vec3(0, 1, 0).toVar() : null;
     if (land) {
-      const above = vC.y.sub(M5.w.mul(vA.w)).toVar(), edge = abs(dFdx(above)).add(abs(dFdy(above))).mul(uErrorPx).max(1e-4);
-      If(above.lessThan(edge.add(RELIEF)), () => {
+      const above = vC.y.sub(M5.w.mul(vA.w)).toVar(), edge = abs(dFdx(above)).add(abs(dFdy(above))).mul(U.uErrorPx).max(1e-4);
+      If(above.lessThan(edge.add(SOIL_RELIEF)), () => {
         const G = land.read(w.xz, dFdx(w.xz).mul(U.uFine), dFdy(w.xz).mul(U.uFine), length(U.uCam.sub(w)));
-        const soil = G.h.sub(0.5).add(float(0.5).sub(m).mul(max(N0.y, 0))).mul(RELIEF);
+        const soil = G.h.sub(0.5).add(float(0.5).sub(m).mul(max(N0.y, 0))).mul(SOIL_RELIEF);
         bed.assign(float(1).sub(smoothstep(soil.sub(edge), soil.add(edge), above)));
         own.assign(mix(own, G.c, bed)); bedN.assign(normalize(vec3(G.n.x, 1, G.n.y))); grown.mulAssign(float(1).sub(bed));
       });
@@ -623,7 +623,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // both while it hands over from one to the other; the vertex stages say which shows)
     const FAR = byKind && !shadow && MAKE?.far ? MAKE.far : null, KF = FAR ? ALL : -1;
     // (and what is cut out as leaves has a draw of its own at the levels it is cards: another state of the pipeline)
-    const leafy = LEAVES && !shadow && i < HULL, K0 = perSlot ? LEVELS[0].slots : 1;
+    const leafy = LEAVES && !shadow && i < HULL, K0 = perSlot ? H.pools[0].n : 1;
     // (and what is of the level's own shape, a ball of the ladder's, the last draw: by the level's list of corners)
     const KS = shapeOf[i] ? (leafy ? K0 * 2 : K0) : -1;
     // (its level and whether it is the shadow's as numbers: every tier's packing is one piece of code, compiled once)
@@ -692,7 +692,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       place, casts, far: as tier() (cap: of its farthest level; the nearer ones hold a quarter as many each); last: the
       last level its things have (they end before the ladder does). */
   const tierAll = ({ cell, P, cap, sizes, place, casts = false, far = Infinity, last = L - 1, step = 0.5, thing = null, moving = false }) => {   // (moving: what it packs moves on its skeleton: packed again every frame, drawn on its bones)
-    const band = { near: uniform(-1), far: uniform(1) }, K0 = LEVELS[0].slots || 1, hp0 = H.pools[0], TH = thingOf(thing);
+    const band = { near: uniform(-1), far: uniform(1) }, hp0 = H.pools[0], K0 = LEVELS[0].slots ? hp0.n : 1, TH = thingOf(thing);
     // its draws: a slot of the heap's each for the full meshes; of every other mesh level the corners looked up and,
     // where the level has a shape of its own, that list; the dot
     // (a level 0 drawn by its cut: one draw that only holds its things, the cut's own drawing them)
@@ -726,7 +726,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       return { alive: alive.greaterThan(0.5), data: rows, bucket };
     };
     // (one material for every mesh level of it, its level told by each mesh; one more for what is drawn by a level's own list)
-    const mats = {}, T = new Tier(scene, draws.map((d) => (d.cut ? new THREE.InstancedBufferGeometry().setIndex([0, 1, 2]) : d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, reach: Math.min(far, farMost(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])), high: sizes[1], order: 1, live, gpu: true, cap: draws.map((d) => (d.dot || (TRUTH && !d.level) ? cap : Math.min(cap, 16 * 4 ** Math.max(1, d.level)))), slots: ROWS, bounds: boundsOf(GROWN + (moving ? 0.5 : 0)) });   // (a cap a draw: what is drawn large is few, four times as many a level further off; ?truth draws all of it at its finest)
+    const mats = {}, T = new Tier(scene, draws.map((d) => (d.cut ? new THREE.InstancedBufferGeometry().setIndex([0, 1, 2]) : d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, reach: Math.min(far, farMost(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])), high: sizes[1], order: 1, live, gpu: true, cap: draws.map((d) => (d.dot ? cap : Math.min(cap, Math.ceil((16 * 4 ** Math.max(1, d.level)) / DIAL_LEAST ** 2)))), slots: ROWS, bounds: boundsOf(GROWN + (moving ? 0.5 : 0)) });   // (a cap a draw: what is drawn large is few, four times as many a level further off; ?truth draws all of it at its finest)
     T.step = step;
     T.band = () => { T.near = 0; T.far = Math.min(far, farFor(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])); band.far.value = T.far; };   // (a drawer that thins its things away: packed until they are gone)
     T.band(); T.draws = draws;

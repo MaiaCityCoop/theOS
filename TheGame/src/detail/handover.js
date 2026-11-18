@@ -13,7 +13,6 @@
 // reckoning in JS for what is chosen on the CPU. Every size on screen here is in the dial's pixels (src/detail/error.js:
 // a level's numbers hold at every turn of the dial; a measured size meets them over the dial, measure.js dialPxAt).
 import { float, vec3, uniform, log, max, clamp, mix, smoothstep, sqrt } from 'three/tsl';
-import { bandAt } from './measure.js';
 
 /** A level's numbers as uniforms. Lv: { lo, hi, last } (the dial pixels it is drawn between; whether it is the farthest). */
 export const levelOf = (Lv, fade) => ({ hi: uniform(Number.isFinite(Lv.hi) ? Math.log(Lv.hi) + fade : 1e3), lo: uniform(Math.log(Lv.lo) + fade), px: uniform(Lv.lo), last: uniform(Lv.last ? 1 : 0), fade });
@@ -28,12 +27,11 @@ export const padOf = (cell, P) => ((cell * P) / 16) * 1.8;
                           dial: its size times pxK over ERROR_PX), `dist` away, is this level's to pack (its band, its
                           hand-over, and the pad)
       reach(sLo, sHi, K)  [near, far] metres: where a thing between sLo and sHi metres across can be of this level (K: dial
-                          pixels a metre covers at a metre, measure.js dialK, or pxKMost for the most; ?truth's band where
-                          it is asked for: measure.js bandAt) */
+                          pixels a metre covers at a metre, measure.js dialK, or pxKMost for the most) */
 export const bandOf = (Lv, fade, pad = 0) => {
   const e = Math.exp(fade), B = { pad: uniform(pad), to: uniform(e / Lv.lo), from: uniform(Number.isFinite(Lv.hi) ? 1 / (Lv.hi * e) : 0), margin: pad };
   B.holds = (dist, span) => dist.lessThan(span.mul(B.to).add(B.pad)).and(dist.greaterThanEqual(span.mul(B.from).sub(B.pad)));
-  B.reach = (sLo, sHi, K) => bandAt(Number.isFinite(Lv.hi) ? Math.max(0, (sLo * K) / (Lv.hi * e) - pad) : 0, (sHi * K * e) / Lv.lo + pad, !Number.isFinite(Lv.hi), pad);
+  B.reach = (sLo, sHi, K) => [Number.isFinite(Lv.hi) ? Math.max(0, (sLo * K) / (Lv.hi * e) - pad) : 0, (sHi * K * e) / Lv.lo + pad];
   return B;
 };
 
