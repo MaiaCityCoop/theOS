@@ -284,6 +284,12 @@ export function createPages(renderer, tex) {
   const refs = new Map(), want = new Map();
   const prev = new THREE.Vector3(), turn = new THREE.Quaternion(); let moved = 0, swung = 0, pxRad = 1600, pxH = 1440;   // (metres and radians the camera moved last frame; screen pixels a radian through its lens)
   let quietFrom = 0, readTo = 0, dirty = false, pick = null, pickedAt = -1e9, judged = -1, nAsk = 0, askedAt = -1;   // (since when nothing changed what is asked for; the last frame whose asks are in; the queue to be sorted again; the bias being chosen)
+  // (which frames' asks have come back: a read-back is not taken while all its buffers are out, so a sweep counts only
+  // where every one of its frames was read)
+  const got = new Int32Array(2 * SPAN + 2 * READS).fill(-1);
+  /** Whether a whole sweep's asks have come back since frame q: the last SPAN frames read, all of them, one after the
+      other, every one after q. */
+  const sweptSince = (q) => { if (readTo - SPAN + 1 <= q) return false; for (let k = 0; k < SPAN; k++) if (got[(readTo - k) % got.length] !== readTo - k) return false; return true; };
   // What the pixels ask for is a function of the view, the bias and the relief's heights (src/terrain/relief.js: its
   // points are raised by the pages, so where it stands a pixel's point moves as they come in): a page the relief reads
   // (at its finest level or coarser, within its reach of the camera), laid or faded in, changes what is asked for as a
@@ -327,7 +333,7 @@ export function createPages(renderer, tex) {
         if (di) ask(L, i + di, j, f, 0); if (dj) ask(L, i, j + dj, f, 0); if (di && dj) ask(L, i + di, j + dj, f, 0);
       }
     }
-    readTo = Math.max(readTo, f);
+    readTo = Math.max(readTo, f); got[f % got.length] = f;
   };
   // what has not been asked for for two sweeps no longer is (and the queue: what is asked for and not in, parents first,
   // the coarsest first, then what most asked for)
@@ -380,9 +386,9 @@ export function createPages(renderer, tex) {
     B.mapAsync(GPUMapMode.READ, 0, n * 8).then(() => { try { took(new Uint32Array(B.getMappedRange(0, n * 8)), f); } finally { B.unmap(); } }).catch(() => {}).finally(() => { busyReads.delete(B); spare.push(B); });
   };
   // (still out, for the world complete: src/core/settle.js): pages asked for and not in, pages fading in, the bias being
-  // chosen, and until a whole sweep has been read since anything changed what is asked for (the camera moved, the
-  // bias): until then a pixel may not have asked yet
-  source('pages', () => queue.length + fading.length + (pick ? 1 : 0) + (readTo < quietFrom + SPAN ? 1 : 0));
+  // chosen, and until a whole sweep has been read, every frame of it, since anything changed what is asked for (the
+  // camera moved, the bias, the relief's heights): until then a pixel may not have asked yet
+  source('pages', () => queue.length + fading.length + (pick ? 1 : 0) + (sweptSince(quietFrom) ? 0 : 1));
 
   return (LAND = {
     /** Its passes compiled (a promise), before they first run. */
@@ -446,7 +452,7 @@ export function createPages(renderer, tex) {
       if (frame % 8 === 0) forget();
       const still = moved < 1e-4 && swung < 1e-5;
       if (!pick && refs.size) {
-        const over = want.size > SLOTS * OVER && frame - pickedAt > SPAN, settled = still && readTo >= quietFrom + SPAN && judged < quietFrom && bias > 0;
+        const over = sweptSince(-1) && want.size > SLOTS * OVER && frame - pickedAt > SPAN, settled = still && sweptSince(quietFrom) && judged < quietFrom && bias > 0;   // (chosen only from a whole sweep's asks)
         if (over || settled) { pick = { lo: 0, hi: STEPS, still: settled }; if (settled) judged = quietFrom; }   // (chosen while the camera moved: chosen again once it stands)
       }
       choose();
