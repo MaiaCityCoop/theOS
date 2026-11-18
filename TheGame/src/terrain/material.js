@@ -121,7 +121,7 @@ export function laid(tex, p, s, D, X) {
     If(id.greaterThanEqual(CARPET).and(carpeted.equal(0)), () => { grass(M); carpeted.assign(1); });
     If(sw.greaterThan(0).and(id.lessThan(999)), () => {
       const L = layerOf(id), own = id.equal(SLOPES), first = under.lessThanEqual(0).and(own.not());
-      const t = own.select(sw, sw.div(under.add(sw)).mul(first.select(float(1), L.fade(D)))).toVar();
+      const t = own.select(sw, sw.div(under.add(sw)).mul(first.select(float(1), L.fade(D, s)))).toVar();
       under.addAssign(own.select(float(0), sw));
       If(t.greaterThan(0.003), () => blend(M, groundRead(tex, L.material, p, s, L.tile), t));
     });

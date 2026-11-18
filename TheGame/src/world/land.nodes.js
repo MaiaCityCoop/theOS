@@ -73,11 +73,13 @@ export const nearLake = (p, margin = 40) => {
 /** 1 in a lake, 0 elsewhere (its water stands still: src/terrain/water.js) */
 export const lakeAt = Fn(([p]) => inLake(p, riverRaw(p).x));
 /** (signed distance from the channel's middle, half-width, which bank: > 0 a bend's outside, the bend) */
+/** A path's width before it wanders, metres: its least (src/terrain/layers.js lets its ground go by it). */
+export const PATH_W = 4.5;
 export const riverInfo = Fn(([p]) => {
   const R = riverRaw(p).toVar(), gl = max(length(R.yz), 2e-4), t = vec2(R.z.negate(), R.y).div(gl);
   const A = riverRaw(p.add(t.mul(20))), Bk = riverRaw(p.sub(t.mul(20)));
   const dt0 = atan(A.z, A.y).sub(atan(Bk.z, Bk.y)), dt = atan(sin(dt0), cos(dt0)), bend = clamp(dt.div(40).mul(BEND), -1, 1);
-  const w = float(4.5).add(smoothstep(0.25, 0.75, vnoise(p.mul(1 / 90), uint(42))).mul(3.5)).add(abs(bend).mul(7)).mul(vnoise(p.mul(1 / 14), uint(43)).mul(0.28).add(0.86));
+  const w = float(PATH_W).add(smoothstep(0.25, 0.75, vnoise(p.mul(1 / 90), uint(42))).mul(3.5)).add(abs(bend).mul(7)).mul(vnoise(p.mul(1 / 14), uint(43)).mul(0.28).add(0.86));
   // (inside a lake: the channel's middle all over. Its numbers held first: a choice between two values that both
   // work them out would write the river out twice over)
   const W = w.toVar(), Bd = bend.toVar(), sd = R.x.div(gl).sub(W.mul(0.25).mul(Bd)).toVar(), out = vec4(sd, W, Bd.mul(sd.greaterThanEqual(0).select(1, -1)), Bd).toVar();

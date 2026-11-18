@@ -34,7 +34,7 @@ import { TRUTH, pxAt, dialPxAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { endOf } from '../scatter/grass.js';
 import { RELIEF, PSTEPS, reliefShares, reliefOverSnow } from './relief.js';
-import { layerTables, layerWords, layersFrom } from './layers.js';
+import { layerTables, layerWords, layersFrom, MAPN } from './layers.js';
 import { laid, slopeAt, groundRead, cavityOf } from './material.js';
 import { wear } from './decals.js';
 import { steps, colours } from '../materials/bake.js';
@@ -45,7 +45,7 @@ const S0 = 1 / 512, LEVELS = 17, TOP = LEVELS - 1, K = 128;   // metres a texel 
 // (?truth: a block of 4 × 4 asks from all of its pixels every frame, so a sweep is one frame: the truth's slow frames,
 // each at another of its 32 places of a pixel, would otherwise find a page now and then for half an hour, and it would
 // never settle)
-const ANISO = 4, FADE = 10, SWEEP = TRUTH ? 4 : 8, TAKES = TRUTH ? 16 : 4, BATCH = 16, MAPN = 8;   // the filter's steps along a slope; frames a page fades in over; a block of SWEEP × SWEEP pixels asks once a frame, the finest of TAKES of them; pages laid at once; texels between the layer map's points
+const ANISO = 4, FADE = 10, SWEEP = TRUTH ? 4 : 8, TAKES = TRUTH ? 16 : 4, BATCH = 16;   // the filter's steps along a slope; frames a page fades in over; a block of SWEEP × SWEEP pixels asks once a frame, the finest of TAKES of them; pages laid at once
 const SPAN = (SWEEP * SWEEP) / TAKES;   // frames a sweep takes: every pixel of a block has asked once
 const G0 = SLOT / MAPN + 2, G1 = SLOT / 2 / MAPN + 2, POINTS = G0 * G0 + G1 * G1;   // the layer map's points a page has a side, for its first mip and its second; all of them
 const FITS = 0.9, OVER = 0.96, STEPS = 10;   // the share of the slots the pages asked for may take at the bias chosen; past this share it is chosen again; the bias's quarter levels, at most
