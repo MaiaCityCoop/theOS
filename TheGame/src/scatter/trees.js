@@ -3,8 +3,8 @@
 // plant at most in a cell. A tier per level of detail, each drawn only in the band of distances where a plant of it is
 // the size on screen its kind asks (assets/kinds.js), packed by a compute pass, so only the plants that stand are
 // drawn (tier.js). Every level is a first share of one build of the plant by the crowd kit (assets/kit/crowd.js, intents
-// 0033 and 0038), and the one rule moves each vertex by its size on screen, smoothly: a crowd's parts go one by one and
-// those that stay grow, the wood thins, its leaves' chunks grow in as crossed planes where their sprigs were (the
+// 0033 and 0038), and the one rule moves each vertex by its size on screen, smoothly: a crowd's parts go one by one,
+// each at its true size, the wood thins, its leaves' chunks grow in as crossed planes where their sprigs were (the
 // clumps). Its levels are only where its parts lie in the heap: two levels at the size where they meet draw the same.
 // Smaller still it is its impostor (src/detail/impostor.js): one quad, baked on the GPU from its finest level.
 //
@@ -39,7 +39,7 @@
 //   - where it has sunk, the land wears its stand's colour (the stand's `cover`: src/terrain/material.js), as thick as
 //     the stand grows there: a forest, and its undergrowth, to the horizon.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, instanceIndex, screenCoordinate, If, Discard, abs, max, min, mix, smoothstep, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, attribute, positionGeometry, vertexIndex, instanceIndex, screenCoordinate, If, Discard, abs, max, mix, smoothstep, pow, normalize, length, floor, cos, sin, cross, clamp, log, log2, exp2, step, fract, unpackHalf2x16, hash, sqrt } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { rnd, camDist, heightAt } from '../world/land.nodes.js';
 import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf } from './rule.js';
@@ -49,7 +49,7 @@ import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { CLEARINGS } from '../../world/places.js';
 import { recipe, recipes, versionOf } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
-import { kindOf, sizeOf, most, baseOf } from '../../assets/kinds.js';
+import { kindOf, sizeOf, most } from '../../assets/kinds.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { createAtlas, bakers, viewClip, tileClip, impostorRead, clumpRead, octEnc, litIn, atlases } from '../detail/impostor.js';
 import { levelsUnder } from '../detail/atlas.js';
@@ -103,29 +103,20 @@ const meshShare = (T, px, Ks, seed) => T.greaterThan(0).select(clamp(log(ratioOf
 const handing = (share) => fract(ign(screenCoordinate.xy).add(unlit().select(float(0), U.uDither))).lessThan(share);   // (the shadow map's still: it is built over no time)
 /** The one rule (assets/kit/crowd.js, the same in JS there): where a crowd level's vertex lies at px pixels, and whether
     it shows. V: the vertex (position, root, part, Ks: its shape's size at scale 1) with C, what the rule moves it by
-    (crowdOfElems: go in metres; rule: its shape's numbers, four vec4, P0 in metres). A sprig that stays grows about its
-    tip, uniformly, at most SWELL times; a part that goes shrinks to its root over the FADE below where it may go; a
-    chunk's planes grow out of its middle over the FADE below where it may come, while its own sprigs go (crowd.js
-    clumpsOf: each where its own parts were). Each part's own error is its go: it changes at its own place, plant by
-    plant as their sizes differ. */
+    (crowdOfElems: go in metres). Every part keeps its true size: one that goes shrinks to its root over the FADE below
+    where it may go; a chunk's planes grow out of its middle over the FADE below where it may come, while its own sprigs
+    go (crowd.js clumpsOf: each where its own parts were). Each part's own error is its go: it changes at its own place,
+    plant by plant as their sizes differ. */
 function crowdRule(px, V, C) {
-  const [r0, r1, r2] = C.rule, P0 = r0.x, E = r0.y, A = r2.z, SWELL = r2.w, r = (e) => ratioOf(e, px, V.Ks);
-  const share = P0.greaterThan(0).select(min(float(1), pow(r(P0), A)), float(1));   // (P0 0: a crowd that never thins)
-  // the share of the cards' area that share is (the largest come first): straight between its classes' bounds
-  const seg = (s0, a0, s1, a1) => a0.add(a1.sub(a0).mul(clamp(share.sub(s0).div(max(s1.sub(s0), 1e-6)), 0, 1)));
-  const area = share.lessThanEqual(r1.x).select(seg(float(0), float(0), r1.x, r1.y), share.lessThanEqual(r1.z).select(seg(r1.x, r1.y, r1.z, r1.w), share.lessThanEqual(r2.x).select(seg(r1.z, r1.w, r2.x, r2.y), seg(r2.x, r2.y, float(1), float(1)))));
-  const k = min(SWELL, pow(max(area, 1e-9), E.negate()));
+  const r = (e) => ratioOf(e, px, V.Ks);
   // (how far under where it may go or come a part is, on the FADE: 0 at its switch, 1 a FADE under it)
   const under = clamp(log(r(C.go).max(1e-9)).negate().div(FADE), 0, 1), g = C.go.greaterThan(0).select(smooth01(float(1).sub(under)), float(1));
   const pos = V.position.toVar(), shown = float(1).greaterThan(0).toVar();
-  If(V.part.greaterThan(0.5).and(V.part.lessThan(1.5)), () => {   // (a card: enlarged about its tip, shrinking to its root as it goes)
-    const at = (p) => C.tip.add(p.sub(C.tip).mul(k));
-    pos.assign(mix(at(V.root), at(V.position), g)); shown.assign(g.greaterThan(0));
-  }).ElseIf(V.part.greaterThan(1.5), () => {   // (a chunk's plane: under where it may come, grown out of its chunk's middle over the FADE)
+  If(V.part.greaterThan(1.5), () => {   // (a chunk's plane: under where it may come, grown out of its chunk's middle over the FADE)
     const c = smooth01(under);
     pos.assign(mix(C.tip, V.position, c)); shown.assign(c.greaterThan(0));
-  }).Else(() => {   // (the wood: a thin piece shrinks to its foot; the thick stays till the impostor takes it)
-    pos.assign(mix(V.root, V.position, g)); shown.assign(C.go.lessThanEqual(0).or(g.greaterThan(0)));
+  }).Else(() => {   // (a card, a piece of wood: shrinking to its root as it goes; what never goes by itself stays till the impostor takes it)
+    pos.assign(mix(V.root, V.position, g)); shown.assign(g.greaterThan(0));
   });
   return { pos, shown };
 }
@@ -157,7 +148,7 @@ function plantIn(c, G, band, all, seen, found) {
   const range = all ? length(pos.sub(band.at ?? U.uCam.xz)) : dist;   // the shadow's stand-in: metres round the camera, whatever the lens (what is solid: round where it is asked for, band.at)
   const there = range.lessThan(band.far).and(range.greaterThanEqual(band.near));
   If(seen ? there.and(inView(pos, seen.r, seen.high)) : there, () => {   // (seen.r: a uniform, its level's)   // (and in the eye's view: not the shadow's stand-in, whose shade may fall into it)
-    const R = placeIn(c, L, G.M, pos), I = R.I, d = abs(I.x), w = I.y;
+    const R = placeIn(c, L, G.M, pos), I = R.I, d = abs(I.x), w = I.y, BASES = (G.bases ||= uniformArray(G.kinds.flatMap((Kd) => Kd.bases), 'float'));   // (each shape's base, a share of its height, in the group's order of shapes: offsets)
     const which = float(0).toVar(), h = float(1).toVar(), across = float(1).toVar(), base = float(0).toVar(), hit = float(0).toVar();
     // the kind's own: how large this one is, and which of its shapes (the rule's: rule.js grownIn, as the growth map
     // reckons its crown)
@@ -165,7 +156,7 @@ function plantIn(c, G, band, all, seen, found) {
       const T = grownIn(c, L, Kd.e, pos);
       h.assign(T.h); which.assign(T.shape.add(Kd.offset));
       across.assign(h.mul(Kd.wide));   // (its size on screen by what its kind measures it by, src/detail sizeOf: a bush is low and wide, its largest side counts. `wide`: that to its height)
-      base.assign(h.mul(Kd.base));   // (how far round its middle what is solid of it stands on the ground: a trunk; createStands)
+      base.assign(h.mul(BASES.element(int(which))));   // (how far round its middle what of it covers the ground reaches, its own shape's: assets/kinds.js baseOf)
       hit.assign(1);
     }); });
     // Whether it is of the tier's level (the size on screen the level asks, and a little either side: its hand-over,
@@ -177,7 +168,7 @@ function plantIn(c, G, band, all, seen, found) {
         A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(FOOT), across));   // (where it stands, its foot, its size in metres)
         B.assign(vec4(rnd(cx, cy, h0(305)).mul(6.2831853), which, rnd(cx, cy, h0(306)).mul(6.2831853), rnd(cx, cy, h0(307)).mul(0.999 * 6.2831853)));   // (its turn, its kind, its sway's phase, its seed: its shade, as it always was)
       });
-      // (and none stands on a way: none whose base, what of it a walker meets at its foot, reaches onto it. Its crown
+      // (and none stands on a way: none whose base, what of it covers the ground (its own shape's), reaches onto it. Its crown
       // may reach over one. src/world/ways.js; where none are laid the shader is the one it was)
       if (way) If(way.lessThan(0.5), stands); else stands();
     });
@@ -566,7 +557,7 @@ export function groupsOf(rows) {
     // the sizes a plant of it can have: its youngest and its oldest (by its growth: a sapling's, its first stages'), or its scale's
     const H = a.size.height, GR = a.growth, wide = sizeOf(a) / H, n = e.shapes[1], last = GR?.stages.filter((S) => S.offset < n).at(-1);
     const lo = (GR ? GR.stages[0].hFrom * P.scale[0] : H * P.scale[0]) * wide, hi = (GR ? Math.max(...a.heights.slice(0, n)) * (last.hTo / last.h) * P.scale[1] : H * P.scale[1]) * wide;
-    by.get(key).kinds.push({ row, asset: a, e, shapes: n, wide, base: Math.max(...Array.from({ length: n }, (_, i) => baseShare(a, i))), age: e.ages, ageScale: grovesOf(e.biome, L).clumps * 2.5, lo, hi, round: (a.size.length / 2) * P.scale[1] * (hi / (H * P.scale[1] * wide)) });
+    by.get(key).kinds.push({ row, asset: a, e, shapes: n, wide, bases: Array.from({ length: n }, (_, i) => baseShare(a, i)), age: e.ages, ageScale: grovesOf(e.biome, L).clumps * 2.5, lo, hi, round: (a.size.length / 2) * P.scale[1] * (hi / (H * P.scale[1] * wide)) });
   }
   return [...by.values()].map((G) => offsets(cutOf({ ...G, kinds: G.kinds.sort((x, y) => x.e.i - y.e.i) })));
 }
