@@ -11,3 +11,28 @@ export const ERROR_PX = 1;
     reads the pixels drawn as they are (measure.js drawnAt). (Once the measure counts the pixels drawn, measure.js DRAWN,
     this is 1.) */
 export const BUDGET_DRAWN = 4 / 3;
+
+// ---- a surface's levels (stage 8): what of its cluster hierarchy (assets/kit/clusters.js) is held where ----
+// What is drawn of a surface is chosen cluster by cluster, by the cut's rule (src/scatter/cut.js): a cluster where its own
+// error is at most the error its size on screen allows (ERROR_PX over its pixels drawn) and its parent's is over it. The
+// levels only say which clusters a thing of a size needs at hand, so the same rule can be run on as few as it takes:
+//   - level 0, a thing PX_CUT pixels drawn or larger: every cluster it may need, tested one by one in a compute pass
+//     (each by its own distance, so a boulder at the eye is fine at its near end and coarse at its far end);
+//   - level l from 1 on, smaller: the clusters any size between half its largest and its largest may need (errors
+//     `surfaceBand(l)`), each tested by the thing's own size in the vertex stage.
+// Two levels meet where each holds the whole cut that size asks for, the same clusters turned as far into their parents:
+// a thing passed from one to the next shows no change. No number here is a look: they share the work out.
+/** How many times a group's error at least is its children's (assets/kit/clusters.js): a cluster turns into its parent
+    while the parent's error on screen falls from BAND times the most allowed to the most allowed, and has done so before
+    the parent is drawn. */
+export const BAND = 1.5;
+/** The size on screen, pixels drawn, from which a thing's clusters are tested one by one. */
+export const PX_CUT = 256;
+/** How many levels a surface has: the last is drawn down to under two pixels of the measure. */
+export const SURFACE_LEVELS = 9;
+/** How much further than its own coarsest a level reaches (a thing packed a moment late is still all there). */
+const REACHES = 1.5;
+/** The errors (of the thing's largest side) level l's clusters are chosen between: [lo, hi]. */
+export const surfaceBand = (l) => { const lo = l ? (ERROR_PX / PX_CUT) * 2 ** (l - 1) : 0, top = (ERROR_PX / PX_CUT) * 2 ** l; return [lo, l === SURFACE_LEVELS - 1 ? Infinity : top * REACHES]; };
+/** The size on screen (pixels of the measure) level l is drawn down to: where the next takes over. */
+export const surfacePx = (l) => (l + 1 < SURFACE_LEVELS ? ERROR_PX / (surfaceBand(l + 1)[0] * BUDGET_DRAWN) : 0);

@@ -13,6 +13,7 @@ import RIG from '../../camera/rig.js';
 
 const SKY = { hour: 11, wind: 0, clouds: 0 };
 export const TENT = [-1262.6, 631], PINES = [-1383.6, 634.1];   // the bell tent; the pine stand, where the bench stands in it
+export const FIRE = [-1263.3, 624.4], BOULDER = [-1335.42, 550.17];   // the fire pit before the tent; a boulder of 3.3 m on an outcrop south-west of it (src/world/rocksolid.js)
 const TO_TENT = BENCH[0].yaw, INTO_PINES = BENCH[4].yaw;   // the headings the bench looks at them by: the tent from the meadow, the stand from the tent's side
 const slug = (s) => s.toLowerCase().replace(/(\d) (k?m)\b/g, '$1$2').replace(/[^a-z0-9.]+/g, '-');
 const from = (name, [x, z], yaw, dist) => ({ name, rig: { x, z, yaw, dist } });
@@ -26,6 +27,8 @@ export const VIEWS = [
   ...METRES.map((d) => from(`pines-${d}m`, PINES, INTO_PINES, d)),
   // the land from 2.5 and 12 km
   from('far-2.5km', TENT, TO_TENT, 2500), from('far-12km', TENT, TO_TENT, 12000),
+  // the solids up close and from 30 m (stage 8: a surface's cluster hierarchy)
+  from('firepit-3m', FIRE, TO_TENT, 3), from('boulder-6m', BOULDER, TO_TENT, 6), from('boulder-30m', BOULDER, TO_TENT, 30),
 ].map((v) => ({ ...SKY, ...v }));
 
 // The paths: the camera moving as a player moves it, at 11:00 in the game's own weather, each played once by the film
