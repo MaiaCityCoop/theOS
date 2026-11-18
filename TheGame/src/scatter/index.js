@@ -55,7 +55,7 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
       const view = camera ? setView(camera) : '';   // the eye's view, for what is tested against it one by one (view.js)
       flushThings();   // (what was done to single things since the last frame, to the GPU before anything packs: src/world/things.js)
       const v = (u) => u.value.toArray?.().join(',') ?? u.value, world = `${ground.version}|${lod}|${v(U.uSand)}|${v(U.uStage)}|${v(U.uStageGround)}|${weatherKey()}|${waysVersion()}|${thingsVersion()}`;   // what the packing reads besides the cells and the camera
-      for (const f of before) f(cx, cz, `${ground.version}|${v(U.uSand)}|${v(U.uStage)}`);   // (what the larger things leave for the smaller, before any packs: growth.js)
+      for (const f of before) f(cx, cz, `${v(U.uSand)}|${v(U.uStage)}`);   // (what the larger things leave for the smaller, before any packs: growth.js; worked out again whole only when the sandbox or the stage moves)
       for (const t of tiers) t.run(renderer, world, cx, h0 + dy, cz, view);
       for (const f of solid) f(renderer);
     },
