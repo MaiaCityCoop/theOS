@@ -9,9 +9,10 @@
 // vertex stage runs only for what stands, and reads it ready-made. Without WebGPU (the WebGL 2 fallback) the same
 // function runs in the vertex stage, per vertex, as before.
 import * as THREE from 'three/webgpu';
-import { Fn, If, uint, int, ivec2, vec4, uniform, uniformArray, instancedArray, storage, atomicAdd, atomicStore, atomicLoad, min, instanceIndex, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
+import { Fn, If, Loop, uint, int, ivec2, vec4, uniform, uniformArray, instancedArray, storage, atomicAdd, atomicStore, atomicLoad, min, instanceIndex, localId, workgroupArray, workgroupBarrier, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { boxIn } from '../core/frustum.js';
-import { gpuStorage, more } from '../core/gpu.js';
+import { gpuStorage, more, hasFeature } from '../core/gpu.js';
+import { cullOf } from '../core/occlusion.js';
 import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
 import { TRUTH } from '../detail/measure.js';
@@ -47,8 +48,11 @@ export class Tier {
       spans(i, j) says which runs of the list patch (i, j) holds, [[start, count], …] (each count at most P × P; none:
       nothing stands there). Each run is a patch of its own to the packing, the nearest first where there are more than
       it can take; live is then also told which run a cell is of and which of its places ({ pid, b, span: (start,
-      count) }). */
-  constructor(scene, geometry, material, { cell, P, near = 0, far, order = 0, live = null, gpu = false, cap = 0, slots = 0, cull = 0, fixed = 0, spans = null }) {
+      count) }).
+      bounds(A, B, k): where what it packs is drawn by the eye, it is culled (src/core/occlusion.js): the world box of a
+      thing packed into bucket k ({ c, h }: its middle and half its size, its sway and growth in it), from its first two
+      rows. */
+  constructor(scene, geometry, material, { cell, P, near = 0, far, order = 0, live = null, gpu = false, cap = 0, slots = 0, cull = 0, fixed = 0, spans = null, bounds = null }) {
     ALL.add(this);
     this.cull = cull; this.fixed = fixed; this.P = P; this.S = cell * P; this.near = Math.max(0, near); this.far = far; this.n = 0; this.over = false;
     this.list = Array.from({ length: MAXP }, () => new THREE.Vector2());
@@ -70,34 +74,54 @@ export class Tier {
       // most eight, src/world/things.js reads one more)
       const buf = gpuStorage('vec4', Math.max(1, total * slots), null, true), data = buf.node, count = instancedArray(K, 'uint').toAtomic(), S = uint(slots);
       more('tiers: what stands, packed', buf.bytes, buf.lean ? 0 : buf.bytes);
-      const args = new THREE.IndirectStorageBufferAttribute(new Uint32Array(geos.flatMap((g) => [g.index.count, 0, 0, 0, 0])), 5), argsNode = storage(args, 'uint', 5 * K);   // one buffer of draw arguments, five a bucket (a shader binds few buffers)
+      // (one buffer of draw arguments, five a bucket: a shader binds few buffers. Culled, three sets of them: all it
+      // packed, what the eye sees, what pass two found: src/core/occlusion.js)
+      const culled = !!bounds && hasFeature('indirect-first-instance'), sets = culled ? 3 : 1;
+      const args = new THREE.IndirectStorageBufferAttribute(new Uint32Array(Array.from({ length: sets }, () => geos.flatMap((g) => [g.index.count, 0, 0, 0, 0])).flat()), 5), argsNode = storage(args, 'uint', 5 * K);
       this.cand = uniform(0, 'uint');
+      // what a workgroup packs, by one atomic a bucket it puts anything into (not one a thing): its 64 count theirs in
+      // shared memory, then one of them asks each bucket for room for all of them at once
+      const WG = 64, wgN = workgroupArray('uint', K).toAtomic(), wgAt = workgroupArray('uint', K);
+      const each = (lid, fn) => { if (K <= WG) If(lid.lessThan(uint(K)), () => fn(lid)); else Loop({ start: lid, end: uint(K), type: 'uint', condition: '<', update: WG }, ({ i }) => fn(i)); };
       this.passes = [
         Fn(() => { for (let k = 0; k < K; k++) atomicStore(count.element(k), uint(0)); })().compute(1),
         Fn(() => {
-          If(instanceIndex.lessThan(this.cand), () => {
-            const Q = partOf(instanceIndex), L = live(Q.cell, Q);
-            // (into its bucket; and where live says `also`, into that one too: a thing handing over from one draw to
-            // another, drawn by both while the vertex stages say which shows: src/scatter/drawer.js, the impostors)
-            const put = (b) => {
-              const i = atomicAdd(count.element(b), uint(1)).toVar();
-              if (own) If(i.lessThan(uint(capOff.element(b).x)), () => { const at = uint(capOff.element(b).y).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
-              else If(i.lessThan(uCap), () => { const at = b.mul(uCap).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
-            };
-            If(L.alive, () => {
-              if (L.also) { If(L.bucket.greaterThanEqual(0), () => { put(uint(L.bucket)); }); If(L.also.greaterThanEqual(0), () => { put(uint(L.also)); }); }
-              else put(K > 1 ? uint(L.bucket) : uint(0));
-            });
-          });
+          const lid = localId.x;
+          each(lid, (b) => { atomicStore(wgN.element(b), uint(0)); });
+          workgroupBarrier();
+          // (every invocation works its cell out, the last workgroup's past the candidates too: none returns before the
+          // barriers. A cell past them packs nothing)
+          const Q = partOf(instanceIndex), L = live(Q.cell, Q), on = instanceIndex.lessThan(this.cand).and(L.alive);
+          // (into its bucket; and where live says `also`, into that one too: a thing handing over from one draw to
+          // another, drawn by both while the vertex stages say which shows: src/scatter/drawer.js, the impostors)
+          const b1 = int(-1).toVar(), b2 = int(-1).toVar(), i1 = uint(0).toVar(), i2 = uint(0).toVar();
+          If(on, () => { if (L.also) { b1.assign(int(L.bucket)); b2.assign(int(L.also)); } else b1.assign(K > 1 ? int(L.bucket) : int(0)); });
+          If(b1.greaterThanEqual(0), () => { i1.assign(atomicAdd(wgN.element(uint(b1)), uint(1))); });
+          if (L.also) If(b2.greaterThanEqual(0), () => { i2.assign(atomicAdd(wgN.element(uint(b2)), uint(1))); });
+          workgroupBarrier();
+          each(lid, (b) => { const c = atomicLoad(wgN.element(b)); If(c.greaterThan(uint(0)), () => { wgAt.element(b).assign(atomicAdd(count.element(b), c)); }); });
+          workgroupBarrier();
+          const put = (b, j) => {
+            const i = wgAt.element(b).add(j).toVar();
+            if (own) If(i.lessThan(uint(capOff.element(b).x)), () => { const at = uint(capOff.element(b).y).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
+            else If(i.lessThan(uCap), () => { const at = b.mul(uCap).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
+          };
+          If(b1.greaterThanEqual(0), () => { put(uint(b1), i1); });
+          if (L.also) If(b2.greaterThanEqual(0), () => { put(uint(b2), i2); });
         })().compute(MAXP * P * P),
         Fn(() => { for (let k = 0; k < K; k++) argsNode.element(k * 5 + 1).assign(min(atomicLoad(count.element(k)), own ? uint(caps[k]) : uCap)); })().compute(1),
       ];
       this.data = data; this.slots = slots; this.args = args; this.caps = caps; this.offs = offs;
+      // (culled: the eye's passes read a thing through what the culling kept, its pass two's after the rest)
+      const C = culled ? cullOf(this, { K, caps, offs, total, S: slots, data, args, box: bounds }) : null, at = C ? C.entry : (slot) => slot.add(instanceIndex);
+      if (C) this.passes.push(C.prep);
       // (readAt: read from a place in the buffer a material is told per mesh, mesh.userData.slot: one material for every bucket)
-      this.meshes = geos.map((g, k) => { g.setIndirect(args, k * 20); g.instanceCount = caps[k]; const m = new THREE.Mesh(g, material({ read: (j) => data.element(uint(offs[k]).add(instanceIndex).mul(S).add(uint(j))), readAt: (j, slot) => data.element(slot.add(instanceIndex).mul(S).add(uint(j))) }, k)); m.userData.slot = offs[k]; return m; });
+      this.meshes = geos.map((g, k) => { g.setIndirect(args, k * 20); g.instanceCount = caps[k]; const m = new THREE.Mesh(g, material({ read: (j) => data.element(at(uint(offs[k])).mul(S).add(uint(j))), readAt: (j, slot) => data.element(at(slot).mul(S).add(uint(j))) }, k)); m.userData.slot = offs[k]; return m; });
+      this.culler = C;
     } else this.meshes = geos.map((g, k) => new THREE.Mesh(g, material(cellOf(instanceIndex), k)));
     this.mesh = this.meshes[0];
     for (const m of this.meshes) { m.frustumCulled = false; m.renderOrder = order; scene.add(m); }
+    this.culler?.adopt(this.meshes);
   }
   /** On WebGPU, after select: pack what stands in this frame's cells. */
   /** On WebGPU, after select: pack what stands in this frame's cells; again only when something it reads has changed: the
