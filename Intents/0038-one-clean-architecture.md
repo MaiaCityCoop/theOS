@@ -167,6 +167,7 @@ numbers are written below.
 | 7 | Lines go down | `git diff --stat main` at the end of each stage. The total falls stage after stage |
 
 **Out of scope:** new assets, the body's look (0036, waiting on Samuel's pick), the Bible (0037), and the story pipeline.
+Characters and animals (anything on a skeleton): later, on Samuel's word (2026-11-18).
 
 ## Where we left off (2026-11-18): read this first to take over
 
@@ -191,6 +192,7 @@ numbers are written below.
 | --- | --- | --- | --- |
 | Occlusion culling | `aven/0038-draw-occlusion`, PR #68 | CI green | Views from above draw only 2–8 % of main's things: prove with gate stills at `bench-river-bend-26m`, `bench-town-40m` and `bench-pine-forest-90m` that nothing visible is missing (FLIP within noise) |
 | 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
+| 9: one light | `aven/0038-stage9-light`, PR #72 | Ready for review; all seven steps in (see Stage 9 under Build) | Time it on the Mac mini's unshared GPU (`gate.js bench` prints each light pass alone), and run `paths` and the stress world there; the views that never settle (6b's settling, fixed in 6c) were not measured |
 
 **Not started:**
 - **6c:** relief, meaning displacement near the eye, parallax further out, skirts for rocks, path decals. 6b's pages
@@ -199,8 +201,6 @@ numbers are written below.
   grazing ground (at eye level the far bare patches go too near).
 - **7:** the one placement rule and the five layers. It needs Samuel's photos of the real site to choose the species.
 - **8:** cluster hierarchy for rocks, then the tent and fire pit (absorbs `aven/0033-solids-wip`).
-- **9:** one light: leaf shadows, Bend's screen-space shadows, the canopy map, GTAO, transmission, Hillaire's sky,
-  froxel fog, sky probes. It is the biggest step towards the look target.
 
 **Open risks:**
 - **Safari:** mobile Safari loads, but its first start is slow (a later task, under Todo). Desktop Safari is still
