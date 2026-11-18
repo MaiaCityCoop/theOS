@@ -38,7 +38,7 @@ over the `BAND` under its switch, never above it: what is drawn is never off by 
 | nothing (a thing gone) | how far it stands off what stays: a plant its height over the land (which wears its stand's colour or its floor), a rock or a made thing all of it (`GONE`); it is whole down to there and sinks away over the `BAND` under it | `assets/kit/plant.js` `goneOf`, `error.js` |
 
 How large the far ends' pictures are follows from those errors: `atlas.js` `atlasesOf` takes the share of memory the
-atlases are given (`src/core/classes.js` `SHARE_MB`), the far ends the stands bake (`src/scatter/rule.js` `farLayers`)
+atlases are given (`src/core/classes.js` `SHARE_MB`), the far ends the stands bake (`src/scatter/entries.js` `farLayers`)
 and the limits every device grants (`src/core/gpu.js` `PORTABLE`), and chooses the views and their texels where the
 impostor's error is least; a clump's plane is the least picture an atlas keeps. `impostor.js` `atlases()` holds the
 numbers for the page, and hands them to the crowd kit in the workers with each level's band.

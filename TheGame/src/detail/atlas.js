@@ -79,7 +79,7 @@ export const atlasBytes = (side, layers) => side * side * layers * TEXEL * MIPS;
 export const levelsUnder = (cell) => floor(Math.log2(cell / LEAST) + 1e-9);
 
 /** The plants' far ends' atlases, sized from what they are given and what every device grants:
-      layers   how many far ends the stands bake, a layer of each atlas each (src/scatter/rule.js farLayers)
+      layers   how many far ends the stands bake, a layer of each atlas each (src/scatter/entries.js farLayers)
       bytes    the share they are given, their views and their clumps together (src/core/classes.js SHARE_MB)
       limits   the limits every WebGPU device grants (src/core/gpu.js PORTABLE): what is baked is kept by its key and
                drawn on any device, so its size is the same on every one

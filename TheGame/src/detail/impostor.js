@@ -32,10 +32,10 @@ import { SHARE_MB } from '../core/classes.js';
 import { FNV, fnv } from '../core/hash.js';
 import { pxAt } from './measure.js';
 import { atlasesOf, atlasBytes, levelsUnder, SS, LEAST } from './atlas.js';
-import { farLayers } from '../scatter/rule.js';
+import { farLayers } from '../scatter/entries.js';
 
 /** The numbers the plants' far ends' atlases are sized by: { VIEWS, CELL, TILE, TILES, CLUMPS, key } (src/detail/atlas.js
-    atlasesOf), from the far ends the stands bake (src/scatter/rule.js farLayers), the share of memory they are given
+    atlasesOf), from the far ends the stands bake (src/scatter/entries.js farLayers), the share of memory they are given
     (src/core/classes.js SHARE_MB) and the limits every device grants (src/core/gpu.js PORTABLE): the same on every
     device and at every start of the same world. Handed to the crowd kit wherever it builds a far end (in the recipes'
     workers with each level's band: src/scatter/trees.js); a made thing's card takes the same views. */
