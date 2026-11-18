@@ -72,7 +72,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
     render(scene, camera) {
       const t = targetsNow(), was = T.turns[1 - turn], alpha = renderer.getClearAlpha(), clearDepth = renderer.autoClearDepth;
       temporal.begin(camera, size.x, size.y);
-      const culls = occlusion.early(renderer, camera, size.x, size.y);   // (pass one, against the last frame's depth)
+      const culls = occlusion.early(renderer, camera, size.x, size.y, scene);   // (pass one, against the last frame's depth)
       // the prepass: nothing moved where nothing was drawn (the sky: the upscale takes the camera's motion there)
       renderer.getClearColor(clear); renderer.setClearColor(0x000000, 0);
       renderer.setRenderObjectFunction(pre); renderer.setRenderTarget(t.pre); renderer.render(scene, camera);

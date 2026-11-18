@@ -117,6 +117,8 @@ const masksOf = (lid, flags) => {
 
 // ---- the culled tiers, and what each frame does with them (src/core/screen.js) ----
 const TIERS = new Set();
+/** Whether `o` is drawn in `scene`: it and all it stands in shown, up to the scene. */
+const inScene = (o, scene) => { for (; o; o = o.parent) { if (!o.visible && o.isMesh !== true) return false; if (o === scene) return true; } return false; };
 let lateScene = null, built = false;
 const proxies = [];
 
@@ -265,12 +267,13 @@ export const occlusion = {
   /** What is culled: 2 (all that is hidden), 1 (only what is outside the view), 0 (nothing: a measure's switch). */
   get mode() { return U.mode.value; }, set mode(v) { U.mode.value = v; },
   get tiers() { return TIERS; },
-  /** Before the prepass (the camera shifted for this frame): pass one of every culled tier that packed anything. */
-  early(renderer, camera, w, h) {
+  /** Before the prepass of `scene` (the camera shifted for this frame): pass one of every culled tier that packed
+      anything and is drawn in it (a stage's growth may stand outside it, hidden: src/boot.js). */
+  early(renderer, camera, w, h, scene) {
     if (!TIERS.size) return false;
     U.vp.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     U.ok.value = built && U.size.value.x === w && U.size.value.y === h ? 1 : 0;
-    const list = []; for (const T of TIERS) if (T.n > 0) { list.push(...T.culler.early); T.culler.use('eye'); }
+    const list = []; for (const T of TIERS) { T.drawn = T.n > 0 && inScene(T.mesh, scene); if (T.drawn) { list.push(...T.culler.early); T.culler.use('eye'); } }
     if (list.length) renderer.compute(list);
     return true;
   },
@@ -288,13 +291,13 @@ export const occlusion = {
   late(renderer, depth, w, h, draw) {
     if (!TIERS.size) return;
     this.build(renderer, depth, w, h);
-    const list = []; for (const T of TIERS) if (T.n > 0) list.push(...T.culler.late);
+    const list = []; for (const T of TIERS) if (T.drawn) list.push(...T.culler.late);
     if (!list.length) return;
     renderer.compute(list);
-    for (const [p, m, T] of proxies) { p.visible = m.visible && T.n > 0; p.renderOrder = m.renderOrder; }
-    for (const T of TIERS) if (T.n > 0) T.culler.use('late');
+    for (const [p, m, T] of proxies) { p.visible = T.drawn && m.visible; p.renderOrder = m.renderOrder; }
+    for (const T of TIERS) if (T.drawn) T.culler.use('late');
     draw(lateScene);
-    for (const T of TIERS) if (T.n > 0) T.culler.use('eye');
+    for (const T of TIERS) if (T.drawn) T.culler.use('eye');
   },
   /** After the eye's passes: every draw as the packing left it, for whatever draws next (the shadow map, a still, a bake). */
   rest() { for (const T of TIERS) T.culler.use('rest'); },
