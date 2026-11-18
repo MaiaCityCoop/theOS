@@ -47,7 +47,7 @@ import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { CLEARINGS } from '../../world/places.js';
 import { recipe, recipes, versionOf } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
-import { kindOf, sizeOf, most } from '../../assets/kinds.js';
+import { kindOf, sizeOf, most, baseOf } from '../../assets/kinds.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { createAtlas, bakers, viewClip, tileClip, impostorRead, impostorViews, clumpRead, octEnc, litIn, LODS } from '../detail/impostor.js';
 import { offScreen, clipOf, MAXP, Tier } from './tier.js';
@@ -61,7 +61,7 @@ import { idOf } from '../world/things.js';
 import { wayAt, waysVersion } from '../world/ways.js';
 import { pxOf, turnOf, seedOf } from './row.js';
 import { CROWD, levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
-import { crowdOf, bandsOf, GRID, GOQ, FOOT } from '../../assets/kit/plant.js';
+import { crowdOf, bandsOf, baseShare, GRID, GOQ, FOOT } from '../../assets/kit/plant.js';
 import { lo16, hi16 } from './unpack.js';
 import { pxKMost, measureVersion } from '../detail/measure.js';
 import { switchPx } from '../detail/error.js';
@@ -152,27 +152,27 @@ function plantIn(c, G, band, all, seen, found) {
   const there = range.lessThan(band.far).and(range.greaterThanEqual(band.near));
   If(seen ? there.and(inView(pos, seen.r, seen.high)) : there, () => {   // (seen.r: a uniform, its level's)   // (and in the eye's view: not the shadow's stand-in, whose shade may fall into it)
     const R = placeIn(c, L, G.M, pos), I = R.I, d = abs(I.x), w = I.y;
-    const which = float(0).toVar(), h = float(1).toVar(), across = float(1).toVar(), out = float(0).toVar(), hit = float(0).toVar();
+    const which = float(0).toVar(), h = float(1).toVar(), across = float(1).toVar(), base = float(0).toVar(), hit = float(0).toVar();
     // the kind's own: how large this one is, and which of its shapes (the rule's: rule.js grownIn, as the growth map
     // reckons its crown)
     kinds.forEach((Kd) => { If(R.k.equal(Kd.e.i), () => {
       const T = grownIn(c, L, Kd.e, pos);
       h.assign(T.h); which.assign(T.shape.add(Kd.offset));
-      out.assign(h.mul(Kd.spread));   // (how far it reaches out from its foot: half its kind's span, at its height)
       across.assign(h.mul(Kd.wide));   // (its size on screen by what its kind measures it by, src/detail sizeOf: a bush is low and wide, its largest side counts. `wide`: that to its height)
+      base.assign(h.mul(Kd.base));   // (how far round its middle what is solid of it stands on the ground: a trunk; createStands)
       hit.assign(1);
     }); });
     // Whether it is of the tier's level (the size on screen the level asks, and a little either side: its hand-over,
     // and as far as the camera may move before the cells are worked out again) the drawer says; what of it shows, its
     // vertices say each frame (plantMaterial). (The shadow's stand-in: every plant in its band)
     If(hit.greaterThan(0.5), () => {
-      const way = wayAt(pos, out.add(0.5));
+      const way = wayAt(pos, base);
       const stands = () => found(uint(which), across, dist, (A, B) => {
         A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(FOOT), across));   // (where it stands, its foot, its size in metres)
         B.assign(vec4(rnd(cx, cy, h0(305)).mul(6.2831853), which, rnd(cx, cy, h0(306)).mul(6.2831853), rnd(cx, cy, h0(307)).mul(0.999 * 6.2831853)));   // (its turn, its kind, its sway's phase, its seed: its shade, as it always was)
       });
-      // (and nothing of it reaches over a way: what moves there, on the ground or over it, meets no plant. src/world/ways.js;
-      // where none are laid the shader is the one it was)
+      // (and none stands on a way: none whose base, what of it a walker meets at its foot, reaches onto it. Its crown
+      // may reach over one. src/world/ways.js; where none are laid the shader is the one it was)
       if (way) If(way.lessThan(0.5), stands); else stands();
     });
   });
@@ -557,7 +557,7 @@ export function groupsOf(rows) {
     // the sizes a plant of it can have: its youngest and its oldest (by its growth: a sapling's, its first stages'), or its scale's
     const H = a.size.height, GR = a.growth, wide = sizeOf(a) / H, n = e.shapes[1], last = GR?.stages.filter((S) => S.offset < n).at(-1);
     const lo = (GR ? GR.stages[0].hFrom * P.scale[0] : H * P.scale[0]) * wide, hi = (GR ? Math.max(...a.heights.slice(0, n)) * (last.hTo / last.h) * P.scale[1] : H * P.scale[1]) * wide;
-    by.get(key).kinds.push({ row, asset: a, e, shapes: n, wide, spread: Math.max(most(a.size.length), most(a.size.width ?? 0)) / (2 * H), age: e.ages, ageScale: grovesOf(e.biome, L).clumps * 2.5, lo, hi, round: (a.size.length / 2) * P.scale[1] * (hi / (H * P.scale[1] * wide)) });
+    by.get(key).kinds.push({ row, asset: a, e, shapes: n, wide, base: Math.max(...Array.from({ length: n }, (_, i) => baseShare(a, i))), age: e.ages, ageScale: grovesOf(e.biome, L).clumps * 2.5, lo, hi, round: (a.size.length / 2) * P.scale[1] * (hi / (H * P.scale[1] * wide)) });
   }
   return [...by.values()].map((G) => offsets(cutOf({ ...G, kinds: G.kinds.sort((x, y) => x.e.i - y.e.i) })));
 }
