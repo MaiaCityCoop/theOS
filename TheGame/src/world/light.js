@@ -19,23 +19,16 @@ import { SCREEN } from './light/screen.js';
 import { skyAt } from './light/canopy.js';
 
 export { snowDepth, snowCover, snowDrift, snowLift, snowLiftAtVertex, SNOW } from './weather/snow.js';
-export { cloudShade, cloudField, cloudLayerShade, CLOUD_H } from './weather/clouds.js';
+export { cloudShade, CLOUD_H } from './weather/clouds.js';
 export { windAt, windDir, windStrength } from './weather/wind.js';
 
 let texelReads = true;
 /** which backend draws (before any material is built): only WebGPU reads the shadow map's own texels in a vertex stage (shadowAtVertex); on the WebGL 2 fallback what is lit per corner takes no cast shadow */
 export const useBackend = (renderer) => { texelReads = !!renderer?.backend?.isWebGPUBackend; };
 
-/** The light's uniforms by their short names. */
-export const LIGHT = {
-  sunDir: U.uSunDir, sun: U.uSun, amb: U.uAmb, hazeCol: U.uHazeCol, haze: U.uHaze, airH: U.uAirH, airScale: U.uAirScale,
-  exposure: U.uExposure, sky: U.uSky,
-};
-
 // air: the far land takes the sky's colour; one height fog for everything, thickest at the ground, thinning upwards
 // (by e every airScale metres), so a line of sight from high up passes through less of it. The weather's fog (its lane) thickens it.
 const airMean = Fn(([h]) => { const k = h.div(max(U.uAirScale, 1)); return k.lessThan(1e-3).select(float(1).sub(k.mul(0.5)), float(1).sub(exp(k.negate())).div(k)); });
-export const haze = Fn(([c, dist]) => mix(U.uHazeCol, c, exp(dist.negate().mul(U.uHaze).mul(airMean(U.uAirH)).mul(lane.fog.mul(40).add(1)))));
 // the air lit by the sun: looking towards it, the haze glows warm (light scattered forward by the air), away from it
 // it keeps the horizon's colour; the more air in the line of sight, the more of it
 /** The air between the eye and w, as its two parts: k, how much of a surface's colour comes through, and col, the air's
@@ -145,10 +138,13 @@ const shadowOf = (w, n, how) => {
   });
   return r;
 };
-export const shadowAt = (w, n = null) => shadowOf(w, n, 'soft');
+/** The share of the sun's light what casts a shadow lets reach w (1: all of it), as sunAt reads it (how: its 'soft',
+    'one', 'vertex' or 'pulled'; n: the normal, for a pixel's). For what reads the shadow alone: the land, which takes its
+    clouds apart; the tools that check the cascades (tools/cascades.js, tools/shadowcheck.mjs). */
+export const shadowAt = (w, how = 'soft', n = null) => SHADOWS[how](w, n);
 /** the same with one sample (the GPU still filters it over 2 x 2 texels): for what is too thin for a soft edge to show (a
     blade of grass), a fraction of the reads */
-export const shadowAtOne = (w, n = null) => shadowOf(w, n, 'one');
+const shadowAtOne = (w, n = null) => shadowOf(w, n, 'one');
 /** What stands on the ground and casts (a person: characters/kit/human.js) is drawn into the atlas pulled towards the
     light by the near cascade's bias, so its shadow starts where it touches the ground: unpulled, the bias would leave
     the ground lit for a hand's breadth round its feet. This is how far, in metres along the light. */
@@ -186,7 +182,7 @@ const vertexFrom = (w, k) => {
   s.assign(mix(beyond, own, A.e));
   return s;
 };
-export const shadowAtVertex = Fn(([w]) => {
+const shadowAtVertex = Fn(([w]) => {
   const r = float(1).toVar();
   if (texelReads) If(U.uShadowOn.greaterThan(0.5), () => { r.assign(vertexFrom(w, 0)); });
   return r;
@@ -197,7 +193,7 @@ export const unlit = () => U.uShadowPass.greaterThan(0.5);
 export const sunDim = () => float(1).sub(lane.dim.mul(0.6));
 
 // ---- the one light (intent 0038, stage 9): every material is lit here, and nowhere else ----
-const SHADOWS = { soft: (w, n) => shadowAt(w, n), one: (w, n) => shadowAtOne(w, n), vertex: (w) => shadowAtVertex(w), pulled: (w) => shadowAtPulled(w) };
+const SHADOWS = { soft: (w, n) => shadowOf(w, n, 'soft'), one: (w, n) => shadowAtOne(w, n), vertex: (w) => shadowAtVertex(w), pulled: (w) => shadowAtPulled(w) };
 /** The share of the sun's light that reaches w (1: all): past the storm, the clouds and what casts a shadow. how: 'soft'
     (a pixel's: the cascades with their penumbra), 'one' (one tap: what is too thin for a soft edge to show, a blade),
     'vertex' (a vertex stage's: a tree's corners), 'pulled' (what is drawn into the map pulled towards the light). */

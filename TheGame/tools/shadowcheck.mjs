@@ -8,8 +8,8 @@
 //             how many texels something was drawn into
 //   floor     a grid of floor points round the eye (41 × 41, 0.75 m apart), each through the near cascade's matrix to
 //             its texel: in shade where the layer holds something nearer the light than it (the CPU's reading)
-//   receiver  the same points through the light's own code on the GPU (src/world/light.js shadowAt, shadowAtOne and
-//             shadowAtVertex, drawn into a small target and read back), with the matrix, the switch and the bias as the
+//   receiver  the same points through the light's own code on the GPU (src/world/light.js shadowAt: soft, one and
+//             vertex, drawn into a small target and read back), with the matrix, the switch and the bias as the
 //             GPU sees them: the GPU's reading
 //   errors    WebGPU's validation errors over two of the game's frames (an error scope), and what the page said
 //   culling   the near layer again with the tiers' culling off (window.__occlusion.mode 0): what only what the eye saw
@@ -92,7 +92,7 @@ async function look({ N, step }) {
     }
   }
   // the receiver: the light's own code at those points, drawn on the GPU into N × 3N texels, read back. Rows 0 … N-1:
-  // shadowAt, shadowAtOne, shadowAtVertex (1 lit) and the point's index; N … 2N-1: the point in the near cascade as the
+  // shadowAt soft, one and vertex (1 lit) and the point's index; N … 2N-1: the point in the near cascade as the
   // GPU works it out (u, v, depth) and its index; 2N … 3N-1: uShadowOn, uShadowPen (the widest penumbra), and 0, 0
   const P = new THREE.DataTexture(pts, N, N, THREE.RGBAFormat, THREE.FloatType); P.needsUpdate = true;
   const probe = new THREE.RenderTarget(N, 3 * N, { type: THREE.FloatType, depthBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false });
@@ -101,7 +101,7 @@ async function look({ N, step }) {
   m.fragmentNode = T.Fn(() => {
     const c = T.ivec2(T.screenCoordinate.xy), row = T.int(c.y).div(N), j = T.int(c.y).mod(N), w = T.texture(P).load(T.ivec2(c.x, j)).xyz.toVar();
     const s = lay.mats[0].mul(T.vec4(w, 1)), q = s.xyz.div(s.w), id = T.float(j.mul(N).add(T.int(c.x)));   // (id: which point, so a texel read back is matched to its point whichever way up)
-    const a = T.vec4(L.shadowAt(w), L.shadowAtOne(w), L.shadowAtVertex(w), id), b = T.vec4(q.xy, q.z, id), u = T.vec4(U.uShadowOn, U.uShadowPen, 0, 0);
+    const a = T.vec4(L.shadowAt(w), L.shadowAt(w, 'one'), L.shadowAt(w, 'vertex'), id), b = T.vec4(q.xy, q.z, id), u = T.vec4(U.uShadowOn, U.uShadowPen, 0, 0);
     return row.equal(0).select(a, row.equal(1).select(b, u));
   })();
   const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), m);
