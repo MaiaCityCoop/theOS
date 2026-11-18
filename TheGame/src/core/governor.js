@@ -32,8 +32,9 @@
 // them and stayed there. And the way back up to the screen's own points allows a dropped frame or two a look, and is
 // tried ten seconds after a step down (read on 2026-11-14: his picture sat under the screen's points in half his rows,
 // a minute at a time after something else had used the GPU for seconds).
-export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 16, apply = (r) => renderer.setPixelRatio(r) } = {}) {   // apply: what takes the pixel ratio it decides (the game: the inside's, src/core/screen.js; the screen keeps its own)
-  const REF = 1 / Math.tan((refFov * Math.PI) / 360);
+import { lensOf } from '../detail/measure.js';
+
+export function createGovernor(renderer, { startCap = 3, maxCap = 16, apply = (r) => renderer.setPixelRatio(r) } = {}) {   // apply: what takes the pixel ratio it decides (the game: the inside's, src/core/screen.js; the screen keeps its own)
   const DPR_MAX = Math.min(window.devicePixelRatio || 1, 2), DPR_MIN = Math.min(1, DPR_MAX), FLOOR = 0.6;   // DPR_MIN: where it starts and comes back to first; FLOOR: how soft it may go to hold 60 fps
   const SLOW = 20, LATE = 0.08, ROOM = 0.02, MEAN = 17.5, WARM = 4000, MOST = 0.35, STREAK = 6, EASY = 0.05;   // a frame longer than SLOW (ms) missed 60 fps by far; the shares of such frames that are too many, and few enough to try more; the mean frame (ms) that is under 57 fps; ms after the start before the first look
   let dpr = DPR_MIN, resize = false, ceiling = DPR_MAX, ceilingAt = 0, hold = 45000;   // ceiling: the ratio not gone over for `hold` ms from ceilingAt
@@ -48,7 +49,7 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
     /** Before drawing: a change of pixel ratio empties the canvas, so it is made only here. */
     begin() { if (resize) { apply(dpr); resize = false; } },
     /** The detail factor for this camera, this frame. */
-    detail(camera) { zoom = Math.max(1, camera.projectionMatrix.elements[5] / REF); lod = Math.min(zoom, cap); return lod; },
+    detail(camera) { zoom = Math.max(1, lensOf(camera)); lod = Math.min(zoom, cap); return lod; },   // (the lens against the walker's: src/detail/measure.js)
     /** After drawing: the frame's time, and whether a tier ran out of patches. */
     end(ms, now, over, busy = false) {
       // (a frame that packed tiers again or put meshes on the GPU is long for that, not for its pixels: not counted. Read
@@ -117,6 +118,8 @@ export function createGovernor(renderer, { refFov = 68, startCap = 3, maxCap = 1
     },
     /** Hold the dials where they are (true), or let them move again (false). */
     hold(on) { held = !!on; },
+    /** Its detail cap back where it starts (the gate's stills: the same detail whatever the start's frames cost). */
+    rest() { cap = startCap; },
     get ms() { return ema; }, get late() { return share; }, get mid() { return mid; }, get dpr() { return dpr; }, get lod() { return lod; }, get zoom() { return zoom; }, get cap() { return cap; },
   };
 }

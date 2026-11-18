@@ -1,14 +1,14 @@
 name: CI
 
 # Checks and builds the website (OS/) and the game (TheGame/), and tests the game's API (API/) on Postgres, for every
-# change to them. On main, it also deploys to `next` when the repository variable AUTO_DEPLOY_NEXT is "true"
-# (deploy/README.md).
+# change to them. On a push to main it keeps the release it built as the run's artifact `release-next`, which Deploy
+# ships to `next` once this run has passed (deploy.yml, deploy/README.md).
 on:
   push:
     branches: [main]
-    paths: [OS/**, TheGame/**, API/**, Intents/**, Stories/**, Compass/**, brand/**, deploy/**, .github/workflows/**]
+    paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, brand/**, deploy/**, .github/workflows/**]
   pull_request:
-    paths: [OS/**, TheGame/**, API/**, Intents/**, Stories/**, Compass/**, brand/**, deploy/**, .github/workflows/**]
+    paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, brand/**, deploy/**, .github/workflows/**]
 
 permissions:
   contents: read
@@ -52,18 +52,16 @@ jobs:
           DATABASE_URL: postgres://postgres:ci@127.0.0.1:5432/postgres
         run: bun test
       - name: Build both sites for next
-        run: deploy/bundle.sh deploy/environments/next.json "$GITHUB_SHA" "$RUNNER_TEMP/release.tar"
+        run: deploy/bundle.sh deploy/environments/next.json "$GITHUB_SHA" "$RUNNER_TEMP/release-next.tar"
       - name: Shell scripts parse
         run: |
           bash -n deploy/bundle.sh deploy/setup-host.sh
           sh -n deploy/deploy.sh
           sh -n deploy/api-up.sh
-
-  next:
-    needs: check
-    if: github.event_name == 'push' && vars.AUTO_DEPLOY_NEXT == 'true'
-    uses: ./.github/workflows/deploy.yml
-    with:
-      environment: next
-      commit: ${{ github.sha }}
-    secrets: inherit
+      - name: Keep the release for the deploy
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-next
+          path: ${{ runner.temp }}/release-next.tar
+          if-no-files-found: error

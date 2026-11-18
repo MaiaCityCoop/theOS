@@ -39,8 +39,9 @@ export function createShadows(renderer) {
   return {
     cam,
     /** The casters compiled for the shadow map, from where the light looks at this camera now, in turn
-        (src/core/compile.js; a promise): before the first frame, which would otherwise compile them as it draws them. */
-    compile(scene, camera, groundY) { aim(camera, groundY); return compileFor(renderer, rts[turn], scene, cam); },
+        (src/core/compile.js; a promise): before the first frame, which would otherwise compile them as it draws them.
+        object: the scene, or a part of it to stand in `scene` (a subject the library shows). */
+    compile(object, camera, groundY, scene = null) { aim(camera, groundY); return compileFor(renderer, rts[turn], object, cam, scene); },
     /** Draw the casters from the light, round where the camera looks; the size grows with the camera's height. */
     render(scene, camera, groundY) {
       const L = U.uSunDir.value, sun = U.uSun.value;

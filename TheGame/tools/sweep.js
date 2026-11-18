@@ -37,7 +37,7 @@ export async function find(target) {
 export async function sweep({ target = 'boulder', from = 1.05, to = 1500, frames = 300, scale = 2160, dir = [0.6, 0.8], up = 0.35, stills = 0, keepAll = false, settle = 15000, log = false } = {}) {
   const s = window.__game, { renderer, camera, scene } = s, { U } = await mod('src/core/uniforms.js'), { pxK } = await mod('src/detail/index.js'), { heightAt } = await mod('src/world/land.js'), { setPlanes } = await mod('src/core/frustum.js');
   const T = await find(target), keep = new Set(T.keep), w = s.screen.target.width, h = s.screen.target.height;
-  s.covered = true; s.governor.hold(true);   // (the game's own frames neither choose nor draw meanwhile: src/main.js)
+  s.covered = true; s.governor.hold(true);   // (the game's own frames neither choose nor draw meanwhile: src/boot.js)
   const was = { pxk: U.uPxK.value, time: U.uTime.value, vis: s.scatter.tiers.map((t) => (t.meshes ?? [t.mesh]).map((m) => m.visible)) };
   // (the engine counts as a screen `scale` pixels tall would: its lens's measure, and every tier's reach, reckoned by it)
   const ih = Object.getOwnPropertyDescriptor(window, 'innerHeight'); Object.defineProperty(window, 'innerHeight', { get: () => scale, configurable: true });

@@ -14,8 +14,9 @@
 // front of the tent: world/places.js; the library's, while its stage shows one). Each fire draws at its own place;
 // a fire burns while it is in the scene, and taken out its light goes back to the one before it (intent 0025).
 //
-// What moves by itself says so to the picture built over time (src/core/temporal.js): the fourth number of the pixels
-// it covers is lowered by as much as it covers them, as falling snow does (src/world/weather/snowfall.js).
+// It says no motion of its own (it is not in the prepass), so it says so to the picture built over time instead
+// (src/core/temporal.js, the reactive mask): the fourth number of the pixels it covers is lowered by as much as it
+// covers them, as falling snow does (src/world/weather/snowfall.js), and there the frame is taken as it is.
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, uv, uniform, instanceIndex, varyingProperty, positionGeometry, cameraViewMatrix, cameraProjectionMatrix, sin, fract, max, mix, abs, pow, length, smoothstep, clamp, uint, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
@@ -188,7 +189,8 @@ function smoke(F) {
 
 /** Stand a fire asset ({ fire: { … } }: assets/flame.js) at a place ({ x, z }): its coals, flames, sparks and smoke, and
     its light on what stands round it. Its draws read its own place (F.at), never another fire's. It burns while it is
-    in the scene: put in, its light is the world's; taken out, the light goes back to the fire lit before it, or out. */
+    in the scene: put in, its light is the world's; taken out, the light goes back to the fire lit before it, or out.
+    scene null: not put in yet. */
 export function lightFire(scene, asset, at) {
   const F = { width: 0.9, height: 1.05, bed: 0.4, sparks: 48, spark: 0.016, smoke: 0.55, smokeW: 0.55, smokeH: 3.0, strength: 1.0, ...asset.fire };
   const here = new THREE.Vector4(at.x, heightAt(at.x, at.z) - 0.03 + 0.4, at.z, F.strength);
@@ -197,6 +199,6 @@ export function lightFire(scene, asset, at) {
   g.add(coals(F), flames(F), smoke(F), sparks(F));
   g.addEventListener('added', () => { if (!burning.includes(here)) burning.push(here); lightLast(); });
   g.addEventListener('removed', () => { const i = burning.indexOf(here); if (i >= 0) burning.splice(i, 1); lightLast(); });
-  scene.add(g);
+  scene?.add(g);
   return g;
 }

@@ -4,9 +4,9 @@
 - **The game** (`TheGame/`): its pages, and the way back from aven.id. Static.
 - **The game's API** (`API/`): who is signed in and each person's avatar. Bun and Postgres, in Docker Compose.
 
-GitHub Actions builds the sites at a commit on `main` and installs them together with the API's source on the
-environment's host over SSH. Caddy on that host serves each site over HTTPS on its own name, and hands the API's paths
-on the game's name to the API.
+CI builds the sites once for each push to `main`, and the deploy installs that very build, with the API's source, on
+the environment's host over SSH. Caddy on that host serves each site over HTTPS on its own name, and hands the API's
+paths on the game's name to the API.
 
 | Environment | Website | Game | Signs in with | Host |
 | --- | --- | --- | --- | --- |
@@ -21,7 +21,8 @@ on the game's name to the API.
 
 ## What a build holds
 
-Neither site has a server once deployed. Each build writes what its dev server answered as files:
+Neither site has a server once deployed. Each build writes what the dev servers answer from the repository as files
+(`server/repo.js`, which both dev servers share):
 
 - **The website** (`OS/vite.config.js`):
   - `/api/intents`, `/api/ideas`, `/api/scenes` and `/api/stories`, each a list at `<path>/index.json`;
@@ -33,7 +34,7 @@ Neither site has a server once deployed. Each build writes what its dev server a
   - `/story/list` and `/story/<id>/timeline.json`;
   - `/cine/list` and `/cine/timelines/*`;
   - `/api/scenes/<id>/scene.json`, which the film pages read.
-- **Both:** `brand/`.
+- **Both:** `brand/`, without the drafts it was chosen from (`brand/sheets/`).
 
 Two things are missing from both builds:
 
@@ -65,12 +66,17 @@ There are no backups of the database yet.
 
 ## How a deploy works
 
-1. `.github/workflows/ci.yml` runs on every push and pull request touching the sites. It runs the frozen installs, the
-   sign-in checks (`TheGame/tools/account-check.js`) and both builds for `next`.
-2. **Actions → Deploy → Run workflow** takes an environment and a full commit SHA on `main`. Set the repository
-   variable `AUTO_DEPLOY_NEXT` to `true` and every push to `main` deploys to `next` by itself once CI passes.
+1. `.github/workflows/ci.yml` runs on every push and pull request touching the sites. It runs the frozen installs and
+   the sign-in checks (`TheGame/tools/account-check.js`), and builds the release for `next` (step 3). On a push to
+   `main` it keeps that release as the run's artifact `release-next`.
+2. Once CI passes on a push to `main`, **Deploy** (`.github/workflows/deploy.yml`) starts by itself and ships that
+   run's release to `next`; nothing is built again. **Actions → Deploy → Run workflow** takes an environment and a
+   full commit SHA on `main`, finds the CI run that passed for that commit's push, and ships its release. A release
+   is built for one environment (its origins and issuer are in it), so `prod`, which has no host yet, will need its
+   own from CI, and is deployed by hand only.
 3. `deploy/bundle.sh` builds both sites for the environment. It adds `version.json` (commit, origins, issuer) to each
-   and packs them as `website/` and `game/` in one tar, with the API's source as `api/`.
+   and packs them as `website/` and `game/` in one tar, with the API's source as `api/`. The deploy checks that the
+   release's `version.json` names the commit it ships.
 4. The tar goes over SSH to the `deploy` user. That key can only run `/usr/local/bin/maia-deploy`
    (`deploy/deploy.sh`). The script:
    - refuses anything but plain files and directories under `website/`, `game/` and `api/`;
@@ -83,7 +89,9 @@ There are no backups of the database yet.
      is missing;
    - keeps the last five releases.
 
-**Rolling back** is deploying an earlier commit that has an API (the deploy refuses an archive without `api/`).
+**Rolling back** is deploying an earlier commit by hand: the tip of an earlier push to `main` (a merge), whose release
+GitHub still keeps (90 days unless the repository says otherwise), with an API (the deploy refuses an archive without
+`api/`).
 `curl https://next.maia.city/version.json` says which commit is live, and `curl https://play.next.maia.city/api/health`
 says which commit the API runs.
 

@@ -6,7 +6,7 @@
 // it. Nothing is drawn below the height where the plots start to show.
 import * as THREE from 'three/webgpu';
 import { Fn, attribute, positionGeometry, positionWorld, cameraPosition, vec3, float, uniform, smoothstep, length, varying } from 'three/tsl';
-import { airOf, CLOUD_H } from '../world/light.js';
+import { airOf, fromScreen, CLOUD_H } from '../world/light.js';
 import { U } from '../core/uniforms.js';
 import CITY from '../../world/city.js';
 import { heightAt } from '../world/land.js';
@@ -15,6 +15,7 @@ import { inside } from './plan.js';
 import { load, save } from '../core/store.js';
 import { createCard } from './card.js';
 import { flag } from '../core/flags.js';
+import { source } from '../core/settle.js';
 
 // a plot's colours by its state (display values, as every material here writes them: src/world/light.js): line, wash
 const LOOK = {
@@ -25,11 +26,13 @@ const LOOK = {
 const PICKED_WASH = 0.24, HOVER_WASH = 0.07;
 
 /** The city's plots: { update(), plots } — update() after the camera is placed, each frame. */
-export function createCity({ scene, camera, canvas, renderer, compile = (o) => renderer.compileAsync(o, camera, scene) }) {   // compile: how a part of the scene is compiled for the target it is drawn into (main.js: the screen's, in turn)
+export function createCity({ scene, camera, canvas, renderer, compile = (o) => renderer.compileAsync(o, camera, scene) }) {   // compile: how a part of the scene is compiled for the target it is drawn into (src/boot.js: the screen's, in turn)
   const page = location.pathname.replace(/.*\//, '');
   const here = (page === '' || page === 'index.html') && !flag('embed');   // the walk only: not the film, the lenses, the library
   const api = { plots: [], update() {}, ready: false };
   if (!here) return api;
+  let failed = false;
+  source('city', () => (api.ready || failed ? 0 : 1));   // (its plan made in a worker and compiled, src/core/settle.js)
 
   const group = new THREE.Group(); group.visible = false; scene.add(group);
   const uOp = uniform(0), uW = uniform(0.0011);
@@ -40,8 +43,9 @@ export function createCity({ scene, camera, canvas, renderer, compile = (o) => r
     const p = positionGeometry, col = attribute('aCol', 'vec4');
     if (ribbon) { const s = attribute('aSide', 'vec2'); m.positionNode = p.add(vec3(s.x, 0, s.y).mul(length(p.sub(cameraPosition)).mul(uW).mul(widen))); }   // a line as wide on the screen near and far
     // seen through the same air as the land under it (src/world/light.js: airOf): a cloud between the eye and the plot,
-    // or the haze far off, hides as much of the plot as of the ground
-    m.colorNode = col.rgb; m.opacityNode = col.a.mul(uOp).mul(varying(fadeFar(p))).mul(airK(positionWorld));
+    // or the haze far off, hides as much of the plot as of the ground. (Its colours are the screen's own: drawn into the
+    // world's frame, they are put back into the light's numbers, fromScreen)
+    m.colorNode = fromScreen(col.rgb); m.opacityNode = col.a.mul(uOp).mul(varying(fadeFar(p))).mul(airK(positionWorld));
     return m;
   }
   let plots = [], byId = new Map(), lineGeo, washGeo, picked = null, hover = null, ring = null, open = new Set([1, ...load('city.open', [])]), citizens = 0, card = null;
@@ -196,6 +200,6 @@ export function createCity({ scene, camera, canvas, renderer, compile = (o) => r
 
   const worker = new Worker(new URL('./plan.worker.js', import.meta.url), { type: 'module' });
   worker.onmessage = (e) => { build(e.data); worker.terminate(); };
-  worker.onerror = (e) => console.warn('[city] the plan failed', e.message);
+  worker.onerror = (e) => { failed = true; console.warn('[city] the plan failed', e.message); };
   return api;
 }

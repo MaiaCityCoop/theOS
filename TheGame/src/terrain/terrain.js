@@ -5,15 +5,16 @@ import * as THREE from 'three/webgpu';
 import { HMIN, HMAX, heightAt, riverAt } from '../world/land.js';
 import { boxIn } from '../core/frustum.js';
 import { U } from '../core/uniforms.js';
-import { terrainMaterial, GRID, R0 } from './material.js';
-import { createGroundCache } from './groundcache.js';
+import { terrainMaterial, GRID, R0, FINE } from './material.js';
+import { createPages } from './pages.js';
+import { LAYERS } from './layers.js';
 import { waterMaterial } from './water.js';
-import { LAID } from '../world/land.nodes.js';
-import { flag } from '../core/flags.js';
+import { usedMaterials } from '../materials/bake.js';
+import { recipes } from '../core/registry.js';
 
 const S0 = 8;               // a level-0 node's side, metres (0.5 m quads)
-const LEVELS = 10;          // the top level reaches R0 * 2^9 = 24.6 km
-const CAP = 4096, WCAP = 1024;
+const LEVELS = 10;          // the top level reaches R0 * 2^9 = 24.6 km (a land drawn less far: fewer, `reach`)
+const CAP = 4096 * FINE * FINE, WCAP = 1024 * FINE * FINE;   // (?truth's finer land: as many more nodes as its levels reach further, squared)
 const WATER_LEVELS = 6;
 
 function gridGeometry() {
@@ -28,7 +29,14 @@ function gridGeometry() {
   return { pos: new THREE.BufferAttribute(pos, 3), idx: new THREE.BufferAttribute(idx, 1) };
 }
 
-export function createTerrain(scene, tex, list = LAID) {   // list: the biomes the land lays (src/world/slots.js)
+/** The materials the land wears (every biome's, its layers' grounds, the grass's carpet, the water's floor, the noises
+    the land is laid by): what a start that draws the land and nothing on it paints first (src/boot.js: the stage). */
+export const landMaterials = () => [...usedMaterials(recipes('biome')), ...LAYERS.flatMap((L) => (L.ground ? [L.ground.material] : []))];
+
+/** The land and its water in `scene`. reach: metres from the eye the land is drawn to, at most (it ends in the air,
+    src/world/light.js: airOf); by default to the horizon. */
+export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
+  const pages = createPages(renderer, tex);   // the ground's material, laid once a page round the camera (src/terrain/pages.js)
   const { pos, idx } = gridGeometry();
   const make = (cap) => {
     const g = new THREE.InstancedBufferGeometry();
@@ -40,19 +48,16 @@ export function createTerrain(scene, tex, list = LAID) {   // list: the biomes t
     return { g, data, attr, n: 0, cap };
   };
   const land = make(CAP), water = make(WCAP);
-  // (the ground laid once round the camera, read by the land's pixels: src/terrain/groundcache.js. Not yet the picture
-  // every pixel lays for itself: softer between 10 and 60 m, and a band where it hands over; so only with ?groundcache)
-  const cache = flag('groundcache') ? createGroundCache() : null;
-  const landMat = terrainMaterial(tex, cache, list), waterMat = waterMaterial(tex);
+  const landMat = terrainMaterial(pages), waterMat = waterMaterial(tex);
   const landMesh = new THREE.Mesh(land.g, landMat), waterMesh = new THREE.Mesh(water.g, waterMat);
   landMesh.frustumCulled = waterMesh.frustumCulled = false;
   landMesh.renderOrder = 10; // after the grass and the rocks: they are in front, the depth test spares the ground's shader
   waterMesh.renderOrder = 20;
   scene.add(landMesh, waterMesh);
 
-  const range = [], range2 = [];
-  for (let i = 0; i < LEVELS; i++) { range.push(R0 * 2 ** i); range2.push(range[i] * range[i]); }
-  const TOP = S0 * 2 ** (LEVELS - 1);
+  const range = [], range2 = [], levels = Math.min(LEVELS, Math.max(1, Math.ceil(Math.log2(reach / R0)) + 1));   // (each level's reach; under ?truth FINE times as far, but the last's: the land ends where it always does)
+  for (let i = 0; i < levels; i++) { range.push(R0 * 2 ** i * (i < levels - 1 ? FINE : 1)); range2.push(range[i] * range[i]); }
+  const TOP = S0 * 2 ** (levels - 1);
   let cx = 0, cz = 0, dy2 = 0, inv2 = 1;
 
   function inView(x, z, size, level) {
@@ -90,24 +95,22 @@ export function createTerrain(scene, tex, list = LAID) {   // list: the biomes t
     s.attr.clearUpdateRanges(); s.attr.addUpdateRange(0, s.n * 4); s.attr.needsUpdate = true;
   }
   return {
-    landMesh, waterMesh, cache,
-    /** The land for another list of biomes (the slots' have changed): its material made and compiled aside, for the
-        target the world is drawn into, then taken. now: taken at once (before the start compiles everything). */
-    async biomes(next, renderer, camera, target = null, now = false) {
-      const m = terrainMaterial(tex, cache, next);
-      if (!now) { const was = renderer.getRenderTarget(), q = new THREE.Mesh(land.g, m); q.frustumCulled = false; renderer.setRenderTarget(target); const done = renderer.compileAsync(q, camera, scene).catch(() => {}); renderer.setRenderTarget(was); await done; }
-      landMesh.material.dispose(); landMesh.material = m;
-    },
+    landMesh, waterMesh, pages,
     update(camera, uDy, lodInv) {
+      pages.update(camera);
       cx = camera.position.x; cz = camera.position.z; dy2 = uDy * uDy; inv2 = lodInv * lodInv;
       land.n = water.n = 0;
-      const top = LEVELS - 1, R = Math.min(range[top] / lodInv, camera.far);
+      const top = levels - 1, R = Math.min(range[top] / lodInv, camera.far);
       U.uLandEnd.value = R;
       const i0 = Math.floor((cx - R) / TOP), i1 = Math.floor((cx + R) / TOP), j0 = Math.floor((cz - R) / TOP), j1 = Math.floor((cz + R) / TOP);
       for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) select(i * TOP, j * TOP, TOP, top);
       push(land); push(water);
       waterMesh.visible = water.n > 0;
     },
+    /** The pages' passes compiled (a promise). */
+    compile: () => pages.compile(),
+    /** Every page laid again (the land under them changed: the lakes). */
+    refresh: () => pages.refresh(),
     all() { // every node slot filled once, so the first real frame uploads nothing new
       land.g.instanceCount = 1; water.g.instanceCount = 1; waterMesh.visible = true;
     },

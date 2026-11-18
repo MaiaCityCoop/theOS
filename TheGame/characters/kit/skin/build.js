@@ -28,9 +28,6 @@ import { frameAt, slots } from '../muscles/build.js';
 import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
 
-/** How the skin is drawn out, as a number: another, and a kept drawing is drawn again. */
-export const MADE = 9;
-
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math.hypot(a[0], a[1], a[2]), norm = (a) => mul(a, 1 / (len(a) || 1));
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];

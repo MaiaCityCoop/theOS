@@ -1,15 +1,16 @@
-// The one hand-over between levels of detail, for everything in the world: what stands in a stand (src/scatter/trees.js),
-// the rocks (src/scatter/rocks.js), what stands at a place and its far card (src/world/place.js, impostor.js). Nothing
+// The one hand-over between levels of detail, for everything in the world: what stands in a stand (src/scatter/trees.js;
+// its impostor's own: meshShare), the rocks (src/scatter/rocks.js), what stands at a place and its far card
+// (src/world/place.js, impostor.js). Nothing
 // appears or drops out at once, and nothing is dithered:
 //   - when: a thing's size on screen now, in pixels through the lens (src/detail/index.js), against its level's pixels
 //     (assets/kinds.js: px), with `fade` either side;
-//   - between two levels both are drawn. A thing made of parts (a tree's sprigs) changes part by part: the finer level's
-//     shrink to their feet one after another as the coarser one's grow from theirs. A thing of one piece (a rock, a
-//     tent, a tree's wood) changes over whole, half way: its levels are one outline;
+//   - between two levels both are drawn. A thing of one piece (a rock, a tent) changes over whole, half way: its levels
+//     are one outline (a plant's levels are first shares of one build, the same where they meet: assets/kit/crowd.js);
 //   - its last level sinks into the ground over its last pixels (kinds.js: sink): lower first, then narrower, to nothing.
 // On the GPU as node code (a level's numbers as uniforms: every level of a thing is then one shader), and the same
 // reckoning in JS for what is chosen on the CPU.
-import { float, vec2, vec3, uniform, log, max, clamp, mix, smoothstep, step, fract, sin, sqrt } from 'three/tsl';
+import { float, vec3, uniform, log, max, clamp, mix, smoothstep, sqrt } from 'three/tsl';
+import { bandAt } from './measure.js';
 
 /** A level's numbers as uniforms. Lv: { lo, hi, last } (the pixels it is drawn between; whether it is the farthest). */
 export const levelOf = (Lv, fade) => ({ hi: uniform(Number.isFinite(Lv.hi) ? Math.log(Lv.hi) + fade : 1e3), lo: uniform(Math.log(Lv.lo) + fade), px: uniform(Lv.lo), last: uniform(Lv.last ? 1 : 0), fade });
@@ -20,13 +21,14 @@ export const padOf = (cell, P) => ((cell * P) / 16) * 1.8;
 
 /** A level's band, for an engine that packs what stands in its cells: which things the level's packing holds, and
     how far it reaches. Its numbers are uniforms too. pad: padOf's (0: none).
-      holds(dist, span)   node: a thing `span` across on screen at one metre (its size times pxK), `dist` away, is this
-                          level's to pack (its band, its hand-over, and the pad)
-      reach(sLo, sHi, K)  [near, far] metres: where a thing between sLo and sHi metres across can be of this level */
+      holds(dist, span)   node: a thing `span` across on screen at one metre (the measure's spanAt: its size times pxK),
+                          `dist` away, is this level's to pack (its band, its hand-over, and the pad)
+      reach(sLo, sHi, K)  [near, far] metres: where a thing between sLo and sHi metres across can be of this level (K: the
+                          measure's pxK; ?truth's band where it is asked for: measure.js bandAt) */
 export const bandOf = (Lv, fade, pad = 0) => {
   const e = Math.exp(fade), B = { pad: uniform(pad), to: uniform(e / Lv.lo), from: uniform(Number.isFinite(Lv.hi) ? 1 / (Lv.hi * e) : 0), margin: pad };
   B.holds = (dist, span) => dist.lessThan(span.mul(B.to).add(B.pad)).and(dist.greaterThanEqual(span.mul(B.from).sub(B.pad)));
-  B.reach = (sLo, sHi, K) => [Number.isFinite(Lv.hi) ? Math.max(0, (sLo * K) / (Lv.hi * e) - pad) : 0, (sHi * K * e) / Lv.lo + pad];
+  B.reach = (sLo, sHi, K) => bandAt(Number.isFinite(Lv.hi) ? Math.max(0, (sLo * K) / (Lv.hi * e) - pad) : 0, (sHi * K * e) / Lv.lo + pad, !Number.isFinite(Lv.hi), pad);
   return B;
 };
 
@@ -37,19 +39,6 @@ export const handOver = (px, LU, sink = 0) => {
   const L = log(max(px, 1e-6)), u = clamp(LU.hi.sub(L).div(2 * LU.fade), 0, 1), v = clamp(LU.lo.sub(L).div(2 * LU.fade), 0, 1).mul(float(1).sub(LU.last));
   const sunk = sink > 1 ? mix(float(1), smoothstep(LU.px, LU.px.mul(sink), px), LU.last) : float(1);
   return { u, v, sunk, there: u.greaterThan(0).and(v.lessThan(1)).and(sunk.greaterThan(0)), whole: u.greaterThanEqual(0.5).and(v.lessThan(0.5)) };
-};
-
-const WIN = 0.4;   // the share of a hand-over one part takes to grow or shrink
-/** How grown a part is, 0 … 1: its own moment in the hand-over, from a hash of where it is rooted. body (0 or 1): a
-    part that is the thing's one body: the coarser one's there by half way, the finer one's shrinking from then.
-    hand (from, kept): a part two levels share (the same root, so the same moment): the coarser one's comes in at that
-    moment at the finer one's size (`from`, to its own) and swells, the finer one's (`kept`) gives way at that moment:
-    one part to the eye, never two, never none. (0, 0): it grows from nothing and folds away to nothing. */
-export const partGrown = (H, root, body = float(0), hand = vec2(0)) => {
-  const at = fract(sin(root.dot(vec3(12.9898, 78.233, 37.719))).mul(43758.5453)).mul(1 - WIN);
-  const come = step(at, H.u).mul(mix(hand.x, 1, smoothstep(at, at.add(WIN), H.u))).max(smoothstep(at, at.add(WIN), H.u));
-  const go = mix(float(1).sub(smoothstep(at, at.add(WIN), H.v)), float(1).sub(step(at, H.v).mul(step(1e-4, H.v))), hand.y);
-  return mix(come, smoothstep(0, 0.5, H.u), body).mul(mix(go, float(1).sub(smoothstep(0.5, 1, H.v)), body));
 };
 
 /** A point of a thing, in its own frame (its foot at 0), as it sinks: lower first, then narrower. */

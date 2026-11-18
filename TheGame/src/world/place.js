@@ -69,14 +69,15 @@ export function assetMaterial(asset) {
   return m;
 }
 
-/** Stand an asset at a place ({ x, z, yaw, solid }), on the ground there. */
+/** Stand an asset at a place ({ x, z, yaw, solid }), on the ground there, in `scene` (null: not put in; the library's
+    stage puts it in once it is compiled: src/boot.js show). */
 export function place(scene, asset, at) {
   if (asset.fire) return lightFire(scene, asset, at);   // a fire is light, not a mesh (src/world/fire.js)
   const D = detailOf(asset);
-  const meshes = D.levels.map((l) => { if (l.impostor) return impostorOf(geometryOf(asset), l.views, snowOf(asset)); const m = new THREE.Mesh(geometryOf(asset, l), assetMaterial(asset)); m.renderOrder = 1; return m; });
+  const meshes = D.levels.map((l) => { if (l.impostor) return impostorOf(geometryOf(asset), snowOf(asset)); const m = new THREE.Mesh(geometryOf(asset, l), assetMaterial(asset)); m.renderOrder = 1; return m; });
   const lod = new Detailed(asset, meshes);
   lod.position.set(at.x, heightAt(at.x, at.z) - 0.03, at.z); lod.rotation.y = at.yaw || 0; lod.name = asset.name;
-  scene.add(lod);
+  scene?.add(lod);
   // the walker and the camera cannot pass it: its body (its own solid block, else its kind's from its size) in the one
   // collision engine of every world (src/world/bodies.js). Its turn is three's about y, the other way round from the
   // engine's (a body's yaw is what the GPU turns what it draws by)

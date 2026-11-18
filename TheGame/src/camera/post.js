@@ -5,8 +5,8 @@
 //              the plane of focus, as a lens of that focal length and aperture would. Anamorphic: the blur is an
 //              upright oval, twice as tall as wide. What it makes is built into the screen's picture as any frame is
 //              (src/core/temporal.js), so its edges are smooth.
-//   the glass  as the picture is laid on the canvas: a little barrel, a little light lost at the corners (the last
-//              pass takes its numbers: temporal.js).
+//   the glass  as the picture is laid on the canvas: a little barrel, a little light lost at the corners (the upscale
+//              takes its numbers: temporal.js).
 //
 // The blur is worked out at half the inside's pixels each way (a quarter of them): what is blurred has nothing fine in
 // it to lose. Three small passes:
@@ -64,7 +64,7 @@ export function createLens(renderer) {
       }
       out.assign(mix(f.rgb, acc.div(ws), t.mul(smoothstep(0.02, 0.2, like))));   // (none of the four at its distance: the frame's own colour)
     });
-    return vec4(out, f.a);   // (the fourth number: how still the thing is, src/world/light.js, as the frame said it)
+    return vec4(out, f.a);   // (the fourth number: how far what is kept may be trusted, as the frame said it: src/core/pass.js)
   }));
   const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   let A = null, B = null, C = null, n = 0;
@@ -79,8 +79,8 @@ export function createLens(renderer) {
         const halfOpts = { type: THREE.HalfFloatType, depthBuffer: false, generateMipmaps: false };
         // (the small frame is read between its pixels by the blur: smooth; the blurred one pixel by pixel, each weighed by its distance)
         A = new THREE.RenderTarget(hw, hh, { ...halfOpts, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }); B = new THREE.RenderTarget(hw, hh, { ...halfOpts, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
-        C = new THREE.RenderTarget(w, h, { depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });
-        tA.value = A.texture; tB.value = B.texture; note("the frame through the lens (two targets of half its size, one of its own)", 2 * hw * hh * 8 + w * h * 4, 0);
+        C = new THREE.RenderTarget(w, h, { type: THREE.HalfFloatType, depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });   // (the light's own numbers: the screen's curve comes after, src/core/temporal.js)
+        tA.value = A.texture; tB.value = B.texture; note("the frame through the lens (two targets of half its size, one of its own)", 2 * hw * hh * 8 + w * h * 8, 0);
       }
       const f = dof.mm / 1000, picH = dof.aspect > w / h ? w / dof.aspect : h;   // the picture's height inside the frame, pixels
       u.texel.value.set(1 / w, 1 / h); u.half.value.set(hw, hh); u.near.value = camera.near; u.far.value = camera.far;

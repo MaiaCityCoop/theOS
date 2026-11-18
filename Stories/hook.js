@@ -8,12 +8,11 @@
 //
 // Two things, no more: the title, 6 to 13 words; and the intro, described, 20 seconds at most (the front of the film is
 // where a viewer stays or leaves). How a hook is built inside is not kept here yet.
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { STORIES as HERE, cli, readJSON, writeJSON, assign } from './store.js';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const fail = (m) => { console.error('hook: ' + m); process.exit(1); };
+const { fail, run } = cli('hook');
 const words = (t) => String(t || '').trim().split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;   // (a dash standing alone is no word)
 const file = (story) => resolve(HERE, story, 'hook.json');
 
@@ -23,15 +22,14 @@ function check(h) {
   if (!(h.seconds > 0 && h.seconds <= 20)) fail('the intro is 20 seconds at most (15 to 20)');
   return { title: h.title.trim(), intro: h.intro.trim(), seconds: +h.seconds };
 }
-const store = (story, h) => { mkdirSync(resolve(HERE, story), { recursive: true }); writeFileSync(file(story), JSON.stringify(check(h), null, 1) + '\n'); };
+const store = (story, h) => writeJSON(file(story), check(h));
 
-if (import.meta.main) {
-  const [cmd, story, ...rest] = process.argv.slice(2);
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(story || '')) fail('put | set | show, then a story\'s folder');
-  if (cmd === 'put') { store(story, JSON.parse(readFileSync(0, 'utf8'))); console.log(`hook of ${story} put`); }
-  else if (cmd === 'set') { const h = existsSync(file(story)) ? JSON.parse(readFileSync(file(story), 'utf8')) : {};
-    for (const kv of rest) { const [k, ...v] = kv.split('='); if (!['title', 'intro', 'seconds'].includes(k)) fail(`set takes title, intro, seconds; not ${k}`); h[k] = k === 'seconds' ? +v.join('=') : v.join('='); }
-    store(story, h); console.log(`hook of ${story} set`); }
-  else if (cmd === 'show') { const h = JSON.parse(readFileSync(file(story), 'utf8')); console.log(`TITLE  ${h.title}   (${words(h.title)} words)\nINTRO  ${h.seconds} s\n\n${h.intro}`); }
-  else fail('put | set | show');
-}
+if (import.meta.main) run({
+  put: (story) => { store(story, readJSON(0)); console.log(`hook of ${story} put`); },
+  set: (story, ...rest) => {
+    const h = existsSync(file(story)) ? readJSON(file(story)) : {};
+    assign(h, rest, ['title', 'intro', 'seconds'], (k) => fail(`set takes title, intro, seconds; not ${k}`), { seconds: Number });
+    store(story, h); console.log(`hook of ${story} set`);
+  },
+  show: (story) => { const h = readJSON(file(story)); console.log(`TITLE  ${h.title}   (${words(h.title)} words)\nINTRO  ${h.seconds} s\n\n${h.intro}`); },
+}, 'put | set | show', 'put | set | show, then a story\'s folder');

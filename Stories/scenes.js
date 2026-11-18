@@ -19,21 +19,21 @@
 // Media is named by its BLAKE3 hash and lies flat in Stories/objects/, which git does not keep: the scene's file says
 // which objects it needs, and objects.json (kept) what each is.
 import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { blake3 } from '../TheGame/node_modules/@noble/hashes/blake3.js';
 import { bytesToHex } from '../TheGame/node_modules/@noble/hashes/utils.js';
+import { STORIES as HERE, cli, isId, readJSON, writeJSON } from './store.js';
 
-const HERE = dirname(fileURLToPath(import.meta.url)), SCENES = resolve(HERE, 'scenes'), OBJECTS = resolve(HERE, 'objects'), INDEX = resolve(HERE, 'objects.json');
+const SCENES = resolve(HERE, 'scenes'), OBJECTS = resolve(HERE, 'objects'), INDEX = resolve(HERE, 'objects.json');
 const HASH = /^[0-9a-f]{64}$/, FIELDS = ['frame', 'video', 'audio', 'composition'];
-const fail = (m) => { console.error('scenes: ' + m); process.exit(1); };
+const { fail, run } = cli('scenes');
 const hashOf = (bytes) => bytesToHex(blake3(bytes));
-const index = () => { try { return JSON.parse(readFileSync(INDEX, 'utf8')); } catch { return {}; } };
-const keep = (ix) => writeFileSync(INDEX, JSON.stringify(Object.fromEntries(Object.entries(ix).sort()), null, 1) + '\n');
+const index = () => readJSON(INDEX, {});
+const keep = (ix) => writeJSON(INDEX, Object.fromEntries(Object.entries(ix).sort()));
 const typeOf = (b) => (b[0] === 0xff && b[1] === 0xd8 ? 'image/jpeg' : b[0] === 0x89 && b[1] === 0x50 ? 'image/png' : b.subarray(4, 8).toString() === 'ftyp' ? 'video/mp4' : b.subarray(0, 3).toString() === 'ID3' || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0) ? 'audio/mpeg' : b.subarray(0, 4).toString() === 'RIFF' ? (b.subarray(8, 12).toString() === 'WEBP' ? 'image/webp' : 'audio/wav') : b.subarray(0, 4).toString() === 'OggS' ? 'audio/ogg' : 'application/octet-stream');
 
 export const sceneFile = (id) => resolve(SCENES, id, 'scene.json');
-export const readScene = (id) => JSON.parse(readFileSync(sceneFile(id), 'utf8'));
+export const readScene = (id) => readJSON(sceneFile(id));
 /** Every scene, shortly: { id, title, duration, format, tracks, shots, cover } (what the studio lists). */
 export function listScenes() {
   if (!existsSync(SCENES)) return [];
@@ -49,7 +49,7 @@ export const objectPath = (hash) => (HASH.test(hash) ? resolve(OBJECTS, hash) : 
 export const objectType = (hash) => index()[hash]?.type ?? 'application/octet-stream';
 
 function check(s) {
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(s.id || '')) fail('a scene\'s id is lower-case words joined by hyphens');
+  if (!isId(s.id)) fail('a scene\'s id is lower-case words joined by hyphens');
   if (s.schema !== 'scene/1' || !s.title || !Array.isArray(s.tracks)) fail('a scene is { schema: \'scene/1\', id, title, tracks }');
   for (const t of s.tracks) { if (!t.id || !t.kind || !Array.isArray(t.clips)) fail(`a track is { id, kind, clips }: ${t.id}`); for (const c of t.clips) { if (!(c.at >= 0)) fail(`${t.id}/${c.id}: at, in seconds`); for (const f of FIELDS) if (c[f] && !HASH.test(c[f])) fail(`${t.id}/${c.id}: ${f} is a BLAKE3 hash`); } }
   s.duration = +Math.max(0, ...s.tracks.flatMap((t) => t.clips.map((c) => c.at + (c.duration || 0)))).toFixed(2);
@@ -63,14 +63,13 @@ export function transcript(s) {
   return out.sort((a, b) => a.at - b.at);
 }
 
-if (import.meta.main) {
-  const [cmd, a] = process.argv.slice(2);
-  if (cmd === 'put') { const s = check(JSON.parse(readFileSync(0, 'utf8'))); if (s.id !== a) fail(`the scene's id is ${s.id}, not ${a}`); mkdirSync(resolve(SCENES, a), { recursive: true }); writeFileSync(sceneFile(a), JSON.stringify(s, null, 1) + '\n'); console.log(`scene ${a} put: ${clock(s.duration)}, ${mediaOf(s).length} objects`); }
-  else if (cmd === 'list') for (const s of listScenes()) { const m = mediaOf(readScene(s.id)); console.log(`${s.id.padEnd(16)} ${clock(s.duration)}  ${s.format}  ${s.shots} shots, ${s.tracks} tracks, media ${m.filter((x) => existsSync(objectPath(x.hash))).length}/${m.length} here  ${s.title}`); }
-  else if (cmd === 'show') { const s = readScene(a); console.log(`${s.title}\n${clock(s.duration)} · ${s.format} · ${s.fps} fps\n`); for (const c of s.tracks.find((t) => t.kind === 'shots')?.clips ?? []) console.log(`${clock(c.at)}  ${c.id.padEnd(14)} ${c.transition}\n         ${c.camera}`); console.log(''); for (const l of transcript(s)) console.log(`${clock(l.at)}  ${l.who}: ${l.text}${l.em ? '   (alone, large)' : ''}`); }
-  else if (cmd === 'transcript') for (const l of transcript(readScene(a))) console.log(`${clock(l.at)}  ${l.who}: ${l.text}`);
-  else if (cmd === 'objects') { const ix = index(); for (const m of mediaOf(readScene(a))) { const p = objectPath(m.hash), here = existsSync(p), ok = here && hashOf(readFileSync(p)) === m.hash; console.log(`${m.hash.slice(0, 12)}… ${m.as.padEnd(6)} ${String(ix[m.hash]?.type ?? '?').padEnd(11)} ${here ? (ok ? 'here, hash holds' : 'HERE BUT ITS HASH DOES NOT HOLD') : 'missing'}  ${ix[m.hash]?.bytes ?? ''}  ${m.clip}`); } }
-  else if (cmd === 'fetch') {
+if (import.meta.main) await run({
+  put: (a) => { const s = check(readJSON(0)); if (s.id !== a) fail(`the scene's id is ${s.id}, not ${a}`); writeJSON(sceneFile(a), s); console.log(`scene ${a} put: ${clock(s.duration)}, ${mediaOf(s).length} objects`); },
+  list: () => { for (const s of listScenes()) { const m = mediaOf(readScene(s.id)); console.log(`${s.id.padEnd(16)} ${clock(s.duration)}  ${s.format}  ${s.shots} shots, ${s.tracks} tracks, media ${m.filter((x) => existsSync(objectPath(x.hash))).length}/${m.length} here  ${s.title}`); } },
+  show: (a) => { const s = readScene(a); console.log(`${s.title}\n${clock(s.duration)} · ${s.format} · ${s.fps} fps\n`); for (const c of s.tracks.find((t) => t.kind === 'shots')?.clips ?? []) console.log(`${clock(c.at)}  ${c.id.padEnd(14)} ${c.transition}\n         ${c.camera}`); console.log(''); for (const l of transcript(s)) console.log(`${clock(l.at)}  ${l.who}: ${l.text}${l.em ? '   (alone, large)' : ''}`); },
+  transcript: (a) => { for (const l of transcript(readScene(a))) console.log(`${clock(l.at)}  ${l.who}: ${l.text}`); },
+  objects: (a) => { const ix = index(); for (const m of mediaOf(readScene(a))) { const p = objectPath(m.hash), here = existsSync(p), ok = here && hashOf(readFileSync(p)) === m.hash; console.log(`${m.hash.slice(0, 12)}… ${m.as.padEnd(6)} ${String(ix[m.hash]?.type ?? '?').padEnd(11)} ${here ? (ok ? 'here, hash holds' : 'HERE BUT ITS HASH DOES NOT HOLD') : 'missing'}  ${ix[m.hash]?.bytes ?? ''}  ${m.clip}`); } },
+  fetch: async (a) => {
     const s = readScene(a), from = s.source?.files; if (!from) fail('the scene names no source.files to fetch from');
     mkdirSync(OBJECTS, { recursive: true }); const ix = index(); let got = 0;
     for (const m of mediaOf(s)) {
@@ -81,6 +80,6 @@ if (import.meta.main) {
       writeFileSync(p, b); ix[m.hash] = { type: typeOf(b), bytes: b.length, as: m.as, from: s.source.files }; got++; console.log(`${m.hash.slice(0, 12)}… ${ix[m.hash].type} ${b.length}`);
     }
     keep(ix); console.log(`${got} fetched`);
-  } else if (cmd === 'add') { const b = readFileSync(a), h = hashOf(b), ix = index(); mkdirSync(OBJECTS, { recursive: true }); writeFileSync(objectPath(h), b); ix[h] = { type: typeOf(b), bytes: b.length }; keep(ix); console.log(h); }
-  else fail('put | list | show | transcript | objects | fetch | add (see the head of Stories/scenes.js)');
-}
+  },
+  add: (a) => { const b = readFileSync(a), h = hashOf(b), ix = index(); mkdirSync(OBJECTS, { recursive: true }); writeFileSync(objectPath(h), b); ix[h] = { type: typeOf(b), bytes: b.length }; keep(ix); console.log(h); },
+}, 'put | list | show | transcript | objects | fetch | add (see the head of Stories/scenes.js)');

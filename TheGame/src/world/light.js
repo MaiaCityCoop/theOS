@@ -8,6 +8,7 @@
 // so a material asks the contract and no file but the condition's holds it.
 import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, pow, smoothstep, fract, floor, dot, max, min, abs, clamp, length, normalize, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
+import { passOf } from '../core/pass.js';
 import { lane } from './weather/lanes.js';
 import { surfaceHooks, airHooks } from './weather/index.js';
 import { cloudShade } from './weather/clouds.js';
@@ -51,15 +52,17 @@ export const airOf = (w, eye = U.uCam) => {
 const airAt = Fn(([c, w, eye]) => { const A = airOf(w, eye); return mix(A.col, c, A.k); });
 /** The end of every material: its colour seen through the air from the eye, to the screen. */
 export const finish = (c, w, eye = U.uCam) => toScreen(airAt(c, w, eye));
-/** What moves by itself says so in its pixel's fourth number: 1 still … 0 moving, for the picture built over time
-    (src/core/temporal.js: such a pixel keeps little of the frames before, as its place then is not known). amount: how
-    far the point swings, metres for a unit of the wind's push; w: where it is. */
-export const stillness = (amount, w) => float(1).sub(clamp(amount.mul(U.uMark).div(max(length(U.uCam.sub(w)), 0.5)), 0, 1));
 /** The sky's light on a surface facing n: most from above, less on what faces sideways, and a little bounced up off the
     sunlit ground onto what faces down. */
 export const skyLight = (n) => U.uAmb.mul(n.y.mul(0.32).add(0.68)).add(U.uSun.mul(U.uSunDir.y.max(0)).mul(vec3(0.09, 0.1, 0.06)).mul(float(0.5).sub(n.y.mul(0.5))));
-/** The picture's exposure and gamma: what every material returns. */
-export const toScreen = Fn(([c]) => vec4(pow(float(1).sub(exp(c.negate().mul(1.25).mul(U.uExposure))), vec3(1 / 2.2)), 1));
+/** The screen's curve: the light's numbers to the picture's (its exposure, a soft shoulder, gamma). */
+export const display = (c) => pow(float(1).sub(exp(c.negate().mul(1.25).mul(U.uExposure))), vec3(1 / 2.2));
+/** What every material returns, its colour for the screen. Drawn for the world's frame (either pass: src/core/pass.js)
+    that is the light's own numbers: the upscale puts the screen's curve on them once, as it lays the picture on the
+    screen (src/core/temporal.js). Drawn anywhere else (a library's picture), the curve is put on here. */
+export const toScreen = Fn(([c], builder) => vec4(passOf(builder) ? c : display(c), 1));
+/** A colour meant for the screen as it is (an overlay's), as the light's numbers the screen's curve takes back to it. */
+export const fromScreen = Fn(([c], builder) => (passOf(builder) ? float(1).sub(pow(clamp(c, 0, 0.999), vec3(2.2))).log().negate().div(U.uExposure.mul(1.25)) : c));
 /** What the weather does to a surface facing n: how much of its own colour stays (keep) and what is laid on it (add).
     The wet lane darkens it; then each condition's `surface` in turn (the snow lying on it). lift: how far the surface
     stands out of what lies on the ground here (a pebble's top, a blade's tip). For a material that lights itself per
