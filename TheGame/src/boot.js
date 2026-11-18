@@ -89,7 +89,8 @@ export async function boot({ profile = 'world' } = {}) {
   addEventListener('resize', () => {   // only a real change of size rebuilds the canvas: that costs a frame of 100 ms
     if (innerWidth === sizeW && innerHeight === sizeH) return;
     sizeW = innerWidth; sizeH = innerHeight; resizes++;
-    camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight, false);
+    camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+    if (window.__game?.screen) window.__game.screen.fit(); else renderer.setSize(innerWidth, innerHeight, false);   // (the canvas at the output's ratio for the window now: src/core/output.js)
   });
 
   // (settle(): a promise, the world complete for the camera as it stands: nothing streaming or building in any engine, and
@@ -105,7 +106,7 @@ export async function boot({ profile = 'world' } = {}) {
   // brings one (src/camera/post.js), and brought up to the screen and built over time in one pass (src/core/temporal.js).
   const temporal = (game.temporal = createTemporal(renderer));
   const screen = (game.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
-  const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
+  const governor = createGovernor(renderer, { apply: (r) => screen.set(r), most: () => screen.out });   // (the drawn ratio within the canvas's)
   game.governor = governor;   // the film holds it still while it plays
   keepMeasure(() => screen.inside);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
   if (TRUTH) governor.hold(true);   // (?truth: everything at its finest, offline: no dial turned for its slow frames)

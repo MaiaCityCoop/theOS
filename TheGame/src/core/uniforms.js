@@ -3,6 +3,7 @@
 // node with a `value`, so code that steers the world writes `U.uSunDir.value.copy(…)` as before.
 import * as THREE from 'three/webgpu';
 import { uniform, texture } from 'three/tsl';
+import { outputRatio } from './output.js';
 
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
 const placeholder = Object.assign(new THREE.DepthTexture(1, 1), { compareFunction: THREE.LessEqualCompare });   // the shadow map until src/world/shadow.js gives the real one (read with a comparison sampler as it is)
@@ -23,7 +24,7 @@ export const U = {
   uExposure: uniform(1),                           // the picture's exposure (the sky sets it by the hour)
   uSnow: uniform(0),                               // how deep the snow lies, metres (src/world/weather/snow.js)
   uFine: uniform(1),                               // how much finer than the inside's pixels textures are read (built over time: src/core/temporal.js)
-  uDrawn: uniform(typeof devicePixelRatio === 'number' ? Math.min(devicePixelRatio, 2) : 1),   // pixels drawn a CSS pixel: the inside's ratio (src/core/temporal.js, tools/bench.js), for src/detail/measure.js drawnAt
+  uDrawn: uniform(outputRatio()),   // pixels drawn a CSS pixel: the inside's ratio (it starts at the canvas's: src/core/output.js) (src/core/temporal.js, tools/bench.js), for src/detail/measure.js drawnAt
   // where a point lay a frame ago, for the prepass's motion (src/core/pass.js; set by src/core/temporal.js): the clock as
   // it stood then (what moves by the clock, the wind first, is worked out again at it), the world to that frame's clip
   // space (its camera, unshifted), this frame's shift in the inside's pixels, and the inside's size
