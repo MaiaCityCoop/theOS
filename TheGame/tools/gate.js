@@ -186,9 +186,10 @@ for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { unlock(); for (
 async function stills(chrome, { tag, truth = false, reach = null, views, tiles = 1 } = {}) {
   tag ||= commit() + (truth ? '-truth' : '');
   const list = pick(VIEWS, views, 'view'), dir = `${OUT}${tag}/`, n = Math.max(1, Math.round(+tiles || 1)), png = (s) => Buffer.from(s.png.slice(s.png.indexOf(',') + 1), 'base64');
-  // (in tiles, or with the GPU shared, GATE_LOCK, the page is held on the gate's clock, tools/gate/clock.js:
-  // nothing is drawn between two views or tiles, so another run may have the GPU meanwhile)
-  const held = n > 1 || !!LOCK;
+  // (the page held on the gate's clock, tools/gate/clock.js, from its start: it settles there with the clock standing,
+  // not while the wind uncovers ground that asks for more of the land's pages, which on slow frames, ?truth's, it can do
+  // faster than they settle; and nothing is drawn between two views or tiles, so another run may have the GPU meanwhile)
+  const held = true;
   const { page, errors, url, start, close } = await locked(`stills ${tag}: the page`, async () => {
     const P = await open(chrome, { query: truth ? (reach ? `truth=${reach}` : 'truth') : '', init: held ? stepper : null });
     await P.page.evaluate(prepare, { inside: truth ? null : INSIDE, time: TIME });
