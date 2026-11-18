@@ -1,0 +1,233 @@
+{
+ "intent": "0040",
+ "title": "A face with eyes",
+ "day": null,
+ "inGame": null,
+ "goals": [
+  [
+   "Eyes: lids cut along their edges, a globe with iris and cornea, lashes, brows",
+   true
+  ],
+  [
+   "The head laid out anew from measures: a forehead, a nose, two lips, a chin, a jaw",
+   true
+  ],
+  [
+   "The tool draws five face views and prints fourteen face measures",
+   true
+  ],
+  [
+   "The body as it was: one closed skin, the same measures, the same poses",
+   true
+  ],
+  [
+   "Seen in the library on a real GPU, and timed",
+   false
+  ],
+  [
+   "Photoreal: ears, hair, skin that differs from place to place, a face that moves",
+   false
+  ]
+ ],
+ "preview": {
+  "pos": [
+   -1264.0,
+   -5.44,
+   617.07
+  ],
+  "look": [
+   -1262.6,
+   -6.0,
+   631.0
+  ],
+  "mm": 35
+ },
+ "clips": [
+  {
+   "name": "The meadow, one tent",
+   "kind": "wide",
+   "secs": 14,
+   "ease": "in",
+   "in": "dip",
+   "inSecs": 1.4,
+   "hour": 11,
+   "clouds": 0,
+   "why": "the game as it starts: the one tent on the meadow, where whoever lives here will stand and be looked in the face. The Body itself stands in the library, not yet in this world",
+   "keys": [
+    {
+     "pos": [
+      -1264.0,
+      -5.44,
+      617.07
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1263.8,
+      -5.45,
+      619.06
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    }
+   ]
+  },
+  {
+   "name": "Towards the tent",
+   "kind": "push in",
+   "secs": 13,
+   "ease": "out",
+   "in": "cut",
+   "why": "nearer, at a person's eyes: a face is judged from here, an arm's length",
+   "keys": [
+    {
+     "pos": [
+      -1263.4,
+      -5.46,
+      623.04
+     ],
+     "look": [
+      -1262.85,
+      -5.98,
+      628.51
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1263.05,
+      -5.46,
+      626.52
+     ],
+     "look": [
+      -1262.85,
+      -5.98,
+      628.51
+     ],
+     "mm": 35
+    }
+   ]
+  },
+  {
+   "name": "Back and up",
+   "kind": "pull back",
+   "secs": 16,
+   "ease": "inout",
+   "in": "cut",
+   "why": "back from the tent and up: what is a face now and what is not yet, said plainly over the whole of it",
+   "keys": [
+    {
+     "pos": [
+      -1264.0,
+      -5.44,
+      617.07
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1264.4,
+      -3.07,
+      613.09
+     ],
+     "look": [
+      -1262.6,
+      -6.2,
+      631.0
+     ],
+     "mm": 35
+    }
+   ]
+  }
+ ],
+ "captions": [
+  {
+   "at": 0.6,
+   "for": 3.6,
+   "kind": "title",
+   "over": "A face with eyes",
+   "text": "A face where there was a mask"
+  },
+  {
+   "at": 4.6,
+   "for": 3.2,
+   "kind": "samuel",
+   "text": "Ok eyes and face is the worst at the moment"
+  },
+  {
+   "at": 8.0,
+   "for": 2.6,
+   "kind": "samuel",
+   "text": "the body is okay for now"
+  },
+  {
+   "at": 11.0,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "Its eyes were two balls looking out of holes."
+  },
+  {
+   "at": 14.4,
+   "for": 3.4,
+   "kind": "maia",
+   "text": "Now a lid's edge is cut pixel by pixel, over a globe with an iris."
+  },
+  {
+   "at": 18.0,
+   "for": 3.2,
+   "kind": "maia",
+   "text": "With eyes in it, the head was still a mask."
+  },
+  {
+   "at": 21.4,
+   "for": 3.2,
+   "kind": "maia",
+   "text": "Its mouth lay 8 mm under its own teeth."
+  },
+  {
+   "at": 24.8,
+   "for": 2.8,
+   "kind": "maia",
+   "text": "So I laid the head out anew, level by level,"
+  },
+  {
+   "at": 27.8,
+   "for": 3.2,
+   "kind": "maia",
+   "text": "from its skull and the measured face of a man."
+  },
+  {
+   "at": 31.2,
+   "for": 3.2,
+   "kind": "maia",
+   "text": "Its neck measured 43 cm round. Now 39.4."
+  },
+  {
+   "at": 34.6,
+   "for": 3.6,
+   "kind": "maia",
+   "text": "A face, yes. A photograph, no: the ears, the hair, a blink."
+  },
+  {
+   "at": 38.6,
+   "for": 3.6,
+   "kind": "note",
+   "text": "Seen on a software GPU only. Not yet in the library."
+  }
+ ]
+}
