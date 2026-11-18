@@ -146,6 +146,7 @@ function eyesOf(bones, eye) {
         const vein = smoothstep(0.15, 0.75, mx_noise_float(vec3(p.x.mul(700), p.y.mul(1800), 2.3))).mul(smoothstep(0.0062, 0.011, rho)).mul(0.3);
         let col = mix(vec3(...WHITE), vec3(0.6, 0.35, 0.32), vein);
         col = mix(mix(col, stroma, iris), vec3(0.008), pupil);
+        col = mix(col, vec3(0.58, 0.4, 0.38), smoothstep(0.24, 0.1, o.t).mul(0.55));   // (pinker into the inner corner)
         col = mix(col, vec3(0.55, 0.32, 0.29), smoothstep(0.0005, 0.0, o.over).mul(0.8));
         // its light: soft on a wet ball; dimmer under the upper lid and into the corners
         const nS = normalize(modelWorldMatrix.mul(vec4(p, 0)).xyz), nC = normalize(modelWorldMatrix.mul(vec4(p.xy.div(0.0078), sqrt(max(float(1).sub(rho.mul(rho).div(0.0078 * 0.0078)), 0.05)), 0)).xyz), n = normalize(mix(nS, nC, cornea));
@@ -169,9 +170,10 @@ function eyesOf(bones, eye) {
       const mat = new THREE.NodeMaterial(); mat.eye = eye;
       mat.fragmentNode = Fn(() => {
         const out = vec4(0).toVar(), p = positionGeometry.add(vec3(...off)), o = eyeOpeningNode(vec2(p.x.mul(side), p.y));
-        Discard(o.d.lessThan(-0.0004).or(positionGeometry.z.lessThan(0)));
+        Discard(positionGeometry.z.lessThan(0));   // (not cut along the lids' edges as the globe is: it lies behind the lids, and looked at from the side what is seen past a lid's edge lies outside the opening as drawn from the front)
         If(unlit().not(), () => {
-          const w = positionWorld, n = normalize(modelWorldMatrix.mul(vec4(positionGeometry, 0)).xyz), sun = U.uSun.mul(sunDim().mul(cloudShade(w)).mul(shadowAtPulled(w)));
+          // (the white going on: lit as the globe is where they meet, so no line shows there; the mound by its own round)
+          const w = positionWorld, n = normalize(modelWorldMatrix.mul(vec4(pink ? positionGeometry : p, 0)).xyz), sun = U.uSun.mul(sunDim().mul(cloudShade(w)).mul(shadowAtPulled(w)));
           const shade = mix(float(0.32), float(1), smoothstep(0.0002, 0.006, o.under)).mul(mix(float(0.75), float(1), smoothstep(0, 0.002, o.over))).mul(mix(float(0.6), float(1), smoothstep(0.0, 0.14, o.t).mul(smoothstep(1.0, 0.88, o.t))));
           const col = pink ? vec3(0.56, 0.29, 0.27) : vec3(...WHITE);
           out.assign(finish(col.mul(skyLight(n).mul(0.8).add(sun.mul(max(dot(n, U.uSunDir).mul(0.55).add(0.45), 0)))).mul(shade), w, eye));
@@ -180,7 +182,7 @@ function eyesOf(bones, eye) {
       })();
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 28, 18), mat); mesh.position.set(...off); return mesh;
     };
-    const bed = behind([0, 0, -0.00975], 0.0178, false), mound = behind([side * -0.0132, -0.0012, 0.002], 0.0038, true);
+    const bed = behind([0, 0, -0.00975], 0.0178, false), mound = behind([side * -0.0148, -0.0013, 0.0015], 0.0042, true);
     b.add(mesh, bed, mound); out.push(mesh, bed, mound, lashesOf(b, side, eye));
   }
   return out;
