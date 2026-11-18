@@ -49,6 +49,18 @@ Every citizen's start is invested the same way, so wealth is split across real c
 
 On day one, 75,000 HEARTS go in (the city coop and the village coop). The other 50,000 are reserved for the city-wide coops: each time a village milestone is reached, the next coop opens and 5,000 of every citizen's reserve flows into it, until all ten are funded. Besides that, every citizen invests their 24 new HEARTS a day as they choose.
 
+### The city's economy: one currency inside
+
+**Everything in the city is paid in city HEARTS.** € exist only at the gate to the outside.
+
+- **Living costs:** every citizen pays **rent** to their village coop and **food money**, in city HEARTS.
+- **Earning:** citizens earn city HEARTS by making **work proposals** to the village and city coops; a proposal a coop accepts is paid.
+- **The global rule, hard-coded: every coop pays 50% of its turnover, in real time, to its MINDS holders.** Turnover, not profit: each coop runs on the other half.
+- **The circle:** rent and food money are the village coop's turnover; half of it flows straight back to its MINDS holders, the citizens, who pay rent and food with it again.
+- **Personal HEARTS are for investing** (they buy MINDS and become city HEARTS in a coop's treasury); living costs are paid only in city HEARTS, from proposals or payouts.
+- **A free citizen** is one whose MINDS payouts cover their rent and food: they no longer need to make proposals to live. How many are free is the game's proof of a post-labour economy.
+- **The gate:** city HEARTS and € meet in the city coop's liquidity pool. € come in from investors and exports; € go out for imports at the market interface.
+
 ### The funding curve
 
 - Every coop is funded on a **continuous funding curve** (a bonding curve): the more is invested, the higher the price of the next MINDS.
@@ -165,7 +177,7 @@ Every city is a startup hub: founding the next coop is what people do, every day
 
 The numbers the game publishes, the proof:
 
-- **Free citizens:** the share whose ownership earns more than 24 HEARTS a day.
+- **Free citizens:** the share whose MINDS payouts cover their rent and food.
 - **Days to sovereignty:** how fast a city feeds and powers itself through owned coops.
 - **Food and power per citizen.**
 - **Trade balance**, per city and per country.
@@ -174,5 +186,6 @@ The numbers the game publishes, the proof:
 ## Open
 
 - Insolvency in full.
+- The gate's price (set by the pool or by the city coop), who may pass it, how rent and food prices are set, who accepts work proposals, and whether a citizen's own harvest counts against their food money.
 - The ladder's percentages (food, energy, climate) and the plants per dome size with their real growing cycles: to be tuned, and sourced before they are shown as fact.
 - Real-world numbers (dome yields, solar output, market prices) need sources before they are shown as fact.
