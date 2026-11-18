@@ -184,6 +184,7 @@ numbers are written below.
 | 5 | #69 | Near trees as crowds of parts at their own size (`CARD`, `KMAX`, the stretched cards gone); one spread order, one wind; far-end bakes kept (warm start 1.1 s, was 37 s) |
 | Occlusion culling | #68 | A depth pyramid and two-pass culling of every drawer's tiers: 2–67 % of main's things drawn, nothing visible lost (exact depth check; FLIP within main's noise from above) |
 | 6b | #71 (draft) | The ground as one virtual texture (`src/terrain/pages.js`): pages laid once in compute, a BC atlas of 4096 pages in about 250 MB, asked for from the prepass, faded in. The land alone 2–6 × faster from above (13–14 ms against 47–76 on the shared GPU); the near ground as sharp as main's (its edges 100 % of main's, FLIP of the near-eye crop 0.071); a jump settles in 17–53 s against main's 6–9 |
+| 8 | (PR) | Surfaces from their full mesh alone: one cluster hierarchy (meshoptimizer) for the rocks, the tent and the fire pit; a compute cut for what is large on screen; `reduce.js`, the rocks' ladder, the made things' hand-built levels and the solids' pixel bands deleted |
 
 **In flight when this was written** (each on its own branch, as a PR or nearly):
 
@@ -198,7 +199,8 @@ numbers are written below.
   already carry each texel's height (their colour's fourth number). Also left from 6b: a jump's settling (17–53 s
   against main's 6–9; what bounds it is under 6b's Measured), and what is let go with distance taken by distance on
   grazing ground (at eye level the far bare patches go too near).
-- **8:** cluster hierarchy for rocks, then the tent and fire pit (absorbs `aven/0033-solids-wip`).
+- **8b:** the stress world's zoo on the cluster hierarchy: its standing shapes built on demand, its creatures skinned
+  (stage 8's notes say what it needs).
 - **9:** one light: leaf shadows, Bend's screen-space shadows, the canopy map, GTAO, transmission, Hillaire's sky,
   froxel fog, sky probes. It is the biggest step towards the look target.
 
@@ -1239,6 +1241,118 @@ boxes, the grass's tiers and the plants' packing; nothing of the cut (stage 8) o
   - the meadow's blades are still packed in an order that changes from run to run (the packing's atomics): the culling
     keeps whatever order the packing left;
   - Safari has not been tried.
+### Stage 8: surfaces, one cluster hierarchy from the full mesh alone (2026-11-18)
+
+Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at `d1c3805` (6b) and `314e2e6`.
+
+- **The Safari check came first** (`tools/gate/cut.html`, `tools/gate/cut.js`): 4096 clusters tested by the cut's rule in
+  a compute pass, counted with 32-bit atomics, listed, and drawn by one indirect draw through the hardware rasteriser; the
+  picture read back against the rule in JS. In Playwright's WebKit (the engine of Safari) and in Chrome both drew the
+  2529 clusters asked for, none wrong, none missing. Neither offers 64-bit atomics, and nothing asks for them.
+- **The builder** (`assets/kit/clusters.js`, meshoptimizer 1.3, MIT, in the recipes' workers only: the page never loads
+  it). From a thing's full mesh alone, as `clusterlod.h` does: clusters of at most 128 triangles; about eight grouped
+  afresh at every level; each group simplified to half with every vertex it shares with another group locked; normals
+  (weight 0.02 of the thing's size) and colours or shade weighed in the error, permissive across hard edges, a
+  material's or colour's edge protected; cut into clusters again; a tail of halvings under the last. Each group's error
+  is the simplifier's, never less than the farthest its lost vertices lie from what it is made into (measured: the
+  simplifier's word misses a small piece folded away whole), and never less than `BAND` = 1.5 times its children's;
+  each sphere holds its children's exactly. Each lost vertex keeps its place, normal and colour on its parent's
+  surface (the morph). **Thin and small loose parts** (a guy rope, a peg, a lantern: 12 triangles or fewer, or eight
+  times longer than wide) are held whole, their vertices locked, until the error the group is allowed reaches their own
+  reach (how far their farthest point lies from their middle); then they go whole, shrinking to their middle.
+  **Made things are welded first**: a vertex where place, normal, colour and material are alike.
+  - The boulder (110 592 triangles): 1838 clusters, 221 038 triangles in all, 0.7 to 2.5 s on one thread (a shared
+    machine), sound (every error monotone, every sphere held), no open edge at any cut. The tent (1424 faces): 33
+    clusters; the fire pit (13 263): 270; closed away from their own borders.
+  - Kept in IndexedDB by the drawers' fingerprints (the registry's versions; `made 4`, `clusters 1`).
+- **The levels** (`src/detail/error.js`, `assets/kit/surface.js`): a surface's levels only share the work out; what is
+  drawn is the rule, cluster by cluster. Level 0 holds every cluster a thing at the eye may need and is drawn by the
+  cut; level `l` from 1 holds the clusters any size from half its largest to its largest may need (errors
+  `surfaceBand(l)`), down to 1.5 px in nine levels. A level holds its error range in its header and its clusters'
+  numbers (first corner, triangles, their way's range, own and parent error and sphere); its corners name their
+  cluster in their top 16 bits. Two levels meet where both hold the whole cut that size asks for, turned as far:
+  a thing passed from one to the next shows no change. A level that would overfill its room is cut down (its fine end
+  coarser, or level 0's coarse end finer: never a hole) and counted (`trimmed`); no shape today needs it.
+- **The cut** (`src/scatter/cut.js`): a cluster is drawn where its own error is at most `ERROR_PX` over the pixels drawn
+  a unit of the thing covers (`BUDGET_DRAWN`) and its parent's is over it; it turns into its parent while the parent's
+  falls from `BAND` times that to it.
+  - **Small things** take a level chosen in the tier's existing packing (`tierAll`), the rule run in the vertex stage
+    by the thing's own distance.
+  - **Things 256 px drawn or larger** (level 0) are tested cluster by cluster in a compute pass, each by its own
+    sphere's distance, blended in from the thing's own as it grows from 256 to 512 px (so at 256 px the two ways
+    choose alike): one workgroup row a thing, a thread a cluster, a list with 32-bit atomics, one indirect draw, a
+    cluster an instance, drawn by the drawer's own material (prepass, motion, shadows). A made thing is small enough
+    (at most 26 k triangles in all) that its level 0 runs the same rule in the vertex stage.
+  - **Changes are geometric**: every vertex moves to its place on its parent before the parent is drawn; a level that
+    comes late refines from what its coarser level showed over 1.5 s; the prepass's motion reads the morph a frame ago.
+  - The rocks' tier keeps its packing and culling; level 0's bucket holds the things the cut draws.
+- **Deleted:** `assets/kit/reduce.js` (198 lines); the rocks' `detail: { ladder }`; the tent's and fire pit's
+  `detail.levels` and the code that built their coarser shapes (the bare tent, the closed cone, the door panels only
+  those drew; the fire pit's level options); the kinds' pixel bands for solids (`shelter`, `default`); the rocks' use of
+  the ladder (`rocks.js`, `rock.js`) and of `DELTA`. Solid recipes declare only full detail (`faces`, or the rock kit's
+  mesh). `ladder.js` stays for the stress world's zoo until 8b (below).
+- **Not switched: the stress world's standing shapes** (`assets/zoo/blobs.js`, 8000 kinds of 50 000 to 200 000
+  triangles). Their coarse levels are every kind's own and come from the recipe; a hierarchy needs each kind's full mesh
+  built first, 0.7 to 2.5 s a kind: three to six hours of a worker for 8000. They need what 8b needs (below).
+- **What 8b needs** (the zoo's standing shapes and its creatures):
+  - build on demand: a kind's hierarchy only when it comes near (the drawer's streamed level 0), its coarse levels the
+    recipe's stand-in until then, the step from one to the other grown in (the cut's refinement over 1.5 s, from the
+    stand-in's error);
+  - skinned meshes: the builder keeps every vertex it keeps whole, so its two bones and weight travel with it (pass
+    them as `attr` weighed in the error, so no collapse crosses two bones' regions); build on the rest pose; grow each
+    cluster's sphere, and its error, by how far its bones carry it (a stride's reach: `herdRooms`), so the cut stays
+    conservative under the skeleton's range of motion (UE 5.7 Nanite skinning does the same);
+  - the cut's list for many kinds at once: a dispatch per drawer, not per tier (the Mac mini's Task B).
+
+- **Measured** (not a gate where against main: Samuel, 2026-11-18; headless Chrome on Samuel's MacBook, against main on a server of its own, fresh profiles; the machine
+  was shared with other agents throughout, at load averages of 50 to 180, and restarted once):
+  - **The pop check** (`tools/gate/pop.js`): each thing walked from just off its middle to about a pixel, 1 % nearer a
+    step (the fire pit and the boulder 2 %, every fourth and eighth triangle's corners), the rule reckoned as the GPU
+    does it; the farthest any point of what is drawn moves off the surface drawn a step before, in pixels drawn:
+
+| Thing | Largest jump, morph | 99th percentile, morph | Largest jump, swapped at once | 99th percentile, swapped |
+| --- | --- | --- | --- | --- |
+| Bell tent (694 steps) | 0.61 px (at 37 px on screen) | 0.048 | 1.01 px | 0.000 |
+| Fire pit (348 steps of 2 %) | 0.63 px (at 6 px) | 0.35 | 1.20 px (at 701 px) | 1.06 |
+| Boulder (348 steps of 2 %) | 0.14 px (at 318 px) | 0.11 | 1.14 px (at 648 px) | 1.00 |
+
+    No step moves anything a pixel or more: swapped at once, the clusters' changes stand at the error allowed (about a
+    pixel), and the morph takes them to between an eighth and three fifths of that, spread over the steps. A step of 2 %
+    is a fast zoom (at 60 frames a second, from 1.7 m to 12 km in about seven seconds).
+  - **Triangles drawn, against main: not a gate** (Samuel, 2026-11-18: main is no reference) (`pop.js --at`, the rule's own count; main's from its levels and its kinds' pixel bands, seen
+    from the gate's views):
+
+| Thing, view | Main | Stage 8 |
+| --- | --- | --- |
+| Fire pit, from the tent's bench (7.4 m, 480 px) | 13 263 (level 0) | 7 304 (level 0, by cluster) |
+| Fire pit, tent 30 m (23 m, 152 px) | 6 648 | 2 797 |
+| Fire pit, tent 120 m (113 m, 31 px) | 2 130 | 1 225 |
+| Bell tent, 3 to 30 m (233 to 2335 px) | 1 424 | 1 424 |
+| Bell tent, 120 m (58 px) | 308 (its hand-built second level: 16 panels, no inside) | 1 066 |
+| Boulder of 3.3 m at 6 m (445 px) | 110 592 (its full mesh) | 27 762 |
+| The same at 30 m (89 px) | 3 072 | 1 940 |
+| The same at 100 m (27 px) | 192 | 428 |
+
+    The fire pit draws 42–58 % fewer triangles; the boulder at the eye a quarter of main's. Borderline: the tent far
+    off and the boulder under 30 px draw more than main's hand-made levels did, because the hierarchy keeps what the
+    error says is still there (the tent's inside and ropes, held whole until their own reach is allowed; the flat-shaded
+    canvas, whose panels' hard edges hold the simplifier at about 320 triangles). Both are a few hundred triangles a
+    thing.
+  - **Memory** (by the levels' rooms): the rocks' heap 32 → 56 MB (level 0's six slots hold every cluster a near shape
+    needs, about twice its full mesh; the other levels every shape's own), the made things' 1.3 → 10.5 MB (every level
+    a kind's whole hierarchy's room), the cut's lists 2 MB.
+  - **The first start** builds every rock shape's hierarchy in the workers: the rocks' coarse levels came 31 to 63 s
+    after the start (24 shapes, 0.7–2.5 s each, three workers, the machine shared), the made things' behind them. They
+    are kept in IndexedDB, so a second start reads them back.
+  - `bun tools/scale.js`: 18 of 18. `bun tools/account-check.js`: 67 passed. `bunx --bun vite build`: built.
+
+  - **FLIP against `?truth`: not measured yet; to be measured on the Mac mini**, on its own GPU. This MacBook's GPU was
+    shared and froze, so its runs were stopped. Here, the branch's stills settled at `bench-tent-eye-level`, `tent-10m`,
+    `tent-30m` and `tent-120m` (171.8, 110.5, 126.0 and 53.5 s), and main's at `firepit-3m`, `boulder-6m` and
+    `boulder-30m`. Not measured here:
+    - main's tent views did not settle within 300 s, with one of the land's pages still out (6b's settling, fixed in 6c);
+    - `?truth` drew black before #79;
+    - the branch's own close views lost the WebGPU device, and so did the truth retried after #79, on the shared GPU.
 
 ## Propose
 
@@ -1267,7 +1381,7 @@ boxes, the grass's tiers and the plants' packing; nothing of the cut (stage 8) o
   - [ ] 6c: relief (displacement, parallax, skirts, path decals)
 - [ ] Stage 7: placement, five layers
   - [x] one rule, the growth map, the forest's layers and their kinds (built; draft PR #73)
-- [ ] Stage 8: surfaces, cluster hierarchy
+- [ ] Stage 8: surfaces, cluster hierarchy (built: rocks, the tent and the fire pit; the stress world's zoo to 8b)
 - [ ] Stage 9: one light, characters
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
 
