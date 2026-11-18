@@ -11,6 +11,7 @@ on:
     branches: [main]
     paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, Artifacts/**, brand/**, deploy/**, .github/workflows/**]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, Artifacts/**, brand/**, deploy/**, .github/workflows/**]
 
 permissions:
@@ -22,6 +23,9 @@ concurrency:
 
 jobs:
   check:
+    # A draft is work in progress: it is checked on its author's machine before every push (.githooks/pre-push), and
+    # here once it is marked ready for review. So a draft never runs, and never mails a failure to everyone.
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     services:

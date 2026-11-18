@@ -123,25 +123,40 @@ export function gpuStorage(type, count, name = null, cls = 'other', instanced = 
   if (name) note(name, bytes, 0, cls);
   return { node: storage(attr, type, count), attr, bytes, lean: true, write(at, data) { dev.queue.writeBuffer(buffer, at * 4, data); } };
 }
+// A buffer made again is another buffer: everything that binds the one it was binds the new one where it next binds
+// (three: a storage node's attribute is another, so its bind groups are made again), and what keeps its bindings
+// recorded (the late prepass's bundle, src/core/occlusion.js) records them again when remade() has moved on. The buffer
+// it was is let go only once nothing can use it: after the next two frames have been drawn (every user bound the new
+// one), and once the GPU has done all that was handed it before then.
+let REMADE = 0;
+/** A number that moves on whenever a buffer here is made again: what records its bindings records them again. */
+export const remade = () => REMADE;
+const nextFrame = (f) => (globalThis.requestAnimationFrame ? requestAnimationFrame(f) : setTimeout(f, 16));
+const retire = (attr) => nextFrame(() => nextFrame(() => {
+  const own = R.backend.get(attr).buffer, done = R.backend.device.queue?.onSubmittedWorkDone?.() ?? Promise.resolve();
+  done.then(() => { attr.dispose(); if (own && R.backend.get(attr).buffer === own) own.destroy(); });   // (three's, let go by three; one three never bound, by us)
+}));
 /** The same, its size said later, before anything binds it (what is shared by things not all made yet: the culling's
-    lists, src/core/occlusion.js): { node, attr, make(count) -> bytes }. A storage buffer's length is not in its code, so
-    the node is the same whatever it is made as; and made again (what follows the screen's size, the culling's depth
-    pyramid; what grows with need, the single things' table, src/world/things.js), its old buffer is let go, so three
-    binds the new one wherever the node is read. */
+    lists, src/core/occlusion.js), and said again as what it must hold changes (a resident tier's store, from its own
+    count: src/scatter/tier.js; what grows with need, the single things' table: src/world/things.js): { node, attr (the buffer it is now), make(count) -> bytes }. Made again, it is a new
+    buffer, the one it was retired (above), and the ledger says the difference. A storage buffer's length is not in its
+    code, so the node is the same whatever it is made as. cls: the class its bytes are noted under (src/core/classes.js). */
 export function gpuStorageLater(type, name = null, cls = 'other') {
-  const [Arr, size] = TYPES[type], attr = new THREE.StorageBufferAttribute(new Arr(size), size);
+  const [Arr, size] = TYPES[type], node = storage(new THREE.StorageBufferAttribute(new Arr(size), size), type, 1); let made = 0;
   return {
-    node: storage(attr, type, 1), attr,
+    node, get attr() { return node.value; },
     make(count) {
       const bytes = Math.max(1, count) * size * 4;
-      if (!R) { attr.array = new Arr(Math.max(1, count) * size); attr.count = Math.max(1, count); if (name) note(name, bytes, bytes, cls); return bytes; }
+      if (!R) { const a = node.value; a.array = new Arr(Math.max(1, count) * size); a.count = Math.max(1, count); if (name) more(name, bytes - made, bytes - made, cls); made = bytes; return bytes; }
       within(bytes, name);
-      if (R.backend.get(attr).buffer) { attr.dispose(); R.backend.get(attr).buffer?.destroy(); }   // (made again: three lets the old one go where it bound it, else it is let go here)
+      const old = node.value, attr = made ? new THREE.StorageBufferAttribute(new Arr(size), size) : old;
       R.backend.get(attr).buffer = R.backend.device.createBuffer({ label: name ?? 'lean', size: Math.max(16, bytes), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
-      if (name) note(name, bytes, 0, cls);
+      if (made) { node.value = attr; REMADE++; retire(old); }
+      if (name) more(name, bytes - made, 0, cls);
+      made = bytes;
       return bytes;
     },
     /** Write `data` (a typed array of its numbers) from its `at`-th number on, at once (made: the GPU's own buffer). */
-    write(at, data) { if (R) R.backend.device.queue.writeBuffer(R.backend.get(attr).buffer, at * 4, data); else { attr.array.set(data, at); attr.addUpdateRange(at, data.length); attr.needsUpdate = true; } },
+    write(at, data) { const a = node.value; if (R) R.backend.device.queue.writeBuffer(R.backend.get(a).buffer, at * 4, data); else { a.array.set(data, at); a.addUpdateRange(at, data.length); a.needsUpdate = true; } },
   };
 }

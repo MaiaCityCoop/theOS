@@ -434,7 +434,7 @@ export function createStress(scene, renderer, tex) {
         });
       });
     };
-    const T = D.tier(i, { cell: CELL, P, cap: shadow ? 8192 : LEVELS[i].cap, sizes: [SMIN, SMAX], place, shadow, fade: FADE, thing: 'stand' });   // (thing: a thing's own state, by its cell of its plot's lattice: src/world/things.js)
+    const T = D.tier(i, { cell: CELL, P, cap: shadow ? 8192 : LEVELS[i].cap, sizes: [SMIN, SMAX], place, shadow, fade: FADE, thing: 'stand', own: true });   // (own: its plots are its patches, below)   // (thing: a thing's own state, by its cell of its plot's lattice: src/world/things.js)
     // its patches: of each plot near, the blocks of its lattice that lie in the tier's band of distances and in view
     // (where a block lies: its middle through toLand; a block near the camera is found by the camera's own lattice point)
     // (where a block's middle lies on the land: folded once, kept; a tier asks it of thousands of blocks a frame)

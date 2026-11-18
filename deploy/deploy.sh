@@ -7,7 +7,8 @@
 # /srv/maia-city/releases/<commit>-<time>, has root build and start that release's API (sudo maia-api-up, the one
 # command this user may run as root), switches /srv/maia-city/current to it (both sites at once), checks that Caddy
 # serves both sites and the new API, and keeps the last few releases. Anything that fails puts the last release back.
-# Rolling back is deploying an earlier commit.
+# Rolling back is deploying an earlier commit. A release also serves the build before it (its hashed files), so a page
+# that loaded just before the switch still finds its own.
 set -eu
 umask 022
 root=${MAIA_ROOT:-/srv/maia-city}
@@ -56,6 +57,18 @@ chmod -R u=rwX,go=rX "$stage/release"
 release="$root/releases/$commit-$(date +%s)"
 mv "$stage/release" "$release"
 previous=$(readlink "$root/current" 2>/dev/null || true)
+# A page that loaded before this deploy still asks for its own build's hashed files (its chunks and its workers, named by
+# their content: never another build's in their place), and the switch would take them from under it. So this release
+# serves the previous one's too, hard-linked (nothing copied), and records which files are its own (<site>.assets,
+# outside what is served): the next deploy carries only those, so one build back is served, never more.
+for site in website game; do
+	(cd "$release/$site" && find assets -type f 2>/dev/null | LC_ALL=C sort) >"$release/$site.assets"
+	[ -n "$previous" ] && [ -d "$previous/$site/assets" ] || continue
+	if [ -f "$previous/$site.assets" ]; then cat "$previous/$site.assets"; else (cd "$previous/$site" && find assets -type f); fi |
+		while IFS= read -r file; do
+			[ -e "$release/$site/$file" ] || { mkdir -p "$(dirname "$release/$site/$file")" && ln "$previous/$site/$file" "$release/$site/$file"; }
+		done
+done
 # The API of the release that was served, started again (if it had one).
 api_back() {
 	if [ -n "$previous" ] && [ -f "$previous/api/Dockerfile" ]; then

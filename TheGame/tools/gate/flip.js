@@ -24,8 +24,8 @@
 import { inflateSync, deflateSync } from 'node:zlib';
 import { OUTPUT } from '../../src/core/budget.js';
 
-/** How many pixels a degree of the eye's view spans: the output (OUTPUT) across a screen 0.7 m wide seen from 0.7 m
-    (a 27–32" screen at about 70 cm): 33.5 at 1920 × 1080; FLIP's own default, 67.02, at a 4K output. */
+/** How many pixels a degree of the eye's view spans: the output (src/core/budget.js OUTPUT) across a screen 0.7 m wide
+    seen from 0.7 m (a 27–32" screen at about 70 cm): 33.5 at 1920 × 1080; FLIP's own default, 67.02, at a 4K output. */
 export const PPD = 0.7 * (OUTPUT.width / 0.7) * (Math.PI / 180);
 
 // FLIP's constants (FLIP.h): the colour metric's exponent qc, the share pc of the largest difference below which errors

@@ -11,8 +11,8 @@
 //                              heap takes it (src/scatter/heap.js: putBlock): { corners, verts, counts } (counts: a
 //                              mesh's corners, or what its family says it counts by: a plant's vertices); and where a
 //                              level says its delta D (solids), or its family measures its meshes (the plants'), each
-//                              kind's box at it: boxes, six numbers a kind; band: the sizes on screen a level of plants
-//                              is drawn between, as its stand cut it ('shade': its shade), handed to its family
+//                              kind's box at it: boxes, six numbers a kind; band: the sizes on screen a level of plants is
+//                              drawn between, as its stand cut it ('shade': its shade), handed to its family
 //                              (assets/kit/plant.js plantFamily)
 import { meshOf, skinOf, bonesOf, herdRooms } from '../../assets/zoo/index.js';
 import { BONES } from '../../assets/kit/solid.js';
