@@ -198,6 +198,41 @@ export function createTemporal(renderer) {
   /** The places for a frame drawn at w × h onto the screen: ⌈8·s²⌉ of them for s screen pixels a drawn one, each way
       (FSR 2's count); ?truth, its own reference, takes 32 (its frames are slow, and it is to be supersampled). */
   const placesFor = (w, h) => { renderer.getDrawingBufferSize(size); const s = Math.max(size.x / w, size.y / h, 1), n = TRUTH_AS.still ? Math.max(32, Math.ceil(8 * s * s)) : Math.ceil(8 * s * s - 1e-6); if (n !== places.length) { places = placesOf(n); k %= n; } };
+
+  // ---- resolve's stages, in its order, once a frame ----
+  /** The kept picture at the screen's size: made again where the size changed, and what was kept let go. */
+  const keep = () => {
+    const key = `${size.x}x${size.y}`;
+    if (key === sizeKept) return;
+    sizeKept = key; fresh = true;
+    for (const h of hist) h.setSize(size.x, size.y);
+    note('the picture kept over time (two of it)', 2 * size.x * size.y * (STORE ? 4 : 8), 0);
+  };
+  /** This frame's screen to the last one's, and back: through both cameras, the far numbers of the world's places taken
+      out before anything is rounded (the two views' product is their difference). */
+  const reproject = () => { rel.multiplyMatrices(viewWas, world); u.toWas.value.multiplyMatrices(projWas, rel).multiply(projInv); u.toNow.value.copy(u.toWas.value).invert(); };
+  /** The frame's numbers, reckoned here once: the sizes and their reciprocals, the bell's width, whether anything is
+      kept, and whether last frame's depth may be read. */
+  const sizes = (depth, depthWas) => {
+    u.inSize.value.set(depth.image.width, depth.image.height); u.rIn.value.set(1 / depth.image.width, 1 / depth.image.height);
+    u.outSize.value.copy(size); u.rOut.value.set(1 / size.x, 1 / size.y); u.sc.value.copy(size).divide(u.inSize.value); u.kq.value = 1 / (8 * K.sigma * K.sigma);
+    u.kept.value = fresh ? 0 : 1; u.wasOk.value = depthWas && !fresh && depthWas.image.width === depth.image.width && depthWas.image.height === depth.image.height ? 1 : 0;
+  };
+  /** The glass now and last frame's (after a cut, this frame's). */
+  const lens = (glass) => {
+    const b = glass?.barrel ?? 0, ph = glass?.picH ?? 1, [bW, phW] = fresh ? [b, ph] : glassWas; glassWas = [b, ph];
+    u.barrel.value = b; u.gk.value = 1 / (1 + 1.35 * b); u.gs.value.set(2, 2 / ph); u.dim.value = glass?.dim ?? 0;
+    u.barrelWas.value = bW; u.gWas.value = 1 + 1.35 * bW; u.gsWas.value.set(2, 2 / phW); u.same.value = bW === b && phW === ph ? 1 : 0;
+  };
+  /** The pass drawn: on WebGPU straight onto the canvas (it writes the kept picture itself); on WebGL 2 into the kept and
+      the shown, and the shown copied onto the canvas. */
+  const draw = (colour, depth, motion, depthWas) => {
+    tC.value = colour; tD.value = depth; tDW.value = depthWas ?? depth; tM.value = motion;
+    if (STORE) { renderer.setRenderTarget(null); renderer.render(quads[turn], cam); return; }
+    tHW.value = hist[1 - turn].textures[0];
+    renderer.setRenderTarget(hist[turn]); renderer.render(quads[0], cam); renderer.setRenderTarget(null);
+    tShow.value = hist[turn].textures[1]; renderer.render(copy, cam);
+  };
   return {
     K,
     /** Frames the kept picture has been built over since it was last let go (0: this frame stood alone). */
@@ -243,30 +278,7 @@ export function createTemporal(renderer) {
         none at the first), glass ({ barrel, picH, dim }: the lens's, or none) }. */
     resolve({ colour, depth, motion, depthWas = null, glass = null }) {
       renderer.getDrawingBufferSize(size);
-      const key = `${size.x}x${size.y}`;
-      if (key !== sizeKept) {
-        sizeKept = key; fresh = true;
-        for (const h of hist) h.setSize(size.x, size.y);
-        note('the picture kept over time (two of it)', 2 * size.x * size.y * (STORE ? 4 : 8), 0);
-      }
-      // this frame's screen to the last one's, and back: through both cameras, the far numbers of the world's places
-      // taken out before anything is rounded (the two views' product is their difference)
-      rel.multiplyMatrices(viewWas, world); u.toWas.value.multiplyMatrices(projWas, rel).multiply(projInv); u.toNow.value.copy(u.toWas.value).invert();
-      // (the frame's numbers, reckoned here once: the sizes and their reciprocals, the bell's width, the glass now and
-      // last frame's (after a cut, this frame's))
-      u.inSize.value.set(depth.image.width, depth.image.height); u.rIn.value.set(1 / depth.image.width, 1 / depth.image.height);
-      u.outSize.value.copy(size); u.rOut.value.set(1 / size.x, 1 / size.y); u.sc.value.copy(size).divide(u.inSize.value); u.kq.value = 1 / (8 * K.sigma * K.sigma);
-      u.kept.value = fresh ? 0 : 1; u.wasOk.value = depthWas && !fresh && depthWas.image.width === depth.image.width && depthWas.image.height === depth.image.height ? 1 : 0;
-      const b = glass?.barrel ?? 0, ph = glass?.picH ?? 1, [bW, phW] = fresh ? [b, ph] : glassWas; glassWas = [b, ph];
-      u.barrel.value = b; u.gk.value = 1 / (1 + 1.35 * b); u.gs.value.set(2, 2 / ph); u.dim.value = glass?.dim ?? 0;
-      u.barrelWas.value = bW; u.gWas.value = 1 + 1.35 * bW; u.gsWas.value.set(2, 2 / phW); u.same.value = bW === b && phW === ph ? 1 : 0;
-      tC.value = colour; tD.value = depth; tDW.value = depthWas ?? depth; tM.value = motion;
-      if (STORE) { renderer.setRenderTarget(null); renderer.render(quads[turn], cam); }
-      else {
-        tHW.value = hist[1 - turn].textures[0];
-        renderer.setRenderTarget(hist[turn]); renderer.render(quads[0], cam); renderer.setRenderTarget(null);
-        tShow.value = hist[turn].textures[1]; renderer.render(copy, cam);
-      }
+      keep(); reproject(); sizes(depth, depthWas); lens(glass); draw(colour, depth, motion, depthWas);
       age = fresh ? 0 : age + 1; turn = 1 - turn; fresh = false; projWas.copy(proj); viewWas.copy(view); timeWas = U.uTime.value;
     },
   };
