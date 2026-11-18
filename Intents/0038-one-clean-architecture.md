@@ -1885,7 +1885,7 @@ the rocks' and the made things' own hierarchies, the page's modules loaded throu
   is more than 0.6 full (linear probing: a look-up that misses, as most do, looks at 3.6 places on average), within
   one buffer the GPU binds (was 2^18
   places, 4 MB, always). Its buffer made again when it grows, the node the same.
-- **A group's error measured both ways** ( apart, after the first PR draft): boulder 3's coarse levels
+- **A group's error measured both ways** (`clusters.js` apart, after the first PR draft): boulder 3's coarse levels
   held about 3,200 triangles because one level-5 group (214 triangles, 114 of its 165 vertices locked) was said 0.058 of
   its size off by the simplifier, where sampled densely it lies 0.013 from what it was made into and its shading 0.018;
   BAND carried that up its whole chain. The simplifier's error is a quadric's (every face's plane, and an attribute's,
