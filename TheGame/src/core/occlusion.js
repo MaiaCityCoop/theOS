@@ -201,7 +201,7 @@ function arena() {
   /** The arena's numbers and buffers, as large as its tiers: once, before anything binds them (every node that reads
       them asks), and again where a tier's range has changed (relayout). */
   const lay = () => {
-    let N = 0, NC = 1; for (const t of A.tiers) { t.base = N; t.uBase.value = N; N += t.total; NC += chunksOf(t); }
+    let N = 0, NC = 1; for (const t of A.tiers) { t.base = N; t.uBase.value = N; t.uEntry.value = (N - t.from) >>> 0; N += t.total; NC += chunksOf(t); }
     A.N = N; A.NC = NC;
     const { G } = A, B = new Uint32Array((G + 1) * NB), E = new Uint32Array(Math.max(1, G) * 10);
     for (const t of A.tiers) for (let k = 0; k < t.K; k++) {
@@ -346,10 +346,10 @@ const proxies = [];
 const ROOM = () => Math.floor(Math.min(limitOf('maxStorageBufferBindingSize'), limitOf('maxBufferSize')) / 16);
 /** Whether a tier of `total` things can be culled (one that alone would fill more than an arena is drawn whole). */
 export const cullable = (total) => total <= ROOM();
-export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, offAt = null }) {
+export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, offAt = null, also = null }) {
   useLimits();   // (the device's own)
   if (OPEN && OPEN.N + total > ROOM()) OPEN.build();   // (full: it is made as it is, and this tier opens the next)
-  const A = (OPEN ||= arena()), uBase = uniform(A.N, 'uint'), me = { T, K, caps, offs, total, g0: A.G, base: A.N, idx: A.tiers.length, uBase };
+  const A = (OPEN ||= arena()), uBase = uniform(A.N, 'uint'), uEntry = uniform(A.N, 'uint'), me = { T, K, caps, offs, total, g0: A.G, base: A.N, idx: A.tiers.length, uBase, uEntry, from: 0 };   // (uEntry: where the eye's passes read its list, less where its draws' things begin: from)
   A.tiers.push(me); A.G += K; A.N += total; A.NC += caps ? caps.reduce((a, c) => a + Math.ceil(c / WG), 0) : Math.ceil(total / WG) + K;
   const F = storage(args, 'uint', 5 * K), uG0 = uniform(me.g0, 'uint');
   // after the packing (its last pass, in its stead): each draw as many as it holds, no more than its room; the same
@@ -363,6 +363,7 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
       const g = uG0.add(uint(k)), n = (offAt ? atomicLoad(count.element(k)) : atomicLoad(count.element(k)).min(A.at(g, CAP))).toVar();
       if (offAt) { A.at(g, BASE).assign(uBase.add(offAt(uint(k)))); A.at(g, CAP).assign(n); }
       F.element(k * 5 + 1).assign(n); A.at(g, PACK).assign(n); A.at(g, PRE).assign(run); run.addAssign(n);
+      if (also) also(k);   // (what its tier writes beside, a draw at a time)
     }
     sizeTo(D, run.add(uint(WG - 1)).div(uint(WG)));
   })().compute(1);
@@ -380,14 +381,18 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
     args: argsPass, boxes, arena: A, g0: me.g0,
     /** Where the eye's passes read a thing of a bucket whose things begin at `slot` (a uint node): through what the passes
         kept; every other pass (the shadow map's, a still's, a bake's) where the packing put it. */
-    entry: (slot) => Fn((builder) => { A.build(); const p = passOf(builder); return p === 'pre' || p === 'main' ? slot.add(A.LIST.element(uBase.add(slot).add(instanceIndex))) : slot.add(instanceIndex); })(),
+    entry: (slot) => Fn((builder) => { A.build(); const p = passOf(builder); return p === 'pre' || p === 'main' ? slot.add(A.LIST.element(uEntry.add(slot).add(instanceIndex))) : slot.add(instanceIndex); })(),
     /** The draws' arguments for a pass: 'eye' (V), 'late' (L), 'rest' (F, its own). */
     use(which) {
       if (which === 'rest') T.geometries.forEach((g, k) => { g.indirect = args; g.indirectOffset = k * 20; });
       else { const o = which === 'late' ? 5 : 0; T.geometries.forEach((g, k) => { g.indirect = A.eye; g.indirectOffset = ((me.g0 + k) * 10 + o) * 4; }); }
     },
-    /** Its range is another now (a resident tier's store made again, src/scatter/tier.js): the arena laid out again. */
-    resize(n) { me.total = n; A.relayout(); },
+    /** Its range is another now (a resident tier's store made again, src/scatter/tier.js): the arena laid out again
+        (now false: by whoever changes many at once, C.arena.relayout()). */
+    resize(n, now = true) { me.total = n; if (now) A.relayout(); },
+    /** Where its draws' things begin in the buffer they read (a resident tier's range of its kind's, src/scatter/tier.js):
+        a slot the eye's passes are handed is of that buffer, its list of the arena's. */
+    from(n) { me.from = n; me.uEntry.value = (me.base - n) >>> 0; },
     /** A draw's length (its corners) changed: in all three of its sets of arguments. */
     setLength(k, n) {
       args.array[k * 5] = n; args.addUpdateRange(k * 5, 1); args.needsUpdate = true;
