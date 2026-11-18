@@ -88,15 +88,19 @@ if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} st
 /** How far round the camera the shadows of the stands that cast them are drawn at the most (-1: none casts): past it, a
     stand's floor lies in its crowns' shade, the pixel's own (src/terrain/material.js). */
 export const SHADE_REACH = Math.max(-1, ...STANDS.map((S) => S.reach));
-/** The lowest a crown begins over the ground among the trees that cast, at their oldest (metres; Infinity: none): the
-    shadow cascades' finest texel is the sun's penumbra from it (src/world/shadow.js useCascades). */
-export const CROWN_BASE = Math.min(...STANDS.map((S) => S.crown));
-/** The smallest reach of a crown round its trunk among the trees that cast, at their oldest (metres; Infinity: none):
-    the canopy's probes stand a quarter of it apart (src/world/light/canopy.js). */
-export const CROWN_REACH = Math.min(...STANDS.map((S) => S.radius));
-/** The tallest thing that casts in a stand (metres, its measure's most): how far round a point its shadow's blockers are
-    looked for (src/world/light.js). */
-export const CASTER_TOP = Math.max(0, ...STANDS.map((S) => S.top));
+/** What casts in the stands, which the shadow cascades are laid out from (src/world/shadow.js useCascades, in the light's
+    start: src/world/light/start.js startLight). reach: how far round the eye shadows are drawn (SHADE_REACH). crown:
+    the lowest a crown begins over the ground among the trees that cast, at their oldest (metres; Infinity: none): the
+    cascades' finest texel is the sun's penumbra from it. radius: the smallest reach of a crown round its trunk among
+    them, at their oldest (metres; Infinity: none): the canopy's probes stand a quarter of it apart
+    (src/world/light/canopy.js). top: the tallest thing that casts (metres, its measure's most): how far round a point
+    its shadow's blockers are looked for (src/world/light.js). */
+export const CASTERS = Object.freeze({
+  reach: SHADE_REACH,
+  crown: Math.min(...STANDS.map((S) => S.crown)),
+  radius: Math.min(...STANDS.map((S) => S.radius)),
+  top: Math.max(0, ...STANDS.map((S) => S.top)),
+});
 
 const byte = (v) => uint(round(clamp(v, 0, 1).mul(255)));
 const un = (w, k) => float(w.shiftRight(uint(8 * k)).bitAnd(uint(255))).mul(1 / 255);

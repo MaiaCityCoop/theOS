@@ -6,11 +6,11 @@
 // Their layout, all of it derived (useCascades, at the start, before any material is built):
 //   texels   S a side: a texel ERROR_PX drawn at its own cascade's edge (the one measure: two of the pixels drawn a metre
 //            covers a metre off, over the error)
-//   the near its texel the sun's own penumbra under the lowest crown that casts (SUN_DIAMETER × CROWN_BASE: a texel finer
+//   the near its texel the sun's own penumbra under the lowest crown that casts (SUN_DIAMETER × CASTERS.crown: a texel finer
 //            than the narrowest penumbra a crown throws resolves nothing the sun's disc does not blur away), a third of
 //            it ahead of the eye. Read with a penumbra as wide as the sun's disc makes it: the farther the blocker from
 //            what it shades, the softer (light.js). What is finer still, nearer its receiver, is the contact shadows'
-//            (src/world/light/screen.js). (CROWN_BASE stands in for where the contact shadows hand over, until their
+//            (src/world/light/screen.js). (The lowest crown stands in for where the contact shadows hand over, until their
 //            reach is a length of its own)
 //   the rest each twice the one before (a split by the logarithm: each texel ERROR_PX at its own edge and two where it
 //            takes over), as many as reach the farthest caster (SHADE_REACH: where the trees' shade stand-ins end and
@@ -39,9 +39,10 @@ export const CASTS = 1;   // the layer of what casts a shadow
 const spanOf = (h) => ({ back: 300 + h * 0.5, near: 1, far: 600 + h });
 
 let C = null;
-/** Lay the cascades out (src/boot.js, before any material is built: the light is built for them). reach: how far round
-    the eye shadows are drawn (src/terrain/layers.js SHADE_REACH); crown: the lowest crown that casts (CROWN_BASE); top:
-    the tallest caster (CASTER_TOP); radius: the smallest crown's reach (CROWN_REACH, for the canopy). */
+/** Lay the cascades out (the light's start, src/world/light/start.js startLight: before any material is built, for the
+    light is built for them), from what casts in the stands (src/terrain/layers.js CASTERS): reach, how far round the eye
+    shadows are drawn; crown, the lowest crown that casts; top, the tallest caster; radius, the smallest crown's reach
+    (for the canopy). */
 export function useCascades({ reach, crown, top, radius }) {
   if (!(reach > 0 && crown > 0 && crown < Infinity && top > 0 && radius > 0 && radius < Infinity)) throw new Error(`the shadow cascades are laid out from what casts in the stands (reach ${reach} m, lowest crown ${crown} m, tallest ${top} m, smallest crown ${radius} m round): none of it there`);
   // a cascade's texels a side: a texel ERROR_PX drawn at its own cascade's edge (h metres from the eye, 2h / S a texel, and
@@ -62,7 +63,7 @@ export function useCascades({ reach, crown, top, radius }) {
     (what they were laid out from: reach, crown, top, radius, m), mats (each
     one's matrix from the world to its u, v and depth, uniforms) }. */
 export const cascades = () => {
-  if (!C) throw new Error('the shadow cascades are laid out at the start, before any material is built (src/boot.js: useCascades)');
+  if (!C) throw new Error('the shadow cascades are laid out at the start, before any material is built (src/world/light/start.js startLight, where src/boot.js and tools/smoke.js start the light)');
   return C;
 };
 

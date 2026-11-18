@@ -31,8 +31,6 @@ import { taken, busy, changed } from './core/work.js';
 import { settle, ready as firstView, waiting, watch, tick, partOf, leave } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
 import { createTerrain, landMaterials } from './terrain/terrain.js';
-import { SHADE_REACH, CROWN_BASE, CROWN_REACH, CASTER_TOP } from './terrain/layers.js';
-import { useCascades } from './world/shadow.js';
 import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
 import { recipe } from './core/registry.js';
@@ -43,11 +41,10 @@ import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
 import { createLens } from './camera/post.js';
 import { createScreen } from './core/screen.js';
-import { screenLightFor } from './world/light/screen.js';
+import { startLight } from './world/light/start.js';
 import { createTemporal } from './core/temporal.js';
 import { createSky } from './world/sky.js';
 import { createWeather } from './world/weather/index.js';
-import { useBackend } from './world/light.js';
 import { useTiles } from './world/tile.js';
 import { createLight } from './world/light/index.js';
 import { groundAt } from './world/land.nodes.js';
@@ -109,7 +106,6 @@ export async function boot({ profile = 'world' } = {}) {
   // brings one (src/camera/post.js), and brought up to the screen and built over time in one pass (src/core/temporal.js).
   const temporal = (game.temporal = createTemporal(renderer));
   const screen = (game.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
-  game.screenLight = screenLightFor(renderer, screen);   // the light worked out on the screen from the prepass's depth, for the colour pass (src/world/light/screen.js)
   const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
   game.governor = governor;   // the film holds it still while it plays
   keepMeasure(() => screen.inside);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
@@ -122,8 +118,7 @@ export async function boot({ profile = 'world' } = {}) {
   // with the biomes: src/terrain/layers.js. The stage paints the land's materials at its start, a subject's when it wears them)
   const tex = bakeTextures(renderer, world ? { spare: 1 } : { spare: 8, first: landMaterials() });   // (the library's pictures ask for materials the world may not wear; the start's are compiled side by side and painted while the world is made: tex.ready)
   useTiles(tex);   // node code that reads a baked tile by itself (the clouds' field, the snow's clumps: src/world/tile.js)
-  useBackend(renderer);   // and what is lit per corner (a tree) reads the shadow map's texels only where the backend can
-  useCascades({ reach: SHADE_REACH, crown: CROWN_BASE, top: CASTER_TOP, radius: CROWN_REACH });   // the shadow cascades laid out from what casts, before any material is built (src/world/shadow.js)
+  game.screenLight = startLight(renderer, screen);   // the light's start, before any material is built: the backend's reads, the shadow cascades laid out from what casts, the light worked out on the screen (src/world/light/start.js)
   mark('bake');
   await loadingStep('Raising the land', 0.3);
   // what grows on the land (the ground under the camera and every scattered thing: src/scatter): the world's from the
