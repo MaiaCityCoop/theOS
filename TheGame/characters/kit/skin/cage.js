@@ -102,7 +102,7 @@ export function cageOf(T, { only = null } = {}) {
 
   // ── the cage as it is laid: points, and faces of the left side and of the whole ────────────────────────────────
   const P = [], part = [], side = [], twin = [], whole = [], left = [];
-  const PARTS = T.PARTS ?? ['trunk', 'arm', 'leg', 'thumb', 'index', 'middle', 'ring', 'little', 'head'], P_ = Object.fromEntries(PARTS.map((p, i) => [p, i]));
+  const { PARTS } = T, P_ = Object.fromEntries(PARTS.map((p, i) => [p, i]));
   const point = (p, of, mid = false) => { P.push(mid ? [0, p[1], p[2]] : [p[0], p[1], p[2]]); part.push(P_[of]); side.push(mid ? 0 : 1); twin.push(mid ? P.length - 1 : -1); return P.length - 1; };
   const mir = (v) => { if (twin[v] < 0) { P.push([-P[v][0], P[v][1], P[v][2]]); part.push(part[v]); side.push(-1); twin.push(v); twin[v] = P.length - 1; } return twin[v]; };
   /** a ring across the middle of the body, from the points of its left half (the first and the last on the middle) */

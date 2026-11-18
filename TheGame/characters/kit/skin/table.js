@@ -113,6 +113,7 @@ export const FILL = [
  *  not grow into one another where they lie close: the trunk with the neck and the head, each arm with its hand, each
  *  finger, each leg with its foot. A muscle's ring is in the piece of the joint its place hangs on; where two pieces
  *  meet their skins cross, as a fold does (the armpit, the groin, between the fingers). */
+export const PARTS = ['trunk', 'arm', 'leg', 'thumb', 'index', 'middle', 'ring', 'little', 'head'];   // (a piece's number is its place here)
 export const partOf = (rig) => {   // (the head a piece of its own: its face is fine, and is not to be smoothed as the trunk is)
   const n = rig.replace(/\.[LR]$/, '');
   if (/^(thumb|index|middle|ring|little)\d$/.test(n)) return n.replace(/\d$/, '');

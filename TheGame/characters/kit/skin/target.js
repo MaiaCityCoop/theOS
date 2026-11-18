@@ -21,7 +21,7 @@
 // (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through. The head alone is not made
 // so: its skin is laid on its own form (./head.js, intent 0042), the nose's and the ears' gristle on it, and the neck
 // runs up into it as a column.
-import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, NIPPLE, FILL, partOf, PROFILES, MASSES, PALM, CARPUS, THENAR, FINGERS, TOES, RELIEF, LIMB_RELIEF, HEAD, gapAt } from './table.js';
+import { PARTS, OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, NIPPLE, FILL, partOf, PROFILES, MASSES, PALM, CARPUS, THENAR, FINGERS, TOES, RELIEF, LIMB_RELIEF, HEAD, gapAt } from './table.js';
 import { headFormOf } from './head.js';
 import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
@@ -48,7 +48,7 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
   // between where a row of cells enters and leaves them), its fills and gristle and eyes. Then for each piece how far
   // each cell is from its surface (a distance transform), softened a little (fat rounds what is under it); the skin is
   // where that is as far out as the fat and the skin are thick there, the nearest piece's.
-  const PARTS = ['trunk', 'arm', 'leg', 'thumb', 'index', 'middle', 'ring', 'little', 'head'], P_ = Object.fromEntries(PARTS.map((p, i) => [p, i]));
+  const P_ = Object.fromEntries(PARTS.map((p, i) => [p, i]));
   const musclePart = (m) => (/^(arm|forearm|hand)$/.test(m.part) || m.id === 'deltoid' ? 'arm' : /^(thigh|leg|foot)$/.test(m.part) ? 'leg' : m.part === 'face' ? 'head' : 'trunk');
   const LO = [-0.34, -0.04, -0.23], HI = [0.34, 1.84, 0.27];
   const nx = Math.ceil((HI[0] - LO[0]) / h) + 1, ny = Math.ceil((HI[1] - LO[1]) / h) + 1, nz = Math.ceil((HI[2] - LO[2]) / h) + 1, NV = nx * ny * nz;

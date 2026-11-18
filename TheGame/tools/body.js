@@ -6,11 +6,11 @@
 //   the trunk and the limbs (degrees: the middle one and the one only a twentieth exceed);
 //   its measures beside a man's: girths and breadths of a man of 1.80 m, slightly muscular (MEASURES below);
 //   how it bends: in five poses (POSES), how far the skin's own edges are stretched and squeezed.
-// `--keep` writes what was laid to TheGame/.body/ for the tool's page (tools/body.html: the Body drawn alone through the
-// game's own shader, on the game's dev server); `--stills <folder>` then takes that page's stills there (VIEWS below:
-// the body from four sides and close, and in five poses), through Chrome, or the browser at --chrome <path>, from the
-// dev server at --url (http://localhost:5173/); `--h <cell>` lays the shape on other cells than 6 mm; `--json` prints
-// the numbers.
+// What was laid is kept in TheGame/.body/ for the tool's page (tools/body.html: the Body drawn alone through the game's
+// own shader, on the game's dev server); `--stills <folder>` then takes that page's stills there (VIEWS below: the body
+// from four sides and close, and in the five poses), through Chrome, or the browser at --chrome <path>, from the dev
+// server at --url (http://localhost:5173/); `--h <cell>` lays the shape on other cells than 6 mm; `--json` prints the
+// numbers.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { skeletonBones } from '../characters/kit/skeleton.js';
@@ -18,18 +18,11 @@ import { prepare } from '../characters/kit/skeleton/mesh.js';
 import { musclesOf } from '../characters/kit/muscles/build.js';
 import { skinOf } from '../characters/kit/skin/build.js';
 import { rigOf, turnsOf, poseOf } from '../characters/kit/skeleton/pose.js';
-import { EYE, MOUTH } from '../characters/kit/skin/table.js';
+import { EYE, MOUTH, PARTS } from '../characters/kit/skin/table.js';
+import { POSES } from '../characters/kit/skin/budget.js';
 
-/** Five poses the skin is tried in (the rig's plain moves: characters/kit/skeleton/pose.js). */
-export const POSES = {
-  'elbows bent': { 'elbow.L': 2.2, 'elbow.R': 1.2, 'arm.R': [0.5, 0, 0] },
-  'arms raised': { 'arm.L': [0, 1.6, 0], 'arm.R': [0, 2.8, 0] },
-  'knee raised': { 'hip.L': [1.6, 0, 0], 'knee.L': 1.7 },
-  'bent forwards': { loins: [0.7, 0, 0], chest: [0.3, 0, 0], 'arm.L': [1.2, 0, 0], 'arm.R': [1.2, 0, 0] },
-  squat: { 'knee.L': 2.3, 'knee.R': 2.3, 'hip.L': [1.9, 0.2, 0], 'hip.R': [1.9, 0.2, 0], 'fist.L': 1, head: [0, 0.9, 0] },
-};
 /** The stills: the body from four sides, the face from three and its eye, mouth and ear close, the head from behind, the body close, and in the five poses (the address of tools/body.html each). */
-export const VIEWS = {
+const VIEWS = {
   front: 'yaw=0', 'three-quarter': 'yaw=35', side: 'yaw=90', back: 'yaw=180',
   face: 'yaw=0&y=1.665&d=0.62', 'face, three-quarter': 'yaw=35&y=1.665&d=0.62', 'face, side': 'yaw=90&y=1.665&d=0.62', eye: 'yaw=12&y=1.677&x=0.032&z=0.07&d=0.2', mouth: 'yaw=15&y=1.62&z=0.08&d=0.26', portrait: 'yaw=-14&pitch=5&y=1.66&d=0.46&sun=25&suna=30', ear: 'yaw=100&y=1.665&x=0.07&z=-0.02&d=0.24', 'head, from behind': 'yaw=155&y=1.665&d=0.62',
   torso: 'yaw=20&y=1.25&d=1.5', 'back, close': 'yaw=200&y=1.2&d=1.6', head: 'yaw=25&y=1.66&d=0.7', hand: 'yaw=60&y=0.78&x=0.22&d=0.6', legs: 'yaw=20&y=0.5&d=1.6', foot: 'yaw=40&y=0.06&x=0.09&z=0.05&d=0.8&pitch=25',
@@ -42,7 +35,7 @@ export const VIEWS = {
     scaled to 1.80 m; the girths that fat carries taken down to a lean man's as characters/kit/skin/table.js has them
     (PROFILES). `at`: metres over the ground; `joint`: a share of the way between two of the rig's joints; `least`: the least
     girth between two heights. */
-export const MEASURES = [
+const MEASURES = [
   { what: 'neck, round its least', cm: 39, girth: 'trunk', least: [1.5, 1.56] },
   { what: 'shoulders, across the deltoids', cm: 50, breadth: 'all', from: 1.36, to: 1.44 },
   { what: 'chest, round', cm: 101, girth: 'trunk', at: 1.315 },
@@ -59,12 +52,12 @@ export const MEASURES = [
 ];
 
 const arg = (name, d = null) => { const i = process.argv.indexOf('--' + name); return i < 0 ? d : process.argv[i + 1] ?? true; };
-const json = process.argv.includes('--json'), say = (...a) => { if (!json) console.log(...a); };
+const say = console.log, note = console.error;   // (the numbers to the output, what was done beside them to the errors' stream: `--json` stays JSON alone)
 let t0 = performance.now(); const lap = () => { const n = performance.now(), s = ((n - t0) / 1000).toFixed(1); t0 = n; return s; };
 
 const B = prepare(skeletonBones()), M = musclesOf(B); const tM = lap();
 const S = skinOf(B, M, { h: +arg('h', 0.006) }); const tS = lap();
-const RIG = rigOf(), P = S.pos, part = (v) => S.attr.feel[v * 4 + 2], PART = { trunk: 0, arm: 1, leg: 2, head: 8 };
+const RIG = rigOf(), P = S.pos, part = (v) => S.attr.feel[v * 4 + 2], PART = Object.fromEntries(PARTS.map((p, i) => [p, i]));
 
 // ── one closed surface? ──────────────────────────────────────────────────────────────────────────────────────────
 const closed = (tri) => { const E = new Map(); for (let t = 0; t < tri.length; t += 3) for (let i = 0; i < 3; i++) { const a = tri[t + i], b = tri[t + (i + 1) % 3], k = a < b ? a * 2 ** 26 + b : b * 2 ** 26 + a; E.set(k, (E.get(k) ?? 0) + 1); } let open = 0, many = 0; for (const n of E.values()) { if (n === 1) open++; else if (n > 2) many++; } return { open, many }; };
@@ -73,7 +66,7 @@ const volume = (tri) => { let v = 0; for (let t = 0; t < tri.length; t += 3) { c
 // ── how smooth: the normal's turn from a point to its neighbour, for a centimetre of skin ───────────────────────────
 // (over the trunk and the limbs, where skin lies smooth on a man: not the face, the hands or the feet, whose own forms turn it)
 const BROAD = (x, y) => y > 0.15 && y < 1.48 && !(Math.abs(x) > 0.15 && y < 0.9);
-export function turnOf(pos, nor, tri) {
+function turnOf(pos, nor, tri) {
   const turns = [];
   for (let t = 0; t < tri.length; t += 3) for (let i = 0; i < 3; i++) {
     const a = tri[t + i], b = tri[t + (i + 1) % 3]; if (a > b || !BROAD(pos[a * 3], pos[a * 3 + 1])) continue;
@@ -146,7 +139,7 @@ const faceRows = (() => {
 })();
 
 const out = { seconds: { muscles: +tM, skin: +tS }, points: P.length / 3, cage: S.counts.cage, joints: S.counts.joints, levels, litres: +(volume(S.fine) * 1000).toFixed(1), turn: turnOf(P, S.attr.nor, S.fine), measures: rows, face: faceRows, bends, headCover: S.headCover };
-if (json) console.log(JSON.stringify(out, null, 1));
+if (process.argv.includes('--json')) say(JSON.stringify(out, null, 1));
 else {
   say(`The skin: ${out.points} points on a cage of ${out.cage}, hung on ${out.joints} joints; laid in ${tS} s (the muscles ${tM} s before it); ${out.litres} litres.`);
   for (const l of levels) say(`  ${l.name.padEnd(7)} ${String(l.triangles).padStart(7)} triangles, open edges ${l.open}, edges of more than two faces ${l.many}, off the finest by ${l.off} mm`);
@@ -162,15 +155,14 @@ else {
 }
 
 // ── kept for the lab's page ──────────────────────────────────────────────────────────────────────────────────────
-const keep = process.argv.includes('--keep') || process.argv.includes('--stills');
-if (keep) {
+{
   delete M.inner;
   const body = { rows: M.rows, muscleList: M.muscles, muscles: { pos: M.pos, attr: M.attr, fine: M.fine, coarse: M.coarse }, skin: { pos: S.pos, attr: S.attr, fine: S.fine, coarse: S.coarse, far: S.far, off: S.off, joints: S.joints, maps: S.maps }, soles: S.soles, skinThick: S.skin, counts: { ...M.counts, skin: S.counts } };
   const chunks = []; let off = 0;
   const text = JSON.stringify(body, (k, v) => { if (!ArrayBuffer.isView(v)) return v; const b = Buffer.from(v.buffer, v.byteOffset, v.byteLength), pad = (4 - (off % 4)) % 4; if (pad) { chunks.push(Buffer.alloc(pad)); off += pad; } const r = { $t: v.constructor.name, o: off, n: v.length }; chunks.push(b); off += b.length; return r; });
   const dir = resolve(import.meta.dirname, '../.body'); mkdirSync(dir, { recursive: true });
   writeFileSync(resolve(dir, 'body.json'), text); writeFileSync(resolve(dir, 'body.bin'), Buffer.concat(chunks));
-  say(`kept in ${dir} (${(off / 1e6).toFixed(1)} MB)`);
+  note(`kept in ${dir} (${(off / 1e6).toFixed(1)} MB)`);
 }
 
 // ── its stills ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -183,7 +175,7 @@ if (stills) {
     const page = await browser.newPage({ viewport: { width: 900, height: 1200 }, deviceScaleFactor: 1 }), wrong = []; page.on('pageerror', (e) => wrong.push(String(e)));
     await page.goto(`${base}tools/body.html?${view}${arg('with') ? '&' + arg('with') : ''}`); await page.waitForFunction(() => window.__drawn, null, { timeout: 240000 }).catch(() => wrong.push('not drawn in four minutes'));
     await page.screenshot({ path: resolve(dir, name.replace(/[, ]+/g, '-') + '.png') }); await page.close();
-    say(`  ${name}${wrong.length ? ': ' + wrong[0] : ''}`);
+    note(`  ${name}${wrong.length ? ': ' + wrong[0] : ''}`);
   }
-  await browser.close(); say(`stills in ${dir}`);
+  await browser.close(); note(`stills in ${dir}`);
 }
