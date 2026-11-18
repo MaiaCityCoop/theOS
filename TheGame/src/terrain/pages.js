@@ -231,14 +231,17 @@ export function createPages(renderer, tex) {
   const fading = [];
   let frame = 0, queue = [], key = '', bias = 0, made = 0, changed = true;
   const recent = [];
-  const evict = (P) => { IN.delete(P.key); free.push(P.slot); if ((table[P.idx] & 0xfff) === P.slot && table[P.idx] & VALID) put(P.idx, 0); };
-  const flush = () => { for (const P of [...IN.values()]) evict(P); queue = []; fading.length = 0; dirty = true; };
+  // (a tool's look, frame by frame: what is asked for, laid and let go, and why: pages.trace)
+  let trace = null;
+  const log = (e) => { if (trace) { e.f = frame; trace.push(e); if (trace.length > 50000) trace.shift(); } };
+  const evict = (P, why) => { log({ k: 'out', why, m: P.m, i: P.i, j: P.j, used: P.used }); IN.delete(P.key); free.push(P.slot); if ((table[P.idx] & 0xfff) === P.slot && table[P.idx] & VALID) put(P.idx, 0); };
+  const flush = () => { for (const P of [...IN.values()]) evict(P, 'flush'); queue = []; fading.length = 0; dirty = true; };
   // a slot for a page: a free one, or the one asked for longest ago (not lately, not the last level's round the camera)
   const slotFor = () => {
     if (free.length) return free.pop();
     let old = null; for (const P of IN.values()) if (!P.pin && P.used < frame - KEEP && (!old || P.used < old.used)) old = P;
     if (!old) return -1;
-    evict(old); return free.pop();
+    evict(old, 'slot'); return free.pop();
   };
   // lay these pages ([{ m, i, j }], at most BATCH), and say in the table that they are in
   const lay = (list) => {
@@ -254,7 +257,7 @@ export function createPages(renderer, tex) {
     if (PACKED) pack(list);
     for (const q of list) { put(q.idx, VALID | q.slot | (TRUTH ? FADED : 0) | ((frame & 0xffff) << 16)); q.came = frame; if (!TRUTH) fading.push(q); moves(q); }   // (?truth: in at once, the reference fades nothing)
     made += list.length; did('pages', list.length);
-    for (const q of list) { recent.push({ m: q.m, i: q.i, j: q.j, frame }); if (recent.length > 24) recent.shift(); }   // (for a look: the last pages laid)
+    for (const q of list) { recent.push({ m: q.m, i: q.i, j: q.j, frame }); if (recent.length > 24) recent.shift(); log({ k: 'lay', m: q.m, i: q.i, j: q.j, pin: q.pin }); }   // (for a look: the last pages laid)
   };
   // make each of these pages, BATCH at a time, as many as `most`: how many were made
   const make = (pages, most) => {
@@ -288,7 +291,7 @@ export function createPages(renderer, tex) {
   const moves = (q) => {
     if (q.m < reliefFinest) return;
     const P = sideOf(q.m), r = RELIEF_REACH / U.uLodInv.value, dx = Math.max(q.i * P - prev.x, 0, prev.x - (q.i + 1) * P), dz = Math.max(q.j * P - prev.z, 0, prev.z - (q.j + 1) * P);
-    if (dx * dx + dz * dz < r * r) quietFrom = frame;
+    if (dx * dx + dz * dz < r * r) { quietFrom = frame; log({ k: 'quiet', why: 'relief', m: q.m }); }
   };
   // a page asked for at frame f: it and every page over it, each in its level's window (past it: its parent)
   const ask = (L, i, j, f, n) => {
@@ -354,6 +357,7 @@ export function createPages(renderer, tex) {
     if (needAt(mid / 4) <= SLOTS * FITS) pick.hi = mid; else pick.lo = mid + 1;
     if (pick.lo < pick.hi) return;
     const b = pick.lo / 4, pick0 = pick; pick = null; pickedAt = frame;
+    log({ k: 'pick', b, was: bias, still: pick0.still });
     if (b !== bias) { const was = pick0.still; bias = b; reask(); quietFrom = frame; if (was) judged = frame; }   // (what it asks for now is judged, if it was chosen from a view that stood: no need to choose again once a sweep has come)
   };
   // how many levels coarser a page is laid while the camera moves: what crosses the screen faster than FAST pixels a
@@ -368,7 +372,7 @@ export function createPages(renderer, tex) {
   const readBack = (n, f) => {
     if (!dev || n <= 0) return;
     let B = spare.pop(); if (!B && busyReads.size < READS) B = dev.createBuffer({ label: "the land's pages: asks read back", size: BLOCKS_MOST * 8, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-    if (!B) return;   // (all of them out: this frame's asks are not read; the sweep comes round to them again)
+    if (!B) { log({ k: 'skip' }); return; }   // (all of them out: this frame's asks are not read; the sweep comes round to them again)
     busyReads.add(B);
     const src = renderer.backend.get(ASK.attr).buffer; if (!src) { spare.push(B); busyReads.delete(B); return; }
     const e = dev.createCommandEncoder(); e.copyBufferToBuffer(src, 0, B, 0, n * 8); dev.queue.submit([e.finish()]);
@@ -398,6 +402,10 @@ export function createPages(renderer, tex) {
     underRelief(cell) { reliefFinest = Math.max(0, Math.floor(Math.log2(cell / S0) - 0.5)); },
     /** Whether what a read gives may differ from the last frame's: the table changed this frame, or a page fades in. */
     get changing() { return fading.length > 0 || changed; },
+    /** For a look: what happens to the pages frame by frame (on: start afresh; off: stop), and what has been seen:
+        { k: 'f' (a frame: in, want, q(ueue), fad(ing), bias, read, quiet, pick, moved, swung, refs), 'lay', 'out' (why:
+        slot, window, flush), 'pick' (b, was, still), 'quiet' (why), 'skip' (a read-back not taken), 'flush', 'cut', f }. */
+    trace(on = true) { const t = trace ?? []; trace = on ? [] : null; return t; },
     /** For a look: how many pages the last sweep's asks come to at each quarter level of the bias. */
     needs: () => Array.from({ length: STEPS + 1 }, (_, k) => needAt(k / 4)),
     /** For a look: the last pages laid, each with how far its middle is from (x, z) and what asked for it. */
@@ -411,11 +419,11 @@ export function createPages(renderer, tex) {
       const cam = camera.position, size = renderer.getDrawingBufferSize(new THREE.Vector2());
       // laid again whole when what it is laid as changed: the library's stage and sandbox, the screen's pixels (a level's distance)
       const k2 = `${U.uSand.value.toArray()}|${U.uStage.value.toArray()}|${U.uStageGround.value.toArray()}|${size.y}|${U.uPxK.value}`;
-      if (k2 !== key) { key = k2; flush(); uPxS.value = size.y / (2 * Math.tan((34 * Math.PI) / 180)); }
+      if (k2 !== key) { log({ k: 'flush', key: k2 }); key = k2; flush(); uPxS.value = size.y / (2 * Math.tan((34 * Math.PI) / 180)); }
       // the camera's speed: metres and radians a frame (a jump, farther than twice its height in a frame, is a cut: what
       // was asked for before it no longer counts, and the bias starts again from none)
       moved = cam.distanceTo(prev); swung = 2 * Math.acos(Math.min(1, Math.abs(turn.dot(camera.quaternion))));
-      if (moved > Math.max(50, 2 * (U.uDy.value + 2)) || swung > 0.5) { moved = swung = 0; bias = 0; refs.clear(); want.clear(); queue = []; pick = null; readTo = cutAt = frame; }
+      if (moved > Math.max(50, 2 * (U.uDy.value + 2)) || swung > 0.5) { log({ k: 'cut', moved, swung }); moved = swung = 0; bias = 0; refs.clear(); want.clear(); queue = []; pick = null; readTo = cutAt = frame; }
       if (moved > 1e-4 || swung > 1e-5) quietFrom = frame;
       prev.copy(cam); turn.copy(camera.quaternion); pxRad = (camera.projectionMatrix.elements[5] * size.y) / 2;
       // ---- each level's window round the camera: the pages it leaves let go ----
@@ -423,7 +431,7 @@ export function createPages(renderer, tex) {
         const P = sideOf(m), i0 = Math.floor(cam.x / P) - K / 2, j0 = Math.floor(cam.z / P) - K / 2, w = win[m];
         if (w && w[0] === i0 && w[1] === j0) continue;
         win[m] = [i0, j0]; WIN.array[m].set(i0, j0, 0, 0); C.WIN.array[m].set(i0, j0, 0, 0);
-        for (const Q of [...IN.values()]) if (Q.m === m && !inWin(m, Q.i, Q.j)) evict(Q);
+        for (const Q of [...IN.values()]) if (Q.m === m && !inWin(m, Q.i, Q.j)) evict(Q, 'window');
       }
       // ---- the last level round the camera, always in (what a pixel reads where nothing finer is in yet) ----
       const P = sideOf(TOP), pins = [];
@@ -453,6 +461,7 @@ export function createPages(renderer, tex) {
         fading.splice(n, 1);
       }
       changed = version !== v0;
+      log({ k: 'f', in: IN.size, want: want.size, q: queue.length, fad: fading.length, bias, read: readTo, quiet: quietFrom, pick: !!pick, moved: +moved.toFixed(5), swung: +swung.toFixed(6), refs: refs.size });
       if (hi >= lo) { T.write(lo, table.subarray(lo, hi + 1)); lo = Infinity; hi = -1; }
       uFrame.value = C.uFrame.value = frame & 0xffff; uStamp.value = stampOf(frame); uBias.value = C.uBias.value = bias;
       for (let k = 0; k < TAKES; k++) uSmp.array[k].set(...SEQ[(frame % SPAN) * TAKES + ((k + frame) % TAKES)]);   // (this frame's TAKES of each block, in an order turned each frame: of the same level, another wins)
