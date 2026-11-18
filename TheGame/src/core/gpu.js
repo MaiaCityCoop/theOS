@@ -143,7 +143,7 @@ const retire = (attr) => nextFrame(() => nextFrame(() => {
 }));
 /** The same, its size said later, before anything binds it (what is shared by things not all made yet: the culling's
     lists, src/core/occlusion.js), and said again as what it must hold changes (a resident tier's store, from its own
-    count: src/scatter/tier.js): { node, attr (the buffer it is now), make(count) -> bytes }. Made again, it is a new
+    count: src/scatter/tier.js; what grows with need, the single things' table: src/world/things.js): { node, attr (the buffer it is now), make(count) -> bytes }. Made again, it is a new
     buffer, the one it was retired (above), and the ledger says the difference. A storage buffer's length is not in its
     code, so the node is the same whatever it is made as. cls: the class its bytes are noted under (src/core/classes.js). */
 export function gpuStorageLater(type, name = null, cls = 'other') {
@@ -161,5 +161,7 @@ export function gpuStorageLater(type, name = null, cls = 'other') {
       made = bytes;
       return bytes;
     },
+    /** Write `data` (a typed array of its numbers) from its `at`-th number on, at once (made: the GPU's own buffer). */
+    write(at, data) { const a = node.value; if (R) R.backend.device.queue.writeBuffer(R.backend.get(a).buffer, at * 4, data); else { a.array.set(data, at); a.addUpdateRange(at, data.length); a.needsUpdate = true; } },
   };
 }

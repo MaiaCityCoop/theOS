@@ -98,12 +98,16 @@ export function createHeap({ kinds, levels, name = 'heap' }) {
     },
     /** Put in a level of kinds k0 … k0 + n at once (a level every kind has its own of): their corners and elements end
         to end, each kind's in a place as large as the level's (idx corners, elems elements); counts: how many corners
-        each has. Two pieces to the GPU, whatever n. */
-    putBlock(l, k0, n, corners, verts, counts) {
+        each has; used: how many elements (where its make says them: the recipes' workers do). Two pieces to the GPU,
+        whatever n. */
+    putBlock(l, k0, n, corners, verts, counts, used = null) {
       const p = pools[l]; if (!p.own) throw new Error('heap: putBlock is for a level every kind has its own of');
       if (p.io) for (let j = 0; j < n; j++) {   // (places of their own sizes: kind by kind, each its own part of the block)
         const k = k0 + j, ri = p.io[k + 1] - p.io[k], re = p.eo[k + 1] - p.eo[k];
-        if (counts[j] > (ri || re)) throw new Error(`heap: kind ${k} level ${l} is larger than its place (${counts[j]} in ${ri || re})`);
+        // (its corners against its corners' place, its elements against its elements': a make that keeps no corners of
+        // its own has no place for them, and its count is no measure of its elements)
+        if (ri && counts[j] > ri) throw new Error(`heap: kind ${k} level ${l} has more corners than its place (${counts[j]} in ${ri})`);
+        if (used && used[j] > re) throw new Error(`heap: kind ${k} level ${l} has more elements than its place (${used[j]} in ${re})`);
         if (corners.length && ri) index.write(p.i0 + p.io[k], corners.subarray(j * p.idx, j * p.idx + ri));
         elems.write((p.e0 + p.eo[k]) * 4, verts.subarray(j * p.elems * 4, (j * p.elems + re) * 4));
       } else {
