@@ -170,6 +170,36 @@ numbers are written below.
 
 ## Where we left off (2026-11-18): read this first to take over
 
+### Tasks: the live board (master: `0038 master · avenMAIA MacMini`; updated 2026-11-18 20:05)
+
+The master keeps this board current (the `intents` skill, "The task board"). **Train 1c** (main + #78, #77, #84, #81)
+is being gated and merges into main as one if it passes; 9a (#72) and one measure (#82) stay off it. The SSOT audit
+is `research_notes/0038-ssot-audit.md`; train 2 is its unification. Every machine kept busy.
+
+| Task | Session | Machine | Branch · PR | State | Next |
+| --- | --- | --- | --- | --- | --- |
+| The gate: motion, far truth, real | 0038 gate (motion, truth, ceilings) | avenMAIA MacMini | `aven/0038-gate-motion-real-410055` · #78 | on train 1c | merge |
+| Draw path: one culling for every tier | 0038 draw path (culling, then extents) | avenMAIA MacMini | `aven/0038-draw-path-culling-befaf1` · #77 | on train 1c | merge |
+| Meadow: shade from the real crowns | (done; no session) | avenMAIA MacBook Sam | `aven/0038-meadow-fix` · #84 | on train 1c | merge |
+| 6c: relief, paths, settling | 0038 ground (6c relief, then ground unify) | avenMAIA MacMini | `aven/0038-stage6c-relief-e30fca` · #81 | on train 1c | merge |
+| Motion: the truth a settled still per step | 0038 gate | avenMAIA MacMini | #94 | ready | train 2 |
+| Ceilings as a rule (5 / 3 / 1.5 / 2.0 / 0.5 ms) | 0038 gate | avenMAIA MacMini | #96 | ready; GPU `bench --twice` queued | train 2 |
+| `real` as a gate table, with a ratchet | 0038 gate | avenMAIA MacMini | #98 | ready; baseline GPU turn queued | train 2 |
+| Far truth at 2.5 and 12 km | 0038 gate | avenMAIA MacMini | — | GPU turns queued after 1c | the far end's first reference |
+| Truth = `ERROR_PX` → 0, and the cold start (one root) | 0038 gate | avenMAIA MacMini | — | planned | after #82 v2's dial |
+| Far extent, pyramid, depthless canvas | 0038 draw path | avenMAIA MacMini | `aven/0038-extents` · #95 | draft | train 2 |
+| GPU memory per class (the 8 GB gate) | 0038 draw path | avenMAIA MacMini | `aven/0038-memory` · #97 | draft | train 2 |
+| 9a's shadows: GPU readback (diagnostic) | 0038 draw path | avenMAIA MacMini | `tools/shadowcheck.mjs` | GPU turn first after 1c | result to the 9a session |
+| Solids: builder and cut from first principles | 0038 draw path | avenMAIA MacMini | — | coding | train 2 |
+| Ground and land from the one measure | 0038 ground | avenMAIA MacMini | `aven/0038-ground-unify` | coding (octaves, land, pages done; growth reach, shading next) | GPU trace turn queued; grass end after #82 v2 |
+| 9a: one light | 0038 9a shadow fix · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-stage9-light` · #72 | blocked: sun shadows missing on the GPU | the fix from B's readback, then train 2 |
+| One measure v2: the dial, one pixel, regions, capacities | 0038 one measure v2 · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-one-measure` · #82 | coding (regions: cells 18.4 → 2.1 M at the river bend) | train 2 |
+| Rung errors and atlases | 0038 rung errors · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-rung-errors` | coding (honest errors: a pine's impostor 210 m → 6.5 km at `ERROR_PX` 1) | train 2; the trade-off to Samuel |
+| Code gates: `tools/health.js` | 0038 health tool · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-health` | coding | baseline into Define |
+| Feet: real footprints | (done; no session) | avenMAIA MacBook Sam | `aven/0038-feet` · #85 | ready | train 2 |
+| Upscale: 13 divisions a pixel | (done; no session) | avenMAIA MacBook Sam | `aven/0038-upscale` · #86 | ready | train 2 |
+| Not started (frozen until the frame fits) | — | — | — | planned | 8b, the research's floor kinds, 9b |
+
 **Live on next (main `501aff5`; next deploys itself after every merge):**
 
 | Stage | PR | What it did |
@@ -1844,6 +1874,59 @@ gate says each class's share.
 - **The gate:** `gate.js bench` prints the GPU's memory by class for every view beside its milliseconds, with each
   budget, all the pools note, all the device made and what no pool notes, and says a class over its budget;
   `gate.js paths` the same as each path ends. `.gate/bench.json` and `paths.json` hold it.
+### Code gates: the baseline (2026-11-18)
+
+`TheGame/tools/health.js` runs the architecture pass's code gates (the `intents` skill, "Define: the architecture
+pass") as one command, on the CPU, in about 2.5 s on the MacBook. `bun tools/health.js [path…]` prints them as one
+table and writes `.gate/health.json` (`--json` prints that instead); with no path it measures all of TheGame. The
+baseline over `src assets/kit tools`, on `aven/0038-health` at `26f751d` (main `ca3fe25` and the tool itself):
+
+| Gate | Measure | Where most |
+| --- | --- | --- |
+| Copies | 0.26 % of lines in clones (42 of 15911), 6 clones | `src/scatter/drawer.js:254-262` = `src/scatter/placed.js:108-116` (9 lines) |
+| Spaghetti | most 81, mean 2.62 over 3329 functions | `assets/kit/clusters.js:45` Function 'build' (81) |
+| Dead code | 0 files, 91 exports, 0 exported twice | `src/world`: 36 exports |
+| Cycles | 0 (madge could not follow 1 import) |  |
+| Size | 10908 lines of code in 152 files | `src/scatter`: 2659 |
+| Settings | 31 mode branches, 279 hand-set numbers (the audit's 15), 20 flag reads | truth: 19 branches |
+| Dependencies | 11 direct (8 dev) in 4 package.json | OS: 1 + 1 dev, TheGame: 2 + 7 dev |
+
+What each counts, where it is not plain:
+- **Spaghetti:** eslint's `complexity` (classic) of every function, arrow function and method; the output lists the 20
+  most. After `build`: `createDrawer` (`src/scatter/drawer.js:108`, 79), the governor's `end` (`src/core/governor.js:54`,
+  73), the rig's `update` (`src/camera/rig.js:118`, 52), `crowd` (`assets/kit/crowd.js:281`, 50).
+- **Dead code:** knip with `TheGame/knip.jsonc`: the tools are entries (each a command), and an import from the root
+  (`/src/…`) is TheGame's, as vite resolves it. Over all of TheGame: 132 exports, and `loft` and `tube` exported as one
+  in `characters/kit/field.js`.
+- **Cycles:** madge cannot follow an import from the root: `tools/sweep.js`'s `/world/places.js` (over all of TheGame,
+  `cine/trailer.js`'s three as well).
+- **Size:** a line of code has code on it: not blank, not only a comment.
+- **Settings**, read from eslint's syntax tree and scopes:
+  - a **mode branch** is a place where a condition asks a mode. A condition is that of an if, ?:, loop or switch, or the
+    left of &&, || or ??. A mode is a module's constant that is true or false for the whole run, made by the address
+    (`?truth` makes `TRUTH`) or set by hand (`DRAWN = false`). Each is counted under the flags it is made from, through
+    constants and imports: truth 19 (the truth's second path; `?truth` as `ERROR_PX` → 0 takes it to one), flyby 2,
+    bench 2, `DRAWN` 2, and one each for gputime, draws, bounds, stress, herds and ghost;
+  - a **hand-set number** is a module's constant, or a number in a constant's table, written as a number by hand. The
+    ones the SSOT audit (`research_notes/0038-ssot-audit.md`) names are marked however they are written: 15 still set
+    (`CROWD`'s ten, `BUDGET_DRAWN`, `REACHES`, `BIG`, `MAXP`, the terrain's `CAP`);
+  - a **flag read** is a call of `flag`, `flagNum` or `flagText`.
+- **Dependencies:** jscpd, eslint, knip and madge are TheGame's dev dependencies for these gates, pinned.
+
+**Held at every merge (2026-11-18).** `bun tools/health.js --base <ref>` also measures the same paths at the point where
+`<ref>` and the branch part (their merge base, unpacked with `git archive` and measured with this tree's own tools). It
+prints each gate's change beside it, and with no path it measures the folders the change touches. It fails where a
+gate got worse:
+- more lines in clones, or a new clone (the same code, wherever it lies);
+- a function the change touches that is over the ceiling and more complex than before. The ceiling is Define's
+  (`--ceiling`); until Define sets one, it is eslint's own default for `complexity`, 20;
+- a new unused file or export, or a new cycle;
+- more mode branches or hand-set numbers;
+- a new dependency that no intent the change touches names.
+
+CI runs it on every pull request against main (`--base HEAD^1`: main, as the pull request merges into it), in about
+3 s. The four imports from the game's root (three in `cine/trailer.js`, one in `tools/sweep.js`) are now relative, so
+madge follows every import.
 
 ## Propose
 
@@ -1878,6 +1961,10 @@ gate says each class's share.
 - [ ] The bench pass by pass (built on `aven/0038-bench-per-pass`): measured on the Mac mini, the per-part ceilings a
       merge rule
 - [ ] The upscale's cost at a 4K output (7.5–21.2 ms against its 1.5): the next root cause after 9a
+- [x] The code gates at every merge: `tools/health.js` (baseline under Build), held against main in CI on every
+      pull request (`--base`)
+- [ ] The 91 unused exports the dead-code gate finds over `src assets/kit tools`: the first clean-up after train 2
+      lands (train 2's branches change their files)
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
 - [ ] The gate finished: motion (nothing pops), the truth in tiles, real against photographs (#78; #79 merged)
   - [ ] its first job on main: the truth at 2.5 and 12 km in tiles, motion on the four paths, real at every view
@@ -2238,3 +2325,6 @@ gate says each class's share.
 | 2026-11-18 | `d7dcd26` | Draw path merged with main (`ecc80f2`, the bench by its passes); PR #77 ready |
 | 2026-11-18 | `43be381` | Train 2: one far extent from need; the depth pyramid follows the screen; the canvas without depth |
 | 2026-11-18 | `85e1e1d` | GPU memory by class: one table of classes, one accounting with the device counted, the gate beside the ms |
+| 2026-11-18 | `26f751d` | `tools/health.js`: the code gates in one command (copies, spaghetti, dead code, cycles, size, settings, dependencies); the baseline under Build |
+| 2026-11-18 | `695ea18` | Imports from the game's root made relative (`cine/trailer.js`, `tools/sweep.js`), so madge follows every import |
+| 2026-11-18 | `bca2270` | The code gates held against main: `health.js --base` (each gate's change, exit 1 where one got worse), run by CI on every pull request |
