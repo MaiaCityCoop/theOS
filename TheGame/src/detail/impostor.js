@@ -24,7 +24,8 @@ import { finish, skyLight, weathered, snowLift, cloudAt, unlit } from '../world/
 import { CROWD, IN } from '../../assets/kit/crowd.js';
 import { note } from '../core/gpu.js';
 import { FNV, fnv } from '../core/hash.js';
-import { pxAt, drawnAt } from './measure.js';
+import { asking } from '../core/workers.js';
+import { pxAt } from './measure.js';
 
 const { VIEWS, CELL, TILE, TILES } = CROWD;
 export const SS = 4;   // samples a side a texel is baked from
@@ -89,15 +90,11 @@ export function createAtlas(renderer, { name, side, layers, cell = side }) {
 }
 
 // ---- the bake: a row of pictures at a time, SS x SS samples a texel, reduced on the GPU, read back, mipped in a worker ----
-let WORKERS = null, nextJob = 0; const waiting = new Map();
-const workers = () => (WORKERS ||= Array.from({ length: Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2)) }, () => {
-  const w = new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' }); w.busy = 0;
-  w.onmessage = ({ data }) => { w.busy--; waiting.get(data.id)?.(data); waiting.delete(data.id); };
-  return w;
-}));
-/** The pictures' smaller ones, as a worker makes them (impostor.worker.js, the least busy of a few): { levels: [{ colour,
-    data, n }] }. */
-const mipsOf = (colour, data, side, cell, least) => new Promise((res) => { const id = nextJob++, w = workers().reduce((a, b) => (b.busy < a.busy ? b : a)); w.busy++; waiting.set(id, res); w.postMessage({ id, colour, data, side, cell, least }, [colour.buffer, data.buffer]); });
+let WORKERS = null;
+const workers = () => (WORKERS ||= Array.from({ length: Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2)) }, () => asking(new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' }), "the impostors' worker")));
+/** The pictures' smaller ones, as a worker makes them (impostor.worker.js, the least busy of a few, watched:
+    src/core/workers.js): { levels: [{ colour, data, n }] }. */
+const mipsOf = (colour, data, side, cell, least) => workers().reduce((a, b) => (b.out() < a.out() ? b : a))({ colour, data, side, cell, least }, [colour.buffer, data.buffer]);
 
 /** What bakes a family's pictures: rows of `per` pictures `px` texels a side, drawn by draw(row) (a mesh whose
     instances are the row's pictures, its two materials' outputs: { colour, data }), reduced SS x SS into the atlas'
@@ -197,6 +194,8 @@ export function clumpRead(A, layer, uv, lod) {
 let renderer = null, BAKERS = null; const kept = new Map();   // a recipe's hash -> its views, baked once a recipe
 /** The game's renderer bakes the impostors (set once by src/boot.js). */
 export const setImpostorRenderer = (r) => (renderer = r);
+/** Whether a made thing's impostor can be baked and drawn here (WebGPU): without, its faces are its last level. */
+export const canBake = () => !!renderer?.backend?.isWebGPUBackend;
 /** The bakers every impostor shares (their targets reused shape after shape): the views' (views(cell): one a size of a view), and a plant's clumps' tiles (tiles(n): one a size of a grid, n tiles a row). */
 export const bakers = (r = renderer) => (BAKERS ||= { of: new Map(), views(cell = CELL) { let b = this.of.get(cell); if (!b) this.of.set(cell, (b = createBaker(r, { per: VIEWS, px: cell }))); return b; }, tiles(n = TILES) { let b = this.of.get(-n); if (!b) this.of.set(-n, (b = createBaker(r, { per: n, px: TILE }))); return b; } });
 /** A recipe's hash: its geometry's numbers, so a changed recipe bakes again. */
@@ -230,7 +229,7 @@ export function impostorOf(geo, snow = { clumps: 0.08 }) {
       const w = C.add(right.mul(positionGeometry.x).add(up.mul(positionGeometry.y)).mul(k.mul(r).mul(sunk.sqrt())));
       vP.assign(M.transpose().mul(w.sub(C)).div(k.mul(k).mul(r).mul(sunk.sqrt()))); vE.assign(M.transpose().mul(U.uCam.sub(C)).div(k.mul(k).mul(r).mul(sunk.sqrt()))); vX.assign(w);
       const V = impostorViews(normalize(M.transpose().mul(d))); vA.assign(vec4(V.cells[0], V.cells[1])); vB.assign(V.cells[2]); vW.assign(V.w);
-      vL.assign(clamp(log2(float(CELL).div(drawnAt(pxAt(k.mul(2 * r), U.uCam.sub(C).length().mul(U.uLodInv))).max(1e-3))), 0, LODS.views()));   // (its texels one to a pixel drawn)
+      vL.assign(clamp(log2(float(CELL).div(pxAt(k.mul(2 * r), U.uCam.sub(C).length().mul(U.uLodInv)).max(1e-3))), 0, LODS.views()));   // (its texels one to a pixel drawn)
       return ready.greaterThan(0.5).select(cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(w, 1)), vec4(2, 2, 2, 1));
     })();
     m.fragmentNode = Fn(() => {

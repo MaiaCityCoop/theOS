@@ -1,22 +1,20 @@
-// The grass: the meadow's blades, instanced in three rings round the camera, dense and fine close, sparse and wide far
-// (src/scatter/grass.js draws them). An asset in the one recipe (assets/index.js). How much of it grows where, how
-// high and in which colours is each biome's own (its `grass`: biomes/*.js); here is the blade and its rings.
+// The grass: the meadow's blades, drawn round the camera by its engine (src/scatter/grass.js), dense and fine close,
+// fewer and wider further off. An asset in the one recipe (assets/index.js). How much of it grows where, how high and in
+// which colours is each biome's own (its `grass`: biomes/*.js); here is the blade, at its full detail, and no more:
 //
-// tiers, near to far, distances in metres as the walker's 68° lens sees them (a longer lens stretches them by its own
-// factor: core/governor.js):
-//   segs   bends along the blade            w      half its width (the nearest ring's: each farther one's is widthOf's)
-//   cell   metres per cell: one blade may stand in each
-//   P      cells along a patch's side: P * P blades a patch, a patch is cell * P metres
-//   near, far, nearFade, farFade   the ring, and the dithered hand-over to its neighbours
-//   end    where the last ring's blades have thinned away (fewer and wider, never lower: src/scatter/grass.js endOf)
-// A farther ring's cells are wider: its blades are widened with the cell's area, halved in number and doubled in width
-// (Ghost of Tsushima), so each ring covers the ground as the one before it and the hand-over does not thin the meadow.
+//   blade  { segs, cell, P, w }   segs: bends along it; cell: metres per cell, one blade may stand in each; P: cells along
+//          a patch's side (P * P blades a patch: how the engine packs them); w: half its width
+//
+// Its engine makes every coarser ring of it from this alone: each ring's cells as many times wider, its blades so many
+// times fewer and as many times wider (Ghost of Tsushima: halved and doubled), so each covers the ground as the one before
+// and the meadow keeps its height; each ring where its blades' own error, how much wider they are than the blade, is the
+// one ERROR_PX (src/detail/error.js).
 export default {
   uid: 'eb8f406f-1035-4921-ba42-10f05efab6ed',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)
   type: 'asset',
   name: 'Grass',
   kind: 'grass',
-  about: 'The blades of the meadow: each bends and flutters in the wind on its own, in tufts of a common height and lean; a white flower head now and then. Every biome says how much of it grows, how high, and in which greens.',
+  about: 'The blades of the meadow, in tufts, each moving in the wind.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
     real: 'the grasses of a hay meadow, leaf and flowering stem',
@@ -26,10 +24,6 @@ export default {
   },
   size: { length: 0.03, width: 0.03, height: 0.58 },   // one blade, full grown
   height: 0.58,
-  tiers: [
-    { segs: 3, cell: 0.085, P: 96, near: -1, nearFade: 0, far: 15, farFade: 5, w: 0.014, end: 1e6 },
-    { segs: 2, cell: 0.17, P: 96, near: 15, nearFade: 5, far: 42, farFade: 10, end: 1e6 },
-    { segs: 1, cell: 0.38, P: 96, near: 42, nearFade: 10, far: 88, farFade: 22, end: 88 },
-  ],
+  blade: { segs: 3, cell: 0.085, P: 96, w: 0.014 },
   placement: { at: 'scatter', engine: 'grass' },   // over all the land, as each biome's grass says
 };

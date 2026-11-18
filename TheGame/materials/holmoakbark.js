@@ -8,7 +8,7 @@ export default {
   type: 'material',
   name: 'Holm oak bark',
   kind: 'bark',
-  about: "A holm oak's bark: dark grey-brown, cracked into small squarish plates, lichen on some of them.",
+  about: 'Dark grey-brown bark in small squarish plates, some with lichen.',
   usedBy: 'the trunks and limbs of the holm oaks',
   swatch: [0.15, 0.135, 0.115],
   bump: 0.035,   // how deep its relief reads in the normals: larger is flatter

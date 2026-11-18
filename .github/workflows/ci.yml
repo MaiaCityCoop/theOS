@@ -1,7 +1,9 @@
 name: CI
 
 # Checks and builds the website (OS/) and the game (TheGame/), and tests the game's API (API/) on Postgres, for every
-# change to them; a pull request is held to the code gates against main as well (TheGame/tools/health.js --base). On a
+# change to them: first what breaks without vite build seeing it, a name left unbound, an import that leads nowhere, a
+# shader that does not build (TheGame/tools/lint.js, TheGame/tools/smoke.js on the GPU's stand-in: no GPU), so it is red
+# in a minute; a pull request is held to the code gates against main as well (TheGame/tools/health.js --base). On a
 # push to main it keeps the release it built as the run's artifact `release-next`, which Deploy ships to `next` once
 # this run has passed (deploy.yml, deploy/README.md).
 on:
@@ -9,6 +11,7 @@ on:
     branches: [main]
     paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, Artifacts/**, brand/**, deploy/**, .github/workflows/**]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, Artifacts/**, brand/**, deploy/**, .github/workflows/**]
 
 permissions:
@@ -20,6 +23,9 @@ concurrency:
 
 jobs:
   check:
+    # A draft is work in progress: it is checked on its author's machine before every push (.githooks/pre-push), and
+    # here once it is marked ready for review. So a draft never runs, and never mails a failure to everyone.
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     services:
@@ -42,6 +48,12 @@ jobs:
         run: |
           (cd TheGame && bun install --frozen-lockfile)
           (cd OS && bun install --frozen-lockfile)
+      - name: Every name bound, every import found
+        working-directory: TheGame
+        run: bun tools/lint.js
+      - name: Every material and pass built, on the GPU's stand-in
+        working-directory: TheGame
+        run: bun tools/smoke.js
       - name: Every artifact against its schema
         run: bun Artifacts/artifacts.js check
       - name: Sign-in checks
