@@ -1,8 +1,11 @@
 // The cells each tier's packing visits a repack at the bench's six views (intent 0038, #82 v2; CPU only, `bun tools/visits.js
-// [per] [free]`: per, each tier; free, the region tree with no room to stop it), as #82 chose them (patches of P x P
-// cells, at most 384 a tier, in scan order) and as the region tree chooses them (src/scatter/regions.js). The world's
-// own tiers: the plants' levels and stand-ins (src/scatter/trees.js), the meadow's rings (grass.js), the rocks
-// (rocks.js). The measure at the gate's: a 1080 window drawn at 4/3 (1440 pixels drawn), the dial at rest.
+// [per] [free] [walk]`: per, each tier; free, the region tree with no room to stop it), as #82 chose them (patches of P x
+// P cells, at most 384 a tier, in scan order) and as the region tree chooses them (src/scatter/regions.js). The world's
+// own tiers: the plants' levels and stand-ins (src/scatter/trees.js), the meadow's rings (grass.js). The measure at the
+// gate's: a 1080 window drawn at 4/3 (1440 pixels drawn), the dial at rest.
+// walk: from each view straight ahead, the cells visited a metre, by the region tree packed again as tier.js does it
+// (every sixteenth of a patch, in the view) and by the resident regions (regions.js Resident: what is new or has run out,
+// every direction), with the resident regions' CPU time and the cells they hold at the end.
 const G = new URL('..', import.meta.url).pathname.replace(/\/$/, '');   // (TheGame/)
 Object.assign(globalThis, { innerHeight: 1440, innerWidth: 2560, window: globalThis, addEventListener() {}, devicePixelRatio: 1 });
 await import(`${G}/tools/glob.js`);
@@ -13,7 +16,7 @@ const { groupsOf } = await import(`${G}/src/scatter/trees.js`);
 const { bandOf, padOf } = await import(`${G}/src/detail/handover.js`);
 const { dialK } = await import(`${G}/src/detail/measure.js`);
 const { GONE } = await import(`${G}/src/detail/error.js`);
-const { regionsOf, coneOf, leavesFor, WG } = await import(`${G}/src/scatter/regions.js`);
+const { regionsOf, leavesFor, Resident } = await import(`${G}/src/scatter/regions.js`);
 const { setPlanes, boxIn } = await import(`${G}/src/core/frustum.js`);
 const { setView, viewBox } = await import(`${G}/src/scatter/view.js`);
 const { U } = await import(`${G}/src/core/uniforms.js`);
@@ -44,11 +47,11 @@ for (const Gp of groupsOf(rowsOf())) {
   const casting = Gp.kinds.filter((Kd) => Kd.asset.detail.shadow && Kd.row.detail.casts);
   if (casting.length) {
     const SH = { far: Math.max(...casting.map((Kd) => Kd.asset.detail.shadow.far)), wide: Math.max(...casting.map((Kd) => Kd.asset.detail.shadow.wide ?? 2.4)), reach: Math.max(...casting.map((Kd) => Kd.asset.detail.shadow.reach ?? 20)) };
-    tiers.push({ name: `${Gp.name} shadow`, cell: L.cell, P: 4, Pnow: 4, near: 0, far: SH.far, cull: SH.reach, fixed: SH.far * SH.wide, high: sHi, eye: false });
+    tiers.push({ name: `${Gp.name} shadow`, cell: L.cell, P: 4, Pnow: 4, near: 0, far: SH.far, cull: SH.reach, fixed: SH.far * SH.wide, high: sHi, eye: false, metres: true });
   }
 }
 const grass = recipes('asset').find((a) => a.placement?.engine === 'grass');
-if (grass) { const { ringsOf, bandsOf } = await import(`${G}/src/scatter/grass.js`), R = ringsOf(grass), { bands } = bandsOf(R, grass.height, K); R.forEach((T, k) => bands[k].far > 0 && tiers.push({ name: `grass ring ${k}`, cell: T.cell, P: T.P, Pnow: T.P, near: Math.max(0, bands[k].near - bands[k].nearFade), far: bands[k].far, cull: 0, high: grass.height * 2.2, eye: true })); }
+if (grass) { const { ringsOf, bandsOf } = await import(`${G}/src/scatter/grass.js`), R = ringsOf(grass), { bands } = bandsOf(R, grass.height, K); R.forEach((T, k) => bands[k].far > 0 && tiers.push({ name: `grass ring ${k}`, cell: T.cell, P: T.P, Pnow: T.P, near: Math.max(0, bands[k].near - bands[k].nearFade), far: bands[k].far, cull: 0, high: grass.height * 2.2, eye: true, metres: true })); }
 
 // ---- a view ----
 const cam = new THREE.PerspectiveCamera(60, 16 / 9, 0.15, 40000), pm = new THREE.Matrix4();
@@ -81,3 +84,57 @@ const M = (x) => (x / 1e6).toFixed(2);
 console.log('\nview                      cells a repack: #82 (384 patches)   region tree   ratio   leaves   tiers over 384 (#82)');
 for (const r of rows) console.log(`${r.view.padEnd(26)}${M(r.before).padStart(12)} M${M(r.after).padStart(16)} M${(r.before / Math.max(1, r.after)).toFixed(1).padStart(8)}x${String(r.leaves).padStart(9)}${String(r.over).padStart(10)}   (fullest room ${(r.cap * 100).toFixed(0)} %)`);
 if (process.argv.includes('per')) for (const r of rows) { console.log(`\n${r.view}`); for (const t of r.per) if (t.before || t.after) console.log(`  ${t.name.padEnd(34)}${M(t.before).padStart(9)} M ${M(t.after).padStart(9)} M  leaves ${String(t.leaves).padStart(5)} of ${t.room} (need/leavesFor ${t.need.toFixed(2)})${t.over ? '  over 384' : ''}`); }
+
+// ---- walk ----
+if (process.argv.includes('walk')) {
+  const walks = [];
+  for (const v of VIEWS) {
+    const len = v.h > 1000 ? 2000 : v.h > 10 ? 400 : 200, step = v.h > 1000 ? 10 : v.h > 10 ? 2 : 1;
+    const at = (t) => { const P = poseAt(v.x - Math.sin(v.yaw) * t, v.z - Math.cos(v.yaw) * t, v.yaw, v.h, -0.05); cam.position.set(...P.pos); cam.rotation.order = 'YXZ'; cam.rotation.set(P.pitch, P.yaw, 0); cam.fov = P.fov; cam.updateProjectionMatrix(); cam.updateMatrixWorld(); const p = cam.position, g = heightAt(p.x, p.z); setPlanes(pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse)); setView(cam); return { x: p.x, z: p.z, dy: Math.max(0, p.y - g - 2) }; };
+    const S = tiers.map((T) => ({ T, R: new Resident({ cell: T.cell, fixed: !!T.metres }), last: null }));
+    let today = 0, first = 0, res = 0, ms = 0, held = 0, wedge = 0, round = 0;
+    for (let t = 0; t <= len; t += step) {
+      const c = at(t);
+      for (const s of S) {
+        const { T } = s, far = T.fixed ? Math.min(T.fixed, T.far + c.dy * 1.2) : T.far, q = Math.max(0.25, (T.cell * T.Pnow) / 16);
+        if (!s.last || Math.hypot(c.x - s.last.x, c.z - s.last.z, c.dy - s.last.dy) > q) {   // (today: packed again, in the view)
+          s.last = c; const room = Math.max(MAXP, leavesFor(T.cell, far, T.near)), out = new Uint32Array(room * 4);
+          const R = regionsOf(out, room, { cell: T.cell, cx: c.x, cz: c.z, dy: c.dy, near: T.near, far, view: viewBox(), r: T.cull + T.high + q + 2, high: T.high, land: [HMIN, HMAX] });
+          today += t ? R.count : 0; if (t) s.today = (s.today || 0) + R.count; if (t === len) wedge += R.count;
+          if (t === len) round += regionsOf(new Uint32Array(4e6 * 4), 4e6, { cell: T.cell, cx: c.x, cz: c.z, dy: c.dy, near: T.near, far, view: null, r: 0, high: T.high, land: [HMIN, HMAX] }).count;   // (the same band in every direction, no room to stop it)
+        }
+        const t0 = performance.now(), u = s.R.update({ cx: c.x, cz: c.z, dy: c.dy, near: T.near, far }), dt = performance.now() - t0; ms += t ? dt : 0;
+        const n = u.pack.reduce((a, L) => a + L.w * L.w, 0); if (t) { res += n; s.res = (s.res || 0) + n; s.ms = (s.ms || 0) + dt; s.today = s.today || 0; } else first += n;
+      }
+    }
+    for (const s of S) { s.held = 0; for (const L of s.R.leaves.values()) s.held += L.w * L.w; held += s.held; }
+    walks.push({ view: v.name, len, today: today / len, res: res / len, ms: ms / len, first, held, wedge, round, per: S });
+  }
+  console.log('\nwalk straight ahead       cells a metre: today   resident     CPU ms a metre   first pack   held at the end (today: in view, every way)');
+  for (const w of walks) console.log(`${(w.view + `, ${w.len} m`).padEnd(28)}${M(w.today).padStart(12)} M${M(w.res).padStart(9)} M${w.ms.toFixed(2).padStart(14)}${M(w.first).padStart(12)} M${M(w.held).padStart(12)} M (${M(w.wedge)} M, ${M(w.round)} M)`);
+  if (process.argv.includes('per')) for (const w of walks) { console.log(`\n${w.view}: a metre today, resident; CPU ms a metre; held; leaves`); for (const s of w.per) console.log(`  ${s.T.name.padEnd(34)}${M((s.today || 0) / w.len).padStart(8)} M${M((s.res || 0) / w.len).padStart(8)} M${((s.ms || 0) / w.len).toFixed(2).padStart(8)}${M(s.held).padStart(9)} M${String(s.R.leaves.size).padStart(7)}`); }
+}
+
+// ---- turn: from each view, the camera turned 90° on the spot, a degree a frame; today a tier packs again whenever the
+// view's key changes (src/scatter/view.js: about a third of its margin), the resident regions never (nothing new) ----
+if (process.argv.includes('turn')) {
+  console.log('\nturn 90° on the spot      cells: today (packed again on each turn of the view)   resident (after the first pack)');
+  for (const v of VIEWS) {
+    let today = 0, packs = 0, res = 0, lastKey = '';
+    const S = tiers.map((T) => ({ T, R: new Resident({ cell: T.cell, fixed: !!T.metres }) }));
+    for (let a = 0; a <= 90; a++) {
+      const P = poseAt(v.x, v.z, v.yaw, v.h, -0.05);   // (the pose's place and pitch held; only its heading turns)
+      cam.position.set(...P.pos); cam.rotation.order = 'YXZ'; cam.rotation.set(P.pitch, P.yaw + (a * Math.PI) / 180, 0); cam.fov = P.fov; cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+      const p = cam.position, g = heightAt(p.x, p.z), dy = Math.max(0, p.y - g - 2); setPlanes(pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+      const key = setView(cam);
+      for (const s of S) {
+        const { T } = s, far = T.fixed ? Math.min(T.fixed, T.far + dy * 1.2) : T.far, q = Math.max(0.25, (T.cell * T.Pnow) / 16);
+        if (a && key !== lastKey) { const room = Math.max(MAXP, leavesFor(T.cell, far, T.near)), out = new Uint32Array(room * 4); today += regionsOf(out, room, { cell: T.cell, cx: p.x, cz: p.z, dy, near: T.near, far, view: viewBox(), r: T.cull + T.high + q + 2, high: T.high, land: [HMIN, HMAX] }).count; }
+        const u = s.R.update({ cx: p.x, cz: p.z, dy, near: T.near, far }); if (a) res += u.pack.reduce((n, L) => n + L.w * L.w, 0);
+      }
+      if (a && key !== lastKey) packs++;
+      lastKey = key;
+    }
+    console.log(`${v.name.padEnd(26)}${M(today).padStart(12)} M in ${packs} packings${M(res).padStart(30)} M`);
+  }
+}

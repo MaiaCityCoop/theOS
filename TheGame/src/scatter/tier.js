@@ -142,7 +142,7 @@ export class Tier {
         })().compute(WG, [WG]),
         Fn(() => { for (let k = 0; k < K; k++) argsNode.element(k * 5 + 1).assign(min(atomicLoad(count.element(k)), own ? uint(caps[k]) : uCap)); })().compute(1),
       ];
-      this.data = data; this.slots = slots; this.args = args; this.caps = caps; this.offs = offs;
+      this.data = data; this.slots = slots; this.args = args; this.caps = caps; this.offs = offs; this.count = count;
       // (culled: the eye's passes read a thing through what the culling kept, its pass two's after the rest)
       const C = culled ? cullOf(this, { K, caps, offs, total, S: slots, data, args, count, box: bounds }) : null, at = C ? C.entry : (slot) => slot.add(instanceIndex);
       if (C) this.passes.splice(2, 1, C.args, C.boxes);   // (its draws' counts the culling's way, and its things' boxes)
@@ -211,17 +211,18 @@ export class Tier {
     for (let i = 0; i < n; i++) { E[i * 4] = this.list[i].x >>> 0; E[i * 4 + 1] = this.list[i].y >>> 0; E[i * 4 + 2] = P; E[i * 4 + 3] = i * per; if (this.entryRuns) { this.entryRuns.array[i * 2] = this.runs[i].x; this.entryRuns.array[i * 2 + 1] = this.runs[i].y; } }
     this.n = n; return n * per;
   }
-  /** On WebGPU: what the last packing holds, read back to the CPU a moment later (a promise of { count, data: the first
-      slots' vec4s as floats, one array a slot } a bucket), for what the CPU must know of where things stand (src/scatter/trees.js:
-      what of a stand is solid round the walker). */
+  /** On WebGPU: what the last packing holds, read back to the CPU a moment later (a promise of { count, wanted, data: the
+      first slots' vec4s as floats, one array a slot } a bucket; wanted: how many it found, more than count where its room
+      was too small), for what the CPU must know of where things stand (src/scatter/trees.js: what of a stand is solid
+      round the walker). */
   async read(renderer) {
-    const K = this.geometries.length, S = this.slots, [a, d] = await Promise.all([this.args, this.data.value].map((b) => renderer.getArrayBufferAsync(b)));
-    const n = new Uint32Array(a), f = new Float32Array(d);
+    const K = this.geometries.length, S = this.slots, [a, d, w] = await Promise.all([this.args, this.data.value, this.count.value].map((b) => renderer.getArrayBufferAsync(b)));
+    const n = new Uint32Array(a), f = new Float32Array(d), found = new Uint32Array(w);
     // per bucket: its count, and each of its rows as one array (four numbers a thing)
     return Array.from({ length: K }, (_, k) => {
       const count = Math.min(n[k * 5 + 1], this.caps[k]), rows = Array.from({ length: S }, () => new Float32Array(count * 4));
       for (let i = 0; i < count; i++) for (let j = 0; j < S; j++) { const o = ((this.offs[k] + i) * S + j) * 4; rows[j].set(f.subarray(o, o + 4), i * 4); }
-      return { count, data: rows };
+      return { count, wanted: found[k], data: rows };
     });
   }
   /** s: how many times further than the 68° lens this lens sees a thing at the same size; h0: the ground under the camera.
