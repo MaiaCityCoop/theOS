@@ -282,3 +282,4 @@ Asked outright and without surprises, so built straight away.
 | 2026-11-18 | `4efc921` | The mission: the country race, on the dashboard too |
 | 2026-11-18 | `6941129` | The Compass as its own page; the country race in the world |
 | 2026-11-18 | `f28e4db` | The game reference sheet, and its station on the Compass page |
+| 2026-11-18 | `7598858` | Game sheet: start capital, daily play, phases, phase 1 |
