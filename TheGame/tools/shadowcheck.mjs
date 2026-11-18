@@ -15,7 +15,8 @@
 //             casts (src/core/occlusion.js entry)
 // Read together: a layer with nothing over the floor is a caster that was not drawn; a layer with something over it, read
 // as shade by the CPU and as light by the receiver, is the receiver's reading on the GPU (its matrix, its switch, the
-// array's comparison); both in shade and the still lit is the material's use of it. The dev server must be running
+// array's comparison); both in shade and the still lit is the material's use of it. A build without stage 9's cascades
+// (main's one map) gets its still and its errors alone. The dev server must be running
 // (bun run dev in TheGame; the gate's own at http://localhost:5180/game/ by default, or GATE_URL).
 import { chromium } from 'playwright-core';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -50,7 +51,8 @@ async function look({ N, step }) {
   const R = performance.getEntriesByType('resource').map((e) => e.name), mod = (re) => import(R.filter((n) => re.test(n)).at(-1));
   const THREE = await mod(/three_webgpu\.js/), T = await mod(/three_tsl\.js/);
   const { U } = await mod(/src\/core\/uniforms\.js/), L = await mod(/src\/world\/light\.js/), { heightAt } = await mod(/src\/world\/land\.js/);
-  const g = window.__game, renderer = g.renderer, dev = renderer.backend.device, rt = g.light.shadows.target;
+  const g = window.__game, renderer = g.renderer, dev = renderer.backend.device, rt = g.light?.shadows?.target;
+  if (!rt?.depthTexture?.isArrayTexture) return { cascades: 'none: this build has no cascades of stage 9 (the still alone)' };
   const tex = renderer.backend.get(rt.depthTexture).texture, S = rt.depthTexture.image.width, eye = g.camera.position.clone();
   const out = { cascades: `${tex.width}x${tex.height}x${tex.depthOrArrayLayers} ${tex.format}`, bound: U.tShadow.value === rt.depthTexture, on: U.uShadowOn.value, range: U.uShadowRange.value.toArray(), size: U.uShadowSize.value.toArray(), sunDir: U.uSunDir.value.toArray().map((v) => +v.toFixed(3)), layers: [] };
   // each layer as it is now
@@ -124,8 +126,8 @@ async function errorsOver() {
 
 /** The near layer's texels drawn with the tiers' culling off, then on again. */
 async function unculled() {
-  const o = window.__occlusion, g = window.__game, renderer = g.renderer, dev = renderer.backend.device, rt = g.light.shadows.target;
-  if (!o) return null;
+  const o = window.__occlusion, g = window.__game, renderer = g.renderer, dev = renderer.backend.device, rt = g.light?.shadows?.target;
+  if (!o || !rt?.depthTexture?.isArrayTexture) return null;
   const was = o.mode; o.mode = 0;
   try {
     for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
