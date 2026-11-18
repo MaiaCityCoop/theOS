@@ -22,6 +22,8 @@
 //   the grass: one blade, its asset's height times its tuft's share (0.5 to 2.2, src/scatter/grass.js), the middle the
 //     mean share
 //   a person: built (characters/kit/human.js) and measured, feet to the top of the hair
+//   a figure brought in whole (characters/kit/figure.js): read, then measured by its kit from its lowest to its highest
+//     point as its bones hold it at rest (`stands`)
 //   a character that is grown after it is made (the skeleton: characters/kit/bones.js): waited for, then measured the
 //     same way, its quick surface
 // Every level of what is built is measured too: a far level that stands taller or lower than the near one by more
@@ -46,18 +48,25 @@ function bounds(pts) {   // pts: a flat array x, y, z, …
 }
 const facesOf = (faces) => faces.flatMap((f) => [...f[0], ...f[1], ...f[2]]);
 
+/** A character as it stands, feet to the top: built (its quick surface is enough to measure; one grown or read after
+    it is made says when it stands), then measured from its skin's points, or, a figure brought in whole, by what its kit
+    says of it (`stands`: its file's points are not in metres, its kit measures them as its bones hold them:
+    characters/kit/figure.js). */
+async function stood(a, notes) {
+  const T = new THREE.Texture(), tex = new Proxy({}, { get: (_, k) => (k === 'want' ? () => {} : () => texture(T)) });
+  const made = a.make(tex, { quick: true }), tall = (h, more) => ({ by: 'height', least: h, middle: h, most: h, notes, ...more }); await made.grown;
+  if (made.stands) return tall(made.stands.top - Math.max(0, made.stands.low));
+  let mesh = null; made.object.traverse((o) => { if (o.isSkinnedMesh) mesh = o; });
+  if (!mesh) return tall(0, { fails: [`it could not be built here${made.failed ? ': ' + made.failed : ''}`] });
+  const B = bounds(mesh.geometry.attributes.position.array);
+  return tall(B.top - Math.max(0, B.lo[1]));
+}
+
 /** What the world draws of a recipe: { least, middle, most } metres tall (or across, for rocks), and what was found on
     the way (levels that disagree). */
 async function measured(a) {
   const P = a.placement ?? {}, notes = [];
-  if (a.type === 'character') {
-    const T = new THREE.Texture(), tex = new Proxy({}, { get: (_, k) => (k === 'want' ? () => {} : () => texture(T)) });
-    const made = a.make(tex, { quick: true }); await made.grown;   // (one grown after it is made says when it stands; its quick surface is enough to measure)
-    let mesh = null; made.object.traverse((o) => { if (o.isSkinnedMesh) mesh = o; });
-    if (!mesh) return { by: 'height', least: 0, middle: 0, most: 0, notes, fails: [`it could not be built here${made.failed ? ': ' + made.failed : ''}`] };
-    const B = bounds(mesh.geometry.attributes.position.array), h = B.top - Math.max(0, B.lo[1]);
-    return { by: 'height', least: h, middle: h, most: h, notes };
-  }
+  if (a.type === 'character') return stood(a, notes);
   if (P.engine === 'rocks') {   // each shape as it is (its full mesh: every coarser version is the builder's, within it), in the frame it is drawn in (its largest side 1), times its size
     const wide = [], fam = rockFamily('scale', a);
     for (let v = 0; v < (P.shapes ?? 1); v++) {
