@@ -27,8 +27,8 @@ import { U } from './uniforms.js';
 const PRE = context({ pass: 'pre', invariant: true }), MAIN = context({ pass: 'main', invariant: true });
 
 /** What a pixel's id may say drew it: its class (1 …), each a family's draw (the made things of a group at a level, …),
-    and what each is (CLASSES[class - 1]). The class is 8 bits of the id. */
-export const ID_CLASSES = [];
+    and what each is (ID_CLASSES[class - 1]). The class is 8 bits of the id. */
+const ID_CLASSES = [];
 /** A new class of what draws, `what` its description (a family and what of it): its number. */
 let fullSaid = false;
 export const idClass = (what) => { if (ID_CLASSES.length >= 255) { if (!fullSaid) console.warn('pass.js: more classes of what draws than 8 bits hold: the rest say none (0)'); fullSaid = true; return 0; } ID_CLASSES.push(what); return ID_CLASSES.length; };
