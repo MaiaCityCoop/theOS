@@ -75,7 +75,7 @@ const ARGS = ['--enable-unsafe-webgpu'];
 // ---- the page ----
 /** A page of the game in Chrome (`ctx`: launch()), its world come and settled where it starts: drawn through WebGPU,
     with window.__game.settle(), or an error. */
-async function open(ctx, { path = '', query = '', init = null } = {}) {
+async function open(ctx, { path = '', query = '', init = null, wait = /(^|&)truth\b/.test(query) ? 3 * WAIT : WAIT } = {}) {   // (?truth's world comes in ~5 min on a fresh profile: three times the time)
   const page = await ctx.newPage(), errors = [], url = new URL(path, BASE).href + (query ? `?${query}` : '');
   await page.addInitScript(() => performance.setResourceTimingBufferSize(1e5));   // (the gate finds the page's own modules by their resource entries: all of them kept)
   if (init) await page.addInitScript(init);
@@ -89,15 +89,15 @@ async function open(ctx, { path = '', query = '', init = null } = {}) {
   page.on('crash', () => errors.unshift('the page crashed'));
   page.on('load', () => loads++ && errors.unshift(`the page was loaded again (${page.url()})`));   // (a load, not a page saying where it is: the library writes what it shows into its address)
   try {
-    await page.goto(url, { waitUntil: 'load', timeout: WAIT });
+    await page.goto(url, { waitUntil: 'load', timeout: wait });
     // (the start is over once the world can say it has settled, or once it has said it is ready without that: a page
     // older than src/core/settle.js)
-    await page.waitForFunction(() => typeof window.__game?.settle === 'function' || window.__game?.loadMs != null, null, { timeout: WAIT, polling: 250 });
+    await page.waitForFunction(() => typeof window.__game?.settle === 'function' || window.__game?.loadMs != null, null, { timeout: wait, polling: 250 });
     // (a page on the gate's clock, tools/gate/clock.js, is held on it from here: it settles with the clock standing, the
     // wind not uncovering ground that asks for more of the land's pages, src/terrain/pages.js, and draws only when asked)
     if (init === stepper) await page.evaluate(() => window.__gateClock.start());
     if (!(await page.evaluate(() => typeof window.__game?.settle === 'function'))) throw new Error(`${url}: window.__game.settle() is missing, so the gate cannot know when the picture is ready, and it never waits on a timer. It comes with intent 0038 stage 2 (src/core/settle.js): a promise that resolves when nothing streams or builds for the camera and the picture built over time has come to rest.`);
-    const start = await page.evaluate(settled, { wait: WAIT, at: 'the start' });   // (the world made and settled where it starts, before anything is asked of it)
+    const start = await page.evaluate(settled, { wait, at: 'the start' });   // (the world made and settled where it starts, before anything is asked of it)
     if (!(await page.evaluate(() => !!window.__game.renderer.backend.isWebGPUBackend))) throw new Error(`${url}: drawn through WebGL, not WebGPU (Chrome gave the page no GPU adapter)`);
     return { page, errors, url, start, close };
   } catch (e) { said(errors); await close(); throw e; }

@@ -24,7 +24,7 @@ export const POP = 0.05;
 
 /** The frames the pages send (their raw RGBA bytes, POSTed: far quicker than through evaluate), each kept under its key
     until it is taken, in a SharedArrayBuffer the change's workers read without a copy. */
-async function receiver() {
+export async function receiver() {
   const kept = new Map(), wanted = new Map();
   const server = createServer((req, res) => {
     const u = new URL(req.url, 'http://x'), key = u.searchParams.get('key'), parts = [];
@@ -32,12 +32,13 @@ async function receiver() {
     req.on('end', () => {
       const b = Buffer.concat(parts), data = new SharedArrayBuffer(b.length); new Uint8Array(data).set(b);
       const f = { w: +u.searchParams.get('w'), h: +u.searchParams.get('h'), data };
-      res.writeHead(200, { 'access-control-allow-origin': '*' }); res.end();
+      res.writeHead(200, { 'access-control-allow-origin': '*', connection: 'close' }); res.end();   // (no connection kept: the truth's frames come seconds apart, and a POST on one the server has just let go fails, not retried)
       if (b.length !== f.w * f.h * 4) f.error = `frame ${key} came as ${b.length} bytes, not ${f.w}×${f.h}×4`;
       else { let lit = 0; for (let i = 0; i < b.length; i += 4 * 997) lit += b[i] + b[i + 1] + b[i + 2]; if (!lit) f.error = `frame ${key} is black: the canvas was read before anything was drawn on it`; }
       if (wanted.has(key)) { wanted.get(key)(f); wanted.delete(key); } else kept.set(key, f);
     });
   });
+  server.keepAliveTimeout = 0;
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const check = (f) => { if (f.error) throw new Error(f.error); return f; };
   const take = (key) => { const f = kept.get(key); if (f) { kept.delete(key); return Promise.resolve(f).then(check); } return new Promise((r) => wanted.set(key, r)).then(check); };
@@ -212,7 +213,8 @@ export async function shot({ s, T, fly, url, key, truth = false, place = null })
   const out = M.waiting(), stats = g.terrain?.pages?.stats;
   if (stats && out.pages) { if (stats.queue) out.pages = stats.queue; else delete out.pages; }   // (pages: those asked for and not in; not the sweep's wait after the last came)
   const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
-  await fetch(`${url}?key=${key}&w=${cv.width}&h=${cv.height}`, { method: 'POST', body: d, mode: 'no-cors' });
+  const send = () => fetch(`${url}?key=${key}&w=${cv.width}&h=${cv.height}`, { method: 'POST', body: d, mode: 'no-cors', keepalive: false });
+  await send().catch(() => new Promise((r) => setTimeout(r, 500)).then(send));   // (once more, on a connection of its own)
   return { place: g.temporal.place, out: Object.keys(out).length ? out : null, ms: Date.now() - t0 };
 }
 
