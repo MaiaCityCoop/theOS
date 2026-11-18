@@ -28,14 +28,22 @@
 //     same way, its quick surface
 // Every level of what is built is measured too: a far level that stands taller or lower than the near one by more
 // than LEVELS is said.
+//
+// And that no asset says anything of its detail (intent 0038, check 4b): an asset's file says only what it is at full
+// detail, and every rung coarser comes where its own error is the one ERROR_PX (src/detail/error.js). The run fails where
+// an asset's file holds a key of detail (DETAIL: its levels, a ladder, rings, a size on screen, a hand-over's width, a far
+// end's levels) or a kind (assets/kinds.js) says where detail changes (a number or a block where only yes or no may be).
 import './glob.js';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 const { recipe, manifest } = await import('../src/core/registry.js');   // (first, as the game does: the recipes import it back)
 const { PERSON, WALKER, TOLERANCE, faultsOf } = await import('../world/scale.js');
 const RIG = (await import('../camera/rig.js')).default;
 const { FOOT, sizeAtOne } = await import('../src/scatter/trees.js');
 const { heightIn } = await import('../assets/kit/tree.js');
 const { rockBody, rockFull, rockFamily } = await import('../assets/kit/rock.js');
-const { sizeOf } = await import('../assets/kinds.js');
+const { sizeOf, default: KINDS } = await import('../assets/kinds.js');
+const DETAIL = /(?:^|[{,])\s*(detail|levels|ladder|tiers|lods?|px|fade|sink|far)\s*:/;   // (a key of an asset's file, its comments left out)
 const THREE = await import('three/webgpu');
 const { texture } = await import('three/tsl');
 
@@ -133,8 +141,13 @@ for (const [uid, m] of Object.entries(manifest)) {
 // the walker: the person's body, as the camera and the solids read it
 const walker = { eye: RIG.eye, firstKey: RIG.keys[0].h, person: PERSON.stature, ...WALKER }, wfails = [];
 if (Math.abs(RIG.eye - WALKER.eye) > 1e-9 || Math.abs(RIG.keys[0].h - WALKER.eye) > 1e-9) wfails.push(`the camera's eye ${RIG.eye} m (its first key ${RIG.keys[0].h} m) is not the person's ${WALKER.eye} m`);
+// no asset says anything of its detail (check 4b): no key of detail in an asset's file, and no kind with a size on
+// screen, a hand-over or a far end's levels (only yes or no)
+const detail = [], files = Object.values(manifest).filter((m) => m.type === 'asset');
+for (const m of files) readFileSync(resolve(import.meta.dir, '..', m.file), 'utf8').split('\n').forEach((line, i) => { const k = line.replace(/\/\/.*$/, '').match(DETAIL); if (k) detail.push(`${m.file}:${i + 1}: '${k[1]}', detail data: every rung is the engine's, by its own error`); });
+for (const [kind, K] of Object.entries(KINDS)) for (const [k, v] of Object.entries(K)) if (['px', 'fade', 'sink', 'levels', 'tiers'].includes(k) || (['far', 'impostor'].includes(k) && typeof v !== 'boolean')) detail.push(`assets/kinds.js: ${kind}.${k}: a kind says no size on screen and no hand-over`);
 
-if (process.argv.includes('--json')) console.log(JSON.stringify({ rows, walker, miss, wfails }, null, 2));
+if (process.argv.includes('--json')) console.log(JSON.stringify({ rows, walker, miss, wfails, detail }, null, 2));
 else {
   const pad = (s, n) => String(s).padEnd(n);
   console.log(`${pad('thing', 16)}${pad('by', 8)}${pad('least', 8)}${pad('middle', 8)}${pad('most', 8)}${pad('× person', 10)}${pad('real: typical', 15)}${pad('most', 7)}`);
@@ -151,5 +164,7 @@ else {
   const bad = rows.filter((r) => r.fails.length && !r.known).length + miss.length + wfails.length, known = rows.filter((r) => r.known).length;
   console.log(bad ? `\n${bad} out of measure` : `\n${rows.length - known} of ${rows.length} within their measure`);
   if (known) console.log(`${known} known out of measure (said in their measures, to be set right): ${rows.filter((r) => r.known).map((r) => r.name).join(', ')}`);
+  for (const d of detail) console.log(`✗ ${d}`);
+  console.log(detail.length ? `${detail.length} places hold detail data` : `no asset holds detail data (${files.length} asset files, ${Object.keys(KINDS).length} kinds)`);
 }
-process.exit(rows.some((r) => r.fails.length && !r.known) || miss.length || wfails.length ? 1 : 0);
+process.exit(rows.some((r) => r.fails.length && !r.known) || miss.length || wfails.length || detail.length ? 1 : 0);

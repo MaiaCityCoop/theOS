@@ -8,9 +8,9 @@
 //   faces                     a surface's full detail (a made thing: the tent, the fire pit): [corner, corner, corner,
 //                             colour, material?, normals?], ...; it says nothing coarser: every coarser version is the
 //                             builder's (assets/kit/clusters.js, intent 0038). A rock's full mesh is its kit's
-//   detail                    a plant's levels, near to far: { levels: [shape, ...], px?, fade? } (src/detail, intent
-//                             0002), made by its kit when asked for (assets/kit/tree.js: meshAt), with `P` for scattered
-//                             ones; where each level ends on screen comes from its kind (assets/kinds.js)
+//   (detail)                  never in its file (intent 0038: tools/scale.js holds it to that): a plant's levels are its
+//                             kit's, worked out from what it measures of the plant (assets/kit/plant.js bandsOf); every
+//                             rung of anything comes where its own error is the one ERROR_PX (src/detail/error.js)
 //   solid                     what a walker cannot pass: walls (rounds with gaps), posts, boxes, and the ceiling
 //                             overhead; in the asset's own frame. Without it, its kind's rule made from its size
 //                             (assets/kinds.js). The one collision engine takes it as a body (bodyOfAsset:

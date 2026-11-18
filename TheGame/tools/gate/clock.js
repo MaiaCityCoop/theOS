@@ -1,6 +1,6 @@
 // The gate's clock for a page of the game (intent 0038): an init script, run before the page's own, that puts the
 // page's frames and its clock under the gate's hand. tools/gate/motion.js steps the paths' frames by it; stills hold a
-// page on it between views and tiles where the GPU is shared (tools/gate/lock.js).
+// page on it between views and tiles, while another run has the GPU (tools/gpu/lock.js).
 
 /** An init script (before the page's own): the page's frames and its clock under the gate's hand, window.__gateClock.
     Off, as the page starts, it runs as it would. On (start()), no frame is drawn until step(t) asks for one, with t as
