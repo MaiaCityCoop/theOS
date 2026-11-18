@@ -181,13 +181,13 @@ numbers are written below.
 | 6a | #65 | The ground from a layer map; shaders at start −39 % |
 | 4 | #66 | Far trees as octahedral impostors and clump planes (no domes, no stipple) |
 | 3 | #67 | One boot (`src/boot.js`); the library and Me compile 75–80 % less |
+| Occlusion culling | #68 | A depth pyramid and two-pass culling of every drawer's tiers: 2–67 % of main's things drawn, nothing visible lost (exact depth check; FLIP within main's noise from above) |
 
 **In flight when this was written** (each on its own branch, as a PR or nearly):
 
 | Stream | Branch | State | Before merging |
 | --- | --- | --- | --- |
 | 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
-| Occlusion culling | `aven/0038-draw-occlusion`, PR #68 | CI green | Views from above draw only 2–8 % of main's things: prove with gate stills at `bench-river-bend-26m`, `bench-town-40m` and `bench-pine-forest-90m` that nothing visible is missing (FLIP within noise) |
 | 6b: virtual-textured ground | `aven/0038-stage6b-avt` | Notes written, measuring, no PR yet | The views from above must get faster than main, and pages must arrive invisibly |
 
 **Not started:**
