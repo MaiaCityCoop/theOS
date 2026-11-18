@@ -32,8 +32,9 @@ frame the gate measures `FLIP(L now, L before + (R now − R before))`: that pic
 ((L − R) now) − ((L − R) a frame before), the change detail made, seen in the frame as it was drawn. What the camera,
 the wind and the clock did, the truth did too, so it falls out.
 
-- **The merge rule:** no frame's worst 32-pixel tile over `POP` (in `motion.js`). `POP` is 0.05 until Samuel's pairs
-  set the threshold of visibility (check 3); it is never loosened after that.
+- **The merge rule:** no frame's worst 32-pixel tile over the line (`lineOf` in `motion.js`): ERROR_PX × INSIDE / the
+  tile, 1 × 4/3 / 32 = 0.042. A switch within the dial moves an edge by at most ERROR_PX pixels drawn, INSIDE canvas
+  pixels each, so across a tile at full contrast it changes the tile's mean by at most that. The line follows the dial.
 - **Out:** `.gate/motion-<tag>/report.json` (every frame's worst tile, its 99th percentile and mean), and a filmstrip
   JPEG per path: every frame's worst tile over the path, then the worst frames, each with the squares round its worst
   tile at full size (LOD before and now, truth before and now, FLIP's heat map of the change).
