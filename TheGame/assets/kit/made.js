@@ -65,7 +65,7 @@ function dagOf(a) {
   // (where colours or materials meet at a place, the edge is kept: the simplifier may fold along it, not across it)
   const V = P.length / 3; for (let v = 0; v < V; v++) seam.push(0);
   for (const vs of at.values()) for (const v of vs) if (vs.some((w) => part[w] !== part[v] || c8(C[w * 3]) !== c8(C[v * 3]) || c8(C[w * 3 + 1]) !== c8(C[v * 3 + 1]) || c8(C[w * 3 + 2]) !== c8(C[v * 3 + 2]))) seam[v] = 1;
-  D = hierarchyOf({ V, pos: Float32Array.from(P), nor: Float32Array.from(N), attr: Float32Array.from(C), k: 3, aw: [0.02, 0.02, 0.02], index: Uint32Array.from(index), seam: Uint8Array.from(seam) });
+  D = hierarchyOf({ V, pos: Float32Array.from(P), nor: Float32Array.from(N), attr: Float32Array.from(C), k: 3, index: Uint32Array.from(index), seam: Uint8Array.from(seam) });
   D.part = part; D.span = span;
   DAGS.set(a, D); return D;
 }

@@ -97,7 +97,7 @@ const dagOf = (asset, v) => {
   const key = `${asset.uid}:${asset.placement.seed}:${v}`; let D = DAGS.get(key); if (D) return D;
   if (DAGS.size >= 3) DAGS.delete(DAGS.keys().next().value);
   const F = rockFull(asset, v);
-  DAGS.set(key, (D = hierarchyOf({ V: F.V, pos: F.pos, nor: F.nor, attr: Float32Array.from(F.shade), k: 1, aw: [0.01], index: F.index }))); return D;
+  DAGS.set(key, (D = hierarchyOf({ V: F.V, pos: F.pos, nor: F.nor, attr: Float32Array.from(F.shade), k: 1, index: F.index }))); return D;
 };
 // a vertex of a cluster as the heap keeps a rock's (solid.js, `still`): its place, normal and shade, and the same on
 // its parent's surface

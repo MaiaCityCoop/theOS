@@ -4,9 +4,10 @@
 // it runs in the recipes' workers (src/scatter/recipes.worker.js) and in node (tools).
 //
 //   build(M) -> { clusters, V, roots }    M: { V, pos (3 a vertex, the thing's own frame, its largest side 1), nor (3),
-//                                          attr (k a vertex: a rock's shade, a made thing's colour), k, aw (each attr's
-//                                          weight in the error), index (3 a triangle), seam? (Uint8Array: 1 where a vertex
-//                                          must keep its attributes apart from its neighbours': a material's edge) }
+//                                          attr (k a vertex: a rock's shade, a made thing's colour), k, aw? (an attr
+//                                          that is no colour: its weight in the error; a colour's is CW), index (3 a
+//                                          triangle), seam? (Uint8Array: 1 where a vertex would keep its attributes apart
+//                                          from its neighbours': a material's edge; kept while a group can halve so) }
 //   a cluster: { tris (its corners, numbers of its own vertices), verts (M's vertex each of its own is), to (each of its
 //                vertices on its parent's surface: place 3, normal 3, attr k), self: { err, c, r }, parent: { err, c, r } }
 //
@@ -59,12 +60,17 @@ const MAXT = 128, MAXV = 256, MINT = 32, GS = 8, STUCK = 0.85, TAIL = 8;
     position (its README), so with w = 1/2 the simplifier counts a normal's error as the move it looks like, in the
     units of the positions, and the cut holds both to ERROR_PX alike. What it made is measured so too (morphs). */
 const NW = 1 / 2;
+/** A colour's weight (what the light multiplies: a made thing's colour, a rock's shade; 0 … 1 a channel). Lit as its
+    colour times n·l, a normal δ off changes a pixel's light by δ at most, and so does a colour δ off: the picture cannot
+    tell the two apart, so a colour's error is counted as the same move, NW. An attribute that is no colour (a bone's
+    weight, stage 8b) says its own (M.aw). */
+const CW = NW;
 
 /** The cluster hierarchy of M (above). */
 export function build(M) {
   const { V, pos, nor, index } = M, k = M.k ?? 0, attr = M.attr ?? new Float32Array(0), T = index.length / 3;
   // the simplifier's view of a vertex: its normal and attributes, weighed
-  const AK = 3 + k, A = new Float32Array(V * AK), W = [NW, NW, NW, ...(M.aw ?? [])];
+  const AK = 3 + k, A = new Float32Array(V * AK), W = [NW, NW, NW, ...Array.from({ length: k }, (_, j) => M.aw?.[j] ?? CW)];
   for (let v = 0; v < V; v++) { A.set(nor.subarray(v * 3, v * 3 + 3), v * AK); for (let j = 0; j < k; j++) A[v * AK + 3 + j] = attr[v * k + j]; }
   // where corners stand at one place (a seam: a sheet's two sides, a hard edge, a colour's edge): one place, for what
   // touches what and what is locked
@@ -161,8 +167,13 @@ export function build(M) {
       // carried on without end, and for an attribute its plane carried as far; where a group's free vertices are few and
       // reach far, that is several times what is lost. What it made is measured instead: apart)
       let [out] = S.simplifyWithAttributes(lidx, lp, 3, la, AK, W, ll, Math.floor(n / 6) * 3, Infinity, ['ErrorAbsolute', 'Permissive']);
+      // (one its seams hold back, a colour's or a material's edge it may fold along but not across: made again with
+      // them free. Keeping an edge is a wish, not a need: what folding it across costs is measured with the rest (apart:
+      // its colours too), and the cut lets it go only where that is allowed. Kept, a fire pit's many stones and embers
+      // held 55 of its clusters whole to the end, 6,193 triangles at its coarsest level)
+      if (out.length > n * STUCK && M.seam) [out] = S.simplifyWithAttributes(lidx, lp, 3, la, AK, W, ll.map((x) => (x === 2 ? 0 : x)), Math.floor(n / 6) * 3, Infinity, ['ErrorAbsolute', 'Permissive']);
       // the parts kept whole that this group may now let go: wholly in it, and no further than the error it is allowed
-      let E = Math.max(apart(lidx, out, lp, l2g, nor), childErr * BAND), gone = null;
+      let E = Math.max(apart(lidx, out, lp, l2g, nor, attr, k, W), childErr * BAND), gone = null;
       const mine = new Map(); for (let i = 0; i < lidx.length; i += 3) { const p = partOf[l2g[lidx[i]]]; if (whole[p]) mine.set(p, (mine.get(p) ?? 0) + 1); }
       for (const [p, cnt] of mine) {
         const W0 = whole[p]; if (W0.reach > E || cnt < sizeOf[p]) continue;
@@ -191,7 +202,7 @@ export function build(M) {
     const lp = localPos(pos, l2g), la = new Float32Array(l2g.length * AK); l2g.forEach((v, l) => la.set(A.subarray(v * AK, v * AK + AK), l * AK));
     const [out] = S.simplifyWithAttributes(lidx, lp, 3, la, AK, W, null, Math.max(TAIL, Math.floor(n / 6)) * 3, Infinity, ['ErrorAbsolute', 'Permissive']);
     if (out.length > n * STUCK || out.length < 6) break;
-    const far = morphs([c], out, l2g, g2l, lp, M, k, null), G = { err: Math.max(apart(lidx, out, lp, l2g, nor), c.self.err * BAND, far), c: c.self.c, r: c.self.r };
+    const far = morphs([c], out, l2g, g2l, lp, M, k, null), G = { err: Math.max(apart(lidx, out, lp, l2g, nor, attr, k, W), c.self.err * BAND, far), c: c.self.c, r: c.self.r };
     c.parent = G; pending = [make(Uint32Array.from(out, (l) => l2g[l]), G)]; stats.levels++;
   }
   // what nothing replaces: its parent's error never shows
@@ -233,21 +244,24 @@ function morphs(cs, out, l2g, g2l, lp, M, k, shrinks) {
       // (and its shading's: its normal there δ off, from the nearest corner, where it is right, r away: as though it
       // had moved δ r / 2, NW above)
       const dn = Math.hypot(to[o + 3] - nor[v * 3], to[o + 4] - nor[v * 3 + 1], to[o + 5] - nor[v * 3 + 2]), r = Math.min(...[a, b, cc].map((q) => Math.hypot(to[o] - pos[q * 3], to[o + 1] - pos[q * 3 + 1], to[o + 2] - pos[q * 3 + 2])));
-      far = Math.max(far, dn * r * NW);
-      for (let i = 0; i < k; i++) to[o + 6 + i] = attr[a * k + i] * wa + attr[b * k + i] * wb + attr[cc * k + i] * wc;
+      let dc = 0; for (let i = 0; i < k; i++) { to[o + 6 + i] = attr[a * k + i] * wa + attr[b * k + i] * wb + attr[cc * k + i] * wc; dc += ((M.aw?.[i] ?? CW) / CW) ** 2 * (to[o + 6 + i] - attr[v * k + i]) ** 2; }
+      far = Math.max(far, dn * r * NW, Math.sqrt(dc) * r * CW);   // (its colour's too, the same way: CW)
     });
     c.verts = Int32Array.from(verts); c.tris = tris; c.to = to;
   }
   return far;
 }
-/** How far apart a group (fine: its corners, of the vertices lp holds; l2g: M's vertex each is, nor: M's normals) and
-    what it was made into (out) lie, as the cut counts error: the farthest a point of either lies from the other, and how
-    far the shading there looks moved (its normal against the other's at the nearest point, δ, over the way r on out from
-    the nearest place where the two are alike, a corner of out: δ r NW). Each triangle of both is read at its middle and
-    each edge at its middle; the vertices out lost, morphs reads (the vertices it keeps are on both). */
-function apart(fine, out, lp, l2g, nor) {
+/** How far apart a group (fine: its corners, of the vertices lp holds; l2g: M's vertex each is, nor: M's normals, attr:
+    its k attributes, W: the weights) and what it was made into (out) lie, as the cut counts error: the farthest a point
+    of either lies from the other, and how far the shading there looks moved (its normal against the other's at the
+    nearest point, δ, over the way r on out from the nearest place where the two are alike, a corner of out: δ r NW; its
+    colour the same way, CW). Each triangle of both is read at its middle and each edge at its middle; the vertices out
+    lost, morphs reads (the vertices it keeps are on both). */
+function apart(fine, out, lp, l2g, nor, attr, k, W) {
   if (!out.length) return 0;
   const R = new Float64Array(4), p = [0, 0, 0], n = [0, 0, 0], m = [0, 0, 0], q = [0, 0, 0], MID = [1 / 3, 1 / 3, 1 / 3];
+  const ca = new Float64Array(k), cb = new Float64Array(k);
+  const colour = (I, t, w, o) => { for (let i = 0; i < k; i++) o[i] = attr[l2g[I[t * 3]] * k + i] * w[0] + attr[l2g[I[t * 3 + 1]] * k + i] * w[1] + attr[l2g[I[t * 3 + 2]] * k + i] * w[2]; };
   const normal = (I, t, w, o) => { for (let a = 0; a < 3; a++) o[a] = nor[l2g[I[t * 3]] * 3 + a] * w[0] + nor[l2g[I[t * 3 + 1]] * 3 + a] * w[1] + nor[l2g[I[t * 3 + 2]] * 3 + a] * w[2]; const l = Math.hypot(o[0], o[1], o[2]) || 1; o[0] /= l; o[1] /= l; o[2] /= l; };
   const nearCorner = (t, x) => { let r = Infinity; for (let j = 0; j < 3; j++) { const c = out[t * 3 + j] * 3; r = Math.min(r, Math.hypot(x[0] - lp[c], x[1] - lp[c + 1], x[2] - lp[c + 2])); } return r; };
   let most = 0;
@@ -263,7 +277,8 @@ function apart(fine, out, lp, l2g, nor) {
       let r;
       if (from === out) r = half || nearCorner(t, p);
       else { for (let a = 0; a < 3; a++) q[a] = lp[to[u * 3] * 3 + a] * wu[0] + lp[to[u * 3 + 1] * 3 + a] * wu[1] + lp[to[u * 3 + 2] * 3 + a] * wu[2]; r = nearCorner(u, q); }
-      most = Math.max(most, Math.sqrt(R[0]), Math.hypot(n[0] - m[0], n[1] - m[1], n[2] - m[2]) * r * NW);
+      let dc = 0; if (k) { colour(from, t, w, ca); colour(to, u, wu, cb); for (let i = 0; i < k; i++) dc += (W[3 + i] / CW) ** 2 * (ca[i] - cb[i]) ** 2; }
+      most = Math.max(most, Math.sqrt(R[0]), Math.hypot(n[0] - m[0], n[1] - m[1], n[2] - m[2]) * r * NW, Math.sqrt(dc) * r * CW);
     };
     for (let t = 0; t < from.length / 3; t++) {
       read(t, MID);
