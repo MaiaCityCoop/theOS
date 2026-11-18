@@ -11,7 +11,7 @@ export default tree({
   type: 'asset',
   name: 'Pine litter',
   kind: 'litter',
-  about: 'What a stone pine drops under its crown: a few of its heavy brown cones, twigs, tufts of its long needles, lying on the floor.',
+  about: 'What a stone pine drops: heavy brown cones, twigs, tufts of needles.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
     real: 'Pinus pinea litter: its cones lying, with twigs and needles',

@@ -7,7 +7,7 @@ export default {
   name: "Rock",
   kind: 'stone',
   role: 'rock',   // the part it plays for the engine (src/core/registry.js: byRole)
-  about: "Ridged, bedded stone with a few cracks, weathering pits, and crusts of lichen, grey-green and orange.",
+  about: 'Ridged, bedded stone with cracks, pits and crusts of lichen.',
   usedBy: "stones and boulders; steep slopes",
   swatch: [0.22, 0.21, 0.2],
   bump: 0.035,   // how deep its relief reads in the normals: larger is flatter
