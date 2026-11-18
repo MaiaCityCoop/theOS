@@ -38,7 +38,7 @@
 // culled, and everything is drawn as before.
 import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, float, int, uint, vec2, vec3, vec4, uvec4, ivec2, uniform, uniformArray, storage, texture, instanceIndex, workgroupId, localId, workgroupArray, workgroupBarrier, storageBarrier, atomicLoad, atomicStore, atomicOr, countOneBits, max, min, abs, floor, ceil, log2, exp2, clamp, packHalf2x16, unpackHalf2x16, floatBitsToUint, uintBitsToFloat } from 'three/tsl';
-import { gpuStorage, gpuStorageLater, more, limitOf, roomOf } from './gpu.js';
+import { gpuStorage, gpuStorageLater, more, limitOf, remade, roomOf } from './gpu.js';
 import { passOf } from './pass.js';
 import { windStrength, snowDepth } from '../world/light.js';
 
@@ -191,21 +191,39 @@ function arena() {
   const boxAt = (slot) => unbox(BOX.element(slot));
   const pop2 = (o) => countOneBits(CH.element(o)).add(countOneBits(CH.element(o.add(uint(1)))));
   const P = pyramidNode();
-  /** The arena's buffers, as large as its tiers (once, before anything binds them: every node that reads them asks). */
-  A.build = () => {
-    if (A.built) return;
-    A.built = true; if (OPEN === A) OPEN = null;
-    const { N, G, NC } = A, B = new Uint32Array((G + 1) * NB), E = new Uint32Array(Math.max(1, G) * 10);
+  // (a tier's buckets: each a room of its own, or a resident tier's laid out by its gather in one range, their first and
+  // their count written by its packing each time: src/scatter/tier.js)
+  const chunksOf = (t) => (t.caps ? t.caps.reduce((a, c) => a + Math.ceil(c / WG), 0) : Math.ceil(t.total / WG) + t.K);
+  /** The arena's numbers and buffers, as large as its tiers: once, before anything binds them (every node that reads
+      them asks), and again where a tier's range has changed (relayout). */
+  const lay = () => {
+    let N = 0, NC = 1; for (const t of A.tiers) { t.base = N; t.uBase.value = N; N += t.total; NC += chunksOf(t); }
+    A.N = N; A.NC = NC;
+    const { G } = A, B = new Uint32Array((G + 1) * NB), E = new Uint32Array(Math.max(1, G) * 10);
     for (const t of A.tiers) for (let k = 0; k < t.K; k++) {
-      const g = t.g0 + k, o = g * NB; B[o + BASE] = t.base + t.offs[k]; B[o + CAP] = t.caps[k]; B[o + TIER] = t.idx;
+      const g = t.g0 + k, o = g * NB; B[o + BASE] = t.base + t.offs[k]; B[o + CAP] = t.caps ? t.caps[k] : 0; B[o + TIER] = t.idx;
       E[g * 10] = E[g * 10 + 5] = t.T.args.array[k * 5];   // (as long as its draw: tier.js setLength keeps it)
     }
     B[G * NB + BASE] = N;
-    Object.assign(bk, { array: B, count: B.length }); Object.assign(on, { array: new Uint32Array(Math.max(1, A.tiers.length)), count: Math.max(1, A.tiers.length) }); Object.assign(eye, { array: E, count: E.length / 5 });
-    const bytes = boxes.make(N) + lists.make(2 * N) + chunks.make(NC * 9);
+    Object.assign(bk, { array: B, count: B.length }); bk.needsUpdate = true; Object.assign(eye, { array: E, count: E.length / 5 }); eye.needsUpdate = true;
+    A.bytes = boxes.make(N) + lists.make(2 * N) + chunks.make(NC * 9);
     uN.value = N; uG.value = G; uNC.value = NC; uB2.value = NC * 6; uS.value = stepsOf(G);
-    more('tiers: the culling\'s numbers (occlusion)', B.byteLength + E.byteLength, B.byteLength + E.byteLength, 'geometry');
-    A.bytes = bytes;
+    return B.byteLength + E.byteLength;
+  };
+  A.build = () => {
+    if (A.built) return;
+    A.built = true; if (OPEN === A) OPEN = null;
+    Object.assign(on, { array: new Uint32Array(Math.max(1, A.tiers.length)), count: Math.max(1, A.tiers.length) });
+    const bytes = lay();
+    more('tiers: the culling\'s numbers (occlusion)', bytes, bytes, 'geometry');
+  };
+  /** A tier's range changed (a resident tier's store made again: src/scatter/tier.js): every tier's place in the arena
+      laid out again, its buffers made again at the new size, and every tier of it packed again (its boxes moved). */
+  A.relayout = () => {
+    if (!A.built) { A.N = A.tiers.reduce((n, t) => n + t.total, 0); A.NC = 1 + A.tiers.reduce((n, t) => n + chunksOf(t), 0); return; }
+    lay();
+    if (A.N > ROOM()) console.warn(`the culling's arena holds ${A.N} things, more than one binding holds (${ROOM()}): ${Math.round((A.N / ROOM()) * 100)} % of it; its class's budget must take the rest`);
+    for (const t of A.tiers) t.T.repack?.();
   };
   // pass one's first chunks: a bucket's, from what it holds this frame (none for a tier not drawn); as many workgroups in all
   const prep = Fn(() => {
@@ -302,12 +320,12 @@ function arena() {
     If(w.lessThan(at(uG, C2)).and(isSet(m0, m1, lid)), () => { LIST.element(base.add(at(g, N1)).add(CH.element(c.add(uint(2))).sub(CH.element(s0.add(uint(2))))).add(below(m0, m1, lid))).assign(LIST.element(uN.add(base).add(j))); });
   })().compute(MANY, [WG]);
   twoWrite.dispatchSize = d2;
-  Object.assign(A, { early: [prep, oneTest, oneScan, oneWrite], late: [twoTest, twoScan, twoWrite], BOX, LIST, BK, at, eye, on, debug: { bk, d1, d2, lists: lists.attr, chunks: chunks.attr, boxes: boxes.attr } });
+  Object.assign(A, { early: [prep, oneTest, oneScan, oneWrite], late: [twoTest, twoScan, twoWrite], BOX, LIST, BK, at, eye, on, debug: { bk, d1, d2, get lists() { return lists.attr; }, get chunks() { return chunks.attr; }, get boxes() { return boxes.attr; } } });
   ARENAS.push(A);
   return A;
 }
 
-let lateScene = null, bundle = null, shown = new Int32Array(0), built = false;   // (built: the pyramid is there to test against)
+let lateScene = null, bundle = null, shown = new Int32Array(0), built = false, bound = -1;   // (built: the pyramid is there to test against; bound: the buffers made again when the bundle was recorded, src/core/gpu.js remade)
 const proxies = [];
 
 /** A tier's culling: { args, boxes (two compute passes for the end of its packing: its draws' counts, as its own
@@ -327,19 +345,24 @@ const ROOM = () => Math.floor(Math.min(limitOf('maxStorageBufferBindingSize'), l
 const BYTES = 16 + 8, fits = (n) => n * BYTES <= roomOf('geometry');
 /** Whether a tier of `total` things can be culled (one that alone would fill more than an arena is drawn whole). */
 export const cullable = (total) => total <= ROOM() && fits(total);
-export function cullOf(T, { K, caps, offs, total, S, data, args, count, box }) {
+export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, offAt = null }) {
   useLimits();   // (the device's own)
   if (OPEN && (OPEN.N + total > ROOM() || !fits(OPEN.N + total))) OPEN.build();   // (full: it is made as it is, and this tier opens the next)
-  const A = (OPEN ||= arena()), me = { T, K, caps, offs, total, g0: A.G, base: A.N, idx: A.tiers.length };
-  A.tiers.push(me); A.G += K; A.N += total; A.NC += caps.reduce((a, c) => a + Math.ceil(c / WG), 0);
-  const F = storage(args, 'uint', 5 * K), uBase = uniform(me.base, 'uint'), uG0 = uniform(me.g0, 'uint');
+  const A = (OPEN ||= arena()), uBase = uniform(A.N, 'uint'), me = { T, K, caps, offs, total, g0: A.G, base: A.N, idx: A.tiers.length, uBase };
+  A.tiers.push(me); A.G += K; A.N += total; A.NC += caps ? caps.reduce((a, c) => a + Math.ceil(c / WG), 0) : Math.ceil(total / WG) + K;
+  const F = storage(args, 'uint', 5 * K), uG0 = uniform(me.g0, 'uint');
   // after the packing (its last pass, in its stead): each draw as many as it holds, no more than its room; the same
-  // into the arena, with how many the draws before it hold; and as many workgroups as work out their boxes
+  // into the arena, with how many the draws before it hold; and as many workgroups as work out their boxes. A bucket
+  // laid out by its tier's packing (offAt: where its things begin, a node) says its first and its room here too
   const d = new THREE.IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1, 0]), 1), D = storage(d, 'uint', 4);
   const argsPass = Fn(() => {
     A.build();
     const run = uint(0).toVar();
-    for (let k = 0; k < K; k++) { const g = uG0.add(uint(k)), n = atomicLoad(count.element(k)).min(A.at(g, CAP)).toVar(); F.element(k * 5 + 1).assign(n); A.at(g, PACK).assign(n); A.at(g, PRE).assign(run); run.addAssign(n); }
+    for (let k = 0; k < K; k++) {
+      const g = uG0.add(uint(k)), n = (offAt ? atomicLoad(count.element(k)) : atomicLoad(count.element(k)).min(A.at(g, CAP))).toVar();
+      if (offAt) { A.at(g, BASE).assign(uBase.add(offAt(uint(k)))); A.at(g, CAP).assign(n); }
+      F.element(k * 5 + 1).assign(n); A.at(g, PACK).assign(n); A.at(g, PRE).assign(run); run.addAssign(n);
+    }
     sizeTo(D, run.add(uint(WG - 1)).div(uint(WG)));
   })().compute(1);
   // then each thing it packed: its box, into the arena (a workgroup's 64 of them, whatever bucket each is in)
@@ -362,6 +385,8 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box }) {
       if (which === 'rest') T.geometries.forEach((g, k) => { g.indirect = args; g.indirectOffset = k * 20; });
       else { const o = which === 'late' ? 5 : 0; T.geometries.forEach((g, k) => { g.indirect = A.eye; g.indirectOffset = ((me.g0 + k) * 10 + o) * 4; }); }
     },
+    /** Its range is another now (a resident tier's store made again, src/scatter/tier.js): the arena laid out again. */
+    resize(n) { me.total = n; A.relayout(); },
     /** A draw's length (its corners) changed: in all three of its sets of arguments. */
     setLength(k, n) {
       args.array[k * 5] = n; args.addUpdateRange(k * 5, 1); args.needsUpdate = true;
@@ -444,8 +469,9 @@ export const occlusion = {
     const list = []; for (const A of ARENAS) if (A.any) list.push(...A.late);
     if (!list.length) return;
     renderer.compute(list);
-    // (the bundle recorded again only when what it holds has changed: a draw shown or hidden, or its corners)
-    let changed = false;
+    // (the bundle recorded again only when what it holds has changed: a draw shown or hidden, or its corners; or a
+    // buffer its draws bind was made again: its bindings are recorded in it)
+    let changed = bound !== remade(); bound = remade();
     for (let i = 0; i < proxies.length; i++) {
       const [p, m, T] = proxies[i], v = T.drawn && m.visible, s = v ? (m.geometry.index?.id ?? -1) : -2;
       p.visible = v; p.renderOrder = m.renderOrder;
