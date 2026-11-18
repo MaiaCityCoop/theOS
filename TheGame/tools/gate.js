@@ -2,7 +2,7 @@
 // server (http://localhost:5180/game/; another with --url <url> or GATE_URL: a worktree's own server), in the system's
 // own Chrome through Playwright, headless (--headed: in a window, for frame times as a screen paces them):
 //
-//   bun tools/gate.js stills [--tag t] [--truth] [--views a,b]   the gate's views (tools/gate/views.js) as 4K PNGs in
+//   bun tools/gate.js stills [--tag t] [--truth] [--views a,b]   the gate's views (tools/gate/views.js) as PNGs at the output (OUTPUT) in
 //                        [--fresh] [--reach m] [--tiles n]       .gate/<tag>/ (by default the commit); --truth: ?truth
 //                                                                (--reach: ?truth=m, as far as it says); --fresh: on a
 //                                                                new browser profile (launch, below); --tiles: each view
@@ -50,9 +50,9 @@
 //
 // It never waits on a timer for the picture: once the camera has moved it waits for window.__game.settle() (src/core/
 // settle.js), which resolves when nothing streams or builds for that camera and the picture built over time has come to
-// rest. A page without it is an error, and says so. The screen is a 4K one: 1920×1080 points at two pixels each, so the
-// game's canvas is 3840×2160 by its own rule. For stills the world is drawn inside at 2560×1440 (the budget's "about
-// 1440p") and brought up to the screen by the temporal pass, the governor held where it starts and the world's clock
+// rest. A page without it is an error, and says so. The screen is the output (src/core/budget.js OUTPUT, 1920×1080 since
+// 2026-11-18 22:15) at one pixel a point, so the game's canvas is the output's own pixels. For stills the world is drawn
+// inside at INSIDE (no more than the canvas) and laid on the screen by the temporal pass, the governor held where it starts and the world's clock
 // standing still at the same moment in every run, so two runs of the same code draw the same. On the paths the governor
 // and the clock run, as in the game. Chrome runs on the gate's own profile, .gate/chrome/, kept from run to run (the
 // world is made in half a minute, not two); the paths make a fresh one for their cold run.
@@ -66,6 +66,7 @@ import { VIEWS, PATHS } from './gate/views.js';
 import { FIRST_FRAME } from '../src/core/marks.js';
 import { BUDGET, CLASSES, classOf } from './bench.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
+import { OUTPUT } from '../src/core/budget.js';
 import { stepper } from './gate/clock.js';
 import { locked, unlock } from './gpu/lock.js';
 import { tiled } from './gate/tiles.js';
@@ -75,9 +76,8 @@ import { guard, closeHard } from './gate/guard.js';
 const URL_AT = process.argv.indexOf('--url'), BASE = (URL_AT > 0 && process.argv[URL_AT + 1]) || process.env.GATE_URL || 'http://localhost:5180/game/';
 const Q_AT = process.argv.indexOf('--query'), EXTRA = Q_AT > 0 ? process.argv[Q_AT + 1] : '';   // (more of the address for every page the gate opens: --query stress, the stress world)
 const OUT = new URL('../.gate/', import.meta.url).pathname;   // TheGame/.gate/: made again by every run, not kept in git
-// (the output the gate draws: 1920 × 1080, Samuel's gate since 2026-11-18, 22:15; it reads OUTPUT from src/core/budget.js
-// once #95 lands)
-const SCREEN = { width: 1920, height: 1080, dpr: 1 }, INSIDE = 4 / 3, TIME = 100;   // (TIME: the seconds the world's clock stands at for stills)
+// (the output the gate draws: OUTPUT (src/core/budget.js), at one pixel a point: the canvas is the output's own pixels)
+const SCREEN = { ...OUTPUT, dpr: 1 }, INSIDE = 4 / 3, TIME = 100;   // (TIME: the seconds the world's clock stands at for stills)
 const FRAME = 1000 / 60, JITTER = 1, MEMORY = 8e9;   // the hard gates in motion: no frame longer than 1/60 s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within 8 GB
 const WAIT = 300e3;   // ms the world may take to come, or to settle, before the gate calls it broken (an error; never a wait for readiness)
 const ARGS = ['--enable-unsafe-webgpu', '--enable-webgpu-developer-features'];   // (the second: the GPU's timestamps to the nanosecond, not rounded to a tenth of a millisecond: the bench times passes of a few hundredths)
@@ -150,7 +150,7 @@ async function prepare({ inside, time }) {
   const { U } = await import(R.filter((n) => n.includes('src/core/uniforms.js')).at(-1));
   if (time != null) Object.defineProperty(U.uTime, 'value', { get: () => time, set() {}, configurable: true });
   s.governor.hold(true); s.governor.rest?.();   // (and its detail cap where it starts: what the start's frames cost must not change the picture)
-  s.renderer.setPixelRatio(devicePixelRatio);   // (the canvas at all the screen's pixels: so the game keeps it, up to two a point)
+  s.screen.fit?.();   // (the canvas as the game makes it for this window: the output's, src/core/output.js)
   if (inside != null) s.screen.set(inside);
   window.__cine.dof = false;
 }
@@ -284,7 +284,7 @@ async function diff(a, b, { ppd = PPD, views, jpeg = false } = {}) {
     writeFileSync(`${dir}${v.name}.png`, writePNG(H, A.width, A.height));
     report.views[v.name] = { mean: +t.mean.toFixed(6), p99: +t.p99.toFixed(6), worst: { ...t.worst, value: +t.worst.value.toFixed(6) } };
     console.log(`  ${v.name.padEnd(28)}${f(t.mean, 4)}${f(t.p99, 4, 10)}${f(t.worst.value, 4, 12)}  ${t.worst.x},${t.worst.y}`);
-    if (jpeg) await sideBySide(`${dir}${v.name}.jpg`, { title: `${v.name}: ${a} against ${b}`, sub: `FLIP at 4K (${(+ppd).toFixed(1)} px a degree): mean ${t.mean.toFixed(4)}, the 99th percentile of its 32-px tiles ${t.p99.toFixed(4)}, the worst tile ${t.worst.value.toFixed(4)} (outlined)`, A, B, heatRGB: H, worst: t.worst, names: [a, b] });
+    if (jpeg) await sideBySide(`${dir}${v.name}.jpg`, { title: `${v.name}: ${a} against ${b}`, sub: `FLIP at ${OUTPUT.width}×${OUTPUT.height} (${(+ppd).toFixed(1)} px a degree): mean ${t.mean.toFixed(4)}, the 99th percentile of its 32-px tiles ${t.p99.toFixed(4)}, the worst tile ${t.worst.value.toFixed(4)} (outlined)`, A, B, heatRGB: H, worst: t.worst, names: [a, b] });
   }
   const rows = Object.values(report.views);
   if (!rows.length) throw new Error(`no view is in both .gate/${a}/ and .gate/${b}/`);
@@ -302,7 +302,7 @@ async function noise(chrome, tag, opt) {
 }
 
 /** tools/bench.js's bench(), one view at a time, each once the world has settled there. bench() draws the world as the
-    game does: inside at `ratio`, brought up to the 4K canvas by the upscale pass (the whole frame's GPU time), and says
+    game does: inside at `ratio`, laid on the canvas by the upscale pass (the whole frame's GPU time), and says
     where it went: every pass of the frame on the GPU's own clock, under the name of the part that drew it (the packing,
     the clouds, the shadow map, the culling, the prepass, the land's pages, the colour, the upscale, …), the frame's parts
     each added up (bench.js CLASSES: geometry, light, ground, upscale and post; what none of them names, other), and the
@@ -538,7 +538,7 @@ async function all(opt) {
   try { a = await stills(chrome, { tag, views: opt.views }); t = await stills(chrome, { tag: `${tag}-truth`, truth: true, views: opt.views, tiles: opt.tiles }); b = await locked('bench', () => bench(chrome, opt)); c = await locked('compile', () => compile(chrome, opt)); }
   finally { await closeHard(chrome, chrome.gateDir); }
   const d = await diff(a, t, opt), p = await locked('paths', () => paths(opt));
-  console.log(`\nthe gate, ${tag}: FLIP against the truth (4K, ${(+(opt.ppd ?? PPD)).toFixed(1)} px a degree); GPU ms drawn at ${px(b.drawn)}`);
+  console.log(`\nthe gate, ${tag}: FLIP against the truth (${OUTPUT.width}×${OUTPUT.height}, ${(+(opt.ppd ?? PPD)).toFixed(1)} px a degree); GPU ms drawn at ${px(b.drawn)}`);
   console.log(`  ${'view'.padEnd(28)}${'mean'.padStart(8)}${'p99 tile'.padStart(10)}${'worst tile'.padStart(12)}${'GPU ms'.padStart(9)}`);
   for (const v of pick(VIEWS, opt.views, 'view')) {
     const r = d.views[v.name], ms = v.bench ? b.views[v.bench] : null;

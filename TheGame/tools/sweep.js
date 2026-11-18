@@ -6,9 +6,10 @@
 // -> { frames, px: [its size on screen each frame, as the engine reckons it], diff: [mean change from the frame before,
 //    0 … 255, over its box], worst: { at, ratio } (the largest step against the median of its ten neighbours) }.
 // Targets: 'boulder', 'stones' (a field of them), 'tent', 'firepit', or { x, z, y, r } (a point and how far round it to
-// frame). `scale`: the screen's pixels the engine counts by (2160: a 4K screen, intent 0008's gate). Only the engines
+// frame). `scale`: the screen's pixels the engine counts by (the output's height: src/core/budget.js OUTPUT). Only the engines
 // named in `keep` are drawn, with the land (the grass's own detail is not this sweep's).
 import * as THREE from 'three/webgpu';
+import { OUTPUT } from '../src/core/budget.js';
 
 const R = () => performance.getEntriesByType('resource').map((e) => e.name);
 const mod = (part) => import(R().filter((n) => n.includes(part)).at(-1));
@@ -34,7 +35,7 @@ export async function find(target) {
 /** The sweep. from, to: the detail governor's inverse at the first and the last frame; frames; scale: the screen
     height the engine counts by; w, h: the picture's size; dir: where the camera stands, from the target (a unit
     vector, flat); up: how far it looks down; stills: how many of the frames to hand back as pictures (RGBA). */
-export async function sweep({ target = 'boulder', from = 1.05, to = 1500, frames = 300, scale = 2160, dir = [0.6, 0.8], up = 0.35, stills = 0, keepAll = false, settle = 15000, log = false } = {}) {
+export async function sweep({ target = 'boulder', from = 1.05, to = 1500, frames = 300, scale = OUTPUT.height, dir = [0.6, 0.8], up = 0.35, stills = 0, keepAll = false, settle = 15000, log = false } = {}) {
   const s = window.__game, { renderer, camera, scene } = s, { U } = await mod('src/core/uniforms.js'), { measureNow } = await mod('src/detail/measure.js'), { heightAt } = await mod('src/world/land.js'), { setPlanes } = await mod('src/core/frustum.js');
   const T = await find(target), keep = new Set(T.keep), w = s.screen.target.width, h = s.screen.target.height;
   s.covered = true; s.governor.hold(true);   // (the game's own frames neither choose nor draw meanwhile: src/boot.js)
