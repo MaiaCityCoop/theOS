@@ -99,12 +99,6 @@ const REACHES = 600;
 export const REACH = flag('truth') ? Math.max(0, flagNum('truth', REACHES)) || REACHES : 0;
 /** Whether the address asks for the truth (`?truth`). */
 export const TRUTH = REACH > 0;
-/** How ?truth's picture is drawn. still (where it starts, under ?truth): as a still, at every pixel the canvas has and
-    over many more places of a pixel, never let go for its slow frames (src/core/screen.js, src/core/temporal.js). Set
-    false, as the game draws a frame in motion: at the inside the screen is set to, with the game's own places, while
-    everything is still drawn at its finest: the same frame at full detail, drawn the same way, that the gate holds each
-    frame of a path against (tools/gate.js motion). */
-export const TRUTH_AS = { still: TRUTH };
 const BIG = 1e6;   // how many times larger the truth measures a thing within its reach
 
 /** How many pixels drawn a thing `size` metres large covers `dist` metres off, as the 68° lens sees that distance. */
