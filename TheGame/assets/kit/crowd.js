@@ -209,19 +209,25 @@ function headOf(m, K) {
   // ---- where the crowd ends: its sprigs thinned to SWELL^-A of them (or, of a crowd too few to thin, all of them) ----
   const M = N > K.LEAST ? min(N, max(K.LEAST, ceil(N * pow(K.SWELL, -K.A) - 1e-9))) : N;
   let cornersM = 0; for (let t = 0; t < M; t++) cornersM += sprigs[order[t]].cards * 4;
-  // ---- the impostor's frame: the sphere round all of it; and its size on screen where its views are not magnified ----
+  // ---- the impostor's frame: the sphere round all of it ----
   const centre = [0, 1, 2].map((a) => (lo[a] + hi[a]) / 2); let r2 = 0;
   for (let p = 0; p < n * 3; p += 3) r2 = max(r2, (P[p] - centre[0]) ** 2 + (P[p + 1] - centre[1]) ** 2 + (P[p + 2] - centre[2]) ** 2);
-  const sphere = [...centre, sqrt(r2) || 1], T = (K.CELL * size) / (2 * sphere[3]) / BUDGET_DRAWN;   // (T: pixels of the measure, as the budget draws them)
+  const sphere = [...centre, sqrt(r2) || 1];
   // ---- the clumps: as many chunks as cost no more than the sprigs still there where the crowd ends, split largest first ----
   const want = max(1, min(K.CLUMPS, floor(cornersM / 12))), chunks = N > K.LEAST ? chunksOf(sprigs, want, K.grid) : null;
-  // where they take over: where their texels are ERROR_PX pixels drawn (TILE of them over a chunk's largest side); a
-  // shape whose impostor is as fine there already hands its crowd over to the impostor, and has none
+  // the impostor takes over where the last rung would draw its triangles smaller than a quad of pixels (2 x 2, what the
+  // GPU shades as one) over the plant's own square: its views as many texels a side as twice the root of those
+  // triangles, a power of two (cellOf), and drawn from where they are not magnified (T, pixels of the measure, as the
+  // budget draws them)
+  const cellOf = (tris) => min(K.CELL, max(K.CELL >> 2, 2 ** ceil(log2(2 * sqrt(max(tris, 1)) - 1e-9)))), Tof = (cell) => (cell * size) / (2 * sphere[3]) / BUDGET_DRAWN;
+  // where the clumps take over: where their texels are ERROR_PX pixels drawn (TILE of them over a chunk's largest side);
+  // a shape whose impostor is as fine there already hands its crowd over to the impostor, and has no clumps
   const side = chunks ? max(...chunks.map((C) => max(C.box[3] - C.box[0], C.box[4] - C.box[1], C.box[5] - C.box[2]))) : Infinity;
-  const pxC = (K.TILE * (K.ERROR_PX ?? ERROR_PX) * size) / (side * BUDGET_DRAWN), clumpy = !!chunks && pxC > T;
+  const pxC = (K.TILE * (K.ERROR_PX ?? ERROR_PX) * size) / (side * BUDGET_DRAWN), clumpy = !!chunks && pxC > Tof(cellOf(chunks.length * 6));
+  const cell = cellOf(clumpy ? chunks.length * 6 : cornersM / 2), T = Tof(cell);
   const win = { hi: clumpy ? pxC : T, lo: 0 }; win.lo = win.hi / K.WIN;
   const P0 = N ? win.hi * pow(N / M, 1 / K.A) : win.hi;
-  return { lo, hi, mean, size, frame, sprigs, solids, N, M, mid, sd, cls, order, meta, classes, atot, sphere, T, chunks: clumpy ? chunks : null, win, P0 };
+  return { lo, hi, mean, size, frame, sprigs, solids, N, M, mid, sd, cls, order, meta, classes, atot, sphere, cell, T, chunks: clumpy ? chunks : null, win, P0 };
 }
 /** A crowd's sprigs in chunks: split by their boxes, the chunk of the largest box first, at the middle of its sprigs'
     tips along its longest side, until there are `want` of them (or none can be split). A chunk is whole sprigs: its
@@ -263,11 +269,11 @@ export function budgetOf(m, opts = {}, his = [Infinity]) {
   // (its finest level carries its far data, every other its chunks' planes where they can come; a level wholly under
   // far.lo nothing but its numbers)
   const farLo = farLoOf(H, K), p = H.chunks ? H.chunks.length * 3 : 0;
-  return his.map((hi) => {
+  return Object.assign(his.map((hi) => {
     if (hi <= farLo) return { verts: 1, tris: 0 };
     let cards = 0; for (let t = 0; t < H.N; t++) if (go[t] < hi * K.WIN) cards += H.sprigs[H.order[t]].cards;
     return { verts: 1 + (hi === Infinity ? farVerts(K) : 0) + cards * 4 + sv + p * 4, tris: cards * 2 + st + p * 2 };
-  });
+  }), { cell: H.cell, chunks: H.chunks ? H.chunks.length : 0 });   // (and its impostor's views' texels a side, its stand's atlas as fine as its finest shape's; and how many chunks its clumps are)
 }
 /** Each sprig's go, in turn order: the last M go one by one over the clumps' window (or, where nothing takes over from
     them, stay); the rest where the share drops past them. */
@@ -365,13 +371,13 @@ export function crowd(m, opts = {}) {
     return { n: Mc, cells, boxes, go: cgo, ao, err: max(...all.map((C) => C.err)) };
   }
   // what the GPU bakes the far end from (src/detail/impostor.js), carried after its finest level's vertices
-  // (assets/kit/plant.js): [chunks, the sphere (4), its size, its clumps' window's start, 0, then a chunk's cell and box (12)]
+  // (assets/kit/plant.js): [chunks, the sphere (4), its size, its clumps' window's start, its impostor's views' texels a side, then a chunk's cell and box (12)]
   const data = new Float32Array(8 + (clumps ? clumps.n * 12 : 0));
-  data.set([clumps ? clumps.n : 0, ...sphere, size, win.hi, 0]);
+  data.set([clumps ? clumps.n : 0, ...sphere, size, win.hi, H.cell]);
   if (clumps) for (let c = 0; c < clumps.n; c++) { data.set(clumps.cells.subarray(c * 6, c * 6 + 6), 8 + c * 12); data.set(clumps.boxes.subarray(c * 6, c * 6 + 6), 8 + c * 12 + 6); }
   meta[META.HI] = win.hi; meta[META.LO] = win.lo; meta[META.CARDS] = cards;
   return { count, cards, parts: N, solids: listed.length, ...out, ...S, index, steps, turns, meta, P0, E, A: K.A, SWELL: K.SWELL, size, mid, spread, classes, win, cover: N ? cover : 0, sphere, clumps,
-    far: { lo: farLoOf(H, K), data } };
+    cell: H.cell, far: { lo: farLoOf(H, K), data } };
 }
 
 // ---- a shape as the engine draws it between two sizes on screen ----

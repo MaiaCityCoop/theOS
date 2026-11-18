@@ -28,7 +28,7 @@ import { pxAt, drawnAt } from './measure.js';
 
 const { VIEWS, CELL, TILE, TILES } = CROWD;
 export const SS = 4;   // samples a side a texel is baked from
-export const LODS = { views: Math.log2(CELL) - 2, tiles: Math.log2(TILE) - 2 };   // the smallest picture read: 4 texels a side
+export const LODS = { views: (cell = CELL) => Math.log2(cell) - 2, tiles: Math.log2(TILE) - 2 };   // the smallest picture read: 4 texels a side (a view of `cell` texels; a tile)
 
 // ---- the views: a direction over the half-sphere above, a point of the square [-1, 1]² (and back) ----
 /** The square's point (-1 … 1) of view (i, j) of VIEWS a side. */
@@ -69,7 +69,7 @@ export const tileClip = (p, lo, hi, a, col) => {
 /** Two array textures of `layers` layers, side x side texels each: its colour (albedo as its square root, cover) and its
     data (which way it faces, octahedral; how deep; light and leaf, 0 … 1 each half). put(layer, levels): its pictures
     from the worker, each level's two arrays, into the GPU. */
-export function createAtlas(renderer, { name, side, layers }) {
+export function createAtlas(renderer, { name, side, layers, cell = side }) {
   const make = () => {
     const rt = new THREE.RenderTarget(side, side, { depth: Math.max(2, layers), depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });   // (two layers at least: an array, however few shapes)
     renderer.initRenderTarget(rt); return rt;
@@ -77,7 +77,7 @@ export function createAtlas(renderer, { name, side, layers }) {
   const C = make(), D = make(), mips = Math.floor(Math.log2(side)) + 1;
   note(`${name}`, Math.round(side * side * layers * 8 * 4 / 3), 0);
   return {
-    colour: C.texture, data: D.texture, side, targets: [C, D],   // (targets: to read a layer back, renderer.readRenderTargetPixelsAsync)
+    colour: C.texture, data: D.texture, side, cell, targets: [C, D],   // (cell: a picture's texels a side; targets: to read a layer back, renderer.readRenderTargetPixelsAsync)
     put(layer, levels) {
       const dev = renderer.backend.device, gc = renderer.backend.get(C.texture).texture, gd = renderer.backend.get(D.texture).texture;
       levels.forEach(({ colour, data, n }, m) => {
@@ -163,7 +163,7 @@ export function impostorRead(A, layer, p, eye, V, lod) {
   for (let k = 0; k < 3; k++) {
     const g = V.cells[k], w = [V.w.x, V.w.y, V.w.z][k], D = dirOf(g.x.div(VIEWS - 1).mul(2).sub(1), g.y.div(VIEWS - 1).mul(2).sub(1)), B = basisOf(D), dd = rd.dot(D).min(-1e-3);
     const uvAt = (h) => { const t = h.sub(p.dot(D)).div(dd), q = p.add(rd.mul(t)); return vec2(q.dot(B.right), q.dot(B.up)).mul(0.5).add(0.5); };
-    const st = (uv) => { const c = inCell(uv, float(CELL), lod); return vec2(g.x.add(c.x), g.y.add(float(1).sub(c.y))).div(VIEWS); };
+    const st = (uv) => { const c = inCell(uv, float(A.cell), lod); return vec2(g.x.add(c.x), g.y.add(float(1).sub(c.y))).div(VIEWS); };
     const h0 = Dt.sample(st(uvAt(float(0)))).depth(layer).level(lod).z.mul(2).sub(1), uv = uvAt(h0), s = st(uv);   // (one step of parallax: where the ray stands as high over the view's plane as what the view saw there)
     const c = C.sample(s).depth(layer).level(lod), d = Dt.sample(s).depth(layer).level(lod);
     out.colour.addAssign(c.rgb.mul(w)); out.cover.addAssign(c.a.mul(w)); out.normal.addAssign(octDec(d.xy).mul(w)); out.depth.addAssign(d.z.mul(2).sub(1).mul(w)); out.lit.addAssign(d.w.mul(w));
@@ -195,20 +195,20 @@ export function clumpRead(A, layer, uv, lod) {
 let renderer = null, BAKERS = null; const kept = new Map();   // a recipe's hash -> its views, baked once a recipe
 /** The game's renderer bakes the impostors (set once by src/main.js). */
 export const setImpostorRenderer = (r) => (renderer = r);
-/** The bakers every impostor shares (their targets reused shape after shape): the views', and a plant's clumps' tiles. */
-export const bakers = (r = renderer) => (BAKERS ||= { views: createBaker(r, { per: VIEWS, px: CELL }), tiles: createBaker(r, { per: TILES, px: TILE }) });
+/** The bakers every impostor shares (their targets reused shape after shape): the views' (views(cell): one a size of a view), and a plant's clumps' tiles. */
+export const bakers = (r = renderer) => (BAKERS ||= { of: new Map(), views(cell = CELL) { let b = this.of.get(cell); if (!b) this.of.set(cell, (b = createBaker(r, { per: VIEWS, px: cell }))); return b; }, tiles: createBaker(r, { per: TILES, px: TILE }) });
 /** A recipe's hash: its geometry's numbers, so a changed recipe bakes again. */
 const hashOf = (geo) => { let h = FNV; const a = geo.attributes.position.array, c = geo.attributes.color?.array || []; for (let i = 0; i < a.length; i += 7) h = fnv(h, Math.round(a[i] * 1000)); for (let i = 0; i < c.length; i += 11) h = fnv(h, Math.round(c[i] * 1000)); return `${a.length}:${(h >>> 0).toString(36)}`; };
 /** A made thing's views (geo: its nearest level, its colours a vertex; c, r: its sphere) baked into an atlas of its own:
     { A, ready (1 once they are in) }. */
 function viewsOf(geo, c, r, name) {
-  const A = createAtlas(renderer, { name: `a made thing's impostor ${name}`, side: VIEWS * CELL, layers: 2 }), ready = uniform(0), row = uniform(0, 'int'), g = new THREE.InstancedBufferGeometry();
+  const A = createAtlas(renderer, { name: `a made thing's impostor ${name}`, side: VIEWS * CELL, layers: 2, cell: CELL }), ready = uniform(0), row = uniform(0, 'int'), g = new THREE.InstancedBufferGeometry();
   g.index = geo.index; for (const k of ['position', 'normal', 'color']) if (geo.attributes[k]) g.setAttribute(k, geo.attributes[k]);
   const vC = varyingProperty('vec3', 'mC'), vN = varyingProperty('vec3', 'mN'), vZ = varyingProperty('float', 'mZ');
   const vert = Fn(() => { const P = viewClip(positionGeometry.sub(c).div(r), row), n = attribute('normal', 'vec3'); vC.assign(attribute('color', 'vec3')); vN.assign(n.dot(P.D).lessThan(0).select(n.negate(), n)); vZ.assign(P.z); return P.clip; })();
   const mat = (f) => Object.assign(new THREE.NodeMaterial(), { vertexNode: vert, fragmentNode: f, side: THREE.DoubleSide });
   const bm = Object.assign(new THREE.Mesh(g, null), { frustumCulled: false, userData: { materials: [mat(vec4(sqrt(max(vC, 0)), 1)), mat(Fn(() => vec4(octEnc(normalize(vN)), vZ.mul(0.5).add(0.5), litIn(float(1), float(0))))())] } });
-  bakers().views.bake(A, 0, VIEWS, (j) => { row.value = j; g.instanceCount = VIEWS; return bm; }).then(({ done }) => done).then(() => (ready.value = 1));
+  bakers().views().bake(A, 0, VIEWS, (j) => { row.value = j; g.instanceCount = VIEWS; return bm; }).then(({ done }) => done).then(() => (ready.value = 1));
   return { A, ready };
 }
 /** An asset's impostor as a mesh (its nearest level, geo): its views baked as it is first asked for (once a recipe),
@@ -228,7 +228,7 @@ export function impostorOf(geo, snow = { clumps: 0.08 }) {
       const w = C.add(right.mul(positionGeometry.x).add(up.mul(positionGeometry.y)).mul(k.mul(r).mul(sunk.sqrt())));
       vP.assign(M.transpose().mul(w.sub(C)).div(k.mul(k).mul(r).mul(sunk.sqrt()))); vE.assign(M.transpose().mul(U.uCam.sub(C)).div(k.mul(k).mul(r).mul(sunk.sqrt()))); vX.assign(w);
       const V = impostorViews(normalize(M.transpose().mul(d))); vA.assign(vec4(V.cells[0], V.cells[1])); vB.assign(V.cells[2]); vW.assign(V.w);
-      vL.assign(clamp(log2(float(CELL).div(drawnAt(pxAt(k.mul(2 * r), U.uCam.sub(C).length().mul(U.uLodInv))).max(1e-3))), 0, LODS.views));   // (its texels one to a pixel drawn)
+      vL.assign(clamp(log2(float(CELL).div(drawnAt(pxAt(k.mul(2 * r), U.uCam.sub(C).length().mul(U.uLodInv))).max(1e-3))), 0, LODS.views()));   // (its texels one to a pixel drawn)
       return ready.greaterThan(0.5).select(cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(w, 1)), vec4(2, 2, 2, 1));
     })();
     m.fragmentNode = Fn(() => {

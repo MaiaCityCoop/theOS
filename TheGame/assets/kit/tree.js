@@ -321,16 +321,18 @@ export function tree(recipe) {
     /** its shade's mesh for a shape (what the shadow map is drawn from), as the builder made it; none: it has no shade of its own */
     shadeRaw: shade ? (shape) => shade(shapes[shape], shape) : null,
     /** The room each shape's levels need in the heap, [shape][level] [verts, tris] (assets/kit/crowd.js budgetOf),
-        reckoned from its finest without building the crowd, and kept with its outline */
+        reckoned from its finest without building the crowd, and kept with its outline with each shape's far end (farOf) */
     crowdRooms() {
       const o = measured();
       if (!o.rooms) {
-        const his = bandsOf(out).map(([, hi], l) => (l ? hi : Infinity));
-        o.rooms = shapes.map((s, i) => budgetOf(finest(i), { size: shapeSize(out, i) }, his.map((hi) => ownTop(out, i, hi))).map((r) => [r.verts, r.tris]));
+        const his = bandsOf(out).map(([, hi], l) => (l ? hi : Infinity)), B = shapes.map((s, i) => budgetOf(finest(i), { size: shapeSize(out, i) }, his.map((hi) => ownTop(out, i, hi))));
+        o.rooms = B.map((b) => b.map((r) => [r.verts, r.tris])); o.far = B.map((b) => ({ cell: b.cell, chunks: b.chunks }));
         OUTLINES.made.set(id, o);
       }
       return o.rooms;
     },
+    /** each shape's far end as the crowd kit reckons it: { cell (its impostor's views' texels a side), chunks (its clumps) } */
+    farOf: () => (out.crowdRooms(), measured().far),
     /** shape `shape` at its finest as typed arrays (a plain geometry's), at any level: every level is a first share of it */
     meshAt: (level, shape = 0) => packed(finest(Math.min(shape, shapes.length - 1))),
     /** the same kind of tree grown from another seed: other shapes, other places (the library's Random). A shape of its

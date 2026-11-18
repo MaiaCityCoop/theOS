@@ -10,6 +10,7 @@ import { passOf, motion, vWas } from '../core/pass.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
 import { TRUTH } from '../detail/measure.js';
+import { CROWD } from '../../assets/kit/crowd.js';
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
 
@@ -22,6 +23,18 @@ function blade(segs) {
   const g = new THREE.InstancedBufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3)); g.setIndex(idx);
   return g;
 }
+
+// The meadow is a crowd of blades (Ghost of Tsushima's grass; intent 0038): where fewer are drawn, those drawn are wider
+// by as much, so it covers the ground as before and keeps its height. Each ring's cells are wider than the last's, its
+// blades so many times fewer and as many times wider (widthOf); and the last ring's blades are thinned out towards its
+// end, one spread order deciding which go (rankOf), those left growing in width up to SWELL times (endOf), never in height.
+const widthOf = (asset, T) => asset.tiers[0].w * (T.cell / asset.tiers[0].cell) ** 2;
+/** A blade's turn in the meadow's one spread order: its cell's place in a 4 x 4 ordered dither (Bayer), so any first
+    share of the turns is spread evenly over the ground, and within that by its own number. */
+const bayer2 = (x, y) => x.bitXor(y).bitAnd(uint(1)).mul(uint(2)).add(y.bitAnd(uint(1)));
+const rankOf = (c, own) => { const x = uint(c.x).bitAnd(uint(3)), y = uint(c.y).bitAnd(uint(3)); return float(bayer2(x, y).mul(uint(4)).add(bayer2(x.shiftRight(uint(1)), y.shiftRight(uint(1))))).add(own).div(16); };
+/** The share of the last ring's blades still drawn at `dist` metres (1 short of its last 30 %, none at its end). */
+const endOf = (T, dist) => (T.end < 1e5 ? float(1).sub(smoothstep(T.end * 0.7, T.end, dist)) : float(1));
 
 // what stands in a cell: a blade, or nothing. Its place, the ground under it, its height, its lean and bend, its colour,
 // a flower now and then; packed into three vec4 (A: x, z, the ground's height, the blade's height; B: its heading, its
@@ -37,15 +50,15 @@ function bladeIn(c, asset, T, ground) {
   const hc = hashI(int(floor(pos.x.div(0.6))), int(floor(pos.y.div(0.6))), uint(102)), c1 = u8(hc, 0), c2 = u8(hc, 8), c3 = u8(hc, 16);
   const tint = ground.tint(pos);
   const flower = step(0.985, r2).mul(float(1).sub(clamp(tint.a.sub(0.28).mul(1.6), 0, 1))).mul(BASE.grass.flowers ? 1 : 0);   // now and then a stalk with a small white head, not where it is dry
-  const hgt = float(asset.height).mul(float(0.5).add(r1.mul(r1).mul(0.55)).add(c1.mul(c1).mul(0.8)).add(flower.mul(0.35))).mul(G.z)
-    .mul(dens.mul(0.4).add(0.6)).mul(float(1).sub(smoothstep(T.end * 0.7, T.end, dist)));
+  const hgt = float(asset.height).mul(float(0.5).add(r1.mul(r1).mul(0.55)).add(c1.mul(c1).mul(0.8)).add(flower.mul(0.35))).mul(G.z).mul(dens.mul(0.4).add(0.6));
   const ang = c2.add(r2.sub(0.5).mul(0.55)).mul(6.2831853), bend = float(0.2).add(r3.mul(0.55)).add(c3.mul(0.35)).mul(float(1).sub(flower.mul(0.7)));
   const base = tint.rgb.mul(float(0.7).add(r3.mul(0.35)).add(c3.mul(0.35))), dried = clamp(tint.a.mul(1.2).add(r2.mul(0.35)).sub(0.25), 0, 1);
-  return { alive: inBand.and(u8(h2, 24).lessThanEqual(dens)).and(hgt.greaterThan(snowDepth.mul(2.5))),   // a blade not much taller than the snow is deep lies bent under it
+  // (as many drawn as the ground says it grows there, and towards the meadow's end fewer: a first share of the turns)
+  return { alive: inBand.and(rankOf(c, u8(h2, 24)).lessThanEqual(dens.mul(endOf(T, dist)))).and(hgt.greaterThan(snowDepth.mul(2.5))),   // a blade not much taller than the snow is deep lies bent under it
     data: [vec4(pos, G.x, hgt), vec4(ang, bend, r1, flower), vec4(base, dried)] };
 }
 
-function bladeMaterial(T) {
+function bladeMaterial(T, w) {
   // shape(A, B, C): its vertex from what bladeIn packed, bent by the wind; lit in the fragment
   return () => {
     const vCol = varyingProperty('vec3', 'vCol'), vN = varyingProperty('vec3', 'vN'), vSide = varyingProperty('vec3', 'vSide'), vTS = varyingProperty('vec3', 'vTS'), vWorld = varyingProperty('vec3', 'vWorld');
@@ -53,7 +66,7 @@ function bladeMaterial(T) {
       const pos = A.xy, hgt = A.w, ang = B.x, r1 = B.z, flower = B.w;
       const bend = B.y.add(clamp(snowDepth.mul(3), 0, 0.6));   // snow weighs the blades down: deep, they bow over
       const dir = vec2(cos(ang), sin(ang)), side = vec2(dir.y.negate(), dir.x);
-      const t = positionGeometry.y, s = positionGeometry.x, wd = float(T.w).mul(r1.mul(0.5).add(0.75)).mul(float(1).sub(t.mul(t).mul(0.8)));
+      const t = positionGeometry.y, s = positionGeometry.x, wd = float(w).mul(min(float(CROWD.SWELL), float(1).div(endOf(T, camDist(pos)).max(1e-3)))).mul(r1.mul(0.5).add(0.75)).mul(float(1).sub(t.mul(t).mul(0.8)));   // (w: its ring's; wider as fewer are drawn towards the meadow's end)
       // the wind (src/world/light.js): the gust here, and each blade's own flutter, quicker and wider the harder it blows;
       // at the clock's time, and for the prepass at the clock as it stood a frame ago (where the blade was: its motion)
       const ws = windStrength, lean = t.mul(t).mul(1.1), fw = hgt.mul(bend).mul(t).mul(t).mul(1.15);   // long blades arc over
@@ -97,7 +110,7 @@ function bladeMaterial(T) {
 export function createGrass(scene, tex, ground, asset, gpu = false) {
   const last = asset.tiers.at(-1), rings = TRUTH ? [{ ...asset.tiers[0], far: last.far, farFade: last.farFade, end: last.end }] : asset.tiers;
   return rings.map((T) => {
-    const make = bladeMaterial(T), live = (c) => bladeIn(c, asset, T, ground);
+    const make = bladeMaterial(T, widthOf(asset, T)), live = (c) => bladeIn(c, asset, T, ground);
     const material = (src) => {
       const { m, shape } = make();
       m.vertexNode = src.read ? Fn(() => shape(src.read(0), src.read(1), src.read(2)))()   // ready-made by the compute pass
