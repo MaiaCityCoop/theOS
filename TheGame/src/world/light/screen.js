@@ -4,24 +4,26 @@
 //   contact   contact shadows after Bend Studio's screen-space shadows (Days Gone, 2023; Apache-2.0): from each pixel a
 //             short ray towards the sun through the depth, a few centimetres to a metre, so what is too fine for the
 //             shadow cascades still shades: a fern's frond on the litter, a pebble on the path, a leaf on the leaf under
-//             it, a blade on the ground. As Bend's: a ray of fixed steps, its start dithered (here by the blue noise,
-//             which the picture built over time averages), a surface as thick as its depth says, the shadow faded
-//             towards the ray's end. It looks only for what the cascades cannot see (src/world/shadow.js): a caster
-//             nearer the surface than the cascade's bias and two of its texels (four texels of the cascade the point
-//             lies in), so its ray is that long, and none is marched where all of it lies under a pixel. Marched on
-//             the screen itself: its two ends projected once, the distance at each step a mix of theirs (no matrix a
-//             step), and every step's depth read before any is tested, so the reads go out together instead of each
-//             waiting on the one before (stage 9's march, one read waiting on the last, two matrices a step, every
-//             pixel to 80 m, took 22-34 ms of the Mac mini's at every view). Bend's own wave-wide sharing of samples
-//             is not ported (WebGPU's subgroups are missing in Safari): each pixel marches alone
+//             it, a blade on the ground. As Bend's: a ray marched on the screen, its start dithered (here by the blue
+//             noise, which the picture built over time averages), a surface as thick as its depth says, the shadow
+//             faded towards the ray's end. It looks only for what the cascades cannot see (src/world/shadow.js): a
+//             caster nearer the surface than the cascade's bias and two of its texels (four texels of the cascade the
+//             point lies in), so its ray is that long; and it takes a sample every ERROR_PX of the ray on the screen
+//             (the one measure: src/detail/measure.js), so near the eye, where it spans more pixels, more of them, far
+//             off fewer, and none where all of it lies within the error. Marched on the screen itself: its two ends
+//             projected once, the distance at each sample a mix of theirs (no matrix a sample) (stage 9's march, two
+//             matrices a step, every pixel to 80 m, took 22-34 ms of the Mac mini's at every view). Bend's own
+//             wave-wide sharing of samples is not ported (WebGPU's subgroups are missing in Safari): each pixel marches
+//             alone
 //
 // A texture at the inside's pixels, one byte a pixel, read by the one light (src/world/light.js lightOn) in the colour
 // pass of what takes part in the prepass; anywhere else (a library's picture, a bake) it is 1. (GTAO, stage 9b, is on
 // its own branch, aven/0038-stage9b, until it fits the light's 3 ms.)
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec4, ivec2, uniform, texture, screenCoordinate, max, min, mix, clamp, If, length } from 'three/tsl';
+import { Fn, float, int, vec2, vec4, ivec2, uniform, texture, screenCoordinate, max, min, mix, clamp, ceil, If, Loop, length } from 'three/tsl';
 import { U } from '../../core/uniforms.js';
 import { cascades } from '../shadow.js';
+import { ERROR_PX } from '../../detail/measure.js';
 import { blueAt } from './noise.js';
 import { note, mark } from '../../core/gpu.js';
 
@@ -29,7 +31,6 @@ const white = Object.assign(new THREE.DataTexture(new Uint8Array([255, 255, 255,
 /** What the screen's light passes left, for the colour pass to read (white until they run, and where they never do). */
 export const SCREEN = { contact: texture(white), on: uniform(0) };   // (contact: the contact shadows' share of the sun)
 
-const STEPS = 12;   // the contact shadows' steps. derive: from the ray's length on the screen in pixels and the light's 3 ms
 /** The screen's light for the world's frame: made, and run after every prepass of `screen` (src/core/screen.js
     afterPrepass), before the colour; null where there is none (the WebGL 2 fallback). */
 export function screenLightFor(renderer, screen) {
@@ -61,15 +62,16 @@ function createScreenLight(renderer) {
       let far = float(reach(C.n - 1)); for (let k = C.n - 2; k >= 0; k--) far = inside(k).select(float(reach(k)), far);
       const len = min(far, dist.mul(0.5));
       const L = view.mul(vec4(U.uSunDir, 0)).xyz, a = v0.add(L.mul(dist.mul(0.002))), b = a.add(L.mul(len)), pa = pixelOf(a), pb = pixelOf(b);
-      If(length(pb.sub(pa)).greaterThan(1), () => {   // (a ray under a pixel finds nothing the cascades miss)
+      const span = length(pb.sub(pa));
+      If(span.greaterThan(ERROR_PX), () => {   // (a ray within the error finds nothing the cascades miss)
         const ia = float(1).div(a.z.negate()).toVar(), ib = float(1).div(b.z.negate().max(1e-3)).toVar(), j = blueAt(p).z.toVar(), thick = dist.mul(0.012).add(0.04), lo = dist.mul(0.004);
-        // every step's place, then every step's depth, then the tests: a surface in front of the ray by more than the
-        // depth's own precision and less than a surface is thick shades it, less towards the ray's end
-        const ts = Array.from({ length: STEPS }, (_, i) => float(i).add(j).div(STEPS)), qs = ts.map((t) => mix(pa, pb, t).toVar()), ds = qs.map((q) => depthAt(q).toVar());
-        let hit = float(0);
-        ts.forEach((t, i) => {
-          const q = qs[i], dz = float(1).div(mix(ia, ib, t)).sub(distOf(ds[i])), inside = q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(size.x)).and(q.y.lessThan(size.y));
-          hit = max(hit, inside.and(dz.greaterThan(lo)).and(dz.lessThan(thick)).select(float(1).sub(t.mul(t).mul(0.5)), float(0)));
+        // a sample every ERROR_PX of the ray on the screen: a surface in front of the ray by more than the depth's own
+        // precision and less than a surface is thick shades it, less towards the ray's end
+        const n = ceil(span.div(ERROR_PX)).toVar(), hit = float(0).toVar();
+        Loop({ start: int(0), end: int(n), type: 'int', condition: '<' }, ({ i }) => {
+          const t = float(i).add(j).div(n), q = mix(pa, pb, t), dz = float(1).div(mix(ia, ib, t)).sub(distOf(depthAt(q)));
+          const on = q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(size.x)).and(q.y.lessThan(size.y));
+          hit.assign(max(hit, on.and(dz.greaterThan(lo)).and(dz.lessThan(thick)).select(float(1).sub(t.mul(t).mul(0.5)), float(0))));
         });
         out.assign(float(1).sub(hit));
       });

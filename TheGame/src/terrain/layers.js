@@ -76,11 +76,13 @@ for (const bio of LAID) for (const { P, kinds, CV } of standsOf(bio, rowsOf())) 
   const A = kinds.map((k) => k.asset).sort((x, y) => sizeOf(y) / detailOf(y).cut - sizeOf(x) / detailOf(x).cut)[0];
   const cutPx = A ? detailOf(A).cut : 0, span = cutPx ? (sizeOf(A) * (A.placement.scale?.[1] ?? 1)) / cutPx : 0;   // (last = uPxK × span: the measure's farAt, src/detail/measure.js)
   const SH = A?.detail?.shadow;   // where its shadows are no longer drawn: past the trees' stand-in, the cascades' reach
-  // what of it casts (src/world/shadow.js): its trees' crowns at their oldest, where each begins over the ground (the
-  // kit's form: assets/kit/tree.js growth.base), and the tallest of it (its measure's most)
-  const cast = kinds.map((k) => k.asset).filter((a) => detailOf(a).casts !== false);
-  const crown = Math.min(...cast.filter((a) => a.growth?.base).map((a) => a.growth.base(a.growth.years.at(-1)))), top = Math.max(0, ...cast.map((a) => a.measure?.most ?? a.size.height));
-  STANDS.push({ bio, P, grain: CV.grain ?? 1, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? [0.3, 0.68] : [CV.from ?? 1e9, CV.to ?? 2e9], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, top });
+  // what of it casts (src/world/shadow.js): its trees' crowns at their oldest, where each begins over the ground and how
+  // far it reaches round (the kit's form: assets/kit/tree.js growth.base, growth.reach), and the tallest of it (its
+  // measure's most)
+  const cast = kinds.map((k) => k.asset).filter((a) => detailOf(a).casts !== false), trees = cast.filter((a) => a.growth?.base);
+  const crown = Math.min(...trees.map((a) => a.growth.base(a.growth.years.at(-1)))), radius = Math.min(...trees.map((a) => a.growth.reach(a.growth.years.at(-1))));
+  const top = Math.max(0, ...cast.map((a) => a.measure?.most ?? a.size.height));
+  STANDS.push({ bio, P, grain: CV.grain ?? 1, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? [0.3, 0.68] : [CV.from ?? 1e9, CV.to ?? 2e9], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
 }
 if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} stands that wear a colour: four bits name at most ${NO_STAND - 1}`);
 /** How far round the camera the shadows of the stands that cast them are drawn at the most (-1: none casts): past it, a
@@ -89,6 +91,9 @@ export const SHADE_REACH = Math.max(-1, ...STANDS.map((S) => S.reach));
 /** The lowest a crown begins over the ground among the trees that cast, at their oldest (metres; Infinity: none): the
     shadow cascades' finest texel is the sun's penumbra from it (src/world/shadow.js useCascades). */
 export const CROWN_BASE = Math.min(...STANDS.map((S) => S.crown));
+/** The smallest reach of a crown round its trunk among the trees that cast, at their oldest (metres; Infinity: none):
+    the canopy's probes stand a quarter of it apart (src/world/light/canopy.js). */
+export const CROWN_REACH = Math.min(...STANDS.map((S) => S.radius));
 /** The tallest thing that casts in a stand (metres, its measure's most): how far round a point its shadow's blockers are
     looked for (src/world/light.js). */
 export const CASTER_TOP = Math.max(0, ...STANDS.map((S) => S.top));

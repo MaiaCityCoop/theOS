@@ -4,15 +4,17 @@
 // the golden ratio, so its values over a few frames are spread evenly too. The picture built over time (the upscale,
 // src/core/temporal.js, along the prepass's motion) averages both away: what is left is no grain and no crawl.
 //
-// The tile is made here by void and cluster (Ulichney 1993), once, 64 x 64: the rank at which each pixel is set, as
+// The tile is made here by void and cluster (Ulichney 1993), once, as the method defines it (src/core/method.js
+// BLUE_NOISE_SIDE, BLUE_NOISE_SIGMA): the rank at which each pixel is set, as
 // the tightest clusters are taken out and the largest voids filled, on a torus, so tiles meet without a seam. Its four
 // numbers are four such ranks of the one tile, each shifted by a far step, so two or three terms of one pixel do not
 // follow each other.
 import * as THREE from 'three/webgpu';
 import { texture, ivec2, uint, fract, float } from 'three/tsl';
 import { U } from '../../core/uniforms.js';
+import { BLUE_NOISE_SIDE, BLUE_NOISE_SIGMA } from '../../core/method.js';
 
-const N = 64, SIGMA = 1.9;   // derive: the tile's side from how far apart a pixel's like may repeat unseen, and the void-and-cluster filter's width (Ulichney 1993 uses 1.5)
+const N = BLUE_NOISE_SIDE, SIGMA = BLUE_NOISE_SIGMA;
 
 /** The ranks 0 … N²-1 of an N x N blue-noise tile. */
 function voidAndCluster() {

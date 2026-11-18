@@ -317,10 +317,10 @@ export function tree(recipe) {
     ...rest,
     ...(fine ? { fine: { twig: fine.twig } } : {}),   // (what its finest wears: the plants' material reads it, the textures find it)
     // (at: a tree of an age, which shape and its scale; the scale over the shape as built, so it stands exactly as tall
-    // as its height by age says, as the trees' engine draws it: src/scatter/trees.js sizeAtOne. base: where its crown
-    // begins at an age, metres over its foot, as its file's form builds it: the shadow cascades' finest texel reads the
-    // lowest, src/world/shadow.js)
-    ...(G ? { growth: { years: growth.years, stages: G.stages, height: growth.height, base: (age) => growth.form(age, 0).base, at: (age, v) => { const r = G.at(age, v), S = G.stages.find((x) => r.shape >= x.offset && r.shape < x.offset + x.variants), b = measured().heights[r.shape]; return { ...r, s: b > 0 ? (r.s * S.h) / b : r.s }; } } } : {}),
+    // as its height by age says, as the trees' engine draws it: src/scatter/trees.js sizeAtOne. base, reach: where its
+    // crown begins at an age, metres over its foot, and how far it reaches round, as its file's form builds it: the
+    // shadow cascades' finest texel reads the lowest base, the canopy's probes the smallest reach, src/world/shadow.js)
+    ...(G ? { growth: { years: growth.years, stages: G.stages, height: growth.height, base: (age) => growth.form(age, 0).base, reach: (age) => growth.form(age, 0).r, at: (age, v) => { const r = G.at(age, v), S = G.stages.find((x) => r.shape >= x.offset && r.shape < x.offset + x.variants), b = measured().heights[r.shape]; return { ...r, s: b > 0 ? (r.s * S.h) / b : r.s }; } } } : {}),
     /** how many shapes it has, and how many levels (its file's and its far ones) */
     shapeCount: shapes.length, levelCount: specs.length,
     finest,

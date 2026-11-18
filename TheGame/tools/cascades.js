@@ -69,9 +69,9 @@ Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { us
 const THREE = await import('three/webgpu'), T = await import('three/tsl');
 const { U } = await import('../src/core/uniforms.js');
 const { createShadows, useCascades, CASTS } = await import('../src/world/shadow.js');
-const { SHADE_REACH, CROWN_BASE, CASTER_TOP } = await import('../src/terrain/layers.js');
+const { SHADE_REACH, CROWN_BASE, CROWN_REACH, CASTER_TOP } = await import('../src/terrain/layers.js');
 const { fovOf } = await import('../src/camera/rig.js');
-const layout = useCascades({ reach: SHADE_REACH, crown: CROWN_BASE, top: CASTER_TOP }), SHADOW_S = layout.S;   // (as src/boot.js lays them out)
+const layout = useCascades({ reach: SHADE_REACH, crown: CROWN_BASE, top: CASTER_TOP, radius: CROWN_REACH }), SHADOW_S = layout.S;   // (as src/boot.js lays them out)
 const light = await import('../src/world/light.js');
 const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false });
 await renderer.init(); light.useBackend(renderer);

@@ -41,9 +41,9 @@ const spanOf = (h) => ({ back: 300 + h * 0.5, near: 1, far: 600 + h });
 let C = null;
 /** Lay the cascades out (src/boot.js, before any material is built: the light is built for them). reach: how far round
     the eye shadows are drawn (src/terrain/layers.js SHADE_REACH); crown: the lowest crown that casts (CROWN_BASE); top:
-    the tallest caster (CASTER_TOP). */
-export function useCascades({ reach, crown, top }) {
-  if (!(reach > 0 && crown > 0 && crown < Infinity && top > 0)) throw new Error(`the shadow cascades are laid out from what casts in the stands (reach ${reach} m, lowest crown ${crown} m, tallest ${top} m): none of it there`);
+    the tallest caster (CASTER_TOP); radius: the smallest crown's reach (CROWN_REACH, for the canopy). */
+export function useCascades({ reach, crown, top, radius }) {
+  if (!(reach > 0 && crown > 0 && crown < Infinity && top > 0 && radius > 0 && radius < Infinity)) throw new Error(`the shadow cascades are laid out from what casts in the stands (reach ${reach} m, lowest crown ${crown} m, tallest ${top} m, smallest crown ${radius} m round): none of it there`);
   // a cascade's texels a side: a texel ERROR_PX drawn at its own cascade's edge (h metres from the eye, 2h / S a texel, and
   // a metre a metre off is pxK × BUDGET_DRAWN pixels drawn on the budget's screen: src/detail/measure.js)
   const S = Math.ceil((2 * pxK() * BUDGET_DRAWN) / ERROR_PX);
@@ -53,12 +53,13 @@ export function useCascades({ reach, crown, top }) {
   const n = Math.max(2, 1 + Math.ceil(Math.log2(reach / finest)));
   const half = Array.from({ length: n }, (_, k) => (reach / 2 ** (n - 1)) * 2 ** k), texel = half.map((h) => (2 * h) / S);
   const bias = texel.map((t) => 2 * t), range = half.map((h) => spanOf(h).far - spanOf(h).near);
-  C = { S, n, half, texel, bias, range, top, mats: half.map(() => uniform(new THREE.Matrix4())) };
+  C = { S, n, half, texel, bias, range, top, casters: { reach, crown, top, radius }, mats: half.map(() => uniform(new THREE.Matrix4())) };
   return C;
 }
 /** The cascades as useCascades laid them out: { S (texels a side), n (how many), half (each one's half side, m), texel (m), bias (m along the
     light a caster stands back before it shades: two of its texels, the 2 × 2 comparison's reach; what is steep to the
-    light is moved off along its normal, light.js), range (the depth it holds, m), top (the tallest caster, m), mats (each
+    light is moved off along its normal, light.js), range (the depth it holds, m), top (the tallest caster, m), casters
+    (what they were laid out from: reach, crown, top, radius, m), mats (each
     one's matrix from the world to its u, v and depth, uniforms) }. */
 export const cascades = () => {
   if (!C) throw new Error('the shadow cascades are laid out at the start, before any material is built (src/boot.js: useCascades)');
