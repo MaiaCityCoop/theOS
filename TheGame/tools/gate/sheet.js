@@ -1,6 +1,6 @@
 // Labelled sheets of pictures for people (intent 0038: labelled before/after images go to Samuel with every task that
-// changes the picture): JPEGs drawn in a blank page of Chrome, the world not started. tools/gate.js diff --jpeg.
-import { chromium } from 'playwright-core';
+// changes the picture): JPEGs drawn in a blank page of Chrome, the world not started. tools/gate.js diff --jpeg. Its
+// shrink and square serve tools/gate/change.js's workers too, so Chrome's driver is loaded only when a sheet is drawn.
 import { writeFileSync } from 'node:fs';
 
 /** A picture's RGB bytes brought down to `tw` wide (each pixel the mean of the block of the picture's it covers). */
@@ -23,7 +23,7 @@ export function square({ width: w, height: h, data, channels: ch = data.length /
 /** A labelled JPEG of a view in two sets, drawn in a blank page of a Chrome of its own: the two side by side, and under
     them the squares round the worst tile at full size in each and in FLIP's heat map. */
 export async function sideBySide(file, { title, sub, A, B, heatRGB, worst, names }) {
-  const ctx = await chromium.launch({ channel: 'chrome', headless: true }), b64 = (u8) => Buffer.from(u8.buffer, u8.byteOffset, u8.byteLength).toString('base64');
+  const { chromium } = await import('playwright-core'), ctx = await chromium.launch({ channel: 'chrome', headless: true }), b64 = (u8) => Buffer.from(u8.buffer, u8.byteOffset, u8.byteLength).toString('base64');
   try {
     const page = await ctx.newPage(), S = 384, cx = worst.x + worst.size / 2, cy = worst.y + worst.size / 2;
     await page.setContent('<!doctype html><html><body style="margin:0"></body></html>');
