@@ -14,12 +14,12 @@
 // The measures are the skill's, and lower is better in each:
 //   rendering      the bench's GPU ms a frame per view and per part; each path's p99 frame in motion and its frames
 //                  over 16.7 ms, cold and warm
-//   startup        the world settled where it starts, cold and warm
+//   startup        the first frame that draws the world and the bytes loaded before it (the game's mark,
+//                  src/core/marks.js), and the world settled where it starts, cold and warm
 //   boot and load  the WGSL compiled until the world settled
 //   memory         the browser's peak; each class's GPU memory, the most of any view
 //   quality        FLIP against the run's own truth per view (its mean and p99 tile); each view class's distances to
 //                  the photos; each path's worst pop
-// The gate does not keep the first frame or the bytes loaded before it yet, so they are not here.
 //
 // It fails (exit 1) where a measure got worse by more than its noise: what two runs of the same code differ by, as the
 // gate measured it, the larger where two say. --again: the base's code run again (every measure); and the gate's own:
@@ -71,7 +71,7 @@ const realOf = (Q) => classesOf(Q).flatMap((g) => Object.entries({ CMMD: g.cmmd,
 const popsOf = (M) => Object.entries(M?.paths ?? {}).map(([p, r]) => [`the worst pop in motion, ${p}`, '', r.worst?.value]);
 const KINDS = {   // the skill's measures, each read from a run as [name, unit, value]
   rendering: (R) => [...benchOf(R.bench), ...motionOf(R.paths)],
-  startup: (R) => caches(R.paths).map(([c, C]) => [`the world settled where it starts, ${c}`, 's', C.start?.ms / 1e3]),
+  startup: (R) => caches(R.paths).flatMap(([c, C]) => [[`the first frame that draws the world, ${c}`, 's', C.first?.ms / 1e3], [`bytes loaded before the first frame, ${c}`, 'MB', C.first?.bytes / 1e6], [`the world settled where it starts, ${c}`, 's', C.start?.ms / 1e3]]),
   'boot and load': (R) => [['the WGSL compiled until the world settled', 'MB', R.compile?.bytes / 1e6]],
   memory: (R) => [["the browser's peak", 'GB', R.paths?.peak / 1e9], ...gpuMemoryOf(R.bench)],
   quality: (R) => [...flipOf(R.flip), ...realOf(R.real), ...popsOf(R.motion)],
