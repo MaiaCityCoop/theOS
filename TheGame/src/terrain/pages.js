@@ -30,6 +30,7 @@ import { U } from '../core/uniforms.js';
 import { note, gpuStorage } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { source } from '../core/settle.js';
+import { TRUTH } from '../detail/measure.js';
 import { layerTables, layerWords, layersFrom } from './layers.js';
 import { laid, slopeAt, groundRead } from './material.js';
 import { wear } from './decals.js';
@@ -37,7 +38,10 @@ import { steps, colours } from '../materials/bake.js';
 
 const SLOT = 128, BORDER = 4, PAGE = SLOT - 2 * BORDER;   // texels a page's layer has a side; of them its border; its own
 const S0 = 1 / 512, LEVELS = 17, TOP = LEVELS - 1, K = 128;   // metres a texel of the finest level; levels; pages a level's window has a side
-const ANISO = 4, FADE = 10, SWEEP = 8, TAKES = 4, BATCH = 16, MAPN = 8;   // the filter's steps along a slope; frames a page fades in over; a block of SWEEP × SWEEP pixels asks once a frame, the finest of TAKES of them; pages laid at once; texels between the layer map's points
+// (?truth: a block of 4 × 4 asks from all of its pixels every frame, so a sweep is one frame: the truth's slow frames,
+// each at another of its 32 places of a pixel, would otherwise find a page now and then for half an hour, and it would
+// never settle)
+const ANISO = 4, FADE = 10, SWEEP = TRUTH ? 4 : 8, TAKES = TRUTH ? 16 : 4, BATCH = 16, MAPN = 8;   // the filter's steps along a slope; frames a page fades in over; a block of SWEEP × SWEEP pixels asks once a frame, the finest of TAKES of them; pages laid at once; texels between the layer map's points
 const SPAN = (SWEEP * SWEEP) / TAKES;   // frames a sweep takes: every pixel of a block has asked once
 const G0 = SLOT / MAPN + 2, G1 = SLOT / 2 / MAPN + 2, POINTS = G0 * G0 + G1 * G1;   // the layer map's points a page has a side, for its first mip and its second; all of them
 const KEEP = 96, FAST = 12, PIN = 26000, NEAR = 15;   // frames a page not asked for is kept at least; screen pixels a frame a page may cross and still be laid; metres round the camera the last level is always in; metres from the eye the bias spares
@@ -47,12 +51,12 @@ const KEEP = 96, FAST = 12, PIN = 26000, NEAR = 15;   // frames a page not asked
 export const RELIEF = { amp: 0.05, near: [8, 16], far: [28, 45] };
 const PSTEPS = 6;   // the parallax's steps down the ray
 const FITS = 0.9, OVER = 0.96, STEPS = 10;   // the share of the slots the pages asked for may take at the bias chosen; past this share it is chosen again; the bias's quarter levels, at most
-const BLOCKS_MOST = Math.ceil(7680 / SWEEP) * Math.ceil(4320 / SWEEP), READS = 4;   // the blocks of the largest inside asked from (8K); read-backs in flight at once
+const BLOCKS_MOST = TRUTH ? Math.ceil(3840 / SWEEP) * Math.ceil(2160 / SWEEP) : Math.ceil(7680 / SWEEP) * Math.ceil(4320 / SWEEP), READS = 4;   // the blocks of the largest inside asked from (8K; ?truth, 4K); read-backs in flight at once
 const VALID = 1 << 12, FADED = 1 << 13;   // a page table entry: its slot (12 bits), these, the frame it came in (16 bits)
 const sideOf = (m) => PAGE * S0 * 2 ** m;   // a page's side at level m, metres
 // the pixels each block of SWEEP × SWEEP asks from, frame by frame, TAKES at a time: an ordered dither's order, so they
 // spread out
-const SEQ = []; for (let y = 0; y < SWEEP; y++) for (let x = 0; x < SWEEP; x++) { let v = 0; for (let k = 0; k < 3; k++) v |= ((((x ^ y) >> k) & 1) << (5 - 2 * k)) | (((y >> k) & 1) << (4 - 2 * k)); SEQ[v] = [x, y]; }
+const BITS = Math.log2(SWEEP), SEQ = []; for (let y = 0; y < SWEEP; y++) for (let x = 0; x < SWEEP; x++) { let v = 0; for (let k = 0; k < BITS; k++) v |= ((((x ^ y) >> k) & 1) << (2 * BITS - 1 - 2 * k)) | (((y >> k) & 1) << (2 * BITS - 2 - 2 * k)); SEQ[v] = [x, y]; }
 const stampOf = (f) => (f % 31) + 1;   // (what a pixel's ask is marked with: its frame, 1 … 31)
 /** The bias a pixel t of the way from NEAR to 3 NEAR off asks with, at bias b (as biasAt, in JS). */
 const biasOf = (b, t) => { const c = b - 0.5; return c + t * (Math.max(c, 0) - c); };
