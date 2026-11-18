@@ -9,7 +9,7 @@
 //   layers     each cascade's pass writes its own layer of the one depth array, cleared and stored
 //   casters    their shadow twins draw into it with depth written and tested (depth32float, less-equal), no colour
 //   reads      the receiver declares the array and a comparison sampler, and reads the near cascade in layer 0 (six loads,
-//              eight compared taps) and each other one in its own layer (four taps)
+//              eight compared taps) and the others in one loop, each in its own layer by its index (four taps, once)
 //   binding    the receiver binds the very texture the passes drew into, all its layers, its depth; the sampler less-equal
 //   projection the caster as the near pass writes it (its clip space) and the floor point it shades as the receiver reads
 //              it (the near cascade's matrix) meet at one texel, the caster nearer the light by as many metres as stand
@@ -109,9 +109,10 @@ const code = LOG.shaders.map((s) => s.code).find((c) => /texture_depth_2d_array/
 const tex = code.match(/var (\w+) : texture_depth_2d_array;/)?.[1], smp = code.match(/var (\w+) : sampler_comparison;/)?.[1];
 check('the receiver declares the cascades as a depth array with a comparison sampler', !!tex && smp === `${tex}_sampler`);
 const loads = [...code.matchAll(new RegExp(`textureLoad\\( ${tex}, .*?, (\\d+), u32`, 'g'))].map((m) => m[1]);
-const taps = [...code.matchAll(new RegExp(`textureSampleCompare\\( ${smp?.replace('_sampler', '')}, ${smp}, .*?, (\\d+), \\w+ \\)`, 'g'))].map((m) => m[1]);
-check('the near cascade is read in layer 0: six blocker loads, eight compared taps', loads.length === 6 && loads.every((l) => l === '0') && taps.filter((l) => l === '0').length === 8, `loads ${loads.join('')}, taps ${taps.join('')}`);
-check('each other cascade is read in its own layer: four compared taps', Array.from({ length: n - 1 }, (_, k) => taps.filter((l) => l === String(k + 1)).length === 4).every(Boolean), `taps ${taps.join('')}`);
+const taps = [...code.matchAll(new RegExp(`textureSampleCompare\\( ${smp?.replace('_sampler', '')}, ${smp}, .*?, ([^,]+), \\w+ \\)`, 'g'))].map((m) => m[1].trim());
+const near = taps.filter((l) => l === '0'), far = taps.filter((l) => !/^\d+$/.test(l));
+check('the near cascade is read in layer 0: six blocker loads, eight compared taps', loads.length === 6 && loads.every((l) => l === '0') && near.length === 8, `loads ${loads.join('')}, taps ${near.join('')}`);
+check('the others are read in one loop, each in its own layer by its index: four compared taps, once', far.length === 4 && near.length + far.length === taps.length && /\bfor ?\(|\bloop ?\{/.test(code), `taps by index: ${far.join(', ')}`);
 const bound = LOG.groups.flatMap((g) => g.entries).filter((r) => r?.__kind === 'view' && r.texture === cascades);
 check('the receiver binds the very texture the passes drew into: all its layers, its depth', bound.length > 0 && bound.every((v) => v.desc.dimension === '2d-array' && v.desc.aspect === 'depth-only' && (v.desc.arrayLayerCount ?? n) === n && !v.desc.baseArrayLayer), bound[0] && JSON.stringify(bound[0].desc));
 check('U.tShadow is that texture, and the shadows are on', U.tShadow.value === rt.depthTexture && U.uShadowOn.value === 1);
@@ -119,7 +120,7 @@ check('its sampler compares less-equal, filtered', LOG.samplers.some((s) => s.de
 // the slab's underside as the near pass writes it (its clip space through the near cascade's camera: y down the
 // framebuffer, depth 0 … 1) and the floor point it shades along the light, as the receiver reads it (its matrix)
 const cam = shadows.cams[0], L = U.uSunDir.value, under = new THREE.Vector3(0, 2.75, -6), floor = under.clone().addScaledVector(L, -under.y / L.y);
-const c = under.clone().applyMatrix4(cam.matrixWorldInverse).applyMatrix4(cam.projectionMatrix), q = floor.clone().applyMatrix4(layout.mats[0].value);
+const c = under.clone().applyMatrix4(cam.matrixWorldInverse).applyMatrix4(cam.projectionMatrix), q = floor.clone().applyMatrix4(layout.mats.array[0]);
 const written = [(c.x * 0.5 + 0.5) * SHADOW_S, (0.5 - c.y * 0.5) * SHADOW_S], read = [q.x * SHADOW_S, q.y * SHADOW_S], metres = (q.z - c.z) * layout.range[0];
 check('the caster as written and the floor it shades as read meet at one texel, the caster nearer the light', Math.hypot(written[0] - read[0], written[1] - read[1]) < 0.01 && c.z < q.z - layout.bias[0] / layout.range[0] && Math.abs(metres - under.y / L.y) < 1e-3,
   `texel ${written.map((v) => v.toFixed(1))} and ${read.map((v) => v.toFixed(1))}, ${metres.toFixed(3)} m between (${(under.y / L.y).toFixed(3)} along the light)`);

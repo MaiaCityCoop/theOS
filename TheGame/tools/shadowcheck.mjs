@@ -80,7 +80,7 @@ async function look({ N, step }) {
     layers.push(a); out.layers.push({ layer: k, drawn: +(drawn / a.length).toFixed(4), least: +least.toFixed(5) });
   }
   // the floor round the eye: the CPU's reading, through each cascade's matrix (src/world/shadow.js cascades)
-  const pts = new Float32Array(N * N * 4), M = lay.mats.map((m) => m.value), bias = lay.bias.map((b, k) => b / lay.range[k]);
+  const pts = new Float32Array(N * N * 4), M = lay.mats.array, bias = lay.bias.map((b, k) => b / lay.range[k]);
   const cpu = M.map(() => new Uint8Array(N * N));
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     const x = eye.x + (i - (N - 1) / 2) * step, z = eye.z + (j - (N - 1) / 2) * step, y = heightAt(x, z), p = j * N + i;
@@ -100,7 +100,7 @@ async function look({ N, step }) {
   m.vertexNode = T.vec4(T.positionGeometry.xy, 0, 1);
   m.fragmentNode = T.Fn(() => {
     const c = T.ivec2(T.screenCoordinate.xy), row = T.int(c.y).div(N), j = T.int(c.y).mod(N), w = T.texture(P).load(T.ivec2(c.x, j)).xyz.toVar();
-    const s = lay.mats[0].mul(T.vec4(w, 1)), q = s.xyz.div(s.w), id = T.float(j.mul(N).add(T.int(c.x)));   // (id: which point, so a texel read back is matched to its point whichever way up)
+    const s = lay.mats.element(T.int(0)).mul(T.vec4(w, 1)), q = s.xyz.div(s.w), id = T.float(j.mul(N).add(T.int(c.x)));   // (id: which point, so a texel read back is matched to its point whichever way up)
     const a = T.vec4(L.shadowAt(w), L.shadowAt(w, 'one'), L.shadowAt(w, 'vertex'), id), b = T.vec4(q.xy, q.z, id), u = T.vec4(U.uShadowOn, U.uShadowPen, 0, 0);
     return row.equal(0).select(a, row.equal(1).select(b, u));
   })();
