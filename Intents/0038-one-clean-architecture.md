@@ -183,6 +183,7 @@ numbers are written below.
 | 3 | #67 | One boot (`src/boot.js`); the library and Me compile 75–80 % less |
 | 5 | #69 | Near trees as crowds of parts at their own size (`CARD`, `KMAX`, the stretched cards gone); one spread order, one wind; far-end bakes kept (warm start 1.1 s, was 37 s) |
 | Occlusion culling | #68 | A depth pyramid and two-pass culling of every drawer's tiers: 2–67 % of main's things drawn, nothing visible lost (exact depth check; FLIP within main's noise from above) |
+| 6b | #71 (draft) | The ground as one virtual texture (`src/terrain/pages.js`): pages laid once in compute, a BC atlas of 4096 pages in about 250 MB, asked for from the prepass, faded in. The land alone 2–6 × faster from above (13–14 ms against 47–76 on the shared GPU); the near ground as sharp as main's (its edges 100 % of main's, FLIP of the near-eye crop 0.071); a jump settles in 17–53 s against main's 6–9 |
 
 **In flight when this was written** (each on its own branch, as a PR or nearly):
 
@@ -195,13 +196,20 @@ numbers are written below.
 
 **Not started:**
 - **6c:** relief, meaning displacement near the eye, parallax further out, skirts for rocks, path decals.
+
+**Not started:**
+- **6c:** relief, meaning displacement near the eye, parallax further out, skirts for rocks, path decals. 6b's pages
+  already carry each texel's height (their colour's fourth number). Also left from 6b: a jump's settling (17–53 s
+  against main's 6–9; what bounds it is under 6b's Measured), and what is let go with distance taken by distance on
+  grazing ground (at eye level the far bare patches go too near).
+- **7:** the one placement rule and the five layers. It needs Samuel's photos of the real site to choose the species.
 - **8:** cluster hierarchy for rocks, then the tent and fire pit (absorbs `aven/0033-solids-wip`).
 - **9:** one light: leaf shadows, Bend's screen-space shadows, the canopy map, GTAO, transmission, Hillaire's sky,
   froxel fog, sky probes. It is the biggest step towards the look target.
 
 **Open risks:**
-- **Safari is untested on every stage.** Samuel is to open `/game/`, `/game/library.html` and `/game/me.html` on next
-  in Safari.
+- **Safari:** mobile Safari loads, but its first start is slow (a later task, under Todo). Desktop Safari is still
+  untested on every stage: Samuel is to open `/game/`, `/game/library.html` and `/game/me.html` on next in Safari.
 - **The 12 ms / 60 fps gate is not met.** Bench views read 20–55 ms on the base M1, measured while the GPU was shared.
 - Stage 4 left these:
   - **Impostor atlases:** still 417 MB. Stage 5 sizes each stand's views by where it hands over (64 to 128 texels),
@@ -701,6 +709,130 @@ Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
   - On 2b, a fine even speckle over all the grass adds to the difference, worst at 30 m. The stills show no hole and
     no seam.
 
+### Stage 6b: the ground as one virtual texture (2026-11-18)
+
+Built on `aven/0038-stage6b-avt` from main at `cc3aa70` (stages 1, 2a, 2b, 4, 6a, 10), merged with main at `501aff5`
+(stage 3). After Ka Chen, *Adaptive Virtual Texture Rendering in Far Cry 4* (GDC 2015), and Etienne's Call of Duty
+2023 terrain.
+
+- **The virtual texture** (`src/terrain/pages.js`). The ground's material is laid once a page and kept; a pixel of the
+  ground looks its page up and reads it once, then lights it.
+  - **Levels and pages.** 17 levels, from 2 mm a texel (1/512 m) to 128 m. A page is 120 × 120 texels and a border of
+    4 (its neighbours' texels, so it filters as one with them): one layer of 128² in an array. Each level is a window
+    of 128 × 128 pages round the camera, a page's place in it its place on the land modulo 128: the endless land in
+    rings of sectors.
+  - **Laid in compute, once a page.** First the biomes' rules on the page's own grid, a point every 8 texels (the
+    layer map, now the page's own, `layers.js layerWords`); then every texel as the fragment laid every pixel until
+    now (up to five layers, hex-tiled inside the page at every distance, the carpet, the stands' colour), its slope from
+    the land's height (`material.js laid`, `slopeAt`). A page has two mips: the second is the next level's texels where
+    it lies, so the filter's step into it goes over into the parent page with no seam, in one read. What is let go
+    with distance is let go as at the level's distance (its texel seen as one pixel of the 4K screen).
+  - **The atlas.** BC3 (colour, gamma 2, and height), BC5 (relief), BC5 (the carpet's share, the stands' shade): 3
+    bytes a texel, 4096 pages in two arrays of up to 2048 layers, about 250 MB (1792 in 107 MB at first: too few,
+    below), packed by a compute pass with `bake.js`'s encoders (now shared: `steps`, `colours`) and copied into the
+    layers. Without BC: rgba8, 640 pages, laid straight in. The roughness is not kept:
+    nothing in the light reads it yet.
+  - **The page table:** 17 × 128² entries of 32 bits (1.1 MB): the slot, in, faded, the frame it came.
+- **Asked for, from the prepass.** The prepass writes, at every pixel of the land, the level it reads (as finely as the
+  4K screen's pixels: its lens and the upscaler's finer reads counted) into the motion target's free fourth number.
+  Right after the prepass (`screen.afterPrepass`) a compute pass takes one pixel in 8 × 8, another each frame (an
+  ordered dither's order), finds its point from its depth through the camera as it drew, and writes the page it wants;
+  read back a few frames later.
+  - Parents first: a page and every page over it, the coarsest first; 48 pages a frame while the camera stands still,
+    12 while it moves; the camera's speed: a page that would cross the screen faster than 12 pixels a frame waits, and
+    its parent is laid.
+  - What has not been asked for for 96 frames gives its slot up. The last level (15 km pages) is always in round the
+    camera, 26 km: a pixel always has a page.
+  - **Found:** a storage write in the land's colour shader cost it its early depth test, and the colour's equal test
+    then missed pixels the prepass drew: pale holes all over the ground, along the 8 × 8 sweep. So the colour pass
+    writes nothing but its colour, and the prepass carries the ask.
+  - **Found:** three binds a texture once a shader, by its uuid, and a storage binding is one mip: a page's second mip
+    went into its first (the ground darkened towards each level's far edge) until each store had a binding of its own.
+- **Shown.** One look into the page table (walking up a level only where a page is not in yet) and one read of the
+  page (its three textures). A page newly in fades in over 10 frames from the one under it (two reads while it
+  fades), so a page never comes in at once.
+- **The adaptive bias.** If what is asked for does not fit the atlas, every pixel asks a quarter level coarser, and
+  finer again when there is room; a cut (the camera farther than twice its height in a frame) starts it from none.
+  With 1792 pages the gate's views settled at a bias of 0.5–1.75 (texels 1.4–3 × a 4K pixel: near the eye the pebbles
+  lost their edges, which blocked the merge). With 4096 it is 0 at the tent's eye level (1715 pages asked for) and from
+  120 m (2800), 0.25–0.5 from 10 m above the tent (all of it the near ground's half level, below).
+- **As sharp as main's near the eye.** A page is filtered as it is read, after the filtering its texels were laid
+  with, and two filters blur more than one. So a page's texels read their materials half a mip finer (`material.js
+  mipOf`), and within 15 m of the eye a pixel asks for its page half a level finer than its footprint (`pages.js
+  biasAt`; none of it from 45 m); where the pages do not fit, the bias takes that half level back first. The asks and
+  the read take the pixel's steps at the 4K screen's density (the upscaler's finer reads in them), the read 4 ×
+  anisotropic with the pixel's own gradients scaled to the page. Edge energy in the near-eye crop (the tent at eye
+  level, 1600 × 600 at 2000,1500): main 14.25, 6b 14.19, 100 % (91 % with 1792 pages, 96 % with 4096 before the near
+  half level); the pebbles alone 13.56 against 13.51. FLIP of the crop against main 0.071 (p99 tile 0.144): grain and
+  BC's blocks, not softness.
+- **Found:** spared the bias, the near half level asked for about 4800 pages from 10 m above the tent, more than the
+  atlas holds, and the view never settled (683 pages out after 300 s). And a pixel where no land was drawn kept its
+  block's last ask, whose stamp came round as fresh every 31 frames: after a view from above, the next view's sky kept
+  the last view's pages asked for (3460 at the tent's eye level, not 1715) and the bias high. Such a pixel now asks
+  for nothing.
+- **The light stays as it was.** What hangs on the pixel's own distance is worked out per pixel from the page's
+  numbers: the near carpet's darkening in its blades' shade (from the carpet's share), the stands' floor shade past the
+  shadow map (from their shade), the cavity, the snow.
+- **Hand-overs by level.** What is let go with distance is let go as at the page's level. Along a grazing slope a
+  pixel's level is coarser than its distance alone says (the filter's steps along the slope, four), so at eye level
+  the far ground lets go nearer: the bare patches 100 m behind the tent are gone in the branch's still.
+- **The layer map lives on the pages.** The camera's clipmap (10 × 512², 52 MB) and its toroidal updates are gone: a
+  page's grid is the land's, not the camera's, so pages laid at different times meet without a seam, and a page laid
+  for a longer lens has a finer map under it.
+- **`scatter/ground.js` is not changed.** The layer map is no longer round the camera, and the blades' map needs what
+  it does not hold (the cover over every biome, the grass's height, the stones, the dryness), for a pass drawn once
+  every 16 m walked. Folding it in is no clean change; it reads the same land nodes as before.
+- **Deleted:** the per-pixel laying (the land's fragment was 67 KB, now under the ten largest), the clipmap and its
+  eight-tap read between its levels, the far read pushed about by a wave and the dithered hand-over to it,
+  `did('land')`.
+- **Not done:** Safari (it can't be automated here); BC on a GPU without it (rgba8, 640 pages, the bias higher).
+- **Measured**, on a GPU shared with other sessions all day (load averages 50–250; the WebGPU device was lost several
+  times, each such still taken again on a browser of its own).
+  - **GPU ms**, drawn 2560 × 1440 into 3840 × 2160, one page at a time in alternating rounds, the GPU drained before
+    each timed pass, the least of three rounds (main at `cc3aa70`; stage 3 changes neither the land nor its cost):
+
+| View | Land alone, main → 6b | Whole frame, main → 6b |
+| --- | --- | --- |
+| Tent, eye level | 28.9 → 15.5 | 31.4 → 31.2 |
+| River bend, 26 m | 47.2 → 13.9 | 54.0 → 21.1 |
+| Town, 40 m | 46.9 → 13.2 | 48.1 → 16.5 |
+| Skyline, 2.5 km | 76.2 → 13.7 | 73.6 → 14.2 |
+| Pine forest, eye level | 75.1 → 13.9 | 93.5 → 32.7 |
+| Pine forest, 90 m | 65.5 → 11.8 | 75.9 → 14.7 |
+
+  - The shadow pass, the same code on both sides, also read slower in main's pages in every round (3.2–34 ms against
+    0.4–1.8), whatever came first: so not all of the difference is the land's, and the absolute times are the shared
+    GPU's. The land alone is faster at every view, and most from above.
+  - **FLIP against main** (`501aff5`, after the merge; fresh profiles): tent eye 0.040 (p99 tile 0.137), river 26 m
+    0.047 (0.130), town 40 m 0.053 (0.098), tent 10 m 0.095 (0.285), tent 30 m 0.073 (0.246), tent 120 m 0.059 (0.235).
+    What differs: the ground about 1.4–2 × softer near the eye (the bias), the far grazing ground let go nearer, BC's
+    blocks. No hole, no seam. Stage 6a against 2a read 0.05–0.08; the same code shot twice about 0.02. With 4096 pages
+    (main at `3a2896a`): the near-eye crop 0.071 (above). The truths were
+    not taken (the coordinator's call: tokens; and they kept losing the device).
+  - **Pages in motion** (the gate's paths, the film camera, the pages watched frame by frame): the zoom (1.7 m to
+    12 km in 20 s) ran 836 frames at a median of 16.7 ms (p99 33, worst 83) and laid 5736 pages, at most 20 in a
+    frame, the asked-for and not yet in 0 at the median (473 at most), at most 124 fading in at once; the walk into the
+    pines ran 1231 frames at 33 ms (p99 50, worst 100), 2304 pages, at most 12 a frame, 119 waiting at most. Every page
+    comes in over 10 frames from its parent, so none comes in at once; the ground sharpens over a second or two after a
+    stop, and steps of the bias (0.25 a step) refine it as a whole.
+  - **Compiled at the start** (gate `compile`): main 224 modules, 3.06 MB; 6b 227 modules, 3.15 MB. The land's
+    fragment fell out of the ten largest; the page's kernel (79 KB), the layer map's (78 KB, as the clipmap's was) and
+    the packing (62 KB) are compute.
+  - **Settle** at a view after a jump: with 1792 pages 14–159 s against main's 7–13 s (the bias's quarter steps). With
+    4096, the gate's (a browser a view, main at `3a2896a`): main 5.5–9.1 s, 6b 27.6 (tent eye level), 32.7 (tent
+    10 m), 67.9 (tent 120 m), 28.3 (town 40 m). With the fixes above, jumps in one browser at 15–26 frames a second:
+    17–23 s in one run, 35 (eye level) and 53 (120 m) in another. What bounds it: every page laid starts settle's 105
+    unchanged frames again, after the pages' own sweep (72 frames); one read-back is in flight at a time and its asks
+    replace the last's, so pages few pixels ask for trickle in over hundreds of frames (about one a second from 120 m);
+    and the bias steps a quarter level at a time, two sweeps apart going up and 240 frames coming down (the gate's
+    jumps are eased, not a cut, so a view's bias carries over to the next). Hundreds of frames at 15–26 a second are
+    20–50 s. To cut it (6c): the asks kept over a sweep, a read-back every frame, the bias's step chosen at once.
+  - `bun tools/scale.js` 18 of 18; `bunx --bun vite build` passes (TheGame), after the merge with stage 3; the library's
+    stage draws its land through the pages like the game's.
+- **Left for 6c (relief):** the pages already carry each texel's height (A's fourth number). Displacement near the eye
+  on a mesh built in compute, parallax further out (a few reads along the ray within the page), skirts that bed rocks
+  in the soil, and path decals laid into the pages as they are laid. Also: a jump's settling (above); the far
+  grazing hand-over (the level by distance for what is let go, apart from the level by the filter's footprint).
 ### Stage 5: crowds of parts, one spread order, one wind (2026-11-18)
 
 - Built on `aven/0038-stage5-crowds` from main at `cc3aa70`, as a draft PR.
@@ -927,6 +1059,7 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
 ## Todo
 
 - [ ] Samuel's reference photos (shot list under Build)
+- [ ] Later (not now): mobile Safari loads, but its first start is slow. Samuel, 2026-11-18
 - [x] Stage 1: clean ground
 - [x] Stage 2a: gate, settle, one measure, truth
 - [x] Stage 2b: prepass, motion vectors, upscale
@@ -937,7 +1070,7 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
   - [x] the draw path's two-pass occlusion culling, against a depth pyramid (built; draft PR #68)
 - [ ] Stage 6: land, virtual texture and relief
   - [x] 6a: the layer map, one read a material (the deferred pass left to 6b)
-  - [ ] 6b: the adaptive virtual texture with feedback, the deferred pass, the ground pass read from the map
+  - [x] 6b: the adaptive virtual texture with feedback (built; draft PR; the ground pass still reads the land's nodes)
   - [ ] 6c: relief (displacement, parallax, skirts, path decals)
 - [ ] Stage 7: placement, five layers
   - [x] one rule, the growth map, the forest's layers and their kinds (built; draft PR #73)
@@ -1021,6 +1154,31 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
   can measure the library and Me at all now. The game's own start compiles the same 224 modules, byte for byte.
 - **Not there yet:** Safari not tried (it can't be automated here); the first subject's arrival was slower than main's
   in one pair of runs, under a load average near 300.
+- **Asked (by the orchestrating session):** stage 6b, the land as an adaptive virtual texture: pages composited in
+  compute from the layer map with hex-tiling inside, a feedback pass, a page table into a fixed atlas of about 100 MB,
+  parents first and the camera's speed, pages faded in, sectors round the camera; the ground's colour pass one page
+  read; the ground pass from the map where clean; the per-pixel laying deleted; measured with the gate. Then: merge
+  main (stage 3), before/after pictures for Samuel, and drive it home.
+- **Delivered:** stage 6b built (under Build): `src/terrain/pages.js`, the layer map on each page's own grid, the
+  pages asked for from the prepass, BC pages in 107 MB.
+- **Good:** the land alone is 2–6 times faster at the bench's views from above (13–14 ms against 47–76 on the shared
+  GPU), and the zoom ran at a median of 16.7 ms with pages coming in faded.
+- **Not there yet:**
+  - the near ground is softer than main's: the screen's 3000–3500 pages fit only at a bias of 0.5–1;
+  - at eye level the far grazing ground lets go nearer (the bare patches 100 m behind the tent);
+  - settling after a jump is slow (the bias's quarter steps);
+  - the ground pass still reads the land's nodes; Safari not tried; lines rose (+330 in the game).
+- **Asked (by the orchestrating session):** the near ground at least as sharp as main's (in 6b's own crop the pebbles
+  lost their edges, which blocked the merge): mip 0 where the pixel needs it, the upscaler's finer reads in the asks
+  and the read, the right gradients; the compressed atlas grown to what 4K asks for at bias 0 (about 4096 pages,
+  250 MB); main merged again (occlusion culling, stage 5); the near-eye crop's FLIP against main; what bounds a jump's
+  settling.
+- **Delivered:** 4096 pages in two arrays (about 250 MB; without BC still 640); texels laid from their materials half
+  a mip finer; pages half a level finer within 15 m of the eye, the first the bias takes back; no ask where no land is
+  drawn; a cut starts the bias from none; main merged twice.
+- **Good:** the near ground as sharp as main's (edge energy 100 %, the crop's FLIP 0.071); the bias 0 at eye level.
+- **Not there yet:** a jump settles in 17–53 s against main's 6–9 (what bounds it, under 6b's Measured); the far
+  grazing hand-over; Safari.
 - **Asked (by the orchestrating session):** the draw path's occlusion culling: a depth pyramid from the prepass's
   depth once a frame; two-pass culling in the packing (pass one against the last frame's pyramid, pass two against
   this frame's), nothing popping in; compaction by one atomic a workgroup, not one a thing; every drawer through the
@@ -1083,6 +1241,9 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
 | 2026-11-18 | `eca4f33` | Stage 3: the pictures compiled aside, in turn; what grows on the stage a part of its own in settle |
 | 2026-11-18 | `90988c7` | Stage 3: grow hidden again stays hidden; the gate counts loads, not the library's address |
 | 2026-11-18 | `78988cb` | Stage 3: pictures after the first view complete; a subject's 20 s from its turn; the painter lingers |
+| 2026-11-18 | `d55d805` | Stage 6b: the land as one virtual texture (pages laid once in compute, BC atlas, page table, feedback, fade-in) |
+| 2026-11-18 | `8653cd3` | Stage 6b: pages asked for from the prepass (a storage write in the colour pass cost its early depth test); each mip its own binding |
+| 2026-11-18 | `8a53e90` | Stage 6b merged with main (stage 3): the pages in `boot.js`, the library's stage drawn through them |
 | 2026-11-18 | `f5238de` | Stage 5: parts (a prototype, a transform, a pivot), one spread order capped at SWELL, one wind, bakes kept; `CARD`, `KMAX`, `FAR` deleted |
 | 2026-11-18 | `6cee745` | Stage 5: each stand's impostor views as fine as its shapes want; the meadow's blades halved and doubled |
 | 2026-11-18 | `4a0c2a5` | Stage 5: the meadow's ring width no longer shadows a blade's place |
@@ -1092,3 +1253,9 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
 | 2026-11-18 | `7466720` | Stage 5: the notes, the numbers measured and the trail |
 | 2026-11-18 | `907a269` | Draw path: a depth pyramid and two-pass occlusion culling of every drawer's tiers, kept in order, no atomic |
 | 2026-11-18 | `4b04cde` | Draw path: merged with main (stage 3); on the stage only what is drawn is culled (draft PR #68) |
+| 2026-11-18 | `09e4a22` | Stage 6b: the measures, what is left for 6c, the changelog and trail |
+| 2026-11-18 | `629bf1c` | Stage 6b merged with main (occlusion culling): the pages asked for after the late pass |
+| 2026-11-18 | `a07f693` | Stage 6b merged with main (stage 5) |
+| 2026-11-18 | `8050d4d` | Stage 6b: 4096 pages in two arrays; texels laid from their materials half a mip finer |
+| 2026-11-18 | `07b87aa` | Stage 6b: pages half a level finer within 15 m of the eye |
+| 2026-11-18 | `364197c` | Stage 6b: the near half level the bias's first; no ask where no land is drawn; a cut starts the bias from none |
