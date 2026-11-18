@@ -484,7 +484,7 @@
   .cx .k{display:block;font:500 10px/1.4 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:rgba(251,246,234,.5);margin:0 0 10px}
   .cx .k b{color:var(--sun);font-weight:600;margin-right:8px}
   /* the map: five stations on one line, each a link to its part below */
-  .cx .map{list-style:none;margin:0 0 clamp(48px,6vw,88px);padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;position:relative}
+  .cx .map{list-style:none;margin:0 0 clamp(48px,6vw,88px);padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;position:relative}
   .cx .map::before{content:'';position:absolute;left:4%;right:4%;top:19px;height:2px;background:linear-gradient(90deg,var(--sun),rgba(251,246,234,.15))}
   .cx .map a{position:relative;display:block;text-decoration:none;color:inherit;padding-top:46px}
   .cx .map a i{position:absolute;top:6px;left:0;width:28px;height:28px;border-radius:50%;background:#0f1d2c;box-shadow:inset 0 0 0 2px var(--sun);display:grid;place-items:center;font:600 12px/1 var(--sans);font-style:normal;color:var(--sun)}
@@ -526,6 +526,12 @@
   .cx .chips{display:flex;flex-wrap:wrap;gap:6px}
   .cx .chips button{border:0;border-radius:999px;padding:7px 13px;background:rgba(251,246,234,.08);color:var(--cream);font:400 13px/1 var(--sans);cursor:pointer}
   .cx .chips button:hover{background:rgba(251,246,234,.16)}
+  /* the game's reference sheet: its key tables, on the page */
+  .cx .sheet{padding:clamp(18px,2.4vw,30px);border-radius:20px;background:#18243c;font:400 14px/1.55 var(--sans);color:rgba(251,246,234,.86)}
+  .cx .sheet h3{font:500 10px/1.4 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--sun);margin:22px 0 8px}.cx .sheet h3:first-child{margin-top:0}
+  .cx .sheet table{border-collapse:collapse;width:100%;font-size:13px}.cx .sheet th{text-align:left;font:500 10px/1.4 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(251,246,234,.5);padding:6px 10px;border-bottom:1px solid rgba(251,246,234,.15)}
+  .cx .sheet td{padding:8px 10px;border-bottom:1px solid rgba(251,246,234,.08);vertical-align:top}.cx .sheet td strong{color:var(--cream)}
+  .cx .sheet ul{margin:6px 0 0;padding-left:18px}
   /* a document, read in a drawer over the page */
   .cxdoc{position:fixed;top:0;right:0;bottom:0;width:min(560px,100vw);z-index:9;overflow:auto;padding:22px clamp(18px,3vw,32px) 120px;background:#18243c;color:var(--cream);box-shadow:-24px 0 60px rgba(0,0,0,.45);transform:translateX(105%);transition:transform .3s cubic-bezier(.3,1,.4,1)}
   .cxdoc.on{transform:none}

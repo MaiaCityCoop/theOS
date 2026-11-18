@@ -42,6 +42,7 @@ The serial never puts a date on that fork. Its hard stake is the city instead: *
 | Intent | Political | [intent](systems/intent.md) |
 | Self-Sovereignty | Social | [self-sovereignty](systems/self-sovereignty.md) |
 | The Domes | Technology | [the-domes](systems/the-domes.md) |
+| The Game | Economic | [the-game](systems/the-game.md) |
 | The Push | Social | [the-push](systems/the-push.md) |
 | The Stack | Economic | [the-stack](systems/the-stack.md) |
 | The Underground | Technology | [the-underground](systems/the-underground.md) |

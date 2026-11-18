@@ -232,6 +232,8 @@ async function compass() {
   const name = (x) => x.front.name || x.front.term || x.front.title || x.id;
   const card = (k, x, label, cls = '') => `<button class="cxc ${cls}" data-k="${k}/${x.id}"><small>${esc(label)}</small><b>${esc(name(x))}</b><span>${esc(gist(x.body))}</span></button>`;
 
+  const game = b.systems.find((x) => x.id === 'the-game');
+  const sec = (body, h) => (body.match(new RegExp('#+ ' + h + '\\n+([\\s\\S]*?)(?=\\n#+ |$)')) || [])[1]?.trim() || '';
   const people = [...b.characters].sort((a, c) => (a.id === 'the-citizen' ? -1 : c.id === 'the-citizen' ? 1 : 0));
   const tracks = TRACKS.map((id) => b.arcs.find((a) => a.id === id)).filter(Boolean), themes = b.arcs.filter((a) => !TRACKS.includes(a.id));
   const n_ = (v, one, many) => `${v} ${v === 1 ? one : many}`;
@@ -246,6 +248,7 @@ async function compass() {
       <a href="#cx-story"><i>3</i><em>How</em><b>The story</b><span>One day a story, ${n(DAYS)} days. You are the hero.</span></a>
       <a href="#cx-people"><i>4</i><em>Who</em><b>The people</b><span>${n_(b.characters.length, 'character', 'characters')}, and ${n_(b.arcs.length, 'arc', 'arcs')} they walk.</span></a>
       <a href="#cx-world"><i>5</i><em>Where</em><b>The world</b><span>${n_(b.locations.length, 'place', 'places')}, ${n_(b.systems.length, 'system', 'systems')}, ${n_(b.terms.length, 'word', 'words')}.</span></a>
+      <a href="#cx-game"><i>6</i><em>Play</em><b>The game</b><span>Survive, own, found. The reference sheet.</span></a>
     </ol>
 
     <section id="cx-vision"><span class="k"><b>1 · Why</b>The vision · read in the first person</span><div class="vision">${marked.parse(vision)}</div></section>
@@ -279,10 +282,19 @@ async function compass() {
       <p class="sub" style="margin-top:0">Places</p>
       <div class="grid">${b.locations.map((x) => card('place', x, x.front.type || 'Place')).join('')}</div>
       <p class="sub">How it works</p>
-      <div class="grid">${b.systems.map((x) => card('system', x, x.front.type || 'System')).join('')}</div>
+      <div class="grid">${b.systems.filter((x) => x.id !== 'the-game').map((x) => card('system', x, x.front.type || 'System')).join('')}</div>
       <p class="sub">Its words</p>
       <div class="chips">${b.terms.map((x) => `<button data-k="term/${x.id}">${esc(name(x))}</button>`).join('')}<button data-k="index/world">The world, all of it</button></div>
-    </section>`;
+    </section>
+    ${game ? `<section id="cx-game"><span class="k"><b>6 · Play</b>The game · reference sheet and single source of truth</span>
+      <p class="premise">${plain(sec(game.body, 'Overview').split('\n\n')[1] || '')}</p>
+      <div class="sheet md">
+        <h3>The three levels of coops</h3>${marked.parse(sec(game.body, 'The three levels of coops'))}
+        <h3>The money</h3>${marked.parse(sec(game.body, 'The money'))}
+        <h3>The essential fixed tree</h3>${marked.parse(sec(game.body, 'The essential fixed tree \\(MVP\\)'))}
+      </div>
+      <div class="chips" style="margin-top:14px"><button data-k="system/the-game">Read the whole reference sheet</button></div>
+    </section>` : ''}`;
 
   const doc = $('cxdoc'), shade = $('cxshade');
   const shut = () => { doc.classList.remove('on'); shade.classList.remove('on'); };

@@ -235,6 +235,19 @@ Asked outright and without surprises, so built straight away.
 - **Broke / not there yet:** the first build collided with two global classes (`.card`, `.hero`) and drew huge,
   letter-spaced cards; renamed, fixed.
 
+### 2026-11-18 (3)
+
+- **Asked:** gameplay strategies, then the game's economy set in conversation (survival first, food and power
+  sovereign, export-positive; a tech tree of startup coops; cities as startup hubs; HEARTS, MINDS, the city coop with
+  land and liquidity pool, invite-only villages, buy-only funding curves, insolvency by auction, wealth as the score,
+  Fibonacci gates in village treasury wealth with external € investors capped so citizens keep 51%, the market
+  interface, the richest city's richest village as the real pilot). "Write this into the Compass as the game compass
+  reference sheet and single source of truth."
+- **Delivered:** `Compass/worldbuilding/systems/the-game.md` (made with `story add system`), and a sixth station on
+  the Compass page, *6 · Play: the game*, showing its three key tables with the whole sheet a click away.
+- **Good:** `story check .` passes; the page renders (screenshots).
+- **Broke / not there yet:** daily gameplay and the care activities are the next conversation.
+
 ## Trail
 
 | When | Commit | What |
