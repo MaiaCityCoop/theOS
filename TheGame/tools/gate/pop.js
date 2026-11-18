@@ -14,7 +14,7 @@ import { rockFull } from '../../assets/kit/rock.js';
 import { spanOf } from '../../assets/kinds.js';
 
 await ready; useBuilder(build);
-const STEP = 1.01;   // (a step a frame: 1 % nearer)
+const STEP = +(process.env.STEP || 1.01), SAMPLE = +(process.env.SAMPLE || 1);   // (a step a frame: 1 % nearer; SAMPLE: every so many triangles' corners measured, for a large surface)
 const K = 1 / (2 * Math.tan((68 / 2) * Math.PI / 180)), H = 1080;   // the measure's: pixels a metre covers at a metre (a picture 1080 tall), and the walker's lens
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -52,7 +52,7 @@ function jump(before, now) {
   const G = new Map(), cell = 0.02, key = (x, y, z) => `${Math.floor(x / cell)},${Math.floor(y / cell)},${Math.floor(z / cell)}`;
   for (const t of before) { const lo = [0, 1, 2].map((a) => Math.floor(Math.min(t[a], t[a + 3], t[a + 6]) / cell)), hi = [0, 1, 2].map((a) => Math.floor(Math.max(t[a], t[a + 3], t[a + 6]) / cell)); for (let x = lo[0]; x <= hi[0]; x++) for (let y = lo[1]; y <= hi[1]; y++) for (let z = lo[2]; z <= hi[2]; z++) { const k = `${x},${y},${z}`; (G.get(k) ?? G.set(k, []).get(k)).push(t); } }
   let most = 0;
-  for (const t of now) for (let j = 0; j < 9; j += 3) {
+  for (let i = 0; i < now.length; i += SAMPLE) for (let j = 0, t = now[i]; j < 9; j += 3) {   // (every SAMPLE-th triangle's corners: a pop moves a cluster, many triangles)
     const p = [t[j], t[j + 1], t[j + 2]]; let best = Infinity;
     for (let r = 0; r < 4 && best > (r - 1) * cell; r++) for (let x = -r; x <= r; x++) for (let y = -r; y <= r; y++) for (let z = -r; z <= r; z++) {
       if (Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) !== r) continue;
