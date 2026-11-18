@@ -82,7 +82,7 @@ import { VIEWS, PATHS, HOURLY } from './gate/views.js';
 import RIG from '../camera/rig.js';
 import { FIRST_FRAME } from '../src/core/marks.js';
 import { CLASSES, classOf, CLASS_NAMES } from './bench.js';
-import { FRAME_MS as BUDGET, MEMORY, BUDGET_MB, FRAME_MS_BY_CLASS, OUTPUT } from '../src/core/budget.js';
+import { FRAME_MS as BUDGET, MEMORY, GPU_MB, BUDGET_MB, FRAME_MS_BY_CLASS, OUTPUT } from '../src/core/budget.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
 import { stepper } from './gate/clock.js';
 import { locked, unlock } from './gpu/lock.js';
@@ -325,22 +325,38 @@ async function noise(chrome, tag, opt) {
   return await diff(a, b, opt);
 }
 
-/** The GPU's memory by class (src/core/gpu.js ledger, src/core/classes.js BUDGET_MB), MB, a column a view or path
-    (`by`: { name: memoryNow() }): each class beside its budget, all that the pools note, all the device has made, and
-    of that what no pool notes. A class over its budget is said. */
+/** The GPU's memory by class at its most (the game's one ledger, window.__game.memory(): src/core/gpu.js; the budgets:
+    src/core/budget.js), MB, a column a view or path (`by`: { name: memoryNow() }): each class beside its budget (what
+    the device made for its code), all of it beside the whole's (GPU_MB), what the pools note and what none does. A class
+    or the whole over its budget is said, and every make that took one past it (the ledger's over). */
+/** The GPU's memory from the game's one ledger (window.__game.memory(), src/core/gpu.js), in a line: at its most against
+    the whole's budget, and every make that took a class or the whole past its budget (the hour fails on any). */
+const pastBudget = (M) => {
+  if (!M) return 'not read (the page gave no ledger)';
+  const over = M.over ?? [], most = `at its most ${M.peak} MB of ${M.budget}`;
+  return over.length ? `${most}; past a budget: ${over.map((o) => `${o.who} with ${o.by} (${o.mb} MB of ${o.budget}, ${o.times}×)`).join('; ')}` : `${most}, every class within its budget`;
+};
+/** The board's line on the GPU's memory (the GPU smoke's ledger), and what fails the hour: each make past a budget. */
+const memoryOn = (smoked) => {
+  const M = smoked?.memory, fails = (M?.over ?? []).map((o) => `${o.who} with ${o.by}`);
+  return { fails, line: fails.length ? `**The GPU's memory went past its budget, so the hour fails:** ${pastBudget(M)}` : `The GPU's memory: ${pastBudget(M)}` };
+};
 function memoryTable(by) {
   const V = Object.keys(by).filter((k) => by[k]); if (!V.length) return;
-  const W = 13, head = (i) => V.map((v) => (v.split(', ')[i] ?? '').padStart(W)).join(''), over = [];
-  console.log(`\n  ${'GPU memory, MB a class'.padEnd(28)}${head(0)}${'budget'.padStart(9)}`);
+  const W = 13, head = (i) => V.map((v) => (v.split(', ')[i] ?? '').padStart(W)).join(''), over = [], most = (x) => x?.peak ?? x?.gpu;
+  console.log(`\n  ${'GPU memory, MB at the most'.padEnd(28)}${head(0)}${'budget'.padStart(9)}`);
   console.log(`  ${''.padEnd(28)}${head(1)}`);
   for (const c of CLASS_NAMES) {
-    console.log(`  ${c.padEnd(28)}${V.map((v) => f(by[v].classes?.[c]?.gpu, 0, W)).join('')}${f(BUDGET_MB[c], 0, 9)}`);
-    for (const v of V) if ((by[v].classes?.[c]?.gpu ?? 0) > BUDGET_MB[c]) over.push(`${c} at ${v}`);
+    console.log(`  ${c.padEnd(28)}${V.map((v) => f(most(by[v].classes?.[c]), 0, W)).join('')}${f(BUDGET_MB[c], 0, 9)}`);
+    for (const v of V) if ((most(by[v].classes?.[c]) ?? 0) > BUDGET_MB[c]) over.push(`${c} at ${v}`);
   }
-  console.log(`  ${'noted, all'.padEnd(28)}${V.map((v) => f(by[v].gpu, 0, W)).join('')}`);
-  console.log(`  ${'the device made, all'.padEnd(28)}${V.map((v) => f(by[v].device, 0, W)).join('')}`);
-  console.log(`  ${'of it, noted by no pool'.padEnd(28)}${V.map((v) => f(by[v].unnoted, 0, W)).join('')}`);
+  console.log(`  ${'all of it'.padEnd(28)}${V.map((v) => f(most(by[v]), 0, W)).join('')}${f(GPU_MB, 0, 9)}`);
+  for (const v of V) if ((most(by[v]) ?? 0) > GPU_MB) over.push(`all of it at ${v}`);
+  console.log(`  ${'noted by its pools, now'.padEnd(28)}${V.map((v) => f(by[v].noted, 0, W)).join('')}`);
+  console.log(`  ${'noted by no pool, now'.padEnd(28)}${V.map((v) => f(by[v].unnoted, 0, W)).join('')}`);
+  const past = [...new Set(V.flatMap((v) => (by[v].over ?? []).map((o) => `${o.who} (with ${o.by}: ${o.mb} MB of ${o.budget})`)))];
   if (over.length) console.log(`  over its budget: ${over.join('; ')}`);
+  if (past.length) console.log(`  made past a budget: ${past.join('; ')}`);
 }
 
 /** tools/bench.js's bench(), one view at a time, each once the world has settled there. bench() draws the world as the
@@ -553,7 +569,7 @@ async function travel(ctx, list, mem) {
       const g = await page.evaluate(settled, { wait: WAIT, at: `the start of ${p.name}`, keep: KEEP.on });
       if (g.settled === false) { out.paths[p.name] = { notSettled: g.said }; continue; }
       mem.phase = p.name;
-      out.paths[p.name] = { secs: c.secs, ...told(await page.evaluate(ride, { fly: !!p.flyby })), memory: await page.evaluate(() => { const L = window.__memory?.(); return L ? { classes: L.classes, gpu: L.gpu, device: L.device, unnoted: L.unnoted } : null; }) };   // (the GPU's memory by class, as the path ends)
+      out.paths[p.name] = { secs: c.secs, ...told(await page.evaluate(ride, { fly: !!p.flyby })), memory: await page.evaluate(() => { const L = window.__game?.memory?.(); return L ? { classes: L.classes, gpu: L.gpu, peak: L.peak, budget: L.budget, noted: L.noted, unnoted: L.unnoted, over: L.over } : null; }) };   // (the GPU's memory by class as the path ends: the game's one ledger, as tools/bench.js memoryNow reads it)
     }
     out.first = await page.evaluate(firstFrame, { name: FIRST_FRAME });   // (by now long set: read once the paths are ridden)
   } finally { out.errors = errors; said(errors); await close(); }
@@ -597,9 +613,11 @@ async function smoke(chrome, { views }) {
   try {
     await P.page.evaluate(prepare, { inside: INSIDE, time: TIME });
     for (const v of pick(VIEWS, views, 'view')) out.views[v.name] = await moves(P.page, v);
+    out.memory = await P.page.evaluate(() => window.__game?.memory?.() ?? null);   // (the GPU's memory as the look ends: the game's one ledger)
   } finally { out.errors = P.errors.filter((e) => /GPUValidationError|device (was )?lost|WebGPU/i.test(e)); await P.close(); }
   for (const [k, m] of Object.entries(out.views)) console.log(`  smoke, ${k.padEnd(28)} settled posed in ${s(m.posed)}, turned ${s(m.turned)}, walked ${s(m.walked)}`);
   console.log(`  smoke: ${out.errors.length ? `${out.errors.length} WebGPU error(s); the first: ${out.errors[0].slice(0, 300)}` : 'no WebGPU error'}`);
+  console.log(`  smoke, the GPU's memory: ${pastBudget(out.memory)}`);
   return out;
 }
 /** A view (with its rig) settled posed, turned about and walked on: ms each. */
@@ -639,14 +657,16 @@ async function board(tag, at) {
   const H = before ? held(here, runOf(`${at}${before}/summary.json`)) : null, rows = here.bench?.ceilings?.rows ?? [];
   const R = JSON.parse(readFileSync(`${at}${tag}/summary.json`, 'utf8')), S = R.start;
   const out = [...(R.stills?.lod ?? []).map((v) => `${v} (stills)`), ...(R.stills?.truth ?? []).map((v) => `${v} (?truth)`), ...Object.keys(R.bench?.unsettled ?? {}).map((v) => `${v} (bench)`), ...['cold', 'warm'].flatMap((c) => Object.entries(R.paths?.[c]?.paths ?? {}).filter(([, r]) => r.notSettled).map(([k]) => `${k} (paths, ${c})`))];
+  const mem = memoryOn(R.smoke);
   const md = [`# The hour on main, ${tag} (${OUTPUT.width} × ${OUTPUT.height}), ${new Date().toISOString().slice(0, 16)}`, '',
+    mem.line,
     S?.settled === false ? `**The start did not settle** in ${(S.ms / 1000).toFixed(0)} s: ${String(S.said).slice(0, 300)}` : `The start settled in ${((S?.ms ?? 0) / 1000).toFixed(1)} s.`,
     out.length ? `Not settled, so not measured: ${out.join(', ')}.` : 'Every view and path settled.', '', H ? H.text : `The first hour kept: nothing before it to hold it against.`, '',
     `Each part of each bench view against its ceiling (tools/gate/ceilings.json), shown, never blocking:`, '', '| View | Part | ms | Ceiling | Over |', '| --- | --- | --- | --- | --- |',
     ...rows.map((r) => `| ${r.view} | ${r.part} | ${r.ms.toFixed(2)} | ${r.ceiling.toFixed(2)} | ${r.over ? 'over' : ''} |`)].join('\n');
   writeFileSync(`${at}${tag}/board.md`, md + '\n');
   console.log(`\n${md}\n\n→ .gate/hourly/${tag}/summary.json and board.md`);
-  return { tag, before: before ?? null, worse: H?.worse ?? [] };
+  return { tag, before: before ?? null, worse: H?.worse ?? [], fails: mem.fails };
 }
 async function all(opt) {
   const tag = opt.tag || commit(), chrome = await launch(opt);
@@ -684,9 +704,10 @@ try {
   else if (cmd === 'motion') r = await (await import('./gate/motion.js')).motion(opt, { OUT, BASE, SCREEN, INSIDE, WAIT, open, prepare, course, launch, pick, commit, save, rank, said, f });
   else if (cmd === 'real') { const real = async () => (await import('./gate/real.js')).real(pos[0], opt); r = await ((opt.device ?? 'cpu') === 'cpu' ? real() : locked('real', real)); }   // (on a GPU, mps: in its turn)
   else if (cmd === 'all') await all(opt);
-  else if (cmd === 'hourly') r = await hourly(opt);
+  else if (cmd === 'hourly') { r = await hourly(opt); if (r?.fails?.length) process.exitCode = 1; }   // (the hour fails where the GPU's memory went past a budget)
   else if (WITH[cmd]) { const chrome = await launch(opt); try { r = await WITH[cmd](chrome); } finally { await closeHard(chrome, chrome.gateDir); } }
   else { console.log('bun tools/gate.js smoke | stills | diff | noise | bench | compile | paths | motion | real | all | hourly: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
+  if (cmd === 'smoke' && r?.memory?.over?.length) process.exitCode = 1;   // (the GPU smoke too)
   if (['bench', 'compile', 'paths'].includes(cmd)) { mkdirSync(OUT, { recursive: true }); save(`${OUT}${cmd}.json`, r); }   // (the numbers kept: .gate/bench.json and so on)
 } catch (e) { console.error(`gate: ${e.message}`); process.exitCode = 1; }
 finally { for (const d of FRESH) rmSync(d, { recursive: true, force: true }); }
