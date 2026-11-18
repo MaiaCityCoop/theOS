@@ -24,18 +24,19 @@
 //   after its vertices its finest level carries its far data (crowd.js: the sphere its impostor is baked in, its
 //                      chunks), as 32-bit floats; the vertex it begins at in the numbers' slots 14 and 15 (x 1024,
 //                      and the rest). What the GPU bakes its far end from (src/detail/impostor.js)
-//   6   tip x (16) | y (16)              the point it is enlarged about (a chunk's plane's: its chunk's middle)
+//   6   tip x (16) | y (16)              a chunk's plane's: its chunk's middle, which it grows from (a card's: its
+//                                        sprig's tip; a solid's: its foot)
 //   7   tip z (16) | go (16)             the error, metres, at which it goes (a plane's: at which its chunk comes:
 //                                        assets/kit/crowd.js), log2 in 2048ths from 2^-16 m (0: never)
 //
 //   packPlant(mesh) -> { index: its corners, verts: Uint32Array, count: how many vertices, box }   what a family hands on
-//                      (box: [x0, y0, z0, x1, y1, z1], metres in its own frame, round all it can reach: a crowd's sprigs
-//                      enlarged about their tips as far as its rule lets them; what the eye's culling tests it by,
+//                      (box: [x0, y0, z0, x1, y1, z1], metres in its own frame, round all it can reach: where its
+//                      vertices stand and where they shrink to; what the eye's culling tests it by,
 //                      src/scatter/drawer.js kindBox)
 //   plantFamily(id, asset)   a plant asset's shapes as a family of the zoo (assets/zoo/index.js)
 import { kindRule, shapesOf, most, baseOf } from '../kinds.js';
 import { held, sn, q16, oct, OCT } from './pack.js';
-import { crowd, levelOf, CROWD, RULE } from './crowd.js';
+import { crowd, levelOf, RULE } from './crowd.js';
 import { goneAt, rungAt, rungPx, BAND } from '../../src/detail/error.js';
 
 export const GRID = { xz: 40, y0: -2, y1: 78 }, UVK = 1024, UV0 = 16, GOQ = 2048, GO0 = 16;   // x and z over -40 … 40 m, y over -2 … 78 m, 16 bits each (1.2 mm); uv in 1024ths, from -16; a go's log2 in 2048ths, from 2^-16 m (15 µm … 65 km)
@@ -59,16 +60,13 @@ const oct8 = (x, y, z) => { oct(x, y, z); OU = sn(OCT[0], 255); OV = sn(OCT[1], 
 export function packPlant(m) {
   const FV = m.far ? Math.ceil(m.far.length / 8) : 0, P = m.position, N = m.normal, UV = m.uv, CN = m.cn, RT = m.root, n = m.part.length, R = m.rule ? 1 : 0, out = new Uint32Array((n + R + FV) * 8);
   // (its far data, after its vertices: crowd.js; where it begins, a vertex's number, as two whole numbers a half float holds exactly)
-  if (FV) { new Float32Array(out.buffer, (n + R) * 32, m.far.length).set(m.far); m.rule[14] = Math.floor((n + R) / 1024); m.rule[15] = (n + R) % 1024; }
+  if (FV) { new Float32Array(out.buffer, (n + R) * 32, m.far.length).set(m.far); m.rule[RULE.AT] = Math.floor((n + R) / 1024); m.rule[RULE.AT + 1] = (n + R) % 1024; }
   if (R) for (let i = 0; i < 8; i++) out[i] = (half(m.rule[i * 2]) | (half(m.rule[i * 2 + 1]) << 16)) >>> 0;   // (a crowd's level: its shape's numbers first, two to a number of 32 bits)
-  // (its box: every vertex where it stands and what it grows from; a card's, enlarged about its tip as far as the rule
-  // lets it, its root's too: a card grows out of it as it comes. Whatever it is moved to lies between those)
-  const box = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity], grow = R ? Math.max(CROWD.SWELL, m.rule[RULE.SWELL] || 0) : 1;
+  // (its box: every vertex where it stands and its root, what it shrinks to as it goes (a chunk's plane's: its chunk's
+  // middle, which it grows from as it comes). Nothing is enlarged: whatever it is moved to lies between those)
+  const box = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
   const take = (x, y, z) => { if (x < box[0]) box[0] = x; if (y < box[1]) box[1] = y; if (z < box[2]) box[2] = z; if (x > box[3]) box[3] = x; if (y > box[4]) box[4] = y; if (z > box[5]) box[5] = z; };
-  for (let v = 0; v < n; v++) {
-    const p = v * 3; take(P[p], P[p + 1], P[p + 2]); take(RT[p], RT[p + 1], RT[p + 2]);
-    if (R) { const T = m.tip; take(T[p], T[p + 1], T[p + 2]); if ((m.part[v] & 3) === 1) for (const Q of [P, RT]) take(T[p] + (Q[p] - T[p]) * grow, T[p + 1] + (Q[p + 1] - T[p + 1]) * grow, T[p + 2] + (Q[p + 2] - T[p + 2]) * grow); }
-  }
+  for (let p = 0; p < n * 3; p += 3) { take(P[p], P[p + 1], P[p + 2]); take(RT[p], RT[p + 1], RT[p + 2]); }
   for (let v = 0; v < n; v++) {
     const o = (v + R) * 8, p = v * 3;
     out[o] = (gx(P[p]) | (gy(P[p + 1]) << 16)) >>> 0;

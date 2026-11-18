@@ -11,7 +11,7 @@
 // requirement, src/core/budget.js.
 export const CLASSES = {
   geometry: ['packing', 'occlusion', 'prepass', 'prepass, late', 'colour'],   // what is drawn: the tiers' packing and the surfaces' cut (src/scatter), the culling's pass one, the prepass, then the depth pyramid, pass two and what it finds (src/core/occlusion.js), the colour
-  light: ['clouds', 'shadow map'],   // the clouds' shadow map (src/world/weather/clouds.js), the casters' (src/world/shadow.js)
+  light: ['clouds', 'near', 'far', 'canopy', 'probes', 'screen light', 'contact'],   // the clouds' shadow map (src/world/weather/clouds.js); the light's passes before the frame (src/world/light/index.js): the near and far cascades (src/world/shadow.js), the canopy map and its sky probes (src/world/light/canopy.js); after the prepass the screen's light (src/boot.js): the contact shadows (src/world/light/screen.js)
   ground: ['ground map', 'pages, laid', 'pages'],   // the ground under the camera (src/scatter/ground.js); the land's pages laid and the pages asked for after the prepass (src/terrain/pages.js)
   'upscale/post': ['lens', 'upscale'],   // the virtual camera's lens (src/camera/post.js), the upscale to the screen (src/core/temporal.js)
 };

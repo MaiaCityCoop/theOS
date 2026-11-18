@@ -1,6 +1,6 @@
 // The solids' rooms (intent 0038): how much each level of every solid's cluster hierarchy holds, measured from the
 // hierarchy itself (assets/kit/clusters.js), as the heap lays a level (assets/kit/surface.js levelSizes): rooms.json,
-// a recipe's by its version (registry.json), so a level's place in the heap is as large as what it holds, no larger,
+// a recipe's by its version (the registry: tools/registry.js), so a level's place in the heap is as large as what it holds, no larger,
 // and a recipe's rooms are made again only when it, or a kit it builds with, changes. What reads them: the engines that
 // make the heap's places (src/scatter/rocks.js, src/scatter/placed.js, through src/scatter/rooms.js).
 //
@@ -18,7 +18,7 @@ import { resolve, dirname } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { blake3 } from '@noble/hashes/blake3.js';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
-import { kitsOf } from './registry.js';
+import { kitsOf, buildRegistry } from './registry.js';
 import { build, ready } from '../assets/kit/clusters.js';
 import { useBuilder, levelSizes } from '../assets/kit/surface.js';
 import { rockHierarchy } from '../assets/kit/rock.js';
@@ -28,7 +28,7 @@ const BUILDER = ['assets/kit/clusters.js', 'assets/kit/surface.js', 'assets/kit/
 
 /** Measure the rooms of every solid whose version changed, and write rooms.json if anything did. Returns them. */
 export async function buildRooms(root) {
-  const manifest = JSON.parse(readFileSync(resolve(root, 'registry.json'), 'utf8')), path = resolve(root, 'rooms.json');
+  const manifest = buildRegistry(root), path = resolve(root, 'rooms.json');   // (the registry made here as the dev server makes it: registry.json is made, never kept in git)
   const files = [...new Set(BUILDER.flatMap((f) => [resolve(root, f), ...kitsOf(root, resolve(root, f))]))].sort(), builder = bytesToHex(blake3(utf8ToBytes([...files, resolve(root, 'node_modules/meshoptimizer/package.json')].map((f) => readFileSync(f, 'utf8')).join('\n'))));
   const was = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {}, old = was.builder === builder ? was : {}, out = { builder };
   const load = (f) => import(pathToFileURL(resolve(root, f)).href);
