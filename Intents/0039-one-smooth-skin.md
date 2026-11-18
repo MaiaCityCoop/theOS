@@ -277,3 +277,4 @@ between is named under Known gaps.
 | 2026-11-18 | `4b3e57d` | the skin's light; the shape's finer forms laid back; a slimmer neck; the tool that measures it |
 | 2026-11-18 | `8d48efa` | the tool's page and stills; a level's error counts what its points carry; the cone from a point's own piece; the shape's leftovers out |
 | 2026-11-18 | `63a21cc` | the tool says how the skin bends in five poses |
+| 2026-11-18 | `2a2534e` | proposed: Build, each check as it was, the gaps, three choices for Samuel; the story's folder |
