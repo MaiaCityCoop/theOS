@@ -17,9 +17,9 @@ Copy `Intents/TEMPLATE.md` to open one. The next number is one more than the hig
 | State | Who writes | What goes in its section | It ends when |
 | --- | --- | --- | --- |
 | **Idea** | the agent, from the human's words | What is wanted and why. The human's own words where they exist, tidied of typos only. | the human says go on |
-| **Define** | the agent | What done looks like: the deliverables, and for each a **check** (how it will be shown to be done: a command, a page to open, a number to read). What is out of scope. **And the architecture pass** (below) over everything the intent will touch, with its **code gates** as checks. This is the spec and the delivery gate in one. | **the human approves it.** Do not build before. If the human asked for the work outright and the definition holds no surprise, say so in one line and build. |
+| **Define** | the agent | What done looks like: the deliverables, and for each a **check** (how it will be shown to be done: a command, a page to open, a number to read). What is out of scope. **And the architecture pass** (below) over everything the intent will touch, with its **code gates** as checks, **and the 10 % gate** (below): what this intent makes at least 10 % faster or better. This is the spec and the delivery gate in one. | **the human approves it.** Do not build before. If the human asked for the work outright and the definition holds no surprise, say so in one line and build. |
 | **Build** | the agent | Notes while building: decisions taken, what turned out different from the definition and why. The code gates hold at every merge. | every deliverable exists |
-| **Propose** | the agent | What is delivered and where to look at it; each check with its result as it really was (passed, failed with the output, not run and why), the code gates' numbers among them; known gaps. The story folder is spawned now (below). | **stop.** The human decides. |
+| **Propose** | the agent | What is delivered and where to look at it; each check with its result as it really was (passed, failed with the output, not run and why), the code gates' and the 10 % gate's numbers among them; known gaps. The story folder is spawned now (below). | **stop.** The human decides. |
 | **Story** | the agent, after the human's yes | The work as a story for the devlog: what the human wanted, what the agents made, what went wrong on the way, in beats. Link to the story folder. | the story plays in the game |
 | **Archived** | the human's decision, written down by the agent | `accepted` or `rejected`, the date, the reason in a line. | it is the end |
 
@@ -79,8 +79,38 @@ job.
 | **Dependencies** | packages | no new one without a reason in Define |
 
 These gates measure what a change does to the code, so they are measured against `main` by
-design. That is not the picture gate: a picture is judged on its own, never against `main`. The
-first intent that runs them wraps them in one command (`tools/health.js`), so they can join CI.
+design. That is not the picture gate: a picture is judged on its own, never against `main`. They
+are one command, `bun tools/health.js` (in `TheGame/`), run on `main` and on the branch.
+
+## Define: the 10 % gate
+
+Every intent also makes the system **faster and better**, not only cleaner: each one moves the
+measures of what it touches **at least 10 %** in the right direction, and none of the others the
+wrong way. Improvement is part of every intent, compounding, not a phase someday.
+
+At Define, measure the baseline on `main` on the GPU machine, and write the target the intent
+commits to. At Propose, measure again and write both numbers. The measures, for the game:
+
+| Measure | What | Tool | Better is |
+| --- | --- | --- | --- |
+| **Rendering** | GPU ms a frame per bench view and per class; in motion the p99 frame and the frames over 16.7 ms | `gate.js bench`, `gate.js paths` | lower |
+| **Startup** | the world come and settled where it starts, cold and warm; the first frame | `gate.js paths` ("settled where it starts"), `gate.js stills` | lower |
+| **Boot and load** | the shader code compiled until settled; the bytes loaded before the first frame | `gate.js compile`, the build's output | lower |
+| **Memory** | the browser's peak, and each class against its budget | `gate.js paths`, `bench` | lower |
+| **Quality** | FLIP against the branch's own truth (mean and p99 tile); `real` against the photos per view class; the worst pop in motion | `gate.js diff`, `real`, `motion` | lower (closer) |
+
+The website and other parts have their own measures of the same kinds (load, first paint, bytes);
+Define names them where the intent touches them.
+
+- **10 % at least, on the measures of the area the intent touches.** Where an intent cannot move
+  one of them (a docs-only intent, say), Define says why in a line, and that measure must not get
+  worse.
+- **No measure gets worse** anywhere: a faster frame bought with a worse picture, or the other way
+  round, is not an improvement. A trade between them is the human's to decide, with the numbers.
+- **The bars only rise.** The ceilings (`gate.js bench`) and ratchets (`real`) are lowered to what
+  each merged intent reached, so the next intent starts from there.
+- These are numbers compared with `main`, like the code gates. A picture is still judged against
+  its own truth and the photos, never against `main`.
 
 ## Building: one master, many workers
 
@@ -263,5 +293,6 @@ It plays at `http://localhost:5173/timeline.html?story=NNNN-slug`, and from the 
 - Do not judge a branch against `main`, or merge a patch in place of the root fix.
 - Do not define an intent without its architecture pass, or choose a pattern without the research
   written down.
+- Do not define an intent without its 10 % gate, or let any measure get worse.
 - Do not add code around old code: replace it. Do not keep a legacy path, a copy or a setting "just
   in case".
