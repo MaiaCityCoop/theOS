@@ -23,6 +23,16 @@ export const ledger = () => {
 };
 if (typeof window !== 'undefined') window.__memory = ledger;
 
+// Whose the GPU's passes are, for a tool that times each part of a frame (tools/bench.js): the code that draws a part
+// marks where its passes begin (the screen's: the culling, the prepass, the colour, the lens, the upscale; the bench's
+// frame what comes before it), and the tool reads the GPU's own clock pass by pass under those names. Nothing listens
+// in the game: a mark is then one test.
+let tap = null;
+/** The passes from here on are `name`'s (null: no one's in particular), until the next mark. */
+export const mark = (name) => { if (tap) tap(name); };
+/** A tool listens to the marks: fn(name), or null to stop. */
+export const listen = (fn) => { tap = fn; };
+
 let R = null;
 /** The renderer whose GPU the lean buffers are made on (src/boot.js, once it has started). Without it (WebGL, a page that
     did not ask): gpuStorage makes an ordinary buffer, kept twice. */
