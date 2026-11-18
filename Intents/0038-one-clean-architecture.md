@@ -1360,6 +1360,96 @@ everything below was checked on the CPU.
   If the cost is too much, `ERROR_PX` is the one number to raise: at 2 every switch's size on screen doubles.
 - **Lines:** +424 −294 in the game (net +130, of it +22 the detail engine's README): the rungs' errors said where they
   are measured, the stands' cut and the grass's rings made from the blade.
+
+### Rung errors and atlases (2026-11-18)
+
+Built on `aven/0038-rung-errors`, from one measure (`612a4a7`, then `499dbe0` merged in), on the MacBook's CPU only.
+The SSOT audit (`research_notes/0038-ssot-audit.md`) found that some rungs' errors counted only their bake's texel, and
+that the atlases' sizes were set by hand. Now every rung's error is what it really puts off on screen, and the atlases
+are as large as their share of memory lets them be where that error is least.
+
+- **Each rung's real error, in metres on the thing** (`edb7b64`):
+  - **the clumps:** where their three planes draw each chunk's leaves (each plane counted by its share of what is
+    drawn), plus their texel: about 10 times the texel alone;
+  - **the impostor:** its texel plus its views' spacing and its parallax, one displacement counted once:
+    `spacingOf(VIEWS)` times the plant's depth (`src/detail/atlas.js`; 0.272 at 10 × 10 views);
+  - **the crowd's enlargement (`SWELL`):** (k − 1) times the longest sprig's reach, k at the most E there is;
+  - **hand-overs:** `SWITCH`, `WIN`, `GROW`, `FADE` 0.15 and `RATIO` are gone. Every plant hand-over runs under its
+    switch, inside the `BAND`. `go`, `T`, `P0` and `win` are metres; every plant shader reads `r = errPx(e·s, dist) /
+    uErrorPx` (`ratioOf`).
+- **The atlases from their share** (`025f99f`, `src/detail/atlas.js` `atlasesOf`). It is given three things:
+  - the bytes: 512 MiB for the views and the clumps together, a share of geometry's budget (`src/core/classes.js`
+    `SHARE_MB`, in #97's table);
+  - the far ends the stands bake: 29, counted from the registry (`src/scatter/rule.js` `farLayers`);
+  - the limits every WebGPU device grants (`src/core/gpu.js` `PORTABLE`). A baked atlas is kept by its key and drawn on
+    any device, so its size cannot depend on the GPU it was made on.
+
+  From those it derives:
+  - **a clump's plane is the least picture an atlas keeps,** 4 texels. Where the clumps stand in, a chunk is never more
+    pixels across than its tile has texels, so a finer picture would never be read;
+  - **chunks:** 768 a shape (was 256), as many as the heap's uv can name in tiles (48 a row) and the bake's uniforms hold;
+  - **views:** what is left of each far end's share holds 54 × 54 views of 24 texels (was 10 × 10 of 128). That is
+    where the impostor's error, `2r / CELL + spacingOf(VIEWS) × 2r`, is least. A view halves to the least picture
+    (24, 12, 6); `VIEWS` is even, and a row baked at 4 × 4 samples a texel is no wider than every device draws;
+  - **result:** the impostor's error is 0.082–0.087 of the plant's diameter (was 0.28), in 506 MiB (was 417 MB of views
+    and 131 of clumps).
+
+  The page holds the numbers (`src/detail/impostor.js` `atlases()`). The crowd kit takes them in its options (`CROWD` has
+  none of them), and the workers get them in each level's band. The heap's fingerprint, the kept rooms and the kept
+  bakes all name them, so another share bakes again.
+- **`spacingOf`** looks only at each cell's middle, its corners and the middles of its sides. From 8 views on, a
+  triangle of views is at its worst at the middle of its long side; 8 and 24 eyes a step find the same worst, up to 128
+  views. Now 16 times cheaper.
+- **Each pixel reads its own views:** the three views nearest its own ray, not the plant's middle, so the spacing
+  measured is each pixel's own; a pixel at a crown's rim no longer reads views chosen for its middle. A view is read
+  clamped by half a texel of the coarsest level read.
+- **A made thing's card** counts its views' spacing times its depth, as the plants' impostors do.
+- **Nothing sinks above gone.** Each of these is whole down to where leaving it out fits, then sinks or thins over the
+  `BAND` under that:
+  - a plant's last level (`bandsOf`) and its shadow's stand-in (its hand-set floor of 1.2 is gone);
+  - a made thing's last level (`detailOf`);
+  - the made things' dot (`placed.js`);
+  - the rocks (`THIN`).
+
+  Before, each of them sank over the `BAND` above gone, where leaving it out would still show.
+- **The bake:**
+  - a row of pictures a frame, each baker taking one job at a time;
+  - a clump's tile placed by its own row's count. A stand with fewer than 28 tiles a row, the shrubs', was baked squeezed
+    into the first part of each row.
+- **Switch points** (`ERROR_PX` 1, 1440 pixels drawn), first with the real errors at 10 × 10 views of 128 texels, then
+  now. A grown pine's clumps came at 124 m and its impostor at 210 m on main, by their texels alone.
+
+| Plant (its grown shape) | Its clumps | Its impostor |
+| --- | --- | --- |
+| Stone pine, 19.5 m | 1.41 km → 1.65 km | 6.56 km → 2.19 km |
+| Holm oak, 21 m | 1.83 km → 1.83 km | 7.32 km → 2.32 km |
+| Mastic, 6.4 m | 686 m → none (its impostor is as fine) | 1.40 km → 467 m |
+| Rockrose, bracken | 496, 651 m → none | 969 m, 1.05 km → 312, 335 m |
+| Reeds | none | 931 m → 295 m |
+
+  Crowds keep about half to nine tenths of their sprigs down to their end (the enlargement is reckoned at the most E
+  there is).
+- **Measured here (CPU only; not gates):**
+  - every level of every plant, built by its band with these atlases, fits its room: 346 of 346;
+  - `bun tools/scale.js` 24 of 24; `vite build` for TheGame and OS;
+  - WGSL on a mock renderer: all 303 tier materials of the stands (23 of them impostors), the library's plant, the
+    impostor's reads, the bake's clips, and a made thing's card.
+- **To be measured on the Mac mini** (nothing here was drawn):
+  - FLIP against `?truth` where the switches moved most: `far-2.5km` and `bench-skyline-2.5km` (the trees' impostors
+    from about 2.2 km, clumps from 1.65–1.83 km), `pines-500m`, and `bench-pine-forest-90m` and `bench-river-bend-26m`
+    (shrubs and reeds as impostors from 300–470 m, with no clumps);
+  - the bench at those views;
+  - memory: two atlases a stand, at most 512 MiB in all;
+  - a cold start's bake: about a hundred rows a shape, a row a frame. Read the frame times while it bakes, and how long
+    until every far end is in;
+  - the paths, for things sinking and rocks thinning under gone.
+- **Open:**
+  - a measured E instead of the most there is would let crowds thin further;
+  - the made things' cards in the library are atlases of two layers each (36 MB), outside the share;
+  - `classes.js` is #97's file plus `SHARE_MB` until #97 merges.
+- **Lines:** +317 −206 in the game (net +111), beyond `classes.js` (#97's) and the README. The derivation, `farLayers`
+  and the bake a row a frame are new; what they replace was hand-set numbers.
+
 ### The bench, pass by pass, on main (2026-11-18)
 
 Built on `aven/0038-bench-per-pass` from main at `3d0c3b5`: stage 9's `cf77e71` ("the bench times each pass on its
@@ -1425,6 +1515,8 @@ per-pass GPU ceilings can be a merge rule.
 - [ ] Stage 8: surfaces, cluster hierarchy (built: rocks, the tent and the fire pit; the stress world's zoo to 8b)
 - [ ] One measure everywhere: every rung where its own error is the one ERROR_PX (built, CPU-checked; PR #82, to be
   measured on the Mac mini)
+- [ ] Rung errors and atlases: every rung's real error in metres, the atlases from their share (built, CPU-checked on
+  `aven/0038-rung-errors`; to be measured on the Mac mini)
 - [ ] Stage 9: one light, characters
 - [ ] The bench pass by pass (built on `aven/0038-bench-per-pass`): measured on the Mac mini, the per-part ceilings a
       merge rule
@@ -1627,6 +1719,24 @@ per-pass GPU ceilings can be a merge rule.
   - the stress world's ladder waits for 8b;
   - the per-plant offset still reckons a plant up to 1/0.72 small.
 
+- **Asked (by the master on the Mac mini, to the rung errors worker):** every rung's error its real visible error in
+  metres, and the atlases' sizes from it: their share of memory (in #97's classes), the far ends the stands bake and the
+  limits every device guarantees; the plants' hand-overs under their switch; nothing sinking above gone; a made thing's
+  card counting its views; each pixel's own views. CPU only.
+- **Delivered:** built on `aven/0038-rung-errors` (under Build, Rung errors and atlases), with #82's dial pixels merged
+  in; the PR for train 2.
+- **Good:**
+  - the trees' impostors stand in from about 2.2 km, not 6.6–7.3 km, and the shrubs' from 300–470 m;
+  - the atlases take 506 MiB of their 512 (were 548 MB), all of it derived;
+  - every plant level fits its room (346 of 346), `scale.js` 24 of 24, both builds pass, and every stand material
+    builds to WGSL on a mock renderer.
+- **Not there yet:**
+  - nothing was drawn: FLIP, the bench, memory and a cold start's bake are the Mac mini's;
+  - a far end bakes 29 times the views it did, a row a frame;
+  - `classes.js` waits for #97;
+  - the library's made-thing cards are outside the share;
+  - crowds are reckoned at the most E there is.
+
 ## Trail
 
 | When | Commit | What |
@@ -1686,3 +1796,8 @@ per-pass GPU ceilings can be a merge rule.
 | 2026-11-18 | `d55430d` | One measure: the notes in the code in fewer lines |
 | 2026-11-18 | `8e9cc38` | One measure: its notes under Build |
 | 2026-11-18 | `19d0559` | The bench times each pass on its own on main: the passes marked, each in one of four parts (geometry, light, ground, upscale/post) |
+| 2026-11-18 | `edb7b64` | Rung errors: every rung's error is its real error, in metres (the clumps' planes, the impostor's views and parallax, the enlargement); hand-overs under the switch; the plants read it by one ratio |
+| 2026-11-18 | `7310ad2` | Rung errors: one measure merged in (`612a4a7`) |
+| 2026-11-18 | `0ae3f31` | Rung errors: one measure's dial pixels merged in (`499dbe0`) |
+| 2026-11-18 | `d0ce361` | Rung errors: the plants' level compares in the dial's pixels |
+| 2026-11-18 | `025f99f` | Rung errors: the atlases from their share (54 × 54 views of 24 texels, planes of 4, 768 chunks); views per pixel ray; a made thing's card counts its views; nothing sinks above gone; a row of pictures a frame |
