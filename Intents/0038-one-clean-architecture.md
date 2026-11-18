@@ -181,12 +181,12 @@ numbers are written below.
 | 6a | #65 | The ground from a layer map; shaders at start −39 % |
 | 4 | #66 | Far trees as octahedral impostors and clump planes (no domes, no stipple) |
 | 3 | #67 | One boot (`src/boot.js`); the library and Me compile 75–80 % less |
+| 5 | #69 | Near trees as crowds of parts at their own size (`CARD`, `KMAX`, the stretched cards gone); one spread order, one wind; far-end bakes kept (warm start 1.1 s, was 37 s) |
 
 **In flight when this was written** (each on its own branch, as a PR or nearly):
 
 | Stream | Branch | State | Before merging |
 | --- | --- | --- | --- |
-| 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
 | Occlusion culling | `aven/0038-draw-occlusion`, PR #68 | CI green | Views from above draw only 2–8 % of main's things: prove with gate stills at `bench-river-bend-26m`, `bench-town-40m` and `bench-pine-forest-90m` that nothing visible is missing (FLIP within noise) |
 | 6b: virtual-textured ground | `aven/0038-stage6b-avt` | Notes written, measuring, no PR yet | The views from above must get faster than main, and pages must arrive invisibly |
 
@@ -202,9 +202,24 @@ numbers are written below.
   in Safari.
 - **The 12 ms / 60 fps gate is not met.** Bench views read 20–55 ms on the base M1, measured while the GPU was shared.
 - Stage 4 left these:
-  - **Impostor atlases:** about 0.4 GB (stage 5 sizes them down).
-  - **Bakes:** 21–91 s per load (stage 5 caches them).
-  - **A faint speckle** mid-way through the hand-over.
+  - **Impostor atlases:** still 417 MB. Stage 5 sizes each stand's views by where it hands over (64 to 128 texels),
+    but today's plants all hand over as soon as their impostor is sharp, at 128; the trees' clumps grew 51 → 131 MB
+    (256 chunks a shape).
+  - **Bakes:** kept in IndexedDB by stage 5: a warm start reads every far end back in 1.1 s (main bakes again, 37 s);
+    the first start still bakes (47 s).
+  - **A faint speckle** mid-way through the hand-over: stage 5 cuts mesh and impostor by one noise changed every frame,
+    for the TAA to average; not checked in motion (the walk and zoom paths were not run).
+- Stage 5 left these:
+  - **The crowds cost more.** A level's mesh holds what its band's top needs, and the crowd now thins between about
+    390 and 130 px, so a grown oak's level 1 holds 51 k vertices (main 8 k) and the pine's 21 k (7 k). The bench read
+    the stage slower at most views (tent 48 → 65 ms in one round, 45 in another: a shared GPU). A per-plant share of a
+    level's draw in the drawer's packing, or the occlusion culling (#68), would take most of it back.
+  - **Survivors still enlarge their painting**, uniformly, up to 3 times before the clumps take over.
+  - **FLIP against main's truth rose** at every view (tent 0.061 → 0.104, 30 m 0.167 → 0.222): the finest level is
+    laid from four sprays a plant and the meadow from an ordered dither, so the truth itself moved. Against its own
+    truth the stage is nearer at 30 m (0.078) and farther at 10 m (0.076 against 0.056); its own truths at the tent
+    and in the forest were lost to the device.
+  - **The meadow's blades** are fewer and wider (halved, doubled) ring by ring: check them at eye level.
 
 **How this work runs:**
 - **Who:** one master session works through subagents, each in its own worktree on its own `aven/0038-…` branch,
@@ -794,12 +809,9 @@ Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
 - [x] Stage 1: clean ground
 - [x] Stage 2a: gate, settle, one measure, truth
 - [x] Stage 2b: prepass, motion vectors, upscale
-- [x] Stage 3: boot (built; draft PR; Safari to be tried on next)
-- [x] Stage 4: far end, impostor and clump rung (built; draft PR)
-- [x] Stage 5: crowds, parts and one wind (built; draft PR #69)
 - [x] Stage 3: boot (merged #67; Safari to be tried on next)
 - [x] Stage 4: far end, impostor and clump rung (merged #66)
-- [ ] Stage 5: crowds, parts and one wind
+- [x] Stage 5: crowds, parts and one wind (#69; its cost and the impostors' size left, under Open risks)
 - [ ] Stage 6: land, virtual texture and relief
   - [x] 6a: the layer map, one read a material (the deferred pass left to 6b)
   - [ ] 6b: the adaptive virtual texture with feedback, the deferred pass, the ground pass read from the map
@@ -939,3 +951,4 @@ Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
 | 2026-11-18 | `8a09dce` | Stage 5: kept far ends read back at once; each stand's clumps grid its own |
 | 2026-11-18 | `cf26025` | Stage 5: a crowd with no clumps hands over to its finest impostor; a tree's third level from 120 px |
 | 2026-11-18 | `c3c4bea` | Stage 5 merged with main (stage 3): draft PR #69 |
+| 2026-11-18 | `7466720` | Stage 5: the notes, the numbers measured and the trail |
