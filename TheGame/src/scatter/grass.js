@@ -144,7 +144,9 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
     };
     // the most that may stand at once: the ring's area in cells, as much as the frustum can hold of it
     const cap = Math.ceil((Math.PI * (T.far ** 2 - Math.max(0, T.near - T.nearFade) ** 2)) / (T.cell * T.cell) * 0.6);
-    const t = new Tier(scene, blade(T.segs), material, { cell: T.cell, P: T.P, near: T.near - T.nearFade, far: T.far, order: 0, live, gpu, cap, slots: 3 });
+    // (high: the tallest blade, bladeIn's most of the asset's height: its least, its own and its tuft's share, a
+    // flower's stalk; reach: the meadow ends where the ground's map does)
+    const t = new Tier(scene, blade(T.segs), material, { cell: T.cell, P: T.P, near: T.near - T.nearFade, far: T.far, reach: REACH, high: asset.height * (0.5 + 0.55 + 0.8 + 0.35), order: 0, live, gpu, cap, slots: 3 });
     if (growthMap()) t.reads = growthMap().version;   // (packed again when what grows over it changes)
     return t;
   });

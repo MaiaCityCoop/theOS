@@ -63,7 +63,7 @@ import { pxOf, turnOf, seedOf } from './row.js';
 import { CROWD, levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
 import { crowdOf, bandsOf, GRID, GOQ, FOOT } from '../../assets/kit/plant.js';
 import { lo16, hi16 } from './unpack.js';
-import { TRUTH, REACH as TRUTH_REACH, pxKMost, measureVersion } from '../detail/measure.js';
+import { pxKMost, measureVersion } from '../detail/measure.js';
 import { switchPx } from '../detail/error.js';
 import { source } from '../core/settle.js';
 import { keptGet, keptPut } from '../core/kept.js';
@@ -589,8 +589,10 @@ function cutOf(G) {
   const levels = runs.map(({ from, to }, i) => { const lo = to === own.length - 1 ? end : own[to].lo, hi = own[from].hi; return { lo, hi, from, P: patchOf(G.L.cell, (sHi * K * Math.exp(G.fade)) / lo) }; });
   return { ...G, n: levels.length, kinds: G.kinds.map((Kd, k) => ({ ...Kd, levels, rooms: R[k].map((r) => levels.map((L) => r[L.from])) })) };
 }
-/** A level's patch (its tier's cells a side, of cells `cell` metres): as many that MAXP of them hold the round its band
-    reaches (`reach` metres), and never under four. */
+/** A level's patch (cells a side, of cells `cell` metres): a tenth of the round its band reaches (`reach` metres), and
+    never under four. It says only how far the camera may move before the level packs again, a sixteenth of it, and the
+    pad its band keeps for that (src/detail/handover.js padOf); what the level looks at is its region tree's
+    (src/scatter/regions.js), however far its band reaches. */
 const patchOf = (cell, reach) => Math.min(256, Math.max(4, 2 ** Math.ceil(Math.log2(Math.max(1, (0.105 * reach) / cell)))));
 
 /** Everything this engine places: for every stand a drawer of its own kinds (drawer.js: a heap of their shapes at their
@@ -676,9 +678,9 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // a tier: its cells worked out once for every kind in it, each plant that is of its level packed into its shape's
     // draw. g: the group it packs (the stand's, or of its kinds those that cast)
     const tier = (i, g, shadow = false) => {
-      // (P: its cells a patch side, its level's. Under ?truth its finest level's band reaches as far as the truth does,
-      // src/detail/measure.js: its patches then as large as MAXP of them need to be to hold that round)
-      const P = shadow ? 4 : TRUTH && !i ? Math.max(G.kinds[0].levels[0].P, 2 ** Math.ceil(Math.log2((0.105 * TRUTH_REACH) / L.cell))) : G.kinds[0].levels[i].P;
+      // (P: its level's patch, which says how far the camera may move before it packs again: a sixteenth of it. What it
+      // looks at is its region tree's, however far its band reaches: src/scatter/regions.js)
+      const P = shadow ? 4 : G.kinds[0].levels[i].P;
       // reach: a crown's reach, and how far the camera may move before the packing is made again (the cells are worked
       // out again every sixteenth of a patch)
       const seen = shadow ? null : { r: uniform(round + (L.cell * P) / 16 + 2), high: sHi };
