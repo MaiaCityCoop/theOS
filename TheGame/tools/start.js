@@ -35,7 +35,8 @@ function serve(dist) {
 // ---- in the page, before any of its own code runs: what each part asks and when it is answered ----
 function watchStart() {
   const now = () => performance.now(), S = (window.__start = { pipes: [], jobs: [], kept: [], reads: [], long: [], src: {}, frames: [] });
-  new MutationObserver(() => { if (!S.veil && document.documentElement.classList.contains('os-loaded')) S.veil = now(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+  // (the veil, src/ui/loading.js: watched from the document, as there is no <html> yet)
+  new MutationObserver(() => { if (!S.veil && document.documentElement?.classList.contains('os-loaded')) S.veil = now(); }).observe(document, { attributes: true, subtree: true, attributeFilter: ['class'] });
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) S.long.push([e.startTime, e.duration]); }).observe({ type: 'longtask', buffered: true }); } catch { /* (no long tasks told: none counted) */ }
   const timed = (list, e, p) => { list.push(e); p.then(() => (e.t1 = now()), () => (e.t1 = now())); return p; };
   const D = window.GPUDevice?.prototype;
@@ -101,7 +102,7 @@ function chain(r) {
   return [
     `  modules: ${r.scripts.n} scripts, ${(r.scripts.bytes / 1e3).toFixed(0)} kB sent, the last in at ${s(r.scripts.last)}; the GPU first asked for at ${s(S.adapter)}`,
     `  the start's own marks (ms from its start): ${JSON.stringify(r.boot)}`,
-    `  pipelines before the first frame: ${P.length} (${P.filter((e) => e.k === 'R').length} render, ${P.filter((e) => e.k === 'C').length} compute), compiling ${s(covered(P))} of the time, each ${median(P.filter((e) => e.t1).map((e) => e.t1 - e.t0))?.toFixed(0)} ms (median), the last done at ${s(until(P))}; after it ${S.pipes.length - P.length}`,
+    `  pipelines before the first frame: ${P.length} (${P.filter((e) => e.k === 'R').length} render, ${P.filter((e) => e.k === 'C').length} compute), compiling ${s(covered(P))} of the time, each ${median(P.filter((e) => e.t1).map((e) => e.t1 - e.t0))?.toFixed(0) ?? '–'} ms (median), the last done at ${s(until(P))}; after it ${S.pipes.length - P.length}`,
     `  the page's own thread before the first frame: ${lt.length} long tasks, ${s(lt.reduce((a, x) => a + x[1], 0))}`,
     ...Object.entries(workers).map(([k, l]) => `  worker ${k}: ${l.length} jobs, busy ${s(covered(l))}, the last back at ${s(until(l))} (${pre(l).length} before the first frame)`),
     `  kept (IndexedDB): ${kept('get').length} reads (${kept('get').filter((e) => e.hit).length} found), the last answered at ${s(until(kept('get')))}; ${kept('put').length} writes, the last at ${s(until(kept('put')))}`,
