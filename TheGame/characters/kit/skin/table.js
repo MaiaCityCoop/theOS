@@ -81,13 +81,13 @@ export const TISSUE_DEFAULT = 4;
 export const UNDER = [
   { what: 'nose bridge', rig: 'head', solid: ['rod', [0.0, 1.668, 0.0975], [0.0, 1.6425, 0.1135], 0.0042, 0.0052] },
   { what: 'nose tip', rig: 'head', solid: ['egg', [0.0, 1.6405, 0.1158], [0.0062, 0.0055, 0.0068]] },
-  { what: 'nose wing', rig: 'head', solid: ['egg', [0.0112, 1.6375, 0.1035], [0.0034, 0.004, 0.0062]] },
+  { what: 'nose wing', rig: 'head', solid: ['egg', [0.0112, 1.6395, 0.1035], [0.0034, 0.0035, 0.0062]] },
   { what: 'eye', rig: 'eye', solid: ['ball', [0.032, 1.677, 0.072], 0.012] },
 ];
 // What is carved out of the skin after it is laid (left side): the nostrils, the cleft between the buttocks. (The eyes' openings are not carved: the skin runs over the globe as closed lids do, and the opening is
 // cut out of it as it is drawn, along EYE's almond below: a lid's edge is finer than any point of the skin.)
 export const OPENINGS = [
-  { what: 'nostril', solid: ['egg', [0.0078, 1.6335, 0.1075], [0.0038, 0.0045, 0.0062]] },
+  { what: 'nostril', solid: ['egg', [0.0078, 1.6335, 0.1085], [0.0036, 0.0038, 0.0066]] },
   { what: 'gluteal cleft', solid: ['egg', [0.0, 0.872, -0.135], [0.006, 0.072, 0.07]] },   // (between the buttocks, from the coccyx down: the fascia's closing over the muscles fills it)
 ];
 // Where the skin takes another colour: the areolae (the lips' red is drawn by LIPS below, the nails found on the fingers' ends). [what, centre, radii (m)]
@@ -363,9 +363,9 @@ export const eyeOpening = (u, v) => {
 //     (root to foot) and 35 broad, the upper lip 22 high, the mouth to the chin's foot 51, the face 139 broad across
 //     the cheekbones and 106 to 112 across the jaw's angles.
 export const HEAD = {
-  crown: 1.7855, chin: 1.566, dome: 0.0705, foot: 0.016, lids: 0.007, even: 0.004, neck: 0.012,
+  crown: 1.7855, chin: 1.569, dome: 0.0705, foot: 0.016, lids: 0.007, even: 0.004, neck: 0.012,
   sections: [
-    [1.566, 48, 38, 46, 42, 1.8, 2.0], [1.575, 44, 43.5, 51, 44, 1.7, 2.0], [1.585, 30, 54.5, 65.5, 36, 1.6, 2.0],
+    [1.569, 48, 38, 46, 42, 1.8, 2.0], [1.575, 44, 43.5, 51, 44, 1.7, 2.0], [1.585, 30, 54.5, 65.5, 36, 1.6, 2.0],
     [1.595, 10, 59, 90.5, 22, 1.65, 2.0], [1.608, 4, 61, 100.5, 22, 1.7, 2.0], [1.625, 2, 64.5, 103, 40, 1.9, 2.0], [1.64, 0, 68, 97, 80, 2.3, 2.0],
     [1.655, -2, 70, 97, 92, 2.8, 2.0], [1.67, -10, 72.5, 104, 87, 2.4, 2.0], [1.685, -15, 75, 109, 83.5, 2.25, 2.0], [1.7, -20, 76.5, 119.5, 79.5, 2.3, 2.0],
     [1.715, -20, 77, 117, 79.5, 2.3, 2.1], [1.73, -20, 77, 116, 79.5, 2.3, 2.1], [1.745, -20, 77, 116, 79.5, 2.2, 2.1], [1.76, -20, 77, 116, 79.5, 2.2, 2.1], [1.7855, -20, 77, 116, 79.5, 2.2, 2.1],
@@ -374,12 +374,13 @@ export const HEAD = {
     { what: 'nose, its ridge', a: [0, 1.6775, 0.0875], b: [0, 1.6455, 0.115], ra: 0.0075, rb: 0.008, k: 0.006 },
     { what: 'nose, its sides', a: [0, 1.682, 0.08], b: [0, 1.644, 0.102], ra: 0.0105, rb: 0.014, k: 0.008 },
     { what: 'nose, its tip', at: [0, 1.6408, 0.1168], r: [0.0095, 0.0095, 0.008, 0.0072, 0.0088, 0.009], k: 0.006 },
-    { what: 'nose, a wing', at: [0.0105, 1.6375, 0.102], r: [0.0064, 0.0072, 0.0072, 0.0055, 0.0095, 0.009], n: 2.2, k: 0.0045 },
-    { what: 'nose, its foot', a: [0, 1.637, 0.118], b: [0, 1.6352, 0.1045], ra: 0.0034, rb: 0.0036, k: 0.003 },
+    { what: 'nose, a wing', at: [0.0105, 1.639, 0.102], r: [0.0064, 0.0072, 0.0068, 0.0048, 0.0095, 0.009], n: 2.2, k: 0.0045 },
+    { what: 'nose, its foot', a: [0, 1.6365, 0.118], b: [0, 1.6345, 0.1045], ra: 0.0034, rb: 0.0036, k: 0.003 },
     { what: 'upper lip', at: [0, 1.6178, 0.1005], r: [0.032, 0.032, 0.0052, 0.0046, 0.0072, 0.01], k: 0.0035, arch: 21, rise: 1.5 },
     { what: 'lower lip', at: [0, 1.6, 0.0995], r: [0.028, 0.028, 0.0062, 0.0066, 0.0082, 0.01], k: 0.0035, arch: 21, rise: 10 },
-    { what: 'chin', at: [0, 1.5722, 0.0855], r: [0.017, 0.017, 0.0135, 0.0108, 0.012, 0.014], k: 0.018 },
-    { what: 'under the jaw', at: [0, 1.5805, 0.046], r: [0.039, 0.039, 0.02, 0.0195, 0.046, 0.04], k: 0.012 },
+    { what: 'chin', at: [0, 1.5748, 0.0855], r: [0.017, 0.017, 0.0125, 0.0102, 0.012, 0.014], k: 0.018 },
+    { what: 'under the jaw', at: [0, 1.583, 0.046], r: [0.039, 0.039, 0.02, 0.0195, 0.046, 0.04], k: 0.012 },
+    { what: 'the jaw\'s lower border beside the chin', a: [0.008, 1.5715, 0.087], b: [0.03, 1.574, 0.07], ra: 0.0082, rb: 0.0082, k: 0.008 },   // (over the bone's own border there: with the chin shortened it stood out of the skin)
     { what: 'cheek, raised by the smile', at: [0.036, 1.644, 0.0735], r: [0.012, 0.012, 0.012, 0.014, 0.0155, 0.01], k: 0.012 },
   ],
   hollows: [

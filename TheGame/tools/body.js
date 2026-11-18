@@ -132,7 +132,7 @@ const faceRows = (() => {
   const mid = head.filter((v) => Math.abs(P[v * 3]) < 1e-4 && P[v * 3 + 2] > 0.05).map((v) => [P[v * 3 + 1], P[v * 3 + 2]]).sort((a, b) => b[0] - a[0]);   // (the profile: [height, how far forward], from the top down)
   const between = (y0, y1) => mid.filter(([y]) => y >= y0 && y <= y1), most = (list, k, sign = 1) => list.reduce((a, b) => (sign * b[k] > sign * a[k] ? b : a));
   const root = most(between(1.672, 1.698), 1, -1), tip = most(between(1.632, 1.652), 1), lip = between(1.6185, tip[0]), least = Math.min(...lip.map(([, z]) => z)), foot = most(lip.filter(([, z]) => z < least + 0.0045), 0);   // (the nose's root: the profile's deepest point under the brow; its foot: where the upper lip's flat ends under it)
-  const chin = most(between(1.5, 1.6), 0, -1), E = EYE;
+  const chin = most(between(1.5, 1.6).filter(([, z]) => z > 0.078), 0, -1), E = EYE;   // (the chin's own foot: not the floor of the mouth behind it, which may hang lower)
   const R = (what, is, man, drawn = false) => ({ what: what + (drawn ? ' (as drawn)' : ''), is: +is.toFixed(1), man, off: +(((is - man) / man) * 100).toFixed(1) });
   return [
     R('head, its length', reach(2, [1.692, 1.708]), 197), R('head, its breadth', reach(0, [1.712, 1.74], [-0.08, 0]), 152),

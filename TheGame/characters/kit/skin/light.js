@@ -27,7 +27,7 @@ import { Fn, If, Discard, attribute, varyingProperty, float, int, ivec2, vec2, v
 import { U } from '../../../src/core/uniforms.js';
 import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull } from '../../../src/world/light.js';
 import { CURVE_MOST } from './maps.js';
-import { EYE, LIPS, BROW, MOUTH } from './table.js';
+import { EYE, LIPS, BROW, MOUTH, OPENINGS } from './table.js';
 
 /** What a surface of skin mirrors head on: 2.8 %, an index of refraction of 1.4 (the figure every skin shader holds:
     Jimenez's SeparableSSS demo, Unity HDRP's diffusion profile, GPU Gems 3 ch. 14). */
@@ -126,6 +126,8 @@ export function skinMaterial({ joints, eye, maps }) {
       // (its hairs: fine, lying outwards and a little up, thinner towards its edge)
       const brow = browIn.mul(smoothstep(-0.2, 0.3, mx_noise_float(vec3(Q.x.mul(520).sub(Q.y.mul(330)), Q.y.mul(3400).add(Q.x.mul(1200)), 1.7)).mul(0.7).add(mx_noise_float(vec3(Q.x.mul(1500), Q.y.mul(5200).add(Q.x.mul(1700)), 4.1)).mul(0.4)).add(browIn.mul(0.45)).sub(0.25)));
       const stubble = clamp(feel.w, 0, 1);
+      // (the nostrils: dark inside, wherever the skin lies in one: little light finds its way up a nose)
+      const NO = OPENINGS.find((o) => o.what === 'nostril').solid, nostril = float(1).sub(smoothstep(0.8, 1.3, length(Q.sub(vec3(...NO[1])).div(vec3(...NO[2])))));
       // (the upper lid's fold, a line over its edge; the lids' thin skin a little darker and redder; the face's skin finer than the body's)
       const front = smoothstep(EYE.at[2] - 0.004, EYE.at[2] + 0.004, Q.z), crease = exp(eyeAt.under.add(0.0042).div(0.0006).pow(2).negate()).mul(smoothstep(0.04, 0.3, eyeAt.t)).mul(smoothstep(0.99, 0.75, eyeAt.t)).mul(front);
       const lids = smoothstep(-0.0085, -0.001, eyeAt.d).mul(front), face = smoothstep(1.52, 1.57, P.y);
@@ -155,7 +157,7 @@ export function skinMaterial({ joints, eye, maps }) {
       col = mix(mix(mix(col, vec3(...SKIN.lip), lip.mul(0.8)), col.mul(vec3(...SKIN.areola)), areola), vec3(...SKIN.nail), nail.mul(0.7));
       // the lips' inner edge, darker; the lid's edge redder; hair shaved to the skin, a cool shadow in it, its
       // dots seen close; a brow's hairs
-      col = col.mul(mix(vec3(1), vec3(0.72, 0.5, 0.5), lipLine)).mul(mix(vec3(1), vec3(1.0, 0.74, 0.72), lidEdge.mul(0.7))).mul(crease.mul(0.3).oneMinus()).mul(mix(vec3(1), vec3(0.93, 0.85, 0.84), lids.mul(0.7))).mul(lipLines.mul(0.16).oneMinus()).mul(crow.mul(0.07).oneMinus());
+      col = col.mul(mix(vec3(1), vec3(0.72, 0.5, 0.5), lipLine)).mul(mix(vec3(1), vec3(1.0, 0.74, 0.72), lidEdge.mul(0.7))).mul(crease.mul(0.3).oneMinus()).mul(mix(vec3(1), vec3(0.93, 0.85, 0.84), lids.mul(0.7))).mul(lipLines.mul(0.16).oneMinus()).mul(crow.mul(0.07).oneMinus()).mul(mix(vec3(1), vec3(0.17, 0.1, 0.09), nostril));
       col = mix(col, col.mul(vec3(0.5, 0.53, 0.58)), stubble.mul(mx_noise_float(P.mul(2400)).mul(0.3).add(0.7)));
       col = mix(col, vec3(...SKIN.brow), brow.mul(0.8));
 
