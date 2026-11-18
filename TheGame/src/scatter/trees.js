@@ -598,8 +598,8 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
   // (at the most pixels the screen can draw, the dial at rest: the map is a capacity, src/detail/measure.js farMost; the
   // meadow's end its own, src/scatter/grass.js bandsOf)
   const blades = Math.max(0, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => ringBands(ringsOf(a), a.height, pxKMost()).end));
-  const readFar = (W) => Math.max(blades, ...layers.filter((L) => L.reads.includes(W)).map((L) => Math.max(...L.entries.map((e) => farMost(goneOf(e.asset), sizeOf(e.asset))))));
-  const M = words ? createGrowth(renderer, words, Math.max(...layers.filter((L) => L.word >= 0).map(readFar))) : null;
+  const readFar = (W) => Math.max(blades, ...layers.filter((L) => L.reads.includes(W)).map((L) => Math.max(...L.entries.map((e) => farMost(goneOf(e.asset), sizeOf(e.asset) * e.grownTo)))));
+  const M = words ? createGrowth(renderer, layers.filter((L) => L.word >= 0).map((L) => ({ band: L.band, far: readFar(L) }))) : null;   // (a sapling read as far as it grows there: its entry's grownTo)
   if (M) M.build(writersOf(layers, M, readFar));
   for (const G of groupsOf(rows)) {
     G.M = G.L.reads.length ? M : null;

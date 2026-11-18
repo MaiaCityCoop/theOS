@@ -33,7 +33,7 @@ import { recipe, recipes } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { most } from '../../assets/kinds.js';
 import { CLEARINGS } from '../../world/places.js';
-import { TEXEL, WORDS } from './growth.js';
+import { WORDS } from './growth.js';
 
 const R0 = 0.69, PER = 1.8, CLUMPS = 55, PATCHES = 90, TOP = 1;   // R0: metres of reach where the classes begin (0.69-2.8 m, 2.8-11 m, ...); PER: a cell's side to its class's middle reach; CLUMPS, PATCHES: a biome's groves and the patches where one kind leads, metres, at the class of a grown tree (TOP), where its biome does not say (its `groves`)
 const SHADE = 0.85;   // how much of the light coming down through a crown its foliage takes where it is deepest, over its middle
@@ -64,11 +64,11 @@ function entriesOf(rows) {
     const S = a.growth?.stages, base = { row, asset: a, biome, light: P.light ?? [1, 1], under: [P.under ?? []].flat(), shore: P.shore ?? null, lakes: !!P.lakes };
     if (S && biome.age) {
       // grown: as old as its stand (its biome's `age`, a slow noise between its years); its crown at most a little under its oldest's
-      out.push({ ...base, young: false, cover: P.cover ?? 0.3, reach: reachOf(a) * 0.8, ages: biome.age, shapes: [0, a.shapeCount] });
+      out.push({ ...base, young: false, cover: P.cover ?? 0.3, reach: reachOf(a) * 0.8, ages: biome.age, shapes: [0, a.shapeCount], grownTo: 1 });
       // young: from its first stage to its second year, where the light comes through to its kind's litter
       const top = a.growth.years[1], st = S.filter((s) => s.from < top), n = Math.max(...st.map((s) => s.offset + s.variants));
-      if (P.young) out.push({ ...base, young: true, cover: P.young, light: P.youngLight ?? [0.05, 1], under: [a.uid], reach: (reachOf(a) * a.growth.height(top)) / a.size.height, ages: [Math.max(2, S[0].from), top], shapes: [0, n] });
-    } else out.push({ ...base, young: false, cover: P.cover ?? 0.3, reach: reachOf(a), ages: null, shapes: [0, a.shapeCount ?? 1] });
+      if (P.young) out.push({ ...base, young: true, cover: P.young, light: P.youngLight ?? [0.05, 1], under: [a.uid], reach: (reachOf(a) * a.growth.height(top)) / a.size.height, ages: [Math.max(2, S[0].from), top], shapes: [0, n], grownTo: a.growth.height(top) / a.size.height });
+    } else out.push({ ...base, young: false, cover: P.cover ?? 0.3, reach: reachOf(a), ages: null, shapes: [0, a.shapeCount ?? 1], grownTo: 1 });
   }
   return out;
 }
@@ -77,15 +77,24 @@ const classOf = (r) => Math.floor(Math.log(Math.max(r, 1e-3) / R0) / Math.log(4)
 let LAYERS = null, KEY = '';
 /** The layers of what the engine places (rows: its rows), largest first, each { k (its class), cell, seed, entries,
     groups (the kinds that lead in patches: a biome's grown trees, its bushes), reads (the words of the layers before it),
-    word (its own, -1: it writes none), reach (metres its things leave anything in) }. The same rows, the same layers. */
+    word (its own, -1: it writes none), band (a writer's: its word's band limit, half its smallest crown, metres: two
+    texels across it, nothing finer shows in its shade: src/scatter/growth.js), reach (metres its things leave anything
+    in) }. The same rows, the same layers.
+    The layers that write are those whose cells are as large as the finest texel any writer needs: half the smallest
+    crown among them. Of the limits that hold both ways, the coarsest. */
 export function layersOf(rows) {
   const key = rows.map((r) => r.uid).join();
   if (LAYERS && key === KEY) return LAYERS;
   const by = new Map();
   for (const e of entriesOf(rows)) { const k = classOf(e.reach); if (!by.has(k)) by.set(k, []); by.get(k).push(e); }
-  let id = 1, word = 0;
+  let id = 1, word = 0, band = 0;
+  const cellOf = (k) => PER * R0 * 4 ** (k + 0.5), smallest = (es) => Math.min(...es.filter(crowned).map(crownMost));
+  for (const b of [...by.values()].map(smallest).filter(Number.isFinite).sort((x, y) => y - x)) {   // (each layer's smallest crown, the coarsest first)
+    const writers = [...by].filter(([k]) => cellOf(k) >= b).sort((x, y) => y[0] - x[0]).slice(0, WORDS);
+    if (writers.length && smallest(writers.flatMap(([, es]) => es)) === b) { band = b; break; }
+  }
   LAYERS = [...by].sort((a, b) => b[0] - a[0]).map(([k, entries], index) => {
-    const cell = PER * R0 * 4 ** (k + 0.5), scale = 4 ** (k - TOP);
+    const cell = cellOf(k), scale = 4 ** (k - TOP);
     entries.sort((x, y) => (x.asset.uid < y.asset.uid ? -1 : x.asset.uid > y.asset.uid ? 1 : x.young - y.young));
     // (its most at a cell: as much of the ground as it covers there, in things of its reach, one a cell at most)
     entries.forEach((e, i) => Object.assign(e, { i, id: id++, most: Math.min(1, (e.cover * cell * cell) / (Math.PI * e.reach * e.reach)), litter: e.asset.kind === 'tree' && !e.young ? 1 : 0, foot: e.asset.kind === 'tree' ? Math.max(e.asset.trunk?.[0]?.[2] ?? 0.2, 0.2) + 1 : e.reach * 0.6 }));
@@ -94,8 +103,8 @@ export function layersOf(rows) {
     const groups = [];
     for (const e of entries) if (!e.young && (e.asset.kind === 'tree' || e.asset.kind === 'shrub')) { let g = groups.find((x) => x.biome === e.biome && x.kind === e.asset.kind); if (!g) groups.push((g = { biome: e.biome, kind: e.asset.kind, entries: [] })); g.entries.push(e); }
     for (const g of groups) { const t = g.entries.reduce((s, e) => s + e.most, 0); let at = 0; g.most = t; for (const e of g.entries) { e.group = g; e.slice = [at / t, (at += e.most) / t]; } }
-    const writes = cell >= TEXEL && word < WORDS;
-    return { k, index, cell, seed: 300 + 100 * (TOP - k), scale, entries, groups, name: `${cell.toFixed(cell < 1 ? 2 : 1)} m`, word: writes ? word++ : -1,
+    const writes = band > 0 && cell >= band && word < WORDS;
+    return { k, index, cell, seed: 300 + 100 * (TOP - k), scale, entries, groups, name: `${cell.toFixed(cell < 1 ? 2 : 1)} m`, word: writes ? word++ : -1, band: writes ? smallest(entries) : 0,
       reach: Math.max(...entries.map((e) => e.reach * (e.litter ? 1.6 : 1))) };
   });
   // what each layer reads: the words of every layer before it that writes; and whose litter it reads, as their numbers
