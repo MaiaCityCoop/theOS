@@ -2,11 +2,15 @@
 // browser, as the dev server and the build do. A runtime plugin: every module of the game's that globs has each call
 // turned into the modules it names: imported at once where it asks ({ eager: true }), whole or by the export it asks
 // for (`import`), else a function a module that imports it. Import this file first, then import the game's modules with `await import(...)`.
+// And the registry's manifest, made as the dev server and the build make it (vite.config.js: registry.json is never
+// kept in git, tools/registry.js), before any module of the game's asks for it.
 import { plugin } from 'bun';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { Glob } from 'bun';
+import { buildRegistry } from './registry.js';
 
+buildRegistry(resolve(import.meta.dir, '..'));
 const CALL = /import\.meta\.glob\(\s*(\[[^\]]*\]|'[^']*')\s*(?:,\s*(\{[^}]*\}))?\s*\)/g;
 
 plugin({
