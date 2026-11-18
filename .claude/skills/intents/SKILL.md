@@ -17,9 +17,9 @@ Copy `Intents/TEMPLATE.md` to open one. The next number is one more than the hig
 | State | Who writes | What goes in its section | It ends when |
 | --- | --- | --- | --- |
 | **Idea** | the agent, from the human's words | What is wanted and why. The human's own words where they exist, tidied of typos only. | the human says go on |
-| **Define** | the agent | What done looks like: the deliverables, and for each a **check** (how it will be shown to be done: a command, a page to open, a number to read). What is out of scope. This is the spec and the delivery gate in one. | **the human approves it.** Do not build before. If the human asked for the work outright and the definition holds no surprise, say so in one line and build. |
-| **Build** | the agent | Notes while building: decisions taken, what turned out different from the definition and why. | every deliverable exists |
-| **Propose** | the agent | What is delivered and where to look at it; each check with its result as it really was (passed, failed with the output, not run and why); known gaps. The story folder is spawned now (below). | **stop.** The human decides. |
+| **Define** | the agent | What done looks like: the deliverables, and for each a **check** (how it will be shown to be done: a command, a page to open, a number to read). What is out of scope. **And the architecture pass** (below) over everything the intent will touch, with its **code gates** as checks. This is the spec and the delivery gate in one. | **the human approves it.** Do not build before. If the human asked for the work outright and the definition holds no surprise, say so in one line and build. |
+| **Build** | the agent | Notes while building: decisions taken, what turned out different from the definition and why. The code gates hold at every merge. | every deliverable exists |
+| **Propose** | the agent | What is delivered and where to look at it; each check with its result as it really was (passed, failed with the output, not run and why), the code gates' numbers among them; known gaps. The story folder is spawned now (below). | **stop.** The human decides. |
 | **Story** | the agent, after the human's yes | The work as a story for the devlog: what the human wanted, what the agents made, what went wrong on the way, in beats. Link to the story folder. | the story plays in the game |
 | **Archived** | the human's decision, written down by the agent | `accepted` or `rejected`, the date, the reason in a line. | it is the end |
 
@@ -43,6 +43,45 @@ Under the states, three running sections, kept current from the first day:
 Every commit made for an intent ends its message with `Intent: NNNN` (before the co-author line).
 One commit per request cycle where that is natural, so stages can be checked out again.
 
+## Define: the architecture pass
+
+Every intent leaves the system slimmer, leaner and cleaner than it found it. That is not a refactor
+saved for later: it is part of every intent, planned at Define and held at every merge. The pass
+covers everything the intent will touch, build or plan, and the code around it that does the same
+job.
+
+1. **Read what is there.** The current state of that part of the repository: its modules, what
+   calls what, which functions do the same thing under different names, which modes, settings and
+   flags exist, what is legacy or glue kept "just in case". Write it down in Define, short.
+2. **Ask whether it is the first-principles form.** What is the invariant this part must keep, and
+   is the code the simplest thing that keeps it? Where is there a second path, a special case, a
+   copy, a hand-set number, a layer that only passes things through?
+3. **Take away until something breaks.** Remove, merge and simplify as far as it goes: delete
+   copies, special cases, legacy paths and glue; fold similar functions into one. Run the checks
+   after each cut. The first thing that breaks shows what was really needed.
+4. **Put back only what broke, in the best form there is.** Before choosing that form, research it:
+   current best practice and the state of the art (papers, conference talks, the docs and source of
+   the engines and libraries that solved it, recent releases), on the web, not from memory. Write
+   the sources, the options weighed and the pattern chosen, with the reason, into
+   `research_notes/NNNN-topic.md`, and cite it in Define.
+5. **Set the code gates.** The numbers below, measured now on `main` over the touched area, with
+   the target the intent commits to. They are checks like any other, and every merge holds them.
+
+| Gate | Measure | Must |
+| --- | --- | --- |
+| **Size** | lines of code in the touched area (`git diff --shortstat main...`, code only, not notes) | go down, or Define says why the new capability needs each line |
+| **Copies** | duplicated lines and clones in the touched folders (`bunx jscpd --min-tokens 50`) | go down; no new clone |
+| **Similar functions** | functions doing one job under several names (the clones above, and reading) | merged into one |
+| **Spaghetti** | cyclomatic complexity per function (`bunx eslint --rule 'complexity: [error, N]'`, ad hoc), and nesting | no touched function over the ceiling Define sets; the mean goes down |
+| **Dead and legacy code** | unused files, exports, flags, branches and glue (`bunx knip`; reading) | none left in the touched area |
+| **Coupling** | import cycles (`bunx madge --circular`) | none |
+| **Settings** | modes, hand-set thresholds, switches and repeated config | the count goes down, toward one source of each |
+| **Dependencies** | packages | no new one without a reason in Define |
+
+These gates measure what a change does to the code, so they are measured against `main` by
+design. That is not the picture gate: a picture is judged on its own, never against `main`. The
+first intent that runs them wraps them in one command (`tools/health.js`), so they can join CI.
+
 ## Building: one master, many workers
 
 Once an intent is in **Build**, one session coordinates all of its work, across every machine and
@@ -63,17 +102,36 @@ real trade-off the definition does not settle (say, more detail against 60 fps),
   sends a real blocker to the master while it goes on with what it can do.
 - A brief is complete in itself: the task, the files, the invariants to keep, the checks, what done
   looks like, whom to report to. The master relays between sessions that cannot reach each other.
+- **One task, one session.** Every task runs in a code session of its own, never as a subagent
+  inside another session, on one named machine below. It has its own worktree, branch and PR, so
+  the human can open it, follow it and steer it. Its name says the intent, the task and the machine:
+  `0038 upscale · avenMAIA MacBook Sam`. Subagents serve only read-only research or audits inside
+  a session.
 
 ### Our machines and sessions
 
-| Where | What it does |
+| Machine | What it does |
 | --- | --- |
-| **Mac mini** (`aven-maia-mac-mini`, base M2, 8 GB) | The master. The **GPU gate**: every gate run, timing, reference render and train runs here, one at a time. At most two worker sessions beside the master (its memory). |
-| **Samuel's MacBook** (`samuel`) | Coding agents in parallel, CPU first. Its GPU for light functional checks only: one job at a time, at most 1920×1080, about half its GPU at most, never `?truth` 4K, paths, bench or motion. Stop at once if the machine gets slow: Samuel works on it. |
-| **Cloud sessions** (claude.ai/code), where available | Self-contained coding or research with no GPU. They cannot message back: the master reads their branch. |
+| **avenMAIA MacMini** (`aven-maia-mac-mini`, base M2, 8 GB) | The master. The **GPU gate**: every gate run, timing, reference render and train runs here, one at a time. At most two task sessions beside the master (its memory). |
+| **avenMAIA MacBook Sam** (Samuel's MacBook, `samuel`) | Task sessions for coding, in parallel, CPU first. Its GPU for light functional checks only: one job at a time, at most 1920×1080, about half its GPU at most, never `?truth` 4K, paths, bench or motion. Stop at once if the machine gets slow: Samuel works on it. |
+| **avenMAIA Claude Cloud** (claude.ai/code cloud sessions), where available | Self-contained coding or research with no GPU. They cannot message back: the master reads their branch. |
 
 Sessions on different machines reach each other over Remote Control; a session that is not in
-another's `ListAgents` goes through the master. A worker's session is archived when its PR closes.
+another's `ListAgents` goes through the master. A task's session is archived when its PR closes.
+
+### The task board: the live state of every task
+
+The master keeps one board for the intent, in its "Where we left off", always current. It updates
+the board on every change of a task's state and answers "where are we" from it. A change to the
+board alone merges at once, so the dashboard on `next` shows it within minutes.
+
+| Task | Session | Machine | Branch · PR | State | Updated | Next |
+| --- | --- | --- | --- | --- | --- | --- |
+| the task, in a few words | its session's name | avenMAIA MacMini · MacBook Sam · Claude Cloud | `aven/NNNN-…` · #N | planned · coding · ready · on train N · merged · blocked (why) | date and time | the next step and who takes it |
+
+A task is on the board from the moment it is planned until it is merged or dropped (and why);
+merged rows move to the changelog at the end of the day. A task with no session yet says so; a
+session with no task on the board is a mistake.
 
 ### The GPU: one lock, one queue
 
@@ -114,6 +172,8 @@ Work is developed in parallel and tested together, once:
 - **The root cause, from first principles, never a patch.** Name the invariant that is broken and
   restore it. A distance fade, a magic threshold, a fudge factor, a longer timeout or a retry is not
   a fix; a timeout or a retry may stand only beside the real fix, as a guard. A patch does not merge.
+- **The code gates** from Define's architecture pass hold at every merge. Every PR leaves the code
+  it touches simpler than it found it: fewer lines, copies, branches and settings, no new glue.
 - **One source of truth, DRY, KISS.** One source, one measure, one path for each thing. No second
   mode of the same thing (a reference is the same pipeline with its measure at the limit), no
   hand-set setting unless it is physical or artistic, every GPU resource and dispatch sized from the
@@ -180,5 +240,10 @@ It plays at `http://localhost:5173/timeline.html?story=NNNN-slug`, and from the 
 - Do not put into Propose, the changelog or a caption anything that was not actually seen.
 - Do not keep a second changelog anywhere else.
 - Do not let a worker merge, ask the human, or take the GPU outside its turn.
+- Do not run a task as a subagent, or let a task or its session go missing from the board.
 - Do not run two GPU jobs at once on one machine.
 - Do not judge a branch against `main`, or merge a patch in place of the root fix.
+- Do not define an intent without its architecture pass, or choose a pattern without the research
+  written down.
+- Do not add code around old code: replace it. Do not keep a legacy path, a copy or a setting "just
+  in case".
