@@ -39,7 +39,7 @@ const SEG = SEGS.length ? uniformArray(SEGS.map((s) => new THREE.Vector4(...s)),
 
 /** How far p (vec2, metres) lies past the edge of the nearest path (negative within it), and that path's half width:
     vec2 (node code; 1e6 where no path comes within `reach` metres of its edge). */
-export const pathNear = Fn(([p0, reach]) => {
+const pathNear = Fn(([p0, reach]) => {
   const p = vec2(p0).toVar(), best = float(1e6).toVar(), half = float(1).toVar();
   for (const R of RUNS) {
     const m = R.half * (1 + EDGE);
@@ -57,7 +57,7 @@ export const pathNear = Fn(([p0, reach]) => {
 
 /** The same in JS, without the edge's wander: how far (x, z) lies past the edge of the nearest path (Infinity where
     none comes within `reach`). */
-export function pathNearJS(x, z, reach = 0) {
+function pathNearJS(x, z, reach = 0) {
   let best = Infinity;
   for (const R of RUNS) {
     const m = R.half * (1 + EDGE) + reach;

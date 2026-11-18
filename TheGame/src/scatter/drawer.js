@@ -56,7 +56,8 @@ import { Fn, If, float, uint, vec2, vec3, vec4, uniform, uniformArray, varyingPr
 import { U } from '../core/uniforms.js';
 import { ign, finish, skyLight, cloudAt, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
-import { landPages, RELIEF } from '../terrain/pages.js';
+import { landPages } from '../terrain/pages.js';
+import { RELIEF } from '../terrain/relief.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective, cornersOf, shapedOf } from './heap.js';
 import { ballCorners } from '../../assets/kit/blob.js';

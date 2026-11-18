@@ -30,10 +30,10 @@ import { U } from '../core/uniforms.js';
 import { note, gpuStorage } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { source } from '../core/settle.js';
-import { TRUTH, ERROR_PX, pxAt, drawnAt } from '../detail/measure.js';
-import { BAND } from '../detail/error.js';
+import { TRUTH } from '../detail/measure.js';
 import { layerTables, layerWords, layersFrom } from './layers.js';
-import { laid, slopeAt, groundRead, R0, FINE } from './material.js';
+import { laid, slopeAt, groundRead, RELIEF_REACH } from './material.js';
+import { RELIEF, PSTEPS, reliefShares, reliefOverSnow } from './relief.js';
 import { wear } from './decals.js';
 import { steps, colours } from '../materials/bake.js';
 import { snowDepth } from '../world/light.js';
@@ -47,27 +47,6 @@ const ANISO = 4, FADE = 10, SWEEP = TRUTH ? 4 : 8, TAKES = TRUTH ? 16 : 4, BATCH
 const SPAN = (SWEEP * SWEEP) / TAKES;   // frames a sweep takes: every pixel of a block has asked once
 const G0 = SLOT / MAPN + 2, G1 = SLOT / 2 / MAPN + 2, POINTS = G0 * G0 + G1 * G1;   // the layer map's points a page has a side, for its first mip and its second; all of them
 const KEEP = 96, FAST = 12, PIN = 26000, NEAR = 15;   // frames a page not asked for is kept at least; screen pixels a frame a page may cross and still be laid; metres round the camera the last level is always in; metres from the eye the bias spares
-/** The ground's own height: metres from a page's lowest ground to its highest (its height 0 … 1, the land's own at
-    0.5). The one size of the ground's relief: how it is shown at a distance follows from it by the one measure
-    (reliefShares). */
-export const RELIEF = 0.05;
-const PSTEPS = 6;   // the parallax's steps down the ray
-/** The lens's metres the relief's mesh reaches (its first level, the land's finest's half: src/terrain/relief.js). */
-export const RELIEF_REACH = R0 * FINE / 2;
-/** How the ground's own height is shown at d metres off (as the 68° lens sees them; node): as geometry (the relief
-    near the eye, src/terrain/relief.js), along the eye's ray (parallax, read below), or not at all, by the one measure
-    (src/detail/measure.js). Drawn flat, the ground is off by its height on screen: e, its pixels drawn. Parallax's
-    PSTEPS steps leave a step of it, e / PSTEPS. So geometry where even parallax would be off by more than ERROR_PX;
-    parallax where the flat ground would be; nothing where neither; each handed over within BAND of its line
-    (src/detail/error.js). And no geometry where the relief's mesh folds into the land's grid (from 0.6 of its reach,
-    relief.js): there parallax takes it. -> { geometry, parallax }, shares 0 … 1 */
-export const reliefShares = (d) => {
-  const e = drawnAt(pxAt(float(RELIEF), d)).toVar(), held = float(1).sub(smoothstep(RELIEF_REACH * 0.5, RELIEF_REACH * 0.6, d));
-  const geometry = smoothstep(PSTEPS * ERROR_PX, PSTEPS * ERROR_PX * BAND, e).mul(held).toVar();
-  return { geometry, parallax: smoothstep(ERROR_PX, ERROR_PX * BAND, e).mul(float(1).sub(geometry)) };
-};
-/** How much of the ground's relief stands out of the snow (snow deeper than the relief buries it). */
-export const reliefOverSnow = (depth) => clamp(float(1).sub(depth.div(RELIEF)), 0, 1);
 const FITS = 0.9, OVER = 0.96, STEPS = 10;   // the share of the slots the pages asked for may take at the bias chosen; past this share it is chosen again; the bias's quarter levels, at most
 const BLOCKS_MOST = TRUTH ? Math.ceil(3840 / SWEEP) * Math.ceil(2160 / SWEEP) : Math.ceil(7680 / SWEEP) * Math.ceil(4320 / SWEEP), READS = 4;   // the blocks of the largest inside asked from (8K; ?truth, 4K); read-backs in flight at once
 const VALID = 1 << 12, FADED = 1 << 13;   // a page table entry: its slot (12 bits), these, the frame it came in (16 bits)
@@ -114,9 +93,7 @@ export function createPages(renderer, tex) {
   const put = (k, v) => { table[k] = v; if (k < lo) lo = k; if (k > hi) hi = k; version++; };
   const WIN = uniformArray(Array.from({ length: LEVELS }, () => new THREE.Vector4()), 'vec4').setGroup(renderGroup);   // each level's window: its first page (i, j)
   const uFrame = uniform(0, 'uint').setGroup(renderGroup), uBias = uniform(0).setGroup(renderGroup), uPxS = uniform(1600);   // (uPxS: screen pixels a metre covers a metre off through the 68° lens: what a level's distance is reckoned by)
-  // (the same for a compute pass that reads the pages, the relief's (src/terrain/relief.js): a uniform of the render's
-  // group is sent as a render begins, after such a pass has run)
-  const C = { WIN: uniformArray(Array.from({ length: LEVELS }, () => new THREE.Vector4()), 'vec4'), uFrame: uniform(0, 'uint'), uBias: uniform(0) }, Rd = { WIN, uFrame, uBias };
+  const Rd = { WIN, uFrame, uBias };
   // ---- what the pixels ask for: each block of SWEEP × SWEEP pixels, TAKES of them a frame, others each frame (a sweep
   // of SPAN frames asks from all of them), read from the prepass right after it is drawn: a pixel of the land writes
   // there its own level, its footprint's, unbiased (src/terrain/material.js); its point comes from its depth through the
@@ -280,8 +257,8 @@ export function createPages(renderer, tex) {
   const refs = new Map(), want = new Map();
   const prev = new THREE.Vector3(), turn = new THREE.Quaternion(); let moved = 0, swung = 0, pxRad = 1600;   // (metres and radians the camera moved last frame; screen pixels a radian through its lens)
   let quietFrom = 0, readTo = 0, dirty = false, pick = null, pickedAt = -1e9, judged = -1, nAsk = 0, askedAt = -1, cutAt = 0;   // (since when nothing changed what is asked for; the last frame whose asks are in; the queue to be sorted again; the bias being chosen)
-  // What the pixels ask for is a function of the view, the bias and the relief's heights (src/terrain/relief.js: its
-  // points are raised by the pages, so where it stands a pixel's point moves as they come in): a page the relief reads
+  // What the pixels ask for is a function of the view, the bias and the relief's heights (the land's vertices near the
+  // eye are raised by the pages, src/terrain/material.js, so there a pixel's point moves as they come in): a page the relief reads
   // (at its finest level or coarser, within its reach of the camera), laid or faded in, changes what is asked for as a
   // move of the camera does, and a sweep is asked again after it
   let reliefFinest = Infinity;
@@ -393,8 +370,8 @@ export function createPages(renderer, tex) {
     },
     /** Every page laid again (the land under them changed: the lakes). */
     refresh: flush,
-    /** The relief near the eye reads the pages, its finest points `cell` metres apart (src/terrain/relief.js): what
-        those pages are changes what the pixels ask for (moves, above). */
+    /** The land near the eye is raised by the pages, its finest vertices `cell` metres apart (src/terrain/relief.js):
+        what those pages are changes what the pixels ask for (moves, above). */
     underRelief(cell) { reliefFinest = Math.max(0, Math.floor(Math.log2(cell / S0) - 0.5)); },
     /** Whether what a read gives may differ from the last frame's: the table changed this frame, or a page fades in. */
     get changing() { return fading.length > 0 || changed; },
@@ -422,7 +399,7 @@ export function createPages(renderer, tex) {
       for (let m = 0; m < LEVELS; m++) {
         const P = sideOf(m), i0 = Math.floor(cam.x / P) - K / 2, j0 = Math.floor(cam.z / P) - K / 2, w = win[m];
         if (w && w[0] === i0 && w[1] === j0) continue;
-        win[m] = [i0, j0]; WIN.array[m].set(i0, j0, 0, 0); C.WIN.array[m].set(i0, j0, 0, 0);
+        win[m] = [i0, j0]; WIN.array[m].set(i0, j0, 0, 0);
         for (const Q of [...IN.values()]) if (Q.m === m && !inWin(m, Q.i, Q.j)) evict(Q);
       }
       // ---- the last level round the camera, always in (what a pixel reads where nothing finer is in yet) ----
@@ -454,7 +431,7 @@ export function createPages(renderer, tex) {
       }
       changed = version !== v0;
       if (hi >= lo) { T.write(lo, table.subarray(lo, hi + 1)); lo = Infinity; hi = -1; }
-      uFrame.value = C.uFrame.value = frame & 0xffff; uStamp.value = stampOf(frame); uBias.value = C.uBias.value = bias;
+      uFrame.value = frame & 0xffff; uStamp.value = stampOf(frame); uBias.value = bias;
       for (let k = 0; k < TAKES; k++) uSmp.array[k].set(...SEQ[(frame % SPAN) * TAKES + ((k + frame) % TAKES)]);   // (this frame's TAKES of each block, in an order turned each frame: of the same level, another wins)
     },
     /** How much coarser a pixel d metres from the eye asks: within NEAR half a level finer than its pixel (a page is
@@ -475,12 +452,13 @@ export function createPages(renderer, tex) {
     level(dx, dy, d, u = Rd) { return int(clamp(floor(this.want(dx, dy, d, u)), 0, TOP)); },
     /** The ground at p as its page holds it (node code, in the ground's fragment: dx, dy, d as for want): the page of the
         level the pixel wants, or the finest in over it; while a page fades in, the one under it with it. eye: the way
-        to the eye from p (normalized): the ground's own height is then seen along it (parallax: below). compute: read
-        from a compute pass (src/terrain/relief.js). level: the steps its level goes by, where not dx, dy (the relief's:
-        src/terrain/material.js). -> { c: its colour (linear), h: its height, n: its relief (the normal's x, z), cv: the
-        carpet's share, shade: the stands' } */
-    read(p, dx, dy, d, { eye = null, compute = false, level = null } = {}) {
-      const u = compute ? C : Rd, m0 = (level ? this.level(level[0], level[1], d, u) : this.level(dx, dy, d, u)).toVar(), bias = this.biasAt(d, u).toVar();
+        to the eye from p (normalized): the ground's own height is then seen along it (parallax: below). lod: read where
+        there are no steps to read by (the land's vertex stage, raising it near the eye: src/terrain/material.js), at the
+        mip they call for. level: the steps its level goes by, where not dx, dy (the raised ground's: material.js). ->
+        { c: its colour (linear), h: its height, n: its relief (the normal's x, z), cv: the carpet's share, shade: the
+        stands' } */
+    read(p, dx, dy, d, { eye = null, lod = false, level = null } = {}) {
+      const u = Rd, m0 = (level ? this.level(level[0], level[1], d, u) : this.level(dx, dy, d, u)).toVar(), bias = this.biasAt(d, u).toVar();
       const sideAt = (lv) => exp2(float(lv)).mul(PAGE * S0), pageAt = (lv) => ivec2(floor(p.div(sideAt(lv))));
       // the finest page in for that level or over it, and while it fades in, the one under it
       const s1 = int(-1).toVar(), l1 = int(0).toVar(), w1 = float(1).toVar(), s2 = int(-1).toVar(), l2 = int(0).toVar();
@@ -501,8 +479,8 @@ export function createPages(renderer, tex) {
       // parallax's), and the pixel's own steps there (the bias's too: so the filter's step into the second mip is where
       // the next level's page takes over)
       const inPage = (q, lv) => { const s = exp2(float(lv)).mul(S0), side = s.mul(PAGE), k = exp2(bias).div(s.mul(SLOT)); return { uv: q.sub(floor(p.div(side)).mul(side)).div(s).add(BORDER).div(SLOT), gx: dx.mul(k), gy: dy.mul(k) }; };
-      // (a read with those steps; in compute, where three has no read by steps, at the mip they call for)
-      const at = (t, P, layer) => { const r = t.sample(P.uv).depth(layer); return compute ? r.level(log2(max(max(length(P.gx), length(P.gy)).mul(SLOT), 1e-6))) : r.grad(P.gx, P.gy); };
+      // (a read with those steps; where there are none (a vertex stage), at the mip they call for)
+      const at = (t, P, layer) => { const r = t.sample(P.uv).depth(layer); return lod ? r.level(log2(max(max(length(P.gx), length(P.gy)).mul(SLOT), 1e-6))) : r.grad(P.gx, P.gy); };
       // (in its array: the first PER slots the first's, the rest the second's)
       const inArray = (slot, fn) => { if (tA.length > 1) If(slot.lessThan(PER), () => fn(0, slot)).Else(() => fn(1, slot.sub(PER))); else fn(0, slot); };
       // ---- parallax (as much as reliefShares says: from where the relief near the eye lets go until the flat ground is
@@ -514,7 +492,7 @@ export function createPages(renderer, tex) {
       // held to what the border holds) ----
       const q = vec2(p).toVar();
       if (eye) {
-        const share = reliefShares(d.mul(U.uLodInv)).parallax.mul(reliefOverSnow(snowDepth)).toVar();
+        const share = reliefShares(d.mul(U.uLodInv), RELIEF_REACH).parallax.mul(reliefOverSnow(snowDepth)).toVar();
         If(share.greaterThan(0.01).and(s1.greaterThanEqual(0)), () => {
           inArray(s1, (j, layer) => {
             const soil = float(1).sub(tX ? at(tX[j], inPage(p, l1), layer).x : at(tN[j], inPage(p, l1), layer).z);   // (the carpet's share there)
