@@ -1117,9 +1117,9 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
     - Under the crowns the floor is litter, ferns, herbs, moss, logs and stones, where main's is a meadow. The grass
       stays in the glades.
     - The trees stand elsewhere: the canopy's cells are the rule's (9.9 m), not the old stand's (10 m).
-  - **FLIP against main** (`d1c3805`, the same game as `314e2e6`), the branch merged with 6b, mean (p99 tile):
+  - **FLIP against main: not a gate** (Samuel, 2026-11-18: main is no reference; the gates are the branch's own `?truth`, the photos, no pop in motion and the budgets, measured on the Mac mini) (`d1c3805`, the same game as `314e2e6`), the branch merged with 6b, mean (p99 tile):
 
-| View | FLIP against main |
+| View | FLIP against main (not a gate) |
 | --- | --- |
 | Tent, eye level | 0.095 (0.90) |
 | Pine forest, eye level | 0.393 (0.93) |
