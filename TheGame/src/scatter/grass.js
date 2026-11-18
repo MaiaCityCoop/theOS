@@ -181,11 +181,14 @@ function bladeMaterial(T) {
 export function createGrass(scene, tex, ground, asset, gpu = false) {
   const rings = asset.tiers, now = () => bandsOf(rings, asset.height, dialK());
   U.uMeadowTop.value = meanTop(asset.height);   // (what the carpet is raised to past the blades: src/terrain/material.js)
+  // (the rings pack as one kind of tier, tier.js: their store and their gather one piece of code, compiled once, over
+  // numbers of the kind's own (P) that each ring tells before it packs; its draws read its own (T))
+  const P = { cell: uniform(0), near: uniform(0), nearFade: uniform(0), far: uniform(0), farFade: uniform(0) }, kind = {};
+  const found = (c, Q) => bladeIn(c, asset, P, ground, Q.pad), select = (rows) => bladeOf(rows, P);
   return rings.map((R, k) => {
     const T = { cell: uniform(R.cell), w: uniform(R.w), near: uniform(0), nearFade: uniform(0), far: uniform(0), farFade: uniform(0) };
-    // (its store and its gather: tier.js; without WebGPU both at once, per vertex)
-    const found = (c, Q) => bladeIn(c, asset, T, ground, Q.pad), select = (rows) => bladeOf(rows, T);
-    const live = (c) => { const F = found(c, { pad: float(0) }), S = select(F.data); return { alive: F.alive.and(S.alive), data: S.data }; };
+    // (without WebGPU its store and its gather at once, per vertex, by its own numbers)
+    const live = (c) => { const F = bladeIn(c, asset, T, ground, float(0)), S = bladeOf(F.data, T); return { alive: F.alive.and(S.alive), data: S.data }; };
     const make = bladeMaterial(T);
     const material = (src) => {
       const { m, shape } = make();
@@ -198,7 +201,7 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
     // leans its tip its height a unit of the wind's push (bladeMaterial: never more than 1.25 of it)
     const wide = R.w * 1.25;
     const bounds = (A, B) => { const h = A.w, reach = h.mul(B.y.add(0.6).mul(1.15)).add(wide + 0.02); return { c: vec3(A.x, A.z.add(h.mul(0.5)), A.y), h: vec3(reach, h.mul(0.5).add(0.02), reach), w: h.mul(1.1) }; };
-    const t = new Tier(scene, blade(R.segs), material, { cell: R.cell, P: R.P, near: 0, far: 0, order: 0, found, select, metres: true, gpu, slots: 3, bounds, cls: 'ground' });
+    const t = new Tier(scene, blade(R.segs), material, { cell: R.cell, P: R.P, near: 0, far: 0, order: 0, found, select, kind, table: () => { for (const key in P) P[key].value = T[key].value; }, metres: true, gpu, slots: 3, bounds, cls: 'ground' });
     t.band = () => {   // (its band as the measure is now: tier.js reckons every tier's again when it changes)
       const N = now(), b = N.bands[k];
       for (const key of ['near', 'nearFade', 'far', 'farFade']) T[key].value = b[key];
