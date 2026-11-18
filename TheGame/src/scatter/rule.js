@@ -129,7 +129,7 @@ function influenceAt(p, L, M) {
     larger is read). */
 export function placeIn(c, L, M, pos) {
   const h0 = (k) => uint(k + L.seed - 300), rank = rankOf(c, rnd(c.x, c.y, h0(300))).toVar(), k = int(-1).toVar(), I = vec4(0).toVar();
-  const bios = [...new Set(L.entries.map((e) => e.biome))], top = Math.min(1, Math.max(...bios.map((b) => L.entries.filter((e) => e.biome === b).reduce((s, e) => s + e.most, 0))));
+  const bios = [...new Set(L.entries.map((e) => e.biome))], top = Math.max(...bios.map((b) => L.entries.filter((e) => e.biome === b).reduce((s, e) => s + e.most, 0)));   // (the most its things stack to in one of its biomes)
   const clump = (b) => groveAt(pos, grovesOf(b, L));   // (0 … 1.6: thick in its groves, open in its glades)
   const coarse = bios.map((b) => (b.river ? float(1) : shareOf(b, { p: pos, dist: float(0), d: float(1e5), w: float(1), b: float(0) })).mul(clump(b))).reduce((a, x) => max(a, x));
   If(rank.lessThan(coarse.mul(top)), () => {

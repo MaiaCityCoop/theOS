@@ -17,6 +17,8 @@
 //   bun tools/gate.js paths [--paths a,b]                        the paths (tools/gate/views.js) on a cold profile and a
 //                                                                warm one: every frame's time, the GPU's, the whole
 //                                                                browser's memory, against 60 fps, BUDGET and 8 GB
+//   --query q (with any of them)                                 more of every page's address: --query stress, the
+//                                                                stress world (src/scatter/stress.js)
 //   bun tools/gate.js all [--tag t] [--views a,b]                stills of this code and of ?truth, their diff, the
 //                                                                bench, the compile and the paths, in one table
 //
