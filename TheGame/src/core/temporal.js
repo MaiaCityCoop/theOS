@@ -88,7 +88,7 @@ export function createTemporal(renderer) {
   const tC = texture(new THREE.Texture()), tD = texture(new THREE.DepthTexture(1, 1)), tDW = texture(new THREE.DepthTexture(1, 1)), tM = texture(new THREE.Texture());
   const at = () => vec2(uv().x, float(1).sub(uv().y));   // (a target reads with its rows turned)
   const max3 = (c) => max(c.x, max(c.y, c.z));
-  const toP = (c0) => { const c = max(c0, vec3(0)); return c.mul(float(1).div(max3(c).add(1))); }, fromP = (p) => p.mul(float(1).div(float(1).sub(min(max3(p), 0.999))));   // (the perceptual curve, and back; no light is less than none: a colour below 0, or not a number, is taken as black, never divided by nothing)
+  const toP = (c) => c.mul(float(1).div(max3(c).add(1))), fromP = (p) => p.mul(float(1).div(float(1).sub(min(max3(p), 0.999))));   // (the perceptual curve, and back)
   const toY = (c) => vec3(c.x.add(c.z).mul(0.25).add(c.y.mul(0.5)), c.x.sub(c.z).mul(0.5), c.y.mul(0.5).sub(c.x.add(c.z).mul(0.25)));   // YCoCg
   const fromY = (y) => vec3(y.x.add(y.y).sub(y.z), y.x.add(y.z), y.x.sub(y.y).sub(y.z));
   // the glass: where on the frame (its picture's widths) a screen pixel at p shows, with this barrel; and where on the

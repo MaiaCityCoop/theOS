@@ -71,9 +71,9 @@ const countMade = (dev) => {
 };
 
 // Whose the GPU's passes are, for a tool that times each part of a frame (tools/bench.js): the code that draws a part
-// marks where its passes begin (the screen's: the culling, the prepass, the colour, the lens, the upscale; the light's:
-// its cascades, the canopy, the air, the screen's light; the bench's frame what comes before them), and the tool reads
-// the GPU's own clock pass by pass under those names. Nothing listens in the game: a mark is then one test.
+// marks where its passes begin (the screen's: the culling, the prepass, the colour, the lens, the upscale; the bench's
+// frame what comes before it), and the tool reads the GPU's own clock pass by pass under those names. Nothing listens
+// in the game: a mark is then one test.
 let tap = null;
 /** The passes from here on are `name`'s (null: no one's in particular), until the next mark. */
 export const mark = (name) => { if (tap) tap(name); };

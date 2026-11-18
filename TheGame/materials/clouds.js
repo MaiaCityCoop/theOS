@@ -1,5 +1,5 @@
-// Cloud field: the shapes of the sky's cumulus, painted once into a tile the cloud layer reads (src/world/weather/clouds.js:
-// its field and its shadow): heaped masses in red, their finer billows in green (materials/README.md).
+// Cloud field: the shapes of the sky's cumulus, painted once into a tile the cloud layer reads (src/world/light.js:
+// cloudField): heaped masses in red, their finer billows in green (materials/README.md).
 import { float, vec3 } from 'three/tsl';
 import { pfbm, warp } from '../src/materials/paint.js';
 export default {
