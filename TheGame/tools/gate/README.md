@@ -70,7 +70,17 @@ two), every kind's renders against that kind's photos, and all against all. For 
 - **Image statistics:** the earth mover's distance between the L* histograms, the difference of the mean colours
   (CIE76), and the renders' less the photos' chroma, contrast (RMS and in 32-px patches) and power-spectrum slope.
 
-Check 4a: each number falls stage by stage and never rises. The end is Samuel's blind test.
+**The table.** `real` prints the view classes first: the photos' kinds against the gate's views of each kind, those
+rendered here and those not, and the kinds with no view or no photo yet. Then it prints, per class (and per view
+below it), each distance and, in brackets, the photos' own spread: the class's photos split in two by turns, one half
+against the other. That spread is the floor a render's distance stands on; between two sets of real stands, CMMD reads
+about 0.6. A class with only two or three photos has a noisy floor. The numbers go to `.gate/real.json`.
+
+**The rule** (check 4a: each distance falls stage by stage and never rises). `tools/gate/real-ratchet.json` keeps
+every class's distances as main last measured them, from the truth stills at every view. A branch farther than that
+(by more than a small tolerance: 0.02 of CMMD, 0.2 of a statistic, or 3 %) fails `real` (exit 1). Main's run with
+`--ratchet` lowers each distance to what it measures and never raises one; its first run sets them. The end is
+Samuel's blind test.
 
 ### The photographs' folder
 
