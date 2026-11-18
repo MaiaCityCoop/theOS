@@ -4,8 +4,8 @@
 // and stones read their height, density, grass height, stone chance, colour and dryness from them instead of working
 // the land's noise out again at every vertex, from the finest level that holds them, going over into the next over its
 // window's outer eighth. A level is drawn again each time the camera has walked 32 of its texels, or when the library's
-// stage or sandbox changed (src/stage/studio.js: the land's nodes read them): in TILES x TILES pieces, a piece a
-// submission, into a staging window, then copied into its place whole, nearest level first; what reads it reads the
+// stage or sandbox changed (src/stage/studio.js: the land's nodes read them): in pieces as large as a page of the
+// land's, a piece a submission, into a staging window, then copied into its place whole, nearest level first; what reads it reads the
 // window it had until then (a GPU's work a submission small and bounded: a 512² window of the land's whole evaluation in
 // one pass is seconds on a small GPU, past what a browser lets one take).
 // Its texels grow with a longer lens in steps (a step a half stop: √2), not with every change of the lens, and from one
@@ -26,6 +26,7 @@ import { pxKMost, farMost } from '../detail/measure.js';
 import { GONE } from '../detail/error.js';
 import { most } from '../../assets/kinds.js';
 import { ringsOf, bandsOf } from './grass.js';
+import { SLOT } from '../terrain/pages.js';
 
 const N = 512;   // texels a side of every level; level 0's texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers what reads it
 /** How far round the camera level 0 surely reaches, metres as the 68° lens sees them: half its side, less the 32 texels
@@ -38,7 +39,6 @@ export const REACH = (N * 0.5) / 2 - 32 * 0.5;
 const reachOf = () => Math.max(REACH, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => bandsOf(ringsOf(a), a.height, pxKMost()).end),
   ...recipes('asset').filter((a) => a.placement?.engine === 'rocks' && !a.placement.outcrops).map((a) => farMost(GONE, most(a.size.length))));
 const FADE = 36;   // frames (0.6 s at 60 fps; counted in frames, so no frame changes more than a 36th, however slow): from the map before to the new one, where its texel steps
-const TILES = 4;   // pieces a side a level's window is drawn in, a piece a submission
 // (G: the map being drawn; R[set][level]: what each map of the two sets was drawn with, for reading it; W: how much of
 // the second set is read)
 const G = { o: uniform(new THREE.Vector2(1e9, 1e9)), base: uniform(0), texel: uniform(0.5) }, W = uniform(0);
@@ -112,10 +112,11 @@ export function createGround(renderer, tex) {
   // what is to be drawn: a level of a set at a place ({ set, l, ox, oz, texel, base, dy, t: its pieces drawn, next: the
   // place asked for since it began }), nearest level first; a lens step's levels go into the set not read (`aim`), which
   // is read, faded to, once all of them are in; and the texel each set was drawn at (S)
-  const jobs = [], setS = [0, 0], T = N / TILES;
+  // (a piece as large as a page of the land's (src/terrain/pages.js SLOT): every submission of the land's evaluation of
+  // one size, TILES a side, T texels each; and as many a frame as draw every level within the fade, a whole redraw as
+  // long as the step it hands over at, never more than a level a frame)
+  const T = SLOT, TILES = Math.ceil(N / T), PER_FRAME = Math.min(TILES * TILES, Math.ceil((LV * TILES * TILES) / FADE)), jobs = [], setS = [0, 0];
   let aim = -1;
-  // (as many pieces a frame as draw every level within the fade: a whole redraw as long as the step it hands over at)
-  const PER_FRAME = Math.min(TILES * TILES, Math.ceil((LV * TILES * TILES) / FADE));
   const ask = (set, l, ox, oz, texel, dy, again = false) => {
     const at = { ox, oz, texel, base: Math.round(heightCPU(ox + (N * texel) / 2, oz + (N * texel) / 2)), dy }, J = jobs.find((j) => j.set === set && j.l === l);
     if (!J) { jobs.push({ set, l, ...at, t: 0, next: null }); jobs.sort((x, y) => x.l - y.l || x.set - y.set); }
@@ -156,7 +157,7 @@ export function createGround(renderer, tex) {
     for (let k = 0; k < PER_FRAME && jobs.length; k++) {
       const J = jobs[0], tx = J.t % TILES, ty = Math.floor(J.t / TILES);
       G.o.value.set(J.ox, J.oz); G.texel.value = J.texel; G.base.value = J.base;
-      stage.viewport.set(0, 0, N, N); stage.scissor.set(tx * T, ty * T, T, T);   // (the whole window's mapping, its piece's pixels only)
+      stage.viewport.set(0, 0, N, N); stage.scissor.set(tx * T, ty * T, Math.min(T, N - tx * T), Math.min(T, N - ty * T));   // (the whole window's mapping, its piece's pixels only)
       renderer.setRenderTarget(stage); renderer.render(quad, cam);
       if (++J.t === TILES * TILES) land.call(this, J);
     }
