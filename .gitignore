@@ -2,3 +2,7 @@
 Stories/objects/
 # the gate's stills, heat maps and reports (TheGame/tools/gate.js): made again by every run, not kept in git
 .gate/
+
+# the artifact library: the authors' own work stays on this machine (Artifacts/store.js)
+Artifacts/items/*/source.md
+Artifacts/items/*/thumb.jpg
