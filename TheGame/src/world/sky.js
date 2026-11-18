@@ -59,8 +59,7 @@ function dome(camera) {
   mat.vertexNode = Fn(() => { const c = cameraProjectionMatrix.mul(cameraViewMatrix).mul(modelWorldMatrix.mul(vec4(positionGeometry, 1))); return vec4(c.xy, c.w.mul(0.9999999), c.w); })();
   mat.fragmentNode = Fn(() => {
     const v = normalize(vDir), y = v.y;
-    // the sky from the horizon up: the hour's own colours
-    const col = mix(D.horizon, D.zenith, pow(max(y, 0), 0.55)).toVar();
+    const col = mix(D.horizon, D.zenith, pow(max(y, 0), 0.55)).toVar();                                   // the sky from the horizon up
     // (below the horizon the horizon's own colour: the far land melts into it (light.js: airOf), so from high up, where
     // the land ends below the horizon, there is no band of another colour between them)
     const s = max(v.dot(D.sunD), 0);

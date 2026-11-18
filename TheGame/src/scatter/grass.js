@@ -3,10 +3,10 @@
 // camera, made from the grass's blade alone (assets/grass.js: its full detail: ringsOf) and each where its own error is
 // the one ERROR_PX (bandsOf, as the measure is now): every blade as it is, in its own cells, its bends fewer further off.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, If, min, uniform, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor, uintBitsToFloat, floatBitsToUint } from 'three/tsl';
+import { Fn, float, int, uint, bool, vec2, vec3, vec4, If, min, uniform, varyingProperty, positionGeometry, frontFacing, mix, smoothstep, step, clamp, normalize, cross, cos, sin, pow, max, length, floor, uintBitsToFloat, floatBitsToUint } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { hashI, camDist, BASE } from '../world/land.nodes.js';
-import { lit, weathered, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
+import { finish, skyLight, weathered, cloudAtOne, windAt, windStrength, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion, vWas } from '../core/pass.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
@@ -86,10 +86,10 @@ function bladeIn(c, asset, T, ground, pad) {
   const h1 = hashI(c.x, c.y, uint(100));
   const pos = vec2(c).add(vec2(float(h1.bitAnd(uint(0xFFF))), float(h1.shiftRight(uint(12)).bitAnd(uint(0xFFF)))).mul(1 / 4096)).mul(T.cell);   // (T: its ring's numbers, uniforms: every ring one shader)
   // (and, the smallest layer of all, as thick as the light that comes down to it through the crowns over it lets it
-  // grow, in proportion to that light (as a plant grows by the light it takes: Monteith 1977), and none on the feet of
-  // the larger: src/scatter/growth.js, rule.js)
+  // grow, in proportion to that light (as a plant grows by the light it takes: Monteith 1977), and none on the ground
+  // the larger things really cover, a trunk, a stem, a log, a branch, a stone, no more: src/scatter/growth.js, rule.js)
   const M = growthMap(), F = M ? M.all(pos) : null;
-  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = F ? G.y.mul(F.light).mul(float(1).sub(F.foot)) : G.y, h2 = hashI(c.x, c.y, uint(101));
+  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = F ? G.y.mul(F.light) : G.y, h2 = hashI(c.x, c.y, uint(101));
   const inBand = dist.lessThanEqual(hf.mul(T.farFade.negate()).add(T.far).add(pad)).and(dist.greaterThanEqual(hf.mul(T.nearFade.negate()).add(T.near).sub(pad)));
   const r1 = u8(h2, 0), r2 = u8(h2, 8), r3 = u8(h2, 16);
   // blades stand in tufts: the tuft they are in gives them a height, a lean and a shade in common
@@ -99,9 +99,11 @@ function bladeIn(c, asset, T, ground, pad) {
   const hgt = float(asset.height).mul(float(0.5).add(r1.mul(r1).mul(0.55)).add(c1.mul(c1).mul(0.8)).add(flower.mul(0.35))).mul(G.z).mul(dens.mul(0.4).add(0.6));
   const ang = c2.add(r2.sub(0.5).mul(0.55)).mul(6.2831853), bend = float(0.2).add(r3.mul(0.55)).add(c3.mul(0.35)).mul(float(1).sub(flower.mul(0.7)));
   const base = tint.rgb.mul(float(0.7).add(r3.mul(0.35)).add(c3.mul(0.35))), dried = clamp(tint.a.mul(1.2).add(r2.mul(0.35)).sub(0.25), 0, 1);
-  // (as many as the ground says it grows there: a first share of the turns; towards the meadow's end fewer, as it is drawn)
-  const rank = rankOf(c, u8(h2, 24));
-  return { alive: inBand.and(rank.lessThanEqual(dens)), data: [vec4(pos, G.x, hgt), vec4(ang, bend, r1, flower), vec4(packRGB(base), dried, rank.div(dens.max(1e-6)), hf)] };
+  // (as many as the ground says it grows there: a first share of the turns; towards the meadow's end fewer, as it is
+  // drawn; and where one would stand, none on ground a larger thing covers: asked last, where it is asked at all)
+  const rank = rankOf(c, u8(h2, 24)), grows = inBand.and(rank.lessThanEqual(dens)).toVar();
+  if (F) If(grows, () => { If(F.foot().greaterThan(0.5), () => { grows.assign(bool(false)); }); });
+  return { alive: grows, data: [vec4(pos, G.x, hgt), vec4(ang, bend, r1, flower), vec4(packRGB(base), dried, rank.div(dens.max(1e-6)), hf)] };
 }
 /** Of a blade held, whether its ring draws it now (its band, the meadow's end, the snow: a blade not much taller than the
     snow is deep lies bent under it), and its rows as its material reads them (C: its colour, how much its tip has dried). */
@@ -142,14 +144,14 @@ function bladeMaterial(T) {
       if (passOf(builder) === 'pre') return motion(vWas, 1);   // (the prepass: where it lay a frame ago; a blade is thin)
       const vT = vTS.x, n0 = normalize(vN.add(vSide.mul(vTS.y).mul(0.6)));   // a blade is a little rounded
       const n = normalize(frontFacing.select(n0, n0.negate()).add(vec3(0, 1.4, 0)));   // and a meadow lights as a soft whole
-      // a meadow takes the light softly round (half Lambert, squared), the sun through its blades the bright
-      // yellow-green of a lit meadow, a sheen along them; one sample of the shadow map: a blade is too thin for a soft
-      // edge to show. A flower's head (pale, at a blade's tip) takes it plainly
-      const hl = n.dot(U.uSunDir).mul(0.5).add(0.5), head = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86));
+      const ndl = n.dot(U.uSunDir).mul(0.5).add(0.5), V = normalize(U.uCam.sub(vWorld));
+      const thru = pow(max(V.negate().dot(U.uSunDir), 0), 2).mul(vT);   // light through the blade: the bright yellow-green of a lit meadow
+      const sheen = pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 20).mul(0.16).mul(vT);
+      const sun = U.uSun.mul(cloudAtOne(vWorld));   // one sample of the shadow map: a blade is too thin for a soft edge to show
       const onIt = max(clamp(snowDepth.mul(4), 0, 0.4).mul(float(1).sub(smoothstep(0.05, 0.5, vT))), clamp(snowDepth.mul(2.5), 0, 0.6).mul(smoothstep(0.3, 0.8, n0.y.abs())).mul(smoothstep(0.3, 0.8, vT)));   // snow at the foot, and lying on what bows over
-      return lit({ colour: head.select(vec3(0.92, 0.92, 0.86), weathered(mix(vCol, SNOW, onIt), n, 9)), n, w: vWorld, how: 'one',
-        ndl: head.select(float(0.7), hl.mul(hl).mul(1.1)), through: head.select(float(0), vT), lobe: 2, tint: vec3(0.5, 1, 0.22),
-        sky: head.select(float(1), vT.mul(0.45).add(0.55)), gloss: head.select(float(0), vT.mul(0.16)), sharp: 20 });
+      const col0 = weathered(mix(vCol, SNOW, onIt), n, 9).mul(skyLight(n).mul(vT.mul(0.45).add(0.55)).add(sun.mul(ndl.mul(ndl).mul(1.1).add(vec3(0.5, 1, 0.22).mul(thru))))).add(sun.mul(sheen));
+      const col = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86)).select(vec3(0.92, 0.92, 0.86).mul(skyLight(n).add(U.uSun.mul(0.7))), col0);
+      return finish(col, vWorld);
     });
     const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
     return { m, shape };
