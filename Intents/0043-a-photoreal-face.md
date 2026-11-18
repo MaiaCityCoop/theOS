@@ -381,6 +381,10 @@ Proposed on 2026-11-18. Story: [`Stories/0043-a-photoreal-face/`](../Stories/004
 | 2026-11-18 | 410041d | this branch's intents renumbered 0041 to 0044 |
 | 2026-11-18 | ea30cf4 | main merged into the branch (250 commits), four conflicts resolved |
 | 2026-11-18 | 02fbbe2 | the six recipes main added said short; what the code gates found |
+| 2026-11-18 | d3632ea | on `claude/0043-figures-and-cards`, for `main`: the two figures, their kit written anew to hold the code gates |
+
+The rows above that one are commits of the branch this intent was made on (`claude/human-rig-photorealism-upgrade-sp1om2`);
+they are not on `main` until that branch is.
 
 On its branch this intent was numbered 0041, and its commits' messages say `Intent: 0041`. It was given 0043 on 2026-11-18,
 when the branch was brought to `main`, where 0041 had meanwhile been taken by another intent.

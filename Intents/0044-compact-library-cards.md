@@ -151,6 +151,10 @@ Proposed on 2026-11-18. Story: [`Stories/0044-compact-library-cards/`](../Storie
 | --- | --- | --- |
 | 2026-11-18 | 933576c | every recipe and variant said short; the card compact; tools/words.js |
 | 2026-11-18 | e5f566d | proposed: the checks as they were, the story |
+| 2026-11-18 | 8350ac9 | on `claude/0043-figures-and-cards`, for `main`: the short words and the compact card, over main's 60 recipes |
+
+The rows above that one are commits of the branch this intent was made on (`claude/human-rig-photorealism-upgrade-sp1om2`);
+they are not on `main` until that branch is.
 
 On its branch this intent was numbered 0042, and its commits' messages say `Intent: 0042`. It was given 0044 on 2026-11-18,
 when the branch was brought to `main`, where 0042 had meanwhile been taken by another intent.
