@@ -315,3 +315,4 @@ Proposed on 2026-11-18. Story: [`Stories/0041-a-photoreal-face/`](../Stories/004
 | 2026-11-18 | d029e1b | VALID checked closer (one layout for all four figures); img2threejs read |
 | 2026-11-18 | ec65986 | a man and a woman of VALID brought in whole; the figure kit, its moves and expressions; the library row; the tools |
 | 2026-11-18 | c923301 | proposed: the checks as they were, the page for choosing two, the story |
+| 2026-11-18 | d9102cc | the two figures through WebGPU on the tool page (its own shadow map, the picture read back); held |
