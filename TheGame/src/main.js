@@ -108,7 +108,8 @@ const groundPass = ground.compile();   // its pass, for its own maps: in turn, a
 stats.ground = ground; stats.U = U; stats.tex = tex;   // for pages that stage things (the library)
 mark('ground');
 const terrain = createTerrain(scene, tex, renderer);
-const layerPass = terrain.compile();   // the layer map's pass, beside the others (it reads no target)
+const layerPass = terrain.compile();   // the land's pages' passes, beside the others (they read no target)
+screen.afterPrepass(terrain.pages.ask);   // (which pages the land's pixels read: src/terrain/pages.js)
 mark('terrain');
 stats.terrain = terrain;
 const scatter = createScatter(scene, tex, ground, renderer, camera);

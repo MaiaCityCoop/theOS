@@ -5,7 +5,7 @@
 // nothing repeats, laid over each other in their order, the higher winning at a seam; the grass's carpet among them; the
 // stands' colour far off. Its size is one, whatever the biomes and their materials.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, attribute, positionGeometry, positionWorld, varyingProperty, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, log2 } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, positionWorld, varyingProperty, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, log2 } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { TRUTH } from '../detail/measure.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
@@ -153,12 +153,18 @@ export function terrainMaterial(vt) {
   });
 
   // ---- fragment: the page's texel, lit ----
+  // (the picture is built over time, src/core/temporal.js: the ground read as finely as the screen's own pixels would)
+  const steps = (p) => [dFdx(p).mul(U.uFine), dFdy(p).mul(U.uFine)];
   const frag = Fn((builder) => {
-    if (passOf(builder) === 'pre') return motion(positionWorld);   // (the prepass: it stands still, only the camera moves)
-    const p = vWorld.xz, dx = dFdx(p).mul(U.uFine), dy = dFdy(p).mul(U.uFine);   // (the picture is built over time, src/core/temporal.js: the ground read as finely as the screen's own pixels would)
+    // the prepass: it stands still, only the camera moves; and in its fourth number (no other material writes one),
+    // which level of the land's pages this pixel reads (1 more: 0 is not the land), for the pages to know what is seen
+    // (src/terrain/pages.js ask). The colour pass writes nothing beside its colour: a shader that does loses its early
+    // depth test, and the colour's equal test then misses pixels the prepass drew
+    if (passOf(builder) === 'pre') { const p = positionWorld.xz, [dx, dy] = steps(p); return vec4(motion(positionWorld).xyz, float(vt.level(dx, dy)).add(1)); }
+    const p = vWorld.xz, [dx, dy] = steps(p);
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     const d = abs(vI.x), w = vI.y;
-    const G = vt.read(p, dx, dy, passOf(builder) === 'main');   // (the colour pass says which pages it wants)
+    const G = vt.read(p, dx, dy);
     // near, the carpet lies in the shade of its blades, drawn over it: the nearer, the darker (the pixel's own distance)
     const c = G.c.mul(mix(1, mix(0.5, 1, smoothstep(3, 70, dist2)), G.cv)).toVar(), cv = G.cv, h = G.h;
     // past where the shadow map reaches round the camera, a stand's floor lies in its crowns' shade
