@@ -939,7 +939,9 @@ Built on `aven/0038-stage6c-relief-e30fca` from main at `5c591fd` (stage 6b merg
     the pines, the relief and the parallax cost about 1–3.5 ms of the GPU's p99; on the zoom nothing to tell from the
     noise. Neither side meets the gate in motion (no frame over 16.7 ms, none over 12 ms of GPU).
 
-  - `bun tools/scale.js` 18 of 18; `vite build` passes (TheGame); CI green.
+  - **Merged with stages 7 and 8** (`015ab1c`): the stills draw with no error and settle in 8.5, 13.2 and 9.3 s
+    (244, 365, 343 frames); what differs from `887c3b2` (FLIP 0.09–0.13) is stage 7's woods and stage 8's solids.
+  - `bun tools/scale.js` 24 of 24 after the merge (18 of 18 before); `vite build` passes (TheGame); CI green.
 - **Not done:** Safari (it can't be automated here); the trickle above; the far grazing hand-over left from 6b; the
   skirts are not in the gate's views (few rocks lie in them), so they were checked in the code, not in a still; Bend's
   screen-space shadows for the relief's own bumps are stage 9's.
@@ -1577,7 +1579,7 @@ Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at
   paths), and a jump's settling (17–53 s since 6b, against 5–9 s before): the asks kept over a sweep, a read-back every
   frame, the bias chosen in one step. Stills at the tent from eye level, 10 m and 30 m against main, `paths zoom,walk`,
   the settle time; labelled pictures before and after.
-- **Delivered:** stage 6c built (under Build), merged with main (`4853026`), draft PR #81; the pictures in
+- **Delivered:** stage 6c built (under Build), merged with main (`015ab1c`, stages 7 and 8), draft PR #81; the pictures in
   `~/src/github/MaiaCityCoop/shots/0038-6c/` and on `aven/0038-shots` under `stage6c/`.
 - **Good:** a jump settles in 8–12 s where main takes 19–27 s, and the world where it starts in 36 s where main takes
   62 (cold); the bias is chosen at once from
@@ -1642,3 +1644,5 @@ Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at
 | 2026-11-18 | `16f8e01` | Stage 7: the growth map keyed on the sandbox and the stage, not the ground map's fade |
 | 2026-11-18 | `1aac442` | Stage 7 merged with main (6b): the land's litter and far colours read the rule's stands |
 | 2026-11-18 | `3907ce7` | Stage 7 merged with main (`314e2e6`) |
+| 2026-11-18 | `e969626` | Stage 6c: the notes, the numbers measured, the changelog and trail |
+| 2026-11-18 | `015ab1c` | Stage 6c merged with main (stages 7 and 8): the drawer's ground colour by stage 8, the size for the skirt beside it |
