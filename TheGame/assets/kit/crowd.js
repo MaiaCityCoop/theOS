@@ -5,34 +5,29 @@
 // corners each, its tip and its root; a solid piece: its triangles and its foot) and nothing else. Plain JS, no three
 // and nothing of the page: run in the recipes' worker, and by the library on the page.
 //
-// What it finds, and what the engine does with it. Each rung comes where its own error, measured here on the plant at
-// full detail, is the one ERROR_PX pixels drawn (src/detail/error.js switchPx: the size on screen under which an error of
-// e, metres over the plant's size, is within it); nothing here is a size on screen of its own:
+// What it finds, and what the engine does with it. Each rung comes where its own error, measured here on the plant, is
+// within the one ERROR_PX (src/detail/error.js switchPx); nothing here is a size on screen of its own:
 //   - one spread order of the sprigs. Every sprig has its turn, and any first share of the turns is a fair picture of
 //     the whole crown: the sprigs go by size into classes (each half the area of the one before, the largest first), and
-//     within a class each next is the one farthest from all taken before (a blue-noise order). Its share error: drawing
-//     the first t turns, the farthest any sprig left out lies from one drawn (measured as the order is found: errOf). A
-//     sprig is gone where that error is within ERROR_PX:
-//         go    = switchPx(error after its turn / size)   the size on screen under which it is gone
-//     and those that stay are enlarged about their tips, uniformly (never stretched one way), so the crown covers as much:
-//         share = min(1, (px / P0)^A)            P0, A: the measured go's, as a power (fitOf)
+//     within a class each next is the one farthest from all taken before (a blue-noise order). Its share error, drawing
+//     the first t turns: the farthest a sprig left out lies from one drawn (turnsOf). A sprig is gone where that is within
+//     ERROR_PX (its go), and those that stay are enlarged about their tips, uniformly, so the crown covers as much:
+//         share = min(1, (px / P0)^A)            P0, A: through the ends of its measured thinning
 //         k     = min(SWELL, area^-E)            area: the share of the cards' area the drawn sprigs are (areaAt)
 //     E is measured on each shape: a thin crown needs more of it than a thick one, whose cards hide each other. A crown
-//     whose share error is never within its clumps' does not thin before they come: drawn whole down to them;
+//     whose share error is nowhere within its clumps' does not thin before they come;
 //   - a solid piece is gone where leaving it out (its width) is within ERROR_PX, and shrinks to its foot. The solids'
 //     corners are sorted thick first: a first share of the list is the thick wood;
 //   - the clumps (NVIDIA HPG 2026, Simplygon's billboard clouds): the sprigs split into chunks by their boxes, the
 //     largest first, into as many as cost no more than the sprigs still there where the crowd ends (twelve corners a
 //     chunk: three crossed planes through its box's middle, each wearing its own leaves as the GPU bakes them,
-//     src/detail/impostor.js, so nothing of a clump is painted by hand). Their error is their bake's: a texel, TILE of
-//     them over a chunk's largest side; they take over where it is within ERROR_PX. Over the window WIN the last sprigs
-//     go one by one and the chunks grow in one by one, each where its own sprigs were;
+//     src/detail/impostor.js). Their error is their bake's texel (TILE over a chunk's largest side). Over the window WIN
+//     the last sprigs go one by one and the chunks grow in one by one, each where its own sprigs were;
 //   - the impostor's frame: the sphere round the whole plant, from which the GPU bakes its views (one octahedral
-//     impostor a shape, src/detail/impostor.js). Its error is its bake's too: a texel, CELL of them over the sphere's
-//     width; it takes over where that is within ERROR_PX (T: src/scatter/trees.js meshShare), and always under
-//     `far.lo`, where a level holds nothing else. Where its views are as fine as the clumps where they would come, it
-//     takes over from the crowd itself, and the shape has no clumps. A plant without a far end (far: false, its kind's:
-//     assets/kinds.js) has neither: its crowd goes by its share error down to where the plant is gone.
+//     impostor a shape, src/detail/impostor.js). Its error is its bake's texel too (CELL over the sphere's width: T,
+//     src/scatter/trees.js meshShare); under `far.lo` a level holds nothing else. Where its views are as fine as the
+//     clumps where they would come, it takes over from the crowd itself, and the shape has no clumps. A plant without a
+//     far end (its kind's `far`, assets/kinds.js) has neither: its crowd goes by its share error to where it is gone.
 //
 //   crowd(mesh, { size, far }) -> a shape:
 //     count, cards, parts, solids   its vertices; its cards (4 vertices each, corners 0 1 2, 0 2 3); its sprigs; its
@@ -213,20 +208,17 @@ function headOf(m, K) {
   const centre = [0, 1, 2].map((a) => (lo[a] + hi[a]) / 2); let r2 = 0;
   for (let p = 0; p < n * 3; p += 3) r2 = max(r2, (P[p] - centre[0]) ** 2 + (P[p + 1] - centre[1]) ** 2 + (P[p + 2] - centre[2]) ** 2);
   const sphere = [...centre, sqrt(r2) || 1];
-  // ---- each sprig's own go: gone where leaving it out, and every turn after it, is within ERROR_PX (its share error:
-  // turnsOf). A crowd too few to thin (LEAST) keeps them all: none goes by itself ----
+  // ---- each sprig's own go: where leaving it out, and every turn after it, is within ERROR_PX (its share error); a crowd
+  // too few to thin (LEAST) keeps them all ----
   const thins = N > K.LEAST, withFar = K.far !== false, own = Float64Array.from({ length: N }, (_, t) => (thins ? switchPx(order.err[t] / size) : 0));
   const endAt = (px) => { let t = 0; while (t < N && own[t] < px) t++; return t; };   // (the sprigs still there at px: own is never less as the turns go on)
-  // ---- where the crowd ends: its clumps or its impostor, each where its bake's error, a texel, is within ERROR_PX ----
-  // the impostor takes over from the clumps where they would draw their triangles smaller than a quad of pixels (2 x 2,
-  // what the GPU shades as one) over the plant's own square: its views as many texels a side as twice the root of those
-  // triangles, a power of two from 64 up to CELL (cellOf); its texel is its sphere's width over that (Tof: where it is
-  // within ERROR_PX). From a crowd at its end, as soon as it is: as fine as they come (CELL)
+  // ---- where the crowd ends: its clumps or its impostor, each where its bake's texel is within ERROR_PX ----
+  // the impostor's views as many texels a side as twice the root of the clumps' triangles (where they would draw them
+  // smaller than a 2 x 2 quad of pixels over the plant's square), a power of two from 64 up to CELL (cellOf); from a crowd
+  // at its end, as fine as they come (CELL). The clumps: as many chunks as cost no more than the sprigs still there where
+  // the crowd ends (first all of them, then those its clumps leave). A shape whose impostor is as fine there already hands
+  // its crowd over to it, and has no clumps; a plant without a far end has neither, and nothing takes its crowd (win 0)
   const cellOf = (tris) => min(K.CELL, max(K.CELL >> 1, 2 ** ceil(log2(2 * sqrt(max(tris, 1)) - 1e-9)))), Tof = (cell) => switchPx((2 * sphere[3]) / (cell * size));
-  // the clumps: as many chunks as cost no more than the sprigs still there where the crowd ends (first: all of them, then
-  // those its clumps leave), split largest first; they take over where their texel (TILE of them over a chunk's largest
-  // side) is within ERROR_PX. A shape whose impostor is as fine there already hands its crowd over to the impostor, and
-  // has no clumps; a plant without a far end has neither, and nothing takes its crowd over (win 0)
   const endOf = (M0) => {
     let cornersM = 0; for (let t = 0; t < M0; t++) cornersM += sprigs[order[t]].cards * 4;
     const chunks = withFar && thins ? chunksOf(sprigs, max(1, min(K.CLUMPS, floor(cornersM / 12))), K.grid) : null;
@@ -237,12 +229,10 @@ function headOf(m, K) {
   };
   let E0 = endOf(N); if (E0.M < N) E0 = endOf(E0.M);
   const { chunks, cell, T, win } = E0, M = endAt(win.hi);
-  // every sprig's go: the last M (those still there where the crowd ends) one by one over the clumps' window, or, where
-  // nothing comes in over them (no clumps), staying till the impostor takes them; the rest their own
+  // every sprig's go: the last M (still there where the crowd ends) one by one over the clumps' window, or, with no
+  // clumps, staying till the impostor takes them; the rest their own. The GPU's share, (px / P0)^A, through the ends of
+  // the thinning: all of it where its first sprig goes, M of N where it ends (one that hardly thins: A small)
   const go = Float32Array.from({ length: N }, (_, t) => (t < M ? (chunks ? win.lo * pow(K.WIN, (t + 0.5) / M) : 0) : own[t]));
-  // the share the GPU reckons a crowd's enlargement by, (px / P0)^A, through the two ends of its thinning: all of it where
-  // its first sprig goes, M of N where it ends (a crowd that does not thin before its end: all of it there; one that
-  // hardly thins, a few sprigs going over a wide range of sizes: A small, so those left are hardly enlarged)
   let P0 = max(win.hi, 1e-3), A = K.A;
   if (M < N && own[N - 1] > 0) {
     const t1 = max(M, endAt(1e-9)), s1 = max(t1, 1) / N, p1 = max(own[min(t1, N - 1)], 1e-6);

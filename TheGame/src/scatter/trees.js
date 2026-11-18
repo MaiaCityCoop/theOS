@@ -558,13 +558,10 @@ function farOf(renderer, tex, G, D) {
 }
 
 /** The things this engine places, as the layers they are placed in (rule.js): the things of one layer that end alike
-    (gone at the same level of everything's: assets/kit/plant.js bandsOf) and alike have a far end or none are one group,
-    packed and drawn together (createStands); a thing of the layer made otherwise is a group of its own, in the same
-    cells. A group's levels are its kinds' cut as one: everything's levels (src/detail/error.js rungPx), two of them one
-    where every shape of every kind holds the same in both (its room there: its crowd whole above where it thins, nothing
-    but its numbers where its impostor is all there is); each level's patches as large as its band asks (patchOf). Each
-    kind: its thing of the layer (e: a grown tree, a sapling, a bush, a stone), its shapes, where its meshes lie among the
-    group's (offset), the sizes it can have. */
+    (gone at the same level: assets/kit/plant.js bandsOf) and alike have a far end or none are one group, packed and
+    drawn together (createStands), their levels cut as one (cutOf); a thing of the layer made otherwise is a group of its
+    own, in the same cells. Each kind: its thing of the layer (e: a grown tree, a sapling, a bush, a stone), its shapes,
+    where its meshes lie among the group's (offset), the sizes it can have. */
 export function groupsOf(rows) {
   const by = new Map();
   for (const L of layersOf(rows)) for (const e of L.entries) {
@@ -579,10 +576,10 @@ export function groupsOf(rows) {
   return [...by.values()].map((G) => offsets(cutOf({ ...G, kinds: G.kinds.sort((x, y) => x.e.i - y.e.i) })));
 }
 const offsets = (G) => { let at = 0; return { ...G, kinds: G.kinds.map((Kd) => { const k = { ...Kd, offset: at }; at += Kd.shapes; return k; }), meshes: at }; };
-/** A group's levels cut as one (groupsOf): its kinds' own levels (all alike but the last's end: their rooms by shape and
-    level, assets/kit/tree.js crowdRooms), each run of them that holds the same for every shape one level, [lo, hi] its
-    run's ends (the last down to where the last of its kinds is gone), its rooms its run's first's; and its patches
-    (patchOf). Every kind's levels are then the group's (Kd.levels, Kd.rooms). */
+/** A group's levels cut as one: its kinds' own (everything's levels, src/detail/error.js rungPx), each run of them in
+    which every shape of every kind holds the same (its room: assets/kit/tree.js crowdRooms; a crowd whole above where
+    it thins, nothing but its numbers where its impostor is all) one level, the last down to where its last kind is
+    gone; its patches as large as its band asks (patchOf). Every kind's levels are then the group's (Kd.levels, rooms). */
 function cutOf(G) {
   const own = G.kinds[0].row.detail.levels, R = G.kinds.map((Kd) => Kd.asset.crowdRooms().slice(0, Kd.shapes)), runs = [];
   const alike = (l) => R.every((rooms) => rooms.every((r) => r[l][0] === r[l + 1][0] && r[l][1] === r[l + 1][1]));

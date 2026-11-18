@@ -92,23 +92,19 @@ export const plantFamily = (id, asset) => ({
 const dimsOf = (asset, i) => { const H = most(asset.size.height), h = asset.heights?.[i] ?? H, k = h / H; return { height: h, length: most(asset.size.length) * k, width: most(asset.size.width ?? asset.size.length) * k, trunk: asset.trunk?.[i] ?? null }; };
 
 // ---- the plants' levels by the crowd kit (intent 0033): one build of a shape's finest, every level a first share of
-// it (assets/kit/crowd.js). A level only shares the work out: it holds all that the sizes it is drawn at ask for, and what
-// is drawn of it is the crowd kit's rule, each rung where its own error is the one ERROR_PX ----
+// it (assets/kit/crowd.js), holding all that its sizes ask for; what is drawn of it is the crowd kit's rule ----
 /** How deep a plant's foot is set into the ground (src/scatter/trees.js stands it so). */
 export const FOOT = 0.15;
 /** Whether a plant has a far end (its impostor, after its clumps where the crowd kit finds them): its own, else its kind's. */
 export const hasFar = (a) => !!(a.far ?? kindRule(a, 'far'));
-/** Where a plant is gone, pixels of the measure: its last rung is the land under it, which wears its stand's colour or its
-    floor there, so leaving it out differs by how far it stands over the ground, a share of its size on screen's measure
-    (src/detail/error.js goneAt), the most of any of its shapes (a tree, all of it; what lies on the floor, its height
-    over its width). */
+/** Where a plant is gone (src/detail/error.js goneAt): the land under it wears its stand's colour or its floor, so leaving
+    it out differs by how far it stands over the ground, of its size on screen's measure, the most of its shapes'. */
 export const goneOf = (a) => {
   let e = 0; for (let i = 0; i < (a.shapeCount ?? 1); i++) e = Math.max(e, Math.max(0, (a.heights?.[i] ?? most(a.size.height)) - FOOT) / shapeSize(a, i));
   return goneAt(e || 1);
 };
-/** The sizes on screen each level of a plant is drawn between, finest first: [lo, hi]. Everything's levels' sizes
-    (src/detail/error.js rungPx), down to the one its end falls in, the last drawn down to its end. A stand cuts its
-    kinds' levels as one (src/scatter/trees.js groupsOf), where they hold the same. */
+/** The sizes on screen each level of a plant is drawn between, finest first: [lo, hi]: everything's (rungPx), down to the
+    one its end falls in, the last to its end. A stand cuts its kinds' as one (src/scatter/trees.js groupsOf). */
 export const bandsOf = (a) => { const g = goneOf(a), last = rungAt(g); return Array.from({ length: last + 1 }, (_, l) => [l === last ? g : rungPx(l), l ? rungPx(l - 1) : Infinity]); };
 /** How large shape `shape` of a plant is at scale 1, as its size on screen is measured (src/scatter/trees.js sizeAtOne). */
 export const shapeSize = (a, shape) => { const H = a.size.height, S = a.growth?.stages?.find((x) => shape >= x.offset && shape < x.offset + x.variants); return (S ? a.heights?.[shape] ?? S.h : H) * (kindRule(a, 'measure') === 'height' ? 1 : Math.max(most(a.size.length), most(a.size.width ?? 0), most(H)) / H); };

@@ -38,22 +38,15 @@ const widthOf = (asset, T) => asset.tiers[0].w * (T.cell / asset.tiers[0].cell) 
     its end). */
 const endOf = (T, dist) => (T.end < 1e5 ? float(1).sub(smoothstep(T.end / BAND, T.end, dist)) : float(1));
 
-/** The meadow's rings, made from its blade alone (assets/grass.js `blade`: its full detail), near to far, each a tier
-    of src/scatter/tier.js: { segs, cell, P, w (the nearest's), near, nearFade, far, farFade, end } (metres as the
-    walker's 68° lens sees them: a longer lens stretches them by its own factor, core/governor.js).
-      - ring k's cells are 2^(k/2) times the blade's: its blades halved in number ring by ring, each as many times wider
-        as they are fewer (widthOf), so it covers the ground as the blade does and the meadow keeps its height;
-      - its error is how much wider its blades are than the blade, w (2^k - 1): where they stood is the spread order's
-        (rankOf), what the ground's pixels show of them the width keeps. It takes over where that is within the one
-        ERROR_PX (src/detail/error.js switchAt), its blades coming in, blade by blade, over the BAND past there while the
-        ring before's go;
-      - its bends as few as keep the bow of a blade within that same error (a bow of b metres drawn in n straight pieces
-        misses its curve by b / 4n²; the mean blade's bow: bladeIn's mean height, 0.95 of the asset's, times its mean
-        bend, 0.65, bowing 1.15 of that at its tip);
-      - the meadow ends where the ground's map does (src/scatter/ground.js REACH), thinning away over the BAND before it:
-        there the land's own grass colour is all there is. A ring that would only come in where the meadow is thinning
-        away is not made: the ring before it, finer, goes on to the end.
-    h: the picture's height in pixels of the measure (the window's), what a pixel of error is reckoned at. */
+/** The meadow's rings, made from its blade alone (assets/grass.js `blade`), near to far, each a tier: { segs, cell, P, w
+    (the nearest's), near, nearFade, far, farFade, end } (metres as the walker's 68° lens sees them). Ring k's cells are
+    2^(k/2) times the blade's, its blades halved in number ring by ring and as many times wider (widthOf), so the meadow
+    keeps its cover and its height. Its error is how much wider its blades are than the blade, w (2^k - 1); it takes over
+    where that is within the one ERROR_PX (src/detail/error.js switchAt), its blades coming in over the BAND past there
+    as the ring before's go; its bends as few as keep a blade's bow within it (a bow of b metres in n straight pieces
+    misses its curve by b / 4n²: the mean blade's, bladeIn's mean height 0.95 of the asset's, its bend 0.65, bowing 1.15
+    of that at its tip). The meadow ends where the ground's map does (ground.js REACH), thinning over the BAND before it;
+    a ring that would only come in there is not made. h: the picture's height, pixels of the measure (the window's). */
 export function ringsOf(asset, h = globalThis.innerHeight || 1080) {
   const B = asset.blade, K = pxK(h), bow = asset.height * 0.95 * 0.65 * 1.15, at = (k) => switchAt(B.w * (2 ** k - 1), K);
   const rings = [];

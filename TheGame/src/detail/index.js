@@ -19,28 +19,23 @@ import { FADE, BAND, GONE, switchPx } from './error.js';
 // (the measure's, here too for whoever asked here before it had a file of its own: the library, tools/sweep.js)
 export { pxK, distanceAt } from './measure.js';
 
-/** Where a made thing's far card comes (src/world/place.js): its impostor's error is its bake's, a texel of the views
-    every impostor has (CROWD.CELL of them over the sphere round its faces), against its largest side. */
-const CARDS = new WeakMap();
-const impostorPx = (a) => {
-  let px = CARDS.get(a);
-  if (px == null) {
+/** Where a made thing's far card comes (src/world/place.js): its error is its bake's, a texel of the views every impostor
+    has (CROWD.CELL of them over the sphere round its faces: half its box's diagonal, at most), against its largest side. */
+const CARDS = new WeakMap(), impostorPx = (a) => {
+  if (!CARDS.has(a)) {
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
     for (const f of a.faces) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], f[j][k]); hi[k] = Math.max(hi[k], f[j][k]); }
-    const r = Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / 2;
-    CARDS.set(a, (px = switchPx((2 * r) / (CROWD.CELL * spanOf(a)))));
+    CARDS.set(a, switchPx(Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / (CROWD.CELL * spanOf(a))));
   }
-  return px;
+  return CARDS.get(a);
 };
 
-/** An asset's levels of detail, resolved: { levels: [{ i, lo, hi, … }], fade, cut, casts, sink }, each level drawn
-    between lo and hi pixels on screen. A plant's are its kit's (assets/kit/plant.js bandsOf: everything's levels, down
-    to where it is gone, its file says none). A surface (a rock, a made thing: one that says only its full detail, its
-    `faces` or its kit's mesh) has no levels of its own: every coarser version of it is the builder's
-    (assets/kit/clusters.js), drawn by the cut (src/scatter/cut.js); here it is its faces, whole, for what draws it whole
-    (src/world/place.js: the library, a page without WebGPU), then its far card where its kind has one and the page can
-    bake it (card), from where the card's texels are within ERROR_PX down to where it is gone. Every hand-over spans
-    BAND (FADE either side). */
+/** An asset's levels of detail, resolved: { levels: [{ i, lo, hi, … }], fade, cut, casts, sink }, each drawn between lo
+    and hi pixels on screen. A plant's are its kit's (assets/kit/plant.js bandsOf). A surface (a rock, a made thing: its
+    `faces` or its kit's mesh) has none of its own: every coarser version is the builder's (assets/kit/clusters.js),
+    drawn by the cut (src/scatter/cut.js); here it is its faces, whole, for what draws it whole (src/world/place.js: the
+    library, a page without WebGPU), then its far card where its kind has one and the page can bake it (card), from
+    where the card's texel is within ERROR_PX to where it is gone. Every hand-over spans BAND (FADE either side). */
 export function detailOf(a, { card = true } = {}) {
   const d = a.detail || {};
   const own = d.levels || (a.faces ? [{ faces: a.faces }] : []);
