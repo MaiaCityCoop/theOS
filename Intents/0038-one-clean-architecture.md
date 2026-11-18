@@ -1804,7 +1804,7 @@ work at all (it rebooted twice under GPU load): the bench fixed, and every part 
 ### Stage 9a: the light within its ceiling (2026-11-18)
 
 Stage 9 is split (Samuel, 2026-11-18, so the new light reaches next sooner): **9a**, the light's core within its
-ceiling, lands first on #72; **9b**, the costly rest, later in a PR of its own, until then behind `?light=full`. The
+ceiling, lands first on #72; **9b**, the costly rest, later in a PR of its own, on `aven/0038-stage9b`. The
 rules for both: root causes, never fewer samples as a patch; the light's ceiling about 3 ms of the 12.
 
 - **Measured first** (checkpoint 1, `2507190`, on the Mac mini: a base M2, 2560 × 1440 into 4K, each pass on the
@@ -1835,9 +1835,11 @@ rules for both: root causes, never fewer samples as a patch; the light's ceiling
 | Green bounce | From the probes | Only in 9b | |
 | Canopy map | 2 × 1024² (19 cm), drawn all at once every 8 frames | 2 × 512² (37.5 cm: the probes' columns stand 4–8 m apart), a view a frame, every 16 frames | |
 
-- **9b, behind `?light=full`** (`src/core/flags.js`: a preview of unfinished work, not a dial of the look, gone once 9b
-  is cheap enough to be the default): Hillaire's air in froxels with its sky and shafts, GTAO, the probes marched ray by
-  ray and their green bounce, as stage 9 built them (the probes now made in bands too). Its code is all kept.
+- **9b on its own branch** (`aven/0038-stage9b`; first behind `?light=full`, which the master took out on 2026-11-18: a
+  preview switch is a second path through the light): Hillaire's air in froxels with its sky and shafts, GTAO, the
+  probes marched ray by ray and their green bounce, as stage 9 built them (the probes made in bands too). It joins the
+  one light, with no switch, once it fits the light's 3 ms. #72 keeps none of it: the air is the height fog alone, the
+  dome the hour's colours, the screen's light the contact shadows alone (one byte a pixel), the canopy map 512 a side.
 - **Bindings**, counted on the CPU (three's own WGSL builder on a stand-in device, no GPU): the land's colour pass binds
   12 textures and 10 samplers in 9a (stage 9: 14 and 12; `?light=full`: 14 and 12); a lit surface's colour pass binds
   6 textures and 2 samplers for the light: the screen light's and the blue noise (loads; the noise now one texture node
@@ -1854,6 +1856,23 @@ rules for both: root causes, never fewer samples as a patch; the light's ceiling
   printed part by part, as the passes' own times are.
 - **Not measured here** (no GPU work on this machine): all of it, on the Mac mini: the gate's bench, stills, `?truth`,
   the paths. `bun tools/scale.js`: 24 of 24. `bunx --bun vite build`: TheGame and OS built.
+- **The sun's shadows on the GPU** (trains 1 and 1b drew the stand's floor at eye level evenly in the sun):
+  `tools/shadowcheck.mjs` asks the GPU what it did. It reads each cascade back and puts a 41 × 41 grid of floor points
+  in shade two ways: by that readback, and by the light's own `shadowAt`, `shadowAtOne` and `shadowAtVertex`, drawn on
+  the GPU. It also records WebGPU's errors and the near layer with the tiers' culling off.
+  - **9a alone** (`c032e3d`; the MacBook and the Mac mini agree): the near layer 58.7 % drawn; 998 of 1681 floor points
+    in shade by the readback, 999–1016 by the light's code (1676 agree); no errors. The stills show the crowns' and
+    trunks' shade (`aven/0038-shots`, `9a-shadowcheck/`).
+  - **Train 1b** (9a with #77, #78, #81, #84): the same map and the same reading (745 of 1681 in shade), yet the near
+    floor evenly in the sun. Train 1c, without 9a, lost the shade too.
+  - The near floor there is #81's relief, which drew it with a second mesh and material of its own. Its shader reads the
+    cascades as the land's does (built on the CPU), so the shade was lost in that draw's inputs at run time. Task A (the
+    ground) fixes it at the root: the relief is now the land's own vertices raised, one mesh, one material.
+- **The code gates** against train 1c (`health.js`): `boot` back at 1c's 34 (the screen's light is wired in
+  `screenLightFor`), no new export (`shadow.js NEAR` and `canopy.js CANOPY` not exported), fewer lines in clones. The
+  physical numbers are said once, in their units, with their sources (`src/world/light/physics.js`: the sun's width,
+  how much light a metre of crown takes); every other new number is marked `derive:` for the Mac mini to derive from
+  the error, the light's 3 ms and the screen.
 - **For Samuel**, where 9a may not hold the look within 3 ms without a fudge:
   - the colour pass's own share of the shadows (its A/B read −2.4 to 4.7 ms: noise round a real cost). If it stays over,
     the cure is a blocker search from a min-depth pyramid of the cascade, which costs the land a binding (12 of 16 now);
@@ -1981,7 +2000,7 @@ madge follows every import.
 - [ ] Stage 8: surfaces, cluster hierarchy (built: rocks, the tent and the fire pit; the stress world's zoo to 8b)
 - [ ] Stage 9: one light, characters
   - [x] 9a: the light within its ceiling (built; on #72, the gate on the Mac mini)
-  - [ ] 9b: froxels, GTAO, the probes marched and their bounce, cheap enough to be the default (now behind `?light=full`)
+  - [ ] 9b: froxels, GTAO, the probes marched and their bounce, cheap enough to be the default (on `aven/0038-stage9b`)
 - [ ] The bench pass by pass (built on `aven/0038-bench-per-pass`): measured on the Mac mini, the per-part ceilings a
       merge rule
 - [ ] The upscale's cost at a 4K output (7.5–21.2 ms against its 1.5): the next root cause after 9a
