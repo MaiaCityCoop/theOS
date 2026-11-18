@@ -19,6 +19,10 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { blake3 } from '@noble/hashes/blake3.js';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 import { kitsOf } from './registry.js';
+import { build, ready } from '../assets/kit/clusters.js';
+import { useBuilder, levelSizes } from '../assets/kit/surface.js';
+import { rockHierarchy } from '../assets/kit/rock.js';
+import { isMade, madeHierarchy } from '../assets/kit/made.js';
 
 const BUILDER = ['assets/kit/clusters.js', 'assets/kit/surface.js', 'assets/kit/rock.js', 'assets/kit/made.js'];
 
@@ -28,7 +32,6 @@ export async function buildRooms(root) {
   const files = [...new Set(BUILDER.flatMap((f) => [resolve(root, f), ...kitsOf(root, resolve(root, f))]))].sort(), builder = bytesToHex(blake3(utf8ToBytes([...files, resolve(root, 'node_modules/meshoptimizer/package.json')].map((f) => readFileSync(f, 'utf8')).join('\n'))));
   const was = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {}, old = was.builder === builder ? was : {}, out = { builder };
   const load = (f) => import(pathToFileURL(resolve(root, f)).href);
-  const [{ build, ready }, { useBuilder, levelSizes }, { rockHierarchy }, { isMade, madeHierarchy }] = await Promise.all(['assets/kit/clusters.js', 'assets/kit/surface.js', 'assets/kit/rock.js', 'assets/kit/made.js'].map(load));
   await ready; useBuilder(build);
   for (const uid of Object.keys(manifest).sort()) {
     const r = manifest[uid]; if (r.type !== 'asset') continue;

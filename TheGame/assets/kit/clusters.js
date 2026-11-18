@@ -40,6 +40,7 @@
 //     the rest pose; grown by how far the bones reach is what the cut must add.
 import { MeshoptSimplifier as S, MeshoptClusterizer as C } from 'meshoptimizer';
 import { BAND } from '../../src/detail/error.js';
+import { RAMP } from './physics.js';
 
 /** When meshoptimizer's WebAssembly is ready: build() may be called from then on. */
 export const ready = Promise.all([S.ready, C.ready]);
@@ -59,7 +60,7 @@ const MAXT = 128, MAXV = 256, MINT = 32, GS = 8, STUCK = 0.85, TAIL = 8;
     (the tilt growing from none to δ). meshoptimizer weighs a change of 1/w in an attribute over a distance d as d of
     position (its README), so with w = 1/2 the simplifier counts a normal's error as the move it looks like, in the
     units of the positions, and the cut holds both to ERROR_PX alike. What it made is measured so too (morphs). */
-const NW = 1 / 2;
+const NW = RAMP;
 /** A colour's weight (what the light multiplies: a made thing's colour, a rock's shade; 0 … 1 a channel). Lit as its
     colour times n·l, a normal δ off changes a pixel's light by δ at most, and so does a colour δ off: the picture cannot
     tell the two apart, so a colour's error is counted as the same move, NW. An attribute that is no colour (a bone's
@@ -315,23 +316,31 @@ function gridOf(out, lp) {
 // looked at lies wholly outside the block of them, so at least as far as the point is from that block's nearest side
 // (a side at the grid's edge has nothing past it)
 function nearest(G, lp, out, x, y, z, R) {
-  const p = [x, y, z], c = [G.at(x, 0), G.at(y, 1), G.at(z, 2)]; let best = -1, bd = Infinity; const B = [0, 0, 0];
+  const p = [x, y, z], c = [G.at(x, 0), G.at(y, 1), G.at(z, 2)], B = [0, 0, 0]; let best = -1, bd = Infinity;
+  const look = (t) => { const d = toTriangle(x, y, z, lp, out[t * 3], out[t * 3 + 1], out[t * 3 + 2], B); if (d < bd) { bd = d; best = t; R[1] = B[0]; R[2] = B[1]; R[3] = B[2]; } };
   for (let r = 0; r <= G.n; r++) {
-    for (let i = c[0] - r; i <= c[0] + r; i++) for (let j = c[1] - r; j <= c[1] + r; j++) for (let l = c[2] - r; l <= c[2] + r; l++) {
-      if (Math.max(Math.abs(i - c[0]), Math.abs(j - c[1]), Math.abs(l - c[2])) !== r || i < 0 || j < 0 || l < 0 || i >= G.n || j >= G.n || l >= G.n) continue;
-      const L = G.cells.get((i * G.n + j) * G.n + l); if (!L) continue;
-      for (const t of L) { const d = toTriangle(x, y, z, lp, out[t * 3], out[t * 3 + 1], out[t * 3 + 2], B); if (d < bd) { bd = d; best = t; R[1] = B[0]; R[2] = B[1]; R[3] = B[2]; } }
-    }
+    ringOf(G, c, r, (L) => { for (const t of L) look(t); });
     if (best < 0) continue;
-    let gap = Infinity;
-    for (let a = 0; a < 3; a++) {
-      if (c[a] - r > 0) gap = Math.min(gap, p[a] - (G.lo[a] + (c[a] - r) * G.sz[a]));
-      if (c[a] + r < G.n - 1) gap = Math.min(gap, G.lo[a] + (c[a] + r + 1) * G.sz[a] - p[a]);
-    }
-    if (bd <= gap * gap && gap >= 0) break;
+    const gap = gapOf(G, p, c, r); if (gap >= 0 && bd <= gap * gap) break;
   }
-  if (best < 0) for (let t = 0; t < G.T; t++) { const d = toTriangle(x, y, z, lp, out[t * 3], out[t * 3 + 1], out[t * 3 + 2], B); if (d < bd) { bd = d; best = t; R[1] = B[0]; R[2] = B[1]; R[3] = B[2]; } }
+  if (best < 0) for (let t = 0; t < G.T; t++) look(t);
   R[0] = bd; return best;
+}
+/** The triangles of each cell of the grid r cells round cell c (its ring), each cell's list to fn. */
+function ringOf(G, c, r, fn) {
+  for (let i = c[0] - r; i <= c[0] + r; i++) for (let j = c[1] - r; j <= c[1] + r; j++) for (let l = c[2] - r; l <= c[2] + r; l++) {
+    if (Math.max(Math.abs(i - c[0]), Math.abs(j - c[1]), Math.abs(l - c[2])) !== r || i < 0 || j < 0 || l < 0 || i >= G.n || j >= G.n || l >= G.n) continue;
+    const L = G.cells.get((i * G.n + j) * G.n + l); if (L) fn(L);
+  }
+}
+/** How far p lies from the nearest side of the block of cells r round its cell c that has cells past it. */
+function gapOf(G, p, c, r) {
+  let gap = Infinity;
+  for (let a = 0; a < 3; a++) {
+    if (c[a] - r > 0) gap = Math.min(gap, p[a] - (G.lo[a] + (c[a] - r) * G.sz[a]));
+    if (c[a] + r < G.n - 1) gap = Math.min(gap, G.lo[a] + (c[a] + r + 1) * G.sz[a] - p[a]);
+  }
+  return gap;
 }
 /** The squared distance from a point to triangle a b c (Ericson), and where the nearest point lies on it: B, the
     weights of a, b, c. */

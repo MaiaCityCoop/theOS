@@ -40,8 +40,10 @@ export function madeBox(a) {
 const oct16 = (x, y, z) => { oct(x, y, z); return (sn(OCT[0], 65535) | (sn(OCT[1], 65535) << 16)) >>> 0; };
 const flat = ([p0, p1, p2]) => { const e1 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], e2 = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]], x = e1[1] * e2[2] - e1[2] * e2[1], y = e1[2] * e2[0] - e1[0] * e2[2], z = e1[0] * e2[1] - e1[1] * e2[0], s = Math.hypot(x, y, z) || 1; return [x / s, y / s, z / s]; };
 
-/** The elements a vertex of a made thing is in the heap (above). */
-export const MADE_PER = 2;
+/** A vertex of a made thing in the heap, element by element (above): its own, and its way to its parent's surface. */
+const MADE_VERTEX = ['its place, its material, its colour, its normal', 'its way to its parent: the way, the normal and the colour there'];
+/** The elements a vertex of a made thing is in the heap. */
+export const MADE_PER = MADE_VERTEX.length;
 
 // its faces welded into one surface: a vertex where a place, a normal, a colour and a material are alike; and its
 // hierarchy (the last few kept: a worker asked for its levels one after another builds it once)
