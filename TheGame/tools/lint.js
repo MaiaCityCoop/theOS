@@ -16,8 +16,10 @@ import { readFileSync, existsSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, relative, resolve } from 'node:path';
 import { Linter } from 'eslint';
+import { buildRegistry } from './registry.js';
 
 const GAME = resolve(import.meta.dirname, '..'), linter = new Linter();
+buildRegistry(GAME);   // (the registry's manifest, which the game imports and git does not keep: made first, as the build makes it)
 const CODE = ['src', 'assets', 'biomes', 'camera', 'characters', 'cine', 'materials', 'world'], TOOLS = ['tools', 'vite.config.js'];
 const declared = (lib) => [...readFileSync(join(GAME, 'node_modules/typescript/lib', lib), 'utf8').matchAll(/^declare (?:var|function) ([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
 const readonly = (names) => Object.fromEntries([...names].map((k) => [k, 'readonly']));

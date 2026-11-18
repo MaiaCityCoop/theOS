@@ -45,6 +45,9 @@ jobs:
       - name: Install
         working-directory: TheGame
         run: bun install --frozen-lockfile
+      - name: The recipes' registry, made from them (never kept in git)
+        working-directory: TheGame
+        run: bun tools/registry.js
       - name: Every name bound, every import found
         working-directory: TheGame
         run: bun tools/lint.js
