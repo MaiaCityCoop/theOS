@@ -317,6 +317,8 @@ shows (9); a body that walks by its feet and its balance, breathes, looks and bl
 - [x] the story's folder
 - [x] second round: the limbs' outlines right side out, the thighs apart, the bumps, the neck
 - [x] every weak point against the gate, listed (Propose)
+- [x] the code brought to `main`'s gates, the Body unchanged byte for byte (but for the by-eye numbers' count)
+- [ ] on `main`: the gate's place for what is set by eye (Samuel's to decide), then the pull request
 - [ ] seen in the library on a real GPU, and timed
 - [ ] Samuel's word on the rule, the screen's curve and what comes next
 - [ ] the shoulders' breadth; the crease across the belly bent forwards; the shoulder's top with the arm level
@@ -367,6 +369,29 @@ shows (9); a body that walks by its feet and its balance, breathes, looks and bl
 - **Delivered (evening):** nothing more here: the face and the eyes are intent 0042's. This intent stays proposed;
   his word on the body is "okay for now", not yet an acceptance.
 
+- **Asked (night):** "Once this is done ensure that you also deliver all remaining work that we did on our custom
+  work as well" (the two figures of intent 0043 had just gone to `main`; this is the Body's skin and face, intents
+  0041 and 0042, which had not).
+- **Delivered (night):** the Body's code brought to what `main`'s code gates ask, with no change in what it makes.
+  What nothing imports is no longer exported. The tool has no switches left and always keeps what it laid; both tool
+  pages share one set-up (`tools/alone.page.js`). The seven functions over the ceiling are made in named steps: the
+  shape under the skin (it was one function of 350 lines, complexity 146), the cage, the ear's maps and its surface,
+  the weights, the flesh. Degrees to radians, an edge's name and two of the cage's six ring counts are worked out, not
+  written. The five poses are the skin's `budget.js`; what was shaped by eye (the ear, the face's lines, the head, the
+  cage's counts, how the skin takes the light) is one module, `characters/kit/skin/art.js`, each saying against what
+  it was chosen; the gloss's two lobes are the skin's `method.js`, what skin mirrors is the world's `physics.js`.
+- **Good (night):** After every step the Body was laid again and its two files compared with the ones from before:
+  byte for byte the same each time. Its stills from the tool's page are pixel for pixel the same. Lint, smoke, scale,
+  words and the figures' check pass. Of the gates against `main`: no new copy, no touched function over 20 (the most
+  complex one here is 87, an older one, where it was 146), no new unused export, no cycle, no more mode branches.
+- **Broke / not there yet (night):** It is not on `main`. One gate fails: it counts the 68 numbers of `art.js` as set
+  by hand, 49 more than `main` has. The standing rule lets a setting be set by hand where it is physical or artistic,
+  but the gate's tool has a place for the physical, the required and a published method's only, none for the artistic.
+  I began to add one to the tool (`tools/health.js`, three lines and its notes); this session's safety check refused
+  that edit of a shared gate, and the tool is as it was. Whether the gate gets that place is Samuel's to decide.
+  On the way: two of my edit scripts stopped at their own checks (a line's index, a count) before they wrote
+  anything, and were run again right.
+
 ## Trail
 
 | When | Commit | What |
@@ -379,6 +404,12 @@ shows (9); a body that walks by its feet and its balance, breathes, looks and bl
 | 2026-11-18 | `2a2534e` | proposed: Build, each check as it was, the gaps, three choices for Samuel; the story's folder |
 | 2026-11-18 | `6a5952c` | the limbs' sections right side out; thighs apart, a smoother skin, the neck to the skull's base |
 | 2026-11-18 | `4245334` | the gate in Samuel's words; the second round; sixteen weak points against the gate |
+| 2026-11-18 | `ec38393` | what nothing imports is no longer exported |
+| 2026-11-18 | `2aa012a` | the tool without its switches; one page set-up for both tools; the parts named once; the five poses in the skin's budget |
+| 2026-11-18 | `066c691` | the ear's, the cage's, the weights' and the flesh's makers in named steps |
+| 2026-11-18 | `ea365b2` | the shape under the skin made in named steps |
+| 2026-11-18 | `1ea9c57` | conversions and what follows from another number written as that |
+| 2026-11-18 | `019b8cf` | what was shaped by eye in one module, each with its source; the physical and the published in theirs |
 
 On its branch this intent was numbered 0039, and its commits' messages say `Intent: 0039`. It was given 0041 on 2026-11-18,
 when the branch was brought to `main`, where 0039 had meanwhile been taken by another intent.
