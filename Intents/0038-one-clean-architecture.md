@@ -340,6 +340,21 @@ parallel streams, each in its own worktree and branch.
   a mover's own motion (its skeleton at the previous stride); Safari is not tried (`@invariant`, storage writes in a
   fragment shader); the virtual camera's depth of field is not exercised by the gate (its target is now half float);
   `tools/sweep.js` reads the colour target as eight bits and now gets half floats.
+### Stage 10: ship what CI built; next deploys itself (2026-11-17)
+
+- **Ship what CI built.** CI's push to `main` uploads its release tar, `release-next`. The deploy downloads that run's
+  artifact (no checkout, no rebuild) and checks that its `version.json` names the commit. A manual run with
+  environment and commit is the rollback: it finds that commit's passed push run and ships its artifact.
+- **Next deploys itself** when CI passes on a push to `main` (`workflow_run`). It deploys only for a passed `push` run
+  from this repository; production stays manual. `AUTO_DEPLOY_NEXT` is no longer read.
+- **`.gitattributes`:** `Intents/*.md merge=union`.
+- **`Stories/store.js`:** what the four Stories CLIs repeated. 58 read commands give identical output, and 52 write
+  commands write byte-identical files.
+- **`server/repo.js`:** one repo API and one MIME table for both dev servers and both builds; the builds are
+  byte-identical to main's.
+- Bun workspaces were skipped while another branch changed `TheGame/package.json`.
+- **Only GitHub can show** the artifact passing between runs and the `workflow_run` trigger. They fire after the
+  merge. Commits from before it have no artifact, so a rollback reaches only later ones.
 
 ### The state of the art, checked (2026-11-17)
 
@@ -405,7 +420,7 @@ Three research rounds, each read against this definition. Sources marked † wer
 - [ ] Stage 7: placement, five layers
 - [ ] Stage 8: surfaces, cluster hierarchy
 - [ ] Stage 9: one light, characters
-- [ ] Stage 10: repository
+- [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
 
 ## Changelog
 
