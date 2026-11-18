@@ -22,6 +22,7 @@ export const U = {
   uAirH: uniform(0), uAirScale: uniform(1200),     // the height fog: the camera's height above the ground, the air's thinning
   uLandR0: uniform(48), uReliefReach: uniform(24),   // level 0's reach, lens metres; the relief's first level's reach (src/terrain/terrain.js: from the measure)
   uMeadowEnd: uniform(0),                          // where the meadow's blades end, lens metres (src/scatter/grass.js: where they are gone; 0: no meadow)
+  uMeadowTop: uniform(0),                          // the meadow's mean top over the ground where it covers it all, metres (src/scatter/grass.js meanTop; 0: no meadow)
   uLandEnd: uniform(24000),                        // how far the land is drawn, metres from the eye (src/terrain/terrain.js): the air hides it by then
   uExposure: uniform(1),                           // the picture's exposure (the sky sets it by the hour)
   uSnow: uniform(0),                               // how deep the snow lies, metres (src/world/weather/snow.js)

@@ -40,6 +40,20 @@ function blade(segs) {
     the BAND before the meadow's end (U.uMeadowEnd), none past it. The blades thin by it, and the land's carpet under
     them reads it (src/terrain/material.js): one statistic either side of where the blades hand over to the carpet. */
 export const endOf = (dist) => float(1).sub(smoothstep(U.uMeadowEnd.div(BAND), U.uMeadowEnd, dist));
+/** The meadow's mean top, metres, for an asset `height` tall: its mean blade (bladeIn: 0.5 of the asset's height, and
+    r² 0.55 and its tuft's c² 0.8 more, each r and c 0 … 1: their means a third) at its tip, bowed by its mean bend
+    (bladeIn: 0.2, and 0.55 r and 0.35 c more: their means a half) as bladeMaterial bows it there (0.42 of its bend). What
+    the meadow is past its blades: the land raised by it (src/terrain/material.js), its tufts over it (pages.js). */
+export const meanTop = (height) => height * (0.5 + 0.55 / 3 + 0.8 / 3) * (1 - 0.42 * (0.2 + 0.55 / 2 + 0.35 / 2));
+/** How a blade is lit, its colour col (node code): the sun wrapped round it (n: its normal, rounded and softened to the
+    meadow's whole), through it where the eye looks into the sun, and its sheen, the more of each the higher up it the
+    point is (t, 0 at its foot, 1 at its tip); the sky's light on it. sun: the sun's light that reaches it, V the way to
+    the eye. The meadow past its blades is lit by it as they are at their tips, its top (src/terrain/material.js). */
+export const bladeLit = (col, n, V, t, sun) => {
+  const ndl = n.dot(U.uSunDir).mul(0.5).add(0.5), thru = pow(max(V.negate().dot(U.uSunDir), 0), 2).mul(t);   // (light through the blade: the bright yellow-green of a lit meadow)
+  const sheen = pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 20).mul(0.16).mul(t);
+  return col.mul(skyLight(n).mul(t.mul(0.45).add(0.55)).add(sun.mul(ndl.mul(ndl).mul(1.1).add(vec3(0.5, 1, 0.22).mul(thru))))).add(sun.mul(sheen));
+};
 
 /** The meadow's rings, made from its blade alone (assets/grass.js `blade`), near to far: { segs, cell, P, w, e }. Ring k's
     cells are 2^(k/2) times the blade's, its blades halved in number ring by ring and as many times wider (w: half a
@@ -137,12 +151,10 @@ function bladeMaterial(T) {
       if (passOf(builder) === 'pre') return motion(vWas, 1);   // (the prepass: where it lay a frame ago; a blade is thin)
       const vT = vTS.x, n0 = normalize(vN.add(vSide.mul(vTS.y).mul(0.6)));   // a blade is a little rounded
       const n = normalize(frontFacing.select(n0, n0.negate()).add(vec3(0, 1.4, 0)));   // and a meadow lights as a soft whole
-      const ndl = n.dot(U.uSunDir).mul(0.5).add(0.5), V = normalize(U.uCam.sub(vWorld));
-      const thru = pow(max(V.negate().dot(U.uSunDir), 0), 2).mul(vT);   // light through the blade: the bright yellow-green of a lit meadow
-      const sheen = pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 20).mul(0.16).mul(vT);
+      const V = normalize(U.uCam.sub(vWorld));
       const sun = U.uSun.mul(cloudAtOne(vWorld));   // one sample of the shadow map: a blade is too thin for a soft edge to show
       const onIt = max(clamp(snowDepth.mul(4), 0, 0.4).mul(float(1).sub(smoothstep(0.05, 0.5, vT))), clamp(snowDepth.mul(2.5), 0, 0.6).mul(smoothstep(0.3, 0.8, n0.y.abs())).mul(smoothstep(0.3, 0.8, vT)));   // snow at the foot, and lying on what bows over
-      const col0 = weathered(mix(vCol, SNOW, onIt), n, 9).mul(skyLight(n).mul(vT.mul(0.45).add(0.55)).add(sun.mul(ndl.mul(ndl).mul(1.1).add(vec3(0.5, 1, 0.22).mul(thru))))).add(sun.mul(sheen));
+      const col0 = bladeLit(weathered(mix(vCol, SNOW, onIt), n, 9), n, V, vT, sun);
       const col = vTS.z.greaterThan(0.5).and(vT.greaterThan(0.86)).select(vec3(0.92, 0.92, 0.86).mul(skyLight(n).add(U.uSun.mul(0.7))), col0);
       return finish(col, vWorld);
     });
@@ -166,6 +178,7 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
   const widest = rings.map((_, k) => { let w = null, a = 0; for (let i = 0; i <= 64; i++) { const b = bandsOf(rings, asset.height, pxKMost() * 2 ** (-i / 4), cut).bands[k], n = Math.max(0, b.near - b.nearFade), d = b.far > 0 ? b.far ** 2 - n ** 2 : 0; if (d > a) { a = d; w = [n, b.far]; } } return w; });
   const need = rings.map((R, k) => (widest[k] ? Math.ceil(viewArea(...widest[k]) / (R.cell * R.cell)) : 0)), BYTES = 3 * 16;   // (three vec4 a blade: slots, below)
   const fit = Math.min(1, roomOf('ground') / Math.max(1, need.reduce((s, n) => s + n, 0) * BYTES));
+  U.uMeadowTop.value = meanTop(asset.height);
   const at = bandsOf(rings, asset.height, pxKMost(), cut);   // (at the most: the farthest every ring and the meadow's end can be, what each ring's region tree is sized for)
   return rings.map((R, k) => {
     const T = { cell: uniform(R.cell), w: uniform(R.w), near: uniform(0), nearFade: uniform(0), far: uniform(0), farFade: uniform(0) };

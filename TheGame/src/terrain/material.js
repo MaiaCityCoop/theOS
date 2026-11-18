@@ -7,13 +7,14 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, positionWorld, varyingProperty, cameraProjectionMatrix, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, log2 } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { TRUTH } from '../detail/measure.js';
+import { TRUTH, pxAt, dialPxAt } from '../detail/measure.js';
+import { BAND } from '../detail/error.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
 import { OCT_LAM } from '../world/land.js';
 import { layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND, SHADE_REACH, CROWNS } from './layers.js';
 import { finish, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
-import { endOf } from '../scatter/grass.js';
+import { endOf, bladeLit } from '../scatter/grass.js';
 import { RELIEF, reliefShares, reliefOverSnow } from './relief.js';
 
 export const GRID = 16, NODE = 8;   // quads per node side; a level-0 node's side, metres (its reach is the measure's: U.uLandR0, src/terrain/terrain.js)
@@ -188,6 +189,14 @@ export function terrainMaterial(vt) {
       raise.assign(G.h.sub(0.5).mul(RELIEF).mul(share).mul(float(1).sub(G.cv)).mul(reliefOverSnow(snowDepth)));
       if (pre) vN.assign(landPoint(wp, true).N);   // (the prepass's asks go by the smooth land under it: its normal)
     });
+    // past the meadow's blades, its mean top (src/scatter/grass.js meanTop: U.uMeadowTop): the land's own vertices raised
+    // by it as much as the meadow covers (the carpet's share, the page's), so what stands there sinks into it as it did
+    // among the blades; as long as it shows (its top over a dial pixel, handed over within BAND)
+    const past = float(1).sub(endOf(dist)).mul(smoothstep(1, BAND, dialPxAt(pxAt(U.uMeadowTop, dist)))).toVar();
+    If(past.greaterThan(0), () => {
+      const sp = P.cell.mul(P.k.add(1)), G = vt.read(wp, vec2(sp, 0), vec2(0, sp), dist, { lod: true });
+      raise.addAssign(G.cv.mul(U.uMeadowTop).mul(past));
+    });
     vRel.assign(share);
     const h = L.h.add(raise).toVar();
     if (!pre) { vWorld.assign(vec3(wp.x, h, wp.y)); vI.assign(L.I); vN.assign(L.N); vHill.assign(L.hill); }   // (vWorld without the snow's depth: the light and the air do not need it)
@@ -239,8 +248,12 @@ export function terrainMaterial(vt) {
     const relief = mix(0.74, 1.1, smoothstep(-6, 16, vHill));
     const sunl = max(n.dot(U.uSunDir), 0);
     const cs = cloudShade(vWorld).toVar();
-    const col = weathered(mix(c.mul(mix(1, 0.5, wet)), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).mul(skyLight(n).mul(cs.mul(0.3).add(0.7)).mul(float(1).sub(shade.mul(0.35))).add(U.uSun.mul(cs).mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)).mul(sunl)));   // under a cloud the sky is dimmer too (the clouds' shade read once: light.js cloudAt is these three)
-    const V = normalize(U.uCam.sub(vWorld));
+    const surf = weathered(mix(c.mul(mix(1, 0.5, wet)), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).toVar(), V = normalize(U.uCam.sub(vWorld));
+    const sun = U.uSun.mul(cs).mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)).toVar();
+    const lit = surf.mul(skyLight(n).mul(cs.mul(0.3).add(0.7)).mul(float(1).sub(shade.mul(0.35))).add(sun.mul(sunl)));
+    // (past the meadow's blades the carpet is their aggregate, lit as they are at their tips, the meadow's top:
+    // src/scatter/grass.js bladeLit; the ground's own light where it is bare, under snow or under the blades)
+    const col = mix(lit, bladeLit(surf, n, V, float(1), sun), cv.mul(float(1).sub(blades)).mul(float(1).sub(snow)));   // under a cloud the sky is dimmer too (the clouds' shade read once: light.js cloudAt is these three)
     return finish(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), vWorld);
   });
 

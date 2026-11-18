@@ -32,6 +32,7 @@ import { did } from '../core/work.js';
 import { source } from '../core/settle.js';
 import { TRUTH, pxAt, dialPxAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
+import { endOf } from '../scatter/grass.js';
 import { RELIEF, PSTEPS, reliefShares, reliefOverSnow } from './relief.js';
 import { layerTables, layerWords, layersFrom } from './layers.js';
 import { laid, slopeAt, groundRead, cavityOf } from './material.js';
@@ -508,17 +509,19 @@ export function createPages(renderer, tex) {
       // ---- parallax (as much as reliefShares says: from where the relief near the eye lets go until the flat ground is
       // within the one error): the ground's own height (h, 0 … 1, the land's at 0.5, RELIEF from lowest to highest),
       // the soil's (not the grass's carpet: its blades stand over it), what of it stands out of the snow, seen along
-      // the eye's ray.
+      // the eye's ray; and past the meadow's blades the carpet's, its tufts over the meadow's mean top (U.uMeadowTop:
+      // src/scatter/grass.js meanTop; the land raised by that, material.js) as long as that shows, over a dial pixel.
       // The ray at height h lies over p + sl (h - 0.5); from the top down, PSTEPS steps, until it is under the ground;
       // between the last two steps, where it crossed. Within p's page and its border (the steps along a grazing ray
       // held to what the border holds) ----
       const q = vec2(p).toVar();
       if (eye) {
-        const share = reliefShares(d.mul(U.uLodInv)).parallax.mul(reliefOverSnow(snowDepth)).toVar();
-        If(share.greaterThan(0.01).and(s1.greaterThanEqual(0)), () => {
+        const dl = d.mul(U.uLodInv), share = reliefShares(dl).parallax.mul(reliefOverSnow(snowDepth)).toVar();
+        const meadow = float(1).sub(endOf(dl)).mul(smoothstep(1, BAND, dialPxAt(pxAt(U.uMeadowTop, dl)))).mul(reliefOverSnow(snowDepth)).toVar();
+        If(share.add(meadow).greaterThan(0.01).and(s1.greaterThanEqual(0)), () => {
           inArray(s1, (j, layer) => {
-            const soil = float(1).sub(tX ? at(tX[j], inPage(p, l1), layer).x : at(tN[j], inPage(p, l1), layer).z);   // (the carpet's share there)
-            const sl = eye.xz.div(max(eye.y, 0.25)).mul(share.mul(soil).mul(RELIEF)).toVar();
+            const cv = tX ? at(tX[j], inPage(p, l1), layer).x : at(tN[j], inPage(p, l1), layer).z;   // (the carpet's share there)
+            const sl = eye.xz.div(max(eye.y, 0.25)).mul(share.mul(float(1).sub(cv)).mul(RELIEF).add(meadow.mul(cv).mul(U.uMeadowTop))).toVar();
             const hAt = (pt) => at(tA[j], inPage(pt, l1), layer).a;
             const was = vec2(p.add(sl.mul(0.5))).toVar(), above = hAt(was).sub(1).toVar();   // (how far the ground stands over the ray: under 0, the ray is above it)
             Loop(PSTEPS, ({ i }) => {
