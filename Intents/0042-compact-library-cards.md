@@ -1,10 +1,10 @@
 ---
 id: "0042"
 title: Compact library cards
-state: build           # idea | define | build | propose | story | archived
+state: propose         # idea | define | build | propose | story | archived
 outcome:               # accepted | rejected, set only when archived
 opened: 2026-11-18
-story:                 # Stories/0042-compact-library-cards/, set at propose
+story: Stories/0042-compact-library-cards/
 ---
 
 # 0042 · Compact library cards
@@ -57,7 +57,57 @@ He asked for this outright; the definition below holds no surprise, so it is bui
 
 ## Build
 
+Notes while building, 2026-11-18.
+
+- **Which words.** "The prose of each variant and right aside text labels" was read as everything the library's
+  right side says: a recipe's description, a biome's "laid" and a material's "used by", the words of each move, layer
+  and expression, the notes while a body is grown, and the labels over them.
+- **Rewritten, not cut off.** Each of the 54 descriptions was written anew as one plain line (the longest 71
+  letters) that says what the thing is. What the long ones also told (how a thing is made, what it is measured by)
+  is still in the recipe's `made` and `measure` and in its file's comments, untouched.
+- **Variants as pills.** A move, a layer or an expression was a box of three to six lines each. Now each is a pill
+  in one wrapping row (the brand's own button, as the trees' ages already were), the chosen one solid, and one line
+  under the row says the chosen one's few words. Twelve variants take five lines.
+- **Labels.** "Moves · rigged" is Moves; "Expressions · the face's own shapes" is Expressions; "Layers · the
+  outermost shown" is Layers; "Growth · by age" is Age; the skeleton's cell lost its sentence and is one line with
+  its button; "Made from: the stress stand's walker, kind 26: its legs, build, head and lean" is "From: Walker 26".
+- **Made, closed.** How a character is made (up to 718 letters) is behind a line that opens on a click.
+- **Four figures.** The card is 236 px wide; four figures at full size ran into each other, and so did their four
+  labels. In a row of four, the figures and their labels are set smaller and each takes its own width.
+- **A check** (`tools/words.js`) reads the same words from the recipes and the kits and fails over 80 letters for a
+  description and 40 for the rest, so the next recipe is written short too.
+- **Every recipe has a new version**: its words are part of its source (registry.json).
+
 ## Propose
+
+Proposed on 2026-11-18. Story: [`Stories/0042-compact-library-cards/`](../Stories/0042-compact-library-cards/story.md).
+
+**Delivered:** the words of all 54 recipes and of the three character kits, short; the card compact
+(`TheGame/src/library/card.js`, `subjects.js`, `library.html`, two small parts in `brand/brand.css`);
+`TheGame/tools/words.js`. A picture of four cards before and after was sent to Samuel.
+
+**Checks, as they were**
+
+| # | Result | Evidence |
+| --- | --- | --- |
+| 1 | passed | `bun tools/words.js`: 109 of 109 lines within their measure. Longest description 71 of 80 (Pebble); longest variant 40 of 40 (Reach); longest "used by" 40 of 40 (Path); longest "laid" 21 of 40 |
+| 2 | passed for seven of eight, one not pictured | The library opened in headless Chromium, the card measured (its height in px, before → after): Bell tent 425 → 387, Stone pine 711 → 617, Pine forest 512 → 420, Pine needles 557 → 445, Settler 975 → 562, Skeleton 1742 → 524, Body 2768 → 647, Woman 2204 → 613. Pictured and looked at after: Bell tent, Stones, Pine needles, Settler, Skeleton, Body, Woman. The biome's card after was measured but not pictured (the click did not take on this machine in that run) |
+| 3 | passed | A click on Laugh and Cheer (Woman), on Muscles and Reach (Body), on Walk (Settler): each pill turned on, the line under its row changed to its words, the address kept it (`move=cheer&face=laugh`, `move=reach&layer=muscles`, `move=walk`). "Made" opened on a click (718 letters) |
+| 4 | passed | `bun tools/registry.js`: 54 recipes, 54 new versions. `bun tools/scale.js`: 20 of 20. `bun tools/figure.js`: 2 of 2. `vite build` in `TheGame/` (the recipes' piece 206 → 199 kB, the library's 23.8 → 22.5 kB) and in `OS/`: built |
+
+**Known gaps**
+
+- **The stage behind the card was not seen**: this machine's software GPU does not draw the world (intent 0041).
+  What a click does to the figure was not seen, only that the card and the address follow it.
+- **The words are mine.** Fifty-four descriptions written in one go; each says less than before. Any that reads
+  wrong is one line in its recipe's file.
+- **Two brand parts are new** (`.g-pills`, `.g-more`) and the four-figure rule lives in the library's page only; the
+  dashboard's cards were not looked at.
+- **Under 760 px the card is still hidden**, as before; a phone sees the list only.
+- A first run measured the Settler's card wrongly (the click did not take; its numbers were the card before it);
+  measured again, right.
+
+**Samuel's to decide:** accept or reject; any line he wants worded otherwise.
 
 ## Story
 
@@ -67,12 +117,23 @@ He asked for this outright; the definition below holds no surprise, so it is bui
 
 ## Todo
 
-- [ ] every recipe's `about`, every variant's words
-- [ ] the card: pills, short labels, `made` closed, the figures
-- [ ] `tools/words.js`
-- [ ] the checks, the pictures, the story
+- [x] every recipe's `about`, every variant's words
+- [x] the card: pills, short labels, `made` closed, the figures
+- [x] `tools/words.js`
+- [x] the checks, the pictures, the story
 
 ## Changelog
+
+### 2026-11-18
+
+- **Asked.** Samuel, with a picture of the Woman's card: "Can you also use this moment to make the prose of each
+  variant and right aside text labels way more compact for every existing asset?" (typos tidied).
+- **Delivered.** Every recipe's description one short line; every move, layer and expression a few words; the card's
+  variants as pills, its labels a word or two, "made" closed, four figures that no longer collide; a check that
+  fails on a long line. The Body's card went from 2768 px to 647, the Woman's from 2204 to 613.
+- **Good.** All checks pass; the pills work on a figure, the Body and the Settler.
+- **Not there.** The stage was not seen (the software GPU); one of eight cards was measured but not pictured; the
+  short lines are a first wording, his to change.
 
 ## Trail
 

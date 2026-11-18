@@ -1,0 +1,163 @@
+{
+ "intent": "0042",
+ "title": "Compact library cards",
+ "day": null,
+ "inGame": null,
+ "goals": [
+  [
+   "Every recipe said in one line",
+   true
+  ],
+  [
+   "Every move, layer and expression in a few words",
+   true
+  ],
+  [
+   "The card: pills, short labels, figures that do not collide",
+   true
+  ],
+  [
+   "A check that fails on a long line",
+   true
+  ],
+  [
+   "Seen with the stage behind it, on a real GPU",
+   false
+  ]
+ ],
+ "preview": {
+  "pos": [
+   -1264.0,
+   -5.44,
+   617.07
+  ],
+  "look": [
+   -1262.6,
+   -6.0,
+   631.0
+  ],
+  "mm": 35
+ },
+ "clips": [
+  {
+   "name": "The meadow, one tent",
+   "kind": "wide",
+   "secs": 13,
+   "ease": "in",
+   "in": "dip",
+   "inSecs": 1.4,
+   "hour": 11,
+   "clouds": 0,
+   "why": "the game as it starts: the one tent on the meadow. The library, where every thing of the city is looked at, is a page of its own and not in this shot",
+   "keys": [
+    {
+     "pos": [
+      -1264.0,
+      -5.44,
+      617.07
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1263.8,
+      -5.45,
+      619.06
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    }
+   ]
+  },
+  {
+   "name": "Towards the tent",
+   "kind": "push in",
+   "secs": 12,
+   "ease": "out",
+   "in": "cut",
+   "why": "nearer the tent: one thing, seen plainly, which is what a card is for",
+   "keys": [
+    {
+     "pos": [
+      -1263.4,
+      -5.46,
+      623.04
+     ],
+     "look": [
+      -1262.85,
+      -5.98,
+      628.51
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1263.05,
+      -5.46,
+      626.52
+     ],
+     "look": [
+      -1262.85,
+      -5.98,
+      628.51
+     ],
+     "mm": 35
+    }
+   ]
+  }
+ ],
+ "captions": [
+  {
+   "at": 0.6,
+   "for": 3.2,
+   "kind": "title",
+   "text": "Say it shorter",
+   "over": "Compact library cards"
+  },
+  {
+   "at": 4.1,
+   "for": 3.4,
+   "kind": "samuel",
+   "text": "Make the prose of each variant way more compact."
+  },
+  {
+   "at": 7.7,
+   "for": 3.0,
+   "kind": "samuel",
+   "text": "For every existing asset."
+  },
+  {
+   "at": 10.9,
+   "for": 3.2,
+   "kind": "maia",
+   "text": "The Body took 560 letters to say what it is."
+  },
+  {
+   "at": 14.3,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "Now 64. Fifty-four things, one line each."
+  },
+  {
+   "at": 17.5,
+   "for": 3.2,
+   "kind": "maia",
+   "text": "A move was a box of six lines. Now it is a pill."
+  },
+  {
+   "at": 20.9,
+   "for": 3.4,
+   "kind": "note",
+   "text": "The Body's card: 2768 px tall before, 647 now."
+  }
+ ]
+}
