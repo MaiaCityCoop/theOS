@@ -1457,6 +1457,13 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 - [ ] The gate keeps the first frame and the bytes loaded before it, so the 10 % report can hold them; the train's
       base is run twice (`--again`), so the paths, the compile and real are judged too
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
+- [ ] The gate finished: motion (nothing pops), the truth in tiles, real against photographs (#78; #79 merged)
+  - [ ] its first job on main: the truth at 2.5 and 12 km in tiles, motion on the four paths, real at every view
+  - [ ] `?truth`'s cold start: build its world at the game's pace, then draw at its finest
+  - [ ] the per-pass ceilings as a gate rule (`budgets` in Define, `gate.js bench` fails a class over its ceiling)
+  - [x] ~~a `scale.js` ratchet counting `?truth`'s branches and unexplained thresholds~~: superseded (2026-11-18).
+      `tools/health.js`'s Settings gate is the one counter of mode branches and hand-set numbers, and fails any rise
+      over the base; a second counter would be the copy this intent removes
 
 ## Changelog
 
@@ -1632,6 +1639,63 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 - **Not there yet:** nothing measured: the Mac mini runs `bun tools/gate.js bench`; stage 9's passes join when it merges
   main; the upscale's cost is not looked into.
 
+- **Asked (Task C, by the session on the Mac mini):** finish the gate. `gate.js motion` (check 4 in motion: the change
+  detail makes in each frame against the same frame's truth, per 32-px tile, with FLIP; a filmstrip; the merge rule
+  "nothing pops"); `?truth` past 800 m, in passes; `gate.js real` (check 4a: CMMD and image statistics against
+  reference photos, with a manifest). Then: the `?truth` settle fix split out on its own, now (stages 7–9 could not be
+  gated against the truth); the GPU lock's next turn; no comparison with main; root causes only; the train.
+- **Delivered:** #78 (under Build, "The gate finished"):
+  - motion, real, tiles, the gate's clock and lock as modules of `tools/gate/`, `gate.js` a thin hook;
+  - #79 (merged): `?truth` settles again;
+  - every stills page held on the gate's clock from its start;
+  - frames read once drawn; the receiver keeps no connection;
+  - `.gate-next`;
+  - `held`, what kept each settle.
+- **Good:** `?truth` settles where it hung (tent views in 114 and 206 s). The motion check measures a camera move as
+  0.0000 and a pop as 0.48 on test frames. `real` tells the renders from the photos (CMMD 6.1, against 0.6 between
+  real stands) and says how: brighter, flatter, half the fine contrast.
+- **Not there yet:**
+  - the motion smoke's truth pass, the far truth in tiles and real on the truth at every view (on the train and then on
+    main);
+  - `?truth`'s 5-minute cold start (frame-paced building under its slow frames: a follow-up);
+  - `POP` is 0.05 until check 3's threshold is set from Samuel's pairs.
+- **Asked (by the orchestrating session, on the Mac mini):** task B, the draw path's follow-ups to #68: one dispatch
+  a pass for all tiers, a render bundle for the late prepass's draws, the grass culled, plants' boxes measured on
+  their meshes, characters on skeletons left out; measured with the gate (bench, paths walk and orbit), the picture
+  unchanged. Then: no comparison with main at all (Samuel: main is no reference), the branch judged on its own
+  (culling on against off, and its own `?truth`), the GPU in turns from the master's queue, budget first and root
+  causes only.
+- **Delivered:** built (under Build, "Draw path: one culling for every tier…"), merged with main (stages 7 and 8, the
+  bench by its passes), PR #77 ready for the integration train; culling off above, on below on `aven/0038-shots`,
+  `cull/`.
+- **Good:**
+  - seven culling dispatches a frame for every tier at once (it was six a tier: 156 of 254 at the tent); 20 compute
+    dispatches a frame in all, standing still;
+  - the culling's GPU 0.2–0.9 ms (the pyramid 0.18–0.48 of it), the late prepass 0.3–1.1 ms of CPU and 0.02–0.05 ms of
+    GPU; the grass culled (at the tent 103 k of its 134 k blades drawn), plants' boxes measured: 13–73 % of what is
+    packed drawn, and culling on against off within the floor at every bench view;
+  - every GPU resource and dispatch sized from the adapter's own limits: found at the final gate when stage 7's
+    layers made the arena outgrow a binding and the truth's packing outgrow a dispatch.
+- **Not there yet:** FLIP against its own `?truth` (the truth did not settle in 300 s at the start); the paths over
+  16.7 ms and 12 ms of GPU (walk p99 34 ms cold), memory 5.31 GB within 8; the pyramid's 12 dispatches; the bench's
+  ground-map fade (under Found); Safari not tried.
+- **Asked (by the master on the Mac mini, task A):** stage 6c: relief from the virtual texture's height (displacement
+  near the eye on a mesh built in compute, parallax further out, skirts that bed rocks in the soil, spline decals for
+  paths), and a jump's settling (17–53 s since 6b, against 5–9 s before): the asks kept over a sweep, a read-back every
+  frame, the bias chosen in one step. Stills at the tent from eye level, 10 m and 30 m against main, `paths zoom,walk`,
+  the settle time; labelled pictures before and after.
+- **Delivered:** stage 6c built (under Build), merged with main (`015ab1c`, stages 7 and 8), draft PR #81; the pictures in
+  `~/src/github/MaiaCityCoop/shots/0038-6c/` and on `aven/0038-shots` under `stage6c/`.
+- **Good:** a jump settles in 8–12 s where main takes 19–27 s, and the world where it starts in 36 s where main takes
+  62 (cold); the bias is chosen at once from
+  one sweep's asks (bias 0 at 10 m, where 6b stepped to 0.25–0.5); near the eye the pebbles stand out of the ground in
+  relief, as sharp as main (97 % of its edge energy); the two footpaths read as worn earth sunk into the meadow, with
+  no grass, stones or trees on them.
+- **Not there yet:**
+  - pages still come in after the camera stops (the relief's pixels move as its heights sharpen), so a jump takes
+    250–355 frames where the floor is about 150; the walk's GPU p99 rose 1–3.5 ms;
+  - the skirts are not in the gate's views, so they are checked in the code, not in a still;
+  - the far grazing hand-over left from 6b; Safari not tried.
 - **Asked (by the master on the Mac mini):** the 10 % gate's missing startup measures: the first frame and the bytes
   loaded before it, under one definition shared with the cold-start work.
 - **Delivered:**
@@ -1693,6 +1757,11 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 | 2026-11-18 | `16f8e01` | Stage 7: the growth map keyed on the sandbox and the stage, not the ground map's fade |
 | 2026-11-18 | `1aac442` | Stage 7 merged with main (6b): the land's litter and far colours read the rule's stands |
 | 2026-11-18 | `3907ce7` | Stage 7 merged with main (`314e2e6`) |
+| 2026-11-18 | `9fa8a1f` | Draw path: one culling for every tier (an arena), the late prepass one bundle, the grass culled, plants' boxes measured |
+| 2026-11-18 | `3c821b1` | Draw path: boxes worked out only for what was packed; a bucket found in as many halvings as it takes |
+| 2026-11-18 | `fe8a3f8` | Draw path merged with main (stage 7): the grass's box and the growth map both in its packing |
+| 2026-11-18 | `e969626` | Stage 6c: the notes, the numbers measured, the changelog and trail |
+| 2026-11-18 | `015ab1c` | Stage 6c merged with main (stages 7 and 8): the drawer's ground colour by stage 8, the size for the skirt beside it |
 | 2026-11-18 | `19d0559` | The bench times each pass on its own on main: the passes marked, each in one of four parts (geometry, light, ground, upscale/post) |
 | 2026-11-18 | `26f751d` | `tools/health.js`: the code gates in one command (copies, spaghetti, dead code, cycles, size, settings, dependencies); the baseline under Build |
 | 2026-11-18 | `695ea18` | Imports from the game's root made relative (`cine/trailer.js`, `tools/sweep.js`), so madge follows every import |

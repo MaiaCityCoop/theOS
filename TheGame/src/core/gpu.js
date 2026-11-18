@@ -46,7 +46,9 @@ export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);
     unasked; one not in the list is not read. */
 const SIZED = ['maxBufferSize', 'maxStorageBufferBindingSize', 'maxUniformBufferBindingSize', 'maxComputeWorkgroupsPerDimension', 'maxTextureArrayLayers'];
 /** What to ask a device for, of its adapter's limits A: each of SIZED as A has it. */
-export const limitsFrom = (A) => Object.fromEntries(SIZED.filter((k) => A?.[k] != null).map((k) => [k, A[k]]));
+const limitsFrom = (A) => Object.fromEntries(SIZED.filter((k) => A?.[k] != null).map((k) => [k, A[k]]));
+/** What the device is asked for (src/boot.js): each of SIZED as this machine's adapter has it (none without WebGPU). */
+export const askedLimits = async () => limitsFrom((await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits);
 /** One of the renderer's GPU's limits, one of SIZED (none without WebGPU: nothing then asks). */
 export const limitOf = (name) => { if (!SIZED.includes(name)) throw new Error(`gpu: ${name} is not a limit the device is asked for (SIZED)`); return R?.backend?.device?.limits?.[name] ?? 0; };
 /** Every buffer made here within the device's limits: one larger is an error of whoever sized it, said by name. */
@@ -72,18 +74,22 @@ export function gpuStorage(type, count, name = null, instanced = false) {
   return { node: storage(attr, type, count), attr, bytes, lean: true, write(at, data) { dev.queue.writeBuffer(buffer, at * 4, data); } };
 }
 /** The same, its size said later, before anything binds it (what is shared by things not all made yet: the culling's
-    lists, src/core/occlusion.js): { node, attr, make(count) -> bytes }. A storage buffer's length is not in its code, so
-    the node is the same whatever it is made as. */
+    lists, src/core/occlusion.js), and said again as what it must hold changes (a resident tier's store, from its own
+    count: src/scatter/tier.js): { node, attr, make(count) -> bytes }. Made again, the buffer it was is let go (three lets
+    its own go, and binds the new one where it next draws: an attribute's generation), and the ledger says the
+    difference. A storage buffer's length is not in its code, so the node is the same whatever it is made as. */
 export function gpuStorageLater(type, name = null) {
-  const [Arr, size] = TYPES[type], attr = new THREE.StorageBufferAttribute(new Arr(size), size);
+  const [Arr, size] = TYPES[type], attr = new THREE.StorageBufferAttribute(new Arr(size), size); let made = 0;
   return {
     node: storage(attr, type, 1), attr,
     make(count) {
-      const bytes = Math.max(1, count) * size * 4;
-      if (!R) { attr.array = new Arr(Math.max(1, count) * size); attr.count = Math.max(1, count); if (name) note(name, bytes, bytes); return bytes; }
+      const bytes = Math.max(1, count) * size * 4, old = R && made ? R.backend.get(attr).buffer : null;
+      if (made) { attr.dispose(); if (old && R.backend.get(attr).buffer === old) old.destroy(); }   // (three's, let go by three; one three never bound, by us)
+      if (!R) { attr.array = new Arr(Math.max(1, count) * size); attr.count = Math.max(1, count); if (name) more(name, bytes - made, bytes - made); made = bytes; return bytes; }
       within(bytes, name);
       R.backend.get(attr).buffer = R.backend.device.createBuffer({ label: name ?? 'lean', size: Math.max(16, bytes), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
-      if (name) note(name, bytes, 0);
+      if (name) more(name, bytes - made, 0);
+      made = bytes;
       return bytes;
     },
   };

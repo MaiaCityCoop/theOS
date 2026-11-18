@@ -72,22 +72,24 @@ export function createRocks(scene, tex, ground, rows, gpu, renderer) {
         const kind = uint(floor(rnd(cx, cy, uint(201)).mul(shapes)).min(shapes - 1)).add(uint(F.first));
         // (a stone shrinks away where the ground's map ends)
         const size = big ? s : s.mul(float(1).sub(smoothstep(REACH / BAND, REACH, dist)));
-        found(kind, size, dist, (A, B, G) => {
+        // (none on a way: none whose base, half its side round its middle, reaches onto it: src/world/ways.js;
+        // src/world/rocksolid.js keeps the same)
+        If(offWays(float(1), pos, s.mul(0.5)).greaterThan(0.5), () => found(kind, size, dist, (A, B, G) => {
           const sunk = size.mul(lookOf(kind, 5).w);   // (how deep it lies: its look's)
           if (big) {   // an outcrop: the land worked out here (the ground's map does not reach so far)
             const d = abs(I.x), w = I.y, dry = dryAt({ p: pos, dist, d, w, b: I.z });
             A.assign(vec4(pos, heightAt(pos, dist, d, w, I.z).sub(sunk), size)); G.assign(vec4(grassTint(tex, pos, dry, 0).rgb, dry));
           } else { A.assign(vec4(pos, GA.x.sub(sunk), size)); G.assign(ground.tint(pos)); }
           B.assign(vec4(rnd(cx, cy, uint(211)).mul(6.2831853), float(kind), 0, rnd(cx, cy, uint(212)).mul(6.2831853)));   // (its turn, its kind; it does not sway; its seed: drawer.js)
-        });
+        }));
       };
       If(dist.lessThan(band.far).and(dist.greaterThanEqual(band.near)), () => {
         const r0 = rnd(cx, cy, uint(200));
         if (big) {
           const oc = outcropMask(pos).toVar();
           If(r0.lessThanEqual(oc.mul(0.6).add(0.012)), () => {
-            const I = riverInfo(pos).toVar();   // (none in the river, none on a way: src/world/ways.js)
-            If(r0.lessThanEqual(offWays(oc.mul(0.6).add(0.012).mul(smoothstep(I.y.add(2), I.y.add(9), abs(I.x))), pos, 3)), () => { thing(oc, I, null); });
+            const I = riverInfo(pos).toVar();   // (none in the river)
+            If(r0.lessThanEqual(oc.mul(0.6).add(0.012).mul(smoothstep(I.y.add(2), I.y.add(9), abs(I.x)))), () => { thing(oc, I, null); });
           });
         } else { const GA = ground.A(pos).toVar(); If(r0.lessThanEqual(GA.w.mul(0.7)), () => { thing(float(0), null, GA); }); }
       });
