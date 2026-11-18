@@ -1,12 +1,15 @@
 // The Body built without the world, measured, and kept for the lab's page (intent 0039): `bun tools/body.js` lays the
 // bones, the muscles and the skin as the workers lay them (characters/kit/skeleton/grow.worker.js), and says of the skin:
 //   whether it is one closed surface (every edge between exactly two faces), its points and triangles at each level,
-//   its volume, and how far each level stands off the smooth surface;
+//   its volume, and how far each level is off the finest (what the page chooses a level by);
 //   how smooth it is: how far the surface's normal turns from a point to its neighbour, a centimetre of skin, over
 //   the trunk and the limbs (degrees: the middle one and the one only a twentieth exceed);
 //   its measures beside a man's: girths and breadths of a man of 1.80 m, slightly muscular (MEASURES below).
-// `--keep <folder>` writes body.json and body.bin there for the lab's page (tools/body.html: the Body drawn alone
-// through the game's own shader); `--h <cell>` lays the shape on other cells than 6 mm; `--json` prints the numbers.
+// `--keep` writes what was laid to TheGame/.body/ for the tool's page (tools/body.html: the Body drawn alone through the
+// game's own shader, on the game's dev server); `--stills <folder>` then takes that page's stills there (VIEWS below:
+// the body from four sides and close, and in five poses), through Chrome, or the browser at --chrome <path>, from the
+// dev server at --url (http://localhost:5173/); `--h <cell>` lays the shape on other cells than 6 mm; `--json` prints
+// the numbers.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { skeletonBones } from '../characters/kit/skeleton.js';
@@ -14,6 +17,17 @@ import { prepare } from '../characters/kit/skeleton/mesh.js';
 import { musclesOf } from '../characters/kit/muscles/build.js';
 import { skinOf } from '../characters/kit/skin/build.js';
 import { rigOf } from '../characters/kit/skeleton/pose.js';
+
+/** The stills: the body from four sides, close, and in five poses (the address of tools/body.html each). */
+export const VIEWS = {
+  front: 'yaw=0', 'three-quarter': 'yaw=35', side: 'yaw=90', back: 'yaw=180',
+  torso: 'yaw=20&y=1.25&d=1.5', 'back, close': 'yaw=200&y=1.2&d=1.6', head: 'yaw=25&y=1.66&d=0.7', hand: 'yaw=60&y=0.78&x=0.22&d=0.6', legs: 'yaw=20&y=0.5&d=1.6', foot: 'yaw=40&y=0.06&x=0.09&z=0.05&d=0.8&pitch=25',
+  'elbows bent': 'yaw=40&d=4&pose=' + encodeURIComponent('{"elbow.L":2.2,"elbow.R":1.2,"arm.R":[0.5,0,0]}'),
+  'arms raised': 'yaw=10&d=4.6&y=1&pose=' + encodeURIComponent('{"arm.L":[0,1.6,0],"arm.R":[0,2.8,0]}'),
+  'knee raised': 'yaw=60&d=4&pose=' + encodeURIComponent('{"hip.L":[1.6,0,0],"knee.L":1.7}'),
+  'bent forwards': 'yaw=70&d=4&pose=' + encodeURIComponent('{"loins":[0.7,0,0],"chest":[0.3,0,0],"arm.L":[1.2,0,0],"arm.R":[1.2,0,0]}'),
+  squat: 'yaw=50&d=4&pose=' + encodeURIComponent('{"knee.L":2.3,"knee.R":2.3,"hip.L":[1.9,0.2,0],"hip.R":[1.9,0.2,0],"fist.L":1,"head":[0,0.9,0]}'),
+};
 
 /** What a man of 1.80 m, slightly muscular, measures (cm), and where each is taken. From the US Army's survey of men
     (ANSUR II: Gordon et al. 2014, NATICK/TR-15/007; means of 4 082 men of 1.756 m and a body-mass index of 27.7, as
@@ -91,20 +105,35 @@ const out = { seconds: { muscles: +tM, skin: +tS }, points: P.length / 3, cage: 
 if (json) console.log(JSON.stringify(out, null, 1));
 else {
   say(`The skin: ${out.points} points on a cage of ${out.cage}, hung on ${out.joints} joints; laid in ${tS} s (the muscles ${tM} s before it); ${out.litres} litres.`);
-  for (const l of levels) say(`  ${l.name.padEnd(7)} ${String(l.triangles).padStart(7)} triangles, open edges ${l.open}, edges of more than two faces ${l.many}, off the smooth surface by ${l.off} mm`);
+  for (const l of levels) say(`  ${l.name.padEnd(7)} ${String(l.triangles).padStart(7)} triangles, open edges ${l.open}, edges of more than two faces ${l.many}, off the finest by ${l.off} mm`);
   say(`  over the trunk and the limbs its normal turns ${out.turn.middle.toFixed(2)}° a centimetre of skin (the middle one), ${out.turn.most.toFixed(1)}° where it turns most (one in twenty more)`);
   say('  measure'.padEnd(36) + 'is'.padStart(7) + 'a man'.padStart(8) + '   off');
   for (const r of rows) say('  ' + r.what.padEnd(34) + (r.is + ' cm').padStart(9) + (r.man + ' cm').padStart(8) + ((r.off > 0 ? '+' : '') + r.off + ' %').padStart(9));
 }
 
 // ── kept for the lab's page ──────────────────────────────────────────────────────────────────────────────────────
-const keep = arg('keep');
+const keep = process.argv.includes('--keep') || process.argv.includes('--stills');
 if (keep) {
   delete M.inner;
   const body = { rows: M.rows, muscleList: M.muscles, muscles: { pos: M.pos, attr: M.attr, fine: M.fine, coarse: M.coarse }, skin: { pos: S.pos, attr: S.attr, fine: S.fine, coarse: S.coarse, far: S.far, off: S.off, joints: S.joints, maps: S.maps }, soles: S.soles, skinThick: S.skin, counts: { ...M.counts, skin: S.counts } };
   const chunks = []; let off = 0;
   const text = JSON.stringify(body, (k, v) => { if (!ArrayBuffer.isView(v)) return v; const b = Buffer.from(v.buffer, v.byteOffset, v.byteLength), pad = (4 - (off % 4)) % 4; if (pad) { chunks.push(Buffer.alloc(pad)); off += pad; } const r = { $t: v.constructor.name, o: off, n: v.length }; chunks.push(b); off += b.length; return r; });
-  const dir = resolve(String(keep)); mkdirSync(dir, { recursive: true });
+  const dir = resolve(import.meta.dirname, '../.body'); mkdirSync(dir, { recursive: true });
   writeFileSync(resolve(dir, 'body.json'), text); writeFileSync(resolve(dir, 'body.bin'), Buffer.concat(chunks));
   say(`kept in ${dir} (${(off / 1e6).toFixed(1)} MB)`);
+}
+
+// ── its stills ────────────────────────────────────────────────────────────────────────────────────────────────────
+const stills = arg('stills');
+if (stills) {
+  const base = String(arg('url', 'http://localhost:5173/')).replace(/\/?$/, '/'), dir = resolve(String(stills)); mkdirSync(dir, { recursive: true });
+  if (!(await fetch(base + 'tools/body.html').then((r) => r.ok, () => false))) { console.error(`no stills: the game's dev server does not answer at ${base} (bun run game)`); process.exit(1); }
+  const { chromium } = await import('playwright-core'), path = arg('chrome'), browser = await chromium.launch(path ? { executablePath: String(path), args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } : { channel: 'chrome' });
+  for (const [name, view] of Object.entries(VIEWS)) {
+    const page = await browser.newPage({ viewport: { width: 900, height: 1200 }, deviceScaleFactor: 1 }), wrong = []; page.on('pageerror', (e) => wrong.push(String(e)));
+    await page.goto(`${base}tools/body.html?${view}${arg('with') ? '&' + arg('with') : ''}`); await page.waitForFunction(() => window.__drawn, null, { timeout: 240000 }).catch(() => wrong.push('not drawn in four minutes'));
+    await page.screenshot({ path: resolve(dir, name.replace(/[, ]+/g, '-') + '.png') }); await page.close();
+    say(`  ${name}${wrong.length ? ': ' + wrong[0] : ''}`);
+  }
+  await browser.close(); say(`stills in ${dir}`);
 }

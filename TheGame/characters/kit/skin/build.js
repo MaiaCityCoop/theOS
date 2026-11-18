@@ -18,7 +18,8 @@
 //              the surface curves; and the skin's fine relief, a tile that repeats
 //     fine, coarse, far   three levels of detail over the same points: the cage smoothed twice, once, and the cage's
 //              own faces (a level's points are the first of the next finer level's, where they lie on the same surface)
-//     off      how far each of the three stands off the smooth surface (m): what the page chooses a level by
+//     off      how far each of the three is off the finest (m): off the smooth surface, or a third of how far its
+//              points lie apart, whichever is more: what the page chooses a level by
 //     soles    where the feet meet the ground: the lowest points of the soles, each with the joint that carries it
 import { MARKS, SKIN, TONE } from './table.js';
 import { targetOf } from './target.js';
@@ -172,9 +173,13 @@ export function skinOf(bones, M, { h = 0.006 } = {}) {
   // (the next finer level's point for that face), the worst but for one in a hundred; the finest a quarter of the
   // middle's (each round quarters it)
   const offOf = (m, faceAt, sizeOf) => { const { points, ea, faces } = m.from, d = new Float32Array(faces); for (let f = 0; f < faces; f++) { const k = sizeOf(f), c = [0, 0, 0]; for (let i = 0; i < k; i++) { const q = at(faceAt(f, i)); c[0] += q[0] / k; c[1] += q[1] / k; c[2] += q[2] / k; } d[f] = len(sub(c, at(points + ea.length + f))); } d.sort(); return d[Math.floor(faces * 0.99)]; };
-  const offFar = offOf(m1, (f, i) => cage.faces[f][i], (f) => cage.faces[f].length), offMid = offOf(m2, (f, i) => m1.faces[f * 4 + i], () => 4), off = [offMid / 4, offMid, offFar];
+  const offFar = offOf(m1, (f, i) => cage.faces[f][i], (f) => cage.faces[f].length), offMid = offOf(m2, (f, i) => m1.faces[f * 4 + i], () => 4);
+  // (and what a point carries, the lips' edge, an areola, a nail, the shade of a fold, is drawn no finer than a level's
+  // points lie apart: a third of the middle length of its faces' sides counts as its being off as well)
+  const sideOf = (tri) => { const d = []; for (let t = 0; t < tri.length; t += 3) d.push(len(sub(at(tri[t]), at(tri[t + 1])))); d.sort((a, b) => a - b); return d[d.length >> 1]; };
+  const farTri = Uint32Array.from(far), off = [Math.max(offMid / 4, sideOf(fine) / 3), Math.max(offMid, sideOf(coarse) / 3), Math.max(offFar, sideOf(farTri) / 3)];
   return {
-    joints: B.joints, soles: [...low.values()].map(({ rig, p }) => ({ rig, at: sub(p, RIG[rig].at) })), pos, fine, coarse, far: Uint32Array.from(far), off, attr,
+    joints: B.joints, soles: [...low.values()].map(({ rig, p }) => ({ rig, at: sub(p, RIG[rig].at) })), pos, fine, coarse, far: farTri, off, attr,
     maps: { scatter: scatterMap(), micro: microMap() },
     counts: { points: n, fine: fine.length / 3, coarse: coarse.length / 3, far: far.length / 3, cage: n0, joints: B.joints.length },
     skin: SKIN / 1000,

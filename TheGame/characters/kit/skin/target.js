@@ -19,17 +19,14 @@
 // large bones, its fills, the nose's and the ears' gristle and the eyes give their own true distances, blended in. The
 // skin is where that is as far out as the fat and the skin are thick there, half way to a man's measured outline
 // (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through.
-import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, MARKS, NIPPLE, SKIN, FILL, partOf, PROFILES, MASSES, PALM, CARPUS, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE } from './table.js';
-import { frameAt, slots } from '../muscles/build.js';
+import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, NIPPLE, FILL, partOf, PROFILES, MASSES, PALM, CARPUS, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE } from './table.js';
 import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
 
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math.hypot(a[0], a[1], a[2]), norm = (a) => mul(a, 1 / (len(a) || 1));
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
-const mirror = (n) => n.replace(/\.L$/, '.R');
 const solidOf = ([kind, ...a]) => kind === 'rod' ? F.rod(...a) : kind === 'ball' ? F.ball(...a) : F.egg(a[0], a[1], a[2] ? F.frame(...a[2]) : undefined);
 
 /** The fat's and the skin's thickness at a point of the left side (m). */
@@ -333,25 +330,23 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
     const dz = W.chin * w + W.jaw * jw;
     return dz > 0 ? [q[0], q[1], q[2] + dz] : q;
   };
-  const hfield = new Float32Array(HN[0] * HN[1] * HN[2]).fill(1), hpart = new Uint8Array(hfield.length).fill(P_.trunk), hnear = new Uint8Array(hfield.length);
+  const hfield = new Float32Array(HN[0] * HN[1] * HN[2]).fill(1);
   {
     const Hb = gridOf(headBase, [nx, ny, nz], LO, h), Rf = gridOf(restField ?? field, [nx, ny, nz], LO, h), Tf = gridOf(Float32Array.from(tissue, (t) => (Number.isNaN(t) ? 0.003 : t)), [nx, ny, nz], LO, h);
     for (let k = 0; k < HN[2]; k++) for (let j = 0; j < HN[1]; j++) for (let i = 0; i < HN[0]; i++) {
       const q0 = [HLO[0] + i * HF, HLO[1] + j * HF, HLO[2] + k * HF], q = warpFace(q0), hb = Hb.sample(q), rest = Rf.sample(q0); let v = hb;
       if (hb < 0.025) { const qq = [Math.abs(q[0]), q[1], q[2]]; v = features(hb, qq, Tf.sample(q)); v = Math.max(v, -open.f(qq[0], qq[1], qq[2])); }
-      const g = i + HN[0] * (j + HN[1] * k); hfield[g] = smin(v, rest, 0.022); hpart[g] = v < rest ? P_.head : P_.trunk; hnear[g] = v < rest + 0.003 ? 2 : v < rest + 0.01 ? 1 : 0;   // (kept a centimetre into the neck: the two skins lie together there, no gap between)
+      hfield[i + HN[0] * (j + HN[1] * k)] = smin(v, rest, 0.022);   // (run into the neck softly: the head's fine shape holds the neck under it and the tops of the shoulders as the body's does)
     }
   }
   const GH = gridOf(hfield, HN, HLO, HF);
-  const hcell = (p) => { const i = Math.round((p[0] - HLO[0]) / HF), j = Math.round((p[1] - HLO[1]) / HF), k = Math.round((p[2] - HLO[2]) / HF); return Math.max(0, Math.min(HN[0] - 1, i)) + HN[0] * (Math.max(0, Math.min(HN[1] - 1, j)) + HN[1] * Math.max(0, Math.min(HN[2] - 1, k))); };
-  const hpartAt = (p) => hpart[hcell(p)], hnearAt = (p) => hnear[hcell(p)];
 
   // ── the hands drawn finer: a finger is two centimetres across, a few of the body's cells. The left hand on cells a
   // third as large: its palm and the ball of its thumb, each finger three tapering rods from its knuckle to its tip
   // (./table.js), the fingers apart but webbed to the palm, the wrist run into the forearm's skin; the right its mirror
   let handRods = null;
   const HLo = [0.165, 0.635, -0.09], HHi = [0.275, 0.905, 0.075], HNn = [0, 1, 2].map((a) => Math.ceil((HHi[a] - HLo[a]) / HF) + 1);
-  const handF = new Float32Array(HNn[0] * HNn[1] * HNn[2]).fill(1), handP = new Uint8Array(handF.length).fill(P_.arm);
+  const handF = new Float32Array(HNn[0] * HNn[1] * HNn[2]).fill(1);
   {
     handRods = Object.entries(FINGERS).map(([f, [r1, r2, r3, r4, len]]) => {
       const j = [1, 2, 3].map((i) => RIG[f + i + '.L'].at), tip = add(j[2], mul(norm(sub(j[2], j[1])), len));
@@ -362,26 +357,25 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
     const rods = handRods;
     for (let k = 0; k < HNn[2]; k++) for (let j = 0; j < HNn[1]; j++) for (let i = 0; i < HNn[0]; i++) {
       const q = [HLo[0] + i * HF, HLo[1] + j * HF, HLo[2] + k * HF];
-      let hand = smin(smin(palm(q).E, carpus(q).E, CARPUS.k), thenar(q).E, THENAR.k), best = hand, part = P_.arm;
+      let hand = smin(smin(palm(q).E, carpus(q).E, CARPUS.k), thenar(q).E, THENAR.k);
       // (the forearm: a fifth of a millimetre outside the arm's own skin where the two lie together: the hand's fine edge
       // lies over the arm's, which dives under it)
-      const fore = GA.sample(q) + Math.max(0, 0.878 - q[1]) * 0.3 - 0.0002; hand = smin(hand, fore, 0.0005 + 0.02 * smooth01((0.872 - q[1]) / 0.03)); if (fore < best) best = fore;   // (softly into the palm, but at the wrist itself no fuller than the forearm: no cuff)
+      const fore = GA.sample(q) + Math.max(0, 0.878 - q[1]) * 0.3 - 0.0002; hand = smin(hand, fore, 0.0005 + 0.02 * smooth01((0.872 - q[1]) / 0.03));   // (softly into the palm, but at the wrist itself no fuller than the forearm: no cuff)
       let v = hand;
       // (the fingers side by side, touching where a relaxed hand's do and parting into a crease, not a slit thinner than
       // the cells can draw; all of them webbed to the palm at once: one web, not one for each finger cutting into its
       // neighbour's)
       let all = Infinity;
-      for (const R of rods) { let f = Infinity; for (const sg of R.segs) f = f === Infinity ? rod(q, sg) : smin(f, rod(q, sg), 0.003); if (f < best) { best = f; part = R.part; } all = all === Infinity ? f : smin(all, f, 0.0025); }
+      for (const R of rods) { let f = Infinity; for (const sg of R.segs) f = f === Infinity ? rod(q, sg) : smin(f, rod(q, sg), 0.003); all = all === Infinity ? f : smin(all, f, 0.0025); }
       v = Math.min(v, smin(hand, all, 0.011));
-      const g = i + HNn[0] * (j + HNn[1] * k); handF[g] = v; handP[g] = part;
+      handF[i + HNn[0] * (j + HNn[1] * k)] = v;
     }
   }
   const GHand = gridOf(handF, HNn, HLo, HF);
-  const handPartAt = (p) => { const q = [Math.abs(p[0]), p[1], p[2]], i = Math.round((q[0] - HLo[0]) / HF), j = Math.round((q[1] - HLo[1]) / HF), k = Math.round((q[2] - HLo[2]) / HF); return handP[Math.max(0, Math.min(HNn[0] - 1, i)) + HNn[0] * (Math.max(0, Math.min(HNn[1] - 1, j)) + HNn[1] * Math.max(0, Math.min(HNn[2] - 1, k)))]; };
   // ── the feet likewise: the heel, the arch and the instep the body's own skin, cut off at the ball of the foot; each
   // toe a flattened tapering rod from its knuckle to its tip (./table.js TOES), the toes apart but webbed to the ball
   const FLo = [0.02, -0.004, -0.13], FHi = [0.165, 0.115, 0.215], FNn = [0, 1, 2].map((a) => Math.ceil((FHi[a] - FLo[a]) / HF) + 1);
-  const footF = new Float32Array(FNn[0] * FNn[1] * FNn[2]).fill(1), footP = new Uint8Array(footF.length).fill(P_.leg);
+  const footF = new Float32Array(FNn[0] * FNn[1] * FNn[2]).fill(1);
   const FOOT_BLUR = [[0, 0, 0], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [0.7, 0.7, 0], [-0.7, 0.7, 0], [0.7, 0, 0.7], [-0.7, 0, -0.7], [0, 0.7, 0.7], [0, -0.7, -0.7]];
   const toeRods = Object.entries(TOES).map(([t, [r0, r1, tip, flat]]) => ({ a: RIG[t + '.L'].at, b: tip, r0, r1, flat }));
   const toeRod = (q, R) => { const ab = sub(R.b, R.a), t = Math.max(0, Math.min(1, dot(sub(q, R.a), ab) / dot(ab, ab))), c = add(R.a, mul(ab, t)), d = sub(q, c); return Math.hypot(d[0], d[1] / R.flat, d[2]) - (R.r0 + (R.r1 - R.r0) * t); };
@@ -392,10 +386,10 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
       const q = [FLo[0] + i * HF, FLo[1] + j * HF, FLo[2] + k * HF], soft = smooth01((0.085 - q[1]) / 0.02) * 0.007;
       let body = GB.sample(q); if (soft > 0) { let a = 0; for (const o of FOOT_BLUR) a += GB.sample([q[0] + o[0] * soft, q[1] + o[1] * soft, q[2] + o[2] * soft]); body = a / FOOT_BLUR.length; }
       const cut = -smin(-body, -(q[2] - ball(q[0]) - 0.004), 0.02);   // (the foot without its old toes, its front rounded off: the ball falls away into the toes)
-      let v = Math.max(cut, -q[1] + 0.0005), best = v, part = P_.leg;
+      let v = Math.max(cut, -q[1] + 0.0005);
       for (const R of toeRods) { const f = toeRod(q, R); v = smin(v, f, 0.012); }
       v = Math.max(v, 0.0005 - q[1]);   // (its sole flat on the ground)
-      footF[i + FNn[0] * (j + FNn[1] * k)] = v; footP[i + FNn[0] * (j + FNn[1] * k)] = part;
+      footF[i + FNn[0] * (j + FNn[1] * k)] = v;
     }
   }
   const GFoot = gridOf(footF, FNn, FLo, HF);

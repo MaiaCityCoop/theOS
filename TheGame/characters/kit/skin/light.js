@@ -36,14 +36,14 @@ export const F0 = 0.028;
 export const LOBES = { sharp: 0.75, broad: 1.3, mix: 0.85 };
 /** The skin's roughness (0 a mirror, 1 chalk): dry, where it is oiliest, a nail, a lip. Skin's as the Physically Based
     database lists it (0.5); the rest about it by eye. */
-export const ROUGH = { skin: 0.52, oily: 0.38, nail: 0.24, lip: 0.34 };
+export const ROUGH = { skin: 0.5, oily: 0.36, nail: 0.24, lip: 0.34 };
 /** How far light comes through a thin part: the under-skin bells (./maps.js SCATTER) taken at this share of the
     part's thickness in millimetres (an ear is gristle and two thin skins, not a slab of skin: Jimenez et al. 2010,
     "Real-time realistic skin translucency", scale it likewise by a part's translucency). */
 export const THROUGH = 0.35;
 /** A fair skin's own colour (linear light), before its blood and its pigment (./table.js TONE) tint it place by place:
     between the Physically Based database's skin I and skin III. What more pigment and more blood multiply it by. */
-export const SKIN = { base: [0.56, 0.36, 0.27], pigment: [0.74, 0.62, 0.52], blood: [1.0, 0.8, 0.78], pale: [1.04, 1.03, 0.95], vein: [0.84, 0.9, 1.06], lip: [0.5, 0.2, 0.19], areola: [0.62, 0.45, 0.42], nail: [0.6, 0.4, 0.36] };
+export const SKIN = { base: [0.58, 0.36, 0.26], pigment: [0.7, 0.56, 0.45], blood: [1.0, 0.72, 0.7], pale: [1.05, 1.04, 0.94], vein: [0.84, 0.9, 1.06], lip: [0.42, 0.17, 0.16], areola: [0.62, 0.45, 0.42], nail: [0.6, 0.4, 0.36] };
 /** How strongly the fine relief turns the normal. */
 const RELIEF = 0.55;
 

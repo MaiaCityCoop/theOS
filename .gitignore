@@ -2,3 +2,5 @@
 Stories/objects/
 # the gate's stills, heat maps and reports (TheGame/tools/gate.js): made again by every run, not kept in git
 .gate/
+# the Body as tools/body.js --keep laid it, for its tool's page (TheGame/tools/body.html): made again by every run
+.body/
