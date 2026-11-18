@@ -1,6 +1,6 @@
 ---
 name: intents
-description: How work is done in TheOS. Use whenever something is to be made, changed or fixed in this repository, whenever Samuel asks for work, mentions an intent, a work package, a changelog, a story or a devlog, or asks what is open. Every change belongs to an intent (Intents/NNNN-slug.md); this skill says how to open one, move it through idea, define, build, propose, story and archived, keep its changelog, trail and todo, and spawn its story in Stories/.
+description: How work is done in TheOS. Use whenever something is to be made, changed or fixed in this repository, whenever Samuel asks for work, mentions an intent, a work package, a changelog, a story or a devlog, or asks what is open. Every change belongs to an intent (Intents/NNNN-slug.md); this skill says how to open one, move it through idea, define, build, propose, story and archived, keep its changelog, trail and todo, and spawn its story in Stories/. In build it also says how one master session coordinates every task of the intent across our machines and sessions: roles, the GPU lock, the integration train, the standing rules and merging.
 ---
 
 # Intents
@@ -42,6 +42,90 @@ Under the states, three running sections, kept current from the first day:
 
 Every commit made for an intent ends its message with `Intent: NNNN` (before the co-author line).
 One commit per request cycle where that is natural, so stages can be checked out again.
+
+## Building: one master, many workers
+
+Once an intent is in **Build**, one session coordinates all of its work, across every machine and
+session we have. It drives on its own and comes to the human only for what only the human can do
+(a password, a sign-in, `sudo`, money, approving a definition, accepting or rejecting) or for a
+real trade-off the definition does not settle (say, more detail against 60 fps), with the numbers.
+
+### Roles
+
+- **The master** holds the plan (the Define table and the intent's own "Where we left off"),
+  splits it into tasks, briefs the workers, gives out GPU time, reviews, and merges when the human
+  has given it that for this intent. It keeps the intent's Build notes, changelog and trail, and
+  writes "Where we left off" so another master could take over at any time. One master an intent.
+- **A worker** takes one task: its own worktree and branch (`aven/NNNN-…`), its own dev server on
+  its own port, a draft PR, marked ready when its checks are in. It reports to the master
+  (`SendMessage`) with the PR, the numbers and what is open. It never merges. It never asks the
+  human: it decides in the direction of the intent, writes the decision and why into the PR, and
+  sends a real blocker to the master while it goes on with what it can do.
+- A brief is complete in itself: the task, the files, the invariants to keep, the checks, what done
+  looks like, whom to report to. The master relays between sessions that cannot reach each other.
+
+### Our machines and sessions
+
+| Where | What it does |
+| --- | --- |
+| **Mac mini** (`aven-maia-mac-mini`, base M2, 8 GB) | The master. The **GPU gate**: every gate run, timing, reference render and train runs here, one at a time. At most two worker sessions beside the master (its memory). |
+| **Samuel's MacBook** (`samuel`) | Coding agents in parallel, CPU first. Its GPU for light functional checks only: one job at a time, at most 1920×1080, about half its GPU at most, never `?truth` 4K, paths, bench or motion. Stop at once if the machine gets slow: Samuel works on it. |
+| **Cloud sessions** (claude.ai/code), where available | Self-contained coding or research with no GPU. They cannot message back: the master reads their branch. |
+
+Sessions on different machines reach each other over Remote Control; a session that is not in
+another's `ListAgents` goes through the master. A worker's session is archived when its PR closes.
+
+### The GPU: one lock, one queue
+
+- Every GPU run on a machine takes that machine's lock first (`~/src/github/MaiaCityCoop/.gate-lock`,
+  made with `mkdir`, freed by a `trap` on any exit, the holder and the time written into it). One
+  run a hold; never while building or editing.
+- `.gate-next` beside it names who goes next. Nobody else takes the lock while it names someone
+  else. The master writes it for its own runs and hands out turns in order; a worker asks the master
+  for a turn (what, how long), never takes one.
+- A lock whose holder is dead (its session idle or its process gone) may be freed by the master,
+  after checking; nobody else breaks a lock.
+
+### The integration train
+
+Work is developed in parallel and tested together, once:
+
+1. **Develop.** Workers code on the CPU and check what a CPU can (`bun tools/scale.js`, the builds,
+   the checks that need no GPU). They do not take GPU turns for full gates.
+2. **Cut off.** At a time the master names, every ready PR has the current `main` merged in, its
+   conflicts resolved, its checks passing, pushed and marked ready.
+3. **Train.** The master builds one branch, `main` plus every ready PR in order (`aven/NNNN-train-N`).
+   A conflict only in the intent merges by union; a code conflict the master resolves by keeping
+   both sides' meaning, or leaves that PR off the train and says why.
+4. **One gate run** on the GPU machine: the views' stills and their reference, the per-class bench,
+   the paths, motion. Every problem is put to its owner by class and view; only what cannot be put
+   is found by halving the train.
+5. **Fix and run again.** Owners fix at the root; a shorter run checks the fixes. What still fails
+   leaves the train; the rest merges into `main` as one, exactly as it was tested.
+
+### What every build is held to
+
+- **The gate is the definition's checks, and a branch is judged on its own:** against its own
+  reference, against photographs, against the budgets, in motion. Never against `main`: main is no
+  reference, and before/after pictures are no gate.
+- **Budget first.** Where the intent has hard performance gates, they hold at every merge: a ceiling
+  for each class of the frame (as `gate.js bench` measures them) that a PR may not push past, and
+  that only ever comes down until it meets its budget. Nothing new is added until the frame fits.
+- **The root cause, from first principles, never a patch.** Name the invariant that is broken and
+  restore it. A distance fade, a magic threshold, a fudge factor, a longer timeout or a retry is not
+  a fix; a timeout or a retry may stand only beside the real fix, as a guard. A patch does not merge.
+- **One source of truth, DRY, KISS.** One source, one measure, one path for each thing. No second
+  mode of the same thing (a reference is the same pipeline with its measure at the limit), no
+  hand-set setting unless it is physical or artistic, every GPU resource and dispatch sized from the
+  device's own limits. A count of what still breaks this may only go down.
+
+### Merging and deploying
+
+- The master merges when CI is green and the train's gate holds, pinned to the head that was tested
+  (`--match-head-commit`, the full SHA), with a merge commit: never a rebase, never a force-push.
+- A change outside CI's paths (`research_notes/`, `.claude/`) merges at once: no build, no deploy.
+- `next` deploys itself after CI passes on `main`; the master checks `next.maia.city/version.json`
+  names the merged commit, and that the game answers.
 
 ## The story
 
@@ -95,3 +179,6 @@ It plays at `http://localhost:5173/timeline.html?story=NNNN-slug`, and from the 
 - Do not accept, reject or archive on your own.
 - Do not put into Propose, the changelog or a caption anything that was not actually seen.
 - Do not keep a second changelog anywhere else.
+- Do not let a worker merge, ask the human, or take the GPU outside its turn.
+- Do not run two GPU jobs at once on one machine.
+- Do not judge a branch against `main`, or merge a patch in place of the root fix.
