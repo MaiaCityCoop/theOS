@@ -16,6 +16,7 @@ import { load, save } from '../core/store.js';
 import { createCard } from './card.js';
 import { flag } from '../core/flags.js';
 import { source } from '../core/settle.js';
+import { watched } from '../core/workers.js';
 
 // a plot's colours by its state (display values, as every material here writes them: src/world/light.js): line, wash
 const LOOK = {
@@ -198,8 +199,7 @@ export function createCity({ scene, camera, canvas, renderer, compile = (o) => r
     card?.refresh();
   })();
 
-  const worker = new Worker(new URL('./plan.worker.js', import.meta.url), { type: 'module' });
+  const worker = watched(new Worker(new URL('./plan.worker.js', import.meta.url), { type: 'module' }), "the city's plan", (e) => { failed = true; console.warn('[city] the plan failed', e.message); });
   worker.onmessage = (e) => { build(e.data); worker.terminate(); };
-  worker.onerror = (e) => { failed = true; console.warn('[city] the plan failed', e.message); };
   return api;
 }

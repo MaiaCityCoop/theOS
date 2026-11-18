@@ -72,6 +72,7 @@ import { byRole } from '../core/registry.js';
 import { bandOf, padOf } from '../detail/handover.js';
 import { dialK, pxKMost, pxOn, farFor, farMost, spanAt, pxAt, dialPxAt, TRUTH } from '../detail/measure.js';
 import { source } from '../core/settle.js';
+import { asking } from '../core/workers.js';
 import { note } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 import { ready, computeMaker } from '../core/compile.js';
@@ -95,14 +96,13 @@ const measured = (SOLID, MAKE) => SOLID || !!MAKE.boxOf;
 const grownOf = (SOLID, MAKE) => (SOLID ? 0.02 : MAKE?.box || MAKE?.boxOf ? 0.05 : 0.3);
 const classOf = (n) => { const t = Math.ceil(n / 3); return t <= 1 ? 0 : 32 - Math.clz32(t - 1); }, classN = (n) => uint(32).sub(countLeadingZeros(n.add(uint(2)).div(uint(3)).sub(uint(1))));
 const CLASSIX = []; const classIndex = (c) => (CLASSIX[c] ||= new THREE.BufferAttribute(Uint32Array.from({ length: 3 * 2 ** c }, (_, j) => j), 1));
-// the recipes' workers (recipes.worker.js): one set for every drawer, made when the first asks; all(jobs) tells every
-// one of them, before anything asked after it
+// the recipes' workers (recipes.worker.js, watched: src/core/workers.js): one set for every drawer, made when the first
+// asks; all(jobs) tells every one of them, before anything asked after it
 let POOL = null;
 const pool = () => (POOL ||= (() => {
-  const workers = Array.from({ length: 3 }, () => new Worker(new URL('./recipes.worker.js', import.meta.url), { type: 'module' })), waiting = new Map(); let nextId = 0, turn = 0;
-  for (const w of workers) w.onmessage = ({ data }) => { waiting.get(data.id)?.(data.out); waiting.delete(data.id); };
-  const ask = (jobs) => new Promise((res) => { const id = nextId++; waiting.set(id, res); workers[turn++ % workers.length].postMessage({ id, jobs }); });
-  ask.all = (jobs) => { for (const w of workers) w.postMessage({ id: -1, jobs }); };
+  const workers = Array.from({ length: 3 }, () => asking(new Worker(new URL('./recipes.worker.js', import.meta.url), { type: 'module' }), "the recipes' worker")); let turn = 0;
+  const ask = (jobs) => workers[turn++ % workers.length]({ jobs }).then(({ out }) => out);
+  ask.all = (jobs) => { for (const w of workers) w.worker.postMessage({ id: -1, jobs }); };
   return ask;
 })());
 
