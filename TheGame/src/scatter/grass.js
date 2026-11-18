@@ -43,12 +43,12 @@ const endOf = (T, dist) => float(1).sub(smoothstep(T.end.div(BAND), T.end, dist)
     blade's width), so the meadow keeps its cover and its height. Its error e is how much wider its blades are than the
     blade, w (2^k - 1); its bends as few as keep a blade's bow within it (a bow of b metres in n straight pieces misses
     its curve by b / 4n²: the mean blade's, bladeIn's mean height 0.95 of the asset's, its bend 0.65, bowing 1.15 of that
-    at its tip). A ring is made while its error is under the mean blade's height: past that, leaving the blades out (the
-    ground under them wears the meadow's colour) is as near, and the meadow is gone first (bandsOf). The same at every
-    measure: where each is drawn is bandsOf's. */
+    at its tip). A ring is made while it can come in before the meadow is gone (bandsOf): while its error, a BAND over
+    it, is under the mean blade's height (leaving the blades out, where the ground under them wears the meadow's colour,
+    differs by that). The same at every measure: where each is drawn is bandsOf's. */
 export function ringsOf(asset) {
   const B = asset.blade, h = asset.height * 0.95, bow = h * 0.65 * 1.15, rings = [];
-  for (let k = 0, e = 0; e < h; e = B.w * (2 ** ++k - 1)) rings.push({ segs: k ? Math.min(B.segs, Math.max(1, Math.ceil(Math.sqrt(bow / (4 * e)) - 1e-9))) : B.segs, cell: B.cell * 2 ** (k / 2), P: B.P, w: B.w * 2 ** k, e });
+  for (let k = 0, e = 0; e * BAND < h; e = B.w * (2 ** ++k - 1)) rings.push({ segs: k ? Math.min(B.segs, Math.max(1, Math.ceil(Math.sqrt(bow / (4 * e)) - 1e-9))) : B.segs, cell: B.cell * 2 ** (k / 2), P: B.P, w: B.w * 2 ** k, e });
   return rings;
 }
 /** Where the rings are drawn at a measure (K: dial pixels a metre covers at a metre: src/detail/measure.js dialK, the
