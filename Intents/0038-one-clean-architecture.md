@@ -1330,8 +1330,11 @@ Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at
     from the boot.
   - The gate's runs here lost their WebGPU device under the shared machine's load (load averages 60–230, two reboots),
     and stills shot during such a run come out black.
-- **The bench** times each light pass alone at each view (`tools/bench.js light`, printed under the gate's `bench`):
-  `near`, `far`, `canopy`, `probes`, `sky`, `froxels`, `contact`, `gtao`.
+- **The bench** times every pass of the real frame on the GPU's own clock, under the name of the part that drew it
+  (`src/core/gpu.js` `mark`; printed under the gate's `bench`), and the colour pass's share of the shadows (the same
+  frames with its shadow reads off). Its first version timed each light pass alone, after the game's own frame had
+  been let go again: each column was then about a whole frame of the game's (23–53 ms each, more than the frame
+  together, on the Mac mini). Fixed under "Stage 9: the cost, counted".
 - **Measured** (on the MacBook, the GPU shared with other agents until all GPU work here was stopped):
   - Step 1 alone (`lit()`, nothing else) was checked to draw as before it (FLIP 0.017–0.049 mean at the four views):
     a check of the refactor only, **not a gate** (Samuel, 2026-11-18: main is no gate).
@@ -1347,6 +1350,47 @@ Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at
   - **Borderline:** the sky shows faint rings near the top of the frame (the sky view's rows near the zenith); the
     probes leave trunks deep in the stand dark where no green comes back; the contact rays are per pixel, not Bend's
     shared waves.
+
+### Stage 9: the cost, counted (2026-11-18)
+
+The Mac mini measured stage 9 (with 7 and 8; 8 alone adds nothing) at 74.7–116.3 ms of GPU at the bench's views,
+against 13.3–31.0 for stage 7 alone; in motion nearly every frame was over 16.7 ms. Done on the MacBook with no GPU
+work at all (it rebooted twice under GPU load): the bench fixed, and every part of the light counted on paper.
+
+- **The bench** (`cf77e71`): its light columns read 23–53 ms each because `light()` ran after `bench()` had let the
+  game's own frame go, and three's `resolveTimestampsAsync` returns the sum of the last frame it has a number for:
+  between a pass and its read-back the game drew whole frames, and those were read. A pool with nothing new also gave
+  its last sum again. Now the code marks whose passes follow (`src/core/gpu.js` `mark`, a no-op unless a tool
+  listens), and `tools/bench.js` reads three's query sets itself: each pass's begin and end, under its mark, in the
+  real frame, with the game held. It prints per view the frame (the passes' own times added, as before), its span
+  (first begin to last end), and each pass a frame and in the frames it is drawn in (the far cascade, canopy and
+  probes are drawn in turn).
+- **The count**, per frame at 2560 × 1440 (3.69 M pixels; GTAO's half, 0.92 M) on a base M1 (2.6 TFLOPS, about 1.3 G
+  instructions a millisecond at best and half that in practice; 68 GB/s), at eye level in the stand:
+
+| Part | What a frame does | ms (M1) | Why |
+| --- | --- | --- | --- |
+| The atlas's load and store | The near cascade is two passes (a triangle that wipes its square, then the casters), each on the whole 4096 × 2048 depth atlas (33.5 MB); a far frame clears it all, then the near loads it | 1.8–2.7 | A tile GPU loads and stores the whole attachment whatever the scissor: about 120 MB a frame for 70 m of shadow |
+| Near cascade | 2048² over 70 m, every frame. Its casters: all the eye packed, drawn whole (a tier is not culled per camera): 100–250 trees' shades (at most 490 triangles each; young ones fewer), the boulders at the eye's cut, the tent and fire pit; 0.15–0.4 M triangles | 0.5–1.2 | Vertices about 0.2; about 15 M fragments, 4.2 M texels under 3–4 layers of puff cards, each cut out (a discard: no hidden-surface removal) |
+| Far cascade | 2048² over 200 m (1.8 km up high), every third frame, and at once when the eye moves 5 m or the sun turns; the same casters | 0.3 (1.0 when drawn) | As the near one; in a flyby, every frame |
+| Shadow twins | Each caster once a view, its depth and cut-out only: 1.6 views a frame on average (near, a third of far, a quarter of canopy), 4 in the frame they all fall in. Impostors and clumps cast nothing (both trees cast by their shade; a kind without one casts its level 0, its impostor draw with it); stones cast nothing | in the rows above | |
+| Canopy map | 2 × 1024² over 192 m every 8 frames: the same casters twice, from above and from below. Its depth is depth32float, the atlas's depth24plus, so every caster's twin is compiled twice, the canopy's not before the first frame | 0.13 (1.0 when drawn) | The same vertex work twice; 2 M texels × 3 |
+| Sky probes | 192² × 3 heights × 12 rays × 6 steps: 216 slab tests a probe (432 loads), every 8 frames, each probe's rays turned by its own hash; and the ground's height a probe | 0.25 (1.5–2.5 when run) | 16 M loads, incoherent, on the 8.4 MB map: a spike every 8 frames |
+| Sky view | 192 × 108 × 32 steps, every frame | 0.1 | 66 M instructions |
+| Froxels | 160 × 90 × 64 = 0.92 M froxels, a thread a column (14,400 threads, 64 slices each in turn): about 250 instructions a froxel, and nearer than 90 m six canopy steps (12 loads) and a probe read | 0.5–1.0 | 0.25 G instructions, 6 M loads, but 14 threads a lane in series: bound by waiting |
+| GTAO | Half the pixels: 2 slices × 2 sides × 6 steps = 24 depth samples and 5 for the normal, each unprojected, with two normalizations and two arc cosines; then 2 × 32 sectors with a cosine and a sine each, only for the bent normal, which nothing reads. The slices turned pixel by pixel and reaching 160 pixels: incoherent reads of the 14.7 MB depth, which has no smaller levels | 5–10 | About 6 k instructions a pixel (5.5 G), and about 15 M reads that miss the caches |
+| Contact shadows | Every pixel, 12 steps (project, load, unproject, two smoothsteps) and four reads of GTAO's half picture; also past 80 m, where the result is faded to nothing | 4–7 | About 1.3 k instructions a pixel (4.8 G) |
+| Colour pass: shadows | Every lit pixel: 6 blocker loads and 8 comparison taps (2 × 2 filtered) on a Vogel disc, each tap with its own sine and cosine (28 a pixel) | 2–3 | About 500 instructions and 14 taps a pixel |
+| Colour pass: the rest | The probes' read, the froxels' read (a logarithm, a matrix, a 3D sample), the sky view's (two arc cosines), the screen light's load, the clouds' map | 1–1.5 | About 300 instructions and 5 reads a pixel |
+| Trees' cards, a vertex | `sunAt(w, 'vertex')`: 9 loads a cascade (18 in the near cascade's last tenth), the probes, the froxels, the sky view, the clouds, at every vertex drawn (2–5 M in the stand) | 1–2 more than before stage 9 | About 25 reads and 600 instructions a vertex; one map's nine loads and the haze were there before |
+| Texture bindings | Every lit material binds six more for the light: the atlas (and a comparison sampler), the blue noise, the screen light's, the probes, the froxels, the sky view; the land then holds 13–15 of the 16 sampled textures a stage may have (its pages' six arrays, the clouds' map, …). `blueAt` makes a texture node of its own at every call | none | Not time, but whether it is drawn: a pipeline over the limit is not (the streaks) |
+| **In all** | | **17–30** at eye level in the stand; 14–22 at the skyline | Against the budget's 2 (shadows) + 1 (AO, GI) + 0.7 (air) |
+
+- **What the count does not see:** the Mac mini read 55–100 ms more than stage 7, three to five times the count, and
+  even at the skyline, where hardly anything casts. What a count of work cannot show: register spills (a shader that
+  holds more than its registers spills to memory, and the trees' vertex stage and the land's colour both grew by the
+  light's terms), and how much of GTAO's reads miss. The fixed bench says which pass holds it, and the colour pass's
+  A/B how much is the shadows' reads.
 
 ## Propose
 
