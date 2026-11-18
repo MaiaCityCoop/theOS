@@ -72,31 +72,43 @@ export class Resident {
       Object.assign(L, { at: [cx, cz, dy], dn, pad, measure, band: [near, far] }); pack.push(L);
       return left(L);
     };
-    // a node: its slack (Infinity: nothing there can change)
-    const visit = (k, bi, bj) => {
-      out.looked++;
-      const S = side * 2 ** k, x0 = bi * side, z0 = bj * side, x1 = x0 + S, z1 = z0 + S, key = keyOf(k, bi, bj);
-      if (bounds && (x1 <= bounds[0] || x0 >= bounds[2] || z1 <= bounds[1] || z0 >= bounds[3])) { below(k, bi, bj); return Infinity; }   // (outside the stand: for good)
+    // a node's square, how near and far it is from the eye, how far inside the band (-1: across an edge), its pad
+    const shape = (k, bi, bj) => {
+      const S = side * 2 ** k, x0 = bi * side, z0 = bj * side, x1 = x0 + S, z1 = z0 + S;
       const nx = cx < x0 ? x0 - cx : cx > x1 ? cx - x1 : 0, nz = cz < z0 ? z0 - cz : cz > z1 ? cz - z1 : 0, fx = Math.max(cx - x0, x1 - cx), fz = Math.max(cz - z0, z1 - cz);
       const dn = Math.sqrt(nx * nx + nz * nz + dy * dy), df = Math.sqrt(fx * fx + fz * fz + dy * dy), inside = dn >= near && df <= far ? Math.min(dn - near, far - df) : -1;
-      const pad = this.fixed && inside >= 0 ? Math.max(GROW * dn, inside) : GROW * dn;
-      // (wholly outside the band: nothing of it can be in it now. Let go; its slack, how far the camera may move before
-      // some of it can come in)
-      if (dn > far) { below(k, bi, bj); return dn - far; }
-      if (df < near) { below(k, bi, bj); return near - df; }
-      const fits = !k || S <= Math.max(side, inside < 0 ? pad / EDGE : dn) || leaves.size + 4 > this.room, L = leaves.get(key);
+      return { S, x0, z0, x1, z1, dn, inside, pad: this.fixed && inside >= 0 ? Math.max(GROW * dn, inside) : GROW * dn, beyond: dn > far ? dn - far : df < near ? near - df : -1 };
+    };
+    // (wholly outside the stand: for good; wholly outside the band: nothing of it can be in it now: its slack, how far
+    // the camera may move before some of it can come in. -1: in)
+    const outside = (g) => (bounds && (g.x1 <= bounds[0] || g.x0 >= bounds[2] || g.z1 <= bounds[1] || g.z0 >= bounds[3]) ? Infinity : g.beyond);
+    // a node that is a leaf, or may be one: its slack where it is now a leaf (kept or packed), else undefined (looked under)
+    const settle = (k, bi, bj, key, g, fits) => {
+      const L = leaves.get(key);
       if (L) {
         const l = left(L);
         if (l >= 0) { out.kept++; return l; }
-        if (fits) return leaf(k, bi, bj, dn, pad, L);
-        letGo(L);
-      } else if (under.get(key) > 0) {
+        if (fits) return leaf(k, bi, bj, g.dn, g.pad, L);
+        letGo(L); return undefined;
+      }
+      if (under.get(key) > 0) {
         const N = nodes.get(key), m = N && same ? moved(N.at) : Infinity;
         if (m <= N?.slack) { out.kept += under.get(key); return N.slack - m; }   // (nothing under it can have changed)
-        if (fits && under.get(key) <= 4 && kidsAreLeaves(k, bi, bj)) { below(k, bi, bj); return leaf(k, bi, bj, dn, pad); }   // (four leaves where one would do, one run out: packed again as one)
-      } else if (fits) return leaf(k, bi, bj, dn, pad);
+        if (fits && under.get(key) <= 4 && kidsAreLeaves(k, bi, bj)) { below(k, bi, bj); return leaf(k, bi, bj, g.dn, g.pad); }   // (four leaves where one would do, one run out: packed again as one)
+        return undefined;
+      }
+      return fits ? leaf(k, bi, bj, g.dn, g.pad) : undefined;
+    };
+    // a node: its slack (Infinity: nothing there can change)
+    const visit = (k, bi, bj) => {
+      out.looked++;
+      const g = shape(k, bi, bj), key = keyOf(k, bi, bj), o = outside(g);
+      if (o >= 0) { below(k, bi, bj); return o; }
+      const fits = !k || g.S <= Math.max(side, g.inside < 0 ? g.pad / EDGE : g.dn) || leaves.size + 4 > this.room;
+      const here = settle(k, bi, bj, key, g, fits);
+      if (here !== undefined) return here;
       const h = 2 ** (k - 1); let slack = Infinity;
-      for (const [a, b] of QUAD) slack = Math.min(slack, visit(k - 1, bi + a * h, bj + b * h));
+      for (const [a2, b2] of QUAD) slack = Math.min(slack, visit(k - 1, bi + a2 * h, bj + b2 * h));
       if (under.get(key) > 0) nodes.set(key, { at: [cx, cz, dy], slack }); else nodes.delete(key);
       return slack;
     };

@@ -96,22 +96,31 @@ export class Tier {
   run(renderer, world = '', cx = 0, cy = 0, cz = 0, view = '', kept = world) {
     if (!this.passes) return;
     if (this.resident) { this.resident.run(renderer, world, kept, cx, cy, cz); return; }
-    const q = this.step || Math.max(0.25, this.S / 16);   // (step: a tier that says itself how far the camera may move before it packs again)
-    // (its patches read into two numbers, not written out one by one: a string of hundreds of them a tier a frame was a
-    // megabyte of litter every few frames for the browser to sweep up)
-    const { list, n } = this; let h1 = FNV, h2 = 0x9e3779b9;
-    for (let i = 0; i < n; i++) { const x = list[i].x | 0, y = list[i].y | 0; h1 = fnv(fnv(h1, x), y); h2 = Math.imul((h2 << 5) ^ (h2 >>> 27) ^ x, 0x85ebca6b) + y | 0; }
-    if (this.runs) for (let i = 0; i < n; i++) { const a = this.runs[i].x | 0, b = this.runs[i].y | 0; h1 = fnv(h1, a); h2 = Math.imul((h2 << 5) ^ (h2 >>> 27) ^ b, 0x85ebca6b) + a | 0; }   // (a list's runs: the same patch may hold other places now)
-    const key = `${world}|${this.near}|${this.far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}|${this.reads?.() ?? ''}|${n}|${h1}|${h2}|${this.viewKeyed ? view : ''}`;
+    const q = this.step || Math.max(0.25, this.S / 16), n = this.n;   // (step: a tier that says itself how far the camera may move before it packs again)
+    const key = `${world}|${this.near}|${this.far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}|${this.reads?.() ?? ''}|${n}|${this.patchKey()}|${this.viewKeyed ? view : ''}`;
     if (key === this.key) return;
     this.key = key;
     if (!n && this.empty) return;   // (nothing chosen, and nothing left packed from before: no pass to make it nought again)
-    const per = Math.ceil((this.P * this.P) / WG) * WG, E = this.entries.array;
-    for (let i = 0; i < n; i++) { E[i * 4] = list[i].x >>> 0; E[i * 4 + 1] = list[i].y >>> 0; E[i * 4 + 2] = this.P; E[i * 4 + 3] = i * per; if (this.runs) { this.entryRuns.array[i * 2] = this.runs[i].x; this.entryRuns.array[i * 2 + 1] = this.runs[i].y; } }
+    const cells = this.patchesIn();
+    renderer.compute(this.passes); did('packs'); if (this.movers) did('moving'); did('kcells', Math.round(cells / 1000)); this.empty = !n;   // (moving: a tier packed every frame, its things moving; not a change of what stands: src/core/work.js changed)
+  }
+  /** Its patches read into two numbers, not written out one by one (a string of hundreds of them a tier a frame was a
+      megabyte of litter every few frames for the browser to sweep up); a list's runs too (the same patch may hold other
+      places now). */
+  patchKey() {
+    const { list, runs, n } = this; let h1 = FNV, h2 = 0x9e3779b9;
+    for (let i = 0; i < n; i++) { const x = list[i].x | 0, y = list[i].y | 0; h1 = fnv(fnv(h1, x), y); h2 = Math.imul((h2 << 5) ^ (h2 >>> 27) ^ x, 0x85ebca6b) + y | 0; }
+    if (runs) for (let i = 0; i < n; i++) { const a = runs[i].x | 0, b = runs[i].y | 0; h1 = fnv(h1, a); h2 = Math.imul((h2 << 5) ^ (h2 >>> 27) ^ b, 0x85ebca6b) + a | 0; }
+    return `${h1}|${h2}`;
+  }
+  /** Its patches into its entries, each P × P cells at its workgroups: the invocations they take. */
+  patchesIn() {
+    const { list, runs, n, P } = this, per = Math.ceil((P * P) / WG) * WG, E = this.entries.array;
+    for (let i = 0; i < n; i++) { E[i * 4] = list[i].x >>> 0; E[i * 4 + 1] = list[i].y >>> 0; E[i * 4 + 2] = P; E[i * 4 + 3] = i * per; if (runs) { this.entryRuns.array[i * 2] = runs[i].x; this.entryRuns.array[i * 2 + 1] = runs[i].y; } }
     this.nE.value = n; this.passes[1].dispatchSize = Math.max(WG, n * per);
     this.entries.addUpdateRange(0, Math.max(1, n) * 4); this.entries.needsUpdate = true;
-    if (this.runs && n) { this.entryRuns.addUpdateRange(0, n * 2); this.entryRuns.needsUpdate = true; }
-    renderer.compute(this.passes); did('packs'); if (this.movers) did('moving'); did('kcells', Math.round((n * per) / 1000)); this.empty = !n;   // (moving: a tier packed every frame, its things moving; not a change of what stands: src/core/work.js changed)
+    if (runs && n) { this.entryRuns.addUpdateRange(0, n * 2); this.entryRuns.needsUpdate = true; }
+    return n * per;
   }
   /** On WebGPU: what the last packing holds, read back to the CPU a moment later (a promise of { count, wanted, data: its
       slots' vec4s as floats, one array a slot } a bucket; wanted: how many it found, past its room too), for what the
@@ -176,24 +185,31 @@ function fallbackOf(T, geos, material) {
 }
 
 // ---- on WebGPU: what is packed, its buckets, its culling; the passes of either way of choosing the cells ----
-function packedOf(T, geos, material, { live, found, select, store = 0, cap = 0, slots = 0, spans = null, bounds = null }) {
-  const K = geos.length, S = uint(slots), resident = !!found;
-  // what it looks at, an entry a region or a patch: (i0, j0, w, first): w × w cells from cell (i0, j0) (as unsigned
-  // bits: int() reads them back signed), the dispatch's invocations from `first` on (a multiple of the workgroup, so a
-  // workgroup is all of one entry's). A list's tier: each entry's run too (start, count); a resident tier's: each
-  // entry's region (its number) and pad
+/** What a tier looks at, an entry a region or a patch: (i0, j0, w, first): w × w cells from cell (i0, j0) (as unsigned
+    bits: int() reads them back signed), the dispatch's invocations from `first` on (a multiple of the workgroup, so a
+    workgroup is all of one entry's). A list's tier: each entry's run too (start, count); a resident tier's: each
+    entry's region (its number) and pad. */
+function entriesOf(T, resident, spans) {
   const room = resident ? LEAVES : MAXP, E = new THREE.StorageBufferAttribute(new Uint32Array(room * 4), 4), EN = storage(E, 'uvec4', room).toReadOnly(), nE = uniform(0, 'uint');
   const R = spans ? new THREE.StorageBufferAttribute(new Uint32Array(MAXP * 2), 2) : null, RN = R ? storage(R, 'uvec2', MAXP).toReadOnly() : null;
   const X = resident ? new THREE.StorageBufferAttribute(new Uint32Array(room * 2), 2) : null, XN = X ? storage(X, 'uvec2', room).toReadOnly() : null;
-  Object.assign(T, { entries: E, entryRuns: R, entryOwn: X, nE, slots });
-  const bytesOf = (...a) => a.reduce((s, b) => s + (b ? b.array.byteLength : 0), 0);
-  more('tiers: what each looks at', bytesOf(E, R, X), bytesOf(E, R, X));
-  const STEPS = Math.ceil(Math.log2(Math.max(2, room))) + 1;
-  // its buckets: of its own patches each a room of its own (cap: one for all, or a list), one after another; a resident
-  // tier's laid out by its gather in one range, twice its store (a thing handing over is in two draws), as each needs
+  Object.assign(T, { entries: E, entryRuns: R, entryOwn: X, nE });
+  const bytes = [E, R, X].reduce((s, b) => s + (b ? b.array.byteLength : 0), 0);
+  more('tiers: what each looks at', bytes, bytes);
+  return { EN, nE, RN, XN, STEPS: Math.ceil(Math.log2(Math.max(2, room))) + 1 };
+}
+/** A tier's buckets: of its own patches each a room of its own (cap: one for all, or a list), one after another; a
+    resident tier's laid out by its gather in one range, twice its store (a thing handing over is in two draws), as
+    each needs. */
+function bucketsOf(geos, cap, resident, store) {
   const own = Array.isArray(cap), caps = resident ? null : own ? cap : geos.map(() => cap), offs = caps ? caps.map((_, k) => caps.slice(0, k).reduce((a, c) => a + c, 0)) : geos.map(() => 0);
   const N = resident ? firstStore(store) : 0, total = resident ? 2 * N : caps.reduce((a, c) => a + c, 0);
-  const capOff = own ? uniformArray(caps.map((c, k) => new THREE.Vector2(c, offs[k])), 'vec2') : null, uCap = uniform(own || resident ? 0 : cap, 'uint');
+  return { own, caps, offs, N, total, capOff: own ? uniformArray(caps.map((c, k) => new THREE.Vector2(c, offs[k])), 'vec2') : null, uCap: uniform(own || resident ? 0 : cap, 'uint') };
+}
+function packedOf(T, geos, material, { live, found, select, store = 0, cap = 0, slots = 0, spans = null, bounds = null }) {
+  const K = geos.length, S = uint(slots), resident = !!found, { EN, nE, RN, XN, STEPS } = entriesOf(T, resident, spans);
+  const { own, caps, offs, N, total, capOff, uCap } = bucketsOf(geos, cap, resident, store);
+  T.slots = slots;
   // (where each bucket's things begin: its own patches' fixed; a resident tier's its gather's)
   const OFF = new THREE.StorageBufferAttribute(Uint32Array.from(offs), 1), OF = storage(OFF, 'uint', K), OFr = storage(OFF, 'uint', K).toReadOnly();
   // (a thing's rows side by side in one buffer, `slots` of them: one buffer to bind, not one a row; what it packs lives
@@ -242,14 +258,15 @@ const entryOf = (EN, nE, STEPS) => () => {
   return { e, r, cell: ivec2(int(En.x).add(int(r.mod(w))), int(En.y).add(int(r.div(w)))), in: e.lessThan(nE).and(r.lessThan(w.mul(w))) };
 };
 
-/** A placer's own patches: each cell live() says holds something, into its bucket's room (and where it says `also`,
-    into that one too: a thing handing over from one draw to another, drawn by both while the vertex stages say which
-    shows: src/scatter/drawer.js, the impostors), by one atomic a bucket a workgroup. */
-function patchPass({ K, S, data, count, own, capOff, uCap, entryOf: ofEntry }, live, RN) {
+/** A thing an invocation into its bucket (and where L says `also`, into that one too: a thing handing over from one draw
+    to another, drawn by both while the vertex stages say which shows: src/scatter/drawer.js, the impostors), by one
+    atomic a bucket a workgroup: its place among its bucket's, counted in A, then put(b, i) writes it there (none: only
+    counted). K: the buckets. */
+const intoBuckets = (K) => {
   const wgN = workgroupArray('uint', K).toAtomic(), wgAt = workgroupArray('uint', K);
   const each = (lid, fn) => { if (K <= WG) If(lid.lessThan(uint(K)), () => fn(lid)); else Loop({ start: lid, end: uint(K), type: 'uint', condition: '<', update: WG }, ({ i }) => fn(i)); };
-  return Fn(() => {
-    const lid = localId.x, Q = ofEntry(), L = live(Q.cell, { pid: Q.e, b: int(Q.r), cell: Q.cell, span: RN ? RN.element(Q.e) : null }), on = Q.in.and(L.alive);
+  return (L, on, A, put = null) => {
+    const lid = localId.x;
     each(lid, (b) => { atomicStore(wgN.element(b), uint(0)); });
     workgroupBarrier();
     const b1 = int(-1).toVar(), b2 = int(-1).toVar(), i1 = uint(0).toVar(), i2 = uint(0).toVar();
@@ -257,15 +274,25 @@ function patchPass({ K, S, data, count, own, capOff, uCap, entryOf: ofEntry }, l
     If(b1.greaterThanEqual(0), () => { i1.assign(atomicAdd(wgN.element(uint(b1)), uint(1))); });
     if (L.also) If(b2.greaterThanEqual(0), () => { i2.assign(atomicAdd(wgN.element(uint(b2)), uint(1))); });
     workgroupBarrier();
-    each(lid, (b) => { const c = atomicLoad(wgN.element(b)); If(c.greaterThan(uint(0)), () => { wgAt.element(b).assign(atomicAdd(count.element(b), c)); }); });
+    each(lid, (b) => { const c = atomicLoad(wgN.element(b)); If(c.greaterThan(uint(0)), () => { wgAt.element(b).assign(atomicAdd(A.element(b), c)); }); });
     workgroupBarrier();
-    const put = (b, j) => {
-      const i = wgAt.element(b).add(j).toVar();
-      if (own) If(i.lessThan(uint(capOff.element(b).x)), () => { const at = uint(capOff.element(b).y).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
-      else If(i.lessThan(uCap), () => { const at = b.mul(uCap).add(i).mul(S); L.data.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); });
-    };
-    If(b1.greaterThanEqual(0), () => { put(uint(b1), i1); });
-    if (L.also) If(b2.greaterThanEqual(0), () => { put(uint(b2), i2); });
+    if (!put) return;
+    If(b1.greaterThanEqual(0), () => { put(uint(b1), wgAt.element(uint(b1)).add(i1).toVar()); });
+    if (L.also) If(b2.greaterThanEqual(0), () => { put(uint(b2), wgAt.element(uint(b2)).add(i2).toVar()); });
+  };
+};
+/** Its rows written at place `at` (a thing's) of the packing. */
+const rowsAt = (data, S, at, rows) => { rows.forEach((d, k) => data.element(at.mul(S).add(uint(k))).assign(d)); };
+
+/** A placer's own patches: each cell live() says holds something, into its bucket's room. */
+function patchPass({ K, S, data, count, own, capOff, uCap, entryOf: ofEntry }, live, RN) {
+  const into = intoBuckets(K);
+  return Fn(() => {
+    const Q = ofEntry(), L = live(Q.cell, { pid: Q.e, b: int(Q.r), cell: Q.cell, span: RN ? RN.element(Q.e) : null });
+    into(L, Q.in.and(L.alive), count, (b, i) => {
+      if (own) If(i.lessThan(uint(capOff.element(b).x)), () => { rowsAt(data, S, uint(capOff.element(b).y).add(i), L.data); });
+      else If(i.lessThan(uCap), () => { rowsAt(data, S, b.mul(uCap).add(i), L.data); });
+    });
   })().compute(WG, [WG]);
 }
 
@@ -292,9 +319,8 @@ function residentOf(T, { K, S, slots, data, count, args, OF, N: N0, ends, zero, 
   const DF = new THREE.IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1, 0]), 1), DG = new THREE.IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1, 0]), 1);
   const DFn = storage(DF, 'uint', 4), DGn = storage(DG, 'uint', 4), uN = uniform(N, 'uint');
   more('tiers: what each holds, its regions', alive.array.byteLength, alive.array.byteLength);
-  const cur = instancedArray(K, 'uint').toAtomic();   // (each bucket's things written so far, as the gather writes them)
-  const wgC = workgroupArray('uint', 1).toAtomic(), wgB = workgroupArray('uint', 1), wgN = workgroupArray('uint', K).toAtomic(), wgAt = workgroupArray('uint', K);
-  const each = (lid, fn) => { if (K <= WG) If(lid.lessThan(uint(K)), () => fn(lid)); else Loop({ start: lid, end: uint(K), type: 'uint', condition: '<', update: WG }, ({ i }) => fn(i)); };
+  const cur = instancedArray(K, 'uint').toAtomic(), into = intoBuckets(K);   // (cur: each bucket's things written so far, as the gather writes them)
+  const wgC = workgroupArray('uint', 1).toAtomic(), wgB = workgroupArray('uint', 1);
   // (into the store being made, a thing an invocation where it has one, by one atomic a workgroup)
   const keep = (on, write) => {
     const lid = localId.x, j = uint(0).toVar();
@@ -306,24 +332,8 @@ function residentOf(T, { K, S, slots, data, count, args, OF, N: N0, ends, zero, 
     workgroupBarrier();
     If(on, () => { const i = wgB.element(uint(0)).add(j).toVar(); If(i.lessThan(uN), () => { write(i); }); });
   };
-  // (a thing an invocation into its buckets' counts (write false) or into its place in them (write true), by one
-  // atomic a bucket a workgroup)
-  const sort = (L, on, rows, write) => {
-    const lid = localId.x, A = write ? cur : count;
-    each(lid, (b) => { atomicStore(wgN.element(b), uint(0)); });
-    workgroupBarrier();
-    const b1 = int(-1).toVar(), b2 = int(-1).toVar(), i1 = uint(0).toVar(), i2 = uint(0).toVar();
-    If(on, () => { if (L.also) { b1.assign(int(L.bucket)); b2.assign(int(L.also)); } else b1.assign(K > 1 ? int(L.bucket) : int(0)); });
-    If(b1.greaterThanEqual(0), () => { i1.assign(atomicAdd(wgN.element(uint(b1)), uint(1))); });
-    if (L.also) If(b2.greaterThanEqual(0), () => { i2.assign(atomicAdd(wgN.element(uint(b2)), uint(1))); });
-    workgroupBarrier();
-    each(lid, (b) => { const c = atomicLoad(wgN.element(b)); If(c.greaterThan(uint(0)), () => { wgAt.element(b).assign(atomicAdd(A.element(b), c)); }); });
-    workgroupBarrier();
-    if (!write) return;
-    const put = (b, j) => { const at = OF.element(b).add(wgAt.element(b)).add(j).mul(S); rows.forEach((d, k) => data.element(at.add(uint(k))).assign(d)); };
-    If(b1.greaterThanEqual(0), () => { put(uint(b1), i1); });
-    if (L.also) If(b2.greaterThanEqual(0), () => { put(uint(b2), i2); });
-  };
+  // (a thing an invocation into its buckets' counts (write false) or into its place in them (write true))
+  const sort = (L, on, rows, write) => { into(L, on, write ? cur : count, write ? (b, i) => { rowsAt(data, S, OF.element(b).add(i), rows); } : null); };
   const thing = () => wgOf().mul(uint(WG)).add(localId.x);
   const rowsOf = (st, i) => Array.from({ length: slots }, (_, j) => st.rows.node.element(i.mul(S).add(uint(j))));
   const begin = Fn(() => { atomicStore(held.element(uint(0)), uint(0)); sizeTo(DFn, Z.element(uint(0)).add(uint(WG - 1)).div(uint(WG))); })().compute(1);
