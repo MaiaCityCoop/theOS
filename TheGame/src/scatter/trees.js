@@ -70,6 +70,7 @@ import { lo16, hi16 } from './unpack.js';
 import { pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
 import { BAND, FADE } from '../detail/error.js';
 import { source } from '../core/settle.js';
+import { gpuStorage } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 
 /** A half float's 16 bits as the number (what assets/kit/plant.js wrote). */
@@ -459,6 +460,39 @@ function farOf(renderer, tex, G, D) {
   // picture's own size, the plant's size in it in dial pixels (a view: CELL texels over its sphere; a chunk's plane:
   // TILE texels over its chunk's longest side, the shortest of its chunks), never a level wholly under where its
   // impostor is all (none of it is there)
+  // a shape's cards and their chunks (its finest level's block: what the workers made; its far data, crowd.js clumpsOf):
+  // its cards come first in its corners, six a card, a card's vertices marked by their part (assets/kit/plant.js); each
+  // card is in the chunk whose cell holds its sprig's tip as the GPU reads it (its grid's 16 bits a side, crowdOfElems),
+  // found once a sprig. A coarser level's cards are a first share of the finest's, the same vertices: their chunks too
+  const cardsIn = (b, j, idx, elems) => {
+    const V = b.verts, o = j * elems * 4, C = b.corners.subarray(j * idx, j * idx + b.draws[j]);
+    let nc = 0; while (6 * nc < C.length && ((V[o + C[6 * nc] * 8 + 3] >>> 8) & 3) === 1) nc++;
+    return { V, o, C, nc };
+  };
+  const chunksOfCards = (b, j, idx, elems, far) => {
+    const { V, o, C, nc } = cardsIn(b, j, idx, elems), of = new Int16Array(nc), seen = new Map();
+    for (let c = 0; c < nc; c++) {
+      const v = o + C[6 * c] * 8, key = V[v + 6] * 65536 + (V[v + 7] & 0xffff);
+      let q = seen.get(key);
+      if (q === undefined) {
+        const x = (V[v + 6] & 0xffff) * SX - GRID.xz, y = (V[v + 6] >>> 16) * SY + GRID.y0, z = (V[v + 7] & 0xffff) * SX - GRID.xz;
+        q = -1; for (let h = 0; h < far[0]; h++) { const f = 8 + h * 12; if (x >= far[f] && y >= far[f + 1] && z >= far[f + 2] && x < far[f + 3] && y < far[f + 4] && z < far[f + 5]) { q = h; break; } }
+        seen.set(key, q);
+      }
+      of[c] = q;
+    }
+    return of;
+  };
+  // a level's card corners in its chunks' order (its block; of: its cards' chunks), each chunk's cards one after another:
+  // { list, start, count } (a chunk's range of the list, corners)
+  const chunkOrder = (b, j, idx, elems, of, n) => {
+    const { C, nc } = cardsIn(b, j, idx, elems), m = Math.min(nc, of.length), count = new Uint32Array(n), start = new Uint32Array(n);
+    for (let c = 0; c < m; c++) if (of[c] >= 0) count[of[c]] += 6;
+    for (let q = 1; q < n; q++) start[q] = start[q - 1] + count[q - 1];
+    const list = new Uint32Array(n ? start[n - 1] + count[n - 1] : 0), at = start.slice();
+    for (let c = 0; c < m; c++) { const q = of[c]; if (q >= 0) { list.set(C.subarray(6 * c, 6 * c + 6), at[q]); at[q] += 6; } }
+    return { list, start, count };
+  };
   const levelsOf = (far) => {
     const Ls = G.kinds[0].levels, size = far[5], farLo = size / (far[6] * BAND);
     const at = (px) => { let l = Ls.findIndex((L) => px >= L.lo); if (l < 0) l = Ls.length - 1; while (l > 0 && !(Ls[l].hi > farLo)) l--; return l; };
@@ -473,16 +507,20 @@ function farOf(renderer, tex, G, D) {
     if (M) return M;
     const H = D().H, kindU = uniform(0, 'uint'), levelU = uniform(0, 'uint'), rowU = uniform(0, 'int'), sphereU = uniform(new THREE.Vector4(0, 0, 0, 1)), nU = uniform(0, 'int');
     const cells = Array.from({ length: A.CLUMPS * 4 }, () => new THREE.Vector4()), cellsU = uniformArray(cells, 'vec4');
+    // (the tile level's card corners, a chunk's after another (chunkOrder): a chunk's planes draw their own range of
+    // them, its start and count in its cell's first two rows, never the rest of the level: as many as the level's
+    // largest room a kind has, any level)
+    const cap = Math.max(4, ...H.pools.map((p) => (p.io ? Math.max(...Array.from({ length: p.n }, (_, k) => p.io[k + 1] - p.io[k])) : p.idx))), CL = gpuStorage('uint', cap, `plants, ${G.name}: the clumps' corners`, 'geometry');
     const vUv = varyingProperty('vec2', 'bUv'), vPart = varyingProperty('float', 'bPart'), vTwig = varyingProperty('float', 'bTwig'), vN = varyingProperty('vec3', 'bN'), vZ = varyingProperty('float', 'bZ'), vAo = varyingProperty('float', 'bAo');
-    const vertex = () => { const R = heapRow(H, kindU, levelU), e = R.y.add(vertexIndex.mul(uint(2))), e0 = H.elems.element(e).toVar(), e1 = H.elems.element(e.add(uint(1))).toVar(); return { ...plantOf(e0, e1), tip: crowdOfElems(e0, e1, null).tip }; };
+    const vertexAt = (id) => { const R = heapRow(H, kindU, levelU), e = R.y.add(id.mul(uint(2))), e0 = H.elems.element(e).toVar(), e1 = H.elems.element(e.add(uint(1))).toVar(); return { ...plantOf(e0, e1), tip: crowdOfElems(e0, e1, null).tip }; }, vertex = () => vertexAt(vertexIndex);
     const pass = (V, z, facing) => { vUv.assign(V.uv); vPart.assign(V.part); vTwig.assign(V.twig); vZ.assign(z); vAo.assign(V.ao); vN.assign(V.normal.dot(facing).lessThan(0).select(V.normal.negate(), V.normal)); };
     const viewV = Fn(() => { const V = vertex(), P = viewClip(V.position.sub(sphereU.xyz).div(sphereU.w), rowU, A.VIEWS); pass(V, P.z, P.D); return V.part.greaterThan(1.5).select(vec4(0, 0, 2, 1), P.clip); })();   // (a chunk's plane, where its level has them, is no part of a view: behind the far plane)
     const tileV = Fn(() => {
-      // (a chunk's own: its card parts whose tips lie in its cell; all else behind the far plane, not drawn)
-      const V = vertex(), tile = rowU.mul(G.tiles).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar(), t = V.tip;
-      const lo = cellsU.element(c.mul(4)).xyz, hi = cellsU.element(c.mul(4).add(1)).xyz, blo = cellsU.element(c.mul(4).add(2)).xyz, bhi = cellsU.element(c.mul(4).add(3)).xyz;
-      const mine = c.lessThan(nU).and(V.part.greaterThan(0.5)).and(V.part.lessThan(1.5)).and(t.x.greaterThanEqual(lo.x)).and(t.y.greaterThanEqual(lo.y)).and(t.z.greaterThanEqual(lo.z)).and(t.x.lessThan(hi.x)).and(t.y.lessThan(hi.y)).and(t.z.lessThan(hi.z));
-      If(mine, () => { const P = tileClip(V.position, blo, bhi, a, float(instanceIndex), G.tiles); pass(V, P.z.mul(2).sub(1), a.equal(0).select(vec3(1, 0, 0), a.equal(1).select(vec3(0, 1, 0), vec3(0, 0, 1)))); clip.assign(P.clip); });
+      // (a chunk's plane over its own corners only: its range of the chunks' list, CL, as many corners drawn as its row's
+      // largest chunk has, those past its own behind the far plane, not drawn)
+      const tile = rowU.mul(G.tiles).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar();
+      const from = cellsU.element(c.mul(4)).w, many = cellsU.element(c.mul(4).add(1)).w, blo = cellsU.element(c.mul(4).add(2)).xyz, bhi = cellsU.element(c.mul(4).add(3)).xyz;
+      If(c.lessThan(nU).and(vertexIndex.lessThan(uint(many))), () => { const V = vertexAt(CL.node.element(uint(from).add(vertexIndex))), P = tileClip(V.position, blo, bhi, a, float(instanceIndex), G.tiles); pass(V, P.z.mul(2).sub(1), a.equal(0).select(vec3(1, 0, 0), a.equal(1).select(vec3(0, 1, 0), vec3(0, 0, 1)))); clip.assign(P.clip); });
       return clip;
     })();
     const N = (j) => D().numOf(kindU, j), leafA = () => tex.a(floor(vTwig.greaterThan(0.5).select(N(3).x, N(2).z).add(0.5)), vUv).bias(-2);
@@ -496,8 +534,8 @@ function farOf(renderer, tex, G, D) {
     // off no shadow map reaches it, and the hollows between its clusters are what makes a crown read as one)
     const dataF = (deep) => Fn(() => { If(vPart.greaterThan(0.5), () => { If(leafA().a.lessThan(0.45), () => { Discard(); }); }); return vec4(octEnc(normalize(vN)), vZ.mul(0.5).add(0.5), litIn(vAo.mul(float(1).sub(clamp(float(1).sub(vZ).mul(0.5), 0, 1).mul(deep))), step(0.5, vPart))); })();
     const mat = (v, f) => { const m = new THREE.NodeMaterial(); m.vertexNode = v; m.fragmentNode = f; m.side = THREE.DoubleSide; return m; };
-    const geo = new THREE.InstancedBufferGeometry(), mesh = (v, deep) => Object.assign(new THREE.Mesh(geo, null), { frustumCulled: false, userData: { materials: [mat(v, colourF), mat(v, dataF(deep))] } });
-    return (M = { kindU, levelU, rowU, sphereU, nU, cells, geo, view: mesh(viewV, DEEP), tile: mesh(tileV, 0) });
+    const geo = new THREE.InstancedBufferGeometry(), tgeo = new THREE.InstancedBufferGeometry(), mesh = (g, v, deep) => Object.assign(new THREE.Mesh(g, null), { frustumCulled: false, userData: { materials: [mat(v, colourF), mat(v, dataF(deep))] } });   // (tgeo: no corners of its own, its vertex stage reads them)
+    return (M = { kindU, levelU, rowU, sphereU, nU, cells, CL, geo, tgeo, view: mesh(geo, viewV, DEEP), tile: mesh(tgeo, tileV, 0) });
   };
   // its numbers, once its pictures are in: its sphere; T, its impostor's error (metres, at scale 1: its views' texel and
   // what their spacing and its parallax misplace, as the crowd kit measured it for these atlases: its far data's sixth
@@ -517,16 +555,18 @@ function farOf(renderer, tex, G, D) {
   const keyOf = (k) => `far: ${G.name}: ${k}`;
   // (a promise of { done }: its pictures drawn and read back, the bakers free for the next shape; done, once they are
   // in the atlases and its numbers say so)
-  const job = async ({ k, at, corners, far }) => {
+  const job = async ({ k, at, corners, tiles, far }) => {
     const key = keyOf(k), B = materials(); B.levelU.value = at.views; B.geo.setIndex(new THREE.BufferAttribute(corners.views, 1)); B.kindU.value = k; B.sphereU.value.set(far[1], far[2], far[3], far[4]);
     const a = await bakers(renderer).views().bake(views, k, A.VIEWS, (r) => { B.rowU.value = r; B.geo.instanceCount = A.VIEWS; return B.view; });
     const nc = far[0];
     let b = null;
     if (nc > 0 && G.clumpLayer[k] >= 0) {
-      for (let c = 0; c < nc; c++) for (let q = 0; q < 4; q++) B.cells[c * 4 + q].set(far[8 + c * 12 + q * 3], far[8 + c * 12 + q * 3 + 1], far[8 + c * 12 + q * 3 + 2], 0);
+      const T = tiles;   // (its tile level's corners in its chunks' order: chunkOrder)
+      for (let c = 0; c < nc; c++) for (let q = 0; q < 4; q++) B.cells[c * 4 + q].set(far[8 + c * 12 + q * 3], far[8 + c * 12 + q * 3 + 1], far[8 + c * 12 + q * 3 + 2], q === 0 ? T.start[c] : q === 1 ? T.count[c] : 0);
       B.nU.value = nc;
-      B.levelU.value = at.tiles; B.geo.setIndex(new THREE.BufferAttribute(corners.tiles, 1));
-      b = await bakers(renderer).tiles(G.tiles).bake(clumpsOf(), G.clumpLayer[k], Math.ceil((nc * 3) / G.tiles), (r) => { B.rowU.value = r; B.geo.instanceCount = G.tiles; return B.tile; });
+      B.levelU.value = at.tiles; B.CL.write(0, T.list);
+      const per = G.tiles, rows = Math.ceil((nc * 3) / per), most = Uint32Array.from({ length: rows }, (_, r) => { let m = 0; for (let t = r * per; t < Math.min((r + 1) * per, nc * 3); t++) m = Math.max(m, T.count[Math.floor(t / 3)]); return m; });
+      b = await bakers(renderer).tiles(per).bake(clumpsOf(), G.clumpLayer[k], rows, (r) => { B.rowU.value = r; B.tgeo.instanceCount = per; B.tgeo.setDrawRange(0, most[r]); return B.tile; });
     }
     return { done: Promise.all([a.done, b?.done]).then(([va, vb]) => { keptPut(keptAs(), key, { views: va, clumps: vb ?? null }); numbers(k, far); }) };
   };
@@ -541,10 +581,11 @@ function farOf(renderer, tex, G, D) {
     onBlock(b, k0, nk, idx, elems) {
       for (let j = 0; j < nk; j++) {
         const k = k0 + j, cornersOf = () => b.corners.slice(j * idx, j * idx + b.draws[j]);
-        if (b.l !== 0) { const J = waiting.get(k); if (J) for (const w of ['views', 'tiles']) if (J.at[w] === b.l && !J.corners[w]) J.corners[w] = cornersOf(); continue; }
+        if (b.l !== 0) { const J = waiting.get(k); if (J) { if (J.at.views === b.l && !J.corners.views) J.corners.views = cornersOf(); if (J.of && J.at.tiles === b.l && !J.tiles) J.tiles = chunkOrder(b, j, idx, elems, J.of, J.far[0]); } continue; }
         const o = j * elems * 4, at = unhalf(b.verts[o + 7] & 0xffff) * 1024 + unhalf(b.verts[o + 7] >>> 16); if (queued[k] || !(at > 0)) continue;
         const head = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8), far = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8 + head[0] * 12).slice();
-        const c0 = cornersOf(), L = levelsOf(far), J = { k, far, c0, at: L, corners: { views: L.views ? null : c0, tiles: L.tiles ? null : c0 } }; queued[k] = 1; out++; waiting.set(k, J);
+        const c0 = cornersOf(), L = levelsOf(far), of = far[0] > 0 ? chunksOfCards(b, j, idx, elems, far) : null, t0 = of && chunkOrder(b, j, idx, elems, of, far[0]);
+        const J = { k, far, c0, t0, of, at: L, corners: { views: L.views ? null : c0 }, tiles: of && !L.tiles ? t0 : null }; queued[k] = 1; out++; waiting.set(k, J);
         // (what the browser kept of it, put in as it is read back, every shape at once: only what it has not kept waits
         // to be baked)
         keptGet(keptAs(), keyOf(k)).then((kept) => {
@@ -561,8 +602,9 @@ function farOf(renderer, tex, G, D) {
       if (BAKING || !queue.length) return;
       const J = queue[0], H = D().H;
       if (!H.has(J.k, 0)) return;
-      for (const w of ['views', 'tiles']) if (!J.corners[w] && H.has(J.k, J.at[w])) { J.at[w] = 0; J.corners[w] = J.c0; }
-      if (!J.corners.views || !J.corners.tiles) return;
+      if (!J.corners.views && H.has(J.k, J.at.views)) { J.at.views = 0; J.corners.views = J.c0; }
+      if (J.of && !J.tiles && H.has(J.k, J.at.tiles)) { J.at.tiles = 0; J.tiles = J.t0; }
+      if (!J.corners.views || (J.of && !J.tiles)) return;
       BAKING = true; queue.shift(); waiting.delete(J.k); const fail = (e) => console.warn(`plants: ${G.name}: the far end of shape ${J.k} could not be baked`, e);
       job(J).then(({ done }) => { BAKING = false; done.catch(fail).finally(() => out--); }, (e) => { BAKING = false; fail(e); out--; });
     },
