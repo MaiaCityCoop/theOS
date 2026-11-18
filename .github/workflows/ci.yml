@@ -6,9 +6,9 @@ name: CI
 on:
   push:
     branches: [main]
-    paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, brand/**, deploy/**, .github/workflows/**]
+    paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, Artifacts/**, brand/**, deploy/**, .github/workflows/**]
   pull_request:
-    paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, brand/**, deploy/**, .github/workflows/**]
+    paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, Artifacts/**, brand/**, deploy/**, .github/workflows/**]
 
 permissions:
   contents: read
@@ -40,6 +40,8 @@ jobs:
         run: |
           (cd TheGame && bun install --frozen-lockfile)
           (cd OS && bun install --frozen-lockfile)
+      - name: Every artifact against its schema
+        run: bun Artifacts/artifacts.js check
       - name: Sign-in checks
         working-directory: TheGame
         run: bun tools/account-check.js

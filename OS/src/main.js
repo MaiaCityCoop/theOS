@@ -34,6 +34,7 @@ function tab(name) {
   if (name === 'stories' && !current) ideas();   // the ideas as they stand now
   if (name === 'compass') compass();   // the compass
   if (name === 'ladder') ladder();   // the village ladder, from the game sheet as they stand now (both change only by their tools)
+  if (name === 'artifacts') artifacts();   // the artifact library, as Artifacts/items/ stands now (changed only by Artifacts/artifacts.js)
   document.body.classList.toggle('play', name === 'game');   // the game takes the whole window
   if (name !== 'home') $('heroframe').removeAttribute('src');
   if (name === 'game') { if (!$('frame').getAttribute('src')) $('frame').src = withFlags(GAME + VIEWS[gameView][1]); } else $('frame').removeAttribute('src');
@@ -215,6 +216,11 @@ async function compass() {
   const b = await compassData();
   if (!b) { box.innerHTML = '<p class="lede">No compass yet.</p>'; return; }
   (await import('./compass/index.js')).renderCompass(box, b, { tab, DAYS });
+}
+async function artifacts() {
+  const box = $('axl'); if (!box) return;
+  const list = await get('/api/artifacts').then((r) => r.json()).catch(() => []);
+  (await import('./artifacts/index.js')).renderArtifacts(box, list);
 }
 async function ladder() {
   const box = $('lx'); if (!box) return;
@@ -463,6 +469,7 @@ function city() {
     const b = e.currentTarget, url = location.origin + '/', say = (t) => { const was = b.firstChild.textContent; b.firstChild.textContent = t; setTimeout(() => (b.firstChild.textContent = was), 1800); };
     try { if (navigator.share) await navigator.share({ title: 'Maia City', text: 'Come and see Maia City grow, one day at a time.', url }); else { await navigator.clipboard.writeText(url); say('Link copied'); } } catch {}
   };
+  $('tiles').insertAdjacentHTML('beforeend', `<button class="tile" data-go="artifacts"><span class="label">Library</span><h2>Artifacts</h2><p>Everything from outside that we learn from: videos, posts, articles, papers. Tagged, summarised, searchable.</p><div class="foot"><span class="go"></span></div></button>`);
   $('tiles').insertAdjacentHTML('beforeend', `<button class="tile" data-library><span class="label">Library</span><h2>Assets</h2><p>Every made thing that stands in the world, one file each. Turn them, read what they are.</p><div class="foot"><span class="go"></span></div></button>`);
   $('tiles').insertAdjacentHTML('beforeend', `<button class="tile dark pair" data-lenses><span class="label">Debug &amp; performance</span><h2>Lenses</h2><p>The world through nine film lenses, with the frame time, draw calls and triangles: where it runs smooth and where it does not.</p><div class="foot"><span class="go"></span></div></button>`);
   // beside the lenses, the engine's own test: the world with every plot filled (898 million standing, nine million moving; TheGame/src/scatter/stress.js)
@@ -474,4 +481,4 @@ function city() {
 board(); home();
 shelf();
 if ($('tocompass')) $('tocompass').onclick = () => tab('compass');
-game('walk', false); tab(['city', 'intents', 'stories', 'compass', 'ladder', 'game', 'join'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');
+game('walk', false); tab(['city', 'intents', 'stories', 'compass', 'ladder', 'artifacts', 'game', 'join'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');

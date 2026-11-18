@@ -1,0 +1,51 @@
+{
+  "id": "the-worst-way-to-build-a-tribe",
+  "src": "https://www.youtube.com/watch?v=RT2EY-Qag-I",
+  "type": "youtube",
+  "title": "Eleven ways to build a tribe, ranked from raw land to residency",
+  "description": "A tier list of eleven ways to build a community, from someone who has lived in raw-land projects, eco-villages, shared houses and startup-city circles for ten years. Raw land first ranks worst (F), traditional eco-villages D, an online community alone D; the local community leader B; shared housing, a shared mission, friends moving into one neighbourhood and culture-first land development A; building in public around a big vision and the residency-to-citizen funnel (signal, filter, gather) S. For us it is a checklist for how villages in Maia City find, filter and keep their people, and the reference behind the Compass sheet The Tribe.",
+  "summary": [
+    "**The failures share one cause: no engine for money and people.** Buying raw land first sinks time and capital into a half-finished project with no revenue and no recruitment; years later the founder is broke and alone with passing guests. Traditional eco-villages endure at best, but most run at a loss on a patron's goodwill, with a culture of sacrifice and scarcity, slow flat consensus, and little pull on young builders and families. An online community alone stays a chat server.",
+    "**What works brings aligned people into proximity, around a purpose.** Shared houses let relationships show who will go the distance; a shared mission (a business, nonprofit or guild) bonds people shoulder to shoulder, with build parties instead of parties; friends moving into one neighbourhood use the roads, schools and jobs that already exist, and get the order right: **tribe and resources first, land later**. Culture-first land development turns land into a destination (festivals, retreats, a waitlist, letters of intent), which finds people and money at once: one retreat raised $750k. Every one of these moves up a tier when it is fed by an internet-first signal and filter.",
+    "**The top two: build in public and run a residency.** Announce something big, take the smallest step every day, and talk about it in public: the vision itself draws the people. The residency-to-citizen model is the funnel: **signal** (the vision and philosophy online), **filter** (community, waitlists), **gather** (co-living with a purpose for one to three months). It is the one format that makes culture, revenue and recruitment together; good residents are invited to stay and become citizens, and landowners with empty land start inviting the tribe in. A new neighbourhood from scratch ranks A− to B: it needs a strong team and a clear way of life, or it becomes another homeowners' association."
+  ],
+  "category": "community",
+  "tags": [
+    "tribe-building",
+    "community",
+    "residency",
+    "eco-village",
+    "co-living",
+    "recruitment",
+    "build-in-public",
+    "startup-cities",
+    "land",
+    "neighbourhood",
+    "culture",
+    "tier-list"
+  ],
+  "author": {
+    "name": "ReTribalize Project",
+    "url": "https://www.youtube.com/@ReTribalize",
+    "kind": "organization"
+  },
+  "origin": "human",
+  "addedBy": "Samuel",
+  "added": "2026-11-18",
+  "source": {
+    "kind": "transcript",
+    "file": "source.md",
+    "words": 5319,
+    "how": "pasted by Samuel"
+  },
+  "published": "2026-11-07",
+  "length": "28 min",
+  "thumb": {
+    "url": "https://i.ytimg.com/vi/RT2EY-Qag-I/maxresdefault.jpg",
+    "file": "thumb.jpg"
+  },
+  "usedIn": [
+    "Compass/worldbuilding/systems/the-tribe.md"
+  ],
+  "intent": "0040"
+}

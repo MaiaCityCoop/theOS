@@ -1,5 +1,5 @@
 // The repository as TheOS's two dev servers answer it and their builds write it down: the brand, the intents, the
-// story ideas, the compass, the scenes and their media, the stories and the game's kept timelines. One copy, for the
+// story ideas, the compass, the artifact library, the scenes and their media, the stories and the game's kept timelines. One copy, for the
 // dashboard (OS/vite.config.js, at /) and the game (TheGame/vite.config.js, at / on its own and at /game inside the
 // dashboard's server). Nothing is copied or cached: the files are the one source.
 import { readdirSync, readFileSync, existsSync, statSync, mkdirSync, writeFileSync, cpSync } from 'node:fs';
@@ -8,6 +8,7 @@ import { front, readJSON } from '../Stories/store.js';
 import { readIdeas } from '../Stories/ideas.js';
 import { listScenes, objectPath, objectType } from '../Stories/scenes.js';
 import { readCompass } from '../OS/compass.js';
+import { readArtifacts, ITEMS } from '../Artifacts/store.js';
 
 const ROOT = resolve(import.meta.dirname, '..'), BRAND = resolve(ROOT, 'brand'), INTENTS = resolve(ROOT, 'Intents');
 const STORIES = resolve(ROOT, 'Stories'), SCENES = resolve(STORIES, 'scenes'), TIMELINES = resolve(ROOT, 'TheGame/cine/timelines');
@@ -46,6 +47,8 @@ function answer(path) {
   if ((m = path.match(/^\/api\/intents\/(\d{4}-[a-z0-9-]+\.md)$/))) return file(INTENTS, m[1]);
   if (path === '/api/ideas') return json(readIdeas());   // what a story could be told about, lane by lane (shown, never changed there)
   if (path === '/api/compass') return json(readCompass(ROOT));   // the serial's compass (../Compass): the vision, the mission, the game, characters, arcs, world, episodes
+  if (path === '/api/artifacts') return json(readArtifacts());   // the artifact library (../Artifacts): outside sources, each with our summary and tags
+  if ((m = path.match(/^\/api\/artifacts\/([a-z0-9][a-z0-9-]*)\/(artifact\.json|source\.md|thumb\.jpg)$/))) return file(ITEMS, `${m[1]}/${m[2]}`);   // source.md and thumb.jpg only where this machine has them (not in git)
   if (path === '/api/scenes') return json(listScenes());
   if ((m = path.match(/^\/api\/scenes\/([a-z0-9][a-z0-9-]*)\/scene\.json$/))) return file(SCENES, `${m[1]}/scene.json`);
   if (path === '/api/stories') return json(storyList());
@@ -90,7 +93,7 @@ const DRAFTS = resolve(BRAND, 'sheets');
 export const write = (out, paths) => { cpSync(BRAND, resolve(out, 'brand'), { recursive: true, filter: (f) => f !== DRAFTS }); for (const p of paths) { const a = answer(p); if (a) put(out, p, a.body); } };
 
 /** What the website's build holds (OS/): every list and file the dashboard reads. */
-export const website = () => ['/api/intents', ...intentList().map((i) => `/api/intents/${i.file}`), '/api/ideas', '/api/compass', '/api/scenes', ...listScenes().map((s) => `/api/scenes/${s.id}/scene.json`), '/api/stories',
+export const website = () => ['/api/intents', ...intentList().map((i) => `/api/intents/${i.file}`), '/api/ideas', '/api/compass', '/api/artifacts', '/api/scenes', ...listScenes().map((s) => `/api/scenes/${s.id}/scene.json`), '/api/stories',
   ...storyList().flatMap(({ id }) => [...['story.md', 'timeline.json', 'arc.json', 'hook.json', 'preview.jpg'].map((n) => `/api/stories/${id}/${n}`), ...shotsOf(id).map((f) => `/api/stories/${id}/shots/${f}`)])];
 
 /** What the game's build holds (TheGame/): its stories' films, its kept timelines, and the scenes its film pages play, at the

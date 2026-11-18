@@ -46,6 +46,7 @@ The serial never puts a date on that fork. Its hard stake is the city instead: *
 | The Harvest | Economic | [the-harvest](systems/the-harvest.md) |
 | The Push | Social | [the-push](systems/the-push.md) |
 | The Stack | Economic | [the-stack](systems/the-stack.md) |
+| The Tribe | Social | [the-tribe](systems/the-tribe.md) |
 | The Underground | Technology | [the-underground](systems/the-underground.md) |
 
 ## Factions
