@@ -45,6 +45,7 @@
   .side{position:fixed;top:var(--edge-t);right:var(--edge);z-index:3;max-height:calc(100dvh - 110px - var(--edge-t) - var(--edge-b));overflow:auto;color:var(--forest)}   /* its width, padding and parts: brand.css (.g-card) */
   /* the words on the sides and cards: brand.css (.g-label, .g-title, .g-text, .g-fig, .g-cell, .g-chip, .g-file) */
   .seed{display:flex;align-items:center;gap:8px;font:500 12.5px/1 var(--glass-font)}.seed b{font-variant-numeric:tabular-nums;font-weight:550;color:var(--on-glass);flex:1}
+  .side .g-figs:has(> :nth-child(4)){grid-auto-columns:auto;justify-content:space-between;gap:6px}.side .g-figs:has(> :nth-child(4)) .g-fig{font-size:22px}.side .g-figs:has(> :nth-child(4)) .g-fig i{font-size:11px;margin-left:1px}.side .g-figs:has(> :nth-child(4)) .g-label{font-size:9px;letter-spacing:.08em}   /* four figures in the card's row: each as wide as it is, and smaller, its label too, so none runs into the next */
     @media (max-width:760px){.side.right{display:none}#list{width:170px}}
 </style>
 </head>

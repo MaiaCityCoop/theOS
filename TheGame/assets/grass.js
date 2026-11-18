@@ -16,7 +16,7 @@ export default {
   type: 'asset',
   name: 'Grass',
   kind: 'grass',
-  about: 'The blades of the meadow: each bends and flutters in the wind on its own, in tufts of a common height and lean; a white flower head now and then. Every biome says how much of it grows, how high, and in which greens.',
+  about: 'The blades of the meadow, in tufts, each moving in the wind.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
     real: 'the grasses of a hay meadow, leaf and flowering stem',
