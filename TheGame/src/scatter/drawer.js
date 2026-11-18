@@ -56,6 +56,7 @@ import { Fn, If, float, uint, vec2, vec3, vec4, uniform, uniformArray, varyingPr
 import { U } from '../core/uniforms.js';
 import { ign, finish, skyLight, cloudAt, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
 import { passOf, cut, motion, vWas } from '../core/pass.js';
+import { landPages } from '../terrain/pages.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective, cornersOf, shapedOf } from './heap.js';
 import { ballCorners } from '../../assets/kit/blob.js';
@@ -208,12 +209,26 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
         own.assign(mix(own, vG.rgb.mul(0.75).mul(mt.a.add(0.5)), grown.mul(0.9).mul(M5.y.mul(1.5).min(1))));
       });
     }
+    // its skirt (intent 0038, stage 6c): where it goes into the ground it wears the ground there (the land's own page,
+    // src/terrain/pages.js), up to a hand's breadth on a large stone, highest in its hollows and on what of it faces
+    // up, and nothing grows over that: bedded in the soil, not set on it. (Its size in sA's fourth number; what of it
+    // lies in the ground, its look's)
+    const land = GROUND ? landPages() : null, bed = land ? float(0).toVar() : null, bedN = land ? vec3(0, 1, 0).toVar() : null;
+    if (land) {
+      const size = vA.w, reach = size.mul(0.12).min(0.2).add(0.015), above = vC.y.sub(M5.w.mul(size));
+      bed.assign(float(1).sub(smoothstep(0, reach, above.add(m.sub(0.5).mul(reach).mul(0.8)).sub(max(N0.y, 0).mul(reach).mul(0.35)))));
+      If(bed.greaterThan(0.004), () => {
+        const G = land.read(w.xz, dFdx(w.xz).mul(U.uFine), dFdy(w.xz).mul(U.uFine), length(U.uCam.sub(w)));
+        own.assign(mix(own, G.c, bed)); bedN.assign(normalize(vec3(G.n.x, 1, G.n.y))); grown.mulAssign(float(1).sub(bed));
+      });
+    }
     const n = N0.toVar(), rough = float(0.7).toVar();
     If(vPx.greaterThan(RELIEF), () => {   // (its relief: only where it is large enough to show, faded in)
       const t1 = tex.n(M2.x, q.zy).grad(gx.zy, gy.zy), t2 = tex.n(M2.x, q.xz).grad(gx.xz, gy.xz), t3 = tex.n(M2.x, q.xy).grad(gx.xy, gy.xy), x = t1.xy.mul(2).sub(1), y = t2.xy.mul(2).sub(1), z = t3.xy.mul(2).sub(1);
       n.assign(normalize(N0.add(vec3(0, x.y, x.x).mul(b.x).add(vec3(y.x, 0, y.y).mul(b.y)).add(vec3(z.x, z.y, 0).mul(b.z)).mul(GROUND ? smoothstep(RELIEF, RELIEF * 2, vPx).mul(M5.z) : smoothstep(RELIEF, RELIEF * 2, vPx)))));
       rough.assign(tex.r(M2.x, q.zy, gx.zy, gy.zy).mul(b.x).add(tex.r(M2.x, q.xz, gx.xz, gy.xz).mul(b.y)).add(tex.r(M2.x, q.xy, gx.xy, gy.xy).mul(b.z)));
     });
+    if (land) n.assign(normalize(mix(n, bedN, bed.mul(0.85))));   // (the soil it wears lies as the ground does)
     // (where the snow has lifted it, it is snow all through, its sides too: a small thing is buried whole. What stands
     // in the ground, a rock taller than the snow is deep, keeps the snow where it settles, on what of it faces up: its
     // sides stay bare)
@@ -338,7 +353,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
           const was = moving ? w : vec3(A.x, A.z, A.y).add(restOf(v.at(grown(U.uTimeWas))).mul(out)).add(vec3(kw.x, snow.mul(out), kw.y));
           // (its texture lies on it as it stands; on a mover as it is at rest, in its own frame: it must not swim over
           // a leg that swings)
-          vA.assign(vec4(w, 0)); vB.assign(vec4(nw, v.shade)); vC.assign(vec4(moving ? p0.mul(A.w) : rest, B.y)); vN.assign(moving ? n0 : nw); vSeed.assign(seedOf(B));
+          vA.assign(vec4(w, A.w)); vB.assign(vec4(nw, v.shade)); vC.assign(vec4(moving ? p0.mul(A.w) : rest, B.y)); vN.assign(moving ? n0 : nw); vSeed.assign(seedOf(B));
           if (GROUND) vG.assign(src.readAt(2, SLOT));
           if (foliage) vUV.assign(vec2(float(v.a).div(15), float(v.b).mul(16).add(v.w.mul(15)).div(255)));   // (where on its card: assets/kit/frond.js)
           clip.assign(clipOf(w, was));
