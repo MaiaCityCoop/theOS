@@ -1105,6 +1105,53 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
   - the stands' sizes told to the workers (`STANDS`, `ownTop`, the workers' `stands` message);
   - `clearAt` and `rankOf`, each moved into the rule.
 - **The gate:** `--query` adds to every page's address (`--query stress`).
+- **Found:** the growth map was first keyed on the ground map's version, which ticks every frame of the meadow map's
+  fade, so the whole map was worked out again in those frames: the first bench read 124–273 ms a view. It is keyed on
+  the sandbox and the stage now.
+- **Measured** in headless Chrome on the MacBook, a 4K screen drawn at 2560 × 1440, against main on a server of its own,
+  fresh profiles. The GPU was shared with the stage 8 and 9 workers' gates all along, and ?truth lost the WebGPU device
+  at every view after 6b, main's and the branch's alike.
+  - **Pictures** (main above, the branch below): `stage7/` on the never-merged branch `aven/0038-shots`, linked on
+    PR #73. Under the crowns the floor is litter, ferns, herbs, moss, logs and stones where main's is a meadow; the
+    grass stays in the glades. The trees stand elsewhere: the canopy's cells are the rule's (9.9 m), not the old
+    stand's (10 m).
+  - **FLIP against main** (`d1c3805`), mean (p99 tile): tent at eye level 0.095 (0.90), pine forest at eye level 0.393
+    (0.93), pines from 10 m 0.427 (0.83). The forest is placed anew and grows a floor, so this measures the change,
+    not an error.
+  - **Against the truth:** not measured. After 6b every ?truth=300 frame was black (the device lost, on main too).
+    Before 6b the branch's own truth was taken at all four views, but its stills were lost to a dev server busy with a
+    build.
+  - **GPU, `gate.js bench`** (ms; the branch merged with 6b; main before 6b, from the first round, as main's own bench
+    after 6b never settled while the GPU was shared):
+
+| View | Main (`3a2896a`) | Stage 7 (with 6b) |
+| --- | --- | --- |
+| Tent, eye level | 27.7 | 33.8 |
+| River bend, 26 m | 39.7 | 26.0 |
+| Town, 40 m | 35.3 | 28.9 |
+| Skyline, 2.5 km | 38.1 | 29.3 |
+| Pine forest, eye level | 108.8 | 61.8 |
+| Pine forest, 90 m | 82.4 | 35.5 |
+
+  - **The walk** (`gate.js paths --paths walk`; main `3a2896a` against the branch before 6b, the growth map's key
+    fixed): every frame over 16.7 ms on both, as on main under this load. Frame median and p99, ms, cold then warm:
+    main 150 / 267 and 50 / 183; the branch 50 / 67 and 50 / 83. GPU p99: main 204 and 51, the branch 52 and 53.
+    The whole browser's peak memory: main 5.36 GB, the branch 5.76 GB (+0.40), within 8 GB.
+  - **The stress world** (`--query stress`): before 6b, neither main nor the branch settled at the start within 300 s
+    (the device was lost on both).
+  - `bun tools/scale.js`: 24 of 24 (the six new kinds among them). `bunx --bun vite build`: built. CI green.
+- **Lines:** +831 −331 in the game (net +500): the rule and the growth map +212 net in the engine, the six kinds,
+  the floor kit and their registry rows +313.
+- **Not done:**
+  - the research's floor kinds (`research_notes/0038-species-and-references.md`) wait for stages 8 and 9, as the
+    master said; the kinds here are generic forms whose species are their parameters;
+  - the rocks' engine (`src/scatter/rocks.js`) still places by its own cells; it could call the rule;
+  - slope is not yet in the rule's suitability;
+  - the growth map is worked out again whole only when the sandbox or the stage moves, not when lakes arrive;
+  - a layer of 2.5 m cells holds the saplings and the bushes, a drawer each per kind of levels: 5 drawers, where there
+    were 4; the culling's dispatches grow with them;
+  - the floor's litter is crossed cards, so a fallen sprig stands a little off the ground;
+  - Safari not tried.
 
 ## Propose
 
@@ -1284,6 +1331,22 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
   the game's −30 % (4.66 → 3.28 MB), the release for next −30 % (9.0 → 6.3 MB); `index.html` 75 → 16 kB.
 - **Not there yet:** the website's own console errors (SVG `NaN` in the day cards, 404s for scene media not in git)
   are main's too, and untouched.
+- **Asked (by the orchestrating session):** stage 7. One placement rule for everything that grows or lies on the land
+  (density = ecotope × suitability × the larger things' influence × clumping, one ordered dither, largest first, each
+  thing leaving its footprint, shade and litter for the smaller), its rank stage 5's spread order; the forest's layers
+  as recipes of the existing kits (young trees, low shrubs, ferns and herbs, litter, deadwood, rocks bedded in the
+  soil); nothing per placed thing on the CPU, placement on the GPU, the stress world measured before and after.
+- **Delivered:** built (under Build, Stage 7): `src/scatter/rule.js`, `src/scatter/growth.js`, the floor kit and six
+  kinds, the saplings of every grown species, the meadow as the smallest layer. PR #73, merged with main, ready for
+  review.
+- **Good:**
+  - one rule places 18 kinds in three layers, for any number of them;
+  - the biomes' stands, cells and clumps, `stand.js` and the stands' sizes are gone;
+  - a plant's levels are its kind's, so no new asset file holds detail data;
+  - under the crowns the floor is litter, ferns, herbs, logs and stones, not a meadow;
+  - `bun tools/scale.js` 24 of 24.
+- **Not there yet:** no FLIP against the truth (the device was lost at every truth after 6b); the stress world did not
+  settle on this Mac, main's included; the rest under the stage's Not done.
 
 ## Trail
 
@@ -1328,3 +1391,9 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
 | 2026-11-18 | `8050d4d` | Stage 6b: 4096 pages in two arrays; texels laid from their materials half a mip finer |
 | 2026-11-18 | `07b87aa` | Stage 6b: pages half a level finer within 15 m of the eye |
 | 2026-11-18 | `364197c` | Stage 6b: the near half level the bias's first; no ask where no land is drawn; a cut starts the bias from none |
+| 2026-11-18 | `7281f29` | Stage 7: one placement rule and the growth map; the biomes' stands, `stand.js` and the stands' sizes deleted |
+| 2026-11-18 | `33f5c9b` | Stage 7: the floor kit and six kinds; saplings of every grown species; a plant's levels are its kind's |
+| 2026-11-18 | `084475a` | Stage 7: the meadow is the smallest layer (it reads the growth map) |
+| 2026-11-18 | `16f8e01` | Stage 7: the growth map keyed on the sandbox and the stage, not the ground map's fade |
+| 2026-11-18 | `1aac442` | Stage 7 merged with main (6b): the land's litter and far colours read the rule's stands |
+| 2026-11-18 | `3907ce7` | Stage 7 merged with main (`314e2e6`) |
