@@ -1,9 +1,11 @@
 // Every call the gate makes into a page answered in time, the time held here, outside the page (intent 0038). The
 // gate's own waits (settle()'s timeout, `settled`'s race) are timers inside the page: a renderer that is frozen, swapped
 // out or has lost its device runs none of them, and Playwright then waits for ever (train 1c, 2026-11-18: the truth hung
-// 20 minutes on its fourth view, the renderer at 0 % CPU and 35 MB resident, the machine's swap 3.24 of 4 GB). Here each
+// 20 minutes on its fourth view, the renderer at 0 % CPU and 35 MB resident, the machine's swap 3.24 of 4 GB); nor has
+// Playwright's page.close() a time of its own: it waits for the renderer to let the page go (2026-11-18, a ?truth run
+// whose first view had failed hung 13 minutes in stills' last call, closing that page, its Chrome at 0 % CPU). Here each
 // page.evaluate and page.waitForFunction races a timer of the gate's own: the call's own wait (its argument's `wait`, or
-// waitForFunction's timeout) and GRACE more, else LONGEST. A page that does not answer in that time is said (crashed, or
+// waitForFunction's timeout) and GRACE more, else LONGEST; and page.close, GRACE. A page that does not answer in that time is said (crashed, or
 // hung, with the browser's memory by process and the machine's swap at that moment), its Chrome closed (killed if it
 // will not close), and the call fails: the view is marked failed and the run stops, nothing waited on.
 import { execFile } from 'node:child_process';
@@ -33,10 +35,10 @@ export async function memoryNow(dir) {
   } catch (e) { return `(memory not read: ${e.message})`; }
 }
 
-/** `page`'s evaluate and waitForFunction held to their time from here. dir: the profile its Chrome runs on (for the
+/** `page`'s evaluate, waitForFunction and close held to their time from here. dir: the profile its Chrome runs on (for the
     memory said); kill(): its Chrome closed at once. */
 export function guard(page, { dir = null, kill = null } = {}) {
-  const ev = page.evaluate.bind(page), wf = page.waitForFunction.bind(page);
+  const ev = page.evaluate.bind(page), wf = page.waitForFunction.bind(page), cl = page.close.bind(page);
   let crashed = false; page.on('crash', () => (crashed = true));
   const within = async (call, ms, what) => {
     let timer;
@@ -52,6 +54,7 @@ export function guard(page, { dir = null, kill = null } = {}) {
   };
   page.evaluate = (fn, arg) => within(ev(fn, arg), (arg?.wait ?? LONGEST - GRACE) + GRACE, `${fn?.name || 'a call'}${arg?.at ? ` at ${arg.at}` : ''}`);
   page.waitForFunction = (fn, arg, opt) => within(wf(fn, arg, opt), (opt?.timeout ?? LONGEST - GRACE) + GRACE, 'waiting for the page');
+  page.close = (opt) => within(cl(opt), GRACE, 'closing it');
   return page;
 }
 

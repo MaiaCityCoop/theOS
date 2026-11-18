@@ -477,7 +477,7 @@ async function paths(opt) {
   try {
     for (const cache of ['cold', 'warm']) {   // a fresh profile, then the same one again with all it kept: the browser's caches and the game's own
       const ctx = await launch(opt, dir), mem = memory(dir);
-      try { out[cache] = await travel(ctx, list, mem); } finally { const m = mem.stop(); if (out[cache]) out[cache].memory = m; await ctx.close(); }
+      try { out[cache] = await travel(ctx, list, mem); } finally { const m = mem.stop(); if (out[cache]) out[cache].memory = m; await closeHard(ctx, dir); }
     }
   } finally { rmSync(dir, { recursive: true, force: true }); }
   const fails = [];
@@ -504,7 +504,7 @@ async function all(opt) {
   const tag = opt.tag || commit(), chrome = await launch(opt);
   let a, t, b, c;
   try { a = await stills(chrome, { tag, views: opt.views }); t = await stills(chrome, { tag: `${tag}-truth`, truth: true, views: opt.views, tiles: opt.tiles }); b = await locked('bench', () => bench(chrome, opt)); c = await locked('compile', () => compile(chrome, opt)); }
-  finally { await chrome.close(); }
+  finally { await closeHard(chrome, chrome.gateDir); }
   const d = await diff(a, t, opt), p = await locked('paths', () => paths(opt));
   console.log(`\nthe gate, ${tag}: FLIP against the truth (4K, ${(+(opt.ppd ?? PPD)).toFixed(1)} px a degree); GPU ms drawn at ${px(b.drawn)}`);
   console.log(`  ${'view'.padEnd(28)}${'mean'.padStart(8)}${'p99 tile'.padStart(10)}${'worst tile'.padStart(12)}${'GPU ms'.padStart(9)}`);
@@ -536,7 +536,7 @@ try {
   else if (cmd === 'motion') r = await (await import('./gate/motion.js')).motion(opt, { OUT, BASE, SCREEN, INSIDE, WAIT, open, prepare, course, launch, pick, commit, save, rank, said, f });
   else if (cmd === 'real') r = await (await import('./gate/real.js')).real(pos[0], opt);
   else if (cmd === 'all') await all(opt);
-  else if (WITH[cmd]) { const chrome = await launch(opt); try { r = await WITH[cmd](chrome); } finally { await chrome.close(); } }
+  else if (WITH[cmd]) { const chrome = await launch(opt); try { r = await WITH[cmd](chrome); } finally { await closeHard(chrome, chrome.gateDir); } }
   else { console.log('bun tools/gate.js stills | diff | noise | bench | compile | paths | motion | real | all: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }
   if (['bench', 'compile', 'paths'].includes(cmd)) { mkdirSync(OUT, { recursive: true }); save(`${OUT}${cmd}.json`, r); }   // (the numbers kept: .gate/bench.json and so on)
 } catch (e) { console.error(`gate: ${e.message}`); process.exitCode = 1; }
