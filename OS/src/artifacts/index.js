@@ -31,13 +31,13 @@ export function renderArtifacts(box, list) {
       <div class="axfilters">
         <div><small>Kind</small>${chips('type', count(list, 'type'), (k) => TYPE[k] || k)}</div>
         <div><small>Shelf</small>${chips('category', count(list, 'category'))}</div>
-        <div class="tags"><small>Tags</small>${chips('tags', count(list, 'tags'), (k) => '#' + k)}</div>
+        <div class="tags"><small>Topics</small>${chips('tags', count(list, 'tags'))}</div>
         ${any ? '<button class="axclear" id="axclear">Clear filters</button>' : ''}
       </div>
       <div class="axgrid">${shown.map((a) => `<button class="axcard" data-id="${a.id}">
         <div class="axthumb">${thumbOf(a) ? `<img loading="lazy" src="${esc(thumbOf(a))}" data-fallback="${esc(a.thumb?.url || '')}" alt="">` : `<span class="axnone">${esc(TYPE[a.type] || a.type)}</span>`}<em>${esc(TYPE[a.type] || a.type)}${a.length ? ' · ' + esc(a.length) : ''}</em></div>
         <div class="axbody"><small>${esc(label(a.category))}</small><h3>${esc(a.title)}</h3><p>${esc(a.description)}</p>
-        <footer><span>${esc(a.author?.name || '')}${a.published ? ' · ' + date(a.published) : ''}</span><span class="axtags">${a.tags.slice(0, 4).map((t) => '#' + esc(t)).join(' ')}</span></footer></div>
+        <footer><span>${esc(a.author?.name || '')}${a.published ? ' · ' + date(a.published) : ''}</span><span class="axtags">${a.tags.slice(0, 4).map((t) => esc(label(t))).join(' · ')}</span></footer></div>
       </button>`).join('') || '<p class="axempty">Nothing matches. Clear a filter.</p>'}</div>
       <p class="axfoot">Add one by pasting a link to avenMAIA (the artifacts skill), or with <code>bun Artifacts/artifacts.js new &lt;url&gt;</code>.</p>
     </div>`;
@@ -60,7 +60,7 @@ export function renderArtifacts(box, list) {
       <p class="axlink"><a href="${esc(a.src)}" target="_blank" rel="noopener">${esc(a.src)}</a></p>
       <h4>In short</h4><p class="axdesc">${esc(a.description)}</p>
       <h4>Summary</h4><div class="md">${a.summary.map((p) => marked.parse(p)).join('')}</div>
-      <h4>Tags</h4><p class="axdtags">${a.tags.map((t) => `<button data-tag="${esc(t)}">#${esc(t)}</button>`).join('')}</p>
+      <h4>Topics</h4><p class="axdtags">${a.tags.map((t) => `<button data-tag="${esc(t)}">${esc(label(t))}</button>`).join('')}</p>
       ${a.usedIn?.length ? `<h4>Used in</h4><ul class="axused">${a.usedIn.map((u) => `<li><code>${esc(u)}</code></li>`).join('')}</ul>` : ''}
       ${src.kind && src.kind !== 'none' ? `<details class="axsrc"><summary>${esc(SOURCE[src.kind] || 'The original')}${src.words ? ` · ${src.words.toLocaleString('en-US')} words` : ''}${src.how ? ` · ${esc(src.how)}` : ''}</summary><div class="axorig">Loading…</div></details>` : ''}`;
     doc.classList.add('on'); shade.classList.add('on'); doc.scrollTop = 0;

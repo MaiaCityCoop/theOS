@@ -27,7 +27,7 @@ The schema is `Artifacts/schema.json`, and it is the only definition of an artif
    - `description`: at most 200 words, plain text. What it is, its key claim, and why it matters to Maia City.
    - `summary`: at most 3 paragraphs, one string each, with a bolded lead sentence per paragraph.
    - `category`: the one shelf from the schema's list.
-   - `tags`: all of its tags, lowercase kebab-case. Reuse tags that already exist (`bun Artifacts/artifacts.js list` shows them) before inventing new ones.
+   - `tags`: its topics (1–8), only from the fixed vocabulary in the schema: broad themes such as `game-design`, `solarpunk`, `ai`, `economics`, `community`, `energy`, `food`. Never hashtags or one-off words. If no word fits, add one to the schema's vocabulary.
    - `origin`: `human` when Samuel or another person brought it, `agent` when found in our own research.
    - `usedIn`: the files that draw on it. `intent`: the intent it was added under.
 4. **Check:** `bun Artifacts/artifacts.js check`. It must pass; it is the schema plus the 200-word and 3-paragraph limits.
