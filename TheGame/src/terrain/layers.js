@@ -63,8 +63,9 @@ if (LAYERS.length > EMPTY) throw new Error(`the land lays ${LAYERS.length} layer
 // Every stand of a biome (its trees, its undergrowth: any block of it with cells and a density, src/scatter/trees.js)
 // hands over to the land where its plants are no longer drawn, in the same groves the plants stand in
 // (src/world/noise.nodes.js: groveAt): nothing drops out of the picture, whatever is planted.
-//   - far off, where they sink away (kinds.js: sink), the land takes the stand's colour (its `cover`; the trees' is the
-//     biome's `canopy`), as much of the ground as the stand covers there;
+//   - far off, where they sink away (where leaving them out is within the one ERROR_PX: assets/kit/plant.js goneOf), the
+//     land takes the stand's colour (its `cover`; the trees' is the biome's `canopy`), as much of the ground as the
+//     stand covers there;
 //   - a stand that casts shadows: its floor lies in their shade. Round the camera they are drawn (the shadow map, and in
 //     it the trees' stand-in: src/world/shadow.js, assets/kit/tree.js); past that the floor is dimmed, unevenly, so a
 //     forest is not a plain in full sun with trees on it.

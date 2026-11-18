@@ -38,12 +38,13 @@ const impostorPx = (a) => {
     to where it is gone, its file says none). A surface (a rock, a made thing: one that says only its full detail, its
     `faces` or its kit's mesh) has no levels of its own: every coarser version of it is the builder's
     (assets/kit/clusters.js), drawn by the cut (src/scatter/cut.js); here it is its faces, whole, for what draws it whole
-    (src/world/place.js: the library, a page without WebGPU), then its far card where its kind has one, from where the
-    card's texels are within ERROR_PX down to where it is gone. Every hand-over spans BAND (FADE either side). */
-export function detailOf(a) {
+    (src/world/place.js: the library, a page without WebGPU), then its far card where its kind has one and the page can
+    bake it (card), from where the card's texels are within ERROR_PX down to where it is gone. Every hand-over spans
+    BAND (FADE either side). */
+export function detailOf(a, { card = true } = {}) {
   const d = a.detail || {};
   const own = d.levels || (a.faces ? [{ faces: a.faces }] : []);
-  const imp = a.faces && (d.impostor ?? kindRule(a, 'impostor'));   // (after its faces: one card, src/detail/impostor.js)
+  const imp = card && a.faces && (d.impostor ?? kindRule(a, 'impostor'));   // (after its faces: one card, src/detail/impostor.js)
   const levels = own.map((l, i) => ({ ...l, i, lo: l.lo ?? (imp ? impostorPx(a) : GONE) }));
   if (imp && levels.length) levels.push({ impostor: true, i: levels.length, lo: GONE });
   levels.forEach((l, i) => (l.hi = i ? levels[i - 1].lo : Infinity));
@@ -55,8 +56,8 @@ export function detailOf(a) {
  * large the asset is on screen and shows the one or two levels that size calls for, each with its share of pixels.
  */
 export class Detailed extends THREE.LOD {
-  constructor(asset, meshes) {
-    super(); this.d = detailOf(asset); this.span = spanOf(asset); this.meshes = meshes;
+  constructor(asset, meshes, d = detailOf(asset)) {
+    super(); this.d = d; this.span = spanOf(asset); this.meshes = meshes;
     for (const m of meshes) { if (this.d.casts) m.layers.enable(1); this.add(m); }   // every level casts a shadow, as drawn, unless the asset says not (src/world/shadow.js)
     this.px = 0; this.level = 0;
   }
