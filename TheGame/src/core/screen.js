@@ -87,6 +87,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
     /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
       const t = targetsNow(), was = T.turns[1 - turn], alpha = renderer.getClearAlpha(), clearDepth = renderer.autoClearDepth;
+      U.uFrame.value = (U.uFrame.value + 1) % 4096;   // (the blue noise steps on: src/world/light/noise.js)
       temporal.begin(camera, size.x, size.y);
       // (each part's passes marked as whose they are, for a tool's timing: src/core/gpu.js)
       mark('occlusion'); const culls = occlusion.early(renderer, camera, size.x, size.y, scene);   // (pass one, against the last frame's depth)
