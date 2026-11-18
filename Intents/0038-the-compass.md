@@ -248,6 +248,19 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes; the page renders (screenshots).
 - **Broke / not there yet:** daily gameplay and the care activities are the next conversation.
 
+### 2026-11-18 (4)
+
+- **Asked:** the start investment (€12,500 and 50,000 HEARTS into the city coop, which also owns the connecting
+  infrastructure underground and rents it to the utility coops; 12,500 HEARTS into the village coop; 5,000 each into
+  ten city-wide coops), ten minutes of daily play, only shared domes, the phases with phase 1 in detail (a tent, then
+  4-, 12-, 24- and 48-person domes, each with its own energy and water cycle, more plants and fewer imports; ending
+  with the village's dome tower and a geothermal plant, energy-positive), one game month to one real day, neglect
+  rots the day's harvest. "No seasons for the MVP, since we grow in domes."
+- **Delivered:** all of it in `the-game.md`: the start capital, daily play, the phases (2 to 5 marked draft), phase 1.
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** 112,500 of the 125,000 start HEARTS are placed; the remaining 12,500 are written down
+  as kept, to be confirmed. Phases 2 to 5 are drafts.
+
 ## Trail
 
 | When | Commit | What |
