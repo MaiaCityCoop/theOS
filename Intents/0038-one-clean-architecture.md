@@ -1698,3 +1698,4 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 | 2026-11-18 | `695ea18` | Imports from the game's root made relative (`cine/trailer.js`, `tools/sweep.js`), so madge follows every import |
 | 2026-11-18 | `bca2270` | The code gates held against main: `health.js --base` (each gate's change, exit 1 where one got worse), run by CI on every pull request |
 | 2026-11-18 | `52bbeb9` | The 10 % gate as one report: `tools/gate/ten.js --base <run>` (here, base, change, ≥ 10 %?; exit 1 where a measure got worse beyond its noise) |
+| 2026-11-18 | `78b3451` | The first frame that draws the world, one mark (`game:first-frame`), and the bytes loaded before it in the 10 % gate |
