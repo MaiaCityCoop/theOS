@@ -11,7 +11,8 @@
 //                              of kinds, where a drawer's are not one after another), each level as one block as the
 //                              heap takes it (src/scatter/heap.js: putBlock): { corners, verts, counts } (counts: a
 //                              mesh's corners, or what its family says it counts by: a plant's vertices); and where a
-//                              level says its delta D (solids), each kind's box at it: boxes, six numbers a kind
+//                              level says its delta D (solids), or its family measures its meshes (the plants'), each
+//                              kind's box at it: boxes, six numbers a kind
 import { meshOf, skinOf, bonesOf, herdRooms } from '../../assets/zoo/index.js';
 import { BONES } from '../../assets/kit/solid.js';
 import { STANDS } from '../../assets/kit/plant.js';
@@ -46,6 +47,7 @@ self.onmessage = ({ data: { id, jobs } }) => {
         if (m.index.length > idx || m.verts.length > elems * 4) throw new Error(`recipes: kind ${kindOf(i)} level ${l} is larger than its place (${m.index.length} corners of ${idx}, ${m.verts.length / 4} elements of ${elems})`);
         blocks[b].corners.set(m.index, i * idx); blocks[b].verts.set(m.verts, i * elems * 4); blocks[b].counts[i] = m.count ?? m.index.length; blocks[b].draws[i] = m.index.length;
         if (D != null) solidBox(m.verts, D, blocks[b].boxes, i * 6);
+        else if (m.box) (blocks[b].boxes ||= new Float32Array(n * 6)).set(m.box, i * 6);   // (a family that measures its meshes itself: the plants', assets/kit/plant.js)
       });
       for (const B of blocks) move.push(B.corners.buffer, B.verts.buffer, B.counts.buffer, B.draws.buffer, ...(B.boxes ? [B.boxes.buffer] : []));
       out.push(blocks);

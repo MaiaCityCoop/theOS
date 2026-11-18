@@ -49,3 +49,19 @@ export function gpuStorage(type, count, name = null, instanced = false) {
   if (name) note(name, bytes, 0);
   return { node: storage(attr, type, count), attr, bytes, lean: true, write(at, data) { dev.queue.writeBuffer(buffer, at * 4, data); } };
 }
+/** The same, its size said later, before anything binds it (what is shared by things not all made yet: the culling's
+    lists, src/core/occlusion.js): { node, attr, make(count) -> bytes }. A storage buffer's length is not in its code, so
+    the node is the same whatever it is made as. */
+export function gpuStorageLater(type, name = null) {
+  const [Arr, size] = TYPES[type], attr = new THREE.StorageBufferAttribute(new Arr(size), size);
+  return {
+    node: storage(attr, type, 1), attr,
+    make(count) {
+      const bytes = Math.max(1, count) * size * 4;
+      if (!R) { attr.array = new Arr(Math.max(1, count) * size); attr.count = Math.max(1, count); if (name) note(name, bytes, bytes); return bytes; }
+      R.backend.get(attr).buffer = R.backend.device.createBuffer({ label: name ?? 'lean', size: Math.max(16, bytes), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+      if (name) note(name, bytes, 0);
+      return bytes;
+    },
+  };
+}
