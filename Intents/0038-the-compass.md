@@ -341,3 +341,4 @@ Asked outright and without surprises, so built straight away.
 | 2026-11-18 | `04e2d6a` | Phase 1 village ladder in the game sheet |
 | 2026-11-18 | `df4c5ea` | Four-phase village ladder; the #ladder page |
 | 2026-11-18 | `893c909` | Investment rounds per level; the economy rules |
+| 2026-11-18 | `bf4e8d3` | The harvest sheet and its recipe engine |
