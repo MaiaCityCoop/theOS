@@ -28,12 +28,14 @@
 //                 if, ?:, loop or switch, or left of &&, || or ??, by the flags each is made from. Hand-set numbers:
 //                 every module constant, or number in a constant's table, written as a number by hand (a literal,
 //                 arithmetic of them, Math's, or a value made of them alone: TSL's vec2, vec3, vec4, color, float,
-//                 three's Vector2, Vector3, Vector4, Color, Matrix3, Matrix4; not what a uniform starts at, nor an
-//                 array's size), and those the SSOT audit (research_notes/0038-ssot-audit.md) names however they are
-//                 written (marked); not the
-//                 physical constants: the exported values of a module named physics.js, the one place they live, each
-//                 saying its unit and its source in its comment (`unit: …`, `source: …`; --base fails where one does
-//                 not). Flag reads: every call of flag, flagNum and flagText (src/core/flags.js)
+//                 three's Vector2, Vector3, Vector4, Color, Matrix3, Matrix4; not one all 0 or all 1, an identity; not
+//                 what a uniform starts at, nor an array's size), and those the SSOT audit (research_notes/0038-ssot-
+//                 audit.md) names however they are written (marked). Not hand-set: the exported values of a module
+//                 named physics.js (physical: the one place physical constants live), budget.js (required: the
+//                 intent's requirements, its hard gates and their split) or method.js (method: a published method's
+//                 own defining constants, as a filter's σ and its tile), each saying its source in its comment
+//                 (`source: …`), and a physical one or a requirement its unit too (`unit: …`); --base fails where one
+//                 does not. Flag reads: every call of flag, flagNum and flagText (src/core/flags.js)
 //   Dependencies  the direct dependencies of every package.json in the repository
 //
 // No node on the path: jscpd and knip are run by bun from their files, eslint and madge through their own APIs.
@@ -49,8 +51,9 @@ import madge from 'madge';
 const GAME = resolve(import.meta.dirname, '..'), REPO = resolve(GAME, '..'), OUT = join(GAME, '.gate/health.json');
 const JSCPD = join(GAME, 'node_modules/jscpd/run-jscpd.js'), KNIP = join(GAME, 'node_modules/knip/bin/knip-bun.js');
 const READS = new Set(['flag', 'flagNum', 'flagText']);   // how the address is read (src/core/flags.js)
-// the hand-set numbers the SSOT audit names, by the file each is set in (not ERROR_PX, the one dial; DRAWN is a mode)
-const AUDIT = { 'error.js': ['BUDGET_DRAWN'], 'measure.js': ['REACHES', 'BIG'], 'tier.js': ['MAXP'], 'terrain.js': ['CAP'], 'relief.js': ['CAP'],
+// the hand-set numbers the SSOT audit names, by the file each is set in (not ERROR_PX, the one dial; DRAWN is a mode).
+// The code must hold each, or every run fails (staleAudit): a change that takes one away drops it here too
+const AUDIT = { 'error.js': ['BUDGET_DRAWN'], 'tier.js': ['MAXP'], 'terrain.js': ['CAP'],
   'crowd.js': ['SWELL', 'WIN', 'CLUMPS', 'VIEWS', 'CELL', 'TILE', 'TILES', 'SWITCH', 'FADE', 'RATIO'].map((k) => `CROWD.${k}`) };
 const COMPLEXITY = builtinRules.get('complexity');
 
@@ -236,31 +239,60 @@ const NUMBER = {   // which expressions are numbers written by hand: literals, a
   MemberExpression: isMath,
 };
 const isNumber = (n) => !!NUMBER[n.type]?.(n);
+/** Whether a value is an identity, no setting: a vector all of whose components are 0, or all 1 (vec4(0), vec3(1)). */
+const identity = (n) => /Call|New/.test(n.type) && n.arguments.length > 0 && [0, 1].some((k) => n.arguments.every((a) => a.type === 'Literal' && a.value === k));
 const frozen = (n) => (n.type === 'CallExpression' && n.callee.object?.name === 'Object' && n.callee.property?.name === 'freeze' && n.arguments[0]) || n;
+/** Whether a module has a constant by a name (a table's key: NAME.KEY). */
+function holds(m, name) {
+  const [head, ...keys] = name.split('.');
+  let n = m.consts.get(head)?.init;
+  for (const k of keys) n = n && frozen(n).type === 'ObjectExpression' ? frozen(n).properties.find((p) => p.type === 'Property' && nameOf(p.key) === k)?.value : undefined;
+  return !!n;
+}
+/** The audit's names this code no longer has, AUDIT gone stale ("file name" each): looked for in this tree's files of
+    that name, whatever is measured. */
+function staleAudit() {
+  const t = treeOf(GAME, []), all = git('ls-files', '-co', '--exclude-standard').filter((f) => existsSync(join(GAME, f)));
+  return Object.entries(AUDIT).flatMap(([file, names]) => {
+    const ms = all.filter((f) => basename(f) === file).map((f) => mod(t, f)).filter((m) => m.sc);
+    return names.filter((name) => !ms.some((m) => holds(m, name))).map((name) => `${file} ${name}`);
+  });
+}
 /** A module constant's hand-set numbers, into out: itself, or the numbers of its table (frozen or not), by key. */
 function numbers(m, name, init, out) {
   const n = frozen(init), text = m.sc.getText(n), audit = !!AUDIT[basename(m.f)]?.includes(name);
   if (n.type === 'ObjectExpression') for (const p of n.properties) if (p.type === 'Property' && !p.computed) numbers(m, `${name}.${nameOf(p.key)}`, p.value, out);
-  if (audit || (isNumber(n) && /\d/.test(text))) out.push({ at: at(m.f, n.loc.start.line), name, value: text, ...(audit && { audit }) });
+  if (audit || (isNumber(n) && !identity(n) && /\d/.test(text))) out.push({ at: at(m.f, n.loc.start.line), name, value: text, ...(audit && { audit }) });
 }
-/** Whether a module constant is physical: an exported value (not a function) of a module named physics.js, the one
-    place physical constants live, each with its unit and its source. */
-const physical = (m, name) => basename(m.f) === 'physics.js' && [...m.exports.values()].includes(name) && !/Function/.test(m.consts.get(name).init.type);
+/** The modules whose exported values are no hand-set numbers, each module the list of its kind, and what each value's
+    comment says: a physics.js holds the physical constants and a budget.js the intent's requirements (its hard gates
+    and their split), each with its unit and its source; a method.js a published method's own defining constants (a
+    filter's σ, its tile), each with its source (its unit, where it has one, is not asked: a count or a ratio has none). */
+const CONTRACT = {
+  'physics.js': { kind: 'physical', holds: 'a physical constant (physics.js)', says: ['unit', 'source'] },
+  'budget.js': { kind: 'required', holds: 'a requirement (budget.js)', says: ['unit', 'source'] },
+  'method.js': { kind: 'method', holds: "a published method's constant (method.js)", says: ['source'] },
+};
+const KINDS = Object.values(CONTRACT).map((c) => c.kind), HOLDS = Object.fromEntries(Object.values(CONTRACT).map((c) => [c.kind, c]));
+/** The contract a module constant is under (CONTRACT), where it is an exported value (not a function) of such a module;
+    else null. */
+const contracted = (m, name) => (CONTRACT[basename(m.f)] && [...m.exports.values()].includes(name) && !/Function/.test(m.consts.get(name).init.type) ? CONTRACT[basename(m.f)] : null);
 /** Whether a constant's comment (before its statement, not on the line the one before ends on, or after it on its own
-    last line) says its unit and its source (`unit: …`, `source: …`). */
-function sourced(m, v) {
+    last line) says each thing its contract asks (`unit: …`, `source: …`). */
+function sourced(m, v, says) {
   const s = v.parent.parent?.type === 'ExportNamedDeclaration' ? v.parent.parent : v.parent, before = m.sc.getTokenBefore(s)?.loc.end.line ?? 0;
   const said = [...m.sc.getCommentsBefore(s).filter((c) => c.loc.start.line > before), ...m.sc.getCommentsAfter(s).filter((c) => c.loc.start.line === s.loc.end.line)].map((c) => c.value).join(' ');
-  return /\bunits?:\s*\S/i.test(said) && /\bsources?:\s*\S/i.test(said);
+  return says.every((w) => new RegExp(`\\b${w}s?:\\s*\\S`, 'i').test(said));
 }
-/** A module's constants: each physical one (a vector or a table one constant), the one without its unit or source among
-    them, and the hand-set numbers of the rest. */
+/** A module's constants: each under a contract (physical, required, method; a vector or a table one constant), those
+    whose comment does not say what it asks among them, and the hand-set numbers of the rest. */
 function constants(m, S) {
   for (const [name, v] of m.consts) {
-    if (!physical(m, name)) { numbers(m, name, v.init, S.numbers); continue; }
-    const c = { at: at(m.f, v.loc.start.line), name, value: m.sc.getText(v.init) };
-    S.physical.push(c);
-    if (!sourced(m, v)) S.unsourced.push(c);
+    const k = contracted(m, name);
+    if (!k) { numbers(m, name, v.init, S.numbers); continue; }
+    const c = { at: at(m.f, v.loc.start.line), name, value: m.sc.getText(v.init), kind: k.kind };
+    S[k.kind].push(c);
+    if (!sourced(m, v, k.says)) S.unsourced.push(c);
   }
 }
 
@@ -302,7 +334,7 @@ function size(t) {
   return { files: t.files.length, code: folders.reduce((s, d) => s + d.code, 0), folders };
 }
 function settings(t) {
-  const S = { branches: [], numbers: [], physical: [], unsourced: [], reads: [] };
+  const S = { branches: [], numbers: [], ...Object.fromEntries(KINDS.map((k) => [k, []])), unsourced: [], reads: [] };
   for (const m of t.files.map((f) => mod(t, f)).filter((x) => x.sc)) {
     for (const r of m.sc.scopeManager.scopes.flatMap((s) => s.references)) {
       const id = r.identifier, line = at(m.f, id.loc.start.line), read = readOf(id);
@@ -358,7 +390,7 @@ function change(B, H) {
     size: H.size.code - B.size.code,
     settings: { branches: { change: H.settings.branches.length - B.settings.branches.length, rose: rose(B.settings.branches, H.settings.branches, (b) => `${b.on} in ${fileOf(b.at)}`) },
       numbers: { change: H.settings.numbers.length - B.settings.numbers.length, new: H.settings.numbers.filter((x) => !set.has(exportKey(x))) },
-      physical: H.settings.physical.length - B.settings.physical.length, unsourced: H.settings.unsourced, reads: H.settings.reads.length - B.settings.reads.length },
+      ...Object.fromEntries(KINDS.map((k) => [k, H.settings[k].length - B.settings[k].length])), unsourced: H.settings.unsourced, reads: H.settings.reads.length - B.settings.reads.length },
     dependencies: added(B.dependencies, H.dependencies),
   };
 }
@@ -378,7 +410,7 @@ const worse = (D) => [
   ...D.cycles.map((c) => `cycles: a new one, ${ring(c)}`),
   ...(D.settings.branches.change > 0 ? D.settings.branches.rose.map(([k, by]) => `settings: ${n(by, 'more mode branch')} on ${k}`) : []),
   ...(D.settings.numbers.change > 0 ? D.settings.numbers.new.map((x) => `settings: a new hand-set number, ${x.at} ${x.name} = ${x.value}`) : []),
-  ...D.settings.unsourced.map((x) => `settings: ${x.at} ${x.name}, a physical constant (physics.js) whose comment does not say its unit and its source`),
+  ...D.settings.unsourced.map((x) => `settings: ${x.at} ${x.name}, ${HOLDS[x.kind].holds} whose comment does not say its ${HOLDS[x.kind].says.join(' and its ')}`),
   ...D.dependencies.filter((d) => !d.named).map((d) => `dependencies: ${d.name} (${d.at}) is new, and no intent the change touches names it`),
 ];
 
@@ -393,7 +425,7 @@ const SAID = {   // each gate's measure, in a cell
   'Dead code': (G) => `${n(G.dead.files.length, 'file')}, ${n(G.dead.exports.length, 'export')}, ${G.dead.duplicates.length} exported twice`,
   Cycles: (G) => `${G.cycles.cycles.length}${G.cycles.unfollowed.length ? ` (madge could not follow ${n(G.cycles.unfollowed.length, 'import')})` : ''}`,
   Size: (G) => `${G.size.code} lines of code in ${n(G.size.files, 'file')}`,
-  Settings: (G) => `${n(G.settings.branches.length, 'mode branch')}, ${n(G.settings.numbers.length, 'hand-set number')} (the audit's ${G.settings.numbers.filter((x) => x.audit).length}), ${n(G.settings.physical.length, 'physical constant')}${G.settings.unsourced.length ? ` (${G.settings.unsourced.length} without unit or source)` : ''}, ${n(G.settings.reads.length, 'flag read')}`,
+  Settings: (G) => `${n(G.settings.branches.length, 'mode branch')}, ${G.settings.numbers.length} hand-set (the audit's ${G.settings.numbers.filter((x) => x.audit).length}), ${KINDS.map((k) => `${G.settings[k].length} ${k}`).join(', ')}${G.settings.unsourced.length ? ` (${G.settings.unsourced.length} without unit or source)` : ''}, ${n(G.settings.reads.length, 'flag read')}`,
   Dependencies: (G) => `${G.dependencies.reduce((s, p) => s + p.dependencies.length + p.dev.length, 0)} direct (${G.dependencies.reduce((s, p) => s + p.dev.length, 0)} dev) in ${G.dependencies.length} package.json`,
 };
 const WHERE = {   // where the most of each gate is, in a cell
@@ -411,7 +443,7 @@ const CHANGE = {   // each gate's change from the base, in a cell
   'Dead code': (D) => `${n(D.dead.files.length, 'new file')}, ${n(D.dead.exports.length, 'new export')}`,
   Cycles: (D) => `${D.cycles.length} new`,
   Size: (D) => `${signed(D.size)} lines of code`,
-  Settings: (D) => `${signed(D.settings.branches.change)} mode branches, ${signed(D.settings.numbers.change)} hand-set numbers, ${signed(D.settings.physical)} physical constants, ${signed(D.settings.reads)} flag reads`,
+  Settings: (D) => `${signed(D.settings.branches.change)} mode branches, ${signed(D.settings.numbers.change)} hand-set, ${KINDS.map((k) => `${signed(D.settings[k])} ${k}`).join(', ')}, ${signed(D.settings.reads)} flag reads`,
   Dependencies: (D) => D.dependencies.map((d) => `${d.name} (${dirname(d.at)}) new${d.named ? ', named in its intent' : ''}`).join(', ') || 'none new',
 };
 /** The gates against the base: here, there and the change, and what got worse. */
@@ -438,13 +470,15 @@ function table(G) {
   list('Mode branches', count(G.settings.branches, (b) => b.on).map(([on, k]) => `${String(k).padStart(4)}  ${on}: ${G.settings.branches.filter((b) => b.on === on).map((b) => b.at).join(', ')}`));
   list('Hand-set numbers by folder', count(G.settings.numbers, (x) => dirname(x.at)).map(([d, k]) => `${String(k).padStart(4)}  ${d}`));
   list('The audit\'s, still set', G.settings.numbers.filter((x) => x.audit).map((x) => `${x.at}  ${x.name} = ${x.value}`));
-  list('Physical constants without their unit or source', G.settings.unsourced.map((x) => `${x.at}  ${x.name}`));
+  list('Physical constants and requirements without their unit or source', G.settings.unsourced.map((x) => `${x.at}  ${x.name} (${x.kind})`));
   list('Flag reads', count(G.settings.reads, (x) => x.flag).map(([flag, k]) => `${String(k).padStart(4)}  ${flag}`));
   list('Dependencies', G.dependencies.map((p) => `${p.at}: ${[...p.dependencies, ...p.dev.map((d) => `${d} (dev)`)].join(', ') || 'none'}`));
   return out.join('\n');
 }
 
 // ---- the run ----
+const stale = staleAudit();
+if (stale.length) fail(`AUDIT names what the code no longer has (${stale.join(', ')}): drop it from AUDIT (tools/health.js)`);
 const all = git('ls-files', '-co', '--exclude-standard', '--full-name', '--', ':/').filter((p) => existsSync(join(REPO, p)));
 const HERE = await measure(GAME, HERE_FILES, REPO, all);
 const H = { commit: git('rev-parse', '--short', 'HEAD')[0] + (git('status', '--porcelain').length ? '+' : ''), at: new Date().toISOString(),
