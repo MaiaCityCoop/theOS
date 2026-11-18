@@ -144,7 +144,7 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, box }) {
   // (one invocation: the buckets' first chunks, and as many workgroups in all, from what each holds)
   const firsts = (j0, count, D) => {
     const acc = uint(0).toVar();
-    for (let k = 0; k < K; k++) { meta.element(uint(j0 + k)).assign(acc); acc.addAssign(count(k).add(uint(WG - 1)).div(uint(WG))); }
+    for (let k = 0; k < K; k++) { meta.element(uint(j0 + k)).assign(acc); acc.addAssign(count(k).min(uint(caps[k])).add(uint(WG - 1)).div(uint(WG))); }   // (never more than its room: a pass is never asked for more workgroups than there can be)
     meta.element(uint(j0 + K)).assign(acc); D.element(uint(0)).assign(acc);
   };
   const bucketOf = (w, j0) => { const k = uint(0).toVar(); Loop({ start: uint(1), end: uint(K), type: 'uint', condition: '<' }, ({ i }) => { If(w.greaterThanEqual(at(j0, i)), () => { k.assign(i); }); }); return k; };
@@ -183,9 +183,9 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, box }) {
   // where each chunk's first seen and first held back go (counted over the tier: a bucket's own from its first chunk's);
   // then the eye's draws as long as what pass one keeps (the prepass draws them), what it held back, pass two's chunks
   const oneScan = Fn(() => {
-    scanned(D1r.element(uint(0)), 6, 0, (o) => pop2(o).add(pop2(o.add(uint(2))).shiftLeft(uint(16))), (o, a, b) => { Ch.element(o.add(uint(4))).assign(a); Ch.element(o.add(uint(5))).assign(b); }, () => {
+    scanned(D1r.element(uint(0)).min(uint(NC - 1)), 6, 0, (o) => pop2(o).add(pop2(o.add(uint(2))).shiftLeft(uint(16))), (o, a, b) => { Ch.element(o.add(uint(4))).assign(a); Ch.element(o.add(uint(5))).assign(b); }, () => {
       for (let k = 0; k < K; k++) {
-        const s0 = at(C1, uint(k)).mul(uint(6)), s1 = at(C1, uint(k + 1)).mul(uint(6)), a = Ch.element(s1.add(uint(4))).sub(Ch.element(s0.add(uint(4)))).toVar(), r = Ch.element(s1.add(uint(5))).sub(Ch.element(s0.add(uint(5)))).toVar();
+        const s0 = at(C1, uint(k)).mul(uint(6)), s1 = at(C1, uint(k + 1)).mul(uint(6)), a = Ch.element(s1.add(uint(4))).sub(Ch.element(s0.add(uint(4)))).min(uint(caps[k])).toVar(), r = Ch.element(s1.add(uint(5))).sub(Ch.element(s0.add(uint(5)))).min(uint(caps[k])).toVar();
         meta.element(uint(N1 + k)).assign(a); meta.element(uint(R1 + k)).assign(r);
         V(k, 0).assign(F(k, 0)); V(k, 1).assign(a); Lt(k, 0).assign(F(k, 0)); Lt(k, 1).assign(uint(0));
       }
@@ -209,9 +209,9 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, box }) {
   twoTest.dispatchSize = d2;
   // where each chunk's first goes; then pass two's prepass from where pass one's end, and the eye's colour both
   const twoScan = Fn(() => {
-    scanned(D2r.element(uint(0)), 3, B2, (o) => pop2(o), (o, a) => { Ch.element(o.add(uint(2))).assign(a); }, () => {
+    scanned(D2r.element(uint(0)).min(uint(NC - 1)), 3, B2, (o) => pop2(o), (o, a) => { Ch.element(o.add(uint(2))).assign(a); }, () => {
       for (let k = 0; k < K; k++) {
-        const s0 = uint(B2).add(at(C2, uint(k)).mul(uint(3))), s1 = uint(B2).add(at(C2, uint(k + 1)).mul(uint(3))), b = Ch.element(s1.add(uint(2))).sub(Ch.element(s0.add(uint(2)))).toVar(), a = meta.element(uint(N1 + k)).toVar();
+        const s0 = uint(B2).add(at(C2, uint(k)).mul(uint(3))), s1 = uint(B2).add(at(C2, uint(k + 1)).mul(uint(3))), b = Ch.element(s1.add(uint(2))).sub(Ch.element(s0.add(uint(2)))).min(uint(caps[k])).toVar(), a = meta.element(uint(N1 + k)).toVar();
         Lt(k, 1).assign(b); Lt(k, 4).assign(a); V(k, 1).assign(a.add(b));
       }
     });
