@@ -139,3 +139,5 @@ Proposed on 2026-11-18. Story: [`Stories/0042-compact-library-cards/`](../Storie
 
 | When | Commit | What |
 | --- | --- | --- |
+| 2026-11-18 | 933576c | every recipe and variant said short; the card compact; tools/words.js |
+| 2026-11-18 | e5f566d | proposed: the checks as they were, the story |
