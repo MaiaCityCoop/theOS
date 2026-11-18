@@ -70,6 +70,15 @@ function toTri(p, t) {   // distance from p to triangle t (by its plane where it
   return Math.min(seg(a, b), seg(b, c), seg(c, a));
 }
 
+// `--at name:m,m,…`: the triangles the cut draws of a thing seen from so many metres (its size's own: a rock 1 m), and
+// at which level, instead of the walk
+if (process.argv[2] === '--at') {
+  for (const arg of process.argv.slice(3)) {
+    const [name, ms] = arg.split(':'), a = (await import(`../../assets/${name}.js`)).default, span = a.faces ? spanOf(a) : 1, D = build(await meshOf(name));
+    console.log(`${name}: ${ms.split(',').map((m) => { const d = +m / span, r = drawn(D, [d * 0.8, 0.4 + d * 0.25, d * 0.55].map((x, i) => (i === 1 ? x : x / Math.hypot(0.8, 0.25, 0.55))), true); return `${m} m: ${r.tris.length} triangles (level ${r.l}, ${r.px.toFixed(0)} px)`; }).join('; ')}`);
+  }
+  process.exit(0);
+}
 for (const name of process.argv.slice(2).length ? process.argv.slice(2) : ['boulder', 'belltent', 'firepit']) {
   const D = build(await meshOf(name)), dir = [0.8, 0.25, 0.55], dl = Math.hypot(...dir);
   for (const morph of [true, false]) {

@@ -3,14 +3,14 @@
     "type": "asset",
     "name": "Bell tent",
     "file": "assets/belltent.js",
-    "version": "17b9aa60a08d2a2ee94b258243f0466d66c367b97f10335b361d6943e0de3750",
+    "version": "15f11224d22588e1b36a99116e0c7b35b67f1386ca5b0753e25d5026caa50f1a",
     "uses": []
   },
   "42345740-c3cc-455a-8017-a97ccdee6df3": {
     "type": "asset",
     "name": "Boulders",
     "file": "assets/boulder.js",
-    "version": "5f623adb58a4b274a09612cda5044ea788e0fd757cd4467fd350218de8a4b569",
+    "version": "ccd2c0595d7ace7f0dbda0389f1c1087db9a92a0405b533873fe50fafdfda915",
     "uses": [
       "506c509b-300d-42eb-8403-f3969b06b271"
     ]
@@ -41,7 +41,7 @@
     "type": "asset",
     "name": "Fire pit",
     "file": "assets/firepit.js",
-    "version": "0e04ff58ab9a33b9ac90a92d31dd4d457bec3ee07b436b0293eaacad44e8f4bf",
+    "version": "61a3f4503d4de5e8cb3be3ef858060a460f33a770f24e09642248c5ff8d38f29",
     "uses": [
       "5e888d71-827c-4efc-8d13-50717c7f1dc8",
       "bf97f33b-56bd-4df4-89ba-949e77ce8c27",
@@ -136,7 +136,7 @@
     "type": "asset",
     "name": "Stones",
     "file": "assets/stone.js",
-    "version": "942db419b449c107876afc12050db226d2d5c0fb6f77fab220afb4e7ae423814",
+    "version": "d30a0c398050d824ff2ada8aea5b09dcea1918f5ad2586187262313899e77463",
     "uses": [
       "f4a707ab-dcac-4c3a-a4d6-7a929d0e945e"
     ]
@@ -226,7 +226,7 @@
     "type": "character",
     "name": "Settler",
     "file": "characters/settler.js",
-    "version": "b2ed2fc0f0aaaf378e29ff4c3119bd6773d94d83abeb28790270647dbbd812b2",
+    "version": "319d89e186662a889ffc1224bc71dd63b6c9dfcf0cc460c78418864499ecc6f5",
     "uses": [
       "3cb68f1f-a92d-4adf-bb8e-838abf352389",
       "5f430c04-8942-442c-ac6a-b5c958cc887a",
