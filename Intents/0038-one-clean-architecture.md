@@ -1111,7 +1111,49 @@ Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at
     conservative under the skeleton's range of motion (UE 5.7 Nanite skinning does the same);
   - the cut's list for many kinds at once: a dispatch per drawer, not per tier (the Mac mini's Task B).
 
-MEASURED
+- **Measured** (headless Chrome on Samuel's MacBook, against main on a server of its own, fresh profiles; the machine
+  was shared with other agents throughout, at load averages of 50 to 180, and restarted once):
+  - **The pop check** (`tools/gate/pop.js`): each thing walked from just off its middle to about a pixel, 1 % nearer a
+    step (the fire pit and the boulder 2 %, every fourth and eighth triangle's corners), the rule reckoned as the GPU
+    does it; the farthest any point of what is drawn moves off the surface drawn a step before, in pixels drawn:
+
+| Thing | Largest jump, morph | 99th percentile, morph | Largest jump, swapped at once | 99th percentile, swapped |
+| --- | --- | --- | --- | --- |
+| Bell tent (694 steps) | 0.61 px (at 37 px on screen) | 0.048 | 1.01 px | 0.000 |
+| Fire pit (348 steps of 2 %) | 0.63 px (at 6 px) | 0.35 | 1.20 px (at 701 px) | 1.06 |
+| Boulder (348 steps of 2 %) | 0.14 px (at 318 px) | 0.11 | 1.14 px (at 648 px) | 1.00 |
+
+    No step moves anything a pixel or more: swapped at once, the clusters' changes stand at the error allowed (about a
+    pixel), and the morph takes them to between an eighth and three fifths of that, spread over the steps. A step of 2 %
+    is a fast zoom (at 60 frames a second, from 1.7 m to 12 km in about seven seconds).
+  - **Triangles drawn** (`pop.js --at`, the rule's own count; main's from its levels and its kinds' pixel bands, seen
+    from the gate's views):
+
+| Thing, view | Main | Stage 8 |
+| --- | --- | --- |
+| Fire pit, from the tent's bench (7.4 m, 480 px) | 13 263 (level 0) | 7 304 (level 0, by cluster) |
+| Fire pit, tent 30 m (23 m, 152 px) | 6 648 | 2 797 |
+| Fire pit, tent 120 m (113 m, 31 px) | 2 130 | 1 225 |
+| Bell tent, 3 to 30 m (233 to 2335 px) | 1 424 | 1 424 |
+| Bell tent, 120 m (58 px) | 308 (its hand-built second level: 16 panels, no inside) | 1 066 |
+| Boulder of 3.3 m at 6 m (445 px) | 110 592 (its full mesh) | 27 762 |
+| The same at 30 m (89 px) | 3 072 | 1 940 |
+| The same at 100 m (27 px) | 192 | 428 |
+
+    The fire pit draws 42–58 % fewer triangles; the boulder at the eye a quarter of main's. Borderline: the tent far
+    off and the boulder under 30 px draw more than main's hand-made levels did, because the hierarchy keeps what the
+    error says is still there (the tent's inside and ropes, held whole until their own reach is allowed; the flat-shaded
+    canvas, whose panels' hard edges hold the simplifier at about 320 triangles). Both are a few hundred triangles a
+    thing.
+  - **Memory** (by the levels' rooms): the rocks' heap 32 → 56 MB (level 0's six slots hold every cluster a near shape
+    needs, about twice its full mesh; the other levels every shape's own), the made things' 1.3 → 10.5 MB (every level
+    a kind's whole hierarchy's room), the cut's lists 2 MB.
+  - **The first start** builds every rock shape's hierarchy in the workers: the rocks' coarse levels came 31 to 63 s
+    after the start (24 shapes, 0.7–2.5 s each, three workers, the machine shared), the made things' behind them. They
+    are kept in IndexedDB, so a second start reads them back.
+  - `bun tools/scale.js`: 18 of 18. `bun tools/account-check.js`: 67 passed. `bunx --bun vite build`: built.
+
+FLIPLINES
 
 ## Propose
 
