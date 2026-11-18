@@ -55,7 +55,7 @@ export const airOf = (w, eye = U.uCam) => {
 };
 const airAt = Fn(([c, w, eye]) => { const A = airOf(w, eye); return mix(A.col, c, A.k); });
 /** The end of every material: its colour seen through the air from the eye, to the screen. */
-export const finish = (c, w, eye = U.uCam) => toScreen(airAt(c, w, eye));
+export const finish = (c, w, eye = U.uCam) => toScreen(airAt(max(c, vec3(0)), w, eye));   // (no light is less than none)
 /** The sky's light on a surface facing n: most from above, less on what faces sideways, and a little bounced up off the
     sunlit ground onto what faces down. */
 export const skyLight = (n) => U.uAmb.mul(n.y.mul(0.32).add(0.68)).add(U.uSun.mul(U.uSunDir.y.max(0)).mul(vec3(0.09, 0.1, 0.06)).mul(float(0.5).sub(n.y.mul(0.5))));
@@ -210,12 +210,12 @@ export const screenShade = () => ({ open: clamp(aoHere(vec3(0, 1, 0)).w, 0, 1), 
       sky           what else dims the sky's light on it (the ground's own shade)
       gloss, sharp  its highlight: how bright, how tight */
 export const lightOn = (s) => {
-  const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mul(contactHere());
+  const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mulcontactHere();
   const wrap = s.wrap ?? 0, ndl = s.ndl ?? (wrap ? n.dot(L).add(wrap).div(float(wrap).add(1)) : n.dot(L)).max(0);
   const back = V ? max(V.negate().dot(L), 0) : null, light = U.uSun.mul(share);   // (how far the eye looks into the sun; the sun's light here)
   // the sky's light: from the way the sky it sees lies (the bent normal), less what stands round it (GTAO) and what the
   // crowns above hide of it (the canopy's probes: src/world/light/canopy.js)
-  const A = aoHere(n), bent = normalize(n.add(A.xyz.mul(max(n.dot(A.xyz), 0)))), open = clamp(A.w, 0, 1);   // (bent towards the sky it sees, never past the normal: a bent normal from the depth may face away from a blade's own)
+  const A0 = aoHere(n), A = A0.w.equal(A0.w).and(A0.x.equal(A0.x)).select(A0, vec4(n, 1)), bent = normalize(n.add(A.xyz.mul(clamp(n.dot(A.xyz), 0, 1)))), open = clamp(A.w, 0, 1);   // (bent towards the sky it sees, never past the normal: a bent normal from the depth may face away from a blade's own)
   let sky = skyLight(bent).mul(s.w ? skyAt(s.w).mul(open) : open), sun = ndl;
   // through it, two-sided: the sun behind it seen through it (a lobe round the sun, as tight as `lobe`), and its far
   // side lit (what faces away from the sun, seen from the dark side, glows through)

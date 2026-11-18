@@ -94,7 +94,7 @@ export function createScreenLight(renderer) {
       }
       // the bent normal back in the world, and the share of the sky
       const bw = normalize(viewInv.mul(vec4(normalize(bent.add(n.mul(0.001))), 0)).xyz);
-      out.assign(vec4(bw, vis));
+      out.assign(bw.x.equal(bw.x).and(vis.equal(vis)).select(vec4(bw, clamp(vis, 0, 1)), vec4(0, 0, 0, 1)));   // (where the depth gave no normal: nothing known, the sky all there)
     });
     return out;
   })();
