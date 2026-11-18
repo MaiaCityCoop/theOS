@@ -31,7 +31,7 @@ import { taken, busy, changed } from './core/work.js';
 import { settle, ready as firstView, waiting, watch, tick, partOf, leave } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
 import { createTerrain, landMaterials } from './terrain/terrain.js';
-import { SHADE_REACH, CROWN_BASE, CROWN_REACH, CASTER_TOP } from './terrain/layers.js';
+import { CASTERS } from './terrain/layers.js';
 import { useCascades } from './world/shadow.js';
 import { createGround } from './scatter/ground.js';
 import { createScatter } from './scatter/index.js';
@@ -123,7 +123,7 @@ export async function boot({ profile = 'world' } = {}) {
   const tex = bakeTextures(renderer, world ? { spare: 1 } : { spare: 8, first: landMaterials() });   // (the library's pictures ask for materials the world may not wear; the start's are compiled side by side and painted while the world is made: tex.ready)
   useTiles(tex);   // node code that reads a baked tile by itself (the clouds' field, the snow's clumps: src/world/tile.js)
   useBackend(renderer);   // and what is lit per corner (a tree) reads the shadow map's texels only where the backend can
-  useCascades({ reach: SHADE_REACH, crown: CROWN_BASE, top: CASTER_TOP, radius: CROWN_REACH });   // the shadow cascades laid out from what casts, before any material is built (src/world/shadow.js)
+  useCascades(CASTERS);   // the shadow cascades laid out from what casts, before any material is built (src/world/shadow.js)
   mark('bake');
   await loadingStep('Raising the land', 0.3);
   // what grows on the land (the ground under the camera and every scattered thing: src/scatter): the world's from the

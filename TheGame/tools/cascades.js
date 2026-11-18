@@ -69,9 +69,9 @@ Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { us
 const THREE = await import('three/webgpu'), T = await import('three/tsl');
 const { U } = await import('../src/core/uniforms.js');
 const { createShadows, useCascades, CASTS } = await import('../src/world/shadow.js');
-const { SHADE_REACH, CROWN_BASE, CROWN_REACH, CASTER_TOP } = await import('../src/terrain/layers.js');
+const { CASTERS } = await import('../src/terrain/layers.js');
 const { fovOf } = await import('../src/camera/rig.js');
-const layout = useCascades({ reach: SHADE_REACH, crown: CROWN_BASE, top: CASTER_TOP, radius: CROWN_REACH }), SHADOW_S = layout.S;   // (as src/boot.js lays them out)
+const layout = useCascades(CASTERS), SHADOW_S = layout.S;   // (as src/boot.js lays them out)
 const light = await import('../src/world/light.js');
 const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false });
 await renderer.init(); light.useBackend(renderer);
@@ -94,7 +94,7 @@ let failed = 0;
 const check = (what, ok, said) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${said ? `: ${said}` : ''}`); if (!ok) failed++; };
 const cascades = renderer.backend.get(rt.depthTexture).texture;
 const n = layout.n;
-console.log(`laid out: ${n} cascades of ${SHADOW_S} texels a side, half sides ${layout.half.map((h) => h.toFixed(1)).join(', ')} m, texels ${layout.texel.map((t) => (100 * t).toFixed(2)).join(', ')} cm (lowest crown ${CROWN_BASE.toFixed(2)} m, reach ${SHADE_REACH} m, tallest ${CASTER_TOP} m)`);
+console.log(`laid out: ${n} cascades of ${SHADOW_S} texels a side, half sides ${layout.half.map((h) => h.toFixed(1)).join(', ')} m, texels ${layout.texel.map((t) => (100 * t).toFixed(2)).join(', ')} cm (lowest crown ${CASTERS.crown.toFixed(2)} m, reach ${CASTERS.reach} m, tallest ${CASTERS.top} m)`);
 check(`the cascades are one depth array of ${n} layers`, cascades?.layers === n && cascades.format === 'depth32float', cascades && `${cascades.width}x${cascades.height}x${cascades.layers} ${cascades.format}`);
 const layerOf = (p) => (p.depth?.texture === cascades ? p.depth.view.baseArrayLayer : null);
 const into = frames.map((F) => F.filter((p) => layerOf(p) != null)), every = Array.from({ length: n }, (_, k) => n - 1 - k).join();
