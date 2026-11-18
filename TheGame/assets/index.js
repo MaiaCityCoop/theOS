@@ -30,8 +30,9 @@ export const snowOf = (a) => kindOf(a, 'snow');
 /** A scattered asset as the row every scatter engine (src/scatter) reads: the asset, its engine, what its kind gives it.
     What only one engine reads of it, that engine adds itself (its `row`: src/scatter/index.js). */
 export const scatterRow = (a) => ({ asset: a, name: a.name, uid: a.uid, kind: a.placement.engine, cell: a.placement.cell, seed: a.placement.seed, snow: snowOf(a), detail: detailOf(a) });
-/** How many faces a level has. */
-export const facesOf = (l) => (typeof l.tris === 'function' ? l.tris() : l.faces ? l.faces.length : l.ball != null ? (l.ball ? 12 * l.ball * l.ball : 1) : 0);   // (ball: a level of the ladder, a ball of so many squares an edge; none: its dot)
+/** How many faces a level has (A: the numbers the far ends' atlases are sized by, which a plant's levels hold room by:
+    src/detail/impostor.js atlases). */
+export const facesOf = (l, A) => (typeof l.tris === 'function' ? l.tris(A) : l.faces ? l.faces.length : l.ball != null ? (l.ball ? 12 * l.ball * l.ball : 1) : 0);   // (ball: a level of the ladder, a ball of so many squares an edge; none: its dot)
 
 /** A level of detail of an asset as a geometry, coloured per face (the nearest level unless one is named). */
 export function geometryOf(asset, level = asset.faces ? { faces: asset.faces } : asset.detail.levels[0], shape = 0) {

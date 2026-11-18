@@ -24,17 +24,24 @@ Nothing that builds a rung knows a pixel. One rule decides every switch, at runt
 `pxK()` is the live pixel, and the only definition of one: pixels drawn (the inside's, at the governor's ratio of the
 screen's) a metre covers one metre from the eye, through the walker's 68° lens. `ERROR_PX()` is the dial: 1 at rest,
 turned by the governor. `switchPx(s)` is the rule as a size on screen, in the dial's pixels, for an error
-that is the share `s` of a thing's size. Each rung comes in over the `BAND` above its switch.
+that is the share `s` of a thing's size. Each rung comes in over the `BAND` under its switch, never above it: what is
+drawn is never off by more than the dial.
 
 | Rung | Its error | Where it is measured |
 | --- | --- | --- |
 | a first share of a crowd's sprigs | its spread order's share error: the farthest a sprig left out lies from one drawn | `assets/kit/crowd.js` (`turnsOf`) |
 | a solid piece of a plant gone | its width | `assets/kit/crowd.js` |
-| a plant's clumps | their bake's texel (`TILE` of them over a chunk's largest side) | `assets/kit/crowd.js` |
-| a plant's impostor, a made thing's card | its bake's texel (`CELL` of them over its sphere's width) | `assets/kit/crowd.js`, `index.js` |
+| a plant's clumps | where their three planes draw each chunk's leaves (each plane by its share of what is drawn), and their bake's texel (`TILE` of them over a chunk's largest side) | `assets/kit/crowd.js` (`clumpsErrorOf`) |
+| a plant's impostor, a made thing's card | its bake's texel (`CELL` of them over its sphere's width), and its views' spacing and its parallax, one displacement: its depth times `spacingOf(VIEWS)` | `atlas.js`, `assets/kit/crowd.js`, `index.js` |
 | a cluster's parent | the cluster's own error, from the simplifier and its lost vertices | `assets/kit/clusters.js` |
 | a ring of blades (the blade in its own cells, as it is) | how far its fewer straight pieces miss the blade's curve | `src/scatter/grass.js` `ringsOf` |
-| nothing (a thing gone) | how far it stands off what stays: a plant its height over the land (which wears its stand's colour or its floor), a rock or a made thing all of it (`GONE`) | `assets/kit/plant.js` `goneOf`, `error.js` |
+| nothing (a thing gone) | how far it stands off what stays: a plant its height over the land (which wears its stand's colour or its floor), a rock or a made thing all of it (`GONE`); it is whole down to there and sinks away over the `BAND` under it | `assets/kit/plant.js` `goneOf`, `error.js` |
+
+How large the far ends' pictures are follows from those errors: `atlas.js` `atlasesOf` takes the share of memory the
+atlases are given (`src/core/classes.js` `SHARE_MB`), the far ends the stands bake (`src/scatter/entries.js` `farLayers`)
+and the limits every device grants (`src/core/gpu.js` `PORTABLE`), and chooses the views and their texels where the
+impostor's error is least; a clump's plane is the least picture an atlas keeps. `impostor.js` `atlases()` holds the
+numbers for the page, and hands them to the crowd kit in the workers with each level's band.
 
 ## The rule (one place each)
 
