@@ -118,8 +118,9 @@ function blocksOf(src, out, outR) {
 // Every material of the library, numbered (a material's number is its place here: tex.layer)
 const ALL = recipes('material'), NUM = new Map(ALL.map((m, i) => [m.uid, i]));
 /** The materials the world wears: every material a biome or an asset names (by its uid or its recipe, anywhere in its
-    file), and those playing a part the engine asks for (a `role`). What only the library holds is not among them. */
-export function usedMaterials() {
+    file; or only those of the recipes `of`), and those playing a part the engine asks for (a `role`). What only the
+    library holds is not among them. */
+export function usedMaterials(of = [...recipes('biome'), ...recipes('asset')]) {
   const out = new Set(), seen = new Set();
   const visit = (v, depth) => {
     if (v == null || depth > 10) return;
@@ -130,7 +131,7 @@ export function usedMaterials() {
     // (its own values only: a getter may build a mesh to answer, as a tree's size does)
     for (const d of Object.values(Object.getOwnPropertyDescriptors(v))) if ('value' in d) visit(d.value, depth + 1);
   };
-  for (const r of [...recipes('biome'), ...recipes('asset')]) visit(r, 0);
+  for (const r of of) visit(r, 0);
   for (const m of ALL) if (m.role) out.add(m.uid);
   return ALL.filter((m) => out.has(m.uid));
 }
@@ -142,9 +143,11 @@ export function usedMaterials() {
     there (hold: keep it until release(material)), flush(): paint what reads asked for while shaders were built
     (each frame), used: the materials the world wears, capacity: layers in the pool, packed: whether they are kept
     compressed, ready: a promise, the start's materials painted (they are compiled side by side meanwhile) }.
-    opts: spare (layers beyond what the world wears, for what is asked for besides: the library's pictures). A GPU
-    without the formats gets them as painted, uncompressed. */
-export function bakeTextures(renderer, { spare = 6 } = {}) {
+    opts: spare (layers beyond what the world wears, for what is asked for besides: the library's pictures); first
+    (the materials painted at the start, held: by default all the world wears; the library's stage paints the land's
+    and leaves each subject's to be painted when it is first worn: src/boot.js). A GPU without the formats gets them as
+    painted, uncompressed. */
+export function bakeTextures(renderer, { spare = 6, first = null } = {}) {
   // seen at a low angle a texture is filtered along the slope, several taps a read: four for the colours, two for the
   // relief (its blur is not seen), not eight for both: at eye level the ground is most of the picture and its reads most
   // of a frame's time (a walk in the forest: 23 ms at eight, 19 at four and two, at one and a half pixels a point)
@@ -255,8 +258,8 @@ export function bakeTextures(renderer, { spare = 6 } = {}) {
 
   // the stand-in, the numbers' own, and what the world wears (held): their layers taken now, all painted together; the
   // world reads none of them before `ready`
-  const jobs = [[STANDIN, 0, false], ...DATA.map((m, i) => [m, i, true])];
-  for (const m of SEEN) { const k = numberOf(m); if (k < 0 || where[k]) continue; held[k] = 1; const layer = take(k); if (layer) { asked[layer] = performance.now(); jobs.push([ALL[k], layer, false]); } }
+  const jobs = [[STANDIN, 0, false], ...DATA.map((m, i) => [m, i, true])], now = first && new Set(first.map((m) => m?.uid ?? m));
+  for (const m of SEEN) { const k = numberOf(m); if (k < 0 || where[k] || (now && !now.has(m.uid))) continue; held[k] = 1; const layer = take(k); if (layer) { asked[layer] = performance.now(); jobs.push([ALL[k], layer, false]); } }
   const ready = paintAll(jobs);
   const index = (ref) => { const k = numberOf(ref); if (k >= 0 && !isData(k) && !where[k]) wanted.add(k); return k; };   // (asked for while a shader is built: painted at the next flush)
   const tA = texture(A), tN = texture(Nn), tR = Rr ? texture(Rr) : null, tD = Dd ? texture(Dd) : null;

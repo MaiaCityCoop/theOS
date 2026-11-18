@@ -43,7 +43,7 @@ function viewChanged() {
   return changed;
 }
 
-/** After each frame the world was drawn in (src/main.js), with whether it changed what is drawn besides the view
+/** After each frame the world was drawn in (src/boot.js), with whether it changed what is drawn besides the view
     (packed a tier again, put meshes or textures in: src/core/work.js changed). */
 export function tick(did) {
   if (!V) return;
@@ -58,6 +58,10 @@ export function tick(did) {
   if (first) { first({ frames }); first = null; }
   for (const a of asks) if (frames > a.from) { asks.delete(a); clearTimeout(a.timer); a.res({ frames: frames - a.from, ms: Math.round(performance.now() - a.t0), still }); }
 }
+
+/** Whether something waits for the world to settle (a page's first view, a still, the gate): a camera that moves by
+    itself (the library's stage circling its subject: src/stage/studio.js) stands still meanwhile, or it never would. */
+export const settling = () => asks.size > 0;
 
 /** A promise: the world complete for the camera as it stands now, resolved at a frame drawn after this call, once
     nothing has been out and nothing has changed for as long as the picture built over time takes to come to rest.
