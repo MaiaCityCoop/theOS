@@ -25,6 +25,7 @@ import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull
 import { CASTS } from '../../src/world/shadow.js';
 import { PART } from './skeleton/rig.js';
 import { recipes, versionOf } from '../../src/core/registry.js';
+import { watched } from '../../src/core/workers.js';
 
 const TAU = 2 * Math.PI, D = Math.PI / 180, SIDES = [['L', 1], ['R', -1]];
 const LEG = 0.9;   // from the hip's joint to the sole (m): what a leg let out by an angle carries its foot aside by
@@ -39,16 +40,17 @@ const LEVELS = [{ h: 0.008, shade: 0, key: 'skeleton:0' }, { h: few ? 0.0055 : 0
 const UNDER = [LEVELS[0], { h: few ? 0.008 : 0.0055, shade: 1, key: few ? 'skeleton:h0.008' : 'skeleton:h0.0055' }];
 
 // A few workers, each handed the next thing asked as it finishes one; let go when nothing has been asked for a while.
+// One that fails (watched: src/core/workers.js) is let go, what it was growing failing with it.
 const POOL = { all: [], free: [], queue: [], idle: 0 };
+const grower = () => { const w = watched(new Worker(new URL('./skeleton/grow.worker.js', import.meta.url), { type: 'module' }), "the bones' worker", (e) => { POOL.all.splice(POOL.all.indexOf(w), 1); w.terminate(); w.job?.rej(e); pump(); }); return w; };
 function pump() {
   clearTimeout(POOL.idle);
   const most = Math.max(1, Math.min(6, (navigator.hardwareConcurrency ?? 4) - 1));
   while (POOL.queue.length && (POOL.free.length || POOL.all.length < most)) {
     let w = POOL.free.pop();
-    if (!w) POOL.all.push((w = new Worker(new URL('./skeleton/grow.worker.js', import.meta.url), { type: 'module' })));
-    const job = POOL.queue.shift();
-    w.onmessage = ({ data }) => { POOL.free.push(w); job.res(data); pump(); };
-    w.onerror = (e) => { POOL.all.splice(POOL.all.indexOf(w), 1); w.terminate(); job.rej(new Error(e.message || 'a worker could not grow the bones')); pump(); };
+    if (!w) POOL.all.push((w = grower()));
+    const job = (w.job = POOL.queue.shift());
+    w.onmessage = ({ data }) => { w.job = null; POOL.free.push(w); job.res(data); pump(); };
     w.postMessage(job.msg);
   }
   if (!POOL.queue.length && POOL.free.length === POOL.all.length) POOL.idle = setTimeout(() => { for (const w of POOL.all) w.terminate(); POOL.all.length = POOL.free.length = 0; }, 4000);
@@ -177,8 +179,8 @@ const stand = (t) => {
   return m;
 };
 export const MOVES = [
-  { id: 'stand', name: 'Stand', about: 'Standing at ease: the weight going from foot to foot, the head looking about.', pose: stand },
-  { id: 'walk', name: 'Walk', about: 'A walk round the stage at a man\'s own pace: hip, knee, ankle and toes through a stride as gait analysis measures them, the pelvis turning under the chest, the arms against the legs. The foot on the ground stays where it stands.', walks: true,
+  { id: 'stand', name: 'Stand', about: 'At ease, the weight shifting.', pose: stand },
+  { id: 'walk', name: 'Walk', about: 'Round the stage, a measured stride.', walks: true,
     pose(t) {
       const c = t / GAIT.stride, co = Math.cos(c * TAU), si = Math.sin(c * TAU);
       const m = { hips: [0.03, -0.07 * co, 0.05 * si], loins: [0.03, 0.05 * co, -0.04 * si], chest: [0.02, 0.09 * co, 0], head: [-0.03, -0.05 * co, 0] };
@@ -191,14 +193,14 @@ export const MOVES = [
       }
       return m;
     } },
-  { id: 'wave', name: 'Wave', about: 'Turned to whoever is looking: the right arm out and turned up, the forearm waving on the elbow; a nod.', face: true,
+  { id: 'wave', name: 'Wave', about: 'Turned to you, the forearm waving.', face: true,
     pose(t) {
       const m = stand(t), wv = Math.sin(t * TAU * 1.5);
       m['arm.R'] = [0.1, 1.5, -1.45]; m['elbow.R'] = 1.25 + 0.4 * wv; m['forearm.R'] = 0.2; m['wrist.R'] = [0, 0.15 * wv];
       m.head = [0.05 + 0.05 * Math.max(0, Math.sin(t * 2.2)), 0, 0.05]; m.neck = [0.02, 0, 0.03]; m.chest = [0, 0, 0.04];
       return m;
     } },
-  { id: 'reach', name: 'Reach', about: 'Reaching up and out with the left arm (a third of the raise is the shoulder blade\'s), the right fist closing at the shoulder, the head following the hand, the jaw opening.',
+  { id: 'reach', name: 'Reach', about: 'Left arm up and out, right fist closing.',
     pose(t) {
       const m = stand(t), e = ease(0.5 - 0.5 * Math.cos((t / 6) * TAU));
       m['arm.L'] = [0.4 * e, 0.06 + 2.15 * e, 0]; m['elbow.L'] = 0.14 + 0.16 * e; m['forearm.L'] = 0.8 * e;
@@ -207,7 +209,7 @@ export const MOVES = [
       m['hip.R'] = [0.12 * e, 0.2 * e, 0.1 * e]; m['knee.R'] = 0.03 + 0.22 * e;
       return m;
     } },
-  { id: 'joints', name: 'Every joint', about: 'Each joint in turn through its range: the spine bent, leaned and twisted, the head and the jaw, the arms raised, turned in and out, the elbows, the forearms turned, the wrists and the fists, a hip and its knee, the other hip turned, its ankle and toes.',
+  { id: 'joints', name: 'Every joint', about: 'Each joint in turn through its range.',
     pose(t) {
       // ten parts of four seconds, each out and back (s), some to both sides (b)
       const T = 4, i = Math.floor(t / T) % 10, x = (t % T) / T, s = Math.sin(x * Math.PI) ** 2, b = Math.sin(x * TAU), m = {};
@@ -295,8 +297,8 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
   };
   // which layer is outermost: what is drawn (the bones under the muscles; nothing under the fat or the skin)
   api.layers = body ? [
-    { id: 'skin', name: 'Skin', about: 'The skin over the fat: a man as he stands, naked.' },
-    { id: 'fat', name: 'Fat', about: 'The fat under the skin, as thick as it is place by place: thin over the shin and the skull, padded at the heel, the palm and the buttock.' },
+    { id: 'skin', name: 'Skin', about: 'The skin over the fat.' },
+    { id: 'fat', name: 'Fat', about: 'The fat, as thick as it lies.' },
     { id: 'muscles', name: 'Muscles', about: 'The muscles over the bones.' },
     { id: 'bones', name: 'Bones', about: 'The skeleton alone.' },
   ] : null;
@@ -323,10 +325,10 @@ export function skeletonOf(tex, R, { eye = uniform(U.uCam.value), quick = false 
   Object.defineProperty(api, 'move', { get: () => S.move });
   // what the card says of it beside its figures: its joints and pieces, and how far its growing is
   Object.defineProperty(api, 'figures', { get: () => muscles ? [[api.bonesCount || '…', '', 'Joints'], [api.flesh?.counts.muscles || '…', '', 'Muscles']] : [[api.bonesCount || '…', '', 'Joints'], [api.pieces || '…', '', 'Pieces']] });
-  Object.defineProperty(api, 'note', { get: () => (api.failed ? (body && api.mesh ? 'Its skin could not be laid in this browser (' + api.failed + '): its bones are shown.' : 'Its bones could not be grown in this browser: ' + api.failed) : body && !api.flesh ? 'Its body is being laid in the page: the muscles on the bones, then the fat and the skin over them (some seconds the first time; the browser keeps it for the next visit).' : body && wantsBones() && api.level < 0 ? 'Its bones are being grown in the page: coarse within a few seconds, then fine.' : !body && api.level < 0 ? 'Its bones are being grown in the page: coarse within a few seconds, then fine.' : muscles && !api.flesh ? 'Its muscles are being laid on its bones, in the page (the browser keeps them for the next visit).' : api.level < LV.length - 1 && !quick ? 'Coarse for now: the fine bones are still growing (the browser keeps them for the next visit).' : null) });
+  Object.defineProperty(api, 'note', { get: () => (api.failed ? (body && api.mesh ? 'No skin in this browser (' + api.failed + '): bones shown.' : 'Could not be grown here: ' + api.failed) : body && !api.flesh ? 'Being laid: muscles, then fat and skin.' : body && wantsBones() && api.level < 0 ? 'Bones growing: coarse first, then fine.' : !body && api.level < 0 ? 'Bones growing: coarse first, then fine.' : muscles && !api.flesh ? 'Muscles being laid on the bones.' : api.level < LV.length - 1 && !quick ? 'Coarse for now: fine bones still growing.' : null) });
   // (its faces: the bones' and the muscles' together)
   Object.defineProperty(api, 'faces', { get: () => { const c = api.flesh?.counts, L = api.layer; return !body ? api.boneFaces + (c?.muscleFaces ?? 0) : L === 'skin' || L === 'fat' ? c?.skinFaces ?? 0 : L === 'muscles' ? api.boneFaces + (c?.muscleFaces ?? 0) : api.boneFaces; }, set: (v) => { api.boneFaces = v; } });
-  api.rigLabel = 'Rig · a joint where two bones meet'; api.rigAbout = 'one to each vertebra, the atlas and the skull; the jaw; collarbone, blade, shoulder, elbow, the radius turning about the ulna, wrist, every finger\'s three; hip, knee and kneecap, ankle, each toe';
+  api.rigLabel = 'Rig';   // (a joint where two bones meet: one to each vertebra, the jaw, collarbone, blade, shoulder, elbow, the radius about the ulna, wrist, every finger's three, hip, knee and kneecap, ankle, each toe)
   api.setMove = (id) => { if (id === S.move || !moveOf(id)) return; S.from = S.move; S.k = 0; S.move = id; S.began[id] = S.t; };   // (a move runs from its own beginning: every joint in its order, a stride from the heel's strike)
   api.dispose = () => { api.disposed = true; api.mesh?.geometry.dispose(); mat.dispose(); api.flesh?.dispose(); };
   api.step = (dt, eyeAt) => {

@@ -18,7 +18,7 @@ export default {
   type: 'asset',
   name: 'Stones',
   kind: 'rock',
-  about: 'Small field stones, a few centimetres to half a metre, lying in the grass and thick on the river banks.',
+  about: 'Small field stones in the grass, thick on the river banks.',
   measure: MEASURE,
   size: { length: MEASURE.size, width: MEASURE.size, height: MEASURE.height },
   colours: { stone: [0.52, 0.5, 0.46] },

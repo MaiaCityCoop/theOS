@@ -6,8 +6,8 @@ export default {
   type: 'material',
   name: "Grass, from afar",
   kind: 'grass',
-  about: "Grass seen as a carpet: blades as light strokes on dark, kept grey for the land to tint.",
-  usedBy: "the terrain's grass far away, where blades are no longer drawn",
+  about: 'Grass as a carpet, kept grey for the land to tint.',
+  usedBy: 'the grass far away',
   swatch: [0.4, 0.5, 0.32],
   bump: 0.02,   // how deep its relief reads in the normals: larger is flatter
   paint: (uv) => {
