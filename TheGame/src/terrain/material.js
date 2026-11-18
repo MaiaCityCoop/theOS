@@ -9,8 +9,8 @@ import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, po
 import { U } from '../core/uniforms.js';
 import { TRUTH } from '../detail/measure.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
-import { layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND, SHADE_REACH } from './layers.js';
-import { finish, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
+import { layerOf, standOf, standFade, CARPET, SLOPES, NO_STAND, SHADE_REACH } from './layers.js';
+import { lit, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
 import { reliefShares, reliefOverSnow } from './relief.js';
 import { SOIL_RELIEF } from '../world/physics.js';
@@ -207,8 +207,9 @@ export function terrainMaterial(vt) {
     const G = vt.read(p, dx, dy, rdist, { eye: normalize(U.uCam.sub(vWorld)), level: by(vWorld, [dx, dy]) });   // (along the eye's ray through the ground's relief: parallax)
     // near, the carpet lies in the shade of its blades, drawn over it: the nearer, the darker (the pixel's own distance)
     const c = G.c.mul(mix(1, mix(0.5, 1, smoothstep(3, 70, dist2)), G.cv)).toVar(), cv = G.cv, h = G.h;
-    // past where the shadow map reaches round the camera, a stand's floor lies in its crowns' shade
-    const shade = SHADE_REACH > 0 ? G.shade.mul(smoothstep(shadowReach(SHADE_REACH).mul(0.8), shadowReach(SHADE_REACH), length(p.sub(U.uCam.xz)))) : float(0);
+    // past where the shadow cascades reach round the camera (the farthest of them: SHADE_REACH, src/world/shadow.js), a
+    // stand's floor lies in its crowns' shade
+    const shade = SHADE_REACH > 0 ? G.shade.mul(smoothstep(SHADE_REACH * 0.8, SHADE_REACH, length(p.sub(U.uCam.xz)))) : float(0);
 
     // ---- the light ----
     const wet = float(1).sub(smoothstep(w.mul(0.9), w.add(2.5), d));
@@ -227,9 +228,9 @@ export function terrainMaterial(vt) {
     const relief = mix(0.74, 1.1, smoothstep(-6, 16, vHill));
     const s0 = max(n.dot(U.uSunDir), 0), sunl = mix(s0, smoothstep(0.55, 0.95, s0), smoothstep(60, 600, dist2).mul(0.5));
     const cs = cloudShade(vWorld).toVar();
-    const col = weathered(mix(c.mul(mix(1, 0.5, wet)).mul(cav), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).mul(skyLight(n).mul(cs.mul(0.3).add(0.7)).mul(float(1).sub(shade.mul(0.35))).add(U.uSun.mul(cs).mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)).mul(sunl)));   // under a cloud the sky is dimmer too (the clouds' shade read once: light.js cloudAt is these three)
-    const V = normalize(U.uCam.sub(vWorld));
-    return finish(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), vWorld);
+    // (under a cloud the sky is dimmer too: the clouds' shade read once, for both; wet, it shines)
+    return lit({ colour: weathered(mix(c.mul(mix(1, 0.5, wet)).mul(cav), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9), n, w: vWorld,
+      sun: cs.mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)), ndl: sunl, sky: cs.mul(0.3).add(0.7).mul(float(1).sub(shade.mul(0.35))), gloss: wet.mul(0.3), sharp: 48 });
   });
 
   const m = new THREE.NodeMaterial(); m.positionNode = vertex(); m.fragmentNode = frag(); m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
