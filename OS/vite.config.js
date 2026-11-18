@@ -1,5 +1,5 @@
 // OS reads the repository as it is: the intents (../Intents/*.md), the stories (../Stories/*), the story ideas
-// (../Stories/ideas/*.md), the bible and the scenes, answered by ../server/repo.js, which the game's server shares.
+// (../Stories/ideas/*.md), the compass and the scenes, answered by ../server/repo.js, which the game's server shares.
 // Nothing is copied or cached: the files are the one source.
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';

@@ -31,10 +31,11 @@
 //                 three's Vector2, Vector3, Vector4, Color, Matrix3, Matrix4; not one all 0 or all 1, an identity; not
 //                 what a uniform starts at, nor an array's size), and those the SSOT audit (research_notes/0038-ssot-
 //                 audit.md) names however they are written (marked). Not hand-set: the exported values of a module
-//                 named physics.js (physical: the one place physical constants live) or budget.js (required: the
-//                 intent's requirements, its hard gates and their split), each saying its unit and its source in its
-//                 comment (`unit: …`, `source: …`; --base fails where one does not). Flag reads: every call of flag,
-//                 flagNum and flagText (src/core/flags.js)
+//                 named physics.js (physical: the one place physical constants live), budget.js (required: the
+//                 intent's requirements, its hard gates and their split) or method.js (method: a published method's
+//                 own defining constants, as a filter's σ and its tile), each saying its source in its comment
+//                 (`source: …`), and a physical one or a requirement its unit too (`unit: …`); --base fails where one
+//                 does not. Flag reads: every call of flag, flagNum and flagText (src/core/flags.js)
 //   Dependencies  the direct dependencies of every package.json in the repository
 //
 // No node on the path: jscpd and knip are run by bun from their files, eslint and madge through their own APIs.
@@ -263,28 +264,35 @@ function numbers(m, name, init, out) {
   if (n.type === 'ObjectExpression') for (const p of n.properties) if (p.type === 'Property' && !p.computed) numbers(m, `${name}.${nameOf(p.key)}`, p.value, out);
   if (audit || (isNumber(n) && !identity(n) && /\d/.test(text))) out.push({ at: at(m.f, n.loc.start.line), name, value: text, ...(audit && { audit }) });
 }
-/** The modules whose exported values are no hand-set numbers, each saying its unit and its source: a physics.js holds the
-    physical constants, a budget.js the intent's requirements (its hard gates and their split). */
-const CONTRACT = { 'physics.js': 'physical', 'budget.js': 'required' }, HOLDS = { physical: 'a physical constant (physics.js)', required: 'a requirement (budget.js)' };
-/** What a module constant is under its module's contract ('physical', 'required'), where it is an exported value (not a
-    function) of such a module; else null. */
+/** The modules whose exported values are no hand-set numbers, each module the list of its kind, and what each value's
+    comment says: a physics.js holds the physical constants and a budget.js the intent's requirements (its hard gates
+    and their split), each with its unit and its source; a method.js a published method's own defining constants (a
+    filter's σ, its tile), each with its source (its unit, where it has one, is not asked: a count or a ratio has none). */
+const CONTRACT = {
+  'physics.js': { kind: 'physical', holds: 'a physical constant (physics.js)', says: ['unit', 'source'] },
+  'budget.js': { kind: 'required', holds: 'a requirement (budget.js)', says: ['unit', 'source'] },
+  'method.js': { kind: 'method', holds: "a published method's constant (method.js)", says: ['source'] },
+};
+const KINDS = Object.values(CONTRACT).map((c) => c.kind), HOLDS = Object.fromEntries(Object.values(CONTRACT).map((c) => [c.kind, c]));
+/** The contract a module constant is under (CONTRACT), where it is an exported value (not a function) of such a module;
+    else null. */
 const contracted = (m, name) => (CONTRACT[basename(m.f)] && [...m.exports.values()].includes(name) && !/Function/.test(m.consts.get(name).init.type) ? CONTRACT[basename(m.f)] : null);
 /** Whether a constant's comment (before its statement, not on the line the one before ends on, or after it on its own
-    last line) says its unit and its source (`unit: …`, `source: …`). */
-function sourced(m, v) {
+    last line) says each thing its contract asks (`unit: …`, `source: …`). */
+function sourced(m, v, says) {
   const s = v.parent.parent?.type === 'ExportNamedDeclaration' ? v.parent.parent : v.parent, before = m.sc.getTokenBefore(s)?.loc.end.line ?? 0;
   const said = [...m.sc.getCommentsBefore(s).filter((c) => c.loc.start.line > before), ...m.sc.getCommentsAfter(s).filter((c) => c.loc.start.line === s.loc.end.line)].map((c) => c.value).join(' ');
-  return /\bunits?:\s*\S/i.test(said) && /\bsources?:\s*\S/i.test(said);
+  return says.every((w) => new RegExp(`\\b${w}s?:\\s*\\S`, 'i').test(said));
 }
-/** A module's constants: each physical or required one (a vector or a table one constant), those without their unit or
-    source among them, and the hand-set numbers of the rest. */
+/** A module's constants: each under a contract (physical, required, method; a vector or a table one constant), those
+    whose comment does not say what it asks among them, and the hand-set numbers of the rest. */
 function constants(m, S) {
   for (const [name, v] of m.consts) {
-    const kind = contracted(m, name);
-    if (!kind) { numbers(m, name, v.init, S.numbers); continue; }
-    const c = { at: at(m.f, v.loc.start.line), name, value: m.sc.getText(v.init), kind };
-    S[kind].push(c);
-    if (!sourced(m, v)) S.unsourced.push(c);
+    const k = contracted(m, name);
+    if (!k) { numbers(m, name, v.init, S.numbers); continue; }
+    const c = { at: at(m.f, v.loc.start.line), name, value: m.sc.getText(v.init), kind: k.kind };
+    S[k.kind].push(c);
+    if (!sourced(m, v, k.says)) S.unsourced.push(c);
   }
 }
 
@@ -326,7 +334,7 @@ function size(t) {
   return { files: t.files.length, code: folders.reduce((s, d) => s + d.code, 0), folders };
 }
 function settings(t) {
-  const S = { branches: [], numbers: [], physical: [], required: [], unsourced: [], reads: [] };
+  const S = { branches: [], numbers: [], ...Object.fromEntries(KINDS.map((k) => [k, []])), unsourced: [], reads: [] };
   for (const m of t.files.map((f) => mod(t, f)).filter((x) => x.sc)) {
     for (const r of m.sc.scopeManager.scopes.flatMap((s) => s.references)) {
       const id = r.identifier, line = at(m.f, id.loc.start.line), read = readOf(id);
@@ -382,7 +390,7 @@ function change(B, H) {
     size: H.size.code - B.size.code,
     settings: { branches: { change: H.settings.branches.length - B.settings.branches.length, rose: rose(B.settings.branches, H.settings.branches, (b) => `${b.on} in ${fileOf(b.at)}`) },
       numbers: { change: H.settings.numbers.length - B.settings.numbers.length, new: H.settings.numbers.filter((x) => !set.has(exportKey(x))) },
-      physical: H.settings.physical.length - B.settings.physical.length, required: H.settings.required.length - B.settings.required.length, unsourced: H.settings.unsourced, reads: H.settings.reads.length - B.settings.reads.length },
+      ...Object.fromEntries(KINDS.map((k) => [k, H.settings[k].length - B.settings[k].length])), unsourced: H.settings.unsourced, reads: H.settings.reads.length - B.settings.reads.length },
     dependencies: added(B.dependencies, H.dependencies),
   };
 }
@@ -402,7 +410,7 @@ const worse = (D) => [
   ...D.cycles.map((c) => `cycles: a new one, ${ring(c)}`),
   ...(D.settings.branches.change > 0 ? D.settings.branches.rose.map(([k, by]) => `settings: ${n(by, 'more mode branch')} on ${k}`) : []),
   ...(D.settings.numbers.change > 0 ? D.settings.numbers.new.map((x) => `settings: a new hand-set number, ${x.at} ${x.name} = ${x.value}`) : []),
-  ...D.settings.unsourced.map((x) => `settings: ${x.at} ${x.name}, ${HOLDS[x.kind]} whose comment does not say its unit and its source`),
+  ...D.settings.unsourced.map((x) => `settings: ${x.at} ${x.name}, ${HOLDS[x.kind].holds} whose comment does not say its ${HOLDS[x.kind].says.join(' and its ')}`),
   ...D.dependencies.filter((d) => !d.named).map((d) => `dependencies: ${d.name} (${d.at}) is new, and no intent the change touches names it`),
 ];
 
@@ -417,7 +425,7 @@ const SAID = {   // each gate's measure, in a cell
   'Dead code': (G) => `${n(G.dead.files.length, 'file')}, ${n(G.dead.exports.length, 'export')}, ${G.dead.duplicates.length} exported twice`,
   Cycles: (G) => `${G.cycles.cycles.length}${G.cycles.unfollowed.length ? ` (madge could not follow ${n(G.cycles.unfollowed.length, 'import')})` : ''}`,
   Size: (G) => `${G.size.code} lines of code in ${n(G.size.files, 'file')}`,
-  Settings: (G) => `${n(G.settings.branches.length, 'mode branch')}, ${G.settings.numbers.length} hand-set (the audit's ${G.settings.numbers.filter((x) => x.audit).length}), ${G.settings.physical.length} physical, ${G.settings.required.length} required${G.settings.unsourced.length ? ` (${G.settings.unsourced.length} without unit or source)` : ''}, ${n(G.settings.reads.length, 'flag read')}`,
+  Settings: (G) => `${n(G.settings.branches.length, 'mode branch')}, ${G.settings.numbers.length} hand-set (the audit's ${G.settings.numbers.filter((x) => x.audit).length}), ${KINDS.map((k) => `${G.settings[k].length} ${k}`).join(', ')}${G.settings.unsourced.length ? ` (${G.settings.unsourced.length} without unit or source)` : ''}, ${n(G.settings.reads.length, 'flag read')}`,
   Dependencies: (G) => `${G.dependencies.reduce((s, p) => s + p.dependencies.length + p.dev.length, 0)} direct (${G.dependencies.reduce((s, p) => s + p.dev.length, 0)} dev) in ${G.dependencies.length} package.json`,
 };
 const WHERE = {   // where the most of each gate is, in a cell
@@ -435,7 +443,7 @@ const CHANGE = {   // each gate's change from the base, in a cell
   'Dead code': (D) => `${n(D.dead.files.length, 'new file')}, ${n(D.dead.exports.length, 'new export')}`,
   Cycles: (D) => `${D.cycles.length} new`,
   Size: (D) => `${signed(D.size)} lines of code`,
-  Settings: (D) => `${signed(D.settings.branches.change)} mode branches, ${signed(D.settings.numbers.change)} hand-set, ${signed(D.settings.physical)} physical, ${signed(D.settings.required)} required, ${signed(D.settings.reads)} flag reads`,
+  Settings: (D) => `${signed(D.settings.branches.change)} mode branches, ${signed(D.settings.numbers.change)} hand-set, ${KINDS.map((k) => `${signed(D.settings[k])} ${k}`).join(', ')}, ${signed(D.settings.reads)} flag reads`,
   Dependencies: (D) => D.dependencies.map((d) => `${d.name} (${dirname(d.at)}) new${d.named ? ', named in its intent' : ''}`).join(', ') || 'none new',
 };
 /** The gates against the base: here, there and the change, and what got worse. */
