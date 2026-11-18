@@ -55,12 +55,21 @@ export function ringsOf(asset) {
 /** Where the rings are drawn at a measure (K: dial pixels a metre covers at a metre: src/detail/measure.js dialK, the
     measure now), metres as the walker's 68° lens sees them: { end, bands: [{ near, nearFade, far, farFade }] a ring }.
     Ring k takes over where its error fits (e K: src/detail/error.js), its blades coming in over the BAND past there as
-    the ring before's go. The meadow ends where it is gone: where its mean blade covers GONE dial pixels (leaving it
-    out, where the ground under it wears the meadow's colour, differs by all of its height: src/detail/error.js goneAt;
-    the ground's map reaches there, src/scatter/ground.js), or at `cut` where that is nearer, thinning over the BAND
-    before its end; a ring that would only come in there draws nothing (far 0). height: the asset's. */
+    the ring before's go. The meadow's blades end where the ring drawn there stands under a dial pixel apart (its cell
+    covers `cell K` dial pixels at a metre): past that a field of them cannot be told from a surface with the same
+    statistics, and the carpet carries the meadow on (src/terrain/material.js: the blades' own share, endOf); nearer
+    still where its mean blade is gone (GONE dial pixels: leaving it out differs by all of its height,
+    src/detail/error.js goneAt), or at `cut`. They thin over the BAND before their end; a ring that would only come in
+    there draws nothing (far 0). height: the asset's. */
 export function bandsOf(rings, height, K, cut = Infinity) {
-  const end = Math.min(cut, (height * 0.95 * K) / GONE), at = (k) => rings[k].e * K, on = rings.map((_, k) => !k || at(k) * BAND < end);
+  const at = (k) => rings[k].e * K;
+  let end = Math.min(cut, (height * 0.95 * K) / GONE);
+  for (let k = 0; k < rings.length; k++) {   // (ring k is drawn from `from` to `to`; its cells fall under a dial pixel past `under`)
+    const from = k ? at(k) * BAND : 0, to = k + 1 < rings.length ? at(k + 1) * BAND : Infinity, under = rings[k].cell * K;
+    if (from >= end) break;
+    if (under < to) { end = Math.min(end, Math.max(from, under)); break; }
+  }
+  const on = rings.map((_, k) => !k || at(k) * BAND < end);
   return { end, bands: rings.map((_, k) => {
     if (!on[k]) return { near: 0, nearFade: 0, far: 0, farFade: 0 };
     const next = on[k + 1] ? at(k + 1) : 0;
