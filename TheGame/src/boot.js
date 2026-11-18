@@ -130,7 +130,7 @@ export async function boot({ profile = 'world' } = {}) {
   mark('ground');
   const terrain = (game.terrain = createTerrain(scene, tex, renderer, world ? {} : { reach: REACH }));
   const layerPass = terrain.compile();   // the land's pages' passes, beside the others (they read no target)
-  screen.afterPrepass(terrain.pages.ask);   // (which pages the land's pixels read: src/terrain/pages.js)
+  screen.afterPrepass(terrain.pages.ask, 'pages');   // (which pages the land's pixels read: src/terrain/pages.js)
   mark('terrain');
   const scatterOf = (g) => {
     g.scatter = createScatter(g.into, tex, g.ground, renderer, camera);
