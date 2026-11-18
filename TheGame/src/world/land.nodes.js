@@ -8,7 +8,8 @@ import { U } from '../core/uniforms.js';
 import { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second } from './noise.nodes.js';
 export { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second };
 import { OCT_LAM, OCT_AMP, WATER_DROP, PADS, PAD_FALL, BEND, MEANDER, LAKE_MAX } from './land.js';
-import { ERROR_PX, BAND } from '../detail/error.js';
+import { BAND } from '../detail/error.js';
+import { uPxK, drawnAt, ERROR_PX } from '../detail/measure.js';
 import { BIOMES, BASE, WATER } from './biomes.js';
 import { PLACES } from '../../world/places.js';
 import { recipe, byRole } from '../core/registry.js';
@@ -105,7 +106,7 @@ export const riverBank = Fn(([d, w, b]) => {
 export const baseB = Fn(([p]) => vnoise(p.mul(1 / 2600), uint(11)).sub(0.5).mul(40).add(vnoise(p.mul(1 / 900).add(3.7), uint(12)).sub(0.5).mul(14))).setLayout({ name: 'baseB', type: 'float', inputs: [{ name: 'p', type: 'vec2' }] });
 export const WATER_DROP_N = float(WATER_DROP);
 
-/** The ground's height at p (pe: pixels drawn a metre of height covers there, over the one error: errorScale): the land's
+/** The ground's height at p (pe: pixels drawn a metre of height covers there, over the one error): the land's
     octaves, each kept as long as its height shows (its amplitude over ERROR_PX on screen, handed over within BAND: the
     land's mesh is fine enough to carry every octave that shows, src/terrain/terrain.js), the river, and the pads under
     what stands */
@@ -122,11 +123,10 @@ const heightOf = Fn(([p, dist, d, w, b, pe]) => {
   for (const P of PADS) H.assign(mix(float(P.h), H, smoothstep(P.r, P.r + PAD_FALL, length(p.sub(vec2(P.x, P.z))))));
   return H;
 }).setLayout({ name: 'heightAt', type: 'float', inputs: [{ name: 'p', type: 'vec2' }, { name: 'dist', type: 'float' }, { name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }, { name: 'pe', type: 'float' }] });
-/** Pixels drawn a metre covers `dist` metres off (as the measure has distances), over the one error: what is kept of the
-    land is kept by it (node; read here, outside the land's function: a uniform named inside one does not compile). */
-export const errorScale = (dist) => U.uPxK.mul(U.uDrawn).div(max(dist, 1e-3).mul(ERROR_PX));
-/** The ground's height at p, seen dist metres off (d, w, b: the river there, riverInfo). */
-export const heightAt = (p, dist, d, w, b) => heightOf(p, dist, d, w, b, errorScale(dist));
+/** The ground's height at p, seen dist metres off (d, w, b: the river there, riverInfo). (The measure is read here,
+    outside the land's function: a uniform named inside one does not compile; through the lens, as its mesh is made:
+    src/terrain/terrain.js) */
+export const heightAt = (p, dist, d, w, b) => heightOf(p, dist, d, w, b, drawnAt(uPxK.div(max(dist, 1e-3))).div(ERROR_PX));
 /** the height at p, the river worked out here */
 export const groundAt = (p, dist) => { const I = riverInfo(p); return heightAt(p, dist, abs(I.x), I.y, I.z); };
 

@@ -6,7 +6,7 @@ import { HMIN, HMAX, heightAt, riverAt, OCT_LAM, OCT_AMP } from '../world/land.j
 import { boxIn } from '../core/frustum.js';
 import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, NODE, FINE } from './material.js';
-import { ERROR_PX } from '../detail/error.js';
+import { distanceAt, ERROR_PX, BUDGET_DRAWN } from '../detail/measure.js';
 import { createPages, RELIEF, PSTEPS } from './pages.js';
 import { mark } from '../core/gpu.js';
 import { createRelief, LEVELS as RELIEF_LEVELS, GRID as RELIEF_GRID } from './relief.js';
@@ -15,20 +15,19 @@ import { waterMaterial } from './water.js';
 import { usedMaterials } from '../materials/bake.js';
 import { recipes } from '../core/registry.js';
 
-// The land's levels, from the one measure. A level's quads carry an octave of the land (wavelength λ) as long as they are
-// at most λ/2 apart; an octave must be carried as long as it shows: its amplitude A over ERROR_PX on screen, out to
-// A K / ERROR_PX metres (K: pixels drawn a metre covers a metre off). A level of reach R has quads R / Q apart, and is
-// drawn from R/2 out, so its quads are at most 2d/Q apart at d; every octave is carried where it shows when
-// Q = 4 K STEEP / ERROR_PX, STEEP the octaves' greatest A/λ. Level 0's quads are NODE/GRID apart, so its reach is
-// Q NODE / GRID (U.uLandR0), each level after twice as far, the last as far as the land is drawn (END: the air hides it
-// by then, src/world/light.js). Near the eye the quadtree goes on into finer levels: plain land where the relief does not
-// show, the relief's own (src/terrain/relief.js) from where it does.
+// The land's levels, from the one measure. A level's quads carry an octave of the land (wavelength λ, amplitude A) as
+// long as they are at most λ/2 apart; an octave must be carried as long as it shows: out to where A is ERROR_PX on screen
+// (src/detail/measure.js distanceAt). A level of reach R has quads R / Q apart, and is drawn from R/2 out, so its quads
+// are at most 2d/Q apart at d; every octave is carried where it shows when Q is 4 times the largest of those distances
+// over its wavelength. Level 0's quads are NODE/GRID apart, so its reach is Q NODE / GRID (U.uLandR0), each level after
+// twice as far, the last as far as the land is drawn (END: the air hides it by then, src/world/light.js). Near the eye
+// the quadtree goes on into finer levels: plain land where the relief does not show, the relief's own
+// (src/terrain/relief.js) from where it does.
 const S0 = NODE;   // a level-0 node's side, metres
-const STEEP = Math.max(...OCT_AMP.map((A, i) => A / OCT_LAM[i]));   // the land's octaves' greatest amplitude over wavelength
 const END = 24576;   // metres the land is drawn to at most
 const WATER_LEVELS = 6;
-/** Level 0's reach now (lens metres), and the land's ratio Q of a level's reach to its quads. */
-const landR0 = () => (4 * U.uPxK.value * U.uDrawn.value * STEEP / ERROR_PX) * (S0 / GRID);
+/** Level 0's reach now (lens metres). */
+const landR0 = () => 4 * Math.max(...OCT_AMP.map((A, i) => distanceAt(ERROR_PX / BUDGET_DRAWN, A) / OCT_LAM[i])) * (S0 / GRID);
 /** Nodes a level may hold at most, round the camera whole (a level's reach over its node's side is R0/S0: the same at
     every level; how many, never fewer than the quadtree selects). */
 const perLevel = (r0) => Math.ceil(Math.PI * (r0 * FINE / S0 + 1.5) ** 2);
@@ -89,7 +88,7 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
     // the relief's first level: the coarsest whose first half reaches as far as its geometry shows (pages.js
     // reliefShares: even parallax would be off by more than ERROR_PX, out to RELIEF K / (PSTEPS ERROR_PX)); its levels
     // from there, the finest RELIEF_LEVELS below
-    const shows = (RELIEF * U.uPxK.value * U.uDrawn.value) / (PSTEPS * ERROR_PX);
+    const shows = distanceAt((PSTEPS * ERROR_PX) / BUDGET_DRAWN, RELIEF);
     RELIEF0 = Math.min(-1, Math.ceil(Math.log2((2 * shows) / (R0 * FINE)))); FIRST = RELIEF0 - RELIEF_LEVELS + 1;
     U.uLandR0.value = R0; U.uReliefFirst.value = RELIEF0; U.uReliefReach.value = R0 * FINE * 2 ** RELIEF0;
     pages.underRelief((S0 * 2 ** FIRST) / RELIEF_GRID, relief.count > 0);   // (its finest points this far apart; whether it has any nodes: the last frame's)
