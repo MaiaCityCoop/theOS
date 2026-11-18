@@ -16,7 +16,7 @@ import { addBodies } from './bodies.js';
 import { idOf } from './things.js';
 
 let ground = null;
-/** The ground pass to read the stones' chance from (src/main.js gives it). */
+/** The ground pass to read the stones' chance from (src/boot.js gives it). */
 export const useGround = (g) => (ground = g);
 const Z = placedBy('rocks'), TAU = Math.PI * 2;   // (the zoo's number of a rock asset's first shape: its family's)
 const KINDS = recipes('asset').filter((a) => a.placement?.engine === 'rocks').map((a) => ({ asset: a, uid: a.uid, cell: a.placement.cell, big: !!a.placement.outcrops, lo: a.size.length[0], hi: a.size.length[1], shapes: a.placement.shapes ?? 1, zoo: Z.first + (Z.families.find((F) => F.F.asset === a.uid)?.first ?? 0) }));

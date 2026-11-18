@@ -195,7 +195,7 @@ export function clumpRead(A, layer, uv, lod) {
 
 // ---- a made thing's impostor (src/world/place.js: the library's stage): the same views of its nearest level ----
 let renderer = null, BAKERS = null; const kept = new Map();   // a recipe's hash -> its views, baked once a recipe
-/** The game's renderer bakes the impostors (set once by src/main.js). */
+/** The game's renderer bakes the impostors (set once by src/boot.js). */
 export const setImpostorRenderer = (r) => (renderer = r);
 /** The bakers every impostor shares (their targets reused shape after shape): the views' (views(cell): one a size of a view), and a plant's clumps' tiles (tiles(n): one a size of a grid, n tiles a row). */
 export const bakers = (r = renderer) => (BAKERS ||= { of: new Map(), views(cell = CELL) { let b = this.of.get(cell); if (!b) this.of.set(cell, (b = createBaker(r, { per: VIEWS, px: cell }))); return b; }, tiles(n = TILES) { let b = this.of.get(-n); if (!b) this.of.set(-n, (b = createBaker(r, { per: n, px: TILE }))); return b; } });

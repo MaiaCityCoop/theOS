@@ -60,7 +60,7 @@ async function open(ctx, { path = '', query = '', init = null } = {}) {
   page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text().slice(0, 300)));
   page.on('crash', () => errors.unshift('the page crashed'));
-  page.on('framenavigated', (fr) => fr === page.mainFrame() && loads++ && errors.unshift(`the page was loaded again (${fr.url()})`));
+  page.on('load', () => loads++ && errors.unshift(`the page was loaded again (${page.url()})`));   // (a load, not a page saying where it is: the library writes what it shows into its address)
   try {
     await page.goto(url, { waitUntil: 'load', timeout: WAIT });
     // (the start is over once the world can say it has settled, or once it has said it is ready without that: a page
