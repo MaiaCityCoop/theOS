@@ -1335,6 +1335,14 @@ tools; the game's code only where noted.
   its 32 places, drawn until `settle()` resolves. That deletes `TRUTH_AS` (the truth's motion mode), the twice-draw,
   the place alignment for the truth and the truth's no-fade branch. The rule is not binding until train 2 shows it on
   the GPU.
+- **The hang, and what lies under it** (train 1c, 2026-11-18). The truth hung 20 minutes on its fourth view: the
+  gate's waits were timers inside the page, which a frozen or swapped-out renderer never runs. Every call into a page
+  is now answered in a time held outside it (`tools/gate/guard.js`, #102). Under it lies the memory: measured on the
+  train's truth run, the gate's Chrome held up to 9.28 GB of physical footprint on this 8 GB machine. The GPU process
+  alone was 3.1–4.6 GB, 82 MB of it resident; the renderer 1.4 GB; swap grew from 4 to 5 GB, 3.8–3.9 GB of it used.
+  The truth's world does not fit. Its root fix is the truth bounded to what the view needs, through the `ERROR_PX`
+  dial, not REACH²: instance caps, every kind's finest meshes and the atlases sized by the reach (follow-up, after
+  #82 v2). Until then a truth run is safest alone on the machine.
 - **Not run here, the gate's first job on main** (cancelled on the Mac mini to let the train run): the truth at
   far-2.5km and far-12km in tiles, beside the game's own render (`stills --truth --reach 3500 / 16000 --tiles 3`, then
   `diff --jpeg`); `motion` on the four paths; `real` on the truth at every view that has photos (eye level in the stand,
