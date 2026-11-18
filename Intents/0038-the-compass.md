@@ -218,7 +218,7 @@ Asked outright and without surprises, so built straight away.
   meet; the external stake is now the race. The dashboard shows The vision and The mission at the top of the Compass.
 - **Good:** `story check .` passes; the page renders both (screenshots before and after).
 - **Broke / not there yet:** the mission brings back the 1.3 million and the word "sovereignty", both taken out
-  earlier on purpose; kept because they are Samuel's newest words, flagged to him.
+  earlier on purpose; kept because they are Samuel's newest words, flagged to him. He answered: keep both.
 
 ## Trail
 
