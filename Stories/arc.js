@@ -21,14 +21,13 @@
 // weighs again, a cliffhanger for the next day), and neighbours never carry the same emotion. Every line is short (90
 // characters): a state or a move that needs more is two. Shots, sound, lines and dialogue are not the arc's: they come
 // with the scenes.
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { STORIES as HERE, cli, isId, readJSON, writeJSON, assign } from './store.js';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
 export const KINDS = ['hook', 'trailer', 'scene', 'relief', 'outro'], CHARGES = ['up', 'down'];
 const KEYS = ['id', 'kind', 'title', 'minutes', 'emotion', 'charge', 'tension', 'how', 'to', 'scene'], LINE = 90;
-const fail = (m) => { console.error('arc: ' + m); process.exit(1); };
+const { fail, run } = cli('arc');
 const file = (story) => resolve(HERE, story, 'arc.json');
 const line = (t, what) => { if (!t || typeof t !== 'string') fail(`${what} is missing`); if (t.length > LINE) fail(`${what} is one short line (${LINE} characters at most): this is ${t.length}`); };
 
@@ -39,7 +38,7 @@ function check(a) {
   if (S.slice(2, -2).some((s) => s.kind !== 'scene') || n < 7) fail('between the trailer and the relief stand at least three scenes, and only scenes');
   S.forEach((s, i) => {
     const at = `section ${i + 1} (${s.id || '?'})`;
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(s.id || '')) fail(`${at}: an id of lower-case words joined by hyphens`);
+    if (!isId(s.id)) fail(`${at}: an id of lower-case words joined by hyphens`);
     for (const k of Object.keys(s)) if (!KEYS.includes(k)) fail(`${at}: ${k} is not the arc's (a section is ${KEYS.join(', ')})`);
     line(s.title, `${at}: title`); line(s.how, `${at}: how (what moves the viewer)`); line(s.to, `${at}: to (the state it leaves the viewer in)`);
     if (!s.emotion || /\s/.test(s.emotion.trim())) fail(`${at}: emotion is one word`);
@@ -57,25 +56,22 @@ function check(a) {
   if (total < 10 || total > 11) fail(`the whole is ten minutes (10 to 11): it is ${+total.toFixed(1)}. A scene too many goes to the next day's story`);
   return a;
 }
-const load = (story) => (existsSync(file(story)) ? JSON.parse(readFileSync(file(story), 'utf8')) : fail(`no arc for ${story}`));
+const load = (story) => (existsSync(file(story)) ? readJSON(file(story)) : fail(`no arc for ${story}`));
 function store(story, a) {
   if (!existsSync(resolve(HERE, story, 'hook.json'))) fail(`${story} has no hook yet: step 1 first (bun Stories/hook.js put ${story})`);
-  check(a); writeFileSync(file(story), JSON.stringify(a, null, 1) + '\n');
+  check(a); writeJSON(file(story), a);
 }
 
-if (import.meta.main) {
-  const [cmd, story, sec, ...rest] = process.argv.slice(2);
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(story || '')) fail('put | show | set, then a story\'s folder (see the head of Stories/arc.js)');
-  if (cmd === 'put') { store(story, JSON.parse(readFileSync(0, 'utf8'))); console.log(`arc of ${story} put`); }
-  else if (cmd === 'show') {
+if (import.meta.main) run({
+  put: (story) => { store(story, readJSON(0)); console.log(`arc of ${story} put`); },
+  show: (story) => {
     const a = load(story), total = a.sections.reduce((t, s) => t + s.minutes, 0);
-    console.log(`${JSON.parse(readFileSync(resolve(HERE, story, 'hook.json'), 'utf8')).title} · day ${a.day} · ${+total.toFixed(1)} min\n\n   ${a.from}`);
+    console.log(`${readJSON(resolve(HERE, story, 'hook.json')).title} · day ${a.day} · ${+total.toFixed(1)} min\n\n   ${a.from}`);
     a.sections.forEach((s, i) => console.log(`${i + 1} ${s.kind.padEnd(7)} ${s.title} · ${s.minutes} min · ${s.emotion} ${s.charge === 'up' ? '▲' : '▼'}${s.tension}\n     ${s.how}\n   → ${s.to}`));
-  } else if (cmd === 'set') {
+  },
+  set: (story, sec, ...rest) => {
     const a = load(story), s = sec === 'story' ? a : a.sections.find((x) => x.id === sec) || fail(`no section ${sec}`);
-    for (const kv of rest) { const [k, ...v] = kv.split('='), val = v.join('=');
-      if (sec === 'story' ? k !== 'from' : !KEYS.includes(k) || k === 'id' || k === 'kind') fail(`set does not take ${k}`);
-      s[k] = k === 'minutes' || k === 'tension' ? +val : val; }
+    assign(s, rest, sec === 'story' ? ['from'] : KEYS.filter((k) => k !== 'id' && k !== 'kind'), (k) => fail(`set does not take ${k}`), { minutes: Number, tension: Number });
     store(story, a); console.log(`${story}: ${sec} set`);
-  } else fail('put | show | set');
-}
+  },
+}, 'put | show | set', 'put | show | set, then a story\'s folder (see the head of Stories/arc.js)');

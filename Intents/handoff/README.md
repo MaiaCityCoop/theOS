@@ -30,8 +30,9 @@ are all stopped now. This file is what the coordinator knew. The per-area handof
 - Branch `aven/NNNN-…` from `main`. Merge main in last, open the PR as a draft, then mark it ready when CI ("check")
   is green. The trail rows in `Intents/0033-…` conflict all the time: keep both sides. After a merge that touches
   assets or kits, run `bun tools/registry.js` in `TheGame/`.
-- **Deploy to next** (auto-deploy is off): `gh workflow run deploy.yml --ref main -f environment=next -f commit=<full sha of main>`,
-  then `gh run watch`. It takes about 40 s.
+- **Next deploys itself:** once CI passes on a push to `main`, Deploy ships the release that CI run built
+  (`deploy/README.md`). To roll back: `gh workflow run deploy.yml --ref main -f environment=next -f commit=<full sha on main>`,
+  then `gh run watch`.
 - Checks before every PR: `bun tools/scale.js` (18 of 18), and `vite build` for TheGame and OS.
 
 ## State of main (77328a6 and after)
