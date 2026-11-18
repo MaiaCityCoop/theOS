@@ -19,7 +19,7 @@ import { MACHINE, BUDGET_MB, FRAME_MS } from '../../src/core/budget.js';
 
 /** In the page, before anything of it runs: the device as the gate sees it, the buffers it makes (net of destroy), each
     submission's time to done, its loss and its errors. */
-function watch(frameMs) {
+export function watch(frameMs) {
   const W = (window.__device = { buffers: 0, submits: 0, longest: 0, over: 0, lost: null, errors: [], top: null });
   // (the ledger's most, read in the page a tenth of a second apart, what it held then with it: it rises by gigabytes in
   // the seconds before a device is lost, between two of the gate's looks)
