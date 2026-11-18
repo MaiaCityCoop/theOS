@@ -1,15 +1,16 @@
 // The ground's material (node code): one grid tile per quadtree node (terrain.js), raised to the land in the vertex
-// stage and morphed towards the coarser grid at its edge; in the fragment, the layers the layer map says lie here
-// (src/terrain/layers.js: worked out once for a stretch of land from the biomes' rules), at most five, each one read of
-// its material (hex-tiled near, so nothing repeats), laid over each other in their order, the higher winning at a seam; the
-// grass's carpet among them; lit by the shading contract. Its size is one, whatever the biomes and their materials.
+// stage and morphed towards the coarser grid at its edge; in the fragment, one read of the land's virtual texture
+// (src/terrain/pages.js) and the light. What a page of it holds is laid here, once for each of its texels (laid): the
+// layers the layer map says lie there (src/terrain/layers.js), at most five, each one read of its material, hex-tiled so
+// nothing repeats, laid over each other in their order, the higher winning at a seam; the grass's carpet among them; the
+// stands' colour far off. Its size is one, whatever the biomes and their materials.
 import * as THREE from 'three/webgpu';
-import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, positionWorld, varyingProperty, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, sin, screenCoordinate } from 'three/tsl';
+import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, positionWorld, varyingProperty, dFdx, dFdy, If, Loop, abs, max, clamp, mix, smoothstep, length, normalize, pow, fract, floor, exp2, log2 } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { TRUTH } from '../detail/measure.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
-import { layersAt, layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND } from './layers.js';
-import { finish, ign, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
+import { layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND, SHADE_REACH } from './layers.js';
+import { finish, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
 
 export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
@@ -24,41 +25,118 @@ export function gridPoint() {
   return node.xy.add(g.sub(fract(g.mul(0.5)).mul(2).mul(k)).mul(cell));
 }
 
-// A ground's material, read once (where it was read in two takes mixed by a noise until 2026-11-17). m: a material (its
-// number, or its recipe or uid); p: the point (metres); dx, dy: how far apart its neighbouring pixels' points are; tile:
-// metres a tile; near: read hex-tiled. -> { c: its colour (linear), h: its height, n: its relief (the normal's x, z) }
-//   near  hex-tiling (Mikkelsen, "Practical Real-Time Hex-Tiling", JCGT 2022): the plane in hexagons two tiles across (as
-//         large as the patches the two takes made, so a ripple runs on), each reading the tile at its own random offset
-//         (not turned: a ground's grain keeps its way across them). Across their edges they blend by how near each is,
-//         the higher texel winning, so a seam follows what lies in the ground; the blend is sharp: most of a hexagon reads
-//         its own offset alone
-//   far   (past 240 to 320 m, where a hexagon is a few pixels and every pixel would read all three) one read, its tile
-//         pushed about by a slow wave a few metres deep, so from high up there is no grid of the same tile
+// A ground's material, read once: m its number; p the point (metres); s how far apart its neighbouring texels' points
+// are, either way (a page's texel is square: its mip is the one the steps call for, the material's tile 1024 texels:
+// src/materials/bake.js); tile metres a tile. -> { c: its colour (linear), h: its height, n: its relief (the normal's
+// x, z) }. Hex-tiled
+// (Mikkelsen, "Practical Real-Time Hex-Tiling", JCGT 2022): the plane in hexagons two tiles across (as large as the
+// patches a second take once made, so a ripple runs on), each reading the tile at its own random offset (not turned: a
+// ground's grain keeps its way across them). Across their edges they blend by how near each is, the higher texel
+// winning, so a seam follows what lies in the ground; the blend is sharp: most of a hexagon reads its own offset alone.
+// (Once for a texel of a page, not for a pixel of a frame: at every distance, where until 6b it was one read pushed
+// about by a slow wave past 240 to 320 m, so a pixel did not read three hexagons.)
 const CELL = 2;   // a hexagon's size in tiles
-const wob = (p) => vec2(sin(p.x.mul(1 / 131).add(sin(p.y.mul(1 / 157)))), sin(p.y.mul(1 / 149).add(sin(p.x.mul(1 / 173)).add(1.3)))).mul(4.5);
-function groundRead(tex, m, p, dx, dy, tile, near) {
-  const q = p.div(tile), gx = dx.div(tile), gy = dy.div(tile), c = vec3(0).toVar(), h = float(0).toVar(), n = vec2(0).toVar();
-  const far = () => { const uv = p.add(wob(p)).div(tile), a = tex.a(m, uv).grad(gx, gy); c.assign(a.rgb.mul(a.rgb)); h.assign(a.a); n.assign(tex.n(m, uv).grad(gx, gy).xy.mul(2).sub(1)); };
-  if (near === false) { far(); return { c, h, n }; }
-  If(near, () => {
-    const s = q.mul((2 * Math.sqrt(3)) / CELL), sk = vec2(s.x.sub(s.y.mul(0.57735027)), s.y.mul(1.15470054)), base = floor(sk), f = sk.sub(base);
-    const z = float(1).sub(f.x).sub(f.y), up = z.lessThan(0).select(float(1), float(0)), sg = up.mul(2).sub(1);
-    const w = vec3(z.negate().mul(sg), up.sub(f.y.mul(sg)), up.sub(f.x.mul(sg))).toVar(), w2 = w.mul(w), b0 = w2.mul(w2).mul(w2).mul(w);   // (each hexagon's nearness to the 7th: a sharp blend)
-    const b = b0.div(b0.x.add(b0.y).add(b0.z)).toVar(), corners = [vec2(up, up), vec2(up, float(1).sub(up)), vec2(float(1).sub(up), up)], sum = float(0).toVar();
-    for (let i = 0; i < 3; i++) {
-      const bi = [b.x, b.y, b.z][i];
-      If(bi.greaterThan(0.02), () => {   // (a hexagon all but out of the blend: not read)
-        const v = base.add(corners[i]), r = hashI(int(v.x), int(v.y), uint(91)), uv = q.add(vec2(float(r.bitAnd(uint(0xffff))), float(r.shiftRight(uint(16)))).mul(1 / 65536));
-        const a = tex.a(m, uv).grad(gx, gy), k = bi.mul(a.a.mul(0.6).add(0.4));   // (the higher texel weighs more: Mikkelsen's contrast, by height)
-        c.addAssign(a.rgb.mul(a.rgb).mul(k)); h.addAssign(a.a.mul(k)); n.addAssign(tex.n(m, uv).grad(gx, gy).xy.mul(2).sub(1).mul(k)); sum.addAssign(k);
-      });
-    }
-    const inv = float(1).div(max(sum, 1e-5)); c.mulAssign(inv); h.mulAssign(inv); n.mulAssign(inv);
-  }).Else(far);
+/** The mip of a material's tile (1024 texels: src/materials/bake.js) that texels s metres apart read, at `tile` metres a
+    tile: half a step finer than the texel, for a page is filtered once more as it is read (two filters one after the
+    other blur more than one: the ground near the eye kept as sharp as a read of the material itself). */
+const mipOf = (s, tile) => log2(max(s.mul(1024).div(tile), 1e-6)).sub(0.5);
+function groundRead(tex, m, p, s, tile) {
+  const q = p.div(tile), lv = mipOf(s, tile).toVar(), c = vec3(0).toVar(), h = float(0).toVar(), n = vec2(0).toVar();
+  const hx = q.mul((2 * Math.sqrt(3)) / CELL), sk = vec2(hx.x.sub(hx.y.mul(0.57735027)), hx.y.mul(1.15470054)), base = floor(sk), f = sk.sub(base);
+  const z = float(1).sub(f.x).sub(f.y), up = z.lessThan(0).select(float(1), float(0)), sg = up.mul(2).sub(1);
+  const w = vec3(z.negate().mul(sg), up.sub(f.y.mul(sg)), up.sub(f.x.mul(sg))).toVar(), w2 = w.mul(w), b0 = w2.mul(w2).mul(w2).mul(w);   // (each hexagon's nearness to the 7th: a sharp blend)
+  const b = b0.div(b0.x.add(b0.y).add(b0.z)).toVar(), corners = [vec2(up, up), vec2(up, float(1).sub(up)), vec2(float(1).sub(up), up)], sum = float(0).toVar();
+  for (let i = 0; i < 3; i++) {
+    const bi = [b.x, b.y, b.z][i];
+    If(bi.greaterThan(0.02), () => {   // (a hexagon all but out of the blend: not read)
+      const v = base.add(corners[i]), r = hashI(int(v.x), int(v.y), uint(91)), uv = q.add(vec2(float(r.bitAnd(uint(0xffff))), float(r.shiftRight(uint(16)))).mul(1 / 65536));
+      const a = tex.a(m, uv).level(lv), k = bi.mul(a.a.mul(0.6).add(0.4));   // (the higher texel weighs more: Mikkelsen's contrast, by height)
+      c.addAssign(a.rgb.mul(a.rgb).mul(k)); h.addAssign(a.a.mul(k)); n.addAssign(tex.n(m, uv).level(lv).xy.mul(2).sub(1).mul(k)); sum.addAssign(k);
+    });
+  }
+  const inv = float(1).div(max(sum, 1e-5)); c.mulAssign(inv); h.mulAssign(inv); n.mulAssign(inv);
   return { c, h, n };
 }
 
-export function terrainMaterial(tex) {
+/** How steep the land is at p, its normal's y, as the ground's mesh has it seen from D metres off (its vertex stage:
+    the height's steps e metres either way). */
+export function slopeAt(p, D) {
+  const e = max(0.3, D.div(96)).toVar(), I = riverInfo(p).toVar(), h = heightAt(p, D, abs(I.x), I.y, I.z).toVar();
+  const at = (q) => { const J = riverNear(q, I).toVar(); return heightAt(q, D, abs(J.x), J.y, J.z); };
+  return normalize(vec3(h.sub(at(p.add(vec2(e, 0)))), e, h.sub(at(p.add(vec2(0, e)))))).y;
+}
+
+const rot = (q) => vec2(q.x.mul(0.6).sub(q.y.mul(0.8)), q.x.mul(0.8).add(q.y.mul(0.6)));
+const rotB = (q) => vec2(q.x.mul(0.8).add(q.y.mul(0.6)), q.x.mul(-0.6).add(q.y.mul(0.8)));
+
+/** The ground at p as a texel of the land's virtual texture holds it (src/terrain/pages.js): s the texel's size
+    (metres), D how far off it is seen (the lens's metres, its level's: what is let go with distance is let go as at D),
+    X the layers there (src/terrain/layers.js: layersFrom). -> { c: its colour (linear, its macro variation in it), h:
+    its height, n: its relief (the normal's x, z), cv: how much of what shows is the grass's carpet (near, the pixel
+    darkens it in its blades' shade), shade: how much of the sun a stand's crowns take from it where their shadows are no
+    longer drawn (the pixel's: by how far the shadow map reaches round the camera) }. Node code, in a Fn. */
+export function laid(tex, p, s, D, X) {
+  // the higher material wins at the seam: B laid over M, t of it (and what showed of the carpet is covered as much)
+  const blend = (M, B, t) => {
+    const k0 = clamp(t.sub(0.5).mul(3).add(0.5).add(B.h.sub(M.h).mul(0.8)), 0, 1), k = k0.mul(k0).mul(float(3).sub(k0.mul(2)));
+    M.c.assign(mix(M.c, B.c, k)); M.h.assign(mix(M.h, B.h, k)); M.n.assign(mix(M.n, B.n, k)); M.g.assign(M.g.mul(float(1).sub(k)));
+  };
+  // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up (each read only where
+  // it shows: the blades' within 110 m, the drifts' past 300); its cover the map's: near, the bare patches cut it until
+  // they are let go (100 to 160 m), far its tufts are let go (350 to 900 m); where the blades end, nothing shows
+  const carpet = BASE.grass.carpet;
+  const cover = D.lessThan(160).select(mix(X.cv.x, X.cv.y, smoothstep(100, 160, D)), mix(X.cv.y, X.cv.z, smoothstep(350, 900, D)));
+  const cv = cover.mul(smoothstep(4, 60, D).mul(0.18).add(0.82)).toVar();
+  const pr = rot(p), prr = rotB(p);
+  const gk = smoothstep(25, 110, D), gk2 = smoothstep(300, 1400, D), grows = cv.greaterThan(0.002);
+  const ga2 = float(0.5).toVar(), gn2 = vec2(0.5).toVar(), g1a = float(0).toVar(), gn1 = vec2(0).toVar(), g3a = float(0).toVar();
+  If(grows, () => { const lv = mipOf(s, 9.6); ga2.assign(tex.a(carpet, pr.div(9.6)).level(lv).a); gn2.assign(tex.n(carpet, pr.div(9.6)).level(lv).xy); });
+  If(grows.and(gk.lessThan(1)), () => { const lv = mipOf(s, 1.6); g1a.assign(tex.a(carpet, p.div(1.6)).level(lv).a); gn1.assign(tex.n(carpet, p.div(1.6)).level(lv).xy.mul(2).sub(1)); });
+  If(grows.and(gk2.greaterThan(0)), () => { g3a.assign(groundRead(tex, carpet, prr, s, 57).h); });
+  const glum = mix(mix(g1a, ga2, gk), mix(ga2, g3a, 0.6), gk2).toVar();
+  const gq0 = gn2.mul(2).sub(1), gq = vec2(gq0.x.mul(0.6).add(gq0.y.mul(0.8)), gq0.x.mul(-0.8).add(gq0.y.mul(0.6)));
+  const gnrm = mix(gn1, gq, gk).mul(float(1).sub(gk2.mul(0.7)));
+  const grass = (M) => { M.c.assign(mix(M.c, X.tint.mul(glum.mul(1.05).add(0.32)), cv)); M.n.assign(mix(M.n, gnrm.mul(1.4), cv)); M.h.assign(mix(M.h, glum, cv)); M.g.assign(cv); };
+
+  // the layers, in the order they are laid: each its share of what lies under it (its share over the shares so far),
+  // let go with distance where it says (not the lowest: nothing lies under it); the slope's rock as much as the texel's
+  // slope says; the grass's carpet before the first layer laid over it
+  const M = { c: vec3(0.25).toVar(), h: float(0.5).toVar(), n: vec2(0).toVar(), g: float(0).toVar() }, under = float(0).toVar(), carpeted = int(0).toVar();
+  const pick = (i, key) => X.slots.slice(1).reduce((v, sl, j) => i.equal(j + 1).select(sl[key], v), X.slots[0][key]);
+  Loop(X.slots.length, ({ i }) => {
+    const id = pick(i, 'id'), sw = pick(i, 'w');
+    If(id.greaterThanEqual(CARPET).and(carpeted.equal(0)), () => { grass(M); carpeted.assign(1); });
+    If(sw.greaterThan(0).and(id.lessThan(999)), () => {
+      const L = layerOf(id), own = id.equal(SLOPES), first = under.lessThanEqual(0).and(own.not());
+      const t = own.select(sw, sw.div(under.add(sw)).mul(first.select(float(1), L.fade(D)))).toVar();
+      under.addAssign(own.select(float(0), sw));
+      If(t.greaterThan(0.003), () => blend(M, groundRead(tex, L.material, p, s, L.tile), t));
+    });
+  });
+  If(carpeted.equal(0), () => grass(M));
+
+  // the stands: far off, where their plants have sunk away, the land wears their crowns' colour, as much of it as they
+  // cover; and how much of the light they would take from their floor (laid on it by the pixel, past where their
+  // shadows are drawn: SHADE_REACH)
+  const shade = float(0).toVar();
+  for (const T of X.stands) If(T.id.notEqual(NO_STAND).and(T.c.greaterThan(0.003)), () => {
+    const S = standOf(T.id), fade = standFade(S, D);
+    If(fade.greaterThan(0.003).or(S.reach.greaterThan(0)), () => {
+      const under2 = smoothstep(float(1.08).sub(T.c.mul(0.75)), float(1.22).sub(T.c.mul(0.75)), T.n.add(T.c.mul(0.45)));   // where a plant is, as many as cover says
+      // (darker than a crown's own colour: seen from afar it is mostly its own shade; from very far a plant is smaller
+      // than a pixel: the pattern goes over into its mean, no speckle to shimmer)
+      const mean = smoothstep(S.grain.mul(2000), S.grain.mul(7000), D), crown = S.colour.mul(mix(T.n, 0.5, mean).mul(0.6).add(0.42));
+      const k = fade.mul(smoothstep(0, 0.15, T.c)), top = k.mul(mix(under2, smoothstep(0.1, 0.95, T.c), mean));
+      M.c.assign(mix(M.c, crown, top)); M.n.assign(M.n.mul(float(1).sub(top))); M.h.assign(mix(M.h, under2, k)); M.g.assign(M.g.mul(float(1).sub(top)));
+      If(S.reach.greaterThan(0), () => { shade.assign(max(shade, T.c.mul(T.n.mul(0.9).add(0.3)).min(0.85).mul(float(1).sub(top)))); });   // the floor between the crowns in their shade (the crowns themselves in the light)
+    });
+  });
+  M.c.mulAssign(X.macro.add(1));   // the land's colour variation, from the baked cloudy noise
+  return { c: M.c, h: M.h, n: M.n, cv: M.g, shade };
+}
+
+/** The ground's material. vt: the land's virtual texture (src/terrain/pages.js), whose read gives what laid() laid. */
+export function terrainMaterial(vt) {
   // ---- vertex: the land's height and normal, the river here ----
   // one Fn, every value worked out once into a variable and handed on by name: an expression used twice would otherwise be
   // written out twice, the river three times over at every use, which a browser's shader compiler need not fold back
@@ -76,93 +154,42 @@ export function terrainMaterial(tex) {
     return vec3(wp.x, h.add(snowDepth.mul(smoothstep(C.I.y, C.I.y.add(1.5), C.d)).mul(float(1).sub(roofAt(wp)))), wp.y);
   });
 
-  // ---- fragment ----
-  const carpet = BASE.grass.carpet;
-  const rot = (q) => vec2(q.x.mul(0.6).sub(q.y.mul(0.8)), q.x.mul(0.8).add(q.y.mul(0.6)));
-  const rotB = (q) => vec2(q.x.mul(0.8).add(q.y.mul(0.6)), q.x.mul(-0.6).add(q.y.mul(0.8)));
-  // the higher material wins at the seam: B laid over M, t of it
-  const blend = (M, B, t) => {
-    const k0 = clamp(t.sub(0.5).mul(3).add(0.5).add(B.h.sub(M.h).mul(0.8)), 0, 1), k = k0.mul(k0).mul(float(3).sub(k0.mul(2)));
-    M.c.assign(mix(M.c, B.c, k)); M.h.assign(mix(M.h, B.h, k)); M.n.assign(mix(M.n, B.n, k));
-  };
-
+  // ---- fragment: the page's texel, lit ----
+  // (the picture is built over time, src/core/temporal.js: the ground read as finely as the screen's own pixels would)
+  const steps = (p) => [dFdx(p).mul(U.uFine), dFdy(p).mul(U.uFine)];
   const frag = Fn((builder) => {
-    if (passOf(builder) === 'pre') return motion(positionWorld);   // (the prepass: it stands still, only the camera moves)
-    const p = vWorld.xz, dx = dFdx(p).mul(U.uFine), dy = dFdy(p).mul(U.uFine);   // (the picture is built over time, src/core/temporal.js: the ground read as finely as the screen's own pixels would)
+    // the prepass: it stands still, only the camera moves; and in its fourth number (no other material writes one),
+    // which level of the land's pages this pixel reads (1 more: 0 is not the land), for the pages to know what is seen
+    // (src/terrain/pages.js ask). The colour pass writes nothing beside its colour: a shader that does loses its early
+    // depth test, and the colour's equal test then misses pixels the prepass drew
+    if (passOf(builder) === 'pre') { const p = positionWorld.xz, [dx, dy] = steps(p); return vec4(motion(positionWorld).xyz, float(vt.level(dx, dy, length(positionWorld.sub(U.uCam)))).add(1)); }
+    const p = vWorld.xz, [dx, dy] = steps(p);
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     const d = abs(vI.x), w = vI.y;
-    const X = layersAt(p, dx, dy, vN.y);
-    const tiled = dist2.lessThan(ign(screenCoordinate.xy).mul(80).add(240)).toVar();   // (the grounds hex-tiled; the hand-over dithered, so it shows no line. ?truth as well: how a ground is kept from repeating is no level of detail, and hex-tiled out to every horizon its frames lost the device)
-
-    // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up (each read only where
-    // it shows: the blades' within 110 m, the drifts' past 300; in a branch a texture is read with its gradients given,
-    // as a shader may not work them out there); its cover the map's: near, the bare patches cut it until they are let go
-    // (100 to 160 m), far its tufts are let go (350 to 900 m); where the blades end, nothing shows
-    const cover = dist2.lessThan(160).select(mix(X.cv.x, X.cv.y, smoothstep(100, 160, dist2)), mix(X.cv.y, X.cv.z, smoothstep(350, 900, dist2)));
-    const cv = cover.mul(smoothstep(4, 60, dist2).mul(0.18).add(0.82)).toVar();
-    const pr = rot(p), prr = rotB(p), dpr = rot(dx), dpr2 = rot(dy), dqx = rotB(dx), dqy = rotB(dy);
-    const gk = smoothstep(25, 110, dist2), gk2 = smoothstep(300, 1400, dist2), grows = cv.greaterThan(0.002);
-    const g2 = vec4(0.5).toVar(), gn2 = vec4(0.5).toVar(), g1a = float(0).toVar(), gn1 = vec2(0).toVar(), g3a = float(0).toVar();
-    If(grows, () => { g2.assign(tex.a(carpet, pr.div(9.6)).grad(dpr.div(9.6), dpr2.div(9.6))); gn2.assign(tex.n(carpet, pr.div(9.6)).grad(dpr.div(9.6), dpr2.div(9.6))); });
-    If(grows.and(gk.lessThan(1)), () => { g1a.assign(tex.a(carpet, p.div(1.6)).grad(dx.div(1.6), dy.div(1.6)).a); gn1.assign(tex.n(carpet, p.div(1.6)).grad(dx.div(1.6), dy.div(1.6)).xy.mul(2).sub(1)); });
-    If(grows.and(gk2.greaterThan(0)), () => { g3a.assign(groundRead(tex, carpet, prr, dqx, dqy, 57, false).h); });
-    const glum = mix(mix(g1a, g2.a, gk), mix(g2.a, g3a, 0.6), gk2).toVar();
-    const gq0 = gn2.xy.mul(2).sub(1), gq = vec2(gq0.x.mul(0.6).add(gq0.y.mul(0.8)), gq0.x.mul(-0.8).add(gq0.y.mul(0.6)));
-    const gnrm = mix(gn1, gq, gk).mul(float(1).sub(gk2.mul(0.7)));
-    const grass = (M) => { M.c.assign(mix(M.c, X.tint.mul(glum.mul(1.05).add(0.32)).mul(mix(0.5, 1, smoothstep(3, 70, dist2))), cv)); M.n.assign(mix(M.n, gnrm.mul(1.4), cv)); M.h.assign(mix(M.h, glum, cv)); };
-
-    // the layers, in the order they are laid: each its share of what lies under it (its share over the shares so far),
-    // let go with distance where it says (not the lowest: nothing lies under it); the slope's rock as much as the
-    // pixel's slope says; the grass's carpet before the first layer laid over it
-    const M = { c: vec3(0.25).toVar(), h: float(0.5).toVar(), n: vec2(0).toVar() }, under = float(0).toVar(), carpeted = int(0).toVar();
-    const pick = (i, key) => X.slots.slice(1).reduce((v, s, j) => i.equal(j + 1).select(s[key], v), X.slots[0][key]);
-    Loop(X.slots.length, ({ i }) => {
-      const id = pick(i, 'id'), sw = pick(i, 'w');
-      If(id.greaterThanEqual(CARPET).and(carpeted.equal(0)), () => { grass(M); carpeted.assign(1); });
-      If(sw.greaterThan(0).and(id.lessThan(999)), () => {
-        const L = layerOf(id), own = id.equal(SLOPES), first = under.lessThanEqual(0).and(own.not());
-        const t = own.select(sw, sw.div(under.add(sw)).mul(first.select(float(1), L.fade(dist2)))).toVar();
-        under.addAssign(own.select(float(0), sw));
-        If(t.greaterThan(0.003), () => blend(M, groundRead(tex, L.material, p, dx, dy, L.tile, tiled), t));
-      });
-    });
-    If(carpeted.equal(0), () => grass(M));
-
-    // the stands: far off, where their plants have sunk away, the land wears their crowns' colour, as much of it as they
-    // cover; past where their shadows are drawn, their floor lies in their shade
-    const shade = float(0).toVar(), toCam = length(p.sub(U.uCam.xz));
-    for (const T of X.stands) If(T.id.notEqual(NO_STAND).and(T.c.greaterThan(0.003)), () => {
-      const S = standOf(T.id), fade = standFade(S, dist2), dim = S.reach.greaterThan(0).select(smoothstep(shadowReach(S.reach).mul(0.8), shadowReach(S.reach), toCam), float(0));
-      If(max(fade, dim).greaterThan(0.003), () => {
-        const under2 = smoothstep(float(1.08).sub(T.c.mul(0.75)), float(1.22).sub(T.c.mul(0.75)), T.n.add(T.c.mul(0.45)));   // where a plant is, as many as cover says
-        // (darker than a crown's own colour: seen from afar it is mostly its own shade; from very far a plant is smaller
-        // than a pixel: the pattern goes over into its mean, no speckle to shimmer)
-        const mean = smoothstep(S.grain.mul(2000), S.grain.mul(7000), dist2), crown = S.colour.mul(mix(T.n, 0.5, mean).mul(0.6).add(0.42));
-        const k = fade.mul(smoothstep(0, 0.15, T.c)), top = k.mul(mix(under2, smoothstep(0.1, 0.95, T.c), mean));
-        M.c.assign(mix(M.c, crown, top)); M.n.assign(M.n.mul(float(1).sub(top))); M.h.assign(mix(M.h, under2, k));
-        shade.assign(max(shade, dim.mul(T.c).mul(T.n.mul(0.9).add(0.3)).min(0.85).mul(float(1).sub(top))));   // the floor between the crowns in their shade (the crowns themselves in the light)
-      });
-    });
+    const G = vt.read(p, dx, dy, rdist);
+    // near, the carpet lies in the shade of its blades, drawn over it: the nearer, the darker (the pixel's own distance)
+    const c = G.c.mul(mix(1, mix(0.5, 1, smoothstep(3, 70, dist2)), G.cv)).toVar(), cv = G.cv, h = G.h;
+    // past where the shadow map reaches round the camera, a stand's floor lies in its crowns' shade
+    const shade = SHADE_REACH > 0 ? G.shade.mul(smoothstep(shadowReach(SHADE_REACH).mul(0.8), shadowReach(SHADE_REACH), length(p.sub(U.uCam.xz)))) : float(0);
 
     // ---- the light ----
-    M.c.mulAssign(X.macro.add(1));   // the land's colour variation, from the baked cloudy noise
     const wet = float(1).sub(smoothstep(w.mul(0.9), w.add(2.5), d));
     // depth up close, from the material's own height: what lies low (the gaps between stones, a crack) sits in its
     // neighbours' shade, and the relief reads deeper; let go with distance, where it would only darken the whole
-    const near = float(1).sub(smoothstep(12, 70, dist2)), cav = mix(1, smoothstep(0.08, 0.5, M.h).mul(0.62).add(0.38), near.mul(float(1).sub(cv.mul(0.6))));
+    const near = float(1).sub(smoothstep(12, 70, dist2)), cav = mix(1, smoothstep(0.08, 0.5, h).mul(0.62).add(0.38), near.mul(float(1).sub(cv.mul(0.6))));
     // snow: as deep as uSnow, deeper in drifts and thinner on the rises between; what stands out of the ground (a pebble's
     // top, the grass's carpet) shows through until it is covered; none on the water. Under it the ground's own relief goes.
     const drift = float(0.5).toVar(); If(snowDepth.greaterThan(0.001), () => { drift.assign(snowDrift(p)); });   // only while snow lies
     // (near, the blades stand on their own: the ground under them is the snow's)
-    const lift = M.h.mul(0.025).add(cv.mul(glum).mul(smoothstep(20, 90, dist2).mul(0.14)));
+    const lift = h.mul(float(0.025).add(cv.mul(smoothstep(20, 90, dist2).mul(0.14))));
     const snow = snowCover(vN, lift).mul(smoothstep(w, w.add(1.5), d)).mul(float(1).sub(roofAt(p)));   // none under a roof
-    M.n.assign(M.n.mul(float(1).sub(snow.mul(0.85))));
-    const n = normalize(vN.add(vec3(M.n.x, 0, M.n.y).mul(float(1).sub(smoothstep(60, 400, dist2).mul(0.7)).mul(near.mul(0.7).add(1)))));
+    const rn = G.n.mul(float(1).sub(snow.mul(0.85)));
+    const n = normalize(vN.add(vec3(rn.x, 0, rn.y).mul(float(1).sub(smoothstep(60, 400, dist2).mul(0.7)).mul(near.mul(0.7).add(1)))));
     // relief: hollows sit in shade, crowns in light; slopes facing the sun lit harder than the plain normal says
     const relief = mix(0.74, 1.1, smoothstep(-6, 16, vHill));
     const s0 = max(n.dot(U.uSunDir), 0), sunl = mix(s0, smoothstep(0.55, 0.95, s0), smoothstep(60, 600, dist2).mul(0.5));
     const cs = cloudShade(vWorld).toVar();
-    const col = weathered(mix(M.c.mul(mix(1, 0.5, wet)).mul(cav), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).mul(skyLight(n).mul(cs.mul(0.3).add(0.7)).mul(float(1).sub(shade.mul(0.35))).add(U.uSun.mul(cs).mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)).mul(sunl)));   // under a cloud the sky is dimmer too (the clouds' shade read once: light.js cloudAt is these three)
+    const col = weathered(mix(c.mul(mix(1, 0.5, wet)).mul(cav), SNOW.mul(drift.mul(0.12).add(0.9)), snow).mul(relief), n, 9).mul(skyLight(n).mul(cs.mul(0.3).add(0.7)).mul(float(1).sub(shade.mul(0.35))).add(U.uSun.mul(cs).mul(sunDim()).mul(shadowAt(vWorld)).mul(float(1).sub(shade)).mul(sunl)));   // under a cloud the sky is dimmer too (the clouds' shade read once: light.js cloudAt is these three)
     const V = normalize(U.uCam.sub(vWorld));
     return finish(col.add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 48)).mul(0.3).mul(wet)), vWorld);
   });

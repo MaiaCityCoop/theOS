@@ -53,7 +53,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
   const drawObject = renderer.renderObject;
   const pre = (object, scene, camera, geometry, material, group, lights, clipping, passId) => { const m = material.isNodeMaterial ? twinOf(material).pre : null; if (m) drawObject.call(renderer, object, scene, camera, geometry, m, group, lights, clipping, passId); };
   const main = (object, scene, camera, geometry, material, group, lights, clipping, passId) => drawObject.call(renderer, object, scene, camera, geometry, material.isNodeMaterial ? twinOf(material).main : material, group, lights, clipping, passId);
-  const clear = new THREE.Color(), sky = new THREE.Color();
+  const clear = new THREE.Color(), sky = new THREE.Color(), prepassed = [];
   return {
     out: OUT, size: sizeOf,
     get inside() { return ratio(); },
@@ -68,6 +68,10 @@ export function createScreen(renderer, { temporal, lens = null }) {
     compile(object, camera, scene = null) { return Promise.all([compileFor(renderer, () => targetsNow().pre, object, camera, scene, pre), compileFor(renderer, () => targetsNow().main, object, camera, scene, main)]); },
     /** What the last frame was laid on the screen from (temporal.resolve's: a tool's timing of the upscale alone). */
     last: null,
+    /** fn({ depth, motion, camera, w, h }) after every prepass, before the colour: what reads what the prepass drew, with
+        the camera as it drew it (its shift for this frame too). The land's pages ask there for what they show
+        (src/terrain/pages.js). */
+    afterPrepass(fn) { prepassed.push(fn); },
     /** Draw the world as this camera sees it, onto the canvas. */
     render(scene, camera) {
       const t = targetsNow(), was = T.turns[1 - turn], alpha = renderer.getClearAlpha(), clearDepth = renderer.autoClearDepth;
@@ -78,6 +82,7 @@ export function createScreen(renderer, { temporal, lens = null }) {
       renderer.setRenderObjectFunction(pre); renderer.setRenderTarget(t.pre); renderer.render(scene, camera);
       // (and pass two, against this frame's depth: what it finds drawn into the prepass after the rest)
       if (culls) occlusion.late(renderer, t.depth, size.x, size.y, (late) => { const ac = renderer.autoClear; renderer.autoClear = false; renderer.render(late, camera); renderer.autoClear = ac; });
+      for (const fn of prepassed) fn({ depth: t.depth, motion: t.pre.texture, camera, w: size.x, h: size.y });   // (once all of it is drawn)
       // the colour, into the prepass's depth. (Cleared to the renderer's clear colour, which the sky sets to the hour's
       // horizon as the screen shows it: here in the light's own numbers, the screen's curve taken back off it)
       const E = 1.25 * U.uExposure.value, un = (v) => -Math.log(1 - Math.min(0.999, v) ** 2.2) / E;
