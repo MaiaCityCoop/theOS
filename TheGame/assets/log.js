@@ -11,7 +11,7 @@ export default tree({
   type: 'asset',
   name: 'Fallen log',
   kind: 'litter',
-  about: 'A trunk or a great limb come down in a storm and lying on the floor, its bark greying, a few snapped branches still on it.',
+  about: 'A trunk or great limb brought down by a storm, its bark greying.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
     real: 'a fallen pine or oak trunk, lying',

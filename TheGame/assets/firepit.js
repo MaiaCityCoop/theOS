@@ -231,7 +231,7 @@ export default {
   type: 'asset',
   name: 'Fire pit',
   kind: 'default',
-  about: 'A ring of sooted river stones round a bed of ash and charcoal, the wood that will burn on it, wood stacked ready, and log rounds cut from a pine to sit on. It stands out on the grass in front of the tent.',
+  about: 'A ring of sooted stones round ash, with stacked wood and log seats.',
   measure: MEASURE,
   size: { length: 2 * (SEAT_R + SEAT_W), width: 2 * (SEAT_R + SEAT_W), height: 0.95 },
   // what it is made of: the world's own materials, wrapped round it from three sides (src/world/place.js). A face

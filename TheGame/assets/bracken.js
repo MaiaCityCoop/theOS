@@ -18,7 +18,7 @@ export default tree({
   type: 'asset',
   name: 'Bracken',
   kind: 'shrub',
-  about: 'A fern of the wood’s floor: a handful of long fronds arching up and out from one foot, fresh green.',
+  about: 'A fern of the wood floor: long fronds arching from one foot.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
     real: 'Pteridium aquilinum, bracken',
