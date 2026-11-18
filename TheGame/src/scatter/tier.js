@@ -195,13 +195,14 @@ const argsOf = (geos) => { const args = new THREE.IndirectStorageBufferAttribute
 /** After its packing, where the eye does not cull it: each draw as many as its bucket holds, no more than its room. */
 const argsPass = (argsNode, count, K, caps) => Fn(() => { for (let k = 0; k < K; k++) argsNode.element(k * 5 + 1).assign(min(atomicLoad(count.element(k)), caps ? uint(caps[k]) : uint(2 ** 32 - 1))); })().compute(1);
 /** Its meshes: each bucket's draw from its arguments, its material reading a thing's rows where the packing put it
-    (through what the eye's culling kept, culled: C): rowAt(at, slot, j), slot a node, the bucket a mesh says. room(k):
-    as many as bucket k may hold. */
-function meshesOf(geos, material, args, C, room, rowAt) {
-  const at = C ? C.entry : (slot) => slot.add(instanceIndex);
+    (through what the eye's culling kept, culled: C): its place (placeOf(at, slot): which of the store's things it is,
+    slot a node, the bucket a mesh says), its rows there (S of them). room(k): as many as bucket k may hold. A material is
+    handed read(j), readAt(j, slot), and placeAt(slot): the thing's place (what the prepass's id says: src/core/pass.js). */
+function meshesOf(geos, material, args, C, room, data, S, placeOf) {
+  const at = C ? C.entry : (slot) => slot.add(instanceIndex), rowAt = (slot, j) => data.element(placeOf(at, slot).mul(S).add(uint(j)));
   return geos.map((g, k) => {
     g.setIndirect(args, k * 20); g.instanceCount = room(k);
-    const m = new THREE.Mesh(g, material({ read: (j) => rowAt(at, uint(k), j), readAt: (j, slot) => rowAt(at, slot, j) }, k));
+    const m = new THREE.Mesh(g, material({ read: (j) => rowAt(uint(k), j), readAt: (j, slot) => rowAt(slot, j), placeAt: (slot) => placeOf(at, slot) }, k));
     m.userData.slot = k; return m;
   });
 }
@@ -235,7 +236,7 @@ function packedOf(T, geos, material, { live, cap = 0, slots = 0, spans = null, b
   const C = (T.culler = culled ? cullOf(T, { K, caps, offs, total, S: slots, data, args, count, box: bounds }) : null);
   const zero = Fn(() => { for (let k = 0; k < K; k++) atomicStore(count.element(k), uint(0)); })().compute(1);
   T.passes = [zero, patchPass({ K, S, data, count, own, capOff, uCap, entryOf: entryOf(EN, nE, STEPS) }, live, RN), ...(C ? [C.args, C.boxes] : [argsPass(argsNode, count, K, caps)])];
-  return meshesOf(geos, material, args, C, (k) => caps[k], (at, slot, j) => data.element(at(OFr.element(slot)).mul(S).add(uint(j))));
+  return meshesOf(geos, material, args, C, (k) => caps[k], data, S, (at, slot) => at(OFr.element(slot)));
 }
 
 /** The workgroup's entry (its first invocation finds it, the last whose first is at most its own, by halving), then
@@ -403,7 +404,7 @@ function residentPackedOf(T, geos, material, { found, select, store = 0, slots =
   const ends = C ? [C.args, C.boxes] : [Fn(() => { for (let k = 0; k < K; k++) { argsNode.element(k * 5 + 1).assign(atomicLoad(count.element(k))); offsOf(k); } })().compute(1)];
   T.resident = residentOf(T, me, s, ends);
   T.passes = [...new Set([...s.full, ...s.only, ...ends])];
-  return meshesOf(geos, material, args, C, () => 2 * me.N, (at, slot, j) => s.data.element(at(OFr.element(slot)).mul(S).add(uint(j))));
+  return meshesOf(geos, material, args, C, () => 2 * me.N, s.data, S, (at, slot) => at(OFr.element(slot)));
 }
 /** A kind laid out again (a tier of it made again from its own count): each tier's range from its room, its stores and
     what it packed made again as large as all of them, its culling's ranges too; every tier of it packed again. */

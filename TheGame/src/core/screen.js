@@ -27,6 +27,14 @@ import { ERROR_PX } from '../detail/error.js';
 import { occlusion } from './occlusion.js';
 import { outputRatio } from './output.js';
 
+/** The prepass's target, w × h pixels on `depth`: its motion (rgba16f, `output`), and what drew each pixel (`id`: two
+    numbers of 32 bits: src/core/pass.js drawnId, written by every material's prepass twin, twinOf). */
+export const prepassTarget = (w, h, depth) => {
+  const t = new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, count: 2 });
+  t.textures[0].name = 'output'; Object.assign(t.textures[1], { name: 'id', type: THREE.UnsignedIntType, format: THREE.RGIntegerFormat });
+  return t;
+};
+
 export function createScreen(renderer, { temporal, lens = null }) {
   let OUT = outputRatio(), inside = OUT, turn = 0;   // (OUT: the canvas's pixel ratio, the output's for this window)
   renderer.setPixelRatio(OUT);
@@ -44,9 +52,9 @@ export function createScreen(renderer, { temporal, lens = null }) {
     if (T?.w !== size.x || T?.h !== size.y) {
       if (T) for (const t of T.turns) { t.pre.dispose(); t.main.dispose(); t.depth.dispose(); }
       const w = size.x, h = size.y, made = (o, depth) => new THREE.RenderTarget(w, h, { samples: 0, type: THREE.HalfFloatType, generateMipmaps: false, depthTexture: depth, ...o });
-      const turns = [0, 1].map(() => { const depth = new THREE.DepthTexture(w, h); return { depth, pre: made({ minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter }, depth), main: made({ minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }, depth) }; });
+      const turns = [0, 1].map(() => { const depth = new THREE.DepthTexture(w, h); return { depth, pre: prepassTarget(w, h, depth), main: made({ minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }, depth) }; });
       T = { w, h, turns };
-      note('the picture inside (its colour, motion and depth, two of each)', 2 * w * h * (8 + 8 + 4), 0, 'geometry');   // (what the prepass and the colour draw into)
+      note('the picture inside (its colour, motion, id and depth, two of each)', 2 * w * h * (8 + 8 + 8 + 4), 0, 'geometry');   // (what the prepass and the colour draw into)
     }
     return T.turns[turn];
   };
