@@ -8,6 +8,7 @@ import { U } from '../core/uniforms.js';
 import { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second } from './noise.nodes.js';
 export { hashI, rnd, noised, vnoise, camDist, edgeJit, groveAt, leadAt, bent, turned, second };
 import { OCT_LAM, OCT_AMP, WATER_DROP, PADS, PAD_FALL, BEND, MEANDER, LAKE_MAX } from './land.js';
+import { ERROR_PX, BAND } from '../detail/error.js';
 import { BIOMES, BASE, WATER } from './biomes.js';
 import { PLACES } from '../../world/places.js';
 import { recipe, byRole } from '../core/registry.js';
@@ -104,20 +105,28 @@ export const riverBank = Fn(([d, w, b]) => {
 export const baseB = Fn(([p]) => vnoise(p.mul(1 / 2600), uint(11)).sub(0.5).mul(40).add(vnoise(p.mul(1 / 900).add(3.7), uint(12)).sub(0.5).mul(14))).setLayout({ name: 'baseB', type: 'float', inputs: [{ name: 'p', type: 'vec2' }] });
 export const WATER_DROP_N = float(WATER_DROP);
 
-/** The ground's height at p: the land's octaves (each let go with distance), the river, and the pads under what stands */
-export const heightAt = Fn(([p, dist, d, w, b]) => {
+/** The ground's height at p (pe: pixels drawn a metre of height covers there, over the one error: errorScale): the land's
+    octaves, each kept as long as its height shows (its amplitude over ERROR_PX on screen, handed over within BAND: the
+    land's mesh is fine enough to carry every octave that shows, src/terrain/terrain.js), the river, and the pads under
+    what stands */
+const heightOf = Fn(([p, dist, d, w, b, pe]) => {
   const m = smoothstep(w, w.add(80), d), mm = mix(0.35, 1, m), h = float(0).toVar(), q = vec2(p).toVar();
   for (let i = 0; i < OCT_LAM.length; i++) {
     q.assign(vec2(q.x.mul(0.8).sub(q.y.mul(0.6)), q.x.mul(0.6).add(q.y.mul(0.8))));
-    const lam = OCT_LAM[i];
-    If(dist.lessThan(lam * 19.2), () => {
-      h.addAssign(vnoise(q.div(lam).add(i * 7.31), uint(20 + i)).sub(0.5).mul(OCT_AMP[i]).mul(float(1).sub(smoothstep(lam * 9.6, lam * 19.2, dist))).mul(i >= 6 ? mm : m));
+    const lam = OCT_LAM[i], e = pe.mul(OCT_AMP[i]);
+    If(e.greaterThan(1), () => {
+      h.addAssign(vnoise(q.div(lam).add(i * 7.31), uint(20 + i)).sub(0.5).mul(OCT_AMP[i]).mul(smoothstep(1, BAND, e)).mul(i >= 6 ? mm : m));
     });
   }
   const H = baseB(p).add(h).add(m.mul(3)).add(riverBank(d, w, b)).sub(riverCarve(d, w, b)).toVar();
   for (const P of PADS) H.assign(mix(float(P.h), H, smoothstep(P.r, P.r + PAD_FALL, length(p.sub(vec2(P.x, P.z))))));
   return H;
-}).setLayout({ name: 'heightAt', type: 'float', inputs: [{ name: 'p', type: 'vec2' }, { name: 'dist', type: 'float' }, { name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }] });
+}).setLayout({ name: 'heightAt', type: 'float', inputs: [{ name: 'p', type: 'vec2' }, { name: 'dist', type: 'float' }, { name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }, { name: 'pe', type: 'float' }] });
+/** Pixels drawn a metre covers `dist` metres off (as the measure has distances), over the one error: what is kept of the
+    land is kept by it (node; read here, outside the land's function: a uniform named inside one does not compile). */
+export const errorScale = (dist) => U.uPxK.mul(U.uDrawn).div(max(dist, 1e-3).mul(ERROR_PX));
+/** The ground's height at p, seen dist metres off (d, w, b: the river there, riverInfo). */
+export const heightAt = (p, dist, d, w, b) => heightOf(p, dist, d, w, b, errorScale(dist));
 /** the height at p, the river worked out here */
 export const groundAt = (p, dist) => { const I = riverInfo(p); return heightAt(p, dist, abs(I.x), I.y, I.z); };
 
