@@ -27,7 +27,8 @@ import { rocksAround, rocksDrawn } from '../world/rocksolid.js';
 
 // the levels: a rock's cluster hierarchy (assets/kit/clusters.js, from its full mesh alone) as the surfaces' levels hold
 // it (src/detail/error.js): level 0, every cluster a thing at the eye may need, there only for the shapes that lie near
-// (six at once; ?truth: every shape's), drawn by the cut; every coarser level always there. ROOM: the most a level holds,
+// (six at once at the dial's rest; a dial turned down to DIAL_LEAST reaches 1 / DIAL_LEAST² times the ground, so as many
+// times more, up to every shape the rocks have: src/scatter/heap.js), drawn by the cut; every coarser level always there. ROOM: the most a level holds,
 // triangles and elements, as shares of a full mesh's triangles: measured over twelve of the rocks' shapes, boulders and
 // stones (2026-11-18), with a quarter to spare. A shape that would need more is cut down to fit, never left with a hole
 // (assets/kit/surface.js: trimmed)

@@ -602,7 +602,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // both while it hands over from one to the other; the vertex stages say which shows)
     const FAR = byKind && !shadow && MAKE?.far ? MAKE.far : null, KF = FAR ? ALL : -1;
     // (and what is cut out as leaves has a draw of its own at the levels it is cards: another state of the pipeline)
-    const leafy = LEAVES && !shadow && i < HULL, K0 = perSlot ? LEVELS[0].slots : 1;
+    const leafy = LEAVES && !shadow && i < HULL, K0 = perSlot ? H.pools[0].n : 1;
     // (and what is of the level's own shape, a ball of the ladder's, the last draw: by the level's list of corners)
     const KS = shapeOf[i] ? (leafy ? K0 * 2 : K0) : -1;
     // (its level and whether it is the shadow's as numbers: every tier's packing is one piece of code, compiled once)
@@ -671,7 +671,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       place, casts, far: as tier() (cap: of its farthest level; the nearer ones hold a quarter as many each); last: the
       last level its things have (they end before the ladder does). */
   const tierAll = ({ cell, P, cap, sizes, place, casts = false, far = Infinity, last = L - 1, step = 0.5, thing = null, moving = false }) => {   // (moving: what it packs moves on its skeleton: packed again every frame, drawn on its bones)
-    const band = { near: uniform(-1), far: uniform(1) }, K0 = LEVELS[0].slots || 1, hp0 = H.pools[0], TH = thingOf(thing);
+    const band = { near: uniform(-1), far: uniform(1) }, hp0 = H.pools[0], K0 = LEVELS[0].slots ? hp0.n : 1, TH = thingOf(thing);
     // its draws: a slot of the heap's each for the full meshes; of every other mesh level the corners looked up and,
     // where the level has a shape of its own, that list; the dot
     // (a level 0 drawn by its cut: one draw that only holds its things, the cut's own drawing them)
