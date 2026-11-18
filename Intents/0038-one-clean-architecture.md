@@ -195,6 +195,11 @@ numbers are written below.
 | 7: one placement rule, the forest in layers | `aven/0038-stage7-layers`, PR #73 (ready for review) | Built, merged with main (`314e2e6`), measured (under Build, Stage 7); CI green | The master's review; Samuel to judge the floor (pictures on `aven/0038-shots`, `stage7/`); the research's floor kinds and the site's species come after 8 and 9 |
 
 **Not started:**
+- **6c** is built (draft PR #81, under Build): relief near the eye on a mesh built in compute, parallax further out,
+  skirts for rocks, two footpaths as decals; a jump settles in 8–12 s (main 19–27 s). Left from 6b still: what is let go
+  with distance taken by distance on grazing ground (at eye level the far bare patches go too near).
+- **7:** the one placement rule and the five layers. It needs Samuel's photos of the real site to choose the species.
+- **8:** cluster hierarchy for rocks, then the tent and fire pit (absorbs `aven/0033-solids-wip`).
 - **6c:** relief, meaning displacement near the eye, parallax further out, skirts for rocks, path decals. 6b's pages
   already carry each texel's height (their colour's fourth number). Also left from 6b: a jump's settling (17–53 s
   against main's 6–9; what bounds it is under 6b's Measured), and what is let go with distance taken by distance on
@@ -833,6 +838,114 @@ Built on `aven/0038-stage6b-avt` from main at `cc3aa70` (stages 1, 2a, 2b, 4, 6a
   on a mesh built in compute, parallax further out (a few reads along the ray within the page), skirts that bed rocks
   in the soil, and path decals laid into the pages as they are laid. Also: a jump's settling (above); the far
   grazing hand-over (the level by distance for what is let go, apart from the level by the filter's footprint).
+### Stage 6c: the ground in relief, and a jump's settling (2026-11-18)
+
+Built on `aven/0038-stage6c-relief-e30fca` from main at `5c591fd` (stage 6b merged as #71), merged with main at
+`d471cd1` (#79), on the Mac mini, beside three other sessions' gate runs (one GPU lock between them). Draft PR #81.
+
+- **Settling after a jump** (`src/terrain/pages.js`): 6b's 17–53 s came from four things (6b's notes, under Measured).
+  Each is gone:
+  - **Asked for over a whole sweep.** The asks are kept: every reference page asked from in the last sweep or two, and
+    every page it asks for at the bias now, with its parents. One read-back's asks no longer replace the last's, so a
+    page few pixels ask for is asked for once a sweep, not by luck.
+  - **Read back every frame.** A few buffers of our own (four at most out at once), copied into and mapped as the GPU
+    is done with them; not three's read-back that makes a buffer each time and waits for the last.
+  - **The bias in one step.** A block of 8 × 8 pixels asks for the finest of four of them a frame (a sweep is 16
+    frames, not 64), and says, beside its page half a level finer than any bias asks for, its own level unbiased and how
+    near the eye it is. So what any bias would ask for is known from the asks: the least quarter level whose pages fit
+    90 % of the slots is found by halving, a candidate a frame (four frames), and every page asked again at it from the
+    same asks. 6b stepped a quarter level two sweeps apart going up, 240 frames apart coming down.
+  - **Done when a sweep has been read since the view last changed**, not a sweep after the last page laid: what the
+    pixels ask does not change as pages come in (only with the view and the bias), so the 105 still frames of the
+    picture start once the last page has faded in.
+  - **A pixel at its page's edge asks for the page across it too** (within 4 texels of an edge of the page it reads,
+    said in the ask). The picture's jitter moves a pixel's point by up to half its footprint, and a pixel asks once a
+    sweep at one of the jitter's 18 places, so such a page was found only at the places that land in it, one now and
+    then over hundreds of frames, each starting the picture's 105 still frames again (the cause #79 found under
+    `?truth`, at 32 places).
+  - The prepass writes the footprint's level, unbiased and fractional (`footprint`, `asks`); the colour's read is as
+    it was.
+- **Relief near the eye, on a mesh built in compute** (`src/terrain/relief.js`). WebGPU has no tessellation, so the
+  land's quadtree goes on below its finest level near the eye: four more levels, nodes of 4, 2, 1 and 0.5 m reaching
+  24, 12, 6 and 3 m through the lens, each a tile of 32 × 32 quads (12.5, 6.25, 3.1 and 1.6 cm). Their edges morph to
+  the coarser grid as the land's do; the first of them morphs twice, to the land's own 0.5 m grid, where it meets it,
+  so no crack. One compute pass a frame works out every vertex of them once (not once a pass that draws it): the land's
+  height and normal there and the river (`material.js landPoint`, now the land's vertex stage too), and the ground's own
+  height from its page, read as finely as the mesh is fine, raised or lowered by it: 5 cm from a page's lowest to its
+  highest, all of it within 8 m, none past 16 m (where the land's coarser mesh takes over), less where the grass's
+  carpet lies (its blades stand over it), none under snow. Where nothing it reads has changed (the camera, the page
+  table, a page fading in) it is not worked out again. The mesh is drawn with the land's material, its vertex stage
+  reading the pass's points: the prepass's asks, the page read and the light are the land's.
+  - **Found:** three's read by steps (`grad`) does not exist in a compute shader (the pass came out as `undefined` in
+    WGSL, and the start never settled); there a page is read at the mip its steps call for.
+- **Parallax further out** (`pages.js read`, given the way to the eye). The ground's own height seen along the eye's
+  ray: from where the relief lets go (8 to 16 m) until it is under a pixel of the 4K screen (28 to 45 m), six steps
+  down the ray from the highest ground to the lowest, then between the last two where it crossed. Within the pixel's
+  page and its border of four texels (a grazing ray's steps held to what the border holds), and the colour, relief,
+  carpet and shade read where it crossed.
+- **Skirts that bed the stones in the soil** (`src/scatter/drawer.js`, a thing that wears the world's material, so the
+  rocks): where a stone goes into the ground it wears the ground there, the land's own page at that point (the
+  Battlefront way of blending a mesh into a terrain's virtual texture), up to a hand's breadth on a large stone (12 %
+  of its size, 20 cm at most), higher in its hollows and on what of it faces up, its normal the ground's, and no moss
+  over it. Its size rides in the varying `sA`'s fourth number.
+- **Path decals** (`world/paths.js`, `src/terrain/decals.js`). Two footpaths in the world's data: up the meadow to the
+  fire in front of the tent's door (under the bench's eye-level view), and from the fire past the tent into the pine
+  stand (along the gate's walk). Each is a centripetal Catmull-Rom curve through its points, cut into pieces a metre
+  long; as a page is laid, a texel finds the nearest piece (only the paths whose box it is in) and is worn as much as
+  the path covers it (its width against the texel's, so a path far off is a line of its share, not a row of dots):
+  packed earth in the middle, small cracked plates half worn away where feet go most, crumbs and pebbles towards the
+  edges, a lip of soil along them, the carpet gone and thinner beside. Its edge wanders (two noises). The height goes
+  into the page, so the relief and the parallax show it sunk into the meadow. The paths are ways
+  (`src/world/ways.js`), so the grass map, the stones and the trees keep off them (within a quarter of the margin
+  each asks for: the grass grows to a footpath's edge).
+- **Under `?truth`** (main's #79 asked from every pixel every frame): a block of 4 × 4 asks from all sixteen of its
+  pixels every frame, so a sweep is one frame and the read-back fits the same 4 MB as the game's.
+- **Measured** on the Mac mini (its GPU shared with three other sessions' runs, one at a time through the lock; every
+  set of stills on a fresh browser, the gate's jump from the start to each view in turn; main at `5c591fd`).
+  - **Settle** at a view after a jump, the gate's stills:
+
+| View | main (6b) | 6c, the asks and the paths only (an early run) | 6c before the edge's asks (`c85253d`) | 6c (`887c3b2`) |
+| --- | --- | --- | --- | --- |
+| Tent, eye level (`bench-tent-eye-level`) | 22.1 s (743 frames) | 7.6 s (251) | 11.4 s (364) | 8.2 s (256) |
+| Tent, 10 m | 26.7 s (849) | 8.1 s (250) | 10.9 s (317) | 12.2 s (355) |
+| Tent, 30 m | 18.8 s (778) | 7.2 s (296) | 11.1 s (434) | 8.2 s (316) |
+
+  - The frames came at 29–41 a second on every side. The floor is a sweep (16 frames), the last page's fade (10) and
+    the picture's 105 still frames, about 150 frames; the views take 250–355. Pages still come in after the camera
+    stops: the relief's pixels move with its heights as finer pages come in, and at 10 m a bias chosen during the
+    jump's last frames is chosen again once the camera stands (a sweep more).
+  - **Pages and the bias:** one sweep's asks, by bias (0, 0.25, 0.5 …): the tent at 10 m 3623, 3050, 2566 …, so the
+    bias stays 0 (6b chose 0.25–0.5 there, a quarter step at a time); at 30 m 4362, 3873, 3452 …, so 0.5, chosen at
+    once. At eye level 1950 at 0.
+  - **The relief's nodes:** 148–153 at eye level, 122 at 10 m, 37 at 30 m (room for 512).
+  - **FLIP against main** (4K, 67 px a degree), mean (p99 tile): eye level 0.089 (0.640), 10 m 0.042 (0.275), 30 m
+    0.052 (0.457); `c85253d` against `887c3b2` 0.020–0.032 (the same picture: the edge's asks change no pixel's
+    page). What differs is new: the eye-level view stands on the path to the fire and the 30 m view sees both
+    paths; the grass and stones kept off them; the relief. No hole, no seam, no crack between the relief and the land.
+  - **As sharp as main near the eye:** edge energy in the crop by the feet (eye level, 1600 × 560 at 2200,1600): main
+    7.60, 6c 7.40 (97 %; 7.33 without the relief, so the relief does not soften it). Up close the pebbles stand out of
+    the ground as rounded stones.
+  - **In motion** (`paths zoom,walk`, cold and warm, the frame clock and the GPU's own times):
+
+| Path, cache: main → 6c | Frames | Median ms | p99 | Worst | Over 16.7 ms | GPU p99 ms | GPU worst |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Walk, cold | 1639 → 1686 | 33.2 → 16.7 | 33.4 → 33.4 | 50.0 → 66.7 | 838 → 788 | 30.1 → 30.9 | 34.0 → 40.3 |
+| Walk, warm | 1579 → 1484 | 33.3 → 33.3 | 33.4 → 33.4 | 66.6 → 33.5 | 898 → 995 | 31.2 → 34.7 | 35.6 → 43.6 |
+| Zoom, cold | 1092 → 1105 | 16.7 → 16.7 | 33.4 → 33.4 | 33.5 → 33.4 | 107 → 95 | 24.9 → 24.5 | 29.2 → 28.0 |
+| Zoom, warm | 1076 → 1057 | 16.7 → 16.7 | 33.4 → 33.4 | 33.4 → 50.0 | 124 → 142 | 25.0 → 27.1 | 30.9 → 32.8 |
+
+    (6c at `c85253d`, before the edge's asks, which cost the GPU nothing.) The world settled where it starts in 36.1 s
+    cold and 19.8 s warm (main 62.0 and 30.0); the most memory 5.40 GB (main 5.47). On the walk, along the path into
+    the pines, the relief and the parallax cost about 1–3.5 ms of the GPU's p99; on the zoom nothing to tell from the
+    noise. Neither side meets the gate in motion (no frame over 16.7 ms, none over 12 ms of GPU).
+
+  - **Merged with stages 7 and 8** (`015ab1c`): the stills draw with no error and settle in 8.5, 13.2 and 9.3 s
+    (244, 365, 343 frames); what differs from `887c3b2` (FLIP 0.09–0.13) is stage 7's woods and stage 8's solids.
+  - `bun tools/scale.js` 24 of 24 after the merge (18 of 18 before); `vite build` passes (TheGame); CI green.
+- **Not done:** Safari (it can't be automated here); the trickle above; the far grazing hand-over left from 6b; the
+  skirts are not in the gate's views (few rocks lie in them), so they were checked in the code, not in a still; Bend's
+  screen-space shadows for the relief's own bumps are stage 9's.
+
 ### Stage 5: crowds of parts, one spread order, one wind (2026-11-18)
 
 - Built on `aven/0038-stage5-crowds` from main at `cc3aa70`, as a draft PR.
@@ -1593,7 +1706,7 @@ per-pass GPU ceilings can be a merge rule.
 - [ ] Stage 6: land, virtual texture and relief
   - [x] 6a: the layer map, one read a material (the deferred pass left to 6b)
   - [x] 6b: the adaptive virtual texture with feedback (built; draft PR; the ground pass still reads the land's nodes)
-  - [ ] 6c: relief (displacement, parallax, skirts, path decals)
+  - [x] 6c: relief (displacement, parallax, skirts, path decals) and a jump's settling (built; draft PR #81)
 - [ ] Stage 7: placement, five layers
   - [x] one rule, the growth map, the forest's layers and their kinds (built; draft PR #73)
 - [ ] Stage 8: surfaces, cluster hierarchy (built: rocks, the tent and the fire pit; the stress world's zoo to 8b)
@@ -1821,6 +1934,23 @@ per-pass GPU ceilings can be a merge rule.
 - **Not there yet:** FLIP against its own `?truth` (the truth did not settle in 300 s at the start); the paths over
   16.7 ms and 12 ms of GPU (walk p99 34 ms cold), memory 5.31 GB within 8; the pyramid's 12 dispatches; the bench's
   ground-map fade (under Found); Safari not tried.
+- **Asked (by the master on the Mac mini, task A):** stage 6c: relief from the virtual texture's height (displacement
+  near the eye on a mesh built in compute, parallax further out, skirts that bed rocks in the soil, spline decals for
+  paths), and a jump's settling (17–53 s since 6b, against 5–9 s before): the asks kept over a sweep, a read-back every
+  frame, the bias chosen in one step. Stills at the tent from eye level, 10 m and 30 m against main, `paths zoom,walk`,
+  the settle time; labelled pictures before and after.
+- **Delivered:** stage 6c built (under Build), merged with main (`015ab1c`, stages 7 and 8), draft PR #81; the pictures in
+  `~/src/github/MaiaCityCoop/shots/0038-6c/` and on `aven/0038-shots` under `stage6c/`.
+- **Good:** a jump settles in 8–12 s where main takes 19–27 s, and the world where it starts in 36 s where main takes
+  62 (cold); the bias is chosen at once from
+  one sweep's asks (bias 0 at 10 m, where 6b stepped to 0.25–0.5); near the eye the pebbles stand out of the ground in
+  relief, as sharp as main (97 % of its edge energy); the two footpaths read as worn earth sunk into the meadow, with
+  no grass, stones or trees on them.
+- **Not there yet:**
+  - pages still come in after the camera stops (the relief's pixels move as its heights sharpen), so a jump takes
+    250–355 frames where the floor is about 150; the walk's GPU p99 rose 1–3.5 ms;
+  - the skirts are not in the gate's views, so they are checked in the code, not in a still;
+  - the far grazing hand-over left from 6b; Safari not tried.
 
 ## Trail
 
@@ -1865,6 +1995,9 @@ per-pass GPU ceilings can be a merge rule.
 | 2026-11-18 | `8050d4d` | Stage 6b: 4096 pages in two arrays; texels laid from their materials half a mip finer |
 | 2026-11-18 | `07b87aa` | Stage 6b: pages half a level finer within 15 m of the eye |
 | 2026-11-18 | `364197c` | Stage 6b: the near half level the bias's first; no ask where no land is drawn; a cut starts the bias from none |
+| 2026-11-18 | `c85253d` | Stage 6c: relief near the eye on a mesh built in compute, parallax, skirts, path decals; asks kept over a sweep, read back every frame, the bias in one step |
+| 2026-11-18 | `4853026` | Stage 6c merged with main (#79): under `?truth` a block of 4 × 4 asks from all its pixels every frame |
+| 2026-11-18 | `887c3b2` | Stage 6c: a pixel at its page's edge asks for the page across it too |
 | 2026-11-18 | `7281f29` | Stage 7: one placement rule and the growth map; the biomes' stands, `stand.js` and the stands' sizes deleted |
 | 2026-11-18 | `33f5c9b` | Stage 7: the floor kit and six kinds; saplings of every grown species; a plant's levels are its kind's |
 | 2026-11-18 | `084475a` | Stage 7: the meadow is the smallest layer (it reads the growth map) |
@@ -1874,6 +2007,8 @@ per-pass GPU ceilings can be a merge rule.
 | 2026-11-18 | `9fa8a1f` | Draw path: one culling for every tier (an arena), the late prepass one bundle, the grass culled, plants' boxes measured |
 | 2026-11-18 | `3c821b1` | Draw path: boxes worked out only for what was packed; a bucket found in as many halvings as it takes |
 | 2026-11-18 | `fe8a3f8` | Draw path merged with main (stage 7): the grass's box and the growth map both in its packing |
+| 2026-11-18 | `e969626` | Stage 6c: the notes, the numbers measured, the changelog and trail |
+| 2026-11-18 | `015ab1c` | Stage 6c merged with main (stages 7 and 8): the drawer's ground colour by stage 8, the size for the skirt beside it |
 | 2026-11-18 | `19d0559` | The bench times each pass on its own on main: the passes marked, each in one of four parts (geometry, light, ground, upscale/post) |
 | 2026-11-18 | `5e27a07` | The gate: motion, the truth in tiles, real against photographs, the GPU lock |
 | 2026-11-18 | `0315389` | The gate: motion and real as modules of `tools/gate/`; motion in two passes, one world in memory |
