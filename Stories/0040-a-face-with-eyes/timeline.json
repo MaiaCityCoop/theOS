@@ -13,11 +13,15 @@
    true
   ],
   [
-   "The tool draws five face views and prints fourteen face measures",
+   "A friendly face: a smile over real teeth, a spark in each eye, a narrower chin",
    true
   ],
   [
-   "The body as it was: one closed skin, the same measures, the same poses",
+   "Ears of their own: a rim, a bowl, a lobe, standing off the head",
+   true
+  ],
+  [
+   "The tool draws the face and prints its measures; the body as it was",
    true
   ],
   [
@@ -25,7 +29,7 @@
    false
   ],
   [
-   "Photoreal: ears, hair, skin that differs from place to place, a face that moves",
+   "Photoreal: hair, skin that differs from place to place, a face that moves",
    false
   ]
  ],
@@ -158,74 +162,80 @@
  "captions": [
   {
    "at": 0.6,
-   "for": 3.6,
+   "for": 3.4,
    "kind": "title",
    "over": "A face with eyes",
-   "text": "A face where there was a mask"
+   "text": "A face that smiles back"
   },
   {
-   "at": 4.6,
-   "for": 3.2,
+   "at": 4.3,
+   "for": 2.9,
    "kind": "samuel",
    "text": "Ok eyes and face is the worst at the moment"
   },
   {
-   "at": 8.0,
-   "for": 2.6,
-   "kind": "samuel",
-   "text": "the body is okay for now"
-  },
-  {
-   "at": 11.0,
-   "for": 3.0,
+   "at": 7.4,
+   "for": 2.8,
    "kind": "maia",
    "text": "Its eyes were two balls looking out of holes."
   },
   {
-   "at": 14.4,
-   "for": 3.4,
+   "at": 10.4,
+   "for": 3.2,
    "kind": "maia",
    "text": "Now a lid's edge is cut pixel by pixel, over a globe with an iris."
   },
   {
-   "at": 18.0,
-   "for": 3.2,
+   "at": 13.8,
+   "for": 3.4,
    "kind": "maia",
-   "text": "With eyes in it, the head was still a mask."
+   "text": "With eyes in it the head was still a mask. So I laid it out anew."
   },
   {
-   "at": 21.4,
+   "at": 17.4,
    "for": 3.2,
-   "kind": "maia",
-   "text": "Its mouth lay 8 mm under its own teeth."
+   "kind": "samuel",
+   "text": "ensure we have an actual sparkling eyes friendly positive face"
   },
   {
-   "at": 24.8,
+   "at": 20.8,
+   "for": 2.8,
+   "kind": "samuel",
+   "text": "The chin is too wide, going too far to the front"
+  },
+  {
+   "at": 23.8,
+   "for": 2.6,
+   "kind": "samuel",
+   "text": "And the ears need to be more realistic"
+  },
+  {
+   "at": 26.6,
+   "for": 3.4,
+   "kind": "maia",
+   "text": "It cannot move yet. So its rest is a smile, over real teeth."
+  },
+  {
+   "at": 30.2,
    "for": 2.8,
    "kind": "maia",
-   "text": "So I laid the head out anew, level by level,"
+   "text": "A spark in each eye, whichever way the sun stands."
   },
   {
-   "at": 27.8,
+   "at": 33.2,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "Ears with a rim, a bowl and a lobe, 19 mm off the head."
+  },
+  {
+   "at": 36.4,
    "for": 3.2,
    "kind": "maia",
-   "text": "from its skull and the measured face of a man."
+   "text": "Friendly, yes. A photograph, no: no hair, no blink."
   },
   {
-   "at": 31.2,
-   "for": 3.2,
-   "kind": "maia",
-   "text": "Its neck measured 43 cm round. Now 39.4."
-  },
-  {
-   "at": 34.6,
-   "for": 3.6,
-   "kind": "maia",
-   "text": "A face, yes. A photograph, no: the ears, the hair, a blink."
-  },
-  {
-   "at": 38.6,
-   "for": 3.6,
+   "at": 39.8,
+   "for": 3.0,
    "kind": "note",
    "text": "Seen on a software GPU only. Not yet in the library."
   }

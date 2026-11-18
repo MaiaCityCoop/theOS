@@ -1,7 +1,7 @@
 ---
 id: "0040"
 title: A face with eyes
-state: build           # idea | define | build | propose | story | archived
+state: propose         # idea | define | build | propose | story | archived
 outcome:               # accepted | rejected, set only when archived
 opened: 2026-11-18
 story: Stories/0040-a-face-with-eyes/
@@ -157,21 +157,74 @@ from a plumb line through the nose's foot); heights and breadths from Farkas 199
 the skin no longer comes from them. That check found the brow's bone 1.2 mm outside the skin in the lid's hollow, then
 the jaw's angle 0.3 mm outside; both were moved.
 
+### Second round: a friendly face (2026-11-18)
+
+**The chin.** Narrower and further back in the head's form: its lowest levels' half-breadths 40 → 38 and 44 → 43.5 mm
+and their fronts pointed more, the chin's own mass 19 → 17 mm half-broad and 4 mm further back. In the form it now
+stands 100.5 mm before the head's middle plane for 104.5, some 25 mm behind the nose's tip (Arnett's mean 21, Richer's
+plate 30). Narrowed further at first, the chin's bone corner stood 0.6 mm out of the skin (the tool's check): widened
+again until it lay under.
+
+**The smile.** The face does not move yet, so a friendly face has to be its rest. `skin/table.js` `MOUTH`: an opening
+between the lips 59 mm broad, the upper lip's edge at 1.6142 m, the lower's at 1.6046, the corners at 1.6122 (higher
+than the lower lip's middle: the lower edge is the curve of a smile). Between those edges the head's form stands back
+on the teeth's faces, the lips' edges rolled in to them over 2.8 mm (`skin/head.js`); what is inside the edges is
+thrown away as the skin is drawn, exactly as at the eyes (`skin/light.js` `mouthOpeningNode`). The lips' masses moved
+with it, the lower one rising towards the corners; a soft mass raises each cheek; the lower lids stand 0.8 mm higher
+(the eye's opening 8.7 mm for 9.6).
+
+- **The teeth** (`muscles/flesh.js` `mouthOf`): the upper row's ten front teeth as crowns standing where the skull's
+  own teeth stand (`skeleton/skull.js` `teethOf`, new: the skeleton is not drawn under the skin, so its teeth could not
+  be shown), a cutting tooth thinned to a blade, the canine to a point; behind them one dark surface, the mouth's
+  inside. They hang on the head's joint and are shown under the skin only.
+- **Went wrong on the way:** the first raised cheek was a mass as large as a plum and stood out at the face's sides
+  like a second pair of ears; a fold carved from the nose's wing round the mouth read as scratches and was taken out;
+  the first teeth had the skull's narrow necks and, with no gum drawn, dark gaps between them, and were paper white:
+  drawn fuller and in ivory.
+
+**The eyes' sparkle.** A second light for the eyes alone (`eyesOf`): the bright sky before the face, set a little up
+and to the side of the look, mirrored in the cornea as a small sharp spark and a soft one round it, whichever way the
+sun stands; the iris, lit through the cornea from that side, a little brighter on its far side; a little pinker into
+the inner corner. At that corner a dark wedge had shown from the side: what lies behind the lids was cut along the
+lids' edges as the globe is, and seen from the side what shows past a lid's edge lies outside the opening as drawn
+from the front. The white behind the globe and the corner's mound are no longer cut.
+
+**The ears.** Each is a closed form of its own (`skin/ear.js`): an ear stands off the head, and the cage's level
+rings cannot draw what stands off. Laid out in the ear's own plane (leaning back 12 degrees, standing off the head):
+a thin plate inside an outline, the helix's roll round it, the antihelix and its two legs, the groove between them,
+the bowl with the canal's pit, a tragus and an antitragus, a lobe. Meshed at cells of 1.12, 2.24 and 4.48 mm:
+12 340, 3 140 and 780 triangles an ear, each level closed. It measures 63.4 mm by 35.9 outside the head (Farkas: 62.7
+by 35.4, as remembered) and its rear rim stands 19.3 mm off the head's form at most. Its root lies inside the head's
+side, about a sixth of its triangles hidden there. `skin/build.js` joins its points to the skin's (on the head's
+joint, with what the skin's shader reads of a point) and its three levels to the skin's three, so the skin's light,
+levels and joints carry it; the right ear is the left's mirror. The low relief on the head's side, its gristle and
+its carved bowl are gone from the tables. The skin is now three closed surfaces: the body and two ears.
+
+- **Went wrong on the way:** in the first lit still the ear's bowl was the red of raw meat. Its points came with
+  their true shade (near black in the bowl) and the cheek's full blood, and the skin's light answers a deep fold with
+  the skin's own colour, saturated. The ears' shade is kept above 0.3, their blood under 0.35, their curvature within
+  150 a metre.
+- The plate is thin (2.4 mm at its thinnest), and the skin's light lets the sun through thin skin: an ear between the
+  eye and the sun glows red, as an ear does. Seen in the still from behind.
+
+
 ## Propose
 
-**What is delivered.** A head that reads as a head and a face that reads as a face, with eyes; not yet a photograph.
-Look at it with `bun tools/body.js --stills <folder>` (the game's dev server running): `face`, `face-three-quarter`,
-`face-side`, `eye`, `mouth` among twenty stills; or in the library, the Body.
+**What is delivered** (both rounds). A head that reads as a head, with a friendly face: eyes with a spark in them
+behind lids, a smile over teeth, a narrower chin, ears that stand off the head. Not yet a photograph. Look at it with
+`bun tools/body.js --stills <folder>` (the game's dev server running): `face`, `face-three-quarter`, `face-side`,
+`eye`, `mouth`, `ear`, `head-from-behind` among twenty-two stills; or in the library, the Body.
 
 | # | Check | Result |
 | --- | --- | --- |
-| 1 | The face reads as a face | **Passed, with the gaps below.** The tool drew all twenty stills on 2026-11-18. Beside the stills before: the forehead stands upright where it fell back; the eyes sit in sockets under a brow, with lids, lashes, an iris and a pupil, where two balls looked out of holes; the nose has a ridge, a tip and wings; the mouth has two lips with a line between them, where a pink band lay; there is a chin and a jaw's line, where the lower face ran into the throat |
-| 2 | Its measures | **Printed; nine of fourteen within 5 %, two at 5 %, three beyond.** Table below. The norms are remembered, none read for this |
-| 3 | The body is as it was | **Passed.** Twelve of the body's thirteen measures to the digit as in intent 0039; the neck 39.4 cm for 43.1 (a man's 39). Open edges 0 at each of the three levels. The five poses: edges stretched by more than half 0.38 %, 1.25 %, 0.47 %, 0.58 %, 1.85 % (0039: 0.38, 1.24, 0.47, 0.58, 1.87) |
+| 1 | The face reads as a face, and a friendly one; the ears as ears | **Passed, with the gaps below.** The tool drew all twenty-two stills on 2026-11-18. Beside the stills before: an upright forehead; eyes in sockets with lids, lashes, an iris, a pupil and two sparks of light; a nose with ridge, tip and wings; a smiling mouth, the lips parted over the upper front teeth; a chin and a jaw's line; ears with a rim, an inner ridge, a bowl and a lobe, standing off the head from the front and from behind |
+| 2 | Its measures | **Printed.** Table below: nine of fourteen within 5 % of a man's, one at 5 %, the nose's tip 10.5 % short; three are a smile's measured against norms for a face at rest. The norms are remembered, none read for this |
+| 3 | The body is as it was | **Passed.** Twelve of the body's thirteen measures to the digit as in intent 0039; the neck 39.0 cm for 43.1 (a man's 39). Open edges 0 at each of the three levels. The body's own points are where they were; the five poses' shares read a little lower (0.34 %, 1.1 %, 0.42 %, 0.51 %, 1.62 % for 0.38, 1.24, 0.47, 0.58, 1.87) because the ears' edges, which do not stretch, are now counted among them |
 | 4 | Nothing else changes | **Passed.** `bun tools/scale.js`: 18 of 18 within their measure. `bun tools/registry.js`: 52 recipes. `vite build` in `TheGame` and in `OS`: built |
 
-Also seen: the Body grown end to end in a page's own workers with the new head, standing, walking and at 30 m
-(180 096 triangles near; no error). 90 050 points on a cage of 5 638; laid in 30 s under node.
+Also seen: the Body grown end to end in a page's own workers with the smile, the teeth and the ears, standing,
+walking and at 30 m (204 776 triangles near; no error). 106 304 points on a cage of 5 638, of them 16 254 the ears';
+laid in 31 s under node.
 
 **The face's measures** (`bun tools/body.js`, mm):
 
@@ -179,49 +232,50 @@ Also seen: the Body grown end to end in a page's own workers with the new head, 
 | --- | --- | --- | --- |
 | head, its length | 198.6 | 197 | +0.8 % |
 | head, its breadth | 154 | 152 | +1.3 % |
-| face, across the cheekbones | 142.7 | 140 | +1.9 % |
+| face, across the cheekbones | 143 | 140 | +2.1 % |
 | jaw, across its angles | 118.7 | 119 | -0.2 % |
-| face, the nose's root to the chin's foot | 128.4 | 122 | +5.2 % |
+| face, the nose's root to the chin's foot | 126.6 | 122 | +3.8 % |
 | nose, its root to its foot | 57.7 | 55 | +5 % |
-| nose, its breadth | 36.5 | 35 | +4.4 % |
-| nose, its tip before its foot | 17.6 | 19.5 | -9.8 % |
-| upper lip, the nose's foot to where the lips part (as drawn) | 20.9 | 22 | -5 % |
-| mouth, its breadth (as drawn) | 52 | 54 | -3.7 % |
+| nose, its breadth | 36.6 | 35 | +4.6 % |
+| nose, its tip before its foot | 17.5 | 19.5 | -10.5 % |
+| upper lip, the nose's foot to its edge, smiling (as drawn; a man's: at rest) | 14.4 | 22 | -34.5 % |
+| mouth, its breadth, smiling (as drawn; a man's: at rest) | 59 | 54 | +9.3 % |
 | eye, its opening's length (as drawn) | 30.1 | 31 | -3 % |
-| eye, its opening's height (as drawn) | 9.6 | 10.5 | -8.6 % |
+| eye, its opening's height (as drawn; the lids smiling) | 8.7 | 10.5 | -17.1 % |
 | between the eyes' inner corners (as drawn) | 33 | 33 | 0 % |
 | between the eyes' outer corners (as drawn) | 93 | 91 | +2.2 % |
 
 The first five norms are the US Army's survey's, the rest Farkas's; "as drawn" is a line of the table, not a
-measure of the skin.
+measure of the skin. The ear: 63.4 mm by 35.9 for Farkas's 62.7 by 35.4, its rear rim 19.3 mm off the head (its own
+lab script's print).
 
 **Known gaps, as the stills show them.** The gate is a photorealistic body; the face is nearer and not there.
 
-1. **The ears** are low reliefs on the head's sides: no rim, no bowl to speak of, nothing behind them. Out of this
-   intent's scope, and now the first thing a look from the side catches.
-2. **The eyes stare.** They do not blink or look. At the inner corner a dark gap shows between the pink mound and the
-   lid. The upper lid's fold is a drawn line; the lid has no thickness of its own.
-3. **The nose's tip is broad and soft**, its nostrils are not seen from the front, and one wing shows a pale smear
-   where the furrow round it meets the lift.
-4. **The lips are flat**: two lips and a line, little shade between them, no light on the lower one.
-5. **The skin is one even surface**: no pores that differ from place to place, no hairs in the beard's shadow, no
-   line on the brow or beside the mouth, a shaved head. It reads as a painted bust, or a game's face of some years
-   ago.
-6. **Faint level streaks** across the far cheek in the three-quarter still, at the edge of the head's own shade.
-7. **A dark line** where the floor under the chin meets the neck, in the front still.
-8. **The jaw's angle** has 0.6 mm of skin over its bone, measured on cells of 6 mm: too coarse to trust either way.
-9. **The profile** follows Arnett's means, a centimetre further forward at the chin than Richer's plate. Not judged
-   by anyone's eye but mine.
-10. **Not seen:** the library on a real GPU, and what the lashes and the eye's extra surfaces cost a frame. Every
-    still was drawn through WebGL 2 on a software GPU.
+1. **The smile is fixed.** The face cannot move, so it smiles standing, walking and squatting alike. Whether that is
+   right for the Body's rest is Samuel's to say.
+2. **The teeth** are ten smooth crowns of the upper row with no gum between them and none of the lower row: enough
+   for this smile, nothing for an open mouth. A thin dark line shows between the two middle teeth.
+3. **The eyes do not blink or look.** The pink mound at the inner corner meets the white along a hard line.
+4. **The ears:** the tragus is a rise before the canal, not a flap over it; there is a small point where the rim
+   leaves the temple; the back of the ear is plain; where the ear meets the head there is a plain line, the two skins
+   meeting, not one skin turning. At a distance its coarsest level is blocky (seen as clay only).
+5. **The nose's tip is broad and soft**, its nostrils are not seen from the front, and one wing shows a pale smear.
+6. **The skin is one even surface**: no pores that differ from place to place, no hairs in the beard's shadow, no
+   line on the brow, a shaved head. It reads as a well-made game character, not a photograph.
+7. **Faint level streaks** across the far cheek in the three-quarter still, and a pale line up the cheek.
+8. **The skin is three closed surfaces now** (the body and two ears), not intent 0039's one.
+9. **The chin's bone corner** has 0.3 mm of skin over it, measured on cells of 6 mm: too coarse to trust either way.
+10. **Cost not measured.** The ears add 24 680 triangles near, the teeth and the eyes their own surfaces. Every still
+    was drawn through WebGL 2 on a software GPU; the library on a real GPU was not seen.
 
 **Samuel's to decide**
 
 - **Accept or reject** this round.
-- **What next for the head**, if anything: the ears as forms of their own; hair (head, beard, brows as strands); the
-  face moving (a blink is one number in `EYE` now; a look and a jaw are the rig's).
-- **The rule "our own code only"**, as in 0039: it stands. This head is the furthest I can see numbers alone taking a
-  face; a scanned head or a sculpted one would be truer at once, and is not ours.
+- **The smile as the face's rest**, and how much of one: it is four numbers in `MOUTH`.
+- **The chin:** now 100.5 mm before the head's middle plane, 4 mm behind where the measured means put it. Further?
+- **What next for the head**, if anything: hair (head, beard, brows as strands); the face moving (a blink is one
+  number in `EYE`, a smile four in `MOUTH`; a look and a jaw are the rig's).
+- **The rule "our own code only"**, as in 0039: it stands.
 
 ## Story
 
@@ -240,7 +294,10 @@ measure of the skin.
 - [x] the face's tone
 - [x] the tool's face stills and measures
 - [x] the head's form written out anew (not in the definition: see Build)
-- [ ] the ears' own form; hair; the face moving (out of scope here: Samuel's to order)
+- [x] second round: the chin narrower and further back
+- [x] second round: a smile over teeth; the eyes' sparkle
+- [x] second round: ears of their own form
+- [ ] hair; the face moving (out of scope here: Samuel's to order)
 - [ ] seen in the library on a real GPU, and timed
 
 ## Changelog
@@ -266,9 +323,34 @@ measure of the skin.
   opening's height -8.6 %, the face's height +5.2 %). The norms are remembered, not read. Not seen in the library or
   on a real GPU.
 
+### 2026-11-18, second round
+
+- **Asked.** Samuel, on the first round's stills: "So ensure we have an actual sparkling eyes friendly positive face.
+  The chin is too wide going too far to the front, the sparkling smile isn't there yet. No sparkling smile yet there.
+  And the ears need to be more realistic" (typos tidied). The intent went back from propose to build.
+- **Delivered.** The chin narrower and 4 mm further back. A smile as the face's rest: the lips parted over the upper
+  front teeth, the opening cut per pixel; ten teeth where the skull's stand and the dark of the mouth behind them;
+  raised cheeks, smiling lids. A spark in each eye from a light of the eyes' own. Ears as closed forms of their own,
+  joined to the skin's points, the old relief gone. The tool: an ear's view and the head from behind; the ears in its
+  report.
+- **Good.** It reads as a friendly face from the front, three-quarter and the side. The ears read as ears from the
+  side, the front and behind, and the sun comes through them red. The neck 39.0 cm, a man's 39. The body otherwise to
+  the digit as it was; every level closed; grown end to end in a page's workers without error.
+- **Broke on the way.** A raised cheek the size of a plum stood out like a second pair of ears. A carved fold beside
+  the mouth read as scratches. The first teeth had gaps and were paper white. The ear's bowl was first the red of raw
+  meat. A dark wedge showed at the eye's inner corner from the side. Narrowing the chin uncovered its bone's corner by
+  0.6 mm, then the jaw's angle lay only 0.2 mm under. Each was set right; see Build.
+- **Not there yet.** The smile is fixed, since the face cannot move. No lower teeth, no gum. The ear's tragus is a
+  rise, not a flap, and the ear meets the head along a plain line. No hair. Not seen in the library or on a real GPU;
+  its cost a frame not measured.
+
 ## Trail
 
 | When | Commit | What |
 | --- | --- | --- |
 | 2026-11-18 | ac6f5a5 | the intent opened and defined |
 | 2026-11-18 | 387396c | the head's form written out anew; eyes behind lids, lashes, brows, lips; the neck into the head; the tool's face views and measures |
+| 2026-11-18 | 73d83be | proposed: the first round's write-up and story |
+| 2026-11-18 | 4a73cb4 | second round: a smile over teeth, the eyes' sparkle, a narrower chin, the ears joined (their form still in work); back to build |
+| 2026-11-18 | e2ea05b | the eye's inner corner |
+| 2026-11-18 | 3e8ec82 | the ears' finished form; the tool's ear views; the jaw's angle covered |
