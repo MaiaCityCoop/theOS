@@ -1,7 +1,7 @@
 ---
 id: "0039"
 title: The Compass
-state: build           # idea | define | build | propose | story | archived
+state: propose          # idea | define | build | propose | story | archived
 outcome:               # accepted | rejected, set only when archived
 opened: 2026-11-17
 story:                 # Stories/0038-slug/, set at propose
@@ -368,3 +368,4 @@ Asked outright and without surprises, so built straight away.
 | 2026-11-18 | `893c909` | Investment rounds per level; the economy rules |
 | 2026-11-18 | `bf4e8d3` | The harvest sheet and its recipe engine |
 | 2026-11-18 | `f8ac3e6` | The Compass rebuilt: chapters, diagrams, explorers, library |
+| 2026-11-18 | `5b31b13` | Merge with main; PR [MaiaCityCoop/theOS#92](https://github.com/MaiaCityCoop/theOS/pull/92) |
