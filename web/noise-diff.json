@@ -1,0 +1,1384 @@
+[
+ {
+  "name": "home-desktop",
+  "a": [
+   1440,
+   8079
+  ],
+  "b": [
+   1440,
+   8079
+  ],
+  "sameSize": true,
+  "pixels": 11633760,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   18098
+  ],
+  "photo": {
+   "x": 642,
+   "y": 7314,
+   "w": 40,
+   "h": 40,
+   "cssW": 38.390625,
+   "cssH": 38.390625,
+   "natural": [
+    1542,
+    1542
+   ],
+   "src": "http://localhost:5391/brand/samuel.jpg"
+  },
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ },
+ {
+  "name": "city-desktop",
+  "a": [
+   1440,
+   900
+  ],
+  "b": [
+   1440,
+   900
+  ],
+  "sameSize": true,
+  "pixels": 1296000,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   2144
+  ],
+  "photo": null,
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ },
+ {
+  "name": "intents-desktop",
+  "a": [
+   1440,
+   900
+  ],
+  "b": [
+   1440,
+   900
+  ],
+  "sameSize": true,
+  "pixels": 1296000,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   2144
+  ],
+  "photo": null,
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ },
+ {
+  "name": "stories-desktop",
+  "a": [
+   1440,
+   900
+  ],
+  "b": [
+   1440,
+   900
+  ],
+  "sameSize": true,
+  "pixels": 1296000,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   2144
+  ],
+  "photo": null,
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ },
+ {
+  "name": "join-desktop",
+  "a": [
+   1440,
+   4973
+  ],
+  "b": [
+   1440,
+   4973
+  ],
+  "sameSize": true,
+  "pixels": 7161120,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   11196
+  ],
+  "photo": null,
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ },
+ {
+  "name": "game-desktop",
+  "a": [
+   1440,
+   900
+  ],
+  "b": [
+   1440,
+   900
+  ],
+  "sameSize": true,
+  "pixels": 1296000,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   2144
+  ],
+  "photo": null,
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ },
+ {
+  "name": "legal-desktop",
+  "a": [
+   1440,
+   1760
+  ],
+  "b": [
+   1440,
+   1760
+  ],
+  "sameSize": true,
+  "pixels": 2534400,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   4056
+  ],
+  "photo": null,
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ },
+ {
+  "name": "home-phone",
+  "a": [
+   780,
+   17238
+  ],
+  "b": [
+   780,
+   17238
+  ],
+  "sameSize": true,
+  "pixels": 13445640,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   4432
+  ],
+  "photo": {
+   "x": 234,
+   "y": 15415,
+   "w": 78,
+   "h": 78,
+   "cssW": 38.390625,
+   "cssH": 38.390625,
+   "natural": [
+    1542,
+    1542
+   ],
+   "src": "http://localhost:5391/brand/samuel.jpg"
+  },
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ },
+ {
+  "name": "city-phone",
+  "a": [
+   780,
+   2674
+  ],
+  "b": [
+   780,
+   2674
+  ],
+  "sameSize": true,
+  "pixels": 2085720,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   810
+  ],
+  "photo": null,
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ },
+ {
+  "name": "intents-phone",
+  "a": [
+   780,
+   2674
+  ],
+  "b": [
+   780,
+   2674
+  ],
+  "sameSize": true,
+  "pixels": 2085720,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   810
+  ],
+  "photo": null,
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ },
+ {
+  "name": "stories-phone",
+  "a": [
+   780,
+   1688
+  ],
+  "b": [
+   780,
+   1688
+  ],
+  "sameSize": true,
+  "pixels": 1316640,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   564
+  ],
+  "photo": null,
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f",
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ },
+ {
+  "name": "join-phone",
+  "a": [
+   780,
+   18622
+  ],
+  "b": [
+   780,
+   18622
+  ],
+  "sameSize": true,
+  "pixels": 14525160,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   4778
+  ],
+  "photo": null,
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ },
+ {
+  "name": "game-phone",
+  "a": [
+   780,
+   1688
+  ],
+  "b": [
+   780,
+   1688
+  ],
+  "sameSize": true,
+  "pixels": 1316640,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   564
+  ],
+  "photo": null,
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ },
+ {
+  "name": "legal-phone",
+  "a": [
+   780,
+   3168
+  ],
+  "b": [
+   780,
+   3168
+  ],
+  "sameSize": true,
+  "pixels": 2471040,
+  "diff": 0,
+  "insidePhoto": 0,
+  "outsidePhoto": 0,
+  "maxStep": 0,
+  "maxStepOutside": 0,
+  "jpgSize": [
+   1600,
+   932
+  ],
+  "photo": null,
+  "logA": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  },
+  "logB": {
+   "console": [
+    "warning: Unrecognized feature: 'pointer-lock'.",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <path> attribute d: Expected number, \"Mz\".",
+    "error: Error: <ellipse> attribute cx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute cy: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute rx: Expected length, \"NaN\".",
+    "error: Error: <ellipse> attribute ry: Expected length, \"NaN\".",
+    "error: Error: <path> attribute d: Expected number, \"MNaN NaNQNaN NaN …\".",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "pageerror": [],
+   "failed": [],
+   "status": [
+    "404 http://localhost:5391/api/objects/0f8285fea7defa1ccb8b8c34063fe144bd4d5455670e4b767fc822bec19c37de",
+    "404 http://localhost:5391/api/objects/ad93b490255f7be79ae99213a76e3de7751cd2b222fd2e4a89fac2f746f06f7f"
+   ]
+  }
+ }
+]
