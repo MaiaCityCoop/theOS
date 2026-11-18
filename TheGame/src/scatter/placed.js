@@ -15,7 +15,7 @@
 //     over as before (src/detail/handover.js: of one piece, half way). Its far card (an impostor: 11 MB a kind) is the
 //     drawer's dot: one triangle that covers what its coarsest level does, in its mean colour;
 //   - its body is the one collision engine's (src/world/bodies.js), found in the same order: the places round a point.
-// stand(asset, at) puts a place in (src/main.js: world/places.js); `?many=N` stands N more round the meadow, to measure
+// stand(asset, at) puts a place in (src/boot.js: world/places.js); `?many=N` stands N more round the meadow, to measure
 // (the list's room is set at the start: as many as `many` asks, and four thousand besides).
 import * as THREE from 'three/webgpu';
 import { Fn, If, float, uint, vec3, vec4, uniform, varyingProperty, normalize, mix, fract, dFdx, dFdy } from 'three/tsl';

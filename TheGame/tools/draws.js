@@ -1,4 +1,4 @@
-// What a frame of the game asks of the GPU, counted. Switched on by `?draws` in the address (src/main.js), before the
+// What a frame of the game asks of the GPU, counted. Switched on by `?draws` in the address (src/boot.js), before the
 // first pipeline is made; then, in the game's console: `await __draws.frame()` ->
 //   { passes, draws: { direct, indexed, indirect, indexedIndirect }, buffers: { direct, indexed, indirect, indexedIndirect } }
 // passes: its render passes; draws: its draw calls by kind; buffers: of each kind, those whose pipeline reads at least

@@ -10,7 +10,7 @@
 //     createOwn?(scene, tex, ground, gpu, renderer) -> tiers,   what it places of its own, no asset of the library (stress.js, herds.js)
 //     // for the asset library (library.html), each as the engine sees fit:
 //     thumb?(tex, row) -> { things, eye, look },       its picture for the list
-//     stage?(tex, row, { x, z, heightAt, ground, level, seed, … }) -> Object3D,   how it stands on the stage
+//     stage?(tex, row, { x, z, heightAt, studio, level, seed, … }) -> Object3D,   how it stands on the stage (studio: src/stage/studio.js)
 //     frame?(asset, opts) -> { height, dist, pitch, span },   how the camera frames it there
 //   }
 import { U } from '../core/uniforms.js';
@@ -24,7 +24,7 @@ import { flag } from '../core/flags.js';
 import { occlusion } from '../core/occlusion.js';
 
 // (the stress stand and the herds are tools that measure: loaded only where the address asks for them, `?stress`,
-// `?herds=N`, as the bench and the flyby are: src/main.js)
+// `?herds=N`, as the bench and the flyby are: src/boot.js)
 const FOUND = import.meta.glob(['./*.js', '!./index.js', '!./*.worker.js', '!./stress.js', '!./herds.js'], { eager: true });   // (whole modules: a named import would fail where a module has none)
 const TOOLS = await Promise.all([flag('stress') && import('./stress.js'), flag('herds') && import('./herds.js')].filter(Boolean));
 export const ENGINES = Object.fromEntries([...Object.values(FOUND), ...TOOLS].map((m) => m.engine).filter(Boolean).map((e) => [e.id, e]));

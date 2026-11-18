@@ -6,11 +6,13 @@ import { HMIN, HMAX, heightAt, riverAt } from '../world/land.js';
 import { boxIn } from '../core/frustum.js';
 import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, R0, FINE } from './material.js';
-import { createLayers } from './layers.js';
+import { createLayers, LAYERS } from './layers.js';
 import { waterMaterial } from './water.js';
+import { usedMaterials } from '../materials/bake.js';
+import { recipes } from '../core/registry.js';
 
 const S0 = 8;               // a level-0 node's side, metres (0.5 m quads)
-const LEVELS = 10;          // the top level reaches R0 * 2^9 = 24.6 km
+const LEVELS = 10;          // the top level reaches R0 * 2^9 = 24.6 km (a land drawn less far: fewer, `reach`)
 const CAP = 4096 * FINE * FINE, WCAP = 1024 * FINE * FINE;   // (?truth's finer land: as many more nodes as its levels reach further, squared)
 const WATER_LEVELS = 6;
 
@@ -26,7 +28,13 @@ function gridGeometry() {
   return { pos: new THREE.BufferAttribute(pos, 3), idx: new THREE.BufferAttribute(idx, 1) };
 }
 
-export function createTerrain(scene, tex, renderer) {
+/** The materials the land wears (every biome's, its layers' grounds, the grass's carpet, the water's floor, the noises
+    the land is laid by): what a start that draws the land and nothing on it paints first (src/boot.js: the stage). */
+export const landMaterials = () => [...usedMaterials(recipes('biome')), ...LAYERS.flatMap((L) => (L.ground ? [L.ground.material] : []))];
+
+/** The land and its water in `scene`. reach: metres from the eye the land is drawn to, at most (it ends in the air,
+    src/world/light.js: airOf); by default to the horizon. */
+export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   const layers = createLayers(renderer, tex);   // where the ground's layers lie, round the camera (src/terrain/layers.js)
   const { pos, idx } = gridGeometry();
   const make = (cap) => {
@@ -46,9 +54,9 @@ export function createTerrain(scene, tex, renderer) {
   waterMesh.renderOrder = 20;
   scene.add(landMesh, waterMesh);
 
-  const range = [], range2 = [];   // (each level's reach; under ?truth FINE times as far, but the last's: the land ends where it always does)
-  for (let i = 0; i < LEVELS; i++) { range.push(R0 * 2 ** i * (i < LEVELS - 1 ? FINE : 1)); range2.push(range[i] * range[i]); }
-  const TOP = S0 * 2 ** (LEVELS - 1);
+  const range = [], range2 = [], levels = Math.min(LEVELS, Math.max(1, Math.ceil(Math.log2(reach / R0)) + 1));   // (each level's reach; under ?truth FINE times as far, but the last's: the land ends where it always does)
+  for (let i = 0; i < levels; i++) { range.push(R0 * 2 ** i * (i < levels - 1 ? FINE : 1)); range2.push(range[i] * range[i]); }
+  const TOP = S0 * 2 ** (levels - 1);
   let cx = 0, cz = 0, dy2 = 0, inv2 = 1;
 
   function inView(x, z, size, level) {
@@ -91,7 +99,7 @@ export function createTerrain(scene, tex, renderer) {
       layers.update(camera);
       cx = camera.position.x; cz = camera.position.z; dy2 = uDy * uDy; inv2 = lodInv * lodInv;
       land.n = water.n = 0;
-      const top = LEVELS - 1, R = Math.min(range[top] / lodInv, camera.far);
+      const top = levels - 1, R = Math.min(range[top] / lodInv, camera.far);
       U.uLandEnd.value = R;
       const i0 = Math.floor((cx - R) / TOP), i1 = Math.floor((cx + R) / TOP), j0 = Math.floor((cz - R) / TOP), j1 = Math.floor((cz + R) / TOP);
       for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) select(i * TOP, j * TOP, TOP, top);
