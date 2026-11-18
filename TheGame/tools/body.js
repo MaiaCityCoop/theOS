@@ -18,6 +18,7 @@ import { prepare } from '../characters/kit/skeleton/mesh.js';
 import { musclesOf } from '../characters/kit/muscles/build.js';
 import { skinOf } from '../characters/kit/skin/build.js';
 import { rigOf, turnsOf, poseOf } from '../characters/kit/skeleton/pose.js';
+import { EYE, LIPS } from '../characters/kit/skin/table.js';
 
 /** Five poses the skin is tried in (the rig's plain moves: characters/kit/skeleton/pose.js). */
 export const POSES = {
@@ -27,9 +28,10 @@ export const POSES = {
   'bent forwards': { loins: [0.7, 0, 0], chest: [0.3, 0, 0], 'arm.L': [1.2, 0, 0], 'arm.R': [1.2, 0, 0] },
   squat: { 'knee.L': 2.3, 'knee.R': 2.3, 'hip.L': [1.9, 0.2, 0], 'hip.R': [1.9, 0.2, 0], 'fist.L': 1, head: [0, 0.9, 0] },
 };
-/** The stills: the body from four sides, close, and in the five poses (the address of tools/body.html each). */
+/** The stills: the body from four sides, the face from three and its eye and mouth close, the body close, and in the five poses (the address of tools/body.html each). */
 export const VIEWS = {
   front: 'yaw=0', 'three-quarter': 'yaw=35', side: 'yaw=90', back: 'yaw=180',
+  face: 'yaw=0&y=1.665&d=0.62', 'face, three-quarter': 'yaw=35&y=1.665&d=0.62', 'face, side': 'yaw=90&y=1.665&d=0.62', eye: 'yaw=12&y=1.677&x=0.032&z=0.07&d=0.2', mouth: 'yaw=15&y=1.62&z=0.08&d=0.26',
   torso: 'yaw=20&y=1.25&d=1.5', 'back, close': 'yaw=200&y=1.2&d=1.6', head: 'yaw=25&y=1.66&d=0.7', hand: 'yaw=60&y=0.78&x=0.22&d=0.6', legs: 'yaw=20&y=0.5&d=1.6', foot: 'yaw=40&y=0.06&x=0.09&z=0.05&d=0.8&pitch=25',
   ...Object.fromEntries(Object.entries(POSES).map(([name, pose], i) => [name, ['yaw=40&d=4', 'yaw=10&d=4.6&y=1', 'yaw=60&d=4', 'yaw=70&d=4', 'yaw=50&d=4'][i] + '&pose=' + encodeURIComponent(JSON.stringify(pose))])),
 };
@@ -117,14 +119,43 @@ const bends = Object.entries(POSES).map(([name, moves]) => {
 });
 
 const levels = [['near', S.fine], ['middle', S.coarse], ['far', S.far]].map(([name, tri], i) => ({ name, triangles: tri.length / 3, ...closed(tri), off: +(S.off[i] * 1000).toFixed(2) }));
-const out = { seconds: { muscles: +tM, skin: +tS }, points: P.length / 3, cage: S.counts.cage, joints: S.counts.joints, levels, litres: +(volume(S.fine) * 1000).toFixed(1), turn: turnOf(P, S.attr.nor, S.fine), measures: rows, bends };
+// ── the face's measures (mm), read off the skin's points: a breadth or a length is how far the head's points reach
+// along an axis inside a box; the profile is the points on the middle plane, from the brow down. What a man's head
+// measures, all as remembered, none read for this: its length and breadth, across the cheekbones and the jaw's angles
+// and from the nose's root to the chin's foot, the US Army's survey of men (ANSUR: head length 197, head breadth 152,
+// bizygomatic breadth 140, bigonial breadth 119, menton to sellion 122; Farkas's jaw, pressed to the bone, is 106); the
+// nose, the lips and the eyes, Farkas 1994, "Anthropometry of the Head and Face" (young men's means). The eye's
+// opening and the mouth's breadth are drawn lines (characters/kit/skin/table.js EYE, LIPS), so theirs are the table's.
+const faceRows = (() => {
+  const n = P.length / 3, head = []; for (let v = 0; v < n; v++) if (part(v) === PART.head) head.push(v);
+  const reach = (axis, [y0, y1], [z0, z1] = [-1, 1]) => { let lo = Infinity, hi = -Infinity; for (const v of head) { const y = P[v * 3 + 1], z = P[v * 3 + 2]; if (y < y0 || y > y1 || z < z0 || z > z1) continue; lo = Math.min(lo, P[v * 3 + axis]); hi = Math.max(hi, P[v * 3 + axis]); } return (hi - lo) * 1000; };
+  const mid = head.filter((v) => Math.abs(P[v * 3]) < 1e-4 && P[v * 3 + 2] > 0.05).map((v) => [P[v * 3 + 1], P[v * 3 + 2]]).sort((a, b) => b[0] - a[0]);   // (the profile: [height, how far forward], from the top down)
+  const between = (y0, y1) => mid.filter(([y]) => y >= y0 && y <= y1), most = (list, k, sign = 1) => list.reduce((a, b) => (sign * b[k] > sign * a[k] ? b : a));
+  const root = most(between(1.672, 1.698), 1, -1), tip = most(between(1.632, 1.652), 1), lip = between(1.615, tip[0]), least = Math.min(...lip.map(([, z]) => z)), foot = most(lip.filter(([, z]) => z < least + 0.0045), 0);   // (the nose's root: the profile's deepest point under the brow; its foot: where the upper lip's flat ends under it)
+  const chin = most(between(1.5, 1.6), 0, -1), E = EYE, L = LIPS;
+  const R = (what, is, man, drawn = false) => ({ what: what + (drawn ? ' (as drawn)' : ''), is: +is.toFixed(1), man, off: +(((is - man) / man) * 100).toFixed(1) });
+  return [
+    R('head, its length', reach(2, [1.692, 1.708]), 197), R('head, its breadth', reach(0, [1.712, 1.74], [-0.08, 0]), 152),
+    R('face, across the cheekbones', reach(0, [1.652, 1.668], [0.01, 1]), 140), R('jaw, across its angles', reach(0, [1.59, 1.6], [-0.012, 0.03]), 119),
+    R("face, the nose's root to the chin's foot", (root[0] - chin[0]) * 1000, 122), R("nose, its root to its foot", (root[0] - foot[0]) * 1000, 55),
+    R('nose, its breadth', reach(0, [1.632, 1.642], [0.098, 1]), 35), R('nose, its tip before its foot', (tip[1] - foot[1]) * 1000, 19.5),
+    R("upper lip, the nose's foot to where the lips part", (foot[0] - L.at[1]) * 1000, 22, true), R('mouth, its breadth', L.half * 2000, 54, true),
+    R("eye, its opening's length", Math.hypot(E.outer[0] - E.inner[0], E.outer[1] - E.inner[1]) * 1000, 31, true), R("eye, its opening's height", (E.upper[0] + E.lower[0]) * 1000, 10.5, true),
+    R("between the eyes' inner corners", (E.at[0] + E.inner[0]) * 2000, 33, true), R("between the eyes' outer corners", (E.at[0] + E.outer[0]) * 2000, 91, true),
+  ];
+})();
+
+const out = { seconds: { muscles: +tM, skin: +tS }, points: P.length / 3, cage: S.counts.cage, joints: S.counts.joints, levels, litres: +(volume(S.fine) * 1000).toFixed(1), turn: turnOf(P, S.attr.nor, S.fine), measures: rows, face: faceRows, bends, headCover: S.headCover };
 if (json) console.log(JSON.stringify(out, null, 1));
 else {
   say(`The skin: ${out.points} points on a cage of ${out.cage}, hung on ${out.joints} joints; laid in ${tS} s (the muscles ${tM} s before it); ${out.litres} litres.`);
   for (const l of levels) say(`  ${l.name.padEnd(7)} ${String(l.triangles).padStart(7)} triangles, open edges ${l.open}, edges of more than two faces ${l.many}, off the finest by ${l.off} mm`);
+  if (S.headCover) say(`  the head's bones lie at least ${S.headCover.mm} mm under its skin (least at ${S.headCover.at?.map((x) => x.toFixed(3)).join(', ')})`);
   say(`  over the trunk and the limbs its normal turns ${out.turn.middle.toFixed(2)}° a centimetre of skin (the middle one), ${out.turn.most.toFixed(1)}° where it turns most (one in twenty more)`);
   say('  measure'.padEnd(36) + 'is'.padStart(7) + 'a man'.padStart(8) + '   off');
   for (const r of rows) say('  ' + r.what.padEnd(34) + (r.is + ' cm').padStart(9) + (r.man + ' cm').padStart(8) + ((r.off > 0 ? '+' : '') + r.off + ' %').padStart(9));
+  say('  the face'.padEnd(52) + 'is'.padStart(7) + 'a man'.padStart(9) + '   off');
+  for (const r of faceRows) say('  ' + r.what.padEnd(50) + (r.is + ' mm').padStart(9) + (r.man + ' mm').padStart(9) + ((r.off > 0 ? '+' : '') + r.off + ' %').padStart(9));
   say('  pose'.padEnd(20) + 'an edge of the skin stretched at most, squeezed at most; edges stretched by more than half');
   for (const b of bends) say('  ' + b.pose.padEnd(18) + ('x ' + b.most).padStart(8) + ('x ' + b.least).padStart(9) + (b.over + ' %').padStart(10));
 }

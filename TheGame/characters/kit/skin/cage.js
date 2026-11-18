@@ -121,7 +121,7 @@ export function cageOf(T, { only = null } = {}) {
   const armpit = J('upperArm.L')[1] - 0.105;   // (the armpit's top: a hand's breadth under the shoulder's joint)
   const crotch = J('thigh.L')[1] - 0.105;   // (the crotch: a hand's breadth under the hips' joints; below it each leg is its own, on its own side of the middle)
   const levels = (from, to, stepAt) => { const out = []; for (let y = from; y > to + 1e-6; y -= stepAt(y)) out.push(y); return out; };
-  const headYs = levels(crown - 0.016, 1.555, (y) => (y > crown - 0.06 ? 0.016 : y > 1.725 ? 0.02 : 0.0125));
+  const headYs = levels(crown - 0.016, 1.555, (y) => (y > crown - 0.06 ? 0.016 : y > 1.728 ? 0.018 : 0.0066));   // (the face's rings 6.6 mm apart: its features are finer than the body's)
   const neckYs = levels(headYs.at(-1) - 0.0125, 1.525, () => 0.0125);
   const shoulderYs = [1.52, 1.51, 1.50, 1.49, 1.48, 1.47, 1.46, 1.445, 1.425, 1.40, 1.37].filter((y) => y < neckYs.at(-1) - 0.004 && y > armpit + 0.02);
   const trunkYs = levels(armpit - 0.03, crotch + 0.012, (y) => (y > crotch + 0.09 ? 0.03 : 0.025));
@@ -147,24 +147,27 @@ export function cageOf(T, { only = null } = {}) {
     return { c, O, P: p / 2, Q: q / 2 };
   })();
   const iP = (NT / 2 - KA) / 2, iQ = H / 2 - iP;   // (on a ring of H: the fold before the arm, the fold behind it)
-  const evenH = even(H / 2), foldShares = (O, t) => { const h = held(O, H / 2, [[iP, split.P], [iQ, split.Q]]); return h.map((s, i) => evenH[i] + (s - evenH[i]) * t); };
+  // (round the head the points stand nearer together in front, where the face is: each gap a little wider than the one
+  // before it, from 5 mm at the nose to 2 cm at the back of the head; down the neck they come to stand evenly)
+  const evenH = even(H / 2), faceH = evenH.map((u) => (Math.exp(1.6 * u) - 1) / (Math.exp(1.6) - 1)), headShares = (y) => { const k = smooth01((y - 1.49) / 0.07); return evenH.map((s, i) => s + (faceH[i] - s) * k); };
+  const foldShares = (O, t, y) => { const h = held(O, H / 2, [[iP, split.P], [iQ, split.Q]]), base = headShares(y); return h.map((s, i) => base[i] + (s - base[i]) * t); };
   const rows = [];   // (the rings from the crown down, each a list of H points)
   if (!only || only.includes('body')) {
-    for (const y of headYs) rows.push(halfRing(body, y, H / 2, evenH, 'head', { soft: 1, thick: 0.004, z0: -0.01 }));
-    for (const y of neckYs) rows.push(halfRing(body, y, H / 2, evenH, 'head', { soft: 3, thick: 0.005 }));
+    for (const y of headYs) rows.push(halfRing(body, y, H / 2, headShares(y), 'head', { soft: 1.2, thick: 0.0033, z0: -0.01 }));
+    for (const y of neckYs) rows.push(halfRing(body, y, H / 2, headShares(y), 'head', { soft: 3, thick: 0.005 }));
     // (over the shoulders the points go from evenly spaced, at the neck, to held at the armpit's folds)
-    for (const y of shoulderYs) { const t = smooth01((neckYs.at(-1) - y) / (neckYs.at(-1) - armpit)); rows.push(halfRing(both, y, H / 2, (O) => foldShares(O, t), (i) => (i > iP && i < iQ && y < 1.47 ? 'arm' : 'trunk'), { soft: 2, thick: 0.004 })); }
+    for (const y of shoulderYs) { const t = smooth01((neckYs.at(-1) - y) / (neckYs.at(-1) - armpit)); rows.push(halfRing(both, y, H / 2, (O) => foldShares(O, t, y), (i) => (i > iP && i < iQ && y < 1.47 ? 'arm' : 'trunk'), { soft: 2, thick: 0.004 })); }
     const S0 = across(held(split.O, H / 2, [[iP, split.P], [iQ, split.Q]]).map((f) => split.O.atFrac(f)), (i) => (i > iP && i < iQ ? 'arm' : 'trunk'));
     rows.push(S0);
     // Under the chin: the jaw overhangs the throat, and level rings cannot draw an overhang: the ring under the chin
     // would stand five centimetres behind the one above it, the faces between them one long ledge with a crease at
-    // each end. So before the throat and under the jaw's sides a ring's points stand back from the ring above by no more than 1.4
-    // times the height between them: the floor of the mouth a slope from the chin to the throat, as it is seen
-    // from the front on a man who holds his head level. (Round to behind the jaw's angle; only where the lower ring
+    // each end. So before the throat and under the jaw's sides a ring's points stand back from the ring above by no more than six
+    // times the height between them: the floor of the mouth a shallow slope from the chin's foot to the throat (a man's
+    // is near level; at 2.2 times, as it was, the chin ran into the throat as a wedge and the neck measured 45 cm round). (Round to behind the jaw's angle; only where the lower ring
     // stands inside the upper.)
     for (let r = 1; r < rows.length; r++) {
       const y = P[rows[r][0]][1]; if (y > 1.585 || y < 1.5) continue;
-      for (const i of [...Array(Math.round(H / 3.4) + 1).keys()]) { const a = P[rows[r - 1][i]], b = P[rows[r][i]], dx = b[0] - a[0], dz = b[2] - a[2], d = Math.hypot(dx, dz), most = 1.4 * (a[1] - b[1]); if (d > most && Math.hypot(b[0], b[2] + 0.02) < Math.hypot(a[0], a[2] + 0.02)) { b[0] = a[0] + (dx * most) / d; b[2] = a[2] + (dz * most) / d; if (i > 0) { const t = P[twin[rows[r][i]]]; t[0] = -b[0]; t[2] = b[2]; } } }
+      for (const i of [...Array(Math.round(H / 3.4) + 1).keys()]) { const a = P[rows[r - 1][i]], b = P[rows[r][i]], dx = b[0] - a[0], dz = b[2] - a[2], d = Math.hypot(dx, dz), most = 6 * (a[1] - b[1]); if (d > most && Math.hypot(b[0], b[2] + 0.02) < Math.hypot(a[0], a[2] + 0.02)) { b[0] = a[0] + (dx * most) / d; b[2] = a[2] + (dz * most) / d; if (i > 0) { const t = P[twin[rows[r][i]]]; t[0] = -b[0]; t[2] = b[2]; } } }
     }
     for (let i = 0; i < rows.length - 1; i++) band(rows[i], rows[i + 1], whole);
     // the crown: the first ring closed by a patch of squares, H/4 a side, its points on the scalp over them

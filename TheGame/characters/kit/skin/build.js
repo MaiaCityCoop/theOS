@@ -10,8 +10,9 @@
 //     joints   the joints the skin hangs on: each its name in the rig and where it stands at rest
 //     pos      its points, on the smooth surface itself
 //     attr     to each point: the four joints it hangs on (their numbers in `joints`) and its share on each; its normal standing (the smooth
-//              surface's own); `look`: how open it stands, how much of it is a lip, a nail, an areola; `feel`: how
-//              sharply the skin curves there (1/m), how thick the body is under it (m), which piece it is of;
+//              surface's own); `look`: how open it stands, (nothing), how much of it is a nail, an areola; `feel`: how
+//              sharply the skin curves there (1/m), how thick the body is under it (m), which piece it is of, how
+//              much shaved hair shadows it;
 //              `bent`: the way most of its light comes from, and the cosine of half the width of that cone; `tone`:
 //              its blood, its pigment, its oil, its veins (./table.js TONE)
 //     maps     two small pictures the skin's light is read from (./maps.js): how light spreads under skin, by how
@@ -82,7 +83,10 @@ export function skinOf(bones, M, { h = 0.006 } = {}) {
     // (a moved point's normal: its faces' as they now lie, as much as it was moved; an unmoved one keeps the smooth surface's own)
     const G = new Float32Array(n * 3), Q = m2.faces;
     for (let f = 0; f < Q.length; f += 4) { const a = at(Q[f]), b = at(Q[f + 1]), c = at(Q[f + 2]), d = at(Q[f + 3]), g = cross(sub(c, a), sub(d, b)); for (let i = 0; i < 4; i++) { const v = Q[f + i] * 3; G[v] += g[0]; G[v + 1] += g[1]; G[v + 2] += g[2]; } }
-    for (let v = 0; v < n; v++) { if (!moved[v]) continue; const g = norm([G[v * 3], G[v * 3 + 1], G[v * 3 + 2]]), k = moved[v], m = norm([nor[v * 3] + (g[0] - nor[v * 3]) * k, nor[v * 3 + 1] + (g[1] - nor[v * 3 + 1]) * k, nor[v * 3 + 2] + (g[2] - nor[v * 3 + 2]) * k]); nor.set(m, v * 3); }
+    // (the head's: the way its form's own surface faces there. Its faces lie askew where a ring of the cage with the
+    // nose or the lips on it meets one without, and their normals showed that as streaks across the cheek)
+    const slopeOf = (p, e = 0.002) => norm([S.body([p[0] + e, p[1], p[2]]) - S.body([p[0] - e, p[1], p[2]]), S.body([p[0], p[1] + e, p[2]]) - S.body([p[0], p[1] - e, p[2]]), S.body([p[0], p[1], p[2] + e]) - S.body([p[0], p[1], p[2] - e])]);
+    for (let v = 0; v < n; v++) { if (!moved[v]) continue; const g = part[v] === P_.head ? slopeOf(at(v)) : norm([G[v * 3], G[v * 3 + 1], G[v * 3 + 2]]), k = moved[v], m = norm([nor[v * 3] + (g[0] - nor[v * 3]) * k, nor[v * 3 + 1] + (g[1] - nor[v * 3 + 1]) * k, nor[v * 3 + 2] + (g[2] - nor[v * 3 + 2]) * k]); nor.set(m, v * 3); }
   }
 
   // ── each point fastened to its bones ────────────────────────────────────────────────────────────────────────
@@ -138,17 +142,21 @@ export function skinOf(bones, M, { h = 0.006 } = {}) {
   }
   // (evened out with its neighbours' twice: forty rays a point leave a grain that would show as blotches at a shade's edge)
   { const nb = Array.from({ length: n1 }, () => []), Q = m1.faces; for (let f = 0; f < Q.length; f += 4) for (let i = 0; i < 4; i++) nb[Q[f + i]].push(Q[f + (i + 1) % 4]);
-    for (let it = 0; it < 2; it++) { const o = open.slice(0, n1), w = own.slice(0, n1), b = bent.slice(0, n1 * 3); for (let v = 0; v < n1; v++) { let so = o[v], sw = w[v], sb = [b[v * 3], b[v * 3 + 1], b[v * 3 + 2]]; for (const u of nb[v]) { so += o[u]; sw += w[u]; sb[0] += b[u * 3]; sb[1] += b[u * 3 + 1]; sb[2] += b[u * 3 + 2]; } open[v] = so / (nb[v].length + 1); own[v] = sw / (nb[v].length + 1); bent.set(norm(sb), v * 3); } } }
+    // (twice; the head's twice more: a face is looked at close, and at the edge of its own shade what is left of the rays' grain showed as lines)
+    for (let it = 0; it < 4; it++) { const o = open.slice(0, n1), w = own.slice(0, n1), b = bent.slice(0, n1 * 3); for (let v = 0; v < n1; v++) { if (it >= 2 && part[v] !== P_.head) continue; let so = o[v], sw = w[v], sb = [b[v * 3], b[v * 3 + 1], b[v * 3 + 2]]; for (const u of nb[v]) { so += o[u]; sw += w[u]; sb[0] += b[u * 3]; sb[1] += b[u * 3 + 1]; sb[2] += b[u * 3 + 2]; } open[v] = so / (nb[v].length + 1); own[v] = sw / (nb[v].length + 1); bent.set(norm(sb), v * 3); } } }
   { const { points, ea, eb } = m2.from, Q = m1.faces, mean = (to, vs) => { let o = 0, m = 0, w = [0, 0, 0]; for (const v of vs) { o += open[v] / vs.length; m += own[v] / vs.length; w[0] += bent[v * 3]; w[1] += bent[v * 3 + 1]; w[2] += bent[v * 3 + 2]; } open[to] = o; own[to] = m; bent.set(norm(w), to * 3); };
     for (let e = 0; e < ea.length; e++) mean(points + e, [ea[e], eb[e]]);
     for (let f = 0; f < Q.length / 4; f++) mean(points + ea.length + f, [Q[f * 4], Q[f * 4 + 1], Q[f * 4 + 2], Q[f * 4 + 3]]); }
 
   // ── what each point is and how it stands ────────────────────────────────────────────────────────────────────
   const attr = { bone: new Float32Array(n * 4), weight: new Float32Array(n * 4), nor, look: new Float32Array(n * 4), feel: new Float32Array(n * 4), bent: new Float32Array(n * 4), tone: new Float32Array(n * 4) };
-  const lips = MARKS[0], areola = MARKS[1], within = (q, m) => Math.sqrt(((q[0] - m.at[0]) / m.r[0]) ** 2 + ((q[1] - m.at[1]) / m.r[1]) ** 2 + ((q[2] - m.at[2]) / m.r[2]) ** 2);
+  const areola = MARKS[0], within = (q, m) => Math.sqrt(((q[0] - m.at[0]) / m.r[0]) ** 2 + ((q[1] - m.at[1]) / m.r[1]) ** 2 + ((q[2] - m.at[2]) / m.r[2]) ** 2);
   // (how sharply the surface curves at each point: the mean of how fast its normal turns towards each neighbour)
   const curve = new Float32Array(n), cn = new Uint8Array(n);
   { const Q = m2.faces; for (let f = 0; f < Q.length; f += 4) for (let i = 0; i < 4; i++) { const a = Q[f + i], b = Q[f + (i + 1) % 4], d = sub(at(b), at(a)), l2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2]; if (l2 < 1e-12) continue; const k = ((nor[b * 3] - nor[a * 3]) * d[0] + (nor[b * 3 + 1] - nor[a * 3 + 1]) * d[1] + (nor[b * 3 + 2] - nor[a * 3 + 2]) * d[2]) / l2; curve[a] += k; curve[b] += k; cn[a]++; cn[b]++; } }
+  // (evened with its neighbours' twice: measured along edges, it wavers from row to row where the faces lie askew, and
+  // the light under the skin, read by it, showed the rows at the shade's edge)
+  { const Q = m2.faces; for (let v = 0; v < n; v++) if (cn[v]) curve[v] /= cn[v]; for (let it = 0; it < 2; it++) { const acc = Float32Array.from(curve), cnt = new Uint8Array(n).fill(1); for (let f = 0; f < Q.length; f += 4) for (let i = 0; i < 4; i++) { const a = Q[f + i], b = Q[f + (i + 1) % 4]; acc[a] += curve[b]; cnt[a]++; acc[b] += curve[a]; cnt[b]++; } for (let v = 0; v < n; v++) curve[v] = acc[v] / cnt[v]; } }
   // (the skin's tone at a place of the left side, ./table.js TONE: each list's places, each as much as the point is within its reach)
   const toneOf = (list, q) => { let t = 0; for (const [, c, reach, much] of list) { const d2 = ((q[0] - c[0]) ** 2 + (q[1] - c[1]) ** 2 + (q[2] - c[2]) ** 2) / (reach * reach); if (d2 < 9) t += much * Math.exp(-d2); } return t; };
   const low = new Map();
@@ -157,17 +165,17 @@ export function skinOf(bones, M, { h = 0.006 } = {}) {
     for (let j = 0; j < 4; j++) { attr.bone[v * 4 + j] = hv[j]?.joint ?? 0; attr.weight[v * 4 + j] = hv[j]?.w ?? 0; }
     const q = [Math.abs(p[0]), p[1], p[2]], rigA = B.joints[hv[0].joint].rig;
     // (each a share, soft at its edge: the lips' red over a millimetre or two, the areola's over a little more)
-    const lip = 1 - smooth01((within(q, lips) - 0.88) / 0.14), are = q[2] > T.nip[2] - 0.012 ? 1 - smooth01((Math.hypot(q[0] - T.nip[0], q[1] - T.nip[1]) / areola.r[0] - 0.8) / 0.3) : 0;
+    const are = q[2] > T.nip[2] - 0.012 ? 1 - smooth01((Math.hypot(q[0] - T.nip[0], q[1] - T.nip[1]) / areola.r[0] - 0.8) / 0.3) : 0;
     const nail = ARMS(part[v]) || part[v] === P_.leg ? T.nailAt(p, nrm) : 0;
     // (and what stands close by it, nearer than the rays begin: the web between two fingers, the fold beside the nose)
     const close = Math.max(0, 1 - S.any(add(p, mul(nrm, 0.012))) / 0.0075);
-    attr.look.set([Math.max(0.12, open[v] * (1 - 0.6 * close)), lip, nail, are], v * 4);
+    attr.look.set([Math.max(0.12, open[v] * (1 - 0.6 * close)), 0, nail, are], v * 4);
     // (the cone its light comes from: its middle, and the cosine of its half width; open all round, a quarter turn)
     attr.bent.set([bent[v * 3], bent[v * 3 + 1], bent[v * 3 + 2], Math.sqrt(Math.max(0, 1 - own[v]))], v * 4);
     // how thick the body is under it: straight in, to where the ray leaves it again (a finger, an ear, the nose's wing)
     // (from where the ray is first inside the body: the smooth skin may lie a hair outside the shape it was fitted to)
     let thick = 0.05, inside = -1; for (let t = 0; t < 0.06; t += 0.002) { const f = S.any(sub(p, mul(nrm, t))); if (inside < 0) { if (f < 0) inside = t; else if (t > 0.008) break; } else if (f > 0) { thick = t - inside; break; } }
-    attr.feel.set([cn[v] ? curve[v] / cn[v] : 0, thick, part[v], 0], v * 4);
+    attr.feel.set([curve[v], thick, part[v], Math.min(1, toneOf(TONE.stubble, q))], v * 4);
     // its tone: the blood and the pigment place by place, mottled a little (blotches a hand's breadth and a finger's
     // across); how oily; where veins may show
     const mottle = 0.5 * noise3(p[0] * 9 + 3.7, p[1] * 9, p[2] * 9) + 0.5 * noise3(p[0] * 40, p[1] * 40 + 9.1, p[2] * 40);
@@ -189,6 +197,7 @@ export function skinOf(bones, M, { h = 0.006 } = {}) {
   return {
     joints: B.joints, soles: [...low.values()].map(({ rig, p }) => ({ rig, at: sub(p, RIG[rig].at) })), pos, fine, coarse, far: farTri, off, attr,
     maps: { scatter: scatterMap(), micro: microMap() },
+    headCover: T.headCover,
     counts: { points: n, fine: fine.length / 3, coarse: coarse.length / 3, far: far.length / 3, cage: n0, joints: B.joints.length },
     skin: SKIN / 1000,
   };

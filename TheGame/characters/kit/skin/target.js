@@ -1,4 +1,4 @@
-// The body's shape under its skin, and so the skin's (intents 0036, 0039): where the fat and the skin lie over the
+// The body's shape under its skin, and so the skin's (intents 0036, 0039, 0040): where the fat and the skin lie over the
 // muscles (../muscles/build.js), the bones, the nose's and the ears' gristle and the eyes, as thick as they are place by
 // place (./table.js), opened where the eyes and the nostrils are. A shape, not yet a surface: fields a ray can be sent
 // through (negative inside, metres), which ./cage.js lays the skin's cage on. Plain JS, no three: it runs in the workers
@@ -18,8 +18,11 @@
 // groove narrower than that between muscles is filled, as the fat and the fascia fill it) and softened a little; its
 // large bones, its fills, the nose's and the ears' gristle and the eyes give their own true distances, blended in. The
 // skin is where that is as far out as the fat and the skin are thick there, half way to a man's measured outline
-// (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through.
-import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, NIPPLE, FILL, partOf, PROFILES, MASSES, PALM, CARPUS, THENAR, FINGERS, MOUTH, TOES, RELIEF, LIMB_RELIEF, LOWER_FACE, gapAt } from './table.js';
+// (./table.js PROFILES), the muscles' relief laid on it as much as the fat lets it through. The head alone is not made
+// so: its skin is laid on its own form (./head.js, intent 0040), the nose's and the ears' gristle on it, and the neck
+// runs up into it as a column.
+import { OUTLINE, TISSUE, TISSUE_DEFAULT, UNDER, OPENINGS, NIPPLE, FILL, partOf, PROFILES, MASSES, PALM, CARPUS, THENAR, FINGERS, TOES, RELIEF, LIMB_RELIEF, HEAD, gapAt } from './table.js';
+import { headFormOf } from './head.js';
 import { rigOf } from '../skeleton/pose.js';
 import * as F from '../field.js';
 
@@ -173,21 +176,12 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
     const rho = (Math.abs(x / (x >= 0 ? ro : ri)) ** m.n + Math.abs(y / (y >= 0 ? ru : rd)) ** m.n + Math.abs(z / (z >= 0 ? rf : rb)) ** m.n) ** (1 / m.n);
     return { E: r > 1e-9 ? r * (1 - 1 / rho) : -Math.min(...m.r), w: 0, k: m.k };
   };
-  const EYE = (({ solid: [, at, r] }) => ({ at: [at[0], at[1], at[2] + 0.002], r }))(UNDER.find((u) => u.rig === 'eye'));
-  // (the head's own features over its softened shape: the nose's and the ears' gristle and the eyes sharp, the lips and
-  // the chin, the eye's socket hollowed in front of the ball and the lids round it their own thickness, 1.5 mm)
+  // (the head: its own form, ./head.js, and on it the nose's and the ears' gristle with the skin over it)
+  const headForm = headFormOf();
   const features = (v, qq, t) => {
     let fe = Infinity; for (const u of underFields) fe = Math.min(fe, u.f(qq[0], qq[1], qq[2]));
-    v = smin(v, fe - Math.min(t, 0.003), 0.004);
-    for (const m of headMasses) { const o = m(qq); v = smin(v, o.E, o.k); }
-    const e = sub(qq, EYE.at), cav = Math.hypot(e[0] / 0.019, e[1] / 0.0135, e[2] / 0.0165) - 1;
-    if (cav < 0.5) { v = -smin(-v, Math.max(cav * 0.011, -e[2] - 0.002), 0.006); v = smin(v, Math.hypot(...e) - EYE.r - 0.0015, 0.007); }   // (only in front of the ball's middle)
-    // (the lips part: a slit between them, round the teeth's arch, its corners closing)
-    const mx = qq[0] / MOUTH.half;
-    if (mx < 1.2) { const zc = MOUTH.at[2] - MOUTH.arch * qq[0] ** 2, depth = MOUTH.deep * Math.max(0, 1 - mx * mx), slit = Math.max(Math.abs(qq[1] - MOUTH.at[1]) - MOUTH.gap * Math.max(0.3, 1 - mx * mx), zc - depth - qq[2]); v = Math.max(v, -slit); }
-    return v;
+    return smin(v, fe - Math.min(t, 0.003), 0.004);
   };
-  const headMasses = MASSES.filter((m) => m.part === 'head').map((m) => massOf(m));
   const underFields = UNDER.map((u) => F.fieldOf([{ op: 'add', k: 0, s: solidOf(u.solid) }]));
   // (the trunk's relief, ./table.js RELIEF: how far its skin stands out of the outline at a point of its front or back,
   // m; blocks rounded at their corners and soft at their edges, lines along a segment, each as high as it is)
@@ -219,7 +213,7 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
   // (the bones softened by a centimetre and a half: on the top of the shoulder the acromion and the collarbone's end
   // show through the skin as one smooth rise, not as their own ridges and knobs)
   const exactSoft = Float32Array.from(exact, (v) => Math.min(0.03, v)); blurBox(exactSoft, [nx, ny, nz], 2);
-  const headBase = new Float32Array(NV).fill(1); let restField = null;
+  let restField = null; const cover = { least: -1, at: null };   // (the head's skin over its bones and gristle: where it lies least deep, and how deep (m, negative))
   for (let p = 0; p < PARTS.length; p++) {
     if (p === P_.head) restField = Float32Array.from(field);   // (all but the head: the neck the head's fine skin runs into)
     if (ONLY && !ONLY.includes(PARTS[p])) continue;
@@ -250,12 +244,7 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
     // (the muscles' relief: how far their surface stands out of itself softened over four centimetres: a pectoral's,
     // a rectus's, a deltoid's own shape, not only their edges)
     const pro = profilesOf[p], head = p === P_.head;
-    // (the head: its skull, its muscles, its gristle and its eyes as one field, softened over two centimetres as the
-    // scalp and the face's fat soften what is under them; a little of what stands out of that laid back on, and the
-    // nose's and the ears' gristle and the eyes sharp again over it)
-    const whole = head ? new Float32Array(n) : null;
-    if (head) for (let k = lo[2]; k <= hi[2]; k++) for (let j = lo[1]; j <= hi[1]; j++) for (let i = lo[0]; i <= hi[0]; i++) { const g = I(i, j, k), q = at(i, j, k); whole[q] = exactPart[g] === p ? smin(sd[q], exact[g], 0.005) : sd[q]; }
-    const far = pro.length ? Float32Array.from(sd) : head ? Float32Array.from(whole) : null; if (far) blurBox(far, dims, Math.round((head ? 0.014 : 0.04) / h));
+    const far = pro.length ? Float32Array.from(sd) : null; if (far) blurBox(far, dims, Math.round(0.04 / h));
     // (and softened a little: the skin bridges what is narrower than a centimetre between two bellies)
     const mid = pro.length ? Float32Array.from(sd) : null; if (mid) blurBox(mid, dims, 1);
     for (let k = lo[2]; k <= hi[2]; k++) for (let j = lo[1]; j <= hi[1]; j++) for (let i = lo[0]; i <= hi[0]; i++) {
@@ -263,16 +252,8 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
       const g = I(i, j, k), d = exactPart[g] === p ? smin(sd[at(i, j, k)], exact[g], 0.005) : sd[at(i, j, k)]; if (d > 0.055) continue;
       if (Number.isNaN(tissue[g])) tissue[g] = tissueAt([Math.abs(X(i)), Y(j), Z(k)]);
       let v = d - tissue[g];
-      if (head) {
-        // (only the face's front, the brow, the nose's root, the lips' and the chin's ground, keeps a little of what stands
-        // out: over the cheeks and the jaw's side what the muscles under them leave is bumps the fat smooths away)
-        const q2 = at(i, j, k), qq = [Math.abs(X(i)), Y(j), Z(k)];
-        v = far[q2] + 0.12 * smooth01((qq[2] - 0.07) / 0.03) * (whole[q2] - far[q2]) - tissue[g];
-        // (the neck no fuller than a man's measured outline: from its muscles alone it came out 50 cm round, a man's is 39)
-        // (its nape too, up to the skull's base: behind the ears only, the jaw and the face are the head's own)
-        if (qq[1] < 1.68) { const o = profilesOf[P_.trunk][0](qq), k = o.w * (qq[1] < 1.58 ? 1 : smooth01((-qq[2] - 0.01) / 0.04)); if (k > 0) v += k * (-smin(-v, -o.E, 0.02) - v); }
-        headBase[g] = v; v = features(v, qq, tissue[g]);
-      }
+      // (the head's skin is laid on its own form, not on what its skull and its muscles leave softened: ./head.js)
+      if (head) { const qq = [Math.abs(X(i)), Y(j), Z(k)]; v = features(headForm(qq), qq, tissue[g]); if (exactPart[g] === p && exact[g] < 0 && v > cover.least) { cover.least = v; cover.at = qq; } }
       // (each leg on its own side of the middle: where the knees or the thighs touch, standing, the skin goes round
       // each, and does not bridge them to be torn as they part)
       // (and its inner side as far from the middle as a standing man's is, ./table.js LEG_GAP, rounded: the thighs part below the crotch)
@@ -306,12 +287,12 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
       const fl = ARMS(p) ? fieldA : field, fp = ARMS(p) ? fieldPartA : fieldPart;
       // (the trunk and a leg, or the trunk and the head, run into one another softly, the groin and the neck a fold,
       // not a seam)
-      const was = fp[g], soft = was !== 255 && was !== p && (was === P_.trunk || p === P_.trunk) ? 0.03 : 0;
+      const was = fp[g], soft = was !== 255 && was !== p && (was === P_.trunk || p === P_.trunk) ? (head ? HEAD.neck : 0.03) : 0;
       const old = fl[g], u = soft ? smin(old, v, soft) : Math.min(old, v); if (u < old) { fl[g] = u; if (v < old) fp[g] = p; }
     }
   }
   // the openings carved, the nipples raised
-  const open = F.fieldOf(OPENINGS.map((u) => ({ op: 'add', k: 0.001, s: solidOf(u.solid) })));
+  const open = F.fieldOf(OPENINGS.map((u) => ({ op: 'add', k: 0.001, s: solidOf(u.solid) })));   // (the nostrils, the ears' bowls, the cleft; the eyes' openings are cut as the skin is drawn: ./light.js)
   for (const u of OPENINGS) { const s2 = solidOf(u.solid); for (const sg of [1, -1]) { const lo = [sg > 0 ? s2.lo[0] : -s2.hi[0], s2.lo[1], s2.lo[2]], hi = [sg > 0 ? s2.hi[0] : -s2.lo[0], s2.hi[1], s2.hi[2]]; for (let k = Math.max(0, Math.floor((lo[2] - LO[2]) / h)); k <= Math.min(nz - 1, Math.ceil((hi[2] - LO[2]) / h)); k++) for (let j = Math.max(0, Math.floor((lo[1] - LO[1]) / h)); j <= Math.min(ny - 1, Math.ceil((hi[1] - LO[1]) / h)); j++) for (let i = Math.max(0, Math.floor((lo[0] - LO[0]) / h)); i <= Math.min(nx - 1, Math.ceil((hi[0] - LO[0]) / h)); i++) { const g = I(i, j, k); field[g] = Math.max(field[g], -open.f(Math.abs(X(i)), Y(j), Z(k))); } } }
   const sample = (p, fl = field) => { const fi = (p[0] - LO[0]) / h, fj = (p[1] - LO[1]) / h, fk = (p[2] - LO[2]) / h, i = Math.floor(fi), j = Math.floor(fj), k = Math.floor(fk), u = fi - i, v = fj - j, w = fk - k; let s = 0; for (let n = 0; n < 8; n++) { const a = n & 1, b = (n >> 1) & 1, c = (n >> 2) & 1; s += (a ? u : 1 - u) * (b ? v : 1 - v) * (c ? w : 1 - w) * fl[I(i + a, j + b, k + c)]; } return s; };
   let nip = null;
@@ -321,28 +302,17 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
   // (a grid: its field, its cells' count along each axis, its first corner, its cell)
   const gridOf = (f, n, lo, hc) => ({ f, n, lo, h: hc, I: (i, j, k) => i + n[0] * (j + n[1] * k), sample: (p) => { const fi = (p[0] - lo[0]) / hc, fj = (p[1] - lo[1]) / hc, fk = (p[2] - lo[2]) / hc, i = Math.max(0, Math.min(n[0] - 2, Math.floor(fi))), j = Math.max(0, Math.min(n[1] - 2, Math.floor(fj))), k = Math.max(0, Math.min(n[2] - 2, Math.floor(fk))), u = fi - i, v = fj - j, w = fk - k; let s = 0; for (let m = 0; m < 8; m++) { const a = m & 1, b = (m >> 1) & 1, c = (m >> 2) & 1; s += (a ? u : 1 - u) * (b ? v : 1 - v) * (c ? w : 1 - w) * f[i + a + n[0] * (j + b + n[1] * (k + c))]; } return s; } });
   // ── the head drawn finer: its features (the lids, the lips, the nostrils, the ears) are a few millimetres, finer than
-  // the body's cells. On cells a third as large, over the head and the top of the neck: its softened shape read from
-  // the body's grid (smooth: it reads true between the cells), its features laid on again, the openings carved, run
-  // into the neck as the body's grid runs it
+  // the body's cells. On cells a third as large, over the head and the top of the neck: its form read where each cell
+  // is (one side; the other its mirror), the gristle laid on, the openings carved, run into the neck softly
   const GB = gridOf(field, [nx, ny, nz], LO, h), GA = gridOf(fieldA, [nx, ny, nz], LO, h);
-  const HF = h / 3, HLO = [-0.105, 1.51, -0.135], HN = [Math.ceil(0.21 / HF) + 1, Math.ceil(0.32 / HF) + 1, Math.ceil(0.3 / HF) + 1];
-  // (the lower face set back, ./table.js LOWER_FACE: its shape read from further forward, so it stands further back)
-  const warpFace = (q) => {
-    const W = LOWER_FACE, y = q[1], ax = Math.abs(q[0]);
-    const wy = y > W.top ? 0 : y > W.mouth ? (W.lips / W.chin) * smooth01((W.top - y) / (W.top - W.mouth)) : y > W.chinAt ? W.lips / W.chin + (1 - W.lips / W.chin) * smooth01((W.mouth - y) / (W.mouth - W.chinAt)) : 1;
-    const w = wy * (1 - smooth01((ax - W.half) / (W.side - W.half))) * smooth01((q[2] - W.back) / (W.front - W.back));
-    // (and the jaw's front curved round from the chin: set back the more the further from the middle, to the jaw's side)
-    const jw = smooth01((ax - W.jawIn) / (W.jawOut - W.jawIn)) * (1 - smooth01((ax - W.jawOut) / (W.jawFade - W.jawOut))) * smooth01((W.jawTop - y) / (W.jawTop - W.jawLow)) * smooth01((q[2] - 0.02) / 0.03);
-    const dz = W.chin * w + W.jaw * jw;
-    return dz > 0 ? [q[0], q[1], q[2] + dz] : q;
-  };
+  const HF = h / 3, HNX = Math.ceil(0.105 / HF), HLO = [-HNX * HF, 1.51, -0.135], HN = [2 * HNX + 1, Math.ceil(0.32 / HF) + 1, Math.ceil(0.3 / HF) + 1];
   const hfield = new Float32Array(HN[0] * HN[1] * HN[2]).fill(1);
   {
-    const Hb = gridOf(headBase, [nx, ny, nz], LO, h), Rf = gridOf(restField ?? field, [nx, ny, nz], LO, h), Tf = gridOf(Float32Array.from(tissue, (t) => (Number.isNaN(t) ? 0.003 : t)), [nx, ny, nz], LO, h);
-    for (let k = 0; k < HN[2]; k++) for (let j = 0; j < HN[1]; j++) for (let i = 0; i < HN[0]; i++) {
-      const q0 = [HLO[0] + i * HF, HLO[1] + j * HF, HLO[2] + k * HF], q = warpFace(q0), hb = Hb.sample(q), rest = Rf.sample(q0); let v = hb;
-      if (hb < 0.025) { const qq = [Math.abs(q[0]), q[1], q[2]]; v = features(hb, qq, Tf.sample(q)); v = Math.max(v, -open.f(qq[0], qq[1], qq[2])); }
-      hfield[i + HN[0] * (j + HN[1] * k)] = smin(v, rest, 0.022);   // (run into the neck softly: the head's fine shape holds the neck under it and the tops of the shoulders as the body's does)
+    const Rf = gridOf(restField ?? field, [nx, ny, nz], LO, h), Tf = gridOf(Float32Array.from(tissue, (t) => (Number.isNaN(t) ? 0.003 : t)), [nx, ny, nz], LO, h);
+    for (let k = 0; k < HN[2]; k++) for (let j = 0; j < HN[1]; j++) for (let i = HNX; i < HN[0]; i++) {
+      const qq = [(i - HNX) * HF, HLO[1] + j * HF, HLO[2] + k * HF]; let v = headForm(qq);
+      if (v < 0.03) v = Math.max(features(v, qq, Tf.sample(qq)), -open.f(qq[0], qq[1], qq[2]));
+      for (const sx of i === HNX ? [1] : [1, -1]) hfield[HNX + sx * (i - HNX) + HN[0] * (j + HN[1] * k)] = smin(v, Rf.sample([sx * qq[0], qq[1], qq[2]]), HEAD.neck);
     }
   }
   const GH = gridOf(hfield, HN, HLO, HF);
@@ -418,5 +388,5 @@ export function targetOf(bones, M, { h = 0.006, soft: SOFT = 0.005, close: CLOSE
     }
     return w;
   };
-  return { h, RIG, PARTS, P_, ARMS, GB, GA, GH, GHand, GFoot, nailAt, nip, handRods, toeRods, small };
+  return { h, RIG, PARTS, P_, ARMS, GB, GA, GH, GHand, GFoot, nailAt, nip, handRods, toeRods, small, headCover: { mm: +(-cover.least * 1000).toFixed(1), at: cover.at } };
 }

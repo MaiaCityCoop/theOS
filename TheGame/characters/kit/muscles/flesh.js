@@ -19,13 +19,14 @@
 // sheet lies between two rows' curves and is carried by both. A point of the skin is carried by its four joints, each
 // by its share (linear blend skinning), and lit as skin is: ../skin/light.js.
 import * as THREE from 'three/webgpu';
-import { Fn, If, attribute, varyingProperty, uniform, float, int, ivec2, vec3, vec4, textureLoad, normalize, cross, mix, max, pow, clamp, dot, abs, length, smoothstep, exp, positionWorld, positionGeometry, modelWorldMatrix, modelWorldMatrixInverse, mx_noise_float } from 'three/tsl';
+import { Fn, If, Discard, attribute, varyingProperty, uniform, float, int, ivec2, vec2, vec3, vec4, textureLoad, normalize, cross, mix, max, pow, clamp, dot, length, smoothstep, sqrt, reflect, positionWorld, positionGeometry, modelWorldMatrix, modelWorldMatrixInverse, mx_noise_float } from 'three/tsl';
 import { U } from '../../../src/core/uniforms.js';
 import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull } from '../../../src/world/light.js';
 import { CASTS } from '../../../src/world/shadow.js';
 import { SLOTS, COLS } from './layout.js';
 import { pxOn, ERROR_PX } from '../../../src/detail/measure.js';
-import { carriedBy, skinMaterial } from '../skin/light.js';
+import { carriedBy, skinMaterial, eyeOpeningNode } from '../skin/light.js';
+import { EYE } from '../skin/table.js';
 
 /** How far away the far level takes over (m). */
 export const FAR = 7;
@@ -113,33 +114,97 @@ export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
   };
 }
 
-// ── the eyes: a ball 24 mm across in each socket, carried by the eye's own joint ────────────────────────────────────
-// The white, a little bluish and veined towards its edge; the iris (12 mm across) brown-green, its fibres; the pupil
-// (4 mm); the cornea's gloss over them.
+// ── the eyes (intent 0040): a ball 24 mm across in each socket, carried by the eye's own joint; and the lashes ────────
+// The ball shows through the opening the skin is cut by (../skin/light.js: the same almond, so the two edges are one
+// line). What makes an eye read as an eye, each drawn here: the white is not white, and lies in the upper lid's shade;
+// the iris sits behind the cornea's bulge (seen from the side it shifts as the eye turns from the looker), with its
+// fibres, a dark ring where it meets the white, and the pupil; the cornea mirrors the sun as one small sharp glint; a
+// wet line lies on the lower lid; the inner corner is pink. Its measures: ../skin/table.js EYE.
 function eyesOf(bones, eye) {
-  const out = [];
-  for (const s of ['L', 'R']) {
+  const out = [], R = EYE.r, WHITE = [0.62, 0.595, 0.565];   // (the white of the eye: off white, a little darker than paper: in a face it is seldom the brightest thing)
+  for (const [s, side] of [['L', 1], ['R', -1]]) {
     const b = bones['eye.' + s]; if (!b) continue;
     const m = new THREE.NodeMaterial(); m.eye = eye;
     m.fragmentNode = Fn(() => {
-      const out = vec4(0).toVar();
+      const out = vec4(0).toVar(), p = positionGeometry, o = eyeOpeningNode(vec2(p.x.mul(side), p.y));
+      Discard(o.d.lessThan(-0.0004).or(p.z.lessThan(0)));   // (under the lids, and its back: never seen)
       If(unlit().not(), () => {
-        const p = normalize(positionGeometry), w = positionWorld, z = p.z, r = length(vec3(p.x, p.y, 0));
-        const iris = smoothstep(0.52, 0.5, r).mul(smoothstep(0.75, 0.85, z)), pupil = smoothstep(0.19, 0.17, r).mul(smoothstep(0.9, 0.95, z));
-        const fib = mx_noise_float(vec3(p.x.mul(60), p.y.mul(60), 0.3)).mul(0.15).add(1);
-        const white = mix(vec3(0.86, 0.84, 0.82), vec3(0.8, 0.62, 0.6), smoothstep(0.5, -0.2, z).mul(0.5));
-        const col = mix(mix(white, vec3(0.32, 0.24, 0.13).mul(fib), iris), vec3(0.02), pupil);
-        const n = normalize(modelWorldMatrix.mul(vec4(p, 0)).xyz), V = normalize(eye.sub(w)), L = U.uSunDir, ndl = dot(n, L), Hh = normalize(V.add(L));
-        const sun = U.uSun.mul(sunDim().mul(cloudShade(w)).mul(shadowAtPulled(w)));
-        const spec = pow(max(dot(n, Hh), 0), 300).mul(2);
-        out.assign(finish(col.mul(skyLight(n).mul(0.6).add(sun.mul(max(ndl, 0)).mul(0.8))).add(sun.mul(spec)), w, eye));
+        const w = positionWorld, V = normalize(eye.sub(w)), L = U.uSunDir, Vl = normalize(modelWorldMatrixInverse.mul(vec4(eye.sub(w), 0)).xyz), rho = length(p.xy);
+        // the iris, 2 mm behind the cornea's front: looked at aslant, what is seen of it lies further along the look
+        const cornea = smoothstep(EYE.iris * 1.14, EYE.iris * 0.92, rho), at = p.xy.sub(Vl.xy.div(max(Vl.z, 0.35)).mul(cornea.mul(0.002))), ri = length(at).div(EYE.iris);
+        const iris = smoothstep(1.0, 0.95, ri), pupil = smoothstep(EYE.pupil / EYE.iris + 0.035, EYE.pupil / EYE.iris - 0.02, ri), dir = normalize(at.add(1e-6));
+        const fibre = mx_noise_float(vec3(dir.x.mul(9), dir.y.mul(9), ri.mul(2.5))).mul(0.5).add(mx_noise_float(vec3(dir.x.mul(26), dir.y.mul(26), ri.mul(6))).mul(0.3));
+        const stroma = mix(vec3(0.33, 0.2, 0.075), vec3(0.15, 0.1, 0.05), smoothstep(0.3, 0.95, ri)).mul(fibre.mul(0.55).add(0.95)).mul(mix(float(1), float(0.32), smoothstep(0.8, 1.0, ri)));
+        // the white: off white, veined and pinker towards the corners; the inner corner's pink flesh; the lower lid's rim
+        const vein = smoothstep(0.15, 0.75, mx_noise_float(vec3(p.x.mul(700), p.y.mul(1800), 2.3))).mul(smoothstep(0.0062, 0.011, rho)).mul(0.3);
+        let col = mix(vec3(...WHITE), vec3(0.6, 0.35, 0.32), vein);
+        col = mix(mix(col, stroma, iris), vec3(0.008), pupil);
+        col = mix(col, vec3(0.55, 0.32, 0.29), smoothstep(0.0005, 0.0, o.over).mul(0.8));
+        // its light: soft on a wet ball; dimmer under the upper lid and into the corners
+        const nS = normalize(modelWorldMatrix.mul(vec4(p, 0)).xyz), nC = normalize(modelWorldMatrix.mul(vec4(p.xy.div(0.0078), sqrt(max(float(1).sub(rho.mul(rho).div(0.0078 * 0.0078)), 0.05)), 0)).xyz), n = normalize(mix(nS, nC, cornea));
+        const shade = mix(float(0.32), float(1), smoothstep(0.0002, 0.006, o.under)).mul(mix(float(0.75), float(1), smoothstep(0, 0.002, o.over))).mul(mix(float(0.6), float(1), smoothstep(0.0, 0.14, o.t).mul(smoothstep(1.0, 0.88, o.t))));
+        const sun = U.uSun.mul(sunDim().mul(cloudShade(w)).mul(shadowAtPulled(w))), diff = max(dot(nS, L).mul(0.55).add(0.45), 0);
+        // the sun's glint in the cornea, small and sharp; a broader one on the wet white; the sky mirrored at a grazing look; the wet line
+        const H = normalize(V.add(L)), ndh = max(dot(n, H), 0), ndv = max(dot(n, V), 0), fres = float(0.025).add(float(0.975).mul(pow(float(1).sub(ndv), 5)));
+        const glint = pow(ndh, 1400).mul(9).mul(cornea).add(pow(ndh, 260).mul(0.7)).mul(smoothstep(0.0, 0.0025, o.under));
+        const wet = smoothstep(0.001, 0.0002, o.over).mul(0.22);
+        const lit = col.mul(skyLight(nS).mul(0.8).add(sun.mul(diff))).mul(shade).add(sun.mul(glint.add(wet))).add(skyLight(reflect(V.negate(), n)).mul(fres).mul(shade));
+        out.assign(finish(lit, w, eye));
       });
       return out;
     })();
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.012, 24, 16), m);
-    b.add(mesh); out.push(mesh);
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(R, 40, 28), m);
+    // (and behind it the socket's own: the opening is 30 mm long, the globe 24 across, so at its corners the look goes
+    // past the globe: onto the white going on round it, in the lids' shade, and at the inner corner onto the small
+    // pink mound of flesh there, not into the head)
+    const behind = (off, r, pink) => {
+      const mat = new THREE.NodeMaterial(); mat.eye = eye;
+      mat.fragmentNode = Fn(() => {
+        const out = vec4(0).toVar(), p = positionGeometry.add(vec3(...off)), o = eyeOpeningNode(vec2(p.x.mul(side), p.y));
+        Discard(o.d.lessThan(-0.0004).or(positionGeometry.z.lessThan(0)));
+        If(unlit().not(), () => {
+          const w = positionWorld, n = normalize(modelWorldMatrix.mul(vec4(positionGeometry, 0)).xyz), sun = U.uSun.mul(sunDim().mul(cloudShade(w)).mul(shadowAtPulled(w)));
+          const shade = mix(float(0.32), float(1), smoothstep(0.0002, 0.006, o.under)).mul(mix(float(0.75), float(1), smoothstep(0, 0.002, o.over))).mul(mix(float(0.6), float(1), smoothstep(0.0, 0.14, o.t).mul(smoothstep(1.0, 0.88, o.t))));
+          const col = pink ? vec3(0.56, 0.29, 0.27) : vec3(...WHITE);
+          out.assign(finish(col.mul(skyLight(n).mul(0.8).add(sun.mul(max(dot(n, U.uSunDir).mul(0.55).add(0.45), 0)))).mul(shade), w, eye));
+        });
+        return out;
+      })();
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 28, 18), mat); mesh.position.set(...off); return mesh;
+    };
+    const bed = behind([0, 0, -0.00975], 0.0178, false), mound = behind([side * -0.0132, -0.0012, 0.002], 0.0038, true);
+    b.add(mesh, bed, mound); out.push(mesh, bed, mound, lashesOf(b, side, eye));
   }
   return out;
+}
+
+// The lashes: fine hairs along the lids' edges, each a slim three-sided strand from the lid's rim out and curling (the
+// upper ones up, longer in the middle and outwards; the lower ones short, down). They hang on the eye's joint.
+function lashesOf(bone, side, eye) {
+  const pos = [], idx = [], Rl = EYE.r + EYE.lid, rnd = (i) => { const x = Math.sin(i * 127.1 + side * 3.7) * 43758.5453; return x - Math.floor(x); };
+  const add3 = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k], unit = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+  const strand = (pts, radii) => {
+    const base = pos.length / 3;
+    pts.forEach((c, i) => { const along = unit(i < pts.length - 1 ? [pts[i + 1][0] - c[0], pts[i + 1][1] - c[1], pts[i + 1][2] - c[2]] : [c[0] - pts[i - 1][0], c[1] - pts[i - 1][1], c[2] - pts[i - 1][2]]), e1 = unit([along[1], -along[0], 0.001]), e2 = [along[1] * e1[2] - along[2] * e1[1], along[2] * e1[0] - along[0] * e1[2], along[0] * e1[1] - along[1] * e1[0]];
+      for (let k = 0; k < 3; k++) { const a = (k / 3) * 2 * Math.PI; pos.push(c[0] + (e1[0] * Math.cos(a) + e2[0] * Math.sin(a)) * radii[i], c[1] + (e1[1] * Math.cos(a) + e2[1] * Math.sin(a)) * radii[i], c[2] + (e1[2] * Math.cos(a) + e2[2] * Math.sin(a)) * radii[i]); } });
+    for (let i = 0; i < pts.length - 1; i++) for (let k = 0; k < 3; k++) { const a = base + i * 3 + k, b = base + i * 3 + (k + 1) % 3; idx.push(a, b, a + 3, b, b + 3, a + 3); }
+  };
+  const row = (count, upper) => {
+    for (let i = 0; i < count; i++) {
+      const t = 0.1 + 0.87 * ((i + rnd(i + (upper ? 0 : 500))) / count), u = EYE.inner[0] + (EYE.outer[0] - EYE.inner[0]) * t, tc = Math.min(0.999, Math.max(0.001, t)), base = EYE.inner[1] + (EYE.outer[1] - EYE.inner[1]) * t;
+      const bump = (p) => Math.pow(tc / p, 1.15 * p) * Math.pow((1 - tc) / (1 - p), 1.15 * (1 - p)), v = upper ? base + EYE.upper[0] * bump(EYE.upper[1]) + 0.0002 : base - EYE.lower[0] * bump(EYE.lower[1]) - 0.0002;
+      const root = [u * side, v, Math.sqrt(Math.max(1e-8, Rl * Rl - u * u - v * v))], n = unit(root), fan = (t - 0.45) * side;
+      const len = (upper ? 0.0088 : 0.0046) * (0.5 + 0.5 * Math.sin(Math.PI * Math.min(1, Math.max(0, (t - 0.02) / 0.98)))) * (0.8 + 0.4 * rnd(i * 3 + 1));
+      const d0 = unit(upper ? [n[0] * 0.5 + fan * 0.9, n[1] * 0.5 - 0.2, n[2] * 0.5 + 0.8] : [n[0] * 0.5 + fan * 0.8, n[1] * 0.5 - 0.75, n[2] * 0.5 + 0.55]), mid = add3(root, d0, len * 0.55);
+      const tip = add3(mid, unit(upper ? [d0[0], d0[1] + 1.15, d0[2] + 0.1] : [d0[0], d0[1] - 0.25, d0[2] + 0.35]), len * 0.5);
+      strand([root, mid, tip], [0.00013, 0.0001, 0.00003]);
+    }
+  };
+  row(78, true); row(34, false);
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(Float32Array.from(pos), 3)); geo.setIndex(idx);
+  const m = new THREE.NodeMaterial(); m.eye = eye; m.side = THREE.DoubleSide;
+  m.fragmentNode = Fn(() => { const out = vec4(0).toVar(); If(unlit().not(), () => { const w = positionWorld; out.assign(finish(vec3(0.022, 0.014, 0.01).mul(skyLight(vec3(0, 1, 0)).add(U.uSun.mul(sunDim().mul(cloudShade(w))).mul(0.5))), w, eye)); }); return out; })();
+  const mesh = new THREE.Mesh(geo, m); mesh.frustumCulled = false; bone.add(mesh); return mesh;
 }
 
 // ── the looks ────────────────────────────────────────────────────────────────────────────────────────────────────────
