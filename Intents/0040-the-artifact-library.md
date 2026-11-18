@@ -23,7 +23,7 @@ Each artifact is a standalone JSON checked against a JSON schema. It holds the l
 2. `.claude/skills/artifacts/SKILL.md`: how a link becomes an artifact.
 3. The dashboard's Artifacts app: `#artifacts` and a tile, read from `/api/artifacts`.
 4. The first artifact: `the-worst-way-to-build-a-tribe`.
-5. `Compass/worldbuilding/systems/the-tribe.md`: the tribe strategy, in our words, with proposals for the ladder.
+5. `Compass/worldbuilding/systems/the-tribe.md`: the best principles of tribe building, abstract and in our words, as a reference to map later.
 
 **Checks**
 
@@ -36,7 +36,7 @@ Each artifact is a standalone JSON checked against a JSON schema. It holds the l
 
 **Out of scope**
 
-- Deciding the ladder upgrades (they are listed in the sheet's Open section).
+- Mapping the principles onto the ladder: Samuel does that later.
 - Syncing with maia-play's own artifacts.
 
 ## Build
@@ -51,14 +51,16 @@ The artifact library, its skill and app, the first artifact and the tribe sheet 
 
 ## Todo
 
-- Samuel decides which of the six ladder upgrades in `the-tribe.md` go into `the-game.md`.
+- Later: map the tribe principles onto the village ladder (`the-game.md`).
 
 ## Changelog
 
 - **2026-11-18:** The library added: the schema, store, tool and skill. `source.md` and `thumb.jpg` are git-ignored because the repository is public and they are the authors' work. The published site shows the source's own thumbnail URL. Added the Artifacts app (tile and `#artifacts`) and the first artifact (ReTribalize Project, 7 Nov 2026, with a 5,319-word transcript). Added `the-tribe.md` to the Compass, and the artifact check to CI.
+- **2026-11-18:** `the-tribe.md` cut to ten abstract principles and the ranked ways; the Maia City mappings and the six ladder proposals removed, to be mapped later.
 
 ## Trail
 
 | When | What |
 | --- | --- |
 | 2026-11-18 | Built and proposed in PR MaiaCityCoop/theOS#92 |
+| 2026-11-18 | The tribe sheet cut to abstract principles, the ladder proposals removed (Samuel: "we don't do it for now"); merged into main |
