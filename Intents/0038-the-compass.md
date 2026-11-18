@@ -268,3 +268,4 @@ Asked outright and without surprises, so built straight away.
 | 2026-11-17 | `89fe6d4` | The power named, three feats, from the ground up |
 | 2026-11-18 | `4efc921` | The mission: the country race, on the dashboard too |
 | 2026-11-18 | `6941129` | The Compass as its own page; the country race in the world |
+| 2026-11-18 | `f28e4db` | The game reference sheet, and its station on the Compass page |
