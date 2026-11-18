@@ -484,6 +484,81 @@ Three research rounds, each read against this definition. Sources marked † wer
     sites (`deploy/bundle.sh`) and `bunx --bun vite build` (TheGame, OS): built.
   - The library's tent shows the made thing's impostor (100 views) with no error; stood in the game beside the real
     tent it reads as a tent.
+### Stage 6a: the ground laid from a layer map (2026-11-17)
+
+Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
+
+- **What the 390 KB shader was.** The gate's compile names it: the two-output pass of `src/scatter/ground.js` (the
+  blades' map), not the land's material. The land was 240 KB (vertex) and 151 KB (fragment). All three are cut here.
+- **The layer map** (`src/terrain/layers.js`, after Etienne, CoD 2023). A clipmap round the camera: ten levels of 512²
+  texels, from 0.25 m to 128 m a texel, kept toroidally. As the camera moves, only the rows and columns a window comes
+  onto are worked out, on the GPU, by one compute pass of the biomes' own rules. A texel is 20 bytes: the four strongest
+  layers (a byte each, so up to 255 layers, numbered in the order they are laid) and their shares; the carpet's cover
+  near, between and far; the macro variation; the two thickest stands (cover and crown pattern); the grass's tint. That
+  is 52 MB.
+- **The fragment** reads the four texels round its point (eight over the last 15 % before the next level), sums them
+  into at most five layers (the fifth is the base's rock on what is too steep, from the pixel's own slope), and lays
+  them in order, the higher winning at a seam, with the carpet among them. Each material is read once. Near, it is
+  hex-tiled (Mikkelsen, JCGT 2022: offsets, not turned, hexagons two tiles across). Past 240–320 m it is one read pushed
+  about by a slow wave, as the old far end did. Its size no longer grows with the biomes or the materials.
+  - Turned hexagons were tried and dropped: sand ripples became a basket weave.
+  - One-tile hexagons broke the ripples every tile; two tiles match the patches the two takes made.
+- **Shader functions.** The land's noises, the hash, the height and the river's carve and bank are now functions of
+  the shader's own (layouts), written once in a shader. What reads a uniform (the river) stays inline: three r187 names
+  a uniform inside such a function apart from the shader's own, and the shader does not compile.
+- **Deleted:** the per-biome code generation in `compose`, the vertex's shares and spots lanes, the second take and its
+  noise mask, the far wobble's two noise reads, and the second tile size in every biome (it only scaled the second
+  take). The dry land's spots now say their fade as data.
+- **A gate fix.** The stills froze the governor's detail cap wherever the start's slow frames had left it. A faster
+  build therefore drew grass blades to 120 m where the baseline did not: 0.14 FLIP for that alone. `governor.rest()` now
+  puts the cap back where it starts. The baseline was re-shot so (`base3`).
+- **Shaded once, in 2b's passes** (main merged in on 2026-11-18). The land takes part in the prepass: its depth, and the
+  camera's motion; its vertex works out only where the ground is there. Its colour pass then draws with an equal depth
+  test, so each pixel of the ground is shaded once, in the colour stage, after everything in front of it is known. That
+  is what the deferred pass was for. A separate full-screen pass would add only perfect quads on thin far triangles, at
+  the price of a G-buffer or a depth reconstruction. It is left for 6b, where the virtual texture's feedback wants a
+  screen pass anyway.
+- **Measured.** The GPU was shared with other agents' gate runs all along. Single bench runs of the same code swung
+  2–3×, and some runs lost the WebGPU device (blank stills, a hung settle). So the times are side by side (A/B, the
+  least of three rounds), and only taken before the merge with 2b; afterwards the A/B lost the device.
+
+| Shader bytes (gate `compile`, at the start) | 2a | 6a on 2a | 2b (main) | 6a on 2b |
+| --- | --- | --- | --- | --- |
+| All | 3.58 MB, 135 modules | 1.98 MB, 136 | 4.19 MB, 159 | 2.55 MB, 160 |
+| The largest | 390 KB (the ground pass) | 78 KB (the layer map's pass) | 390 KB | 78 KB |
+| The ground pass (`scatter/ground.js`) | 390 KB | 76 KB | 390 KB | 76 KB |
+| The land: vertex, fragment | 240 KB, 151 KB | 25 KB, 67 KB | 240 KB, 151 KB | (twins of) 25 KB, 67 KB |
+
+| GPU ms, 2560×1440, on 2a | Frame 2a | Frame 6a | Land alone 2a | Land alone 6a |
+| --- | --- | --- | --- | --- |
+| Tent, eye level | 15.2 | 13.5 | 9.3 | 9.0 |
+| River bend, 26 m | 16.6 | 18.7 | 13.1 | 15.2 |
+| Town, 40 m | 15.3 | 18.4 | 12.5 | 16.2 |
+| Skyline, 2.5 km | 15.5 | 17.5 | 13.9 | 16.3 |
+| Pine forest, eye level | 31.8 | 26.1 | 14.2 | 12.0 |
+| Pine forest, 90 m | 13.1 | 17.4 | 10.6 | 15.1 |
+
+  - Faster at eye level, slower from above. Each material read now waits on the map's ids (two dependent fetches a
+    pixel), and the near ground is hex-tiled out to 320 m. That is not the immediate win this stage was meant to be.
+    The virtual texture (6b) turns those reads into one per pixel.
+  - On 2b, the gate's bench, whole frame through the prepass, colour and upscale, shown at 4K. It is not side by side,
+    so it is noise more than measure: main 27.1–29.6, 36.4–46.5, 34.0–36.2, 35.9–40.3, 40.0–51.6 and 26.1–35.2 ms
+    (two rounds); the branch 27.9, 47.6, 32.3, 39.7, 38.2 and 42.4 ms (one round; its second hung on a lost device).
+
+| FLIP, mean (p99 tile) | Tent eye | River 26 m | Tent 10 m | Tent 30 m | Tent 120 m |
+| --- | --- | --- | --- | --- | --- |
+| 6a against 2a (2a shot twice: 0.011–0.022) | 0.059 (0.41) | 0.076 (0.29) | 0.058 (0.37) | 0.084 (0.35) | 0.054 (0.19) |
+| 2a against its truth | 0.061 | 0.100 | 0.142 | 0.243 | 0.159 |
+| 6a against its own truth | 0.061 | 0.099 | – | – | – |
+| 6a on 2b against 2b, fresh profiles | 0.093 (0.41) | 0.097 (0.29) | 0.066 (0.36) | 0.124 (0.35) | 0.056 (0.19) |
+
+  - What differs from 2a is where each grain of a ground lies (each hexagon's own offset, not the noise-mixed two
+    takes), and near, one scale instead of two. The layers lie where they lay. Against its own truth 6a is exactly as
+    near as 2a is to 2a's; 2a's truth carries its two takes.
+  - The other three truths of 6a were lost to the device (blank frames). After the merge no truth was taken: the run
+    stopped when a bench hung on a lost device.
+  - On 2b, a fine even speckle over all the grass adds to the difference, worst at 30 m. The stills show no hole and
+    no seam.
 
 ## Propose
 
@@ -503,6 +578,9 @@ Three research rounds, each read against this definition. Sources marked † wer
 - [x] Stage 4: far end, impostor and clump rung (built; draft PR)
 - [ ] Stage 5: crowds, parts and one wind
 - [ ] Stage 6: land, virtual texture and relief
+  - [x] 6a: the layer map, one read a material (the deferred pass left to 6b)
+  - [ ] 6b: the adaptive virtual texture with feedback, the deferred pass, the ground pass read from the map
+  - [ ] 6c: relief (displacement, parallax, skirts, path decals)
 - [ ] Stage 7: placement, five layers
 - [ ] Stage 8: surfaces, cluster hierarchy
 - [ ] Stage 9: one light, characters
@@ -529,6 +607,17 @@ Three research rounds, each read against this definition. Sources marked † wer
 - **Good:** stage 1 changed nothing on screen. The plant meshes are byte-identical, and the stills match main within
   the TAA's noise.
 - **Not there yet:** stages 2–10; Samuel's photos.
+- **Stage 6a (built in its own worktree):**
+  - Delivered: the land's layer map, one read a material, and the land's noises as shader functions. The shader bytes
+    at the start went from 3.58 to 1.98 MB; the largest module went from 390 to 78 KB.
+  - Then asked (the coordinator): merge main (2a, 10, 2b) and fit the ground into 2b's prepass.
+  - Then delivered: merged. The ground writes its depth in the prepass and is shaded once in the colour pass (equal
+    depth test). On 2b the shader bytes at the start go from 4.19 to 2.55 MB.
+  - Good: the land is laid where it was. The stills differ from 2a's only in where each grain of a ground lies.
+  - Not there yet:
+    - the land is faster at eye level but slower from above (2–4.5 ms at 2560×1440, side by side on 2a);
+    - the lines rose by about 230;
+    - the truths after the merge were not taken: the shared GPU kept losing the device.
 
 ### 2026-11-18
 
@@ -575,3 +664,6 @@ Three research rounds, each read against this definition. Sources marked † wer
 | 2026-11-18 | `4296c81` | Stage 2b: prepass with motion vectors, one upscale to 4K (`stillness` and two passes gone) |
 | 2026-11-18 | `a1f5009` | Stage 4: one impostor and the clump rung; the hull bodies, the CPU bake and the stipple deleted (+165 lines) |
 | 2026-11-18 | `9e4dc7e` | Stage 4 merged with main (2b, 10): its impostors and clump planes cut in the prepass, with their motion |
+| 2026-11-17 | `a9657a6` | Stage 6a: the layer map, one read a material, the land's noises as shader functions |
+| 2026-11-18 | `29cc189` | Stage 6a: hex-tiled near, one wobbled read far; the start's shader watcher goes |
+| 2026-11-18 | `325c6d0` | Stage 6a: `?truth` reads the ground as the picture does (draft PR #65) |
