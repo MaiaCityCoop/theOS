@@ -1,7 +1,8 @@
 // A timing of the game's frame at fixed views (in the game's console: `await (await import('/game/tools/bench.js')).bench()`):
 // each view drawn n times, shadows as the game draws them. Opened with ?gputime, it reads the GPU's own time per frame
-// (timestamp queries, where the device has them); otherwise the wall's, waiting for the GPU to finish (unreliable in a
-// hidden or background tab). The game's own frame is held while it runs, so nothing else is drawn between.
+// (timestamp queries, where the device has them: its render passes and its compute passes, what culls and packs what
+// is drawn: src/core/occlusion.js); otherwise the wall's, waiting for the GPU to finish (unreliable in a hidden or
+// background tab). The game's own frame is held while it runs, so nothing else is drawn between.
 // `?bench` (src/main.js): the same once the world is loaded, its numbers on the screen (overlay), nothing typed.
 // `?bench=2`: at that pixel ratio (1.5 else).
 export const VIEWS = [
@@ -36,8 +37,9 @@ export async function bench({ ratio = 1.5, frames = 60, settle = 0 } = {}) {
   for (const v of VIEWS) {
     // (settle, ms: the view drawn a while first, so what streams in near it has come)
     for (const t = performance.now(); performance.now() - t < settle;) { frame(v); await fin(); await new Promise((r) => setTimeout(r, 50)); }
-    frame(v); await fin(); if (gpu) await renderer.resolveTimestampsAsync('render');
-    if (gpu) { let sum = 0; for (let i = 0; i < frames; i++) { frame(v); sum += (await renderer.resolveTimestampsAsync('render')) || 0; } out[v.name] = +(sum / frames).toFixed(2); }
+    const gpuMs = async () => ((await renderer.resolveTimestampsAsync('render')) || 0) + ((await renderer.resolveTimestampsAsync('compute')) || 0);
+    frame(v); await fin(); if (gpu) await gpuMs();
+    if (gpu) { let sum = 0; for (let i = 0; i < frames; i++) { frame(v); sum += await gpuMs(); } out[v.name] = +(sum / frames).toFixed(2); }
     else { const t0 = performance.now(); for (let i = 0; i < frames; i++) frame(v); await fin(); out[v.name] = +((performance.now() - t0) / frames).toFixed(2); }
   }
   } finally { ratioTo(was); s.governor.hold(false); s.covered = covered; }

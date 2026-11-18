@@ -12,8 +12,10 @@
 //   pass two     what pass one held back, tested against that pyramid through this frame's camera: what is now seen
 //                is drawn after the rest (a prepass of its own, then the colour with the rest). Nothing can come out
 //                from behind something late: whatever this frame's depth does not hide is drawn this frame
-// A pass writes what it keeps by one atomic a workgroup: a scan of its 64 in shared memory says where each of them
-// goes, and one of them asks the list for room for all (no subgroups: Safari has none).
+// A pass writes what it keeps with no atomic at all, in the order it was packed: each workgroup's 64 say which of them
+// it keeps (a mask), a scan in shared memory over every workgroup's count says where each one's first goes, and each
+// writes its own there (no subgroups: Safari has none). So a frame that sees what the last one saw draws it in the
+// same order, and of two things at exactly the same depth the same one is drawn last, as before culling.
 //
 // Only the eye's passes are culled (src/core/pass.js: the prepass and the colour). The shadow map and every other view
 // draw all that a tier packed, as before: what the camera cannot see may still cast a shadow into its view. So a
@@ -22,7 +24,7 @@
 // eye's vertex stages read a thing through the list the passes kept (entry); every other pass reads it where the
 // packing put it. Without indirect-first-instance (a WebGPU feature) nothing is culled, and everything is drawn as before.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Loop, float, int, uint, vec2, vec4, ivec2, uniform, uniformArray, storage, texture, instanceIndex, workgroupId, localId, workgroupArray, workgroupBarrier, atomicAdd, atomicLoad, atomicStore, max, min, floor, ceil, log2, exp2, clamp } from 'three/tsl';
+import { Fn, If, Loop, float, int, uint, vec2, vec4, ivec2, uniform, uniformArray, storage, texture, instanceIndex, workgroupId, localId, workgroupArray, workgroupBarrier, storageBarrier, atomicLoad, atomicStore, atomicOr, countOneBits, max, min, floor, ceil, log2, exp2, clamp } from 'three/tsl';
 import { gpuStorage, more } from './gpu.js';
 import { passOf } from './pass.js';
 
@@ -81,21 +83,36 @@ const hiddenBy = (s, P) => {
   return out;
 };
 
-// ---- a workgroup's 64 written by one atomic: where each of them goes, by a scan in shared memory ----
-/** flag: a number of this invocation's (0 … 1 of two lists at once: 1 the first, 65536 the second); returns { before:
-    how many of the workgroup's lie before it, in each list (packed the same way), all: the workgroup's sums }. Every
-    invocation of the workgroup must call it, none in a branch. */
-const scan = (flag, lid) => {
-  const sh = workgroupArray('uint', WG);
-  sh.element(lid).assign(flag);
+// ---- what a pass keeps, in order, with no atomic: each workgroup says which of its 64 it keeps (a mask of 64 bits);
+// one workgroup sums those over every chunk in shared memory (a scan: where each chunk's first goes); each workgroup
+// then writes its own where that says. What is kept is kept in the order it was packed, frame after frame: of two
+// things at exactly the same depth the same one is drawn last every frame, as before culling ----
+const SW = 256;   // the scan's workgroup
+/** Hillis and Steele over the SW invocations of a workgroup (t: this one's): x its number; the sum of it and all before
+    it, and of all. Every invocation calls it, none in a branch. */
+const scanOf = (x, t) => {
+  const sh = workgroupArray('uint', SW);
+  sh.element(t).assign(x);
   workgroupBarrier();
-  for (let off = 1; off < WG; off *= 2) {   // (Hillis and Steele: six steps of 64)
-    const v = lid.greaterThanEqual(uint(off)).select(sh.element(lid.max(uint(off)).sub(uint(off))), uint(0)).toVar();
+  for (let off = 1; off < SW; off *= 2) {   // (eight steps)
+    const v = t.greaterThanEqual(uint(off)).select(sh.element(t.max(uint(off)).sub(uint(off))), uint(0)).toVar();
     workgroupBarrier();
-    sh.element(lid).addAssign(v);
+    sh.element(t).addAssign(v);
     workgroupBarrier();
   }
-  return { before: sh.element(lid).sub(flag).toVar(), all: sh.element(uint(WG - 1)).toVar() };
+  return { incl: sh.element(t).toVar(), all: sh.element(uint(SW - 1)).toVar() };
+};
+/** Of a mask of 64 bits (m0, m1), whether bit b (0 … 63) is set, and how many below it are. */
+const isSet = (m0, m1, b) => b.lessThan(uint(32)).select(m0.shiftRight(b.min(uint(31))), m1.shiftRight(b.max(uint(32)).sub(uint(32)))).bitAnd(uint(1)).equal(uint(1));
+const below = (m0, m1, b) => b.lessThan(uint(32)).select(countOneBits(m0.bitAnd(uint(1).shiftLeft(b.min(uint(31))).sub(uint(1)))), countOneBits(m0).add(countOneBits(m1.bitAnd(uint(1).shiftLeft(b.max(uint(32)).sub(uint(32))).sub(uint(1))))));
+/** A workgroup's masks of its flags (bool nodes, a list each): two numbers a list, in shared memory. At the top level. */
+const masksOf = (lid, flags) => {
+  const wm = workgroupArray('uint', 2 * flags.length).toAtomic();
+  If(lid.lessThan(uint(2 * flags.length)), () => { atomicStore(wm.element(lid), uint(0)); });
+  workgroupBarrier();
+  flags.forEach((f, j) => { If(f, () => { atomicOr(wm.element(lid.shiftRight(uint(5)).add(uint(2 * j))), uint(1).shiftLeft(lid.bitAnd(uint(31)))); }); });
+  workgroupBarrier();
+  return wm;
 };
 
 // ---- the culled tiers, and what each frame does with them (src/core/screen.js) ----
@@ -110,79 +127,103 @@ const proxies = [];
     the world box of a thing of bucket k ({ c, h }: its middle and half its size), from its rows. */
 export function cullOf(T, { K, caps, offs, total, S, data, args, box }) {
   const P = pyramidNode();
-  // counters a bucket (pass one's seen, its held back, pass two's seen, -), the buckets' first workgroups for each pass,
-  // and each bucket's place and room
-  const C1 = K * 4, C2 = C1 + K + 1, OF = C2 + K + 1, CAP = OF + K, init = new Uint32Array(CAP + K);
-  for (let k = 0; k < K; k++) { init[OF + k] = offs[k]; init[CAP + k] = caps[k]; }
-  const cnt = storage(new THREE.StorageBufferAttribute(init, 1), 'uint', init.length).toAtomic();
+  // a bucket's numbers: its first chunk (64 things, a workgroup's) for pass one and for pass two (and where the last's
+  // end), where its things begin, how many pass one keeps and how many it holds back
+  const C1 = 0, C2 = K + 1, OF = 2 * K + 2, N1 = OF + K, R1 = N1 + K, init = new Uint32Array(R1 + K);
+  for (let k = 0; k < K; k++) init[OF + k] = offs[k];
+  const metaAttr = new THREE.StorageBufferAttribute(init, 1), meta = storage(metaAttr, 'uint', init.length), at = (j, k) => meta.element(uint(j).add(k));
+  // a chunk's, for pass one: which of its 64 are seen and which held back (two masks of 64 bits), where its first of
+  // each goes; for pass two, after them: which are seen, where its first goes
+  const NC = caps.reduce((a, c) => a + Math.ceil(c / WG), 0) + 1, chunks = gpuStorage('uint', NC * 9), Ch = chunks.node, B2 = NC * 6;
   const lists = gpuStorage('uint', 2 * Math.max(1, total)), L = lists.node;   // what pass one and two keep (by their place in their bucket), then what pass one held back
-  more('tiers: what is seen, kept (occlusion)', lists.bytes, lists.lean ? 0 : lists.bytes);
+  more('tiers: what is seen, kept (occlusion)', lists.bytes + chunks.bytes, lists.lean ? 0 : lists.bytes + chunks.bytes);
   const A = storage(args, 'uint', 15 * K), d1 = new THREE.IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1]), 1), d2 = new THREE.IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1]), 1);
-  const D1 = storage(d1, 'uint', 3), D2 = storage(d2, 'uint', 3);
+  const D1 = storage(d1, 'uint', 3), D2 = storage(d2, 'uint', 3), D1r = storage(d1, 'uint', 3).toReadOnly(), D2r = storage(d2, 'uint', 3).toReadOnly();   // (read only, how many chunks there are is the same for a whole workgroup: the scan may loop over them)
   const F = (k, j) => A.element(uint(k).mul(uint(5)).add(uint(j))), V = (k, j) => A.element(uint(k).mul(uint(5)).add(uint(5 * K + j))), Lt = (k, j) => A.element(uint(k).mul(uint(5)).add(uint(10 * K + j)));
-  const n = (k, j) => cnt.element(uint(k).mul(uint(4)).add(uint(j)));
-  const thing = (k, i) => { const e = atomicLoad(cnt.element(uint(OF).add(k))).add(i).mul(uint(S)); return { A: data.element(e), B: data.element(e.add(uint(1))) }; };
-  // (one invocation: the buckets' first workgroups, and as many workgroups in all, from what each holds)
-  const firsts = (at, count, D) => {
+  const thing = (k, i) => { const e = at(OF, k).add(i).mul(uint(S)); return { A: data.element(e), B: data.element(e.add(uint(1))) }; };
+  // (one invocation: the buckets' first chunks, and as many workgroups in all, from what each holds)
+  const firsts = (j0, count, D) => {
     const acc = uint(0).toVar();
-    for (let k = 0; k < K; k++) { atomicStore(cnt.element(uint(at + k)), acc); acc.addAssign(count(k).add(uint(WG - 1)).div(uint(WG))); }
-    atomicStore(cnt.element(uint(at + K)), acc); D.element(uint(0)).assign(acc);
+    for (let k = 0; k < K; k++) { meta.element(uint(j0 + k)).assign(acc); acc.addAssign(count(k).add(uint(WG - 1)).div(uint(WG))); }
+    meta.element(uint(j0 + K)).assign(acc); D.element(uint(0)).assign(acc);
   };
-  const bucketOf = (w, at) => { const k = uint(0).toVar(); Loop({ start: uint(1), end: uint(K), type: 'uint', condition: '<' }, ({ i }) => { If(w.greaterThanEqual(atomicLoad(cnt.element(uint(at).add(i)))), () => { k.assign(i); }); }); return k; };
-  // after the packing: pass one's workgroups, from what each bucket holds now
+  const bucketOf = (w, j0) => { const k = uint(0).toVar(); Loop({ start: uint(1), end: uint(K), type: 'uint', condition: '<' }, ({ i }) => { If(w.greaterThanEqual(at(j0, i)), () => { k.assign(i); }); }); return k; };
+  // (the scan, one workgroup: over the n chunks of a pass, a chunk's numbers `per` apart from `base`, x(o) a chunk's
+  // count (two counts at once, 65536 apart); out(o, a, b) where its first of each goes, and past the last where they end;
+  // then end(), for one invocation)
+  const scanned = (n, per, base, x, out, end) => {
+    const t = localId.x, cv = uint(0).toVar(), ch = uint(0).toVar();
+    Loop({ start: uint(0), end: n, type: 'uint', condition: '<', update: SW }, ({ i }) => {
+      const c = i.add(t), on = c.lessThan(n), o = uint(base).add(c.mul(uint(per))), y = on.select(x(o), uint(0)).toVar(), s = scanOf(y, t), ex = s.incl.sub(y);
+      If(on, () => { out(o, cv.add(ex.bitAnd(uint(0xffff))), ch.add(ex.shiftRight(uint(16)))); });
+      cv.addAssign(s.all.bitAnd(uint(0xffff))); ch.addAssign(s.all.shiftRight(uint(16)));
+      workgroupBarrier();
+    });
+    If(t.equal(uint(0)), () => { out(uint(base).add(n.mul(uint(per))), cv, ch); });
+    storageBarrier();
+    If(t.equal(uint(0)), end);
+  };
+  const pop2 = (o) => countOneBits(Ch.element(o)).add(countOneBits(Ch.element(o.add(uint(1)))));
+  // after the packing: pass one's chunks, from what each bucket holds now
   const prep = Fn(() => { If(instanceIndex.equal(uint(0)), () => { firsts(C1, (k) => F(k, 1), D1); }); })().compute(1);
   // pass one: what is out of view dropped; what the last frame's pyramid does not hide drawn; the rest held back
-  const one = Fn(() => {
-    const w = workgroupId.x, lid = localId.x, k = bucketOf(w, C1), i = w.sub(atomicLoad(cnt.element(uint(C1).add(k)))).mul(uint(WG)).add(lid);
-    const valid = i.lessThan(F(k, 1)), seen = float(0).toVar(), held = float(0).toVar();
-    If(valid, () => {
+  const oneTest = Fn(() => {
+    const w = workgroupId.x, lid = localId.x, k = bucketOf(w, C1), i = w.sub(at(C1, k)).mul(uint(WG)).add(lid), seen = float(0).toVar(), held = float(0).toVar();
+    If(i.lessThan(F(k, 1)), () => {
       const t = thing(k, i), B = box(t.A, t.B, k), here = onScreen(U.vp, B.c, B.h);
       If(U.mode.lessThan(0.5).or(outside(here).not()), () => {
         seen.assign(1);
         If(U.mode.greaterThan(1.5).and(U.ok.greaterThan(0.5)), () => { If(hiddenBy(onScreen(U.pvp, B.c, B.h), P), () => { seen.assign(0); held.assign(1); }); });
       });
     });
-    const s = scan(uint(seen).add(uint(held).shiftLeft(uint(16))), lid), base = workgroupArray('uint', 2);
-    If(lid.equal(uint(WG - 1)), () => {
-      base.element(uint(0)).assign(atomicAdd(n(k, 0), s.all.bitAnd(uint(0xffff))));
-      base.element(uint(1)).assign(atomicAdd(n(k, 1), s.all.shiftRight(uint(16))));
-    });
-    workgroupBarrier();
-    const o = atomicLoad(cnt.element(uint(OF).add(k)));
-    If(seen.greaterThan(0.5), () => { L.element(o.add(base.element(uint(0))).add(s.before.bitAnd(uint(0xffff)))).assign(i); });
-    If(held.greaterThan(0.5), () => { L.element(uint(total).add(o).add(base.element(uint(1))).add(s.before.shiftRight(uint(16)))).assign(i); });
-  })().compute(WG, [WG]);
-  one.dispatchSize = d1;
-  // after it: the eye's draws as long as pass one's lists (the prepass draws them), pass two's workgroups
-  const oneArgs = Fn(() => {
-    If(instanceIndex.equal(uint(0)), () => {
-      for (let k = 0; k < K; k++) { V(k, 0).assign(F(k, 0)); V(k, 1).assign(atomicLoad(n(k, 0))); Lt(k, 0).assign(F(k, 0)); Lt(k, 1).assign(uint(0)); }
-      firsts(C2, (k) => atomicLoad(n(k, 1)), D2);
-    });
-  })().compute(1);
-  // pass two: what pass one held back, against this frame's pyramid through this frame's camera
-  const two = Fn(() => {
-    const w = workgroupId.x, lid = localId.x, k = bucketOf(w, C2), j = w.sub(atomicLoad(cnt.element(uint(C2).add(k)))).mul(uint(WG)).add(lid);
-    const o = atomicLoad(cnt.element(uint(OF).add(k))), valid = j.lessThan(atomicLoad(n(k, 1))), i = valid.select(L.element(uint(total).add(o).add(j)), uint(0)).toVar(), seen = float(0).toVar();
-    If(valid, () => { const t = thing(k, i), B = box(t.A, t.B, k); If(hiddenBy(onScreen(U.vp, B.c, B.h), P).not(), () => { seen.assign(1); }); });
-    const s = scan(uint(seen), lid), base = workgroupArray('uint', 1);
-    If(lid.equal(uint(WG - 1)), () => { base.element(uint(0)).assign(atomicAdd(n(k, 2), s.all)); });
-    workgroupBarrier();
-    If(seen.greaterThan(0.5), () => { L.element(o.add(atomicLoad(n(k, 0))).add(base.element(uint(0))).add(s.before)).assign(i); });
-  })().compute(WG, [WG]);
-  two.dispatchSize = d2;
-  // after it: pass two's prepass from where pass one's end; the eye's colour both; the counters nought for the next frame
-  const twoArgs = Fn(() => {
-    If(instanceIndex.equal(uint(0)), () => {
+    const wm = masksOf(lid, [seen.greaterThan(0.5), held.greaterThan(0.5)]);
+    If(lid.lessThan(uint(4)), () => { Ch.element(w.mul(uint(6)).add(lid)).assign(atomicLoad(wm.element(lid))); });
+  })().compute(NC * WG, [WG]);   // (its count as many as there can be: three returns early past it where a pass has no barrier)
+  oneTest.dispatchSize = d1;
+  // where each chunk's first seen and first held back go (counted over the tier: a bucket's own from its first chunk's);
+  // then the eye's draws as long as what pass one keeps (the prepass draws them), what it held back, pass two's chunks
+  const oneScan = Fn(() => {
+    scanned(D1r.element(uint(0)), 6, 0, (o) => pop2(o).add(pop2(o.add(uint(2))).shiftLeft(uint(16))), (o, a, b) => { Ch.element(o.add(uint(4))).assign(a); Ch.element(o.add(uint(5))).assign(b); }, () => {
       for (let k = 0; k < K; k++) {
-        const a = atomicLoad(n(k, 0)), b = atomicLoad(n(k, 2));
+        const s0 = at(C1, uint(k)).mul(uint(6)), s1 = at(C1, uint(k + 1)).mul(uint(6)), a = Ch.element(s1.add(uint(4))).sub(Ch.element(s0.add(uint(4)))).toVar(), r = Ch.element(s1.add(uint(5))).sub(Ch.element(s0.add(uint(5)))).toVar();
+        meta.element(uint(N1 + k)).assign(a); meta.element(uint(R1 + k)).assign(r);
+        V(k, 0).assign(F(k, 0)); V(k, 1).assign(a); Lt(k, 0).assign(F(k, 0)); Lt(k, 1).assign(uint(0));
+      }
+      firsts(C2, (k) => meta.element(uint(R1 + k)), D2);
+    });
+  })().compute(SW, [SW]);
+  const oneWrite = Fn(() => {
+    const w = workgroupId.x, lid = localId.x, k = bucketOf(w, C1), s0 = at(C1, k).mul(uint(6)), i = w.sub(at(C1, k)).mul(uint(WG)).add(lid), c = w.mul(uint(6)), o = at(OF, k);
+    const m0 = Ch.element(c), m1 = Ch.element(c.add(uint(1))), h0 = Ch.element(c.add(uint(2))), h1 = Ch.element(c.add(uint(3)));
+    If(isSet(m0, m1, lid), () => { L.element(o.add(Ch.element(c.add(uint(4))).sub(Ch.element(s0.add(uint(4))))).add(below(m0, m1, lid))).assign(i); });
+    If(isSet(h0, h1, lid), () => { L.element(uint(total).add(o).add(Ch.element(c.add(uint(5))).sub(Ch.element(s0.add(uint(5))))).add(below(h0, h1, lid))).assign(i); });
+  })().compute(NC * WG, [WG]);   // (its count as many as there can be: three returns early past it where a pass has no barrier)
+  oneWrite.dispatchSize = d1;
+  // pass two: what pass one held back, against this frame's pyramid through this frame's camera
+  const twoTest = Fn(() => {
+    const w = workgroupId.x, lid = localId.x, k = bucketOf(w, C2), j = w.sub(at(C2, k)).mul(uint(WG)).add(lid), seen = float(0).toVar();
+    If(j.lessThan(at(R1, k)), () => { const t = thing(k, L.element(uint(total).add(at(OF, k)).add(j))), B = box(t.A, t.B, k); If(hiddenBy(onScreen(U.vp, B.c, B.h), P).not(), () => { seen.assign(1); }); });
+    const wm = masksOf(lid, [seen.greaterThan(0.5)]);
+    If(lid.lessThan(uint(2)), () => { Ch.element(uint(B2).add(w.mul(uint(3))).add(lid)).assign(atomicLoad(wm.element(lid))); });
+  })().compute(NC * WG, [WG]);   // (its count as many as there can be: three returns early past it where a pass has no barrier)
+  twoTest.dispatchSize = d2;
+  // where each chunk's first goes; then pass two's prepass from where pass one's end, and the eye's colour both
+  const twoScan = Fn(() => {
+    scanned(D2r.element(uint(0)), 3, B2, (o) => pop2(o), (o, a) => { Ch.element(o.add(uint(2))).assign(a); }, () => {
+      for (let k = 0; k < K; k++) {
+        const s0 = uint(B2).add(at(C2, uint(k)).mul(uint(3))), s1 = uint(B2).add(at(C2, uint(k + 1)).mul(uint(3))), b = Ch.element(s1.add(uint(2))).sub(Ch.element(s0.add(uint(2)))).toVar(), a = meta.element(uint(N1 + k)).toVar();
         Lt(k, 1).assign(b); Lt(k, 4).assign(a); V(k, 1).assign(a.add(b));
-        for (let j = 0; j < 3; j++) atomicStore(n(k, j), uint(0));
       }
     });
-  })().compute(1);
+  })().compute(SW, [SW]);
+  const twoWrite = Fn(() => {
+    const w = workgroupId.x, lid = localId.x, k = bucketOf(w, C2), s0 = uint(B2).add(at(C2, k).mul(uint(3))), j = w.sub(at(C2, k)).mul(uint(WG)).add(lid), c = uint(B2).add(w.mul(uint(3))), o = at(OF, k);
+    const m0 = Ch.element(c), m1 = Ch.element(c.add(uint(1)));
+    If(isSet(m0, m1, lid), () => { L.element(o.add(at(N1, k)).add(Ch.element(c.add(uint(2))).sub(Ch.element(s0.add(uint(2))))).add(below(m0, m1, lid))).assign(L.element(uint(total).add(o).add(j))); });
+  })().compute(NC * WG, [WG]);   // (its count as many as there can be: three returns early past it where a pass has no barrier)
+  twoWrite.dispatchSize = d2;
   const C = {
-    prep, early: [one, oneArgs], late: [two, twoArgs],
+    prep, early: [oneTest, oneScan, oneWrite], late: [twoTest, twoScan, twoWrite], debug: { lists: lists.attr, chunks: chunks.attr, meta: metaAttr, d1, d2, N1, R1 },
     /** Where the eye's passes read a thing of a bucket whose things begin at `slot` (a uint node): through what the passes
         kept; every other pass where the packing put it. */
     entry: (slot) => Fn((builder) => (passOf(builder) ? slot.add(L.element(slot.add(instanceIndex))) : slot.add(instanceIndex)))(),
