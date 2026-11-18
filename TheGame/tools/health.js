@@ -26,8 +26,11 @@
 //   Settings      mode branches (TRUTH-like): every place a condition asks a mode, a constant true or false for the
 //                 whole run (one the address sets, as `?truth` sets TRUTH, or one set by hand): in the condition of an
 //                 if, ?:, loop or switch, or left of &&, || or ??, by the flags each is made from. Hand-set numbers:
-//                 every module constant, or number in a constant's table, written as a number by hand, and those the
-//                 SSOT audit (research_notes/0038-ssot-audit.md) names however they are written (marked); not the
+//                 every module constant, or number in a constant's table, written as a number by hand (a literal,
+//                 arithmetic of them, Math's, or a value made of them alone: TSL's vec2, vec3, vec4, color, float,
+//                 three's Vector2, Vector3, Vector4, Color, Matrix3, Matrix4; not what a uniform starts at, nor an
+//                 array's size), and those the SSOT audit (research_notes/0038-ssot-audit.md) names however they are
+//                 written (marked); not the
 //                 physical constants: the exported values of a module named physics.js, the one place they live, each
 //                 saying its unit and its source in its comment (`unit: …`, `source: …`; --base fails where one does
 //                 not). Flag reads: every call of flag, flagNum and flagText (src/core/flags.js)
@@ -208,11 +211,17 @@ function inTest(n) {
 // ---- numbers set by hand ----
 const ARITH = new Set(['+', '-', '*', '/', '%', '**', '<<', '>>', '>>>', '&', '|', '^']);
 const isMath = (n) => n.type === 'MemberExpression' && n.object.name === 'Math';
-const NUMBER = {   // which expressions are numbers written by hand: literals, arithmetic of them, Math's
+// a value TSL's or three's value constructors make of numbers alone is a number set by hand too (a number hidden in a
+// vector is still one); what a uniform starts at, an array's size and the like are not values written by hand
+const VALUE = { call: /^(vec[234]|color|float)$/, new: /^(Vector[234]|Color|Matrix[34])$/ };
+const calleeName = (c) => (c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' && !c.computed ? c.property.name : '');
+const ofNumbers = (n) => n.arguments.length > 0 && n.arguments.every(isNumber);
+const NUMBER = {   // which expressions are numbers written by hand: literals, arithmetic of them, Math's, and values made of them
   Literal: (n) => typeof n.value === 'number',
   UnaryExpression: (n) => ['-', '+', '~'].includes(n.operator) && isNumber(n.argument),
   BinaryExpression: (n) => ARITH.has(n.operator) && isNumber(n.left) && isNumber(n.right),
-  CallExpression: (n) => isMath(n.callee) && n.arguments.length > 0 && n.arguments.every(isNumber),
+  CallExpression: (n) => (isMath(n.callee) || VALUE.call.test(calleeName(n.callee))) && ofNumbers(n),
+  NewExpression: (n) => VALUE.new.test(calleeName(n.callee)) && ofNumbers(n),
   MemberExpression: isMath,
 };
 const isNumber = (n) => !!NUMBER[n.type]?.(n);
