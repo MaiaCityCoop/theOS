@@ -284,6 +284,7 @@ export function createPages(renderer, tex) {
   // asked for are the want's keys; those not in yet, the queue
   const refs = new Map(), want = new Map();
   const prev = new THREE.Vector3(), turn = new THREE.Quaternion(); let moved = 0, swung = 0, pxRad = 1600, pxH = 1440;   // (metres and radians the camera moved last frame; screen pixels a radian through its lens)
+  let stoodAt = 0;   // (the last frame the camera stood)
   let quietFrom = 0, readTo = 0, dirty = false, pick = null, pickedAt = -1e9, judged = -1, nAsk = 0, askedAt = -1;   // (since when nothing changed what is asked for; the last frame whose asks are in; the queue to be sorted again; the bias being chosen)
   // (which frames' asks have come back: a read-back is not taken while all its buffers are out, so a sweep counts only
   // where every one of its frames was read)
@@ -431,7 +432,7 @@ export function createPages(renderer, tex) {
       // the camera's speed: metres and radians a frame. (A jump needs nothing of its own: what was asked for before it is
       // forgotten in two sweeps, and the bias is chosen again from what is asked for after it)
       moved = cam.distanceTo(prev); swung = 2 * Math.acos(Math.min(1, Math.abs(turn.dot(camera.quaternion))));
-      if (moved > 1e-4 || swung > 1e-5) quietFrom = frame;
+      if (moved > 1e-4 || swung > 1e-5) quietFrom = frame; else stoodAt = frame;
       prev.copy(cam); turn.copy(camera.quaternion); pxRad = (camera.projectionMatrix.elements[5] * size.y) / 2; pxH = size.y;
       // ---- each level's window round the camera: the pages it leaves let go ----
       for (let m = 0; m < LEVELS; m++) {
@@ -449,12 +450,16 @@ export function createPages(renderer, tex) {
       for (const Q of IN.values()) if (Q.pin && Q.m === TOP && (Math.abs((Q.i + 0.5) * P - cam.x) > PIN + P || Math.abs((Q.j + 0.5) * P - cam.z) > PIN + P)) Q.pin = false;
       if (pins.length) make(pins, Infinity);
       // ---- the pixels' asks: the last frame's read back, what is no longer asked for forgotten, the bias chosen again
-      // when what is asked for does not fit (or, once a sweep has been read with the camera still, when it may be finer) ----
+      // from asks that are all of the view as it is: once a sweep has been read with the camera still (once a still
+      // view), or, while it moves, when what the last sweep asked does not fit, the camera having moved through all of
+      // that sweep (each frame's asks then its own view's). Never from a sweep that holds a view before a change and the
+      // one after it (a jump, a pose set: two views' pages asked at once, the bias stepped coarser and back) ----
       if (askedAt === frame - 1) readBack(nAsk, frame - 1);
       if (frame % 8 === 0) forget();
       const still = moved < 1e-4 && swung < 1e-5;
       if (!pick && refs.size) {
-        const over = sweptSince(-1) && want.size > SLOTS * OVER && frame - pickedAt > SPAN, settled = still && sweptSince(quietFrom) && judged < quietFrom && bias > 0;   // (chosen only from a whole sweep's asks)
+        const over = !still && frame - stoodAt > SPAN + READS && frame - pickedAt > SPAN && want.size > SLOTS * OVER && needAt(bias) > SLOTS * OVER;
+        const settled = still && sweptSince(quietFrom) && judged < quietFrom;
         if (over || settled) { pick = { lo: 0, hi: STEPS, still: settled }; if (settled) judged = quietFrom; }   // (chosen while the camera moved: chosen again once it stands)
       }
       choose();
