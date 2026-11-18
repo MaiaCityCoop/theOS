@@ -65,9 +65,10 @@ import { idOf } from '../world/things.js';
 import { wayAt, waysVersion } from '../world/ways.js';
 import { pxOf, turnOf, seedOf } from './row.js';
 import { levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
-import { crowdOf, bandsOf, baseShare, GRID, GOQ, GO0, FOOT } from '../../assets/kit/plant.js';
+import { crowdOf, bandsOf, baseShare, goneOf, GRID, GOQ, GO0, FOOT } from '../../assets/kit/plant.js';
+import { ringsOf, bandsOf as ringBands } from './grass.js';
 import { lo16, hi16 } from './unpack.js';
-import { pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
+import { farMost, pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
 import { BAND, FADE } from '../detail/error.js';
 import { source } from '../core/settle.js';
 import { gpuStorage } from '../core/gpu.js';
@@ -660,8 +661,14 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
   const A = atlases();   // (what the far ends' atlases are sized by: every level's band hands it to the workers' crowd kit)
   const Z = placedBy('trees'), famOf = (uid) => Z.families.find((F) => F.F.asset === uid);
   // the growth map (growth.js): what each layer that writes leaves for the layers after it, worked out round the camera
-  // before anything packs (tiers.before), the largest layer first
-  const layers = layersOf(rows), words = layers.filter((L) => L.word >= 0).length, M = words ? createGrowth(renderer, words) : null;
+  // before anything packs (tiers.before), the largest layer first; as far as what reads it is drawn: a layer that reads
+  // it as far as its largest thing is gone by the one measure (a sapling as large as it grows there: its entry's
+  // grownTo), the meadow (which reads every layer's) as far as its blades. At the most pixels the screen can draw, the
+  // dial at rest: the map is a capacity (src/detail/measure.js farMost; the meadow's end its own, grass.js bandsOf)
+  const layers = layersOf(rows), words = layers.filter((L) => L.word >= 0).length;
+  const blades = Math.max(0, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => ringBands(ringsOf(a), a.height, pxKMost()).end));
+  const readFar = (W) => Math.max(blades, ...layers.filter((L) => L.reads.includes(W)).map((L) => Math.max(...L.entries.map((e) => farMost(goneOf(e.asset), sizeOf(e.asset) * e.grownTo)))));
+  const M = words ? createGrowth(renderer, layers.filter((L) => L.word >= 0).map((L) => ({ band: L.band, far: readFar(L) }))) : null;
   if (M) M.build(writersOf(layers, M));
   for (const G of groupsOf(rows)) {
     G.M = G.L.reads.length ? M : null;
