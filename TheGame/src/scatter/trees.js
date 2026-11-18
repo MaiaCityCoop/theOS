@@ -90,8 +90,7 @@ const meshShare = (T, own, seed) => T.greaterThan(0).select(clamp(drawnAt(own).d
     noise of the screen's that changes every frame, the same for the mesh and the impostor, so each pixel is one of the
     two, never both and never neither, and the picture built over time cross-fades them (src/core/temporal.js); the
     prepass's motion keeps what it built where the plant moves. The impostor's pixels are the others. */
-const noise = (at = vec2(0)) => fract(ign(screenCoordinate.xy.add(at)).add(unlit().select(float(0), U.uDither)));   // (the shadow map's still: it is built over no time)
-const handing = (share) => noise().lessThan(share);
+const handing = (share) => fract(ign(screenCoordinate.xy).add(unlit().select(float(0), U.uDither))).lessThan(share);   // (the shadow map's still: it is built over no time)
 /** A plant reckons its size on screen this share of what it is, by its own number (SWITCH … 1): its sprigs go, its
     clumps come and its twigs thin each at a size of its own, so no two plants of a stand change together (Lipp et al.,
     HPG 2026: a random offset a bundle). Never more than it is: a level holds what its band's top asks for. */
@@ -400,12 +399,11 @@ function plantMaterial(tex, D) {
       If(leaf, () => {
         if (!FAR) return cards();
         If(vPart.greaterThan(1.5), () => {
-          // a chunk's plane: its leaves as baked (src/detail/impostor.js), as much of its cover kept as the chunk's own is
-          // of its three planes' (vClump.z), and as much as is still its mesh's (handing): each by a noise of the screen's
-          // that changes every frame, which the picture built over time averages into a cover as thin as its leaves'
-          // (a texel's own number, still, left a speckle on it); cut in the prepass
-          const C = clumpRead(FAR.clumps(), vClump.x, vUv, vClump.y);
-          cut(builder, C.cover.lessThan(0.5).or(noise(vec2(17.31, 41.37)).greaterThanEqual(vClump.z)).or(handing(vFade).not()));
+          // a chunk's plane: its leaves as baked (src/detail/impostor.js), as many of its covered texels kept as the
+          // chunk's own cover is of its three planes' (vClump.z), each texel by a number of its own (still from frame to
+          // frame, sitting on the plane as a leaf does), and as much as is still its mesh's (handing); cut in the prepass
+          const C = clumpRead(FAR.clumps(), vClump.x, vUv, vClump.y), t = floor(vUv.mul(CROWD.TILE)), keep = hash(uint(t.x).add(uint(t.y).mul(uint(4099))).add(uint(vClump.x).mul(uint(1000003))));
+          cut(builder, C.cover.lessThan(0.5).or(keep.greaterThanEqual(vClump.z)).or(handing(vFade).not()));
           if (pass === 'pre') return;
           If(shadow.not(), () => {
             // lit as its leaves are, pixel by pixel, their way there turned with the plant and pulled a little towards
