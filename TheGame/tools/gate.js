@@ -11,7 +11,8 @@
 //                                                                worst tile; heat maps and report.json in .gate/A-vs-B/
 //   bun tools/gate.js noise <tag> [--truth] [--views a,b]        the same views shot twice: the floor any diff stands on
 //   bun tools/gate.js bench [--ratio r] [--frames n]             tools/bench.js at its six views with ?gputime: GPU ms
-//                                                                against its BUDGET, and the resolution drawn
+//                                                                against its BUDGET, and the resolution drawn; where
+//                                                                it went, pass by pass (the light's each on its own)
 //   bun tools/gate.js compile [--page library.html]              the WGSL compiled from the start until the world has
 //                                                                settled: bytes, modules, the largest ten (check 6)
 //   bun tools/gate.js paths [--paths a,b]                        the paths (tools/gate/views.js) on a cold profile and a
@@ -46,7 +47,7 @@ const OUT = new URL('../.gate/', import.meta.url).pathname;   // TheGame/.gate/:
 const SCREEN = { width: 1920, height: 1080, dpr: 2 }, INSIDE = 4 / 3, TIME = 100;   // (TIME: the seconds the world's clock stands at for stills)
 const FRAME = 1000 / 60, JITTER = 1, MEMORY = 8e9;   // the hard gates in motion: no frame longer than 1/60 s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within 8 GB
 const WAIT = 300e3;   // ms the world may take to come, or to settle, before the gate calls it broken (an error; never a wait for readiness)
-const ARGS = ['--enable-unsafe-webgpu'];
+const ARGS = ['--enable-unsafe-webgpu', '--enable-webgpu-developer-features'];   // (the second: the GPU's timestamps to the nanosecond, not rounded to a tenth of a millisecond: the bench times passes of a few hundredths)
 
 // ---- the page ----
 /** A page of the game in Chrome (`ctx`: launch()), its world come and settled where it starts: drawn through WebGPU,
@@ -204,9 +205,12 @@ async function noise(chrome, tag, opt) {
 }
 
 /** tools/bench.js's bench(), one view at a time, each once the world has settled there. bench() draws the world as the
-    game does: inside at `ratio`, brought up to the 4K canvas by the upscale pass (the whole frame's GPU time). */
+    game does: inside at `ratio`, brought up to the 4K canvas by the upscale pass (the whole frame's GPU time), and says
+    where it went: every pass of the frame on the GPU's own clock, under the name of the part that drew it (the light's
+    cascades, canopy, probes, sky, froxels, GTAO and contact shadows; the prepass, the colour, the upscale, …), and the
+    colour pass's share of the shadows (the same frames with its shadow reads off). */
 async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
-  const { page, errors, url, close } = await open(chrome, { query: 'gputime' }), out = { ratio: +ratio, views: {} };
+  const { page, errors, url, close } = await open(chrome, { query: 'gputime' }), out = { ratio: +ratio, views: {}, span: {}, passes: {}, shading: {} };
   try {
     await page.evaluate(prepare, { inside: null, time: TIME });
     for (const v of VIEWS.filter((x) => x.bench)) {
@@ -214,17 +218,27 @@ async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
       const r = await page.evaluate(async ({ name, ratio, frames }) => {
         const B = await import(new URL('tools/bench.js', location.href).href), all = [...B.VIEWS];
         B.VIEWS.splice(0, all.length, all.find((x) => x.name === name));   // (bench() times every view in its list: here only this one)
-        try { const r = await B.bench({ ratio, frames }); r.light = await B.light?.(); return r; } finally { B.VIEWS.splice(0, 1, ...all); window.__game.governor.hold(true); }   // (it lets the governor go when it is done; then the light's passes alone, there)
+        try { return await B.bench({ ratio, frames, shading: true }); } finally { B.VIEWS.splice(0, 1, ...all); window.__game.governor.hold(true); }   // (it lets the governor go when it is done)
       }, { name: v.bench, ratio: +ratio, frames: +frames });
       out.measure = r.measure; out.drawn = [Math.floor(r.size[0] * r.ratio), Math.floor(r.size[1] * r.ratio)]; out.views[v.bench] = r[v.bench];
-      if (r.light) (out.light ||= {})[v.bench] = r.light;
+      if (r.passes) { out.span[v.bench] = r.span[v.bench]; out.passes[v.bench] = r.passes[v.bench]; out.shading[v.bench] = r.shading?.[v.bench]; }
     }
   } finally { said(errors); await close(); }
   out.worst = Math.max(...Object.values(out.views)); out.pass = out.worst <= BUDGET;
   console.log(`bench: ${out.measure}, drawn ${px(out.drawn)} (×${(+ratio).toFixed(2)} of ${SCREEN.width}×${SCREEN.height}) and brought up to ${px([SCREEN.width * SCREEN.dpr, SCREEN.height * SCREEN.dpr])} (${url})`);
-  for (const [k, ms] of [...Object.entries(out.views), ['worst', out.worst]]) console.log(`  ${k.padEnd(28)}${f(ms)} ms  ${ms <= BUDGET ? 'within' : 'OVER'} ${BUDGET}`);
-  // (the light's passes alone at each view, ms: src/world/light/*)
-  if (out.light) { const keys = Object.keys(Object.values(out.light)[0]); console.log(`\n  light's passes (ms)          ${keys.map((k) => k.padStart(9)).join('')}`); for (const [v, L] of Object.entries(out.light)) console.log(`  ${v.padEnd(28)}${keys.map((k) => f(L[k]).padStart(9)).join('')}`); }
+  console.log(`  ${''.padEnd(28)}${'passes'.padStart(8)}${'span'.padStart(9)}   (passes: each pass's own time added; span: the first pass's begin to the last one's end)`);
+  for (const [k, ms] of [...Object.entries(out.views), ['worst', out.worst]]) console.log(`  ${k.padEnd(28)}${f(ms)}${f(out.span[k], 2, 9)} ms  ${ms <= BUDGET ? 'within' : 'OVER'} ${BUDGET}`);
+  // (where it went: each pass's ms a frame, in the frame's order; a pass drawn in turn, its share a frame and, in
+  // brackets, what it costs in a frame it is drawn in)
+  const ORDER = ['packing', 'clouds', 'near', 'far', 'canopy', 'probes', 'air tables', 'sky', 'froxels', 'occlusion', 'prepass', 'prepass, late', 'screen light', 'gtao', 'contact', 'pages', 'colour', 'lens', 'upscale', 'other'];
+  const P = Object.values(out.passes).filter(Boolean);
+  if (P.length) {
+    const keys = [...new Set(P.flatMap((x) => Object.keys(x)))].sort((a, b) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99));
+    console.log(`\n  each pass, ms a frame        ${keys.map((k) => k.slice(0, 10).padStart(11)).join('')}`);
+    for (const [v, L] of Object.entries(out.passes)) if (L) console.log(`  ${v.padEnd(28)}${keys.map((k) => (L[k] ? (L[k].every > 1.5 ? `${L[k].mean.toFixed(2)}(${L[k].drawn.toFixed(1)})` : L[k].mean.toFixed(2)) : '–').padStart(11)).join('')}`);
+    console.log(`\n  the colour pass with its shadow reads, and without (ms)`);
+    for (const [v, S] of Object.entries(out.shading)) if (S) console.log(`  ${v.padEnd(28)}${f(S.colour)}${f(S.colourWithout)}  (${f(S.colour - S.colourWithout, 2, 6)} ms the shadows' share)`);
+  }
   return out;
 }
 

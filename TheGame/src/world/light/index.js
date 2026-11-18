@@ -14,13 +14,8 @@ export function createLight(renderer, { groundAt }) {
     shadows, canopy, air,
     /** The casters compiled for the shadow atlas (src/world/shadow.js compile; a promise). */
     compile: (object, camera, groundY, scene = null) => shadows.compile(object, camera, groundY, scene),
-    /** Before the frame, round where the camera stands (groundY: the ground under it). */
+    /** Before the frame, round where the camera stands (groundY: the ground under it). Each part marks its passes, for a
+        tool's timing (src/core/gpu.js mark, tools/bench.js). */
     render(scene, camera, groundY) { shadows.render(scene, camera, groundY); canopy?.render(scene, camera, groundY); air?.render(camera, groundY); },
-    /** Each pass alone, for a tool's timing (tools/bench.js light); those drawn in turn as they cost when it comes. */
-    parts: (scene, camera, groundY) => ({
-      near: () => shadows.render(scene, camera, groundY, 'near'), far: () => shadows.render(scene, camera, groundY, 'far'),
-      ...(canopy ? { canopy: () => canopy.render(scene, camera, groundY, 'map'), probes: () => canopy.render(scene, camera, groundY, 'probes') } : {}),
-      ...(air ? { sky: () => air.render(camera, groundY, 'sky'), froxels: () => air.render(camera, groundY, 'froxels') } : {}),
-    }),
   };
 }

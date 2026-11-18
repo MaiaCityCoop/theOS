@@ -17,7 +17,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, ivec2, uniform, texture, screenCoordinate, Loop, If, clamp, mix, smoothstep, sqrt, cos, sin, fract, dot } from 'three/tsl';
 import { U } from '../../core/uniforms.js';
 import { castRoute, CASTS } from '../shadow.js';
-import { note } from '../../core/gpu.js';
+import { note, mark } from '../../core/gpu.js';
 
 const SIDE = 192, S = 1024, P = 192, EVERY = 8, UP = 400;   // metres a side; texels a side; probes a side (one a metre); frames between drawings; how far above (and below) the cameras stand
 const HEIGHTS = [0.5, 4, 12];
@@ -92,13 +92,13 @@ export function createCanopy(renderer, { groundAt }) {
   const quad = new THREE.QuadMesh(probeMat);
   let frame = 0;
   return {
-    /** Before the frame: the map drawn round where the camera stands, every EVERY frames; its probes half way between
-        (only: 'map' or 'probes', that alone: a tool's timing). */
-    render(scene, camera, groundY, only = null) {
+    /** Before the frame: the map drawn round where the camera stands, every EVERY frames; its probes half way between. */
+    render(scene, camera, groundY) {
       const k = frame++ % EVERY, first = !CANOPY.on.value;
-      if (!only && !first && k !== 0 && k !== EVERY / 2) return;
+      if (!first && k !== 0 && k !== EVERY / 2) return;
       const prev = renderer.getRenderTarget(), ac = renderer.autoClear, route0 = renderer.getRenderObjectFunction();
-      if (only ? only === 'map' : first || k === 0) {
+      if (first || k === 0) {
+        mark('canopy');   // (whose passes these are, for a tool's timing: src/core/gpu.js)
         const step = (8 * SIDE) / S, x = Math.round(camera.position.x / step) * step, z = Math.round(camera.position.z / step) * step;
         renderer.setRenderTarget(rt); renderer.setRenderObjectFunction(route);
         cams.forEach((c, i) => {
@@ -109,11 +109,11 @@ export function createCanopy(renderer, { groundAt }) {
         rt.viewport.set(0, 0, 2 * S, S); rt.scissorTest = false;
         CANOPY.mapAt.value.set(x, z, SIDE, groundY); CANOPY.cams.value.set(groundY + UP, groundY - UP, 2 * UP); CANOPY.map.value = rt.depthTexture;
       }
-      if (only ? only === 'probes' : first || k === EVERY / 2) {
-        renderer.setRenderObjectFunction(null); renderer.autoClear = true; renderer.setRenderTarget(probes); quad.render(renderer);
+      if (first || k === EVERY / 2) {
+        mark('probes'); renderer.setRenderObjectFunction(null); renderer.autoClear = true; renderer.setRenderTarget(probes); quad.render(renderer);
         CANOPY.at.value.copy(CANOPY.mapAt.value); CANOPY.probes.value = probes.texture; CANOPY.on.value = 1;
       }
-      renderer.setRenderObjectFunction(route0); renderer.autoClear = ac; renderer.setRenderTarget(prev);
+      mark(null); renderer.setRenderObjectFunction(route0); renderer.autoClear = ac; renderer.setRenderTarget(prev);
     },
   };
 }

@@ -105,7 +105,7 @@ export async function boot({ profile = 'world' } = {}) {
   const temporal = (game.temporal = createTemporal(renderer));
   const screen = (game.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
   const screenLight = (game.screenLight = createScreenLight(renderer));
-  if (screenLight) screen.afterPrepass(({ depth, camera, w, h }) => screenLight.run(depth, camera, w, h));   // (the light worked out on the screen from the prepass's depth, for the colour pass: src/world/light/screen.js)
+  if (screenLight) screen.afterPrepass(({ depth, camera, w, h }) => screenLight.run(depth, camera, w, h), 'screen light');   // (the light worked out on the screen from the prepass's depth, for the colour pass: src/world/light/screen.js)
   const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
   game.governor = governor;   // the film holds it still while it plays
   keepMeasure(() => screen.inside);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
@@ -134,7 +134,7 @@ export async function boot({ profile = 'world' } = {}) {
   mark('ground');
   const terrain = (game.terrain = createTerrain(scene, tex, renderer, world ? {} : { reach: REACH }));
   const layerPass = terrain.compile();   // the land's pages' passes, beside the others (they read no target)
-  screen.afterPrepass(terrain.pages.ask);   // (which pages the land's pixels read: src/terrain/pages.js)
+  screen.afterPrepass(terrain.pages.ask, 'pages');   // (which pages the land's pixels read: src/terrain/pages.js)
   mark('terrain');
   const scatterOf = (g) => {
     g.scatter = createScatter(g.into, tex, g.ground, renderer, camera);

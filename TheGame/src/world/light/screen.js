@@ -15,7 +15,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, ivec2, uint, uniform, texture, screenCoordinate, Loop, max, min, smoothstep, clamp, If, floor, abs, cross, normalize, length, acos, sign, ceil, cos, sin } from 'three/tsl';
 import { U } from '../../core/uniforms.js';
 import { blueAt } from './noise.js';
-import { note } from '../../core/gpu.js';
+import { note, mark } from '../../core/gpu.js';
 
 const white = Object.assign(new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1), { needsUpdate: true });
 /** What the screen's light passes left, for the colour pass to read (white until they run, and where they never do). */
@@ -117,13 +117,12 @@ export function createScreenLight(renderer) {
       depth.value = depthTex; size.value.set(w, h);
       proj.value.copy(camera.projectionMatrix); unproj.value.copy(camera.projectionMatrix).invert(); view.value.copy(camera.matrixWorldInverse); viewInv.value.copy(camera.matrixWorld);
       const prev = renderer.getRenderTarget(), route = renderer.getRenderObjectFunction(); renderer.setRenderObjectFunction(null);
-      renderer.setRenderTarget(half); quads[1].render(renderer); aoTex.value = half.texture; renderer.setRenderTarget(rt); quads[0].render(renderer);   // (GTAO first: the contact pass keeps its share)
+      mark('gtao'); renderer.setRenderTarget(half); quads[1].render(renderer); aoTex.value = half.texture;   // (GTAO first: the contact pass keeps its share)
+      mark('contact'); renderer.setRenderTarget(rt); quads[0].render(renderer); mark(null);   // (whose passes these are, for a tool's timing: src/core/gpu.js)
       renderer.setRenderTarget(prev); renderer.setRenderObjectFunction(route);
       SCREEN.contact.value = rt.texture; SCREEN.on.value = 1;
     },
     /** Its targets (a tool's look at them). */
     targets: () => ({ contact: rt, ao: half }),
-    /** Each pass alone on the last prepass's depth, for a tool's timing (tools/bench.js light). */
-    parts: () => ({ contact: () => { renderer.setRenderTarget(rt); quads[0].render(renderer); renderer.setRenderTarget(null); }, gtao: () => { renderer.setRenderTarget(half); quads[1].render(renderer); renderer.setRenderTarget(null); } }),
   };
 }

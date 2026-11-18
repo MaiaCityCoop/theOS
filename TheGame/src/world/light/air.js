@@ -24,7 +24,7 @@ import { U } from '../../core/uniforms.js';
 import { lane } from '../weather/lanes.js';
 import { blueAt } from './noise.js';
 import { sunThrough, skyAt } from './canopy.js';
-import { note } from '../../core/gpu.js';
+import { note, mark } from '../../core/gpu.js';
 
 // ---- the air, in kilometres ----
 const RG = 6360, RT = 6460, HH = Math.sqrt(RT * RT - RG * RG);   // the ground's and the air's top radius; the horizon's distance from the top
@@ -144,15 +144,15 @@ export function createAir(renderer) {
   let made = false;
   const one = (q, rt) => { renderer.setRenderTarget(rt); q.render(renderer); };
   return {
-    /** Before the frame: the tables (the first two once), the froxels for this camera (only: 'sky' or 'froxels', that
-        alone: a tool's timing). */
-    render(camera, groundY, only = null) {
+    /** Before the frame: the tables (the first two once), the froxels for this camera. (Its passes marked for a tool's
+        timing: src/core/gpu.js.) */
+    render(camera, groundY) {
       const prev = renderer.getRenderTarget(), route = renderer.getRenderObjectFunction(); renderer.setRenderObjectFunction(null);
-      if (!made) { AIR.trans.value = T.texture; one(transQ, T); AIR.multi.value = M.texture; one(multiQ, M); made = true; }
-      if (only !== 'froxels') { one(viewQ, S); AIR.view.value = S.texture; }
+      if (!made) { mark('air tables'); AIR.trans.value = T.texture; one(transQ, T); AIR.multi.value = M.texture; one(multiQ, M); made = true; }
+      mark('sky'); one(viewQ, S); AIR.view.value = S.texture;
       camera.updateMatrixWorld(); AIR.vp.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); inv.value.copy(AIR.vp.value).invert(); fogRef.value = groundY;
       renderer.setRenderTarget(prev); renderer.setRenderObjectFunction(route);
-      if (only !== 'sky') { renderer.compute(froxels); AIR.vol.value = vol; AIR.on.value = 1; }
+      mark('froxels'); renderer.compute(froxels); AIR.vol.value = vol; AIR.on.value = 1; mark(null);
     },
   };
 }
