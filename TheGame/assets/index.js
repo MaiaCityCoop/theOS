@@ -5,12 +5,12 @@
 //   size                      { length, width, height } in metres; a [min, max] where it varies
 //   colours                   its named colours, [r, g, b]
 //   look                      a rock's look: { material, moss, relief, tint, cuts, smooth } (assets/kit/rock.js)
-//   detail                    its levels of detail, near to far: { levels: [shape, ...], px?, fade? } (src/detail, intent
-//                             0002); where each level ends on screen comes from its kind (assets/kinds.js) unless it says.
-//                             What is drawn from the heap (a rock) says { ladder } instead: its levels are the ladder's
-//                             (assets/kit/ladder.js).
-//                             A shape is `faces` ([corner, corner, corner, colour], ...); a plant's are made by its kit
-//                             when asked for (assets/kit/tree.js: meshAt), with `P` for scattered ones
+//   faces                     a surface's full detail (a made thing: the tent, the fire pit): [corner, corner, corner,
+//                             colour, material?, normals?], ...; it says nothing coarser: every coarser version is the
+//                             builder's (assets/kit/clusters.js, intent 0038). A rock's full mesh is its kit's
+//   detail                    a plant's levels, near to far: { levels: [shape, ...], px?, fade? } (src/detail, intent
+//                             0002), made by its kit when asked for (assets/kit/tree.js: meshAt), with `P` for scattered
+//                             ones; where each level ends on screen comes from its kind (assets/kinds.js)
 //   solid                     what a walker cannot pass: walls (rounds with gaps), posts, boxes, and the ceiling
 //                             overhead; in the asset's own frame. Without it, its kind's rule made from its size
 //                             (assets/kinds.js). The one collision engine takes it as a body (bodyOfAsset:
@@ -34,7 +34,7 @@ export const scatterRow = (a) => ({ asset: a, name: a.name, uid: a.uid, kind: a.
 export const facesOf = (l) => (typeof l.tris === 'function' ? l.tris() : l.faces ? l.faces.length : l.ball != null ? (l.ball ? 12 * l.ball * l.ball : 1) : 0);   // (ball: a level of the ladder, a ball of so many squares an edge; none: its dot)
 
 /** A level of detail of an asset as a geometry, coloured per face (the nearest level unless one is named). */
-export function geometryOf(asset, level = asset.detail.levels[0], shape = 0) {
+export function geometryOf(asset, level = asset.faces ? { faces: asset.faces } : asset.detail.levels[0], shape = 0) {
   // (a plant's meshes are made when asked for, shape by shape: assets/kit/tree.js meshAt; only the library asks here)
   const M = asset.meshAt ? asset.meshAt(level.i ?? Math.max(0, asset.detail.levels.indexOf(level)), shape) : null;
   if (M) {   // built as a mesh by its kit (a plant): every attribute it made, as it made them; of its shapes the one asked

@@ -32,9 +32,7 @@ const { PERSON, WALKER, TOLERANCE, faultsOf } = await import('../world/scale.js'
 const RIG = (await import('../camera/rig.js')).default;
 const { FOOT, sizeAtOne } = await import('../src/scatter/trees.js');
 const { heightIn } = await import('../assets/kit/tree.js');
-const { rockBody, rockMesh, rockFamily } = await import('../assets/kit/rock.js');
-const { LADDER, DOTN } = await import('../assets/kit/ladder.js');
-const { unpackSolid } = await import('../assets/kit/solid.js');
+const { rockBody, rockFull, rockFamily } = await import('../assets/kit/rock.js');
 const { sizeOf } = await import('../assets/kinds.js');
 const THREE = await import('three/webgpu');
 const { texture } = await import('three/tsl');
@@ -60,18 +58,11 @@ async function measured(a) {
     const B = bounds(mesh.geometry.attributes.position.array), h = B.top - Math.max(0, B.lo[1]);
     return { by: 'height', least: h, middle: h, most: h, notes };
   }
-  if (P.engine === 'rocks') {   // each shape built at every level, in the frame it is drawn in (its largest side 1), times its size
+  if (P.engine === 'rocks') {   // each shape as it is (its full mesh: every coarser version is the builder's, within it), in the frame it is drawn in (its largest side 1), times its size
     const wide = [], fam = rockFamily('scale', a);
     for (let v = 0; v < (P.shapes ?? 1); v++) {
-      let near = null, reach = 0;
-      LADDER.forEach((L, l) => {
-        if (L.n === DOTN) return;
-        const M = rockMesh(a, v, l), lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity], ps = [];
-        for (let i = 0; i < M.verts.length; i += 4) { const p = unpackSolid(M.verts, i, 1).p; ps.push(p); for (let k = 0; k < 3; k++) { if (p[k] < lo[k]) lo[k] = p[k]; if (p[k] > hi[k]) hi[k] = p[k]; } }
-        const w = Math.max(hi[0] - lo[0], hi[2] - lo[2]);
-        if (near == null) { near = w; const g = rockBody(a, v).sunk; for (const p of ps) if (p[1] >= g) reach = Math.max(reach, Math.hypot(p[0], p[2])); }   // (how far it reaches over the ground: what a walker sees of it)
-        else if (Math.abs(w - near) > LEVELS * near) notes.push(`shape ${v}, level ${l}: ${r3(w)} across against ${r3(near)} near, of its size`);
-      });
+      const F = rockFull(a, v), B = bounds(F.pos), near = Math.max(B.hi[0] - B.lo[0], B.hi[2] - B.lo[2]), g = rockBody(a, v).sunk; let reach = 0;
+      for (let i = 0; i < F.pos.length; i += 3) if (F.pos[i + 1] >= g) reach = Math.max(reach, Math.hypot(F.pos[i], F.pos[i + 2]));   // (how far it reaches over the ground)
       wide.push(near);
       const C = fam.collidersOf(v)[0], k = C ? C.r / reach : 0;   // its collider's round against the drawn rock's reach over the ground, both of its size
       if (!(k >= TOLERANCE.round[0] && k <= TOLERANCE.round[1])) notes.push(`shape ${v}: what stops a walker reaches ${r3(k)} of how far it is drawn over the ground`);
@@ -104,7 +95,7 @@ async function measured(a) {
     const sMid = mix(k0, k1, 0.5 ** 1.3), mean = tops.reduce((s, x) => s + x, 0) / tops.length;   // (its scale: mix(k0, k1, die^1.3), src/scatter/trees.js)
     return { by: 'height', least: Math.min(...tops) * k0 - FOOT, middle: mean * sMid - FOOT, most: Math.max(...tops) * k1 - FOOT, notes };
   }
-  const levels = a.detail?.levels ?? [];
+  const levels = a.faces ? [{ faces: a.faces }] : a.detail?.levels ?? [];
   if (levels[0]?.faces) {   // a made thing, as made
     const near = bounds(facesOf(levels[0].faces));
     levels.slice(1).forEach((L, i) => { const B = bounds(facesOf(L.faces)); if (Math.abs(B.top - near.top) > LEVELS * near.top) notes.push(`level ${i + 1}: ${r3(B.top)} m against ${r3(near.top)} m near`); });

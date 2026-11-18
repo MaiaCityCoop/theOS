@@ -65,7 +65,7 @@ export const KINDS = HERD.reduce((n, E) => n + E.count, 0), STAND = HERD.reduce(
     { first (the number of the first), count, families: [{ id, first (among them), count, F }] }. */
 export const placedBy = (engine) => { const Fs = FAMILIES.filter((E) => E.placed === engine), first = Fs[0]?.first ?? 0; return { first, count: Fs.reduce((n, E) => n + E.count, 0), families: Fs.map((E) => ({ id: E.id, first: E.first - first, count: E.count, F: E.F })) }; };
 const of = (k) => { for (const E of FAMILIES) if (k < E.first + E.count) return E; throw new Error(`zoo: no kind ${k}`); };
-export const meshOf = (k, l) => { const E = of(k); return E.F.meshOf(k - E.first, l); };
+export const meshOf = (k, l, room = null) => { const E = of(k); return E.F.meshOf(k - E.first, l, room); };
 export const skinOf = (k, size) => { const E = of(k); return E.F.skinOf(k - E.first, size); };
 export const lookOf = (k) => { const E = of(k); return E.F.lookOf(k - E.first); };
 export const bonesOf = (k) => { const E = of(k); return E.F.bonesOf?.(k - E.first) ?? null; };

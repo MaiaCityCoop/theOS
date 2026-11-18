@@ -17,6 +17,8 @@
 //   bun tools/gate.js paths [--paths a,b]                        the paths (tools/gate/views.js) on a cold profile and a
 //                                                                warm one: every frame's time, the GPU's, the whole
 //                                                                browser's memory, against 60 fps, BUDGET and 8 GB
+//   --query q (with any of them)                                 more of every page's address: --query stress, the
+//                                                                stress world (src/scatter/stress.js)
 //   bun tools/gate.js all [--tag t] [--views a,b]                stills of this code and of ?truth, their diff, the
 //                                                                bench, the compile and the paths, in one table
 //
@@ -39,6 +41,7 @@ import { BUDGET } from './bench.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
 
 const URL_AT = process.argv.indexOf('--url'), BASE = (URL_AT > 0 && process.argv[URL_AT + 1]) || process.env.GATE_URL || 'http://localhost:5180/game/';
+const Q_AT = process.argv.indexOf('--query'), EXTRA = Q_AT > 0 ? process.argv[Q_AT + 1] : '';   // (more of the address for every page the gate opens: --query stress, the stress world)
 const OUT = new URL('../.gate/', import.meta.url).pathname;   // TheGame/.gate/: made again by every run, not kept in git
 const SCREEN = { width: 1920, height: 1080, dpr: 2 }, INSIDE = 4 / 3, TIME = 100;   // (TIME: the seconds the world's clock stands at for stills)
 const FRAME = 1000 / 60, JITTER = 1, MEMORY = 8e9;   // the hard gates in motion: no frame longer than 1/60 s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within 8 GB
@@ -49,6 +52,7 @@ const ARGS = ['--enable-unsafe-webgpu'];
 /** A page of the game in Chrome (`ctx`: launch()), its world come and settled where it starts: drawn through WebGPU,
     with window.__game.settle(), or an error. */
 async function open(ctx, { path = '', query = '', init = null } = {}) {
+  query = [query, EXTRA].filter(Boolean).join('&');
   const page = await ctx.newPage(), errors = [], url = new URL(path, BASE).href + (query ? `?${query}` : '');
   await page.addInitScript(() => performance.setResourceTimingBufferSize(1e5));   // (the gate finds the page's own modules by their resource entries: all of them kept)
   if (init) await page.addInitScript(init);
