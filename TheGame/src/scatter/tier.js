@@ -23,6 +23,7 @@ import { cullOf, cullable, MANY, wgOf, sizeTo, useLimits } from '../core/occlusi
 import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
 import { passOf, vWas } from '../core/pass.js';
+import { ask, made, computeMaker } from '../core/compile.js';
 import { source } from '../core/settle.js';
 import { onMeasure, dialK } from '../detail/measure.js';
 import { Resident, WG, BLOCK, MARGIN } from './regions.js';
@@ -101,11 +102,21 @@ export class Tier {
     const q = this.step || Math.max(0.25, this.S / 16), n = this.n;   // (step: a tier that says itself how far the camera may move before it packs again)
     const key = `${world}|${this.near}|${this.far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}|${this.reads?.() ?? ''}|${n}|${this.patchKey()}|${this.viewKeyed ? view : ''}`;
     if (key === this.key) return;
+    if (!n && this.empty) { this.key = key; return; }   // (nothing chosen, and nothing left packed from before: no pass to make it nought again)
+    if (!made(this.passes, 'run')) { this.make(renderer); return; }   // (its passes made first: until they are, it packs nothing, and draws nothing: src/core/compile.js)
     this.key = key;
-    if (!n && this.empty) return;   // (nothing chosen, and nothing left packed from before: no pass to make it nought again)
     const cells = this.patchesIn();
     renderer.compute(this.passes); did('packs'); if (this.movers) did('moving'); did('kcells', Math.round(cells / 1000)); this.empty = !n;   // (moving: a tier packed every frame, its things moving; not a change of what stands: src/core/work.js changed)
   }
+  /** What it is: its meshes named so (three labels their pipelines by it: src/core/compile.js). Not its packing passes:
+      three writes a compute pass's name into its code, and the tiers' passes that are one shader would then be many. */
+  label(name) {
+    this.name = name;
+    this.meshes.forEach((m, k) => { m.name = this.meshes.length > 1 ? `${name} ${k}` : name; });
+  }
+  /** Its packing passes asked to be made, aside, in turn (src/core/compile.js ask). counted: whether the world waits for
+      them (made ahead of need, src/boot.js: not). */
+  make(renderer, counted = true) { if (this.passes) ask(this.passes, 'run', computeMaker(renderer), `${this.name}: packing`, counted); }
   /** Its patches read into two numbers, not written out one by one (a string of hundreds of them a tier a frame was a
       megabyte of litter every few frames for the browser to sweep up); a list's runs too (the same patch may hold other
       places now). */
@@ -578,6 +589,7 @@ function residentOf(T, me, s, ends) {
     run(renderer, world, kept, cx, cy, cz) {
       ready();
       const c = T.cam; if (!c) return;
+      if (!made(T.passes, 'run')) { T.make(renderer); return; }   // (its passes made first: src/core/compile.js)
       if (epoch !== s.epoch) { epoch = s.epoch; empty(); }   // (its kind laid out again: what it held is gone)
       const sc = T.fixed ? Math.min(T.fixed, T.far + Math.abs(c.dy) * 1.2) / T.far : c.s, near = T.near * sc, far = T.far * sc, q = T.step || Math.max(0.25, T.S / 16);
       // (what it holds again from nothing where what its cells read has changed: the lens, the stage, the ways, things'

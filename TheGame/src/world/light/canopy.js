@@ -24,6 +24,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, ivec2, uniform, texture, screenCoordinate, clamp, mix, smoothstep, exp, max } from 'three/tsl';
 import { castRoute, CASTS, cascades } from '../shadow.js';
+import { pending } from '../../core/compile.js';
 import { note, mark } from '../../core/gpu.js';
 import { CROWN_EXTINCTION } from './physics.js';
 import { HMIN, HMAX } from '../land.js';
@@ -84,7 +85,9 @@ export function createCanopy(renderer, { groundAt }) {
   note('the canopy map and its probes', 2 * (2 * S * S * 4 + P * P * 8), 0, 'light');
   // the cameras: straight down from above, straight up from below (both with north at the top of their picture)
   const cam = (down) => { const c = new THREE.OrthographicCamera(-side / 2, side / 2, side / 2, -side / 2, 0, 2 * UP); c.layers.set(CASTS); c.up.set(0, 0, down ? -1 : 1); c.userData.shadow = true; return c; };   // (shadow: what is drawn keeps the levels the eye chose, src/detail/index.js)
-  const cams = [cam(true), cam(false)], route = castRoute(renderer);
+  // (a caster drawn once it is made, and the map made again, all at once, once what it left out has come: made by need,
+  // src/world/shadow.js castRoute)
+  const cams = [cam(true), cam(false)], missing = new Set(), route = castRoute(renderer, () => maps[front], () => cams[0], (o) => missing.add(o));
   // the probes: at each of its heights over the ground, the slab above its kernel's columns, each by its share
   const probeMat = new THREE.NodeMaterial();
   probeMat.fragmentNode = Fn(() => {
@@ -104,7 +107,9 @@ export function createCanopy(renderer, { groundAt }) {
         where it stands, a piece a frame (its view from above, from below, then its probes), then both pairs turned.
         The first time, all at once. */
     render(scene, camera, groundY) {
-      const first = !CANOPY.on.value, gx = Math.round(camera.position.x / spacing) * spacing, gz = Math.round(camera.position.z / spacing) * spacing;
+      const came = piece === PIECES && missing.size > 0 && ![...missing].some((o) => pending(o, 'cast'));
+      if (came) { missing.clear(); piece = 0; }
+      const first = !CANOPY.on.value || came, gx = Math.round(camera.position.x / spacing) * spacing, gz = Math.round(camera.position.z / spacing) * spacing;
       if (piece === PIECES && (gx !== was.x || gz !== was.y)) { piece = 0; at.set(gx, gz, side, groundY); was.set(gx, gz); }
       if (piece === PIECES) return;
       const prev = renderer.getRenderTarget(), ac = renderer.autoClear, route0 = renderer.getRenderObjectFunction(), back = first ? front : 1 - front;

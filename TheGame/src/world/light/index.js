@@ -13,6 +13,8 @@ export function createLight(renderer, { groundAt }) {
     shadows, canopy,
     /** The casters compiled for the shadow cascades (src/world/shadow.js compile; a promise). */
     compile: (object, camera, groundY, scene = null) => shadows.compile(object, camera, groundY, scene),
+    /** What making `object` ahead of need asks, where it casts (src/world/shadow.js ahead; src/core/compile.js ahead). */
+    ahead: (object, scene) => shadows.ahead(object, scene),
     /** Before the frame, round where the camera stands (groundY: the ground under it). Each part marks its passes, for a
         tool's timing (src/core/gpu.js mark, tools/bench.js). */
     render(scene, camera, groundY) { shadows.render(scene, camera, groundY); canopy?.render(scene, camera, groundY); },

@@ -56,7 +56,7 @@ const ground = await tryTo('the ground', async () => {
   return ground;
 });
 await tryTo('the land', async () => { const { createTerrain } = await import('../src/terrain/terrain.js'), terrain = createTerrain(scene, tex, renderer); await terrain.compile(); });
-await tryTo('what grows', async () => { const { createScatter } = await import('../src/scatter/index.js'), scatter = createScatter(scene, tex, ground, renderer, camera); await scatter.compile(); bakers.push(...(scatter.bakes?.() ?? [])); });
+await tryTo('what grows', async () => { const { createScatter } = await import('../src/scatter/index.js'), { ahead } = await import('../src/core/compile.js'), scatter = createScatter(scene, tex, ground, renderer, camera); await scatter.compile(); await ahead(scatter.ahead()); bakers.push(...(scatter.bakes?.() ?? [])); });   // (and every tier's own packing, as the world makes it after its first frame: src/core/compile.js)
 await tryTo('what stands at a place', async () => {
   const { recipe } = await import('../src/core/registry.js'), { place } = await import('../src/world/place.js'), { stand } = await import('../src/scatter/placed.js'), { PLACES } = await import('../world/places.js');
   for (const at of Object.values(PLACES)) { const a = recipe(at.asset); if (!stand(a, at)) place(scene, a, at); }

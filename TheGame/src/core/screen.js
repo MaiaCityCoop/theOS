@@ -20,7 +20,7 @@
 // Two of each by turns: the frame before's depth says what has changed place.
 import * as THREE from 'three/webgpu';
 import { note, mark } from './gpu.js';
-import { compileFor } from './compile.js';
+import { compileFor, compileList, made, ask, labelled } from './compile.js';
 import { twinOf } from './pass.js';
 import { U } from './uniforms.js';
 import { ERROR_PX } from '../detail/error.js';
@@ -58,10 +58,28 @@ export function createScreen(renderer, { temporal, lens = null }) {
     }
     return T.turns[turn];
   };
-  // what each pass draws of an object: its twin for the pass (src/core/pass.js); in the prepass only what takes part
-  const drawObject = renderer.renderObject;
-  const pre = (object, scene, camera, geometry, material, group, lights, clipping, passId) => { const m = material.isNodeMaterial ? twinOf(material).pre : null; if (m) drawObject.call(renderer, object, scene, camera, geometry, m, group, lights, clipping, passId); };
-  const main = (object, scene, camera, geometry, material, group, lights, clipping, passId) => drawObject.call(renderer, object, scene, camera, geometry, material.isNodeMaterial ? twinOf(material).main : material, group, lights, clipping, passId);
+  // what each pass draws of an object: its twin for the pass (src/core/pass.js); in the prepass only what takes part. A
+  // frame draws it once it is made for that pass; until then it is made aside, and left out (src/core/compile.js)
+  const drawObject = renderer.renderObject, twin = { pre: (m) => (m.isNodeMaterial ? twinOf(m).pre : null), main: (m) => (m.isNodeMaterial ? twinOf(m).main : m) };
+  const as = (pass) => (object, scene, camera, geometry, material, ...rest) => { const m = twin[pass](material); if (m) drawObject.call(renderer, object, scene, camera, geometry, m, ...rest); };
+  const route = { pre: as('pre'), main: as('main') };
+  // (what a pass asks for in a frame is made in one compile, for its own target: one maker a pass, camera and scene)
+  const makers = new Map(), makerOf = (pass, camera, scene) => {
+    const k = `${pass} ${camera.id} ${scene.id}`;
+    if (!makers.has(k)) makers.set(k, (list) => compileList(renderer, () => targetsNow()[pass], list, camera, scene, route[pass]));
+    return makers.get(k);
+  };
+  // (drawn in either pass once made for both it takes part in: made for the prepass and not for the colour, its depth
+  // with no colour on it would be a hole the sky shows through)
+  const both = (object, material, camera, scene) => {
+    const pre = twin.pre(material);
+    if ((!pre || made(object, 'pre')) && made(object, 'main')) return true;   // (a frame's own way: two looks)
+    if (pre) ask(object, 'pre', makerOf('pre', camera, scene), labelled(pre, object, 'pre'));
+    ask(object, 'main', makerOf('main', camera, scene), labelled(twin.main(material), object, 'main'));
+    return false;
+  };
+  const drawn = (pass) => (object, scene, camera, geometry, material, ...rest) => { const m = twin[pass](material); if (m && both(object, material, camera, scene)) drawObject.call(renderer, object, scene, camera, geometry, m, ...rest); };
+  const pre = drawn('pre'), main = drawn('main');
   const clear = new THREE.Color(), sky = new THREE.Color(), prepassed = [];
   return {
     get out() { return OUT; }, size: sizeOf,
@@ -77,7 +95,10 @@ export function createScreen(renderer, { temporal, lens = null }) {
         for its own target: the pipelines a frame draws with, compiled side by side, in turn (src/core/compile.js; a
         promise). Compiled for the canvas instead, as the start did until 2026-11-15, every material was compiled twice:
         the canvas's pipelines are not the target's, and the target's were compiled as the first frames drew. */
-    compile(object, camera, scene = null) { return Promise.all([compileFor(renderer, () => targetsNow().pre, object, camera, scene, pre), compileFor(renderer, () => targetsNow().main, object, camera, scene, main)]); },
+    compile(object, camera, scene = null) { return Promise.all(['pre', 'main'].map((pass) => compileFor(renderer, () => targetsNow()[pass], object, camera, scene, route[pass], pass))); },
+    /** What making `object` ahead of need asks (src/core/compile.js ahead): its pipelines for both passes, as `camera`
+        sees it, whether it is drawn now or not. */
+    ahead(object, camera, scene) { const m = [object.material].flat()[0]; for (const pass of ['pre', 'main']) if (m && twin[pass](m)) ask(object, pass, makerOf(pass, camera, scene), labelled(twin[pass](m), object, pass), false); },
     /** What the last frame was laid on the screen from (temporal.resolve's: a tool's timing of the upscale alone). */
     last: null,
     /** fn({ depth, motion, camera, w, h }) after every prepass, before the colour: what reads what the prepass drew, with

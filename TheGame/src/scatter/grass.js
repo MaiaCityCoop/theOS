@@ -206,7 +206,7 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
       for (const key of ['near', 'nearFade', 'far', 'farFade']) T[key].value = b[key];
       U.uMeadowEnd.value = N.end; t.near = Math.max(0, b.near - b.nearFade); t.far = b.far;
     };
-    t.band();
+    t.band(); t.label(`grass, ring ${k}`);
     if (growthMap()) t.reads = growthMap().version;   // (packed again when what grows over it changes)
     return t;
   });
