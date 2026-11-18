@@ -204,7 +204,7 @@ export async function boot({ profile = 'world' } = {}) {
     if (!game.covered) { choose(Math.min(ms, 100) / 1000); hud?.cpu(performance.now() - c0); const d0 = performance.now(); draw(); parts.draw = performance.now() - d0; }
     governor.end(ms, now, live() && grown.scatter.over, wasBusy); wasBusy = busy();   // (the time since the last frame is that frame's: what it did besides drawing is told with it)
     if (!game.covered) tick(changed());   // (whether the world is complete: src/core/settle.js)
-    if (veiled) tell(); else hitch(ms, now);   // (the start's frames, behind the veil: what they wait for told, not logged as the game's)
+    if (veiled) { tell(); taken(); } else hitch(ms, now);   // (the start's frames, behind the veil: what they wait for told, not logged as the game's; what each did let go all the same, or every frame after the first that did anything would count as changing what is drawn, and the world would never be complete)
     hud?.frame(ms, now, controls && controls.band !== 'eye' ? `  ${controls.band} ${Math.round(controls.height)} m` : '');
   }
 
@@ -269,7 +269,11 @@ export async function boot({ profile = 'world' } = {}) {
   // (Until 2026-11-18 the start compiled everything the world could draw, every mesh made visible, before any frame:
   // 308 pipelines, 7.7 s of a 14.1 s cold start in Chrome, and a first picture that was not yet complete; under memory
   // pressure, three minutes on "Lighting the world")
-  const tell = () => { const M = making(); loadingSay(`Lighting the world: ${M.done} of ${M.asked}${M.now ? ` (${M.now})` : ''}`, 0.55 + 0.4 * (M.asked ? M.done / M.asked : 0)); };
+  // (the veil says what the start waits on: what is being compiled, n of m; once nothing is, what is still out)
+  const tell = () => {
+    const M = making(), out = M.done < M.asked ? '' : Object.entries(waiting()).map(([k, n]) => `${k} ${n}`).join(', ');
+    loadingSay(`Lighting the world: ${M.done} of ${M.asked}${M.now ? ` (${M.now})` : out ? `; waiting on ${out}` : ''}`, 0.55 + 0.4 * (M.asked ? M.done / M.asked : 0));
+  };
   const makeAhead = () => {   // (a material at a time: what draws with it, for every pass; and each tier's packing)
     const groups = grown?.scatter ? grown.scatter.ahead() : [], by = new Map();
     scene.traverse((o) => { const m = [o.material].flat()[0]; if (m) by.set(m, [...(by.get(m) ?? []), o]); });

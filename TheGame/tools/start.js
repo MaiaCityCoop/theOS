@@ -85,8 +85,13 @@ async function open(ctx, url, until, wait) {
   await page.addInitScript(watchStart, FIRST_FRAME);
   const t0 = Date.now();
   await page.goto(url, { waitUntil: 'load', timeout: wait });
-  await page.waitForFunction((name) => performance.getEntriesByName(name).length > 0, FIRST_FRAME, { timeout: wait, polling: 100 });
-  if (until === 'ready') await page.evaluate((ms) => Promise.race([window.__game.ready.then(() => (window.__start.ready = performance.now())), new Promise((res) => setTimeout(res, ms))]), wait);
+  // (no first frame in time: what the start still waited on, said, and the numbers as they stood)
+  const came = await page.waitForFunction((name) => performance.getEntriesByName(name).length > 0, FIRST_FRAME, { timeout: wait, polling: 100 }).then(() => true, () => false);
+  if (!came) {
+    const stuck = await page.evaluate(() => ({ veil: document.body?.dataset?.step ?? null, lifted: document.documentElement.classList.contains('os-loaded'), out: window.__game?.waiting?.() ?? null, boot: window.__game?.boot ?? null }));
+    console.log(`no first frame in ${wait / 1000} s: the veil ${stuck.lifted ? 'lifted' : `said "${stuck.veil}"`}; still out ${JSON.stringify(stuck.out)}; the start's marks ${JSON.stringify(stuck.boot)}`);
+  }
+  if (came && until === 'ready') await page.evaluate((ms) => Promise.race([window.__game.ready.then(() => (window.__start.ready = performance.now())), new Promise((res) => setTimeout(res, ms))]), wait);
   const r = { ...(await page.evaluate(numbersOf, FIRST_FRAME)), wall: Date.now() - t0, said };
   await page.close();
   return r;
