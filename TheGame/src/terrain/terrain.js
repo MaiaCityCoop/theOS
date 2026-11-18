@@ -2,11 +2,12 @@
 // picked around the camera each frame (CDLOD). Heights come from the vertex shader; a node's
 // outer vertices morph to the coarser grid, so the levels meet without cracks or pops.
 import * as THREE from 'three/webgpu';
-import { HMIN, HMAX, heightAt, riverAt } from '../world/land.js';
+import { HMIN, HMAX, heightAt, riverAt, OCT_LAM, OCT_AMP } from '../world/land.js';
 import { boxIn } from '../core/frustum.js';
 import { U } from '../core/uniforms.js';
-import { terrainMaterial, GRID, R0, FINE } from './material.js';
-import { createPages } from './pages.js';
+import { terrainMaterial, GRID, NODE, FINE } from './material.js';
+import { ERROR_PX } from '../detail/error.js';
+import { createPages, RELIEF, PSTEPS } from './pages.js';
 import { mark } from '../core/gpu.js';
 import { createRelief, LEVELS as RELIEF_LEVELS, GRID as RELIEF_GRID } from './relief.js';
 import { LAYERS } from './layers.js';
@@ -14,10 +15,23 @@ import { waterMaterial } from './water.js';
 import { usedMaterials } from '../materials/bake.js';
 import { recipes } from '../core/registry.js';
 
-const S0 = 8;               // a level-0 node's side, metres (0.5 m quads)
-const LEVELS = 10;          // the top level reaches R0 * 2^9 = 24.6 km (a land drawn less far: fewer, `reach`)
-const CAP = 4096 * FINE * FINE, WCAP = 1024 * FINE * FINE;   // (?truth's finer land: as many more nodes as its levels reach further, squared)
+// The land's levels, from the one measure. A level's quads carry an octave of the land (wavelength λ) as long as they are
+// at most λ/2 apart; an octave must be carried as long as it shows: its amplitude A over ERROR_PX on screen, out to
+// A K / ERROR_PX metres (K: pixels drawn a metre covers a metre off). A level of reach R has quads R / Q apart, and is
+// drawn from R/2 out, so its quads are at most 2d/Q apart at d; every octave is carried where it shows when
+// Q = 4 K STEEP / ERROR_PX, STEEP the octaves' greatest A/λ. Level 0's quads are NODE/GRID apart, so its reach is
+// Q NODE / GRID (U.uLandR0), each level after twice as far, the last as far as the land is drawn (END: the air hides it
+// by then, src/world/light.js). Near the eye the quadtree goes on into finer levels: plain land where the relief does not
+// show, the relief's own (src/terrain/relief.js) from where it does.
+const S0 = NODE;   // a level-0 node's side, metres
+const STEEP = Math.max(...OCT_AMP.map((A, i) => A / OCT_LAM[i]));   // the land's octaves' greatest amplitude over wavelength
+const END = 24576;   // metres the land is drawn to at most
 const WATER_LEVELS = 6;
+/** Level 0's reach now (lens metres), and the land's ratio Q of a level's reach to its quads. */
+const landR0 = () => (4 * U.uPxK.value * U.uDrawn.value * STEEP / ERROR_PX) * (S0 / GRID);
+/** Nodes a level may hold at most, round the camera whole (a level's reach over its node's side is R0/S0: the same at
+    every level; how many, never fewer than the quadtree selects). */
+const perLevel = (r0) => Math.ceil(Math.PI * (r0 * FINE / S0 + 1.5) ** 2);
 
 function gridGeometry() {
   const n = GRID + 1, pos = new Float32Array(n * n * 3), idx = new Uint16Array(GRID * GRID * 6);
@@ -40,32 +54,46 @@ export const landMaterials = () => [...usedMaterials(recipes('biome')), ...LAYER
 export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   const pages = createPages(renderer, tex);   // the ground's material, laid once a page round the camera (src/terrain/pages.js)
   const { pos, idx } = gridGeometry();
+  // a list of nodes, as many as `cap`; grown (twice as large, sent again) where the quadtree selects more, never left out
+  const room = (s, cap) => { s.data = new Float32Array(cap * 4); s.attr = new THREE.InstancedBufferAttribute(s.data, 4); s.attr.setUsage(THREE.DynamicDrawUsage); s.g.setAttribute('aNode', s.attr); s.cap = cap; };
   const make = (cap) => {
-    const g = new THREE.InstancedBufferGeometry();
-    g.setAttribute('position', pos); g.setIndex(idx);
-    const data = new Float32Array(cap * 4), attr = new THREE.InstancedBufferAttribute(data, 4);
-    attr.setUsage(THREE.DynamicDrawUsage);
-    g.setAttribute('aNode', attr);
-    g.instanceCount = 0;
-    return { g, data, attr, n: 0, cap };
+    const s = { g: new THREE.InstancedBufferGeometry(), n: 0 };
+    s.g.setAttribute('position', pos); s.g.setIndex(idx); s.g.instanceCount = 0; room(s, cap);
+    return s;
   };
-  const land = make(CAP), water = make(WCAP);
+  const putNode = (s, x, z, size, level) => {
+    if (s.n >= s.cap) { const was = s.data; room(s, s.cap * 2); s.data.set(was); }
+    const o = s.n++ * 4, a = s.data; a[o] = x; a[o + 1] = z; a[o + 2] = size; a[o + 3] = level;
+  };
+  const R00 = landR0(), land = make(perLevel(R00) * 12), water = make(perLevel(R00) * WATER_LEVELS);
   const landMat = terrainMaterial(pages), waterMat = waterMaterial(tex);
   // near the eye the quadtree goes on into the relief's finer levels, their points worked out in compute
   // (src/terrain/relief.js), each level reaching half as far as the one before; where it has no room left, the land
   // draws a node of it flat
-  const relief = createRelief(scene, renderer, pages, (from) => terrainMaterial(pages, from)), FIRST = -RELIEF_LEVELS;
-  pages.underRelief(S0 / 2 ** RELIEF_LEVELS / RELIEF_GRID);   // (its finest points this far apart)
+  const reliefOf = (cap) => createRelief(scene, renderer, pages, (from) => terrainMaterial(pages, from), cap);
+  let relief = reliefOf(perLevel(R00) * RELIEF_LEVELS), full = false;   // (full: it had no room this frame: made again twice as large)
+  let FIRST = -RELIEF_LEVELS, RELIEF0 = -1;   // (the finest level, and the relief's first: the measure's, update)
   const landMesh = new THREE.Mesh(land.g, landMat), waterMesh = new THREE.Mesh(water.g, waterMat);
   landMesh.frustumCulled = waterMesh.frustumCulled = false;
   landMesh.renderOrder = 10; // after the grass and the rocks: they are in front, the depth test spares the ground's shader
   waterMesh.renderOrder = 20;
   scene.add(landMesh, waterMesh);
 
-  const range = [], range2 = [], levels = Math.min(LEVELS, Math.max(1, Math.ceil(Math.log2(reach / R0)) + 1));   // (each level's reach; under ?truth FINE times as far, but the last's: the land ends where it always does)
-  for (let i = 0; i < levels; i++) { range.push(R0 * 2 ** i * (i < levels - 1 ? FINE : 1)); range2.push(range[i] * range[i]); }
-  const TOP = S0 * 2 ** (levels - 1);
-  let cx = 0, cz = 0, dy2 = 0, inv2 = 1;
+  // each level's reach (lens metres; under ?truth FINE times as far, but the last's: the land ends where it always does)
+  const range = [], range2 = [];
+  let levels = 1, TOP = S0, R0 = R00, cx = 0, cz = 0, dy2 = 0, inv2 = 1;
+  const levelsFor = () => {
+    R0 = landR0(); const end = Math.min(reach, END);
+    levels = Math.max(1, Math.ceil(Math.log2(end / R0)) + 1); TOP = S0 * 2 ** (levels - 1); range.length = range2.length = 0;
+    for (let i = 0; i < levels; i++) { range.push(i < levels - 1 ? R0 * 2 ** i * FINE : end); range2.push(range[i] * range[i]); }
+    // the relief's first level: the coarsest whose first half reaches as far as its geometry shows (pages.js
+    // reliefShares: even parallax would be off by more than ERROR_PX, out to RELIEF K / (PSTEPS ERROR_PX)); its levels
+    // from there, the finest RELIEF_LEVELS below
+    const shows = (RELIEF * U.uPxK.value * U.uDrawn.value) / (PSTEPS * ERROR_PX);
+    RELIEF0 = Math.min(-1, Math.ceil(Math.log2((2 * shows) / (R0 * FINE)))); FIRST = RELIEF0 - RELIEF_LEVELS + 1;
+    U.uLandR0.value = R0; U.uReliefFirst.value = RELIEF0; U.uReliefReach.value = R0 * FINE * 2 ** RELIEF0;
+    pages.underRelief((S0 * 2 ** FIRST) / RELIEF_GRID, relief.count > 0);   // (its finest points this far apart; whether it has any nodes: the last frame's)
+  };
 
   function inView(x, z, size, level) {
     let y0 = HMIN, y1 = HMAX;
@@ -76,17 +104,17 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
     const ddx = cx < x ? x - cx : cx > x + size ? cx - x - size : 0, ddz = cz < z ? z - cz : cz > z + size ? cz - z - size : 0;
     return (ddx * ddx + ddz * ddz + dy2) * inv2;   // the lens's distance, as the shader measures it
   }
-  const R2 = (level) => (level >= 0 ? range2[level] : (R0 * FINE * 2 ** level) ** 2);   // (a level's reach, squared; below 0 the relief's)
+  const R2 = (level) => (level >= 0 ? range2[level] : (R0 * FINE * 2 ** level) ** 2);   // (a level's reach, squared; below 0 the finer ones')
   function add(x, z, size, level) {
-    if (level < 0 && relief.add(x, z, size, level)) return;
-    if (land.n < land.cap) { const o = land.n++ * 4, a = land.data; a[o] = x; a[o + 1] = z; a[o + 2] = size; a[o + 3] = level; }
+    if (level <= RELIEF0) { if (relief.add(x, z, size, level)) return; full = true; }   // (no room: the land draws it flat, this once)
+    putNode(land, x, z, size, level);
     if (level >= 0) wet(x, z, size, level);
   }
   function wet(x, z, size, level) {   // (the water over a node: a node the relief draws, its water drawn for the whole level-0 node)
-    if (level < WATER_LEVELS && water.n < water.cap) {
+    if (level < WATER_LEVELS) {
       const half = size * 0.71, r = riverAt(x + size * 0.5, z + size * 0.5);
       const near = size >= 128 ? Math.abs(r.r) < 0.0042 * (half + 16) : r.d < 2 * half + r.w * 1.3 + 3;
-      if (near) { const o = water.n++ * 4, a = water.data; a[o] = x; a[o + 1] = z; a[o + 2] = size; a[o + 3] = level; }
+      if (near) putNode(water, x, z, size, level);
     }
   }
   function select(x, z, size, level) {
@@ -108,9 +136,11 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
     s.attr.clearUpdateRanges(); s.attr.addUpdateRange(0, s.n * 4); s.attr.needsUpdate = true;
   }
   return {
-    landMesh, waterMesh, pages, relief,
+    landMesh, waterMesh, pages,
+    /** The relief near the eye (src/terrain/relief.js). */
+    get relief() { return relief; },
     update(camera, uDy, lodInv) {
-      pages.update(camera);
+      levelsFor(); pages.update(camera);
       cx = camera.position.x; cz = camera.position.z; dy2 = uDy * uDy; inv2 = lodInv * lodInv;
       land.n = water.n = 0; relief.clear();
       const top = levels - 1, R = Math.min(range[top] / lodInv, camera.far);
@@ -118,6 +148,7 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
       const i0 = Math.floor((cx - R) / TOP), i1 = Math.floor((cx + R) / TOP), j0 = Math.floor((cz - R) / TOP), j1 = Math.floor((cz + R) / TOP);
       for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) select(i * TOP, j * TOP, TOP, top);
       push(land); push(water); mark('relief'); relief.build(camera);   // (a tool's clock names the relief's pass: src/core/gpu.js mark)
+      if (full) { full = false; const cap = relief.cap * 2; relief.dispose(); relief = reliefOf(cap); }
       waterMesh.visible = water.n > 0;
     },
     /** The pages' passes compiled (a promise). */

@@ -9,18 +9,23 @@ import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, po
 import { U } from '../core/uniforms.js';
 import { TRUTH } from '../detail/measure.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
+import { OCT_LAM } from '../world/land.js';
 import { layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND, SHADE_REACH } from './layers.js';
 import { finish, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
 
-export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
+export const GRID = 16, NODE = 8;   // quads per node side; a level-0 node's side, metres (its reach is the measure's: U.uLandR0, src/terrain/terrain.js)
 /** How many times as far every level of the land reaches but the last (whose reach is where the land ends): 1, and under
     ?truth 4, each quad a quarter as large on the screen (src/detail/measure.js; its finest everywhere is past any GPU). */
 export const FINE = TRUTH ? 4 : 1;
 
+/** The step the land's normal is worked out over, seen dist metres off: its mesh's quad there (the land's levels keep
+    dist over its quad at their ratio: GRID over NODE of the finest's reach), never finer than an eighth of its finest
+    octave (what resolves that octave's slope). */
+const normalStep = (dist) => max(OCT_LAM.at(-1) / 8, dist.mul(NODE / GRID).div(U.uLandR0.mul(FINE)));
 /** The node's grid point, morphed: (world x, z) */
 export function gridPoint() {
-  const node = attribute('aNode', 'vec4'), g = positionGeometry.xz, cell = node.z.div(GRID), rng = exp2(node.w).mul(R0 * FINE);
+  const node = attribute('aNode', 'vec4'), g = positionGeometry.xz, cell = node.z.div(GRID), rng = exp2(node.w).mul(U.uLandR0).mul(FINE);
   const k = clamp(camDist(node.xy.add(g.mul(cell))).sub(rng.mul(0.8)).div(rng.mul(0.15)), 0, 1);
   return node.xy.add(g.sub(fract(g.mul(0.5)).mul(2).mul(k)).mul(cell));
 }
@@ -61,7 +66,7 @@ export function groundRead(tex, m, p, s, tile) {
 /** How steep the land is at p, its normal's y, as the ground's mesh has it seen from D metres off (its vertex stage:
     the height's steps e metres either way). */
 export function slopeAt(p, D) {
-  const e = max(0.3, D.div(96)).toVar(), I = riverInfo(p).toVar(), h = heightAt(p, D, abs(I.x), I.y, I.z).toVar();
+  const e = normalStep(D).toVar(), I = riverInfo(p).toVar(), h = heightAt(p, D, abs(I.x), I.y, I.z).toVar();
   const at = (q) => { const J = riverNear(q, I).toVar(); return heightAt(q, D, abs(J.x), J.y, J.z); };
   return normalize(vec3(h.sub(at(p.add(vec2(e, 0)))), e, h.sub(at(p.add(vec2(0, e)))))).y;
 }
@@ -139,7 +144,7 @@ export function laid(tex, p, s, D, X) {
     `full` its normal N (the height's steps e metres either way, e by how far off it is seen) and how far it stands over
     the valley's floor (hill). The land's vertex stage, and the relief's points near the eye (src/terrain/relief.js). */
 export function landPoint(wp, full) {
-  const dist = camDist(wp).toVar(), e = max(0.3, dist.div(96)).toVar();
+  const dist = camDist(wp).toVar(), e = normalStep(dist).toVar();
   const at = (q, near) => { const I = (near ? riverNear(q, near) : riverInfo(q)).toVar(), d = abs(I.x).toVar(); return { I, d, h: heightAt(q, dist, d, I.y, I.z).toVar() }; };
   const C = at(wp), h = C.h;
   if (!full) return { h, I: C.I, d: C.d };

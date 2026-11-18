@@ -1,11 +1,11 @@
 // The ground near the eye in relief (intent 0038, stage 6c). WebGPU has no tessellation, so the mesh is made finer
 // where it is near and its points are worked out in compute (as Call of Duty's 2023 terrain does):
 //
-//   nodes    the land's quadtree (src/terrain/terrain.js) goes on below its finest level, near the eye: LEVELS more,
-//            nodes of 4, 2, 1 and 0.5 m, each reaching half as far as the one before (24, 12, 6 and 3 m through the
-//            lens), each a tile of GRID × GRID quads (12.5, 6.25, 3.1 and 1.6 cm). Its outer vertices morph to the
-//            coarser grid as the land's do, so the levels meet without a crack; the first of them morphs twice, to the
-//            land's own 0.5 m grid, where it meets it
+//   nodes    the land's quadtree (src/terrain/terrain.js) goes on below its finest level near the eye, and from where
+//            the relief shows (the measure's: terrain.js, U.uReliefFirst) its LEVELS levels are this one's, each node a
+//            tile of GRID × GRID quads, each level reaching half as far as the one before. Its outer vertices morph to
+//            the coarser grid as the land's do, so the levels meet without a crack; the first of them morphs twice, to
+//            the land's grid, where it meets it
 //   points   one compute pass a frame works out every vertex of every such node once (not once for each pass that
 //            draws it): the land's height and normal there, the river, how high it stands over the valley (the land's
 //            own vertex code: material.js landPoint), and the ground's own height from its virtual texture's page
@@ -21,12 +21,12 @@ import { Fn, If, float, uint, vec2, vec3, vec4, uniform, exp2, clamp, fract, max
 import { gpuStorage } from '../core/gpu.js';
 import { camDist } from '../world/land.nodes.js';
 import { snowDepth } from '../world/light.js';
-import { TRUTH } from '../detail/measure.js';
-import { R0, FINE, landPoint } from './material.js';
+import { FINE, landPoint } from './material.js';
+import { U } from '../core/uniforms.js';
 import { RELIEF, reliefShares, reliefOverSnow } from './pages.js';
 
 export const GRID = 32, LEVELS = 4;   // quads a node of relief has a side; levels of it below the land's finest
-const V = (GRID + 1) ** 2, CAP = TRUTH ? 4096 : 512;   // vertices a node; nodes at most (beyond, the land draws them flat: terrain.js)
+const V = (GRID + 1) ** 2;   // vertices a node
 
 /** The tile of a node of relief: GRID × GRID quads, every other quad's diagonal turned (as the land's: it folds into
     the coarser grid as it morphs). */
@@ -43,7 +43,9 @@ function tile() {
 
 /** The relief near the eye, drawn into `scene` with the land's material (made by `material(from)`: material.js
     terrainMaterial with its vertex stage reading from here), its heights from the land's pages `vt`. */
-export function createRelief(scene, renderer, vt, material) {
+export function createRelief(scene, renderer, vt, material, CAP) {
+  // (CAP: nodes at most, as many as its levels can hold round the camera: src/terrain/terrain.js; were it full, the land
+  // draws what is left flat for that frame, and makes it again twice as large)
   const NODES = gpuStorage('vec4', CAP, 'the relief near the eye: its nodes'), nodes = new Float32Array(CAP * 4);
   const P = gpuStorage('vec4', CAP * V, 'the relief near the eye: its points'), Q = gpuStorage('vec4', CAP * V, 'the relief near the eye: their normals and the river');
   const uN = uniform(0, 'uint');
@@ -51,12 +53,12 @@ export function createRelief(scene, renderer, vt, material) {
   const kernel = Fn(() => {
     const id = globalId.x, n = id.div(uint(V)), v = id.sub(n.mul(uint(V)));
     If(n.lessThan(uN), () => {
-      const node = NODES.node.element(n), cell = node.z.div(GRID), rng = exp2(node.w).mul(R0 * FINE);
+      const node = NODES.node.element(n), cell = node.z.div(GRID), rng = exp2(node.w).mul(U.uLandR0).mul(FINE);
       const g0 = vec2(float(v.mod(uint(GRID + 1))), float(v.div(uint(GRID + 1)))), at = (g) => node.xy.add(g.mul(cell));
       // the morph to the coarser grid at the node's outer edge (the land's gridPoint); the first level of relief morphs
       // twice over its outer part, to the land's own grid (its quads four of these)
       const d0 = camDist(at(g0)).toVar(), k = clamp(d0.sub(rng.mul(0.8)).div(rng.mul(0.15)), 0, 1).toVar(), k1 = clamp(d0.sub(rng.mul(0.6)).div(rng.mul(0.15)), 0, 1);
-      const first = node.w.greaterThan(-1.5), g = vec2(g0).toVar();
+      const first = node.w.greaterThan(U.uReliefFirst.sub(0.5)), g = vec2(g0).toVar();   // (its first level: where it meets the land's grid, twice as coarse as its parent's)
       If(first, () => { g.assign(g0.sub(fract(g0.mul(0.5)).mul(2).mul(k1))); g.assign(g.sub(fract(g.mul(0.25)).mul(4).mul(k))); })
         .Else(() => { g.assign(g0.sub(fract(g0.mul(0.5)).mul(2).mul(k))); });
       const wp = at(g).toVar(), L = landPoint(wp, true), dist = camDist(wp).toVar();
@@ -105,6 +107,10 @@ export function createRelief(scene, renderer, vt, material) {
       renderer.compute(kernel, [Math.ceil((n * V) / 64), 1, 1]);
     },
     compile: () => renderer.compileComputeAsync(kernel),
+    /** Nodes it holds at most. */
+    cap: CAP,
+    /** Let go of it (made again larger: src/terrain/terrain.js). */
+    dispose() { scene.remove(mesh); g.dispose(); mesh.material.dispose(); for (const B of [NODES, P, Q]) renderer.backend.get(B.attr)?.buffer?.destroy?.(); },
     get count() { return n; },
   };
 }

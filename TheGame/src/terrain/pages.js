@@ -33,7 +33,7 @@ import { source } from '../core/settle.js';
 import { TRUTH, ERROR_PX, pxAt, drawnAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { layerTables, layerWords, layersFrom } from './layers.js';
-import { laid, slopeAt, groundRead, R0, FINE } from './material.js';
+import { laid, slopeAt, groundRead } from './material.js';
 import { wear } from './decals.js';
 import { steps, colours } from '../materials/bake.js';
 import { snowDepth } from '../world/light.js';
@@ -46,23 +46,22 @@ const S0 = 1 / 512, LEVELS = 17, TOP = LEVELS - 1, K = 128;   // metres a texel 
 const ANISO = 4, FADE = 10, SWEEP = TRUTH ? 4 : 8, TAKES = TRUTH ? 16 : 4, BATCH = 16, MAPN = 8;   // the filter's steps along a slope; frames a page fades in over; a block of SWEEP × SWEEP pixels asks once a frame, the finest of TAKES of them; pages laid at once; texels between the layer map's points
 const SPAN = (SWEEP * SWEEP) / TAKES;   // frames a sweep takes: every pixel of a block has asked once
 const G0 = SLOT / MAPN + 2, G1 = SLOT / 2 / MAPN + 2, POINTS = G0 * G0 + G1 * G1;   // the layer map's points a page has a side, for its first mip and its second; all of them
-const KEEP = 96, FAST = 12, PIN = 26000, NEAR = 15;   // frames a page not asked for is kept at least; screen pixels a frame a page may cross and still be laid; metres round the camera the last level is always in; metres from the eye the bias spares
 /** The ground's own height: metres from a page's lowest ground to its highest (its height 0 … 1, the land's own at
     0.5). The one size of the ground's relief: how it is shown at a distance follows from it by the one measure
     (reliefShares). */
 export const RELIEF = 0.05;
-const PSTEPS = 6;   // the parallax's steps down the ray
-/** The lens's metres the relief's mesh reaches (its first level, the land's finest's half: src/terrain/relief.js). */
-export const RELIEF_REACH = R0 * FINE / 2;
+/** The parallax's steps down the ray. */
+export const PSTEPS = 6;
 /** How the ground's own height is shown at d metres off (as the 68° lens sees them; node): as geometry (the relief
     near the eye, src/terrain/relief.js), along the eye's ray (parallax, read below), or not at all, by the one measure
     (src/detail/measure.js). Drawn flat, the ground is off by its height on screen: e, its pixels drawn. Parallax's
     PSTEPS steps leave a step of it, e / PSTEPS. So geometry where even parallax would be off by more than ERROR_PX;
     parallax where the flat ground would be; nothing where neither; each handed over within BAND of its line
     (src/detail/error.js). And no geometry where the relief's mesh folds into the land's grid (from 0.6 of its reach,
-    relief.js): there parallax takes it. -> { geometry, parallax }, shares 0 … 1 */
+    relief.js; its reach U.uReliefReach, src/terrain/terrain.js): there parallax takes it. -> { geometry, parallax },
+    shares 0 … 1 */
 export const reliefShares = (d) => {
-  const e = drawnAt(pxAt(float(RELIEF), d)).toVar(), held = float(1).sub(smoothstep(RELIEF_REACH * 0.5, RELIEF_REACH * 0.6, d));
+  const e = drawnAt(pxAt(float(RELIEF), d)).toVar(), held = float(1).sub(smoothstep(U.uReliefReach.mul(0.5), U.uReliefReach.mul(0.6), d));
   const geometry = smoothstep(PSTEPS * ERROR_PX, PSTEPS * ERROR_PX * BAND, e).mul(held).toVar();
   return { geometry, parallax: smoothstep(ERROR_PX, ERROR_PX * BAND, e).mul(float(1).sub(geometry)) };
 };
@@ -70,16 +69,18 @@ export const reliefShares = (d) => {
 export const reliefOverSnow = (depth) => clamp(float(1).sub(depth.div(RELIEF)), 0, 1);
 const FITS = 0.9, OVER = 0.96, STEPS = 10;   // the share of the slots the pages asked for may take at the bias chosen; past this share it is chosen again; the bias's quarter levels, at most
 const BLOCKS_MOST = TRUTH ? Math.ceil(3840 / SWEEP) * Math.ceil(2160 / SWEEP) : Math.ceil(7680 / SWEEP) * Math.ceil(4320 / SWEEP), READS = 4;   // the blocks of the largest inside asked from (8K; ?truth, 4K); read-backs in flight at once
+/** Frames a page asked for is kept at least: two sweeps and the read-backs in flight (a page any pixel reads is asked
+    for once a sweep, so it is never let go while it is seen). */
+const KEEP = 2 * SPAN + READS;
 const VALID = 1 << 12, FADED = 1 << 13;   // a page table entry: its slot (12 bits), these, the frame it came in (16 bits)
 const sideOf = (m) => PAGE * S0 * 2 ** m;   // a page's side at level m, metres
 // the pixels each block of SWEEP × SWEEP asks from, frame by frame, TAKES at a time: an ordered dither's order, so they
 // spread out
 const BITS = Math.log2(SWEEP), SEQ = []; for (let y = 0; y < SWEEP; y++) for (let x = 0; x < SWEEP; x++) { let v = 0; for (let k = 0; k < BITS; k++) v |= ((((x ^ y) >> k) & 1) << (2 * BITS - 1 - 2 * k)) | (((y >> k) & 1) << (2 * BITS - 2 - 2 * k)); SEQ[v] = [x, y]; }
 const stampOf = (f) => (f % 31) + 1;   // (what a pixel's ask is marked with: its frame, 1 … 31)
-/** The bias a pixel t of the way from NEAR to 3 NEAR off asks with, at bias b (as biasAt, in JS). */
-const biasOf = (b, t) => { const c = b - 0.5; return c + t * (Math.max(c, 0) - c); };
-/** The level a pixel reads whose own level is `raw` (its footprint's, unbiased), t as for biasOf, at bias b. */
-const levelOf = (raw, t, b) => Math.min(TOP, Math.max(0, Math.floor(raw + biasOf(b, t))));
+/** The level a pixel reads whose own level is `raw` (its footprint's, unbiased), at bias b: half a level finer than its
+    footprint, and the bias (as biasAt, in JS). */
+const levelOf = (raw, b) => Math.min(TOP, Math.max(0, Math.floor(raw + b - 0.5)));
 
 let LAND = null;
 /** The land's pages as made last (null before): what else reads the ground there (a rock's skirt: src/scatter/drawer.js). */
@@ -121,12 +122,11 @@ export function createPages(renderer, tex) {
   // of SPAN frames asks from all of them), read from the prepass right after it is drawn: a pixel of the land writes
   // there its own level, its footprint's, unbiased (src/terrain/material.js); its point comes from its depth through the
   // camera as it drew. A block says the finest of them at the bias now, in two 32-bit words: the page it lies in half a
-  // level finer than any bias asks for (the reference: its level, its place modulo 2048) and the frame; its own level
-  // and how near the eye it is (what the bias spares of it), and whether it lies at an edge of the page it reads. So
-  // what any bias would ask for can be told from them ----
+  // level finer than any bias asks for (the reference: its level, its place modulo 2048) and the frame; its own level,
+  // and whether it lies at an edge of the page it reads. So what any bias would ask for can be told from them ----
   const ASK = gpuStorage('uint', BLOCKS_MOST * 2, "the land's pages: what the pixels ask for");
   const tDepth = texture(new THREE.DepthTexture(1, 1)), tMotion = texture(new THREE.Texture());
-  const uInv = uniform(new THREE.Matrix4()), uSize = uniform(new THREE.Vector2(1, 1)), uStamp = uniform(1, 'uint'), uEye = uniform(new THREE.Vector3()), uBiasK = uniform(0);   // (uBiasK: the bias, for the asks' pass)
+  const uInv = uniform(new THREE.Matrix4()), uSize = uniform(new THREE.Vector2(1, 1)), uStamp = uniform(1, 'uint'), uBiasK = uniform(0);   // (uBiasK: the bias, for the asks' pass)
   const uSmp = uniformArray(Array.from({ length: TAKES }, () => new THREE.Vector2()), 'vec2'), uFw = uniform(1, 'uint');
   const askKernel = Fn(() => {
     const b = uvec2(globalId.xy), base = ivec2(b).mul(SWEEP), fw = uFw;
@@ -138,7 +138,7 @@ export function createPages(renderer, tex) {
           const raw = tMotion.load(q).w.sub(2).toVar();   // (written 2 more: 0 is not the land)
           If(raw.greaterThan(-1.5), () => {
             const uv = vec2(q).add(0.5).div(uSize), c = uInv.mul(vec4(uv.x.mul(2).sub(1), float(1).sub(uv.y.mul(2)), tDepth.load(q).x, 1)), w = c.xyz.div(c.w).toVar();
-            const t = smoothstep(NEAR, 3 * NEAR, length(w.sub(uEye))), cb = uBiasK.sub(0.5), lv = floor(raw.add(mix(cb, max(cb, 0), t)));
+            const lv = floor(raw.add(uBiasK).sub(0.5));
             If(lv.lessThan(best), () => {   // (the finest; of the same, the first in this frame's order)
               best.assign(lv);
               const m = int(clamp(floor(raw.sub(0.5)), 0, TOP)), pg = ivec2(floor(w.xz.div(exp2(float(m)).mul(PAGE * S0))));
@@ -149,7 +149,7 @@ export function createPages(renderer, tex) {
               // asked for with it, so no place of the jitter finds a page the others did not)
               const L = clamp(lv, 0, 15), fr = fract(w.xz.div(exp2(L).mul(PAGE * S0))), e = exp2(raw.sub(L)).mul(0.5 * ANISO / PAGE).div(U.uFine);
               const ex = fr.x.lessThan(e).select(uint(1), fr.x.greaterThan(float(1).sub(e)).select(uint(2), uint(0))), ez = fr.y.lessThan(e).select(uint(1), fr.y.greaterThan(float(1).sub(e)).select(uint(2), uint(0)));
-              w1.assign(uint(clamp(raw.add(2), 0, 255).mul(256)).bitOr(uint(t.mul(255)).shiftLeft(uint(16))).bitOr(ex.bitOr(ez.shiftLeft(uint(2))).shiftLeft(uint(24))).bitOr(uint(L).shiftLeft(uint(28))));
+              w1.assign(uint(clamp(raw.add(2), 0, 255).mul(256)).bitOr(ex.bitOr(ez.shiftLeft(uint(2))).shiftLeft(uint(24))).bitOr(uint(L).shiftLeft(uint(28))));
             });
           });
         });
@@ -281,16 +281,16 @@ export function createPages(renderer, tex) {
   // each (a pixel shows the finest in, so its parents come first), when last asked (f), by how many asks (n). The pages
   // asked for are the want's keys; those not in yet, the queue
   const refs = new Map(), want = new Map();
-  const prev = new THREE.Vector3(), turn = new THREE.Quaternion(); let moved = 0, swung = 0, pxRad = 1600;   // (metres and radians the camera moved last frame; screen pixels a radian through its lens)
-  let quietFrom = 0, readTo = 0, dirty = false, pick = null, pickedAt = -1e9, judged = -1, nAsk = 0, askedAt = -1, cutAt = 0;   // (since when nothing changed what is asked for; the last frame whose asks are in; the queue to be sorted again; the bias being chosen)
+  const prev = new THREE.Vector3(), turn = new THREE.Quaternion(); let moved = 0, swung = 0, pxRad = 1600, pxH = 1440;   // (metres and radians the camera moved last frame; screen pixels a radian through its lens)
+  let quietFrom = 0, readTo = 0, dirty = false, pick = null, pickedAt = -1e9, judged = -1, nAsk = 0, askedAt = -1;   // (since when nothing changed what is asked for; the last frame whose asks are in; the queue to be sorted again; the bias being chosen)
   // What the pixels ask for is a function of the view, the bias and the relief's heights (src/terrain/relief.js: its
   // points are raised by the pages, so where it stands a pixel's point moves as they come in): a page the relief reads
   // (at its finest level or coarser, within its reach of the camera), laid or faded in, changes what is asked for as a
   // move of the camera does, and a sweep is asked again after it
-  let reliefFinest = Infinity;
+  let reliefFinest = Infinity, reliefAny = false;
   const moves = (q) => {
-    if (q.m < reliefFinest) return;
-    const P = sideOf(q.m), r = RELIEF_REACH / U.uLodInv.value, dx = Math.max(q.i * P - prev.x, 0, prev.x - (q.i + 1) * P), dz = Math.max(q.j * P - prev.z, 0, prev.z - (q.j + 1) * P);
+    if (!reliefAny || q.m < reliefFinest) return;
+    const P = sideOf(q.m), r = U.uReliefReach.value / U.uLodInv.value, dx = Math.max(q.i * P - prev.x, 0, prev.x - (q.i + 1) * P), dz = Math.max(q.j * P - prev.z, 0, prev.z - (q.j + 1) * P);
     if (dx * dx + dz * dz < r * r) { quietFrom = frame; log({ k: 'quiet', why: 'relief', m: q.m }); }
   };
   // a page asked for at frame f: it and every page over it, each in its level's window (past it: its parent)
@@ -303,25 +303,25 @@ export function createPages(renderer, tex) {
       const P = IN.get(k); if (P) P.used = frame;
     }
   };
-  const asked = (R, f) => { R.L = levelOf(R.raw, R.t, bias); const d = 2 ** (R.L - R.m); ask(R.L, Math.floor(R.i / d), Math.floor(R.j / d), f, 1); };
+  const asked = (R, f) => { R.L = levelOf(R.raw, bias); const d = 2 ** (R.L - R.m); ask(R.L, Math.floor(R.i / d), Math.floor(R.j / d), f, 1); };
   // a frame's asks (two words a block), read back
   const took = (data, f) => {
     const st = stampOf(f); let last = -1, R = null;
     for (let k = 0; k < data.length; k += 2) {
       const v = data[k]; if (!v || v >>> 27 !== st) continue;
-      const raw = (data[k + 1] & 0xffff) / 256 - 2, t = ((data[k + 1] >>> 16) & 255) / 255;
+      const raw = (data[k + 1] & 0xffff) / 256 - 2;
       if (v !== last) {   // (a run of blocks over the same reference page: looked up once)
         last = v; const m = v & 31, w = win[m]; R = null; if (!w) continue;
         const ci = w[0] + K / 2, cj = w[1] + K / 2, ib = (v >>> 5) & 2047, jb = (v >>> 16) & 2047;
         const i = ci + ((((ib - ci) % 2048) + 3072) % 2048) - 1024, j = cj + ((((jb - cj) % 2048) + 3072) % 2048) - 1024, key = keyOf(m, i, j);
-        R = refs.get(key); if (!R) refs.set(key, (R = { m, i, j, raw, t, since: f, f: -1, L: -1 }));
+        R = refs.get(key); if (!R) refs.set(key, (R = { m, i, j, raw, since: f, f: -1, L: -1 }));
       }
       if (!R) continue;
-      if (f - R.since >= SPAN) { R.raw = raw; R.t = t; R.since = f; } else if (raw < R.raw) { R.raw = raw; R.t = t; }
-      if (R.f !== f || levelOf(R.raw, R.t, bias) !== R.L) { R.f = f; asked(R, f); }
+      if (f - R.since >= SPAN) { R.raw = raw; R.since = f; } else if (raw < R.raw) R.raw = raw;
+      if (R.f !== f || levelOf(R.raw, bias) !== R.L) { R.f = f; asked(R, f); }
       // (near its page's edge: the page across it too, at the level it read, if that is the level asked at the bias now)
       const edge = (data[k + 1] >>> 24) & 15, L = data[k + 1] >>> 28;
-      if (edge && L < 15 && levelOf(raw, t, bias) === L) {
+      if (edge && L < 15 && levelOf(raw, bias) === L) {
         const d = 2 ** (L - R.m), i = Math.floor(R.i / d), j = Math.floor(R.j / d), di = (edge & 3) === 1 ? -1 : (edge & 3) === 2 ? 1 : 0, dj = (edge >> 2) === 1 ? -1 : (edge >> 2) === 2 ? 1 : 0;
         if (di) ask(L, i + di, j, f, 0); if (dj) ask(L, i, j + dj, f, 0); if (di && dj) ask(L, i + di, j + dj, f, 0);
       }
@@ -343,7 +343,7 @@ export function createPages(renderer, tex) {
     const S = new Set(), from = frame - SPAN - READS;
     for (const R of refs.values()) {
       if (R.f < from) continue;
-      let L = levelOf(R.raw, R.t, b); const d = 2 ** (L - R.m); let i = Math.floor(R.i / d), j = Math.floor(R.j / d);
+      let L = levelOf(R.raw, b); const d = 2 ** (L - R.m); let i = Math.floor(R.i / d), j = Math.floor(R.j / d);
       for (; L <= TOP; L++, i = Math.floor(i / 2), j = Math.floor(j / 2)) { if (!inWin(L, i, j)) continue; const k = keyOf(L, i, j); if (S.has(k)) break; S.add(k); }
     }
     return S.size;
@@ -360,12 +360,12 @@ export function createPages(renderer, tex) {
     log({ k: 'pick', b, was: bias, still: pick0.still });
     if (b !== bias) { const was = pick0.still; bias = b; reask(); quietFrom = frame; if (was) judged = frame; }   // (what it asks for now is judged, if it was chosen from a view that stood: no need to choose again once a sweep has come)
   };
-  // how many levels coarser a page is laid while the camera moves: what crosses the screen faster than FAST pixels a
-  // frame waits (its parent, asked for with it, is laid)
+  // while the camera moves, a page that would cross the picture before it could come (be asked for, read back, laid and
+  // faded in: a sweep, the read-backs, the fade) waits; its parent, asked for with it, is laid
   const waits = (m, i, j, cam) => {
     if (!(moved > 0 || swung > 0)) return false;
     const P = sideOf(m), d = Math.max(0.5, Math.hypot((i + 0.5) * P - cam.x, (j + 0.5) * P - cam.z, U.uDy.value + 1.5));
-    return (moved / d + swung) * pxRad > FAST;
+    return (moved / d + swung) * pxRad * (SPAN + READS + FADE) > pxH;
   };
   // read-backs: a few buffers the GPU copies a frame's asks into, each mapped when the copy is done
   const spare = [], busyReads = new Set();
@@ -376,8 +376,7 @@ export function createPages(renderer, tex) {
     busyReads.add(B);
     const src = renderer.backend.get(ASK.attr).buffer; if (!src) { spare.push(B); busyReads.delete(B); return; }
     const e = dev.createCommandEncoder(); e.copyBufferToBuffer(src, 0, B, 0, n * 8); dev.queue.submit([e.finish()]);
-    // (what was asked before a cut is asked no longer)
-    B.mapAsync(GPUMapMode.READ, 0, n * 8).then(() => { try { if (f >= cutAt) took(new Uint32Array(B.getMappedRange(0, n * 8)), f); } finally { B.unmap(); } }).catch(() => {}).finally(() => { busyReads.delete(B); spare.push(B); });
+    B.mapAsync(GPUMapMode.READ, 0, n * 8).then(() => { try { took(new Uint32Array(B.getMappedRange(0, n * 8)), f); } finally { B.unmap(); } }).catch(() => {}).finally(() => { busyReads.delete(B); spare.push(B); });
   };
   // (still out, for the world complete: src/core/settle.js): pages asked for and not in, pages fading in, the bias being
   // chosen, and until a whole sweep has been read since anything changed what is asked for (the camera moved, the
@@ -390,16 +389,16 @@ export function createPages(renderer, tex) {
     /** After the prepass (src/core/screen.js afterPrepass): which pages its pixels read, one in each SWEEP × SWEEP.
         depth, motion: the prepass's; camera: as it drew (its shift too); w, h: its pixels. */
     ask({ depth, motion, camera, w, h }) {
-      tDepth.value = depth; tMotion.value = motion; uSize.value.set(w, h); uEye.value.setFromMatrixPosition(camera.matrixWorld); uBiasK.value = bias;
+      tDepth.value = depth; tMotion.value = motion; uSize.value.set(w, h); uBiasK.value = bias;
       uInv.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
       const fw = Math.ceil(w / SWEEP), fh = Math.ceil(h / SWEEP); uFw.value = fw; nAsk = Math.min(fw * fh, BLOCKS_MOST); askedAt = frame;
       renderer.compute(askKernel, [Math.ceil(fw / 8), Math.ceil(fh / 8), 1]);
     },
     /** Every page laid again (the land under them changed: the lakes). */
     refresh: flush,
-    /** The relief near the eye reads the pages, its finest points `cell` metres apart (src/terrain/relief.js): what
-        those pages are changes what the pixels ask for (moves, above). */
-    underRelief(cell) { reliefFinest = Math.max(0, Math.floor(Math.log2(cell / S0) - 0.5)); },
+    /** The relief near the eye reads the pages, its finest points `cell` metres apart (src/terrain/relief.js), and has
+        nodes now or not (`any`): where it has, what those pages are changes what the pixels ask for (moves, above). */
+    underRelief(cell, any) { reliefFinest = Math.max(0, Math.floor(Math.log2(cell / S0) - 0.5)); reliefAny = any; },
     /** Whether what a read gives may differ from the last frame's: the table changed this frame, or a page fades in. */
     get changing() { return fading.length > 0 || changed; },
     /** For a look: what happens to the pages frame by frame (on: start afresh; off: stop), and what has been seen:
@@ -420,12 +419,11 @@ export function createPages(renderer, tex) {
       // laid again whole when what it is laid as changed: the library's stage and sandbox, the screen's pixels (a level's distance)
       const k2 = `${U.uSand.value.toArray()}|${U.uStage.value.toArray()}|${U.uStageGround.value.toArray()}|${size.y}|${U.uPxK.value}`;
       if (k2 !== key) { log({ k: 'flush', key: k2 }); key = k2; flush(); uPxS.value = size.y / (2 * Math.tan((34 * Math.PI) / 180)); }
-      // the camera's speed: metres and radians a frame (a jump, farther than twice its height in a frame, is a cut: what
-      // was asked for before it no longer counts, and the bias starts again from none)
+      // the camera's speed: metres and radians a frame. (A jump needs nothing of its own: what was asked for before it is
+      // forgotten in two sweeps, and the bias is chosen again from what is asked for after it)
       moved = cam.distanceTo(prev); swung = 2 * Math.acos(Math.min(1, Math.abs(turn.dot(camera.quaternion))));
-      if (moved > Math.max(50, 2 * (U.uDy.value + 2)) || swung > 0.5) { log({ k: 'cut', moved, swung }); moved = swung = 0; bias = 0; refs.clear(); want.clear(); queue = []; pick = null; readTo = cutAt = frame; }
       if (moved > 1e-4 || swung > 1e-5) quietFrom = frame;
-      prev.copy(cam); turn.copy(camera.quaternion); pxRad = (camera.projectionMatrix.elements[5] * size.y) / 2;
+      prev.copy(cam); turn.copy(camera.quaternion); pxRad = (camera.projectionMatrix.elements[5] * size.y) / 2; pxH = size.y;
       // ---- each level's window round the camera: the pages it leaves let go ----
       for (let m = 0; m < LEVELS; m++) {
         const P = sideOf(m), i0 = Math.floor(cam.x / P) - K / 2, j0 = Math.floor(cam.z / P) - K / 2, w = win[m];
@@ -433,8 +431,9 @@ export function createPages(renderer, tex) {
         win[m] = [i0, j0]; WIN.array[m].set(i0, j0, 0, 0); C.WIN.array[m].set(i0, j0, 0, 0);
         for (const Q of [...IN.values()]) if (Q.m === m && !inWin(m, Q.i, Q.j)) evict(Q, 'window');
       }
-      // ---- the last level round the camera, always in (what a pixel reads where nothing finer is in yet) ----
-      const P = sideOf(TOP), pins = [];
+      // ---- the last level round the camera, always in as far as the land is drawn (what a pixel reads where nothing
+      // finer is in yet) ----
+      const P = sideOf(TOP), pins = [], PIN = Math.max(U.uLandEnd.value, P);
       for (let j = Math.floor((cam.z - PIN) / P); j <= Math.floor((cam.z + PIN) / P); j++) for (let i = Math.floor((cam.x - PIN) / P); i <= Math.floor((cam.x + PIN) / P); i++) {
         const Q = IN.get(keyOf(TOP, i, j)); if (Q) { Q.pin = true; Q.used = frame; } else pins.push({ m: TOP, i, j, pin: true });
       }
@@ -466,12 +465,11 @@ export function createPages(renderer, tex) {
       uFrame.value = C.uFrame.value = frame & 0xffff; uStamp.value = stampOf(frame); uBias.value = C.uBias.value = bias;
       for (let k = 0; k < TAKES; k++) uSmp.array[k].set(...SEQ[(frame % SPAN) * TAKES + ((k + frame) % TAKES)]);   // (this frame's TAKES of each block, in an order turned each frame: of the same level, another wins)
     },
-    /** How much coarser a pixel d metres from the eye asks: within NEAR half a level finer than its pixel (a page is
-        filtered as it is read, after the filtering its texels were laid with: finer, the ground near the eye is as sharp
-        as a read of its materials), from 3 NEAR as its pixel. Where what is asked for does not fit, the bias first
-        takes the near ground's half level back, then makes all of it coarser (spared it, a view from 10 m asked for
-        more pages than the atlas holds, and never settled). */
-    biasAt: (d, u = Rd) => { const b = u.uBias.sub(0.5); return mix(b, max(b, 0), smoothstep(NEAR, 3 * NEAR, d)); },
+    /** How much coarser than its footprint a pixel asks: half a level finer (a page is filtered as it is read, after
+        the filtering its texels were laid with: so the ground is as sharp as a read of its materials, everywhere), and
+        the bias, which takes that back, and more, where what is asked for does not fit the slots (chosen in one step
+        from one sweep's asks, above). d: (unused; the same everywhere). */
+    biasAt: (d, u = Rd) => u.uBias.sub(0.5),
     /** A pixel's own level of the land's pages, its footprint's, unbiased (node code, in the ground's fragment: dx, dy
         how far apart its neighbouring pixels' points are, as finely as the screen's pixels read), fractional: a step
         coarser for every doubling of its size, and of how far a slope draws it out past ANISO (the filter's steps along it). */
