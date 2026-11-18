@@ -13,18 +13,19 @@
 //   - both are baked SS x SS samples a texel (what a texel covers is the share of its samples covered: the leaves' own
 //     cut-outs, read at their finest, not a blur of them), and their smaller pictures keep what they cover (Castaño 2010:
 //     each mip's alpha scaled, view by view, tile by tile, until as much of it is over the cut as the thing covers),
-//     made in a worker (impostor.worker.js), so a far crown neither thins away nor fills into a dome.
+//     made on the GPU where they were baked (createMips: nothing read back, no worker, nothing kept in the browser), so
+//     a far crown neither thins away nor fills into a dome.
 //
 // What is baked, and how it is lit, is its drawer's (src/scatter/trees.js: a plant's leaves and bark from the heap):
 // here only what every impostor shares, so plants, rocks and made things can have one.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, ivec2, uniform, texture, normalize, cross, abs, max, clamp, floor, sqrt, log2, mat3, If, Discard, screenCoordinate, instanceIndex, positionGeometry, varyingProperty, attribute, modelWorldMatrix, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
+import { Fn, Loop, Break, float, int, uint, vec2, vec3, vec4, ivec2, uvec2, uvec4, uniform, texture, storageTexture, instancedArray, normalize, cross, abs, max, clamp, floor, round, sqrt, log2, mat3, If, Discard, screenCoordinate, instanceIndex, globalId, workgroupId, localId, workgroupArray, workgroupBarrier, atomicAdd, atomicStore, atomicLoad, packHalf2x16, unpackHalf2x16, positionGeometry, varyingProperty, attribute, modelWorldMatrix, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { finish, skyLight, weathered, snowLift, cloudAt, unlit } from '../world/light.js';
 import { CROWD, IN } from '../../assets/kit/crowd.js';
 import { note } from '../core/gpu.js';
 import { FNV, fnv } from '../core/hash.js';
-import { asking } from '../core/workers.js';
+import { compileFor } from '../core/compile.js';
 import { pxAt } from './measure.js';
 
 const { VIEWS, CELL, TILE, TILES } = CROWD;
@@ -67,39 +68,142 @@ export const tileClip = (p, lo, hi, a, col) => {
 };
 
 // ---- the atlases: a layer a shape, its pictures and their smaller ones ----
-/** Two array textures of `layers` layers, side x side texels each: its colour (albedo as its square root, cover) and its
-    data (which way it faces, octahedral; how deep; light and leaf, 0 … 1 each half). put(layer, levels): its pictures
-    from the worker, each level's two arrays, into the GPU. */
-export function createAtlas(renderer, { name, side, layers, cell = side }) {
-  const make = () => {
-    const rt = new THREE.RenderTarget(side, side, { depth: Math.max(2, layers), depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });   // (two layers at least: an array, however few shapes)
-    renderer.initRenderTarget(rt); return rt;
-  };
-  const C = make(), D = make(), mips = Math.floor(Math.log2(side)) + 1;
+/** Two array textures of `layers` layers, side x side texels each, and their smaller pictures down to `least` texels a
+    picture of `cell` (made on the GPU as a layer is baked: createBaker): its colour (albedo as its square root, cover)
+    and its data (which way it faces, octahedral; how deep; light and leaf, 0 … 1 each half). */
+export function createAtlas(renderer, { name, side, layers, cell = side, least = 4 }) {
+  const mips = Array.from({ length: Math.log2(cell / least) + 1 }, (_, m) => ({ width: side >> m, height: side >> m }));
+  const make = () => Object.assign(new THREE.StorageArrayTexture(side, side, Math.max(2, layers)), { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace, generateMipmaps: false, mipmaps: mips });   // (two layers at least: an array, however few)
   note(`${name}`, Math.round(side * side * layers * 8 * 4 / 3), 0);
-  return {
-    colour: C.texture, data: D.texture, side, cell, targets: [C, D],   // (cell: a picture's texels a side; targets: to read a layer back, renderer.readRenderTargetPixelsAsync)
-    put(layer, levels) {
-      const dev = renderer.backend.device, gc = renderer.backend.get(C.texture).texture, gd = renderer.backend.get(D.texture).texture;
-      levels.forEach(({ colour, data, n }, m) => {
-        if (m >= mips) return;
-        for (const [g, a] of [[gc, colour], [gd, data]]) dev.queue.writeTexture({ texture: g, mipLevel: m, origin: { x: 0, y: 0, z: layer } }, a, { bytesPerRow: n * 4, rowsPerImage: n }, { width: n, height: n, depthOrArrayLayers: 1 });
+  return { colour: make(), data: make(), side, cell, least };
+}
+
+// ---- a layer's smaller pictures, made on the GPU where it was baked: nothing read back, no worker, nothing kept ----
+// From the pictures the bake left (createBaker: n × n texels, a picture every `cell` texels a side), each level half the
+// one before, down to `least` texels a picture, no picture bleeding into the next, written straight into the atlas'
+// layer (intent 0038, the cold start: these steps ran in a worker after a readback, a shape a frame, and what came of
+// them was kept in the browser, 617 MB on a first start):
+//   - a texel nothing covers takes its covered neighbours' rest, ring by ring (three at the finest level, two after),
+//     so nothing wrong is read beside an edge;
+//   - a texel of the next level is the four under it: their mean cover, the rest as the covered ones are, by how much
+//     each covers;
+//   - every level's alpha is scaled picture by picture until as much of it is over the cut (0.5) as the picture covers at
+//     its finest (Castaño 2010): read at any distance and alpha tested, a crown covers what its leaves cover, neither
+//     thinning away nor filling into a dome.
+// Between the steps a level is kept as half floats (its colour and cover; its way, octahedral, its depth and its light; a
+// depth under nought: a texel nothing covers that no ring has reached yet), in two buffers every bake shares.
+function createMips(side, least) {
+  const P = instancedArray(side * side, 'uvec4'), Q = instancedArray(side * side, 'uvec4'), most = (side / least) ** 2;
+  const scale = instancedArray(most, 'float'), cover = instancedArray(most, 'float'), uN = uniform(0, 'uint'), uC = uniform(0, 'uint'), buf = [P, Q];
+  const unpack = (v0) => { const v = v0.toVar(), a = unpackHalf2x16(v.x), b = unpackHalf2x16(v.y), d = unpackHalf2x16(v.w); return { rgb: vec3(a.x, a.y, b.x), a: b.y, oct: unpackHalf2x16(v.z), d: d.x, w: d.y }; };
+  const pack = (rgb, a, oct, d, w) => uvec4(packHalf2x16(rgb.xy), packHalf2x16(vec2(rgb.z, a)), packHalf2x16(oct), packHalf2x16(vec2(d, w)));
+  // (a texel an invocation, 8 × 8 a workgroup; a picture a workgroup of 64, its texels shared out among them: fn(index)
+  // for each)
+  const texel = (body) => Fn(() => { const x = globalId.x, y = globalId.y; If(x.lessThan(uN).and(y.lessThan(uN)), () => body(x, y, y.mul(uN).add(x))); })().computeKernel([8, 8, 1]);
+  const picture = (body) => Fn(() => {
+    const k = workgroupId.x, per = uN.div(uC), x0 = k.mod(per).mul(uC), y0 = k.div(per).mul(uC);
+    body(k, (fn) => Loop({ start: localId.x, end: uC.mul(uC), type: 'uint', condition: '<', update: 64 }, ({ i }) => fn(y0.add(i.div(uC)).mul(uN).add(x0.add(i.mod(uC))))));
+  })().computeKernel([64, 1, 1]);
+  const ring = (src, dst) => texel((x, y, i) => {   // (one ring)
+    const v = src.element(i).toVar(), V = unpack(v);
+    If(V.d.greaterThanEqual(0), () => { dst.element(i).assign(v); }).Else(() => {
+      const cx = x.div(uC).mul(uC), cy = y.div(uC).mul(uC), rgb = vec3(0).toVar(), n = vec3(0).toVar(), d = float(0).toVar(), w = float(0).toVar(), k = float(0).toVar();
+      for (let j = -1; j <= 1; j++) for (let h = -1; h <= 1; h++) {
+        const X = int(x).add(h), Y = int(y).add(j);
+        If(X.greaterThanEqual(int(cx)).and(Y.greaterThanEqual(int(cy))).and(X.lessThan(int(cx.add(uC)))).and(Y.lessThan(int(cy.add(uC)))), () => {
+          const N = unpack(src.element(uint(Y).mul(uN).add(uint(X))));
+          If(N.d.greaterThanEqual(0), () => { rgb.addAssign(N.rgb); n.addAssign(octDec(N.oct)); d.addAssign(N.d); w.addAssign(N.w); k.addAssign(1); });
+        });
+      }
+      If(k.greaterThan(0), () => { dst.element(i).assign(pack(rgb.div(k), V.a, octEnc(normalize(n)), d.div(k), w.div(k))); }).Else(() => { dst.element(i).assign(v); });
+    });
+  });
+  const half = (src, dst) => texel((x, y, i) => {   // (uN: the smaller level's side)
+    const a = float(0).toVar(), wt = float(0).toVar(), rgb = vec3(0).toVar(), n = vec3(0).toVar(), d = float(0).toVar(), w = float(0).toVar();
+    for (let j = 0; j < 2; j++) for (let h = 0; h < 2; h++) {
+      const N = unpack(src.element(y.mul(2).add(j).mul(uN.mul(2)).add(x.mul(2).add(h)))), q = max(N.a, 1e-4);
+      a.addAssign(N.a); wt.addAssign(q); rgb.addAssign(N.rgb.mul(q)); n.addAssign(octDec(N.oct).mul(q)); d.addAssign(max(N.d, 0).mul(q)); w.addAssign(N.w.mul(q));
+    }
+    dst.element(i).assign(pack(rgb.div(wt), a.div(4), octEnc(normalize(n)), a.greaterThan(0).select(d.div(wt), float(-1)), w.div(wt)));
+  });
+  const byte = (a) => uint(round(clamp(a, 0, 1).mul(255)));   // (as the bytes say it)
+  const sum = workgroupArray('uint', 1).toAtomic(), hist = workgroupArray('uint', 256).toAtomic();
+  const covered = picture((k, each) => {   // (how much each picture covers at its finest)
+    If(localId.x.equal(uint(0)), () => { atomicStore(sum.element(uint(0)), uint(0)); });
+    workgroupBarrier();
+    each((i) => { atomicAdd(sum.element(uint(0)), byte(unpack(P.element(i)).a)); });
+    workgroupBarrier();
+    If(localId.x.equal(uint(0)), () => { cover.element(k).assign(float(atomicLoad(sum.element(uint(0)))).div(float(uC.mul(uC)).mul(255))); });
+  });
+  const scaled = (src) => picture((k, each) => {   // (its alpha's 256 steps counted; the step above which as much lies as it covers, onto the cut)
+    Loop({ start: localId.x, end: uint(256), type: 'uint', condition: '<', update: 64 }, ({ i }) => { atomicStore(hist.element(i), uint(0)); });
+    workgroupBarrier();
+    each((i) => { atomicAdd(hist.element(byte(unpack(src.element(i)).a)), uint(1)); });
+    workgroupBarrier();
+    If(localId.x.equal(uint(0)), () => {
+      const want = uint(round(cover.element(k).mul(float(uC.mul(uC))))), over = uint(0).toVar(), t = int(255).toVar(), s = float(1 / 16).toVar();
+      If(want.greaterThan(uint(0)), () => {
+        Loop(t.greaterThan(int(0)), () => { const h = atomicLoad(hist.element(uint(t))); If(over.add(h).greaterThan(want), () => { Break(); }); over.addAssign(h); t.subAssign(1); });
+        s.assign(clamp(float(127.5).div(max(float(t).add(0.5), 0.5)), 1 / 16, 16));
       });
+      scale.element(k).assign(s);
+    });
+  });
+  const rings = [ring(P, Q), ring(Q, P)], halves = [half(P, Q), half(Q, P)], scales = [scaled(P), scaled(Q)], loads = new WeakMap(), writes = new WeakMap();
+  /** The pictures a baker left in its targets into P (a texel nothing covers: its depth under nought). */
+  const loadOf = (outC, outD) => { if (!loads.has(outC)) loads.set(outC, texel((x, y, i) => { const c = texture(outC).load(ivec2(x, y)), d = texture(outD).load(ivec2(x, y)); P.element(i).assign(pack(c.rgb, c.a, d.xy, c.a.greaterThan(0).select(d.z, float(-1)), d.w)); })); return loads.get(outC); };
+  /** Level `mip` (in buffer b) into layer `layer` of the atlas, its alpha scaled picture by picture: a kernel an atlas,
+      a level and a buffer (a storage binding is one mip of one texture). */
+  const writeOf = (A, b, mip, layer) => {
+    let W = writes.get(A); if (!W) writes.set(A, (W = new Map()));
+    const key = `${b} ${mip}`;
+    if (!W.has(key)) W.set(key, texel((x, y, i) => {
+      const V = unpack(buf[b].element(i)), s = scale.element(y.div(uC).mul(uN.div(uC)).add(x.div(uC)));
+      const store = (t, v) => { const n = storageTexture(t, uvec2(x, y), v); n.mipLevel = mip; n.depthNode = layer; n.mergeable = false; n.toStack(); };
+      store(A.colour, vec4(V.rgb, clamp(V.a.mul(s), 0, 1))); store(A.data, vec4(V.oct, max(V.d, 0), V.w));
+    }));
+    return W.get(key);
+  };
+  // the buffer each level ends in, and the kernels a bake runs, in order (k: a kernel, n: its texels a side or, a
+  // picture's, its pictures; side, cell: the level's)
+  const plan = (n, cell) => {
+    const steps = [], at = [], go = (k, s, c, many = false) => steps.push({ k, s, c, many });
+    let b = 0, s = n, c = cell, mip = 0;
+    go('load', s, c); go(covered, s, c, true);
+    for (let j = 0; j < 3; j++) { go(rings[b], s, c); b = 1 - b; }   // (three rings at the finest level, two after, as the worker had them)
+    for (;;) {
+      go(scales[b], s, c, true); at.push(b); go({ write: [b, mip] }, s, c);
+      if (c / 2 < least) break;
+      s /= 2; c /= 2; mip++;
+      go(halves[b], s, c); b = 1 - b;
+      for (let j = 0; j < 2; j++) { go(rings[b], s, c); b = 1 - b; }
+    }
+    return steps;
+  };
+  return {
+    side, least,
+    /** Every kernel a bake of n × n texels (pictures of `cell`) into atlas A runs (to compile them, aside). */
+    kernels: (outC, outD, A, layer, n, cell) => plan(n, cell).map(({ k }) => (k === 'load' ? loadOf(outC, outD) : k.write ? writeOf(A, ...k.write, layer) : k)),
+    /** The smaller pictures of what the bake left in outC and outD into A's layer `layer` (a uniform it has set): the
+        kernels in order, each seeing what the one before wrote. */
+    run(renderer, outC, outD, A, layer, n, cell) {
+      for (const { k, s, c, many } of plan(n, cell)) {
+        uN.value = s; uC.value = c;
+        renderer.compute(k === 'load' ? loadOf(outC, outD) : k.write ? writeOf(A, ...k.write, layer) : k, many ? [(s / c) ** 2, 1, 1] : [Math.ceil(s / 8), Math.ceil(s / 8), 1]);
+      }
     },
   };
 }
+let MIPS = null;
+/** The steps every bake shares, for pictures of `side` texels (made again larger when a larger bake comes). */
+const mipsFor = (side, least) => (MIPS && MIPS.side >= side && MIPS.least <= least ? MIPS : (MIPS = createMips(Math.max(side, MIPS?.side ?? 0), Math.min(least, MIPS?.least ?? least))));
 
-// ---- the bake: a row of pictures at a time, SS x SS samples a texel, reduced on the GPU, read back, mipped in a worker ----
-let WORKERS = null;
-const workers = () => (WORKERS ||= Array.from({ length: Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2)) }, () => asking(new Worker(new URL('./impostor.worker.js', import.meta.url), { type: 'module' }), "the impostors' worker")));
-/** The pictures' smaller ones, as a worker makes them (impostor.worker.js, the least busy of a few, watched:
-    src/core/workers.js): { levels: [{ colour, data, n }] }. */
-const mipsOf = (colour, data, side, cell, least) => workers().reduce((a, b) => (b.out() < a.out() ? b : a))({ colour, data, side, cell, least }, [colour.buffer, data.buffer]);
-
+// ---- the bake: a row of pictures at a time, SS x SS samples a texel, reduced; then the layer's smaller pictures ----
 /** What bakes a family's pictures: rows of `per` pictures `px` texels a side, drawn by draw(row) (a mesh whose
-    instances are the row's pictures, its two materials' outputs: { colour, data }), reduced SS x SS into the atlas'
-    texels, read back and mipped. One a kind of picture (views, tiles) per drawer: its targets are reused job after job. */
-export function createBaker(renderer, { per, px, rows }) {
+    instances are the row's pictures, its two materials, userData.materials: [colour, data]), reduced SS x SS into the
+    atlas' texels, and made smaller, all on the GPU. One a kind of picture (views, tiles) and size: its targets are
+    reused bake after bake. */
+export function createBaker(renderer, { per, px }) {
   const W = per * px, opts = { depthBuffer: true, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, colorSpace: THREE.NoColorSpace };
   const ss = [new THREE.RenderTarget(W * SS, px * SS, opts), new THREE.RenderTarget(W * SS, px * SS, opts)], out = [new THREE.RenderTarget(W, W, { ...opts, depthBuffer: false }), new THREE.RenderTarget(W, W, { ...opts, depthBuffer: false })];
   // the reduce: a texel of the atlas from its SS x SS samples (cover: their share covered; the rest: the covered ones'
@@ -122,13 +226,25 @@ export function createBaker(renderer, { per, px, rows }) {
   };
   const tri = new THREE.BufferGeometry(); tri.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
   const tris = [0, 1].map((which) => Object.assign(new THREE.Mesh(tri, reduce(which)), { frustumCulled: false }));
-  const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), layer = uniform(0, 'int'), made = new Map();
+  // what a bake draws with, made before it is first drawn, aside, in turn (src/core/compile.js): the mesh's two materials
+  // and the reduce for their targets, the smaller pictures' kernels; once a mesh and an atlas
+  const as = (w) => function (o, s, c, g, m, ...rest) { return Object.getPrototypeOf(renderer).renderObject.call(this, o, s, c, g, o.userData.materials?.[w] ?? m, ...rest); };
+  const makeFor = (mesh, A, least) => {
+    const key = `${mesh.uuid} ${A.colour.uuid} ${least}`;
+    if (!made.has(key)) {
+      mesh.material ??= mesh.userData.materials[0];   // (three reads a mesh's material as it lays out what it compiles)
+      const M = mipsFor(W, least);
+      made.set(key, Promise.all([...[0, 1].flatMap((w) => [compileFor(renderer, ss[w], mesh, cam, scene, as(w)), compileFor(renderer, out[w], tris[w], cam, scene)]), renderer.compileComputeAsync(M.kernels(out[0].texture, out[1].texture, A, layer, W, px))]));
+    }
+    return made.get(key);
+  };
   return {
-    /** Bake `rows` rows of a thing's pictures into the atlas' layer: draw(r) its mesh for row r (its instances the
-        row's pictures, its materials [colour, data]); least: the smallest picture's side mipped to. A promise of
-        { done }, once its pictures are read back (the targets free for the next): done, once its layer is in the atlas,
-        with its levels (what the browser keeps of it: src/scatter/trees.js farOf). */
-    async bake(atlas, layer, count, draw, least = 4) {
+    /** Bake `count` rows of a thing's pictures into the atlas' layer, and its smaller pictures down to `least` texels a
+        picture: draw(r) its mesh for row r (its instances the row's pictures). A promise, once it is in (on the GPU, in
+        order before whatever draws next): its pipelines are made first, once a mesh and an atlas. */
+    async bake(A, at, count, draw, least = A.least) {
+      await makeFor(draw(0), A, least);
       const prev = renderer.getRenderTarget(), pc = renderer.getClearColor(new THREE.Color()), pa = renderer.getClearAlpha(), ac = renderer.autoClear;
       renderer.setClearColor(0x000000, 0);
       try {
@@ -142,8 +258,7 @@ export function createBaker(renderer, { per, px, rows }) {
           [0, 1].forEach((w) => { const o = out[w]; o.viewport.set(0, r * px, W, px); o.scissor.set(0, r * px, W, px); o.scissorTest = true; scene.add(tris[w]); renderer.setRenderTarget(o); renderer.autoClear = false; renderer.render(scene, cam); scene.remove(tris[w]); o.viewport.set(0, 0, W, W); o.scissor.set(0, 0, W, W); o.scissorTest = false; });
         }
       } finally { renderer.setRenderTarget(prev); renderer.setClearColor(pc, pa); renderer.autoClear = ac; }
-      const [c, d] = await Promise.all(out.map((o) => renderer.readRenderTargetPixelsAsync(o, 0, 0, W, W)));
-      return { done: mipsOf(new Uint8Array(c), new Uint8Array(d), W, px, least).then(({ levels }) => { atlas.put(layer, levels); return levels; }) };
+      layer.value = at; mipsFor(W, least).run(renderer, out[0].texture, out[1].texture, A, layer, W, px);
     },
   };
 }
@@ -209,7 +324,7 @@ function viewsOf(geo, c, r, name) {
   const vert = Fn(() => { const P = viewClip(positionGeometry.sub(c).div(r), row), n = attribute('normal', 'vec3'); vC.assign(attribute('color', 'vec3')); vN.assign(n.dot(P.D).lessThan(0).select(n.negate(), n)); vZ.assign(P.z); return P.clip; })();
   const mat = (f) => Object.assign(new THREE.NodeMaterial(), { vertexNode: vert, fragmentNode: f, side: THREE.DoubleSide });
   const bm = Object.assign(new THREE.Mesh(g, null), { frustumCulled: false, userData: { materials: [mat(vec4(sqrt(max(vC, 0)), 1)), mat(Fn(() => vec4(octEnc(normalize(vN)), vZ.mul(0.5).add(0.5), litIn(float(1), float(0))))())] } });
-  bakers().views().bake(A, 0, VIEWS, (j) => { row.value = j; g.instanceCount = VIEWS; return bm; }).then(({ done }) => done).then(() => (ready.value = 1));
+  bakers().views().bake(A, 0, VIEWS, (j) => { row.value = j; g.instanceCount = VIEWS; return bm; }).then(() => (ready.value = 1));
   return { A, ready };
 }
 /** An asset's impostor as a mesh (its nearest level, geo): its views baked as it is first asked for (once a recipe),

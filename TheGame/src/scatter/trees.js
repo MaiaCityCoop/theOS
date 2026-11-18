@@ -65,8 +65,7 @@ import { crowdOf, bandsOf, baseShare, GRID, GOQ, FOOT } from '../../assets/kit/p
 import { lo16, hi16 } from './unpack.js';
 import { pxKMost, measureVersion } from '../detail/measure.js';
 import { switchPx } from '../detail/error.js';
-import { source } from '../core/settle.js';
-import { keptGet, keptPut } from '../core/kept.js';
+import { source, complete } from '../core/settle.js';
 
 /** A half float's 16 bits as the number (what assets/kit/plant.js wrote). */
 const unhalf = (h) => { const e = (h >> 10) & 31, m = h & 1023, v = e === 0 ? m * 2 ** -24 : e === 31 ? Infinity : (1 + m / 1024) * 2 ** (e - 15); return h & 0x8000 ? -v : v; };
@@ -440,14 +439,16 @@ function impostorMaterial(G, D, Lv, src) {
 }
 
 // ---- the far ends baked: each shape's impostor and its clumps, from its finest level in the heap ----
-let BAKING = false;   // (one shape at a time, of every stand: the bakers' targets are one set)
-const BAKED = 1;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
+let shown = false; complete.then(() => (shown = true));   // (the first frame drawn: until then every shape that has come is baked at once)
 const DEEP = 0.5;   // how much darker what an impostor's view shows at the far side of its plant's sphere than at the near
 /** A stand's far ends (G: its group; D(): its drawer, once made): its two atlases (the impostors' views, a layer a shape,
     each view G.cell texels a side: as many as its finest shape's impostor wants where it takes over, assets/kit/crowd.js;
     its chunks' planes, a layer a shape that has clumps: G.clumpLayer), and what bakes them. Each shape is baked as its
-    finest level comes into the heap (onBlock: its far data, assets/kit/crowd.js), one a frame or so (pump), then its
-    numbers say where it is its impostor (its row 3's third: T, G.cell texels over its sphere's width). */
+    finest level comes into the heap (onBlock: its far data, assets/kit/crowd.js), on the GPU from end to end
+    (src/detail/impostor.js), a stand's shapes one after another: before the first frame every one that has come (the
+    first frame shows them all: it is complete, src/core/settle.js), after it one a frame (pump); then its numbers say
+    where it is its impostor (its row 3's third: T, G.cell texels over its sphere's width). Nothing of it is kept in the
+    browser: baking it again costs a moment of the GPU, where what was kept was 617 MB written at a first start. */
 function farOf(renderer, tex, G, D) {
   const n = G.meshes, views = createAtlas(renderer, { name: `plants, ${G.name}: impostors`, side: CROWD.VIEWS * G.cell, layers: n, cell: G.cell });
   let clumps = null; const clumpsOf = () => (clumps ||= createAtlas(renderer, { name: `plants, ${G.name}: clumps`, side: G.tiles * CROWD.TILE, layers: G.clumpy, cell: CROWD.TILE }));   // (a stand none of whose shapes has clumps: one tile, which nothing reads)
@@ -494,26 +495,25 @@ function farOf(renderer, tex, G, D) {
     D().setNum(k, 4, [far[1], far[2], far[3], far[4]]); D().setNum(k, 3, row3);
     version++; any = true;
   };
-  // What the browser keeps of them (src/core/kept.js): each shape's pictures as the workers mipped them, kept under the
-  // registry's versions of all they are baked from (the stand's kinds and their rooms: its drawer's fingerprint; their
-  // paintings: their materials' versions) and the bake's own (BAKED). A start that finds them puts them in and bakes
-  // nothing: the far plants are whole from the first frames, not after half a minute to a minute and a half.
-  let KEPT = null;
-  const keptAs = () => (KEPT ||= `far ${BAKED}|${CROWD.VIEWS}x${G.cell}|${G.tiles}x${CROWD.TILE}|${D().fingerprint}|${G.kinds.flatMap((Kd) => [...Object.values(Kd.asset.materials ?? {}), Kd.asset.fine?.twig].filter(Boolean).map(versionOf)).join()}`);
-  const keyOf = (k) => `far: ${G.name}: ${k}`;
-  // (a promise of { done }: its pictures drawn and read back, the bakers free for the next shape; done, once they are
-  // in the atlases and its numbers say so)
+  // a shape's bake: its views, then its clumps; its numbers once they are in
   const job = async ({ k, corners, far }) => {
-    const key = keyOf(k), B = materials(); B.geo.setIndex(new THREE.BufferAttribute(corners, 1)); B.kindU.value = k; B.sphereU.value.set(far[1], far[2], far[3], far[4]);
-    const a = await bakers(renderer).views(G.cell).bake(views, k, CROWD.VIEWS, (r) => { B.rowU.value = r; B.geo.instanceCount = CROWD.VIEWS; return B.view; });
+    const B = materials(); B.geo.setIndex(new THREE.BufferAttribute(corners, 1)); B.kindU.value = k; B.sphereU.value.set(far[1], far[2], far[3], far[4]);
+    await bakers(renderer).views(G.cell).bake(views, k, CROWD.VIEWS, (r) => { B.rowU.value = r; B.geo.instanceCount = CROWD.VIEWS; return B.view; });
     const nc = far[0];
-    let b = null;
     if (nc > 0 && G.clumpLayer[k] >= 0) {
       for (let c = 0; c < nc; c++) for (let q = 0; q < 4; q++) B.cells[c * 4 + q].set(far[8 + c * 12 + q * 3], far[8 + c * 12 + q * 3 + 1], far[8 + c * 12 + q * 3 + 2], 0);
       B.nU.value = nc;
-      b = await bakers(renderer).tiles(G.tiles).bake(clumpsOf(), G.clumpLayer[k], Math.ceil((nc * 3) / G.tiles), (r) => { B.rowU.value = r; B.geo.instanceCount = G.tiles; return B.tile; });
+      await bakers(renderer).tiles(G.tiles).bake(clumpsOf(), G.clumpLayer[k], Math.ceil((nc * 3) / G.tiles), (r) => { B.rowU.value = r; B.geo.instanceCount = G.tiles; return B.tile; });
     }
-    return { done: Promise.all([a.done, b?.done]).then(([va, vb]) => { keptPut(keptAs(), key, { views: va, clumps: vb ?? null }); numbers(k, far); }) };
+    numbers(k, far);
+  };
+  // the next shape whose finest level is in the heap, baked: its stand's shapes one after another (they share its
+  // bakers' numbers); before the first frame the one after it at once
+  let baking = false;
+  const pump = () => {
+    const i = baking ? -1 : queue.findIndex((J) => D().H.has(J.k, 0)); if (i < 0) return;
+    const J = queue.splice(i, 1)[0]; baking = true;
+    job(J).catch((e) => console.warn(`plants: ${G.name}: the far end of shape ${J.k} could not be baked`, e)).finally(() => { out--; baking = false; if (!shown) pump(); });
   };
   return {
     views, clumps: () => clumpsOf(), version: () => version, ready: () => any,
@@ -524,22 +524,11 @@ function farOf(renderer, tex, G, D) {
       for (let j = 0; j < nk; j++) {
         const k = k0 + j, o = j * elems * 4, at = unhalf(b.verts[o + 7] & 0xffff) * 1024 + unhalf(b.verts[o + 7] >>> 16); if (queued[k] || !(at > 0)) continue;
         const head = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8), far = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8 + head[0] * 12).slice();
-        const J = { k, corners: b.corners.slice(j * idx, j * idx + b.draws[j]), far }; queued[k] = 1; out++;
-        // (what the browser kept of it, put in as it is read back, every shape at once: only what it has not kept waits
-        // to be baked)
-        keptGet(keptAs(), keyOf(k)).then((kept) => {
-          if (!kept) return queue.push(J);
-          views.put(k, kept.views); if (kept.clumps && G.clumpLayer[k] >= 0) clumpsOf().put(G.clumpLayer[k], kept.clumps);
-          numbers(k, far); out--;
-        }, () => queue.push(J));
+        queue.push({ k, corners: b.corners.slice(j * idx, j * idx + b.draws[j]), far }); queued[k] = 1; out++;
       }
     },
-    /** Each frame: the next shape baked, once its finest level is in the heap and no other stand's is being baked. */
-    pump() {
-      if (BAKING || !queue.length || !D().H.has(queue[0].k, 0)) return;
-      BAKING = true; const J = queue.shift(), fail = (e) => console.warn(`plants: ${G.name}: the far end of shape ${J.k} could not be baked`, e);
-      job(J).then(({ done }) => { BAKING = false; done.catch(fail).finally(() => out--); }, (e) => { BAKING = false; fail(e); out--; });
-    },
+    /** Each frame: the next shape baked, once its finest level is in the heap (pump). */
+    pump,
   };
 }
 
