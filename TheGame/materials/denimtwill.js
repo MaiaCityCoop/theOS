@@ -10,7 +10,7 @@ export default {
   type: 'material',
   name: 'Denim twill',
   kind: 'cloth',
-  about: 'Indigo warp over an ecru weft in a three-over-one twill: the diagonal wale, the pale weft between, faded in soft patches.',
+  about: 'Indigo over ecru in a diagonal twill, faded in soft patches.',
   usedBy: 'the trousers of the characters',
   swatch: [0.22, 0.3, 0.45],
   bump: 0.012,

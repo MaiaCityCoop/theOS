@@ -30,8 +30,8 @@ import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, float, int, uint, vec2, vec4, ivec2, uniformArray, smoothstep, clamp, mix, max, min, abs, floor, length, dot, pow, log, exp, sqrt, cos, sin, packHalf2x16, unpackHalf2x16 } from 'three/tsl';
 import { rnd, vnoise, groveAt, leadAt, riverInfo, shareOf, nearLake } from '../world/land.nodes.js';
 import { U } from '../core/uniforms.js';
-import { recipe, recipes } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
+import { entriesOf, placed } from './entries.js';
 import { most, footprintOf, footprintReach } from '../../assets/kinds.js';
 import { CLEARINGS } from '../../world/places.js';
 import { TEXEL, WORDS } from './growth.js';
@@ -53,27 +53,6 @@ const clearAt = (p) => {
   for (const P of CLEARINGS) c = c.mul(smoothstep(P.clear + 2, P.clear + 6, length(p.sub(vec2(P.x, P.z)))));
   return c.mul(U.uStage.z.greaterThan(0).select(smoothstep(U.uStage.z.add(1), U.uStage.z.add(5), length(p.sub(U.uStage.xy))), float(1)));
 };
-
-// ---- what the rule places: every plant the trees' engine places, grown, and young where it grows ----
-const middle = (s) => (Array.isArray(s) ? (s[0] + s[1]) / 2 : s ?? 1);
-const reachOf = (a) => (Math.max(most(a.size.length), most(a.size.width ?? 0)) / 2) * middle(a.placement.scale);
-/** The things a list of the engine's rows places: { row, asset, biome, young, cover, light, under, reach, ages, shapes:
-    [first, count] }. */
-function entriesOf(rows) {
-  const out = [];
-  for (const row of rows) {
-    const a = row.asset, P = a.placement, biome = recipe(P.biome); if (!biome) continue;
-    const S = a.growth?.stages, base = { row, asset: a, biome, light: P.light ?? [1, 1], under: [P.under ?? []].flat(), shore: P.shore ?? null, lakes: !!P.lakes };
-    if (S && biome.age) {
-      // grown: as old as its stand (its biome's `age`, a slow noise between its years); its crown at most a little under its oldest's
-      out.push({ ...base, young: false, cover: P.cover ?? 0.3, reach: reachOf(a) * 0.8, ages: biome.age, shapes: [0, a.shapeCount] });
-      // young: from its first stage to its second year, where the light comes through to its kind's litter
-      const top = a.growth.years[1], st = S.filter((s) => s.from < top), n = Math.max(...st.map((s) => s.offset + s.variants));
-      if (P.young) out.push({ ...base, young: true, cover: P.young, light: P.youngLight ?? [0.05, 1], under: [a.uid], reach: (reachOf(a) * a.growth.height(top)) / a.size.height, ages: [Math.max(2, S[0].from), top], shapes: [0, n] });
-    } else out.push({ ...base, young: false, cover: P.cover ?? 0.3, reach: reachOf(a), ages: null, shapes: [0, a.shapeCount ?? 1] });
-  }
-  return out;
-}
 
 const classOf = (r) => Math.floor(Math.log(Math.max(r, 1e-3) / R0) / Math.log(4));
 let LAYERS = null, KEY = '';
@@ -115,7 +94,7 @@ export function layersOf(rows) {
 }
 
 /** The rows of everything the trees' engine places in the world (what the land reads of the rule asks by them). */
-export const rowsOf = () => recipes('asset').filter((a) => a.placement?.at === 'scatter' && a.placement.engine === 'trees').map(scatterRow);
+export const rowsOf = () => placed().map(scatterRow);
 /** A biome's groves at a layer: its `groves` (metres, at a grown tree's class) at the layer's scale, the layer's seed. */
 export const grovesOf = (bio, L) => ({ clumps: (bio.groves?.clumps ?? CLUMPS) * L.scale, patches: (bio.groves?.patches ?? PATCHES) * L.scale, seed: L.seed });
 /** Where the thing of cell c of layer L stands (metres): somewhere in its cell, L.inset of it in from its edge at the
@@ -195,10 +174,10 @@ function feetOf(ls) {
   for (const L of ls) if (L.feet) L.feet.table = table;
 }
 /** Entry e's shapes into the feet table: a row each (its height at scale 1, how far its pieces reach from its foot,
-    where its pieces begin, how many) and its pieces; e.row its first. How far its feet reach at its largest (the oldest
+    where its pieces begin, how many) and its pieces; e.feetRow its first. How far its feet reach at its largest (the oldest
     of its stage that grows here, its placement's largest scale), metres. */
 function shapesInto(e, rows, pieces) {
-  const a = e.asset, staged = !!(a.growth && e.ages); let reach = 0; e.row = rows.length;
+  const a = e.asset, staged = !!(a.growth && e.ages); let reach = 0; e.feetRow = rows.length;
   for (let s = 0; s < e.shapes[1]; s++) {
     const P = footprintOf(a, s), H = staged ? a.heights[s] : a.size.height, S = staged ? a.growth.stages.find((x) => s >= x.offset && s < x.offset + x.variants) : null, bound = footprintReach(P);
     rows.push([H, bound, pieces.length, P.length]);
@@ -335,7 +314,7 @@ const lightOf = (L) => { const crowns = L.entries.filter(crowned), SUB = crowns.
     (gatherOf, footAt). M: the growth map. */
 export const recordOf = (L, M) => (c) => {
   const pos = posIn(c, L).toVar(), R = placeIn(c, L, M, pos), rec = uint(0).toVar();
-  for (const e of L.entries) If(R.k.equal(e.i), () => { const T = grownIn(c, L, e, pos); rec.assign(packHalf2x16(vec2(T.h, 0)).bitOr(uint(e.i + 1).shiftLeft(uint(16))).bitOr(uint(T.shape.add(e.row)).shiftLeft(uint(L.record.row)))); });
+  for (const e of L.entries) If(R.k.equal(e.i), () => { const T = grownIn(c, L, e, pos); rec.assign(packHalf2x16(vec2(T.h, 0)).bitOr(uint(e.i + 1).shiftLeft(uint(16))).bitOr(uint(T.shape.add(e.feetRow)).shiftLeft(uint(L.record.row)))); });
   return rec;
 };
 

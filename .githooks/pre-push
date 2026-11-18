@@ -1,0 +1,19 @@
+#!/bin/sh
+# Before every push: what breaks without vite build seeing it, checked here in seconds, so it is never pushed red
+# (the same first steps as CI, .github/workflows/ci.yml). Turned on once per clone: git config core.hooksPath .githooks
+# Skipped only when nothing under TheGame/ is being pushed.
+PATH="$HOME/.bun/bin:$PATH"
+root=$(git rev-parse --show-toplevel) || exit 1
+changed=0
+while read -r _local sha _remote base; do
+  [ "$sha" = 0000000000000000000000000000000000000000 ] && continue
+  [ "$base" = 0000000000000000000000000000000000000000 ] && base=$(git merge-base "$sha" origin/main 2>/dev/null)
+  git diff --quiet "$base" "$sha" -- TheGame/ 2>/dev/null || changed=1
+done
+[ $changed = 0 ] && exit 0
+cd "$root/TheGame" || exit 1
+[ -d node_modules ] || { echo "pre-push: no node_modules here; run \`bun install\` in TheGame first (the hook never installs)"; exit 1; }
+echo "pre-push: lint and smoke (TheGame/tools/lint.js, smoke.js)…"
+nice -n 15 bun tools/lint.js || { echo "pre-push: lint failed; fix it before pushing"; exit 1; }
+log=$(mktemp) && nice -n 15 bun tools/smoke.js >"$log" 2>&1 || { tail -20 "$log"; rm -f "$log"; echo "pre-push: smoke failed"; exit 1; }
+rm -f "$log"

@@ -51,7 +51,7 @@ function placeOf(what, loose) {
   return { at: OUT, tag, file: `${OUT}${tag}/summary.json` };
 }
 /** A run of the gate (placeOf), what the gate kept of it. loose: with no summary, the last single runs in .gate/. */
-function runOf(what, loose = false) {
+export function runOf(what, loose = false) {
   const { at, tag, file } = placeOf(what, loose), S = read(file), kept = (f) => read(`${at}${f}`), last = (name) => (S || !loose ? null : kept(`${name}.json`));
   return { tag: S?.tag ?? tag, flip: S?.flip ?? kept(`${tag}-vs-${tag}-truth/report.json`), bench: S?.bench ?? last('bench'), compile: S?.compile ?? last('compile'), paths: S?.paths ?? last('paths'),
     real: kept(`${tag}/real.json`) ?? last('real'), motion: kept(`motion-${tag}/report.json`), floor: { flip: kept(`${tag}-a-vs-${tag}-b/report.json`), motion: kept(`motion-${tag}-floor/report.json`) } };
@@ -132,12 +132,20 @@ function table({ here, base, rows, worse }) {
 function n(k, word) { return `${k} ${word}${k === 1 ? '' : 's'}`; }
 
 // ---- the run ----
-const base = runOf(valueOf('--base') ?? fail('--base <run>: the stored run to hold this one against (the train\'s numbers on main)'));
-const here = runOf(valueOf('--here') ?? own(), true), again = valueOf('--again') && runOf(valueOf('--again'));
-const H = measures(here), B = measures(base);
-if (!H.length || !B.length) fail(`the gate kept nothing to measure of ${H.length ? base.tag : here.tag}`);
-const rows = compare(H, B, noiseOf([base, here], again)), report = { here: here.tag, base: base.tag, again: again?.tag ?? null, share: SHARE, when: new Date().toISOString(), rows, worse: rows.filter((r) => r.worse) };
-mkdirSync(OUT, { recursive: true });
-writeFileSync(`${OUT}ten.json`, JSON.stringify(report, null, 1) + '\n');
-console.log(ARGS.includes('--json') ? JSON.stringify(report, null, 1) : table(report));
-process.exitCode = report.worse.length ? 1 : 0;
+/** Two runs of the gate (runOf) held against each other, measure by measure: the report, and its table (text); null
+    where either kept nothing to measure. again: the base run twice, for every measure's noise. */
+export function held(here, base, again = null) {
+  const H = measures(here), B = measures(base);
+  if (!H.length || !B.length) return null;
+  const rows = compare(H, B, noiseOf([base, here], again)), report = { here: here.tag, base: base.tag, again: again?.tag ?? null, share: SHARE, when: new Date().toISOString(), rows, worse: rows.filter((r) => r.worse) };
+  return { ...report, text: table(report) };
+}
+if (import.meta.main) {
+  const base = runOf(valueOf('--base') ?? fail('--base <run>: the stored run to hold this one against (the train\'s numbers on main)'));
+  const here = runOf(valueOf('--here') ?? own(), true), again = valueOf('--again') && runOf(valueOf('--again'));
+  const { text, ...report } = held(here, base, again) ?? fail(`the gate kept nothing to measure of ${here.tag} or ${base.tag}`);
+  mkdirSync(OUT, { recursive: true });
+  writeFileSync(`${OUT}ten.json`, JSON.stringify(report, null, 1) + '\n');
+  console.log(ARGS.includes('--json') ? JSON.stringify(report, null, 1) : text);
+  process.exitCode = report.worse.length ? 1 : 0;
+}

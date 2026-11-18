@@ -25,7 +25,7 @@
 //
 //   createHeap({ kinds, name, levels: [{ idx, elems, slots?, one?, shape?, sizes? }, …] })   levels finest first: the most corners
 //                         and elements a kind has at it (idx 0: a make that keeps its corners itself, each mesh's
-//                         as its draw's own list: a plant; a row's count is then what the mesh says, its vertices); slots: how many kinds' it holds at once (none: every kind's);
+//                         as its draw's own list: a plant; a row's count is then what the mesh says, its vertices); slots: how many kinds' it holds at once (none: every kind's; never more than there are kinds: a slot holds one kind's mesh);
 //                         shape: the level's own list of corners (a Uint32Array), or none; sizes: { idx, elems } (lists a
 //                         kind long) where a level's kinds differ in size: each kind's place as large as its own, not the largest
 //   an element: four numbers of 32 bits, 16 bytes; a vertex is one of them (a solid: assets/kit/solid.js) or several
@@ -33,15 +33,22 @@
 //   The table also says when a level came (`came`): what draws it lets it grow out of the coarser one from then.
 import * as THREE from 'three/webgpu';
 import { storage, uint, float } from 'three/tsl';
-import { gpuStorage, note } from '../core/gpu.js';
+import { gpuStorage, note, limitOf } from '../core/gpu.js';
 
 const SHAPED = 0x80000000;   // in a row's count of corners: the mesh is of its level's own shape
 export function createHeap({ kinds, levels, name = 'heap' }) {
   const L = levels.length; let iAt = 0, eAt = 0;
   // whether n corners from `o` of `idx` are exactly a pool's own shape
   const shaped = (p, idx, o, n) => { const S = p.shape; if (!S || n !== S.length) return 0; for (let i = 0; i < n; i++) if (idx[o + i] !== S[i]) return 0; return SHAPED; };
-  const pools = levels.map((l) => {
-    const n = l.one ? 1 : l.slots || kinds, own = !l.slots && !l.one;
+  // how many kinds' meshes each level holds at once: a slotted level as many as it asks, never more than there are (a slot
+  // holds one kind's), and only as many as the device's largest buffer and binding hold beside the rest of the heap
+  // (src/core/gpu.js limitOf: what the device was granted); a level held to fewer than it asked is said
+  const asked = levels.map((l) => (l.one ? 1 : Math.min(kinds, l.slots || kinds))), most = Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity);
+  const share = (key, bytes) => { let fixed = 0, slotted = 0; levels.forEach((l, i) => { const b = (l.sizes && !l.slots && !l.one ? l.sizes[key].reduce((a, c) => a + c, 0) : asked[i] * l[key]) * bytes; if (l.slots) slotted += b; else fixed += b; }); return slotted ? Math.min(1, (most - fixed) / slotted) : 1; };
+  const fit = Math.min(share('idx', 4), share('elems', 16));
+  const pools = levels.map((l, i) => {
+    const n = l.slots ? Math.max(1, Math.floor(asked[i] * fit)) : asked[i], own = !l.slots && !l.one;
+    if (n < asked[i]) console.warn(`${name}: level ${i} holds ${n} kinds' meshes at once, not the ${asked[i]} it asks: the device's largest buffer holds no more`);
     const sz = own && l.sizes ? l.sizes : null, at = (list) => { const o = new Uint32Array(n + 1); for (let k = 0; k < n; k++) o[k + 1] = o[k] + list[k]; return o; };
     const io = sz ? at(sz.idx) : null, eo = sz ? at(sz.elems) : null;   // (where each kind's place begins, and its size: the next one's start)
     const p = { idx: l.idx, elems: l.elems, io, eo, n, own, one: !!l.one, shape: l.shape || null, i0: iAt, e0: eAt, held: 0, shaped: 0, who: own || l.one ? null : new Int32Array(n).fill(-1), used: own || l.one ? null : new Float64Array(n), slot: own || l.one ? null : new Int32Array(kinds).fill(-1) };

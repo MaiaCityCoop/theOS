@@ -21,7 +21,7 @@ import * as THREE from 'three/webgpu';
 import { loadingStep, loadingDone } from './ui/loading.js';   // the veil is told what is being made
 import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
-import { keepMeasure, TRUTH } from './detail/measure.js';
+import { keepMeasure, measureNow, truthAfter, TRUTH } from './detail/measure.js';
 import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
@@ -41,12 +41,13 @@ import { spawn } from './camera/walk.js';
 import { createControls } from './camera/rig.js';   // the one camera, from the walker's eyes to the city (intent 0003)
 import { createLens } from './camera/post.js';
 import { createScreen } from './core/screen.js';
+import { startLight } from './world/light/start.js';
 import { createTemporal } from './core/temporal.js';
 import { createSky } from './world/sky.js';
 import { createWeather } from './world/weather/index.js';
-import { useBackend } from './world/light.js';
 import { useTiles } from './world/tile.js';
-import { createShadows } from './world/shadow.js';
+import { createLight } from './world/light/index.js';
+import { groundAt } from './world/land.nodes.js';
 import { useGround } from './world/rocksolid.js';
 import { showBodies } from './world/bodies.js';
 import { createCity } from './city/index.js';
@@ -89,7 +90,8 @@ export async function boot({ profile = 'world' } = {}) {
   addEventListener('resize', () => {   // only a real change of size rebuilds the canvas: that costs a frame of 100 ms
     if (innerWidth === sizeW && innerHeight === sizeH) return;
     sizeW = innerWidth; sizeH = innerHeight; resizes++;
-    camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight, false);
+    camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+    if (window.__game?.screen) window.__game.screen.fit(); else renderer.setSize(innerWidth, innerHeight, false);   // (the canvas at the output's ratio for the window now: src/core/output.js)
   });
 
   // (settle(): a promise, the world complete for the camera as it stands: nothing streaming or building in any engine, and
@@ -105,10 +107,13 @@ export async function boot({ profile = 'world' } = {}) {
   // brings one (src/camera/post.js), and brought up to the screen and built over time in one pass (src/core/temporal.js).
   const temporal = (game.temporal = createTemporal(renderer));
   const screen = (game.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
-  const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
+  const governor = createGovernor(renderer, { apply: (r) => screen.set(r), most: () => screen.out });   // (the drawn ratio within the canvas's)
   game.governor = governor;   // the film holds it still while it plays
-  keepMeasure(() => screen.inside);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
+  keepMeasure(() => screen.inside, () => screen.out);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
   if (TRUTH) governor.hold(true);   // (?truth: everything at its finest, offline: no dial turned for its slow frames)
+  // ?truth (src/detail/measure.js): the game's own start, at the dial's rest (the world built at the game's pace), then,
+  // once that first view is complete, the dial turned down to the truth's: what it brings in is waited for by settle()
+  truthAfter(game.ready);
   watch({ camera, renderer, screen, temporal, U });   // what the world complete is measured against (src/core/settle.js)
   const marks = (game.boot = {}), mark = (k) => (marks[k] = Math.round(performance.now() - t0));   // where the start's time goes
   mark('renderer');
@@ -117,7 +122,7 @@ export async function boot({ profile = 'world' } = {}) {
   // with the biomes: src/terrain/layers.js. The stage paints the land's materials at its start, a subject's when it wears them)
   const tex = bakeTextures(renderer, world ? { spare: 1 } : { spare: 8, first: landMaterials() });   // (the library's pictures ask for materials the world may not wear; the start's are compiled side by side and painted while the world is made: tex.ready)
   useTiles(tex);   // node code that reads a baked tile by itself (the clouds' field, the snow's clumps: src/world/tile.js)
-  useBackend(renderer);   // and what is lit per corner (a tree) reads the shadow map's texels only where the backend can
+  game.screenLight = startLight(renderer, screen);   // the light's start, before any material is built: the backend's reads, the shadow cascades laid out from what casts, the light worked out on the screen (src/world/light/start.js)
   mark('bake');
   await loadingStep('Raising the land', 0.3);
   // what grows on the land (the ground under the camera and every scattered thing: src/scatter): the world's from the
@@ -150,8 +155,8 @@ export async function boot({ profile = 'world' } = {}) {
   const weather = (game.weather = createWeather({ scene, renderer, camera }));
   for (const id of weather.ids) game[id] = weather[id];
   game.sky = sky;   // the sun and the sky: one time of day drives the light (intent 0007)
-  const shadows = createShadows(renderer);   // the casters' shadows, read by every surface (src/world/light.js)
-  game.shadows = shadows;
+  const shadows = createLight(renderer, { groundAt });   // the light's passes before a frame: the shadow cascades and the canopy map (src/world/light/index.js), read by every surface (src/world/light.js)
+  game.light = game.shadows = shadows;
   game.controls = controls;
   const city = world ? (game.city = createCity({ scene, camera, canvas, renderer, compile: (o) => screen.compile(o, camera, scene) })) : null;   // (compiled for the target the world is drawn into)
   const hudAt = document.getElementById('hud'), hud = hudAt ? createHud(hudAt, renderer, camera, governor, game) : null;
@@ -174,6 +179,7 @@ export async function boot({ profile = 'world' } = {}) {
     city?.update();
     const lod = governor.detail(camera);
     U.uLodInv.value = 1 / lod;
+    measureNow();   // (the live pixel and the dial, as the governor left them: src/detail/measure.js)
     u = performance.now(); parts.ctl = u - t; t = u;
     if (live()) grown.ground.update(p.x, p.z, dy, lod);
     u = performance.now(); parts.ground = u - t; t = u;

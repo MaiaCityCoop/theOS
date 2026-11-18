@@ -8,9 +8,9 @@
 //   faces                     a surface's full detail (a made thing: the tent, the fire pit): [corner, corner, corner,
 //                             colour, material?, normals?], ...; it says nothing coarser: every coarser version is the
 //                             builder's (assets/kit/clusters.js, intent 0038). A rock's full mesh is its kit's
-//   detail                    a plant's levels, near to far: { levels: [shape, ...], px?, fade? } (src/detail, intent
-//                             0002), made by its kit when asked for (assets/kit/tree.js: meshAt), with `P` for scattered
-//                             ones; where each level ends on screen comes from its kind (assets/kinds.js)
+//   (detail)                  never in its file (intent 0038: tools/scale.js holds it to that): a plant's levels are its
+//                             kit's, worked out from what it measures of the plant (assets/kit/plant.js bandsOf); every
+//                             rung of anything comes where its own error is the one ERROR_PX (src/detail/error.js)
 //   solid                     what a walker cannot pass: walls (rounds with gaps), posts, boxes, and the ceiling
 //                             overhead; in the asset's own frame. Without it, its kind's rule made from its size
 //                             (assets/kinds.js). The one collision engine takes it as a body (bodyOfAsset:
@@ -30,8 +30,9 @@ export const snowOf = (a) => kindOf(a, 'snow');
 /** A scattered asset as the row every scatter engine (src/scatter) reads: the asset, its engine, what its kind gives it.
     What only one engine reads of it, that engine adds itself (its `row`: src/scatter/index.js). */
 export const scatterRow = (a) => ({ asset: a, name: a.name, uid: a.uid, kind: a.placement.engine, cell: a.placement.cell, seed: a.placement.seed, snow: snowOf(a), detail: detailOf(a) });
-/** How many faces a level has. */
-export const facesOf = (l) => (typeof l.tris === 'function' ? l.tris() : l.faces ? l.faces.length : l.ball != null ? (l.ball ? 12 * l.ball * l.ball : 1) : 0);   // (ball: a level of the ladder, a ball of so many squares an edge; none: its dot)
+/** How many faces a level has (A: the numbers the far ends' atlases are sized by, which a plant's levels hold room by:
+    src/detail/impostor.js atlases). */
+export const facesOf = (l, A) => (typeof l.tris === 'function' ? l.tris(A) : l.faces ? l.faces.length : l.ball != null ? (l.ball ? 12 * l.ball * l.ball : 1) : 0);   // (ball: a level of the ladder, a ball of so many squares an edge; none: its dot)
 
 /** A level of detail of an asset as a geometry, coloured per face (the nearest level unless one is named). */
 export function geometryOf(asset, level = asset.faces ? { faces: asset.faces } : asset.detail.levels[0], shape = 0) {

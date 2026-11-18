@@ -5,7 +5,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec3, vec4, varying, attribute, abs, max, min, clamp, mix, smoothstep, length, normalize, pow, fract, sqrt, If, Discard } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { riverInfo, riverRaw, riverCarve, riverBank, baseB, WATER_DROP_N, lakeAt } from '../world/land.nodes.js';
-import { finish, cloudAt, windDir, windStrength } from '../world/light.js';
+import { finish, sunAt, windDir, windStrength } from '../world/light.js';
 import { gridPoint, GRID } from './material.js';
 import { WATER } from '../world/biomes.js';
 
@@ -38,7 +38,7 @@ export function waterMaterial(tex) {
     const foam = float(1).sub(smoothstep(0, 0.04, depth)).mul(smoothstep(0.3, 0.7, ftex)).mul(0.35);   // a thin lace where it runs shallow over the bank, nothing on open water
     const body = mix(v3(water.colours.shallow), v3(water.colours.deep), clamp(depth.mul(1.1), 0, 1));
     const skyRef = mix(U.uSky, vec3(U.uSky.dot(vec3(0.333))), 0.4).mul(0.92);
-    const sunC = U.uSun.mul(cloudAt(vWorld));
+    const sunC = U.uSun.mul(sunAt(vWorld));
     const H = normalize(V.add(U.uSunDir)), wd = length(U.uCam.sub(vWorld));
     const spec = pow(max(n.dot(H), 0), 350).mul(2.5).add(pow(max(n.dot(H), 0), 30).mul(0.22).mul(smoothstep(40, 300, wd)));
     const col0 = mix(body.mul(U.uAmb.add(sunC.mul(0.45))), skyRef, clamp(fres.mul(0.9).add(smoothstep(40, 400, wd).mul(0.12)), 0, 1)).add(sunC.mul(spec));

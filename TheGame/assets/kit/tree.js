@@ -17,8 +17,9 @@
 // of the ground its saplings cover (a tree with growth); scale, one plant's own size about its age's height; seed, its
 // shapes' (another seed: other plants of its kind).
 //
-// Its levels are its kind's (assets/kinds.js: as many as its px, its far ones as its `far` says); a recipe says them
-// only where it differs (levels: [{ P }, …], far: { P, speck } or false).
+// It says nothing of its detail: its levels are everything's (src/detail/error.js), down to where it is gone, as
+// assets/kit/plant.js bandsOf works them out from what it measures of it; whether it has a far end is its kind's
+// (assets/kinds.js `far`).
 // fine { sprig, twig }: its finest is splayed (splayOf): every sprig laid out as its painting's twigs, a spray, each twig
 // a card of its own painting (twig: a material of one whole twig); sprig: its leaves' paintings as numbers
 // (materials/*.twigs.js).
@@ -31,8 +32,7 @@
 // in it).
 
 import { budgetOf } from './crowd.js';
-import { bandsOf, shapeSize } from './plant.js';
-import { kindRule } from '../kinds.js';
+import { bandsOf, shapeSize, hasFar } from './plant.js';
 import { add, sub, mul, dot, len, norm, cross, lerp, bez } from './math.js';
 import { rng } from '../../src/core/hash.js';
 
@@ -326,13 +326,10 @@ const packed = (m) => ({ ...Object.fromEntries(FLOATS.filter((k) => m[k]?.length
     grown and kept as a few numbers (OUTLINES). */
 export function tree(recipe) {
   const { shapes: own = [{}], growth, grow, shade, shadow = {}, fine = null, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
-  // (its levels are its kind's, assets/kinds.js: as many as its px, the last of them its far ones, as its kind's `far`
-  // says: what a recipe says of them itself, it says only where it differs)
-  const far = recipe.far ?? kindRule(rest, 'far') ?? false, nFar = far ? (far.speck === false ? 1 : 2) : 0, levels = recipe.levels ?? Array.from({ length: Math.max(1, kindRule(rest, 'px').length - nFar) }, () => ({}));
+  // (whether it has a far end, its impostor after its clumps: its kind's, assets/kinds.js; its levels are everything's,
+  // each a first share of its finest, down to where it is gone: assets/kit/plant.js bandsOf, from what is measured of it)
+  const far = hasFar(rest);
   const G = growth ? stagesOf(growth, seed) : null, shapes = G ? G.shapes : own;
-  // its levels: its file's, then its far ones (its clumps and its impostor: two, one where `speck: false`, none where
-  // `far: false`), each a first share of its finest; where each ends on screen is its kind's (assets/kinds.js px)
-  const specs = [...levels, ...(far ? Array.from({ length: nFar }, () => ({ ...(far.P ? { P: far.P } : {}), far: true })) : [])];
   // (the last few made are kept as the builder left them: the crowd kit builds a shape's levels one after another)
   const memo = new Map(), once = (key, make) => { let m = memo.get(key); if (!m) { if (memo.size >= 6) memo.delete(memo.keys().next().value); memo.set(key, (m = make())); } return m; };
   /** Shape `shape` at its finest, as the builder made it (its attributes lists of numbers): grown whole, and where its
@@ -354,26 +351,30 @@ export function tree(recipe) {
     ...rest,
     ...(fine ? { fine: { twig: fine.twig } } : {}),   // (what its finest wears: the plants' material reads it, the textures find it)
     // (at: a tree of an age, which shape and its scale; the scale over the shape as built, so it stands exactly as tall
-    // as its height by age says, as the trees' engine draws it: src/scatter/trees.js sizeAtOne)
-    ...(G ? { growth: { years: growth.years, stages: G.stages, height: growth.height, at: (age, v) => { const r = G.at(age, v), S = G.stages.find((x) => r.shape >= x.offset && r.shape < x.offset + x.variants), b = measured().heights[r.shape]; return { ...r, s: b > 0 ? (r.s * S.h) / b : r.s }; } } } : {}),
-    /** how many shapes it has, and how many levels (its file's and its far ones) */
-    shapeCount: shapes.length, levelCount: specs.length,
+    // as its height by age says, as the trees' engine draws it: src/scatter/trees.js sizeAtOne. base, reach: where its
+    // crown begins at an age, metres over its foot, and how far it reaches round, as its file's form builds it: the
+    // shadow cascades' finest texel reads the lowest base, the canopy's probes the smallest reach, src/world/shadow.js)
+    ...(G ? { growth: { years: growth.years, stages: G.stages, height: growth.height, base: (age) => growth.form(age, 0).base, reach: (age) => growth.form(age, 0).r, at: (age, v) => { const r = G.at(age, v), S = G.stages.find((x) => r.shape >= x.offset && r.shape < x.offset + x.variants), b = measured().heights[r.shape]; return { ...r, s: b > 0 ? (r.s * S.h) / b : r.s }; } } } : {}),
+    /** how many shapes it has; whether it has a far end */
+    shapeCount: shapes.length, far,
     finest,
     /** its shade's mesh for a shape (what the shadow map is drawn from), as the builder made it; none: it has no shade of its own */
     shadeRaw: shade ? (shape) => shade(shapes[shape], shape) : null,
     /** The room each shape's levels need in the heap, [shape][level] [verts, tris] (assets/kit/crowd.js budgetOf),
-        reckoned from its finest without building the crowd, and kept with its outline with each shape's far end (farOf) */
-    crowdRooms() {
-      const o = measured();
-      if (!o.rooms) {
-        const his = bandsOf(out).map(([, hi], l) => (l ? hi : Infinity)), B = shapes.map((s, i) => budgetOf(finest(i), { size: shapeSize(out, i) }, his));
-        o.rooms = B.map((b) => b.map((r) => [r.verts, r.tris])); o.far = B.map((b) => ({ cell: b.cell, chunks: b.chunks }));
+        reckoned from its finest without building the crowd, and kept with its outline with each shape's far end (farOf),
+        for the atlases' numbers A it was reckoned by (src/detail/impostor.js atlases: another A, another reckoning). Its
+        own levels' (bandsOf): a stand that cuts them as one takes the room at each of its levels' tops from here */
+    crowdRooms(A) {
+      const o = measured(), key = far ? A.key : '';
+      if (!o.rooms || o.atlas !== key) {
+        const his = bandsOf(out).map(([, hi], l) => (l ? hi : Infinity)), B = shapes.map((s, i) => budgetOf(finest(i), { size: shapeSize(out, i), far, ...(far ? A : {}) }, his));
+        o.rooms = B.map((b) => b.map((r) => [r.verts, r.tris])); o.far = B.map((b) => ({ chunks: b.chunks })); o.atlas = key;
         OUTLINES.made.set(id, o);
       }
       return o.rooms;
     },
-    /** each shape's far end as the crowd kit reckons it: { cell (its impostor's views' texels a side), chunks (its clumps) } */
-    farOf: () => (out.crowdRooms(), measured().far),
+    /** each shape's far end as the crowd kit reckons it, by the atlases' numbers A: { chunks (its clumps) } */
+    farOf: (A) => (out.crowdRooms(A), measured().far),
     /** shape `shape` at its finest as typed arrays (a plain geometry's), at any level: every level is a first share of it */
     meshAt: (level, shape = 0) => packed(finest(Math.min(shape, shapes.length - 1))),
     /** the same kind of tree grown from another seed: other shapes, other places (the library's Random). A shape of its
@@ -386,10 +387,12 @@ export function tree(recipe) {
   return Object.defineProperties(out, {
     feet: lazy(() => measured().feet),
     size: lazy(() => rest.size ?? measured().size), trunk: lazy(() => measured().trunk), heights: lazy(() => measured().heights),
-    // its levels as numbers only (P: cells a patch's side; tris(): the most triangles its first shape has there, of its
-    // room in the heap); shadow: it is drawn into the shadow map by its shade, for every tree within `far` metres (from
-    // high up, up to `wide` times that) whose shade can reach the view (`reach`: how far a crown's shadow falls); past
-    // them the land dims its floor under the stand by itself (src/terrain/material.js)
-    detail: lazy(() => (detail ??= { ...(rest.detail || {}), levels: specs.map((L, i) => ({ ...L, tris: () => out.crowdRooms()[0][i][1] })), ...(shade ? { shadow: { far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) })),
+    /** how many levels it has of its own (bandsOf: from what is measured of it) */
+    levelCount: lazy(() => bandsOf(out).length),
+    // its levels as numbers only (lo, hi: the sizes on screen each is drawn between, bandsOf; tris(A): the most triangles
+    // its first shape has there, of its room in the heap, its far end's atlases sized by A); shadow: it is drawn into the shadow map by its shade, for every
+    // tree within `far` metres (from high up, up to `wide` times that) whose shade can reach the view (`reach`: how far a
+    // crown's shadow falls); past them the land dims its floor under the stand by itself (src/terrain/material.js)
+    detail: lazy(() => (detail ??= { ...(rest.detail || {}), levels: bandsOf(out).map(([lo, hi], i) => ({ lo, hi, tris: (A) => out.crowdRooms(A)[0][i][1] })), ...(shade ? { shadow: { far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) })),
   });
 }

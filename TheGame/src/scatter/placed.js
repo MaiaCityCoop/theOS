@@ -26,13 +26,13 @@ import { passOf, motion, vWas } from '../core/pass.js';
 import { U } from '../core/uniforms.js';
 import { layerOf, wrapGrad } from '../world/tile.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
-import { distanceAt } from '../detail/measure.js';
-import { SURFACE_LEVELS, PX_CUT, BUDGET_DRAWN, surfaceBand, surfacePx } from '../detail/error.js';
-import { spanOf, most, kindOf, kindRule } from '../../assets/kinds.js';
+import { farMost, dialPxAt } from '../detail/measure.js';
+import { SURFACE_LEVELS, FADE, BAND, GONE, surfaceBand, surfacePx } from '../detail/error.js';
+import { spanOf, most, kindOf } from '../../assets/kinds.js';
 import { bodyOfAsset } from '../../assets/index.js';
 import { placedBy } from '../../assets/zoo/index.js';
 import { madeBox, madeRoom } from '../../assets/kit/made.js';
-import { clusterOf, levelHead, allowedAt, eased, ruleOf, sphereFrom } from './cut.js';
+import { clusterOf, levelHead, allowedAt, eased, ruleOf, sphereFrom, pxCut } from './cut.js';
 import { versionOf } from '../core/registry.js';
 import { madeOf, madeWay } from './madevert.js';
 import { createDrawer } from './drawer.js';
@@ -73,19 +73,19 @@ export const unstand = (id) => LIST?.unstand(id) ?? false;
     compute pass). */
 function madeMaterial(D, src, lv, Lv, fade, sink, at) {
   const slot = uniform(0, 'uint').onObjectUpdate(({ object }) => object?.userData?.slot ?? 0), level = uniform(lv, 'uint'), LU = levelOf(Lv, fade);
-  const from = surfaceBand(Math.min(lv + 1, SURFACE_LEVELS - 1))[0], CUT = lv === 0, PXC = PX_CUT / BUDGET_DRAWN;
+  const from = surfaceBand(Math.min(lv + 1, SURFACE_LEVELS - 1))[0], CUT = lv === 0, PXC = pxCut();
   const vW = varyingProperty('vec3', 'mW'), vN = varyingProperty('vec3', 'mN'), vC = varyingProperty('vec3', 'mC'), vY = varyingProperty('float', 'mY'), vK = varyingProperty('vec3', 'mK');   // (vK: its kind, the material its face wears, how worn it is)
   const m = new THREE.NodeMaterial(); m.side = THREE.DoubleSide;
   m.vertexNode = Fn(() => {
     const A = src.readAt(0, slot), B = src.readAt(1, slot), S = src.readAt(2, slot), clip = offScreen().toVar();
     const kind = uint(B.y.add(0.5)), N0 = D.numOf(kind, 0).toVar(), N1 = D.numOf(kind, 1).toVar(), N2 = D.numOf(kind, 2).toVar(), span = D.lookOf(kind, 3).w;   // (span: its largest side, its look's)
-    // its size on screen, and the one hand-over (src/detail/handover.js): a made thing is of one piece, it changes over
-    // whole, half way; its last level sinks, where no dot follows it
-    const px = pxOf(A.w, A.xy), H = handOver(px, LU, sink);
+    // its size on screen, and the one hand-over (src/detail/handover.js, in dial pixels as its levels: src/detail/error.js):
+    // a made thing is of one piece, it changes over whole, half way; its last level sinks, where no dot follows it
+    const px = pxOf(A.w, A.xy), H = handOver(dialPxAt(px), LU, sink);
     const R = heapRow(D.H, kind, level).toVar();
     // the draw's corner: its cluster's number and its vertex's first element (assets/kit/surface.js)
     const corner = at(R).vertex.toVar(), C = clusterOf(D.H, R, corner.shiftRight(uint(16))), head = levelHead(D.H, R), el = R.y.add(corner.bitAnd(uint(0xffff)));
-    const dT = camDist(A.xy), { turn, unturn } = turnOf(B.x), foot = vec3(A.x, A.z, A.y), w0 = CUT ? smoothstep(PXC, PXC * 2, px) : null;   // (w0: how far it is measured by each cluster's own distance)
+    const dT = camDist(A.xy), { turn, unturn } = turnOf(B.x), foot = vec3(A.x, A.z, A.y), w0 = CUT ? smoothstep(PXC, PXC.mul(2), px) : null;   // (w0: how far it is measured by each cluster's own distance)
     const allowed = (j) => {
       let d = dT;
       if (CUT) d = mix(dT, sphereFrom(D.H.elems.element(C.at.add(uint(j))), A, B), w0);   // (its own sphere's distance, as the cut's)
@@ -132,11 +132,12 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
 
 /** A group: made kinds drawn by one drawer, its list, its tiers. */
 function groupOf(scene, tex, renderer, name, kinds, cap) {
-  const first = kinds[0].asset, n = kinds.length, ML = SURFACE_LEVELS - 1;
+  const n = kinds.length, ML = SURFACE_LEVELS - 1;
   // its levels: the surfaces' (src/detail/error.js), each kind's in a place as large as its whole hierarchy; the last,
-  // under a pixel and a half, the drawer's dot
+  // from where its coarsest clusters end, the drawer's dot, whole down to where it is gone (GONE: leaving it out differs
+  // by all of it) and sinking away over the BAND under that
   const rooms = kinds.map((Kd) => madeRoom(Kd.asset)), room = { verts: Math.max(...rooms.map((r) => r.verts)), tris: Math.max(...rooms.map((r) => r.tris)) };
-  const LEVELS = [...Array.from({ length: ML }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), room, rooms })), { px: 0.95, room: { verts: 3, tris: 1 } }];
+  const LEVELS = [...Array.from({ length: ML }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), room, rooms })), { px: GONE / BAND, room: { verts: 3, tris: 1 } }];
   // each kind's own numbers (NUMS rows of four, after its look in the drawer's one table): [its box's least corner, its
   // height], [its box's size, its half length], [its wind: billow, flap, sway], [its surface: wrap, through; metres a
   // tile of its materials, their relief], [the layers of its materials (none: -1)]; how its snow lies and its largest
@@ -146,7 +147,7 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
     if (M.length > 4) console.warn(`placed: '${a.name}' names ${M.length} materials; its faces wear the first four`);
     return [...B.min, most(a.size.height), ...B.ext, most(a.size.length) / 2, W.billow ?? 0, W.flap ?? 0, W.sway ?? 0, 0, S.wrap ?? 0, S.through ?? 0, a.texture ?? 1, a.relief ?? 1, M[0] ?? -1, M[1] ?? -1, M[2] ?? -1, M[3] ?? -1];
   };
-  const KINDS = kinds.map((Kd) => Kd.zoo), fade = kindRule(first, 'fade'), sink = 0;   // (fade: only where a thing's level changes, exactly at its pixels: handOver's `whole`)
+  const KINDS = kinds.map((Kd) => Kd.zoo), fade = FADE, sink = 0;   // (fade: only where a thing's level changes, exactly at its pixels: handOver's `whole`)
   const D = createDrawer(scene, renderer, tex, {
     name: `made: ${name}`, LEVELS, SHADE: { shrink: 1, far: 30, wide: 1.5 }, SMOOTH: uniform(1), state: true,
     make: { per: 2, flat: false, dot: true, numbers: { rows: NUMS, of: numbersOf }, material: (src, i, shadow, at) => madeMaterial(D, src, i, { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity, last: false }, fade, sink, at),
@@ -214,7 +215,7 @@ function groupOf(scene, tex, renderer, name, kinds, cap) {
   };
   for (let i = 0; i < LEVELS.length; i++) {
     // its squares 2^k of the list's a side, so that its band's far edge is about eight squares off: a few hundred to look at
-    const far = distanceAt(LEVELS[i].px, sizes[1] * 1.25), k = Math.max(0, Math.min(12, Math.ceil(Math.log2(far / (8 * BUCKET))))), S = BUCKET * 2 ** k;
+    const far = farMost(LEVELS[i].px, sizes[1] * 1.25), k = Math.max(0, Math.min(12, Math.ceil(Math.log2(far / (8 * BUCKET))))), S = BUCKET * 2 ** k;
     const capI = Math.min(cap, i === LEVELS.length - 1 ? 262144 : 256 * 4 ** i);   // (the most of a kind drawn at once at the level: few near, many far)
     const t = D.tier(i, { cell: S / P, P, cap: capI, sizes, fade, casts: i < ML, place, extra: { spans: spansAt(k), cull: CAST } });
     t.viewKeyed = true; t.asset = `placed: ${name}`;
