@@ -12,19 +12,20 @@
 // Each is a texture at the inside's pixels, read by the one light (src/world/light.js lightOn) in the colour pass of
 // what takes part in the prepass; anywhere else (a library's picture, a bake) they are 1.
 import * as THREE from 'three/webgpu';
-import { Fn, float, vec2, vec3, vec4, ivec2, uniform, texture, screenCoordinate, Loop, max, min, smoothstep, clamp, If } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, ivec2, uint, uniform, texture, screenCoordinate, Loop, max, min, smoothstep, clamp, If, floor, abs, cross, normalize, length, acos, sign, ceil, cos, sin } from 'three/tsl';
 import { U } from '../../core/uniforms.js';
 import { blueAt } from './noise.js';
 import { note } from '../../core/gpu.js';
 
 const white = Object.assign(new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1), { needsUpdate: true });
 /** What the screen's light passes left, for the colour pass to read (white until they run, and where they never do). */
-export const SCREEN = { contact: texture(white), on: uniform(0) };
+export const SCREEN = { contact: texture(white), ao: texture(white), size: uniform(new THREE.Vector2(1, 1)), on: uniform(0) };
 
-const STEPS = 12;
+const STEPS = 12;                                   // the contact shadows' steps
+const AO_R = 1.6, AO_THICK = 0.35, AO_STEPS = 6;   // GTAO: how far it looks (m), how thick a surface is taken to be (m, and 2 % of its distance more), steps a side
 export function createScreenLight(renderer) {
   if (!renderer.backend?.isWebGPUBackend) return null;   // (the WebGL 2 fallback: no screen light)
-  const depth = texture(new THREE.DepthTexture(1, 1)), proj = uniform(new THREE.Matrix4()), unproj = uniform(new THREE.Matrix4()), view = uniform(new THREE.Matrix4()), size = uniform(new THREE.Vector2(1, 1));
+  const depth = texture(new THREE.DepthTexture(1, 1)), proj = uniform(new THREE.Matrix4()), unproj = uniform(new THREE.Matrix4()), view = uniform(new THREE.Matrix4()), viewInv = uniform(new THREE.Matrix4()), size = uniform(new THREE.Vector2(1, 1));
   // a pixel's point seen from the eye (view space), from its depth; and a point back to its pixel
   const viewAt = (p, d) => { const c = unproj.mul(vec4(p.div(size).mul(vec2(2, -2)).add(vec2(-1, 1)), d, 1)); return c.xyz.div(c.w); };
   const pixelOf = (v) => { const c = proj.mul(vec4(v, 1)); return c.xy.div(c.w).mul(vec2(0.5, -0.5)).add(0.5).mul(size); };
@@ -48,21 +49,76 @@ export function createScreenLight(renderer) {
     });
     return vec4(out, 0, 0, 1);
   })();
-  const quad = new THREE.QuadMesh(contact);
-  let rt = null;
+  // ---- GTAO with a visibility bitmask, at half the pixels ----
+  // Jimenez's ground-truth AO (2016) as Therrien's visibility bitmask has it (2023): two slices a pixel through the
+  // depth, turned by the blue noise; along each, six steps a side, each a surface THICK deep (not a wall to the sky:
+  // what is behind a blade or a twig is seen past it); the 32 sectors of the slice's half-circle round the normal marked
+  // where something stands; the share left unmarked is what the sky reaches, the mean way through them the bent normal.
+  // The picture built over time averages the noise of the slices away.
+  const aoMat = new THREE.NodeMaterial();
+  aoMat.fragmentNode = Fn(() => {
+    const h = screenCoordinate.xy, p = floor(h).mul(2).add(0.5), d0 = depthAt(p), out = vec4(0, 0, 0, 1).toVar();
+    If(d0.lessThan(1), () => {
+      const v0 = viewAt(p, d0), V = normalize(v0.negate()), dist = v0.z.negate();
+      // its normal from its depth: of each pair of neighbours the nearer, so an edge does not bend it
+      const l = viewAt(p.sub(vec2(1, 0)), depthAt(p.sub(vec2(1, 0)))), r = viewAt(p.add(vec2(1, 0)), depthAt(p.add(vec2(1, 0))));
+      const u = viewAt(p.sub(vec2(0, 1)), depthAt(p.sub(vec2(0, 1)))), b = viewAt(p.add(vec2(0, 1)), depthAt(p.add(vec2(0, 1))));
+      const dx = abs(r.z.sub(v0.z)).lessThan(abs(v0.z.sub(l.z))).select(r.sub(v0), v0.sub(l)), dy = abs(b.z.sub(v0.z)).lessThan(abs(v0.z.sub(u.z))).select(b.sub(v0), v0.sub(u));
+      const n0 = normalize(cross(dy, dx)), n = n0.dot(V).lessThan(0).select(n0.negate(), n0);
+      const noise = blueAt(h), radius = clamp(float(AO_R).mul(proj.element(1).y).mul(size.y.mul(0.5)).div(dist), 3, 160), thick = dist.mul(0.02).add(AO_THICK);
+      const vis = float(0).toVar(), bent = vec3(0).toVar();
+      for (let s = 0; s < 2; s++) {
+        const phi = noise.x.add(s * 0.5).mul(Math.PI), dir = vec2(cos(phi), sin(phi)), dirV = vec3(dir.x, dir.y.negate(), 0);   // (screen y runs down, the view's up)
+        const T = normalize(dirV.sub(V.mul(dirV.dot(V)))), axis = cross(V, T), np = n.sub(axis.mul(n.dot(axis))), npl = max(length(np), 1e-4);
+        const gamma = acos(clamp(np.dot(V).div(npl), -1, 1)).mul(sign(np.dot(T)));   // the normal's angle in the slice, from the eye's way towards T
+        const bits = uint(0).toVar();
+        for (const side of [1, -1]) {
+          Loop({ start: 0, end: AO_STEPS, type: 'int', name: 'k' }, ({ k }) => {
+            const t = float(k).add(noise.y).div(AO_STEPS), q = p.add(dir.mul(side).mul(t.mul(t).mul(radius).add(1.5)));
+            const dlt = viewAt(q, depthAt(q)).sub(v0), fb = vec2(normalize(dlt).dot(V), normalize(dlt.sub(V.mul(thick))).dot(V));
+            const hz = clamp(acos(clamp(fb, -1, 1)).mul(side).sub(gamma).add(Math.PI / 2).div(Math.PI), 0, 1), lo = min(hz.x, hz.y), hi = max(hz.x, hz.y);
+            const on = q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(size.x)).and(q.y.lessThan(size.y));   // (off the picture: nothing known there, nothing marked)
+            const start = uint(lo.mul(32)).min(uint(31)), span = on.select(uint(ceil(hi.sub(lo).mul(32))), uint(0));
+            bits.assign(bits.bitOr(span.greaterThan(uint(0)).select(uint(0xffffffff).shiftRight(uint(32).sub(span.min(uint(32)))).shiftLeft(start), uint(0))));
+          });
+        }
+        // what is left of the slice: the sky's share, and its mean way (each free sector's middle, turned from the normal)
+        const free = float(0).toVar(), way = vec3(0).toVar();
+        Loop({ start: 0, end: 32, type: 'int', name: 'm' }, ({ m }) => {
+          If(bits.shiftRight(uint(m)).bitAnd(uint(1)).equal(uint(0)), () => {
+            const a = float(m).add(0.5).div(32).mul(Math.PI).sub(Math.PI / 2).add(gamma);
+            free.addAssign(1); way.addAssign(V.mul(cos(a)).add(T.mul(sin(a))));
+          });
+        });
+        vis.addAssign(free.div(32 * 2)); bent.addAssign(way);
+      }
+      // the bent normal back in the world, and the share of the sky
+      const bw = normalize(viewInv.mul(vec4(normalize(bent.add(n.mul(0.001))), 0)).xyz);
+      out.assign(vec4(bw, vis));
+    });
+    return out;
+  })();
+  const quads = [new THREE.QuadMesh(contact), new THREE.QuadMesh(aoMat)];
+  let rt = null, half = null;
   return {
     /** After the prepass (its depth `depthTex`, w by h, through this camera, still shifted by its part of a pixel): the
         screen's light, for the colour pass. */
     run(depthTex, camera, w, h) {
       if (!rt || rt.width !== w || rt.height !== h) {
-        rt?.dispose(); rt = new THREE.RenderTarget(w, h, { type: THREE.UnsignedByteType, depthBuffer: false, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
-        note('the contact shadows', w * h * 4, 0);
+        rt?.dispose(); half?.dispose();
+        rt = new THREE.RenderTarget(w, h, { type: THREE.UnsignedByteType, depthBuffer: false, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+        half = new THREE.RenderTarget(Math.ceil(w / 2), Math.ceil(h / 2), { type: THREE.HalfFloatType, depthBuffer: false, generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+        note('the contact shadows and GTAO', w * h * 4 + Math.ceil(w / 2) * Math.ceil(h / 2) * 8, 0);
       }
-      depth.value = depthTex; size.value.set(w, h);
-      proj.value.copy(camera.projectionMatrix); unproj.value.copy(camera.projectionMatrix).invert(); view.value.copy(camera.matrixWorldInverse);
-      const prev = renderer.getRenderTarget(), route = renderer.getRenderObjectFunction(); renderer.setRenderObjectFunction(null); renderer.setRenderTarget(rt); quad.render(renderer); renderer.setRenderTarget(prev); renderer.setRenderObjectFunction(route);
-      SCREEN.contact.value = rt.texture; SCREEN.on.value = 1;
+      depth.value = depthTex; size.value.set(w, h); SCREEN.size.value.set(w, h);
+      proj.value.copy(camera.projectionMatrix); unproj.value.copy(camera.projectionMatrix).invert(); view.value.copy(camera.matrixWorldInverse); viewInv.value.copy(camera.matrixWorld);
+      const prev = renderer.getRenderTarget(), route = renderer.getRenderObjectFunction(); renderer.setRenderObjectFunction(null);
+      renderer.setRenderTarget(rt); quads[0].render(renderer); renderer.setRenderTarget(half); quads[1].render(renderer);
+      renderer.setRenderTarget(prev); renderer.setRenderObjectFunction(route);
+      SCREEN.contact.value = rt.texture; SCREEN.ao.value = half.texture; SCREEN.on.value = 1;
     },
+    /** Each pass alone on the last prepass's depth, for a tool's timing (tools/bench.js light). */
+    parts: () => ({ contact: () => { renderer.setRenderTarget(rt); quads[0].render(renderer); renderer.setRenderTarget(null); }, gtao: () => { renderer.setRenderTarget(half); quads[1].render(renderer); renderer.setRenderTarget(null); } }),
     /** Off: the colour pass reads 1 (a frame drawn by anything else than the world's screen). */
     off() { SCREEN.on.value = 0; },
   };

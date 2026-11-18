@@ -6,7 +6,7 @@
 // to the shared lanes (wet, fog, dim), and what each does to a surface (`surface`: the snow lying on it). What is one
 // condition's own (the snow's depth, the wind's push, the clouds' shade) is that condition's code, handed on from here,
 // so a material asks the contract and no file but the condition's holds it.
-import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, pow, smoothstep, fract, floor, dot, max, min, abs, clamp, length, normalize, cos, sin, screenCoordinate } from 'three/tsl';
+import { Fn, float, vec2, vec3, vec4, ivec2, If, mix, exp, exp2, sqrt, pow, smoothstep, fract, floor, dot, max, min, abs, clamp, length, normalize, cos, sin, screenCoordinate } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { passOf } from '../core/pass.js';
 import { lane } from './weather/lanes.js';
@@ -192,6 +192,9 @@ export const sunAt = (w, how = 'soft', n = null) => sunDim().mul(cloudShade(w)).
 // in the prepass (its depth is the one the screen's light read), in a fragment; 1 anywhere else
 const onScreen = (builder) => passOf(builder) === 'main' && builder.shaderStage === 'fragment' && builder.material?.userData?.pre === true;
 const contactHere = Fn((builder) => (onScreen(builder) ? mix(float(1), SCREEN.contact.load(ivec2(screenCoordinate.xy)).r, SCREEN.on) : float(1)));
+// GTAO (screen.js): the share of the sky that reaches the pixel past what stands round it, and the bent normal, the way
+// that sky lies (half the pixels, read between them)
+const aoHere = Fn(([n], builder) => (onScreen(builder) ? mix(vec4(n, 1), SCREEN.ao.sample(screenCoordinate.xy.div(SCREEN.size)).level(0), SCREEN.on) : vec4(n, 1)));
 /** The light a surface takes, in its parts (rgb, the light's numbers): `sky`, what its colour takes from the sky; `sun`,
     from the sun; `spec`, the highlight laid over it. lit() below puts them on a colour; a material that lights itself per
     vertex (a tree) carries them to its pixels. s, every field but n and w optional:
@@ -207,12 +210,16 @@ export const lightOn = (s) => {
   const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mul(contactHere());
   const wrap = s.wrap ?? 0, ndl = s.ndl ?? (wrap ? n.dot(L).add(wrap).div(float(wrap).add(1)) : n.dot(L)).max(0);
   const back = V ? max(V.negate().dot(L), 0) : null, light = U.uSun.mul(share);   // (how far the eye looks into the sun; the sun's light here)
-  let sky = s.w ? skyLight(n).mul(skyAt(s.w)) : skyLight(n), sun = ndl;   // (the sky's light, less what the crowns above hide of it: src/world/light/canopy.js)
+  // the sky's light: from the way the sky it sees lies (the bent normal), less what stands round it (GTAO) and what the
+  // crowns above hide of it (the canopy's probes: src/world/light/canopy.js)
+  const A = aoHere(n), bent = normalize(mix(n, A.xyz, 0.5)), open = A.w;
+  let sky = skyLight(bent).mul(s.w ? skyAt(s.w).mul(open) : open), sun = ndl;
   if (s.through) { const t = pow(back, s.lobe ?? 3).mul(s.through); sun = sun.add(s.tint ? s.tint.mul(t) : t); }
   sun = light.mul(sun);
   if (s.sky) sky = sky.mul(s.sky);
   if (s.ao) { const ao = float(s.ao); sky = sky.mul(ao.mul(ao).mul(0.75).add(ao.mul(0.25))); sun = sun.mul(ao.mul(0.6).add(0.4)); }
-  const spec = s.gloss ? light.mul(pow(max(n.dot(normalize(V.add(L))), 0), s.sharp ?? 40)).mul(s.gloss) : vec3(0);
+  // (its highlight, less where little of the sky is seen: specular occlusion, Lagarde's, its roughness from its sharpness)
+  const spec = s.gloss ? light.mul(pow(max(n.dot(normalize(V.add(L))), 0), s.sharp ?? 40)).mul(s.gloss).mul(clamp(pow(max(n.dot(V), 0).add(open), exp2(sqrt(float(2).div(float(s.sharp ?? 40).add(2))).mul(-16).sub(1))).sub(1).add(open), 0, 1)) : vec3(0);
   return { sky, sun, spec, light, V, back, ndl };
 };
 /** A surface lit and seen through the air, for the screen: { colour (its own, linear), extra (light of another kind on

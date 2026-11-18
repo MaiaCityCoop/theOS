@@ -76,6 +76,19 @@ export async function overlay() {
 /** Where a view's GPU time goes (opened with ?gputime): the frame drawn with one part at a time (sky, land, water, each
     scattered thing, the placed assets), the shadow pass and the clouds' map on their own; parts' shares are what count,
     the whole swings with whatever else the GPU is doing. */
+/** The light's own passes (intent 0038, stage 9), each alone, where the camera stands now (opened with ?gputime; after
+    bench(), which leaves the camera at its view and the inside at its ratio's last frame): the GPU's ms of each, the
+    ones drawn in turn (the far cascade, the canopy map and its probes) as they cost when their turn comes. */
+export async function light({ frames = 20 } = {}) {
+  const s = window.__game, { renderer, camera, scene } = s, R = performance.getEntriesByType('resource').map((e) => e.name);
+  const { heightAt } = await import(R.filter((n) => n.includes('src/world/land.js')).at(-1)), g = heightAt(camera.position.x, camera.position.z);
+  const at = async () => ((await renderer.resolveTimestampsAsync('render')) || 0) + ((await renderer.resolveTimestampsAsync('compute')) || 0);
+  const time = async (f) => { f(); await at(); let sum = 0; for (let i = 0; i < frames; i++) { f(); sum += await at(); } return +(sum / frames).toFixed(3); };
+  const P = { ...s.light.parts(scene, camera, g), ...(s.screenLight?.parts(camera) ?? {}) }, out = {};
+  for (const [k, f] of Object.entries(P)) out[k] = await time(f);
+  return out;
+}
+
 export async function parts(view = VIEWS[0], { ratio = 1, frames = 30 } = {}) {
   const s = window.__game, { renderer, camera, U, scene } = s, R = performance.getEntriesByType('resource').map((e) => e.name);
   const mod = (part) => import(R.filter((n) => n.includes(part)).at(-1));

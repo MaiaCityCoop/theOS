@@ -210,14 +210,17 @@ async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
       const r = await page.evaluate(async ({ name, ratio, frames }) => {
         const B = await import(new URL('tools/bench.js', location.href).href), all = [...B.VIEWS];
         B.VIEWS.splice(0, all.length, all.find((x) => x.name === name));   // (bench() times every view in its list: here only this one)
-        try { return await B.bench({ ratio, frames }); } finally { B.VIEWS.splice(0, 1, ...all); window.__game.governor.hold(true); }   // (it lets the governor go when it is done)
+        try { const r = await B.bench({ ratio, frames }); r.light = await B.light?.(); return r; } finally { B.VIEWS.splice(0, 1, ...all); window.__game.governor.hold(true); }   // (it lets the governor go when it is done; then the light's passes alone, there)
       }, { name: v.bench, ratio: +ratio, frames: +frames });
       out.measure = r.measure; out.drawn = [Math.floor(r.size[0] * r.ratio), Math.floor(r.size[1] * r.ratio)]; out.views[v.bench] = r[v.bench];
+      if (r.light) (out.light ||= {})[v.bench] = r.light;
     }
   } finally { said(errors); await close(); }
   out.worst = Math.max(...Object.values(out.views)); out.pass = out.worst <= BUDGET;
   console.log(`bench: ${out.measure}, drawn ${px(out.drawn)} (×${(+ratio).toFixed(2)} of ${SCREEN.width}×${SCREEN.height}) and brought up to ${px([SCREEN.width * SCREEN.dpr, SCREEN.height * SCREEN.dpr])} (${url})`);
   for (const [k, ms] of [...Object.entries(out.views), ['worst', out.worst]]) console.log(`  ${k.padEnd(28)}${f(ms)} ms  ${ms <= BUDGET ? 'within' : 'OVER'} ${BUDGET}`);
+  // (the light's passes alone at each view, ms: src/world/light/*)
+  if (out.light) { const keys = Object.keys(Object.values(out.light)[0]); console.log(`\n  light's passes (ms)          ${keys.map((k) => k.padStart(9)).join('')}`); for (const [v, L] of Object.entries(out.light)) console.log(`  ${v.padEnd(28)}${keys.map((k) => f(L[k]).padStart(9)).join('')}`); }
   return out;
 }
 

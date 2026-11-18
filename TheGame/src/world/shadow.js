@@ -74,16 +74,17 @@ export function createShadows(renderer) {
         (src/core/compile.js; a promise): before the first frame, which would otherwise compile them as it draws them.
         object: the scene, or a part of it to stand in `scene` (a subject the library shows). */
     compile(object, camera, groundY, scene = null) { return compileFor(renderer, rt, object, aim(1, camera, groundY), scene, route); },
-    /** Draw the casters from the light, round where the camera looks: the near cascade every frame, the far one in turn. */
-    render(scene, camera, groundY) {
+    /** Draw the casters from the light, round where the camera looks: the near cascade every frame, the far one in turn
+        (only: 'near' or 'far', that one alone: a tool's timing). */
+    render(scene, camera, groundY, only = null) {
       const L = U.uSunDir.value, sun = U.uSun.value; frame++;
       if (L.y < 0.03 || sun.x + sun.y + sun.z < 0.02) { U.uShadowOn.value = 0; return; }   // no light to cast by
       // the far cascade: in turn, or at once when the light has turned or the eye has jumped since it was drawn
-      const far = frame - farAt >= FAR_EVERY || lastSun.dot(L) < 0.99998 || lastEye.distanceToSquared(camera.position) > 25 || !U.uShadowOn.value;
+      const far = only ? only === 'far' : frame - farAt >= FAR_EVERY || lastSun.dot(L) < 0.99998 || lastEye.distanceToSquared(camera.position) > 25 || !U.uShadowOn.value;
       const prev = renderer.getRenderTarget(), a = renderer.getClearAlpha(), ac = renderer.autoClear; renderer.getClearColor(c);
       U.uShadowOn.value = 0; U.uShadowPass.value = 1;   // (a caster drawn pulled towards the light by the map's bias: characters/kit/human.js casterPull)
       renderer.setRenderTarget(rt); renderer.setRenderObjectFunction(route);
-      for (const k of far ? [1, 0] : [0]) {
+      for (const k of only === 'far' ? [1] : far ? [1, 0] : [0]) {
         rt.viewport.set(k * S, 0, S, S); rt.scissor.set(k * S, 0, S, S); rt.scissorTest = true;
         const cam = aim(k, camera, groundY);
         if (k === 1 || !far) { renderer.autoClear = k === 1; if (k === 0) renderer.render(wipe, cam); }   // (the whole atlas cleared with the far one; the near square alone else)
