@@ -1,6 +1,6 @@
 ---
 name: intents
-description: How work is done in TheOS. Use whenever something is to be made, changed or fixed in this repository, whenever Samuel asks for work, mentions an intent, a work package, a changelog, a story or a devlog, or asks what is open. Every change belongs to an intent (Intents/NNNN-slug.md); this skill says how to open one, move it through idea, define, build, propose, story and archived, keep its changelog, trail and todo, and spawn its story in Stories/. In build it also says how one master session coordinates every task of the intent across our machines and sessions: roles, the GPU lock, the integration train, the standing rules and merging.
+description: How work is done in TheOS. Use whenever something is to be made, changed or fixed in this repository, whenever Samuel asks for work, mentions an intent, a work package, a changelog, a story or a devlog, or asks what is open. Every change belongs to an intent (Intents/NNNN-slug.md); this skill says how to open one, move it through idea, define, build, propose, story and archived, keep its changelog, trail and todo, and spawn its story in Stories/. In build it also says how one master session coordinates every task of the intent across our machines and sessions: roles, the GPU lock, shipping each PR on green, the hourly gate on main, and the standing rules.
 ---
 
 # Intents
@@ -123,11 +123,12 @@ real trade-off the definition does not settle (say, more detail against 60 fps),
 ### Roles
 
 - **The master** holds the plan (the Define table and the intent's own "Where we left off"),
-  splits it into tasks, briefs the workers, gives out GPU time, reviews, and merges when the human
-  has given it that for this intent. It keeps the intent's Build notes, changelog and trail, and
-  writes "Where we left off" so another master could take over at any time. One master an intent.
+  splits it into tasks, briefs the workers, reviews, runs the hourly gate on `main` and makes what it
+  finds the next round's tasks, and keeps the merge watcher shipping when the human has given it that
+  for this intent. It keeps the intent's Build notes, changelog and trail, and writes "Where we left
+  off" so another master could take over at any time. One master an intent.
 - **A worker** takes one task: its own worktree and branch (`aven/NNNN-…`), its own dev server on
-  its own port, a draft PR, marked ready when its checks are in. It reports to the master
+  its own port, a draft PR, marked ready once its own checks pass. It reports to the master
   (`SendMessage`) with the PR, the numbers and what is open. It never merges. It never asks the
   human: it decides in the direction of the intent, writes the decision and why into the PR, and
   sends a real blocker to the master while it goes on with what it can do.
@@ -143,7 +144,7 @@ real trade-off the definition does not settle (say, more detail against 60 fps),
 
 | Machine | What it does |
 | --- | --- |
-| **avenMAIA MacMini** (`aven-maia-mac-mini`, base M2, 8 GB) | The master. The **GPU gate**: every gate run, timing, reference render and train runs here, one at a time. At most two task sessions beside the master (its memory). |
+| **avenMAIA MacMini** (`aven-maia-mac-mini`, base M2, 8 GB) | The master. The **GPU gate**: the hourly gate on `main`, every timing and every reference render run here, one at a time through the GPU lock. At most two task sessions beside the master (its memory). |
 | **avenMAIA MacBook Sam** (Samuel's MacBook, `samuel`) | Task sessions for coding, in parallel, CPU first. Its GPU for light functional checks only: one job at a time, at most 1920×1080, about half its GPU at most, never `?truth` 4K, paths, bench or motion. Stop at once if the machine gets slow: Samuel works on it. |
 | **avenMAIA Claude Cloud** (claude.ai/code cloud sessions), where available | Self-contained coding or research with no GPU. They cannot message back: the master reads their branch. |
 
@@ -158,10 +159,10 @@ board alone merges at once, so the dashboard on `next` shows it within minutes.
 
 | Task | Session | Machine | Branch · PR | State | Updated | Next |
 | --- | --- | --- | --- | --- | --- | --- |
-| the task, in a few words | its session's name | avenMAIA MacMini · MacBook Sam · Claude Cloud | `aven/NNNN-…` · #N | planned · coding · ready · on train N · merged · blocked (why) | date and time | the next step and who takes it |
+| the task, in a few words | its session's name | avenMAIA MacMini · MacBook Sam · Claude Cloud | `aven/NNNN-…` · #N | planned · coding · draft · ready · shipped · blocked (why) | date and time | the next step and who takes it |
 
-A task is on the board from the moment it is planned until it is merged or dropped (and why);
-merged rows move to the changelog at the end of the day. A task with no session yet says so; a
+A task is on the board from the moment it is planned until it ships or is dropped (and why);
+shipped rows move to the changelog at the end of the day. A task with no session yet says so; a
 session with no task on the board is a mistake.
 
 ### Every machine busy
@@ -169,13 +170,12 @@ session with no task on the board is a mistake.
 The master keeps every machine working and as little idle as it can. Idle time is planned away,
 not waited out.
 
-- **No session waits for a merge.** A task that builds on work not merged yet branches from the
-  train's branch (or the PR it needs) and merges `main` in when that lands.
+- **No session waits for a merge.** A task that builds on work not shipped yet branches from the
+  PR it needs and merges `main` in when that ships.
 - **Every session has its next task** on the board before its current one ends, and gets its
   brief the moment it is free. A worker that finishes with nothing next tells the master at once.
-- **The GPU is never idle while something waits to be measured.** The master keeps its queue
-  filled ahead: the next train, quick checks, the gate's own jobs on `main`, diagnostics a worker
-  needs. When a train is not ready, the GPU runs measurements that help the next one.
+- **The GPU is never idle while something waits to be measured.** Between the hourly gates its
+  queue holds quick checks, the gate's own jobs on `main` and the diagnostics a worker needs.
 - **Each machine within its limits:** the avenMAIA MacMini's memory (at most two task sessions
   beside the master), the avenMAIA MacBook Sam's GPU at about half at most while Samuel works on
   it. Busy never means overloaded: a frozen machine is the most idle of all.
@@ -184,40 +184,42 @@ not waited out.
 
 ### The GPU: one lock, one queue
 
-- Every GPU run on a machine takes that machine's lock first (`~/src/github/MaiaCityCoop/.gate-lock`,
-  made with `mkdir`, freed by a `trap` on any exit, the holder and the time written into it). One
-  run a hold; never while building or editing.
-- `.gate-next` beside it names who goes next. Nobody else takes the lock while it names someone
-  else. The master writes it for its own runs and hands out turns in order; a worker asks the master
-  for a turn (what, how long), never takes one.
-- A lock whose holder is dead (its session idle or its process gone) may be freed by the master,
-  after checking; nobody else breaks a lock.
+- Every GPU run on a machine goes through `TheGame/tools/gpu/lock.js`. `bun tools/gpu/lock.js take
+  <owner> -- <command>` waits in one queue, oldest first, holds the lock while the command runs and
+  lets it go however it ends; `tools/gate.js` takes it itself for every part that draws (`GPU_OWNER`
+  names the run). `bun tools/gpu/lock.js status` shows who holds it and who waits.
+- The lock and the queue stand beside the repository, shared by all its worktrees (`GPU_LOCK_DIR`, by
+  default the folder that holds it). One run a hold; never while building or editing.
+- A holder whose processes are gone is no holder: the first in line takes the lock back. Nobody
+  removes a live holder's lock.
 
-### The integration train
+### Shipping: each PR on its own
 
-Work is developed in parallel and tested together, once:
+Work ships as it is ready, one PR at a time: nothing waits to be tested together with anything else.
 
-1. **Develop.** Workers code on the CPU and check what a CPU can (`bun tools/scale.js`, the builds,
-   the checks that need no GPU). They do not take GPU turns for full gates.
-2. **Cut off.** At a time the master names, every ready PR has the current `main` merged in, its
-   conflicts resolved, its checks passing, pushed and marked ready.
-3. **Train.** The master builds one branch, `main` plus every ready PR in order (`aven/NNNN-train-N`).
-   A conflict only in the intent merges by union; a code conflict the master resolves by keeping
-   both sides' meaning, or leaves that PR off the train and says why.
-4. **One gate run** on the GPU machine: the views' stills and their reference, the per-class bench,
-   the paths, motion. Every problem is put to its owner by class and view; only what cannot be put
-   is found by halving the train.
-5. **Fix and run again.** Owners fix at the root; a shorter run checks the fixes. What still fails
-   leaves the train; the rest merges into `main` as one, exactly as it was tested.
+1. **A draft until green.** A PR opens as a draft. Its worker codes on the CPU, merges `main` in,
+   and runs its own checks: the `pre-push` hook's `tools/lint.js` and `tools/smoke.js`, `bun
+   tools/scale.js`, `bun tools/health.js --base origin/main`, the builds. Once they pass, the worker
+   marks the PR ready, and ready means ship it.
+2. **Shipped on green.** CI runs on every ready PR. The master's merge watcher merges each one whose
+   CI is green, pinned to the head CI tested (`--match-head-commit`, the full SHA), with a merge
+   commit: never a rebase, never a force-push. "No checks reported" is not green.
+3. **The hourly gate measures `main`.** Once an hour the GPU machine runs the gate on `main` as it
+   stands: the views' stills against their truth, the per-class bench against the budgets, the
+   paths, motion, `real`. It measures `main`, never a branch.
+4. **Findings are the next round's work.** What the hourly gate finds goes to its owner by class and
+   view, as a task on the board, fixed at the root in a PR of its own. A PR that breaks `main`
+   outright (CI red on `main`, or `next` does not start) is reverted at once and comes back fixed in
+   a new PR; the code gates measure a revert against the state it restores.
 
 ### What every build is held to
 
 - **The gate is the definition's checks, and a branch is judged on its own:** against its own
   reference, against photographs, against the budgets, in motion. Never against `main`: main is no
   reference, and before/after pictures are no gate.
-- **Budget first.** Where the intent has hard performance gates, they hold at every merge: a ceiling
-  for each class of the frame (as `gate.js bench` measures them) that a PR may not push past, and
-  that only ever comes down until it meets its budget. Nothing new is added until the frame fits.
+- **Budget first.** Where the intent has hard performance gates, the hourly gate holds `main` to
+  them, class by class of the frame (as `gate.js bench` measures them). A class over its budget is
+  the next round's first work, and nothing new is added to it until the frame fits.
 - **The root cause, from first principles, never a patch.** Name the invariant that is broken and
   restore it. A distance fade, a magic threshold, a fudge factor, a longer timeout or a retry is not
   a fix; a timeout or a retry may stand only beside the real fix, as a guard. A patch does not merge.
@@ -228,21 +230,14 @@ Work is developed in parallel and tested together, once:
   hand-set setting unless it is physical or artistic, every GPU resource and dispatch sized from the
   device's own limits. A count of what still breaks this may only go down.
 
-### Merging and deploying
+### CI and deploying
 
-- The master merges when CI is green and the train's gate holds, pinned to the head that was tested
-  (`--match-head-commit`, the full SHA), with a merge commit: never a rebase, never a force-push.
-  "No checks reported" is not green: wait until CI has reported and every check has passed.
-- **Quiet CI: drafts while in progress, checked before every push.** A PR opens as a draft and stays one until its own
-  checks pass; CI runs only on PRs marked ready and on `main`, so work in progress never mails a failure to everyone.
-  `bun install` turns on the repo's hook in every clone (TheGame's `prepare` script: one place, no machine drifts): `pre-push` runs `tools/lint.js`
-  and `tools/smoke.js` in seconds, so nothing is pushed that breaks without `vite build` seeing it. Only the master
-  edits the intent's file; a PR's notes go in its body.
-- **A train that fails on `main` is reverted at once**, so `next` goes back to the state before it.
-  Its code comes back as one branch, `main` plus the revert of the revert (`aven/NNNN-unrevert-…`),
-  where its faults are fixed at the root; it is the next train's first car. Until it lands, a branch
-  that contains the train's commits merges that branch, never `main`: the revert would silently
-  delete the train's code from it. The code gates measure a revert against the state it restores.
+- **Quiet CI.** CI runs only on PRs marked ready and on `main`, so work in progress never mails a
+  failure to everyone. `bun install` turns on the repo's hook in every clone (TheGame's `prepare`
+  script: one place, no machine drifts): `pre-push` runs `tools/lint.js` and `tools/smoke.js` in
+  seconds, so nothing is pushed that breaks without `vite build` seeing it.
+- **One writer for the intent's file: the master.** A PR's notes go in its body, and the master
+  folds them in. A branch that merges `main` takes the intent's file from `main` afterwards.
 - A change outside CI's paths (`research_notes/`, `.claude/`) merges at once: no build, no deploy.
 - `next` deploys itself after CI passes on `main`; the master checks `next.maia.city/version.json`
   names the merged commit, and that the game answers.
