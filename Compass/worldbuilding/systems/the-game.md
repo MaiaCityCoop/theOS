@@ -33,7 +33,7 @@ What the game proves, in real numbers: a post-labour economy that runs on **owne
 | **City HEARTS** | What personal HEARTS become when invested in a coop | Sit in that coop's treasury. Backed by the city's liquidity pool, so they are the game's most valuable currency |
 | **MINDS** | Ownership stake in one coop (*Solar MINDS*, *Food Dome MINDS*, *Maia City MINDS*, …) | Bought on the coop's funding curve |
 
-**Every coop that is not a village or city coop is unlocked along the way and founded on a citizen's initiative.** The milestones open what may be founded next; citizens found it.
+**Every coop that is not a village or city coop is unlocked along the way and founded on a citizen's initiative.** **Startup coops and city-wide coops are the same thing:** a startup coop serves the whole city. The six of the essential fixed tree are the first six of the ten every citizen's start reserve funds; the last four are unlocked later. The milestones open what may be founded next; citizens found it.
 
 ### The start capital
 
