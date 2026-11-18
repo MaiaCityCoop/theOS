@@ -127,8 +127,11 @@ export class Tier {
       CPU must know of where things stand (src/scatter/trees.js: what of a stand is solid round the walker). Only what is
       packed is read, bucket by bucket, through one buffer kept for it (in the ledger, as large as the largest read). */
   async read(renderer) {
-    const K = this.geometries.length, S = this.slots, small = await Promise.all([this.args, this.count.value, this.offsets].map((b) => renderer.getArrayBufferAsync(b)));
-    const [n, found, off] = small.map((b) => new Uint32Array(b)), out = [];
+    // (where each bucket's things begin: a resident tier's as its gather laid them out, on the GPU; its own patches' as
+    // they were set, here (their buffer is bound by no pass: only its draws read it, and a tier that is not drawn, the
+    // walker's stand, src/scatter/trees.js standBodies, never binds it))
+    const K = this.geometries.length, S = this.slots, small = await Promise.all([this.args, this.count.value, ...(this.resident ? [this.offsets] : [])].map((b) => renderer.getArrayBufferAsync(b)));
+    const [n, found, off = this.offsets.array] = small.map((b) => new Uint32Array(b)), out = [];
     for (let k = 0; k < K; k++) {
       const count = Math.min(n[k * 5 + 1], this.room(k)), rows = Array.from({ length: S }, () => new Float32Array(count * 4));
       if (count) {

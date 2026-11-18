@@ -38,7 +38,7 @@
 // culled, and everything is drawn as before.
 import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, float, int, uint, vec2, vec3, vec4, uvec4, ivec2, uniform, uniformArray, storage, texture, instanceIndex, workgroupId, localId, workgroupArray, workgroupBarrier, storageBarrier, atomicLoad, atomicStore, atomicOr, countOneBits, max, min, abs, floor, ceil, log2, exp2, clamp, packHalf2x16, unpackHalf2x16, floatBitsToUint, uintBitsToFloat } from 'three/tsl';
-import { gpuStorage, gpuStorageLater, more, limitOf } from './gpu.js';
+import { gpuStorage, gpuStorageLater, more, limitOf, remade } from './gpu.js';
 import { passOf } from './pass.js';
 import { windStrength, snowDepth } from '../world/light.js';
 
@@ -320,12 +320,12 @@ function arena() {
     If(w.lessThan(at(uG, C2)).and(isSet(m0, m1, lid)), () => { LIST.element(base.add(at(g, N1)).add(CH.element(c.add(uint(2))).sub(CH.element(s0.add(uint(2))))).add(below(m0, m1, lid))).assign(LIST.element(uN.add(base).add(j))); });
   })().compute(MANY, [WG]);
   twoWrite.dispatchSize = d2;
-  Object.assign(A, { early: [prep, oneTest, oneScan, oneWrite], late: [twoTest, twoScan, twoWrite], BOX, LIST, BK, at, eye, on, debug: { bk, d1, d2, lists: lists.attr, chunks: chunks.attr, boxes: boxes.attr } });
+  Object.assign(A, { early: [prep, oneTest, oneScan, oneWrite], late: [twoTest, twoScan, twoWrite], BOX, LIST, BK, at, eye, on, debug: { bk, d1, d2, get lists() { return lists.attr; }, get chunks() { return chunks.attr; }, get boxes() { return boxes.attr; } } });
   ARENAS.push(A);
   return A;
 }
 
-let lateScene = null, bundle = null, shown = new Int32Array(0), built = false;   // (built: the pyramid is there to test against)
+let lateScene = null, bundle = null, shown = new Int32Array(0), built = false, bound = -1;   // (built: the pyramid is there to test against; bound: the buffers made again when the bundle was recorded, src/core/gpu.js remade)
 const proxies = [];
 
 /** A tier's culling: { args, boxes (two compute passes for the end of its packing: its draws' counts, as its own
@@ -466,8 +466,9 @@ export const occlusion = {
     const list = []; for (const A of ARENAS) if (A.any) list.push(...A.late);
     if (!list.length) return;
     renderer.compute(list);
-    // (the bundle recorded again only when what it holds has changed: a draw shown or hidden, or its corners)
-    let changed = false;
+    // (the bundle recorded again only when what it holds has changed: a draw shown or hidden, or its corners; or a
+    // buffer its draws bind was made again: its bindings are recorded in it)
+    let changed = bound !== remade(); bound = remade();
     for (let i = 0; i < proxies.length; i++) {
       const [p, m, T] = proxies[i], v = T.drawn && m.visible, s = v ? (m.geometry.index?.id ?? -1) : -2;
       p.visible = v; p.renderOrder = m.renderOrder;
