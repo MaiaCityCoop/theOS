@@ -61,13 +61,14 @@ export function countCompiles(renderer) {
 
 /** Compile what `camera` sees of `object` (a scene, or a part of one standing in `scene`) for `target` (a render
     target, or a function giving it when its turn comes; null: the canvas), in turn. What is visible is read when its
-    turn comes. A promise. */
-export const compileFor = (renderer, target, object, camera, scene = null) => inTurn(async () => {
+    turn comes. route: what a pass draws of each object (src/core/screen.js: the pass's twin of its material), as the
+    renderer's render object function is for a frame (three's compile reads none). A promise. */
+export const compileFor = (renderer, target, object, camera, scene = null, route = null) => inTurn(async () => {
   const was = renderer.getRenderTarget(), to = typeof target === 'function' ? target() : target, depth = renderer.depth;
   renderer.setRenderTarget(to);
   // (three r187 compiles for a target as if it had the canvas's depth: one without depth, a painter's tile, got
   // pipelines its passes never use, and each pass compiled again as it was first drawn. The renderer's own setting is
-  // read as the compile begins, and is put back at once.)
-  let done; try { if (to && !to.depthBuffer) renderer.depth = false; done = renderer.compileAsync(object, camera, scene); } finally { renderer.depth = depth; }
+  // read as the compile begins, and is put back at once; as is the route, which three reads only as the compile begins)
+  let done; try { if (to && !to.depthBuffer) renderer.depth = false; if (route) renderer.renderObject = route; done = renderer.compileAsync(object, camera, scene); } finally { renderer.depth = depth; if (route) delete renderer.renderObject; }
   try { await done; } finally { renderer.setRenderTarget(was); }
 });

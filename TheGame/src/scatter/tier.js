@@ -15,13 +15,15 @@ import { gpuStorage, more } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
 import { TRUTH } from '../detail/measure.js';
+import { passOf, vWas } from '../core/pass.js';
 
 export const MAXP = 384;   // patches a tier can draw at once
 
 /** where a vertex that should not be drawn goes */
 export const offScreen = () => vec4(2, 2, 2, 1);
-/** a world point to the clip space of whichever camera draws it (the eye's, or the shadow's) */
-export const clipOf = (w) => cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(w, 1));
+/** a world point to the clip space of whichever camera draws it (the eye's, or the shadow's); was: where the point lay
+    a frame ago (none: where it is now), handed to the prepass's pixels for their motion (src/core/pass.js) */
+export const clipOf = Fn(([w, was], builder) => { if (passOf(builder) === 'pre') vWas.assign(was ?? w); return cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(w, 1)); });
 
 // Every tier's band follows the lens: when the window changes, each tier that reckons its band by the lens (its band():
 // the drawer's tiers, src/scatter/drawer.js) reckons it again. One handler for every tier of every placer.

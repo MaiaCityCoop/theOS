@@ -35,7 +35,8 @@ import { Fn, float, int, uint, vec2, vec3, vec4, uniform, varyingProperty, attri
 import { U } from '../core/uniforms.js';
 import { rnd, vnoise, camDist, riverInfo, heightAt, shareOf, groveAt, leadAt, nearLake } from '../world/land.nodes.js';
 import { kindsOf, whereOf } from '../world/stand.js';
-import { ign, toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, unlit, windAt, windDir, windStrength, stillness } from '../world/light.js';
+import { ign, toScreen, airOf, skyLight, weatherOn, snowLiftAtVertex, cloudAtVertex, unlit, windAt, windDir, windStrength } from '../world/light.js';
+import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { CLEARINGS } from '../../world/places.js';
 import { recipe, recipes, versionOf } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
@@ -294,7 +295,6 @@ function plantMaterial(tex, D) {
     // (vMul: what its texture's colour is multiplied by; vAdd: what is added: the snow on it, the air before it), so a
     // pixel reads its texture and is done. A crown is many cards deep: its pixels are many more than its corners.
     const vUv = varyingProperty('vec2', 'tUv'), vMul = varyingProperty('vec3', 'tMul'), vAdd = varyingProperty('vec3', 'tAdd');
-    const vStill = varyingProperty('float', 'tStill');   // (built over time: how still it is in the wind, src/world/light.js stillness)
     const vPart = varyingProperty('float', 'tPart'), vCut = varyingProperty('vec2', 'tCut');   // vCut: the needles' cut, and how far a card is from edge-on
     const vLay = varyingProperty('vec2', 'tLay');   // (the layers of its leaves' and its wood's textures: its kind's)
     // a far body that wears its crown baked: where on which baked view it lies (u, v, the view, 1), and where its
@@ -302,7 +302,8 @@ function plantMaterial(tex, D) {
     const elemOf = feed?.elem ?? Lv?.bakeElem;   // (where a baked crown's bytes are read from: the heap's elements, or the library's plant's own)
     const vImp = Lv && (elemOf || D.bakeTex) ? varyingProperty('vec4', 'tImp') : null, vBase = vImp ? varyingProperty('vec2', 'tBase') : null, vDense = vImp ? varyingProperty('vec4', 'tDense') : null, vImp1 = vImp ? varyingProperty('vec4', 'tImp1') : null, vImp2 = vImp ? varyingProperty('vec4', 'tImp2') : null, vLit = vImp ? varyingProperty('vec4', 'tLit') : null;
     const bakeTex = feed && D.bakeTex ? texture(D.bakeTex) : null;   // (the world's: its stand's texture; the library's plant reads its own buffer)
-    const shape = (A, B) => {
+    // (pass: what it is built for, src/core/pass.js: the prepass works out no light)
+    const shape = (A, B, pass) => {
       const clip = offScreen().toVar();
       const drawn = () => {
         // part: 0 its wood, 1 a sprig's card, 2 a solid body (a far body: assets/kit/crowd.js)
@@ -311,7 +312,7 @@ function plantMaterial(tex, D) {
           // the shadow's stand-in: it goes as the plant goes, shrinking to its foot over its last level's last pixels as
           // the plant thins away there (CROWD.END): no shadow is left where no tree is, and none goes at once
           const lo = D.kinds[0].levels.at(-1).lo, end = smoothstep(lo, lo * CROWD.END, pxOf(D.ST?.size ? float(D.ST.size) : A.w, A.xy));
-          If(V.drawn ? end.greaterThan(0).and(V.drawn) : end.greaterThan(0), () => { clip.assign(stand(A, B, V, end)); });   // (drawn: the draw's corner is one of its mesh's)
+          If(V.drawn ? end.greaterThan(0).and(V.drawn) : end.greaterThan(0), () => { clip.assign(stand(A, B, V, end, pass)); });   // (drawn: the draw's corner is one of its mesh's)
           return;
         }
         // its size on screen now (its size, A.w; a stand that says its `size`, that), and from it the one hand-over
@@ -350,13 +351,13 @@ function plantMaterial(tex, D) {
             const BR = clamp(exp2(ceil(log2(max(V.crowd.rule[0].z, 1)))), CROWD.BAKEMIN, CROWD.BAKE), lod = clamp(log2(BR.mul(0.75).div(max(pxR, 1))), 0, log2(BR).sub(2));   // (not a whole number: the fragment mixes the two pictures either side, as near as it is to each)
             vDense.assign(vec4(baked.select(crowdDense(R.into), R.fade).mul(end), BR, D.bakeTex && feed ? lod : float(0), V.ao));   // (w: its corner's ao, which its light was reckoned with)
           }
-          clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos }, H.sunk));
+          clip.assign(stand(A, B, { ...V, position: R.pos, root: R.pos }, H.sunk, pass));
         });
       };
       drawn();
       return clip;
     };
-    const stand = (A, B, V, sunk) => {
+    const stand = (A, B, V, sunk, pass) => {
       const part = V.part, ao = V.ao, card = float(1).sub(abs(part.sub(1))), body = step(1.5, part), Hk = V.Hk, sway = V.Wd.x, leans = V.Wd.y, flutters = V.Wd.z, clumps = V.Wd.w, wrap = V.Lf.x, shines = V.Lf.y, Tn = V.Tn;
       const s = A.w.div(V.Ks), { turn } = turnOf(B.x);   // (s: its scale, its size over its kind's at scale 1)
       // (a level's last pixels: the whole plant sunk; the shadow's stand-in, of no level, shrinks to its foot)
@@ -365,20 +366,23 @@ function plantMaterial(tex, D) {
       // the wind: the crown sways, the foot stays (the push grows with height squared), a slow sway of its own (from a
       // breeze up); and its sprigs swing in the wind, each as one from its foot, its tip most (a card's corners share its
       // plane, cn: one phase a card; uv.y: 0 at its foot), quicker and wider the harder it blows. In a calm all of it is
-      // still: a sway of millimetres is no motion to the eye, only leaves' edges creeping by parts of a pixel (a shimmer)
-      const push = windAt(A.xy), ws = windStrength;
-      const kk = push.mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(U.uTime.mul(0.9).add(B.z)), cos(U.uTime.mul(0.7).add(B.z))).mul(up.mul(up).mul(ws.mul(0.05).add(smoothstep(0, 0.08, ws).mul(0.008))).mul(s)));
-      const cardN = V.cn, flutter = sin(U.uTime.mul(ws.mul(5).add(1.6)).add(cardN.dot(vec3(12.9, 78.2, 37.7))).add(B.z)).mul(ws.mul(0.14)).mul(card).mul(V.uv.y.min(1)).mul(flutters);
-      const w = vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(kk.x.add(windDir.x.mul(flutter)), flutter.mul(0.4), kk.y.add(windDir.y.mul(flutter)))).toVar();
+      // still: a sway of millimetres is no motion to the eye, only leaves' edges creeping by parts of a pixel (a shimmer).
+      // Where it is at a time: the clock's, and for the prepass the clock's a frame ago (where it was: its motion)
+      const ws = windStrength, cardN = V.cn;
+      const at = (time) => {
+        const kk = windAt(A.xy, time).mul(up.mul(up).mul(sway).mul(s)).add(vec2(sin(time.mul(0.9).add(B.z)), cos(time.mul(0.7).add(B.z))).mul(up.mul(up).mul(ws.mul(0.05).add(smoothstep(0, 0.08, ws).mul(0.008))).mul(s)));
+        const flutter = sin(time.mul(ws.mul(5).add(1.6)).add(cardN.dot(vec3(12.9, 78.2, 37.7))).add(B.z)).mul(ws.mul(0.14)).mul(card).mul(V.uv.y.min(1)).mul(flutters);
+        return vec3(A.x, A.z, A.y).add(turn(lp.mul(s))).add(vec3(kk.x.add(windDir.x.mul(flutter)), flutter.mul(0.4), kk.y.add(windDir.y.mul(flutter))));
+      };
+      const w = at(U.uTime).toVar();
       vUv.assign(V.uv); vPart.assign(part); vLay.assign(vec2(V.twig.greaterThan(0.5).select(V.Tw, V.Lf.z), V.Lf.w));   // (a card of its finest level wears the painting of one twig)
-      vStill.assign(stillness(up.mul(up).mul(sway).mul(s).add(card.mul(V.uv.y.min(1)).mul(flutters).mul(0.8)), w));   // (its crown's sway, and a sprig's own swing)
       const toEye = U.uCam.sub(w), far = length(toEye), Ve = toEye.div(max(far, 1e-3));
       // the needles' outline: far off a mip's needles are fainter, so the cut lowers with them and the crown stays full;
       // a card seen edge-on is a flat sliver, not a brush: it fades as it turns away
       // … and foliage right at the eye is let go (walking through a low crown, no card fills the picture)
       vCut.assign(vec2(mix(0.45, 0.16, smoothstep(15, 220, far)), max(smoothstep(0.06, 0.42, abs(normalize(turn(cardN)).dot(Ve))), body).mul(smoothstep(0.35, 1.3, far))));
       vMul.assign(vec3(0)); vAdd.assign(vec3(0));
-      If(unlit().not(), () => {   // (drawn into the shadow map, only its depth and its cut-out count)
+      if (pass !== 'pre') If(unlit().not(), () => {   // (drawn into the shadow map, or the prepass: only its depth and its cut-out count)
         // its light: the sky's and the sun's on the dome its crown makes (a crown of a thousand cards takes the light as a
         // whole, not card by card), through its needles when the sun is behind them, less of both deep in the crown
         // (ao); one tap of the shadow map at each corner; its snow; the air before it
@@ -399,9 +403,12 @@ function plantMaterial(tex, D) {
         vMul.assign(bakedBody ? bakedBody.select(tint.mul(W.keep).mul(air.k).mul(rimmed), L.mul(tint).mul(W.keep).mul(air.k).mul(rimmed)) : L.mul(tint).mul(W.keep).mul(air.k).mul(rimmed));
         vAdd.assign(W.add.mul(L).mul(air.k).add(air.col.mul(float(1).sub(air.k))));
       });
-      return clipOf(w);
+      return clipOf(w, at(U.uTimeWas));
     };
-    const frag = Fn(() => {
+    const frag = Fn((builder) => {
+      // (the prepass, src/core/pass.js: what is cut, cut as the eye sees it, and where its point was; the colour pass:
+      // nothing cut, every pixel the prepass left is drawn)
+      const pass = passOf(builder);
       // drawn with alpha to coverage where its target is multisampled (a library's thumbnail; the game's own picture is
       // not: its edges are smoothed as it is built over time, src/core/temporal.js): a needle's outline soft in a pixel, not a screen-door
       // dither of whole pixels (which a lowered pixel ratio blows up into dots). Two levels are never both half there
@@ -442,7 +449,8 @@ function plantMaterial(tex, D) {
           // (where it stands against the sky, as see-through as the crown; else solid where the crown covers half and more)
           // (and coming in, a texel shows once the body has come in as far as its own second number: the same every frame,
           // so the body fills in grain by grain, never grows or jumps)
-          If(cover.lessThanEqual(mix(float(0.5), mixOf(A0.cut, A1.cut), clamp(vImp.w.sub(1), 0, 1))).or(mixOf(A0.come, A1.come).greaterThanEqual(vDense.x)), () => { Discard(); });
+          cut(builder, cover.lessThanEqual(mix(float(0.5), mixOf(A0.cut, A1.cut), clamp(vImp.w.sub(1), 0, 1))).or(mixOf(A0.come, A1.come).greaterThanEqual(vDense.x)));
+          if (pass === 'pre') return;
           // (lit as its leaves are, by the cards' own light (the vertex stage's L), with the leaves' way there turned with the
           // plant, the live sky and sun, the sun as it reaches the body's corners (its cloud and cast shadow), its ao and
           // its depth in the crown: light tops and dark sides to its lobes, under the sun as it moves. Squared after: T)
@@ -453,16 +461,21 @@ function plantMaterial(tex, D) {
         });
         // (the wood and the post while one gives way to the other: each pixel of the one or of the other, by a fixed
         // pattern on the screen, as much of each as its share)
-        if (vImp) If(vImp.w.lessThan(0.5).and(vDense.x.lessThan(0.999)).and(ign(screenCoordinate.xy).greaterThanEqual(vDense.x)), () => { Discard(); });
-        // (the shadow map takes no coverage: cut)
-        If(shadow, () => { If(T.a.lessThan(vCut.x).and(whole.lessThan(0.5)), () => { Discard(); }); })
-          .Else(() => { alpha.assign(max(smoothstep(vCut.x.sub(0.08), vCut.x.add(0.08), T.a), whole).mul(vCut.y)); If(alpha.lessThan(0.04), () => { Discard(); }); });
-      }).ElseIf(shadow.not(), () => { const W = tex.a(floor(vLay.y.add(0.5)), vUv); T.assign(vec4(W.rgb.mul(mix(0.74, 1, W.a)), 1)); });   // its bark, darker in its fissures (0.74 squared: 0.55)
+        if (vImp) cut(builder, vImp.w.lessThan(0.5).and(vDense.x.lessThan(0.999)).and(ign(screenCoordinate.xy).greaterThanEqual(vDense.x)));
+        // (the shadow map takes no coverage: cut; the eye's picture, its outline soft where a target is multisampled)
+        const eye = () => { alpha.assign(max(smoothstep(vCut.x.sub(0.08), vCut.x.add(0.08), T.a), whole).mul(vCut.y)); cut(builder, alpha.lessThan(0.04)); };
+        if (pass) eye();
+        else If(shadow, () => { If(T.a.lessThan(vCut.x).and(whole.lessThan(0.5)), () => { Discard(); }); }).Else(eye);
+      });
+      if (pass === 'pre') return motion(vWas, leaf.select(float(1), float(0)));   // (where it was a frame ago; a leaf's card is thin)
+      If(leaf.not().and(shadow.not()), () => { const W = tex.a(floor(vLay.y.add(0.5)), vUv); T.assign(vec4(W.rgb.mul(mix(0.74, 1, W.a)), 1)); });   // its bark, darker in its fissures (0.74 squared: 0.55)
       const out = vec4(0).toVar();
-      If(shadow.not(), () => { out.assign(vec4(toScreen(T.rgb.mul(T.rgb).mul(vMul).add(vAdd)).rgb, mix(alpha, vStill, U.uMarks))); });   // (drawn for the picture built over time there is no multisampling to take the coverage: the fourth number says how still it is; through the lens it is the coverage, as ever)
+      // (its fourth number: in the world's frame what was kept may be trusted, its motion said; drawn where the target is
+      // multisampled, a library's picture, it is the coverage)
+      If(shadow.not(), () => { out.assign(vec4(toScreen(T.rgb.mul(T.rgb).mul(vMul).add(vAdd)).rgb, pass ? float(1) : alpha)); });
       return out;
     });
-    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.alphaToCoverage = true;
+    const m = new THREE.NodeMaterial(); m.fragmentNode = frag(); m.side = THREE.DoubleSide; m.alphaToCoverage = true; m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
     return { m, shape, slot };
   };
 }
@@ -560,7 +573,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     const D = createDrawer(scene, renderer, tex, {
       name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1),
       // (tell: what the recipes' workers must know first, and cannot read themselves: the stands' sizes, plant.js STANDS)
-      make: { per: 2, tell: [['stands', STANDS]], onBlock: bakeIn, numbers: { rows: 4, of: (k) => numbers.subarray(k * 16, k * 16 + 16) }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, first: i === 0, last: i === n - 1 }, feedOf(i, at)); m.vertexNode = Fn(() => shape(src.readAt(0, slot), src.readAt(1, slot)))(); return m; } },
+      make: { per: 2, tell: [['stands', STANDS]], onBlock: bakeIn, numbers: { rows: 4, of: (k) => numbers.subarray(k * 16, k * 16 + 16) }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, first: i === 0, last: i === n - 1 }, feedOf(i, at)); m.vertexNode = Fn((builder) => shape(src.readAt(0, slot), src.readAt(1, slot), passOf(builder)))(); return m; } },
       // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
       zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 4|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
     });

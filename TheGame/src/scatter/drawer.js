@@ -52,9 +52,10 @@
 // level is drawn in a few draws by the size of its meshes (CLASSED, below): what a new species costs is its bytes.
 // It was the stress stand's own until 2026-11-14: lifted out that day, and the world's rocks drawn by it since.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Discard, float, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, storage, texture, vertexIndex, cameraViewMatrix, screenCoordinate, dFdx, dFdy, cos, sin, abs, max, pow, mix, cross, length, normalize, smoothstep, clamp, fract, countLeadingZeros } from 'three/tsl';
+import { Fn, If, float, uint, vec2, vec3, vec4, uniform, uniformArray, varyingProperty, storage, texture, vertexIndex, cameraViewMatrix, screenCoordinate, dFdx, dFdy, cos, sin, abs, max, pow, mix, cross, length, normalize, smoothstep, clamp, fract, countLeadingZeros } from 'three/tsl';
 import { U } from '../core/uniforms.js';
-import { ign, finish, stillness, skyLight, cloudAt, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
+import { ign, finish, skyLight, cloudAt, cloudAtOne, cloudShade, sunDim, unlit, weatherOn, snowLift, snowDepth, SNOW, windAt, windStrength } from '../world/light.js';
+import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { createHeap, heapRow, heapElem, heldOf, sinceCame, effective, cornersOf, shapedOf } from './heap.js';
 import { ballCorners } from '../../assets/kit/blob.js';
@@ -156,11 +157,12 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   // a thing's colour at a pixel, lit: its own texture laid on it from the sides (it stays on it as it stands); the relief
   // of one of the world's textures when it is large on screen; the snow on it; then its model's way of taking
   // the light. One piece of code for every kind and level: what differs is read from its look.
-  const shade = (foliage = false) => {
+  // a leaf card (assets/kit/frond.js): what lies outside the leaf is not drawn, before anything is read for it. The leaf:
+  // lobes along the card, each widest at its middle, the whole narrowing to its tip (cut in the prepass: src/core/pass.js)
+  const leafCut = (builder) => { const lobes = lookOf(uint(vC.w.add(0.5)), 4).y, wide = abs(sin(vUV.y.mul(lobes).mul(Math.PI))).mul(0.8).add(0.2).mul(float(1).sub(vUV.y.mul(vUV.y).mul(0.6))); cut(builder, abs(vUV.x.mul(2).sub(1)).greaterThan(wide)); };
+  const shade = (foliage, builder) => {
     const kind = uint(vC.w.add(0.5)), M0 = lookOf(kind, 0), M1 = lookOf(kind, 1), M2 = lookOf(kind, 2), M3 = lookOf(kind, 3), w = vA.xyz;
-    // a leaf card (assets/kit/frond.js): what lies outside the leaf is not drawn, before anything is read for it. The
-    // leaf: lobes along the card, each widest at its middle, the whole narrowing to its tip
-    if (foliage) { const lobes = lookOf(kind, 4).y, wide = abs(sin(vUV.y.mul(lobes).mul(Math.PI))).mul(0.8).add(0.2).mul(float(1).sub(vUV.y.mul(vUV.y).mul(0.6))); Discard(abs(vUV.x.mul(2).sub(1)).greaterThan(wide)); }
+    if (foliage) leafCut(builder);
     // (its seed, 0 … 1: its kind's textures lie on it moved by so many tiles, so no two things of a kind wear the same
     // pattern; and its model is handed it, for a look of its own)
     const seed = vSeed, N0 = normalize(vB.xyz), Nq = normalize(vN), q = vC.xyz.div(M1.w).add(vec3(seed, fract(seed.mul(7.13)), fract(seed.mul(3.71))).mul(13)), b0 = pow(abs(Nq), vec3(4)), b = b0.div(b0.x.add(b0.y).add(b0.z));
@@ -231,7 +233,8 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       });
       return clip;
     })();
-    m.fragmentNode = Fn(() => {
+    m.fragmentNode = Fn((builder) => {
+      if (passOf(builder) === 'pre') return motion(vWas);   // (the prepass: a dot stands still)
       const out = vec4(0).toVar();
       If(unlit().not(), () => {
         const kind = uint(vDot.w.add(0.5)), M0 = lookOf(kind, 0), M3 = lookOf(kind, 3), w = vDot.xyz, n = normalize(normalize(U.uCam.sub(w)).add(vec3(0, 1, 0)));
@@ -242,6 +245,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       });
       return out;
     })();
+    m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
     return m;
   };
   // a point of a mover and its normal as bone `bone` of its skeleton has moved them (the kind's bones begin at `base`;
@@ -280,7 +284,8 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
         If(packed ? vertexIndex.lessThan(cornersOf(R)) : vertexIndex.lessThan(cornersOf(R)).and(whole.greaterThan(0.5).or(effective(heldOf(R), want, lv))), () => {
           // how far it has turned into the next coarser mesh: over its last pixels, and backwards from when it came
           // (over the whole of its range, top to bottom: it is never still and never jumps)
-          const t = float(1).sub(whole).mul(SMOOTH).mul(max(morphs.mul(float(1).sub(smoothstep(lo, top, px))), float(1).sub(smoothstep(0, GROW, sinceCame(R, U.uTime))))).toVar();
+          const grown = (time) => float(1).sub(whole).mul(SMOOTH).mul(max(morphs.mul(float(1).sub(smoothstep(lo, top, px))), float(1).sub(smoothstep(0, GROW, sinceCame(R, time)))));
+          const t = grown(U.uTime).toVar();
           const v = solidOf((shared ? H.elems.element(R.y.add(vertexIndex)) : heapElem(H, R, vertexIndex)).toVar(), t, delta, STILL), { turn } = turnOf(B.x);
           const p0 = vec3(v.p).toVar(), n0 = vec3(v.n).toVar(), P = vec3(p0).toVar(), N = vec3(n0).toVar();
           const onBones = () => {
@@ -292,12 +297,14 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
             const rested = t.mul(still); P.assign(mix(P, p0, rested)); N.assign(mix(N, n0, rested));
           };
           if (limbs) { if (i === null) If(lv.lessThan(uint(HULL)), onBones); else onBones(); }
-          const k = whole.greaterThan(0.5).select(float(SHADE.shrink), float(1)), rest = turn(P.sub(vec3(0, 0.4, 0)).mul(k).add(vec3(0, 0.4, 0)).mul(A.w)).toVar();
-          // the wind: its top sways, its foot stays (as a tree's: src/scatter/trees.js), as far as its look says
-          const kk = vec2(0).toVar(); let swing = float(0);   // (swing: how far it sways, metres for a unit of the wind's push)
+          const k = whole.greaterThan(0.5).select(float(SHADE.shrink), float(1)), restOf = (q) => turn(q.sub(vec3(0, 0.4, 0)).mul(k).add(vec3(0, 0.4, 0)).mul(A.w)), rest = restOf(P).toVar();
+          // the wind: its top sways, its foot stays (as a tree's: src/scatter/trees.js), as far as its look says; at a time
+          // (the clock's, and for the prepass the clock's a frame ago: where it was)
+          const kk = vec2(0).toVar(); let sway = null;
           if (!moving) {
-            const up = clamp(p0.y, 0, 1), ws = windStrength, bend = up.mul(up).mul(A.w).mul(B.z); swing = bend;
-            If(B.z.greaterThan(0), () => { kk.assign(windAt(A.xy).mul(bend).add(vec2(sin(U.uTime.mul(0.9).add(B.w)), cos(U.uTime.mul(0.7).add(B.w))).mul(bend).mul(ws.mul(0.4).add(smoothstep(0, 0.08, ws).mul(0.06))))); });   // (only what sways)
+            const up = clamp(p0.y, 0, 1), ws = windStrength, bend = up.mul(up).mul(A.w).mul(B.z);
+            sway = (time) => windAt(A.xy, time).mul(bend).add(vec2(sin(time.mul(0.9).add(B.w)), cos(time.mul(0.7).add(B.w))).mul(bend).mul(ws.mul(0.4).add(smoothstep(0, 0.08, ws).mul(0.06))));
+            If(B.z.greaterThan(0), () => { kk.assign(sway(U.uTime)); });   // (only what sways)
           }
           // (Nothing is drawn back from the walker: he is led round what stands (src/world/bodies.js: pushOut), and a
           // mover steps round him (the detour). Only where he walks through things, `?ghost`, a thing draws back from an
@@ -308,23 +315,29 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
           // shakes most of it off)
           const nw = turn(N).toVar(), snow = snowDepth.min(A.w.mul(0.7)).mul(smoothstep(-0.25, 0.8, nw.y)).mul(moving ? 0.3 : 1);
           const w = vec3(A.x, A.z, A.y).add(rest.mul(out)).add(vec3(kk.x, snow.mul(out), kk.y)); vSnow.assign(snow);
+          // (where it was a frame ago, for the prepass: grown as far as it had grown then, swayed as the wind had it then;
+          // a mover's own motion is not followed, so its pixels say they keep nothing: below)
+          const kw = sway ? B.z.greaterThan(0).select(sway(U.uTimeWas), vec2(0)) : null;
+          const was = moving ? w : vec3(A.x, A.z, A.y).add(restOf(v.at(grown(U.uTimeWas))).mul(out)).add(vec3(kw.x, snow.mul(out), kw.y));
           // (its texture lies on it as it stands; on a mover as it is at rest, in its own frame: it must not swim over
           // a leg that swings)
-          vA.assign(vec4(w, swing)); vB.assign(vec4(nw, v.shade)); vC.assign(vec4(moving ? p0.mul(A.w) : rest, B.y)); vN.assign(moving ? n0 : nw); vSeed.assign(seedOf(B));
+          vA.assign(vec4(w, 0)); vB.assign(vec4(nw, v.shade)); vC.assign(vec4(moving ? p0.mul(A.w) : rest, B.y)); vN.assign(moving ? n0 : nw); vSeed.assign(seedOf(B));
           if (GROUND) vG.assign(src.readAt(2, SLOT));
           if (foliage) vUV.assign(vec2(float(v.a).div(15), float(v.b).mul(16).add(v.w.mul(15)).div(255)));   // (where on its card: assets/kit/frond.js)
-          clip.assign(clipOf(w));
+          clip.assign(clipOf(w, was));
         });
       }
       return clip;
     })();
-    m.fragmentNode = Fn(() => {
-      const out = vec4(0).toVar();
-      if (THIN) Discard(ign(screenCoordinate.xy).greaterThanEqual(vEnd));   // (its last pixels: as many of its pixels as it has left, the same ones from frame to frame)
-      // (built over time, src/core/temporal.js: a mover says in its pixels that it moves, a thing that sways how still it is)
-      If(unlit().not(), () => { out.assign(vec4(shade(foliage).rgb, moving ? float(1).sub(U.uMarks) : stillness(vA.w, vA.xyz))); });   // (into the shadow map: only its depth)
+    m.fragmentNode = Fn((builder) => {
+      const pass = passOf(builder), out = vec4(0).toVar();
+      if (THIN) cut(builder, ign(screenCoordinate.xy).greaterThanEqual(vEnd));   // (its last pixels: as many of its pixels as it has left, the same ones from frame to frame)
+      if (pass === 'pre') { if (foliage) leafCut(builder); return motion(vWas, foliage ? 1 : 0); }   // (the prepass: what is cut, and where it was: src/core/pass.js)
+      // (a mover's motion is not followed: its pixels say that nothing kept of them may be trusted, src/core/temporal.js)
+      If(unlit().not(), () => { out.assign(vec4(shade(foliage, builder).rgb, moving && pass === 'main' ? 0 : 1)); });   // (into the shadow map: only its depth)
       return out;
     })();
+    m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
     return m;
   };
   // (a draw as long as the level's longest mesh: its vertices are read from the heap by their number; a flat make's: its
