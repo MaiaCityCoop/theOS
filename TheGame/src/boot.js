@@ -39,7 +39,7 @@ import { createGovernor } from './core/governor.js';
 import { createHud } from './core/hud.js';
 import { useGPU } from './core/gpu.js';
 import { taken, busy, changed } from './core/work.js';
-import { settle, ready as firstView, waiting, watch, tick } from './core/settle.js';
+import { settle, ready as firstView, waiting, watch, tick, partOf, leave } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
 import { createTerrain, landMaterials } from './terrain/terrain.js';
 import { createGround } from './scatter/ground.js';
@@ -102,8 +102,11 @@ export async function boot({ profile = 'world' } = {}) {
   // (settle(): a promise, the world complete for the camera as it stands: nothing streaming or building in any engine, and
   // the picture built over time come to rest on it; ready: the same for the page's first view; waiting(): what is still
   // out. What the gate waits on, never a timer: src/core/settle.js)
-  let shown = null; const first = new Promise((res) => (shown = res));   // (the stage's first subject in: its first view is complete once it has settled)
+  let shown = null, drew = null; const first = new Promise((res) => (shown = res));   // (the stage's first subject in: its first view is complete once it has settled)
   const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting });
+  /** A promise: the page's first view on the screen, the veil gone (what waits for it, the library's pictures, does not
+      hold it up: every compile goes in turn, src/core/compile.js). */
+  game.drawn = new Promise((res) => (drew = res));
   const bounds = world && flag('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
   const U = createUniforms(camera, SKY);
   setImpostorRenderer(renderer);
@@ -251,11 +254,13 @@ export async function boot({ profile = 'world' } = {}) {
   };
   /** Take `object` out of the world again (or before it is in). */
   const hide = (object) => { showing.delete(object); object.removeFromParent(); };
-  /** What grows on the land, shown (and started, the first time) or hidden: a promise, once it is drawn. */
+  /** What grows on the land, shown (and started, the first time) or hidden: a promise, once it is drawn. Hidden, it is
+      neither packed nor drawn, and what it has out holds nothing up (src/core/settle.js: its own part). */
   const grow = (on = true) => {
+    leave('grown', !on);
     if (!on) { if (grown) hide(grown.into); return Promise.resolve(); }
     if (!grown) {
-      grown = growing(new THREE.Group()); game.ground = grown.ground; scatterOf(grown);
+      grown = partOf('grown', () => { const g = growing(new THREE.Group()); scatterOf(g); return g; }); game.ground = grown.ground;
       grown.ready = Promise.all([grown.pass, grown.packing]).then(() => { grown.live = true; grown.scatter.warm(); });   // (packed from the next frame on; drawn once its materials are compiled)
     }
     return grown.ready.then(() => show(grown.into));
@@ -294,7 +299,7 @@ export async function boot({ profile = 'world' } = {}) {
     requestAnimationFrame(frame);
     // the veil goes once the world is on the screen: the stage's once its first subject is in (or after 20 s without one)
     if (!world) await Promise.race([first, new Promise((res) => setTimeout(res, 20000))]);
-    requestAnimationFrame(() => requestAnimationFrame(loadingDone));
+    requestAnimationFrame(() => requestAnimationFrame(() => { loadingDone(); drew(); }));
     if (world && flag('flyby')) import('../tools/flyby.js').then((m) => m.run());   // ?flyby: the camera flown by itself, to watch the plants' levels change (tools/flyby.js)
     if (world && flag('bench')) import('../tools/bench.js').then((m) => m.overlay());   // ?bench: the frame timed at the bench's six views once the world is loaded, the numbers on the screen (tools/bench.js)
   })();

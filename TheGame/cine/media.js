@@ -88,7 +88,7 @@ export function createMedia(scene) {
       layer.style.display = media ? 'block' : 'none';   // a world shot: the live picture itself
       if (media && s !== shown) { shown = s; for (const [h, c] of backs) c.style.display = h === s.frame ? 'block' : 'none'; if (!s.video && s.frame) still.src = OBJ(s.frame); still.style.display = s.video ? 'none' : 'block'; for (const [h, v] of videos) v.style.display = h === s.video ? 'block' : 'none'; }
       for (const [h, v] of videos) { const mine = media && h === s.video, nx = mine ? null : shots.find((x) => x.video === h && x.at > t) ?? shots.find((x) => x.video === h); hold(v, mine, playing, (s?.video_in || 0) + (t - (s?.at || 0)), nx ? nx.video_in || 0 : null); }
-      if (window.__game) window.__game.covered = !!media;   // footage fills the picture: the world under it is not drawn (src/main.js)
+      if (window.__game) window.__game.covered = !!media;   // footage fills the picture: the world under it is not drawn (src/boot.js)
       // black: a shot comes up from it, or goes down to it
       const up = s ? secs(s.transition, 'from black') : 0, down = s ? secs(s.transition, 'to black') : 0;
       veil.style.opacity = s ? Math.max(up ? 1 - smooth((t - s.at) / up) : 0, down ? smooth((t - (s.end - down)) / down) : 0) : 0;

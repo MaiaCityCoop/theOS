@@ -15,13 +15,19 @@
 // textures (src/materials/bake.js), the pipelines the GPU is compiling (src/core/compile.js), the ground round the camera
 // passing from one map to the next or being read back (src/scatter/ground.js), the stones whose ground has been read back
 // since the rocks last looked (src/scatter/rocks.js), the lakes being looked for (src/world/lakes.js), the city's plan
-// (src/city/index.js).
-const SOURCES = new Map();
+// (src/city/index.js). A source belongs to the part of the world that made it (partOf: what grows on the library's stage,
+// src/boot.js); a part not drawn now (leave) holds nothing up, for it does no work meanwhile.
+const SOURCES = new Map(), LEFT = new Set();
+let part = '';
 /** A part whose work ends later than the frame that asks for it: fn(held) -> how much of it is still out (0: none).
     held: the clock stood still since the last frame (a still's; what grows by the clock would never be done). */
-export const source = (name, fn) => { let k = name; for (let i = 2; SOURCES.has(k); i++) k = `${name} (${i})`; SOURCES.set(k, fn); };
+export const source = (name, fn) => { let k = name; for (let i = 2; SOURCES.has(k); i++) k = `${name} (${i})`; SOURCES.set(k, { fn, part }); };
+/** make(), every source it makes belonging to the part `name`. */
+export function partOf(name, make) { const was = part; part = name; try { return make(); } finally { part = was; } }
+/** The part `name` not drawn now (left: true), or drawn again (false). */
+export const leave = (name, left = true) => void (left ? LEFT.add(name) : LEFT.delete(name));
 /** What is still out, by source ({}: nothing). */
-export function waiting() { const out = {}; for (const [name, fn] of SOURCES) { const n = fn(false); if (n) out[name] = n; } return out; }
+export function waiting() { const out = {}; for (const [name, s] of SOURCES) { const n = LEFT.has(s.part) ? 0 : s.fn(false); if (n) out[name] = n; } return out; }
 
 let V = null, clock = NaN, frames = 0, still = 0, need = 32, first = null;
 const asks = new Set(), seen = new Float64Array(37), broke = new Set();
@@ -50,7 +56,7 @@ export function tick(did) {
   frames++;
   const held = V.U.uTime.value === clock; clock = V.U.uTime.value;
   let out = 0;
-  for (const [name, fn] of SOURCES) { try { out += fn(held) || 0; } catch (e) { out++; if (!broke.has(name)) { broke.add(name); console.warn(`settle: '${name}' could not say what is still out`, e); } } }   // (a part that cannot say holds the world incomplete, and never stops the frame)
+  for (const [name, s] of SOURCES) { if (LEFT.has(s.part)) continue; try { out += s.fn(held) || 0; } catch (e) { out++; if (!broke.has(name)) { broke.add(name); console.warn(`settle: '${name}' could not say what is still out`, e); } } }   // (a part that cannot say holds the world incomplete, and never stops the frame)
   const moved = viewChanged(), T = V.temporal;
   still = moved || did || out > 0 || T.age === 0 ? 0 : still + 1;
   need = T.settles;

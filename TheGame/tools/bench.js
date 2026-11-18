@@ -2,7 +2,7 @@
 // each view drawn n times, shadows as the game draws them. Opened with ?gputime, it reads the GPU's own time per frame
 // (timestamp queries, where the device has them); otherwise the wall's, waiting for the GPU to finish (unreliable in a
 // hidden or background tab). The game's own frame is held while it runs, so nothing else is drawn between.
-// `?bench` (src/main.js): the same once the world is loaded, its numbers on the screen (overlay), nothing typed.
+// `?bench` (src/boot.js): the same once the world is loaded, its numbers on the screen (overlay), nothing typed.
 // `?bench=2`: at that pixel ratio (1.5 else).
 export const VIEWS = [
   { name: 'tent, eye level', x: -1262.6 + 14 * -Math.sin(0.1), z: 631 + 14 * -Math.cos(0.1), yaw: Math.atan2(-Math.sin(0.1), -Math.cos(0.1)), h: 1.7 },
@@ -47,7 +47,7 @@ export async function bench({ ratio = 1.5, frames = 60, settle = 0 } = {}) {
 }
 
 /** `?bench`: bench() once the world is complete where it starts (window.__game.ready: src/core/settle.js), and its
-    numbers on the screen; again on a click. Opened with the game (src/main.js). */
+    numbers on the screen; again on a click. Opened with the game (src/boot.js). */
 export async function overlay() {
   const { flagText } = await import('../src/core/flags.js');
   const ratio = +flagText('bench') || 1.5;

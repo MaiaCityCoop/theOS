@@ -1,5 +1,5 @@
 // `?flyby`: the game's own camera flown by itself, on a loop, to watch the plants' levels of detail change (intent 0033:
-// what pumps, pops or snaps as a plant comes nearer or goes round). Loaded only with ?flyby (src/main.js).
+// what pumps, pops or snaps as a plant comes nearer or goes round). Loaded only with ?flyby (src/boot.js).
 //
 //   ?flyby (or ?flyby=zoom)  the rig's one zoom (src/camera/rig.js: the height, from 12 km to the walker's eyes), over a
 //                            holm oak at the pine forest's edge, from the top down to eye level NEAR metres before it and

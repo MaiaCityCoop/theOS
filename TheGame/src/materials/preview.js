@@ -7,6 +7,7 @@ import { U } from '../core/uniforms.js';
 import { finish, skyLight } from '../world/light.js';
 import { recipes } from '../core/registry.js';
 import { BIOMES, BASE, WATER } from '../world/biomes.js';
+import { compileFor } from '../core/compile.js';
 
 /** id: the material, its recipe or uid (tex: src/materials/bake.js); tile: metres one tile covers; own: { tint: [r, g, b] }.
     Its `eye` uniform is the camera it is lit and hazed for (a picture sets its own). */
@@ -31,13 +32,16 @@ export function materialPreview(tex, id, tile = 2, own = {}) {
   return m;
 }
 
-/** A material's picture for a list: a small shaded ball of it. */
-export function materialThumb(renderer, tex, id, canvas) {
+/** A material's picture for a list: a small shaded ball of it (once the start's materials are painted: what it paints
+    then uses what they compiled). */
+export async function materialThumb(renderer, tex, id, canvas) {
+  await tex.ready;
   const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 20); cam.position.set(0, 0.6, 3.4); cam.lookAt(0, 0, 0);
-  return sceneThumb(renderer, [new THREE.Mesh(new THREE.SphereGeometry(0.82, 64, 48), materialPreview(tex, id, 0.9))], canvas, cam);
+  return sceneThumb(renderer, [new THREE.Mesh(new THREE.SphereGeometry(0.82, 64, 48), materialPreview(tex, id, 0.9))], canvas, cam, { tex });
 }
 /** The biomes' picture: a round of land cut out, grass on top, earth down its side, a pebble on it, water at one edge. */
-export function dioramaThumb(renderer, tex, canvas) {
+export async function dioramaThumb(renderer, tex, canvas) {
+  await tex.ready;
   const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 20); cam.position.set(0, 2.15, 3.75); cam.lookAt(0, -0.08, 0);   // the whole round in frame
   const own = (m, tile, tint) => materialPreview(tex, m, tile, { tint });
   // made of the world's own: the base biome's bare earth and its grass's carpet, a river biome's floor, the water's
@@ -49,15 +53,18 @@ export function dioramaThumb(renderer, tex, canvas) {
   const sand = new THREE.Mesh(new THREE.CircleGeometry(0.42, 48, 0, Math.PI), own(sandM, 0.4)); sand.rotation.x = -Math.PI / 2; sand.position.set(0.18, 0.162, -0.5); sand.scale.set(1, 0.8, 1);
   const pool = new THREE.Mesh(new THREE.CircleGeometry(0.28, 48, 0, Math.PI), own(waterM, 0.6, [0.25, 0.4, 0.45])); pool.rotation.x = -Math.PI / 2; pool.position.set(0.18, 0.165, -0.55); pool.scale.set(1, 0.7, 1);
   const stone = new THREE.Mesh(new THREE.SphereGeometry(0.13, 32, 24), own(pebbleM, 0.3)); stone.scale.set(1.2, 0.7, 1); stone.position.set(-0.35, 0.2, 0.25);
-  return sceneThumb(renderer, [puck, sand, pool, stone], canvas, cam);
+  return sceneThumb(renderer, [puck, sand, pool, stone], canvas, cam, { tex });
 }
-/** A thing's picture for a list: `things` round the origin, seen from `cam` (or from `eye` looking at `at`), each lit and
-    hazed from the picture's own eye; drawn once by the world's renderer into a 2D canvas (it fills when the GPU is done). */
-export async function sceneThumb(renderer, things, canvas, cam, at = [0, 0, 0]) {
-  if (Array.isArray(cam)) { const eye = cam, far = Math.hypot(...eye) * 4; cam = new THREE.PerspectiveCamera(30, 1, far / 400, far); cam.position.set(...eye); cam.lookAt(...at); }
+/** A thing's picture for a list: `things` round the origin, seen from `cam` (or from `eye` looking at `look`), each lit
+    and hazed from the picture's own eye; drawn once by the world's renderer into a 2D canvas (it fills when the GPU is
+    done). Compiled aside first, in turn (src/core/compile.js), and what its shaders ask of the textures (tex) painted:
+    drawn at once, each picture's pipelines were compiled as it was drawn, holding up the GPU. */
+export async function sceneThumb(renderer, things, canvas, cam, { look = [0, 0, 0], tex = null } = {}) {
+  if (Array.isArray(cam)) { const eye = cam, far = Math.hypot(...eye) * 4; cam = new THREE.PerspectiveCamera(30, 1, far / 400, far); cam.position.set(...eye); cam.lookAt(...look); }
   const sc = new THREE.Scene();
   for (const o of things) { o.traverse((m) => [m.material].flat().forEach((x) => x?.eye && (x.eye.value = cam.position.clone()))); sc.add(o); }
   const S = canvas.width, rt = new THREE.RenderTarget(S, S, { samples: 4 });
+  await compileFor(renderer, rt, sc, cam); tex?.flush();
   const prev = renderer.getRenderTarget(), cc = renderer.getClearColor(new THREE.Color()), ca = renderer.getClearAlpha();
   renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.render(sc, cam); renderer.setRenderTarget(prev); renderer.setClearColor(cc, ca);
   const px = await renderer.readRenderTargetPixelsAsync(rt, 0, 0, S, S); rt.dispose();

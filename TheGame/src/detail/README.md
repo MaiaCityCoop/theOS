@@ -150,7 +150,7 @@ own. What a browser cannot pay is the draw calls, so here models are branches an
 - **A texture of its own each** (`blobSkin`: 128 pixels a side, painted in a worker): one layer of an array of 1024,
   given to the kinds that are large enough on screen to show it (from 28 pixels), fading in when it comes; under that
   and until then a kind wears its texture's mean colour, which is what the mipmaps make of it anyway. All ten thousand
-  at once would be 870 MB; the pool is 89. Needs more array layers than a device gives unasked (`src/main.js`).
+  at once would be 870 MB; the pool is 89. Needs more array layers than a device gives unasked (`src/boot.js`).
 - **A level turns into the next over the whole of its range**, not its last third, and a mesh that comes late grows in
   over a second and a half: a thing is never still between two levels, and never jumps.
 

@@ -46,7 +46,7 @@ const SECTIONS = [
 const section = (id) => { list.dataset.sec = id; };
 for (const sct of SECTIONS) {
   const b = document.createElement('button'); b.className = 'glass'; b.innerHTML = `<canvas width="192" height="192"></canvas><b class="g-title">${sct.name}</b><small class="g-sub">${sct.n} · ${sct.what}</small>`;
-  grid.querySelector('.cards').append(b); sct.pic(b.querySelector('canvas'));
+  grid.querySelector('.cards').append(b); pictures.now(() => sct.pic(b.querySelector('canvas')));
   b.onclick = () => { grid.classList.remove('on'); section(sct.id); sct.open(); };
 }
 document.getElementById('toLib').onclick = () => grid.classList.add('on');   // back to the library's sections
