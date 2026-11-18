@@ -309,9 +309,10 @@ export function createPages(renderer, tex) {
       if (hi >= lo) { T.write(lo, table.subarray(lo, hi + 1)); lo = Infinity; hi = -1; }
       uFrame.value = frame & 0xffff; uStamp.value = stampOf(frame); uSmp.value.set(...SEQ[frame % (SWEEP * SWEEP)]); uBias.value = bias;
     },
-    /** How much coarser a pixel d metres from the eye asks: the bias, none within NEAR (the ground near the eye is
-        always read as finely as the screen's pixels), all of it from 3 NEAR. */
-    biasAt: (d) => uBias.mul(smoothstep(NEAR, 3 * NEAR, d)),
+    /** How much coarser a pixel d metres from the eye asks: within NEAR half a level finer than its pixel (a page is
+        filtered as it is read, after the filtering its texels were laid with: finer, the ground near the eye is as sharp
+        as a read of its materials), from 3 NEAR the bias (none, unless what is asked for does not fit). */
+    biasAt: (d) => mix(float(-0.5), uBias, smoothstep(NEAR, 3 * NEAR, d)),
     /** The level of the land's pages a pixel reads (node code, in the ground's fragment: dx, dy how far apart its
         neighbouring pixels' points are, as finely as the screen's pixels read; d how far it is from the eye),
         fractional: a step coarser for every doubling of its size, and of how far a slope draws it out past ANISO (the
