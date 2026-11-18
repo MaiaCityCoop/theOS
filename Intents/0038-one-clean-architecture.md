@@ -1678,6 +1678,18 @@ file and line, before a GPU turn or `next`:
   the smoke and 3–5 s for the lint here; no new dependency.
 - **Not there yet:** the time in CI is to be read from the PR's run; the WGSL is three's, not checked by a GPU's
   compiler (what only a device rejects still needs the Mac mini).
+- **Asked (by the master on the Mac mini):** the 10 % gate's missing startup measures: the first frame and the bytes
+  loaded before it, under one definition shared with the cold-start work.
+- **Delivered:**
+  - `src/core/marks.js`: the game's marks on its own timeline, `FIRST_FRAME` = `game:first-frame`;
+  - `src/boot.js` stamps it once the GPU has done the first frame that draws the world (not the loading veil);
+  - `tools/gate.js paths` reads it in its cold and warm runs: ms from the navigation's start, and the bytes over the wire
+    of every file that had come by then (what a cache served is not counted);
+  - `tools/gate/ten.js` holds both under startup.
+- **Good:** `tools/health.js --base origin/main` finds nothing worse; `scale.js` 24 of 24; the build passes.
+- **Not there yet:** not yet run on the GPU; the first `paths` run gives the numbers. Under the dev server, what is loaded
+  is the unbundled modules; a built page (`--url` at a preview) gives the bytes a player loads.
+
 ## Trail
 
 | When | Commit | What |
@@ -1733,3 +1745,4 @@ file and line, before a GPU turn or `next`:
 | 2026-11-18 | `bca2270` | The code gates held against main: `health.js --base` (each gate's change, exit 1 where one got worse), run by CI on every pull request |
 | 2026-11-18 | `52bbeb9` | The 10 % gate as one report: `tools/gate/ten.js --base <run>` (here, base, change, ≥ 10 %?; exit 1 where a measure got worse beyond its noise) |
 | 2026-11-18 | `0f8087e` | The smoke gate in CI: `tools/lint.js` (every name bound, every import found), `tools/smoke.js` (every material and pass built on `tools/gpu-mock.js`), the health tool's digest on the same stand-in (`tools/digest.js`) |
+| 2026-11-18 | `78b3451` | The first frame that draws the world, one mark (`game:first-frame`), and the bytes loaded before it in the 10 % gate |
