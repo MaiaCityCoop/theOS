@@ -694,7 +694,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       If(L.ok, () => { sortOf(out, kind, rows, L.R); });
       return done(out, rows);
     };
-    const K = { N, inner, found, select };
+    const K = { N, inner, found, select, label: shadow ? `${name}, its shade` : name };   // (label: its buffers' name, tier.js)
     byKey.set(key, K);
     return K;
   };
@@ -716,7 +716,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
         for (const k of ['near', 'far', 'pad', 'to', 'from']) K.N.band[k].value = band[k].value;
         K.inner.value = shadow || !i ? band.from.value : finer; table?.();
       };
-      packs = { found: K.found, select: K.select, metres: shadow, kind: K, table: tell, twice: !!FAR };   // (twice: a thing handing over to its far end is packed for both its draws)
+      packs = { found: K.found, select: K.select, metres: shadow, kind: K, table: tell, twice: !!FAR, label: K.label };   // (twice: a thing handing over to its far end is packed for both its draws)
     } else {   // (its own patches: a cell's thing, packed where it is of the level now)
       const N = { lv: uniform(i, 'uint'), under: uniform(mine.under, 'uint'), stands: uniform(mine.stands), all: uniform(mine.all), band }, TH = thingOf(thing);
       const { whole, ofLevel, holder, sortOf, done } = levelCode(N, flags);
@@ -806,7 +806,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     // (one material for every mesh level of it, its level told by each mesh; one more for what is drawn by a level's own list)
     // (what moves chooses its own patches, packed every frame, a cap a draw: what is drawn large is few, four times as
     // many a level further off, and as many more as the dial's least reaches (measure.js DIAL_LEAST); what stands still is resident, its buckets as large as it finds it needs: tier.js)
-    const packs = moving ? { live, cap: draws.map((d) => (d.dot ? cap : Math.min(cap, Math.ceil((16 * 4 ** Math.max(1, d.level)) / DIAL_LEAST ** 2)))) } : { found, select };
+    const packs = moving ? { live, cap: draws.map((d) => (d.dot ? cap : Math.min(cap, Math.ceil((16 * 4 ** Math.max(1, d.level)) / DIAL_LEAST ** 2)))) } : { found, select, label: name };
     const mats = {}, T = new Tier(scene, draws.map((d) => (d.cut ? new THREE.InstancedBufferGeometry().setIndex([0, 1, 2]) : d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, order: 1, ...packs, gpu: true, slots: ROWS, bounds: boundsOf(GROWN + (moving ? 0.5 : 0)) });
     T.step = step;
     T.band = () => { T.near = 0; T.far = Math.min(far, farFor(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])); band.far.value = T.far; };   // (a drawer that thins its things away: packed until they are gone)

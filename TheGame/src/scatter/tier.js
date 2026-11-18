@@ -348,10 +348,10 @@ function shared() {
   return GR;
 }
 /** A kind of tier's own passes (copy forward, visit, the gather's two) and stores, made with its first tier. */
-function kindOf(key, { K, slots, found, select, twice }) {
+function kindOf(key, { K, slots, found, select, twice, label }) {
   const G = shared(), had = KINDS.get(key);
   if (had) { if (had.K !== K || had.slots !== slots) throw new Error(`tiers of one kind with ${had.K} and ${K} draws, ${had.slots} and ${slots} rows: a kind packs one way`); return had; }
-  const S = uint(slots), { u } = G, stores = lean('vec4', 'tiers: what each holds (two stores)'), leaves = lean('uint', 'tiers: what each holds (two stores)'), packed = lean('vec4', 'tiers: what stands, packed');
+  const S = uint(slots), { u } = G, stores = lean('vec4', `tiers: what each holds (two stores), ${label}`), leaves = lean('uint', `tiers: what each holds (two stores), ${label}`), packed = lean('vec4', `tiers: what stands, packed, ${label}`);   // (by its kind's name: which kind each is, in the ledger and in the GPU's own record of its buffers)
   const rows = stores.node, leaf = leaves.node, data = packed.node, into = intoBuckets(K), counts = { element: (b) => G.C.element(u.kb.add(b)) };
   const wgC = workgroupArray('uint', 1).toAtomic().setName('wgTierKeepCount'), wgB = workgroupArray('uint', 1).setName('wgTierKeepAt');
   // (into the store being made (to), a thing an invocation where it has one, by one atomic a workgroup; no more than its room)
@@ -392,8 +392,8 @@ function kindOf(key, { K, slots, found, select, twice }) {
   return s;
 }
 /** A resident tier's packing: its rows in the shared ones, its range in its kind's stores, its draws and their culling. */
-function residentPackedOf(T, geos, material, { found, select, store = 0, slots = 0, bounds = null, kind = null, twice = false }) {
-  const G = shared(), K = geos.length, S = uint(slots), s = kindOf(kind ?? T, { K, slots, found, select, twice });
+function residentPackedOf(T, geos, material, { found, select, store = 0, slots = 0, bounds = null, kind = null, twice = false, label = 'a tier' }) {
+  const G = shared(), K = geos.length, S = uint(slots), s = kindOf(kind ?? T, { K, slots, found, select, twice, label });
   const me = { T, K, zi: 2 * G.tiers.length, kb: G.KB, N: firstStore(store), base: 0, dbase: 0, uKb: uniform(G.KB, 'uint'), uBase: uniform(0, 'uint') };
   const P = () => (s.twice ? 2 : 1) * me.N;   // (what it packed for its draws: a thing of it in two of them where it may be drawn twice)
   G.tiers.push(me); G.KB += K; G.KMAX = Math.max(G.KMAX, K); G.dirty = G.stale = true; s.tiers.push(me); s.dirty = true;
