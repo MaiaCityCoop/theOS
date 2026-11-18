@@ -66,8 +66,9 @@ const inTime = (what, p) => Promise.race([p.then(() => true, (err) => { console.
 export async function boot({ profile = 'world' } = {}) {
   const world = profile === 'world', t0 = performance.now();
   const canvas = document.getElementById('c');
-  // (the stress stand keeps its kinds' own textures in one array of many layers: more than a device gives unasked; src/scatter/stress.js)
-  const layers = flag('stress') ? Math.min(2048, (await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits?.maxTextureArrayLayers ?? 256) : 256;
+  // (textures of many layers: more than a device gives unasked. The land's pages are two arrays of up to 2048,
+  // src/terrain/pages.js; the stress stand keeps its kinds' own textures in one, src/scatter/stress.js)
+  const layers = Math.min(2048, (await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits?.maxTextureArrayLayers ?? 256);
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), ...(layers > 256 ? { requiredLimits: { maxTextureArrayLayers: layers } } : {}) });   // alpha false: the canvas is opaque (a frame's fourth number is not how see-through it is: it says how far what is kept may be trusted, src/core/pass.js; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
   if (flag('draws')) (await import('../tools/draws.js')).watch();   // ?draws: every pass and draw a frame asks of the GPU, counted (tools/draws.js: window.__draws), from before the first pipeline is made
   await renderer.init();
@@ -102,7 +103,9 @@ export async function boot({ profile = 'world' } = {}) {
   // dial; the screen keeps all its own), a prepass and the colour (src/core/pass.js), through the lens where the camera
   // brings one (src/camera/post.js), and brought up to the screen and built over time in one pass (src/core/temporal.js).
   const temporal = (game.temporal = createTemporal(renderer));
-  const screen = (game.screen = createScreen(renderer, { temporal, lens: createLens(renderer), light: (game.screenLight = createScreenLight(renderer)) }));
+  const screen = (game.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
+  const screenLight = (game.screenLight = createScreenLight(renderer));
+  if (screenLight) screen.afterPrepass(({ depth, camera, w, h }) => screenLight.run(depth, camera, w, h));   // (the light worked out on the screen from the prepass's depth, for the colour pass: src/world/light/screen.js)
   const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
   game.governor = governor;   // the film holds it still while it plays
   keepMeasure(() => screen.inside);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
@@ -130,7 +133,8 @@ export async function boot({ profile = 'world' } = {}) {
   game.U = U; game.tex = tex;   // for pages that stage things
   mark('ground');
   const terrain = (game.terrain = createTerrain(scene, tex, renderer, world ? {} : { reach: REACH }));
-  const layerPass = terrain.compile();   // the layer map's pass, beside the others (it reads no target)
+  const layerPass = terrain.compile();   // the land's pages' passes, beside the others (they read no target)
+  screen.afterPrepass(terrain.pages.ask);   // (which pages the land's pixels read: src/terrain/pages.js)
   mark('terrain');
   const scatterOf = (g) => {
     g.scatter = createScatter(g.into, tex, g.ground, renderer, camera);

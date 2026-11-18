@@ -119,7 +119,5 @@ export function createScreenLight(renderer) {
     },
     /** Each pass alone on the last prepass's depth, for a tool's timing (tools/bench.js light). */
     parts: () => ({ contact: () => { renderer.setRenderTarget(rt); quads[0].render(renderer); renderer.setRenderTarget(null); }, gtao: () => { renderer.setRenderTarget(half); quads[1].render(renderer); renderer.setRenderTarget(null); } }),
-    /** Off: the colour pass reads 1 (a frame drawn by anything else than the world's screen). */
-    off() { SCREEN.on.value = 0; },
   };
 }

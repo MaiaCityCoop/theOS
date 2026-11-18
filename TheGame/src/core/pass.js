@@ -33,7 +33,8 @@ export const cut = (builder, cond) => { if (passOf(builder) !== 'main') Discard(
 
 /** What the prepass writes for a pixel whose point lay at `was` (world) a frame ago: how far it has come on the screen
     since (now less then, in the picture's widths and heights, the frame's shift taken out), 1 (written) and how thin it
-    is (a leaf's card, a blade: 1), and nothing (0). */
+    is (a leaf's card, a blade: 1), and nothing (0; the land writes there which level of its pages it reads:
+    src/terrain/pages.js). */
 export const motion = (was, thin = 0) => {
   const c = U.uWas.mul(vec4(was, 1)), then = c.xy.div(c.w.max(1e-6)).mul(vec2(0.5, -0.5)).add(0.5);   // (behind the camera then: far off the screen, so nothing is kept)
   return vec4(screenCoordinate.xy.add(U.uJit).div(U.uIn).sub(then), float(thin).add(1), 0);

@@ -6,7 +6,8 @@ import { HMIN, HMAX, heightAt, riverAt } from '../world/land.js';
 import { boxIn } from '../core/frustum.js';
 import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, R0, FINE } from './material.js';
-import { createLayers, LAYERS } from './layers.js';
+import { createPages } from './pages.js';
+import { LAYERS } from './layers.js';
 import { waterMaterial } from './water.js';
 import { usedMaterials } from '../materials/bake.js';
 import { recipes } from '../core/registry.js';
@@ -35,7 +36,7 @@ export const landMaterials = () => [...usedMaterials(recipes('biome')), ...LAYER
 /** The land and its water in `scene`. reach: metres from the eye the land is drawn to, at most (it ends in the air,
     src/world/light.js: airOf); by default to the horizon. */
 export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
-  const layers = createLayers(renderer, tex);   // where the ground's layers lie, round the camera (src/terrain/layers.js)
+  const pages = createPages(renderer, tex);   // the ground's material, laid once a page round the camera (src/terrain/pages.js)
   const { pos, idx } = gridGeometry();
   const make = (cap) => {
     const g = new THREE.InstancedBufferGeometry();
@@ -47,7 +48,7 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
     return { g, data, attr, n: 0, cap };
   };
   const land = make(CAP), water = make(WCAP);
-  const landMat = terrainMaterial(tex), waterMat = waterMaterial(tex);
+  const landMat = terrainMaterial(pages), waterMat = waterMaterial(tex);
   const landMesh = new THREE.Mesh(land.g, landMat), waterMesh = new THREE.Mesh(water.g, waterMat);
   landMesh.frustumCulled = waterMesh.frustumCulled = false;
   landMesh.renderOrder = 10; // after the grass and the rocks: they are in front, the depth test spares the ground's shader
@@ -94,9 +95,9 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
     s.attr.clearUpdateRanges(); s.attr.addUpdateRange(0, s.n * 4); s.attr.needsUpdate = true;
   }
   return {
-    landMesh, waterMesh,
+    landMesh, waterMesh, pages,
     update(camera, uDy, lodInv) {
-      layers.update(camera);
+      pages.update(camera);
       cx = camera.position.x; cz = camera.position.z; dy2 = uDy * uDy; inv2 = lodInv * lodInv;
       land.n = water.n = 0;
       const top = levels - 1, R = Math.min(range[top] / lodInv, camera.far);
@@ -106,10 +107,10 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
       push(land); push(water);
       waterMesh.visible = water.n > 0;
     },
-    /** The layer map's pass compiled (a promise). */
-    compile: () => layers.compile(),
-    /** The layer map worked out again whole (the land under it changed: the lakes). */
-    refresh: () => layers.refresh(),
+    /** The pages' passes compiled (a promise). */
+    compile: () => pages.compile(),
+    /** Every page laid again (the land under them changed: the lakes). */
+    refresh: () => pages.refresh(),
     all() { // every node slot filled once, so the first real frame uploads nothing new
       land.g.instanceCount = 1; water.g.instanceCount = 1; waterMesh.visible = true;
     },
