@@ -31,7 +31,14 @@ const white = Object.assign(new THREE.DataTexture(new Uint8Array([255, 255, 255,
 export const SCREEN = { contact: texture(white), on: uniform(0) };   // (contact: the contact shadows' share of the sun)
 
 const STEPS = 12;   // the contact shadows' steps
-export function createScreenLight(renderer) {
+/** The screen's light for the world's frame: made, and run after every prepass of `screen` (src/core/screen.js
+    afterPrepass), before the colour; null where there is none (the WebGL 2 fallback). */
+export function screenLightFor(renderer, screen) {
+  const light = createScreenLight(renderer);
+  if (light) screen.afterPrepass(({ depth, camera, w, h }) => light.run(depth, camera, w, h), 'screen light');
+  return light;
+}
+function createScreenLight(renderer) {
   if (!renderer.backend?.isWebGPUBackend) return null;   // (the WebGL 2 fallback: no screen light)
   const depth = texture(new THREE.DepthTexture(1, 1)), proj = uniform(new THREE.Matrix4()), unproj = uniform(new THREE.Matrix4()), view = uniform(new THREE.Matrix4()), viewInv = uniform(new THREE.Matrix4()), size = uniform(new THREE.Vector2(1, 1));
   // a pixel's point seen from the eye (view space), from its depth; and a point back to its pixel

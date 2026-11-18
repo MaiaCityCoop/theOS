@@ -27,7 +27,7 @@ export const CASTS = 1;   // the layer of what casts a shadow
 /** A cascade's texels a side (src/world/light.js reads them so). */
 export const SHADOW_S = 2048;
 /** The near cascade's half side, metres: 2048 texels over 70 m, 3.4 cm a texel. */
-export const NEAR = 35;
+const NEAR = 35;
 /** The far cascade's box round the camera, half its side in metres: `min` on the ground, `grow` more for every metre the
     camera is up, `max` at most (the land reads it too: where no shadow is drawn, a stand's floor is dimmed by itself). */
 export const BOX = { min: 100, grow: 1.2, max: 900 };
