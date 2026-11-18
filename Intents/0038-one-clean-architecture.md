@@ -1871,14 +1871,37 @@ rules for both: root causes, never fewer samples as a patch; the light's ceiling
     trunks' shade (`aven/0038-shots`, `9a-shadowcheck/`).
   - **Train 1b** (9a with #77, #78, #81, #84): the same map and the same reading (745 of 1681 in shade), yet the near
     floor evenly in the sun. Train 1c, without 9a, lost the shade too.
-  - The near floor there is #81's relief, which drew it with a second mesh and material of its own. Its shader reads the
-    cascades as the land's does (built on the CPU), so the shade was lost in that draw's inputs at run time. Task A (the
-    ground) fixes it at the root: the relief is now the land's own vertices raised, one mesh, one material.
-- **The code gates** against train 1c (`health.js`): `boot` back at 1c's 34 (the screen's light is wired in
-  `screenLightFor`), no new export (`shadow.js NEAR` and `canopy.js CANOPY` not exported), fewer lines in clones. The
-  physical numbers are said once, in their units, with their sources (`src/world/light/physics.js`: the sun's width,
-  how much light a metre of crown takes); every other new number is marked `derive:` for the Mac mini to derive from
-  the error, the light's 3 ms and the screen.
+  - Three diagnostics on the Mac mini named the cause: train 1b without #81 casts (soft 1006 of 1681, the floor
+    dappled), while with the relief drawn flat, or its own shadow read painted, it does not. It was #81's ways: the path
+    "into the pines" cleared the tree standing about 3 m ahead, whose crown shaded that floor. The shadow path itself
+    (9a, the relief's shader) was right. Task A fixes the clearing at the root: a way takes away only what stands on it,
+    by the thing's feet.
+- **Every number derived** (the master's calls, 2026-11-18), nothing of the light set by hand:
+  - **The cascades** (`src/world/shadow.js useCascades`, at the start, before any material is built):
+    - texels a side: a texel `ERROR_PX` drawn at its own cascade's edge, 2 `pxK` `BUDGET_DRAWN` / `ERROR_PX` (2135 on
+      the gate's 1080-pixel screen);
+    - the near one: its texel the sun's penumbra under the lowest crown that casts (`SUN_DIAMETER` × the holm oak's
+      crown base at its oldest, 5.30 m, from its kit's form: the stand-in for the contact shadows' hand-over);
+    - the rest each twice the one before, as many as reach the farthest caster (`SHADE_REACH`, 192 m, which the land
+      now reads directly: no `BOX`). On a 1080-pixel screen: 3 cascades of 48, 96 and 192 m, 54.7 MB.
+    - The near one is drawn every frame and one other in turn; their bias is two of their texels.
+    - The widest penumbra is `SUN_DIAMETER` × the tallest caster (25 m) along the light.
+    - The sun comes through a leaf in the leaf's own colour (ρ = τ, the two-stream canopy models' leaf): no `THROUGH`.
+  - **The canopy** (`src/world/light/canopy.js`), from the crowns:
+    - it reaches as far as the cascades (384 m);
+    - a probe every quarter of the smallest crown's reach (2.36 m), its map's texel half that;
+    - the probes at the floor, a person's eyes and the lowest crown's base, their kernel's rings at half a crown and a
+      whole one, each ring an equal share of the sky;
+    - made again once the eye has crossed a probe's spacing, a piece a frame (2.1 MB, from 4.3).
+  - **The contact shadows**: a sample every `ERROR_PX` of the ray on the screen, per pixel.
+  - **Physics and method:** the physical numbers are said once, in their units, with their sources
+    (`src/world/light/physics.js`); the blue noise's sigma and tile are its method's own (`src/core/method.js`:
+    Ulichney 1993, Pixman's 64 × 64).
+  - **The code gates** against train 2's first car (`health.js --base origin/aven/0038-unrevert-1c`): every gate
+    holds. 2 fewer hand-set numbers, 2 physical constants with sources, `boot` at 1c's 34 (the screen's light wired in
+    `screenLightFor`), no new export, 14 fewer lines in clones.
+  - **Not yet on a GPU:** the derived layout's shadowcheck on the Mac mini (`aven/0038-diag-9a-derive`), and the light's
+    3 ms in train 2's per-class bench. Where it is over, the governor's dial answers, not a hand-set count.
 - **For Samuel**, where 9a may not hold the look within 3 ms without a fudge:
   - the colour pass's own share of the shadows (its A/B read −2.4 to 4.7 ms: noise round a real cost). If it stays over,
     the cure is a blocker search from a min-depth pyramid of the cascade, which costs the land a binding (12 of 16 now);
