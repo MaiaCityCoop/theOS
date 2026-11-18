@@ -65,6 +65,41 @@ const SIDES = Array.from({ length: LEVELS }, (_, l) => Math.max(1, SIZE >> (l + 
 let BLOCKS = 0, ROOM = 0;
 SIDES.forEach((s, l) => { FIRST[l] = BLOCKS; BLOCKS += s * s; AT[l] = ROOM; ROOM += STRIDES[l] * s; });
 
+/** One channel of a block of 4 × 4 texels (v: its sixteen values, 0 … 1, row by row) as BC4 keeps it, in 8 bytes (two
+    uint nodes): its largest and its smallest as bytes, then each texel the nearest of the eight steps between the two (3
+    bits a texel: 0 the largest, 1 the smallest, 2 … 7 from the largest down). Node code, in a Fn. */
+export const steps = (v) => {
+  const lo = float(1).toVar(), hi = float(0).toVar(); for (const x of v) { lo.assign(min(lo, x)); hi.assign(max(hi, x)); }
+  const a0 = uint(round(hi.mul(255))).toVar(), a1 = uint(round(lo.mul(255))).toVar(), f1 = float(a1).div(255).toVar(), span = max(float(a0).div(255).sub(f1), 1e-6).toVar(), al = uint(0).toVar(), ah = uint(0).toVar();
+  If(a0.greaterThan(a1), () => {
+    v.forEach((x, n) => {
+      const s = uint(round(clamp(x.sub(f1).div(span), 0, 1).mul(7))), idx = s.equal(uint(7)).select(uint(0), s.equal(uint(0)).select(uint(1), uint(8).sub(s))), bit = 3 * n;
+      if (bit + 3 <= 32) al.assign(al.bitOr(idx.shiftLeft(uint(bit))));
+      else if (bit >= 32) ah.assign(ah.bitOr(idx.shiftLeft(uint(bit - 32))));
+      else { al.assign(al.bitOr(idx.bitAnd(uint((1 << (32 - bit)) - 1)).shiftLeft(uint(bit)))); ah.assign(ah.bitOr(idx.shiftRight(uint(32 - bit)))); }
+    });
+  });
+  return [a0.bitOr(a1.shiftLeft(uint(8))).bitOr(al.bitAnd(uint(0xffff)).shiftLeft(uint(16))).toVar(), al.shiftRight(uint(16)).bitOr(ah.shiftLeft(uint(16))).toVar()];
+};
+/** A block's colours (v: its sixteen rgb, 0 … 1) as BC1 keeps them, in 8 bytes (two uint nodes): the two far corners of
+    the box round them (which two: by how red and blue run against green across the block), drawn in a little (the
+    steps between then lie nearer most of them), as 5:6:5 bits; then each texel the nearest of the four steps along the
+    line between the two (2 bits a texel: 0 the first end, 1 the second, 2 and 3 between them). Node code, in a Fn. */
+export const colours = (v) => {
+  const lo = vec3(1).toVar(), hi = vec3(0).toVar(); for (const c of v) { lo.assign(min(lo, c)); hi.assign(max(hi, c)); }
+  const mid = lo.add(hi).mul(0.5), cr = float(0).toVar(), cb = float(0).toVar();
+  for (const c of v) { const t = c.sub(mid); cr.addAssign(t.r.mul(t.g)); cb.addAssign(t.b.mul(t.g)); }
+  const rUp = cr.greaterThanEqual(0), bUp = cb.greaterThanEqual(0), E0 = vec3(select(rUp, hi.r, lo.r), hi.g, select(bUp, hi.b, lo.b)), E1 = vec3(select(rUp, lo.r, hi.r), lo.g, select(bUp, lo.b, hi.b)), inset = E0.sub(E1).div(16);
+  const q565 = (c) => vec3(round(c.r.mul(31)), round(c.g.mul(63)), round(c.b.mul(31))), bits = (Q) => uint(Q.r).shiftLeft(uint(11)).bitOr(uint(Q.g).shiftLeft(uint(5))).bitOr(uint(Q.b));
+  const Q0 = q565(clamp(E0.sub(inset), 0, 1)).toVar(), Q1 = q565(clamp(E1.add(inset), 0, 1)).toVar();
+  const e1 = Q1.div(vec3(31, 63, 31)).toVar(), dir = Q0.div(vec3(31, 63, 31)).sub(e1).toVar(), dd = max(dot(dir, dir), 1e-8).toVar(), ci = uint(0).toVar();
+  v.forEach((c, n) => {
+    const s = uint(round(clamp(dot(c.sub(e1), dir).div(dd), 0, 1).mul(3)));
+    ci.assign(ci.bitOr(s.equal(uint(3)).select(uint(0), s.equal(uint(2)).select(uint(2), s.equal(uint(1)).select(uint(3), uint(1)))).shiftLeft(uint(2 * n))));
+  });
+  return [bits(Q0).bitOr(bits(Q1).shiftLeft(uint(16))).toVar(), ci];
+};
+
 // A painted tile packed into blocks, its every level in one pass: a block an instance. src: the painted tile with its
 // mips. `normals` 0: a tile of A, its sixteen bytes to `out`; 1: of N, to `out`, and of R, its eight bytes to `outR`.
 function blocksOf(src, out, outR) {
@@ -74,39 +109,6 @@ function blocksOf(src, out, outR) {
     for (let l = 1; l < LEVELS; l++) If(instanceIndex.greaterThanEqual(uint(FIRST[l])), () => { lv.assign(uint(l)); first.assign(uint(FIRST[l])); at.assign(uint(AT[l])); });
     const side = max(uint(SIZE >> 2).shiftRight(lv), uint(1)).toVar(), k = instanceIndex.sub(first), bx = k.mod(side).toVar(), by = k.div(side).toVar(), size = float(uint(SIZE).shiftRight(lv)), px = [];
     for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) px.push(src.sample(vec2(float(bx.mul(uint(4)).add(uint(i))).add(0.5), float(by.mul(uint(4)).add(uint(j))).add(0.5)).div(size)).level(float(lv)).toVar());
-    // one channel of a block, in 8 bytes: its largest and its smallest as bytes, then each texel the nearest of the
-    // eight steps between the two (3 bits a texel: 0 the largest, 1 the smallest, 2 … 7 from the largest down)
-    const steps = (v) => {
-      const lo = float(1).toVar(), hi = float(0).toVar(); for (const x of v) { lo.assign(min(lo, x)); hi.assign(max(hi, x)); }
-      const a0 = uint(round(hi.mul(255))).toVar(), a1 = uint(round(lo.mul(255))).toVar(), f1 = float(a1).div(255).toVar(), span = max(float(a0).div(255).sub(f1), 1e-6).toVar(), al = uint(0).toVar(), ah = uint(0).toVar();
-      If(a0.greaterThan(a1), () => {
-        v.forEach((x, n) => {
-          const s = uint(round(clamp(x.sub(f1).div(span), 0, 1).mul(7))), idx = s.equal(uint(7)).select(uint(0), s.equal(uint(0)).select(uint(1), uint(8).sub(s))), bit = 3 * n;
-          if (bit + 3 <= 32) al.assign(al.bitOr(idx.shiftLeft(uint(bit))));
-          else if (bit >= 32) ah.assign(ah.bitOr(idx.shiftLeft(uint(bit - 32))));
-          else { al.assign(al.bitOr(idx.bitAnd(uint((1 << (32 - bit)) - 1)).shiftLeft(uint(bit)))); ah.assign(ah.bitOr(idx.shiftRight(uint(32 - bit)))); }
-        });
-      });
-      return [a0.bitOr(a1.shiftLeft(uint(8))).bitOr(al.bitAnd(uint(0xffff)).shiftLeft(uint(16))).toVar(), al.shiftRight(uint(16)).bitOr(ah.shiftLeft(uint(16))).toVar()];
-    };
-    // a block's colours, in 8 bytes: the two far corners of the box round them (which two: by how red and blue run
-    // against green across the block), drawn in a little (the steps between then lie nearer most of them), as 5:6:5
-    // bits; then each texel the nearest of the four steps along the line between the two (2 bits a texel: 0 the
-    // first end, 1 the second, 2 and 3 between them)
-    const colours = (v) => {
-      const lo = vec3(1).toVar(), hi = vec3(0).toVar(); for (const c of v) { lo.assign(min(lo, c)); hi.assign(max(hi, c)); }
-      const mid = lo.add(hi).mul(0.5), cr = float(0).toVar(), cb = float(0).toVar();
-      for (const c of v) { const t = c.sub(mid); cr.addAssign(t.r.mul(t.g)); cb.addAssign(t.b.mul(t.g)); }
-      const rUp = cr.greaterThanEqual(0), bUp = cb.greaterThanEqual(0), E0 = vec3(select(rUp, hi.r, lo.r), hi.g, select(bUp, hi.b, lo.b)), E1 = vec3(select(rUp, lo.r, hi.r), lo.g, select(bUp, lo.b, hi.b)), inset = E0.sub(E1).div(16);
-      const q565 = (c) => vec3(round(c.r.mul(31)), round(c.g.mul(63)), round(c.b.mul(31))), bits = (Q) => uint(Q.r).shiftLeft(uint(11)).bitOr(uint(Q.g).shiftLeft(uint(5))).bitOr(uint(Q.b));
-      const Q0 = q565(clamp(E0.sub(inset), 0, 1)).toVar(), Q1 = q565(clamp(E1.add(inset), 0, 1)).toVar();
-      const e1 = Q1.div(vec3(31, 63, 31)).toVar(), dir = Q0.div(vec3(31, 63, 31)).sub(e1).toVar(), dd = max(dot(dir, dir), 1e-8).toVar(), ci = uint(0).toVar();
-      v.forEach((c, n) => {
-        const s = uint(round(clamp(dot(c.sub(e1), dir).div(dd), 0, 1).mul(3)));
-        ci.assign(ci.bitOr(s.equal(uint(3)).select(uint(0), s.equal(uint(2)).select(uint(2), s.equal(uint(1)).select(uint(3), uint(1)))).shiftLeft(uint(2 * n))));
-      });
-      return [bits(Q0).bitOr(bits(Q1).shiftLeft(uint(16))).toVar(), ci];
-    };
     const isN = normals.greaterThan(0.5), fourth = steps(px.map((c) => c.a)), red = steps(px.map((c) => c.r)), green = steps(px.map((c) => c.g)), rgb = colours(px.map((c) => c.rgb));
     const e = at.add(by.mul(max(side, uint(32)))).add(bx).toVar();
     out.element(e).assign(uvec4(select(isN, red[0], fourth[0]), select(isN, red[1], fourth[1]), select(isN, green[0], rgb[0]), select(isN, green[1], rgb[1])));
