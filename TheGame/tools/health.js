@@ -34,10 +34,12 @@
 //                 what a uniform starts at, nor an array's size), and those the SSOT audit (research_notes/0038-ssot-
 //                 audit.md) names however they are written (marked). Not hand-set: the exported values of a module
 //                 named physics.js (physical: the one place physical constants live), budget.js (required: the
-//                 intent's requirements, its hard gates and their split) or method.js (method: a published method's
-//                 own defining constants, as a filter's σ and its tile), each saying its source in its comment
-//                 (`source: …`), and a physical one or a requirement its unit too (`unit: …`); --base fails where one
-//                 does not. Flag reads: every call of flag, flagNum and flagText (src/core/flags.js)
+//                 intent's requirements, its hard gates and their split), method.js (method: a published method's
+//                 own defining constants, as a filter's σ and its tile) or art.js (artistic: what a made thing was
+//                 shaped or set to by eye, as a face's form), each saying its source in its comment (`source: …`: for
+//                 an artistic one, what it was chosen against), and a physical one or a requirement its unit too
+//                 (`unit: …`); --base fails where one does not. Flag reads: every call of flag, flagNum and flagText
+//                 (src/core/flags.js)
 //   Pipelines     what a start of the world compiles (tools/smoke.js --json, run in each tree: the world made on the
 //                 GPU's stand-in as src/boot.js makes it, every material as each pass draws it and every compute pass
 //                 built): its distinct render pipelines (a vertex and a fragment stage), distinct compute pipelines,
@@ -275,11 +277,14 @@ function numbers(m, name, init, out) {
 /** The modules whose exported values are no hand-set numbers, each module the list of its kind, and what each value's
     comment says: a physics.js holds the physical constants and a budget.js the intent's requirements (its hard gates
     and their split), each with its unit and its source; a method.js a published method's own defining constants (a
-    filter's σ, its tile), each with its source (its unit, where it has one, is not asked: a count or a ratio has none). */
+    filter's σ, its tile), each with its source (its unit, where it has one, is not asked: a count or a ratio has none);
+    an art.js what a made thing was shaped or set to by eye (the standing rule lets a setting be set by hand where it is
+    physical or artistic: this is the artistic ones' place), each with what it was chosen against as its source. */
 const CONTRACT = {
   'physics.js': { kind: 'physical', holds: 'a physical constant (physics.js)', says: ['unit', 'source'] },
   'budget.js': { kind: 'required', holds: 'a requirement (budget.js)', says: ['unit', 'source'] },
   'method.js': { kind: 'method', holds: "a published method's constant (method.js)", says: ['source'] },
+  'art.js': { kind: 'artistic', holds: 'a choice made by eye (art.js)', says: ['source'] },
 };
 const KINDS = Object.values(CONTRACT).map((c) => c.kind), HOLDS = Object.fromEntries(Object.values(CONTRACT).map((c) => [c.kind, c]));
 /** The contract a module constant is under (CONTRACT), where it is an exported value (not a function) of such a module;
