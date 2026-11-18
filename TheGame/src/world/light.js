@@ -16,6 +16,8 @@ import { BIAS } from './shadow.js';
 import { blueAt } from './light/noise.js';
 import { SCREEN } from './light/screen.js';
 import { skyAt } from './light/canopy.js';
+import { AIR, froxelAt, skyAlong } from './light/air.js';
+import { D } from './sky/dome.js';
 
 export { snowDepth, snowCover, snowDrift, snowLift, snowLiftAtVertex, SNOW } from './weather/snow.js';
 export { cloudShade, cloudField, cloudLayerShade, CLOUD_H } from './weather/clouds.js';
@@ -38,14 +40,24 @@ export const haze = Fn(([c, dist]) => mix(U.uHazeCol, c, exp(dist.negate().mul(U
 // the air lit by the sun: looking towards it, the haze glows warm (light scattered forward by the air), away from it
 // it keeps the horizon's colour; the more air in the line of sight, the more of it
 /** The air between the eye and w, as its two parts: k, how much of a surface's colour comes through, and col, the air's
-    own light. A material that lights itself per vertex (a tree: src/scatter/trees.js) carries them to its pixels;
-    airAt mixes them. */
-export const airOf = (w, eye = U.uCam) => {
+    own light. In the world's frame (its colour pass, in either stage) from the froxels (src/world/light/air.js:
+    Hillaire's atmosphere and the height fog with its shafts through the crowns), and where the land ends the sky's own
+    light along that way; anywhere else (a library's picture, the WebGL 2 fallback: AIR off) worked out here, a height
+    fog lit by the sun. A material that lights itself per vertex (a tree: src/scatter/trees.js) carries them to its
+    pixels; airAt mixes them. */
+const airHere = Fn(([w, eye], builder) => {
   const d = w.sub(eye), dist = length(d), towards = max(normalize(d).dot(U.uSunDir), 0);
   const glow = U.uSun.mul(pow(towards, 6).mul(0.22).add(pow(towards, 40).mul(0.25))).mul(U.uSunDir.y.max(0).mul(-1).add(1).mul(0.6).add(0.4));
   // (and by where the land is no longer drawn it is all air: from high up the land's end is not an edge against the sky)
-  let k = exp(dist.negate().mul(U.uHaze).mul(airMean(U.uAirH)).mul(lane.fog.mul(40).add(1))).mul(float(1).sub(smoothstep(U.uLandEnd.mul(0.55), U.uLandEnd.mul(0.94), dist)));
-  let col = U.uHazeCol.add(glow);
+  const end = smoothstep(U.uLandEnd.mul(0.55), U.uLandEnd.mul(0.94), dist), k0 = exp(dist.negate().mul(U.uHaze).mul(airMean(U.uAirH)).mul(lane.fog.mul(40).add(1))).mul(float(1).sub(end));
+  const own = vec4(U.uHazeCol.add(glow), k0);
+  if (passOf(builder) !== 'main') return own;
+  const F = froxelAt(w), T = F.T.mul(float(1).sub(end)), L = F.L.mul(float(1).sub(end)).add(skyAlong(normalize(d)).add(U.uHazeCol.mul(D.dark)).mul(end));
+  return mix(own, vec4(L.div(max(float(1).sub(T), 1e-4)), T), AIR.on);
+});
+export const airOf = (w, eye = U.uCam) => {
+  const A = airHere(w, eye), dist = length(w.sub(eye));
+  let k = A.w, col = A.xyz;
   // what of the weather lies in the air between (the clouds, from above them): it hides a share of the surface, lit its own way
   for (const c of airHooks()) {
     const V = c.air({ eye, w, dist }), k2 = k.mul(float(1).sub(V.a));
@@ -195,6 +207,8 @@ const contactHere = Fn((builder) => (onScreen(builder) ? mix(float(1), SCREEN.co
 // GTAO (screen.js): the share of the sky that reaches the pixel past what stands round it, and the bent normal, the way
 // that sky lies (half the pixels, read between them)
 const aoHere = Fn(([n], builder) => (onScreen(builder) ? mix(vec4(n, 1), SCREEN.ao.sample(screenCoordinate.xy.div(SCREEN.size)).level(0), SCREEN.on) : vec4(n, 1)));
+const BOUNCE = vec3(0.1, 0.16, 0.05);   // what the crowns give back of the light on them (a leaf's green, its share scattered down)
+const bounce = () => BOUNCE.mul(U.uSun.mul(sunDim()).mul(U.uSunDir.y.max(0)).mul(0.6).add(U.uAmb.mul(0.4)));
 /** What the screen's light says of this pixel, for a material that lights itself per vertex and takes the rest per pixel
     (a tree's cards): open, the share of the sky GTAO lets reach it; contact, the share of the sun the contact shadows do. */
 export const screenShade = () => ({ open: clamp(aoHere(vec3(0, 1, 0)).w, 0, 1), contact: contactHere() });
@@ -216,7 +230,10 @@ export const lightOn = (s) => {
   // the sky's light: from the way the sky it sees lies (the bent normal), less what stands round it (GTAO) and what the
   // crowns above hide of it (the canopy's probes: src/world/light/canopy.js)
   const A0 = aoHere(n), A = A0.w.equal(A0.w).and(A0.x.equal(A0.x)).select(A0, vec4(n, 1)), bent = normalize(n.add(A.xyz.mul(clamp(n.dot(A.xyz), 0, 1)))), open = clamp(A.w, 0, 1);   // (bent towards the sky it sees, never past the normal: a bent normal from the depth may face away from a blade's own)
-  let sky = skyLight(bent).mul(s.w ? skyAt(s.w).mul(open) : open), sun = ndl;
+  // (and where the probes see no sky, what the crowns that hide it give back: lit by the sun and the sky themselves, a
+  // little of it comes down green: the probes' bounce, Ghost of Tsushima's)
+  const seen = s.w ? skyAt(s.w) : float(1);
+  let sky = skyLight(bent).mul(seen).add(bounce().mul(float(1).sub(seen))).mul(open), sun = ndl;
   // through it, two-sided: the sun behind it seen through it (a lobe round the sun, as tight as `lobe`), and its far
   // side lit (what faces away from the sun, seen from the dark side, glows through)
   if (s.through) { const t = pow(back, s.lobe ?? 3).mul(0.65).add(max(n.dot(L).negate(), 0).mul(0.35)).mul(s.through); sun = sun.add(s.tint ? s.tint.mul(t) : t); }
