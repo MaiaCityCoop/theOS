@@ -16,7 +16,8 @@
 // device's own limits.
 import * as THREE from 'three/webgpu';
 import { storage } from 'three/tsl';
-import { BUDGET_MB, CLASS_NAMES } from './classes.js';
+import { CLASS_NAMES } from './classes.js';
+import { BUDGET_MB } from './budget.js';
 import { MiB } from './physics.js';
 
 const HELD = new Map(), MB = MiB;
