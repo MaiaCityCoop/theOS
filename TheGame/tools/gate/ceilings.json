@@ -1,6 +1,12 @@
 {
  "measured": "main 3d0c3b5, the Mac mini, 2026-11-18 (shots/budgets/main-3d0c3b5-bench.json)",
- "noise": {},
+ "noise": {
+  "geometry": 0.51,
+  "light": 0.02,
+  "ground": 0.37,
+  "upscale/post": 0.33,
+  "other": 0
+ },
  "views": {
   "tent, eye level": {
    "geometry": 13.68,
