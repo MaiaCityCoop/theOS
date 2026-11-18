@@ -12,7 +12,8 @@ import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } f
 import { layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND, SHADE_REACH } from './layers.js';
 import { finish, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
-import { RELIEF, reliefShares, reliefOverSnow } from './relief.js';
+import { reliefShares, reliefOverSnow } from './relief.js';
+import { SOIL_RELIEF } from '../world/physics.js';
 
 export const GRID = 16, R0 = 48;   // quads per node side; level 0's range (m)
 /** How many times as far every level of the land reaches but the last (whose reach is where the land ends): 1, and under
@@ -174,7 +175,7 @@ export function terrainMaterial(vt) {
     if (pre) vN.assign(vec3(0, 1, 0));
     If(share.greaterThan(0), () => {
       const sp = P.cell.mul(P.k.add(1)), G = vt.read(wp, vec2(sp, 0), vec2(0, sp), dist, { lod: true });
-      raise.assign(G.h.sub(0.5).mul(RELIEF).mul(share).mul(float(1).sub(G.cv)).mul(reliefOverSnow(snowDepth)));
+      raise.assign(G.h.sub(0.5).mul(SOIL_RELIEF).mul(share).mul(float(1).sub(G.cv)).mul(reliefOverSnow(snowDepth)));
       if (pre) vN.assign(landPoint(wp, true).N);   // (the prepass's asks go by the smooth land under it: its normal)
     });
     vRel.assign(share);

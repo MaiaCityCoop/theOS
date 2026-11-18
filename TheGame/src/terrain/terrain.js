@@ -7,7 +7,7 @@ import { boxIn } from '../core/frustum.js';
 import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, R0, FINE } from './material.js';
 import { createPages } from './pages.js';
-import { LEVELS as RELIEF_LEVELS } from './relief.js';
+import { WALKER } from '../../world/scale.js';
 import { LAYERS } from './layers.js';
 import { waterMaterial } from './water.js';
 import { usedMaterials } from '../materials/bake.js';
@@ -17,6 +17,9 @@ const S0 = 8;               // a level-0 node's side, metres (0.5 m quads)
 const LEVELS = 10;          // the top level reaches R0 * 2^9 = 24.6 km (a land drawn less far: fewer, `reach`)
 const CAP = 4096 * FINE * FINE, WCAP = 1024 * FINE * FINE;   // (?truth's finer land: as many more nodes as its levels reach further, squared)
 const WATER_LEVELS = 6;
+// (the relief's levels below level 0: each reaching half as far as the one before, down to the first whose reach is
+// within the walker's eye's height: the nearest ground the eye sees, where its mesh is finest: src/terrain/relief.js)
+const RELIEF_LEVELS = Math.ceil(Math.log2((R0 * FINE) / WALKER.eye));
 
 function gridGeometry() {
   const n = GRID + 1, pos = new Float32Array(n * n * 3), idx = new Uint16Array(GRID * GRID * 6);

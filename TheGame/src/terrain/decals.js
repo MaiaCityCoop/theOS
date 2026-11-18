@@ -1,6 +1,6 @@
 // The footpaths as decals laid into the land's pages (intent 0038, stage 6c; Call of Duty's 2023 terrain lays its roads
 // and paths into the virtual texture the same way). A path (world/paths.js) is a curve through its points, cut into
-// straight pieces a metre long; a texel of a page finds how far it lies from the nearest, and as a page is laid
+// straight pieces as long as it is wide; a texel of a page finds how far it lies from the nearest, and as a page is laid
 // (src/terrain/pages.js), what lies within the path's width is worn: packed earth in the middle, cracked where feet go
 // most, crumbs and pebbles towards its edges, a lip of soil pushed up along them, no grass. The height goes into the
 // page with the rest, so the relief near the eye (src/terrain/relief.js) and the parallax further out show the path
@@ -10,16 +10,20 @@ import { Fn, If, Loop, float, int, uint, vec2, vec3, uniformArray, min, max, cla
 import { PATHS } from '../../world/paths.js';
 import { addWays } from '../world/ways.js';
 import { vnoise } from '../world/noise.nodes.js';
+import { WALKER } from '../../world/scale.js';
 
-const STEP = 1, EDGE = 0.25, SOFT = 0.3;   // metres between the curve's points; how far a path's edge wanders either way (as a share of its half width); metres its edge goes over from worn to grass
+// (its verge, where feet stray from it: as wide as a step keeps off anything, the walker's round, its edge going over
+// from worn to grass across it; and the edge wandering either way by half of that: src/world/scale.js)
+const SOFT = WALKER.round, WANDER = SOFT / 2;
 const DIRT = '082f0183-5d92-4ac8-821c-14408d3ee056' /* dry earth: the trodden middle */, CRUMBS = '0db6a039-9f7f-4a58-8137-c3348dfb922e' /* path: towards the edges */;
 
-// a curve through the points (Catmull-Rom, centripetal: no loops where they bunch), a point every STEP metres
-function curve(P) {
+// a curve through the points (Catmull-Rom, centripetal: no loops where they bunch), a point every `step` metres (the
+// path's width: its pieces then miss the curve by under a centimetre where a footpath bends, well within its verge)
+function curve(P, step) {
   const ends = [[2 * P[0][0] - P[1][0], 2 * P[0][1] - P[1][1]], [2 * P.at(-1)[0] - P.at(-2)[0], 2 * P.at(-1)[1] - P.at(-2)[1]]], Q = [ends[0], ...P, ends[1]], out = [P[0]];
   for (let k = 1; k + 2 < Q.length; k++) {
     const [p0, p1, p2, p3] = [Q[k - 1], Q[k], Q[k + 1], Q[k + 2]], d = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]) ** 0.5 || 1e-4;
-    const t1 = d(p0, p1), t2 = t1 + d(p1, p2), t3 = t2 + d(p2, p3), n = Math.max(1, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / STEP));
+    const t1 = d(p0, p1), t2 = t1 + d(p1, p2), t3 = t2 + d(p2, p3), n = Math.max(1, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / step));
     for (let s = 1; s <= n; s++) {
       const t = t1 + ((t2 - t1) * s) / n, L = (a, b, ta, tb) => a.map((v, c) => ((tb - t) * v + (t - ta) * b[c]) / (tb - ta));
       const A1 = L(p0, p1, 0, t1), A2 = L(p1, p2, t1, t2), A3 = L(p2, p3, t2, t3), B1 = L(A1, A2, 0, t2), B2 = L(A2, A3, t1, t3);
@@ -30,7 +34,7 @@ function curve(P) {
 }
 // every path: its pieces (a, b: x, z) in one list, and where its own begin, how many, its box, its half width
 const SEGS = [], RUNS = PATHS.map((path) => {
-  const pts = curve(path.points), first = SEGS.length, half = path.width / 2;
+  const pts = curve(path.points, path.width), first = SEGS.length, half = path.width / 2;
   for (let k = 0; k + 1 < pts.length; k++) SEGS.push([pts[k][0], pts[k][1], pts[k + 1][0], pts[k + 1][1]]);
   const xs = pts.map((p) => p[0]), zs = pts.map((p) => p[1]);
   return { first, n: pts.length - 1, half, box: [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)] };
@@ -42,7 +46,7 @@ const SEG = SEGS.length ? uniformArray(SEGS.map((s) => new THREE.Vector4(...s)),
 const pathNear = Fn(([p0, reach]) => {
   const p = vec2(p0).toVar(), best = float(1e6).toVar(), half = float(1).toVar();
   for (const R of RUNS) {
-    const m = R.half * (1 + EDGE);
+    const m = R.half + WANDER;
     If(p.x.greaterThan(float(R.box[0] - m).sub(reach)).and(p.x.lessThan(float(R.box[2] + m).add(reach))).and(p.y.greaterThan(float(R.box[1] - m).sub(reach))).and(p.y.lessThan(float(R.box[3] + m).add(reach))), () => {
       Loop({ start: int(R.first), end: int(R.first + R.n), type: 'int', condition: '<' }, ({ i }) => {
         const s = SEG.element(i), a = s.xy, ab = s.zw.sub(a), t = clamp(dot(p.sub(a), ab).div(max(dot(ab, ab), 1e-6)), 0, 1);
@@ -52,7 +56,7 @@ const pathNear = Fn(([p0, reach]) => {
     });
   }
   // (its edge wanders: a worn path is never drawn with a ruler)
-  return vec2(best.sub(vnoise(p.mul(1 / 2.3), uint(611)).sub(0.5).mul(2 * EDGE).add(vnoise(p.mul(1 / 0.7), uint(612)).sub(0.5).mul(EDGE)).mul(half)), half);
+  return vec2(best.sub(vnoise(p.mul(1 / 2.3), uint(611)).sub(0.5).mul(2).add(vnoise(p.mul(1 / 0.7), uint(612)).sub(0.5)).mul(WANDER)), half);
 });
 
 /** The same in JS, without the edge's wander: how far (x, z) lies past the edge of the nearest path (Infinity where
@@ -60,7 +64,7 @@ const pathNear = Fn(([p0, reach]) => {
 function pathNearJS(x, z, reach = 0) {
   let best = Infinity;
   for (const R of RUNS) {
-    const m = R.half * (1 + EDGE) + reach;
+    const m = R.half + WANDER + reach;
     if (x < R.box[0] - m || x > R.box[2] + m || z < R.box[1] - m || z > R.box[3] + m) continue;
     for (let k = R.first; k < R.first + R.n; k++) {
       const [ax, az, bx, bz] = SEGS[k], ex = bx - ax, ez = bz - az, t = Math.min(1, Math.max(0, ((x - ax) * ex + (z - az) * ez) / Math.max(ex * ex + ez * ez, 1e-6)));
@@ -75,7 +79,7 @@ function pathNearJS(x, z, reach = 0) {
 // (a quarter of it: the grass grows up to a footpath's edge, a trunk or a boulder stands close by it)
 if (RUNS.length) addWays({
   node: (p, margin) => { const k = margin.mul(0.25), e = pathNear(p, k.add(0.5)).x; return float(1).sub(smoothstep(k.sub(0.05), k.add(0.1), e)); },
-  at: (x, z, margin) => pathNearJS(x, z, margin * 0.25 + 0.5) < margin * 0.25 + 0.1 + EDGE * 0.6,
+  at: (x, z, margin) => pathNearJS(x, z, margin * 0.25 + 0.5) < margin * 0.25 + 0.1 + WANDER,
 });
 
 /** A texel of a page worn by a path (node code, in the page's kernel: src/terrain/pages.js): p its point, s its size
