@@ -24,8 +24,10 @@ export const U = {
   uSnow: uniform(0),                               // how deep the snow lies, metres (src/world/weather/snow.js)
   uFine: uniform(1),                               // how much finer than the inside's pixels textures are read (built over time: src/core/temporal.js)
   uDrawn: uniform(typeof devicePixelRatio === 'number' ? Math.min(devicePixelRatio, 2) : 1),   // pixels drawn a CSS pixel: the inside's ratio (src/core/temporal.js, tools/bench.js), for src/detail/measure.js drawnAt
-  uMarks: uniform(0),                              // 1 while the world is drawn for the picture built over time: a pixel's fourth number then says how still it is
-  uMark: uniform(0),                               // what moves by itself marks its pixels by it (src/world/light.js: stillness; set by src/core/temporal.js)
+  // where a point lay a frame ago, for the prepass's motion (src/core/pass.js; set by src/core/temporal.js): the clock as
+  // it stood then (what moves by the clock, the wind first, is worked out again at it), the world to that frame's clip
+  // space (its camera, unshifted), this frame's shift in the inside's pixels, and the inside's size
+  uTimeWas: uniform(0), uWas: uniform(new THREE.Matrix4()), uJit: uniform(new THREE.Vector2()), uIn: uniform(new THREE.Vector2(1, 1)),
   uSnowFall: uniform(0),                           // how much snow is falling, 0 … 1 (src/world/weather/snowfall.js)
   tShadow: texture(placeholder), uShadowM: uniform(new THREE.Matrix4()), uShadowOn: uniform(0), uShadowTexel: uniform(1 / 2048), uShadowPass: uniform(0),   // the shadow map (src/world/shadow.js)
   uSky: uniform(v3(0.4, 0.55, 0.7)), uHaze: uniform(1 / 6500), uHazeCol: uniform(v3(0.6, 0.7, 0.8)),

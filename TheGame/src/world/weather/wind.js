@@ -13,10 +13,11 @@ const rad = (WIND.from * Math.PI) / 180, to = [-Math.sin(rad), Math.cos(rad)];  
 export const windDir = U.uWind.xy, windStrength = U.uWind.z;
 // its push at a point on the land, (x, z) per unit of sway. Gusts roll over the land along the wind, a long swell and a
 // shorter, quicker one across it; the harder it blows, the deeper they are and the faster they come (uWind.w: how fast
-// its gusts travel, m/s).
+// its gusts travel, m/s). At the clock's time, or at `time`: it keeps nothing from frame to frame, so the prepass works
+// out where what sways stood a frame ago by asking it again at the clock as it stood then (src/core/pass.js)
 const SPACING = 38;
-export const windAt = Fn(([p]) => {
-  const dir = U.uWind.xy, s = U.uWind.z, along = p.dot(dir), across = p.dot(vec2(dir.y.negate(), dir.x)), t = U.uTime.mul(U.uWind.w);
+export const windAt = Fn(([p, time]) => {
+  const dir = U.uWind.xy, s = U.uWind.z, along = p.dot(dir), across = p.dot(vec2(dir.y.negate(), dir.x)), t = (time ?? U.uTime).mul(U.uWind.w);
   const swell = sin(along.sub(t).mul(6.2831853 / SPACING)).mul(0.5).add(0.5), chop = sin(along.mul(2.3).add(across.mul(0.9)).sub(t.mul(1.9)).mul(6.2831853 / SPACING)).mul(0.5).add(0.5);
   const gust = mix(0.75, 0.25, s).add(swell.mul(mix(0.25, 0.6, s))).add(chop.mul(s).mul(0.3));
   return dir.mul(s.mul(gust)).mul(s.mul(s).mul(0.6).add(1));   // the top of the range blows harder still: a storm, not a strong wind

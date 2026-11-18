@@ -20,12 +20,15 @@ export async function bench({ ratio = 1.5, frames = 60, settle = 0 } = {}) {
   const mod = (part) => import(R.filter((n) => n.includes(part)).at(-1));
   const { poseAt } = await mod('src/camera/rig.js'), { setPlanes } = await mod('src/core/frustum.js'), { heightAt } = await mod('src/world/land.js');
   const fin = async () => { if (renderer.backend.isWebGPUBackend) await renderer.backend.device.queue.onSubmittedWorkDone(); else { const gl = renderer.backend.gl; gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)); } };
-  const pm = camera.projectionMatrix.clone(), was = renderer.getPixelRatio(), covered = s.covered; renderer.setPixelRatio(ratio); s.governor.hold(true); s.covered = true;   // (covered: the game's own frame neither chooses nor draws)
+  // (the world drawn as the game draws it: inside at `ratio` and brought up to the canvas, all the screen's pixels, by the
+  // upscale pass (src/core/screen.js); a page without the screen, straight onto the canvas at `ratio`)
+  const pm = camera.projectionMatrix.clone(), was = s.screen ? s.screen.inside : renderer.getPixelRatio(), covered = s.covered, ratioTo = (r) => (s.screen ? s.screen.set(r) : renderer.setPixelRatio(r));
+  ratioTo(ratio); s.governor.hold(true); s.covered = true;   // (covered: the game's own frame neither chooses nor draws)
   const frame = (v) => {
     const P = poseAt(v.x, v.z, v.yaw, v.h, -0.05); camera.position.set(...P.pos); camera.rotation.order = 'YXZ'; camera.rotation.set(P.pitch, P.yaw, 0); camera.fov = P.fov; camera.updateProjectionMatrix(); camera.updateMatrixWorld();
-    const p = camera.position, g = heightAt(p.x, p.z), dy = Math.max(0, p.y - g - 2); U.uDy.value = dy; U.uAirH.value = Math.max(0, p.y - g); U.uLodInv.value = 1; U.uDrawn.value = ratio;   // (drawn straight onto the canvas: its pixels a pixel of the lens's measure)
+    const p = camera.position, g = heightAt(p.x, p.z), dy = Math.max(0, p.y - g - 2); U.uDy.value = dy; U.uAirH.value = Math.max(0, p.y - g); U.uLodInv.value = 1; U.uDrawn.value = ratio;   // (the pixels drawn a CSS pixel, for a page without the screen: src/detail/measure.js drawnAt)
     setPlanes(pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)); s.ground.update(p.x, p.z, dy, 1); s.terrain.update(camera, dy, 1); s.scatter.select(p.x, p.z, g, 1, dy);
-    s.weather.before(camera, g); s.shadows.render(s.scene, camera, g); renderer.render(s.scene, camera);
+    s.weather.before(camera, g); s.shadows.render(s.scene, camera, g); if (s.screen) s.screen.render(s.scene, camera); else renderer.render(s.scene, camera);
   };
   const out = {};
   const gpu = renderer.backend.trackTimestamp && renderer.hasFeature?.('timestamp-query') !== false;   // the game opened with ?gputime (or ?bench): the GPU's own time, not the wall's
@@ -37,7 +40,7 @@ export async function bench({ ratio = 1.5, frames = 60, settle = 0 } = {}) {
     if (gpu) { let sum = 0; for (let i = 0; i < frames; i++) { frame(v); sum += (await renderer.resolveTimestampsAsync('render')) || 0; } out[v.name] = +(sum / frames).toFixed(2); }
     else { const t0 = performance.now(); for (let i = 0; i < frames; i++) frame(v); await fin(); out[v.name] = +((performance.now() - t0) / frames).toFixed(2); }
   }
-  } finally { renderer.setPixelRatio(was); s.governor.hold(false); s.covered = covered; }
+  } finally { ratioTo(was); s.governor.hold(false); s.covered = covered; }
   out.measure = gpu ? 'GPU time' : 'wall time';
   out.worst = Math.max(...VIEWS.map((v) => out[v.name])); out.pass = out.worst <= BUDGET;
   return { ratio, size: [innerWidth, innerHeight], ...out };

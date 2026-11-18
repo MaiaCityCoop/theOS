@@ -22,6 +22,8 @@ import { Fn, If, float, uint, vec3, vec4, uniform, varyingProperty, normalize, m
 import { camDist } from '../world/land.nodes.js';
 import { heightAt } from '../world/land.js';
 import { windAt, windStrength, unlit } from '../world/light.js';
+import { passOf, motion, vWas } from '../core/pass.js';
+import { U } from '../core/uniforms.js';
 import { layerOf, wrapGrad } from '../world/tile.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { detailOf } from '../detail/index.js';
@@ -80,16 +82,20 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
     If(H.whole.and(on.drawn), () => {
       const V = madeOf(D.H.elems.element(R.y.add(on.vertex)), N0.xyz, N1.xyz), p = V.position;
       const s = A.w.div(span), { turn, unturn } = turnOf(B.x);
-      // its sway in the wind, in its own frame (src/world/made.nodes.js)
-      const foot = vec3(A.x, A.z, A.y), push = windAt(foot.xz.add(turn(p).xz.mul(s))), along = unturn(vec3(push.x, 0, push.y));
-      const q = sinkInto(swayed(p, V.normal, { H: N0.w, R: N1.w, billow: N2.x, flap: N2.y, sway: N2.z }, along, windStrength), H.sunk);
-      const w = foot.add(turn(q.mul(s))).toVar();
+      // its sway in the wind, in its own frame (src/world/made.nodes.js), at a time: the clock's, and for the prepass the
+      // clock's a frame ago (where it was: src/core/pass.js)
+      const foot = vec3(A.x, A.z, A.y), at = (time) => {
+        const push = windAt(foot.xz.add(turn(p).xz.mul(s)), time), along = unturn(vec3(push.x, 0, push.y));
+        return sinkInto(swayed(p, V.normal, { H: N0.w, R: N1.w, billow: N2.x, flap: N2.y, sway: N2.z }, along, windStrength, time), H.sunk);
+      };
+      const q = at(U.uTime), w = foot.add(turn(q.mul(s))).toVar();
       vW.assign(w); vN.assign(turn(V.normal)); vC.assign(V.colour.mul(S.rgb)); vY.assign(q.y.mul(s)); vK.assign(vec3(float(kind), V.part, S.w));   // (its colour in its tint: painted)
-      clip.assign(clipOf(w));
+      clip.assign(clipOf(w, foot.add(turn(at(U.uTimeWas).mul(s)))));
     });
     return clip;
   })();
-  m.fragmentNode = Fn(() => {
+  m.fragmentNode = Fn((builder) => {
+    if (passOf(builder) === 'pre') return motion(vWas);   // (the prepass: where it was a frame ago)
     const out = vec4(0).toVar();
     If(unlit().not(), () => {   // (drawn into the shadow map, only its depth counts: no light)
       const kind = uint(vK.x.add(0.5)), N3 = D.numOf(kind, 3), N4 = D.numOf(kind, 4), snow = D.lookOf(kind, 3).x, part = vK.y;
@@ -105,6 +111,7 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
     });
     return out;
   })();
+  m.userData.pre = true;   // (it takes part in the prepass: src/core/pass.js)
   return m;
 }
 

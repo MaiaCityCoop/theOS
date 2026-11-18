@@ -247,6 +247,115 @@ parallel streams, each in its own worktree and branch.
 | Peak memory (physical footprint) | 3.47 GB | ≤ 8 GB |
 | Shaders compiled at start | 135 modules, 3.58 MB (the land: 390 + 240 KB) | Small enough that the library starts in Safari |
 
+### Stage 2b: prepass, motion vectors, one upscale to 4K (2026-11-18)
+
+- **The prepass** (`src/core/pass.js`). A material that takes part (the land, the stands, the grass, the rocks and
+  what is placed: `userData.pre`) is drawn twice, by two twins that carry the pass in three's `contextNode`, so one
+  material's node code says per pass what it needs:
+  - the prepass writes the depth and the motion (rgba16f: the motion on the screen, written, thin), with no light;
+    leaves, the thinning dither and the far body's cover are cut here and only here;
+  - the colour pass draws with an equal depth test and no discard (a tile GPU's hidden-surface removal then works on
+    cut-out leaves), in the light's own numbers; its fourth number is the reactive mask (the fire and the falling
+    snow lower it by their blending, a mover on its skeleton writes 0);
+  - the position is `@invariant` in both (three's `context({ invariant: true })`). No holes were seen in Chrome.
+- **Motion vectors** include the camera and every moved vertex. The previous position is the same stateless function
+  asked at the previous frame's clock (`windAt(p, time)`, each blade's flutter, the sprigs' swing, the drawer's growing
+  (`solidOf().at`), a made thing's sway (`swayed(…, time)`)), through the previous frame's unshifted camera:
+  `clipOf(w, was)` hands it to the prepass. Checked with the camera moving: the prepass's motion of what stands still
+  equals the camera's reprojection through the depth within 0.05 px. Not followed: a mover's skeleton (its pixels are
+  reactive instead, as before), and the land's distance morph.
+- **The upscale** (`src/core/temporal.js`) is one pass at the screen's pixels. It writes the kept picture and the
+  canvas together (the kept picture a storage texture written from the fragment shader: three r187 declares one there
+  read-only unless it is read-write, so its WGSL builder is told once), and tonemaps there: `toScreen` is the identity
+  in both passes, so no material changed. From FSR 2 and TSR:
+  - jitter phases ⌈8·s²⌉ (18 at 1440p → 4K);
+  - a box in YCoCg of a reversible curve (c / (1 + max)), clipped toward its mean;
+  - locks where something thin stands among unlike pixels, held three frames in the kept picture;
+  - the reactive mask;
+  - the motion read at the nearest of the 2 × 2 drawn pixels (one `textureGather` of the depth);
+  - thin foliage (the prepass's flag) gets a wider box.
+  - The lens's glass is fused too: the kept picture lives in the glass's own frame.
+  - WebGL 2 draws the same pass into two targets and copies to the canvas.
+- **Removed:** `stillness`, `uMark`, `uMarks`, the look, build and show passes, the separate sharpening, and the
+  tonemap in every material.
+- **What it costs, on the bench's base M1:** at 4K, what the pass moves costs more than what it reckons. A pass that
+  only reads and writes the kept picture and the canvas cost 5.1 ms; reading a 3 × 3 cost 11.5 ms. So the pass reads
+  2 × 2 (13 reads a pixel) and keeps its picture in eight bits a number (the square root of the perceptual colour,
+  rounded by a noise that changes every frame; the worth and lock in the alpha).
+  - The GPU was shared with other agents all night: the same shadow pass took 1.0–6.5 ms from run to run. So each
+    timing was taken beside the shadow pass in the same page, and is read against it (the pine forest at eye level,
+    drawn 2560 × 1440, shown 3840 × 2160, eight runs each):
+
+| Measure | Base | Branch |
+| --- | --- | --- |
+| The upscale alone (old: three passes), in shadow passes | 9.4 (7.9–10.8) | 6.0 (5.6–7.0) |
+| The same in ms, at the calmest run | 11.9 | 8.7 |
+| The whole frame (old: colour and upscale; new: prepass, colour, upscale), in shadow passes | 62 (47–71) | 40 (38–61) |
+
+  - So the upscale costs about two thirds of the three passes it replaces, and the whole frame about two thirds of
+    the old one: the prepass costs less than the leaves' hidden pixels it stops shading. On an idle M1 that would be
+    about 6 ms for the upscale, three times its 2 ms budget: at 4K it moves 12 bytes a screen pixel at the least
+    (the kept picture read and written, the canvas written). The next saving is in what it reads.
+- **The gate's other readings** (the same shared GPU; indicative only):
+
+| Measure | Base | Branch | Gate |
+| --- | --- | --- | --- |
+| Bench GPU at six views, the whole frame through the screen | 56–82 ms | 35–96 ms | ≤ 12 ms |
+| Walk, median / GPU p99 (cold; warm) | 50 / 148 ms; 33 / 61 ms | 50 / 71 ms; 33 / 57 ms | No frame over 16.7 ms |
+| Orbit, median / GPU p99 (cold; warm) | 50 / 133 ms; 33 / 86 ms | 50 / 63 ms; 50 / 89 ms | No frame over 16.7 ms |
+| Peak memory (physical footprint) | 3.56 GB | 3.71 GB | ≤ 8 GB |
+| Shaders compiled at start | 135 modules, 3.58 MB | 159 modules, 4.19 MB | Small enough for Safari |
+
+- **FLIP against `?truth`**, all on fresh browser profiles (see Found):
+
+| View | Base against its truth | Branch against the base's truth | Branch against its own truth | Base against the branch's truth | Branch against base |
+| --- | --- | --- | --- | --- | --- |
+| Tent, eye level | 0.1365 | 0.1480 | 0.1383 | 0.1472 | 0.040 |
+| Pine forest, eye level | 0.1103 | 0.1152 | 0.1108 | 0.1134 | 0.029 |
+| Pines from 30 m | 0.2631 ¹ | 0.2631 ¹ | 0.2609 | 0.2621 | 0.033 |
+
+  ¹ against 2a's truth on the kept profile: the base's truth at pines-30m on a fresh one was lost twice (the device,
+  then `settle()` under the shared GPU).
+
+  - Each picture is nearest its own truth. The two truths differ by 0.026–0.038 themselves: the kept picture is now
+    averaged in a reversible perceptual curve, not in the screen's numbers; the flames are composited in the light's
+    numbers; and the separate sharpening is gone. Same code shot twice differs by 0.014–0.018.
+
+- **Swaying foliage, in motion** (wind 0.6, the clock running; FLIP of a moving frame against the same moment held
+  still and settled):
+
+| View | Base | Branch |
+| --- | --- | --- |
+| Pine forest, eye level | 0.056 (p99 tile 0.143) | 0.040 (0.094) |
+| Tent, eye level (grass) | 0.057 (0.185) | 0.048 (0.163) |
+
+  - The base smears what sways: it keeps half a frame's worth of history there without knowing where it was.
+  - The branch follows it, and keeps its edges.
+- **Found:** the gate's stills depend on the browser profile. On the kept `.gate/chrome` profile the same code drew
+  the plants at pines-30m otherwise than on a fresh one (FLIP 0.17 between them, base against branch). So `gate.js`
+  has `--fresh` (a new profile for the run), and every comparison above is taken fresh. Also: a frame slower than
+  250 ms lets the kept picture go (`stale`), so `settle()` never comes under very heavy load; `--url` points the gate
+  at a worktree's own server; `bench` now times the whole frame through the screen (prepass, colour, upscale).
+- **Not done:** normals in the prepass (nothing reads them yet: the light's stage writes them when it needs them);
+  a mover's own motion (its skeleton at the previous stride); Safari is not tried (`@invariant`, storage writes in a
+  fragment shader); the virtual camera's depth of field is not exercised by the gate (its target is now half float);
+  `tools/sweep.js` reads the colour target as eight bits and now gets half floats.
+### Stage 10: ship what CI built; next deploys itself (2026-11-17)
+
+- **Ship what CI built.** CI's push to `main` uploads its release tar, `release-next`. The deploy downloads that run's
+  artifact (no checkout, no rebuild) and checks that its `version.json` names the commit. A manual run with
+  environment and commit is the rollback: it finds that commit's passed push run and ships its artifact.
+- **Next deploys itself** when CI passes on a push to `main` (`workflow_run`). It deploys only for a passed `push` run
+  from this repository; production stays manual. `AUTO_DEPLOY_NEXT` is no longer read.
+- **`.gitattributes`:** `Intents/*.md merge=union`.
+- **`Stories/store.js`:** what the four Stories CLIs repeated. 58 read commands give identical output, and 52 write
+  commands write byte-identical files.
+- **`server/repo.js`:** one repo API and one MIME table for both dev servers and both builds; the builds are
+  byte-identical to main's.
+- Bun workspaces were skipped while another branch changed `TheGame/package.json`.
+- **Only GitHub can show** the artifact passing between runs and the `workflow_run` trigger. They fire after the
+  merge. Commits from before it have no artifact, so a rollback reaches only later ones.
+
 ### The state of the art, checked (2026-11-17)
 
 Three research rounds, each read against this definition. Sources marked † were seen only through a search summary.
@@ -379,7 +488,7 @@ Three research rounds, each read against this definition. Sources marked † wer
 - [ ] Samuel's reference photos (shot list under Build)
 - [x] Stage 1: clean ground
 - [x] Stage 2a: gate, settle, one measure, truth
-- [ ] Stage 2b: prepass, motion vectors, upscale
+- [x] Stage 2b: prepass, motion vectors, upscale
 - [ ] Stage 3: boot
 - [x] Stage 4: far end, impostor and clump rung (built; draft PR)
 - [ ] Stage 5: crowds, parts and one wind
@@ -387,7 +496,7 @@ Three research rounds, each read against this definition. Sources marked † wer
 - [ ] Stage 7: placement, five layers
 - [ ] Stage 8: surfaces, cluster hierarchy
 - [ ] Stage 9: one light, characters
-- [ ] Stage 10: repository
+- [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
 
 ## Changelog
 
@@ -424,6 +533,15 @@ Three research rounds, each read against this definition. Sources marked † wer
   - rocks and the list's made things still end in the drawer's dot and the rocks' thinning;
   - Safari not tried; no clean GPU reading (the GPU was shared throughout).
 
+### 2026-11-18
+
+- **Delivered:** stage 2b, the prepass with motion vectors (the wind's included) and one upscale pass to 4K that
+  tonemaps; `stillness` and two passes gone.
+- **Good:** swaying foliage keeps its history and its edges in motion; static geometry's motion matches the camera's
+  to 0.05 px; the colour pass shades no hidden leaf.
+- **Not there yet:** the gate in motion and the 12 ms budget (a base M1 shared with other agents); normals in the
+  prepass; a mover's own motion; Safari.
+
 ## Trail
 
 | When | Commit | What |
@@ -437,4 +555,5 @@ Three research rounds, each read against this definition. Sources marked † wer
 | 2026-11-17 | `e05e75b` | Stage 1: clean ground, one plant LOD path, no tuning switches (−1194 lines) |
 | 2026-11-17 | `a5d2d9a` | Stage 1 merged (#61) and deployed to next |
 | 2026-11-17 | `06baae7` | Stage 2a: the gate (FLIP, stills, bench, compile, paths), settle, one measure, `?truth` |
+| 2026-11-18 | `4296c81` | Stage 2b: prepass with motion vectors, one upscale to 4K (`stillness` and two passes gone) |
 | 2026-11-18 | `a1f5009` | Stage 4: one impostor and the clump rung; the hull bodies, the CPU bake and the stipple deleted (+165 lines) |
