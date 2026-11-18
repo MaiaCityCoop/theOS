@@ -500,9 +500,10 @@ function table(G) {
 const stale = staleAudit();
 if (stale.length) fail(`AUDIT names what the code no longer has (${stale.join(', ')}): drop it from AUDIT (tools/health.js)`);
 const all = git('ls-files', '-co', '--exclude-standard', '--full-name', '--', ':/').filter((p) => existsSync(join(REPO, p)));
-const SHA = git('rev-parse', 'HEAD')[0], DIRTY = git('status', '--porcelain').length > 0;   // (a tree that is not its commit as it stands: smoke's summary for the commit is not its)
-const HERE = await measure(GAME, HERE_FILES, REPO, all, DIRTY ? null : SHA);
-const H = { commit: SHA.slice(0, 7) + (DIRTY ? '+' : ''), at: new Date().toISOString(),
+/** The commit the tree is as it stands; null where it holds changes not committed (no summary kept for a commit is its). */
+const standing = () => (git('status', '--porcelain').length ? null : git('rev-parse', 'HEAD')[0]);
+const HERE = await measure(GAME, HERE_FILES, REPO, all, standing());
+const H = { commit: git('rev-parse', '--short', 'HEAD')[0] + (git('status', '--porcelain').length ? '+' : ''), at: new Date().toISOString(),
   area: AREA.map((a) => (a.folder !== undefined ? `${a.folder}/*` : a.path)), ...HERE };
 if (BASE) {
   const { repo, game } = unpack(BASE);
