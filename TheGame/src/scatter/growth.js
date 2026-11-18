@@ -27,6 +27,11 @@ export const REACH = (N / 2 - SNAP) * TEXEL;
 const byte = (v) => uint(round(clamp(v, 0, 1).mul(255)));
 const un = (w, k) => float(w.shiftRight(uint(8 * k)).bitAnd(uint(255))).mul(1 / 255);
 
+let CURRENT = null;
+/** The world's growth map, once the trees' engine has made it (null before, and without WebGPU): what the meadow reads
+    too, the smallest layer of all (src/scatter/grass.js). */
+export const growthMap = () => CURRENT;
+
 /** The map: its buffer (made with the renderer, on the GPU only), what reads it, and how it is kept round the camera.
     words: how many the layers that write need. */
 export function createGrowth(renderer, words) {
@@ -63,8 +68,11 @@ export function createGrowth(renderer, words) {
   };
   // (each layer over every rectangle before the next layer: what a layer reads of the one before is worked out first)
   const run = (rects) => { for (const p of passes) for (const [x0, z0, w, h] of rects) { uRect.value.set(x0, z0, w, h); renderer.compute(p, [Math.ceil(w / 8), Math.ceil(h / 8), 1]); } };
-  return {
-    read, build, words: W,
+  /** What every layer that writes left at p: the light that comes through all their crowns, and how much of the ground
+      their feet take. */
+  const all = (p) => { const light = float(1).toVar(), foot = float(0).toVar(); for (let w = 0; w < W; w++) { const v = read(p, w); light.mulAssign(float(1).sub(v.shade)); foot.assign(foot.max(v.foot)); } return { light, foot }; };
+  return CURRENT = {
+    read, all, build, words: W,
     compile: () => (passes.length ? renderer.compileComputeAsync(passes) : Promise.resolve()),
     /** The window kept round (x, z): the rows and columns it comes onto worked out (all of it the first time, after a
         jump, or when what the rule reads changed: `world`). Before anything that reads it packs. */

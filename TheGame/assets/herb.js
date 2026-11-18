@@ -26,5 +26,5 @@ export default tree({
   grow: (S) => { const b = builder({ ao: (p) => 0.5 + 0.4 * Math.min(1, p[1] / S.h), barkTile: 0.5, colours: [woodCol, leafCol] }); mound(b, { r: S.r, h: S.h, lobes: S.lobes, ragged: 0.25, dome: [0.1, 0.9], puffs: [14, 5], count: [1, 1], size: [S.h * 0.8, S.h * 1.2], rise: 0.6, seed: S.seed }); return b; },
   // where it grows (src/scatter/rule.js): the pine forest's floor where the light comes through (light: how thick in
   // deep shade and in the open)
-  placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, cover: 0.25, light: [0.15, 1], scale: [0.7, 1.4], lean: 0, seed: 780 },
+  placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, cover: 0.45, light: [0.15, 1], scale: [0.7, 1.4], lean: 0, seed: 780 },
 });

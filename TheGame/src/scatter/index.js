@@ -44,7 +44,8 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
   }
   // an engine makes its tiers asset by asset (create), or all of its assets at once (createAll: what shares tiers, as
   // the kinds of one stand do: trees.js)
-  for (const [E, list] of rows) { if (E.createAll) take(E.createAll(scene, tex, ground, list, gpu, renderer), E.id); else for (const row of list) take(E.create(scene, tex, ground, row, gpu, renderer), row.name); }
+  // (the engines that place the larger things first: what is smaller reads what they leave, src/scatter/growth.js)
+  for (const [E, list] of [...rows].sort(([a], [b]) => !!b.createAll - !!a.createAll)) { if (E.createAll) take(E.createAll(scene, tex, ground, list, gpu, renderer), E.id); else for (const row of list) take(E.create(scene, tex, ground, row, gpu, renderer), row.name); }
   for (const E of Object.values(ENGINES)) if (E.createOwn) take(E.createOwn(scene, tex, ground, gpu, renderer), E.id);   // what an engine places of its own
   return {
     tiers,

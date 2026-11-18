@@ -11,7 +11,8 @@ import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
 import { TRUTH } from '../detail/measure.js';
 import { CROWD } from '../../assets/kit/crowd.js';
-import { rankOf } from './rule.js';   // (a blade's turn in the one spread order, as everything placed has it)
+import { rankOf } from './rule.js';
+import { growthMap } from './growth.js';   // (a blade's turn in the one spread order, as everything placed has it)
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
 
@@ -40,7 +41,10 @@ function bladeIn(c, asset, T, ground) {
   // three hashes carry everything a blade is; nothing is read before the blade is known to stand
   const h1 = hashI(c.x, c.y, uint(100));
   const pos = vec2(c).add(vec2(float(h1.bitAnd(uint(0xFFF))), float(h1.shiftRight(uint(12)).bitAnd(uint(0xFFF)))).mul(1 / 4096)).mul(T.cell);
-  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = G.y, h2 = hashI(c.x, c.y, uint(101));
+  // (and, the smallest layer of all, as thick as the light that comes through what grows over it allows, and none on
+  // the feet of the larger: src/scatter/growth.js)
+  const M = growthMap(), F = M ? M.all(pos) : null;
+  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = F ? G.y.mul(F.light.mul(F.light)).mul(float(1).sub(F.foot)) : G.y, h2 = hashI(c.x, c.y, uint(101));
   const inBand = dist.lessThanEqual(hf.mul(-T.farFade).add(T.far)).and(dist.greaterThanEqual(hf.mul(-T.nearFade).add(T.near)));
   const r1 = u8(h2, 0), r2 = u8(h2, 8), r3 = u8(h2, 16);
   // blades stand in tufts: the tuft they are in gives them a height, a lean and a shade in common
@@ -116,7 +120,9 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
     };
     // the most that may stand at once: the ring's area in cells, as much as the frustum can hold of it
     const cap = Math.ceil((Math.PI * (T.far ** 2 - Math.max(0, T.near - T.nearFade) ** 2)) / (T.cell * T.cell) * 0.6);
-    return new Tier(scene, blade(T.segs), material, { cell: T.cell, P: T.P, near: T.near - T.nearFade, far: T.far, order: 0, live, gpu, cap, slots: 3 });
+    const t = new Tier(scene, blade(T.segs), material, { cell: T.cell, P: T.P, near: T.near - T.nearFade, far: T.far, order: 0, live, gpu, cap, slots: 3 });
+    if (growthMap()) t.reads = growthMap().version;   // (packed again when what grows over it changes)
+    return t;
   });
 }
 
