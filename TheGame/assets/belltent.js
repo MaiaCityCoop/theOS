@@ -105,7 +105,7 @@ export default {
   name: 'Bell tent',
   kind: 'shelter',
   roofed: 2.45,   // metres round its middle under its roof: no snow falls there (kinds.js: snow)
-  about: 'A round canvas bell tent on one centre pole, five metres across, guyed out on eight ropes. The first thing that stands in Maia City.',
+  about: 'A round canvas tent, five metres across: the first thing in Maia City.',
   measure: MEASURE,
   size: { length: 2 * R * 1.75, width: 2 * R * 1.75, height: PEAK + CAP },
   colours: { canvas, shade, inside, rope, wood, groundsheet: sheet },

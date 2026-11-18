@@ -18,8 +18,8 @@ export default {
   type: 'material',
   name: 'Pine twig',
   kind: 'foliage',
-  about: "One twig of a stone pine, alone and whole: brushes of long paired needles fanning out all round it, dark at their base: the card a stone pine's nearest crown is made of.",
-  usedBy: 'the crowns of the stone pines, seen close (a cut-out card, a twig each)',
+  about: 'One needle twig, whole: the card of the nearest stone pine crown.',
+  usedBy: 'stone pine crowns, seen close',
   swatch: [0.16, 0.25, 0.1],
   bump: 0.05,
   paint: (uv) => {
