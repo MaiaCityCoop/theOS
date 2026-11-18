@@ -13,7 +13,7 @@
    true
   ],
   [
-   "A friendly face: a smile over real teeth, a spark in each eye, a narrower chin",
+   "A warm base face: a whole smile over good teeth, a fond gaze with a spark in each eye, a narrower chin",
    true
   ],
   [
@@ -193,45 +193,45 @@
   },
   {
    "at": 17.4,
-   "for": 3.2,
+   "for": 3.0,
    "kind": "samuel",
-   "text": "ensure we have an actual sparkling eyes friendly positive face"
+   "text": "The base view should be a smile and sparkle in the eyes."
   },
   {
-   "at": 20.8,
-   "for": 2.8,
+   "at": 20.6,
+   "for": 3.4,
    "kind": "samuel",
-   "text": "The chin is too wide, going too far to the front"
+   "text": "Friendly heartwarming gaze, a human in love and full of inspiration."
   },
   {
-   "at": 23.8,
-   "for": 2.6,
+   "at": 24.2,
+   "for": 2.4,
    "kind": "samuel",
    "text": "And the ears need to be more realistic"
   },
   {
-   "at": 26.6,
+   "at": 26.8,
    "for": 3.4,
    "kind": "maia",
-   "text": "It cannot move yet. So its rest is a smile, over real teeth."
+   "text": "It cannot move yet. So its rest is a whole smile, over good teeth."
   },
   {
-   "at": 30.2,
+   "at": 30.4,
    "for": 2.8,
    "kind": "maia",
-   "text": "A spark in each eye, whichever way the sun stands."
+   "text": "Its lids smile too, and each eye holds a spark."
   },
   {
-   "at": 33.2,
+   "at": 33.4,
    "for": 3.0,
    "kind": "maia",
    "text": "Ears with a rim, a bowl and a lobe, 19 mm off the head."
   },
   {
-   "at": 36.4,
-   "for": 3.2,
+   "at": 36.6,
+   "for": 3.0,
    "kind": "maia",
-   "text": "Friendly, yes. A photograph, no: no hair, no blink."
+   "text": "Warm, yes. A photograph, no: no hair, no blink."
   },
   {
    "at": 39.8,

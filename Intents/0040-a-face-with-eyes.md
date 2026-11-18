@@ -90,6 +90,22 @@ and behind. Check 3's "the body as it was" allows the head's points and triangle
 **Out of scope still:** hair; the face moving (the smile is fixed; a blink, a look, speech); the lower teeth, the
 tongue; the rule.
 
+### Third round (2026-11-18)
+
+> The base view should be a smile and sparkle in the eyes. Friendly heartwarming gaze, a human in love and full of
+> inspiration. This included good teeth.
+
+Samuel, on the second round's stills. It settles what the second round left to him: the smile is the face's rest.
+And it asks for more of it: a whole smile, a fond gaze, good teeth. Built straight away.
+
+| | How | Why |
+| --- | --- | --- |
+| **A whole smile** | The mouth's corners above the upper lip's middle, the mouth broader, the cheeks raised more; the lower lip following the upper teeth's edges | A smile reads as warm when the corners turn up and the lower lip follows the teeth; a level mouth with teeth showing reads as a grin |
+| **A fond gaze** | The lower lids raised over the iris's foot, the upper a little lower, the pupils wide; fine lines from the eyes' outer corners; a second spark in each eye; the brows a little higher; more blood in the cheeks | The eyes take part in a smile that is meant: narrowed from below, bright, wide-pupilled |
+| **Good teeth** | Each tooth with its gum, the gum coming down to a point between two teeth; shade where a tooth turns to its neighbour; ivory, warmer at the neck, clearer at the edge; the lower row behind the upper | The second round's teeth were ten plain crowns with dark between them |
+
+**Deliverable:** 9. a base face that smiles warmly, with a fond, sparkling gaze and good teeth. **Checks** as before.
+
 ## Build
 
 **What turned out different from the definition, and why.** The definition said: draw what can be drawn exactly (the
@@ -208,17 +224,37 @@ its carved bowl are gone from the tables. The skin is now three closed surfaces:
   eye and the sun glows red, as an ear does. Seen in the still from behind.
 
 
+### Third round: a whole smile, a fond gaze, good teeth (2026-11-18)
+
+- **The smile** (`MOUTH`): 61 mm broad for 59; its corners at 1.6150 m, above the upper lip's middle edge (1.6148),
+  where they had stood 2 mm under it; the lower lip's edge at 1.6050, just over the upper front teeth's edges (1.6051
+  on the skull), rising to the corners along them. The lips' masses moved with it; the cheek's mass a millimetre
+  fuller and 2 mm higher.
+- **First the lower lip stood too low** (1.6038): the lower row showed under the upper as a second row of small
+  teeth, and the face clenched its teeth. Raised until only the upper row shows.
+- **The gaze** (`EYE`, `eyesOf`, `skin/light.js`): the lower lid 0.6 mm higher again and the upper 0.2 lower, the
+  opening 7.9 mm high for a resting eye's 10; the pupil 5 mm across for 4; a second, small spark low on the other
+  side of the cornea; the iris a little warmer; three fine lines fanning from each eye's outer corner, drawn in the
+  skin's shader (first too dark and thin, like a cat's whiskers: softened to half); the brows 1 to 1.5 mm higher; the
+  cheeks' blood from 0.4 to 0.52; the lips a little redder.
+- **The teeth** (`mouthOf`): each tooth now begins as a collar under the gum, broad enough to meet its neighbours',
+  and the gum is drawn on the tooth by where on it a point lies: standing back at the tooth's middle, coming down
+  between two teeth as a point. Enamel ivory, warmer towards the neck, cooler and clearer at the edge, in shade where
+  it turns to the next tooth. The lower row's eight front teeth stand behind the upper (the skull's own places), for
+  what shows of them: eighteen crowns in all.
+
 ## Propose
 
-**What is delivered** (both rounds). A head that reads as a head, with a friendly face: eyes with a spark in them
-behind lids, a smile over teeth, a narrower chin, ears that stand off the head. Not yet a photograph. Look at it with
+**What is delivered** (three rounds). A head that reads as a head, and a face whose rest is a warm smile: a fond,
+bright gaze from eyes behind smiling lids, the lips parted over good teeth, a narrower chin, ears that stand off the
+head. Not yet a photograph. Look at it with
 `bun tools/body.js --stills <folder>` (the game's dev server running): `face`, `face-three-quarter`, `face-side`,
 `eye`, `mouth`, `ear`, `head-from-behind` among twenty-two stills; or in the library, the Body.
 
 | # | Check | Result |
 | --- | --- | --- |
-| 1 | The face reads as a face, and a friendly one; the ears as ears | **Passed, with the gaps below.** The tool drew all twenty-two stills on 2026-11-18. Beside the stills before: an upright forehead; eyes in sockets with lids, lashes, an iris, a pupil and two sparks of light; a nose with ridge, tip and wings; a smiling mouth, the lips parted over the upper front teeth; a chin and a jaw's line; ears with a rim, an inner ridge, a bowl and a lobe, standing off the head from the front and from behind |
-| 2 | Its measures | **Printed.** Table below: nine of fourteen within 5 % of a man's, one at 5 %, the nose's tip 10.5 % short; three are a smile's measured against norms for a face at rest. The norms are remembered, none read for this |
+| 1 | The face reads as a face, and a warm one; the ears as ears | **Passed, with the gaps below.** The tool drew all twenty-two stills on 2026-11-18. Beside the stills before: an upright forehead; eyes in sockets, narrowed from below as a smile narrows them, with lashes, a wide pupil and sparks of light; a nose with ridge, tip and wings; a broad smile, its corners up, the lips parted over the upper row of teeth, each tooth shaded against the next; a chin and a jaw's line; ears with a rim, an inner ridge, a bowl and a lobe, standing off the head from the front and from behind. Whether it is the gaze of a human in love and full of inspiration is Samuel's to say: it is warm and bright; it is also fixed |
+| 2 | Its measures | **Printed.** Table below: nine of fourteen within 5 % of a man's, one at 5 %, the nose's tip 10.7 % short; three are a smile's measured against norms for a face at rest. The norms are remembered, none read for this |
 | 3 | The body is as it was | **Passed.** Twelve of the body's thirteen measures to the digit as in intent 0039; the neck 39.0 cm for 43.1 (a man's 39). Open edges 0 at each of the three levels. The body's own points are where they were; the five poses' shares read a little lower (0.34 %, 1.1 %, 0.42 %, 0.51 %, 1.62 % for 0.38, 1.24, 0.47, 0.58, 1.87) because the ears' edges, which do not stretch, are now counted among them |
 | 4 | Nothing else changes | **Passed.** `bun tools/scale.js`: 18 of 18 within their measure. `bun tools/registry.js`: 52 recipes. `vite build` in `TheGame` and in `OS`: built |
 
@@ -237,11 +273,11 @@ laid in 31 s under node.
 | face, the nose's root to the chin's foot | 126.6 | 122 | +3.8 % |
 | nose, its root to its foot | 57.7 | 55 | +5 % |
 | nose, its breadth | 36.6 | 35 | +4.6 % |
-| nose, its tip before its foot | 17.5 | 19.5 | -10.5 % |
-| upper lip, the nose's foot to its edge, smiling (as drawn; a man's: at rest) | 14.4 | 22 | -34.5 % |
-| mouth, its breadth, smiling (as drawn; a man's: at rest) | 59 | 54 | +9.3 % |
+| nose, its tip before its foot | 17.4 | 19.5 | -10.7 % |
+| upper lip, the nose's foot to its edge, smiling (as drawn; a man's: at rest) | 13.8 | 22 | -37.3 % |
+| mouth, its breadth, smiling (as drawn; a man's: at rest) | 61 | 54 | +13 % |
 | eye, its opening's length (as drawn) | 30.1 | 31 | -3 % |
-| eye, its opening's height (as drawn; the lids smiling) | 8.7 | 10.5 | -17.1 % |
+| eye, its opening's height (as drawn; the lids smiling) | 7.9 | 10.5 | -24.8 % |
 | between the eyes' inner corners (as drawn) | 33 | 33 | 0 % |
 | between the eyes' outer corners (as drawn) | 93 | 91 | +2.2 % |
 
@@ -251,11 +287,12 @@ lab script's print).
 
 **Known gaps, as the stills show them.** The gate is a photorealistic body; the face is nearer and not there.
 
-1. **The smile is fixed.** The face cannot move, so it smiles standing, walking and squatting alike. Whether that is
-   right for the Body's rest is Samuel's to say.
-2. **The teeth** are ten smooth crowns of the upper row with no gum between them and none of the lower row: enough
-   for this smile, nothing for an open mouth. A thin dark line shows between the two middle teeth.
-3. **The eyes do not blink or look.** The pink mound at the inner corner meets the white along a hard line.
+1. **The smile is fixed.** The face cannot move, so it smiles standing, walking and squatting alike, and its gaze
+   goes straight ahead. Samuel has said the smile is its base; a face that moves is what would make it a look.
+2. **The teeth** are smooth crowns: no furrows, no wear, each like its twin; the gum is drawn on the tooth, not a
+   form of its own; behind them one dark surface, no tongue. A thin dark line shows between the two middle teeth.
+3. **The eyes do not blink or look.** The pink mound at the inner corner meets the white along a hard line. The
+   fine lines at the outer corners are drawn, not folds.
 4. **The ears:** the tragus is a rise before the canal, not a flap over it; there is a small point where the rim
    leaves the temple; the back of the ear is plain; where the ear meets the head there is a plain line, the two skins
    meeting, not one skin turning. At a distance its coarsest level is blocky (seen as clay only).
@@ -271,7 +308,7 @@ lab script's print).
 **Samuel's to decide**
 
 - **Accept or reject** this round.
-- **The smile as the face's rest**, and how much of one: it is four numbers in `MOUTH`.
+- **How much of a smile:** it is four numbers in `MOUTH`, and the lids' two in `EYE`.
 - **The chin:** now 100.5 mm before the head's middle plane, 4 mm behind where the measured means put it. Further?
 - **What next for the head**, if anything: hair (head, beard, brows as strands); the face moving (a blink is one
   number in `EYE`, a smile four in `MOUTH`; a look and a jaw are the rig's).
@@ -297,6 +334,7 @@ lab script's print).
 - [x] second round: the chin narrower and further back
 - [x] second round: a smile over teeth; the eyes' sparkle
 - [x] second round: ears of their own form
+- [x] third round: a whole smile, a fond gaze, good teeth
 - [ ] hair; the face moving (out of scope here: Samuel's to order)
 - [ ] seen in the library on a real GPU, and timed
 
@@ -344,6 +382,22 @@ lab script's print).
   rise, not a flap, and the ear meets the head along a plain line. No hair. Not seen in the library or on a real GPU;
   its cost a frame not measured.
 
+### 2026-11-18, third round
+
+- **Asked.** Samuel, on the second round's stills: "The base view should be a smile and sparkle in the eyes. Friendly
+  heartwarming gaze, a human in love and full of inspiration. This included good teeth" (typos tidied). Back to build
+  once more.
+- **Delivered.** A whole smile as the base: the corners above the upper lip's middle, 61 mm broad, the lower lip
+  following the upper teeth's edges, the cheeks fuller and redder. Smiling lids, wide pupils, a second spark, fine
+  lines at the eyes' outer corners, the brows a little higher. Teeth with their gums, shaded each against the next,
+  ivory; the lower row behind the upper.
+- **Good.** In the stills the face smiles warmly from the front and three-quarter, and the eyes smile with it. The
+  teeth read as a healthy upper row. The body and the head's measures as in the second round.
+- **Broke on the way.** The lower lip first stood too low and the lower teeth showed as a second row: a clenched
+  grin. The lines at the eyes were first whiskers.
+- **Not there yet.** As the second round: the smile and the gaze are fixed; no hair; not seen in the library or on a
+  real GPU. "In love and full of inspiration" is his to judge, not a number.
+
 ## Trail
 
 | When | Commit | What |
@@ -354,3 +408,5 @@ lab script's print).
 | 2026-11-18 | 4a73cb4 | second round: a smile over teeth, the eyes' sparkle, a narrower chin, the ears joined (their form still in work); back to build |
 | 2026-11-18 | e2ea05b | the eye's inner corner |
 | 2026-11-18 | 3e8ec82 | the ears' finished form; the tool's ear views; the jaw's angle covered |
+| 2026-11-18 | ecdb64f | proposed again: the second round's write-up and story |
+| 2026-11-18 | 9044585 | third round: a whole smile as the base, a fond gaze, teeth with gums and a lower row; back to build and proposed again |
