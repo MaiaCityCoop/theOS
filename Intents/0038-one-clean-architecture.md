@@ -1851,9 +1851,16 @@ measure.js`, `error.js`) or by what is drawn, in the dial's pixels where v2 has 
     in, level to straight down, from any height: 0.47–0.56 of a ring's band), within `roomOf('ground')` (#97); the grass
     tiers' packing noted under 'ground'. 3.5 M blades (159 MB) at 1440, 7.8 M (357 MB) at 2160; at the gone reach they
     were 23.2 M (1.06 GB).
-  - **Left for (b):** the carpet's sheen and the meadow's height past the blades (its colour, cover and shade already
-    read the blades' own share); the checks: FLIP against the truth at `tent-30m` and `tent-120m`, motion over `zoom`
-    (no pop at the hand-over).
+  - **Past its blades the carpet is the meadow, averaged** (`ec2596f`): its mean top (`grass.js meanTop`, from
+    `bladeIn`'s own distributions: the mean blade at its tip, bowed by its mean bend, 0.69 of the asset's height) raises
+    the land's own vertices as much as the meadow covers, from where the blades thin and as long as that top covers a
+    dial pixel; its tufts go in the parallax at that height; it is lit by the blades' own light (`grass.js bladeLit`,
+    one function for both) at their tips. Its colour, cover, shade and snow read the blades' own share (`endOf`).
+  - **?truth the dial** (#106 merged, `cce13fd`): the meadow's rings and end by the same rule at the truth's pixel (to
+    1540 m at 4K and a quarter dial); its caps then need 125 M blades, so within `roomOf('ground')` each truth ring
+    keeps about 12 % until #82's stores are sized from their own count.
+  - **The checks** (the master's GPU turn on `cce13fd`): FLIP against the truth at `tent-30m` and `tent-120m`, the
+    stills, motion over `zoom` (no pop at the hand-over). Caps beyond the interim bound are #82's.
 - **Why still views from 40 m up laid pages** (traced on the GPU at `41deea0` and `b510a8e`: `town, 40 m` and `pine
   forest, 90 m`, 240 still frames, then the bench's 60):
   - Standing still, nothing is laid: 0 pages in 240 frames, before and after.
@@ -2380,3 +2387,5 @@ madge follows every import.
 | 2026-11-18 | `26f751d` | `tools/health.js`: the code gates in one command (copies, spaghetti, dead code, cycles, size, settings, dependencies); the baseline under Build |
 | 2026-11-18 | `695ea18` | Imports from the game's root made relative (`cine/trailer.js`, `tools/sweep.js`), so madge follows every import |
 | 2026-11-18 | `bca2270` | The code gates held against main: `health.js --base` (each gate's change, exit 1 where one got worse), run by CI on every pull request |
+| 2026-11-18 | `ec2596f` | Ground (b): past its blades the carpet is the meadow, averaged (its mean top, its tufts, the blades' light) |
+| 2026-11-18 | `cce13fd` | Ground: #106 (?truth the dial, on #82 v2 with train 1c) merged in |
