@@ -131,7 +131,7 @@ const unbox = (r0) => {
 /** Hillis and Steele over the SW invocations of a workgroup (t: this one's): x its number; the sum of it and all before
     it, and of all. Every invocation calls it, none in a branch. */
 const scanOf = (x, t) => {
-  const sh = workgroupArray('uint', SW);
+  const sh = workgroupArray('uint', SW).setName('wgCullScan');   // (named by its part, not its node: the same pass of every arena is the same shader)
   sh.element(t).assign(x);
   workgroupBarrier();
   for (let off = 1; off < SW; off *= 2) {   // (eight steps)
@@ -147,7 +147,7 @@ const isSet = (m0, m1, b) => b.lessThan(uint(32)).select(m0.shiftRight(b.min(uin
 const below = (m0, m1, b) => b.lessThan(uint(32)).select(countOneBits(m0.bitAnd(uint(1).shiftLeft(b.min(uint(31))).sub(uint(1)))), countOneBits(m0).add(countOneBits(m1.bitAnd(uint(1).shiftLeft(b.max(uint(32)).sub(uint(32))).sub(uint(1))))));
 /** A workgroup's masks of its flags (bool nodes, a list each): two numbers a list, in shared memory. At the top level. */
 const masksOf = (lid, flags) => {
-  const wm = workgroupArray('uint', 2 * flags.length).toAtomic();
+  const wm = workgroupArray('uint', 2 * flags.length).toAtomic().setName('wgCullMasks');
   If(lid.lessThan(uint(2 * flags.length)), () => { atomicStore(wm.element(lid), uint(0)); });
   workgroupBarrier();
   flags.forEach((f, j) => { If(f, () => { atomicOr(wm.element(lid.shiftRight(uint(5)).add(uint(2 * j))), uint(1).shiftLeft(lid.bitAnd(uint(31)))); }); });

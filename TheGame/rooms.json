@@ -1,8 +1,8 @@
 {
-  "builder": "515c23b4433303fc75b4057495ac93e0e5aabc186bb9b3ecf75cde2a2c9beca3",
+  "builder": "6de425ea898d1ced48494db1f21be41755f21013b00d3b1af252143beffdb4c3",
   "104dde1e-c26e-42fd-9aab-c6612fbe8222": {
     "name": "Bell tent",
-    "version": "15f11224d22588e1b36a99116e0c7b35b67f1386ca5b0753e25d5026caa50f1a",
+    "version": "c59fa4405b6c1f89f0c20facc0c4c758fb2482711322d3a3a2c4bc097d47922f",
     "shapes": [
       [
         [1424, 3176, 14],
@@ -19,7 +19,7 @@
   },
   "23566c8c-0864-4278-a2f7-a3e072300223": {
     "name": "Fire pit",
-    "version": "61a3f4503d4de5e8cb3be3ef858060a460f33a770f24e09642248c5ff8d38f29",
+    "version": "e2ecc0e36b34688db2bae4c1061f79beff056e18122f5eea7426025160105515",
     "shapes": [
       [
         [14627, 13383, 120],
@@ -36,7 +36,7 @@
   },
   "42345740-c3cc-455a-8017-a97ccdee6df3": {
     "name": "Boulders",
-    "version": "ccd2c0595d7ace7f0dbda0389f1c1087db9a92a0405b533873fe50fafdfda915",
+    "version": "be75639372693e037c05b33578c9a6cba38e52fa318e4415345c672908c38ff9",
     "shapes": [
       [
         [210942, 143869, 1719],
@@ -174,7 +174,7 @@
   },
   "62b01bbe-c92c-4181-b774-45a6af054b12": {
     "name": "Stones",
-    "version": "d30a0c398050d824ff2ada8aea5b09dcea1918f5ad2586187262313899e77463",
+    "version": "5db3384fba93deaac9bf361e3dcf75ce4bef5efeed8c3911a57249bb771f3e17",
     "shapes": [
       [
         [214605, 145871, 1769],

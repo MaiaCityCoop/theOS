@@ -27,7 +27,7 @@ import { U } from '../core/uniforms.js';
 import { layerOf, wrapGrad } from '../world/tile.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { farMost, dialPxAt } from '../detail/measure.js';
-import { SURFACE_LEVELS, FADE, GONE, surfaceBand, surfacePx } from '../detail/error.js';
+import { SURFACE_LEVELS, FADE, BAND, GONE, surfaceBand, surfacePx } from '../detail/error.js';
 import { spanOf, most, kindOf } from '../../assets/kinds.js';
 import { bodyOfAsset } from '../../assets/index.js';
 import { placedBy } from '../../assets/zoo/index.js';
@@ -135,9 +135,9 @@ function madeMaterial(D, src, lv, Lv, fade, sink, at) {
 function groupOf(scene, tex, renderer, name, kinds, cap) {
   const n = kinds.length, ML = SURFACE_LEVELS - 1;
   // its levels: the surfaces' (src/detail/error.js), each kind's level in a place as large as what it holds (rooms.json,
-  // measured from its own hierarchy: src/scatter/rooms.js); the last, from where its coarsest clusters end down to where
-  // it is gone (GONE: leaving it out differs by all of it), the drawer's dot, sinking away over the BAND above that
-  const LEVELS = [...Array.from({ length: ML }, (_, i) => { const rooms = kinds.map((Kd) => roomsOf(Kd.asset.uid, i, MADE_PER)[0]); return { px: surfacePx(i), band: surfaceBand(i), room: mostOf(rooms), rooms }; }), { px: GONE, room: { verts: 3, tris: 1 } }];
+  // measured from its own hierarchy: src/scatter/rooms.js); the last, from where its coarsest clusters end, the drawer's
+  // dot, whole down to where it is gone (GONE: leaving it out differs by all of it) and sinking away over the BAND under that
+  const LEVELS = [...Array.from({ length: ML }, (_, i) => { const rooms = kinds.map((Kd) => roomsOf(Kd.asset.uid, i, MADE_PER)[0]); return { px: surfacePx(i), band: surfaceBand(i), room: mostOf(rooms), rooms }; }), { px: GONE / BAND, room: { verts: 3, tris: 1 } }];
   // each kind's own numbers (NUMS rows of four, after its look in the drawer's one table): [its box's least corner, its
   // height], [its box's size, its half length], [its wind: billow, flap, sway], [its surface: wrap, through; metres a
   // tile of its materials, their relief], [the layers of its materials (none: -1)]; how its snow lies and its largest

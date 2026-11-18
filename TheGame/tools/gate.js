@@ -3,8 +3,8 @@
 // own Chrome through Playwright, headless (--headed: in a window, for frame times as a screen paces them):
 //
 //   bun tools/gate.js stills [--tag t] [--truth] [--views a,b]   the gate's views (tools/gate/views.js) as PNGs at the output (OUTPUT) in
-//                        [--fresh] [--reach m] [--tiles n]       .gate/<tag>/ (by default the commit); --truth: ?truth
-//                                                                (--reach: ?truth=m, as far as it says); --fresh: on a
+//                        [--fresh] [--dial d] [--tiles n]        .gate/<tag>/ (by default the commit); --truth: ?truth
+//                                                                (--dial: ?truth=d, the dial it is drawn at); --fresh: on a
 //                                                                new browser profile (launch, below); --tiles: each view
 //                                                                drawn in n × n tiles, each at all the canvas's pixels,
 //                                                                brought down by n and laid side by side (the truth past
@@ -15,7 +15,11 @@
 //                                                                (--jpeg: and a labelled sheet of the two, <view>.jpg)
 //   bun tools/gate.js noise <tag> [--truth] [--views a,b]        the same views shot twice: the floor any diff stands on
 //   bun tools/gate.js bench [--ratio r] [--frames n]             tools/bench.js at its six views with ?gputime: GPU ms
-//                                                                against its BUDGET, and the resolution drawn; where
+//                                                                against its BUDGET, and the resolution drawn
+//                        [--twice] [--ratchet]                   and each part of each view against its ceiling
+//                                                                (tools/gate/ceilings.js): shown, never blocking; --twice: the
+//                                                                noise measured from two runs; --ratchet: main's nightly,
+//                                                                each ceiling lowered to what is measured, never raised; where
 //                                                                it went, pass by pass and by part (geometry, light,
 //                                                                ground, upscale and post: bench.js CLASSES)
 //   bun tools/gate.js compile [--page library.html]              the WGSL compiled from the start until the world has
@@ -209,12 +213,12 @@ const rank = (xs, q) => { const s = [...xs].sort((a, b) => a - b); return s.leng
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { unlock(); for (const d of FRESH) rmSync(d, { recursive: true, force: true }); process.exit(130); });
 
 // ---- the commands ----
-/** stills' page: ?truth (at `reach`, where given) or the game, under the GPU lock, held on the gate's clock from its
+/** stills' page: ?truth (at dial `dial`, where given) or the game, under the GPU lock, held on the gate's clock from its
     start (tools/gate/clock.js): it settles there with the clock standing, not while the wind uncovers ground that asks
     for more of the land's pages, which on slow frames, ?truth's, it can do faster than they settle; and nothing is
     drawn between two views or tiles, so another run may have the GPU meanwhile. */
-const stillsPage = (chrome, tag, truth, reach) => locked(`stills ${tag}: the page`, async () => {
-  const P = await open(chrome, { query: truth ? (reach ? `truth=${reach}` : 'truth') : '', init: stepper });
+const stillsPage = (chrome, tag, truth, dial) => locked(`stills ${tag}: the page`, async () => {
+  const P = await open(chrome, { query: truth ? (dial ? `truth=${dial}` : 'truth') : '', init: stepper });
   await P.page.evaluate(prepare, { inside: truth ? null : INSIDE, time: TIME });
   await P.page.evaluate(() => window.__gateClock.start());
   return P;
@@ -240,11 +244,11 @@ function memorySaid(meta, mem) {
   meta.memory = mem.stop();
   console.log(`  the most memory, ${meta.memory.measure}: ${(meta.memory.peak.bytes / 1e9).toFixed(2)} GB (${meta.memory.peak.phase ?? '–'}: ${Object.entries(meta.memory.peak.by ?? {}).map(([k, b]) => `${k} ${(b / 1e9).toFixed(2)} GB`).join(', ')})`);
 }
-async function stills(chrome, { tag, truth = false, reach = null, views, tiles = 1 } = {}) {
+async function stills(chrome, { tag, truth = false, dial = null, views, tiles = 1 } = {}) {
   tag ||= commit() + (truth ? '-truth' : '');
   const list = pick(VIEWS, views, 'view'), dir = `${OUT}${tag}/`, n = Math.max(1, Math.round(+tiles || 1));
   const mem = chrome.gateDir ? memory(chrome.gateDir) : null;   // (the whole browser's memory through the run: the truth is the largest single consumer on the machine)
-  const { page, errors, url, start, close } = await stillsPage(chrome, tag, truth, reach).catch((e) => { mem?.stop(); throw e; });
+  const { page, errors, url, start, close } = await stillsPage(chrome, tag, truth, dial).catch((e) => { mem?.stop(); throw e; });
   // (a frame drawn while the GPU refused any of its work is not the game's picture: one refused buffer leaves every bind
   // group that holds it invalid, and Chrome then drops whole passes, black stills that "settled in 2.7 s" (2026-11-18,
   // ?truth's grass over WebGPU's binding limit); such a view fails, with what the GPU said)
@@ -573,7 +577,7 @@ async function all(opt) {
 }
 
 // ---- the command line ----
-const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor']);   // (options without a value)
+const FLAGS = new Set(['truth', 'headed', 'fresh', 'verbose', 'no-clip', 'jpeg', 'floor', 'twice', 'ratchet']);   // (options without a value)
 const [cmd, ...args] = process.argv.slice(2), pos = [], opt = {};
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -581,7 +585,7 @@ for (let i = 0; i < args.length; i++) {
   else if (FLAGS.has(a.slice(2))) opt[a.slice(2)] = true;
   else opt[a.slice(2)] = args[++i];
 }
-const WITH = { stills: (c) => stills(c, opt), noise: (c) => noise(c, pos[0], opt), bench: (c) => locked('bench', () => bench(c, opt)), compile: (c) => locked('compile', () => compile(c, opt)) };
+const WITH = { stills: (c) => stills(c, opt), noise: (c) => noise(c, pos[0], opt), bench: (c) => import('./gate/ceilings.js').then((C) => C.rule(() => locked('bench', () => bench(c, opt)), opt, commit())), compile: (c) => locked('compile', () => compile(c, opt)) };
 try {
   let r;
   if (cmd === 'diff') await diff(pos[0], pos[1], opt);
