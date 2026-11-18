@@ -191,18 +191,13 @@ numbers are written below.
 | --- | --- | --- | --- |
 | Occlusion culling | `aven/0038-draw-occlusion`, PR #68 | CI green | Views from above draw only 2–8 % of main's things: prove with gate stills at `bench-river-bend-26m`, `bench-town-40m` and `bench-pine-forest-90m` that nothing visible is missing (FLIP within noise) |
 | 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
-| 6b: virtual-textured ground | `aven/0038-stage6b-avt` | Notes written, measuring, no PR yet | The views from above must get faster than main, and pages must arrive invisibly |
-| 7: one placement rule, the forest in layers | `aven/0038-stage7-layers`, draft PR #73 | Built and measured (under Build, Stage 7) | Samuel to judge the floor's look (`scratchpad/visual/stage7/`); the site's species to be set as the kinds' parameters |
-
-**Not started:**
-- **6c:** relief, meaning displacement near the eye, parallax further out, skirts for rocks, path decals.
+| 7: one placement rule, the forest in layers | `aven/0038-stage7-layers`, PR #73 (ready for review) | Built, merged with main (`314e2e6`), measured (under Build, Stage 7); CI green | The master's review; Samuel to judge the floor (pictures on `aven/0038-shots`, `stage7/`); the research's floor kinds and the site's species come after 8 and 9 |
 
 **Not started:**
 - **6c:** relief, meaning displacement near the eye, parallax further out, skirts for rocks, path decals. 6b's pages
   already carry each texel's height (their colour's fourth number). Also left from 6b: a jump's settling (17–53 s
   against main's 6–9; what bounds it is under 6b's Measured), and what is let go with distance taken by distance on
   grazing ground (at eye level the far bare patches go too near).
-- **7:** the one placement rule and the five layers. It needs Samuel's photos of the real site to choose the species.
 - **8:** cluster hierarchy for rocks, then the tent and fire pit (absorbs `aven/0033-solids-wip`).
 - **9:** one light: leaf shadows, Bend's screen-space shadows, the canopy map, GTAO, transmission, Hillaire's sky,
   froxel fog, sky probes. It is the biggest step towards the look target.
