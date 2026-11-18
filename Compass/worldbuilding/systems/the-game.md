@@ -120,7 +120,7 @@ Only phase 1 is designed in detail; the rest says what comes next.
 
 **Every settler starts with a tent** on the village's land. The village climbs by **Fibonacci gates in villagers**; each gate unlocks the next shelter, growing dome, container and climate. **The village coop owns every dome, and every dome includes its own water and electricity.** Two kinds of dome: **living domes** (for 4, 12, 24 and 48 people; the tents move inside them) and **growing domes** (Fibonacci diameters).
 
-**Power:** every dome carries **solar cells**; the **power containers convert and store** what they make (inverters, batteries, distribution). Energy imports fall only when both grow together. From 13 villagers, **every gate adds one more power container**.
+**Power:** every dome carries **solar cells**; the **power containers** are two things in one: they **convert and store** what the domes make (inverters, batteries, distribution), and they are **Maia's server farm**, the computing she runs on, housed in the village and powered by it. Energy imports fall only when both grow together. From 13 villagers, **every gate adds one more power container**.
 
 **Climate:** every gate makes the domes' inner climate steadier, so they yield more of the year, until the **geothermal plant** at 1,597 holds **a perfect controlled climate, 24 °C or more, all year round**.
 
