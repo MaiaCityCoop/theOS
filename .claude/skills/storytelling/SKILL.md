@@ -1,6 +1,6 @@
 ---
 name: storytelling
-description: How a story is made in TheOS, step by step, and which skill holds each step. Use first whenever Samuel talks about storytelling, the story pipeline, a day's story, a devlog film, or asks what comes next for a story, before any of the single steps (story-ideas, story-hook, story-arc, story-scenes).
+description: How a story is made in TheOS, step by step, and which skill holds each step, starting from the Compass (Compass/, the serial's core message). Use first whenever Samuel talks about storytelling, the Compass, the core message, the story pipeline, a day's story, a devlog film, or asks what comes next for a story, before any of the single steps (story-ideas, story-hook, story-arc, story-scenes).
 ---
 
 # Storytelling
@@ -8,6 +8,13 @@ description: How a story is made in TheOS, step by step, and which skill holds e
 *This is the story of how one million humans build their own solarpunk city, from the ground up. In just 16 years.*
 One story a day, 5,423 days. A story is a cinematic long-form film of ten minutes, composed of scenes that each also
 stand alone as a short.
+
+## The Compass comes first
+
+Every story points the same way: the core message in `Compass/story.md` (a story-skills project, changed only with
+its CLI; see `Compass/README.md`). Read it before any step. A hook, arc or scene that does not point there is off
+course. Its register is Apple's *Think Different*: celebrate the ones who build, paint what stands, never warn,
+never fear, never a villain. The viewer should leave feeling *I knew it all along*.
 
 ## The steps, and where each lives
 
@@ -31,6 +38,8 @@ story composed of its scenes.
 - **Not told:** how it was built (frame rate, bugs, plug-ins, the dashboard). Sky, weather, the world, the city and
   its people are.
 - **Samuel's lines are his own words.** Never written for him. She is Maia; never "aven", "AI" or "AGI" in a story.
+- **Inspire, never warn.** No dark open, no dystopia, no fear as a hook: the gap is drawn between today and the
+  city at its best, not between the city and a catastrophe.
 - **Everything is pushed as far as it stays true**: the title, the contrasts, the tension. Tame is failed.
 - **Each day ends on a cliffhanger** that the next day's hook takes up.
 
