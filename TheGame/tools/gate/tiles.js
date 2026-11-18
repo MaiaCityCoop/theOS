@@ -7,13 +7,13 @@ import { readPNG, writePNG } from './flip.js';
 /** In the page: the camera set to show tile (i, j) of its picture split n × n (none: the whole picture), drawn at all
     the canvas's pixels (src/core/temporal.js keeps its part of a pixel inside the tile), and what was built over time
     let go. Each tile's frustum holds about 1 / n² of what the whole picture's does. */
-export function tileOf(t) {
+function tileOf(t) {
   const g = window.__game, c = g.renderer.domElement;
   if (!t) g.camera.clearViewOffset(); else g.camera.setViewOffset(c.width, c.height, (t.i * c.width) / t.n, (t.j * c.height) / t.n, c.width / t.n, c.height / t.n);
   g.temporal.cut();
 }
 /** The tiles of a view (each drawn n times as finely as it is shown: PNGs), brought down by n and laid side by side. */
-export function mosaic(parts, n) {
+function mosaic(parts, n) {
   const first = readPNG(parts[0].png), W = first.width, H = first.height, tw = W / n, th = H / n, out = new Uint8Array(W * H * 3);
   if (tw % 1 || th % 1) throw new Error(`a ${W}×${H} picture does not split into ${n} × ${n} whole tiles`);
   for (const p of parts) {

@@ -26,7 +26,7 @@ import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
 import { createHud } from './core/hud.js';
-import { useGPU } from './core/gpu.js';
+import { useGPU, askedLimits } from './core/gpu.js';
 import { taken, busy, changed } from './core/work.js';
 import { settle, ready as firstView, waiting, watch, tick, partOf, leave } from './core/settle.js';
 import { bakeTextures } from './materials/bake.js';
@@ -53,6 +53,7 @@ import { createCity } from './city/index.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
 import { inTurn, shareComputeCompiles, countCompiles } from './core/compile.js';
 import { flag } from './core/flags.js';
+import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
 
 const SKY = 0x9fc2e6, REACH = 6000;   // REACH: how far the stage's land is drawn (m): it ends in the air beyond what its camera looks at
 // (each compile given 20 s: a pipeline the GPU never answers for, or one that fails, held the veil over the page for good
@@ -68,8 +69,7 @@ export async function boot({ profile = 'world' } = {}) {
   // src/terrain/pages.js; the stress stand keeps its kinds' own textures in one, src/scatter/stress.js. And buffers as
   // large as the GPU has them, not the 128 and 256 MB a device gives unasked: what is shared by many lies in buffers as
   // large as these say, src/core/occlusion.js)
-  const A = (await navigator.gpu?.requestAdapter?.({ powerPreference: 'high-performance' }).catch(() => null))?.limits, layers = Math.min(2048, A?.maxTextureArrayLayers ?? 256);
-  const limits = { ...(layers > 256 ? { maxTextureArrayLayers: layers } : {}), ...(A ? { maxBufferSize: A.maxBufferSize, maxStorageBufferBindingSize: A.maxStorageBufferBindingSize } : {}) };
+  const limits = await askedLimits();   // (every limit the design sizes against, as this adapter has it: src/core/gpu.js SIZED)
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', forceWebGL: flag('webgl'), trackTimestamp: flag('gputime') || flag('bench'), requiredLimits: limits });   // alpha false: the canvas is opaque (a frame's fourth number is not how see-through it is: it says how far what is kept may be trusted, src/core/pass.js; it must not show the page through); ?gputime: the GPU's own time per pass (tools/bench.js); neither the canvas nor any target is multisampled: the screen's picture is built over time (src/core/screen.js)
   if (flag('draws')) (await import('../tools/draws.js')).watch();   // ?draws: every pass and draw a frame asks of the GPU, counted (tools/draws.js: window.__draws), from before the first pipeline is made
   await renderer.init();
@@ -286,6 +286,7 @@ export async function boot({ profile = 'world' } = {}) {
     for (let i = 0; i < seen.length; i += 2) seen[i].visible = seen[i + 1];
     choose(0);
     screen.render(scene, camera);
+    stampDone(renderer, FIRST_FRAME);   // (the first frame that draws the world: what every measure of a start reads)
     game.loadMs = performance.now() - t0;
     setTimeout(() => (game.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start
     console.log(`[the game] ready in ${game.loadMs.toFixed(0)} ms`, marks);

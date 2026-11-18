@@ -2,12 +2,11 @@
 
 The dashboard over the three: the intents as a board by state, each intent and story as a
 document, and the game framed to walk in or to play a story's film. It only reads: the files in
-`../Intents`, `../Stories` and `../Bible` are the one source.
+`../Intents`, `../Stories` and `../Compass` are the one source.
 
-Stories → The Bible shows the serial's spine from `../Bible` (a story-skills project): its premise and
-what stands against it, the ladder of Fibonacci steps in paying citizens, and every character, arc,
-system, place, term and episode as a document. `bible.js` reads it; `/api/bible` serves it; nothing
-there changes it.
+Stories → The Compass shows the serial's core from `../Compass` (a story-skills project): its core
+message, its premise, and every character, arc, system, place, term and episode as a document.
+`compass.js` reads it; `/api/compass` serves it; nothing there changes it.
 
 `bun run dev` at the repository's root starts it on http://localhost:5180, with the game on 5173.
 
