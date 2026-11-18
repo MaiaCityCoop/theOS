@@ -180,7 +180,7 @@ numbers are written below.
 | 1 | Stage 1 changes nothing on screen | `tools/gate.js` stills on main and on the branch, the same at every view (diff ≤ TAA noise). `bun tools/scale.js` 18 of 18. `vite build` passes for TheGame and OS |
 | 2 | No tuning switch is left | `grep` finds none of the 16 names. `src/core/flags.js` lists only the tools above |
 | 3 | It can't be told apart from full detail | The perceptual difference to `?truth` (FLIP, 4K) stays under the threshold of visibility at every view from 1.7 m to 12 km, in every 32-pixel tile and not just on average. Stage 2 sets the threshold against Samuel's eye, from pairs he can't tell apart, and it is never loosened after that. Nothing is measured against the legacy LOD. Every stage is nearer the truth than the one before, or equal where the stage is a clean-up |
-| 4 | Nothing ever changes visibly | In recorded walks, zooms (1.7 m to 12 km), scrolls and flybys, the change caused by detail in each frame, ((LOD − truth) now) − ((LOD − truth) one frame before), stays under the threshold of visibility in every frame and every 32-pixel tile. There is no "3× the median" allowance.<br>**The merge rule, nothing pops:** `bun tools/gate.js motion` draws every frame of the four paths twice in step, as the game draws it and as `?truth` draws it in motion, and measures each frame's change as FLIP of (LOD now) against (LOD before + truth now − truth before). A stage merges only if no frame's worst 32-px tile is over `POP`: 0.05 until check 3's threshold is set from Samuel's pairs, never loosened after. The gate prints "met" or "NOT MET" with the frames over, and a filmstrip of the worst frames |
+| 4 | Nothing ever changes visibly | In recorded walks, zooms (1.7 m to 12 km), scrolls and flybys, the change caused by detail in each frame, ((LOD − truth) now) − ((LOD − truth) one frame before), stays under the threshold of visibility in every frame and every 32-pixel tile. There is no "3× the median" allowance.<br>**The merge rule, nothing pops:** `bun tools/gate.js motion` draws every frame of the four paths twice in step, as the game draws it and as the truth (a still settled at each step: it neither shimmers nor lacks), and measures each frame's change as FLIP of (LOD now) against (LOD before + truth now − truth before). A stage merges only if no frame's worst 32-px tile is over `POP`: 0.05 until check 3's threshold is set from Samuel's pairs, never loosened after. The gate prints "met" or "NOT MET" with the frames over, and a filmstrip of the worst frames. **Not binding until train 2's GPU run shows it** |
 | 4a | Photorealistic | At every gate view, the full-detail picture's distance to the real photos of the same scene (CMMD, and the image statistics) falls stage by stage and never rises. The end is Samuel's blind test: at the gate's views he can't tell the render from a photograph.<br>`bun tools/gate.js real <truth stills> --photos <folder>`: CMMD on CLIP ViT-L/14 features, and the L* histogram, mean colour, chroma, contrast and spectral slope, per view, per kind and all together. The photos' folder and its manifest: `TheGame/tools/gate/README.md` |
 | 4b | Generic and universal | No asset file holds any detail data (`levels`, `ladder`, `grow`, px sizes, `detail`). A new asset dropped in gets all its detail from the builder, with no line of LOD code written for it |
 | 5 | 60 fps at all times, 8 GB at most: hard gates | On Samuel's Mac in Chrome and Safari, at a 4K output, upscaled:<br>• `?bench` at the fixed views: ≤ 12 ms of GPU at each, with the resolution drawn recorded beside it.<br>• **In motion** (`gate.js paths`: a walk into the stand, a zoom from 1.7 m to 12 km, an orbit, the flyby; with the cache warm and cold): no frame over 16.7 ms, and no frame over 12 ms of GPU. Streaming, building and compiling are included, so no hitch is allowed.<br>• The peak memory of the whole browser (every process), sampled through the same runs: ≤ 8 GB.<br>The picture checks (3, 4, 4a) are judged on the upscaled 4K output |
@@ -250,6 +250,7 @@ unification. Every machine kept busy.
 | Occlusion culling | `aven/0038-draw-occlusion`, PR #68 | CI green | Views from above draw only 2–8 % of main's things: prove with gate stills at `bench-river-bend-26m`, `bench-town-40m` and `bench-pine-forest-90m` that nothing visible is missing (FLIP within noise) |
 | 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
 | 7: one placement rule, the forest in layers | `aven/0038-stage7-layers`, PR #73 (ready for review) | Built, merged with main (`314e2e6`), measured (under Build, Stage 7); CI green | The master's review; Samuel to judge the floor (pictures on `aven/0038-shots`, `stage7/`); the research's floor kinds and the site's species come after 8 and 9 |
+| One measure everywhere | `aven/0038-one-measure`, PR #82 (7 and 8 merged in) | Built on the MacBook, CPU checks only (under Build, One measure everywhere) | The Mac mini: FLIP against the truth at the views named there, the bench, the paths, memory; after #80 |
 
 **Not started:**
 - **6c** is built (draft PR #81, under Build): relief near the eye on a mesh built in compute, parallax further out,
@@ -1326,6 +1327,14 @@ tools; the game's code only where noted.
   truth's world at the game's pace and size, and draw at its finest only once it is complete. The gate now records what
   holds every settle and till when (`held`, in `gate.json` and on the console), so the train's truth stills say how
   much each part takes, cold and warm. The 15-minute start allowed a `?truth` page is only a guard.
+- **Train 1's motion smoke, and its root** (2026-11-18, evening). The truth drawn in motion as the game draws a frame
+  (18 places, not converged) gave a median of 0.52 a frame. The worst tiles lay in the distant canopy in frames that
+  lacked nothing: the measure read two shimmers, the truth's and the game's. In 7 of 10 frames the truth's land pages
+  also lagged behind the climbing zoom (27 to 568 out). Both have one root: the reference was not the definition's
+  ("supersampled so it doesn't shimmer"). The truth's frame is now a still settled at its step: every canvas pixel,
+  its 32 places, drawn until `settle()` resolves. That deletes `TRUTH_AS` (the truth's motion mode), the twice-draw,
+  the place alignment for the truth and the truth's no-fade branch. The rule is not binding until train 2 shows it on
+  the GPU.
 - **The hang, and what lies under it** (train 1c, 2026-11-18). The truth hung 20 minutes on its fourth view: the
   gate's waits were timers inside the page, which a frozen or swapped-out renderer never runs. Every call into a page
   is now answered in a time held outside it (`tools/gate/guard.js`, #102). Under it lies the memory: measured on the
@@ -1710,6 +1719,99 @@ Built on `aven/0038-stage8-surfaces` from main at `3a2896a`, merged with main at
     - `?truth` drew black before #79;
     - the branch's own close views lost the WebGPU device, and so did the truth retried after #79, on the shared GPU.
 
+### One measure everywhere (2026-11-18)
+
+Built on `aven/0038-one-measure` from main (`d471cd1`), with stage 7 (`82f5e6e`, then `96483d2`) and stage 8 (`4d57e81`,
+then `3c3b261`) merged in, then main again (`5be13a8`, stage 7 merged). The rule of Define, carried to its end: an
+asset says only what it is at full detail, and every switch of detail comes from the asset's own error against its
+full detail, through one function. Built on the MacBook with no GPU work at all (it rebooted twice under GPU load):
+everything below was checked on the CPU.
+
+- **The one function** (`src/detail/error.js`). A rung is anything coarser that stands in for a thing; its error,
+  measured on the thing itself, is the farthest any of it lies from where the thing is, in metres over the thing's size.
+  `errorPx(e, px)` is the pixels of difference it makes at a size on screen, `switchPx(e)` the size under which that is
+  within `ERROR_PX` (and `switchAt` the same as a distance). Every hand-over spans `BAND` (1.5; `FADE` its half on a log
+  scale). A thing is gone at `goneAt(e)`: leaving it out differs by how far it stands off what stays. Everything's
+  levels are cut at the same sizes, `rungPx` (192, 96, 48 … px: they only share the work out); `SURFACE_LEVELS` is
+  worked out from where things are gone (9, as before).
+- **Each rung's error now:**
+
+| Rung | Its error | Its switch |
+| --- | --- | --- |
+| A first share of a crowd's sprigs | its spread order's share error: drawing the first t turns, the farthest a sprig left out lies from one drawn (`crowd.js turnsOf`) | each sprig gone where that is within `ERROR_PX` |
+| A twig or limb gone | its width | `switchPx(width / size)` (was `TWIG`, 0.75 px: the same number) |
+| A plant's clumps | their bake's texel, `TILE` over a chunk's largest side | as stage 5, now through `switchPx` |
+| A plant's impostor | its bake's texel, `CELL` over its sphere's width | as stage 4, now through `switchPx` (`T`) |
+| A made thing's card (the library, no WebGPU) | its bake's texel, `CELL` over its sphere | from about 70 px (tent) and 85 px (fire pit) to `GONE` |
+| A cluster's parent | the cluster's own (stage 8) | unchanged |
+| A ring of blades | how much wider its blades are than the blade, w (2^k − 1); its bends as few as keep the bow within that | ring k where that is within `ERROR_PX` |
+| Nothing: a plant gone | its height over the land, which wears its stand's colour or its floor, over its size (`plant.js goneOf`) | a tree 0.76 px, a shrub 2–2.8, a fern 2.5, a herb 2.9, litter 3.5–7.3 |
+| Nothing: a rock, a made thing gone | all of it (`GONE`, 0.75 px) | rocks thin from 1.13 to 0.75 px, the made things' dot to 0.75 |
+
+- **A crowd does not thin before its clumps.** Measured, the share error of every grown crown is far over its clumps'
+  where they take over: a stone pine missing 5 % of its sprigs is 0.24 m off its truth, where its clumps' texel is
+  about 0.11 m. Stage 5's rule drew half a grown pine's sprigs at 272 px, 17 px drawn off by this measure. So a grown
+  pine or oak is whole (1–2 % of its sprigs go above 114–128 px) down to where its clumps come; ferns and herbs (no far
+  end) thin by the share error alone, whole down to 13–19 px. `P0` and `A` (what the GPU enlarges the survivors by) run
+  through the ends of each crown's measured thinning (A as small as 0.005 where a crown hardly thins).
+- **Levels.** A plant's levels are everything's, down to the one its end falls in, the last down to its end
+  (`plant.js bandsOf`). A stand cuts its kinds' levels as one (`trees.js cutOf`): two levels one where every shape of
+  every kind holds the same in both (its room), so the floor's litter has one level below 192 px and the canopy six
+  (192, 96, 48, 24, 12, and 0.76–12 px for the impostors alone). The workers build each level by the band they are told
+  (`recipes.worker.js`, `plantFamily`). A level's patches are as large as its band asks (MAXP of them hold the round it
+  reaches): 4 near, 256 for the far impostors. Kinds group by their layer, the level they end at and whether they have a
+  far end: the saplings and the reeds now share a stand.
+- **The grass** (`assets/grass.js`: its blade only; `src/scatter/grass.js ringsOf`): its rings are made from the blade
+  (each ring's cells √2 times the last's, its blades halved and doubled), ring k from where how much wider its blades are
+  is within `ERROR_PX`, coming in over the `BAND` past there. At a window 1080 tall: the blade to 15–22 m, cells of
+  0.12 m from there to 45–67 m, of 0.17 m from there to the meadow's end, three, three and two bends. The meadow ends
+  where the ground's map does (`ground.js REACH`, 112 m), thinning over the `BAND` before it; the stones' reach is the
+  same map's (was 104 m, shrinking from 89; now from 75).
+- **Deleted:** the kinds' pixel bands (`tree` 260 120 34 18 7 3, `shrub` 140 16 5, `litter` and `herb` 100 6), every
+  kind's `fade` (0.15, the trees' 0.1) and `sink` (1.7), the impostor's 1.5 px (`default`, `shelter`), `far`'s levels
+  (`{}` / `{ speck: false }`: now yes or no); the grass's rings (15, 42, 88 m, fades 5, 10, 22, its cells, bends and
+  end); the crowd's `TWIG` and its thinning to `SWELL^-A` (`M`, `P0`); the rocks' `THIN` 1.15–1.84 px and `REACH` 104 m;
+  the made things' dot at 0.95 px; the drawer's dot sink 1.6 and end 0.3 px; the plants' patches 4 << i (at most 64);
+  the flame's four hand-built levels (it says its faces); `SURFACE_LEVELS` 9 as a number. `tools/scale.js` now fails
+  where an asset's file or a kind holds detail data (check 4b): here it finds none; on the tree before this change, 25.
+- **Not changed, and why:** the stress world's zoo keeps its ladder (`ladder.js` 400 … 1.15 px, the drawer's `SKINPX`
+  28, the herds' 600 m) until 8b; the textures' relief from 10 and 90 px (a shading cost, not a rung); the shadows'
+  stand-ins (80, 30 m: stage 9's cascades); the land's canopy colour coming in over 0.3–0.68 of where the trees go
+  (stage 6); the crowd's own hand-over shapes (`WIN` 1.3, `GROW` 1.1, the impostor's cross-fade `FADE` 0.15) and its
+  per-plant offset `SWITCH` (0.72–1), which still reckons a plant up to 1/0.72 smaller than it is: its crowd and clumps
+  come up to 1.4 `ERROR_PX` early; `PX_CUT` (where the cut's compute begins: a split of the work).
+- **Measured here (CPU only; not gates):**
+  - `bun tools/scale.js`: 24 of 24, and no asset holds detail data (20 asset files, 8 kinds). `bunx --bun vite build`:
+    TheGame and OS built. `bun tools/gate/pop.js belltent`: the largest jump 0.606 px with the morph, 1.010 swapped (as
+    stage 8's); `--at firepit:7.4,23,113`: 7304, 2825 and 1225 triangles, the same as before this change.
+  - Every level of every kind, built as the workers build it by its band, fits its room (a CPU walk of all 7 stands).
+  - The switch points of a grown shape, before → now (pixels of the measure; metres at a window 1080 tall):
+
+| Plant | Its crowd thins from | Its clumps, its impostor | Gone |
+| --- | --- | --- | --- |
+| Stone pine, 19.5 m | 385 px (41 m) → hardly: 1 % from 520 px | 128 px (122 m), 75 px (209 m): unchanged | 3 px (5.2 km) → 0.76 px (20.7 km) |
+| Holm oak, 21 m | 341 px (49 m) → hardly: 2 % from 718 px | 114 px (147 m), 85 px (198 m) | 3 px (5.6 km) → 0.76 px (22.2 km) |
+| Mastic, 6.4 m | 405 px (13 m) → 330 px | 136 px (38 m) | 5 px (1.0 km) → 2.56 px (2.0 km) |
+| Rockrose, bracken | 387, 181 px → not before their impostor (134, 105 px) | | 5 px (0.67 km) → 2.8, 2.0 px (1.2, 1.7 km) |
+| Fern, 1.36 m | 165 px (6.6 m) → 19 px (58 m) | none (its kind has no far end) | 6 px (182 m) → 2.47 px (442 m) |
+| Woodland herb, 0.72 m | 167 px (3.4 m) → 13 px (44 m) | none | 6 px (96 m) → 2.94 px (195 m) |
+| Pine litter, oak litter, moss | none | none | 6 px → 6.2, 7.3, 6.5 px (145, 110, 139 m) |
+| Dead wood, fallen log, bedded stone | none | none | 6 px → 6.5, 5.2, 3.5 px (318, 710, 365 m) |
+
+  - A rough load, on the CPU (eye level, flat ground, every layer at its densest grove, a 100° wedge, nothing hidden;
+    to compare, not a measure of a view): the plants' mesh vertices 15.2 M → 20.8 M (+37 %), the grass 0.39 M → 2.34 M
+    (80 k → 383 k blades). The canopy's levels hold 90, 89, 89, 11 and 11 thousand vertices for its largest shape (was
+    86, 51, 15 and 5 thousand). The far impostors reach about 21 km (was 5–6 km), so the trees' far level packs up to
+    about 13 M cells a repack (again every 160 m the camera moves), the saplings' and reeds' 6 M (every 40 m); the
+    trees' far draw holds up to 480 k (was 240 k).
+- **To be measured on the Mac mini** (its own GPU; nothing here was drawn): FLIP against `?truth` at
+  `bench-tent-eye-level`, `bench-pine-forest-eye-level`, `pines-30m` and `tent-120m`, and where switch points moved
+  most: `pines-120m` (grown crowns whole into their clumps), `pines-500m`, `far-2.5km` and `bench-skyline-2.5km`
+  (impostors to about 21 km), `tent-10m` and `tent-30m` (the meadow's rings), `bench-pine-forest-90m` and
+  `bench-river-bend-26m` (shrubs, reeds, ferns farther); the bench there; the paths (the far levels' repacks); memory.
+  If the cost is too much, `ERROR_PX` is the one number to raise: at 2 every switch's size on screen doubles.
+- **Lines:** +424 −294 in the game (net +130, of it +22 the detail engine's README): the rungs' errors said where they
+  are measured, the stands' cut and the grass's rings made from the blade.
 ### The bench, pass by pass, on main (2026-11-18)
 
 Built on `aven/0038-bench-per-pass` from main at `3d0c3b5`: stage 9's `cf77e71` ("the bench times each pass on its
@@ -1893,6 +1995,31 @@ CI runs it on every pull request against main (`--base HEAD^1`: main, as the pul
 3 s. The four imports from the game's root (three in `cine/trailer.js`, one in `tools/sweep.js`) are now relative, so
 madge follows every import.
 
+### The 10 % gate as one report (2026-11-18)
+
+`bun tools/gate/ten.js --base <run>` holds a run of the gate against a stored one, the base (the train's numbers on
+main), measure by measure: Here, Base, Change, and whether the change is the skill's 10 % better ("Define: the 10 %
+gate"). It reads only what the gate kept and measures nothing again, so it runs on the CPU.
+- **A run** is addressed as the gate names it. It is `.gate/<tag>/summary.json` (`gate.js all`), with these beside it
+  where they were run: the diff against its own truth, `real.json` and `motion-<tag>/report.json`. `<run>` is a tag, a
+  `summary.json`, or a git ref (its commit's tag). Where this code has no summary, its last single runs are used
+  (`bench.json`, `paths.json`, `compile.json`, `real.json`).
+- **The measures** are the skill's, and lower is better in each:
+  - rendering: GPU ms a frame per bench view and per part; each path's p99 frame and frames over 16.7 ms;
+  - startup: the world settled where it starts, cold and warm;
+  - boot and load: the WGSL compiled until settled;
+  - memory: the browser's peak; each class's GPU memory;
+  - quality: FLIP against its own truth (mean, p99 tile); each view class's distances to the photos; each path's worst
+    pop.
+- **It fails (exit 1)** where a measure got worse by more than its noise. The noise is what two runs of the same code
+  differ by, as the gate measured it: the bench's `--twice` (`ceilings.json`), `gate.js noise <tag>` (the FLIP floor),
+  `motion --floor`, or `--again` (the base run twice, every measure).
+- **A measure with no noise measured is shown, never judged.** On the runs kept so far, that is the paths, the compile
+  and real: the base needs `--again` for them.
+- **It holds no number of its own.** The 10 % is read from the skill's heading, the noise from the gate.
+
+The gate does not yet keep the first frame or the bytes loaded before it, so the report cannot show them (under Todo).
+
 ## Propose
 
 ## Story
@@ -1911,7 +2038,6 @@ madge follows every import.
 - [x] Stage 3: boot (merged #67; Safari to be tried on next)
 - [x] Stage 4: far end, impostor and clump rung (merged #66)
 - [x] Stage 5: crowds, parts and one wind (#69; its cost and the impostors' size left, under Open risks)
-- [ ] Stage 5: crowds, parts and one wind
   - [x] the draw path's two-pass occlusion culling, against a depth pyramid (built; draft PR #68)
   - [x] the draw path's follow-ups: one culling for every tier, the late prepass bundled, the grass culled, plants' boxes measured, every GPU resource and dispatch within the adapter's limits (PR #77, ready)
 - [ ] Stage 6: land, virtual texture and relief
@@ -1921,6 +2047,8 @@ madge follows every import.
 - [ ] Stage 7: placement, five layers
   - [x] one rule, the growth map, the forest's layers and their kinds (built; draft PR #73)
 - [ ] Stage 8: surfaces, cluster hierarchy (built: rocks, the tent and the fire pit; the stress world's zoo to 8b)
+- [ ] One measure everywhere: every rung where its own error is the one ERROR_PX (built, CPU-checked; PR #82, to be
+  measured on the Mac mini)
 - [ ] Stage 9: one light, characters
 - [ ] The bench pass by pass (built on `aven/0038-bench-per-pass`): measured on the Mac mini, the per-part ceilings a
       merge rule
@@ -1934,6 +2062,9 @@ madge follows every import.
       pull request (`--base`)
 - [ ] The 91 unused exports the dead-code gate finds over `src assets/kit tools`: the first clean-up after train 2
       lands (train 2's branches change their files)
+- [x] The 10 % gate as one report: `tools/gate/ten.js` (under Build)
+- [ ] The gate keeps the first frame and the bytes loaded before it, so the 10 % report can hold them; the train's
+      base is run twice (`--again`), so the paths, the compile and real are judged too
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
 - [ ] The gate finished: motion (nothing pops), the truth in tiles, real against photographs (#78; #79 merged)
   - [ ] its first job on main: the truth at 2.5 and 12 km in tiles, motion on the four paths, real at every view
@@ -2130,6 +2261,27 @@ madge follows every import.
   which this pass's bytes alone exceed; the canvas's depth store, the motion in 4 B, a compressed kept picture and a
   shared tile are left, each its own change.
 
+- **Asked (by the master on the Mac mini):** one measure everywhere: `ERROR_PX` with `error.js` drives every switch
+  of detail, each from the asset's own error against its full detail, through one function. Delete the kinds' pixel
+  bands, `fade` and `sink`, the plants' levels, the grass's 15, 42 and 88 m and every other hand-set threshold of
+  detail; constants of physics and ecology stay. Stages 7 and 8 merged in. CPU only: the MacBook rebooted twice under
+  GPU load.
+- **Delivered:** built (under Build, One measure everywhere), PR #82:
+  - `errorPx` and `switchPx` in `error.js`: crowds by their spread order's share error, clumps and impostors by their
+    bake's, the grass's rings by their blades, a thing's end by how far it stands off the land;
+  - the levels cut as one where they hold the same;
+  - `scale.js` checks that no asset holds detail data.
+- **Good:**
+  - no kind or asset file holds a size on screen, a fade or a ring any more (25 places found on the tree before);
+  - the cut's pop check and triangles are unchanged;
+  - every level fits its room;
+  - `scale.js` 24 of 24, both builds pass.
+- **Not there yet:**
+  - nothing was drawn here: FLIP, the bench, the paths and memory are the Mac mini's;
+  - a rough CPU model reads the plants' mesh vertices +37 % and the grass 6× (the crowds whole down to their clumps,
+    trees to 21 km, the meadow's rings within 1 px), so `ERROR_PX` may have to rise;
+  - the stress world's ladder waits for 8b;
+  - the per-plant offset still reckons a plant up to 1/0.72 small.
 - **Asked (Task C, by the session on the Mac mini):** finish the gate. `gate.js motion` (check 4 in motion: the change
   detail makes in each frame against the same frame's truth, per 32-px tile, with FLIP; a filmstrip; the merge rule
   "nothing pops"); `?truth` past 800 m, in passes; `gate.js real` (check 4a: CMMD and image statistics against
@@ -2187,6 +2339,17 @@ madge follows every import.
     250–355 frames where the floor is about 150; the walk's GPU p99 rose 1–3.5 ms;
   - the skirts are not in the gate's views, so they are checked in the code, not in a still;
   - the far grazing hand-over left from 6b; Safari not tried.
+- **Asked (by the master on the Mac mini):** the 10 % gate's missing startup measures: the first frame and the bytes
+  loaded before it, under one definition shared with the cold-start work.
+- **Delivered:**
+  - `src/core/marks.js`: the game's marks on its own timeline, `FIRST_FRAME` = `game:first-frame`;
+  - `src/boot.js` stamps it once the GPU has done the first frame that draws the world (not the loading veil);
+  - `tools/gate.js paths` reads it in its cold and warm runs: ms from the navigation's start, and the bytes over the wire
+    of every file that had come by then (what a cache served is not counted);
+  - `tools/gate/ten.js` holds both under startup.
+- **Good:** `tools/health.js --base origin/main` finds nothing worse; `scale.js` 24 of 24; the build passes.
+- **Not there yet:** not yet run on the GPU; the first `paths` run gives the numbers. Under the dev server, what is loaded
+  is the unbundled modules; a built page (`--url` at a preview) gives the bytes a player loads.
 
 ## Trail
 
@@ -2240,6 +2403,15 @@ madge follows every import.
 | 2026-11-18 | `16f8e01` | Stage 7: the growth map keyed on the sandbox and the stage, not the ground map's fade |
 | 2026-11-18 | `1aac442` | Stage 7 merged with main (6b): the land's litter and far colours read the rule's stands |
 | 2026-11-18 | `3907ce7` | Stage 7 merged with main (`314e2e6`) |
+| 2026-11-18 | `1937ba4` | One measure: stage 7 merged in, from main at `d471cd1` |
+| 2026-11-18 | `c077f59` | One measure: stage 8 merged in, both sides' kinds kept, the intent's doubled rows once |
+| 2026-11-18 | `81ac770` | One measure: stage 8's new head (`3c3b261`) merged in |
+| 2026-11-18 | `a887bbb` | One measure everywhere: `switchPx`; the kinds' bands, fades and sinks, the grass's rings and the other thresholds deleted; check 4b |
+| 2026-11-18 | `11d9aa0` | One measure: merged with main (`5be13a8`, stage 7) |
+| 2026-11-18 | `ae325f2` | One measure: a made thing's card only where it can be baked; the detail engine's README |
+| 2026-11-18 | `5fedb4b` | One measure: a plant's last level ends at its own end, a stand's at its last kind's |
+| 2026-11-18 | `d55430d` | One measure: the notes in the code in fewer lines |
+| 2026-11-18 | `8e9cc38` | One measure: its notes under Build |
 | 2026-11-18 | `9fa8a1f` | Draw path: one culling for every tier (an arena), the late prepass one bundle, the grass culled, plants' boxes measured |
 | 2026-11-18 | `3c821b1` | Draw path: boxes worked out only for what was packed; a bucket found in as many halvings as it takes |
 | 2026-11-18 | `fe8a3f8` | Draw path merged with main (stage 7): the grass's box and the growth map both in its packing |
@@ -2265,3 +2437,5 @@ madge follows every import.
 | 2026-11-18 | `26f751d` | `tools/health.js`: the code gates in one command (copies, spaghetti, dead code, cycles, size, settings, dependencies); the baseline under Build |
 | 2026-11-18 | `695ea18` | Imports from the game's root made relative (`cine/trailer.js`, `tools/sweep.js`), so madge follows every import |
 | 2026-11-18 | `bca2270` | The code gates held against main: `health.js --base` (each gate's change, exit 1 where one got worse), run by CI on every pull request |
+| 2026-11-18 | `52bbeb9` | The 10 % gate as one report: `tools/gate/ten.js --base <run>` (here, base, change, ≥ 10 %?; exit 1 where a measure got worse beyond its noise) |
+| 2026-11-18 | `78b3451` | The first frame that draws the world, one mark (`game:first-frame`), and the bytes loaded before it in the 10 % gate |

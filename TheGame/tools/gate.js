@@ -41,7 +41,10 @@
 //                        [--device mps] [--no-clip]              folder) held against photographs (a folder with its
 //                                                                manifest.json, tools/gate/README.md): CMMD on CLIP
 //                                                                features, and natural-image statistics, by view, kind
-//                                                                and all together; in Python (GATE_PYTHON)
+//                                                                and all together; in Python (GATE_PYTHON); the photos'
+//                                                                own spread beside each; a class's distances may only
+//                                                                go down (tools/gate/real-ratchet.json; exit 1 if one
+//                                                                rose; --ratchet: main's run lowers them)
 //   --query q (with any of them)                                 more of every page's address: --query stress, the
 //                                                                stress world (src/scatter/stress.js)
 //   bun tools/gate.js all [--tag t] [--views a,b]                stills of this code and of ?truth, their diff, the
@@ -66,6 +69,7 @@ import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { VIEWS, PATHS } from './gate/views.js';
+import { FIRST_FRAME } from '../src/core/marks.js';
 import { BUDGET, CLASSES, classOf } from './bench.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
 import { stepper } from './gate/clock.js';
@@ -88,7 +92,7 @@ const ARGS = ['--enable-unsafe-webgpu', '--enable-webgpu-developer-features'];  
 async function open(ctx, { path = '', query = '', init = null, wait = null } = {}) {
   query = [query, EXTRA].filter(Boolean).join('&');
   wait ??= /(^|&)truth\b/.test(query) ? 3 * WAIT : WAIT;   // (?truth's world comes in ~5 min on a fresh profile: three times the time)
-  const page = guard(await ctx.newPage(), { dir: ctx.gateDir, kill: () => closeHard(ctx, ctx.gateDir) }), errors = [], url = new URL(path, BASE).href + (query ? `?${query}` : '');   // (every call into it answered in a time held outside it: tools/gate/guard.js)
+  const page = guard(await ctx.newPage(), { dir: ctx.gateDir, kill: () => closeHard(ctx, ctx.gateDir), wait }), errors = [], url = new URL(path, BASE).href + (query ? `?${query}` : '');   // (every call into it answered in a time held outside it: tools/gate/guard.js)
   await page.addInitScript(() => performance.setResourceTimingBufferSize(1e5));   // (the gate finds the page's own modules by their resource entries: all of them kept)
   if (init) await page.addInitScript(init);
   // (the dev server's live reload kept away, its socket answered by nothing: a file saved during a run must not reload
@@ -116,6 +120,16 @@ async function open(ctx, { path = '', query = '', init = null, wait = null } = {
 }
 /** In the page: the world's ready (where it has one), then window.__game.settle(); how long that took (ms), what
     settle() said, and when it was (ms since the page began). An error after `wait` ms. */
+/** In the page: the first frame that draws the world (the game's own mark, src/core/marks.js), ms from the navigation's
+    start, and what was loaded before it: the bytes over the wire of the page and every resource that had come by then
+    (transferSize: what a cache served is not counted), and how many files. None where the game set no mark. */
+function firstFrame({ name }) {
+  const m = performance.getEntriesByName(name)[0];
+  if (!m) return null;
+  const came = [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')].filter((e) => e.responseEnd <= m.startTime);
+  return { ms: m.startTime, bytes: came.reduce((s, e) => s + (e.transferSize || 0), 0), files: came.length };
+}
+const firstSaid = (F) => (F ? `${(F.ms / 1000).toFixed(1)} s, ${(F.bytes / 1e6).toFixed(1)} MB loaded before it (${F.files} files)` : 'not marked');
 async function settled({ wait, at }) {
   const s = window.__game, C = window.__gateClock, t0 = Date.now(), late = new Promise((_, no) => setTimeout(() => no(new Error(`window.__game.settle() did not resolve in ${wait / 1000} s at ${at}`)), wait + 10e3));
   // (the page on the gate's clock, tools/gate/clock.js: its frames drawn here, one after another, the clock standing,
@@ -199,19 +213,42 @@ const rank = (xs, q) => { const s = [...xs].sort((a, b) => a - b); return s.leng
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { unlock(); for (const d of FRESH) rmSync(d, { recursive: true, force: true }); process.exit(130); });
 
 // ---- the commands ----
+/** stills' page: ?truth (at `reach`, where given) or the game, under the GPU lock, held on the gate's clock from its
+    start (tools/gate/clock.js): it settles there with the clock standing, not while the wind uncovers ground that asks
+    for more of the land's pages, which on slow frames, ?truth's, it can do faster than they settle; and nothing is
+    drawn between two views or tiles, so another run may have the GPU meanwhile. */
+const stillsPage = (chrome, tag, truth, reach) => locked(`stills ${tag}: the page`, async () => {
+  const P = await open(chrome, { query: truth ? (reach ? `truth=${reach}` : 'truth') : '', init: stepper });
+  await P.page.evaluate(prepare, { inside: truth ? null : INSIDE, time: TIME });
+  await P.page.evaluate(() => window.__gateClock.start());
+  return P;
+});
+/** One view of stills drawn into `dir` (whole, or in n × n tiles: tools/gate/tiles.js), checked (valid) and said: its
+    entry in gate.json. */
+async function drawView(page, v, { tag, dir, n, truth, valid }) {
+  const label = `stills ${tag}: ${v.name}`;
+  if (n > 1) {
+    const t0 = Date.now(), T = valid(await tiled(page, v, n, { go, still, locked, label }));
+    writeFileSync(`${dir}${v.name}.png`, T.png);
+    console.log(`  ${v.name.padEnd(28)} ${n * n} tiles in ${((Date.now() - t0) / 60e3).toFixed(1)} min, each drawn ${px(T.parts[0].drawn)} for a ${n}th of the picture each way`);
+    return { tiles: n, ms: Date.now() - t0, settleMs: T.parts.map((p) => p.ms), over: T.parts.some((p) => p.over), drawn: T.parts[0].drawn };
+  }
+  const [a, s] = await locked(label, async () => { const a = await go(page, v); return [a, valid(await page.evaluate(still))]; });
+  writeFileSync(`${dir}${v.name}.png`, Buffer.from(s.png.slice(s.png.indexOf(',') + 1), 'base64'));
+  console.log(`  ${v.name.padEnd(28)} settled in ${(a.ms / 1000).toFixed(1).padStart(5)} s, drawn ${px(s.drawn)} into ${px(s.out)}${s.over ? ' (a tier had more patches than it holds: the farthest left out)' : ''}`);
+  if (truth && s.drawn[0] < s.out[0]) console.log('  (the truth drawn at fewer pixels than it is shown at: ?truth is to be supersampled)');
+  return { cam: a.cam, settleMs: a.ms, settle: a.said, drawn: s.drawn, out: s.out, over: s.over };
+}
+/** The browser's memory through a run of stills, said and kept in its gate.json (meta). */
+function memorySaid(meta, mem) {
+  meta.memory = mem.stop();
+  console.log(`  the most memory, ${meta.memory.measure}: ${(meta.memory.peak.bytes / 1e9).toFixed(2)} GB (${meta.memory.peak.phase ?? '–'}: ${Object.entries(meta.memory.peak.by ?? {}).map(([k, b]) => `${k} ${(b / 1e9).toFixed(2)} GB`).join(', ')})`);
+}
 async function stills(chrome, { tag, truth = false, reach = null, views, tiles = 1 } = {}) {
   tag ||= commit() + (truth ? '-truth' : '');
-  const list = pick(VIEWS, views, 'view'), dir = `${OUT}${tag}/`, n = Math.max(1, Math.round(+tiles || 1)), png = (s) => Buffer.from(s.png.slice(s.png.indexOf(',') + 1), 'base64');
-  // (the page held on the gate's clock, tools/gate/clock.js, from its start: it settles there with the clock standing,
-  // not while the wind uncovers ground that asks for more of the land's pages, which on slow frames, ?truth's, it can do
-  // faster than they settle; and nothing is drawn between two views or tiles, so another run may have the GPU meanwhile)
-  const held = true, mem = chrome.gateDir ? memory(chrome.gateDir) : null;   // (the whole browser's memory through the run: the truth is the largest single consumer on the machine)
-  const { page, errors, url, start, close } = await locked(`stills ${tag}: the page`, async () => {
-    const P = await open(chrome, { query: truth ? (reach ? `truth=${reach}` : 'truth') : '', init: held ? stepper : null });
-    await P.page.evaluate(prepare, { inside: truth ? null : INSIDE, time: TIME });
-    if (held) await P.page.evaluate(() => window.__gateClock.start());
-    return P;
-  }).catch((e) => { mem?.stop(); throw e; });
+  const list = pick(VIEWS, views, 'view'), dir = `${OUT}${tag}/`, n = Math.max(1, Math.round(+tiles || 1));
+  const mem = chrome.gateDir ? memory(chrome.gateDir) : null;   // (the whole browser's memory through the run: the truth is the largest single consumer on the machine)
+  const { page, errors, url, start, close } = await stillsPage(chrome, tag, truth, reach).catch((e) => { mem?.stop(); throw e; });
   // (a frame drawn while the GPU refused any of its work is not the game's picture: one refused buffer leaves every bind
   // group that holds it invalid, and Chrome then drops whole passes, black stills that "settled in 2.7 s" (2026-11-18,
   // ?truth's grass over WebGPU's binding limit); such a view fails, with what the GPU said)
@@ -224,21 +261,10 @@ async function stills(chrome, { tag, truth = false, reach = null, views, tiles =
   try {
     for (const v of list) {
       if (mem) mem.phase = v.name;
-      if (n === 1) {
-        const [a, s] = await locked(`stills ${tag}: ${v.name}`, async () => { const a = await go(page, v); return [a, valid(await page.evaluate(still))]; }).catch((e) => { meta.views[v.name] = { failed: e.message.slice(0, 600) }; throw e; });
-        writeFileSync(`${dir}${v.name}.png`, png(s));
-        meta.views[v.name] = { cam: a.cam, settleMs: a.ms, settle: a.said, drawn: s.drawn, out: s.out, over: s.over };
-        console.log(`  ${v.name.padEnd(28)} settled in ${(a.ms / 1000).toFixed(1).padStart(5)} s, drawn ${px(s.drawn)} into ${px(s.out)}${s.over ? ' (a tier had more patches than it holds: the farthest left out)' : ''}`);
-        if (truth && s.drawn[0] < s.out[0]) console.log('  (the truth drawn at fewer pixels than it is shown at: ?truth is to be supersampled)');
-        continue;
-      }
-      const t0 = Date.now(), T = await tiled(page, v, n, { go, still, locked, label: `stills ${tag}: ${v.name}` }).then(valid).catch((e) => { meta.views[v.name] = { failed: e.message.slice(0, 600) }; throw e; });   // (tools/gate/tiles.js)
-      writeFileSync(`${dir}${v.name}.png`, T.png);
-      meta.views[v.name] = { tiles: n, ms: Date.now() - t0, settleMs: T.parts.map((p) => p.ms), over: T.parts.some((p) => p.over), drawn: T.parts[0].drawn };
-      console.log(`  ${v.name.padEnd(28)} ${n * n} tiles in ${((Date.now() - t0) / 60e3).toFixed(1)} min, each drawn ${px(T.parts[0].drawn)} for a ${n}th of the picture each way`);
+      meta.views[v.name] = await drawView(page, v, { tag, dir, n, truth, valid }).catch((e) => { meta.views[v.name] = { failed: e.message.slice(0, 600) }; throw e; });
     }
   } finally {
-    if (mem) { meta.memory = mem.stop(); console.log(`  the most memory, ${meta.memory.measure}: ${(meta.memory.peak.bytes / 1e9).toFixed(2)} GB (${meta.memory.peak.phase ?? '–'}: ${Object.entries(meta.memory.peak.by ?? {}).map(([k, b]) => `${k} ${(b / 1e9).toFixed(2)} GB`).join(', ')})`); }
+    if (mem) memorySaid(meta, mem);
     meta.errors = errors; save(`${dir}gate.json`, meta); said(errors); await close().catch(() => {});
   }
   return tag;
@@ -477,6 +503,7 @@ async function travel(ctx, list, mem) {
       mem.phase = p.name;
       out.paths[p.name] = { secs: c.secs, ...told(await page.evaluate(ride, { fly: !!p.flyby })) };
     }
+    out.first = await page.evaluate(firstFrame, { name: FIRST_FRAME });   // (by now long set: read once the paths are ridden)
   } finally { out.errors = errors; said(errors); await close(); }
   return out;
 }
@@ -500,6 +527,7 @@ async function paths(opt) {
   const most = out.cold.memory.peak.bytes >= out.warm.memory.peak.bytes ? out.cold.memory.peak : out.warm.memory.peak;
   if (most.bytes > MEMORY) fails.push(`memory ${gb(most.bytes)}`);
   console.log(`  the world settled where it starts in ${(out.cold.start.ms / 1000).toFixed(1)} s cold, ${(out.warm.start.ms / 1000).toFixed(1)} s warm`);
+  console.log(`  the first frame that draws the world: cold ${firstSaid(out.cold.first)}; warm ${firstSaid(out.warm.first)}`);
   console.log(`  the most memory, ${out.cold.memory.measure}: ${gb(most.bytes)}, ${most.phase} (${Object.entries(most.by ?? {}).map(([k, b]) => `${k} ${gb(b)}`).join(', ')}); resident, at most ${gb(Math.max(out.cold.memory.rss, out.warm.memory.rss))}`);
   if (!out.cold.paths[list[0].name].gpu) console.log('  (no GPU times: the page had no timestamp queries)');
   console.log(`  the gate in motion (no frame over 16.7 ms, the GPU within ${BUDGET} ms in every frame, at most 8 GB): ${fails.length ? 'NOT MET: ' + fails.join('; ') : 'met'}`);

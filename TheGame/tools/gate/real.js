@@ -1,7 +1,7 @@
 // The real half of the gate (intent 0038, check 4a): renders held against photographs of the real thing, by CMMD on
 // CLIP features and by natural-image statistics (tools/gate/real.py, in a Python of its own: tools/gate/README.md).
 // tools/gate.js real.
-import { existsSync, readFileSync, readdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
@@ -38,6 +38,35 @@ const photosFor = (v, photos) => {
   if (named.length) return named;
   return photos.filter((p) => !p.gate && p.kind === v.kind && (v.distance == null || p.near == null || (p.far >= v.distance / 2 && p.near <= v.distance * 2)));
 };
+
+// ---- the ratchet: a class's distances to the photos may only go down ----
+// tools/gate/real-ratchet.json: { measured, classes: { class: { cmmd, lightness, colour, rms, local, slope } } }, the
+// distances (their sizes) as main last measured them. A class farther than it was (by more than TOL, or TOL_SHARE of
+// it) fails the gate; main's run with --ratchet lowers each to what it measures, never raises one.
+const RATCHET = new URL('./real-ratchet.json', import.meta.url).pathname, MEASURES = ['cmmd', 'lightness', 'colour', 'rms', 'local', 'slope'];
+const TOL = { cmmd: 0.02, lightness: 0.2, colour: 0.2, rms: 0.2, local: 0.2, slope: 0.01 }, TOL_SHARE = 0.03;
+const kept = () => (existsSync(RATCHET) ? JSON.parse(readFileSync(RATCHET, 'utf8')) : { measured: null, classes: {} });
+const distances = (g) => ({ cmmd: g.cmmd, ...Object.fromEntries(MEASURES.slice(1).map((m) => [m, g.stats.diff?.[m] == null ? null : Math.abs(g.stats.diff[m])])) });
+const classOf = (g) => (g.name === 'all' || g.name.startsWith('kind ') ? g.name.replace(/^kind /, '') : null);   // (the per-view groups are detail: the classes are the kinds and all)
+function judge(groups, K = kept()) {
+  const fails = [];
+  for (const g of groups) {
+    const c = classOf(g), was = c && K.classes[c]; if (!was) continue;
+    for (const [m, v] of Object.entries(distances(g))) if (v != null && was[m] != null && v > was[m] + Math.max(TOL[m], TOL_SHARE * was[m])) fails.push(`${c} ${m} ${v.toFixed(3)} (was ${was[m].toFixed(3)})`);
+  }
+  return { measured: K.measured, fails, pass: !fails.length };
+}
+function lower(groups, at, K = kept()) {
+  const L = [];
+  for (const g of groups) {
+    const c = classOf(g); if (!c) continue;
+    const was = (K.classes[c] ||= {});
+    for (const [m, v] of Object.entries(distances(g))) if (v != null && (was[m] == null || v < was[m])) { if (was[m] != null) L.push(`${c} ${m} ${was[m].toFixed(3)} → ${v.toFixed(3)}`); was[m] = +v.toFixed(4); }
+  }
+  K.measured = at; writeFileSync(RATCHET, JSON.stringify(K, null, 1) + '\n');
+  return L;
+}
+
 export async function real(what, opt) {
   if (!what || !opt.photos) throw new Error('real <tag | folder> --photos <folder>: renders (a set of stills in .gate/, or a folder) against photographs (a folder with its manifest.json: tools/gate/README.md)');
   const rdir = existsSync(`${OUT}${what}/`) ? `${OUT}${what}/` : `${what.replace(/\/$/, '')}/`, photos = photosIn(opt.photos);
@@ -57,12 +86,27 @@ export async function real(what, opt) {
     await new Promise((ok, no) => { const p = spawn(PYTHON, [new URL('./real.py', import.meta.url).pathname, job, out, '--device', opt.device ?? 'cpu', '--clip', opt.clip ?? 'ViT-L-14-336', ...(opt['no-clip'] ? ['--no-clip'] : [])], { stdio: ['ignore', 'inherit', 'pipe'] }); let e = ''; p.stderr.on('data', (d) => { e += d; if (opt.verbose) process.stderr.write(d); }); p.on('exit', (c) => (c ? no(new Error(`tools/gate/real.py failed (${c}):\n${e.slice(-2000)}`)) : ok())); });
     const r = JSON.parse(readFileSync(out, 'utf8'));
     const report = { renders: rdir, photos: opt.photos, when: new Date().toISOString(), clip: opt.clip ?? 'ViT-L-14-336', groups: r.groups, images: r.images };
-    console.log(`  ${'group'.padEnd(28)}${'n'.padStart(7)}${'CMMD'.padStart(9)}${'L* EMD'.padStart(9)}${'ΔE mean'.padStart(9)}${'Δ chroma'.padStart(10)}${'Δ RMS'.padStart(8)}${'Δ local'.padStart(9)}${'Δ slope'.padStart(9)}`);
-    for (const g of r.groups) { const d = g.stats.diff ?? {}; console.log(`  ${g.name.padEnd(28)}${`${g.renders}:${g.photos}`.padStart(7)}${f(g.cmmd, 3, 9)}${f(d.lightness, 2, 9)}${f(d.colour, 2, 9)}${f(d.chroma, 2, 10)}${f(d.rms, 2, 8)}${f(d.local, 2, 9)}${f(d.slope, 3, 9)}`); }
-    const a = r.groups[0].stats;
-    console.log(`  the sets themselves (renders | photos): L* ${a.renders.L.toFixed(1)} | ${a.photos.L.toFixed(1)}, chroma ${a.renders.C.toFixed(1)} | ${a.photos.C.toFixed(1)}, RMS ${a.renders.rms.toFixed(1)} | ${a.photos.rms.toFixed(1)}, local ${a.renders.local.toFixed(2)} | ${a.photos.local.toFixed(2)}, slope ${a.renders.slope.toFixed(2)} | ${a.photos.slope.toFixed(2)}`);
-    save(`${rdir}real.json`, report);
-    console.log(`  → ${rdir}real.json (check 4a: every number falls stage by stage, never rises)`);
+    // the view classes (the photos' kinds) and what each holds: the gate's views of it among the renders, and its photos
+    console.log(`  the view classes: the gate's views (rendered here, of all) against the photos of each kind`);
+    for (const k of KINDS) {
+      const all = VIEWS.filter((v) => v.kind === k).map((v) => v.name), here = renders.filter((x) => x.view?.kind === k).map((x) => x.view.name), n = photos.filter((p) => p.kind === k).length;
+      if (all.length || n) console.log(`    ${k.padEnd(10)} ${String(n).padStart(3)} photos  ${here.length ? here.join(', ') : '–'}${all.length > here.length ? `  (not rendered: ${all.filter((v) => !here.includes(v)).join(', ')})` : ''}${!all.length ? '  (no gate view yet)' : ''}${!n ? '  (no photo yet)' : ''}`);
+    }
+    // the table: each class's distance, and in brackets the photos' own spread, the floor it stands on
+    const cell = (v, fl, n, w) => `${v == null ? '–' : Math.abs(v).toFixed(n)}${fl == null ? '' : ` (${Math.abs(fl).toFixed(n)})`}`.padStart(w);
+    console.log(`\n  ${'class'.padEnd(26)}${'n'.padStart(6)}${'CMMD'.padStart(15)}${'L* EMD'.padStart(14)}${'ΔE mean'.padStart(14)}${'Δ RMS'.padStart(13)}${'Δ local'.padStart(13)}${'Δ slope'.padStart(15)}`);
+    console.log(`  ${'(the photos\' own spread)'.padEnd(26)}`);
+    for (const g of r.groups) { const d = g.stats.diff ?? {}, fd = g.floor?.diff ?? {}; console.log(`  ${g.name.replace(/^kind /, '').padEnd(26)}${`${g.renders}:${g.photos}`.padStart(6)}${cell(g.cmmd, g.floor?.cmmd, 3, 15)}${cell(d.lightness, fd.lightness, 2, 14)}${cell(d.colour, fd.colour, 2, 14)}${cell(d.rms, fd.rms, 2, 13)}${cell(d.local, fd.local, 2, 13)}${cell(d.slope, fd.slope, 3, 15)}`); }
+    const A = r.groups[0].stats;
+    console.log(`  the sets themselves (renders | photos): L* ${A.renders.L.toFixed(1)} | ${A.photos.L.toFixed(1)}, chroma ${A.renders.C.toFixed(1)} | ${A.photos.C.toFixed(1)}, RMS ${A.renders.rms.toFixed(1)} | ${A.photos.rms.toFixed(1)}, local ${A.renders.local.toFixed(2)} | ${A.photos.local.toFixed(2)}, slope ${A.renders.slope.toFixed(2)} | ${A.photos.slope.toFixed(2)}`);
+    // the rule: a class's distances may only go down (tools/gate/real-ratchet.json; --ratchet: main's, lowered)
+    const J = judge(r.groups);
+    report.ratchet = J;
+    console.log(`  the real rule (no class farther from the photos than it was, ${J.measured ?? 'nothing yet measured'}): ${J.pass ? 'met' : 'NOT MET: ' + J.fails.join('; ')}`);
+    if (opt.ratchet) { const L = lower(r.groups, opt.at ?? new Date().toISOString().slice(0, 10)); console.log(`  lowered: ${L.length ? L.join('; ') : 'none'}`); }
+    save(`${rdir}real.json`, report); mkdirSync(OUT, { recursive: true }); save(`${OUT}real.json`, report);
+    console.log(`  → .gate/real.json and ${rdir}real.json (check 4a: every distance falls stage by stage, never rises)`);
+    if (!J.pass) process.exitCode = 1;
     return report;
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }

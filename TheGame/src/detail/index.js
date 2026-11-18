@@ -1,6 +1,8 @@
 // The detail engine (intent 0002): one way for every asset to choose its level of detail, whatever it is. It holds no
-// number of any asset: an asset's file keeps its own `detail` block (its levels, near to far), assets/kinds.js the
-// defaults of its kind (px, measure, fade, sink). Read README.md here before writing an engine or a new kind of asset.
+// number of any asset, and no asset holds one of its own: an asset says only what it is at full detail, and every rung
+// coarser comes where its own error is the one ERROR_PX (src/detail/error.js, intent 0038). Read README.md here before
+// writing an engine or a new kind of asset.
+//   - error.js: the one measure's rule (a rung's error in metres against the dial, ERROR_PX), plain, for the workers too;
 //   - measure.js: how large a thing is on the screen, the one measure every level is chosen by (intent 0038);
 //   - here: what is measured (assets/kinds.js: sizeOf), an asset's levels resolved (detailOf), and a placed asset's
 //     levels as one object (Detailed);
@@ -9,24 +11,39 @@
 import * as THREE from 'three/webgpu';
 import { U } from '../core/uniforms.js';
 import { kindRule, spanOf } from '../../assets/kinds.js';
+import { CROWD } from '../../assets/kit/crowd.js';
 import { handOverAt } from './handover.js';
 import { pxOn } from './measure.js';
+import { FADE, BAND, GONE, switchPx, dialPx } from './error.js';
 
 // (the measure's, here too for whoever asked here before it had a file of its own: the library, tools/sweep.js)
-export { pxK, distanceAt } from './measure.js';
+export { pxK, pxKAt, distanceAt } from './measure.js';
 
-/** An asset's levels of detail, resolved: its own `detail` block over its kind's defaults (a plant's). A surface (a rock,
-    a made thing: one that says only its full detail, its `faces` or its kit's mesh) has no levels of its own: every
-    coarser version of it is the builder's (assets/kit/clusters.js), drawn by the cut (src/scatter/cut.js); here it is
-    its faces, one level, for what draws it whole (src/world/place.js: without WebGPU). */
-export function detailOf(a) {
-  const d = a.detail || {}, px = d.px || kindRule(a, 'px'), fade = d.fade ?? kindRule(a, 'fade');
+/** Where a made thing's far card comes (src/world/place.js): its error is its bake's, a texel of the views every impostor
+    has (CROWD.CELL of them over the sphere round its faces: half its box's diagonal, at most), against its largest side. */
+const CARDS = new WeakMap(), impostorPx = (a) => {
+  if (!CARDS.has(a)) {
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (const f of a.faces) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], f[j][k]); hi[k] = Math.max(hi[k], f[j][k]); }
+    CARDS.set(a, Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / (CROWD.CELL * spanOf(a)));   // (its error, a share of its size: the dial says where)
+  }
+  return switchPx(CARDS.get(a));
+};
+
+/** An asset's levels of detail, resolved: { levels: [{ i, lo, hi, … }], fade, cut, casts, sink }, each drawn between lo
+    and hi pixels on screen. A plant's are its kit's (assets/kit/plant.js bandsOf). A surface (a rock, a made thing: its
+    `faces` or its kit's mesh) has none of its own: every coarser version is the builder's (assets/kit/clusters.js),
+    drawn by the cut (src/scatter/cut.js); here it is its faces, whole, for what draws it whole (src/world/place.js: the
+    library, a page without WebGPU), then its far card where its kind has one and the page can bake it (card), from
+    where the card's texel is within ERROR_PX to where it is gone. Every hand-over spans BAND (FADE either side). */
+export function detailOf(a, { card = true } = {}) {
+  const d = a.detail || {};
   const own = d.levels || (a.faces ? [{ faces: a.faces }] : []);
-  const levels = own.map((l, i) => ({ ...l, i, lo: l.px ?? px?.[Math.min(i, px.length - 1)] ?? 0 }));
-  const imp = d.impostor ?? kindRule(a, 'impostor');   // after the meshes: one card (src/detail/impostor.js)
-  if (imp) levels.push({ impostor: true, i: levels.length, lo: imp.px });
+  const imp = card && a.faces && (d.impostor ?? kindRule(a, 'impostor'));   // (after its faces: one card, src/detail/impostor.js)
+  const levels = own.map((l, i) => ({ ...l, i, lo: l.lo ?? (imp ? impostorPx(a) : GONE) }));
+  if (imp && levels.length) levels.push({ impostor: true, i: levels.length, lo: GONE });
   levels.forEach((l, i) => (l.hi = i ? levels[i - 1].lo : Infinity));
-  return { levels, fade, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: a.casts ?? d.casts ?? kindRule(a, 'casts') ?? true, sink: d.sink ?? kindRule(a, 'sink') ?? 0 };
+  return { levels, fade: FADE, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: a.casts ?? d.casts ?? kindRule(a, 'casts') ?? true, sink: BAND };
 }
 
 /**
@@ -34,8 +51,8 @@ export function detailOf(a) {
  * large the asset is on screen and shows the one or two levels that size calls for, each with its share of pixels.
  */
 export class Detailed extends THREE.LOD {
-  constructor(asset, meshes) {
-    super(); this.d = detailOf(asset); this.span = spanOf(asset); this.meshes = meshes;
+  constructor(asset, meshes, d = detailOf(asset)) {
+    super(); this.d = d; this.span = spanOf(asset); this.meshes = meshes;
     for (const m of meshes) { if (this.d.casts) m.layers.enable(1); this.add(m); }   // every level casts a shadow, as drawn, unless the asset says not (src/world/shadow.js)
     this.px = 0; this.level = 0;
   }
@@ -46,7 +63,7 @@ export class Detailed extends THREE.LOD {
     const { levels, fade } = this.d; let shown = -1;
     for (let i = 0; i < levels.length; i++) {
       // the one hand-over (handover.js): a made thing is of one piece: it changes over whole, half way; its last level sinks
-      const H = handOverAt(px, levels[i].lo, levels[i].hi, fade, i === levels.length - 1, this.d.sink), m = this.meshes[i];
+      const H = handOverAt(dialPx(px), levels[i].lo, levels[i].hi, fade, i === levels.length - 1, this.d.sink), m = this.meshes[i];   // (in dial pixels, as its levels: src/detail/error.js)
       m.visible = H.whole; m.material.sunk.value = H.sunk;
       if (H.whole && shown < 0) shown = i;
     }

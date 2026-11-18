@@ -5,21 +5,24 @@
 // Playwright's page.close() a time of its own: it waits for the renderer to let the page go (2026-11-18, a ?truth run
 // whose first view had failed hung 13 minutes in stills' last call, closing that page, its Chrome at 0 % CPU). Here each
 // page.evaluate and page.waitForFunction races a timer of the gate's own: the call's own wait (its argument's `wait`, or
-// waitForFunction's timeout) and GRACE more, else LONGEST; and page.close, GRACE. A page that does not answer in that time is said (crashed, or
+// waitForFunction's timeout; else the page's own, the longest the gate allows it to come or settle) times MARGIN, and
+// page.close the page's. A page that does not answer in that time is said (crashed, or
 // hung, with the browser's memory by process and the machine's swap at that moment), its Chrome closed (killed if it
 // will not close), and the call fails: the view is marked failed and the run stops, nothing waited on.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
-export const GRACE = 60e3, LONGEST = 300e3;   // ms past a call's own wait; and for a call that names none (a still, a bench of a view, a path played)
+/** How much longer than the longest it may legitimately take the gate waits on a call before it calls the page hung:
+    a fifth again. */
+const MARGIN = 1.2;
 
 /** A page that did not answer: its message says what was found. */
-export class Unanswered extends Error {}
+class Unanswered extends Error {}
 
 /** The memory of the Chrome on profile `dir` (every process that names it, and theirs) by kind, in bytes (the physical
     footprint on a Mac, else the resident size), and the machine's swap: a line. */
-export async function memoryNow(dir) {
+async function memoryNow(dir) {
   try {
     const rows = [];
     for (const line of (await run('ps', ['-A', '-o', 'pid=,ppid=,rss=,%cpu=,command='])).stdout.split('\n')) { const m = line.match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+([\d.]+)\s+(.*)$/); if (m) rows.push({ pid: +m[1], ppid: +m[2], rss: +m[3] * 1024, cpu: +m[4], cmd: m[5] }); }
@@ -35,9 +38,12 @@ export async function memoryNow(dir) {
   } catch (e) { return `(memory not read: ${e.message})`; }
 }
 
-/** `page`'s evaluate, waitForFunction and close held to their time from here. dir: the profile its Chrome runs on (for the
+/** `page`'s evaluate, waitForFunction and close held to their time from here: a call's own wait, else `wait` (the
+    longest the gate allows the page to come or settle: tools/gate.js open), times MARGIN. dir: the profile its Chrome runs on (for the
     memory said); kill(): its Chrome closed at once. */
-export function guard(page, { dir = null, kill = null } = {}) {
+export function guard(page, { dir = null, kill = null, wait } = {}) {
+  if (!(wait > 0)) throw new Error('guard: the longest a call on the page may take (wait) is the gate\'s to say');
+  const held = (own) => (own ?? wait) * MARGIN;
   const ev = page.evaluate.bind(page), wf = page.waitForFunction.bind(page), cl = page.close.bind(page);
   let crashed = false; page.on('crash', () => (crashed = true));
   const within = async (call, ms, what) => {
@@ -52,9 +58,9 @@ export function guard(page, { dir = null, kill = null } = {}) {
       throw new Unanswered(said);
     } finally { clearTimeout(timer); }
   };
-  page.evaluate = (fn, arg) => within(ev(fn, arg), (arg?.wait ?? LONGEST - GRACE) + GRACE, `${fn?.name || 'a call'}${arg?.at ? ` at ${arg.at}` : ''}`);
-  page.waitForFunction = (fn, arg, opt) => within(wf(fn, arg, opt), (opt?.timeout ?? LONGEST - GRACE) + GRACE, 'waiting for the page');
-  page.close = (opt) => within(cl(opt), GRACE, 'closing it');
+  page.evaluate = (fn, arg) => within(ev(fn, arg), held(arg?.wait), `${fn?.name || 'a call'}${arg?.at ? ` at ${arg.at}` : ''}`);
+  page.waitForFunction = (fn, arg, opt) => within(wf(fn, arg, opt), held(opt?.timeout), 'waiting for the page');
+  page.close = (opt) => within(cl(opt), held(), 'closing it');
   return page;
 }
 

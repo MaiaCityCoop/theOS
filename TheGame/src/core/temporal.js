@@ -38,7 +38,7 @@ import { Fn, If, float, vec2, vec3, vec4, ivec2, uv, uniform, texture, textureSt
 import { note } from './gpu.js';
 import { U } from './uniforms.js';
 import { display, ign } from '../world/light.js';
-import { TRUTH_AS } from '../detail/measure.js';
+import { TRUTH } from '../detail/measure.js';
 
 const halton = (i, b) => { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; };
 /** The places a frame is drawn at by turns (parts of a drawn pixel, -0.5 … 0.5), n of them: evenly spread however many. */
@@ -192,12 +192,12 @@ export function createTemporal(renderer) {
   })()];
   const copy = STORE ? null : (() => { const m = new THREE.NodeMaterial(); m.fragmentNode = Fn(() => vec4(tShow.sample(at()).level(0).rgb, 1))(); return quadOf(m); })();
 
-  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), size = new THREE.Vector2(), css = new THREE.Vector2();
+  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), size = new THREE.Vector2();
   const proj = new THREE.Matrix4(), projInv = new THREE.Matrix4(), view = new THREE.Matrix4(), world = new THREE.Matrix4(), projWas = new THREE.Matrix4(), viewWas = new THREE.Matrix4(), rel = new THREE.Matrix4();
   let places = placesOf(8), turn = 0, k = 0, fresh = true, lastAt = 0, age = 0, timeWas = null, sizeKept = '', glassWas = [0, 1], tile = null;
   /** The places for a frame drawn at w × h onto the screen: ⌈8·s²⌉ of them for s screen pixels a drawn one, each way
       (FSR 2's count); ?truth, its own reference, takes 32 (its frames are slow, and it is to be supersampled). */
-  const placesFor = (w, h) => { renderer.getDrawingBufferSize(size); const s = Math.max(size.x / w, size.y / h, 1), n = TRUTH_AS.still ? Math.max(32, Math.ceil(8 * s * s)) : Math.ceil(8 * s * s - 1e-6); if (n !== places.length) { places = placesOf(n); k %= n; } };
+  const placesFor = (w, h) => { renderer.getDrawingBufferSize(size); const s = Math.max(size.x / w, size.y / h, 1), n = TRUTH ? Math.max(32, Math.ceil(8 * s * s)) : Math.ceil(8 * s * s - 1e-6); if (n !== places.length) { places = placesOf(n); k %= n; } };
 
   // ---- resolve's stages, in its order, once a frame ----
   /** The kept picture at the screen's size: made again where the size changed, and what was kept let go. */
@@ -238,7 +238,7 @@ export function createTemporal(renderer) {
     /** Frames the kept picture has been built over since it was last let go (0: this frame stood alone). */
     get age() { return age; },
     /** Which of its places of a pixel the last frame was drawn at; set, the next frame is drawn at the one after it (the
-        gate draws the truth's frame at the place the game's was: tools/gate/motion.js). */
+        gate's motion --floor draws its second pass at the first's places: tools/gate/motion.js). */
     get place() { return k; },
     set place(v) { k = ((Math.round(v) % places.length) + places.length) % places.length; },
     /** How many frames in a row, nothing changed, until what was kept before has left the picture (src/core/settle.js):
@@ -253,7 +253,7 @@ export function createTemporal(renderer) {
         and what the prepass asks of where things were a frame ago (src/core/pass.js). */
     begin(camera, w, h) {
       proj.copy(camera.projectionMatrix); projInv.copy(camera.projectionMatrixInverse); view.copy(camera.matrixWorldInverse); world.copy(camera.matrixWorld);
-      const t = performance.now(); if (t - lastAt > K.stale && !TRUTH_AS.still) fresh = true; lastAt = t;   // (not drawn for a while: a film, a hidden page; ?truth's frames are slow, src/detail/measure.js, and build on)
+      const t = performance.now(); if (t - lastAt > K.stale && !TRUTH) fresh = true; lastAt = t;   // (not drawn for a while: a film, a hidden page; ?truth's frames are slow, src/detail/measure.js, and build on)
       placesFor(w, h);
       const [jx, jy] = places[(k = (k + 1) % places.length)];
       // (the camera set to show a tile of a larger picture, camera.view: ?truth drawn tile by tile, tools/gate.js; this
@@ -269,7 +269,6 @@ export function createTemporal(renderer) {
       // textures read as finely as the screen's pixels would read them, not the inside's: what that leaves crawling in one
       // frame, the frames together take in (src/terrain/material.js, src/scatter/stress.js)
       U.uFine.value = 1 + (Math.min(1, w / size.x) - 1) * K.fine;
-      U.uDrawn.value = h / Math.max(1, renderer.getSize(css).y);   // (the pixels drawn a CSS pixel: src/detail/measure.js drawnAt)
     },
     /** After it: the camera as it was, and nothing read finer by what is drawn otherwise. */
     end(camera) { if (tile) camera.setViewOffset(tile.fullWidth, tile.fullHeight, tile.offsetX, tile.offsetY, tile.width, tile.height); else camera.clearViewOffset(); U.uFine.value = 1; },

@@ -21,7 +21,7 @@ import * as THREE from 'three/webgpu';
 import { loadingStep, loadingDone } from './ui/loading.js';   // the veil is told what is being made
 import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
-import { keepMeasure, TRUTH } from './detail/measure.js';
+import { keepMeasure, measureNow, TRUTH } from './detail/measure.js';
 import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
@@ -53,6 +53,7 @@ import { createCity } from './city/index.js';
 import { createLakes } from './world/lakes.js';   // the city's plots over the land, seen from above (world/city.js)
 import { inTurn, shareComputeCompiles, countCompiles } from './core/compile.js';
 import { flag } from './core/flags.js';
+import { FIRST_FRAME, stampDone } from './core/marks.js';   // (the first frame that draws the world, on the page's own timeline)
 
 const SKY = 0x9fc2e6, REACH = 6000;   // REACH: how far the stage's land is drawn (m): it ends in the air beyond what its camera looks at
 // (each compile given 20 s: a pipeline the GPU never answers for, or one that fails, held the veil over the page for good
@@ -106,7 +107,7 @@ export async function boot({ profile = 'world' } = {}) {
   const screen = (game.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
   const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
   game.governor = governor;   // the film holds it still while it plays
-  keepMeasure(() => screen.inside);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
+  keepMeasure(() => screen.inside, screen.out);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
   if (TRUTH) governor.hold(true);   // (?truth: everything at its finest, offline: no dial turned for its slow frames)
   watch({ camera, renderer, screen, temporal, U });   // what the world complete is measured against (src/core/settle.js)
   const marks = (game.boot = {}), mark = (k) => (marks[k] = Math.round(performance.now() - t0));   // where the start's time goes
@@ -173,6 +174,7 @@ export async function boot({ profile = 'world' } = {}) {
     city?.update();
     const lod = governor.detail(camera);
     U.uLodInv.value = 1 / lod;
+    measureNow();   // (the live pixel and the dial, as the governor left them: src/detail/measure.js)
     u = performance.now(); parts.ctl = u - t; t = u;
     if (live()) grown.ground.update(p.x, p.z, dy, lod);
     u = performance.now(); parts.ground = u - t; t = u;
@@ -285,6 +287,7 @@ export async function boot({ profile = 'world' } = {}) {
     for (let i = 0; i < seen.length; i += 2) seen[i].visible = seen[i + 1];
     choose(0);
     screen.render(scene, camera);
+    stampDone(renderer, FIRST_FRAME);   // (the first frame that draws the world: what every measure of a start reads)
     game.loadMs = performance.now() - t0;
     setTimeout(() => (game.outlines.made = keepOutlines()), 2500);   // what was measured anew this time, kept for the next start
     console.log(`[the game] ready in ${game.loadMs.toFixed(0)} ms`, marks);
