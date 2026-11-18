@@ -19,16 +19,22 @@ const slug = (s) => s.toLowerCase().replace(/(\d) (k?m)\b/g, '$1$2').replace(/[^
 const from = (name, [x, z], yaw, dist) => ({ name, rig: { x, z, yaw, dist } });
 const METRES = [10, 30, 60, 120, 250, 500];
 
+// Each view also says what it shows, for the real half (tools/gate.js real: the photographs it is held against): its
+// kind, one of KINDS (the reference photos' own: research_notes/0038-species-and-references.md, and the made things),
+// and how far off the camera stands from it, in metres (null: inside it, or not known).
+export const KINDS = ['eye-level', 'tree', 'shrub', 'rock', 'floor', 'above', 'hills', 'tent', 'firepit', 'meadow', 'river', 'town'];
+const SHOWS = { 'tent, eye level': ['tent', 14], 'river bend, 26 m': ['river', 26], 'town, 40 m': ['town', 40], 'skyline, 2.5 km': ['hills', 2500], 'pine forest, eye level': ['eye-level', null], 'pine forest, 90 m': ['above', 90] };
 export const VIEWS = [
   // the bench's six (tools/bench.js), each in the bench's own pose (its slight tilt down too)
-  ...BENCH.map((v) => ({ name: 'bench-' + slug(v.name), bench: v.name, rig: { x: v.x, z: v.z, yaw: v.yaw, h: v.h, look: -0.05 } })),
-  // the tent and the pine stand from 10 to 500 m, as the game's camera stands that far from them
-  ...METRES.map((d) => from(`tent-${d}m`, TENT, TO_TENT, d)),
-  ...METRES.map((d) => from(`pines-${d}m`, PINES, INTO_PINES, d)),
+  ...BENCH.map((v) => ({ name: 'bench-' + slug(v.name), bench: v.name, rig: { x: v.x, z: v.z, yaw: v.yaw, h: v.h, look: -0.05 }, kind: SHOWS[v.name][0], distance: SHOWS[v.name][1] })),
+  // the tent and the pine stand from 10 to 500 m, as the game's camera stands that far from them (the stand: its trees
+  // to 30 m, from above further off, where the rig hangs high)
+  ...METRES.map((d) => ({ ...from(`tent-${d}m`, TENT, TO_TENT, d), kind: 'tent', distance: d })),
+  ...METRES.map((d) => ({ ...from(`pines-${d}m`, PINES, INTO_PINES, d), kind: d <= 30 ? 'tree' : 'above', distance: d })),
   // the land from 2.5 and 12 km
-  from('far-2.5km', TENT, TO_TENT, 2500), from('far-12km', TENT, TO_TENT, 12000),
+  { ...from('far-2.5km', TENT, TO_TENT, 2500), kind: 'hills', distance: 2500 }, { ...from('far-12km', TENT, TO_TENT, 12000), kind: 'hills', distance: 12000 },
   // the solids up close and from 30 m (stage 8: a surface's cluster hierarchy)
-  from('firepit-3m', FIRE, TO_TENT, 3), from('boulder-6m', BOULDER, TO_TENT, 6), from('boulder-30m', BOULDER, TO_TENT, 30),
+  { ...from('firepit-3m', FIRE, TO_TENT, 3), kind: 'firepit', distance: 3 }, { ...from('boulder-6m', BOULDER, TO_TENT, 6), kind: 'rock', distance: 6 }, { ...from('boulder-30m', BOULDER, TO_TENT, 30), kind: 'rock', distance: 30 },
 ].map((v) => ({ ...SKY, ...v }));
 
 // The paths: the camera moving as a player moves it, at 11:00 in the game's own weather, each played once by the film

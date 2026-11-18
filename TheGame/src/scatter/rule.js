@@ -26,8 +26,8 @@
 // and young (its placement's `young`: how much of the ground its saplings cover), in the class of its saplings. Each
 // layer whose cells are as large as the growth map's texels writes what it leaves there for the layers after it.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Loop, float, int, uint, vec2, vec4, ivec2, uniformArray, smoothstep, clamp, mix, max, min, abs, floor, length } from 'three/tsl';
-import { rnd, groveAt, leadAt, riverInfo, shareOf, nearLake } from '../world/land.nodes.js';
+import { Fn, If, Loop, float, int, uint, vec2, vec4, ivec2, uniformArray, smoothstep, clamp, mix, max, min, abs, floor, length, pow, log, exp, sqrt } from 'three/tsl';
+import { rnd, vnoise, groveAt, leadAt, riverInfo, shareOf, nearLake } from '../world/land.nodes.js';
 import { U } from '../core/uniforms.js';
 import { scatterRow } from '../../assets/index.js';
 import { entriesOf, placed } from './entries.js';
@@ -35,7 +35,8 @@ import { CLEARINGS } from '../../world/places.js';
 import { TEXEL, WORDS } from './growth.js';
 
 const R0 = 0.69, PER = 1.8, CLUMPS = 55, PATCHES = 90, TOP = 1;   // R0: metres of reach where the classes begin (0.69-2.8 m, 2.8-11 m, ...); PER: a cell's side to its class's middle reach; CLUMPS, PATCHES: a biome's groves and the patches where one kind leads, metres, at the class of a grown tree (TOP), where its biome does not say (its `groves`)
-const SHADE = 0.85;   // how much of the light a crown takes where it is whole
+const SHADE = 0.85;   // how much of the light coming down through a crown its foliage takes where it is deepest, over its middle
+const SUB = 4;   // a growth map texel's light is the mean of SUB x SUB points over it, half a metre apart (gatherOf)
 
 // ---- the spread order (stage 5's): the one number that places and thins ----
 const bayer2 = (x, y) => x.bitXor(y).bitAnd(uint(1)).mul(uint(2)).add(y.bitAnd(uint(1)));
@@ -92,6 +93,47 @@ export const grovesOf = (bio, L) => ({ clumps: (bio.groves?.clumps ?? CLUMPS) * 
 /** Where the thing of cell c of layer L stands (metres): somewhere in its cell, never at its edge. */
 export const posIn = (c, L) => { const h0 = (k) => uint(k + L.seed - 300); return vec2(c).add(0.08).add(vec2(rnd(c.x, c.y, h0(302)), rnd(c.x, c.y, h0(303))).mul(0.84)).mul(L.cell); };
 
+/** How tall the thing of entry e stands in cell c of layer L (metres), and which of its kind's shapes it is (0 … its
+    count), as the trees' engine draws it (src/scatter/trees.js) and the growth map reckons its crown (gatherOf): its own
+    scale within its placement's; a tree that grows as old as its stand (its biome's `age`, a slow noise, and a share of
+    its own) or, a sapling, as its own age, its stage's height at that age (straight in the logarithms of age and height
+    between where the stage begins, its year and where it ends, as assets/kit/tree.js heightIn works it out); one that
+    does not grow, its asset's height and a shape at random. pos: where it stands (posIn). Nodes, worked out where the
+    thing is known to be e's. */
+export function grownIn(c, L, e, pos) {
+  const a = e.asset, P = a.placement, GR = a.growth, AG = e.ages, n = e.shapes[1], h0 = (k) => uint(k + L.seed - 300), r = rnd(c.x, c.y, h0(312));
+  const own = mix(P.scale[0], P.scale[1], GR && AG ? rnd(c.x, c.y, h0(304)) : pow(rnd(c.x, c.y, h0(304)), 1.3)), h = float(1).toVar(), shape = float(0).toVar();
+  if (GR && AG) {
+    const age = (e.young ? mix(AG[0], AG[1], r.mul(r)) : mix(AG[0], AG[1], vnoise(pos.div(grovesOf(e.biome, L).clumps * 2.5), h0(311))).mul(mix(0.65, 1.3, r))).toVar();
+    GR.stages.forEach((S, j) => {
+      if (S.offset >= n) return;   // (a sapling: only its first stages)
+      const lo = j ? S.from : -1, hi = j < GR.stages.length - 1 && GR.stages[j + 1].offset < n ? S.to : 1e9;
+      If(age.greaterThanEqual(lo).and(age.lessThan(hi)), () => {
+        const ag = clamp(age, S.from, S.to), low = ag.lessThan(S.year);
+        const t = low.select(log(ag.div(S.from)).div(Math.log(S.year / S.from)), log(ag.div(S.year)).div(Math.log(S.to / S.year)));
+        h.assign(exp(low.select(mix(float(Math.log(S.hFrom)), float(Math.log(S.h)), t), mix(float(Math.log(S.h)), float(Math.log(S.hTo)), t))).mul(own));
+        shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(S.variants)).add(S.offset));
+      });
+    });
+  } else { h.assign(own.mul(a.size.height)); shape.assign(floor(rnd(c.x, c.y, h0(309)).mul(n)).min(n - 1)); }
+  return { h, shape };
+}
+
+// ---- the light under the crowns: what the growth map's shade is ----
+// The light that comes down to the ground through what stands over it: each crown as large as it is drawn (grownIn,
+// and its kind's span to its height, as the trees' engine reckons how far a plant reaches), its foliage a dome over its
+// foot, as deep at d metres off its middle as the dome is high there (√(1 − (d/R)²) of its depth over its middle), the
+// light through it Beer–Lambert's (exponential in that depth), SHADE of it taken where the dome is deepest; none taken
+// past its reach. What lies on the floor (a stone, a log, a fallen branch) has no crown and takes none.
+/** How far a thing of asset a reaches out from its foot, to its height: half its kind's span over its height. */
+const spreadOf = (a) => Math.max(most(a.size.length), most(a.size.width ?? 0)) / (2 * a.size.height);
+/** Whether the things of entry e have a crown over the ground: a tree, a sapling, a shrub, a herb; not what lies on the floor. */
+const crowned = (e) => e.asset.kind !== 'litter';
+/** How far the crown of a thing of entry e reaches at the most (metres): its tallest stage at its end, at its largest scale. */
+const crownMost = (e) => { const a = e.asset, S = a.growth && e.ages ? a.growth.stages.filter((s) => s.offset < e.shapes[1]) : null; return (S ? Math.max(...S.map((s) => s.hTo)) : a.size.height) * a.placement.scale[1] * spreadOf(a); };
+/** The share of the light coming down that reaches the ground d metres off the middle of a crown reaching R metres. */
+const throughCrown = (d, R) => { const u = d.div(R); return exp(sqrt(clamp(float(1).sub(u.mul(u)), 0, 1)).mul(Math.log(1 - SHADE))); };
+
 /** What the larger layers left at p for layer L (M: the growth map): the light that comes through (0..1), how much of
     the ground their feet take, and litter(ids): how much of the litter of those things lies there. */
 function influenceAt(p, L, M) {
@@ -135,24 +177,32 @@ export function placeIn(c, L, M, pos) {
 }
 
 /** What layer L leaves at q (a texel's middle, metres) for the layers after it, as the growth map keeps it: each of its
-    cells round q placed by the rule, and what stands there casts its shade over its crown, takes the ground at its foot,
-    and drops its litter out to beyond its crown; the litter's lead is the thing that drops most there. */
+    cells round q placed by the rule, and what stands there takes the light coming down through its crown (the light
+    under the crowns, above: the texel's mean, over SUB x SUB points of it, so a crown smaller than a texel takes its
+    share of the texel's light), takes the ground at its foot, and drops its litter out to beyond its crown; the litter's
+    lead is the thing that drops most there. */
 export function gatherOf(L, M) {
-  const m = Math.ceil((2 * L.reach) / L.cell) + 1;
+  // (its cells as far round q as anything of theirs reaches: their litter and feet, their crowns over the texel's points)
+  const crowns = L.entries.filter(crowned), edge = TEXEL * (0.5 - 0.5 / SUB) * Math.SQRT2, reach = Math.max(L.reach, ...crowns.map((e) => crownMost(e) + edge)), m = Math.ceil((2 * reach) / L.cell) + 1;
+  const points = Array.from({ length: SUB * SUB }, (_, s) => vec2(((s % SUB) + 0.5) / SUB - 0.5, (Math.floor(s / SUB) + 0.5) / SUB - 0.5).mul(TEXEL));
   return (q) => {
-    const lo = ivec2(floor(q.sub(L.reach).div(L.cell))).toVar(), light = float(1).toVar(), foot = float(0).toVar(), litter = float(0).toVar(), lead = uint(0).toVar(), best = float(0).toVar();
+    const lo = ivec2(floor(q.sub(reach).div(L.cell))).toVar(), light = points.map(() => float(1).toVar()), foot = float(0).toVar(), litter = float(0).toVar(), lead = uint(0).toVar(), best = float(0).toVar();
     Loop(m, m, ({ i, j }) => {
         const c = lo.add(ivec2(i, j)).toVar(), pos = posIn(c, L).toVar(), R = placeIn(c, L, M, pos);
         If(R.k.greaterThanEqual(0), () => {
           const E = L.table.element(R.k), r = length(q.sub(pos)).toVar();
-          light.mulAssign(float(1).sub(smoothstep(E.x, E.x.mul(0.7), r).mul(SHADE)));
+          if (crowns.length) {   // (its crown as far as it reaches as it is drawn: none, what lies on the floor)
+            const crown = float(0).toVar();
+            for (const e of crowns) If(R.k.equal(e.i), () => { crown.assign(grownIn(c, L, e, pos).h.mul(spreadOf(e.asset))); });
+            If(crown.greaterThan(0).and(r.lessThan(crown.add(edge))), () => { points.forEach((o, s) => light[s].mulAssign(throughCrown(length(q.add(o).sub(pos)), crown))); });
+          }
           foot.assign(max(foot, smoothstep(max(E.y, TEXEL * 0.75), max(E.y, TEXEL * 0.75).mul(0.5), r)));
           const l = float(1).sub(smoothstep(E.x.mul(0.5), E.x.mul(1.6), r)).mul(E.w).toVar();
           litter.addAssign(l);
           If(l.greaterThan(best), () => { best.assign(l); lead.assign(uint(E.z)); });
         });
     });
-    return { shade: float(1).sub(light), foot, litter: min(litter, 1), lead };
+    return { shade: float(1).sub(light.reduce((a, b) => a.add(b)).div(points.length)), foot, litter: min(litter, 1), lead };
   };
 }
 

@@ -40,10 +40,21 @@ export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer :
 export const lean = () => !!R;
 /** Whether the renderer's GPU has a WebGPU feature (none without WebGPU). */
 export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);
-/** The limits every WebGPU device grants (the standard's defaults), beside the adapter's own: what a baked thing is
-    sized by. A baked atlas is content kept by its key and drawn on any device, Safari and mobile among them, so its size
-    may not depend on the GPU it was first made on (src/detail/atlas.js atlasesOf); what lives only while the page runs
-    (arenas, pages, cascades) takes the adapter's own. */
+/** The limits the design sizes against: every one read here (limitOf), and the layers of the land's pages and of the
+    drawers' skins (src/terrain/pages.js, src/scatter/drawer.js). The device is asked for each as its adapter has it
+    (src/boot.js limitsFrom), so what is sized from them is sized from what this GPU gives, never from WebGPU's defaults
+    unasked; one not in the list is not read. */
+const SIZED = ['maxBufferSize', 'maxStorageBufferBindingSize', 'maxUniformBufferBindingSize', 'maxComputeWorkgroupsPerDimension', 'maxTextureArrayLayers'];
+/** What to ask a device for, of its adapter's limits A: each of SIZED as A has it. */
+export const limitsFrom = (A) => Object.fromEntries(SIZED.filter((k) => A?.[k] != null).map((k) => [k, A[k]]));
+/** One of the renderer's GPU's limits, one of SIZED (none without WebGPU: nothing then asks). */
+export const limitOf = (name) => { if (!SIZED.includes(name)) throw new Error(`gpu: ${name} is not a limit the device is asked for (SIZED)`); return R?.backend?.device?.limits?.[name] ?? 0; };
+/** Every buffer made here within the device's limits: one larger is an error of whoever sized it, said by name. */
+const within = (bytes, name) => { const most = Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity); if (bytes > most) throw new Error(`${name ?? 'a buffer'}: ${bytes} bytes, more than the GPU binds in one buffer (${most})`); };
+/** The limits every WebGPU device grants (the standard's defaults), beside the adapter's own (limitOf): what a baked
+    thing is sized by. A baked atlas is content kept by its key and drawn on any device, Safari and mobile among them,
+    so its size may not depend on the GPU it was first made on (src/detail/atlas.js atlasesOf); what lives only while
+    the page runs (arenas, pages, cascades) takes the adapter's own. */
 export const PORTABLE = { maxTextureDimension2D: 8192, maxTextureArrayLayers: 256, maxUniformBufferBindingSize: 65536 };
 
 const TYPES = { uint: [Uint32Array, 1], float: [Float32Array, 1], vec4: [Float32Array, 4], uvec4: [Uint32Array, 4] };
@@ -58,9 +69,27 @@ export function gpuStorage(type, count, name = null, instanced = false) {
     if (name) note(name, bytes, bytes);
     return { node: storage(attr, type, count), attr, bytes, lean: false, write(at, data) { attr.array.set(data, at); attr.addUpdateRange(at, data.length); attr.needsUpdate = true; } };
   }
+  within(bytes, name);
   const dev = R.backend.device, attr = new Attr(new Arr(size), size);
   const buffer = dev.createBuffer({ label: name ?? 'lean', size: Math.max(16, bytes), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
   R.backend.get(attr).buffer = buffer;
   if (name) note(name, bytes, 0);
   return { node: storage(attr, type, count), attr, bytes, lean: true, write(at, data) { dev.queue.writeBuffer(buffer, at * 4, data); } };
+}
+/** The same, its size said later, before anything binds it (what is shared by things not all made yet: the culling's
+    lists, src/core/occlusion.js): { node, attr, make(count) -> bytes }. A storage buffer's length is not in its code, so
+    the node is the same whatever it is made as. */
+export function gpuStorageLater(type, name = null) {
+  const [Arr, size] = TYPES[type], attr = new THREE.StorageBufferAttribute(new Arr(size), size);
+  return {
+    node: storage(attr, type, 1), attr,
+    make(count) {
+      const bytes = Math.max(1, count) * size * 4;
+      if (!R) { attr.array = new Arr(Math.max(1, count) * size); attr.count = Math.max(1, count); if (name) note(name, bytes, bytes); return bytes; }
+      within(bytes, name);
+      R.backend.get(attr).buffer = R.backend.device.createBuffer({ label: name ?? 'lean', size: Math.max(16, bytes), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+      if (name) note(name, bytes, 0);
+      return bytes;
+    },
+  };
 }

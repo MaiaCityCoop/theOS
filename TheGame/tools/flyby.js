@@ -36,29 +36,34 @@ function heightForPx(px, yaw) {
   return Math.exp((lo + hi) / 2);
 }
 
+let orbitH = null;   // (the orbit's height, found once)
+/** The flight's seconds of one cycle (mode: 'zoom' or 'orbit'). */
+export const cycleOf = (mode = 'zoom') => (mode === 'zoom' ? 2 * SECS + 2 * HOLD : ORBIT);
+/** Where the flight has the rig `t` seconds in: the point it hangs over (x, z), its heading (yaw) and its height (h).
+    What run() places the rig at every frame, and what the gate places it at frame by frame (tools/gate.js motion). */
+export function flightAt(t, mode = 'zoom') {
+  const L0 = Math.log(RIG.eye), L1 = Math.log(RIG.top), cycle = cycleOf('zoom');
+  if (mode !== 'zoom') return { x: OAK.x, z: OAK.z, yaw: YAW + ((t % ORBIT) / ORBIT) * Math.PI * 2, h: (orbitH ??= heightForPx(PX, YAW)) };
+  const c = t % cycle, q = c < SECS ? 1 - c / SECS : c < SECS + HOLD ? 0 : c < 2 * SECS + HOLD ? (c - SECS - HOLD) / SECS : 1;   // 1 at the top, 0 at the eyes
+  const h = Math.exp(L0 + (L1 - L0) * (q + smooth(q)) / 2);   // (eased only half: the middle heights, where the levels change, not rushed)
+  // the rig looks at the point it hangs over: the oak itself, but never nearer than NEAR (low down, where the rig hangs
+  // back less than that, the point is before the oak, so the camera stays NEAR off and the oak in view)
+  const off = Math.max(0, NEAR - poseAt(OAK.x, OAK.z, YAW, h).back);
+  return { x: OAK.x + off * Math.sin(YAW), z: OAK.z + off * Math.cos(YAW), yaw: YAW, h };
+}
+
 export function run() {
   const C = window.__game.controls, mode = flagText('flyby') === 'orbit' ? 'orbit' : 'zoom';
   const label = document.createElement('div');
   label.style.cssText = 'position:fixed;left:12px;top:12px;z-index:99999;background:rgba(255,253,246,0.9);color:#1f2a1c;font:12px/1.4 ui-monospace,Menlo,monospace;padding:6px 10px;border-radius:8px;pointer-events:none';
   document.body.appendChild(label);
-  const L0 = Math.log(RIG.eye), L1 = Math.log(RIG.top), cycle = 2 * SECS + 2 * HOLD, t0 = performance.now();
-  const hOrbit = mode === 'orbit' ? heightForPx(PX, YAW) : 0;
+  const t0 = performance.now();
   let shown = '', held = null;
   // (for stills and films of the flight, frame by frame: window.__flyby.at(seconds) holds it there, at(null) lets it go on)
-  window.__flyby = { mode, cycle: mode === 'zoom' ? cycle : ORBIT, at(s) { held = s; } };
+  window.__flyby = { mode, cycle: cycleOf(mode), at(s) { held = s; } };
   const step = (now) => {
     requestAnimationFrame(step);
-    const t = held ?? (now - t0) / 1000;
-    let x, z, yaw, h;
-    if (mode === 'zoom') {
-      const c = t % cycle, q = c < SECS ? 1 - c / SECS : c < SECS + HOLD ? 0 : c < 2 * SECS + HOLD ? (c - SECS - HOLD) / SECS : 1;   // 1 at the top, 0 at the eyes
-      yaw = YAW; h = Math.exp(L0 + (L1 - L0) * (q + smooth(q)) / 2);   // (eased only half: the middle heights, where the levels change, not rushed)
-      // the rig looks at the point it hangs over: the oak itself, but never nearer than NEAR (low down, where the rig hangs
-      // back less than that, the point is before the oak, so the camera stays NEAR off and the oak in view)
-      const off = Math.max(0, NEAR - poseAt(OAK.x, OAK.z, yaw, h).back); x = OAK.x + off * Math.sin(yaw); z = OAK.z + off * Math.cos(yaw);
-    } else {
-      yaw = YAW + ((t % ORBIT) / ORBIT) * Math.PI * 2; x = OAK.x; z = OAK.z; h = hOrbit;
-    }
+    const { x, z, yaw, h } = flightAt(held ?? (now - t0) / 1000, mode);
     C.place(x, z, yaw); C.height = h;   // (place puts the rig at the eyes; the height after it)
     const P = poseAt(x, z, yaw, h), d = Math.hypot(P.pos[0] - OAK.x, P.pos[2] - OAK.z, P.pos[1] - heightAt(OAK.x, OAK.z)), px = pxOf(P);
     const txt = `flyby ${mode} · ${d >= 1000 ? (d / 1000).toFixed(1) + ' km' : d.toFixed(0) + ' m'} from the oak · oak ${px >= 10 ? px.toFixed(0) : px.toFixed(1)} px tall`;
