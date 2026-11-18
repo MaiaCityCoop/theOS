@@ -36,7 +36,7 @@
 //   plantFamily(id, asset)   a plant asset's shapes as a family of the zoo (assets/zoo/index.js)
 import { kindRule, shapesOf, most, baseOf } from '../kinds.js';
 import { held, sn, q16, oct, OCT } from './pack.js';
-import { crowd, levelOf } from './crowd.js';
+import { crowd, levelOf, RULE } from './crowd.js';
 import { goneAt, rungAt, rungPx, BAND } from '../../src/detail/error.js';
 
 export const GRID = { xz: 40, y0: -2, y1: 78 }, UVK = 1024, UV0 = 16, GOQ = 2048, GO0 = 16;   // x and z over -40 … 40 m, y over -2 … 78 m, 16 bits each (1.2 mm); uv in 1024ths, from -16; a go's log2 in 2048ths, from 2^-16 m (15 µm … 65 km)
@@ -60,7 +60,7 @@ const oct8 = (x, y, z) => { oct(x, y, z); OU = sn(OCT[0], 255); OV = sn(OCT[1], 
 export function packPlant(m) {
   const FV = m.far ? Math.ceil(m.far.length / 8) : 0, P = m.position, N = m.normal, UV = m.uv, CN = m.cn, RT = m.root, n = m.part.length, R = m.rule ? 1 : 0, out = new Uint32Array((n + R + FV) * 8);
   // (its far data, after its vertices: crowd.js; where it begins, a vertex's number, as two whole numbers a half float holds exactly)
-  if (FV) { new Float32Array(out.buffer, (n + R) * 32, m.far.length).set(m.far); m.rule[14] = Math.floor((n + R) / 1024); m.rule[15] = (n + R) % 1024; }
+  if (FV) { new Float32Array(out.buffer, (n + R) * 32, m.far.length).set(m.far); m.rule[RULE.AT] = Math.floor((n + R) / 1024); m.rule[RULE.AT + 1] = (n + R) % 1024; }
   if (R) for (let i = 0; i < 8; i++) out[i] = (half(m.rule[i * 2]) | (half(m.rule[i * 2 + 1]) << 16)) >>> 0;   // (a crowd's level: its shape's numbers first, two to a number of 32 bits)
   // (its box: every vertex where it stands and its root, what it shrinks to as it goes (a chunk's plane's: its chunk's
   // middle, which it grows from as it comes). Nothing is enlarged: whatever it is moved to lies between those)
