@@ -9,3 +9,10 @@
     & Onstad 1987, "Tillage and rainfall effects on random roughness: a review", Soil & Tillage Research 9); an
     untilled meadow's about 1.2 cm, about four of it from lowest to highest. */
 export const SOIL_RELIEF = 0.05;
+
+/** How long the eye rests on what it looks at, at the least, between one jump of it and the next: what the land's
+    pages ask in (every pixel of a block asks within one: src/terrain/pages.js), and the time a page comes in over at the
+    most. unit: s. source: Rayner 2009, "Eye movements and attention in reading, scene perception, and visual search"
+    (Quarterly Journal of Experimental Psychology 62): fixations of 225 to 250 ms in reading, 260 to 330 ms in scene
+    perception; the shortest. */
+export const FIXATION = 0.25;
