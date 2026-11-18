@@ -232,6 +232,12 @@ Work is developed in parallel and tested together, once:
 
 - The master merges when CI is green and the train's gate holds, pinned to the head that was tested
   (`--match-head-commit`, the full SHA), with a merge commit: never a rebase, never a force-push.
+  "No checks reported" is not green: wait until CI has reported and every check has passed.
+- **A train that fails on `main` is reverted at once**, so `next` goes back to the state before it.
+  Its code comes back as one branch, `main` plus the revert of the revert (`aven/NNNN-unrevert-…`),
+  where its faults are fixed at the root; it is the next train's first car. Until it lands, a branch
+  that contains the train's commits merges that branch, never `main`: the revert would silently
+  delete the train's code from it. The code gates measure a revert against the state it restores.
 - A change outside CI's paths (`research_notes/`, `.claude/`) merges at once: no build, no deploy.
 - `next` deploys itself after CI passes on `main`; the master checks `next.maia.city/version.json`
   names the merged commit, and that the game answers.

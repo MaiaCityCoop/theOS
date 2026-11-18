@@ -170,37 +170,43 @@ numbers are written below.
 
 ## Where we left off (2026-11-18): read this first to take over
 
-### Tasks: the live board (master: `0038 master · avenMAIA MacMini`; updated 2026-11-18 20:05)
+### Tasks: the live board (master: `0038 master · avenMAIA MacMini`; updated 2026-11-18 21:10)
 
-The master keeps this board current (the `intents` skill, "The task board"). **Train 1c** (main + #78, #77, #84, #81)
-is being gated and merges into main as one if it passes; 9a (#72) and one measure (#82) stay off it. The SSOT audit
-is `research_notes/0038-ssot-audit.md`; train 2 is its unification. Every machine kept busy.
+The master keeps this board current (the `intents` skill, "The task board"). **Train 1c** (#78, #77, #84, #81) merged
+as #107 and was reverted by #108: the sun's shadows were lost on the near forest floor, and the code gates failed. It
+comes back as **#112** (`aven/0038-unrevert-1c`: main plus the revert of the revert), train 2's first car, once both
+are fixed at the root. **Until #112 lands, a branch that contains 1c merges `aven/0038-unrevert-1c`, never main**: the
+revert would silently delete 1c's code from it. The SSOT audit is `research_notes/0038-ssot-audit.md`; train 2 is its
+unification. Every machine kept busy.
 
 | Task | Session | Machine | Branch · PR | State | Next |
 | --- | --- | --- | --- | --- | --- |
-| The gate: motion, far truth, real | 0038 gate (motion, truth, ceilings) | avenMAIA MacMini | `aven/0038-gate-motion-real-410055` · #78 | on train 1c | merge |
-| Draw path: one culling for every tier | 0038 draw path (culling, then extents) | avenMAIA MacMini | `aven/0038-draw-path-culling-befaf1` · #77 | on train 1c | merge |
-| Meadow: shade from the real crowns | (done; no session) | avenMAIA MacBook Sam | `aven/0038-meadow-fix` · #84 | on train 1c | merge |
-| 6c: relief, paths, settling | 0038 ground (6c relief, then ground unify) | avenMAIA MacMini | `aven/0038-stage6c-relief-e30fca` · #81 | on train 1c | merge |
+| Train 2 base: 1c restored, fixed | 0038 master | avenMAIA MacMini | `aven/0038-unrevert-1c` · #112 | draft: shadows and code gates to fix | train 2's first car |
+| 6c: relief, paths, settling | 0038 ground (6c relief, then ground unify) | avenMAIA MacMini | #81, on #112 | shadows lost at run time (the relief's WGSL reads the cascades correctly) | root fix, then a `shadowcheck` GPU turn; its code gates |
+| Meadow: shade from the real crowns | 0038 ground | avenMAIA MacMini | #84, on #112 | back via #112 | its code gates (`boot` 34, `SUB`) |
+| Draw path: one culling for every tier | 0038 draw path (culling, then extents) | avenMAIA MacMini | #77, on #112 | back via #112 | occlusion's buffer layout derived |
+| The gate: motion, far truth, real | 0038 gate (motion, truth, ceilings) | avenMAIA MacMini | #78, on #112 | back via #112 | `motion.js` split, its unused exports and numbers |
+| Relief shadows: diagnosis | 0038 9a shadow fix · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-diag-relief-1..3` | three diagnostic stills | GPU turn on the Mac mini after the dial run |
+| Truth = `ERROR_PX` at ¼ px (one measure) | 0038 gate | avenMAIA MacMini | `aven/0038-truth-dial` · #106 | GPU: truth memory, dial before and after | train 2 |
+| Hang guard: every page call timed outside it | 0038 gate | avenMAIA MacMini | #102 | ready | train 2 |
 | Motion: the truth a settled still per step | 0038 gate | avenMAIA MacMini | #94 | ready | train 2 |
-| Ceilings as a rule (5 / 3 / 1.5 / 2.0 / 0.5 ms) | 0038 gate | avenMAIA MacMini | #96 | ready; GPU `bench --twice` queued | train 2 |
+| Ceilings as a rule (5 / 3 / 1.5 / 2.0 / 0.5 ms) | 0038 gate | avenMAIA MacMini | #96 | ready; `bench --twice` queued | train 2 |
 | `real` as a gate table, with a ratchet | 0038 gate | avenMAIA MacMini | #98 | ready; baseline GPU turn queued | train 2 |
-| Far truth at 2.5 and 12 km | 0038 gate | avenMAIA MacMini | — | GPU turns queued after 1c | the far end's first reference |
-| Truth = `ERROR_PX` → 0, and the cold start (one root) | 0038 gate | avenMAIA MacMini | — | planned | after #82 v2's dial |
+| The 10 % gate as one report | 0038 gate | avenMAIA MacMini | #109 | needs the first frame and the bytes before it | train 2 |
+| Far truth at 2.5 and 12 km | 0038 gate | avenMAIA MacMini | — | GPU turns queued | the far end's first reference |
 | Far extent, pyramid, depthless canvas | 0038 draw path | avenMAIA MacMini | `aven/0038-extents` · #95 | draft | train 2 |
-| GPU memory per class (the 8 GB gate) | 0038 draw path | avenMAIA MacMini | `aven/0038-memory` · #97 | draft | train 2 |
-| 9a's shadows: GPU readback (diagnostic) | 0038 draw path | avenMAIA MacMini | `tools/shadowcheck.mjs` | GPU turn first after 1c | result to the 9a session |
-| Solids: builder and cut from first principles | 0038 draw path | avenMAIA MacMini | — | coding | train 2 |
-| Ground and land from the one measure | 0038 ground | avenMAIA MacMini | `aven/0038-ground-unify` | coding (octaves, land, pages done; growth reach, shading next) | GPU trace turn queued; grass end after #82 v2 |
-| 9a: one light | 0038 9a shadow fix · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-stage9-light` · #72 | blocked: sun shadows missing on the GPU | the fix from B's readback, then train 2 |
-| One measure v2: the dial, one pixel, regions, capacities | 0038 one measure v2 · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-one-measure` · #82 | coding (regions: cells 18.4 → 2.1 M at the river bend) | train 2 |
-| Rung errors and atlases | 0038 rung errors · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-rung-errors` | coding (honest errors: a pine's impostor 210 m → 6.5 km at `ERROR_PX` 1) | train 2; the trade-off to Samuel |
-| Code gates: `tools/health.js` | 0038 health tool · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-health` | coding | baseline into Define |
-| Feet: real footprints | (done; no session) | avenMAIA MacBook Sam | `aven/0038-feet` · #85 | ready | train 2 |
-| Upscale: 13 divisions a pixel | (done; no session) | avenMAIA MacBook Sam | `aven/0038-upscale` · #86 | ready | train 2 |
+| GPU memory per class (the 8 GB gate) | 0038 draw path | avenMAIA MacMini | `aven/0038-memory` · #97 | draft | after one measure v2 |
+| Solids: builder and cut from first principles | 0038 draw path | avenMAIA MacMini | `aven/0038-solids` · #103 | ready | train 2 |
+| Feet: a thing clears only the ground it covers | 0038 draw path | avenMAIA MacMini | `aven/0038-feet` · #85 | code gates (`tube`, `feetOf`, `FOOT`, `INSET`) | train 2 |
+| Ground and land from the one measure | 0038 ground | avenMAIA MacMini | `aven/0038-ground-unify` | coding; off trains until it ends | grass end (b) after one measure v2 |
+| 9a: one light | 0038 9a shadow fix · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-stage9-light` · #72 | code gates: drop `?light=full` (9b to its own branch), split `boot`, `physics.js` | train 2 |
+| One measure v2: the dial, one pixel, regions, capacities | 0038 one measure v2 · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-one-measure` · #82 | coding (per-region packing within `roomOf('geometry')`) | train 2 |
+| Rung errors and atlases | 0038 rung errors · avenMAIA MacBook Sam | avenMAIA MacBook Sam | `aven/0038-rung-errors` · #111 | ready for review | train 2; the trade-off to Samuel |
+| Code gates: `tools/health.js` | 0038 health tool · avenMAIA MacBook Sam | avenMAIA MacBook Sam | — | revert-aware (#110, merged); physical constants as one `physics.js` | its own PR |
+| Upscale: 13 divisions a pixel | 0038 health tool | avenMAIA MacBook Sam | `aven/0038-upscale` · #86 | `resolve` split (23 → 3), proven byte for byte | train 2 |
 | Not started (frozen until the frame fits) | — | — | — | planned | 8b, the research's floor kinds, 9b |
 
-**Live on next (main `501aff5`; next deploys itself after every merge):**
+**Live on next (main `40d3ee3`, train 1c reverted; next deploys itself after every merge):**
 
 | Stage | PR | What it did |
 | --- | --- | --- |
