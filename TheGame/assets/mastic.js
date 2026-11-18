@@ -33,7 +33,7 @@ export default tree({
   grow,
   // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
   levels: [{ P: 4 }, { P: 8 }],
-  far: { P: 32, speck: false },   // (its far level: the crowd kit's far body, no speck after it)
+  far: { P: 32, speck: false },   // (its far level: its clumps and its impostor, no speck after it)
   // where it grows: the pine forest's understory, of which it takes its share
   placement: { at: 'scatter', engine: 'trees', stand: 'shrubs', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.35, scale: [0.4, 1.3], lean: 0, seed: 610 },
 });

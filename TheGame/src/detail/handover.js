@@ -1,5 +1,6 @@
-// The one hand-over between levels of detail, for everything in the world: what stands in a stand (src/scatter/trees.js),
-// the rocks (src/scatter/rocks.js), what stands at a place and its far card (src/world/place.js, impostor.js). Nothing
+// The one hand-over between levels of detail, for everything in the world: what stands in a stand (src/scatter/trees.js;
+// its impostor's own: meshShare), the rocks (src/scatter/rocks.js), what stands at a place and its far card
+// (src/world/place.js, impostor.js). Nothing
 // appears or drops out at once, and nothing is dithered:
 //   - when: a thing's size on screen now, in pixels through the lens (src/detail/index.js), against its level's pixels
 //     (assets/kinds.js: px), with `fade` either side;

@@ -73,7 +73,7 @@ export function assetMaterial(asset) {
 export function place(scene, asset, at) {
   if (asset.fire) return lightFire(scene, asset, at);   // a fire is light, not a mesh (src/world/fire.js)
   const D = detailOf(asset);
-  const meshes = D.levels.map((l) => { if (l.impostor) return impostorOf(geometryOf(asset), l.views, snowOf(asset)); const m = new THREE.Mesh(geometryOf(asset, l), assetMaterial(asset)); m.renderOrder = 1; return m; });
+  const meshes = D.levels.map((l) => { if (l.impostor) return impostorOf(geometryOf(asset), snowOf(asset)); const m = new THREE.Mesh(geometryOf(asset, l), assetMaterial(asset)); m.renderOrder = 1; return m; });
   const lod = new Detailed(asset, meshes);
   lod.position.set(at.x, heightAt(at.x, at.z) - 0.03, at.z); lod.rotation.y = at.yaw || 0; lod.name = asset.name;
   scene.add(lod);

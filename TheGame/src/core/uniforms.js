@@ -23,6 +23,7 @@ export const U = {
   uExposure: uniform(1),                           // the picture's exposure (the sky sets it by the hour)
   uSnow: uniform(0),                               // how deep the snow lies, metres (src/world/weather/snow.js)
   uFine: uniform(1),                               // how much finer than the inside's pixels textures are read (built over time: src/core/temporal.js)
+  uDrawn: uniform(typeof devicePixelRatio === 'number' ? Math.min(devicePixelRatio, 2) : 1),   // pixels drawn a CSS pixel: the inside's ratio (src/core/temporal.js, tools/bench.js), for src/detail/measure.js drawnAt
   // where a point lay a frame ago, for the prepass's motion (src/core/pass.js; set by src/core/temporal.js): the clock as
   // it stood then (what moves by the clock, the wind first, is worked out again at it), the world to that frame's clip
   // space (its camera, unshifted), this frame's shift in the inside's pixels, and the inside's size
