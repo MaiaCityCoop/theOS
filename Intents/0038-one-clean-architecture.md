@@ -1908,6 +1908,9 @@ madge follows every import.
   - [ ] its first job on main: the truth at 2.5 and 12 km in tiles, motion on the four paths, real at every view
   - [ ] `?truth`'s cold start: build its world at the game's pace, then draw at its finest
   - [ ] the per-pass ceilings as a gate rule (`budgets` in Define, `gate.js bench` fails a class over its ceiling)
+  - [x] ~~a `scale.js` ratchet counting `?truth`'s branches and unexplained thresholds~~: superseded (2026-11-18).
+      `tools/health.js`'s Settings gate is the one counter of mode branches and hand-set numbers, and fails any rise
+      over the base; a second counter would be the copy this intent removes
 
 ## Changelog
 
