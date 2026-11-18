@@ -261,6 +261,18 @@ Asked outright and without surprises, so built straight away.
 - **Broke / not there yet:** the village's share was 25,000 HEARTS, not 12,500 (Samuel's correction): all 125,000
   start HEARTS are invested, none kept. Phases 2 to 5 are drafts.
 
+### 2026-11-18 (5)
+
+- **Asked:** what each village level unlocks, from the village's Fibonacci goals up to 1,597 villagers: tents and a
+  pickup, growing domes from 2 m, living domes, the external investors from 13, the containers. Then: the first power
+  container at 13 and one more at every level; the domes carry the solar cells, the containers convert and store;
+  every level steadies the domes' inner climate until the geothermal plant at 1,597 holds 24 °C or more all year.
+- **Delivered:** phase 1's ladder in `the-game.md` as one table (treasuries, living and growing domes, containers,
+  power containers, climate, food and energy imports, external investors), with the power and climate rules above it.
+- **Good:** `story check .` passes.
+- **Broke / not there yet:** the percentages and investor budgets are design values to tune and source; the
+  dashboard's join page still shows the older village levels.
+
 ## Trail
 
 | When | Commit | What |

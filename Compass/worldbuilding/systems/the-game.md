@@ -86,7 +86,7 @@ Every city goes through three stages: **survive** (imported food, tents and gene
 ### Daily play: ten minutes
 
 - **The hook is the harvest.** The clock follows modern greenhouse growing cycles, with **one game month to one real day**, so nearly every day something of a citizen's own is ripe.
-- **No seasons in the MVP.** Everything grows inside the domes, all year, so weather and seasons do not touch the harvest.
+- **No seasons in the MVP.** Everything grows inside the domes, all year. What changes with the levels is the domes' **inner climate**: steadier at every gate, so they yield more of the year, until the geothermal plant at 1,597 holds 24 °C or more all year round.
 - **Every citizen tends their own plants** in the shared dome's food-forest garden. **There are only shared domes.**
 - **Neglect costs yield.** A day missed, and that day's ripe harvest rots. So every citizen comes back to harvest every day, for their own and their village's export goals.
 - Then the day's 24 HEARTS are invested.
@@ -118,21 +118,38 @@ Only phase 1 is designed in detail; the rest says what comes next.
 
 ### Phase 1 · Settle
 
-**Every settler starts with a tent** on the village's land. As the village climbs its Fibonacci gates, it unlocks one dome size after another, and the tents move inside the domes:
+**Every settler starts with a tent** on the village's land. The village climbs by **Fibonacci gates in villagers**; each gate unlocks the next shelter, growing dome, container and climate. **The village coop owns every dome, and every dome includes its own water and electricity.** Two kinds of dome: **living domes** (for 4, 12, 24 and 48 people; the tents move inside them) and **growing domes** (Fibonacci diameters).
 
-| Step | Shelter | Unlocks |
-| --- | --- | --- |
-| Start | A tent | Imported food, a generator: everything bought from the market |
-| 1 | **4-person dome** | The first plants; the dome's own renewable energy and water cycle |
-| 2 | **12-person dome** | More plants; a smaller share of energy imported |
-| 3 | **24-person dome** | More plants; smaller again |
-| 4 | **48-person dome** | The full food forest; smaller again |
-| Finish | **The village's dome tower** in its centre, with an **enhanced geothermal power plant** | Heat for every dome and power for the whole village: **energy-positive** |
+**Power:** every dome carries **solar cells**; the **power containers convert and store** what they make (inverters, batteries, distribution). Energy imports fall only when both grow together. From 13 villagers, **every gate adds one more power container**.
 
-- **Every dome comes with its own renewable energy source and its own water-cycle management.**
-- **Each dome size unlocks more plants** and lowers the dependence on the market.
-- **In phase 1 a village always imports part of its energy;** each level lowers the share it must import, until the geothermal plant ends it and turns the village to surplus.
-- **Phase 1's goal for every village:** all its citizens fed and powered, food and energy independent, and in surplus.
+**Climate:** every gate makes the domes' inner climate steadier, so they yield more of the year, until the **geothermal plant** at 1,597 holds **a perfect controlled climate, 24 °C or more, all year round**.
+
+**Treasuries:** each villager brings 25,000 HEARTS to the village coop, and €12,500 and 50,000 HEARTS to the city coop.
+
+| Villagers | Village treasury | City treasury (€) | Living | New growing dome | New container or plant | Power containers | Climate: yield all year | Food import | Energy import | External investors |
+| ---: | ---: | ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 25k ♥ | €12.5k | 1 tent and a pickup | — | a generator | 0 | — | 100% | 100% | — |
+| 2 | 50k ♥ | €25k | 2 tents | 2 m, berries | — | 0 | 55% | 99% | 100% | — |
+| 3 | 75k ♥ | €37.5k | 3 tents | 3 m, herbs and greens | — | 0 | 58% | 98% | 99% | — |
+| 5 | 125k ♥ | €62.5k | 4 tents, one shared | 5 m, vegetables | — | 0 | 60% | 97% | 95% | — |
+| 8 | 200k ♥ | €100k | one 4-person dome, 4 tents | 8 m, fruit shrubs | a rainwater tank | 0 | 62% | 94% | 90% | — |
+| 13 | 325k ♥ | €162.5k | two 4-person domes, 5 tents | 13 m, the first food forest | **Power** | 1 | 65% | 90% | 80% | €80k |
+| 21 | 525k ♥ | €262.5k | one 12, two 4, 1 tent | 21 m | Power, **Kitchen** | 2 | 70% | 85% | 72% | €130k |
+| 34 | 850k ♥ | €425k | two 12, two 4, 2 tents | 34 m | Power, **Bath & sanitary** | 3 | 75% | 78% | 64% | €210k |
+| 55 | 1.4M ♥ | €690k | one 24, two 12, one 4, 3 tents | 55 m, the full food forest | Power, **Workshop & store** | 4 | 80% | 70% | 56% | €340k |
+| 89 | 2.2M ♥ | €1.1M | one 48, one 24, one 12, one 4, 1 tent | 89 m | Power, a water-cycle plant | 5 | 84% | 55% | 48% | €550k |
+| 144 | 3.6M ♥ | €1.8M | two 48, two 24 | 144 m, the district dome | Power, the market hall | 6 | 88% | 45% | 40% | €890k |
+| 233 | 5.8M ♥ | €2.9M | four 48, one 24, one 12, one 4, 1 tent | two more of 55 m | Power, compost and seed bank | 7 | 91% | 35% | 32% | €1.4M |
+| 377 | 9.4M ♥ | €4.7M | seven 48, one 24, one 12, one 4, 1 tent | two more of 89 m | Power, cold store and processing | 8 | 94% | 25% | 25% | €2.3M |
+| 610 | 15.3M ♥ | €7.6M | twelve 48, one 24, two 4, 2 tents | two more of 144 m | Power | 9 | 96% | 15% | 18% | €3.8M |
+| 987 | 24.7M ♥ | €12.3M | twenty 48, one 24, 3 tents | three more of 144 m | Power; geothermal drilling begins | 10 | 98% | 7% | 10% | €6.1M |
+| **1,597** | **39.9M ♥** | **€20M** | thirty-three 48, one 12, 1 tent | **the village's dome tower** | Power; **the geothermal plant** | 11 | **100%, 24 °C+ all year** | **0%, surplus** | **0%, surplus** | €9.9M |
+
+♥ = HEARTS. The city also holds 50,000 HEARTS per villager (79.85M at 1,597).
+
+- **External investors** arrive from 13 villagers, in €; each gate's budget is the last one times 1.618 and pays for that gate's physical unlocks. **The 49% cap is checked at every gate** against the citizens' stake, valued through the HEARTS–€ pool.
+- **The percentages are game-design values**, to be tuned; real greenhouse, solar and geothermal figures need sources before any is shown as fact.
+- **Phase 1's goal for every village:** all its citizens fed and powered, food and energy independent, in surplus.
 
 ### The race
 
@@ -166,6 +183,5 @@ The numbers the game publishes, the proof:
 ## Open
 
 - Insolvency in full.
-- The energy import share per dome level, the plants per dome size and their real growing cycles: need numbers, with sources.
-- How the Fibonacci gates map onto the dome steps.
+- The ladder's percentages (food, energy, climate) and the plants per dome size with their real growing cycles: to be tuned, and sourced before they are shown as fact.
 - Real-world numbers (dome yields, solar output, market prices) need sources before they are shown as fact.
