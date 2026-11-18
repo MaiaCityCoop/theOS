@@ -41,7 +41,7 @@
 //
 // GATE_LOCK=<dir>: the GPU is shared with other runs (tools/gate/README.md). Each part of a run that draws (a page come,
 // a view or a tile, a path in motion) takes the lock, and lets it go after; meanwhile the page is held on the gate's
-// clock (tools/gate/motion.js) and draws nothing.
+// clock (tools/gate/clock.js) and draws nothing; tools/gate/lock.js.
 //
 // It never waits on a timer for the picture: once the camera has moved it waits for window.__game.settle() (src/core/
 // settle.js), which resolves when nothing streams or builds for that camera and the picture built over time has come to
@@ -52,18 +52,18 @@
 // and the clock run, as in the game. Chrome runs on the gate's own profile, .gate/chrome/, kept from run to run (the
 // world is made in half a minute, not two); the paths make a fresh one for their cold run.
 import { chromium } from 'playwright-core';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync, statSync, readdirSync } from 'node:fs';
-import { execSync, execFile, spawn } from 'node:child_process';
-import { createServer } from 'node:http';
-import { Worker } from 'node:worker_threads';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { execSync, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { tmpdir, homedir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { VIEWS, PATHS, KINDS } from './gate/views.js';
+import { VIEWS, PATHS } from './gate/views.js';
 import { BUDGET } from './bench.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
-import { stepper, begin, rest, shot, film, sheet } from './gate/motion.js';
-import { CROP } from './gate/change.js';
+import { stepper } from './gate/clock.js';
+import { locked, unlock, LOCK } from './gate/lock.js';
+import { tiled } from './gate/tiles.js';
+import { sideBySide } from './gate/sheet.js';
 
 const URL_AT = process.argv.indexOf('--url'), BASE = (URL_AT > 0 && process.argv[URL_AT + 1]) || process.env.GATE_URL || 'http://localhost:5180/game/';
 const OUT = new URL('../.gate/', import.meta.url).pathname;   // TheGame/.gate/: made again by every run, not kept in git
@@ -103,7 +103,7 @@ async function open(ctx, { path = '', query = '', init = null } = {}) {
     settle() said, and when it was (ms since the page began). An error after `wait` ms. */
 async function settled({ wait, at }) {
   const s = window.__game, C = window.__gateClock, t0 = Date.now(), late = new Promise((_, no) => setTimeout(() => no(new Error(`window.__game.settle() did not resolve in ${wait / 1000} s at ${at}`)), wait + 10e3));
-  // (the page on the gate's clock, tools/gate/motion.js stepper: its frames drawn here, one after another, until it has)
+  // (the page on the gate's clock, tools/gate/clock.js: its frames drawn here, one after another, until it has)
   const on = (p) => { if (C?.on) { let done = false; p.finally(() => (done = true)).catch(() => {}); (async () => { while (!done) { await C.step(C.last + 1000 / 60); await new Promise((r) => setTimeout(r, 0)); } })(); } return p; };
   const said = await Promise.race([Promise.resolve(s.ready).then(() => on(s.settle({ timeout: wait }))), late]);
   let kept = null; try { kept = JSON.parse(JSON.stringify(said ?? null)); } catch {}
@@ -152,30 +152,6 @@ async function still() {
   s.screen?.size?.(d);
   return { png, drawn: [d.x, d.y], out: [s.renderer.domElement.width, s.renderer.domElement.height], over: !!s.scatter?.over };
 }
-/** In the page: the camera set to show tile (i, j) of its picture split n × n (none: the whole picture), drawn at all
-    the canvas's pixels (src/core/temporal.js keeps its part of a pixel inside the tile), and what was built over time
-    let go. Each tile's frustum holds about 1 / n² of what the whole picture's does. */
-function tileOf(t) {
-  const g = window.__game, c = g.renderer.domElement;
-  if (!t) g.camera.clearViewOffset(); else g.camera.setViewOffset(c.width, c.height, (t.i * c.width) / t.n, (t.j * c.height) / t.n, c.width / t.n, c.height / t.n);
-  g.temporal.cut();
-}
-/** The tiles of a view (each drawn n times as finely as it is shown: PNGs), brought down by n and laid side by side. */
-function mosaic(parts, n) {
-  const first = readPNG(parts[0].png), W = first.width, H = first.height, tw = W / n, th = H / n, out = new Uint8Array(W * H * 3);
-  if (tw % 1 || th % 1) throw new Error(`a ${W}×${H} picture does not split into ${n} × ${n} whole tiles`);
-  for (const p of parts) {
-    const P = p === parts[0] ? first : readPNG(p.png), ch = P.channels;
-    for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
-      let r = 0, g = 0, b = 0;
-      for (let yy = 0; yy < n; yy++) for (let xx = 0; xx < n; xx++) { const o = ((y * n + yy) * W + x * n + xx) * ch; r += P.data[o]; g += P.data[o + 1]; b += P.data[o + 2]; }
-      const o = ((p.j * th + y) * W + p.i * tw + x) * 3, k = n * n;
-      out[o] = Math.round(r / k); out[o + 1] = Math.round(g / k); out[o + 2] = Math.round(b / k);
-    }
-  }
-  return writePNG(out, W, H);
-}
-
 // ---- small things ----
 /** Those of a list named (all where none are). */
 function pick(list, names, what) {
@@ -199,34 +175,13 @@ const launch = (opt, dir = opt.fresh ? (FRESH[FRESH.length] = mkdtempSync(join(t
   .catch((e) => { throw new Error(`Chrome did not start on ${dir} (is another gate run using it?): ${e.message.split('\n')[0]}`); });
 /** The value at fraction q of a list's sorted values (nearest rank). */
 const rank = (xs, q) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.max(0, Math.ceil(q * s.length) - 1)] : null; };
-/** The GPU shared with other runs (GATE_LOCK: a directory, taken by making it, the one whose making succeeds holding it;
-    its `owner` file says who and since when): fn() run holding it, and let go after, so that between the parts of a long
-    run (a page made, a path, a pass of the truth) another's timed run can come in. Without GATE_LOCK, fn() at once. A
-    lock older than an hour is not broken but said: the person decides. */
-const LOCK = process.env.GATE_LOCK || null;
-let holding = false;
-async function locked(what, fn) {
-  if (!LOCK || holding) return fn();
-  for (let told = false; ;) {
-    try { mkdirSync(LOCK); break; } catch (e) {
-      if (e.code !== 'EEXIST') throw e;
-      let who = '', age = 0; try { who = readFileSync(`${LOCK}/owner`, 'utf8').trim(); age = Date.now() - statSync(`${LOCK}/owner`).mtimeMs; } catch {}
-      if (age > 3600e3) throw new Error(`the GPU lock ${LOCK} has been held for ${Math.round(age / 60e3)} min (${who}): is it stale? Not broken here; ask`);
-      if (!told) { console.log(`  (waiting for the GPU lock: ${who || 'being taken'})`); told = true; }
-      await new Promise((r) => setTimeout(r, 5000));
-    }
-  }
-  holding = true;
-  writeFileSync(`${LOCK}/owner`, `${process.env.GATE_WHO || 'tools/gate.js'} ${new Date().toISOString()} ${what} (pid ${process.pid})\n`);
-  try { return await fn(); } finally { holding = false; rmSync(LOCK, { recursive: true, force: true }); }
-}
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { if (holding) rmSync(LOCK, { recursive: true, force: true }); for (const d of FRESH) rmSync(d, { recursive: true, force: true }); process.exit(130); });
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { unlock(); for (const d of FRESH) rmSync(d, { recursive: true, force: true }); process.exit(130); });
 
 // ---- the commands ----
 async function stills(chrome, { tag, truth = false, reach = null, views, tiles = 1 } = {}) {
   tag ||= commit() + (truth ? '-truth' : '');
   const list = pick(VIEWS, views, 'view'), dir = `${OUT}${tag}/`, n = Math.max(1, Math.round(+tiles || 1)), png = (s) => Buffer.from(s.png.slice(s.png.indexOf(',') + 1), 'base64');
-  // (in tiles, or with the GPU shared, GATE_LOCK, the page is held on the gate's clock, tools/gate/motion.js stepper:
+  // (in tiles, or with the GPU shared, GATE_LOCK, the page is held on the gate's clock, tools/gate/clock.js:
   // nothing is drawn between two views or tiles, so another run may have the GPU meanwhile)
   const held = n > 1 || !!LOCK;
   const { page, errors, url, start, close } = await locked(`stills ${tag}: the page`, async () => {
@@ -249,54 +204,13 @@ async function stills(chrome, { tag, truth = false, reach = null, views, tiles =
         if (truth && s.drawn[0] < s.out[0]) console.log('  (the truth drawn at fewer pixels than it is shown at: ?truth is to be supersampled)');
         continue;
       }
-      const parts = [], t0 = Date.now();
-      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-        const [a, s] = await locked(`stills ${tag}: ${v.name}, tile ${i},${j} of ${n}×${n}`, async () => { await page.evaluate(tileOf, { i, j, n }); const a = await go(page, v); return [a, await page.evaluate(still)]; });
-        parts.push({ i, j, png: png(s), ms: a.ms, over: s.over, drawn: s.drawn });
-        console.log(`  ${v.name.padEnd(28)} tile ${i},${j} settled in ${(a.ms / 1000).toFixed(1).padStart(5)} s${s.over ? ' (a tier had more patches than it holds)' : ''}`);
-      }
-      await page.evaluate(tileOf, null);
-      writeFileSync(`${dir}${v.name}.png`, mosaic(parts, n));
-      meta.views[v.name] = { tiles: n, ms: Date.now() - t0, settleMs: parts.map((p) => p.ms), over: parts.some((p) => p.over), drawn: parts[0].drawn, out: parts[0].drawn };
-      console.log(`  ${v.name.padEnd(28)} ${n * n} tiles in ${((Date.now() - t0) / 60e3).toFixed(1)} min, each drawn ${px(parts[0].drawn)} for a ${n}th of the picture each way`);
+      const t0 = Date.now(), T = await tiled(page, v, n, { go, still, locked, label: `stills ${tag}: ${v.name}` });   // (tools/gate/tiles.js)
+      writeFileSync(`${dir}${v.name}.png`, T.png);
+      meta.views[v.name] = { tiles: n, ms: Date.now() - t0, settleMs: T.parts.map((p) => p.ms), over: T.parts.some((p) => p.over), drawn: T.parts[0].drawn };
+      console.log(`  ${v.name.padEnd(28)} ${n * n} tiles in ${((Date.now() - t0) / 60e3).toFixed(1)} min, each drawn ${px(T.parts[0].drawn)} for a ${n}th of the picture each way`);
     }
   } finally { meta.errors = errors; save(`${dir}gate.json`, meta); said(errors); await close(); }
   return tag;
-}
-
-/** A picture's RGB bytes brought down to `tw` wide (each pixel the mean of the block of the picture's it covers). */
-function shrink({ width: w, height: h, data, channels: ch = data.length / (w * h) }, tw) {
-  const k = w / tw, th = Math.round(h / k), out = new Uint8Array(tw * th * 3);
-  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
-    const x0 = Math.floor(x * k), x1 = Math.max(x0 + 1, Math.floor((x + 1) * k)), y0 = Math.floor(y * k), y1 = Math.max(y0 + 1, Math.min(h, Math.floor((y + 1) * k)));
-    let r = 0, g = 0, b = 0, m = 0;
-    for (let yy = y0; yy < y1; yy++) for (let xx = x0; xx < x1; xx++) { const o = (yy * w + xx) * ch; r += data[o]; g += data[o + 1]; b += data[o + 2]; m++; }
-    const o = 3 * (y * tw + x); out[o] = r / m; out[o + 1] = g / m; out[o + 2] = b / m;
-  }
-  return { w: tw, h: th, rgb: out };
-}
-/** The square of `size` pixels of a picture round a point, its RGB bytes. */
-function square({ width: w, height: h, data, channels: ch = data.length / (w * h) }, cx, cy, size) {
-  const x0 = Math.max(0, Math.min(w - size, Math.round(cx - size / 2))), y0 = Math.max(0, Math.min(h - size, Math.round(cy - size / 2))), out = new Uint8Array(size * size * 3);
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) { const o = ((y0 + y) * w + x0 + x) * ch, d = 3 * (y * size + x); out[d] = data[o]; out[d + 1] = data[o + 1]; out[d + 2] = data[o + 2]; }
-  return { w: size, h: size, rgb: out, at: [x0, y0] };
-}
-/** A labelled JPEG of a view in two sets, drawn in a blank page of a Chrome of its own: the two side by side, and under
-    them the squares round the worst tile at full size in each and in FLIP's heat map. */
-async function sideBySide(file, { title, sub, A, B, heatRGB, worst, names }) {
-  const ctx = await chromium.launch({ channel: 'chrome', headless: true }), b64 = (u8) => Buffer.from(u8.buffer, u8.byteOffset, u8.byteLength).toString('base64');
-  try {
-    const page = await ctx.newPage(), S = 384, cx = worst.x + worst.size / 2, cy = worst.y + worst.size / 2;
-    await page.setContent('<!doctype html><html><body style="margin:0"></body></html>');
-    const a = shrink(A, 960), b = shrink(B, 960), k = a.w / A.width, H = { width: A.width, height: A.height, data: heatRGB, channels: 3 };
-    const qa = square(A, cx, cy, S), qb = square(B, cx, cy, S), qh = square(H, cx, cy, S), box = [worst.x - qa.at[0], worst.y - qa.at[1], worst.size];
-    const rows = [
-      [{ label: names[0], ...a, rgb: b64(a.rgb), box: [worst.x * k, worst.y * k, worst.size * k] }, { label: names[1], ...b, rgb: b64(b.rgb), box: [worst.x * k, worst.y * k, worst.size * k] }],
-      [{ label: `${names[0]}: ${S} px round the worst tile, at full size`, ...qa, rgb: b64(qa.rgb), sharp: true, box }, { label: names[1], ...qb, rgb: b64(qb.rgb), sharp: true, box }, { label: 'FLIP', ...qh, rgb: b64(qh.rgb), sharp: true, box }],
-    ];
-    const url = await page.evaluate(sheet, { title, sub, width: 1600, rows });
-    writeFileSync(file, Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
-  } finally { await ctx.close(); }
 }
 
 /** FLIP of set `a` against set `b` (the reference: FLIP is symmetric, so only the names say which is which). --jpeg:
@@ -539,196 +453,6 @@ async function paths(opt) {
   return { ...out, peak: most.bytes, pass: !fails.length, fails };
 }
 
-// ---- motion: check 4, nothing pops ----
-/** The line no frame's worst tile may cross in motion: a 32-pixel tile's mean FLIP of the change detail made in one
-    frame. Provisional: until Samuel's pairs set the threshold of visibility (check 3), a little over twice the stills'
-    noise floor (≤ 0.022, stage 2a). */
-const POP = 0.05;
-
-/** The frames the pages send (their raw RGBA bytes, POSTed: far quicker than through evaluate), each kept under its key
-    until it is taken, in a SharedArrayBuffer the change's workers read without a copy. */
-async function receiver() {
-  const kept = new Map(), wanted = new Map();
-  const server = createServer((req, res) => {
-    const u = new URL(req.url, 'http://x'), key = u.searchParams.get('key'), parts = [];
-    req.on('data', (c) => parts.push(c));
-    req.on('end', () => {
-      const b = Buffer.concat(parts), data = new SharedArrayBuffer(b.length); new Uint8Array(data).set(b);
-      const f = { w: +u.searchParams.get('w'), h: +u.searchParams.get('h'), data };
-      res.writeHead(200, { 'access-control-allow-origin': '*' }); res.end();
-      if (wanted.has(key)) { wanted.get(key)(f); wanted.delete(key); } else kept.set(key, f);
-    });
-  });
-  await new Promise((r) => server.listen(0, '127.0.0.1', r));
-  const take = (key) => { const f = kept.get(key); if (f) { kept.delete(key); return Promise.resolve(f); } return new Promise((r) => wanted.set(key, r)); };
-  return { url: `http://127.0.0.1:${server.address().port}/frame`, take, close: () => server.close() };
-}
-/** n workers measuring frames' change (tools/gate/change.js), each frame to the next one free. */
-function pool(n) {
-  const ws = Array.from({ length: n }, () => new Worker(new URL('./gate/change.js', import.meta.url))), free = [...ws], queue = [], out = new Map();
-  let id = 0;
-  const next = () => { while (free.length && queue.length) { const [job, r] = queue.shift(); out.set(job.i, r); free.pop().postMessage(job); } };
-  for (const w of ws) w.on('message', (m) => { const r = out.get(m.i); out.delete(m.i); free.push(w); next(); if (m.error) r.no(new Error(m.error)); else r.ok(m); });
-  return {
-    run: (job) => new Promise((ok, no) => { queue.push([{ ...job, i: id++ }, { ok, no }]); next(); }),
-    get busy() { return queue.length + out.size; },
-    close: () => Promise.all(ws.map((w) => w.terminate())),
-  };
-}
-
-/** One path, frame by frame in both pages (L as the game draws, R the truth), each frame's change measured as it comes.
-    The world's clock stands at T where the path starts; frame i is i / fps seconds in. */
-async function along(p, { L, R, fps, T, net, work, workers, keep, to, floor = false }) {
-  const fly = !!p.flyby, t0 = Date.now();
-  const c = fly ? { secs: await L.page.evaluate(async () => (await import(new URL('tools/flyby.js', location.href).href)).cycleOf('zoom')) } : await L.page.evaluate(course, p);
-  if (!fly) await R.page.evaluate(course, p);
-  const secs = Math.min(c.secs, to ?? Infinity), n = Math.floor(secs * fps + 1e-6) + 1;
-  const a = await L.page.evaluate(rest, { T, fly, wait: WAIT }), b = await R.page.evaluate(rest, { T, fly, jit: a.jit, wait: WAIT });
-  console.log(`  ${p.name}: ${n} frames over ${secs.toFixed(1)} s; settled at its start in ${(a.ms / 1000).toFixed(1)} s (LOD, ${a.frames} frames) and ${(b.ms / 1000).toFixed(1)} s (truth, ${b.frames}, ${b.aligned} more to draw at the LOD's places)`);
-  const frames = [], top = [], jobs = new Set();
-  let before = null;
-  for (let i = 0; i < n; i++) {
-    const s = i / fps, t = T + s;
-    const l = await L.page.evaluate(shot, { s, T: t, fly, url: net.url, key: `L${i}` });
-    const r = await R.page.evaluate(shot, { s, T: t, fly, url: net.url, key: `R${i}`, whole: !floor, jit: l.jit });
-    const now = { L: await net.take(`L${i}`), R: await net.take(`R${i}`) }, f = { i, s: +s.toFixed(4), again: r.again, ...(r.out ? { out: r.out } : {}), ...(r.late ? { late: true } : {}), ...(l.jit[0] !== r.jit[0] || l.jit[1] !== r.jit[1] ? { places: 'apart' } : {}) };
-    frames.push(f);
-    if (before) {
-      const job = work.run({ w: now.L.w, h: now.L.h, L: now.L.data, Lb: before.L.data, R: now.R.data, Rb: before.R.data }).then((m) => {
-        Object.assign(f, { mean: +m.mean.toFixed(6), p99: +m.p99.toFixed(6), worst: { ...m.worst, value: +m.worst.value.toFixed(6) } });
-        top.push({ ...f, look: m.look, width: now.L.w }); top.sort((x, y) => y.worst.value - x.worst.value); top.length = Math.min(top.length, keep * 4);
-      });
-      jobs.add(job); job.finally(() => jobs.delete(job));
-      while (work.busy > workers * 2) await Promise.race(jobs);   // (no more frames in hand than the workers will soon take)
-    }
-    before = now;
-    if (i && (i % 25 === 0 || i === n - 1)) { const done = frames.filter((x) => x.worst), w = done.reduce((m, x) => Math.max(m, x.worst.value), 0); console.log(`    ${String(i).padStart(5)} / ${n - 1}  ${((Date.now() - t0) / 1000 / (i + 1)).toFixed(1)} s a frame; the worst tile so far ${w.toFixed(4)}`); }
-  }
-  await Promise.all(jobs);
-  const ms = frames.filter((x) => x.worst), ws = ms.map((x) => x.worst.value), worst = ms.reduce((m, x) => (x.worst.value > (m?.worst.value ?? -1) ? x : m), null);
-  // the frames shown: the worst, none within half a second of one shown before
-  const shown = []; for (const x of top) if (shown.length < keep && !shown.some((y) => Math.abs(y.s - x.s) < 0.5)) shown.push(x);
-  return {
-    secs, fps, frames: ms.length, ms: Date.now() - t0, start: { lod: a, truth: b },
-    worst: worst && { value: worst.worst.value, frame: worst.i, s: worst.s, x: worst.worst.x, y: worst.worst.y },
-    p99: rank(ws, 0.99), median: rank(ws, 0.5), over: ws.filter((v) => v > POP).length,
-    again: frames.reduce((s, x) => s + x.again, 0), late: frames.filter((x) => x.late).length, apart: frames.filter((x) => x.places).length,
-    list: frames, shown,
-  };
-}
-
-/** The filmstrip of a path: its worst frames, drawn in a blank page of `ctx` (no world: only a canvas), a JPEG. */
-async function filmstrip(ctx, file, { title, sub, r, other = 'truth' }) {
-  const B = await ctx.newPage(), b64 = (u8) => Buffer.from(u8.buffer, u8.byteOffset, u8.byteLength).toString('base64');
-  try {
-    await B.setContent('<!doctype html><html><body style="margin:0;background:#101418"></body></html>');
-    const rows = r.shown.map((x) => ({ label: `frame ${x.i} · ${x.s.toFixed(2)} s in · worst tile ${x.worst.value.toFixed(4)} at ${x.worst.x},${x.worst.y}${x.again ? ` · truth drawn ${x.again + 1}×` : ''}`, s: x.s, value: x.worst.value, worst: x.worst, width: x.width,
-      thumb: { w: x.look.thumb.w, h: x.look.thumb.h, rgb: b64(x.look.thumb.rgb) }, crops: x.look.crops.map(b64), crop: CROP, tile: x.look.tile }));
-    const url = await B.evaluate(film, { title, sub, width: 1600, series: r.list.filter((x) => x.worst).map((x) => [x.s, x.worst.value]), line: POP, rows, names: ['LOD before', 'LOD now', `${other} before`, `${other} now`, 'the change, FLIP'] });
-    writeFileSync(file, Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
-  } finally { await B.close(); }
-}
-
-/** Check 4: every path frame by frame, as the game draws it and at full detail, the change detail made in each frame
-    measured, against POP in every frame's worst tile. Two pages of one Chrome, each its world come and settled, then
-    held by the gate's clock (tools/gate/motion.js stepper): each frame drawn when the gate asks, at the same moment of
-    the world's clock and the same place of a pixel in both, the truth's drawn again until nothing was still out. */
-async function motion(opt) {
-  const list = pick(PATHS, opt.paths, 'path'), fps = +(opt.fps ?? 60), keep = +(opt.keep ?? 6), workers = +(opt.workers ?? 2), to = opt.to != null ? +opt.to : null;
-  const floor = !!opt.floor, tag = (opt.tag || commit()) + (floor ? '-floor' : ''), dir = `${OUT}motion-${tag}/`, report = { tag, fps, line: POP, floor, when: new Date().toISOString(), screen: SCREEN, inside: INSIDE, paths: {} };
-  mkdirSync(dir, { recursive: true });
-  const net = await receiver(), work = pool(workers), ctx = await launch(opt), pages = {};
-  console.log(`motion → .gate/motion-${tag}/ (${BASE}): every path at ${fps} frames a second, as the game draws it and ${floor ? 'as it draws it again (the noise floor)' : 'as the truth does'}`);
-  try {
-    for (const [k, truth] of [['lod', false], floor ? ['again', false] : ['truth', true]]) {   // (--floor: the game's frames against themselves)
-      await locked(`motion: the ${k} page`, async () => {
-        const P = (pages[k] = await open(ctx, { query: truth ? (opt.reach ? `truth=${opt.reach}` : 'truth') : '', init: stepper }));
-        await P.page.evaluate(prepare, { inside: INSIDE, time: null });
-        P.begun = await P.page.evaluate(begin, { truth });
-        console.log(`  the ${k} page came and settled in ${(P.start.ms / 1000).toFixed(1)} s (${P.url}); ${P.begun.visible}`);
-      });
-    }
-    const R = floor ? pages.again : pages.truth;
-    let clock = Math.max(pages.lod.begun.clock, R.begun.clock);
-    for (const p of list) {
-      const T = 100 * Math.ceil((clock + 5) / 100);   // (the next whole hundred seconds on the world's clock, past both pages' own)
-      const r = (report.paths[p.name] = await locked(`motion: ${p.name}`, () => along(p, { L: pages.lod, R, fps, T, net, work, workers, keep, to, floor })));
-      clock = T + r.secs;
-      await filmstrip(ctx, `${dir}${p.name}.jpg`, { title: `gate.js motion · ${p.name} · ${tag}`, sub: `the change detail made in each frame, ((LOD − truth) now) − ((LOD − truth) a frame before), FLIP in 32-px tiles at 4K · ${r.frames} frames at ${fps} a second · worst tile ${r.worst?.value.toFixed(4)} at ${r.worst?.s.toFixed(2)} s · ${r.over} frames over the line ${POP} (provisional)`, r, other: floor ? 'LOD again' : 'truth' });
-      const { shown, ...kept } = r; report.paths[p.name] = kept; save(`${dir}report.json`, report);
-      console.log(`  ${p.name}: the worst tile ${r.worst?.value.toFixed(4)} (frame ${r.worst?.frame}, ${r.worst?.s.toFixed(2)} s, at ${r.worst?.x},${r.worst?.y}); p99 ${r.p99?.toFixed(4)}; ${r.over} over ${POP}; ${(r.ms / 60e3).toFixed(1)} min → .gate/motion-${tag}/${p.name}.jpg`);
-    }
-  } finally {
-    for (const P of Object.values(pages)) { said(P.errors); await P.close().catch(() => {}); }
-    await ctx.close(); net.close(); await work.close();
-  }
-  const fails = Object.entries(report.paths).filter(([, r]) => r.over).map(([k, r]) => `${k} ${r.over} frame(s), the worst ${r.worst.value.toFixed(4)}`);
-  console.log(`motion, ${tag}: the change detail made in each frame (FLIP of ((LOD − truth) now) − ((LOD − truth) a frame before), 32-px tiles, 4K)`);
-  console.log(`  ${'path'.padEnd(8)}${'frames'.padStart(7)}${'worst'.padStart(9)}${'at s'.padStart(8)}${'p99'.padStart(9)}${'median'.padStart(9)}${`>${POP}`.padStart(7)}${'truth again'.padStart(13)}`);
-  for (const [k, r] of Object.entries(report.paths)) console.log(`  ${k.padEnd(8)}${String(r.frames).padStart(7)}${f(r.worst?.value, 4, 9)}${f(r.worst?.s, 2)}${f(r.p99, 4, 9)}${f(r.median, 4, 9)}${String(r.over).padStart(7)}${String(r.again).padStart(13)}`);
-  console.log(`  the merge rule, nothing pops (no frame's worst tile over ${POP}, provisional): ${fails.length ? 'NOT MET: ' + fails.join('; ') : 'met'}`);
-  report.pass = !fails.length; report.fails = fails; save(`${dir}report.json`, report);
-  return report;
-}
-
-// ---- real: check 4a, held against photographs ----
-const PYTHON = process.env.GATE_PYTHON || `${homedir()}/.venvs/theos-real/bin/python`;   // (the venv tools/gate/README.md makes)
-const IMAGE = /\.(png|jpe?g|webp|tiff?)$/i;
-/** The photographs of a folder, as its manifest.json lists them (tools/gate/README.md): each { file, kind, licence,
-    distance_m ([near, far] metres, one number, or null: inside or not known), gate? (the one gate view it is of) }, as
-    the gate reads them: { file (its path), kind, near, far, gate }. A folder without one: every picture in it, of no
-    kind (held against every render, as one set). */
-function photosIn(dir) {
-  const at = `${dir.replace(/\/$/, '')}/`, m = `${at}manifest.json`;
-  if (!existsSync(m)) return readdirSync(at).filter((n) => IMAGE.test(n)).sort().map((n) => ({ file: `${at}${n}`, kind: null, near: null, far: null, gate: null }));
-  const list = JSON.parse(readFileSync(m, 'utf8')).photos ?? [], bad = [];
-  for (const [k, p] of list.entries()) {
-    const miss = ['file', 'kind', 'licence'].filter((x) => p[x] == null || p[x] === ''), d = p.distance_m;
-    if (miss.length) bad.push(`photo ${k} (${p.file ?? '?'}) has no ${miss.join(', ')}`);
-    else if (!KINDS.includes(p.kind)) bad.push(`${p.file}: kind '${p.kind}' is none of ${KINDS.join(', ')}`);
-    else if (d != null && !(typeof d === 'number' ? d >= 0 : Array.isArray(d) && d.length === 2 && d[0] >= 0 && d[1] >= d[0])) bad.push(`${p.file}: distance_m ${JSON.stringify(d)} is neither metres, [near, far] nor null`);
-    else if (p.gate && !VIEWS.some((v) => v.name === p.gate)) bad.push(`${p.file}: gate '${p.gate}' is not a gate view`);
-    else if (!existsSync(`${at}${p.file}`)) bad.push(`${p.file} is not in ${at}`);
-  }
-  if (bad.length) throw new Error(`${m}:\n  ${bad.join('\n  ')}`);
-  return list.map((p) => { const d = p.distance_m; return { file: `${at}${p.file}`, kind: p.kind, near: d == null ? null : +[].concat(d)[0], far: d == null ? null : +[].concat(d).at(-1), gate: p.gate ?? null, licence: p.licence }; });
-}
-/** The photos a view is held against: those that name it, else those of its kind from about as far (their distances
-    within a factor of two of its own; where either is not known, its kind alone). */
-const photosFor = (v, photos) => {
-  const named = photos.filter((p) => p.gate === v.name);
-  if (named.length) return named;
-  return photos.filter((p) => !p.gate && p.kind === v.kind && (v.distance == null || p.near == null || (p.far >= v.distance / 2 && p.near <= v.distance * 2)));
-};
-async function real(what, opt) {
-  if (!what || !opt.photos) throw new Error('real <tag | folder> --photos <folder>: renders (a set of stills in .gate/, or a folder) against photographs (a folder with its manifest.json: tools/gate/README.md)');
-  const rdir = existsSync(`${OUT}${what}/`) ? `${OUT}${what}/` : `${what.replace(/\/$/, '')}/`, photos = photosIn(opt.photos);
-  if (!existsSync(PYTHON)) throw new Error(`no Python at ${PYTHON} (GATE_PYTHON): make the venv as tools/gate/README.md says`);
-  const renders = readdirSync(rdir).filter((n) => IMAGE.test(n) && !n.startsWith('real-')).sort().map((n) => ({ file: `${rdir}${n}`, view: VIEWS.find((v) => n.replace(IMAGE, '') === v.name) ?? null }));
-  if (!renders.length || !photos.length) throw new Error(`nothing to compare: ${renders.length} renders in ${rdir}, ${photos.length} photos in ${opt.photos}`);
-  const groups = [{ name: 'all', renders: renders.map((r) => r.file), photos: photos.map((p) => p.file) }];
-  for (const k of KINDS) {   // by kind, and by view, where there are photos to hold them against
-    const R = renders.filter((r) => r.view?.kind === k), P = photos.filter((p) => p.kind === k);
-    if (R.length && P.length) groups.push({ name: `kind ${k}`, renders: R.map((r) => r.file), photos: P.map((p) => p.file) });
-    for (const r of R) { const Q = photosFor(r.view, photos); if (Q.length) groups.push({ name: r.view.name, renders: [r.file], photos: Q.map((p) => p.file) }); }
-  }
-  const dir = mkdtempSync(join(tmpdir(), 'gate-real-')), job = `${dir}/job.json`, out = `${dir}/out.json`;
-  save(job, { groups });
-  console.log(`real: ${renders.length} renders (${rdir}) against ${photos.length} photographs (${opt.photos}); ${groups.length} groups`);
-  try {
-    await new Promise((ok, no) => { const p = spawn(PYTHON, [new URL('./gate/real.py', import.meta.url).pathname, job, out, '--device', opt.device ?? 'cpu', ...(opt['no-clip'] ? ['--no-clip'] : [])], { stdio: ['ignore', 'inherit', 'pipe'] }); let e = ''; p.stderr.on('data', (d) => { e += d; if (opt.verbose) process.stderr.write(d); }); p.on('exit', (c) => (c ? no(new Error(`tools/gate/real.py failed (${c}):\n${e.slice(-2000)}`)) : ok())); });
-    const r = JSON.parse(readFileSync(out, 'utf8'));
-    const report = { renders: rdir, photos: opt.photos, when: new Date().toISOString(), clip: 'ViT-L/14 at 336 px, OpenAI', groups: r.groups, images: r.images };
-    console.log(`  ${'group'.padEnd(28)}${'n'.padStart(7)}${'CMMD'.padStart(9)}${'L* EMD'.padStart(9)}${'ΔE mean'.padStart(9)}${'Δ chroma'.padStart(10)}${'Δ RMS'.padStart(8)}${'Δ local'.padStart(9)}${'Δ slope'.padStart(9)}`);
-    for (const g of r.groups) { const d = g.stats.diff ?? {}; console.log(`  ${g.name.padEnd(28)}${`${g.renders}:${g.photos}`.padStart(7)}${f(g.cmmd, 3, 9)}${f(d.lightness, 2, 9)}${f(d.colour, 2, 9)}${f(d.chroma, 2, 10)}${f(d.rms, 2, 8)}${f(d.local, 2, 9)}${f(d.slope, 3, 9)}`); }
-    const a = r.groups[0].stats;
-    console.log(`  the sets themselves (renders | photos): L* ${a.renders.L.toFixed(1)} | ${a.photos.L.toFixed(1)}, chroma ${a.renders.C.toFixed(1)} | ${a.photos.C.toFixed(1)}, RMS ${a.renders.rms.toFixed(1)} | ${a.photos.rms.toFixed(1)}, local ${a.renders.local.toFixed(2)} | ${a.photos.local.toFixed(2)}, slope ${a.renders.slope.toFixed(2)} | ${a.photos.slope.toFixed(2)}`);
-    save(`${rdir}real.json`, report);
-    console.log(`  → ${rdir}real.json (check 4a: every number falls stage by stage, never rises)`);
-    return report;
-  } finally { rmSync(dir, { recursive: true, force: true }); }
-}
-
 /** Everything, for this code: its stills and the truth's, their FLIP, the bench, the compile, then the paths (their own
     Chrome, the gate's closed first: nothing else running while frames are timed); one table. */
 async function all(opt) {
@@ -764,8 +488,8 @@ try {
   let r;
   if (cmd === 'diff') await diff(pos[0], pos[1], opt);
   else if (cmd === 'paths') r = await locked('paths', () => paths(opt));   // (timed: held whole)
-  else if (cmd === 'motion') r = await motion(opt);
-  else if (cmd === 'real') r = await real(pos[0], opt);
+  else if (cmd === 'motion') r = await (await import('./gate/motion.js')).motion(opt, { OUT, BASE, SCREEN, INSIDE, WAIT, open, prepare, course, launch, pick, commit, save, rank, said, f });
+  else if (cmd === 'real') r = await (await import('./gate/real.js')).real(pos[0], opt);
   else if (cmd === 'all') await all(opt);
   else if (WITH[cmd]) { const chrome = await launch(opt); try { r = await WITH[cmd](chrome); } finally { await chrome.close(); } }
   else { console.log('bun tools/gate.js stills | diff | noise | bench | compile | paths | motion | real | all: see the top of tools/gate.js'); process.exitCode = cmd ? 1 : 0; }

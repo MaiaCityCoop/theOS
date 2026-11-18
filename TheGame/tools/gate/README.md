@@ -6,9 +6,13 @@
 | --- | --- |
 | `views.js` | The fixed views (1.7 m to 12 km), what each shows (its kind and distance, for the real half), and the paths |
 | `flip.js` | NVIDIA's LDR-FLIP, ported; the 32-pixel tiles; PNGs read and written |
-| `motion.js` | What `motion` runs in the pages: the gate's clock, a path's frames, the filmstrip |
+| `clock.js` | The gate's clock: an init script that puts a page's frames and its clock under the gate's hand |
+| `motion.js` | `motion`: the paths drawn frame by frame, as the game draws them and as the truth does; the filmstrip |
 | `change.js` | The change detail made in one frame, measured in a worker of its own |
-| `real.py` | The real half's numbers, CMMD and image statistics, in Python |
+| `tiles.js` | `stills --tiles`: a view drawn in tiles and laid together (the truth past 800 m) |
+| `real.js`, `real.py` | `real`: renders against photographs; the numbers (CMMD, image statistics) in Python |
+| `lock.js` | `GATE_LOCK`: the GPU shared between runs |
+| `sheet.js` | Labelled JPEG sheets (`diff --jpeg`) |
 
 The gate is two halves (intent 0038, Define): **invisible** (detail never shows: `stills`, `diff` against `?truth`,
 and `motion`) and **real** (the full-detail picture is held against photographs: `real`).
@@ -17,15 +21,17 @@ and `motion`) and **real** (the full-detail picture is held against photographs:
 
 `bun tools/gate.js motion --url <your server> --fresh [--paths walk,zoom] [--fps 60]`
 
-Every frame of each path is drawn twice, in two pages of one Chrome: as the game draws it (L), and at full detail
+Every frame of each path is drawn twice, in two passes of a page each (one world in memory at a time: the bench's Mac
+has 8 GB): as the game draws it (L, its frames kept on disk, squeezed, till the second pass), and at full detail
 (`?truth` drawn as a frame in motion, R: the same inside, the same places of a pixel, everything at its finest). Both
-pages run on the gate's clock (`motion.js`): no frame is drawn until the gate asks for it, at the same moment of the
-world's clock in both, and the truth's frame is drawn again until nothing was still out when it was drawn. For every
+pages run on the gate's clock (`clock.js`): no frame is drawn until the gate asks for it, at the same moment of the
+world's clock in both (each path at its own hour, 3600 s and on, the same in every run), and the truth's frame is drawn
+again until nothing was still out when it was drawn, then on to the LOD frame's place of a pixel. For every
 frame the gate measures `FLIP(L now, L before + (R now − R before))`: that picture differs from L exactly by
 ((L − R) now) − ((L − R) a frame before), the change detail made, seen in the frame as it was drawn. What the camera,
 the wind and the clock did, the truth did too, so it falls out.
 
-- **The merge rule:** no frame's worst 32-pixel tile over `POP` (in `gate.js`). `POP` is 0.05 until Samuel's pairs
+- **The merge rule:** no frame's worst 32-pixel tile over `POP` (in `motion.js`). `POP` is 0.05 until Samuel's pairs
   set the threshold of visibility (check 3); it is never loosened after that.
 - **Out:** `.gate/motion-<tag>/report.json` (every frame's worst tile, its 99th percentile and mean), and a filmstrip
   JPEG per path: every frame's worst tile over the path, then the worst frames, each with the squares round its worst
@@ -34,6 +40,8 @@ the wind and the clock did, the truth did too, so it falls out.
   stricter: a pop is the same pop at any rate, and a fade over n frames is counted in fewer, larger steps.
 - **What it does not see:** what reaches the page while the gate reads a frame back reaches it sooner, in the path's
   time, than it would on a screen; a pop when it comes is caught all the same, a late arrival is not.
+- **`--floor`:** the game's frames against a second pass of the game's own: what the measure reads where detail made
+  no change it did not also make the first time (what streams in at another frame, the wind's noise).
 
 ## The truth past 800 m: tiles
 
@@ -85,8 +93,9 @@ A folder of pictures and a `manifest.json` in it. The format is the one the refe
 | `author`, `page`, `source`, `view`, `what` | no | Who, where it came from, and what it shows, in words |
 
 The pictures stay outside git (they are kept by hash, as `Stories/objects/` keeps media); GPS is stripped from
-anything committed. A folder without a manifest is one set of no kind, held against all the renders: any two folders
-of pictures can be compared.
+anything committed. A folder without a manifest is read as a set of gate stills: each picture named by a gate view is
+of that view, and the rest are of no kind (held against all the renders, as one set). So any two folders of pictures
+can be compared, and two sets of stills view by view.
 
 ### Setting up the Python it runs in
 

@@ -1043,6 +1043,58 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
     one page;
   - Safari has not been tried.
 
+### The gate finished: motion, the far truth, real (2026-11-18)
+
+Built on `aven/0038-gate-motion-real-410055` from main at `d1c3805`, on the Mac mini (an M2 with 8 GB), whose GPU was
+shared with three other tasks' runs (stage 6c, the draw path's follow-ups, the website) under one lock. It touches the
+tools; the game's code only where noted.
+
+- **`gate.js motion`, check 4: nothing pops.**
+  - **The measure.** Each frame of a path is drawn twice: as the game draws it (L), and at full detail (R). The gate
+    takes FLIP of L now against L before + (R now − R before). That picture differs from L by exactly
+    ((L − R) now) − ((L − R) a frame before), the definition's change, and FLIP sees it in the frame as drawn. What the
+    camera, the wind and the clock moved, the truth moved too, so it falls out. On test frames a camera move and an
+    error that moves with the picture read 0.0000, and a patch that pops reads 0.48.
+  - **The truth in motion.** `?truth` draws a still at every canvas pixel over 32 places of a pixel and never lets its
+    history go. For motion it is drawn as the game draws a frame: the same inside (2560×1440), the same places, the
+    same reset after a pause, everything still at its finest. The temporal pass then does the same to both, and its
+    lag in motion is not counted against detail. That is `TRUTH_AS.still` in `src/detail/measure.js`, read by
+    `screen.js` and `temporal.js` where they read `TRUTH` (the game's one change for this part).
+  - **The gate's clock** (`tools/gate/clock.js`, an init script). Once a page has come and settled, no frame is drawn
+    until the gate asks, at a timestamp the gate gives: every frame is 1/fps of the path on, at the same moment of the
+    world's clock in both passes (each path at its own hour, 3600 s and on, the same in every run).
+    `performance.now` moves only while a frame is drawn, so reading a 4K frame back is not a pause to the temporal
+    pass. Between the gate's frames the page draws nothing and holds the GPU idle.
+  - **Two passes a path, one world in memory.** Two worlds in one Chrome do not fit beside three other tasks in 8 GB.
+    The game's pass keeps its frames on disk, squeezed, with the place of a pixel each was drawn at. The truth's pass is
+    drawn at those places, and its frame is drawn again (the camera and the clock standing) until nothing was still
+    out when it was drawn. Frames come out raw (RGBA, POSTed to the gate), not as PNGs. The change is measured in two
+    worker threads while the next frame draws.
+  - **The flyby** is flown frame by frame from `tools/flyby.js`'s own path (`flightAt`, now exported), not by its loop.
+  - **The rule** (Define, check 4): no frame's worst 32-px tile over `POP`, 0.05 until check 3's threshold is set. The
+    gate prints met or NOT MET, keeps every frame's worst tile in `report.json`, and draws a filmstrip a path.
+    `--floor` holds the game against a second pass of itself: the floor the measure stands on.
+- **The truth past 800 m: tiles.** `stills --tiles n` draws each view in n × n tiles, the camera set to a view offset
+  of the whole picture. `temporal.js` keeps its part of a pixel inside the tile (the game's second change: it
+  composes its jitter onto a view offset already set, and puts it back after). Each tile's frustum holds about 1/n²
+  of what the whole picture's does, and each is drawn at every canvas pixel, so the picture laid from them is n² times
+  supersampled. The film camera holds the camera for stills, so no lens glass is drawn, and it would
+  not tile.
+- **`gate.js real`, check 4a.** Renders held against photographs, in Python (`tools/gate/real.py`, a venv outside
+  the repository: `tools/gate/README.md`):
+  - CMMD as Jayasumana et al. define it (CLIP ViT-L/14 at 336 px, OpenAI's weights; Gaussian kernel σ 10; × 1000),
+    each picture's width cut into square crops, so the whole frame is seen;
+  - natural-image statistics: the earth mover's distance between the L* histograms, the mean colour's difference, and
+    the renders' less the photos' chroma, RMS and local contrast, and power-spectrum slope;
+  - by view (photos of its kind from about as far), by kind, and all together. The manifest is the one the reference
+    photos came in (`References/0038/manifest.json`: `kind`, `distance_m`, `licence`, plus an optional `gate` view).
+    A folder with none is read as a set of gate stills. Every view now says its kind and distance (`views.js`).
+  - On the reference photos themselves, two sets of six from inside a stand read CMMD 0.60; one of them against five of
+    hills and stands from above reads 2.10.
+- **`GATE_LOCK`.** Each part of a run that draws (a page coming, a view or a tile, a pass of a path) takes the
+  machine's GPU lock and lets it go after, its pages held on the gate's clock meanwhile. `diff --jpeg` writes a
+  labelled sheet of each view: the two side by side and the squares round the worst tile.
+
 ## Propose
 
 ## Story

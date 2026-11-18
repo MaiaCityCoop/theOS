@@ -102,10 +102,10 @@ def compare(R, P):
 
 
 # ---- CMMD ----
-def embed(files, device, batch=8):
+def embed(files, device, name='ViT-L-14-336', batch=8):
     import torch
     import open_clip
-    model, _, pre = open_clip.create_model_and_transforms('ViT-L-14-336', pretrained='openai', device=device, force_quick_gelu=True)   # (OpenAI's weights were trained with QuickGELU)
+    model, _, pre = open_clip.create_model_and_transforms(name, pretrained='openai', device=device, force_quick_gelu=True)   # (OpenAI's weights were trained with QuickGELU)
     model.eval()
     crops, owner = [], []
     for i, f in enumerate(files):
@@ -140,6 +140,7 @@ def main():
     ap.add_argument('job'); ap.add_argument('out')
     ap.add_argument('--device', default='cpu')
     ap.add_argument('--no-clip', action='store_true')
+    ap.add_argument('--clip', default='ViT-L-14-336', help="open_clip's name of the CLIP (OpenAI's weights): CMMD's own is ViT-L-14-336; ViT-B-32 is a fifth of its size, and its numbers are not CMMD's")
     a = ap.parse_args()
     job = json.load(open(a.job))
     files = sorted({f for g in job['groups'] for f in g['renders'] + g['photos']})
@@ -149,8 +150,8 @@ def main():
         print(f'  statistics: {f}', file=sys.stderr)
     E = {}
     if not a.no_clip:
-        print(f'  CLIP ViT-L/14 at 336 px on {a.device}: {len(files)} pictures', file=sys.stderr)
-        e, owner = embed(files, a.device)
+        print(f'  CLIP {a.clip} on {a.device}: {len(files)} pictures', file=sys.stderr)
+        e, owner = embed(files, a.device, a.clip)
         E = {f: e[owner == i] for i, f in enumerate(files)}
     groups = []
     for g in job['groups']:
