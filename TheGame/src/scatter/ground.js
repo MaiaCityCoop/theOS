@@ -1,7 +1,7 @@
 // The ground under the camera, written by the GPU into two small textures: 256 m square, a texel every 0.5 m (the
 // terrain's own nearest vertices). Blades and stones read their height, density, grass height, stone chance, colour and dryness from
 // them instead of working the land's noise out again at every vertex. Drawn again, whole (two 512² passes), each time
-// the camera has walked 8 m. It also holds the library's stage and sandbox, which the land's nodes read.
+// the camera has walked 8 m, or when the library's stage or sandbox changed (src/stage/studio.js: the land's nodes read them).
 // Its texel grows with a longer lens in steps (a step a half stop: √2), not with every change of the lens, and from one
 // step to the next what is read passes from the map before to the new one over FADE frames: a blade comes or goes by
 // itself as the density it reads passes its own, its height and colour slide, nothing changes at once (intent 0033)
@@ -10,11 +10,10 @@ import { float, vec2, vec3, vec4, uv, uniform, texture, mrt, positionGeometry, a
 import { U } from '../core/uniforms.js';
 import { note } from '../core/gpu.js';
 import { compileFor } from '../core/compile.js';
-import { heightAt as heightCPU, SAND } from '../world/land.js';
+import { heightAt as heightCPU } from '../world/land.js';
 import { camDist, riverInfo, heightAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, biomesAt } from '../world/land.nodes.js';
 import { CLEARINGS } from '../../world/places.js';
 import { offWays, waysVersion } from '../world/ways.js';
-import { BIOMES } from '../world/biomes.js';
 import { source } from '../core/settle.js';
 
 const N = 512;   // texels a side; a texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers the blades' reach
@@ -58,7 +57,7 @@ export function createGround(renderer, tex) {
   const read = (t, pos, M) => texture(t, pos.sub(M.o).div(M.texel).add(0.5).div(N)).level(0);
   // (both maps read, as much of each as W says: read where a blade is packed, once a blade, not at its every vertex)
   const both = (i, pos, f) => mix(f(read(rts[0].textures[i], pos, R[0]), R[0]), f(read(rts[1].textures[i], pos, R[1]), R[1]), W);
-  let lastDy = -1, lastS = 0, lastW = 0, cpu = null, reading = false, reads = 0;   // (reads: how many read-backs have come)
+  let lastDy = -1, lastS = 0, lastW = 0, laid = '', cpu = null, reading = false, reads = 0;   // (laid: the stage and sandbox it was drawn for; reads: how many read-backs have come)
   // the CPU's copy of the ground under the camera (read back after each pass, a moment later): what runs on the CPU and
   // must agree with what is drawn reads it, the rocks' bodies first (src/world/rocksolid.js)
   const h2f = (h) => { const e = (h >> 10) & 31, f = h & 1023, sg = h & 32768 ? -1 : 1; return e === 0 ? sg * f * 2 ** -24 : e === 31 ? NaN : sg * (1 + f / 1024) * 2 ** (e - 15); };
@@ -86,11 +85,6 @@ export function createGround(renderer, tex) {
       const k = (j * N + i) * 4, v = cpu.px, f = v instanceof Uint16Array ? h2f : (n) => n;
       return { height: f(v[k]) + cpu.base, density: f(v[k + 1]), grassHeight: f(v[k + 2]), stone: f(v[k + 3]) };
     },
-    /** The library's stage: a round at (x, z), r metres across the middle, laid in a material (its recipe or uid; none:
-        the base biome's bare earth) at tile metres a tile; r 0 takes it away. */
-    stage(x, z, r, material = null, tile = 2) { U.uStage.value.set(x, z, r); U.uStageGround.value.set(material ? tex.layer(material) : -1, tile); lastS = 0; },
-    /** The library's sandbox: round (x, z) the land is all one biome (its number in biomes/); no arguments: off. */
-    sandbox(x = 0, z = 0, biome = -1) { U.uSand.value.set(x, z, biome < 0 ? 0 : 1, biome); Object.assign(SAND, { on: biome >= 0, x, z, river: !!BIOMES[biome]?.water }); lastS = 0; },
     /** Drawn again at the next update (the land under it changed: the lakes, src/world/lakes.js). */
     refresh() { lastS = 0; },
     /** Its pass compiled for its own two maps, before it is first drawn, in turn (src/core/compile.js; a promise). */
@@ -103,6 +97,7 @@ export function createGround(renderer, tex) {
         const t = Math.min(1, ++fadeAt / FADE), e = t * t * (3 - 2 * t);
         W.value = cur ? e : 1 - e; this.version++; if (t >= 1) fadeAt = -1;
       }
+      if (fadeAt < 0) { const k = `${U.uSand.value.toArray()}|${U.uStage.value.toArray()}`; if (k !== laid) { laid = k; lastS = 0; } }   // (the library's stage or sandbox moved: drawn again whole)
       const S = fadeAt >= 0 ? lastS : stepOf(s, lastS), TEXEL = 0.5 * S, SNAP = 32 * TEXEL, o = R[cur].o.value;   // (no other step while one fades: the next waits for it, FADE frames)
       const ox = Math.round(cx / SNAP) * SNAP - (N * TEXEL) / 2, oz = Math.round(cz / SNAP) * SNAP - (N * TEXEL) / 2;
       const wv = waysVersion();   // (and when the ways are others than they were)

@@ -128,8 +128,8 @@ export const engine = {
   id: 'grass',
   row: (a) => ({ ...scatterRow(a), height: a.height, tiers: a.tiers }),   // its blade's height and its rings, over the common row
   create: createGrass,
-  // the library: a tuft for the list; on the stage the meadow itself, grown over the bare round
+  // the library: a tuft for the list; on the stage the meadow itself, grown over the bare round (src/stage/studio.js)
   thumb: (tex, row) => ({ things: [tuft(row.height)], eye: [0.55, 0.42, 0.75], look: [0, row.height * 0.42, 0] }),
-  stage(tex, row, { x, z, ground }) { ground.stage(x, z, 0); return new THREE.Group(); },
+  stage(tex, row, { studio }) { studio.round(0); studio.grow(); return new THREE.Group(); },
   frame: (a) => ({ height: a.height, dist: 4.2, pitch: 0.3, span: a.height }),
 };
