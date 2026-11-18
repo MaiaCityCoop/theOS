@@ -34,7 +34,7 @@ Neither site has a server once deployed. Each build writes what the dev servers 
   - `/story/list` and `/story/<id>/timeline.json`;
   - `/cine/list` and `/cine/timelines/*`;
   - `/api/scenes/<id>/scene.json`, which the film pages read.
-- **Both:** `brand/`.
+- **Both:** `brand/`, without the drafts it was chosen from (`brand/sheets/`).
 
 Two things are missing from both builds:
 

@@ -108,7 +108,6 @@ export const shapeSize = (a, shape) => { const H = a.size.height, S = a.growth?.
 /** The size each stand that changes level as one measures its plants by (its biome's `size`: the shrubs' 3.5 m), by
     plant asset's uid: what the biomes say, read on the page (src/scatter/trees.js) and told to the recipes' workers,
     which read no biome (the plants' make: src/scatter/drawer.js `tell`). */
-export const STANDS = {};
 const BUILT = new Map();   // (the last few shapes built: a kind's levels are asked for one after another)
 /** A place along one axis as the GPU reads it back from the heap (the grid a vertex is packed on, above): where a
     chunk's parts are found by their tips (crowd.js clumpsOf), the same on both sides of the GPU. */
@@ -122,8 +121,4 @@ export const crowdOf = (a, i) => {
   return S;
 };
 /** Level l of shape i: what it is drawn with between its sizes on screen (its first level: every size above its own). */
-export const crowdAt = (a, i, l) => { const [lo, hi] = bandsOf(a)[l]; return levelOf(crowdOf(a, i), lo, l === 0 ? Infinity : ownTop(a, i, hi)); };
-/** The largest a plant of shape i can be on screen, by its own size, where its stand measures it as `hi` pixels: in a
-    stand that changes level as one (STANDS: the stand's size) its own size over the stand's, at its largest scale (the
-    rule reckons a plant by its own size, at most the stand's: src/scatter/trees.js crowdRule). */
-export const ownTop = (a, i, hi) => { const z = STANDS[a.uid]; return z && Number.isFinite(hi) ? hi * Math.min(1, (shapeSize(a, i) * most(a.placement.scale ?? 1)) / z) : hi; };
+export const crowdAt = (a, i, l) => { const [lo, hi] = bandsOf(a)[l]; return levelOf(crowdOf(a, i), lo, l === 0 ? Infinity : hi); };

@@ -142,6 +142,7 @@ export class Tier {
     if (this.runs) for (let i = 0; i < n; i++) { const a = this.runs[i].x | 0, b = this.runs[i].y | 0; h1 = fnv(h1, a); h2 = Math.imul((h2 << 5) ^ (h2 >>> 27) ^ b, 0x85ebca6b) + a | 0; }   // (a list's runs: the same patch may hold other places now)
     let key = `${world}|${n}|${this.near}|${this.far}|${Math.round(cx / q)},${Math.round(cy / q)},${Math.round(cz / q)}|${h1}|${h2}`;
     if (this.viewKeyed) key += `|${view}`;   // what it packs is tested against the view one by one (index.js: inView)
+    if (this.reads) key += `|${this.reads()}`;   // (and what it reads besides: the growth map, src/scatter/growth.js)
     if (key === this.key) return;
     this.key = key;
     const N = n * this.P * this.P; this.cand.value = N; this.passes[1].dispatchSize = Math.max(1, N);
