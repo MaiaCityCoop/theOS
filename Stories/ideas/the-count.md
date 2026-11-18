@@ -7,14 +7,14 @@ stage: raw
 intents: 0001
 story: 
 dismissed: no
-updated: 2026-11-12
+updated: 2026-11-17
 ---
 
 # The count
 
 ## What happened
 
-- [0001] 5,423 days, and a city for 1,346,269 people. First in the game, then for real, in sixteen years.
+- [0001] 5,423 days, and a city. First in the game, then for real, in sixteen years.
 - [0001] Day 1: one citizen. Day 2: two.
 
 ## Samuel's own words
