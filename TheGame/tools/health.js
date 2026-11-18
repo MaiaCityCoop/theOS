@@ -1,10 +1,18 @@
 // The code gates (intent 0038; the intents skill, "Define: the architecture pass"): what a change does to the code over
-// the paths it touches, as one table (Markdown, to paste into an intent) and whole in .gate/health.json. They measure
-// against `main` by design: run it on main and on the branch over the same paths; every number holds or goes down.
+// the paths it touches, as one table (Markdown, to paste into an intent) and whole in .gate/health.json.
 //
-//   bun tools/health.js [path…] [--json]   each path from the current directory, else from TheGame/ (none: all of
-//                                          TheGame); its .js files as git sees them (tracked, or new and not ignored);
-//                                          --json: health.json on stdout instead of the table
+//   bun tools/health.js [path…] [--json]   the gates over the paths (each from the current directory, else from
+//                                          TheGame/; none: all of TheGame): their .js files as git sees them (tracked,
+//                                          or new and not ignored). --json: health.json on stdout instead of the table
+//   bun tools/health.js --base <ref> [path…] [--ceiling n] [--json]
+//                                          the same here and as the code was where <ref> and HEAD part (their merge
+//                                          base, unpacked in a folder of its own), each gate's change beside it; with no
+//                                          path, over the folders the change touches (their own files). It fails (exit
+//                                          1) where a gate got worse: more lines in clones, or a new clone; a function
+//                                          the change touches over the ceiling (--ceiling: Define's; else eslint's own
+//                                          default for `complexity`) and not as complex at the base; a new unused file
+//                                          or export; a new cycle; more mode branches or hand-set numbers; a new
+//                                          dependency that no intent the change touches names. CI runs it on every PR.
 //
 //   Copies        jscpd, clones of 50 tokens or more: the share of lines that are in one, and the largest
 //   Spaghetti     eslint's `complexity` (cyclomatic) of every function: the most, the mean, the 20 most
@@ -20,96 +28,131 @@
 //   Dependencies  the direct dependencies of every package.json in the repository
 //
 // No node on the path: jscpd and knip are run by bun from their files, eslint and madge through their own APIs.
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { Linter } from 'eslint';
+import { builtinRules } from 'eslint/use-at-your-own-risk';
 import madge from 'madge';
 
 const GAME = resolve(import.meta.dirname, '..'), REPO = resolve(GAME, '..'), OUT = join(GAME, '.gate/health.json');
+const JSCPD = join(GAME, 'node_modules/jscpd/run-jscpd.js'), KNIP = join(GAME, 'node_modules/knip/bin/knip-bun.js');
 const READS = new Set(['flag', 'flagNum', 'flagText']);   // how the address is read (src/core/flags.js)
 // the hand-set numbers the SSOT audit names, by the file each is set in (not ERROR_PX, the one dial; DRAWN is a mode)
 const AUDIT = { 'error.js': ['BUDGET_DRAWN'], 'measure.js': ['REACHES', 'BIG'], 'tier.js': ['MAXP'], 'terrain.js': ['CAP'], 'relief.js': ['CAP'],
   'crowd.js': ['SWELL', 'WIN', 'CLUMPS', 'VIEWS', 'CELL', 'TILE', 'TILES', 'SWITCH', 'FADE', 'RATIO'].map((k) => `CROWD.${k}`) };
+const COMPLEXITY = builtinRules.get('complexity');
 
 const fail = (why) => { console.error(`health: ${why}`); process.exit(1); };
 const run = (cmd, args, cwd = GAME) => spawnSync(cmd, args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28 });
-const wanted = process.argv.slice(2).filter((a) => !a.startsWith('--'));
-const PATHS = wanted.length ? wanted.map((p) => [resolve(p), resolve(GAME, p)].find((q) => existsSync(q)) ?? fail(`no ${p}`)) : [GAME];
-const FILES = [...new Set(run('git', ['ls-files', '-co', '--exclude-standard', '--', ...PATHS]).stdout.split('\n'))]
-  .filter((f) => f.endsWith('.js') && existsSync(join(GAME, f))).sort();
-if (!FILES.length) fail(`no .js files in ${wanted.join(' ') || 'TheGame'}`);
-const IN = new Set(FILES), at = (f, line) => `${f}:${line}`, nameOf = (n) => n.name ?? n.value;
+const git = (...args) => { const r = run('git', args); return r.status ? fail(`git ${args.join(' ')}: ${r.stderr.trim()}`) : r.stdout.split('\n').filter(Boolean); };
+const ARGS = process.argv.slice(2), TAKES = ['--base', '--ceiling'];
+const valueOf = (name) => (ARGS.includes(name) ? ARGS[ARGS.indexOf(name) + 1] ?? fail(`${name} wants a value`) : undefined);
+const REF = valueOf('--base'), CEILING = +(valueOf('--ceiling') ?? COMPLEXITY.meta.defaultOptions[0]);
+const at = (f, line) => `${f}:${line}`, fileOf = (place) => place.slice(0, place.lastIndexOf(':')), nameOf = (n) => n.name ?? n.value;
+
+// ---- what is measured: the paths asked for, else (against a base) the folders the change touches, else all of TheGame ----
+const BASE = REF && git('merge-base', REF, 'HEAD')[0];
+const CHANGED = BASE ? [...git('diff', '--name-only', '--relative', BASE), ...git('ls-files', '-o', '--exclude-standard')] : [];
+function inGame(p) {
+  const abs = [resolve(p), resolve(GAME, p)].find((q) => existsSync(q)) ?? fail(`no ${p}`), rel = relative(GAME, abs);
+  return rel.startsWith('..') ? fail(`${p} is outside TheGame`) : rel || '.';
+}
+const wanted = ARGS.filter((a, i) => !a.startsWith('--') && !TAKES.includes(ARGS[i - 1]));
+const AREA = wanted.length ? wanted.map((p) => ({ path: inGame(p) }))
+  : BASE ? [...new Set(CHANGED.filter((f) => f.endsWith('.js')).map(dirname))].sort().map((folder) => ({ folder })) : [{ path: '.' }];
+const inArea = (f) => f.endsWith('.js') && AREA.some((a) => (a.folder !== undefined ? dirname(f) === a.folder : a.path === '.' || f === a.path || f.startsWith(`${a.path}/`)));
+const HERE_FILES = [...new Set(git('ls-files', '-co', '--exclude-standard'))].filter((f) => inArea(f) && existsSync(join(GAME, f))).sort();
+const BASE_FILES = BASE ? git('ls-tree', '-r', '--name-only', BASE).filter(inArea).sort() : [];
+if (!BASE && !HERE_FILES.length) fail(`no .js files in ${wanted.join(' ') || 'TheGame'}`);
+
+/** The repository as it was at a commit, unpacked in a folder of its own (git archive), its TheGame/ given this one's
+    packages (a link) and knip's config, so that it is measured as this one is. Gone again on exit. */
+function unpack(commit) {
+  const repo = realpathSync(mkdtempSync(join(tmpdir(), 'health-'))), game = join(repo, 'TheGame'), modules = join(game, 'node_modules');
+  process.on('exit', () => { if (existsSync(modules)) unlinkSync(modules); rmSync(repo, { recursive: true, force: true }); });   // (the link first: never this one's packages)
+  const tar = spawnSync('git', ['archive', commit], { cwd: REPO, maxBuffer: 1 << 30 });
+  if (tar.status || spawnSync('tar', ['-x', '-C', repo], { input: tar.stdout }).status) fail(`could not unpack ${commit}`);
+  symlinkSync(join(GAME, 'node_modules'), modules);
+  copyFileSync(join(GAME, 'knip.jsonc'), join(game, 'knip.jsonc'));
+  return { repo, game };
+}
 
 // ---- every module read once, by eslint's parser: its functions' complexity, its lines of code, its bindings ----
-const linter = new Linter({ cwd: REPO });
-const CONFIG = [{ languageOptions: { ecmaVersion: 'latest', sourceType: 'module' }, rules: { complexity: ['error', 0] } }];
-const MODS = new Map(), MADE = new Map();
-/** A module, by its path from TheGame/: its functions (complexity), its lines of code, and its module scope's imports,
-    constants and exports (none where it could not be parsed: `broken` says why). */
-const mod = (f) => (MODS.has(f) ? MODS.get(f) : MODS.set(f, parse(f)).get(f));
-function parse(f) {
-  const text = readFileSync(join(GAME, f), 'utf8'), said = linter.verify(text, CONFIG, { filename: join(GAME, f) }), broken = said.find((x) => x.fatal);
-  const fns = said.filter((x) => x.ruleId === 'complexity').map((x) => ({ at: at(f, x.line), name: x.message.replace(/ has a complexity of.*/, ''), complexity: +x.message.match(/complexity of (\d+)/)[1] }));
-  if (broken) return { f, fns, broken: `${at(f, broken.line)}: ${broken.message}`, code: text.split('\n').filter((l) => /\S/.test(l)).length, consts: new Map() };
+let REPORTED = [];   // what eslint's own complexity rule reports of the module being read: each function, its node, its complexity
+const HEALTH = { rules: { complexity: { meta: COMPLEXITY.meta, create: (context) => COMPLEXITY.create(Object.create(context, { report: { value: (d) => REPORTED.push(d) } })) } } };
+const CONFIG = [{ languageOptions: { ecmaVersion: 'latest', sourceType: 'module' }, linterOptions: { noInlineConfig: true }, plugins: { health: HEALTH }, rules: { 'health/complexity': ['error', 0] } }];
+const linter = new Linter({ cwd: '/' });
+/** A tree of the game to measure: its TheGame/ (root) and the .js files measured there (from root); each module is
+    read once (mods), each binding reckoned once (made). */
+const treeOf = (root, files) => ({ root, files, in: new Set(files), mods: new Map(), made: new Map() });
+/** A module, by its path from its tree's root: its functions (complexity, lines), its lines of code, and its module
+    scope's imports, constants and exports (none where it could not be parsed: `broken` says why). */
+const mod = (t, f) => (t.mods.has(f) ? t.mods.get(f) : t.mods.set(f, parse(t, f)).get(f));
+function parse(t, f) {
+  REPORTED = [];
+  const text = readFileSync(join(t.root, f), 'utf8'), said = linter.verify(text, CONFIG, { filename: join(t.root, f) }), broken = said.find((x) => x.fatal);
+  const fns = REPORTED.map((d) => ({ at: at(f, d.loc.start.line), name: d.data.name, complexity: d.data.complexity, from: Math.min(d.loc.start.line, d.node.loc.start.line), to: d.node.loc.end.line }));
+  if (broken) return { t, f, fns, broken: `${at(f, broken.line)}: ${broken.message}`, code: text.split('\n').filter((l) => /\S/.test(l)).length, consts: new Map() };
   const sc = linter.getSourceCode(), lines = new Set();
-  for (const t of sc.ast.tokens) for (let l = t.loc.start.line; l <= t.loc.end.line; l++) lines.add(l);
-  return { f, fns, sc, code: lines.size, ...bindings(f, sc) };
+  for (const k of sc.ast.tokens) for (let l = k.loc.start.line; l <= k.loc.end.line; l++) lines.add(l);
+  return { t, f, fns, sc, code: lines.size, ...bindings(t, f, sc) };
 }
 /** A module's own bindings: what it imports (local name: from where, under what name), its constants, what it exports
     (name: its local name, or where it is re-exported from) and the modules it re-exports whole. */
-function bindings(f, sc) {
+function bindings(t, f, sc) {
   const scope = sc.scopeManager.globalScope.childScopes.find((s) => s.type === 'module'), imports = new Map(), consts = new Map(), exports = new Map(), stars = [];
-  for (const v of scope.variables) if (v.defs[0]?.type === 'ImportBinding') imports.set(v.name, { from: target(f, v.defs[0].parent.source.value), name: imported(v.defs[0].node) });
+  for (const v of scope.variables) if (v.defs[0]?.type === 'ImportBinding') imports.set(v.name, { from: target(t, f, v.defs[0].parent.source.value), name: imported(v.defs[0].node) });
   for (const s of sc.ast.body) {
     const d = s.type === 'ExportNamedDeclaration' ? s.declaration : s;
     if (d?.type === 'VariableDeclaration' && d.kind === 'const') for (const v of d.declarations) if (v.id.type === 'Identifier' && v.init) consts.set(v.id.name, v);
-    if (s.type === 'ExportNamedDeclaration') exportsOf(f, s, exports);
-    if (s.type === 'ExportAllDeclaration' && !s.exported) stars.push(target(f, s.source.value));
+    if (s.type === 'ExportNamedDeclaration') exportsOf(t, f, s, exports);
+    if (s.type === 'ExportAllDeclaration' && !s.exported) stars.push(target(t, f, s.source.value));
   }
   return { scope, imports, consts, exports, stars };
 }
 const imported = (s) => (s.type === 'ImportDefaultSpecifier' ? 'default' : s.type === 'ImportNamespaceSpecifier' ? '*' : nameOf(s.imported));
-function exportsOf(f, s, out) {
+function exportsOf(t, f, s, out) {
   for (const id of s.declaration ? (s.declaration.declarations ?? [s.declaration]).map((x) => x.id) : []) if (id?.type === 'Identifier') out.set(id.name, id.name);
-  for (const x of s.specifiers) out.set(nameOf(x.exported), s.source ? { from: target(f, s.source.value), name: nameOf(x.local) } : nameOf(x.local));
+  for (const x of s.specifiers) out.set(nameOf(x.exported), s.source ? { from: target(t, f, s.source.value), name: nameOf(x.local) } : nameOf(x.local));
 }
-/** The module an import names, by its path from TheGame/, as vite resolves ./, ../ and / (null: a package's, or none). */
-function target(f, spec) {
-  const p = spec.startsWith('/') ? join(GAME, spec) : spec.startsWith('.') ? resolve(GAME, dirname(f), spec) : null;
-  return p && existsSync(p) ? relative(GAME, p) : null;
+/** The module an import names, by its path from its tree's root (null: a package's, or none). */
+function target(t, f, spec) {
+  const p = spec.startsWith('.') && resolve(t.root, dirname(f), spec);
+  return p && existsSync(p) ? relative(t.root, p) : null;
 }
 
 // ---- modes: what a module's constant is made from ----
 /** What a module's binding is made from: the flags of the address it reads, through every constant and import it is
     made of, and whether it is a mode, true or false for the whole run (a mode no flag makes is its own). null: it is
     no constant of a module's. Reckoned once; null while it is reckoned, so an import cycle ends. */
-function made(f, name) {
+function made(t, f, name) {
   const key = `${f}#${name}`;
-  if (!MADE.has(key)) MADE.set(key, null).set(key, reckon(mod(f), name));
-  return MADE.get(key);
+  if (!t.made.has(key)) t.made.set(key, null).set(key, reckon(mod(t, f), name));
+  return t.made.get(key);
 }
 function reckon(m, name) {
   const imp = m.imports?.get(name), v = m.consts.get(name);
-  if (imp) return imp.from && exported(imp.from, imp.name);
+  if (imp) return imp.from && exported(m.t, imp.from, imp.name);
   if (!v) return null;
   const flags = new Set(), mode = isBool(m, v.init), inside = (n) => n.range[0] >= v.init.range[0] && n.range[1] <= v.init.range[1];
   for (const r of m.scope.references) if (r.resolved?.scope === m.scope && inside(r.identifier)) for (const x of flagsOf(m, r.identifier)) flags.add(x);
   return { mode, flags: mode && !flags.size ? [name] : [...flags] };
 }
-const flagsOf = (m, id) => (readOf(id) ? [readOf(id)] : made(m.f, id.name)?.flags ?? []);
+const flagsOf = (m, id) => (readOf(id) ? [readOf(id)] : made(m.t, m.f, id.name)?.flags ?? []);
 /** made() of what a module exports under a name, through its re-exports. */
-function exported(f, name) {
+function exported(t, f, name) {
   const key = `${f}@${name}`;
-  if (!MADE.has(key)) MADE.set(key, null).set(key, reexport(mod(f), name));
-  return MADE.get(key);
+  if (!t.made.has(key)) t.made.set(key, null).set(key, reexport(mod(t, f), name));
+  return t.made.get(key);
 }
 function reexport(m, name) {
   const e = m.exports?.get(name);
-  if (typeof e === 'string') return made(m.f, e);
-  if (e) return e.from && exported(e.from, e.name);
-  for (const s of m.stars ?? []) { const x = s && exported(s, name); if (x) return x; }
+  if (typeof e === 'string') return made(m.t, m.f, e);
+  if (e) return e.from && exported(m.t, e.from, e.name);
+  for (const s of m.stars ?? []) { const x = s && exported(m.t, s, name); if (x) return x; }
   return null;
 }
 /** The flag a read of the address asks for (`flag('truth')`: 'truth'), where id is the callee of one. */
@@ -122,7 +165,7 @@ const BOOL = {   // which expressions are true or false as they are written: a c
   BinaryExpression: (m, n) => SAY.has(n.operator),
   LogicalExpression: (m, n) => isBool(m, n.left) && isBool(m, n.right),
   ConditionalExpression: (m, n) => isBool(m, n.consequent) && isBool(m, n.alternate),
-  Identifier: (m, n) => !!made(m.f, n.name)?.mode,
+  Identifier: (m, n) => !!made(m.t, m.f, n.name)?.mode,
   CallExpression: (m, n) => (n.callee.type === 'Identifier' ? n.callee.name === 'flag' : ASK.has(n.callee.property?.name)),
 };
 const isBool = (m, n) => !!BOOL[n.type]?.(m, n);
@@ -155,45 +198,49 @@ function numbers(m, name, init, out) {
   if (audit || (isNumber(n) && /\d/.test(text))) out.push({ at: at(m.f, n.loc.start.line), name, value: text, ...(audit && { audit }) });
 }
 
-// ---- the gates ----
-function copies() {
-  const dir = mkdtempSync(join(tmpdir(), 'health-')), report = join(dir, 'jscpd-report.json');
+// ---- the gates, over a tree ----
+function copies(t) {
+  if (!t.files.length) return { percent: 0, lines: 0, of: 0, clones: 0, largest: [] };
+  const dir = mkdtempSync(join(tmpdir(), 'health-jscpd-')), report = join(dir, 'jscpd-report.json');
   try {
-    const r = run(process.execPath, [join(GAME, 'node_modules/jscpd/run-jscpd.js'), '--min-tokens', '50', '--reporters', 'json,silent', '--output', dir, '--absolute', ...FILES]);
+    const r = run(process.execPath, [JSCPD, '--min-tokens', '50', '--reporters', 'json,silent', '--output', dir, '--absolute', ...t.files], t.root);
     if (!existsSync(report)) fail(`jscpd: ${r.stderr || r.stdout}`);
-    const j = JSON.parse(readFileSync(report, 'utf8')), T = j.statistics.total, end = (x) => `${relative(GAME, x.name)}:${x.start}-${x.end}`;
+    const j = JSON.parse(readFileSync(report, 'utf8')), T = j.statistics.total, end = (x) => `${relative(t.root, x.name)}:${x.start}-${x.end}`;
+    const key = (d) => createHash('sha1').update(d.fragment.replace(/\s+/g, ' ').trim()).digest('hex').slice(0, 12);   // (a clone is the same where its code is)
     return { percent: T.percentage, lines: T.duplicatedLines, of: T.lines, clones: T.clones,
-      largest: j.duplicates.map((d) => ({ lines: d.lines, tokens: d.tokens, a: end(d.firstFile), b: end(d.secondFile) })).sort((x, y) => y.lines - x.lines) };
+      largest: j.duplicates.map((d) => ({ lines: d.lines, tokens: d.tokens, a: end(d.firstFile), b: end(d.secondFile), key: key(d) })).sort((x, y) => y.lines - x.lines) };
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
-function spaghetti() {
-  const fns = FILES.flatMap((f) => mod(f).fns).sort((a, b) => b.complexity - a.complexity);
+function spaghetti(t) {
+  const fns = t.files.flatMap((f) => mod(t, f).fns).sort((a, b) => b.complexity - a.complexity);
   return { functions: fns.length, most: fns[0]?.complexity ?? 0, mean: fns.reduce((s, x) => s + x.complexity, 0) / (fns.length || 1), top: fns.slice(0, 20),
-    unparsed: FILES.map((f) => mod(f).broken).filter(Boolean) };
+    ceiling: CEILING, over: fns.filter((x) => x.complexity > CEILING), unparsed: t.files.map((f) => mod(t, f).broken).filter(Boolean) };
 }
-function dead() {
-  const r = run(process.execPath, [join(GAME, 'node_modules/knip/bin/knip-bun.js'), '--reporter', 'json', '--no-progress', '--no-exit-code', '--no-config-hints', '--include', 'files,exports,duplicates']);
+function dead(t) {
+  if (!t.files.length) return { files: [], exports: [], duplicates: [] };
+  const r = run(process.execPath, [KNIP, '--reporter', 'json', '--no-progress', '--no-exit-code', '--no-config-hints', '--include', 'files,exports,duplicates'], t.root);
   if (r.status !== 0) fail(`knip: ${r.stderr || r.stdout}`);
-  const rows = JSON.parse(r.stdout).issues.filter((i) => IN.has(i.file));
+  const rows = JSON.parse(r.stdout).issues.filter((i) => t.in.has(i.file));
   return { files: rows.filter((i) => i.files.length).map((i) => i.file), exports: rows.flatMap((i) => i.exports.map((x) => ({ at: at(i.file, x.line), name: x.name }))),
     duplicates: rows.flatMap((i) => i.duplicates.map((g) => ({ at: at(i.file, g[0].line), names: g.map((x) => x.name) }))) };
 }
-async function cycles() {
-  const res = await madge(FILES.map((f) => join(GAME, f)), { baseDir: GAME, fileExtensions: ['js'], includeNpm: false });
-  return { cycles: res.circular().filter((c) => c.some((f) => IN.has(f))), unfollowed: res.warnings().skipped.filter((s) => /^[./]/.test(s)) };
+async function cycles(t) {
+  if (!t.files.length) return { cycles: [], unfollowed: [] };
+  const res = await madge(t.files.map((f) => join(t.root, f)), { baseDir: t.root, fileExtensions: ['js'], includeNpm: false });
+  return { cycles: res.circular().filter((c) => c.some((f) => t.in.has(f))), unfollowed: res.warnings().skipped.filter((s) => /^[./]/.test(s)) };
 }
-function size() {
+function size(t) {
   const by = {};
-  for (const f of FILES) { const d = (by[dirname(f)] ??= { folder: dirname(f), files: 0, code: 0 }); d.files++; d.code += mod(f).code; }
+  for (const f of t.files) { const d = (by[dirname(f)] ??= { folder: dirname(f), files: 0, code: 0 }); d.files++; d.code += mod(t, f).code; }
   const folders = Object.values(by).sort((a, b) => a.folder.localeCompare(b.folder));
-  return { files: FILES.length, code: folders.reduce((s, d) => s + d.code, 0), folders };
+  return { files: t.files.length, code: folders.reduce((s, d) => s + d.code, 0), folders };
 }
-function settings() {
+function settings(t) {
   const branches = [], hand = [], reads = [];
-  for (const m of FILES.map((f) => mod(f)).filter((x) => x.sc)) {
+  for (const m of t.files.map((f) => mod(t, f)).filter((x) => x.sc)) {
     for (const r of m.sc.scopeManager.scopes.flatMap((s) => s.references)) {
       const id = r.identifier, line = at(m.f, id.loc.start.line), read = readOf(id);
-      const what = read ? { mode: true, flags: [read] } : r.resolved?.scope === m.scope && made(m.f, id.name);   // (a module's own bindings and imports)
+      const what = read ? { mode: true, flags: [read] } : r.resolved?.scope === m.scope && made(t, m.f, id.name);   // (a module's own bindings and imports)
       if (read) reads.push({ at: line, flag: read });
       if (what?.mode && inTest(read ? id.parent : id)) branches.push({ at: line, on: what.flags.join(' ') });
     }
@@ -201,51 +248,146 @@ function settings() {
   }
   return { branches, numbers: hand, reads };
 }
-function dependencies() {
-  return run('git', ['ls-files', '-co', '--exclude-standard', '--', ':(glob)**/package.json'], REPO).stdout.split('\n').filter(Boolean).map((p) => {
-    const j = JSON.parse(readFileSync(join(REPO, p), 'utf8'));
-    return { at: p, dependencies: Object.keys({ ...j.dependencies, ...j.optionalDependencies, ...j.peerDependencies }), dev: Object.keys(j.devDependencies ?? {}) };
-  });
+/** The direct dependencies of each package.json among a tree of the repository's files (from its root, repo). */
+const dependencies = (repo, files) => files.filter((p) => basename(p) === 'package.json').map((p) => {
+  const j = JSON.parse(readFileSync(join(repo, p), 'utf8'));
+  return { at: p, dependencies: Object.keys({ ...j.dependencies, ...j.optionalDependencies, ...j.peerDependencies }), dev: Object.keys(j.devDependencies ?? {}) };
+});
+async function measure(root, files, repo, all) {
+  const t = treeOf(root, files);
+  return { files: files.length, copies: copies(t), spaghetti: spaghetti(t), dead: dead(t), cycles: await cycles(t), size: size(t), settings: settings(t), dependencies: dependencies(repo, all) };
 }
 
-const H = { commit: run('git', ['rev-parse', '--short', 'HEAD']).stdout.trim() + (run('git', ['status', '--porcelain']).stdout.trim() ? '+' : ''),
-  at: new Date().toISOString(), paths: PATHS.map((p) => relative(GAME, p) || '.'), files: FILES.length,
-  copies: copies(), spaghetti: spaghetti(), dead: dead(), cycles: await cycles(), size: size(), settings: settings(), dependencies: dependencies() };
-mkdirSync(dirname(OUT), { recursive: true });
-writeFileSync(OUT, JSON.stringify(H, null, 1));
-console.log(process.argv.includes('--json') ? JSON.stringify(H, null, 1) : table(H));
+// ---- against the base: what the change made of each gate ----
+/** The lines of each file (from TheGame/) the change touches, numbered as the file is now. */
+function touchedLines() {
+  const lines = new Map();
+  let f = null;
+  for (const l of git('diff', '-U0', '--no-color', '--relative', BASE)) {
+    if (l.startsWith('+++ ')) f = l === '+++ /dev/null' ? null : l.slice(6);
+    const h = f && l.match(/^@@ -\S+ \+(\d+)(?:,(\d+))? @@/), from = h && +h[1], k = h && (h[2] === undefined ? 1 : +h[2] || 2);   // (a hunk that only takes lines away touches the two it leaves together)
+    for (let i = from; h && i < from + k; i++) (lines.get(f) ?? lines.set(f, new Set()).get(f)).add(i);
+  }
+  return lines;
+}
+/** A cycle as one string, from its first file in order: the same cycle read from anywhere in it is the same. */
+const ring = (c) => { const i = c.indexOf([...c].sort()[0]); return [...c.slice(i), ...c.slice(0, i)].join(' → '); };
+/** Where a count rose from the base to here, by key: [key, by how much]. */
+function rose(B, H, key) {
+  const c = new Map();
+  for (const [list, by] of [[H, 1], [B, -1]]) for (const x of list) c.set(key(x), (c.get(key(x)) ?? 0) + by);
+  return [...c].filter(([, k]) => k > 0);
+}
+/** What changed from the base (B) to here (H), gate by gate, over the same paths. */
+function change(B, H) {
+  const lines = touchedLines(), was = new Set(BASE_FILES), keys = (list, key) => new Set(list.map(key)), exportKey = (x) => `${fileOf(x.at)}#${x.name}`;
+  const touched = (fn) => !was.has(fileOf(fn.at)) || Array.from({ length: fn.to - fn.from + 1 }, (_, i) => fn.from + i).some((l) => lines.get(fileOf(fn.at))?.has(l));
+  const asBefore = (fn) => B.spaghetti.over.some((b) => fileOf(b.at) === fileOf(fn.at) && b.name === fn.name && b.complexity >= fn.complexity);
+  const clones = keys(B.copies.largest, (c) => c.key), unused = keys(B.dead.exports, exportKey), cycled = keys(B.cycles.cycles, ring), set = keys(B.settings.numbers, exportKey);
+  return {
+    copies: { lines: H.copies.lines - B.copies.lines, clones: H.copies.largest.filter((c) => !clones.has(c.key)) },
+    spaghetti: { mean: H.spaghetti.mean - B.spaghetti.mean, over: H.spaghetti.over.filter((fn) => touched(fn) && !asBefore(fn)) },
+    dead: { files: H.dead.files.filter((f) => !B.dead.files.includes(f)), exports: H.dead.exports.filter((x) => !unused.has(exportKey(x))) },
+    cycles: H.cycles.cycles.filter((c) => !cycled.has(ring(c))),
+    size: H.size.code - B.size.code,
+    settings: { branches: { change: H.settings.branches.length - B.settings.branches.length, rose: rose(B.settings.branches, H.settings.branches, (b) => `${b.on} in ${fileOf(b.at)}`) },
+      numbers: { change: H.settings.numbers.length - B.settings.numbers.length, new: H.settings.numbers.filter((x) => !set.has(exportKey(x))) },
+      reads: H.settings.reads.length - B.settings.reads.length },
+    dependencies: added(B.dependencies, H.dependencies),
+  };
+}
+/** The dependencies here that their package.json had not at the base, and whether an intent the change touches names each. */
+function added(B, H) {
+  const had = new Set(B.flatMap((p) => [...p.dependencies, ...p.dev].map((d) => `${p.at}#${d}`)));
+  const intents = git('diff', '--name-only', BASE, '--', ':/Intents').map((p) => join(REPO, p)).filter((p) => existsSync(p)).map((p) => readFileSync(p, 'utf8')).join('\n');
+  return H.flatMap((p) => [...p.dependencies, ...p.dev].filter((d) => !had.has(`${p.at}#${d}`)).map((d) => ({ at: p.at, name: d, named: intents.includes(d) })));
+}
+/** Each way the change made a gate worse than at the base, in words: the run fails on any. */
+const worse = (D) => [
+  ...(D.copies.lines > 0 ? [`copies: ${D.copies.lines} more lines in clones`] : []),
+  ...D.copies.clones.map((c) => `copies: a new clone, ${c.a} = ${c.b} (${c.lines} lines)`),
+  ...D.spaghetti.over.map((x) => `spaghetti: ${x.at} ${x.name}, complexity ${x.complexity}, over the ceiling of ${CEILING}`),
+  ...D.dead.files.map((f) => `dead code: ${f}, a new unused file`),
+  ...D.dead.exports.map((x) => `dead code: ${x.at} ${x.name}, a new unused export`),
+  ...D.cycles.map((c) => `cycles: a new one, ${ring(c)}`),
+  ...(D.settings.branches.change > 0 ? D.settings.branches.rose.map(([k, by]) => `settings: ${by} more mode branches on ${k}`) : []),
+  ...(D.settings.numbers.change > 0 ? D.settings.numbers.new.map((x) => `settings: a new hand-set number, ${x.at} ${x.name} = ${x.value}`) : []),
+  ...D.dependencies.filter((d) => !d.named).map((d) => `dependencies: ${d.name} (${d.at}) is new, and no intent the change touches names it`),
+];
 
-// ---- the table ----
-function table({ commit, paths, files, copies: C, spaghetti: S, dead: D, cycles: Y, size: Z, settings: T, dependencies: P }) {
-  const count = (list, key) => Object.entries(list.reduce((o, x) => ((o[key(x)] = (o[key(x)] ?? 0) + 1), o), {})).sort((a, b) => b[1] - a[1]);
-  const n = (k, word) => `${k} ${word}${k === 1 ? '' : word.endsWith('h') ? 'es' : 's'}`;
-  const modes = count(T.branches, (b) => b.on), dirs = count(D.exports, (x) => dirname(x.at)), big = [...Z.folders].sort((a, b) => b.code - a.code)[0];
-  const deps = P.reduce((s, p) => s + p.dependencies.length + p.dev.length, 0), devs = P.reduce((s, p) => s + p.dev.length, 0), c = C.largest[0], s = S.top[0];
-  const rows = [
-    ['Copies', `${C.percent.toFixed(2)} % of lines in clones (${C.lines} of ${C.of}), ${n(C.clones, 'clone')}`, c ? `\`${c.a}\` = \`${c.b}\` (${c.lines} lines)` : ''],
-    ['Spaghetti', `most ${S.most}, mean ${S.mean.toFixed(2)} over ${n(S.functions, 'function')}${S.unparsed.length ? `, ${n(S.unparsed.length, 'file')} not parsed` : ''}`, s ? `\`${s.at}\` ${s.name} (${s.complexity})` : ''],
-    ['Dead code', `${n(D.files.length, 'file')}, ${n(D.exports.length, 'export')}, ${D.duplicates.length} exported twice`, dirs[0] ? `\`${dirs[0][0]}\`: ${n(dirs[0][1], 'export')}` : ''],
-    ['Cycles', `${Y.cycles.length}${Y.unfollowed.length ? ` (madge could not follow ${n(Y.unfollowed.length, 'import')})` : ''}`, Y.cycles[0] ? Y.cycles[0].map((f) => `\`${f}\``).join(' → ') : ''],
-    ['Size', `${Z.code} lines of code in ${n(Z.files, 'file')}`, big ? `\`${big.folder}\`: ${big.code}` : ''],
-    ['Settings', `${n(T.branches.length, 'mode branch')}, ${n(T.numbers.length, 'hand-set number')} (the audit's ${T.numbers.filter((x) => x.audit).length}), ${n(T.reads.length, 'flag read')}`, modes[0] ? `${modes[0][0]}: ${n(modes[0][1], 'branch')}` : ''],
-    ['Dependencies', `${deps} direct (${devs} dev) in ${P.length} package.json`, P.filter((p) => p.dependencies.length + p.dev.length).map((p) => `${dirname(p.at)}: ${p.dependencies.length} + ${p.dev.length} dev`).join(', ')],
-  ];
-  const out = [`Code gates · ${paths.join(' ')} · ${files} files · ${commit} · .gate/health.json`, '', '| Gate | Measure | Where most |', '| --- | --- | --- |',
-    ...rows.map((r) => `| ${r.join(' | ')} |`), ''];
+// ---- the tables ----
+function n(k, word) { return `${k} ${word}${k === 1 ? '' : word.endsWith('h') ? 'es' : 's'}`; }
+function signed(x, digits = 0) { return (x > 0 ? '+' : x < 0 ? '−' : '±') + Math.abs(x).toFixed(digits); }
+function count(list, key) { return Object.entries(list.reduce((o, x) => ((o[key(x)] = (o[key(x)] ?? 0) + 1), o), {})).sort((a, b) => b[1] - a[1]); }
+const cell = (rows) => rows.map((r) => `| ${r.join(' | ')} |`);
+const SAID = {   // each gate's measure, in a cell
+  Copies: (G) => `${G.copies.percent.toFixed(2)} % of lines in clones (${G.copies.lines} of ${G.copies.of}), ${n(G.copies.clones, 'clone')}`,
+  Spaghetti: (G) => `most ${G.spaghetti.most}, mean ${G.spaghetti.mean.toFixed(2)} over ${n(G.spaghetti.functions, 'function')}${G.spaghetti.unparsed.length ? `, ${n(G.spaghetti.unparsed.length, 'file')} not parsed` : ''}`,
+  'Dead code': (G) => `${n(G.dead.files.length, 'file')}, ${n(G.dead.exports.length, 'export')}, ${G.dead.duplicates.length} exported twice`,
+  Cycles: (G) => `${G.cycles.cycles.length}${G.cycles.unfollowed.length ? ` (madge could not follow ${n(G.cycles.unfollowed.length, 'import')})` : ''}`,
+  Size: (G) => `${G.size.code} lines of code in ${n(G.size.files, 'file')}`,
+  Settings: (G) => `${n(G.settings.branches.length, 'mode branch')}, ${n(G.settings.numbers.length, 'hand-set number')} (the audit's ${G.settings.numbers.filter((x) => x.audit).length}), ${n(G.settings.reads.length, 'flag read')}`,
+  Dependencies: (G) => `${G.dependencies.reduce((s, p) => s + p.dependencies.length + p.dev.length, 0)} direct (${G.dependencies.reduce((s, p) => s + p.dev.length, 0)} dev) in ${G.dependencies.length} package.json`,
+};
+const WHERE = {   // where the most of each gate is, in a cell
+  Copies: ({ copies: { largest: [c] } }) => (c ? `\`${c.a}\` = \`${c.b}\` (${c.lines} lines)` : ''),
+  Spaghetti: ({ spaghetti: { top: [s] } }) => (s ? `\`${s.at}\` ${s.name} (${s.complexity})` : ''),
+  'Dead code': (G) => count(G.dead.exports, (x) => dirname(x.at)).slice(0, 1).map(([d, k]) => `\`${d}\`: ${n(k, 'export')}`).join(''),
+  Cycles: (G) => (G.cycles.cycles[0] ?? []).map((f) => `\`${f}\``).join(' → '),
+  Size: (G) => [...G.size.folders].sort((a, b) => b.code - a.code).slice(0, 1).map((d) => `\`${d.folder}\`: ${d.code}`).join(''),
+  Settings: (G) => count(G.settings.branches, (b) => b.on).slice(0, 1).map(([on, k]) => `${on}: ${n(k, 'branch')}`).join(''),
+  Dependencies: (G) => G.dependencies.filter((p) => p.dependencies.length + p.dev.length).map((p) => `${dirname(p.at)}: ${p.dependencies.length} + ${p.dev.length} dev`).join(', '),
+};
+const CHANGE = {   // each gate's change from the base, in a cell
+  Copies: (D) => `${signed(D.copies.lines)} lines in clones, ${n(D.copies.clones.length, 'new clone')}`,
+  Spaghetti: (D) => `mean ${signed(D.spaghetti.mean, 2)}; ${n(D.spaghetti.over.length, 'touched function')} over ${CEILING} and more complex than before`,
+  'Dead code': (D) => `${n(D.dead.files.length, 'new file')}, ${n(D.dead.exports.length, 'new export')}`,
+  Cycles: (D) => `${D.cycles.length} new`,
+  Size: (D) => `${signed(D.size)} lines of code`,
+  Settings: (D) => `${signed(D.settings.branches.change)} mode branches, ${signed(D.settings.numbers.change)} hand-set numbers, ${signed(D.settings.reads)} flag reads`,
+  Dependencies: (D) => D.dependencies.map((d) => `${d.name} (${dirname(d.at)}) new${d.named ? ', named in its intent' : ''}`).join(', ') || 'none new',
+};
+/** The gates against the base: here, there and the change, and what got worse. */
+function against(G) {
+  const rows = Object.keys(SAID).map((g) => [g, SAID[g](G), SAID[g](G.base), CHANGE[g](G.change)]);
+  return [`Code gates · ${G.area.join(' ') || 'no .js touched'} · ${G.commit} against ${G.base.commit} (${G.base.ref}) · .gate/health.json`, '',
+    '| Gate | Here | Base | Change |', '| --- | --- | --- | --- |', ...cell(rows), '',
+    ...(G.worse.length ? ['Worse than at the base:', ...G.worse.map((w) => `  ${w}`)] : ['Nothing is worse than at the base.'])].join('\n');
+}
+/** The gates: one table, and what they found. */
+function table(G) {
+  const out = [`Code gates · ${G.area.join(' ')} · ${n(G.files, 'file')} · ${G.commit} · .gate/health.json`, '', '| Gate | Measure | Where most |', '| --- | --- | --- |',
+    ...cell(Object.keys(SAID).map((g) => [g, SAID[g](G), WHERE[g](G)])), ''];
   const list = (title, items) => items.length && out.push(title, ...items.map((x) => `  ${x}`));
-  list('Largest clones', C.largest.slice(0, 10).map((x) => `${String(x.lines).padStart(4)} lines  ${x.a} = ${x.b}`));
-  list('Most complex functions', S.top.map((x) => `${String(x.complexity).padStart(4)}  ${x.at}  ${x.name}`));
-  list('Not parsed', S.unparsed);
-  list('Dead files', D.files);
-  list('Exported twice', D.duplicates.map((x) => `${x.at}  ${x.names.join(' = ')}`));
-  list('Dead exports by folder', dirs.map(([d, n]) => `${String(n).padStart(4)}  ${d}`));
-  list('Cycles', Y.cycles.map((cy) => cy.join(' → ')));
-  list('Imports madge could not follow', Y.unfollowed);
-  list('Lines of code by folder', Z.folders.map((d) => `${String(d.code).padStart(6)}  ${d.folder} (${d.files} files)`));
-  list('Mode branches', modes.map(([on, n]) => `${String(n).padStart(4)}  ${on}: ${T.branches.filter((b) => b.on === on).map((b) => b.at).join(', ')}`));
-  list('Hand-set numbers by folder', count(T.numbers, (x) => dirname(x.at)).map(([d, n]) => `${String(n).padStart(4)}  ${d}`));
-  list('The audit\'s, still set', T.numbers.filter((x) => x.audit).map((x) => `${x.at}  ${x.name} = ${x.value}`));
-  list('Flag reads', count(T.reads, (x) => x.flag).map(([flag, n]) => `${String(n).padStart(4)}  ${flag}`));
-  list('Dependencies', P.map((p) => `${p.at}: ${[...p.dependencies, ...p.dev.map((d) => `${d} (dev)`)].join(', ') || 'none'}`));
+  list('Largest clones', G.copies.largest.slice(0, 10).map((x) => `${String(x.lines).padStart(4)} lines  ${x.a} = ${x.b}`));
+  list('Most complex functions', G.spaghetti.top.map((x) => `${String(x.complexity).padStart(4)}  ${x.at}  ${x.name}`));
+  list('Not parsed', G.spaghetti.unparsed);
+  list('Dead files', G.dead.files);
+  list('Exported twice', G.dead.duplicates.map((x) => `${x.at}  ${x.names.join(' = ')}`));
+  list('Dead exports by folder', count(G.dead.exports, (x) => dirname(x.at)).map(([d, k]) => `${String(k).padStart(4)}  ${d}`));
+  list('Cycles', G.cycles.cycles.map(ring));
+  list('Imports madge could not follow', G.cycles.unfollowed);
+  list('Lines of code by folder', G.size.folders.map((d) => `${String(d.code).padStart(6)}  ${d.folder} (${n(d.files, 'file')})`));
+  list('Mode branches', count(G.settings.branches, (b) => b.on).map(([on, k]) => `${String(k).padStart(4)}  ${on}: ${G.settings.branches.filter((b) => b.on === on).map((b) => b.at).join(', ')}`));
+  list('Hand-set numbers by folder', count(G.settings.numbers, (x) => dirname(x.at)).map(([d, k]) => `${String(k).padStart(4)}  ${d}`));
+  list('The audit\'s, still set', G.settings.numbers.filter((x) => x.audit).map((x) => `${x.at}  ${x.name} = ${x.value}`));
+  list('Flag reads', count(G.settings.reads, (x) => x.flag).map(([flag, k]) => `${String(k).padStart(4)}  ${flag}`));
+  list('Dependencies', G.dependencies.map((p) => `${p.at}: ${[...p.dependencies, ...p.dev.map((d) => `${d} (dev)`)].join(', ') || 'none'}`));
   return out.join('\n');
 }
+
+// ---- the run ----
+const all = git('ls-files', '-co', '--exclude-standard', '--full-name', '--', ':/').filter((p) => existsSync(join(REPO, p)));
+const HERE = await measure(GAME, HERE_FILES, REPO, all);
+const H = { commit: git('rev-parse', '--short', 'HEAD')[0] + (git('status', '--porcelain').length ? '+' : ''), at: new Date().toISOString(),
+  area: AREA.map((a) => (a.folder !== undefined ? `${a.folder}/*` : a.path)), ...HERE };
+if (BASE) {
+  const { repo, game } = unpack(BASE);
+  H.base = { ref: REF, commit: BASE.slice(0, 7), ...(await measure(game, BASE_FILES, repo, git('ls-tree', '-r', '--name-only', '--full-tree', BASE))) };
+  H.change = change(H.base, HERE);
+  H.worse = worse(H.change);
+  process.exitCode = H.worse.length ? 1 : 0;
+}
+mkdirSync(dirname(OUT), { recursive: true });
+writeFileSync(OUT, JSON.stringify(H, null, 1));
+console.log(ARGS.includes('--json') ? JSON.stringify(H, null, 1) : BASE ? against(H) : table(H));
