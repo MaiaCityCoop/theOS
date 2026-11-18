@@ -173,10 +173,11 @@ export function bakeTextures(renderer, { spare = 6, first = null } = {}) {
   note("the world's textures (a pool of layers, and the numbers' own)", Math.round((PACKED ? (2 + 1 / 8) * CAP : 8 * CAP) * SIZE * SIZE * 4 / 3 + DATA.length * SIZE * SIZE * 16 / 3), 0);
 
   // the painter: a target the tile is painted into, and (compressed) the pass that packs it and its buffers; made when
-  // there is something to paint, let go a while after the last
+  // there is something to paint, let go half a minute after the last (made again, its packing pass, 53 KB, is compiled
+  // again: the library's pictures, which come once its first view is complete, find it still there)
   let P = null, idle = 0, busy = 0;   // busy: the start's materials are being compiled for this painter's tile (paintAll)
   const painter = () => {
-    clearTimeout(idle); idle = setTimeout(() => { if (!P || busy) return; P.tmp.dispose(); P.raw.dispose(); P.relief.mat.dispose(); P.quad.geometry.dispose(); if (P.enc) { P.enc.pass.dispose(); for (const x of [P.blocks, P.blocksR]) renderer._attributes?.delete(x.value); } P = null; }, 4000);
+    clearTimeout(idle); idle = setTimeout(() => { if (!P || busy) return; P.tmp.dispose(); P.raw.dispose(); P.relief.mat.dispose(); P.quad.geometry.dispose(); if (P.enc) { P.enc.pass.dispose(); for (const x of [P.blocks, P.blocksR]) renderer._attributes?.delete(x.value); } P = null; }, 30000);
     if (P) return P;
     const tmp = new THREE.RenderTarget(SIZE, SIZE, { depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace });
     Object.assign(tmp.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping });

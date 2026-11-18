@@ -91,11 +91,8 @@ export async function boot({ profile = 'world' } = {}) {
   // (settle(): a promise, the world complete for the camera as it stands: nothing streaming or building in any engine, and
   // the picture built over time come to rest on it; ready: the same for the page's first view; waiting(): what is still
   // out. What the gate waits on, never a timer: src/core/settle.js)
-  let shown = null, drew = null; const first = new Promise((res) => (shown = res));   // (the stage's first subject in: its first view is complete once it has settled)
+  let shown = null; const first = new Promise((res) => (shown = res));   // (the stage's first subject in: its first view is complete once it has settled)
   const game = (window.__game = { profile, renderer, camera, scene, outlines: { kept: outlinesKept, made: 0 }, settle, ready: world ? firstView : first.then(() => settle()), waiting });
-  /** A promise: the page's first view on the screen, the veil gone (what waits for it, the library's pictures, does not
-      hold it up: every compile goes in turn, src/core/compile.js). */
-  game.drawn = new Promise((res) => (drew = res));
   const bounds = world && flag('bounds') ? showBodies(scene) : null;   // ?bounds: what is solid round the walker drawn as lines, in every world (src/world/bodies.js)
   const U = createUniforms(camera, SKY);
   setImpostorRenderer(renderer);
@@ -231,8 +228,9 @@ export async function boot({ profile = 'world' } = {}) {
   const compiled = (object) => {
     const was = [];
     object.traverse((o) => { was.push([o, o.visible, o.frustumCulled, o.autoUpdate]); o.visible = true; o.frustumCulled = false; if (o.isLOD) o.autoUpdate = false; });
-    const gy = heightAt(camera.position.x, camera.position.z);
-    return inTime(object.name || 'a subject', Promise.all([screen.compile(object, camera, scene), shadows.compile(object, camera, gy, scene)]))
+    const gy = heightAt(camera.position.x, camera.position.z), begun = inTurn(() => {});   // (its 20 s count from its turn, not from the queue before it)
+    const done = Promise.all([screen.compile(object, camera, scene), shadows.compile(object, camera, gy, scene)]);
+    return begun.then(() => inTime(object.name || 'a subject', done))
       .finally(() => { for (const [o, v, f, a] of was) { o.visible = v; o.frustumCulled = f; if (o.isLOD) o.autoUpdate = a; } });
   };
   const showing = new Set();
@@ -289,7 +287,7 @@ export async function boot({ profile = 'world' } = {}) {
     requestAnimationFrame(frame);
     // the veil goes once the world is on the screen: the stage's once its first subject is in (or after 20 s without one)
     if (!world) await Promise.race([first, new Promise((res) => setTimeout(res, 20000))]);
-    requestAnimationFrame(() => requestAnimationFrame(() => { loadingDone(); drew(); }));
+    requestAnimationFrame(() => requestAnimationFrame(loadingDone));
     if (world && flag('flyby')) import('../tools/flyby.js').then((m) => m.run());   // ?flyby: the camera flown by itself, to watch the plants' levels change (tools/flyby.js)
     if (world && flag('bench')) import('../tools/bench.js').then((m) => m.overlay());   // ?bench: the frame timed at the bench's six views once the world is loaded, the numbers on the screen (tools/bench.js)
   })();
