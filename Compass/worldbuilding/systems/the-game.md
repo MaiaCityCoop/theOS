@@ -106,6 +106,8 @@ Every city goes through three stages: **survive** (imported food, tents and gene
 
 ### Daily play: ten minutes
 
+How everything grows, is harvested, levels up and breeds its own seed: [the harvest](the-harvest.md).
+
 - **The hook is the harvest.** The clock follows modern greenhouse growing cycles, with **one game month to one real day**, so nearly every day something of a citizen's own is ripe.
 - **No seasons in the MVP.** Everything grows inside the domes, all year. What changes with the levels is the domes' **inner climate**: steadier at every gate, so they yield more of the year, until the geothermal star at 610 holds 24 °C or more all year round.
 - **Every citizen tends their own plants** in the shared dome's food-forest garden. **There are only shared domes.**

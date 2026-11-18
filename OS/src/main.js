@@ -283,7 +283,7 @@ async function compass() {
       <p class="sub" style="margin-top:0">Places</p>
       <div class="grid">${b.locations.map((x) => card('place', x, x.front.type || 'Place')).join('')}</div>
       <p class="sub">How it works</p>
-      <div class="grid">${b.systems.filter((x) => x.id !== 'the-game').map((x) => card('system', x, x.front.type || 'System')).join('')}</div>
+      <div class="grid">${b.systems.filter((x) => x.id !== 'the-game' && x.id !== 'the-harvest').map((x) => card('system', x, x.front.type || 'System')).join('')}</div>
       <p class="sub">Its words</p>
       <div class="chips">${b.terms.map((x) => `<button data-k="term/${x.id}">${esc(name(x))}</button>`).join('')}<button data-k="index/world">The world, all of it</button></div>
     </section>
@@ -294,7 +294,7 @@ async function compass() {
         <h3>The money</h3>${marked.parse(sec(game.body, 'The money'))}
         <h3>The essential fixed tree</h3>${marked.parse(sec(game.body, 'The essential fixed tree \\(MVP\\)'))}
       </div>
-      <div class="chips" style="margin-top:14px"><button class="go" data-go="ladder">The village ladder →</button><button data-k="system/the-game">Read the whole reference sheet</button></div>
+      <div class="chips" style="margin-top:14px"><button class="go" data-go="ladder">The village ladder →</button><button data-k="system/the-harvest">The harvest: every recipe</button><button data-k="system/the-game">Read the whole reference sheet</button></div>
     </section>` : ''}`;
 
   const doc = $('cxdoc'), shade = $('cxshade');

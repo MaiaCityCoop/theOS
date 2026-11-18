@@ -301,6 +301,21 @@ Asked outright and without surprises, so built straight away.
 - **Broke / not there yet:** "€ in total" read as money brought, not money spent, until the columns were added; the
   ladder had said "Citizens" at 5 and 8 although their € did not cover it.
 
+### 2026-11-18 (8)
+
+- **Asked:** economies of scale, unlocked by the startup factory coops as they level up, the factor per coop, everyone
+  buying from the first village's chain; citizenship at €1 a day as the gate against fake accounts; growing times
+  of herbs and berries; seeds of our own. Then: "a new harvesting and growing game sheet, separate, every asset its
+  own entry with its levelling, a universal recipe engine reusable across the food forest, clean playable levelling;
+  the goal export-positive; a few edible mushrooms and anything that grows in one to two real days; including
+  breeding our own seeds."
+- **Delivered:** `Compass/worldbuilding/systems/the-harvest.md` (made with `story add system`): the recipe, the
+  engine, bed levels on Fibonacci harvests, seeds bought, saved and bred into village seed lines, the export goal per
+  recipe, and an entry for every recipe (microgreens, herbs, berries, the fast greens, five mushrooms). Linked from
+  the game sheet and the Compass's Play section. Scale, citizenship and the scale factor in `the-game.md`.
+- **Good:** `story check .` passes; the drawer renders it (screenshot).
+- **Broke / not there yet:** every time and yield is an estimate to source and tune.
+
 ## Trail
 
 | When | Commit | What |
