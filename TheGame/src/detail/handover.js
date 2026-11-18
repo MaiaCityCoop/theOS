@@ -7,8 +7,8 @@
 //     from end to end);
 //   - between two levels both are drawn. A thing of one piece (a rock, a tent) changes over whole, half way: its levels
 //     are one outline (a plant's levels are first shares of one build, the same where they meet: assets/kit/crowd.js);
-//   - its last level sinks into the ground over the BAND above where it is gone (`sink`, error.js goneAt): lower first,
-//     then narrower, to nothing.
+//   - its last level sinks into the ground over the BAND under where it is gone (`sink`, error.js goneAt: its lo is a
+//     BAND under that), lower first, then narrower, to nothing.
 // On the GPU as node code (a level's numbers as uniforms: every level of a thing is then one shader), and the same
 // reckoning in JS for what is chosen on the CPU. Every size on screen here is in the dial's pixels (src/detail/error.js:
 // a level's numbers hold at every turn of the dial; a measured size meets them over the dial, measure.js dialPxAt).

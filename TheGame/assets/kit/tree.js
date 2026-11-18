@@ -324,19 +324,20 @@ export function tree(recipe) {
     /** its shade's mesh for a shape (what the shadow map is drawn from), as the builder made it; none: it has no shade of its own */
     shadeRaw: shade ? (shape) => shade(shapes[shape], shape) : null,
     /** The room each shape's levels need in the heap, [shape][level] [verts, tris] (assets/kit/crowd.js budgetOf),
-        reckoned from its finest without building the crowd, and kept with its outline with each shape's far end (farOf).
-        Its own levels' (bandsOf): a stand that cuts them as one takes the room at each of its levels' tops from here */
-    crowdRooms() {
-      const o = measured();
-      if (!o.rooms) {
-        const his = bandsOf(out).map(([, hi], l) => (l ? hi : Infinity)), B = shapes.map((s, i) => budgetOf(finest(i), { size: shapeSize(out, i), far }, his));
-        o.rooms = B.map((b) => b.map((r) => [r.verts, r.tris])); o.far = B.map((b) => ({ cell: b.cell, chunks: b.chunks }));
+        reckoned from its finest without building the crowd, and kept with its outline with each shape's far end (farOf),
+        for the atlases' numbers A it was reckoned by (src/detail/impostor.js atlases: another A, another reckoning). Its
+        own levels' (bandsOf): a stand that cuts them as one takes the room at each of its levels' tops from here */
+    crowdRooms(A) {
+      const o = measured(), key = far ? A.key : '';
+      if (!o.rooms || o.atlas !== key) {
+        const his = bandsOf(out).map(([, hi], l) => (l ? hi : Infinity)), B = shapes.map((s, i) => budgetOf(finest(i), { size: shapeSize(out, i), far, ...(far ? A : {}) }, his));
+        o.rooms = B.map((b) => b.map((r) => [r.verts, r.tris])); o.far = B.map((b) => ({ chunks: b.chunks })); o.atlas = key;
         OUTLINES.made.set(id, o);
       }
       return o.rooms;
     },
-    /** each shape's far end as the crowd kit reckons it: { cell (its impostor's views' texels a side), chunks (its clumps) } */
-    farOf: () => (out.crowdRooms(), measured().far),
+    /** each shape's far end as the crowd kit reckons it, by the atlases' numbers A: { chunks (its clumps) } */
+    farOf: (A) => (out.crowdRooms(A), measured().far),
     /** shape `shape` at its finest as typed arrays (a plain geometry's), at any level: every level is a first share of it */
     meshAt: (level, shape = 0) => packed(finest(Math.min(shape, shapes.length - 1))),
     /** the same kind of tree grown from another seed: other shapes, other places (the library's Random). A shape of its
@@ -350,10 +351,10 @@ export function tree(recipe) {
     size: lazy(() => rest.size ?? measured().size), trunk: lazy(() => measured().trunk), heights: lazy(() => measured().heights),
     /** how many levels it has of its own (bandsOf: from what is measured of it) */
     levelCount: lazy(() => bandsOf(out).length),
-    // its levels as numbers only (lo, hi: the sizes on screen each is drawn between, bandsOf; tris(): the most triangles
-    // its first shape has there, of its room in the heap); shadow: it is drawn into the shadow map by its shade, for every
+    // its levels as numbers only (lo, hi: the sizes on screen each is drawn between, bandsOf; tris(A): the most triangles
+    // its first shape has there, of its room in the heap, its far end's atlases sized by A); shadow: it is drawn into the shadow map by its shade, for every
     // tree within `far` metres (from high up, up to `wide` times that) whose shade can reach the view (`reach`: how far a
     // crown's shadow falls); past them the land dims its floor under the stand by itself (src/terrain/material.js)
-    detail: lazy(() => (detail ??= { ...(rest.detail || {}), levels: bandsOf(out).map(([lo, hi], i) => ({ lo, hi, tris: () => out.crowdRooms()[0][i][1] })), ...(shade ? { shadow: { far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) })),
+    detail: lazy(() => (detail ??= { ...(rest.detail || {}), levels: bandsOf(out).map(([lo, hi], i) => ({ lo, hi, tris: (A) => out.crowdRooms(A)[0][i][1] })), ...(shade ? { shadow: { far: 80, wide: 2.4, reach: 22, ...shadow } } : {}) })),
   });
 }
