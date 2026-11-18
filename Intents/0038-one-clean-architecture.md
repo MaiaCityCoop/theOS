@@ -170,6 +170,28 @@ numbers are written below.
 
 ## Where we left off (2026-11-18): read this first to take over
 
+### Tasks: the live board (master: `0038 master · avenMAIA MacMini`; updated 2026-11-18 19:55)
+
+The master keeps this board current (the `intents` skill, "The task board"). Train 1 (with #82) failed on #82's
+packing (11–59 ms); train 1b showed 9a's sun shadows missing on the GPU; **train 1c** (main + #78, #77, #84, #81)
+is being gated and merges into main as one if it passes. The SSOT audit of train 1 is
+`research_notes/0038-ssot-audit.md`; train 2 is its unification.
+
+| Task | Session | Machine | Branch · PR | State | Next |
+| --- | --- | --- | --- | --- | --- |
+| The gate: motion, far truth, real | 0038 gate (motion, truth, ceilings) | avenMAIA MacMini | `aven/0038-gate-motion-real-410055` · #78 | on train 1c | merge; then the settled-still truth in motion, the ceilings as a rule, the truth's cold start, `?truth` = `ERROR_PX` → 0 |
+| Draw path: one culling for every tier | 0038 draw path (culling, then extents) | avenMAIA MacMini | `aven/0038-draw-path-culling-befaf1` · #77 | on train 1c | merge; then extents, pyramid, depthless canvas (cascades and light resolutions after 9a's fix) |
+| Meadow: shade from the real crowns | (MacBook agent) | avenMAIA MacBook Sam | `aven/0038-meadow-fix` · #84 | on train 1c | merge |
+| 6c: relief, paths, settling | 0038 ground (6c relief, then ground unify) | avenMAIA MacMini | `aven/0038-stage6c-relief-e30fca` · #81 | on train 1c | merge; then the land and ground from the one measure |
+| 9a: one light | (MacBook agent, moving to its own session) | avenMAIA MacBook Sam | `aven/0038-stage9-light` · #72 | blocked: sun shadows missing on the GPU | the shadow fix, checked with a 1080p still on the MacBook, then train 2 |
+| One measure v2: the runtime dial, one pixel, hierarchical packing, capacities from need | (MacBook agent, moving to its own session) | avenMAIA MacBook Sam | `aven/0038-one-measure` · #82 | coding | train 2 |
+| Rung errors and atlases | (MacBook agent, moving to its own session) | avenMAIA MacBook Sam | `aven/0038-rung-errors` | coding | train 2 |
+| Feet: real footprints | (MacBook agent) | avenMAIA MacBook Sam | `aven/0038-feet` · #85 | ready | train 2 |
+| Upscale: 13 divisions a pixel, exact lens inverse | (MacBook agent) | avenMAIA MacBook Sam | `aven/0038-upscale` · #86 | ready | train 2 |
+| Code gates: `tools/health.js` | (MacBook agent, moving to its own session) | avenMAIA MacBook Sam | `aven/0038-health` | coding | baseline into Define; merge when CI passes |
+| Not started (frozen until the frame fits) | — | — | — | planned | 8b, the research's floor kinds, 9b |
+
+
 **Live on next (main `501aff5`; next deploys itself after every merge):**
 
 | Stage | PR | What it did |
