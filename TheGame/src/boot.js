@@ -21,8 +21,8 @@ import * as THREE from 'three/webgpu';
 import { loadingStep, loadingDone } from './ui/loading.js';   // the veil is told what is being made
 import { HMIN, heightAt } from './world/land.js';
 import { createUniforms } from './core/uniforms.js';
-import { keepMeasure, TRUTH } from './detail/measure.js';
-import { farthest } from './detail/extent.js';
+import { keepMeasure, measureNow, TRUTH } from './detail/measure.js';
+import { farthest, farthestMost } from './detail/extent.js';
 import { setImpostorRenderer } from './detail/impostor.js';
 import { setPlanes } from './core/frustum.js';
 import { createGovernor } from './core/governor.js';
@@ -83,7 +83,7 @@ export async function boot({ profile = 'world' } = {}) {
   renderer.info.autoReset = false;   // a frame may be several passes: counted together
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(68, innerWidth / innerHeight, 0.15, farthest());   // (its far plane where the largest thing is gone, kept so as the window and the lens change: below, and src/detail/extent.js)
+  const camera = new THREE.PerspectiveCamera(68, innerWidth / innerHeight, 0.15, farthestMost());   // (its far plane where the largest thing is gone, kept so as the window and the lens change: below, and src/detail/extent.js)
   scene.add(camera);
   if (!world) { camera.position.set(STAGE.x + 6, heightAt(STAGE.x, STAGE.z) + 3, STAGE.z + 6); camera.lookAt(STAGE.x, heightAt(STAGE.x, STAGE.z) + 1, STAGE.z); }   // (the stage's camera over the stage from the start: its land is laid round where it looks)
   let sizeW = innerWidth, sizeH = innerHeight, resizes = 0;
@@ -108,7 +108,7 @@ export async function boot({ profile = 'world' } = {}) {
   const screen = (game.screen = createScreen(renderer, { temporal, lens: createLens(renderer) }));
   const governor = createGovernor(renderer, { apply: (r) => screen.set(r) });
   game.governor = governor;   // the film holds it still while it plays
-  keepMeasure(() => screen.inside);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
+  keepMeasure(() => screen.inside, screen.out);   // the one measure of size on screen, for every level of detail (src/detail/measure.js)
   if (TRUTH) governor.hold(true);   // (?truth: everything at its finest, offline: no dial turned for its slow frames)
   watch({ camera, renderer, screen, temporal, U });   // what the world complete is measured against (src/core/settle.js)
   const marks = (game.boot = {}), mark = (k) => (marks[k] = Math.round(performance.now() - t0));   // where the start's time goes
@@ -175,7 +175,8 @@ export async function boot({ profile = 'world' } = {}) {
     city?.update();
     const lod = governor.detail(camera);
     U.uLodInv.value = 1 / lod;
-    const far = farthest() * lod; if (Math.abs(camera.far - far) > far * 0.01) { camera.far = far; camera.updateProjectionMatrix(); }   // (as far as the largest thing is drawn through this lens: src/detail/extent.js)
+    measureNow();   // (the live pixel and the dial, as the governor left them: src/detail/measure.js)
+    const far = farthest() * lod; if (!(Math.abs(camera.far - far) <= far * 0.01)) { camera.far = far; camera.updateProjectionMatrix(); }   // (as far as the largest thing is drawn through this lens: src/detail/extent.js)
     u = performance.now(); parts.ctl = u - t; t = u;
     if (live()) grown.ground.update(p.x, p.z, dy, lod);
     u = performance.now(); parts.ground = u - t; t = u;

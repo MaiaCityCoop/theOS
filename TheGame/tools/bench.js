@@ -105,7 +105,7 @@ async function timed(clock, f, n) {
     own share of the shadows is the difference (out.shading[view]: { colour, colourWithout }). */
 export async function bench({ ratio = 1.5, frames = 60, settle = 0, shading = false } = {}) {
   const s = window.__game, { renderer, camera, U } = s;
-  const { poseAt } = await mod('src/camera/rig.js'), { setPlanes } = await mod('src/core/frustum.js'), { heightAt } = await mod('src/world/land.js'), { mark } = await mod('src/core/gpu.js');
+  const { poseAt } = await mod('src/camera/rig.js'), { setPlanes } = await mod('src/core/frustum.js'), { heightAt } = await mod('src/world/land.js'), { mark } = await mod('src/core/gpu.js'), { measureNow } = await mod('src/detail/measure.js');
   const fin = async () => { if (renderer.backend.isWebGPUBackend) await renderer.backend.device.queue.onSubmittedWorkDone(); else { const gl = renderer.backend.gl; gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)); } };
   // (the world drawn as the game draws it: inside at `ratio` and brought up to the canvas, all the screen's pixels, by the
   // upscale pass (src/core/screen.js); a page without the screen, straight onto the canvas at `ratio`)
@@ -115,7 +115,7 @@ export async function bench({ ratio = 1.5, frames = 60, settle = 0, shading = fa
   // passes are, each part apart; the screen marks its own, src/core/screen.js)
   const frame = (v, dark = false) => {
     const P = poseAt(v.x, v.z, v.yaw, v.h, -0.05); camera.position.set(...P.pos); camera.rotation.order = 'YXZ'; camera.rotation.set(P.pitch, P.yaw, 0); camera.fov = P.fov; camera.updateProjectionMatrix(); camera.updateMatrixWorld();
-    const p = camera.position, g = heightAt(p.x, p.z), dy = Math.max(0, p.y - g - 2); U.uDy.value = dy; U.uAirH.value = Math.max(0, p.y - g); U.uLodInv.value = 1; U.uDrawn.value = ratio;   // (the pixels drawn a CSS pixel, for a page without the screen: src/detail/measure.js drawnAt)
+    const p = camera.position, g = heightAt(p.x, p.z), dy = Math.max(0, p.y - g - 2); U.uDy.value = dy; U.uAirH.value = Math.max(0, p.y - g); U.uLodInv.value = 1; measureNow();   // (the measure at the inside's ratio the bench draws at: src/detail/measure.js)
     setPlanes(pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     mark('ground map'); s.ground.update(p.x, p.z, dy, 1);
     mark('pages, laid'); s.terrain.update(camera, dy, 1);

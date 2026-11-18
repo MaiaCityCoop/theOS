@@ -17,6 +17,10 @@ import { offWays, waysVersion } from '../world/ways.js';
 import { source } from '../core/settle.js';
 
 const N = 512;   // texels a side; a texel is 0.5 m to the 68° lens and grows with a longer one, so it always covers the blades' reach
+/** How far round the camera the map surely reaches, metres as the 68° lens sees them: half its side, less the 32 texels
+    the camera walks before it is drawn again (update). What only it says (where blades grow, where stones lie) ends
+    within it: that is where the ground's own colour takes over, not a size on screen. */
+export const REACH = (N * 0.5) / 2 - 32 * 0.5;
 const FADE = 36;   // frames (0.6 s at 60 fps; counted in frames, so no frame changes more than a 36th, however slow): from the map before to the new one, where its texel steps
 // (G: the map being drawn; R: what each of the two maps was drawn with, for reading it; W: how much of the second is read)
 const G = { o: uniform(new THREE.Vector2(1e9, 1e9)), base: uniform(0), texel: uniform(0.5) };
