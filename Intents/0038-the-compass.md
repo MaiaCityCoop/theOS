@@ -310,3 +310,4 @@ Asked outright and without surprises, so built straight away.
 | 2026-11-18 | `f28e4db` | The game reference sheet, and its station on the Compass page |
 | 2026-11-18 | `7598858` | Game sheet: start capital, daily play, phases, phase 1 |
 | 2026-11-18 | `04e2d6a` | Phase 1 village ladder in the game sheet |
+| 2026-11-18 | `df4c5ea` | Four-phase village ladder; the #ladder page |
