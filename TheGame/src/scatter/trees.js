@@ -47,7 +47,6 @@ import { CLEARINGS } from '../../world/places.js';
 import { recipe, recipes, versionOf } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { kindOf, sizeOf, most } from '../../assets/kinds.js';
-import { FOOT } from '../../assets/kit/tree.js';
 import { levelOf, handOver, sinkInto } from '../detail/handover.js';
 import { createAtlas, bakers, viewClip, tileClip, impostorRead, impostorViews, clumpRead, octEnc, litIn, LODS } from '../detail/impostor.js';
 import { offScreen, clipOf, MAXP, Tier } from './tier.js';
@@ -132,7 +131,7 @@ const swayOf = (A, B, up, sway, s, time) => {
   return windAt(A.xy, time).mul(u2.mul(sway)).add(vec2(sin(time.mul(0.9).add(B.z)), cos(time.mul(0.7).add(B.z))).mul(u2.mul(ws.mul(0.05).add(smoothstep(0, 0.08, ws).mul(0.008)))));
 };
 
-export { FOOT };   // how deep a plant's foot is set into the ground (the tree kit's: where the ground is in a shape's own frame)
+export const FOOT = 0.15;   // how deep a plant's foot is set into the ground
 
 // what stands in a cell: a thing, or nothing, by the one rule (rule.js: which of its layer's things stands there).
 // Where one stands, `found` is told (the drawer's: drawer.js tier): which it is (its kind's, and of its kind's shapes

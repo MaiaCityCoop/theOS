@@ -40,8 +40,8 @@ import { rng } from '../../src/core/hash.js';
 export const outward = (R0, lift) => { const a = R0() * 2 * Math.PI, y = lift + (1 - lift) * R0() * 2 - (1 - lift), r = Math.sqrt(Math.max(0, 1 - y * y)); return [Math.cos(a) * r, y, Math.sin(a) * r]; };
 
 const CHEST = 1.2;   // metres up a trunk where a walker meets it
-/** How deep what stands in a stand is set into the ground (src/scatter/trees.js draws it so): where the ground is in a
-    shape's own frame. What lies on it is built so much higher (assets/kit/floor.js). */
+/** How deep what stands in a stand is set into the ground (src/scatter/trees.js FOOT, as it draws it): where the ground
+    is in a shape's own frame. What lies on it is built so much higher (assets/kit/floor.js). */
 export const FOOT = 0.15;
 
 /** The mesh being built: positions, normals, uv, part (0 wood, 1 leaves, 2 a solid body, no sprig cut out of it), ao, a
@@ -363,7 +363,8 @@ export function tree(recipe) {
   };
   const lazy = (get) => ({ enumerable: true, configurable: true, get });
   return Object.defineProperties(out, {
-    size: lazy(() => rest.size ?? measured().size), trunk: lazy(() => measured().trunk), heights: lazy(() => measured().heights), feet: lazy(() => measured().feet),
+    feet: lazy(() => measured().feet),
+    size: lazy(() => rest.size ?? measured().size), trunk: lazy(() => measured().trunk), heights: lazy(() => measured().heights),
     // its levels as numbers only (P: cells a patch's side; tris(): the most triangles its first shape has there, of its
     // room in the heap); shadow: it is drawn into the shadow map by its shade, for every tree within `far` metres (from
     // high up, up to `wide` times that) whose shade can reach the view (`reach`: how far a crown's shadow falls); past
