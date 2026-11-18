@@ -25,7 +25,7 @@ export function createPictures(game) {
     asset(a, canvas) {
       const E = engineOf(a);
       if (E?.thumb) { const t = E.thumb(tex, rowOf(a)); return sceneThumb(renderer, t.things, canvas, t.eye, { look: t.look, tex }); }
-      if (!a.detail?.levels?.length) return;
+      if (!a.faces && !a.detail?.levels?.length) return;   // (a made thing says only its full detail: its faces)
       const sun = new THREE.DirectionalLight(0xfff1d6, 2.2); sun.position.set(4, 7, 3);
       const things = [new THREE.HemisphereLight(0xdbe9ff, 0x4a5a3a, 1.4), sun, new THREE.Mesh(geometryOf(a), new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.9 }))];
       const d = Math.max(most(a.size.length), most(a.size.width), most(a.size.height)) * 1.9;
