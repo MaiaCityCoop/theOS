@@ -25,7 +25,9 @@ Checked with headless Blender on the four figures fetched (a white woman, a whit
 man): the body's mesh has the same 20,951 points and 20,896 faces in each, joined in the same order, and the same
 UV layout to the fourth decimal; so have the eyes and both rows of teeth. Each carries the same 65 shapes and the
 same 84 bones (`Hips`, `Spine`, `Neck`, `Head`, `LeftEye`…). So any two of these figures can be blended point by
-point, and a skin map drawn for one lies right on every other. The other 38 figures were not checked.
+point, and a skin map drawn for one lies right on every other. The other 38 figures were not checked that closely.
+Read later from all 42 casual files as converted to glTF: every body is 41,792 triangles with 65 shapes; the
+skeleton is 84 bones in 19 of them, 99 in 9, 114 in 13 and 129 in one; 12 have their hair as a mesh of its own.
 
 ## Open but not a finished person
 
