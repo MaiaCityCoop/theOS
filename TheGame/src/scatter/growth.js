@@ -6,7 +6,8 @@
 //
 // A texel holds a word for every layer that writes (src/scatter/rule.js: those whose things are as large as a texel),
 // four bytes:
-//   shade    how much of the sun and the sky its crowns hide here, 0..1
+//   shade    how much of the light coming down its crowns take here, 0..1: each crown as large as it is drawn, the
+//            light through it Beer–Lambert's, the texel's mean (rule.js: the light under the crowns)
 //   foot     how much of the ground its feet and bodies take here, 0..1
 //   litter   how much it drops here (needles, leaves, cones, branches), 0..1
 //   lead     whose litter that most is: the dropping thing's number + 1 (rule.js), 0 none
