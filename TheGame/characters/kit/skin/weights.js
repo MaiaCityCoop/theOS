@@ -53,12 +53,12 @@ export function bindingOf(bones, T) {
   };
   const mayTable = new Map(), mayOf = (own, x, sh) => { const k = own * 4 + (x > 0 ? 1 : 0) + (sh ? 2 : 0); let t = mayTable.get(k); if (!t) mayTable.set(k, (t = Uint8Array.from(rigs, (r) => (may(own, r, x, sh) ? 1 : 0)))); return t; };
   const best = new Float32Array(rigs.length);
-  const fasten = (p, own) => {
-    const q = p, ok = mayOf(own, q[0], q[1] > 1.27 && Math.abs(q[0]) > 0.13);
-    // the nearest point of each joint's bones, looked for in ever wider shells: an arm's, a hand's, a finger's until the
-    // five nearest are sure, or all within 16 cm (a finger's skin has its own three joints and the hand's); the trunk's,
-    // the legs' and the head's always as far as 16 cm, so that two points side by side weigh their bones alike (one
-    // that stopped looking sooner than its neighbour would make a crease between them as the body bends)
+  // The nearest point of each joint's bones to a point (into `best`, squared, each joint's), looked for in ever wider
+  // shells: an arm's, a hand's, a finger's until the five nearest are sure, or all within 16 cm (a finger's skin has its
+  // own three joints and the hand's); the trunk's, the legs' and the head's always as far as 16 cm, so that two points
+  // side by side weigh their bones alike (one that stopped looking sooner than its neighbour would make a crease between
+  // them as the body bends). Gives how far out it looked (cells).
+  const look = (q, ok, own) => {
     const ci = Math.floor((q[0] - G0[0]) / BG), cj = Math.floor((q[1] - G0[1]) / BG), ck = Math.floor((q[2] - G0[2]) / BG);
     best.fill(Infinity);
     let r0 = -1;
@@ -75,6 +75,10 @@ export function bindingOf(bones, T) {
       let sure = 0; const lim = (r * BG) ** 2; for (let g = 0; g < rigs.length; g++) if (best[g] <= lim) sure++;
       if ((ARMS(own) && sure >= 5) || (r >= 8 && sure >= 1)) break;   // (within 16 cm, all there are; beyond, the nearest)
     }
+    return r0;
+  };
+  const fasten = (p, own) => {
+    const q = p, ok = mayOf(own, q[0], q[1] > 1.27 && Math.abs(q[0]) > 0.13), r0 = look(q, ok, own);
     const near = new Map(); for (let g = 0; g < rigs.length; g++) if (best[g] < Infinity) near.set(rigs[g], Math.sqrt(best[g]));
     const FAR = Math.max(8, r0) * BG, cand = [...near].map(([rig, d]) => ({ rig, d })).filter((c) => c.d < FAR).sort((a, b) => a.d - b.d);
     if (!cand.length) return [{ joint: jointOf('hips'), w: 1 }];

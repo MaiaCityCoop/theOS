@@ -34,6 +34,14 @@ import { rigOf } from '../skeleton/pose.js';
 /** How far away the far level takes over (m). */
 export const FAR = 7;
 
+/** A skin's joints as numbers the skin's points read (three texels a joint), and the texture of them; none without a skin. */
+function jointsOf(J) {
+  if (!J) return { jointData: null, jointTex: null };
+  const jointData = new Float32Array(4 * 4 * J.length), jointTex = new THREE.DataTexture(jointData, 4, J.length, THREE.RGBAFormat, THREE.FloatType);
+  jointTex.magFilter = jointTex.minFilter = THREE.NearestFilter; jointTex.generateMipmaps = false; jointTex.needsUpdate = true;
+  return { jointData, jointTex };
+}
+
 export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
   const rows = D.rows, H = rows.length, data = new Float32Array(COLS * 4 * H);
   const tex = new THREE.DataTexture(data, COLS, H, THREE.RGBAFormat, THREE.FloatType);
@@ -47,8 +55,7 @@ export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
   const ghost = new THREE.Vector3();
   // (a skin's joints: each the 3 x 4 matrix from where a point stood at rest to where the joint has it now, in the
   // body's own frame; three texels a joint, read by the skin's points: ../skin/light.js carriedBy)
-  const J = D.skin?.joints ?? null, jointData = J ? new Float32Array(4 * 4 * J.length) : null, jointTex = J ? new THREE.DataTexture(jointData, 4, J.length, THREE.RGBAFormat, THREE.FloatType) : null, jm = new THREE.Matrix4(), jt = new THREE.Matrix4();
-  if (jointTex) { jointTex.magFilter = jointTex.minFilter = THREE.NearestFilter; jointTex.generateMipmaps = false; jointTex.needsUpdate = true; }
+  const J = D.skin?.joints ?? null, { jointData, jointTex } = jointsOf(J), jm = new THREE.Matrix4(), jt = new THREE.Matrix4();
   function update() {
     inv.copy(object.matrixWorld).invert();
     if (J) {
@@ -102,9 +109,9 @@ export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
   // (a muscles' payload of its own, or a body's: its muscles and its skin)
   const M = D.skin || D.muscles?.pos ? D.muscles : D, S = D.skin ?? null;
   const mats = [materialOf(tex, eye, 'muscle'), S && skinMaterial({ joints: jointTex, eye, maps: S.maps }), S && materialOf(tex, eye, 'fat', D.skinThick ?? 0.0018, jointTex)];
-  const muscles = meshOf(M, mats[0], -1), skin = meshOf(S, mats[1], -3), fat = S ? meshOf(S, mats[2], -2) : null;
+  const muscles = meshOf(M, mats[0], -1), skin = meshOf(S, mats[1], -3), fat = meshOf(S, mats[2], -2);   // (none of what there is no payload of)
   if (fat) { fat.geometry = skin.geometry; fat.userData.levels = skin.userData.levels; fat.userData.off = skin.userData.off; }
-  const eyes = S ? eyesOf(bones, eye) : [], mouth = S ? mouthOf(bones, eye) : [];
+  const [eyes, mouth] = S ? [eyesOf(bones, eye), mouthOf(bones, eye)] : [[], []];
   // Which level an eye d metres away is shown. The skin's by the one measure (src/detail/measure.js): the coarsest of
   // its levels that stands off the smooth surface by no more than ERROR_PX pixels there (its `off`, metres, measured as
   // it was laid: ../skin/build.js). The muscles' by their distance, as they were.

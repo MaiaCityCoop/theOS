@@ -128,22 +128,33 @@ const farFrom = (line, closed) => (p, q) => {
 
 // ── the plane's maps ────────────────────────────────────────────────────────────────────────────────────────
 const P0 = -16, Q0 = -34, PW = 51, QW = 77, STEP = 0.5, NP = Math.round(PW / STEP) + 1, NQ = Math.round(QW / STEP) + 1;
-let made = null;
-function mapsOf() {
-  if (made) return made;
-  const E = EAR, { O, U, V, N } = earFrame(), head = headFormOf();
-  const rim = farFrom(through(E.outline, true), true), seam = farFrom(through(E.seam.line, false), false), rootIn = farFrom(through(E.root.outline, true, 6), true);
-  const ah = [E.antihelix.stem, E.antihelix.upper, E.antihelix.lower].map((l) => farFrom(through(l, false), false));
-  // (where the head's skin lies under each point of the plane: along the plane's own outward axis; coarser, it is smooth)
-  const HS = 1, HP = Math.round(PW / HS) + 1, HQ = Math.round(QW / HS) + 1, WHc = new Float32Array(HP * HQ);
+/** A grid of numbers evened by a bell `sg` cells wide along each of its axes in turn, its edges held: an axis is [how
+    far apart its neighbours lie in the grid, how many there are along it]. */
+function evened(F, sg, axes) {
+  const R = Math.max(1, Math.ceil(2.5 * sg)), K = Array.from({ length: 2 * R + 1 }, (_, e) => Math.exp(-0.5 * ((e - R) / sg) ** 2)), ks = K.reduce((x, y) => x + y, 0);
+  for (const [st, len] of axes) { const T = new Float32Array(F.length); for (let g = 0; g < F.length; g++) { const c = Math.floor(g / st) % len; let acc = 0; for (let e = -R; e <= R; e++) acc += K[e + R] * F[g + (Math.min(len - 1, Math.max(0, c + e)) - c) * st]; T[g] = acc / ks; } F = T; }
+  return F;
+}
+/** Where the head's skin lies under each point of the ear's plane, along the plane's own outward axis (mm): found once
+    on a grid of a millimetre (coarser than the plane's maps: it is smooth) and read between its points. */
+function headUnderOf({ O, U, V, N }) {
+  const head = headFormOf(), HS = 1, HP = Math.round(PW / HS) + 1, HQ = Math.round(QW / HS) + 1, WHc = new Float32Array(HP * HQ);
   const headAt = (p, q, w) => head([Math.abs(O[0] + (U[0] * p + V[0] * q + N[0] * w) / 1000), O[1] + (U[1] * p + V[1] * q + N[1] * w) / 1000, O[2] + (U[2] * p + V[2] * q + N[2] * w) / 1000]);
   for (let j = 0; j < HQ; j++) for (let i = 0; i < HP; i++) {
     const p = P0 + i * HS, q = Q0 + j * HS; let a = 12, b = -45;
     if (headAt(p, q, a) < 0) { WHc[i + HP * j] = a; continue; } if (headAt(p, q, b) > 0) { WHc[i + HP * j] = b; continue; }
     for (let it = 0; it < 14; it++) { const m = (a + b) / 2; if (headAt(p, q, m) > 0) a = m; else b = m; } WHc[i + HP * j] = (a + b) / 2;
   }
-  const headUnder = (p, q) => { const fi = Math.min(HP - 1.001, Math.max(0, (p - P0) / HS)), fj = Math.min(HQ - 1.001, Math.max(0, (q - Q0) / HS)), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j; return (WHc[i + HP * j] * (1 - u) + WHc[i + 1 + HP * j] * u) * (1 - v) + (WHc[i + HP * (j + 1)] * (1 - u) + WHc[i + 1 + HP * (j + 1)] * u) * v; };
-  const n = NP * NQ, M = new Float32Array(n), G = new Float32Array(n), T = new Float32Array(n), DO = new Float32Array(n), HR = new Float32Array(n), DA = new Float32Array(n), WH = new Float32Array(n);
+  return (p, q) => { const fi = Math.min(HP - 1.001, Math.max(0, (p - P0) / HS)), fj = Math.min(HQ - 1.001, Math.max(0, (q - Q0) / HS)), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j; return (WHc[i + HP * j] * (1 - u) + WHc[i + 1 + HP * j] * u) * (1 - v) + (WHc[i + HP * (j + 1)] * (1 - u) + WHc[i + 1 + HP * (j + 1)] * u) * v; };
+}
+let made = null;
+function mapsOf() {
+  if (made) return made;
+  const E = EAR, { O, U, V, N } = earFrame();
+  const rim = farFrom(through(E.outline, true), true), seam = farFrom(through(E.seam.line, false), false), rootIn = farFrom(through(E.root.outline, true, 6), true);
+  const ah = [E.antihelix.stem, E.antihelix.upper, E.antihelix.lower].map((l) => farFrom(through(l, false), false));
+  const headUnder = headUnderOf({ O, U, V, N });
+  const n = NP * NQ, M0 = new Float32Array(n), G = new Float32Array(n), T = new Float32Array(n), DO = new Float32Array(n), HR = new Float32Array(n), DA = new Float32Array(n), WH = new Float32Array(n);
   const between = (a, [f0, f1, t0, t1]) => smooth01((a - f0) / (f1 - f0)) * (1 - smooth01((a - t0) / (t1 - t0)));
   for (let j = 0; j < NQ; j++) for (let i = 0; i < NP; i++) {
     const p = P0 + i * STEP, q = Q0 + j * STEP, g = i + NP * j, dO = rim(p, q), wh = headUnder(p, q), round = Math.atan2(q - 5, p - 10) / D2R;
@@ -166,14 +177,12 @@ function mapsOf() {
     // (never under the head's skin but along the seam)
     m = smax(m, wh + E.clear - (E.plate + (E.lobe.thick - E.plate) * lobe) / 2, 1);
     const sink = 1 - smooth01((seam(p, q) - E.seam.dive[0]) / (E.seam.dive[1] - E.seam.dive[0])); m += (wh - E.seam.under - m) * sink;
-    M[g] = m; T[g] = E.plate + (E.lobe.thick - E.plate) * lobe; DO[g] = dO; DA[g] = Math.max(rootIn(p, q), dO + 1); WH[g] = wh;   // (the root only under the plate itself)
+    M0[g] = m; T[g] = E.plate + (E.lobe.thick - E.plate) * lobe; DO[g] = dO; DA[g] = Math.max(rootIn(p, q), dO + 1); WH[g] = wh;   // (the root only under the plate itself)
     HR[g] = E.helix.r * between(round, E.helix.arc) ** 0.7;
   }
   // (the middle sheet evened over a millimetre: where two of its forms meet it has a crease, and a
   // plate as thick as this cannot follow one; then how steeply it lies: the plate's thickness is measured square to it)
-  { const sg = 1 / STEP, R = Math.ceil(2.5 * sg), K = Array.from({ length: 2 * R + 1 }, (_, e) => Math.exp(-0.5 * ((e - R) / sg) ** 2)), ks = K.reduce((x, y) => x + y, 0), B = new Float32Array(n);
-    for (let j = 0; j < NQ; j++) for (let i = 0; i < NP; i++) { let acc = 0; for (let e = -R; e <= R; e++) acc += K[e + R] * M[Math.min(NP - 1, Math.max(0, i + e)) + NP * j]; B[i + NP * j] = acc / ks; }
-    for (let j = 0; j < NQ; j++) for (let i = 0; i < NP; i++) { let acc = 0; for (let e = -R; e <= R; e++) acc += K[e + R] * B[i + NP * Math.min(NQ - 1, Math.max(0, j + e))]; M[i + NP * j] = acc / ks; } }
+  const M = evened(M0, 1 / STEP, [[1, NP], [NP, NQ]]);
   for (let j = 0; j < NQ; j++) for (let i = 0; i < NP; i++) { const a = Math.max(0, i - 1), b = Math.min(NP - 1, i + 1), c = Math.max(0, j - 1), d = Math.min(NQ - 1, j + 1); G[i + NP * j] = Math.hypot((M[b + NP * j] - M[a + NP * j]) / ((b - a) * STEP), (M[i + NP * d] - M[i + NP * c]) / ((d - c) * STEP)); }
   const R = new Float64Array(7), CH = [M, G, T, DO, HR, DA, WH];
   const read = (p, q) => { const fi = Math.min(NP - 1.001, Math.max(0, (p - P0) / STEP)), fj = Math.min(NQ - 1.001, Math.max(0, (q - Q0) / STEP)), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j, g = i + NP * j; for (let c = 0; c < 7; c++) { const A = CH[c]; R[c] = (A[g] * (1 - u) + A[g + 1] * u) * (1 - v) + (A[g + NP] * (1 - u) + A[g + NP + 1] * u) * v; } return R; };
@@ -187,10 +196,9 @@ function mapsOf() {
   // (read once on a grid of 0.6 mm and evened there, each cell with its neighbours: what the surface is
   // drawn out of, and what earFieldOf gives)
   const C = 0.6, LO = [P0 + 1, Q0 + 1, -29], n3 = [Math.round((PW - 2) / C) + 1, Math.round((QW - 2) / C) + 1, Math.round(39 / C) + 1], NA = n3[0], NB = n3[1], NC = n3[2];
-  let F3 = new Float32Array(NA * NB * NC);
-  for (let k = 0; k < NC; k++) for (let j = 0; j < NB; j++) for (let i = 0; i < NA; i++) F3[i + NA * (j + NB * k)] = raw(LO[0] + i * C, LO[1] + j * C, LO[2] + k * C);
-  { const sg = E.even / C, R = Math.max(1, Math.ceil(2.5 * sg)), K = Array.from({ length: 2 * R + 1 }, (_, e) => Math.exp(-0.5 * ((e - R) / sg) ** 2)), ks = K.reduce((x, y) => x + y, 0);
-    for (const [st, len] of [[1, NA], [NA, NB], [NA * NB, NC]]) { const T3 = new Float32Array(F3.length); for (let g = 0; g < F3.length; g++) { const c = Math.floor(g / st) % len; let acc = 0; for (let e = -R; e <= R; e++) acc += K[e + R] * F3[g + (Math.min(len - 1, Math.max(0, c + e)) - c) * st]; T3[g] = acc / ks; } F3 = T3; } }
+  const F0 = new Float32Array(NA * NB * NC);
+  for (let k = 0; k < NC; k++) for (let j = 0; j < NB; j++) for (let i = 0; i < NA; i++) F0[i + NA * (j + NB * k)] = raw(LO[0] + i * C, LO[1] + j * C, LO[2] + k * C);
+  const F3 = evened(F0, E.even / C, [[1, NA], [NA, NB], [NA * NB, NC]]);
   const local = (p, q, w) => {
     const fi = (p - LO[0]) / C, fj = (q - LO[1]) / C, fk = (w - LO[2]) / C, over = Math.max(-fi, fi - (NA - 1), -fj, fj - (NB - 1), -fk, fk - (NC - 1), 0) * C;
     const ci = Math.min(NA - 1.001, Math.max(0, fi)), cj = Math.min(NB - 1.001, Math.max(0, fj)), ck = Math.min(NC - 1.001, Math.max(0, fk)), i = Math.floor(ci), j = Math.floor(cj), k = Math.floor(ck), u = ci - i, v = cj - j, t = ck - k, g = i + NA * (j + NB * k), x = NA, y = NA * NB;
@@ -211,10 +219,16 @@ function earFieldOf() {
 // of the grid that crosses it. Where a face of the grid has its corners inside and outside by turns the surface could
 // pass either way and an edge would get four faces: of its two outside corners the one nearer the surface is taken
 // inside first.
-function netsOf(local, box, hc, fat = 0) {
+/** The field read on a grid of cells hc a side over the box (less `fat`: a fuller form), its rim held outside. */
+function gridOf(local, box, hc, fat) {
   const lo = [box.lo[0] + 0.5, box.lo[1] + 0.5, box.lo[2] + 0.5], n = [0, 1, 2].map((a) => Math.floor((box.hi[a] - 0.5 - lo[a]) / hc) + 1), NX = n[0], NY = n[1], NZ = n[2], id = (i, j, k) => i + NX * (j + NY * k);
   const val = new Float32Array(NX * NY * NZ), rimOf = new Uint8Array(NX * NY * NZ);
   for (let k = 0; k < NZ; k++) for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { let v = local(lo[0] + i * hc, lo[1] + j * hc, lo[2] + k * hc) - fat; if (v === 0) v = 1e-6; if (i === 0 || j === 0 || k === 0 || i === NX - 1 || j === NY - 1 || k === NZ - 1) { v = Math.max(v, 0.01); rimOf[id(i, j, k)] = 1; } val[id(i, j, k)] = v; }
+  return { lo, hc, NX, NY, NZ, id, val, rimOf };
+}
+/** A face of the grid whose corners are inside and outside by turns: of its two outside corners the one nearer the
+    surface is taken inside, pass after pass until none is left. */
+function untie({ NX, NY, NZ, id, val, rimOf }) {
   for (let pass = 0; pass < 60; pass++) {
     let turned = 0;
     for (let axis = 0; axis < 3; axis++) { const a = (axis + 1) % 3, b = (axis + 2) % 3, st = [1, NX, NX * NY];
@@ -224,6 +238,10 @@ function netsOf(local, box, hc, fat = 0) {
       } }
     if (!turned) break;
   }
+}
+/** A point in every cell the surface crosses, at the middle of where it crosses the cell's edges: which cell has which
+    point, the points, and each one's cell's corner. */
+function pointsOf({ lo, hc, NX, NY, NZ, id, val }) {
   const cell = new Int32Array(NX * NY * NZ).fill(-1), pos = [], at = [];
   const CORN = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]], EDGE = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
   for (let k = 0; k < NZ - 1; k++) for (let j = 0; j < NY - 1; j++) for (let i = 0; i < NX - 1; i++) {
@@ -232,19 +250,31 @@ function netsOf(local, box, hc, fat = 0) {
     for (const [a, b] of EDGE) { if ((v[a] < 0) === (v[b] < 0)) continue; const t = v[a] / (v[a] - v[b]); sx += CORN[a][0] + (CORN[b][0] - CORN[a][0]) * t; sy += CORN[a][1] + (CORN[b][1] - CORN[a][1]) * t; sz += CORN[a][2] + (CORN[b][2] - CORN[a][2]) * t; m++; }
     cell[id(i, j, k)] = pos.length / 3; pos.push(lo[0] + (i + sx / m) * hc, lo[1] + (j + sy / m) * hc, lo[2] + (k + sz / m) * hc); at.push(lo[0] + i * hc, lo[1] + j * hc, lo[2] + k * hc);
   }
-  const quads = [], ST = [1, NX, NX * NY], N3 = [NX, NY, NZ];
+  return { cell, pos, at };
+}
+/** A four-sided face round every edge of the grid that crosses the surface, facing out. */
+function quadsOf({ NX, NY, NZ, id, val }, cell) {
+  const quads = [], ST = [1, NX, NX * NY];
   for (let axis = 0; axis < 3; axis++) { const ua = (axis + 1) % 3, wa = (axis + 2) % 3, u = ST[ua], w = ST[wa], from = [0, 0, 0], to = [NX - 1, NY - 1, NZ - 1]; from[ua] = 1; from[wa] = 1;
     for (let k = from[2]; k < to[2]; k++) for (let j = from[1]; j < to[1]; j++) for (let i = from[0]; i < to[0]; i++) {
       const g = id(i, j, k), a = val[g] < 0, b = val[g + ST[axis]] < 0; if (a === b) continue;
       const q = [cell[g], cell[g - u], cell[g - u - w], cell[g - w]]; quads.push(a ? q : q.reverse());
     } }
-  // (one piece: whatever small crumb the grid left beside it is dropped)
+  return quads;
+}
+/** The largest piece alone: whatever small crumb the grid left beside it is dropped. */
+function onePiece(pos, at, quads) {
   const par = Int32Array.from({ length: pos.length / 3 }, (_, i) => i), find = (a) => { while (par[a] !== a) { par[a] = par[par[a]]; a = par[a]; } return a; };
   for (const q of quads) { const a = find(q[0]); for (let i = 1; i < 4; i++) par[find(q[i])] = a; }
   const size = new Map(); for (let v = 0; v < par.length; v++) { const r = find(v); size.set(r, (size.get(r) ?? 0) + 1); }
   let most = -1; for (const [r, c] of size) if (most < 0 || c > size.get(most)) most = r;
   const to = new Int32Array(par.length).fill(-1), P2 = [], A2 = []; for (let v = 0; v < par.length; v++) if (find(v) === most) { to[v] = P2.length / 3; P2.push(pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]); A2.push(at[v * 3], at[v * 3 + 1], at[v * 3 + 2]); }
   return { pos: P2, at: A2, quads: quads.filter((q) => to[q[0]] >= 0).map((q) => q.map((v) => to[v])) };
+}
+function netsOf(local, box, hc, fat) {
+  const G = gridOf(local, box, hc, fat); untie(G);
+  const { cell, pos, at } = pointsOf(G);
+  return onePiece(pos, at, quadsOf(G, cell));
 }
 
 export function earOf({ h = 0.00112 } = {}) {

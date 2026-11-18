@@ -51,7 +51,17 @@ export function solidsOf(T) {
   return { body, arm, both, leg, any: (p) => Math.min(body(p), arm(p)) };
 }
 
-export function cageOf(T, { only = null } = {}) {
+/** A ring's distances evened along the ring itself by a bell `soft` degrees wide (a half ring's mirrored at its ends,
+    a whole one's going round); two to a degree. */
+function evenRound(r, soft, half) {
+  if (!(soft > 0)) return;
+  const n = r.length, k = Math.ceil(soft * 2 * 2), W = []; for (let j = -k; j <= k; j++) W.push(Math.exp(-0.5 * (j / (soft * 2)) ** 2));
+  const at = (i) => (half ? r[i < 0 ? -i : i >= n ? 2 * (n - 1) - i : i] : r[((i % n) + n) % n]), out = new Float64Array(n);
+  for (let i = 0; i < n; i++) { let s = 0, ws = 0; for (let j = -k; j <= k; j++) { s += W[j + k] * at(i + j); ws += W[j + k]; } out[i] = s / ws; }
+  r.set(out);
+}
+
+export function cageOf(T) {
   const { RIG } = T, J = (n) => RIG[n].at, { body, arm, both, leg } = solidsOf(T);
   // ── a ray from a ring's middle to the skin ─────────────────────────────────────────────────────────────────────
   // Out along d from c: where the ray leaves the solid; a hollow narrower than `gap` it crosses (the dip over a
@@ -80,12 +90,7 @@ export function cageOf(T, { only = null } = {}) {
   const outline = (S, c, e1, e2, { far = 0.4, gap = 0, half = false, soft = 0, thick = 0, along = null, step = 0.003, outer = false } = {}) => {
     const n = half ? 361 : 720, r = new Float64Array(n), levels = thick > 0 ? [[-thick, 0.25], [0, 0.5], [thick, 0.25]] : [[0, 1]];
     for (const [o, w] of levels) { const cc = o ? add(c, mul(along, o)) : c; for (let i = 0; i < n; i++) { const a = i * 0.5 * D, d = add(mul(e1, Math.cos(a)), mul(e2, Math.sin(a))); r[i] += w * (outer ? enter(S, cc, d, far, step) : exit(S, cc, d, far, gap, step)); } }
-    if (soft > 0) {   // (soft: degrees, a bell's width)
-      const k = Math.ceil(soft * 2 * 2), W = []; for (let j = -k; j <= k; j++) W.push(Math.exp(-0.5 * (j / (soft * 2)) ** 2));
-      const at = (i) => (half ? r[i < 0 ? -i : i >= n ? 2 * (n - 1) - i : i] : r[((i % n) + n) % n]), out = new Float64Array(n);
-      for (let i = 0; i < n; i++) { let s = 0, ws = 0; for (let j = -k; j <= k; j++) { s += W[j + k] * at(i + j); ws += W[j + k]; } out[i] = s / ws; }
-      r.set(out);
-    }
+    evenRound(r, soft, half);
     const pt = (i) => { const a = i * 0.5 * D, x = Math.cos(a) * r[i], y = Math.sin(a) * r[i]; return [c[0] + e1[0] * x + e2[0] * y, c[1] + e1[1] * x + e2[1] * y, c[2] + e1[2] * x + e2[2] * y]; };
     const P = Array.from({ length: n }, (_, i) => pt(i)), L = new Float64Array(n + (half ? 0 : 1));
     for (let i = 1; i < L.length; i++) L[i] = L[i - 1] + len(sub(P[i % n], P[i - 1]));
@@ -152,7 +157,8 @@ export function cageOf(T, { only = null } = {}) {
   const evenH = even(H / 2), faceH = evenH.map((u) => (Math.exp(1.6 * u) - 1) / (Math.exp(1.6) - 1)), headShares = (y) => { const k = smooth01((y - 1.49) / 0.07); return evenH.map((s, i) => s + (faceH[i] - s) * k); };
   const foldShares = (O, t, y) => { const h = held(O, H / 2, [[iP, split.P], [iQ, split.Q]]), base = headShares(y); return h.map((s, i) => base[i] + (s - base[i]) * t); };
   const rows = [];   // (the rings from the crown down, each a list of H points)
-  if (!only || only.includes('body')) {
+  /** The rings from the crown down to where the arms leave the trunk, and the faces between them; gives the last. */
+  const headRings = () => {
     for (const y of headYs) rows.push(halfRing(body, y, H / 2, headShares(y), 'head', { soft: 1.2, thick: 0.0033, z0: -0.01 }));
     for (const y of neckYs) rows.push(halfRing(body, y, H / 2, headShares(y), 'head', { soft: 3, thick: 0.005 }));
     // (over the shoulders the points go from evenly spaced, at the neck, to held at the armpit's folds)
@@ -170,31 +176,34 @@ export function cageOf(T, { only = null } = {}) {
       for (const i of [...Array(Math.round(H / 3.4) + 1).keys()]) { const a = P[rows[r - 1][i]], b = P[rows[r][i]], dx = b[0] - a[0], dz = b[2] - a[2], d = Math.hypot(dx, dz), most = 6 * (a[1] - b[1]); if (d > most && Math.hypot(b[0], b[2] + 0.02) < Math.hypot(a[0], a[2] + 0.02)) { b[0] = a[0] + (dx * most) / d; b[2] = a[2] + (dz * most) / d; if (i > 0) { const t = P[twin[rows[r][i]]]; t[0] = -b[0]; t[2] = b[2]; } } }
     }
     for (let i = 0; i < rows.length - 1; i++) band(rows[i], rows[i + 1], whole);
-    // the crown: the first ring closed by a patch of squares, H/4 a side, its points on the scalp over them
-    {
-      const R0 = rows[0], m = H / 4, c = [0, 0, 0]; for (const v of R0) { c[0] += P[v][0] / H; c[1] += P[v][1] / H; c[2] += P[v][2] / H; }
-      // (the ring's points taken as the patch's rim: its four sides from the front's right corner round)
-      const rim = (k) => R0[(((k - m / 2) % H) + H) % H], grid = [];
-      const top = (x, z) => { let y = crown + 0.02; while (y > c[1] - 0.01 && body([x, y, z]) > 0) y -= 0.0005; return y; };
-      for (let j = 0; j <= m; j++) {
-        grid.push([]);
-        for (let i = 0; i <= m; i++) {
-          // (j from the front edge to the back, i from the right to the left: the rim runs front-right … front-left (k = 0 … m), down the left to the back-left (m … 2m), along the back to the back-right (2m … 3m), up the right (3m … 4m))
-          if (j === 0) grid[j].push(rim(i)); else if (j === m) grid[j].push(rim(3 * m - i)); else if (i === m) grid[j].push(rim(m + j)); else if (i === 0) grid[j].push(rim(4 * m - j));
-          else if (i < m / 2) grid[j].push(-1); else {
-            const a = P[rim(i)], b = P[rim(3 * m - i)], l = P[rim(4 * m - j)], r = P[rim(m + j)], u = i / m, v = j / m;
-            const x = (l[0] * (1 - u) + r[0] * u + a[0] * (1 - v) + b[0] * v) / 2 * 0.86, z = c[2] + ((l[2] * (1 - u) + r[2] * u + a[2] * (1 - v) + b[2] * v) / 2 - c[2]) * 0.86;   // (drawn in a little: the rim's own squares are not left the longest)
-            grid[j].push(point([x, top(x, z), z], 'head', i === m / 2));
-          }
+    return S0;
+  };
+  // the crown: the first ring closed by a patch of squares, H/4 a side, its points on the scalp over them
+  const crownCap = () => {
+    const R0 = rows[0], m = H / 4, c = [0, 0, 0]; for (const v of R0) { c[0] += P[v][0] / H; c[1] += P[v][1] / H; c[2] += P[v][2] / H; }
+    // (the ring's points taken as the patch's rim: its four sides from the front's right corner round)
+    const rim = (k) => R0[(((k - m / 2) % H) + H) % H], grid = [];
+    const top = (x, z) => { let y = crown + 0.02; while (y > c[1] - 0.01 && body([x, y, z]) > 0) y -= 0.0005; return y; };
+    for (let j = 0; j <= m; j++) {
+      grid.push([]);
+      for (let i = 0; i <= m; i++) {
+        // (j from the front edge to the back, i from the right to the left: the rim runs front-right … front-left (k = 0 … m), down the left to the back-left (m … 2m), along the back to the back-right (2m … 3m), up the right (3m … 4m))
+        if (j === 0) grid[j].push(rim(i)); else if (j === m) grid[j].push(rim(3 * m - i)); else if (i === m) grid[j].push(rim(m + j)); else if (i === 0) grid[j].push(rim(4 * m - j));
+        else if (i < m / 2) grid[j].push(-1); else {
+          const a = P[rim(i)], b = P[rim(3 * m - i)], l = P[rim(4 * m - j)], r = P[rim(m + j)], u = i / m, v = j / m;
+          const x = (l[0] * (1 - u) + r[0] * u + a[0] * (1 - v) + b[0] * v) / 2 * 0.86, z = c[2] + ((l[2] * (1 - u) + r[2] * u + a[2] * (1 - v) + b[2] * v) / 2 - c[2]) * 0.86;   // (drawn in a little: the rim's own squares are not left the longest)
+          grid[j].push(point([x, top(x, z), z], 'head', i === m / 2));
         }
       }
-      for (let j = 1; j < m; j++) for (let i = 1; i < m / 2; i++) grid[j][i] = mir(grid[j][m - i]);
-      for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) whole.push([grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]]);
     }
+    for (let j = 1; j < m; j++) for (let i = 1; i < m / 2; i++) grid[j][i] = mir(grid[j][m - i]);
+    for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) whole.push([grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]]);
+  };
 
-    // ── under the armpits the ring divides: the trunk's, and an arm's either side ──────────────────────────────
-    // The armpit's floor is a row of points from the fold before the arm to the fold behind it; the trunk's ring is
-    // the shoulders' less the arms' arcs, closed by those rows, an arm's its arc closed by its row.
+  // ── under the armpits the ring divides: the trunk's, and an arm's either side ──────────────────────────────
+  // The armpit's floor is a row of points from the fold before the arm to the fold behind it; the trunk's ring is
+  // the shoulders' less the arms' arcs, closed by those rows, an arm's its arc closed by its row.
+  const trunkRings = (S0) => {
     const under = [];
     for (let k = 1; k < KA; k++) { const p = lerp(P[S0[iP]], P[S0[iQ]], k / KA); under.push(point([p[0], p[1] + 0.012 * Math.sin((Math.PI * k) / KA), p[2]], 'trunk')); }
     const trunk0 = [...S0.slice(0, iP + 1), ...under, ...S0.slice(iQ, H - iQ + 1), ...under.map(mir).reverse(), ...S0.slice(H - iP)];
@@ -210,94 +219,103 @@ export function cageOf(T, { only = null } = {}) {
     const floor = (z) => { let y = crotch - 0.05; while (y < crotch + 0.05 && body([0, y, z]) > -0.003) y += 0.0005; return y; };
     for (let k = 1; k < KC; k++) { const z = F[2] + ((B[2] - F[2]) * k) / KC; between.push(point([0, Math.min(floor(z), Math.min(F[1], B[1]) - 0.004), z], 'trunk', true)); }
     const leg0 = [R1[0], ...R1.slice(1, NT / 2), R1[NT / 2], ...between.slice().reverse()];
+    return { arm0, leg0 };
+  };
 
-    // ── a limb: rings round its own middle ─────────────────────────────────────────────────────────────────────
-    // A ring lies in a plane: e1 its front, u the way the limb goes on (down an arm or a leg, forwards along a foot).
-    // Its middle is found on the shape (the middle of its outline), its points at the angles given, from the front
-    // round by the left.
-    const frameOf = (e1, u) => { const f = norm(sub(e1, mul(u, dot(e1, u)))); return [f, cross(f, u)]; };
-    const planeRing = (S, c0, e1, u, angles, of, { soft = 8, thick = 0.014, far = 0.2, step = 0.003, centre = true } = {}) => {
-      const [f, l] = frameOf(e1, u); let c = c0, O = null;
-      if (centre) for (let it = 0; it < 2; it++) { O = outline(S, c, f, l, { far, soft, thick, along: u, step }); const m = O.middle(); c = add(c0, add(mul(f, dot(sub(m, c0), f)), mul(l, dot(sub(m, c0), l)))); }
-      O = outline(S, c, f, l, { far, soft, thick, along: u, step });
-      return { ids: ring(angles.map((a) => O.atAngle(a)), of), c, O, f, l };
-    };
-    const evenly = (n, first) => Array.from({ length: n }, (_, j) => first + (360 / n) * j);
-    // (a limb's middle at a height: on the line through its joints)
-    const along = (names) => { const A = names.map(J); return (y) => { for (let i = 0; i < A.length - 1; i++) if (y >= A[i + 1][1] || i === A.length - 2) { const t = (A[i][1] - y) / (A[i][1] - A[i + 1][1]); return lerp(A[i], A[i + 1], t); } }; };
-    const legAt = along(['thigh.L', 'shin.L', 'foot.L']), armAt = along(['upperArm.L', 'foreArm.L', 'hand.L']);
-    const knee = J('shin.L')[1], elbow = J('foreArm.L')[1], wrist = J('hand.L')[1];
-    // (where a point lies round an axis, degrees from e1 towards e2; and a row of such angles made to run on upwards)
-    const angleOf = (p, c, f, l) => Math.atan2(dot(sub(p, c), l), dot(sub(p, c), f)) / D;
-    const unwrap = (a) => { const out = [a[0]]; for (let i = 1; i < a.length; i++) { let x = a[i]; while (x < out[i - 1]) x += 360; while (x - out[i - 1] > 360) x -= 360; out.push(x); } return out; };
-    const seg = (p, a, b) => { const ab = sub(b, a), t = Math.max(0, Math.min(1, dot(sub(p, a), ab) / dot(ab, ab))); return len(sub(p, add(a, mul(ab, t)))); };
-    // A finger or a toe: from the ring it leaves the hand or the foot by (its points as they lie there), rings across
-    // its own line at the shares of its length given, the points coming to stand evenly round it; closed at its tip.
-    const digit = (S, loop, a, b, e1, shares, of, into) => {
-      const u = norm(sub(b, a)), [f, l] = frameOf(e1, u), n = loop.length, c0 = add(a, mul(u, dot(sub(P[loop[0]], a), u)));
-      const from = unwrap(loop.map((v) => angleOf(P[v], c0, f, l))), mean = from.reduce((x, y, i) => x + (y - (360 / n) * i), 0) / n;
-      let prev = loop;
-      shares.forEach((sh, k) => {
-        const t = Math.min(1, (k + 1) / 2), angles = from.map((x, i) => x + (mean + (360 / n) * i - x) * t);
-        const R = planeRing(S, lerp(a, b, sh), f, u, angles, of, { soft: 8, thick: 0.002, far: 0.03, step: 0.001, centre: false });
-        band(prev, R.ids, into); prev = R.ids;
-      });
-      into.push(prev.slice().reverse());   // (its tip: one face, rounded by the smoothing)
-    };
+  // ── a limb: rings round its own middle ─────────────────────────────────────────────────────────────────────
+  // A ring lies in a plane: e1 its front, u the way the limb goes on (down an arm or a leg, forwards along a foot).
+  // Its middle is found on the shape (the middle of its outline), its points at the angles given, from the front
+  // round by the left.
+  const frameOf = (e1, u) => { const f = norm(sub(e1, mul(u, dot(e1, u)))); return [f, cross(f, u)]; };
+  const planeRing = (S, c0, e1, u, angles, of, { soft = 8, thick = 0.014, far = 0.2, step = 0.003, centre = true } = {}) => {
+    const [f, l] = frameOf(e1, u); let c = c0, O = null;
+    if (centre) for (let it = 0; it < 2; it++) { O = outline(S, c, f, l, { far, soft, thick, along: u, step }); const m = O.middle(); c = add(c0, add(mul(f, dot(sub(m, c0), f)), mul(l, dot(sub(m, c0), l)))); }
+    O = outline(S, c, f, l, { far, soft, thick, along: u, step });
+    return { ids: ring(angles.map((a) => O.atAngle(a)), of), c, O, f, l };
+  };
+  const evenly = (n, first) => Array.from({ length: n }, (_, j) => first + (360 / n) * j);
+  // (a limb's middle at a height: on the line through its joints)
+  const along = (names) => { const A = names.map(J); return (y) => { for (let i = 0; i < A.length - 1; i++) if (y >= A[i + 1][1] || i === A.length - 2) { const t = (A[i][1] - y) / (A[i][1] - A[i + 1][1]); return lerp(A[i], A[i + 1], t); } }; };
+  const legAt = along(['thigh.L', 'shin.L', 'foot.L']), armAt = along(['upperArm.L', 'foreArm.L', 'hand.L']);
+  const knee = J('shin.L')[1], elbow = J('foreArm.L')[1], wrist = J('hand.L')[1];
+  // (where a point lies round an axis, degrees from e1 towards e2; and a row of such angles made to run on upwards)
+  const angleOf = (p, c, f, l) => Math.atan2(dot(sub(p, c), l), dot(sub(p, c), f)) / D;
+  const unwrap = (a) => { const out = [a[0]]; for (let i = 1; i < a.length; i++) { let x = a[i]; while (x < out[i - 1]) x += 360; while (x - out[i - 1] > 360) x -= 360; out.push(x); } return out; };
+  const seg = (p, a, b) => { const ab = sub(b, a), t = Math.max(0, Math.min(1, dot(sub(p, a), ab) / dot(ab, ab))); return len(sub(p, add(a, mul(ab, t)))); };
+  // A finger or a toe: from the ring it leaves the hand or the foot by (its points as they lie there), rings across
+  // its own line at the shares of its length given, the points coming to stand evenly round it; closed at its tip.
+  const digit = (S, loop, a, b, e1, shares, of, into) => {
+    const u = norm(sub(b, a)), [f, l] = frameOf(e1, u), n = loop.length, c0 = add(a, mul(u, dot(sub(P[loop[0]], a), u)));
+    const from = unwrap(loop.map((v) => angleOf(P[v], c0, f, l))), mean = from.reduce((x, y, i) => x + (y - (360 / n) * i), 0) / n;
+    let prev = loop;
+    shares.forEach((sh, k) => {
+      const t = Math.min(1, (k + 1) / 2), angles = from.map((x, i) => x + (mean + (360 / n) * i - x) * t);
+      const R = planeRing(S, lerp(a, b, sh), f, u, angles, of, { soft: 8, thick: 0.002, far: 0.03, step: 0.001, centre: false });
+      band(prev, R.ids, into); prev = R.ids;
+    });
+    into.push(prev.slice().reverse());   // (its tip: one face, rounded by the smoothing)
+  };
 
-    // ── the arm, and the hand on it ────────────────────────────────────────────────────────────────────────────
-    const firstA = -90 + (KA / 2) * (360 / NA), armRows = [arm0];
+  // ── the arm, and the hand on it ────────────────────────────────────────────────────────────────────────────
+  const thumbRoot = J('thumb2.L'), thumbTip = add(J('thumb3.L'), mul(norm(sub(J('thumb3.L'), J('thumb2.L'))), 0.026 + 0.006));
+  const handMid = (y) => [J('hand.L')[0], y, J('hand.L')[2]];
+  const firstA = -90 + (KA / 2) * (360 / NA);
+  /** The arm's rings from the armpit to the heel of the hand; gives the last. */
+  const armRings = (arm0) => {
+    const armRows = [arm0];
     const armYs = levels(armpit - 0.03, wrist + 0.03, (y) => (Math.abs(y - elbow) < 0.07 ? 0.02 : 0.03));
     for (const y of armYs) armRows.push(planeRing(arm, armAt(y), front, down, evenly(NA, firstA), 'arm').ids);
     // the wrist and the heel of the hand: level rings still, closer together
-    const thumbRoot = J('thumb2.L'), thumbTip = add(J('thumb3.L'), mul(norm(sub(J('thumb3.L'), J('thumb2.L'))), 0.026 + 0.006));
-    const handMid = (y) => [J('hand.L')[0], y, J('hand.L')[2]];
     for (const y of levels(wrist + 0.008, thumbRoot[1] + 0.012, () => 0.019)) armRows.push(planeRing(arm, handMid(y), front, down, evenly(NA, firstA), 'arm', { soft: 3, thick: 0.004, step: 0.0015, far: 0.09 }).ids);
     for (let i = 0; i < armRows.length - 1; i++) band(armRows[i], armRows[i + 1], left);
-    {
-      // The thumb leaves the hand: a ring at its root, six of its points round the thumb, held where the thumb's skin
-      // meets the palm's (the web's two ends); the other sixteen go on round the palm.
-      const y = thumbRoot[1] + 0.001, nearThumb = (p) => seg(p, J('thumb1.L'), thumbTip) < 0.0175 && p[2] > J('index1.L')[2] + 0.004;
-      const [f, l] = frameOf(front, down); let c = handMid(y), O = outline(arm, c, f, l, { far: 0.09, soft: 2, thick: 0.002, along: down, step: 0.001 });
-      { const m = O.middle(); c = [m[0], y, m[2]]; O = outline(arm, c, f, l, { far: 0.09, soft: 2, thick: 0.002, along: down, step: 0.001 }); }
-      // (the thumb's arc of the outline: from its first sample to its last, going round by the front)
-      let a0 = null, a1 = null; for (let i = 0; i < 720; i++) { const deg = -180 + i * 0.5, is = nearThumb(O.atAngle(deg)); if (is && a0 == null) a0 = deg; if (is) a1 = deg; }
-      const s0 = O.fracOf(a0), s1 = O.fracOf(a1), span = (((s1 - s0) % 1) + 1) % 1, rest = 1 - span, T0 = NA - 2, pts = new Array(NA);
-      for (let k = 0; k <= 5; k++) pts[(T0 + k) % NA] = O.atFrac((((s0 + (span * k) / 5) % 1) + 1) % 1);   // (the thumb's six: T0 … T0 + 5)
-      for (let k = 1; k < NA - 5; k++) pts[(T0 + 5 + k) % NA] = O.atFrac((((s1 + (rest * k) / (NA - 5)) % 1) + 1) % 1);
-      const R = ring(pts, 'arm'); band(armRows.at(-1), R, left);
-      const thumbLoop = [0, 1, 2, 3, 4, 5].map((k) => R[(T0 + k) % NA]), palmLoop = Array.from({ length: NA - 4 }, (_, k) => R[(T0 + 5 + k) % NA]);
-      for (const v of thumbLoop.slice(1, 5)) part[v] = P_.thumb;
-      const thumbS = (p) => Math.max(arm(p), seg(p, thumbRoot, thumbTip) - 0.019);
-      digit(thumbS, thumbLoop, thumbRoot, thumbTip, front, [0.3, 0.52, 0.72, 0.9, 0.975], 'thumb', left);
-      // the palm below the thumb: a ring round it, then the ring the fingers leave by. Of its sixteen points: one at
-      // its front end and one at its back, and along its back and along its palm a point on each finger's middle
-      // and one in each web between two fingers.
-      const palmS = (p) => Math.max(arm(p), 0.0165 - seg(p, thumbRoot, thumbTip)), NP = NA - 4;
-      const F4 = ['index', 'middle', 'ring', 'little'].map((n) => ({ n, a: J(n + '1.L'), j2: J(n + '2.L'), j3: J(n + '3.L') }));
-      for (const g of F4) g.tip = add(g.j3, mul(norm(sub(g.j3, g.j2)), T.handRods?.find((r) => r.part === P_[g.n])?.segs[2][1] ? len(sub(T.handRods.find((r) => r.part === P_[g.n]).segs[2][1], g.j3)) + 0.007 : 0.03));
-      const webY = Math.min(...F4.map((g) => g.a[1])) - 0.014, yMid = (y + webY) / 2;
-      const first = palmLoop.map((v) => P[v]), cP = [0, 0, 0]; for (const q of first) { cP[0] += q[0] / NP; cP[2] += q[2] / NP; }
-      // (a ring between: its points a share of the way from the thumb's ring to the fingers', on the palm's skin)
-      const out = (o, d, far = 0.05) => add(o, mul(d, exit(palmS, o, d, far, 0, 0.001)));
-      const xs = F4[0].a[0], at = (z, yy) => [xs, yy, z], zOf = F4.map((g) => g.a[2]), zWeb = [0, 1, 2].map((i) => (zOf[i] + zOf[i + 1]) / 2);
-      const roles = (yy) => {
-        const d = (z) => out(at(z, yy), [1, 0, 0]), p = (z) => out(at(z, yy), [-1, 0, 0]);
-        return [out(at(zOf[0], yy), [0, 0, 1]), d(zOf[0]), d(zWeb[0]), d(zOf[1]), d(zWeb[1]), d(zOf[2]), d(zWeb[2]), d(zOf[3]), out(at(zOf[3], yy), [0, 0, -1]), p(zOf[3]), p(zWeb[2]), p(zOf[2]), p(zWeb[1]), p(zOf[1]), p(zWeb[0]), p(zOf[0])];
-      };
-      const midRing = ring(roles(yMid), 'arm'), webRing = ring(roles(webY), 'arm');
-      band(palmLoop, midRing, left); band(midRing, webRing, left);
-      const W = webRing, loops = [[W[0], W[1], W[2], W[14], W[15]], [W[2], W[3], W[4], W[12], W[13], W[14]], [W[4], W[5], W[6], W[10], W[11], W[12]], [W[6], W[7], W[8], W[9], W[10]]];
-      F4.forEach((g, i) => {
-        const near = Math.min(...zOf.filter((_, k) => k !== i).map((z) => Math.abs(z - zOf[i]))) / 2 + 0.0004, S = (p) => Math.max(arm(p), seg(p, g.a, g.tip) - near), L = len(sub(g.tip, g.a));
-        const pip = len(sub(g.j2, g.a)) / L, web = (g.a[1] - webY) / L, sh = [web + (pip - web) * 0.5, pip, (len(sub(g.j2, g.a)) + len(sub(g.j3, g.j2)) / 2) / L, (len(sub(g.j2, g.a)) + len(sub(g.j3, g.j2))) / L, 0.86, 0.95, 0.985];
-        digit(S, loops[i], g.a, g.tip, front, sh, g.n, left);
-      });
-    }
+    return armRows.at(-1);
+  };
+  /** The hand on the arm's last ring: the thumb, the palm, the four fingers. */
+  const handOn = (last) => {
+    // The thumb leaves the hand: a ring at its root, six of its points round the thumb, held where the thumb's skin
+    // meets the palm's (the web's two ends); the other sixteen go on round the palm.
+    const y = thumbRoot[1] + 0.001, nearThumb = (p) => seg(p, J('thumb1.L'), thumbTip) < 0.0175 && p[2] > J('index1.L')[2] + 0.004;
+    const [f, l] = frameOf(front, down); let c = handMid(y), O = outline(arm, c, f, l, { far: 0.09, soft: 2, thick: 0.002, along: down, step: 0.001 });
+    { const m = O.middle(); c = [m[0], y, m[2]]; O = outline(arm, c, f, l, { far: 0.09, soft: 2, thick: 0.002, along: down, step: 0.001 }); }
+    // (the thumb's arc of the outline: from its first sample to its last, going round by the front)
+    let a0 = null, a1 = null; for (let i = 0; i < 720; i++) { const deg = -180 + i * 0.5, is = nearThumb(O.atAngle(deg)); if (is && a0 == null) a0 = deg; if (is) a1 = deg; }
+    const s0 = O.fracOf(a0), s1 = O.fracOf(a1), span = (((s1 - s0) % 1) + 1) % 1, rest = 1 - span, T0 = NA - 2, pts = new Array(NA);
+    for (let k = 0; k <= 5; k++) pts[(T0 + k) % NA] = O.atFrac((((s0 + (span * k) / 5) % 1) + 1) % 1);   // (the thumb's six: T0 … T0 + 5)
+    for (let k = 1; k < NA - 5; k++) pts[(T0 + 5 + k) % NA] = O.atFrac((((s1 + (rest * k) / (NA - 5)) % 1) + 1) % 1);
+    const R = ring(pts, 'arm'); band(last, R, left);
+    const thumbLoop = [0, 1, 2, 3, 4, 5].map((k) => R[(T0 + k) % NA]), palmLoop = Array.from({ length: NA - 4 }, (_, k) => R[(T0 + 5 + k) % NA]);
+    for (const v of thumbLoop.slice(1, 5)) part[v] = P_.thumb;
+    const thumbS = (p) => Math.max(arm(p), seg(p, thumbRoot, thumbTip) - 0.019);
+    digit(thumbS, thumbLoop, thumbRoot, thumbTip, front, [0.3, 0.52, 0.72, 0.9, 0.975], 'thumb', left);
+    // the palm below the thumb: a ring round it, then the ring the fingers leave by. Of its sixteen points: one at
+    // its front end and one at its back, and along its back and along its palm a point on each finger's middle
+    // and one in each web between two fingers.
+    const palmS = (p) => Math.max(arm(p), 0.0165 - seg(p, thumbRoot, thumbTip)), NP = NA - 4;
+    const F4 = ['index', 'middle', 'ring', 'little'].map((n) => ({ n, a: J(n + '1.L'), j2: J(n + '2.L'), j3: J(n + '3.L') }));
+    for (const g of F4) g.tip = add(g.j3, mul(norm(sub(g.j3, g.j2)), T.handRods?.find((r) => r.part === P_[g.n])?.segs[2][1] ? len(sub(T.handRods.find((r) => r.part === P_[g.n]).segs[2][1], g.j3)) + 0.007 : 0.03));
+    const webY = Math.min(...F4.map((g) => g.a[1])) - 0.014, yMid = (y + webY) / 2;
+    const first = palmLoop.map((v) => P[v]), cP = [0, 0, 0]; for (const q of first) { cP[0] += q[0] / NP; cP[2] += q[2] / NP; }
+    // (a ring between: its points a share of the way from the thumb's ring to the fingers', on the palm's skin)
+    const out = (o, d, far = 0.05) => add(o, mul(d, exit(palmS, o, d, far, 0, 0.001)));
+    const xs = F4[0].a[0], at = (z, yy) => [xs, yy, z], zOf = F4.map((g) => g.a[2]), zWeb = [0, 1, 2].map((i) => (zOf[i] + zOf[i + 1]) / 2);
+    const roles = (yy) => {
+      const d = (z) => out(at(z, yy), [1, 0, 0]), p = (z) => out(at(z, yy), [-1, 0, 0]);
+      return [out(at(zOf[0], yy), [0, 0, 1]), d(zOf[0]), d(zWeb[0]), d(zOf[1]), d(zWeb[1]), d(zOf[2]), d(zWeb[2]), d(zOf[3]), out(at(zOf[3], yy), [0, 0, -1]), p(zOf[3]), p(zWeb[2]), p(zOf[2]), p(zWeb[1]), p(zOf[1]), p(zWeb[0]), p(zOf[0])];
+    };
+    const midRing = ring(roles(yMid), 'arm'), webRing = ring(roles(webY), 'arm');
+    band(palmLoop, midRing, left); band(midRing, webRing, left);
+    const W = webRing, loops = [[W[0], W[1], W[2], W[14], W[15]], [W[2], W[3], W[4], W[12], W[13], W[14]], [W[4], W[5], W[6], W[10], W[11], W[12]], [W[6], W[7], W[8], W[9], W[10]]];
+    F4.forEach((g, i) => {
+      const near = Math.min(...zOf.filter((_, k) => k !== i).map((z) => Math.abs(z - zOf[i]))) / 2 + 0.0004, S = (p) => Math.max(arm(p), seg(p, g.a, g.tip) - near), L = len(sub(g.tip, g.a));
+      const pip = len(sub(g.j2, g.a)) / L, web = (g.a[1] - webY) / L, sh = [web + (pip - web) * 0.5, pip, (len(sub(g.j2, g.a)) + len(sub(g.j3, g.j2)) / 2) / L, (len(sub(g.j2, g.a)) + len(sub(g.j3, g.j2))) / L, 0.86, 0.95, 0.985];
+      digit(S, loops[i], g.a, g.tip, front, sh, g.n, left);
+    });
+  };
 
-    // ── the leg, and the foot on it ────────────────────────────────────────────────────────────────────────────
-    // The leg's rings are level down to the ankle; there the foot goes on forwards: five rings fanned about a line
-    // across the front of the ankle, the last upright; then upright rings to the ball of the foot, and the toes.
+  // ── the leg, and the foot on it ────────────────────────────────────────────────────────────────────────────
+  // The leg's rings are level down to the ankle; there the foot goes on forwards: five rings fanned about a line
+  // across the front of the ankle, the last upright; then upright rings to the ball of the foot, and the toes.
+  const legRings = (leg0) => {
     const firstL = -90 + (KC / 2) * (360 / NL), legRows = [leg0], hinge = [J('foot.L')[0], 0.115, 0.075];
     const legYs = [...levels(crotch - 0.022, hinge[1] + 0.012, (y) => (Math.abs(y - knee) < 0.09 ? 0.02 : 0.03)), hinge[1]];
     for (const y of legYs) legRows.push(planeRing(leg, legAt(y), front, down, evenly(NL, firstL), 'leg').ids);
@@ -322,13 +340,13 @@ export function cageOf(T, { only = null } = {}) {
       const loops = [[W[18], W[19], W[0], W[1], W[14], W[15], W[16], W[17]], [W[1], W[2], W[3], W[13], W[14]], [W[3], W[4], W[5], W[12], W[13]], [W[5], W[6], W[7], W[11], W[12]], [W[7], W[8], W[9], W[10], W[11]]];
       toes.forEach((R, i) => { const tip = add(R.b, mul(norm(sub(R.b, R.a)), R.r1 * 0.8)), S = (p) => Math.max(leg(p), seg(p, R.a, tip) - (R.r0 + 0.0006)); digit(S, loops[i], R.a, tip, up, [0.56, 0.76, 0.92, 0.985], 'leg', left); });
     } else { for (let i = 0; i < legRows.length - 1; i++) band(legRows[i], legRows[i + 1], left); left.push(legRows.at(-1).slice().reverse()); }
-  }
-  return finish();
+  };
 
-  function finish() {
-    for (const f of left) { whole.push(f); whole.push(f.map(mir).reverse()); }
-    return { pos: Float64Array.from(P.flat()), faces: whole, part: Uint8Array.from(part), side: Int8Array.from(side), levels: { crown, armpit, crotch }, PARTS };
-  }
+  const S0 = headRings(); crownCap();
+  const { arm0, leg0 } = trunkRings(S0);
+  handOn(armRings(arm0)); legRings(leg0);
+  for (const f of left) { whole.push(f); whole.push(f.map(mir).reverse()); }
+  return { pos: Float64Array.from(P.flat()), faces: whole, part: Uint8Array.from(part), side: Int8Array.from(side), levels: { crown, armpit, crotch }, PARTS };
 }
 
 /** The cage moved so that the smooth surface it makes passes through the places its points were found at (a smooth
