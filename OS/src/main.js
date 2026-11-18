@@ -25,7 +25,7 @@ const filmOf = (id, scene = !!current?.scene && current.id === id) => withFlags(
 // ---- tabs: showing one stops the framed games of the others ----
 function tab(name) {
   document.body.classList.toggle('sheet', name === 'intents');   // the intents open as a sheet over the dashboard
-  document.body.classList.toggle('studio', name === 'stories' || name === 'compass' || name === 'ladder');   // the stories, their shelf and their editor: dark, TheOS blue
+  document.body.classList.toggle('studio', name === 'stories');   // the stories, their shelf and their editor: dark, TheOS blue
   document.body.classList.toggle('admin', name !== 'home' && name !== 'legal' && name !== 'join');   // inside: the bottom pill; the front page has none
   if (location.hash.slice(1) !== (name === 'home' ? '' : name)) history.replaceState(null, '', name === 'home' ? location.pathname + location.search : '#' + name);   // (its flags kept)
   document.querySelectorAll('main').forEach((m) => m.classList.toggle('on', m.id === name));
@@ -206,155 +206,19 @@ async function ideas() {
   box.querySelectorAll('.idea').forEach((c) => (c.onclick = () => { ideaOpen = ideaOpen === c.dataset.id ? null : c.dataset.id; ideas(); }));
   box.querySelector('[data-do=shut]')?.addEventListener('click', () => { ideaOpen = null; ideas(); });
 }
-// ---- the compass (../Compass): its own page. Top to bottom: the vision (why), the mission (what we unite behind), the
-// story (how it is told), its people (who), its arcs (in what order) and its world (where); every entry opens in a
-// drawer. The page only shows it: the compass is changed by the story CLI alone, so it is read again whenever it opens ----
+// ---- the compass (../Compass) and its village ladder: their own pages (src/compass/). Read again whenever they open;
+// the page only shows the Compass, which the story CLI alone changes ----
 const esc = (t) => String(t ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
-const gist = (md) => { const p = md.split('\n').find((l) => l.trim() && !/^(#|>|\||-\s|\*\s|\d+\.\s|---|\*\*Open)/.test(l.trim())) || ''; const t = p.replace(/\*\*|\*|\[|\]\([^)]*\)|`/g, '').trim(); return t.length > 110 ? t.slice(0, 109).replace(/\s\S*$/, '') + '…' : t; };
-const TRACKS = ['the-first-world', 'a-night-in-the-future', 'the-thousand', 'the-ground'];   // the four tracks, in the order they open
+const compassData = () => get('/api/compass').then((r) => r.json()).catch(() => null);
 async function compass() {
   const box = $('cx'); if (!box) return;
-  const b = await get('/api/compass').then((r) => r.json()).catch(() => null);
+  const b = await compassData();
   if (!b) { box.innerHTML = '<p class="lede">No compass yet.</p>'; return; }
-  const f = b.story.front, md = b.story.body;
-  const quote = (h) => (md.match(new RegExp('## ' + h + '\\n[\\s\\S]*?\\n((?:>.*\\n?)+)')) || [])[1]?.replace(/^> ?/gm, '').trim() || '';
-  const after = (h) => (md.match(new RegExp('\\*\\*' + h + '\\*\\*\\s*([^\\n]+)')) || [])[1] || '';
-  const vision = quote('The core message'), mission = quote('The mission'), joint = after('How the two meet\\.');
-  const stakes = [...md.matchAll(/^- \*\*(External|Relational|Internal)\.?\*\*\s*([^\n]*)/gm)].map((m) => ({ k: m[1], t: m[2] }));
-  const plain = (t) => esc(String(t).replace(/\*\*|\*|`/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'));
-  const first = (t) => plain((t.split('\n').find((l) => l.trim()) || '').replace(/^#+\s*/, ''));
-
-  const all = {}; const reg = (kind, x) => (all[kind + '/' + x.id] = { ...x, kind });
-  for (const [k, list] of [['character', b.characters], ['arc', b.arcs], ['system', b.systems], ['place', b.locations], ['term', b.terms], ['episode', b.chapters]]) list.forEach((x) => reg(k, x));
-  reg('index', { id: 'compass', front: { title: 'The whole compass' }, body: md });
-  reg('index', { id: 'plot', front: { title: 'The plot' }, body: b.plot });
-  reg('index', { id: 'world', front: { title: 'The world' }, body: b.world });
-  reg('index', { id: 'timeline', front: { title: 'The timeline' }, body: b.timeline });
-  const name = (x) => x.front.name || x.front.term || x.front.title || x.id;
-  const card = (k, x, label, cls = '') => `<button class="cxc ${cls}" data-k="${k}/${x.id}"><small>${esc(label)}</small><b>${esc(name(x))}</b><span>${esc(gist(x.body))}</span></button>`;
-
-  const game = b.systems.find((x) => x.id === 'the-game');
-  const sec = (body, h) => (body.match(new RegExp('#+ ' + h + '\\n+([\\s\\S]*?)(?=\\n#+ |$)')) || [])[1]?.trim() || '';
-  const people = [...b.characters].sort((a, c) => (a.id === 'the-citizen' ? -1 : c.id === 'the-citizen' ? 1 : 0));
-  const tracks = TRACKS.map((id) => b.arcs.find((a) => a.id === id)).filter(Boolean), themes = b.arcs.filter((a) => !TRACKS.includes(a.id));
-  const n_ = (v, one, many) => `${v} ${v === 1 ? one : many}`;
-
-  box.innerHTML = `
-    <div class="top"><button class="btn" data-go="stories">← Stories</button><span>${esc(f.title || 'Maia City')} · ${n_(b.chapters.length, 'episode', 'episodes')} of ${n(DAYS)} written</span></div>
-    <h1>The Compass</h1>
-    <p class="lede">Where every day of the story points. Why we do it, what we unite behind, how it is told, who it is about and where it happens, top to bottom.</p>
-    <ol class="map">
-      <a href="#cx-vision"><i>1</i><em>Why</em><b>The vision</b><span>The power we carry when we unite behind one vision.</span></a>
-      <a href="#cx-mission"><i>2</i><em>What</em><b>The mission</b><span>The one vision a million of us unite behind: the race.</span></a>
-      <a href="#cx-story"><i>3</i><em>How</em><b>The story</b><span>One day a story, ${n(DAYS)} days. You are the hero.</span></a>
-      <a href="#cx-people"><i>4</i><em>Who</em><b>The people</b><span>${n_(b.characters.length, 'character', 'characters')}, and ${n_(b.arcs.length, 'arc', 'arcs')} they walk.</span></a>
-      <a href="#cx-world"><i>5</i><em>Where</em><b>The world</b><span>${n_(b.locations.length, 'place', 'places')}, ${n_(b.systems.length, 'system', 'systems')}, ${n_(b.terms.length, 'word', 'words')}.</span></a>
-      <a href="#cx-game"><i>6</i><em>Play</em><b>The game</b><span>Survive, own, found. The reference sheet.</span></a>
-    </ol>
-
-    <section id="cx-vision"><span class="k"><b>1 · Why</b>The vision · read in the first person</span><div class="vision">${marked.parse(vision)}</div></section>
-
-    <section id="cx-mission"><span class="k"><b>2 · What</b>The mission</span><div class="mission">${marked.parse(mission)}</div>${joint ? `<p class="joint">${plain(joint)}</p>` : ''}</section>
-
-    <section id="cx-story"><span class="k"><b>3 · How</b>The story</span>
-      <p class="premise">${esc(f.premise || '')}</p>
-      <div class="grid">
-        ${f['counter-premise'] ? `<div class="cxc anti"><small>What it out-builds</small><span>${esc(f['counter-premise'])}</span></div>` : ''}
-        ${stakes.map((x) => `<div class="cxc"><small>${esc(x.k)} stake</small><span>${plain(x.t)}</span></div>`).join('')}
-      </div>
-      <p class="sub">Every day</p>
-      <div class="grid">
-        <div class="cxc"><small>One story a day</small><span>${n(DAYS)} days from ${esc(f['release-start'] || '')}. Each poses one question, gives one reward, lands one realization and ends on a cliffhanger.</span></div>
-        <div class="cxc"><small>The voice</small><span>Second person, present tense. Celebrate, never warn. Every claim carries its receipt. Nobody's words are written for them.</span></div>
-        <button class="cxc" data-k="index/compass"><small>Read it all</small><b>The whole compass</b><span>Synopsis, voice, the city, the four tracks, how a day is shot.</span></button>
-      </div>
-    </section>
-
-    <section id="cx-people"><span class="k"><b>4 · Who</b>The people, and the arcs they walk</span>
-      <div class="grid">${people.map((x) => card('character', x, x.id === 'the-citizen' ? 'The hero · you' : x.front.role || 'Character', x.id === 'the-citizen' ? 'you' : '')).join('')}</div>
-      <p class="sub">The four tracks, in the order they open</p>
-      <ol class="path">${tracks.map((x) => `<li>${card('arc', x, x.front.status || '')}</li>`).join('')}</ol>
-      ${themes.length ? `<p class="sub">Running through all of it</p><div class="grid">${themes.map((x) => card('arc', x, x.front.type || 'Thematic')).join('')}</div>` : ''}
-      <p class="sub">Read further</p>
-      <div class="chips"><button data-k="index/plot">The plot</button><button data-k="index/timeline">The timeline</button>${b.chapters.map((x) => `<button data-k="episode/${x.id}">${esc(name(x))}</button>`).join('')}</div>
-    </section>
-
-    <section id="cx-world"><span class="k"><b>5 · Where</b>The world</span>
-      <p class="sub" style="margin-top:0">Places</p>
-      <div class="grid">${b.locations.map((x) => card('place', x, x.front.type || 'Place')).join('')}</div>
-      <p class="sub">How it works</p>
-      <div class="grid">${b.systems.filter((x) => x.id !== 'the-game' && x.id !== 'the-harvest').map((x) => card('system', x, x.front.type || 'System')).join('')}</div>
-      <p class="sub">Its words</p>
-      <div class="chips">${b.terms.map((x) => `<button data-k="term/${x.id}">${esc(name(x))}</button>`).join('')}<button data-k="index/world">The world, all of it</button></div>
-    </section>
-    ${game ? `<section id="cx-game"><span class="k"><b>6 · Play</b>The game · reference sheet and single source of truth</span>
-      <p class="premise">${plain(sec(game.body, 'Overview').split('\n\n')[1] || '')}</p>
-      <div class="sheet md">
-        <h3>The three levels of coops</h3>${marked.parse(sec(game.body, 'The three levels of coops'))}
-        <h3>The money</h3>${marked.parse(sec(game.body, 'The money'))}
-        <h3>The essential fixed tree</h3>${marked.parse(sec(game.body, 'The essential fixed tree \\(MVP\\)'))}
-      </div>
-      <div class="chips" style="margin-top:14px"><button class="go" data-go="ladder">The village ladder →</button><button data-k="system/the-harvest">The harvest: every recipe</button><button data-k="system/the-game">Read the whole reference sheet</button></div>
-    </section>` : ''}`;
-
-  const doc = $('cxdoc'), shade = $('cxshade');
-  const shut = () => { doc.classList.remove('on'); shade.classList.remove('on'); };
-  const open = (k) => {
-    const x = all[k]; if (!x) return;
-    doc.innerHTML = `<header><div><small>${esc(x.kind === 'index' ? 'The compass' : x.front.role || x.front.type || x.front.category || x.kind)}</small><b>${esc(name(x))}</b></div><button aria-label="Close">×</button></header>` +
-      `<div class="md">${marked.parse(x.kind === 'episode' ? (x.text || '') + '\n\n' + (x.outline || '') : x.body || '')}</div>`;
-    doc.querySelector('header button').onclick = shut; doc.scrollTop = 0;
-    doc.classList.add('on'); shade.classList.add('on');
-  };
-  shade.onclick = shut;
-  box.querySelectorAll('[data-k]').forEach((c) => (c.onclick = () => open(c.dataset.k)));
-  box.querySelectorAll('.map a').forEach((a) => (a.onclick = (e) => { e.preventDefault(); box.querySelector(a.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth' }); }));
-  box.querySelector('[data-go=stories]').onclick = () => tab('stories');
-  box.querySelector('[data-go=ladder]')?.addEventListener('click', () => tab('ladder'));
+  (await import('./compass/index.js')).renderCompass(box, b, { tab, DAYS });
 }
-
-// ---- the village ladder: the game sheet's ladder (Compass/worldbuilding/systems/the-game.md, "The village ladder")
-// on a page of its own. Read from the sheet as it stands; the page only shows it ----
-const rows = (md) => md.split('\n').filter((l) => l.trim().startsWith('|') && !/^\|\s*-/.test(l.trim().replace(/\s/g, '').replace(/:/g, '')) && !/^\|[\s\-:|]+\|$/.test(l.trim()))
-  .map((l) => l.trim().slice(1, -1).split('|').map((c) => c.trim()));
-const PHASE = { 1: 'food', 2: 'energy', 3: 'compute', 4: 'factories' };
-const euro = (t) => { const m = String(t).match(/([\d.]+)\s*([kM])/); return m ? +m[1] * (m[2] === 'M' ? 1e6 : 1e3) : 0; };
 async function ladder() {
   const box = $('lx'); if (!box) return;
-  const b = await get('/api/compass').then((r) => r.json()).catch(() => null);
-  const game = b?.systems.find((x) => x.id === 'the-game');
-  const part = game ? (game.body.split('### The village ladder')[1] || '').split('\n### ')[0] : '';
-  if (!part) { box.innerHTML = '<p class="lede">No ladder in the game sheet yet.</p>'; return; }
-  const [intro, ...rest] = part.trim().split('\n\n');
-  const tables = part.split(/\n\n(?=\|)/).slice(1).map((t) => rows(t.split('\n\n')[0]));
-  const phases = (tables[0] || []).slice(1), steps = (tables[1] || []).slice(1);
-  const notes = part.split('\n').filter((l) => l.startsWith('- ')).join('\n');
-  const paras = rest.filter((x) => !x.startsWith('|') && !x.startsWith('- ')).slice(0, 2);
-  const top = Math.max(...steps.map((r) => euro(r[6])), 1);
-  const pct = (t) => { const v = parseInt(t, 10); return isNaN(v) ? 0 : v; };
-  const bar = (t, cls) => `<span class="lbar ${cls}"><i style="width:${pct(t)}%"></i></span><span class="pc">${esc(t)}</span>`;
-  const ph = (t) => PHASE[String(t).trim()[0]] || '';
-  box.innerHTML = `
-    <div class="top"><button class="btn" data-go="compass">← The Compass</button><span>From the game sheet · ${steps.length} levels</span></div>
-    <h1>The village ladder</h1>
-    <div class="lede md">${marked.parse(intro)}</div>
-    <div class="phases">${phases.map((r, i) => `<div class="ph ${PHASE[i + 1]}"><small>${esc(r[1])} villagers</small><b>${esc(r[0])}</b><span>${esc(r[2])}</span><em>${esc(r[3])}</em><u>${esc(r[4])}</u></div>`).join('')}</div>
-    <div class="tablewrap"><table class="lad">
-      <thead><tr><th>Villagers</th><th>Added at this level</th><th>€ this level</th><th>Settlers bring</th><th>Investment round</th><th>€ in total</th><th>Funded by</th><th>Food import</th><th>Energy import</th></tr></thead>
-      <tbody>${steps.map((r) => `<tr class="${ph(r[1])}">
-        <td class="n"><b>${esc(r[0])}</b><small>${esc(r[1])}</small></td>
-        <td class="add">${marked.parseInline(r[2])}</td>
-        <td class="eur">${esc(r[3])}</td>
-        <td class="eur bring">${esc(r[4])}</td>
-        <td class="eur round">${esc(r[5])}</td>
-        <td class="eur"><span class="lbar sum"><i style="width:${Math.max(2, Math.sqrt(euro(r[6]) / top) * 100)}%"></i></span><span class="pc">${esc(r[6])}</span></td>
-        <td>${esc(r[7])}</td>
-        <td>${bar(r[8], 'food')}</td>
-        <td>${bar(r[9], 'energy')}</td></tr>`).join('')}</tbody>
-    </table></div>
-    ${paras.map((p) => `<div class="md note">${marked.parse(p)}</div>`).join('')}
-    <div class="md notes">${marked.parse(notes)}</div>`;
-  box.querySelector('[data-go=compass]').onclick = () => tab('compass');
+  (await import('./compass/index.js')).renderLadder(box, await compassData(), { tab });
 }
 
 async function story(s, show = true) {

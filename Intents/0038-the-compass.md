@@ -316,6 +316,23 @@ Asked outright and without surprises, so built straight away.
 - **Good:** `story check .` passes; the drawer renders it (screenshot).
 - **Broke / not there yet:** every time and yield is an estimate to source and tune.
 
+### 2026-11-18 (9)
+
+- **Asked:** "Your overall design and layout is super generic and super bad, of the whole Compass and all its sheets.
+  Make it 10x better, more modern, interactive and well laid out… restructure the whole thing to be explorable,
+  visualising all our concepts in a well-structured manner, built up as a learning curve, one concept after another."
+- **Delivered:** the Compass rebuilt as its own module (`OS/src/compass/`), in the brand's Meadow look: a hero with
+  the seven chapters on an arch; a rail that follows you; 1 the vision, revealed line by line; 2 the mission and the
+  race; 3 the economy as six steps, each with its picture (the start capital, a HEARTS slider, the three coops nested,
+  the loop animated, the gate, the free meter); 4 the harvest as an explorer (every recipe, its timeline, bed level,
+  climate and seed line as sliders); 5 the ladder as a row of gates, one open with its money and import gauges;
+  6 the people and the four tracks; 7 a searchable library; every document in a drawer. The ladder's table page in
+  the same look. All read from the Compass's files.
+- **Good:** works at desktop and phone width (no sideways scroll); screenshots.
+- **Broke / not there yet:** global classes (`.hero`, `.card`, `.steps`, `.bar` and others) collided again on the
+  first try and were renamed; a section regex stopped at the first line end, emptying the vision and mission, fixed.
+  The race shows country names as an illustration, not data.
+
 ## Trail
 
 | When | Commit | What |
