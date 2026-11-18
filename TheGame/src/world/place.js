@@ -10,7 +10,7 @@ import { heightAt } from './land.js';
 import { addBody } from './bodies.js';
 import { detailOf, Detailed } from '../detail/index.js';
 import { most, kindOf } from '../../assets/kinds.js';
-import { impostorOf } from '../detail/impostor.js';
+import { impostorOf, canBake } from '../detail/impostor.js';
 import { geometryOf, bodyOfAsset, snowOf } from '../../assets/index.js';
 import { lightFire } from './fire.js';
 import { swayed, facing, mottled, madeLit } from './made.nodes.js';
@@ -73,9 +73,9 @@ export function assetMaterial(asset) {
     stage puts it in once it is compiled: src/boot.js show). */
 export function place(scene, asset, at) {
   if (asset.fire) return lightFire(scene, asset, at);   // a fire is light, not a mesh (src/world/fire.js)
-  const D = detailOf(asset);
+  const D = detailOf(asset, { card: canBake() });   // (its far card only where it can be baked: else its faces are its last level, sinking away where it is gone)
   const meshes = D.levels.map((l) => { if (l.impostor) return impostorOf(geometryOf(asset), snowOf(asset)); const m = new THREE.Mesh(geometryOf(asset, l), assetMaterial(asset)); m.renderOrder = 1; return m; });
-  const lod = new Detailed(asset, meshes);
+  const lod = new Detailed(asset, meshes, D);
   lod.position.set(at.x, heightAt(at.x, at.z) - 0.03, at.z); lod.rotation.y = at.yaw || 0; lod.name = asset.name;
   scene?.add(lod);
   // the walker and the camera cannot pass it: its body (its own solid block, else its kind's from its size) in the one
