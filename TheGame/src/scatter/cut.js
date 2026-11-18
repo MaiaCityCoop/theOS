@@ -1,7 +1,7 @@
 // The cut (intent 0038, stage 8): what of a surface is drawn, cluster by cluster, by the one measure. A surface is its
 // cluster hierarchy (assets/kit/clusters.js), a level of it in the heap as assets/kit/surface.js packs it. The rule, for
 // every cluster: it is drawn where its own error is at most the error allowed and its parent's is over it, the error
-// allowed being ERROR_PX over the pixels drawn a unit of the thing's largest side covers (src/detail/error.js). Every
+// allowed being the dial (U.uErrorPx) over the pixels drawn a unit of the thing's largest side covers (src/detail/error.js). Every
 // cluster of a group holds the same numbers, so each decides alone and the surface still closes. Each turns into its
 // parent while the parent's error falls from BAND times the allowed to the allowed (its vertices move to their places
 // on the parent's surface: the morph), so a cluster has become its parent before it gives way to it.
@@ -17,7 +17,7 @@ import { U } from '../core/uniforms.js';
 import { heapRow, sinceCame } from './heap.js';
 import { camDist } from '../world/land.nodes.js';
 import { spanAt } from '../detail/measure.js';
-import { ERROR_PX, BUDGET_DRAWN, BAND, PX_CUT, surfaceBand } from '../detail/error.js';
+import { BAND, PX_CUT, surfaceBand } from '../detail/error.js';
 import { turnOf } from './row.js';
 import { more } from '../core/gpu.js';
 
@@ -37,8 +37,12 @@ export const sphereFrom = (s, A, B) => {
   return max(length(vec3(A.x, A.z, A.y).add(turn(q.mul(A.w))).sub(U.uCam)).sub(uintBitsToFloat(s.w).mul(A.w)), 1e-3).mul(U.uLodInv);
 };
 /** The error allowed (of the thing's largest side) for a thing of rows A, d metres off as the measure has distances
-    (its own: camDist; ?truth's reach counts as the thing's own distance says). */
-export const allowedAt = (A, dT, d = dT) => float(ERROR_PX).mul(d).div(spanAt(A.w, dT).mul(BUDGET_DRAWN));
+    (its own: camDist; ?truth's reach counts as the thing's own distance says): the one rule's (src/detail/error.js),
+    the dial over the pixels drawn its size covers, so it moves with the dial and the live pixel. */
+export const allowedAt = (A, dT, d = dT) => U.uErrorPx.mul(d).div(spanAt(A.w, dT));
+/** The size on screen (pixels drawn) from which a thing's clusters are tested one by one: PX_CUT at the dial's rest,
+    moving with the dial (where level 0 ends: src/detail/error.js). A node. */
+export const pxCut = () => U.uErrorPx.mul(PX_CUT);
 /** As a level came (R its row): the error a cut of it is run at, refined over GROW seconds from what its coarser level
     showed (its least: `from`) to b. */
 export const eased = (R, b, from, time) => mix(float(from), b, smoothstep(0, GROW, sinceCame(R, time)));
@@ -47,16 +51,17 @@ export const eased = (R, b, from, time) => mix(float(from), b, smoothstep(0, GRO
 export const ruleOf = (self, parent, bS, bP) => ({ drawn: self.lessThanEqual(bS).and(parent.greaterThan(bP)), t: smoothstep(bP.mul(BAND), bP, parent) });
 
 /** Level 0's cut for a tier's bucket of the things drawn there (T: a tier of src/scatter/tier.js; k: the bucket; H: the
-    heap; level: its level's index; room: what a kind's level holds, { tris }): { passes (for every frame, after the
-    packing), entry(i): the i-th listed { thing, cluster, t }, thing(j, row): the j-th packed thing's row, geometry }. */
-export function createCut({ T, k = 0, H, room, name }) {
-  const S = T.slots, cap = T.caps[k], off = T.offs[k], MAXC = Math.ceil(room.tris / 32) + 8, MOST = Math.min(Math.max(4096, cap * 1024), 1 << 22);   // (MOST: the list's room, under a storage buffer's 256 MB)
+    heap; room: what a kind's level holds, { tris }; things: the most things that can be at level 0 at once, its tier's
+    to say): { passes (for every frame, after the packing), entry(i): the i-th listed { thing, cluster, t }, thing(j,
+    row): the j-th packed thing's row, geometry }. */
+export function createCut({ T, k = 0, H, room, name, things }) {
+  const S = T.slots, cap = things, MAXC = Math.ceil(room.tris / 32) + 8, MOST = Math.min(Math.max(4096, cap * 1024), 1 << 22);   // (MOST: the list's room, under a storage buffer's 256 MB)
   const list = instancedArray(MOST, 'uvec4'), count = instancedArray(1, 'uint').toAtomic(), packed = storage(T.args, 'uint', T.args.array.length).toReadOnly();
   const drawArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array([MAXT * 3, 0, 0, 0, 0]), 5), DA = storage(drawArgs, 'uint', 5);
   const runArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array([1, 1, 1]), 1), RA = storage(runArgs, 'uint', 3);   // (its workgroups: the clusters a thing can have across, the things packed down)
   more(`${name}: the cut's list`, MOST * 16, 0);
-  const thing = (j, row) => T.data.element(uint(off).add(j).mul(uint(S)).add(uint(row)));
-  const LO1 = surfaceBand(1)[0], PXC = PX_CUT / BUDGET_DRAWN;
+  const thing = (j, row) => T.data.element(T.offAt(uint(k)).add(j).mul(uint(S)).add(uint(row)));   // (where its bucket's things begin: the tier's packing says)
+  const LO1 = surfaceBand(1)[0], PXC = pxCut();
   // (how many workgroups: a thread a cluster of every thing packed, its count as large as it can be)
   const start = Fn(() => { atomicStore(count.element(0), uint(0)); RA.element(0).assign(uint(Math.ceil(MAXC / 64))); RA.element(1).assign(packed.element(k * 5 + 1).min(uint(cap)).max(uint(1))); })().compute(1);
   const test = Fn(() => {
@@ -66,7 +71,7 @@ export function createCut({ T, k = 0, H, room, name }) {
       If(c.lessThan(head.n), () => {
         const C = clusterOf(H, R, c), s1 = H.elems.element(C.at.add(uint(1))), s2 = H.elems.element(C.at.add(uint(2)));
         // each sphere's own distance, from the thing's as it grows from PX_CUT to twice that
-        const dT = camDist(A.xy), w = smoothstep(PXC, PXC * 2, spanAt(A.w, dT).div(max(dT, 1e-3)));
+        const dT = camDist(A.xy), w = smoothstep(PXC, PXC.mul(2), spanAt(A.w, dT).div(max(dT, 1e-3)));
         const bOf = (s) => clamp(eased(R, allowedAt(A, dT, mix(dT, sphereFrom(s, A, B), w)), LO1, U.uTime), head.lo, head.hi);
         const r = ruleOf(C.self, C.parent, bOf(s1), bOf(s2));
         If(r.drawn, () => { const i = atomicAdd(count.element(0), uint(1)); If(i.lessThan(uint(MOST)), () => { list.element(i).assign(uvec4(j, c, floatBitsToUint(r.t), 0)); }); });
