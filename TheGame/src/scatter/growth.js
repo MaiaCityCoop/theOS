@@ -1,8 +1,11 @@
 // The growth map (intent 0038, stage 7): what the larger things placed on the land leave for the smaller ones to read,
 // after Horizon Zero Dawn's GPU placement (van Muijden, GDC 2017), where each layer of placement writes the maps the next
-// one reads. A window of N x N texels, TEXEL metres each, kept round the camera as the land's layer map is
+// one reads. For each layer that writes, a window of N x N texels kept round the camera as the land's layer map is
 // (src/terrain/layers.js): a texel's place in it is its place on the land modulo N, so as the camera moves only the rows
-// and columns the window comes onto are worked out, on the GPU, a layer at a time, the largest first.
+// and columns the window comes onto are worked out, on the GPU, a layer at a time, the largest first. Its texel is the
+// layer's band limit (rule.js layersOf: half its smallest crown; a finer one holds nothing more), its side N the fewest
+// texels (a power of two) that reach as far as what reads it is drawn (its `far`), within the room the geometry's class
+// has left (src/core/gpu.js roomOf), else the most that fits there, and said.
 //
 // For every layer that writes (src/scatter/rule.js: those whose things are as large as a texel) it keeps two things:
 //   - what stands in each of the layer's own cells, a word a cell (rule.js recordOf: which of its things, which of its
@@ -20,16 +23,14 @@
 //       lead     whose litter that most is: the dropping thing's number + 1 (rule.js), 0 none
 // A layer's word is worked out by gathering what stands in its cells round the texel: what a placed thing writes is
 // worked out where it is written, so no two things write one texel, and the map is the same whatever path the camera
-// took to it. Where it does not reach (past REACH metres from the camera), nothing larger has left anything.
+// took to it. Where a layer's window does not reach, nothing of that layer has left anything.
 import * as THREE from 'three/webgpu';
 import { Fn, If, float, int, uint, vec2, ivec2, uniform, globalId, floor, clamp, round } from 'three/tsl';
-import { gpuStorage } from '../core/gpu.js';
+import { gpuStorage, roomOf } from '../core/gpu.js';
 import { did } from '../core/work.js';
 
-/** Metres a texel; texels a side; texels the window moves by at once; the most words a texel holds. */
-export const TEXEL = 2, N = 1024, SNAP = 8, WORDS = 3;
-/** Metres from the camera the window holds, wherever its snap leaves it. */
-export const REACH = (N / 2 - SNAP) * TEXEL;
+/** Texels a window moves by at once; the most layers that write (a word each). */
+export const SNAP = 8, WORDS = 3;
 
 /** A share 0 … 1 as one byte (node code), and byte k of a 32-bit word back as a share: how a word packs four of them
     (this map's, the land's layer map's: src/terrain/layers.js). */
@@ -42,19 +43,20 @@ let CURRENT = null;
 export const growthMap = () => CURRENT;
 
 /** The map: its buffer (made with the renderer, on the GPU only, as its passes are built), what reads it, and how it is
-    kept round the camera. words: how many the layers that write need. */
-export function createGrowth(renderer, words) {
-  const W = Math.max(1, Math.min(WORDS, words));
-  let B = null, writers = [], places = [], passes = [], fills = [], uRect = uniform(new THREE.Vector4()), uCells = uniform(new THREE.Vector4()), window = null, version = 0, key = '';
-  const origin = uniform(new THREE.Vector2(0, 0));   // (the window's first texel on the land: x, z)
-  const slot = (ix, iz, w) => uint(ix.bitAnd(int(N - 1)).add(iz.bitAnd(int(N - 1)).mul(int(N)))).mul(uint(W)).add(uint(w));
-  const inside = (ix, iz) => ix.greaterThanEqual(int(origin.x)).and(ix.lessThan(int(origin.x).add(N))).and(iz.greaterThanEqual(int(origin.y))).and(iz.lessThan(int(origin.y).add(N)));
+    kept round the camera. fields: a word's each, in its order ({ band: its texel, metres (the layer's band limit:
+    rule.js layersOf), far: metres its farthest reader is drawn to at the most }). */
+export function createGrowth(renderer, fields) {
+  const W = Math.max(1, Math.min(WORDS, fields.length)), words = fields.slice(0, W).map(({ band, far }) => ({ T: band, far, N: 4 * SNAP, base: 0, origin: uniform(new THREE.Vector2(0, 0)), window: null }));
+  for (const Wd of words) while ((Wd.N / 2 - SNAP) * Wd.T < Wd.far) Wd.N *= 2;   // (the fewest texels that reach its `far` from where its snap leaves it)
+  let B = null, writers = [], places = [], passes = [], fills = [], uRect = uniform(new THREE.Vector4()), uCells = uniform(new THREE.Vector4()), version = 0, key = '';
+  const slot = (ix, iz, w) => { const Wd = words[w], n = Wd.N; return uint(ix.bitAnd(int(n - 1)).add(iz.bitAnd(int(n - 1)).mul(int(n)))).add(uint(Wd.base)); };
+  const inside = (ix, iz, w) => { const o = words[w].origin, n = words[w].N; return ix.greaterThanEqual(int(o.x)).and(ix.lessThan(int(o.x).add(n))).and(iz.greaterThanEqual(int(o.y))).and(iz.lessThan(int(o.y).add(n))); };
   /** What the layers' words say at p (metres), w each of the words asked: { shade, litter } read between the four
-      texels round it, and the lead and the feet of the one it lies in; nothing where the window does not reach. */
+      texels round it, and the lead and the feet of the one it lies in; nothing where its window does not reach. */
   const read = (p, w) => {
-    const u = p.div(TEXEL).sub(0.5), i = ivec2(floor(u)).toVar(), f = u.sub(floor(u)).toVar(), near = ivec2(floor(p.div(TEXEL))).toVar();
+    const T = words[w].T, u = p.div(T).sub(0.5), i = ivec2(floor(u)).toVar(), f = u.sub(floor(u)).toVar(), near = ivec2(floor(p.div(T))).toVar();
     const out = { shade: float(0).toVar(), feet: float(0).toVar(), litter: float(0).toVar(), lead: uint(0).toVar() };
-    If(inside(i.x, i.y).and(inside(i.x.add(1), i.y.add(1))), () => {
+    If(inside(i.x, i.y, w).and(inside(i.x.add(1), i.y.add(1), w)), () => {
       for (const [dx, dz, k] of [[0, 0, float(1).sub(f.x).mul(float(1).sub(f.y))], [1, 0, f.x.mul(float(1).sub(f.y))], [0, 1, float(1).sub(f.x).mul(f.y)], [1, 1, f.x.mul(f.y)]]) {
         const v = B.element(slot(i.x.add(dx), i.y.add(dz), w)).toVar();
         out.shade.addAssign(un(v, 0).mul(k)); out.litter.addAssign(un(v, 2).mul(k));
@@ -65,20 +67,29 @@ export function createGrowth(renderer, words) {
     return out;
   };
   /** What stands in cell c (ivec2) of the layer whose word is w, as its record (rule.js recordOf): a node, read from
-      its window of cells (where c is one the gather of the texels' window reads: whoever asks keeps to that). */
+      its window of cells (where c is one the gather of its texels' window reads: whoever asks keeps to that). */
   const at = (w, c) => { const P = places[w]; return B.element(uint(c.x.bitAnd(int(P.side - 1)).add(c.y.bitAnd(int(P.side - 1)).mul(int(P.side)))).add(uint(P.base))); };
+  // (while it all holds more than the geometry's room, the largest word halved, and said: its words and the cells its
+  // gather reads, 4 bytes each)
+  const sides = (list) => {
+    const bytes = () => words.reduce((b, Wd, w) => { const L = list.find((x) => x.w === w); return b + 4 * (Wd.N * Wd.N + (L ? 2 ** (2 * Math.ceil(Math.log2(L.span(Wd.N)))) : 0)); }, 0);
+    const held = words.map((Wd) => Wd.N);
+    while (bytes() > roomOf('geometry')) { const Wd = words.reduce((a, b) => (b.N > a.N ? b : a)); if (Wd.N <= 4 * SNAP) break; Wd.N /= 2; }
+    words.forEach((Wd, w) => { if (Wd.N < held[w]) console.warn(`the growth map, word ${w}: ${held[w]} texels a side reach its readers (${Math.round(Wd.far)} m); ${Wd.N} fit the geometry's room: ${Math.round((Wd.N / 2 - SNAP) * Wd.T)} m`); });
+  };
   /** The passes, one a layer that writes, in their order (rule.js writersOf): record(c), what stands in cell c of the
       layer, worked out for the cells the gather of the texels to be worked out reads (cells(x0, w): those along a side
       for the texels x0 … x0 + w; span(n): the most along a side for n texels); gather(q), what the layer leaves at the
       texel's middle q ({ shade, feet, litter, lead }); its word is w; feet(p), whether the ground at p is covered by the
       layer's things (null: none of them covers any). */
   const build = (list) => {
-    writers = list;
-    // (one buffer for all of it: the texels' words, then each layer's cells; a pass binds few)
-    let base = N * N * W;
+    writers = list; sides(list);
+    // (one buffer for all of it: each word's texels, then each layer's cells; a pass binds few)
+    let base = 0;
+    for (const Wd of words) { Wd.base = base; base += Wd.N * Wd.N; }
     places = [];
-    for (const { w, span } of writers) { const side = 2 ** Math.ceil(Math.log2(span(N))); places[w] = { side, base }; base += side * side; }
-    const buf = gpuStorage('uint', base, 'the growth map'); B = buf.node;
+    for (const { w, span } of writers) { const side = 2 ** Math.ceil(Math.log2(span(words[w].N))); places[w] = { side, base }; base += side * side; }
+    const buf = gpuStorage('uint', base, 'the growth map', 'geometry'); B = buf.node;
     fills = writers.map(({ w, record }) => Fn(() => {
       const g = globalId.xy;
       If(g.x.lessThan(uint(uCells.z)).and(g.y.lessThan(uint(uCells.w))), () => {
@@ -89,23 +100,31 @@ export function createGrowth(renderer, words) {
     passes = writers.map(({ w, gather }) => Fn(() => {
       const g = globalId.xy;
       If(g.x.lessThan(uint(uRect.z)).and(g.y.lessThan(uint(uRect.w))), () => {
-        const ix = int(g.x).add(int(uRect.x)), iz = int(g.y).add(int(uRect.y)), q = vec2(float(ix), float(iz)).add(0.5).mul(TEXEL);
+        const ix = int(g.x).add(int(uRect.x)), iz = int(g.y).add(int(uRect.y)), q = vec2(float(ix), float(iz)).add(0.5).mul(words[w].T);
         const L = gather(q);
         B.element(slot(ix, iz, w)).assign(byte(L.shade).bitOr(byte(L.feet).shiftLeft(uint(8))).bitOr(byte(L.litter).shiftLeft(uint(16))).bitOr(uint(L.lead).min(uint(255)).shiftLeft(uint(24))));
       });
     })().computeKernel([8, 8, 1]));
   };
-  // (each layer over every rectangle before the next layer: what a layer reads of the one before is worked out first; and
-  // what stands in its cells before what it leaves at its texels. A cell worked out again is the same: the rule is the rule)
-  const run = (rects) => {
-    writers.forEach(({ cells }, n) => {
-      const pass = passes[n];
-      for (const [x0, z0, ww, hh] of rects) {
-        const [cx, cx1] = cells(x0, ww), [cz, cz1] = cells(z0, hh), cw = cx1 - cx, ch = cz1 - cz;
-        uCells.value.set(cx, cz, cw, ch); renderer.compute(fills[n], [Math.ceil(cw / 8), Math.ceil(ch / 8), 1]);
-      }
-      for (const [x0, z0, ww, hh] of rects) { uRect.value.set(x0, z0, ww, hh); renderer.compute(pass, [Math.ceil(ww / 8), Math.ceil(hh / 8), 1]); }
-    });
+  // (each layer over every rectangle of its window before the next layer: what a layer reads of the one before is
+  // worked out first (a later layer's window within an earlier one's: its readers are nearer); and what stands in its
+  // cells before what it leaves at its texels. A cell worked out again is the same: the rule is the rule)
+  const run = (n, rects) => {
+    const { cells } = writers[n], pass = passes[n];
+    for (const [x0, z0, ww, hh] of rects) {
+      const [cx, cx1] = cells(x0, ww), [cz, cz1] = cells(z0, hh), cw = cx1 - cx, ch = cz1 - cz;
+      uCells.value.set(cx, cz, cw, ch); renderer.compute(fills[n], [Math.ceil(cw / 8), Math.ceil(ch / 8), 1]);
+    }
+    for (const [x0, z0, ww, hh] of rects) { uRect.value.set(x0, z0, ww, hh); renderer.compute(pass, [Math.ceil(ww / 8), Math.ceil(hh / 8), 1]); }
+  };
+  /** The rectangles word w's window comes onto as it is kept round (x, z) (all of it the first time or after a jump),
+      its new place set; null where it has not moved. */
+  const moved = (Wd, x, z) => {
+    const N = Wd.N, nx = Math.round((Math.floor(x / Wd.T) - N / 2) / SNAP) * SNAP, nz = Math.round((Math.floor(z / Wd.T) - N / 2) / SNAP) * SNAP, o = Wd.window;
+    if (o && nx === o[0] && nz === o[1]) return null;
+    Wd.origin.value.set(nx, nz); Wd.window = [nx, nz];   // (its new place first: what is read is read where it is now)
+    if (!o || Math.abs(nx - o[0]) >= N || Math.abs(nz - o[1]) >= N) { did('land', N * N); return [[nx, nz, N, N]]; }
+    return [...(nx !== o[0] ? [[nx > o[0] ? o[0] + N : nx, nz, Math.abs(nx - o[0]), N]] : []), ...(nz !== o[1] ? [[nx, nz > o[1] ? o[1] + N : nz, N, Math.abs(nz - o[1])]] : [])];   // (the strips it came onto)
   };
   /** What every layer that writes left at p: the light that comes through all their crowns; and foot(), whether the
       ground at p is covered by any of their things (1, else 0: their feet, each its own, rule.js footAt), worked out
@@ -123,13 +142,10 @@ export function createGrowth(renderer, words) {
         jump, or when what the rule reads changed: `world`). Before anything that reads it packs. */
     update(x, z, world = '') {
       if (!passes.length) return;
-      if (world !== key) { key = world; window = null; }
-      const nx = Math.round((Math.floor(x / TEXEL) - N / 2) / SNAP) * SNAP, nz = Math.round((Math.floor(z / TEXEL) - N / 2) / SNAP) * SNAP, o = window;
-      if (o && nx === o[0] && nz === o[1]) return;
-      origin.value.set(nx, nz);   // (its new place first: what is read is read where it is now)
-      if (!o || Math.abs(nx - o[0]) >= N || Math.abs(nz - o[1]) >= N) { run([[nx, nz, N, N]]); did('land', N * N); }
-      else run([...(nx !== o[0] ? [[nx > o[0] ? o[0] + N : nx, nz, Math.abs(nx - o[0]), N]] : []), ...(nz !== o[1] ? [[nx, nz > o[1] ? o[1] + N : nz, N, Math.abs(nz - o[1])]] : [])]);   // (the strips it came onto)
-      window = [nx, nz]; version++;
+      if (world !== key) { key = world; for (const Wd of words) Wd.window = null; }
+      let any = false;
+      writers.forEach(({ w }, n) => { const rects = moved(words[w], x, z); if (rects) { run(n, rects); any = true; } });
+      if (any) version++;
     },
     /** A number that changes whenever the map does: what reads it packs again. */
     version: () => version,
