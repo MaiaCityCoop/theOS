@@ -23,7 +23,7 @@ function watch(frameMs) {
   const W = (window.__device = { buffers: 0, submits: 0, longest: 0, over: 0, lost: null, errors: [], top: null });
   // (the ledger's most, read in the page a tenth of a second apart, what it held then with it: it rises by gigabytes in
   // the seconds before a device is lost, between two of the gate's looks)
-  setInterval(() => { const L = window.__memory?.(); if (L?.device != null && L.device > (W.top?.device ?? -1)) W.top = { device: L.device, classes: L.classes, rows: L.rows.slice(0, 8), unnoted: L.unnoted, buffers: W.buffers }; }, 100);
+  setInterval(() => { const L = window.__game?.memory?.(); if (L && L.gpu > (W.top?.device ?? -1)) W.top = { device: L.gpu, classes: L.classes, rows: L.rows.slice(0, 8), makers: L.makers.slice(0, 8), over: L.over, unnoted: L.unnoted, buffers: W.buffers }; }, 100);
   const ask = GPUAdapter.prototype.requestDevice;
   GPUAdapter.prototype.requestDevice = async function (desc) {
     const dev = await ask.call(this, desc), make = dev.createBuffer.bind(dev), q = dev.queue, submit = q.submit.bind(q);
@@ -35,7 +35,7 @@ function watch(frameMs) {
   };
 }
 /** In the page: the ledger now (src/core/gpu.js), with the gate's own count and the device's state. */
-const look = () => ({ ready: window.__game?.loadMs ?? null, ledger: window.__memory?.() ?? null, ...window.__device });
+const look = () => ({ ready: window.__game?.loadMs ?? null, ledger: window.__game?.memory?.() ?? null, ...window.__device });
 /** The resident memory of every process of the WebKit Playwright runs (its pages', its GPU's, its own), MB (0 where it
     cannot be read). */
 function gpuProcess() {
@@ -72,8 +72,8 @@ async function arrived(page, out, t0, secs) {
     browser's resident memory at its most. */
 async function sample(page, out) {
   const s = await page.evaluate(look), T = s.top;
-  out.samples.push(s.ledger?.device ?? 0); out.process = Math.max(out.process, gpuProcess());
-  if (T) Object.assign(out, { peak: T.device, classes: T.classes, rows: T.rows, unnoted: T.unnoted, buffers: +(T.buffers / 1048576).toFixed(1) });
+  out.samples.push(s.ledger?.gpu ?? 0); out.process = Math.max(out.process, gpuProcess());
+  if (T) Object.assign(out, { peak: T.device, classes: T.classes, rows: T.rows, makers: T.makers, past: T.over, unnoted: T.unnoted, buffers: +(T.buffers / 1048576).toFixed(1) });
   return s;
 }
 /** `secs` past ready, sampled each second (sample), walked forward from a third of the stay to its half; ends early where the device is lost. The last
@@ -99,6 +99,8 @@ export function lines(d) {
     `GPU memory (the game's ledger): peak ${mb(d.peak)}, settled ${mb(d.settled)}, against the budget's ${mb(d.budget)}; unnoted by any pool ${mb(d.unnoted)}; WebKit's processes at most ${mb(d.process)} resident${d.honest ? '' : `; **the ledger is short**: the device made ${mb(d.buffers)} of buffers alone`}.`,
     `By class at the peak: ${Object.entries(d.classes ?? {}).map(([c, x]) => `${c} ${x.gpu} MB of ${x.budget}${x.gpu > x.budget ? ' (over)' : ''}`).join(', ') || '–'}.`,
     `The largest pools: ${(d.rows ?? []).map(([n, g]) => `${n} ${g} MB`).join('; ') || '–'}.`,
+    `The largest makes, by class and what they were (the ledger's makers): ${(d.makers ?? []).map(([c, w, m, n]) => `${c}: ${w} ${m} MB (${n})`).join('; ') || '–'}.`,
+    `Made past a budget (the ledger's over): ${(d.past ?? []).map((o) => `${o.who} with ${o.by} (${o.mb} MB of ${o.budget})`).join('; ') || 'none'}.`,
     `The longest submission ${d.longest} ms (a frame's budget ${FRAME_MS} ms; ${d.over} of ${d.submits} over it)${d.errors.length ? `; the device said: ${d.errors[0]}` : ''}.`,
   ];
 }
