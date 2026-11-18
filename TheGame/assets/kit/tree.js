@@ -30,7 +30,8 @@
 // its file is read (a worker reads this file too: plain JS, nothing of the page in it).
 
 import { budgetOf } from './crowd.js';
-import { bandsOf, shapeSize, ownTop } from './plant.js';
+import { bandsOf, shapeSize } from './plant.js';
+import { kindRule } from '../kinds.js';
 import { add, sub, mul, dot, len, norm, cross, lerp, bez } from './math.js';
 import { rng } from '../../src/core/hash.js';
 
@@ -287,11 +288,14 @@ const packed = (m) => ({ ...Object.fromEntries(FLOATS.filter((k) => m[k]?.length
     (src/scatter/heap.js). What the page must know at once (size, heights, trunk) is measured once on its shapes as
     grown and kept as a few numbers (OUTLINES). */
 export function tree(recipe) {
-  const { shapes: own = [{}], growth, grow, shade, levels, shadow = {}, far = {}, fine = null, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
+  const { shapes: own = [{}], growth, grow, shade, shadow = {}, fine = null, ...rest } = recipe, seed = rest.placement?.seed ?? 1;
+  // (its levels are its kind's, assets/kinds.js: as many as its px, the last of them its far ones, as its kind's `far`
+  // says: what a recipe says of them itself, it says only where it differs)
+  const far = recipe.far ?? kindRule(rest, 'far') ?? false, nFar = far ? (far.speck === false ? 1 : 2) : 0, levels = recipe.levels ?? Array.from({ length: Math.max(1, kindRule(rest, 'px').length - nFar) }, () => ({}));
   const G = growth ? stagesOf(growth, seed) : null, shapes = G ? G.shapes : own;
   // its levels: its file's, then its far ones (its clumps and its impostor: two, one where `speck: false`, none where
   // `far: false`), each a first share of its finest; where each ends on screen is its kind's (assets/kinds.js px)
-  const specs = [...levels, ...(far ? Array.from({ length: far.speck === false ? 1 : 2 }, () => ({ P: far.P ?? 64, far: true })) : [])];
+  const specs = [...levels, ...(far ? Array.from({ length: nFar }, () => ({ ...(far.P ? { P: far.P } : {}), far: true })) : [])];
   // (the last few made are kept as the builder left them: the crowd kit builds a shape's levels one after another)
   const memo = new Map(), once = (key, make) => { let m = memo.get(key); if (!m) { if (memo.size >= 6) memo.delete(memo.keys().next().value); memo.set(key, (m = make())); } return m; };
   /** Shape `shape` at its finest, as the builder made it (its attributes lists of numbers): grown whole, and where its
@@ -325,7 +329,7 @@ export function tree(recipe) {
     crowdRooms() {
       const o = measured();
       if (!o.rooms) {
-        const his = bandsOf(out).map(([, hi], l) => (l ? hi : Infinity)), B = shapes.map((s, i) => budgetOf(finest(i), { size: shapeSize(out, i) }, his.map((hi) => ownTop(out, i, hi))));
+        const his = bandsOf(out).map(([, hi], l) => (l ? hi : Infinity)), B = shapes.map((s, i) => budgetOf(finest(i), { size: shapeSize(out, i) }, his));
         o.rooms = B.map((b) => b.map((r) => [r.verts, r.tris])); o.far = B.map((b) => ({ cell: b.cell, chunks: b.chunks }));
         OUTLINES.made.set(id, o);
       }

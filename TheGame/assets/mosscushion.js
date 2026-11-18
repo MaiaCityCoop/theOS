@@ -36,7 +36,7 @@ export default tree({
   uid: '35e25aab-5b51-41bc-9914-31cd4b9915ec',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)
   type: 'asset',
   name: 'Moss cushion',
-  kind: 'shrub',
+  kind: 'litter',
   about: 'A low cushion of moss on the wood’s floor, a few grown together: green where the needles lie thin and the shade keeps the ground damp.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
@@ -51,10 +51,7 @@ export default tree({
   wind: { sway: 0 },   // it lies: no wind moves it
   shapes: [{ r: 0.42, h: 0.13, domes: 3, seed: 721 }, { r: 0.28, h: 0.09, domes: 2, seed: 722 }],
   grow,
-  // its levels of detail, near to far (src/detail): where each ends comes from its kind, shrub (assets/kinds.js)
-  levels: [{ P: 4 }, { P: 8 }],
-  far: false,
-  // where it lies: the pine forest's litter, of which it takes its share; most of it in the shade of the groves
-  placement: { at: 'scatter', engine: 'trees', stand: 'litter', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, share: 0.4, scale: [0.8, 1.25], lean: 0,
-    where: { field: 'glade', from: 1, to: 0.25 }, seed: 720 },
+  // where it lies (src/scatter/rule.js): the pine forest's floor, most of it in the shade (light: how thick in deep
+  // shade and in the open)
+  placement: { at: 'scatter', engine: 'trees', biome: '170e8df4-254e-4df2-95e2-c584380cf14b' /* pine forest */, cover: 0.12, light: [1, 0.25], scale: [0.8, 1.25], lean: 0, seed: 720 },
 });

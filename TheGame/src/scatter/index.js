@@ -35,8 +35,8 @@ export const rowOf = (asset) => engineOf(asset)?.row?.(asset) ?? scatterRow(asse
 
 export function createScatter(scene, tex, ground, renderer, camera = null) {
   const gpu = !!renderer?.backend?.isWebGPUBackend;   // compute-packed tiers where WebGPU is (tier.js)
-  const tiers = [], solid = [];
-  const take = (made, name) => { if (made.solid) solid.push(made.solid); for (const t of made) { t.asset ??= name; tiers.push(t); } };   // solid: what reads its packing back as bodies (trees.js)
+  const tiers = [], solid = [], before = [], more = [];
+  const take = (made, name) => { if (made.solid) solid.push(made.solid); if (made.before) before.push(made.before); if (made.compile) more.push(made.compile); for (const t of made) { t.asset ??= name; tiers.push(t); } };   // solid: what reads its packing back as bodies (trees.js)
   const rows = new Map();   // each engine's assets
   for (const a of recipes('asset').filter((r) => r.placement?.at === 'scatter')) {
     const E = engineOf(a); if (!E) { console.warn(`no scatter engine '${a.placement.engine}' (${a.name})`); continue; }
@@ -54,6 +54,7 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
       const view = camera ? setView(camera) : '';   // the eye's view, for what is tested against it one by one (view.js)
       flushThings();   // (what was done to single things since the last frame, to the GPU before anything packs: src/world/things.js)
       const v = (u) => u.value.toArray?.().join(',') ?? u.value, world = `${ground.version}|${lod}|${v(U.uSand)}|${v(U.uStage)}|${v(U.uStageGround)}|${weatherKey()}|${waysVersion()}|${thingsVersion()}`;   // what the packing reads besides the cells and the camera
+      for (const f of before) f(cx, cz, `${ground.version}|${v(U.uSand)}|${v(U.uStage)}`);   // (what the larger things leave for the smaller, before any packs: growth.js)
       for (const t of tiers) t.run(renderer, world, cx, h0 + dy, cz, view);
       for (const f of solid) f(renderer);
     },
@@ -63,6 +64,6 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
     /** Every tier's packing passes compiled side by side, before the first packing (a promise): they read no target, so
         this may run beside anything. Compiled as each tier first packed, one after another, the GPU did nothing else
         meanwhile (63 passes, 8 s of a start of 35 without a GPU, 2026-11-15). */
-    compile() { const passes = [...tiers.flatMap((t) => t.passes ?? []), ...occlusion.passes()]; return passes.length ? renderer.compileComputeAsync(passes) : Promise.resolve(); },   // (and the culling's: src/core/occlusion.js)
+    compile() { const passes = [...tiers.flatMap((t) => t.passes ?? []), ...occlusion.passes()]; return Promise.all([passes.length ? renderer.compileComputeAsync(passes) : null, ...more.map((f) => f())]); },   // (and the culling's: src/core/occlusion.js)
   };
 }

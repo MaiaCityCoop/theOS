@@ -24,7 +24,7 @@ import { note } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { byRole } from '../core/registry.js';
 import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID } from '../world/land.nodes.js';
-import { kindsOf } from '../world/stand.js';
+import { standsOf, rowsOf } from '../scatter/rule.js';
 import { detailOf } from '../detail/index.js';
 import { TRUTH, REACH } from '../detail/measure.js';
 import { sizeOf } from '../../assets/kinds.js';
@@ -40,10 +40,12 @@ const EMPTY = 255, NO_STAND = 15, BAND = 0.15;   // (BAND: the share of a level,
 export const LAYERS = [];
 const lay = (o) => (LAYERS.push(o), LAYERS.length - 1);
 // what each kind of tree drops (its `litter`: assets/kit/tree.js), if not the biome's own floor: laid where that kind
-// leads in the biome's stand (its slice of the stand's slow noise, as its trees are placed), under its groves
-const drops = (bio) => (bio.trees ? kindsOf(bio.uid).filter((k) => k.asset.litter && k.asset.litter.material !== bio.floor.material) : []);
+// leads among the biome's grown trees (its slice of their slow noise, as the rule places them: src/scatter/rule.js),
+// under their groves
+const canopyOf = (bio) => standsOf(bio, rowsOf()).find((S) => S.key === 'tree') ?? null;
+const drops = (bio) => (canopyOf(bio)?.kinds ?? []).filter((k) => k.asset.litter && k.asset.litter.material !== bio.floor.material);
 // a biome's own grounds: its floor, its spots in it, its trees' litter
-const ofBiome = (bio) => ({ bio, floor: lay({ ground: bio.floor }), spots: bio.spots ? lay({ ground: bio.spots, fade: bio.spots.fade }) : -1, litter: drops(bio).map(({ asset, slice }) => ({ id: lay({ ground: asset.litter }), slice })) });
+const ofBiome = (bio) => ({ bio, groves: canopyOf(bio)?.P, floor: lay({ ground: bio.floor }), spots: bio.spots ? lay({ ground: bio.spots, fade: bio.spots.fade }) : -1, litter: drops(bio).map(({ asset, slice }) => ({ id: lay({ ground: asset.litter }), slice })) });
 const FLOOR = lay({ ground: BASE.floor });   // the base biome's floor, under everything
 // the grassy biomes, under the grass's carpet; then the base's bare patches (let go where its blades end) and the floor of
 // its outcrops
@@ -73,18 +75,15 @@ if (LAYERS.length > EMPTY) throw new Error(`the land lays ${LAYERS.length} layer
 //     it the trees' stand-in: src/world/shadow.js, assets/kit/tree.js); past that the floor is dimmed, unevenly, so a
 //     forest is not a plain in full sun with trees on it.
 export const STANDS = [];
-for (const bio of LAID) for (const [key, P] of Object.entries(bio)) {
-  if (!P || typeof P !== 'object' || !P.cell || P.density == null) continue;
-  const CV = P.cover ?? (key === 'trees' ? bio.canopy : null); if (!CV) continue;
+for (const bio of LAID) for (const { P, kinds, CV } of standsOf(bio, rowsOf())) {
   // of what grows in the stand, the kind drawn farthest: its colour comes in where its plants go out (they are drawn
   // while their largest side is more than their last level's pixels, the same rule by the lens and the window:
   // src/detail), the largest to `last` metres, most of them gone by two thirds of that; without such plants, its own
-  // from/to. A stand that changes level as one (its `size`): its colour comes onto the land only far off, where its plants
-  // are bodies about to sink
-  const A = kindsOf(bio.uid, key).map((k) => k.asset).sort((x, y) => sizeOf(y) / detailOf(y).cut - sizeOf(x) / detailOf(x).cut)[0];
-  const cutPx = A ? detailOf(A).cut : 0, span = cutPx ? (P.size ?? sizeOf(A) * (A.placement.scale?.[1] ?? 1)) / cutPx : 0;   // (last = uPxK × span: the measure's farAt, src/detail/measure.js)
+  // from/to
+  const A = kinds.map((k) => k.asset).sort((x, y) => sizeOf(y) / detailOf(y).cut - sizeOf(x) / detailOf(x).cut)[0];
+  const cutPx = A ? detailOf(A).cut : 0, span = cutPx ? (sizeOf(A) * (A.placement.scale?.[1] ?? 1)) / cutPx : 0;   // (last = uPxK × span: the measure's farAt, src/detail/measure.js)
   const SH = A?.detail?.shadow;   // where its shadows are no longer drawn: past the map's box, or past the trees' stand-in in it
-  STANDS.push({ bio, P, grain: CV.grain ?? 1, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? (P.size ? [0.45, 0.8] : [0.3, 0.68]) : [CV.from ?? 1e9, CV.to ?? 2e9], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1 });
+  STANDS.push({ bio, P, grain: CV.grain ?? 1, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? [0.3, 0.68] : [CV.from ?? 1e9, CV.to ?? 2e9], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1 });
 }
 if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} stands that wear a colour: four bits name at most ${NO_STAND - 1}`);
 
@@ -128,12 +127,12 @@ export function createLayers(renderer, tex) {
       const S = LAYERS.map(() => float(0).toVar()); S[FLOOR].assign(1);
       const over = (id, t) => { const k = float(t).toVar(); for (const s of S) s.mulAssign(float(1).sub(k)); S[id].addAssign(k); };
       // a biome's ground: its floor, its spots and its trees' litter laid over each other, then all of it over what is there
-      const biome = ({ bio, floor, spots, litter }) => {
+      const biome = ({ bio, groves, floor, spots, litter }) => {
         const wt = share.get(bio).mul(bio.mix ?? 1).toVar(), own = new Map([[floor, float(1)]]);
         const put = (id, t) => { for (const [k, v] of own) own.set(k, v.mul(float(1).sub(t))); own.set(id, t); };
         if (spots >= 0) put(spots, clamp(bio.spots.where(ctx), 0, 1).toVar());
         if (litter.length) {
-          const lead = leadAt(p, bio.trees).mul(0.7).add(0.15).toVar(), thick = smoothstep(0.1, 0.6, groveAt(p, bio.trees)).toVar();
+          const lead = leadAt(p, groves).mul(0.7).add(0.15).toVar(), thick = smoothstep(0.1, 0.6, groveAt(p, groves)).toVar();
           for (const { id, slice: [a, b] } of litter) put(id, (a > 0 ? smoothstep(a - 0.06, a + 0.06, lead) : float(1)).mul(b < 1 ? float(1).sub(smoothstep(b - 0.06, b + 0.06, lead)) : float(1)).mul(thick).toVar());
         }
         for (const s of S) s.mulAssign(float(1).sub(wt));
@@ -172,8 +171,8 @@ export function createLayers(renderer, tex) {
       // ratio: no grid of crowns) ----
       const st = [0, 1].map(() => ({ id: int(NO_STAND).toVar(), c: float(0).toVar(), n: float(0).toVar() }));
       STANDS.forEach((T, id) => {
-        const wt = share.get(T.bio), likes = T.P.where ? T.P.where({ p }) : float(1), g = T.grain;
-        const c = clamp(wt.mul(groveAt(p, T.P)).mul(likes).mul((T.P.density ?? 1) * T.fill), 0, 1).toVar();
+        const wt = share.get(T.bio), g = T.grain;
+        const c = clamp(wt.mul(groveAt(p, T.P)).mul((T.P.density ?? 1) * T.fill), 0, 1).toVar();
         If(c.greaterThan(st[1].c), () => {
           const n = nz(p.div(23 * g).add(0.7), 23 * g).r.mul(0.35).add(nz(prr.div(31.7 * g).add(0.2), 31.7 * g).g.mul(0.35)).add(nz(pr.div(9.3 * g), 9.3 * g).g.mul(0.3)).toVar();
           If(c.greaterThan(st[0].c), () => { st[1].id.assign(st[0].id); st[1].c.assign(st[0].c); st[1].n.assign(st[0].n); st[0].id.assign(id); st[0].c.assign(c); st[0].n.assign(n); })

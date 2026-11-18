@@ -11,6 +11,7 @@ import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
 import { TRUTH } from '../detail/measure.js';
 import { CROWD } from '../../assets/kit/crowd.js';
+import { rankOf } from './rule.js';   // (a blade's turn in the one spread order, as everything placed has it)
 
 const u8 = (h, sh) => float(h.shiftRight(uint(sh)).bitAnd(uint(0xFF))).mul(1 / 256);   // one byte of a hash, 0..1
 
@@ -29,10 +30,6 @@ function blade(segs) {
 // blades so many times fewer and as many times wider (widthOf); and the last ring's blades are thinned out towards its
 // end, one spread order deciding which go (rankOf), those left growing in width up to SWELL times (endOf), never in height.
 const widthOf = (asset, T) => asset.tiers[0].w * (T.cell / asset.tiers[0].cell) ** 2;
-/** A blade's turn in the meadow's one spread order: its cell's place in a 4 x 4 ordered dither (Bayer), so any first
-    share of the turns is spread evenly over the ground, and within that by its own number. */
-const bayer2 = (x, y) => x.bitXor(y).bitAnd(uint(1)).mul(uint(2)).add(y.bitAnd(uint(1)));
-const rankOf = (c, own) => { const x = uint(c.x).bitAnd(uint(3)), y = uint(c.y).bitAnd(uint(3)); return float(bayer2(x, y).mul(uint(4)).add(bayer2(x.shiftRight(uint(1)), y.shiftRight(uint(1))))).add(own).div(16); };
 /** The share of the last ring's blades still drawn at `dist` metres (1 short of its last 30 %, none at its end). */
 const endOf = (T, dist) => (T.end < 1e5 ? float(1).sub(smoothstep(T.end * 0.7, T.end, dist)) : float(1));
 
