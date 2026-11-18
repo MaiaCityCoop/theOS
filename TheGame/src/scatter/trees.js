@@ -564,8 +564,8 @@ export function groupsOf(rows) {
   const by = new Map();
   for (const L of layersOf(rows)) for (const e of L.entries) {
     const { row, asset: a } = e, P = a.placement, levels = row.detail.levels.filter((l) => !l.impostor).map((l, i) => ({ ...l, P: patchOf(l, i) }));
-    const key = [L.k, a.kind, row.detail.fade, row.detail.sink, ...levels.map((l) => `${l.P}:${l.lo}`)].join('|');
-    if (!by.has(key)) by.set(key, { key, name: `${a.kind}s, ${L.name}`, L, fade: row.detail.fade, sink: row.detail.sink, n: levels.length, kinds: [] });
+    const key = [L.k, row.detail.fade, row.detail.sink, ...levels.map((l) => `${l.P}:${l.lo}`)].join('|');
+    if (!by.has(key)) by.set(key, { key, name: `${a.kind}s, ${L.name}`, L, fade: row.detail.fade, sink: row.detail.sink, n: levels.length, kinds: [] });   // (named by its first kind)
     // the sizes a plant of it can have: its youngest and its oldest (by its growth: a sapling's, its first stages'), or its scale's
     const H = a.size.height, GR = a.growth, wide = sizeOf(a) / H, n = e.shapes[1], last = GR?.stages.filter((S) => S.offset < n).at(-1);
     const lo = (GR ? GR.stages[0].hFrom * P.scale[0] : H * P.scale[0]) * wide, hi = (GR ? Math.max(...a.heights.slice(0, n)) * (last.hTo / last.h) * P.scale[1] : H * P.scale[1]) * wide;

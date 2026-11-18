@@ -45,6 +45,7 @@ const KINDS = {
   // 100 px, its second to 6, sunk by 10; no far end (a few hundred corners: cheaper drawn than baked), nothing a walker
   // cannot step over or through, no shadow of its own, still in the wind
   litter: { px: [100, 6], far: false, fade: 0.15, sink: 1.7, impostor: false, solid: false, casts: false, snow: { clumps: 0.05 }, foliage: { wrap: 0.4, through: 0.2, flutter: 0 } },
+  herb: { px: [100, 6], far: false, fade: 0.15, sink: 1.7, impostor: false, solid: false, casts: false, snow: { clumps: 0.1 }, wind: { sway: 0.1 }, foliage: { wrap: 0.5, through: 0.4, flutter: 0.7 } },   // a fern, a herb: drawn as what lies on the floor is, but it sways and its leaves tremble
   grass: { impostor: false, solid: false, casts: false },   // blades: drawn in rings by the grass's engine (its own tiers), nothing a walker cannot pass
   rock: { impostor: false, solid: { round: true, post: 0.4 }, casts: true, snow: { clumps: 0.05 } },   // stone holds it evenly, a little drifted. Its levels are the ladder's (assets/kit/ladder.js: its assets say detail.ladder)
   shelter: { px: [170, 45, 15, 5], fade: 0.15, impostor: { px: 1.5 }, casts: true, wind: { billow: 0.09, flap: 0.025 }, surface: { wrap: 0.35, through: 0.45 }, snow: { clumps: 0.22 } },   // canvas: snow slides off it in sheets, clumps hold   // canvas: soft, and thin enough to glow   // a tent of nine metres: its finest to 30 m, a card from a kilometre to three and a half

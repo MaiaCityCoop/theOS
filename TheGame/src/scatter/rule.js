@@ -133,7 +133,7 @@ export function placeIn(c, L, M, pos) {
   const clump = (b) => groveAt(pos, grovesOf(b, L));   // (0 … 1.6: thick in its groves, open in its glades)
   const coarse = bios.map((b) => (b.river ? float(1) : shareOf(b, { p: pos, dist: float(0), d: float(1e5), w: float(1), b: float(0) })).mul(clump(b))).reduce((a, x) => max(a, x));
   If(rank.lessThan(coarse.mul(top)), () => {
-    I.assign(vec4(riverInfo(pos), 0));
+    I.assign(riverInfo(pos));
     const d = abs(I.x), w = I.y, ctx = { p: pos, dist: float(0), d, w, b: I.z }, clear = clearAt(pos).toVar(), F = influenceAt(pos, L, M);
     const share = new Map(bios.map((b) => [b, shareOf(b, ctx).mul(clump(b)).mul(clear).toVar()]));
     const leads = new Map(L.groups.filter((g) => g.entries.length > 1).map((g) => [g, leadAt(pos, grovesOf(g.biome, L)).mul(0.7).add(0.15).toVar()]));
