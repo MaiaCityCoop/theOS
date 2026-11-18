@@ -106,6 +106,13 @@ And it asks for more of it: a whole smile, a fond gaze, good teeth. Built straig
 
 **Deliverable:** 9. a base face that smiles warmly, with a fond, sparkling gaze and good teeth. **Checks** as before.
 
+### Fourth round (2026-11-18)
+
+> Also the chin needs to be shorter a bit and we don't see nose holes.
+
+Samuel, on the third round's stills. Two corrections, built straight away: the chin's foot higher; the nostrils
+opened to the front and dark inside. **Deliverable:** 10. a shorter chin, nostrils that show. **Checks** as before.
+
 ## Build
 
 **What turned out different from the definition, and why.** The definition said: draw what can be drawn exactly (the
@@ -243,9 +250,24 @@ its carved bowl are gone from the tables. The skin is now three closed surfaces:
   it turns to the next tooth. The lower row's eight front teeth stand behind the upper (the skull's own places), for
   what shows of them: eighteen crowns in all.
 
+### Fourth round: a shorter chin, nostrils that show (2026-11-18)
+
+- **The chin** is 2.6 mm shorter in the head's form: its foot at 1.5625 m for 1.5599 (the chin's mass and the floor
+  under the jaw raised, the form's lowest level from 1.566 to 1.569 m). **Its bone sets the limit:** the skull's chin
+  ends at 1.5665 m, and with the chin shortened the jaw bone's lower border beside it stood 1.2 mm out of the skin
+  (the tool's check). A low ridge over that border covers it again; the least cover of the head's bones is 0.6 mm, at
+  the jaw's angle. A chin shorter still needs a shorter jaw bone, which is the skeleton's.
+- **The nostrils** did not show because the nose's wings came down as far as its foot, so each nostril opened
+  straight down. The wings' rims now end 2 to 3 mm above the nose's foot (as a nose's do: its middle strip hangs below its
+  wings), the nostril's hollow reaches the front under the tip, and the skin inside a nostril is drawn dark
+  (`skin/light.js`, by where the point lies in the hollow of `OPENINGS`).
+- **The tool** took the floor of the mouth for the chin's foot when that hung lower than the chin: it now reads the
+  chin's own foot (the profile's lowest point before 78 mm). The face from the nose's root to the chin's foot:
+  122.1 mm, a man's 122.
+
 ## Propose
 
-**What is delivered** (three rounds). A head that reads as a head, and a face whose rest is a warm smile: a fond,
+**What is delivered** (four rounds). A head that reads as a head, and a face whose rest is a warm smile: a fond,
 bright gaze from eyes behind smiling lids, the lips parted over good teeth, a narrower chin, ears that stand off the
 head. Not yet a photograph. Look at it with
 `bun tools/body.js --stills <folder>` (the game's dev server running): `face`, `face-three-quarter`, `face-side`,
@@ -254,8 +276,8 @@ head. Not yet a photograph. Look at it with
 | # | Check | Result |
 | --- | --- | --- |
 | 1 | The face reads as a face, and a warm one; the ears as ears | **Passed, with the gaps below.** The tool drew all twenty-two stills on 2026-11-18. Beside the stills before: an upright forehead; eyes in sockets, narrowed from below as a smile narrows them, with lashes, a wide pupil and sparks of light; a nose with ridge, tip and wings; a broad smile, its corners up, the lips parted over the upper row of teeth, each tooth shaded against the next; a chin and a jaw's line; ears with a rim, an inner ridge, a bowl and a lobe, standing off the head from the front and from behind. Whether it is the gaze of a human in love and full of inspiration is Samuel's to say: it is warm and bright; it is also fixed |
-| 2 | Its measures | **Printed.** Table below: nine of fourteen within 5 % of a man's, one at 5 %, the nose's tip 10.7 % short; three are a smile's measured against norms for a face at rest. The norms are remembered, none read for this |
-| 3 | The body is as it was | **Passed.** Twelve of the body's thirteen measures to the digit as in intent 0039; the neck 39.0 cm for 43.1 (a man's 39). Open edges 0 at each of the three levels. The body's own points are where they were; the five poses' shares read a little lower (0.34 %, 1.1 %, 0.42 %, 0.51 %, 1.62 % for 0.38, 1.24, 0.47, 0.58, 1.87) because the ears' edges, which do not stretch, are now counted among them |
+| 2 | Its measures | **Printed.** Table below: nine of fourteen within 5 % of a man's, one at 5 %, the nose's tip 11.2 % short; three are a smile's measured against norms for a face at rest. The norms are remembered, none read for this |
+| 3 | The body is as it was | **Passed.** Twelve of the body's thirteen measures to the digit as in intent 0039; the neck 38.8 cm for 43.1 (a man's 39). Open edges 0 at each of the three levels. The body's own points are where they were; the five poses' shares read a little lower (0.34 %, 1.1 %, 0.42 %, 0.51 %, 1.62 % for 0.38, 1.24, 0.47, 0.58, 1.87) because the ears' edges, which do not stretch, are now counted among them |
 | 4 | Nothing else changes | **Passed.** `bun tools/scale.js`: 18 of 18 within their measure. `bun tools/registry.js`: 52 recipes. `vite build` in `TheGame` and in `OS`: built |
 
 Also seen: the Body grown end to end in a page's own workers with the smile, the teeth and the ears, standing,
@@ -270,10 +292,10 @@ laid in 31 s under node.
 | head, its breadth | 154 | 152 | +1.3 % |
 | face, across the cheekbones | 143 | 140 | +2.1 % |
 | jaw, across its angles | 118.7 | 119 | -0.2 % |
-| face, the nose's root to the chin's foot | 126.6 | 122 | +3.8 % |
+| face, the nose's root to the chin's foot | 122.1 | 122 | +0.1 % |
 | nose, its root to its foot | 57.7 | 55 | +5 % |
-| nose, its breadth | 36.6 | 35 | +4.6 % |
-| nose, its tip before its foot | 17.4 | 19.5 | -10.7 % |
+| nose, its breadth | 36.4 | 35 | +4 % |
+| nose, its tip before its foot | 17.3 | 19.5 | -11.2 % |
 | upper lip, the nose's foot to its edge, smiling (as drawn; a man's: at rest) | 13.8 | 22 | -37.3 % |
 | mouth, its breadth, smiling (as drawn; a man's: at rest) | 61 | 54 | +13 % |
 | eye, its opening's length (as drawn) | 30.1 | 31 | -3 % |
@@ -296,12 +318,14 @@ lab script's print).
 4. **The ears:** the tragus is a rise before the canal, not a flap over it; there is a small point where the rim
    leaves the temple; the back of the ear is plain; where the ear meets the head there is a plain line, the two skins
    meeting, not one skin turning. At a distance its coarsest level is blocky (seen as clay only).
-5. **The nose's tip is broad and soft**, its nostrils are not seen from the front, and one wing shows a pale smear.
+5. **The nose's tip is broad and soft**, and one wing shows a pale smear. The nostrils show now, as dark ovals: a
+   little too even, like paint, seen close.
 6. **The skin is one even surface**: no pores that differ from place to place, no hairs in the beard's shadow, no
    line on the brow, a shaved head. It reads as a well-made game character, not a photograph.
 7. **Faint level streaks** across the far cheek in the three-quarter still, and a pale line up the cheek.
 8. **The skin is three closed surfaces now** (the body and two ears), not intent 0039's one.
-9. **The chin's bone corner** has 0.3 mm of skin over it, measured on cells of 6 mm: too coarse to trust either way.
+9. **The jaw's angle** has 0.6 mm of skin over its bone, measured on cells of 6 mm: too coarse to trust either way.
+   The chin cannot be shorter than it is without a shorter jaw bone.
 10. **Cost not measured.** The ears add 24 680 triangles near, the teeth and the eyes their own surfaces. Every still
     was drawn through WebGL 2 on a software GPU; the library on a real GPU was not seen.
 
@@ -309,7 +333,8 @@ lab script's print).
 
 - **Accept or reject** this round.
 - **How much of a smile:** it is four numbers in `MOUTH`, and the lids' two in `EYE`.
-- **The chin:** now 100.5 mm before the head's middle plane, 4 mm behind where the measured means put it. Further?
+- **The chin:** now 100.4 mm before the head's middle plane and its foot at 1.5625 m, as short as its bone lets it
+  be. Shorter still means a shorter jaw bone in the skeleton: say so and it is a round of its own.
 - **What next for the head**, if anything: hair (head, beard, brows as strands); the face moving (a blink is one
   number in `EYE`, a smile four in `MOUTH`; a look and a jaw are the rig's).
 - **The rule "our own code only"**, as in 0039: it stands.
@@ -335,6 +360,7 @@ lab script's print).
 - [x] second round: a smile over teeth; the eyes' sparkle
 - [x] second round: ears of their own form
 - [x] third round: a whole smile, a fond gaze, good teeth
+- [x] fourth round: the chin shorter; nostrils that show
 - [ ] hair; the face moving (out of scope here: Samuel's to order)
 - [ ] seen in the library on a real GPU, and timed
 
@@ -398,6 +424,19 @@ lab script's print).
 - **Not there yet.** As the second round: the smile and the gaze are fixed; no hair; not seen in the library or on a
   real GPU. "In love and full of inspiration" is his to judge, not a number.
 
+### 2026-11-18, fourth round
+
+- **Asked.** Samuel, on the third round's stills: "Also the chin needs to be shorter a bit and we don't see nose
+  holes" (typos tidied). Back to build once more.
+- **Delivered.** The chin's foot 2.6 mm higher. The nostrils opened to the front under the tip, the wings' rims
+  raised, the inside of a nostril dark. The tool reads the chin's own foot.
+- **Good.** In the stills two nostrils show from the front and three-quarter, one from the side. The face from the
+  nose's root to the chin's foot measures 122.1 mm, a man's 122.
+- **Broke on the way.** The shorter chin uncovered the jaw bone's lower border by 1.2 mm; covered again by a low
+  ridge.
+- **Not there yet.** The chin is as short as its bone allows; the nostrils are even dark ovals. The rest as the third
+  round.
+
 ## Trail
 
 | When | Commit | What |
@@ -410,3 +449,5 @@ lab script's print).
 | 2026-11-18 | 3e8ec82 | the ears' finished form; the tool's ear views; the jaw's angle covered |
 | 2026-11-18 | ecdb64f | proposed again: the second round's write-up and story |
 | 2026-11-18 | 9044585 | third round: a whole smile as the base, a fond gaze, teeth with gums and a lower row; back to build and proposed again |
+| 2026-11-18 | 3058e64 | proposed a third time: the third round's write-up and story |
+| 2026-11-18 | 2fee84f | fourth round: the chin shorter, nostrils that show; the tool reads the chin's own foot |
