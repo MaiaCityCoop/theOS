@@ -227,11 +227,14 @@ numbers are written below.
   - **The meadow's blades** are fewer and wider (halved, doubled) ring by ring: check them at eye level.
 
 **How this work runs:**
-- **Who:** one master session works through subagents, each in its own worktree on its own `aven/0038-…` branch,
-  with its own dev server on its own port. Each runs `tools/gate.js --url … --fresh` against main and against the
-  truth.
-- **Merging:** a PR merges when CI ("check") is green and its gate numbers and screenshots check out. Samuel
-  authorised merging and deploying each stage without asking (2026-11-17).
+- **Who:** since 2026-11-18 the master is the session on the Mac mini, whose GPU no one else shares: it gives out the
+  tasks, reviews and merges. The MacBook's session is a worker, like the Mac mini's own task sessions. Each works in its
+  own worktree on its own `aven/0038-…` branch, with its own dev server on its own port, runs
+  `tools/gate.js --url http://127.0.0.1:… --fresh` against main and against the truth, and reports its PR to the
+  master. On the Mac mini, GPU runs take turns through the lock `~/src/github/MaiaCityCoop/.gate-lock`.
+- **Merging:** the master merges a PR when CI ("check") is green and its gate numbers and screenshots check out.
+  Samuel authorised merging and deploying each stage without asking (2026-11-17), and gave that role to the Mac mini's
+  master (2026-11-18). Workers open draft PRs, mark them ready, and never merge.
 - **Screenshots:** labelled before/after images go to Samuel with every task that changes the picture.
 - **Hygiene:** after a merge, remove the stage's worktree, its branch and its dev servers.
 
@@ -1209,6 +1212,17 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
   - against main's truth the stage is farther at every view taken, because its own finest is laid from four sprays a
     plant and its meadow from an ordered dither; its own truths at the tent and in the forest were lost to the device;
   - the walk and zoom paths were not run; Safari not tried.
+
+- **Asked (by the orchestrating session, now on the Mac mini):** website and repo hygiene from the audit (task D):
+  the front page's inline style in a file of its own, the brand's unused files gone, the builds without the brand's
+  drafts, Samuel's photo at the size it is shown.
+- **Delivered:** merged as PR #75 (`9b03f3f`): the front page's style in `OS/src/front.css` (not `brand.css`, which
+  every game page loads), builds without `brand/sheets/` (one filter in `server/repo.js`), `theOS.svg` and
+  `theOS_dark.svg` removed, `samuel.jpg` 758 kB → 5.7 kB (77 px, twice its 38.4 px).
+- **Good:** seven pages at two widths, 0 px changed outside Samuel's photo; the website's build −35 % (3.57 → 2.32 MB),
+  the game's −30 % (4.66 → 3.28 MB), the release for next −30 % (9.0 → 6.3 MB); `index.html` 75 → 16 kB.
+- **Not there yet:** the website's own console errors (SVG `NaN` in the day cards, 404s for scene media not in git)
+  are main's too, and untouched.
 
 ## Trail
 
