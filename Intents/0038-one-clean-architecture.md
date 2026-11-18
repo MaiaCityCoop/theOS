@@ -401,7 +401,8 @@ Three research rounds, each read against this definition. Sources marked † wer
 
 ### Stage 4: far end (2026-11-17)
 
-- Built on `aven/0038-stage4-far` from main at `a5d2d9a`, rebased onto `32f14e7` (stage 2a), as a draft PR.
+- Built on `aven/0038-stage4-far` from main at `a5d2d9a`, rebased onto `32f14e7` (stage 2a) before it was pushed,
+  then merged with main at `00bb3cb` (stages 2b and 10), as a draft PR.
 - **The impostor rung** (`src/detail/impostor.js`):
   - one octahedral impostor a shape: 10 × 10 views over the half-sphere above, 128 texels a view, framed by the sphere
     round the whole plant;
@@ -434,6 +435,9 @@ Three research rounds, each read against this definition. Sources marked † wer
   that ratio changes.
 - **Settle:** each stand's far ends are a source of `src/core/settle.js`: the world is not complete while a shape of it
   is still being baked.
+- **The prepass (stage 2b):** the impostors and the clump planes take part in it. They are cut there, by their cover
+  and by the impostor's cross-fade texel by texel; the prepass writes their motion (a clump plane sways with its cards,
+  through the same `stand()`; an impostor's quad stands still); the colour pass draws them with no discard.
 - **Deleted:**
   - the three hull far bodies and the post (`HULLS`, `bodyOf`, `placesOn`, `skinAt`, `enclosing`, `crownSeen`);
   - `bakeOf` and its texture layers (`bakeLayers`, `BAKED`, `BAKEMIPS`, `bakeRes`);
@@ -444,34 +448,40 @@ Three research rounds, each read against this definition. Sources marked † wer
   recipe from its nearest level. Without WebGPU it has none, and its last level sinks away instead. The list's made things and the rocks
   have no impostor: they end in the drawer's dot and the rocks' thinning, untouched.
 - **Checked** in headless Chrome on Samuel's Mac: 1280 × 720 at a pixel ratio of 3 (a 4K picture), the world drawn
-  at 2, against main at `32f14e7` on a server of its own. Another session's gate runs shared the GPU the whole time,
-  so every time below is an upper bound, and noisy.
-  - **Stills** (the tent; the pine stand at eye level and 30, 60, 120 and 250 m up): main's far pines are faceted
-    domes with pale seams painted on them, stippled at their edges, from 30 m up and behind the tent. Here they are
-    stone pines: trunks, crowns in clusters with gaps, the ground between them. No dome, no stipple, no dark outline
-    at 4K. The far shrubs at the tent read darker than main's, as they do in `?truth`: against a `?truth` still of the
-    tent, the mean difference of 8 × 8 blocks fell from 13.8 to 6.8 over the shrubs and from 4.6 to 2.7 over the
-    treeline.
-  - **What the plants submit and cost** (`?gputime`; vertices a frame; the plants' own GPU time is the frame with them
-    less the frame without them, the median of nine turns, two runs each):
+  at 2, against main on a server of its own (`32f14e7`, and `00bb3cb` after the merge). Another session's gate runs
+  shared the GPU until about 02:45; the timings in the table were read after that.
+  - **Stills** (the tent; the pine stand at eye level and 30, 60, 120 and 250 m up), before and after the merge: main's
+    far pines are faceted domes with pale seams painted on them, stippled at their edges, from 30 m up and behind the
+    tent. Here they are stone pines: trunks, crowns in clusters with gaps, the ground between them. No dome, no
+    stipple, no dark outline at 4K.
+  - **Against `?truth`** (before the merge): the far shrubs at the tent read darker than main's, as they do in the
+    truth. The mean difference of 8 × 8 blocks from a `?truth` still fell from 13.8 to 6.8 over the shrubs and from
+    4.6 to 2.7 over the treeline.
+  - **A crown halfway through its cross-fade** shows a fine speckle at 4K, where neither its mesh's texel nor its
+    impostor's is kept: two crowns in the 60 m still after the merge.
+  - **What the plants submit and cost**, after the merge (`?gputime`, ratio 2; vertices a frame; the plants' own GPU
+    time is the frame with them less the frame without them, the median of nine turns):
 
-| View | Vertices, main → here | Plants' GPU ms, main → here | Whole frame ms (`tools/bench.js`, ratio 2), main → here |
+| View | Vertices, main → here | Plants' GPU ms, main → here | Whole frame ms (`tools/bench.js`), main → here |
 | --- | --- | --- | --- |
-| tent, eye level | 0.44 M → 0.54 M | 4.5–7.3 → 2.5–2.6 | 24.8 → 14.6 |
-| river bend, 26 m | 0.25 M → 0.99 M | 1.2–2.1 → 2.0–3.9 | 24.0 → 18.3 |
-| town, 40 m | 0.32 M → 0.58 M | 1.3–2.4 → 3.5–4.4 | 19.1 → 13.8 |
-| pine forest, eye level | 2.93 M → 3.38 M | 10.3–19.9 → 15.7–18.0 | 60.7 → 35.3 |
-| pine forest, 90 m | 0.46 M → 0.92 M | 2.5–3.6 → 2.5–3.5 | 28.2 → 28.8 |
+| tent, eye level | 0.44 M → 0.54 M | 1.4 → 1.8 | 31.8 → 24.5 |
+| river bend, 26 m | 0.25 M → 0.99 M | 1.4 → 1.6 | 42.6 → 30.6 |
+| town, 40 m | 0.32 M → 0.58 M | 0.9 → 0.4 | 23.1 → 24.2 |
+| pine forest, eye level | 2.93 M → 3.38 M | 4.4 → 3.6 | 30.4 → 31.3 |
+| pine forest, 90 m | 0.46 M → 0.92 M | 1.1 → 1.7 | 23.3 → 23.8 |
 | skyline, 2.5 km | 27 k → 18 k | (its timer reads negative, on main too) | |
 
-  - At ratio 3 the whole frame read 38–78 ms on main and 33–78 ms here. Main alone, before the other runs began,
-    read 12–22 ms at ratio 2: the shared GPU more than doubles what is read.
-  - **Memory** (the GPU ledger, settled at the start): main 420 MB, here 837 MB. The impostors' atlases take 417 MB
-    (the pines' 267, the shrubs' 100, the reeds' 50) and the clumps' 51 MB; the packed tiers take 39 MB more; the
-    trees' meshes 57 MB less (no hull bodies, no baked crowns).
-  - **Baking:** every shape's far end is in 33–42 s after the plants' coarse levels (on the shared GPU); `settle()`
-    resolves after it.
-  - `bun tools/scale.js`: 18 of 18 within their measure. `bunx --bun vite build`: built (TheGame and OS).
+  - Before the merge, on the shared GPU, the plants' own time read 1–20 ms on main and 2–18 ms here: no clear
+    difference either way.
+  - **Memory** (the GPU ledger, settled at the start, after the merge): main 399 MB, here 828 MB. The impostors' atlases
+    take 417 MB (the pines' 267, the shrubs' 100, the reeds' 50) and the clumps' 51 MB; the packed tiers take 39 MB
+    more; the trees' meshes 57 MB less (no hull bodies, no baked crowns).
+  - **Baking:** every shape's far end is in 21–91 s after the plants' coarse levels (as the shared GPU allowed);
+    `settle()` resolves after it.
+  - **Once**, on the shared GPU after the merge, the WebGPU device was lost at the 250 m view. Taken again on a quiet
+    GPU, the 120 m and 250 m views drew in 15 s each, with no error.
+  - `bun tools/scale.js`: 18 of 18 within their measure. `bun tools/account-check.js`: 67 passed. CI's build of both
+    sites (`deploy/bundle.sh`) and `bunx --bun vite build` (TheGame, OS): built.
   - The library's tent shows the made thing's impostor (100 views) with no error; stood in the game beside the real
     tent it reads as a tent.
 
@@ -519,19 +529,6 @@ Three research rounds, each read against this definition. Sources marked † wer
 - **Good:** stage 1 changed nothing on screen. The plant meshes are byte-identical, and the stills match main within
   the TAA's noise.
 - **Not there yet:** stages 2–10; Samuel's photos.
-- **Then asked (by the orchestrating session):** stage 4, the far end: one impostor and the clump rung, generic for every
-  plant, deleting the hull body, the CPU bake and the stipple.
-- **Then delivered:** stage 4 built (under Build). The domes and the stipple are gone at every view from the tent to
-  250 m up.
-- **Good:** from 30 m up the forest reads as stone pines, not domes, and nothing is stippled at 4K.
-- **Not there yet:**
-  - net lines rose: +818 and −653 in the game (+165, the worker's 71 among them), where they were to fall;
-  - the clump rung costs vertices: up to four times main's at the river bend, and 1–2 ms more at the river and the
-    town; the impostors and clumps hold 0.47 GB of GPU memory (an atlas at 64 texels a view would hold a quarter);
-  - for the first 30–40 s, until a shape is baked, its far plants show only their thinned sprigs;
-  - an impostor's depth is its quad's: two crowns whose quads cross may overlap the wrong way (not seen in the stills);
-  - rocks and the list's made things still end in the drawer's dot and the rocks' thinning;
-  - Safari not tried; no clean GPU reading (the GPU was shared throughout).
 
 ### 2026-11-18
 
@@ -541,6 +538,26 @@ Three research rounds, each read against this definition. Sources marked † wer
   to 0.05 px; the colour pass shades no hidden leaf.
 - **Not there yet:** the gate in motion and the 12 ms budget (a base M1 shared with other agents); normals in the
   prepass; a mover's own motion; Safari.
+- **Asked (by the orchestrating session):** stage 4, the far end: one impostor and the clump rung, generic for every
+  plant, deleting the hull body, the CPU bake and the stipple.
+- **Delivered:** stage 4 built (under Build). The domes and the stipple are gone at every view from the tent to
+  250 m up.
+- **Good:** from 30 m up the forest reads as stone pines, not domes, and nothing is stippled at 4K.
+- **Not there yet:**
+  - net lines rose: +825 and −656 in the game (+169, the worker's 71 among them), where they were to fall;
+  - the clump rung costs vertices (up to four times main's at the river bend); the impostors and clumps hold 0.47 GB
+    of GPU memory (an atlas at 64 texels a view would hold a quarter);
+  - until a shape is baked (21–91 s), its far plants show only their thinned sprigs;
+  - a crown halfway through its cross-fade shows a fine speckle at 4K;
+  - the WebGPU device was lost once at 250 m on the shared GPU (not again on a quiet one);
+  - an impostor's depth is its quad's: two crowns whose quads cross may overlap the wrong way (not seen in the stills);
+  - rocks and the list's made things still end in the drawer's dot and the rocks' thinning;
+  - Safari not tried.
+- **Then asked (by the orchestrating session):** merge main (stages 2b and 10), never rebase; the impostor and the
+  clump planes to take part in the prepass (cut there, their motion, no discard in the colour pass); every size on
+  screen through `measure.js`.
+- **Then delivered:** merged (`9e4dc7e`); both take part in the prepass; sizes through `measure.js` (`pxAt`,
+  `drawnAt`). The stills hold after the merge.
 
 ## Trail
 
@@ -557,3 +574,4 @@ Three research rounds, each read against this definition. Sources marked † wer
 | 2026-11-17 | `06baae7` | Stage 2a: the gate (FLIP, stills, bench, compile, paths), settle, one measure, `?truth` |
 | 2026-11-18 | `4296c81` | Stage 2b: prepass with motion vectors, one upscale to 4K (`stillness` and two passes gone) |
 | 2026-11-18 | `a1f5009` | Stage 4: one impostor and the clump rung; the hull bodies, the CPU bake and the stipple deleted (+165 lines) |
+| 2026-11-18 | `9e4dc7e` | Stage 4 merged with main (2b, 10): its impostors and clump planes cut in the prepass, with their motion |
