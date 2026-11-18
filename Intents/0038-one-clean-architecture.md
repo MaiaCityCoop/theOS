@@ -1062,17 +1062,22 @@ tools; the game's code only where noted.
     history go. For motion it is drawn as the game draws a frame: the same inside (2560×1440), the same places, the
     same reset after a pause, everything still at its finest. The temporal pass then does the same to both, and its
     lag in motion is not counted against detail. That is `TRUTH_AS.still` in `src/detail/measure.js`, read by
-    `screen.js` and `temporal.js` where they read `TRUTH` (the game's one change for this part).
+    `screen.js` and `temporal.js` where they read `TRUTH`.
   - **The gate's clock** (`tools/gate/clock.js`, an init script). Once a page has come and settled, no frame is drawn
     until the gate asks, at a timestamp the gate gives: every frame is 1/fps of the path on, at the same moment of the
     world's clock in both passes (each path at its own hour, 3600 s and on, the same in every run).
     `performance.now` moves only while a frame is drawn, so reading a 4K frame back is not a pause to the temporal
     pass. Between the gate's frames the page draws nothing and holds the GPU idle.
   - **Two passes a path, one world in memory.** Two worlds in one Chrome do not fit beside three other tasks in 8 GB.
-    The game's pass keeps its frames on disk, squeezed, with the place of a pixel each was drawn at. The truth's pass is
-    drawn at those places, and its frame is drawn again (the camera and the clock standing) until nothing was still
-    out when it was drawn. Frames come out raw (RGBA, POSTed to the gate), not as PNGs. The change is measured in two
-    worker threads while the next frame draws.
+    The game's pass keeps its frames on disk, squeezed, with the place of a pixel each was drawn at. The truth's frame
+    is drawn twice, with the camera and the clock standing: once to ask for all it needs, then at the game's frame's
+    place of a pixel (`temporal.js` `place`, the game's addition for it). Under `?truth` a land page is in at once,
+    not faded. What was still out after it is recorded, not waited for. Drawn again until nothing was out, and then on
+    until its place came round, the smoke run took 414 truth frames for 11 (about 2 minutes a frame).
+  - **Frames come out raw** (RGBA, POSTed to the gate), not as PNGs, and are read once the frame is drawn. The film
+    camera's grab read the WebGPU canvas black inside the frame, so the first smoke run measured black frames (0.0000
+    everywhere). A frame that comes black or short is now refused. The change is measured in two worker threads while
+    the next frame draws.
   - **The flyby** is flown frame by frame from `tools/flyby.js`'s own path (`flightAt`, now exported), not by its loop.
   - **The rule** (Define, check 4): no frame's worst 32-px tile over `POP`, 0.05 until check 3's threshold is set. The
     gate prints met or NOT MET, keeps every frame's worst tile in `report.json`, and draws a filmstrip a path.
@@ -1094,9 +1099,20 @@ tools; the game's code only where noted.
     A folder with none is read as a set of gate stills. Every view now says its kind and distance (`views.js`).
   - On the reference photos themselves, two sets of six from inside a stand read CMMD 0.60; one of them against five of
     hills and stands from above reads 2.10.
-- **`GATE_LOCK`.** Each part of a run that draws (a page coming, a view or a tile, a pass of a path) takes the
-  machine's GPU lock and lets it go after, its pages held on the gate's clock meanwhile. `diff --jpeg` writes a
-  labelled sheet of each view: the two side by side and the squares round the worst tile.
+- **The truth's settle** (split out as #79, merged). Since stage 6b the land's pages say what is still out. A pixel
+  asked once in 64 frames, so under `?truth` (about a second a frame, 32 places of a pixel) a new page turned up now
+  and then for about 2048 frames, and `settle()` never resolved: measured at the game's start, queue 0, about 1950
+  pages needed of 4096, pages still being made after 230 frames. Under `?truth` every pixel now asks every frame. With
+  the world's clock running, the wind still uncovers ground that asks for a page every dozen frames or so. On slow
+  frames that can outrun the pages' quiet window, as on stages 7 + 8 + 9 together. So every page of the gate's
+  stills is now held on its clock from the start, and settles with the world's clock standing.
+- **`GATE_LOCK`, and the next turn.** Each part of a run that draws (a page coming, a view or a tile, a pass of a path)
+  takes the machine's GPU lock and lets it go after, its pages held on the gate's clock meanwhile. While
+  `.gate-next` beside the lock names another, the gate does not take it: the master hands out turns there, so a
+  merge's review is never starved.
+- **`diff --jpeg`** writes a labelled sheet of each view: the two side by side, and the squares round the worst tile.
+- **No comparison with main** (Samuel, 2026-11-18): main is no reference. Everything here holds the branch against its
+  own truth, the photographs and the budgets.
 
 ## Propose
 

@@ -25,8 +25,9 @@ Every frame of each path is drawn twice, in two passes of a page each (one world
 has 8 GB): as the game draws it (L, its frames kept on disk, squeezed, till the second pass), and at full detail
 (`?truth` drawn as a frame in motion, R: the same inside, the same places of a pixel, everything at its finest). Both
 pages run on the gate's clock (`clock.js`): no frame is drawn until the gate asks for it, at the same moment of the
-world's clock in both (each path at its own hour, 3600 s and on, the same in every run), and the truth's frame is drawn
-again until nothing was still out when it was drawn, then on to the LOD frame's place of a pixel. For every
+world's clock in both (each path at its own hour, 3600 s and on, the same in every run). The truth's frame is drawn
+twice with the camera and the clock standing: once to ask for what it needs, then at the LOD frame's place of a pixel
+(`src/core/temporal.js` `place`); what it still lacked is recorded per frame. Frames are read once drawn. For every
 frame the gate measures `FLIP(L now, L before + (R now − R before))`: that picture differs from L exactly by
 ((L − R) now) − ((L − R) a frame before), the change detail made, seen in the frame as it was drawn. What the camera,
 the wind and the clock did, the truth did too, so it falls out.
@@ -42,6 +43,10 @@ the wind and the clock did, the truth did too, so it falls out.
   time, than it would on a screen; a pop when it comes is caught all the same, a late arrival is not.
 - **`--floor`:** the game's frames against a second pass of the game's own: what the measure reads where detail made
   no change it did not also make the first time (what streams in at another frame, the wind's noise).
+
+Every page of `stills` is held on the gate's clock from its start, and settles with the world's clock standing: with
+it running, the wind uncovers ground that asks for more of the land's pages, and on slow frames (`?truth`) that can
+outrun the time they take to settle.
 
 ## The truth past 800 m: tiles
 
