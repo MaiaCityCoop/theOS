@@ -4,7 +4,8 @@
 //   its volume, and how far each level is off the finest (what the page chooses a level by);
 //   how smooth it is: how far the surface's normal turns from a point to its neighbour, a centimetre of skin, over
 //   the trunk and the limbs (degrees: the middle one and the one only a twentieth exceed);
-//   its measures beside a man's: girths and breadths of a man of 1.80 m, slightly muscular (MEASURES below).
+//   its measures beside a man's: girths and breadths of a man of 1.80 m, slightly muscular (MEASURES below);
+//   how it bends: in five poses (POSES), how far the skin's own edges are stretched and squeezed.
 // `--keep` writes what was laid to TheGame/.body/ for the tool's page (tools/body.html: the Body drawn alone through the
 // game's own shader, on the game's dev server); `--stills <folder>` then takes that page's stills there (VIEWS below:
 // the body from four sides and close, and in five poses), through Chrome, or the browser at --chrome <path>, from the
@@ -16,17 +17,21 @@ import { skeletonBones } from '../characters/kit/skeleton.js';
 import { prepare } from '../characters/kit/skeleton/mesh.js';
 import { musclesOf } from '../characters/kit/muscles/build.js';
 import { skinOf } from '../characters/kit/skin/build.js';
-import { rigOf } from '../characters/kit/skeleton/pose.js';
+import { rigOf, turnsOf, poseOf } from '../characters/kit/skeleton/pose.js';
 
-/** The stills: the body from four sides, close, and in five poses (the address of tools/body.html each). */
+/** Five poses the skin is tried in (the rig's plain moves: characters/kit/skeleton/pose.js). */
+export const POSES = {
+  'elbows bent': { 'elbow.L': 2.2, 'elbow.R': 1.2, 'arm.R': [0.5, 0, 0] },
+  'arms raised': { 'arm.L': [0, 1.6, 0], 'arm.R': [0, 2.8, 0] },
+  'knee raised': { 'hip.L': [1.6, 0, 0], 'knee.L': 1.7 },
+  'bent forwards': { loins: [0.7, 0, 0], chest: [0.3, 0, 0], 'arm.L': [1.2, 0, 0], 'arm.R': [1.2, 0, 0] },
+  squat: { 'knee.L': 2.3, 'knee.R': 2.3, 'hip.L': [1.9, 0.2, 0], 'hip.R': [1.9, 0.2, 0], 'fist.L': 1, head: [0, 0.9, 0] },
+};
+/** The stills: the body from four sides, close, and in the five poses (the address of tools/body.html each). */
 export const VIEWS = {
   front: 'yaw=0', 'three-quarter': 'yaw=35', side: 'yaw=90', back: 'yaw=180',
   torso: 'yaw=20&y=1.25&d=1.5', 'back, close': 'yaw=200&y=1.2&d=1.6', head: 'yaw=25&y=1.66&d=0.7', hand: 'yaw=60&y=0.78&x=0.22&d=0.6', legs: 'yaw=20&y=0.5&d=1.6', foot: 'yaw=40&y=0.06&x=0.09&z=0.05&d=0.8&pitch=25',
-  'elbows bent': 'yaw=40&d=4&pose=' + encodeURIComponent('{"elbow.L":2.2,"elbow.R":1.2,"arm.R":[0.5,0,0]}'),
-  'arms raised': 'yaw=10&d=4.6&y=1&pose=' + encodeURIComponent('{"arm.L":[0,1.6,0],"arm.R":[0,2.8,0]}'),
-  'knee raised': 'yaw=60&d=4&pose=' + encodeURIComponent('{"hip.L":[1.6,0,0],"knee.L":1.7}'),
-  'bent forwards': 'yaw=70&d=4&pose=' + encodeURIComponent('{"loins":[0.7,0,0],"chest":[0.3,0,0],"arm.L":[1.2,0,0],"arm.R":[1.2,0,0]}'),
-  squat: 'yaw=50&d=4&pose=' + encodeURIComponent('{"knee.L":2.3,"knee.R":2.3,"hip.L":[1.9,0.2,0],"hip.R":[1.9,0.2,0],"fist.L":1,"head":[0,0.9,0]}'),
+  ...Object.fromEntries(Object.entries(POSES).map(([name, pose], i) => [name, ['yaw=40&d=4', 'yaw=10&d=4.6&y=1', 'yaw=60&d=4', 'yaw=70&d=4', 'yaw=50&d=4'][i] + '&pose=' + encodeURIComponent(JSON.stringify(pose))])),
 };
 
 /** What a man of 1.80 m, slightly muscular, measures (cm), and where each is taken. From the US Army's survey of men
@@ -100,8 +105,19 @@ const rows = MEASURES.map((m) => {
   return { what: m.what, is: +is.toFixed(1), man: m.cm, off: +(((is - m.cm) / m.cm) * 100).toFixed(1) };
 });
 
+// ── how it bends: in each pose every point carried by its joints as the page carries it (linear blend), and how much
+// the skin's own edges are stretched by that: the middle one, and the most (but for one in a thousand) ───────────────
+const bends = Object.entries(POSES).map(([name, moves]) => {
+  const at = poseOf(RIG, turnsOf(moves)), Jn = S.joints.map(({ rig }) => at[rig]), Q = new Float32Array(P.length), bone = S.attr.bone, wt = S.attr.weight;
+  for (let v = 0; v < P.length / 3; v++) { const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2]; for (let k = 0; k < 4; k++) { const w = wt[v * 4 + k]; if (!w) continue; const [A, t] = Jn[bone[v * 4 + k]]; Q[v * 3] += w * (A[0] * x + A[1] * y + A[2] * z + t[0]); Q[v * 3 + 1] += w * (A[3] * x + A[4] * y + A[5] * z + t[1]); Q[v * 3 + 2] += w * (A[6] * x + A[7] * y + A[8] * z + t[2]); } }
+  const r = [], T = S.fine, d = (B, a, b) => Math.hypot(B[a * 3] - B[b * 3], B[a * 3 + 1] - B[b * 3 + 1], B[a * 3 + 2] - B[b * 3 + 2]);
+  for (let t = 0; t < T.length; t += 3) for (let i = 0; i < 3; i++) { const a = T[t + i], b = T[t + (i + 1) % 3]; if (a > b) continue; const l = d(P, a, b); if (l > 1e-4) r.push(d(Q, a, b) / l); }
+  r.sort((x, y) => x - y);
+  return { pose: name, most: +r[Math.floor(r.length * 0.999)].toFixed(2), least: +r[Math.floor(r.length * 0.001)].toFixed(2), over: +((r.filter((x) => x > 1.5).length / r.length) * 100).toFixed(2) };
+});
+
 const levels = [['near', S.fine], ['middle', S.coarse], ['far', S.far]].map(([name, tri], i) => ({ name, triangles: tri.length / 3, ...closed(tri), off: +(S.off[i] * 1000).toFixed(2) }));
-const out = { seconds: { muscles: +tM, skin: +tS }, points: P.length / 3, cage: S.counts.cage, joints: S.counts.joints, levels, litres: +(volume(S.fine) * 1000).toFixed(1), turn: turnOf(P, S.attr.nor, S.fine), measures: rows };
+const out = { seconds: { muscles: +tM, skin: +tS }, points: P.length / 3, cage: S.counts.cage, joints: S.counts.joints, levels, litres: +(volume(S.fine) * 1000).toFixed(1), turn: turnOf(P, S.attr.nor, S.fine), measures: rows, bends };
 if (json) console.log(JSON.stringify(out, null, 1));
 else {
   say(`The skin: ${out.points} points on a cage of ${out.cage}, hung on ${out.joints} joints; laid in ${tS} s (the muscles ${tM} s before it); ${out.litres} litres.`);
@@ -109,6 +125,8 @@ else {
   say(`  over the trunk and the limbs its normal turns ${out.turn.middle.toFixed(2)}° a centimetre of skin (the middle one), ${out.turn.most.toFixed(1)}° where it turns most (one in twenty more)`);
   say('  measure'.padEnd(36) + 'is'.padStart(7) + 'a man'.padStart(8) + '   off');
   for (const r of rows) say('  ' + r.what.padEnd(34) + (r.is + ' cm').padStart(9) + (r.man + ' cm').padStart(8) + ((r.off > 0 ? '+' : '') + r.off + ' %').padStart(9));
+  say('  pose'.padEnd(20) + 'an edge of the skin stretched at most, squeezed at most; edges stretched by more than half');
+  for (const b of bends) say('  ' + b.pose.padEnd(18) + ('x ' + b.most).padStart(8) + ('x ' + b.least).padStart(9) + (b.over + ' %').padStart(10));
 }
 
 // ── kept for the lab's page ──────────────────────────────────────────────────────────────────────────────────────
