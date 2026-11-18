@@ -37,6 +37,10 @@ Then the light. Skin is not plaster: light goes in and comes out a millimetre aw
 ear glow at the shade's edge and a thigh does not. Its gloss has two lobes. Its colour is blood here and pigment
 there. Each of these came in as a published number.
 
+Samuel looked again: the thighs were still one mass, the skin still bumpy, the neck wrong. Under two of the three
+lay one mistake, older than this work: every limb's outline was inside out, its fuller outer side turned inwards. Set
+right, the thighs parted and the shoulders came out round.
+
 What it is now: one skin, closed, smooth, fewer than half the triangles, bending at elbow, knee and shoulder without a
 tear. What it is not: photoreal. The cage took the lumps out; it did not make the chest or the face truer than the
 anatomy under them is. And there is no hair. Maia says so, and puts three choices to Samuel.
@@ -52,7 +56,7 @@ anatomy under them is. And there is no hair. Maia says so, and puts three choice
 | 0:14 | Towards the tent, at a person's eyes | Maia | A film's body is one cage of four-sided faces, made smooth. |
 | 0:17 | | Maia | Ours was drawn out of voxels: seven pieces, 1 410 open edges. |
 | 0:21 | | Maia | Now it is one closed skin, wrapped on our own anatomy. |
-| 0:24 | | Maia | The neck measured 50 centimetres. Now 41. |
+| 0:24 | | Maia | Its thighs met to the knees. Now they stand apart. |
 | 0:27 | Back from the tent and up | Maia | Lit as skin is: red light spreads a millimetre under it. |
 | 0:31 | | Maia | It bends at elbow, knee and shoulder without a tear. |
 | 0:34 | | Maia | Smooth, yes. Photoreal, not yet: the form, the face, the hair. |
@@ -69,7 +73,7 @@ anatomy under them is. And there is no hair. Maia says so, and puts three choice
 | "seven pieces, 1 410 open edges" | The skin before, built here on 2026-11-18 and counted: 430 810 triangles; the trunk with legs and head, the arms, a fine head, two hands, two feet |
 | "five thousand faces" | `bun tools/body.js`: a cage of 5 062 points |
 | "one closed skin"; "fewer than half the triangles" | `bun tools/body.js`: open edges 0 at each of three levels; 161 664 triangles near, for 430 810 |
-| "The neck measured 50 centimetres. Now 41." | `bun tools/body.js`: 50.2 cm before the neck was held to the outline, 41.4 after; a man's is 39 (`skin/table.js`) |
+| "Its thighs met to the knees. Now they stand apart." | Every limb's outline had its outward and inward sides swapped (`skin/target.js`, set right on 2026-11-18): the thigh's fuller outer side lay across the body's middle. Measured on the skin now: 2.4 cm between the thighs at 0.76 m, 4.0 at 0.68, 6.6 between the knees |
 | "red light spreads a millimetre under it" | The six-bell profile of light in skin (d'Eon, Luebke & Enderton 2007), as shipping shaders hold it: red's spread 1.18 mm on the whole, green's 0.26, blue's 0.16 (`skin/maps.js`) |
 | "bends ... without a tear" | The tool's stills in five poses; the skin is one closed surface, so there is nothing to part |
 | "Photoreal, not yet" | Intent 0039, Propose, Known gaps |
