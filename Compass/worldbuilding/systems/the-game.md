@@ -22,7 +22,7 @@ What the game proves, in real numbers: a post-labour economy that runs on **owne
 | --- | --- | --- | --- |
 | **City coop**, one per country | The incubator, as a protocol | All **land**; all **connecting infrastructure** underground (tunnels, fibre, water lines, power lines), rented to the utility coops; and the **liquidity pool** between every coop's MINDS, the city's HEARTS and in-game € | Every citizen, through their start capital |
 | **Village coop** | The startup hub on the ground | All **buildings** in the village; leases its land from the city coop | **By invitation only** |
-| **Startup coop** (food, solar, tractors, …) | A factory | What it makes | **Anyone can found one** |
+| **Startup coop** (food, solar, tractors, …) | A factory | What it makes | **Founded by citizens**, any citizen; each kind is **unlocked along the way** by the milestones |
 
 ### The money
 
@@ -33,6 +33,8 @@ What the game proves, in real numbers: a post-labour economy that runs on **owne
 | **City HEARTS** | What personal HEARTS become when invested in a coop | Sit in that coop's treasury. Backed by the city's liquidity pool, so they are the game's most valuable currency |
 | **MINDS** | Ownership stake in one coop (*Solar MINDS*, *Food Dome MINDS*, *Maia City MINDS*, …) | Bought on the coop's funding curve |
 
+**Every coop that is not a village or city coop is unlocked along the way and founded on a citizen's initiative.** The milestones open what may be founded next; citizens found it.
+
 ### The start capital
 
 Every citizen's start is invested the same way, so wealth is split across real coops from the first day:
@@ -42,7 +44,7 @@ Every citizen's start is invested the same way, so wealth is split across real c
 | €12,500 | The city coop | A founder's share of the land |
 | 50,000 HEARTS | The city coop | A share of the land's infrastructure and the liquidity pool |
 | 25,000 HEARTS | Their village coop | A share of the village's buildings |
-| 50,000 HEARTS | 5,000 each into **10 city-wide coops**, **unlocked one after another as the villages reach their milestones** | A spread of MINDS across the city's startups |
+| 50,000 HEARTS | 5,000 each into **10 city-wide coops**, founded by citizens and **unlocked one after another as the villages reach their milestones** | A spread of MINDS across the city's startups |
 
 On day one, 75,000 HEARTS go in (the city coop and the village coop). The other 50,000 are reserved for the city-wide coops: each time a village milestone is reached, the next coop opens and 5,000 of every citizen's reserve flows into it, until all ten are funded. Besides that, every citizen invests their 24 new HEARTS a day as they choose.
 
