@@ -21,7 +21,7 @@ export default {
   // wander), kept off the river's banks. It reads its place bent (B), with a second swell far from home and its quicker
   // noise turned, so its stands are not blocks along the noise's grid (world/outlines.js; in JS: src/world/land.js woodAt)
   where: ({ p, d, w, B = bent(p) }) => smoothstep(0.6, 0.72, vnoise(B.div(1100), uint(80)).add(vnoise(turned(B, 2).div(520), uint(84)).sub(0.5).mul(second(p))).add(vnoise(turned(B).div(240), uint(81)).sub(0.5).mul(0.3))).mul(smoothstep(w.add(30), w.add(90), d)),
-  floor: { material: '795da1c3-9cfe-4c4e-88c7-a58ce86444d4' /* pine needles */, tile: [2.2, 3.5] },
+  floor: { material: '795da1c3-9cfe-4c4e-88c7-a58ce86444d4' /* pine needles */, tile: 2.2 },
   // green grass in tufts: most of it in the glades, little in the shade of the groves (coverAt: place by place, by the
   // stand's own noise; cover: on the whole, for the library's card)
   // (under the crowns none to speak of: a blade here and there over the whole floor reads as a sprinkle, not as grass;

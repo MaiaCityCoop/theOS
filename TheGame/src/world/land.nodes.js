@@ -89,16 +89,19 @@ export const riverNear = Fn(([q, I]) => {
   If(inLake(q, R.x).greaterThan(0.5), () => { out.assign(vec4(0, I.y, 0, 0)); });
   return out;
 });
+// (the height and its parts, which read no uniform: each a function of the shader's own, its layout, written once in a
+// shader and not again at every call: intent 0038. What reads a uniform, the river, stays written out where it is
+// called: three r187 names a uniform inside such a function apart from the shader's own, and the shader does not compile)
 export const riverCarve = Fn(([d, w, b]) => {
   const cut = max(b, 0), bar = max(b.negate(), 0), D = clamp(float(9).div(w), 0.75, 1.7).mul(1.2);
   return D.mul(float(1).sub(smoothstep(w.mul(cut.mul(0.4).add(0.55).sub(bar.mul(0.35))), w.mul(float(1.1).sub(cut.mul(0.06)).add(bar.mul(0.25))), d)));
-});
+}).setLayout({ name: 'riverCarve', type: 'float', inputs: [{ name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }] });
 export const riverBank = Fn(([d, w, b]) => {
   const cut = max(b, 0), bar = max(b.negate(), 0);
   return smoothstep(w, w.add(5).add(bar.mul(8)), d).mul(0.3).add(cut.mul(1.3).mul(smoothstep(w, w.add(1.2), d)).mul(float(1).sub(smoothstep(w.add(6), w.add(30), d).mul(0.6))));
-});
+}).setLayout({ name: 'riverBank', type: 'float', inputs: [{ name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }] });
 /** the valley's floor */
-export const baseB = Fn(([p]) => vnoise(p.mul(1 / 2600), uint(11)).sub(0.5).mul(40).add(vnoise(p.mul(1 / 900).add(3.7), uint(12)).sub(0.5).mul(14)));
+export const baseB = Fn(([p]) => vnoise(p.mul(1 / 2600), uint(11)).sub(0.5).mul(40).add(vnoise(p.mul(1 / 900).add(3.7), uint(12)).sub(0.5).mul(14))).setLayout({ name: 'baseB', type: 'float', inputs: [{ name: 'p', type: 'vec2' }] });
 export const WATER_DROP_N = float(WATER_DROP);
 
 /** The ground's height at p: the land's octaves (each let go with distance), the river, and the pads under what stands */
@@ -114,7 +117,7 @@ export const heightAt = Fn(([p, dist, d, w, b]) => {
   const H = baseB(p).add(h).add(m.mul(3)).add(riverBank(d, w, b)).sub(riverCarve(d, w, b)).toVar();
   for (const P of PADS) H.assign(mix(float(P.h), H, smoothstep(P.r, P.r + PAD_FALL, length(p.sub(vec2(P.x, P.z))))));
   return H;
-});
+}).setLayout({ name: 'heightAt', type: 'float', inputs: [{ name: 'p', type: 'vec2' }, { name: 'dist', type: 'float' }, { name: 'd', type: 'float' }, { name: 'w', type: 'float' }, { name: 'b', type: 'float' }] });
 /** the height at p, the river worked out here */
 export const groundAt = (p, dist) => { const I = riverInfo(p); return heightAt(p, dist, abs(I.x), I.y, I.z); };
 

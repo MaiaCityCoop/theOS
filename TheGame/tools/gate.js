@@ -82,13 +82,13 @@ async function settled({ wait, at }) {
 
 /** In the page, once, for pictures that hold still: the world's clock standing at `time` seconds (the fire, the smoke,
     the water and the grass caught at the same moment in every run; what grows by the clock is grown at once where the
-    clock is held, src/core/settle.js), the governor held where it starts, the world drawn inside at `inside` (or as the
+    clock is held, src/core/settle.js), the governor held where it starts (its detail cap too), the world drawn inside at `inside` (or as the
     page chooses: ?truth), and no lens blur (the walker sees none, and it would hide what detail does). */
 async function prepare({ inside, time }) {
   const s = window.__game, R = performance.getEntriesByType('resource').map((e) => e.name);
   const { U } = await import(R.filter((n) => n.includes('src/core/uniforms.js')).at(-1));
   if (time != null) Object.defineProperty(U.uTime, 'value', { get: () => time, set() {}, configurable: true });
-  s.governor.hold(true);
+  s.governor.hold(true); s.governor.rest?.();   // (and its detail cap where it starts: what the start's frames cost must not change the picture)
   s.renderer.setPixelRatio(devicePixelRatio);   // (the canvas at all the screen's pixels: so the game keeps it, up to two a point)
   if (inside != null) s.screen.set(inside);
   window.__cine.dof = false;

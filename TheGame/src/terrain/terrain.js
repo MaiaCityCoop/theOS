@@ -6,6 +6,7 @@ import { HMIN, HMAX, heightAt, riverAt } from '../world/land.js';
 import { boxIn } from '../core/frustum.js';
 import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, R0, FINE } from './material.js';
+import { createLayers } from './layers.js';
 import { waterMaterial } from './water.js';
 
 const S0 = 8;               // a level-0 node's side, metres (0.5 m quads)
@@ -25,7 +26,8 @@ function gridGeometry() {
   return { pos: new THREE.BufferAttribute(pos, 3), idx: new THREE.BufferAttribute(idx, 1) };
 }
 
-export function createTerrain(scene, tex) {
+export function createTerrain(scene, tex, renderer) {
+  const layers = createLayers(renderer, tex);   // where the ground's layers lie, round the camera (src/terrain/layers.js)
   const { pos, idx } = gridGeometry();
   const make = (cap) => {
     const g = new THREE.InstancedBufferGeometry();
@@ -86,6 +88,7 @@ export function createTerrain(scene, tex) {
   return {
     landMesh, waterMesh,
     update(camera, uDy, lodInv) {
+      layers.update(camera);
       cx = camera.position.x; cz = camera.position.z; dy2 = uDy * uDy; inv2 = lodInv * lodInv;
       land.n = water.n = 0;
       const top = LEVELS - 1, R = Math.min(range[top] / lodInv, camera.far);
@@ -95,6 +98,10 @@ export function createTerrain(scene, tex) {
       push(land); push(water);
       waterMesh.visible = water.n > 0;
     },
+    /** The layer map's pass compiled (a promise). */
+    compile: () => layers.compile(),
+    /** The layer map worked out again whole (the land under it changed: the lakes). */
+    refresh: () => layers.refresh(),
     all() { // every node slot filled once, so the first real frame uploads nothing new
       land.g.instanceCount = 1; water.g.instanceCount = 1; waterMesh.visible = true;
     },
