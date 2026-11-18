@@ -2,14 +2,14 @@
 // nothing kept, neither the browser's caches nor the game's own) and then again on the same profile (warm), each until
 // its first view is complete (src/core/settle.js ready), and what each part of the start took on the way:
 //
-//   bun tools/start.js [--dist <dir> | --url <url>] [--screen 1920x1080@2] [--runs cold,warm] [--until first|ready]
+//   bun tools/start.js --screen <w>x<h>@<dpr> [--dist <dir> | --url <url>] [--runs cold,warm] [--until first|ready]
 //                      [--browser chrome|webkit] [--headed]
 //
 // The first frame is the one definition of it every measure reads (src/core/marks.js FIRST_FRAME: the GPU done with the
 // first frame that draws the world); the bytes before it, every response ended by then, the page's own too. A build
 // (--dist, by default TheGame/dist: `bunx --bun vite build` first) is served as the host serves it (deploy/Caddyfile):
-// sent compressed where the build wrote it so, kept for good under /assets/, asked for again otherwise. The screen is
-// the gate's (a 4K one: 1920×1080 points at two pixels each). The browser: the system's Chrome, or Playwright's own WebKit
+// sent compressed where the build wrote it so, kept for good under /assets/, asked for again otherwise. The screen: the
+// gate's output, as the gate's runs give it (points and pixels a point). The browser: the system's Chrome, or Playwright's own WebKit
 // (the engine Safari runs: the newest kept, as tools/gate/cut.js takes it). The numbers: .gate/start-<browser>.json.
 import { chromium, webkit } from 'playwright-core';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -127,7 +127,9 @@ function launch(dir, { w, h, dpr }) {
 }
 
 async function main() {
-  const dist = option('dist', option('url', null) ? null : join(GAME, 'dist')), [w, h, dpr] = option('screen', '1920x1080@2').split(/[x@]/).map(Number);
+  const screen = option('screen', null);
+  if (!/^\d+x\d+@[\d.]+$/.test(screen ?? '')) { console.log('bun tools/start.js --screen <w>x<h>@<dpr> [...]: see the top of tools/start.js'); process.exitCode = 1; return; }
+  const dist = option('dist', option('url', null) ? null : join(GAME, 'dist')), [w, h, dpr] = screen.split(/[x@]/).map(Number);
   const runs = option('runs', 'cold,warm').split(','), until = option('until', 'ready'), wait = Number(option('wait', '300')) * 1000;
   const server = dist ? serve(dist) : null, url = server ? `http://localhost:${server.port}/` : option('url'), dir = mkdtempSync(join(tmpdir(), 'start-')), out = { url, browser: option('browser', 'chrome'), screen: { w, h, dpr }, when: new Date().toISOString() };
   try {

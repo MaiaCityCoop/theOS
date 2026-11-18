@@ -17,6 +17,7 @@ import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
 import { TRUTH } from '../detail/measure.js';
 import { passOf, vWas } from '../core/pass.js';
+import { ask, made, computeMaker } from '../core/compile.js';
 
 export const MAXP = 384;   // patches a tier can draw at once
 
@@ -144,10 +145,20 @@ export class Tier {
     if (this.viewKeyed) key += `|${view}`;   // what it packs is tested against the view one by one (index.js: inView)
     if (this.reads) key += `|${this.reads()}`;   // (and what it reads besides: the growth map, src/scatter/growth.js)
     if (key === this.key) return;
+    if (!made(this.passes, 'run')) { this.make(renderer); return; }   // (its passes made first: until they are, it packs nothing, and draws nothing)
     this.key = key;
     const N = n * this.P * this.P; this.cand.value = N; this.passes[1].dispatchSize = Math.max(1, N);
     renderer.compute(this.passes); did('packs'); if (this.movers) did('moving'); did('kcells', Math.round(N / 1000)); this.empty = !n;   // (moving: a tier packed every frame, its things moving; not a change of what stands: src/core/work.js changed)
   }
+  /** What it is: its meshes and its packing passes named so (three labels their pipelines with it: src/core/compile.js). */
+  label(name) {
+    this.name = name;
+    this.meshes.forEach((m, k) => { m.name = this.meshes.length > 1 ? `${name} ${k}` : name; });
+    (this.passes ?? []).forEach((p, k) => p.setName(`${name}: packing ${k}`));
+  }
+  /** Its packing passes asked to be made, aside, in turn (src/core/compile.js ask). counted: whether the world waits for
+      them (made ahead of need, src/boot.js: not). */
+  make(renderer, counted = true) { if (this.passes) ask(this.passes, 'run', computeMaker(renderer), `${this.name}: packing`, counted); }
   /** On WebGPU: what the last packing holds, read back to the CPU a moment later (a promise of { count, data: the first
       slots' vec4s as floats, one array a slot } a bucket), for what the CPU must know of where things stand (src/scatter/trees.js:
       what of a stand is solid round the walker). */

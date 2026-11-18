@@ -29,10 +29,15 @@ export const leave = (name, left = true) => void (left ? LEFT.add(name) : LEFT.d
 /** What is still out, by source ({}: nothing). */
 export function waiting() { const out = {}; for (const [name, s] of SOURCES) { const n = LEFT.has(s.part) ? 0 : s.fn(false); if (n) out[name] = n; } return out; }
 
-let V = null, clock = NaN, frames = 0, still = 0, need = 32, first = null;
+let V = null, clock = NaN, frames = 0, still = 0, need = 32, first = null, whole = null;
 const asks = new Set(), seen = new Float64Array(37), broke = new Set();
-/** A promise: the world complete for the page's first view (what a page shows itself on). */
+/** A promise: the world complete for the page's first view, and the picture built over time come to rest on it (what
+    the gate waits for). */
 export const ready = new Promise((res) => (first = res));
+/** A promise: the first frame drawn complete: nothing out while it was drawn (nothing it would draw left out unmade,
+    src/core/compile.js; nothing streaming or building) and nothing put in during it. The first frame the world shows
+    (src/boot.js): the picture built over time comes to rest on it in the frames after, as on any cut. */
+export const complete = new Promise((res) => (whole = res));
 
 /** What a frame's view is compared by: the camera, the renderer (its canvas's pixels), the screen (the inside's pixels:
     the governor's ratio), the picture built over time, the shared uniforms (the clock, the detail governor). */
@@ -58,6 +63,7 @@ export function tick(did) {
   let out = 0;
   for (const [name, s] of SOURCES) { if (LEFT.has(s.part)) continue; try { out += s.fn(held) || 0; } catch (e) { out++; if (!broke.has(name)) { broke.add(name); console.warn(`settle: '${name}' could not say what is still out`, e); } } }   // (a part that cannot say holds the world incomplete, and never stops the frame)
   const moved = viewChanged(), T = V.temporal;
+  if (whole && !out && !did) { whole({ frames }); whole = null; }
   still = moved || did || out > 0 || T.age === 0 ? 0 : still + 1;
   need = T.settles;
   if (still < need || T.age < need) return;

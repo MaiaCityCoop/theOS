@@ -111,7 +111,7 @@ function bladeMaterial(T, wide) {
     (the ground's map, which says where it grows, reaches no further: src/scatter/ground.js). */
 export function createGrass(scene, tex, ground, asset, gpu = false) {
   const last = asset.tiers.at(-1), rings = TRUTH ? [{ ...asset.tiers[0], far: last.far, farFade: last.farFade, end: last.end }] : asset.tiers;
-  return rings.map((T) => {
+  return rings.map((T, i) => {
     const make = bladeMaterial(T, widthOf(asset, T)), live = (c) => bladeIn(c, asset, T, ground);
     const material = (src) => {
       const { m, shape } = make();
@@ -126,7 +126,7 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
     // tip its height a unit of the wind's push (bladeMaterial: never more than 1.25 of it)
     const wide = widthOf(asset, T) * CROWD.SWELL * 1.25;
     const bounds = (A, B) => { const h = A.w, reach = h.mul(B.y.add(0.6).mul(1.15)).add(wide + 0.02); return { c: vec3(A.x, A.z.add(h.mul(0.5)), A.y), h: vec3(reach, h.mul(0.5).add(0.02), reach), w: h.mul(1.1) }; };
-    const t = new Tier(scene, blade(T.segs), material, { cell: T.cell, P: T.P, near: T.near - T.nearFade, far: T.far, order: 0, live, gpu, cap, slots: 3, bounds });
+    const t = new Tier(scene, blade(T.segs), material, { cell: T.cell, P: T.P, near: T.near - T.nearFade, far: T.far, order: 0, live, gpu, cap, slots: 3, bounds }); t.label(`grass, ring ${i}`);
     if (growthMap()) t.reads = growthMap().version;   // (packed again when what grows over it changes)
     return t;
   });

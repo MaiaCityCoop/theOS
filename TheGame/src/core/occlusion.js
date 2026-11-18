@@ -41,6 +41,7 @@ import { Fn, If, Loop, float, int, uint, vec2, vec3, vec4, uvec4, ivec2, uniform
 import { gpuStorage, gpuStorageLater, more, limitOf } from './gpu.js';
 import { passOf } from './pass.js';
 import { windStrength, snowDepth } from '../world/light.js';
+import { made, sameAs } from './compile.js';
 
 const WG = 64, SW = 256, EPS = 2 ** -21;   // EPS: how much farther than the pyramid a box must be to be hidden (a few steps of a 24-bit depth); SW: the scans' workgroup
 const LEVELS = 16;   // the pyramid's levels at most (2^16 texels a side)
@@ -365,7 +366,7 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box }) {
       same geometry, material and numbers. */
   C.adopt = (meshes) => {
     if (!lateScene) { lateScene = new THREE.Scene(); bundle = new THREE.BundleGroup(); lateScene.add(bundle); }
-    for (const m of meshes) { const p = new THREE.Mesh(m.geometry, m.material); Object.assign(p, { frustumCulled: false, renderOrder: m.renderOrder, userData: m.userData, visible: false }); bundle.add(p); proxies.push([p, m, T]); }
+    for (const m of meshes) { const p = new THREE.Mesh(m.geometry, m.material); Object.assign(p, { name: m.name, frustumCulled: false, renderOrder: m.renderOrder, userData: m.userData, visible: false }); sameAs(p, m); bundle.add(p); proxies.push([p, m, T]); }   // (made when its mesh is: one pipeline, src/core/compile.js)
     shown = new Int32Array(proxies.length).fill(-2);
     TIERS.add(T);
   };
@@ -437,10 +438,11 @@ export const occlusion = {
     const list = []; for (const A of ARENAS) if (A.any) list.push(...A.late);
     if (!list.length) return;
     renderer.compute(list);
-    // (the bundle recorded again only when what it holds has changed: a draw shown or hidden, or its corners)
+    // (the bundle recorded again only when what it holds has changed: a draw shown or hidden, or its corners, or made: one
+    // not made yet is left out of it, src/core/compile.js)
     let changed = false;
     for (let i = 0; i < proxies.length; i++) {
-      const [p, m, T] = proxies[i], v = T.drawn && m.visible, s = v ? (m.geometry.index?.id ?? -1) : -2;
+      const [p, m, T] = proxies[i], v = T.drawn && m.visible, s = v ? (made(p, 'pre') ? (m.geometry.index?.id ?? -1) : -3) : -2;
       p.visible = v; p.renderOrder = m.renderOrder;
       if (shown[i] !== s) { shown[i] = s; changed = true; }
     }

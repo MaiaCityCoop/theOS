@@ -6,7 +6,7 @@
 // drawn into and read in the same pass).
 import * as THREE from 'three/webgpu';
 import { U } from '../core/uniforms.js';
-import { compileFor } from '../core/compile.js';
+import { compileFor, compileList, made, ask, labelled } from '../core/compile.js';
 import { note } from '../core/gpu.js';
 
 export const CASTS = 1;   // the layer of what casts a shadow
@@ -20,6 +20,14 @@ export function createShadows(renderer) {
   const rts = [map(), map()]; let turn = 0; note('shadow maps', 2 * S * S * 4, 0);
   U.tShadow.value = rts[1].depthTexture;
   const cam = new THREE.OrthographicCamera(-60, 60, 60, -60, 1, 900); cam.layers.set(CASTS); cam.userData.shadow = true;
+  // what the map draws of a caster: once it is made for the map; until then it is made aside, and left out
+  // (src/core/compile.js)
+  const drawObject = renderer.renderObject, makers = new Map();   // (what the map asks for in a frame is made in one compile: one maker a scene)
+  const makerOf = (scene) => { if (!makers.has(scene.id)) makers.set(scene.id, (list) => compileList(renderer, rts[turn], list, cam, scene)); return makers.get(scene.id); };
+  const cast = (object, scene, camera, geometry, material, ...rest) => {
+    if (made(object, 'cast')) drawObject.call(renderer, object, scene, camera, geometry, material, ...rest);
+    else ask(object, 'cast', makerOf(scene), `${labelled(material, object)} (cast)`);
+  };
   // from the light's clip space to the map's (u, v, depth): v turned (three reads a target's rows the other way up), depth
   // as the backend keeps it (WebGPU 0..1; WebGL -1..1)
   const webgpu = renderer.coordinateSystem === THREE.WebGPUCoordinateSystem;
@@ -41,7 +49,9 @@ export function createShadows(renderer) {
     /** The casters compiled for the shadow map, from where the light looks at this camera now, in turn
         (src/core/compile.js; a promise): before the first frame, which would otherwise compile them as it draws them.
         object: the scene, or a part of it to stand in `scene` (a subject the library shows). */
-    compile(object, camera, groundY, scene = null) { aim(camera, groundY); return compileFor(renderer, rts[turn], object, cam, scene); },
+    compile(object, camera, groundY, scene = null) { aim(camera, groundY); return compileFor(renderer, rts[turn], object, cam, scene, null, 'cast'); },
+    /** What making `object` ahead of need asks, where it casts (src/core/compile.js ahead). */
+    ahead(object, scene) { const m = [object.material].flat()[0]; if (m && object.layers.test(cam.layers)) ask(object, 'cast', makerOf(scene), `${labelled(m, object)} (cast)`, false); },
     /** Draw the casters from the light, round where the camera looks; the size grows with the camera's height. */
     render(scene, camera, groundY) {
       const L = U.uSunDir.value, sun = U.uSun.value;
@@ -49,7 +59,7 @@ export function createShadows(renderer) {
       aim(camera, groundY);
       const rt = rts[turn], prev = renderer.getRenderTarget(), a = renderer.getClearAlpha(); renderer.getClearColor(c);
       U.uShadowOn.value = 0; U.uShadowPass.value = 1;   // the casters need no light of their own while they are drawn: only their depth (light.js: unlit)
-      renderer.setRenderTarget(rt); renderer.render(scene, cam); renderer.setRenderTarget(prev); renderer.setClearColor(c, a);
+      renderer.setRenderTarget(rt); renderer.setRenderObjectFunction(cast); renderer.render(scene, cam); renderer.setRenderObjectFunction(null); renderer.setRenderTarget(prev); renderer.setClearColor(c, a);
       U.uShadowPass.value = 0;
       U.tShadow.value = rt.depthTexture; turn ^= 1;
       U.uShadowM.value.multiplyMatrices(toMap, cam.projectionMatrix).multiply(cam.matrixWorldInverse);

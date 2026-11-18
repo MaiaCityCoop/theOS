@@ -45,9 +45,9 @@ const twins = new WeakMap();
 export function twinOf(m) {
   let t = twins.get(m);
   if (!t) {
-    const of = (ctx, depth) => Object.assign(m.clone(), { contextNode: ctx }, depth);
+    const of = (ctx, pass, depth) => Object.assign(m.clone(), { contextNode: ctx, name: m.name && `${m.name} ${pass}` }, depth);   // (named for its pass: three labels a pipeline by its material's name)
     const pre = m.userData?.pre === true;
-    t = { pre: pre ? of(PRE) : null, main: of(MAIN, pre ? { depthFunc: THREE.EqualDepth, depthWrite: false } : {}) };
+    t = { pre: pre ? of(PRE, 'pre') : null, main: of(MAIN, 'main', pre ? { depthFunc: THREE.EqualDepth, depthWrite: false } : {}) };
     twins.set(m, t);
   }
   return t;

@@ -62,9 +62,14 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
     get over() { for (let i = 0; i < tiers.length; i++) if (tiers[i].over) return true; return false; },
     get instances() { let n = 0; for (const t of tiers) n += t.geometry.instanceCount; return n; },
     warm() { for (const t of tiers) t.warm(); },
-    /** Every tier's packing passes compiled side by side, before the first packing (a promise): they read no target, so
-        this may run beside anything. Compiled as each tier first packed, one after another, the GPU did nothing else
-        meanwhile (63 passes, 8 s of a start of 35 without a GPU, 2026-11-15). */
-    compile() { const passes = [...tiers.flatMap((t) => t.passes ?? []), ...occlusion.passes()]; return Promise.all([passes.length ? renderer.compileComputeAsync(passes) : null, ...more.map((f) => f())]); },   // (and the culling's: src/core/occlusion.js)
+    /** What making every tier's packing ahead of need asks (src/core/compile.js ahead). */
+    ahead() { return tiers.map((t) => () => t.make(renderer, false)); },
+    /** What every tier's packing shares, compiled before the first packing (a promise): the culling's passes
+        (src/core/occlusion.js) and what the larger things leave for the smaller (growth.js). They read no target, so this
+        may run beside anything. A tier's own passes are made when it first has something to pack, aside, and it packs
+        nothing until they are (tier.js run, src/core/compile.js): the start makes those of the tiers its first view
+        packs, not all of them (177 of the 308 pipelines a cold start compiled before its first frame were compute,
+        2026-11-18). */
+    compile() { const passes = occlusion.passes(); return Promise.all([passes.length ? renderer.compileComputeAsync(passes) : null, ...more.map((f) => f())]); },
   };
 }
