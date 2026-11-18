@@ -233,18 +233,20 @@ export const occlusion = {
     if (list.length) renderer.compute(list);
     return true;
   },
+  /** The pyramid from a depth of w × h pixels (the prepass's), drawn through this frame's camera. */
+  build(renderer, depth, w, h) {
+    if (Math.ceil(w / 2) > PYR.w0 || Math.ceil(h / 2) > PYR.h0) { built = false; U.levels.value = 0; return; }   // (a screen larger than it can serve: nothing is hidden)
+    const M = passesOfPyramid(); let at = 0, l = 0, x = w, y = h;
+    M.dims.array[0].set(0, w, h, 0); M.tD.value = depth;
+    for (; l < LEVELS; l++) { x = Math.ceil(x / 2); y = Math.ceil(y / 2); M.dims.array[l + 1].set(at, x, y, 0); U.lv.array[l].set(at, x, y, 0); M.passes[l].dispatchSize = x * y; at += x * y; if (x === 1 && y === 1) { l++; break; } }
+    renderer.compute(M.passes.slice(0, l));
+    U.levels.value = l; U.size.value.set(w, h); U.pvp.value.copy(U.vp.value); built = true;
+  },
   /** After the prepass: the pyramid from its depth (w × h pixels), then pass two of every culled tier; then the late
       scene is to be drawn into the prepass (draw(): with each tier's pass-two arguments), and the colour. */
   late(renderer, depth, w, h, draw) {
     if (!TIERS.size) return;
-    if (Math.ceil(w / 2) > PYR.w0 || Math.ceil(h / 2) > PYR.h0) { built = false; U.levels.value = 0; }   // (a screen larger than it can serve: nothing is hidden)
-    else {
-      const M = passesOfPyramid(); let at = 0, l = 0, x = w, y = h;
-      M.dims.array[0].set(0, w, h, 0); M.tD.value = depth;
-      for (; l < LEVELS; l++) { x = Math.ceil(x / 2); y = Math.ceil(y / 2); M.dims.array[l + 1].set(at, x, y, 0); U.lv.array[l].set(at, x, y, 0); M.passes[l].dispatchSize = x * y; at += x * y; if (x === 1 && y === 1) { l++; break; } }
-      renderer.compute(M.passes.slice(0, l));
-      U.levels.value = l; U.size.value.set(w, h); U.pvp.value.copy(U.vp.value); built = true;
-    }
+    this.build(renderer, depth, w, h);
     const list = []; for (const T of TIERS) if (T.n > 0) list.push(...T.culler.late);
     if (!list.length) return;
     renderer.compute(list);
