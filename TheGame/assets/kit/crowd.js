@@ -215,11 +215,11 @@ function headOf(m, K) {
   const sphere = [...centre, sqrt(r2) || 1];
   // ---- the clumps: as many chunks as cost no more than the sprigs still there where the crowd ends, split largest first ----
   const want = max(1, min(K.CLUMPS, floor(cornersM / 12))), chunks = N > K.LEAST ? chunksOf(sprigs, want, K.grid) : null;
-  // the impostor takes over where the last rung would draw its triangles smaller than a quad of pixels (2 x 2, what the
-  // GPU shades as one) over the plant's own square: its views as many texels a side as twice the root of those
-  // triangles, a power of two (cellOf), and drawn from where they are not magnified (T, pixels of the measure, as the
-  // budget draws them)
-  const cellOf = (tris) => min(K.CELL, max(K.CELL >> 2, 2 ** ceil(log2(2 * sqrt(max(tris, 1)) - 1e-9)))), Tof = (cell) => (cell * size) / (2 * sphere[3]) / BUDGET_DRAWN;
+  // the impostor takes over where the last rung (its clumps, or its crowd at its end) would draw its triangles smaller
+  // than a quad of pixels (2 x 2, what the GPU shades as one) over the plant's own square: its views as many texels a
+  // side as twice the root of those triangles, a power of two from 64 up to CELL (cellOf), drawn from where they are not
+  // magnified (T, pixels of the measure, as the budget draws them)
+  const cellOf = (tris) => min(K.CELL, max(K.CELL >> 1, 2 ** ceil(log2(2 * sqrt(max(tris, 1)) - 1e-9)))), Tof = (cell) => (cell * size) / (2 * sphere[3]) / BUDGET_DRAWN;
   // where the clumps take over: where their texels are ERROR_PX pixels drawn (TILE of them over a chunk's largest side);
   // a shape whose impostor is as fine there already hands its crowd over to the impostor, and has no clumps
   const side = chunks ? max(...chunks.map((C) => max(C.box[3] - C.box[0], C.box[4] - C.box[1], C.box[5] - C.box[2]))) : Infinity;

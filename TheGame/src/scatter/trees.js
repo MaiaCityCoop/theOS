@@ -90,7 +90,8 @@ const meshShare = (T, own, seed) => T.greaterThan(0).select(clamp(drawnAt(own).d
     noise of the screen's that changes every frame, the same for the mesh and the impostor, so each pixel is one of the
     two, never both and never neither, and the picture built over time cross-fades them (src/core/temporal.js); the
     prepass's motion keeps what it built where the plant moves. The impostor's pixels are the others. */
-const handing = (share) => fract(ign(screenCoordinate.xy).add(unlit().select(float(0), U.uDither))).lessThan(share);   // (the shadow map's still: it is built over no time)
+const noise = (at = vec2(0)) => fract(ign(screenCoordinate.xy.add(at)).add(unlit().select(float(0), U.uDither)));   // (the shadow map's still: it is built over no time)
+const handing = (share) => noise().lessThan(share);
 /** A plant reckons its size on screen this share of what it is, by its own number (SWITCH … 1): its sprigs go, its
     clumps come and its twigs thin each at a size of its own, so no two plants of a stand change together (Lipp et al.,
     HPG 2026: a random offset a bundle). Never more than it is: a level holds what its band's top asks for. */
@@ -399,12 +400,12 @@ function plantMaterial(tex, D) {
       If(leaf, () => {
         if (!FAR) return cards();
         If(vPart.greaterThan(1.5), () => {
-          // a chunk's plane: its leaves as baked (src/detail/impostor.js), as many of its covered texels kept as the
-          // chunk's own cover is of its three planes' (vClump.z), each texel by a number of its own (still from frame to
-          // frame, sitting on the plane as a leaf does: no pattern on the screen), and as much as is still its mesh's
-          // (handing); cut in the prepass
-          const C = clumpRead(FAR.clumps(), vClump.x, vUv, vClump.y), t = floor(vUv.mul(CROWD.TILE)), keep = hash(uint(t.x).add(uint(t.y).mul(uint(4099))).add(uint(vClump.x).mul(uint(1000003))));
-          cut(builder, C.cover.lessThan(0.5).or(keep.greaterThanEqual(vClump.z)).or(handing(vFade).not()));
+          // a chunk's plane: its leaves as baked (src/detail/impostor.js), as much of its cover kept as the chunk's own is
+          // of its three planes' (vClump.z), and as much as is still its mesh's (handing): each by a noise of the screen's
+          // that changes every frame, which the picture built over time averages into a cover as thin as its leaves'
+          // (a texel's own number, still, left a speckle on it); cut in the prepass
+          const C = clumpRead(FAR.clumps(), vClump.x, vUv, vClump.y);
+          cut(builder, C.cover.lessThan(0.5).or(noise(vec2(17.31, 41.37)).greaterThanEqual(vClump.z)).or(handing(vFade).not()));
           if (pass === 'pre') return;
           If(shadow.not(), () => {
             // lit as its leaves are, pixel by pixel, their way there turned with the plant and pulled a little towards
@@ -504,7 +505,7 @@ const DEEP = 0.5;   // how much darker what an impostor's view shows at the far 
     numbers say where it is its impostor (its row 3's third: T, G.cell texels over its sphere's width). */
 function farOf(renderer, tex, G, D) {
   const n = G.meshes, views = createAtlas(renderer, { name: `plants, ${G.name}: impostors`, side: CROWD.VIEWS * G.cell, layers: n, cell: G.cell });
-  let clumps = null; const clumpsOf = () => (clumps ||= createAtlas(renderer, { name: `plants, ${G.name}: clumps`, side: G.clumpy ? CROWD.TILES * CROWD.TILE : CROWD.TILE, layers: G.clumpy, cell: CROWD.TILE }));   // (a stand none of whose shapes has clumps: one tile, which nothing reads)
+  let clumps = null; const clumpsOf = () => (clumps ||= createAtlas(renderer, { name: `plants, ${G.name}: clumps`, side: G.tiles * CROWD.TILE, layers: G.clumpy, cell: CROWD.TILE }));   // (a stand none of whose shapes has clumps: one tile, which nothing reads)
   const queue = [], queued = new Uint8Array(n); let version = 0, any = false, M = null, out = 0;
   source(`plants, ${G.name}: far ends`, () => out);   // (the world is not complete while a shape's far end is still being baked: src/core/settle.js)
   // what bakes a shape (made at the first: they read the heap): its finest level's vertices as they lie there, each
@@ -520,7 +521,7 @@ function farOf(renderer, tex, G, D) {
     const viewV = Fn(() => { const V = vertex(), P = viewClip(V.position.sub(sphereU.xyz).div(sphereU.w), rowU); pass(V, P.z, P.D); return P.clip; })();
     const tileV = Fn(() => {
       // (a chunk's own: its card parts whose tips lie in its cell; all else behind the far plane, not drawn)
-      const V = vertex(), tile = rowU.mul(CROWD.TILES).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar(), t = V.tip;
+      const V = vertex(), tile = rowU.mul(G.tiles).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar(), t = V.tip;
       const lo = cellsU.element(c.mul(4)).xyz, hi = cellsU.element(c.mul(4).add(1)).xyz, blo = cellsU.element(c.mul(4).add(2)).xyz, bhi = cellsU.element(c.mul(4).add(3)).xyz;
       const mine = c.lessThan(nU).and(V.part.greaterThan(0.5)).and(V.part.lessThan(1.5)).and(t.x.greaterThanEqual(lo.x)).and(t.y.greaterThanEqual(lo.y)).and(t.z.greaterThanEqual(lo.z)).and(t.x.lessThan(hi.x)).and(t.y.lessThan(hi.y)).and(t.z.lessThan(hi.z));
       If(mine, () => { const P = tileClip(V.position, blo, bhi, a, float(instanceIndex)); pass(V, P.z.mul(2).sub(1), a.equal(0).select(vec3(1, 0, 0), a.equal(1).select(vec3(0, 1, 0), vec3(0, 0, 1)))); clip.assign(P.clip); });
@@ -553,20 +554,19 @@ function farOf(renderer, tex, G, D) {
   // paintings: their materials' versions) and the bake's own (BAKED). A start that finds them puts them in and bakes
   // nothing: the far plants are whole from the first frames, not after half a minute to a minute and a half.
   let KEPT = null;
-  const keptAs = () => (KEPT ||= `far ${BAKED}|${CROWD.VIEWS}x${G.cell}|${CROWD.TILES}x${CROWD.TILE}|${D().fingerprint}|${G.kinds.flatMap((Kd) => [...Object.values(Kd.asset.materials ?? {}), Kd.asset.fine?.twig].filter(Boolean).map(versionOf)).join()}`);
+  const keptAs = () => (KEPT ||= `far ${BAKED}|${CROWD.VIEWS}x${G.cell}|${G.tiles}x${CROWD.TILE}|${D().fingerprint}|${G.kinds.flatMap((Kd) => [...Object.values(Kd.asset.materials ?? {}), Kd.asset.fine?.twig].filter(Boolean).map(versionOf)).join()}`);
+  const keyOf = (k) => `far: ${G.name}: ${k}`;
   // (a promise of { done }: its pictures drawn and read back, the bakers free for the next shape; done, once they are
   // in the atlases and its numbers say so)
   const job = async ({ k, corners, far }) => {
-    const key = `far: ${G.name}: ${k}`, kept = await keptGet(keptAs(), key);
-    if (kept) { views.put(k, kept.views); if (kept.clumps) clumpsOf().put(G.clumpLayer[k], kept.clumps); return { done: Promise.resolve(numbers(k, far)) }; }
-    const B = materials(); B.geo.setIndex(new THREE.BufferAttribute(corners, 1)); B.kindU.value = k; B.sphereU.value.set(far[1], far[2], far[3], far[4]);
+    const key = keyOf(k), B = materials(); B.geo.setIndex(new THREE.BufferAttribute(corners, 1)); B.kindU.value = k; B.sphereU.value.set(far[1], far[2], far[3], far[4]);
     const a = await bakers(renderer).views(G.cell).bake(views, k, CROWD.VIEWS, (r) => { B.rowU.value = r; B.geo.instanceCount = CROWD.VIEWS; return B.view; });
     const nc = far[0];
     let b = null;
     if (nc > 0 && G.clumpLayer[k] >= 0) {
       for (let c = 0; c < nc; c++) for (let q = 0; q < 4; q++) B.cells[c * 4 + q].set(far[8 + c * 12 + q * 3], far[8 + c * 12 + q * 3 + 1], far[8 + c * 12 + q * 3 + 2], 0);
       B.nU.value = nc;
-      b = await bakers(renderer).tiles.bake(clumpsOf(), G.clumpLayer[k], Math.ceil((nc * 3) / CROWD.TILES), (r) => { B.rowU.value = r; B.geo.instanceCount = CROWD.TILES; return B.tile; });
+      b = await bakers(renderer).tiles(G.tiles).bake(clumpsOf(), G.clumpLayer[k], Math.ceil((nc * 3) / G.tiles), (r) => { B.rowU.value = r; B.geo.instanceCount = G.tiles; return B.tile; });
     }
     return { done: Promise.all([a.done, b?.done]).then(([va, vb]) => { keptPut(keptAs(), key, { views: va, clumps: vb ?? null }); numbers(k, far); }) };
   };
@@ -579,7 +579,14 @@ function farOf(renderer, tex, G, D) {
       for (let j = 0; j < nk; j++) {
         const k = k0 + j, o = j * elems * 4, at = unhalf(b.verts[o + 7] & 0xffff) * 1024 + unhalf(b.verts[o + 7] >>> 16); if (queued[k] || !(at > 0)) continue;
         const head = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8), far = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8 + head[0] * 12).slice();
-        queue.push({ k, corners: b.corners.slice(j * idx, j * idx + b.draws[j]), far }); queued[k] = 1; out++;
+        const J = { k, corners: b.corners.slice(j * idx, j * idx + b.draws[j]), far }; queued[k] = 1; out++;
+        // (what the browser kept of it, put in as it is read back, every shape at once: only what it has not kept waits
+        // to be baked)
+        keptGet(keptAs(), keyOf(k)).then((kept) => {
+          if (!kept) return queue.push(J);
+          views.put(k, kept.views); if (kept.clumps && G.clumpLayer[k] >= 0) clumpsOf().put(G.clumpLayer[k], kept.clumps);
+          numbers(k, far); out--;
+        }, () => queue.push(J));
       }
     },
     /** Each frame: the next shape baked, once its finest level is in the heap and no other stand's is being baked. */
@@ -643,7 +650,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // each shape's far end as the crowd kit reckons it (assets/kit/tree.js farOf): the stand's impostors' views as fine as
     // its finest shape's want (G.cell), and a layer of its clumps' atlas for each shape that has clumps (G.clumpLayer)
     const FE = shapeKd.map((Kd, v) => Kd.asset.farOf?.()?.[v - Kd.offset] ?? { cell: 0, chunks: 0 });
-    G.cell = Math.max(CROWD.CELL >> 2, ...FE.map((f) => f.cell)); G.clumpy = 0;
+    G.cell = Math.max(CROWD.CELL >> 1, ...FE.map((f) => f.cell)); G.clumpy = 0; G.tiles = Math.max(1, Math.ceil(Math.sqrt(3 * Math.max(0, ...FE.map((f) => f.chunks)))));
     G.clumpLayer = Int32Array.from(FE, (f) => (f.chunks > 0 ? G.clumpy++ : -1));
     // what each of the stand's shapes is to the material (numbersOf), five rows of four a shape, in the drawer's one
     // table of a kind's numbers (numOf): [how tall, its tint], [its wind], [its leaves], [its twig's painting, its size at

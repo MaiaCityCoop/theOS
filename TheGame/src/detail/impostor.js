@@ -184,10 +184,12 @@ export const impostorViews = (d) => {
   const w = up.select(vec3(f.x.add(f.y).sub(1), float(1).sub(f.y), float(1).sub(f.x)), vec3(float(1).sub(f.x).sub(f.y), f.x, f.y));
   return { cells: [a, b, e], w };
 };
-/** A plant's clump read at uv (in tiles: crowd.js levelOf), at level lod, clamped inside its tile there: { colour,
-    cover, normal, lit, leaf } as impostorRead. */
+/** A plant's clump read at uv (in tiles of the kit's grid, TILES a row: crowd.js levelOf), at level lod, clamped inside
+    its tile there, the tile where it lies in the atlas' own grid (as many a side as its stand's largest clumps need:
+    src/scatter/trees.js): { colour, cover, normal, lit, leaf } as impostorRead. */
 export function clumpRead(A, layer, uv, lod) {
-  const t = floor(uv), s = inCell(uv.sub(t).sub(IN).div(1 - 2 * IN), float(TILE), lod).add(t).div(TILES), c = texture(A.colour).sample(s).depth(layer).level(lod), d = texture(A.data).sample(s).depth(layer).level(lod);
+  const n = A.side / TILE, t = floor(uv), k = t.y.mul(TILES).add(t.x), at = vec2(k.sub(floor(k.div(n)).mul(n)), floor(k.div(n)));
+  const s = inCell(uv.sub(t).sub(IN).div(1 - 2 * IN), float(TILE), lod).add(at).div(n), c = texture(A.colour).sample(s).depth(layer).level(lod), d = texture(A.data).sample(s).depth(layer).level(lod);
   return { colour: c.rgb, cover: c.a, normal: octDec(d.xy), ...litOf(d.w) };
 }
 
@@ -195,8 +197,8 @@ export function clumpRead(A, layer, uv, lod) {
 let renderer = null, BAKERS = null; const kept = new Map();   // a recipe's hash -> its views, baked once a recipe
 /** The game's renderer bakes the impostors (set once by src/main.js). */
 export const setImpostorRenderer = (r) => (renderer = r);
-/** The bakers every impostor shares (their targets reused shape after shape): the views' (views(cell): one a size of a view), and a plant's clumps' tiles. */
-export const bakers = (r = renderer) => (BAKERS ||= { of: new Map(), views(cell = CELL) { let b = this.of.get(cell); if (!b) this.of.set(cell, (b = createBaker(r, { per: VIEWS, px: cell }))); return b; }, tiles: createBaker(r, { per: TILES, px: TILE }) });
+/** The bakers every impostor shares (their targets reused shape after shape): the views' (views(cell): one a size of a view), and a plant's clumps' tiles (tiles(n): one a size of a grid, n tiles a row). */
+export const bakers = (r = renderer) => (BAKERS ||= { of: new Map(), views(cell = CELL) { let b = this.of.get(cell); if (!b) this.of.set(cell, (b = createBaker(r, { per: VIEWS, px: cell }))); return b; }, tiles(n = TILES) { let b = this.of.get(-n); if (!b) this.of.set(-n, (b = createBaker(r, { per: n, px: TILE }))); return b; } });
 /** A recipe's hash: its geometry's numbers, so a changed recipe bakes again. */
 const hashOf = (geo) => { let h = FNV; const a = geo.attributes.position.array, c = geo.attributes.color?.array || []; for (let i = 0; i < a.length; i += 7) h = fnv(h, Math.round(a[i] * 1000)); for (let i = 0; i < c.length; i += 11) h = fnv(h, Math.round(c[i] * 1000)); return `${a.length}:${(h >>> 0).toString(36)}`; };
 /** A made thing's views (geo: its nearest level, its colours a vertex; c, r: its sphere) baked into an atlas of its own:
