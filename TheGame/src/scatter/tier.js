@@ -76,7 +76,7 @@ export class Tier {
       more('tiers: what stands, packed', buf.bytes, buf.lean ? 0 : buf.bytes);
       // (one buffer of draw arguments, five a bucket: a shader binds few buffers. Culled, what the eye sees and what pass
       // two found are two sets more, in the culling's own buffer: src/core/occlusion.js)
-      const culled = !!bounds && !TRUTH && hasFeature('indirect-first-instance') && cullable(total);   // (?truth, the reference, draws all it packs: src/detail/measure.js)
+      const culled = !!bounds && hasFeature('indirect-first-instance') && cullable(total);   // (?truth too: what this frame's depth hides adds nothing to any pixel, and the reference drawn whole, ten million things a frame at 4K, does not settle)
       const args = new THREE.IndirectStorageBufferAttribute(new Uint32Array(geos.flatMap((g) => [g.index.count, 0, 0, 0, 0])), 5), argsNode = storage(args, 'uint', 5 * K);
       this.cand = uniform(0, 'uint');
       // what a workgroup packs, by one atomic a bucket it puts anything into (not one a thing): its 64 count theirs in
