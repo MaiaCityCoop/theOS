@@ -44,8 +44,8 @@ function tile() {
 /** The relief near the eye, drawn into `scene` with the land's material (made by `material(from)`: material.js
     terrainMaterial with its vertex stage reading from here), its heights from the land's pages `vt`. */
 export function createRelief(scene, renderer, vt, material) {
-  const NODES = gpuStorage('vec4', CAP, 'the relief near the eye: its nodes'), nodes = new Float32Array(CAP * 4);
-  const P = gpuStorage('vec4', CAP * V, 'the relief near the eye: its points'), Q = gpuStorage('vec4', CAP * V, 'the relief near the eye: their normals and the river');
+  const NODES = gpuStorage('vec4', CAP, 'the relief near the eye: its nodes', 'ground'), nodes = new Float32Array(CAP * 4);
+  const P = gpuStorage('vec4', CAP * V, 'the relief near the eye: its points', 'ground'), Q = gpuStorage('vec4', CAP * V, 'the relief near the eye: their normals and the river', 'ground');
   const uN = uniform(0, 'uint');
   // ---- every vertex of every node: where it lies (morphed), the land there, raised by its page ----
   const kernel = Fn(() => {

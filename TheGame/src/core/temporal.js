@@ -222,7 +222,7 @@ export function createTemporal(renderer) {
       if (key !== sizeKept) {
         sizeKept = key; fresh = true;
         for (const h of hist) h.setSize(size.x, size.y);
-        note('the picture kept over time (two of it)', 2 * size.x * size.y * (STORE ? 4 : 8), 0);
+        note('the picture kept over time (two of it)', 2 * size.x * size.y * (STORE ? 4 : 8), 0, 'upscale/post');
       }
       // this frame's screen to the last one's, and back: through both cameras, the far numbers of the world's places
       // taken out before anything is rounded (the two views' product is their difference)

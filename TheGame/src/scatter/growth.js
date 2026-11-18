@@ -36,7 +36,7 @@ export const growthMap = () => CURRENT;
 /** The map: its buffer (made with the renderer, on the GPU only), what reads it, and how it is kept round the camera.
     words: how many the layers that write need. */
 export function createGrowth(renderer, words) {
-  const W = Math.max(1, Math.min(WORDS, words)), buf = gpuStorage('uint', N * N * W, 'the growth map'), B = buf.node;
+  const W = Math.max(1, Math.min(WORDS, words)), buf = gpuStorage('uint', N * N * W, 'the growth map', 'geometry'), B = buf.node;
   const origin = uniform(new THREE.Vector2(0, 0));   // (the window's first texel on the land: x, z)
   const slot = (ix, iz, w) => uint(ix.bitAnd(int(N - 1)).add(iz.bitAnd(int(N - 1)).mul(int(N)))).mul(uint(W)).add(uint(w));
   const inside = (ix, iz) => ix.greaterThanEqual(int(origin.x)).and(ix.lessThan(int(origin.x).add(N))).and(iz.greaterThanEqual(int(origin.y))).and(iz.lessThan(int(origin.y).add(N)));

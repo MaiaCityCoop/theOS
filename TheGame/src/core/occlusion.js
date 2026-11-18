@@ -38,7 +38,7 @@
 // culled, and everything is drawn as before.
 import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, float, int, uint, vec2, vec3, vec4, uvec4, ivec2, uniform, uniformArray, storage, texture, instanceIndex, workgroupId, localId, workgroupArray, workgroupBarrier, storageBarrier, atomicLoad, atomicStore, atomicOr, countOneBits, max, min, abs, floor, ceil, log2, exp2, clamp, packHalf2x16, unpackHalf2x16, floatBitsToUint, uintBitsToFloat } from 'three/tsl';
-import { gpuStorageLater, more, limitOf } from './gpu.js';
+import { gpuStorageLater, more, limitOf, roomOf } from './gpu.js';
 import { passOf } from './pass.js';
 import { windStrength, snowDepth } from '../world/light.js';
 
@@ -69,7 +69,7 @@ const texelsOf = (w, h) => { let n = 0; for (let x = Math.ceil(w / 2), y = Math.
 /** Made (again) for a screen of w × h pixels, where it is not so already. */
 const sizePyramid = (w, h) => { if (PYR.w === w && PYR.h === h) return; PYR.buf.make(texelsOf(w, h)); PYR.w = w; PYR.h = h; };
 const pyramidNode = () => {
-  if (!PYR) { PYR = { w: 0, h: 0, buf: gpuStorageLater('float', 'the depth pyramid (occlusion)') }; sizePyramid(Math.max(1, Math.round((globalThis.innerWidth ?? 1) * (globalThis.devicePixelRatio ?? 1))), Math.max(1, Math.round((globalThis.innerHeight ?? 1) * (globalThis.devicePixelRatio ?? 1)))); }   // (the screen's own pixels until a frame says what it draws)
+  if (!PYR) { PYR = { w: 0, h: 0, buf: gpuStorageLater('float', 'the depth pyramid (occlusion)', 'geometry') }; sizePyramid(Math.max(1, Math.round((globalThis.innerWidth ?? 1) * (globalThis.devicePixelRatio ?? 1))), Math.max(1, Math.round((globalThis.innerHeight ?? 1) * (globalThis.devicePixelRatio ?? 1)))); }   // (the screen's own pixels until a frame says what it draws)
   return PYR.buf.node;
 };
 
@@ -171,7 +171,7 @@ const inScene = (o, scene) => { for (; o; o = o.parent) { if (!o.visible && o.is
 
 function arena() {
   const A = { tiers: [], N: 0, G: 0, NC: 1, built: false, any: false };
-  const boxes = gpuStorageLater('uvec4', 'tiers: their things\' boxes (occlusion)'), lists = gpuStorageLater('uint', 'tiers: what is seen, kept (occlusion)'), chunks = gpuStorageLater('uint', 'tiers: the culling\'s chunks (occlusion)');
+  const boxes = gpuStorageLater('uvec4', 'tiers: their things\' boxes (occlusion)', 'geometry'), lists = gpuStorageLater('uint', 'tiers: what is seen, kept (occlusion)', 'geometry'), chunks = gpuStorageLater('uint', 'tiers: the culling\'s chunks (occlusion)', 'geometry');
   const BOX = boxes.node, LIST = lists.node, CH = chunks.node;
   // (the buckets' numbers, which tiers are drawn this frame, and the eye's draw arguments: the page writes into these,
   // so they are made with their numbers when the arena is built)
@@ -198,7 +198,7 @@ function arena() {
     Object.assign(bk, { array: B, count: B.length }); Object.assign(on, { array: new Uint32Array(Math.max(1, A.tiers.length)), count: Math.max(1, A.tiers.length) }); Object.assign(eye, { array: E, count: E.length / 5 });
     const bytes = boxes.make(N) + lists.make(2 * N) + chunks.make(NC * 9);
     uN.value = N; uG.value = G; uNC.value = NC; uB2.value = NC * 6; uS.value = stepsOf(G);
-    more('tiers: the culling\'s numbers (occlusion)', B.byteLength + E.byteLength, B.byteLength + E.byteLength);
+    more('tiers: the culling\'s numbers (occlusion)', B.byteLength + E.byteLength, B.byteLength + E.byteLength, 'geometry');
     A.bytes = bytes;
   };
   // pass one's first chunks: a bucket's, from what it holds this frame (none for a tier not drawn); as many workgroups in all
@@ -316,11 +316,14 @@ const proxies = [];
 /** The most things one arena holds: its boxes, 16 bytes each, one buffer the GPU binds and makes (the device's own
     limits, as large as its adapter has them: src/boot.js). */
 const ROOM = () => Math.floor(Math.min(limitOf('maxStorageBufferBindingSize'), limitOf('maxBufferSize')) / 16);
+/** Whether n things' room fits what the geometry's class has left (src/core/classes.js): a box (16 bytes) and two places
+    in the lists (8) each. */
+const BYTES = 16 + 8, fits = (n) => n * BYTES <= roomOf('geometry');
 /** Whether a tier of `total` things can be culled (one that alone would fill more than an arena is drawn whole). */
-export const cullable = (total) => total <= ROOM();
+export const cullable = (total) => total <= ROOM() && fits(total);
 export function cullOf(T, { K, caps, offs, total, S, data, args, count, box }) {
   uX.value = limitOf('maxComputeWorkgroupsPerDimension');   // (the device's own)
-  if (OPEN && OPEN.N + total > ROOM()) OPEN.build();   // (full: it is made as it is, and this tier opens the next)
+  if (OPEN && (OPEN.N + total > ROOM() || !fits(OPEN.N + total))) OPEN.build();   // (full: it is made as it is, and this tier opens the next)
   const A = (OPEN ||= arena()), me = { T, K, caps, offs, total, g0: A.G, base: A.N, idx: A.tiers.length };
   A.tiers.push(me); A.G += K; A.N += total; A.NC += caps.reduce((a, c) => a + Math.ceil(c / WG), 0);
   const F = storage(args, 'uint', 5 * K), uBase = uniform(me.base, 'uint'), uG0 = uniform(me.g0, 'uint');

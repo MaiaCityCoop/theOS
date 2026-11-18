@@ -1723,6 +1723,32 @@ landed (the master's order: one writer a file).
   - the light's resolutions (canopy, froxels, the screen's light, the clouds' map) from what each must resolve and
     the light's per-pass ceilings, with 9a's owner;
   - long term: a virtual shadow map on 6b's page machinery, so one page system serves the ground and the shadows.
+### Train 2: GPU memory by class, beside the milliseconds (2026-11-18)
+
+Built on `aven/0038-memory` from train 1c (`e11b419`), on the Mac mini, CPU only (the integration train measures it).
+The 8 GB hard gate gets what the 12 ms got in #83: shared out by the frame's classes, each with its ceiling, and the
+gate says each class's share.
+
+- **One table of classes** (`src/core/classes.js`, plain JS): each class's passes by the names their code marks them
+  with (#83's CLASSES, moved here from `tools/bench.js`, which re-exports them), and the memory: MEMORY (the gate,
+  8 GB), BUDGET_MB a class and what they leave the browser. Budgets: geometry 2048 MB (the plants' and rocks' meshes,
+  their far ends' atlases, what the tiers pack and the culling keeps, the growth map, the picture drawn inside), ground
+  1024 (the land's pages, the world's materials, the relief, the ground's maps), light 256 (the cascades at 16 MB a
+  2048² depth, the canopy, the air's froxels, the clouds' map), upscale/post 256 (the kept picture at the screen's
+  pixels, the lens), other 512 (what no pool notes). They leave the page and the browser's processes about 3.7 GB (the
+  renderer was 2.06 GB, the browser and its helpers 0.1 GB at the paths' peak). First numbers, to be set from the
+  train's own readings as the ms ceilings are.
+- **One accounting** (`src/core/gpu.js`): every pool noted under its class (note, more, gpuStorage, gpuStorageLater),
+  at its making, made anew, let go; the ledger (`window.__memory()`) by class beside each budget; `roomOf(class)`, what
+  a class has left, for every pool that may be larger or smaller. And the device itself counted: every buffer and
+  texture as it is made and destroyed (a texture by its format, its mips and layers), so the ledger says what no pool
+  notes (three's own buffers, the targets it makes): what to note next.
+- **Sized from the room, with the device's limits:** the culling's arenas (a tier the geometry's room cannot hold is
+  drawn whole) and the land's pages (never more slots than the ground's room). The impostors' atlases (the rung-error
+  agent's), #82 v2's capacities and the cascades (after 9a's fix) read `roomOf` the same way.
+- **The gate:** `gate.js bench` prints the GPU's memory by class for every view beside its milliseconds, with each
+  budget, all the pools note, all the device made and what no pool notes, and says a class over its budget;
+  `gate.js paths` the same as each path ends. `.gate/bench.json` and `paths.json` hold it.
 
 ## Propose
 
@@ -2003,6 +2029,13 @@ landed (the master's order: one writer a file).
   `aven/0038-extents`, draft PR; the design of all five in the shared notes (`task-b-extents.md`).
 - **Not there yet:** not run (CPU only: the integration train measures it); the froxels' far end, the cascades and the
   light's resolutions wait for 9a.
+- **Asked (by the master on the Mac mini):** the 8 GB gate as the ms budgets are: GPU memory per class, one accounting
+  in `gpu.js` (every buffer and texture with its class and bytes, at making and letting go), the gate printing memory
+  per class beside the ms, a budget per class summing under 8 GB with the browser's share, and what may be larger or
+  smaller sized from it with the device's limits; the class names #83's.
+- **Delivered:** `aven/0038-memory`, draft PR (under Build, "Train 2: GPU memory by class…").
+- **Not there yet:** not run (CPU only); the budgets are first numbers, to be set from the train's readings; what no
+  pool notes is counted, not yet named.
 
 ## Trail
 
@@ -2078,3 +2111,4 @@ landed (the master's order: one writer a file).
 | 2026-11-18 | `2fdfae0` | Draw path: every culling dispatch within the device's workgroups a dimension |
 | 2026-11-18 | `d7dcd26` | Draw path merged with main (`ecc80f2`, the bench by its passes); PR #77 ready |
 | 2026-11-18 | `43be381` | Train 2: one far extent from need; the depth pyramid follows the screen; the canvas without depth |
+| 2026-11-18 | `85e1e1d` | GPU memory by class: one table of classes, one accounting with the device counted, the gate beside the ms |

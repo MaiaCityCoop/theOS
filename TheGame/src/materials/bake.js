@@ -172,7 +172,7 @@ export function bakeTextures(renderer, { spare = 6, first = null } = {}) {
   };
   const A = PACKED ? blocksArray(THREE.RGBA_S3TC_DXT5_Format, 16, 4) : array(4, CAP), Nn = PACKED ? blocksArray(THREE.RED_GREEN_RGTC2_Format, 16, 2) : array(2, CAP);
   const Rr = PACKED ? blocksArray(THREE.RED_RGTC1_Format, 8, 2, 1) : null, Dd = DATA.length ? array(4, DATA.length) : null;
-  note("the world's textures (a pool of layers, and the numbers' own)", Math.round((PACKED ? (2 + 1 / 8) * CAP : 8 * CAP) * SIZE * SIZE * 4 / 3 + DATA.length * SIZE * SIZE * 16 / 3), 0);
+  note("the world's textures (a pool of layers, and the numbers' own)", Math.round((PACKED ? (2 + 1 / 8) * CAP : 8 * CAP) * SIZE * SIZE * 4 / 3 + DATA.length * SIZE * SIZE * 16 / 3), 0, 'ground');   // (ground: what the land's pages are laid from; the rocks and made things wear them too)
 
   // the painter: a target the tile is painted into, and (compressed) the pass that packs it and its buffers; made when
   // there is something to paint, let go half a minute after the last (made again, its packing pass, 53 KB, is compiled
