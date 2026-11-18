@@ -31,12 +31,13 @@ function blade(segs) {
 // drawing a first share of it leaves a blade out as far from one drawn as the cells drawn stand apart, so the share may
 // thin only where its cells stand under a dial pixel apart, which is where its blades end (bandsOf). So no ring is
 // fewer: every blade is drawn as it is, its own size in its own cells, out to there, the rings only bending it less
-// (ringsOf); over the BAND before the end its blades thin, one spread order deciding which go (rankOf), those left as
-// they are, and the carpet under them takes what they no longer cover (src/terrain/material.js: the meadow averaged, by
-// the blades' own share, endOf): the blades and the carpet one meadow either side, never a blade swollen to stand for it.
-/** The share of the meadow's blades still drawn at `dist` metres as the 68° lens sees them (a node): all of it short of
-    the BAND before the meadow's end (U.uMeadowEnd), none past it. The blades thin by it, and the land's carpet under
-    them reads it (src/terrain/material.js): one statistic either side of where the blades hand over to the carpet. */
+// (ringsOf); over the BAND past it they thin away, as every hand-over runs under its switch (src/detail/handover.js),
+// one spread order deciding which go (rankOf), those left as they are, and the carpet under them takes what they no
+// longer cover (src/terrain/material.js: the meadow averaged, by the blades' own share, endOf): the blades and the
+// carpet one meadow either side, never a blade swollen to stand for it.
+/** The share of the meadow's blades still drawn at `dist` metres as the 68° lens sees them (a node): all of it out to
+    where they end (U.uMeadowEnd a BAND under that), none at U.uMeadowEnd. The blades thin by it, and the land's carpet
+    under them reads it (src/terrain/material.js): one statistic either side of where the blades hand over to it. */
 export const endOf = (dist) => float(1).sub(smoothstep(U.uMeadowEnd.div(BAND), U.uMeadowEnd, dist));
 /** The meadow's mean top, metres, for an asset `height` tall: its mean blade (bladeIn: 0.5 of the asset's height, and
     r² 0.55 and its tuft's c² 0.8 more, each r and c 0 … 1: their means a third) at its tip, bowed by its mean bend
@@ -57,12 +58,12 @@ export const bladeLit = (col, n, V, t, sun) => {
     ring is the blade in its own cells (cell, w: half its width, as it is); ring k bends it in k fewer straight pieces
     than the blade's segs. Its error e is how far that misses the blade's curve (a bow of b metres in n straight pieces
     misses it by b / 4n²: the mean blade's, bladeIn's mean height 0.95 of the asset's, its bend 0.65, bowing 1.15 of
-    that at its tip). A ring is made while it can come in before the blades end (bandsOf), at any measure (both go as
-    K): while its error, a BAND over it, is under a cell (where the cells stand a dial pixel apart) and under the mean
-    blade's height over GONE (where it is gone). Where each is drawn is bandsOf's. */
+    that at its tip). A ring is made while it can come in where the blades are whole (bandsOf), at any measure (both go
+    as K): while its error is under a cell (where the cells stand a dial pixel apart) and under the mean blade's height
+    over GONE (where it is gone). Where each is drawn is bandsOf's. */
 export function ringsOf(asset) {
   const B = asset.blade, h = asset.height * 0.95, bow = h * 0.65 * 1.15, ends = Math.min(B.cell, h / GONE), rings = [];
-  for (let n = B.segs; n >= 1; n--) { const e = n === B.segs ? 0 : bow / (4 * n * n); if (e * BAND >= ends) break; rings.push({ segs: n, cell: B.cell, P: B.P, w: B.w, e }); }
+  for (let n = B.segs; n >= 1; n--) { const e = n === B.segs ? 0 : bow / (4 * n * n); if (e >= ends) break; rings.push({ segs: n, cell: B.cell, P: B.P, w: B.w, e }); }
   return rings;
 }
 /** Where the rings are drawn at a measure (K: dial pixels a metre covers at a metre: src/detail/measure.js dialK, the
@@ -73,16 +74,12 @@ export function ringsOf(asset) {
     statistics, and nearer there no share of them may be left out (a first share of a crowd leaves a blade out as far
     from one drawn as its cells stand apart: above), so there and no nearer the carpet carries the meadow on
     (src/terrain/material.js: the blades' own share, endOf); nearer still where its mean blade is gone (GONE dial
-    pixels: leaving it out differs by all of its height, src/detail/error.js goneAt). They thin over the BAND before
-    their end; a ring that would only come in there draws nothing (far 0). height: the asset's. */
+    pixels: leaving it out differs by all of its height, src/detail/error.js goneAt). They are whole out to there and
+    thin away over the BAND under it, as every hand-over runs under its switch (src/detail/handover.js): `end` is where
+    the last of them has gone, a BAND past their end (the ground's map reaches it: src/scatter/ground.js reachOf). A
+    ring that would only come in as they thin draws nothing (far 0). height: the asset's. */
 export function bandsOf(rings, height, K) {
-  const at = (k) => rings[k].e * K;
-  let end = (height * 0.95 * K) / GONE;
-  for (let k = 0; k < rings.length; k++) {   // (ring k is drawn from `from` to `to`; its cells fall under a dial pixel past `under`)
-    const from = k ? at(k) * BAND : 0, to = k + 1 < rings.length ? at(k + 1) * BAND : Infinity, under = rings[k].cell * K;
-    if (from >= end) break;
-    if (under < to) { end = Math.min(end, Math.max(from, under)); break; }
-  }
+  const at = (k) => rings[k].e * K, end = Math.min((height * 0.95 * K) / GONE, rings[0].cell * K) * BAND;   // (every ring the blade in its own cells: ringsOf)
   const on = rings.map((_, k) => !k || at(k) * BAND < end);
   return { end, bands: rings.map((_, k) => {
     if (!on[k]) return { near: 0, nearFade: 0, far: 0, farFade: 0 };
