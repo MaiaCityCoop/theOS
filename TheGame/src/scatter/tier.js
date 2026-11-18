@@ -106,11 +106,11 @@ export class Tier {
     const cells = this.patchesIn();
     renderer.compute(this.passes); did('packs'); if (this.movers) did('moving'); did('kcells', Math.round(cells / 1000)); this.empty = !n;   // (moving: a tier packed every frame, its things moving; not a change of what stands: src/core/work.js changed)
   }
-  /** What it is: its meshes and its packing passes named so (three labels their pipelines with it: src/core/compile.js). */
+  /** What it is: its meshes named so (three labels their pipelines by it: src/core/compile.js). Not its packing passes:
+      three writes a compute pass's name into its code, and the tiers' passes that are one shader would then be many. */
   label(name) {
     this.name = name;
     this.meshes.forEach((m, k) => { m.name = this.meshes.length > 1 ? `${name} ${k}` : name; });
-    (this.passes ?? []).forEach((p, k) => p.setName(`${name}: packing ${k}`));
   }
   /** Its packing passes asked to be made, aside, in turn (src/core/compile.js ask). counted: whether the world waits for
       them (made ahead of need, src/boot.js: not). */
