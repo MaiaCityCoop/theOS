@@ -178,6 +178,10 @@ const TIERS = new Set();
 /** Whether `o` is drawn in `scene`: it and all it stands in shown, up to the scene. */
 const inScene = (o, scene) => { for (; o; o = o.parent) { if (!o.visible && o.isMesh !== true) return false; if (o === scene) return true; } return false; };
 
+/** A tier's room in its arena: all it packs (caps), or a resident tier's, half its range (src/scatter/tier.js: two
+    stores, its buckets laid out in the one it gathered into, never past it; its places there are folded into the half,
+    at, uHalf). What the eye can have drawn of it, not all it holds. */
+const regionOf = (t) => (t.fold ? Math.ceil(t.total / 2) : t.total);
 function arena() {
   const A = { tiers: [], N: 0, G: 0, NC: 1, built: false, any: false };
   const boxes = gpuStorageLater('uvec4', 'tiers: their things\' boxes (occlusion)', 'geometry'), lists = gpuStorageLater('uint', 'tiers: what is seen, kept (occlusion)', 'geometry'), chunks = gpuStorageLater('uint', 'tiers: the culling\'s chunks (occlusion)', 'geometry');
@@ -196,11 +200,16 @@ function arena() {
   const P = pyramidNode();
   // (a tier's buckets: each a room of its own, or a resident tier's laid out by its gather in one range, their first and
   // their count written by its packing each time: src/scatter/tier.js)
-  const chunksOf = (t) => (t.caps ? t.caps.reduce((a, c) => a + Math.ceil(c / WG), 0) : Math.ceil(t.total / WG) + t.K);
+  const chunksOf = (t) => (t.caps ? t.caps.reduce((a, c) => a + Math.ceil(c / WG), 0) : Math.ceil(regionOf(t) / WG) + t.K);
+  // (its buffers' room: made again only when what the arena holds has outgrown it, twice as large then; so the stores
+  // of a start growing step by step make a few of them, not one a step (2026-11-19: twelve, 2.15 GB alive at once
+  // under slow frames, and the device lost on an 8 GB MacBook))
+  let roomN = 0, roomC = 0;
   /** The arena's numbers and buffers, as large as its tiers: once, before anything binds them (every node that reads
-      them asks), and again where a tier's range has changed (relayout). */
+      them asks), and again where a tier's range has changed (relayout). Whether its buffers were made again (then what
+      every tier wrote into them is gone). */
   const lay = () => {
-    let N = 0, NC = 1; for (const t of A.tiers) { t.base = N; t.uBase.value = N; t.uEntry.value = (N - t.from) >>> 0; N += t.total; NC += chunksOf(t); }
+    let N = 0, NC = 1; for (const t of A.tiers) { t.base = N; t.uBase.value = N; t.uEntry.value = (N - t.from) >>> 0; if (t.fold) t.uHalf.value = regionOf(t); N += regionOf(t); NC += chunksOf(t); }
     A.N = N; A.NC = NC;
     const { G } = A, B = new Uint32Array((G + 1) * NB), E = new Uint32Array(Math.max(1, G) * 10);
     for (const t of A.tiers) for (let k = 0; k < t.K; k++) {
@@ -209,24 +218,26 @@ function arena() {
     }
     B[G * NB + BASE] = N;
     Object.assign(bk, { array: B, count: B.length }); bk.needsUpdate = true; Object.assign(eye, { array: E, count: E.length / 5 }); eye.needsUpdate = true;
-    A.bytes = boxes.make(N) + lists.make(2 * N) + chunks.make(NC * 9);
+    const grows = N > roomN || NC > roomC;
+    if (grows) { roomN = Math.max(N, 2 * roomN); roomC = Math.max(NC, 2 * roomC); A.bytes = boxes.make(roomN) + lists.make(2 * roomN) + chunks.make(roomC * 9); }
     uN.value = N; uG.value = G; uNC.value = NC; uB2.value = NC * 6; uS.value = stepsOf(G);
-    return B.byteLength + E.byteLength;
+    return { bytes: B.byteLength + E.byteLength, grows };
   };
   A.build = () => {
     if (A.built) return;
     A.built = true; if (OPEN === A) OPEN = null;
     Object.assign(on, { array: new Uint32Array(Math.max(1, A.tiers.length)), count: Math.max(1, A.tiers.length) });
-    const bytes = lay();
+    const { bytes } = lay();
     more('tiers: the culling\'s numbers (occlusion)', bytes, bytes, 'geometry');
   };
   /** A tier's range changed (a resident tier's store made again: src/scatter/tier.js): every tier's place in the arena
-      laid out again, its buffers made again at the new size, and every tier of it packed again (its boxes moved). */
+      laid out again, its buffers made again only if they are outgrown; packed again, the tiers whose place or room in
+      it moved (their boxes are where they were no longer), every tier where its buffers were made again. */
   A.relayout = () => {
-    if (!A.built) { A.N = A.tiers.reduce((n, t) => n + t.total, 0); A.NC = 1 + A.tiers.reduce((n, t) => n + chunksOf(t), 0); return; }
-    lay();
+    if (!A.built) { A.N = A.tiers.reduce((n, t) => n + regionOf(t), 0); A.NC = 1 + A.tiers.reduce((n, t) => n + chunksOf(t), 0); return; }
+    const was = A.tiers.map((t) => [t.base, regionOf(t)]), { grows } = lay();
     if (A.N > ROOM()) console.warn(`the culling's arena holds ${A.N} things, more than one binding holds (${ROOM()}): ${Math.round((A.N / ROOM()) * 100)} % of it; its class's budget must take the rest`);
-    for (const t of A.tiers) t.T.repack?.();
+    A.tiers.forEach((t, i) => { if (grows || t.base !== was[i][0] || regionOf(t) !== was[i][1]) t.T.repack?.(); });
   };
   // pass one's first chunks: a bucket's, from what it holds this frame (none for a tier not drawn); as many workgroups in all
   const prep = Fn(() => {
@@ -350,9 +361,10 @@ const fits = (n) => n * (bytesOf('uvec4') + 2 * bytesOf('uint')) <= roomOf('geom
 export const cullable = (total) => total <= ROOM() && fits(total);
 export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, offAt = null, also = null }) {
   useLimits();   // (the device's own)
-  if (OPEN && (OPEN.N + total > ROOM() || !fits(OPEN.N + total))) OPEN.build();   // (full: it is made as it is, and this tier opens the next)
-  const A = (OPEN ||= arena()), uBase = uniform(A.N, 'uint'), uEntry = uniform(A.N, 'uint'), me = { T, K, caps, offs, total, g0: A.G, base: A.N, idx: A.tiers.length, uBase, uEntry, from: 0 };   // (uEntry: where the eye's passes read its list, less where its draws' things begin: from)
-  A.tiers.push(me); A.G += K; A.N += total; A.NC += caps ? caps.reduce((a, c) => a + Math.ceil(c / WG), 0) : Math.ceil(total / WG) + K;
+  const fold = !!offAt, region = regionOf({ fold, total });   // (a resident tier's places folded into half its range: regionOf)
+  if (OPEN && (OPEN.N + region > ROOM() || !fits(OPEN.N + region))) OPEN.build();   // (full: it is made as it is, and this tier opens the next)
+  const A = (OPEN ||= arena()), uBase = uniform(A.N, 'uint'), uEntry = uniform(A.N, 'uint'), uHalf = uniform(Math.max(1, region), 'uint'), uFrom = uniform(0, 'uint'), me = { T, K, caps, offs, total, fold, g0: A.G, base: A.N, idx: A.tiers.length, uBase, uEntry, uHalf, uFrom, from: 0 };   // (uEntry: where the eye's passes read its list, less where its draws' things begin: from)
+  A.tiers.push(me); A.G += K; A.N += region; A.NC += caps ? caps.reduce((a, c) => a + Math.ceil(c / WG), 0) : Math.ceil(region / WG) + K;
   const F = storage(args, 'uint', 5 * K), uG0 = uniform(me.g0, 'uint');
   // after the packing (its last pass, in its stead): each draw as many as it holds, no more than its room; the same
   // into the arena, with how many the draws before it hold; and as many workgroups as work out their boxes. A bucket
@@ -363,7 +375,7 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
     const run = uint(0).toVar();
     for (let k = 0; k < K; k++) {
       const g = uG0.add(uint(k)), n = (offAt ? atomicLoad(count.element(k)) : atomicLoad(count.element(k)).min(A.at(g, CAP))).toVar();
-      if (offAt) { A.at(g, BASE).assign(uBase.add(offAt(uint(k)))); A.at(g, CAP).assign(n); }
+      if (offAt) { A.at(g, BASE).assign(uBase.add(offAt(uint(k)).mod(uHalf))); A.at(g, CAP).assign(n); }   // (its place in the arena, folded: regionOf)
       F.element(k * 5 + 1).assign(n); A.at(g, PACK).assign(n); A.at(g, PRE).assign(run); run.addAssign(n);
       if (also) also(k);   // (what its tier writes beside, a draw at a time)
     }
@@ -374,7 +386,7 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
     A.build();
     const t = wgOf().mul(uint(WG)).add(localId.x), g = lastAtMost((q) => A.at(q, PRE), uG0, uint(K), t, stepsOf(K)).toVar(), k = g.sub(uG0), i = t.sub(A.at(g, PRE));
     If(i.lessThan(A.at(g, PACK)), () => {
-      const s = A.at(g, BASE).sub(uBase).add(i), e = s.mul(uint(S)), B = box(data.element(e), data.element(e.add(uint(1))), k), o = uBase.add(s);
+      const s = offAt ? offAt(k).add(i) : A.at(g, BASE).sub(uBase).add(i), e = s.mul(uint(S)), B = box(data.element(e), data.element(e.add(uint(1))), k), o = A.at(g, BASE).add(i);   // (s: where the packing put it; o: its place in the arena)
       A.BOX.element(o).assign(boxOf(B));
     });
   })().compute(MANY, [WG]);
@@ -383,7 +395,7 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
     args: argsPass, boxes, arena: A, g0: me.g0,
     /** Where the eye's passes read a thing of a bucket whose things begin at `slot` (a uint node): through what the passes
         kept; every other pass (the shadow map's, a still's, a bake's) where the packing put it. */
-    entry: (slot) => Fn((builder) => { A.build(); const p = passOf(builder); return p === 'pre' || p === 'main' ? slot.add(A.LIST.element(uEntry.add(slot).add(instanceIndex))) : slot.add(instanceIndex); })(),
+    entry: (slot) => Fn((builder) => { A.build(); const p = passOf(builder); return p === 'pre' || p === 'main' ? slot.add(A.LIST.element((fold ? uBase.add(slot.sub(uFrom).mod(uHalf)) : uEntry.add(slot)).add(instanceIndex))) : slot.add(instanceIndex); })(),
     /** The draws' arguments for a pass: 'eye' (V), 'late' (L), 'rest' (F, its own). */
     use(which) {
       if (which === 'rest') T.geometries.forEach((g, k) => { g.indirect = args; g.indirectOffset = k * 20; });
@@ -394,7 +406,7 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box, off
     resize(n, now = true) { me.total = n; if (now) A.relayout(); },
     /** Where its draws' things begin in the buffer they read (a resident tier's range of its kind's, src/scatter/tier.js):
         a slot the eye's passes are handed is of that buffer, its list of the arena's. */
-    from(n) { me.from = n; me.uEntry.value = (me.base - n) >>> 0; },
+    from(n) { me.from = n; me.uFrom.value = n; me.uEntry.value = (me.base - n) >>> 0; },
     /** A draw's length (its corners) changed: in all three of its sets of arguments. */
     setLength(k, n) {
       args.array[k * 5] = n; args.addUpdateRange(k * 5, 1); args.needsUpdate = true;

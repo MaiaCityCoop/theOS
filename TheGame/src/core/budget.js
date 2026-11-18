@@ -14,6 +14,10 @@ export const MEMORY = 8e9;
     pixels. source: Samuel, 2026-11-18 22:15, intent 0038's gate lowered from 4K ("we are happy to go down our 4K gate to
     just normal 1920, if that helps overall") */
 export const OUTPUT = { width: 1920, height: 1080 };
+/** The machine the 8 GB gate is for: Samuel's MacBook, its screen at its default scale (Retina, two pixels a point), as
+    its browser gives the game a window of it. unit: CSS pixels, and device pixels a CSS pixel. source: Samuel's MacBook
+    (8 GB, 2026-11-19: WebKit's GPU process died there 38 s past the start, the device lost) */
+export const MACHINE = { width: 1512, height: 945, dpr: 2 };
 /** The 12 ms a frame shared out by the frame's classes: what a class's passes may take, the gate's ceilings start from
     it (tools/gate/ceilings.js). The upscale's is its floor: its bytes alone at a 4K output took about 1.9 ms (#86).
     'other', a pass no class names, is the slack. unit: ms. source: Intents/0038, Build (the bench pass by pass; the
