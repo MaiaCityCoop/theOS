@@ -33,11 +33,14 @@ async function receiver() {
       const b = Buffer.concat(parts), data = new SharedArrayBuffer(b.length); new Uint8Array(data).set(b);
       const f = { w: +u.searchParams.get('w'), h: +u.searchParams.get('h'), data };
       res.writeHead(200, { 'access-control-allow-origin': '*' }); res.end();
+      if (b.length !== f.w * f.h * 4) f.error = `frame ${key} came as ${b.length} bytes, not ${f.w}×${f.h}×4`;
+      else { let lit = 0; for (let i = 0; i < b.length; i += 4 * 997) lit += b[i] + b[i + 1] + b[i + 2]; if (!lit) f.error = `frame ${key} is black: the canvas was read before anything was drawn on it`; }
       if (wanted.has(key)) { wanted.get(key)(f); wanted.delete(key); } else kept.set(key, f);
     });
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
-  const take = (key) => { const f = kept.get(key); if (f) { kept.delete(key); return Promise.resolve(f); } return new Promise((r) => wanted.set(key, r)); };
+  const check = (f) => { if (f.error) throw new Error(f.error); return f; };
+  const take = (key) => { const f = kept.get(key); if (f) { kept.delete(key); return Promise.resolve(f).then(check); } return new Promise((r) => wanted.set(key, r)).then(check); };
   return { url: `http://127.0.0.1:${server.address().port}/frame`, take, close: () => server.close() };
 }
 /** n workers measuring frames' change (tools/gate/change.js), each frame to the next one free. */
@@ -67,17 +70,17 @@ async function pass(ctx, p, { truth, floor, T, fps, to, net, reach, store, from 
     if (begun.clock >= T) throw new Error(`the page's clock (${begun.clock.toFixed(0)} s) is past where the path starts on it (${T} s)`);
     const c = fly ? { secs: await P.page.evaluate(async () => (await import(new URL('tools/flyby.js', location.href).href)).cycleOf('zoom')) } : await P.page.evaluate(course, p);
     const secs = Math.min(c.secs, to ?? Infinity), n = Math.floor(secs * fps + 1e-6) + 1;
-    const a = await P.page.evaluate(rest, { T, fly, wait: WAIT, jit: start?.jit ?? null });
-    console.log(`  ${p.name}, ${who}: the page came in ${(P.start.ms / 1000).toFixed(1)} s; ${n} frames over ${secs.toFixed(1)} s; settled at the path's start in ${(a.ms / 1000).toFixed(1)} s (${a.frames} frames${a.aligned ? `, ${a.aligned} more to stand at the first pass's place of a pixel` : ''})`);
+    const a = await P.page.evaluate(rest, { T, fly, wait: WAIT, place: start?.place ?? null });
+    console.log(`  ${p.name}, ${who}: the page came in ${(P.start.ms / 1000).toFixed(1)} s; ${n} frames over ${secs.toFixed(1)} s; settled at the path's start in ${(a.ms / 1000).toFixed(1)} s (${a.frames} frames)`);
     const frames = [], top = [], jobs = new Set(), places = [];
     let before = null;
     for (let i = 0; i < n; i++) {
       const s = i / fps;
-      const r = await P.page.evaluate(shot, { s, T: T + s, fly, url: net.url, key: `${p.name}${i}`, whole: truth, jit: jits?.[i] ?? null });
+      const r = await P.page.evaluate(shot, { s, T: T + s, fly, url: net.url, key: `${p.name}${i}`, truth, place: jits?.[i] ?? null });
       const now = await net.take(`${p.name}${i}`);
-      places.push(r.jit);
+      places.push(r.place);
       if (first) { writeFileSync(`${store}${i}.z`, deflateSync(new Uint8Array(now.data), { level: 1 })); if (i && (i % 50 === 0 || i === n - 1)) console.log(`    ${String(i).padStart(5)} / ${n - 1}  ${((Date.now() - t0) / 1000 / (i + 1)).toFixed(2)} s a frame`); continue; }
-      const f = { i, s: +s.toFixed(4), again: r.again, ...(r.out ? { out: r.out } : {}), ...(r.late ? { late: true } : {}), ...(jits && (jits[i][0] !== r.jit[0] || jits[i][1] !== r.jit[1]) ? { places: 'apart' } : {}) };
+      const f = { i, s: +s.toFixed(4), ...(r.out ? { out: r.out } : {}), ...(jits && jits[i] !== r.place ? { places: 'apart' } : {}) };
       frames.push(f);
       const L = inflateSync(readFileSync(`${from}${i}.z`)), Ls = new SharedArrayBuffer(L.length); new Uint8Array(Ls).set(L);
       const pair = { L: Ls, R: now.data };
@@ -101,7 +104,7 @@ async function pass(ctx, p, { truth, floor, T, fps, to, net, reach, store, from 
       secs, fps, frames: ms.length, ms: Date.now() - t0, start: { lod: start, [floor ? 'again' : 'truth']: a },
       worst: worst && { value: worst.worst.value, frame: worst.i, s: worst.s, x: worst.worst.x, y: worst.worst.y },
       p99: rank(ws, 0.99), median: rank(ws, 0.5), over: ws.filter((v) => v > POP).length,
-      again: frames.reduce((s, x) => s + x.again, 0), late: frames.filter((x) => x.late).length, apart: frames.filter((x) => x.places).length,
+      lacking: frames.filter((x) => x.out).length, apart: frames.filter((x) => x.places).length,
       list: frames, shown,
     };
   } finally { said(P.errors); await P.close(); }
@@ -112,7 +115,7 @@ async function filmstrip(ctx, file, { title, sub, r, other = 'truth' }) {
   const B = await ctx.newPage(), b64 = (u8) => Buffer.from(u8.buffer, u8.byteOffset, u8.byteLength).toString('base64');
   try {
     await B.setContent('<!doctype html><html><body style="margin:0;background:#101418"></body></html>');
-    const rows = r.shown.map((x) => ({ label: `frame ${x.i} · ${x.s.toFixed(2)} s in · worst tile ${x.worst.value.toFixed(4)} at ${x.worst.x},${x.worst.y}${x.again ? ` · truth drawn ${x.again + 1}×` : ''}`, s: x.s, value: x.worst.value, worst: x.worst, width: x.width,
+    const rows = r.shown.map((x) => ({ label: `frame ${x.i} · ${x.s.toFixed(2)} s in · worst tile ${x.worst.value.toFixed(4)} at ${x.worst.x},${x.worst.y}${x.out ? ` · the truth lacked: ${Object.entries(x.out).map(([k, v]) => `${k} ${v}`).join(', ')}` : ''}`, s: x.s, value: x.worst.value, worst: x.worst, width: x.width,
       thumb: { w: x.look.thumb.w, h: x.look.thumb.h, rgb: b64(x.look.thumb.rgb) }, crops: x.look.crops.map(b64), crop: CROP, tile: x.look.tile }));
     const url = await B.evaluate(film, { title, sub, width: 1600, series: r.list.filter((x) => x.worst).map((x) => [x.s, x.worst.value]), line: POP, rows, names: ['LOD before', 'LOD now', `${other} before`, `${other} now`, 'the change, FLIP'] });
     writeFileSync(file, Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
@@ -147,8 +150,8 @@ export async function motion(opt, kit) {
   } finally { await ctx.close(); net.close(); await work.close(); }
   const fails = Object.entries(report.paths).filter(([, r]) => r.over).map(([k, r]) => `${k} ${r.over} frame(s), the worst ${r.worst.value.toFixed(4)}`);
   console.log(`motion, ${tag}: the change detail made in each frame (FLIP of ((LOD − truth) now) − ((LOD − truth) a frame before), 32-px tiles, 4K)`);
-  console.log(`  ${'path'.padEnd(8)}${'frames'.padStart(7)}${'worst'.padStart(9)}${'at s'.padStart(8)}${'p99'.padStart(9)}${'median'.padStart(9)}${`>${POP}`.padStart(7)}${'truth again'.padStart(13)}`);
-  for (const [k, r] of Object.entries(report.paths)) console.log(`  ${k.padEnd(8)}${String(r.frames).padStart(7)}${f(r.worst?.value, 4, 9)}${f(r.worst?.s, 2)}${f(r.p99, 4, 9)}${f(r.median, 4, 9)}${String(r.over).padStart(7)}${String(r.again).padStart(13)}`);
+  console.log(`  ${'path'.padEnd(8)}${'frames'.padStart(7)}${'worst'.padStart(9)}${'at s'.padStart(8)}${'p99'.padStart(9)}${'median'.padStart(9)}${`>${POP}`.padStart(7)}${'truth lacking'.padStart(15)}`);
+  for (const [k, r] of Object.entries(report.paths)) console.log(`  ${k.padEnd(8)}${String(r.frames).padStart(7)}${f(r.worst?.value, 4, 9)}${f(r.worst?.s, 2)}${f(r.p99, 4, 9)}${f(r.median, 4, 9)}${String(r.over).padStart(7)}${String(r.lacking).padStart(15)}`);
   console.log(`  the merge rule, nothing pops (no frame's worst tile over ${POP}, provisional): ${fails.length ? 'NOT MET: ' + fails.join('; ') : 'met'}`);
   report.pass = !fails.length; report.fails = fails; save(`${dir}report.json`, report);
   return report;
@@ -172,10 +175,10 @@ export async function begin({ truth }) {
 
 /** In the page: the path laid (tools/gate.js course; the flight: the film camera let go, the rig flown frame by frame
     here, not by tools/flyby.js's own loop), the camera at its start, and the world settled there with the clock standing
-    at T seconds, frame by stepped frame. Then, given `jit` (the other page's place of a pixel in its last frame), frames
-    drawn on there until this one's last is at the same place: the two pages' frames are then drawn at the same places,
-    frame for frame. What it took. */
-export async function rest({ T, fly, jit = null, wait = 600e3 }) {
+    at T seconds, frame by stepped frame. Given `place` (the first pass's place of a pixel when it settled there), this
+    page's next frame is drawn at the same place as the first pass's next was (src/core/temporal.js place): the two
+    passes' frames are drawn at the same places, frame for frame. What it took, and its place. */
+export async function rest({ T, fly, place = null, wait = 600e3 }) {
   const M = window.__gateMotion, C = window.__gateClock, g = window.__game, t = M.t0 + T * 1000, t0 = Date.now();
   if (fly) window.__cine.release();
   const pose = () => M.pose(0, fly);
@@ -184,42 +187,33 @@ export async function rest({ T, fly, jit = null, wait = 600e3 }) {
   g.settle({ timeout: wait }).then((r) => (done = r), (e) => (done = { error: String(e.message ?? e) }));
   while (!done) { pose(); await C.step(t); frames++; await new Promise((r) => setTimeout(r, 0)); }
   if (done.error) throw new Error(done.error);
-  let aligned = 0;
-  if (jit) for (; aligned < 128 && (M.U.uJit.value.x !== jit[0] || M.U.uJit.value.y !== jit[1]); aligned++) { pose(); await C.step(t); }
-  return { frames, aligned, ms: Date.now() - t0, jit: [M.U.uJit.value.x, M.U.uJit.value.y] };
+  if (place != null) g.temporal.place = place;
+  return { frames, ms: Date.now() - t0, place: g.temporal.place };
 }
 
 /** In the page: frame `s` seconds into the path, at T seconds on the world's clock, drawn and sent to the gate (its raw
-    RGBA bytes, POSTed to `url`). whole: the frame is the truth's, and is drawn again (the clock and the camera standing)
-    until nothing was still out when it was drawn, then on until its place of a pixel is `jit`'s again (the LOD page's
-    this frame), so the two are drawn alike. What it took: { jit (this frame's place), again (frames drawn over), out
-    (what was still out, the first time, by source), ms }. */
-export async function shot({ s, T, fly, url, key, whole = false, jit = null, wait = 120e3 }) {
-  const M = window.__gateMotion, C = window.__gateClock, g = window.__game, c = window.__cine, t = M.t0 + T * 1000, t0 = Date.now();
-  const busy = () => Object.keys(M.waiting()).length > 0;
-  let again = -1, first = null, cv = null, late = false;
-  for (;;) {
-    again++;
+    RGBA bytes, POSTed to `url`). truth: the frame is the truth's, drawn twice with the camera and the clock standing: once
+    to ask for all it needs (the land's pages, a rock's whole mesh), then, what came between taken in, at `place` (the
+    game's frame's place of a pixel, src/core/temporal.js). What it took: { place (this frame's), out (what was still
+    out after it was drawn, by source: what the truth's frame may have lacked), ms }. */
+export async function shot({ s, T, fly, url, key, truth = false, place = null }) {
+  const M = window.__gateMotion, C = window.__gateClock, g = window.__game, t = M.t0 + T * 1000, t0 = Date.now();
+  M.pose(s, fly);
+  if (truth) {
+    await C.step(t);   // (the asking frame)
+    await g.renderer.backend.device?.queue.onSubmittedWorkDone(); await new Promise((r) => setTimeout(r, 0));   // (what it asked, read back)
+    const w0 = Date.now(); while (Object.keys(M.waiting()).some((k) => k !== 'pages') && Date.now() - w0 < 3000) await new Promise((r) => setTimeout(r, 20));   // (what the workers bring, a moment)
     M.pose(s, fly);
-    const grab = c.grab(g.renderer.domElement.width);
-    await C.step(t);
-    cv = await grab;
-    if (whole) {
-      await g.renderer.backend.device?.queue.onSubmittedWorkDone();
-      await new Promise((r) => setTimeout(r, 0));   // (what the frame read back, come)
-      if (busy()) {   // (drawn while something was out: what a worker brings is waited for a moment, what a frame does is drawn again)
-        first ??= M.waiting();
-        const w0 = Date.now(); while (busy() && Date.now() - w0 < 2000) await new Promise((r) => setTimeout(r, 20));
-        if (Date.now() - t0 < wait) continue;
-        late = true;
-      }
-      if (jit && again < 64 && (M.U.uJit.value.x !== jit[0] || M.U.uJit.value.y !== jit[1])) continue;
-    }
-    break;
   }
+  if (place != null) g.temporal.place = place - 1;
+  await C.step(t);
+  // (read once the frame is drawn: read inside it, as the film camera's grab does, a WebGPU canvas came back black)
+  const can = g.renderer.domElement, cv = new OffscreenCanvas(can.width, can.height); cv.getContext('2d').drawImage(can, 0, 0);
+  const out = M.waiting(), stats = g.terrain?.pages?.stats;
+  if (stats && out.pages) { if (stats.queue) out.pages = stats.queue; else delete out.pages; }   // (pages: those asked for and not in; not the sweep's wait after the last came)
   const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
   await fetch(`${url}?key=${key}&w=${cv.width}&h=${cv.height}`, { method: 'POST', body: d, mode: 'no-cors' });
-  return { jit: [M.U.uJit.value.x, M.U.uJit.value.y], again, out: first, late, ms: Date.now() - t0 };
+  return { place: g.temporal.place, out: Object.keys(out).length ? out : null, ms: Date.now() - t0 };
 }
 
 /** In a blank page: a path's filmstrip as a JPEG data URL, `width` wide. At the top, every frame's worst tile against
