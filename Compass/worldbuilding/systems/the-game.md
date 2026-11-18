@@ -42,9 +42,9 @@ Every citizen's start is invested the same way, so wealth is split across real c
 | €12,500 | The city coop | A founder's share of the land |
 | 50,000 HEARTS | The city coop | A share of the land's infrastructure and the liquidity pool |
 | 25,000 HEARTS | Their village coop | A share of the village's buildings |
-| 50,000 HEARTS | 5,000 each into **10 city-wide coops**, as the community founds them | A spread of MINDS across the city's startups |
+| 50,000 HEARTS | 5,000 each into **10 city-wide coops**, **unlocked one after another as the villages reach their milestones** | A spread of MINDS across the city's startups |
 
-All 125,000 start HEARTS are invested on day one. After that, every citizen invests their 24 new HEARTS a day as they choose.
+On day one, 75,000 HEARTS go in (the city coop and the village coop). The other 50,000 are reserved for the city-wide coops: each time a village milestone is reached, the next coop opens and 5,000 of every citizen's reserve flows into it, until all ten are funded. Besides that, every citizen invests their 24 new HEARTS a day as they choose.
 
 ### The funding curve
 
