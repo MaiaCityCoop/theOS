@@ -7,9 +7,8 @@ import { boxIn } from '../core/frustum.js';
 import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, NODE, FINE } from './material.js';
 import { distanceAt, farMost, ERROR_PX } from '../detail/measure.js';
-import { createPages, RELIEF, PSTEPS } from './pages.js';
-import { mark } from '../core/gpu.js';
-import { createRelief, LEVELS as RELIEF_LEVELS, GRID as RELIEF_GRID } from './relief.js';
+import { createPages } from './pages.js';
+import { RELIEF, PSTEPS, LEVELS as RELIEF_LEVELS } from './relief.js';
 import { LAYERS } from './layers.js';
 import { waterMaterial } from './water.js';
 import { usedMaterials } from '../materials/bake.js';
@@ -67,12 +66,9 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   };
   const R00 = landR0(true), land = make(perLevel(R00) * 12), water = make(perLevel(R00) * WATER_LEVELS);
   const landMat = terrainMaterial(pages), waterMat = waterMaterial(tex);
-  // near the eye the quadtree goes on into the relief's finer levels, their points worked out in compute
-  // (src/terrain/relief.js), each level reaching half as far as the one before; where it has no room left, the land
-  // draws a node of it flat
-  const reliefOf = (cap) => createRelief(scene, renderer, pages, (from) => terrainMaterial(pages, from), cap);
-  let relief = reliefOf(perLevel(R00) * RELIEF_LEVELS), full = false;   // (full: it had no room this frame: made again twice as large)
-  let FIRST = -RELIEF_LEVELS, RELIEF0 = -1;   // (the finest level, and the relief's first: the measure's, update)
+  // near the eye the quadtree goes on into the relief's finer levels (src/terrain/relief.js), each reaching half as far
+  // as the one before: nodes of the land like any other, the land's own vertex stage raising them (material.js)
+  let FIRST = -RELIEF_LEVELS, RELIEF0 = -1, raised = 0;   // (the finest level, and the relief's first: the measure's, update; how many nodes of the relief's levels this frame)
   const landMesh = new THREE.Mesh(land.g, landMat), waterMesh = new THREE.Mesh(water.g, waterMat);
   landMesh.frustumCulled = waterMesh.frustumCulled = false;
   landMesh.renderOrder = 10; // after the grass and the rocks: they are in front, the depth test spares the ground's shader
@@ -86,13 +82,13 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
     R0 = landR0(); const end = Math.min(reach, END);
     levels = Math.max(1, Math.ceil(Math.log2(end / R0)) + 1); TOP = S0 * 2 ** (levels - 1); range.length = range2.length = 0;
     for (let i = 0; i < levels; i++) { range.push(i < levels - 1 ? R0 * 2 ** i * FINE : end); range2.push(range[i] * range[i]); }
-    // the relief's first level: the coarsest whose first half reaches as far as its geometry shows (pages.js
+    // the relief's first level: the coarsest whose first half reaches as far as its geometry shows (relief.js
     // reliefShares: even parallax would be off by more than the dial, out to where RELIEF covers PSTEPS of its pixels);
     // its levels from there, the finest RELIEF_LEVELS below
     const shows = distanceAt(PSTEPS * ERROR_PX(), RELIEF);
     RELIEF0 = Math.min(-1, Math.ceil(Math.log2((2 * shows) / (R0 * FINE)))); FIRST = RELIEF0 - RELIEF_LEVELS + 1;
-    U.uLandR0.value = R0; U.uReliefFirst.value = RELIEF0; U.uReliefReach.value = R0 * FINE * 2 ** RELIEF0;
-    pages.underRelief((S0 * 2 ** FIRST) / RELIEF_GRID, relief.count > 0);   // (its finest points this far apart; whether it has any nodes: the last frame's)
+    U.uLandR0.value = R0; U.uReliefReach.value = R0 * FINE * 2 ** RELIEF0;
+    pages.underRelief((S0 * 2 ** FIRST) / GRID, raised > 0);   // (its finest vertices this far apart; whether it has any nodes: the last frame's)
   };
 
   function inView(x, z, size, level) {
@@ -106,11 +102,11 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   }
   const R2 = (level) => (level >= 0 ? range2[level] : (R0 * FINE * 2 ** level) ** 2);   // (a level's reach, squared; below 0 the finer ones')
   function add(x, z, size, level) {
-    if (level <= RELIEF0) { if (relief.add(x, z, size, level)) return; full = true; }   // (no room: the land draws it flat, this once)
+    if (level <= RELIEF0) raised++;
     putNode(land, x, z, size, level);
     if (level >= 0) wet(x, z, size, level);
   }
-  function wet(x, z, size, level) {   // (the water over a node: a node the relief draws, its water drawn for the whole level-0 node)
+  function wet(x, z, size, level) {   // (the water over a node: a node finer than level 0, its water drawn for the whole level-0 node)
     if (level < WATER_LEVELS) {
       const half = size * 0.71, r = riverAt(x + size * 0.5, z + size * 0.5);
       const near = size >= 128 ? Math.abs(r.r) < 0.0042 * (half + 16) : r.d < 2 * half + r.w * 1.3 + 3;
@@ -137,22 +133,19 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   }
   return {
     landMesh, waterMesh, pages,
-    /** The relief near the eye (src/terrain/relief.js). */
-    get relief() { return relief; },
     update(camera, uDy, lodInv) {
       levelsFor(); pages.update(camera);
       cx = camera.position.x; cz = camera.position.z; dy2 = uDy * uDy; inv2 = lodInv * lodInv;
-      land.n = water.n = 0; relief.clear();
+      land.n = water.n = 0; raised = 0;
       const top = levels - 1, R = Math.min(range[top] / lodInv, camera.far);
       U.uLandEnd.value = R;
       const i0 = Math.floor((cx - R) / TOP), i1 = Math.floor((cx + R) / TOP), j0 = Math.floor((cz - R) / TOP), j1 = Math.floor((cz + R) / TOP);
       for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) select(i * TOP, j * TOP, TOP, top);
-      push(land); push(water); mark('relief'); relief.build(camera);   // (a tool's clock names the relief's pass: src/core/gpu.js mark)
-      if (full) { full = false; const cap = relief.cap * 2; relief.dispose(); relief = reliefOf(cap); }
+      push(land); push(water);
       waterMesh.visible = water.n > 0;
     },
     /** The pages' passes compiled (a promise). */
-    compile: () => Promise.all([pages.compile(), relief.compile()]),
+    compile: () => pages.compile(),
     /** Every page laid again (the land under them changed: the lakes). */
     refresh: () => pages.refresh(),
     all() { // every node slot filled once, so the first real frame uploads nothing new
