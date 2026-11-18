@@ -5,9 +5,10 @@
 //                farthest of the four under it, and so on up to one texel (a buffer, not a texture: every level is one
 //                array, the same on every GPU)
 //   the boxes    as a tier packs (only then: standing still, nothing is packed), each thing's box is written beside the
-//                others: its middle, half its size (its growth's reach in it, said by whoever draws it:
-//                src/scatter/drawer.js, src/scatter/grass.js) and how far the wind may push it, a metre a unit of the
-//                wind's strength (its sway, reckoned as the culling runs: the wind changes while nothing is packed)
+//                others, in 16 bytes: its middle, half its size (its growth's reach in it, said by whoever draws it:
+//                src/scatter/drawer.js, src/scatter/grass.js; as wide as it is deep) and how far the wind may push it,
+//                a metre a unit of the wind's strength (its sway, reckoned as the culling runs: the wind changes while
+//                nothing is packed)
 //   pass one     before the prepass, every thing every culled tier has packed: its box outside this frame's view is
 //                dropped; inside it, tested against the last frame's pyramid through the last frame's camera. What
 //                passes is drawn, prepass and colour; what does not waits
@@ -20,7 +21,8 @@
 // seven passes (four for pass one, three for pass two) however many tiers there are; one a tier a pass, as until
 // 2026-11-18, was six dispatches for each of 26 tiers, most of the culling's time. An arena's buffers are made when the
 // first thing that reads them is built, as large as the tiers that joined it until then; a tier made after that (a
-// stage's subject, what a page adds later) joins the next arena, and that is seven passes more.
+// stage's subject, what a page adds later) joins the next arena, and that is seven passes more. An arena is never
+// larger than one buffer the GPU binds: a tier that would make it so opens the next one.
 // A pass writes what it keeps with no atomic at all, in the order it was packed: each workgroup's 64 say which of them
 // it keeps (a mask), a scan in shared memory over every workgroup's count says where each one's first goes, and each
 // writes its own there (no subgroups: Safari has none). So a frame that sees what the last one saw draws it in the
@@ -35,8 +37,8 @@
 // changes (a draw shown or hidden, a draw's corners). Without indirect-first-instance (a WebGPU feature) nothing is
 // culled, and everything is drawn as before.
 import * as THREE from 'three/webgpu';
-import { Fn, If, Loop, float, int, uint, vec2, vec4, ivec2, uniform, uniformArray, storage, texture, instanceIndex, workgroupId, localId, workgroupArray, workgroupBarrier, storageBarrier, atomicLoad, atomicStore, atomicOr, countOneBits, max, min, floor, ceil, log2, exp2, clamp } from 'three/tsl';
-import { gpuStorage, gpuStorageLater, more } from './gpu.js';
+import { Fn, If, Loop, float, int, uint, vec2, vec3, vec4, uvec4, ivec2, uniform, uniformArray, storage, texture, instanceIndex, workgroupId, localId, workgroupArray, workgroupBarrier, storageBarrier, atomicLoad, atomicStore, atomicOr, countOneBits, max, min, abs, floor, ceil, log2, exp2, clamp, packHalf2x16, unpackHalf2x16, floatBitsToUint, uintBitsToFloat } from 'three/tsl';
+import { gpuStorage, gpuStorageLater, more, limitOf } from './gpu.js';
 import { passOf } from './pass.js';
 import { windStrength, snowDepth } from '../world/light.js';
 
@@ -98,6 +100,15 @@ const hiddenBy = (s, P) => {
 /** How far the wind may push a thing, a metre of its sway (a box's fourth number): at its strongest now (the gusts' most,
     src/world/weather/wind.js windAt, and a little more for what flutters). */
 const gustOf = () => { const ws = windStrength; return ws.mul(1.65).mul(ws.mul(ws).mul(0.6).add(1)); };
+/** A box in 16 bytes: its middle's x and z as they are, its height and its sway as half floats, half its width (x and
+    z: the wider of the two) and half its height as half floats, each a little larger, never smaller, than it was. */
+const boxOf = (B) => { const g = (x) => x.min(6e4).mul(1.002); return uvec4(floatBitsToUint(B.c.x), floatBitsToUint(B.c.z), packHalf2x16(vec2(B.c.y, g(B.w))), packHalf2x16(vec2(g(max(B.h.x, B.h.z)), g(B.h.y)))); };
+/** And back, with the wind as it blows now and the snow lying (r: the 16 bytes): its middle and half its size, the
+    height's half float's rounding (a 2048th of it) added to its half height. */
+const unbox = (r0) => {
+  const r = r0.toVar(), yw = unpackHalf2x16(r.z), hh = unpackHalf2x16(r.w), pad = yw.y.mul(gustOf()).add(snowDepth);
+  return { c: vec3(uintBitsToFloat(r.x), yw.x, uintBitsToFloat(r.y)), h: vec3(hh.x.add(pad), hh.y.add(pad).add(abs(yw.x).mul(2 ** -10)), hh.x.add(pad)) };
+};
 
 // ---- what a pass keeps, in order, with no atomic: each workgroup says which of its 64 it keeps (a mask of 64 bits);
 // one workgroup sums those over every chunk in shared memory (a scan: where each chunk's first goes); each workgroup
@@ -153,7 +164,7 @@ const inScene = (o, scene) => { for (; o; o = o.parent) { if (!o.visible && o.is
 
 function arena() {
   const A = { tiers: [], N: 0, G: 0, NC: 1, built: false, any: false };
-  const boxes = gpuStorageLater('vec4', 'tiers: their things\' boxes (occlusion)'), lists = gpuStorageLater('uint', 'tiers: what is seen, kept (occlusion)'), chunks = gpuStorageLater('uint', 'tiers: the culling\'s chunks (occlusion)');
+  const boxes = gpuStorageLater('uvec4', 'tiers: their things\' boxes (occlusion)'), lists = gpuStorageLater('uint', 'tiers: what is seen, kept (occlusion)'), chunks = gpuStorageLater('uint', 'tiers: the culling\'s chunks (occlusion)');
   const BOX = boxes.node, LIST = lists.node, CH = chunks.node;
   // (the buckets' numbers, which tiers are drawn this frame, and the eye's draw arguments: the page writes into these,
   // so they are made with their numbers when the arena is built)
@@ -164,7 +175,7 @@ function arena() {
   const uN = uniform(1, 'uint'), uG = uniform(0, 'uint'), uNC = uniform(1, 'uint'), uB2 = uniform(6, 'uint'), uS = uniform(1, 'uint');   // (its things, its buckets, its chunks; where pass two's chunks begin; how many halvings find a bucket)
   const at = (g, f) => BK.element(g.mul(uint(NB)).add(uint(f))), set = (g, f, v) => { at(g, f).assign(v); };
   const countOf = (g) => ON.element(at(g, TIER)).greaterThan(uint(0)).select(at(g, PACK).min(at(g, CAP)), uint(0));   // (what of a bucket pass one tests: nothing of a tier not drawn this frame)
-  const boxAt = (slot) => { const r0 = BOX.element(slot.mul(uint(2))).toVar(), r1 = BOX.element(slot.mul(uint(2)).add(uint(1))); return { c: r0.xyz, h: r1.xyz.add(r0.w.mul(gustOf())).add(snowDepth) }; };
+  const boxAt = (slot) => unbox(BOX.element(slot));
   const pop2 = (o) => countOneBits(CH.element(o)).add(countOneBits(CH.element(o.add(uint(1)))));
   const P = pyramidNode();
   /** The arena's buffers, as large as its tiers (once, before anything binds them: every node that reads them asks). */
@@ -178,7 +189,7 @@ function arena() {
     }
     B[G * NB + BASE] = N;
     Object.assign(bk, { array: B, count: B.length }); Object.assign(on, { array: new Uint32Array(Math.max(1, A.tiers.length)), count: Math.max(1, A.tiers.length) }); Object.assign(eye, { array: E, count: E.length / 5 });
-    const bytes = boxes.make(2 * N) + lists.make(2 * N) + chunks.make(NC * 9);
+    const bytes = boxes.make(N) + lists.make(2 * N) + chunks.make(NC * 9);
     uN.value = N; uG.value = G; uNC.value = NC; uB2.value = NC * 6; uS.value = stepsOf(G);
     more('tiers: the culling\'s numbers (occlusion)', B.byteLength + E.byteLength, B.byteLength + E.byteLength);
     A.bytes = bytes;
@@ -295,7 +306,12 @@ const proxies = [];
     put into each bucket (atomic, maybe more than its room); box(A, B, k): the world box
     of a thing of bucket k from its rows ({ c, h, w }: its middle, half its size, and how far the wind may push it, a
     metre of its sway: gustOf). */
+/** The most things one arena holds: its boxes, 16 bytes each, one buffer the GPU binds. */
+const ROOM = () => Math.floor(Math.min(limitOf('maxStorageBufferBindingSize', 128 << 20), limitOf('maxBufferSize', 256 << 20)) / 16);
+/** Whether a tier of `total` things can be culled (one that alone would fill more than an arena is drawn whole). */
+export const cullable = (total) => total <= ROOM();
 export function cullOf(T, { K, caps, offs, total, S, data, args, count, box }) {
+  if (OPEN && OPEN.N + total > ROOM()) OPEN.build();   // (full: it is made as it is, and this tier opens the next)
   const A = (OPEN ||= arena()), me = { T, K, caps, offs, total, g0: A.G, base: A.N, idx: A.tiers.length };
   A.tiers.push(me); A.G += K; A.N += total; A.NC += caps.reduce((a, c) => a + Math.ceil(c / WG), 0);
   const F = storage(args, 'uint', 5 * K), uBase = uniform(me.base, 'uint'), uG0 = uniform(me.g0, 'uint');
@@ -313,8 +329,8 @@ export function cullOf(T, { K, caps, offs, total, S, data, args, count, box }) {
     A.build();
     const t = instanceIndex, g = lastAtMost((q) => A.at(q, PRE), uG0, uint(K), t, stepsOf(K)).toVar(), k = g.sub(uG0), i = t.sub(A.at(g, PRE));
     If(i.lessThan(A.at(g, PACK)), () => {
-      const s = A.at(g, BASE).sub(uBase).add(i), e = s.mul(uint(S)), B = box(data.element(e), data.element(e.add(uint(1))), k), o = uBase.add(s).mul(uint(2));
-      A.BOX.element(o).assign(vec4(B.c, B.w)); A.BOX.element(o.add(uint(1))).assign(vec4(B.h, 0));
+      const s = A.at(g, BASE).sub(uBase).add(i), e = s.mul(uint(S)), B = box(data.element(e), data.element(e.add(uint(1))), k), o = uBase.add(s);
+      A.BOX.element(o).assign(boxOf(B));
     });
   })().compute(MANY, [WG]);
   boxes.dispatchSize = d;

@@ -12,7 +12,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, If, Loop, uint, int, ivec2, vec4, uniform, uniformArray, instancedArray, storage, atomicAdd, atomicStore, atomicLoad, min, instanceIndex, localId, workgroupArray, workgroupBarrier, cameraProjectionMatrix, cameraViewMatrix } from 'three/tsl';
 import { boxIn } from '../core/frustum.js';
 import { gpuStorage, more, hasFeature } from '../core/gpu.js';
-import { cullOf } from '../core/occlusion.js';
+import { cullOf, cullable } from '../core/occlusion.js';
 import { did } from '../core/work.js';
 import { FNV, fnv } from '../core/hash.js';
 import { TRUTH } from '../detail/measure.js';
@@ -76,7 +76,7 @@ export class Tier {
       more('tiers: what stands, packed', buf.bytes, buf.lean ? 0 : buf.bytes);
       // (one buffer of draw arguments, five a bucket: a shader binds few buffers. Culled, what the eye sees and what pass
       // two found are two sets more, in the culling's own buffer: src/core/occlusion.js)
-      const culled = !!bounds && hasFeature('indirect-first-instance');
+      const culled = !!bounds && !TRUTH && hasFeature('indirect-first-instance') && cullable(total);   // (?truth, the reference, draws all it packs: src/detail/measure.js)
       const args = new THREE.IndirectStorageBufferAttribute(new Uint32Array(geos.flatMap((g) => [g.index.count, 0, 0, 0, 0])), 5), argsNode = storage(args, 'uint', 5 * K);
       this.cand = uniform(0, 'uint');
       // what a workgroup packs, by one atomic a bucket it puts anything into (not one a thing): its 64 count theirs in
