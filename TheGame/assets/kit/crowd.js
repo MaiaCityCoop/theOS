@@ -55,13 +55,14 @@
 //                                   first share of both)
 //     turns { go, cards }           a sprig each, in turn order: its go, where its cards begin
 //     meta      16 numbers          what the engine's one rule reads of a shape (META says which is which)
-//     P0, E, A, size, mid, spread, classes, win { hi, lo }, cover, cell, errors    the same by name, and what was
+//     P0, E, A, size, mid, spread, classes, win { hi, lo }, cover, atlas, errors    the same by name, and what was
 //                                   measured (win: the errors, metres, at which its crowd ends and its window's last
-//                                   part goes; cell: its impostor's views' texels a side; errors: each rung's, metres)
+//                                   part goes; atlas: the atlases' numbers it was built for, none without a far end;
+//                                   errors: each rung's, metres)
 //     sphere    [x, y, z, r]        the impostor's frame
-//     far       { lo, data }        under lo pixels (at the dial at rest) nothing but the impostor is drawn; data: what
-//                                   the GPU bakes the shape's far end from (the sphere, its views' error, the chunks),
-//                                   carried by its finest level
+//     far       { lo, data }        under lo dial pixels nothing but the impostor is drawn; data: what the GPU bakes the
+//                                   shape's far end from (the sphere, its impostor's error, the chunks), carried by its
+//                                   finest level; none without a far end
 //     clumps    { n, cells, boxes, go, order } or null    its chunks (cells: where their parts' tips lie, boxes: their
 //                                   planes' frames, go: the error, metres, at which each comes)
 //
@@ -73,7 +74,11 @@ import { spacingOf, depthOf } from '../../src/detail/atlas.js';
 const { PI, sqrt, hypot, floor, ceil, round, min, max, abs, log, log2, exp, pow } = Math;
 
 /** Every number of the rule, in one place, as the plants are drawn. A plant's file has none of them, and none of them
-    says where a rung comes: that is each rung's own error (above); every hand-over is the BAND below its switch. */
+    says where a rung comes: that is each rung's own error (above); every hand-over is the BAND below its switch. What its
+    far ends' pictures are, the impostor's VIEWS x VIEWS views of CELL texels a side, a clump's plane of TILE texels,
+    TILES of them a row, at most CLUMPS chunks a plant, is not the kit's: the page sizes the atlases from their share of
+    memory (src/detail/atlas.js atlasesOf, src/detail/impostor.js atlases) and hands them in with the rest (opts), to
+    the workers with each level's band (assets/kit/plant.js). */
 export const CROWD = {
   A: 2,            // how fast a crowd's share falls, r(P0)^A, where it does not thin before its clumps (else through the ends of its thinning)
   SWELL: 3,        // how many times a sprig that stays may be enlarged about its tip at most (2 to 3: a meadow's blades are doubled in width as they are halved in number, Ghost of Tsushima); what that puts off is in the crowd's error
@@ -82,11 +87,6 @@ export const CROWD = {
   FIT: 0.04,       // … the second share it is measured at (as fewest LEAST parts): the larger E of the two
   LEAST: 8,        // a crowd of no more sprigs than this does not thin: they stay to its end
   CLASSES: 4,     // the most classes by size a crowd is sorted into (each half the area of the one before)
-  CLUMPS: 256,     // the most chunks a plant's clumps are: 12 x CLUMPS vertices, 3 x CLUMPS tiles of its stand's layer
-  VIEWS: 10,       // the impostor's views: VIEWS x VIEWS over the half-sphere above (hemi-octahedral), each CELL texels a side
-  CELL: 128,
-  TILE: 32,        // a chunk's plane: TILE texels a side, TILES x TILES of them a shape's layer
-  TILES: 28,
   STOPS: 1 - sqrt(1 - 0.45),         // how much of the light one triangle of a card stops (a sprig of two crossed cards: 45 %), where cover is reckoned
   PIC: 64,         // … in pictures of this many pixels a side, from thirteen sides
 };
@@ -230,6 +230,7 @@ function headOf(m, K) {
   // (k - 1) times its reach; k as the GPU has it, by the share of the cards' area drawn). Never more as more are drawn; a
   // crowd too few to thin (LEAST) keeps them all (Infinity: never by itself) ----
   const thins = N > K.LEAST, withFar = K.far !== false;
+  if (withFar && !(K.VIEWS > 0 && K.CELL > 0 && K.TILE > 0 && K.CLUMPS > 0)) throw new Error('crowd: a far end is sized by its atlases (VIEWS, CELL, TILE, CLUMPS: src/detail/impostor.js atlases), and none were given');
   let reach = 0; for (const q of sprigs) for (const v of q.verts) reach = max(reach, hypot(P[v * 3] - q.tip[0], P[v * 3 + 1] - q.tip[1], P[v * 3 + 2] - q.tip[2]));
   const swell = (t) => (min(K.SWELL, pow(max(areaAt(t / N, meta), 1e-9), -E)) - 1) * reach;
   const own = Float64Array.from({ length: N }, (_, t) => (thins ? order.err[t] + swell(t) : Infinity));
@@ -262,7 +263,8 @@ function headOf(m, K) {
     P0 = own[N - 1]; if (e1 > P0 && s1 < 1) A = min(4, max(1e-3, log(s1) / log(P0 / e1)));
   }
   const win = { hi: Number.isFinite(end) ? end : 0, lo: Number.isFinite(end) ? end * exp(FADE) : 0 };   // (metres: where the crowd ends, and where its window's last part goes)
-  return { lo, hi, mean, size, frame, sprigs, solids, N, M, mid, sd, order, meta, classes, atot, sphere, cell: K.CELL, views, errors: { clumps: chunks ? eC : null, impostor: withFar ? eImp : null, crowd: own }, chunks, win, P0, A, go, far: withFar };
+  return { lo, hi, mean, size, frame, sprigs, solids, N, M, mid, sd, order, meta, classes, atot, sphere, views, errors: { clumps: chunks ? eC : null, impostor: withFar ? eImp : null, crowd: own }, chunks, win, P0, A, go, far: withFar,
+    atlas: withFar ? { VIEWS: K.VIEWS, CELL: K.CELL, TILE: K.TILE, TILES: K.TILES, CLUMPS: K.CLUMPS } : null };
 }
 // the ways the eye can see a chunk's planes from: each plane's error and share depend on |v.x|, |v.y|, |v.z| alone, so
 // one eighth of the sphere is all of them (a triangle's grid of 325), each as its three planes' weights: plane a draws a
@@ -325,13 +327,16 @@ export function budgetOf(m, opts = {}, his = [Infinity]) {
   let sv = 0, st = 0; for (const q of H.solids) { sv += q.verts.length; st += q.tris.length; }
   // (its finest level carries its far data, every other its chunks' planes where they can come; a level wholly under
   // far.lo nothing but its numbers)
-  const farLo = farLoOf(H), p = H.chunks ? H.chunks.length * 3 : 0;
+  const farLo = farLoOf(H), p = H.chunks ? H.chunks.length * 3 : 0, fv = H.far ? Math.ceil(farLength(H.chunks ? H.chunks.length : 0) / 8) : 0;
   return Object.assign(his.map((hi) => {
     if (hi <= farLo) return { verts: 1, tris: 0 };
     let cards = 0; for (let t = 0; t < H.N; t++) if (drawnUnder(go[t], H.size, hi)) cards += H.sprigs[H.order[t]].cards;
-    return { verts: 1 + (hi === Infinity ? farVerts(K) : 0) + cards * 4 + sv + p * 4, tris: cards * 2 + st + p * 2 };
-  }), { cell: H.cell, chunks: H.chunks ? H.chunks.length : 0 });   // (and its impostor's views' texels a side, its stand's atlas as fine as its finest shape's; and how many chunks its clumps are)
+    return { verts: 1 + (hi === Infinity ? fv : 0) + cards * 4 + sv + p * 4, tris: cards * 2 + st + p * 2 };
+  }), { chunks: H.chunks ? H.chunks.length : 0 });   // (and how many chunks its clumps are)
 }
+/** How many numbers a far end's data is (crowd: far.data), its clumps `n` chunks: eight, then twelve a chunk. Its finest
+    level carries it after its vertices, eight numbers a vertex (assets/kit/plant.js). */
+const farLength = (n) => 8 + n * 12;
 /** Whether a part that goes at `go` (metres; 0: never by itself) on a shape `size` metres large is drawn anywhere at or
     under hi pixels (at the dial at rest): it is there down to a FADE under its switch. */
 const drawnUnder = (go, size, hi) => !(go > 0) || switchOf(go, size) * exp(-FADE) < hi;
@@ -430,15 +435,15 @@ export function crowd(m, opts = {}) {
     return { n: Mc, cells, boxes, go: cgo, ao, err: max(...all.map((C) => C.err)) };
   }
   // what the GPU bakes the far end from (src/detail/impostor.js), carried after its finest level's vertices
-  // (assets/kit/plant.js): [chunks, the sphere (4), its size, its impostor's error but its texel (metres: its views'
-  // spacing and its parallax, src/scatter/trees.js adds the texel of its stand's views), its impostor's views' texels a
-  // side, then a chunk's cell and box (12)]
-  const data = new Float32Array(8 + (clumps ? clumps.n * 12 : 0));
-  data.set([clumps ? clumps.n : 0, ...sphere, size, H.views, H.cell]);
+  // (assets/kit/plant.js): [chunks, the sphere (4), its size, its impostor's error (metres: its views' texel, their
+  // spacing and its parallax: what src/scatter/trees.js holds against the dial), its views' texels a side, then a
+  // chunk's cell and box (12)]. A plant without a far end carries none
+  const data = H.far ? new Float32Array(farLength(clumps ? clumps.n : 0)) : null;
+  if (data) data.set([clumps ? clumps.n : 0, ...sphere, size, H.errors.impostor, H.atlas.CELL]);
   if (clumps) for (let c = 0; c < clumps.n; c++) { data.set(clumps.cells.subarray(c * 6, c * 6 + 6), 8 + c * 12); data.set(clumps.boxes.subarray(c * 6, c * 6 + 6), 8 + c * 12 + 6); }
   meta[META.HI] = win.hi; meta[META.LO] = win.lo; meta[META.CARDS] = cards;
   return { count, cards, parts: N, solids: listed.length, ...out, ...S, index, steps, turns, meta, P0, E, A: H.A, SWELL: K.SWELL, size, mid, spread, classes, win, cover: N ? cover : 0, sphere, clumps,
-    cell: H.cell, errors: H.errors, far: { lo: farLoOf(H), data } };
+    atlas: H.atlas, errors: H.errors, far: { lo: farLoOf(H), data } };
 }
 
 // ---- a shape as the engine draws it between two sizes on screen ----
@@ -461,7 +466,7 @@ export const PLANE = [[2, 1], [0, 2], [0, 1]], IN = 1 / 1024;
     far end from. The same shape at two levels is the same thing at the size where they meet: the coarser one holds a
     first share of what the finer one holds, and the rest is gone there. keep: the last parts stay (the library's plant,
     which wears no clumps). */
-export function levelOf(S, lo = 0, hi = Infinity, { keep = false, clumps = true } = {}, K = CROWD) {
+export function levelOf(S, lo = 0, hi = Infinity, { keep = false, clumps = true } = {}) {
   const near = hi > S.far.lo;   // (a band wholly under it holds nothing but the impostor)
   let t = 0; if (near) while (t < S.parts && drawnUnder(S.turns.go[t], S.size, hi)) t++;
   const nc = !near ? 0 : t < S.parts ? S.turns.cards[t] : S.cards;
@@ -483,7 +488,7 @@ export function levelOf(S, lo = 0, hi = Infinity, { keep = false, clumps = true 
   for (let c = 0, o = nc * 4 + sv; C && c < C.n; c++) {
     const b = C.boxes.subarray(c * 6, c * 6 + 6), m = [0, 1, 2].map((a) => (b[a] + b[a + 3]) / 2);
     for (let a = 0; a < 3; a++, o += 4) {
-      const [U, V] = PLANE[a], tile = c * 3 + a, tx = tile % K.TILES, ty = floor(tile / K.TILES);
+      const [U, V] = PLANE[a], tile = c * 3 + a, tx = tile % S.atlas.TILES, ty = floor(tile / S.atlas.TILES);
       [[0, 0], [1, 0], [1, 1], [0, 1]].forEach(([cu, cv], j) => {
         const v = o + j, p = m.slice(); p[U] = cu ? b[U + 3] : b[U]; p[V] = cv ? b[V + 3] : b[V];
         out.position.set(p, v * 3); out.normal[v * 3 + a] = 1; out.cn[v * 3 + a] = 1; out.root.set(m, v * 3); out.tip.set(m, v * 3);
@@ -495,5 +500,3 @@ export function levelOf(S, lo = 0, hi = Infinity, { keep = false, clumps = true 
   const rule = new Float32Array(16); rule[RULE.P0] = S.P0; rule[RULE.E] = S.E; rule[RULE.HI] = S.win.hi; rule[RULE.LO] = S.win.lo; rule.set(S.meta.subarray(META.CLASSES, META.CLASSES + 6), RULE.CLASSES); rule[RULE.A] = S.A; rule[RULE.SWELL] = S.SWELL;
   return { ...out, index: Uint32Array.from(index), rule, far: hi === Infinity ? S.far.data : null };
 }
-/** How many of a plant's vertices (32 bytes each, assets/kit/plant.js) its far data takes, at most. */
-export const farVerts = (K = CROWD) => ceil((8 + K.CLUMPS * 12) / 8);

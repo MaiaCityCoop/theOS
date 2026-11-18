@@ -10,7 +10,7 @@ import { place } from '../world/place.js';
 import { engineOf, rowOf } from '../scatter/index.js';
 import { detailOf, distanceAt } from '../detail/index.js';
 import { spanOf, most } from '../../assets/kinds.js';
-import { CROWD } from '../../assets/kit/crowd.js';
+import { atlases } from '../detail/impostor.js';
 import { STAGE } from '../../world/places.js';
 import { heightAt } from '../world/land.js';
 import { materialPreview } from '../materials/preview.js';
@@ -128,7 +128,7 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
   }
   // the Detail tab: every level of detail of the asset, each a button that takes the camera to where that level is drawn
   function bands(a) {   // its levels as the detail engine resolves them (src/detail): each drawn between lo and hi pixels on screen
-    const { levels, cut } = detailOf(a), faces = (l) => (l.impostor ? 2 : facesOf(l));   // (one count for every sort of level: assets/index.js)
+    const { levels, cut } = detailOf(a), faces = (l) => (l.impostor ? 2 : facesOf(l, atlases()));   // (one count for every sort of level: assets/index.js)
     const shown = a.placement.at === 'scatter' ? levels.filter((l) => !l.impostor) : levels;   // a scattered asset has no card yet
     return [...shown.map((l) => ({ i: l.i, lo: l.lo, hi: l.hi, faces: faces(l), impostor: l.impostor })), { i: levels.length, lo: 0, hi: cut, faces: 0 }];   // and below the last: nothing drawn
   }
@@ -142,7 +142,7 @@ export function createSubjects({ game, studio: S, info, hint, q }) {
     const range = (b) => (b.hi === Infinity ? `over ${p(b.lo)}` : b.lo === 0 ? `under ${p(b.hi)}` : `${p(b.lo)} to ${p(b.hi)}`);
     return `<header><span class="g-label">${a.name} · levels of detail</span><p class="g-text" style="margin-top:8px">Each level by its size on screen; choose one and the camera goes to where it is drawn. On the right, how far that is with the walker's lens on this screen.</p></header>
     ${bodyCell(a)}
-    <div class="g-pick g-part">${bands(a).map((b) => `<button data-lod="${b.i}" class="${lodAt === b.i ? 'on' : ''}"><b>${b.impostor ? '◆' : b.faces ? b.i + 1 : '–'}</b><span><span class="g-name">${b.impostor ? `Impostor · ${CROWD.VIEWS ** 2} views` : b.faces ? `${b.faces.toLocaleString('en')} faces` : 'Not drawn'}</span><span class="g-sub">${range(b)}</span></span><span class="g-file">${m(distanceAt(pxAim(b), span(a)))}</span></button>`).join('')}</div>`
+    <div class="g-pick g-part">${bands(a).map((b) => `<button data-lod="${b.i}" class="${lodAt === b.i ? 'on' : ''}"><b>${b.impostor ? '◆' : b.faces ? b.i + 1 : '–'}</b><span><span class="g-name">${b.impostor ? `Impostor · ${atlases().VIEWS ** 2} views` : b.faces ? `${b.faces.toLocaleString('en')} faces` : 'Not drawn'}</span><span class="g-sub">${range(b)}</span></span><span class="g-file">${m(distanceAt(pxAim(b), span(a)))}</span></button>`).join('')}</div>`
       + fileOf(a);
   }
   // its body, as a line of words and a button to draw it on the stage

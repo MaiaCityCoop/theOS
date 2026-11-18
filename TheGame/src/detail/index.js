@@ -11,21 +11,25 @@
 import * as THREE from 'three/webgpu';
 import { U } from '../core/uniforms.js';
 import { kindRule, spanOf } from '../../assets/kinds.js';
-import { CROWD } from '../../assets/kit/crowd.js';
 import { handOverAt } from './handover.js';
+import { atlases } from './impostor.js';
+import { spacingOf, depthOf } from './atlas.js';
 import { pxOn } from './measure.js';
 import { FADE, BAND, GONE, switchPx, dialPx } from './error.js';
 
 // (the measure's, here too for whoever asked here before it had a file of its own: the library, tools/sweep.js)
 export { pxK, pxKAt, distanceAt } from './measure.js';
 
-/** Where a made thing's far card comes (src/world/place.js): its error is its bake's, a texel of the views every impostor
-    has (CROWD.CELL of them over the sphere round its faces: half its box's diagonal, at most), against its largest side. */
+/** Where a made thing's far card comes (src/world/place.js): its error is its impostor's (src/detail/atlas.js), a texel
+    of its views (CELL of them over the sphere round its faces: at most its box's diagonal) and what their spacing and
+    its parallax misplace (spacingOf(VIEWS) times its depth), against its largest side; its views are every impostor's
+    (src/detail/impostor.js atlases). */
 const CARDS = new WeakMap(), impostorPx = (a) => {
   if (!CARDS.has(a)) {
-    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
-    for (const f of a.faces) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], f[j][k]); hi[k] = Math.max(hi[k], f[j][k]); }
-    CARDS.set(a, Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / (CROWD.CELL * spanOf(a)));   // (its error, a share of its size: the dial says where)
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity], P = new Float64Array(a.faces.length * 9);
+    a.faces.forEach((f, i) => { for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) { const x = f[j][k]; P[i * 9 + j * 3 + k] = x; lo[k] = Math.min(lo[k], x); hi[k] = Math.max(hi[k], x); } });
+    const { VIEWS, CELL } = atlases(), e = Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / CELL + spacingOf(VIEWS) * depthOf(P);
+    CARDS.set(a, e / spanOf(a));   // (its error, a share of its size: the dial says where)
   }
   return switchPx(CARDS.get(a));
 };
@@ -35,13 +39,15 @@ const CARDS = new WeakMap(), impostorPx = (a) => {
     `faces` or its kit's mesh) has none of its own: every coarser version is the builder's (assets/kit/clusters.js),
     drawn by the cut (src/scatter/cut.js); here it is its faces, whole, for what draws it whole (src/world/place.js: the
     library, a page without WebGPU), then its far card where its kind has one and the page can bake it (card), from
-    where the card's texel is within ERROR_PX to where it is gone. Every hand-over spans BAND (FADE either side). */
+    where the card's error is within ERROR_PX to where it is gone. Every hand-over spans BAND (FADE either side), under
+    where the coarser may stand in: its last level is whole down to where leaving it out fits (GONE) and sinks away over
+    the BAND under that. */
 export function detailOf(a, { card = true } = {}) {
   const d = a.detail || {};
   const own = d.levels || (a.faces ? [{ faces: a.faces }] : []);
   const imp = card && a.faces && (d.impostor ?? kindRule(a, 'impostor'));   // (after its faces: one card, src/detail/impostor.js)
-  const levels = own.map((l, i) => ({ ...l, i, lo: l.lo ?? (imp ? impostorPx(a) : GONE) }));
-  if (imp && levels.length) levels.push({ impostor: true, i: levels.length, lo: GONE });
+  const end = GONE / BAND, levels = own.map((l, i) => ({ ...l, i, lo: l.lo ?? (imp ? impostorPx(a) : end) }));
+  if (imp && levels.length) levels.push({ impostor: true, i: levels.length, lo: end });
   levels.forEach((l, i) => (l.hi = i ? levels[i - 1].lo : Infinity));
   return { levels, fade: FADE, cut: levels.length ? levels[levels.length - 1].lo : 0, casts: a.casts ?? d.casts ?? kindRule(a, 'casts') ?? true, sink: BAND };
 }

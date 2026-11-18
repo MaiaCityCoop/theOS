@@ -79,7 +79,7 @@ import { createCut, clusterOf, levelHead, allowedAt, eased, ruleOf } from './cut
 import { camDist } from '../world/land.nodes.js';
 import { surfaceBand, BAND, GONE, dialPx } from '../detail/error.js';
 
-const GROW = 1.5, SKIN = 128, SKINPX = 28, SINK = BAND, LOOK = 24;   // GROW: seconds a level that came late takes to grow out of the coarser one; SKIN: a kind's own texture, pixels a side; SKINPX: the size on screen from which a thing wears it (the stress world's zoo: 8b); SINK: how far over where it is gone a dot sinks away (the one hand-over, src/detail/error.js); LOOK: a kind's look, numbers (six rows of four)
+const GROW = 1.5, SKIN = 128, SKINPX = 28, SINK = BAND, LOOK = 24;   // GROW: seconds a level that came late takes to grow out of the coarser one; SKIN: a kind's own texture, pixels a side; SKINPX: the size on screen from which a thing wears it (the stress world's zoo: 8b); SINK: the BAND a dot sinks away over, from its level's lo up to where it is gone (the one hand-over, src/detail/error.js); LOOK: a kind's look, numbers (six rows of four)
 // a make's levels: a kind a draw up to BYKIND kinds, else by the size of their meshes (classOf: the power of two of
 // triangles a mesh of n corners fits in; classN the same as a node; classIndex: the corners of a class's draw, 0 … 3 · 2^c - 1)
 const BYKIND = 32;

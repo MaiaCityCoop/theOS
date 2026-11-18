@@ -33,9 +33,12 @@
 import { kindRule, shapesOf, most } from '../kinds.js';
 import { held, sn, q16, oct, OCT } from './pack.js';
 import { crowd, levelOf } from './crowd.js';
-import { goneAt, rungAt, rungPx } from '../../src/detail/error.js';
+import { goneAt, rungAt, rungPx, BAND } from '../../src/detail/error.js';
 
 export const GRID = { xz: 40, y0: -2, y1: 78 }, UVK = 1024, UV0 = 16, GOQ = 2048, GO0 = 16;   // x and z over -40 … 40 m, y over -2 … 78 m, 16 bits each (1.2 mm); uv in 1024ths, from -16; a go's log2 in 2048ths, from 2^-16 m (15 µm … 65 km)
+/** How many tiles a chunk's plane's uv can name, from 0 (its 16 bits, in UVK ths from -UV0): a shape's planes lie in a
+    grid of so many a row, and as many rows (assets/kit/crowd.js levelOf; src/detail/atlas.js atlasesOf). */
+export const UV_TILES = 65536 / UVK - UV0;
 /** A number as a half float's 16 bits (round to nearest; what the GPU's unpackHalf2x16 reads back). */
 const F32 = new Float32Array(1), U32 = new Uint32Array(F32.buffer);
 const half = (x) => {
@@ -80,9 +83,10 @@ export function packPlant(m) {
     that places plants (src/scatter/trees.js) finds it by the asset's uid. */
 export const plantFamily = (id, asset) => ({
   id, placed: 'trees', asset: asset.uid, count: asset.shapeCount, get levels() { return asset.levelCount + (asset.shadeRaw ? 1 : 0); },
-  // (room.band: the sizes on screen the level is drawn between, as its stand's drawer cut its levels: src/scatter/trees.js;
-  // 'shade', its shade: what the shadow map is drawn from, none for a plant without one)
-  meshOf: (i, l, room = null) => { const b = room?.band; return packPlant(b === 'shade' || (!b && l >= asset.levelCount) ? (asset.shadeRaw ? asset.shadeRaw(i) : NONE) : crowdAt(asset, i, l, b ?? null)); },
+  // (room.band: { band: the sizes on screen the level is drawn between, as its stand's drawer cut its levels, atlas: the
+  // numbers its far end's atlases are sized by } (src/scatter/trees.js); 'shade', its shade: what the shadow map is drawn
+  // from, none for a plant without one)
+  meshOf: (i, l, room = null) => { const b = room?.band; return packPlant(b === 'shade' || (!b && l >= asset.levelCount) ? (asset.shadeRaw ? asset.shadeRaw(i) : NONE) : crowdAt(asset, i, l, b?.band ?? null, b?.atlas)); },
   // what of a shape is solid, and its box (src/world/bodies.js), in metres of its own frame at scale 1: its kind's rule
   // (assets/kinds.js: a tree its trunk, a shrub its leaves) made from what the tree kit measured of it (its height, its
   // trunk where a walker meets it) and its asset's footprint at that height
@@ -104,8 +108,9 @@ export const goneOf = (a) => {
   return goneAt(e || 1);
 };
 /** The sizes on screen each level of a plant is drawn between, finest first: [lo, hi]: everything's (rungPx), down to the
-    one its end falls in, the last to its end. A stand cuts its kinds' as one (src/scatter/trees.js groupsOf). */
-export const bandsOf = (a) => { const g = goneOf(a), last = rungAt(g); return Array.from({ length: last + 1 }, (_, l) => [l === last ? g : rungPx(l), l ? rungPx(l - 1) : Infinity]); };
+    one its end falls in, the last to where it has sunk away, the BAND under its end (src/detail/handover.js: it is
+    whole down to where leaving it out fits). A stand cuts its kinds' as one (src/scatter/trees.js groupsOf). */
+export const bandsOf = (a) => { const g = goneOf(a), last = rungAt(g); return Array.from({ length: last + 1 }, (_, l) => [l === last ? g / BAND : rungPx(l), l ? rungPx(l - 1) : Infinity]); };
 /** How large shape `shape` of a plant is at scale 1, as its size on screen is measured (src/scatter/trees.js sizeAtOne). */
 export const shapeSize = (a, shape) => { const H = a.size.height, S = a.growth?.stages?.find((x) => shape >= x.offset && shape < x.offset + x.variants); return (S ? a.heights?.[shape] ?? S.h : H) * (kindRule(a, 'measure') === 'height' ? 1 : Math.max(most(a.size.length), most(a.size.width ?? 0), most(H)) / H); };
 const BUILT = new Map();   // (the last few shapes built: a kind's levels are asked for one after another)
@@ -116,12 +121,13 @@ const NONE = { position: [], normal: [], uv: [], cn: [], root: [], part: [], ao:
 const SX = (2 * GRID.xz) / 65535, SY = (GRID.y1 - GRID.y0) / 65535;
 const onGrid = (v, axis) => (axis === 1 ? gy(v) * SY + GRID.y0 : gx(v) * SX - GRID.xz);
 /** A plant's shape as the crowd kit builds it from its finest (tree.js finest: its sprigs splayed, where it has a
-    splay): its crowd, its clumps and its impostor's frame. */
-export const crowdOf = (a, i) => {
-  const key = `${a.uid}:${a.placement?.seed}:${i}`; let S = BUILT.get(key);
-  if (!S) { if (BUILT.size >= 4) BUILT.delete(BUILT.keys().next().value); BUILT.set(key, (S = crowd(a.finest(i), { size: shapeSize(a, i), grid: onGrid, far: hasFar(a) }))); }
+    splay): its crowd, its clumps and its impostor's frame. A: the numbers its far end's atlases are sized by (the page's:
+    src/detail/impostor.js atlases; none for a plant without a far end). */
+export const crowdOf = (a, i, A = null) => {
+  const key = `${a.uid}:${a.placement?.seed}:${i}:${A?.key ?? ''}`; let S = BUILT.get(key);
+  if (!S) { if (BUILT.size >= 4) BUILT.delete(BUILT.keys().next().value); BUILT.set(key, (S = crowd(a.finest(i), { size: shapeSize(a, i), grid: onGrid, far: hasFar(a), ...A }))); }
   return S;
 };
 /** Level l of shape i: what it is drawn with between its sizes on screen (its first level: every size above its own).
-    band: [lo, hi] as its stand's drawer cut it (none: its own, bandsOf). */
-export const crowdAt = (a, i, l, band = null) => { const [lo, hi] = band ?? bandsOf(a)[l]; return levelOf(crowdOf(a, i), lo, band ? hi : l === 0 ? Infinity : hi); };
+    band: [lo, hi] as its stand's drawer cut it (none: its own, bandsOf); A: its atlases' numbers (crowdOf). */
+export const crowdAt = (a, i, l, band = null, A = null) => { const [lo, hi] = band ?? bandsOf(a)[l]; return levelOf(crowdOf(a, i, A), lo, band ? hi : l === 0 ? Infinity : hi); };

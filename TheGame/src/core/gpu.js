@@ -40,6 +40,11 @@ export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer :
 export const lean = () => !!R;
 /** Whether the renderer's GPU has a WebGPU feature (none without WebGPU). */
 export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);
+/** The limits every WebGPU device grants (the standard's defaults), beside the adapter's own: what a baked thing is
+    sized by. A baked atlas is content kept by its key and drawn on any device, Safari and mobile among them, so its size
+    may not depend on the GPU it was first made on (src/detail/atlas.js atlasesOf); what lives only while the page runs
+    (arenas, pages, cascades) takes the adapter's own. */
+export const PORTABLE = { maxTextureDimension2D: 8192, maxTextureArrayLayers: 256, maxUniformBufferBindingSize: 65536 };
 
 const TYPES = { uint: [Uint32Array, 1], float: [Float32Array, 1], vec4: [Float32Array, 4], uvec4: [Uint32Array, 4] };
 /** A storage buffer of `count` items of `type` (uint, float, vec4, uvec4), nothing in it yet:
