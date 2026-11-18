@@ -73,10 +73,11 @@ function bladeIn(c, asset, T, ground) {
   // three hashes carry everything a blade is; nothing is read before the blade is known to stand
   const h1 = hashI(c.x, c.y, uint(100));
   const pos = vec2(c).add(vec2(float(h1.bitAnd(uint(0xFFF))), float(h1.shiftRight(uint(12)).bitAnd(uint(0xFFF)))).mul(1 / 4096)).mul(T.cell);   // (T: its ring's numbers, uniforms: every ring one shader)
-  // (and, the smallest layer of all, as thick as the light that comes through what grows over it allows, and none on
-  // the feet of the larger: src/scatter/growth.js)
+  // (and, the smallest layer of all, as thick as the light that comes down to it through the crowns over it lets it
+  // grow, in proportion to that light (as a plant grows by the light it takes: Monteith 1977), and none on the feet of
+  // the larger: src/scatter/growth.js, rule.js)
   const M = growthMap(), F = M ? M.all(pos) : null;
-  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = F ? G.y.mul(F.light.mul(F.light)).mul(float(1).sub(F.foot)) : G.y, h2 = hashI(c.x, c.y, uint(101));
+  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = F ? G.y.mul(F.light).mul(float(1).sub(F.foot)) : G.y, h2 = hashI(c.x, c.y, uint(101));
   const inBand = dist.lessThanEqual(hf.mul(T.farFade.negate()).add(T.far)).and(dist.greaterThanEqual(hf.mul(T.nearFade.negate()).add(T.near)));
   const r1 = u8(h2, 0), r2 = u8(h2, 8), r3 = u8(h2, 16);
   // blades stand in tufts: the tuft they are in gives them a height, a lean and a shade in common
