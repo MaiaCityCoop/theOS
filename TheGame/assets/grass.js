@@ -7,7 +7,8 @@
 //
 // Its engine makes every coarser ring of it from this alone: the blade in its own cells, as wide and as tall, bent in
 // fewer straight pieces, each ring where how far that misses the blade's curve is the one ERROR_PX (src/detail/error.js).
-// None is fewer: a meadow thins only towards its end, where the ground under it wears its colour.
+// None is fewer: a meadow thins only where its cells stand under a dial pixel apart, where its blades end and the carpet
+// under them carries it on.
 export default {
   uid: 'eb8f406f-1035-4921-ba42-10f05efab6ed',   // its stable id: every reference to it, everywhere, is this (src/core/registry.js)
   type: 'asset',

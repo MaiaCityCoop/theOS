@@ -6,7 +6,8 @@
 // 0033 and 0038), and the one rule moves each vertex by its size on screen, smoothly: a crowd's parts go one by one,
 // each at its true size, the wood thins, its leaves' chunks grow in as crossed planes where their sprigs were (the
 // clumps). Its levels are only where its parts lie in the heap: two levels at the size where they meet draw the same.
-// Smaller still it is its impostor (src/detail/impostor.js): one quad, baked on the GPU from its finest level.
+// Smaller still it is its impostor (src/detail/impostor.js): one quad, baked on the GPU from the level the measure picks
+// at its pictures' size.
 //
 // A stand is one thing to the engine, however many kinds grow in it (groupsOf), and it is drawn by the one drawer
 // (drawer.js), as the rocks are:
@@ -64,11 +65,13 @@ import { idOf } from '../world/things.js';
 import { wayAt, waysVersion } from '../world/ways.js';
 import { pxOf, turnOf, seedOf } from './row.js';
 import { levelOf as crowdLevelOf } from '../../assets/kit/crowd.js';
-import { crowdOf, bandsOf, baseShare, GRID, GOQ, GO0, FOOT } from '../../assets/kit/plant.js';
+import { crowdOf, bandsOf, baseShare, goneOf, GRID, GOQ, GO0, FOOT } from '../../assets/kit/plant.js';
+import { ringsOf, bandsOf as ringBands } from './grass.js';
 import { lo16, hi16 } from './unpack.js';
-import { pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
+import { farMost, pxKMost, measureVersion, dialPxAt } from '../detail/measure.js';
 import { BAND, FADE } from '../detail/error.js';
 import { source } from '../core/settle.js';
+import { gpuStorage } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
 
 /** A half float's 16 bits as the number (what assets/kit/plant.js wrote). */
@@ -443,7 +446,8 @@ function impostorMaterial(G, D, Lv, src) {
   return m;
 }
 
-// ---- the far ends baked: each shape's impostor and its clumps, from its finest level in the heap ----
+// ---- the far ends baked: each shape's impostor and its clumps, each picture from the level of the heap the measure picks
+// at its own size ----
 let BAKING = false;   // (one shape at a time, of every stand: the bakers' targets are one set)
 const BAKED = 2;   // the bake's own version, in what the browser keeps of it (farOf): one more whenever how a far end is baked changes
 const DEEP = 0.5;   // how much darker what an impostor's view shows at the far side of its plant's sphere than at the near
@@ -451,29 +455,78 @@ const DEEP = 0.5;   // how much darker what an impostor's view shows at the far 
     VIEWS x VIEWS views of CELL texels a side; its chunks' planes, a layer a shape that has clumps, G.clumpLayer, G.tiles
     tiles of TILE texels a row: the atlases' numbers, src/detail/impostor.js atlases), and what bakes them. Each shape
     is baked as its finest level comes into the heap (onBlock: its far data, assets/kit/crowd.js), a row of pictures a
-    frame (pump), then its numbers say where it is its impostor (its row 3's third: T, its impostor's error). */
+    frame (pump), then its numbers say where it is its impostor (its row 3's third: T, its impostor's error). A picture
+    is drawn from the level the measure picks at its own size (levelAt): a view CELL texels over the plant's sphere, a
+    chunk's plane TILE texels over the longest side of its chunk; never from more than a picture so small shows. */
 function farOf(renderer, tex, G, D) {
   const A = atlases(), n = G.meshes, views = createAtlas(renderer, { name: `plants, ${G.name}: impostors`, side: A.VIEWS * A.CELL, layers: n, cell: A.CELL, views: A.VIEWS });
   let clumps = null; const clumpsOf = () => (clumps ||= createAtlas(renderer, { name: `plants, ${G.name}: clumps`, side: G.tiles * A.TILE, layers: G.clumpy, cell: A.TILE }));   // (a stand none of whose shapes has clumps: one tile, which nothing reads)
-  const queue = [], queued = new Uint8Array(n); let version = 0, any = false, M = null, out = 0;
+  const queue = [], queued = new Uint8Array(n), waiting = new Map(); let version = 0, any = false, M = null, out = 0;
+  // the levels a shape's pictures are drawn from (far: its far data, assets/kit/crowd.js): the measure's at each
+  // picture's own size, the plant's size in it in dial pixels (a view: CELL texels over its sphere; a chunk's plane:
+  // TILE texels over its chunk's longest side, the shortest of its chunks), never a level wholly under where its
+  // impostor is all (none of it is there)
+  // a shape's cards and their chunks (its finest level's block: what the workers made; its far data, crowd.js clumpsOf):
+  // its cards come first in its corners, six a card, a card's vertices marked by their part (assets/kit/plant.js); each
+  // card is in the chunk whose cell holds its sprig's tip as the GPU reads it (its grid's 16 bits a side, crowdOfElems),
+  // found once a sprig. A coarser level's cards are a first share of the finest's, the same vertices: their chunks too
+  const cardsIn = (b, j, idx, elems) => {
+    const V = b.verts, o = j * elems * 4, C = b.corners.subarray(j * idx, j * idx + b.draws[j]);
+    let nc = 0; while (6 * nc < C.length && ((V[o + C[6 * nc] * 8 + 3] >>> 8) & 3) === 1) nc++;
+    return { V, o, C, nc };
+  };
+  const chunksOfCards = (b, j, idx, elems, far) => {
+    const { V, o, C, nc } = cardsIn(b, j, idx, elems), of = new Int16Array(nc), seen = new Map();
+    for (let c = 0; c < nc; c++) {
+      const v = o + C[6 * c] * 8, key = V[v + 6] * 65536 + (V[v + 7] & 0xffff);
+      let q = seen.get(key);
+      if (q === undefined) {
+        const x = (V[v + 6] & 0xffff) * SX - GRID.xz, y = (V[v + 6] >>> 16) * SY + GRID.y0, z = (V[v + 7] & 0xffff) * SX - GRID.xz;
+        q = -1; for (let h = 0; h < far[0]; h++) { const f = 8 + h * 12; if (x >= far[f] && y >= far[f + 1] && z >= far[f + 2] && x < far[f + 3] && y < far[f + 4] && z < far[f + 5]) { q = h; break; } }
+        seen.set(key, q);
+      }
+      of[c] = q;
+    }
+    return of;
+  };
+  // a level's card corners in its chunks' order (its block; of: its cards' chunks), each chunk's cards one after another:
+  // { list, start, count } (a chunk's range of the list, corners)
+  const chunkOrder = (b, j, idx, elems, of, n) => {
+    const { C, nc } = cardsIn(b, j, idx, elems), m = Math.min(nc, of.length), count = new Uint32Array(n), start = new Uint32Array(n);
+    for (let c = 0; c < m; c++) if (of[c] >= 0) count[of[c]] += 6;
+    for (let q = 1; q < n; q++) start[q] = start[q - 1] + count[q - 1];
+    const list = new Uint32Array(n ? start[n - 1] + count[n - 1] : 0), at = start.slice();
+    for (let c = 0; c < m; c++) { const q = of[c]; if (q >= 0) { list.set(C.subarray(6 * c, 6 * c + 6), at[q]); at[q] += 6; } }
+    return { list, start, count };
+  };
+  const levelsOf = (far) => {
+    const Ls = G.kinds[0].levels, size = far[5], farLo = size / (far[6] * BAND);
+    const at = (px) => { let l = Ls.findIndex((L) => px >= L.lo); if (l < 0) l = Ls.length - 1; while (l > 0 && !(Ls[l].hi > farLo)) l--; return l; };
+    let side = Infinity; for (let c = 0; c < far[0]; c++) { const b = 8 + c * 12 + 6; side = Math.min(side, Math.max(far[b + 3] - far[b], far[b + 4] - far[b + 1], far[b + 5] - far[b + 2])); }
+    return { views: at((size * A.CELL) / (2 * far[4])), tiles: far[0] > 0 ? at((size * A.TILE) / side) : 0 };
+  };
   source(`plants, ${G.name}: far ends`, () => out);   // (the world is not complete while a shape's far end is still being baked: src/core/settle.js)
   // what bakes a shape (made at the first: they read the heap): its finest level's vertices as they lie there, each
   // view (instances: a row's) or each chunk's plane (instances: a row's tiles) drawing it, its leaves and its bark as
   // near (a leaf's cut-out read at its finest: SS x SS samples a texel say how much of it is covered)
   const materials = () => {
     if (M) return M;
-    const H = D().H, kindU = uniform(0, 'uint'), rowU = uniform(0, 'int'), sphereU = uniform(new THREE.Vector4(0, 0, 0, 1)), nU = uniform(0, 'int');
+    const H = D().H, kindU = uniform(0, 'uint'), levelU = uniform(0, 'uint'), rowU = uniform(0, 'int'), sphereU = uniform(new THREE.Vector4(0, 0, 0, 1)), nU = uniform(0, 'int');
     const cells = Array.from({ length: A.CLUMPS * 4 }, () => new THREE.Vector4()), cellsU = uniformArray(cells, 'vec4');
+    // (the tile level's card corners, a chunk's after another (chunkOrder): a chunk's planes draw their own range of
+    // them, its start and count in its cell's first two rows, never the rest of the level: as many as the level's
+    // largest room a kind has, any level)
+    const cap = Math.max(4, ...H.pools.map((p) => (p.io ? Math.max(...Array.from({ length: p.n }, (_, k) => p.io[k + 1] - p.io[k])) : p.idx))), CL = gpuStorage('uint', cap, `plants, ${G.name}: the clumps' corners`, 'geometry');
     const vUv = varyingProperty('vec2', 'bUv'), vPart = varyingProperty('float', 'bPart'), vTwig = varyingProperty('float', 'bTwig'), vN = varyingProperty('vec3', 'bN'), vZ = varyingProperty('float', 'bZ'), vAo = varyingProperty('float', 'bAo');
-    const vertex = () => { const R = heapRow(H, kindU, uint(0)), e = R.y.add(vertexIndex.mul(uint(2))), e0 = H.elems.element(e).toVar(), e1 = H.elems.element(e.add(uint(1))).toVar(); return { ...plantOf(e0, e1), tip: crowdOfElems(e0, e1, null).tip }; };
+    const vertexAt = (id) => { const R = heapRow(H, kindU, levelU), e = R.y.add(id.mul(uint(2))), e0 = H.elems.element(e).toVar(), e1 = H.elems.element(e.add(uint(1))).toVar(); return { ...plantOf(e0, e1), tip: crowdOfElems(e0, e1, null).tip }; }, vertex = () => vertexAt(vertexIndex);
     const pass = (V, z, facing) => { vUv.assign(V.uv); vPart.assign(V.part); vTwig.assign(V.twig); vZ.assign(z); vAo.assign(V.ao); vN.assign(V.normal.dot(facing).lessThan(0).select(V.normal.negate(), V.normal)); };
-    const viewV = Fn(() => { const V = vertex(), P = viewClip(V.position.sub(sphereU.xyz).div(sphereU.w), rowU, A.VIEWS); pass(V, P.z, P.D); return P.clip; })();
+    const viewV = Fn(() => { const V = vertex(), P = viewClip(V.position.sub(sphereU.xyz).div(sphereU.w), rowU, A.VIEWS); pass(V, P.z, P.D); return V.part.greaterThan(1.5).select(vec4(0, 0, 2, 1), P.clip); })();   // (a chunk's plane, where its level has them, is no part of a view: behind the far plane)
     const tileV = Fn(() => {
-      // (a chunk's own: its card parts whose tips lie in its cell; all else behind the far plane, not drawn)
-      const V = vertex(), tile = rowU.mul(G.tiles).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar(), t = V.tip;
-      const lo = cellsU.element(c.mul(4)).xyz, hi = cellsU.element(c.mul(4).add(1)).xyz, blo = cellsU.element(c.mul(4).add(2)).xyz, bhi = cellsU.element(c.mul(4).add(3)).xyz;
-      const mine = c.lessThan(nU).and(V.part.greaterThan(0.5)).and(V.part.lessThan(1.5)).and(t.x.greaterThanEqual(lo.x)).and(t.y.greaterThanEqual(lo.y)).and(t.z.greaterThanEqual(lo.z)).and(t.x.lessThan(hi.x)).and(t.y.lessThan(hi.y)).and(t.z.lessThan(hi.z));
-      If(mine, () => { const P = tileClip(V.position, blo, bhi, a, float(instanceIndex), G.tiles); pass(V, P.z.mul(2).sub(1), a.equal(0).select(vec3(1, 0, 0), a.equal(1).select(vec3(0, 1, 0), vec3(0, 0, 1)))); clip.assign(P.clip); });
+      // (a chunk's plane over its own corners only: its range of the chunks' list, CL, as many corners drawn as its row's
+      // largest chunk has, those past its own behind the far plane, not drawn)
+      const tile = rowU.mul(G.tiles).add(int(instanceIndex)), c = tile.div(3), a = tile.sub(c.mul(3)), clip = vec4(0, 0, 2, 1).toVar();
+      const from = cellsU.element(c.mul(4)).w, many = cellsU.element(c.mul(4).add(1)).w, blo = cellsU.element(c.mul(4).add(2)).xyz, bhi = cellsU.element(c.mul(4).add(3)).xyz;
+      If(c.lessThan(nU).and(vertexIndex.lessThan(uint(many))), () => { const V = vertexAt(CL.node.element(uint(from).add(vertexIndex))), P = tileClip(V.position, blo, bhi, a, float(instanceIndex), G.tiles); pass(V, P.z.mul(2).sub(1), a.equal(0).select(vec3(1, 0, 0), a.equal(1).select(vec3(0, 1, 0), vec3(0, 0, 1)))); clip.assign(P.clip); });
       return clip;
     })();
     const N = (j) => D().numOf(kindU, j), leafA = () => tex.a(floor(vTwig.greaterThan(0.5).select(N(3).x, N(2).z).add(0.5)), vUv).bias(-2);
@@ -487,8 +540,8 @@ function farOf(renderer, tex, G, D) {
     // off no shadow map reaches it, and the hollows between its clusters are what makes a crown read as one)
     const dataF = (deep) => Fn(() => { If(vPart.greaterThan(0.5), () => { If(leafA().a.lessThan(0.45), () => { Discard(); }); }); return vec4(octEnc(normalize(vN)), vZ.mul(0.5).add(0.5), litIn(vAo.mul(float(1).sub(clamp(float(1).sub(vZ).mul(0.5), 0, 1).mul(deep))), step(0.5, vPart))); })();
     const mat = (v, f) => { const m = new THREE.NodeMaterial(); m.vertexNode = v; m.fragmentNode = f; m.side = THREE.DoubleSide; return m; };
-    const geo = new THREE.InstancedBufferGeometry(), mesh = (v, deep) => Object.assign(new THREE.Mesh(geo, null), { frustumCulled: false, userData: { materials: [mat(v, colourF), mat(v, dataF(deep))] } });
-    return (M = { kindU, rowU, sphereU, nU, cells, geo, view: mesh(viewV, DEEP), tile: mesh(tileV, 0) });
+    const geo = new THREE.InstancedBufferGeometry(), tgeo = new THREE.InstancedBufferGeometry(), mesh = (g, v, deep) => Object.assign(new THREE.Mesh(g, null), { frustumCulled: false, userData: { materials: [mat(v, colourF), mat(v, dataF(deep))] } });   // (tgeo: no corners of its own, its vertex stage reads them)
+    return (M = { kindU, levelU, rowU, sphereU, nU, cells, CL, geo, tgeo, view: mesh(geo, viewV, DEEP), tile: mesh(tgeo, tileV, 0) });
   };
   // its numbers, once its pictures are in: its sphere; T, its impostor's error (metres, at scale 1: its views' texel and
   // what their spacing and its parallax misplace, as the crowd kit measured it for these atlases: its far data's sixth
@@ -508,41 +561,57 @@ function farOf(renderer, tex, G, D) {
   const keyOf = (k) => `far: ${G.name}: ${k}`;
   // (a promise of { done }: its pictures drawn and read back, the bakers free for the next shape; done, once they are
   // in the atlases and its numbers say so)
-  const job = async ({ k, corners, far }) => {
-    const key = keyOf(k), B = materials(); B.geo.setIndex(new THREE.BufferAttribute(corners, 1)); B.kindU.value = k; B.sphereU.value.set(far[1], far[2], far[3], far[4]);
+  const job = async ({ k, at, corners, tiles, far }) => {
+    const key = keyOf(k), B = materials(); B.levelU.value = at.views; B.geo.setIndex(new THREE.BufferAttribute(corners.views, 1)); B.kindU.value = k; B.sphereU.value.set(far[1], far[2], far[3], far[4]);
     const a = await bakers(renderer).views().bake(views, k, A.VIEWS, (r) => { B.rowU.value = r; B.geo.instanceCount = A.VIEWS; return B.view; });
     const nc = far[0];
     let b = null;
     if (nc > 0 && G.clumpLayer[k] >= 0) {
-      for (let c = 0; c < nc; c++) for (let q = 0; q < 4; q++) B.cells[c * 4 + q].set(far[8 + c * 12 + q * 3], far[8 + c * 12 + q * 3 + 1], far[8 + c * 12 + q * 3 + 2], 0);
+      const T = tiles;   // (its tile level's corners in its chunks' order: chunkOrder)
+      for (let c = 0; c < nc; c++) for (let q = 0; q < 4; q++) B.cells[c * 4 + q].set(far[8 + c * 12 + q * 3], far[8 + c * 12 + q * 3 + 1], far[8 + c * 12 + q * 3 + 2], q === 0 ? T.start[c] : q === 1 ? T.count[c] : 0);
       B.nU.value = nc;
-      b = await bakers(renderer).tiles(G.tiles).bake(clumpsOf(), G.clumpLayer[k], Math.ceil((nc * 3) / G.tiles), (r) => { B.rowU.value = r; B.geo.instanceCount = G.tiles; return B.tile; });
+      B.levelU.value = at.tiles; B.CL.write(0, T.list);
+      const per = G.tiles, rows = Math.ceil((nc * 3) / per), most = Uint32Array.from({ length: rows }, (_, r) => { let m = 0; for (let t = r * per; t < Math.min((r + 1) * per, nc * 3); t++) m = Math.max(m, T.count[Math.floor(t / 3)]); return m; });
+      b = await bakers(renderer).tiles(per).bake(clumpsOf(), G.clumpLayer[k], rows, (r) => { B.rowU.value = r; B.tgeo.instanceCount = per; B.tgeo.setDrawRange(0, most[r]); return B.tile; });
     }
     return { done: Promise.all([a.done, b?.done]).then(([va, vb]) => { keptPut(keptAs(), key, { views: va, clumps: vb ?? null }); numbers(k, far); }) };
   };
   return {
     views, clumps: () => clumpsOf(), version: () => version, ready: () => any,
+    /** What bakes its pictures: the view's and the tile's meshes, each with its two materials (userData.materials), as
+        the start compiles them (tools/smoke.js builds them; a bake makes none other) */
+    meshes: () => { const B = materials(); return [B.view, B.tile]; },
     /** A block of a level as it comes (drawer.js blockIn): its finest level's carries each shape's far data, after its
-        vertices (where: its numbers' slots 14 and 15) */
+        vertices (where: its numbers' slots 14 and 15); a coarser level's, the corners of each shape whose pictures are
+        drawn from it (levelsOf: a stand's levels come finest first, in one message, drawer.js fill) */
     onBlock(b, k0, nk, idx, elems) {
-      if (b.l !== 0) return;
       for (let j = 0; j < nk; j++) {
-        const k = k0 + j, o = j * elems * 4, at = unhalf(b.verts[o + 7] & 0xffff) * 1024 + unhalf(b.verts[o + 7] >>> 16); if (queued[k] || !(at > 0)) continue;
+        const k = k0 + j, cornersOf = () => b.corners.slice(j * idx, j * idx + b.draws[j]);
+        if (b.l !== 0) { const J = waiting.get(k); if (J) { if (J.at.views === b.l && !J.corners.views) J.corners.views = cornersOf(); if (J.of && J.at.tiles === b.l && !J.tiles) J.tiles = chunkOrder(b, j, idx, elems, J.of, J.far[0]); } continue; }
+        const o = j * elems * 4, at = unhalf(b.verts[o + 7] & 0xffff) * 1024 + unhalf(b.verts[o + 7] >>> 16); if (queued[k] || !(at > 0)) continue;
         const head = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8), far = new Float32Array(b.verts.buffer, b.verts.byteOffset + (o + at * 8) * 4, 8 + head[0] * 12).slice();
-        const J = { k, corners: b.corners.slice(j * idx, j * idx + b.draws[j]), far }; queued[k] = 1; out++;
+        const c0 = cornersOf(), L = levelsOf(far), of = far[0] > 0 ? chunksOfCards(b, j, idx, elems, far) : null, t0 = of && chunkOrder(b, j, idx, elems, of, far[0]);
+        const J = { k, far, c0, t0, of, at: L, corners: { views: L.views ? null : c0 }, tiles: of && !L.tiles ? t0 : null }; queued[k] = 1; out++; waiting.set(k, J);
         // (what the browser kept of it, put in as it is read back, every shape at once: only what it has not kept waits
         // to be baked)
         keptGet(keptAs(), keyOf(k)).then((kept) => {
           if (!kept) return queue.push(J);
-          views.put(k, kept.views); if (kept.clumps && G.clumpLayer[k] >= 0) clumpsOf().put(G.clumpLayer[k], kept.clumps);
+          waiting.delete(k); views.put(k, kept.views); if (kept.clumps && G.clumpLayer[k] >= 0) clumpsOf().put(G.clumpLayer[k], kept.clumps);
           numbers(k, far); out--;
         }, () => queue.push(J));
       }
     },
-    /** Each frame: the next shape baked, once its finest level is in the heap and no other stand's is being baked. */
+    /** Each frame: the next shape baked, once the levels its pictures are drawn from are in the heap and no other stand's
+        is being baked. (A level of it in the heap whose corners came before its finest's, before its pictures' levels
+        were known: its pictures drawn from its finest, which is there, never waited for.) */
     pump() {
-      if (BAKING || !queue.length || !D().H.has(queue[0].k, 0)) return;
-      BAKING = true; const J = queue.shift(), fail = (e) => console.warn(`plants: ${G.name}: the far end of shape ${J.k} could not be baked`, e);
+      if (BAKING || !queue.length) return;
+      const J = queue[0], H = D().H;
+      if (!H.has(J.k, 0)) return;
+      if (!J.corners.views && H.has(J.k, J.at.views)) { J.at.views = 0; J.corners.views = J.c0; }
+      if (J.of && !J.tiles && H.has(J.k, J.at.tiles)) { J.at.tiles = 0; J.tiles = J.t0; }
+      if (!J.corners.views || (J.of && !J.tiles)) return;
+      BAKING = true; queue.shift(); waiting.delete(J.k); const fail = (e) => console.warn(`plants: ${G.name}: the far end of shape ${J.k} could not be baked`, e);
       job(J).then(({ done }) => { BAKING = false; done.catch(fail).finally(() => out--); }, (e) => { BAKING = false; fail(e); out--; });
     },
   };
@@ -597,8 +666,14 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
   const A = atlases();   // (what the far ends' atlases are sized by: every level's band hands it to the workers' crowd kit)
   const Z = placedBy('trees'), famOf = (uid) => Z.families.find((F) => F.F.asset === uid);
   // the growth map (growth.js): what each layer that writes leaves for the layers after it, worked out round the camera
-  // before anything packs (tiers.before), the largest layer first
-  const layers = layersOf(rows), words = layers.filter((L) => L.word >= 0).length, M = words ? createGrowth(renderer, words) : null;
+  // before anything packs (tiers.before), the largest layer first; as far as what reads it is drawn: a layer that reads
+  // it as far as its largest thing is gone by the one measure (a sapling as large as it grows there: its entry's
+  // grownTo), the meadow (which reads every layer's) as far as its blades. At the most pixels the screen can draw, the
+  // dial at rest: the map is a capacity (src/detail/measure.js farMost; the meadow's end its own, grass.js bandsOf)
+  const layers = layersOf(rows), words = layers.filter((L) => L.word >= 0).length;
+  const blades = Math.max(0, ...recipes('asset').filter((a) => a.placement?.engine === 'grass').map((a) => ringBands(ringsOf(a), a.height, pxKMost()).end));
+  const readFar = (W) => Math.max(blades, ...layers.filter((L) => L.reads.includes(W)).map((L) => Math.max(...L.entries.map((e) => farMost(goneOf(e.asset), sizeOf(e.asset) * e.grownTo)))));
+  const M = words ? createGrowth(renderer, layers.filter((L) => L.word >= 0).map((L) => ({ band: L.band, far: readFar(L) }))) : null;
   if (M) M.build(writersOf(layers, M));
   for (const G of groupsOf(rows)) {
     G.M = G.L.reads.length ? M : null;
@@ -672,18 +747,21 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     // his knee) packs none
     if (G.kinds.some((Kd) => Array.from({ length: Kd.shapes }, (_, v) => bodyOf(KINDS[Kd.offset + v])).some((B) => B.shapes.some((S) => topOf(S) * Kd.asset.placement.scale[1] - FOOT > (S.pass ? Math.max(0.55, S.from ?? 0) : 0.3))))) solids.push(standBodies(G, KINDS, ground, renderer));
     // a tier: its cells worked out once for every kind in it, each plant that is of its level packed into its shape's
-    // draw. g: the group it packs (the stand's, or of its kinds those that cast)
+    // draw. g: the group it packs (the stand's, or of its kinds those that cast). Its levels pack by one piece of code,
+    // compiled once (the drawer's kind of tier: one place for them all, the shadow's stand-in another), each telling
+    // its own numbers before it packs (table)
+    // (seen.r: a crown's reach, and how far the camera may move before the packing is made again: a level's)
+    const seen = { r: uniform(0), high: sHi }, places = new Map();
+    const placeOf = (g, shadow) => { if (!places.has(g)) places.set(g, (c, { band }, found) => plantIn(c, g, band, shadow, shadow ? null : seen, found)); return places.get(g); };
     const tier = (i, g, shadow = false) => {
       // (P: its level's patch, which says how far the camera may move before it packs again: a sixteenth of it. What it
       // looks at is its region tree's, however far its band reaches: src/scatter/regions.js)
       const P = shadow ? 4 : G.kinds[0].levels[i].P;
-      // reach: a crown's reach, and how far the camera may move before the packing is made again (the cells are worked
-      // out again every sixteenth of a patch)
-      const seen = shadow ? null : { r: uniform(round + (L.cell * P) / 16 + 2), high: sHi };
       const t = D.tier(i, {
         cell: L.cell, P, sizes: [sLo, sHi], fade: G.fade, shadow,   // (as many as it finds it holds: its store and its buckets from its own count, src/scatter/tier.js)
         casts: !shadow && i === 0 && g.kinds.some((Kd) => Kd.row.detail.casts && !Kd.asset.detail.shadow),   // without a stand-in the near ones cast, as drawn (src/world/shadow.js)
-        place: (c, { band }, found) => plantIn(c, g, band, shadow, seen, found), thing: `plants:${G.name}`,   // (a plant's own state: its stand and its cell, src/world/things.js)
+        place: placeOf(g, shadow), thing: `plants:${G.name}`,   // (a plant's own state: its stand and its cell, src/world/things.js)
+        table: shadow ? null : () => { seen.r.value = round + (L.cell * P) / 16 + 2; },   // (the cells are worked out again every sixteenth of a patch)
         extra: shadow ? { cull: SH.reach, fixed: SH.far * SH.wide } : {},   // (the stand-in in small patches: those whose shade cannot reach the view are dropped)
       });
       t.viewKeyed = !shadow; t.asset = G.name; t.drawer = D; tiers.push(t);
@@ -702,6 +780,7 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
   tiers.before = M ? (x, z, world) => M.update(x, z, world) : null;   // (src/scatter/index.js: before any tier packs)
   if (M) tiers.compile = M.compile;
   tiers.solid = (renderer) => { for (const D of drawers) D.start(); for (const f of solids) f(renderer); for (const F of fars) F.pump(); };
+  tiers.bakes = () => fars.flatMap((F) => F.meshes());   // (what bakes the far ends, drawn by no tier: src/scatter/index.js bakes)
   // for looking at it (window.__plants): how many plants each tier packs now, what the heaps hold
   window.__plants = { drawers, tiers, async counts() { const out = []; for (const t of tiers) { const B = await t.read(renderer); out.push(`${t.asset} ${t.level}: ${B.reduce((x, b) => x + b.count, 0)}`); } return { tiers: out, held: drawers.map((D) => D.H.held().join(',')), coarseMs: drawers.map((D) => D.stats.coarseMs), kept: drawers.map((D) => D.stats.kept) }; },
     // … and what each stand asked of the GPU in the last frame, a row a stand: of each of its tiers the plants drawn (a

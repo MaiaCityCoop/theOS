@@ -34,7 +34,7 @@ import { scatterRow } from '../../assets/index.js';
 import { entriesOf, placed } from './entries.js';
 import { most, footprintOf, footprintReach } from '../../assets/kinds.js';
 import { CLEARINGS } from '../../world/places.js';
-import { TEXEL, WORDS } from './growth.js';
+import { WORDS } from './growth.js';
 import { limitOf } from '../core/gpu.js';
 
 const R0 = 0.69, PER = 1.8, CLUMPS = 55, PATCHES = 90, TOP = 1;   // R0: metres of reach where the classes begin (0.69-2.8 m, 2.8-11 m, ...); PER: a cell's side to its class's middle reach; CLUMPS, PATCHES: a biome's groves and the patches where one kind leads, metres, at the class of a grown tree (TOP), where its biome does not say (its `groves`)
@@ -58,16 +58,26 @@ const classOf = (r) => Math.floor(Math.log(Math.max(r, 1e-3) / R0) / Math.log(4)
 let LAYERS = null, KEY = '';
 /** The layers of what the engine places (rows: its rows), largest first, each { k (its class), cell, seed, entries,
     groups (the kinds that lead in patches: a biome's grown trees, its bushes), reads (the words of the layers before it),
-    word (its own, -1: it writes none), reach (metres its things leave anything in), feet (one that writes: how far its
-    things' feet reach, feetOf; null where none covers any ground) }. The same rows, the same layers. */
+    word (its own, -1: it writes none), band (a writer's: its word's band limit, half its smallest crown, metres: its
+    texel in the growth map, two of them across its smallest crown, so nothing finer shows in its shade: growth.js),
+    reach (metres its things leave anything in), feet (one that writes: how far its things' feet reach, feetOf; null
+    where none covers any ground) }. The same rows, the same layers. The layers that write are those whose cells are
+    as large as the finest texel any writer needs. */
 export function layersOf(rows) {
   const key = rows.map((r) => r.uid).join();
   if (LAYERS && key === KEY) return LAYERS;
   const by = new Map();
   for (const e of entriesOf(rows)) { const k = classOf(e.reach); if (!by.has(k)) by.set(k, []); by.get(k).push(e); }
-  let id = 1, word = 0;
+  // (the layers that write: those whose cells are as large as the finest texel any writer needs, half the smallest crown
+  // among them, its word's band limit: of the limits that hold both ways, the coarsest)
+  let id = 1, word = 0, band = 0;
+  const cellOf = (k) => PER * R0 * 4 ** (k + 0.5), smallest = (es) => Math.min(...es.filter(crowned).map(crownMost));
+  for (const b of [...by.values()].map(smallest).filter(Number.isFinite).sort((x, y) => y - x)) {   // (each layer's smallest crown, the coarsest first)
+    const writers = [...by].filter(([k]) => cellOf(k) >= b).sort((x, y) => y[0] - x[0]).slice(0, WORDS);
+    if (writers.length && smallest(writers.flatMap(([, es]) => es)) === b) { band = b; break; }
+  }
   LAYERS = [...by].sort((a, b) => b[0] - a[0]).map(([k, entries], index) => {
-    const cell = PER * R0 * 4 ** (k + 0.5), scale = 4 ** (k - TOP);
+    const cell = cellOf(k), scale = 4 ** (k - TOP);
     entries.sort((x, y) => (x.asset.uid < y.asset.uid ? -1 : x.asset.uid > y.asset.uid ? 1 : x.young - y.young));
     // (its most at a cell: as much of the ground as it covers there, in things of its reach, one a cell at most)
     entries.forEach((e, i) => Object.assign(e, { i, id: id++, most: Math.min(1, (e.cover * cell * cell) / (Math.PI * e.reach * e.reach)), litter: e.asset.kind === 'tree' && !e.young ? 1 : 0 }));
@@ -76,8 +86,8 @@ export function layersOf(rows) {
     const groups = [];
     for (const e of entries) if (!e.young && (e.asset.kind === 'tree' || e.asset.kind === 'shrub')) { let g = groups.find((x) => x.biome === e.biome && x.kind === e.asset.kind); if (!g) groups.push((g = { biome: e.biome, kind: e.asset.kind, entries: [] })); g.entries.push(e); }
     for (const g of groups) { const t = g.entries.reduce((s, e) => s + e.most, 0); let at = 0; g.most = t; for (const e of g.entries) { e.group = g; e.slice = [at / t, (at += e.most) / t]; } }
-    const writes = cell >= TEXEL && word < WORDS;
-    return { k, index, cell, seed: 300 + 100 * (TOP - k), scale, entries, groups, name: `${cell.toFixed(cell < 1 ? 2 : 1)} m`, word: writes ? word++ : -1, inset: 0,
+    const writes = band > 0 && cell >= band && word < WORDS;
+    return { k, index, cell, seed: 300 + 100 * (TOP - k), scale, entries, groups, name: `${cell.toFixed(cell < 1 ? 2 : 1)} m`, word: writes ? word++ : -1, band: writes ? smallest(entries) : 0, inset: 0,
       reach: Math.max(...entries.map((e) => e.reach * (e.litter ? 1.6 : 1))) };
   });
   // what each layer reads: the words of every layer before it that writes; and whose litter it reads, as their numbers;
@@ -243,7 +253,7 @@ export function footAt(p, W, M) {
     an outline, where its thing's whole reach does. What the map's word keeps as its feet (gatherOf). */
 const feetIn = (c, L, B, pos, q) => {
   const T = L.feet.table, S = T.element(B.row).toVar(), s = B.h.div(S.x).toVar(), on = float(0).toVar();
-  const meets = (m, r) => { const o = max(abs(m.sub(q)).sub(TEXEL / 2), 0); return dot(o, o).lessThanEqual(r.mul(r)); };
+  const meets = (m, r) => { const o = max(abs(m.sub(q)).sub(L.band / 2), 0); return dot(o, o).lessThanEqual(r.mul(r)); };
   If(S.w.greaterThan(0).and(meets(pos, S.y.mul(s))), () => {
     const t = turnIn(c, L), cs = cos(t), sn = sin(t);
     piecesOf(T, S, (A, E) => {
@@ -306,7 +316,7 @@ export function placeIn(c, L, M, pos) {
 /** A layer's light over a texel (gatherOf): the mean of SUB x SUB points over it, two across its smallest crown (Nyquist's:
     a crown's edge is not lost between them; crownMost: a crown's half width), and how far the farthest of them lies from
     the texel's middle (edge); its crowned entries. */
-const lightOf = (L) => { const crowns = L.entries.filter(crowned), SUB = crowns.length ? Math.max(1, Math.ceil(TEXEL / Math.min(...crowns.map(crownMost)))) : 1; return { crowns, SUB, edge: TEXEL * (0.5 - 0.5 / SUB) * Math.SQRT2 }; };
+const lightOf = (L) => { const crowns = L.entries.filter(crowned), SUB = crowns.length ? Math.max(1, Math.ceil(L.band / Math.min(...crowns.map(crownMost)))) : 1; return { crowns, SUB, edge: L.band * (0.5 - 0.5 / SUB) * Math.SQRT2 }; };
 
 /** What stands in cell c of layer L, as the growth map keeps it (growth.js), one word: how tall it stands (grownIn's,
     a half float: the low 16 bits), which of its things (its number + 1, 0 none: the bits after), the row of its shape
@@ -324,9 +334,9 @@ export const recordOf = (L, M) => (c) => {
     x0 + w read along one side [first, past the last], and one more either side (the GPU reckons lo in 32-bit floats);
     span(n), the most cells along a side that n texels read so. */
 function gatherCells(L) {
-  const { crowns, edge } = lightOf(L), R = Math.max(L.reach, ...crowns.map((e) => crownMost(e) + edge), L.feet ? L.feet.reach + (TEXEL / 2) * Math.SQRT2 : 0), m = Math.ceil((2 * R) / L.cell) + 1;
-  const lo = (x) => Math.floor(((x + 0.5) * TEXEL - R) / L.cell);
-  return { R, m, cells: (x0, w) => [lo(x0) - 1, lo(x0 + w - 1) + m + 1], span: (n) => Math.floor(((n - 1) * TEXEL) / L.cell) + 1 + m + 2 };
+  const { crowns, edge } = lightOf(L), R = Math.max(L.reach, ...crowns.map((e) => crownMost(e) + edge), L.feet ? L.feet.reach + (L.band / 2) * Math.SQRT2 : 0), m = Math.ceil((2 * R) / L.cell) + 1;
+  const lo = (x) => Math.floor(((x + 0.5) * L.band - R) / L.cell);
+  return { R, m, cells: (x0, w) => [lo(x0) - 1, lo(x0 + w - 1) + m + 1], span: (n) => Math.floor(((n - 1) * L.band) / L.cell) + 1 + m + 2 };
 }
 
 /** What layer L leaves at q (a texel's middle, metres) for the layers after it, as the growth map keeps it: what stands in
@@ -336,7 +346,7 @@ function gatherCells(L) {
     that drops most there), and whether its feet may reach into the texel (feetIn). M: the growth map. */
 export function gatherOf(L, M) {
   const { crowns, SUB, edge } = lightOf(L), { R: reach, m } = gatherCells(L);
-  const points = Array.from({ length: SUB * SUB }, (_, s) => vec2(((s % SUB) + 0.5) / SUB - 0.5, (Math.floor(s / SUB) + 0.5) / SUB - 0.5).mul(TEXEL));
+  const points = Array.from({ length: SUB * SUB }, (_, s) => vec2(((s % SUB) + 0.5) / SUB - 0.5, (Math.floor(s / SUB) + 0.5) / SUB - 0.5).mul(L.band));
   return (q) => {
     const lo = ivec2(floor(q.sub(reach).div(L.cell))).toVar(), light = points.map(() => float(1).toVar()), feet = float(0).toVar(), litter = float(0).toVar(), lead = uint(0).toVar(), best = float(0).toVar();
     Loop(m, m, ({ i, j }) => {

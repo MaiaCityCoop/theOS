@@ -32,7 +32,7 @@ export default {
   age: [30, 150],
   // far off, past where its trees are drawn, the land under it takes the colour of their crowns, in its groves
   // (src/terrain/material.js); from/to (metres): only if no tree of it says where its trees end
-  canopy: { colour: [0.05, 0.085, 0.035], from: 650, to: 1000 },
+  canopy: { colour: [0.05, 0.085, 0.035] },
   // and where its bushes have sunk away, their colour (fill: a bush covers most of its cell; grain: a bush to a tree)
   understory: { colour: [0.06, 0.1, 0.04], fill: 0.85, grain: 0.3 },
 };

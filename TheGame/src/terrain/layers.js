@@ -18,16 +18,27 @@ import * as THREE from 'three/webgpu';
 import { If, Loop, float, int, uint, vec2, vec3, abs, max, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { byRole } from '../core/registry.js';
-import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID } from '../world/land.nodes.js';
+import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID, PATH_W } from '../world/land.nodes.js';
+import { endOf } from '../scatter/grass.js';
+import { byte, un } from '../scatter/growth.js';
+import { BAND } from '../detail/error.js';
 import { standsOf, rowsOf } from '../scatter/rule.js';
 import { detailOf } from '../detail/index.js';
 import { sizeOf } from '../../assets/kinds.js';
 const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
 
 const EMPTY = 255, NO_STAND = 15;
+/** The finest scale of a stand's crowns' pattern, metres a grain (what of it a texel can hold: src/terrain/material.js). */
+export const CROWNS = 9.3;
+/** Texels of a page between the layer map's points (src/terrain/pages.js lays a page from them): what of a layer's
+    pattern a page can hold. */
+export const MAPN = 8;
 
 // ---- the ground's layers, in the order they are laid (lowest first): a layer's id is its place here ----
-// (each: its ground { material, tile }, and how far off it is let go, fade [from, to] metres, where it says)
+// (each: its ground { material, tile }; where it is let go: `meadow`, as the meadow's blades go (its bare patches: the
+// carpet over them past the blades holds them averaged), or `size`, its pattern's own (metres), kept as long as the layer
+// map holds it (over two of its points at the page's texel: the dial's pixel sets that), handed over within BAND; else
+// never)
 export const LAYERS = [];
 const lay = (o) => (LAYERS.push(o), LAYERS.length - 1);
 // what each kind of tree drops (its `litter`: assets/kit/tree.js), if not the biome's own floor: laid where that kind
@@ -36,18 +47,18 @@ const lay = (o) => (LAYERS.push(o), LAYERS.length - 1);
 const canopyOf = (bio) => standsOf(bio, rowsOf()).find((S) => S.key === 'tree') ?? null;
 const drops = (bio) => (canopyOf(bio)?.kinds ?? []).filter((k) => k.asset.litter && k.asset.litter.material !== bio.floor.material);
 // a biome's own grounds: its floor, its spots in it, its trees' litter
-const ofBiome = (bio) => ({ bio, groves: canopyOf(bio)?.P, floor: lay({ ground: bio.floor }), spots: bio.spots ? lay({ ground: bio.spots, fade: bio.spots.fade }) : -1, litter: drops(bio).map(({ asset, slice }) => ({ id: lay({ ground: asset.litter }), slice })) });
+const ofBiome = (bio) => ({ bio, groves: canopyOf(bio)?.P, floor: lay({ ground: bio.floor }), spots: bio.spots ? lay({ ground: bio.spots, size: bio.spots.size }) : -1, litter: drops(bio).map(({ asset, slice }) => ({ id: lay({ ground: asset.litter }), slice })) });
 const FLOOR = lay({ ground: BASE.floor });   // the base biome's floor, under everything
 // the grassy biomes, under the grass's carpet; then the base's bare patches (let go where its blades end) and the floor of
 // its outcrops
 const UNDER = LAID.filter((b) => b.grass).map(ofBiome);
-const BARE = lay({ ground: BASE.patches, fade: [100, 160] }), OUTCROP = lay({ ground: BASE.patches });
+const BARE = lay({ ground: BASE.patches, meadow: true }), OUTCROP = lay({ ground: BASE.patches });
 /** The grass's carpet is laid before the first layer with this id or more: over every layer before it, under every one after. */
 export const CARPET = LAYERS.length;
 // over the carpet: the base's paths (a thing of the near ground), the biomes nothing grows on, the base's rock where the
 // land is too steep (its slope is the texel's own: src/terrain/material.js slopeAt), in their layers' order; last the
 // library's stage
-const PATHS = lay({ ground: BASE.patches, fade: [70, 220] });
+const PATHS = lay({ ground: BASE.patches, size: PATH_W });
 let slopes = -1;
 const OVER = LAID.filter((b) => !b.grass).map((b) => { if (slopes < 0 && BASE.slopes && b.layer > (BASE.slopes.layer ?? Infinity)) slopes = lay({ ground: BASE.slopes }); return ofBiome(b); });
 if (slopes < 0 && BASE.slopes) slopes = lay({ ground: BASE.slopes });
@@ -69,12 +80,11 @@ if (LAYERS.length > EMPTY) throw new Error(`the land lays ${LAYERS.length} layer
 //     forest is not a plain in full sun with trees on it.
 export const STANDS = [];
 for (const bio of LAID) for (const { P, kinds, CV } of standsOf(bio, rowsOf())) {
-  // of what grows in the stand, the kind drawn farthest: its colour comes in where its plants go out (they are drawn
-  // while their largest side is more than their last level's pixels, the same rule by the lens and the window:
-  // src/detail), the largest to `last` metres, most of them gone by two thirds of that; without such plants, its own
-  // from/to
-  const A = kinds.map((k) => k.asset).sort((x, y) => sizeOf(y) / detailOf(y).cut - sizeOf(x) / detailOf(x).cut)[0];
-  const cutPx = A ? detailOf(A).cut : 0, span = cutPx ? (sizeOf(A) * (A.placement.scale?.[1] ?? 1)) / cutPx : 0;   // (last = uPxK × span: the measure's farAt, src/detail/measure.js)
+  // its colour comes in as its plants go out (they are drawn while their largest side is more than their last level's
+  // pixels, sinking away over the BAND above: src/detail): from where its smallest kind begins to sink to where its
+  // largest is gone (`last` = uPxK × its span: the measure's farAt, src/detail/measure.js); without such plants, always
+  const spanOf = (a) => (sizeOf(a) * (a.placement.scale?.[1] ?? 1)) / detailOf(a).cut, spans = kinds.map((k) => spanOf(k.asset)).filter((x) => x > 0 && Number.isFinite(x));
+  const span = spans.length ? Math.max(...spans) : 0, A = span ? kinds.map((k) => k.asset).find((a) => spanOf(a) === span) : null;
   const SH = A?.detail?.shadow;   // where its shadows are no longer drawn: past the trees' stand-in, the cascades' reach
   // what of it casts (src/world/shadow.js): its trees' crowns at their oldest, where each begins over the ground and how
   // far it reaches round (the kit's form: assets/kit/tree.js growth.base, growth.reach), and the tallest of it (its
@@ -82,7 +92,7 @@ for (const bio of LAID) for (const { P, kinds, CV } of standsOf(bio, rowsOf())) 
   const cast = kinds.map((k) => k.asset).filter((a) => detailOf(a).casts !== false), trees = cast.filter((a) => a.growth?.base);
   const crown = Math.min(...trees.map((a) => a.growth.base(a.growth.years.at(-1)))), radius = Math.min(...trees.map((a) => a.growth.reach(a.growth.years.at(-1))));
   const top = Math.max(0, ...cast.map((a) => a.measure?.most ?? a.size.height));
-  STANDS.push({ bio, P, grain: CV.grain ?? 1, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? [0.3, 0.68] : [CV.from ?? 1e9, CV.to ?? 2e9], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
+  STANDS.push({ bio, P, grain: CV.grain ?? 1, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? [Math.min(...spans) / (span * BAND), 1] : [0, 0], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
 }
 if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} stands that wear a colour: four bits name at most ${NO_STAND - 1}`);
 /** How far round the camera the shadows of the stands that cast them are drawn at the most (-1: none casts): past it, a
@@ -102,17 +112,15 @@ export const CASTERS = Object.freeze({
   top: Math.max(0, ...STANDS.map((S) => S.top)),
 });
 
-const byte = (v) => uint(round(clamp(v, 0, 1).mul(255)));
-const un = (w, k) => float(w.shiftRight(uint(8 * k)).bitAnd(uint(255))).mul(1 / 255);
 
-// the layers' table: a layer's material (its number: src/materials/bake.js), its tile (metres), and how far off it is
-// let go (from, to; none: past any distance)
+// the layers' table: a layer's material (its number: src/materials/bake.js), its tile (metres), its pattern's size
+// (metres; 0: none), and whether it goes with the meadow's blades (1)
 let TABLE = null, STAND_T = null;
 /** The layers' and the stands' tables, made once the world's textures are there (before node code reads them). */
 export const layerTables = (tex) => {
   if (TABLE) return;
-  TABLE = uniformArray(LAYERS.map((L) => new THREE.Vector4(L.ground ? tex.layer(L.ground.material) : -1, L.ground ? L.ground.tile : 2, ...(L.fade ?? [1e9, 2e9]))), 'vec4').setGroup(renderGroup);
-  // the stands': (its crowns' colour, its grain), (its plants' span (0: its own from/to), from, to, how far its shadows reach (-1: none))
+  TABLE = uniformArray(LAYERS.map((L) => new THREE.Vector4(L.ground ? tex.layer(L.ground.material) : -1, L.ground ? L.ground.tile : 2, L.size ?? 0, L.meadow ? 1 : 0)), 'vec4').setGroup(renderGroup);
+  // the stands': (its crowns' colour, its grain), (its plants' span (0: none), from, to (shares of where they are gone), how far its shadows reach (-1: none))
   STAND_T = uniformArray(STANDS.flatMap((S) => [new THREE.Vector4(...S.colour, S.grain), new THREE.Vector4(S.span, ...S.fade, S.reach)]).concat([new THREE.Vector4(), new THREE.Vector4()]), 'vec4').setGroup(renderGroup);
 };
 
@@ -177,7 +185,7 @@ export function layerWords(tex, p, texel) {
     const wt = share.get(T.bio), g = T.grain;
     const c = clamp(wt.mul(groveAt(p, T.P)).mul((T.P.density ?? 1) * T.fill), 0, 1).toVar();
     If(c.greaterThan(st[1].c), () => {
-      const n = nz(p.div(23 * g).add(0.7), 23 * g).r.mul(0.35).add(nz(prr.div(31.7 * g).add(0.2), 31.7 * g).g.mul(0.35)).add(nz(pr.div(9.3 * g), 9.3 * g).g.mul(0.3)).toVar();
+      const n = nz(p.div(23 * g).add(0.7), 23 * g).r.mul(0.35).add(nz(prr.div(31.7 * g).add(0.2), 31.7 * g).g.mul(0.35)).add(nz(pr.div(CROWNS * g), CROWNS * g).g.mul(0.3)).toVar();
       If(c.greaterThan(st[0].c), () => { st[1].id.assign(st[0].id); st[1].c.assign(st[0].c); st[1].n.assign(st[0].n); st[0].id.assign(id); st[0].c.assign(c); st[0].n.assign(n); })
         .Else(() => { st[1].id.assign(id); st[1].c.assign(c); st[1].n.assign(n); });
     });
@@ -250,14 +258,15 @@ export function layersFrom(load, f, ny) {
     at dist2 metres off (1 near … 0 where it is let go). The library's stage wears what uStageGround says. */
 export const layerOf = (id) => {
   const row = TABLE.element(id), stage = id.equal(STAGE), g = U.uStageGround, own = g.x.lessThan(0).select(TABLE.element(BARE).x, g.x);
-  return { material: int(stage.select(own, row.x)), tile: stage.select(g.y, row.y), fade: (dist2) => float(1).sub(smoothstep(row.z, row.w, dist2)) };
+  return { material: int(stage.select(own, row.x)), tile: stage.select(g.y, row.y), fade: (D, s) => row.w.greaterThan(0.5).select(endOf(D), row.z.greaterThan(0).select(smoothstep(s.mul(2 * MAPN), s.mul(2 * MAPN * BAND), row.z), float(1))) };
 };
 /** A stand's numbers ({ colour, grain, span, fade [a, b], reach }: as STANDS has them), for the fragment. */
 export const standOf = (id) => { const a = STAND_T.element(id.mul(2)), b = STAND_T.element(id.mul(2).add(1)); return { colour: a.xyz, grain: a.w, span: b.x, a: b.y, b: b.z, reach: b.w }; };
 /** How far off (metres, as the 68° lens sees them) a stand's colour comes in: its plants' last level's reach (the
-    measure's farAt: src/detail/measure.js, its span reckoned at the dial's rest, so over the dial now), or its own from/to. */
+    measure's farAt: src/detail/measure.js, its span reckoned at the dial's rest, so over the dial now); without plants,
+    everywhere. */
 export const standFade = (S, dist2) => {
   const at = U.uPxK.mul(S.span).div(U.uErrorPx), last = at;   // (?truth: the dial turned down moves it out, as every other far)
-  return S.span.greaterThan(0).select(smoothstep(last.mul(S.a), last.mul(S.b), dist2), smoothstep(S.a, S.b, dist2));
+  return S.span.greaterThan(0).select(smoothstep(last.mul(S.a), last.mul(S.b), dist2), float(1));
 };
 export { NO_STAND };
