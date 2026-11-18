@@ -1048,6 +1048,66 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
     one page;
   - Safari has not been tried.
 
+### Stage 7: one placement rule, the forest in layers (2026-11-18)
+
+Built on `aven/0038-stage7-layers` from main at `3a2896a` (stage 5 merged), then merged with main at `d1c3805` (6b), as
+draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a map of its own.
+
+- **The rule** (`src/scatter/rule.js`, after van Muijden's GPU placement in Horizon Zero Dawn, GDC 2017, and UE's PCG).
+  It places everything the trees' engine places: a tree, a sapling, a bush, a fern, a log, a stone, a strewing of
+  cones.
+  - The density: ecotope × suitability × the influence of the larger things already placed × clumping.
+    - **Ecotope:** the biome's share where it lies, times the kind's own `cover` (how much of the ground it covers where
+      it grows best).
+    - **Suitability:** `light` (how thick in deep shade and in the open), plus `shore` and `lakes` for the reeds.
+    - **Influence:** the growth map's shade, foot and litter. `under` names whose litter a thing lies or comes up in.
+    - **Clumping:** the biome's `groves`, at each layer's own scale.
+  - It is discretised by **one ordered dither**: stage 5's `rankOf` (a 4 × 4 Bayer matrix and the cell's own number),
+    moved into the rule; the meadow's thinning reads it from there. A thing stands where its cell's rank is under its
+    density, so any density is a first share of the ranks, spread evenly; placing and thinning are one number.
+  - **Layers are footprint classes**, a factor of four in reach, largest first. A layer's cell is as wide as one of its
+    things covers where they are thickest. Its things stack their densities over the ranks, one thing a cell, so two
+    never stand in each other. A biome's grown trees, and its bushes, share their density out by a slow noise (one kind
+    leads here, another there, a third of it evenly), the same noise the land lays each tree's litter by.
+  - **Young trees:** a tree with growth is placed twice, grown (as old as its biome's `age` says) and young (its
+    `young`: its saplings, from its first stage to its second year, where light reaches its own kind's litter).
+- **The growth map** (`src/scatter/growth.js`): what each layer leaves for the next.
+  - A 1024² window of 2 m texels round the camera, kept like the layer map: only the strips it moves onto are worked
+    out, on the GPU, a layer at a time, the largest first.
+  - Each layer whose cells are a texel or more writes one word: its crowns' shade, its feet, its litter, and whose
+    litter it is.
+  - A word is worked out by gathering the layer's own cells round the texel, each placed by the rule (which reads the
+    words before it). So no two things write one texel, nothing is kept of a placed thing, and the map is the same
+    whatever path the camera took.
+  - The tiers that read it pack again when it moves (`Tier.reads`); the engines that place the larger things are made
+    first.
+  - **The meadow is the smallest layer:** its blades thin by the light through the crowns and keep off the larger
+    things' feet.
+- **The layers and kinds** (`bun tools/layers.js` prints them):
+
+| Layer | Cells | What stands in it |
+| --- | --- | --- |
+| Canopy | 9.9 m | Stone pine, holm oak |
+| Understory | 2.5 m | Mastic, rockrose, bracken; young stone pines and holm oaks; dead wood, **fallen logs**, **bedded stones**; the riverbank's reeds |
+| Floor | 0.62 m | **Pine litter** (cones, twigs, needle tufts), **oak litter** (fallen sprigs, acorns), moss cushions, **ferns**, **woodland herbs** |
+
+  - The new kinds (bold) are recipes of a new floor kit (`assets/kit/floor.js`: `fallen`, `strewn`, `bedded`) and of
+    the tree kit's `mound`. Their species are their parameters (the generic Mediterranean forms until the site's are
+    chosen). The dead wood's branch is the kit's `fallen` now.
+  - Two new kinds in `assets/kinds.js`: `litter` and `herb`, two mesh levels, no far end.
+  - **A plant's levels and far ends are its kind's** (`far` in `kinds.js`; the tree kit reads it), and its patches are
+    the drawer's. No new asset file holds detail data, and the old plant files lost their `levels` and `far`.
+  - The moss cushion was drawn as a clump's plane (part 2) and so never showed; it is one solid piece now, its skin the
+    moss.
+- **Deleted:**
+  - the biomes' stands (`trees`, `shrubs`, `litter`, `reeds`): their cells, densities, clumps, patches, seeds, sizes
+    and `where`;
+  - the pine forest's `fields` and `gladeAt`;
+  - `src/world/stand.js` (`kindsOf`, `whereOf`), `standOf`, the kinds' `share`, `stand` and `where`;
+  - the stands' sizes told to the workers (`STANDS`, `ownTop`, the workers' `stands` message);
+  - `clearAt` and `rankOf`, each moved into the rule.
+- **The gate:** `--query` adds to every page's address (`--query stress`).
+
 ## Propose
 
 ## Story
