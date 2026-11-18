@@ -100,9 +100,10 @@ const GROW = Math.sqrt(BAND) - 1, EDGE = 4, TOP = 24, H = 2 ** 23;   // (TOP: th
 const keyOf = (k, bi, bj) => (k * 2 ** 24 + bi + H) * 2 ** 24 + bj + H;
 
 export class Resident {
-  /** cell: metres a cell; fixed: its band is metres, not sizes on screen. */
-  constructor({ cell, fixed = false }) {
-    this.cell = cell; this.fixed = fixed; this.side = BLOCK * cell;
+  /** cell: metres a cell; fixed: its band is metres, not sizes on screen; room: the most regions it may hold (one that
+      would split past it is taken whole: more cells, nothing lost). */
+  constructor({ cell, fixed = false, room = Infinity }) {
+    this.cell = cell; this.fixed = fixed; this.side = BLOCK * cell; this.room = room;
     this.leaves = new Map();   // key -> { key, k, bi, bj, w (cells a side), at: [x, z, dy] (where it was packed), pad }
     this.under = new Map();    // key -> how many leaves lie under that node (itself not counted)
     this.nodes = new Map();    // key of a node over leaves -> { at, slack }: where it was last looked at, and its slack from there
@@ -143,7 +144,7 @@ export class Resident {
       // some of it can come in)
       if (dn > far) { below(k, bi, bj); return dn - far; }
       if (df < near) { below(k, bi, bj); return near - df; }
-      const fits = !k || S <= Math.max(side, inside < 0 ? pad / EDGE : dn), L = leaves.get(key);
+      const fits = !k || S <= Math.max(side, inside < 0 ? pad / EDGE : dn) || leaves.size + 4 > this.room, L = leaves.get(key);
       if (L) {
         const m = moved(L.at);
         if (m <= L.pad) { out.kept++; return L.pad - m; }
