@@ -306,8 +306,9 @@ const proxies = [];
     put into each bucket (atomic, maybe more than its room); box(A, B, k): the world box
     of a thing of bucket k from its rows ({ c, h, w }: its middle, half its size, and how far the wind may push it, a
     metre of its sway: gustOf). */
-/** The most things one arena holds: its boxes, 16 bytes each, one buffer the GPU binds. */
-const ROOM = () => Math.floor(Math.min(limitOf('maxStorageBufferBindingSize', 128 << 20), limitOf('maxBufferSize', 256 << 20)) / 16);
+/** The most things one arena holds: its boxes, 16 bytes each, one buffer the GPU binds and makes (the device's own
+    limits, as large as its adapter has them: src/boot.js). */
+const ROOM = () => Math.floor(Math.min(limitOf('maxStorageBufferBindingSize'), limitOf('maxBufferSize')) / 16);
 /** Whether a tier of `total` things can be culled (one that alone would fill more than an arena is drawn whole). */
 export const cullable = (total) => total <= ROOM();
 export function cullOf(T, { K, caps, offs, total, S, data, args, count, box }) {

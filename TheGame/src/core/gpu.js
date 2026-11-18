@@ -30,8 +30,10 @@ export const useGPU = (renderer) => { R = renderer?.backend?.device ? renderer :
 export const lean = () => !!R;
 /** Whether the renderer's GPU has a WebGPU feature (none without WebGPU). */
 export const hasFeature = (name) => !!R?.backend?.device?.features?.has(name);
-/** One of the renderer's GPU's limits (`fallback` without WebGPU). */
-export const limitOf = (name, fallback) => R?.backend?.device?.limits?.[name] ?? fallback;
+/** One of the renderer's GPU's limits (none without WebGPU: nothing then asks). */
+export const limitOf = (name) => R?.backend?.device?.limits?.[name] ?? 0;
+/** Every buffer made here within the device's limits: one larger is an error of whoever sized it, said by name. */
+const within = (bytes, name) => { const most = Math.min(limitOf('maxStorageBufferBindingSize') || Infinity, limitOf('maxBufferSize') || Infinity); if (bytes > most) throw new Error(`${name ?? 'a buffer'}: ${bytes} bytes, more than the GPU binds in one buffer (${most})`); };
 
 const TYPES = { uint: [Uint32Array, 1], float: [Float32Array, 1], vec4: [Float32Array, 4], uvec4: [Uint32Array, 4] };
 /** A storage buffer of `count` items of `type` (uint, float, vec4, uvec4), nothing in it yet:
@@ -45,6 +47,7 @@ export function gpuStorage(type, count, name = null, instanced = false) {
     if (name) note(name, bytes, bytes);
     return { node: storage(attr, type, count), attr, bytes, lean: false, write(at, data) { attr.array.set(data, at); attr.addUpdateRange(at, data.length); attr.needsUpdate = true; } };
   }
+  within(bytes, name);
   const dev = R.backend.device, attr = new Attr(new Arr(size), size);
   const buffer = dev.createBuffer({ label: name ?? 'lean', size: Math.max(16, bytes), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
   R.backend.get(attr).buffer = buffer;
@@ -61,6 +64,7 @@ export function gpuStorageLater(type, name = null) {
     make(count) {
       const bytes = Math.max(1, count) * size * 4;
       if (!R) { attr.array = new Arr(Math.max(1, count) * size); attr.count = Math.max(1, count); if (name) note(name, bytes, bytes); return bytes; }
+      within(bytes, name);
       R.backend.get(attr).buffer = R.backend.device.createBuffer({ label: name ?? 'lean', size: Math.max(16, bytes), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
       if (name) note(name, bytes, 0);
       return bytes;
