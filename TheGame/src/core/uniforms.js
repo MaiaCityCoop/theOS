@@ -15,8 +15,9 @@ export const U = {
   uSand: uniform(new THREE.Vector4(0, 0, 0, 0)),   // the library's sandbox (src/world/land.nodes.js): off
   uStage: uniform(v3(0, 0, 0)),                    // the library's stage: (x, z, radius), radius 0: none
   uStageGround: uniform(new THREE.Vector2(-1, 2)),  // the ground laid on it: (a material's layer, -1 the base biome's bare earth; metres a tile)
-  // the shading contract (intent 0002): the measure of size on screen, the wind, the weather, the clouds
-  uPxK: uniform(1), uWind: uniform(new THREE.Vector4(1, 0, 0, 0)), uWeather: uniform(new THREE.Vector4(0, 0, 0, 0)), uClouds: uniform(0), uCloudOff: uniform(new THREE.Vector2(0, 0)), tCloudMap: texture(lit), uCloudMap: uniform(new THREE.Vector3(0, 0, 0)),   // the clouds' cover and how far they have drifted (src/world/weather/clouds.js)
+  // the shading contract (intent 0002): the measure of size on screen (pixels drawn a metre covers at a metre, and the
+  // dial: the most pixels drawn a rung may differ by, src/detail/measure.js), the wind, the weather, the clouds
+  uPxK: uniform(1), uErrorPx: uniform(1), uWind: uniform(new THREE.Vector4(1, 0, 0, 0)), uWeather: uniform(new THREE.Vector4(0, 0, 0, 0)), uClouds: uniform(0), uCloudOff: uniform(new THREE.Vector2(0, 0)), tCloudMap: texture(lit), uCloudMap: uniform(new THREE.Vector3(0, 0, 0)),   // the clouds' cover and how far they have drifted (src/world/weather/clouds.js)
   uView: uniform(new THREE.Matrix4()), uViewK: uniform(new THREE.Vector3(1, 0, 1.414)),   // the eye's view, for what is dropped outside it before it is drawn (src/scatter/index.js: select)
   uAirH: uniform(0), uAirScale: uniform(1200),     // the height fog: the camera's height above the ground, the air's thinning
   uLandR0: uniform(48), uReliefFirst: uniform(-1), uReliefReach: uniform(24),   // the land's finest level's reach, lens metres; the relief's first level and its reach (src/terrain/terrain.js: from the measure)
@@ -24,7 +25,6 @@ export const U = {
   uExposure: uniform(1),                           // the picture's exposure (the sky sets it by the hour)
   uSnow: uniform(0),                               // how deep the snow lies, metres (src/world/weather/snow.js)
   uFine: uniform(1),                               // how much finer than the inside's pixels textures are read (built over time: src/core/temporal.js)
-  uDrawn: uniform(typeof devicePixelRatio === 'number' ? Math.min(devicePixelRatio, 2) : 1),   // pixels drawn a CSS pixel: the inside's ratio (src/core/temporal.js, tools/bench.js), for src/detail/measure.js drawnAt
   // where a point lay a frame ago, for the prepass's motion (src/core/pass.js; set by src/core/temporal.js): the clock as
   // it stood then (what moves by the clock, the wind first, is worked out again at it), the world to that frame's clip
   // space (its camera, unshifted), this frame's shift in the inside's pixels, and the inside's size

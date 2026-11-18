@@ -6,7 +6,7 @@ import { HMIN, HMAX, heightAt, riverAt, OCT_LAM, OCT_AMP } from '../world/land.j
 import { boxIn } from '../core/frustum.js';
 import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, NODE, FINE } from './material.js';
-import { distanceAt, ERROR_PX, BUDGET_DRAWN } from '../detail/measure.js';
+import { distanceAt, farMost, ERROR_PX } from '../detail/measure.js';
 import { createPages, RELIEF, PSTEPS } from './pages.js';
 import { mark } from '../core/gpu.js';
 import { createRelief, LEVELS as RELIEF_LEVELS, GRID as RELIEF_GRID } from './relief.js';
@@ -26,8 +26,9 @@ import { recipes } from '../core/registry.js';
 const S0 = NODE;   // a level-0 node's side, metres
 const END = 24576;   // metres the land is drawn to at most
 const WATER_LEVELS = 6;
-/** Level 0's reach now (lens metres). */
-const landR0 = () => 4 * Math.max(...OCT_AMP.map((A, i) => distanceAt(ERROR_PX / BUDGET_DRAWN, A) / OCT_LAM[i])) * (S0 / GRID);
+/** Level 0's reach (lens metres): now (an octave shows out to where its amplitude covers the dial, ERROR_PX pixels
+    drawn), or at the most the screen can draw (most: what the node lists are sized for, src/detail/measure.js farMost). */
+const landR0 = (most = false) => 4 * Math.max(...OCT_AMP.map((A, i) => (most ? farMost(1, A) : distanceAt(ERROR_PX(), A)) / OCT_LAM[i])) * (S0 / GRID);
 /** Nodes a level may hold at most, round the camera whole (a level's reach over its node's side is R0/S0: the same at
     every level; how many, never fewer than the quadtree selects). */
 const perLevel = (r0) => Math.ceil(Math.PI * (r0 * FINE / S0 + 1.5) ** 2);
@@ -64,7 +65,7 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
     if (s.n >= s.cap) { const was = s.data; room(s, s.cap * 2); s.data.set(was); }
     const o = s.n++ * 4, a = s.data; a[o] = x; a[o + 1] = z; a[o + 2] = size; a[o + 3] = level;
   };
-  const R00 = landR0(), land = make(perLevel(R00) * 12), water = make(perLevel(R00) * WATER_LEVELS);
+  const R00 = landR0(true), land = make(perLevel(R00) * 12), water = make(perLevel(R00) * WATER_LEVELS);
   const landMat = terrainMaterial(pages), waterMat = waterMaterial(tex);
   // near the eye the quadtree goes on into the relief's finer levels, their points worked out in compute
   // (src/terrain/relief.js), each level reaching half as far as the one before; where it has no room left, the land
@@ -86,9 +87,9 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
     levels = Math.max(1, Math.ceil(Math.log2(end / R0)) + 1); TOP = S0 * 2 ** (levels - 1); range.length = range2.length = 0;
     for (let i = 0; i < levels; i++) { range.push(i < levels - 1 ? R0 * 2 ** i * FINE : end); range2.push(range[i] * range[i]); }
     // the relief's first level: the coarsest whose first half reaches as far as its geometry shows (pages.js
-    // reliefShares: even parallax would be off by more than ERROR_PX, out to RELIEF K / (PSTEPS ERROR_PX)); its levels
-    // from there, the finest RELIEF_LEVELS below
-    const shows = distanceAt((PSTEPS * ERROR_PX) / BUDGET_DRAWN, RELIEF);
+    // reliefShares: even parallax would be off by more than the dial, out to where RELIEF covers PSTEPS of its pixels);
+    // its levels from there, the finest RELIEF_LEVELS below
+    const shows = distanceAt(PSTEPS * ERROR_PX(), RELIEF);
     RELIEF0 = Math.min(-1, Math.ceil(Math.log2((2 * shows) / (R0 * FINE)))); FIRST = RELIEF0 - RELIEF_LEVELS + 1;
     U.uLandR0.value = R0; U.uReliefFirst.value = RELIEF0; U.uReliefReach.value = R0 * FINE * 2 ** RELIEF0;
     pages.underRelief((S0 * 2 ** FIRST) / RELIEF_GRID, relief.count > 0);   // (its finest points this far apart; whether it has any nodes: the last frame's)

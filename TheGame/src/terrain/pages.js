@@ -30,7 +30,7 @@ import { U } from '../core/uniforms.js';
 import { note, gpuStorage } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { source } from '../core/settle.js';
-import { TRUTH, ERROR_PX, pxAt, drawnAt } from '../detail/measure.js';
+import { TRUTH, pxAt, dialPxAt } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { layerTables, layerWords, layersFrom } from './layers.js';
 import { laid, slopeAt, groundRead, cavityOf } from './material.js';
@@ -54,16 +54,17 @@ export const RELIEF = 0.05;
 export const PSTEPS = 6;
 /** How the ground's own height is shown at d metres off (as the 68° lens sees them; node): as geometry (the relief
     near the eye, src/terrain/relief.js), along the eye's ray (parallax, read below), or not at all, by the one measure
-    (src/detail/measure.js). Drawn flat, the ground is off by its height on screen: e, its pixels drawn. Parallax's
-    PSTEPS steps leave a step of it, e / PSTEPS. So geometry where even parallax would be off by more than ERROR_PX;
-    parallax where the flat ground would be; nothing where neither; each handed over within BAND of its line
+    (src/detail/measure.js). Drawn flat, the ground is off by its height on screen: e, in the dial's pixels (one: as
+    many pixels drawn as the dial, ERROR_PX). Parallax's PSTEPS steps leave a step of it, e / PSTEPS. So geometry where
+    even parallax would be off by more than the dial; parallax where the flat ground would be; nothing where neither;
+    each handed over within BAND of its line
     (src/detail/error.js). And no geometry where the relief's mesh folds into the land's grid (from 0.6 of its reach,
     relief.js; its reach U.uReliefReach, src/terrain/terrain.js): there parallax takes it. -> { geometry, parallax },
     shares 0 … 1 */
 export const reliefShares = (d) => {
-  const e = drawnAt(pxAt(float(RELIEF), d)).toVar(), held = float(1).sub(smoothstep(U.uReliefReach.mul(0.5), U.uReliefReach.mul(0.6), d));
-  const geometry = smoothstep(PSTEPS * ERROR_PX, PSTEPS * ERROR_PX * BAND, e).mul(held).toVar();
-  return { geometry, parallax: smoothstep(ERROR_PX, ERROR_PX * BAND, e).mul(float(1).sub(geometry)) };
+  const e = dialPxAt(pxAt(float(RELIEF), d)).toVar(), held = float(1).sub(smoothstep(U.uReliefReach.mul(0.5), U.uReliefReach.mul(0.6), d));
+  const geometry = smoothstep(PSTEPS, PSTEPS * BAND, e).mul(held).toVar();
+  return { geometry, parallax: smoothstep(1, BAND, e).mul(float(1).sub(geometry)) };
 };
 /** How much of the ground's relief stands out of the snow (snow deeper than the relief buries it). */
 export const reliefOverSnow = (depth) => clamp(float(1).sub(depth.div(RELIEF)), 0, 1);
@@ -423,8 +424,9 @@ export function createPages(renderer, tex) {
     update(camera) {
       frame++; const v0 = version;
       const cam = camera.position, size = renderer.getDrawingBufferSize(new THREE.Vector2());
-      // laid again whole when what it is laid as changed: the library's stage and sandbox, the screen's pixels (a level's distance)
-      const k2 = `${U.uSand.value.toArray()}|${U.uStage.value.toArray()}|${U.uStageGround.value.toArray()}|${size.y}|${U.uPxK.value}`;
+      // laid again whole when what it is laid as changed: the library's stage and sandbox, the screen's pixels (a level's
+      // distance: its own, uPxS, not the measure's, which moves with the governor's ratio and would lay every page again)
+      const k2 = `${U.uSand.value.toArray()}|${U.uStage.value.toArray()}|${U.uStageGround.value.toArray()}|${size.y}`;
       if (k2 !== key) { log({ k: 'flush', key: k2 }); key = k2; flush(); uPxS.value = size.y / (2 * Math.tan((34 * Math.PI) / 180)); }
       // the camera's speed: metres and radians a frame. (A jump needs nothing of its own: what was asked for before it is
       // forgotten in two sweeps, and the bias is chosen again from what is asked for after it)
