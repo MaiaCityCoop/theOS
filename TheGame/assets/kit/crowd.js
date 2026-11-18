@@ -77,8 +77,7 @@ const { PI, sqrt, hypot, floor, ceil, min, max, abs, log, log2, exp } = Math;
     TILES of them a row, at most CLUMPS chunks a plant, is not the kit's: the page sizes the atlases from their share of
     memory (src/detail/atlas.js atlasesOf, src/detail/impostor.js atlases) and hands them in with the rest (opts), to
     the workers with each level's band (assets/kit/plant.js). */
-export const CROWD = {
-  SWELL: 3,        // the grass's alone (src/scatter/grass.js: how many times a blade widens as fewer are drawn), until its blades keep their size too; nothing of a crowd is enlarged
+const CROWD = {
   LEAST: 8,        // a crowd of no more sprigs than this does not thin: they stay to its end
   CLASSES: 4,     // the most classes by size a crowd is sorted into (each half the area of the one before)
   STOPS: 1 - sqrt(1 - 0.45),         // how much of the light one triangle of a card stops (a sprig of two crossed cards: 45 %), where cover is reckoned

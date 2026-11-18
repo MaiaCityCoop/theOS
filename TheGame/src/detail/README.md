@@ -15,9 +15,9 @@ where an asset's file or a kind holds detail data).
 ## The one measure
 
 A coarser rung of a thing (a first share of a crowd's sprigs, its clumps, its impostor, a cluster's parent, a ring of
-wider blades, and last of all nothing: the land under it) differs from the thing at full detail by its error, measured
-on the thing itself: the farthest any of it lies from where the thing is, in metres (object space). Nothing that
-builds a rung knows a pixel. One rule decides every switch, at runtime (`error.js`):
+blades bent in fewer pieces, and last of all nothing: the land under it) differs from the thing at full detail by its
+error, measured on the thing itself: the farthest any of it lies from where the thing is, in metres (object space).
+Nothing that builds a rung knows a pixel. One rule decides every switch, at runtime (`error.js`):
 
     e · pxK() / dist  ≤  ERROR_PX()          on the GPU: e · U.uPxK / dist ≤ U.uErrorPx (measure.js)
 
@@ -34,7 +34,7 @@ drawn is never off by more than the dial.
 | a plant's clumps | where their three planes draw each chunk's leaves (each plane by its share of what is drawn), and their bake's texel (`TILE` of them over a chunk's largest side) | `assets/kit/crowd.js` (`clumpsErrorOf`) |
 | a plant's impostor, a made thing's card | its bake's texel (`CELL` of them over its sphere's width), and its views' spacing and its parallax, one displacement: its depth times `spacingOf(VIEWS)` | `atlas.js`, `assets/kit/crowd.js`, `index.js` |
 | a cluster's parent | the cluster's own error, from the simplifier and its lost vertices | `assets/kit/clusters.js` |
-| a ring of blades | how much wider its blades are than the blade | `src/scatter/grass.js` `ringsOf` |
+| a ring of blades (the blade in its own cells, as it is) | how far its fewer straight pieces miss the blade's curve | `src/scatter/grass.js` `ringsOf` |
 | nothing (a thing gone) | how far it stands off what stays: a plant its height over the land (which wears its stand's colour or its floor), a rock or a made thing all of it (`GONE`); it is whole down to there and sinks away over the `BAND` under it | `assets/kit/plant.js` `goneOf`, `error.js` |
 
 How large the far ends' pictures are follows from those errors: `atlas.js` `atlasesOf` takes the share of memory the

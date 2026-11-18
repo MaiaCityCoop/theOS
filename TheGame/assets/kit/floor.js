@@ -2,13 +2,13 @@
 // fallen branch or log, a strewing of what a tree drops (cones, twigs, needles, leaves), a stone bedded in the soil.
 // Built with the tree kit's builder (assets/kit/tree.js), so the crowd kit makes every level of it as of any plant
 // (assets/kit/crowd.js): a recipe says only what it is at full detail. Plain JS: the recipes' workers read it too.
-import { tube, cards } from './tree.js';
+// What lies on the ground covers it (its feet: the tree kit's builder): a branch's or a log's wood, ring to ring, as
+// wide as it is (its twigs, propped off the ground, cover none); a stone, its outline where it comes out of the soil.
+import { tube, cards, FOOT } from './tree.js';
 import { add, mul, norm, cross } from './math.js';
 import { rng } from '../../src/core/hash.js';
 
-/** How deep what stands in a stand is set into the ground (src/scatter/trees.js FOOT): what lies on it is built so much
-    higher. */
-export const FOOT = 0.15;
+export { FOOT };   // (how deep what stands in a stand is set into the ground: what lies on it is built so much higher)
 
 /** A fallen branch or log, lying, bowed a little sideways, its thin end lifted off the ground where its twigs prop it,
     its twigs off to either side and up, the lower ones resting on the ground. S: { len, r (its radius at its thick end),
@@ -18,6 +18,7 @@ export function fallen(b, S) {
   const at = (t) => add(add(mul(dir, (t - 0.5) * S.len), mul(side, Math.sin(t * Math.PI) * S.bow)), [0, FOOT + S.r * (1 - (1 - taper) * 0.85 * t) * 0.85 + t * t * S.lift, 0]);
   const pts = Array.from({ length: n + 1 }, (_, i) => at(i / n)), rad = pts.map((_, i) => S.r * (1 - (1 - taper) * (i / n)));
   tube(b, pts, rad, sides);
+  for (let i = 0; i < n; i++) b.feet.push([pts[i][0], pts[i][2], pts[i + 1][0], pts[i + 1][2], rad[i], rad[i + 1], 0]);   // (the ground under its wood)
   for (let k = 0; k < S.twigs; k++) {
     const t = 0.25 + 0.65 * R0(), p = at(t), sgn = R0() < 0.5 ? -1 : 1, up = R0() * 0.9 - 0.15, L = S.len * (0.14 + 0.2 * R0()) * (1 - 0.4 * t), r = S.r * (1 - (1 - taper) * t) * 0.55;
     const d = norm(add(add(mul(side, sgn), mul(dir, 0.5 + 0.6 * R0())), [0, up, 0])), e = add(p, mul(d, L));
@@ -52,16 +53,24 @@ export function strewn(b, S) {
 /** A stone bedded in the soil: a lumpy dome, its foot under the ground, its top rounded by the weather, its skin the
     rock's (its `wood`). S: { r, h, lumps (how uneven, 0..1), seed }. */
 export function bedded(b, S) {
-  const R0 = rng(S.seed), sides = 12, rings = 6, wob = Array.from({ length: sides }, () => 1 - S.lumps * 0.5 + S.lumps * R0()), tilt = [R0() - 0.5, R0() - 0.5].map((x) => x * S.lumps * 0.4), row = [];
+  const R0 = rng(S.seed), sides = 12, rings = 6, wob = Array.from({ length: sides }, () => 1 - S.lumps * 0.5 + S.lumps * R0()), tilt = [R0() - 0.5, R0() - 0.5].map((x) => x * S.lumps * 0.4), row = [], at = [];
   for (let i = 0; i <= rings; i++) {
     const u = i / rings, ang = u * Math.PI * 0.5, rr = S.r * Math.cos(ang), y = FOOT - 0.25 * S.h + S.h * 1.25 * Math.sin(ang), ring = [];
     for (let k = 0; k <= sides; k++) {
       const t = (k / sides) * 2 * Math.PI, w = wob[k % sides] * (1 + 0.12 * Math.sin(3 * t + S.seed) * S.lumps), p = [Math.cos(t) * rr * w, y + (Math.cos(t) * tilt[0] + Math.sin(t) * tilt[1]) * rr, Math.sin(t) * rr * w];
       const nrm = norm([Math.cos(t) * Math.cos(ang) * S.h, Math.sin(ang) * S.r, Math.sin(t) * Math.cos(ang) * S.h]);
       ring.push(b.v(p, nrm, [(k / sides) * 3 * S.r, (u * S.h * 2) / 1.0], 0, 0.45 + 0.55 * u, [0, 0, 0], [0, FOOT, 0]));
+      (at[k] ??= []).push(p);
     }
     row.push(ring);
   }
+  // (its outline where it comes out of the ground: each of its sides where it crosses it, or its foot where its tilt
+  // lifts that out; above the ground it only narrows, so this is all the ground it covers)
+  const out = at.slice(0, sides).map((col) => {
+    const i = col.findIndex((p) => p[1] >= FOOT); if (i === 0) return col[0];   // (the first of its rings out of the ground on this side; its top always is)
+    const p = col[i - 1], q = col[i], t = (FOOT - p[1]) / (q[1] - p[1]); return [p[0] + (q[0] - p[0]) * t, FOOT, p[2] + (q[2] - p[2]) * t];
+  });
+  out.forEach((p, k) => { const q = out[(k + 1) % sides]; b.feet.push([p[0], p[2], q[0], q[2], 0, 0, 1]); });
   for (let i = 0; i < rings; i++) for (let k = 0; k < sides; k++) { const p0 = row[i][k], p1 = row[i][k + 1], p2 = row[i + 1][k], p3 = row[i + 1][k + 1]; b.index.push(p0, p2, p3, p0, p3, p1); }
   return b;
 }

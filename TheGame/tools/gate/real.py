@@ -9,6 +9,8 @@ groups to compare ({ name, renders: [files], photos: [files] }). It writes back,
          with the paper's Gaussian kernel (sigma 10) and scale (x 1000), its embeddings CLIP ViT-L/14 at 336 px (OpenAI's
          weights, through open_clip), each unit long. Every picture gives as many square crops as its width holds
          (a 16:9 frame two, overlapping), each a sample: the whole frame is seen, not its middle alone. 0: alike.
+  floor  the photos' own spread: the group's photos split in two by turns, CMMD and statistics of one half against
+         the other: how far one set of real photographs stands from another of the same thing
   stats  natural-image statistics of each set (their means), and the renders' less the photos':
            lightness   the CIE L* histogram (50 bins), and the earth mover's distance between the two sets' (L* units)
            colour      the mean L*, a*, b* and chroma C*; the CIE76 difference of the two sets' mean colours
@@ -159,7 +161,14 @@ def main():
         c = None
         if E and g['renders'] and g['photos']:
             c = mmd(np.concatenate([E[f] for f in g['renders']]), np.concatenate([E[f] for f in g['photos']]))
-        groups.append({'name': g['name'], 'renders': len(g['renders']), 'photos': len(g['photos']), 'cmmd': c,
+        # the photos' own spread, the floor a render's distance stands on: the group's photos split in two by turns, one
+        # half against the other (none where there are fewer than two)
+        floor = None
+        if len(g['photos']) >= 2:
+            A, B = g['photos'][0::2], g['photos'][1::2]
+            floor = {'cmmd': mmd(np.concatenate([E[f] for f in A]), np.concatenate([E[f] for f in B])) if E else None,
+                     'diff': compare(set_stats([stats[f] for f in A]), set_stats([stats[f] for f in B]))}
+        groups.append({'name': g['name'], 'renders': len(g['renders']), 'photos': len(g['photos']), 'cmmd': c, 'floor': floor,
                        'stats': {'renders': R and {k: v for k, v in R.items() if k != 'hist'}, 'photos': P and {k: v for k, v in P.items() if k != 'hist'}, 'diff': compare(R, P)}})
     json.dump({'groups': groups, 'images': {f: {k: v for k, v in s.items() if k != 'hist'} for f, s in stats.items()}}, open(a.out, 'w'), indent=1)
 
