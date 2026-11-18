@@ -8,10 +8,10 @@
 // ceilings.json, beside this: { measured: where the ceilings were last set from, noise: { part: ms }, views: { view:
 // { part: ms } } }. A part a view has no ceiling for (a new view, a new part) is held to its budget.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { FRAME_MS_BY_CLASS } from '../../src/core/budget.js';
 
-/** Each part's share of the 12 ms a frame (BUDGET, tools/bench.js), at a 4K output drawn from about 1440p. The upscale's
-    is its floor: its bytes alone at a 4K output take about 1.9 ms (#86). 'other', a pass no part names, is the slack. */
-const BUDGETS = { geometry: 5, light: 3, ground: 1.5, 'upscale/post': 2, other: 0.5 };
+/** Each part's share of the 12 ms a frame: the intent's (src/core/budget.js). */
+const BUDGETS = FRAME_MS_BY_CLASS;
 const FILE = new URL('./ceilings.json', import.meta.url).pathname;
 
 const load = () => (existsSync(FILE) ? JSON.parse(readFileSync(FILE, 'utf8')) : { measured: null, noise: {}, views: {} });
@@ -60,7 +60,8 @@ function noise(a, b, C = load()) {
 
 /** The rule, for tools/gate.js bench: run() (one bench of every view; twice with --twice, the noise measured between
     them and kept), every part judged against its ceiling and printed, the ceilings lowered with --ratchet (main's
-    nightly run: at, its commit). The first run's numbers, with { ceilings: judge's }; exit code 1 over a ceiling. */
+    nightly run: at, its commit). The first run's numbers, with { ceilings: judge's }: shown, never blocking (ship-first,
+    2026-11-18: main is measured hourly and what is over goes back as work). */
 export async function rule(run, opt, at) {
   const a = await run(), f = (v, n = 2, w = 8) => (v == null ? '–' : v.toFixed(n)).padStart(w);
   if (opt.twice) { const b = await run(); const n = noise(a, b); console.log(`  the noise between two runs, a part's most over every view (ms): ${Object.entries(n).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(', ')}`); }
@@ -69,6 +70,5 @@ export async function rule(run, opt, at) {
   for (const r of J.rows) if (r.ms > 0 || r.over) console.log(`  ${`${r.view}, ${r.part}`.padEnd(40)}${f(r.ms)}${f(r.budget, 2, 7)}${f(r.ceiling)} +${r.noise?.toFixed(2) ?? '?'}  ${r.noise == null ? 'no noise measured: not judged' : r.over ? 'OVER' : r.ms <= r.budget ? 'within its budget' : 'within its ceiling'}`);
   console.log(`  the budget's rule (no part of a view over its ceiling and noise): ${J.pass ? 'met' : 'NOT MET: ' + J.fails.join('; ')}`);
   if (opt.ratchet) { const L = ratchet(a, at); console.log(`  the ceilings lowered to what was measured (${at}): ${L.length ? L.join('; ') : 'none (nothing came down)'}`); }
-  if (!J.pass) process.exitCode = 1;
   return { ...a, ceilings: J };
 }

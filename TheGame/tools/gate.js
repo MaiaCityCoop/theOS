@@ -17,7 +17,7 @@
 //   bun tools/gate.js bench [--ratio r] [--frames n]             tools/bench.js at its six views with ?gputime: GPU ms
 //                                                                against its BUDGET, and the resolution drawn
 //                        [--twice] [--ratchet]                   and each part of each view against its ceiling
-//                                                                (tools/gate/ceilings.js): exit 1 over one; --twice: the
+//                                                                (tools/gate/ceilings.js): shown, never blocking; --twice: the
 //                                                                noise measured from two runs; --ratchet: main's nightly,
 //                                                                each ceiling lowered to what is measured, never raised; where
 //                                                                it went, pass by pass and by part (geometry, light,
