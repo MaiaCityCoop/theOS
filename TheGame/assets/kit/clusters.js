@@ -16,11 +16,13 @@
 // shares with another group locked (so the groups' borders stay the same lines, and neighbours at different levels
 // still meet), and cut into clusters again. A group that will not halve waits for another grouping; the last cluster
 // is halved on, nothing locked, down to a handful of triangles.
-//   - Its error: the simplifier's (how far the surface moved, the normals' and colours' change weighed in: a normal's
-//     as the move its shading looks like, NW), and what is measured of it (how far each vertex it lost lies from what
-//     it was made into, and how far its shading there looks moved), and never less than BAND times its children's:
-//     errors only grow towards the coarse end, so along any chain from fine to coarse exactly one cluster passes the
-//     cut's rule (src/scatter/cut.js).
+//   - Its error: what is measured of it, both ways (apart, morphs): how far a point of the group lies from what it was
+//     made into and back, and how far the shading there looks moved (a normal's error as the move it looks like, NW),
+//     and never less than BAND times its children's: errors only grow towards the coarse end, so along any chain from
+//     fine to coarse exactly one cluster passes the cut's rule (src/scatter/cut.js). The simplifier's own error (a
+//     quadric's: every face's plane carried on without end) steers only what it takes away; taken as the error, it
+//     said one group of a boulder was 0.058 of its size off where it was 0.013 (and its shading 0.018), and BAND carried
+//     that up the whole chain above it.
 //   - Its sphere holds its children's.
 //   - Each vertex a group loses keeps where it lies on what the group is made into (the nearest point of it, with the
 //     normal and colour there): a cluster turns into its parent before it gives way to it (the cut's morph), so
@@ -155,9 +157,12 @@ export function build(M) {
       const lp = localPos(pos, l2g), la = new Float32Array(l2g.length * AK), ll = new Uint8Array(l2g.length);
       l2g.forEach((v, l) => { la.set(A.subarray(v * AK, v * AK + AK), l * AK); ll[l] = lock[place[v]] || held[v] ? 1 : M.seam?.[v] ? 2 : 0; });
       const childErr = Math.max(...g.map((ci) => clusters[ci].self.err));
-      let [out, err] = S.simplifyWithAttributes(lidx, lp, 3, la, AK, W, ll, Math.floor(n / 6) * 3, Infinity, ['ErrorAbsolute', 'Permissive']);
+      // (the simplifier's own error steers only what it takes away: a quadric's, the distance to every face's plane
+      // carried on without end, and for an attribute its plane carried as far; where a group's free vertices are few and
+      // reach far, that is several times what is lost. What it made is measured instead: apart)
+      let [out] = S.simplifyWithAttributes(lidx, lp, 3, la, AK, W, ll, Math.floor(n / 6) * 3, Infinity, ['ErrorAbsolute', 'Permissive']);
       // the parts kept whole that this group may now let go: wholly in it, and no further than the error it is allowed
-      let E = Math.max(err, childErr * BAND), gone = null;
+      let E = Math.max(apart(lidx, out, lp, l2g, nor), childErr * BAND), gone = null;
       const mine = new Map(); for (let i = 0; i < lidx.length; i += 3) { const p = partOf[l2g[lidx[i]]]; if (whole[p]) mine.set(p, (mine.get(p) ?? 0) + 1); }
       for (const [p, cnt] of mine) {
         const W0 = whole[p]; if (W0.reach > E || cnt < sizeOf[p]) continue;
@@ -184,9 +189,9 @@ export function build(M) {
     const g2l = new Map(), l2g = [], lidx = new Uint32Array(n);
     for (let i = 0; i < n; i++) { const v = c.idx[i]; let l = g2l.get(v); if (l === undefined) { l = l2g.length; g2l.set(v, l); l2g.push(v); } lidx[i] = l; }
     const lp = localPos(pos, l2g), la = new Float32Array(l2g.length * AK); l2g.forEach((v, l) => la.set(A.subarray(v * AK, v * AK + AK), l * AK));
-    const [out, err] = S.simplifyWithAttributes(lidx, lp, 3, la, AK, W, null, Math.max(TAIL, Math.floor(n / 6)) * 3, Infinity, ['ErrorAbsolute', 'Permissive']);
+    const [out] = S.simplifyWithAttributes(lidx, lp, 3, la, AK, W, null, Math.max(TAIL, Math.floor(n / 6)) * 3, Infinity, ['ErrorAbsolute', 'Permissive']);
     if (out.length > n * STUCK || out.length < 6) break;
-    const far = morphs([c], out, l2g, g2l, lp, M, k, null), G = { err: Math.max(err, c.self.err * BAND, far), c: c.self.c, r: c.self.r };
+    const far = morphs([c], out, l2g, g2l, lp, M, k, null), G = { err: Math.max(apart(lidx, out, lp, l2g, nor), c.self.err * BAND, far), c: c.self.c, r: c.self.r };
     c.parent = G; pending = [make(Uint32Array.from(out, (l) => l2g[l]), G)]; stats.levels++;
   }
   // what nothing replaces: its parent's error never shows
@@ -235,6 +240,42 @@ function morphs(cs, out, l2g, g2l, lp, M, k, shrinks) {
   }
   return far;
 }
+/** How far apart a group (fine: its corners, of the vertices lp holds; l2g: M's vertex each is, nor: M's normals) and
+    what it was made into (out) lie, as the cut counts error: the farthest a point of either lies from the other, and how
+    far the shading there looks moved (its normal against the other's at the nearest point, δ, over the way r on out from
+    the nearest place where the two are alike, a corner of out: δ r NW). Each triangle of both is read at its middle and
+    each edge at its middle; the vertices out lost, morphs reads (the vertices it keeps are on both). */
+function apart(fine, out, lp, l2g, nor) {
+  if (!out.length) return 0;
+  const R = new Float64Array(4), p = [0, 0, 0], n = [0, 0, 0], m = [0, 0, 0], q = [0, 0, 0], MID = [1 / 3, 1 / 3, 1 / 3];
+  const normal = (I, t, w, o) => { for (let a = 0; a < 3; a++) o[a] = nor[l2g[I[t * 3]] * 3 + a] * w[0] + nor[l2g[I[t * 3 + 1]] * 3 + a] * w[1] + nor[l2g[I[t * 3 + 2]] * 3 + a] * w[2]; const l = Math.hypot(o[0], o[1], o[2]) || 1; o[0] /= l; o[1] /= l; o[2] /= l; };
+  const nearCorner = (t, x) => { let r = Infinity; for (let j = 0; j < 3; j++) { const c = out[t * 3 + j] * 3; r = Math.min(r, Math.hypot(x[0] - lp[c], x[1] - lp[c + 1], x[2] - lp[c + 2])); } return r; };
+  let most = 0;
+  for (const [from, to] of [[fine, out], [out, fine]]) {
+    const G = gridOf(to, lp), seen = new Set();
+    // (a point of triangle t, its corners weighed by w: how far it lies from `to`, and its shading's move there; half:
+    // where it is the middle of an edge of out, half that edge, whose two ends alone make its normal there)
+    const read = (t, w, half = 0) => {
+      for (let a = 0; a < 3; a++) p[a] = lp[from[t * 3] * 3 + a] * w[0] + lp[from[t * 3 + 1] * 3 + a] * w[1] + lp[from[t * 3 + 2] * 3 + a] * w[2];
+      const u = nearest(G, lp, to, p[0], p[1], p[2], R);
+      normal(from, t, w, n); m[0] = R[1]; m[1] = R[2]; m[2] = R[3]; const wu = [m[0], m[1], m[2]]; normal(to, u, wu, m);
+      // (r: from the point on what it was made into, out, to that triangle's nearest corner)
+      let r;
+      if (from === out) r = half || nearCorner(t, p);
+      else { for (let a = 0; a < 3; a++) q[a] = lp[to[u * 3] * 3 + a] * wu[0] + lp[to[u * 3 + 1] * 3 + a] * wu[1] + lp[to[u * 3 + 2] * 3 + a] * wu[2]; r = nearCorner(u, q); }
+      most = Math.max(most, Math.sqrt(R[0]), Math.hypot(n[0] - m[0], n[1] - m[1], n[2] - m[2]) * r * NW);
+    };
+    for (let t = 0; t < from.length / 3; t++) {
+      read(t, MID);
+      for (let e = 0; e < 3; e++) {   // (an edge's middle once, whichever of its triangles comes first)
+        const a = from[t * 3 + e], b = from[t * 3 + (e + 1) % 3], key = a < b ? a * 1048576 + b : b * 1048576 + a;
+        if (seen.has(key)) continue; seen.add(key);
+        read(t, e === 0 ? [0.5, 0.5, 0] : e === 1 ? [0, 0.5, 0.5] : [0.5, 0, 0.5], Math.hypot(lp[a * 3] - lp[b * 3], lp[a * 3 + 1] - lp[b * 3 + 1], lp[a * 3 + 2] - lp[b * 3 + 2]) / 2);
+      }
+    }
+  }
+  return most;
+}
 // the farthest a vertex lies from out (corners of the vertices lp holds, n of them) that out does not keep
 function lostFrom(out, lp, n) {
   const kept = new Uint8Array(n), G = gridOf(out, lp), R = new Float64Array(4); let far = 0;
@@ -255,16 +296,24 @@ function gridOf(out, lp) {
   return { lo, sz, n, cells, at, T };
 }
 // the nearest triangle to (x, y, z): its number, R = [its distance², and where the point lies on it: the weights of its
-// three corners]; the cells round the point's, ring by ring, until no nearer one can be left
+// three corners]; the cells round the point's, ring by ring, until no nearer one can be left: a triangle in no cell
+// looked at lies wholly outside the block of them, so at least as far as the point is from that block's nearest side
+// (a side at the grid's edge has nothing past it)
 function nearest(G, lp, out, x, y, z, R) {
-  const c = [G.at(x, 0), G.at(y, 1), G.at(z, 2)], smin = Math.min(...G.sz); let best = -1, bd = Infinity; const B = [0, 0, 0];
+  const p = [x, y, z], c = [G.at(x, 0), G.at(y, 1), G.at(z, 2)]; let best = -1, bd = Infinity; const B = [0, 0, 0];
   for (let r = 0; r <= G.n; r++) {
     for (let i = c[0] - r; i <= c[0] + r; i++) for (let j = c[1] - r; j <= c[1] + r; j++) for (let l = c[2] - r; l <= c[2] + r; l++) {
       if (Math.max(Math.abs(i - c[0]), Math.abs(j - c[1]), Math.abs(l - c[2])) !== r || i < 0 || j < 0 || l < 0 || i >= G.n || j >= G.n || l >= G.n) continue;
       const L = G.cells.get((i * G.n + j) * G.n + l); if (!L) continue;
       for (const t of L) { const d = toTriangle(x, y, z, lp, out[t * 3], out[t * 3 + 1], out[t * 3 + 2], B); if (d < bd) { bd = d; best = t; R[1] = B[0]; R[2] = B[1]; R[3] = B[2]; } }
     }
-    if (best >= 0 && Math.sqrt(bd) <= r * smin) break;   // (every cell further out is at least r cells off)
+    if (best < 0) continue;
+    let gap = Infinity;
+    for (let a = 0; a < 3; a++) {
+      if (c[a] - r > 0) gap = Math.min(gap, p[a] - (G.lo[a] + (c[a] - r) * G.sz[a]));
+      if (c[a] + r < G.n - 1) gap = Math.min(gap, G.lo[a] + (c[a] + r + 1) * G.sz[a] - p[a]);
+    }
+    if (bd <= gap * gap && gap >= 0) break;
   }
   if (best < 0) for (let t = 0; t < G.T; t++) { const d = toTriangle(x, y, z, lp, out[t * 3], out[t * 3 + 1], out[t * 3 + 2], B); if (d < bd) { bd = d; best = t; R[1] = B[0]; R[2] = B[1]; R[3] = B[2]; } }
   R[0] = bd; return best;
