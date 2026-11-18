@@ -23,8 +23,10 @@ it to *find* a title and an intro; what is kept here is only the result.
 A title and an intro are to be **as thought-provoking and as attention-grabbing as they can be made**. A tame, correct
 title is a failed one. So, always:
 
-- **Say the largest true thing.** Not "a city starts with one tent" but "1.3 million people will live here. Today it
-  is one tent." Lead with the biggest number, the widest gap, the boldest claim the project itself makes.
+- **Say the largest true thing.** Not "a city starts with one tent" but "a city that feeds, powers and owns itself.
+  Today it is one tent." Lead with the widest gap, the boldest claim the project itself makes.
+- **Inspire, never frighten.** The hook pulls toward the city at its best (the Compass's core message), never away
+  from a dark future. No doom headlines, no dystopia, no fear as the opener.
 - **Put two things against each other.** The size of the promise against the smallness of today; what has never been
   against what happens tonight. The gap between them is the hook.
 - **Escalate twice.** Write it, then ask "can this be bigger?" and write that, then once more. Ship the last version
