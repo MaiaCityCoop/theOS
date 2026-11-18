@@ -1418,6 +1418,41 @@ gate"). It reads only what the gate kept and measures nothing again, so it runs 
 
 The gate does not yet keep the first frame or the bytes loaded before it, so the report cannot show them (under Todo).
 
+### The smoke gate: every shader built on a stand-in GPU (2026-11-18)
+
+Merging train 1c into #111 left two names unbound (`trees.js`'s `log`, dropped with 1c's import line while the plants'
+ratio reads it; `rule.js`'s `most`): `vite build` passed, and the page threw a ReferenceError only as it built the
+plants' shaders. They were caught by hand, on a mock. Now CI catches every such break on every push, in seconds, with its
+file and line, before a GPU turn or `next`:
+
+- **`TheGame/tools/gpu-mock.js`, the one stand-in for the GPU:** a renderer with what three's node builders read (WGSL;
+  GLSL for WebGL 2), the page's globals the game's modules read as they load, and its own tiles. It records every target
+  set, every thing drawn and every compute pass asked for. It folds in the mocks the sessions kept in their notes (one
+  measure's, the health tool's temporal stub, the rung errors' `wgsl-*.js`).
+- **`TheGame/tools/smoke.js`:** the world made on it as `src/boot.js` makes it (the screen, the painted materials, the
+  ground, the land, everything that grows, what stands at a place, the sky, the weather, the shadows, the city, one
+  frame), then every asset's library subject. Every material is built as each pass draws it (`src/core/pass.js`: its
+  own, its prepass's and its colour's twins), and every compute pass is built. Any throw, and any error three reports,
+  fails it. On main: 87 materials (227 builds), 345 compute passes and 24 more materials in the library, in about 10 s.
+  On #111 (train 2): 109 (293), 228 and 24, in 15 s.
+- **`TheGame/tools/lint.js`:** eslint `no-undef` over the game's folders and its tools, plus every import resolved and
+  every name imported or exported again found in its module (a file's exports read from its code, `export *` followed;
+  a package's, the package loaded). The globals are the platform's, none listed by hand: the page's and a worker's as
+  TypeScript declares them (`lib.dom.d.ts`, `lib.webworker.d.ts`; knip brings TypeScript), WebGPU's by the spec's `GPU`
+  prefix (TypeScript does not declare them yet), and Bun's for the tools. The standard `globals` package was not added:
+  this machine's permission system refused a new dependency, and TypeScript's declarations do the same job. 270 files
+  and 964 imports, in 3–5 s.
+- **`TheGame/tools/digest.js`:** the health tool's temporal digest (its frames, its WGSL and GLSL, every target, draw and
+  uniform) on the same stand-in. It is the old digest, except that each backend now counts its ids from #0.
+- **CI** (`.github/workflows/ci.yml`): the lint and the smoke run right after the install, on every push and pull request.
+- **Checks:**
+  - both are clean on main and on #111's branch;
+  - each flags, with file and line: a name dropped from an import (the train-1c break, put back by hand on #111's
+    branch: `'log' is not defined` at the three places, and the shaders' ReferenceError), a missing export and an import
+    that leads nowhere;
+  - `health.js --base origin/main`: no clone, no complexity, no dead code, no cycle, no new dependency; +243 lines, the
+    four tools.
+
 ## Propose
 
 ## Story
@@ -1456,6 +1491,8 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 - [x] The 10 % gate as one report: `tools/gate/ten.js` (under Build)
 - [ ] The gate keeps the first frame and the bytes loaded before it, so the 10 % report can hold them; the train's
       base is run twice (`--again`), so the paths, the compile and real are judged too
+- [ ] The smoke gate in CI: every name bound, every import found, every shader built on a stand-in GPU (built; a PR,
+      CI to measure its time)
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
 
 ## Changelog
@@ -1632,6 +1669,15 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 - **Not there yet:** nothing measured: the Mac mini runs `bun tools/gate.js bench`; stage 9's passes join when it merges
   main; the upscale's cost is not looked into.
 
+- **Asked (by the master on the Mac mini):** a CPU smoke gate in CI, so a break like the two that merging train 1c left
+  in #111 is red in minutes on every push: eslint `no-undef` with unresolved imports and missing named exports;
+  `tools/smoke.js` building every material and compute pass on a mock renderer; one `tools/gpu-mock.js` shared with the
+  health tool's digests; both in `ci.yml`, their time measured.
+- **Delivered:** built (under Build, The smoke gate); a PR into main.
+- **Good:** clean on main and on #111's branch; each catches the train-1c break with its file and line; about 10–15 s for
+  the smoke and 3–5 s for the lint here; no new dependency.
+- **Not there yet:** the time in CI is to be read from the PR's run; the WGSL is three's, not checked by a GPU's
+  compiler (what only a device rejects still needs the Mac mini).
 ## Trail
 
 | When | Commit | What |
@@ -1686,3 +1732,4 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 | 2026-11-18 | `695ea18` | Imports from the game's root made relative (`cine/trailer.js`, `tools/sweep.js`), so madge follows every import |
 | 2026-11-18 | `bca2270` | The code gates held against main: `health.js --base` (each gate's change, exit 1 where one got worse), run by CI on every pull request |
 | 2026-11-18 | `52bbeb9` | The 10 % gate as one report: `tools/gate/ten.js --base <run>` (here, base, change, ≥ 10 %?; exit 1 where a measure got worse beyond its noise) |
+| 2026-11-18 | `0f8087e` | The smoke gate in CI: `tools/lint.js` (every name bound, every import found), `tools/smoke.js` (every material and pass built on `tools/gpu-mock.js`), the health tool's digest on the same stand-in (`tools/digest.js`) |
