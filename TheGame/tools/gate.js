@@ -3,8 +3,8 @@
 // own Chrome through Playwright, headless (--headed: in a window, for frame times as a screen paces them):
 //
 //   bun tools/gate.js stills [--tag t] [--truth] [--views a,b]   the gate's views (tools/gate/views.js) as 4K PNGs in
-//                        [--fresh] [--reach m]                   .gate/<tag>/ (by default the commit); --truth: ?truth
-//                                                                (--reach: ?truth=m, as far as it says); --fresh: on a
+//                        [--fresh] [--dial d]                    .gate/<tag>/ (by default the commit); --truth: ?truth
+//                                                                (--dial: ?truth=d, the dial it is drawn at); --fresh: on a
 //                                                                new browser profile (launch, below)
 //   bun tools/gate.js diff <tagA> <tagB> [--ppd n]               FLIP between two sets (tools/gate/flip.js), per view:
 //                                                                the mean, the 99th percentile of its 32-px tiles, the
@@ -152,10 +152,10 @@ const launch = (opt, dir = opt.fresh ? (FRESH[FRESH.length] = mkdtempSync(join(t
 const rank = (xs, q) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.max(0, Math.ceil(q * s.length) - 1)] : null; };
 
 // ---- the commands ----
-async function stills(chrome, { tag, truth = false, reach = null, views } = {}) {
+async function stills(chrome, { tag, truth = false, dial = null, views } = {}) {
   tag ||= commit() + (truth ? '-truth' : '');
   const list = pick(VIEWS, views, 'view'), dir = `${OUT}${tag}/`;
-  const { page, errors, url, start, close } = await open(chrome, { query: truth ? (reach ? `truth=${reach}` : 'truth') : '' });
+  const { page, errors, url, start, close } = await open(chrome, { query: truth ? (dial ? `truth=${dial}` : 'truth') : '' });
   mkdirSync(dir, { recursive: true });
   const meta = existsSync(`${dir}gate.json`) ? JSON.parse(readFileSync(`${dir}gate.json`, 'utf8')) : { views: {} };
   Object.assign(meta, { tag, url, truth, commit: commit(), when: new Date().toISOString(), screen: SCREEN, start });

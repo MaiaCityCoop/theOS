@@ -10,7 +10,7 @@ import { finish, skyLight, weathered, cloudAtOne, windAt, windStrength, snowDept
 import { passOf, motion, vWas } from '../core/pass.js';
 import { Tier, offScreen, clipOf } from './tier.js';
 import { scatterRow } from '../../assets/index.js';
-import { TRUTH, dialK, pxKMost } from '../detail/measure.js';
+import { dialK, pxKMost } from '../detail/measure.js';
 import { BAND } from '../detail/error.js';
 import { CROWD } from '../../assets/kit/crowd.js';
 import { rankOf } from './rule.js';
@@ -143,7 +143,7 @@ function bladeMaterial(T) {
     the way out to the meadow's end (the ground's map, which says where it grows, reaches no further:
     src/scatter/ground.js). */
 export function createGrass(scene, tex, ground, asset, gpu = false) {
-  const rings = TRUTH ? asset.tiers.slice(0, 1) : asset.tiers, now = () => bandsOf(rings, asset.height, dialK());
+  const rings = asset.tiers, now = () => bandsOf(rings, asset.height, dialK());
   // the most a ring holds: its band's largest area at any measure up to the most (pxKMost: a turn of the dial or of the
   // governor's ratio only brings the rings nearer), the dial pixels a metre covers halved a quarter at a time
   const most = rings.map((_, k) => { let a = 0; for (let i = 0; i <= 64; i++) { const b = bandsOf(rings, asset.height, pxKMost() * 2 ** (-i / 4)).bands[k]; a = Math.max(a, b.far > 0 ? Math.PI * (b.far ** 2 - Math.max(0, b.near - b.nearFade) ** 2) : 0); } return a; });

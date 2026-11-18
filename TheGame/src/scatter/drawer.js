@@ -68,7 +68,7 @@ import { CHAIN } from '../../assets/kit/bones.js';
 import { MODELS, modelOf } from '../shading/index.js';
 import { byRole } from '../core/registry.js';
 import { bandOf, padOf } from '../detail/handover.js';
-import { dialK, pxKMost, pxOn, farFor, farMost, spanAt, pxAt, dialPxAt, TRUTH } from '../detail/measure.js';
+import { dialK, pxKMost, pxOn, farFor, farMost, spanAt, pxAt, dialPxAt, DIAL_LEAST } from '../detail/measure.js';
 import { source } from '../core/settle.js';
 import { note } from '../core/gpu.js';
 import { keptGet, keptPut } from '../core/kept.js';
@@ -705,7 +705,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       return { alive: alive.greaterThan(0.5), data: rows, bucket };
     };
     // (one material for every mesh level of it, its level told by each mesh; one more for what is drawn by a level's own list)
-    const mats = {}, T = new Tier(scene, draws.map((d) => (d.cut ? new THREE.InstancedBufferGeometry().setIndex([0, 1, 2]) : d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, reach: Math.min(far, farMost(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])), high: sizes[1], order: 1, live, gpu: true, cap: draws.map((d) => (d.dot || (TRUTH && !d.level) ? cap : Math.min(cap, 16 * 4 ** Math.max(1, d.level)))), slots: ROWS, bounds: boundsOf(GROWN + (moving ? 0.5 : 0)) });   // (a cap a draw: what is drawn large is few, four times as many a level further off; ?truth draws all of it at its finest)
+    const mats = {}, T = new Tier(scene, draws.map((d) => (d.cut ? new THREE.InstancedBufferGeometry().setIndex([0, 1, 2]) : d.shared ? drawShaped(d.level) : drawOf(d.level))), (src, k = 0) => { const d = draws[k], key = d.dot ? 'dot' : d.shared ? 'shared' : 'plain'; return (mats[key] ||= d.dot ? dot(src) : meshOf(src, null, false, moving, false, !!d.shared, true)); }, { cell, P, near: 0, far: 1, reach: Math.min(far, farMost(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])), high: sizes[1], order: 1, live, gpu: true, cap: draws.map((d) => (d.dot ? cap : Math.min(cap, Math.ceil((16 * 4 ** Math.max(1, d.level)) / DIAL_LEAST ** 2)))), slots: ROWS, bounds: boundsOf(GROWN + (moving ? 0.5 : 0)) });   // (a cap a draw: what is drawn large is few, four times as many a level further off; ?truth draws all of it at its finest)
     T.step = step;
     T.band = () => { T.near = 0; T.far = Math.min(far, farFor(THIN ? END : Math.max(END, LEVELS[last].px * (last === L - 1 ? 1 : 0.5)), sizes[1])); band.far.value = T.far; };   // (a drawer that thins its things away: packed until they are gone)
     T.band(); T.draws = draws;
