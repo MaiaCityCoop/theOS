@@ -8,9 +8,10 @@
 //             noise, which the picture built over time averages), a surface as thick as its depth says, the shadow
 //             faded towards the ray's end. It looks only for what the cascades cannot see (src/world/shadow.js): a
 //             caster nearer the surface than the cascade's bias and two of its texels (four texels of the cascade the
-//             point lies in), so its ray is that long; and it takes a sample every ERROR_PX of the ray on the screen
-//             (the one measure: src/detail/measure.js), so near the eye, where it spans more pixels, more of them, far
-//             off fewer, and none where all of it lies within the error. Marched on the screen itself: its two ends
+//             point lies in), so its ray is that long; and it takes a sample every dial pixel of the ray on the screen
+//             (the one measure's dial: src/detail/measure.js dialPxAt), so near the eye, where it spans more pixels,
+//             more of them, far off fewer, and none where all of it lies within the dial. Marched on the screen itself:
+//             its two ends
 //             projected once, the distance at each sample a mix of theirs (no matrix a sample) (stage 9's march, two
 //             matrices a step, every pixel to 80 m, took 22-34 ms of the Mac mini's at every view). Bend's own
 //             wave-wide sharing of samples is not ported (WebGPU's subgroups are missing in Safari): each pixel marches
@@ -23,7 +24,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, float, int, vec2, vec4, ivec2, uniform, texture, screenCoordinate, max, min, mix, clamp, ceil, If, Loop, length } from 'three/tsl';
 import { U } from '../../core/uniforms.js';
 import { cascades } from '../shadow.js';
-import { ERROR_PX } from '../../detail/measure.js';
+import { dialPxAt } from '../../detail/measure.js';
 import { blueAt } from './noise.js';
 import { note, mark } from '../../core/gpu.js';
 
@@ -62,12 +63,12 @@ function createScreenLight(renderer) {
       let far = float(reach(C.n - 1)); for (let k = C.n - 2; k >= 0; k--) far = inside(k).select(float(reach(k)), far);
       const len = min(far, dist.mul(0.5));
       const L = view.mul(vec4(U.uSunDir, 0)).xyz, a = v0.add(L.mul(dist.mul(0.002))), b = a.add(L.mul(len)), pa = pixelOf(a), pb = pixelOf(b);
-      const span = length(pb.sub(pa));
-      If(span.greaterThan(ERROR_PX), () => {   // (a ray within the error finds nothing the cascades miss)
+      const span = dialPxAt(length(pb.sub(pa)));   // (how long the ray is on the screen, in the dial's pixels)
+      If(span.greaterThan(1), () => {   // (a ray within a dial pixel finds nothing the cascades miss)
         const ia = float(1).div(a.z.negate()).toVar(), ib = float(1).div(b.z.negate().max(1e-3)).toVar(), j = blueAt(p).z.toVar(), thick = dist.mul(0.012).add(0.04), lo = dist.mul(0.004);
-        // a sample every ERROR_PX of the ray on the screen: a surface in front of the ray by more than the depth's own
+        // a sample every dial pixel of the ray on the screen: a surface in front of the ray by more than the depth's own
         // precision and less than a surface is thick shades it, less towards the ray's end
-        const n = ceil(span.div(ERROR_PX)).toVar(), hit = float(0).toVar();
+        const n = ceil(span).toVar(), hit = float(0).toVar();
         Loop({ start: int(0), end: int(n), type: 'int', condition: '<' }, ({ i }) => {
           const t = float(i).add(j).div(n), q = mix(pa, pb, t), dz = float(1).div(mix(ia, ib, t)).sub(distOf(depthAt(q)));
           const on = q.x.greaterThan(0).and(q.y.greaterThan(0)).and(q.x.lessThan(size.x)).and(q.y.lessThan(size.y));

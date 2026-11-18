@@ -4,15 +4,15 @@
 // the rocks, the tent and the water all darken on the side away from the light.
 //
 // Their layout, all of it derived (useCascades, at the start, before any material is built):
-//   texels   S a side: a texel ERROR_PX drawn at its own cascade's edge (the one measure: two of the pixels drawn a metre
-//            covers a metre off, over the error)
+//   texels   S a side: a texel one dial pixel at its own cascade's edge, at the most pixels the screen can draw (the one
+//            measure: two of the pixels a metre covers a metre off, pxKMost; what is made once is made for the most)
 //   the near its texel the sun's own penumbra under the lowest crown that casts (SUN_DIAMETER × CROWN_BASE: a texel finer
 //            than the narrowest penumbra a crown throws resolves nothing the sun's disc does not blur away), a third of
 //            it ahead of the eye. Read with a penumbra as wide as the sun's disc makes it: the farther the blocker from
 //            what it shades, the softer (light.js). What is finer still, nearer its receiver, is the contact shadows'
 //            (src/world/light/screen.js). (CROWN_BASE stands in for where the contact shadows hand over, until their
 //            reach is a length of its own)
-//   the rest each twice the one before (a split by the logarithm: each texel ERROR_PX at its own edge and two where it
+//   the rest each twice the one before (a split by the logarithm: each texel a dial pixel at its edge and two where it
 //            takes over), as many as reach the farthest caster (SHADE_REACH: where the trees' shade stand-ins end and
 //            the land's own shade takes over, src/terrain/layers.js); the near one's side fitted so the last ends there
 //   when     the near one every frame, of the others one a frame in turn (all of them whenever the light has turned or
@@ -30,7 +30,7 @@ import { U } from '../core/uniforms.js';
 import { compileFor } from '../core/compile.js';
 import { twinOf } from '../core/pass.js';
 import { note, mark } from '../core/gpu.js';
-import { pxK, ERROR_PX, BUDGET_DRAWN } from '../detail/measure.js';
+import { pxKMost } from '../detail/measure.js';
 import { SUN_DIAMETER } from './light/physics.js';
 
 export const CASTS = 1;   // the layer of what casts a shadow
@@ -39,14 +39,16 @@ export const CASTS = 1;   // the layer of what casts a shadow
 const spanOf = (h) => ({ back: 300 + h * 0.5, near: 1, far: 600 + h });
 
 let C = null;
-/** Lay the cascades out (src/boot.js, before any material is built: the light is built for them). reach: how far round
-    the eye shadows are drawn (src/terrain/layers.js SHADE_REACH); crown: the lowest crown that casts (CROWN_BASE); top:
-    the tallest caster (CASTER_TOP); radius: the smallest crown's reach (CROWN_REACH, for the canopy). */
+/** Lay the cascades out (src/boot.js: once the measure knows the most the screen can draw, keepMeasure, and before any
+    material is built, for the light is built for them). reach: how far round the eye shadows are drawn
+    (src/terrain/layers.js SHADE_REACH); crown: the lowest crown that casts (CROWN_BASE); top: the tallest caster
+    (CASTER_TOP); radius: the smallest crown's reach (CROWN_REACH, for the canopy). */
 export function useCascades({ reach, crown, top, radius }) {
   if (!(reach > 0 && crown > 0 && crown < Infinity && top > 0 && radius > 0 && radius < Infinity)) throw new Error(`the shadow cascades are laid out from what casts in the stands (reach ${reach} m, lowest crown ${crown} m, tallest ${top} m, smallest crown ${radius} m round): none of it there`);
-  // a cascade's texels a side: a texel ERROR_PX drawn at its own cascade's edge (h metres from the eye, 2h / S a texel, and
-  // a metre a metre off is pxK × BUDGET_DRAWN pixels drawn on the budget's screen: src/detail/measure.js)
-  const S = Math.ceil((2 * pxK() * BUDGET_DRAWN) / ERROR_PX);
+  // a cascade's texels a side: a texel one dial pixel at its own cascade's edge (h metres from the eye, 2h / S a texel,
+  // and a metre a metre off is pxKMost dial pixels: at the most pixels the screen can draw and the dial at rest, for
+  // what is made once is made for the most: src/detail/measure.js)
+  const S = Math.ceil(2 * pxKMost());
   const finest = (SUN_DIAMETER * crown * S) / 2;   // (the near one's half side at the most: its texel the lowest crown's penumbra)
   // as many as reach `reach`, each twice the one before; two at the least: three binds a depth texture of one layer as no
   // array, which the materials are built for

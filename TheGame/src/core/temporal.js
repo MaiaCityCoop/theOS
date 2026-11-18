@@ -167,7 +167,7 @@ export function createTemporal(renderer) {
   })()];
   const copy = STORE ? null : (() => { const m = new THREE.NodeMaterial(); m.fragmentNode = Fn(() => vec4(tShow.sample(at()).level(0).rgb, 1))(); return quadOf(m); })();
 
-  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), size = new THREE.Vector2(), css = new THREE.Vector2();
+  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), size = new THREE.Vector2();
   const proj = new THREE.Matrix4(), projInv = new THREE.Matrix4(), view = new THREE.Matrix4(), world = new THREE.Matrix4(), projWas = new THREE.Matrix4(), viewWas = new THREE.Matrix4(), rel = new THREE.Matrix4();
   let places = placesOf(8), turn = 0, k = 0, fresh = true, lastAt = 0, age = 0, timeWas = null, sizeKept = '', tile = null;
   /** The places for a frame drawn at w × h onto the screen: ⌈8·s²⌉ of them for s screen pixels a drawn one, each way
@@ -209,7 +209,6 @@ export function createTemporal(renderer) {
       // textures read as finely as the screen's pixels would read them, not the inside's: what that leaves crawling in one
       // frame, the frames together take in (src/terrain/material.js, src/scatter/stress.js)
       U.uFine.value = 1 + (Math.min(1, w / size.x) - 1) * K.fine;
-      U.uDrawn.value = h / Math.max(1, renderer.getSize(css).y);   // (the pixels drawn a CSS pixel: src/detail/measure.js drawnAt)
     },
     /** After it: the camera as it was, and nothing read finer by what is drawn otherwise. */
     end(camera) { if (tile) camera.setViewOffset(tile.fullWidth, tile.fullHeight, tile.offsetX, tile.offsetY, tile.width, tile.height); else camera.clearViewOffset(); U.uFine.value = 1; },
