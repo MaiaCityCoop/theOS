@@ -136,7 +136,7 @@ export class Tier {
       const count = Math.min(n[k * 5 + 1], this.room(k)), rows = Array.from({ length: S }, () => new Float32Array(count * 4));
       if (count) {
         const bytes = count * S * 16;
-        if (!this.back || this.back.maxByteLength < bytes) { this.back?.dispose(); this.back = new THREE.ReadbackBuffer(bytes); this.back.name = 'tier'; note(`tiers: read back (${this.asset ?? 'a tier'})`, bytes, 0); }
+        if (!this.back || this.back.maxByteLength < bytes) { this.back?.dispose(); this.back = new THREE.ReadbackBuffer(bytes); this.back.name = 'tier'; note(`tiers: read back (${this.asset ?? 'a tier'})`, bytes, 0, 'geometry'); }
         await renderer.getArrayBufferAsync(this.data.value, this.back, off[k] * S * 16, bytes);
         const f = new Float32Array(this.back.buffer, 0, count * S * 4);
         for (let i = 0; i < count; i++) for (let j = 0; j < S; j++) rows[j].set(f.subarray((i * S + j) * 4, (i * S + j) * 4 + 4), i * 4);
@@ -198,7 +198,7 @@ function entriesOf(T, resident, spans) {
   const X = resident ? new THREE.StorageBufferAttribute(new Uint32Array(room * 2), 2) : null, XN = X ? storage(X, 'uvec2', room).toReadOnly() : null;
   Object.assign(T, { entries: E, entryRuns: R, entryOwn: X, nE });
   const bytes = [E, R, X].reduce((s, b) => s + (b ? b.array.byteLength : 0), 0);
-  more('tiers: what each looks at', bytes, bytes);
+  more('tiers: what each looks at', bytes, bytes, 'geometry');
   return { EN, nE, RN, XN, STEPS: Math.ceil(Math.log2(Math.max(2, room))) + 1 };
 }
 /** A tier's buckets: of its own patches each a room of its own (cap: one for all, or a list), one after another; a
@@ -217,7 +217,7 @@ function packedOf(T, geos, material, { live, found, select, store = 0, cap = 0, 
   const OFF = new THREE.StorageBufferAttribute(Uint32Array.from(offs), 1), OF = storage(OFF, 'uint', K), OFr = storage(OFF, 'uint', K).toReadOnly();
   // (a thing's rows side by side in one buffer, `slots` of them: one buffer to bind, not one a row; what it packs lives
   // on the GPU only: the GPU writes it and the GPU reads it, src/core/gpu.js)
-  const packed = gpuStorageLater('vec4', 'tiers: what stands, packed'); packed.make(total * slots);
+  const packed = gpuStorageLater('vec4', 'tiers: what stands, packed', 'geometry'); packed.make(total * slots);
   const data = packed.node, count = instancedArray(K, 'uint').toAtomic();
   // (one buffer of draw arguments, five a bucket: a shader binds few buffers. Culled, what the eye sees and what pass
   // two found are two sets more, in the culling's own buffer: src/core/occlusion.js)
@@ -313,7 +313,7 @@ function residentOf(T, { K, S, slots, data, count, args, OF, N: N0, ends, zero, 
   useLimits();
   let N = N0;
   const regions = new Resident({ cell: T.cell, fixed: T.metres, room: LEAVES - 16 });
-  const kept = [0, 1].map(() => ({ rows: gpuStorageLater('vec4', 'tiers: what each holds (two stores)'), leaf: gpuStorageLater('uint', 'tiers: what each holds (two stores)') }));
+  const kept = [0, 1].map(() => ({ rows: gpuStorageLater('vec4', 'tiers: what each holds (two stores)', 'geometry'), leaf: gpuStorageLater('uint', 'tiers: what each holds (two stores)', 'geometry') }));
   const make = () => { for (const K2 of kept) { K2.rows.make(N * slots); K2.leaf.make(N); } };
   make();
   const held = instancedArray(1, 'uint').toAtomic();   // (how many the store being made holds so far)
@@ -321,7 +321,7 @@ function residentOf(T, { K, S, slots, data, count, args, OF, N: N0, ends, zero, 
   const alive = new THREE.StorageBufferAttribute(new Uint32Array(LEAVES + 1), 1), AL = storage(alive, 'uint', LEAVES + 1).toReadOnly();   // (a region's things kept: 1; let go: 0. The last: none's)
   const DF = new THREE.IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1, 0]), 1), DG = new THREE.IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1, 0]), 1);
   const DFn = storage(DF, 'uint', 4), DGn = storage(DG, 'uint', 4), uN = uniform(N, 'uint');
-  more('tiers: what each holds, its regions', alive.array.byteLength, alive.array.byteLength);
+  more('tiers: what each holds, its regions', alive.array.byteLength, alive.array.byteLength, 'geometry');
   const cur = instancedArray(K, 'uint').toAtomic(), into = intoBuckets(K);   // (cur: each bucket's things written so far, as the gather writes them)
   const wgC = workgroupArray('uint', 1).toAtomic().setName('wgTierKeepCount'), wgB = workgroupArray('uint', 1).setName('wgTierKeepAt');
   // (into the store being made, a thing an invocation where it has one, by one atomic a workgroup)

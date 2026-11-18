@@ -80,9 +80,9 @@ import { join } from 'node:path';
 import { VIEWS, PATHS, HOURLY } from './gate/views.js';
 import RIG from '../camera/rig.js';
 import { FIRST_FRAME } from '../src/core/marks.js';
-import { BUDGET, CLASSES, classOf } from './bench.js';
+import { CLASSES, classOf, CLASS_NAMES } from './bench.js';
+import { FRAME_MS as BUDGET, MEMORY, BUDGET_MB, FRAME_MS_BY_CLASS, OUTPUT } from '../src/core/budget.js';
 import { flip, tiles, heat, readPNG, writePNG, PPD } from './gate/flip.js';
-import { OUTPUT } from '../src/core/budget.js';
 import { stepper } from './gate/clock.js';
 import { locked, unlock } from './gpu/lock.js';
 import { tiled } from './gate/tiles.js';
@@ -94,7 +94,7 @@ const Q_AT = process.argv.indexOf('--query'), EXTRA = Q_AT > 0 ? process.argv[Q_
 const OUT = new URL('../.gate/', import.meta.url).pathname;   // TheGame/.gate/: made again by every run, not kept in git
 // (the output the gate draws: OUTPUT (src/core/budget.js), at one pixel a point: the canvas is the output's own pixels)
 const SCREEN = { ...OUTPUT, dpr: 1 }, INSIDE = 4 / 3, TIME = 100;   // (TIME: the seconds the world's clock stands at for stills)
-const FRAME = 1000 / 60, JITTER = 1, MEMORY = 8e9;   // the hard gates in motion: no frame longer than 1/60 s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within 8 GB
+const FRAME = 1000 / 60, JITTER = 1;   // the hard gates in motion: no frame longer than 1/60 s (the frame clock's own jitter allowed), the GPU within BUDGET ms in every frame, the whole browser within 8 GB
 const WAIT = 300e3;   // ms the world may take to come, or to settle, before the gate calls it broken (an error; never a wait for readiness)
 const ARGS = ['--enable-unsafe-webgpu', '--enable-webgpu-developer-features'];   // (the second: the GPU's timestamps to the nanosecond, not rounded to a tenth of a millisecond: the bench times passes of a few hundredths)
 
@@ -317,6 +317,24 @@ async function noise(chrome, tag, opt) {
   return await diff(a, b, opt);
 }
 
+/** The GPU's memory by class (src/core/gpu.js ledger, src/core/classes.js BUDGET_MB), MB, a column a view or path
+    (`by`: { name: memoryNow() }): each class beside its budget, all that the pools note, all the device has made, and
+    of that what no pool notes. A class over its budget is said. */
+function memoryTable(by) {
+  const V = Object.keys(by).filter((k) => by[k]); if (!V.length) return;
+  const W = 13, head = (i) => V.map((v) => (v.split(', ')[i] ?? '').padStart(W)).join(''), over = [];
+  console.log(`\n  ${'GPU memory, MB a class'.padEnd(28)}${head(0)}${'budget'.padStart(9)}`);
+  console.log(`  ${''.padEnd(28)}${head(1)}`);
+  for (const c of CLASS_NAMES) {
+    console.log(`  ${c.padEnd(28)}${V.map((v) => f(by[v].classes?.[c]?.gpu, 0, W)).join('')}${f(BUDGET_MB[c], 0, 9)}`);
+    for (const v of V) if ((by[v].classes?.[c]?.gpu ?? 0) > BUDGET_MB[c]) over.push(`${c} at ${v}`);
+  }
+  console.log(`  ${'noted, all'.padEnd(28)}${V.map((v) => f(by[v].gpu, 0, W)).join('')}`);
+  console.log(`  ${'the device made, all'.padEnd(28)}${V.map((v) => f(by[v].device, 0, W)).join('')}`);
+  console.log(`  ${'of it, noted by no pool'.padEnd(28)}${V.map((v) => f(by[v].unnoted, 0, W)).join('')}`);
+  if (over.length) console.log(`  over its budget: ${over.join('; ')}`);
+}
+
 /** tools/bench.js's bench(), one view at a time, each once the world has settled there. bench() draws the world as the
     game does: inside at `ratio`, laid on the canvas by the upscale pass (the whole frame's GPU time), and says
     where it went: every pass of the frame on the GPU's own clock, under the name of the part that drew it (the packing,
@@ -324,7 +342,7 @@ async function noise(chrome, tag, opt) {
     each added up (bench.js CLASSES: geometry, light, ground, upscale and post; what none of them names, other), and the
     colour pass's share of the shadows (the same frames with its shadow reads off). */
 async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
-  const { page, errors, url, close } = await open(chrome, { query: 'gputime' }), out = { ratio: +ratio, views: {}, span: {}, passes: {}, classes: {}, shading: {} };
+  const { page, errors, url, close } = await open(chrome, { query: 'gputime' }), out = { ratio: +ratio, views: {}, span: {}, passes: {}, classes: {}, shading: {}, memory: {} };
   try {
     await page.evaluate(prepare, { inside: null, time: TIME });
     for (const v of VIEWS.filter((x) => x.bench)) {
@@ -336,6 +354,7 @@ async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
       }, { name: v.bench, ratio: +ratio, frames: +frames });
       out.measure = r.measure; out.drawn = [Math.floor(r.size[0] * r.ratio), Math.floor(r.size[1] * r.ratio)]; out.views[v.bench] = r[v.bench];
       if (r.passes) { out.span[v.bench] = r.span[v.bench]; out.passes[v.bench] = r.passes[v.bench]; out.classes[v.bench] = r.classes[v.bench]; out.shading[v.bench] = r.shading?.[v.bench]; }
+      out.memory[v.bench] = r.memory?.[v.bench] ?? null;
     }
   } finally { said(errors); await close(); }
   out.worst = Math.max(...Object.values(out.views)); out.pass = out.worst <= BUDGET;
@@ -349,15 +368,16 @@ async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
     const W = 13, head = (i) => V.map((v) => (v.split(', ')[i] ?? '').padStart(W)).join('');   // (a view's name in two lines: its place, its height)
     const cell = (p) => (!p ? '–' : p.every > 1.5 ? `${p.mean.toFixed(2)}(${p.drawn.toFixed(1)})` : p.mean.toFixed(2)).padStart(W);
     const names = [...new Set(V.flatMap((v) => Object.keys(out.passes[v])))], at = (k) => { const i = (CLASSES[classOf(k)] ?? []).indexOf(k); return i < 0 ? 99 : i; };
-    console.log(`\n  ${'ms a frame, part and pass'.padEnd(28)}${head(0)}`);
+    console.log(`\n  ${'ms a frame, part and pass'.padEnd(28)}${head(0)}${'budget'.padStart(9)}`);
     console.log(`  ${'(in brackets: when drawn)'.padEnd(28)}${head(1)}`);
     for (const c of [...Object.keys(CLASSES), 'other']) {
-      console.log(`  ${c.padEnd(28)}${V.map((v) => f(out.classes[v]?.[c], 2, W)).join('')}`);
+      console.log(`  ${c.padEnd(28)}${V.map((v) => f(out.classes[v]?.[c], 2, W)).join('')}${f(FRAME_MS_BY_CLASS[c], 2, 9)}`);
       for (const k of names.filter((n) => classOf(n) === c).sort((a, b) => at(a) - at(b))) console.log(`    ${k.padEnd(26)}${V.map((v) => cell(out.passes[v][k])).join('')}`);
     }
     console.log(`\n  the colour pass with its shadow reads, and without (ms)`);
     for (const [v, S] of Object.entries(out.shading)) if (S) console.log(`  ${v.padEnd(28)}${f(S.colour)}${f(S.colourWithout)}  (${f(S.colour - S.colourWithout, 2, 6)} ms the shadows' share)`);
   }
+  memoryTable(out.memory);
   return out;
 }
 
@@ -513,7 +533,7 @@ async function travel(ctx, list, mem) {
       const c = await page.evaluate(p.flyby ? flight : course, p);
       await page.evaluate(settled, { wait: WAIT, at: `the start of ${p.name}` });
       mem.phase = p.name;
-      out.paths[p.name] = { secs: c.secs, ...told(await page.evaluate(ride, { fly: !!p.flyby })) };
+      out.paths[p.name] = { secs: c.secs, ...told(await page.evaluate(ride, { fly: !!p.flyby })), memory: await page.evaluate(() => { const L = window.__memory?.(); return L ? { classes: L.classes, gpu: L.gpu, device: L.device, unnoted: L.unnoted } : null; }) };   // (the GPU's memory by class, as the path ends)
     }
     out.first = await page.evaluate(firstFrame, { name: FIRST_FRAME });   // (by now long set: read once the paths are ridden)
   } finally { out.errors = errors; said(errors); await close(); }
@@ -542,6 +562,7 @@ async function paths(opt) {
   console.log(`  the first frame that draws the world: cold ${firstSaid(out.cold.first)}; warm ${firstSaid(out.warm.first)}`);
   console.log(`  the most memory, ${out.cold.memory.measure}: ${gb(most.bytes)}, ${most.phase} (${Object.entries(most.by ?? {}).map(([k, b]) => `${k} ${gb(b)}`).join(', ')}); resident, at most ${gb(Math.max(out.cold.memory.rss, out.warm.memory.rss))}`);
   if (!out.cold.paths[list[0].name].gpu) console.log('  (no GPU times: the page had no timestamp queries)');
+  memoryTable(Object.fromEntries(list.flatMap((p) => ['cold', 'warm'].map((cache) => [`${p.name}, ${cache}`, out[cache].paths[p.name].memory ?? null]))));
   console.log(`  the gate in motion (no frame over 16.7 ms, the GPU within ${BUDGET} ms in every frame, at most 8 GB): ${fails.length ? 'NOT MET: ' + fails.join('; ') : 'met'}`);
   return { ...out, peak: most.bytes, pass: !fails.length, fails };
 }

@@ -22,7 +22,7 @@ let K = null;
     FLIP tiles', tools/gate/flip.js): a switch within the dial moves an edge by at most ERROR_PX pixels drawn, INSIDE
     canvas pixels each, so across the tile at full contrast (FLIP at most 1) it changes the tile's mean by at most
     ERROR_PX × INSIDE / size (1 × 4/3 / 32 = 0.042). A pop is a tile over it. */
-const lineOf = (size) => (ERROR_PX * K.INSIDE) / size;
+const lineOf = (size) => (ERROR_PX() * K.INSIDE) / size;   // (the dial as the gate holds it: at rest)
 /** What the filmstrip shows of a frame beside it: the squares round its worst tile, as `other` (the truth, or the game
     again) has them too. */
 const shownOf = (other) => ['LOD before', 'LOD now', `${other} before`, `${other} now`, 'the change, FLIP'];

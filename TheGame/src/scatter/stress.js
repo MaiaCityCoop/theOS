@@ -384,7 +384,7 @@ export function createStress(scene, renderer, tex) {
   // is the costly part of placing a thing (a square root, two turns, six reads), and a tier asks it of up to a million
   // cells each time the camera turns. So it is asked once for a plot that comes near (keepPass: a million cells, one pass),
   // and kept as two numbers of 16 bits a cell (its place in the plot's own square, to 5 cm): 4 MB a plot, on the GPU only
-  const kept = gpuStorage('uint', KEPT * SIDE * SIDE, "stand: where the near plots' millions stand").node, fillPlot = uniform(0, 'uint'), fillSlot = uniform(0, 'uint');
+  const kept = gpuStorage('uint', KEPT * SIDE * SIDE, "stand: where the near plots' millions stand", 'geometry').node, fillPlot = uniform(0, 'uint'), fillSlot = uniform(0, 'uint');
   const keepPass = Fn(() => {
     const i = int(instanceIndex.mod(uint(SIDE))), j = int(instanceIndex.div(uint(SIDE))), base = fillPlot.mul(uint(ROW)), cx = int(fillPlot).shiftLeft(int(BITS)).add(i);
     const d = place(base, float(i).add(rnd(cx, j, uint(905)).mul(0.7).add(0.15)), float(j).add(rnd(cx, j, uint(906)).mul(0.7).add(0.15))).sub(middle(base)).div(PT.element(base.add(uint(FAR_AT)))).mul(0.5).add(0.5).clamp(0, 1).mul(65535);

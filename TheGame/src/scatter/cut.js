@@ -59,7 +59,7 @@ export function createCut({ T, k = 0, H, room, name, things }) {
   const list = instancedArray(MOST, 'uvec4'), count = instancedArray(1, 'uint').toAtomic(), packed = storage(T.args, 'uint', T.args.array.length).toReadOnly();
   const drawArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array([MAXT * 3, 0, 0, 0, 0]), 5), DA = storage(drawArgs, 'uint', 5);
   const runArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array([1, 1, 1]), 1), RA = storage(runArgs, 'uint', 3);   // (its workgroups: the clusters a thing can have across, the things packed down)
-  more(`${name}: the cut's list`, MOST * 16, 0);
+  more(`${name}: the cut's list`, MOST * 16, 0, 'geometry');
   const thing = (j, row) => T.data.element(T.offAt(uint(k)).add(j).mul(uint(S)).add(uint(row)));   // (where its bucket's things begin: the tier's packing says)
   const LO1 = surfaceBand(1)[0], PXC = pxCut();
   // (how many workgroups: a thread a cluster of every thing packed, its count as large as it can be)
