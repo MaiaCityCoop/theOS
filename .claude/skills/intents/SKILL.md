@@ -80,7 +80,8 @@ job.
 
 These gates measure what a change does to the code, so they are measured against `main` by
 design. That is not the picture gate: a picture is judged on its own, never against `main`. They
-are one command, `bun tools/health.js` (in `TheGame/`), run on `main` and on the branch.
+are one command, `bun tools/health.js --base origin/main` (in `TheGame/`), which measures the
+touched folders here and at the base and fails on anything worse. CI runs it on every pull request.
 
 ## Define: the 10 % gate
 
