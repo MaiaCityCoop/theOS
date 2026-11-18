@@ -647,6 +647,8 @@ Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
   screen through `measure.js`.
 - **Then delivered:** merged (`9e4dc7e`); both take part in the prepass; sizes through `measure.js` (`pxAt`,
   `drawnAt`). The stills hold after the merge.
+- **Then asked:** merge main again (stage 6a). **Delivered:** merged (`e8d5bdb`); `bun tools/scale.js` 18 of 18,
+  both builds, and the tent and the pine stand at 60 m drawn without an error. Draft PR #66.
 
 ## Trail
 
@@ -667,3 +669,4 @@ Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
 | 2026-11-17 | `a9657a6` | Stage 6a: the layer map, one read a material, the land's noises as shader functions |
 | 2026-11-18 | `29cc189` | Stage 6a: hex-tiled near, one wobbled read far; the start's shader watcher goes |
 | 2026-11-18 | `325c6d0` | Stage 6a: `?truth` reads the ground as the picture does (draft PR #65) |
+| 2026-11-18 | `e8d5bdb` | Stage 4 merged with main (6a): the registry made again from the merged recipes |
