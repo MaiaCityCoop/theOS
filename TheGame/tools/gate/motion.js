@@ -1,5 +1,5 @@
 // The motion check of the gate (intent 0038, check 4: nothing pops). Every frame of a path is drawn twice, as the game
-// draws it and at full detail (?truth, drawn as a frame in motion: src/detail/measure.js TRUTH_AS), on the gate's clock
+// draws it and at full detail (?truth: at each frame a settled still, so it neither shimmers nor lacks), on the gate's clock
 // (tools/gate/clock.js), and the change detail made in each frame is measured (tools/gate/change.js). tools/gate.js
 // motion; tools/gate/README.md. The functions marked "in the page" are handed to the page whole and read nothing of
 // this module.
@@ -60,14 +60,14 @@ function pool(n) {
 /** One pass over a path in a page of its own (made, come and settled here, closed after: one world in memory at a
     time). The world's clock stands at T where the path starts; frame i is i / fps seconds in. The first pass (as the
     game draws: `store`, a folder) writes every frame there, squeezed, and says at which place of a pixel each was drawn
-    (`jits`); the second (the truth, or the game again: --floor) is drawn at those same places, and each of its frames'
+    (`jits`); the second (the truth, a settled still at each step; or the game again, --floor, at those same places) has each of its frames'
     change is measured as it comes, against the first pass's frames read back (`from`, `jits`). */
 async function pass(ctx, p, { truth, floor, T, fps, to, net, reach, store, from = null, jits = null, start = null, work, workers, keep }) {
   const { open, prepare, course, said, rank, WAIT, INSIDE } = K, fly = !!p.flyby, t0 = Date.now(), first = !from, who = first ? 'LOD' : floor ? 'LOD again' : 'truth';
   const P = await open(ctx, { query: truth ? (reach ? `truth=${reach}` : 'truth') : '', init: stepper });
   try {
-    await P.page.evaluate(prepare, { inside: INSIDE, time: null });
-    const begun = await P.page.evaluate(begin, { truth });
+    await P.page.evaluate(prepare, { inside: truth ? null : INSIDE, time: null });   // (the truth: at every pixel the canvas has)
+    const begun = await P.page.evaluate(begin);
     if (begun.clock >= T) throw new Error(`the page's clock (${begun.clock.toFixed(0)} s) is past where the path starts on it (${T} s)`);
     const c = fly ? { secs: await P.page.evaluate(async () => (await import(new URL('tools/flyby.js', location.href).href)).cycleOf('zoom')) } : await P.page.evaluate(course, p);
     const secs = Math.min(c.secs, to ?? Infinity), n = Math.floor(secs * fps + 1e-6) + 1;
@@ -77,11 +77,11 @@ async function pass(ctx, p, { truth, floor, T, fps, to, net, reach, store, from 
     let before = null;
     for (let i = 0; i < n; i++) {
       const s = i / fps;
-      const r = await P.page.evaluate(shot, { s, T: T + s, fly, url: net.url, key: `${p.name}${i}`, truth, place: jits?.[i] ?? null });
+      const r = await P.page.evaluate(shot, { s, T: T + s, fly, url: net.url, key: `${p.name}${i}`, truth, place: truth ? null : jits?.[i] ?? null, wait: WAIT });
       const now = await net.take(`${p.name}${i}`);
       places.push(r.place);
       if (first) { writeFileSync(`${store}${i}.z`, deflateSync(new Uint8Array(now.data), { level: 1 })); if (i && (i % 50 === 0 || i === n - 1)) console.log(`    ${String(i).padStart(5)} / ${n - 1}  ${((Date.now() - t0) / 1000 / (i + 1)).toFixed(2)} s a frame`); continue; }
-      const f = { i, s: +s.toFixed(4), ...(r.out ? { out: r.out } : {}), ...(jits && jits[i] !== r.place ? { places: 'apart' } : {}) };
+      const f = { i, s: +s.toFixed(4), ...(r.frames ? { frames: r.frames } : {}), ...(r.out ? { out: r.out } : {}), ...(!truth && jits && jits[i] !== r.place ? { places: 'apart' } : {}) };
       frames.push(f);
       const L = inflateSync(readFileSync(`${from}${i}.z`)), Ls = new SharedArrayBuffer(L.length); new Uint8Array(Ls).set(L);
       const pair = { L: Ls, R: now.data };
@@ -125,8 +125,8 @@ async function filmstrip(ctx, file, { title, sub, r, other = 'truth' }) {
 
 /** Check 4: every path frame by frame, as the game draws it and at full detail, the change detail made in each frame
     measured, against POP in every frame's worst tile. Each path in two passes of one page each (pass): the game's, then
-    the truth's, drawn on the gate's clock (tools/gate/clock.js) at the same moments of the world's clock and the
-    same places of a pixel, the truth's frames drawn again until nothing was still out. Between the passes nothing is
+    the truth's, drawn on the gate's clock (tools/gate/clock.js) at the same moments of the world's clock, each of the
+    truth's frames a still settled at its step (it neither shimmers nor lacks). Between the passes nothing is
     drawn, and the GPU lock (GATE_LOCK) is let go. */
 export async function motion(opt, kit) {
   K = kit;
@@ -160,12 +160,11 @@ export async function motion(opt, kit) {
 
 /** In the page, once it has come and settled (tools/gate.js open, prepare): the clock taken (no frame drawn after this
     but those the gate steps), and what the frames need: the shared uniforms, what is still out (src/core/settle.js), the
-    flight (tools/flyby.js). truth: this page is the truth, drawn as a frame in motion. Its own start (t0: the world's
+    flight (tools/flyby.js). Its own start (t0: the world's
     clock is (timestamp − t0) / 1000 s, src/boot.js) and that clock now. */
-export async function begin({ truth }) {
+export async function begin() {
   const R = performance.getEntriesByType('resource').map((e) => e.name), mod = (part) => import(R.filter((n) => n.includes(part)).at(-1));
   const [{ U }, { waiting }, F] = await Promise.all([mod('src/core/uniforms.js'), mod('src/core/settle.js'), import(new URL('tools/flyby.js', location.href).href)]);
-  if (truth) { const { TRUTH_AS } = await mod('src/detail/measure.js'); TRUTH_AS.still = false; }
   const C = window.__gateClock; C.start();
   const t0 = C.last - U.uTime.value * 1000, g = window.__game;
   // (the camera where the path has it s seconds in: the film camera's timeline, or the flight's rig)
@@ -193,29 +192,31 @@ export async function rest({ T, fly, place = null, wait = 600e3 }) {
 }
 
 /** In the page: frame `s` seconds into the path, at T seconds on the world's clock, drawn and sent to the gate (its raw
-    RGBA bytes, POSTed to `url`). truth: the frame is the truth's, drawn twice with the camera and the clock standing: once
-    to ask for all it needs (the land's pages, a rock's whole mesh), then, what came between taken in, at `place` (the
-    game's frame's place of a pixel, src/core/temporal.js). What it took: { place (this frame's), out (what was still
-    out after it was drawn, by source: what the truth's frame may have lacked), ms }. */
-export async function shot({ s, T, fly, url, key, truth = false, place = null }) {
+    RGBA bytes, POSTed to `url`). The game's: one frame, at `place` where given (the --floor's second pass, drawn at the
+    first's places of a pixel: src/core/temporal.js place). truth: the truth's, a settled still at the step, the camera
+    and the clock standing: drawn until settle() resolves (nothing out, the land's pages among it, and the picture built
+    over its 32 places come to rest), so the reference neither shimmers nor lacks. What it took: { place, frames (drawn
+    for it), out (what was still out after it: none, for a settled truth), ms }. */
+export async function shot({ s, T, fly, url, key, truth = false, place = null, wait = 300e3 }) {
   const M = window.__gateMotion, C = window.__gateClock, g = window.__game, t = M.t0 + T * 1000, t0 = Date.now();
+  let frames = 0;
   M.pose(s, fly);
   if (truth) {
-    await C.step(t);   // (the asking frame)
-    await g.renderer.backend.device?.queue.onSubmittedWorkDone(); await new Promise((r) => setTimeout(r, 0));   // (what it asked, read back)
-    const w0 = Date.now(); while (Object.keys(M.waiting()).some((k) => k !== 'pages') && Date.now() - w0 < 3000) await new Promise((r) => setTimeout(r, 20));   // (what the workers bring, a moment)
-    M.pose(s, fly);
+    let done = null;
+    g.settle({ timeout: wait }).then((r) => (done = r), (e) => (done = { error: String(e.message ?? e) }));
+    while (!done) { M.pose(s, fly); await C.step(t); frames++; await new Promise((r) => setTimeout(r, 0)); }
+    if (done.error) throw new Error(`the truth at ${s} s: ${done.error}`);
+  } else {
+    if (place != null) g.temporal.place = place - 1;
+    await C.step(t); frames = 1;
   }
-  if (place != null) g.temporal.place = place - 1;
-  await C.step(t);
   // (read once the frame is drawn: read inside it, as the film camera's grab does, a WebGPU canvas came back black)
   const can = g.renderer.domElement, cv = new OffscreenCanvas(can.width, can.height); cv.getContext('2d').drawImage(can, 0, 0);
-  const out = M.waiting(), stats = g.terrain?.pages?.stats;
-  if (stats && out.pages) { if (stats.queue) out.pages = stats.queue; else delete out.pages; }   // (pages: those asked for and not in; not the sweep's wait after the last came)
+  const out = M.waiting();
   const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
   const send = () => fetch(`${url}?key=${key}&w=${cv.width}&h=${cv.height}`, { method: 'POST', body: d, mode: 'no-cors', keepalive: false });
   await send().catch(() => new Promise((r) => setTimeout(r, 500)).then(send));   // (once more, on a connection of its own)
-  return { place: g.temporal.place, out: Object.keys(out).length ? out : null, ms: Date.now() - t0 };
+  return { place: g.temporal.place, frames, out: Object.keys(out).length ? out : null, ms: Date.now() - t0 };
 }
 
 /** In a blank page: a path's filmstrip as a JPEG data URL, `width` wide. At the top, every frame's worst tile against

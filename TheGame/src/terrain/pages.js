@@ -252,7 +252,7 @@ export function createPages(renderer, tex) {
     uMip.value = 0; renderer.compute(pageKernel, [SLOT / 8, (SLOT * list.length) / 8, 1]);
     uMip.value = 1; renderer.compute(pageKernel, [SLOT / 16, (SLOT / 2 * list.length) / 8, 1]);
     if (PACKED) pack(list);
-    for (const q of list) { put(q.idx, VALID | q.slot | (TRUTH ? FADED : 0) | ((frame & 0xffff) << 16)); q.came = frame; if (!TRUTH) fading.push(q); moves(q); }   // (?truth: in at once, the reference fades nothing)
+    for (const q of list) { put(q.idx, VALID | q.slot | ((frame & 0xffff) << 16)); q.came = frame; fading.push(q); moves(q); }
     made += list.length; did('pages', list.length);
     for (const q of list) { recent.push({ m: q.m, i: q.i, j: q.j, frame }); if (recent.length > 24) recent.shift(); }   // (for a look: the last pages laid)
   };

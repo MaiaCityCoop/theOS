@@ -36,7 +36,7 @@ import { Fn, If, float, vec2, vec3, vec4, ivec2, uv, uniform, texture, textureSt
 import { note } from './gpu.js';
 import { U } from './uniforms.js';
 import { display, ign } from '../world/light.js';
-import { TRUTH_AS } from '../detail/measure.js';
+import { TRUTH } from '../detail/measure.js';
 
 const halton = (i, b) => { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; };
 /** The places a frame is drawn at by turns (parts of a drawn pixel, -0.5 … 0.5), n of them: evenly spread however many. */
@@ -172,13 +172,13 @@ export function createTemporal(renderer) {
   let places = placesOf(8), turn = 0, k = 0, fresh = true, lastAt = 0, age = 0, timeWas = null, sizeKept = '', tile = null;
   /** The places for a frame drawn at w × h onto the screen: ⌈8·s²⌉ of them for s screen pixels a drawn one, each way
       (FSR 2's count); ?truth, its own reference, takes 32 (its frames are slow, and it is to be supersampled). */
-  const placesFor = (w, h) => { renderer.getDrawingBufferSize(size); const s = Math.max(size.x / w, size.y / h, 1), n = TRUTH_AS.still ? Math.max(32, Math.ceil(8 * s * s)) : Math.ceil(8 * s * s - 1e-6); if (n !== places.length) { places = placesOf(n); k %= n; } };
+  const placesFor = (w, h) => { renderer.getDrawingBufferSize(size); const s = Math.max(size.x / w, size.y / h, 1), n = TRUTH ? Math.max(32, Math.ceil(8 * s * s)) : Math.ceil(8 * s * s - 1e-6); if (n !== places.length) { places = placesOf(n); k %= n; } };
   return {
     K,
     /** Frames the kept picture has been built over since it was last let go (0: this frame stood alone). */
     get age() { return age; },
     /** Which of its places of a pixel the last frame was drawn at; set, the next frame is drawn at the one after it (the
-        gate draws the truth's frame at the place the game's was: tools/gate/motion.js). */
+        gate's motion --floor draws its second pass at the first's places: tools/gate/motion.js). */
     get place() { return k; },
     set place(v) { k = ((Math.round(v) % places.length) + places.length) % places.length; },
     /** How many frames in a row, nothing changed, until what was kept before has left the picture (src/core/settle.js):
@@ -193,7 +193,7 @@ export function createTemporal(renderer) {
         and what the prepass asks of where things were a frame ago (src/core/pass.js). */
     begin(camera, w, h) {
       proj.copy(camera.projectionMatrix); projInv.copy(camera.projectionMatrixInverse); view.copy(camera.matrixWorldInverse); world.copy(camera.matrixWorld);
-      const t = performance.now(); if (t - lastAt > K.stale && !TRUTH_AS.still) fresh = true; lastAt = t;   // (not drawn for a while: a film, a hidden page; ?truth's frames are slow, src/detail/measure.js, and build on)
+      const t = performance.now(); if (t - lastAt > K.stale && !TRUTH) fresh = true; lastAt = t;   // (not drawn for a while: a film, a hidden page; ?truth's frames are slow, src/detail/measure.js, and build on)
       placesFor(w, h);
       const [jx, jy] = places[(k = (k + 1) % places.length)];
       // (the camera set to show a tile of a larger picture, camera.view: ?truth drawn tile by tile, tools/gate.js; this
