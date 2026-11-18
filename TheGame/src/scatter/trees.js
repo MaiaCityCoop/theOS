@@ -647,7 +647,9 @@ export function createStands(scene, tex, ground, rows, gpu = false, renderer = n
     };
     const D = createDrawer(scene, renderer, tex, {
       name: `plants, ${G.name}`, LEVELS, SHADE: { ...SH, shrink: 1 }, SMOOTH: uniform(1),
-      make: { per: 2, onBlock: G.far?.onBlock, far, numbers: { rows: 5, of: (k) => numbers.subarray(k * 20, k * 20 + 20) }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, first: i === 0, last: i === n - 1 }, feedOf(i, at)); m.vertexNode = Fn((builder) => shape(src.readAt(0, slot), src.readAt(1, slot), passOf(builder)))(); return m; } },
+      // (boxOf: a mesh's box as its family measured it, metres at scale 1 (assets/kit/plant.js), in its shape's sizes and
+      // as far as it leans: its stand's lean moves a point sideways by its height, at most the lean of its wind's numbers)
+      make: { per: 2, onBlock: G.far?.onBlock, far, numbers: { rows: 5, of: (k) => numbers.subarray(k * 20, k * 20 + 20) }, boxOf: (k, b) => { const K = G.KS[k] || 1, L = numbers[k * 20 + 5] * Math.max(Math.abs(b[1]), b[4], 0); return [(b[0] - L) / K, b[1] / K, (b[2] - L) / K, (b[3] + L) / K, b[4] / K, (b[5] + L) / K]; }, material: (src, i, shadow, at) => { const { m, shape, slot } = make(shadow ? null : { lo: G.kinds[0].levels[i].lo, hi: G.kinds[0].levels[i].hi, first: i === 0, last: i === n - 1 }, feedOf(i, at)); m.vertexNode = Fn((builder) => shape(src.readAt(0, slot), src.readAt(1, slot), passOf(builder)))(); return m; } },
       // (what the browser keeps of it is good while its recipes and their rooms are what they were: registry.json's versions)
       zoo: { kinds: KINDS, ALL: G.meshes, fingerprint: () => `plants 5|${G.kinds.map((Kd) => `${Kd.asset.uid}@${versionOf(Kd.asset.uid)}`).join()}|${LEVELS.map((l) => `${l.room.verts}:${l.room.tris}`).join()}` },
     });
