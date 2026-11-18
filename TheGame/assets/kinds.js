@@ -75,6 +75,14 @@ export const sizeOf = (a) => (kindRule(a, 'measure') === 'height' ? most(a.size.
 // assets/kit/rock.js). Every placer of every world makes its things' bodies here: assets/index.js (what stands at a
 // place), the families of the zoo (what is scattered: assets/kit/plant.js, assets/kit/rock.js).
 const TRUNK = 3;   // metres of a trunk that are solid: past a walker's head and the eye of a camera behind him
+/** A thing's base: how far round its middle what is solid of it stands on the ground (metres, in the frame its shapes
+    are in: shapesOf's), what a walker meets at its foot: a trunk, a post, a stone; nothing of what is passed through (a
+    shrub's leaves) or stands clear of the ground. 0: nothing of it does. What a way keeps off its trodden width
+    (src/world/ways.js). */
+export const baseOf = (shapes) => Math.max(0, ...shapes.filter((S) => !S.pass).map((S) => {
+  const at = S.at ?? S.a, low = S.shape === 'capsule' ? Math.min(S.a[1], S.b[1]) - S.r : S.shape === 'sphere' ? S.at[1] - S.r : S.shape === 'box' ? S.at[1] - S.half[1] : Infinity;
+  return low > 0 ? 0 : Math.hypot(at[0], at[2]) + (S.shape === 'box' ? Math.hypot(S.half[0], S.half[2]) : S.r);
+}));
 /** The shapes `rule` makes of a thing of this height and footprint, with its measured trunk or round where it has one. */
 export function shapesOf(rule, { height: h, length: L, width: W = L, trunk = null, round = null }) {
   if (!rule || !(h > 0)) return [];

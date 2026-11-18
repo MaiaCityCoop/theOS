@@ -18,7 +18,7 @@ import { pxOn } from './measure.js';
 import { FADE, BAND, GONE, switchPx, dialPx } from './error.js';
 
 // (the measure's, here too for whoever asked here before it had a file of its own: the library, tools/sweep.js)
-export { pxK, pxKAt, distanceAt } from './measure.js';
+export { distanceAt } from './measure.js';
 
 /** Where a made thing's far card comes (src/world/place.js): its error is its impostor's (src/detail/atlas.js), a texel
     of its views (CELL of them over the sphere round its faces: at most its box's diagonal) and what their spacing and

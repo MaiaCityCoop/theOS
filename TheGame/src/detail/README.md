@@ -19,13 +19,13 @@ wider blades, and last of all nothing: the land under it) differs from the thing
 on the thing itself: the farthest any of it lies from where the thing is, in metres (object space). Nothing that
 builds a rung knows a pixel. One rule decides every switch, at runtime (`error.js`):
 
-    errorPx(e, dist) = e · pxK() / dist  ≤  ERROR_PX()          on the GPU: errPx(e, dist) ≤ U.uErrorPx (measure.js)
+    e · pxK() / dist  ≤  ERROR_PX()          on the GPU: e · U.uPxK / dist ≤ U.uErrorPx (measure.js)
 
 `pxK()` is the live pixel, and the only definition of one: pixels drawn (the inside's, at the governor's ratio of the
 screen's) a metre covers one metre from the eye, through the walker's 68° lens. `ERROR_PX()` is the dial: 1 at rest,
-turned by the governor. `fits(e, dist)` is the rule itself; `switchPx(s)` the same as a size on screen, for an error
-that is the share `s` of a thing's size, in dial pixels (`dialPx`: a size on screen over the dial). Each rung comes in
-over the `BAND` under its switch, never above it: what is drawn is never off by more than the dial.
+turned by the governor. `switchPx(s)` is the rule as a size on screen, in the dial's pixels, for an error
+that is the share `s` of a thing's size. Each rung comes in over the `BAND` under its switch, never above it: what is
+drawn is never off by more than the dial.
 
 | Rung | Its error | Where it is measured |
 | --- | --- | --- |
@@ -47,8 +47,8 @@ numbers for the page, and hands them to the crowd kit in the workers with each l
 
 | Question | Answer | Where |
 | --- | --- | --- |
-| How large is it on screen? | `sizeOf(asset)` metres, times the lens's pixels a metre, over its distance through the lens | `assets/kinds.js` (`sizeOf`), `measure.js`, the one measure (`pxK`, `pxOn`; in node code `uPxK`, `uErrorPx`, `pxAt`, `spanAt`, `errPx`; a packed thing's: `src/scatter/row.js` `pxOf`), `U.uLodInv` |
-| Which level is that? | everything's levels, cut by the error allowed a thing, a share of its size (`error.js` `levelErr`, `levelOf`; their sizes on screen now: `rungPx`): a level only shares the work out, and a dial turned changes no mesh | `index.js` `detailOf`, `assets/kit/plant.js` `bandsOf` |
+| How large is it on screen? | `sizeOf(asset)` metres, times the lens's pixels a metre, over its distance through the lens | `assets/kinds.js` (`sizeOf`), `measure.js`, the one measure (`pxK`, `pxOn`; in node code `uPxK`, `pxAt`, `spanAt`, `dialPxAt`; a packed thing's: `src/scatter/row.js` `pxOf`), `U.uLodInv` |
+| Which level is that? | everything's levels, cut by the error allowed a thing, a share of its size (`error.js`; their sizes on screen, in the dial's pixels: `rungPx`): a level only shares the work out, and a dial turned changes no mesh | `index.js` `detailOf`, `assets/kit/plant.js` `bandsOf` |
 | How does a level come and go? | one piece whole at half way (`whole`), the last level sinking (`sunk`, `sinkInto`) | `handover.js` `handOver` |
 | Which things does a level's packing hold? | its band, its hand-over, and a pad for the camera's movement | `handover.js` `bandOf`, `padOf` |
 | The same, off the GPU | | `handover.js` `handOverAt` |
@@ -61,7 +61,7 @@ every distance with it.
 | What | Engine | How |
 | --- | --- | --- |
 | trees, bushes, ferns: anything in a stand | `src/scatter/trees.js`, drawn by `src/scatter/drawer.js` | per vertex, each frame: `handOver` + `sinkInto`; packing by the drawer's tier (`bandOf`). Far off, its clumps (a chunk of its leaves as three crossed planes) and its impostor (one quad, three views blended with parallax), both baked on the GPU from its finest level (`impostor.js`); it is its impostor where the impostor's texels are no larger than the pixels drawn (`trees.js` `meshShare`: a short cross-fade, texel by texel) |
-| rocks | `src/scatter/drawer.js` (the rocks placed by `rocks.js`) | their cluster hierarchy (`assets/kit/clusters.js`), cluster by cluster by the cut's rule (`src/scatter/cut.js`); thinning away over the `BAND` above `gonePx` |
+| rocks | `src/scatter/drawer.js` (the rocks placed by `rocks.js`) | their cluster hierarchy (`assets/kit/clusters.js`), cluster by cluster by the cut's rule (`src/scatter/cut.js`); thinning away over the `BAND` above `GONE` |
 | the stress world's zoo | `src/scatter/drawer.js` (`stress.js`, `herds.js`) | still the ladder's eight levels (`assets/kit/ladder.js`) until 8b |
 | what stands at a spot of its own (a tent, a fire pit, later a house): a list of a few or of millions | `src/scatter/placed.js`, drawn by `src/scatter/drawer.js` (intent 0029) | per vertex, each frame: `handOver` (of one piece: whole, half way), `sinkInto`; packing by the drawer's tier over the list's runs; its last level the drawer's dot |
 | what moves (the stress stand's movers, the herds of `?herds=N`) | `src/scatter/stress.js`, `src/scatter/herds.js`, drawn by `src/scatter/drawer.js` | the drawer's one tier of every level, packed every frame: the level its size asks for, on its skeleton until its hull |

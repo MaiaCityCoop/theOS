@@ -33,7 +33,7 @@
 //                      enlarged about their tips as far as its rule lets them; what the eye's culling tests it by,
 //                      src/scatter/drawer.js kindBox)
 //   plantFamily(id, asset)   a plant asset's shapes as a family of the zoo (assets/zoo/index.js)
-import { kindRule, shapesOf, most } from '../kinds.js';
+import { kindRule, shapesOf, most, baseOf } from '../kinds.js';
 import { held, sn, q16, oct, OCT } from './pack.js';
 import { crowd, levelOf, CROWD, RULE } from './crowd.js';
 import { goneAt, rungAt, rungPx, BAND } from '../../src/detail/error.js';
@@ -104,6 +104,9 @@ export const plantFamily = (id, asset) => ({
   boundsOf: (i) => { const d = dimsOf(asset, i), x = Math.max(d.length, d.width) / 2; return { min: [-x, 0, -x], max: [x, d.height, x] }; },
   collidersOf: (i) => shapesOf(kindRule(asset, 'solid'), dimsOf(asset, i)),
 });
+/** A plant's base over its height, its shape i's: how far round its middle what is solid of it stands on the ground, a
+    metre of its height (assets/kinds.js baseOf; its kind's rule, as collidersOf: a tree its trunk). */
+export const baseShare = (asset, i) => { const d = dimsOf(asset, i); return baseOf(shapesOf(kindRule(asset, 'solid'), d)) / d.height; };
 const dimsOf = (asset, i) => { const H = most(asset.size.height), h = asset.heights?.[i] ?? H, k = h / H; return { height: h, length: most(asset.size.length) * k, width: most(asset.size.width ?? asset.size.length) * k, trunk: asset.trunk?.[i] ?? null }; };
 
 // ---- the plants' levels by the crowd kit (intent 0033): one build of a shape's finest, every level a first share of
@@ -114,7 +117,7 @@ export const FOOT = 0.15;
 export const hasFar = (a) => !!(a.far ?? kindRule(a, 'far'));
 /** Where a plant is gone (src/detail/error.js goneAt): the land under it wears its stand's colour or its floor, so leaving
     it out differs by how far it stands over the ground, of its size on screen's measure, the most of its shapes'. */
-export const goneOf = (a) => {
+const goneOf = (a) => {
   let e = 0; for (let i = 0; i < (a.shapeCount ?? 1); i++) e = Math.max(e, Math.max(0, (a.heights?.[i] ?? most(a.size.height)) - FOOT) / shapeSize(a, i));
   return goneAt(e || 1);
 };

@@ -8,7 +8,7 @@
 // them: the pixels drawn (the inside's, at the governor's ratio of the screen's: src/core/screen.js), through the
 // walker's 68° lens. One rule decides every switch of detail, at runtime:
 //
-//     errorPx(e, dist) = e · pxK() / dist  ≤  ERROR_PX()        on the GPU: errPx(e, dist) ≤ U.uErrorPx (measure.js)
+//     e · pxK() / dist  ≤  ERROR_PX()        on the GPU: e · U.uPxK / dist ≤ U.uErrorPx (measure.js)
 //
 // e in metres (a thing drawn at a scale: its object-space metres times that scale), dist as the measure has distances
 // (through the lens: src/world/noise.nodes.js camDist). ERROR_PX is a dial, not a constant: the governor turns it with
@@ -28,16 +28,10 @@ export const ERROR_PX = () => DIAL;
 /** The live pixel: pixels drawn a metre covers one metre from the eye, through the walker's 68° lens (the inside's height
     in pixels, at the governor's ratio: measure.js keepMeasure). */
 export const pxK = () => K;
-/** The pixels drawn by which a rung of error e (metres) differs from the thing at full detail, seen dist metres off. */
-export const errorPx = (e, dist) => (e * K) / Math.max(dist, 1e-9);
-/** The one rule: whether a rung of error e (metres) may stand in for the thing, dist metres off. */
-export const fits = (e, dist) => errorPx(e, dist) <= DIAL;
 /** The page's numbers now, kept by the measure only (src/detail/measure.js): the live pixel and the dial. */
 export const keepNumbers = ({ k = K, dial = DIAL } = {}) => { K = k; DIAL = dial; };
 
 // ---- the same rule in the shapes that are handy: a distance, a size on screen ----
-/** The distance (as the measure has distances) from which a rung of error e (metres) fits. */
-export const fitsFrom = (e) => (e * K) / DIAL;
 /** The most dial pixels a thing may cover for a rung whose error is the share `s` of its size (metres over its size) to
     fit: a size on screen at any dial. */
 export const switchPx = (s) => 1 / Math.max(s, 1e-12);
@@ -69,9 +63,9 @@ export const GONE = goneAt(1);
     level 0 ends. */
 export const PX_CUT = 256;
 /** The share of its size a thing at the coarse end of level l may be off by (2^l / PX_CUT). */
-export const levelErr = (l) => 2 ** l / PX_CUT;
+const levelErr = (l) => 2 ** l / PX_CUT;
 /** The level whose shares hold the share s (the error allowed a thing, over its size). */
-export const levelOf = (s) => Math.max(0, Math.ceil(Math.log2(Math.max(s, 1e-12) * PX_CUT) - 1e-9));
+const levelOf = (s) => Math.max(0, Math.ceil(Math.log2(Math.max(s, 1e-12) * PX_CUT) - 1e-9));
 /** Level l's lowest size on screen (dial pixels); rungAt(px): the level whose lowest is the largest at or under px. */
 export const rungPx = (l) => switchPx(levelErr(l));
 export const rungAt = (px) => levelOf(1 / Math.max(px, 1e-12));
