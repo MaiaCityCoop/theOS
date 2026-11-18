@@ -10,8 +10,8 @@
 //     update()   each frame, after the rig has moved: every row's points carried by their joints, into a texture the
 //                shader reads (a row a strand); each strand's belly swollen or thinned by how much shorter or longer it
 //                stands than at rest, so its volume stays what it was
-//     level(d)   the level of detail for an eye d metres away: every ring and every point round it near, the coarse
-//                surface far
+//     level(d)   the level of detail for an eye d metres away: the muscles' every ring and every point round it near,
+//                their coarse surface far; the skin's the coarsest of its three that the measure allows there
 //
 // In the shader, a point is found on its curve again, each frame: the curve through its row's points (Catmull-Rom,
 // the same numbers the workers laid it with), the frame there (along it, out, across), and the point's own place in
@@ -24,6 +24,7 @@ import { U } from '../../../src/core/uniforms.js';
 import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull } from '../../../src/world/light.js';
 import { CASTS } from '../../../src/world/shadow.js';
 import { SLOTS, COLS } from './layout.js';
+import { pxOn, ERROR_PX } from '../../../src/detail/measure.js';
 
 /** How far away the far level takes over (m). */
 export const FAR = 7;
@@ -79,12 +80,12 @@ export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
     }
     geo.setAttribute('snor', new THREE.BufferAttribute(S.attr.nor, 3));
     geo.setAttribute('look', new THREE.BufferAttribute(S.attr.look, 4));
-    const far = geo.clone(); for (const k of Object.keys(geo.attributes)) far.setAttribute(k, geo.attributes[k]);   // (the same buffers)
-    geo.setIndex(new THREE.BufferAttribute(S.fine, 1)); far.setIndex(new THREE.BufferAttribute(S.coarse, 1));
-    for (const g of [geo, far]) g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 1.4);
-    const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.layers.enable(CASTS);
+    if (S.attr.feel) geo.setAttribute('feel', new THREE.BufferAttribute(S.attr.feel, 4));   // (the skin's: how it curves, how thick the body is under it)
+    // (each coarser level the same buffers under its own faces: the skin's three, the muscles' two)
+    const levels = [S.fine, S.coarse, S.far].filter(Boolean).map((index) => { const g = geo.clone(); for (const k of Object.keys(geo.attributes)) g.setAttribute(k, geo.attributes[k]); g.setIndex(new THREE.BufferAttribute(index, 1)); g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 1.4); return g; });
+    const mesh = new THREE.Mesh(levels[0], mat); mesh.frustumCulled = false; mesh.layers.enable(CASTS);
     mesh.renderOrder = order;   // (what covers is drawn before what it covers, so what is hidden is never shaded)
-    mesh.userData.levels = [geo, far]; mesh.userData.faces = S.fine.length / 3;
+    mesh.userData.levels = levels; mesh.userData.faces = S.fine.length / 3; mesh.userData.off = S.off ?? null;
     return mesh;
   };
   // (a muscles' payload of its own, or a body's: its muscles and its skin)
@@ -94,13 +95,16 @@ export function fleshOf(D, { object, bones, eye = uniform(U.uCam.value) }) {
   if (rest) { rest.magFilter = rest.minFilter = THREE.NearestFilter; rest.generateMipmaps = false; rest.needsUpdate = true; }
   const mats = [materialOf(tex, eye, 'muscle'), S && materialOf(tex, eye, 'skin', 0, rest), S && materialOf(tex, eye, 'fat', D.skinThick ?? 0.0018, rest)];
   const muscles = meshOf(M, mats[0], -1), skin = meshOf(S, mats[1], -3), fat = S ? meshOf(S, mats[2], -2) : null;
-  if (fat) { fat.geometry = skin.geometry; fat.userData.levels = skin.userData.levels; }
+  if (fat) { fat.geometry = skin.geometry; fat.userData.levels = skin.userData.levels; fat.userData.off = skin.userData.off; }
   const eyes = S ? eyesOf(bones, eye) : [];
-  let lv = 0;
+  // Which level an eye d metres away is shown. The skin's by the one measure (src/detail/measure.js): the coarsest of
+  // its levels that stands off the smooth surface by no more than ERROR_PX pixels there (its `off`, metres, measured as
+  // it was laid: ../skin/build.js). The muscles' by their distance, as they were.
+  const want = (m, d) => { const off = m.userData.off; if (!off) return d > FAR ? 1 : 0; let k = 0; while (k + 1 < off.length && pxOn(off[k + 1], d * U.uLodInv.value) <= ERROR_PX) k++; return k; };
   return {
     muscles, skin, fat, eyes, update,
     counts: { muscles: (D.muscleList ?? M.muscles ?? []).length, strands: H, muscleFaces: muscles?.userData.faces ?? 0, skinFaces: skin?.userData.faces ?? 0 },
-    level(d) { const want = d > FAR ? 1 : 0; if (want === lv) return; lv = want; for (const m of [muscles, skin, fat]) if (m) m.geometry = m.userData.levels[want]; },
+    level(d) { for (const m of [muscles, skin, fat]) if (m) { const g = m.userData.levels[Math.min(m.userData.levels.length - 1, want(m, d))]; if (m.geometry !== g) m.geometry = g; } },
     dispose() { for (const m of [muscles, skin]) if (m) for (const g of m.userData.levels) g.dispose(); tex.dispose(); rest?.dispose(); for (const m of mats) m?.dispose(); for (const e of eyes) { e.geometry.dispose(); e.material.dispose(); } },
   };
 }
