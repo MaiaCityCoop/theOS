@@ -5,20 +5,20 @@
 // of detail are first shares of that one mesh, made by the crowd kit (assets/kit/crowd.js, assets/kit/plant.js).
 //
 //   export default tree({ uid, type: 'asset', name, kind: 'tree', materials: { wood, leaves }, growth, grow, shade,
-//                         levels: [{ P }, …], placement: { biome, share, … }, … })
+//                         placement: { biome, cover, … }, … })
 //
 // growth { years, variants, form(year, v), height(year) }: its stages of growth, by age (or, without it, shapes: a list).
-// litter { material, tile }: what it drops: the ground under it where it leads in its stand (the land lays it).
-// A shrub is built the same way (kind `shrub`: assets/kinds.js), and stands in its biome's understory: placement.stand
-// names which of the biome's stands it joins (`shrubs`; a tree's, unnamed, is `trees`).
-// placement.where({ p }): where in its stand it likes to grow, 0..1 (node code), if not everywhere.
-// placement { biome, share, scale, lean, seed }: its biome, whose stand it joins (the biome's `trees`: the cells, the
-// groves, the ages, the same for every kind of tree that grows there); share, its part of that stand's cells (one tree a
-// cell: a mix); scale, one tree's own size about its age's height; seed, its shapes' (another seed: other trees of its kind).
+// litter { material, tile }: what it drops: the ground under it where it leads among its biome's trees (the land lays it).
+// A shrub, a herb or what lies on the floor is built the same way (kinds `shrub`, `herb`, `litter`: assets/kinds.js;
+// assets/kit/floor.js for what lies).
+// placement { biome, cover, light, under, young, scale, lean, seed }: what the one placement rule reads of it
+// (src/scatter/rule.js): its biome; cover, how much of the ground it covers where it grows best; light, how thick it
+// grows in deep shade and in the open ([0..1, 0..1]); under, whose litter it lies or comes up in (uids); young, how much
+// of the ground its saplings cover (a tree with growth); scale, one plant's own size about its age's height; seed, its
+// shapes' (another seed: other plants of its kind).
 //
-// levels: one { P } for each of its levels (P: cells per patch side); after them its far ones, where the crowd kit's far
-// body stands for it: two (`far: { P }`, `speck: false` for one, `far: false` for none). Where each ends on screen is its
-// kind's (assets/kinds.js px).
+// Its levels are its kind's (assets/kinds.js: as many as its px, its far ones as its `far` says); a recipe says them
+// only where it differs (levels: [{ P }, …], far: { P, speck } or false).
 // fine { sprig, twig }: its finest is splayed (splayOf): every sprig laid out as its painting's twigs, a spray, each twig
 // a card of its own painting (twig: a material of one whole twig); sprig: its leaves' paintings as numbers
 // (materials/*.twigs.js).
