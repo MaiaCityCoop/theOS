@@ -193,6 +193,7 @@ numbers are written below.
 | Occlusion culling | `aven/0038-draw-occlusion`, PR #68 | CI green | Views from above draw only 2–8 % of main's things: prove with gate stills at `bench-river-bend-26m`, `bench-town-40m` and `bench-pine-forest-90m` that nothing visible is missing (FLIP within noise) |
 | 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
 | 7: one placement rule, the forest in layers | `aven/0038-stage7-layers`, PR #73 (ready for review) | Built, merged with main (`314e2e6`), measured (under Build, Stage 7); CI green | The master's review; Samuel to judge the floor (pictures on `aven/0038-shots`, `stage7/`); the research's floor kinds and the site's species come after 8 and 9 |
+| One measure everywhere | `aven/0038-one-measure`, PR #82 (7 and 8 merged in) | Built on the MacBook, CPU checks only (under Build, One measure everywhere) | The Mac mini: FLIP against the truth at the views named there, the bench, the paths, memory; after #80 |
 
 **Not started:**
 - **6c:** relief, meaning displacement near the eye, parallax further out, skirts for rocks, path decals. 6b's pages
@@ -1386,6 +1387,8 @@ everything below was checked on the CPU.
 - [ ] Stage 7: placement, five layers
   - [x] one rule, the growth map, the forest's layers and their kinds (built; draft PR #73)
 - [ ] Stage 8: surfaces, cluster hierarchy (built: rocks, the tent and the fire pit; the stress world's zoo to 8b)
+- [ ] One measure everywhere: every rung where its own error is the one ERROR_PX (built, CPU-checked; PR #82, to be
+  measured on the Mac mini)
 - [ ] Stage 9: one light, characters
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
 
@@ -1554,6 +1557,28 @@ everything below was checked on the CPU.
 - **Not there yet:** not measured against the truth (?truth black since 6b); the pines from 30 m and the stress
   world's start not settled (6b, fixed in 6c); the timings left to the Mac mini; the rest under the stage's Not done.
 
+- **Asked (by the master on the Mac mini):** one measure everywhere: `ERROR_PX` with `error.js` drives every switch
+  of detail, each from the asset's own error against its full detail, through one function. Delete the kinds' pixel
+  bands, `fade` and `sink`, the plants' levels, the grass's 15, 42 and 88 m and every other hand-set threshold of
+  detail; constants of physics and ecology stay. Stages 7 and 8 merged in. CPU only: the MacBook rebooted twice under
+  GPU load.
+- **Delivered:** built (under Build, One measure everywhere), PR #82:
+  - `errorPx` and `switchPx` in `error.js`: crowds by their spread order's share error, clumps and impostors by their
+    bake's, the grass's rings by their blades, a thing's end by how far it stands off the land;
+  - the levels cut as one where they hold the same;
+  - `scale.js` checks that no asset holds detail data.
+- **Good:**
+  - no kind or asset file holds a size on screen, a fade or a ring any more (25 places found on the tree before);
+  - the cut's pop check and triangles are unchanged;
+  - every level fits its room;
+  - `scale.js` 24 of 24, both builds pass.
+- **Not there yet:**
+  - nothing was drawn here: FLIP, the bench, the paths and memory are the Mac mini's;
+  - a rough CPU model reads the plants' mesh vertices +37 % and the grass 6× (the crowds whole down to their clumps,
+    trees to 21 km, the meadow's rings within 1 px), so `ERROR_PX` may have to rise;
+  - the stress world's ladder waits for 8b;
+  - the per-plant offset still reckons a plant up to 1/0.72 small.
+
 ## Trail
 
 | When | Commit | What |
@@ -1603,3 +1628,12 @@ everything below was checked on the CPU.
 | 2026-11-18 | `16f8e01` | Stage 7: the growth map keyed on the sandbox and the stage, not the ground map's fade |
 | 2026-11-18 | `1aac442` | Stage 7 merged with main (6b): the land's litter and far colours read the rule's stands |
 | 2026-11-18 | `3907ce7` | Stage 7 merged with main (`314e2e6`) |
+| 2026-11-18 | `1937ba4` | One measure: stage 7 merged in, from main at `d471cd1` |
+| 2026-11-18 | `c077f59` | One measure: stage 8 merged in, both sides' kinds kept, the intent's doubled rows once |
+| 2026-11-18 | `81ac770` | One measure: stage 8's new head (`3c3b261`) merged in |
+| 2026-11-18 | `a887bbb` | One measure everywhere: `switchPx`; the kinds' bands, fades and sinks, the grass's rings and the other thresholds deleted; check 4b |
+| 2026-11-18 | `11d9aa0` | One measure: merged with main (`5be13a8`, stage 7) |
+| 2026-11-18 | `ae325f2` | One measure: a made thing's card only where it can be baked; the detail engine's README |
+| 2026-11-18 | `5fedb4b` | One measure: a plant's last level ends at its own end, a stand's at its last kind's |
+| 2026-11-18 | `d55430d` | One measure: the notes in the code in fewer lines |
+| 2026-11-18 | `8e9cc38` | One measure: its notes under Build |
