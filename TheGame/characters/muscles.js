@@ -10,7 +10,7 @@ const muscles = {
   type: 'character',
   name: 'Muscles',
   kind: 'anatomy',
-  about: 'The muscles of a man of 1.80 m on his skeleton, as an anatomy figure shows them: each from its origin to its insertion, as large as a real one, its tendons pearl white. They move with the skeleton\'s ninety joints: a muscle that shortens swells, one that lengthens thins, and its volume stays what it was.',
+  about: 'The muscles of a man on his skeleton, origin to insertion.',
   made: 'Over a hundred muscles a side, from the trunk, the shoulders, the arms, the hands, the hips, the legs, the feet, the neck and the face, laid on the skeleton\'s bones from Gray\'s Anatomy (1918) and sized by the volumes measured in living men by MRI (Handsfield et al. 2014, Holzbaur et al. 2007); grown in the page from our own code.',
   layers: ['bones', 'muscles'],
   height: 1.8,   // the man its muscles are laid for: the body kit's man of reference (./kit/skeleton.js)

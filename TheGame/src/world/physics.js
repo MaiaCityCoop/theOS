@@ -16,3 +16,16 @@ export const SOIL_RELIEF = 0.05;
     (Quarterly Journal of Experimental Psychology 62): fixations of 225 to 250 ms in reading, 260 to 330 ms in scene
     perception; the shortest. */
 export const FIXATION = 0.25;
+
+/** How tall grown men and women stand: the mean and the standard deviation of each. A figure brought in whole is
+    measured against it (characters/kit/figure.js: its recipe's measure). unit: m. source: ANSUR II (Gordon et al. 2014,
+    "2012 Anthropometric Survey of U.S. Army Personnel", NATICK/TR-15/007), stature: men 1.756, women 1.629; their
+    standard deviations as remembered from it (the report was not at hand when this was written). */
+export const STATURE = { man: { mean: 1.756, sd: 0.069 }, woman: { mean: 1.629, sd: 0.064 } };
+
+/** Of the way an arm is raised or let down at the side, the share that is the shoulder girdle's own (the collar bone
+    and the blade), the rest the arm's in its socket. A figure that comes with its arms out has them brought down by it
+    (characters/kit/figure.js). unit: a share of the whole, 0 … 1. source: Inman, Saunders & Abbott 1944, "Observations
+    on the function of the shoulder joint" (Journal of Bone and Joint Surgery 26): two parts in the socket to one of
+    the girdle, over the arm's raise. */
+export const SHOULDER_RHYTHM = 1 / 3;

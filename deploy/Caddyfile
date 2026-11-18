@@ -45,9 +45,30 @@
 	header ?Cache-Control "no-cache"
 }
 
+# A hashed file asked for and not there: a page of a build the host no longer serves asking for its own (deploy.sh
+# serves the build before besides the new one, so it takes two deploys while a page is open). Each such request is
+# logged, its page in its Referer, so the next one is on record; nothing else is. {args[0]}: the site's name.
+(lost) {
+	log {
+		output file /var/log/caddy/{args[0]}-lost.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format json
+	}
+	@not_lost {
+		not {
+			path /assets/*
+			not file
+		}
+	}
+	log_skip @not_lost
+}
+
 @WEBSITE_HOST@ {
 	root * /srv/maia-city/current/website
 	import public
+	import lost website
 	import files
 	header Content-Security-Policy "frame-ancestors 'self'"
 }
@@ -55,6 +76,7 @@
 @GAME_HOST@ {
 	root * /srv/maia-city/current/game
 	import public
+	import lost game
 	import api
 	import files
 	# The website frames the game; nothing else may.

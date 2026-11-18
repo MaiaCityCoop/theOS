@@ -41,6 +41,8 @@ import { Fn, If, Loop, float, int, uint, vec2, vec3, vec4, uvec4, ivec2, uniform
 import { gpuStorage, gpuStorageLater, more, limitOf, remade } from './gpu.js';
 import { passOf } from './pass.js';
 import { windStrength, snowDepth } from '../world/light.js';
+import { OUTPUT } from './budget.js';
+import { outputRatio } from './output.js';
 
 const WG = 64, SW = 256, EPS = 2 ** -21;   // EPS: how much farther than the pyramid a box must be to be hidden (a few steps of a 24-bit depth); SW: the scans' workgroup
 const LEVELS = 16;   // the pyramid's levels at most (2^16 texels a side)
@@ -70,7 +72,9 @@ const U = {
 let PYR = null;   // the pyramid's buffer: made with the first tier that is culled (its size: the largest screen it can serve)
 const pyramidNode = () => {
   if (!PYR) {
-    const w = Math.ceil(Math.max(3840, (globalThis.innerWidth ?? 1920) * 2) / 2), h = Math.ceil(Math.max(2160, (globalThis.innerHeight ?? 1080) * 2) / 2);
+    // (the output's canvas (src/core/output.js), and this window's where it is wider or taller: a window made of another
+    // shape later, larger than that, has nothing hidden: build)
+    const r = outputRatio(), w = Math.ceil(Math.max(OUTPUT.width, (globalThis.innerWidth ?? OUTPUT.width) * r) / 2), h = Math.ceil(Math.max(OUTPUT.height, (globalThis.innerHeight ?? OUTPUT.height) * r) / 2);
     let n = 0; for (let x = w, y = h; ; x = Math.ceil(x / 2), y = Math.ceil(y / 2)) { n += x * y; if (x === 1 && y === 1) break; }
     PYR = { w0: w, h0: h, n, buf: gpuStorage('float', n, 'the depth pyramid (occlusion)') };
   }
