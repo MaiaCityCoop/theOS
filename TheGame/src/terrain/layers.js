@@ -15,7 +15,7 @@
 //   the stands' cover       the two thickest stands (STANDS below): how thick each grows there and its crowns' pattern
 //   the grass's colour      its tint, and which two stands those are
 import * as THREE from 'three/webgpu';
-import { If, Loop, float, int, uint, vec2, vec3, abs, max, min, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup } from 'three/tsl';
+import { If, Loop, float, int, uint, vec2, vec3, abs, max, clamp, smoothstep, log2, sqrt, round, uniformArray, renderGroup } from 'three/tsl';
 import { U } from '../core/uniforms.js';
 import { byRole } from '../core/registry.js';
 import { riverInfo, biomesAt, grassFrom, groveAt, leadAt, pathN, pathMask, bareMask, outcropMask, placeOff, stageAt, grassTint, BASE, LAID } from '../world/land.nodes.js';
@@ -23,7 +23,6 @@ import { standsOf, rowsOf } from '../scatter/rule.js';
 import { detailOf } from '../detail/index.js';
 import { TRUTH, REACH } from '../detail/measure.js';
 import { sizeOf } from '../../assets/kinds.js';
-import { BOX } from '../world/shadow.js';
 const noise = byRole('noise');   // the baked cloudy noise: whichever material plays that part (its `role`)
 
 const EMPTY = 255, NO_STAND = 15;
@@ -76,13 +75,23 @@ for (const bio of LAID) for (const { P, kinds, CV } of standsOf(bio, rowsOf())) 
   // from/to
   const A = kinds.map((k) => k.asset).sort((x, y) => sizeOf(y) / detailOf(y).cut - sizeOf(x) / detailOf(x).cut)[0];
   const cutPx = A ? detailOf(A).cut : 0, span = cutPx ? (sizeOf(A) * (A.placement.scale?.[1] ?? 1)) / cutPx : 0;   // (last = uPxK × span: the measure's farAt, src/detail/measure.js)
-  const SH = A?.detail?.shadow;   // where its shadows are no longer drawn: past the map's box, or past the trees' stand-in in it
-  STANDS.push({ bio, P, grain: CV.grain ?? 1, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? [0.3, 0.68] : [CV.from ?? 1e9, CV.to ?? 2e9], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1 });
+  const SH = A?.detail?.shadow;   // where its shadows are no longer drawn: past the trees' stand-in, the cascades' reach
+  // what of it casts (src/world/shadow.js): its trees' crowns at their oldest, where each begins over the ground (the
+  // kit's form: assets/kit/tree.js growth.base), and the tallest of it (its measure's most)
+  const cast = kinds.map((k) => k.asset).filter((a) => detailOf(a).casts !== false);
+  const crown = Math.min(...cast.filter((a) => a.growth?.base).map((a) => a.growth.base(a.growth.years.at(-1)))), top = Math.max(0, ...cast.map((a) => a.measure?.most ?? a.size.height));
+  STANDS.push({ bio, P, grain: CV.grain ?? 1, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? [0.3, 0.68] : [CV.from ?? 1e9, CV.to ?? 2e9], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, top });
 }
 if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} stands that wear a colour: four bits name at most ${NO_STAND - 1}`);
 /** How far round the camera the shadows of the stands that cast them are drawn at the most (-1: none casts): past it, a
     stand's floor lies in its crowns' shade, the pixel's own (src/terrain/material.js). */
 export const SHADE_REACH = Math.max(-1, ...STANDS.map((S) => S.reach));
+/** The lowest a crown begins over the ground among the trees that cast, at their oldest (metres; Infinity: none): the
+    shadow cascades' finest texel is the sun's penumbra from it (src/world/shadow.js useCascades). */
+export const CROWN_BASE = Math.min(...STANDS.map((S) => S.crown));
+/** The tallest thing that casts in a stand (metres, its measure's most): how far round a point its shadow's blockers are
+    looked for (src/world/light.js). */
+export const CASTER_TOP = Math.max(0, ...STANDS.map((S) => S.top));
 
 const byte = (v) => uint(round(clamp(v, 0, 1).mul(255)));
 const un = (w, k) => float(w.shiftRight(uint(8 * k)).bitAnd(uint(255))).mul(1 / 255);
@@ -242,7 +251,4 @@ export const standFade = (S, dist2) => {
   const last = TRUTH ? max(U.uPxK.mul(S.span), REACH) : U.uPxK.mul(S.span);
   return S.span.greaterThan(0).select(smoothstep(last.mul(S.a), last.mul(S.b), dist2), smoothstep(S.a, S.b, dist2));
 };
-/** How far the shadow map reaches round the camera for a stand whose shadows reach `reach` metres (src/world/shadow.js:
-    its box grows with the camera's height). */
-export const shadowReach = (reach) => min(U.uAirH.mul(BOX.grow).add(BOX.min), reach);
 export { NO_STAND };

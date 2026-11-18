@@ -12,7 +12,7 @@ import { passOf } from '../core/pass.js';
 import { lane } from './weather/lanes.js';
 import { surfaceHooks, airHooks } from './weather/index.js';
 import { cloudShade } from './weather/clouds.js';
-import { BIAS, SHADOW_S } from './shadow.js';
+import { cascades } from './shadow.js';
 import { blueAt } from './light/noise.js';
 import { SUN_DIAMETER } from './light/physics.js';
 import { SCREEN } from './light/screen.js';
@@ -89,55 +89,59 @@ export const weathered = (col, n, lift = 0) => (weatheredF ||= Fn(([c, nn, l]) =
 // a screen noise (interleaved gradient): for the shadow's taps and the hand-over between levels
 export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(52.9829189));
 
-// shadows: what the casters hide of the light, from the two cascades round the camera (src/world/shadow.js: the two
-// layers of one depth array, the near one first); 1 lit, 0 in shadow. uShadowM and uShadowM2 take a world point
-// straight to each cascade's (u, v, depth), whichever way up the backend keeps it. A point is read in the near one where
-// it lies inside it, the hand-over to the far one dithered over the near one's last tenth (the picture built over time
-// averages it), and the far one fades out at its own edge.
+// shadows: what the casters hide of the light, from the cascades round the camera (src/world/shadow.js: the layers of
+// one depth array, the near one first, each twice the one before); 1 lit, 0 in shadow. Each cascade's matrix
+// (shadow.js cascades().mats) takes a world point straight to its (u, v, depth), whichever way up the backend keeps it.
+// A point is read in the first one it lies inside, the hand-over to the next dithered over a cascade's last tenth (the
+// picture built over time averages it), and the last fades out at its own edge.
 //
 // The near one is soft as the sun makes it (PCSS, Fernando 2005): six reads round the point find how far the casters
 // above it stand (the blockers' mean depth), and its penumbra is that distance times the width of the sun's disc
 // (0.53°): a leaf a hand above the path throws a sharp shadow, a crown 15 m up a soft one, so a canopy's light falls as
 // the round flecks a real one does. Then eight taps over that penumbra, each compared and filtered over 2 x 2 texels by
 // the GPU (a comparison sampler), on a disc turned by the blue noise from pixel to pixel and frame to frame (one turn a
-// pixel: its cosine and sine once, not a tap's each). The far one takes four taps, about a texel and a half out.
-const PEN = 0.45;   // the widest penumbra, metres (the blockers are looked for this far round). derive: SUN_DIAMETER times how far the highest caster stands over what it shades
+// pixel: its cosine and sine once, not a tap's each), the blockers looked for as far round as the widest penumbra reaches
+// (U.uShadowPen: the sun's disc over the tallest caster's way along the light, src/world/shadow.js). The others take four
+// taps each, about a texel and a half out.
 // a Vogel disc of n taps (radius 1), its first turned by a0: as numbers, turned for a pixel by its (cos, sin)
 const disc = (n, a0 = 0) => Array.from({ length: n }, (_, i) => { const r = Math.sqrt((i + 0.5) / n), a = a0 + i * 2.399963; return [Math.cos(a) * r, Math.sin(a) * r]; });
 const BLOCKERS = disc(6), TAPS = disc(8, 1.3);
 const turned = ([x, y], cs) => vec2(cs.x.mul(x).sub(cs.y.mul(y)), cs.y.mul(x).add(cs.x.mul(y)));
 /** a point in cascade k: { q (u, v, depth), e (how far inside: 0 at its edge, 1 a tenth in) } */
 const cascade = (w, k) => {
-  const s = (k ? U.uShadowM2 : U.uShadowM).mul(vec4(w, 1)), q = s.xyz.div(s.w), m = min(min(q.x, q.y), min(float(1).sub(q.x), float(1).sub(q.y)));
+  const s = cascades().mats[k].mul(vec4(w, 1)), q = s.xyz.div(s.w), m = min(min(q.x, q.y), min(float(1).sub(q.x), float(1).sub(q.y)));
   return { q, e: smoothstep(0, 0.1, m).mul(q.z.lessThan(1).select(float(1), float(0))) };
 };
-const depthAt = (uv, k) => float(U.tShadow.load(ivec2(clamp(uv.mul(SHADOW_S), vec2(0), vec2(SHADOW_S - 1)))).depth(int(k)));
+const depthAt = (uv, k) => { const S = cascades().S; return float(U.tShadow.load(ivec2(clamp(uv.mul(S), vec2(0), vec2(S - 1)))).depth(int(k))); };
 const compareAt = (uv, k, z) => U.tShadow.sample(uv).depth(int(k)).level(0).compare(z);
-// the near cascade, soft as the sun's disc makes it (the taps over a penumbra `pen` metres wide); the far one, four taps
-const taps = (q, z, cs, pen) => { const perM = float(1).div(U.uShadowSize.x), k = float(0).toVar(); for (const d of TAPS) k.addAssign(compareAt(q.xy.add(turned(d, cs).mul(pen.mul(0.5).mul(perM))), 0, z)); return k.div(TAPS.length); };
+// the near cascade, soft as the sun's disc makes it (the taps over a penumbra `pen` metres wide); the others, four taps
+const taps = (q, z, cs, pen) => { const perM = 1 / (2 * cascades().half[0]), k = float(0).toVar(); for (const d of TAPS) k.addAssign(compareAt(q.xy.add(turned(d, cs).mul(pen.mul(0.5 * perM))), 0, z)); return k.div(TAPS.length); };
 const nearSoft = (q, z, cs) => {
-  if (!texelReads) return taps(q, z, cs, U.uShadowSize.x.mul(3 / SHADOW_S));   // (WebGL 2 reads no texel of a texture it compares: no blockers, a penumbra of three texels)
-  const perM = float(1).div(U.uShadowSize.x), found = float(0).toVar(), sum = float(0).toVar();
-  for (const d of BLOCKERS) { const b = depthAt(q.xy.add(turned(d, cs).mul(PEN * 0.5).mul(perM)), 0); If(b.lessThan(z), () => { sum.addAssign(b); found.addAssign(1); }); }
+  const C = cascades(), perM = 1 / (2 * C.half[0]);
+  if (!texelReads) return taps(q, z, cs, float(3 * C.texel[0]));   // (WebGL 2 reads no texel of a texture it compares: no blockers, a penumbra of three texels)
+  const found = float(0).toVar(), sum = float(0).toVar();
+  for (const d of BLOCKERS) { const b = depthAt(q.xy.add(turned(d, cs).mul(U.uShadowPen.mul(0.5 * perM))), 0); If(b.lessThan(z), () => { sum.addAssign(b); found.addAssign(1); }); }
   const r = float(1).toVar();
-  If(found.greaterThan(0), () => { r.assign(taps(q, z, cs, clamp(z.sub(sum.div(found)).mul(U.uShadowRange.x).mul(SUN_DIAMETER), U.uShadowSize.x.mul(1.5 / SHADOW_S), PEN))); });
+  If(found.greaterThan(0), () => { r.assign(taps(q, z, cs, clamp(z.sub(sum.div(found)).mul(C.range[0]).mul(SUN_DIAMETER), 1.5 * C.texel[0], U.uShadowPen))); });
   return r;
 };
-const farSoft = (q, z) => { const k = float(0).toVar(); for (const [i, j] of [[-0.62, -0.24], [0.24, -0.62], [0.62, 0.24], [-0.24, 0.62]]) k.addAssign(compareAt(q.xy.add(vec2(i, j).mul(1.7 / SHADOW_S)), 1, z)); return k.div(4); };
+const farSoft = (q, z, k) => { const s = float(0).toVar(); for (const [i, j] of [[-0.62, -0.24], [0.24, -0.62], [0.62, 0.24], [-0.24, 0.62]]) s.addAssign(compareAt(q.xy.add(vec2(i, j).mul(1.7 / cascades().S)), k, z)); return s.div(4); };
 /** The shadow at w, a pixel's (n: its normal, for the offset that keeps a surface from shading itself). how: 'soft',
     'one' (one tap), 'pulled' (what is drawn into the map pulled towards the light allows for its own pull too). */
 const shadowOf = (w, n, how) => {
-  const r = float(1).toVar(), bias = how === 'pulled' ? 2 : 1;
+  const r = float(1).toVar(), pull = how === 'pulled' ? 2 : 1, C = cascades();
   If(U.uShadowOn.greaterThan(0.5), () => {
     const N = n ?? vec3(0), noise = blueAt(screenCoordinate.xy), turn = noise.x.mul(Math.PI * 2), cs = vec2(cos(turn), sin(turn));
-    const A = cascade(w.add(N.mul(U.uShadowSize.x.mul(1.2 / SHADOW_S))), 0);
-    If(A.e.greaterThan(noise.y), () => {
-      const z = A.q.z.sub(U.uShadowRange.z.mul(bias));
-      r.assign(how === 'one' ? compareAt(A.q.xy, 0, z) : nearSoft(A.q, z, cs));
-    }).Else(() => {
-      const B = cascade(w.add(N.mul(U.uShadowSize.y.mul(1.2 / SHADOW_S))), 1), z = B.q.z.sub(U.uShadowRange.w.mul(bias));
-      If(B.e.greaterThan(0), () => { r.assign(mix(1, how === 'one' ? compareAt(B.q.xy, 1, z) : farSoft(B.q, z), B.e)); });
-    });
+    // read in the first cascade the point lies in (the hand-over to the next dithered over a cascade's last tenth: the
+    // picture built over time averages it), the last fading out at its own edge; moved off along its normal by 1.2 of
+    // that cascade's texels, and its depth back by that cascade's bias
+    const inK = (k) => {
+      const A = cascade(w.add(N.mul(1.2 * C.texel[k])), k), z = A.q.z.sub((C.bias[k] / C.range[k]) * pull);
+      const here = () => (how === 'one' ? compareAt(A.q.xy, k, z) : k === 0 ? nearSoft(A.q, z, cs) : farSoft(A.q, z, k));
+      if (k === C.n - 1) { If(A.e.greaterThan(0), () => { r.assign(mix(1, here(), A.e)); }); return; }
+      If(A.e.greaterThan(noise.y), () => { r.assign(here()); }).Else(() => inK(k + 1));
+    };
+    inK(0);
   });
   return r;
 };
@@ -148,7 +152,7 @@ export const shadowAtOne = (w, n = null) => shadowOf(w, n, 'one');
 /** What stands on the ground and casts (a person: characters/kit/human.js) is drawn into the atlas pulled towards the
     light by the near cascade's bias, so its shadow starts where it touches the ground: unpulled, the bias would leave
     the ground lit for a hand's breadth round its feet. This is how far, in metres along the light. */
-export const casterPull = () => float(BIAS[0]);
+export const casterPull = () => U.uShadowPull;
 /** shadowAt for what casts pulled (casterPull): it allows for its own pull as well as the bias, or it would shade itself
     all over */
 export const shadowAtPulled = Fn(([w]) => shadowOf(w, null, 'pulled'));
@@ -158,27 +162,33 @@ export const shadowAtPulled = Fn(([w]) => shadowOf(w, null, 'pulled'));
 // crown in the wind) threw whole cards from light into shade and back, a flicker all through the crown. So nine texels
 // round the corner (every other one of a 5 x 5), each weighed by how near the corner lies to it (a smooth bell: the
 // weights slide as the corner moves, none jumps), and each compared over a depth (VSOFT), not at one: a corner's light
-// changes as little as what moved. In the near cascade where it lies inside it, the far one beyond, blended between.
+// changes as little as what moved. In the first cascade it lies inside, the next beyond, blended between.
 const VSTEP = 2, VSOFT = 0.0008;   // every VSTEP-th texel; in shade from VSOFT (of the map's depth) past the bias
 const vertexIn = (A, k) => {
   // i: the nearest of the texels read; f: how far the corner lies from it, -0.5 .. 0.5 of their spacing
-  const t = A.q.xy.mul(SHADOW_S).sub(0.5).div(VSTEP), i = floor(t.add(0.5)), f = t.sub(i);
+  const S = cascades().S, t = A.q.xy.mul(S).sub(0.5).div(VSTEP), i = floor(t.add(0.5)), f = t.sub(i);
   const bell = (v) => [v.sub(0.5).mul(v.sub(0.5)).mul(0.5), float(0.75).sub(v.mul(v)), v.add(0.5).mul(v.add(0.5)).mul(0.5)];   // (the three weights along one axis: they add up to 1)
-  const wx = bell(f.x), wy = bell(f.y), z = A.q.z.sub(k ? U.uShadowRange.w : U.uShadowRange.z), s = float(0).toVar();
+  const wx = bell(f.x), wy = bell(f.y), z = A.q.z.sub(cascades().bias[k] / cascades().range[k]), s = float(0).toVar();
   for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) {
-    const p = clamp(i.add(vec2(a - 1, b - 1)).mul(VSTEP), 0, SHADOW_S - 1);
+    const p = clamp(i.add(vec2(a - 1, b - 1)).mul(VSTEP), 0, S - 1);
     s.addAssign(smoothstep(z.sub(VSOFT), z, float(U.tShadow.load(ivec2(p)).depth(int(k)))).mul(wx[a]).mul(wy[b]));   // lit where nothing nearer the light was drawn there
   }
   return s;
 };
+// (the corner's shadow from cascade k outwards: its own where it lies inside it, what lies beyond over its last tenth, the
+// last fading out at its own edge)
+const vertexFrom = (w, k) => {
+  const A = cascade(w, k), s = float(1).toVar();
+  if (k === cascades().n - 1) { If(A.e.greaterThan(0), () => { s.assign(mix(1, vertexIn(A, k), A.e)); }); return s; }
+  const own = float(1).toVar(), beyond = float(1).toVar();
+  If(A.e.greaterThan(0), () => { own.assign(vertexIn(A, k)); });
+  If(A.e.lessThan(1), () => { beyond.assign(vertexFrom(w, k + 1)); });
+  s.assign(mix(beyond, own, A.e));
+  return s;
+};
 export const shadowAtVertex = Fn(([w]) => {
   const r = float(1).toVar();
-  if (texelReads) If(U.uShadowOn.greaterThan(0.5), () => {
-    const A = cascade(w, 0), B = cascade(w, 1), near = float(1).toVar(), far = float(1).toVar();
-    If(A.e.greaterThan(0), () => { near.assign(vertexIn(A, 0)); });
-    If(A.e.lessThan(1).and(B.e.greaterThan(0)), () => { far.assign(mix(1, vertexIn(B, 1), B.e)); });
-    r.assign(mix(far, near, A.e));
-  });
+  if (texelReads) If(U.uShadowOn.greaterThan(0.5), () => { r.assign(vertexFrom(w, 0)); });
   return r;
 });
 /** true while the casters are drawn into the shadow map: a caster's fragment does no light then (only its depth counts) */

@@ -7,9 +7,8 @@
 //             it, a blade on the ground. As Bend's: a ray of fixed steps, its start dithered (here by the blue noise,
 //             which the picture built over time averages), a surface as thick as its depth says, the shadow faded
 //             towards the ray's end. It looks only for what the cascades cannot see (src/world/shadow.js): a caster
-//             nearer the surface than the cascade's bias and two of its texels, so its ray is that long (in the near
-//             cascade 0.14 m, in the far one 0.45 m near the ground), and none is marched where all of it lies under a
-//             pixel. Marched on
+//             nearer the surface than the cascade's bias and two of its texels (four texels of the cascade the point
+//             lies in), so its ray is that long, and none is marched where all of it lies under a pixel. Marched on
 //             the screen itself: its two ends projected once, the distance at each step a mix of theirs (no matrix a
 //             step), and every step's depth read before any is tested, so the reads go out together instead of each
 //             waiting on the one before (stage 9's march, one read waiting on the last, two matrices a step, every
@@ -22,7 +21,7 @@
 import * as THREE from 'three/webgpu';
 import { Fn, float, vec2, vec4, ivec2, uniform, texture, screenCoordinate, max, min, mix, clamp, If, length } from 'three/tsl';
 import { U } from '../../core/uniforms.js';
-import { SHADOW_S, BIAS } from '../shadow.js';
+import { cascades } from '../shadow.js';
 import { blueAt } from './noise.js';
 import { note, mark } from '../../core/gpu.js';
 
@@ -57,8 +56,10 @@ function createScreenLight(renderer) {
       // the way to the eye), nudged off the surface by its depth's own precision, its start dithered. Its two ends on the
       // screen and how far each lies: across the screen the distance's inverse runs straight, so a step's own distance is
       // a mix of the two ends'
-      const c = U.uShadowM.mul(vec4(w, 1)), near = c.x.greaterThan(0).and(c.y.greaterThan(0)).and(c.x.lessThan(1)).and(c.y.lessThan(1));
-      const len = min(near.select(U.uShadowSize.x.mul(2 / SHADOW_S).add(BIAS[0]), U.uShadowSize.y.mul(2 / SHADOW_S).add(BIAS[1])), dist.mul(0.5));
+      const C = cascades(), inside = (k) => { const c = C.mats[k].mul(vec4(w, 1)); return c.x.greaterThan(0).and(c.y.greaterThan(0)).and(c.x.lessThan(1)).and(c.y.lessThan(1)); };
+      const reach = (k) => C.bias[k] + 2 * C.texel[k];   // (what cascade k cannot see: its bias and two of its texels)
+      let far = float(reach(C.n - 1)); for (let k = C.n - 2; k >= 0; k--) far = inside(k).select(float(reach(k)), far);
+      const len = min(far, dist.mul(0.5));
       const L = view.mul(vec4(U.uSunDir, 0)).xyz, a = v0.add(L.mul(dist.mul(0.002))), b = a.add(L.mul(len)), pa = pixelOf(a), pb = pixelOf(b);
       If(length(pb.sub(pa)).greaterThan(1), () => {   // (a ray under a pixel finds nothing the cascades miss)
         const ia = float(1).div(a.z.negate()).toVar(), ib = float(1).div(b.z.negate().max(1e-3)).toVar(), j = blueAt(p).z.toVar(), thick = dist.mul(0.012).add(0.04), lo = dist.mul(0.004);

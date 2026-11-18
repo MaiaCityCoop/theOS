@@ -42,7 +42,6 @@ import { rnd, camDist, heightAt } from '../world/land.nodes.js';
 import { layersOf, posIn, placeIn, grownIn, grovesOf, writersOf } from './rule.js';
 import { createGrowth } from './growth.js';
 import { toScreen, airOf, lightOn, sunAt, contactShade, weatherOn, snowLiftAtVertex, unlit, windAt, windDir, windStrength, ign } from '../world/light.js';
-const THROUGH = vec3(1.15, 1.2, 0.5);   // the colour a leaf gives the sun it lets through: its own green twice over, yellower than it looks lit
 import { passOf, cut, motion, vWas } from '../core/pass.js';
 import { CLEARINGS } from '../../world/places.js';
 import { recipe, recipes, versionOf } from '../core/registry.js';
@@ -308,7 +307,7 @@ function plantMaterial(tex, D) {
         const leaf = part.greaterThan(0.5), n0 = normalize(turn(V.normal)), n = n0.dot(Ve).lessThan(0).select(n0.negate(), n0);
         const ndl = leaf.select(n.dot(U.uSunDir).add(wrap).div(wrap.add(1)), n.dot(U.uSunDir)).max(0);   // needles take the light round their edge
         const sunK = sunAt(w, 'vertex').toVar();   // (once: nine taps of the shadow map, and the clouds' map; a chunk's plane's light reads it too)
-        const Lo = lightOn({ n, w, V: Ve, sun: sunK, ndl, through: leaf.select(shines, float(0)), tint: THROUGH, ao }), L = Lo.sky.add(Lo.sun);   // the sun behind a brush of needles shines through it, yellower
+        const Lo = lightOn({ n, w, V: Ve, sun: sunK, ndl, through: leaf.select(shines, float(0)), ao }), L = Lo.sky.add(Lo.sun);   // the sun behind a brush of needles shines through it, in its own colour (a leaf lets through as much as it gives back: the two-stream canopy models' bi-Lambertian leaf, rho = tau)
         const through = leaf.select(pow(Lo.back, 3).mul(shines), float(0));
         const W = weatherOn(n, snowLiftAtVertex(w, clumps)), air = airOf(w);   // what the weather does to it (wet, its snow in clumps), and the air before it
         // each plant its own green: lighter or darker, and warmer (yellower) or cooler (bluer)

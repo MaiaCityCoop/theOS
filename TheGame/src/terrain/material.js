@@ -9,7 +9,7 @@ import { Fn, float, int, uint, vec2, vec3, vec4, attribute, positionGeometry, po
 import { U } from '../core/uniforms.js';
 import { TRUTH } from '../detail/measure.js';
 import { camDist, riverInfo, riverNear, heightAt, baseB, roofAt, hashI, BASE } from '../world/land.nodes.js';
-import { layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND, SHADE_REACH } from './layers.js';
+import { layerOf, standOf, standFade, CARPET, SLOPES, NO_STAND, SHADE_REACH } from './layers.js';
 import { lit, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
 
@@ -191,8 +191,9 @@ export function terrainMaterial(vt, from = null) {
     const G = vt.read(p, dx, dy, rdist, { eye: normalize(U.uCam.sub(vWorld)), level: from ? smooth(vWorld) : null });   // (along the eye's ray through the ground's relief: parallax)
     // near, the carpet lies in the shade of its blades, drawn over it: the nearer, the darker (the pixel's own distance)
     const c = G.c.mul(mix(1, mix(0.5, 1, smoothstep(3, 70, dist2)), G.cv)).toVar(), cv = G.cv, h = G.h;
-    // past where the shadow map reaches round the camera, a stand's floor lies in its crowns' shade
-    const shade = SHADE_REACH > 0 ? G.shade.mul(smoothstep(shadowReach(SHADE_REACH).mul(0.8), shadowReach(SHADE_REACH), length(p.sub(U.uCam.xz)))) : float(0);
+    // past where the shadow cascades reach round the camera (the farthest of them: SHADE_REACH, src/world/shadow.js), a
+    // stand's floor lies in its crowns' shade
+    const shade = SHADE_REACH > 0 ? G.shade.mul(smoothstep(SHADE_REACH * 0.8, SHADE_REACH, length(p.sub(U.uCam.xz)))) : float(0);
 
     // ---- the light ----
     const wet = float(1).sub(smoothstep(w.mul(0.9), w.add(2.5), d));

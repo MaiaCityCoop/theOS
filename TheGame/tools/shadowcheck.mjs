@@ -22,11 +22,11 @@ import { chromium } from 'playwright-core';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { VIEWS } from './gate/views.js';
+import { VIEWS, CHECK_SIZE } from './gate/views.js';
 
 const arg = (name, dflt) => { const i = process.argv.indexOf(`--${name}`); return i > 0 && process.argv[i + 1] ? process.argv[i + 1] : dflt; };
 const BASE = arg('url', process.env.GATE_URL || 'http://localhost:5180/game/');
-const [W, H] = arg('size', '1280x720').split('x').map(Number);
+const [W, H] = arg('size', CHECK_SIZE).split('x').map(Number);
 if (!(W > 0 && H > 0 && W * H <= 1920 * 1080)) throw new Error(`--size ${W}x${H}: at most 1920x1080 (a light check, not a gate)`);
 const NAMES = { tent: 'bench-tent-eye-level', forest: 'bench-pine-forest-eye-level' };
 const views = arg('views', 'forest,tent').split(',').map((n) => VIEWS.find((v) => v.name === (NAMES[n] ?? n)) ?? (() => { throw new Error(`no view ${n}`); })());
@@ -51,10 +51,10 @@ async function look({ N, step }) {
   const R = performance.getEntriesByType('resource').map((e) => e.name), mod = (re) => import(R.filter((n) => re.test(n)).at(-1));
   const THREE = await mod(/three_webgpu\.js/), T = await mod(/three_tsl\.js/);
   const { U } = await mod(/src\/core\/uniforms\.js/), L = await mod(/src\/world\/light\.js/), { heightAt } = await mod(/src\/world\/land\.js/);
-  const g = window.__game, renderer = g.renderer, dev = renderer.backend.device, rt = g.light?.shadows?.target;
+  const g = window.__game, renderer = g.renderer, dev = renderer.backend.device, rt = g.light?.shadows?.target, lay = g.light?.shadows?.layout;
   if (!rt?.depthTexture?.isArrayTexture) return { cascades: 'none: this build has no cascades of stage 9 (the still alone)' };
   const tex = renderer.backend.get(rt.depthTexture).texture, S = rt.depthTexture.image.width, eye = g.camera.position.clone();
-  const out = { cascades: `${tex.width}x${tex.height}x${tex.depthOrArrayLayers} ${tex.format}`, bound: U.tShadow.value === rt.depthTexture, on: U.uShadowOn.value, range: U.uShadowRange.value.toArray(), size: U.uShadowSize.value.toArray(), sunDir: U.uSunDir.value.toArray().map((v) => +v.toFixed(3)), layers: [] };
+  const out = { cascades: `${tex.width}x${tex.height}x${tex.depthOrArrayLayers} ${tex.format}`, bound: U.tShadow.value === rt.depthTexture, on: U.uShadowOn.value, half: lay.half.map((h) => +h.toFixed(2)), texel: lay.texel.map((t) => +t.toFixed(4)), pen: +U.uShadowPen.value.toFixed(3), sunDir: U.uSunDir.value.toArray().map((v) => +v.toFixed(3)), layers: [] };
   // each layer as it is now
   const layers = [];
   for (let k = 0; k < tex.depthOrArrayLayers; k++) {
@@ -65,13 +65,13 @@ async function look({ N, step }) {
     let drawn = 0, least = 1; for (let i = 0; i < a.length; i++) { if (a[i] < 1) drawn++; if (a[i] < least) least = a[i]; }
     layers.push(a); out.layers.push({ layer: k, drawn: +(drawn / a.length).toFixed(4), least: +least.toFixed(5) });
   }
-  // the floor round the eye: the CPU's reading, through each cascade's matrix (as uShadowM, uShadowM2 hold them)
-  const pts = new Float32Array(N * N * 4), M = [U.uShadowM.value, U.uShadowM2.value], bias = [U.uShadowRange.value.z, U.uShadowRange.value.w];
-  const cpu = [new Uint8Array(N * N), new Uint8Array(N * N)];
+  // the floor round the eye: the CPU's reading, through each cascade's matrix (src/world/shadow.js cascades)
+  const pts = new Float32Array(N * N * 4), M = lay.mats.map((m) => m.value), bias = lay.bias.map((b, k) => b / lay.range[k]);
+  const cpu = M.map(() => new Uint8Array(N * N));
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     const x = eye.x + (i - (N - 1) / 2) * step, z = eye.z + (j - (N - 1) / 2) * step, y = heightAt(x, z), p = j * N + i;
     pts.set([x, y, z, 1], p * 4);
-    for (const k of [0, 1]) {
+    for (let k = 0; k < M.length; k++) {
       const e = M[k].elements, u = e[0] * x + e[4] * y + e[8] * z + e[12], v = e[1] * x + e[5] * y + e[9] * z + e[13], d = e[2] * x + e[6] * y + e[10] * z + e[14];
       if (u <= 0 || v <= 0 || u >= 1 || v >= 1 || d >= 1) { cpu[k][p] = 2; continue; }   // (outside it)
       cpu[k][p] = layers[k][Math.min(S - 1, Math.floor(v * S)) * S + Math.min(S - 1, Math.floor(u * S))] < d - bias[k] ? 1 : 0;
@@ -79,15 +79,15 @@ async function look({ N, step }) {
   }
   // the receiver: the light's own code at those points, drawn on the GPU into N × 3N texels, read back. Rows 0 … N-1:
   // shadowAt, shadowAtOne, shadowAtVertex (1 lit) and the point's index; N … 2N-1: the point in the near cascade as the
-  // GPU works it out (u, v, depth) and its index; 2N … 3N-1: uShadowOn, the near bias, the near range, the near side
+  // GPU works it out (u, v, depth) and its index; 2N … 3N-1: uShadowOn, uShadowPen (the widest penumbra), and 0, 0
   const P = new THREE.DataTexture(pts, N, N, THREE.RGBAFormat, THREE.FloatType); P.needsUpdate = true;
   const probe = new THREE.RenderTarget(N, 3 * N, { type: THREE.FloatType, depthBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false });
   const m = new THREE.NodeMaterial(); m.depthTest = m.depthWrite = false;
   m.vertexNode = T.vec4(T.positionGeometry.xy, 0, 1);
   m.fragmentNode = T.Fn(() => {
     const c = T.ivec2(T.screenCoordinate.xy), row = T.int(c.y).div(N), j = T.int(c.y).mod(N), w = T.texture(P).load(T.ivec2(c.x, j)).xyz.toVar();
-    const s = U.uShadowM.mul(T.vec4(w, 1)), q = s.xyz.div(s.w), id = T.float(j.mul(N).add(T.int(c.x)));   // (id: which point, so a texel read back is matched to its point whichever way up)
-    const a = T.vec4(L.shadowAt(w), L.shadowAtOne(w), L.shadowAtVertex(w), id), b = T.vec4(q.xy, q.z, id), u = T.vec4(U.uShadowOn, U.uShadowRange.z, U.uShadowRange.x, U.uShadowSize.x);
+    const s = lay.mats[0].mul(T.vec4(w, 1)), q = s.xyz.div(s.w), id = T.float(j.mul(N).add(T.int(c.x)));   // (id: which point, so a texel read back is matched to its point whichever way up)
+    const a = T.vec4(L.shadowAt(w), L.shadowAtOne(w), L.shadowAtVertex(w), id), b = T.vec4(q.xy, q.z, id), u = T.vec4(U.uShadowOn, U.uShadowPen, 0, 0);
     return row.equal(0).select(a, row.equal(1).select(b, u));
   })();
   const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), m);
@@ -109,8 +109,8 @@ async function look({ N, step }) {
     const cu = e[0] * x + e[4] * y + e[8] * z + e[12], cv = e[1] * x + e[5] * y + e[9] * z + e[13], cd = e[2] * x + e[6] * y + e[10] * z + e[14];
     if (Math.abs(u - cu) * S > 0.5 || Math.abs(v - cv) * S > 0.5 || Math.abs(d - cd) > 1e-5) count.qOff++;   // (the GPU's matrix is not the CPU's)
   }
-  out.floor = { ...count, far: { inside: cpu[1].filter((c) => c !== 2).length, cpuShade: cpu[1].filter((c) => c === 1).length } };
-  out.gpuUniforms = [...at(0, 2)].map((v) => +v.toPrecision(5));   // (uShadowOn, near bias, near range, near side)
+  out.floor = { ...count, beyond: cpu.slice(1).map((C) => ({ inside: C.filter((c) => c !== 2).length, cpuShade: C.filter((c) => c === 1).length })) };
+  out.gpuUniforms = [...at(0, 2)].slice(0, 2).map((v) => +v.toPrecision(5));   // (uShadowOn, uShadowPen)
   return out;
 }
 

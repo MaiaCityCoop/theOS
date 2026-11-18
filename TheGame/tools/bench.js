@@ -1,8 +1,8 @@
 // A timing of the game's frame at fixed views (in the game's console: `await (await import('/game/tools/bench.js')).bench()`):
 // each view drawn n times, shadows as the game draws them. Opened with ?gputime, it reads the GPU's own clock: a begin
 // and an end at every one of the frame's passes (timestamp queries, where the device has them), each pass under the name
-// the code that draws it marked it with (src/core/gpu.js mark: the packing, the clouds, the light's cascades, canopy,
-// probes and air, the culling, the prepass, the screen's light, the land's pages, the colour, the upscale, …), and each
+// the code that draws it marked it with (src/core/gpu.js mark: the packing, the clouds, the light's cascades, canopy and
+// probes, the culling, the prepass, the screen's light, the land's pages, the colour, the upscale, …), and each
 // in one of the frame's four parts (CLASSES); otherwise the wall's, waiting for the GPU to finish (unreliable in a
 // hidden or background tab). The game's own frame is held while it runs, so nothing else is drawn between.
 // `?bench` (src/boot.js): the same once the world is loaded, its numbers on the screen (overlay), nothing typed.
