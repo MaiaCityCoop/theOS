@@ -13,7 +13,7 @@
    true
   ],
   [
-   "A warm base face: a whole smile over good teeth, a fond gaze with a spark in each eye, a narrower chin",
+   "A warm base face: a whole smile over good teeth, blue eyes with a spark in each, a narrower, shorter chin",
    true
   ],
   [
@@ -26,6 +26,10 @@
   ],
   [
    "Seen in the library on a real GPU, and timed",
+   false
+  ],
+  [
+   "The gate, a photograph of a real smiling face: skin, light, a smile of the whole face",
    false
   ],
   [

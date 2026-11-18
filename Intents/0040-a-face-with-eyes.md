@@ -113,6 +113,31 @@ And it asks for more of it: a whole smile, a fond gaze, good teeth. Built straig
 Samuel, on the third round's stills. Two corrections, built straight away: the chin's foot higher; the nostrils
 opened to the front and dark inside. **Deliverable:** 10. a shorter chin, nostrils that show. **Checks** as before.
 
+### Fifth round: the gate is a photograph (2026-11-18)
+
+> Without the beard and cap. This is kind of how it should look like. Way more natural. Do you see? Do you see the
+> photorealism difference between a real human face that smiles and ours? Go for blue eyes too. Do you see now how to
+> get better? So this reference image should be our gate of being good human, real-like, photorealistic-like
+> reference.
+
+Samuel, with a photograph: a man of middle age, close, smiling with his whole face. **That picture is now the gate
+for the face.** It is his, shown in the session; it is not in the repository (a photograph of a person is not mine to
+publish: his to add if he wants it there). What it shows, so the gate can be read without it: eyes narrowed almost to
+slits under hooded lids, blue-grey; folds fanning from the eyes' outer corners and running from the nose round the
+mouth; cheeks bunched up under the eyes; one corner of the mouth higher than the other; upper teeth off-white and a
+little uneven; skin warm and uneven, redder at the cheeks, the nose and the ears, with pores, lines on the brow and
+creases under the eyes; lit warm and soft from the front, with shade under the brow and the nose. (A beard and a cap,
+which he says to leave out.)
+
+**What stands between ours and it**, most telling first: the smile takes in only the mouth; the skin is one even,
+unlined surface; the light is flat and cool; the eyes are large, open and brown; the face is its own mirror.
+
+Built straight away, as far as one round goes: **blue eyes**; **a smile of the whole face** (broader, the cheeks
+higher, the lower lids pushed up, the fold round the mouth a form); **the skin's fine folds, pores and uneven
+colour**; teeth less white; the two sides no longer twins in what is drawn. **Deliverable:** 11. a step towards the
+photograph, and an honest account of the distance left. **Checks** as before; check 1 is now judged against the
+photograph.
+
 ## Build
 
 **What turned out different from the definition, and why.** The definition said: draw what can be drawn exactly (the
@@ -265,18 +290,39 @@ its carved bowl are gone from the tables. The skin is now three closed surfaces:
   chin's own foot (the profile's lowest point before 78 mm). The face from the nose's root to the chin's foot:
   122.1 mm, a man's 122.
 
+### Fifth round: towards the photograph (2026-11-18)
+
+- **Blue eyes** (`eyesOf`): a pale grey-blue thinning to a darker blue at the rim, a thin tawny ring round the pupil.
+- **The smile takes in more of the face** (`MOUTH`, `HEAD`, `EYE`): the mouth 65 mm broad for 61, its corners at
+  1.6165 m (1.7 mm over the upper lip's middle); the cheek's mass larger and higher; a ridge under each eye where the
+  cheek pushes the lower lid up; the fold from the nose's wing round the mouth carved into the head's form; the eye's
+  opening 6.7 mm high for 7.9 and a millimetre shorter at its outer end; the brows lower and thicker.
+- **The skin's fine folds** (`skin/table.js` `FOLDS`, `skin/light.js`): a fan of four from each eye's outer corner,
+  two creases under the lower lid, two faint lines on the brow, each a short run seen from the front, drawn as the
+  skin is drawn: darker in its bed and its sides turned for the light, a little unsteady, fading to its far end.
+  **First they were scratches**: thin, straight, orange, and the fold round the mouth drawn as a line across the
+  cheek read as a scar. Made broad and soft; the fold round the mouth left to the form.
+- **Pores** as small dark dots, more where the skin is oily; **the face's colour** uneven a thumb's breadth at a
+  time, the cheeks, the nose and the ears redder, the face browner; the lids darker.
+- **Not its own mirror any more, in what is drawn:** the folds a fifth deeper on one side, one brow 1.2 mm higher.
+  The form itself is still mirrored.
+- **Teeth** less white, warmer at the neck. Made uneven by a third of a millimetre each, they looked jumbled: now by
+  a tenth.
+- **The tool:** a `portrait` still, close and a little from the side and above, as the photograph is taken.
+
 ## Propose
 
-**What is delivered** (four rounds). A head that reads as a head, and a face whose rest is a warm smile: a fond,
-bright gaze from eyes behind smiling lids, the lips parted over good teeth, a narrower chin, ears that stand off the
-head. Not yet a photograph. Look at it with
+**What is delivered** (five rounds). A head that reads as a head, and a face whose rest is a warm smile: blue eyes
+narrowed by smiling lids, the lips parted over good teeth, raised cheeks, fine folds at the eyes, a narrower and
+shorter chin, nostrils, ears that stand off the head. **Against the gate, the photograph, it is still plainly a
+drawn face**: see the gaps. Look at it with
 `bun tools/body.js --stills <folder>` (the game's dev server running): `face`, `face-three-quarter`, `face-side`,
-`eye`, `mouth`, `ear`, `head-from-behind` among twenty-two stills; or in the library, the Body.
+`eye`, `mouth`, `portrait`, `ear`, `head-from-behind` among twenty-three stills; or in the library, the Body.
 
 | # | Check | Result |
 | --- | --- | --- |
-| 1 | The face reads as a face, and a warm one; the ears as ears | **Passed, with the gaps below.** The tool drew all twenty-two stills on 2026-11-18. Beside the stills before: an upright forehead; eyes in sockets, narrowed from below as a smile narrows them, with lashes, a wide pupil and sparks of light; a nose with ridge, tip and wings; a broad smile, its corners up, the lips parted over the upper row of teeth, each tooth shaded against the next; a chin and a jaw's line; ears with a rim, an inner ridge, a bowl and a lobe, standing off the head from the front and from behind. Whether it is the gaze of a human in love and full of inspiration is Samuel's to say: it is warm and bright; it is also fixed |
-| 2 | Its measures | **Printed.** Table below: nine of fourteen within 5 % of a man's, one at 5 %, the nose's tip 11.2 % short; three are a smile's measured against norms for a face at rest. The norms are remembered, none read for this |
+| 1 | The face reads as a face, and a warm one; the ears as ears; against the photograph | **A face, and a warm one: passed. Against the photograph: not passed.** The tool drew all twenty-three stills on 2026-11-18. Beside the stills before: an upright forehead; eyes in sockets, narrowed from below as a smile narrows them, with lashes, a wide pupil and sparks of light; a nose with ridge, tip and wings; a broad smile, its corners up, the lips parted over the upper row of teeth, each tooth shaded against the next; a chin and a jaw's line; ears with a rim, an inner ridge, a bowl and a lobe, standing off the head from the front and from behind. Whether it is the gaze of a human in love and full of inspiration is Samuel's to say: it is warm and bright; it is also fixed |
+| 2 | Its measures | **Printed.** Table below: eight of fourteen within 5 % of a man's, one at 5 %, the nose's tip 11.2 % short; four are a smile's measured against norms for a face at rest. The norms are remembered, none read for this |
 | 3 | The body is as it was | **Passed.** Twelve of the body's thirteen measures to the digit as in intent 0039; the neck 38.8 cm for 43.1 (a man's 39). Open edges 0 at each of the three levels. The body's own points are where they were; the five poses' shares read a little lower (0.34 %, 1.1 %, 0.42 %, 0.51 %, 1.62 % for 0.38, 1.24, 0.47, 0.58, 1.87) because the ears' edges, which do not stretch, are now counted among them |
 | 4 | Nothing else changes | **Passed.** `bun tools/scale.js`: 18 of 18 within their measure. `bun tools/registry.js`: 52 recipes. `vite build` in `TheGame` and in `OS`: built |
 
@@ -294,20 +340,35 @@ laid in 31 s under node.
 | jaw, across its angles | 118.7 | 119 | -0.2 % |
 | face, the nose's root to the chin's foot | 122.1 | 122 | +0.1 % |
 | nose, its root to its foot | 57.7 | 55 | +5 % |
-| nose, its breadth | 36.4 | 35 | +4 % |
+| nose, its breadth | 36.3 | 35 | +3.7 % |
 | nose, its tip before its foot | 17.3 | 19.5 | -11.2 % |
 | upper lip, the nose's foot to its edge, smiling (as drawn; a man's: at rest) | 13.8 | 22 | -37.3 % |
-| mouth, its breadth, smiling (as drawn; a man's: at rest) | 61 | 54 | +13 % |
-| eye, its opening's length (as drawn) | 30.1 | 31 | -3 % |
-| eye, its opening's height (as drawn; the lids smiling) | 7.9 | 10.5 | -24.8 % |
+| mouth, its breadth, smiling (as drawn; a man's: at rest) | 65 | 54 | +20.4 % |
+| eye, its opening's length (as drawn; the lids smiling) | 29.2 | 31 | -5.8 % |
+| eye, its opening's height (as drawn; the lids smiling) | 6.7 | 10.5 | -36.2 % |
 | between the eyes' inner corners (as drawn) | 33 | 33 | 0 % |
-| between the eyes' outer corners (as drawn) | 93 | 91 | +2.2 % |
+| between the eyes' outer corners (as drawn) | 91.2 | 91 | +0.2 % |
 
 The first five norms are the US Army's survey's, the rest Farkas's; "as drawn" is a line of the table, not a
 measure of the skin. The ear: 63.4 mm by 35.9 for Farkas's 62.7 by 35.4, its rear rim 19.3 mm off the head (its own
 lab script's print).
 
-**Known gaps, as the stills show them.** The gate is a photorealistic body; the face is nearer and not there.
+**Against the photograph**, side by side with the `portrait` still. This is the distance left:
+
+- **Skin.** The photograph's is a surface with a history: pores everywhere, folds that are folds, stubble, colour
+  that changes every centimetre. Ours is smooth and even with a few shaded lines on it. This is the largest gap.
+- **Light.** The photograph is lit warm and soft from the front and has depth; ours stands in a flat, cool light. The
+  light is the world's, not the Body's: a portrait needs a light set for it.
+- **The smile.** His cheeks bunch up into his eyes and close them almost shut; ours rise a little. His lids are
+  hooded folds of skin; ours are a clean edge.
+- **Form.** His face is not symmetric and its nose, lips and ears are a person's own; ours is a mean, mirrored.
+- **Hair.** His brows and lashes are hairs; ours are drawn, and there is none on the head or the jaw.
+
+I do not think numbers alone reach that picture. Each round brings it nearer and the steps get smaller. The
+industry's way to it (intent 0039's research) is a real head measured: a scan or a sculpture for the form, and
+photographed skin for its surface. That is what the rule "our own code only" keeps out.
+
+**Known gaps, as the stills show them.**
 
 1. **The smile is fixed.** The face cannot move, so it smiles standing, walking and squatting alike, and its gaze
    goes straight ahead. Samuel has said the smile is its base; a face that moves is what would make it a look.
@@ -333,11 +394,15 @@ lab script's print).
 
 - **Accept or reject** this round.
 - **How much of a smile:** it is four numbers in `MOUTH`, and the lids' two in `EYE`.
+- **The photograph itself:** whether it goes into the repository as the gate's picture. It is not there now.
 - **The chin:** now 100.4 mm before the head's middle plane and its foot at 1.5625 m, as short as its bone lets it
   be. Shorter still means a shorter jaw bone in the skeleton: say so and it is a round of its own.
 - **What next for the head**, if anything: hair (head, beard, brows as strands); the face moving (a blink is one
   number in `EYE`, a smile four in `MOUTH`; a look and a jaw are the rig's).
-- **The rule "our own code only"**, as in 0039: it stands.
+- **The rule "our own code only"**, as in 0039: it stands, and it is now what stands between this face and the
+  photograph. Three ways on: keep it and go on round by round (folds as real relief, the form made unlike its mirror,
+  hairs as strands, a portrait's light: nearer each time, never there, I think); lift it for the head's surface only
+  (photographed skin on our form); lift it for the head (a scanned or sculpted head).
 
 ## Story
 
@@ -361,6 +426,8 @@ lab script's print).
 - [x] second round: ears of their own form
 - [x] third round: a whole smile, a fond gaze, good teeth
 - [x] fourth round: the chin shorter; nostrils that show
+- [x] fifth round: blue eyes; a smile of the whole face; fine folds, pores, uneven colour; the gate set at the photograph
+- [ ] the photograph's gate: not reached (skin, light, a smile of the whole face, a form unlike its mirror, hair)
 - [ ] hair; the face moving (out of scope here: Samuel's to order)
 - [ ] seen in the library on a real GPU, and timed
 
@@ -437,6 +504,23 @@ lab script's print).
 - **Not there yet.** The chin is as short as its bone allows; the nostrils are even dark ovals. The rest as the third
   round.
 
+### 2026-11-18, fifth round
+
+- **Asked.** Samuel, with a photograph of a smiling man: "Without the beard and cap. This is kind of how it should
+  look like. Way more natural. Do you see? Do you see the photorealism difference between a real human face that
+  smiles and ours? Go for blue eyes too. Do you see now how to get better? So this reference image should be our gate
+  of being good human, real-like, photorealistic-like reference" (typos tidied). Back to build.
+- **Delivered.** The photograph set as the face's gate, described in Define (the picture itself is not in the
+  repository). Blue eyes. A broader smile with higher cheeks, pushed-up lower lids, a fold round the mouth in the
+  form, narrower eyes, lower brows. Fine folds at the eyes and on the brow, pores, uneven colour, the two sides no
+  longer twins in what is drawn. Teeth less white. A `portrait` still.
+- **Good.** Blue eyes read well. The smile is broader and the eyes smile with it. Beside the fourth round it is a
+  livelier face.
+- **Broke on the way.** The folds were first pencil scratches and the fold round the mouth a scar; the teeth, made
+  uneven, looked jumbled.
+- **Not there yet.** The gate. Beside the photograph ours is a drawn face: even skin, flat light, a mild smile, a
+  mirrored form, no hair. Said plainly in Propose, with three ways on.
+
 ## Trail
 
 | When | Commit | What |
@@ -451,3 +535,5 @@ lab script's print).
 | 2026-11-18 | 9044585 | third round: a whole smile as the base, a fond gaze, teeth with gums and a lower row; back to build and proposed again |
 | 2026-11-18 | 3058e64 | proposed a third time: the third round's write-up and story |
 | 2026-11-18 | 2fee84f | fourth round: the chin shorter, nostrils that show; the tool reads the chin's own foot |
+| 2026-11-18 | 3c6ca32 | proposed a fourth time: the fourth round's write-up |
+| 2026-11-18 | be568ca | fifth round: the photograph as the gate; blue eyes, a smile of the whole face, the skin's folds, pores and colour; a portrait still |

@@ -47,6 +47,11 @@ of its own, the bright sky in front of the face mirrored in the cornea whichever
 and back. And the ears, which had been low bumps on the head's sides, became forms of their own with a rim, a bowl
 and a lobe, standing off the head as ears do, thin enough that the sun comes through them red.
 
+Then Samuel held a photograph beside it: a man smiling with his whole face, his eyes almost shut by it, his skin
+full of lines and pores and colour. That, he said, is the gate, and blue eyes too. Maia gave the face blue eyes, a
+broader smile, folds at the corners of its eyes. And she said what she saw: beside the photograph hers is still a
+drawn face.
+
 What it is now: a warm face. What it is not: a photograph, or a look. It has no hair, it does not blink, and its
 smile never leaves it. Whether it is in love is Samuel's to say. Maia says what she can measure.
 
@@ -84,6 +89,8 @@ smile never leaves it. Whether it is in love is Samuel's to say. Maia says what 
 | "The chin came in and back" | `skin/table.js` `HEAD`: the chin 100.5 mm before the head's middle plane for 104.5, its mass 17 mm half-broad for 19 |
 | "a rim, a bowl and a lobe"; "19 mm off the head" | `skin/ear.js`; measured by its own lab script: 63.4 mm by 35.9, its rear rim 19.3 mm off the head's form at most |
 | "thin enough that the sun comes through them red" | The plate 2.4 mm at its thinnest; the still of the head from behind, 2026-11-18 |
+| "Samuel held a photograph beside it ... the gate" | His message of 2026-11-18 with the picture: "So this reference image should be our gate of being good human, real-like, photorealistic-like reference"; "Go for blue eyes too". The picture is his and is not in the repository; intent 0040, Define, describes it |
+| "beside the photograph hers is still a drawn face" | Intent 0040, Propose, "Against the photograph" |
 | "A photograph, no" | Intent 0040, Propose, Known gaps |
 | "Seen on a software GPU only" | Every still was drawn through WebGL 2 on SwiftShader in a container; the library was not seen |
 
@@ -96,5 +103,7 @@ smile never leaves it. Whether it is in love is Samuel's to say. Maia says what 
   GPU. Its camera is intent 0039's.
 - **The day and the humans in the game** are not set (`day`, `inGame`): not counted here.
 - **The voices.** The lines are subtitles only; Samuel's are his to change.
-- **Samuel's:** to accept or reject; whether this is the gaze he meant; what comes next for the head (hair, a face
-  that moves); the rule "our own code only".
+- **The gate is not reached.** The photograph Samuel set as the gate is far from this face still: its skin, its
+  light, a smile of the whole face.
+- **Samuel's:** to accept or reject; how to go on towards the photograph (the rule "our own code only" is what
+  stands in the way: intent 0040 names three ways); what comes next for the head (hair, a face that moves).
