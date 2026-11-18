@@ -294,3 +294,5 @@ Proposed on 2026-11-18. Story: [`Stories/0041-a-photoreal-face/`](../Stories/004
 | 2026-11-18 | 855503a | the second research's notes as they stood (four lines; 8b7d33c, 1a0ba18, 6095120, e8cbdc2 before it) |
 | 2026-11-18 | 1b20753 | the second research stopped; the note on ready-made open characters |
 | 2026-11-18 | d029e1b | VALID checked closer (one layout for all four figures); img2threejs read |
+| 2026-11-18 | ec65986 | a man and a woman of VALID brought in whole; the figure kit, its moves and expressions; the library row; the tools |
+| 2026-11-18 | c923301 | proposed: the checks as they were, the page for choosing two, the story |
