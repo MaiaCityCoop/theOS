@@ -14,6 +14,7 @@ import { surfaceHooks, airHooks } from './weather/index.js';
 import { cloudShade } from './weather/clouds.js';
 import { BIAS, SHADOW_S } from './shadow.js';
 import { blueAt } from './light/noise.js';
+import { SUN_DIAMETER } from './light/physics.js';
 import { SCREEN } from './light/screen.js';
 import { skyAt } from './light/canopy.js';
 
@@ -100,8 +101,7 @@ export const ign = (p) => fract(fract(dot(p, vec2(0.06711056, 0.00583715))).mul(
 // the round flecks a real one does. Then eight taps over that penumbra, each compared and filtered over 2 x 2 texels by
 // the GPU (a comparison sampler), on a disc turned by the blue noise from pixel to pixel and frame to frame (one turn a
 // pixel: its cosine and sine once, not a tap's each). The far one takes four taps, about a texel and a half out.
-const SUN_DISC = 0.0093;   // the sun's width across the sky (radians): metres of penumbra for every metre from blocker to receiver
-const PEN = 0.45;          // the widest penumbra, metres (the blockers are looked for this far round)
+const PEN = 0.45;   // the widest penumbra, metres (the blockers are looked for this far round). derive: SUN_DIAMETER times how far the highest caster stands over what it shades
 // a Vogel disc of n taps (radius 1), its first turned by a0: as numbers, turned for a pixel by its (cos, sin)
 const disc = (n, a0 = 0) => Array.from({ length: n }, (_, i) => { const r = Math.sqrt((i + 0.5) / n), a = a0 + i * 2.399963; return [Math.cos(a) * r, Math.sin(a) * r]; });
 const BLOCKERS = disc(6), TAPS = disc(8, 1.3);
@@ -120,7 +120,7 @@ const nearSoft = (q, z, cs) => {
   const perM = float(1).div(U.uShadowSize.x), found = float(0).toVar(), sum = float(0).toVar();
   for (const d of BLOCKERS) { const b = depthAt(q.xy.add(turned(d, cs).mul(PEN * 0.5).mul(perM)), 0); If(b.lessThan(z), () => { sum.addAssign(b); found.addAssign(1); }); }
   const r = float(1).toVar();
-  If(found.greaterThan(0), () => { r.assign(taps(q, z, cs, clamp(z.sub(sum.div(found)).mul(U.uShadowRange.x).mul(SUN_DISC), U.uShadowSize.x.mul(1.5 / SHADOW_S), PEN))); });
+  If(found.greaterThan(0), () => { r.assign(taps(q, z, cs, clamp(z.sub(sum.div(found)).mul(U.uShadowRange.x).mul(SUN_DIAMETER), U.uShadowSize.x.mul(1.5 / SHADOW_S), PEN))); });
   return r;
 };
 const farSoft = (q, z) => { const k = float(0).toVar(); for (const [i, j] of [[-0.62, -0.24], [0.24, -0.62], [0.62, 0.24], [-0.24, 0.62]]) k.addAssign(compareAt(q.xy.add(vec2(i, j).mul(1.7 / SHADOW_S)), 1, z)); return k.div(4); };

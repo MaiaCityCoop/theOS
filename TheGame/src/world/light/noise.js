@@ -12,7 +12,7 @@ import * as THREE from 'three/webgpu';
 import { texture, ivec2, uint, fract, float } from 'three/tsl';
 import { U } from '../../core/uniforms.js';
 
-const N = 64, SIGMA = 1.9;
+const N = 64, SIGMA = 1.9;   // derive: the tile's side from how far apart a pixel's like may repeat unseen, and the void-and-cluster filter's width (Ulichney 1993 uses 1.5)
 
 /** The ranks 0 … N²-1 of an N x N blue-noise tile. */
 function voidAndCluster() {

@@ -20,15 +20,16 @@ import { Fn, float, vec2, vec3, vec4, ivec2, uniform, texture, screenCoordinate,
 import { U } from '../../core/uniforms.js';
 import { castRoute, CASTS } from '../shadow.js';
 import { note, mark } from '../../core/gpu.js';
+import { CROWN_EXTINCTION } from './physics.js';
 
 // metres a side; texels a side; probes a side (one a metre); frames between drawings (the stand does not move: what
 // changes is where the eye is, and the map reaches 96 m round it); how far above (and below) the cameras stand
-const SIDE = 192, S = 512, P = 192, EVERY = 16, UP = 400;
-const BANDS = 8, ROWS = P / BANDS;   // the probes' bands, one a frame after the map's two views (frames 2 … 9 of EVERY)
-const HEIGHTS = [0.5, 4, 12];
-// the probes' nine columns (m east, m south, weight): the one over it, four 4 m out, four 8 m out on the diagonals; and how
-// much of the sky a metre of slab above takes
-const COLUMNS = [[0, 0, 2], [4, 0, 1.5], [-4, 0, 1.5], [0, 4, 1.5], [0, -4, 1.5], [6, 6, 1], [-6, 6, 1], [6, -6, 1], [-6, -6, 1]], WSUM = COLUMNS.reduce((a, c) => a + c[2], 0), THICK = 0.35;
+const SIDE = 192, S = 512, P = 192, EVERY = 16, UP = 400;   // derive: SIDE from how far round the eye a stand's sky is seen, S from the probes' columns (4 to 8 m apart), P a probe a metre, EVERY from the light's 3 ms, UP over the tallest crown
+const BANDS = 8, ROWS = P / BANDS;   // the probes' bands, one a frame after the map's two views (frames 2 … 9 of EVERY). derive: from the light's 3 ms
+const HEIGHTS = [0.5, 4, 12];   // derive: from what stands in the stand (the floor, a person's eyes, the understorey's top)
+// the probes' nine columns (m east, m south, weight): the one over it, four 4 m out, four 8 m out on the diagonals (how
+// much of the sky a metre of slab above takes: physics.js CROWN_EXTINCTION)
+const COLUMNS = [[0, 0, 2], [4, 0, 1.5], [-4, 0, 1.5], [0, 4, 1.5], [0, -4, 1.5], [6, 6, 1], [-6, 6, 1], [6, -6, 1], [-6, -6, 1]], WSUM = COLUMNS.reduce((a, c) => a + c[2], 0);   // derive: from the sky's cosine over a probe and a crown's width
 
 const black = Object.assign(new THREE.DataTexture(new Uint16Array([0, 0, 0, 0]), 1, 1, THREE.RGBAFormat, THREE.HalfFloatType), { needsUpdate: true });
 /** The canopy's numbers for the materials: its probes and where they lie (x, z of their middle, side, their ground's
@@ -74,7 +75,7 @@ export function createCanopy(renderer, { groundAt }) {
     const seen = HEIGHTS.map(() => float(0).toVar());
     for (const [dx, dz, w] of COLUMNS) {
       const q = xz.add(vec2(dx, dz)), s = slabAt(uvIn(vec3(q.x, 0, q.y), CANOPY.mapAt));   // (where nothing was drawn its top lies under its underside: no slab)
-      HEIGHTS.forEach((h, k) => { seen[k].addAssign(exp(max(s.top.sub(max(g.add(h), s.under)), 0).mul(-THICK)).mul(w / WSUM)); });
+      HEIGHTS.forEach((h, k) => { seen[k].addAssign(exp(max(s.top.sub(max(g.add(h), s.under)), 0).mul(-CROWN_EXTINCTION)).mul(w / WSUM)); });
     }
     return vec4(seen[0], seen[1], seen[2], g.sub(CANOPY.mapAt.w));
   })();

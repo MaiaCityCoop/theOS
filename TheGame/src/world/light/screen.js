@@ -30,7 +30,7 @@ const white = Object.assign(new THREE.DataTexture(new Uint8Array([255, 255, 255,
 /** What the screen's light passes left, for the colour pass to read (white until they run, and where they never do). */
 export const SCREEN = { contact: texture(white), on: uniform(0) };   // (contact: the contact shadows' share of the sun)
 
-const STEPS = 12;   // the contact shadows' steps
+const STEPS = 12;   // the contact shadows' steps. derive: from the ray's length on the screen in pixels and the light's 3 ms
 /** The screen's light for the world's frame: made, and run after every prepass of `screen` (src/core/screen.js
     afterPrepass), before the colour; null where there is none (the WebGL 2 fallback). */
 export function screenLightFor(renderer, screen) {

@@ -49,7 +49,8 @@ const device = {
   queue: { writeBuffer() {}, writeTexture() {}, copyExternalImageToTexture() {}, submit() {}, onSubmittedWorkDone: async () => {} },
 };
 class GPURenderBundleEncoder {}
-const canvas = { width: 1280, height: 720, style: {}, addEventListener() {}, removeEventListener() {}, getContext: () => ({ configure() {}, unconfigure() {}, getCurrentTexture: () => textureOf({ size: { width: 1280, height: 720 }, format: 'bgra8unorm' }) }) };
+const canvas = { width: 1280, height: 720,   // derive: (the stand-in screen of a CPU check: any size does)
+  style: {}, addEventListener() {}, removeEventListener() {}, getContext: () => ({ configure() {}, unconfigure() {}, getCurrentTexture: () => textureOf({ size: { width: 1280, height: 720 }, format: 'bgra8unorm' }) }) };
 Object.assign(globalThis, {
   window: globalThis, self: globalThis, innerWidth: 1280, innerHeight: 720, devicePixelRatio: 1, requestAnimationFrame: () => 0, cancelAnimationFrame() {}, addEventListener() {}, removeEventListener() {},
   document: { hidden: false, createElement: () => canvas, getElementById: () => null, body: { appendChild() {} }, addEventListener() {} },

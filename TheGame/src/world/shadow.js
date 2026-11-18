@@ -24,15 +24,18 @@ import { twinOf } from '../core/pass.js';
 import { note, mark } from '../core/gpu.js';
 
 export const CASTS = 1;   // the layer of what casts a shadow
-/** A cascade's texels a side (src/world/light.js reads them so). */
+/** A cascade's texels a side (src/world/light.js reads them so). derive: from ERROR_PX (a texel's footprint on the screen
+    at the near cascade's reach) and the light's 3 ms */
 export const SHADOW_S = 2048;
-/** The near cascade's half side, metres: 2048 texels over 70 m, 3.4 cm a texel. */
+/** The near cascade's half side, metres: 2048 texels over 70 m, 3.4 cm a texel. derive: as far as a texel stays within
+    ERROR_PX on the screen */
 const NEAR = 35;
 /** The far cascade's box round the camera, half its side in metres: `min` on the ground, `grow` more for every metre the
     camera is up, `max` at most (the land reads it too: where no shadow is drawn, a stand's floor is dimmed by itself). */
-export const BOX = { min: 100, grow: 1.2, max: 900 };
-const FAR_EVERY = 4;      // the far cascade is drawn every this many frames
-/** Metres along the light a caster stands back before it shades (each cascade's: about two of its texels). */
+export const BOX = { min: 100, grow: 1.2, max: 900 };   // derive: from the far cascade's texels and ERROR_PX, and the land's reach
+const FAR_EVERY = 4;   // the far cascade is drawn every this many frames. derive: from how far its texel moves on the screen a frame, and the light's 3 ms
+/** Metres along the light a caster stands back before it shades (each cascade's: about two of its texels). derive: from
+    each cascade's texel and its depth's precision */
 export const BIAS = [0.07, 0.25];
 
 /** What a caster is drawn as into a shadow map, or the canopy map (src/world/canopy.js): its shadow twin. */
