@@ -13,6 +13,10 @@
 //                                          default for `complexity`) and not as complex at the base; a new unused file
 //                                          or export; a new cycle; more mode branches or hand-set numbers; a new
 //                                          dependency that no intent the change touches names. CI runs it on every PR.
+//                                          A change that reverts a commit M of the base's line is measured against the
+//                                          state it restores, the base with M undone (M's first parent, where nothing
+//                                          came after M): a pure revert shows no change, and whatever else the change
+//                                          does is measured as ever.
 //
 //   Copies        jscpd, clones of 50 tokens or more: the share of lines that are in one, and the largest
 //   Spaghetti     eslint's `complexity` (cyclomatic) of every function: the most, the mean, the 20 most
@@ -54,7 +58,27 @@ const REF = valueOf('--base'), CEILING = +(valueOf('--ceiling') ?? COMPLEXITY.me
 const at = (f, line) => `${f}:${line}`, fileOf = (place) => place.slice(0, place.lastIndexOf(':')), nameOf = (n) => n.name ?? n.value;
 
 // ---- what is measured: the paths asked for, else (against a base) the folders the change touches, else all of TheGame ----
-const BASE = REF && git('merge-base', REF, 'HEAD')[0];
+/** The base a change is measured against: where <ref> and HEAD part; or, where the change reverts a commit M of that
+    base's line, the state that revert restores: the base with M undone (as git revert undoes it), which is M's first
+    parent where nothing came after M. M is the commit a "This reverts commit M" of the change's own commits names (git
+    revert), else the newest commit of the base's line all of whose paths the change touches and leaves as they are with
+    M undone. [the base: a commit, or the tree with M undone; M, or null]. */
+function baseOf(ref) {
+  const base = git('merge-base', ref, 'HEAD')[0], touched = new Set(git('diff', '--name-only', base, '--', ':/'));
+  const named = [...git('log', '--format=%B', `${base}..HEAD`).join('\n').matchAll(/This reverts commit ([0-9a-f]{7,40})/g)].map((m) => m[1]).find((M) => run('git', ['merge-base', '--is-ancestor', M, base]).status === 0);
+  const restores = ({ sha, paths }) => paths.length && paths.every((p) => touched.has(p)) && run('git', ['diff', '--quiet', undone(base, sha), '--', ...paths.map((p) => `:/${p}`)]).status === 0;
+  const M = named ?? firstParents(base).find(restores)?.sha, T = M && undone(base, M);
+  return T ? [T, M] : [base, null];
+}
+/** The tree of `base` with commit M undone, as git revert undoes it (null where that does not merge cleanly). */
+const undone = (base, M) => { const r = run('git', ['merge-tree', '--write-tree', `--merge-base=${M}`, base, `${M}^1`]); return r.status === 0 ? r.stdout.split('\n')[0] : null; };
+/** The commits of a commit's first-parent line, newest first, each with the paths it changed from its first parent. */
+function firstParents(c) {
+  const out = [];
+  for (const l of git('log', '--first-parent', '--format=@%H', '--name-only', c)) if (l.startsWith('@')) out.push({ sha: l.slice(1), paths: [] }); else out.at(-1).paths.push(l);
+  return out;
+}
+const [BASE, REVERTED] = REF ? baseOf(REF) : [];
 const CHANGED = BASE ? [...git('diff', '--name-only', '--relative', BASE), ...git('ls-files', '-o', '--exclude-standard')] : [];
 function inGame(p) {
   const abs = [resolve(p), resolve(GAME, p)].find((q) => existsSync(q)) ?? fail(`no ${p}`), rel = relative(GAME, abs);
@@ -350,7 +374,7 @@ const CHANGE = {   // each gate's change from the base, in a cell
 /** The gates against the base: here, there and the change, and what got worse. */
 function against(G) {
   const rows = Object.keys(SAID).map((g) => [g, SAID[g](G), SAID[g](G.base), CHANGE[g](G.change)]);
-  return [`Code gates · ${G.area.join(' ') || 'no .js touched'} · ${G.commit} against ${G.base.commit} (${G.base.ref}) · .gate/health.json`, '',
+  return [`Code gates · ${G.area.join(' ') || 'no .js touched'} · ${G.commit} against ${G.base.commit} (${G.base.ref}${G.base.reverts ? `: the state the revert of ${G.base.reverts} restores` : ''}) · .gate/health.json`, '',
     '| Gate | Here | Base | Change |', '| --- | --- | --- | --- |', ...cell(rows), '',
     ...(G.worse.length ? ['Worse than at the base:', ...G.worse.map((w) => `  ${w}`)] : ['Nothing is worse than at the base.'])].join('\n');
 }
@@ -383,7 +407,7 @@ const H = { commit: git('rev-parse', '--short', 'HEAD')[0] + (git('status', '--p
   area: AREA.map((a) => (a.folder !== undefined ? `${a.folder}/*` : a.path)), ...HERE };
 if (BASE) {
   const { repo, game } = unpack(BASE);
-  H.base = { ref: REF, commit: BASE.slice(0, 7), ...(await measure(game, BASE_FILES, repo, git('ls-tree', '-r', '--name-only', '--full-tree', BASE))) };
+  H.base = { ref: REF, commit: BASE.slice(0, 7), reverts: REVERTED?.slice(0, 7) ?? null, ...(await measure(game, BASE_FILES, repo, git('ls-tree', '-r', '--name-only', '--full-tree', BASE))) };
   H.change = change(H.base, HERE);
   H.worse = worse(H.change);
   process.exitCode = H.worse.length ? 1 : 0;
