@@ -46,7 +46,8 @@ const game = await tryTo('the screen', async () => {
 });
 const tex = await tryTo('the materials painted', async () => {
   const { bakeTextures } = await import('../src/materials/bake.js'), tex = bakeTextures(renderer, { spare: 1 });
-  (await import('../src/world/tile.js')).useTiles(tex); (await import('../src/world/light.js')).useBackend(renderer);
+  (await import('../src/world/tile.js')).useTiles(tex);
+  (await import('../src/world/light/start.js')).startLight(renderer, game?.screen);   // (the light's start where the start has it: before any material)
   return tex;
 }) ?? M.tiles;
 const ground = await tryTo('the ground', async () => {
@@ -69,7 +70,8 @@ await tryTo('the city', async () => { (await import('../src/city/index.js')).cre
 await tryTo('a frame', async () => { game?.screen?.render(scene, camera); });
 
 // ---- every material made, built as each pass draws it ----
-const { twinOf } = await import('../src/core/pass.js');
+const { twinOf } = await import('../src/core/pass.js'), { prepassTarget } = await import('../src/core/screen.js');
+const PRE_TARGET = prepassTarget(4, 4, new THREE.DepthTexture(4, 4));   // (the prepass built as it draws: into its target, writing its id too)
 const built = new Set(), materials = new Map();
 const take = (object, m) => { if (m?.isNodeMaterial && !materials.has(m)) materials.set(m, object); };
 scene.traverse((o) => { for (const m of [o.material].flat()) take(o, m); });
@@ -81,8 +83,10 @@ const buildAll = (where) => {
     const twins = (() => { try { return twinOf(m); } catch { return { pre: null, main: null }; } })();
     for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main]]) {
       if (!mat) continue;
+      if (pass === 'pre') renderer.setRenderTarget(PRE_TARGET);
       try { const s = M.build(object.isMesh || object.isPoints || object.isLine || object.isSprite ? object : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); shaders.render.add(`${s.vertex}\0${s.fragment}`); made.push(pass); }
       catch (e) { failed.push(`${part}, ${pass}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
+      if (pass === 'pre') renderer.setRenderTarget(null);
     }
   }
 };
