@@ -1,9 +1,10 @@
 // The one way a picture reaches the screen: every view's (the walker's eyes, the virtual camera with its lens, a
 // film, a still taken for a story), since 2026-11-14. Nothing else draws the world onto the canvas.
 //
-// The screen is always given all its own pixels: the canvas stands at the screen's own pixel ratio (4K on a 4K screen)
-// and never below: a hard gate (2026-11-13). What is drawn of the world may be fewer: the inside, a pixel ratio of its
-// own (the governor's dial: src/core/governor.js).
+// The canvas is the output (src/core/output.js): the screen's own pixels up to OUTPUT's count (1920 × 1080, the window's
+// shape kept: src/core/budget.js), laid on the screen by the browser; a hard gate (2026-11-18 22:15; the screen's own
+// pixels whatever their count until then). What is drawn of the world may be fewer: the inside, a pixel ratio of its
+// own (the governor's dial: src/core/governor.js), never more than the canvas's.
 //
 //   the prepass  the world drawn at the inside's pixels, a part of a pixel aside from the last frame: its depth, and
 //                where each pixel's point lay a frame ago (its motion: src/core/pass.js); what is cut out is cut here.
@@ -24,11 +25,11 @@ import { twinOf } from './pass.js';
 import { U } from './uniforms.js';
 import { TRUTH_AS } from '../detail/measure.js';
 import { occlusion } from './occlusion.js';
+import { outputRatio } from './output.js';
 
 export function createScreen(renderer, { temporal, lens = null }) {
-  const OUT = Math.min(window.devicePixelRatio || 1, 2);
+  let OUT = outputRatio(), inside = OUT, turn = 0;   // (OUT: the canvas's pixel ratio, the output's for this window)
   renderer.setPixelRatio(OUT);
-  let inside = OUT, turn = 0;
   // (?truth, the gate's reference: as a still drawn at every pixel the canvas has, whatever it is set to, never fewer;
   // in motion at the inside, as the game draws: src/detail/measure.js TRUTH_AS)
   const ratio = () => (TRUTH_AS.still ? renderer.getPixelRatio() : inside);
@@ -55,12 +56,15 @@ export function createScreen(renderer, { temporal, lens = null }) {
   const main = (object, scene, camera, geometry, material, group, lights, clipping, passId) => drawObject.call(renderer, object, scene, camera, geometry, material.isNodeMaterial ? twinOf(material).main : material, group, lights, clipping, passId);
   const clear = new THREE.Color(), sky = new THREE.Color(), prepassed = [];
   return {
-    out: OUT, size: sizeOf,
+    get out() { return OUT; }, size: sizeOf,
     get inside() { return ratio(); },
     /** The colour's target the world is drawn into. */
     get target() { return T?.turns[turn].main ?? null; },
-    /** The inside's pixel ratio: no more than the screen's own. */
+    /** The inside's pixel ratio: no more than the canvas's. */
     set(r) { inside = Math.min(OUT, Math.max(0.25, r)); },
+    /** The canvas made again for the window as it is now (src/boot.js, on a resize): its shape at the output's ratio,
+        in one step (three's setSize and setPixelRatio would each make it again); the inside no more than it. */
+    fit() { OUT = outputRatio(); renderer.setDrawingBufferSize(innerWidth, innerHeight, OUT); inside = Math.min(inside, OUT); },
     /** Compile what this camera sees of `object` (the scene, or a part of it standing in `scene`) for both passes, each
         for its own target: the pipelines a frame draws with, compiled side by side, in turn (src/core/compile.js; a
         promise). Compiled for the canvas instead, as the start did until 2026-11-15, every material was compiled twice:

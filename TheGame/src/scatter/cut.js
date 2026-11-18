@@ -51,15 +51,16 @@ export const eased = (R, b, from, time) => mix(float(from), b, smoothstep(0, GRO
 export const ruleOf = (self, parent, bS, bP) => ({ drawn: self.lessThanEqual(bS).and(parent.greaterThan(bP)), t: smoothstep(bP.mul(BAND), bP, parent) });
 
 /** Level 0's cut for a tier's bucket of the things drawn there (T: a tier of src/scatter/tier.js; k: the bucket; H: the
-    heap; level: its level's index; room: what a kind's level holds, { tris }): { passes (for every frame, after the
-    packing), entry(i): the i-th listed { thing, cluster, t }, thing(j, row): the j-th packed thing's row, geometry }. */
-export function createCut({ T, k = 0, H, room, name }) {
-  const S = T.slots, cap = T.caps[k], off = T.offs[k], MAXC = Math.ceil(room.tris / 32) + 8, MOST = Math.min(Math.max(4096, cap * 1024), 1 << 22);   // (MOST: the list's room, under a storage buffer's 256 MB)
+    heap; room: what a kind's level holds, { tris }; things: the most things that can be at level 0 at once, its tier's
+    to say): { passes (for every frame, after the packing), entry(i): the i-th listed { thing, cluster, t }, thing(j,
+    row): the j-th packed thing's row, geometry }. */
+export function createCut({ T, k = 0, H, room, name, things }) {
+  const S = T.slots, cap = things, MAXC = Math.ceil(room.tris / 32) + 8, MOST = Math.min(Math.max(4096, cap * 1024), 1 << 22);   // (MOST: the list's room, under a storage buffer's 256 MB)
   const list = instancedArray(MOST, 'uvec4'), count = instancedArray(1, 'uint').toAtomic(), packed = storage(T.args, 'uint', T.args.array.length).toReadOnly();
   const drawArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array([MAXT * 3, 0, 0, 0, 0]), 5), DA = storage(drawArgs, 'uint', 5);
   const runArgs = new THREE.IndirectStorageBufferAttribute(new Uint32Array([1, 1, 1]), 1), RA = storage(runArgs, 'uint', 3);   // (its workgroups: the clusters a thing can have across, the things packed down)
   more(`${name}: the cut's list`, MOST * 16, 0, 'geometry');
-  const thing = (j, row) => T.data.element(uint(off).add(j).mul(uint(S)).add(uint(row)));
+  const thing = (j, row) => T.data.element(T.offAt(uint(k)).add(j).mul(uint(S)).add(uint(row)));   // (where its bucket's things begin: the tier's packing says)
   const LO1 = surfaceBand(1)[0], PXC = pxCut();
   // (how many workgroups: a thread a cluster of every thing packed, its count as large as it can be)
   const start = Fn(() => { atomicStore(count.element(0), uint(0)); RA.element(0).assign(uint(Math.ceil(MAXC / 64))); RA.element(1).assign(packed.element(k * 5 + 1).min(uint(cap)).max(uint(1))); })().compute(1);
