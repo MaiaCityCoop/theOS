@@ -23,7 +23,7 @@
 //              points lie apart, whichever is more: what the page chooses a level by
 //     soles    where the feet meet the ground: the lowest points of the soles, each with the joint that carries it
 import { MARKS, SKIN, TONE } from './table.js';
-import { earOf, earFieldOf } from './ear.js';
+import { earOf } from './ear.js';
 import { targetOf, tissueAt } from './target.js';
 import { cageOf, fitted, solidsOf } from './cage.js';
 import { scatterMap, microMap, noise3 } from './maps.js';
@@ -199,7 +199,7 @@ export function skinOf(bones, M, { h = 0.006 } = {}) {
   // Each its own closed form (./ear.js: an ear stands off the head, and the cage's level rings cannot draw what stands
   // off), its root inside the head's side. Its points are joined to the skin's, on the head's joint, with what the
   // skin's shader reads of a point; its three levels' triangles to the skin's three. The right ear the left's mirror.
-  const E = earOf(), earField = earFieldOf(), headJoint = B.joints.findIndex((j) => j.rig === 'head'), extra = 2 * E.levels.reduce((a, l) => a + l.pos.length / 3, 0);
+  const E = earOf(), headJoint = B.joints.findIndex((j) => j.rig === 'head'), extra = 2 * E.levels.reduce((a, l) => a + l.pos.length / 3, 0);
   const grown = (a, k) => { const b = new a.constructor((n + extra) * k); b.set(a); return b; };
   const all = { pos: grown(pos, 3), fine: [fine], coarse: [coarse], far: [farTri] }, A2 = Object.fromEntries(Object.entries(attr).map(([k, a]) => [k, grown(a, a.length / n)]));
   { let v = n;
@@ -213,11 +213,11 @@ export function skinOf(bones, M, { h = 0.006 } = {}) {
         const q = [lv.pos[i * 3], lv.pos[i * 3 + 1], lv.pos[i * 3 + 2]], nx = lv.nor[i * 3], ny = lv.nor[i * 3 + 1], nz = lv.nor[i * 3 + 2], o = Math.min(1, Math.max(0, lv.open[i]));
         all.pos.set([sx * q[0], q[1], q[2]], v * 3); A2.nor.set([sx * nx, ny, nz], v * 3);
         A2.bone.set([headJoint, 0, 0, 0], v * 4); A2.weight.set([1, 0, 0, 0], v * 4);
-        // (how thick what lies behind the point is: the ear's own plate where it stands free, so the sun comes through it
-        // red; the whole head where the ear sits on it)
-        let thick = 0.03; for (let t = 0.0008; t < 0.03; t += 0.0008) { const b = [q[0] - nx * t, q[1] - ny * t, q[2] - nz * t]; if (Math.min(earField(b), S.body(b)) > 0) { thick = t; break; } }
+        // (how thick what lies behind the point is, ./ear.js's: the ear's own plate where it stands free, so the sun comes
+        // through it red; the head as well where the ear sits on it. Its shade is kept from going black in the bowl and its
+        // blood from the cheek's full red: read by the skin's light as they came, the bowl was raw meat)
         A2.look.set([Math.max(0.3, o), 0, 0, 0], v * 4); A2.bent.set([sx * nx, ny, nz, Math.sqrt(Math.max(0, 1 - Math.max(0.3, o)))], v * 4);
-        A2.feel.set([Math.max(-150, Math.min(150, cnt[i] ? kn[i] / cnt[i] : 0)), thick, P_.head, 0], v * 4);
+        A2.feel.set([Math.max(-150, Math.min(150, cnt[i] ? kn[i] / cnt[i] : 0)), lv.thick[i], P_.head, 0], v * 4);
         A2.tone.set([Math.min(0.35, toneOf(TONE.blood, q)) + 0.06 * noise3(q[0] * 14 + 1.3, q[1] * 14, q[2] * 14 + 5.2), toneOf(TONE.pigment, q), 0, 0], v * 4);
       }
     } });

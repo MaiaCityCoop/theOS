@@ -5,13 +5,15 @@
 // runs in the workers that lay the skin (./build.js), or under bun.
 //
 // How it is laid out: in the ear's own plane, as an ear is drawn seen from the side: p backwards, q up its long axis,
-// w out of the plane towards whoever looks at it (all mm; EAR.frame turns that plane to where an ear stands on a head).
-// The auricle is a plate of gristle with skin on both sides, so it is written as one: its outline in the plane; where
-// its middle sheet lies over each point of the plane (the bowl of the concha deep, the antihelix a ridge, the scapha a
-// groove, the fold of the helix's root across the bowl, the notch under the tragus); how thick it is there (the lobe,
-// which holds no gristle, the thickest). On that plate the helix's roll along its rim, the tragus as a flap over the
-// ear's canal, and under it the root: what joins the bowl's back and the ear's front edge to the head. Each of those
-// maps is worked out once, on a quarter-millimetre grid of the plane; the field reads them.
+// w out of the plane towards whoever looks at it (all mm; EAR's frame turns that plane to where an ear stands on a
+// head). The auricle is a plate of gristle with skin on both sides, so it is written as one: its outline in the plane;
+// where its middle sheet lies over each point of the plane (the bowl of the concha deep, the antihelix a ridge with
+// two legs, the scapha a groove, the helix's root a fold across the bowl, the tragus a rise before the canal out of
+// low ground, the lobe turned in towards the head); how thick it is there (the lobe, which holds no gristle, the
+// thickest). On that plate the helix's roll along its rim; under it the root: what joins the bowl's back to the
+// head. Along its front edge the plate sinks under the head's skin. Those maps are worked out once, on a
+// half-millimetre grid of the plane; the form put together from them is read once on a grid of 0.6 mm and evened
+// there, and that is the field.
 //
 //   EAR            the table below
 //   earFieldOf()   -> (p) => m    how far a point of the LEFT side ([x > 0, y, z], the body at rest, m) is outside the
@@ -33,8 +35,11 @@ import { headFormOf } from './head.js';
 //     roll 4 to 5 mm across, the lobe 15 to 18 mm long and 5 to 6 thick, the plate between them 3.
 //
 //   canal      where the ear canal opens, in the world (the left side; m), and where that is in the ear's plane
-//   lean, off, tip   the frame, degrees: the long axis leaning back; the plane turned off the head round that axis
-//              (its rear rim outwards); its top tipped outwards
+//   lean, off, tip   the frame, degrees: the long axis leaning back; the plane turned off the head's middle plane
+//              round that axis (its rear rim outwards; the head's own side falls away from it by as much again);
+//              its top tipped outwards
+//   clear      how far over the head's skin the ear's own surface stays at least, away from its seam (mm): the head's
+//              skin runs on under the ear, and would show through it where the bowl's floor lay lower
 //   outline    the plate's rim, round it from the front edge over the top and down the back to the lobe ([p, q])
 //   seam       the line along which the ear's front edge runs into the cheek and the temple; `dive`: from how near
 //              that line the plate begins to sink into the head (mm), and how far under the head's skin it ends
@@ -49,11 +54,10 @@ import { headFormOf } from './head.js';
 //   scapha     the groove between helix and antihelix: how far inside the rim, its half-breadth and depth, between
 //              which angles round the ear it runs (degrees: 0 backwards, 90 up)
 //   fossa      the hollow between the antihelix's two legs
-//   antitragus, notch   the small rise at the bowl's lower rim; the notch between it and the tragus, a channel out of
-//              the bowl from a to b, its half-breadth, how deep it lies at each end
+//   antitragus   the small rise at the bowl's lower rim (the notch between it and the tragus is what lies between)
 //   helix      the roll along the rim: how far inside the outline its middle runs, its radius, how far it stands out
-//              of the plate, and at least `over` the head's skin (where it rises out of the temple); `arc`: the angles between which it grows from nothing (towards the lobe) and ends (at
-//              its root in front)
+//              of the plate, and at least `over` the head's skin (where it rises out of the temple); `arc`: the
+//              angles between which it grows from nothing (towards the lobe) and ends (at its root in front)
 //   front      before the bowl the plate lies low, near the cheek, not at the rim's level: how far under it, between
 //              which p it falls there, between which heights q (rising from and to nothing)
 //   tragus     the flap before the canal: a rise of the plate out of that low ground: its middle, its half-breadths
@@ -61,26 +65,26 @@ import { headFormOf } from './head.js';
 //              high its crest stands, how far it has fallen at their ends
 //   even       over how much the whole form is evened before its surface is drawn (mm): a form put together of
 //              parts has creases where they meet, and an ear has none
-//   plate, lobe   the plate's thickness; the lobe's: below `from` to `to` (q) it grows to `thick` and lies flat
+//   plate, lobe   the plate's thickness; the lobe's: below `from` to `to` (q) it grows to `thick` and lies smooth,
+//              turned in towards the head: `level`: where its sheet lies at p = 0, and how much further out a mm back
 export const EAR = {
-  canal: { at: [0.07, 1.66, -0.012], in: [3, -0.5, -10.5] },
-  lean: 12, off: 9, tip: 4,
+  canal: { at: [0.07, 1.66, -0.012], in: [4, -0.5, -11.5] },
+  lean: 12, off: 4, tip: 4, clear: 0.9,
   outline: [[-6, 6], [-6.5, 14], [-5.5, 22], [-3, 29], [2, 34], [9, 36.3], [16.5, 35.5], [23, 31.5], [27, 25], [29, 16], [29, 7], [27.5, -2],
     [24.5, -10], [21, -16], [18.5, -21], [14, -25.5], [9, -27], [4, -25.5], [0.5, -21], [-1.5, -15], [-4, -9], [-6, -2]],
   seam: { line: [[-1.5, -15], [-4, -9], [-6, -2], [-6, 6], [-6.5, 14], [-5.5, 22], [-3.5, 27]], dive: [1, 6], under: 3 },
   root: { outline: [[-8, -10], [-8.5, 2], [-8, 14], [-5.5, 23], [-1, 27], [4, 25], [8.5, 19], [11.5, 10], [12.2, 1], [10.5, -8], [6.5, -14.5], [1, -17], [-4.5, -15.5]], under: 2.5, flare: 0.45, soft: 3 },
   concha: { at: [8.2, 1.5], r: [8.2, 11.8], n: 2.3, deep: 10.5, wall: [0.55, 1.05] },
-  front: { deep: 8.5, p: [4, -2], q: [-17, -11, 6, 11] },
-  pit: { at: [3.4, -0.5], r: 2.8, deep: 4.5 },
+  front: { deep: 8.5, p: [4, -2], q: [-14, -8, 6, 11] },
+  pit: { at: [4.2, -0.5], r: 2.8, deep: 3 },
   crus: { a: [-2.5, 9.5], b: [8.5, 5], half: 2.4, high: [-1.5, -9.5] },
   antihelix: { stem: [[12, -10], [17.5, -4], [19.5, 4], [19, 11], [16.5, 17]], upper: [[16.5, 17], [13, 23], [8, 28.5]], lower: [[16.5, 17], [10, 18.5], [3, 19.5]], high: 2.2, half: 2.6 },
   scapha: { in: 5.6, half: 1.8, deep: 1.8, arc: [-45, -25, 115, 135] },
   fossa: { at: [9.5, 22.5], r: [4.5, 3.2], deep: 2 },
   antitragus: { at: [11.5, -10.5], r: 3.2, high: 1 },
-  notch: { a: [6.5, -6.5], b: [2.5, -12.5], half: 2.6, deep: [10, 7.5] },
   helix: { in: 2.3, r: 2.4, out: 1, over: 0.3, arc: [-62, -38, 160, 174] },
-  tragus: { at: [1, -1.5], r: [6, 2, 5], high: -2.5, fall: 6.5 },
-  plate: 3, lobe: { from: -12, to: -18, thick: 5.5, level: -1 }, even: 0.5,
+  tragus: { at: [1, -1.5], r: [6, 3.4, 5], high: -2.5, fall: 6.5 },
+  plate: 3, lobe: { from: -11, to: -19, thick: 5.5, level: [-7, 0.22] }, even: 0.5,
 };
 
 const D2R = Math.PI / 180;
@@ -123,7 +127,7 @@ const farFrom = (line, closed) => (p, q) => {
 };
 
 // ── the plane's maps ────────────────────────────────────────────────────────────────────────────────────────
-const P0 = -16, Q0 = -34, PW = 51, QW = 77, STEP = 0.25, NP = Math.round(PW / STEP) + 1, NQ = Math.round(QW / STEP) + 1;
+const P0 = -16, Q0 = -34, PW = 51, QW = 77, STEP = 0.5, NP = Math.round(PW / STEP) + 1, NQ = Math.round(QW / STEP) + 1;
 let made = null;
 function mapsOf() {
   if (made) return made;
@@ -146,27 +150,28 @@ function mapsOf() {
     // the bowl, its floor flat and its wall rising to its rim; the canal's pit in its floor
     const c = E.concha, rc = (Math.abs((p - c.at[0]) / c.r[0]) ** c.n + Math.abs((q - c.at[1]) / c.r[1]) ** c.n) ** (1 / c.n);
     let m = -c.deep * (1 - smooth01((rc - c.wall[0]) / (c.wall[1] - c.wall[0])));
-    // (before the bowl the plate lies low: the bowl stands open forwards, only the tragus before it)
-    m = smin(m, -E.front.deep * smooth01((E.front.p[0] - p) / (E.front.p[0] - E.front.p[1])) * between(q, E.front.q), 2);
-    m -= E.pit.deep * Math.exp(-(((p - E.pit.at[0]) ** 2 + (q - E.pit.at[1]) ** 2) / E.pit.r ** 2));
     // the antihelix's ridge; the scapha's groove inside the rim; the hollow between the antihelix's legs
     const da = Math.min(ah[0](p, q), ah[1](p, q), ah[2](p, q)); m += E.antihelix.high * Math.exp(-((da / E.antihelix.half) ** 2));
     m -= E.scapha.deep * Math.exp(-(((dO + E.scapha.in) / E.scapha.half) ** 2)) * between(round, E.scapha.arc);
     m -= E.fossa.deep * Math.exp(-(((p - E.fossa.at[0]) / E.fossa.r[0]) ** 2 + ((q - E.fossa.at[1]) / E.fossa.r[1]) ** 2));
-    // the helix's root, a fold across the bowl, falling away backwards; the antitragus; the notch before it
+    // the helix's root, a fold across the bowl, falling away backwards; the antitragus
     { const k = E.crus, ex = k.b[0] - k.a[0], ey = k.b[1] - k.a[1], t = Math.min(1, Math.max(0, ((p - k.a[0]) * ex + (q - k.a[1]) * ey) / (ex * ex + ey * ey))), d = Math.hypot(p - k.a[0] - ex * t, q - k.a[1] - ey * t); m = smax(m, k.high[0] + (k.high[1] - k.high[0]) * t - 3.5 * (d / k.half) ** 2, 1.5); }
     m = smax(m, E.antitragus.high - 4 * (((p - E.antitragus.at[0]) ** 2 + (q - E.antitragus.at[1]) ** 2) / E.antitragus.r ** 2), 1.5);
-    m = smax(m, E.tragus.high - E.tragus.fall * (((p - E.tragus.at[0]) / (p < E.tragus.at[0] ? E.tragus.r[0] : E.tragus.r[1])) ** 2 + ((q - E.tragus.at[1]) / E.tragus.r[2]) ** 2), 1.5);
-    { const k = E.notch, ex = k.b[0] - k.a[0], ey = k.b[1] - k.a[1], t = Math.min(1, Math.max(0, ((p - k.a[0]) * ex + (q - k.a[1]) * ey) / (ex * ex + ey * ey))), d = Math.hypot(p - k.a[0] - ex * t, q - k.a[1] - ey * t); m = smin(m, -(k.deep[0] + (k.deep[1] - k.deep[0]) * t) + 3.5 * (d / k.half) ** 2, 1.5); }
     // the lobe: flat, thick; and along the seam the plate sinks under the head's skin
-    const lobe = smooth01((E.lobe.from - q) / (E.lobe.from - E.lobe.to)); m += (E.lobe.level - m) * lobe;
+    const lobe = smooth01((E.lobe.from - q) / (E.lobe.from - E.lobe.to)); m += (E.lobe.level[0] + E.lobe.level[1] * p - m) * lobe;
+    // (before the bowl the plate lies low: the bowl stands open forwards, only the tragus before it)
+    m += (smin(m, -E.front.deep, 2) - m) * smooth01((E.front.p[0] - p) / (E.front.p[0] - E.front.p[1])) * between(q, E.front.q);
+    m -= E.pit.deep * Math.exp(-(((p - E.pit.at[0]) ** 2 + (q - E.pit.at[1]) ** 2) / E.pit.r ** 2));
+    m = smax(m, E.tragus.high - E.tragus.fall * (((p - E.tragus.at[0]) / (p < E.tragus.at[0] ? E.tragus.r[0] : E.tragus.r[1])) ** 2 + ((q - E.tragus.at[1]) / E.tragus.r[2]) ** 2), 1.5);
+    // (never under the head's skin but along the seam)
+    m = smax(m, wh + E.clear - (E.plate + (E.lobe.thick - E.plate) * lobe) / 2, 1);
     const sink = 1 - smooth01((seam(p, q) - E.seam.dive[0]) / (E.seam.dive[1] - E.seam.dive[0])); m += (wh - E.seam.under - m) * sink;
     M[g] = m; T[g] = E.plate + (E.lobe.thick - E.plate) * lobe; DO[g] = dO; DA[g] = Math.max(rootIn(p, q), dO + 1); WH[g] = wh;   // (the root only under the plate itself)
     HR[g] = E.helix.r * between(round, E.helix.arc) ** 0.7;
   }
-  // (the middle sheet evened over three quarters of a millimetre: where two of its forms meet it has a crease, and a
+  // (the middle sheet evened over a millimetre: where two of its forms meet it has a crease, and a
   // plate as thick as this cannot follow one; then how steeply it lies: the plate's thickness is measured square to it)
-  { const sg = 0.75 / STEP, R = Math.ceil(2.5 * sg), K = Array.from({ length: 2 * R + 1 }, (_, e) => Math.exp(-0.5 * ((e - R) / sg) ** 2)), ks = K.reduce((x, y) => x + y, 0), B = new Float32Array(n);
+  { const sg = 1 / STEP, R = Math.ceil(2.5 * sg), K = Array.from({ length: 2 * R + 1 }, (_, e) => Math.exp(-0.5 * ((e - R) / sg) ** 2)), ks = K.reduce((x, y) => x + y, 0), B = new Float32Array(n);
     for (let j = 0; j < NQ; j++) for (let i = 0; i < NP; i++) { let acc = 0; for (let e = -R; e <= R; e++) acc += K[e + R] * M[Math.min(NP - 1, Math.max(0, i + e)) + NP * j]; B[i + NP * j] = acc / ks; }
     for (let j = 0; j < NQ; j++) for (let i = 0; i < NP; i++) { let acc = 0; for (let e = -R; e <= R; e++) acc += K[e + R] * B[i + NP * Math.min(NQ - 1, Math.max(0, j + e))]; M[i + NP * j] = acc / ks; } }
   for (let j = 0; j < NQ; j++) for (let i = 0; i < NP; i++) { const a = Math.max(0, i - 1), b = Math.min(NP - 1, i + 1), c = Math.max(0, j - 1), d = Math.min(NQ - 1, j + 1); G[i + NP * j] = Math.hypot((M[b + NP * j] - M[a + NP * j]) / ((b - a) * STEP), (M[i + NP * d] - M[i + NP * c]) / ((d - c) * STEP)); }
@@ -174,14 +179,14 @@ function mapsOf() {
   const read = (p, q) => { const fi = Math.min(NP - 1.001, Math.max(0, (p - P0) / STEP)), fj = Math.min(NQ - 1.001, Math.max(0, (q - Q0) / STEP)), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j, g = i + NP * j; for (let c = 0; c < 7; c++) { const A = CH[c]; R[c] = (A[g] * (1 - u) + A[g + 1] * u) * (1 - v) + (A[g + NP] * (1 - u) + A[g + NP + 1] * u) * v; } return R; };
   // the field in the ear's own plane (mm): the plate, rounded at its rim; the helix's roll; the tragus; the root
   const raw = (p, q, w) => {
-    const [m, g, t, dO, hr, dA, wh] = read(p, q), r = t / 2, up = (w - m) / Math.hypot(1, g);
+    read(p, q); const m = R[0], g = R[1], t = R[2], dO = R[3], hr = R[4], dA = R[5], wh = R[6], r = t / 2, up = (w - m) / Math.hypot(1, g);
     const a = dO + r, b = Math.abs(up); let f = Math.min(Math.max(a, b), 0) + Math.hypot(Math.max(a, 0), Math.max(b, 0)) - r;
     if (hr > 0.05) f = smin(f, Math.hypot(dO + E.helix.in, w - Math.max(m + E.helix.out, wh + E.helix.over)) - hr, 1);
     return smin(f, Math.max(dA - E.root.flare * Math.min(6, Math.max(0, m - w)) + 1.2 * Math.max(0, wh - w), w - m, Math.min(wh - E.root.under, m - 2.5) - w), E.root.soft);
   };
-  // (read once on a grid of half a millimetre and evened there, each cell with its neighbours: what the surface is
+  // (read once on a grid of 0.6 mm and evened there, each cell with its neighbours: what the surface is
   // drawn out of, and what earFieldOf gives)
-  const C = 0.5, LO = [P0 + 1, Q0 + 1, -29], n3 = [Math.round((PW - 2) / C) + 1, Math.round((QW - 2) / C) + 1, Math.round(39 / C) + 1], NA = n3[0], NB = n3[1], NC = n3[2];
+  const C = 0.6, LO = [P0 + 1, Q0 + 1, -29], n3 = [Math.round((PW - 2) / C) + 1, Math.round((QW - 2) / C) + 1, Math.round(39 / C) + 1], NA = n3[0], NB = n3[1], NC = n3[2];
   let F3 = new Float32Array(NA * NB * NC);
   for (let k = 0; k < NC; k++) for (let j = 0; j < NB; j++) for (let i = 0; i < NA; i++) F3[i + NA * (j + NB * k)] = raw(LO[0] + i * C, LO[1] + j * C, LO[2] + k * C);
   { const sg = E.even / C, R = Math.max(1, Math.ceil(2.5 * sg)), K = Array.from({ length: 2 * R + 1 }, (_, e) => Math.exp(-0.5 * ((e - R) / sg) ** 2)), ks = K.reduce((x, y) => x + y, 0);

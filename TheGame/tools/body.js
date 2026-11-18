@@ -28,10 +28,10 @@ export const POSES = {
   'bent forwards': { loins: [0.7, 0, 0], chest: [0.3, 0, 0], 'arm.L': [1.2, 0, 0], 'arm.R': [1.2, 0, 0] },
   squat: { 'knee.L': 2.3, 'knee.R': 2.3, 'hip.L': [1.9, 0.2, 0], 'hip.R': [1.9, 0.2, 0], 'fist.L': 1, head: [0, 0.9, 0] },
 };
-/** The stills: the body from four sides, the face from three and its eye and mouth close, the body close, and in the five poses (the address of tools/body.html each). */
+/** The stills: the body from four sides, the face from three and its eye, mouth and ear close, the head from behind, the body close, and in the five poses (the address of tools/body.html each). */
 export const VIEWS = {
   front: 'yaw=0', 'three-quarter': 'yaw=35', side: 'yaw=90', back: 'yaw=180',
-  face: 'yaw=0&y=1.665&d=0.62', 'face, three-quarter': 'yaw=35&y=1.665&d=0.62', 'face, side': 'yaw=90&y=1.665&d=0.62', eye: 'yaw=12&y=1.677&x=0.032&z=0.07&d=0.2', mouth: 'yaw=15&y=1.62&z=0.08&d=0.26',
+  face: 'yaw=0&y=1.665&d=0.62', 'face, three-quarter': 'yaw=35&y=1.665&d=0.62', 'face, side': 'yaw=90&y=1.665&d=0.62', eye: 'yaw=12&y=1.677&x=0.032&z=0.07&d=0.2', mouth: 'yaw=15&y=1.62&z=0.08&d=0.26', ear: 'yaw=100&y=1.665&x=0.07&z=-0.02&d=0.24', 'head, from behind': 'yaw=155&y=1.665&d=0.62',
   torso: 'yaw=20&y=1.25&d=1.5', 'back, close': 'yaw=200&y=1.2&d=1.6', head: 'yaw=25&y=1.66&d=0.7', hand: 'yaw=60&y=0.78&x=0.22&d=0.6', legs: 'yaw=20&y=0.5&d=1.6', foot: 'yaw=40&y=0.06&x=0.09&z=0.05&d=0.8&pitch=25',
   ...Object.fromEntries(Object.entries(POSES).map(([name, pose], i) => [name, ['yaw=40&d=4', 'yaw=10&d=4.6&y=1', 'yaw=60&d=4', 'yaw=70&d=4', 'yaw=50&d=4'][i] + '&pose=' + encodeURIComponent(JSON.stringify(pose))])),
 };
@@ -150,6 +150,7 @@ if (json) console.log(JSON.stringify(out, null, 1));
 else {
   say(`The skin: ${out.points} points on a cage of ${out.cage}, hung on ${out.joints} joints; laid in ${tS} s (the muscles ${tM} s before it); ${out.litres} litres.`);
   for (const l of levels) say(`  ${l.name.padEnd(7)} ${String(l.triangles).padStart(7)} triangles, open edges ${l.open}, edges of more than two faces ${l.many}, off the finest by ${l.off} mm`);
+  if (S.ears) say(`  of them the two ears, each a closed form of its own: ${S.ears.points} points, ${S.ears.fine} triangles near`);
   if (S.headCover) say(`  the head's bones lie at least ${S.headCover.mm} mm under its skin (least at ${S.headCover.at?.map((x) => x.toFixed(3)).join(', ')})`);
   say(`  over the trunk and the limbs its normal turns ${out.turn.middle.toFixed(2)}° a centimetre of skin (the middle one), ${out.turn.most.toFixed(1)}° where it turns most (one in twenty more)`);
   say('  measure'.padEnd(36) + 'is'.padStart(7) + 'a man'.padStart(8) + '   off');
