@@ -182,7 +182,7 @@ numbers are written below.
 | 4 | #66 | Far trees as octahedral impostors and clump planes (no domes, no stipple) |
 | 3 | #67 | One boot (`src/boot.js`); the library and Me compile 75–80 % less |
 | Occlusion culling | #68 | A depth pyramid and two-pass culling of every drawer's tiers: 2–67 % of main's things drawn, nothing visible lost (exact depth check; FLIP within main's noise from above) |
-| 6b | `aven/0038-stage6b-avt` (draft PR to open: `gh`'s token was invalid in its session) | The ground as one virtual texture (`src/terrain/pages.js`): pages laid once in compute, BC atlas of 1792 pages in 107 MB, asked for from the prepass, faded in. The land alone 2–6 × faster from above (13–14 ms against 47–76 on the shared GPU); FLIP against main 0.04–0.09; the near ground a little softer (bias 0.5–1) |
+| 6b | #71 (draft) | The ground as one virtual texture (`src/terrain/pages.js`): pages laid once in compute, BC atlas of 1792 pages in 107 MB, asked for from the prepass, faded in. The land alone 2–6 × faster from above (13–14 ms against 47–76 on the shared GPU); FLIP against main 0.04–0.09; the near ground a little softer (bias 0.5–1) |
 
 **In flight when this was written** (each on its own branch, as a PR or nearly):
 
