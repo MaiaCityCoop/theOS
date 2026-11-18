@@ -208,6 +208,10 @@ async function stills(chrome, { tag, truth = false, reach = null, views, tiles =
     if (held) await P.page.evaluate(() => window.__gateClock.start());
     return P;
   }).catch((e) => { mem?.stop(); throw e; });
+  // (a frame drawn while the GPU refused any of its work is not the game's picture: one refused buffer leaves every bind
+  // group that holds it invalid, and Chrome then drops whole passes, black stills that "settled in 2.7 s" (2026-11-18,
+  // ?truth's grass over WebGPU's binding limit); such a view fails, with what the GPU said)
+  const valid = (x) => { const r = errors.find((e) => e.includes('GPUValidationError')); if (r) throw new Error(`the GPU refused part of the frame, so it is not the game's picture: ${r.slice(0, 400)}`); return x; };
   mkdirSync(dir, { recursive: true });
   const meta = existsSync(`${dir}gate.json`) ? JSON.parse(readFileSync(`${dir}gate.json`, 'utf8')) : { views: {} };
   Object.assign(meta, { tag, url, truth, commit: commit(), when: new Date().toISOString(), screen: SCREEN, start });
@@ -217,14 +221,14 @@ async function stills(chrome, { tag, truth = false, reach = null, views, tiles =
     for (const v of list) {
       if (mem) mem.phase = v.name;
       if (n === 1) {
-        const [a, s] = await locked(`stills ${tag}: ${v.name}`, async () => { const a = await go(page, v); return [a, await page.evaluate(still)]; }).catch((e) => { meta.views[v.name] = { failed: e.message.slice(0, 600) }; throw e; });
+        const [a, s] = await locked(`stills ${tag}: ${v.name}`, async () => { const a = await go(page, v); return [a, valid(await page.evaluate(still))]; }).catch((e) => { meta.views[v.name] = { failed: e.message.slice(0, 600) }; throw e; });
         writeFileSync(`${dir}${v.name}.png`, png(s));
         meta.views[v.name] = { cam: a.cam, settleMs: a.ms, settle: a.said, drawn: s.drawn, out: s.out, over: s.over };
         console.log(`  ${v.name.padEnd(28)} settled in ${(a.ms / 1000).toFixed(1).padStart(5)} s, drawn ${px(s.drawn)} into ${px(s.out)}${s.over ? ' (a tier had more patches than it holds: the farthest left out)' : ''}`);
         if (truth && s.drawn[0] < s.out[0]) console.log('  (the truth drawn at fewer pixels than it is shown at: ?truth is to be supersampled)');
         continue;
       }
-      const t0 = Date.now(), T = await tiled(page, v, n, { go, still, locked, label: `stills ${tag}: ${v.name}` }).catch((e) => { meta.views[v.name] = { failed: e.message.slice(0, 600) }; throw e; });   // (tools/gate/tiles.js)
+      const t0 = Date.now(), T = await tiled(page, v, n, { go, still, locked, label: `stills ${tag}: ${v.name}` }).then(valid).catch((e) => { meta.views[v.name] = { failed: e.message.slice(0, 600) }; throw e; });   // (tools/gate/tiles.js)
       writeFileSync(`${dir}${v.name}.png`, T.png);
       meta.views[v.name] = { tiles: n, ms: Date.now() - t0, settleMs: T.parts.map((p) => p.ms), over: T.parts.some((p) => p.over), drawn: T.parts[0].drawn };
       console.log(`  ${v.name.padEnd(28)} ${n * n} tiles in ${((Date.now() - t0) / 60e3).toFixed(1)} min, each drawn ${px(T.parts[0].drawn)} for a ${n}th of the picture each way`);
