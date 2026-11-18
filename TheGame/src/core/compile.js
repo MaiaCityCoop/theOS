@@ -118,7 +118,7 @@ async function compiling(renderer, target, root, camera, scene, draw, shown = []
   renderer.setRenderTarget(to);
   let compiled;
   try {
-    if (to && !to.depthBuffer) renderer.depth = false;
+    if (to) renderer.depth = !!to.depthBuffer;
     renderer.renderObject = draw;
     for (const o of shown) { o.visible = true; o.frustumCulled = false; }
     compiled = renderer.compileAsync(root, camera, scene);

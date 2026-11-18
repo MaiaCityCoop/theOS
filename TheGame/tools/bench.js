@@ -7,6 +7,9 @@
 // while it runs, so nothing else is drawn between.
 // `?bench` (src/boot.js): the same once the world is loaded, its numbers on the screen (overlay), nothing typed.
 // `?bench=2`: at that pixel ratio (1.5 else).
+import { CLASSES, classOf } from '../src/core/classes.js';
+import { FRAME_MS as BUDGET } from '../src/core/budget.js';   // (the hard gate on a frame's GPU time)
+
 export const VIEWS = [
   { name: 'tent, eye level', x: -1262.6 + 14 * -Math.sin(0.1), z: 631 + 14 * -Math.cos(0.1), yaw: Math.atan2(-Math.sin(0.1), -Math.cos(0.1)), h: 1.7 },
   { name: 'river bend, 26 m', x: -1334.8, z: 808.6, yaw: 0.9, h: 26 },
@@ -15,21 +18,17 @@ export const VIEWS = [
   { name: 'pine forest, eye level', x: -1383.6, z: 634.1, yaw: -4.14, h: 1.7 },
   { name: 'pine forest, 90 m', x: -1290, z: 618, yaw: -4.54, h: 90 },
 ];
-/** The hard gate: a frame's GPU time at most this (ms), at every view, so 60 fps holds with room for the CPU and the
-    browser's own work (16.7 ms a frame in all). */
-export const BUDGET = 12;
-/** The frame's four parts, each the passes it is made of (by the names their code marks them with: src/core/gpu.js
-    mark), in the frame's order: what BUDGET is shared out by, a ceiling a part (measured and set on the Mac mini). A pass
-    no part names is 'other': the slack. */
-export const CLASSES = {
-  geometry: ['packing', 'occlusion', 'prepass', 'prepass, late', 'colour'],   // what is drawn: the tiers' packing and the surfaces' cut (src/scatter), the culling's pass one, the prepass, then the depth pyramid, pass two and what it finds (src/core/occlusion.js), the colour
-  light: ['clouds', 'shadow map'],   // the clouds' shadow map (src/world/weather/clouds.js), the casters' (src/world/shadow.js)
-  ground: ['ground map', 'pages, laid', 'pages'],   // the ground under the camera (src/scatter/ground.js); the land's pages laid and the pages asked for after the prepass (src/terrain/pages.js)
-  'upscale/post': ['lens', 'upscale'],   // the virtual camera's lens (src/camera/post.js), the upscale to the screen (src/core/temporal.js)
-};
-const CLASS = new Map(Object.entries(CLASSES).flatMap(([c, names]) => names.map((k) => [k, c])));
-/** The part a pass is in ('other': none's). */
-export const classOf = (name) => CLASS.get(name) ?? 'other';
+/** A scene drawn whole, as only a tool does: into the screen's own target, which has a depth (the game's canvas has
+    none: src/boot.js; three lays a canvas's pass out once, so it cannot be given one for a few draws). */
+const inTarget = (draw) => { const s = window.__game, r = s.renderer, was = r.getRenderTarget(); r.setRenderTarget(s.screen?.target ?? was); try { return draw(); } finally { r.setRenderTarget(was); } };
+/** The GPU's memory now, by class beside each class's budget (src/core/gpu.js ledger: { classes: { class: { gpu,
+    budget } }, gpu: all that is noted, device: all the device has made, unnoted: of that, what no pool notes }; MB). */
+/** A view's number into out's table of `key` (made with the first). */
+const keep = (out, key, name, value) => { (out[key] ||= {})[name] = value; };
+export const memoryNow = () => { const L = window.__memory?.(); return L ? { classes: L.classes, gpu: L.gpu, device: L.device, unnoted: L.unnoted } : null; };
+/** The frame's parts, each the passes it is made of, by the names their code marks them with: what BUDGET (and the
+    memory's gate) is shared out by, one table for the game and its tools (src/core/classes.js). */
+export { CLASSES, classOf, CLASS_NAMES } from '../src/core/classes.js';
 
 // the page's own modules (the same ones the game runs, found by their resource entries: the dev server's addresses)
 const mod = (part) => import(performance.getEntriesByType('resource').map((e) => e.name).filter((n) => n.includes(part)).at(-1));
@@ -129,7 +128,7 @@ export async function bench({ ratio = 1.5, frames = 60, shading = false, wait = 
     mark('clouds'); s.weather.before(camera, g);
     mark('shadow map'); s.shadows.render(s.scene, camera, g);
     if (dark) U.uShadowOn.value = 0;   // (the colour pass reads no shadow: the A/B of its share)
-    if (s.screen) s.screen.render(s.scene, camera); else { mark('colour'); renderer.render(s.scene, camera); }
+    if (s.screen) s.screen.render(s.scene, camera); else { mark('colour'); inTarget(() => renderer.render(s.scene, camera)); }
     mark(null);
     tick(changed());   // (whether the world is complete, as after the game's own frame: src/core/settle.js)
   };
@@ -143,9 +142,9 @@ export async function bench({ ratio = 1.5, frames = 60, shading = false, wait = 
       frame(v); await fin();
       if (clock) {
         const T = await timed(clock, () => frame(v), frames);
-        out[v.name] = T.sum; (out.span ||= {})[v.name] = T.span; (out.passes ||= {})[v.name] = T.passes; (out.classes ||= {})[v.name] = T.classes;
-        if (shading) { const D = await timed(clock, () => frame(v, true), frames); (out.shading ||= {})[v.name] = { colour: T.passes.colour?.mean ?? 0, colourWithout: D.passes.colour?.mean ?? 0 }; frame(v); await fin(); }   // (and one frame as it was, so the shadows are read again)
-      } else { const t0 = performance.now(); for (let i = 0; i < frames; i++) frame(v); await fin(); out[v.name] = +((performance.now() - t0) / frames).toFixed(2); }
+        out[v.name] = T.sum; keep(out, 'span', v.name, T.span); keep(out, 'passes', v.name, T.passes); keep(out, 'classes', v.name, T.classes); keep(out, 'memory', v.name, memoryNow());
+        if (shading) { const D = await timed(clock, () => frame(v, true), frames); keep(out, 'shading', v.name, { colour: T.passes.colour?.mean ?? 0, colourWithout: D.passes.colour?.mean ?? 0 }); frame(v); await fin(); }   // (and one frame as it was, so the shadows are read again)
+      } else { const t0 = performance.now(); for (let i = 0; i < frames; i++) frame(v); await fin(); out[v.name] = +((performance.now() - t0) / frames).toFixed(2); keep(out, 'memory', v.name, memoryNow()); }
     }
   } finally { clock?.stop(); ratioTo(was); s.governor.hold(false); s.covered = covered; }
   out.measure = clock ? 'GPU time' : 'wall time';
@@ -196,8 +195,8 @@ export async function parts(view = VIEWS[0], { ratio = 1, frames = 30 } = {}) {
     const groups = { sky: (o) => o.renderOrder === 15, land: (o) => o === s.terrain.landMesh, water: (o) => o === s.terrain.waterMesh };   // (the land: its one mesh, near the eye and far)
     for (const a of new Set(tierOf.values())) groups[a] = (o) => tierOf.get(o) === a;
     const named = Object.values(groups); groups.placed = (o) => !named.some((f) => f(o)) && !tierOf.has(o);
-    const out = { view: v.name, all: await time(() => renderer.render(scene, camera)), light: await time(() => s.shadows.render(scene, camera, g)), weather: await time(() => s.weather.before(camera, g)) };
-    for (const [k, f] of Object.entries(groups)) { kids.forEach((o) => (o.visible = f(o))); out[k] = await time(() => renderer.render(scene, camera)); kids.forEach((o) => (o.visible = true)); }
+    const out = { view: v.name, all: await time(() => inTarget(() => renderer.render(scene, camera))), light: await time(() => s.shadows.render(scene, camera, g)), weather: await time(() => s.weather.before(camera, g)) };
+    for (const [k, f] of Object.entries(groups)) { kids.forEach((o) => (o.visible = f(o))); out[k] = await time(() => inTarget(() => renderer.render(scene, camera))); kids.forEach((o) => (o.visible = true)); }
     return out;
   } finally { clock.stop(); renderer.setPixelRatio(was); s.governor.hold(false); s.covered = covered; }
 }

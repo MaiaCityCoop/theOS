@@ -181,7 +181,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const skinRT = SKINS ? new THREE.RenderTarget(SKIN, SKIN, { depth: SKINS, depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, colorSpace: THREE.NoColorSpace }) : null;
   if (SKINS) { Object.assign(skinRT.texture, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, anisotropy: 2 }); renderer.initRenderTarget(skinRT); }
   const skinTex = SKINS ? texture(skinRT.texture) : null, skins = { who: new Int32Array(SKINS).fill(-1), used: new Float64Array(SKINS), slot: new Int32Array(ALL).fill(-1) };
-  if (SOLID) note(`${name}: looks`, look.byteLength, look.byteLength); if (SKINS) note(`${name}: kinds' own textures`, Math.round(SKINS * SKIN * SKIN * 4 * 4 / 3), 0);
+  if (SOLID) note(`${name}: looks`, look.byteLength, look.byteLength, 'geometry'); if (SKINS) note(`${name}: kinds' own textures`, Math.round(SKINS * SKIN * SKIN * 4 * 4 / 3), 0, 'geometry');
   // every moving kind's skeleton (assets/kit/creature.js): BONES bones a kind, three rows of four a bone
   // (worked out in a worker at the start, below: until they have come, what moves glides without a stride)
   const boneRows = new THREE.StorageBufferAttribute(new Float32Array(Math.max(1, MOVING) * BONES * 12), 4), BONE = storage(boneRows, 'vec4', Math.max(1, MOVING) * BONES * 3);
@@ -451,7 +451,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
   const blockIn = (b, k0, n, idx, elems) => {
     MAKE?.onBlock?.(b, k0, n, idx, elems);   // (what a make reads of its meshes as they come: what the plants' far ends are baked from, src/scatter/trees.js)
     if (b.boxes) for (let j = 0; j < n; j++) if (b.draws[j]) kindBox(k0 + j, boxIn(k0 + j, b.boxes.subarray(j * 6, j * 6 + 6)));   // (a solid's, a plant's: measured where it was made)
-    H.putBlock(b.l, k0, n, MAKE && !CORNERED ? NONE : b.corners, b.verts, CLASSED ? b.draws : b.counts);   // (classed: its count is its corners')
+    H.putBlock(b.l, k0, n, MAKE && !CORNERED ? NONE : b.corners, b.verts, CLASSED ? b.draws : b.counts, b.elems);   // (classed: its count is its corners')
     if (RANGE[b.l]) for (let j = 0; j < n; j++) if (b.draws[j]) classesIn[b.l].add(clampClass(b.l, classOf(b.draws[j])));
     if (MAKE && !RANGE[b.l]) for (let j = 0; j < n; j++) {
       const list = b.corners.slice(j * idx, j * idx + b.draws[j]);
@@ -645,17 +645,16 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
     });
     return { alive: alive.greaterThan(0.5), data: rows };
   };
-  const tier = (i, { cell, P, cap, sizes, place, shadow = false, casts = false, fade = 0.02, far = Infinity, thing = null, own = false, extra = {} }) => {   // (thing: its placer's name, for a thing's own state; own: the placer chooses its own patches, else its regions are resident; extra: more of the tier's own options: tier.js)
-    const Lv = { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity }, band = { near: uniform(0), far: uniform(1), ...bandOf(Lv, fade, padOf(cell, P)) };
-    const { isDot, perSlot, classed, byKind, FAR, KF, leafy, K0, cLo, cHi, KS } = drawsOf(i, shadow);
-    // (its level and whether it is the shadow's as numbers: every tier's packing is one piece of code, compiled once)
-    const lv = uniform(i, 'uint'), under = uniform(Math.max(0, i - 1), 'uint'), stands = uniform(i ? 1 : 0), all = uniform(shadow ? 1 : 0), TH = thingOf(thing), whole = all.greaterThan(0.5);
+  // (what of a thing a level's tier packs, and into which of its draws: by its numbers N (its level, the one under it,
+  // whether it stands in for the finer ones, whether it is the shadow's, its band) and the draws its level has (drawsOf))
+  const levelCode = (N, { byKind, classed, perSlot, leafy, KS, FAR, KF, K0, cLo, cHi }) => {
+    const whole = N.all.greaterThan(0.5);
     // of this level, a thing of `kind`, `size` metres, `dist` metres off (pad: how far past its band): it is there
     // (heap.js), and it is the size on screen the level is drawn at, or larger while its next finer level has not come
     const ofLevel = (kind, size, dist, pad) => {
-      const span = dialPxAt(spanAt(size, dist)), R = heapRow(H, kind, lv), has = R.z.greaterThan(uint(0));   // (its size on screen at a metre: the measure's, in dial pixels as its band: src/detail/error.js)
-      const near = dist.greaterThanEqual(span.mul(band.from).sub(pad)).or(stands.greaterThan(0.5).and(R.w.shiftRight(under).bitAnd(uint(1)).equal(uint(0))));
-      return { R, ok: has.and(whole.or(dist.lessThan(span.mul(band.to).add(pad)).and(near))) };
+      const span = dialPxAt(spanAt(size, dist)), R = heapRow(H, kind, N.lv), has = R.z.greaterThan(uint(0));   // (its size on screen at a metre: the measure's, in dial pixels as its band: src/detail/error.js)
+      const near = dist.greaterThanEqual(span.mul(N.band.from).sub(pad)).or(N.stands.greaterThan(0.5).and(R.w.shiftRight(N.under).bitAnd(uint(1)).equal(uint(0))));
+      return { R, ok: has.and(whole.or(dist.lessThan(span.mul(N.band.to).add(pad)).and(near))) };
     };
     // which of its draws it is dropped into (bucket), and of its far end's too where it hands over to it (also)
     const holder = () => ({ alive: float(0).toVar(), bucket: float(0).toVar(), also: FAR ? float(-1).toVar() : null });
@@ -673,33 +672,65 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
       } else out.alive.assign(1);
     };
     const done = (out, rows) => ({ alive: out.alive.greaterThan(0.5), data: rows, bucket: out.bucket, also: out.also });
-    // (its own patches: a cell's thing, packed where it is of the level now)
-    const live = (c, part = {}) => {
-      const out = holder(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar());
-      place(c, { band, whole, all, ...part }, (kind, size, dist, fill, key = null) => {
-        const L = ofLevel(kind, size, dist, band.pad);
-        If(L.ok, () => { fill(...rows); asItIs(TH, c, key, rows, () => { sortOf(out, kind, rows, L.R); }); });
-      });
-      return done(out, rows);
-    };
-    // (resident: a cell's thing, held where it may be of the level a while (src/scatter/regions.js Resident): its band of
-    // sizes on screen widened by the MARGIN either way, from this level on down to the next finer's band (while that one
-    // has not come, this one draws it); the shadow's stand-in, a band of metres, by its region's pad. And of a thing held,
+    return { whole, ofLevel, holder, sortOf, done };
+  };
+  // A resident tier's kind (tier.js): the levels of one placer drawn alike pack by one piece of code, compiled once,
+  // over numbers of the kind's own, which each of its tiers tells before it packs; the shadow's stand-in is a kind of
+  // its own. (A placer that chooses its own patches packs by its tier's own numbers: tier, below.)
+  const kinds = new WeakMap();   // (by the placer's place: its kinds, by how they are drawn)
+  const kindFor = (place, shadow, thing, flags) => {
+    const key = [shadow, thing, flags.isDot, flags.perSlot, flags.classed, flags.byKind, !!flags.FAR, flags.KF, flags.leafy, flags.K0, flags.cLo, flags.cHi, flags.KS].join('|');
+    let byKey = kinds.get(place); if (!byKey) kinds.set(place, (byKey = new Map()));
+    if (byKey.has(key)) return byKey.get(key);
+    const N = { lv: uniform(0, 'uint'), under: uniform(0, 'uint'), stands: uniform(0), all: uniform(shadow ? 1 : 0), band: { near: uniform(0), far: uniform(1), pad: uniform(0), to: uniform(0), from: uniform(0) } };
+    const inner = uniform(0), TH = thingOf(thing), { whole, ofLevel, holder, sortOf, done } = levelCode(N, flags);
+    // (a cell's thing, held where it may be of the level a while (src/scatter/regions.js Resident): its band of sizes
+    // on screen widened by the MARGIN either way, from this level on down to the next finer's band (while that one has
+    // not come, this one draws it); the shadow's stand-in, a band of metres, by its region's pad. And of a thing held,
     // whether it is of the level now)
-    const finer = i > 1 ? 1 / (LEVELS[i - 2].px * Math.exp(fade)) : 0, inner = shadow || !i ? band.from : uniform(finer);
-    const held = (Q) => (shadow ? { ...band, near: band.near.sub(Q.pad), far: band.far.add(Q.pad) } : { ...band, near: band.near.div(MARGIN), far: band.far.mul(MARGIN) });
-    const found = foundBy(place, held, TH, (size, dist) => { const span = dialPxAt(spanAt(size, dist)); return whole.or(dist.lessThan(span.mul(band.to).mul(MARGIN)).and(dist.greaterThanEqual(span.mul(inner).div(MARGIN)))); }, { whole, all });
+    const held = (Q) => (shadow ? { ...N.band, near: N.band.near.sub(Q.pad), far: N.band.far.add(Q.pad) } : { ...N.band, near: N.band.near.div(MARGIN), far: N.band.far.mul(MARGIN) });
+    const found = foundBy(place, held, TH, (size, dist) => { const span = dialPxAt(spanAt(size, dist)); return whole.or(dist.lessThan(span.mul(N.band.to).mul(MARGIN)).and(dist.greaterThanEqual(span.mul(inner).div(MARGIN)))); }, { whole, all: N.all });
     const select = (rows) => {
-      const out = holder(), kind = uint(rows[1].y.add(0.5)), L = ofLevel(kind, rows[0].w, camDist(rows[0].xy), band.pad);
+      const out = holder(), kind = uint(rows[1].y.add(0.5)), L = ofLevel(kind, rows[0].w, camDist(rows[0].xy), N.band.pad);
       If(L.ok, () => { sortOf(out, kind, rows, L.R); });
       return done(out, rows);
     };
+    const K = { N, inner, found, select };
+    byKey.set(key, K);
+    return K;
+  };
+  const tier = (i, { cell, P, cap, sizes, place, shadow = false, casts = false, fade = 0.02, far = Infinity, thing = null, own = false, extra = {}, table = null }) => {   // (thing: its placer's name, for a thing's own state; own: the placer chooses its own patches, else its regions are resident; extra: more of the tier's own options: tier.js; table: a resident tier's placer's own numbers, told before it packs)
+    const Lv = { lo: LEVELS[i].px, hi: i ? LEVELS[i - 1].px : Infinity }, band = { near: uniform(0), far: uniform(1), ...bandOf(Lv, fade, padOf(cell, P)) };
+    const flags = drawsOf(i, shadow), { isDot, perSlot, classed, byKind, FAR, KF, leafy, K0, cLo, cHi, KS } = flags;
     const resident = !own && !extra.spans;
     let made1 = null;   // (another make's material: one for every draw of the tier)
     const draws = classed ? Array.from({ length: cHi - cLo + 1 }, (_, c) => { const g = new THREE.InstancedBufferGeometry(); g.setIndex(classIndex(cLo + c)); return g; }) : Array.from({ length: byKind ? ALL : leafy ? K0 * 2 : K0 }, () => drawOf(i));
     if (FAR) draws.push(new THREE.InstancedBufferGeometry().setIndex([0, 1, 2, 0, 2, 3]));   // (the far end's quad: four corners, its vertex stage places them)
     const caps = FAR ? [...draws.slice(0, KF).map(() => cap), Math.min(1 << 20, cap * ALL)] : cap;   // (its own patches: its far end's draw holds as many as every kind's, up to about a million)
-    const packs = resident ? { found, select, metres: shadow } : { live, cap: caps };   // (a resident tier's buckets are as large as it finds it needs: tier.js)
+    // its numbers: its level, the one under it, whether it stands in for the finer ones, whether it is the shadow's
+    const mine = { lv: i, under: Math.max(0, i - 1), stands: i ? 1 : 0, all: shadow ? 1 : 0 }, finer = i > 1 ? 1 / (LEVELS[i - 2].px * Math.exp(fade)) : 0;
+    let packs;
+    if (resident) {   // (its kind's code, told its numbers before it packs; its buckets as large as it finds it needs: tier.js)
+      const K = kindFor(place, shadow, thing, flags);
+      const tell = () => {
+        for (const k in mine) K.N[k].value = mine[k];
+        for (const k of ['near', 'far', 'pad', 'to', 'from']) K.N.band[k].value = band[k].value;
+        K.inner.value = shadow || !i ? band.from.value : finer; table?.();
+      };
+      packs = { found: K.found, select: K.select, metres: shadow, kind: K, table: tell };
+    } else {   // (its own patches: a cell's thing, packed where it is of the level now)
+      const N = { lv: uniform(i, 'uint'), under: uniform(mine.under, 'uint'), stands: uniform(mine.stands), all: uniform(mine.all), band }, TH = thingOf(thing);
+      const { whole, ofLevel, holder, sortOf, done } = levelCode(N, flags);
+      const live = (c, part = {}) => {
+        const out = holder(), rows = Array.from({ length: ROWS }, () => vec4(0).toVar());
+        place(c, { band, whole, all: N.all, ...part }, (kind, size, dist, fill, key = null) => {
+          const L = ofLevel(kind, size, dist, band.pad);
+          If(L.ok, () => { fill(...rows); asItIs(TH, c, key, rows, () => { sortOf(out, kind, rows, L.R); }); });
+        });
+        return done(out, rows);
+      };
+      packs = { live, cap: caps };
+    }
     const T = new Tier(scene, [...draws, ...(KS >= 0 ? [drawShaped(i)] : [])], (src, k = 0) => (k === KF ? FAR.material(src, i) : isDot && !shadow ? dot(src) : MAKE ? (made1 ||= MAKE.material(src, i, shadow, atOf(i))) : meshOf(src, i, shadow, false, leafy && k >= K0 && k !== KS, k === KS)), { cell, P, near: 0, far: 1, order: 1, ...packs, gpu: true, slots: ROWS, bounds: shadow ? null : boundsOf(GROWN, KF), ...extra });   // (the shadow's stand-in is never culled: what casts may stand where the eye does not see)
     T.band = shadow ? () => { T.near = 0; T.far = SHADE.far; band.near.value = -1; band.far.value = SHADE.far * SHADE.wide; }
       : () => {

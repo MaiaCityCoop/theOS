@@ -17,7 +17,7 @@ export const BOX = { min: 60, grow: 1.2, max: 900 };
 
 export function createShadows(renderer) {
   const map = () => { const rt = new THREE.RenderTarget(S, S, { count: 0, depthBuffer: true }); rt.depthTexture = new THREE.DepthTexture(S, S); rt.depthTexture.type = THREE.UnsignedIntType; rt.depthTexture.compareFunction = THREE.LessEqualCompare; rt.depthTexture.minFilter = rt.depthTexture.magFilter = THREE.LinearFilter; return rt; };   // read with a comparison sampler: filtered PCF (src/world/light.js)
-  const rts = [map(), map()]; let turn = 0; note('shadow maps', 2 * S * S * 4, 0);
+  const rts = [map(), map()]; let turn = 0; note('shadow maps', 2 * S * S * 4, 0, 'light');
   U.tShadow.value = rts[1].depthTexture;
   const cam = new THREE.OrthographicCamera(-60, 60, 60, -60, 1, 900); cam.layers.set(CASTS); cam.userData.shadow = true;
   // what the map draws of a caster: once it is made for the map; until then it is made aside, and left out

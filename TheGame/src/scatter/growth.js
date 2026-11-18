@@ -76,7 +76,7 @@ export function createGrowth(renderer, words) {
     let base = N * N * W;
     places = [];
     for (const { w, span } of writers) { const side = 2 ** Math.ceil(Math.log2(span(N))); places[w] = { side, base }; base += side * side; }
-    const buf = gpuStorage('uint', base, 'the growth map'); B = buf.node;
+    const buf = gpuStorage('uint', base, 'the growth map', 'geometry'); B = buf.node;
     fills = writers.map(({ w, record }) => Fn(() => {
       const g = globalId.xy;
       If(g.x.lessThan(uint(uCells.z)).and(g.y.lessThan(uint(uCells.w))), () => {
