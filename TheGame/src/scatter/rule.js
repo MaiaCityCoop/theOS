@@ -31,6 +31,7 @@ import { rnd, vnoise, groveAt, leadAt, riverInfo, shareOf, nearLake } from '../w
 import { U } from '../core/uniforms.js';
 import { scatterRow } from '../../assets/index.js';
 import { entriesOf, placed } from './entries.js';
+import { most } from '../../assets/kinds.js';
 import { CLEARINGS } from '../../world/places.js';
 import { TEXEL, WORDS } from './growth.js';
 
