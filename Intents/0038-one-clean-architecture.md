@@ -1772,64 +1772,6 @@ CI runs it on every pull request against main (`--base HEAD^1`: main, as the pul
 3 s. The four imports from the game's root (three in `cine/trailer.js`, one in `tools/sweep.js`) are now relative, so
 madge follows every import.
 
-### Train 2: the solids' builder and cut from first principles (2026-11-18)
-
-Built on `aven/0038-solids` from train 1c with #97 under it (`e46c295`), on the Mac mini, CPU only: measured in node on
-the rocks' and the made things' own hierarchies, the page's modules loaded through vite without a page.
-
-- **The normal's weight from what it looks like** (`assets/kit/clusters.js`): a normal δ off shades as the surface
-  tilted δ there, as though it had moved, from the nearest place where it is right, δ r / 2. meshoptimizer weighs a
-  change of 1/w in an attribute over a distance d as d of position (its README), so the weight is 1/2 (was 0.02 by
-  hand). And the shading's error is measured at every vertex a group lost (its normal against the one there, r to the
-  nearest corner), beside how far it lies. Measured so, the old weight's hierarchies hid shading: the rocks' errors are
-  1.8–2.4 times what the simplifier said (median parent error 0.70e-3 → 1.71e-3 on a boulder). With 1/2 the simplifier
-  keeps the shading where it costs least: the honest error at 1.0e-3, level 1 holding 25 k triangles against 43 k
-  with 0.02 kept honest (12 k when the shading went unmeasured).
-- **FEW and THIN, from what fails** (`clusters.js` build): a loose part is kept whole where the simplifier's word does
-  not hold for it. Each part is made coarse alone, as far as the simplifier says it stays under its reach over BAND;
-  if what it lost lies farther than that, or it will not be made coarser, it waits whole and goes whole at its reach.
-  The tent keeps 27 of its 33 parts so (FEW/THIN: 28), about as many triangles a level (fewer at levels 2, 5, 6 and
-  8, more at 7: 1,025 against 461). A first try,
-  "keep whole what has no coarser shape once halved", kept 7 and held the tent at full detail to level 6: a rope's
-  first halving is cheap, its second takes its length.
-- **MAXT and MAXV:** the cut draws a listed cluster as MAXT × 3 corners, so MAXT is where the fill holds: 95–96% at 64
-  and 128 on the rocks, 93–94% at 256 (the fire pit 82%, the tent 43%), while from 64 to 128 the clusters to test and
-  list halve. MAXV was 192 by hand; meshoptimizer's own most is 256, nothing drawn reads it, and the tent's fill goes
-  from 62% to 79% (the rocks' does not move).
-- **The rooms from the hierarchies** (`tools/rooms.js`, `rooms.json`, `src/scatter/rooms.js`): every solid's levels
-  measured as `packLevel` lays them, a shape at a time, kept by its recipe's version and the builder's hash (no
-  recipe's version says the kits the zoo and the workers bring), measured again by the dev server after the registry
-  (29 s cold, 52 ms warm). madeRoom (2.1 × faces, 32,000 vertices) and the rocks' ROOM table ("a quarter to spare")
-  are gone. Measured, the table was short for every coarse level of the new hierarchies (level 6: 133 triangles
-  against 3,216 for boulder 3, below).
-- **The rocks' full meshes:** a slot a shape (24), as any of them may lie near at once, within the geometry class's
-  room beside every shape's coarser levels: 151.9 MB (was 6 slots, 53.8 MB, and every shape's under `?truth`). No
-  TRUTH branch.
-- **The cut** (`src/scatter/cut.js`): its clusters a thing are the level's own most (1,787, was ceil(tris / 32) + 8 =
-  7,093, so a quarter of the threads); its list as many as its packed things can ask for, within one buffer the GPU
-  binds and the geometry's room, noted as a pool of its own.
-- **The single things' table** (`src/world/things.js`): as large as what it holds, from 32 places, doubling while it
-  is more than 0.6 full (linear probing: a look-up that misses, as most do, looks at 3.6 places on average), within
-  one buffer the GPU binds (was 2^18
-  places, 4 MB, always). Its buffer made again when it grows, the node the same.
-- **A group's error measured both ways** (`clusters.js` apart, after the first PR draft): boulder 3's coarse levels
-  held about 3,200 triangles because one level-5 group (214 triangles, 114 of its 165 vertices locked) was said 0.058 of
-  its size off by the simplifier, where sampled densely it lies 0.013 from what it was made into and its shading 0.018;
-  BAND carried that up its whole chain. The simplifier's error is a quadric's (every face's plane, and an attribute's,
-  carried on without end): now it only steers what is taken away, and a group's error is what is measured, from every
-  triangle's middle and every edge's middle of both surfaces to the other, geometry and shading (on an edge, r is half
-  the edge: its two ends alone make its normal there). Middles alone measured 0.67–0.93 of that, cluster by cluster:
-  not enough. Boulder 3's levels 5 and 6: 3,358 and 3,216 triangles → 1,604 and 398; its root 2.25 → 0.74 of its size.
-  The nearest triangle is found within the gap to the cells looked at (the same triangles, 3.4 times faster): a rock's
-  build 1.2–1.5 s (0.7 with the simplifier's word).
-- **The colours' weight, and measured:** lit as its colour times n·l, a normal δ off changes a pixel's light by δ at
-  most, and so does a colour δ off; the picture cannot tell them apart, so a colour's error is counted as the same move,
-  CW = NW = 1/2 (was 0.01 for a rock's shade, 0.02 for a made thing's colour), and measured with the rest. Weighed so,
-  meshoptimizer would not fold across the fire pit's many colour seams (76 groups stuck, 55 clusters never made
-  coarser, 6,193 triangles at its coarsest level); a seam is a wish, not a need, so a group it holds back is made again
-  with its seams free, what that costs measured. The fire pit's coarsest level 3,737 triangles (2,614 while its colours
-  went unmeasured), its middle levels about 10 k (7 k); the tent's coarsest 260 → 24. Rooms: rocks 155.1 MB (24 slots),
-  made things 4.7 MB.
 ### The 10 % gate as one report (2026-11-18)
 
 `bun tools/gate/ten.js --base <run>` holds a run of the gate against a stored one, the base (the train's numbers on
@@ -2146,13 +2088,6 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 - **Not there yet:** not yet run on the GPU; the first `paths` run gives the numbers. Under the dev server, what is loaded
   is the unbundled modules; a built page (`--url` at a preview) gives the bytes a player loads.
 
-- **Asked (by the master on the Mac mini):** the solids' builder and cut from first principles: the normal's weight
-  from the shading's error in pixels against ERROR_PX, MAXT/FEW/THIN derived or justified, madeRoom and the rocks'
-  ROOM table and full-mesh slots from each shape's hierarchy within the geometry's room, the cut's list from need and
-  the device's limits, the single things' 2^18 from need.
-- **Delivered:** `aven/0038-solids`, draft PR (under Build, "Train 2: the solids' builder and cut…").
-- **Not there yet:** not run on a GPU (CPU only). Boulder 3's coarse levels and the colours' weights followed (there).
-
 ## Trail
 
 | When | Commit | What |
@@ -2226,11 +2161,6 @@ The gate does not yet keep the first frame or the bytes loaded before it, so the
 | 2026-11-18 | `ab99e49` | Draw path: `?truth` culls as the game does (the truth draws all that is visible) |
 | 2026-11-18 | `2fdfae0` | Draw path: every culling dispatch within the device's workgroups a dimension |
 | 2026-11-18 | `d7dcd26` | Draw path merged with main (`ecc80f2`, the bench by its passes); PR #77 ready |
-| 2026-11-18 | `43be381` | Train 2: one far extent from need; the depth pyramid follows the screen; the canvas without depth |
-| 2026-11-18 | `85e1e1d` | GPU memory by class: one table of classes, one accounting with the device counted, the gate beside the ms |
-| 2026-11-18 | `f0f5695` | The solids' builder and cut from first principles: the normal's weight, kept-whole parts, rooms from the hierarchies |
-| 2026-11-18 | `2bcbe0d` | A group's error measured both ways, not the simplifier's quadric (boulder 3's coarse levels) |
-| 2026-11-18 | `d171b3c` | The colours' weight derived and measured; a group its seams hold back made again with them free |
 | 2026-11-18 | `26f751d` | `tools/health.js`: the code gates in one command (copies, spaghetti, dead code, cycles, size, settings, dependencies); the baseline under Build |
 | 2026-11-18 | `695ea18` | Imports from the game's root made relative (`cine/trailer.js`, `tools/sweep.js`), so madge follows every import |
 | 2026-11-18 | `bca2270` | The code gates held against main: `health.js --base` (each gate's change, exit 1 where one got worse), run by CI on every pull request |
