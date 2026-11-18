@@ -86,7 +86,6 @@ export function wear(p, s, M, read) {
   if (!RUNS.length) return;
   const W = pathNear(p, s.mul(0.5).add(0.6)).toVar(), e = W.x, half = W.y;
   If(e.lessThan(s.mul(0.5).add(SOFT)), () => {
-    // the share of the texel the path covers: the path [-half, half] across, the texel s wide round its point
     // the share of the texel the path covers: the path [-half, half] across, its edge itself soft over SOFT metres, so
     // seen through the texel (s wide round its point) a box SOFT and s together wide (near, the soft edge; far, a line
     // of its share)
