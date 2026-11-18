@@ -1,8 +1,9 @@
 name: CI
 
 # Checks and builds the website (OS/) and the game (TheGame/), and tests the game's API (API/) on Postgres, for every
-# change to them. On a push to main it keeps the release it built as the run's artifact `release-next`, which Deploy
-# ships to `next` once this run has passed (deploy.yml, deploy/README.md).
+# change to them; a pull request is held to the code gates against main as well (TheGame/tools/health.js --base). On a
+# push to main it keeps the release it built as the run's artifact `release-next`, which Deploy ships to `next` once
+# this run has passed (deploy.yml, deploy/README.md).
 on:
   push:
     branches: [main]
@@ -33,6 +34,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          fetch-depth: 2   # a pull request's commit is it merged into main: its first parent is main, the code gates' base
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.4
@@ -46,6 +48,10 @@ jobs:
       - name: Every asset against its measure
         working-directory: TheGame
         run: bun tools/scale.js
+      - name: The code gates against main
+        if: github.event_name == 'pull_request'
+        working-directory: TheGame
+        run: bun tools/health.js --base HEAD^1
       - name: API tests
         working-directory: API
         env:
