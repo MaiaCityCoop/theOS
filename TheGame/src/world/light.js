@@ -224,7 +224,7 @@ export const screenShade = () => ({ open: clamp(aoHere(vec3(0, 1, 0)).w, 0, 1), 
       sky           what else dims the sky's light on it (the ground's own shade)
       gloss, sharp  its highlight: how bright, how tight */
 export const lightOn = (s) => {
-  const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mulcontactHere();
+  const n = s.n, L = U.uSunDir, V = s.V ?? (s.w ? normalize((s.eye ?? U.uCam).sub(s.w)) : null), share = (s.sun ?? sunAt(s.w, s.how, s.n)).mul(contactHere());
   const wrap = s.wrap ?? 0, ndl = s.ndl ?? (wrap ? n.dot(L).add(wrap).div(float(wrap).add(1)) : n.dot(L)).max(0);
   const back = V ? max(V.negate().dot(L), 0) : null, light = U.uSun.mul(share);   // (how far the eye looks into the sun; the sun's light here)
   // the sky's light: from the way the sky it sees lies (the bent normal), less what stands round it (GTAO) and what the
