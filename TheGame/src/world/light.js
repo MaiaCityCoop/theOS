@@ -212,7 +212,7 @@ export const lightOn = (s) => {
   const back = V ? max(V.negate().dot(L), 0) : null, light = U.uSun.mul(share);   // (how far the eye looks into the sun; the sun's light here)
   // the sky's light: from the way the sky it sees lies (the bent normal), less what stands round it (GTAO) and what the
   // crowns above hide of it (the canopy's probes: src/world/light/canopy.js)
-  const A = aoHere(n), bent = normalize(mix(n, A.xyz, 0.5)), open = A.w;
+  const A = aoHere(n), bent = normalize(n.add(A.xyz.mul(max(n.dot(A.xyz), 0)))), open = clamp(A.w, 0, 1);   // (bent towards the sky it sees, never past the normal: a bent normal from the depth may face away from a blade's own)
   let sky = skyLight(bent).mul(s.w ? skyAt(s.w).mul(open) : open), sun = ndl;
   if (s.through) { const t = pow(back, s.lobe ?? 3).mul(s.through); sun = sun.add(s.tint ? s.tint.mul(t) : t); }
   sun = light.mul(sun);
