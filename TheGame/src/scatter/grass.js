@@ -41,10 +41,11 @@ function bladeIn(c, asset, T, ground) {
   // three hashes carry everything a blade is; nothing is read before the blade is known to stand
   const h1 = hashI(c.x, c.y, uint(100));
   const pos = vec2(c).add(vec2(float(h1.bitAnd(uint(0xFFF))), float(h1.shiftRight(uint(12)).bitAnd(uint(0xFFF)))).mul(1 / 4096)).mul(T.cell);
-  // (and, the smallest layer of all, as thick as the light that comes through what grows over it allows, and none on
-  // the feet of the larger: src/scatter/growth.js)
+  // (and, the smallest layer of all, as thick as the light that comes down to it through the crowns over it lets it
+  // grow, in proportion to that light (as a plant grows by the light it takes: Monteith 1977), and none on the feet of
+  // the larger: src/scatter/growth.js, rule.js)
   const M = growthMap(), F = M ? M.all(pos) : null;
-  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = F ? G.y.mul(F.light.mul(F.light)).mul(float(1).sub(F.foot)) : G.y, h2 = hashI(c.x, c.y, uint(101));
+  const dist = camDist(pos), hf = u8(h1, 24), G = ground.A(pos), dens = F ? G.y.mul(F.light).mul(float(1).sub(F.foot)) : G.y, h2 = hashI(c.x, c.y, uint(101));
   const inBand = dist.lessThanEqual(hf.mul(-T.farFade).add(T.far)).and(dist.greaterThanEqual(hf.mul(-T.nearFade).add(T.near)));
   const r1 = u8(h2, 0), r2 = u8(h2, 8), r3 = u8(h2, 16);
   // blades stand in tufts: the tuft they are in gives them a height, a lean and a shade in common
@@ -120,7 +121,12 @@ export function createGrass(scene, tex, ground, asset, gpu = false) {
     };
     // the most that may stand at once: the ring's area in cells, as much as the frustum can hold of it
     const cap = Math.ceil((Math.PI * (T.far ** 2 - Math.max(0, T.near - T.nearFade) ** 2)) / (T.cell * T.cell) * 0.6);
-    const t = new Tier(scene, blade(T.segs), material, { cell: T.cell, P: T.P, near: T.near - T.nearFade, far: T.far, order: 0, live, gpu, cap, slots: 3 });
+    // a blade's box, for the eye's culling (src/core/occlusion.js): from its foot up its height, out as far as it bends
+    // (bowed deepest under snow) and its widest (its ring's half width, wider by as much as it thins); the wind leans its
+    // tip its height a unit of the wind's push (bladeMaterial: never more than 1.25 of it)
+    const wide = widthOf(asset, T) * CROWD.SWELL * 1.25;
+    const bounds = (A, B) => { const h = A.w, reach = h.mul(B.y.add(0.6).mul(1.15)).add(wide + 0.02); return { c: vec3(A.x, A.z.add(h.mul(0.5)), A.y), h: vec3(reach, h.mul(0.5).add(0.02), reach), w: h.mul(1.1) }; };
+    const t = new Tier(scene, blade(T.segs), material, { cell: T.cell, P: T.P, near: T.near - T.nearFade, far: T.far, order: 0, live, gpu, cap, slots: 3, bounds });
     if (growthMap()) t.reads = growthMap().version;   // (packed again when what grows over it changes)
     return t;
   });

@@ -22,16 +22,16 @@ import { note, mark } from './gpu.js';
 import { compileFor } from './compile.js';
 import { twinOf } from './pass.js';
 import { U } from './uniforms.js';
-import { TRUTH } from '../detail/measure.js';
+import { TRUTH_AS } from '../detail/measure.js';
 import { occlusion } from './occlusion.js';
 
 export function createScreen(renderer, { temporal, lens = null }) {
   const OUT = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(OUT);
   let inside = OUT, turn = 0;
-  // (?truth, the gate's reference: drawn at every pixel the canvas has, whatever it is set to, never fewer:
-  // src/detail/measure.js)
-  const ratio = () => (TRUTH ? renderer.getPixelRatio() : inside);
+  // (?truth, the gate's reference: as a still drawn at every pixel the canvas has, whatever it is set to, never fewer;
+  // in motion at the inside, as the game draws: src/detail/measure.js TRUTH_AS)
+  const ratio = () => (TRUTH_AS.still ? renderer.getPixelRatio() : inside);
   const css = new THREE.Vector2(), size = new THREE.Vector2();
   /** The inside's size in pixels. */
   const sizeOf = (v) => { renderer.getSize(css); return v.set(Math.max(1, Math.round(css.x * ratio())), Math.max(1, Math.round(css.y * ratio()))); };
