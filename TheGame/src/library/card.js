@@ -12,6 +12,10 @@ export const fig = (v, unit, label) => `<div><b class="g-fig">${v}<i>${unit}</i>
 export const figs = (list, fit) => (list.length ? `<div class="g-figs g-part${fit ? ' fit' : ''}">${list.join('')}</div>` : '');
 export const cell = (label, value, wide) => `<div class="g-cell${wide ? ' wide' : ''}"><span class="g-label">${label}</span>${value}</div>`;
 export const say = (t) => `<span class="g-name">${t}</span>`;
+/** A thing's variants (its moves, its layers, its face's expressions) as a row of pills, the chosen one's few words under them. */
+export const pick = (label, attr, list, on) => `<div class="g-cell g-part"><span class="g-label">${label}</span><div class="g-pills">${list.map((x) => `<button class="g-btn${x.id === on ? ' on' : ' quiet'}" data-${attr}="${x.id}" title="${x.about}">${x.name}</button>`).join('')}</div><span class="g-sub">${list.find((x) => x.id === on)?.about ?? ''}</span></div>`;
+/** A longer text kept closed until it is asked for (how a thing is made, its sources). */
+export const more = (label, text) => `<details class="g-more g-part"><summary class="g-label">${label}</summary><p class="g-text">${text}</p></details>`;
 export const chip = (m) => `<span class="g-chip"><i style="background:${hex(MATERIAL[m].swatch.map(Math.sqrt))}"></i>${MATERIAL[m].name}</span>`;
 /** A recipe's file and its version (the BLAKE3 hash of what it is, registry.json), its first ten letters. */
 export const fileOf = (r) => `<footer class="g-part"><span class="g-file">TheGame/${manifest[r.uid].file}</span><span class="g-file" title="${manifest[r.uid].version}">version ${manifest[r.uid].version.slice(0, 12)}</span></footer>`;

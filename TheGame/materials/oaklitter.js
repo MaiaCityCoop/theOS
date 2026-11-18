@@ -15,8 +15,8 @@ export default {
   type: 'material',
   name: 'Oak litter',
   kind: 'ground',
-  about: "The floor under holm oaks: their small leathery leaves, fallen, brown, tan and grey, a few still olive, over dark humus, with twigs, an acorn here and there and a little moss.",
-  usedBy: 'the ground where holm oaks lead in the pine forest',
+  about: 'Fallen holm oak leaves over dark humus, with twigs and acorns.',
+  usedBy: 'the forest floor under holm oaks',
   swatch: [0.16, 0.11, 0.065],
   bump: 0.02,
   paint: (uv) => {

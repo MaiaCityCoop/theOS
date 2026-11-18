@@ -248,7 +248,7 @@ function packedOf(T, geos, material, { live, found, select, store = 0, cap = 0, 
     every invocation's cell. Every invocation works its cell out, the last workgroup's past the candidates too: none
     returns before the barriers. A cell past them packs nothing (in: false). */
 const entryOf = (EN, nE, STEPS) => () => {
-  const lid = localId.x, wgE = workgroupArray('uint', 1);
+  const lid = localId.x, wgE = workgroupArray('uint', 1).setName('wgTierEntry');
   If(lid.equal(uint(0)), () => {
     const at = instanceIndex.sub(lid), a = uint(0).toVar(), z = nE.toVar();
     Loop({ start: uint(0), end: uint(STEPS), type: 'uint', condition: '<' }, () => {
@@ -266,7 +266,7 @@ const entryOf = (EN, nE, STEPS) => () => {
     atomic a bucket a workgroup: its place among its bucket's, counted in A, then put(b, i) writes it there (none: only
     counted). K: the buckets. */
 const intoBuckets = (K) => {
-  const wgN = workgroupArray('uint', K).toAtomic(), wgAt = workgroupArray('uint', K);
+  const wgN = workgroupArray('uint', K).toAtomic().setName('wgTierBucketCount'), wgAt = workgroupArray('uint', K).setName('wgTierBucketAt');
   const each = (lid, fn) => { if (K <= WG) If(lid.lessThan(uint(K)), () => fn(lid)); else Loop({ start: lid, end: uint(K), type: 'uint', condition: '<', update: WG }, ({ i }) => fn(i)); };
   return (L, on, A, put = null) => {
     const lid = localId.x;
@@ -323,7 +323,7 @@ function residentOf(T, { K, S, slots, data, count, args, OF, N: N0, ends, zero, 
   const DFn = storage(DF, 'uint', 4), DGn = storage(DG, 'uint', 4), uN = uniform(N, 'uint');
   more('tiers: what each holds, its regions', alive.array.byteLength, alive.array.byteLength, cls);
   const cur = instancedArray(K, 'uint').toAtomic(), into = intoBuckets(K);   // (cur: each bucket's things written so far, as the gather writes them)
-  const wgC = workgroupArray('uint', 1).toAtomic(), wgB = workgroupArray('uint', 1);
+  const wgC = workgroupArray('uint', 1).toAtomic().setName('wgTierKeepCount'), wgB = workgroupArray('uint', 1).setName('wgTierKeepAt');
   // (into the store being made, a thing an invocation where it has one, by one atomic a workgroup)
   const keep = (on, write) => {
     const lid = localId.x, j = uint(0).toVar();

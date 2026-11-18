@@ -268,7 +268,7 @@ export function createPages(renderer, tex) {
   // asked for are the want's keys; those not in yet, the queue
   const refs = new Map(), want = new Map();
   const prev = new THREE.Vector3(), turn = new THREE.Quaternion(); let moved = 0, swung = 0, pxRad = 1600, pxH = 1440;   // (metres and radians the camera moved last frame; screen pixels a radian through its lens)
-  let stoodAt = 0;   // (the last frame the camera stood)
+  let stoodAt = 0, askW = 0, askH = 0;   // (the last frame the camera stood; the pixels the last asks came from)
   let quietFrom = 0, readTo = 0, dirty = false, pick = null, pickedAt = -1e9, judged = -1, nAsk = 0, askedAt = -1;   // (since when nothing changed what is asked for; the last frame whose asks are in; the queue to be sorted again; the bias being chosen)
   // (which frames' asks have come back: a read-back is not taken while all its buffers are out, so a sweep counts only
   // where every one of its frames was read)
@@ -381,7 +381,7 @@ export function createPages(renderer, tex) {
   };
   // (still out, for the world complete: src/core/settle.js): pages asked for and not in, pages fading in, the bias being
   // chosen, and until a whole sweep has been read, every frame of it, since anything changed what is asked for (the
-  // camera moved, the bias, the relief's heights): until then a pixel may not have asked yet
+  // camera moved, the pixels drawn, the bias, the relief's heights): until then a pixel may not have asked yet
   source('pages', () => queue.length + fading.length + (pick ? 1 : 0) + (sweptSince(quietFrom) ? 0 : 1));
 
   // ---- what update does once a frame, step by step ----
@@ -426,10 +426,11 @@ export function createPages(renderer, tex) {
   };
   const isStill = () => moved < 1e-4 && swung < 1e-5;
   // the pixels' asks: the last frame's read back, what is no longer asked for forgotten, the bias chosen again from asks
-  // that are all of the view as it is: once a sweep has been read with the camera still (once a still view), or, while
-  // it moves, when what the last sweep asked does not fit, the camera having moved through all of that sweep (each
-  // frame's asks then its own view's). Never from a sweep that holds a view before a change and the one after it (a jump,
-  // a pose set: two views' pages asked at once, the bias stepped coarser and back)
+  // that are all of the view as it is: once a sweep has been read, every frame of it, with the camera still and nothing
+  // changed (once a still view, at bias 0 too: a view that does not fit is stepped coarser standing), or, while it
+  // moves, when what the last sweep asked does not fit, the camera having moved through all of that sweep (each frame's
+  // asks then its own view's). Never from a sweep that holds a view before a change and the one after it (a pose set, a
+  // turn of the pixels drawn: two views' pages asked at once, the bias stepped coarser and back, every page laid twice)
   const judge = () => {
     if (askedAt === frame - 1) readBack(nAsk, frame - 1);
     if (frame % 8 === 0) forget();
@@ -474,6 +475,7 @@ export function createPages(renderer, tex) {
     /** After the prepass (src/core/screen.js afterPrepass): which pages its pixels read, one in each SWEEP × SWEEP.
         depth, motion: the prepass's; camera: as it drew (its shift too); w, h: its pixels. */
     ask({ depth, motion, camera, w, h }) {
+      if (w !== askW || h !== askH) { askW = w; askH = h; quietFrom = frame; }   // (other pixels drawn, the governor's or a bench's: a pixel's footprint, so what it asks for, is another; as a move of the camera)
       tDepth.value = depth; tMotion.value = motion; uSize.value.set(w, h); uBiasK.value = bias;
       uInv.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
       const fw = Math.ceil(w / SWEEP), fh = Math.ceil(h / SWEEP); uFw.value = fw; nAsk = Math.min(fw * fh, BLOCKS_MOST); askedAt = frame;

@@ -35,9 +35,9 @@ const ROOM = [[2.05, 1.45], [0.25, 0.19], [0.085, 0.065], [0.036, 0.027], [0.009
 const FULL = 12 * FULL_ROCK * FULL_ROCK, LEVELS = Array.from({ length: SURFACE_LEVELS }, (_, i) => ({ px: surfacePx(i), band: surfaceBand(i), delta: 0, room: { tris: Math.ceil(ROOM[i][0] * FULL), verts: Math.ceil(ROOM[i][1] * FULL) }, ...(i ? {} : { cut: true, slots: Math.ceil(6 / DIAL_LEAST ** 2) }) })), L = LEVELS.length;
 // RELIEF: the size on screen from which a rock's relief is read (under that its texture's mipmaps have none left);
 const SHADE = { shrink: 0.85, far: 30, wide: 1.5 }, RELIEF = 10;
-// THIN: where a rock thins away, dial pixels (src/detail/error.js): pixel by pixel over the BAND above where it is gone
+// THIN: where a rock thins away, dial pixels (src/detail/error.js): pixel by pixel over the BAND under where it is gone
 // (leaving a rock out differs by all of it: GONE), with nothing to hand over to (its land's colour is under it)
-const THIN = [GONE, GONE * BAND];
+const THIN = [GONE / BAND, GONE];
 
 /** The assets of engine `rocks`, all at once: they share one drawer (a level of every shape of every rock asset is in
     one heap), each asset a tier a level over its own cells. */

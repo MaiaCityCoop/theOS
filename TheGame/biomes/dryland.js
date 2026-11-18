@@ -7,7 +7,7 @@ export default {
   type: 'biome',
   name: 'Dry land',
   kind: 'steppe',
-  about: 'Cracked earth with sandy spots, the grass in yellowing tufts, more stones lying about.',
+  about: 'Cracked earth, sandy spots, yellowing tufts, more stones.',
   laid: 'Where the land is dry',   // where it lies, in words (the library's card)
   layer: 10,                                               // laid in this order, lowest first (src/world/land.nodes.js: biomesAt)
   // where it lies, 0..1 (node code): where the land is dry, a slow noise over kilometres and a finer one along its edge.

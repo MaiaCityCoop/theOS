@@ -29,7 +29,7 @@
 //                        pxAt(size, dist), spanAt(size, dist) and dialPxAt(px), the twins of the above
 //   onMeasure(f), measureVersion()   what reckons a band of distances once (a tier's, the meadow's rings) reckons it again
 //                        when either number changes: the window, the governor's ratio, the dial
-//   TRUTH, TRUTH_DIAL, DIAL_LEAST   ?truth: the same measure, the dial turned down to TRUTH_DIAL once the game's start
+//   TRUTH, DIAL_LEAST, truthAfter   ?truth: the same measure, the dial turned down to TRUTH_DIAL once the game's start
 //                        has settled (src/boot.js); every capacity sized for the least dial (pxKMost)
 import { float, max } from 'three/tsl';
 import { U } from '../core/uniforms.js';
@@ -50,7 +50,7 @@ export const pxThrough = (camera, h) => camera.projectionMatrix.elements[5] * h 
 export const lensOf = (camera) => camera.projectionMatrix.elements[5] / LENS;
 
 // ---- the live pixel and the dial, kept ----
-let inside = () => 1, most = 1;   // the governor's ratio of the pixels drawn (keepMeasure: the screen's inside), and the most it can be (the screen's own)
+let inside = () => 1, most = () => 1;   // the governor's ratio of the pixels drawn (keepMeasure: the screen's inside), and the most it can be (the canvas's, as it is now: src/core/output.js)
 const listeners = new Set(); let version = 0;
 /** The inside's height, pixels drawn, as the screen has it now (the window's CSS height at the governor's ratio). */
 const drawnHeight = () => (globalThis.innerHeight || 1080) * inside();
@@ -64,24 +64,25 @@ function keep(dial = ERROR_PX()) {
 }
 keep();   // (from the start, before the screen says its ratio: the window's own pixels)
 /** Keep the measure current: drawn, the screen's ratio of the pixels drawn (src/core/screen.js inside), and out, the most
-    it can be (the screen's own); the window's size is followed, and each frame asks again (measureNow). */
-export function keepMeasure(drawn = null, out = 1) {
+    it can be (the canvas's, src/core/output.js: read as it is now, a resize changes it); the window's size is followed,
+    and each frame asks again (measureNow). */
+export function keepMeasure(drawn = null, out = () => 1) {
   if (drawn) inside = drawn;
-  most = Math.max(1, out);
+  most = () => Math.max(1, out());
   keep(); addEventListener('resize', () => keep());
 }
 /** The live pixel in the dial's pixels: dial pixels a metre covers one metre from the eye (error.js). */
 export const dialK = () => pxK() / ERROR_PX();
 /** The live pixel at the most pixels the screen can draw (its own ratio) and the least the dial will be on this page
     (DIAL_LEAST: 1, the governor only raises it; or the truth's), in the dial's pixels so: what a capacity is sized for. */
-export const pxKMost = () => pxKAt((globalThis.innerHeight || 1080) * most) / DIAL_LEAST;
+export const pxKMost = () => pxKAt((globalThis.innerHeight || 1080) * most()) / DIAL_LEAST;
 /** How far off a thing `size` metres large is still px dial pixels large, at the most (pxKMost). */
 export const farMost = (px, size) => (size * pxKMost()) / px;
 /** Each frame, before anything chooses (src/boot.js choose, tools/bench.js): the governor may have changed the inside's
     ratio. True where the measure changed. */
 export const measureNow = () => keep();
-/** The dial turned to v (?truth's, once the game's start has settled: src/boot.js): ERROR_PX from now on. */
-export const setErrorPx = (v) => keep(Math.max(0, v));
+/** ?truth: the dial turned down to TRUTH_DIAL once the game's start (`ready`, src/boot.js) has settled; the game: nothing. */
+export const truthAfter = (ready) => { if (TRUTH) ready.then(() => keep(TRUTH_DIAL)); };
 /** f() whenever the live pixel or the dial changes (a tier's band, the meadow's rings); returns what stops it. */
 export const onMeasure = (f) => { listeners.add(f); return () => listeners.delete(f); };
 /** A number that changes whenever the measure does: what packs by it packs again. */
@@ -101,15 +102,10 @@ export const TRUTH = flag('truth');
     (a third again finer than the game's inside each way) over 32 places of a pixel, so a quarter of an inside pixel is
     below what its picture can show. */
 const ASKED = TRUTH ? flagNum('truth', 0.25) : 1;   // (a dial between 0 and 1; anything else, a reach in metres as ?truth once took, is the default)
-export const TRUTH_DIAL = TRUTH ? (ASKED > 0 && ASKED < 1 ? Math.max(1e-3, ASKED) : 0.25) : 1;
+const TRUTH_DIAL = TRUTH ? (ASKED > 0 && ASKED < 1 ? Math.max(1e-3, ASKED) : 0.25) : 1;
 /** The least the dial will be on this page: 1 (the governor only raises it), or the truth's. What every capacity is sized
     for (pxKMost), so a turn of the dial down to it finds room. */
 export const DIAL_LEAST = TRUTH ? TRUTH_DIAL : 1;
-/** How ?truth's picture is drawn. still (where it starts, under ?truth): as a still, at every pixel the canvas has and
-    over many more places of a pixel, never let go for its slow frames (src/core/screen.js, src/core/temporal.js). Set
-    false, as the game draws a frame in motion: at the inside the screen is set to, with the game's own places, while
-    everything is still drawn at the truth's dial (tools/gate.js motion). */
-export const TRUTH_AS = { still: TRUTH };
 
 /** How many pixels drawn a thing `size` metres large covers `dist` metres off, as the 68° lens sees that distance. */
 export const pxOn = (size, dist) => (size * U.uPxK.value) / dist;

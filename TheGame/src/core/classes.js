@@ -13,6 +13,7 @@
 //   BROWSER      what the classes leave of the gate: the page's own heap and arrays and the browser's processes (as they
 //                were measured, tools/gate.js paths: the renderer about 2 GB, the browser and its helpers 0.1 GB, the
 //                GPU process's own beyond what it holds for the page)
+//   SHARE_MB     a share of a class's memory, MB, that a pool is sized by alone (below)
 export const CLASSES = {
   geometry: ['packing', 'occlusion', 'prepass', 'prepass, late', 'colour'],   // what is drawn: the tiers' packing and the surfaces' cut (src/scatter), the culling's pass one, the prepass, then the depth pyramid, pass two and what it finds (src/core/occlusion.js), the colour
   light: ['clouds', 'shadow map'],   // the clouds' shadow map (src/world/weather/clouds.js), the casters' (src/world/shadow.js)
@@ -41,3 +42,7 @@ export const MEMORY = 8e9;
 export const BUDGET_MB = { geometry: 2048, ground: 1024, light: 256, 'upscale/post': 256, other: 512 };
 /** What the classes leave of the gate for the page's own and the browser's processes, bytes (about 3.7 GB). */
 export const BROWSER = MEMORY - Object.values(BUDGET_MB).reduce((a, b) => a + b, 0) * MB;
+/** A pool a class gives a share of its memory, MB, where the pool's size must follow from that share alone, the same on
+    every device and in the recipes' workers: geometry's plants' far ends, the two atlases of their impostors' views and
+    their clumps (src/detail/atlas.js atlasesOf). */
+export const SHARE_MB = { geometry: { atlases: 512 } };

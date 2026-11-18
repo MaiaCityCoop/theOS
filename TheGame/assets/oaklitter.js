@@ -11,7 +11,7 @@ export default tree({
   type: 'asset',
   name: 'Oak litter',
   kind: 'litter',
-  about: 'What a holm oak drops under its crown: sprigs of its small leathery leaves, gone dull and brown, twigs and a few acorns.',
+  about: 'What a holm oak drops: sprigs of dull brown leaves, twigs, acorns.',
   // what a real one measures, and where that is known from (intent 0035; world/scale.js: the scale it is read against)
   measure: {
     real: 'Quercus ilex litter: fallen leafy sprigs, twigs, acorns',

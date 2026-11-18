@@ -1,3 +1,5 @@
 node_modules
 dist
 .perf/
+# the registry's manifest (tools/registry.js): made at every build, dev start and tool run, never kept in git
+/registry.json

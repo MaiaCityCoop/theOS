@@ -6,11 +6,18 @@ name: CI
 # in a minute; a pull request is held to the code gates against main as well (TheGame/tools/health.js --base). On a
 # push to main it keeps the release it built as the run's artifact `release-next`, which Deploy ships to `next` once
 # this run has passed (deploy.yml, deploy/README.md).
+#
+# Its jobs run side by side, so a run takes as long as its longest: `check` (lint, smoke, the code gates), `build` (the
+# schemas, the sign-in checks, the assets' measures, both sites built) and `api` (the API's tests on Postgres, only
+# where API/ or server/ changed: `changes` says). The code gates read what smoke counted in this run (TheGame/.gate/
+# smoke/<commit>.json) and, for the base, what main's own run counted, kept as a cache by commit: a pull request never
+# makes its base's world again.
 on:
   push:
     branches: [main]
     paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, Artifacts/**, brand/**, deploy/**, .github/workflows/**]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths: [OS/**, TheGame/**, API/**, server/**, Intents/**, Stories/**, Compass/**, Artifacts/**, brand/**, deploy/**, .github/workflows/**]
 
 permissions:
@@ -22,16 +29,11 @@ concurrency:
 
 jobs:
   check:
+    # A draft is work in progress: it is checked on its author's machine before every push (.githooks/pre-push), and
+    # here once it is marked ready for review. So a draft never runs, and never mails a failure to everyone.
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    services:
-      postgres:
-        image: postgres:18.7-alpine@sha256:75dcac3dfb1cd01ca3536910bbc84128759362f8b118bf8c55b38a94f68f3b73
-        env:
-          POSTGRES_PASSWORD: ci
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 2s --health-retries 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -41,15 +43,53 @@ jobs:
         with:
           bun-version: 1.4.4
       - name: Install
-        run: |
-          (cd TheGame && bun install --frozen-lockfile)
-          (cd OS && bun install --frozen-lockfile)
+        working-directory: TheGame
+        run: bun install --frozen-lockfile
+      - name: The recipes' registry, made from them (never kept in git)
+        working-directory: TheGame
+        run: bun tools/registry.js
       - name: Every name bound, every import found
         working-directory: TheGame
         run: bun tools/lint.js
       - name: Every material and pass built, on the GPU's stand-in
         working-directory: TheGame
         run: bun tools/smoke.js
+      - name: What smoke counted, kept for main's commit
+        if: github.event_name == 'push'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: TheGame/.gate/smoke/${{ github.sha }}.json
+          key: smoke-${{ github.sha }}
+      - name: The base's commit
+        if: github.event_name == 'pull_request'
+        id: base
+        run: echo "sha=$(git rev-parse HEAD^1)" >> "$GITHUB_OUTPUT"
+      - name: What smoke counted on the base, as main's own run kept it
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: TheGame/.gate/smoke/${{ steps.base.outputs.sha }}.json
+          key: smoke-${{ steps.base.outputs.sha }}
+      - name: The code gates against main
+        if: github.event_name == 'pull_request'
+        working-directory: TheGame
+        run: bun tools/health.js --base HEAD^1
+
+  build:
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - name: Install
+        run: |
+          (cd TheGame && bun install --frozen-lockfile)
+          (cd OS && bun install --frozen-lockfile)
       - name: Every artifact against its schema
         run: bun Artifacts/artifacts.js check
       - name: Sign-in checks
@@ -58,15 +98,6 @@ jobs:
       - name: Every asset against its measure
         working-directory: TheGame
         run: bun tools/scale.js
-      - name: The code gates against main
-        if: github.event_name == 'pull_request'
-        working-directory: TheGame
-        run: bun tools/health.js --base HEAD^1
-      - name: API tests
-        working-directory: API
-        env:
-          DATABASE_URL: postgres://postgres:ci@127.0.0.1:5432/postgres
-        run: bun test
       - name: Build both sites for next
         run: deploy/bundle.sh deploy/environments/next.json "$GITHUB_SHA" "$RUNNER_TEMP/release-next.tar"
       - name: Shell scripts parse
@@ -81,3 +112,45 @@ jobs:
           name: release-next
           path: ${{ runner.temp }}/release-next.tar
           if-no-files-found: error
+
+  changes:
+    # Whether this change touches the API (API/, server/): only then are its tests and their Postgres started.
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      api: ${{ steps.paths.outputs.api }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 2   # the change: its first parent and itself
+      - name: Whether the API changed
+        id: paths
+        run: echo "api=$(git diff --quiet HEAD^1 HEAD -- API server && echo false || echo true)" >> "$GITHUB_OUTPUT"
+
+  api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18.7-alpine@sha256:75dcac3dfb1cd01ca3536910bbc84128759362f8b118bf8c55b38a94f68f3b73
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 2s --health-retries 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - name: API tests
+        working-directory: API
+        env:
+          DATABASE_URL: postgres://postgres:ci@127.0.0.1:5432/postgres
+        run: bun test

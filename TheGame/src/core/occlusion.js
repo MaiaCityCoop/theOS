@@ -41,6 +41,8 @@ import { Fn, If, Loop, float, int, uint, vec2, vec3, vec4, uvec4, ivec2, uniform
 import { gpuStorage, gpuStorageLater, more, limitOf, remade, roomOf } from './gpu.js';
 import { passOf } from './pass.js';
 import { windStrength, snowDepth } from '../world/light.js';
+import { OUTPUT } from './budget.js';
+import { outputRatio } from './output.js';
 
 const WG = 64, SW = 256, EPS = 2 ** -21;   // EPS: how much farther than the pyramid a box must be to be hidden (a few steps of a 24-bit depth); SW: the scans' workgroup
 const LEVELS = 16;   // the pyramid's levels at most (2^16 texels a side)
@@ -70,7 +72,9 @@ const U = {
 let PYR = null;   // the pyramid's buffer: made with the first tier that is culled (its size: the largest screen it can serve)
 const pyramidNode = () => {
   if (!PYR) {
-    const w = Math.ceil(Math.max(3840, (globalThis.innerWidth ?? 1920) * 2) / 2), h = Math.ceil(Math.max(2160, (globalThis.innerHeight ?? 1080) * 2) / 2);
+    // (the output's canvas (src/core/output.js), and this window's where it is wider or taller: a window made of another
+    // shape later, larger than that, has nothing hidden: build)
+    const r = outputRatio(), w = Math.ceil(Math.max(OUTPUT.width, (globalThis.innerWidth ?? OUTPUT.width) * r) / 2), h = Math.ceil(Math.max(OUTPUT.height, (globalThis.innerHeight ?? OUTPUT.height) * r) / 2);
     let n = 0; for (let x = w, y = h; ; x = Math.ceil(x / 2), y = Math.ceil(y / 2)) { n += x * y; if (x === 1 && y === 1) break; }
     PYR = { w0: w, h0: h, n, buf: gpuStorage('float', n, 'the depth pyramid (occlusion)', 'geometry') };
   }
@@ -128,7 +132,7 @@ const unbox = (r0) => {
 /** Hillis and Steele over the SW invocations of a workgroup (t: this one's): x its number; the sum of it and all before
     it, and of all. Every invocation calls it, none in a branch. */
 const scanOf = (x, t) => {
-  const sh = workgroupArray('uint', SW);
+  const sh = workgroupArray('uint', SW).setName('wgCullScan');   // (named by its part, not its node: the same pass of every arena is the same shader)
   sh.element(t).assign(x);
   workgroupBarrier();
   for (let off = 1; off < SW; off *= 2) {   // (eight steps)
@@ -144,7 +148,7 @@ const isSet = (m0, m1, b) => b.lessThan(uint(32)).select(m0.shiftRight(b.min(uin
 const below = (m0, m1, b) => b.lessThan(uint(32)).select(countOneBits(m0.bitAnd(uint(1).shiftLeft(b.min(uint(31))).sub(uint(1)))), countOneBits(m0).add(countOneBits(m1.bitAnd(uint(1).shiftLeft(b.max(uint(32)).sub(uint(32))).sub(uint(1))))));
 /** A workgroup's masks of its flags (bool nodes, a list each): two numbers a list, in shared memory. At the top level. */
 const masksOf = (lid, flags) => {
-  const wm = workgroupArray('uint', 2 * flags.length).toAtomic();
+  const wm = workgroupArray('uint', 2 * flags.length).toAtomic().setName('wgCullMasks');
   If(lid.lessThan(uint(2 * flags.length)), () => { atomicStore(wm.element(lid), uint(0)); });
   workgroupBarrier();
   flags.forEach((f, j) => { If(f, () => { atomicOr(wm.element(lid.shiftRight(uint(5)).add(uint(2 * j))), uint(1).shiftLeft(lid.bitAnd(uint(31)))); }); });

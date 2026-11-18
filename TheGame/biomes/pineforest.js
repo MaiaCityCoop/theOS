@@ -13,8 +13,8 @@ export default {
   type: 'biome',
   name: 'Pine forest',
   kind: 'forest',
-  about: 'Stone pines in loose stands of a few hundred metres, holm oaks among them, their needles and leaves carpeting the ground in their shade, grass in the glades between.',
-  laid: 'In stands over the higher, drier ground, away from the river',
+  about: 'Stone pines and holm oaks in loose stands, needles on the ground.',
+  laid: 'Higher, drier ground',
   layer: 20,
   // where it lies, 0..1 (node code): stands of a few hundred metres (a slow noise, pushed by a quicker one so their edges
   // wander), kept off the river's banks. It reads its place bent (B), with a second swell far from home and its quicker

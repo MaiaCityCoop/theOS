@@ -8,9 +8,21 @@
 //
 //   bun tools/smoke.js        a line a part (what it made, what it built), every failure with where it was thrown;
 //                             exit 1 if anything failed
+//   bun tools/smoke.js --json the same as one line of JSON: what was built, what a start of the world compiles (its
+//                             pipelines, by their WGSL text: tools/health.js holds them to the base), what failed
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { mock } from './gpu-mock.js';
 
 const t0 = performance.now(), failed = [], made = [];
+// (every pipeline built, by its WGSL text, not by object: a render one is a vertex and a fragment stage)
+const shaders = { render: new Set(), compute: new Set() };
+/** Pipelines by their WGSL text: render and compute ones, the distinct shader modules they hold, and those modules'
+    bytes. */
+const pipelinesOf = ({ render, compute }) => {
+  const modules = new Set([...[...render].flatMap((p) => p.split('\0')), ...compute]);
+  return { render: render.size, compute: compute.size, modules: modules.size, bytes: [...modules].reduce((s, m) => s + Buffer.byteLength(m), 0) };
+};
 const M = await mock({ lean: true }), { THREE, renderer } = M;
 // (what three says is wrong as it builds, it says by console.error: a failure here, said with the part it was in)
 let part = 'loading';
@@ -69,15 +81,15 @@ const buildAll = (where) => {
     const twins = (() => { try { return twinOf(m); } catch { return { pre: null, main: null }; } })();
     for (const [pass, mat] of [['own', m], ['pre', twins.pre], ['main', twins.main]]) {
       if (!mat) continue;
-      try { M.build(object.isMesh || object.isPoints || object.isLine || object.isSprite ? object : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); made.push(pass); }
+      try { const s = M.build(object.isMesh || object.isPoints || object.isLine || object.isSprite ? object : { isMesh: true, geometry: new THREE.BufferGeometry(), material: mat }, mat); shaders.render.add(`${s.vertex}\0${s.fragment}`); made.push(pass); }
       catch (e) { failed.push(`${part}, ${pass}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); }
     }
   }
 };
 buildAll('the world');
 let passes = 0;
-for (const node of M.computed) { part = `a compute pass (${node.name || node.type || 'compute'})`; try { M.compute(node); passes++; } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); } }
-const world = { materials: built.size, builds: made.length, passes };
+for (const node of M.computed) { part = `a compute pass (${node.name || node.type || 'compute'})`; try { shaders.compute.add(M.compute(node)); passes++; } catch (e) { failed.push(`${part}: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' · ')}`); } }
+const world = { materials: built.size, builds: made.length, passes, pipelines: pipelinesOf(shaders) };   // (counted here: the world's start, not the library's)
 
 // ---- the library: every asset's subject, as its page stands it (src/library) ----
 const library = new THREE.Scene();
@@ -96,8 +108,21 @@ library.traverse((o) => { for (const m of [o.material].flat()) take(o, m); });
 buildAll('the library');
 
 console.error = said;
-const secs = ((performance.now() - t0) / 1000).toFixed(1);
-console.log(`smoke: the world ${world.materials} materials (${world.builds} builds by pass), ${world.passes} compute passes; the library ${built.size - before} materials more; ${secs} s`);
+const secs = ((performance.now() - t0) / 1000).toFixed(1), P = world.pipelines, summary = { world, library: built.size - before, secs: +secs, failed: [...new Set(failed)] };
+keep(summary);
+if (process.argv.includes('--json')) { console.log(JSON.stringify(summary)); process.exit(failed.length ? 1 : 0); }
+console.log(`smoke: the world ${world.materials} materials (${world.builds} builds by pass), ${world.passes} compute passes, ${P.render} render and ${P.compute} compute pipelines, ${P.modules} shader modules, ${(P.bytes / 1024).toFixed(1)} KB of WGSL; the library ${built.size - before} materials more; ${secs} s`);
 if (failed.length) { console.log(`\n${failed.length} failed:\n  ${[...new Set(failed)].join('\n  ')}`); process.exit(1); }
 console.log('smoke: every material and pass built');
 process.exit(0);   // (the game's own timers and loops would keep it running)
+
+/** The run's summary kept for its commit (.gate/smoke/<commit>.json) where the tree is that commit as it stands:
+    tools/health.js reads it instead of making the world again, and CI keeps main's, so a pull request's base is never
+    made again either. */
+function keep(s) {
+  const git = (...a) => spawnSync('git', a, { cwd: import.meta.dirname, encoding: 'utf8' }).stdout?.trim() ?? '';
+  const sha = git('rev-parse', 'HEAD'), dir = new URL('../.gate/smoke/', import.meta.url).pathname;
+  if (!sha || git('status', '--porcelain')) return;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(`${dir}${sha}.json`, JSON.stringify(s));
+}

@@ -11,7 +11,6 @@
 | `change.js` | The change detail made in one frame, measured in a worker of its own |
 | `tiles.js` | `stills --tiles`: a view drawn in tiles and laid together (the truth past 800 m) |
 | `real.js`, `real.py` | `real`: renders against photographs; the numbers (CMMD, image statistics) in Python |
-| `lock.js` | `GATE_LOCK`: the GPU shared between runs |
 | `sheet.js` | Labelled JPEG sheets (`diff --jpeg`) |
 
 The gate is two halves (intent 0038, Define): **invisible** (detail never shows: `stills`, `diff` against `?truth`,
@@ -22,19 +21,28 @@ and `motion`) and **real** (the full-detail picture is held against photographs:
 `bun tools/gate.js motion --url <your server> --fresh [--paths walk,zoom] [--fps 60]`
 
 Every frame of each path is drawn twice, in two passes of a page each (one world in memory at a time: the bench's Mac
-has 8 GB): as the game draws it (L, its frames kept on disk, squeezed, till the second pass), and at full detail
-(`?truth` drawn as a frame in motion, R: the same inside, the same places of a pixel, everything at its finest). Both
-pages run on the gate's clock (`clock.js`): no frame is drawn until the gate asks for it, at the same moment of the
-world's clock in both (each path at its own hour, 3600 s and on, the same in every run). The truth's frame is drawn
-twice with the camera and the clock standing: once to ask for what it needs, then at the LOD frame's place of a pixel
-(`src/core/temporal.js` `place`); what it still lacked is recorded per frame. Frames are read once drawn. For every
-frame the gate measures `FLIP(L now, L before + (R now − R before))`: that picture differs from L exactly by
+has 8 GB): as the game draws it (L, its frames kept on disk, squeezed, till the second pass), and at full detail (R).
+Both pages run on the gate's clock (`clock.js`): no frame is drawn until the gate asks for it, at the same moment of the
+world's clock in both (each path at its own hour, 3600 s and on, the same in every run). **The truth's frame is a
+settled still at its step:** the camera and the clock standing, drawn as `?truth` draws a still (every pixel the canvas
+has, over its 32 places of a pixel) until `settle()` resolves: nothing out (the land's pages among it) and the picture
+come to rest. So the reference neither shimmers nor lacks, as check 4 defines it ("supersampled so it doesn't
+shimmer"). The game's frame is drawn once, as the game draws it. Frames are read once drawn. For every frame the gate
+measures `FLIP(L now, L before + (R now − R before))`: that picture differs from L exactly by
 ((L − R) now) − ((L − R) a frame before), the change detail made, seen in the frame as it was drawn. What the camera,
-the wind and the clock did, the truth did too, so it falls out.
+the wind and the clock did, the truth did too, so it falls out; what the game's own frame does besides (a level that
+switches, a page that comes, the shimmer of what it draws in motion) is counted.
+
+A truth drawn in motion as the game draws a frame (train 1, 2026-11-18) was no reference: its own shimmer in the
+canopy changed frame to frame unlike the game's, and the measure read the two shimmers (a median of 0.52), and its land
+pages lagged behind a climbing zoom.
 
 - **The merge rule:** no frame's worst 32-pixel tile over the line (`lineOf` in `motion.js`): ERROR_PX × INSIDE / the
   tile, 1 × 4/3 / 32 = 0.042. A switch within the dial moves an edge by at most ERROR_PX pixels drawn, INSIDE canvas
-  pixels each, so across a tile at full contrast it changes the tile's mean by at most that. The line follows the dial.
+  pixels each, so across a tile at full contrast it changes the tile's mean by at most that. The line follows the dial. **Not binding**
+  until train 2's GPU run shows the settled-still truth.
+- **What it costs:** a truth still a step, about 35 frames of about a second each: a minute a step, offline. The zoom's
+  20 s at 5 frames a second is about 1.7 hours; `--to` and `--fps` make a smoke of it.
 - **Out:** `.gate/motion-<tag>/report.json` (every frame's worst tile, its 99th percentile and mean), and a filmstrip
   JPEG per path: every frame's worst tile over the path, then the worst frames, each with the squares round its worst
   tile at full size (LOD before and now, truth before and now, FLIP's heat map of the change).
@@ -71,7 +79,17 @@ two), every kind's renders against that kind's photos, and all against all. For 
 - **Image statistics:** the earth mover's distance between the L* histograms, the difference of the mean colours
   (CIE76), and the renders' less the photos' chroma, contrast (RMS and in 32-px patches) and power-spectrum slope.
 
-Check 4a: each number falls stage by stage and never rises. The end is Samuel's blind test.
+**The table.** `real` prints the view classes first: the photos' kinds against the gate's views of each kind, those
+rendered here and those not, and the kinds with no view or no photo yet. Then it prints, per class (and per view
+below it), each distance and, in brackets, the photos' own spread: the class's photos split in two by turns, one half
+against the other. That spread is the floor a render's distance stands on; between two sets of real stands, CMMD reads
+about 0.6. A class with only two or three photos has a noisy floor. The numbers go to `.gate/real.json`.
+
+**The rule** (check 4a: each distance falls stage by stage and never rises). `tools/gate/real-ratchet.json` keeps
+every class's distances as main last measured them, from the truth stills at every view. A branch farther than that
+(by more than a small tolerance: 0.02 of CMMD, 0.2 of a statistic, or 3 %) fails `real` (exit 1). Main's run with
+`--ratchet` lowers each distance to what it measures and never raises one; its first run sets them. The end is
+Samuel's blind test.
 
 ### The photographs' folder
 
@@ -116,13 +134,31 @@ A venv outside the repository (torch is about 1 GB, the CLIP weights about 900 M
 The gate runs `~/.venvs/theos-real/bin/python` unless `GATE_PYTHON` names another. CLIP runs on the CPU by default
 (about a second a picture on an M2, so the GPU stays free for timed runs); `--device mps` puts it on the GPU.
 
+## A page that does not answer
+
+The gate's own waits (`settle()`'s timeout, the race in `settled`) are timers inside the page, and a renderer that is
+frozen, swapped out or has lost its device runs none of them. Train 1c's truth hung 20 minutes on its fourth view, the
+renderer at 0 % CPU and 35 MB resident, the machine's swap at 3.24 of 4 GB. So every `page.evaluate` and
+`waitForFunction` the gate makes is held to a time outside the page (`guard.js`): the call's own wait and a minute
+more, else 5 minutes. A page that does not answer in that time is said: crashed or hung, with the browser's memory
+by process (physical footprint, resident, CPU) and the machine's swap. Its Chrome is closed (killed if it will not
+close), the view is marked failed in `gate.json`, and the run stops with exit 1. `stills` also records the
+browser's memory through the run and prints its peak: the truth is the largest single consumer on an 8 GB machine.
+
 ## A GPU shared between runs
 
-On a machine where several runs share the GPU (and some time their frames), `GATE_LOCK=<dir>` makes the gate take a
-lock for each part of a run that draws (a page coming, a view or a tile, a path in motion) by making that directory,
-writing who and when into `<dir>/owner`, and removing it after. Meanwhile its pages are held on its clock and draw
-nothing. A lock held for over an hour is not broken: the gate stops and says so.
+Every machine has one GPU lock and one queue, in `tools/gpu/lock.js`. They live beside the repository and are shared by
+all its worktrees: `.gate-lock/` and `.gate-queue.d/` in `GPU_LOCK_DIR`, by default the folder that holds the
+repository.
+
+- **The gate takes the lock itself.** Each part of a run that draws (a page coming, a view or a tile, a path in motion,
+  `real` on a GPU) waits its turn in the queue, oldest first, holds the lock and lets it go after. Meanwhile the run's
+  pages are held on its clock and draw nothing. `GPU_OWNER` names the run.
+- **A dead holder is no holder.** If every process that held the lock is gone (a run killed outright), the first in
+  line takes the lock back. A lock made by a run from before this tool is waited for, never broken.
 
 ```bash
-GATE_LOCK=~/src/github/MaiaCityCoop/.gate-lock GATE_WHO='0038 task C' bun tools/gate.js motion --url http://localhost:5197/game/ --fresh
+GPU_OWNER='0038 task C' bun tools/gate.js motion --url http://localhost:5197/game/ --fresh
+bun tools/gpu/lock.js take '0038 task C' -- bun tools/gate.js bench   # the whole run in one hold
+bun tools/gpu/lock.js status                                          # who holds it, since when, who waits
 ```

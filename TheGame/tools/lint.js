@@ -5,8 +5,9 @@
 //     game's code the page's and a worker's, as TypeScript declares them (lib.dom.d.ts, lib.webworker.d.ts: knip
 //     brings TypeScript), and WebGPU's, which it does not declare yet (every name of it is GPU and a capital: the
 //     spec's); for the tools Bun's own as well; none is listed by hand;
-//   - an import that resolves to nothing (a file, a package, a Vite suffix taken off: ?url, ?raw, ?worker), and a
-//     file a worker or an asset is loaded from (`new URL('….js', import.meta.url)`) likewise;
+//   - what is loaded as code and is not there: an import (static or `import()`: a file, a package, a Vite suffix taken
+//     off: ?url, ?raw, ?worker) and the file a worker is started from (`new Worker(new URL('…', import.meta.url))`,
+//     a SharedWorker's alike). A `new URL` that names data (a file a tool writes as it runs) is not looked for;
 //   - a name imported, or exported again, that its module does not export: a file's exports read from its own code
 //     (`export * from` followed), a package's from the package itself, loaded.
 //
@@ -15,8 +16,10 @@ import { readFileSync, existsSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, relative, resolve } from 'node:path';
 import { Linter } from 'eslint';
+import { buildRegistry } from './registry.js';
 
 const GAME = resolve(import.meta.dirname, '..'), linter = new Linter();
+buildRegistry(GAME);   // (the registry's manifest, which the game imports and git does not keep: made first, as the build makes it)
 const CODE = ['src', 'assets', 'biomes', 'camera', 'characters', 'cine', 'materials', 'world'], TOOLS = ['tools', 'vite.config.js'];
 const declared = (lib) => [...readFileSync(join(GAME, 'node_modules/typescript/lib', lib), 'utf8').matchAll(/^declare (?:var|function) ([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
 const readonly = (names) => Object.fromEntries([...names].map((k) => [k, 'readonly']));
@@ -41,7 +44,7 @@ for (const f of files) {
     ExportNamedDeclaration: (n) => { if (n.source) take(n.source.value, n.specifiers.map((s) => nameOf(s.local)), n.loc.start.line); },
     ExportAllDeclaration: (n) => take(n.source.value, [], n.loc.start.line),
     ImportExpression: (n) => { if (n.source.type === 'Literal') take(n.source.value, [], n.loc.start.line); },
-    NewExpression: (n) => { const u = urlOf(n); if (u && /^\.\.?\/.*\.\w+$/.test(u)) take(u, [], n.loc.start.line); },   // (a file, not a folder a tool writes into)
+    NewExpression: (n) => { const u = (n.callee.name === 'Worker' || n.callee.name === 'SharedWorker') && n.arguments[0] && urlOf(n.arguments[0]); if (u) take(u, [], n.loc.start.line); },   // (the code a worker runs)
   }) };
   const msgs = linter.verify(readFileSync(at, 'utf8'), { languageOptions: LANG(toolOf(f) ? BUN : PAGE), plugins: { lint: { rules: { imports: collect } } }, rules: { 'no-undef': 'error', 'lint/imports': 'error' } }, at);
   for (const m of msgs) if (!WEBGPU.test(m.message)) problems.push(`${f}:${m.line}: ${m.message}`);
