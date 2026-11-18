@@ -196,6 +196,7 @@ export function createTemporal(renderer) {
       // (a frame ago: that frame's camera, unshifted, and its clock; the first frame, and after a cut, this one's)
       if (fresh || timeWas === null) { projWas.copy(proj); viewWas.copy(view); timeWas = U.uTime.value; }
       U.uWas.value.multiplyMatrices(projWas, viewWas); U.uTimeWas.value = timeWas; U.uJit.value.set(jx, jy); U.uIn.value.set(w, h);
+      U.uDither.value = (U.uDither.value + 0.6180339887) % 1;   // (a frame's own number for what is cut by a noise: the golden ratio's steps, evenly over any run of frames)
       // textures read as finely as the screen's pixels would read them, not the inside's: what that leaves crawling in one
       // frame, the frames together take in (src/terrain/material.js, src/scatter/stress.js)
       U.uFine.value = 1 + (Math.min(1, w / size.x) - 1) * K.fine;

@@ -181,12 +181,14 @@ numbers are written below.
 | 6a | #65 | The ground from a layer map; shaders at start −39 % |
 | 4 | #66 | Far trees as octahedral impostors and clump planes (no domes, no stipple) |
 | 3 | #67 | One boot (`src/boot.js`); the library and Me compile 75–80 % less |
+| 5 | #69 | Near trees as crowds of parts at their own size (`CARD`, `KMAX`, the stretched cards gone); one spread order, one wind; far-end bakes kept (warm start 1.1 s, was 37 s) |
 | Occlusion culling | #68 | A depth pyramid and two-pass culling of every drawer's tiers: 2–67 % of main's things drawn, nothing visible lost (exact depth check; FLIP within main's noise from above) |
 
 **In flight when this was written** (each on its own branch, as a PR or nearly):
 
 | Stream | Branch | State | Before merging |
 | --- | --- | --- | --- |
+| Occlusion culling | `aven/0038-draw-occlusion`, PR #68 | CI green | Views from above draw only 2–8 % of main's things: prove with gate stills at `bench-river-bend-26m`, `bench-town-40m` and `bench-pine-forest-90m` that nothing visible is missing (FLIP within noise) |
 | 5: crowds, near pines | `aven/0038-stage5-crowds`, PR #69 | CI green; report pending | Check the gate's near-pine stills against main and the truth (`scratchpad/visual/stage5/`) |
 | 6b: virtual-textured ground | `aven/0038-stage6b-avt` | Notes written, measuring, no PR yet | The views from above must get faster than main, and pages must arrive invisibly |
 
@@ -202,9 +204,24 @@ numbers are written below.
   in Safari.
 - **The 12 ms / 60 fps gate is not met.** Bench views read 20–55 ms on the base M1, measured while the GPU was shared.
 - Stage 4 left these:
-  - **Impostor atlases:** about 0.4 GB (stage 5 sizes them down).
-  - **Bakes:** 21–91 s per load (stage 5 caches them).
-  - **A faint speckle** mid-way through the hand-over.
+  - **Impostor atlases:** still 417 MB. Stage 5 sizes each stand's views by where it hands over (64 to 128 texels),
+    but today's plants all hand over as soon as their impostor is sharp, at 128; the trees' clumps grew 51 → 131 MB
+    (256 chunks a shape).
+  - **Bakes:** kept in IndexedDB by stage 5: a warm start reads every far end back in 1.1 s (main bakes again, 37 s);
+    the first start still bakes (47 s).
+  - **A faint speckle** mid-way through the hand-over: stage 5 cuts mesh and impostor by one noise changed every frame,
+    for the TAA to average; not checked in motion (the walk and zoom paths were not run).
+- Stage 5 left these:
+  - **The crowds cost more.** A level's mesh holds what its band's top needs, and the crowd now thins between about
+    390 and 130 px, so a grown oak's level 1 holds 51 k vertices (main 8 k) and the pine's 21 k (7 k). The bench read
+    the stage slower at most views (tent 48 → 65 ms in one round, 45 in another: a shared GPU). A per-plant share of a
+    level's draw in the drawer's packing, or the occlusion culling (#68), would take most of it back.
+  - **Survivors still enlarge their painting**, uniformly, up to 3 times before the clumps take over.
+  - **FLIP against main's truth rose** at every view (tent 0.061 → 0.104, 30 m 0.167 → 0.222): the finest level is
+    laid from four sprays a plant and the meadow from an ordered dither, so the truth itself moved. Against its own
+    truth the stage is nearer at 30 m (0.078) and farther at 10 m (0.076 against 0.056); its own truths at the tent
+    and in the forest were lost to the device.
+  - **The meadow's blades** are fewer and wider (halved, doubled) ring by ring: check them at eye level.
 
 **How this work runs:**
 - **Who:** one master session works through subagents, each in its own worktree on its own `aven/0038-…` branch,
@@ -684,6 +701,101 @@ Branched from 2a (`aven/0038-stage2-gate`), in parallel with 2b, 4 and 10.
   - On 2b, a fine even speckle over all the grass adds to the difference, worst at 30 m. The stills show no hole and
     no seam.
 
+### Stage 5: crowds of parts, one spread order, one wind (2026-11-18)
+
+- Built on `aven/0038-stage5-crowds` from main at `cc3aa70`, as a draft PR.
+- **Parts** (`assets/kit/tree.js`). A recipe lays its plant out of parts, as Nanite's assemblies are: a sprig is a
+  prototype (two crossed cards; a bush's base, its painting repeated, is a prototype of its own) laid by a rigid
+  transform (its foot, its way and turn, its length), with a pivot (its tip, what it grows about) and a root (what it
+  grows out of); a tube is a solid part with its foot. The finest level's sprays are made once a prototype (four sprays a
+  plant, each sprig one of them turned its own way), not once a sprig, and laid at each sprig's transform. The crowd kit
+  reads the parts as laid: the union-find over the triangles, the search for a sprig's root and tip and for a tube's
+  foot by its rims, and the matching of sprigs in the index list are gone.
+- **One spread order a shape**, as before (classes by size, each next sprig the farthest from all taken: blue noise), and
+  the meadow's (below). **The rule** (`assets/kit/crowd.js`): the crowd thins by its order over SWELL = 3 times in size,
+  to a ninth of its sprigs, those left growing uniformly about their tips, never more than 3 times; there the clumps
+  take over. Where they take over is where their texels are `ERROR_PX` pixels drawn (32 texels over a chunk's largest
+  side, at 4/3 pixels drawn a pixel of the measure: `src/detail/error.js`, plain, so the workers read it too), and where
+  the crowd begins to thin follows from that: no number of its own. The clumps are as many chunks as cost no more than
+  the sprigs left where the crowd ends (at most 256). A shape whose impostor is as fine there already has no clumps.
+- **Deleted:** `CARD`, `KMAX`, `FAR` and CROWD's `ERROR`; the enlargement up to 4 times; the `hand` bits of the packing
+  and the builder; `splayOf`'s search for sprigs; the kit's unread runs (`RUN`, `runCorners`), a vertex's class and
+  `enlargedBy`.
+- **Each plant its own offset:** its crowd and clumps reckon its size on screen a share of its own (0.72 to 1, by its
+  seed: Lipp et al., HPG 2026), so no two plants of a stand change together (the impostor's own spread was there).
+- **Grass, halved and doubled** (Ghost of Tsushima): each ring's blades are as many times wider as they are fewer
+  (`widthOf`: the asset keeps only its nearest ring's width), and the last ring thins out towards its end by one spread
+  order (a 4 × 4 ordered dither of its cells, `rankOf`), its blades widening up to 3 times, never lowering: the meadow
+  keeps its height.
+- **One wind** (`swayOf`): the cards, the clump planes and the impostor sway by the same `windAt`, the impostor's corners
+  each as far as their height up the plant; the prepass writes the impostor's motion. A sprig's own swing fades out
+  over the doubling of size before the clumps come, so nothing stops at a hand-over.
+- **Bakes kept** (`src/scatter/trees.js` farOf): each shape's mipped views and clumps in IndexedDB (`src/core/kept.js`),
+  under the drawer's fingerprint (the registry's versions of the stand's plants), their materials' versions, the sizes of
+  the views and tiles and the bake's own version; read back as the finest blocks come, every shape at once.
+- **The impostor's views sized** by where it takes over: from its clumps where they would draw their triangles smaller
+  than a 2 × 2 quad over the plant's square (its views twice the root of those triangles a side, 64 to 128); from a
+  crowd at its end (its last sprigs grown three times) as soon as it is sharp, at 128. A stand's atlas is as fine as its
+  finest shape's; the clumps' atlas holds a layer only for a shape that has clumps, as many tiles a side as its stand's
+  largest clumps need.
+- **The speckle at the hand-over:** the mesh's and the impostor's pixels are cut by the screen's noise, changed every
+  frame (`uDither`, a golden-ratio step), the same for both so each pixel is one of the two; the temporal pass averages
+  it into a cross-fade, its motion vectors hold it where the plant moves. The clumps' own cover keeps its still
+  texel-by-texel cut: cut by a noise of every frame it left a grey speckle that the temporal pass did not take in.
+- **A tree's third level begins at 120 px** (`assets/kinds.js`, was 80): where a grown tree's crowd has thinned to its
+  clumps, so that level holds them and the last of its sprigs, not a third of its crowd.
+- **Measured** in headless Chrome on Samuel's Mac (4K screen, drawn 2560 × 1440), against main on a server of its own,
+  fresh profiles. Other sessions' gates shared the GPU throughout, and the branch's truths at the tent and in the forest
+  were lost to the device three times out of three.
+  - **The near pines** (`scratchpad/visual/stage5/`): at the tent at eye level the near stone pine is its crowd of
+    sprigs at their own size, as `?truth` draws it, where main drew a third of them enlarged one and a half to four
+    times; the pine behind the tent is denser and its cards smaller; the shrubs are as main's.
+  - **FLIP against `?truth`** (`?truth=300`: the 600 m truth lost the device), whole frame, mean:
+
+| View | Main against its truth | Stage 5 against main's truth | Stage 5 against its own truth (1) |
+| --- | --- | --- | --- |
+| Tent, eye level | 0.0609 | 0.1044 | (lost) |
+| Pine forest, eye level | 0.0808 | 0.1261 | (lost) |
+| Pines from 10 m | 0.0558 | 0.1156 | 0.0757 |
+| Pines from 30 m | 0.1666 | 0.2221 | 0.0784 |
+
+    (1) the stage's truth before the meadow's change (its plants, main's grass). The two truths differ by 0.063 (10 m)
+    and 0.183 (30 m) themselves: the finest level is laid from four sprays a plant now, so every twig lies elsewhere;
+    and the meadow's ordered dither puts the near blades elsewhere (the tent's meadow alone: 0.038 against main's truth,
+    0.139 for the stage). Against main's truth the stage is farther for that alone; against its own it is nearer at
+    30 m (0.078 against 0.167) and farther at 10 m (0.076 against 0.056).
+  - **GPU** (`gate.js bench`, the whole frame through the screen, ms; main then the stage in the same minutes, and the
+    stage again an hour later):
+
+| View | Main | Stage 5 | Stage 5, again |
+| --- | --- | --- | --- |
+| Tent, eye level | 48.4 | 64.5 | 44.7 |
+| River bend, 26 m | 69.7 | 74.2 | 79.6 |
+| Town, 40 m | 59.1 | 66.3 | 64.7 |
+| Skyline, 2.5 km | 39.8 | 64.8 | 46.5 |
+| Pine forest, eye level | 46.0 | 56.3 | 56.3 |
+| Pine forest, 90 m | 41.3 | 46.6 | 82.8 |
+
+    (main's half of the second round was lost to the device. Other sessions' gates shared the GPU: the same build read
+    a third less at the tent and 78 % more at 90 m an hour apart, and the skyline, with no plant near, moved as much as
+    the forest did, so these say little more than "not faster")
+
+  - **Vertices a plant draws a level** (the heap's rooms, CPU), the grown stone pine and holm oak, levels 0 / 1 / 2 /
+    3: main 40.1 k / 7.1 k / 1.9 k / 1.9 k and 86.2 k / 7.6 k / 2.5 k / 2.5 k; stage 5 40.1 k / 20.7 k / 6.6 k / 3.7 k
+    and 86.2 k / 50.7 k / 14.5 k / 4.8 k. A level's mesh holds what its band's top needs: the crowd now thins between
+    about 390 and 130 px where main thinned between 690 and 145 (the oak 1000 and 210), so level 1 holds three to seven
+    times main's. The tree's third level now begins at 120 px, which took a third of it.
+  - **Memory and the warm start** (a probe: `window.__memory()`, and the far ends' settle source, from the page's
+    start; fresh profiles, the warm one the cold one's second start):
+
+| | Main cold | Main warm | Stage 5 cold | Stage 5 warm |
+| --- | --- | --- | --- | --- |
+| Every far end in, from when they were asked for | 87.9 s | 36.8 s (baked again) | 46.9 s | **1.1 s** (read back) |
+| The world ready (first view complete) | 199 s | 87 s | 113 s | 26 s |
+| GPU ledger, all of it | 957 MB | | 1060 MB | |
+| Impostors' views; clumps | 417; 51 MB | | 417; 131 MB | |
+
+  - `bun tools/scale.js`: 18 of 18. `bunx --bun vite build`: TheGame and OS built. CI green on the merge.
 ### Draw path: two-pass occlusion culling (2026-11-18)
 
 Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with main at `501aff5` (stage 3), as draft PR
@@ -820,6 +932,7 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
 - [x] Stage 2b: prepass, motion vectors, upscale
 - [x] Stage 3: boot (merged #67; Safari to be tried on next)
 - [x] Stage 4: far end, impostor and clump rung (merged #66)
+- [x] Stage 5: crowds, parts and one wind (#69; its cost and the impostors' size left, under Open risks)
 - [ ] Stage 5: crowds, parts and one wind
   - [x] the draw path's two-pass occlusion culling, against a depth pyramid (built; draft PR #68)
 - [ ] Stage 6: land, virtual texture and relief
@@ -922,6 +1035,28 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
   - net lines rose (+390: a new mechanism);
   - Safari not tried.
 
+- **Asked (by the orchestrating session):** stage 5, crowds: a recipe's parts (a prototype, a rigid transform and a
+  pivot each), one spread order (its share by the one measure, those that stay grown about their tips at most 2–3
+  times, the clumps at the cap, the meadow's blades halved and doubled, a random offset a plant; `KMAX`, `CARD` and the
+  enlargement that stretches paintings deleted), one wind for every rung, the far ends' bakes kept, the impostors'
+  views sized, the hand-over's speckle. Then: merge main (stage 3), and labelled pictures before and after.
+- **Delivered:** stage 5 built (under Build), merged with main (`c3c4bea`), draft PR #69; the pictures in
+  `scratchpad/visual/stage5/`.
+- **Good:** at the tent the near stone pine is its sprigs at their own size, as full detail draws it, not a third of
+  them enlarged up to four times; the pine behind the tent is denser, its cards smaller; a warm start puts the far
+  ends in without baking them.
+- **Not there yet:**
+  - the crowds cost more: a level's mesh holds what its band's top needs, and a grown oak's second level holds 51 k
+    vertices where main's held 8 k (the pine's 21 k against 7 k); the bench, on a shared GPU, read the stage slower at
+    every view (a per-plant share of a level's draw, or the occlusion culling, would take most of it back);
+  - the impostors' views stay 128 texels for today's plants (each hands over to its impostor as soon as it is sharp),
+    and the trees' clumps' atlas grew from 51 to 131 MB with 256 chunks a shape;
+  - a sprig that stays still enlarges its painting, uniformly, up to three times (a window onto a repeated painting
+    was not tried);
+  - against main's truth the stage is farther at every view taken, because its own finest is laid from four sprays a
+    plant and its meadow from an ordered dither; its own truths at the tent and in the forest were lost to the device;
+  - the walk and zoom paths were not run; Safari not tried.
+
 ## Trail
 
 | When | Commit | What |
@@ -947,5 +1082,12 @@ Built on `aven/0038-draw-occlusion` from main at `cc3aa70`, then merged with mai
 | 2026-11-18 | `eca4f33` | Stage 3: the pictures compiled aside, in turn; what grows on the stage a part of its own in settle |
 | 2026-11-18 | `90988c7` | Stage 3: grow hidden again stays hidden; the gate counts loads, not the library's address |
 | 2026-11-18 | `78988cb` | Stage 3: pictures after the first view complete; a subject's 20 s from its turn; the painter lingers |
+| 2026-11-18 | `f5238de` | Stage 5: parts (a prototype, a transform, a pivot), one spread order capped at SWELL, one wind, bakes kept; `CARD`, `KMAX`, `FAR` deleted |
+| 2026-11-18 | `6cee745` | Stage 5: each stand's impostor views as fine as its shapes want; the meadow's blades halved and doubled |
+| 2026-11-18 | `4a0c2a5` | Stage 5: the meadow's ring width no longer shadows a blade's place |
+| 2026-11-18 | `8a09dce` | Stage 5: kept far ends read back at once; each stand's clumps grid its own |
+| 2026-11-18 | `cf26025` | Stage 5: a crowd with no clumps hands over to its finest impostor; a tree's third level from 120 px |
+| 2026-11-18 | `c3c4bea` | Stage 5 merged with main (stage 3): draft PR #69 |
+| 2026-11-18 | `7466720` | Stage 5: the notes, the numbers measured and the trail |
 | 2026-11-18 | `907a269` | Draw path: a depth pyramid and two-pass occlusion culling of every drawer's tiers, kept in order, no atomic |
 | 2026-11-18 | `4b04cde` | Draw path: merged with main (stage 3); on the stage only what is drawn is culled (draft PR #68) |
