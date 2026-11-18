@@ -7,6 +7,7 @@ import { boxIn } from '../core/frustum.js';
 import { U } from '../core/uniforms.js';
 import { terrainMaterial, GRID, R0, FINE } from './material.js';
 import { createPages } from './pages.js';
+import { WALKER } from '../../world/scale.js';
 import { LAYERS } from './layers.js';
 import { waterMaterial } from './water.js';
 import { usedMaterials } from '../materials/bake.js';
@@ -16,6 +17,9 @@ const S0 = 8;               // a level-0 node's side, metres (0.5 m quads)
 const LEVELS = 10;          // the top level reaches R0 * 2^9 = 24.6 km (a land drawn less far: fewer, `reach`)
 const CAP = 4096 * FINE * FINE, WCAP = 1024 * FINE * FINE;   // (?truth's finer land: as many more nodes as its levels reach further, squared)
 const WATER_LEVELS = 6;
+// (the relief's levels below level 0: each reaching half as far as the one before, down to the first whose reach is
+// within the walker's eye's height: the nearest ground the eye sees, where its mesh is finest: src/terrain/relief.js)
+const RELIEF_LEVELS = Math.ceil(Math.log2((R0 * FINE) / WALKER.eye));
 
 function gridGeometry() {
   const n = GRID + 1, pos = new Float32Array(n * n * 3), idx = new Uint16Array(GRID * GRID * 6);
@@ -49,6 +53,10 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   };
   const land = make(CAP), water = make(WCAP);
   const landMat = terrainMaterial(pages), waterMat = waterMaterial(tex);
+  // near the eye the quadtree goes on into the relief's finer levels (src/terrain/relief.js), each reaching half as far
+  // as the one before: nodes of the land like any other, the land's own vertex stage raising them (material.js)
+  const FIRST = -RELIEF_LEVELS;
+  pages.underRelief(S0 / 2 ** RELIEF_LEVELS / GRID);   // (its finest vertices this far apart)
   const landMesh = new THREE.Mesh(land.g, landMat), waterMesh = new THREE.Mesh(water.g, waterMat);
   landMesh.frustumCulled = waterMesh.frustumCulled = false;
   landMesh.renderOrder = 10; // after the grass and the rocks: they are in front, the depth test spares the ground's shader
@@ -69,8 +77,12 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
     const ddx = cx < x ? x - cx : cx > x + size ? cx - x - size : 0, ddz = cz < z ? z - cz : cz > z + size ? cz - z - size : 0;
     return (ddx * ddx + ddz * ddz + dy2) * inv2;   // the lens's distance, as the shader measures it
   }
+  const R2 = (level) => (level >= 0 ? range2[level] : (R0 * FINE * 2 ** level) ** 2);   // (a level's reach, squared; below 0 the relief's)
   function add(x, z, size, level) {
     if (land.n < land.cap) { const o = land.n++ * 4, a = land.data; a[o] = x; a[o + 1] = z; a[o + 2] = size; a[o + 3] = level; }
+    if (level >= 0) wet(x, z, size, level);
+  }
+  function wet(x, z, size, level) {   // (the water over a node: a node finer than level 0, its water drawn for the whole level-0 node)
     if (level < WATER_LEVELS && water.n < water.cap) {
       const half = size * 0.71, r = riverAt(x + size * 0.5, z + size * 0.5);
       const near = size >= 128 ? Math.abs(r.r) < 0.0042 * (half + 16) : r.d < 2 * half + r.w * 1.3 + 3;
@@ -79,9 +91,10 @@ export function createTerrain(scene, tex, renderer, { reach = Infinity } = {}) {
   }
   function select(x, z, size, level) {
     const dd = d2(x, z, size);
-    if (dd > range2[level]) return false;
+    if (dd > R2(level)) return false;
     if (!inView(x, z, size, level)) return true;
-    if (level === 0 || dd > range2[level - 1]) { add(x, z, size, level); return true; }
+    if (level === FIRST || dd > R2(level - 1)) { add(x, z, size, level); return true; }
+    if (level === 0) wet(x, z, size, 0);
     const h = size * 0.5, fx = cx > x + h ? 1 : 0, fz = cz > z + h ? 1 : 0;
     for (let i = 0; i < 4; i++) { // the camera's quarter first: front to back
       const ix = (i & 1) ^ fx, iz = (i >> 1) ^ fz, nx = x + ix * h, nz = z + iz * h;
