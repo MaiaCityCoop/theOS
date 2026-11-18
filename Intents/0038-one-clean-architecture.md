@@ -1303,6 +1303,99 @@ per-pass GPU ceilings can be a merge rule.
   - the history reads: Catmull-Rom's five of the kept picture;
   - the motion-vector dilation: the nearest of the 2 × 2, by a gather of the depth.
 
+### The upscale at its root cost (2026-11-18)
+
+Built on `aven/0038-upscale` from main at `ecc80f2`. Asked: why the upscale (2b's one pass, `src/core/temporal.js`)
+costs a flat ~6 ms at every view on the Mac mini (a base M2, drawn 2560 × 1440, shown 3840 × 2160) against its 1.5 ms
+share, counted from first principles, and its dominant causes fixed by structure, every quality feature kept. No GPU work
+on this MacBook: the counts are from the WGSL three builds for the pass on the CPU (a stand-in device), and every time
+below is an estimate.
+
+- **The yardsticks.** 8.29 M screen pixels, 2.25 for each drawn one. A base M2: 10 cores × 128 lanes at 1.4 GHz, 1.79 T
+  lane-cycles a second (100 lane-cycles a screen pixel = 0.46 ms); 100 GB/s; about 112 G filtered reads a second (64-bit
+  texels taken as half that). On Apple's GPUs a multiply-add takes a cycle, and, by the figures known for them (not
+  measured here), a division about 7 (about 10 when exact), a root about 8, an exp2 or log2 about 4.
+- **What a screen pixel costs** (a still view, through the walker's glass):
+
+| Item | Per screen pixel | Before | ms | After | ms |
+| --- | --- | --- | --- | --- | --- |
+| Bytes | The drawn frame, once through the cache: colour 8 B (rgba16f), motion 8 B (rgba16f), depth 4 B, the depth a frame ago 4 B, each a drawn pixel (10.7 B a screen pixel); the kept picture read 4 B and written 4 B (rgba8); the canvas 4 B (bgra8) | 22.7 B: 188 MB | 1.9 | the same | 1.9 |
+| The canvas's depth | Cleared and stored every frame, never tested (the renderer's `depth`) | ≤ 4 B | ≤ 0.33 | the same | ≤ 0.33 |
+| Texture reads | 4 colour taps (64-bit, filtered), the depth's gather, the motion, the depth a frame ago, the kept picture (5 + 1 more where it moved: Catmull-Rom) | 13 slots (19) | 1.0 (1.4) | the same | 1.0 (1.4) |
+| Divisions | 63: 28 by numbers the whole frame shares (the sizes, the glass's, 12, 255), 19 more lane by lane through a colour or a place, 16 by the pixel's own | 63 exact, or 22 where the compiler shares reciprocals: 150–630 cycles | 0.7–2.9 | 13, the pixel's own: 90–130 | 0.4–0.6 |
+| The 2 × 2's own arithmetic | Each tap made perceptual and YCoCg, its moments, lo and hi, the bells: each drawn pixel reckoned 9 times (4 taps × 2.25) | ~190 | 0.9 | the same | 0.9 |
+| The glass | Forward; and back by three fixed-point steps at every pixel, 0.018 px off | ~47 | 0.2 | forward ~13; back only where the point moved, in closed form | 0.06 |
+| Roots and the screen's curve | The spread's 3 roots, 2 lengths, the 3 roots of the eight bits, the curve's exp and pow | 106 | 0.5 | 98 | 0.45 |
+| The rest | The way back through the depth, the test against the depth a frame ago, the clip, blend, lock, eight-bit encoding, vignette | ~290 | 1.3 | ~270 | 1.3 |
+| Arithmetic in all | | 790–1260 lane-cycles | 3.6–5.8 | 660–700 | 3.1–3.3 |
+| The pass | | measured | ~6 | expected | 3.3–5.4 |
+
+- **The root cause: arithmetic, not bytes.** Its 188 MB take 1.9 ms of the 6 at 100 GB/s, its reads 1 ms; its
+  arithmetic, 790–1260 lane-cycles a pixel, is 3.6–5.8 ms. And of that, what is not the screen pixel's own:
+  - **the divisions**: 63 a pixel, 47 of them needless. 28 divide by numbers the whole frame shares, each a reciprocal
+    the CPU can give once a frame; 19 more are WGSL dividing a colour lane by lane, where one reciprocal and three
+    products do. With Metal's exact division they are about half the arithmetic (2.9 ms); where Chrome's Metal
+    compiles with fast math it shares the reciprocals itself (0.7 ms). Which one, only the GPU can say;
+  - **the glass's way back**: three fixed-point steps at every pixel, each with a division, still 0.018 px off, so a
+    pixel that had not moved read its kept colour that far off its middle every frame;
+  - **the drawn pixels' work done per screen pixel**: each drawn pixel is made perceptual and YCoCg 9 times, and the
+    2 × 2's box and its depth and motion are reckoned 2.25 times. The cache serves the reads (no DRAM is lost), so this
+    is arithmetic and texture slots.
+- **What would not help, by the numbers:**
+  - **A compute pass with shared tiles.** It shares only the drawn pixels' work: the conversions (~25 cycles, done 9
+    times) and the 2 × 2's box and tests (~150, done 2.25 times), at most ~200 of ~680 cycles a pixel, and a 16 × 16
+    tile needs 13 × 13 drawn pixels, so it shares 1.5 times, not 2.25: about −15 to −25 % of the arithmetic. And a
+    compute pass can't draw the canvas: WebGPU lets it write the canvas only as `bgra8unorm` storage with the
+    `bgra8unorm-storage` feature (Chrome on Apple has it; Safari not verified), or as `rgba8unorm` (not the screen's own
+    format), and three r187 binds no canvas texture to a compute pass (a patch into its backend). The other way is one
+    more pass over the screen (+4 B a pixel, +0.33 ms), the screen then showing the eight-bit kept picture. It would also
+    split the pass in two codes, the WebGL 2 fallback's and WebGPU's. Not taken now; it is the next step if the bench
+    shows the arithmetic still bounds the pass.
+  - **Other formats.** The drawn frame is already half floats and the kept picture eight bits a number; their floor is
+    the 1.9 ms above.
+  - **The overlapping reads** of the 2 × 2 (each drawn texel read 9 times) cost no DRAM: the cache serves them.
+- **The change** (`src/core/temporal.js`; the picture is the same but for the glass, below):
+  - each number is reckoned where it changes: the sizes' reciprocals, the screen pixels a drawn one, the bell's width,
+    the glass's measure and scale (now and a frame ago), 1 / fast, once a frame on the CPU; a pixel divides only by its
+    own numbers, once each (a colour: times one reciprocal). 13 divisions a pixel where nothing moved (was 63), 20 where
+    it moved (was 81);
+  - the glass's way back in closed form: the point lies on the same line from the middle, μ of the way, where
+    μ (1 + b μ² R) = 1, by two Newton steps from 1 / (1 + b R). It is 2e-8 px off at the walker's barrel (was 0.018 px)
+    and under half a step of eight bits for every glass the lenses bring (to `?glass=3`, a film at any letterbox;
+    checked on the CPU against the exact inverse over the screen; float's own rounding is 5e-4 px). Where the point did
+    not move under the same glass it is not reckoned at all: the pixel reads its own kept colour at its middle;
+  - the depth a frame ago read by its texel (no size query or double clamp, and three's uv matrix kept off the read);
+  - the frame's own colour no longer clamped into its four's spread: it is their weighted mean, none of the weights
+    below nothing, so it lies there already;
+  - no hand-set tolerance: `HALF`, half a step of the kept picture's eight bits (1/510), is the box's least width,
+    settle's end, and how far a point may move and still read its own pixel (was 0.02 px, ten times that, set to pass
+    the glass's 0.018);
+  - the header's claim that the pass is bound by what it moves, from 2b's runs on the shared M1, is corrected.
+- **Expected:** the arithmetic 790–1260 → 660–700 lane-cycles a pixel, 3.6–5.8 → 3.1–3.3 ms. If the 6 ms was the
+  arithmetic (Metal's exact division: its model gives 5.8 ms), the pass falls to about 3.3–3.8 ms; if Chrome's Metal
+  already shared the reciprocals (fast math), it saves about 0.6 ms (about 5.4 ms), and what stays is in the reads'
+  waiting and the write path, not in what this pass reckons. The bench tells which.
+- **1.5 ms is below this pass's floor** at a 3840 × 2160 output on a base M2: its bytes alone take 1.9 ms (less where
+  Apple's lossless compression shrinks the drawn targets; the kept picture, a storage texture, is not compressed), and
+  the screen pixel's own arithmetic (its bells and own colour, the clip, the blend, the eight-bit encoding, the screen's
+  curve, the glass: ~300 lane-cycles) 1.4 ms more. Both must fall to reach it: the motion read in 4 B (rg16f) instead
+  of 8, the kept picture written as a target (compressed) beside the canvas, the canvas's depth gone, and the drawn
+  pixels' work shared in a tile. Each is a change of its own; the budget's 1.5 ms is Samuel's to keep or move.
+- **Not verified without a GPU: to be measured on the Mac mini, bench only** (`bun tools/gate.js bench`, the
+  `upscale` row, this branch against main):
+  - the pass's time, and so whether Chrome's Metal divides exactly or fast;
+  - the canvas's depth store: compressed (nearly free) or 33 MB a frame. Time the pass with the renderer's
+    `depth: false`; that needs `compile.js` to give each target its own depth when it compiles (three r187 compiles
+    with the renderer's), and the bench's `parts()`, which draws on the canvas, a target of its own;
+  - on Apple's GPUs a pass's time runs from its vertex stage's start to its fragment stage's end, and the vertex stage
+    may start while the colour pass's fragments still run: the upscale's own time is to be read against the bench's
+    `span`;
+  - Safari: nothing new is asked of it (the same bindings: four samplers, six textures, a write-only rgba8unorm storage
+    texture in the fragment stage, core WebGPU); not run.
+- **Checked on the CPU:** the pass builds to WGSL (WebGPU) and GLSL (WebGL 2) with three's own builders; the WGSL
+  counted: 63 → 13 divisions where nothing moved, 8 → 7 roots, no new reads or bindings; the glass's way back against
+  the exact inverse (above); `bun tools/scale.js` 24 of 24; `bunx --bun vite build` for TheGame and OS: built.
+
 ## Propose
 
 ## Story
@@ -1334,6 +1427,10 @@ per-pass GPU ceilings can be a merge rule.
 - [ ] The bench pass by pass (built on `aven/0038-bench-per-pass`): measured on the Mac mini, the per-part ceilings a
       merge rule
 - [ ] The upscale's cost at a 4K output (7.5–21.2 ms against its 1.5): the next root cause after 9a
+  - [x] its root cause counted (arithmetic, not bytes) and its needless part taken out (built on `aven/0038-upscale`)
+  - [ ] measured on the Mac mini (the bench's `upscale` row, against main; the canvas's depth store; the `span`)
+  - [ ] below ~3 ms, if the bench shows it is still the arithmetic: the drawn pixels' work shared in a tile, the motion
+        in 4 B, the kept picture as a compressed target beside the canvas, the canvas without depth
 - [x] Stage 10: repository (CI ships its build, next deploys itself, one Stories store, one repo API)
 
 ## Changelog
@@ -1509,6 +1606,19 @@ per-pass GPU ceilings can be a merge rule.
   stage 9's lines as they are, so stage 9's merge of `screen.js` and `boot.js` is clean (`git merge-tree`).
 - **Not there yet:** nothing measured: the Mac mini runs `bun tools/gate.js bench`; stage 9's passes join when it merges
   main; the upscale's cost is not looked into.
+- **Asked (by the orchestrating session, on the Mac mini):** why the upscale costs a flat ~6 ms at every view at a
+  3840 × 2160 output (its share 1.5 ms), from first principles: per screen pixel its reads, their formats, the bytes,
+  the arithmetic, a fragment pass against a compute pass with shared tiles, the 2 × 2's overlapping reads; each
+  estimated on an M2 in a table; the dominant causes fixed by structure, every quality feature kept, Safari-safe; no GPU
+  work on this MacBook. Then, from Samuel: one dial, no `if (TRUTH)`, no hand-set numbers.
+- **Delivered:** the count and the change (under Build, "The upscale at its root cost"); a PR into main, ready for
+  review.
+- **Good:** the cause is the pass's arithmetic, not its bytes (188 MB a frame, 1.9 ms of the 6); the pass now divides
+  13 times a pixel where it divided 63; the glass's way back is exact (0.018 px off before) and skipped where nothing
+  moved; its tolerances are the kept picture's half step; no new reads, bindings or switches.
+- **Not there yet:** nothing measured (the bench on the Mac mini); the expected 3.3–5.4 ms is above the 1.5 ms share,
+  which this pass's bytes alone exceed; the canvas's depth store, the motion in 4 B, a compressed kept picture and a
+  shared tile are left, each its own change.
 
 ## Trail
 
@@ -1560,3 +1670,4 @@ per-pass GPU ceilings can be a merge rule.
 | 2026-11-18 | `1aac442` | Stage 7 merged with main (6b): the land's litter and far colours read the rule's stands |
 | 2026-11-18 | `3907ce7` | Stage 7 merged with main (`314e2e6`) |
 | 2026-11-18 | `19d0559` | The bench times each pass on its own on main: the passes marked, each in one of four parts (geometry, light, ground, upscale/post) |
+| 2026-11-18 | `f1755f9` | The upscale reckons only what is a screen pixel's own: 63 divisions a pixel → 13, the glass's way back in closed form, `HALF` for its tolerances |
