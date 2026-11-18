@@ -20,7 +20,7 @@ export function stepper() {
     get on() { return on; },
     /** The timestamp of the last frame drawn. */
     get last() { return last; },
-    start() { if (on) return; base = performance.now(); spent = 0; on = true; },
+    start() { if (on) return; base = performance.now(); spent = 0; if (!last) last = real(); on = true; },   // (taken before any frame was drawn: its time now, on the frames' own timeline)
     stop() {
       if (!on) return;
       const now = base + spent; on = false; skew = real() - now;

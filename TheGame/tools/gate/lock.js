@@ -27,3 +27,4 @@ export async function locked(what, fn) {
 }
 /** The lock let go at once, if this run holds it (a run stopped by a signal). */
 export function unlock() { if (holding) { holding = false; rmSync(LOCK, { recursive: true, force: true }); } }
+process.on('exit', unlock);   // (however the run ends, short of being killed outright: the lock is never left held)

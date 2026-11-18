@@ -93,6 +93,9 @@ async function open(ctx, { path = '', query = '', init = null } = {}) {
     // (the start is over once the world can say it has settled, or once it has said it is ready without that: a page
     // older than src/core/settle.js)
     await page.waitForFunction(() => typeof window.__game?.settle === 'function' || window.__game?.loadMs != null, null, { timeout: WAIT, polling: 250 });
+    // (a page on the gate's clock, tools/gate/clock.js, is held on it from here: it settles with the clock standing, the
+    // wind not uncovering ground that asks for more of the land's pages, src/terrain/pages.js, and draws only when asked)
+    if (init === stepper) await page.evaluate(() => window.__gateClock.start());
     if (!(await page.evaluate(() => typeof window.__game?.settle === 'function'))) throw new Error(`${url}: window.__game.settle() is missing, so the gate cannot know when the picture is ready, and it never waits on a timer. It comes with intent 0038 stage 2 (src/core/settle.js): a promise that resolves when nothing streams or builds for the camera and the picture built over time has come to rest.`);
     const start = await page.evaluate(settled, { wait: WAIT, at: 'the start' });   // (the world made and settled where it starts, before anything is asked of it)
     if (!(await page.evaluate(() => !!window.__game.renderer.backend.isWebGPUBackend))) throw new Error(`${url}: drawn through WebGL, not WebGPU (Chrome gave the page no GPU adapter)`);
@@ -103,9 +106,11 @@ async function open(ctx, { path = '', query = '', init = null } = {}) {
     settle() said, and when it was (ms since the page began). An error after `wait` ms. */
 async function settled({ wait, at }) {
   const s = window.__game, C = window.__gateClock, t0 = Date.now(), late = new Promise((_, no) => setTimeout(() => no(new Error(`window.__game.settle() did not resolve in ${wait / 1000} s at ${at}`)), wait + 10e3));
-  // (the page on the gate's clock, tools/gate/clock.js: its frames drawn here, one after another, until it has)
-  const on = (p) => { if (C?.on) { let done = false; p.finally(() => (done = true)).catch(() => {}); (async () => { while (!done) { await C.step(C.last + 1000 / 60); await new Promise((r) => setTimeout(r, 0)); } })(); } return p; };
-  const said = await Promise.race([Promise.resolve(s.ready).then(() => on(s.settle({ timeout: wait }))), late]);
+  // (the page on the gate's clock, tools/gate/clock.js: its frames drawn here, one after another, the clock standing,
+  // from before the world's ready until it has settled)
+  let done = false, said;
+  if (C?.on) (async () => { while (!done) { await C.step(C.last); await new Promise((r) => setTimeout(r, 0)); } })();
+  try { said = await Promise.race([Promise.resolve(s.ready).then(() => s.settle({ timeout: wait })), late]); } finally { done = true; }
   let kept = null; try { kept = JSON.parse(JSON.stringify(said ?? null)); } catch {}
   return { ms: Date.now() - t0, said: kept, now: Math.round(performance.now()) };
 }
