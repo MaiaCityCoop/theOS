@@ -30,13 +30,14 @@ import { U } from '../core/uniforms.js';
 import { note, gpuStorage } from '../core/gpu.js';
 import { did } from '../core/work.js';
 import { source } from '../core/settle.js';
+import { TRUTH } from '../detail/measure.js';
 import { layerTables, layerWords, layersFrom } from './layers.js';
 import { laid, slopeAt } from './material.js';
 import { steps, colours } from '../materials/bake.js';
 
 const SLOT = 128, BORDER = 4, PAGE = SLOT - 2 * BORDER;   // texels a page's layer has a side; of them its border; its own
 const S0 = 1 / 512, LEVELS = 17, TOP = LEVELS - 1, K = 128;   // metres a texel of the finest level; levels; pages a level's window has a side
-const ANISO = 4, FADE = 10, SWEEP = 8, BATCH = 16, MAPN = 8;   // the filter's steps along a slope; frames a page fades in over; a pixel asks in one of SWEEP × SWEEP; pages laid at once; texels between the layer map's points
+const ANISO = 4, FADE = 10, SWEEP = TRUTH ? 1 : 8, BATCH = 16, MAPN = 8;   // the filter's steps along a slope; frames a page fades in over; a pixel asks in one of SWEEP × SWEEP (?truth: every pixel every frame, or the truth's slow frames, each at another of its 32 places of a pixel, find a page now and then for half an hour, and it never settles); pages laid at once; texels between the layer map's points
 const G0 = SLOT / MAPN + 2, G1 = SLOT / 2 / MAPN + 2, POINTS = G0 * G0 + G1 * G1;   // the layer map's points a page has a side, for its first mip and its second; all of them
 const KEEP = 96, FAST = 12, PIN = 26000, NEAR = 15;   // frames a page not asked for is kept at least; screen pixels a frame a page may cross and still be laid; metres round the camera the last level is always in; metres from the eye the bias spares
 const VALID = 1 << 12, FADED = 1 << 13;   // a page table entry: its slot (12 bits), these, the frame it came in (16 bits)
