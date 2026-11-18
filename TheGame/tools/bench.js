@@ -21,11 +21,12 @@ export const VIEWS = [
 /** A scene drawn whole, as only a tool does: into the screen's own target, which has a depth (the game's canvas has
     none: src/boot.js; three lays a canvas's pass out once, so it cannot be given one for a few draws). */
 const inTarget = (draw) => { const s = window.__game, r = s.renderer, was = r.getRenderTarget(); r.setRenderTarget(s.screen?.target ?? was); try { return draw(); } finally { r.setRenderTarget(was); } };
-/** The GPU's memory now, by class beside each class's budget (src/core/gpu.js ledger: { classes: { class: { gpu,
-    budget } }, gpu: all that is noted, device: all the device has made, unnoted: of that, what no pool notes }; MB). */
 /** A view's number into out's table of `key` (made with the first). */
 const keep = (out, key, name, value) => { (out[key] ||= {})[name] = value; };
-export const memoryNow = () => { const L = window.__memory?.(); return L ? { classes: L.classes, gpu: L.gpu, device: L.device, unnoted: L.unnoted } : null; };
+/** The GPU's memory now, from the game's one ledger (window.__game.memory(), src/core/gpu.js ledger), MB: { classes: {
+    class: { gpu, peak, noted, budget } }, gpu, peak, budget: all of it now, at its most and the whole's budget, noted:
+    what the pools note, unnoted: what none does, over: every make that took a class or the whole past its budget }. */
+export const memoryNow = () => { const L = window.__game?.memory?.(); return L ? { classes: L.classes, gpu: L.gpu, peak: L.peak, budget: L.budget, noted: L.noted, unnoted: L.unnoted, over: L.over } : null; };
 /** The frame's parts, each the passes it is made of, by the names their code marks them with: what BUDGET (and the
     memory's gate) is shared out by, one table for the game and its tools (src/core/classes.js). */
 export { CLASSES, classOf, CLASS_NAMES } from '../src/core/classes.js';

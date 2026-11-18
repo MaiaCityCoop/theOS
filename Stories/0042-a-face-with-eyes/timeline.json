@@ -1,0 +1,247 @@
+{
+ "intent": "0042",
+ "title": "A face with eyes",
+ "day": null,
+ "inGame": null,
+ "goals": [
+  [
+   "Eyes: lids cut along their edges, a globe with iris and cornea, lashes, brows",
+   true
+  ],
+  [
+   "The head laid out anew from measures: a forehead, a nose, two lips, a chin, a jaw",
+   true
+  ],
+  [
+   "A warm base face: a whole smile over good teeth, blue eyes with a spark in each, a narrower, shorter chin",
+   true
+  ],
+  [
+   "Ears of their own: a rim, a bowl, a lobe, standing off the head",
+   true
+  ],
+  [
+   "The tool draws the face and prints its measures; the body as it was",
+   true
+  ],
+  [
+   "Seen in the library on a real GPU, and timed",
+   false
+  ],
+  [
+   "The gate, a photograph of a real smiling face: skin, light, a smile of the whole face",
+   false
+  ],
+  [
+   "Photoreal: hair, skin that differs from place to place, a face that moves",
+   false
+  ]
+ ],
+ "preview": {
+  "pos": [
+   -1264.0,
+   -5.44,
+   617.07
+  ],
+  "look": [
+   -1262.6,
+   -6.0,
+   631.0
+  ],
+  "mm": 35
+ },
+ "clips": [
+  {
+   "name": "The meadow, one tent",
+   "kind": "wide",
+   "secs": 14,
+   "ease": "in",
+   "in": "dip",
+   "inSecs": 1.4,
+   "hour": 11,
+   "clouds": 0,
+   "why": "the game as it starts: the one tent on the meadow, where whoever lives here will stand and be looked in the face. The Body itself stands in the library, not yet in this world",
+   "keys": [
+    {
+     "pos": [
+      -1264.0,
+      -5.44,
+      617.07
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1263.8,
+      -5.45,
+      619.06
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    }
+   ]
+  },
+  {
+   "name": "Towards the tent",
+   "kind": "push in",
+   "secs": 13,
+   "ease": "out",
+   "in": "cut",
+   "why": "nearer, at a person's eyes: a face is judged from here, an arm's length",
+   "keys": [
+    {
+     "pos": [
+      -1263.4,
+      -5.46,
+      623.04
+     ],
+     "look": [
+      -1262.85,
+      -5.98,
+      628.51
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1263.05,
+      -5.46,
+      626.52
+     ],
+     "look": [
+      -1262.85,
+      -5.98,
+      628.51
+     ],
+     "mm": 35
+    }
+   ]
+  },
+  {
+   "name": "Back and up",
+   "kind": "pull back",
+   "secs": 16,
+   "ease": "inout",
+   "in": "cut",
+   "why": "back from the tent and up: what is a face now and what is not yet, said plainly over the whole of it",
+   "keys": [
+    {
+     "pos": [
+      -1264.0,
+      -5.44,
+      617.07
+     ],
+     "look": [
+      -1262.6,
+      -6.0,
+      631.0
+     ],
+     "mm": 35
+    },
+    {
+     "pos": [
+      -1264.4,
+      -3.07,
+      613.09
+     ],
+     "look": [
+      -1262.6,
+      -6.2,
+      631.0
+     ],
+     "mm": 35
+    }
+   ]
+  }
+ ],
+ "captions": [
+  {
+   "at": 0.6,
+   "for": 3.4,
+   "kind": "title",
+   "over": "A face with eyes",
+   "text": "A face that smiles back"
+  },
+  {
+   "at": 4.3,
+   "for": 2.9,
+   "kind": "samuel",
+   "text": "Ok eyes and face is the worst at the moment"
+  },
+  {
+   "at": 7.4,
+   "for": 2.8,
+   "kind": "maia",
+   "text": "Its eyes were two balls looking out of holes."
+  },
+  {
+   "at": 10.4,
+   "for": 3.2,
+   "kind": "maia",
+   "text": "Now a lid's edge is cut pixel by pixel, over a globe with an iris."
+  },
+  {
+   "at": 13.8,
+   "for": 3.4,
+   "kind": "maia",
+   "text": "With eyes in it the head was still a mask. So I laid it out anew."
+  },
+  {
+   "at": 17.4,
+   "for": 3.0,
+   "kind": "samuel",
+   "text": "The base view should be a smile and sparkle in the eyes."
+  },
+  {
+   "at": 20.6,
+   "for": 3.4,
+   "kind": "samuel",
+   "text": "Friendly heartwarming gaze, a human in love and full of inspiration."
+  },
+  {
+   "at": 24.2,
+   "for": 2.4,
+   "kind": "samuel",
+   "text": "And the ears need to be more realistic"
+  },
+  {
+   "at": 26.8,
+   "for": 3.4,
+   "kind": "maia",
+   "text": "It cannot move yet. So its rest is a whole smile, over good teeth."
+  },
+  {
+   "at": 30.4,
+   "for": 2.8,
+   "kind": "maia",
+   "text": "Its lids smile too, and each eye holds a spark."
+  },
+  {
+   "at": 33.4,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "Ears with a rim, a bowl and a lobe, 19 mm off the head."
+  },
+  {
+   "at": 36.6,
+   "for": 3.0,
+   "kind": "maia",
+   "text": "Warm, yes. A photograph, no: no hair, no blink."
+  },
+  {
+   "at": 39.8,
+   "for": 3.0,
+   "kind": "note",
+   "text": "Seen on a software GPU only. Not yet in the library."
+  }
+ ]
+}

@@ -22,7 +22,7 @@ import { waysVersion } from '../world/ways.js';
 import { flushThings, thingsVersion } from '../world/things.js';
 import { flag } from '../core/flags.js';
 import { occlusion } from '../core/occlusion.js';
-import { ready } from './tier.js';
+import { ready, tick } from './tier.js';
 
 // (the stress stand and the herds are tools that measure: loaded only where the address asks for them, `?stress`,
 // `?herds=N`, as the bench and the flyby are: src/boot.js)
@@ -63,6 +63,7 @@ export function createScatter(scene, tex, ground, renderer, camera = null) {
       // camera every few metres with the same ground where it overlaps (what its gather and its own patches read)
       const v = (u) => u.value.toArray?.().join(',') ?? u.value, kept = `${lod}|${v(U.uSand)}|${v(U.uStage)}|${v(U.uStageGround)}|${weatherKey()}|${waysVersion()}|${thingsVersion()}`, world = `${ground.version}|${kept}`;
       for (const f of before) f(cx, cz, `${v(U.uSand)}|${v(U.uStage)}`);   // (what the larger things leave for the smaller, before any packs: growth.js; worked out again whole only when the sandbox or the stage moves)
+      tick();   // (the frame's cells for the resident tiers' packings to share: tier.js)
       for (const t of tiers) t.run(renderer, world, cx, h0 + dy, cz, view, kept);
       for (const f of solid) f(renderer);
     },
