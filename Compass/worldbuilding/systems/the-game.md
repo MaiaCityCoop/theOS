@@ -35,6 +35,10 @@ What the game proves, in real numbers: a post-labour economy that runs on **owne
 
 **Every coop that is not a village or city coop is unlocked along the way and founded on a citizen's initiative.** **Startup coops and city-wide coops are the same thing:** a startup coop serves the whole city. The six of the essential fixed tree are the first six of the ten every citizen's start reserve funds; the last four are unlocked later. The milestones open what may be founded next; citizens found it.
 
+### Citizenship: one human, one citizen
+
+**Citizenship costs €1 a day, in real money.** That is the gate against fake accounts for now: every citizen's start capital and daily HEARTS cost a real euro a day to keep, so cheating costs money. Proof that one person is one citizen is a later problem, for when the game is large.
+
 ### The start capital
 
 Every citizen's start is invested the same way, so wealth is split across real coops from the first day:
@@ -208,5 +212,6 @@ The numbers the game publishes, the proof:
 
 - Insolvency in full.
 - Each coop's governance model, in detail.
+- The fictional investors' terms (how many MINDS per €), the funding curve's formula, the crops with their cycles, yields and prices, and the default governance a new village starts with.
 - The ladder's percentages (food, energy, climate) and the plants per dome size with their real growing cycles: to be tuned, and sourced before they are shown as fact.
 - Real-world numbers (dome yields, solar output, market prices) need sources before they are shown as fact.
