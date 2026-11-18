@@ -1151,6 +1151,95 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
   - the floor's litter is crossed cards, so a fallen sprig stands a little off the ground;
   - Safari not tried.
 
+### Draw path: one culling for every tier, the late prepass one bundle, the grass culled, plants' boxes measured (2026-11-18)
+
+Built on `aven/0038-draw-path-culling-befaf1` from main at `5c591fd`, on the Mac mini, as draft PR #77: the follow-ups
+listed under "Not done" above. It touches the culling (`src/core/occlusion.js`), the tiers (`tier.js`), the drawer's
+boxes, the grass's tiers and the plants' packing; nothing of the cut (stage 8) or the light (stage 9).
+
+- **One culling for every tier** (`src/core/occlusion.js`). Every culled tier's things' boxes and what the passes keep
+  of them lie in one set of buffers, an *arena*: each tier a range of it, each of its draws (a bucket) a range of that,
+  each bucket's numbers (its first thing, its room, its tier, its first chunks, what each pass keeps) in one table. A
+  frame dispatches seven passes however many tiers there are: pass one is a scan of the buckets (their first chunks,
+  from what each holds this frame: none for a tier not drawn), the test, the scan of the chunks and the write; pass two
+  the test, the scan and the write. A workgroup finds its bucket by halving over the buckets' first chunks. It was six
+  a tier, for 26 tiers: 156 of a frame's 254 dispatches at the tent.
+  - **The boxes** are worked out as a tier packs, not as it is culled: the packing's last pass, in a culled tier's own
+    form, writes each draw's count into the arena with how many the draws before it hold, and a pass dispatched over
+    what was packed alone writes each thing's middle, half its size (its growth in it) and how far the wind may push
+    it, a metre of its sway. The culling reckons the sway with the wind as it blows now, and the snow lying on it, so
+    nothing is packed again when the wind rises. The test reads only the arena; it binds no tier's packing, so one
+    pass tests them all.
+  - **An arena is as large as its tiers**: it is made when the first thing that reads it is built (a tier's material,
+    its box pass, the culling's passes). Every tier made before the first frame shares the first; a tier made after
+    that (a stage's subject, what a page adds later) opens the next, seven passes more.
+  - **The eye's draw arguments** (what pass one keeps, then pass two's after them; pass two's alone, for its prepass)
+    lie in the arena too, ten numbers a bucket. A tier's own buffer keeps only what it packed, which stage 8's cut reads
+    as it was. A draw's length goes into every set of its arguments by one call (`Tier.setLength`).
+  - **Only the prepass and the colour** read a thing through the culled list, by name. Stage 9 adds a `shadow` pass to
+    the passes' names (`src/core/pass.js`); before this, every named pass would have read the culled list.
+- **The late prepass is one render bundle** (`THREE.BundleGroup`), recorded again only when what it holds changes (a
+  draw shown or hidden, a draw's corners). three still brings its draws' numbers up to date every frame (its node
+  materials always are), so it saves the encoding, the scene's walk and the pipelines' lookups, not the uniforms.
+- **The grass is culled** (`grass.js`): a blade's box from its foot up its height, out as far as it bends (bowed
+  deepest under snow) and its widest; the wind leans its tip its height a unit of the wind's push.
+- **Plants' boxes are measured on their meshes** (`assets/kit/plant.js` packPlant): every vertex where it stands and
+  what it grows from, and a card's enlarged about its tip as far as the crowd's rule lets it (SWELL), its root's too.
+  The drawer takes a mesh's box in its kind's sizes and as far as it leans (`trees.js` boxOf), grows the kind's box by
+  every mesh that comes, and a kind is never hidden before its first has come. The family's box over the height and
+  the 0.3 of its size for growth are gone for plants (0.05 left, as for made things). The plants' recipes' versions
+  moved with the kit (`registry.json`), so a warm profile bakes the far ends once more.
+- **Characters on skeletons** (Settler, Me) are not culled, as before.
+- **Found:** `tools/bench.js` draws its frames with the lens factor 1. Where the gate's camera left the ground's map
+  at another step, the map fades to the new one over 36 frames and its version goes up in each, and every tier's
+  packing key begins with it: at `pine forest, 90 m` and `town, 40 m` about 20 tiers pack again in every one of those
+  frames (8–9 ms of compute). The gate's bench draws 1 + 60 frames, so its readings there include them.
+- **Measured** on the Mac mini, headless Chrome, a 4K screen drawn at 2560 × 1440, fresh profiles, the branch on a
+  server of its own (`127.0.0.1`). The MacBook's agents do not share this GPU; Tasks A, C and D and the master's
+  reviews ran on it at the same time, each run under the shared lock. Main is no reference (Samuel, 2026-11-18): the
+  branch is judged on its own. Below, the stills, the probe and the bench are of `3c821b1`, before the merge with
+  stage 7.
+  - **Culling changes nothing visible.** In one page (the gate's stills: clock held, governor held), each bench view
+    shot with culling on, with it off (`__occlusion.mode = 0`: everything packed drawn), and on again (the floor), at
+    `3c821b1`. FLIP, the whole frame, mean (p99 of its 32-pixel tiles):
+
+| View | Culling off against on | On against on again (the floor) | Drawn of what is packed (grass included) |
+| --- | --- | --- | --- |
+| Tent, eye level | 0.0260 (0.077) | 0.0271 (0.085) | 165,345 of 241,703 (68 %) |
+| River bend, 26 m | 0.0160 (0.034) | 0.0182 (0.039) | 52,352 of 164,095 (32 %) |
+| Town, 40 m | 0.0193 (0.035) | 0.0240 (0.043) | 58,405 of 156,587 (37 %) |
+| Skyline, 2.5 km | 0.0130 (0.027) | 0.0132 (0.029) | 23,701 of 69,226 (34 %) |
+| Pine forest, eye level | 0.0202 (0.059) | 0.0163 (0.053) | 42,848 of 93,948 (46 %) |
+| Pine forest, 90 m | 0.0201 (0.081) | 0.0163 (0.059) | 11,453 of 81,023 (14 %) |
+
+    Four views lie under the floor, the pine forest's two 0.004 over it; their heat maps are the floor's own pattern
+    (the crowns' hand-over speckle at the top, a fine speckle over the meadow's blades, drawn in another order with
+    culling off) and nothing is missing. Off above, on below, labelled: `aven/0038-shots`, `cull/`.
+  - **What it costs, standing still** (a probe of each part, 40 frames drawn first, medians of 40; ms):
+
+| View | CPU: the frame | CPU: the late prepass (its passes, its bundle) | GPU: the culling (pyramid, pass one, pass two) | GPU: the frame | Compute dispatches a frame, all of them |
+| --- | --- | --- | --- | --- | --- |
+| Tent, eye level | 3.5 | 0.6 (0.5) | 0.93 (0.45, 0.33, 0.13) | 15.8 | 20 |
+| River bend, 26 m | 3.3 | 0.5 (0.5) | 0.30 (0.18, 0.09, 0.02) | 11.4 | 20 |
+| Town, 40 m | 3.4 | 0.6 (0.5) | 0.43 (0.19, 0.22, 0.02) | 11.9 | 20 |
+| Skyline, 2.5 km | 1.2 | 0.2 (0.2) | 0.42 (0.33, 0.04, 0.06) | 9.1 | 20 |
+| Pine forest, eye level | 6.2 | 1.0 (0.9) | 0.82 (0.39, 0.29, 0.11) | 29.5 | 20 |
+| Pine forest, 90 m | 3.0 | 0.5 (0.5) | 0.34 (0.18, 0.13, 0.02) | 11.8 | 20 |
+
+    Pass one's CPU is under the probe's 0.1 ms. The pyramid's 12 levels, a dispatch each, are now the largest part of
+    the culling's GPU time.
+  - **The bench** (`gate.js bench`, GPU, 2560 × 1440 into 4K): tent 17.3, river bend 13.2, town 15.0, skyline 13.4,
+    pine forest at eye level 31.7, from 90 m 15.4 ms: over the 12 ms of the hard gate at every view (the pine forest's
+    render passes alone are about 28.5 ms). At the town and 90 m most of its 60 frames include the ground map's fade
+    (above).
+  - `bun tools/scale.js`: 24 of 24 (after the merge with stage 7). `bunx --bun vite build`: built.
+- **Not done:**
+  - the pyramid in one or two dispatches (a single-pass downsampler), now the larger part of the culling's GPU time;
+  - the bench's lens and the ground map's fade (above), for whoever owns the gate;
+  - the meadow's blades are still packed in an order that changes from run to run (the packing's atomics): the culling
+    keeps whatever order the packing left;
+  - Safari has not been tried.
+
 ## Propose
 
 ## Story
@@ -1171,6 +1260,7 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
 - [x] Stage 5: crowds, parts and one wind (#69; its cost and the impostors' size left, under Open risks)
 - [ ] Stage 5: crowds, parts and one wind
   - [x] the draw path's two-pass occlusion culling, against a depth pyramid (built; draft PR #68)
+  - [x] the draw path's follow-ups: one culling for every tier, the late prepass bundled, the grass culled, plants' boxes measured (draft PR #77)
 - [ ] Stage 6: land, virtual texture and relief
   - [x] 6a: the layer map, one read a material (the deferred pass left to 6b)
   - [x] 6b: the adaptive virtual texture with feedback (built; draft PR; the ground pass still reads the land's nodes)
@@ -1346,6 +1436,22 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
 - **Not there yet:** not measured against the truth (?truth black since 6b); the pines from 30 m and the stress
   world's start not settled (6b, fixed in 6c); the timings left to the Mac mini; the rest under the stage's Not done.
 
+- **Asked (by the orchestrating session, on the Mac mini):** task B, the draw path's follow-ups to #68: one dispatch
+  a pass for all tiers, a render bundle for the late prepass's draws, the grass culled, plants' boxes measured on
+  their meshes, characters on skeletons left out; measured with the gate (bench, paths walk and orbit), the picture
+  unchanged. Then: no comparison with main at all (Samuel: main is no reference), the branch judged on its own
+  (culling on against off, and its own `?truth`), and the GPU in turns from the master's queue.
+- **Delivered:** built (under Build, "Draw path: one culling for every tier…"), merged with main (stage 7), draft PR
+  #77; culling off above, on below on `aven/0038-shots`, `cull/`.
+- **Good:**
+  - seven culling dispatches a frame for every tier at once (it was six a tier: 156 of 254 at the tent); 20 compute
+    dispatches a frame in all, standing still;
+  - the late prepass 0.2–1.0 ms of CPU a frame; the culling's GPU 0.3–0.9 ms, the pyramid included;
+  - the grass culled (at the tent 112 k of its 152 k blades drawn), plants' boxes measured: 14–68 % of what is packed
+    drawn, and culling on against off within the floor at every bench view.
+- **Not there yet:** the bench over 12 ms at every view (13–32); the pyramid's 12 dispatches; the bench's ground-map
+  fade (under Found); Safari not tried.
+
 ## Trail
 
 | When | Commit | What |
@@ -1395,3 +1501,6 @@ draft PR #73. 6b's layer map lives on each page's grid now; the growth map is a 
 | 2026-11-18 | `16f8e01` | Stage 7: the growth map keyed on the sandbox and the stage, not the ground map's fade |
 | 2026-11-18 | `1aac442` | Stage 7 merged with main (6b): the land's litter and far colours read the rule's stands |
 | 2026-11-18 | `3907ce7` | Stage 7 merged with main (`314e2e6`) |
+| 2026-11-18 | `9fa8a1f` | Draw path: one culling for every tier (an arena), the late prepass one bundle, the grass culled, plants' boxes measured |
+| 2026-11-18 | `3c821b1` | Draw path: boxes worked out only for what was packed; a bucket found in as many halvings as it takes |
+| 2026-11-18 | `fe8a3f8` | Draw path merged with main (stage 7): the grass's box and the growth map both in its packing |
