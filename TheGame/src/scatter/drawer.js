@@ -716,7 +716,7 @@ export function createDrawer(scene, renderer, tex, { name = 'stand', LEVELS, SHA
         for (const k of ['near', 'far', 'pad', 'to', 'from']) K.N.band[k].value = band[k].value;
         K.inner.value = shadow || !i ? band.from.value : finer; table?.();
       };
-      packs = { found: K.found, select: K.select, metres: shadow, kind: K, table: tell };
+      packs = { found: K.found, select: K.select, metres: shadow, kind: K, table: tell, twice: !!FAR };   // (twice: a thing handing over to its far end is packed for both its draws)
     } else {   // (its own patches: a cell's thing, packed where it is of the level now)
       const N = { lv: uniform(i, 'uint'), under: uniform(mine.under, 'uint'), stands: uniform(mine.stands), all: uniform(mine.all), band }, TH = thingOf(thing);
       const { whole, ofLevel, holder, sortOf, done } = levelCode(N, flags);
