@@ -1627,6 +1627,31 @@ per-pass GPU ceilings can be a merge rule.
   - the stress world's ladder waits for 8b;
   - the per-plant offset still reckons a plant up to 1/0.72 small.
 
+- **Asked (by the master on the Mac mini):** `?truth` as the one measure with the dial turned down after the game's own
+  start (no REACH, BIG or REACHES); then the truth's memory before and after, in one GPU turn on #102's guard.
+- **Delivered (#106, draft):**
+  - `?truth` turns the dial to `TRUTH_DIAL` (a quarter of a pixel) once `game.ready` has settled;
+  - every capacity is sized for `DIAL_LEAST`;
+  - a heap clamps its slots to its kinds (`6a0edcc`);
+  - the before/after, measured on the Mac mini at 20:45 (bench-tent-eye-level, tent-10m, pines-30m).
+- **Good:**
+  - the start settled in 39.3 s after (42.6 s before), held last by the rocks (at most 25 pending; 8034 before);
+  - with the heap fix the rocks' buffers fit under `?truth`: corners 74.0 MB, vertices 70.6 MB (plain 27.3 and 26.5).
+- **Not there yet:**
+  - **Neither side drew a valid frame.** Both overran WebGPU's default limits (binding 128 MiB, buffer 256 MiB), which is
+    all the device is asked for, though the adapter offers 4 GiB:
+    - grass's packed blades, 157 MB in one binding on both sides (57.8 MB plain; grass.js:163 → tier.js:96), routed to
+      its owner;
+    - on the after side, before `6a0edcc`, the rock heap at 96 slots: a 259 MB vertex binding and a 273 MB index buffer.
+  - The memory peaks (physical footprint, the guard's own count) are lower bounds, since a refused buffer is never
+    allocated:
+    - before: 6.87 GB, GPU process 4.45, swap at most 4173 of 5120 MB;
+    - after: 7.25 GB, GPU process 4.68, swap at most 3884 of 5120 MB.
+  - The after side's first view did not settle (the land's pages still out after 300 s). The run then hung 13 minutes in
+    `page.close()`, now guarded in #102 (`d70c299`).
+  - `createBuffer` asked 13.88 GB in total under `?truth` against 1.66 GB plain, while the ledger holds 2.80 against
+    2.01 GB; passed to the memory accounting (#97).
+
 ## Trail
 
 | When | Commit | What |
@@ -1686,3 +1711,5 @@ per-pass GPU ceilings can be a merge rule.
 | 2026-11-18 | `d55430d` | One measure: the notes in the code in fewer lines |
 | 2026-11-18 | `8e9cc38` | One measure: its notes under Build |
 | 2026-11-18 | `19d0559` | The bench times each pass on its own on main: the passes marked, each in one of four parts (geometry, light, ground, upscale/post) |
+| 2026-11-18 | `35890b2` | `?truth` is the one measure with the dial turned down, after the game's own start (draft PR #106) |
+| 2026-11-18 | `6a0edcc` | A heap never holds more slots than it has kinds; the drawer draws the heap's own slots |
