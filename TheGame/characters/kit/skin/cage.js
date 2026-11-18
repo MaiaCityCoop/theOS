@@ -28,7 +28,7 @@ const D = Math.PI / 180;
 
 /** How many points a ring has: the head's, the neck's and the shoulders' (H), the trunk's (T), an arm's (A), a leg's
     (L); how many edges cross under an armpit (KA) and under the crotch (KC). They fit: H = T + 2A - 4KA, L = T/2 + KC. */
-export const COUNT = { H: 48, T: 32, A: 20, L: 20, KA: 6, KC: 4 };
+const COUNT = { H: 48, T: 32, A: 20, L: 20, KA: 6, KC: 4 };
 
 /** The shape as solids a ray can be sent through (each negative inside, metres): `body` the trunk, the legs and the
     head; `arm` the arms with their hands; `both` the two as one (the shoulders); `leg` the left leg alone; `any` the

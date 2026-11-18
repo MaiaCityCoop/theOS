@@ -67,7 +67,7 @@ import { headFormOf } from './head.js';
 //              parts has creases where they meet, and an ear has none
 //   plate, lobe   the plate's thickness; the lobe's: below `from` to `to` (q) it grows to `thick` and lies smooth,
 //              turned in towards the head: `level`: where its sheet lies at p = 0, and how much further out a mm back
-export const EAR = {
+const EAR = {
   canal: { at: [0.07, 1.66, -0.012], in: [4, -0.5, -11.5] },
   lean: 12, off: 4, tip: 4, clear: 0.9,
   outline: [[-6, 6], [-6.5, 14], [-5.5, 22], [-3, 29], [2, 34], [9, 36.3], [16.5, 35.5], [23, 31.5], [27, 25], [29, 16], [29, 7], [27.5, -2],
@@ -95,7 +95,7 @@ const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
 /** The ear's frame: where its plane's middle is in the world (m) and its three axes there: backwards along its
     breadth, up its long axis, out of its plane. */
-export function earFrame() {
+function earFrame() {
   const L = EAR.lean * D2R, F = EAR.off * D2R, T = EAR.tip * D2R;
   const V0 = [0, Math.cos(L), -Math.sin(L)], U0 = [0, -Math.sin(L), -Math.cos(L)], N0 = [1, 0, 0];
   const U = U0.map((u, i) => u * Math.cos(F) + N0[i] * Math.sin(F)), N1 = N0.map((n, i) => n * Math.cos(F) - U0[i] * Math.sin(F));
@@ -200,7 +200,7 @@ function mapsOf() {
   return (made = { O, U, V, N, local, box: { lo: LO, hi: [LO[0] + (NA - 1) * C, LO[1] + (NB - 1) * C, LO[2] + (NC - 1) * C] } });
 }
 
-export function earFieldOf() {
+function earFieldOf() {
   const { O, U, V, N, local } = mapsOf();
   return (x) => { const d = [x[0] - O[0], x[1] - O[1], x[2] - O[2]]; return local(dot(d, U) * 1000, dot(d, V) * 1000, dot(d, N) * 1000) / 1000; };
 }

@@ -289,7 +289,7 @@ export const TONE = {
 // opens to about five centimetres between the knees (his knees stand 17 cm apart here, a knee 11 cm broad); below
 // them the calves' own shape rules. From the muscles alone the inner thighs filled the gap to the knees, and the two
 // legs read as one.
-export const LEG_GAP = [[0.82, 0.003], [0.78, 0.006], [0.72, 0.011], [0.64, 0.018], [0.56, 0.024], [0.5, 0.027], [0.44, 0.016], [0.36, 0.01], [0, 0.01]];
+const LEG_GAP = [[0.82, 0.003], [0.78, 0.006], [0.72, 0.011], [0.64, 0.018], [0.56, 0.024], [0.5, 0.027], [0.44, 0.016], [0.36, 0.01], [0, 0.01]];
 export const gapAt = (y) => { const G = LEG_GAP; if (y >= G[0][0]) return G[0][1]; for (let i = 0; i < G.length - 1; i++) if (y >= G[i + 1][0]) return G[i + 1][1] + ((G[i][1] - G[i + 1][1]) * (y - G[i + 1][0])) / (G[i][0] - G[i + 1][0]); return G.at(-1)[1]; };
 
 // The face's own lines (intent 0042), drawn as the skin is drawn (./light.js), not laid on its points: a lid's edge, the
@@ -324,14 +324,6 @@ export const mouthOpening = (x, y) => {
   return { d: ax >= M.half ? -Math.hypot(ax - M.half, y - M.corner) : Math.min(under, over), under, over, t };
 };
 export const BROW = { from: [0.011, 1.6938], peak: [0.038, 1.6998], to: [0.0585, 1.6948], thick: [0.0105, 0.005] };
-/** The eye's opening at a place of the globe's front view: how far inside the lids' edges it lies (m; negative: under
-    a lid), how far below the upper edge and above the lower, and where along the line between the corners. */
-export const eyeOpening = (u, v) => {
-  const E = EYE, dx = E.outer[0] - E.inner[0], dy = E.outer[1] - E.inner[1], t = ((u - E.inner[0]) * dx + (v - E.inner[1]) * dy) / (dx * dx + dy * dy), tc = Math.min(0.999, Math.max(0.001, t));
-  const bump = (p) => Math.pow(tc / p, 1.15 * p) * Math.pow((1 - tc) / (1 - p), 1.15 * (1 - p)), base = E.inner[1] + dy * tc;
-  const under = base + E.upper[0] * bump(E.upper[1]) - v, over = v - (base - E.lower[0] * bump(E.lower[1]));
-  return { d: t <= 0 || t >= 1 ? -Math.hypot(u - (t <= 0 ? E.inner[0] : E.outer[0]), v - (t <= 0 ? E.inner[1] : E.outer[1])) : Math.min(under, over), under, over, t };
-};
 
 // The face's fine folds (intent 0042, fifth round), drawn as the skin is drawn (./light.js): each a short straight
 // run seen from the front, left side: [from x, y, to x, y, half its breadth (m), how deep (0 … 1)]. A whole smile
