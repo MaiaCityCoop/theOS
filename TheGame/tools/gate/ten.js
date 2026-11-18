@@ -12,6 +12,8 @@
 // no summary, the last single runs in .gate/ (bench.json, compile.json, paths.json, real.json).
 //
 // The measures are the skill's, and lower is better in each:
+//   smoke          the GPU smoke's: the world settled at each view posed, turned about and walked on; its WebGPU
+//                  errors
 //   rendering      the bench's GPU ms a frame per view and per part; each path's p99 frame in motion and its frames
 //                  over 16.7 ms, cold and warm
 //   startup        the first frame that draws the world and the bytes loaded before it (the game's mark,
@@ -51,9 +53,9 @@ function placeOf(what, loose) {
   return { at: OUT, tag, file: `${OUT}${tag}/summary.json` };
 }
 /** A run of the gate (placeOf), what the gate kept of it. loose: with no summary, the last single runs in .gate/. */
-function runOf(what, loose = false) {
+export function runOf(what, loose = false) {
   const { at, tag, file } = placeOf(what, loose), S = read(file), kept = (f) => read(`${at}${f}`), last = (name) => (S || !loose ? null : kept(`${name}.json`));
-  return { tag: S?.tag ?? tag, flip: S?.flip ?? kept(`${tag}-vs-${tag}-truth/report.json`), bench: S?.bench ?? last('bench'), compile: S?.compile ?? last('compile'), paths: S?.paths ?? last('paths'),
+  return { tag: S?.tag ?? tag, flip: S?.flip ?? kept(`${tag}-vs-${tag}-truth/report.json`), bench: S?.bench ?? last('bench'), compile: S?.compile ?? last('compile'), smoke: S?.smoke ?? null, paths: S?.paths ?? last('paths'),
     real: kept(`${tag}/real.json`) ?? last('real'), motion: kept(`motion-${tag}/report.json`), floor: { flip: kept(`${tag}-a-vs-${tag}-b/report.json`), motion: kept(`motion-${tag}-floor/report.json`) } };
 }
 
@@ -70,6 +72,7 @@ const classesOf = (Q) => (Q?.groups ?? []).filter((g) => g.name === 'all' || g.n
 const realOf = (Q) => classesOf(Q).flatMap((g) => Object.entries({ CMMD: g.cmmd, ...g.stats?.diff }).map(([k, x]) => [`real, ${g.name.replace(/^kind /, '')}, ${k}`, '', x == null ? null : Math.abs(x)]));
 const popsOf = (M) => Object.entries(M?.paths ?? {}).map(([p, r]) => [`the worst pop in motion, ${p}`, '', r.worst?.value]);
 const KINDS = {   // the skill's measures, each read from a run as [name, unit, value]
+  smoke: (R) => [...Object.entries(R.smoke?.views ?? {}).flatMap(([v, m]) => ['posed', 'turned', 'walked'].map((k) => [`the world settled, ${v}, ${k}`, 's', m[k] / 1e3])), ['WebGPU errors in the smoke', 'errors', R.smoke?.errors?.length]],
   rendering: (R) => [...benchOf(R.bench), ...motionOf(R.paths)],
   startup: (R) => caches(R.paths).flatMap(([c, C]) => [[`the first frame that draws the world, ${c}`, 's', C.first?.ms / 1e3], [`bytes loaded before the first frame, ${c}`, 'MB', C.first?.bytes / 1e6], [`the world settled where it starts, ${c}`, 's', C.start?.ms / 1e3]]),
   'boot and load': (R) => [['the WGSL compiled until the world settled', 'MB', R.compile?.bytes / 1e6]],
@@ -113,7 +116,7 @@ function compare(here, base, N) {
 
 // ---- the table ----
 const pct = `${+(SHARE * 100).toFixed(2)} %`;
-const fmt = (v, unit) => (v == null ? '–' : `${v.toFixed({ ms: 2, s: 1, MB: 1, GB: 2, frames: 0 }[unit] ?? 4)}${unit && unit !== 'frames' ? ` ${unit}` : ''}`);
+const fmt = (v, unit) => (v == null ? '–' : `${v.toFixed({ ms: 2, s: 1, MB: 1, GB: 2, frames: 0, errors: 0 }[unit] ?? 4)}${unit && unit !== 'frames' ? ` ${unit}` : ''}`);
 const signed = (x, unit) => (x > 0 ? '+' : x < 0 ? '−' : '±') + fmt(Math.abs(x), unit);
 const changed = (r) => (r.change == null ? '–' : r.base ? `${r.change > 0 ? '+' : r.change < 0 ? '−' : '±'}${Math.abs((100 * r.change) / r.base).toFixed(1)} %` : signed(r.change, r.unit));
 const verdict = (r) => (r.worse ? 'worse' : r.better == null ? '–' : r.better ? 'yes' : 'no');
@@ -132,12 +135,20 @@ function table({ here, base, rows, worse }) {
 function n(k, word) { return `${k} ${word}${k === 1 ? '' : 's'}`; }
 
 // ---- the run ----
-const base = runOf(valueOf('--base') ?? fail('--base <run>: the stored run to hold this one against (the train\'s numbers on main)'));
-const here = runOf(valueOf('--here') ?? own(), true), again = valueOf('--again') && runOf(valueOf('--again'));
-const H = measures(here), B = measures(base);
-if (!H.length || !B.length) fail(`the gate kept nothing to measure of ${H.length ? base.tag : here.tag}`);
-const rows = compare(H, B, noiseOf([base, here], again)), report = { here: here.tag, base: base.tag, again: again?.tag ?? null, share: SHARE, when: new Date().toISOString(), rows, worse: rows.filter((r) => r.worse) };
-mkdirSync(OUT, { recursive: true });
-writeFileSync(`${OUT}ten.json`, JSON.stringify(report, null, 1) + '\n');
-console.log(ARGS.includes('--json') ? JSON.stringify(report, null, 1) : table(report));
-process.exitCode = report.worse.length ? 1 : 0;
+/** Two runs of the gate (runOf) held against each other, measure by measure: the report, and its table (text); null
+    where either kept nothing to measure. again: the base run twice, for every measure's noise. */
+export function held(here, base, again = null) {
+  const H = measures(here), B = measures(base);
+  if (!H.length || !B.length) return null;
+  const rows = compare(H, B, noiseOf([base, here], again)), report = { here: here.tag, base: base.tag, again: again?.tag ?? null, share: SHARE, when: new Date().toISOString(), rows, worse: rows.filter((r) => r.worse) };
+  return { ...report, text: table(report) };
+}
+if (import.meta.main) {
+  const base = runOf(valueOf('--base') ?? fail('--base <run>: the stored run to hold this one against (the train\'s numbers on main)'));
+  const here = runOf(valueOf('--here') ?? own(), true), again = valueOf('--again') && runOf(valueOf('--again'));
+  const { text, ...report } = held(here, base, again) ?? fail(`the gate kept nothing to measure of ${here.tag} or ${base.tag}`);
+  mkdirSync(OUT, { recursive: true });
+  writeFileSync(`${OUT}ten.json`, JSON.stringify(report, null, 1) + '\n');
+  console.log(ARGS.includes('--json') ? JSON.stringify(report, null, 1) : text);
+  process.exitCode = report.worse.length ? 1 : 0;
+}
