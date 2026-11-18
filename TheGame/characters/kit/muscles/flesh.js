@@ -141,7 +141,8 @@ function eyesOf(bones, eye) {
         // is brightest on its far side)
         const upW = vec3(0, 1, 0), L2 = normalize(V.add(upW.mul(0.62)).add(normalize(cross(upW, V)).mul(0.4))), L2l = normalize(modelWorldMatrixInverse.mul(vec4(L2, 0)).xyz);
         const far = clamp(dot(dir, normalize(L2l.xy.add(1e-6)).negate()), 0, 1), lit2 = far.mul(far).mul(smoothstep(0.3, 0.75, ri)).mul(0.7).add(1);
-        const stroma = mix(vec3(0.46, 0.3, 0.1), vec3(0.19, 0.13, 0.06), smoothstep(0.3, 0.95, ri)).mul(fibre.mul(0.55).add(0.95)).mul(lit2).mul(mix(float(1), float(0.32), smoothstep(0.8, 1.0, ri)));
+        // (blue: a pale grey-blue thinning to a darker blue at its rim, a thin tawny ring round the pupil)
+        const stroma = mix(mix(vec3(0.36, 0.5, 0.62), vec3(0.14, 0.24, 0.4), smoothstep(0.35, 0.95, ri)), vec3(0.5, 0.4, 0.26), smoothstep(0.55, 0.38, ri).mul(0.55)).mul(fibre.mul(0.55).add(0.95)).mul(lit2).mul(mix(float(1), float(0.32), smoothstep(0.8, 1.0, ri)));
         // the white: off white, veined and pinker towards the corners; the inner corner's pink flesh; the lower lid's rim
         const vein = smoothstep(0.15, 0.75, mx_noise_float(vec3(p.x.mul(700), p.y.mul(1800), 2.3))).mul(smoothstep(0.0062, 0.011, rho)).mul(0.3);
         let col = mix(vec3(...WHITE), vec3(0.6, 0.35, 0.32), vein);
@@ -210,7 +211,9 @@ function mouthOf(bones, eye) {
     [...GUM, [0, 0.88, 0.74], [0.35, 0.96, 0.88], [0.7, 1.02, 1.0], [0.93, 0.94, 0.88], [1.0, 0.58, 0.5]],
   ];
   for (const T of [...teethOf('U').slice(0, 5), ...teethOf('L').slice(0, 4)]) for (const sx of [1, -1]) {
-    const base = pos.length / 3, S = SECT[T.kind], m = (v) => [sx * v[0], v[1], v[2]], neck = m(T.neck), ax = m(T.ax), o = m(T.o), t = m(T.t);
+    const base = pos.length / 3, S = SECT[T.kind], m = (v) => [sx * v[0], v[1], v[2]], ax = m(T.ax), o = m(T.o), t = m(T.t);
+    // (no two grown teeth stand alike: each a hair further out or in, a hair longer or shorter, by its place in the row)
+    const odd = (k) => { const x = Math.sin((T.neck[0] * 9173 + T.neck[1] * 311 + sx * 1.7 + k) * 43.7) * 9999; return (x - Math.floor(x)) * 2 - 1; }, neck = m(T.neck).map((c, i) => c + o[i] * odd(1) * 0.00012 + ax[i] * odd(2) * 0.00012);
     for (const [f, wl, wt] of S) for (let j = 0; j < N; j++) {
       const a = (j / N) * 2 * Math.PI, c = Math.cos(a), sn = Math.sin(a), e = 2 / 2.6, cu = Math.sign(c) * Math.abs(c) ** e, u = cu * (T.len / 2) * wl, w = Math.sign(sn) * Math.abs(sn) ** e * (T.thick / 2) * wt;
       pos.push(neck[0] + ax[0] * T.tall * f + t[0] * u + o[0] * w, neck[1] + ax[1] * T.tall * f + t[1] * u + o[1] * w, neck[2] + ax[2] * T.tall * f + t[2] * u + o[2] * w); uv.push(cu, f);
@@ -245,7 +248,7 @@ function mouthOf(bones, eye) {
   // at a tooth's middle, drawn on the tooth's own collar)
   const teeth = new THREE.Mesh(g, lit(() => {
     const tv = attribute('tooth', 'vec2'), au = tv.x.abs(), f = tv.y, line = pow(au, 2.4).mul(0.26).sub(0.03), gum = smoothstep(line.add(0.04), line.sub(0.02), f);
-    const enamel = mix(mix(vec3(0.74, 0.69, 0.58), vec3(0.75, 0.735, 0.68), smoothstep(0.08, 0.5, f)), vec3(0.66, 0.7, 0.74), smoothstep(0.84, 1.0, f).mul(0.3)).mul(mix(float(0.5), float(1), smoothstep(1.03, 0.62, au)));
+    const enamel = mix(mix(vec3(0.7, 0.63, 0.49), vec3(0.72, 0.69, 0.6), smoothstep(0.08, 0.55, f)), vec3(0.64, 0.67, 0.68), smoothstep(0.84, 1.0, f).mul(0.3)).mul(mix(float(0.5), float(1), smoothstep(1.03, 0.62, au)));
     return mix(enamel, vec3(0.62, 0.3, 0.3), gum);
   }, 1));
   // (the dark behind them: the mouth's inside, never seen but as what is not teeth)

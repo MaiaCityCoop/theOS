@@ -27,7 +27,7 @@ import { Fn, If, Discard, attribute, varyingProperty, float, int, ivec2, vec2, v
 import { U } from '../../../src/core/uniforms.js';
 import { finish, skyLight, unlit, sunDim, cloudShade, shadowAtPulled, casterPull } from '../../../src/world/light.js';
 import { CURVE_MOST } from './maps.js';
-import { EYE, LIPS, BROW, MOUTH, OPENINGS } from './table.js';
+import { EYE, LIPS, BROW, MOUTH, OPENINGS, FOLDS } from './table.js';
 
 /** What a surface of skin mirrors head on: 2.8 %, an index of refraction of 1.4 (the figure every skin shader holds:
     Jimenez's SeparableSSS demo, Unity HDRP's diffusion profile, GPU Gems 3 ch. 14). */
@@ -47,6 +47,8 @@ export const THROUGH = 0.35;
 export const SKIN = { brow: [0.05, 0.032, 0.022], base: [0.58, 0.36, 0.26], pigment: [0.7, 0.56, 0.45], blood: [1.0, 0.72, 0.7], pale: [1.05, 1.04, 0.94], vein: [0.84, 0.9, 1.06], lip: [0.56, 0.2, 0.18], areola: [0.62, 0.45, 0.42], nail: [0.6, 0.4, 0.36] };
 /** How strongly the fine relief turns the normal. */
 const RELIEF = 0.55;
+/** How steep a fold's sides are taken to be, for the light (./table.js FOLDS). */
+const FOLD = 1.5;
 
 const vN = varyingProperty('vec3', 'vFleshN'), vB = varyingProperty('vec3', 'vFleshB');
 
@@ -121,7 +123,7 @@ export function skinMaterial({ joints, eye, maps }) {
       const lip = clamp(smoothstep(-0.002, -0.0006, above).mul(smoothstep(upperRed.add(0.0005), upperRed.sub(0.0007), above)).add(smoothstep(-0.002, -0.0006, below).mul(smoothstep(lowerRed.add(0.0012), lowerRed.sub(0.001), below))), 0, 1).mul(inMouth);
       const lipLine = smoothstep(-0.0014, 0.0002, mouth.d).mul(inMouth);   // (the lips' inner edge, where they turn in to the teeth: wet and darker)
       const bs = clamp(Q.x.sub(BROW.from[0]).div(BROW.to[0] - BROW.from[0]), 0, 1), bp = pow(bs, Math.log(0.5) / Math.log((BROW.peak[0] - BROW.from[0]) / (BROW.to[0] - BROW.from[0])));
-      const browY = mix(float(BROW.from[1]), float(BROW.to[1]), bs).add(bp.mul(bp.oneMinus()).mul(4 * (BROW.peak[1] - (BROW.from[1] + BROW.to[1]) / 2))), browHalf = mix(float(BROW.thick[0]), float(BROW.thick[1]), bs).mul(0.5).mul(smoothstep(0, 0.07, bs)).mul(smoothstep(1, 0.8, bs));
+      const browY = mix(float(BROW.from[1]), float(BROW.to[1]), bs).add(bp.mul(bp.oneMinus()).mul(4 * (BROW.peak[1] - (BROW.from[1] + BROW.to[1]) / 2))).add(P.x.sign().mul(0.0006)), browHalf = mix(float(BROW.thick[0]), float(BROW.thick[1]), bs).mul(0.5).mul(smoothstep(0, 0.07, bs)).mul(smoothstep(1, 0.8, bs));
       const browIn = smoothstep(browHalf.add(0.0008), browHalf.sub(0.0012), abs(Q.y.sub(browY))).mul(smoothstep(0.05, 0.065, Q.z)).mul(smoothstep(0, 0.02, bs)).mul(smoothstep(1, 0.98, bs));
       // (its hairs: fine, lying outwards and a little up, thinner towards its edge)
       const brow = browIn.mul(smoothstep(-0.2, 0.3, mx_noise_float(vec3(Q.x.mul(520).sub(Q.y.mul(330)), Q.y.mul(3400).add(Q.x.mul(1200)), 1.7)).mul(0.7).add(mx_noise_float(vec3(Q.x.mul(1500), Q.y.mul(5200).add(Q.x.mul(1700)), 4.1)).mul(0.4)).add(browIn.mul(0.45)).sub(0.25)));
@@ -131,9 +133,19 @@ export function skinMaterial({ joints, eye, maps }) {
       // (the upper lid's fold, a line over its edge; the lids' thin skin a little darker and redder; the face's skin finer than the body's)
       const front = smoothstep(EYE.at[2] - 0.004, EYE.at[2] + 0.004, Q.z), crease = exp(eyeAt.under.add(0.0042).div(0.0006).pow(2).negate()).mul(smoothstep(0.04, 0.3, eyeAt.t)).mul(smoothstep(0.99, 0.75, eyeAt.t)).mul(front);
       const lids = smoothstep(-0.0085, -0.001, eyeAt.d).mul(front), face = smoothstep(1.52, 1.57, P.y);
-      // (the fine lines a whole smile draws from the eye's outer corner: three, short, fanning out)
-      const oc = Q.xy.sub(vec2(EYE.at[0] + EYE.outer[0], EYE.at[1] + EYE.outer[1])), ray = (deg) => { const a = (deg * Math.PI) / 180, along = oc.x.mul(Math.cos(a)).add(oc.y.mul(Math.sin(a))), off = oc.y.mul(Math.cos(a)).sub(oc.x.mul(Math.sin(a))); return exp(off.div(0.00045).pow(2).negate()).mul(smoothstep(0.002, 0.0045, along)).mul(smoothstep(0.0125, 0.007, along)); };
-      const crow = max(max(ray(24), ray(-4)), ray(-30)).mul(smoothstep(0.045, 0.06, Q.z));
+      // (the face's fine folds, ./table.js FOLDS: each a furrow along a short run, seen from the front: how deep the
+      // point lies in one, and which way the furrow's side slopes there, for the light)
+      const foldsOn = smoothstep(0.03, 0.05, Q.z).mul(face), fold = FOLDS.reduce((acc, [ax, ay, bx, by, wd, dp]) => {
+        // (a little unsteady across its run, as a fold in skin is; shallower towards its far end)
+        const pa = Q.xy.sub(vec2(ax, ay)).add(vec2(0, mx_noise_float(vec3(Q.x.mul(260), Q.y.mul(260), ax * 900)).mul(wd * 0.7))), ba = vec2(bx - ax, by - ay), t = clamp(dot(pa, ba).div((bx - ax) ** 2 + (by - ay) ** 2), 0, 1), dv = pa.sub(ba.mul(t)), h = exp(dot(dv, dv).div(wd * wd).negate()).mul(dp).mul(t.mul(0.55).oneMinus());
+        return { h: acc.h.add(h), g: acc.g.add(dv.mul(h).div(wd)) };
+      }, { h: float(0), g: vec2(0) });
+      // (no face is its own mirror: the folds a fifth deeper on one side, a fifth shallower on the other)
+      const sided = P.x.sign().mul(0.2).add(1), crow = clamp(fold.h.mul(sided), 0, 1).mul(foldsOn), foldSlope = vec3(fold.g.x.mul(P.x.sign()), fold.g.y, 0).mul(foldsOn).mul(sided).mul(FOLD);
+      // (and its colour is uneven a thumb's breadth at a time: redder here, paler there)
+      const blotch = mx_noise_float(P.mul(48).add(vec3(3.1, 0, 7.7))).mul(0.6).add(mx_noise_float(P.mul(150)).mul(0.4)).mul(face);
+      // (its pores: small dark dots, more of them where the skin is oily, the nose, the brow, the cheeks beside it)
+      const pore = smoothstep(0.42, 0.8, mx_noise_float(P.mul(2600))).mul(face).mul(clamp(tone.z, 0, 1).mul(0.6).add(0.4));
       const lipLines = mx_noise_float(vec3(Q.x.mul(1100), Q.y.mul(140), 2.3)).mul(lip);
 
       // its fine relief: the tile read from the three sides of where the point stood at rest (so it goes with the
@@ -144,7 +156,9 @@ export function skinMaterial({ joints, eye, maps }) {
       const d0 = vec3(0, sx.y, sx.x).mul(bw.x).add(vec3(sy.x, 0, sy.y).mul(bw.y)).add(vec3(sz.x, sz.y, 0).mul(bw.z)), dT = d0.sub(sn.mul(dot(d0, sn)));
       const high = tx.z.mul(bw.x).add(ty.z.mul(bw.y)).add(tz.z.mul(bw.z));   // (1 on a field's top, 0 in a furrow's bed)
       const ax = cross(sn, n), ca = dot(sn, n), dW = dT.mul(ca).add(cross(ax, dT)).add(ax.mul(dot(ax, dT).div(max(ca.add(1), 1e-3))));
-      const nm = normalize(n.add(dW.mul(nail.oneMinus().mul(RELIEF)).mul(face.mul(0.5).oneMinus())));
+      // (the folds' slopes, turned with the skin as the relief's are)
+      const fT = foldSlope.sub(sn.mul(dot(foldSlope, sn))), fW = fT.mul(ca).add(cross(ax, fT)).add(ax.mul(dot(ax, fT).div(max(ca.add(1), 1e-3))));
+      const nm = normalize(n.add(dW.mul(nail.oneMinus().mul(RELIEF)).mul(face.mul(0.5).oneMinus())).add(fW));
 
       // its colour: the skin's own, browner where its pigment is denser, redder where its blood lies nearer, paler
       // where neither; a vein here and there; a few freckles; redder in its furrows; the lips, the areolae and the nails
@@ -157,7 +171,7 @@ export function skinMaterial({ joints, eye, maps }) {
       col = mix(mix(mix(col, vec3(...SKIN.lip), lip.mul(0.8)), col.mul(vec3(...SKIN.areola)), areola), vec3(...SKIN.nail), nail.mul(0.7));
       // the lips' inner edge, darker; the lid's edge redder; hair shaved to the skin, a cool shadow in it, its
       // dots seen close; a brow's hairs
-      col = col.mul(mix(vec3(1), vec3(0.72, 0.5, 0.5), lipLine)).mul(mix(vec3(1), vec3(1.0, 0.74, 0.72), lidEdge.mul(0.7))).mul(crease.mul(0.3).oneMinus()).mul(mix(vec3(1), vec3(0.93, 0.85, 0.84), lids.mul(0.7))).mul(lipLines.mul(0.16).oneMinus()).mul(crow.mul(0.07).oneMinus()).mul(mix(vec3(1), vec3(0.17, 0.1, 0.09), nostril));
+      col = col.mul(mix(vec3(1), vec3(0.72, 0.5, 0.5), lipLine)).mul(mix(vec3(1), vec3(1.0, 0.74, 0.72), lidEdge.mul(0.7))).mul(crease.mul(0.42).oneMinus()).mul(mix(vec3(1), vec3(0.86, 0.75, 0.73), lids.mul(0.85))).mul(lipLines.mul(0.16).oneMinus()).mul(mix(vec3(1), vec3(0.8, 0.68, 0.64), crow.mul(0.4))).mul(vec3(1).add(vec3(0.07, -0.035, -0.045).mul(blotch))).mul(mix(vec3(1), vec3(0.8, 0.66, 0.62), pore.mul(0.5))).mul(mix(vec3(1), vec3(0.17, 0.1, 0.09), nostril));
       col = mix(col, col.mul(vec3(0.5, 0.53, 0.58)), stubble.mul(mx_noise_float(P.mul(2400)).mul(0.3).add(0.7)));
       col = mix(col, vec3(...SKIN.brow), brow.mul(0.8));
 

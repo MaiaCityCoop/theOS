@@ -31,7 +31,7 @@ export const POSES = {
 /** The stills: the body from four sides, the face from three and its eye, mouth and ear close, the head from behind, the body close, and in the five poses (the address of tools/body.html each). */
 export const VIEWS = {
   front: 'yaw=0', 'three-quarter': 'yaw=35', side: 'yaw=90', back: 'yaw=180',
-  face: 'yaw=0&y=1.665&d=0.62', 'face, three-quarter': 'yaw=35&y=1.665&d=0.62', 'face, side': 'yaw=90&y=1.665&d=0.62', eye: 'yaw=12&y=1.677&x=0.032&z=0.07&d=0.2', mouth: 'yaw=15&y=1.62&z=0.08&d=0.26', ear: 'yaw=100&y=1.665&x=0.07&z=-0.02&d=0.24', 'head, from behind': 'yaw=155&y=1.665&d=0.62',
+  face: 'yaw=0&y=1.665&d=0.62', 'face, three-quarter': 'yaw=35&y=1.665&d=0.62', 'face, side': 'yaw=90&y=1.665&d=0.62', eye: 'yaw=12&y=1.677&x=0.032&z=0.07&d=0.2', mouth: 'yaw=15&y=1.62&z=0.08&d=0.26', portrait: 'yaw=-14&pitch=5&y=1.66&d=0.46&sun=25&suna=30', ear: 'yaw=100&y=1.665&x=0.07&z=-0.02&d=0.24', 'head, from behind': 'yaw=155&y=1.665&d=0.62',
   torso: 'yaw=20&y=1.25&d=1.5', 'back, close': 'yaw=200&y=1.2&d=1.6', head: 'yaw=25&y=1.66&d=0.7', hand: 'yaw=60&y=0.78&x=0.22&d=0.6', legs: 'yaw=20&y=0.5&d=1.6', foot: 'yaw=40&y=0.06&x=0.09&z=0.05&d=0.8&pitch=25',
   ...Object.fromEntries(Object.entries(POSES).map(([name, pose], i) => [name, ['yaw=40&d=4', 'yaw=10&d=4.6&y=1', 'yaw=60&d=4', 'yaw=70&d=4', 'yaw=50&d=4'][i] + '&pose=' + encodeURIComponent(JSON.stringify(pose))])),
 };

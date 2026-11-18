@@ -218,7 +218,7 @@ export function skinOf(bones, M, { h = 0.006 } = {}) {
         // blood from the cheek's full red: read by the skin's light as they came, the bowl was raw meat)
         A2.look.set([Math.max(0.3, o), 0, 0, 0], v * 4); A2.bent.set([sx * nx, ny, nz, Math.sqrt(Math.max(0, 1 - Math.max(0.3, o)))], v * 4);
         A2.feel.set([Math.max(-150, Math.min(150, cnt[i] ? kn[i] / cnt[i] : 0)), lv.thick[i], P_.head, 0], v * 4);
-        A2.tone.set([Math.min(0.35, toneOf(TONE.blood, q)) + 0.06 * noise3(q[0] * 14 + 1.3, q[1] * 14, q[2] * 14 + 5.2), toneOf(TONE.pigment, q), 0, 0], v * 4);
+        A2.tone.set([Math.min(0.5, toneOf(TONE.blood, q)) + 0.06 * noise3(q[0] * 14 + 1.3, q[1] * 14, q[2] * 14 + 5.2), toneOf(TONE.pigment, q), 0, 0], v * 4);
       }
     } });
   }
