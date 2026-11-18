@@ -10,7 +10,7 @@
 //            that mesh's normal there; the two bones that move it (of its kind's sixteen) and how much the second does.
 //            What stands on no skeleton may keep something else in those twelve bits (a leaf card: where on the card
 //            the vertex is: assets/kit/frond.js)
-//   still    (a solid that stands on no skeleton, its levels made by assets/kit/reduce.js: a rock) word 3 is
+//   still    (a solid that stands on no skeleton, its levels a cluster hierarchy, assets/kit/surface.js: a rock) word 3 is
 //            dz high (6) | coarse normal u (9) | v (9) | coarse shade (6) | 2 spare: its normal and its shade on the next
 //            coarser level as finely as that level's own, so where the one level gives way to the next they are its, bit for bit
 import { held, sn, sc, oct, OCT, unoct } from './pack.js';
