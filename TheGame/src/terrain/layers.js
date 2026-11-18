@@ -79,7 +79,17 @@ if (LAYERS.length > EMPTY) throw new Error(`the land lays ${LAYERS.length} layer
 //     it the trees' stand-in: src/world/shadow.js, assets/kit/tree.js); past that the floor is dimmed, unevenly, so a
 //     forest is not a plain in full sun with trees on it.
 export const STANDS = [];
-for (const bio of LAID) for (const { P, kinds, CV } of standsOf(bio, rowsOf())) {
+/** A stand's plants' footprint, metres: each kind's length and width at its mean scale (its placement's), each by how much
+    of the ground it covers (its cover). */
+const footprintOf = (kinds) => {
+  let sum = 0, of = 0;
+  for (const { asset: a } of kinds) {
+    const P = a.placement, cover = P.cover ?? 1, scale = P.scale ? (P.scale[0] + P.scale[1]) / 2 : 1;
+    sum += (cover * scale * (a.size.length + a.size.width)) / 2; of += cover;
+  }
+  return of > 0 ? sum / of : CROWNS;
+};
+for (const bio of LAID) for (const { key, P, kinds, CV } of standsOf(bio, rowsOf())) {
   // its colour comes in as its plants go out (they are drawn while their largest side is more than their last level's
   // pixels, sinking away over the BAND above: src/detail): from where its smallest kind begins to sink to where its
   // largest is gone (`last` = uPxK × its span: the measure's farAt, src/detail/measure.js); without such plants, always
@@ -92,7 +102,12 @@ for (const bio of LAID) for (const { P, kinds, CV } of standsOf(bio, rowsOf())) 
   const cast = kinds.map((k) => k.asset).filter((a) => detailOf(a).casts !== false), trees = cast.filter((a) => a.growth?.base);
   const crown = Math.min(...trees.map((a) => a.growth.base(a.growth.years.at(-1)))), radius = Math.min(...trees.map((a) => a.growth.reach(a.growth.years.at(-1))));
   const top = Math.max(0, ...cast.map((a) => a.measure?.most ?? a.size.height));
-  STANDS.push({ bio, P, grain: CV.grain ?? 1, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? [Math.min(...spans) / (span * BAND), 1] : [0, 0], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
+  // the pattern its plants make where they are no longer drawn, as large as they are (src/terrain/material.js: CROWNS ×
+  // grain its finest scale): a tree stand's, its crowns, at the biome's grain; any other's, its own plants' footprint, so
+  // the moss and the litter that stand for themselves far off keep their size (a bush's, 0.3 of a tree, made them two to
+  // three times as large there)
+  const grain = key === 'tree' ? (CV.grain ?? 1) : footprintOf(kinds) / CROWNS;
+  STANDS.push({ bio, P, grain, fill: CV.fill ?? 2.4, colour: CV.colour, span, fade: span ? [Math.min(...spans) / (span * BAND), 1] : [0, 0], reach: SH ? SH.far * (SH.wide ?? 2.4) : -1, crown, radius, top });
 }
 if (STANDS.length >= NO_STAND) throw new Error(`the land has ${STANDS.length} stands that wear a colour: four bits name at most ${NO_STAND - 1}`);
 /** How far round the camera the shadows of the stands that cast them are drawn at the most (-1: none casts): past it, a
@@ -178,8 +193,8 @@ export function layerWords(tex, p, texel) {
   const pr = vec2(p.x.mul(0.6).sub(p.y.mul(0.8)), p.x.mul(0.8).add(p.y.mul(0.6))), prr = vec2(p.x.mul(0.8).add(p.y.mul(0.6)), p.x.mul(-0.6).add(p.y.mul(0.8)));
   const macro = nz(prr.mul(1 / 97).add(0.37), 97).b.sub(0.5).mul(0.16).add(nz(pr.mul(1 / 700), 700).a.sub(0.5).mul(0.2)).add(nz(p.mul(1 / 4500).add(0.11), 4500).r.sub(0.5).mul(0.18));
   // ---- the stands: how thick each grows (as much of a cell as one of its plants covers), the pattern of its crowns
-  // (fill: how much of a cell one of its plants covers; grain: its plants' size to a tree's; at scales with no whole
-  // ratio: no grid of crowns) ----
+  // (fill: how much of a cell one of its plants covers; grain: its plants' size to a tree's crown, STANDS; at scales
+  // with no whole ratio: no grid of crowns) ----
   const st = [0, 1].map(() => ({ id: int(NO_STAND).toVar(), c: float(0).toVar(), n: float(0).toVar() }));
   STANDS.forEach((T, id) => {
     const wt = share.get(T.bio), g = T.grain;
