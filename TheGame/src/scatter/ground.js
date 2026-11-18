@@ -45,12 +45,13 @@ const clearOf = (pos) => CLEARINGS.reduce((k, p) => k.mul(smoothstep(p.clear - 0
 export function createGround(renderer, tex) {
   const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false };
   // as many levels as reach as far as the maps must (each twice the one before's); a level's pass one, two outputs
-  // (MRT): the ground (height, grass, its height, stones) and the grass's colour (and its dryness). Two sets of them: the
-  // one read, and the one before it while what is read passes from it to the new one
+  // (MRT): the ground (height, grass, its height, stones) and the grass's colour (and its dryness), the levels side by
+  // side in one target (what reads them binds two textures a set, whatever the levels: a stage binds 16 at most). Two
+  // sets of them: the one read, and the one before it while what is read passes from it to the new one
   const LV = Math.max(1, Math.ceil(Math.log2(reachOf() / REACH) - 1e-9) + 1);
-  const rts = [0, 1].map(() => Array.from({ length: LV }, () => new THREE.RenderTarget(N, N, { ...opts, type: THREE.HalfFloatType, count: 2 })));
+  const rts = [0, 1].map(() => new THREE.RenderTarget(N * LV, N, { ...opts, type: THREE.HalfFloatType, count: 2 }));
   note(`the ground round the camera (${LV} levels of two maps, twice)`, 2 * LV * 2 * N * N * 8, 0);
-  for (const set of rts) for (const rt of set) { rt.textures[0].name = 'ground'; rt.textures[1].name = 'tint'; }
+  for (const rt of rts) { rt.textures[0].name = 'ground'; rt.textures[1].name = 'tint'; rt.scissorTest = true; }
   const R = [0, 1].map(() => Array.from({ length: LV }, drawnWith));
   let cur = 0, fadeAt = -1;   // (fadeAt: frames into the fade; -1: none)
   // the texel's centre, in metres; three's node reads turn a target's rows the other way up, so the writer turns them too
@@ -72,7 +73,8 @@ export function createGround(renderer, tex) {
     return mat;
   };
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), build()), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); quad.frustumCulled = false;
-  const read = (t, pos, M) => texture(t, pos.sub(M.o).div(M.texel).add(0.5).div(N)).level(0);
+  // (level l's texel at pos: its place in its own window, within half a texel of its edge, l windows along)
+  const read = (t, pos, M, l) => { const u = clamp(pos.sub(M.o).div(M.texel).add(0.5).div(N), 0.5 / N, 1 - 0.5 / N); return texture(t, vec2(u.x.add(l).div(LV), u.y)).level(0); };
   // (a set's maps at pos: the finest level whose window holds it, going over into the next over the window's outer
   // eighth, the last holding all it has; f: a level's value from its texel and what it was drawn with)
   const levels = (set, i, pos, f) => {
@@ -81,7 +83,7 @@ export function createGround(renderer, tex) {
       const M = R[set][l], u = pos.sub(M.o).div(M.texel).sub(N / 2 - 0.5), e = max(abs(u.x), abs(u.y)).div(N / 2 - 1);
       If(left.greaterThan(0).and(e.lessThan(1)), () => {
         const k = l < LV - 1 ? left.mul(float(1).sub(clamp(e.sub(7 / 8).mul(8), 0, 1))) : left;
-        out.addAssign(f(read(rts[set][l].textures[i], pos, M), M).mul(k)); left.subAssign(k);
+        out.addAssign(f(read(rts[set].textures[i], pos, M, l), M).mul(k)); left.subAssign(k);
       });
     }
     return out;
@@ -95,7 +97,7 @@ export function createGround(renderer, tex) {
   const h2f = (h) => { const e = (h >> 10) & 31, f = h & 1023, sg = h & 32768 ? -1 : 1; return e === 0 ? sg * f * 2 ** -24 : e === 31 ? NaN : sg * (1 + f / 1024) * 2 ** (e - 15); };
   const readBack = (o, texel, base) => {
     if (reading) return; reading = true;
-    renderer.readRenderTargetPixelsAsync(rts[cur][0], 0, 0, N, N, 0).then((px) => { cpu = { x: o.x, z: o.y, texel, base, px }; reads++; }).catch(() => {}).finally(() => (reading = false));
+    renderer.readRenderTargetPixelsAsync(rts[cur], 0, 0, N, N, 0).then((px) => { cpu = { x: o.x, z: o.y, texel, base, px }; reads++; }).catch(() => {}).finally(() => (reading = false));
   };
   // (still out, for the world complete: src/core/settle.js): what reads the map passing from the one before to the new,
   // and the map being read back for the CPU
@@ -120,7 +122,7 @@ export function createGround(renderer, tex) {
     /** Drawn again at the next update (the land under it changed: the lakes, src/world/lakes.js). */
     refresh() { lastS = 0; },
     /** Its pass compiled for its own two maps, before it is first drawn, in turn (src/core/compile.js; a promise). */
-    compile() { return compileFor(renderer, rts[0][0], quad, cam); },
+    compile() { return compileFor(renderer, rts[0], quad, cam); },
     /** s: the lens factor; a level drawn again when the camera has walked 32 of its texels, or risen or sunk by a quarter
         of its height, or the lens's step changed (stepOf); none at all too high up for anything to read it */
     update(cx, cz, dy, s = 1) {
@@ -144,8 +146,9 @@ export function createGround(renderer, tex) {
         lastDy[l] = dy;
         G.o.value.set(ox, oz); G.texel.value = TEXEL; G.base.value = Math.round(heightCPU(ox + (N * TEXEL) / 2, oz + (N * TEXEL) / 2));
         M.o.value.copy(G.o.value); M.texel.value = TEXEL; M.base.value = G.base.value;
-        const before = renderer.getRenderTarget();
-        renderer.setRenderTarget(rts[cur][l]); renderer.render(quad, cam); renderer.setRenderTarget(before); this.version++;   // what reads the maps knows they are new
+        const before = renderer.getRenderTarget(), ac = renderer.autoClear, rt = rts[cur];
+        rt.viewport.set(l * N, 0, N, N); rt.scissor.set(l * N, 0, N, N); renderer.autoClear = false;   // (its own window only: the others kept)
+        renderer.setRenderTarget(rt); renderer.render(quad, cam); renderer.setRenderTarget(before); renderer.autoClear = ac; this.version++;   // what reads the maps knows they are new
         if (l === 0 && dy < 30) readBack(M.o.value.clone(), TEXEL, G.base.value);   // only a walker near the ground needs the CPU's copy (the rocks' bodies): level 0's
       }
     },
