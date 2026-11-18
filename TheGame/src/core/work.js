@@ -1,4 +1,4 @@
-// What a frame did besides drawing, said by whoever did it (did), for the hitch log (src/main.js): a frame that took
+// What a frame did besides drawing, said by whoever did it (did), for the hitch log (src/boot.js): a frame that took
 // too long is written down with what was done in it (meshes put on the GPU, kilobytes sent, a plot folded), so what
 // makes the picture stop can be read from a person's own browser. Numbers by name, summed over the frame.
 let WORK = {};
