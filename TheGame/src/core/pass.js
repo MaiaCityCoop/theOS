@@ -19,7 +19,7 @@ import * as THREE from 'three/webgpu';
 import { context, float, vec2, vec4, varyingProperty, screenCoordinate, Discard } from 'three/tsl';
 import { U } from './uniforms.js';
 
-const PRE = context({ pass: 'pre', invariant: true }), MAIN = context({ pass: 'main', invariant: true });
+const PRE = context({ pass: 'pre', invariant: true }), MAIN = context({ pass: 'main', invariant: true }), SHADOW = context({ pass: 'shadow' }), SOLID = vec4(0);
 
 /** The pass a material is being built for ('pre', 'main'; undefined: none), from what node code is handed. */
 export const passOf = (builder) => builder?.context?.pass;
@@ -41,13 +41,16 @@ export const motion = (was, thin = 0) => {
 };
 
 const twins = new WeakMap();
-/** A material's twins for the passes: { pre (null where it takes no part in the prepass), main }. */
+/** A material's twins for the passes: { pre (null where it takes no part in the prepass), main, shadow (what it casts into
+    a shadow map or the canopy map: its depth and its cut-out) }. */
 export function twinOf(m) {
   let t = twins.get(m);
   if (!t) {
     const of = (ctx, depth) => Object.assign(m.clone(), { contextNode: ctx }, depth);
     const pre = m.userData?.pre === true;
-    t = { pre: pre ? of(PRE) : null, main: of(MAIN, pre ? { depthFunc: THREE.EqualDepth, depthWrite: false } : {}) };
+    // (the shadow twin: a material whose node code says what it cuts in the shadow pass (userData.shadow) keeps it; any
+    // other casts whole, drawing nothing of its own: so none binds the atlas it is drawn into)
+    t = { pre: pre ? of(PRE) : null, main: of(MAIN, pre ? { depthFunc: THREE.EqualDepth, depthWrite: false } : {}), shadow: of(SHADOW, m.userData?.shadow ? {} : { fragmentNode: SOLID }) };
     twins.set(m, t);
   }
   return t;

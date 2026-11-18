@@ -12,7 +12,7 @@ import { Fn, If, float, uint, vec2, vec3, vec4, uniform, attribute, positionWorl
 import { U } from '../core/uniforms.js';
 import { rnd, camDist, riverInfo, heightAt, outcropMask, grassTint, dryAt } from '../world/land.nodes.js';
 import { offWays } from '../world/ways.js';
-import { finish, skyLight, weathered, snowLift, cloudAt } from '../world/light.js';
+import { lit, weathered, snowLift } from '../world/light.js';
 import { byRole } from '../core/registry.js';
 import { scatterRow } from '../../assets/index.js';
 import { farMost } from '../detail/measure.js';
@@ -148,9 +148,7 @@ function rockShade(tex, row, s, eye = U.uCam) {
   const moss = smoothstep(0.45, 0.8, N0.y.mul(0.75).add(a.a.sub(0.5).mul(0.7)).add(mt.a.sub(0.5).mul(0.5))).mul(float(1).sub(s.arid.mul(0.85))).mul(Math.min(moss0, 1));
   const c1 = mix(a.rgb.mul(a.rgb).mul(tintR), s.tint.mul(0.75).mul(mt.a.add(0.5)), moss.mul(0.9 * Math.min(moss0 * 1.5, 1)));
   const c2 = weathered(c1.mul(s.dark), n, snowLift(s.world, row.snow.clumps));   // as its kind holds snow (assets/kinds.js)
-  const V = normalize(eye.sub(s.world));
-  const col = c2.mul(skyLight(n).add(U.uSun.mul(cloudAt(s.world)).mul(max(n.dot(U.uSunDir), 0)))).add(U.uSun.mul(pow(max(n.dot(normalize(V.add(U.uSunDir))), 0), 30)).mul(0.06).mul(float(1).sub(moss)));
-  return finish(col, s.world, eye);
+  return lit({ colour: c2, n, w: s.world, eye, gloss: float(1).sub(moss).mul(0.06), sharp: 30 });
 }
 const GEOS = new Map();
 // shape v of an asset as it is, a plain geometry (in its own frame: its foot at 0, its largest side 1); from its seed, so
