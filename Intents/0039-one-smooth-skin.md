@@ -363,6 +363,10 @@ shows (9); a body that walks by its feet and its balance, breathes, looks and bl
   shown. The first widening of the shoulders went into the armpit for that reason and did nothing. The neck is still
   43 cm round (39) and a soft fold runs from the jaw's angle. It does not pass the gate: see the sixteen points.
 
+- **Asked (evening):** "Ok eyes and face is the worst at the moment the body is okay for now".
+- **Delivered (evening):** nothing more here: the face and the eyes are intent 0040's. This intent stays proposed;
+  his word on the body is "okay for now", not yet an acceptance.
+
 ## Trail
 
 | When | Commit | What |
