@@ -12,9 +12,6 @@ import { VIEWS as BENCH } from '../bench.js';
 import RIG from '../../camera/rig.js';
 
 const SKY = { hour: 11, wind: 0, clouds: 0 };
-/** The screen a light check is drawn at (tools/shadowcheck.mjs --size; tools/cascades.js's stand-in screen): width x
-    height at scale 1, within what the MacBook's GPU may be asked for a functional check (1920 x 1080 at the most). */
-export const CHECK_SIZE = '1280x720';
 export const TENT = [-1262.6, 631], PINES = [-1383.6, 634.1];   // the bell tent; the pine stand, where the bench stands in it
 export const FIRE = [-1263.3, 624.4], BOULDER = [-1335.42, 550.17];   // the fire pit before the tent; a boulder of 3.3 m on an outcrop south-west of it (src/world/rocksolid.js)
 const TO_TENT = BENCH[0].yaw, INTO_PINES = BENCH[4].yaw;   // the headings the bench looks at them by: the tent from the meadow, the stand from the tent's side

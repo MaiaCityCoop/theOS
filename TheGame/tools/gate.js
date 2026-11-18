@@ -21,8 +21,7 @@
 //                                                                noise measured from two runs; --ratchet: main's nightly,
 //                                                                each ceiling lowered to what is measured, never raised; where
 //                                                                it went, pass by pass and by part (geometry, light,
-//                                                                ground, upscale and post: bench.js CLASSES), and what
-//                                                                each adds to the span (the light's each on its own)
+//                                                                ground, upscale and post: bench.js CLASSES)
 //   bun tools/gate.js compile [--page library.html]              the WGSL compiled from the start until the world has
 //                                                                settled: bytes, modules, the largest ten (check 6)
 //   bun tools/gate.js paths [--paths a,b]                        the paths (tools/gate/views.js) on a cold profile and a
@@ -318,10 +317,9 @@ async function noise(chrome, tag, opt) {
 /** tools/bench.js's bench(), one view at a time, each once the world has settled there. bench() draws the world as the
     game does: inside at `ratio`, laid on the canvas by the upscale pass (the whole frame's GPU time), and says
     where it went: every pass of the frame on the GPU's own clock, under the name of the part that drew it (the packing,
-    the clouds, the light's cascades, canopy, probes and contact shadows, the culling, the prepass,
-    the land's pages, the colour, the upscale, …), the frame's parts each added up (bench.js CLASSES: geometry, light,
-    ground, upscale and post; what none of them names, other), what each adds to the span, and the colour pass's share
-    of the shadows (the same frames with its shadow reads off). */
+    the clouds, the shadow map, the culling, the prepass, the land's pages, the colour, the upscale, …), the frame's parts
+    each added up (bench.js CLASSES: geometry, light, ground, upscale and post; what none of them names, other), and the
+    colour pass's share of the shadows (the same frames with its shadow reads off). */
 async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
   const { page, errors, url, close } = await open(chrome, { query: 'gputime' }), out = { ratio: +ratio, views: {}, span: {}, passes: {}, classes: {}, shading: {} };
   try {
@@ -348,20 +346,11 @@ async function bench(chrome, { ratio = INSIDE, frames = 60 } = {}) {
     const W = 13, head = (i) => V.map((v) => (v.split(', ')[i] ?? '').padStart(W)).join('');   // (a view's name in two lines: its place, its height)
     const cell = (p) => (!p ? '–' : p.every > 1.5 ? `${p.mean.toFixed(2)}(${p.drawn.toFixed(1)})` : p.mean.toFixed(2)).padStart(W);
     const names = [...new Set(V.flatMap((v) => Object.keys(out.passes[v])))], at = (k) => { const i = (CLASSES[classOf(k)] ?? []).indexOf(k); return i < 0 ? 99 : i; };
-    const passesOf = (c) => names.filter((n) => classOf(n) === c).sort((a, b) => at(a) - at(b));   // (a part's passes, in the frame's order)
     console.log(`\n  ${'ms a frame, part and pass'.padEnd(28)}${head(0)}`);
     console.log(`  ${'(in brackets: when drawn)'.padEnd(28)}${head(1)}`);
     for (const c of [...Object.keys(CLASSES), 'other']) {
       console.log(`  ${c.padEnd(28)}${V.map((v) => f(out.classes[v]?.[c], 2, W)).join('')}`);
-      for (const k of passesOf(c)) console.log(`    ${k.padEnd(26)}${V.map((v) => cell(out.passes[v][k])).join('')}`);
-    }
-    // (and what each adds to the span, ms a frame, the same rows: passes overlap on a tile GPU, so their own times add
-    // up to more than the frame; these add up to its span)
-    console.log(`\n  ${'what each adds to the span'.padEnd(28)}${head(0)}`);
-    console.log(`  ${'(these add up to the span)'.padEnd(28)}${head(1)}`);
-    for (const c of [...Object.keys(CLASSES), 'other']) {
-      console.log(`  ${c.padEnd(28)}${V.map((v) => f(passesOf(c).reduce((s, k) => s + (out.passes[v][k]?.adds ?? 0), 0), 2, W)).join('')}`);
-      for (const k of passesOf(c)) console.log(`    ${k.padEnd(26)}${V.map((v) => f(out.passes[v][k]?.adds, 2, W)).join('')}`);
+      for (const k of names.filter((n) => classOf(n) === c).sort((a, b) => at(a) - at(b))) console.log(`    ${k.padEnd(26)}${V.map((v) => cell(out.passes[v][k])).join('')}`);
     }
     console.log(`\n  the colour pass with its shadow reads, and without (ms)`);
     for (const [v, S] of Object.entries(out.shading)) if (S) console.log(`  ${v.padEnd(28)}${f(S.colour)}${f(S.colourWithout)}  (${f(S.colour - S.colourWithout, 2, 6)} ms the shadows' share)`);
