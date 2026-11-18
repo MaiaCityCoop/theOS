@@ -546,6 +546,32 @@
   .cxdoc .md blockquote{margin:12px 0;padding:4px 0 4px 14px;border-left:2px solid var(--sun);color:var(--cream)}
   .cxdoc .md a{color:var(--sun)}
   .cxshade{position:fixed;inset:0;z-index:8;background:rgba(5,10,20,.5);opacity:0;pointer-events:none;transition:opacity .25s}.cxshade.on{opacity:1;pointer-events:auto}
+  /* the village ladder: its own page, read from the game sheet */
+  #ladder.on{display:block;height:100vh;overflow-y:auto;color:var(--cream);padding-top:var(--safe-t,0)}
+  .lx{max-width:1280px}
+  .lx .lede p{margin:0 0 .6em}.lx .lede strong{color:var(--cream);font-weight:600}
+  .lx .phases{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 28px}
+  @media (max-width:860px){.lx .phases{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .lx .ph{padding:14px 16px 16px;border-radius:16px;background:#18243c;border-top:3px solid var(--c)}
+  .lx .ph small{display:block;font:500 9.5px/1.6 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:rgba(251,246,234,.5)}
+  .lx .ph b{display:block;font:440 21px/1.15 var(--serif);font-variation-settings:var(--soft);color:var(--c);margin:2px 0 6px}
+  .lx .ph span{display:block;font:400 13px/1.45 var(--sans);color:rgba(251,246,234,.75)}
+  .lx .ph em{display:block;font:440 24px/1 var(--serif);font-style:normal;margin:10px 0 4px}
+  .lx .ph u{display:block;text-decoration:none;font:400 12px/1.4 var(--sans);color:rgba(251,246,234,.5)}
+  .lx .food{--c:#8fc46f}.lx .energy{--c:#f2b544}.lx .compute{--c:#7fb3ff}.lx .factories{--c:#e8875f}
+  .lx .tablewrap{overflow-x:auto;border-radius:18px;background:#18243c}
+  .lx table.lad{border-collapse:collapse;width:100%;min-width:980px;font:400 13px/1.45 var(--sans)}
+  .lx .lad th{position:sticky;top:0;background:#1d2b46;text-align:left;font:500 9.5px/1.4 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:rgba(251,246,234,.55);padding:12px 12px}
+  .lx .lad td{padding:11px 12px;border-top:1px solid rgba(251,246,234,.07);vertical-align:top;color:rgba(251,246,234,.85)}
+  .lx .lad tr td:first-child{border-left:3px solid var(--c)}
+  .lx .lad td.n b{display:block;font:440 22px/1 var(--serif);color:var(--cream)}.lx .lad td.n small{display:block;margin-top:4px;font:500 9.5px/1.4 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--c)}
+  .lx .lad td.add{max-width:380px}.lx .lad td.eur{white-space:nowrap;font-variant-numeric:tabular-nums}
+  .lx .lad .lbar{display:block;width:92px;height:5px;border-radius:3px;background:rgba(251,246,234,.1);margin:6px 0 5px;overflow:hidden}.lx .lad .lbar i{display:block;height:100%;border-radius:3px}
+  .lx .lad .lbar.food i{background:#8fc46f}.lx .lad .lbar.energy i{background:#f2b544}.lx .lad .lbar.sum i{background:rgba(251,246,234,.6)}
+  .lx .lad .pc{font-size:12px;white-space:nowrap}
+  .lx .lad tr:has(+ tr:not(.food)).food td,.lx .lad tr.energy td,.lx .lad tr.compute td,.lx .lad tr.factories td{background:rgba(251,246,234,.02)}
+  .lx .note,.lx .notes{max-width:52em;margin-top:22px;font:400 14px/1.6 var(--sans);color:rgba(251,246,234,.75)}.lx .notes ul{padding-left:18px}.lx .note strong,.lx .notes strong{color:var(--cream)}
+  .cx .chips button.go{background:var(--sun);color:#0f1d2c;font-weight:600}
   /* the shelf's way to the compass */
   #shelfview .tocompass{margin-left:14px;align-self:center;border:0;border-radius:999px;padding:8px 14px;background:var(--sun);color:#0f1d2c;font:600 12.5px/1 var(--sans);cursor:pointer;white-space:nowrap}
   /* a story's arc, the studio's first page: the whole story's tension on top, then its sections side by side, each in its
@@ -905,6 +931,7 @@
 <main id="stories"><section id="shelfview" class="wrap"><header class="calhead"><h2>Stories</h2><p>One a day. Open one to edit its film.</p><button class="tocompass" id="tocompass">The Compass →</button></header><div class="shelf" id="shelf"></div><header class="calhead sub"><h2>Scenes</h2><p>Timelines that stand alone. A story is composed of them.</p></header><div class="shelf" id="sceneshelf"></div></section><section id="ideasview" class="wrap"><header class="calhead"><h2>Ideas</h2><p id="ideasnote"></p></header><div id="ideas"></div></section><section id="storyedit"></section></main>
 <button class="sheetx" data-close aria-label="Close"><svg viewBox="0 0 16 16"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
 <main id="compass"><div class="cx" id="cx"></div><div class="cxshade" id="cxshade"></div><aside class="cxdoc" id="cxdoc"></aside></main>
+<main id="ladder"><div class="cx lx" id="lx"></div></main>
 <main id="game"><div id="gamebar"></div><iframe id="frame" allow="fullscreen; pointer-lock" title="The Game"></iframe></main>
 <script type="module" src="/src/main.js"></script>
 </body>

@@ -273,6 +273,20 @@ Asked outright and without surprises, so built straight away.
 - **Broke / not there yet:** the percentages and investor budgets are design values to tune and source; the
   dashboard's join page still shows the older village levels.
 
+### 2026-11-18 (6)
+
+- **Asked:** the power containers are also Maia's server farm; then rethought: compute only from 610 to 987 in one
+  server farm in the village centre tower, the geothermal plant at 610; four phases (1–377 food, 378–610 energy,
+  611–987 compute exported, 988–1,597 startup factory coops); every dome its own tech box; energy never exported out
+  of the city; a full table with each level's estimated investment. "Can you make one standalone view of this table
+  in our Compass UI?"
+- **Delivered:** the village ladder in `the-game.md` (the four phases, sixteen levels, € this level and in total,
+  funding, food and energy imports); a page of its own, `#ladder`, reached from the Compass's Play section: the four
+  phases as cards, the ladder as a table with bars, the notes, all read from the sheet.
+- **Good:** `story check .` passes; the page renders (screenshots).
+- **Broke / not there yet:** the € figures are rough estimates to be quoted; a global `.bar` class drew grey boxes on
+  the first try, renamed.
+
 ## Trail
 
 | When | Commit | What |

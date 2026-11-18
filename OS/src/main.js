@@ -25,14 +25,15 @@ const filmOf = (id, scene = !!current?.scene && current.id === id) => withFlags(
 // ---- tabs: showing one stops the framed games of the others ----
 function tab(name) {
   document.body.classList.toggle('sheet', name === 'intents');   // the intents open as a sheet over the dashboard
-  document.body.classList.toggle('studio', name === 'stories' || name === 'compass');   // the stories, their shelf and their editor: dark, TheOS blue
+  document.body.classList.toggle('studio', name === 'stories' || name === 'compass' || name === 'ladder');   // the stories, their shelf and their editor: dark, TheOS blue
   document.body.classList.toggle('admin', name !== 'home' && name !== 'legal' && name !== 'join');   // inside: the bottom pill; the front page has none
   if (location.hash.slice(1) !== (name === 'home' ? '' : name)) history.replaceState(null, '', name === 'home' ? location.pathname + location.search : '#' + name);   // (its flags kept)
   document.querySelectorAll('main').forEach((m) => m.classList.toggle('on', m.id === name));
   if (name === 'intents') { $('city').classList.add('on'); city(); }   // the dashboard stays under the sheet
   if (name === 'stories') $('stories').classList.toggle('editing', !!current);
   if (name === 'stories' && !current) ideas();   // the ideas as they stand now
-  if (name === 'compass') compass();   // the compass as they stand now (both change only by their tools)
+  if (name === 'compass') compass();   // the compass
+  if (name === 'ladder') ladder();   // the village ladder, from the game sheet as they stand now (both change only by their tools)
   document.body.classList.toggle('play', name === 'game');   // the game takes the whole window
   if (name !== 'home') $('heroframe').removeAttribute('src');
   if (name === 'game') { if (!$('frame').getAttribute('src')) $('frame').src = withFlags(GAME + VIEWS[gameView][1]); } else $('frame').removeAttribute('src');
@@ -293,7 +294,7 @@ async function compass() {
         <h3>The money</h3>${marked.parse(sec(game.body, 'The money'))}
         <h3>The essential fixed tree</h3>${marked.parse(sec(game.body, 'The essential fixed tree \\(MVP\\)'))}
       </div>
-      <div class="chips" style="margin-top:14px"><button data-k="system/the-game">Read the whole reference sheet</button></div>
+      <div class="chips" style="margin-top:14px"><button class="go" data-go="ladder">The village ladder →</button><button data-k="system/the-game">Read the whole reference sheet</button></div>
     </section>` : ''}`;
 
   const doc = $('cxdoc'), shade = $('cxshade');
@@ -309,6 +310,49 @@ async function compass() {
   box.querySelectorAll('[data-k]').forEach((c) => (c.onclick = () => open(c.dataset.k)));
   box.querySelectorAll('.map a').forEach((a) => (a.onclick = (e) => { e.preventDefault(); box.querySelector(a.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth' }); }));
   box.querySelector('[data-go=stories]').onclick = () => tab('stories');
+  box.querySelector('[data-go=ladder]')?.addEventListener('click', () => tab('ladder'));
+}
+
+// ---- the village ladder: the game sheet's ladder (Compass/worldbuilding/systems/the-game.md, "The village ladder")
+// on a page of its own. Read from the sheet as it stands; the page only shows it ----
+const rows = (md) => md.split('\n').filter((l) => l.trim().startsWith('|') && !/^\|\s*-/.test(l.trim().replace(/\s/g, '').replace(/:/g, '')) && !/^\|[\s\-:|]+\|$/.test(l.trim()))
+  .map((l) => l.trim().slice(1, -1).split('|').map((c) => c.trim()));
+const PHASE = { 1: 'food', 2: 'energy', 3: 'compute', 4: 'factories' };
+const euro = (t) => { const m = String(t).match(/([\d.]+)\s*([kM])/); return m ? +m[1] * (m[2] === 'M' ? 1e6 : 1e3) : 0; };
+async function ladder() {
+  const box = $('lx'); if (!box) return;
+  const b = await get('/api/compass').then((r) => r.json()).catch(() => null);
+  const game = b?.systems.find((x) => x.id === 'the-game');
+  const part = game ? (game.body.split('### The village ladder')[1] || '').split('\n### ')[0] : '';
+  if (!part) { box.innerHTML = '<p class="lede">No ladder in the game sheet yet.</p>'; return; }
+  const [intro, ...rest] = part.trim().split('\n\n');
+  const tables = part.split(/\n\n(?=\|)/).slice(1).map((t) => rows(t.split('\n\n')[0]));
+  const phases = (tables[0] || []).slice(1), steps = (tables[1] || []).slice(1);
+  const notes = part.split('\n').filter((l) => l.startsWith('- ')).join('\n');
+  const paras = rest.filter((x) => !x.startsWith('|') && !x.startsWith('- ')).slice(0, 2);
+  const top = Math.max(...steps.map((r) => euro(r[4])), 1);
+  const pct = (t) => { const v = parseInt(t, 10); return isNaN(v) ? 0 : v; };
+  const bar = (t, cls) => `<span class="lbar ${cls}"><i style="width:${pct(t)}%"></i></span><span class="pc">${esc(t)}</span>`;
+  const ph = (t) => PHASE[String(t).trim()[0]] || '';
+  box.innerHTML = `
+    <div class="top"><button class="btn" data-go="compass">← The Compass</button><span>From the game sheet · ${steps.length} levels</span></div>
+    <h1>The village ladder</h1>
+    <div class="lede md">${marked.parse(intro)}</div>
+    <div class="phases">${phases.map((r, i) => `<div class="ph ${PHASE[i + 1]}"><small>${esc(r[1])} villagers</small><b>${esc(r[0])}</b><span>${esc(r[2])}</span><em>${esc(r[3])}</em><u>${esc(r[4])}</u></div>`).join('')}</div>
+    <div class="tablewrap"><table class="lad">
+      <thead><tr><th>Villagers</th><th>Added at this level</th><th>€ this level</th><th>€ in total</th><th>Funded by</th><th>Food import</th><th>Energy import</th></tr></thead>
+      <tbody>${steps.map((r) => `<tr class="${ph(r[1])}">
+        <td class="n"><b>${esc(r[0])}</b><small>${esc(r[1])}</small></td>
+        <td class="add">${esc(r[2])}</td>
+        <td class="eur">${esc(r[3])}</td>
+        <td class="eur"><span class="lbar sum"><i style="width:${Math.max(2, Math.sqrt(euro(r[4]) / top) * 100)}%"></i></span><span class="pc">${esc(r[4])}</span></td>
+        <td>${esc(r[5])}</td>
+        <td>${bar(r[6], 'food')}</td>
+        <td>${bar(r[7], 'energy')}</td></tr>`).join('')}</tbody>
+    </table></div>
+    ${paras.map((p) => `<div class="md note">${marked.parse(p)}</div>`).join('')}
+    <div class="md notes">${marked.parse(notes)}</div>`;
+  box.querySelector('[data-go=compass]').onclick = () => tab('compass');
 }
 
 async function story(s, show = true) {
@@ -564,4 +608,4 @@ function city() {
 board(); home();
 shelf();
 if ($('tocompass')) $('tocompass').onclick = () => tab('compass');
-game('walk', false); tab(['city', 'intents', 'stories', 'compass', 'game', 'join'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');
+game('walk', false); tab(['city', 'intents', 'stories', 'compass', 'ladder', 'game', 'join'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');
