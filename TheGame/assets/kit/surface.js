@@ -12,7 +12,7 @@
 // Its corners: where the vertex's first element lies, among the level's elements. At level 0 that is all a corner says
 // of a level drawn by the cut (it draws cluster by cluster: it knows which); at every other the cluster's number is in
 // its top 16 bits (a level of fewer than 65536 elements).
-import { surfaceBand } from '../../src/detail/error.js';
+import { surfaceBand, SURFACE_LEVELS } from '../../src/detail/error.js';
 
 export const HEAD = 1, REC = 3;
 /** How many levels were cut down to their room (packLevel), since the start: a kind that needs more than its drawer
@@ -24,6 +24,19 @@ let BUILD = null;
 export const useBuilder = (b) => { BUILD = b; };
 /** The hierarchy of mesh M (clusters.js build). */
 export const hierarchyOf = (M) => { if (!BUILD) throw new Error('surface: hierarchies are built in the recipes\' workers (useBuilder)'); return BUILD(M); };
+
+/** What each level of hierarchy D holds as packLevel lays it, whole: [its triangles, its vertices, its clusters], a
+    level (tools/rooms.js measures every solid's so, rooms.json: what the heap makes room for). */
+export const levelSizes = (D) => Array.from({ length: SURFACE_LEVELS }, (_, l) => {
+  const [lo, hi] = surfaceBand(l); let t = 0, v = 0, n = 0;
+  for (const c of D.clusters) if (c.self.err <= hi && c.parent.err > lo) { t += c.n; v += c.verts.length; n++; }
+  return [t, v, n];
+});
+/** A level's room as a drawer takes it, from levelSizes' [triangles, vertices, clusters] and `per` (the elements a
+    vertex is): { tris, verts (its elements over per: its head, its clusters' numbers, its vertices), clusters }. Past
+    level 0 a corner names its element in 16 bits (packLevel), so no level there holds more: one that would is cut down
+    to it (`trimmed`). */
+export const roomFrom = ([t, v, n], per, l) => ({ tris: Math.max(1, t), verts: Math.ceil(Math.min(HEAD + n * REC + v * per, l ? 65535 : Infinity) / per), clusters: n });
 
 /** Level l of hierarchy D (clusters.js build's): { index, verts, count, box, clusters } for the heap. write(out, at, c,
     j, Dm): vertex j of cluster c packed into out from number `at` on, its way to its parent within ±Dm. room: { tris,
