@@ -21,6 +21,7 @@ export const U = {
   uView: uniform(new THREE.Matrix4()), uViewK: uniform(new THREE.Vector3(1, 0, 1.414)),   // the eye's view, for what is dropped outside it before it is drawn (src/scatter/index.js: select)
   uAirH: uniform(0), uAirScale: uniform(1200),     // the height fog: the camera's height above the ground, the air's thinning
   uLandR0: uniform(48), uReliefFirst: uniform(-1), uReliefReach: uniform(24),   // the land's finest level's reach, lens metres; the relief's first level and its reach (src/terrain/terrain.js: from the measure)
+  uMeadowEnd: uniform(0),                          // where the meadow's blades end, lens metres (src/scatter/grass.js: where they are gone; 0: no meadow)
   uLandEnd: uniform(24000),                        // how far the land is drawn, metres from the eye (src/terrain/terrain.js): the air hides it by then
   uExposure: uniform(1),                           // the picture's exposure (the sky sets it by the hour)
   uSnow: uniform(0),                               // how deep the snow lies, metres (src/world/weather/snow.js)

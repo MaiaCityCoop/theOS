@@ -13,6 +13,7 @@ import { OCT_LAM } from '../world/land.js';
 import { layerOf, standOf, standFade, shadowReach, CARPET, SLOPES, NO_STAND, SHADE_REACH, CROWNS } from './layers.js';
 import { finish, skyLight, weathered, shadowAt, sunDim, cloudShade, snowCover, snowDrift, snowDepth, SNOW } from '../world/light.js';
 import { passOf, motion } from '../core/pass.js';
+import { endOf } from '../scatter/grass.js';
 
 export const GRID = 16, NODE = 8;   // quads per node side; a level-0 node's side, metres (its reach is the measure's: U.uLandR0, src/terrain/terrain.js)
 /** How many times as far every level of the land reaches but the last (whose reach is where the land ends): 1, and under
@@ -87,11 +88,13 @@ export function laid(tex, p, s, D, X) {
     M.c.assign(mix(M.c, B.c, k)); M.h.assign(mix(M.h, B.h, k)); M.n.assign(mix(M.n, B.n, k)); M.g.assign(M.g.mul(float(1).sub(k)));
   };
   // the grass as a carpet, at three sizes: blades near, tufts further, drifts of them from high up (each read only where
-  // it shows: the blades' within 110 m, the drifts' past 300); its cover the map's: near, the bare patches cut it until
-  // they are let go (100 to 160 m), far its tufts are let go (350 to 900 m); where the blades end, nothing shows
-  const carpet = BASE.grass.carpet;
-  const cover = D.lessThan(160).select(mix(X.cv.x, X.cv.y, smoothstep(100, 160, D)), mix(X.cv.y, X.cv.z, smoothstep(350, 900, D)));
-  const cv = cover.mul(smoothstep(4, 60, D).mul(0.18).add(0.82)).toVar();
+  // it shows: the blades' within 110 m, the drifts' past 300); its cover the map's: where the meadow's blades stand,
+  // the bare patches cut it as they cut the blades, and the floor shows between them; as the blades thin out towards
+  // the meadow's end the carpet takes their place, all of it (their own share: src/scatter/grass.js endOf, one
+  // statistic either side, so where the blades end nothing shows); far its tufts are let go (350 to 900 m)
+  const carpet = BASE.grass.carpet, blades = endOf(D);
+  const cover = mix(mix(X.cv.y, X.cv.x, blades), X.cv.z, smoothstep(350, 900, D));
+  const cv = cover.mul(mix(1, 0.82, blades)).toVar();
   const pr = rot(p), prr = rotB(p);
   const gk = smoothstep(25, 110, D), gk2 = smoothstep(300, 1400, D), grows = cv.greaterThan(0.002);
   const ga2 = float(0.5).toVar(), gn2 = vec2(0.5).toVar(), g1a = float(0).toVar(), gn1 = vec2(0).toVar(), g3a = float(0).toVar();
@@ -199,8 +202,9 @@ export function terrainMaterial(vt, from = null) {
     const rdist = length(vWorld.sub(U.uCam)), dist2 = rdist.mul(U.uLodInv);   // the true distance (for the air), and the lens's (for detail)
     const d = abs(vI.x), w = vI.y;
     const G = vt.read(p, dx, dy, rdist, { eye: normalize(U.uCam.sub(vWorld)), level: from ? smooth(vWorld) : null });   // (along the eye's ray through the ground's relief: parallax)
-    // near, the carpet lies in the shade of its blades, drawn over it: the nearer, the darker (the pixel's own distance)
-    const c = G.c.mul(mix(1, mix(0.5, 1, smoothstep(3, 70, dist2)), G.cv)).toVar(), cv = G.cv, h = G.h;
+    // where the meadow's blades stand, the carpet lies in their shade, drawn over it; as they thin out towards its end
+    // it comes out of it (their own share at the pixel's distance: src/scatter/grass.js endOf)
+    const blades = endOf(dist2), c = G.c.mul(mix(1, 0.5, G.cv.mul(blades))).toVar(), cv = G.cv, h = G.h;
     // past where the shadow map reaches round the camera, a stand's floor lies in its crowns' shade
     const shade = SHADE_REACH > 0 ? G.shade.mul(smoothstep(shadowReach(SHADE_REACH).mul(0.8), shadowReach(SHADE_REACH), length(p.sub(U.uCam.xz)))) : float(0);
 
@@ -211,8 +215,9 @@ export function terrainMaterial(vt, from = null) {
     // snow: as deep as uSnow, deeper in drifts and thinner on the rises between; what stands out of the ground (a pebble's
     // top, the grass's carpet) shows through until it is covered; none on the water. Under it the ground's own relief goes.
     const drift = float(0.5).toVar(); If(snowDepth.greaterThan(0.001), () => { drift.assign(snowDrift(p)); });   // only while snow lies
-    // (near, the blades stand on their own: the ground under them is the snow's)
-    const lift = h.mul(float(0.025).add(cv.mul(smoothstep(20, 90, dist2).mul(0.14))));
+    // (where the blades stand, they stand out of it on their own: the ground under them is the snow's; past them the
+    // carpet stands for them)
+    const lift = h.mul(float(0.025).add(cv.mul(float(1).sub(blades)).mul(0.14)));
     const snow = snowCover(vN, lift).mul(smoothstep(w, w.add(1.5), d)).mul(float(1).sub(roofAt(p)));   // none under a roof
     const rn = G.n.mul(float(1).sub(snow.mul(0.85)));
     const n = normalize(vN.add(vec3(rn.x, 0, rn.y)));
